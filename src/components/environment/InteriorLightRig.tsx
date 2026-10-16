@@ -36,7 +36,13 @@ import { useGraphicsStore, type GraphicsQuality } from '../../stores/graphicsSto
 
 /** Ceiling fixture grid, harvested from `OptimizedFactoryInfrastructure`. */
 export const FIXTURE_GRID_X = [-28, -14, 0, 14, 28] as const;
-export const FIXTURE_GRID_Z = [-30, -8, 38] as const;
+/** The milling row sits over the machines, in front of the people tending them.
+ * At the old z38 it lit their backs. The actual housings, lenses and floor pools
+ * consume this same grid, so the move keeps physical fittings and light aligned.
+ * Working if all three ordinary duty stations receive front-side light without
+ * adding a source, lowering a fitting or changing the existing power/cutoff.
+ */
+export const FIXTURE_GRID_Z = [-30, -8, SITE_LAYOUT.factory.zones.milling] as const;
 
 /** Height the four zone lights hang at, below the shared ceiling emitter plane. */
 export const ZONE_LIGHT_HEIGHT = SITE_LAYOUT.factory.bounds.maxY - 4.5;
@@ -84,13 +90,12 @@ const POOL_TEXTURE_HEIGHT = 32;
 const POOL_LENGTHWISE_FALLOFF = 0.62;
 
 /**
- * Four lights across two ceiling banks. The front bank clears the pneumatic
- * risers instead of placing a point source against the middle sifter's inlet.
+ * Four lights across two ceiling banks. The milling bank stays ten metres
+ * clear of the high pneumatic risers and lights the real operator workfaces.
  * Working if every zone is lit and no live process pipe receives a hotspot.
  */
-export const ZONE_LIGHT_POSITIONS: readonly (readonly [number, number, number])[] = [
-  -8, 38,
-].flatMap((z) => [-14, 14].map((x) => [x, ZONE_LIGHT_HEIGHT, z] as const));
+export const ZONE_LIGHT_POSITIONS: readonly (readonly [number, number, number])[] =
+  FIXTURE_GRID_Z.slice(1).flatMap((z) => [-14, 14].map((x) => [x, ZONE_LIGHT_HEIGHT, z] as const));
 
 /**
  * The two lights `low` and `medium` keep, one at each bank's centre.
@@ -136,9 +141,8 @@ export const ZONE_LIGHT_POSITIONS: readonly (readonly [number, number, number])[
  * four. The fifteen floor pools are untouched on every tier, and they are what
  * carries the graphic read of the fixture grid.
  */
-export const REDUCED_ZONE_LIGHT_POSITIONS: readonly (readonly [number, number, number])[] = [
-  -8, 38,
-].map((z) => [0, ZONE_LIGHT_HEIGHT, z] as const);
+export const REDUCED_ZONE_LIGHT_POSITIONS: readonly (readonly [number, number, number])[] =
+  FIXTURE_GRID_Z.slice(1).map((z) => [0, ZONE_LIGHT_HEIGHT, z] as const);
 
 /** Zone lights for a quality tier. Full set above `medium`, reduced at or below. */
 export function zoneLightPositions(
