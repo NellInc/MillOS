@@ -3,6 +3,10 @@ import * as THREE from 'three';
 import { createHash } from 'node:crypto';
 import {
   addVillageFlower,
+  addAllotmentCabbage,
+  addAllotmentLeafCrop,
+  addAllotmentBeanLeaves,
+  addAllotmentClimber,
   addVillageClay,
   addVillageFoliage,
   VILLAGE_HOME_PLOTS,
@@ -412,7 +416,7 @@ it('softens foliage normals and leaf-age tones while retaining exact civic-baked
   }
 });
 
-it('retains the measured pre-finish positions and UVs for every civic-baked plot', () => {
+it('retains verified home and updated allotment positions and UVs for the civic bake', () => {
   const expected = [
     [
       '604178057aa960d09ac3d99235742abae3e7f37841f77fef3ce7b7d07bf27759',
@@ -475,8 +479,8 @@ it('retains the measured pre-finish positions and UVs for every civic-baked plot
       'c686f6d3c5e336699244c247c9fdeeeafd1e3e912567a275424229246df61d93',
     ],
     [
-      '78f31121990a871fd53d029f92a758864a5499afb6711232eb745a1a896e30d4',
-      '67fc67fb9f3c0fb5e0f13c8d6a60daf29cefd731d9549e49696cbe5748f85c96',
+      '0029ad5595c87ed4fe829f51d130ac6152acd35d2db55a412b16839ccfb4dd54',
+      '1bcb18e5d097ae63b7d5d1dd0f949a07c812165436f9a0c18e1aed182aa60745',
     ],
   ];
   const actual = [
@@ -538,4 +542,133 @@ it('gives clay only deterministic kiln tones, retaining exact cylinder geometry 
   addVillageClay(other, original.clone(), '#b97859', 2.3);
   expect(other.parts[0].getAttribute('color').array).not.toEqual(colour.array);
   for (const geometry of [original, ...b.parts, ...c.parts, ...other.parts]) geometry.dispose();
+});
+
+it('gives allotment crops closed cupped leaves, actual roots and distinct low-cost silhouettes', () => {
+  const crops = [
+    [addAllotmentCabbage, 32, 0.28, 0.63],
+    [addAllotmentLeafCrop, 24, 0.22, 0.69],
+    [addAllotmentBeanLeaves, 24, 0.23, 0.31],
+  ] as const;
+  for (const [add, triangles, radius, height] of crops) {
+    const plot = new PlotGeometry();
+    add(plot, [0, 0.2, 0], 0.41);
+    for (const leaf of plot.parts.filter((part) => part.index)) {
+      const p = leaf.attributes.position;
+      const corners = p.count / 2 - 1;
+      expect(leaf.index!.count / 3).toBe(corners * 2);
+      // The two skins meet at all boundary points and enclose a real midrib.
+      for (let i = 0; i < corners; i++)
+        for (let axis = 0; axis < 3; axis++)
+          expect(p.getComponent(i, axis)).toBe(p.getComponent(i + corners + 1, axis));
+      expect(
+        new THREE.Vector3()
+          .fromBufferAttribute(p, corners)
+          .distanceTo(new THREE.Vector3().fromBufferAttribute(p, corners * 2 + 1))
+      ).toBeCloseTo(0.0024, 6);
+      const edges = new Map<string, number>();
+      const key = (i: number) =>
+        [p.getX(i), p.getY(i), p.getZ(i)].map((v) => v.toFixed(7)).join(',');
+      for (let i = 0; i < leaf.index!.count; i += 3)
+        for (const [a, b] of [
+          [0, 1],
+          [1, 2],
+          [2, 0],
+        ]) {
+          const edge = [key(leaf.index!.getX(i + a)), key(leaf.index!.getX(i + b))]
+            .sort()
+            .join('/');
+          edges.set(edge, (edges.get(edge) ?? 0) + 1);
+        }
+      expect([...edges.values()].every((n) => n === 2)).toBe(true);
+    }
+    if (add === addAllotmentCabbage) {
+      const heart = plot.parts[2];
+      expect(heart.attributes.position.count / 3).toBe(20);
+      heart.computeBoundingBox();
+      expect(heart.boundingBox!.min.y).toBeLessThan(0.26);
+      expect(heart.boundingBox!.max.y).toBeLessThan(0.51);
+    }
+    const g = plot.finish(),
+      p = g.attributes.position;
+    expect(p.count / 3).toBe(triangles);
+    expect(g.boundingBox!.min.y).toBeCloseTo(0.2, 6);
+    expect(g.boundingBox!.max.y).toBeLessThanOrEqual(height);
+    for (let i = 0; i < p.count; i++) expect(Math.hypot(p.getX(i), p.getZ(i))).toBeLessThan(radius);
+    for (const attr of Object.values(g.attributes))
+      expect([...attr.array].every(Number.isFinite)).toBe(true);
+    for (let i = 0; i < p.count; i++)
+      expect(
+        Math.hypot(
+          g.attributes.normal.getX(i),
+          g.attributes.normal.getY(i),
+          g.attributes.normal.getZ(i)
+        )
+      ).toBeCloseTo(1, 5);
+    g.dispose();
+  }
+});
+
+it('varies allotment crops deterministically without spending more village geometry or moving access', () => {
+  const signatures = (seed: number) =>
+    [addAllotmentCabbage, addAllotmentLeafCrop, addAllotmentBeanLeaves].map((add) => {
+      const plot = new PlotGeometry();
+      add(plot, [0, 0.2, 0], seed);
+      const geometry = plot.finish();
+      const signature = createHash('sha256')
+        .update(Buffer.from(geometry.attributes.position.array.buffer))
+        .update(Buffer.from(geometry.attributes.color.array.buffer))
+        .digest('hex');
+      geometry.dispose();
+      return signature;
+    });
+  expect(signatures(0.41)).toEqual(signatures(0.41));
+  expect(signatures(1.7).every((x, i) => x !== signatures(0.41)[i])).toBe(true);
+  const triangles = [
+    ...VILLAGE_HOMES.flatMap((h) => [h.body, h.glass, h.garden]),
+    VILLAGE_ALLOTMENT_GEOMETRY,
+  ].reduce((n, g) => n + g.attributes.position.count / 3, 0);
+  expect(triangles).toBeLessThanOrEqual(39994);
+});
+
+it('attaches every runner-bean node and both end caps to its actual climbing stem', () => {
+  const plot = new PlotGeometry();
+  addAllotmentClimber(plot, 3.1);
+  expect(plot.parts).toHaveLength(19);
+  const stem = plot.parts[0].attributes.position;
+  const centres = Array.from({ length: 6 }, (_, row) => {
+    const centre = new THREE.Vector3();
+    for (let corner = 0; corner < 3; corner++)
+      centre.add(new THREE.Vector3().fromBufferAttribute(stem, row * 4 + corner));
+    return centre.multiplyScalar(1 / 3);
+  });
+  expect(centres[0].y).toBeCloseTo(0, 6);
+  expect(centres[5].y).toBeCloseTo(1.65, 6);
+  let maximumGap = 0;
+  for (let i = 3; i < 18; i += 3) {
+    const root = new THREE.Vector3().fromBufferAttribute(plot.parts[i].attributes.position, 0);
+    const span = (i - 3) / 3;
+    const closest = new THREE.Line3(centres[span], centres[span + 1]).closestPointToPoint(
+      root,
+      true,
+      new THREE.Vector3()
+    );
+    maximumGap = Math.max(maximumGap, closest.distanceTo(root));
+  }
+  expect(maximumGap).toBeLessThan(0.000001);
+  for (const end of [0, 1])
+    for (let corner = 0; corner < 3; corner++)
+      for (let axis = 0; axis < 3; axis++)
+        expect(plot.parts[1 + end].attributes.position.getComponent(corner + 1, axis)).toBe(
+          stem.getComponent(end * 5 * 4 + corner, axis)
+        );
+  const string = plot.parts[18];
+  string.computeBoundingBox();
+  expect(string.boundingBox!.min.y).toBeCloseTo(0, 6);
+  expect(string.boundingBox!.max.y).toBeCloseTo(1.85, 6);
+  for (const centre of centres)
+    expect(Math.hypot(centre.x - 3.1, centre.z + 4.3)).toBeLessThan(0.01);
+  const g = plot.finish();
+  expect(g.attributes.position.count / 3).toBe(168);
+  g.dispose();
 });

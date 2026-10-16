@@ -691,7 +691,7 @@
     },
     {
       "name": "static-merge:authored-village:0:13",
-      "vertices": 130476,
+      "vertices": 130320,
       "instances": 1
     },
     {
@@ -709,12 +709,12 @@
     "alphaOrMoving": 42
   },
   "dynamicLocalShadows": false,
-  "inputSha256": "cb3e1cd12ce8d441c3582995ae26a45dbdf8220b952231728c18d9753a6ce392",
-  "atlasSha256": "55c34a972028fbf2de4c428c57e48a93fcf7e04f375ba595b7d3efc2e504b137",
+  "inputSha256": "04d1165f3d4ffd01aa9efd3eaed25629631a079a483ffff3a2cf9ac6a10df86b",
+  "atlasSha256": "1ef4a785881d55158f89c5dba824ab5db36aacfd137b6d7a99af1821dd52494e",
   "bakerSha256": "e4a1187f642e15650def16479000b54b52c562a1e7af3e1894d40db3aabe7973",
-  "vertices": 420710,
-  "triangles": 180416,
-  "elapsedSeconds": 56.86,
+  "vertices": 420554,
+  "triangles": 180364,
+  "elapsedSeconds": 13.71,
   "sourceReceipts": [
     {
       "id": "hall-west",
@@ -738,22 +738,22 @@
     },
     {
       "id": "post-fountain",
-      "blockedRays": 75559,
+      "blockedRays": 75555,
       "rays": 98304
     },
     {
       "id": "post-garden",
-      "blockedRays": 55124,
+      "blockedRays": 55091,
       "rays": 98304
     },
     {
       "id": "post-right",
-      "blockedRays": 56975,
+      "blockedRays": 56826,
       "rays": 98304
     },
     {
       "id": "shed-wall",
-      "blockedRays": 62704,
+      "blockedRays": 61084,
       "rays": 98304
     },
     {
@@ -793,22 +793,22 @@
     },
     {
       "id": "gate-inner",
-      "blockedRays": 39297,
+      "blockedRays": 38659,
       "rays": 98304
     },
     {
       "id": "gate-outer",
-      "blockedRays": 39638,
+      "blockedRays": 38989,
       "rays": 98304
     },
     {
       "id": "shed-bed-west",
-      "blockedRays": 41598,
+      "blockedRays": 40497,
       "rays": 98304
     },
     {
       "id": "shed-bed-east",
-      "blockedRays": 34718,
+      "blockedRays": 34280,
       "rays": 98304
     },
     {
@@ -823,7 +823,7 @@
     },
     {
       "id": "verge-near",
-      "blockedRays": 24236,
+      "blockedRays": 24153,
       "rays": 98304
     },
     {

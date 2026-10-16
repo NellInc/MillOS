@@ -707,6 +707,212 @@ function garden(index: number) {
   return b.finish();
 }
 
+/** A thin, closed leaf lens: three/four boundary corners and two separated
+ * midribs, six/eight triangles. Working if both faces shade naturally without
+ * alpha sorting, while the original 40k plot budget remains unchanged.
+ */
+function allotmentLeaf(
+  b: PlotGeometry,
+  at: Point,
+  angle: number,
+  length: number,
+  width: number,
+  rise: number,
+  cup: number,
+  colour: string,
+  paleStem = false,
+  triangular = false
+) {
+  const d = new THREE.Vector3(Math.sin(angle), 0, Math.cos(angle));
+  const across = new THREE.Vector3(d.z, 0, -d.x);
+  const root = new THREE.Vector3(...at);
+  const middle = root.clone().addScaledVector(d, length * 0.43);
+  middle.y += rise * 0.68;
+  const left = middle.clone().addScaledVector(across, -width);
+  const right = middle.clone().addScaledVector(across, width);
+  left.y += cup;
+  right.y += cup;
+  const tip = root.clone().addScaledVector(d, length);
+  tip.y += rise;
+  if (triangular) {
+    left.addScaledVector(d, length * 0.45);
+    right.addScaledVector(d, length * 0.45);
+  }
+  const boundary = triangular ? [root, left, right] : [root, left, tip, right];
+  const corners = boundary.length;
+  const normal = new THREE.Triangle(boundary[0], boundary[1], boundary[2]).getNormal(
+    new THREE.Vector3()
+  );
+  const positions: number[] = [],
+    uv: number[] = [],
+    indices: number[] = [];
+  for (const face of [1, -1]) {
+    const start = positions.length / 3;
+    for (const point of boundary) positions.push(...point.toArray());
+    positions.push(
+      ...middle
+        .clone()
+        .addScaledVector(normal, face * 0.0012)
+        .toArray()
+    );
+    uv.push(
+      ...(triangular
+        ? [0.5, 0, 0, 0.88, 1, 0.88, 0.5, 0.43]
+        : [0.5, 0, 0, 0.43, 0.5, 1, 1, 0.43, 0.5, 0.43])
+    );
+    for (let i = 0; i < corners; i++) {
+      const a = start + i,
+        c = start + ((i + 1) % corners),
+        centre = start + corners;
+      indices.push(centre, face === 1 ? a : c, face === 1 ? c : a);
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  b.add(geometry, colour);
+  const colours = geometry.getAttribute('color');
+  const base = new THREE.Color(colour),
+    pale = new THREE.Color('#bbc6a5'),
+    shade = base.clone();
+  for (let i = 0; i < colours.count; i++) {
+    const node = i % (corners + 1);
+    const age = node === 0 ? 0 : node === 2 ? 1 : 0.43;
+    shade.copy(paleStem ? pale : base).lerp(base, paleStem ? Math.min(1, age * 2.7) : 0);
+    if (node === corners) shade.lerp(pale, 0.22);
+    shade.multiplyScalar(i <= corners ? 1 : 0.87);
+    colours.setXYZ(i, shade.r, shade.g, shade.b);
+  }
+}
+
+/** Two cupped leaves nest a rounded heart at a lower 32-triangle cost/head.
+ * Working if the soil contact stays fixed and neighbouring leaf shapes differ.
+ */
+export function addAllotmentCabbage(b: PlotGeometry, at: Point, seed: number) {
+  for (let leaf = 0; leaf < 2; leaf++) {
+    const phase = seed + leaf * Math.PI;
+    allotmentLeaf(
+      b,
+      at,
+      phase,
+      0.25 + Math.sin(phase) * 0.018,
+      0.145 + Math.cos(phase * 1.7) * 0.012,
+      0.14 + Math.sin(phase * 2.1) * 0.02,
+      0.035,
+      leaf === 1 ? '#688b61' : '#79946b',
+      false,
+      true
+    );
+  }
+  const heart = new THREE.IcosahedronGeometry(1, 0);
+  heart.setAttribute('normal', heart.getAttribute('position').clone());
+  heart
+    .scale(0.16, 0.135, 0.16)
+    .rotateY(seed)
+    .translate(at[0], at[1] + 0.16, at[2]);
+  b.add(heart, '#a7b88b');
+  const colours = heart.getAttribute('color'),
+    p = heart.getAttribute('position');
+  const base = new THREE.Color('#a7b88b'),
+    shade = base.clone();
+  for (let i = 0; i < p.count; i++) {
+    shade.copy(base).multiplyScalar(0.88 + (p.getY(i) - at[1]) * 0.32);
+    colours.setXYZ(i, shade.r, shade.g, shade.b);
+  }
+}
+
+/** Three folded strap leaves replace the old two box rods at the same 24 triangles.
+ * Working if pale roots meet the retained crown and blue-green tips arch out.
+ */
+export function addAllotmentLeafCrop(b: PlotGeometry, at: Point, seed: number) {
+  for (let leaf = 0; leaf < 3; leaf++) {
+    const phase = seed + leaf * 2.39996;
+    allotmentLeaf(
+      b,
+      at,
+      phase,
+      0.16 + Math.sin(phase) * 0.025,
+      0.035 + Math.cos(phase * 2) * 0.004,
+      0.43 + Math.sin(phase * 1.3) * 0.025,
+      0.008,
+      leaf === 1 ? '#526f62' : '#668878',
+      true
+    );
+  }
+}
+
+/** An airy three-leaflet cluster, 24 triangles, on the existing runner-bean node.
+ * The shared vine stays within its original bamboo trellis, no new draw/clock.
+ */
+export function addAllotmentBeanLeaves(b: PlotGeometry, at: Point, seed: number) {
+  for (let leaf = 0; leaf < 3; leaf++)
+    allotmentLeaf(
+      b,
+      at,
+      seed + leaf * 2.0944,
+      leaf === 0 ? 0.2 : 0.17,
+      0.075,
+      0.075 + leaf * 0.012,
+      0.012,
+      leaf === 1 ? '#729361' : '#5d8056'
+    );
+}
+export function addAllotmentClimber(b: PlotGeometry, x: number) {
+  const points = Array.from({ length: 6 }, (_, i) => {
+    const phase = i * 2.3 + x;
+    return new THREE.Vector3(x + Math.sin(phase) * 0.009, i * 0.33, -4.3 + Math.cos(phase) * 0.009);
+  });
+  const curve = new THREE.CatmullRomCurve3(points);
+  const vine = new THREE.TubeGeometry(curve, 5, 0.012, 3, false);
+  b.add(vine, '#7f9161');
+  for (const end of [0, 1]) {
+    const direction = curve.getTangent(end).multiplyScalar(end ? 1 : -1);
+    const centre = curve.getPoint(end),
+      positions = centre.toArray();
+    const normals = direction.toArray(),
+      uv = [0.5, 0.5];
+    for (let corner = 0; corner < 3; corner++) {
+      const point = new THREE.Vector3().fromBufferAttribute(
+        vine.attributes.position,
+        end * 5 * 4 + corner
+      );
+      positions.push(...point.toArray());
+      normals.push(...direction.toArray());
+      uv.push(
+        0.5 + Math.cos((corner * Math.PI * 2) / 3) * 0.5,
+        0.5 + Math.sin((corner * Math.PI * 2) / 3) * 0.5
+      );
+    }
+    const a = new THREE.Vector3().fromArray(positions, 3),
+      c = new THREE.Vector3().fromArray(positions, 6);
+    const outward =
+      new THREE.Triangle(centre, a, c).getNormal(new THREE.Vector3()).dot(direction) > 0;
+    const cap = new THREE.BufferGeometry();
+    cap.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    cap.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+    cap.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    cap.setIndex(outward ? [0, 1, 2, 0, 2, 3, 0, 3, 1] : [0, 2, 1, 0, 3, 2, 0, 1, 3]);
+    b.add(cap, '#7f9161');
+  }
+  // Attach to the rendered straight tube spans, not the smoother mathematical
+  // curve between them. Working if every node remains inside its actual stem.
+  const centres = Array.from({ length: 6 }, (_, row) => {
+    const centre = new THREE.Vector3();
+    for (let corner = 0; corner < 3; corner++)
+      centre.add(
+        new THREE.Vector3().fromBufferAttribute(vine.attributes.position, row * 4 + corner)
+      );
+    return centre.multiplyScalar(1 / 3);
+  });
+  for (let i = 0; i < 5; i++) {
+    const node = centres[i].clone().lerp(centres[i + 1], 0.69);
+    addAllotmentBeanLeaves(b, node.toArray(), x * 2.1 + i * 2.4);
+  }
+  b.beam([x, 0, -4.3], [x, 1.85, -4.3], 0.008, '#c6b68d');
+}
+
 function allotment() {
   const b = new PlotGeometry();
   for (const side of [-1, 1]) {
@@ -735,17 +941,10 @@ function allotment() {
         for (let col = 0; col < 4; col++) {
           const px = x - 1.05 + col * 0.69,
             pz = z - 1.02 + row * 0.68;
-          if (x < 0) {
-            addVillageFoliage(
-              b,
-              [px, 0.42, pz],
-              [0.28, 0.22, 0.28],
-              (row + col) % 2 ? '#6a8b54' : '#849b63'
-            );
-            addVillageFoliage(b, [px, 0.49, pz], [0.16, 0.15, 0.17], '#a2ad75');
-          } else {
-            for (const side of [-1, 1])
-              b.beam([px, 0.22, pz], [px + side * 0.17, 0.69, pz + 0.12], 0.058, '#5c8247');
+          const seed = px * 7.13 + pz * 3.71;
+          if (x < 0) addAllotmentCabbage(b, [px, 0.2, pz], seed);
+          else {
+            addAllotmentLeafCrop(b, [px, 0.22, pz], seed);
             b.round([px, 0.23, pz], [0.12, 0.055, 0.12], z > 0 ? '#ab633f' : '#9f7653');
           }
         }
@@ -768,8 +967,7 @@ function allotment() {
   for (const x of [1.8, 3.1, 4.4]) {
     for (const side of [-1, 1])
       b.beam([x, 0, -4.3 + side * 0.6], [x, 1.85, -4.3], 0.055, '#a08a61');
-    for (let i = 0; i < 5; i++)
-      addVillageFoliage(b, [x + 0.08, 0.4 + i * 0.29, -4.3], [0.23, 0.2, 0.17], LEAF);
+    addAllotmentClimber(b, x);
   }
   b.box([2.95, 0.06, 0.06], [3.1, 1.85, -4.3], WOOD);
   b.box([1.8, 0.38, 0.9], [2.9, 0.19, -2.45], WOOD);
