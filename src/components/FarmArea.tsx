@@ -18,6 +18,7 @@ import {
   creaturePerchLook,
   creaturePoseBlend,
   creatureTravelDistance,
+  QUADRUPED_WALK,
 } from '../simulation/creatureMotion';
 import { CreatureBody, type CreatureRigHandle } from './models/RiggedCreatureModel';
 import {
@@ -1498,21 +1499,15 @@ const Pig: React.FC<{
  * `public/models/README.md`, and this turn puts the primitive in the same frame
  * so the fallback and the real asset are interchangeable.
  */
-/** Wander speed (0.5 m/s) over a ~0.9 m stride, in radians per second. */
-const COW_STRIDE_RATE = 3.5;
+/** Walking pace and cycle fitted to each species' actual visible limb length. */
+const COW_STRIDE_RATE = (Math.PI * 2 * QUADRUPED_WALK.cow.speed) / QUADRUPED_WALK.cow.cycle;
 /**
  * Chicken leg swing. A bird's real cadence at 1.5 m/s is roughly 38 rad/s,
  * which aliases into nonsense against the 15 Hz throttle this driver runs on;
  * 12 rad/s keeps about eight samples per stride and reads as a walk.
  */
 const CHICKEN_STRIDE_RATE = 12;
-/**
- * Pig leg swing. Same derivation as the cow's - `2 * PI * speed / stride` - at
- * the 0.8 m/s wander speed this driver uses and a roughly 0.5 m stride for an
- * animal a third of a cow's length. At the 15 Hz throttle that is nine samples
- * per cycle, above the cow's and below the chicken's.
- */
-const PIG_STRIDE_RATE = 10;
+const PIG_STRIDE_RATE = (Math.PI * 2 * QUADRUPED_WALK.pig.speed) / QUADRUPED_WALK.pig.cycle;
 
 const CowPrimitiveBody: React.FC<{
   headRef: React.RefObject<THREE.Group | null>;
@@ -2561,7 +2556,8 @@ export const FarmArea: React.FC = () => {
     speed: number,
     strideRate: number,
     bounds: { minX: number; maxX: number; minZ: number; maxZ: number },
-    yOffset: number = 0
+    yOffset: number = 0,
+    strideSpaceScale: number = 1
   ) => {
     if (!ref) return;
     state.moving = false;
@@ -2603,7 +2599,11 @@ export const FarmArea: React.FC = () => {
         const distance = creatureTravelDistance(dist, turn - turned, delta, speed);
         currentPos.add(direction.multiplyScalar(distance));
         state.moving = distance > 0.00001;
-        state.stridePhase = advanceCreatureStride(state.stridePhase, distance, strideRate / speed);
+        state.stridePhase = advanceCreatureStride(
+          state.stridePhase,
+          distance / strideSpaceScale,
+          strideRate / speed
+        );
       }
     }
   };
@@ -2664,9 +2664,17 @@ export const FarmArea: React.FC = () => {
           ref.current,
           pigStates.current[i],
           adjustDelta,
-          0.8, // Speed
+          QUADRUPED_WALK.pig.speed,
           PIG_STRIDE_RATE,
-          PIG_WANDER_BOUNDS
+          PIG_WANDER_BOUNDS,
+          0,
+          ref.current?.scale.x ?? 1
+        );
+        // Feet consume the same 30 Hz travel as the root, while forage retains
+        // its existing slower clock. There is no second animation timer.
+        pigRigRefs[i].current?.setStride(
+          pigStates.current[i].stridePhase + pigOffsets[i],
+          pigStride.current[i]
         );
       });
 
@@ -2676,9 +2684,15 @@ export const FarmArea: React.FC = () => {
           ref.current,
           cowStates.current[i],
           adjustDelta,
-          0.5, // Speed
+          QUADRUPED_WALK.cow.speed,
           COW_STRIDE_RATE,
-          COW_WANDER_BOUNDS
+          COW_WANDER_BOUNDS,
+          0,
+          ref.current?.scale.x ?? 1
+        );
+        cowRigRefs[i].current?.setStride(
+          cowStates.current[i].stridePhase + cowOffsets[i],
+          cowStride.current[i]
         );
       });
     }
@@ -2796,7 +2810,6 @@ export const FarmArea: React.FC = () => {
         blend(0.15)
       );
       rig.setGraze(pigRoot.current[i]);
-      rig.setStride(pigStates.current[i].stridePhase + pigOffsets[i], pigStride.current[i]);
     });
 
     // Fixed-place grazers take independently timed head-up rests between bouts.
@@ -2840,9 +2853,6 @@ export const FarmArea: React.FC = () => {
       const rig = cowRigRefs[i].current;
       if (rig) {
         rig.setGraze(cowGraze.current[i]);
-        // Ground travel owns phase, so weather/night slowing also slows the feet.
-        // External jumps/reset positions never enter this integrated distance.
-        rig.setStride(cowStates.current[i].stridePhase + cowOffsets[i], cowStride.current[i]);
       } else if (ref.current) {
         // Nose down is a negative rotation about the primitive's local Z, its
         // pitch axis. The previous `rotation.x` write rolled the head sideways

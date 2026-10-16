@@ -543,38 +543,62 @@ it('keeps actual farm tuft cards and storm sway clear of the swept yard and trou
   }
 });
 
-let horseAsset: Promise<THREE.Group> | undefined;
-function actualHorse() {
-  return (horseAsset ??= (async () => {
-    const io = new NodeIO()
-      .registerExtensions(ALL_EXTENSIONS)
-      .registerDependencies({ 'draco3d.decoder': await draco3d.createDecoderModule() });
-    const document = await io.read('public/models/farm/horse.glb');
-    // Keep the real geometry/skin; jsdom need not decode the borrowed coat image.
-    for (const m of document.getRoot().listMaterials())
-      m.setBaseColorTexture(null)
-        .setNormalTexture(null)
-        .setMetallicRoughnessTexture(null)
-        .setOcclusionTexture(null)
-        .setEmissiveTexture(null);
-    for (const extension of document.getRoot().listExtensionsUsed()) extension.dispose();
-    const bytes = await io.writeBinary(document);
-    return (await new GLTFLoader().parseAsync(bytes.buffer as ArrayBuffer, '')).scene;
-  })());
+const creatureAssets = new Map<string, Promise<THREE.Group>>();
+function actualCreature(species: string) {
+  if (!creatureAssets.has(species))
+    creatureAssets.set(
+      species,
+      (async () => {
+        const io = new NodeIO()
+          .registerExtensions(ALL_EXTENSIONS)
+          .registerDependencies({ 'draco3d.decoder': await draco3d.createDecoderModule() });
+        const document = await io.read(`public/models/farm/${species}.glb`);
+        // Keep the real geometry/skin; jsdom need not decode the borrowed coat image.
+        for (const m of document.getRoot().listMaterials())
+          m.setBaseColorTexture(null)
+            .setNormalTexture(null)
+            .setMetallicRoughnessTexture(null)
+            .setOcclusionTexture(null)
+            .setEmissiveTexture(null);
+        for (const extension of document.getRoot().listExtensionsUsed()) extension.dispose();
+        const bytes = await io.writeBinary(document);
+        return (await new GLTFLoader().parseAsync(bytes.buffer as ArrayBuffer, '')).scene;
+      })()
+    );
+  return creatureAssets.get(species)!;
 }
+const actualHorse = () => actualCreature('horse');
 function attributeValues(attribute: THREE.BufferAttribute | THREE.InterleavedBufferAttribute) {
   return Array.from({ length: attribute.count * attribute.itemSize }, (_, i) =>
     attribute.getComponent(Math.floor(i / attribute.itemSize), i % attribute.itemSize)
   );
 }
-function horsePoints(model: THREE.Object3D) {
+function creaturePoints(model: THREE.Object3D, body: string) {
   model.updateWorldMatrix(true, false);
   model.updateMatrixWorld(true);
-  const mesh = model.getObjectByName('HorseBody') as THREE.SkinnedMesh;
+  const mesh = model.getObjectByName(body) as THREE.SkinnedMesh;
   mesh.skeleton.update();
   const toModel = new THREE.Matrix4().copy(model.matrixWorld).invert().multiply(mesh.matrixWorld);
   return Array.from({ length: mesh.geometry.attributes.position.count }, (_, i) =>
     mesh.getVertexPosition(i, new THREE.Vector3()).applyMatrix4(toModel)
+  );
+}
+const horsePoints = (model: THREE.Object3D) => creaturePoints(model, 'HorseBody');
+
+function headVertices(mesh: THREE.SkinnedMesh) {
+  const owners = mesh.skeleton.bones.map((bone) => {
+    let parent: THREE.Object3D | null = bone;
+    while (parent) {
+      if (['Head', 'NeckTwist01', 'NeckTwist02'].includes(parent.name)) return true;
+      parent = parent.parent;
+    }
+    return false;
+  });
+  const { skinIndex, skinWeight } = mesh.geometry.attributes;
+  return Array.from({ length: skinIndex.count }, (_, i) => i).filter((i) =>
+    Array.from({ length: 4 }, (_, n) => n).some(
+      (n) => owners[skinIndex.getComponent(i, n)] && skinWeight.getComponent(i, n) > 0.000001
+    )
   );
 }
 
@@ -913,3 +937,247 @@ it('admits shared fountain normals with its water clock and freezes pause/hidden
     for (const [key, t] of Object.entries(FOUNTAIN_WATER_TEXTURES)) t.offset.copy(offsets[key]);
   }
 });
+
+it.each(['cow', 'pig'] as const)(
+  'gives the actual %s four independent grounded soles with private skin/inverses and exact neutral shape',
+  async (species) => {
+    const { createQuadrupedWalk } = await vi.importActual<
+      typeof import('./models/RiggedCreatureModel')
+    >('./models/RiggedCreatureModel');
+    const { sampleHoofStep } = await import('../simulation/creatureMotion');
+    const source = await actualCreature(species),
+      model = cloneSkeleton(source),
+      sibling = cloneSkeleton(source);
+    const name = species === 'cow' ? 'CowBody' : 'PigBody';
+    const mesh = model.getObjectByName(name) as THREE.SkinnedMesh;
+    const cached = source.getObjectByName(name) as THREE.SkinnedMesh;
+    const borrowed = mesh.geometry,
+      inverses = [...cached.skeleton.boneInverses];
+    const attributes = Object.fromEntries(
+      Object.entries(borrowed.attributes).map(([key, value]) => [key, attributeValues(value)])
+    );
+    const protectedHead = headVertices(cached);
+    expect(protectedHead.length).toBeGreaterThan(100);
+    const before = creaturePoints(model, name),
+      other = creaturePoints(sibling, name);
+    const walking = createQuadrupedWalk(model, species)!;
+    console.info('QUADRUPED_PACKING', species, JSON.stringify(walking.fitting));
+    expect(walking.fitting.maximumDiscardedWeight).toBeLessThan(0.000001);
+    expect(walking.fitting.maximumFieldsTouched).toBeLessThanOrEqual(2);
+    expect(mesh.geometry).not.toBe(borrowed);
+    expect(mesh.material).toBe(cached.material);
+    expect(mesh.skeleton.bones).toHaveLength(53);
+    expect(cached.skeleton.bones).toHaveLength(41);
+    expect(cached.skeleton.boneInverses).toEqual(inverses);
+    expect(mesh.skeleton.boneInverses).toHaveLength(53);
+    inverses.forEach((inverse, i) => {
+      expect(mesh.skeleton.boneInverses[i]).toEqual(inverse);
+      expect(mesh.skeleton.boneInverses[i]).not.toBe(inverse);
+    });
+    for (const key of ['position', 'normal', 'uv'])
+      expect(attributeValues(mesh.geometry.attributes[key])).toEqual(attributes[key]);
+    expect(Array.from(mesh.geometry.index!.array)).toEqual(Array.from(borrowed.index!.array));
+    for (const i of protectedHead)
+      for (let n = 0; n < 4; n++) {
+        expect(mesh.geometry.attributes.skinIndex.getComponent(i, n)).toBe(
+          borrowed.attributes.skinIndex.getComponent(i, n)
+        );
+        expect(mesh.geometry.attributes.skinWeight.getComponent(i, n)).toBe(
+          borrowed.attributes.skinWeight.getComponent(i, n)
+        );
+      }
+    expect(
+      Math.max(...creaturePoints(model, name).map((p, i) => p.distanceTo(before[i])))
+    ).toBeLessThan(0.000003);
+    const soles = Array.from({ length: 4 }, (_, leg) =>
+      before.flatMap((p, i) =>
+        p.y < 0.018 &&
+        (p.z > (species === 'cow' ? -0.25 : -0.16) ? 0 : 2) + (p.x < 0 ? 1 : 0) === leg
+          ? [i]
+          : []
+      )
+    );
+    soles.forEach((ids) => expect(ids.length).toBeGreaterThan(5));
+    const links = mesh.skeleton.bones
+      .filter((b) => b.name.startsWith('stride-'))
+      .map((b) => b.position.clone());
+    const step = { forward: 0, lift: 0 };
+    let minimumAttachmentArea = 1,
+      maximumAttachmentEdge = 1,
+      minimumNormalDot = 1;
+    let witness: unknown;
+    const edge = new THREE.Vector3(),
+      otherEdge = new THREE.Vector3();
+    const normal = new THREE.Vector3(),
+      otherNormal = new THREE.Vector3();
+    const index = mesh.geometry.index!;
+    const skin = mesh.geometry.attributes.skinIndex,
+      weights = mesh.geometry.attributes.skinWeight;
+    const attachment = before.map((_, i) => {
+      let newer = 0;
+      for (let n = 0; n < 4; n++)
+        if (skin.getComponent(i, n) >= 41) newer += weights.getComponent(i, n);
+      return newer > 0.0001;
+    });
+    for (let n = 0; n < 32; n++) {
+      const phase = (n * Math.PI) / 16;
+      walking.apply(phase, 1);
+      const points = creaturePoints(model, name);
+      for (let t = 0; t < index.count; t += 3) {
+        const ids = [index.getX(t), index.getX(t + 1), index.getX(t + 2)];
+        if (!ids.some((i) => attachment[i])) continue;
+        normal.crossVectors(
+          edge.subVectors(before[ids[1]], before[ids[0]]),
+          otherEdge.subVectors(before[ids[2]], before[ids[0]])
+        );
+        const area = normal.length();
+        if (area < 0.000001) continue;
+        otherNormal.crossVectors(
+          edge.subVectors(points[ids[1]], points[ids[0]]),
+          otherEdge.subVectors(points[ids[2]], points[ids[0]])
+        );
+        minimumAttachmentArea = Math.min(minimumAttachmentArea, otherNormal.length() / area);
+        minimumNormalDot = Math.min(
+          minimumNormalDot,
+          normal.normalize().dot(otherNormal.normalize())
+        );
+        for (let n = 0; n < 3; n++) {
+          const a = ids[n],
+            b = ids[(n + 1) % 3],
+            length = before[a].distanceTo(before[b]);
+          if (length > 0.004) {
+            const ratio = points[a].distanceTo(points[b]) / length;
+            if (ratio > maximumAttachmentEdge) {
+              maximumAttachmentEdge = ratio;
+              witness = {
+                phase,
+                a,
+                b,
+                before: [before[a].toArray(), before[b].toArray()],
+                after: [points[a].toArray(), points[b].toArray()],
+                weights: [a, b].map((v) =>
+                  Array.from({ length: 4 }, (_, n) => [
+                    skin.getComponent(v, n),
+                    weights.getComponent(v, n),
+                  ])
+                ),
+              };
+            }
+          }
+        }
+      }
+      expect(Math.min(...points.map((p) => p.y))).toBeGreaterThan(-0.0001);
+      for (let leg = 0; leg < 4; leg++) {
+        sampleHoofStep(species, leg, phase, step);
+        for (const i of soles[leg]) {
+          expect(points[i].y - before[i].y).toBeCloseTo(step.lift, 5);
+          expect(points[i].z - before[i].z).toBeCloseTo(step.forward, 5);
+          expect(points[i].x).toBeCloseTo(before[i].x, 5);
+        }
+      }
+      for (let i = 0; i < points.length; i++) {
+        const p = before[i];
+        const tail = species === 'cow' && p.z < -0.88 && p.y > 0.25 && p.y < 0.9;
+        const udder =
+          species === 'cow' &&
+          p.y > 0.25 &&
+          p.y < 0.45 &&
+          p.z > -0.55 &&
+          p.z < -0.3 &&
+          p.x > -0.08 &&
+          p.x < 0.05;
+        if (
+          before[i].y > (species === 'cow' ? 0.66 : 0.37) ||
+          tail ||
+          udder ||
+          protectedHead.includes(i)
+        )
+          expect(points[i].distanceTo(before[i])).toBeLessThan(0.000003);
+        expect(Number.isFinite(points[i].length())).toBe(true);
+      }
+      mesh.skeleton.bones
+        .filter((b) => b.name.startsWith('stride-'))
+        .forEach((b, i) => {
+          expect(b.position).toEqual(links[i]);
+          expect(b.scale.toArray()).toEqual([1, 1, 1]);
+        });
+    }
+    console.info(
+      'QUADRUPED_ATTACHMENT',
+      species,
+      JSON.stringify({ minimumAttachmentArea, maximumAttachmentEdge, minimumNormalDot, witness })
+    );
+    expect(minimumAttachmentArea).toBeGreaterThan(0.15);
+    expect(maximumAttachmentEdge).toBeLessThan(2);
+    expect(minimumNormalDot).toBeGreaterThan(0);
+    walking.apply(0.7, 0);
+    expect(
+      Math.max(...creaturePoints(model, name).map((p, i) => p.distanceTo(before[i])))
+    ).toBeLessThan(0.000003);
+    expect(creaturePoints(sibling, name)).toEqual(other);
+    for (const [key, value] of Object.entries(borrowed.attributes))
+      expect(attributeValues(value)).toEqual(attributes[key]);
+    const dispose = vi.spyOn(mesh.geometry, 'dispose'),
+      sharedDispose = vi.spyOn(borrowed, 'dispose');
+    walking.dispose();
+    expect(dispose).toHaveBeenCalledTimes(1);
+    expect(sharedDispose).not.toHaveBeenCalled();
+    expect(mesh.geometry).toBe(borrowed);
+    expect(model.getObjectByName('quadruped-stride')).toBeUndefined();
+    dispose.mockRestore();
+    sharedDispose.mockRestore();
+  }
+);
+
+it.each(['cow', 'pig'] as const)(
+  'composes the mounted %s walk, graze and pet without drift under a rotated scaled farm',
+  async (species) => {
+    const { RiggedCreatureModel } = await vi.importActual<
+      typeof import('./models/RiggedCreatureModel')
+    >('./models/RiggedCreatureModel');
+    const source = await actualCreature(species);
+    boundary.asset = { scene: source };
+    const cloned = vi.spyOn(source, 'clone'),
+      ref = React.createRef<import('./models/RiggedCreatureModel').CreatureRigHandle>();
+    const view = render(<RiggedCreatureModel creature={species} ref={ref} />);
+    const model = cloned.mock.results[0].value as THREE.Group,
+      parent = new THREE.Group();
+    parent.position.set(18, 0.3, -12);
+    parent.rotation.y = Math.PI;
+    parent.scale.setScalar(1.04);
+    parent.add(model);
+    const name = species === 'cow' ? 'CowBody' : 'PigBody',
+      mesh = model.getObjectByName(name) as THREE.SkinnedMesh;
+    const rest = creaturePoints(model, name);
+    const protectedHead = headVertices(source.getObjectByName(name) as THREE.SkinnedMesh);
+    for (const graze of [0, 0.5, 1])
+      for (const phase of [0, 1.4, 3.2, 5.3]) {
+        ref.current!.setGraze(graze);
+        ref.current!.setStride(phase, 0);
+        ref.current!.setHeadShake(0.12);
+        const grazing = creaturePoints(model, name);
+        ref.current!.setStride(phase, 0.85);
+        ref.current!.setHeadShake(0.12);
+        const posed = creaturePoints(model, name);
+        for (const i of protectedHead)
+          expect(posed[i].distanceTo(grazing[i])).toBeLessThan(0.0000001);
+        ref.current!.setHeadShake(0.12);
+        ref.current!.setStride(phase, 0.85);
+        ref.current!.setGraze(graze);
+        expect(creaturePoints(model, name)).toEqual(posed);
+        for (let i = 0; i < rest.length; i++) {
+          if (rest[i].y < 0.018) expect(posed[i].y).toBeGreaterThan(-0.0001);
+          const local = mesh.getVertexPosition(i, new THREE.Vector3());
+          expect(mesh.boundingSphere!.containsPoint(local)).toBe(true);
+        }
+      }
+    ref.current!.setGraze(0);
+    ref.current!.setStride(0, 0);
+    ref.current!.setHeadShake(0);
+    expect(
+      Math.max(...creaturePoints(model, name).map((p, i) => p.distanceTo(rest[i])))
+    ).toBeLessThan(0.000003);
+    view.unmount();
+    cloned.mockRestore();
+  }
+);

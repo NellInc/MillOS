@@ -5,8 +5,8 @@
  * `scripts/normalize-model-assets.mjs` and declared in
  * `public/models/asset-manifest.json`. One component serves all of them because
  * the generator fits the **same 41-joint skeleton with the same bone names** to
- * quadrupeds, birds and bipeds alike - a crow and a horse differ only in the
- * numbers in `CREATURE_SPECS`, not in code.
+ * quadrupeds, birds and bipeds alike. Cow/pig limbs need the measured corrective
+ * chains below; the other species retain their original imperative poses.
  *
  * Animation is authored here rather than baked into the assets. Tripo's
  * `animate_retarget` presets are humanoid, and because the quadruped rig names
@@ -69,7 +69,11 @@ import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { useDracoGLTF } from '../../utils/dracoLoader';
 import { CREATURE_ASSET_PATHS, type CreatureId } from '../../utils/modelLoader';
 import ErrorBoundary from '../ErrorBoundary';
-import { createHorseRestPose, sampleHorseRest } from '../../simulation/creatureMotion';
+import {
+  createHorseRestPose,
+  sampleHorseRest,
+  sampleHoofStep,
+} from '../../simulation/creatureMotion';
 
 export type { CreatureId };
 
@@ -427,6 +431,353 @@ const YAW_AXIS = new THREE.Vector3(0, 1, 0);
 /** Clearance added to the bind-pose sphere so a grazing head is never culled. */
 const POSE_BOUNDS_MARGIN = 0.35;
 
+/**
+ * The actual generated cow gives BOTH forehooves to R_Hand; the pig gives its
+ * rear soles to Waist. Rotating those humanoid joints cannot make four feet.
+ * Fit private chains to the measured normalized limb surfaces instead. Original
+ * positions, normals, UVs, topology, materials and all non-leg weights survive.
+ * This is deliberately cow/pig-only; the finished horse rig is unchanged.
+ */
+export function createQuadrupedWalk(model: THREE.Group, species: CreatureId) {
+  if (species !== 'cow' && species !== 'pig') return null;
+  const cow = species === 'cow';
+  const anchors = cow
+    ? [
+        [0.118, 0.239],
+        [-0.221, 0.171],
+        [0.141, -0.698],
+        [-0.214, -0.7],
+      ]
+    : [
+        [0.141, 0.158],
+        [-0.14, 0.169],
+        [0.126, -0.403],
+        [-0.127, -0.4],
+      ];
+  model.updateMatrixWorld(true);
+  const chainRoot = new THREE.Group();
+  chainRoot.name = 'quadruped-stride';
+  model.add(chainRoot);
+  const legs = anchors.map(([x, z], i) => {
+    const hip = new THREE.Vector3(x, cow ? 0.65 : 0.36, z + (i < 2 ? 0 : 0.06));
+    const knee = new THREE.Vector3(x, cow ? 0.32 : 0.18, z - (cow ? 0.14 : 0.1));
+    const sole = new THREE.Vector3(x, cow ? 0.06 : 0.05, z);
+    const upper = new THREE.Bone(),
+      lower = new THREE.Bone(),
+      hoof = new THREE.Bone();
+    upper.name = `stride-${i}-upper`;
+    lower.name = `stride-${i}-lower`;
+    hoof.name = `stride-${i}-hoof`;
+    upper.position.copy(hip);
+    lower.position.subVectors(knee, hip);
+    hoof.position.subVectors(sole, knee);
+    chainRoot.add(upper);
+    upper.add(lower);
+    lower.add(hoof);
+    return { upper, lower, hoof, hip, sole, u: lower.position.clone(), l: hoof.position.clone() };
+  });
+  model.updateMatrixWorld(true);
+  const joints = legs.flatMap((leg) => [leg.upper, leg.lower, leg.hoof]);
+  const meshes: THREE.SkinnedMesh[] = [];
+  model.traverse((o) => {
+    if ((o as THREE.SkinnedMesh).isSkinnedMesh) meshes.push(o as THREE.SkinnedMesh);
+  });
+  // SkeletonUtils.clone shares the inverse ARRAY with the cached source.
+  // Copy both array and matrices before extending it, once per actual skeleton.
+  const starts = new Map<THREE.Skeleton, number>();
+  const poseOwners = new Map<THREE.Skeleton, string[]>();
+  for (const mesh of meshes) {
+    const skeleton = mesh.skeleton;
+    if (starts.has(skeleton)) continue;
+    starts.set(skeleton, skeleton.bones.length);
+    poseOwners.set(
+      skeleton,
+      skeleton.bones.map((bone) => {
+        let parent: THREE.Object3D | null = bone;
+        while (parent) {
+          if (GRAZE_CHAIN.some(([name]) => name === parent!.name) || parent.name === 'Head')
+            return parent.name;
+          parent = parent.parent;
+        }
+        return 'neutral';
+      })
+    );
+    // The normalized GLB carries its metre conversion in the rest skin matrix,
+    // not bindMatrix (which is identity). Identity new binds would shrink feet.
+    const restSkin = new THREE.Matrix4().multiplyMatrices(
+      skeleton.bones[0].matrixWorld,
+      skeleton.boneInverses[0]
+    );
+    skeleton.bones = [...skeleton.bones, ...joints];
+    skeleton.boneInverses = [
+      ...skeleton.boneInverses.map((inverse) => inverse.clone()),
+      ...joints.map((joint) => joint.matrixWorld.clone().invert().multiply(restSkin)),
+    ];
+    skeleton.init();
+  }
+  const owned: {
+    mesh: THREE.SkinnedMesh;
+    source: THREE.BufferGeometry;
+    geometry: THREE.BufferGeometry;
+  }[] = [];
+  const fitting = { maximumDiscardedWeight: 0, maximumFieldsTouched: 0, witness: null as unknown };
+  const point = new THREE.Vector3();
+  const smooth = THREE.MathUtils.smoothstep;
+  for (const mesh of meshes) {
+    const source = mesh.geometry,
+      geometry = source.clone();
+    const points = Array.from({ length: source.attributes.position.count }, (_, v) =>
+      mesh.getVertexPosition(v, new THREE.Vector3()).applyMatrix4(mesh.matrixWorld)
+    );
+    // A Cartesian depth cut sliced calf skin and caught the cow's tail tuft.
+    // Follow actual surface connectivity from the four sole bands instead.
+    // Exact-position UV/normal seams are neighbours for fitting only; render
+    // topology and attributes remain untouched. The body-height cutoff prevents
+    // a path down the tail from its attachment high on the rump.
+    const adjacent: number[][] = points.map(() => []);
+    const weld = new Map<string, number>();
+    for (let v = 0; v < points.length; v++) {
+      const key = `${source.attributes.position.getX(v)},${source.attributes.position.getY(v)},${source.attributes.position.getZ(v)}`;
+      const previous = weld.get(key);
+      if (previous === undefined) weld.set(key, v);
+      else {
+        adjacent[v].push(previous);
+        adjacent[previous].push(v);
+      }
+    }
+    const index = source.index!;
+    for (let t = 0; t < index.count; t += 3) {
+      const ids = [index.getX(t), index.getX(t + 1), index.getX(t + 2)];
+      for (let n = 0; n < 3; n++) {
+        const a = ids[n],
+          b = ids[(n + 1) % 3];
+        adjacent[a].push(b);
+        adjacent[b].push(a);
+      }
+    }
+    // Fifth field protects the real head/neck skin and feathers the adjoining
+    // body. Its four distinct original pose owners cannot share a fifth slot
+    // with a leg; those original weights must remain untouched.
+    const distances = new Float64Array(points.length * 5).fill(Infinity);
+    const queue: { vertex: number; leg: number; distance: number }[] = [];
+    // Local binary min-heap: one load-time fit, no scan or allocation per frame.
+    const enqueue = (vertex: number, leg: number, distance: number) => {
+      let child = queue.length;
+      queue.push({ vertex, leg, distance });
+      while (child > 0) {
+        const parent = (child - 1) >> 1;
+        if (queue[parent].distance <= distance) break;
+        queue[child] = queue[parent];
+        child = parent;
+      }
+      queue[child] = { vertex, leg, distance };
+    };
+    for (let v = 0; v < points.length; v++) {
+      for (let n = 0; n < 4; n++) {
+        const joint = source.attributes.skinIndex.getComponent(v, n);
+        const owner = poseOwners.get(mesh.skeleton)![joint];
+        if (
+          source.attributes.skinWeight.getComponent(v, n) > 0.000001 &&
+          (owner === 'Head' || owner === 'NeckTwist01' || owner === 'NeckTwist02')
+        ) {
+          distances[v * 5 + 4] = 0;
+          enqueue(v, 4, 0);
+          break;
+        }
+      }
+      if (points[v].y >= (cow ? 0.12 : 0.08)) continue;
+      let leg = 0;
+      for (let i = 1; i < legs.length; i++)
+        if (points[v].distanceToSquared(legs[i].sole) < points[v].distanceToSquared(legs[leg].sole))
+          leg = i;
+      distances[v * 5 + leg] = 0;
+      enqueue(v, leg, 0);
+    }
+    while (queue.length) {
+      const current = queue[0],
+        last = queue.pop()!;
+      if (queue.length) {
+        let parent = 0;
+        while (parent * 2 + 1 < queue.length) {
+          let child = parent * 2 + 1;
+          if (child + 1 < queue.length && queue[child + 1].distance < queue[child].distance)
+            child++;
+          if (queue[child].distance >= last.distance) break;
+          queue[parent] = queue[child];
+          parent = child;
+        }
+        queue[parent] = last;
+      }
+      const { vertex, leg, distance } = current;
+      if (distance !== distances[vertex * 5 + leg]) continue;
+      for (const next of adjacent[vertex]) {
+        if (points[next].y >= (cow ? 0.65 : 0.36)) continue;
+        const candidate = distance + points[vertex].distanceTo(points[next]);
+        if (
+          candidate >= distances[next * 5 + leg] ||
+          candidate >= (leg === 4 ? 0.1 : cow ? 0.65 : 0.38)
+        )
+          continue;
+        distances[next * 5 + leg] = candidate;
+        enqueue(next, leg, candidate);
+      }
+    }
+    const indices = geometry.getAttribute('skinIndex'),
+      weights = geometry.getAttribute('skinWeight');
+    for (let v = 0; v < indices.count; v++) {
+      point.copy(points[v]);
+      // Overlapping fields blend softly under the belly. A hard nearest-owner
+      // switch or narrow zero band pulls this bridge apart as the legs alternate.
+      const fields = legs.map(
+        (_, i) =>
+          (1 - smooth(distances[v * 5 + i], cow ? 0.25 : 0.1, cow ? 0.55 : 0.28)) *
+          (1 - smooth(point.y, cow ? 0.37 : 0.18, cow ? 0.65 : 0.36)) *
+          smooth(distances[v * 5 + 4], 0, 0.1)
+      );
+      const fit = Math.max(...fields),
+        total = fields.reduce((sum, weight) => sum + weight, 0);
+      if (fit <= 0) continue;
+      fitting.maximumFieldsTouched = Math.max(
+        fitting.maximumFieldsTouched,
+        fields.filter((v) => v > 0.000001).length
+      );
+      const hoof = 1 - smooth(point.y, cow ? 0.12 : 0.08, cow ? 0.22 : 0.19);
+      // Pig knees have a short, thick surface. Spread the bend over that real
+      // leg, rather than switching lower/upper ownership across a 3 cm band.
+      const upper = smooth(point.y, cow ? 0.24 : 0.19, cow ? 0.4 : 0.31);
+      const ordered = [0, 1, 2, 3].sort((a, b) => fields[b] - fields[a]);
+      // The support fields extend 0.1 m beyond their positive skin influence.
+      const competitors = [0, 1, 2, 3].filter((i) => i !== ordered[0]);
+      const secondDistance = Math.min(...competitors.map((i) => distances[v * 5 + i]));
+      const bridge = 1 - smooth(secondDistance, cow ? 0.55 : 0.28, cow ? 0.65 : 0.38);
+      const tie = smooth(fields[ordered[1]] / fields[ordered[0]], 0.5, 1);
+      // All retained old joints in a pose-owner class move rigidly together.
+      // Merge those equivalent influences before reserving the two leg slots.
+      // Top-four truncation alone makes a new weight suddenly appear when it
+      // overtakes an old one, creating a crease even with a smooth fit field.
+      const groups = new Map<string, { joint: number; weight: number; largest: number }>();
+      for (let n = 0; n < 4; n++) {
+        const joint = indices.getComponent(v, n),
+          weight = weights.getComponent(v, n);
+        const owner = poseOwners.get(mesh.skeleton)![joint],
+          group = groups.get(owner);
+        if (group) {
+          group.weight += weight;
+          if (weight > group.largest) {
+            group.joint = joint;
+            group.largest = weight;
+          }
+        } else groups.set(owner, { joint, weight, largest: weight });
+      }
+      // Settle the small belly attachment into its neutral body frame BEFORE
+      // the second leg arrives. These old owners are identical during walking;
+      // forcing a calf transition here instead sheared the short pig ankle.
+      // Head/neck skin is protected, and this body-owner transfer is smooth.
+      const support = groups.get('neutral') ?? groups.values().next().value!;
+      for (const group of groups.values())
+        if (group !== support) {
+          support.weight += group.weight * bridge;
+          group.weight *= 1 - bridge;
+        }
+      const influences = [
+        ...[...groups.values()].map(({ joint, weight }) => ({ joint, weight: weight * (1 - fit) })),
+        ...ordered.slice(0, 2).flatMap((i) => {
+          const weight = (fields[i] / total) * fit,
+            base = starts.get(mesh.skeleton)! + i * 3;
+          // The belly bridge needs one upper influence per competing leg.
+          // Ease the dominant calf into that same upper influence before an
+          // owner tie; no five-weight truncation seam and no virtual limb scale.
+          // One continuous coordinate selects ADJACENT joints only: hoof (0),
+          // calf (1), upper (2). Independent upper/hoof ramps can require three
+          // new transforms while two old body owners still need their slots.
+          const baseCoordinate = 1 - hoof + upper;
+          const coordinate = i === ordered[0] ? baseCoordinate + (2 - baseCoordinate) * tie : 2;
+          const footShare = Math.max(0, 1 - coordinate),
+            upperShare = Math.max(0, coordinate - 1);
+          return [
+            { joint: base, weight: weight * upperShare },
+            { joint: base + 1, weight: weight * (1 - footShare - upperShare) },
+            { joint: base + 2, weight: weight * footShare },
+          ];
+        }),
+      ].sort((a, b) => b.weight - a.weight);
+      const discarded = influences.slice(4).reduce((sum, influence) => sum + influence.weight, 0);
+      if (discarded > fitting.maximumDiscardedWeight) {
+        fitting.maximumDiscardedWeight = discarded;
+        fitting.witness = {
+          v,
+          point: point.toArray(),
+          fields,
+          groups: [...groups.entries()],
+          influences,
+        };
+      }
+      influences.length = 4;
+      const sum = influences.reduce((n, influence) => n + influence.weight, 0);
+      for (let n = 0; n < 4; n++) {
+        indices.setComponent(v, n, influences[n].joint);
+        weights.setComponent(v, n, influences[n].weight / sum);
+      }
+    }
+    mesh.geometry = geometry;
+    owned.push({ mesh, source, geometry });
+  }
+  const target = new THREE.Vector3(),
+    direction = new THREE.Vector3(),
+    knee = new THREE.Vector3();
+  const along = new THREE.Vector3(),
+    lowerAim = new THREE.Vector3(),
+    parent = new THREE.Quaternion();
+  const step = { forward: 0, lift: 0 };
+  return {
+    fitting,
+    apply(phase: number, amount: number) {
+      for (let i = 0; i < legs.length; i++) {
+        const leg = legs[i];
+        leg.upper.quaternion.identity();
+        leg.lower.quaternion.identity();
+        leg.hoof.quaternion.identity();
+        if (amount <= 0) continue;
+        sampleHoofStep(species, i, phase, step);
+        target.copy(leg.sole);
+        target.z += step.forward * amount;
+        target.y += step.lift * amount;
+        direction.subVectors(target, leg.hip);
+        const u = leg.u.length(),
+          l = leg.l.length(),
+          distance = direction.length();
+        // Never stretch a limb or silently install an unreachable target.
+        if (distance >= u + l || distance <= Math.abs(u - l)) continue;
+        direction.divideScalar(distance);
+        const a = (u * u - l * l + distance * distance) / (2 * distance);
+        const h = Math.sqrt(Math.max(0, u * u - a * a));
+        along.set(0, -direction.z, direction.y);
+        knee.copy(leg.hip).addScaledVector(direction, a).addScaledVector(along, h);
+        leg.upper.quaternion
+          .setFromUnitVectors(
+            along.subVectors(knee, leg.hip).normalize(),
+            direction.copy(leg.u).normalize()
+          )
+          .invert();
+        lowerAim.subVectors(target, knee).normalize();
+        parent.copy(leg.upper.quaternion).invert();
+        leg.lower.quaternion.setFromUnitVectors(
+          direction.copy(leg.l).normalize(),
+          lowerAim.applyQuaternion(parent)
+        );
+        leg.hoof.quaternion.copy(leg.lower.quaternion).invert().multiply(parent);
+      }
+    },
+    dispose() {
+      for (const { mesh, source, geometry } of owned) {
+        mesh.geometry = source;
+        geometry.dispose();
+      }
+      model.remove(chainRoot);
+    },
+  };
+}
+
 const _parentQuaternion = new THREE.Quaternion();
 const _rootQuaternion = new THREE.Quaternion();
 const _axis = new THREE.Vector3();
@@ -504,20 +855,23 @@ export const RiggedCreatureModel = React.forwardRef<CreatureRigHandle, RiggedCre
         mesh.frustumCulled = true;
       }
 
+      const walking = createQuadrupedWalk(model, creature);
       const resting = creature === 'horse' ? createHorseRestMotion(model) : null;
       return {
         model,
         bones,
         rest,
         resting,
+        walking,
         skeletons: [...new Set(skinned.map((mesh) => mesh.skeleton))],
       };
     }, [scene, creature]);
 
-    // Only palettes and the horse's private deformation geometry are owned here.
+    // Only private palettes and horse/cow/pig geometry are owned here.
     useEffect(
       () => () => {
         prepared.resting?.dispose();
+        prepared.walking?.dispose();
         prepared.skeletons.forEach((skeleton) => skeleton.dispose());
       },
       [prepared]
@@ -554,7 +908,9 @@ export const RiggedCreatureModel = React.forwardRef<CreatureRigHandle, RiggedCre
         const head = bones.get('Head');
         rotateBoneInRootSpace(head, _rootQuaternion, PITCH_AXIS, -graze * spec.counter);
         rotateBoneInRootSpace(head, _rootQuaternion, YAW_AXIS, shake);
-        if (strideAmount > 0.001 && spec.stride > 0) {
+        if (prepared.walking) {
+          prepared.walking.apply(stridePhase, strideAmount);
+        } else if (strideAmount > 0.001 && spec.stride > 0) {
           const swing = Math.sin(stridePhase) * spec.stride * strideAmount;
           for (const [name, sign] of STRIDE_CHAIN) {
             rotateBoneInRootSpace(bones.get(name), _rootQuaternion, PITCH_AXIS, swing * sign);

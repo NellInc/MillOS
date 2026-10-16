@@ -27,6 +27,46 @@ export function advanceCreatureStride(
   return (phase + Math.max(0, distance) * radiansPerMetre) % (Math.PI * 2);
 }
 
+/** Model metres per cycle. The farm driver divides world travel by instance scale. */
+export const QUADRUPED_WALK = {
+  cow: { cycle: 0.55, lift: 0.065, speed: 0.5 },
+  pig: { cycle: 0.18, lift: 0.022, speed: 0.34 },
+} as const;
+
+export interface HoofStep {
+  forward: number;
+  lift: number;
+}
+
+/**
+ * Four distinct footfalls: left hind, left fore, right hind, right fore.
+ * During stance the hoof travels backwards by exactly the consumed model
+ * distance. The short return arc has matching endpoint velocities and no
+ * vertical cusp. Starts, turns and the owner's amplitude easing are not a
+ * promise of world-space foot locking.
+ */
+export function sampleHoofStep(
+  species: keyof typeof QUADRUPED_WALK,
+  leg: number,
+  phase: number,
+  out: HoofStep
+): HoofStep {
+  const spec = QUADRUPED_WALK[species];
+  const offset = leg < 2 ? leg * 0.5 : 0.25 + (leg - 2) * 0.5;
+  const p = ((((Number.isFinite(phase) ? phase : 0) / (Math.PI * 2) + offset) % 1) + 1) % 1;
+  const stance = 0.68;
+  const half = (spec.cycle * stance) / 2;
+  out.forward = half - spec.cycle * p;
+  out.lift = 0;
+  if (p > stance) {
+    const u = (p - stance) / (1 - stance);
+    const ease = u * u * (3 - 2 * u);
+    out.forward = -half + half * 2 * ease - spec.cycle * (1 - stance) * u * (1 - u) * (1 - 2 * u);
+    out.lift = spec.lift * Math.sin(u * Math.PI) ** 2;
+  }
+  return out;
+}
+
 /** Match the authored 15 Hz blend while remaining stable across dropped frames. */
 export function creaturePoseBlend(authoredBlend: number, elapsed: number): number {
   return 1 - Math.pow(1 - authoredBlend, Math.max(0, elapsed) * 15);

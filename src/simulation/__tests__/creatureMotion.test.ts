@@ -166,3 +166,36 @@ describe('quiet horse rest channels', () => {
     }
   });
 });
+
+describe('four-beat quadruped walk', () => {
+  it.each(['cow', 'pig'] as const)(
+    'matches %s stance travel, including instance scaling, and has four distinct return arcs',
+    async (species) => {
+      const { sampleHoofStep, QUADRUPED_WALK } = await import('../creatureMotion');
+      const step = { forward: 0, lift: 0 },
+        cycle = QUADRUPED_WALK[species].cycle;
+      for (const scale of [0.96, 1, 1.04]) {
+        const start = sampleHoofStep(species, 0, 0.3, step).forward;
+        const worldTravel = 0.025 * scale;
+        const phase = advanceCreatureStride(0.3, worldTravel / scale, (Math.PI * 2) / cycle);
+        expect(sampleHoofStep(species, 0, phase, step).forward - start).toBeCloseTo(
+          -worldTravel / scale,
+          12
+        );
+      }
+      const peaks = [];
+      for (let leg = 0; leg < 4; leg++) {
+        const samples = Array.from(
+          { length: 400 },
+          (_, i) => sampleHoofStep(species, leg, (i * Math.PI) / 200, step).lift
+        );
+        expect(samples.filter((v) => v === 0).length).toBeGreaterThan(270);
+        expect(Math.max(...samples)).toBeCloseTo(QUADRUPED_WALK[species].lift, 5);
+        peaks.push(samples.indexOf(Math.max(...samples)));
+        const start = { ...sampleHoofStep(species, leg, 0, step) };
+        expect(sampleHoofStep(species, leg, Math.PI * 2, step)).toEqual(start);
+      }
+      expect(new Set(peaks).size).toBe(4);
+    }
+  );
+});
