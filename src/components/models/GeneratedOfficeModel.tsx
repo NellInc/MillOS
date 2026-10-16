@@ -413,6 +413,91 @@ export function applyVillageWindows(
   material.customProgramCacheKey = () => 'millos-authored-village-windows-v8';
 }
 
+/** Farm walls retain irregular baked UVs, so only measured recessed apertures
+ * receive rooms. The barn loft has a recessed source backing behind its X
+ * brace; it receives a simpler working room without curtains. No roof/vent glows.
+ * Working if the three house windows gain linen and depth, opaque joinery stays
+ * intact, and strength zero restores the original host material response.
+ */
+export const FARM_INTERIOR_STRENGTH = { value: 1 };
+export function applyFarmWindows(
+  material: THREE.MeshStandardMaterial,
+  kind: 'farmhouse' | 'barn',
+  night = EXTERIOR_LAMP_LEVEL
+) {
+  applyVillageWindows(material, night, kind === 'farmhouse', 'pane');
+  material.userData.farmInteriorStrength = FARM_INTERIOR_STRENGTH;
+  const compileRoom = material.onBeforeCompile;
+  material.onBeforeCompile = (shader, renderer) => {
+    compileRoom.call(material, shader, renderer);
+    shader.uniforms.farmInteriorStrength = FARM_INTERIOR_STRENGTH;
+    shader.uniforms.villageRoomLight = {
+      value: new THREE.Color(kind === 'farmhouse' ? '#ffd79e' : '#ffc885').multiplyScalar(
+        kind === 'farmhouse' ? 1.05 : 0.6
+      ),
+    };
+    shader.uniforms.villageLinen = { value: new THREE.Color('#ece0c9') };
+    shader.vertexShader = `varying vec3 vFarmPosition;\n${shader.vertexShader}`.replace(
+      '#include <begin_vertex>',
+      '#include <begin_vertex>\nvFarmPosition = position;'
+    );
+    shader.fragmentShader = `varying vec3 vFarmPosition;
+      uniform float farmInteriorStrength;
+      ${shader.fragmentShader}`.replace(
+      'float glazing = mix(1.0, atlasGlazing, villageAtlas);',
+      kind === 'farmhouse'
+        ? `// Delivered local coordinates, before the retained 6.001m node scale.
+       float endFacade = step(0.37, abs(vFarmPosition.z));
+       float sideFacade = step(0.38, vFarmPosition.x);
+       float horizontal = mix(vFarmPosition.x, vFarmPosition.z, sideFacade);
+       float low = mix(-0.335, 0.130, sideFacade);
+       float high = mix(-0.235, 0.252, sideFacade);
+       float aperture = step(low, horizontal) * (1.0 - step(high, horizontal))
+         * step(-0.247, vFarmPosition.y) * (1.0 - step(-0.139, vFarmPosition.y))
+         * max(endFacade, sideFacade);
+       // Within those apertures, retain the baked green mullions and frames.
+       // Albedo has already been decoded to linear by the ordinary map chunk.
+       float darkGlass = (1.0 - smoothstep(0.070, 0.120,
+         max(diffuseColor.r, max(diffuseColor.g, diffuseColor.b))))
+         * (1.0 - smoothstep(0.018, 0.045, diffuseColor.g - diffuseColor.r));
+       float recess = mix(mix(step(-0.390, vFarmPosition.z),
+         1.0 - step(0.439, vFarmPosition.z), step(0.0, vFarmPosition.z)),
+         1.0 - step(0.405, vFarmPosition.x), sideFacade);
+       float glazing = aperture * recess * darkGlass * farmInteriorStrength;`
+        : `// Existing dark loft backing is at z=.369; the retained X is z=.378.
+       float aperture = step(-0.105, vFarmPosition.x) * (1.0 - step(0.105, vFarmPosition.x))
+         * step(-0.061, vFarmPosition.y) * (1.0 - step(0.071, vFarmPosition.y))
+         * step(0.360, vFarmPosition.z) * (1.0 - step(0.375, vFarmPosition.z));
+       float darkGlass = 1.0 - smoothstep(0.025, 0.060,
+         max(diffuseColor.r, max(diffuseColor.g, diffuseColor.b)));
+       float glazing = aperture * darkGlass * farmInteriorStrength;`
+    );
+    const start = shader.fragmentShader.indexOf('vec2 pane = mix(');
+    const end = shader.fragmentShader.indexOf('vec2 du = dFdx(pane)', start);
+    shader.fragmentShader =
+      shader.fragmentShader.slice(0, start) +
+      (kind === 'farmhouse'
+        ? `vec2 pane = vec2((horizontal - low) / (high - low),
+          1.0 - (vFarmPosition.y + 0.247) / 0.108);
+       `
+        : `vec2 pane = vec2((vFarmPosition.x + 0.105) / 0.210,
+          1.0 - (vFarmPosition.y + 0.061) / 0.132);
+       `) +
+      shader.fragmentShader.slice(end);
+    // These are authored lit interiors, not claims about resident schedules.
+    shader.fragmentShader = shader.fragmentShader.replace(
+      'float occupied = step(0.22, seed);',
+      'float occupied = 1.0;'
+    );
+    // The isolation control also restores the original daytime host albedo.
+    shader.fragmentShader = shader.fragmentShader.replace(
+      'villageInteriorStrength * roomScale * (1.0 - reflection * 0.85)',
+      'villageInteriorStrength * roomScale * farmInteriorStrength * (1.0 - reflection * 0.85)'
+    );
+  };
+  material.customProgramCacheKey = () => `millos-farm-window-${kind}-v1`;
+}
+
 /** The delivered castle paving is one 31.85m slab, atlas slot 6.
  * Keep its real height/mesh and add metre-scaled joints only to its upper face.
  * Working if first-person stone joints remain fine, walls/glass stay unchanged,

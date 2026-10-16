@@ -4,6 +4,8 @@ import { NodeIO } from '@gltf-transform/core';
 import * as THREE from 'three';
 import {
   applyOfficeWindows,
+  applyFarmWindows,
+  FARM_INTERIOR_STRENGTH,
   applyForgeWindows,
   FORGE_HEAT_LEVEL,
   FORGE_HEAT_STRENGTH,
@@ -632,4 +634,73 @@ it('confines leaded palace framing and panelled rooms to castle glass, with reta
     }
     material.dispose();
   }
+});
+
+it('reuses shallow rooms only inside measured farm apertures, retaining painted joinery and a live dimmer', () => {
+  for (const kind of ['farmhouse', 'barn'] as const) {
+    const shader = compile((material, night) => applyFarmWindows(material, kind, night));
+    expect(shader.uniforms.farmInteriorStrength).toBe(FARM_INTERIOR_STRENGTH);
+    expect(shader.uniforms.villageCurtains.value).toBe(kind === 'farmhouse' ? 1 : 0);
+    expect(shader.uniforms.villageAtlas.value).toBe(0);
+    expect(shader.fragmentShader).toContain('float occupied = 1.0;');
+    expect(shader.fragmentShader).toContain('farmInteriorStrength * (1.0 - reflection');
+    if (kind === 'farmhouse') {
+      expect(shader.vertexShader).toContain('vFarmPosition = position');
+      expect(shader.fragmentShader).toContain('step(0.37, abs(vFarmPosition.z))');
+      expect(shader.fragmentShader).toContain('step(0.38, vFarmPosition.x)');
+      expect(shader.fragmentShader).toContain(
+        'glazing = aperture * recess * darkGlass * farmInteriorStrength'
+      );
+      expect(shader.fragmentShader).toContain('diffuseColor.g - diffuseColor.r');
+      expect(shader.fragmentShader).toContain('(horizontal - low) / (high - low)');
+    } else {
+      expect(shader.fragmentShader).toContain('step(0.360, vFarmPosition.z)');
+      expect(shader.fragmentShader).toContain('1.0 - step(0.375, vFarmPosition.z)');
+    }
+  }
+  const material = new THREE.MeshStandardMaterial();
+  applyFarmWindows(material, 'farmhouse');
+  expect(material.userData.farmInteriorStrength).toBe(FARM_INTERIOR_STRENGTH);
+  expect(material.customProgramCacheKey()).toBe('millos-farm-window-farmhouse-v1');
+  applyFarmWindows(material, 'barn');
+  expect(material.customProgramCacheKey()).toBe('millos-farm-window-barn-v1');
+  material.dispose();
+});
+
+it('matches the real farm recesses and keeps the original loft brace in front of its backing', async () => {
+  const { ALL_EXTENSIONS } = await import('@gltf-transform/extensions');
+  const { default: draco } = await import('draco3dgltf');
+  const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({
+    'draco3d.decoder': await draco.createDecoderModule(),
+  });
+  const house = await io.read('public/models/farm/farmhouse.glb');
+  const p = house.getRoot().listMeshes()[0].listPrimitives()[0].getAttribute('POSITION')!;
+  // Measured dark-pane and protruding-joinery witnesses, not the village atlas.
+  expect(p.getElement(1493, [])[2]).toBeCloseTo(0.4342, 4);
+  expect(p.getElement(1499, [])[2]).toBeGreaterThan(0.439);
+  expect(p.getElement(90, [])[2]).toBeCloseTo(-0.3835, 4);
+  expect(p.getElement(83, [])[2]).toBeLessThan(-0.39);
+  expect(p.getElement(3276, [])[0]).toBeCloseTo(0.3916, 4);
+  expect(house.getRoot().listNodes()[0].getScale()[0]).toBeCloseTo(6.001156, 5);
+  const barn = await io.read('public/models/farm/barn.glb');
+  const primitive = barn.getRoot().listMeshes()[0].listPrimitives()[0];
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute(
+    'position',
+    new THREE.Float32BufferAttribute(primitive.getAttribute('POSITION')!.getArray()!, 3)
+  );
+  geometry.setIndex(Array.from(primitive.getIndices()!.getArray()!));
+  const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.updateMatrixWorld(true);
+  const hit = (x: number, y: number) =>
+    new THREE.Raycaster(new THREE.Vector3(x, y, 1), new THREE.Vector3(0, 0, -1)).intersectObject(
+      mesh
+    )[0].point.z;
+  expect(hit(0, 0.05)).toBeCloseTo(0.369353, 5);
+  expect(hit(0.07, -0.04)).toBeCloseTo(0.369291, 5);
+  expect(hit(0, 0)).toBeGreaterThan(0.375); // Original X brace excludes itself by depth.
+  expect(barn.getRoot().listNodes()[0].getScale()[0]).toBeCloseTo(10.007632, 5);
+  geometry.dispose();
+  material.dispose();
 });

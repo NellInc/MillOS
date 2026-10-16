@@ -26,6 +26,7 @@ import {
 } from '../scenery/AuthoredPropTrim';
 import {
   applyCastlePaving,
+  applyFarmWindows,
   applyShopWindows,
   createShopDisplayGeometry,
   applyVillageWindows,
@@ -192,10 +193,15 @@ export const GeneratedModel: React.FC<GeneratedModelProps> = ({
           materials.push(material);
         }
       }
-      if (VILLAGE_GLAZING.has(asset) && mesh.material instanceof THREE.MeshStandardMaterial) {
+      if (
+        (VILLAGE_GLAZING.has(asset) || asset === 'farmhouse' || asset === 'barn') &&
+        mesh.material instanceof THREE.MeshStandardMaterial
+      ) {
         const material = mesh.material.clone();
         // Lancet glazing and forge workrooms keep their architectural character.
-        if (asset === 'shop' && shopTrade) {
+        if (asset === 'farmhouse' || asset === 'barn') {
+          applyFarmWindows(material, asset);
+        } else if (asset === 'shop' && shopTrade) {
           applyShopWindows(material, shopTrade);
           const geometry = createShopDisplayGeometry(mesh.geometry, shopTrade);
           if (geometry !== mesh.geometry) {

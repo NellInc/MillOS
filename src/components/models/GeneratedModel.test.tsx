@@ -424,3 +424,46 @@ it('owns market paint variants while retaining shared atlas, shadow flags and cl
   material.roughnessMap!.dispose();
   material.dispose();
 });
+
+it('owns farm glazing materials only, preserving loader geometry, textures and original transforms', () => {
+  for (const asset of ['farmhouse', 'barn'] as const) {
+    const geometry = new THREE.BoxGeometry(),
+      map = new THREE.Texture();
+    const material = new THREE.MeshStandardMaterial({ map });
+    const source = new THREE.Group(),
+      body = new THREE.Mesh(geometry, material);
+    body.name = asset === 'barn' ? 'BarnBody' : 'FarmhouseBody';
+    body.position.set(0.001, 5.003, -0.001);
+    body.scale.setScalar(asset === 'barn' ? 10.007632 : 6.001156);
+    body.userData.authoredCastShadow = false;
+    source.add(body);
+    holder.scene = source;
+    let clone: THREE.Group;
+    const original = source.clone.bind(source);
+    vi.spyOn(source, 'clone').mockImplementation((recursive) => (clone = original(recursive)));
+    const sourceDispose = vi.spyOn(geometry, 'dispose');
+    const materialDispose = vi.spyOn(material, 'dispose');
+    const textureDispose = vi.spyOn(map, 'dispose');
+    const view = render(<GeneratedModel asset={asset} />);
+    const copy = clone!.getObjectByName(body.name) as THREE.Mesh;
+    expect(copy.geometry).toBe(geometry);
+    expect(copy.position).toEqual(body.position);
+    expect(copy.scale).toEqual(body.scale);
+    expect(copy.castShadow).toBe(false);
+    const finish = copy.material as THREE.MeshStandardMaterial;
+    expect(finish).not.toBe(material);
+    expect(finish.map).toBe(map);
+    expect(finish.customProgramCacheKey()).toBe(`millos-farm-window-${asset}-v1`);
+    expect(copy.children).toHaveLength(0);
+    const ownedDisposals = [vi.spyOn(finish, 'dispose')];
+    expect(body.children).toHaveLength(0);
+    view.unmount();
+    for (const dispose of ownedDisposals) expect(dispose).toHaveBeenCalledOnce();
+    expect(sourceDispose).not.toHaveBeenCalled();
+    expect(materialDispose).not.toHaveBeenCalled();
+    expect(textureDispose).not.toHaveBeenCalled();
+    geometry.dispose();
+    material.dispose();
+    map.dispose();
+  }
+});

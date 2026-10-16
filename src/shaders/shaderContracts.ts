@@ -514,6 +514,32 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     fallbackMaterial: 'existing primitive PalaceFallback without the atlas-specific finish',
   },
   {
+    id: 'generated-farm-interiors',
+    owner: 'models/GeneratedModel farmhouse and recessed barn loft',
+    sources: ['src/components/models/GeneratedOfficeModel.tsx'],
+    coordinateSpaces: [
+      'measured farmhouse object-rest apertures',
+      'measured barn loft object-rest backing',
+      'view-space shallow room',
+      'static world pane centre',
+    ],
+    colorSpace: 'linear host albedo, linen and bounded warm room emission',
+    toneMapping: 'material-pipeline',
+    fog: 'material-pipeline',
+    transparency: 'opaque',
+    depthBehavior: 'original opaque farmhouse depth; original barn backing and braces retain depth',
+    qualityVariants: ['low', 'medium', 'high', 'ultra'],
+    uniformOwner:
+      'shared exterior dimmer, village room/fabric controls and FARM_INTERIOR_STRENGTH isolation',
+    timeSource: 'simulation',
+    cacheKey: 'millos-farm-window-{kind}-v1',
+    disposalOwner:
+      'GeneratedModel owns private materials; all cached farm geometry/maps stay shared',
+    fallbackMaterial: 'unchanged existing primitive farm buildings',
+    notes:
+      'Composes the existing village virtual room. Three measured house apertures retain green joinery through bounded linear albedo selection. Barn vents, walls, X braces and doors remain untouched. No extra draw, light or shadow map.',
+  },
+  {
     id: 'generated-village-windows',
     owner: 'models/GeneratedModel village and castle architecture and scenery/VillageGardens homes',
     sources: ['src/components/models/GeneratedOfficeModel.tsx'],
