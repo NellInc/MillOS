@@ -222,6 +222,540 @@ export function createWorkerShirtTrim(source: THREE.SkinnedMesh, kind: 'collar' 
   return result;
 }
 
+/** A fitted laboratory coat extension on the delivered body's own skin.
+ * Existing upper clothes remain the torso; sleeves borrow actual forearms,
+ * and independent side panels leave real front/rear walking vents.
+ * Working if sampling elbows and seated/walking hips retain cloth support,
+ * with one private opaque draw and the incumbent two-draw distant body.
+ */
+export function createWorkerLabCoatGeometry(
+  source: THREE.SkinnedMesh,
+  onTriangle?: (triangle: number, donor: THREE.SkinnedMesh, face: number) => void
+) {
+  const bones = source.skeleton.bones;
+  const rest = (name: string) => {
+    const index = bones.findIndex((bone) => bone.name === name);
+    return index < 0
+      ? null
+      : new THREE.Vector3().setFromMatrixPosition(
+          source.skeleton.boneInverses[index].clone().invert()
+        );
+  };
+  const hip = rest('Hips');
+  if (!hip || bones.length > 256) return null;
+  type Vertex = { p: THREE.Vector3; n: THREE.Vector3; weights: Map<number, number>; id?: number };
+  type Face = {
+    vertices: Vertex[];
+    triangle: THREE.Triangle;
+    leg: boolean;
+    mesh: THREE.SkinnedMesh;
+    face: number;
+  };
+  const trunk: Face[] = [],
+    arms: Face[] = [];
+  let shirtBottom = Infinity,
+    sleeveEnd = 0;
+  source.parent?.parent?.traverse((object) => {
+    const mesh = object as THREE.SkinnedMesh;
+    if (
+      !mesh.isSkinnedMesh ||
+      !/Worker_(Body|Legs)$/.test(mesh.parent?.name ?? '') ||
+      !mesh.bindMatrix.equals(source.bindMatrix) ||
+      !mesh.bindMatrixInverse.equals(source.bindMatrixInverse) ||
+      !mesh.skeleton.bones.every(
+        (bone, i) =>
+          bone === bones[i] && mesh.skeleton.boneInverses[i].equals(source.skeleton.boneInverses[i])
+      )
+    )
+      return;
+    const a = mesh.geometry.attributes;
+    if (!['position', 'normal', 'skinIndex', 'skinWeight'].every((key) => a[key])) return;
+    const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+    if (/^(White|LightBrown)(-|$)/.test(material.name)) {
+      for (let i = 0; i < a.position.count; i++) {
+        shirtBottom = Math.min(shirtBottom, a.position.getY(i));
+        sleeveEnd = Math.max(sleeveEnd, Math.abs(a.position.getX(i)));
+      }
+    }
+    const vertex = (id: number): Vertex => {
+      const weights = new Map<number, number>();
+      for (let k = 0; k < 4; k++) {
+        const weight = a.skinWeight.getComponent(id, k);
+        if (weight > 0) weights.set(a.skinIndex.getComponent(id, k), weight);
+      }
+      return {
+        id,
+        p: new THREE.Vector3().fromBufferAttribute(a.position, id),
+        n: new THREE.Vector3().fromBufferAttribute(a.normal, id),
+        weights,
+      };
+    };
+    const index = mesh.geometry.index;
+    for (let i = 0; i < (index?.count ?? a.position.count); i += 3) {
+      const vertices = [0, 1, 2].map((c) => vertex(index?.getX(i + c) ?? i + c));
+      const arm = vertices.some((v) =>
+        [...v.weights].some(
+          ([j, w]) => /UpperArm|LowerArm|Wrist|Finger/.test(bones[j].name) && w > 0.15
+        )
+      );
+      const face = {
+        mesh,
+        face: i / 3,
+        leg: mesh.parent?.name === 'Worker_Legs',
+        vertices,
+        triangle: new THREE.Triangle(
+          ...(vertices.map((v) => v.p) as [THREE.Vector3, THREE.Vector3, THREE.Vector3])
+        ),
+      };
+      if (!arm) trunk.push(face);
+      else if (/^Skin(-|$)/.test(material.name)) arms.push(face);
+    }
+  });
+  if (!Number.isFinite(shirtBottom) || !arms.length || !trunk.length) return null;
+  const positions: number[] = [],
+    colours: number[] = [],
+    skin: number[] = [],
+    weights: number[] = [],
+    indices: number[] = [];
+  let maxDiscardedWeight = 0;
+  const emit = (p: THREE.Vector3, support: Map<number, number>, tone = 1) => {
+    const ranked = [...support].filter(([, w]) => w > 1e-9).sort((a, b) => b[1] - a[1]);
+    maxDiscardedWeight = Math.max(
+      maxDiscardedWeight,
+      ranked.slice(4).reduce((s, [, w]) => s + w, 0)
+    );
+    const kept = ranked.slice(0, 4),
+      total = kept.reduce((s, [, w]) => s + w, 0);
+    if (total <= 0) throw new Error('Laboratory coat requires real skin support');
+    const id = positions.length / 3;
+    positions.push(...p.toArray());
+    colours.push(tone, tone, tone);
+    for (let k = 0; k < 4; k++) {
+      skin.push(kept[k]?.[0] ?? 0);
+      weights.push((kept[k]?.[1] ?? 0) / total);
+    }
+    return id;
+  };
+  const blend = (a: Vertex, b: Vertex, t: number): Vertex => {
+    const support = new Map<number, number>();
+    for (const [j, w] of a.weights) support.set(j, w * (1 - t));
+    for (const [j, w] of b.weights) support.set(j, (support.get(j) ?? 0) + w * t);
+    return {
+      p: a.p.clone().lerp(b.p, t),
+      n: a.n.clone().lerp(b.n, t).normalize(),
+      weights: support,
+    };
+  };
+  const clipped = (
+    polygon: Vertex[],
+    limit: number,
+    side: number,
+    above: boolean,
+    axis: 'x' | 'y' = 'x'
+  ) => {
+    const result: Vertex[] = [];
+    for (let i = 0; i < polygon.length; i++) {
+      const a = polygon[i],
+        b = polygon[(i + 1) % polygon.length],
+        da = (a.p[axis] * side - limit) * (above ? 1 : -1),
+        db = (b.p[axis] * side - limit) * (above ? 1 : -1);
+      if (da >= 0) result.push(a);
+      if (da >= 0 !== db >= 0) result.push(blend(a, b, da / (da - db)));
+    }
+    return result;
+  };
+  const sleeves: { side: number; start: number; count: number; cuff: number; proximal: number }[] =
+    [];
+  for (const side of [-1, 1]) {
+    const wrist = rest(side > 0 ? 'WristL' : 'WristR');
+    if (!wrist) return null;
+    const proximal = sleeveEnd - 0.032,
+      cuff = Math.abs(wrist.x) - 0.014,
+      start = positions.length / 3;
+    const welded = new Map<string, number>();
+    for (const face of arms) {
+      if (face.vertices.some((v) => v.p.x * side < 0)) continue;
+      const polygon = clipped(clipped(face.vertices, proximal, side, true), cuff, side, false);
+      const ids = polygon.map((v) => {
+        const seam = THREE.MathUtils.smoothstep(v.p.x * side, cuff - 0.014, cuff - 0.004);
+        const shoulderOverlap =
+          1 - THREE.MathUtils.smoothstep(v.p.x * side, proximal, proximal + 0.055);
+        const p = v.p.clone().addScaledVector(v.n, 0.005 + shoulderOverlap * 0.004 + seam * 0.0015);
+        const key =
+          p
+            .toArray()
+            .map((n) => Math.round(n * 1e6))
+            .join(',') +
+          ':' +
+          [...v.weights]
+            .sort((a, b) => a[0] - b[0])
+            .map(([j, w]) => `${j}:${Math.round(w * 1e6)}`)
+            .join(',');
+        const old = welded.get(key);
+        if (old !== undefined) return old;
+        const id = emit(p, v.weights, 1 - seam * 0.055);
+        welded.set(key, id);
+        return id;
+      });
+      for (let i = 1; i < ids.length - 1; i++) {
+        onTriangle?.(indices.length / 3, face.mesh, face.face);
+        indices.push(ids[0], ids[i], ids[i + 1]);
+      }
+    }
+    sleeves.push({ side, start, count: positions.length / 3 - start, cuff, proximal });
+  }
+  const top = hip.y + 0.085,
+    hem = hip.y - 0.28,
+    ventTop = hip.y + 0.025;
+  const tailStart = positions.length / 3;
+  const tailFaces = trunk.filter((face) => face.leg);
+  // Material islands duplicate vertices with different normals. A shared rest
+  // normal field keeps their cloth offsets seated together, without touching
+  // any source attribute or changing the source's actual skin support.
+  const supportKey = (v: Vertex) =>
+    v.p
+      .toArray()
+      .map((n) => Math.round(n * 1e5))
+      .join(',') +
+    ':' +
+    [...v.weights]
+      .sort((a, b) => a[0] - b[0])
+      .map(([j, w]) => `${j}:${Math.round(w * 1e5)}`)
+      .join(',');
+  const normals = new Map<string, THREE.Vector3>();
+  for (const face of tailFaces) {
+    const normal = new THREE.Vector3()
+      .subVectors(face.triangle.b, face.triangle.a)
+      .cross(new THREE.Vector3().subVectors(face.triangle.c, face.triangle.a));
+    for (const v of face.vertices) {
+      const key = supportKey(v);
+      if (!normals.has(key)) normals.set(key, new THREE.Vector3());
+      normals.get(key)!.add(normal);
+    }
+  }
+  for (const face of tailFaces)
+    for (const v of face.vertices) v.n.copy(normals.get(supportKey(v))!).normalize();
+  const shellFaces: number[] = [];
+  const welded = new Map<string, number>();
+  const pushTail = (face: Face, polygon: Vertex[], tone = 1, pocket = false) => {
+    const ids = polygon.map((v) => {
+      const radial = v.n.clone().setY(0);
+      if (radial.lengthSq() < 0.001) radial.set(v.p.x - hip.x, 0, v.p.z - hip.z);
+      radial.normalize();
+      const flare = THREE.MathUtils.smoothstep(top - v.p.y, 0.02, 0.3);
+      const p = v.p.clone().addScaledVector(radial, 0.004 + flare * 0.012 + (pocket ? 0.003 : 0));
+      const key =
+        p
+          .toArray()
+          .map((n) => Math.round(n * 1e6))
+          .join(',') +
+        ':' +
+        tone +
+        ':' +
+        [...v.weights]
+          .sort((a, b) => a[0] - b[0])
+          .map(([j, w]) => `${j}:${Math.round(w * 1e6)}`)
+          .join(',');
+      const previous = welded.get(key);
+      if (previous !== undefined) return previous;
+      const id = emit(p, v.weights, tone);
+      welded.set(key, id);
+      return id;
+    });
+    for (let i = 1; i < ids.length - 1; i++) {
+      const a = new THREE.Vector3().fromArray(positions, ids[0] * 3),
+        b = new THREE.Vector3().fromArray(positions, ids[i] * 3),
+        c = new THREE.Vector3().fromArray(positions, ids[i + 1] * 3);
+      if (new THREE.Triangle(a, b, c).getArea() > 1e-12) {
+        if (!pocket) shellFaces.push(indices.length / 3);
+        onTriangle?.(indices.length / 3, face.mesh, face.face);
+        indices.push(ids[0], ids[i], ids[i + 1]);
+      }
+    }
+  };
+  // The waist retains its continuous source topology. Lower coat tails remain
+  // open medially, with separate front/rear vents and original thigh support.
+  for (const face of tailFaces) {
+    if (face.triangle.getMidpoint(new THREE.Vector3()).y <= top)
+      pushTail(face, clipped(face.vertices, ventTop, 1, true, 'y'));
+    for (const side of [-1, 1]) {
+      const centre = face.triangle.getMidpoint(new THREE.Vector3()),
+        normal = face.triangle.getNormal(new THREE.Vector3());
+      if (
+        centre.y < hip.y - 0.065 &&
+        Math.abs(centre.x - hip.x) < 0.11 &&
+        normal.x * side < -0.55 &&
+        Math.abs(normal.x) > Math.abs(normal.z) * 1.4
+      )
+        continue;
+      const lower = clipped(
+        clipped(clipped(face.vertices, hem, 1, true, 'y'), ventTop, 1, false, 'y'),
+        side * hip.x + 0.005,
+        side,
+        true
+      );
+      pushTail(face, lower);
+      if (normal.z < 0.3) continue;
+      const pocket = clipped(
+        clipped(
+          clipped(
+            clipped(face.vertices, hip.y - 0.075, 1, true, 'y'),
+            hip.y + 0.055,
+            1,
+            false,
+            'y'
+          ),
+          side * hip.x + 0.055,
+          side,
+          true
+        ),
+        side * hip.x + 0.14,
+        side,
+        false
+      );
+      pushTail(face, pocket, 1.035, true);
+      pushTail(face, clipped(pocket, hip.y + 0.044, 1, true, 'y'), 0.86, true);
+    }
+  }
+  // Join the real shirt hem to the real upper tail outline. Each endpoint
+  // keeps its own source support; no overlapping translated shirt/belt islands.
+  const hull = <T extends { p: THREE.Vector3 }>(items: T[]) => {
+    const unique = new Map<string, T>();
+    for (const v of items) unique.set(`${Math.round(v.p.x * 1e6)},${Math.round(v.p.z * 1e6)}`, v);
+    const points = [...unique.values()].sort((a, b) => a.p.x - b.p.x || a.p.z - b.p.z);
+    const cross = (a: T, b: T, c: T) =>
+      (b.p.x - a.p.x) * (c.p.z - a.p.z) - (b.p.z - a.p.z) * (c.p.x - a.p.x);
+    const chain = (a: T[]) => {
+      const result: T[] = [];
+      for (const p of a) {
+        while (result.length > 1 && cross(result.at(-2)!, result.at(-1)!, p) < -1e-10) result.pop();
+        result.push(p);
+      }
+      result.pop();
+      return result;
+    };
+    return [...chain(points), ...chain(points.slice().reverse())].sort(
+      (a, b) => Math.atan2(a.p.z - hip.z, a.p.x - hip.x) - Math.atan2(b.p.z - hip.z, b.p.x - hip.x)
+    );
+  };
+  const rim = [...new Set(shellFaces.flatMap((t) => indices.slice(t * 3, t * 3 + 3)))]
+    .map((id) => ({
+      id,
+      p: new THREE.Vector3().fromArray(positions, id * 3),
+    }))
+    .filter((v) => v.p.y > ventTop + 1e-5);
+  const canonical: typeof rim = [],
+    remap = new Map<number, number>();
+  let seamWeldMaxDistance = 0;
+  const supportDistance = (i: number, j: number) => {
+    const delta = new Map<number, number>();
+    for (let k = 0; k < 4; k++) {
+      delta.set(skin[i * 4 + k], (delta.get(skin[i * 4 + k]) ?? 0) + weights[i * 4 + k]);
+      delta.set(skin[j * 4 + k], (delta.get(skin[j * 4 + k]) ?? 0) - weights[j * 4 + k]);
+    }
+    return [...delta.values()].reduce((s, n) => s + Math.abs(n), 0);
+  };
+  for (const v of rim) {
+    const previous = canonical.find(
+      (w) => w.p.distanceTo(v.p) < 0.001 && supportDistance(w.id, v.id) < 0.04
+    );
+    if (previous) {
+      remap.set(v.id, previous.id);
+      seamWeldMaxDistance = Math.max(seamWeldMaxDistance, previous.p.distanceTo(v.p));
+    } else canonical.push(v);
+  }
+  for (let i = 0; i < indices.length; i++) indices[i] = remap.get(indices[i]) ?? indices[i];
+  const rimIds = new Set(canonical.map((v) => v.id)),
+    edges = new Map<string, number>();
+  for (const face of shellFaces)
+    for (let k = 0; k < 3; k++) {
+      const t = face * 3;
+      const i = indices[t + k],
+        j = indices[t + ((k + 1) % 3)];
+      if (i === j || !rimIds.has(i) || !rimIds.has(j)) continue;
+      const key = [Math.min(i, j), Math.max(i, j)].join(',');
+      edges.set(key, (edges.get(key) ?? 0) + 1);
+    }
+  const neighbours = new Map<number, number[]>();
+  for (const [key, n] of edges) {
+    if (n !== 1) continue;
+    const [i, j] = key.split(',').map(Number);
+    for (const [u, v] of [
+      [i, j],
+      [j, i],
+    ]) {
+      if (!neighbours.has(u)) neighbours.set(u, []);
+      neighbours.get(u)!.push(v);
+    }
+  }
+  if ([...neighbours.values()].some((ns) => ns.length !== 2)) return null;
+  const loops: number[][] = [],
+    visited = new Set<number>();
+  for (const start of neighbours.keys()) {
+    if (visited.has(start)) continue;
+    const loop: number[] = [];
+    let current = start,
+      previous = -1;
+    do {
+      if (visited.has(current)) return null;
+      visited.add(current);
+      loop.push(current);
+      const next = neighbours.get(current)!.find((n) => n !== previous)!;
+      previous = current;
+      current = next;
+    } while (current !== start);
+    loops.push(loop);
+  }
+  const outline = loops.sort((a, b) => b.length - a.length)[0] ?? [];
+  const lower = outline.map((id) => ({ id, p: new THREE.Vector3().fromArray(positions, id * 3) }));
+  const area = lower.reduce((sum, v, i) => {
+    const w = lower[(i + 1) % lower.length];
+    return sum + v.p.x * w.p.z - w.p.x * v.p.z;
+  }, 0);
+  if (area < 0) lower.reverse();
+  const start = lower.reduce(
+    (best, v, i) =>
+      Math.atan2(v.p.z - hip.z, v.p.x - hip.x) <
+      Math.atan2(lower[best].p.z - hip.z, lower[best].p.x - hip.x)
+        ? i
+        : best,
+    0
+  );
+  lower.push(...lower.splice(0, start));
+  // Ease the sewn rim after topology canonicalization. Every adjoining shell
+  // face uses the same indices, so a small cloth allowance cannot split it.
+  for (const { id, p } of lower) {
+    p.addScaledVector(new THREE.Vector3(p.x - hip.x, 0, p.z - hip.z).normalize(), 0.002);
+    positions.splice(id * 3, 3, ...p.toArray());
+  }
+
+  const hemSources: { p: THREE.Vector3; v: Vertex; mesh: THREE.SkinnedMesh }[] = [];
+  for (const face of trunk) {
+    const material = Array.isArray(face.mesh.material) ? face.mesh.material[0] : face.mesh.material;
+    if (face.leg || !/^(White|LightBrown)(-|$)/.test(material.name)) continue;
+    for (const v of face.vertices)
+      if (v.p.y < shirtBottom + 0.045) hemSources.push({ p: v.p, v, mesh: face.mesh });
+  }
+  const upperHem = hull(hemSources).map(({ p, v, mesh }) => {
+    const radial = v.n.clone().setY(0);
+    if (radial.lengthSq() < 0.001) radial.set(p.x - hip.x, 0, p.z - hip.z);
+    const id = emit(p.clone().addScaledVector(radial.normalize(), 0.005), v.weights);
+    return { id, vertex: v.id!, mesh: mesh.name };
+  });
+  if (lower.length < 4 || upperHem.length < 4) return null;
+  const bridgeStart = indices.length / 3;
+  const upper = upperHem.map((v) => ({
+    ...v,
+    p: new THREE.Vector3().fromArray(positions, v.id * 3),
+  }));
+  // The native waist is serrated. Equal normalized circumference can connect
+  // a front shirt vertex to the rear waist. Keep source-edge order and choose
+  // the cyclic registration/zipper with the shortest local cross-edges.
+  let steps: number[] = [],
+    best = Infinity,
+    registration = 0;
+  for (let start = 0; start < lower.length; start++) {
+    const width = lower.length + 1,
+      cost = new Float64Array((upper.length + 1) * width).fill(Infinity),
+      from = new Uint8Array(cost.length);
+    cost[0] = 0;
+    for (let u = 0; u <= upper.length; u++)
+      for (let l = 0; l <= lower.length; l++) {
+        const index = u * width + l,
+          current = cost[index];
+        if (u < upper.length) {
+          const next = index + width,
+            value =
+              current +
+              upper[(u + 1) % upper.length].p.distanceToSquared(
+                lower[(l + start) % lower.length].p
+              );
+          if (value < cost[next]) {
+            cost[next] = value;
+            from[next] = 0;
+          }
+        }
+        if (l < lower.length) {
+          const next = index + 1,
+            value =
+              current +
+              upper[u % upper.length].p.distanceToSquared(lower[(l + 1 + start) % lower.length].p);
+          if (value < cost[next]) {
+            cost[next] = value;
+            from[next] = 1;
+          }
+        }
+      }
+    if (cost.at(-1)! >= best) continue;
+    best = cost.at(-1)!;
+    registration = start;
+    const path: number[] = [];
+    let u = upper.length,
+      l = lower.length;
+    while (u || l) {
+      const step = from[u * width + l];
+      path.push(step);
+      if (step === 0) u--;
+      else l--;
+    }
+    steps = path.reverse();
+  }
+  lower.push(...lower.splice(0, registration));
+  const bridge = (i: number, j: number, k: number) => {
+    const points = [i, j, k].map((id) => new THREE.Vector3().fromArray(positions, id * 3)),
+      t = new THREE.Triangle(...(points as [THREE.Vector3, THREE.Vector3, THREE.Vector3])),
+      radial = t.getMidpoint(new THREE.Vector3()).sub(hip).setY(0);
+    if (t.getNormal(new THREE.Vector3()).dot(radial) < 0) [j, k] = [k, j];
+    indices.push(i, j, k);
+  };
+  let u = 0,
+    l = 0;
+  for (const step of steps) {
+    if (step === 0) {
+      bridge(
+        upper[u % upper.length].id,
+        lower[l % lower.length].id,
+        upper[(u + 1) % upper.length].id
+      );
+      u++;
+    } else {
+      bridge(
+        upper[u % upper.length].id,
+        lower[l % lower.length].id,
+        lower[(l + 1) % lower.length].id
+      );
+      l++;
+    }
+  }
+  const bridgeCount = indices.length / 3 - bridgeStart;
+  const tailCount = positions.length / 3 - tailStart;
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colours, 3));
+  geometry.setAttribute('skinIndex', new THREE.Uint8BufferAttribute(skin, 4));
+  geometry.setAttribute('skinWeight', new THREE.Float32BufferAttribute(weights, 4));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+  geometry.userData.labCoatFit = {
+    sleeves,
+    tailStart,
+    tailCount,
+    top,
+    hem,
+    ventTop,
+    bridgeStart,
+    bridgeCount,
+    seamWeldMaxDistance,
+    upperHem,
+    lowerHem: lower.map((v) => v.id),
+    sourceSupported: true,
+    maxDiscardedWeight,
+  };
+  return geometry;
+}
+
 /** A short linen work apron in the source skin's bind coordinates. It shares
  * the existing palette and indexed Uint8 joints, including the distant merge.
  * Working if the bib follows torso flexion and the hem follows the two thighs

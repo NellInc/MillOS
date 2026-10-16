@@ -20,6 +20,7 @@ import {
   WORKER_HAIR_GEOMETRIES,
   createWorkerHairMotion,
   createWorkerApronGeometry,
+  createWorkerLabCoatGeometry,
   createWorkerShirtTrim,
 } from '../workers/SharedWorkerGeometries';
 import {
@@ -732,13 +733,15 @@ function surfaceColor(surface: WorkerSurface, appearance: WorkerAppearance): THR
     case 'hardHat':
       return new THREE.Color(appearance.hatColor);
     case 'hiVisStrap':
+      if (appearance.hasLabCoat) return new THREE.Color('#eef0e7');
       return appearance.hasVest
         ? new THREE.Color(appearance.hatColor)
         : shade(appearance.uniformColor, 0.88);
     case 'hiVis':
+      if (appearance.hasLabCoat) return new THREE.Color('#eef0e7');
       return new THREE.Color(appearance.hasVest ? appearance.accentColor : appearance.uniformColor);
     case 'shirt':
-      return new THREE.Color(appearance.hasLabCoat ? '#eef2f4' : appearance.uniformColor);
+      return new THREE.Color(appearance.hasLabCoat ? '#eef0e7' : appearance.uniformColor);
     case 'eye':
       return new THREE.Color(appearance.eyeColor);
     case 'hair':
@@ -1189,6 +1192,40 @@ export function createBakerApron(model: THREE.Object3D) {
   return mesh;
 }
 
+/** The coat shares this person's existing bind frame, never the cached rig.
+ * Working if one owned garment follows the original clips and joins the far LOD.
+ */
+export function createWorkerLabCoat(model: THREE.Object3D) {
+  let source: THREE.SkinnedMesh | undefined;
+  model.traverse((object) => {
+    const mesh = object as THREE.SkinnedMesh;
+    if (!source && mesh.isSkinnedMesh && mesh.parent?.name === 'Worker_Body') source = mesh;
+  });
+  if (!source) return null;
+  const geometry = createWorkerLabCoatGeometry(source);
+  if (!geometry) return null;
+  const material = new THREE.MeshStandardMaterial({
+    name: 'quality-ivory-lab-coat',
+    color: '#eef0e7',
+    vertexColors: true,
+    roughness: 0.94,
+    metalness: 0,
+    envMapIntensity: 0.8,
+    side: (Array.isArray(source.material) ? source.material[0] : source.material).side,
+  });
+  const mesh = new THREE.SkinnedMesh(geometry, material);
+  mesh.name = 'quality-authored-lab-coat';
+  mesh.position.copy(source.position);
+  mesh.quaternion.copy(source.quaternion);
+  mesh.scale.copy(source.scale);
+  mesh.bindMode = source.bindMode;
+  mesh.bind(source.skeleton, source.bindMatrix);
+  mesh.bindMatrixInverse.copy(source.bindMatrixInverse);
+  mesh.castShadow = mesh.receiveShadow = true;
+  source.parent?.add(mesh);
+  return mesh;
+}
+
 export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) => {
   const modelPath =
     appearance.bodyType === 'feminine' ? WORKER_ASSET_PATHS.feminine : WORKER_ASSET_PATHS.masculine;
@@ -1353,10 +1390,11 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       material.needsUpdate = true;
     }
 
-    // Tailor only the existing civilian clothes. PPE keeps its original shape.
+    // Tailor the existing civilian clothes and laboratory coat body. Other PPE
+    // keeps its original shape; the coat retains the original protected hands.
     // Build the complete fitting before assigning either private garment buffer.
     // Working if the original body buffers/skin and near/far draw counts survive.
-    if (!appearance.hasHardHat && !appearance.hasVest && !appearance.hasLabCoat) {
+    if ((!appearance.hasHardHat && !appearance.hasVest) || appearance.hasLabCoat) {
       const tailored = clothSources
         .filter(({ region }) => region === 'hiVis' || region === 'shirt')
         .map(({ mesh, region }) => ({
@@ -1386,6 +1424,14 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       materials.push(apron.material);
       skinned.push(apron);
       if (apron.geometry.boundingBox) _bindBox.union(apron.geometry.boundingBox);
+    }
+
+    const coat = appearance.hasLabCoat ? createWorkerLabCoat(model) : null;
+    if (coat) {
+      ownedGeometry.push(coat.geometry);
+      materials.push(coat.material);
+      skinned.push(coat);
+      if (coat.geometry.boundingBox) _bindBox.union(coat.geometry.boundingBox);
     }
 
     // One conservative bind-pose volume shared by every primitive: all meshes

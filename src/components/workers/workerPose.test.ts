@@ -6,7 +6,11 @@ import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import draco3d from 'draco3dgltf';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { WORKER_EYE_CENTRES, createWorkerShirtTrim } from './SharedWorkerGeometries';
+import {
+  WORKER_EYE_CENTRES,
+  createWorkerShirtTrim,
+  createWorkerLabCoatGeometry,
+} from './SharedWorkerGeometries';
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { clone } from 'three/addons/utils/SkeletonUtils.js';
 import {
@@ -31,6 +35,7 @@ import {
   retainWorkerBrows,
   shareWorkerSkin,
   createBakerApron,
+  createWorkerLabCoat,
   createWorkerAccessoryPair,
   setWorkerPupilPose,
   setWorkerPupilBlink,
@@ -3342,3 +3347,278 @@ it.each(['masculine', 'feminine'])(
     skeletons.forEach((s) => s.dispose());
   }
 );
+
+for (const body of ['masculine', 'feminine'])
+  for (const height of [0.95, 1.08])
+    it(`${body}/${height} laboratory coat retains anatomical support, vents and distant skin through actual motions`, () => {
+      const asset = bodies.get(body)!,
+        scene = clone(asset.scene),
+        wrapper = new THREE.Group();
+      wrapper.scale.set(0.96, height, 1.06);
+      wrapper.rotation.y = 0.9;
+      wrapper.position.set(4, 0.4, -6);
+      wrapper.add(scene);
+      const skeletons = shareWorkerSkin(scene),
+        inverses = skeletons[0].boneInverses.map((m) => m.elements.slice());
+      const sources: THREE.SkinnedMesh[] = [];
+      scene.traverse((o) => {
+        const m = o as THREE.SkinnedMesh;
+        if (m.isSkinnedMesh) {
+          sources.push(m);
+          m.castShadow = !m.parent?.name.includes('Worker_Feet');
+        }
+      });
+      const sourceBytes = sources.map((m) =>
+        Object.fromEntries(
+          Object.entries(m.geometry.attributes).map(([k, a]) => [k, Array.from(a.array)])
+        )
+      );
+      scene.updateMatrixWorld(true);
+      const lineage: { mesh: THREE.SkinnedMesh; face: number }[] = [];
+      const traced = createWorkerLabCoatGeometry(
+        sources.find((m) => m.parent?.name === 'Worker_Body')!,
+        (triangle, mesh, face) => {
+          lineage[triangle] = { mesh, face };
+        }
+      )!;
+      const coat = createWorkerLabCoat(scene)!;
+      expect(coat).not.toBeNull();
+      expect(coat.geometry.attributes.position.array).toEqual(traced.attributes.position.array);
+      expect(coat.geometry.index!.array).toEqual(traced.index!.array);
+      coat.geometry.dispose();
+      coat.geometry = traced;
+      expect(lineage).toHaveLength(traced.userData.labCoatFit.bridgeStart);
+      expect(coat.skeleton).toBe(skeletons[0]);
+      expect(coat.material).toMatchObject({
+        vertexColors: true,
+        roughness: 0.94,
+        metalness: 0,
+        map: null,
+        transparent: false,
+      });
+      const g = coat.geometry,
+        p = g.attributes.position,
+        fit = g.userData.labCoatFit;
+      expect(g.attributes.skinIndex.array).toBeInstanceOf(Uint8Array);
+      expect(fit.sourceSupported).toBe(true);
+      expect(fit.bridgeCount).toBeGreaterThan(10);
+      const seamIds = new Set<number>([
+        ...fit.lowerHem,
+        ...fit.upperHem.map((v: { id: number }) => v.id),
+      ]);
+      for (let t = fit.bridgeStart * 3; t < g.index!.count; t++)
+        expect(seamIds.has(g.index!.getX(t))).toBe(true);
+      const edges = new Map<string, number>();
+      for (let t = 0; t < g.index!.count; t += 3)
+        for (let k = 0; k < 3; k++) {
+          const i = g.index!.getX(t + k),
+            j = g.index!.getX(t + ((k + 1) % 3)),
+            key = [Math.min(i, j), Math.max(i, j)].join(',');
+          edges.set(key, (edges.get(key) ?? 0) + 1);
+        }
+      for (let i = 0; i < fit.lowerHem.length; i++) {
+        const ids = [fit.lowerHem[i], fit.lowerHem[(i + 1) % fit.lowerHem.length]].sort(
+          (a: number, b: number) => a - b
+        );
+        expect(edges.get(ids.join(',')), 'sewn lower edge has both tail and bridge').toBe(2);
+      }
+      expect(fit.maxDiscardedWeight).toBeLessThan(0.02);
+      expect(fit.tailCount).toBeGreaterThan(200);
+      expect(g.index!.count / 3).toBeLessThan(1300);
+      for (let i = 0; i < p.count; i++) {
+        expect([p.getX(i), p.getY(i), p.getZ(i)].every(Number.isFinite)).toBe(true);
+        expect(
+          [0, 1, 2, 3].reduce((s, k) => s + g.attributes.skinWeight.getComponent(i, k), 0)
+        ).toBeCloseTo(1, 6);
+      }
+      const lod = createWorkerBodyLod(scene)!;
+      expect(lod.meshes).toHaveLength(2);
+      const far = lod.meshes.find((m) => m.castShadow === coat.castShadow)!,
+        parts = lod.sources.filter((m) => m.castShadow === coat.castShadow),
+        offset = parts
+          .slice(0, parts.indexOf(coat))
+          .reduce((s, m) => s + m.geometry.attributes.position.count, 0);
+      const refs: { mesh: THREE.SkinnedMesh; ids: number[] }[] = [];
+      for (const mesh of sources) {
+        if (!/Worker_(Body|Legs)$/.test(mesh.parent?.name ?? '')) continue;
+        const a = mesh.geometry.attributes.position,
+          index = mesh.geometry.index;
+        for (let t = 0; t < (index?.count ?? a.count); t += 3) {
+          const ids = [0, 1, 2].map((k) => index?.getX(t + k) ?? t + k),
+            ys = ids.map((i) => a.getY(i));
+          if (
+            Math.min(...ys) < fit.top + 0.15 &&
+            Math.max(...ys) > fit.top - 0.035 &&
+            ids.every((i) => Math.abs(a.getX(i)) < 0.3)
+          )
+            refs.push({ mesh, ids });
+        }
+      }
+      const mixer = new THREE.AnimationMixer(scene),
+        pose = createSeatedWorkerPose(
+          scene,
+          height,
+          0.96,
+          asset.animations.find((c) => c.name === 'worker-break')
+        );
+      const a = new THREE.Vector3(),
+        b = new THREE.Vector3(),
+        c = new THREE.Vector3(),
+        centre = new THREE.Vector3(),
+        normal = new THREE.Vector3(),
+        support = new THREE.Triangle(),
+        closest = new THREE.Vector3();
+      let minClearance = Infinity,
+        maxClearance = -Infinity,
+        measured = 0;
+      let worst: unknown;
+      for (const name of [
+        'worker-idle',
+        'worker-walk',
+        'worker-run',
+        'worker-sample',
+        'worker-break',
+      ]) {
+        const clip = asset.animations.find((c) => c.name === name)!;
+        mixer.stopAllAction();
+        mixer.clipAction(clip).play();
+        for (const fraction of [0, 0.25, 0.5, 0.75]) {
+          pose.restore();
+          mixer.setTime(clip.duration * fraction);
+          if (name === 'worker-break') pose.apply();
+          if (name === 'worker-sample') pose.applyDuty('sample', createWorkerGesture(), 1);
+          wrapper.updateMatrixWorld(true);
+          scene.traverse((o) => {
+            const m = o as THREE.SkinnedMesh;
+            if (m.isSkinnedMesh) {
+              m.skeleton.update();
+              m.computeBoundingSphere();
+            }
+          });
+          for (let i = 0; i < p.count; i += Math.max(1, Math.floor(p.count / 45))) {
+            coat.getVertexPosition(i, a).applyMatrix4(coat.matrixWorld);
+            far.getVertexPosition(offset + i, b).applyMatrix4(far.matrixWorld);
+            expect(a.distanceTo(b)).toBeLessThan(2e-6);
+          }
+          for (
+            let t = 0;
+            t < g.index!.count;
+            t += Math.max(3, Math.floor(g.index!.count / 38 / 3) * 3)
+          ) {
+            if (t / 3 >= fit.bridgeStart) continue;
+            const ids = [0, 1, 2].map((k) => g.index!.getX(t + k));
+            coat.getVertexPosition(ids[0], a).applyMatrix4(coat.matrixWorld);
+            coat.getVertexPosition(ids[1], b).applyMatrix4(coat.matrixWorld);
+            coat.getVertexPosition(ids[2], c).applyMatrix4(coat.matrixWorld);
+            normal.subVectors(b, a).cross(c.clone().sub(a)).normalize();
+            if (normal.lengthSq() < 0.5) continue;
+            centre
+              .copy(a)
+              .add(b)
+              .add(c)
+              .multiplyScalar(1 / 3);
+            // A folded same-side thigh can occlude a long ray in a seated
+            // pose. Compare each clipped cloth triangle with its actual donor,
+            // rather than mistaking a foreground leg for local penetration.
+            const donor = lineage[t / 3],
+              donorIndex = donor.mesh.geometry.index;
+            for (const [k, vertex] of [support.a, support.b, support.c].entries())
+              donor.mesh
+                .getVertexPosition(
+                  donorIndex?.getX(donor.face * 3 + k) ?? donor.face * 3 + k,
+                  vertex
+                )
+                .applyMatrix4(donor.mesh.matrixWorld);
+            support.getNormal(normal);
+            if (normal.lengthSq() < 0.5) continue;
+            support.closestPointToPoint(centre, closest);
+            const distance = centre.clone().sub(closest).dot(normal);
+            if (distance < minClearance)
+              worst = { name, fraction, t, donor: donor.mesh.name, face: donor.face, distance };
+            minClearance = Math.min(minClearance, distance);
+            maxClearance = Math.max(maxClearance, centre.distanceTo(closest));
+            measured++;
+          }
+          for (const v of fit.upperHem as { id: number; vertex: number; mesh: string }[]) {
+            const donor = sources.find((m) => m.name === v.mesh)!;
+            donor.getVertexPosition(v.vertex, a).applyMatrix4(donor.matrixWorld);
+            coat.getVertexPosition(v.id, b).applyMatrix4(coat.matrixWorld);
+            expect(
+              a.distanceTo(b),
+              'upper hem stays on its actual original attachment'
+            ).toBeLessThan(0.006);
+          }
+          const surfaces = refs.map(
+            ({ mesh, ids }) =>
+              new THREE.Triangle(
+                ...(ids.map((i) =>
+                  mesh.getVertexPosition(i, new THREE.Vector3()).applyMatrix4(mesh.matrixWorld)
+                ) as [THREE.Vector3, THREE.Vector3, THREE.Vector3])
+              )
+          );
+          for (let t = fit.bridgeStart * 3; t < g.index!.count; t += 9) {
+            const points = [0, 1, 2].map((k) =>
+              coat
+                .getVertexPosition(g.index!.getX(t + k), new THREE.Vector3())
+                .applyMatrix4(coat.matrixWorld)
+            );
+            centre
+              .copy(points[0])
+              .add(points[1])
+              .add(points[2])
+              .multiplyScalar(1 / 3);
+            let best = Infinity,
+              signed = 0;
+            for (const surface of surfaces) {
+              surface.closestPointToPoint(centre, closest);
+              const distance = centre.distanceTo(closest);
+              if (distance < best) {
+                best = distance;
+                signed = centre.clone().sub(closest).dot(surface.getNormal(normal));
+              }
+            }
+            if (signed < minClearance) worst = { name, fraction, bridge: t / 3, signed, best };
+            minClearance = Math.min(minClearance, signed);
+            maxClearance = Math.max(maxClearance, best);
+            measured++;
+          }
+        }
+      }
+      expect(measured).toBeGreaterThan(300);
+      expect(
+        minClearance,
+        'anatomical source intrudes through coat ' + JSON.stringify(worst)
+      ).toBeGreaterThan(-0.006);
+      expect(maxClearance, 'coat stands excessively off its support').toBeLessThan(0.065);
+      expect(skeletons[0].boneInverses.map((m) => m.elements)).toEqual(inverses);
+      sources.forEach((m, i) => {
+        for (const [k, values] of Object.entries(sourceBytes[i]))
+          expect(Array.from(m.geometry.attributes[k].array)).toEqual(values);
+      });
+      const camera = new THREE.PerspectiveCamera();
+      camera.position.set(4, 2, 140);
+      lod.update(camera);
+      expect(coat.visible).toBe(false);
+      camera.position.set(4, 2, -4);
+      for (let i = 0; i < 12; i++) lod.update(camera);
+      expect(coat.visible).toBe(true);
+      console.log(
+        'LAB_COAT_FIT',
+        JSON.stringify({
+          body,
+          height,
+          vertices: p.count,
+          triangles: g.index!.count / 3,
+          minClearance,
+          maxClearance,
+          measured,
+          discarded: fit.maxDiscardedWeight,
+        })
+      );
+      pose.restore();
+      mixer.stopAllAction();
+      lod.dispose();
+      coat.geometry.dispose();
+      coat.material.dispose();
+      skeletons.forEach((s) => s.dispose());
+    });

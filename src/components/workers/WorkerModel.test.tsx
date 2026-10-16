@@ -2202,3 +2202,83 @@ it('mounts the real-joint arm profile on body skin only and disposes private geo
   expect(borrowed).not.toHaveBeenCalled();
   expect(material).not.toHaveBeenCalled();
 });
+
+it('gives Quality Control a private ivory coat on the existing rig and keeps unrelated roles and borrowed assets intact', async () => {
+  const { readFileSync } = await import('node:fs'),
+    { NodeIO } = await import('@gltf-transform/core'),
+    { ALL_EXTENSIONS } = await import('@gltf-transform/extensions'),
+    { default: draco } = await import('draco3dgltf'),
+    { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+  const { clone } = await vi.importActual<typeof import('three/addons/utils/SkeletonUtils.js')>(
+    'three/addons/utils/SkeletonUtils.js'
+  );
+  const io = new NodeIO()
+    .registerExtensions(ALL_EXTENSIONS)
+    .registerDependencies({ 'draco3d.decoder': await draco.createDecoderModule() });
+  for (const bodyType of ['masculine', 'feminine'] as const) {
+    const doc = await io.readBinary(
+      new Uint8Array(readFileSync(`public/models/worker/worker-${bodyType}.glb`))
+    );
+    for (const e of doc.getRoot().listExtensionsUsed()) e.dispose();
+    const bytes = await io.writeBinary(doc),
+      asset = await new GLTFLoader().parseAsync(bytes.buffer as ArrayBuffer, ''),
+      clones: THREE.Group[] = [],
+      borrowed: Array<ReturnType<typeof vi.spyOn>> = [];
+    asset.scene.traverse((o) => {
+      const m = o as THREE.SkinnedMesh;
+      if (m.isSkinnedMesh) borrowed.push(vi.spyOn(m.geometry, 'dispose'));
+    });
+    harness.asset = asset;
+    harness.clone = (s) => {
+      const copy = clone(s) as THREE.Group;
+      clones.push(copy);
+      return copy;
+    };
+    const appearance = { ...getWorkerAppearance('Quality', '#176557', 'mill-quality'), bodyType };
+    const motion: WorkerMotionState = {
+      activity: 'working',
+      groundSpeed: 0,
+      seated: false,
+      phase: 0,
+      enabled: false,
+    };
+    const view = render(<WorkerModel appearance={appearance} motion={motion} />),
+      model = clones[0],
+      coat = model.getObjectByName('quality-authored-lab-coat') as THREE.SkinnedMesh<
+        THREE.BufferGeometry,
+        THREE.MeshStandardMaterial
+      >;
+    expect(coat).toBeDefined();
+    expect(asset.scene.getObjectByName(coat.name)).toBeUndefined();
+    expect(coat.material.color.equals(new THREE.Color('#eef0e7'))).toBe(true);
+    expect(coat.geometry.userData.labCoatFit.sourceSupported).toBe(true);
+    const privateGeometry = vi.spyOn(coat.geometry, 'dispose'),
+      privateMaterial = vi.spyOn(coat.material, 'dispose');
+    let far = 0;
+    model.traverse((o) => {
+      const m = o as THREE.SkinnedMesh;
+      if (m.name === 'worker-distant-body' || m.name === 'worker-distant-feet') far++;
+      if (m.isSkinnedMesh && /^Worker_Vest-/.test((m.material as THREE.Material).name))
+        expect(
+          (m.material as THREE.MeshStandardMaterial).color.equals(new THREE.Color('#eef0e7'))
+        ).toBe(true);
+    });
+    expect(far).toBe(2);
+    view.unmount();
+    expect(privateGeometry).toHaveBeenCalledOnce();
+    expect(privateMaterial).toHaveBeenCalledOnce();
+    borrowed.forEach((d) => expect(d).not.toHaveBeenCalled());
+    const other = render(
+      <WorkerModel
+        appearance={{
+          ...getWorkerAppearance('Engineer', '#176557', 'engineer-unchanged'),
+          bodyType,
+        }}
+        motion={motion}
+      />
+    );
+    expect(clones[1].getObjectByName('quality-authored-lab-coat')).toBeUndefined();
+    other.unmount();
+    borrowed.forEach((d) => expect(d).not.toHaveBeenCalled());
+  }
+});
