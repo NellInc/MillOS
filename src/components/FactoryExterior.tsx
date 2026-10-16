@@ -49,6 +49,11 @@ import {
 } from './exterior/riverGeometry';
 import { UTILITY_ASSET_DEFINITIONS } from '../constants/utilityAssets';
 import {
+  UtilityTankHardware,
+  LpgValveHardware,
+  UtilityPressureGauge,
+} from './exterior/utilityVesselDetails';
+import {
   createAtmosphereState,
   createCelestialState,
   sampleAtmosphere,
@@ -157,11 +162,6 @@ const TANK_SUPPORT_MATERIAL = new THREE.MeshStandardMaterial({
   color: '#64707a',
   roughness: 0.68,
   metalness: 0.08,
-});
-const TANK_FITTING_MATERIAL = new THREE.MeshStandardMaterial({
-  color: '#7c8991',
-  roughness: 0.48,
-  metalness: 0.22,
 });
 const UTILITY_CONCRETE_MATERIAL = new THREE.MeshStandardMaterial({
   color: '#a9afb0',
@@ -5328,36 +5328,9 @@ export const StorageTank: React.FC<{
         </group>
       ))}
       <GroundBlob position={[0, 0]} scale={length + 3} scaleZ={radius * 3.4} />
-      {/* Pipe fittings on top */}
-      <mesh material={TANK_FITTING_MATERIAL} position={[0, radius * 2 + 1.62, 0]} castShadow>
-        <cylinderGeometry args={[0.3, 0.3, 0.8, 8]} />
-      </mesh>
-      <mesh
-        material={TANK_FITTING_MATERIAL}
-        position={[length / 4, radius * 2 + 1.58, 0]}
-        castShadow
-      >
-        <cylinderGeometry args={[0.2, 0.2, 0.6, 8]} />
-      </mesh>
-      {/* Ladder access */}
-      <group position={[0, 0, -radius - 0.2]}>
-        <mesh position={[0, radius + 1.5, 0]} castShadow>
-          <boxGeometry args={[0.08, radius * 2 + 1, 0.08]} />
-          <meshStandardMaterial color="#fbbf24" roughness={0.4} metalness={0.5} />
-        </mesh>
-        <mesh position={[0.3, radius + 1.5, 0]} castShadow>
-          <boxGeometry args={[0.08, radius * 2 + 1, 0.08]} />
-          <meshStandardMaterial color="#fbbf24" roughness={0.4} metalness={0.5} />
-        </mesh>
-        {/* Rungs */}
-        {Array.from({ length: 8 }).map((_, i) => (
-          <mesh key={`rung-${i}`} position={[0.15, 0.5 + i * 0.5, 0]} castShadow>
-            <boxGeometry args={[0.25, 0.04, 0.04]} />
-            <meshStandardMaterial color="#fbbf24" roughness={0.4} metalness={0.5} />
-          </mesh>
-        ))}
-      </group>
+      <UtilityTankHardware radius={radius} length={length} />
       <Text
+        surface="painted"
         position={[0, centreY, radius + 0.08]}
         fontSize={0.42}
         color="#27343a"
@@ -5432,20 +5405,8 @@ export const PropaneTank: React.FC<{
         <meshStandardMaterial color="#374151" roughness={0.6} metalness={0.4} />
       </mesh>
     ))}
-    {/* Valve assembly on top */}
-    <mesh position={[0, height + radius + 0.75, 0]} castShadow>
-      <cylinderGeometry args={[0.15, 0.2, 0.4, 8]} />
-      <meshStandardMaterial color="#374151" roughness={0.4} metalness={0.6} />
-    </mesh>
-    <mesh position={[0, height + radius + 1.05, 0]} castShadow>
-      <boxGeometry args={[0.4, 0.2, 0.4]} />
-      <meshStandardMaterial color="#1f2937" roughness={0.4} metalness={0.6} />
-    </mesh>
-    {/* Pressure gauge */}
-    <mesh position={[radius + 0.1, height * 0.7, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
-      <cylinderGeometry args={[0.15, 0.15, 0.1, 12]} />
-      <meshStandardMaterial color="#1f2937" roughness={0.5} metalness={0.4} />
-    </mesh>
+    <LpgValveHardware radius={radius} height={height} />
+    <UtilityPressureGauge assetId={assetId} radius={radius} height={height} />
     {/* Rolled warning band, with tucked lips and a chamfered face. */}
     <mesh
       geometry={vesselWarningBandGeometry(radius)}
