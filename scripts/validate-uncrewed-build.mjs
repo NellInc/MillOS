@@ -9,12 +9,12 @@ export const APPROVED_PERSONNEL = Object.freeze([
   {
     id: 'worker-masculine',
     file: 'worker/worker-masculine.glb',
-    sha256: '69a13ca722de26dea1e6cc6cf2241ec95dd46d27989a1f103f823616a17196db',
+    sha256: 'f1196a6f2c0c905edf9948adde004fcbb189b8fd279c94f92587923d5784941d',
   },
   {
     id: 'worker-feminine',
     file: 'worker/worker-feminine.glb',
-    sha256: '9b4d0b4475919fbd05b72dd9a22eab6c840b8f5094dff0c757e6c42267cd2448',
+    sha256: '642d2aa58f5c7aa97f8d079c4b8cd07fe03a490e21b11d84d6cd9a9d6dc22acc',
   },
 ]);
 const approvedPaths = new Set([

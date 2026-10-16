@@ -203,6 +203,199 @@ describe('animation scheduling and freezing', () => {
   });
 });
 
+describe('real authored duty and gait transitions', () => {
+  for (const bodyType of ['masculine', 'feminine'] as const)
+    it(`${bodyType} leaves a supported work stance smoothly and preserves the original moving rig`, async () => {
+      const { readFileSync } = await import('node:fs');
+      const { NodeIO } = await import('@gltf-transform/core');
+      const { ALL_EXTENSIONS } = await import('@gltf-transform/extensions');
+      const { default: draco3d } = await import('draco3dgltf');
+      const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+      const { clone } = await vi.importActual<typeof import('three/addons/utils/SkeletonUtils.js')>(
+        'three/addons/utils/SkeletonUtils.js'
+      );
+      const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({
+        'draco3d.decoder': await draco3d.createDecoderModule(),
+      });
+      const document = await io.readBinary(
+        new Uint8Array(readFileSync(`public/models/worker/worker-${bodyType}.glb`))
+      );
+      for (const extension of document.getRoot().listExtensionsUsed()) extension.dispose();
+      const bytes = await io.writeBinary(document);
+      const asset = await new GLTFLoader().parseAsync(bytes.buffer as ArrayBuffer, '');
+      // The foot targets are independent bones. Measure the actual neutral
+      // calf endpoint so interpolation cannot silently open an ankle seam.
+      const neutral = clone(asset.scene),
+        neutralMixer = new THREE.AnimationMixer(neutral);
+      neutralMixer.clipAction(asset.animations.find((c) => c.name === 'worker-break')!).play();
+      neutralMixer.update(0);
+      neutral.updateMatrixWorld(true);
+      const calfEnds = ['L', 'R'].map((side) =>
+        neutral
+          .getObjectByName('LowerLeg' + side)!
+          .worldToLocal(
+            neutral.getObjectByName('Foot' + side)!.getWorldPosition(new THREE.Vector3())
+          )
+      );
+      neutralMixer.stopAllAction();
+      neutralMixer.uncacheRoot(neutral);
+      let model: THREE.Object3D | undefined;
+      harness.clone = (source) => {
+        model = clone(source);
+        return model as THREE.Group;
+      };
+      harness.asset = asset;
+      const play = vi.spyOn(THREE.AnimationAction.prototype, 'play');
+      const makePose = workerPoses.createSeatedWorkerPose;
+      let closureCalls = 0,
+        inheritedReachMisses = 0,
+        maxCutoffCorrection = 0;
+      vi.spyOn(workerPoses, 'createSeatedWorkerPose').mockImplementation((...args) => {
+        const pose = makePose(...args),
+          close = pose.closeDutyTransition;
+        pose.closeDutyTransition = (amount) => {
+          const feet = ['L', 'R'].map((side) => args[0].getObjectByName('Foot' + side)!);
+          const before = feet.map((foot) => foot.matrixWorld.elements.slice());
+          const knees = ['L', 'R'].map((side) => args[0].getObjectByName('LowerLeg' + side)!);
+          const beforeKnees = knees.map((knee) => knee.getWorldPosition(new THREE.Vector3()));
+          const reachable = close(amount);
+          if (!reachable) {
+            // The unchanged gait itself has sub-3 mm endpoint error near full
+            // extension. Preserve that source pose rather than lengthening a shin.
+            expect(
+              Math.min(amount, 1 - amount),
+              'reach miss confined to source endpoint'
+            ).toBeLessThan(0.02);
+            knees.forEach((knee, i) =>
+              expect(
+                knee
+                  .localToWorld(calfEnds[i].clone())
+                  .distanceTo(feet[i].getWorldPosition(new THREE.Vector3()))
+              ).toBeLessThan(0.003)
+            );
+            inheritedReachMisses++;
+          }
+          feet.forEach((foot, i) => expect(foot.matrixWorld.elements).toEqual(before[i]));
+          if (Math.min(amount, 1 - amount) < 0.0001)
+            knees.forEach(
+              (knee, i) =>
+                (maxCutoffCorrection = Math.max(
+                  maxCutoffCorrection,
+                  knee.getWorldPosition(new THREE.Vector3()).distanceTo(beforeKnees[i])
+                ))
+            );
+          closureCalls++;
+          return reachable;
+        };
+        return pose;
+      });
+      const motion: WorkerMotionState = {
+        activity: 'working',
+        groundSpeed: 0,
+        seated: false,
+        enabled: true,
+        phase: bodyType === 'masculine' ? 0 : 3.462,
+      };
+      const view = render(
+        <WorkerModel
+          appearance={{ ...getWorkerAppearance('Engineer', '', 'duty-transition'), bodyType }}
+          motion={motion}
+        />
+      );
+      // Match the established portal mock: DOM refs do not have Three positions.
+      const tool = view.container.querySelector(
+        '[name="worker-held-tool"]'
+      ) as unknown as THREE.Group;
+      tool.position = new THREE.Vector3();
+      const camera = new THREE.PerspectiveCamera();
+      camera.position.set(0, 1.7, 5);
+      const positions = () =>
+        ['FootL', 'FootR'].map((n) =>
+          model!.getObjectByName(n)!.getWorldPosition(new THREE.Vector3())
+        );
+      let before = positions(),
+        largestStep = 0,
+        largestAnkleSeam = 0;
+      for (let frame = 0; frame < 480; frame++) {
+        if (frame === 30) {
+          motion.activity = 'walking';
+          motion.groundSpeed = 1.1;
+        }
+        if (frame === 150) {
+          motion.activity = 'working';
+          motion.groundSpeed = 0;
+        }
+        if (frame === 240) motion.activity = 'idle';
+        if (frame === 360) motion.activity = 'working';
+        harness.frame?.({ camera }, 1 / 60);
+        model!.updateMatrixWorld(true);
+        const feet = positions();
+        feet.forEach((p, i) => {
+          largestStep = Math.max(largestStep, p.distanceTo(before[i]));
+          const lower = model!.getObjectByName('LowerLeg' + ['L', 'R'][i])!;
+          largestAnkleSeam = Math.max(
+            largestAnkleSeam,
+            lower.localToWorld(calfEnds[i].clone()).distanceTo(p)
+          );
+        });
+        before = feet;
+        if (frame === 145) {
+          const walk = play.mock.contexts.find((a) => a.getClip().name === 'worker-walk')!;
+          expect(walk.getEffectiveWeight()).toBeGreaterThan(0.999999);
+          const control = clone(asset.scene),
+            mixer = new THREE.AnimationMixer(control);
+          const action = mixer
+            .clipAction(asset.animations.find((c) => c.name === 'worker-walk')!)
+            .play();
+          action.time = walk.time;
+          mixer.update(0);
+          control.updateMatrixWorld(true);
+          for (const name of [
+            'FootL',
+            'FootR',
+            'UpperLegL',
+            'LowerLegL',
+            'UpperLegR',
+            'LowerLegR',
+          ]) {
+            const actual = model!.getObjectByName(name)!.matrixWorld.elements;
+            const expected = control.getObjectByName(name)!.matrixWorld.elements;
+            actual.forEach((v, i) =>
+              expect(Math.abs(v - expected[i]), `${name} original gait`).toBeLessThan(1e-6)
+            );
+          }
+          mixer.stopAllAction();
+          mixer.uncacheRoot(control);
+        }
+      }
+      process.stderr.write(
+        JSON.stringify({
+          bodyType,
+          largestStep,
+          largestAnkleSeam,
+          closureCalls,
+          inheritedReachMisses,
+          maxCutoffCorrection,
+        }) + '\n'
+      );
+      expect(closureCalls).toBeGreaterThan(100);
+      expect(maxCutoffCorrection, 'continuous near pure-clip endpoints').toBeLessThan(0.001);
+      expect(largestStep, 'continuous work/gait handover').toBeLessThan(0.08);
+      expect(largestAnkleSeam, 'calf meets independent ankle through interpolation').toBeLessThan(
+        0.02
+      );
+      const feet = positions();
+      expect(Math.abs(feet[0].z - feet[1].z)).toBeLessThan(0.06);
+      for (const name of ['LowerLegL', 'LowerLegR'])
+        expect(model!.getObjectByName(name)!.scale.toArray()).toEqual([1, 1, 1]);
+      motion.enabled = false;
+      harness.frame?.({ camera }, 0);
+      const paused = positions();
+      harness.frame?.({ camera }, 10);
+      positions().forEach((p, i) => expect(p.distanceTo(paused[i])).toBeLessThan(1e-9));
+    }, 30000);
+});
+
 describe('worker skin sharing', () => {
   it('keeps one cloned skeleton per compatible skin without sharing between people', async () => {
     const { clone } = await vi.importActual<typeof import('three/addons/utils/SkeletonUtils.js')>(

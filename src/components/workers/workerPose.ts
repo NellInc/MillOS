@@ -960,6 +960,10 @@ export function createSeatedWorkerPose(
   const feet = [new THREE.Vector3(), new THREE.Vector3()];
   const palmLengths = [0.09, 0.09];
   const lengths = { legL: [0, 0], legR: [0, 0], armL: [0, 0], armR: [0, 0] };
+  const standingLegLengths = [
+    [0, 0],
+    [0, 0],
+  ];
 
   const incomingFeet = [new THREE.Vector3(), new THREE.Vector3()];
   const seatedFeet = [new THREE.Vector3(), new THREE.Vector3()];
@@ -1060,14 +1064,23 @@ export function createSeatedWorkerPose(
     endpoint: THREE.Vector3,
     lengths: number[],
     poleDirection: THREE.Vector3,
-    independentFoot: boolean
+    independentFoot: boolean,
+    fixedLengths = false
   ) {
     modelPosition(upper, upperPoint);
     axis.copy(endpoint).sub(upperPoint);
     const distance = Math.max(axis.length(), 0.0001);
     axis.divideScalar(distance);
     const upperLength = lengths[0];
-    const lowerLength = Math.max(lengths[1], distance - upperLength + 0.004);
+    const lowerLength = fixedLengths
+      ? lengths[1]
+      : Math.max(lengths[1], distance - upperLength + 0.004);
+    if (
+      fixedLengths &&
+      (distance > upperLength + lowerLength + 0.00001 ||
+        distance < Math.abs(upperLength - lowerLength) - 0.00001)
+    )
+      return false;
     const along = THREE.MathUtils.clamp(
       (upperLength * upperLength + distance * distance - lowerLength * lowerLength) /
         (2 * distance),
@@ -1075,14 +1088,20 @@ export function createSeatedWorkerPose(
       upperLength
     );
     const height = Math.sqrt(Math.max(0, upperLength * upperLength - along * along));
-    bend.copy(poleDirection).addScaledVector(axis, -poleDirection.dot(axis)).normalize();
+    bend.copy(poleDirection).addScaledVector(axis, -poleDirection.dot(axis));
+    if (fixedLengths && bend.lengthSq() < 1e-10) {
+      bend.set(0, 0, 1).addScaledVector(axis, -axis.z);
+      if (bend.lengthSq() < 1e-10) bend.set(1, 0, 0).addScaledVector(axis, -axis.x);
+    }
+    bend.normalize();
     kneePoint.copy(upperPoint).addScaledVector(axis, along).addScaledVector(bend, height);
     aim(upper, lower, direction.copy(kneePoint).sub(upperPoint));
     modelPosition(lower, endPoint);
     aim(lower, independentFoot ? undefined : end, direction.copy(endpoint).sub(endPoint));
     lower.scale.y *= lowerLength / Math.max(lengths[1], 0.0001);
     lower.updateWorldMatrix(false, true);
-    if (independentFoot) setPosition(end, p.copy(endpoint));
+    if (independentFoot && !fixedLengths) setPosition(end, p.copy(endpoint));
+    return true;
   }
 
   function look(gesture?: WorkerGesture, strength = 1) {
@@ -1227,8 +1246,39 @@ export function createSeatedWorkerPose(
     model.updateWorldMatrix(false, true);
   }
 
+  const transitionThigh = new THREE.Quaternion(),
+    transitionCalf = new THREE.Quaternion();
   const controller = {
     applyTask,
+    /** Quaternion crossfades and independent foot translations follow different
+     * curves. Close only an actual ordinary-duty handover using measured anatomy.
+     * Working if ankles meet calves while feet, steady gait and restore stay exact.
+     */
+    closeDutyTransition(amount: number) {
+      const influence =
+        THREE.MathUtils.smoothstep(amount, 0.00001, 0.02) *
+        (1 - THREE.MathUtils.smoothstep(amount, 0.98, 0.99999));
+      if (!Number.isFinite(influence) || influence <= 0) return true;
+      if (!applied) capture();
+      let closed = true;
+      for (let i = 0; i < sides.length; i++) {
+        const thigh = bones.get(`UpperLeg${sides[i]}`),
+          calf = bones.get(`LowerLeg${sides[i]}`),
+          foot = bones.get(`Foot${sides[i]}`);
+        if (!thigh || !calf || !foot || standingLegLengths[i][0] <= 0) continue;
+        modelPosition(foot, target);
+        modelPosition(calf, pole).sub(modelPosition(thigh, p));
+        transitionThigh.copy(thigh.quaternion);
+        transitionCalf.copy(calf.quaternion);
+        closed =
+          solveChain(thigh, calf, foot, target, standingLegLengths[i], pole, true, true) && closed;
+        thigh.quaternion.slerp(transitionThigh, 1 - influence);
+        calf.quaternion.slerp(transitionCalf, 1 - influence);
+      }
+      applied = true;
+      model.updateWorldMatrix(false, true);
+      return closed;
+    },
     applyGarden(working: boolean, gesture?: WorkerGesture, delta = 0, immediate = false) {
       if (!working && !gardenStance) return false;
       gardenStance = true;
@@ -1668,6 +1718,12 @@ export function createSeatedWorkerPose(
     model.updateWorldMatrix(true, true);
     inverse.copy(model.matrixWorld).invert();
     if (bones.get('Hips')) standingHeight = modelPosition(bones.get('Hips')!, p).y;
+    for (let i = 0; i < sides.length; i++) {
+      const thigh = bones.get(`UpperLeg${sides[i]}`),
+        calf = bones.get(`LowerLeg${sides[i]}`),
+        foot = bones.get(`Foot${sides[i]}`);
+      if (thigh && calf && foot) chainLengths(thigh, calf, foot, standingLegLengths[i]);
+    }
     controller.apply();
     for (let i = 0; i < sides.length; i++) {
       const foot = bones.get(`Foot${sides[i]}`);

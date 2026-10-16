@@ -2188,6 +2188,115 @@ describe('duty handover continuity', () => {
     });
 });
 
+describe('balanced stationary duty support on the real rigs', () => {
+  for (const body of ['masculine', 'feminine'])
+    it(`${body} plants ordinary duties without changing incoming gait or pose restore`, () => {
+      const asset = bodies.get(body)!;
+      for (const [height, width] of [
+        [0.95, 0.94],
+        [1.08, 1.07],
+      ]) {
+        const scene = clone(asset.scene),
+          parent = new THREE.Group();
+        parent.position.set(9, 0.4, -11);
+        parent.rotation.y = 1.2;
+        parent.scale.set(width, height, width);
+        parent.add(scene);
+        parent.updateMatrixWorld(true);
+        const pose = createSeatedWorkerPose(
+          scene,
+          height,
+          width,
+          asset.animations.find((c) => c.name === 'worker-break')
+        );
+        const mixer = new THREE.AnimationMixer(scene);
+        const objects: THREE.Object3D[] = [];
+        const feet: THREE.SkinnedMesh[] = [];
+        scene.traverse((o) => {
+          objects.push(o);
+          if ((o as THREE.SkinnedMesh).isSkinnedMesh && o.parent?.name.includes('Worker_Feet'))
+            feet.push(o as THREE.SkinnedMesh);
+        });
+        const snapshot = () =>
+          objects.flatMap((o) => [
+            ...o.position.toArray(),
+            ...o.quaternion.toArray(),
+            ...o.scale.toArray(),
+          ]);
+        const localFoot = (side: string) =>
+          parent.worldToLocal(
+            scene.getObjectByName('Foot' + side)!.getWorldPosition(new THREE.Vector3())
+          );
+        for (const action of [
+          'inspect',
+          'operate',
+          'repair',
+          'sample',
+          'radio',
+          'supervise',
+        ] as const) {
+          mixer.stopAllAction();
+          const clip = asset.animations.find(
+            (c) => c.name === 'worker-' + (action === 'operate' ? 'inspect' : action)
+          )!;
+          mixer.clipAction(clip).play();
+          for (const phase of [0, 0.19, 0.53, 0.8]) {
+            mixer.setTime(clip.duration * phase);
+            parent.updateMatrixWorld(true);
+            const incoming = snapshot(),
+              gesture = sampleWorkerGesture(action, phase * 7, createWorkerGesture());
+            pose.applyDuty(action, gesture, 1);
+            const ankles = ['L', 'R'].map(localFoot);
+            expect(
+              Math.abs(ankles[0].z - ankles[1].z),
+              `${action}/${phase} fore-aft stance`
+            ).toBeLessThan(0.06);
+            expect(Math.abs(ankles[0].x - ankles[1].x)).toBeGreaterThan(0.14);
+            for (const side of ['L', 'R']) {
+              const foot = scene.getObjectByName('Foot' + side)!;
+              let sole = Infinity,
+                hits = 0;
+              for (const mesh of feet) {
+                mesh.skeleton.update();
+                const joint = mesh.skeleton.bones.indexOf(foot as THREE.Bone);
+                const indices = mesh.geometry.attributes.skinIndex,
+                  weights = mesh.geometry.attributes.skinWeight;
+                for (let i = 0; i < indices.count; i++) {
+                  let belongs = false;
+                  for (let j = 0; j < 4; j++)
+                    if (indices.getComponent(i, j) === joint && weights.getComponent(i, j) > 0.5)
+                      belongs = true;
+                  if (!belongs) continue;
+                  const p = mesh
+                    .getVertexPosition(i, new THREE.Vector3())
+                    .applyMatrix4(mesh.matrixWorld);
+                  sole = Math.min(sole, p.y - parent.position.y);
+                  hits++;
+                }
+              }
+              expect(hits).toBeGreaterThan(8);
+              expect(sole, `${action}/${phase}/${side} actual skin sole`).toBeGreaterThan(-0.003);
+              expect(sole, `${action}/${phase}/${side} actual skin sole`).toBeLessThan(0.003);
+            }
+            pose.restore();
+            expect(snapshot()).toEqual(incoming);
+            const incomingFeet = ['L', 'R'].map(localFoot);
+            for (const amount of [0, 0.2, 0.6, 1]) {
+              pose.applyDuty(action, gesture, amount, true);
+              ['L', 'R'].forEach((side, i) =>
+                expect(localFoot(side).distanceTo(incomingFeet[i])).toBeLessThan(1e-7)
+              );
+              pose.restore();
+              expect(snapshot()).toEqual(incoming);
+            }
+          }
+        }
+        mixer.stopAllAction();
+        mixer.uncacheRoot(scene);
+      }
+    });
+});
+
 describe('fitted pupil contact and quiet directional attention', () => {
   for (const body of ['masculine', 'feminine'] as const) {
     it(`${body} keeps pupils within actual animated eye fronts through gaze and affine blinks`, () => {

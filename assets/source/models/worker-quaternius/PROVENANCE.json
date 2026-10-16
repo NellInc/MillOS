@@ -30,11 +30,11 @@
   "runtimeDerivatives": [
     {
       "file": "../../../../public/models/worker/worker-masculine.glb",
-      "sha256": "f35b1f2e59a602f4714649a2078c8979d7399e60006b306e462c7095dd3ed691"
+      "sha256": "f1196a6f2c0c905edf9948adde004fcbb189b8fd279c94f92587923d5784941d"
     },
     {
       "file": "../../../../public/models/worker/worker-feminine.glb",
-      "sha256": "3efd72f23b8d329a6a60bdca4e75e4e67142b23e912f4d1508976ffe17de9a45"
+      "sha256": "642d2aa58f5c7aa97f8d079c4b8cd07fe03a490e21b11d84d6cd9a9d6dc22acc"
     }
   ],
   "transformation": {
@@ -50,6 +50,29 @@
       "worker-supervise": "Idle_Neutral",
       "worker-radio": "Wave",
       "worker-sample": "Interact"
+    },
+    "ordinaryDutyRefinement": {
+      "script": "scripts/normalize-model-assets.mjs",
+      "export": "refineWorkerDutyClips",
+      "version": 1,
+      "baseCommit": "163d768789e4f09470ebf3d73f28c8ac3e61a6a7",
+      "method": "Author balanced ordinary-duty lower-body rotations and independent-foot transforms from each actual neutral stance, retaining original anatomical lengths and key times. All mesh/DRACO/bind and upper-body/gait/idle/break/supervise bytes remain unchanged; live mixer and runtime pose ownership remain unchanged.",
+      "inputs": [
+        {
+          "file": "public/models/worker/worker-masculine.glb",
+          "sha256": "69a13ca722de26dea1e6cc6cf2241ec95dd46d27989a1f103f823616a17196db"
+        },
+        {
+          "file": "public/models/worker/worker-feminine.glb",
+          "sha256": "9b4d0b4475919fbd05b72dd9a22eab6c840b8f5094dff0c757e6c42267cd2448"
+        }
+      ],
+      "clips": [
+        "worker-inspect",
+        "worker-repair",
+        "worker-radio",
+        "worker-sample"
+      ]
     }
   }
 }

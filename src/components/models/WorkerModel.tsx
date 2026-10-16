@@ -1702,6 +1702,18 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     // Restore overlays before the mixer samples its authored joints.
     handPose.restore();
     seatedPose.restore();
+    const ordinaryDuty =
+      !motion.seated &&
+      !motion.cycling &&
+      !motion.cartGrip &&
+      !seat &&
+      appearance.workAction !== 'garden' &&
+      appearance.workAction !== 'none';
+    const dutyClip = TASK_CLIPS[appearance.workAction];
+    const dutyHandover =
+      ordinaryDuty &&
+      appearance.workAction !== 'bake' &&
+      (activeClip === dutyClip || actionWeights.current[dutyClip] > 0.00001);
     for (const clipName of WORKER_CLIPS) {
       const action = actionsRef.current[clipName];
       if (!action) continue;
@@ -1709,7 +1721,9 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
         ? THREE.MathUtils.damp(
             actionWeights.current[clipName],
             clipName === activeClip ? 1 : 0,
-            11,
+            // A short, softer handover gives the planted duty stance time to
+            // meet the moving foot. Settled clips and stride cadence stay exact.
+            dutyHandover ? 8 : 11,
             safeDelta
           )
         : clipName === activeClip
@@ -1723,13 +1737,6 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     if (walk) walk.timeScale = THREE.MathUtils.clamp(speed / (clipSpeed.walk * scale), 0, 1.9);
     if (run) run.timeScale = THREE.MathUtils.clamp(speed / (clipSpeed.run * scale), 0, 2.4);
     mixer.update(safeDelta);
-    const ordinaryDuty =
-      !motion.seated &&
-      !motion.cycling &&
-      !motion.cartGrip &&
-      !seat &&
-      appearance.workAction !== 'garden' &&
-      appearance.workAction !== 'none';
     const dutyTarget = ordinaryDuty && motion.activity === 'working' && !moving ? 1 : 0;
     dutyWeight.current = !ordinaryDuty
       ? 0
@@ -1759,6 +1766,13 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     else if (motion.activity === 'walking') seatedPose.applyWalkingLook(gesture);
     else if (motion.activity === 'idle' || motion.activity === 'break')
       seatedPose.applyIdle(gesture);
+    if (
+      ordinaryDuty &&
+      appearance.workAction !== 'bake' &&
+      actionWeights.current[dutyClip] > 0.00001 &&
+      actionWeights.current[dutyClip] < 0.99999
+    )
+      seatedPose.closeDutyTransition(actionWeights.current[dutyClip]);
     handPose.apply(motion, appearance.tool, gesture, safeDelta);
     // Mixed Head/Neck weights require the final admitted pose, even when the
     // expression envelope is unchanged. Never sample the previous mixer frame.
