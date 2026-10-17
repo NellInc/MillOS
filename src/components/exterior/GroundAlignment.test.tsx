@@ -8,6 +8,8 @@ import {
   InstancedMesh,
   Matrix4,
   MeshStandardMaterial,
+  Mesh,
+  Raycaster,
   Vector3,
 } from 'three';
 import {
@@ -17,7 +19,7 @@ import {
   HedgeRow,
   setFenceRailInstances,
 } from '../FactoryExterior';
-import { SITE_LAYOUT } from '../../constants/siteLayout';
+import { SITE_LAYOUT, getServiceAssetBounds, boundsOverlapXZ } from '../../constants/siteLayout';
 import { sampleTerrainGroundHeight } from '../terrain/splatMapGenerator';
 import { readFileSync } from 'node:fs';
 import {
@@ -28,6 +30,12 @@ import {
   inRealmPath,
 } from '../../constants/publicRealmLayout';
 import { hedgeCrownTransforms } from './HedgeFoliage';
+import {
+  createMaintenanceRoof,
+  createMaintenanceJoinery,
+  createSubstationCraft,
+  SERVICE_BUILDING_ENVELOPES,
+} from './serviceBuildingCraft';
 
 vi.mock('../../utils/critterAudio', () => ({ playCritterSound: vi.fn() }));
 
@@ -275,3 +283,84 @@ it.each([20, 190])(
     material.dispose();
   }
 );
+
+describe('authored service-building construction', () => {
+  it('replaces the roof slab with a closed sloping section inside the retained envelope', () => {
+    const g = createMaintenanceRoof(),
+      m = new Mesh(g, new MeshStandardMaterial());
+    m.updateMatrixWorld(true);
+    expect(g.boundingBox!.min.toArray()).toEqual([-5.5, 5, -4.5]);
+    expect(g.boundingBox!.max.toArray()).toEqual([5.5, 6, 4.5]);
+    for (const x of [-5, -2, 0, 2, 5]) {
+      const down = new Raycaster(new Vector3(x, 7, 0), new Vector3(0, -1, 0)).intersectObject(m)[0];
+      const up = new Raycaster(new Vector3(x, 4, 0), new Vector3(0, 1, 0)).intersectObject(m)[0];
+      expect(down.point.y).toBeCloseTo(6 - (Math.abs(x) * 0.86) / 5.5, 4);
+      expect(up.point.y).toBeCloseTo(5.86 - (Math.abs(x) * 0.86) / 5.5, 4);
+    }
+    g.dispose();
+    (m.material as MeshStandardMaterial).dispose();
+  });
+  it('keeps all opaque fitted geometry finite and inside the original overhangs/heights', () => {
+    for (const [kind, g] of [
+      ['maintenance', createMaintenanceJoinery()],
+      ['substation', createSubstationCraft()],
+    ] as const) {
+      const bounds = SERVICE_BUILDING_ENVELOPES[kind];
+      expect(g.attributes.color.count).toEqual(g.attributes.position.count);
+      for (const key of ['position', 'normal', 'color'])
+        expect(Array.from(g.attributes[key].array).every(Number.isFinite)).toBe(true);
+      for (let axis = 0; axis < 3; axis++) {
+        expect(g.boundingBox!.min.getComponent(axis)).toBeGreaterThanOrEqual(
+          bounds.min[axis] - 0.00001
+        );
+        expect(g.boundingBox!.max.getComponent(axis)).toBeLessThanOrEqual(
+          bounds.max[axis] + 0.00001
+        );
+      }
+      expect(g.attributes.position.count / 3).toBeLessThan(6000);
+      g.dispose();
+    }
+  });
+  it('seats doors and gables onto retained wall faces and keeps the substation anchor while seating the shed clear of the tank compound', () => {
+    const g = createMaintenanceJoinery(),
+      m = new Mesh(g, new MeshStandardMaterial());
+    m.updateMatrixWorld(true);
+    for (const [x, y] of [
+      [-2, 1.5],
+      [2, 1.5],
+      [0, 5.6],
+    ]) {
+      const hit = new Raycaster(new Vector3(x, y, 5), new Vector3(0, 0, -1)).intersectObject(m)[0];
+      expect(hit).toBeDefined();
+      expect(hit.point.z).toBeGreaterThanOrEqual(4);
+      expect(hit.point.z).toBeLessThan(4.21);
+    }
+    expect(SERVICE_BUILDING_ENVELOPES.maintenance.position).toEqual([101.5, 0, -66]);
+    expect(SERVICE_BUILDING_ENVELOPES.substation.position).toEqual([-70, 0, -60]);
+    const src = readFileSync('src/components/FactoryExterior.tsx', 'utf8');
+    expect(src).toContain('position={[...SERVICE_BUILDING_ENVELOPES.maintenance.position]}');
+    expect(src).toContain('<group position={[-70, 0, -60]} name="site-substation">');
+    g.dispose();
+    (m.material as MeshStandardMaterial).dispose();
+  });
+});
+
+it('keeps the relocated workshop clear of the retained utility compound, pond approach and both ground grids', () => {
+  const [x, , z] = SERVICE_BUILDING_ENVELOPES.maintenance.position;
+  const bounds = { minX: x - 5.5, maxX: x + 5.5, minY: 0, maxY: 6, minZ: z - 4.5, maxZ: z + 4.5 };
+  expect(
+    boundsOverlapXZ(bounds, getServiceAssetBounds(SITE_LAYOUT.serviceYard.utilityTankFarm, true))
+  ).toBe(false);
+  const pond = SITE_LAYOUT.exteriorFeatures.ponds[1];
+  expect(
+    Math.hypot(
+      Math.max(bounds.minX - pond.position[0], 0, pond.position[0] - bounds.maxX),
+      Math.max(bounds.minZ - pond.position[2], 0, pond.position[2] - bounds.maxZ)
+    )
+  ).toBeGreaterThan(pond.radius + 1);
+  // Existing approach stays south of the entire new roof envelope.
+  expect(bounds.minZ).toBeGreaterThan(EAST_POND_APPROACH[2] + 2);
+  for (const segments of [64, 128])
+    for (const dx of [-5, 5])
+      for (const dz of [-4, 4]) expect(sampleTerrainGroundHeight(x + dx, z + dz, segments)).toBe(0);
+});

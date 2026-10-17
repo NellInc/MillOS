@@ -48,6 +48,7 @@ import {
   fitRiverCulvertBank,
 } from './exterior/riverGeometry';
 import { UTILITY_ASSET_DEFINITIONS } from '../constants/utilityAssets';
+import { ServiceBuildingCraft, SERVICE_BUILDING_ENVELOPES } from './exterior/serviceBuildingCraft';
 import {
   UtilityTankHardware,
   LpgValveHardware,
@@ -8159,22 +8160,16 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
       </group>
 
       {/* Maintenance shed - back area */}
-      <group position={[80, 0, -75]}>
+      <group
+        position={[...SERVICE_BUILDING_ENVELOPES.maintenance.position]}
+        name="maintenance-shed"
+      >
         <GroundBlob position={[0, 0]} scale={14} scaleZ={12} />
         <mesh position={[0, 2.5, 0]} castShadow receiveShadow>
           <boxGeometry args={[10, 5, 8]} />
           <meshStandardMaterial color="#6d4c41" {...OUTBUILDING_SURFACE} />
         </mesh>
-        {/* Pitched roof */}
-        <mesh position={[0, 5.5, 0]} rotation={[0, 0, 0]} castShadow>
-          <boxGeometry args={[11, 1, 9]} />
-          <meshStandardMaterial color="#5d4037" {...OUTBUILDING_SURFACE} />
-        </mesh>
-        {/* Large door */}
-        <mesh position={[0, 1.5, 4.05]}>
-          <planeGeometry args={[6, 3]} />
-          <meshStandardMaterial color="#3e2723" roughness={0.9} />
-        </mesh>
+        <ServiceBuildingCraft kind="maintenance" />
       </group>
 
       {/* ========== STREET LAMPS ========== */}
@@ -8338,36 +8333,13 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
       </group>
 
       {/* Substation */}
-      <group position={[-70, 0, -60]}>
+      <group position={[-70, 0, -60]} name="site-substation">
         <GroundBlob position={[0, 0]} scale={8} scaleZ={7} />
         <mesh position={[0, 2, 0]} castShadow receiveShadow>
           <boxGeometry args={[5, 4, 4]} />
           <meshStandardMaterial color="#78909c" {...OUTBUILDING_SURFACE} />
         </mesh>
-        <mesh position={[0, 4.3, 0]} castShadow>
-          <boxGeometry args={[5.5, 0.4, 4.5]} />
-          <meshStandardMaterial color="#546e7a" {...OUTBUILDING_SURFACE} />
-        </mesh>
-        {/* Warning sign */}
-        <mesh position={[2.55, 2, 0]} rotation={[0, Math.PI / 2, 0]}>
-          <planeGeometry args={[1, 1]} />
-          <meshStandardMaterial color="#ffc107" roughness={0.85} />
-        </mesh>
-        <Text
-          position={[2.6, 2, 0]}
-          fontSize={0.15}
-          color="#000000"
-          anchorX="center"
-          anchorY="middle"
-          rotation={[0, Math.PI / 2, 0]}
-        >
-          DANGER
-        </Text>
-        {/* Electrical equipment on roof */}
-        <mesh position={[0, 4.8, 0]} castShadow>
-          <cylinderGeometry args={[0.3, 0.3, 1, 8]} />
-          <meshStandardMaterial color="#424242" roughness={0.6} metalness={0.4} />
-        </mesh>
+        <ServiceBuildingCraft kind="substation" />
       </group>
 
       {/* Instanced trees and benches for draw call optimization (~48 -> 7 draw calls) */}
