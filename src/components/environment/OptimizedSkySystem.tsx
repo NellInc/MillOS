@@ -207,9 +207,9 @@ void main() {
  * in the geometry and was invisible in the image: flat grey cut-outs pasted on
  * the sky, which is exactly how the baseline capture reads.
  *
- * WRAPPED LAMBERT, not clamped: a mountainside 300 units away is lit by the
- * whole sky hemisphere, not by the sun alone, so the terminator has to wrap
- * past 90 degrees or the shadowed side goes black and reads as a hole.
+ * Wooded foothills retain wrapped diffuse light. Alpine planes use the
+ * directional sun plus the same nonzero blue sky fill: compressing their
+ * incidence into a half-range erased the relief on exposed mineral faces.
  *
  * PER-CHANNEL AERIAL PERSPECTIVE is the cue that actually separates the rings.
  * Single-scattering extinction is
@@ -261,6 +261,17 @@ void main() {
 
 export const RIDGE_SNOW_STRENGTH = { value: 1 };
 
+/** Linear mineral albedo and metre-scale relief, independent of baked snow.
+ * Working if sheer faces reveal stone while upper shoulders retain white caps.
+ */
+export const RIDGE_ALPINE_PROFILE = {
+  mineralShade: [0.68, 1.12],
+  steepSnow: 0.1,
+  shoulderSnow: 0.84,
+  gullySnow: 0.28,
+  reliefMetres: 0.38,
+} as const;
+
 const ridgeFragmentShader = `
 #include <common>
 #include <logdepthbuf_pars_fragment>
@@ -273,6 +284,7 @@ uniform float uDetailStrength;
 uniform float uSnowStrength;
 uniform float uWorldAnchored;
 uniform float uWoodlandStrength;
+uniform float uAlpineStrength;
 varying vec3 vRidgeColor;
 varying vec3 vRidgeNormal;
 varying vec3 vRidgePosition;
@@ -366,6 +378,48 @@ void main() {
     // Sub-metre canopy relief across roughly 3.7m crowns, below the existing
     // crest undulation. Sub-pixel relief fades out with the same field.
     relief = crown * 0.24 * crownVisibility * uDetailStrength;
+  } else if (uWorldAnchored < 0.5 && uAlpineStrength > 0.5) {
+    // Retain the true mineral vertex palette under deposited snow.
+    // Subordinate isotropic mineral variation leaves the real peak-rooted
+    // buttresses in charge of the large planes, without painted vertical pleats.
+    float drift = (ridgeNoise(p.xz * 0.018) - 0.5) * 4.0;
+    float footprint = max(length(dFdx(p)), length(dFdy(p)));
+    float fineVisibility = 1.0 - smoothstep(0.7, 2.4, footprint);
+    vec2 projectionX = vec2((p.x + drift) * 0.065, p.y * 0.065);
+    vec2 projectionZ = vec2((p.z + drift) * 0.065, p.y * 0.065);
+    float coarse = mix(ridgeNoise(projectionX), ridgeNoise(projectionZ), faceWeight);
+    float veins = mix(coarse,
+      mix(ridgeFbm(projectionX), ridgeFbm(projectionZ), faceWeight), fineVisibility);
+    veins = mix(0.5, veins, 1.0 - smoothstep(2.4, 6.0, footprint));
+    float strata = mix(0.5, mix(ridgeNoise(p.xy * vec2(0.075, 0.14)),
+      ridgeNoise(p.zy * vec2(0.075, 0.14)), faceWeight), fineVisibility);
+    float scree = mix(0.5, ridgeNoise(p.xz * 0.22 + p.y * 0.06), fineVisibility);
+    float rock = smoothstep(0.38, 0.74,
+      vRidgeHeight + (ridgeNoise(p.xz * 0.055) - 0.5) * 0.18);
+    vec3 vegetation = mix(vec3(0.054, 0.084, 0.050), vec3(0.072, 0.100, 0.060),
+      ridgeNoise(p.xz * 0.07));
+    vec3 mineral = vRidgeColor * mix(${RIDGE_ALPINE_PROFILE.mineralShade[0].toFixed(2)},
+      ${RIDGE_ALPINE_PROFILE.mineralShade[1].toFixed(2)}, 0.42 + veins * 0.28 + strata * 0.18)
+      * (0.93 + scree * 0.12);
+    detailedAlbedo = mix(vegetation, mineral,
+      max(rock, smoothstep(0.05, 0.30, vRidgeSnow)));
+    float snowPotential = smoothstep(0.35, 0.65,
+      vRidgeSnow + (veins - 0.5) * 0.18) * uSnowStrength;
+    float shoulder = smoothstep(0.35, 0.72, max(0.0, normal.y));
+    float pocket = smoothstep(0.48, 0.76, veins) * smoothstep(0.04, 0.32, normal.y);
+    float accumulation = clamp(${RIDGE_ALPINE_PROFILE.steepSnow.toFixed(2)}
+      + shoulder * ${RIDGE_ALPINE_PROFILE.shoulderSnow.toFixed(2)}
+      + pocket * ${RIDGE_ALPINE_PROFILE.gullySnow.toFixed(2)}, 0.0, 1.0);
+    // Keep recognizable upper caps even where a sharp summit normal is steep.
+    // The original potential still excludes all lower ground from snow.
+    float summit = smoothstep(0.76, 0.91, vRidgeHeight + (veins - 0.5) * 0.08) * 0.40;
+    float snow = snowPotential * max(accumulation, summit);
+    vec3 settledSnow = mix(vec3(0.70, 0.78, 0.86), vec3(0.84, 0.88, 0.92),
+      0.55 + veins * 0.22);
+    detailedAlbedo = mix(detailedAlbedo, settledSnow, snow);
+    relief = (veins * ${RIDGE_ALPINE_PROFILE.reliefMetres.toFixed(2)}
+      + strata * 0.08 + scree * 0.025 * fineVisibility)
+      * uDetailStrength * (1.0 - snow * 0.85);
   } else {
     // Retain the far range's geology/snow exactly. The private woodland control
     // also admits the previous wooded finish for a same-page paired comparison.
@@ -403,6 +457,13 @@ void main() {
       (dFdx(relief) * rx + dFdy(relief) * ry));
   }
   float ndl = clamp(dot(normal, uSunDirection) * 0.5 + 0.5, 0.0, 1.0);
+  // Existing sky fill keeps alpine shadow planes readable without halving
+  // directional incidence. Working if bare-rock planes retain sun-facing
+  // contrast while woodland and the legacy comparison keep their exact light.
+  if (uWorldAnchored < 0.5 && uAlpineStrength > 0.5) {
+    float alpineSun = smoothstep(0.0, 0.20, uSunDirection.y);
+    ndl = mix(ndl, max(0.0, dot(normal, uSunDirection)), alpineSun);
+  }
   vec3 lit = albedo * mix(uShadowTint, uSunColor, pow(ndl, 0.9));
 
   lit.r = mix(lit.r, uInscatter.r, clamp(uAerial * 0.80, 0.0, 1.0));
@@ -640,6 +701,8 @@ interface MountainRidgeSpec {
   seed: number;
   colors: readonly [string, string, string];
   rollingHills?: boolean;
+  /** Broad far-face basin depth; the original foot, crest and envelope stay exact. */
+  alpineReliefMetres?: number;
 }
 
 /**
@@ -678,6 +741,7 @@ export function createMountainRidgeGeometry({
   seed,
   colors,
   rollingHills = false,
+  alpineReliefMetres = 0,
 }: MountainRidgeSpec): THREE.BufferGeometry {
   const segments = MOUNTAIN_RIDGE_SEGMENTS;
   const backRows = rollingHills ? 6 : 0;
@@ -689,8 +753,8 @@ export function createMountainRidgeGeometry({
   const indices: number[] = [];
   const palette = colors.map((color) => new THREE.Color(color));
 
-  for (let index = 0; index <= segments; index += 1) {
-    const progress = index === segments ? 0 : index / segments;
+  const columns = Array.from({ length: segments }, (_, index) => {
+    const progress = index / segments;
     const angle = progress * Math.PI * 2;
     // Broad positive lobes form separated massifs. Sharper ridged harmonics
     // break each massif into individual peaks, while the very low valley floor
@@ -721,6 +785,36 @@ export function createMountainRidgeGeometry({
     const facetTint =
       0.9 + Math.sin(angle * 11 + seed * 2.4) * 0.065 + Math.sin(angle * 23 - seed) * 0.032;
 
+    return { angle, profile, height, baseRadius, facetTint };
+  });
+  // Root broad buttresses in the actual prominent skyline peaks. The previous
+  // 47th-harmonic recess was narrower than one column and read as pleated cloth.
+  // A few asymmetric, widening spurs leave connected basins between them.
+  // Working if the existing grid shades as planes descending from real peaks,
+  // while the optical silhouette, buried closure and grounded rings stay exact.
+  const circularDistance = (a: number, b: number) => {
+    const distance = Math.abs(a - b) % segments;
+    return Math.min(distance, segments - distance);
+  };
+  const peaks: number[] = [];
+  if (!rollingHills && alpineReliefMetres > 0) {
+    const candidates = columns
+      .map((column, index) => ({ ...column, index }))
+      .filter(
+        ({ height, index }) =>
+          height > maxHeight * 0.28 &&
+          height > columns[(index + segments - 1) % segments].height &&
+          height >= columns[(index + 1) % segments].height
+      )
+      .sort((a, b) => b.height - a.height || a.index - b.index);
+    for (const { index } of candidates) {
+      if (peaks.every((peak) => circularDistance(peak, index) >= 20)) peaks.push(index);
+      if (peaks.length === 10) break;
+    }
+  }
+
+  for (let index = 0; index <= segments; index += 1) {
+    const { angle, profile, height, baseRadius, facetTint } = columns[index % segments];
     for (let row = 0; row < rows; row += 1) {
       const risingRatio = Math.min(row, MOUNTAIN_RIDGE_ROWS - 1) / (MOUNTAIN_RIDGE_ROWS - 1);
       const descent = Math.max(0, row - MOUNTAIN_RIDGE_ROWS + 1) / Math.max(1, backRows);
@@ -739,6 +833,7 @@ export function createMountainRidgeGeometry({
             slopeDepth *
             Math.sin(heightRatio * Math.PI) *
             0.12;
+      const gully = Math.pow(1 - Math.abs(Math.sin(angle * 47 + seed + heightRatio * 0.8)), 5);
       const localRadius = baseRadius + slopeDepth * (radialRatio + descent * 0.72) + shoulderRipple;
       // Sub-metre canopy undulation breaks a mathematically smooth wooded
       // crest. It tapers off before the foot, preserving the terrain join,
@@ -748,18 +843,42 @@ export function createMountainRidgeGeometry({
           0.6 *
           THREE.MathUtils.smoothstep(heightRatio, 0.72, 1)
         : 0;
-      const terraceHeight =
+      const originalHeight =
         baseY +
         canopy +
         height * (heightRatio * 0.16 + Math.pow(heightRatio, 1.24) * 0.84) -
-        ((1 - Math.cos(angle * 17 + seed)) * 0.028 +
-          Math.pow(1 - Math.abs(Math.sin(angle * 47 + seed + heightRatio * 0.8)), 5) * 0.055) *
+        ((1 - Math.cos(angle * 17 + seed)) * 0.028 + gully * 0.055) *
           height *
           Math.sin(heightRatio * Math.PI);
+      let basin = 0;
+      if (peaks.length && row > 0 && row < MOUNTAIN_RIDGE_ROWS - 1) {
+        let support = 0;
+        const widening = Math.pow(1 - heightRatio, 0.8);
+        for (const peak of peaks) {
+          const variation = Math.sin(peak * 1.7 + seed);
+          for (const side of [-1, 1]) {
+            const reach = side < 0 ? 12 + variation * 3 : 17 - variation * 4;
+            const centre = peak + side * reach * widening;
+            const width = 2 + (1 - heightRatio) * (side < 0 ? 3.2 : 4.6);
+            const distance = circularDistance(index % segments, centre) / width;
+            support = Math.max(support, Math.exp(-distance * distance * 1.4));
+          }
+        }
+        basin =
+          Math.min(30, Math.max(0, alpineReliefMetres), height * 0.25) *
+          (1 - support) *
+          Math.sin(heightRatio * Math.PI) ** 2 *
+          THREE.MathUtils.smoothstep(originalHeight, 30, 90);
+      }
+      const terraceHeight = originalHeight - basin;
+      // The 0.6 coupling preserves outward radial progress even where the
+      // asymmetric branches turn into a basin. Working if every visible row
+      // advances in both radius and altitude inside the original envelope.
+      const carvedRadius = localRadius + basin * 0.6;
       positions.push(
-        Math.cos(angle) * localRadius,
+        Math.cos(angle) * carvedRadius,
         row === 0 && baseClosureY !== undefined ? baseClosureY : terraceHeight,
-        Math.sin(angle) * localRadius
+        Math.sin(angle) * carvedRadius
       );
       // Combined so the haze pools where the ring is BOTH low on the slope and
       // in a valley of the profile, which is where real air collects.
@@ -825,6 +944,7 @@ export const FAR_MOUNTAIN_SPEC: MountainRidgeSpec = {
   minHeight: 10,
   maxHeight: 205,
   slopeDepth: 55,
+  alpineReliefMetres: 30,
   valleyFloor: 0.13,
   // Cover the upper shoulders visible from the village, not just the tips.
   // The former 86 m datum left most of the visible range bare. This 62 m
@@ -971,10 +1091,13 @@ export function createRidgeMaterial(
       // Per-material, unlike global surface/snow isolation. Working if a
       // woodland comparison cannot retint the far range or another surface.
       uWoodlandStrength: { value: worldAnchored ? 1 : 0 },
+      // Far-only and private: comparison cannot retint the finished woodland.
+      // Working if on/off/on leaves every other control and buffer unchanged.
+      uAlpineStrength: { value: worldAnchored ? 0 : 1 },
     },
   });
   material.userData.clearAerial = aerial;
-  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v13';
+  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v14';
   return material;
 }
 

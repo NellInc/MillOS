@@ -16,6 +16,7 @@ import {
   CELESTIAL_RADIUS,
   createRidgeMaterial,
   RIDGE_CANOPY_PROFILE,
+  RIDGE_ALPINE_PROFILE,
 } from './OptimizedSkySystem';
 import { LANDSCAPE_GROVE_TREES } from '../exterior/ExteriorVegetation';
 import { sampleValleyGroundHeight } from '../terrain/splatMapGenerator';
@@ -391,7 +392,7 @@ describe('solid fixed foothills', () => {
       expect(material.fragmentShader).toContain('gl_FragColor = vec4(lit, 1.0)');
       expect(material.fragmentShader).not.toContain('groundBlend');
       expect(material.fragmentShader).not.toContain('sampler');
-      expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v13');
+      expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v14');
       material.dispose();
     }
   });
@@ -537,4 +538,128 @@ it('retains explicit finite snow caps on the far range and snow-free rolling foo
     expect(snow.getX(column * MOUNTAIN_RIDGE_ROWS + 13)).toBeGreaterThan(0.7);
   }
   expect(reviewedPeaks).toBeGreaterThan(0);
+});
+
+it('isolates the alpine finish to each far material, preserving shared snow/detail and finished woodland controls', () => {
+  const far = createRidgeMaterial(0.32, 'alpine'),
+    sibling = createRidgeMaterial(0.32, 'other-far'),
+    near = createRidgeMaterial(0.1, 'wooded', true);
+  expect(far.uniforms.uAlpineStrength.value).toBe(1);
+  expect(sibling.uniforms.uAlpineStrength.value).toBe(1);
+  expect(near.uniforms.uAlpineStrength.value).toBe(0);
+  expect(far.uniforms.uAlpineStrength).not.toBe(sibling.uniforms.uAlpineStrength);
+  const detail = far.uniforms.uDetailStrength.value,
+    snow = far.uniforms.uSnowStrength.value,
+    key = far.customProgramCacheKey();
+  far.uniforms.uAlpineStrength.value = 0;
+  expect(sibling.uniforms.uAlpineStrength.value).toBe(1);
+  expect(near.uniforms.uWoodlandStrength.value).toBe(1);
+  expect(far.uniforms.uDetailStrength.value).toBe(detail);
+  expect(far.uniforms.uSnowStrength.value).toBe(snow);
+  expect(far.customProgramCacheKey()).toBe(key);
+  for (const m of [far, sibling, near]) m.dispose();
+});
+
+it('gives actual steep snowy faces a mineral substrate while retaining snow potential, summit caps and filtered metre relief', () => {
+  const far = MOUNTAIN_RIDGE_GEOMETRIES[0],
+    position = far.getAttribute('position'),
+    normal = far.getAttribute('normal'),
+    snow = far.getAttribute('ridgeSnow');
+  let steepSnowy = 0;
+  for (let i = 0; i < position.count; i++)
+    if (
+      position.getY(i) > 55 &&
+      normal.getY(i) < Math.cos((55 * Math.PI) / 180) &&
+      snow.getX(i) > 0.7
+    )
+      steepSnowy++;
+  expect(steepSnowy).toBeGreaterThan(100);
+  expect(RIDGE_ALPINE_PROFILE.steepSnow).toBeLessThan(0.2);
+  expect(RIDGE_ALPINE_PROFILE.shoulderSnow).toBeGreaterThan(0.8);
+  expect(RIDGE_ALPINE_PROFILE.reliefMetres / 10).toBeLessThan(0.06);
+  expect(RIDGE_ALPINE_PROFILE.mineralShade[0]).toBeGreaterThan(0.5);
+  expect(RIDGE_ALPINE_PROFILE.mineralShade[1]).toBeLessThan(1.3);
+  const material = createRidgeMaterial(0.32, 'real-alpine');
+  const branch = material.fragmentShader
+    .split('} else if (uWorldAnchored < 0.5')[1]
+    .split('} else {')[0];
+  expect(branch).toContain('vec3 mineral = vRidgeColor * mix(');
+  expect(branch).toContain('max(rock, smoothstep(0.05, 0.30, vRidgeSnow))');
+  expect(branch).toContain('smoothstep(0.35, 0.72, max(0.0, normal.y))');
+  expect(branch).toContain('snowPotential * max(accumulation, summit)');
+  expect(branch).toContain('max(length(dFdx(p)), length(dFdy(p)))');
+  expect(branch).toContain('fineVisibility');
+  expect(branch).toContain('(p.x + drift) * 0.065, p.y * 0.065');
+  expect(branch).toContain('(veins - 0.5) * 0.08) * 0.40');
+  expect(material.fragmentShader).toContain('smoothstep(0.0, 0.20, uSunDirection.y)');
+  expect(material.fragmentShader).toContain(
+    'mix(ndl, max(0.0, dot(normal, uSunDirection)), alpineSun)'
+  );
+  material.dispose();
+});
+
+it('carves broad peak-rooted basins inside the original envelope with exact skyline, topology and altitude-based snow', () => {
+  const original = createMountainRidgeGeometry({ ...FAR_MOUNTAIN_SPEC, alpineReliefMetres: 0 }),
+    sculpted = MOUNTAIN_RIDGE_GEOMETRIES[0],
+    before = original.getAttribute('position'),
+    after = sculpted.getAttribute('position'),
+    snow = sculpted.getAttribute('ridgeSnow');
+  try {
+    expect(after.count).toBe(before.count);
+    expect(sculpted.index!.array).toEqual(original.index!.array);
+    for (const attribute of ['color', 'ridgeHeight'])
+      expect(sculpted.getAttribute(attribute).array).toEqual(
+        original.getAttribute(attribute).array
+      );
+    let changed = 0,
+      greatestCarve = 0;
+    for (let column = 0; column <= MOUNTAIN_RIDGE_SEGMENTS; column++) {
+      const start = column * MOUNTAIN_RIDGE_ROWS;
+      const oldRadii = Array.from({ length: MOUNTAIN_RIDGE_ROWS }, (_, row) =>
+        Math.hypot(before.getX(start + row), before.getZ(start + row))
+      );
+      let previousHeight = -Infinity,
+        previousRadius = -Infinity;
+      for (let row = 0; row < MOUNTAIN_RIDGE_ROWS; row++) {
+        const i = start + row,
+          height = after.getY(i),
+          carve = before.getY(i) - height;
+        const radius = Math.hypot(after.getX(i), after.getZ(i));
+        expect(radius).toBeGreaterThanOrEqual(Math.min(...oldRadii) - 0.0001);
+        expect(radius).toBeLessThanOrEqual(Math.max(...oldRadii) + 0.0001);
+        if (height >= 0) expect(radius).toBeGreaterThan(previousRadius);
+        expect(carve).toBeGreaterThanOrEqual(0);
+        expect(carve).toBeLessThanOrEqual(30.0001);
+        if (row === 0 || row === MOUNTAIN_RIDGE_ROWS - 1) expect(height).toBe(before.getY(i));
+        if (height >= 0) expect(height).toBeGreaterThan(previousHeight);
+        if (row > 0) {
+          const expectedSnow = THREE.MathUtils.clamp(
+            (height -
+              (FAR_MOUNTAIN_SPEC.baseY +
+                FAR_MOUNTAIN_SPEC.maxHeight * FAR_MOUNTAIN_SPEC.snowLine)) /
+              12 +
+              0.5,
+            0,
+            1
+          );
+          expect(snow.getX(i)).toBeCloseTo(expectedSnow, 5);
+        }
+        if (height < 55) expect(snow.getX(i)).toBe(0);
+        if (carve > 0.1) changed++;
+        greatestCarve = Math.max(greatestCarve, carve);
+        previousHeight = height;
+        previousRadius = radius;
+      }
+    }
+    expect(changed).toBeGreaterThan(500);
+    expect(greatestCarve).toBeGreaterThan(12);
+    expect(sculpted.getAttribute('normal').array).not.toEqual(
+      original.getAttribute('normal').array
+    );
+    expect(sculpted.getAttribute('ridgeSnow').array).not.toEqual(
+      original.getAttribute('ridgeSnow').array
+    );
+  } finally {
+    original.dispose();
+  }
 });
