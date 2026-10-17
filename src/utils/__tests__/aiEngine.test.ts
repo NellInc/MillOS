@@ -22,6 +22,7 @@ import {
   getProductionTargets,
   getAIMemoryState,
   generateStrategicDecision,
+  isTacticalLayerActive,
   initializeAIEngine,
   initializeDecisionOutcomeTracking,
 } from '../aiEngine';
@@ -29,6 +30,7 @@ import { useProductionStore } from '../../stores/productionStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useAIConfigStore } from '../../stores/aiConfigStore';
 import { cloudAIClient, type CloudResult } from '../cloudAIClient';
+import { SpendCapError } from '../spendBudget';
 import { webgpuClient } from '../webgpuClient';
 import { MachineType, AIDecision } from '../../types';
 
@@ -737,6 +739,20 @@ describe('aiEngine - Core Functions', () => {
       expect(addDecision).not.toHaveBeenCalled();
       expect(useAIConfigStore.getState().strategic.legacyPriorities).toEqual([]);
       expect(useAIConfigStore.getState().strategic.isThinking).toBe(false);
+    });
+
+    it('restores free heuristic control when a capped LLM-only request is blocked', async () => {
+      configureStrategicLayer();
+      useAIConfigStore.setState({ aiMode: 'gemini' });
+      vi.spyOn(cloudAIClient, 'hasKey').mockReturnValue(true);
+      vi.spyOn(cloudAIClient, 'generateContent').mockRejectedValue(
+        new SpendCapError('Session cost cap reached. No paid request was sent.')
+      );
+      expect(isTacticalLayerActive()).toBe(false);
+      await expect(generateStrategicDecision()).resolves.toBeNull();
+      expect(useAIConfigStore.getState().aiMode).toBe('heuristic');
+      expect(isTacticalLayerActive()).toBe(true);
+      expect(useAIConfigStore.getState().connectionError).toMatch(/cap reached/);
     });
 
     it('invalidates an old backend response and starts the newly selected backend', async () => {

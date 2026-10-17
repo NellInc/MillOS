@@ -51,7 +51,11 @@ function getExtension(url) {
 }
 
 function isCacheable(response) {
-  return response.status === 200 && response.type !== 'error';
+  return (
+    response.status === 200 &&
+    response.type !== 'error' &&
+    !/(?:^|,)\s*no-store\s*(?:,|$)/i.test(response.headers.get('Cache-Control') || '')
+  );
 }
 
 function isRequestWithinScope(requestUrl) {
@@ -119,6 +123,8 @@ self.addEventListener('fetch', (event) => {
 
   const requestUrl = new URL(request.url);
   if (requestUrl.origin !== self.location.origin || !isRequestWithinScope(requestUrl)) return;
+  const scopedPath = requestUrl.pathname.slice(SCOPE_PATH.length - 1);
+  if (/^\/(?:auth|api)\//.test(scopedPath)) return;
   if (
     requestUrl.pathname.endsWith('/sw.js') ||
     requestUrl.pathname.includes('/__vite') ||

@@ -189,6 +189,51 @@ afterEach(() => {
 });
 
 describe('service worker scope isolation', () => {
+  it('never intercepts OAuth callbacks or caches no-store navigation responses', async () => {
+    const scope = 'http://127.0.0.1:3001/';
+    const listeners = new Map<string, (event: unknown) => void>();
+    const put = vi.fn().mockResolvedValue(undefined);
+    const fetcher = vi
+      .fn()
+      .mockResolvedValue(new Response('private', { headers: { 'Cache-Control': 'no-store' } }));
+    const workerGlobal = {
+      registration: { scope },
+      location: { origin: new URL(scope).origin },
+      addEventListener: (type: string, listener: (event: unknown) => void): void => {
+        listeners.set(type, listener);
+      },
+    };
+    runInNewContext(readFileSync(resolve(process.cwd(), 'public/sw.js'), 'utf8'), {
+      URL,
+      caches: { open: async () => ({ match: async () => null, put }) },
+      fetch: fetcher,
+      self: workerGlobal,
+    });
+    const listener = listeners.get('fetch');
+    expect(listener).toBeDefined();
+    const dispatch = async (url: string) => {
+      let intercepted: Promise<Response> | undefined;
+      const pending: Promise<unknown>[] = [];
+      listener!({
+        request: { url, method: 'GET', mode: 'navigate', headers: new Headers() },
+        respondWith: (value: Promise<Response>) => {
+          intercepted = value;
+        },
+        waitUntil: (value: Promise<unknown>) => {
+          pending.push(value);
+        },
+      });
+      if (intercepted) await intercepted;
+      await Promise.all(pending);
+      return Boolean(intercepted);
+    };
+    expect(await dispatch(`${scope}auth/callback?code=private&state=private`)).toBe(false);
+    expect(await dispatch(`${scope}api/chatgpt/status`)).toBe(false);
+    expect(await dispatch(`${scope}private`)).toBe(true);
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(put).not.toHaveBeenCalled();
+  });
+
   it('creates stable keys for root and version paths', () => {
     expect(serviceWorkerScopeKey('/')).toBe('root');
     expect(serviceWorkerScopeKey('/v0.30/')).toBe('v0.30');

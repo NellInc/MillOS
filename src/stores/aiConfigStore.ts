@@ -8,7 +8,9 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { safeJSONStorage } from './storage';
-import { cloudAIClient, type CloudBackend } from '../utils/cloudAIClient';
+import { cloudAIClient, isLocalCompanionHost, type CloudBackend } from '../utils/cloudAIClient';
+import { chatgptClient, type ChatGPTStatus } from '../utils/chatgptClient';
+import { spendBudget } from '../utils/spendBudget';
 import {
   webgpuClient,
   WebGPUClient,
@@ -22,7 +24,7 @@ import type { StrategicPriority } from '../types';
 export type AIMode = 'heuristic' | 'gemini' | 'hybrid';
 
 /** Which LLM backend powers the strategic layer (orthogonal to AIMode). */
-export type LLMBackend = CloudBackend | 'webgpu';
+export type LLMBackend = CloudBackend | 'webgpu' | 'chatgpt';
 
 /** Lifecycle status of the local WebGPU neural core. */
 export type WebGPUStatus =
@@ -46,7 +48,17 @@ const STANDARD_COST_PER_1M = { input: 0.1, output: 0.5 };
 export function getActiveCloudPricing(): { model: string; input: number; output: number } {
   const backend = useAIConfigStore.getState().llmBackend;
   const model =
-    backend === 'haiku' ? 'claude-haiku-5-5' : backend === 'luna' ? 'gpt-6-luna' : 'On-device';
+    backend === 'webgpu'
+      ? 'On-device'
+      : backend === 'chatgpt'
+        ? 'ChatGPT plan'
+        : backend === 'openrouter-haiku'
+          ? 'OpenRouter Haiku 5.5'
+          : backend === 'openrouter-luna'
+            ? 'OpenRouter Luna 6'
+            : backend === 'haiku'
+              ? 'claude-haiku-5-5'
+              : 'gpt-6-luna';
   return { model, ...STANDARD_COST_PER_1M };
 }
 
@@ -54,7 +66,9 @@ export function getActiveCloudPricing(): { model: string; input: number; output:
 const DEFAULT_STRATEGIC_INTERVAL_MS = 45000; // 45 seconds
 
 interface CostTracking {
-  sessionCost: number; // Estimated strategic-request cost this session in USD; key tests excluded
+  sessionCost: number; // App-scoped provider-reported/estimated usage, including key tests
+  reservedCost: number; // In-flight admission reservations
+  uncertainCost: number; // Dispatched calls whose billing could not be confirmed
   totalInputTokens: number; // Provider-reported input tokens
   totalOutputTokens: number; // Provider-reported output tokens, including reasoning
   requestCount: number; // Number of API calls
@@ -91,6 +105,10 @@ interface AIConfigState {
   connectedProviders: Record<CloudBackend, boolean>;
   connectionEpoch: number;
   connectionError: string | null;
+  chatgptStatus: ChatGPTStatus | null;
+  chatgptError: string | null;
+  refreshChatGPT: () => Promise<void>;
+  setChatGPTError: (error: string | null) => void;
 
   // One strategic backend at a time, with on-device WebGPU preserved.
   llmBackend: LLMBackend;
@@ -140,10 +158,9 @@ interface AIConfigState {
 
   // Cost tracking
   costTracking: CostTracking;
-  recordApiUsage: (inputTokens: number, outputTokens: number) => void;
-  resetSessionCosts: () => void;
+  spendCapUsd: number | null;
+  setSpendCap: (value: number | null) => void;
   getFormattedCost: () => string;
-  trackAPICost: (cost: number, tokens: number) => void;
 
   // Actions
   setCloudApiKey: (backend: CloudBackend, key: string) => Promise<boolean>;
@@ -183,12 +200,45 @@ export const useAIConfigStore = create<AIConfigState>()(
       },
 
       // Connected means validated during this page session; no key is persisted.
-      connectedProviders: { haiku: false, luna: false },
+      connectedProviders: {
+        haiku: false,
+        luna: false,
+        'openrouter-haiku': false,
+        'openrouter-luna': false,
+      },
       connectionEpoch: 0,
       connectionError: null,
+      chatgptStatus: null,
+      chatgptError: null,
+      setChatGPTError: (error) => set({ chatgptError: error }),
+      refreshChatGPT: async () => {
+        try {
+          const status = await chatgptClient.status();
+          set((state) => {
+            const previous = state.chatgptStatus;
+            const priorAccount = previous?.accounts.find((a) => a.id === previous.activeId);
+            const nextAccount = status.accounts.find((a) => a.id === status.activeId);
+            const changed =
+              previous?.activeId !== status.activeId || priorAccount?.model !== nextAccount?.model;
+            return {
+              chatgptStatus: status,
+              chatgptError: null,
+              connectionEpoch: changed ? state.connectionEpoch + 1 : state.connectionEpoch,
+            };
+          });
+        } catch (error) {
+          set({
+            chatgptStatus: null,
+            chatgptError: error instanceof Error ? error.message : 'Local companion unavailable',
+          });
+        }
+      },
 
-      llmBackend: 'haiku',
+      llmBackend: isLocalCompanionHost() ? 'haiku' : 'openrouter-haiku',
       setLLMBackend: (backend: LLMBackend) => {
+        if (!isLocalCompanionHost() && (backend === 'haiku' || backend === 'luna')) {
+          backend = backend === 'haiku' ? 'openrouter-haiku' : 'openrouter-luna';
+        }
         cloudKeyAttempt += 1;
         cloudAIClient.cancelRequests();
         set((state) => ({
@@ -197,6 +247,7 @@ export const useAIConfigStore = create<AIConfigState>()(
           connectionError: null,
         }));
         logger.info(`[AIConfigStore] LLM backend set to: ${backend}`);
+        if (backend === 'chatgpt') void get().refreshChatGPT();
         // Auto-download/load the local model the moment the controller selects it
         // (idempotent — loadWebGPUModel() no-ops if already loading or ready).
         if (backend === 'webgpu') {
@@ -369,7 +420,16 @@ export const useAIConfigStore = create<AIConfigState>()(
       isLLMReady: (): boolean => {
         const state = get();
         return (
-          (state.llmBackend !== 'webgpu' && state.connectedProviders[state.llmBackend]) ||
+          (state.llmBackend !== 'webgpu' &&
+            state.llmBackend !== 'chatgpt' &&
+            state.connectedProviders[state.llmBackend]) ||
+          (state.llmBackend === 'chatgpt' &&
+            Boolean(
+              state.chatgptStatus?.accounts.some(
+                (account) =>
+                  account.id === state.chatgptStatus?.activeId && account.signedIn && account.model
+              )
+            )) ||
           (state.llmBackend === 'webgpu' && state.webgpuModelReady)
         );
       },
@@ -508,51 +568,17 @@ export const useAIConfigStore = create<AIConfigState>()(
 
       // Cost tracking - session state
       costTracking: {
-        sessionCost: 0,
-        totalInputTokens: 0,
-        totalOutputTokens: 0,
-        requestCount: 0,
-        lastRequestCost: 0,
-        sessionStartTime: Date.now(),
+        sessionCost: spendBudget.getSnapshot().spentUsd,
+        reservedCost: spendBudget.getSnapshot().reservedUsd,
+        uncertainCost: spendBudget.getSnapshot().uncertainUsd,
+        totalInputTokens: spendBudget.getSnapshot().totalInputTokens,
+        totalOutputTokens: spendBudget.getSnapshot().totalOutputTokens,
+        requestCount: spendBudget.getSnapshot().requestCount,
+        lastRequestCost: spendBudget.getSnapshot().lastRequestCost,
+        sessionStartTime: spendBudget.getSnapshot().sessionStartTime,
       },
-
-      // Record API usage and calculate cost
-      recordApiUsage: (inputTokens: number, outputTokens: number) => {
-        const pricing = getActiveCloudPricing();
-        const inputCost = (inputTokens / 1_000_000) * pricing.input;
-        const outputCost = (outputTokens / 1_000_000) * pricing.output;
-        const requestCost = inputCost + outputCost;
-
-        set((state) => ({
-          costTracking: {
-            ...state.costTracking,
-            sessionCost: state.costTracking.sessionCost + requestCost,
-            totalInputTokens: state.costTracking.totalInputTokens + inputTokens,
-            totalOutputTokens: state.costTracking.totalOutputTokens + outputTokens,
-            requestCount: state.costTracking.requestCount + 1,
-            lastRequestCost: requestCost,
-          },
-        }));
-
-        logger.info(
-          `[AIConfigStore] API usage: ${inputTokens} in / ${outputTokens} out tokens, cost: $${requestCost.toFixed(6)}`
-        );
-      },
-
-      // Reset session costs
-      resetSessionCosts: () => {
-        set({
-          costTracking: {
-            sessionCost: 0,
-            totalInputTokens: 0,
-            totalOutputTokens: 0,
-            requestCount: 0,
-            lastRequestCost: 0,
-            sessionStartTime: Date.now(),
-          },
-        });
-        logger.info('[AIConfigStore] Session costs reset');
-      },
+      spendCapUsd: spendBudget.getSnapshot().capUsd,
+      setSpendCap: (value) => spendBudget.setCap(value),
 
       // Get formatted cost string
       getFormattedCost: () => {
@@ -560,21 +586,6 @@ export const useAIConfigStore = create<AIConfigState>()(
         if (requestCount === 0) return '$0.00';
         if (sessionCost < 0.01) return `$${sessionCost.toFixed(4)}`;
         return `$${sessionCost.toFixed(2)}`;
-      },
-
-      // Legacy direct-cost hook, retained for callers that report a billed cost.
-      trackAPICost: (cost: number, tokens: number) => {
-        set((state) => ({
-          costTracking: {
-            ...state.costTracking,
-            sessionCost: state.costTracking.sessionCost + cost,
-            totalInputTokens: state.costTracking.totalInputTokens + Math.floor(tokens * 0.7),
-            totalOutputTokens: state.costTracking.totalOutputTokens + Math.floor(tokens * 0.3),
-            requestCount: state.costTracking.requestCount + 1,
-            lastRequestCost: cost,
-          },
-        }));
-        logger.info(`[AIConfigStore] API cost tracked: $${cost.toFixed(4)}, ${tokens} tokens`);
       },
 
       setCloudApiKey: async (backend, key) => {
@@ -612,8 +623,8 @@ export const useAIConfigStore = create<AIConfigState>()(
     {
       name: 'millos-ai-config',
       storage: safeJSONStorage,
-      version: 1,
-      migrate: (persistedState) => {
+      version: 2,
+      migrate: (persistedState, version) => {
         // Version 0 stored the Google key in plaintext. Return a strict
         // whitelist so rehydration rewrites storage without that credential.
         const previous =
@@ -621,8 +632,23 @@ export const useAIConfigStore = create<AIConfigState>()(
             ? (persistedState as Record<string, unknown>)
             : {};
         const local = previous.llmBackend === 'webgpu';
+        const backend: LLMBackend = local
+          ? 'webgpu'
+          : version === 0
+            ? isLocalCompanionHost()
+              ? 'haiku'
+              : 'openrouter-haiku'
+            : previous.llmBackend === 'chatgpt' && isLocalCompanionHost()
+              ? 'chatgpt'
+              : previous.llmBackend === 'openrouter-luna' || previous.llmBackend === 'luna'
+                ? previous.llmBackend === 'luna' && isLocalCompanionHost()
+                  ? 'luna'
+                  : 'openrouter-luna'
+                : previous.llmBackend === 'haiku' && isLocalCompanionHost()
+                  ? 'haiku'
+                  : 'openrouter-haiku';
         return {
-          llmBackend: local ? 'webgpu' : 'haiku',
+          llmBackend: backend,
           aiMode:
             local && (previous.aiMode === 'gemini' || previous.aiMode === 'hybrid')
               ? previous.aiMode
@@ -642,6 +668,23 @@ export const useAIConfigStore = create<AIConfigState>()(
   )
 );
 
+spendBudget.subscribe(() => {
+  const snapshot = spendBudget.getSnapshot();
+  useAIConfigStore.setState({
+    spendCapUsd: snapshot.capUsd,
+    costTracking: {
+      sessionCost: snapshot.spentUsd,
+      reservedCost: snapshot.reservedUsd,
+      uncertainCost: snapshot.uncertainUsd,
+      totalInputTokens: snapshot.totalInputTokens,
+      totalOutputTokens: snapshot.totalOutputTokens,
+      requestCount: snapshot.requestCount,
+      lastRequestCost: snapshot.lastRequestCost,
+      sessionStartTime: snapshot.sessionStartTime,
+    },
+  });
+});
+
 // Initialize on module load (will run after rehydration)
 if (typeof window !== 'undefined') {
   // Prewarm the local model if WebGPU was the persisted backend.
@@ -652,6 +695,9 @@ if (typeof window !== 'undefined') {
     if (useAIConfigStore.getState().llmBackend === 'webgpu') {
       // promote=false: a silent reload must not override the persisted aiMode.
       void useAIConfigStore.getState().loadWebGPUModel(false);
+    }
+    if (useAIConfigStore.getState().llmBackend === 'chatgpt') {
+      void useAIConfigStore.getState().refreshChatGPT();
     }
   }, 2500);
 }

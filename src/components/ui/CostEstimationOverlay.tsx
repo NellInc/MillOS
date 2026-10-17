@@ -7,17 +7,25 @@
 
 import React, { useRef } from 'react';
 import { motion } from 'framer-motion';
-import { DollarSign, Zap, Brain, RotateCcw, TrendingUp, GripVertical } from 'lucide-react';
+import { DollarSign, Zap, Brain, TrendingUp, GripVertical } from 'lucide-react';
 import { getActiveCloudPricing, useAIConfigStore } from '../../stores/aiConfigStore';
 
 export const CostEstimationOverlay: React.FC = () => {
   const showCostOverlay = useAIConfigStore((state) => state.showCostOverlay);
   const llmBackend = useAIConfigStore((state) => state.llmBackend);
   const connectedProviders = useAIConfigStore((state) => state.connectedProviders);
-  const isConnected = llmBackend !== 'webgpu' && connectedProviders[llmBackend];
+  const chatgptStatus = useAIConfigStore((state) => state.chatgptStatus);
+  const isConnected =
+    llmBackend === 'chatgpt'
+      ? Boolean(
+          chatgptStatus?.accounts.some(
+            (account) => account.id === chatgptStatus.activeId && account.signedIn && account.model
+          )
+        )
+      : llmBackend !== 'webgpu' && connectedProviders[llmBackend];
   const aiMode = useAIConfigStore((state) => state.aiMode);
   const costTracking = useAIConfigStore((state) => state.costTracking);
-  const resetSessionCosts = useAIConfigStore((state) => state.resetSessionCosts);
+  const spendCapUsd = useAIConfigStore((state) => state.spendCapUsd);
 
   const dragConstraintsRef = useRef<HTMLDivElement>(null);
 
@@ -27,6 +35,8 @@ export const CostEstimationOverlay: React.FC = () => {
 
   const {
     sessionCost,
+    reservedCost,
+    uncertainCost,
     totalInputTokens,
     totalOutputTokens,
     requestCount,
@@ -101,7 +111,7 @@ export const CostEstimationOverlay: React.FC = () => {
           <div className="text-center mb-3">
             <div className="text-3xl font-bold text-cyan-400">{formatCost(sessionCost)}</div>
             <div className="text-[10px] text-slate-400 mt-0.5">
-              Strategic calls ({displayDuration}); key tests excluded
+              Paid calls including key tests ({displayDuration})
             </div>
           </div>
 
@@ -140,14 +150,12 @@ export const CostEstimationOverlay: React.FC = () => {
             </div>
           </div>
 
-          {/* Reset Button */}
-          <button
-            onClick={resetSessionCosts}
-            className="w-full mt-2 flex items-center justify-center gap-1.5 py-1.5 text-[10px] text-slate-400 hover:text-white bg-slate-800/30 hover:bg-slate-700/50 rounded-lg transition-colors"
-          >
-            <RotateCcw className="w-3 h-3" />
-            Reset Session
-          </button>
+          <div className="mt-2 text-[10px] text-slate-400 text-center">
+            {spendCapUsd === null ? 'No session cap' : `Cap $${spendCapUsd.toFixed(2)}`}
+            {reservedCost + uncertainCost > 0
+              ? ` · $${(reservedCost + uncertainCost).toFixed(4)} in flight or uncertain`
+              : ''}
+          </div>
         </div>
 
         {/* Pricing Note */}
@@ -155,7 +163,9 @@ export const CostEstimationOverlay: React.FC = () => {
           <div className="text-[9px] text-slate-400 text-center">
             {llmBackend === 'webgpu'
               ? 'On-device inference has no API charge.'
-              : `${pricing.model}: estimated at standard API rates, $${pricing.input.toFixed(2)}/1M in, $${pricing.output.toFixed(2)}/1M out. Provider billing is authoritative.`}
+              : llmBackend === 'chatgpt'
+                ? 'ChatGPT plan usage is separate from BYOK API billing and this dollar cap.'
+                : `${pricing.model}: direct-provider estimate $${pricing.input.toFixed(2)}/1M in, $${pricing.output.toFixed(2)}/1M out; OpenRouter reports account and any upstream BYOK costs. This tab's cap is an estimate, not a provider billing limit.`}
           </div>
         </div>
       </motion.div>
