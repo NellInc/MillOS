@@ -8,6 +8,7 @@ import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { creatureCadence } from '../../simulation/creatureMotion';
 import { CreatureBody, type CreatureRigHandle } from '../models/RiggedCreatureModel';
+import { SleepingCatCraft, type SleepingCatHandle } from './SleepingCatCraft';
 
 // Hover affordance for petting, matching every other clickable object in the
 // scene.
@@ -29,8 +30,8 @@ interface CatProps {
  * The sitting cat's primitive body, kept as the generated cat's fallback.
  *
  * Only the sitting pose is generated. The sleeping cat between the hay bales
- * stays procedural: the generated asset is a sitting animal, and posing its rig
- * into a curl is bespoke work rather than a swap. `color` therefore still
+ * has its own authored curled body: the generated asset is a sitting animal,
+ * so its rig and pose remain untouched. `color` therefore still
  * selects a coat on the sleeping cat and on this fallback, but the generated
  * sitting cat is one grey tabby wherever it appears.
  */
@@ -93,6 +94,10 @@ export const Cat = React.memo<CatProps>(
     // the right channel for the pet response. Without this the sitting cat is
     // the one creature in the roster whose skeleton is never driven at all.
     const rigRef = useRef<CreatureRigHandle>(null);
+    const sleepingRef = useRef<SleepingCatHandle>(null);
+    useEffect(() => {
+      if (reducedMotion) sleepingRef.current?.setResting(0);
+    }, [reducedMotion]);
     const heartCounter = useRef(0);
     const [isExcited, setIsExcited] = useState(false);
     const [hearts, setHearts] = useState<{ id: number; pos: [number, number, number] }[]>([]);
@@ -141,6 +146,7 @@ export const Cat = React.memo<CatProps>(
       if (reducedMotion) {
         groupRef.current.rotation.z = 0;
         groupRef.current.position.y = 0;
+        sleepingRef.current?.setResting(0);
         return;
       }
       animationTime.current += Math.min(delta, 0.1);
@@ -172,6 +178,10 @@ export const Cat = React.memo<CatProps>(
       // response cannot be verified by a motion probe, because a probe does not
       // pet anything. The period is deliberately long and prime-ish against the
       // 0.35 s sample step so successive looks do not land on the same angle.
+      if (isSleeping) {
+        if (gameSpeed > 0) sleepingRef.current?.setResting(animationTime.current * cadence);
+        return;
+      }
       const rig = rigRef.current;
       if (!rig || isSleeping) return;
       if (!isExcited && !shouldRunThisFrame(4)) return;
@@ -186,10 +196,11 @@ export const Cat = React.memo<CatProps>(
     // Segment counts below stay where they are. The `onClick` on this group puts
     // every mesh under it into R3F's interaction list, so all of them are
     // raycast on each pointer move with no picking proxy to fall back on; and at
-    // scale 0.4 the largest part is a 0.48 m sphere, with ears at 64 mm and eyes
-    // at 32 mm. A faceted critter is the art direction here, not neglect.
+    // scale 0.4 the sitting fallback is intentionally faceted. The sleeping
+    // branch is an authored, similarly bounded half-metre curled figure.
     return (
       <group
+        name={isSleeping ? 'sleeping-farm-cat' : undefined}
         position={position}
         rotation={[0, rotation, 0]}
         onClick={handlePet}
@@ -198,49 +209,7 @@ export const Cat = React.memo<CatProps>(
       >
         <group ref={groupRef}>
           {isSleeping ? (
-            // Sleeping Pose (Curled up). Still primitive: the generated cat is
-            // a sitting animal, and posing its rig into a curl is bespoke work
-            // rather than a swap. Carries the 0.4 that used to sit on the Cat's
-            // own group, where it shrank the 0.5 m generated asset to 0.2 m.
-            <group scale={0.4}>
-              {/* Curled Body */}
-              <mesh position={[0, 0.3, 0]} castShadow>
-                <sphereGeometry args={[0.6, 12, 12]} />
-                <meshStandardMaterial color={color} />
-              </mesh>
-              {/* Head tucked in */}
-              <mesh position={[0.4, 0.3, 0.2]} rotation={[0, 0, 0.5]} castShadow>
-                <sphereGeometry args={[0.35, 12, 12]} />
-                <meshStandardMaterial color={color} />
-              </mesh>
-              {/* Ears (Lower/Relaxed) */}
-              {[-0.15, 0.15].map((x, i) => (
-                <mesh
-                  key={i}
-                  position={[0.4 + x, 0.55, 0.2]}
-                  rotation={[0, 0, i === 0 ? 0.4 : 0.6]}
-                >
-                  <coneGeometry args={[0.08, 0.2, 8]} />
-                  <meshStandardMaterial color={color} />
-                </mesh>
-              ))}
-              {/* Tail wrapped around */}
-              <mesh position={[-0.4, 0.2, 0.1]} rotation={[Math.PI / 2, 0, 0]}>
-                <torusGeometry args={[0.5, 0.1, 6, 12, Math.PI]} />
-                <meshStandardMaterial color={color} />
-              </mesh>
-              {/* Closed Eyes (Sleepy lines) */}
-              {[-0.12, 0.12].map((x, i) => (
-                <mesh
-                  key={i}
-                  position={[0.4 + x, 0.4, 0.48]}
-                  rotation={[0, 0, i === 0 ? -0.2 : 0.2]}
-                >
-                  <boxGeometry args={[0.12, 0.02, 0.02]} />
-                  <meshStandardMaterial color="#000" />
-                </mesh>
-              ))}
-            </group>
+            <SleepingCatCraft ref={sleepingRef} colour={color} />
           ) : (
             <CreatureBody
               creature="cat"

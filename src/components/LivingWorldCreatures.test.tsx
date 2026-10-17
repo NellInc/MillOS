@@ -44,6 +44,13 @@ import {
   createScarecrowPumpkinGeometry,
   createScarecrowFaceGeometry,
 } from './scenery/ScarecrowCraft';
+import { Cat } from './scenery/Cat';
+import {
+  createSleepingCatGeometry,
+  createSleepingCatHeadGeometry,
+  SLEEPING_CAT_HEAD,
+  sleepingCatRest,
+} from './scenery/SleepingCatCraft';
 import { playCritterSound } from '../utils/critterAudio';
 import { clutterPlacements } from './scenery/InstancedFoliage';
 
@@ -1425,4 +1432,176 @@ it('composes sheep rest with actual grazing and pet poses under a transformed pa
   view.unmount();
   expect(mesh.geometry).toBe((source.getObjectByName('SheepBody') as THREE.SkinnedMesh).geometry);
   cloned.mockRestore();
+});
+
+it('keeps the curled cat finite, outward shaded and inside its original ground-level nook', () => {
+  const g = createSleepingCatGeometry('#f97316');
+  let triangles = 0;
+  for (const part of Object.values(g)) {
+    expect(
+      Object.values(part.attributes).every((a) => Array.from(a.array).every(Number.isFinite))
+    ).toBe(true);
+    const n = part.attributes.normal;
+    for (let i = 0; i < n.count; i++)
+      expect(new THREE.Vector3().fromBufferAttribute(n, i).length()).toBeCloseTo(1, 5);
+    triangles += (part.index?.count ?? part.attributes.position.count) / 3;
+  }
+  expect(triangles).toBeLessThan(6500);
+  for (const part of [g.body, g.details]) {
+    expect(part.boundingBox!.min.y).toBeGreaterThan(0);
+    expect(part.boundingBox!.max.y).toBeLessThan(0.27);
+    expect(part.boundingBox!.min.x).toBeGreaterThan(-0.36);
+    expect(part.boundingBox!.max.x).toBeLessThan(0.3);
+    expect(part.boundingBox!.max.z).toBeLessThan(0.25);
+  }
+  const m = new THREE.Mesh(g.body, new THREE.MeshBasicMaterial());
+  m.updateMatrixWorld();
+  const ray = new THREE.Raycaster(
+    new THREE.Vector3(-0.08, 0.5, -0.105),
+    new THREE.Vector3(0, -1, 0)
+  );
+  const hit = ray.intersectObject(m)[0];
+  expect(hit).toBeDefined();
+  expect(hit.face!.normal.y).toBeGreaterThan(0.4);
+  Object.values(g).forEach((p) => p.dispose());
+  m.material.dispose();
+});
+
+it('seats the closed eyelids against actual skull triangles and makes the ear inset flush', () => {
+  const g = createSleepingCatGeometry('#f97316'),
+    head = createSleepingCatHeadGeometry();
+  const mesh = new THREE.Mesh(head, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
+  mesh.updateMatrixWorld();
+  const inverse = SLEEPING_CAT_HEAD.clone().invert(),
+    ink = new THREE.Color('#51372c'),
+    p = g.details.attributes.position,
+    c = g.details.attributes.color;
+  let count = 0,
+    maxGap = 0;
+  for (let i = 0; i < p.count; i++) {
+    if (
+      Math.abs(c.getX(i) - ink.r) + Math.abs(c.getY(i) - ink.g) + Math.abs(c.getZ(i) - ink.b) >
+      1e-6
+    )
+      continue;
+    const actual = new THREE.Vector3().fromBufferAttribute(p, i),
+      local = actual.clone().applyMatrix4(inverse);
+    if (local.y < -0.015) continue;
+    const start = new THREE.Vector3(local.x, local.y, 0.3).applyMatrix4(SLEEPING_CAT_HEAD),
+      direction = new THREE.Vector3(0, 0, -1).transformDirection(SLEEPING_CAT_HEAD),
+      hit = new THREE.Raycaster(start, direction).intersectObject(mesh)[0];
+    expect(hit).toBeDefined();
+    maxGap = Math.max(maxGap, actual.distanceTo(hit.point));
+    count++;
+  }
+  expect(count).toBeGreaterThan(100);
+  expect(maxGap).toBeLessThan(0.004);
+  for (const ear of [g.leftEar, g.rightEar]) expect(ear.boundingBox!.max.z).toBeCloseTo(0.0141, 5);
+  Object.values(g).forEach((p) => p.dispose());
+  head.dispose();
+  mesh.material.dispose();
+});
+
+it('samples millimetre-scale cat breathing and independent quiet ear bouts with exact neutral reset', () => {
+  let left = 0,
+    right = 0,
+    quiet = 0,
+    maxRise = 0;
+  for (let i = 0; i < 6000; i++) {
+    const r = sleepingCatRest(i / 60);
+    expect(Object.values(r).every(Number.isFinite)).toBe(true);
+    maxRise = Math.max(maxRise, Math.abs(r.bodyY - 1) * 0.23);
+    if (r.leftEar > 0) left++;
+    if (r.rightEar < 0) right++;
+    if (!r.leftEar && !r.rightEar) quiet++;
+    expect(Math.abs(r.leftEar)).toBeLessThanOrEqual(0.065);
+    expect(Math.abs(r.rightEar)).toBeLessThanOrEqual(0.055);
+  }
+  expect(maxRise).toBeGreaterThan(0.002);
+  expect(maxRise).toBeLessThan(0.004);
+  expect(left).toBeGreaterThan(0);
+  expect(right).toBeGreaterThan(0);
+  expect(quiet).toBeGreaterThan(4800);
+  for (const t of [0, -1, NaN, Infinity])
+    expect(sleepingCatRest(t)).toEqual({ bodyY: 1, leftEar: 0, rightEar: 0 });
+});
+
+it('drives only the sleeping channel from the existing owner, freezing pause/hidden and neutralising reduced motion', () => {
+  const original = useGameSimulationStore.getState();
+  useGameSimulationStore.setState({ gameSpeed: 1, isTabVisible: true });
+  // The existing DOM-based R3F test setup needs actual Three transform slots
+  // before the Cat's pre-existing mount effect touches its group ref.
+  const saved = ['position', 'rotation'].map(
+    (k) => [k, Object.getOwnPropertyDescriptor(HTMLElement.prototype, k)] as const
+  );
+  for (const [key] of saved)
+    Object.defineProperty(HTMLElement.prototype, key, {
+      configurable: true,
+      get() {
+        const value = key === 'rotation' ? new THREE.Euler() : new THREE.Vector3();
+        Object.defineProperty(this, key, { value, writable: true, configurable: true });
+        return value;
+      },
+      set(value) {
+        Object.defineProperty(this, key, { value, writable: true, configurable: true });
+      },
+    });
+  const view = render(
+    <Cat position={[6.25, 0, -1]} rotation={0.5} color="#f97316" pose="sleeping" />
+  );
+  const craft = view.container.querySelector('[name="sleeping-cat-craft"]')!;
+  const motion = Object.assign(craft.parentElement!, {
+    position: new THREE.Vector3(),
+    rotation: new THREE.Euler(),
+  });
+  const body = Object.assign(view.container.querySelector('[name="sleeping-cat-flank"]')!, {
+    scale: new THREE.Vector3(1, 1, 1),
+  });
+  const ears = ['left', 'right'].map((s) =>
+    Object.assign(view.container.querySelector(`[name="sleeping-cat-${s}-ear"]`)!, {
+      rotation: new THREE.Euler(),
+    })
+  );
+  const tick = (d: number) =>
+    vi
+      .mocked(useFrame)
+      .mock.calls.at(-1)![0]({} as Parameters<Parameters<typeof useFrame>[0]>[0], d);
+  try {
+    for (let i = 0; i < 60; i++) tick(1 / 60);
+    expect(body.scale.y).not.toBe(1);
+    const held = body.scale.y;
+    useGameSimulationStore.setState({ gameSpeed: 0 });
+    tick(10);
+    expect(body.scale.y).toBe(held);
+    useGameSimulationStore.setState({ gameSpeed: 1, isTabVisible: false });
+    tick(10);
+    expect(body.scale.y).toBe(held);
+    useGameSimulationStore.setState({ isTabVisible: true });
+    tick(1 / 60);
+    expect(body.scale.y).not.toBe(held);
+    expect(motion.position.y).toBe(0);
+    expect(boundary.rigAngles).toHaveLength(0);
+    expect(playCritterSound).not.toHaveBeenCalled();
+    boundary.reducedMotion = true;
+    view.rerender(<Cat position={[6.25, 0, -1]} rotation={0.5} color="#f97316" pose="sleeping" />);
+    tick(1 / 60);
+    expect(body.scale.y).toBe(1);
+    expect(ears.map((e) => e.rotation.z)).toEqual([0, 0]);
+    useGameSimulationStore.setState({ gameSpeed: 0 });
+    fireEvent.click(view.container.querySelector('[name="sleeping-farm-cat"]')!);
+    tick(1 / 60);
+    expect(playCritterSound).toHaveBeenCalledWith('cat');
+    expect(body.scale.y).toBe(1);
+    expect(view.container.querySelectorAll('[name="horse-pet-heart"]')).toHaveLength(1);
+  } finally {
+    view.unmount();
+    for (const [key, descriptor] of saved) {
+      if (descriptor) Object.defineProperty(HTMLElement.prototype, key, descriptor);
+      else Reflect.deleteProperty(HTMLElement.prototype, key);
+    }
+    useGameSimulationStore.setState({
+      gameSpeed: original.gameSpeed,
+      isTabVisible: original.isTabVisible,
+    });
+  }
 });
