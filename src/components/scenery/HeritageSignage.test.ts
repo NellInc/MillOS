@@ -135,7 +135,8 @@ describe('sign lightbox materials', () => {
     const station = readFileSync('src/components/GasStationInstanced.tsx', 'utf8');
     expect(station).toContain('name={`station-canopy-wordmark-${side}`}');
     expect(station).toContain('name="station-shop-wordmark"');
-    expect(station.match(/<IlluminatedSignText/g)).toHaveLength(1);
+    expect(station).not.toContain('<IlluminatedSignText');
+    expect(station.match(/<BusinessBrandMark brand="dino" variant="fascia"/g)).toHaveLength(2);
     expect(station).toContain('<BusinessBrandMark brand="dino" variant="fascia"');
     const print = readFileSync('src/components/scenery/HeritageSignage.tsx', 'utf8');
     expect(print).not.toMatch(/<(?:pointLight|spotLight|rectAreaLight)/);
@@ -395,7 +396,7 @@ describe('painted raster sign family', () => {
 });
 
 describe('distinct world business brands', () => {
-  it('keeps seven unique identities and binds only the actual transport companies', () => {
+  it('keeps distinct shop and service identities and binds only the actual transport companies', () => {
     const names = Object.values(BUSINESS_BRANDS).map((brand) => brand.name);
     expect(names).toEqual([
       'DEAD DINO',
@@ -404,9 +405,13 @@ describe('distinct world business brands', () => {
       'Canalside Provisions',
       'MillOS',
       'FLOUR EXPRESS',
+      'Mill Workshop',
+      'Pondside Café',
+      'Electrical',
+      'Security',
       'GRAIN CO',
     ]);
-    expect(new Set(Object.values(BUSINESS_BRANDS).map((brand) => brand.primary)).size).toBe(7);
+    expect(new Set(Object.values(BUSINESS_BRANDS).map((brand) => brand.primary)).size).toBe(11);
     expect(transportBrandForCompany('FLOUR EXPRESS')).toBe('flourExpress');
     expect(transportBrandForCompany('GRAIN CO')).toBe('grainCo');
     for (const name of ['', 'OTHER CARRIER', 'MillOS', 'Grain Co'])
@@ -416,7 +421,11 @@ describe('distinct world business brands', () => {
   it('ships opaque, compact brand/sign variants and the revised poster with matching provenance', async () => {
     const provenance = JSON.parse(readFileSync('public/textures/signage/PROVENANCE.json', 'utf8'));
     const assets = provenance.businessBrands.assets;
-    const currentAssets = [...assets, ...provenance.stationPosterAndAppBrand.assets];
+    const currentAssets = [
+      ...assets,
+      ...provenance.stationPosterAndAppBrand.assets,
+      ...provenance.serviceBuildingBrands.assets,
+    ];
     expect(assets).toHaveLength(13);
     let total = 0;
     for (const asset of assets) {
@@ -520,4 +529,67 @@ it('delivers the corrected dark-eye artwork and square MillOS application mark',
     readFileSync('public/textures/signage/millos-mark-v1.png')
   ).metadata();
   expect([favicon.width, favicon.height]).toEqual([64, 64]);
+});
+
+describe('illustrated service building rasters', () => {
+  it('ships four compact opaque prints, keeps their source, and contains each original aspect on its board', async () => {
+    const provenance = JSON.parse(
+      readFileSync('public/textures/signage/PROVENANCE.json', 'utf8')
+    ).serviceBuildingBrands;
+    expect(provenance.assets.map((a: { id: string }) => a.id)).toEqual([
+      'workshop',
+      'cafe',
+      'electrical',
+      'security',
+    ]);
+    const boxes = {
+      workshop: [3.36, 0.8],
+      cafe: [1.64, 0.38],
+      electrical: [2.68, 0.625],
+      security: [2.75, 0.71],
+    };
+    let total = 0;
+    for (const asset of provenance.assets) {
+      const bytes = readFileSync(`public/textures/signage/${asset.file}`);
+      expect(createHash('sha256').update(bytes).digest('hex')).toBe(asset.sha256);
+      expect(createHash('sha256').update(readFileSync(asset.source)).digest('hex')).toBe(
+        asset.sourceSha256
+      );
+      const { data, info } = await sharp(bytes)
+        .ensureAlpha()
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      expect([info.width, info.height]).toEqual([asset.width, asset.height]);
+      expect(info.width).toBe(1536);
+      expect(bytes.length).toBeLessThan(180000);
+      let nonOpaque = 0;
+      for (let i = 3; i < data.length; i += 4) if (data[i] !== 255) nonOpaque++;
+      expect(nonOpaque).toBe(0);
+      const [w, h] = boxes[asset.id as keyof typeof boxes];
+      const [pw, ph] = heritagePrintSize(w, h, info.width, info.height);
+      expect(pw / ph).toBeCloseTo(info.width / info.height, 8);
+      expect(pw).toBeLessThanOrEqual(w);
+      expect(ph).toBeLessThanOrEqual(h);
+      expect(pw).toBeGreaterThan(w * 0.95);
+      expect(ph).toBeGreaterThan(h * 0.95);
+      total += bytes.length;
+    }
+    expect(total).toBeLessThan(600000);
+  });
+  it('replaces the four actual plain text faces with unlit-by-itself printed matter while keeping the electrical warning', () => {
+    const craft = readFileSync('src/components/exterior/serviceBuildingCraft.tsx', 'utf8');
+    const exterior = readFileSync('src/components/FactoryExterior.tsx', 'utf8');
+    for (const [source, brands] of [
+      [craft, ['workshop', 'electrical']],
+      [exterior, ['cafe', 'security']],
+    ] as const)
+      for (const brand of brands)
+        expect(source).toMatch(
+          new RegExp(`<BusinessBrandMark\\s+brand="${brand}"[^>]+backlit=\\{false\\}`)
+        );
+    expect(craft).toContain('DANGER');
+    expect(craft).not.toContain('MILL WORKSHOP');
+    expect(craft).not.toContain('>ELECTRICAL<');
+    expect(exterior).not.toMatch(/>\s*(?:CAFE|SECURITY)\s*<\//);
+  });
 });

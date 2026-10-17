@@ -5666,3 +5666,102 @@ BO36-item reconciliation:1-8live ownership/241-test people discovery preserved/n
 BO following rotation: inspect industrial people's fitted protective equipment and readable role silhouettes under genuine work/rest motions. WorkerModel.tsx339-424 carries existing glasses-temple/hearing-cup/accessory geometry, per-head mounts and fitted eye surfaces. Confirm actual hearing cups, hard-hat/spectacles and shoulder/garment intersections on both original bodies at natural roster work periods, with source reachability and existing close/native examples before alleging a defect. Preserve finished eyes/blinks/hair/skin/garments/gaits/seats/cycling/tool grips and all body assets; no generic person rewrite, actor pose/proximity/inventory fixture or interface change. If real equipment already fits, retain it and rotate to another live people/location/gameplay gap rather than manufacture a tiny repeat pass. This is a grounded next question, not an unverified assertion that PPE is broken.
 
 BO final finite diff audit also checks the exact endpoint-XYZ claim directly: all770far foot/crest vertices match original no-basin geometry in all three coordinates. Every current source-generated attribute/index hash across all three rings matches the exact final native assembly. The existing geometry case protects endpoint Y, original radial envelope/progress/count/palette/haze-height and actual altitude snow; this separate current-assembly observation supplies explicit endpoint XYZ proof rather than overclaiming that test's assertions. Receipt actual-source-native-endpoints.json. No production/test changes, build rerun or extra render is needed for this read-only confirming check.
+
+
+## BP. Fitted helmet headsets and real ear clearance, 2026-10-17
+
+Previous goal turn is PROGRESS: BO checked in locally4dc442819e1a2fb0d2ceadf9d2d1fcab1c4575e1 with source/build/native/art/custody complete. Same HEAD/current415-file181,706,547-byte build reconciled, tracked clean apart from ten unrelated pinned PNGs. LOCAL/MUTED, interface/people identities/rigs/skin/face/hair/garments/gaits/clocks/routes/world/railway/quality/readiness/budgets unchanged. Pacing/default-wide startup OPEN separately; player/device DEFERRED. Allowed only models/WorkerModel.tsx(hearing mounts/paired orientation), workers/SharedWorkerGeometries.ts(hearing cup/band and measured fit constants), existing workers/WorkerModel.test.tsx, this programme. All2268other tracked source/assets/scripts frozen; protected primary and ten PNGs pinned. Original dependency link wrapped with375borrowed symlinks and three owned real cache roots. Named affected baseline204tests/two WorkerModel/workerPose files PASS16.86s, zero failures. Full live reachability passes, actual shared fittings ship.
+
+Native unchanged12Medium nine actual head views reproduce the right cushion facing OUTWARD while its left sibling faces inward (actual Head-frame pad-normal dot toward head+1/-1). Current cup centres Head.y0.14/z0 sit about50mm above/behind the masculine ear tips around y0.101/z0.032. The actual right view exposes the black inner seal outside. Existing solid rounded housing also closes through the ear cavity when moved to the real ear. Keep well-fitting current lenses/rims/eyes and all other work intact. Original source helmet tops are0.27549m(masculine)/0.27151m(feminine) in Head space; the old band top at0.254m is buried in the helmet. Actual ear/head source geometry is inspected rather than guessed from concept art.
+
+Design/pre-mortem: mirror only the right cup's rotation, move each body's headset to its measured ear frame, build a hollow oval housing with a sealed outer dome/real inner cavity and moulded seam inside the existing<700triangle cup budget. Fit one shared arch over both real helmet crowns with existing per-body mount/scale, keeping its ends connected to the cup caps. No extra draw/material/map/light/rig/frame owner. Failure risks: reversing hollow shell winding, pinching ears or leaving the seal floating, routing the band through the helmet. Existing real-asset tests and FrontSide rays must prove actual aperture/ear/dome/arch clearance and stable bone attachment. Cup axial depth and band envelope deliberately grow to fit real ears/helmet; keep cups within0.038m transverse half-size, the unchanged700triangle cap and original body/pose bounds. The old arbitrary fitting envelope is superseded only for that required axial chamber and arch rise, never general world/budget allowances. Working if both outside views show coloured closed housings with inward cushions, ears sit in the real cavity, the arch clears the helmet and ordinary head/gait/rest motion keeps the kit attached.
+
+Finite detailed task list:
+1. Reconcile BO receipts/current HEAD/ownership and every local/muted/deferred/pacing boundary.
+2. Pin all frozen source/assets/scripts, protected primary and ten unrelated images.
+3. Establish owned dependency/cache roots and verify accepted compiled baseline bytes.
+4. Read live WorkerModel/accessory/shared geometry/role and bone ownership, no dead-code polish.
+5. Verify actual reachability and record the named204-test baseline with zero failures.
+6. Capture actual left/right/front headset and glasses views under ordinary normal-clock day life.
+7. Record original pad handedness, cup-to-ear location, source ears/helmet bounds and existing resource/mesh budgets.
+8. Keep current lenses, eyewear mounts, faces, hair, hard-hat shell, clothes and all nonhearing accessory pairs exact.
+9. Define measured masculine/feminine ear-centre, half-width and helmet-arch fits in the existing shared geometry module.
+10. Mirror the right hearing cup's rotation while retaining the left and other pair transforms.
+11. Place both cups around real ears, with original Head-bone ownership and no per-frame fitting search.
+12. Build a closed outward hollow oval shell rather than a solid block through the ear.
+13. Preserve a real open inner aperture and original dark padded ring at its seated inward face.
+14. Add a restrained moulded seam/rounded dome through shell profile geometry, no decorative floating bits.
+15. Preserve the original transverse cup outline and<700triangle budget, two-colour/one-material shared fitting.
+16. Raise and widen the existing shared arch around the actual hard-hat crowns, no new draw.
+17. Connect original two adjustment rails to arch and cup-cap volumes on both body fits.
+18. Retain exact bone-local attachment under rotations/translation/scale, ordinary animation/holds and original borrowed-resource lifetime.
+19. Update the existing paired-transform case for the corrected handedness without changing other pair expectations.
+20. Extend current real-geometry tests for hollow inward aperture, closed dome/normal orientation, rails and unchanged budgets.
+21. Add one real-body fit case covering both original ear tips/cavity and helmet clearance, with untouched source geometry and skin.
+22. Run affected tests plus required typecheck/lint/format/shader/assets; repair actual failures without weakening physical/budget criteria.
+23. Retain/verify accepted BO compiled bytes before the fresh locked production build and seal.
+24. Run fresh reachability/community and exact-build native day/dusk/Medium-night/Low-night.
+25. Verify real repeated Head-space mounts/pad direction/ear clearance across ordinary head/body motion, without actor/inventory fixtures.
+26. Verify original served bodies and public assets, effective quality/world/people/textures/page/requests/audio/readiness and ordinary-motion context guards.
+27. Personally inspect every final close, temporal and mill/village context image, including retained correct glasses, without image enhancement.
+28. Keep timing/default-wide startup OPEN separately, no quality/budget/readiness override or quiet-GPU wait, device checks DEFERRED.
+29. Retain useful source/build/raw images/failures/review/gallery, restore dependencies and remove only inactive owned caches.
+30. Reconcile every outcome/frozen primary/unrelated custody and selectively check in only this pass locally.
+31. Rotate to the next genuine live gap under the same full ACTIVE goal.
+
+
+## BQ. Proper branded raster service-building signs, 2026-10-17
+
+Direct Nell request and go: Mill Workshop, maintenance shed, cafe, etc. The live maintenance shed is the Mill Workshop, so preserve that single identity and upgrade the actual cafe, electrical building and security lodge as four distinct illustrated raster signs. Local and muted, no publication or remote validation; UI, routes/railway/port, quality/budgets, readiness and lighting rig remain. Pending BP hearing-protection geometry is preserved unchanged, its206 focused tests and whole source/build gates are green, native art/custody/check-in still unfinished. Do not claim BP done from signage evidence.
+
+Acceptance: four finished bespoke raster textures, exact readable words and distinct painted emblems; correct physical board/aspect/attachment in actual world at day/dusk/night and Low; no duplicate text, added lights or fake night glow; compact WebP, original source/prompt/provenance retained; focused tests and required whole gates complete; protected source and primary dirty work unchanged. Three pre-mortem risks: crop could clip letters, small legacy boards could squash art, and inherited nighttime emission could make paint glow. Inspect crops, contain rather than stretch, enlarge only fascia within real blank wall, explicitly backlit=false.
+
+Detailed finite list:
+1. Reconcile HEAD, dirty PPE custody and completed prior commands.
+2. Keep every unrelated source and PNG pinned.
+3. Retain actual current build identity as before candidate.
+4. Inspect live workshop/shed equivalence and current plain lettering.
+5. Inspect cafe fascia and existing generated-model placement.
+6. Inspect electrical identity and retain side DANGER warning.
+7. Inspect security lodge wall/window/roof clearance.
+8. Reuse existing HeritageSignage raster/material/contain pipeline.
+9. Record named baseline tests, including any existing failure.
+10. Generate workshop raster with cog, spanner and grain.
+11. Generate Pondside Cafe raster with kingfisher and coffee.
+12. Generate related electrical raster with bolt emblem.
+13. Generate security raster with shield/key and visitor welcome.
+14. Inspect all exact spelling, spacing, emblem and paint quality.
+15. Preserve originals under assets/source/graphics.
+16. Mechanically remove only blank image padding, preserve sign perimeter.
+17. Compress aspect-correct compact WebPs using installed sharp.
+18. Store exact prompts, crop dimensions and SHA provenance.
+19. Bind all four to existing typed business brand routing.
+20. Replace actual workshop and electrical text faces.
+21. Size boards to artwork in existing blank facade zones.
+22. Replace cafe and security plain text, preserve all other geometry.
+23. Keep each new print lit, opaque and non-emissive.
+24. Repair reproduced stale legacy text-count test to actual raster contract.
+25. Add compact hash/dimension/attachment checks to existing signage suite.
+26. Run affected signage, placement, ground and lighting checks.
+27. Run typecheck/lint/format/shader/assets and actual production build.
+28. Verify fresh reachability/community and exact served artwork bytes.
+29. Capture actual buildings locally with original startup/readiness and mute.
+30. Inspect day/dusk/night and Low sign fit, no crop/stretch/glare/duplicate text.
+31. Keep pacing/startup limitations OPEN separately and player/device DEFERRED.
+32. Retain final gallery, proofs, custody; selective local check-in only.
+
+Cleanup completed before implementation: four exact inactive superseded alpine trial dist roots only,726822686 logical bytes, observed free26218024960 to26936688640 bytes, busy APFS difference not attributable physical recovery. Sources/images/logs/seals/current accepted builds retained. Final receipt sent to coordinating chat. No additional cleanup campaign. Repeating goal remains ACTIVE.
+
+BQ initial coherent checks reproduce two actual fit issues: enlarged electrical board covers the retained lamp mounting point, and cafe art leaves a marginally wider vertical inset than its intended fit. Keep all lamp anchors/test tolerances fixed; seat a2.8x0.66m electrical board at3.47m, below its3.87m lamp, and fit a1.64x0.38m cafe print. First native attempt rejects a stale harness assumption that admission speed is0; actual motion-enabled admission is finite/nonzero. Preserve that failed log, record actual initial speed, and use the approved simulation.set-speed capability after the unchanged readiness gate to reach normal1x, with no runtime/quality/budget change.
+
+BQ native protocol correction: inherited BG URL explicitly requested motion=on (180x), while the BP normal-clock control expects frozen art admission. Baseline instrument rerun records the actual180x admission before switching1x; final art uses the existing motion=off frozen admission, original readiness unchanged, then verified normal1x. This avoids phase drift during startup; no world/clock source, quality or timing threshold changes. The per-pixel alpha test itself timed out from millions of assertion objects; replace that loop with the established nonopaque counter and one assertion, retaining the same complete pixel predicate and10000ms timeout.
+
+BQ final evidence: baseline62pass/1stale failure across four affected suites; final65pass/0fail(+2new, stale raster-count assertion corrected). Required typecheck, ESLint, formatting,35shader families/assets, actual npm run build and fresh reachability/community pass. Production419files182238070bytes, Vite33.51s(wrapper37850ms); four new WebPs521524bytes total. Exact originals/prompts/crops/source hashes under assets/source/graphics/service-signs and public/textures/signage/PROVENANCE.json. All11existing/new business identities use the existing typed raster/contain/material path. The workshop is the maintenance shed, not a second duplicated building.
+
+BQ self-review: root authored and personally inspected the four original rasters, trimmed artwork review, four original world views and all32final native images. Clear distinct workshop/cafe/electrical/security identities, no stretched type, cropped perimeter or duplicate old words. Real board and lamp-mount clearance confirmed by the existing physical assembly checks. Actual native observations show allfour1536px maps, correct aspect plane dimensions and emissiveIntensity0 in every view. Existing workshop/electrical fittings provide warm night illumination. Cafe/security facades remain darker at night with the unchanged rig; no extra light/backlight or global fill is claimed. Original side DANGER warning stays. Four native Metal/sandboxed/out-of-process loads, Medium day12/dusk18.5/night22 and Low day12, pass unchanged readiness, quality, world/personnel, texture and silence conditions with empty console/page/request errors. Served raster/source model hashes bind to the exact candidate. Frozen admission0 then verified normal1x after original readiness avoids sky-phase drift.
+
+BQ acceptance reconciliation:1-9ownership/live-source/baseline complete;10-18four distinct generated and inspected raster sources, exact text/crops/compact WebPs/prompts/provenance retained;19-24four live bindings/physical boards/paint response and stale assertion repaired;25-28focused/whole source-build and fresh shipped gates plus exact asset delivery complete;29-30all32actual world images personally inspected and native diagnostics clean. For31, pacing remains OPEN separately: cumulative art snapshots26.19-30.62FPS,p95108.2-122.7ms, not controlled performance/regression proof; no timing or quality budget relaxed. Wide startup/player/device/manual first-person remain deferred or independently open as before. For32, gallery/raw evidence/custody complete; final lint result and selective LOCAL check-in receipt must be terminal before claiming local completion. BP hearing-protection source remains unchanged and unfinished for its own native art/custody/check-in. Repeating goal ACTIVE; no push/upload/deploy/publication.
+
+BQ final custody checks2269other tracked source/asset files,10unrelated PNGs, all source and419compiled pins, and protected primary HEAD/diff exact. This pass restores original dependency symlink after all own jobs close, removes only13inactive owned cache files11850bytes, and retains every source/image/log/seal/current build. Earlier obsolete compiled trial cleanup remains726822686logical bytes only. Gallery: test-results/service-raster-signs-20261017/gallery.html.
+
+BQ final lint terminates0. All15applicable final receipts are0, including65focused tests, whole source/build/shipped gates and four native loads. BQ1-32complete for this bounded signage request; local source/art delivery accepted. BP remains explicitly unfinished and pacing separate; repeated goal ACTIVE. The local check-in receipt below must bind the actual commit and remaining dirty PPE-only source.

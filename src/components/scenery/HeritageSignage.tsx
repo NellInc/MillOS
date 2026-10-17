@@ -98,6 +98,30 @@ export const BUSINESS_BRANDS = {
     primary: `${import.meta.env.BASE_URL}textures/signage/brand-flour-express-v1.webp`,
     fascia: `${import.meta.env.BASE_URL}textures/signage/brand-flour-express-v1.webp`,
   },
+  workshop: {
+    name: 'Mill Workshop',
+    field: '#173c45',
+    primary: `${import.meta.env.BASE_URL}textures/signage/brand-workshop-v1.webp`,
+    fascia: `${import.meta.env.BASE_URL}textures/signage/brand-workshop-v1.webp`,
+  },
+  cafe: {
+    name: 'Pondside Café',
+    field: '#f4e5c6',
+    primary: `${import.meta.env.BASE_URL}textures/signage/brand-cafe-v1.webp`,
+    fascia: `${import.meta.env.BASE_URL}textures/signage/brand-cafe-v1.webp`,
+  },
+  electrical: {
+    name: 'Electrical',
+    field: '#173c45',
+    primary: `${import.meta.env.BASE_URL}textures/signage/brand-electrical-v1.webp`,
+    fascia: `${import.meta.env.BASE_URL}textures/signage/brand-electrical-v1.webp`,
+  },
+  security: {
+    name: 'Security',
+    field: '#173c45',
+    primary: `${import.meta.env.BASE_URL}textures/signage/brand-security-v1.webp`,
+    fascia: `${import.meta.env.BASE_URL}textures/signage/brand-security-v1.webp`,
+  },
   grainCo: {
     name: 'GRAIN CO',
     field: '#183d35',

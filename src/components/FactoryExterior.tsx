@@ -2950,20 +2950,16 @@ const KioskCafe: React.FC<{
 
       {/* A small fascia gives the painted lettering a real surface. */}
       <mesh position={[0, 1.74, 2.95]} castShadow>
-        <boxGeometry args={[1.7, 0.32, 0.055]} />
+        <boxGeometry args={[1.7, 0.43, 0.055]} />
         <meshStandardMaterial color="#5d4037" roughness={0.7} />
       </mesh>
-      <Text
+      <BusinessBrandMark
+        brand="cafe"
+        width={1.64}
+        height={0.38}
         position={[0, 1.74, 2.981]}
-        fontSize={0.23}
-        surface="painted"
-        color="#fdf5e6"
-        anchorX="center"
-        anchorY="middle"
-        fontWeight="bold"
-      >
-        CAFE
-      </Text>
+        backlit={false}
+      />
     </group>
   );
 };
@@ -8147,17 +8143,18 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
           <planeGeometry args={[4, 2]} />
           <meshStandardMaterial color="#90caf9" metalness={0.4} roughness={0.2} />
         </mesh>
-        {/* "SECURITY" sign */}
-        <Text
-          position={[0, 3.5, 2.6]}
-          fontSize={0.4}
-          color="#ffffff"
-          anchorX="center"
-          anchorY="middle"
-          surface="painted"
-        >
-          SECURITY
-        </Text>
+        {/* Opaque painted enamel, seated above the window and below the roof. */}
+        <mesh position={[0, 3.6, 2.535]} castShadow receiveShadow>
+          <boxGeometry args={[2.85, 0.76, 0.07]} />
+          <meshStandardMaterial color="#173c45" roughness={0.74} />
+        </mesh>
+        <BusinessBrandMark
+          brand="security"
+          width={2.75}
+          height={0.71}
+          position={[0, 3.6, 2.578]}
+          backlit={false}
+        />
       </group>
 
       {/* Maintenance shed - back area */}

@@ -641,5 +641,95 @@
       "lighting": "No extra light or shadow map",
       "identity": "Dead Dino name, mascot and palette retained; no competing brand mark or slogans copied"
     }
+  },
+  "serviceBuildingBrands": {
+    "date": "2026-10-17",
+    "method": "Four separate built-in raster generations with distinct illustrated identities",
+    "assets": [
+      {
+        "id": "workshop",
+        "file": "brand-workshop-v1.webp",
+        "source": "assets/source/graphics/service-signs/workshop-v1.png",
+        "prompt": "Use case: logo-brand. Asset type: finished opaque RASTER enamel sign texture for a charming British/Dutch miniature mill village game. Create one front-on full-bleed wide sign, aspect 5:1. It is the final flat printable artwork, no mockup, no surroundings or perspective. Exact primary text: 'MILL WORKSHOP'. Exact smaller second line: 'MAINTENANCE & REPAIRS'. Deep petrol teal painted enamel background, warm ivory hand-lettered sturdy industrial serif primary lettering, restrained aged brass-gold rules and trim. Distinct beautifully illustrated emblem to the left: a dimensional painted brass cog enclosing crossed vintage spanner and small wheat ear, clear functional silhouette, no letters in emblem. Rich subtle brushed pigment, tactile enamel, delicate edge wear and softly shaded hand-painted craft. The large lettering must occupy most of the wide format and remain clearly readable on a 3.6-metre fascia. Secondary line is subordinate and short. Keep every word and emblem comfortably inside a 5 percent safe margin. Cohesive artisan identity with modern typographic refinement and legible spacing, beautiful bespoke raster sign, no flat SVG look, no template text, no extra words, no glowing effects, no lighting baked as a scene spotlight. Background opaque. Render image as wide as possible with all composition in one horizontal sign.",
+        "sourceWidth": 2172,
+        "sourceHeight": 724,
+        "crop": {
+          "left": 0,
+          "top": 106,
+          "width": 2172,
+          "height": 512
+        },
+        "width": 1536,
+        "height": 362,
+        "bytes": 151124,
+        "sha256": "a76731033e0a042ec63dc287d61821b282d2c469fcc9fe11e0aad99be9feed7a",
+        "sourceSha256": "3662da15ef652cc87a315c1e29aa4e7f935e864f20717cac830b1a6e3d81946b",
+        "method": "Built-in image_gen. Blank vertical padding trimmed mechanically, aspect-preserving WebP with installed sharp. No repainting or vector substitution.",
+        "textReview": "Exact lettering and full sign inspected on generated original; raster/runtime fit checked separately."
+      },
+      {
+        "id": "cafe",
+        "file": "brand-cafe-v1.webp",
+        "source": "assets/source/graphics/service-signs/cafe-v1.png",
+        "prompt": "Use case: logo-brand. Asset type: gorgeous finished RASTER fascia sign texture for the existing pondside kiosk cafe in a charming British/Dutch miniature village game. A single very wide horizontal flat sign, aspect 5:1, straight-on, full bleed artwork, no scene, no frame mockup, no perspective. Exact large lettering only: 'PONDSIDE CAFÉ', including acute accent on E. Distinct refined painted cafe identity: warm ivory field, deep ink teal inviting hand-lettered large serifs, terracotta small trim and muted antique gold border. On the left, beautifully painted compact emblem of a blue-and-copper kingfisher perched beside a cream ceramic coffee cup, one soft curl of steam, a single elegant water ripple below. Soft dimensional gouache shading and delicate tactile enamel/pigment texture, exquisite illustrated food/village brand, typography deliberately readable from a distance, every letter large, carefully balanced spacing. Emblem occupies left fifth, words occupy remaining four fifths, all in one horizontal line with generous safe margins and no overlap. Charming, professionally designed, slight natural pigment variation, clean intact type rather than excessive distress. No other text, no fake small writing, no photoreal background, no glowing light, no SVG/vector-flat look. Opaque image. Sign should fill the image horizontally, wide horizontal image.",
+        "sourceWidth": 2172,
+        "sourceHeight": 724,
+        "crop": {
+          "left": 0,
+          "top": 111,
+          "width": 2172,
+          "height": 501
+        },
+        "width": 1536,
+        "height": 354,
+        "bytes": 118270,
+        "sha256": "5337076ded380a1cde686d923d477818622fc23632df77b9942e2d9910eb0f28",
+        "sourceSha256": "ff7813c0528c4a883178257f7a8dd5a5988f5713126799716c8ab9edd4c21f6b",
+        "method": "Built-in image_gen. Blank vertical padding trimmed mechanically, aspect-preserving WebP with installed sharp. No repainting or vector substitution.",
+        "textReview": "Exact lettering and full sign inspected on generated original; raster/runtime fit checked separately."
+      },
+      {
+        "id": "electrical",
+        "file": "brand-electrical-v1.webp",
+        "source": "assets/source/graphics/service-signs/electrical-v1.png",
+        "prompt": "Use case: logo-brand. Asset type: finished opaque RASTER enamel fascia artwork for the electrical service building of MillOS, a charming British/Dutch miniature mill village. One very wide horizontal sign, roughly 5:1, straight-on, no photographic scene or mockup, no perspective. Exact text only, one large line: 'ELECTRICAL'. At left a beautifully painted dimensional brass emblem: a lightning bolt inside a dark teal cog, framed by two short wheat ears. Deep petrol teal enamel field, large warm ivory bespoke industrial serif lettering, muted gold fine perimeter and small restrained corner rivets. Tactile painted pigment, subtle enamel patina, gently shaded raised-looking detail, professional railway-workshop heritage graphics. Cohesive with a mill workshop but its own clear electricity identity. Keep emblem and every character inside 5 percent margins. Single horizontal reading line, clear generous letter spacing and exceptional readability when small. Do not add extra tiny writing or words, no warning claims, no glowing material, no flat vector or SVG look. Final flat print texture with opaque background, sign extends across almost full image width. Rich raster painted finish.",
+        "sourceWidth": 2172,
+        "sourceHeight": 724,
+        "crop": {
+          "left": 0,
+          "top": 108,
+          "width": 2172,
+          "height": 506
+        },
+        "width": 1536,
+        "height": 358,
+        "bytes": 131072,
+        "sha256": "70bb8dd396902e40881f425496b9cd794fdc34fe8a8b82b8626bc4efb3d19f0c",
+        "sourceSha256": "7e9943e34da43247a655753864b94267aada4f31165fdb8c477cad56f39664a4",
+        "method": "Built-in image_gen. Blank vertical padding trimmed mechanically, aspect-preserving WebP with installed sharp. No repainting or vector substitution.",
+        "textReview": "Exact lettering and full sign inspected on generated original; raster/runtime fit checked separately."
+      },
+      {
+        "id": "security",
+        "file": "brand-security-v1.webp",
+        "source": "assets/source/graphics/service-signs/security-v1.png",
+        "prompt": "Use case: logo-brand. Asset type: finished RASTER enamel fascia sign for the existing security/visitor lodge in MillOS, a charming British/Dutch miniature mill village. A single very wide horizontal flat print, approximately 5:1 aspect, straight-on and full bleed, opaque background. EXACT primary lettering: 'SECURITY'. Small secondary words: 'VISITORS WELCOME'. Bespoke welcoming site identity, dignified railway lodge feel: deep petrol teal field, warm ivory clear bold hand-painted industrial serif title, restrained antique brass-gold trim. Distinct illustrated emblem left: brass shield enclosing an old-fashioned key and a single golden wheat ear, softly dimensional painted shading and restrained enamel patina. Refined tactile gouache/painted enamel texture, beautifully rendered small details but legible title is dominant. The title fills most width, subtitle below title, illustration left fifth, comfortable 5 percent safe margins, all lettering exact, no other text or invented small writing. No SVG/vector flat icon aesthetic, no glows, no perspective, no scene setting, no cast shadows from an imaginary room. Final printable surface artwork for fitting on a real small building, broad horizontal composition.",
+        "sourceWidth": 2172,
+        "sourceHeight": 724,
+        "crop": {
+          "left": 0,
+          "top": 70,
+          "width": 2172,
+          "height": 573
+        },
+        "width": 1536,
+        "height": 405,
+        "bytes": 121058,
+        "sha256": "bb6cc6587e2da638a684dcb163a3666a386b19e5c17ae62b7cca0b8ef0fd36e3",
+        "sourceSha256": "99bdec97b729870dc2369fc0c01631e8f7951b0228e451f20c3aa86c2c2b23c2",
+        "method": "Built-in image_gen. Blank vertical padding trimmed mechanically, aspect-preserving WebP with installed sharp. No repainting or vector substitution.",
+        "textReview": "Exact lettering and full sign inspected on generated original; raster/runtime fit checked separately."
+      }
+    ]
   }
 }

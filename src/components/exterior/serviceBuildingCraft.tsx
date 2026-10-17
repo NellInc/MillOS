@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { SceneText } from '../shared/SceneText';
+import { BusinessBrandMark } from '../scenery/HeritageSignage';
 
 type Kind = 'maintenance' | 'substation';
 type Point = readonly [number, number, number];
@@ -169,7 +170,7 @@ export function createMaintenanceJoinery() {
     bar(p, [Math.sign(x) * 5.14, 4.5, z], [Math.sign(x) * 5.14, 0.12, z], 0.045, C.steel, true);
   }
   louvre(p, 0, 5.38, 4.03, 1.12, 0.36);
-  box(p, [3.3, 0.44, 0.09], [0, 3.75, 4.035], C.door);
+  box(p, [3.5, 0.86, 0.09], [0, 3.75, 4.035], C.door);
   return join(p, 'maintenance-fitted-joinery');
 }
 export function createSubstationCraft() {
@@ -198,7 +199,7 @@ export function createSubstationCraft() {
   for (const x of [-2.09, 0, 2.09]) box(p, [0.06, 3.08, 0.1], [x, 1.54, 2.045], C.steel);
   box(p, [4.25, 0.09, 0.1], [0, 3.06, 2.045], C.steel);
   louvre(p, -2.55, 2.5, 0, 2.7, 0.75, true);
-  box(p, [3, 0.4, 0.09], [0, 3.55, 2.035], C.edge);
+  box(p, [2.8, 0.66, 0.09], [0, 3.47, 2.035], C.edge);
   // Capped vertical fitting, seated on the roof, same previous y5.3 ceiling.
   bar(p, [0, 4.41, 0], [0, 5.18, 0], 0.12, C.dark, true);
   for (let y = 4.62; y < 5.17; y += 0.13)
@@ -266,28 +267,22 @@ export function ServiceBuildingCraft({ kind }: { kind: Kind }) {
       {roof && <mesh geometry={roof} material={ROOF_MATERIAL} castShadow receiveShadow />}
       <mesh geometry={craft} material={JOINERY_MATERIAL} castShadow receiveShadow />
       {kind === 'maintenance' ? (
-        <SceneText
+        <BusinessBrandMark
+          brand="workshop"
+          width={3.36}
+          height={0.8}
           position={[0, 3.75, 4.088]}
-          fontSize={0.22}
-          color="#e6ddc4"
-          anchorX="center"
-          anchorY="middle"
-          surface="painted"
-        >
-          MILL WORKSHOP
-        </SceneText>
+          backlit={false}
+        />
       ) : (
         <>
-          <SceneText
-            position={[0, 3.55, 2.087]}
-            fontSize={0.18}
-            color="#e6ddc4"
-            anchorX="center"
-            anchorY="middle"
-            surface="painted"
-          >
-            ELECTRICAL
-          </SceneText>
+          <BusinessBrandMark
+            brand="electrical"
+            width={2.68}
+            height={0.625}
+            position={[0, 3.47, 2.087]}
+            backlit={false}
+          />
           <SceneText
             position={[2.62, 1.7, 0]}
             rotation={[0, Math.PI / 2, 0]}
