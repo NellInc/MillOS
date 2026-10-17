@@ -9,6 +9,7 @@ import {
 } from './SharedWorkerMaterials';
 import {
   SHARED_WORKER_GEOMETRY,
+  WORKER_HEARING_FIT,
   WORKER_HAIR_GEOMETRIES,
   createWorkerHairMotion,
 } from './SharedWorkerGeometries';
@@ -685,7 +686,7 @@ it.each([
     const mesh = new THREE.Mesh(pair.geometry, material);
     mesh.position.set(x, 0, spec.z);
     mesh.scale.fromArray(spec.scale);
-    mesh.rotation.z = spec.rotationZ;
+    mesh.rotation.z = spec.kind === 'hearing-cups' && x > 0 ? -spec.rotationZ : spec.rotationZ;
     bone.add(mesh);
     return mesh;
   });
@@ -1076,7 +1077,7 @@ describe('authored held work props', () => {
   });
 });
 
-it('shapes PPE shells, cushions and band inside the original head-fitting envelope', () => {
+it('shapes hollow PPE shells, cushions and a helmet-clearing arch within the retained mesh budget', () => {
   const cup = SHARED_WORKER_GEOMETRY.hearingCup;
   const p = cup.getAttribute('position'),
     colours = cup.getAttribute('color');
@@ -1084,15 +1085,15 @@ it('shapes PPE shells, cushions and band inside the original head-fitting envelo
   expect(new Set(Array.from(colours.array))).toEqual(new Set([1, Math.fround(0.22)]));
   const b = cup.boundingBox!;
   expect(b.min.y).toBeCloseTo(-0.0125);
-  expect(b.max.y).toBeCloseTo(0.0125);
+  expect(b.max.y).toBeCloseTo(0.028);
   expect(Math.max(-b.min.x, b.max.x, -b.min.z, b.max.z)).toBeLessThanOrEqual(0.038001);
-  expect(SHARED_WORKER_GEOMETRY.hearingBand.boundingBox!.max.x).toBeLessThanOrEqual(0.112001);
+  expect(SHARED_WORKER_GEOMETRY.hearingBand.boundingBox!.max.x).toBeLessThanOrEqual(0.134001);
   const band = new THREE.Mesh(SHARED_WORKER_GEOMETRY.hearingBand, new THREE.MeshBasicMaterial());
   band.updateMatrixWorld();
   // Adjustment rails physically enter the headband and both existing cup mounts.
   for (const side of [-1, 1]) {
     const hit = new THREE.Raycaster(
-      new THREE.Vector3(side * 0.104, 0.005, 0.04),
+      new THREE.Vector3(side * 0.125, 0.005, 0.04),
       new THREE.Vector3(0, 0, -1)
     ).intersectObject(band)[0];
     expect(hit).toBeDefined();
@@ -2300,4 +2301,117 @@ it('preserves unsupported and incomplete-model tool mounts', () => {
   expect(createWorkerHandheldMount(model, 'tablet')).toBeNull();
   for (const tool of ['none', 'wrench', 'radio', 'magnifier', 'bread-tray', 'trowel'] as const)
     expect(createWorkerHandheldMount(model, tool)).toBeNull();
+});
+
+it('keeps both padded faces inward and leaves a real air chamber behind the ear aperture', () => {
+  const material = new THREE.MeshBasicMaterial(),
+    cup = new THREE.Mesh(SHARED_WORKER_GEOMETRY.hearingCup, material);
+  cup.updateMatrixWorld(true);
+  const ray = (y: number, direction: number, radius: number) =>
+    new THREE.Raycaster(
+      new THREE.Vector3(radius, y, 0),
+      new THREE.Vector3(0, direction, 0)
+    ).intersectObject(cup)[0];
+  expect(ray(-0.04, 1, 0.006).point.y).toBeGreaterThan(0.017);
+  expect(ray(0.08, -1, 0.006).point.y).toBeGreaterThan(0.026);
+  expect(ray(-0.04, 1, 0.03).point.y).toBeCloseTo(-0.0125, 6);
+  for (const bodyType of ['masculine', 'feminine'] as const) {
+    const pair = createWorkerAccessoryPair('hearing-cups', material, undefined, bodyType);
+    for (const [i, side] of [-1, 1].entries()) {
+      const matrix = new THREE.Matrix4();
+      pair.getMatrixAt(i, matrix);
+      const pad = new THREE.Vector3(0, -1, 0).transformDirection(matrix);
+      expect(pad.dot(new THREE.Vector3(-side, 0, 0))).toBeGreaterThan(0.999999);
+      expect(new THREE.Vector3().setFromMatrixPosition(matrix).x).toBeCloseTo(
+        side * WORKER_HEARING_FIT[bodyType].halfWidth,
+        7
+      );
+    }
+    pair.dispose();
+  }
+  material.dispose();
+});
+
+it('fits both original ear tips inside the cavity and carries the band clear of each real helmet', async () => {
+  const { readFileSync } = await import('node:fs'),
+    { NodeIO } = await import('@gltf-transform/core'),
+    { ALL_EXTENSIONS } = await import('@gltf-transform/extensions'),
+    { default: draco } = await import('draco3dgltf'),
+    { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+  const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({
+    'draco3d.decoder': await draco.createDecoderModule(),
+  });
+  for (const bodyType of ['masculine', 'feminine'] as const) {
+    const doc = await io.readBinary(
+      new Uint8Array(readFileSync(`public/models/worker/worker-${bodyType}.glb`))
+    );
+    for (const e of doc.getRoot().listExtensionsUsed()) e.dispose();
+    const bytes = await io.writeBinary(doc),
+      asset = await new GLTFLoader().parseAsync(bytes.buffer as ArrayBuffer, '');
+    asset.scene.updateMatrixWorld(true);
+    const head = asset.scene.getObjectByName('Head')!,
+      inverse = head.matrixWorld.clone().invert(),
+      skin: THREE.Vector3[] = [],
+      helmet = new THREE.BufferGeometry(),
+      borrowed: Array<{ geometry: THREE.BufferGeometry; positions: Float32Array }> = [];
+    asset.scene.traverse((o) => {
+      const m = o as THREE.SkinnedMesh;
+      if (!m.isSkinnedMesh || !m.parent?.name.includes('Worker_Head') || Array.isArray(m.material))
+        return;
+      const p = m.geometry.attributes.position,
+        positions: number[] = [];
+      borrowed.push({ geometry: m.geometry, positions: new Float32Array(p.array) });
+      for (let i = 0; i < p.count; i++) {
+        const q = new THREE.Vector3().fromBufferAttribute(p, i);
+        m.applyBoneTransform(i, q);
+        q.applyMatrix4(m.matrixWorld).applyMatrix4(inverse);
+        if (m.material.name === 'Skin') skin.push(q);
+        positions.push(...q.toArray());
+      }
+      if (m.material.name === 'Worker_Yellow') {
+        helmet.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        if (m.geometry.index) helmet.setIndex(m.geometry.index.clone());
+      }
+    });
+    const fit = WORKER_HEARING_FIT[bodyType],
+      material = new THREE.MeshBasicMaterial(),
+      shell = new THREE.Mesh(SHARED_WORKER_GEOMETRY.hearingCup, material),
+      pair = createWorkerAccessoryPair('hearing-cups', material, undefined, bodyType);
+    shell.updateMatrixWorld(true);
+    for (const [i, side] of [-1, 1].entries()) {
+      const ear = skin.reduce((a, b) => (side * b.x > side * a.x ? b : a)).clone(),
+        matrix = new THREE.Matrix4();
+      pair.getMatrixAt(i, matrix);
+      ear.sub(new THREE.Vector3(...fit.centre)).applyMatrix4(matrix.invert());
+      expect(Math.hypot(ear.x, ear.z)).toBeLessThan(0.025);
+      expect(ear.y).toBeGreaterThan(-0.0125);
+      const inner = new THREE.Raycaster(
+        new THREE.Vector3(ear.x, -0.04, ear.z),
+        new THREE.Vector3(0, 1, 0)
+      ).intersectObject(shell)[0];
+      expect(inner.point.y - ear.y).toBeGreaterThan(0.006);
+    }
+    const hatMaterial = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }),
+      hat = new THREE.Mesh(helmet, hatMaterial),
+      origin = new THREE.Vector3(fit.centre[0], 0.175, fit.centre[2]);
+    hat.updateMatrixWorld(true);
+    for (let step = 1; step < 24; step++) {
+      const angle = (step * Math.PI) / 24,
+        point = new THREE.Vector3(
+          fit.centre[0] + 0.128 * Math.cos(angle),
+          fit.centre[1] + 0.002 + 0.128 * fit.bandScaleY * Math.sin(angle),
+          fit.centre[2]
+        ),
+        distance = point.distanceTo(origin),
+        hits = new THREE.Raycaster(origin, point.clone().sub(origin).normalize()).intersectObject(
+          hat
+        );
+      if (hits.length) expect(distance - hits.at(-1)!.distance).toBeGreaterThan(0.01);
+    }
+    for (const b of borrowed) expect(b.geometry.attributes.position.array).toEqual(b.positions);
+    pair.dispose();
+    helmet.dispose();
+    material.dispose();
+    hatMaterial.dispose();
+  }
 });

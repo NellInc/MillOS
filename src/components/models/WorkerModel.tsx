@@ -17,6 +17,7 @@ import { ToolAccessory, createWorkerHandheldMount } from '../workers/WorkerTools
 import {
   SHARED_WORKER_GEOMETRY,
   WORKER_EYE_CENTRES,
+  WORKER_HEARING_FIT,
   WORKER_HAIR_GEOMETRIES,
   createWorkerHairMotion,
   createWorkerApronGeometry,
@@ -353,7 +354,7 @@ const ACCESSORY_PAIRS: Record<
 };
 
 /** Fixed pairs remain in their moving bone's local space.
- * Working if both fittings keep their original rest geometry, bounds and pose in one draw.
+ * Working if the pads face inward and other fittings retain their rest pose in one draw.
  */
 export function createWorkerAccessoryPair(
   kind: WorkerAccessoryPairKind,
@@ -376,7 +377,10 @@ export function createWorkerAccessoryPair(
   const transform = new THREE.Object3D();
   transform.scale.fromArray(spec.scale);
   transform.rotation.z = spec.rotationZ;
-  [-spec.x, spec.x].forEach((x, index) => {
+  const halfWidth =
+    kind === 'hearing-cups' && bodyType ? WORKER_HEARING_FIT[bodyType].halfWidth : spec.x;
+  [-halfWidth, halfWidth].forEach((x, index) => {
+    if (kind === 'hearing-cups') transform.rotation.z = x < 0 ? Math.PI / 2 : -Math.PI / 2;
     transform.position.set(x, 0, spec.z);
     transform.updateMatrix();
     mesh.setMatrixAt(index, transform.matrix);
@@ -936,6 +940,7 @@ const WorkerAccessories: React.FC<{
     [model, appearance.tool]
   );
   const eyeCentre = WORKER_EYE_CENTRES[appearance.bodyType];
+  const hearingFit = WORKER_HEARING_FIT[appearance.bodyType];
   return (
     <>
       {hair && (
@@ -997,11 +1002,16 @@ const WorkerAccessories: React.FC<{
       )}
 
       {appearance.hasHearingProtection && (
-        <BoneMount bone={head} name="worker-hearing-protection" position={[eyeCentre[0], 0.14, 0]}>
-          <WorkerAccessoryPair kind="hearing-cups" material={materials.accent} />
+        <BoneMount bone={head} name="worker-hearing-protection" position={[...hearingFit.centre]}>
+          <WorkerAccessoryPair
+            kind="hearing-cups"
+            material={materials.accent}
+            bodyType={appearance.bodyType}
+          />
           <mesh
             position={[0, 0.002, 0]}
             geometry={SHARED_WORKER_GEOMETRY.hearingBand}
+            scale={[1, hearingFit.bandScaleY, 1]}
             material={materials.dark}
           />
         </BoneMount>

@@ -1440,8 +1440,39 @@ function fittingTint(geometry: THREE.BufferGeometry, value: number) {
   geometry.setAttribute('color', new THREE.BufferAttribute(colours, 3));
   return geometry;
 }
+/** Measured in the original bodies' Head rest frames. The ear tips sit in
+ * the cup aperture; the arch clears the original hard-hat crowns.
+ * Working if both real rigs retain ear/dome clearance through bone motion.
+ */
+export const WORKER_HEARING_FIT = {
+  masculine: { centre: [0.0004, 0.104, 0.032], halfWidth: 0.104, bandScaleY: 1.42 },
+  feminine: { centre: [0.00035, 0.111, 0.015], halfWidth: 0.094, bandScaleY: 1.34 },
+} as const;
+
 export function createWorkerHearingCup() {
-  const shell = new RoundedBoxGeometry(0.069, 0.018, 0.076, 2, 0.008).translate(0, 0.0035, 0);
+  // The inner wall and roof surround a real air chamber. A solid box here
+  // crossed the ear when the cushion was moved down to its anatomical seat.
+  // Working if a ray through the seal's opening first meets the inner dome.
+  const shell = new THREE.LatheGeometry(
+    [
+      [0.027, -0.0055],
+      [0.035, -0.0055],
+      [0.035, 0.006],
+      [0.034, 0.0075],
+      [0.034, 0.009],
+      [0.035, 0.0105],
+      [0.033, 0.018],
+      [0.027, 0.024],
+      [0.016, 0.027],
+      [0, 0.028],
+      [0, 0.018],
+      [0.018, 0.018],
+      [0.025, 0.014],
+      [0.027, 0.005],
+      [0.027, -0.0055],
+    ].map(([r, y]) => new THREE.Vector2(r, y)),
+    16
+  ).scale(1, 1, 0.038 / 0.035);
   const cushion = new THREE.LatheGeometry(
     [
       [0.027, -0.0125],
@@ -1457,11 +1488,11 @@ export function createWorkerHearingCup() {
   return assembleWorkerFitting([fittingTint(shell, 1), fittingTint(cushion, 0.22)]);
 }
 export function createWorkerHearingBand() {
-  const band = new THREE.TorusGeometry(0.104, 0.008, 6, 18, Math.PI).scale(1, 1, 0.65);
+  const band = new THREE.TorusGeometry(0.128, 0.006, 6, 24, Math.PI).scale(1, 1, 0.65);
   const parts: THREE.BufferGeometry[] = [band];
   for (const side of [-1, 1])
     parts.push(
-      new RoundedBoxGeometry(0.013, 0.027, 0.014, 1, 0.003).translate(side * 0.104, 0.005, 0)
+      new RoundedBoxGeometry(0.016, 0.036, 0.014, 1, 0.003).translate(side * 0.125, 0.005, 0)
     );
   return assembleWorkerFitting(parts);
 }
