@@ -23,6 +23,7 @@ import {
   QUADRUPED_WALK,
 } from '../simulation/creatureMotion';
 import { CreatureBody, type CreatureRigHandle } from './models/RiggedCreatureModel';
+import { CHICKEN_WALK } from './models/chickenWalk';
 import {
   GeneratedBody,
   GeneratedBoundary,
@@ -1500,11 +1501,10 @@ const Pig: React.FC<{
 /** Walking pace and cycle fitted to each species' actual visible limb length. */
 const COW_STRIDE_RATE = (Math.PI * 2 * QUADRUPED_WALK.cow.speed) / QUADRUPED_WALK.cow.cycle;
 /**
- * Chicken leg swing. A bird's real cadence at 1.5 m/s is roughly 38 rad/s,
- * which aliases into nonsense against the 15 Hz throttle this driver runs on;
- * 12 rad/s keeps about eight samples per stride and reads as a walk.
+ * A small walking step fitted to the original hen's leg reach. The previous
+ * 1.5m/s and 12rad/s asked a 42cm hen to skate through a 79cm cycle.
  */
-const CHICKEN_STRIDE_RATE = 12;
+const CHICKEN_STRIDE_RATE = (Math.PI * 2 * CHICKEN_WALK.speed) / CHICKEN_WALK.cycle;
 const PIG_STRIDE_RATE = (Math.PI * 2 * QUADRUPED_WALK.pig.speed) / QUADRUPED_WALK.pig.cycle;
 
 const CowPrimitiveBody: React.FC<{
@@ -2588,9 +2588,20 @@ export const FarmArea: React.FC = () => {
           ref.current,
           chickenStates.current[i],
           adjustDelta,
-          1.5, // Speed
+          CHICKEN_WALK.speed,
           CHICKEN_STRIDE_RATE,
-          CHICKEN_WANDER_BOUNDS
+          CHICKEN_WANDER_BOUNDS,
+          0,
+          ref.current?.scale.x ?? 1
+        );
+        chickenStride.current[i] = THREE.MathUtils.lerp(
+          chickenStride.current[i],
+          chickenStates.current[i].moving ? 1 : 0,
+          creaturePoseBlend(0.4, adjustDelta)
+        );
+        chickenRigRefs[i].current?.setStride(
+          chickenStates.current[i].stridePhase + chickenOffsets[i],
+          chickenStride.current[i]
         );
       });
 
@@ -2700,18 +2711,9 @@ export const FarmArea: React.FC = () => {
           creatureForageWeight(time, 100 + i)
         : 0;
       chickenPeck.current[i] = THREE.MathUtils.lerp(chickenPeck.current[i], target, blend(0.25));
-      chickenStride.current[i] = THREE.MathUtils.lerp(
-        chickenStride.current[i],
-        chickenStates.current[i].moving ? 1 : 0,
-        blend(0.15)
-      );
       const rig = chickenRigRefs[i].current;
       if (rig) {
         rig.setGraze(chickenPeck.current[i]);
-        rig.setStride(
-          chickenStates.current[i].stridePhase + chickenOffsets[i],
-          chickenStride.current[i]
-        );
       } else if (ref.current) {
         // Local Z, negative, because the primitive bird is authored facing +X:
         // `rotation.x` rolled the whole body sideways about its own length

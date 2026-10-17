@@ -1605,3 +1605,135 @@ it('drives only the sleeping channel from the existing owner, freezing pause/hid
     });
   }
 });
+
+it('gives the small hen alternating periodic stance and lifted return matched to consumed travel', async () => {
+  const { CHICKEN_WALK, sampleChickenStep } = await import('./models/chickenWalk');
+  const a = { forward: 0, lift: 0 },
+    b = { forward: 0, lift: 0 };
+  for (let i = 0; i <= 120; i++) {
+    const phase = (i / 120) * Math.PI * 2;
+    sampleChickenStep(phase, 0, a);
+    sampleChickenStep(phase + Math.PI, 1, b);
+    expect(a.forward).toBeCloseTo(b.forward, 12);
+    expect(a.lift).toBeCloseTo(b.lift, 12);
+    expect(a.lift).toBeGreaterThanOrEqual(0);
+    expect(a.lift).toBeLessThanOrEqual(CHICKEN_WALK.lift);
+  }
+  sampleChickenStep(0.2 * Math.PI * 2, 0, a);
+  sampleChickenStep(0.3 * Math.PI * 2, 0, b);
+  expect(a.lift + b.lift).toBe(0);
+  expect(a.forward - b.forward).toBeCloseTo(CHICKEN_WALK.cycle * 0.1, 12);
+  for (const boundary of [0, 0.6, 1]) {
+    sampleChickenStep((boundary - 1e-7) * Math.PI * 2, 0, a);
+    sampleChickenStep((boundary + 1e-7) * Math.PI * 2, 0, b);
+    expect(Math.abs(a.forward - b.forward)).toBeLessThan(1e-6);
+    expect(Math.abs(a.lift - b.lift)).toBeLessThan(1e-6);
+  }
+  expect(sampleChickenStep(NaN, 0, a)).toEqual(sampleChickenStep(0, 0, b));
+});
+
+it('moves the delivered hen soles rigidly through stance and swing, retaining borrowed skin, folded wings and exact neutral', async () => {
+  const { createChickenWalk, sampleChickenStep, CHICKEN_WALK } =
+    await import('./models/chickenWalk');
+  const source = await actualCreature('chicken'),
+    model = cloneSkeleton(source),
+    sibling = cloneSkeleton(source);
+  const mesh = model.getObjectByName('ChickenBody') as THREE.SkinnedMesh;
+  const cached = source.getObjectByName('ChickenBody') as THREE.SkinnedMesh;
+  const before = creaturePoints(model, 'ChickenBody'),
+    other = creaturePoints(sibling, 'ChickenBody');
+  const attributes = Object.fromEntries(
+    Object.entries(mesh.geometry.attributes).map(([key, value]) => [key, attributeValues(value)])
+  );
+  const boneRest = mesh.skeleton.bones.map((bone) => ({
+    position: bone.position.clone(),
+    quaternion: bone.quaternion.clone(),
+  }));
+  const inverse = cached.skeleton.boneInverses;
+  const walking = createChickenWalk(model)!;
+  expect(walking).not.toBeNull();
+  expect(mesh.geometry).toBe(cached.geometry);
+  expect(mesh.material).toBe(cached.material);
+  expect(mesh.skeleton.boneInverses).toBe(inverse);
+  expect(mesh.skeleton.bones).toHaveLength(41);
+  const minY = Math.min(...before.map((p) => p.y));
+  const soles = [0, 1].map((leg) =>
+    before.flatMap((p, i) => (p.y < minY + 0.009 && (p.x > 0 ? 0 : 1) === leg ? [i] : []))
+  );
+  expect(soles.map((s) => s.length)).toEqual([52, 59]);
+  const protectedHead = headVertices(mesh);
+  let maximumLift = 0;
+  for (let frame = 0; frame < 32; frame++) {
+    const phase = (frame / 32) * Math.PI * 2;
+    walking.apply(phase, 1);
+    const posed = creaturePoints(model, 'ChickenBody');
+    posed.forEach((p) => expect(p.toArray().every(Number.isFinite)).toBe(true));
+    for (let leg = 0; leg < 2; leg++) {
+      const step = sampleChickenStep(phase, leg, { forward: 0, lift: 0 });
+      for (const i of soles[leg]) {
+        // In model coordinates the walking settle is compensated by the foot;
+        // in actor/world space subtract settle to recover the planted sole.
+        expect(posed[i].x).toBeCloseTo(before[i].x, 6);
+        expect(posed[i].y - CHICKEN_WALK.settle).toBeCloseTo(before[i].y + step.lift, 6);
+        expect(posed[i].z).toBeCloseTo(before[i].z + step.forward, 6);
+      }
+      maximumLift = Math.max(maximumLift, step.lift);
+    }
+    for (const i of protectedHead) expect(posed[i].distanceTo(before[i])).toBeLessThan(1e-7);
+    for (const name of ['L_Forearm', 'R_Forearm']) {
+      const j = mesh.skeleton.bones.findIndex((b) => b.name === name);
+      expect(mesh.skeleton.bones[j].quaternion.toArray()).toEqual(boneRest[j].quaternion.toArray());
+    }
+  }
+  expect(maximumLift).toBeGreaterThan(0.02);
+  walking.apply(1.7, 0);
+  creaturePoints(model, 'ChickenBody').forEach((p, i) =>
+    expect(p.distanceTo(before[i])).toBeLessThan(1e-10)
+  );
+  mesh.skeleton.bones.forEach((bone, i) => {
+    expect(bone.position).toEqual(boneRest[i].position);
+    expect(bone.quaternion.toArray()).toEqual(boneRest[i].quaternion.toArray());
+  });
+  creaturePoints(sibling, 'ChickenBody').forEach((p, i) => expect(p.distanceTo(other[i])).toBe(0));
+  for (const [key, value] of Object.entries(mesh.geometry.attributes))
+    expect(attributeValues(value)).toEqual(attributes[key]);
+  walking.apply(0.9, 1);
+  walking.dispose();
+  creaturePoints(model, 'ChickenBody').forEach((p, i) =>
+    expect(p.distanceTo(before[i])).toBeLessThan(1e-10)
+  );
+});
+
+it('composes hen walking with actual graze/head/pet channels under a turned and scaled parent', async () => {
+  const { RiggedCreatureModel } = await vi.importActual<
+    typeof import('./models/RiggedCreatureModel')
+  >('./models/RiggedCreatureModel');
+  const source = await actualCreature('chicken');
+  boundary.asset = { scene: source };
+  const cloned = vi.spyOn(source, 'clone');
+  const ref = React.createRef<import('./models/RiggedCreatureModel').CreatureRigHandle>();
+  const view = render(<RiggedCreatureModel creature="chicken" ref={ref} />);
+  const model = cloned.mock.results[0].value as THREE.Group;
+  const parent = new THREE.Group();
+  parent.position.set(7, 0, -4);
+  parent.rotation.y = 1.1;
+  parent.scale.setScalar(1.17);
+  parent.add(model);
+  const rest = creaturePoints(model, 'ChickenBody');
+  ref.current!.setGraze(0.65);
+  ref.current!.setHeadShake(0.12);
+  const headPose = creaturePoints(model, 'ChickenBody');
+  ref.current!.setStride(2.3, 1);
+  const pose = creaturePoints(model, 'ChickenBody');
+  const mesh = model.getObjectByName('ChickenBody') as THREE.SkinnedMesh;
+  for (const i of headVertices(mesh)) expect(pose[i].distanceTo(headPose[i])).toBeLessThan(1e-7);
+  expect(mesh.boundingSphere!.radius).toBeGreaterThan(0.35);
+  ref.current!.setHeadShake(0);
+  ref.current!.setGraze(0);
+  ref.current!.setStride(0, 0);
+  creaturePoints(model, 'ChickenBody').forEach((p, i) =>
+    expect(p.distanceTo(rest[i])).toBeLessThan(1e-7)
+  );
+  view.unmount();
+  cloned.mockRestore();
+});
