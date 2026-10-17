@@ -49,6 +49,7 @@ import {
 } from './exterior/riverGeometry';
 import { UTILITY_ASSET_DEFINITIONS } from '../constants/utilityAssets';
 import { ServiceBuildingCraft, SERVICE_BUILDING_ENVELOPES } from './exterior/serviceBuildingCraft';
+import { ServiceEntranceLighting } from './exterior/ServiceEntranceLighting';
 import {
   UtilityTankHardware,
   LpgValveHardware,
@@ -8170,6 +8171,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
           <meshStandardMaterial color="#6d4c41" {...OUTBUILDING_SURFACE} />
         </mesh>
         <ServiceBuildingCraft kind="maintenance" />
+        <ServiceEntranceLighting site="maintenance" />
       </group>
 
       {/* ========== STREET LAMPS ========== */}
@@ -8340,6 +8342,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
           <meshStandardMaterial color="#78909c" {...OUTBUILDING_SURFACE} />
         </mesh>
         <ServiceBuildingCraft kind="substation" />
+        <ServiceEntranceLighting site="substation" />
       </group>
 
       {/* Instanced trees and benches for draw call optimization (~48 -> 7 draw calls) */}

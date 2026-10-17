@@ -1,5 +1,6 @@
 import { FARM_REALM_PATHS, inRealmPath } from '../constants/publicRealmLayout';
 import { FarmPublicRealm } from './scenery/WorldPublicRealm';
+import { ServiceEntranceLighting } from './exterior/ServiceEntranceLighting';
 import React, { useRef, useState, useMemo, useEffect, useLayoutEffect } from 'react';
 import { useFrame, ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -926,6 +927,7 @@ BarnPrimitiveBody.displayName = 'BarnPrimitiveBody';
 export const Barn = React.memo<{ position: [number, number, number] }>(({ position }) => (
   <group position={position}>
     <GeneratedBody asset="barn" fallback={<BarnPrimitiveBody />} />
+    <ServiceEntranceLighting site="barn" />
   </group>
 ));
 Barn.displayName = 'Barn';

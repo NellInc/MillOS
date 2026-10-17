@@ -30,6 +30,7 @@ import {
   inRealmPath,
 } from '../../constants/publicRealmLayout';
 import { hedgeCrownTransforms } from './HedgeFoliage';
+import { SERVICE_ENTRANCE_LIGHTS, serviceEntranceSource } from './ServiceEntranceLighting';
 import {
   createMaintenanceRoof,
   createMaintenanceJoinery,
@@ -363,4 +364,30 @@ it('keeps the relocated workshop clear of the retained utility compound, pond ap
   for (const segments of [64, 128])
     for (const dx of [-5, 5])
       for (const dz of [-4, 4]) expect(sampleTerrainGroundHeight(x + dx, z + dz, segments)).toBe(0);
+});
+
+it('keeps entrance spill on both flat ground grids, clear of the retained pond and natural paddock', () => {
+  for (const l of SERVICE_ENTRANCE_LIGHTS) {
+    const p = new Vector3(...l.pool);
+    if (l.site === 'barn') {
+      const anchor = SITE_LAYOUT.landmarks.farm;
+      p.applyEuler(new Euler(...anchor.rotation))
+        .multiplyScalar(anchor.scale)
+        .add(new Vector3(...anchor.position));
+    } else p.add(new Vector3(...SERVICE_BUILDING_ENVELOPES[l.site].position));
+    for (const segments of [64, 128])
+      for (const dx of [-l.poolRadius, l.poolRadius])
+        for (const dz of [-l.poolRadius, l.poolRadius])
+          expect(sampleTerrainGroundHeight(p.x + dx, p.z + dz, segments)).toBe(0);
+    expect(l.poolRadius).toBeLessThanOrEqual(2.3);
+    if (l.site === 'barn') {
+      expect(l.pool[2] + l.poolRadius).toBeLessThan(9);
+      const source = serviceEntranceSource(l);
+      expect(l.distance).toBeLessThan(Math.hypot(source.y, 9 - source.z));
+    }
+    for (const pond of SITE_LAYOUT.exteriorFeatures.ponds)
+      expect(
+        Math.hypot(p.x - pond.position[0], p.z - pond.position[2]) - l.poolRadius
+      ).toBeGreaterThan(pond.radius);
+  }
 });

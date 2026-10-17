@@ -257,22 +257,23 @@ export const ExteriorPointLight: React.FC<{
 /** Downward canopy banks share the lamp clock and never allocate a shadow map. */
 export const ExteriorDownlight: React.FC<{
   name: string;
+  gain?: { value: number };
   position: [number, number, number];
   intensity: number;
   distance: number;
   color: THREE.ColorRepresentation;
-}> = ({ name, position, intensity, distance, color }) => {
+}> = ({ name, gain, position, intensity, distance, color }) => {
   const lightRef = useRef<THREE.SpotLight>(null);
   const target = useMemo(() => new THREE.Object3D(), []);
   useLayoutEffect(() => {
     const light = lightRef.current;
     if (!light) return;
-    const registration = { light, baseIntensity: intensity };
+    const registration = { light, baseIntensity: intensity, gain };
     pointLights.add(registration);
     return () => {
       pointLights.delete(registration);
     };
-  }, [intensity]);
+  }, [intensity, gain]);
   return (
     <group position={position}>
       <primitive object={target} position={[0, -1, 0]} />
