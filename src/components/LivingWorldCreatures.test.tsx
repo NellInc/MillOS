@@ -38,6 +38,12 @@ import {
   GRAIN_WIND_PADDING,
   populateGrainField,
 } from './FarmArea';
+import {
+  createScarecrowCraftGeometry,
+  createScarecrowShirtGeometry,
+  createScarecrowPumpkinGeometry,
+  createScarecrowFaceGeometry,
+} from './scenery/ScarecrowCraft';
 import { playCritterSound } from '../utils/critterAudio';
 import { clutterPlacements } from './scenery/InstancedFoliage';
 
@@ -131,7 +137,80 @@ it('restores the rigged crow on the scarecrow hat rather than a pen fence', () =
   expect(crow).not.toBeNull();
   expect(crow!.parentElement!.parentElement!.getAttribute('position')).toBe('0.2,3.018,0');
   expect(view.container.querySelector('[name="field-scarecrow"]')!.contains(crow)).toBe(true);
+  expect(view.container.querySelectorAll('[name="scarecrow-handmade-craft"]')).toHaveLength(1);
   expect(playCritterSound).not.toHaveBeenCalled();
+});
+
+it('keeps the hand-sewn scarecrow finite, opaque-batchable and inside the original hand/head envelope', () => {
+  const g = createScarecrowCraftGeometry(),
+    p = g.attributes.position;
+  expect(p.count / 3).toBeLessThan(12000);
+  expect(Object.keys(g.attributes).sort()).toEqual(['color', 'normal', 'position']);
+  for (const attribute of Object.values(g.attributes))
+    expect(Array.from(attribute.array).every(Number.isFinite)).toBe(true);
+  let error = 0;
+  for (let i = 0; i < p.count; i++)
+    error = Math.max(
+      error,
+      Math.abs(new THREE.Vector3().fromBufferAttribute(g.attributes.normal, i).length() - 1)
+    );
+  expect(error).toBeLessThan(1e-5);
+  expect(g.boundingBox!.min.x).toBeGreaterThan(-1.05);
+  expect(g.boundingBox!.max.x).toBeLessThan(1.05);
+  expect(g.boundingBox!.min.y).toBeGreaterThan(0.45);
+  expect(g.boundingBox!.max.y).toBeCloseTo(2.85, 6);
+  expect(g.boundingBox!.max.z).toBeLessThan(0.36);
+  expect(g.boundingBox!.min.z).toBeGreaterThan(-0.36);
+  g.dispose();
+});
+
+it('encloses the original timber support in a rounded stuffed torso', () => {
+  const g = createScarecrowShirtGeometry(),
+    m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
+  m.updateMatrixWorld();
+  const front = (x: number, y: number) =>
+    new THREE.Raycaster(new THREE.Vector3(x, y, 1), new THREE.Vector3(0, 0, -1)).intersectObject(
+      m
+    )[0].point.z;
+  expect(front(0, 1.8)).toBeGreaterThan(0.16);
+  expect(front(0.23, 1.8)).toBeLessThan(front(0, 1.8) - 0.04);
+  expect(front(0, 2.2)).toBeLessThan(front(0, 1.8) - 0.05);
+  expect(front(0, 1.4)).toBeGreaterThan(0.14);
+  g.dispose();
+  (m.material as THREE.Material).dispose();
+});
+
+it('seats the smiling face on actual pumpkin triangles instead of a floating fixed-depth plane', () => {
+  const head = createScarecrowPumpkinGeometry(),
+    face = createScarecrowFaceGeometry(head),
+    m = new THREE.Mesh(head, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
+  m.updateMatrixWorld();
+  const p = face.attributes.position;
+  let maximumGap = -Infinity,
+    minimumGap = Infinity;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i),
+      y = p.getY(i),
+      hit = new THREE.Raycaster(
+        new THREE.Vector3(x, y, 1),
+        new THREE.Vector3(0, 0, -1)
+      ).intersectObject(m)[0];
+    expect(hit).toBeDefined();
+    const gap = p.getZ(i) - hit.point.z;
+    maximumGap = Math.max(maximumGap, gap);
+    minimumGap = Math.min(minimumGap, gap);
+  }
+  // Small thread edges embed into the pumpkin; no triangle eye can float 2cm away.
+  expect(maximumGap).toBeLessThan(0.014);
+  expect(minimumGap).toBeGreaterThan(-0.01);
+  const all = head.attributes.position;
+  let radius = 0;
+  for (let i = 0; i < all.count; i++)
+    radius = Math.max(radius, Math.hypot(all.getX(i), all.getY(i) - 2.5, all.getZ(i)));
+  expect(radius).toBeCloseTo(0.35, 6);
+  head.dispose();
+  face.dispose();
+  (m.material as THREE.Material).dispose();
 });
 
 it('seats both bird feet on the actual delivered fountain coping', async () => {

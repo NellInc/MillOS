@@ -1,5 +1,6 @@
 import { FARM_REALM_PATHS, inRealmPath } from '../constants/publicRealmLayout';
 import { FarmPublicRealm } from './scenery/WorldPublicRealm';
+import { ScarecrowCraft } from './scenery/ScarecrowCraft';
 import { ServiceEntranceLighting } from './exterior/ServiceEntranceLighting';
 import React, { useRef, useState, useMemo, useEffect, useLayoutEffect } from 'react';
 import { useFrame, ThreeEvent } from '@react-three/fiber';
@@ -579,9 +580,7 @@ const SG = {
   cornEar: GRAIN_PLANT_GEOMETRY.ears,
   scarecrowPole: new THREE.CylinderGeometry(0.08, 0.08, 2.5, 5),
   scarecrowArm: new THREE.CylinderGeometry(0.06, 0.06, 1.8, 5),
-  pumpkinHead: new THREE.SphereGeometry(0.35, 16, 12),
   strawHat: createStrawHatGeometry(),
-  scarecrowBox: new THREE.BoxGeometry(1, 1, 1),
   crowBody: new THREE.ConeGeometry(0.1, 0.3, 4),
   crowHead: new THREE.SphereGeometry(0.08, 4, 4),
 };
@@ -718,10 +717,7 @@ const SM = {
     roughness: 0.9,
     side: THREE.DoubleSide,
   }),
-  pumpkinOrange: new THREE.MeshStandardMaterial({ color: '#d87b30', roughness: 0.8 }),
   strawHat: new THREE.MeshStandardMaterial({ color: '#c4a45c', roughness: 1 }),
-  denimBlue: new THREE.MeshStandardMaterial({ color: '#456780', roughness: 0.9 }),
-  plaidRed: new THREE.MeshStandardMaterial({ color: '#923b36', roughness: 0.9 }),
   crowBlack: new THREE.MeshStandardMaterial({ color: '#212121', roughness: 0.6 }),
 };
 
@@ -2059,81 +2055,7 @@ export const Scarecrow = React.memo<{ position: [number, number, number]; rotati
         <primitive object={SG.scarecrowArm} attach="geometry" />
         <primitive object={SM.woodBrown} attach="material" />
       </mesh>
-      {/* Shirt */}
-      <mesh position={[0, 1.8, 0]} castShadow>
-        <boxGeometry args={[0.55, 0.9, 0.3]} />
-        <primitive object={SM.plaidRed} attach="material" />
-      </mesh>
-      {/* Sleeves, cuffs and a mended knee preserve the handmade field character. */}
-      {[-1, 1].map((side) => (
-        <group key={side}>
-          <mesh position={[side * 0.55, 1.8, 0]} scale={[0.5, 0.28, 0.29]}>
-            <primitive object={SG.scarecrowBox} attach="geometry" />
-            <primitive object={SM.plaidRed} attach="material" />
-          </mesh>
-          <mesh position={[side * 0.77, 1.8, 0]} scale={[0.07, 0.3, 0.31]}>
-            <primitive object={SG.scarecrowBox} attach="geometry" />
-            <primitive object={SM.hayDark} attach="material" />
-          </mesh>
-          <mesh position={[side * 0.13, 1.8, 0.155]} scale={[0.035, 0.87, 0.012]}>
-            <primitive object={SG.scarecrowBox} attach="geometry" />
-            <primitive object={SM.hayDark} attach="material" />
-          </mesh>
-        </group>
-      ))}
-      {[1.5, 1.72, 1.94, 2.15].map((y) => (
-        <mesh key={y} position={[0, y, 0.155]} scale={[0.55, 0.025, 0.014]}>
-          <primitive object={SG.scarecrowBox} attach="geometry" />
-          <primitive object={SM.hayDark} attach="material" />
-        </mesh>
-      ))}
-      <mesh position={[-0.15, 0.87, 0.115]} rotation={[0, 0, 0.12]} scale={[0.13, 0.19, 0.018]}>
-        <primitive object={SG.scarecrowBox} attach="geometry" />
-        <primitive object={SM.plaidRed} attach="material" />
-      </mesh>
-      {/* Straw hands */}
-      <mesh position={[0.9, 1.8, 0]}>
-        <sphereGeometry args={[0.15, 8, 8]} />
-        <primitive object={SM.hay} attach="material" />
-      </mesh>
-      <mesh position={[-0.9, 1.8, 0]}>
-        <sphereGeometry args={[0.15, 8, 8]} />
-        <primitive object={SM.hay} attach="material" />
-      </mesh>
-      {/* Jeans */}
-      <group position={[0, 1.0, 0]}>
-        <mesh position={[-0.15, 0, 0]}>
-          <boxGeometry args={[0.18, 0.9, 0.22]} />
-          <primitive object={SM.denimBlue} attach="material" />
-        </mesh>
-        <mesh position={[0.15, 0, 0]}>
-          <boxGeometry args={[0.18, 0.9, 0.22]} />
-          <primitive object={SM.denimBlue} attach="material" />
-        </mesh>
-      </group>
-      {/* Scarf */}
-      <mesh position={[0, 2.25, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[0.2, 0.08, 8, 16]} />
-        <meshStandardMaterial color="#d32f2f" />
-      </mesh>
-      {/* Head */}
-      <mesh position={[0, 2.5, 0]} castShadow>
-        <primitive object={SG.pumpkinHead} attach="geometry" />
-        <primitive object={SM.pumpkinOrange} attach="material" />
-      </mesh>
-      {/* Eyes/Mouth */}
-      <mesh position={[0.115, 2.55, 0.35]}>
-        <circleGeometry args={[0.05, 3]} />
-        <meshStandardMaterial color="#3e2723" />
-      </mesh>
-      <mesh position={[-0.115, 2.55, 0.35]}>
-        <circleGeometry args={[0.05, 3]} />
-        <meshStandardMaterial color="#3e2723" />
-      </mesh>
-      <mesh position={[0, 2.44, 0.35]} rotation={[0, 0, Math.PI]}>
-        <torusGeometry args={[0.08, 0.012, 5, 12, Math.PI]} /> {/* Stitched smile */}
-        <meshStandardMaterial color="#3e2723" />
-      </mesh>
+      <ScarecrowCraft />
       {/* Hat */}
       <mesh position={[0, 2.85, 0]} castShadow>
         <primitive object={SG.strawHat} attach="geometry" />
