@@ -18,6 +18,7 @@ export function validWorkerSeatCue(cue: WorkerSeatCue | undefined): cue is Worke
   );
 }
 import { WORKER_EYE_CENTRES } from './SharedWorkerGeometries';
+import { isWorkerHandheldTool, workerPalmInWrist } from './WorkerTools';
 
 /** Seat top and pelvis joint are different anchors: the fleshy underside is 9 cm below the joint. */
 export const WORKER_SEAT_HEIGHT = 0.46;
@@ -872,7 +873,8 @@ export function createSeatedWorkerPose(
   model: THREE.Object3D,
   heightScale = 1,
   bodyScale = 1,
-  referenceClip?: THREE.AnimationClip
+  referenceClip?: THREE.AnimationClip,
+  handheldTool: ToolType = 'none'
 ) {
   const names = [
     'Body',
@@ -921,6 +923,17 @@ export function createSeatedWorkerPose(
   const deltaRotation = new THREE.Quaternion();
   const scale = Number.isFinite(heightScale) && heightScale > 0 ? heightScale : 1;
   const widthScale = Number.isFinite(bodyScale) && bodyScale > 0 ? bodyScale : 1;
+  const supportedPalm = isWorkerHandheldTool(handheldTool) ? workerPalmInWrist(model) : null;
+  // Both delivered rigs have a wrist-local -Z palm, opposite the knuckles.
+  const supportedFrame = new THREE.Matrix4().makeBasis(
+    new THREE.Vector3(1, 0, 0),
+    new THREE.Vector3(0, 0, 1),
+    new THREE.Vector3(0, -1, 0)
+  );
+  const supportedRotation = new THREE.Quaternion().setFromRotationMatrix(supportedFrame),
+    supportedLocal = new THREE.Matrix4(),
+    supportedScale = new THREE.Vector3(),
+    supportedOffset = new THREE.Vector3();
   const pelvisHeight = (WORKER_SEAT_HEIGHT + WORKER_SEAT_PELVIS_OFFSET) / scale;
   const kneeHeight = 0.46 / scale;
 
@@ -1102,6 +1115,43 @@ export function createSeatedWorkerPose(
     lower.updateWorldMatrix(false, true);
     if (independentFoot && !fixedLengths) setPosition(end, p.copy(endpoint));
     return true;
+  }
+
+  /** Support the real tool with a fixed-length left arm and a palm-up wrist.
+   * Working if the tray stays level and the original boots/restore stay exact.
+   */
+  function supportHandheld(gesture: WorkerGesture) {
+    const upper = bones.get('UpperArmL'),
+      lower = bones.get('LowerArmL'),
+      wrist = bones.get('WristL'),
+      hips = bones.get('Hips');
+    if (!supportedPalm || !upper || !lower || !wrist || !hips || !wrist.parent) return;
+    model.updateWorldMatrix(false, true);
+    chainLengths(upper, lower, wrist, lengths.armL);
+    supportedLocal
+      .copy(inverse)
+      .multiply(wrist.matrixWorld)
+      .decompose(p, poseQuaternion, supportedScale);
+    supportedOffset.copy(supportedPalm).multiply(supportedScale).applyQuaternion(supportedRotation);
+    const hipY = modelPosition(hips, p).y;
+    target.set(
+      0.17 / widthScale,
+      hipY + (handheldTool === 'sample-kit' ? 0.22 : 0.27) / scale,
+      0.31 / widthScale
+    );
+    target.y += (gesture.workCheck * 0.006) / scale;
+    target.z += (gesture.workStroke * 0.006) / widthScale;
+    target.sub(supportedOffset);
+    if (!solveChain(upper, lower, wrist, target, lengths.armL, pole.set(1, -0.2, 0), false, true))
+      return;
+    supportedLocal
+      .copy(wrist.parent.matrixWorld)
+      .invert()
+      .multiply(model.matrixWorld)
+      .multiply(supportedFrame);
+    supportedLocal.decompose(p, poseQuaternion, supportedScale);
+    wrist.quaternion.copy(poseQuaternion);
+    wrist.updateWorldMatrix(false, true);
   }
 
   function look(gesture?: WorkerGesture, strength = 1) {
@@ -1398,6 +1448,8 @@ export function createSeatedWorkerPose(
         left?.rotateX(gesture.workCheck * 0.07);
         right?.rotateZ(gesture.workStroke * 0.12);
       }
+      if (supportedPalm && (action === 'inspect' || action === 'supervise' || action === 'sample'))
+        supportHandheld(gesture);
       // Radio already has an authored speaking gesture; only add the head glance.
       applied = true;
       model.updateWorldMatrix(false, true);

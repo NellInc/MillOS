@@ -13,7 +13,7 @@ import * as THREE from 'three';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { useDracoGLTF } from '../../utils/dracoLoader';
 import type { WorkerAppearance, WorkerBodyType, WorkerWorkAction } from '../workers/workerTypes';
-import { ToolAccessory } from '../workers/WorkerTools';
+import { ToolAccessory, createWorkerHandheldMount } from '../workers/WorkerTools';
 import {
   SHARED_WORKER_GEOMETRY,
   WORKER_EYE_CENTRES,
@@ -931,6 +931,10 @@ const WorkerAccessories: React.FC<{
   const hips = model.getObjectByName('Hips') ?? null;
   const wrist = model.getObjectByName('WristL') ?? null;
   const isSupervisor = appearance.workAction === 'supervise';
+  const handheldMount = useMemo(
+    () => createWorkerHandheldMount(model, appearance.tool),
+    [model, appearance.tool]
+  );
   const eyeCentre = WORKER_EYE_CENTRES[appearance.bodyType];
   return (
     <>
@@ -1125,7 +1129,8 @@ const WorkerAccessories: React.FC<{
           bone={appearance.tool === 'bread-tray' || appearance.tool === 'trowel' ? model : wrist}
           name={`worker-tool-${appearance.tool}`}
           position={
-            appearance.tool === 'bread-tray'
+            handheldMount?.position ??
+            (appearance.tool === 'bread-tray'
               ? [0, 1.09 / appearance.heightScale, 0.28 / appearance.bodyScale]
               : appearance.tool === 'trowel'
                 ? [
@@ -1133,19 +1138,21 @@ const WorkerAccessories: React.FC<{
                     0.326 / appearance.heightScale,
                     0.5205 / appearance.bodyScale,
                   ]
-                : [0, 0.035, 0.025]
+                : [0, 0.035, 0.025])
           }
           rotation={
-            appearance.tool === 'trowel'
+            handheldMount?.rotation ??
+            (appearance.tool === 'trowel'
               ? [0, 0, 0]
               : appearance.tool === 'bread-tray'
                 ? [0, 0, 0]
-                : [0, Math.PI / 2, 0]
+                : [0, Math.PI / 2, 0])
           }
           scale={
-            appearance.tool === 'bread-tray' || appearance.tool === 'trowel'
+            handheldMount?.scale ??
+            (appearance.tool === 'bread-tray' || appearance.tool === 'trowel'
               ? [1 / appearance.bodyScale, 1 / appearance.heightScale, 1 / appearance.bodyScale]
-              : [0.88, 0.88, 0.88]
+              : [0.88, 0.88, 0.88])
           }
         >
           <group name="worker-held-tool" ref={toolRef} dispose={null}>
@@ -1495,9 +1502,10 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
         prepared.model,
         appearance.heightScale,
         appearance.bodyScale,
-        animations.find((clip) => clip.name === 'worker-break')
+        animations.find((clip) => clip.name === 'worker-break'),
+        appearance.tool
       ),
-    [prepared.model, appearance.heightScale, appearance.bodyScale, animations]
+    [prepared.model, appearance.heightScale, appearance.bodyScale, appearance.tool, animations]
   );
 
   useEffect(() => {

@@ -27,6 +27,7 @@ import {
 } from './workerPose';
 import { COMMUNITY_ANCHORS } from '../../constants/communityLayout';
 import { getWorkerAppearance } from './workerTypes';
+import { createWorkerHandheldMount, WORKER_TOOL_GEOMETRIES } from './WorkerTools';
 import { createWorkerBodyLod } from './workerBodyLod';
 import {
   createWorkerFaceColours,
@@ -3622,3 +3623,108 @@ for (const body of ['masculine', 'feminine'])
       coat.material.dispose();
       skeletons.forEach((s) => s.dispose());
     });
+
+describe('actual supported handheld work', () => {
+  for (const body of ['masculine', 'feminine'])
+    for (const tool of ['clipboard', 'tablet', 'sample-kit'] as const)
+      it(`${body} ${tool} meets its real support with a raised fixed-length hand and exact restore`, () => {
+        const asset = bodies.get(body)!;
+        for (const height of [0.95, 1.08]) {
+          const scene = clone(asset.scene),
+            wrapper = new THREE.Group(),
+            width = height === 0.95 ? 0.96 : 1.06;
+          wrapper.position.set(3, 0.2, -2);
+          wrapper.rotation.y = 0.73;
+          wrapper.scale.set(width, height, width);
+          wrapper.add(scene);
+          const mixer = new THREE.AnimationMixer(scene),
+            action =
+              tool === 'sample-kit' ? 'sample' : tool === 'clipboard' ? 'supervise' : 'inspect';
+          mixer.clipAction(asset.animations.find((c) => c.name === 'worker-' + action)!).play();
+          mixer.setTime(0.1);
+          wrapper.updateMatrixWorld(true);
+          const pose = createSeatedWorkerPose(scene, height, width, undefined, tool),
+            hand = createWorkerHandPose(scene, asset.animations),
+            mount = createWorkerHandheldMount(scene, tool)!;
+          expect(mount).not.toBeNull();
+          const holder = new THREE.Group();
+          holder.position.fromArray(mount.position);
+          holder.rotation.fromArray(mount.rotation);
+          holder.scale.fromArray(mount.scale);
+          scene.getObjectByName('WristL')!.add(holder);
+          const geometry =
+            tool === 'clipboard'
+              ? WORKER_TOOL_GEOMETRIES.clipboard.board
+              : tool === 'tablet'
+                ? WORKER_TOOL_GEOMETRIES.tablet.body
+                : WORKER_TOOL_GEOMETRIES.sampleKit.tray;
+          const mesh = new THREE.Mesh(geometry);
+          holder.add(mesh);
+          geometry.computeBoundingBox();
+          const originalBones: THREE.Object3D[] = [];
+          scene.traverse((o) => {
+            if (o.type === 'Bone') originalBones.push(o);
+          });
+          const state = () =>
+            originalBones.flatMap((o) => [
+              ...o.position.toArray(),
+              ...o.quaternion.toArray(),
+              ...o.scale.toArray(),
+            ]);
+          const point = (name: string) =>
+            scene.getObjectByName(name)!.getWorldPosition(new THREE.Vector3());
+          for (const time of [0, 0.37, 0.8, 2, 4.7, 7.5]) {
+            mixer.setTime(time);
+            wrapper.updateMatrixWorld(true);
+            const source = state(),
+              feet = [point('FootL'), point('FootR')],
+              armScale = scene.getObjectByName('LowerArmL')!.scale.clone();
+            const gesture = sampleWorkerGesture(action, time, createWorkerGesture());
+            pose.applyDuty(action, gesture, 1);
+            hand.apply(
+              { activity: 'working', groundSpeed: 0, seated: false, phase: 0, enabled: true },
+              tool,
+              gesture,
+              0.1
+            );
+            wrapper.updateMatrixWorld(true);
+            const palm = point('Middle1L').lerp(point('Middle2L'), 0.5),
+              local = mesh.worldToLocal(palm.clone()),
+              nearest = local.clone().clamp(geometry.boundingBox!.min, geometry.boundingBox!.max);
+            mesh.localToWorld(nearest);
+            expect(palm.distanceTo(nearest)).toBeLessThan(0.012);
+            expect(palm.y - point('Hips').y).toBeGreaterThan(0.18);
+            expect(point('Middle4L').y - palm.y).toBeGreaterThan(-0.015);
+            expect(scene.getObjectByName('LowerArmL')!.scale.distanceTo(armScale)).toBeLessThan(
+              1e-10
+            );
+            feet.forEach((p, i) =>
+              expect(point(i ? 'FootR' : 'FootL').distanceTo(p)).toBeLessThan(1e-9)
+            );
+            const normal = new THREE.Vector3(
+              0,
+              tool === 'sample-kit' ? 1 : 0,
+              tool === 'sample-kit' ? 0 : 1
+            ).transformDirection(mesh.matrixWorld);
+            if (tool === 'sample-kit') expect(normal.y).toBeGreaterThan(0.999);
+            else expect(normal.dot(point('Head').sub(palm).normalize())).toBeGreaterThan(0.6);
+            hand.restore();
+            pose.restore();
+            expect(state()).toEqual(source);
+            for (const weight of [0, 0.25, 0.65, 1]) {
+              pose.applyDuty(action, gesture, weight, true);
+              feet.forEach((p, i) =>
+                expect(point(i ? 'FootR' : 'FootL').distanceTo(p)).toBeLessThan(1e-9)
+              );
+              pose.restore();
+              expect(state()).toEqual(source);
+            }
+          }
+          holder.remove(mesh);
+          scene.getObjectByName('WristL')!.remove(holder);
+          (mesh.material as THREE.Material).dispose();
+          mixer.stopAllAction();
+          mixer.uncacheRoot(scene);
+        }
+      });
+});

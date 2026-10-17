@@ -23,6 +23,8 @@ import {
   WORKER_TOOL_GEOMETRIES,
   createWorkerSampleVial,
   createWorkerSampleScoop,
+  createWorkerHandheldMount,
+  ToolAccessory,
 } from './WorkerTools';
 
 const harness = vi.hoisted(() => ({
@@ -2281,4 +2283,21 @@ it('gives Quality Control a private ivory coat on the existing rig and keeps unr
     other.unmount();
     borrowed.forEach((d) => expect(d).not.toHaveBeenCalled());
   }
+});
+
+it.each(['clipboard', 'tablet', 'sample-kit'] as const)(
+  '%s uses its fitted datum rather than another hidden root offset',
+  (tool) => {
+    const view = render(<ToolAccessory tool={tool} />),
+      assembly = view.container.querySelector('[name="held-' + tool + '-assembly"]');
+    expect(assembly).not.toBeNull();
+    expect(assembly!.getAttribute('position')).toBeNull();
+    expect(assembly!.getAttribute('rotation')).toBeNull();
+  }
+);
+it('preserves unsupported and incomplete-model tool mounts', () => {
+  const model = new THREE.Group();
+  expect(createWorkerHandheldMount(model, 'tablet')).toBeNull();
+  for (const tool of ['none', 'wrench', 'radio', 'magnifier', 'bread-tray', 'trowel'] as const)
+    expect(createWorkerHandheldMount(model, tool)).toBeNull();
 });

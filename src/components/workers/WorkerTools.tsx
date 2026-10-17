@@ -9,6 +9,25 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { SHARED_WORKER_MATERIALS } from './SharedWorkerMaterials';
 import type { ToolType } from './workerTypes';
 
+/** Only the three reproduced floating supports. Other tools keep their mounts. */
+export const isWorkerHandheldTool = (tool: ToolType) =>
+  tool === 'clipboard' || tool === 'tablet' || tool === 'sample-kit';
+
+/** Palm bases do not move under the distal-finger overlay. Measure once per rig.
+ * Working if both actual bodies keep the same support through every wrist pose.
+ */
+export function workerPalmInWrist(model: THREE.Object3D): THREE.Vector3 | null {
+  const wrist = model.getObjectByName('WristL'),
+    first = model.getObjectByName('Middle1L'),
+    second = model.getObjectByName('Middle2L');
+  if (!wrist || !first || !second) return null;
+  model.updateWorldMatrix(true, true);
+  const palm = first
+    .getWorldPosition(new THREE.Vector3())
+    .lerp(second.getWorldPosition(new THREE.Vector3()), 0.5);
+  return wrist.worldToLocal(palm);
+}
+
 /** Authored, cached tool silhouettes. Working if the jaw is physically open,
  * the spade tapers to its old tip, and loaves sit on the existing tray surface.
  * No new draw, texture, material family or per-frame work is introduced.
@@ -203,8 +222,40 @@ export const WORKER_TOOL_GEOMETRIES = {
   },
 };
 
+/** A real panel edge or tray underside, fitted to the same measured palm used
+ * by the existing work overlay. All values are wrist-local, cached by the owner.
+ * Working if tool support stays within 8mm of the palm with no per-frame search.
+ */
+export function createWorkerHandheldMount(model: THREE.Object3D, tool: ToolType) {
+  if (!isWorkerHandheldTool(tool)) return null;
+  const palm = workerPalmInWrist(model);
+  if (!palm) return null;
+  const geometry =
+    tool === 'clipboard'
+      ? WORKER_TOOL_GEOMETRIES.clipboard.board
+      : tool === 'tablet'
+        ? WORKER_TOOL_GEOMETRIES.tablet.body
+        : WORKER_TOOL_GEOMETRIES.sampleKit.tray;
+  geometry.computeBoundingBox();
+  const support =
+    tool === 'sample-kit'
+      ? new THREE.Vector3(0, geometry.boundingBox!.min.y, 0)
+      : new THREE.Vector3(geometry.boundingBox!.min.x + 0.012, -0.035, 0);
+  const rotation: THREE.EulerTuple = [
+    tool === 'sample-kit' ? -Math.PI / 2 : -0.7,
+    tool === 'sample-kit' ? 0 : Math.PI,
+    0,
+  ];
+  const offset = support.multiplyScalar(0.88).applyEuler(new THREE.Euler(...rotation));
+  const position = palm
+    .add(new THREE.Vector3(0, 0, -0.008))
+    .sub(offset)
+    .toArray();
+  return { position, rotation, scale: [0.88, 0.88, 0.88] as THREE.Vector3Tuple };
+}
+
 const Clipboard: React.FC = React.memo(() => (
-  <group position={[0.08, -0.02, 0.04]} rotation={[0.3, 0, 0.1]}>
+  <group name="held-clipboard-assembly">
     <mesh
       geometry={WORKER_TOOL_GEOMETRIES.clipboard.board}
       material={SHARED_WORKER_MATERIALS.clipboardBrown}
@@ -232,7 +283,7 @@ const Clipboard: React.FC = React.memo(() => (
 Clipboard.displayName = 'Clipboard';
 
 const Tablet: React.FC = React.memo(() => (
-  <group position={[0.06, -0.02, 0.04]} rotation={[0.4, 0, 0.15]}>
+  <group name="held-tablet-assembly">
     <mesh
       geometry={WORKER_TOOL_GEOMETRIES.tablet.body}
       material={SHARED_WORKER_MATERIALS.darkGray}
@@ -315,7 +366,7 @@ const Magnifier: React.FC = React.memo(() => (
 Magnifier.displayName = 'Magnifier';
 
 const SampleKit: React.FC = React.memo(() => (
-  <group position={[0.07, -0.02, 0.05]} rotation={[0.22, 0.1, 0.08]}>
+  <group name="held-sample-kit-assembly">
     <mesh
       geometry={WORKER_TOOL_GEOMETRIES.sampleKit.tray}
       material={SHARED_WORKER_MATERIALS.offWhite}
