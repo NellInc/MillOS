@@ -4,6 +4,8 @@ import {
   creatureCadence,
   createHorseRestPose,
   sampleHorseRest,
+  createSheepRestPose,
+  sampleSheepRest,
   creatureForageWeight,
   creaturePerchLook,
   duckSwimPose,
@@ -198,4 +200,50 @@ describe('four-beat quadruped walk', () => {
       expect(new Set(peaks).size).toBe(4);
     }
   );
+});
+
+describe('independent quiet sheep attention', () => {
+  it('has exact neutral reset and smooth, bounded, distinct ear dwells and breathing', () => {
+    const schedules = [400, 401, 402, 403].map((seed) => {
+      const out = createSheepRestPose();
+      for (const time of [0, -1, NaN, Infinity]) {
+        sampleSheepRest(8, seed, out);
+        expect(sampleSheepRest(time, seed, out)).toBe(out);
+        expect(out).toEqual(createSheepRestPose());
+      }
+      const values = Array.from({ length: 2401 }, (_, i) => ({
+        ...sampleSheepRest(i / 60, seed, out),
+      }));
+      for (const key of ['leftEar', 'rightEar'] as const) {
+        expect(values.filter((v) => v[key] === 0).length).toBeGreaterThan(2100);
+        expect(Math.max(...values.map((v) => v[key]))).toBeGreaterThan(0.99);
+      }
+      expect(values.some((v) => v.leftEar > 0.8 && v.rightEar === 0)).toBe(true);
+      expect(values.some((v) => v.rightEar > 0.8 && v.leftEar === 0)).toBe(true);
+      let maxStep = 0,
+        maxValue = 0;
+      for (let i = 1; i < values.length; i++)
+        for (const key of ['breath', 'leftEar', 'rightEar'] as const) {
+          maxValue = Math.max(maxValue, Math.abs(values[i][key]));
+          maxStep = Math.max(maxStep, Math.abs(values[i][key] - values[i - 1][key]));
+        }
+      expect(maxValue).toBeLessThanOrEqual(1);
+      expect(maxStep).toBeLessThan(0.065);
+      return values.map((v) => Object.values(v).join(',')).join(';');
+    });
+    expect(new Set(schedules).size).toBe(4);
+    expect(
+      Object.values(sampleSheepRest(4, NaN, createSheepRestPose())).every(Number.isFinite)
+    ).toBe(true);
+  });
+  it('uses the same admitted time across rates, with a continuous initial breath and no accumulated phase', () => {
+    for (const fps of [15, 30, 60, 120]) {
+      const out = createSheepRestPose();
+      for (let i = 0; i <= fps * 20; i++) sampleSheepRest(i / fps, 401, out);
+      expect(out).toEqual(sampleSheepRest(20, 401, createSheepRestPose()));
+    }
+    expect(Math.abs(sampleSheepRest(0.00001, 400, createSheepRestPose()).breath)).toBeLessThan(
+      1e-8
+    );
+  });
 });

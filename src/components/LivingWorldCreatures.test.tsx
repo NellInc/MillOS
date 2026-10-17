@@ -9,7 +9,12 @@ import * as THREE from 'three';
 import draco3d from 'draco3dgltf';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
-import { createHorseRestPose, sampleHorseRest } from '../simulation/creatureMotion';
+import {
+  createHorseRestPose,
+  sampleHorseRest,
+  createSheepRestPose,
+  sampleSheepRest,
+} from '../simulation/creatureMotion';
 import {
   BlacksmithHorse,
   Fountain,
@@ -1159,17 +1164,23 @@ it.each(['cow', 'pig'] as const)(
         ref.current!.setStride(phase, 0.85);
         ref.current!.setHeadShake(0.12);
         const posed = creaturePoints(model, name);
-        for (const i of protectedHead)
-          expect(posed[i].distanceTo(grazing[i])).toBeLessThan(0.0000001);
+        expect(Math.max(...protectedHead.map((i) => posed[i].distanceTo(grazing[i])))).toBeLessThan(
+          0.0000001
+        );
         ref.current!.setHeadShake(0.12);
         ref.current!.setStride(phase, 0.85);
         ref.current!.setGraze(graze);
-        expect(creaturePoints(model, name)).toEqual(posed);
+        expect(creaturePoints(model, name).every((p, i) => p.equals(posed[i]))).toBe(true);
+        let minimumSole = Infinity,
+          contained = true;
+        const local = new THREE.Vector3();
         for (let i = 0; i < rest.length; i++) {
-          if (rest[i].y < 0.018) expect(posed[i].y).toBeGreaterThan(-0.0001);
-          const local = mesh.getVertexPosition(i, new THREE.Vector3());
-          expect(mesh.boundingSphere!.containsPoint(local)).toBe(true);
+          if (rest[i].y < 0.018) minimumSole = Math.min(minimumSole, posed[i].y);
+          mesh.getVertexPosition(i, local);
+          contained &&= mesh.boundingSphere!.containsPoint(local);
         }
+        expect(minimumSole).toBeGreaterThan(-0.0001);
+        expect(contained).toBe(true);
       }
     ref.current!.setGraze(0);
     ref.current!.setStride(0, 0);
@@ -1181,3 +1192,158 @@ it.each(['cow', 'pig'] as const)(
     cloned.mockRestore();
   }
 );
+
+it('fits independent private sheep ears and flanks to the actual skin while protecting feet, face, normals and borrowed copies', async () => {
+  const { createSheepRestMotion } = await import('./models/sheepRestMotion');
+  const source = await actualCreature('sheep'),
+    a = cloneSkeleton(source),
+    b = cloneSkeleton(source);
+  const mesh = a.getObjectByName('SheepBody') as THREE.SkinnedMesh,
+    borrowed = mesh.geometry;
+  const attributes = Object.fromEntries(
+    Object.entries(borrowed.attributes).map(([k, v]) => [k, attributeValues(v)])
+  );
+  const original = creaturePoints(a, 'SheepBody'),
+    other = creaturePoints(b, 'SheepBody');
+  const motion = createSheepRestMotion(a)!;
+  expect(motion).not.toBeNull();
+  expect(mesh.geometry).not.toBe(borrowed);
+  expect(mesh.material).toBe((b.getObjectByName('SheepBody') as THREE.SkinnedMesh).material);
+  let footDelta = 0,
+    faceDelta = 0,
+    maxMove = 0,
+    normalError = 0,
+    minArea = 1,
+    minDot = 1;
+  const changes = { leftEar: 0, rightEar: 0, breath: 0 };
+  const ab = new THREE.Vector3(),
+    ac = new THREE.Vector3(),
+    beforeNormal = new THREE.Vector3(),
+    afterNormal = new THREE.Vector3();
+  const times = new Set([0.25, 1, 2, 7, 12, 21, 32]);
+  for (const channel of ['leftEar', 'rightEar', 'breath'] as const) {
+    let largest = 0,
+      peakTime = 0;
+    const out = createSheepRestPose();
+    for (let i = 1; i <= 640; i++) {
+      const value = Math.abs(sampleSheepRest(i / 20, 400, out)[channel]);
+      if (value > largest) {
+        largest = value;
+        peakTime = i / 20;
+      }
+    }
+    times.add(peakTime);
+  }
+  for (const time of times) {
+    motion.apply(time, 400);
+    const points = creaturePoints(a, 'SheepBody');
+    for (let i = 0; i < points.length; i++) {
+      const p = original[i],
+        distance = p.distanceTo(points[i]);
+      maxMove = Math.max(maxMove, distance);
+      if (p.y < 0.3) footDelta = Math.max(footDelta, distance);
+      if (p.z > 0.49) faceDelta = Math.max(faceDelta, distance);
+      if (p.y > 0.7 && p.z > 0.27 && p.z < 0.49 && Math.abs(p.x) > 0.145)
+        changes[p.x > 0 ? 'leftEar' : 'rightEar'] = Math.max(
+          changes[p.x > 0 ? 'leftEar' : 'rightEar'],
+          distance
+        );
+      if (p.z < 0.2 && p.y > 0.34 && p.y < 0.84)
+        changes.breath = Math.max(changes.breath, distance);
+      normalError = Math.max(
+        normalError,
+        Math.abs(
+          new THREE.Vector3().fromBufferAttribute(mesh.geometry.attributes.normal, i).length() - 1
+        )
+      );
+    }
+    const index = mesh.geometry.index!;
+    for (let i = 0; i < index.count; i += 3) {
+      const x = index.getX(i),
+        y = index.getX(i + 1),
+        z = index.getX(i + 2);
+      beforeNormal.crossVectors(
+        ab.subVectors(original[y], original[x]),
+        ac.subVectors(original[z], original[x])
+      );
+      const area = beforeNormal.length();
+      if (area < 1e-8) continue;
+      afterNormal.crossVectors(
+        ab.subVectors(points[y], points[x]),
+        ac.subVectors(points[z], points[x])
+      );
+      minArea = Math.min(minArea, afterNormal.length() / area);
+      minDot = Math.min(minDot, beforeNormal.normalize().dot(afterNormal.normalize()));
+    }
+  }
+  expect(footDelta).toBe(0);
+  expect(faceDelta).toBe(0);
+  expect(changes.leftEar).toBeGreaterThan(0.01);
+  expect(changes.rightEar).toBeGreaterThan(0.01);
+  expect(changes.breath).toBeGreaterThan(0.002);
+  expect(maxMove).toBeLessThan(0.04);
+  expect(normalError).toBeLessThan(1e-6);
+  expect(minArea).toBeGreaterThan(0.5);
+  expect(minDot).toBeGreaterThan(0.7);
+  motion.apply(0, 400);
+  for (const [k, v] of Object.entries(attributes))
+    expect(attributeValues(mesh.geometry.attributes[k])).toEqual(v);
+  expect(creaturePoints(b, 'SheepBody')).toEqual(other);
+  for (const [k, v] of Object.entries(attributes))
+    expect(attributeValues(borrowed.attributes[k])).toEqual(v);
+  const ownDispose = vi.spyOn(mesh.geometry, 'dispose'),
+    sourceDispose = vi.spyOn(borrowed, 'dispose');
+  motion.dispose();
+  motion.dispose();
+  motion.apply(10, 400);
+  expect(mesh.geometry).toBe(borrowed);
+  expect(ownDispose).toHaveBeenCalledOnce();
+  expect(sourceDispose).not.toHaveBeenCalled();
+  expect(createSheepRestMotion(new THREE.Group())).toBeNull();
+  vi.restoreAllMocks();
+});
+
+it('composes sheep rest with actual grazing and pet poses under a transformed parent, with exact neutral and culling protection', async () => {
+  const { RiggedCreatureModel } = await vi.importActual<
+    typeof import('./models/RiggedCreatureModel')
+  >('./models/RiggedCreatureModel');
+  const source = await actualCreature('sheep');
+  boundary.asset = { scene: source };
+  const cloned = vi.spyOn(source, 'clone');
+  const ref = React.createRef<import('./models/RiggedCreatureModel').CreatureRigHandle>();
+  const view = render(<RiggedCreatureModel creature="sheep" ref={ref} />),
+    model = cloned.mock.results[0].value as THREE.Group,
+    parent = new THREE.Group();
+  parent.position.set(15, 0.1, -8);
+  parent.rotation.y = 1.7;
+  parent.scale.setScalar(1.04);
+  parent.add(model);
+  const mesh = model.getObjectByName('SheepBody') as THREE.SkinnedMesh,
+    rest = creaturePoints(model, 'SheepBody');
+  for (const graze of [0, 0.55, 1]) {
+    ref.current!.setGraze(graze);
+    ref.current!.setHeadShake(0.1);
+    ref.current!.setStride(0, 0);
+    ref.current!.setResting!(0, 400);
+    const before = creaturePoints(model, 'SheepBody');
+    ref.current!.setResting!(4, 400);
+    const posed = creaturePoints(model, 'SheepBody');
+    ref.current!.setHeadShake(0.1);
+    ref.current!.setGraze(graze);
+    expect(creaturePoints(model, 'SheepBody')).toEqual(posed);
+    let protectedDelta = 0;
+    for (let i = 0; i < rest.length; i++) {
+      if (rest[i].y < 0.3 || rest[i].z > 0.49)
+        protectedDelta = Math.max(protectedDelta, before[i].distanceTo(posed[i]));
+      expect(
+        mesh.boundingSphere!.containsPoint(mesh.getVertexPosition(i, new THREE.Vector3()))
+      ).toBe(true);
+    }
+    expect(protectedDelta).toBe(0);
+    ref.current!.setResting!(0, 400);
+    expect(creaturePoints(model, 'SheepBody')).toEqual(before);
+  }
+  view.unmount();
+  expect(mesh.geometry).toBe((source.getObjectByName('SheepBody') as THREE.SkinnedMesh).geometry);
+  cloned.mockRestore();
+});

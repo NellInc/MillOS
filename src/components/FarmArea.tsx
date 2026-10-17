@@ -2441,6 +2441,7 @@ export const FarmArea: React.FC = () => {
   // four are placed around the barnyard rather than inside a paddock and have
   // no wander state, so a leg swing would be marching on the spot.
   const sheepGraze = useRef<number[]>(new Array(4).fill(0));
+  const sheepRestReset = useRef<(CreatureRigHandle | null)[]>(new Array(4).fill(null));
 
   // The horse is a single static animal, so it carries one handle rather than
   // an array, and grazes without a stride for the same reason the sheep do.
@@ -2528,6 +2529,10 @@ export const FarmArea: React.FC = () => {
     horseShakeState.current = 0;
     horseRigRef.current?.setResting?.(0, 500);
     horseRestReset.current = horseRigRef.current;
+    sheepRigRefs.forEach((ref, i) => {
+      ref.current?.setResting?.(0, 400 + i);
+      sheepRestReset.current[i] = ref.current;
+    });
   }, [
     reducedMotion,
     chickenRefs,
@@ -2613,6 +2618,12 @@ export const FarmArea: React.FC = () => {
     const { gameDay, gameTime, gameSpeed, weather, isTabVisible } =
       useGameSimulationStore.getState();
     if (reducedMotion) {
+      sheepRigRefs.forEach((ref, i) => {
+        if (ref.current && sheepRestReset.current[i] !== ref.current) {
+          ref.current.setResting?.(0, 400 + i);
+          sheepRestReset.current[i] = ref.current;
+        }
+      });
       // Suspense may fill the horse handle after the preference effect ran.
       if (horseRigRef.current && horseRestReset.current !== horseRigRef.current) {
         horseRigRef.current.setResting?.(0, 500);
@@ -2621,6 +2632,7 @@ export const FarmArea: React.FC = () => {
       return;
     }
     horseRestReset.current = null;
+    sheepRestReset.current.fill(null);
     if (!isTabVisible || gameSpeed <= 0) return;
 
     // Cap delta for tab-switch recovery (prevents large jumps after tab is inactive)
@@ -2822,6 +2834,7 @@ export const FarmArea: React.FC = () => {
         creatureForageWeight(time, 400 + i);
       sheepGraze.current[i] = THREE.MathUtils.lerp(sheepGraze.current[i], target, blend(0.08));
       rig.setGraze(sheepGraze.current[i]);
+      rig.setResting?.(time, 400 + i);
     });
 
     if (horseRigRef.current) {

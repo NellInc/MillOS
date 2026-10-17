@@ -132,6 +132,28 @@ export function sampleHorseRest(time: number, seed: number, out: HorseRestPose):
   return out;
 }
 
+export type SheepRestPose = Pick<HorseRestPose, 'breath' | 'leftEar' | 'rightEar'>;
+export const createSheepRestPose = (): SheepRestPose => ({ breath: 0, leftEar: 0, rightEar: 0 });
+
+/** Quiet flank breathing and separate ear attention, driven by admitted farm time. */
+export function sampleSheepRest(time: number, seed: number, out: SheepRestPose): SheepRestPose {
+  out.breath = out.leftEar = out.rightEar = 0;
+  if (!Number.isFinite(time) || time <= 0) return out;
+  const identity = Number.isFinite(seed) ? seed : 0;
+  const t = time * creatureCadence(identity);
+  const onset = Math.min(1, t / 0.7);
+  out.breath =
+    Math.sin((t * Math.PI * 2) / 3.9 + sampleAmbientSequence(identity, 71) * Math.PI * 2) *
+    onset *
+    onset *
+    (3 - 2 * onset);
+  const left = ((t % 13) - 2 - sampleAmbientSequence(identity, 72) * 3) / 1.1;
+  const right = ((t % 17) - 7 - sampleAmbientSequence(identity, 73) * 3) / 1.3;
+  if (left > 0 && left < 1) out.leftEar = Math.sin(left * Math.PI) ** 2;
+  if (right > 0 && right < 1) out.rightEar = Math.sin(right * Math.PI) ** 2;
+  return out;
+}
+
 /** Short swims and long dabbling stops, always within 0.4 m of the authored anchor. */
 export function duckSwimPose(time: number, seed: number) {
   const period = 44 + sampleAmbientSequence(seed, 51) * 18;

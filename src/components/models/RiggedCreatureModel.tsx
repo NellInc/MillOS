@@ -69,6 +69,7 @@ import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { useDracoGLTF } from '../../utils/dracoLoader';
 import { CREATURE_ASSET_PATHS, type CreatureId } from '../../utils/modelLoader';
 import ErrorBoundary from '../ErrorBoundary';
+import { createSheepRestMotion } from './sheepRestMotion';
 import {
   createHorseRestPose,
   sampleHorseRest,
@@ -856,7 +857,12 @@ export const RiggedCreatureModel = React.forwardRef<CreatureRigHandle, RiggedCre
       }
 
       const walking = createQuadrupedWalk(model, creature);
-      const resting = creature === 'horse' ? createHorseRestMotion(model) : null;
+      const resting =
+        creature === 'horse'
+          ? createHorseRestMotion(model)
+          : creature === 'sheep'
+            ? createSheepRestMotion(model)
+            : null;
       return {
         model,
         bones,
@@ -867,7 +873,7 @@ export const RiggedCreatureModel = React.forwardRef<CreatureRigHandle, RiggedCre
       };
     }, [scene, creature]);
 
-    // Only private palettes and horse/cow/pig geometry are owned here.
+    // Only private palettes and horse/sheep/cow/pig geometry are owned here.
     useEffect(
       () => () => {
         prepared.resting?.dispose();
