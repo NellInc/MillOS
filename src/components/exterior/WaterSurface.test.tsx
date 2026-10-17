@@ -4,9 +4,15 @@ import * as THREE from 'three';
 import {
   UnifiedWaterSurfaceMaterial,
   WaterAnimationManager,
-  WATER_RIPPLE_FINISH,
   WATER_SKY_RADIANCE,
 } from '../FactoryExterior';
+import {
+  WATER_PROFILES,
+  WATER_VISUAL_TIME,
+  WATER_WIND,
+  applyWaterRipples,
+  applyFountainFoam,
+} from '../../utils/waterAppearance';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 
 const driver = vi.hoisted(() => ({
@@ -50,6 +56,8 @@ beforeEach(() => {
   driver.reduced = false;
   driver.scene = new THREE.Scene();
   WATER_SKY_RADIANCE.value = 1;
+  WATER_VISUAL_TIME.value = 0;
+  WATER_WIND.value = 0.2;
   useGameSimulationStore.setState({
     gameDay: 1,
     gameTime: 12,
@@ -71,23 +79,23 @@ describe('authored exterior water material and atmosphere driver', () => {
     expect(water.side).toBe(THREE.DoubleSide);
     expect(water.fog).toBe(true);
     expect(water.vertexShader).toContain(
-      'displaced.z += vWave * 0.035 * windAmplitude * waveEnvelope'
+      'displaced.z += vWave * uWaveHeight * windAmplitude * waveEnvelope'
     );
     expect(water.fragmentShader).toContain('gl_FragColor = vec4(colour, 1.0)');
     expect(water.fragmentShader).toContain('#include <fog_fragment>');
-    expect(water.customProgramCacheKey()).toBe('millos-unified-water-v17');
+    expect(water.customProgramCacheKey()).toBe('millos-unified-water-v20');
     const dispose = vi.spyOn(water, 'dispose');
     for (const cleanup of driver.cleanups.splice(0)) cleanup();
     expect(dispose).toHaveBeenCalledOnce();
   });
 
-  it('spreads lake ripple directions while retaining canal flow alignment', () => {
+  it('counter-crosses the weaker ripples while keeping the main train along the flow', () => {
     const lake = material(true);
     const canal = material(false);
     const cross = (water: THREE.ShaderMaterial) =>
       water.uniforms.uRippleB.value.dot(water.uniforms.uRippleC.value);
     expect(cross(lake)).toBeLessThan(0);
-    expect(cross(canal)).toBeGreaterThan(0.7);
+    expect(cross(canal)).toBeLessThan(0);
     for (const water of [lake, canal]) {
       for (const name of ['uRippleA', 'uRippleB', 'uRippleC']) {
         expect(water.uniforms[name].value.length()).toBeCloseTo(1);
@@ -142,9 +150,11 @@ it('keeps falling-water detail opt-in and on the existing animation clock', () =
   const sheet = (
     UnifiedWaterSurfaceMaterial({ falling: true }) as ReactElement<{ object: THREE.ShaderMaterial }>
   ).props.object;
-  expect(ordinary.uniforms.uFalling.value).toBe(0);
-  expect(sheet.uniforms.uFalling.value).toBe(1);
+  expect(ordinary.uniforms.uFalling).toBeUndefined();
+  expect(sheet.uniforms.uFalling).toBeUndefined();
   expect(sheet.customProgramCacheKey()).toBe(ordinary.customProgramCacheKey());
+  expect(sheet.defines).toEqual({ MILLOS_FALLING_WATER: 1 });
+  expect(ordinary.defines).toEqual({});
   expect(sheet.fragmentShader).toContain('vWorldPosition.y * 12.0');
   WaterAnimationManager({});
   driver.frame?.();
@@ -160,18 +170,20 @@ it('uses both chain-rule terms for curved ripple reflections without adding text
 
 it('keeps sub-metre counter-crossed ripples bounded and filtered in the actual water material', () => {
   const water = material();
-  expect(water.uniforms.uRippleFinish).toBe(WATER_RIPPLE_FINISH);
-  expect(water.uniforms.uRefinedB.value.dot(water.uniforms.uRefinedC.value)).toBeLessThan(0);
-  for (const name of ['uRefinedB', 'uRefinedC']) {
+  expect(water.uniforms.uRippleFinish).toBeUndefined();
+  expect(water.fragmentShader).not.toContain('uRippleFinish');
+  expect(water.fragmentShader).not.toContain('uRefined');
+  expect(water.uniforms.uRippleB.value.dot(water.uniforms.uRippleC.value)).toBeLessThan(0);
+  for (const name of ['uRippleB', 'uRippleC']) {
     expect(water.uniforms[name].value.length()).toBeCloseTo(1);
   }
   const flow = water.uniforms.uFlowDirection.value as THREE.Vector2;
   expect(water.uniforms.uRippleA.value.dot(flow)).toBeGreaterThan(0.98);
-  expect(water.fragmentShader).toContain('mix(2.05, 7.30, uRippleFinish)');
-  expect(water.fragmentShader).toContain('mix(3.10, 11.70, uRippleFinish)');
+  expect(water.fragmentShader).toContain('const float frequencyA = 7.30');
+  expect(water.fragmentShader).toContain('const float frequencyB = 11.70');
   expect(water.fragmentShader).toContain('fwidth(phaseA), fwidth(phaseB), fwidth(phaseC)');
-  expect(water.fragmentShader).toContain('rippleFilter.x * mix(0.0180, 0.0048');
-  expect(water.fragmentShader).toContain('if (uFalling > 0.5)');
+  expect(water.fragmentShader).toContain('rippleFilter.x * 0.0048');
+  expect(water.fragmentShader).toContain('#ifdef MILLOS_FALLING_WATER');
   expect(Object.values(water.uniforms).some((u) => u.value?.isTexture)).toBe(false);
   expect((2 * Math.PI) / 7.3).toBeLessThan(1);
   expect((2 * Math.PI) / 11.7).toBeLessThan(0.6);
@@ -250,4 +262,85 @@ it('reflects the actual settled sky afterglow and its runtime isolation strength
   expect(water.fragmentShader).toContain('sunwardReflection');
   dome.geometry.dispose();
   sky.dispose();
+});
+
+it('delivers distinct calmness in the real material, with the canal quieter than the river', () => {
+  const waters = Object.keys(WATER_PROFILES).map((kind) => {
+    const key = kind as keyof typeof WATER_PROFILES;
+    const water = (
+      UnifiedWaterSurfaceMaterial({ kind: key }) as ReactElement<{ object: THREE.ShaderMaterial }>
+    ).props.object;
+    const profile = WATER_PROFILES[key];
+    expect(water.uniforms.uFlowSpeed.value).toBe(profile.speed);
+    expect(water.uniforms.uWaveHeight.value).toBe(profile.waveHeight);
+    expect(water.uniforms.uRippleStrength.value).toBe(profile.rippleStrength);
+    expect(water.uniforms.uRoughness.value).toBe(profile.roughness);
+    expect(water.uniforms.uShoreFoam.value).toBe(profile.shoreFoam);
+    return water;
+  });
+  for (const field of ['speed', 'waveHeight', 'rippleStrength'] as const) {
+    expect(WATER_PROFILES.canal[field]).toBeLessThan(WATER_PROFILES.river[field]);
+    expect(WATER_PROFILES.pond[field]).toBeLessThan(WATER_PROFILES.canal[field]);
+    expect(WATER_PROFILES.lake[field]).toBeLessThan(WATER_PROFILES.river[field]);
+  }
+  expect(WATER_PROFILES.pond.waveHeight).toBeLessThanOrEqual(0.001);
+  for (const key of ['canal', 'lake', 'pond'] as const)
+    expect(WATER_PROFILES[key].shoreFoam).toBe(0);
+  expect(waters[0].fragmentShader).toContain('0.02 + fresnel * 0.98');
+  expect(waters[0].fragmentShader).toContain('length(fwidth(slope))');
+});
+
+it('keeps retained water and froth in the standard lit pipeline without new samplers or emission', () => {
+  for (const apply of [applyWaterRipples, applyFountainFoam]) {
+    const host = new THREE.MeshStandardMaterial({ transparent: true, depthWrite: false });
+    apply(host);
+    const shader = {
+      uniforms: {},
+      vertexShader: THREE.ShaderLib.standard.vertexShader,
+      fragmentShader: THREE.ShaderLib.standard.fragmentShader,
+    } as THREE.WebGLProgramParametersWithUniforms;
+    host.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
+    expect(shader.fragmentShader).toContain('#include <lights_fragment_begin>');
+    // Reproduced in the native GPU compiler: GLSL uniforms and functions share a namespace.
+    expect(shader.fragmentShader).not.toMatch(/uniform\s+\w+\s+millosWaterSlope\b/);
+    expect(shader.fragmentShader).toContain('#include <fog_fragment>');
+    expect(shader.fragmentShader).toContain('#include <tonemapping_fragment>');
+    expect(host.transparent).toBe(true);
+    expect(host.depthWrite).toBe(false);
+    expect(host.metalness).toBe(0);
+    expect(host.emissive.getHex()).toBe(0);
+    expect(Object.values(shader.uniforms).some((u) => u.value?.isTexture)).toBe(false);
+    const key = host.customProgramCacheKey();
+    WATER_VISUAL_TIME.value += 1;
+    expect(host.customProgramCacheKey()).toBe(key);
+    host.dispose();
+  }
+});
+
+it('shares the live weather and paused visual phase with the retained water', () => {
+  material();
+  WaterAnimationManager({});
+  driver.frame!();
+  expect(WATER_VISUAL_TIME.value).toBe(driver.phase.current.time);
+  useGameSimulationStore.setState({ weather: 'storm' });
+  driver.frame!();
+  expect(WATER_WIND.value).toBeGreaterThan(0.2);
+});
+
+it('compiles shore foam only for water that actually carries it, preserving the weather field', () => {
+  for (const kind of Object.keys(WATER_PROFILES) as Array<keyof typeof WATER_PROFILES>) {
+    const water = (
+      UnifiedWaterSurfaceMaterial({ kind }) as ReactElement<{ object: THREE.ShaderMaterial }>
+    ).props.object;
+    expect(water.defines).toEqual(kind === 'river' ? { MILLOS_SHORE_FOAM: 1 } : {});
+    expect(water.fragmentShader).toContain('if (uPrecipitation > 0.0)');
+    expect(water.fragmentShader).toContain('sin(rainDistance * 46.0 - uTime * 2.1)');
+    expect(water.fragmentShader.indexOf('#ifdef MILLOS_SHORE_FOAM')).toBeLessThan(
+      water.fragmentShader.indexOf('float foamBand')
+    );
+    // Falling and reflection branches share the existing final lighting/fog.
+    expect(water.fragmentShader.indexOf('#ifdef MILLOS_FALLING_WATER')).toBeLessThan(
+      water.fragmentShader.indexOf('vec2 waterCoord')
+    );
+  }
 });

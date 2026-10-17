@@ -16,6 +16,7 @@ import { shouldRunThisFrame } from '../utils/frameThrottle';
 import { createColorDataTexture, createLinearDataTexture } from '../utils/textureGenerator';
 import { SceneText as Text } from './shared/SceneText';
 import * as THREE from 'three';
+import { applyWaterRipples, applyFountainFoam } from '../utils/waterAppearance';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import Fireflies from './effects/Fireflies';
@@ -173,6 +174,9 @@ stuccoNormalTex.wrapS = stuccoNormalTex.wrapT = THREE.RepeatWrapping;
 stuccoColorTex.repeat.set(2, 2);
 stuccoNormalTex.repeat.set(2, 2);
 
+const shelteredWaterMaterial = new THREE.MeshStandardMaterial({ color: '#345c60' });
+applyWaterRipples(shelteredWaterMaterial);
+
 const SM = {
   grass: OUTDOOR_MATERIALS.grass, // Use shared grass material for seamless matching
   stone: new THREE.MeshStandardMaterial({
@@ -259,7 +263,7 @@ const SM = {
   }),
   // Water is a DIELECTRIC. metalness 0.3 tinted the specular with the albedo
   // and drained the blue; the look lives in roughness and the environment.
-  water: new THREE.MeshStandardMaterial({ color: COLORS.water, roughness: 0.2, metalness: 0 }),
+  water: shelteredWaterMaterial,
   white: new THREE.MeshStandardMaterial({
     color: '#e8e8e8', // Slight tint for white stucco
     roughness: 0.75,
@@ -1720,22 +1724,8 @@ const DuckPondBasin = React.memo(() => (
     {/* Water pond - thin disc, its rim tucked under the kerb's lip. */}
     <mesh position={[0, 0.15, 0]}>
       <cylinderGeometry args={[5.5, 5.5, 0.08, 32]} />
-      <meshStandardMaterial
-        color="#3b82f6"
-        roughness={0.1}
-        // Water is a dielectric. At metalness 0.6 the pond was reflecting
-        // its own blue albedo as specular and reading as chalky enamel.
-        metalness={0}
-        // No polygonOffset. It carried -4/-4 to win against the flat annulus
-        // that used to be the shore, which itself carried -2/-2 against the
-        // cobbles. POND_SHORE is a solid bank now and its lip crosses over
-        // this disc with only 2.6 mm of clearance at r=5.5; a negative offset
-        // is applied along the view ray, so at the grazing angles you read a
-        // 14 m pond from it is worth centimetres of depth and would push the
-        // blue back out through the stone. Nothing here is coplanar with
-        // anything - the disc's wall intersects the cobble sheet at 0.12
-        // rather than lying on it - so no bias is needed in either direction.
-      />
+      {/* Opaque, lit, nearly still; the existing cylinder stays under its bank. */}
+      <primitive object={SM.water} attach="material" />
     </mesh>
   </group>
 ));
@@ -2097,6 +2087,11 @@ export function createFountainWaterTextures() {
 export const FOUNTAIN_WATER_TEXTURES = createFountainWaterTextures();
 const fountainWaterTexture = FOUNTAIN_WATER_TEXTURES.water;
 const fountainFallTexture = FOUNTAIN_WATER_TEXTURES.fall;
+// The new micro-relief and4Hz foam share this guarded visual clock.
+// At fountain speed0.7,2000PI wraps all three micro trains and foam seamlessly.
+// Working if pause/reduced holds preserve texture and shader phases together.
+const fountainWaterTime = { value: 0 };
+const FOUNTAIN_VISUAL_PERIOD = Math.PI * 2000;
 
 const fountainWaterMaterial = new THREE.MeshStandardMaterial({
   color: '#ffffff',
@@ -2109,6 +2104,8 @@ const fountainWaterMaterial = new THREE.MeshStandardMaterial({
   roughness: 0.15,
   metalness: 0, // dielectric - see the pond material
 });
+
+applyWaterRipples(fountainWaterMaterial, fountainWaterTime, 'fountain');
 
 // The fallback sheath represents water too; its highlights follow scene light.
 const fountainFallMaterial = new THREE.MeshStandardMaterial({
@@ -2316,6 +2313,7 @@ const FountainPrimitiveBody = React.memo(() => {
     const cappedDelta = pendingDelta.current;
     pendingDelta.current = 0;
     animationTime.current += cappedDelta;
+    fountainWaterTime.value = animationTime.current % FOUNTAIN_VISUAL_PERIOD;
 
     // Scroll water surface slowly; falling water streams downward fast
     fountainWaterTexture.offset.x += cappedDelta * 0.02;
@@ -2344,6 +2342,15 @@ const FountainPrimitiveBody = React.memo(() => {
       <mesh position={[0, 0.65, 0]} receiveShadow>
         <primitive object={FOUNTAIN_WATER} attach="geometry" />
         <primitive object={fountainWaterMaterial} attach="material" />
+      </mesh>
+      {/* Froth stays at the falling cone's actual landing radius. */}
+      <mesh
+        name="fountain-froth-primitive"
+        position={[0, 0.708, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+      >
+        <ringGeometry args={[0.38, 0.76, 32]} />
+        <primitive object={fallbackFountainFoamMaterial} attach="material" />
       </mesh>
       {/* Ripple ring - faint, expands outward from the column */}
       <mesh
@@ -2647,11 +2654,11 @@ export const GENERATED_FOUNTAIN_STREAM_GEOMETRY = mergeGeometries(streamParts)!;
 streamParts.forEach((geometry) => geometry.dispose());
 const landingParts = GENERATED_FOUNTAIN_STREAM_PATHS.map((curve) => {
   const point = curve.getPoint(1);
-  return new THREE.RingGeometry(0.045, 0.08, 20)
+  return new THREE.CircleGeometry(0.14, 24)
     .rotateX(-Math.PI / 2)
     .translate(point.x, 1.269, point.z);
 });
-const GENERATED_FOUNTAIN_LANDING_GEOMETRY = mergeGeometries(landingParts)!;
+export const GENERATED_FOUNTAIN_LANDING_GEOMETRY = mergeGeometries(landingParts)!;
 landingParts.forEach((geometry) => geometry.dispose());
 export const GENERATED_FOUNTAIN_STREAM_MATERIAL = new THREE.MeshStandardMaterial({
   color: '#ffffff',
@@ -2662,24 +2669,22 @@ export const GENERATED_FOUNTAIN_STREAM_MATERIAL = new THREE.MeshStandardMaterial
   metalness: 0,
   depthWrite: false,
 });
-const generatedFountainLandingMaterial = new THREE.MeshStandardMaterial({
-  color: '#ffffff',
-  map: FOUNTAIN_WATER_TEXTURES.ripple,
+export const GENERATED_FOUNTAIN_LANDING_MATERIAL = new THREE.MeshStandardMaterial({
+  color: '#c4dce5',
   transparent: true,
-  opacity: 0.32,
-  roughness: 0.25,
+  opacity: 0.82,
+  roughness: 0.65,
   depthWrite: false,
 });
 
-/**
- * Overlay material for the generated basin.
- *
- * Shares `fountainWaterTexture` with the primitive - one scroll drives both -
- * but at a third of the opacity, because this lies OVER a baked water surface
- * rather than standing in for one. At 0.85 it would replace the asset's own
- * water with a canvas texture, which is the swap running backwards.
- */
+applyFountainFoam(GENERATED_FOUNTAIN_LANDING_MATERIAL, fountainWaterTime);
+const fallbackFountainFoamMaterial = GENERATED_FOUNTAIN_LANDING_MATERIAL.clone();
+applyFountainFoam(fallbackFountainFoamMaterial, fountainWaterTime);
+
+// A normal-only water finish over the measured water annulus. The existing
+// 8 mm clearance stays fixed; there is no displacement into the baked pool.
 const generatedFountainWaterMaterial = new THREE.MeshStandardMaterial({
+  depthWrite: false,
   color: '#ffffff',
   map: fountainWaterTexture,
   normalMap: FOUNTAIN_WATER_TEXTURES.normal,
@@ -2688,17 +2693,15 @@ const generatedFountainWaterMaterial = new THREE.MeshStandardMaterial({
   opacity: 0.3,
   roughness: 0.15,
   metalness: 0,
-  depthWrite: false,
 });
+applyWaterRipples(generatedFountainWaterMaterial, fountainWaterTime, 'fountain');
 
 /**
- * The two animations the fountain swap cost, put back on the generated basin.
+ * The generated basin carries lit micro-relief, gravity streams and impact froth.
  *
- * The generated fountain is a single mesh carrying its own static water, so
- * unlike the windmill there is no rigid sub-assembly to drive - but neither
- * lost animation was ever geometry. One is a texture scroll and the other is a
- * ring that grows and fades, and both can be laid over the asset at its own
- * measured water height.
+ * The generated fountain is a single mesh carrying its own static water.
+ * Surface relief changes only the normals. Froth footprints and expanding
+ * ripples sit at the asset's measured water height and stay within the coping.
  *
  * Rendered INSIDE `GeneratedBoundary` rather than hoisted beside it, which is
  * the difference from `ChimneySmoke`: the primitive fountain still owns water
@@ -2722,11 +2725,12 @@ const GeneratedFountainWater: React.FC = () => {
     const cappedDelta = pendingDelta.current;
     pendingDelta.current = 0;
     animationTime.current += cappedDelta;
+    fountainWaterTime.value = animationTime.current % FOUNTAIN_VISUAL_PERIOD;
     fountainWaterTexture.offset.x += cappedDelta * 0.02;
     fountainWaterTexture.offset.y += cappedDelta * 0.035;
     FOUNTAIN_WATER_TEXTURES.normal.offset.copy(fountainWaterTexture.offset);
     fountainFallTexture.offset.x -= cappedDelta * 0.65;
-    generatedFountainLandingMaterial.opacity = 0.27 + Math.sin(animationTime.current * 3) * 0.06;
+    GENERATED_FOUNTAIN_LANDING_MATERIAL.opacity = 0.78 + Math.sin(animationTime.current * 3) * 0.06;
 
     if (rippleRef.current && rippleMaterialRef.current) {
       const phase = (animationTime.current * 0.35) % 1;
@@ -2756,7 +2760,7 @@ const GeneratedFountainWater: React.FC = () => {
         receiveShadow
         geometry={GENERATED_FOUNTAIN_LANDING_GEOMETRY}
       >
-        <primitive object={generatedFountainLandingMaterial} attach="material" />
+        <primitive object={GENERATED_FOUNTAIN_LANDING_MATERIAL} attach="material" />
       </mesh>
       {/* Sheet over the asset's own water. 8 mm proud: enough to win the depth
           test at every angle this square is read from, far too little to read

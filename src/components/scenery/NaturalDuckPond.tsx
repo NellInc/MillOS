@@ -1,14 +1,15 @@
 import { useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { WATER_MICRO_NORMAL_GLSL, WATER_PROFILES, WATER_WIND } from '../../utils/waterAppearance';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useDracoGLTF } from '../../utils/dracoLoader';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { GENERATED_ASSET_PATHS } from '../../utils/modelLoader';
 
-/** All visual time frequencies are multiples of .01, giving a seamless wrap. */
-export const POND_VISUAL_PERIOD = Math.PI * 200;
-export const POND_CROSS_RIPPLE_STRENGTH = { value: 1 };
+/** At pond speed0.025,8000PI gives63,162,109cycles for the actual micro trains.
+ * Working if the existing pause/wrap test verifies each actual shader frequency. */
+export const POND_VISUAL_PERIOD = Math.PI * 8000;
 
 /** The authored atlas reserves strongly blue texels for the level water disc.
  * Shade those texels in place so brickwork, limestone and reeds share one draw
@@ -18,16 +19,19 @@ export const POND_CROSS_RIPPLE_STRENGTH = { value: 1 };
 export function applyPondWater(material: THREE.MeshStandardMaterial, time: { value: number }) {
   material.onBeforeCompile = (shader) => {
     shader.uniforms.pondTime = time;
-    shader.uniforms.pondCrossRippleStrength = POND_CROSS_RIPPLE_STRENGTH;
+    shader.uniforms.pondWind = WATER_WIND;
+    shader.uniforms.pondSpeed = { value: WATER_PROFILES.pond.speed };
+    shader.uniforms.pondSlope = { value: WATER_PROFILES.pond.rippleStrength };
+    shader.uniforms.pondRoughness = { value: WATER_PROFILES.pond.roughness };
     shader.uniforms.pondDeep = { value: new THREE.Color('#345c60') };
     shader.uniforms.pondShallow = { value: new THREE.Color('#5b7861') };
     shader.vertexShader =
-      `varying vec3 vPondPosition;\nvarying vec3 vPondUp;\n${shader.vertexShader}`.replace(
+      `varying vec3 vPondPosition;\nvarying vec3 vPondUp;\nvarying vec3 vPondWorldPosition;\n${shader.vertexShader}`.replace(
         '#include <begin_vertex>',
-        '#include <begin_vertex>\nvPondPosition = position;\nvPondUp = normalMatrix * vec3(0.0, 1.0, 0.0);'
+        '#include <begin_vertex>\nvPondPosition = position;\nvPondWorldPosition = (modelMatrix * vec4(position, 1.0)).xyz;\nvPondUp = normalMatrix * vec3(0.0, 1.0, 0.0);'
       );
     shader.fragmentShader =
-      `varying vec3 vPondPosition;\nvarying vec3 vPondUp;\nuniform float pondTime;\nuniform float pondCrossRippleStrength;\nuniform vec3 pondDeep;\nuniform vec3 pondShallow;\n${shader.fragmentShader}`
+      `varying vec3 vPondPosition;\nvarying vec3 vPondUp;\nvarying vec3 vPondWorldPosition;\nuniform float pondTime;\nuniform float pondWind;\nuniform float pondSpeed;\nuniform float pondSlope;\nuniform float pondRoughness;\nuniform vec3 pondDeep;\nuniform vec3 pondShallow;\n${WATER_MICRO_NORMAL_GLSL}\n${shader.fragmentShader}`
         .replace(
           '#include <map_fragment>',
           `#include <map_fragment>
@@ -41,7 +45,7 @@ export function applyPondWater(material: THREE.MeshStandardMaterial, time: { val
         )
         .replace(
           '#include <roughnessmap_fragment>',
-          '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.24, pondWater);'
+          '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, pondRoughness, pondWater);'
         )
         .replace(
           '#include <metalnessmap_fragment>',
@@ -50,23 +54,15 @@ export function applyPondWater(material: THREE.MeshStandardMaterial, time: { val
         .replace(
           '#include <normal_fragment_maps>',
           `#include <normal_fragment_maps>
-        // Small, curved reflection ripples; no displacement across the bank.
-        float pondPhase = vPondPosition.x * 2.05 + vPondPosition.z * 1.35
-          + sin(vPondPosition.z * 0.8 + pondTime * 0.12);
-        vec3 pondRipple = vec3(cos(pondPhase + pondTime * 0.2) * 0.025,
-          0.0, sin(pondPhase * 1.5 - pondTime * 0.13) * 0.018);
-        // A weaker crossing train breaks the comb-like parallel reflections.
-        // No displacement or emissive term, and the bank stays on the same mask.
-        float pondCross = clamp(pondCrossRippleStrength, 0.0, 1.0);
-        pondRipple.x += sin(vPondPosition.z * 1.65 - vPondPosition.x * 0.72
-          + pondTime * 0.11) * 0.014 * pondCross;
-        pondRipple.z += cos(vPondPosition.x * 1.3 + vPondPosition.z * 0.95
-          - pondTime * 0.17) * 0.010 * pondCross;
-        vec3 pondNormal = normalize(vPondUp + mat3(viewMatrix) * pondRipple);
+        // Almost still: the same filtered micro-relief as the other water,
+        // with the pond's sheltered slope and speed. No bank displacement.
+        vec2 pondSlopeValue = millosWaterSlope(vPondWorldPosition.xz, pondTime * pondSpeed,
+          pondSlope * mix(0.7, 1.25, clamp(pondWind, 0.0, 1.0)));
+        vec3 pondNormal = normalize(vPondUp + mat3(viewMatrix) * vec3(pondSlopeValue.x, 0.0, pondSlopeValue.y));
         normal = normalize(mix(normal, pondNormal, pondWater));`
         );
   };
-  material.customProgramCacheKey = () => 'millos-retained-pond-water-v2';
+  material.customProgramCacheKey = () => 'millos-retained-pond-water-v3';
 }
 
 export function NaturalDuckPond() {

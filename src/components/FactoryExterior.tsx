@@ -6,6 +6,12 @@ import { useShallow } from 'zustand/react/shallow';
 import { SceneText as Text } from './shared/SceneText';
 import { useFrame, useThree, ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
+import {
+  WATER_PROFILES,
+  WATER_VISUAL_TIME,
+  WATER_WIND,
+  type WaterKind,
+} from '../utils/waterAppearance';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useGraphicsStore } from '../stores/graphicsStore';
 import { useReducedMotion } from '../hooks/useReducedMotion';
@@ -1056,8 +1062,6 @@ const WATER_COLORS = {
 // deleting its own equivalent disc.
 
 const waterMaterials = new Set<THREE.ShaderMaterial>();
-/** Shared same-page control; zero restores the retained broad-wave finish. */
-export const WATER_RIPPLE_FINISH = { value: 1 };
 /** One paired control for the real sky palette and single-count reflection radiance. */
 export const WATER_SKY_RADIANCE = { value: 1 };
 const DEFAULT_WATER_FLOW = [0.25, 1] as const;
@@ -1128,6 +1132,8 @@ export const WaterAnimationManager: React.FC = () => {
       if (horizon instanceof THREE.Color) _waterHorizon.lerp(horizon, WATER_SKY_RADIANCE.value);
     }
 
+    WATER_VISUAL_TIME.value = phase.current.time;
+    WATER_WIND.value = atmosphere.wind;
     waterMaterials.forEach((material) => {
       const uniforms = material.uniforms;
       uniforms.uTime.value = phase.current.time;
@@ -1159,6 +1165,7 @@ export const WaterAnimationManager: React.FC = () => {
 };
 
 interface UnifiedWaterSurfaceMaterialProps {
+  kind?: WaterKind;
   deep?: string;
   shallow?: string;
   reflection?: string;
@@ -1179,16 +1186,19 @@ interface UnifiedWaterSurfaceMaterialProps {
 }
 
 export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialProps> = ({
+  kind = 'lake',
   deep = '#153747',
   shallow = '#3f7f8c',
   reflection = '#b9dce3',
-  flowSpeed = 0.25,
+  flowSpeed,
   flowDirection = DEFAULT_WATER_FLOW,
   opacity = 0.88,
   radial = false,
   crossOnly = false,
   falling = false,
 }) => {
+  const profile = WATER_PROFILES[kind];
+  const speed = flowSpeed ?? profile.speed;
   const flowX = flowDirection[0];
   const flowY = flowDirection[1];
   const material = useMemo(() => {
@@ -1200,21 +1210,22 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
     // used to be `normalize()`d once PER FRAGMENT; hoisting them to uniforms is
     // bit-identical output for three fewer inverse square roots per pixel.
     const rippleA = crossFlow.clone().multiplyScalar(0.16).add(direction).normalize();
-    const rippleB = crossFlow
-      .clone()
-      .multiplyScalar(radial ? -1.15 : -0.31)
-      .add(direction)
-      .normalize();
-    const rippleC = crossFlow
-      .clone()
-      .multiplyScalar(radial ? 1.35 : 0.48)
-      .add(direction)
-      .normalize();
+    // Counter-cross the weaker trains so calm water avoids parallel bands.
+    const rippleB = crossFlow.clone().multiplyScalar(-0.85).add(direction).normalize();
+    const rippleC = crossFlow.clone().multiplyScalar(1.35).add(direction).normalize();
     const value = new THREE.ShaderMaterial({
       name: 'MillOS Unified Water Surface',
+      // These are authored, immutable material properties. Compile out work
+      // whose result is always zero or replaced by the falling-sheet finish.
+      // Working if sheltered water has no foam path and the weir has no sky
+      // reflection path, with identical pixels at the same phase and weather.
+      defines: falling
+        ? { MILLOS_FALLING_WATER: 1 }
+        : profile.shoreFoam > 0
+          ? { MILLOS_SHORE_FOAM: 1 }
+          : {},
       uniforms: {
         uTime: { value: 0 },
-        uFalling: { value: falling ? 1 : 0 },
         uDeep: { value: new THREE.Color(deep) },
         uShallow: { value: new THREE.Color(shallow) },
         uReflection: { value: new THREE.Color(reflection) },
@@ -1223,13 +1234,12 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
         uRippleA: { value: rippleA },
         uRippleB: { value: rippleB },
         uRippleC: { value: rippleC },
-        uRippleFinish: WATER_RIPPLE_FINISH,
         uSkyRadiance: WATER_SKY_RADIANCE,
-        // Keep the main train along the flow; counter-cross the weaker trains
-        // so calm water does not become a sheet of parallel reflective bands.
-        uRefinedB: { value: crossFlow.clone().multiplyScalar(-0.85).add(direction).normalize() },
-        uRefinedC: { value: crossFlow.clone().multiplyScalar(1.35).add(direction).normalize() },
-        uFlowSpeed: { value: flowSpeed },
+        uFlowSpeed: { value: speed },
+        uWaveHeight: { value: profile.waveHeight },
+        uRippleStrength: { value: profile.rippleStrength },
+        uRoughness: { value: profile.roughness },
+        uShoreFoam: { value: profile.shoreFoam },
         uOpacity: { value: opacity },
         uRadial: { value: radial ? 1 : 0 },
         uCrossOnly: { value: crossOnly ? 1 : 0 },
@@ -1252,6 +1262,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
         uniform vec2 uCrossFlow;
         uniform float uFlowSpeed;
         uniform float uWind;
+        uniform float uWaveHeight;
         uniform float uRadial;
         uniform float uCrossOnly;
         varying vec2 vUv;
@@ -1276,9 +1287,9 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
           // Hold the shoreline at its authored datum. Only the interior swell
           // moves, so a lower, uneven bank never exposes a flashing gap.
           float waveEnvelope = smoothstep(0.0, 0.12, edge);
-          vec2 heightDerivative = waveDerivative * 0.0175 * windAmplitude * waveEnvelope;
+          vec2 heightDerivative = waveDerivative * (uWaveHeight * 0.5) * windAmplitude * waveEnvelope;
           vec3 displaced = position;
-          displaced.z += vWave * 0.035 * windAmplitude * waveEnvelope;
+          displaced.z += vWave * uWaveHeight * windAmplitude * waveEnvelope;
           vec3 localNormal = normalize(vec3(-heightDerivative.x, -heightDerivative.y, 1.0));
           vWorldNormal = normalize(mat3(modelMatrix) * localNormal);
           vWorldPosition = (modelMatrix * vec4(displaced, 1.0)).xyz;
@@ -1289,16 +1300,15 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
       `,
       fragmentShader: `
         #include <fog_pars_fragment>
-        uniform float uFalling;
         uniform vec3 uDeep;
         uniform vec3 uShallow;
         uniform vec3 uReflection;
         uniform vec2 uRippleA;
         uniform vec2 uRippleB;
         uniform vec2 uRippleC;
-        uniform vec2 uRefinedB;
-        uniform vec2 uRefinedC;
-        uniform float uRippleFinish;
+        uniform float uRippleStrength;
+        uniform float uRoughness;
+        uniform float uShoreFoam;
         uniform float uSkyRadiance;
         uniform float uTime;
         uniform float uFlowSpeed;
@@ -1319,6 +1329,36 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
         varying vec3 vWorldPosition;
         varying vec3 vWorldNormal;
         void main() {
+          // Shade the water body once, before adding incident sky radiance.
+          // Previously a final daylight multiplier also darkened the already
+          // night-coloured reflection, making lit sky reflect as a black hole.
+          float illumination = mix(0.14, 1.0,
+            clamp(uDaylight * (1.0 + uWetness * 0.08), 0.0, 1.0));
+          float bodyLight = mix(1.0, illumination, uSkyRadiance);
+          vec3 colour;
+          #ifdef MILLOS_FALLING_WATER
+          // A vertical weir has no useful XZ phase gradient down its face.
+          // Thin falling ribbons in XY, with downward-travelling breakup,
+          // give it readable motion using the existing clock and one draw.
+          float fallY = vWorldPosition.y * 3.4 + uTime * 2.2;
+          float seam = vWorldPosition.x * 12.0
+            + sin(vWorldPosition.x * 2.7) * 3.4
+            + sin(vWorldPosition.x * 7.1) * 1.3;
+          float curl = sin(fallY + sin(vWorldPosition.x * 3.0)) * 1.5
+            + sin(fallY * 2.31 - vWorldPosition.x * 1.7) * 0.55;
+          float stream = 0.5 + 0.5 * sin(seam + curl);
+          float thread = 0.5 + 0.5 * sin(vWorldPosition.x * 41.3
+            + sin(fallY * 3.1 + vWorldPosition.x * 4.7) * 2.4);
+          float pulse = 0.5 + 0.5 * sin(vWorldPosition.y * 12.0
+            + uTime * 9.0 + vWorldPosition.x * 4.0);
+          float brokenFoam = smoothstep(0.70, 0.98,
+            stream * 0.5 + thread * 0.22 + pulse * 0.28);
+          float landing = 1.0 - smoothstep(0.0, 0.18, vUv.y);
+          colour = mix(uDeep, uShallow, 0.22 + 0.45 * stream);
+          colour = mix(colour, uReflection,
+            brokenFoam * 0.7 + landing * (0.12 + pulse * 0.12));
+          colour *= bodyLight;
+          #else
           vec2 centred = vUv * 2.0 - 1.0;
 
           // Three travelling wave trains in world space. UV-scaled phases
@@ -1327,17 +1367,16 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
           // ponds. World-space wavelengths stay physically consistent and
           // continue seamlessly between neighbouring water meshes.
           vec2 waterCoord = vWorldPosition.xz;
-          // Sub-metre chop, rather than the old 2-5 metre ripple trains.
-          // The legacy arm is retained in one uniform for paired native review.
+          // The accepted sub-metre finish is the production path.
           // Working if water keeps a quiet sheen without long parallel bands,
           // and distant crests fade instead of turning into sparkling aliases.
-          vec2 axisB = mix(uRippleB, uRefinedB, uRippleFinish);
-          vec2 axisC = mix(uRippleC, uRefinedC, uRippleFinish);
-          float frequencyA = mix(2.05, 7.30, uRippleFinish);
-          float frequencyB = mix(3.10, 11.70, uRippleFinish);
-          float frequencyC = mix(1.35, 4.90, uRippleFinish);
-          float bendC = mix(1.15, 0.85, uRippleFinish);
-          float bendA = mix(0.48, 0.35, uRippleFinish);
+          vec2 axisB = uRippleB;
+          vec2 axisC = uRippleC;
+          const float frequencyA = 7.30;
+          const float frequencyB = 11.70;
+          const float frequencyC = 4.90;
+          const float bendC = 0.85;
+          const float bendA = 0.35;
           float phaseC = dot(waterCoord, axisC) * frequencyC + uTime * uFlowSpeed * 0.63;
           float rawC = cos(phaseC);
           float phaseA = dot(waterCoord, uRippleA) * frequencyA + uTime * uFlowSpeed * 1.62
@@ -1347,18 +1386,22 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
             - uTime * uFlowSpeed * 1.09 + rawA * bendA;
           // Screen derivatives filter only the finish, never its world phase.
           // Neighbouring segments keep continuous waves regardless of UV size.
-          vec3 rippleFilter = mix(vec3(1.0),
-            1.0 - smoothstep(vec3(0.70), vec3(2.40),
-              vec3(fwidth(phaseA), fwidth(phaseB), fwidth(phaseC))), uRippleFinish);
+          vec3 rippleFilter = 1.0 - smoothstep(vec3(0.70), vec3(2.40),
+            vec3(fwidth(phaseA), fwidth(phaseB), fwidth(phaseC)));
           float rippleA = rawA * rippleFilter.x;
           float rippleB = sin(phaseB) * rippleFilter.y;
           float rippleC = rawC * rippleFilter.z;
-          vec2 rainTile = fract(vWorldPosition.xz * 0.19) - 0.5;
-          float rainDistance = length(rainTile);
-          float rainRipple =
-            sin(rainDistance * 46.0 - uTime * 2.1) *
-            (1.0 - smoothstep(0.08, 0.5, rainDistance)) *
-            uPrecipitation;
+          // Weather is uniform across the draw. Dry frames can skip the
+          // ring field; wet frames retain the exact phase and amplitude.
+          float rainRipple = 0.0;
+          if (uPrecipitation > 0.0) {
+            vec2 rainTile = fract(vWorldPosition.xz * 0.19) - 0.5;
+            float rainDistance = length(rainTile);
+            rainRipple =
+              sin(rainDistance * 46.0 - uTime * 2.1) *
+              (1.0 - smoothstep(0.08, 0.5, rainDistance)) *
+              uPrecipitation;
+          }
           float ripples =
             rippleA * 0.54 +
             rippleB * 0.26 +
@@ -1378,14 +1421,8 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
           float linearEdge = mix(boxEdge, crossEdge, uCrossOnly);
           float radialEdge = 1.0 - length(centred);
           float edge = max(mix(linearEdge, radialEdge, uRadial), 0.0);
-          float depth = clamp(smoothstep(0.0, 0.34, edge) + ripples * 0.045, 0.0, 1.0);
-          // Shade the water body once, before adding incident sky radiance.
-          // Previously a final daylight multiplier also darkened the already
-          // night-coloured reflection, making lit sky reflect as a black hole.
-          float illumination = mix(0.14, 1.0,
-            clamp(uDaylight * (1.0 + uWetness * 0.08), 0.0, 1.0));
-          float bodyLight = mix(1.0, illumination, uSkyRadiance);
-          vec3 colour = mix(uShallow, uDeep, depth) * bodyLight;
+          float depth = clamp(smoothstep(0.0, 0.34, edge) + ripples * 0.012 * uRippleStrength, 0.0, 1.0);
+          colour = mix(uShallow, uDeep, depth) * bodyLight;
 
           // Micro-relief from the analytic derivatives of the same three wave
           // trains. The vertex stage carries the long swell; this is the
@@ -1397,15 +1434,15 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
           vec2 gradientC = -sin(phaseC) * frequencyC * axisC;
           vec2 gradientA = cos(phaseA) * (frequencyA * uRippleA + gradientC * bendC);
           vec2 gradientB = cos(phaseB) * (frequencyB * axisB + gradientA * bendA);
-          vec2 slope = gradientA * rippleFilter.x * mix(0.0180, 0.0048, uRippleFinish)
-            + gradientB * rippleFilter.y * mix(0.0085, 0.0015, uRippleFinish)
-            + gradientC * rippleFilter.z * mix(0.0140, 0.0028, uRippleFinish);
-          vec3 normal = normalize(
-            vWorldNormal + vec3(slope.x + rainRipple * 0.018, 0.0, slope.y - rainRipple * 0.018)
-          );
+          vec2 slope = gradientA * rippleFilter.x * 0.0048
+            + gradientB * rippleFilter.y * 0.0015
+            + gradientC * rippleFilter.z * 0.0028;
+          slope *= uRippleStrength;
+          float rainSlope = rainRipple * (0.003 + uRippleStrength * 0.015);
+          vec3 normal = normalize(vWorldNormal + vec3(slope.x + rainSlope, 0.0, slope.y - rainSlope));
 
           vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
-          float fresnel = pow(1.0 - max(dot(normal, viewDirection), 0.0), 4.0);
+          float fresnel = pow(1.0 - max(dot(normal, viewDirection), 0.0), 5.0);
 
           // Reflection without a render target: bounce the view ray off the
           // perturbed normal and read a two-stop analytic sky whose colours are
@@ -1435,7 +1472,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
           skyColour = mix(skyColour, uSkyHorizon * 0.85 + uSkyZenith * 0.15,
             cloudReflection * 0.2 * (0.3 + 0.7 * uDaylight));
           vec3 reflectionColour = mix(uReflection * mix(0.08, 1.0, uDaylight), skyColour, 0.75);
-          float reflectance = clamp(0.045 + fresnel * 0.76, 0.0, 0.85);
+          float reflectance = clamp(0.02 + fresnel * 0.98, 0.02, 0.95);
           colour = mix(colour, reflectionColour, reflectance);
 
           // Specular sun: a tight glitter lobe plus a broad sheen. Both are
@@ -1443,16 +1480,20 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
           // <tonemapping_fragment>), so they roll off on the no-composer path
           // instead of clipping to a flat white blob.
           float sunAlignment = max(dot(reflected, uSunDirection), 0.0);
-          float glitter = pow(sunAlignment, 160.0) * 1.6 + pow(sunAlignment, 24.0) * 0.10;
+          // Broaden unresolved highlights instead of flashing sub-pixel glitter.
+          // The same sky/sun radiance still passes through scene tone mapping.
+          float roughness = clamp(uRoughness + length(fwidth(slope)) * 0.5, 0.045, 0.45);
+          float sunPower = min(1024.0, 2.0 / (roughness * roughness) - 2.0);
+          float glitter = pow(sunAlignment, sunPower) * 0.9 + pow(sunAlignment, 24.0) * 0.035;
           colour += uSunColour * glitter * uDaylight;
 
           float crestSignal = rippleA * 0.7 + rippleB * 0.22 + rippleC * 0.08;
           float crest = smoothstep(0.78, 1.0, crestSignal);
-          colour = mix(colour, uReflection * bodyLight, crest * mix(0.025 + 0.035 * uDaylight, 0.010 + 0.015 * uDaylight, uRippleFinish));
+          colour = mix(colour, uReflection * bodyLight, crest * uRippleStrength * (0.010 + 0.015 * uDaylight));
 
-          // Sheltered water has occasional gathered foam, never a white
-          // contour around the whole pond. World-space pockets also keep
-          // adjoining canal segments continuous without extra texture taps.
+          #ifdef MILLOS_SHORE_FOAM
+          // The river alone carries gathered shore foam. World-space pockets
+          // keep neighbouring segments continuous without texture taps.
           float swell = sin(uTime * uFlowSpeed * 0.9 + crestSignal * 1.7) * 0.5 + 0.5;
           float foamBand = 1.0 - smoothstep(0.0, 0.018 + swell * 0.012, edge);
           float foamPocket = smoothstep(0.28, 0.72,
@@ -1460,36 +1501,15 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
             cos(waterCoord.y * 0.63 - waterCoord.x * 0.19));
           float lace = smoothstep(0.45, 1.0, foamBand) * (0.55 + 0.45 * rippleB);
           vec3 foamColour = mix(vec3(0.36, 0.46, 0.44), uReflection, 0.20) * bodyLight;
-          colour = mix(colour, foamColour, foamPocket * (foamBand * 0.15 + lace * 0.12));
+          colour = mix(colour, foamColour, uShoreFoam * foamPocket * (foamBand * 0.15 + lace * 0.12));
+          #endif
 
           // Damp margin so the bank mesh and the water meet on a wet
           // transition rather than a cut edge.
           float shore = smoothstep(0.0, 0.012, edge);
           colour = mix(vec3(0.16, 0.26, 0.26) * bodyLight, colour, shore);
 
-          // A vertical weir has no useful XZ phase gradient down its face.
-          // Thin falling ribbons in XY, with downward-travelling breakup,
-          // give it readable motion using the existing clock and one draw.
-          if (uFalling > 0.5) {
-            float fallY = vWorldPosition.y * 3.4 + uTime * 2.2;
-            float seam = vWorldPosition.x * 12.0
-              + sin(vWorldPosition.x * 2.7) * 3.4
-              + sin(vWorldPosition.x * 7.1) * 1.3;
-            float curl = sin(fallY + sin(vWorldPosition.x * 3.0)) * 1.5
-              + sin(fallY * 2.31 - vWorldPosition.x * 1.7) * 0.55;
-            float stream = 0.5 + 0.5 * sin(seam + curl);
-            float thread = 0.5 + 0.5 * sin(vWorldPosition.x * 41.3
-              + sin(fallY * 3.1 + vWorldPosition.x * 4.7) * 2.4);
-            float pulse = 0.5 + 0.5 * sin(vWorldPosition.y * 12.0
-              + uTime * 9.0 + vWorldPosition.x * 4.0);
-            float brokenFoam = smoothstep(0.70, 0.98,
-              stream * 0.5 + thread * 0.22 + pulse * 0.28);
-            float landing = 1.0 - smoothstep(0.0, 0.18, vUv.y);
-            colour = mix(uDeep, uShallow, 0.22 + 0.45 * stream);
-            colour = mix(colour, uReflection,
-              brokenFoam * 0.7 + landing * (0.12 + pulse * 0.12));
-            colour *= bodyLight;
-          }
+          #endif
           colour = mix(uDeep * 0.92 * bodyLight, colour, clamp(uOpacity, 0.0, 1.0));
           // The zero control restores the old double-attenuated reflection.
           // In the finish arm, only the body/foam receive this illumination.
@@ -1516,9 +1536,21 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
     // MANUALLY VERSIONED, never derived from time or randomness - see the
     // documented `Date.now()` cache-key bug. Bump this whenever the shader
     // source above changes or a stale cached program will be reused.
-    value.customProgramCacheKey = () => 'millos-unified-water-v17';
+    value.customProgramCacheKey = () => 'millos-unified-water-v20';
     return value;
-  }, [crossOnly, deep, falling, flowSpeed, flowX, flowY, opacity, radial, reflection, shallow]);
+  }, [
+    crossOnly,
+    deep,
+    falling,
+    speed,
+    profile,
+    flowX,
+    flowY,
+    opacity,
+    radial,
+    reflection,
+    shallow,
+  ]);
 
   useEffect(() => {
     waterMaterials.add(material);
@@ -1531,7 +1563,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
   return <primitive object={material} attach="material" />;
 };
 
-// Still canal water surface - shiny reflective without animation
+// Sheltered canal surface: almost level, with slow, fine reflection ripples.
 const StillCanalWater: React.FC<{
   width: number;
   length: number;
@@ -1563,7 +1595,7 @@ const StillCanalWater: React.FC<{
           deep={WATER_COLORS.deep}
           shallow={WATER_COLORS.shallow}
           reflection="#86aeb5"
-          flowSpeed={0.12}
+          kind="canal"
           opacity={0.9}
           crossOnly
         />
@@ -1753,7 +1785,7 @@ function CanalRiverOutlet() {
           deep={WATER_COLORS.deep}
           shallow={WATER_COLORS.shallow}
           reflection="#86aeb5"
-          flowSpeed={0.2}
+          kind="canal"
           flowDirection={[1, 0]}
           crossOnly
         />
@@ -1769,6 +1801,7 @@ function CanalRiverOutlet() {
           deep="#2e5962"
           shallow="#6999a1"
           reflection="#d2e3dc"
+          kind="river"
           flowSpeed={0.9}
           flowDirection={[0, -1]}
           falling
@@ -2135,7 +2168,7 @@ const Lake: React.FC<{
           deep="#143b48"
           shallow="#4a8790"
           reflection="#c4e0e4"
-          flowSpeed={0.1}
+          kind="lake"
           opacity={0.85}
           radial
         />
@@ -2322,7 +2355,7 @@ const River: React.FC = React.memo(() => {
           deep="#123746"
           shallow="#3b7d8a"
           reflection="#c0e1e6"
-          flowSpeed={0.504}
+          kind="river"
           flowDirection={[1, 0.16]}
           opacity={0.9}
           crossOnly
@@ -2691,7 +2724,7 @@ const Pond: React.FC<{
           deep="#183f4b"
           shallow="#4c8990"
           reflection="#c6e2e2"
-          flowSpeed={0.08}
+          kind="pond"
           opacity={0.9}
           radial
         />

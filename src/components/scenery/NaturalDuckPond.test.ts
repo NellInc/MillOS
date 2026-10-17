@@ -1,13 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactElement } from 'react';
 import * as THREE from 'three';
+import { WATER_PROFILES } from '../../utils/waterAppearance';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
-import {
-  applyPondWater,
-  NaturalDuckPond,
-  POND_VISUAL_PERIOD,
-  POND_CROSS_RIPPLE_STRENGTH,
-} from './NaturalDuckPond';
+import { applyPondWater, NaturalDuckPond, POND_VISUAL_PERIOD } from './NaturalDuckPond';
 
 const driver = vi.hoisted(() => ({
   scene: null as THREE.Scene | null,
@@ -81,15 +77,22 @@ describe('authored pond water finish', () => {
     } as Parameters<typeof material.onBeforeCompile>[0];
     material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
     expect(shader.uniforms.pondTime).toBe(time);
-    expect(shader.uniforms.pondCrossRippleStrength).toBe(POND_CROSS_RIPPLE_STRENGTH);
-    const frequencies = [...shader.fragmentShader.matchAll(/pondTime \* (0\.\d+)/g)].map((match) =>
+    const frequencies = [...shader.fragmentShader.matchAll(/\bt \* (\d+\.\d+)/g)].map((match) =>
       Number(match[1])
     );
-    expect(frequencies.length).toBeGreaterThanOrEqual(5);
-    for (const f of frequencies)
-      expect(Math.cos(f * (POND_VISUAL_PERIOD + 2))).toBeCloseTo(Math.cos(f * 2), 10);
+    expect(frequencies).toEqual([0.63, 1.62, 1.09]);
+    for (const f of frequencies) {
+      const speed = WATER_PROFILES.pond.speed;
+      expect(Math.cos(f * speed * (POND_VISUAL_PERIOD + 2))).toBeCloseTo(
+        Math.cos(f * speed * 2),
+        10
+      );
+    }
     expect(material.map).toBe(map);
-    expect(shader.fragmentShader).toContain('roughnessFactor, 0.24, pondWater');
+    expect(shader.uniforms.pondSlope.value).toBe(WATER_PROFILES.pond.rippleStrength);
+    expect(shader.uniforms.pondSpeed.value).toBe(WATER_PROFILES.pond.speed);
+    expect(shader.uniforms.pondRoughness.value).toBe(WATER_PROFILES.pond.roughness);
+    expect(shader.fragmentShader).toContain('roughnessFactor, pondRoughness, pondWater');
     expect(shader.fragmentShader).toContain(
       'normal = normalize(mix(normal, pondNormal, pondWater))'
     );
