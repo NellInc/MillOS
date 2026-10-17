@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactElement } from 'react';
 import * as THREE from 'three';
+import { WATER_PROFILES } from '../../utils/waterAppearance';
 import { applyPondWater, NaturalDuckPond } from './NaturalDuckPond';
 
 const driver = vi.hoisted(() => ({
@@ -71,7 +72,10 @@ describe('authored pond water finish', () => {
     material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
     expect(shader.uniforms.pondTime).toBe(time);
     expect(material.map).toBe(map);
-    expect(shader.fragmentShader).toContain('roughnessFactor, 0.24, pondWater');
+    expect(shader.uniforms.pondSlope.value).toBe(WATER_PROFILES.pond.rippleStrength);
+    expect(shader.uniforms.pondSpeed.value).toBe(WATER_PROFILES.pond.speed);
+    expect(shader.uniforms.pondRoughness.value).toBe(WATER_PROFILES.pond.roughness);
+    expect(shader.fragmentShader).toContain('roughnessFactor, pondRoughness, pondWater');
     expect(shader.fragmentShader).toContain(
       'normal = normalize(mix(normal, pondNormal, pondWater))'
     );

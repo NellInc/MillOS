@@ -28,6 +28,8 @@ import {
   GENERATED_FOUNTAIN_STREAM_PATHS,
   GENERATED_FOUNTAIN_STREAM_GEOMETRY,
   GENERATED_FOUNTAIN_STREAM_MATERIAL,
+  GENERATED_FOUNTAIN_LANDING_GEOMETRY,
+  GENERATED_FOUNTAIN_LANDING_MATERIAL,
   TOWN_HALL_LANTERN_GEOMETRY,
   TOWN_HALL_LENS_GEOMETRY,
 } from './VillageArea';
@@ -84,6 +86,25 @@ describe('bounded civic doorway lanterns', () => {
 });
 
 describe('authored fountain gravity streams', () => {
+  it('keeps aerated froth within the basin and lit by the scene', () => {
+    const position = GENERATED_FOUNTAIN_LANDING_GEOMETRY.getAttribute('position');
+    for (let i = 0; i < position.count; i++) {
+      expect(Math.hypot(position.getX(i), position.getZ(i))).toBeLessThan(1.28);
+      expect(position.getY(i)).toBeCloseTo(1.269, 5);
+    }
+    expect(GENERATED_FOUNTAIN_LANDING_MATERIAL.emissive.getHex()).toBe(0);
+    expect(GENERATED_FOUNTAIN_LANDING_MATERIAL.depthWrite).toBe(false);
+    const shader = {
+      uniforms: {},
+      vertexShader: THREE.ShaderLib.standard.vertexShader,
+      fragmentShader: THREE.ShaderLib.standard.fragmentShader,
+    } as THREE.WebGLProgramParametersWithUniforms;
+    GENERATED_FOUNTAIN_LANDING_MATERIAL.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
+    expect(shader.fragmentShader).toContain('bubbleRim');
+    expect(shader.fragmentShader).toContain('foamEdge');
+    expect(shader.fragmentShader).toContain('#include <lights_fragment_begin>');
+  });
+
   it('uses four finite gravity arcs that land within the existing water annulus', () => {
     expect(GENERATED_FOUNTAIN_STREAM_PATHS).toHaveLength(4);
     for (const curve of GENERATED_FOUNTAIN_STREAM_PATHS) {

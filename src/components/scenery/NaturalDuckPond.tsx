@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { WATER_MICRO_NORMAL_GLSL, WATER_PROFILES, WATER_WIND } from '../../utils/waterAppearance';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useDracoGLTF } from '../../utils/dracoLoader';
 import { GENERATED_ASSET_PATHS } from '../../utils/modelLoader';
@@ -13,15 +14,19 @@ import { GENERATED_ASSET_PATHS } from '../../utils/modelLoader';
 export function applyPondWater(material: THREE.MeshStandardMaterial, time: { value: number }) {
   material.onBeforeCompile = (shader) => {
     shader.uniforms.pondTime = time;
+    shader.uniforms.pondWind = WATER_WIND;
+    shader.uniforms.pondSpeed = { value: WATER_PROFILES.pond.speed };
+    shader.uniforms.pondSlope = { value: WATER_PROFILES.pond.rippleStrength };
+    shader.uniforms.pondRoughness = { value: WATER_PROFILES.pond.roughness };
     shader.uniforms.pondDeep = { value: new THREE.Color('#345c60') };
     shader.uniforms.pondShallow = { value: new THREE.Color('#5b7861') };
     shader.vertexShader =
-      `varying vec3 vPondPosition;\nvarying vec3 vPondUp;\n${shader.vertexShader}`.replace(
+      `varying vec3 vPondPosition;\nvarying vec3 vPondUp;\nvarying vec3 vPondWorldPosition;\n${shader.vertexShader}`.replace(
         '#include <begin_vertex>',
-        '#include <begin_vertex>\nvPondPosition = position;\nvPondUp = normalMatrix * vec3(0.0, 1.0, 0.0);'
+        '#include <begin_vertex>\nvPondPosition = position;\nvPondWorldPosition = (modelMatrix * vec4(position, 1.0)).xyz;\nvPondUp = normalMatrix * vec3(0.0, 1.0, 0.0);'
       );
     shader.fragmentShader =
-      `varying vec3 vPondPosition;\nvarying vec3 vPondUp;\nuniform float pondTime;\nuniform vec3 pondDeep;\nuniform vec3 pondShallow;\n${shader.fragmentShader}`
+      `varying vec3 vPondPosition;\nvarying vec3 vPondUp;\nvarying vec3 vPondWorldPosition;\nuniform float pondTime;\nuniform float pondWind;\nuniform float pondSpeed;\nuniform float pondSlope;\nuniform float pondRoughness;\nuniform vec3 pondDeep;\nuniform vec3 pondShallow;\n${WATER_MICRO_NORMAL_GLSL}\n${shader.fragmentShader}`
         .replace(
           '#include <map_fragment>',
           `#include <map_fragment>
@@ -35,7 +40,7 @@ export function applyPondWater(material: THREE.MeshStandardMaterial, time: { val
         )
         .replace(
           '#include <roughnessmap_fragment>',
-          '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.24, pondWater);'
+          '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, pondRoughness, pondWater);'
         )
         .replace(
           '#include <metalnessmap_fragment>',
@@ -44,16 +49,15 @@ export function applyPondWater(material: THREE.MeshStandardMaterial, time: { val
         .replace(
           '#include <normal_fragment_maps>',
           `#include <normal_fragment_maps>
-        // Small, curved reflection ripples; no displacement across the bank.
-        float pondPhase = vPondPosition.x * 2.05 + vPondPosition.z * 1.35
-          + sin(vPondPosition.z * 0.8 + pondTime * 0.12);
-        vec3 pondRipple = vec3(cos(pondPhase + pondTime * 0.2) * 0.025,
-          0.0, sin(pondPhase * 1.5 - pondTime * 0.13) * 0.018);
-        vec3 pondNormal = normalize(vPondUp + mat3(viewMatrix) * pondRipple);
+        // Almost still: the same filtered micro-relief as the other water,
+        // with the pond's sheltered slope and speed. No bank displacement.
+        vec2 pondSlopeValue = millosWaterSlope(vPondWorldPosition.xz, pondTime * pondSpeed,
+          pondSlope * mix(0.7, 1.25, clamp(pondWind, 0.0, 1.0)));
+        vec3 pondNormal = normalize(vPondUp + mat3(viewMatrix) * vec3(pondSlopeValue.x, 0.0, pondSlopeValue.y));
         normal = normalize(mix(normal, pondNormal, pondWater));`
         );
   };
-  material.customProgramCacheKey = () => 'millos-retained-pond-water-v1';
+  material.customProgramCacheKey = () => 'millos-retained-pond-water-v2';
 }
 
 export function NaturalDuckPond() {
