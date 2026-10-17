@@ -5,6 +5,7 @@ import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import * as THREE from 'three';
 import { GENERATED_ASSETS } from './normalize-model-assets.mjs';
 import { decodeRGB } from './refine-authored-png.mjs';
+import sharp from 'sharp';
 
 const civic = GENERATED_ASSETS.filter(
   (s) => s.preparationScript === 'scripts/blender/refine_civic_props.py'
@@ -962,5 +963,120 @@ test('cottage and forge highest flues are actually recessed and have inward-faci
     } finally {
       dispose(meshes);
     }
+  }
+});
+
+test('hay uses continuous distinct matte straw, rolled-end and flax raster charts', async () => {
+  const doc = await io.read('public/models/farm/haybale.glb'),
+    material = doc.getRoot().listMaterials()[0],
+    primitive = doc.getRoot().listMeshes()[0].listPrimitives()[0];
+  const colour = await sharp(material.getBaseColorTexture().getImage())
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const orm = await sharp(material.getMetallicRoughnessTexture().getImage())
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  expect(colour.info.width).toBe(512);
+  expect(colour.info.height).toBe(512);
+  expect(doc.getRoot().listTextures()).toHaveLength(2);
+  const pixel = (image, u, v) => {
+    const x = Math.min(image.info.width - 1, Math.floor(u * image.info.width)),
+      y = Math.min(image.info.height - 1, Math.floor(v * image.info.height)),
+      at = (y * image.info.width + x) * image.info.channels;
+    return Array.from(image.data.subarray(at, at + 3));
+  };
+  const levels = [];
+  for (let y = 0; y < 32; y++)
+    for (let x = 0; x < 24; x++) {
+      const u = 0.04 + (x / 23) * 0.42,
+        v = 0.04 + (y / 31) * 0.92,
+        c = pixel(colour, u, v),
+        r = pixel(orm, u, v);
+      expect(c[0]).toBeGreaterThan(c[1]);
+      expect(c[1]).toBeGreaterThan(c[2]);
+      expect(r[1]).toBeGreaterThan(220);
+      expect((r[2] / 255) * material.getMetallicFactor()).toBeLessThan(0.01);
+      levels.push(c.reduce((a, b) => a + b) / 3);
+    }
+  const mean = levels.reduce((a, b) => a + b) / levels.length,
+    cv = Math.sqrt(levels.reduce((a, b) => a + (b - mean) ** 2, 0) / levels.length) / mean;
+  expect(cv).toBeGreaterThan(0.004);
+  expect(cv).toBeLessThan(0.07);
+  const positions = primitive.getAttribute('POSITION').getArray(),
+    normals = primitive.getAttribute('NORMAL').getArray(),
+    uv = primitive.getAttribute('TEXCOORD_0').getArray();
+  let barrel = 0,
+    ends = 0;
+  for (let i = 0; i < positions.length / 3; i++) {
+    const z = positions[i * 3 + 2],
+      u = uv[i * 2],
+      v = uv[i * 2 + 1],
+      radial = Math.hypot(positions[i * 3], positions[i * 3 + 1] - 0.6555);
+    if (Math.abs(z) < 0.4 && radial > 0.55 && Math.abs(normals[i * 3 + 2]) < 0.15) {
+      expect(u).toBeLessThan(0.5);
+      barrel++;
+    }
+    if (Math.abs(z) > 0.72 && radial < 0.54) {
+      expect(u).toBeGreaterThan(0.5);
+      expect(v).toBeLessThan(0.5);
+      ends++;
+    }
+  }
+  expect(barrel).toBeGreaterThan(150);
+  expect(ends).toBeGreaterThan(150);
+});
+
+test('both delivered flax bindings face outward and sit on the actual barrel, with no floating ring', async () => {
+  const doc = await io.read('public/models/farm/haybale.glb'),
+    p = doc.getRoot().listMeshes()[0].listPrimitives()[0],
+    positions = p.getAttribute('POSITION').getArray(),
+    uv = p.getAttribute('TEXCOORD_0').getArray(),
+    indices = p.getIndices().getArray(),
+    parts = { body: [], rope: [] };
+  for (let i = 0; i < indices.length; i += 3) {
+    const ids = Array.from(indices.subarray(i, i + 3));
+    const region = ids.every((j) => uv[j * 2] < 0.5)
+      ? 'body'
+      : ids.every((j) => uv[j * 2] > 0.5 && uv[j * 2 + 1] > 0.5)
+        ? 'rope'
+        : null;
+    if (region) for (const j of ids) parts[region].push(...positions.subarray(j * 3, j * 3 + 3));
+  }
+  const meshes = Object.fromEntries(
+    Object.entries(parts).map(([name, a]) => {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(a, 3));
+      const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ side: THREE.FrontSide }));
+      m.updateMatrixWorld();
+      return [name, m];
+    })
+  );
+  try {
+    expect(parts.rope.length).toBeGreaterThan(1000);
+    for (const sign of [-1, 1]) {
+      const axial = [];
+      for (let i = 0; i < parts.rope.length; i += 3)
+        if (parts.rope[i + 2] * sign > 0) axial.push(parts.rope[i + 2]);
+      const z = axial.reduce((a, b) => a + b) / axial.length;
+      expect(Math.abs(z)).toBeGreaterThan(0.45);
+      expect(Math.abs(z)).toBeLessThan(0.49);
+      for (let i = 0; i < 16; i++) {
+        const a = (i * Math.PI) / 8,
+          from = new THREE.Vector3(2 * Math.cos(a), 0.6555 + 2 * Math.sin(a), z),
+          direction = new THREE.Vector3(-Math.cos(a), -Math.sin(a), 0),
+          ray = new THREE.Raycaster(from, direction),
+          body = ray.intersectObject(meshes.body)[0],
+          rope = ray.intersectObject(meshes.rope)[0];
+        expect(body).toBeDefined();
+        expect(rope).toBeDefined();
+        const gap = body.distance - rope.distance;
+        expect(gap).toBeGreaterThan(0.001);
+        expect(gap).toBeLessThan(0.015);
+      }
+    }
+  } finally {
+    dispose(Object.values(meshes));
   }
 });

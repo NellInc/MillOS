@@ -510,14 +510,14 @@
       "sha256": "bfde41964609e2d7b7f8d40c35060d780f32d3b5b2329795eb0007bb1c676ccf",
       "blenderPreparation": {
         "file": "assets/source/models/farm/haybale-crafted.glb",
-        "sha256": "cadee2d2df6ae0005b555ca4ab76b5fac2b523b3cfb01c01969038380f1aa72f",
+        "sha256": "7351d416c0f0cb23855c216e0a1061b475505bb8623a2aa95589f2dac290e1a5",
         "script": "scripts/blender/refine_civic_props.py",
         "method": "Hand-authored component rebuild in the retained runtime metre envelope, with separated construction details and one sRGB colour/linear roughness atlas; original provider source preserved."
       },
       "runtimeDerivative": {
         "file": "public/models/farm/haybale.glb",
-        "sha256": "6784961813c1a3bebc2ac08573982bacf8bfd265c6f6dc61866a90dedea61a2a",
-        "bytes": 403792
+        "sha256": "52c874ef131b07a4ef6bbe74768ef6c33d94d1dd157caff67422c6254dafa8ee",
+        "bytes": 260556
       },
       "normalization": {
         "sizedBy": "longest axis",
@@ -538,8 +538,8 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 28990,
-        "renderVertices": 17532
+        "textureBytes": 15085,
+        "renderVertices": 20088
       }
     },
     {
