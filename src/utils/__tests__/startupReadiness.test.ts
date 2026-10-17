@@ -183,3 +183,35 @@ describe('startup work tracking', () => {
     expect(getStartupSnapshot().errors).toBe(initial.errors + 1);
   });
 });
+
+describe('startup caller admission ownership', () => {
+  it('counts only successful admitted returns and preserves a later preparation owner', async () => {
+    vi.resetModules();
+    const startup = await import('../startupReadiness');
+    const prepare = vi.fn(() => false),
+      fail = vi.fn(),
+      draw = vi.fn();
+    const release = startup.registerStartupDrawOwner({ prepare, fail });
+    const serial = startup.getStartupDrawSerial();
+    expect(startup.drawStartupFrame(null, draw)).toBe(false);
+    expect(draw).not.toHaveBeenCalled();
+    expect(startup.getStartupDrawSerial()).toBe(serial);
+    prepare.mockReturnValue(true);
+    expect(startup.drawStartupFrame(null, draw)).toBe(true);
+    expect(startup.getStartupDrawSerial()).toBe(serial + 1);
+    expect(() =>
+      startup.drawStartupFrame(null, () => {
+        throw new Error('draw failed');
+      })
+    ).toThrow('draw failed');
+    expect(startup.getStartupDrawSerial()).toBe(serial + 1);
+    expect(fail).toHaveBeenCalledOnce();
+    const later = vi.fn(() => true);
+    const releaseLater = startup.registerStartupDrawOwner({ prepare: later, fail: vi.fn() });
+    release();
+    expect(startup.drawStartupFrame(null, draw)).toBe(true);
+    expect(later).toHaveBeenCalledOnce();
+    releaseLater();
+    expect(startup.drawStartupFrame(null, draw)).toBe(false);
+  });
+});

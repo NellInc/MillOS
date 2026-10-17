@@ -1,0 +1,13 @@
+(node:68840) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+(node:68918) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+ Test Files  1 passed (1)
+      Tests  9 passed (9)
+   Start at  03:52:17
+   Duration  2.85s (transform 155ms, setup 219ms, import 61ms, tests 1.20s, environment 942ms)
+

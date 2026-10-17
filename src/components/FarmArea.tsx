@@ -1,5 +1,7 @@
 import { FARM_REALM_PATHS, inRealmPath } from '../constants/publicRealmLayout';
 import { FarmPublicRealm } from './scenery/WorldPublicRealm';
+import { ScarecrowCraft } from './scenery/ScarecrowCraft';
+import { ServiceEntranceLighting } from './exterior/ServiceEntranceLighting';
 import React, { useRef, useState, useMemo, useEffect, useLayoutEffect } from 'react';
 import { useFrame, ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -18,8 +20,10 @@ import {
   creaturePerchLook,
   creaturePoseBlend,
   creatureTravelDistance,
+  QUADRUPED_WALK,
 } from '../simulation/creatureMotion';
 import { CreatureBody, type CreatureRigHandle } from './models/RiggedCreatureModel';
+import { CHICKEN_WALK } from './models/chickenWalk';
 import {
   GeneratedBody,
   GeneratedBoundary,
@@ -38,11 +42,11 @@ import {
 } from './scenery/InstancedFoliage';
 import { WindDriver, applyWindShader } from './scenery/WindDriver';
 import { composeWorldSurface } from '../utils/worldSurface';
+import { PlotGeometry } from '../utils/authoredPlotGeometry';
 import { DrainageCulvert } from './scenery/Tunnel';
 import { PROCEDURAL_TEXTURES } from '../utils/sharedMaterials';
 import { EXTERIOR_LAYERS, RENDER_ORDER } from '../constants/renderLayers';
 import { SITE_LAYOUT } from '../constants/siteLayout';
-import { generateCobblestoneRoughness } from '../textures';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { createAtmosphereState, sampleAtmosphere } from '../simulation/atmosphere';
 import {
@@ -351,9 +355,8 @@ function createHayBaleGeometry(): THREE.LatheGeometry {
 // Barnyard is 20x15 units, path is 3x14 units - tile every 10 units
 const farmBarnyardCobbleColor = PROCEDURAL_TEXTURES.cobblestoneColor.clone();
 const farmBarnyardCobbleNormal = PROCEDURAL_TEXTURES.cobblestoneNormal.clone();
-// 256/7 matches the cell count of the 512/14 albedo, so polished crowns sit on
-// the stones rather than drifting across them.
-const farmBarnyardCobbleRoughness = generateCobblestoneRoughness(256, 7).clone();
+// Share the same64-cell source as colour and relief, at the existing256px.
+const farmBarnyardCobbleRoughness = PROCEDURAL_TEXTURES.cobblestoneRoughness.clone();
 farmBarnyardCobbleColor.wrapS = farmBarnyardCobbleColor.wrapT = THREE.RepeatWrapping;
 farmBarnyardCobbleNormal.wrapS = farmBarnyardCobbleNormal.wrapT = THREE.RepeatWrapping;
 farmBarnyardCobbleRoughness.wrapS = farmBarnyardCobbleRoughness.wrapT = THREE.RepeatWrapping;
@@ -389,6 +392,122 @@ const _animDir = new THREE.Vector3();
 // ============================================================
 
 // Shared Geometries - created once at module load
+type GrainPoint = [number, number, number];
+
+/** A whole cereal stool in shared ground-root metres, never separate leaf origins.
+ * Working if leaf anchors are actual culm vertices and every tip shares the
+ * unchanged wind/shadow field. Three instanced surfaces, no texture or CPU sway.
+ */
+export function createGrainPlantGeometries() {
+  const stems = new PlotGeometry(),
+    leaves = new PlotGeometry(),
+    ears = new PlotGeometry();
+  const shoots = [
+    [0, 0, 1.5, 0.035, 0.02],
+    [-0.08, 0.06, 1.36, -0.03, 0.025],
+    [0.09, -0.06, 1.25, 0.04, -0.025],
+  ];
+  function leaf(anchor: GrainPoint, theta: number, length: number) {
+    const dx = Math.sin(theta),
+      dz = Math.cos(theta),
+      sx = Math.cos(theta),
+      sz = -Math.sin(theta);
+    const at = (distance: number, lift: number, width: number): GrainPoint => [
+      anchor[0] + dx * distance + sx * width,
+      anchor[1] + lift,
+      anchor[2] + dz * distance + sz * width,
+    ];
+    const points = [
+      anchor,
+      at(length * 0.32, 0.07, -0.035),
+      at(length * 0.32, 0.07, 0.035),
+      at(length * 0.72, 0.035, -0.022),
+      at(length * 0.72, 0.035, 0.022),
+      at(length, -0.06, 0),
+    ];
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(points.flat(), 3));
+    g.setAttribute(
+      'uv',
+      new THREE.Float32BufferAttribute([0.5, 0, 0, 0.32, 1, 0.32, 0, 0.72, 1, 0.72, 0.5, 1], 2)
+    );
+    g.setIndex([0, 2, 1, 1, 2, 4, 1, 4, 3, 3, 4, 5]);
+    g.computeVertexNormals();
+    return g;
+  }
+  function awn(a: GrainPoint, b: GrainPoint, acrossZ = true) {
+    const w = 0.0017,
+      offset = acrossZ ? [0, 0, w] : [w, 0, 0];
+    const points = [
+      a.map((v, i) => v - offset[i]),
+      a.map((v, i) => v + offset[i]),
+      b.map((v, i) => v + offset[i] * 0.2),
+      b.map((v, i) => v - offset[i] * 0.2),
+    ];
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(points.flat(), 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 1], 2));
+    g.setIndex([0, 1, 2, 0, 2, 3]);
+    g.computeVertexNormals();
+    return g;
+  }
+  shoots.forEach(([x, z, height, leanX, leanZ], shoot) => {
+    const stem = new THREE.CylinderGeometry(0.0115, 0.021, height, 5, 4).translate(
+      0,
+      height / 2,
+      0
+    );
+    const p = stem.getAttribute('position');
+    for (let i = 0; i < p.count; i++) {
+      const t = p.getY(i) / height;
+      p.setX(i, p.getX(i) + x + leanX * t * t);
+      p.setZ(i, p.getZ(i) + z + leanZ * t * t);
+    }
+    stem.computeVertexNormals();
+    stems.add(stem, ['#84935a', '#909e63', '#7b8f57'][shoot]);
+    for (let i = 0; i < 3; i++) {
+      const t = (i + 1) / 4,
+        theta = ((i * 2 + shoot) * Math.PI * 2) / 5,
+        radius = 0.021 + (0.0115 - 0.021) * t;
+      const anchor: GrainPoint = [
+        x + leanX * t * t + Math.sin(theta) * radius,
+        height * t,
+        z + leanZ * t * t + Math.cos(theta) * radius,
+      ];
+      leaves.add(leaf(anchor, theta, 0.3 - i * 0.02), ['#97a76c', '#a6b175', '#8fa365'][i]);
+    }
+    const tipX = x + leanX,
+      tipZ = z + leanZ;
+    ears.add(
+      new THREE.CylinderGeometry(0.004, 0.008, 0.22, 3).translate(tipX, height + 0.11, tipZ),
+      '#bea468'
+    );
+    for (let row = 0; row < 4; row++)
+      for (const side of [-1, 1]) {
+        const y = height + 0.032 + row * 0.045;
+        ears.add(
+          new THREE.OctahedronGeometry(1, 0)
+            .scale(0.024, 0.03, 0.012)
+            .rotateZ(-side * 0.42)
+            .translate(tipX + side * 0.018, y, tipZ),
+          row % 2 ? '#dfc287' : '#d3b476'
+        );
+        ears.add(
+          awn([tipX + side * 0.03, y + 0.026, tipZ], [tipX + side * 0.06, y + 0.091, tipZ]),
+          '#dcca92'
+        );
+      }
+    ears.add(
+      awn([tipX, height + 0.22, tipZ], [tipX + 0.015, height + 0.295, tipZ], false),
+      '#dcca92'
+    );
+  });
+  const result = { stems: stems.finish(), leaves: leaves.finish(), ears: ears.finish() };
+  for (const [name, g] of Object.entries(result)) g.name = `rooted-cereal-${name}`;
+  return result;
+}
+export const GRAIN_PLANT_GEOMETRY = createGrainPlantGeometries();
+
 const SG = {
   fencePost: new THREE.CylinderGeometry(0.08, 0.1, 1, 6),
   hayBale: createHayBaleGeometry(),
@@ -457,13 +576,12 @@ const SG = {
   // 60-70 mm proud along its whole height instead.
   windmillDoor: new THREE.BoxGeometry(0.6, 1.6, 0.18),
   // Grain Field
-  cornStalk: new THREE.CylinderGeometry(0.05, 0.08, 1.8, 4),
-  cornLeaf: new THREE.ConeGeometry(0.1, 0.8, 3),
+  cornStalk: GRAIN_PLANT_GEOMETRY.stems,
+  cornLeaf: GRAIN_PLANT_GEOMETRY.leaves,
+  cornEar: GRAIN_PLANT_GEOMETRY.ears,
   scarecrowPole: new THREE.CylinderGeometry(0.08, 0.08, 2.5, 5),
   scarecrowArm: new THREE.CylinderGeometry(0.06, 0.06, 1.8, 5),
-  pumpkinHead: new THREE.SphereGeometry(0.35, 16, 12),
   strawHat: createStrawHatGeometry(),
-  scarecrowBox: new THREE.BoxGeometry(1, 1, 1),
   crowBody: new THREE.ConeGeometry(0.1, 0.3, 4),
   crowHead: new THREE.SphereGeometry(0.08, 4, 4),
 };
@@ -592,18 +710,15 @@ const SM = {
     roughness: 0.7,
     side: THREE.DoubleSide,
   }),
-  // Grain field. White base: the old flat '#8bc34a' is now
-  // supplied per stalk through `instanceColor` (see InstancedGrainField), so
-  // keeping the tint here would multiply the crop colour twice.
+  // Every rooted part has linear vertex colours; a restrained instance tint
+  // carries broad ripening patches across the shared three-surface plant.
   cornGreen: new THREE.MeshStandardMaterial({
     color: '#ffffff',
+    vertexColors: true,
     roughness: 0.9,
     side: THREE.DoubleSide,
   }),
-  pumpkinOrange: new THREE.MeshStandardMaterial({ color: '#d87b30', roughness: 0.8 }),
   strawHat: new THREE.MeshStandardMaterial({ color: '#c4a45c', roughness: 1 }),
-  denimBlue: new THREE.MeshStandardMaterial({ color: '#456780', roughness: 0.9 }),
-  plaidRed: new THREE.MeshStandardMaterial({ color: '#923b36', roughness: 0.9 }),
   crowBlack: new THREE.MeshStandardMaterial({ color: '#212121', roughness: 0.6 }),
 };
 
@@ -809,6 +924,7 @@ BarnPrimitiveBody.displayName = 'BarnPrimitiveBody';
 export const Barn = React.memo<{ position: [number, number, number] }>(({ position }) => (
   <group position={position}>
     <GeneratedBody asset="barn" fallback={<BarnPrimitiveBody />} />
+    <ServiceEntranceLighting site="barn" />
   </group>
 ));
 Barn.displayName = 'Barn';
@@ -1382,21 +1498,14 @@ const Pig: React.FC<{
  * `public/models/README.md`, and this turn puts the primitive in the same frame
  * so the fallback and the real asset are interchangeable.
  */
-/** Wander speed (0.5 m/s) over a ~0.9 m stride, in radians per second. */
-const COW_STRIDE_RATE = 3.5;
+/** Walking pace and cycle fitted to each species' actual visible limb length. */
+const COW_STRIDE_RATE = (Math.PI * 2 * QUADRUPED_WALK.cow.speed) / QUADRUPED_WALK.cow.cycle;
 /**
- * Chicken leg swing. A bird's real cadence at 1.5 m/s is roughly 38 rad/s,
- * which aliases into nonsense against the 15 Hz throttle this driver runs on;
- * 12 rad/s keeps about eight samples per stride and reads as a walk.
+ * A small walking step fitted to the original hen's leg reach. The previous
+ * 1.5m/s and 12rad/s asked a 42cm hen to skate through a 79cm cycle.
  */
-const CHICKEN_STRIDE_RATE = 12;
-/**
- * Pig leg swing. Same derivation as the cow's - `2 * PI * speed / stride` - at
- * the 0.8 m/s wander speed this driver uses and a roughly 0.5 m stride for an
- * animal a third of a cow's length. At the 15 Hz throttle that is nine samples
- * per cycle, above the cow's and below the chicken's.
- */
-const PIG_STRIDE_RATE = 10;
+const CHICKEN_STRIDE_RATE = (Math.PI * 2 * CHICKEN_WALK.speed) / CHICKEN_WALK.cycle;
+const PIG_STRIDE_RATE = (Math.PI * 2 * QUADRUPED_WALK.pig.speed) / QUADRUPED_WALK.pig.cycle;
 
 const CowPrimitiveBody: React.FC<{
   headRef: React.RefObject<THREE.Group | null>;
@@ -1946,81 +2055,7 @@ export const Scarecrow = React.memo<{ position: [number, number, number]; rotati
         <primitive object={SG.scarecrowArm} attach="geometry" />
         <primitive object={SM.woodBrown} attach="material" />
       </mesh>
-      {/* Shirt */}
-      <mesh position={[0, 1.8, 0]} castShadow>
-        <boxGeometry args={[0.55, 0.9, 0.3]} />
-        <primitive object={SM.plaidRed} attach="material" />
-      </mesh>
-      {/* Sleeves, cuffs and a mended knee preserve the handmade field character. */}
-      {[-1, 1].map((side) => (
-        <group key={side}>
-          <mesh position={[side * 0.55, 1.8, 0]} scale={[0.5, 0.28, 0.29]}>
-            <primitive object={SG.scarecrowBox} attach="geometry" />
-            <primitive object={SM.plaidRed} attach="material" />
-          </mesh>
-          <mesh position={[side * 0.77, 1.8, 0]} scale={[0.07, 0.3, 0.31]}>
-            <primitive object={SG.scarecrowBox} attach="geometry" />
-            <primitive object={SM.hayDark} attach="material" />
-          </mesh>
-          <mesh position={[side * 0.13, 1.8, 0.155]} scale={[0.035, 0.87, 0.012]}>
-            <primitive object={SG.scarecrowBox} attach="geometry" />
-            <primitive object={SM.hayDark} attach="material" />
-          </mesh>
-        </group>
-      ))}
-      {[1.5, 1.72, 1.94, 2.15].map((y) => (
-        <mesh key={y} position={[0, y, 0.155]} scale={[0.55, 0.025, 0.014]}>
-          <primitive object={SG.scarecrowBox} attach="geometry" />
-          <primitive object={SM.hayDark} attach="material" />
-        </mesh>
-      ))}
-      <mesh position={[-0.15, 0.87, 0.115]} rotation={[0, 0, 0.12]} scale={[0.13, 0.19, 0.018]}>
-        <primitive object={SG.scarecrowBox} attach="geometry" />
-        <primitive object={SM.plaidRed} attach="material" />
-      </mesh>
-      {/* Straw hands */}
-      <mesh position={[0.9, 1.8, 0]}>
-        <sphereGeometry args={[0.15, 8, 8]} />
-        <primitive object={SM.hay} attach="material" />
-      </mesh>
-      <mesh position={[-0.9, 1.8, 0]}>
-        <sphereGeometry args={[0.15, 8, 8]} />
-        <primitive object={SM.hay} attach="material" />
-      </mesh>
-      {/* Jeans */}
-      <group position={[0, 1.0, 0]}>
-        <mesh position={[-0.15, 0, 0]}>
-          <boxGeometry args={[0.18, 0.9, 0.22]} />
-          <primitive object={SM.denimBlue} attach="material" />
-        </mesh>
-        <mesh position={[0.15, 0, 0]}>
-          <boxGeometry args={[0.18, 0.9, 0.22]} />
-          <primitive object={SM.denimBlue} attach="material" />
-        </mesh>
-      </group>
-      {/* Scarf */}
-      <mesh position={[0, 2.25, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[0.2, 0.08, 8, 16]} />
-        <meshStandardMaterial color="#d32f2f" />
-      </mesh>
-      {/* Head */}
-      <mesh position={[0, 2.5, 0]} castShadow>
-        <primitive object={SG.pumpkinHead} attach="geometry" />
-        <primitive object={SM.pumpkinOrange} attach="material" />
-      </mesh>
-      {/* Eyes/Mouth */}
-      <mesh position={[0.115, 2.55, 0.35]}>
-        <circleGeometry args={[0.05, 3]} />
-        <meshStandardMaterial color="#3e2723" />
-      </mesh>
-      <mesh position={[-0.115, 2.55, 0.35]}>
-        <circleGeometry args={[0.05, 3]} />
-        <meshStandardMaterial color="#3e2723" />
-      </mesh>
-      <mesh position={[0, 2.44, 0.35]} rotation={[0, 0, Math.PI]}>
-        <torusGeometry args={[0.08, 0.012, 5, 12, Math.PI]} /> {/* Stitched smile */}
-        <meshStandardMaterial color="#3e2723" />
-      </mesh>
+      <ScarecrowCraft />
       {/* Hat */}
       <mesh position={[0, 2.85, 0]} castShadow>
         <primitive object={SG.strawHat} attach="geometry" />
@@ -2036,115 +2071,97 @@ export const Scarecrow = React.memo<{ position: [number, number, number]; rotati
 );
 Scarecrow.displayName = 'Scarecrow';
 
+export const GRAIN_FIELD_MATERIAL = SM.cornGreen;
+export const GRAIN_FIELD_DEPTH_MATERIAL = cornDepthMaterial;
+export const GRAIN_FIELD_COUNT = 15 * 20;
+export const GRAIN_WIND_PADDING = 0.5; // maximum world sway < .16*(.7+1.5)*1.4
+
+/** Original planting roots, yaw and uniform scale, shared by every plant part.
+ * Working if all three matrix/colour buffers agree and bounds cover storm sway.
+ */
+export function populateGrainField(
+  meshes: readonly [THREE.InstancedMesh, THREE.InstancedMesh, THREE.InstancedMesh]
+) {
+  const parent = new THREE.Object3D(),
+    tint = new THREE.Color();
+  const young = new THREE.Color('#edf0d8'),
+    mature = new THREE.Color('#fff1d1');
+  let index = 0;
+  for (let r = 0; r < 15; r++)
+    for (let c = 0; c < 20; c++) {
+      const rnd = Math.sin(r * 20 + c) * 1000,
+        scale = 0.8 + (Math.abs(rnd) % 0.4);
+      const x = (c - 10) * 1.5 + Math.sin(rnd) * 0.5,
+        z = (r - 7) * 1.5 + Math.cos(rnd) * 0.5;
+      parent.position.set(x, 0, z);
+      parent.rotation.set(0, Math.abs(rnd) % Math.PI, 0);
+      parent.scale.setScalar(scale);
+      parent.updateMatrix();
+      const ripeness = THREE.MathUtils.clamp(
+        0.5 +
+          Math.sin(x * 0.14 + z * 0.11) * 0.25 +
+          Math.sin(z * 0.28 - x * 0.06) * 0.15 +
+          Math.sin(rnd) * 0.1,
+        0,
+        1
+      );
+      tint.copy(young).lerp(mature, ripeness);
+      for (const mesh of meshes) {
+        mesh.setMatrixAt(index, parent.matrix);
+        mesh.setColorAt(index, tint);
+      }
+      index++;
+    }
+  for (const mesh of meshes) {
+    mesh.customDepthMaterial = GRAIN_FIELD_DEPTH_MATERIAL;
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    mesh.computeBoundingBox();
+    mesh.boundingBox?.expandByScalar(GRAIN_WIND_PADDING);
+    mesh.computeBoundingSphere();
+    if (mesh.boundingSphere) mesh.boundingSphere.radius += GRAIN_WIND_PADDING;
+  }
+}
+
 const InstancedGrainField = React.memo(() => {
   const stalksRef = useRef<THREE.InstancedMesh>(null);
-  const leaves1Ref = useRef<THREE.InstancedMesh>(null);
-  const leaves2Ref = useRef<THREE.InstancedMesh>(null);
-  const count = 15 * 20;
-
-  // The custom depth material carries the same wind injection, or the crop's
-  // shadow stays rigid while the crop itself sways - which reads as a bug in
-  // the lighting rather than as weather.
-  useEffect(() => {
-    [stalksRef.current, leaves1Ref.current, leaves2Ref.current].forEach((mesh) => {
-      if (mesh) mesh.customDepthMaterial = cornDepthMaterial;
-    });
-  }, []);
-
-  // Layout, not passive: a frame rendered before the matrices land would cache
-  // an origin-sized bounding sphere and cull the whole 30 x 21 m crop.
+  const leavesRef = useRef<THREE.InstancedMesh>(null);
+  const earsRef = useRef<THREE.InstancedMesh>(null);
   useLayoutEffect(() => {
-    if (!stalksRef.current || !leaves1Ref.current || !leaves2Ref.current) return;
-
-    // Temp objects for matrix calculations
-    const parent = new THREE.Object3D();
-    const leaf = new THREE.Object3D();
-    const tint = new THREE.Color();
-    let idx = 0;
-
-    for (let r = 0; r < 15; r++) {
-      for (let c = 0; c < 20; c++) {
-        // Stable randomness based on grid position
-        const rnd = Math.sin(r * 20 + c) * 1000;
-        const rndScale = 0.8 + (Math.abs(rnd) % 0.4);
-        const rndRot = Math.abs(rnd) % Math.PI;
-        const rndOffsetX = Math.sin(rnd) * 0.5;
-        const rndOffsetZ = Math.cos(rnd) * 0.5;
-
-        const x = (c - 10) * 1.5 + rndOffsetX;
-        const z = (r - 7) * 1.5 + rndOffsetZ;
-
-        // Set parent transform (Stalk base)
-        parent.position.set(x, 0, z);
-        parent.rotation.set(0, rndRot, 0);
-        parent.scale.set(rndScale, rndScale, rndScale);
-        parent.updateMatrix();
-
-        // Stalk mesh (offset locally by 0.9y)
-        leaf.position.set(0, 0.9, 0);
-        leaf.rotation.set(0, 0, 0);
-        leaf.scale.set(1, 1, 1);
-        leaf.updateMatrix();
-        leaf.matrix.premultiply(parent.matrix);
-        stalksRef.current.setMatrixAt(idx, leaf.matrix);
-
-        // Leaf 1
-        leaf.position.set(0, 1.2, 0.2);
-        leaf.rotation.set(0.5, 0, 0);
-        leaf.scale.set(1, 1, 1);
-        leaf.updateMatrix();
-        leaf.matrix.premultiply(parent.matrix);
-        leaves1Ref.current.setMatrixAt(idx, leaf.matrix);
-
-        // Leaf 2
-        leaf.position.set(0, 1.0, -0.2);
-        leaf.rotation.set(-0.5, 0, 0);
-        leaf.scale.set(1, 1, 1);
-        leaf.updateMatrix();
-        leaf.matrix.premultiply(parent.matrix);
-        leaves2Ref.current.setMatrixAt(idx, leaf.matrix);
-
-        // Per-stalk tint: a 300-stalk field on one flat green reads as a
-        // printed texture. Rides `instanceColor`, NOT `vertexColors` - the
-        // geometry has no `color` attribute and USE_COLOR in the vertex stage
-        // would multiply by an absent attribute (0,0,0,1) and blacken the crop.
-        // Brackets the old flat '#8bc34a' (HSL ~0.244/0.50/0.53): green where
-        // the crop is still young, golden where it has ripened.
-        const ripeness = Math.abs(Math.sin(r * 3.7 + c * 1.9)) % 1;
-        tint.setHSL(0.26 - ripeness * 0.11, 0.46 + ripeness * 0.16, 0.46 + ripeness * 0.12);
-        stalksRef.current.setColorAt(idx, tint);
-        leaves1Ref.current.setColorAt(idx, tint);
-        leaves2Ref.current.setColorAt(idx, tint);
-
-        idx++;
-      }
-    }
-
-    stalksRef.current.instanceMatrix.needsUpdate = true;
-    leaves1Ref.current.instanceMatrix.needsUpdate = true;
-    leaves2Ref.current.instanceMatrix.needsUpdate = true;
-    if (stalksRef.current.instanceColor) stalksRef.current.instanceColor.needsUpdate = true;
-    if (leaves1Ref.current.instanceColor) leaves1Ref.current.instanceColor.needsUpdate = true;
-    if (leaves2Ref.current.instanceColor) leaves2Ref.current.instanceColor.needsUpdate = true;
-    // setMatrixAt never invalidates InstancedMesh.boundingSphere.
-    stalksRef.current.computeBoundingSphere();
-    leaves1Ref.current.computeBoundingSphere();
-    leaves2Ref.current.computeBoundingSphere();
+    if (stalksRef.current && leavesRef.current && earsRef.current)
+      populateGrainField([stalksRef.current, leavesRef.current, earsRef.current]);
   }, []);
-
   return (
-    <group>
-      <instancedMesh ref={stalksRef} args={[undefined, undefined, count]} castShadow>
+    <group name="rooted-cereal-field">
+      <instancedMesh
+        name="grain-field-stems"
+        ref={stalksRef}
+        args={[undefined, undefined, GRAIN_FIELD_COUNT]}
+        castShadow
+        receiveShadow
+      >
         <primitive object={SG.cornStalk} attach="geometry" />
-        <primitive object={SM.cornGreen} attach="material" />
+        <primitive object={GRAIN_FIELD_MATERIAL} attach="material" />
       </instancedMesh>
-      <instancedMesh ref={leaves1Ref} args={[undefined, undefined, count]} castShadow>
+      <instancedMesh
+        name="grain-field-leaves"
+        ref={leavesRef}
+        args={[undefined, undefined, GRAIN_FIELD_COUNT]}
+        castShadow
+        receiveShadow
+      >
         <primitive object={SG.cornLeaf} attach="geometry" />
-        <primitive object={SM.cornGreen} attach="material" />
+        <primitive object={GRAIN_FIELD_MATERIAL} attach="material" />
       </instancedMesh>
-      <instancedMesh ref={leaves2Ref} args={[undefined, undefined, count]} castShadow>
-        <primitive object={SG.cornLeaf} attach="geometry" />
-        <primitive object={SM.cornGreen} attach="material" />
+      <instancedMesh
+        name="grain-field-ears"
+        ref={earsRef}
+        args={[undefined, undefined, GRAIN_FIELD_COUNT]}
+        castShadow
+        receiveShadow
+      >
+        <primitive object={SG.cornEar} attach="geometry" />
+        <primitive object={GRAIN_FIELD_MATERIAL} attach="material" />
       </instancedMesh>
     </group>
   );
@@ -2173,6 +2190,7 @@ const FARM_TREE_SPOTS: readonly (readonly [number, number])[] = FARM_TREES.map(
  *  open terrain, so the mulch takes the overlay layer 1 cm above it -
  *  InstancedMulch's own default. */
 const FARM_DECAL_Y = EXTERIOR_LAYERS.groundOverlay;
+export const FARM_YARD_SIZE = [20, 15] as const;
 
 const FARM_BLOCKERS = [
   { x: 0, z: 0, halfX: 6, halfZ: 5 }, // barn
@@ -2182,14 +2200,17 @@ const FARM_BLOCKERS = [
   { x: -15, z: 19, halfX: 2.2, halfZ: 1.6 }, // garden bed
   { x: 15, z: -15, halfX: 2.6, halfZ: 2.6 }, // windmill
   { x: -12, z: -5, halfX: 3.4, halfZ: 3.4 }, // pig pen + mud puddle
-  { x: 8, z: 8, halfX: 4, halfZ: 2 }, // culvert crossing
-  { x: 0, z: -30, halfX: 4, halfZ: 2 }, // culvert crossing
+  { x: 8, z: 8, halfX: 4.2, halfZ: 1.8 }, // banked culvert, axis across X
+  { x: 0, z: -28.5, halfX: 4.2, halfZ: 1.8 }, // clear crop headland
   { x: 6.3, z: -1, halfX: 1.8, halfZ: 2.6 }, // hay bale stack
 ] as const;
 
-/** Swept yard and ploughed crop rows: no wild grass in either. */
-const FARM_OPEN_BLOCKERS = [
-  { x: 0, z: 0, halfX: 11, halfZ: 9 }, // barnyard cobble
+/** Hard surfaces stay swept even beside attractors. The old openExclude
+ * exempted attracted tufts and let them pierce the yard and water trough.
+ * Working if every real tuft clears the paving plus its card/storm envelope.
+ */
+const FARM_SWEPT_GROUND = [
+  { x: 0, z: 0, halfX: FARM_YARD_SIZE[0] / 2 + 1, halfZ: FARM_YARD_SIZE[1] / 2 + 1.5 },
   { x: 0, z: -42, halfX: 18, halfZ: 14 }, // grain field
 ] as const;
 
@@ -2244,12 +2265,11 @@ const FARM_ATTRACTORS: readonly (readonly [number, number])[] = [
   [-28, -25],
 ];
 
-const FARM_CLUTTER: ClutterSpec = {
+export const FARM_CLUTTER: ClutterSpec = {
   accepts: (x, z) => !FARM_REALM_PATHS.some((p) => inRealmPath(x, z, p, 0.45)),
   count: 700,
   bounds: { minX: -38, maxX: 36, minZ: -30, maxZ: 32 },
-  exclude: FARM_BLOCKERS,
-  openExclude: FARM_OPEN_BLOCKERS,
+  exclude: [...FARM_BLOCKERS, ...FARM_SWEPT_GROUND],
   attractors: FARM_ATTRACTORS,
   // 5 mm under the ground datum: sinking a card base is invisible, floating
   // one is not.
@@ -2345,11 +2365,13 @@ export const FarmArea: React.FC = () => {
   // four are placed around the barnyard rather than inside a paddock and have
   // no wander state, so a leg swing would be marching on the spot.
   const sheepGraze = useRef<number[]>(new Array(4).fill(0));
+  const sheepRestReset = useRef<(CreatureRigHandle | null)[]>(new Array(4).fill(null));
 
   // The horse is a single static animal, so it carries one handle rather than
   // an array, and grazes without a stride for the same reason the sheep do.
   const horseRigRef = useRef<CreatureRigHandle>(null);
   const horseGraze = useRef(0);
+  const horseRestReset = useRef<CreatureRigHandle | null>(null);
   const horseShakeState = useRef(0);
 
   const windmillBladesRef = useRef<THREE.Group>(null);
@@ -2429,6 +2451,12 @@ export const FarmArea: React.FC = () => {
     cowJumpStates.current.fill(0);
     sheepJumpStates.current.fill(0);
     horseShakeState.current = 0;
+    horseRigRef.current?.setResting?.(0, 500);
+    horseRestReset.current = horseRigRef.current;
+    sheepRigRefs.forEach((ref, i) => {
+      ref.current?.setResting?.(0, 400 + i);
+      sheepRestReset.current[i] = ref.current;
+    });
   }, [
     reducedMotion,
     chickenRefs,
@@ -2457,7 +2485,8 @@ export const FarmArea: React.FC = () => {
     speed: number,
     strideRate: number,
     bounds: { minX: number; maxX: number; minZ: number; maxZ: number },
-    yOffset: number = 0
+    yOffset: number = 0,
+    strideSpaceScale: number = 1
   ) => {
     if (!ref) return;
     state.moving = false;
@@ -2499,7 +2528,11 @@ export const FarmArea: React.FC = () => {
         const distance = creatureTravelDistance(dist, turn - turned, delta, speed);
         currentPos.add(direction.multiplyScalar(distance));
         state.moving = distance > 0.00001;
-        state.stridePhase = advanceCreatureStride(state.stridePhase, distance, strideRate / speed);
+        state.stridePhase = advanceCreatureStride(
+          state.stridePhase,
+          distance / strideSpaceScale,
+          strideRate / speed
+        );
       }
     }
   };
@@ -2508,10 +2541,26 @@ export const FarmArea: React.FC = () => {
   useFrame((_state, delta) => {
     const { gameDay, gameTime, gameSpeed, weather, isTabVisible } =
       useGameSimulationStore.getState();
-    if (!isTabVisible || gameSpeed <= 0 || reducedMotion) return;
+    if (reducedMotion) {
+      sheepRigRefs.forEach((ref, i) => {
+        if (ref.current && sheepRestReset.current[i] !== ref.current) {
+          ref.current.setResting?.(0, 400 + i);
+          sheepRestReset.current[i] = ref.current;
+        }
+      });
+      // Suspense may fill the horse handle after the preference effect ran.
+      if (horseRigRef.current && horseRestReset.current !== horseRigRef.current) {
+        horseRigRef.current.setResting?.(0, 500);
+        horseRestReset.current = horseRigRef.current;
+      }
+      return;
+    }
+    horseRestReset.current = null;
+    sheepRestReset.current.fill(null);
+    if (!isTabVisible || gameSpeed <= 0) return;
 
     // Cap delta for tab-switch recovery (prevents large jumps after tab is inactive)
-    const cappedDelta = Math.min(delta, 0.1);
+    const cappedDelta = Number.isFinite(delta) ? Math.min(Math.max(0, delta), 0.1) : 0;
     frameCountRef.current++;
     animationTime.current += cappedDelta;
     movementElapsed.current += cappedDelta;
@@ -2539,9 +2588,20 @@ export const FarmArea: React.FC = () => {
           ref.current,
           chickenStates.current[i],
           adjustDelta,
-          1.5, // Speed
+          CHICKEN_WALK.speed,
           CHICKEN_STRIDE_RATE,
-          CHICKEN_WANDER_BOUNDS
+          CHICKEN_WANDER_BOUNDS,
+          0,
+          ref.current?.scale.x ?? 1
+        );
+        chickenStride.current[i] = THREE.MathUtils.lerp(
+          chickenStride.current[i],
+          chickenStates.current[i].moving ? 1 : 0,
+          creaturePoseBlend(0.4, adjustDelta)
+        );
+        chickenRigRefs[i].current?.setStride(
+          chickenStates.current[i].stridePhase + chickenOffsets[i],
+          chickenStride.current[i]
         );
       });
 
@@ -2551,9 +2611,17 @@ export const FarmArea: React.FC = () => {
           ref.current,
           pigStates.current[i],
           adjustDelta,
-          0.8, // Speed
+          QUADRUPED_WALK.pig.speed,
           PIG_STRIDE_RATE,
-          PIG_WANDER_BOUNDS
+          PIG_WANDER_BOUNDS,
+          0,
+          ref.current?.scale.x ?? 1
+        );
+        // Feet consume the same 30 Hz travel as the root, while forage retains
+        // its existing slower clock. There is no second animation timer.
+        pigRigRefs[i].current?.setStride(
+          pigStates.current[i].stridePhase + pigOffsets[i],
+          pigStride.current[i]
         );
       });
 
@@ -2563,9 +2631,15 @@ export const FarmArea: React.FC = () => {
           ref.current,
           cowStates.current[i],
           adjustDelta,
-          0.5, // Speed
+          QUADRUPED_WALK.cow.speed,
           COW_STRIDE_RATE,
-          COW_WANDER_BOUNDS
+          COW_WANDER_BOUNDS,
+          0,
+          ref.current?.scale.x ?? 1
+        );
+        cowRigRefs[i].current?.setStride(
+          cowStates.current[i].stridePhase + cowOffsets[i],
+          cowStride.current[i]
         );
       });
     }
@@ -2637,18 +2711,9 @@ export const FarmArea: React.FC = () => {
           creatureForageWeight(time, 100 + i)
         : 0;
       chickenPeck.current[i] = THREE.MathUtils.lerp(chickenPeck.current[i], target, blend(0.25));
-      chickenStride.current[i] = THREE.MathUtils.lerp(
-        chickenStride.current[i],
-        chickenStates.current[i].moving ? 1 : 0,
-        blend(0.15)
-      );
       const rig = chickenRigRefs[i].current;
       if (rig) {
         rig.setGraze(chickenPeck.current[i]);
-        rig.setStride(
-          chickenStates.current[i].stridePhase + chickenOffsets[i],
-          chickenStride.current[i]
-        );
       } else if (ref.current) {
         // Local Z, negative, because the primitive bird is authored facing +X:
         // `rotation.x` rolled the whole body sideways about its own length
@@ -2683,7 +2748,6 @@ export const FarmArea: React.FC = () => {
         blend(0.15)
       );
       rig.setGraze(pigRoot.current[i]);
-      rig.setStride(pigStates.current[i].stridePhase + pigOffsets[i], pigStride.current[i]);
     });
 
     // Fixed-place grazers take independently timed head-up rests between bouts.
@@ -2696,6 +2760,7 @@ export const FarmArea: React.FC = () => {
         creatureForageWeight(time, 400 + i);
       sheepGraze.current[i] = THREE.MathUtils.lerp(sheepGraze.current[i], target, blend(0.08));
       rig.setGraze(sheepGraze.current[i]);
+      rig.setResting?.(time, 400 + i);
     });
 
     if (horseRigRef.current) {
@@ -2705,6 +2770,7 @@ export const FarmArea: React.FC = () => {
       const target = (0.55 + Math.sin(time * 0.28) * 0.35) * creatureForageWeight(time, 500);
       horseGraze.current = THREE.MathUtils.lerp(horseGraze.current, target, blend(0.06));
       horseRigRef.current.setGraze(horseGraze.current);
+      horseRigRef.current.setResting?.(time, 500);
     }
 
     // Grazing, expressed as an amount rather than an angle so the same driver
@@ -2726,9 +2792,6 @@ export const FarmArea: React.FC = () => {
       const rig = cowRigRefs[i].current;
       if (rig) {
         rig.setGraze(cowGraze.current[i]);
-        // Ground travel owns phase, so weather/night slowing also slows the feet.
-        // External jumps/reset positions never enter this integrated distance.
-        rig.setStride(cowStates.current[i].stridePhase + cowOffsets[i], cowStride.current[i]);
       } else if (ref.current) {
         // Nose down is a negative rotation about the primitive's local Z, its
         // pitch axis. The previous `rotation.x` write rolled the head sideways
@@ -2785,7 +2848,7 @@ export const FarmArea: React.FC = () => {
           Coplanar with the terrain; its -2/-2 offset against the terrain's
           exteriorBase holds the depth order. */}
       <mesh position={[0, EXTERIOR_LAYERS.ground, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[20, 15]} />
+        <planeGeometry args={[...FARM_YARD_SIZE]} />
         {/* Untinted: the cobble albedo now decodes as sRGB, so the old
             '#9a9a9a' compensator would darken the yard twice. */}
         <meshStandardMaterial
@@ -2808,7 +2871,7 @@ export const FarmArea: React.FC = () => {
       <GardenBed position={[-15, 0, 19]} />
 
       {/* Drainage culvert under the farm road - provides water drainage from fields */}
-      <DrainageCulvert position={[8, -0.3, 8]} rotation={Math.PI / 2} length={6} radius={0.6} />
+      <DrainageCulvert position={[8, -0.3, 8]} length={6} radius={0.6} />
       {chickenData.map((c, i) => (
         <Chicken
           key={`chicken-${i}`}
@@ -2969,12 +3032,13 @@ export const FarmArea: React.FC = () => {
       {/* Shared wind clock (idempotent - the village mounts one too) */}
       <WindDriver />
 
-      {/* Drainage Culvert under the farm path */}
-      <DrainageCulvert position={[0, -0.3, -30]} rotation={Math.PI / 2} length={6} radius={0.6} />
+      {/* Across the clear headland: the earth bank must not bury the first
+          cereal rows or cross the retained windmill track at x 8. */}
+      <DrainageCulvert position={[0, -0.3, -28.5]} length={6} radius={0.6} />
 
       {/* Grain Field Background */}
       <group position={[0, 0, -42]}>
-        {/* Simple Grain Field - Instanced Loops */}
+        {/* Root-coherent cereal stools, one shared wind field and three draws. */}
         <InstancedGrainField />
         <Scarecrow position={[0, 0, 0]} rotation={0.2} />
       </group>

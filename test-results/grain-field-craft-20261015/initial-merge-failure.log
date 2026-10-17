@@ -1,0 +1,41 @@
+
+> grain-mill-simulator@0.40.0 test
+> vitest run src/components/LivingWorldCreatures.test.tsx -t common ground-root datum
+
+(node:76878) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+(node:76907) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+stderr | src/components/LivingWorldCreatures.test.tsx
+THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index 2. Make sure all geometries have the same number of attributes.
+
+ ❯ src/components/LivingWorldCreatures.test.tsx (0 test)
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/LivingWorldCreatures.test.tsx [ src/components/LivingWorldCreatures.test.tsx ]
+Error: Village plot geometry must have matching attributes
+ ❯ PlotGeometry.finish src/utils/authoredPlotGeometry.ts:36:24
+     34|     const merged = mergeGeometries(plain);
+     35|     new Set([...this.parts, ...plain]).forEach((g) => g.dispose());
+     36|     if (!merged) throw new Error('Village plot geometry must have matc…
+       |                        ^
+     37|     merged.computeBoundingBox();
+     38|     merged.computeBoundingSphere();
+ ❯ createGrainPlantGeometries src/components/FarmArea.tsx:498:79
+ ❯ src/components/FarmArea.tsx:502:37
+ ❯ src/components/LivingWorldCreatures.test.tsx:20:1
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  no tests
+   Start at  06:34:40
+   Duration  18.33s (transform 2.57s, setup 223ms, import 0ms, tests 0ms, environment 1.04s)
+

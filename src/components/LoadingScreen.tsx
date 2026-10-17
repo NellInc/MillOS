@@ -91,9 +91,14 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
             transition: reducedMotion ? 'none' : 'opacity 220ms ease-out',
           }}
         >
-          <div aria-hidden="true" style={{ fontSize: '56px', marginBottom: '14px' }}>
-            🏭
-          </div>
+          <img
+            src={`${import.meta.env.BASE_URL}textures/signage/millos-mark-v1.webp`}
+            alt=""
+            aria-hidden="true"
+            width={56}
+            height={56}
+            style={{ display: 'block', marginBottom: '14px' }}
+          />
 
           <div
             style={{

@@ -1,0 +1,17 @@
+{
+  "borrowedLinksRemoved": 375,
+  "restoredDependencyTarget": "/Users/nellwatson/Documents/GitHub/MillOS/node_modules",
+  "removed": [
+    "empty task .vite-temp",
+    "/private/tmp/millos-T-npm-cache"
+  ],
+  "ownership": "exact link targets and no active handles verified immediately before removal",
+  "preserved": [
+    "shared dependencies/caches",
+    "current build",
+    "raw captures/logs/failures",
+    "source/assets/history",
+    "primary checkout and protected output"
+  ],
+  "diskRecoveryClaim": "none"
+}

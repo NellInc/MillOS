@@ -1,0 +1,110 @@
+[
+  {
+    "label": "S-rounded-pumps-final-day-20261015",
+    "servedIdentity": {
+      "index": {
+        "url": "http://127.0.0.1:4288/",
+        "sha256": "0893fa15872f602befc0c7dac38c420a829ce21d35f03f252e3588b3baba4f4f",
+        "bytes": 9887
+      },
+      "entries": [
+        {
+          "url": "http://127.0.0.1:4288/assets/main-Ecb7-uLE.js",
+          "sha256": "a2e0df0d58047dfd182ef63500b0e147e30287749bf7ff34185e088152cb022e",
+          "bytes": 823495
+        }
+      ]
+    },
+    "diagnostics": {
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": [],
+      "screenshotError": null
+    },
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "checks": {
+      "firstFrame": false,
+      "averageFps": true,
+      "p95Frame": false,
+      "p99Frame": true,
+      "onePercentLow": true,
+      "effectiveDpr": true,
+      "longTasks": true,
+      "framesOver50Ms": true,
+      "worldIntegrity": true,
+      "pageClean": true,
+      "communityPresence": true,
+      "checkpoints": true
+    },
+    "load": {
+      "cores": 10,
+      "loadAverage1m": 429.03,
+      "loadAverage5m": 402.09,
+      "loadPerCore": 42.9,
+      "contendedThreshold": 3,
+      "contended": true
+    },
+    "gpu": {
+      "sandboxed": true,
+      "inProcessGpu": false,
+      "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1 Max, Version 27.0.1 (Build 26A434))"
+    }
+  },
+  {
+    "label": "S-rounded-pumps-final-dusk-20261015",
+    "servedIdentity": {
+      "index": {
+        "url": "http://127.0.0.1:4288/",
+        "sha256": "0893fa15872f602befc0c7dac38c420a829ce21d35f03f252e3588b3baba4f4f",
+        "bytes": 9887
+      },
+      "entries": [
+        {
+          "url": "http://127.0.0.1:4288/assets/main-Ecb7-uLE.js",
+          "sha256": "a2e0df0d58047dfd182ef63500b0e147e30287749bf7ff34185e088152cb022e",
+          "bytes": 823495
+        }
+      ]
+    },
+    "diagnostics": {
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": [],
+      "screenshotError": null
+    },
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "checks": {
+      "firstFrame": false,
+      "averageFps": false,
+      "p95Frame": false,
+      "p99Frame": true,
+      "onePercentLow": true,
+      "effectiveDpr": true,
+      "longTasks": true,
+      "framesOver50Ms": true,
+      "worldIntegrity": true,
+      "pageClean": true,
+      "communityPresence": true,
+      "checkpoints": true
+    },
+    "load": {
+      "cores": 10,
+      "loadAverage1m": 418.55,
+      "loadAverage5m": 406.3,
+      "loadPerCore": 41.85,
+      "contendedThreshold": 3,
+      "contended": true
+    },
+    "gpu": {
+      "sandboxed": true,
+      "inProcessGpu": false,
+      "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1 Max, Version 27.0.1 (Build 26A434))"
+    }
+  }
+]

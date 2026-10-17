@@ -17,5 +17,719 @@
       "brief": "Three heritage wheat ears with alternating almond kernels, bowed side stalks and tied ribbon; black on white, then traced to white alpha mask for gold printing.",
       "sha256": "aa8cf0938173d794a1156c50fefc69bd2c184c533d7166590b31b314ce31db22"
     }
-  ]
+  ],
+  "rasterPrints": {
+    "date": "2026-10-14",
+    "method": "Built-in image generation and targeted image edits; selected raster art, original graphics retained",
+    "assets": [
+      {
+        "id": "flour",
+        "source": "output/raster-heritage-20261014/source/flour.png",
+        "prompt": "Use case: ads-marketing. Create a finished, gorgeous raster advertising POSTER for the existing MillOS game world, a charming British/Dutch miniature village. Portrait 7:10, full bleed flat artwork, no photographed frame or perspective. This must look like a lovingly painted mid-century gouache/lithograph, visibly raster painterly texture, rich tonal shading, soft fine paper grain, tactile ink, coherent ivory, deep forest green, muted gold, terracotta and dusk blue. Large beautifully hand-painted serif headline at top, EXACT text 'MillOS FLOUR'. Centre an inviting still-life of golden wheat ears, a cream flour sack and warm scored bread, with a small charming white Dutch windmill with dark blue roof/red cap and red barn beside a canal in the painted background. The mill/bread/wheat are the subject, no people. Artisan quality, depth and glow painted into the illustration without glossy 3D or flat vector blocks. Preserve generous readable text margins. Bottom EXACT two lines: 'MILLED HERE.' then 'BAKED WITH LOVE.' Footer EXACT: 'FINE FLOUR SINCE 1952'. No other words, numbers or fake tiny text. A restrained painted green/gold perimeter integrated into paper. Artwork takes roughly central 50 percent, type has breathing room. All exact text must remain readable when the poster is small in a 3D scene. Do not mimic an SVG icon or typography mockup. This is the final printable image, opaque background.",
+        "correctionPrompt": null,
+        "file": "flour-painted-v1.webp",
+        "sourceCopy": "output/raster-heritage-20261014/source/flour.png",
+        "sourceWidth": 1049,
+        "sourceHeight": 1499,
+        "crop": null,
+        "width": 1049,
+        "height": 1499,
+        "bytes": 592140,
+        "sha256": "564f94a96ab92ca5d17acf97f1b76bdf1c25482a5d094aa4e3008568a78f7378",
+        "method": "Built-in image_gen; mechanical blank-padding trim and aspect-preserving WebP preparation with existing sharp; no vector conversion",
+        "textReview": "Exact intended title and caption inspected on the generated image"
+      },
+      {
+        "id": "dino",
+        "source": "output/raster-heritage-20261014/source/dino.png",
+        "prompt": "Use case: ads-marketing. Create a gorgeous finished raster advertising POSTER for the fictional Dead Dino gas station in MillOS's charming British/Dutch miniature village. Portrait 7:10, flat full-bleed print, no scene mockup, no camera perspective or frame. Painterly mid-century illustrated enamel/lithograph, visible gouache brushwork and subtle aged ivory paper, rich warm light and soft shading, no flat vector icon. EXACT large hand-painted headline 'DEAD DINO'. Main illustration is the EXISTING mascot: adorable green collapsed/sleeping stegosaurus lying horizontally, curled tail at LEFT, head at RIGHT, cream belly, small pale back plates, bold X eye and a little coral tongue, friendly comic fossil-fuel joke, no gore, no bones. Keep its recognisable silhouette but give it dimensional painted skin texture and soft natural shading. An amber/terracotta sun and restrained retro landscape provide depth behind it without clutter. Palette ivory, forest/sage green, amber, terracotta, coral, muted navy. Bottom clear EXACT text on two lines 'PREMIUM' then 'FOSSIL FUEL'. Footer EXACT 'COFFEE & PROVISIONS'. All words integrated as beautiful painted advertising lettering with readable generous margins, no other words or pseudo-text. Rich illustration should dominate central half of print, heading and footer occupy their own quiet fields. No external real-world logos, no extra mascots. No SVG/vector-style thick black outlines; softly painted edges. Opaque background.",
+        "correctionPrompt": null,
+        "file": "dino-painted-v1.webp",
+        "sourceCopy": "output/raster-heritage-20261014/source/dino.png",
+        "sourceWidth": 1049,
+        "sourceHeight": 1499,
+        "crop": null,
+        "width": 1049,
+        "height": 1499,
+        "bytes": 459710,
+        "sha256": "f108f5847f1dd4c6eea9bd26575143ffb890a2c06ec8c68ea43f214a1c1e5561",
+        "method": "Built-in image_gen; mechanical blank-padding trim and aspect-preserving WebP preparation with existing sharp; no vector conversion",
+        "textReview": "Exact intended title and caption inspected on the generated image"
+      },
+      {
+        "id": "route",
+        "source": "output/raster-heritage-20261014/source/route.png",
+        "prompt": "Use case: ads-marketing. Create final production raster artwork for a beautiful village bus route board in MillOS. Portrait 13:17, full-bleed, no photographed housing, no mockup or perspective. An elegant painted British/Dutch mid-century travel poster, exquisite raster gouache texture, soft ivory paper grain, deep forest green, warm gold, canal blue and red-brown brick. EXACT heading 'Route 42', large expressive readable hand-painted lettering, with EXACT destination 'Town Centre' below it. Small heritage golden wheat sprigs frame the upper lettering. The central illustration shows the existing village's cream-and-forest-green short single-decker bus, rounded cream roof, ordinary rubber wheels, beside a tranquil canal, compact gabled brick houses and a small windmill. No people, no trains, no port, no mountains crossing transport. Hand-painted light, dimensional bus and charming town, no flat icon vector look. IMPORTANT reserve the bottom 25 percent, starting at vertical 75 percent from TOP, as a completely EMPTY light-ivory inset field, with no ornament or illustration crossing it; its edges may have a faint painted gold keyline. This empty field will receive real live service text in game. Do NOT print any service times, BUS ON ROUTE, BUS AT STOP, or other words in that field. Only words anywhere are 'Route 42' and 'Town Centre'. Fine painted border at perimeter, generous safe margins, visual readability at small scale. Opaque.",
+        "correctionPrompt": null,
+        "file": "route-painted-v1.webp",
+        "sourceCopy": "output/raster-heritage-20261014/source/route.png",
+        "sourceWidth": 1097,
+        "sourceHeight": 1434,
+        "crop": null,
+        "width": 1097,
+        "height": 1434,
+        "bytes": 525424,
+        "sha256": "12d486049941b8b79fc3741065bf25e84b2db475c3eb5d355a3fc6dd8e8a9998",
+        "method": "Built-in image_gen; mechanical blank-padding trim and aspect-preserving WebP preparation with existing sharp; no vector conversion",
+        "textReview": "Exact intended title and caption inspected on the generated image"
+      },
+      {
+        "id": "bakery",
+        "source": "output/raster-heritage-20261014/source/bakery.png",
+        "prompt": "Use case: ads-marketing. Create final production RASTER artwork for a wide shop fascia in MillOS's charming British/Dutch miniature village. Extremely wide landscape ratio 8.25:1, flat full-bleed image, no shop mockup, no frame, no perspective. Rich, gorgeously hand-painted traditional signwriter lettering on painted timber/enamel, subtle fine gouache brushwork and aged ink, painterly dimensional still-life accents, warm cream and restrained gold letters, premium artisan quality. This must not look like SVG, vector clip art, a computer font pasted on flat colour or a logo template. Crisp readable beautiful serif title dominates central area, quiet small caption under it. Generous safe margins on every side, all lettering inside the artwork. Large title occupies about 55 percent of height, caption about 16 percent. Small painted ingredients/provisions at both far edges, no people, no large emblem stealing title width. All words must be exact and no extra words or pseudo-lettering. Burgundy/rose-brown field matching existing bakery fascia (#75454a), warm cream letters with muted gold highlights. Exact title 'BAKERY'. Exact caption 'BREAD & PATISSERIE'. Paint golden wheat, a scored loaf, croissant and a small fruit pastry at the edges, with tactile crust and soft natural shading. Restrained painted gold inner pinstripe.",
+        "correctionPrompt": "Edit this painted shop fascia artwork. Keep the same gorgeous painterly raster medium, colour palette, exact words 'BAKERY' and 'BREAD & PATISSERIE', and recognisable ingredient paintings. REQUIRED composition correction: the real fascia is an EXTREMELY THIN horizontal strip, 8.25 times wider than it is tall. Re-layout everything, including BOTH complete text lines, decorative ingredients and gold border, INSIDE ONE SHORT BAND that spans the whole image width but occupies only the central 32 percent of the canvas height. Blank solid white above and below this band; all art ends at its boundary. For example if canvas is 2100x800, the complete fascia band is 2100x255 centred vertically, with blank padding above/below. The band itself must be 8.25:1 and all lettering must fit in its short height without clipping. Main letters now have a wider, less vertically stretched signwriter proportion; compact caption below. Ingredients are small at extreme edges, no extra words. This is a mechanical re-layout for a narrow existing sign, not a new design. Do not leave the caption or any gold border outside the short band. Do not draw a thick/tall 3:1 sign. Keep full opacity.",
+        "file": "bakery-painted-v1.webp",
+        "sourceCopy": "output/raster-heritage-20261014/source/bakery.png",
+        "sourceWidth": 2027,
+        "sourceHeight": 776,
+        "crop": {
+          "left": 0,
+          "top": 257,
+          "width": 2027,
+          "height": 267
+        },
+        "width": 2027,
+        "height": 267,
+        "bytes": 145774,
+        "sha256": "bfd1d5b579670e8fde1c7312d40280e9336296b159e50a76cac7b315853c9564",
+        "method": "Built-in image_gen; mechanical blank-padding trim and aspect-preserving WebP preparation with existing sharp; no vector conversion",
+        "textReview": "Exact intended title and caption inspected on the generated image"
+      },
+      {
+        "id": "butcher",
+        "source": "output/raster-heritage-20261014/source/butcher.png",
+        "prompt": "Use case: ads-marketing. Create final production RASTER artwork for a wide shop fascia in MillOS's charming British/Dutch miniature village. Extremely wide landscape ratio 8.25:1, flat full-bleed image, no shop mockup, no frame, no perspective. Rich, gorgeously hand-painted traditional signwriter lettering on painted timber/enamel, subtle fine gouache brushwork and aged ink, painterly dimensional still-life accents, warm cream and restrained gold letters, premium artisan quality. This must not look like SVG, vector clip art, a computer font pasted on flat colour or a logo template. Crisp readable beautiful serif title dominates central area, quiet small caption under it. Generous safe margins on every side, all lettering inside the artwork. Large title occupies about 55 percent of height, caption about 16 percent. Small painted ingredients/provisions at both far edges, no people, no large emblem stealing title width. All words must be exact and no extra words or pseudo-lettering. Deep forest-green field matching existing butcher fascia (#365043). Exact title 'BUTCHER'. Exact caption 'FARMHOUSE MEATS'. Paint rustic wrapped provisions, a thyme sprig and a neat piece of farmhouse cured meat on a small wood board at the edges, appetising and subtle, no butcher knife, blood, gore or slaughter imagery. Restrained painted gold inner pinstripe.",
+        "correctionPrompt": "Edit this painted shop fascia artwork. Keep the same gorgeous painterly raster medium, colour palette, exact words 'BUTCHER' and 'FARMHOUSE MEATS', and recognisable ingredient paintings. REQUIRED composition correction: the real fascia is an EXTREMELY THIN horizontal strip, 8.25 times wider than it is tall. Re-layout everything, including BOTH complete text lines, decorative ingredients and gold border, INSIDE ONE SHORT BAND that spans the whole image width but occupies only the central 32 percent of the canvas height. Blank solid white above and below this band; all art ends at its boundary. For example if canvas is 2100x800, the complete fascia band is 2100x255 centred vertically, with blank padding above/below. The band itself must be 8.25:1 and all lettering must fit in its short height without clipping. Main letters now have a wider, less vertically stretched signwriter proportion; compact caption below. Ingredients are small at extreme edges, no extra words. This is a mechanical re-layout for a narrow existing sign, not a new design. Do not leave the caption or any gold border outside the short band. Do not draw a thick/tall 3:1 sign. Keep full opacity.",
+        "file": "butcher-painted-v1.webp",
+        "sourceCopy": "output/raster-heritage-20261014/source/butcher.png",
+        "sourceWidth": 2021,
+        "sourceHeight": 778,
+        "crop": {
+          "left": 0,
+          "top": 257,
+          "width": 2021,
+          "height": 247
+        },
+        "width": 2021,
+        "height": 247,
+        "bytes": 124350,
+        "sha256": "450bde32bd13ba7f8c6aea2a1483aab2229a73031ac1ea2fe2e6a38940749309",
+        "method": "Built-in image_gen; mechanical blank-padding trim and aspect-preserving WebP preparation with existing sharp; no vector conversion",
+        "textReview": "Exact intended title and caption inspected on the generated image"
+      },
+      {
+        "id": "grocer",
+        "source": "output/raster-heritage-20261014/source/grocer.png",
+        "prompt": "Use case: ads-marketing. Create final production RASTER artwork for a wide shop fascia in MillOS's charming British/Dutch miniature village. Extremely wide landscape ratio 8.25:1, flat full-bleed image, no shop mockup, no frame, no perspective. Rich, gorgeously hand-painted traditional signwriter lettering on painted timber/enamel, subtle fine gouache brushwork and aged ink, painterly dimensional still-life accents, warm cream and restrained gold letters, premium artisan quality. This must not look like SVG, vector clip art, a computer font pasted on flat colour or a logo template. Crisp readable beautiful serif title dominates central area, quiet small caption under it. Generous safe margins on every side, all lettering inside the artwork. Large title occupies about 55 percent of height, caption about 16 percent. Small painted ingredients/provisions at both far edges, no people, no large emblem stealing title width. All words must be exact and no extra words or pseudo-lettering. Deep slate/navy field matching existing general-store fascia (#263f55). Exact title 'GENERAL STORE'. Exact caption 'PROVISIONS & FINE GOODS'. Paint a small grain sack, apples, a copper-brown provisions jar and a folded cloth at the edges, hand-painted texture and soft shading. Restrained painted gold inner pinstripe.",
+        "correctionPrompt": "Edit this painted shop fascia artwork. Keep the same gorgeous painterly raster medium, colour palette, exact words 'GENERAL STORE' and 'PROVISIONS & FINE GOODS', and recognisable ingredient paintings. REQUIRED composition correction: the real fascia is an EXTREMELY THIN horizontal strip, 8.25 times wider than it is tall. Re-layout everything, including BOTH complete text lines, decorative ingredients and gold border, INSIDE ONE SHORT BAND that spans the whole image width but occupies only the central 32 percent of the canvas height. Blank solid white above and below this band; all art ends at its boundary. For example if canvas is 2100x800, the complete fascia band is 2100x255 centred vertically, with blank padding above/below. The band itself must be 8.25:1 and all lettering must fit in its short height without clipping. Main letters now have a wider, less vertically stretched signwriter proportion; compact caption below. Ingredients are small at extreme edges, no extra words. This is a mechanical re-layout for a narrow existing sign, not a new design. Do not leave the caption or any gold border outside the short band. Do not draw a thick/tall 3:1 sign. Keep full opacity.",
+        "file": "grocer-painted-v1.webp",
+        "sourceCopy": "output/raster-heritage-20261014/source/grocer.png",
+        "sourceWidth": 2105,
+        "sourceHeight": 747,
+        "crop": {
+          "left": 0,
+          "top": 261,
+          "width": 2105,
+          "height": 227
+        },
+        "width": 2048,
+        "height": 221,
+        "bytes": 142052,
+        "sha256": "bcbf5b31349965e83555fc6f1b611e14b3480ad7c00a3af075f2e953675724b5",
+        "method": "Built-in image_gen; mechanical blank-padding trim and aspect-preserving WebP preparation with existing sharp; no vector conversion",
+        "textReview": "Exact intended title and caption inspected on the generated image"
+      }
+    ]
+  },
+  "businessBrands": {
+    "created": "2026-10-14",
+    "tool": "Built-in image_gen",
+    "application": "Fictional MillOS world businesses; opaque application masters on their intended dark sign fields",
+    "assets": [
+      {
+        "id": "dino",
+        "variant": "primary",
+        "file": "brand-dead-dino-v2.webp",
+        "prompt": "Use case: logo-brand. Asset type: final professional multi-colour raster brand logo for signage in the fictional MillOS game world. True transparent RGBA background, no surface, no sign mockup, no scene, no frame, no watermark. One original distinctive graphic mark at LEFT plus bespoke, impeccably readable wordmark at RIGHT. Modern professional identity, crisp art-directed geometry with warm human character, a real considered logo rather than clip art or a generic font pasted beside an icon. Clean flat colour, extremely subtle depth only where useful, no paper texture, no distress, no photographic objects. Foreground lettering warm ivory #fff0d2, for use on DARK painted signs. All complete artwork in ONE THIN horizontal band centered on the canvas, content roughly SIX to SEVEN times wider than tall, with transparent blank padding above/below; trim-ready. Preserve generous padding all round. No extra words beyond the EXACT required wordmark, no slogans, no tiny captions. Avoid stock stock-logo swooshes, generic badge circles, gradients that impair legibility, thin hairlines and anything resembling a real external trademark. EXACT wordmark 'DEAD DINO' in an original contemporary bold rounded sans with beautifully balanced spacing, strong friendly petrol-station brand. Distinctive mark: a sage/jade green stegosaurus head with a pale small back-plate suggestion and one tiny cross-shaped eye, integrated with a terracotta/coral fuel-drop silhouette or negative-space drop. A smart fossil-fuel joke that preserves the existing brand's green dinosaur and X eye; the creature is stylised and friendly, no dead body, gore or childish full-body cartoon. Palette jade #53a58b, coral #dc704d, warm ivory. Icon has generous open negative space, very clear at 32 pixels. Whole brand feels like a polished modern independent fuel retailer.",
+        "editPrompt": "Edit this Dead Dino logo into a genuinely refined second iteration for a modern independent petrol station. This image is the EDIT TARGET, keep its brand name, jade green, coral and ivory palette on a perfectly clean opaque dark petrol-green #143c36 field. Redesign BOTH the typography and symbol. EXACT and ONLY lettering: 'DEAD DINO', one horizontal line. Bespoke contemporary all-capitals wordmark, confident slightly forward-leaning wide sans, firm straight stems, gently rounded outer corners, carefully cut angular interior counters, handsome balanced spacing; less inflated/bubbly, no default stock rounded font. Give the two D letters a subtly related diagonal/fossil-plate counter treatment and keep all letters beautifully readable. Symbol at left: a VERY clear compact stylised STEGOSAURUS, its short-snouted head resting toward right, a long low rounded body and curled tapering tail toward left, four or five pale dorsal plates, one small cross-shaped eye. Charming fossil-fuel humour, peaceful/resting expression, no gore, no skeleton, no long sauropod neck or vague generic dragon head. Use one coherent jade silhouette with very restrained deeper-green contour detail. A clean coral fuel-drop countershape or compact surrounding drop gives the station reference; it must not overwhelm the dinosaur. Original memorable brand mark, tidy meaningful negative spaces, readable at small size. Whole icon has approximately the height of the capital lettering, not a huge tall mascot beside tiny text. Compose ALL ink in one thin horizontal central band roughly 6.5 to 7.5 times wider than tall, plenty of empty dark padding above/below and safe margins left/right; all letters intact. Crisp gorgeous multi-colour RASTER artwork, subtle art-directed dimensional finish, no speckles, no halos, no pseudo-text, no slogan, no border, no mockup, no trademark imitation, no scene. Opaque field, absolutely no transparency.",
+        "sourceCopy": "tmp/custom-icons/brand-identities-20261014/dino-primary-master.png",
+        "sourceWidth": 2135,
+        "sourceHeight": 736,
+        "crop": {
+          "left": 96,
+          "top": 139,
+          "width": 1957,
+          "height": 402
+        },
+        "width": 1536,
+        "height": 316,
+        "bytes": 35492,
+        "sha256": "7002a48ddc152d0e748bb470736fb953c1292820a6919e26b0a5e10b10c280b4",
+        "field": "#143c36",
+        "edgeColour": "#0e433c",
+        "method": "Built-in image_gen original brand artwork and edit; mechanical dark-padding trim and aspect-preserving WebP encoding with existing sharp, no vector conversion",
+        "textReview": "Brand spelling and complete logo reviewed on generated master; rendered in-scene review deferred"
+      },
+      {
+        "id": "bakery",
+        "variant": "primary",
+        "file": "brand-riverside-bakers-v1.webp",
+        "prompt": "Use case: logo-brand. Asset type: final professional multi-colour raster brand logo for signage in the fictional MillOS game world. True transparent RGBA background, no surface, no sign mockup, no scene, no frame, no watermark. One original distinctive graphic mark at LEFT plus bespoke, impeccably readable wordmark at RIGHT. Modern professional identity, crisp art-directed geometry with warm human character, a real considered logo rather than clip art or a generic font pasted beside an icon. Clean flat colour, extremely subtle depth only where useful, no paper texture, no distress, no photographic objects. Foreground lettering warm ivory #fff0d2, for use on DARK painted signs. All complete artwork in ONE THIN horizontal band centered on the canvas, content roughly SIX to SEVEN times wider than tall, with transparent blank padding above/below; trim-ready. Preserve generous padding all round. No extra words beyond the EXACT required wordmark, no slogans, no tiny captions. Avoid stock stock-logo swooshes, generic badge circles, gradients that impair legibility, thin hairlines and anything resembling a real external trademark. EXACT wordmark 'RIVERSIDE BAKERS'. Completely distinct contemporary artisan bakery identity: the mark combines a small arched river bridge and the scored top of a round loaf, with a rising pair of warm-gold steam strokes. Bespoke warm editorial serif lettering, robust strokes, readable at small size, different from the petrol-station sans. Palette warm ivory, apricot gold and muted plum accents, readable on burgundy. No wheat-sheaf borrowed from another business, no croissant clip-art, no generic badge.",
+        "editPrompt": "Edit target: this exact RIVERSIDE BAKERS brand logo. Preserve the original emblem, wordmark lettering, spelling 'RIVERSIDE BAKERS', proportions, spacing and intended palette. REQUIRED technical cleanup: fill the entire background with a uniform OPAQUE dark application field #2d2530; make the complete logo and all letters fully opaque, crisp and smooth. Remove ALL white/coloured speckles, loose fragments and ragged alpha fringe outside the intended icon and letters, and repair letter interiors/counters cleanly. No transparency, white halos, glow, paper texture, distress, scene, mockup or extra text. This is the same polished contemporary business identity, application-ready. Prefer clean mostly flat colour rather than plastic bevels. Keep all artwork centred in a thin horizontal band with generous dark padding above/below; no clipping. Background stays uniform to all image edges.",
+        "sourceCopy": "tmp/custom-icons/brand-identities-20261014/bakery-primary-master.png",
+        "sourceWidth": 2172,
+        "sourceHeight": 724,
+        "crop": {
+          "left": 105,
+          "top": 142,
+          "width": 1962,
+          "height": 417
+        },
+        "width": 1536,
+        "height": 326,
+        "bytes": 40064,
+        "sha256": "3df056841b5f07b2487aed61ad9153f95e83d32dd1006c9ac628f9ce4cbedf65",
+        "field": "#2d2530",
+        "edgeColour": "#30252f",
+        "method": "Built-in image_gen original brand artwork and edit; mechanical dark-padding trim and aspect-preserving WebP encoding with existing sharp, no vector conversion",
+        "textReview": "Brand spelling and complete logo reviewed on generated master; rendered in-scene review deferred"
+      },
+      {
+        "id": "bakery",
+        "variant": "fascia",
+        "file": "brand-riverside-bakers-fascia-v1.webp",
+        "prompt": "Use case: logo-brand. Asset type: final professional multi-colour raster brand logo for signage in the fictional MillOS game world. True transparent RGBA background, no surface, no sign mockup, no scene, no frame, no watermark. One original distinctive graphic mark at LEFT plus bespoke, impeccably readable wordmark at RIGHT. Modern professional identity, crisp art-directed geometry with warm human character, a real considered logo rather than clip art or a generic font pasted beside an icon. Clean flat colour, extremely subtle depth only where useful, no paper texture, no distress, no photographic objects. Foreground lettering warm ivory #fff0d2, for use on DARK painted signs. All complete artwork in ONE THIN horizontal band centered on the canvas, content roughly SIX to SEVEN times wider than tall, with transparent blank padding above/below; trim-ready. Preserve generous padding all round. No extra words beyond the EXACT required wordmark, no slogans, no tiny captions. Avoid stock stock-logo swooshes, generic badge circles, gradients that impair legibility, thin hairlines and anything resembling a real external trademark. EXACT wordmark 'RIVERSIDE BAKERS'. Completely distinct contemporary artisan bakery identity: the mark combines a small arched river bridge and the scored top of a round loaf, with a rising pair of warm-gold steam strokes. Bespoke warm editorial serif lettering, robust strokes, readable at small size, different from the petrol-station sans. Palette warm ivory, apricot gold and muted plum accents, readable on burgundy. No wheat-sheaf borrowed from another business, no croissant clip-art, no generic badge.",
+        "editPrompt": "Adapt this exact RIVERSIDE BAKERS logo to its ACTUAL very narrow fascia. Preserve the same emblem, spelling, bespoke lettering and opaque dark field. Recompose the whole logo into ONE VERY THIN BAND, 9 times wider than tall, centred horizontally within this image, with the same solid dark colour above and below. Emblem at far left occupies the band height, the whole exact wordmark 'RIVERSIDE BAKERS' is on ONE LINE at right. All complete artwork, including horns/steam/drop/waves, must fit inside the thin band; never clip an element. For a 2160x720 canvas the entire band is about 2160x240, centred vertically. The wordmark now uses most of the width; normal non-stretched letter proportions. NO secondary text, NO two-line wordmark, no photograph/mockup. Uniform fully opaque background, clean edges, no fringe or texture. Leave ample outer left/right padding but little empty space inside the brand lockup. This is a responsive logo-layout variant for a real existing 3D sign.",
+        "sourceCopy": "tmp/custom-icons/brand-identities-20261014/bakery-fascia-master.png",
+        "sourceWidth": 2172,
+        "sourceHeight": 724,
+        "crop": {
+          "left": 131,
+          "top": 211,
+          "width": 1921,
+          "height": 308
+        },
+        "width": 1921,
+        "height": 308,
+        "bytes": 46770,
+        "sha256": "7519f8f118976d5e5cfc9c2fd6b0e871f7b6369900ea04cc6ec87a93625e6ebb",
+        "field": "#2d2530",
+        "edgeColour": "#2d222e",
+        "method": "Built-in image_gen original brand artwork and edit; mechanical dark-padding trim and aspect-preserving WebP encoding with existing sharp, no vector conversion",
+        "textReview": "Brand spelling and complete logo reviewed on generated master; rendered in-scene review deferred"
+      },
+      {
+        "id": "butcher",
+        "variant": "primary",
+        "file": "brand-fieldgate-butchers-v1.webp",
+        "prompt": "Use case: logo-brand. Asset type: final professional multi-colour raster brand logo for signage in the fictional MillOS game world. True transparent RGBA background, no surface, no sign mockup, no scene, no frame, no watermark. One original distinctive graphic mark at LEFT plus bespoke, impeccably readable wordmark at RIGHT. Modern professional identity, crisp art-directed geometry with warm human character, a real considered logo rather than clip art or a generic font pasted beside an icon. Clean flat colour, extremely subtle depth only where useful, no paper texture, no distress, no photographic objects. Foreground lettering warm ivory #fff0d2, for use on DARK painted signs. All complete artwork in ONE THIN horizontal band centered on the canvas, content roughly SIX to SEVEN times wider than tall, with transparent blank padding above/below; trim-ready. Preserve generous padding all round. No extra words beyond the EXACT required wordmark, no slogans, no tiny captions. Avoid stock stock-logo swooshes, generic badge circles, gradients that impair legibility, thin hairlines and anything resembling a real external trademark. EXACT wordmark 'FIELDGATE BUTCHERS'. Distinct, confident British farmhouse butcher identity: a beautifully simplified bull-profile and the bars of a farm gate form one compact shield-free monogram, with generous negative spaces. Bespoke sturdy contemporary slab-serif lettering, beautifully spaced, different from bakery and station. Palette warm ivory, restrained copper and sage, readable on dark forest green. No blood, knives, gore, butcher-shop scene or clip-art pig.",
+        "editPrompt": "Edit target: this exact FIELDGATE BUTCHERS brand logo. Preserve the original emblem, wordmark lettering, spelling 'FIELDGATE BUTCHERS', proportions, spacing and intended palette. REQUIRED technical cleanup: fill the entire background with a uniform OPAQUE dark application field #183b30; make the complete logo and all letters fully opaque, crisp and smooth. Remove ALL white/coloured speckles, loose fragments and ragged alpha fringe outside the intended icon and letters, and repair letter interiors/counters cleanly. No transparency, white halos, glow, paper texture, distress, scene, mockup or extra text. This is the same polished contemporary business identity, application-ready. Prefer clean mostly flat colour rather than plastic bevels. Keep all artwork centred in a thin horizontal band with generous dark padding above/below; no clipping. Background stays uniform to all image edges.",
+        "sourceCopy": "tmp/custom-icons/brand-identities-20261014/butcher-primary-master.png",
+        "sourceWidth": 2056,
+        "sourceHeight": 765,
+        "crop": {
+          "left": 61,
+          "top": 100,
+          "width": 1907,
+          "height": 533
+        },
+        "width": 1536,
+        "height": 429,
+        "bytes": 53802,
+        "sha256": "b19ddcfeca6c8935e184d2fa3771f1ebfbc0952859040202b7b8c08bd9348ce8",
+        "field": "#183b30",
+        "edgeColour": "#154031",
+        "method": "Built-in image_gen original brand artwork and edit; mechanical dark-padding trim and aspect-preserving WebP encoding with existing sharp, no vector conversion",
+        "textReview": "Brand spelling and complete logo reviewed on generated master; rendered in-scene review deferred"
+      },
+      {
+        "id": "butcher",
+        "variant": "fascia",
+        "file": "brand-fieldgate-butchers-fascia-v1.webp",
+        "prompt": "Use case: logo-brand. Asset type: final professional multi-colour raster brand logo for signage in the fictional MillOS game world. True transparent RGBA background, no surface, no sign mockup, no scene, no frame, no watermark. One original distinctive graphic mark at LEFT plus bespoke, impeccably readable wordmark at RIGHT. Modern professional identity, crisp art-directed geometry with warm human character, a real considered logo rather than clip art or a generic font pasted beside an icon. Clean flat colour, extremely subtle depth only where useful, no paper texture, no distress, no photographic objects. Foreground lettering warm ivory #fff0d2, for use on DARK painted signs. All complete artwork in ONE THIN horizontal band centered on the canvas, content roughly SIX to SEVEN times wider than tall, with transparent blank padding above/below; trim-ready. Preserve generous padding all round. No extra words beyond the EXACT required wordmark, no slogans, no tiny captions. Avoid stock stock-logo swooshes, generic badge circles, gradients that impair legibility, thin hairlines and anything resembling a real external trademark. EXACT wordmark 'FIELDGATE BUTCHERS'. Distinct, confident British farmhouse butcher identity: a beautifully simplified bull-profile and the bars of a farm gate form one compact shield-free monogram, with generous negative spaces. Bespoke sturdy contemporary slab-serif lettering, beautifully spaced, different from bakery and station. Palette warm ivory, restrained copper and sage, readable on dark forest green. No blood, knives, gore, butcher-shop scene or clip-art pig.",
+        "editPrompt": "Adapt this exact FIELDGATE BUTCHERS logo to its ACTUAL very narrow fascia. Preserve the same emblem, spelling, bespoke lettering and opaque dark field. Recompose the whole logo into ONE VERY THIN BAND, 9 times wider than tall, centred horizontally within this image, with the same solid dark colour above and below. Emblem at far left occupies the band height, the whole exact wordmark 'FIELDGATE BUTCHERS' is on ONE LINE at right. All complete artwork, including horns/steam/drop/waves, must fit inside the thin band; never clip an element. For a 2160x720 canvas the entire band is about 2160x240, centred vertically. The wordmark now uses most of the width; normal non-stretched letter proportions. NO secondary text, NO two-line wordmark, no photograph/mockup. Uniform fully opaque background, clean edges, no fringe or texture. Leave ample outer left/right padding but little empty space inside the brand lockup. This is a responsive logo-layout variant for a real existing 3D sign.",
+        "sourceCopy": "tmp/custom-icons/brand-identities-20261014/butcher-fascia-master.png",
+        "sourceWidth": 2172,
+        "sourceHeight": 724,
+        "crop": {
+          "left": 40,
+          "top": 203,
+          "width": 2089,
+          "height": 299
+        },
+        "width": 2048,
+        "height": 293,
+        "bytes": 51508,
+        "sha256": "74a30093815b7bb330e6331e8e01e24c1cfa11650adabbd443247a31c7ef31c8",
+        "field": "#183b30",
+        "edgeColour": "#0f4031",
+        "method": "Built-in image_gen original brand artwork and edit; mechanical dark-padding trim and aspect-preserving WebP encoding with existing sharp, no vector conversion",
+        "textReview": "Brand spelling and complete logo reviewed on generated master; rendered in-scene review deferred"
+      },
+      {
+        "id": "grocer",
+        "variant": "primary",
+        "file": "brand-canalside-provisions-v1.webp",
+        "prompt": "Use case: logo-brand. Asset type: final professional multi-colour raster brand logo for signage in the fictional MillOS game world. True transparent RGBA background, no surface, no sign mockup, no scene, no frame, no watermark. One original distinctive graphic mark at LEFT plus bespoke, impeccably readable wordmark at RIGHT. Modern professional identity, crisp art-directed geometry with warm human character, a real considered logo rather than clip art or a generic font pasted beside an icon. Clean flat colour, extremely subtle depth only where useful, no paper texture, no distress, no photographic objects. Foreground lettering warm ivory #fff0d2, for use on DARK painted signs. All complete artwork in ONE THIN horizontal band centered on the canvas, content roughly SIX to SEVEN times wider than tall, with transparent blank padding above/below; trim-ready. Preserve generous padding all round. No extra words beyond the EXACT required wordmark, no slogans, no tiny captions. Avoid stock stock-logo swooshes, generic badge circles, gradients that impair legibility, thin hairlines and anything resembling a real external trademark. EXACT wordmark 'CANALSIDE PROVISIONS'. Distinct welcoming village general-store identity: a copper-coloured C shaped like a small canalboat bow over two clean flowing water lines, with a tiny contrasting provisions/jar detail worked into the mark. Refined modern humanist sans lettering with gentle rounded corners, different from the fuel logo. Warm ivory, copper and muted canal blue, readable on navy. No scene, no shopping-cart clip art, no generic grocery leaf badge.",
+        "editPrompt": "Edit target: this exact CANALSIDE PROVISIONS brand logo. Preserve the original emblem, wordmark lettering, spelling 'CANALSIDE PROVISIONS', proportions, spacing and intended palette. REQUIRED technical cleanup: fill the entire background with a uniform OPAQUE dark application field #1c354b; make the complete logo and all letters fully opaque, crisp and smooth. Remove ALL white/coloured speckles, loose fragments and ragged alpha fringe outside the intended icon and letters, and repair letter interiors/counters cleanly. No transparency, white halos, glow, paper texture, distress, scene, mockup or extra text. This is the same polished contemporary business identity, application-ready. Prefer clean mostly flat colour rather than plastic bevels. Keep all artwork centred in a thin horizontal band with generous dark padding above/below; no clipping. Background stays uniform to all image edges.",
+        "sourceCopy": "tmp/custom-icons/brand-identities-20261014/grocer-primary-master.png",
+        "sourceWidth": 2172,
+        "sourceHeight": 724,
+        "crop": {
+          "left": 85,
+          "top": 171,
+          "width": 1985,
+          "height": 348
+        },
+        "width": 1536,
+        "height": 269,
+        "bytes": 36442,
+        "sha256": "c44c6e67c56ef9d2bb7174ec71cb918a79ba53f9e46581f02c5a6f95a59daf5a",
+        "field": "#1c354b",
+        "edgeColour": "#1b394e",
+        "method": "Built-in image_gen original brand artwork and edit; mechanical dark-padding trim and aspect-preserving WebP encoding with existing sharp, no vector conversion",
+        "textReview": "Brand spelling and complete logo reviewed on generated master; rendered in-scene review deferred"
+      },
+      {
+        "id": "grocer",
+        "variant": "fascia",
+        "file": "brand-canalside-provisions-fascia-v1.webp",
+        "prompt": "Use case: logo-brand. Asset type: final professional multi-colour raster brand logo for signage in the fictional MillOS game world. True transparent RGBA background, no surface, no sign mockup, no scene, no frame, no watermark. One original distinctive graphic mark at LEFT plus bespoke, impeccably readable wordmark at RIGHT. Modern professional identity, crisp art-directed geometry with warm human character, a real considered logo rather than clip art or a generic font pasted beside an icon. Clean flat colour, extremely subtle depth only where useful, no paper texture, no distress, no photographic objects. Foreground lettering warm ivory #fff0d2, for use on DARK painted signs. All complete artwork in ONE THIN horizontal band centered on the canvas, content roughly SIX to SEVEN times wider than tall, with transparent blank padding above/below; trim-ready. Preserve generous padding all round. No extra words beyond the EXACT required wordmark, no slogans, no tiny captions. Avoid stock stock-logo swooshes, generic badge circles, gradients that impair legibility, thin hairlines and anything resembling a real external trademark. EXACT wordmark 'CANALSIDE PROVISIONS'. Distinct welcoming village general-store identity: a copper-coloured C shaped like a small canalboat bow over two clean flowing water lines, with a tiny contrasting provisions/jar detail worked into the mark. Refined modern humanist sans lettering with gentle rounded corners, different from the fuel logo. Warm ivory, copper and muted canal blue, readable on navy. No scene, no shopping-cart clip art, no generic grocery leaf badge.",
+        "editPrompt": "Adapt this exact CANALSIDE PROVISIONS logo to its ACTUAL very narrow fascia. Preserve the same emblem, spelling, bespoke lettering and opaque dark field. Recompose the whole logo into ONE VERY THIN BAND, 9 times wider than tall, centred horizontally within this image, with the same solid dark colour above and below. Emblem at far left occupies the band height, the whole exact wordmark 'CANALSIDE PROVISIONS' is on ONE LINE at right. All complete artwork, including horns/steam/drop/waves, must fit inside the thin band; never clip an element. For a 2160x720 canvas the entire band is about 2160x240, centred vertically. The wordmark now uses most of the width; normal non-stretched letter proportions. NO secondary text, NO two-line wordmark, no photograph/mockup. Uniform fully opaque background, clean edges, no fringe or texture. Leave ample outer left/right padding but little empty space inside the brand lockup. This is a responsive logo-layout variant for a real existing 3D sign.",
+        "sourceCopy": "tmp/custom-icons/brand-identities-20261014/grocer-fascia-master.png",
+        "sourceWidth": 2172,
+        "sourceHeight": 724,
+        "crop": {
+          "left": 169,
+          "top": 230,
+          "width": 1834,
+          "height": 245
+        },
+        "width": 1834,
+        "height": 245,
+        "bytes": 42510,
+        "sha256": "59fd93e7f540c377ae9ad492825fc5a5546aab5f3c8e7306211ae6cf44fa2a9e",
+        "field": "#1c354b",
+        "edgeColour": "#133952",
+        "method": "Built-in image_gen original brand artwork and edit; mechanical dark-padding trim and aspect-preserving WebP encoding with existing sharp, no vector conversion",
+        "textReview": "Brand spelling and complete logo reviewed on generated master; rendered in-scene review deferred"
+      },
+      {
+        "id": "mill",
+        "variant": "primary",
+        "file": "brand-millos-v1.webp",
+        "prompt": "Use case: logo-brand. Asset type: final original multi-colour transparent raster business logo for MillOS's 3D world. Genuine transparent RGBA background; no sign mockup, no frame, no floor, no canvas-colour backdrop. Professional contemporary brand identity, crisp geometric shapes and beautifully custom spaced readable lettering, no paper texture, no distress, no photorealism. Clean alpha edges with NO white speckled fringe or stray pixels outside the logo. One meaningful compact emblem at left and wordmark at right, all in one thin horizontal band 6 to 7 times wider than tall, centered with transparent blank padding above and below. Foreground letters warm ivory for application to dark sign and trailer panels. Large robust typography with generous internal counters, no tiny slogans or extra words, no stock swoosh, no existing external trademark. Exact wordmark 'MillOS', preserving capital M, lower-case ill and capital OS. Distinctive intelligent industrial identity: a teal/turquoise abstract waterwheel and grain kernel together suggest a letter M, with a small warm-gold millstone/grain accent. Emblem compact, coherent and highly recognisable. Bespoke modern geometric/humanist sans, refined OS letterform relationship, clear rhythm, a professional grain-mill technology brand with warmth. Palette warm ivory, turquoise #55c9c1, deep teal accents and muted gold. No factory scene, no wheat clip-art reused from other companies.",
+        "editPrompt": "Edit target: this exact MillOS brand logo. Preserve the original emblem, wordmark lettering, spelling 'MillOS', proportions, spacing and intended palette. REQUIRED technical cleanup: fill the entire background with a uniform OPAQUE dark application field #173c45; make the complete logo and all letters fully opaque, crisp and smooth. Remove ALL white/coloured speckles, loose fragments and ragged alpha fringe outside the intended icon and letters, and repair letter interiors/counters cleanly. No transparency, white halos, glow, paper texture, distress, scene, mockup or extra text. This is the same polished contemporary business identity, application-ready. Prefer clean mostly flat colour rather than plastic bevels. Keep all artwork centred in a thin horizontal band with generous dark padding above/below; no clipping. Background stays uniform to all image edges.",
+        "sourceCopy": "tmp/custom-icons/brand-identities-20261014/mill-primary-master.png",
+        "sourceWidth": 2116,
+        "sourceHeight": 743,
+        "crop": {
+          "left": 120,
+          "top": 132,
+          "width": 1850,
+          "height": 457
+        },
+        "width": 1536,
+        "height": 379,
+        "bytes": 38176,
+        "sha256": "8b7f544d9950341e41c9e933a5abd028a6f40e305effe7f8238d49138896a822",
+        "field": "#173c45",
+        "edgeColour": "#123e48",
+        "method": "Built-in image_gen original brand artwork and edit; mechanical dark-padding trim and aspect-preserving WebP encoding with existing sharp, no vector conversion",
+        "textReview": "Brand spelling and complete logo reviewed on generated master; rendered in-scene review deferred"
+      },
+      {
+        "id": "flourExpress",
+        "variant": "primary",
+        "file": "brand-flour-express-v1.webp",
+        "prompt": "Use case: logo-brand. Asset type: final original multi-colour transparent raster business logo for MillOS's 3D world. Genuine transparent RGBA background; no sign mockup, no frame, no floor, no canvas-colour backdrop. Professional contemporary brand identity, crisp geometric shapes and beautifully custom spaced readable lettering, no paper texture, no distress, no photorealism. Clean alpha edges with NO white speckled fringe or stray pixels outside the logo. One meaningful compact emblem at left and wordmark at right, all in one thin horizontal band 6 to 7 times wider than tall, centered with transparent blank padding above and below. Foreground letters warm ivory for application to dark sign and trailer panels. Large robust typography with generous internal counters, no tiny slogans or extra words, no stock swoosh, no existing external trademark. Exact wordmark 'FLOUR EXPRESS'. Modern confident independent flour-logistics company identity. A compact original F made from three warm-gold grain kernels flowing into a clean forward-pointing chevron, subtle flour-sack/wing negative-space. Typography purposeful, slightly forward-leaning but highly readable, different from MillOS. Palette warm ivory, terracotta #c85e3e, muted gold. No trucks, trains, road, safety claims or pseudo-text. It should look excellent painted on a long shipping trailer.",
+        "editPrompt": "Edit target: this exact FLOUR EXPRESS brand logo. Preserve the original emblem, wordmark lettering, spelling 'FLOUR EXPRESS', proportions, spacing and intended palette. REQUIRED technical cleanup: fill the entire background with a uniform OPAQUE dark application field #703828; make the complete logo and all letters fully opaque, crisp and smooth. Remove ALL white/coloured speckles, loose fragments and ragged alpha fringe outside the intended icon and letters, and repair letter interiors/counters cleanly. No transparency, white halos, glow, paper texture, distress, scene, mockup or extra text. This is the same polished contemporary business identity, application-ready. Prefer clean mostly flat colour rather than plastic bevels. Keep all artwork centred in a thin horizontal band with generous dark padding above/below; no clipping. Background stays uniform to all image edges.",
+        "sourceCopy": "tmp/custom-icons/brand-identities-20261014/flourExpress-primary-master.png",
+        "sourceWidth": 2172,
+        "sourceHeight": 724,
+        "crop": {
+          "left": 42,
+          "top": 193,
+          "width": 2064,
+          "height": 308
+        },
+        "width": 1536,
+        "height": 229,
+        "bytes": 28440,
+        "sha256": "7fe8bfbd292e6ce8c016ef419cb361498cc75554cb2bd1061dc7c0f7167ba151",
+        "field": "#703828",
+        "edgeColour": "#6e3927",
+        "method": "Built-in image_gen original brand artwork and edit; mechanical dark-padding trim and aspect-preserving WebP encoding with existing sharp, no vector conversion",
+        "textReview": "Brand spelling and complete logo reviewed on generated master; rendered in-scene review deferred"
+      },
+      {
+        "id": "grainCo",
+        "variant": "primary",
+        "file": "brand-grain-co-v1.webp",
+        "prompt": "Use case: logo-brand. Asset type: final original multi-colour transparent raster business logo for MillOS's 3D world. Genuine transparent RGBA background; no sign mockup, no frame, no floor, no canvas-colour backdrop. Professional contemporary brand identity, crisp geometric shapes and beautifully custom spaced readable lettering, no paper texture, no distress, no photorealism. Clean alpha edges with NO white speckled fringe or stray pixels outside the logo. One meaningful compact emblem at left and wordmark at right, all in one thin horizontal band 6 to 7 times wider than tall, centered with transparent blank padding above and below. Foreground letters warm ivory for application to dark sign and trailer panels. Large robust typography with generous internal counters, no tiny slogans or extra words, no stock swoosh, no existing external trademark. Exact wordmark 'GRAIN CO'. Distinct modern agricultural receiving/logistics identity. A compact geometric G loop whose open counter holds two grain kernels; confident interlocking forms, recognisable at small size, no generic wheat sheaf or badge circle. Bespoke sturdy contemporary sans lettering, calmer and more grounded than FLOUR EXPRESS, beautifully spaced. Palette warm ivory, harvest gold #d1a242, deep jade #4d8a72. No trucks, trains, scene, extra slogans or pseudo-text. Intended for dark green/blue receiving-trailer sign panels.",
+        "editPrompt": "Edit target: this exact GRAIN CO brand logo. Preserve the original emblem, wordmark lettering, spelling 'GRAIN CO', proportions, spacing and intended palette. REQUIRED technical cleanup: fill the entire background with a uniform OPAQUE dark application field #183d35; make the complete logo and all letters fully opaque, crisp and smooth. Remove ALL white/coloured speckles, loose fragments and ragged alpha fringe outside the intended icon and letters, and repair letter interiors/counters cleanly. No transparency, white halos, glow, paper texture, distress, scene, mockup or extra text. This is the same polished contemporary business identity, application-ready. Prefer clean mostly flat colour rather than plastic bevels. Keep all artwork centred in a thin horizontal band with generous dark padding above/below; no clipping. Background stays uniform to all image edges.",
+        "sourceCopy": "tmp/custom-icons/brand-identities-20261014/grainCo-primary-master.png",
+        "sourceWidth": 2172,
+        "sourceHeight": 724,
+        "crop": {
+          "left": 29,
+          "top": 108,
+          "width": 2104,
+          "height": 508
+        },
+        "width": 1536,
+        "height": 371,
+        "bytes": 33382,
+        "sha256": "88c3c34b1be5ed2b7759431589bec1e37440a02e54fcd825ee60d64228ec03f9",
+        "field": "#183d35",
+        "edgeColour": "#124337",
+        "method": "Built-in image_gen original brand artwork and edit; mechanical dark-padding trim and aspect-preserving WebP encoding with existing sharp, no vector conversion",
+        "textReview": "Brand spelling and complete logo reviewed on generated master; rendered in-scene review deferred"
+      },
+      {
+        "id": "dino",
+        "variant": "fascia",
+        "file": "brand-dead-dino-fascia-v2.webp",
+        "prompt": "Create the final wide canopy-fascia version of this approved Dead Dino brand logo. Image 1 is the approved identity, preserve the resting jade STEGOSAURUS with pale back plates, tiny X eye, curled tail and coral fuel-drop shape, and preserve the exact forward-leaning bespoke ivory DEAD DINO lettering with the distinctive triangular D counters. EXACT ONLY WORDS 'DEAD DINO'. Re-layout for an extremely thin real fascia: ALL complete artwork inside a central horizontal band NINE times wider than tall. The dinosaur/drop emblem is now the same total height as the capitals, never taller. Left icon and right single-line wordmark; careful wide kerning, robust legibility, premium modern independent petrol-station identity. Absolutely no change to the brand style, no extra copy. A continuous opaque perfectly clean dark petrol-green #143c36 field. Above and below the narrow artwork band use only that identical empty dark field, so it can be trimmed without clipping any letters. All glyphs and tail safely inset, no frame, no housing, no perspective, no photographed sign, no shadow outside logo, no stray speckles or light fringe. Final raster application artwork.",
+        "sourceCopy": "tmp/custom-icons/brand-identities-20261014/dino-canopy-v2-master.png",
+        "sourceWidth": 2172,
+        "sourceHeight": 724,
+        "crop": {
+          "left": 222,
+          "top": 170,
+          "width": 1746,
+          "height": 351
+        },
+        "width": 1746,
+        "height": 351,
+        "bytes": 43476,
+        "sha256": "669282455f7a06ea10ce0fcbb91f345611c7d5fd8e6ed6d0159b97afab5d73e9",
+        "field": "#143c36",
+        "method": "Built-in image_gen reference edit, aspect-preserving WebP encoding with existing sharp; canopy trims only empty padding; no vector conversion",
+        "textReview": "Exact brand/service text and logo reviewed on generated master, scene review deferred"
+      },
+      {
+        "id": "dino",
+        "variant": "pylon",
+        "file": "brand-dead-dino-pylon-v2.webp",
+        "prompt": "Create final portrait forecourt lightbox SIGN ARTWORK using Image 1 as the approved Dead Dino identity. Exact sign aspect 3.7:4.7 (roughly 0.79:1), flat full-bleed opaque raster, no photographed housing, no mockup, no perspective or room. Reflow the existing jade resting stegosaurus/coral fuel-drop logo into a beautifully balanced portrait sign: large compact emblem in upper centre, exact bespoke angular forward-leaning ivory DEAD DINO wordmark immediately below in TWO stacked lines DEAD then DINO; retain distinctive triangular D counters, do not invent a different font or dinosaur. Deep petrol-green #143c36 sign field, ivory, jade, coral; restrained gold hairline dividing the footer. Broad generous margins and highly legible distant petrol-station signage. Exact footer copy on two restrained lines 'PREMIUM FOSSIL FUEL' then 'COFFEE & PROVISIONS'. No prices, no icons for unrelated fuels, no extra words or pseudo-text, no slogan, no bevelled frame or distress. Warm refined clean brand finish, crisp raster edges, subtle artwork depth only. Complete artwork fits entirely in the measured portrait face.",
+        "sourceCopy": "tmp/custom-icons/brand-identities-20261014/dino-pylon-v2-master.png",
+        "sourceWidth": 1114,
+        "sourceHeight": 1412,
+        "crop": null,
+        "width": 1114,
+        "height": 1412,
+        "bytes": 88880,
+        "sha256": "54576fb07a2c5f79d49fdc5a7e8918ab026f12b695dd7ba0077d06bbaf09f805",
+        "field": "#143c36",
+        "method": "Built-in image_gen reference edit, aspect-preserving WebP encoding with existing sharp; canopy trims only empty padding; no vector conversion",
+        "textReview": "Exact brand/service text and logo reviewed on generated master, scene review deferred"
+      },
+      {
+        "id": "dino",
+        "variant": "poster",
+        "file": "dino-painted-v2.webp",
+        "prompt": "Edit Image 1, the existing Dead Dino illustrated advertising poster, to adopt the approved modern Dead Dino identity in Image 2. Preserve the gorgeous RASTER gouache/lithograph illustration, paper grain, cosy canal village, windmill, bridge, warm setting sun and independent petrol forecourt; preserve the familiar big resting green stegosaurus with pale dorsal plates, X eye and friendly fossil-fuel humour, no gore. Replace the old antique headline completely with the EXACT approved contemporary forward-leaning DEAD DINO wordmark and its resting jade dinosaur/coral fuel-drop symbol from Image 2, placed on a clean DARK PETROL-GREEN header band. The brand lettering has the same triangular D counters and ivory colour, all readable and generously inset. Do not repeat the old serif brand lettering elsewhere. Keep the main illustration painterly, dimensional and richly coloured, with warm light, rather than turning the illustration into a vector graphic. Harmonise colours towards jade/ivory/coral of the approved identity while retaining softly textured paint. Re-typeset the advertising footer with clean readable complementary modern lettering, EXACT 'PREMIUM FOSSIL FUEL' on two lines if needed and EXACT bottom line 'COFFEE & PROVISIONS'. No new slogans, safety/eco claims, prices, real external brands or pseudo-text. Portrait 7:10, full-bleed opaque final print, no mockup, no housing, no perspective. Entire lettering and border inside safe print margins.",
+        "sourceCopy": "tmp/custom-icons/brand-identities-20261014/dino-poster-v2-master.png",
+        "sourceWidth": 1049,
+        "sourceHeight": 1500,
+        "crop": null,
+        "width": 1049,
+        "height": 1500,
+        "bytes": 515862,
+        "sha256": "0a00a6e3176a2913a4341243bbaaca8e728906c4d326191cb9f7158b5bfc55ad",
+        "field": "#143c36",
+        "method": "Built-in image_gen reference edit, aspect-preserving WebP encoding with existing sharp; canopy trims only empty padding; no vector conversion",
+        "textReview": "Exact brand/service text and logo reviewed on generated master, scene review deferred"
+      }
+    ]
+  },
+  "stationPosterAndAppBrand": {
+    "date": "2026-10-14",
+    "assets": [
+      {
+        "id": "dino-eye",
+        "file": "brand-dead-dino-v3.webp",
+        "prompt": "Edit this exact supplied raster artwork. Make ONLY this colour correction: change the small WHITE/IVORY X-shaped eye of the stylised jade dinosaur logo to DARK FOREST GREEN #0b342b. Preserve the X shape, size and position. If this is the illustrated poster, also keep the large illustrated dinosaur's X eye dark forest green, and change the white X in the little HEADER LOGO to the same dark green. All lettering, typography, dinosaur silhouette, coral fuel drop, cream plates, palette, backgrounds, composition, crop, borders and fine painting remain identical. Do not redraw or redesign the logo or poster. No additional text, no different font, no other new details. Return the complete artwork, all original margins, fully opaque.",
+        "sourceCopy": "tmp/custom-icons/station-poster-and-app-brand-20261014/brand-dead-dino-v2-master.png",
+        "sourceWidth": 2172,
+        "sourceHeight": 724,
+        "crop": {
+          "left": 0,
+          "top": 139,
+          "width": 2172,
+          "height": 446
+        },
+        "width": 1536,
+        "height": 315,
+        "bytes": 38150,
+        "sha256": "55cda1a3dec850911283453b7d67777763d41a2e5fa90ab55dd29fc51dc58056",
+        "method": "Built-in image_gen targeted reference edit; mechanical blank-padding trim and aspect-preserving WebP preparation",
+        "review": "Saved raster eye/logo/spelling and complete margins inspected; in-scene review deferred"
+      },
+      {
+        "id": "dino-eye",
+        "file": "brand-dead-dino-fascia-v3.webp",
+        "prompt": "Edit this exact supplied raster artwork. Make ONLY this colour correction: change the small WHITE/IVORY X-shaped eye of the stylised jade dinosaur logo to DARK FOREST GREEN #0b342b. Preserve the X shape, size and position. If this is the illustrated poster, also keep the large illustrated dinosaur's X eye dark forest green, and change the white X in the little HEADER LOGO to the same dark green. All lettering, typography, dinosaur silhouette, coral fuel drop, cream plates, palette, backgrounds, composition, crop, borders and fine painting remain identical. Do not redraw or redesign the logo or poster. No additional text, no different font, no other new details. Return the complete artwork, all original margins, fully opaque.",
+        "sourceCopy": "tmp/custom-icons/station-poster-and-app-brand-20261014/brand-dead-dino-fascia-v2-master.png",
+        "sourceWidth": 2172,
+        "sourceHeight": 724,
+        "crop": {
+          "left": 0,
+          "top": 142,
+          "width": 2172,
+          "height": 440
+        },
+        "width": 2048,
+        "height": 415,
+        "bytes": 57370,
+        "sha256": "71ddaea41fb4e096242b4987afa9645a264a0a4a32149ecf00171e2c8237b668",
+        "method": "Built-in image_gen targeted reference edit; mechanical blank-padding trim and aspect-preserving WebP preparation",
+        "review": "Saved raster eye/logo/spelling and complete margins inspected; in-scene review deferred"
+      },
+      {
+        "id": "dino-eye",
+        "file": "brand-dead-dino-pylon-v3.webp",
+        "prompt": "Edit this exact supplied raster artwork. Make ONLY this colour correction: change the small WHITE/IVORY X-shaped eye of the stylised jade dinosaur logo to DARK FOREST GREEN #0b342b. Preserve the X shape, size and position. If this is the illustrated poster, also keep the large illustrated dinosaur's X eye dark forest green, and change the white X in the little HEADER LOGO to the same dark green. All lettering, typography, dinosaur silhouette, coral fuel drop, cream plates, palette, backgrounds, composition, crop, borders and fine painting remain identical. Do not redraw or redesign the logo or poster. No additional text, no different font, no other new details. Return the complete artwork, all original margins, fully opaque.",
+        "sourceCopy": "tmp/custom-icons/station-poster-and-app-brand-20261014/brand-dead-dino-pylon-v2-master.png",
+        "sourceWidth": 1114,
+        "sourceHeight": 1412,
+        "crop": null,
+        "width": 1114,
+        "height": 1412,
+        "bytes": 94618,
+        "sha256": "cd4244c551c827d3638ab52a5f3fb4ddbb3212f73690c834c3a16d1da791d71b",
+        "method": "Built-in image_gen targeted reference edit; mechanical blank-padding trim and aspect-preserving WebP preparation",
+        "review": "Saved raster eye/logo/spelling and complete margins inspected; in-scene review deferred"
+      },
+      {
+        "id": "dino-eye",
+        "file": "dino-painted-v3.webp",
+        "prompt": "Edit this exact supplied raster artwork. Make ONLY this colour correction: change the small WHITE/IVORY X-shaped eye of the stylised jade dinosaur logo to DARK FOREST GREEN #0b342b. Preserve the X shape, size and position. If this is the illustrated poster, also keep the large illustrated dinosaur's X eye dark forest green, and change the white X in the little HEADER LOGO to the same dark green. All lettering, typography, dinosaur silhouette, coral fuel drop, cream plates, palette, backgrounds, composition, crop, borders and fine painting remain identical. Do not redraw or redesign the logo or poster. No additional text, no different font, no other new details. Return the complete artwork, all original margins, fully opaque.",
+        "sourceCopy": "tmp/custom-icons/station-poster-and-app-brand-20261014/dino-painted-v2-master.png",
+        "sourceWidth": 1049,
+        "sourceHeight": 1500,
+        "crop": null,
+        "width": 1049,
+        "height": 1500,
+        "bytes": 463984,
+        "sha256": "fa5b21bc421c64cd4b14b605da74967acf638688c8ffe1267e2431cd35788e61",
+        "method": "Built-in image_gen targeted reference edit; mechanical blank-padding trim and aspect-preserving WebP preparation",
+        "review": "Saved raster eye/logo/spelling and complete margins inspected; in-scene review deferred"
+      },
+      {
+        "id": "mill-icon",
+        "file": "millos-mark-v1.webp",
+        "prompt": "Create a square MillOS application-brand ICON using the supplied approved brand image as the exact visual reference. Isolate ONLY the existing left symbol, the turquoise waterwheel forming an M with its gold grain kernel and two turquoise water waves. Match its recognisable geometry, proportions, colours and restrained dimensional finish exactly; preserve this specific identity, do not invent a different M or wheel. Remove ALL wordmark letters, no text anywhere, no factory emoji, no additional emblem, no frame, no mockup. The complete original symbol centred in a 1:1 square, generous safe padding of about8 percent all sides, suitable for a56-pixel splash icon and20-pixel sidebar brand inset. Perfectly clean opaque solid dark background #081015, same as the existing splash screen. The symbol is bright teal and warm gold; no white fringe, no stray pixels, no drop shadow outside the symbol. Crisp professional final bitmap application artwork.",
+        "sourceCopy": "tmp/custom-icons/station-poster-and-app-brand-20261014/millos-mark-v1-master.png",
+        "sourceWidth": 1254,
+        "sourceHeight": 1254,
+        "crop": null,
+        "width": 256,
+        "height": 256,
+        "bytes": 7878,
+        "sha256": "61349b91823369b614504f4b250933208ca126f1b6ef38b04e08446e6a70fda3",
+        "method": "Built-in image_gen targeted reference edit; mechanical blank-padding trim and aspect-preserving WebP preparation",
+        "review": "Saved raster eye/logo/spelling and complete margins inspected; in-scene review deferred"
+      }
+    ],
+    "brief": "Dark-green dinosaur X eye; retained approved brand; isolated MillOS application mark",
+    "favicon": {
+      "file": "millos-mark-v1.png",
+      "width": 64,
+      "height": 64,
+      "bytes": 5116,
+      "sha256": "9920d8be0a0a05d3e9136a7c769d5431747fa5aac64d967a3440fc33d03e11ed"
+    },
+    "stationSceneFinish": {
+      "reference": "textures/signage/dino-painted-v3.webp",
+      "implementation": [
+        "src/components/scenery/AuthoredPropTrim.tsx",
+        "src/components/models/GeneratedModel.tsx",
+        "src/components/GasStationInstanced.tsx"
+      ],
+      "bodySources": {
+        "public/models/world/station-canopy.glb": "9d0a930d9c9196413a879aaf6409c50da4fb5aaa7e883f98d89915c138a5798e",
+        "public/models/world/fuel-pump-shell.glb": "e24d2734238f1da551134e6338c4a0028f29228dd328cecdb6868aead69eefd6"
+      },
+      "method": "Owned runtime derivatives of actual loaded GLBs: rounded three-layer canopy with UVs projected onto original cube charts, original support triangles retained, terracotta pump palette. Shared source maps retained; original assets unchanged. Cream bezels, stone-tinted shop shell and two merged flower pots complete the poster palette.",
+      "lighting": "No additional light or shadow map, original existing station fixture layout retained."
+    }
+  },
+  "stationSouvenirKit": {
+    "date": "2026-10-14",
+    "method": "Built-in image_gen with approved Dead Dino v3 brand reference; no tracing or hand-authored vector substitutes",
+    "reference": "textures/signage/brand-dead-dino-v3.webp",
+    "workDirectory": "tmp/custom-icons/station-souvenir-kit-20261014",
+    "artwork": [
+      {
+        "source": "tmp/custom-icons/station-souvenir-kit-20261014/dead-dino-shop-kit-v1-master.png",
+        "file": "dead-dino-shop-kit-v1.webp",
+        "sourceWidth": 1254,
+        "sourceHeight": 1254,
+        "width": 1024,
+        "height": 1024,
+        "bytes": 282702,
+        "sha256": "0386be1c32801d6e8c5eca90d05e0541e878583616a6a258b83c0319f579ff2b",
+        "method": "Built-in image_gen reference-derived raster; entire square atlas resized proportionately and WebP encoded with Sharp",
+        "tiles": [
+          "Take a Dino home souvenir print",
+          "Coffee menu",
+          "Dead Dino merchandise badge",
+          "A little stop postcard"
+        ],
+        "review": "Complete generated atlas inspected: exact spelling, dark-green X, approved identity and paper/art texture. In-scene appearance deferred.",
+        "prompt": "Create one production raster print atlas for a charming British/Dutch village petrol-station shop, DEAD DINO. Reference image is the APPROVED brand identity: keep its jade resting stegosaurus, cream padded dorsal plates, curled tail, friendly sleepy face, dark-green embroidered X eye, cream forward italic DEAD DINO wordmark and terracotta accent. NO white X. This is FLAT printed artwork, NOT a shop mockup, no photograph of frames, no lighting, no perspective. EXACT square canvas divided into an edge-to-edge 2 by 2 grid of four equal square tiles, no gutters outside tiles. Every tile has its own 8% safe padding and a warm cream paper background with subtle luxurious raster paper grain. TOP LEFT: souvenir nameplate artwork, plushy illustrated version of that mascot occupying middle, large exact title 'TAKE A DINO HOME', small exact footer 'DEAD DINO'. TOP RIGHT: gorgeous small cafe menu with terracotta cup illustration and confident dark-green lettering, exact title 'COFFEE', exactly three lines 'Espresso', 'Flat white', 'Tea', footer 'A little pause for the road'. BOTTOM LEFT: a classic small merchandise badge, jade mascot above the exact DEAD DINO wordmark with terracotta accent, no other text. BOTTOM RIGHT: lush warmly painted postcard of the existing red-and-cream rounded petrol canopy on two dark-green columns beside a British/Dutch village and canal at sunset; exact title 'A LITTLE STOP', small footer 'DEAD DINO'. All four tiles flat, high quality authored raster illustration, beautiful typography, strong legibility, no SVG look, no drop shadows behind cards, no price or fabricated claims, no other writing."
+      }
+    ],
+    "scene": {
+      "module": "src/components/scenery/StationSouvenirs.tsx",
+      "method": "Authored real 3D plushies, ceramic mugs, supported timber shop furniture, coffee and food props. Seven static material batches with one shared raster print atlas. Cached sRGB cloth/wood albedo and linear signed-normal/RGB-roughness maps. Source fixtures unchanged.",
+      "sourceSupports": {
+        "public/models/world/station-counter.glb": "f16c774a4afcb2e391a9ece96a70a1d6eaa51d056df3581f3a39cbb57340ecc5",
+        "public/models/world/station-magazine-rack.glb": "dae8e02ba271b1cccf1c128642c32b5ec43ba630423f2fe15882e71547ebeb01"
+      },
+      "lighting": "Existing station lights only, no new light or shadow map",
+      "review": "Actual raster pixels, geometry and contacts reviewed; native/player/device appearance deferred; no frame-performance claim"
+    }
+  },
+  "stationTravelStop": {
+    "date": "2026-10-14",
+    "brief": "Original Dead Dino village travel stop, inspired by clean, welcoming and plentiful roadside hospitality; existing site scale and transport retained",
+    "reference": "textures/signage/brand-dead-dino-v3.webp",
+    "method": "Built-in image_gen, no vector stand-ins, aspect-preserving WebP preparation",
+    "workDirectory": "tmp/custom-icons/station-travel-stop-20261014",
+    "artwork": [
+      {
+        "source": "tmp/custom-icons/station-travel-stop-20261014/station-retail-raster-v1-master.png",
+        "file": "station-retail-raster-v1.webp",
+        "sourceWidth": 1254,
+        "sourceHeight": 1254,
+        "width": 1024,
+        "height": 1024,
+        "bytes": 471516,
+        "sha256": "3510f298909a3adb65cc798103fe45c44114662d9d4d669fc95f0b78e698280d",
+        "method": "Built-in image_gen reference-led original Dead Dino retail artwork; entire square atlas proportionately resized with Sharp",
+        "prompt": "One production 4 BY 4 EXACTLY EQUAL SQUARE TILE raster texture atlas for a charming, abundantly stocked DEAD DINO travel shop. Reference is the approved jade resting stegosaur, cream plates, DARK FOREST GREEN X eye, forward italic cream wordmark and terracotta fuel drop. Borrow the cheerful generous travel-stop merchandising feel, but do not use Buc-ee's name, beaver, typography or logo. FLAT print artwork, straight-on, no perspective, no surrounding objects or frames, one square canvas, no outer padding/gutters. Each cell has 10% safe internal margin, exact aligned grid boundaries. Elegant warm paper grain, lush raster illustration and distinctive readable typography, not flat SVG. Tiles listed ROW BY ROW, left to right: ROW1: tile0 PURE WHITE EMPTY WHITE, nothing drawn; tile1 vintage red raspberry drink label exact text 'BERRY POP' and raspberry illustration; tile2 green apple drink label 'APPLE FIZZ'; tile3 golden citrus drink label 'SUNSHINE CITRUS'. ROW2: tile4 sky-blue/cream water label 'STILL WATER'; tile5 jade/cream cereal snack pouch label, cheerful Dino emblem, exact text 'DINO CRUNCH'; tile6 golden nut snack label 'SALTED NUTS'; tile7 jade shortbread label 'SHORTBREAD'. ROW3: tile8 navy/gold nuts and fruit label 'TRAIL MIX'; tile9 terracotta cream chocolate label 'FUDGE'; tile10 gorgeously painted miniature magazine cover exact title 'THE LITTLE ROAD', village road trip scene; tile11 miniature magazine cover 'CANAL DAYS', boats and charming Dutch/British village. ROW4: tile12 miniature magazine cover 'FIELD NOTES', harvest illustration; tile13 DEAD DINO merchandise mascot badge, retain the dark-green X eye, with exact wordmark 'DEAD DINO'; tile14 PURE CREAM cell divided itself into 2 by 2 equal cream mini-panels, a single gorgeous dark-green pump number centered in each, numbers exactly 1 top left, 2 top right, 3 bottom left, 4 bottom right, no other text; tile15 small delightful coffee/snacks/gifts wayfinding artwork with a cup and Dino souvenir, exact text 'REST & REFUEL'. Every label except tile0 and tile14 includes a tiny unobtrusive DEAD DINO brand name. Completely opaque. No prices, nutrition, fake certifications or extra wording. Strong identity with varied illustrations and controlled colours.",
+        "tiles": [
+          "Neutral white",
+          "Berry Pop",
+          "Apple Fizz",
+          "Sunshine Citrus",
+          "Still Water",
+          "Dino Crunch",
+          "Salted Nuts",
+          "Shortbread",
+          "Trail Mix",
+          "Fudge",
+          "The Little Road",
+          "Canal Days",
+          "Field Notes",
+          "Dead Dino badge",
+          "Pump numbers 1..4",
+          "Rest & Refuel"
+        ]
+      }
+    ],
+    "scene": {
+      "modules": [
+        "src/components/scenery/StationTravelStop.tsx",
+        "src/components/scenery/StationRetailDetails.tsx",
+        "src/components/GasStationInstanced.tsx"
+      ],
+      "method": "Four merged static travel-stop batches, source-aligned raster rows for existing96 products and new18 packets, square-fitted print labels, four pump-number quarters, quarter-round striped cloth awnings, slatted bench, supported outdoor mascot, island-end windscreen service and seated welcome print. Existing operating LCD/control atlas unchanged.",
+      "lighting": "No extra light or shadow map",
+      "identity": "Dead Dino name, mascot and palette retained; no competing brand mark or slogans copied"
+    }
+  },
+  "serviceBuildingBrands": {
+    "date": "2026-10-17",
+    "method": "Four separate built-in raster generations with distinct illustrated identities",
+    "assets": [
+      {
+        "id": "workshop",
+        "file": "brand-workshop-v1.webp",
+        "source": "assets/source/graphics/service-signs/workshop-v1.png",
+        "prompt": "Use case: logo-brand. Asset type: finished opaque RASTER enamel sign texture for a charming British/Dutch miniature mill village game. Create one front-on full-bleed wide sign, aspect 5:1. It is the final flat printable artwork, no mockup, no surroundings or perspective. Exact primary text: 'MILL WORKSHOP'. Exact smaller second line: 'MAINTENANCE & REPAIRS'. Deep petrol teal painted enamel background, warm ivory hand-lettered sturdy industrial serif primary lettering, restrained aged brass-gold rules and trim. Distinct beautifully illustrated emblem to the left: a dimensional painted brass cog enclosing crossed vintage spanner and small wheat ear, clear functional silhouette, no letters in emblem. Rich subtle brushed pigment, tactile enamel, delicate edge wear and softly shaded hand-painted craft. The large lettering must occupy most of the wide format and remain clearly readable on a 3.6-metre fascia. Secondary line is subordinate and short. Keep every word and emblem comfortably inside a 5 percent safe margin. Cohesive artisan identity with modern typographic refinement and legible spacing, beautiful bespoke raster sign, no flat SVG look, no template text, no extra words, no glowing effects, no lighting baked as a scene spotlight. Background opaque. Render image as wide as possible with all composition in one horizontal sign.",
+        "sourceWidth": 2172,
+        "sourceHeight": 724,
+        "crop": {
+          "left": 0,
+          "top": 106,
+          "width": 2172,
+          "height": 512
+        },
+        "width": 1536,
+        "height": 362,
+        "bytes": 151124,
+        "sha256": "a76731033e0a042ec63dc287d61821b282d2c469fcc9fe11e0aad99be9feed7a",
+        "sourceSha256": "3662da15ef652cc87a315c1e29aa4e7f935e864f20717cac830b1a6e3d81946b",
+        "method": "Built-in image_gen. Blank vertical padding trimmed mechanically, aspect-preserving WebP with installed sharp. No repainting or vector substitution.",
+        "textReview": "Exact lettering and full sign inspected on generated original; raster/runtime fit checked separately."
+      },
+      {
+        "id": "cafe",
+        "file": "brand-cafe-v1.webp",
+        "source": "assets/source/graphics/service-signs/cafe-v1.png",
+        "prompt": "Use case: logo-brand. Asset type: gorgeous finished RASTER fascia sign texture for the existing pondside kiosk cafe in a charming British/Dutch miniature village game. A single very wide horizontal flat sign, aspect 5:1, straight-on, full bleed artwork, no scene, no frame mockup, no perspective. Exact large lettering only: 'PONDSIDE CAFÉ', including acute accent on E. Distinct refined painted cafe identity: warm ivory field, deep ink teal inviting hand-lettered large serifs, terracotta small trim and muted antique gold border. On the left, beautifully painted compact emblem of a blue-and-copper kingfisher perched beside a cream ceramic coffee cup, one soft curl of steam, a single elegant water ripple below. Soft dimensional gouache shading and delicate tactile enamel/pigment texture, exquisite illustrated food/village brand, typography deliberately readable from a distance, every letter large, carefully balanced spacing. Emblem occupies left fifth, words occupy remaining four fifths, all in one horizontal line with generous safe margins and no overlap. Charming, professionally designed, slight natural pigment variation, clean intact type rather than excessive distress. No other text, no fake small writing, no photoreal background, no glowing light, no SVG/vector-flat look. Opaque image. Sign should fill the image horizontally, wide horizontal image.",
+        "sourceWidth": 2172,
+        "sourceHeight": 724,
+        "crop": {
+          "left": 0,
+          "top": 111,
+          "width": 2172,
+          "height": 501
+        },
+        "width": 1536,
+        "height": 354,
+        "bytes": 118270,
+        "sha256": "5337076ded380a1cde686d923d477818622fc23632df77b9942e2d9910eb0f28",
+        "sourceSha256": "ff7813c0528c4a883178257f7a8dd5a5988f5713126799716c8ab9edd4c21f6b",
+        "method": "Built-in image_gen. Blank vertical padding trimmed mechanically, aspect-preserving WebP with installed sharp. No repainting or vector substitution.",
+        "textReview": "Exact lettering and full sign inspected on generated original; raster/runtime fit checked separately."
+      },
+      {
+        "id": "electrical",
+        "file": "brand-electrical-v1.webp",
+        "source": "assets/source/graphics/service-signs/electrical-v1.png",
+        "prompt": "Use case: logo-brand. Asset type: finished opaque RASTER enamel fascia artwork for the electrical service building of MillOS, a charming British/Dutch miniature mill village. One very wide horizontal sign, roughly 5:1, straight-on, no photographic scene or mockup, no perspective. Exact text only, one large line: 'ELECTRICAL'. At left a beautifully painted dimensional brass emblem: a lightning bolt inside a dark teal cog, framed by two short wheat ears. Deep petrol teal enamel field, large warm ivory bespoke industrial serif lettering, muted gold fine perimeter and small restrained corner rivets. Tactile painted pigment, subtle enamel patina, gently shaded raised-looking detail, professional railway-workshop heritage graphics. Cohesive with a mill workshop but its own clear electricity identity. Keep emblem and every character inside 5 percent margins. Single horizontal reading line, clear generous letter spacing and exceptional readability when small. Do not add extra tiny writing or words, no warning claims, no glowing material, no flat vector or SVG look. Final flat print texture with opaque background, sign extends across almost full image width. Rich raster painted finish.",
+        "sourceWidth": 2172,
+        "sourceHeight": 724,
+        "crop": {
+          "left": 0,
+          "top": 108,
+          "width": 2172,
+          "height": 506
+        },
+        "width": 1536,
+        "height": 358,
+        "bytes": 131072,
+        "sha256": "70bb8dd396902e40881f425496b9cd794fdc34fe8a8b82b8626bc4efb3d19f0c",
+        "sourceSha256": "7e9943e34da43247a655753864b94267aada4f31165fdb8c477cad56f39664a4",
+        "method": "Built-in image_gen. Blank vertical padding trimmed mechanically, aspect-preserving WebP with installed sharp. No repainting or vector substitution.",
+        "textReview": "Exact lettering and full sign inspected on generated original; raster/runtime fit checked separately."
+      },
+      {
+        "id": "security",
+        "file": "brand-security-v1.webp",
+        "source": "assets/source/graphics/service-signs/security-v1.png",
+        "prompt": "Use case: logo-brand. Asset type: finished RASTER enamel fascia sign for the existing security/visitor lodge in MillOS, a charming British/Dutch miniature mill village. A single very wide horizontal flat print, approximately 5:1 aspect, straight-on and full bleed, opaque background. EXACT primary lettering: 'SECURITY'. Small secondary words: 'VISITORS WELCOME'. Bespoke welcoming site identity, dignified railway lodge feel: deep petrol teal field, warm ivory clear bold hand-painted industrial serif title, restrained antique brass-gold trim. Distinct illustrated emblem left: brass shield enclosing an old-fashioned key and a single golden wheat ear, softly dimensional painted shading and restrained enamel patina. Refined tactile gouache/painted enamel texture, beautifully rendered small details but legible title is dominant. The title fills most width, subtitle below title, illustration left fifth, comfortable 5 percent safe margins, all lettering exact, no other text or invented small writing. No SVG/vector flat icon aesthetic, no glows, no perspective, no scene setting, no cast shadows from an imaginary room. Final printable surface artwork for fitting on a real small building, broad horizontal composition.",
+        "sourceWidth": 2172,
+        "sourceHeight": 724,
+        "crop": {
+          "left": 0,
+          "top": 70,
+          "width": 2172,
+          "height": 573
+        },
+        "width": 1536,
+        "height": 405,
+        "bytes": 121058,
+        "sha256": "bb6cc6587e2da638a684dcb163a3666a386b19e5c17ae62b7cca0b8ef0fd36e3",
+        "sourceSha256": "99bdec97b729870dc2369fc0c01631e8f7951b0228e451f20c3aa86c2c2b23c2",
+        "method": "Built-in image_gen. Blank vertical padding trimmed mechanically, aspect-preserving WebP with installed sharp. No repainting or vector substitution.",
+        "textReview": "Exact lettering and full sign inspected on generated original; raster/runtime fit checked separately."
+      }
+    ]
+  }
 }

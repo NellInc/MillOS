@@ -1,0 +1,57 @@
+{
+  "label": "AH-people-hair-final-day-20261015",
+  "capturedAt": "2026-10-15T10:21:08.686Z",
+  "git": {
+    "commit": "ca2600903ca921e7aa69e0d68b9f23ca0168a48a",
+    "branch": "codex/place-led-beautification-20261010",
+    "dirty": true,
+    "dirtyFileCount": 7,
+    "dirtyFiles": [
+      "_contprompts/millos_place_led_beautification_20261010.md",
+      "src/components/models/WorkerModel.tsx",
+      "src/components/workers/SharedWorkerGeometries.ts",
+      "src/components/workers/WorkerModel.test.tsx",
+      "src/components/workers/workerPose.test.ts",
+      "src/components/workers/workerTypes.ts",
+      "output/playwright/place-led-20261010/"
+    ]
+  },
+  "options": {
+    "label": "AH-people-hair-final-day-20261015",
+    "scenes": [
+      "milling",
+      "village"
+    ],
+    "sceneSet": "explicit",
+    "quality": "medium",
+    "port": "4288",
+    "time": "12",
+    "weather": "clear",
+    "duration": "1",
+    "warmup": "1",
+    "settleTimeout": "240",
+    "perfGate": false,
+    "skipBuild": true,
+    "headed": false
+  },
+  "diagnostics": [],
+  "scenes": [
+    {
+      "scene": "milling",
+      "image": "milling.png",
+      "indicativeFps": 60.14
+    },
+    {
+      "scene": "village",
+      "image": "village.png",
+      "indicativeFps": 60
+    }
+  ],
+  "contactSheet": "contact-sheet.png",
+  "perfGate": null,
+  "caveats": [
+    "Working tree was dirty (7 files). These frames show uncommitted work, not commit ca26009. Do not use as a baseline for a later comparison.",
+    "Captured with --skip-build; dist/ may predate the tree.",
+    "No performance gate was run. Art mode unpins reduced motion and restores full fidelity, so its frame samples are indicative only. A visual verdict from this capture is not shippable until a non-art budget run passes on the same commit."
+  ]
+}

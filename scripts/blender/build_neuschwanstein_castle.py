@@ -202,7 +202,9 @@ for k in range(2):
   poly([lower[i],lower[j],upper[j],upper[i]],'rock')
  if k==1:poly(upper,'rock',[(0,0)]*len(upper))
 poly([(x,0,z) for x,z in reversed(outline)],'rock',[(0,0)]*len(outline))
-box(0,2.7,0,31.7,1,31.7,'masonry')
+# Supporting masonry ends at the paving underside, leaving one exposed court.
+# Working if the court has no coplanar foundation skin at its 3.2 m datum.
+box(0,2.63,0,31.7,.86,31.7,'masonry')
 box(0,3.13,0,31.85,.14,31.85,'paving')
 
 # Arched windows use their own sloping stone reveal, dark inset and sill.

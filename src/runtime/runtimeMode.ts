@@ -23,6 +23,7 @@ export type BenchmarkScene =
   | 'markings'
   | 'forecourt'
   | 'carpark'
+  | 'picnic-shelter'
   | 'river'
   | 'tunnel'
   | 'huts'
@@ -98,6 +99,7 @@ const BENCHMARK_SCENES: ReadonlySet<string> = new Set<BenchmarkScene>([
   // same fault gets reported three times.
   'forecourt',
   'carpark',
+  'picnic-shelter',
   'river',
   // Sweep cameras (2026-09-02) for exterior features no benchmark camera had
   // ever framed: the tunnel portal, the Nissen huts, the office block, the

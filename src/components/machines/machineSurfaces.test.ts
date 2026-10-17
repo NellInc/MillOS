@@ -556,6 +556,88 @@ describe('machine decals', () => {
     expect(plates).toHaveLength(20);
   });
 
+  it('gives the complete standard roster real distinct tags with unchanged instance count', () => {
+    const roster = {
+      silos: SITE_LAYOUT.machines.silos.map(({ id, position }) =>
+        machine(id, MachineType.SILO, [...position])
+      ),
+      mills: SITE_LAYOUT.machines.rollerMills.map(({ id, position }) =>
+        machine(id, MachineType.ROLLER_MILL, [...position])
+      ),
+      sifters: SITE_LAYOUT.machines.sifters.map(({ id, position }) =>
+        machine(id, MachineType.PLANSIFTER, [...position])
+      ),
+      packers: SITE_LAYOUT.machines.packers.map(({ id, position }) =>
+        machine(id, MachineType.PACKER, [...position])
+      ),
+    };
+    const placements = planMachineDecals(roster);
+    expect(placements).toHaveLength(48);
+    const expected = [
+      ['silo-0', DECAL_CELL.siloAlpha],
+      ['silo-1', DECAL_CELL.siloBeta],
+      ['silo-2', DECAL_CELL.siloGamma],
+      ['silo-3', DECAL_CELL.siloDelta],
+      ['silo-4', DECAL_CELL.siloEpsilon],
+      ['rm-101', DECAL_CELL.mill101],
+      ['rm-102', DECAL_CELL.mill102],
+      ['rm-103', DECAL_CELL.mill103],
+      ['rm-104', DECAL_CELL.mill104],
+      ['sifter-a', DECAL_CELL.sifterA],
+      ['sifter-b', DECAL_CELL.sifterB],
+      ['sifter-c', DECAL_CELL.sifterC],
+      ['packer-0', DECAL_CELL.packLine1],
+      ['packer-1', DECAL_CELL.packLine2],
+      ['packer-2', DECAL_CELL.packLine3],
+    ] as const;
+    for (const [id, cell] of expected) {
+      const tags = placements.filter((p) => p.machineId === id && p.cell >= DECAL_CELL.mill101);
+      expect(tags.length, id).toBe(id.startsWith('rm-') ? 2 : 1);
+      expect(
+        tags.every((p) => p.cell === cell),
+        id
+      ).toBe(true);
+    }
+    const fallback = planMachineDecals({
+      silos: [machine('custom-silo', MachineType.SILO, [0, 0, 0])],
+      mills: [],
+      sifters: [],
+      packers: [],
+    });
+    expect(fallback[0].cell).toBe(DECAL_CELL.namePlate);
+    expect(MACHINE_DECAL_MATERIAL.emissive.getHex()).toBe(0);
+    expect(MACHINE_DECAL_MATERIAL.type).toBe('MeshStandardMaterial');
+  });
+
+  it('retains padded cells while giving mill lettering a readable physical stroke height', () => {
+    const atlas = getMachineDecalAtlas(),
+      data = atlas.image.data as Uint8Array;
+    expect((data.byteLength * 4) / 3).toBeLessThanOrEqual(2 * 1024 * 1024);
+    for (const cell of [
+      DECAL_CELL.mill101,
+      DECAL_CELL.mill102,
+      DECAL_CELL.mill103,
+      DECAL_CELL.mill104,
+    ]) {
+      let minY = 128,
+        maxY = 0,
+        ink = 0;
+      const originX = (cell % 4) * 128,
+        originY = Math.floor(cell / 4) * 128;
+      for (let y = 6; y < 122; y++)
+        for (let x = 6; x < 122; x++) {
+          const index = ((originY + y) * atlas.image.width + originX + x) * 4;
+          if (data[index] === 243 && data[index + 1] === 231 && data[index + 2] === 206) {
+            ink++;
+            minY = Math.min(minY, y);
+            maxY = Math.max(maxY, y);
+          }
+        }
+      expect(ink, `cell ${cell}`).toBeGreaterThan(1000);
+      expect(maxY - minY, `cell ${cell}`).toBeGreaterThan(65);
+    }
+  });
+
   it('builds an atlas with a transparent gutter around every cell', () => {
     const atlas = getMachineDecalAtlas();
     expect(atlas.image.width).toBe(DECAL_ATLAS_SIZE.width);
@@ -672,9 +754,9 @@ describe('machine decals', () => {
     geometry.dispose();
   });
 
-  it('keeps the atlas dimensions and stamps all 21 scale ticks along the needle arc', () => {
+  it('keeps one bounded shared atlas and stamps all 21 scale ticks along the needle arc', () => {
     const atlas = getMachineDecalAtlas();
-    expect([atlas.image.width, atlas.image.height]).toEqual([512, 384]);
+    expect([atlas.image.width, atlas.image.height]).toEqual([512, 768]);
     const data = atlas.image.data as Uint8Array;
     const cell = DECAL_CELL.motorLoadDial;
     const originX = (cell % 4) * 128;
@@ -705,4 +787,23 @@ describe('machine decals', () => {
     expect(MACHINE_DECAL_MATERIAL.transparent).toBe(false);
     expect(MACHINE_DECAL_MATERIAL.isMeshStandardMaterial).toBe(true);
   });
+});
+
+it('welds the moving output sack weave to its rest geometry without maps or a new shader variant', () => {
+  const material = MACHINE_MATERIALS.bag;
+  const shader = {
+    uniforms: THREE.UniformsUtils.clone(THREE.ShaderLib.standard.uniforms),
+    vertexShader: THREE.ShaderLib.standard.vertexShader,
+    fragmentShader: THREE.ShaderLib.standard.fragmentShader,
+  };
+  material.onBeforeCompile(
+    shader as unknown as THREE.WebGLProgramParametersWithUniforms,
+    null as unknown as THREE.WebGLRenderer
+  );
+  expect(shader.uniforms.uSurfSpan.value.w).toBe(1);
+  expect(shader.vertexShader).toContain('surf');
+  expect(material.map).toBeNull();
+  expect(material.metalness).toBe(0);
+  expect(material.roughness).toBe(0.92);
+  expect(material.color.getHexString()).toBe('ded0aa');
 });

@@ -3,7 +3,7 @@ import { cleanup, render } from '@testing-library/react';
 import * as THREE from 'three';
 import { useMobileControlStore } from '../../stores/mobileControlStore';
 import { useGraphicsStore } from '../../stores/graphicsStore';
-import { sampleValleyGroundHeight } from '../terrain/splatMapGenerator';
+import { sampleWalkingGroundHeight, walkingBlocks } from '../../utils/castleNavigation';
 import { getTerrainGridSegments } from '../terrain/terrainTypes';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { MobileFirstPersonController } from './MobileFirstPersonController';
@@ -21,6 +21,7 @@ vi.mock('@react-three/fiber', () => ({
 }));
 
 beforeEach(() => {
+  useGraphicsStore.getState().setGraphicsQuality('medium');
   harness.camera = new THREE.PerspectiveCamera();
   harness.camera.position.set(-190, 50, -104);
   harness.canvas = document.createElement('canvas');
@@ -34,7 +35,7 @@ afterEach(() => {
 it('spawns and walks at eye height above the current terrain triangles', () => {
   const segments = getTerrainGridSegments(useGraphicsStore.getState().graphics.quality);
   const floor = () =>
-    sampleValleyGroundHeight(harness.camera.position.x, harness.camera.position.z, segments);
+    sampleWalkingGroundHeight(harness.camera.position.x, harness.camera.position.z, segments);
   render(<MobileFirstPersonController />);
   expect(floor()).toBeGreaterThan(2);
   expect(harness.camera.position.y).toBeCloseTo(floor() + 1.7, 6);
@@ -133,5 +134,58 @@ it('walks the castle stairs and returns using the touch-look and D-pad controls'
   expect(
     castleLocalPosition(harness.camera.position.x, harness.camera.position.z)[1]
   ).toBeGreaterThan(25);
-  expect(harness.camera.position.y).toBeCloseTo(1.7, 3);
+  expect(harness.camera.position.y).toBeCloseTo(
+    sampleWalkingGroundHeight(harness.camera.position.x, harness.camera.position.z, 64) + 1.7,
+    5
+  );
+});
+
+it('follows a dry river bank through a quality change and relocates a wet spawn', () => {
+  harness.camera.position.set(100, 20, -118);
+  const { unmount } = render(<MobileFirstPersonController />);
+  expect(harness.camera.position.y).toBeCloseTo(sampleWalkingGroundHeight(100, -118, 64) + 1.7, 6);
+  useGraphicsStore.getState().setGraphicsQuality('high');
+  harness.frame({}, 1 / 60);
+  expect(harness.camera.position.y).toBeCloseTo(sampleWalkingGroundHeight(100, -118, 128) + 1.7, 6);
+  unmount();
+  harness.camera.position.set(25, 20, -170);
+  render(<MobileFirstPersonController />);
+  const floor = sampleWalkingGroundHeight(
+    harness.camera.position.x,
+    harness.camera.position.z,
+    128
+  );
+  expect(floor).toBeGreaterThanOrEqual(-1.92);
+  expect(harness.camera.position.y).toBeCloseTo(floor + 1.7, 6);
+});
+
+it('relocates a touch spawn inside the bench and keeps held movement out of its solids', () => {
+  harness.camera.position.set(29.55, 12, 140.4);
+  const { unmount } = render(<MobileFirstPersonController />);
+  let c = harness.camera;
+  expect(walkingBlocks(c.position.x, c.position.z, c.position.y - 1.7)).toBe(false);
+  expect(Math.hypot(c.position.x - 29.55, c.position.z - 140.4)).toBeGreaterThanOrEqual(1);
+  unmount();
+  harness.camera.position.set(27.65, 12, 140.4);
+  render(<MobileFirstPersonController />);
+  c = harness.camera;
+  const initial = new THREE.Euler().setFromQuaternion(c.quaternion, 'YXZ');
+  const desired = new THREE.PerspectiveCamera();
+  desired.position.copy(c.position);
+  desired.lookAt(40, c.position.y, c.position.z);
+  const end = new THREE.Euler().setFromQuaternion(desired.quaternion, 'YXZ');
+  for (const [type, x, y] of [
+    ['touchstart', 0, 0],
+    ['touchmove', (initial.y - end.y) / 0.006, (initial.x - end.x) / 0.006],
+  ] as const) {
+    const e = new Event(type, { cancelable: true });
+    Object.defineProperty(e, 'targetTouches', { value: [{ clientX: x, clientY: y }] });
+    harness.canvas.dispatchEvent(e);
+  }
+  for (let i = 0; i < 100; i++) harness.frame({}, 1 / 60);
+  useMobileControlStore.getState().setDpadDirection({ x: 0, y: -1 });
+  for (let i = 0; i < 30; i++) harness.frame({}, 0.1);
+  expect(walkingBlocks(c.position.x, c.position.z, c.position.y - 1.7)).toBe(false);
+  expect(c.position.x).toBeGreaterThan(28.3);
+  expect(c.position.x + 0.4).toBeLessThanOrEqual(29.356 + 1e-6);
 });

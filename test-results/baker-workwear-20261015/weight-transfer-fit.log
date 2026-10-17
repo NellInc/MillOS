@@ -1,0 +1,15 @@
+
+> grain-mill-simulator@0.40.0 test
+> vitest run src/components/workers/workerPose.test.ts -t binds cloth
+
+(node:19531) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+
+ Test Files  1 passed (1)
+      Tests  4 passed | 89 skipped (93)
+   Start at  13:16:40
+   Duration  2.77s (transform 203ms, setup 100ms, import 527ms, tests 1.97s, environment 0ms)
+

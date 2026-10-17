@@ -11,7 +11,9 @@
  * here: the SkeletonUtils rebinding these assets do not need costs a skeleton
  * walk, and none of them has a skin. Geometry and textures are shared by the
  * clone. Village glazing clones materials for the shared night-lighting shader;
- * other assets retain their shared materials.
+ * explicit market cloth clones only colour attributes and its material; all atlas
+ * textures remain shared. Station bodies clone owned palette/rounded-canopy geometry. Barn joinery uses
+ * one owned merged geometry, retaining its source roof, cupola and floor.
  */
 
 import React, { useEffect, useMemo } from 'react';
@@ -19,7 +21,20 @@ import * as THREE from 'three';
 import { useDracoGLTF } from '../../utils/dracoLoader';
 import { GENERATED_ASSET_PATHS, type GeneratedAssetId } from '../../utils/modelLoader';
 import ErrorBoundary from '../ErrorBoundary';
-import { applyVillageWindows } from './GeneratedOfficeModel';
+import {
+  createMarketCanopyGeometry,
+  createBarnJoineryGeometry,
+  createPosterStationGeometry,
+} from '../scenery/AuthoredPropTrim';
+import {
+  applyCastlePaving,
+  applyFarmWindows,
+  applyShopWindows,
+  createShopDisplayGeometry,
+  applyVillageWindows,
+  applyForgeWindows,
+  type VillageShopTrade,
+} from './GeneratedOfficeModel';
 
 const VILLAGE_GLAZING = new Set<GeneratedAssetId>([
   'cottage',
@@ -43,11 +58,13 @@ const VILLAGE_GLAZING = new Set<GeneratedAssetId>([
  * arrangement, near-same rotation. No per-instance colour, rotation or scale
  * variation anywhere."
  *
- * NOT A TINT, DELIBERATELY. `Cottage` and `ShopBuilding` still carry
- * `wallColor` props, and wiring them to the generated body would multiply a
- * baked albedo by a colour - the exact symptom-fix pattern CLAUDE.md records
- * for the village cobbles, where a `#9a9a9a` compensator was hiding a decode
- * bug. Geometry variation costs nothing and lies to no one.
+ * Geometry variation preserves the authored whole-building albedo. Shops
+ * additionally select explicit trade paint on their green joinery swatch,
+ * leaving the masonry, linen, roof and glazing unchanged. Market cloth uses
+ * explicit trade colours while retaining its shared atlas weave and cream
+ * stripes. The old wallColor
+ * prop still belongs only to the primitive fallback; it is never multiplied
+ * into the delivered atlas.
  *
  * DETERMINISTIC, from the call site's own position rather than `Math.random`.
  * A random draw here re-rolls on every remount, which defeats `React.memo`,
@@ -90,6 +107,10 @@ export const instanceScale = (position: readonly [number, number, number]): numb
 
 export interface GeneratedModelProps {
   asset: GeneratedAssetId;
+  /** Explicit authored shop paint; other assets retain their existing palette. */
+  shopTrade?: VillageShopTrade;
+  /** Explicit market cloth trade; all non-canvas asset pixels remain authored. */
+  marketDressing?: number;
   /**
    * Uniform scale. The assets are authored at their shipped size, so this is
    * for the handful of call sites that genuinely want a variant - a smaller
@@ -123,6 +144,8 @@ export interface GeneratedModelProps {
 
 export const GeneratedModel: React.FC<GeneratedModelProps> = ({
   asset,
+  shopTrade,
+  marketDressing,
   scale,
   sink,
   castShadow,
@@ -130,29 +153,90 @@ export const GeneratedModel: React.FC<GeneratedModelProps> = ({
 }) => {
   const { scene } = useDracoGLTF(GENERATED_ASSET_PATHS[asset]);
 
-  const { model, materials } = useMemo(() => {
+  const { model, materials, geometries } = useMemo(() => {
     const materials: THREE.Material[] = [];
+    const geometries: THREE.BufferGeometry[] = [];
     const clone = scene.clone(true);
     clone.traverse((object) => {
       const mesh = object as THREE.Mesh;
       if (!mesh.isMesh) return;
-      if (VILLAGE_GLAZING.has(asset) && mesh.material instanceof THREE.MeshStandardMaterial) {
+      if (
+        asset === 'marketstall' &&
+        marketDressing !== undefined &&
+        mesh.material instanceof THREE.MeshStandardMaterial
+      ) {
+        const geometry = createMarketCanopyGeometry(mesh.geometry, marketDressing);
+        if (geometry !== mesh.geometry) {
+          const material = mesh.material.clone();
+          material.vertexColors = true;
+          mesh.geometry = geometry;
+          mesh.material = material;
+          geometries.push(geometry);
+          materials.push(material);
+        }
+      }
+      if (
+        (asset === 'stationCanopy' || asset === 'fuelPumpShell') &&
+        mesh.material instanceof THREE.MeshStandardMaterial
+      ) {
+        const geometry = createPosterStationGeometry(mesh.geometry, asset);
+        if (geometry !== mesh.geometry) {
+          const material = mesh.material.clone();
+          material.vertexColors = true;
+          // Enamel catches existing sky/forecourt lamps on this owned clone.
+          // Working if cached maps stay shared and no light/shader is added.
+          if (asset === 'fuelPumpShell') {
+            material.roughness = 0.36;
+            material.metalness = 0.12;
+          }
+          mesh.geometry = geometry;
+          mesh.material = material;
+          geometries.push(geometry);
+          materials.push(material);
+        }
+      }
+      if (
+        (VILLAGE_GLAZING.has(asset) || asset === 'farmhouse' || asset === 'barn') &&
+        mesh.material instanceof THREE.MeshStandardMaterial
+      ) {
         const material = mesh.material.clone();
         // Lancet glazing and forge workrooms keep their architectural character.
-        applyVillageWindows(
-          material,
-          undefined,
-          asset !== 'church' && asset !== 'forge',
-          asset === 'church'
-            ? 'stained'
-            : asset === 'castle'
-              ? 'castle'
-              : asset === 'pub'
-                ? 'amber'
-                : asset === 'townhall'
-                  ? 'civic'
-                  : 'glass'
-        );
+        if (asset === 'farmhouse' || asset === 'barn') {
+          if (asset === 'barn') {
+            const geometry = createBarnJoineryGeometry(mesh.geometry);
+            if (geometry !== mesh.geometry) {
+              mesh.geometry = geometry;
+              geometries.push(geometry);
+              material.vertexColors = true;
+            }
+          }
+          applyFarmWindows(material, asset);
+        } else if (asset === 'shop' && shopTrade) {
+          applyShopWindows(material, shopTrade);
+          const geometry = createShopDisplayGeometry(mesh.geometry, shopTrade);
+          if (geometry !== mesh.geometry) {
+            mesh.geometry = geometry;
+            geometries.push(geometry);
+          }
+        } else if (asset === 'forge') {
+          applyForgeWindows(material);
+        } else {
+          applyVillageWindows(
+            material,
+            undefined,
+            asset !== 'church',
+            asset === 'church'
+              ? 'stained'
+              : asset === 'castle'
+                ? 'castle'
+                : asset === 'pub'
+                  ? 'amber'
+                  : asset === 'townhall'
+                    ? 'civic'
+                    : 'glass'
+          );
+          if (asset === 'castle') applyCastlePaving(material);
+        }
         mesh.material = material;
         materials.push(material);
       }
@@ -162,9 +246,15 @@ export const GeneratedModel: React.FC<GeneratedModelProps> = ({
       mesh.receiveShadow =
         receiveShadow ?? (typeof authoredReceive === 'boolean' ? authoredReceive : true);
     });
-    return { model: clone, materials };
-  }, [scene, asset, castShadow, receiveShadow]);
-  useEffect(() => () => materials.forEach((material) => material.dispose()), [materials]);
+    return { model: clone, materials, geometries };
+  }, [scene, asset, shopTrade, marketDressing, castShadow, receiveShadow]);
+  useEffect(
+    () => () => {
+      materials.forEach((material) => material.dispose());
+      geometries.forEach((geometry) => geometry.dispose());
+    },
+    [materials, geometries]
+  );
 
   return (
     <primitive
@@ -212,6 +302,8 @@ GeneratedBoundary.displayName = 'GeneratedBoundary';
 
 export const GeneratedBody: React.FC<GeneratedBodyProps> = ({
   asset,
+  shopTrade,
+  marketDressing,
   scale,
   sink,
   castShadow,
@@ -221,6 +313,8 @@ export const GeneratedBody: React.FC<GeneratedBodyProps> = ({
   <GeneratedBoundary fallback={fallback}>
     <GeneratedModel
       asset={asset}
+      shopTrade={shopTrade}
+      marketDressing={marketDressing}
       scale={scale}
       sink={sink}
       castShadow={castShadow}

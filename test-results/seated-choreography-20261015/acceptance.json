@@ -1,0 +1,58 @@
+{
+  "pass": "AK",
+  "status": "complete local finite36-item pass; wider goal active",
+  "baseline": {
+    "tests": 177,
+    "files": 4,
+    "failed": 0
+  },
+  "final": {
+    "tests": 187,
+    "files": 4,
+    "failed": 0,
+    "delta": 10
+  },
+  "sourceGates": {
+    "reference-restore-focused": 0,
+    "typecheck-final": 0,
+    "lint-final": 0,
+    "format-final": 0,
+    "shaders-final": 0,
+    "build-final": 0,
+    "reachability-final": 0,
+    "native-day": 0,
+    "native-dusk": 0,
+    "native-night": 0
+  },
+  "visual": {
+    "nativeAccepted": true,
+    "close": "close-final.json",
+    "native": "native-acceptance.json",
+    "authoringSelfReview": true
+  },
+  "pacing": "separately OPEN, see failed indicative budgets; no non-art gate",
+  "playerDevice": "DEFERRED",
+  "publication": "local only",
+  "custody": {
+    "protectedPrimaryExact": true,
+    "sourcePins": 9,
+    "compiledPins": 415,
+    "frozenPins": 1454,
+    "borrowedLinksVerified": 375,
+    "dependencyLinkRestored": "/Users/nellwatson/Documents/GitHub/MillOS/node_modules",
+    "unusedOwnCachesRemoved": [
+      "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/node_modules/.vite",
+      "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/node_modules/.vite-temp",
+      "/private/tmp/millos-AK-npm-cache"
+    ],
+    "filesRemoved": 13,
+    "logicalBytesRemoved": 15588,
+    "filesystemFreeBefore": 42056593408,
+    "filesystemFreeAfter": 42142068736,
+    "physicalDeltaAttribution": "Concurrent machine; before/after reported without attributing all free-space change to this cleanup.",
+    "captureLockAbsent": true,
+    "ownIabTabClosed": 30,
+    "ownPreviewClosed": "PTY close receipt then stdin EOF; terminal0",
+    "foreignFilesOrProcessesTouched": false
+  }
+}

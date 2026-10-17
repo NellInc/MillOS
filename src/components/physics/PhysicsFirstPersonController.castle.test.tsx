@@ -5,12 +5,15 @@ import {
   castleWorldPosition,
   castleLocalPosition,
   sampleWalkingGroundHeight,
+  walkingBlocks,
 } from '../../utils/castleNavigation';
+import { useGraphicsStore } from '../../stores/graphicsStore';
 import { PhysicsFirstPersonController } from './PhysicsFirstPersonController';
 const h = vi.hoisted(() => ({
   camera: null as unknown as THREE.PerspectiveCamera,
   frame: (_: unknown, _dt: number) => {},
   lock: () => {},
+  selector: '',
   position: { x: 0, y: 0, z: 0 },
   velocity: { x: 0, y: 0, z: 0 },
 }));
@@ -21,8 +24,9 @@ vi.mock('@react-three/fiber', () => ({
   },
 }));
 vi.mock('@react-three/drei', () => ({
-  PointerLockControls: ({ onLock }: { onLock: () => void }) => {
+  PointerLockControls: ({ onLock, selector }: { onLock: () => void; selector: string }) => {
     h.lock = onLock;
+    h.selector = selector;
     return null;
   },
 }));
@@ -52,6 +56,7 @@ vi.mock('@react-three/rapier', async () => {
   };
 });
 beforeEach(() => {
+  useGraphicsStore.getState().setGraphicsQuality('medium');
   h.camera = new THREE.PerspectiveCamera();
   h.camera.position.set(...castleWorldPosition(7.2, 5, 26));
 });
@@ -73,7 +78,7 @@ it('resolves Rapier displacement up and down both flights without vertical input
   for (let i = 0; i < 170; i++) move(-1);
   expect(castleLocalPosition(h.position.x, h.position.z)[1]).toBeGreaterThan(25);
   expect(h.camera.position.y).toBeCloseTo(
-    sampleWalkingGroundHeight(h.position.x, h.position.z, 128) + 1.7,
+    sampleWalkingGroundHeight(h.position.x, h.position.z, 64) + 1.7,
     4
   );
 });
@@ -94,7 +99,7 @@ it('also resolves the real canal bridge flights through the physics controller',
     h.frame({}, 1 / 60);
   }
   expect(h.position.x).toBeGreaterThan(-134.5);
-  expect(h.camera.position.y).toBeCloseTo(1.7, 4);
+  expect(h.camera.position.y).toBeCloseTo(1.68, 4);
 });
 
 it('spawns at 1.7 m above ordinary ground, without the old two-metre lift', () => {
@@ -104,4 +109,43 @@ it('spawns at 1.7 m above ordinary ground, without the old two-metre lift', () =
   h.lock();
   h.frame({}, 1 / 60);
   expect(h.camera.position.y).toBeCloseTo(sampleWalkingGroundHeight(60, 60, 128) + 1.7, 6);
+});
+
+it('keeps the physics camera grounded across terrain tiers and rejects a wet spawn', () => {
+  h.camera.position.set(100, 20, -118);
+  const { unmount } = render(<PhysicsFirstPersonController />);
+  h.lock();
+  expect(h.camera.position.y).toBeCloseTo(sampleWalkingGroundHeight(100, -118, 64) + 1.7, 6);
+  useGraphicsStore.getState().setGraphicsQuality('high');
+  h.frame({}, 1 / 60);
+  expect(h.camera.position.y).toBeCloseTo(sampleWalkingGroundHeight(100, -118, 128) + 1.7, 6);
+  unmount();
+  h.camera.position.set(25, 20, -170);
+  render(<PhysicsFirstPersonController />);
+  const floor = sampleWalkingGroundHeight(h.position.x, h.position.z, 128);
+  expect(floor).toBeGreaterThanOrEqual(-1.92);
+  expect(h.camera.position.y).toBeCloseTo(floor + 1.7, 6);
+});
+
+it('relocates the optional physics spawn out of the bench and sweeps upward displacement below the roof', () => {
+  h.camera.position.set(29.55, 12, 140.4);
+  const { unmount } = render(<PhysicsFirstPersonController />);
+  expect(walkingBlocks(h.position.x, h.position.z, h.position.y - 0.02)).toBe(false);
+  expect(Math.hypot(h.position.x - 29.55, h.position.z - 140.4)).toBeGreaterThanOrEqual(1);
+  unmount();
+  h.camera.position.set(28.3, 12, 140);
+  render(<PhysicsFirstPersonController />);
+  h.lock();
+  h.frame({}, 1 / 60);
+  window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE' }));
+  h.position.y = 10;
+  h.frame({}, 0.1);
+  window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyE' }));
+  expect(h.camera.position.y).toBeCloseTo(2.68, 6);
+  expect(h.velocity.y).toBe(0);
+});
+
+it('uses the same handled admission path for optional physics walking', () => {
+  render(<PhysicsFirstPersonController />);
+  expect(h.selector).toBe(':not(*)');
 });

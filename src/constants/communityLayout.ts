@@ -84,15 +84,44 @@ export const COMMUNITY_PATHS = Object.freeze({
   ),
 });
 
+/** One schedule for actual activity and reopening captions, in simulated hours. */
+export const COMMUNITY_OPENING_HOURS = {
+  shops: { open: 7, close: 18 },
+  pub: { open: 11, close: 23 },
+} as const;
+
+/** A closed board tells visitors when to return, without promising stock.
+ * Working if its hour comes from the same schedule that opens the real place.
+ */
+export function getCommunityReopeningDetail(
+  place: keyof typeof COMMUNITY_OPENING_HOURS,
+  open: boolean
+): string | undefined {
+  return open
+    ? undefined
+    : `Opens ${String(COMMUNITY_OPENING_HOURS[place].open).padStart(2, '0')}:00`;
+}
+
 /** Opening hours use the simulation's hour-of-day, with finite wrapped inputs.
  * Working if the signs, pedestrians and delivery window flip at identical hours.
  */
 export function getCommunityHours(hour: number) {
   const h = Number.isFinite(hour) ? ((hour % 24) + 24) % 24 : 0;
   return {
-    shopsOpen: h >= 7 && h < 18,
-    pubOpen: h >= 11 && h < 23,
+    shopsOpen: h >= COMMUNITY_OPENING_HOURS.shops.open && h < COMMUNITY_OPENING_HOURS.shops.close,
+    pubOpen: h >= COMMUNITY_OPENING_HOURS.pub.open && h < COMMUNITY_OPENING_HOURS.pub.close,
     deliveryActive: h >= 9 && h < 11,
     gardeningActive: h >= 8 && h < 17,
   };
+}
+
+/** Read-only explanation of the bakery's existing flour-delivery signal.
+ * Working if opening the shop alone never claims bread or a fulfilled delivery.
+ */
+export function getBakeryBoardDetail(open: boolean, stocked: boolean): string | undefined {
+  return open
+    ? stocked
+      ? 'Fresh bread'
+      : 'Needs mill flour'
+    : getCommunityReopeningDetail('shops', open);
 }

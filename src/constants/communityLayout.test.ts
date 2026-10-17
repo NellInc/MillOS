@@ -1,9 +1,28 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { COMMUNITY_ANCHORS as A, COMMUNITY_PATHS, getCommunityHours } from './communityLayout';
+import {
+  COMMUNITY_ANCHORS as A,
+  COMMUNITY_PATHS,
+  getCommunityHours,
+  getCommunityReopeningDetail,
+  COMMUNITY_OPENING_HOURS,
+} from './communityLayout';
 import { landmarkLocalToWorld, SITE_LAYOUT } from './siteLayout';
 
 describe('community hours and shared placement contract', () => {
+  it('ties useful closed-board captions to the actual reopening schedule', () => {
+    for (const place of ['shops', 'pub'] as const) {
+      const hour = COMMUNITY_OPENING_HOURS[place].open;
+      expect(getCommunityReopeningDetail(place, false)).toBe(
+        `Opens ${String(hour).padStart(2, '0')}:00`
+      );
+      expect(getCommunityReopeningDetail(place, true)).toBeUndefined();
+      const key = place === 'shops' ? 'shopsOpen' : 'pubOpen';
+      expect(getCommunityHours(hour - 0.001)[key]).toBe(false);
+      expect(getCommunityHours(hour)[key]).toBe(true);
+    }
+  });
+
   it.each([
     [6.999, false, false, false, false],
     [7, true, false, false, false],

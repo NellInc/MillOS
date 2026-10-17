@@ -68,14 +68,14 @@
       "sha256": "a88fc25fde338805657ace7391134f1fbe2fde38f6b3121f06f2809be81e29cc",
       "blenderPreparation": {
         "file": "assets/source/models/village/cottage-crafted.glb",
-        "sha256": "cf6e8280699054b30223bfe50c9b156999e73e8d0ef84ae7bc1d375be99fa0dd",
+        "sha256": "40b92b41c385969e9f909df7d14e01806ec4f3c57214ad79fe579338080cc1fb",
         "script": "scripts/blender/rebuild_village_architecture.py",
         "method": "Completely rebuilt from planar architectural solids, closed layered roofs, recessed framed glazing, measured timber joinery and grounded thresholds. No provider vertices retained. Original silhouette, palette and occupied envelope guide the authored design; the school turf disc is removed."
       },
       "runtimeDerivative": {
         "file": "public/models/village/cottage.glb",
-        "sha256": "3c2b581ea017baa80a2120b03960ff0f0b2d7db993d64d6c4df4b38b354c0cc4",
-        "bytes": 206820
+        "sha256": "b355478846f053723ae03d364a167f29308417049e861830f0541c8db5f83366",
+        "bytes": 296028
       },
       "normalization": {
         "sizedBy": "longest axis",
@@ -96,8 +96,8 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 13065,
-        "renderVertices": 8292
+        "textureBytes": 14207,
+        "renderVertices": 12132
       }
     },
     {
@@ -111,14 +111,14 @@
       "sha256": "950c49a07b0111671cd1bed38c92b393105d0abbda59f85a3862b366ad697549",
       "blenderPreparation": {
         "file": "assets/source/models/village/shop-crafted.glb",
-        "sha256": "a1f52be4004ec6bcbecfb1a1a430c671aaaf6f98db2f42175e95931d5a944eb6",
+        "sha256": "e963f0679329cebe5f75708d9eedabc2de9569b7293678564561a189fd961825",
         "script": "scripts/blender/rebuild_village_architecture.py",
         "method": "Completely rebuilt from planar architectural solids, closed layered roofs, recessed framed glazing, measured timber joinery and grounded thresholds. No provider vertices retained. Original silhouette, palette and occupied envelope guide the authored design; the school turf disc is removed."
       },
       "runtimeDerivative": {
         "file": "public/models/village/shop.glb",
-        "sha256": "3622c4ae4fd8a1381fb3dda43282db7428c6d828d110f7f4788a6bd894605e08",
-        "bytes": 186496
+        "sha256": "9d605c6853f64f592ffd193013c41c65fd2192fe525a9d1db34827bca194df57",
+        "bytes": 230536
       },
       "normalization": {
         "sizedBy": "longest axis",
@@ -139,8 +139,8 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 13065,
-        "renderVertices": 7356
+        "textureBytes": 15023,
+        "renderVertices": 10380
       }
     },
     {
@@ -154,14 +154,14 @@
       "sha256": "a1486e7872c624a12a1f708a222818a8ddc54029d4e6d053ae79b71dd553869d",
       "blenderPreparation": {
         "file": "assets/source/models/village/church-crafted.glb",
-        "sha256": "889127e054e14f98e85be0f4960d88922f7376483c06cf0ab606cb755d6cfeac",
+        "sha256": "898395b2d416ba26844c89488ee82b3fc0a33f2e95b564c52931be825ba9a55a",
         "script": "scripts/blender/rebuild_village_architecture.py",
         "method": "Authored revival of the preserved v0.30 architecture: original nave, rear spire and rose; broad cream civic hall; hipped half-timbered Flour and Barrel; cream open-belfry schoolhouse. Closed layered hips, dressed stone, framed glazing and joinery. New reference-led metre envelopes, original provider source untouched."
       },
       "runtimeDerivative": {
         "file": "public/models/village/church.glb",
-        "sha256": "0ac12d14d15510c14ae93cc196235d0d470ce290e077237bf75f292616fa283f",
-        "bytes": 343188
+        "sha256": "9a4067b0a093b8e9fa3d3932b8b0f1417a2f1601fafae2d024ba3acbf73216b7",
+        "bytes": 351052
       },
       "normalization": {
         "sizedBy": "length",
@@ -182,8 +182,8 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 13065,
-        "renderVertices": 14352
+        "textureBytes": 14207,
+        "renderVertices": 14640
       }
     },
     {
@@ -197,14 +197,14 @@
       "sha256": "d80aaa1a16622d876e0852412d4ebd514f5fbcf15ec5af7b95799df20b9e32fb",
       "blenderPreparation": {
         "file": "assets/source/models/village/townhall-crafted.glb",
-        "sha256": "191cd32bfe12cae1ac3a10ace8b739029b030adf79535e6eb27127fc39493ec3",
+        "sha256": "c566c23b20b8d784fb0d6240641f6d28a5896c0a5e093f53def3d06f5142bd67",
         "script": "scripts/blender/rebuild_village_architecture.py",
         "method": "Authored revival of the preserved v0.30 architecture: original nave, rear spire and rose; broad cream civic hall; hipped half-timbered Flour and Barrel; cream open-belfry schoolhouse. Closed layered hips, dressed stone, framed glazing and joinery. New reference-led metre envelopes, original provider source untouched."
       },
       "runtimeDerivative": {
         "file": "public/models/village/townhall.glb",
-        "sha256": "dd5558c58e31a711fe6112824ad6ea9b3f2e208e7a3d86ae182c6c530c574bbe",
-        "bytes": 470984
+        "sha256": "764979d26cc52c720ad39d010bb50537e6f96b7289d6a259182c22b9268c43fc",
+        "bytes": 538800
       },
       "normalization": {
         "sizedBy": "length",
@@ -225,8 +225,8 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 32109,
-        "renderVertices": 19572
+        "textureBytes": 36081,
+        "renderVertices": 22308
       }
     },
     {
@@ -240,14 +240,14 @@
       "sha256": "81102a0d0173109cdff805239f0435b4e6468364b2ee76b915e9c755e9e466ec",
       "blenderPreparation": {
         "file": "assets/source/models/village/pub-crafted.glb",
-        "sha256": "862f0f6853a6f87d55ed7847f6c7eddd8a2a19d1e9af9e62af572842e23e304e",
+        "sha256": "6ae1e7cf547a1f442c769c0f1345e556fe549b8886075d3e19425b9f085550dd",
         "script": "scripts/blender/rebuild_village_architecture.py",
         "method": "Authored revival of the preserved v0.30 architecture: original nave, rear spire and rose; broad cream civic hall; hipped half-timbered Flour and Barrel; cream open-belfry schoolhouse. Closed layered hips, dressed stone, framed glazing and joinery. New reference-led metre envelopes, original provider source untouched."
       },
       "runtimeDerivative": {
         "file": "public/models/village/pub.glb",
-        "sha256": "91ed20027d224c4283ad79cbd6fee991ccaf533257a7fd2e03aca24a7a45511e",
-        "bytes": 214672
+        "sha256": "d3288ef46d5f9e21a35c5966ff5e85ecd135d408e73df81bc1a02d269e1f91c4",
+        "bytes": 325720
       },
       "normalization": {
         "sizedBy": "width",
@@ -268,8 +268,8 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 13065,
-        "renderVertices": 8568
+        "textureBytes": 14207,
+        "renderVertices": 13344
       }
     },
     {
@@ -283,14 +283,14 @@
       "sha256": "3be8efe21c58758b60cec5483bb8a85850d497914aed169d603b7d5a095e021e",
       "blenderPreparation": {
         "file": "assets/source/models/village/school-crafted.glb",
-        "sha256": "24908fc89ec31b756383cd6d9910d2b9836d4efbe312ae5ea143ce18208d57e0",
+        "sha256": "cc2e34805f0323abe6fdf1679788aea2703e9191f2bfe04288fd6d691e2ae90e",
         "script": "scripts/blender/rebuild_village_architecture.py",
-        "method": "Authored revival of the preserved v0.30 architecture: original nave, rear spire and rose; broad cream civic hall; hipped half-timbered Flour and Barrel; cream open-belfry schoolhouse. Closed layered hips, dressed stone, framed glazing and joinery. New reference-led metre envelopes, original provider source untouched."
+        "method": "Authored revival of the preserved v0.30 cream schoolhouse and open belfry, with closed layered hips, dressed stone, recessed sash glazing and grounded thresholds. A hollow closed bronze bell casting has a rolled sound bow, attached oak-yoke ironwork and rounded clapper. Retained metre envelope and silhouette; original provider source untouched."
       },
       "runtimeDerivative": {
         "file": "public/models/village/school.glb",
-        "sha256": "532cc74536114125e8e75bacd054d468a752453a0a5c337e87d9621e88f6eb05",
-        "bytes": 279592
+        "sha256": "1bc59eb7fe020baed7886b2b564803702765647bf37a10581c036be66465df4c",
+        "bytes": 406876
       },
       "normalization": {
         "sizedBy": "width",
@@ -311,8 +311,8 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 13065,
-        "renderVertices": 11580
+        "textureBytes": 14207,
+        "renderVertices": 17304
       }
     },
     {
@@ -326,14 +326,14 @@
       "sha256": "225b6809469b20cd71b6e12579afe637e070ccd9ebb2f088f3c83bdc64fe3f1b",
       "blenderPreparation": {
         "file": "assets/source/models/village/forge-crafted.glb",
-        "sha256": "f1251412f5b5e45b4bc6d859a0cc3c8f1ac75cb0932bb99e5c17fb2dee2ef2f3",
+        "sha256": "a26ce10f2720a1547d87b9c91a2bbc7c06c391a57cf227b91a78e8807cb972cd",
         "script": "scripts/blender/rebuild_village_architecture.py",
         "method": "Completely rebuilt from planar architectural solids, closed layered roofs, recessed framed glazing, measured timber joinery and grounded thresholds. No provider vertices retained. Original silhouette, palette and occupied envelope guide the authored design; the school turf disc is removed."
       },
       "runtimeDerivative": {
         "file": "public/models/village/forge.glb",
-        "sha256": "9481b027aada59407685c8692a52bd9b32c0a63f674561d6d959984e88d882d5",
-        "bytes": 182088
+        "sha256": "02e531c60890257dd7a9ea74ba669f8b5d38e3418cd5d84c823d094952c01f52",
+        "bytes": 225936
       },
       "normalization": {
         "sizedBy": "longest axis",
@@ -354,8 +354,8 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 13065,
-        "renderVertices": 7164
+        "textureBytes": 14207,
+        "renderVertices": 9060
       }
     },
     {
@@ -588,13 +588,13 @@
       "sha256": "a5d0e1cc948788ab9cd75e5b72e4b5f11703658d090c81c9dc17853d6145f498",
       "blenderPreparation": {
         "file": "assets/source/models/village/castle-neuschwanstein-authored.glb",
-        "sha256": "e075ed92bdf148be2855a21c63109f16ce74d59734aa025276cab5fd997e6162",
+        "sha256": "791ef160af74af6b21bad09d60efc10c8b1e3b5670afc19b0e1736d0d93d44dd",
         "script": "scripts/blender/build_neuschwanstein_castle.py",
         "method": "Fully authored Neuschwanstein-inspired palace with the white limestone and blue slate palette of MillOS v0.30: elongated palas, softly curved roofs, dominant round tower, square watchtower, rounded gate turrets and open through gateway/court. Shared runtime stairs preserve first-person ground access. Original provider source preserved separately; no provider geometry or textures used."
       },
       "runtimeDerivative": {
         "file": "public/models/village/castle.glb",
-        "sha256": "f11affbf4a8a14144b6fa78b8d473076baaca9b4806780ce19662bdb83e40249",
+        "sha256": "9e92b0a9dddb3753c05df66b63c3e2949c5efd782417a0c8bf176f7a30530048",
         "bytes": 566608,
         "license": "MillOS project-authored geometry and procedural textures",
         "attribution": "Original MillOS geometry and procedural atlas, inspired by Neuschwanstein Castle; no photographic textures or provider geometry incorporated."

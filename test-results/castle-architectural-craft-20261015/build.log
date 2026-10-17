@@ -1,0 +1,83 @@
+
+> grain-mill-simulator@0.40.0 build
+> vite build
+
+vite v7.3.6 building client environment for production...
+transforming...
+(node:18802) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+✓ 3701 modules transformed.
+rendering chunks...
+[plugin vite:reporter] 
+(!) /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/src/utils/aiEngine.ts is dynamically imported by /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/src/App.tsx, /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/src/stores/productionStore.ts but also statically imported by /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/src/agent/adapters/runtime/runtimeCommandHandlers.ts, /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/src/components/AICommandCenter.tsx, dynamic import will not move module into another chunk.
+
+computing gzip size...
+dist/assets/trendWorker-Bv0jvOqb.js                          2.28 kB
+dist/index.html                                              9.89 kB │ gzip:     3.24 kB
+dist/assets/jetbrains-mono-400-latin-ext-Bnd2h4Br.woff2     11.60 kB
+dist/.vite/manifest.json                                    26.05 kB │ gzip:     2.95 kB
+dist/assets/jetbrains-mono-400-latin-Db4Uuiha.woff2         31.34 kB
+dist/assets/inter-400-latin-8kRkwJBP.woff2                  48.43 kB
+dist/assets/inter-400-latin-ext-B_-bZUTo.woff2              85.27 kB
+dist/assets/webgpuWorker-H4h_dZAh.js                     6,027.79 kB
+dist/assets/main-C8Wo8k4m.css                              162.84 kB │ gzip:    22.30 kB
+dist/assets/SkeletonUtils-BCVmgslc.js                        0.45 kB │ gzip:     0.27 kB
+dist/assets/machineMotion-Lv32bZJz.js                        0.58 kB │ gzip:     0.32 kB
+dist/assets/audioAnalyzerStore--jYfAUsM.js                   0.60 kB │ gzip:     0.33 kB
+dist/assets/gpuTrackedResources-CCpb7QiX.js                  0.72 kB │ gzip:     0.37 kB
+dist/assets/Billboard-67FGhmas.js                            0.79 kB │ gzip:     0.45 kB
+dist/assets/texturePreloader-w6yAomnv.js                     0.95 kB │ gzip:     0.56 kB
+dist/assets/authoredPlotGeometry-CiQY-15y.js                 1.14 kB │ gzip:     0.69 kB
+dist/assets/LoadingQuote-DndiB4rz.js                         1.44 kB │ gzip:     0.73 kB
+dist/assets/grain-Cu5Mws-6.js                                1.85 kB │ gzip:     0.88 kB
+dist/assets/StrategicOverlay3D-DFUQ0wOw.js                   1.85 kB │ gzip:     0.86 kB
+dist/assets/useAudioState-uVd2EYNk.js                        1.97 kB │ gzip:     0.77 kB
+dist/assets/math-utils-DosdevsS.js                           2.20 kB │ gzip:     1.18 kB
+dist/assets/normalGenerator-DiZDJiSk.js                      2.33 kB │ gzip:     1.09 kB
+dist/assets/CascadeVisualization-C2KpFLIX.js                 2.35 kB │ gzip:     1.08 kB
+dist/assets/vehicleSurface-mh9Sw6U7.js                       2.69 kB │ gzip:     1.07 kB
+dist/assets/CastleSteps-HIPPVNq5.js                          3.16 kB │ gzip:     1.53 kB
+dist/assets/flourSacks-Bk1SYhRB.js                           3.22 kB │ gzip:     1.59 kB
+dist/assets/SafetyMetricsDisplay-B5RoS9DE.js                 3.27 kB │ gzip:     1.09 kB
+dist/assets/IncidentHistoryPanel-DA1ioQzY.js                 3.52 kB │ gzip:     1.30 kB
+dist/assets/SafetyConfigPanel-Dn8ThB2Y.js                    4.83 kB │ gzip:     1.34 kB
+dist/assets/OpenDockOpening-8flbXUvT.js                      5.02 kB │ gzip:     1.96 kB
+dist/assets/HeritageSignage-5alyaTva.js                      5.65 kB │ gzip:     2.30 kB
+dist/assets/SpoutingSystem-CJqIzC3j.js                       6.15 kB │ gzip:     2.66 kB
+dist/assets/ZoneCustomizationPanel-D2z0BQL9.js               6.24 kB │ gzip:     1.86 kB
+dist/assets/OperationalWorldSignals-Cq8h5y9E.js              6.60 kB │ gzip:     2.67 kB
+dist/assets/HolographicDisplays-CUJcf2E6.js                  7.11 kB │ gzip:     2.91 kB
+dist/assets/index-BZ04CaZU.js                                7.70 kB │ gzip:     2.69 kB
+dist/assets/SafetyAnalyticsPanel-tRgdCSd1.js                 7.81 kB │ gzip:     2.37 kB
+dist/assets/FairytaleCastle-1Ze9ilvt.js                      9.35 kB │ gzip:     3.97 kB
+dist/assets/Cat-lip-GEKG.js                                  9.75 kB │ gzip:     4.02 kB
+dist/assets/PredictiveMaintenancePanel-w_oBwOxr.js          11.79 kB │ gzip:     3.16 kB
+dist/assets/Tunnel-ClR8doE9.js                              12.18 kB │ gzip:     4.60 kB
+dist/assets/SceneOrbitControls-DfPgJ0Yt.js                  14.85 kB │ gzip:     4.60 kB
+dist/assets/knowledgeStore-Dl2cyvCl.js                      16.55 kB │ gzip:     6.42 kB
+dist/assets/Line-8l84m0TP.js                                19.98 kB │ gzip:     6.12 kB
+dist/assets/index-qAnISw03.js                               25.65 kB │ gzip:     9.46 kB
+dist/assets/LayoutPlanner-QhdkZnum.js                       26.57 kB │ gzip:     9.48 kB
+dist/assets/ConveyorSystem-BdXjgYaP.js                      29.27 kB │ gzip:    10.07 kB
+dist/assets/sharedMaterials-BCkqnBHv.js                     31.99 kB │ gzip:    10.00 kB
+dist/assets/icons-BB5p_oqx.js                               38.26 kB │ gzip:    12.90 kB
+dist/assets/ForkliftSystem-9RUFWmse.js                      40.23 kB │ gzip:    11.97 kB
+dist/assets/FarmArea-DJ13ptFV.js                            54.08 kB │ gzip:    12.64 kB
+dist/assets/ambientWorld-C8ChNixK.js                        60.18 kB │ gzip:    22.37 kB
+dist/assets/AICommandCenter-B9bxAkV0.js                     67.52 kB │ gzip:    15.99 kB
+dist/assets/VillageArea-Dlc3UrcG.js                         71.47 kB │ gzip:    19.53 kB
+dist/assets/CommunityLife-CDNVGZH0.js                       72.70 kB │ gzip:    24.09 kB
+dist/assets/ui-vendor-Cy5YvBxT.js                          115.79 kB │ gzip:    38.23 kB
+dist/assets/three-fiber-C6NNQ5_7.js                        147.72 kB │ gzip:    47.47 kB
+dist/assets/TruckBay-BHRsCu73.js                           164.49 kB │ gzip:    32.19 kB
+dist/assets/react-core-y1X4HNR3.js                         202.78 kB │ gzip:    64.35 kB
+dist/assets/FactoryExterior-By_bkVeZ.js                    254.91 kB │ gzip:    61.63 kB
+dist/assets/PostProcessing-BkKJ7xon.js                     331.95 kB │ gzip:   159.03 kB
+dist/assets/SCADAPanel-BEa82tUk.js                         433.60 kB │ gzip:   124.48 kB
+dist/assets/MillScene-VAenGiTJ.js                          517.85 kB │ gzip:   175.03 kB
+dist/assets/DeferredOperationalUI-DYHl57ow.js              688.62 kB │ gzip:   150.80 kB
+dist/assets/three-core-D677Eiaa.js                         720.21 kB │ gzip:   186.22 kB
+dist/assets/main-B2laeQTV.js                               823.70 kB │ gzip:   254.33 kB
+dist/assets/PhysicsScene-D5ZHMLxW.js                     2,278.70 kB │ gzip:   849.79 kB
+dist/assets/index-CrosmI8V.js                            6,041.35 kB │ gzip: 2,159.20 kB
+✓ built in 26.00s

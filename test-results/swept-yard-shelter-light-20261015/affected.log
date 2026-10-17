@@ -1,0 +1,23 @@
+
+> grain-mill-simulator@0.40.0 test
+> vitest run src/components/LivingWorldCreatures.test.tsx src/components/exterior/ExteriorLighting.test.ts src/components/exterior/LandscapeDressing.test.ts
+
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+(node:46603) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:46660) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+(node:47079) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:47369) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+ Test Files  3 passed (3)
+      Tests  38 passed (38)
+   Start at  08:08:11
+   Duration  25.07s (transform 1.85s, setup 387ms, import 21.12s, tests 840ms, environment 1.62s)
+

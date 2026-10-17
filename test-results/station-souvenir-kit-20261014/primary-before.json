@@ -1,0 +1,5 @@
+{
+  "head": "06ff26d393bebd3c34f99b02c9e22aaad58e07ee",
+  "trackedStatus": " M CLAUDE.md\n M package-lock.json\n M package.json\n M public/sw.js\n M src/App.tsx\n M src/components/AICommandCenter.tsx\n M src/components/ErrorBoundary.tsx\n M src/components/GeminiSettingsModal.tsx\n M src/components/LoadingScreen.test.tsx\n M src/components/LoadingScreen.tsx\n M src/components/__tests__/ErrorBoundary.test.tsx\n M src/components/mobile/MobilePanel.tsx\n M src/components/ui-new/GameInterface.tsx\n M src/components/ui/StrategicPriorityCards.tsx\n M src/stores/aiConfigStore.ts\n M src/utils/__tests__/startupReadiness.test.ts\n M src/utils/aiEngine.ts\n M src/utils/startupReadiness.ts\n",
+  "diffSha256": "d8033b38960008111e1c619ff803a941c5130247357e60fe9bb764733ab56a82"
+}

@@ -1,0 +1,510 @@
+{
+  "scope": "V finite42-item workshop/garden pass",
+  "selfReview": "Authored and reviewed by this chat",
+  "baseline": {
+    "affectedPassed": 112,
+    "affectedFiles": 3,
+    "shadowPassed": 19,
+    "shadowFiles": 1,
+    "expandedTotal": 131
+  },
+  "finalAffected": {
+    "passed": 135,
+    "files": 4,
+    "failed": 0,
+    "delta": 4
+  },
+  "sourceGates": {
+    "finalTypecheck": 0,
+    "wholeSourceLint": 0,
+    "wholeSourceFormat": 0,
+    "finalTouchedLintFormat": 0,
+    "shaders": 0,
+    "productionBuild": 0,
+    "reachability": 0
+  },
+  "retainedFailures": [
+    "affected.log: indexed/nonindexed radio import error and can handle crossed open mouth",
+    "typecheck.log: over-narrow radio parts array inference"
+  ],
+  "build": {
+    "files": 415,
+    "bytes": 181688599,
+    "seconds": 105.559,
+    "seal": "final-build-seal.json"
+  },
+  "civicRefresh": {
+    "inputSha256": "cb3e1cd12ce8d441c3582995ae26a45dbdf8220b952231728c18d9753a6ce392",
+    "atlasSha256": "55c34a972028fbf2de4c428c57e48a93fcf7e04f375ba595b7d3efc2e504b137",
+    "oldAtlasSha256": "8de356b6e912c8ea42a7342988b1679a454ba2e4ee6f205b8513a629bda8fd71",
+    "sourcesAndBudgetsExact": true,
+    "versionAndAssetsPaired": true,
+    "triangles": 180416,
+    "bakerSeconds": 56.86,
+    "assetVersion": "8d53724f5c14cc9f46d691767bab39628a40b9755aa0f1c717ce345051b106e4",
+    "metadataSha256": "6b7898e417da0d18e067c549e7935c9770b51896807b617246de75fca4b17b91",
+    "versionConvention": "SHA256(PNG bytes followed by JSON bytes), existing contract",
+    "postExportSourceChange": "Type-only radio array annotation; stripping it reproduces the exact exported source hash. Static can geometry and light source manifest unchanged."
+  },
+  "nativeArt": [
+    {
+      "capture": "V-workshop-garden-day-20261015",
+      "scene": "milling",
+      "servedBytesExact": true,
+      "nativeMetal": true,
+      "sandboxed": true,
+      "worldIntegrity": true,
+      "pageClean": true,
+      "communityPresence": true,
+      "motionAcceptance": {
+        "passed": true,
+        "checks": [
+          {
+            "id": "complete-fleet",
+            "passed": true,
+            "observed": [
+              "forklift-1",
+              "forklift-2",
+              "receiving-truck",
+              "shipping-truck"
+            ]
+          },
+          {
+            "id": "finite-telemetry",
+            "passed": true
+          },
+          {
+            "id": "bounded-steering",
+            "passed": true
+          },
+          {
+            "id": "bounded-articulation",
+            "passed": true
+          },
+          {
+            "id": "vehicle-motion-observed",
+            "passed": true
+          },
+          {
+            "id": "stationary-vehicles-have-interlock-reason",
+            "passed": true,
+            "observed": [
+              {
+                "id": "forklift-1",
+                "stopReasons": [
+                  "load-operation"
+                ]
+              },
+              {
+                "id": "forklift-2",
+                "stopReasons": [
+                  "logistics-interlock"
+                ]
+              }
+            ]
+          },
+          {
+            "id": "wheel-travel-follows-motion",
+            "passed": true
+          },
+          {
+            "id": "display-cadence-motion-observed",
+            "passed": true,
+            "observed": [
+              "receiving-truck",
+              "shipping-truck"
+            ]
+          },
+          {
+            "id": "moving-vehicles-have-no-staccato-plateau",
+            "passed": true,
+            "observed": [
+              {
+                "id": "forklift-1",
+                "maxMovingPlateauSamples": 0
+              },
+              {
+                "id": "forklift-2",
+                "maxMovingPlateauSamples": 0
+              },
+              {
+                "id": "receiving-truck",
+                "maxMovingPlateauSamples": 0
+              },
+              {
+                "id": "shipping-truck",
+                "maxMovingPlateauSamples": 0
+              }
+            ]
+          },
+          {
+            "id": "single-frame-displacement-is-bounded",
+            "passed": true,
+            "observed": [
+              {
+                "id": "forklift-1",
+                "maxSingleStepDistance": 0
+              },
+              {
+                "id": "forklift-2",
+                "maxSingleStepDistance": 0
+              },
+              {
+                "id": "receiving-truck",
+                "maxSingleStepDistance": 0.158
+              },
+              {
+                "id": "shipping-truck",
+                "maxSingleStepDistance": 0.158
+              }
+            ]
+          }
+        ]
+      },
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "diagnostics": {
+        "consoleErrors": [],
+        "pageErrors": [],
+        "failedRequests": [],
+        "screenshotError": null
+      },
+      "timingMisses": [
+        "firstFrame",
+        "p95Frame"
+      ],
+      "load": {
+        "cores": 10,
+        "loadAverage1m": 389.6,
+        "loadAverage5m": 406.87,
+        "loadPerCore": 38.96,
+        "contendedThreshold": 3,
+        "contended": true
+      },
+      "screenshotPath": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/V-workshop-garden-day-20261015/milling.png"
+    },
+    {
+      "capture": "V-workshop-garden-day-20261015",
+      "scene": "square",
+      "servedBytesExact": true,
+      "nativeMetal": true,
+      "sandboxed": true,
+      "worldIntegrity": true,
+      "pageClean": true,
+      "communityPresence": true,
+      "motionAcceptance": {
+        "passed": true,
+        "checks": [
+          {
+            "id": "complete-fleet",
+            "passed": true,
+            "observed": [
+              "forklift-1",
+              "forklift-2",
+              "receiving-truck",
+              "shipping-truck"
+            ]
+          },
+          {
+            "id": "finite-telemetry",
+            "passed": true
+          },
+          {
+            "id": "bounded-steering",
+            "passed": true
+          },
+          {
+            "id": "bounded-articulation",
+            "passed": true
+          },
+          {
+            "id": "vehicle-motion-observed",
+            "passed": true
+          },
+          {
+            "id": "stationary-vehicles-have-interlock-reason",
+            "passed": true,
+            "observed": [
+              {
+                "id": "forklift-1",
+                "stopReasons": [
+                  "load-operation"
+                ]
+              },
+              {
+                "id": "forklift-2",
+                "stopReasons": [
+                  "logistics-interlock"
+                ]
+              }
+            ]
+          },
+          {
+            "id": "wheel-travel-follows-motion",
+            "passed": true
+          },
+          {
+            "id": "display-cadence-motion-observed",
+            "passed": true,
+            "observed": [
+              "receiving-truck",
+              "shipping-truck"
+            ]
+          },
+          {
+            "id": "moving-vehicles-have-no-staccato-plateau",
+            "passed": true,
+            "observed": [
+              {
+                "id": "forklift-1",
+                "maxMovingPlateauSamples": 0
+              },
+              {
+                "id": "forklift-2",
+                "maxMovingPlateauSamples": 0
+              },
+              {
+                "id": "receiving-truck",
+                "maxMovingPlateauSamples": 0
+              },
+              {
+                "id": "shipping-truck",
+                "maxMovingPlateauSamples": 0
+              }
+            ]
+          },
+          {
+            "id": "single-frame-displacement-is-bounded",
+            "passed": true,
+            "observed": [
+              {
+                "id": "forklift-1",
+                "maxSingleStepDistance": 0
+              },
+              {
+                "id": "forklift-2",
+                "maxSingleStepDistance": 0
+              },
+              {
+                "id": "receiving-truck",
+                "maxSingleStepDistance": 0.139
+              },
+              {
+                "id": "shipping-truck",
+                "maxSingleStepDistance": 0.139
+              }
+            ]
+          }
+        ]
+      },
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "diagnostics": {
+        "consoleErrors": [],
+        "pageErrors": [],
+        "failedRequests": [],
+        "screenshotError": null
+      },
+      "timingMisses": [
+        "p95Frame"
+      ],
+      "load": {
+        "cores": 10,
+        "loadAverage1m": 375.81,
+        "loadAverage5m": 400.91,
+        "loadPerCore": 37.58,
+        "contendedThreshold": 3,
+        "contended": true
+      },
+      "screenshotPath": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/V-workshop-garden-day-20261015/square.png"
+    },
+    {
+      "capture": "V-village-shadows-dusk-20261015",
+      "scene": "village",
+      "servedBytesExact": true,
+      "nativeMetal": true,
+      "sandboxed": true,
+      "worldIntegrity": true,
+      "pageClean": true,
+      "communityPresence": true,
+      "motionAcceptance": {
+        "passed": true,
+        "checks": [
+          {
+            "id": "complete-fleet",
+            "passed": true,
+            "observed": [
+              "forklift-1",
+              "forklift-2",
+              "receiving-truck",
+              "shipping-truck"
+            ]
+          },
+          {
+            "id": "finite-telemetry",
+            "passed": true
+          },
+          {
+            "id": "bounded-steering",
+            "passed": true
+          },
+          {
+            "id": "bounded-articulation",
+            "passed": true
+          },
+          {
+            "id": "vehicle-motion-observed",
+            "passed": true
+          },
+          {
+            "id": "stationary-vehicles-have-interlock-reason",
+            "passed": true,
+            "observed": [
+              {
+                "id": "forklift-1",
+                "stopReasons": [
+                  "load-operation"
+                ]
+              },
+              {
+                "id": "forklift-2",
+                "stopReasons": [
+                  "logistics-interlock"
+                ]
+              }
+            ]
+          },
+          {
+            "id": "wheel-travel-follows-motion",
+            "passed": true
+          },
+          {
+            "id": "display-cadence-motion-observed",
+            "passed": true,
+            "observed": [
+              "receiving-truck",
+              "shipping-truck"
+            ]
+          },
+          {
+            "id": "moving-vehicles-have-no-staccato-plateau",
+            "passed": true,
+            "observed": [
+              {
+                "id": "forklift-1",
+                "maxMovingPlateauSamples": 0
+              },
+              {
+                "id": "forklift-2",
+                "maxMovingPlateauSamples": 0
+              },
+              {
+                "id": "receiving-truck",
+                "maxMovingPlateauSamples": 0
+              },
+              {
+                "id": "shipping-truck",
+                "maxMovingPlateauSamples": 0
+              }
+            ]
+          },
+          {
+            "id": "single-frame-displacement-is-bounded",
+            "passed": true,
+            "observed": [
+              {
+                "id": "forklift-1",
+                "maxSingleStepDistance": 0
+              },
+              {
+                "id": "forklift-2",
+                "maxSingleStepDistance": 0
+              },
+              {
+                "id": "receiving-truck",
+                "maxSingleStepDistance": 0.136
+              },
+              {
+                "id": "shipping-truck",
+                "maxSingleStepDistance": 0.136
+              }
+            ]
+          }
+        ]
+      },
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "diagnostics": {
+        "consoleErrors": [],
+        "pageErrors": [],
+        "failedRequests": [],
+        "screenshotError": null
+      },
+      "timingMisses": [
+        "p95Frame"
+      ],
+      "load": {
+        "cores": 10,
+        "loadAverage1m": 351.93,
+        "loadAverage5m": 384.99,
+        "loadPerCore": 35.19,
+        "contendedThreshold": 3,
+        "contended": true
+      },
+      "screenshotPath": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/V-village-shadows-dusk-20261015/village.png"
+    }
+  ],
+  "closeArt": {
+    "savedImages": false,
+    "conversationEvidence": true,
+    "wateringCan": "Actual open vessel/rolled mouth/curved spout/rose/exterior handle shown in the retained allotment footprint",
+    "workerView": "Actual quality worker and another resident seen moving normally; tool visibility followed genuine work/walk/rest state",
+    "toolMicroviewLimit": "Initial wrist-target close camera did not expose the complete kit; subsequent normal route movement hid it. No actor/production/inventory override. Hardware shape/contact proved by focused tests, not claimed as fully photographed close-ups.",
+    "shadowPair": {
+      "actualLoadedQueries": "8d53724f5c14cc9f46d691767bab39628a40b9755aa0f1c717ce345051b106e4",
+      "atlasSha256": "55c34a972028fbf2de4c428c57e48a93fcf7e04f375ba595b7d3efc2e504b137",
+      "combinedPngJsonHash": "8d53724f5c14cc9f46d691767bab39628a40b9755aa0f1c717ce345051b106e4",
+      "atlasActive": true,
+      "sources": 27,
+      "unlinkedPrograms": 0,
+      "largestProgramSamplers": 12,
+      "maxFragmentSamplers": 16
+    },
+    "lateReload": {
+      "result": "Existing slow-animation loading cover remained; CDP readiness wait timed out",
+      "worldReady": true,
+      "loadingCover": true,
+      "startupReady": "not set",
+      "acceptedAsReady": false,
+      "overrideUsed": false,
+      "classification": "Pacing/startup acceptance remains OPEN, no UI/readiness change in this pass"
+    },
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "consoleErrors": [],
+    "playerInput": false,
+    "viewportOverride": false,
+    "temporaryTabClosed": true,
+    "previewClosed": true,
+    "captureLockReleased": true
+  },
+  "protectedPinsExact": 139,
+  "primaryUnchanged": true,
+  "interfaceChanged": false,
+  "worldLayoutChanged": false,
+  "productionOrInventoryChanged": false,
+  "newLightsOrShadowMaps": 0,
+  "newToolOrStaticPropDraws": 0,
+  "pacing": "OPEN, unchanged budgets, contended indicative art samples; late optional IAB reload retained slow-animation cover. No causal performance verdict.",
+  "playerDeviceChecks": "DEFERRED",
+  "delivery": "LOCAL ONLY, no upload/push/deployment",
+  "optionalInterfaceDesignLint": "No interface layout/styling change; optional executable absent, no installation."
+}

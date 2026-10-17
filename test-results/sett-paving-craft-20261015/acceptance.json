@@ -1,0 +1,307 @@
+{
+  "scope": "AF laid sett paving and registered matte stone maps,32 finite items",
+  "status": "bounded pass complete",
+  "authorReview": "This chat authored the changed paving and inspected actual generated pixels, six exact native images and three live close art views.",
+  "baseline": {
+    "tests": 54,
+    "files": 3,
+    "failingNames": []
+  },
+  "affected": {
+    "tests": 58,
+    "files": 3,
+    "delta": 4,
+    "exitCode": 0
+  },
+  "reproducedDefect": "Actual custom-mortar control0.6345977783fraction, retained expected-red mortar-reproduction.log",
+  "textureMetrics": {
+    "originalControlMortarFraction": 0.6345977783203125,
+    "correctedSame256px7pxControl": 0.1092681884765625,
+    "live512px8pxMortarFraction": 0.12139129638671875,
+    "maps": {
+      "colour": {
+        "width": 512,
+        "height": 512,
+        "bytes": 1048576,
+        "colorSpace": "srgb"
+      },
+      "normal": {
+        "width": 512,
+        "height": 512,
+        "bytes": 1048576,
+        "colorSpace": ""
+      },
+      "roughness": {
+        "width": 256,
+        "height": 256,
+        "bytes": 262144,
+        "colorSpace": ""
+      }
+    },
+    "sourceSha256": "3e5023b810dea5f19608eec2016a0c7dbda9758131ae31b822f25de742a9b636",
+    "preview": "Exact generated texture bytes, CPU only; no external media or live rendering."
+  },
+  "sourceGates": {
+    "typecheck": 0,
+    "lint": 0,
+    "format:check": 0,
+    "validate:shaders": 0,
+    "build": 0,
+    "validate:reachability": 0
+  },
+  "visual": [
+    {
+      "label": "day",
+      "scene": "farm",
+      "servedBuildMatches": true,
+      "sandboxedMetal": true,
+      "cleanDiagnostics": true,
+      "worldCommunityCheckpoints": true,
+      "generalVehicleMotion": true,
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "timingMisses": [
+        "averageFps",
+        "p95Frame",
+        "p99Frame",
+        "onePercentLow"
+      ],
+      "loadPerCore": 2.74,
+      "p95FrameMs": 38.6,
+      "startupMarks": {
+        "millos:bootstrap": 235.9,
+        "millos:first-frame": 341.3,
+        "millos:world-ready": 25184.3,
+        "millos:startup-ready": 38152.4
+      },
+      "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AF-sett-paving-day-20261015/farm.png"
+    },
+    {
+      "label": "day",
+      "scene": "village",
+      "servedBuildMatches": true,
+      "sandboxedMetal": true,
+      "cleanDiagnostics": true,
+      "worldCommunityCheckpoints": true,
+      "generalVehicleMotion": true,
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "timingMisses": [
+        "averageFps",
+        "p95Frame"
+      ],
+      "loadPerCore": 2.58,
+      "p95FrameMs": 17.1,
+      "startupMarks": {
+        "millos:bootstrap": 240.9,
+        "millos:first-frame": 323.3,
+        "millos:world-ready": 26880.7,
+        "millos:startup-ready": 33150.8
+      },
+      "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AF-sett-paving-day-20261015/village.png"
+    },
+    {
+      "label": "dusk",
+      "scene": "farm",
+      "servedBuildMatches": true,
+      "sandboxedMetal": true,
+      "cleanDiagnostics": true,
+      "worldCommunityCheckpoints": true,
+      "generalVehicleMotion": true,
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "timingMisses": [
+        "averageFps",
+        "p95Frame",
+        "p99Frame",
+        "onePercentLow"
+      ],
+      "loadPerCore": 3.31,
+      "p95FrameMs": 35.3,
+      "startupMarks": {
+        "millos:bootstrap": 237.3,
+        "millos:first-frame": 333.2,
+        "millos:world-ready": 30202.5,
+        "millos:startup-ready": 41825
+      },
+      "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AF-sett-paving-dusk-20261015/farm.png"
+    },
+    {
+      "label": "dusk",
+      "scene": "village",
+      "servedBuildMatches": true,
+      "sandboxedMetal": true,
+      "cleanDiagnostics": true,
+      "worldCommunityCheckpoints": true,
+      "generalVehicleMotion": true,
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "timingMisses": [
+        "p95Frame"
+      ],
+      "loadPerCore": 2.56,
+      "p95FrameMs": 18.3,
+      "startupMarks": {
+        "millos:bootstrap": 219.4,
+        "millos:first-frame": 301.5,
+        "millos:world-ready": 26139.3,
+        "millos:startup-ready": 32180.6
+      },
+      "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AF-sett-paving-dusk-20261015/village.png"
+    },
+    {
+      "label": "night",
+      "scene": "farm",
+      "servedBuildMatches": true,
+      "sandboxedMetal": true,
+      "cleanDiagnostics": true,
+      "worldCommunityCheckpoints": true,
+      "generalVehicleMotion": true,
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "timingMisses": [
+        "averageFps",
+        "p95Frame",
+        "p99Frame",
+        "onePercentLow"
+      ],
+      "loadPerCore": 2.26,
+      "p95FrameMs": 35.8,
+      "startupMarks": {
+        "millos:bootstrap": 240.7,
+        "millos:first-frame": 330.5,
+        "millos:world-ready": 27462.8,
+        "millos:startup-ready": 38444.3
+      },
+      "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AF-sett-paving-night-20261015/farm.png"
+    },
+    {
+      "label": "night",
+      "scene": "village",
+      "servedBuildMatches": true,
+      "sandboxedMetal": true,
+      "cleanDiagnostics": true,
+      "worldCommunityCheckpoints": true,
+      "generalVehicleMotion": true,
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "timingMisses": [
+        "p95Frame"
+      ],
+      "loadPerCore": 1.6,
+      "p95FrameMs": 18,
+      "startupMarks": {
+        "millos:bootstrap": 228.5,
+        "millos:first-frame": 316.6,
+        "millos:world-ready": 28701.5,
+        "millos:startup-ready": 35268.4
+      },
+      "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AF-sett-paving-night-20261015/village.png"
+    }
+  ],
+  "close": {
+    "runtimeReady": true,
+    "worldReady": true,
+    "startupReady": true,
+    "loadingCover": false,
+    "startupReadyMs": 37529.6,
+    "firstFrameMs": 470.8,
+    "farmHost": {
+      "position": [
+        75,
+        -0.02,
+        120
+      ],
+      "vertices": 4,
+      "mapSizes": [
+        512,
+        512,
+        256
+      ],
+      "finite": true,
+      "visibleInTree": true
+    },
+    "villageHost": {
+      "position": [
+        -190,
+        -0.02,
+        0
+      ],
+      "vertices": 100,
+      "mapSizes": [
+        512,
+        512,
+        256
+      ],
+      "finite": true,
+      "visibleInTree": true
+    },
+    "shelter": "Inherited shared colour/normal family inspected in a dark night context; no fixture change claimed.",
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "consoleErrors": [],
+    "publicArtCameraOnly": true,
+    "ownTabClosed": true,
+    "previewExit": 0
+  },
+  "cleanup": {
+    "restoredDependencyTarget": "/Users/nellwatson/Documents/GitHub/MillOS/node_modules",
+    "borrowedEntriesVerified": 375,
+    "generatedRemoved": [
+      ".vite",
+      ".vite/vitest",
+      ".vite/vitest/da39a3ee5e6b4b0d3255bfef95601890afd80709",
+      ".vite/vitest/da39a3ee5e6b4b0d3255bfef95601890afd80709/results.json",
+      ".vite-temp"
+    ],
+    "noOpenHandles": [
+      {
+        "dir": "node_modules",
+        "exitCode": 1,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "dir": "/private/tmp/millos-AF-npm-cache",
+        "exitCode": 1,
+        "stdout": "",
+        "stderr": ""
+      }
+    ],
+    "ownedNpmCacheRemoved": "/private/tmp/millos-AF-npm-cache",
+    "sourcePinsExact": 6,
+    "protectedPinsExact": 184,
+    "compiledPinsExact": 415,
+    "primaryCustodyExact": true,
+    "previewExit": 0,
+    "ownTabClosed": true,
+    "captureLockAbsent": true,
+    "physicalSpaceRecovery": "not claimed",
+    "retained": "source, final dist, generated texture previews, raw native images, failure logs, history, unrelated output"
+  },
+  "nextObserved": [
+    "Grass blades on paved barnyard and intersecting trough, source cause unverified",
+    "Dark picnic shelter at night, fixture coverage not yet diagnosed"
+  ],
+  "limitations": {
+    "pacing": "OPEN, every actual miss retained; includes low-contention misses, no isolated performance claim or non-art performance pass",
+    "playerDevice": "DEFERRED",
+    "impeccable": "Optional executable absent, no install or interface change",
+    "goal": "ACTIVE",
+    "delivery": "local only"
+  }
+}

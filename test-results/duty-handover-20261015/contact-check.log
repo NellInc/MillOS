@@ -1,0 +1,45 @@
+
+> grain-mill-simulator@0.40.0 test
+> vitest run src/components/workers/workerPose.test.ts -t duty handover continuity
+
+(node:55233) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+ ❯ src/components/workers/workerPose.test.ts (103 tests | 2 failed | 99 skipped) 440ms
+     × masculine releases a tray posture without a semantic wrist jump 122ms
+     × feminine releases a tray posture without a semantic wrist jump 63ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/workers/workerPose.test.ts > duty handover continuity > masculine releases a tray posture without a semantic wrist jump
+AssertionError: expected 0.08793040006918261 to be less than 0.04
+ ❯ src/components/workers/workerPose.test.ts:1972:25
+    1970|           previous = undefined;
+    1971|         }
+    1972|         expect(maxStep).toBeLessThan(0.04);
+       |                         ^
+    1973|         expect(maxStretch).toBeLessThan(1.18);
+    1974|         // Incoming gait contacts belong to this sample, never a froze…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/components/workers/workerPose.test.ts > duty handover continuity > feminine releases a tray posture without a semantic wrist jump
+AssertionError: expected 0.08730009702806944 to be less than 0.04
+ ❯ src/components/workers/workerPose.test.ts:1972:25
+    1970|           previous = undefined;
+    1971|         }
+    1972|         expect(maxStep).toBeLessThan(0.04);
+       |                         ^
+    1973|         expect(maxStretch).toBeLessThan(1.18);
+    1974|         // Incoming gait contacts belong to this sample, never a froze…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 2 passed | 99 skipped (103)
+   Start at  14:33:36
+   Duration  1.44s (transform 269ms, setup 116ms, import 635ms, tests 440ms, environment 0ms)
+

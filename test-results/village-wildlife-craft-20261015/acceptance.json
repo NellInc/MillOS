@@ -1,0 +1,50 @@
+{
+  "scope": "Y finite38-item village wildlife/craft pass",
+  "status": "local pass accepted within recorded evidence boundaries",
+  "authorReview": "Authored and reviewed by this chat",
+  "baseline": {
+    "tests": 42,
+    "files": 4,
+    "failingNames": []
+  },
+  "affected": {
+    "tests": 47,
+    "files": 4,
+    "failed": 0,
+    "delta": 5
+  },
+  "sourceGates": {
+    "typecheck": 0,
+    "lint": 0,
+    "format:check": 0,
+    "validate:shaders": 0,
+    "build": 0,
+    "validate:reachability": 0
+  },
+  "visual": {
+    "nativeReceipt": "native-acceptance.json",
+    "savedFramesInspected": [
+      "square noon",
+      "village noon",
+      "square dusk"
+    ],
+    "closeConversationEvidence": [
+      "bird front/side with attached details and feet",
+      "pond/four ducks intact clearance and ordinary poses"
+    ],
+    "closeReady": true,
+    "consoleErrors": [],
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "birdMeshes": 2,
+    "birdTriangles": 2020
+  },
+  "pacing": "OPEN separately; native receipt names actual failed checks",
+  "playerDeviceChecks": "DEFERRED",
+  "delivery": "local only",
+  "ongoingGoal": "ACTIVE; whole improvement programme remains open",
+  "cleanupReceipt": "cleanup.json",
+  "custodyReceipt": "final-custody-check.json"
+}

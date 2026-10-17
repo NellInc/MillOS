@@ -12,6 +12,161 @@ export const WORLD_CRAFT_PALETTE = {
   oak: '#70533a',
   iron: '#394a49',
 } as const;
+/** Delivered landing: 11 cm slab with a 25 mm manufactured arris.
+ * Working if walking and physics hit its real top and stop at its bevelled footprint.
+ */
+export const BUS_SHELTER_SITE = {
+  position: [29, 0, 140],
+  rotation: -Math.PI / 2,
+  platform: { halfX: 2.2, halfZ: 1.15, top: 0.11, bevel: 0.025 },
+} as const;
+export function busShelterWalkingHeight(x: number, z: number): number | null {
+  const site = BUS_SHELTER_SITE,
+    p = site.platform,
+    dx = x - site.position[0],
+    dz = z - site.position[2],
+    c = Math.cos(site.rotation),
+    s = Math.sin(site.rotation);
+  const edgeX = p.halfX - Math.abs(dx * c - dz * s),
+    edgeZ = p.halfZ - Math.abs(dx * s + dz * c);
+  if (edgeX < 0 || edgeZ < 0 || edgeX + edgeZ < p.bevel) return null;
+  return site.position[1] + p.top - Math.max(0, p.bevel - edgeX) - Math.max(0, p.bevel - edgeZ);
+}
+
+/** Shelter-local waterproof luminaire, measured against the delivered roof.
+ * Working if its housing reaches the 2.847-2.860 m soffit and the lens stays below it.
+ */
+export const BUS_SHELTER_LIGHT = {
+  housing: { position: [0, 2.83, 0.12], size: [1.3, 0.084, 0.14] },
+  lens: { position: [0, 2.779, 0.12], size: [1.14, 0.02, 0.075] },
+  downlight: { position: [0, 2.753, 0.12], intensity: 26, distance: 5, color: '#ffe3a6' },
+  pool: { position: [0, 0.1, 0], radius: 1.75, depthScale: 0.5 },
+} as const;
+
+/** Compact collision envelopes in delivered shelter-local metres. The bench
+ * envelope encloses its slats, supports and rounded arms; the roof includes its
+ * low drip fascias. No invisible wall closes the front or extends above it.
+ * Working if inspection stops at real furniture/glass and can fly above the roof.
+ */
+function shelterBox(
+  id: string,
+  position: readonly [number, number, number],
+  size: readonly [number, number, number]
+) {
+  return {
+    id: `bus-shelter-${id}`,
+    minX: position[0] - size[0] / 2,
+    maxX: position[0] + size[0] / 2,
+    minY: position[1] - size[1] / 2,
+    maxY: position[1] + size[1] / 2,
+    minZ: position[2] - size[2] / 2,
+    maxZ: position[2] + size[2] / 2,
+  };
+}
+export const BUS_SHELTER_SOLIDS = [
+  shelterBox('bench', [0, 0.555, -0.614], [3.5, 0.91, 0.516]),
+  shelterBox('rear-glass', [0, 1.4, -0.92], [3.9, 2.5, 0.04]),
+  ...[-1, 1].flatMap((side) => [
+    shelterBox(`cabinet-${side}`, [side * 1.98, 1.4, 0], [0.044, 2.6, 1.6]),
+    ...[-1, 1].map((end) =>
+      shelterBox(`post-${side}-${end}`, [side * 1.98, 1.49, end * 0.9], [0.08, 2.75, 0.08])
+    ),
+  ]),
+  shelterBox('roof', [0, 2.895, 0], [4.4, 0.19, 2.3]),
+  shelterBox('luminaire', [0, 2.8205, 0.12], [1.3, 0.103, 0.14]),
+];
+
+const shelterCos = Math.cos(BUS_SHELTER_SITE.rotation),
+  shelterSin = Math.sin(BUS_SHELTER_SITE.rotation);
+export function busShelterBlocks(
+  x: number,
+  z: number,
+  feet: number,
+  radius = 0.4,
+  bodyHeight = 1.8
+): boolean {
+  // Reject the whole district before transforming/testing its ten local boxes.
+  if (
+    Math.abs(x - BUS_SHELTER_SITE.position[0]) > 3 + radius ||
+    Math.abs(z - BUS_SHELTER_SITE.position[2]) > 3 + radius
+  )
+    return false;
+  const dx = x - BUS_SHELTER_SITE.position[0],
+    dz = z - BUS_SHELTER_SITE.position[2];
+  const lx = dx * shelterCos - dz * shelterSin,
+    lz = dx * shelterSin + dz * shelterCos,
+    y = feet - BUS_SHELTER_SITE.position[1];
+  for (const b of BUS_SHELTER_SOLIDS)
+    if (
+      y < b.maxY &&
+      y + bodyHeight > b.minY &&
+      lx + radius > b.minX &&
+      lx - radius < b.maxX &&
+      lz + radius > b.minZ &&
+      lz - radius < b.maxZ
+    )
+      return true;
+  return false;
+}
+/** Sweep both Q/E directions, without turning a roof into a ground-to-sky wall.
+ * Working if even a sprint/hitch cannot lift through it, while clear flight stays free.
+ */
+export function clampShelterVerticalMovement(
+  x: number,
+  z: number,
+  fromFeet: number,
+  toFeet: number,
+  radius = 0.4,
+  bodyHeight = 1.8
+): number {
+  if (
+    Math.abs(x - BUS_SHELTER_SITE.position[0]) > 3 + radius ||
+    Math.abs(z - BUS_SHELTER_SITE.position[2]) > 3 + radius
+  )
+    return toFeet;
+  const dx = x - BUS_SHELTER_SITE.position[0],
+    dz = z - BUS_SHELTER_SITE.position[2];
+  const lx = dx * shelterCos - dz * shelterSin,
+    lz = dx * shelterSin + dz * shelterCos,
+    base = BUS_SHELTER_SITE.position[1];
+  let result = toFeet;
+  for (const b of BUS_SHELTER_SOLIDS) {
+    if (
+      lx + radius <= b.minX ||
+      lx - radius >= b.maxX ||
+      lz + radius <= b.minZ ||
+      lz - radius >= b.maxZ
+    )
+      continue;
+    if (fromFeet + bodyHeight <= base + b.minY && result + bodyHeight > base + b.minY)
+      result = base + b.minY - bodyHeight;
+    if (fromFeet >= base + b.maxY && result < base + b.maxY) result = base + b.maxY;
+  }
+  return result;
+}
+/** Uninflated world bounds for the optional physics assembly. Current quarter-
+ * turn placement keeps these boxes axis-aligned; player radius belongs to its capsule.
+ */
+export function busShelterWorldBounds(b: (typeof BUS_SHELTER_SOLIDS)[number]) {
+  const c = Math.cos(BUS_SHELTER_SITE.rotation),
+    s = Math.sin(BUS_SHELTER_SITE.rotation);
+  const points = [b.minX, b.maxX].flatMap((x) =>
+    [b.minZ, b.maxZ].map((z) => [
+      BUS_SHELTER_SITE.position[0] + x * c + z * s,
+      BUS_SHELTER_SITE.position[2] - x * s + z * c,
+    ])
+  );
+  return {
+    id: b.id,
+    minX: Math.min(...points.map((p) => p[0])),
+    maxX: Math.max(...points.map((p) => p[0])),
+    minZ: Math.min(...points.map((p) => p[1])),
+    maxZ: Math.max(...points.map((p) => p[1])),
+    minY: BUS_SHELTER_SITE.position[1] + b.minY,
+    maxY: BUS_SHELTER_SITE.position[1] + b.maxY,
+  };
+}
+
 export type RealmPoint = readonly [number, number];
 export interface RealmPath {
   start: RealmPoint;

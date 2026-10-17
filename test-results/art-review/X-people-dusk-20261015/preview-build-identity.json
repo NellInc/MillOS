@@ -1,0 +1,14 @@
+{
+  "index": {
+    "url": "http://127.0.0.1:4288/",
+    "sha256": "0a1d7dfc44fa1a9a2c7853da62ba350eebcdb77f51b8f92fcc8c06b96501a361",
+    "bytes": 9887
+  },
+  "entries": [
+    {
+      "url": "http://127.0.0.1:4288/assets/main-C89rVRAz.js",
+      "sha256": "bc8e25e59a9a72c661f89aa979017ac4320f9da39127beca8bc1c59882393098",
+      "bytes": 823697
+    }
+  ]
+}

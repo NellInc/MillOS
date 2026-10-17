@@ -12,11 +12,14 @@ import {
   createLightPoolTexture,
   floorPoolPositions,
   zoneLightPositions,
+  zoneWorkLightIntensity,
 } from './InteriorLightRig';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { sampleAtmosphere, sampleCelestial } from '../../simulation/atmosphere';
 import { buildSpoutRoutes, SPOUT_PIPE_RADIUS } from '../flow/spoutRoutes';
 import { type MachineData, MachineType } from '../../types';
+import { COMMUNITY_ROSTER } from '../../simulation/communityLife';
+import { MILL_CONTROL_FACE } from '../machines/machineFinishGeometry';
 
 /** Three's `getDistanceAttenuation` for `decay` 2 with a cutoff distance. */
 function pointLightIrradiance(intensity: number, distance: number, cutoff: number): number {
@@ -26,6 +29,23 @@ function pointLightIrradiance(intensity: number, distance: number, cutoff: numbe
 }
 
 describe('zone lights', () => {
+  it('adds bounded warm night power without changing noon or introducing a switch', () => {
+    expect(zoneWorkLightIntensity(1)).toBe(ZONE_LIGHT_INTENSITY);
+    expect(zoneWorkLightIntensity(0)).toBeCloseTo(ZONE_LIGHT_INTENSITY * 1.65, 10);
+    expect(zoneWorkLightIntensity(NaN)).toBe(ZONE_LIGHT_INTENSITY);
+    expect(zoneWorkLightIntensity(-1)).toBe(zoneWorkLightIntensity(0));
+    expect(zoneWorkLightIntensity(2)).toBe(ZONE_LIGHT_INTENSITY);
+    let previous = zoneWorkLightIntensity(0);
+    for (let i = 1; i <= 100; i++) {
+      const intensity = zoneWorkLightIntensity(i / 100);
+      expect(intensity).toBeLessThanOrEqual(previous);
+      expect(previous - intensity).toBeLessThan(4);
+      previous = intensity;
+    }
+    expect(zoneWorkLightIntensity(sampleAtmosphere(0, 12, 'clear').daylight)).toBe(380);
+    expect(zoneWorkLightIntensity(sampleAtmosphere(0, 22, 'clear').daylight)).toBeCloseTo(627);
+  });
+
   it('places four lights below real ceiling fixtures and no more', () => {
     // Four is a hard ceiling, not a starting point: three's forward renderer
     // puts every point light in every lit material's uniform block with no
@@ -38,6 +58,49 @@ describe('zone lights', () => {
       expect(FIXTURE_GRID_Z).toContain(position[2]);
       expect(position[1]).toBe(ZONE_LIGHT_HEIGHT);
     }
+  });
+
+  it('lights the real milling duty fronts and all four sloping control faces', () => {
+    const people = COMMUNITY_ROSTER.filter((person) =>
+      ['mill-operator-west', 'mill-operator-east', 'mill-engineer'].includes(person.id)
+    );
+    expect(people).toHaveLength(3);
+    const faceNormal = new THREE.Vector3(0, 0, 1);
+    const direction = new THREE.Vector3();
+    const direct = (
+      lights: readonly (readonly [number, number, number])[],
+      point: THREE.Vector3,
+      normal: THREE.Vector3
+    ) =>
+      lights.reduce((sum, light) => {
+        direction.set(...light).sub(point);
+        const distance = direction.length();
+        return (
+          sum +
+          pointLightIrradiance(ZONE_LIGHT_INTENSITY, distance, ZONE_LIGHT_DISTANCE) *
+            Math.max(0, direction.normalize().dot(normal))
+        );
+      }, 0);
+    for (const lights of [ZONE_LIGHT_POSITIONS, REDUCED_ZONE_LIGHT_POSITIONS]) {
+      for (const person of people) {
+        const duty = person.stops[0];
+        faceNormal.set(Math.sin(duty.rotation), 0, Math.cos(duty.rotation));
+        const face = new THREE.Vector3(...duty.position).add(new THREE.Vector3(0, 1.6, 0));
+        // The old z38 row was behind every forward-facing duty station.
+        expect(direct(lights, face, faceNormal), person.id).toBeGreaterThan(0.02);
+      }
+      for (const mill of SITE_LAYOUT.machines.rollerMills) {
+        const panel = new THREE.Vector3(...mill.position).add(
+          new THREE.Vector3(...MILL_CONTROL_FACE.position)
+        );
+        const panelNormal = new THREE.Vector3(0, 0, 1).applyAxisAngle(
+          new THREE.Vector3(1, 0, 0),
+          MILL_CONTROL_FACE.rotationX
+        );
+        expect(direct(lights, panel, panelNormal), mill.id).toBeGreaterThan(0.05);
+      }
+    }
+    expect(FIXTURE_GRID_Z[2]).toBe(SITE_LAYOUT.factory.zones.milling);
   });
 
   it('keeps point sources away from every actual process pipe', () => {

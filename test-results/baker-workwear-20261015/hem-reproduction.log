@@ -1,0 +1,71 @@
+
+> grain-mill-simulator@0.40.0 test
+> vitest run src/components/workers/workerPose.test.ts -t binds cloth
+
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+(node:30943) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+ ❯ src/components/workers/workerPose.test.ts (93 tests | 4 failed | 89 skipped) 8146ms
+     × masculine/0.95 binds cloth to the actual palette through work and locomotion 1858ms
+     × masculine/1.08 binds cloth to the actual palette through work and locomotion 2148ms
+     × feminine/0.95 binds cloth to the actual palette through work and locomotion 896ms
+     × feminine/1.08 binds cloth to the actual palette through work and locomotion 840ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/workers/workerPose.test.ts > actual-rig baker linen skinning and distant preservation > masculine/0.95 binds cloth to the actual palette through work and locomotion
+AssertionError: trousers cover the front of the apron hem: expected 0.19520481794684064 to be less than 0.008
+ ❯ src/components/workers/workerPose.test.ts:1587:77
+    1585|           }
+    1586|         }
+    1587|         expect(maxPokeThrough, 'trousers cover the front of the apron …
+       |                                                                             ^
+    1588|         expect(maxError).toBeLessThan(1e-6);
+    1589|         expect(maxFarError).toBeLessThan(1e-6);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  src/components/workers/workerPose.test.ts > actual-rig baker linen skinning and distant preservation > masculine/1.08 binds cloth to the actual palette through work and locomotion
+AssertionError: trousers cover the front of the apron hem: expected 0.1952048201625154 to be less than 0.008
+ ❯ src/components/workers/workerPose.test.ts:1587:77
+    1585|           }
+    1586|         }
+    1587|         expect(maxPokeThrough, 'trousers cover the front of the apron …
+       |                                                                             ^
+    1588|         expect(maxError).toBeLessThan(1e-6);
+    1589|         expect(maxFarError).toBeLessThan(1e-6);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  src/components/workers/workerPose.test.ts > actual-rig baker linen skinning and distant preservation > feminine/0.95 binds cloth to the actual palette through work and locomotion
+AssertionError: trousers cover the front of the apron hem: expected 0.13108435097313598 to be less than 0.008
+ ❯ src/components/workers/workerPose.test.ts:1587:77
+    1585|           }
+    1586|         }
+    1587|         expect(maxPokeThrough, 'trousers cover the front of the apron …
+       |                                                                             ^
+    1588|         expect(maxError).toBeLessThan(1e-6);
+    1589|         expect(maxFarError).toBeLessThan(1e-6);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  src/components/workers/workerPose.test.ts > actual-rig baker linen skinning and distant preservation > feminine/1.08 binds cloth to the actual palette through work and locomotion
+AssertionError: trousers cover the front of the apron hem: expected 0.13108434835153993 to be less than 0.008
+ ❯ src/components/workers/workerPose.test.ts:1587:77
+    1585|           }
+    1586|         }
+    1587|         expect(maxPokeThrough, 'trousers cover the front of the apron …
+       |                                                                             ^
+    1588|         expect(maxError).toBeLessThan(1e-6);
+    1589|         expect(maxFarError).toBeLessThan(1e-6);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 89 skipped (93)
+   Start at  12:55:26
+   Duration  21.85s (transform 2.24s, setup 1.12s, import 8.76s, tests 8.15s, environment 0ms)
+

@@ -1,0 +1,35 @@
+
+> grain-mill-simulator@0.40.0 test
+> vitest run src/components/workers/workerPose.test.ts
+
+(node:20115) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+stdout | src/components/workers/workerPose.test.ts > eases the stationary garden-to-idle pelvis without an upward snap
+garden exit first-frame pelvis metres masculine 0.37532132708209004
+
+ ❯ src/components/workers/workerPose.test.ts (88 tests | 1 failed) 9418ms
+   × eases the stationary garden-to-idle pelvis without an upward snap 11ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/workers/workerPose.test.ts > eases the stationary garden-to-idle pelvis without an upward snap
+AssertionError: expected 0.37532132708209004 to be less than 0.045
+ ❯ src/components/workers/workerPose.test.ts:1334:18
+    1332|     console.info('garden exit first-frame pelvis metres', body, step);
+    1333|     expect(step).toBeGreaterThan(0);
+    1334|     expect(step).toBeLessThan(0.045);
+       |                  ^
+    1335|   }
+    1336| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 87 passed (88)
+   Start at  12:12:59
+   Duration  10.83s (transform 231ms, setup 294ms, import 666ms, tests 9.42s, environment 0ms)
+

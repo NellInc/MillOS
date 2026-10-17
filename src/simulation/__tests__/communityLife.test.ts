@@ -2,6 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { Group, SkinnedMesh } from 'three';
 import {
   COMMUNITY_ROSTER,
+  createCommunityGreeting,
+  communityPassengerAttention,
+  communityBusNotice,
+  sampleCommunityGreeting,
   sampleCommunityPerson,
   routineDuration,
   WALK_HOURS_PER_METRE,
@@ -12,6 +16,7 @@ import {
   inspectCommunityPresence,
   advanceCommunityBusClock,
   advanceCommunityPeopleClock,
+  advanceCommunityPresentationClock,
   hasCommunityBakerySupply,
   communityWorkResponse,
   COMMUNITY_AGREEMENT_MEMBERS,
@@ -210,6 +215,33 @@ describe('inhabited world routines', () => {
     }
     expect(sampleCommunityBus(23).visible).toBe(false);
   });
+  it('eases passenger starts and arrivals without moving anchors, times or the path', () => {
+    for (const [id, start] of [
+      ['bus-arriving', 7.16],
+      ['bus-departing', 7.52],
+    ] as const) {
+      const person = COMMUNITY_ROSTER.find((p) => p.id === id)!;
+      const from = sampleCommunityPerson(person, start),
+        to = sampleCommunityPerson(person, start + 0.3);
+      const early = sampleCommunityPerson(person, start + 0.003);
+      const late = sampleCommunityPerson(person, start + 0.297);
+      const distance = (a: typeof from, b: typeof from) =>
+        Math.hypot(a.position[0] - b.position[0], a.position[2] - b.position[2]);
+      const total = distance(from, to);
+      expect(distance(from, early) / total).toBeLessThan(0.001);
+      expect(distance(late, to) / total).toBeLessThan(0.001);
+      expect(distance(from, sampleCommunityPerson(person, start + 0.15)) / total).toBeCloseTo(
+        0.5,
+        6
+      );
+      for (let step = 0; step <= 30; step++) {
+        const hour = start + step * 0.01,
+          pose = sampleCommunityPerson(person, hour);
+        expect(distance(from, pose) + distance(pose, to)).toBeCloseTo(total, 6);
+        expect(sampleCommunityPerson(person, hour)).toEqual(pose);
+      }
+    }
+  });
   it('holds the bus and its passenger clock while a truck uses the turnaround', () => {
     expect(advanceCommunityBusClock(7.85, 0.1, true)).toBeCloseTo(7.86);
     expect(advanceCommunityBusClock(8.2, 0, true)).toBeCloseTo(8.2);
@@ -308,6 +340,68 @@ describe('inhabited world routines', () => {
     }
     expect(operations).toEqual(before);
   });
+  it('waits for actual sample stock and distinguishes recalled batches without changing the ledger', () => {
+    const person = COMMUNITY_ROSTER.find((p) => p.role === 'Quality')!;
+    const pose = { ...sampleCommunityPerson(person, 12), activity: 'working' as const };
+    const operations = { machines: [], workOrders: [], batches: [], bakeryStocked: false };
+    expect(communityWorkResponse(person, pose, operations)).toEqual({
+      activity: 'idle',
+      task: 'Waiting for a production batch to sample',
+    });
+    const recalled = {
+      ...operations,
+      batches: [{ packerId: 'packer-2', disposition: 'recalled' as const, availableKg: 25 }],
+    };
+    const before = structuredClone(recalled);
+    expect(communityWorkResponse(person, pose, recalled)).toEqual({
+      activity: 'working',
+      task: 'Reviewing recalled stock from the quality inspection post',
+    });
+    expect(recalled).toEqual(before);
+  });
+
+  it('keeps quality maintenance, fault, released-stock and protected-break priorities', () => {
+    const person = COMMUNITY_ROSTER.find((p) => p.role === 'Quality')!;
+    const pose = { ...sampleCommunityPerson(person, 12), activity: 'working' as const };
+    const empty = { machines: [], workOrders: [], batches: [], bakeryStocked: false };
+    for (const activity of ['walking', 'break', 'idle'] as const)
+      expect(communityWorkResponse(person, { ...pose, activity }, empty)).toEqual({
+        activity,
+        task: pose.task,
+      });
+    expect(
+      communityWorkResponse(person, pose, {
+        ...empty,
+        workOrders: [{ machineId: person.machineId!, phase: 'awaiting_parts' }],
+      }).task
+    ).toBe('Waiting for maintenance parts');
+    expect(
+      communityWorkResponse(person, pose, {
+        ...empty,
+        machines: [{ id: person.machineId!, status: 'critical' }],
+      }).task
+    ).toBe('Inspecting a reported equipment fault');
+    expect(
+      communityWorkResponse(person, pose, {
+        ...empty,
+        batches: [{ packerId: 'packer-2', availableKg: 25, disposition: 'released' }],
+      })
+    ).toEqual({ activity: pose.activity, task: pose.task });
+    for (const stock of [0, Number.NaN, Number.POSITIVE_INFINITY])
+      expect(
+        communityWorkResponse(person, pose, {
+          ...empty,
+          batches: [{ packerId: 'packer-2', availableKg: stock, disposition: 'recalled' }],
+        }).activity
+      ).toBe('idle');
+    expect(
+      communityWorkResponse(person, pose, {
+        ...empty,
+        batches: [{ packerId: 'packer-2', availableKg: 25, disposition: 'shipped' }],
+      }).activity
+    ).toBe('idle');
+  });
+
   it('pauses actual garden work in wet weather and resumes without changing its route or inventory', () => {
     const gardener = COMMUNITY_ROSTER.find((person) => person.id === 'village-gardener')!;
     const workingHour = Array.from({ length: 48 }, (_, index) => index / 2).find(
@@ -432,5 +526,338 @@ describe('village daily details', () => {
     expect(communityChimneyLevel(12, 0, 'forge')).toBe(1);
     expect(communityChimneyLevel(20, 0, 'forge')).toBe(0);
     expect(communityChimneyLevel(22, 0, 'pub')).toBe(1);
+  });
+});
+
+describe('bounded personnel presentation between actual simulation ticks', () => {
+  const step = advanceCommunityPresentationClock;
+  it('consumes a stepped target evenly without overshooting or inventing time', () => {
+    for (const speed of [30, 180]) {
+      const start = 12,
+        target = start + (speed * 0.5) / 3600;
+      let hour = start;
+      for (let i = 0; i < 30; i++) {
+        const next = step(hour, target, i ? 0 : target - start, 1 / 60, speed, true, false);
+        expect(next - hour).toBeCloseTo(speed / 3600 / 60, 9);
+        expect(next).toBeLessThanOrEqual(target);
+        hour = next;
+      }
+      expect(hour).toBeCloseTo(target, 9);
+      expect(step(hour, target, 0, 1 / 60, speed, true, false)).toBeCloseTo(target, 9);
+    }
+  });
+  it('keeps interpolated routes grounded and their rider, courier and prop schedules aligned', () => {
+    let hour = 12;
+    const target = hour + 0.025;
+    const previous = COMMUNITY_ROSTER.map((p) => sampleCommunityPerson(p, hour));
+    for (let i = 0; i < 30; i++) {
+      const next = step(hour, target, i ? 0 : 0.025, 1 / 60, 180, true, false);
+      COMMUNITY_ROSTER.forEach((person, index) => {
+        const pose = sampleCommunityPerson(person, next);
+        if (
+          pose.activity === 'walking' &&
+          previous[index].activity === 'walking' &&
+          person.role !== 'Cyclist'
+        ) {
+          expect(
+            Math.hypot(
+              pose.position[0] - previous[index].position[0],
+              pose.position[2] - previous[index].position[2]
+            )
+          ).toBeLessThanOrEqual(1.1 / 60 + 1e-8);
+        }
+        previous[index] = pose;
+      });
+      const courier = sampleCommunityPerson(
+        COMMUNITY_ROSTER.find((p) => p.id === 'village-courier')!,
+        next
+      );
+      const cart = sampleCommunityDelivery(next);
+      expect(courier.position).toEqual([cart.x, 0, cart.z]);
+      const cyclist = sampleCommunityPerson(
+        COMMUNITY_ROSTER.find((p) => p.id === 'village-cyclist')!,
+        next
+      );
+      const cycle = sampleCommunityCyclist(next);
+      expect(cyclist.position).toEqual([cycle.x, 0, cycle.z]);
+      hour = next;
+    }
+  });
+  it('reframes a small live rewind rather than freezing until the plant clock catches up', () => {
+    expect(step(12, 11.9, -0.1, 1 / 60, 180, true, false)).toBe(11.9);
+  });
+  it('freezes partial pause, respects deliberate time reframes, and rebases hidden/safety holds', () => {
+    expect(step(12, 12.025, 0, 1 / 60, 0, true, false)).toBe(12);
+    expect(step(12, 8, -4, 1 / 60, 0, true, false)).toBe(8);
+    for (const [visible, emergency] of [
+      [false, false],
+      [true, true],
+    ]) {
+      const cursor = step(12, 20, 8, 1 / 60, 180, visible, emergency);
+      expect(cursor).toBe(20);
+      expect(advanceCommunityPeopleClock(12, cursor, 0, false, true)).toBe(12);
+      expect(step(cursor, 20, 0, 1 / 60, 180, true, false)).toBe(20);
+    }
+    expect(step(12, 12.1, 0, NaN, 180, true, false)).toBe(12);
+    expect(step(12, 12.1, 0, 100, 180, true, false) - 12).toBeCloseTo((180 * 0.075) / 3600, 9);
+  });
+});
+
+describe('greetings acknowledge actual passing company', () => {
+  const shop = COMMUNITY_ROSTER.find((p) => p.id === 'village-shopkeeper')!;
+  const neighbour = COMMUNITY_ROSTER.find((p) => p.id === 'village-neighbour')!;
+  const pose = {
+    position: [0, 0, 0] as [number, number, number],
+    rotation: 0,
+    activity: 'idle' as const,
+    task: 'Greeting a neighbour',
+    seated: false,
+    visible: true,
+  };
+  it('selects only a visible nearby forward recipient and bounds the head turn', () => {
+    const target = { ...pose, position: [1, 0, 2] as [number, number, number] };
+    const actors = [
+      { person: shop, pose },
+      { person: neighbour, pose: target },
+    ];
+    const out = createCommunityGreeting();
+    expect(sampleCommunityGreeting(shop, pose, actors, out)).toBe(out);
+    expect(out).toEqual({ targetId: neighbour.id, yaw: 0.3 });
+    for (const position of [
+      [0, 0, -2],
+      [7, 0, 0],
+      [0, 0, 0.1],
+    ] as [number, number, number][]) {
+      target.position = position;
+      sampleCommunityGreeting(shop, pose, actors, out);
+      expect(out.targetId).toBe(null);
+      expect(out.yaw).toBe(0);
+    }
+    target.position = [0, 0, 2];
+    target.visible = false;
+    expect(sampleCommunityGreeting(shop, pose, actors, out).targetId).toBe(null);
+  });
+  it('never greets during a work, seat or non-authored idle stop', () => {
+    const actors = [
+      { person: neighbour, pose: { ...pose, position: [0, 0, 2] as [number, number, number] } },
+    ];
+    for (const changed of [
+      { activity: 'working' as const },
+      { seated: true },
+      { task: 'Checking a delivery' },
+      { visible: false },
+    ])
+      expect(
+        sampleCommunityGreeting(shop, { ...pose, ...changed }, actors, createCommunityGreeting())
+          .targetId
+      ).toBe(null);
+    expect(
+      sampleCommunityGreeting(neighbour, pose, actors, createCommunityGreeting()).targetId
+    ).toBe(null);
+  });
+});
+
+describe('actual transit attention and service notice', () => {
+  const passenger = COMMUNITY_ROSTER.find((p) => p.id === 'bus-departing')!;
+  it('acknowledges only a nearby visible shuttle while waiting, with bounded attention', () => {
+    const pose = sampleCommunityPerson(passenger, 7.03),
+      bus = sampleCommunityBus(7.03);
+    expect(pose.activity).toBe('idle');
+    expect(pose.seated).toBe(false);
+    expect(communityPassengerAttention(passenger, pose, bus)).toBeCloseTo(0.26);
+    for (const changed of [{ visible: false }, { x: 1000 }, { phase: 2 }])
+      expect(communityPassengerAttention(passenger, pose, { ...bus, ...changed })).toBe(0);
+    for (const changed of [{ visible: false }, { seated: true }, { activity: 'walking' as const }])
+      expect(communityPassengerAttention(passenger, { ...pose, ...changed }, bus)).toBe(0);
+    expect(communityPassengerAttention(COMMUNITY_ROSTER[0], pose, bus)).toBe(0);
+    expect(communityPassengerAttention(passenger, pose, { ...bus, x: NaN })).toBe(0);
+  });
+  it('follows real service hours and stop state without inventing an arrival', () => {
+    expect(communityBusNotice(sampleCommunityBus(7.03))).toBe('BUS ON ROUTE');
+    expect(communityBusNotice(sampleCommunityBus(7.3))).toBe('BUS AT THE STOP');
+    const between = sampleCommunityBus(9.9);
+    expect(between.visible).toBe(false);
+    expect(communityBusNotice(between)).toBe('BUS ON ROUTE');
+    for (const hour of [0, 5.9, 22, 23])
+      expect(communityBusNotice(sampleCommunityBus(hour))).toBe('SERVICE HOURS\n06:00 TO 22:00');
+    const held = sampleCommunityBus(advanceCommunityBusClock(7.85, 0.1, true));
+    expect(communityBusNotice(held)).toBe('BUS AT THE STOP');
+    expect(communityBusNotice(null)).toBe('ROUTE INFORMATION');
+    expect(communityBusNotice({})).toBe('ROUTE INFORMATION');
+  });
+});
+
+it('rests ordinary operators on stopped lines without overriding fault, maintenance or quality duties', () => {
+  const person = COMMUNITY_ROSTER.find((p) => p.id === 'mill-operator-west')!;
+  const pose = { ...sampleCommunityPerson(person, 12), activity: 'working' as const };
+  const operations = {
+    machines: [{ id: person.machineId!, status: 'idle' as const }],
+    workOrders: [],
+    batches: [],
+    bakeryStocked: false,
+  };
+  const before = structuredClone({ pose, operations });
+  expect(communityWorkResponse(person, pose, operations)).toEqual({
+    activity: 'idle',
+    task: 'Line stopped: waiting for production to resume',
+  });
+  expect(
+    communityWorkResponse(person, pose, {
+      ...operations,
+      machines: [{ id: person.machineId!, status: 'running' }],
+    })
+  ).toEqual({ activity: 'working', task: pose.task });
+  expect(
+    communityWorkResponse(person, pose, {
+      ...operations,
+      machines: [{ id: person.machineId!, status: 'warning' }],
+    }).activity
+  ).toBe('working');
+  expect(
+    communityWorkResponse(person, pose, {
+      ...operations,
+      workOrders: [{ machineId: person.machineId!, phase: 'verification' }],
+    }).task
+  ).toBe('Reviewing post-repair verification');
+  const quality = COMMUNITY_ROSTER.find((p) => p.role === 'Quality')!;
+  expect(
+    communityWorkResponse(quality, pose, {
+      ...operations,
+      machines: [{ id: quality.machineId!, status: 'idle' }],
+      batches: [{ packerId: 'packer-2', disposition: 'hold', availableKg: 20 }],
+    }).activity
+  ).toBe('working');
+  for (const activity of ['break', 'walking'] as const)
+    expect(communityWorkResponse(person, { ...pose, activity }, operations).activity).toBe(
+      activity
+    );
+  expect({ pose, operations }).toEqual(before);
+});
+
+it('holds a greeting through centimetre-scale nearest-neighbour jitter and releases absent recipients', () => {
+  const shop = COMMUNITY_ROSTER.find((p) => p.id === 'village-shopkeeper')!;
+  const a = COMMUNITY_ROSTER.find((p) => p.id === 'village-neighbour')!;
+  const b = { ...a, id: 'second-neighbour' };
+  const pose = {
+    position: [0, 0, 0] as [number, number, number],
+    rotation: 0,
+    activity: 'idle' as const,
+    task: 'Greeting a neighbour',
+    seated: false,
+    visible: true,
+  };
+  const first = { ...pose, position: [-0.05, 0, 2] as [number, number, number] };
+  const second = { ...pose, position: [0.05, 0, 2.01] as [number, number, number] };
+  const actors = [
+    { person: a, pose: first },
+    { person: b, pose: second },
+  ];
+  const out = createCommunityGreeting();
+  expect(sampleCommunityGreeting(shop, pose, actors, out).targetId).toBe(a.id);
+  for (const z of [1.99, 2.01, 1.98, 2.02]) {
+    second.position[2] = z;
+    expect(sampleCommunityGreeting(shop, pose, actors, out).targetId).toBe(a.id);
+  }
+  second.position[2] = 1.2;
+  expect(sampleCommunityGreeting(shop, pose, actors, out).targetId).toBe(b.id);
+  second.visible = false;
+  expect(sampleCommunityGreeting(shop, pose, actors, out).targetId).toBe(a.id);
+  // CommunityLife re-seeds this scratch object from the replayed motion field.
+  second.visible = true;
+  second.position[2] = 1.99;
+  out.targetId = null;
+  expect(sampleCommunityGreeting(shop, pose, actors, out).targetId).toBe(b.id);
+  second.visible = false;
+  first.position[2] = -2;
+  expect(sampleCommunityGreeting(shop, pose, actors, out)).toEqual({ targetId: null, yaw: 0 });
+});
+
+describe('analytic seat arrival and departure support', () => {
+  it('places, lowers, rises and releases on every unchanged authored seat route', () => {
+    for (const person of COMMUNITY_ROSTER) {
+      let start = -person.phase;
+      for (let i = 0; i < person.stops.length; i++) {
+        const node = person.stops[i],
+          next = person.stops[(i + 1) % person.stops.length];
+        if (node.seated) {
+          const sample = (at: number) => sampleCommunityPerson(person, start + at);
+          const beginning = sample(1e-7),
+            settled = sample(node.hours * 0.5),
+            standing = sample(node.hours - 0.005),
+            outgoing = sample(node.hours + 0.00001),
+            incoming = sample(-0.00001);
+          expect(beginning.seat?.amount, person.id).toBeLessThan(0.001);
+          expect(settled.seat).toMatchObject({
+            amount: 1,
+            support: 1,
+            position: node.position,
+            rotation: node.rotation,
+          });
+          expect(standing.seated).toBe(true);
+          expect(standing.seat?.amount).toBe(0);
+          expect(standing.position).toEqual(node.position);
+          expect(outgoing.seated).toBe(false);
+          expect(outgoing.seat).toMatchObject({ amount: 0, support: 1 });
+          expect(incoming.seat).toMatchObject({ amount: 0, support: 1 });
+          for (let j = 0; j <= 60; j++) {
+            const at = (node.hours * j) / 60,
+              p = sample(Math.min(node.hours - 1e-7, at + 1e-7));
+            expect(p.position).toEqual(node.position);
+            expect(p.seat!.amount).toBeGreaterThanOrEqual(0);
+            expect(p.seat!.amount).toBeLessThanOrEqual(1);
+            expect(p.seat!.support).toBe(1);
+          }
+        }
+        start +=
+          node.hours +
+          Math.hypot(node.position[0] - next.position[0], node.position[2] - next.position[2]) *
+            WALK_HOURS_PER_METRE;
+      }
+    }
+  });
+  it('resets reused cue output on special branches and bounds short route windows', () => {
+    const person = {
+      id: 'short-seat',
+      role: 'Resident',
+      district: 'mill' as const,
+      phase: 0,
+      stops: [
+        {
+          position: [0, 0, 0] as [number, number, number],
+          rotation: 0,
+          hours: 0.03,
+          activity: 'break' as const,
+          task: 'Rest',
+          seated: true,
+        },
+        {
+          position: [0.1, 0, 0] as [number, number, number],
+          rotation: 0,
+          hours: 0.02,
+          activity: 'idle' as const,
+          task: 'Stand',
+        },
+      ],
+    };
+    const out = sampleCommunityPerson(person, 0.015);
+    for (let t = 0; t < routineDuration(person); t += 0.0002) {
+      sampleCommunityPerson(person, t, out);
+      if (out.seat) {
+        expect(
+          Object.values({ amount: out.seat.amount, support: out.seat.support }).every(
+            (v) => Number.isFinite(v) && v >= 0 && v <= 1
+          )
+        ).toBe(true);
+        if (out.seat.amount > 0) expect(out.seat.support).toBe(1);
+      }
+    }
+    for (const id of ['village-cyclist', 'village-courier', 'bus-arriving', 'bus-departing']) {
+      sampleCommunityPerson(person, 0.015, out);
+      expect(out.seat).toBeDefined();
+      sampleCommunityPerson(COMMUNITY_ROSTER.find((p) => p.id === id)!, 12, out);
+      expect(out.seat).toBeUndefined();
+    }
+    sampleCommunityPerson(person, NaN, out);
+    expect(out.seat?.amount ?? 0).not.toBeNaN();
   });
 });

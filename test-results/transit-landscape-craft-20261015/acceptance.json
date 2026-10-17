@@ -1,0 +1,477 @@
+{
+  "scope": "U finite35-item transit and landscape pass",
+  "baseline": {
+    "files": 3,
+    "passed": 60,
+    "failed": 0
+  },
+  "finalAffected": {
+    "files": 3,
+    "passed": 67,
+    "failed": 0
+  },
+  "sourceGates": {
+    "typecheck": 0,
+    "wholeSourceLint": 0,
+    "wholeSourceFormat": 0,
+    "finalTouchedLintFormat": 0,
+    "shaders": 0,
+    "build": 0,
+    "reachability": 0
+  },
+  "build": {
+    "files": 415,
+    "bytes": 181685824,
+    "seconds": 78.591,
+    "seal": "final-build-seal.json"
+  },
+  "protectedFilesExact": 137,
+  "primaryUnchanged": true,
+  "nativeArt": [
+    {
+      "capture": "U-transit-landscape-day-20261015",
+      "scene": "busstop",
+      "sceneTime": 15.3,
+      "servedBytesExact": true,
+      "nativeMetal": true,
+      "sandboxed": true,
+      "worldIntegrity": true,
+      "pageClean": true,
+      "communityPresence": true,
+      "motionAcceptance": {
+        "passed": true,
+        "checks": [
+          {
+            "id": "complete-fleet",
+            "passed": true,
+            "observed": [
+              "forklift-1",
+              "forklift-2",
+              "receiving-truck",
+              "shipping-truck"
+            ]
+          },
+          {
+            "id": "finite-telemetry",
+            "passed": true
+          },
+          {
+            "id": "bounded-steering",
+            "passed": true
+          },
+          {
+            "id": "bounded-articulation",
+            "passed": true
+          },
+          {
+            "id": "vehicle-motion-observed",
+            "passed": true
+          },
+          {
+            "id": "stationary-vehicles-have-interlock-reason",
+            "passed": true,
+            "observed": [
+              {
+                "id": "forklift-1",
+                "stopReasons": [
+                  "load-operation"
+                ]
+              },
+              {
+                "id": "forklift-2",
+                "stopReasons": [
+                  "logistics-interlock"
+                ]
+              }
+            ]
+          },
+          {
+            "id": "wheel-travel-follows-motion",
+            "passed": true
+          },
+          {
+            "id": "display-cadence-motion-observed",
+            "passed": true,
+            "observed": [
+              "receiving-truck",
+              "shipping-truck"
+            ]
+          },
+          {
+            "id": "moving-vehicles-have-no-staccato-plateau",
+            "passed": true,
+            "observed": [
+              {
+                "id": "forklift-1",
+                "maxMovingPlateauSamples": 0
+              },
+              {
+                "id": "forklift-2",
+                "maxMovingPlateauSamples": 0
+              },
+              {
+                "id": "receiving-truck",
+                "maxMovingPlateauSamples": 0
+              },
+              {
+                "id": "shipping-truck",
+                "maxMovingPlateauSamples": 0
+              }
+            ]
+          },
+          {
+            "id": "single-frame-displacement-is-bounded",
+            "passed": true,
+            "observed": [
+              {
+                "id": "forklift-1",
+                "maxSingleStepDistance": 0
+              },
+              {
+                "id": "forklift-2",
+                "maxSingleStepDistance": 0
+              },
+              {
+                "id": "receiving-truck",
+                "maxSingleStepDistance": 0.142
+              },
+              {
+                "id": "shipping-truck",
+                "maxSingleStepDistance": 0.142
+              }
+            ]
+          }
+        ]
+      },
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "diagnostics": {
+        "consoleErrors": [],
+        "pageErrors": [],
+        "failedRequests": [],
+        "screenshotError": null
+      },
+      "timingMisses": [
+        "firstFrame",
+        "p95Frame"
+      ],
+      "load": {
+        "cores": 10,
+        "loadAverage1m": 483.82,
+        "loadAverage5m": 454.55,
+        "loadPerCore": 48.38,
+        "contendedThreshold": 3,
+        "contended": true
+      },
+      "screenshotPath": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/U-transit-landscape-day-20261015/busstop.png"
+    },
+    {
+      "capture": "U-transit-landscape-day-20261015",
+      "scene": "village",
+      "sceneTime": 15.3,
+      "servedBytesExact": true,
+      "nativeMetal": true,
+      "sandboxed": true,
+      "worldIntegrity": true,
+      "pageClean": true,
+      "communityPresence": true,
+      "motionAcceptance": {
+        "passed": true,
+        "checks": [
+          {
+            "id": "complete-fleet",
+            "passed": true,
+            "observed": [
+              "forklift-1",
+              "forklift-2",
+              "receiving-truck",
+              "shipping-truck"
+            ]
+          },
+          {
+            "id": "finite-telemetry",
+            "passed": true
+          },
+          {
+            "id": "bounded-steering",
+            "passed": true
+          },
+          {
+            "id": "bounded-articulation",
+            "passed": true
+          },
+          {
+            "id": "vehicle-motion-observed",
+            "passed": true
+          },
+          {
+            "id": "stationary-vehicles-have-interlock-reason",
+            "passed": true,
+            "observed": [
+              {
+                "id": "forklift-1",
+                "stopReasons": [
+                  "load-operation"
+                ]
+              },
+              {
+                "id": "forklift-2",
+                "stopReasons": [
+                  "logistics-interlock"
+                ]
+              }
+            ]
+          },
+          {
+            "id": "wheel-travel-follows-motion",
+            "passed": true
+          },
+          {
+            "id": "display-cadence-motion-observed",
+            "passed": true,
+            "observed": [
+              "receiving-truck",
+              "shipping-truck"
+            ]
+          },
+          {
+            "id": "moving-vehicles-have-no-staccato-plateau",
+            "passed": true,
+            "observed": [
+              {
+                "id": "forklift-1",
+                "maxMovingPlateauSamples": 0
+              },
+              {
+                "id": "forklift-2",
+                "maxMovingPlateauSamples": 0
+              },
+              {
+                "id": "receiving-truck",
+                "maxMovingPlateauSamples": 0
+              },
+              {
+                "id": "shipping-truck",
+                "maxMovingPlateauSamples": 0
+              }
+            ]
+          },
+          {
+            "id": "single-frame-displacement-is-bounded",
+            "passed": true,
+            "observed": [
+              {
+                "id": "forklift-1",
+                "maxSingleStepDistance": 0
+              },
+              {
+                "id": "forklift-2",
+                "maxSingleStepDistance": 0
+              },
+              {
+                "id": "receiving-truck",
+                "maxSingleStepDistance": 0.183
+              },
+              {
+                "id": "shipping-truck",
+                "maxSingleStepDistance": 0.183
+              }
+            ]
+          }
+        ]
+      },
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "diagnostics": {
+        "consoleErrors": [],
+        "pageErrors": [],
+        "failedRequests": [],
+        "screenshotError": null
+      },
+      "timingMisses": [
+        "averageFps",
+        "p95Frame",
+        "onePercentLow"
+      ],
+      "load": {
+        "cores": 10,
+        "loadAverage1m": 465.48,
+        "loadAverage5m": 454.05,
+        "loadPerCore": 46.55,
+        "contendedThreshold": 3,
+        "contended": true
+      },
+      "screenshotPath": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/U-transit-landscape-day-20261015/village.png"
+    },
+    {
+      "capture": "U-transit-dusk-20261015",
+      "scene": "busstop",
+      "sceneTime": 19.3,
+      "servedBytesExact": true,
+      "nativeMetal": true,
+      "sandboxed": true,
+      "worldIntegrity": true,
+      "pageClean": true,
+      "communityPresence": true,
+      "motionAcceptance": {
+        "passed": true,
+        "checks": [
+          {
+            "id": "complete-fleet",
+            "passed": true,
+            "observed": [
+              "forklift-1",
+              "forklift-2",
+              "receiving-truck",
+              "shipping-truck"
+            ]
+          },
+          {
+            "id": "finite-telemetry",
+            "passed": true
+          },
+          {
+            "id": "bounded-steering",
+            "passed": true
+          },
+          {
+            "id": "bounded-articulation",
+            "passed": true
+          },
+          {
+            "id": "vehicle-motion-observed",
+            "passed": true
+          },
+          {
+            "id": "stationary-vehicles-have-interlock-reason",
+            "passed": true,
+            "observed": [
+              {
+                "id": "forklift-1",
+                "stopReasons": [
+                  "load-operation"
+                ]
+              },
+              {
+                "id": "forklift-2",
+                "stopReasons": [
+                  "logistics-interlock"
+                ]
+              }
+            ]
+          },
+          {
+            "id": "wheel-travel-follows-motion",
+            "passed": true
+          },
+          {
+            "id": "display-cadence-motion-observed",
+            "passed": true,
+            "observed": [
+              "receiving-truck",
+              "shipping-truck"
+            ]
+          },
+          {
+            "id": "moving-vehicles-have-no-staccato-plateau",
+            "passed": true,
+            "observed": [
+              {
+                "id": "forklift-1",
+                "maxMovingPlateauSamples": 0
+              },
+              {
+                "id": "forklift-2",
+                "maxMovingPlateauSamples": 0
+              },
+              {
+                "id": "receiving-truck",
+                "maxMovingPlateauSamples": 0
+              },
+              {
+                "id": "shipping-truck",
+                "maxMovingPlateauSamples": 0
+              }
+            ]
+          },
+          {
+            "id": "single-frame-displacement-is-bounded",
+            "passed": true,
+            "observed": [
+              {
+                "id": "forklift-1",
+                "maxSingleStepDistance": 0
+              },
+              {
+                "id": "forklift-2",
+                "maxSingleStepDistance": 0
+              },
+              {
+                "id": "receiving-truck",
+                "maxSingleStepDistance": 0.149
+              },
+              {
+                "id": "shipping-truck",
+                "maxSingleStepDistance": 0.149
+              }
+            ]
+          }
+        ]
+      },
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "diagnostics": {
+        "consoleErrors": [],
+        "pageErrors": [],
+        "failedRequests": [],
+        "screenshotError": null
+      },
+      "timingMisses": [
+        "firstFrame",
+        "p95Frame"
+      ],
+      "load": {
+        "cores": 10,
+        "loadAverage1m": 422.91,
+        "loadAverage5m": 438.34,
+        "loadPerCore": 42.29,
+        "contendedThreshold": 3,
+        "contended": true
+      },
+      "screenshotPath": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/U-transit-dusk-20261015/busstop.png"
+    }
+  ],
+  "closeArt": {
+    "savedImages": false,
+    "conversationEvidence": true,
+    "observations": [
+      "rounded upholstery and brass grab rails visible through actual side glass",
+      "real framed closed door panes, wipers and warm ceiling lamp faces visible",
+      "49 live stone instances use vertex colours and no texture, stones visibly seated among northern meadow scrub"
+    ],
+    "initialFraming": [
+      "bus moved normally out of first fixed camera, corrected by public namedObjectsSnapshot plus camera API",
+      "first western meadow camera showed scrub; northern meadow framing showed actual outcrops"
+    ],
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "playerInput": false,
+    "viewportOverride": false,
+    "tabClosed": true,
+    "previewClosed": true,
+    "lockReleased": true
+  },
+  "pacing": "OPEN, unchanged budgets. Art samples are indicative under contention, no causal performance verdict.",
+  "playerDeviceChecks": "DEFERRED",
+  "delivery": "LOCAL ONLY, no upload/push/deployment",
+  "selfReview": "Authored and reviewed by this chat",
+  "optionalInterfaceDesignLint": "No UI/style/layout edits. Optional executable absent, no installation."
+}

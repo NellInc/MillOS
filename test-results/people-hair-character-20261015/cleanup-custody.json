@@ -1,0 +1,33 @@
+{
+  "borrowedLinksVerified": 375,
+  "removedOwnCaches": [
+    {
+      "path": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/node_modules/.vite",
+      "exitCode": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "path": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/node_modules/.vite-temp",
+      "exitCode": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "path": "/private/tmp/millos-AH-npm-cache",
+      "exitCode": 1,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "dependencyLinkRestored": "/Users/nellwatson/Documents/GitHub/MillOS/node_modules",
+  "protectedPinsExact": 779,
+  "sourcePinsExact": 5,
+  "compiledPinsExact": 415,
+  "primaryExact": true,
+  "captureLockAbsent": true,
+  "allOwnedJobsTerminal": true,
+  "ownTabsClosed": true,
+  "physicalSpaceRecovery": "not attributed",
+  "unrelatedOutput": "preserved"
+}

@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   OperationsPlayCard,
@@ -6,18 +6,25 @@ import {
   ShiftDebrief,
   TeachingPace,
 } from './PlayableShift';
+import { CAMERA_PRESETS, useCameraStore } from '../../CameraController';
 import { useUIStore } from '../../../stores/uiStore';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
 import { useMaterialFlowStore } from '../../../stores/materialFlowStore';
 import { createWorkplace } from '../../../simulation/bilateralWorkplace';
-import { campaignRecord } from '../../../simulation/workplaceCampaign';
+import {
+  campaignRecord,
+  requiredChecks,
+  WORKPLACE_CHECKS,
+} from '../../../simulation/workplaceCampaign';
 import { MachineType } from '../../../types';
 import type { MachineData } from '../../../types';
+import type { OperationalIncident } from '../../../stores/operationsCampaignStore';
 vi.mock('../../knowledge/LearningNote', () => ({ LearningNote: () => null }));
 
 beforeEach(() => {
+  useCameraStore.setState(useCameraStore.getInitialState(), true);
   useWorkplaceStore.setState({ workplace: createWorkplace() });
   useMaterialFlowStore.setState(useMaterialFlowStore.getInitialState(), true);
   useUIStore.setState(useUIStore.getInitialState(), true);
@@ -194,6 +201,96 @@ describe('playable shift UI', () => {
     fireEvent.keyDown(document.body, { key: 'Escape' });
     expect(useUIStore.getState().journeyVisible).toBe(false);
   });
+
+  it('shows the actual truck load separately from dispatched customer credit', () => {
+    const campaign = useOperationsCampaignStore.getState();
+    useUIStore.getState().startDeliveryJourney(campaign.activeOrderId);
+    useUIStore.getState().recordMachineInspection('mill-1');
+    useOperationsCampaignStore.setState({
+      execution: {
+        ...campaign.execution,
+        orderId: campaign.activeOrderId,
+        stage: 'loading',
+        dispatchLoad: { ...campaign.execution.dispatchLoad, loadedKg: 1500, capacityKg: 6000 },
+      },
+    });
+    const before = useOperationsCampaignStore.getState();
+    render(<FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={vi.fn()} />);
+    expect(screen.getByRole('heading', { name: 'Loading the shipping truck' })).toBeInTheDocument();
+    const progress = screen.getByRole('progressbar', { name: 'Shipping truck load' });
+    expect(progress).toHaveAttribute('value', '1500');
+    expect(progress).toHaveAttribute('max', '6000');
+    expect(progress).toHaveAttribute('aria-valuetext', '1500 of 6000 kilograms on the truck');
+    expect(screen.getByText(/Delivery: 0 kg dispatched/)).toBeInTheDocument();
+    expect(useOperationsCampaignStore.getState()).toBe(before);
+    act(() =>
+      useOperationsCampaignStore.setState({
+        execution: {
+          ...before.execution,
+          stage: 'dispatched',
+          dispatchLoad: { ...before.execution.dispatchLoad, lastDispatchKg: 1500 },
+        },
+      })
+    );
+    expect(screen.getByRole('heading', { name: 'Truck departed' })).toBeInTheDocument();
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+  });
+  it('yields a fulfilled introduction to the live next action without changing receipts', () => {
+    const state = useOperationsCampaignStore.getState();
+    const first = state.orders[0];
+    useUIStore.getState().startDeliveryJourney(first.id);
+    useUIStore.getState().recordMachineInspection('mill-1');
+    useOperationsCampaignStore.setState({
+      orders: state.orders.map((order) => ({
+        ...order,
+        status: 'fulfilled' as const,
+        shippedKg: order.requiredKg,
+      })),
+      execution: { ...state.execution, qualityReleased: true },
+    });
+    const before = useOperationsCampaignStore.getState();
+    const onOpen = vi.fn();
+    render(<FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={onOpen} />);
+    expect(screen.queryByRole('heading', { name: 'Your first delivery' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Delivery fulfilled' })).toBeInTheDocument();
+    expect(screen.getByText('Programme complete, review your shift')).toBeInTheDocument();
+    expect(
+      screen.getByText('Delivery receipt and learning').closest('details')
+    ).not.toHaveAttribute('open');
+    fireEvent.click(screen.getByRole('button', { name: 'Review shift and next programme' }));
+    expect(onOpen).toHaveBeenCalledWith('overview');
+    expect(useOperationsCampaignStore.getState()).toBe(before);
+  });
+  it('shows one read-only deadline on both guidance surfaces, pauses with the clock and drops completed countdowns', () => {
+    const campaign = useOperationsCampaignStore.getState();
+    const order = campaign.orders.find((item) => item.id === campaign.activeOrderId)!;
+    useUIStore.getState().startDeliveryJourney(order.id);
+    useOperationsCampaignStore.setState({ elapsedMinutes: order.dueAtMinute - 65 });
+    const before = useOperationsCampaignStore.getState();
+    render(
+      <>
+        <FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={vi.fn()} />
+        <OperationsPlayCard />
+      </>
+    );
+    expect(screen.getAllByLabelText('Delivery deadline')).toHaveLength(2);
+    expect(screen.getAllByText('Due in 1h 5m (simulated)')).toHaveLength(2);
+    expect(useOperationsCampaignStore.getState()).toBe(before);
+    fireEvent.change(screen.getAllByLabelText('Shift pace')[0], { target: { value: '0' } });
+    expect(screen.getAllByText('Due in 1h 5m (simulated)')).toHaveLength(2);
+    act(() => useOperationsCampaignStore.setState({ elapsedMinutes: order.dueAtMinute + 0.1 }));
+    expect(screen.getAllByText('Overdue by 1m (simulated)')).toHaveLength(2);
+    act(() =>
+      useOperationsCampaignStore.setState({
+        orders: before.orders.map((item) =>
+          item.id === order.id
+            ? { ...item, status: 'fulfilled' as const, shippedKg: item.requiredKg }
+            : item
+        ),
+      })
+    );
+    expect(screen.queryByLabelText('Delivery deadline')).not.toBeInTheDocument();
+  });
   it('switches the real recipe from the shared desktop and compact commitment card', () => {
     const before = useOperationsCampaignStore.getState();
     render(<OperationsPlayCard />);
@@ -287,3 +384,338 @@ describe('playable shift UI', () => {
     expect(screen.getByRole('button', { name: 'Accept next delivery programme' })).toBeDisabled();
   });
 });
+
+it('shows the actual line or shipping camera without changing production or awarding an inspection', () => {
+  const campaign = useOperationsCampaignStore.getState();
+  useUIStore.getState().startDeliveryJourney(campaign.activeOrderId);
+  render(<FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={vi.fn()} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Show milling line' }));
+  const milling = CAMERA_PRESETS.findIndex((preset) => preset.name === 'Milling');
+  expect(useCameraStore.getState().activePreset).toBe(milling);
+  expect(useCameraStore.getState().targetPosition?.toArray()).toEqual(
+    CAMERA_PRESETS[milling].position
+  );
+  expect(useUIStore.getState().inspectedMachineIds).toEqual([]);
+  expect(useOperationsCampaignStore.getState()).toBe(campaign);
+  act(() => {
+    useUIStore.getState().recordMachineInspection('mill-1');
+    useOperationsCampaignStore.setState({
+      execution: { ...campaign.execution, orderId: campaign.activeOrderId, stage: 'loading' },
+    });
+  });
+  const loading = useOperationsCampaignStore.getState();
+  fireEvent.click(screen.getByRole('button', { name: 'Expand delivery guide' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Show shipping bay' }));
+  expect(useCameraStore.getState().activePreset).toBe(
+    CAMERA_PRESETS.findIndex((preset) => preset.name === 'Shipping')
+  );
+  expect(useOperationsCampaignStore.getState()).toBe(loading);
+  fireEvent.click(screen.getByRole('button', { name: 'Expand delivery guide' }));
+  act(() => useUIStore.setState({ fpsMode: true }));
+  useCameraStore.getState().cancelAnimation();
+  const walking = useCameraStore.getState();
+  fireEvent.click(screen.getByRole('button', { name: 'Show shipping bay' }));
+  expect(useCameraStore.getState()).toBe(walking);
+});
+
+it('keeps real inspection tracking mounted in the compact scene guide and restores its lesson', () => {
+  const campaign = useOperationsCampaignStore.getState();
+  useUIStore.getState().startDeliveryJourney(campaign.activeOrderId);
+  const onOpen = vi.fn();
+  const { rerender } = render(
+    <FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={onOpen} />
+  );
+  const deadline = screen.getByLabelText('Delivery deadline').textContent;
+  fireEvent.click(screen.getByRole('button', { name: 'Show milling line' }));
+  expect(screen.getByLabelText('Delivery deadline')).toHaveTextContent(deadline!);
+  expect(screen.getByRole('button', { name: 'Expand delivery guide' })).toBeInTheDocument();
+  expect(screen.getByRole('combobox', { name: 'Shift pace' })).toBeInTheDocument();
+  expect(screen.getByText('Select a machine to record your inspection.')).toBeInTheDocument();
+  expect(useUIStore.getState().journeyVisible).toBe(true);
+  rerender(
+    <FirstDeliveryJourney
+      selectedMachine={{ id: 'mill-1', type: MachineType.ROLLER_MILL } as MachineData}
+      onOpenWorkspace={onOpen}
+    />
+  );
+  expect(useUIStore.getState().inspectedMachineIds).toEqual(['mill-1']);
+  expect(screen.getByText(/Inspection: recorded/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Expand delivery guide' }));
+  expect(screen.getByRole('combobox', { name: 'Shift pace' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Open operations' })).toBeInTheDocument();
+  expect(useOperationsCampaignStore.getState()).toBe(campaign);
+});
+
+it.each(['mounted', 'lazy-mount', 'resolved', 'fps'] as const)(
+  'reveals the existing response control for %s without performing it',
+  async (mode) => {
+    const incident: OperationalIncident = {
+      id: 'response-navigation',
+      kind: 'power_sag',
+      title: 'Site power dip',
+      description: 'A voltage dip reduces throughput.',
+      phase: mode === 'resolved' ? 'resolved' : 'raised',
+      severity: 'high',
+      startedAtMinute: 0,
+      acknowledgedAtMinute: null,
+      resolvedAtMinute: mode === 'resolved' ? 0 : null,
+      affectedMachineId: null,
+      effectApplied: false,
+    };
+    useOperationsCampaignStore.setState({ incidents: [incident] });
+    useUIStore.setState({ fpsMode: mode === 'fps' });
+    const before = useOperationsCampaignStore.getState(),
+      stock = useMaterialFlowStore.getState(),
+      clock = useGameSimulationStore.getState();
+    const scrollDescriptor = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      'scrollIntoView'
+    );
+    const scroll = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scroll,
+    });
+    try {
+      if (mode === 'lazy-mount') useUIStore.getState().setOperationalFocusId(incident.id);
+      render(<OperationsPlayCard />);
+      if (mode !== 'lazy-mount')
+        act(() => useUIStore.getState().setOperationalFocusId(incident.id));
+      await waitFor(() => expect(useUIStore.getState().operationalFocusId).toBeNull());
+      if (mode === 'mounted' || mode === 'lazy-mount') {
+        expect(scroll).toHaveBeenCalledWith({ block: 'center', behavior: 'instant' });
+        expect(
+          screen.getByRole('button', { name: 'Acknowledge incident', exact: true })
+        ).toHaveFocus();
+      } else expect(scroll).not.toHaveBeenCalled();
+      expect(useUIStore.getState().operationalFocusId).toBeNull();
+      expect(useOperationsCampaignStore.getState()).toBe(before);
+      expect(useMaterialFlowStore.getState()).toBe(stock);
+      expect(useGameSimulationStore.getState()).toBe(clock);
+    } finally {
+      if (scrollDescriptor)
+        Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', scrollDescriptor);
+      else delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
+    }
+  }
+);
+
+it.each(['responding', 'recovering'] as const)(
+  'keeps %s challenge progress outside collapsed setup without advancing it',
+  (phase) => {
+    const state = useOperationsCampaignStore.getState();
+    useOperationsCampaignStore.setState({
+      execution: {
+        ...state.execution,
+        stage: 'milling',
+        sourceInventoryKg: 10000,
+        qualityReleased: true,
+      },
+    });
+    expect(useOperationsCampaignStore.getState().startChallenge('power_recovery')).toBe(true);
+    if (phase === 'recovering') {
+      const campaign = useOperationsCampaignStore.getState();
+      useOperationsCampaignStore.setState({
+        incidents: campaign.incidents.map((incident) => ({
+          ...incident,
+          phase: 'resolved' as const,
+        })),
+      });
+    }
+    const before = useOperationsCampaignStore.getState(),
+      stock = useMaterialFlowStore.getState(),
+      clock = useGameSimulationStore.getState();
+    render(<OperationsPlayCard />);
+    const progress = screen.getByRole('group', { name: 'Recovery challenge progress' });
+    expect(progress.closest('details')).toBeNull();
+    expect(progress).toHaveTextContent('0 / 1000 kg');
+    expect(progress).toHaveTextContent('360 simulation minutes left');
+    expect(progress).toHaveTextContent(
+      phase === 'responding'
+        ? 'Acknowledge the incident, then apply mitigation.'
+        : 'Controller restored. Dispatch fresh, quality-released goods through the shipping bay.'
+    );
+    expect(useOperationsCampaignStore.getState()).toBe(before);
+    expect(useMaterialFlowStore.getState()).toBe(stock);
+    expect(useGameSimulationStore.getState()).toBe(clock);
+  }
+);
+
+function queueControllerResponse() {
+  const state = useOperationsCampaignStore.getState();
+  useOperationsCampaignStore.setState({
+    execution: {
+      ...state.execution,
+      stage: 'milling',
+      sourceInventoryKg: 10000,
+      qualityReleased: true,
+    },
+  });
+  expect(useOperationsCampaignStore.getState().startChallenge('power_recovery')).toBe(true);
+  const run = useOperationsCampaignStore.getState().activeChallenge!;
+  useOperationsCampaignStore.getState().acknowledgeIncident(run.incidentId);
+  useOperationsCampaignStore.getState().mitigateIncident(run.incidentId);
+  return useOperationsCampaignStore.getState();
+}
+it.each([0, 30, 180])(
+  'resumes the whole paused shift only on explicit choice, retaining a running %s pace',
+  (speed) => {
+    const campaign = queueControllerResponse(),
+      stock = useMaterialFlowStore.getState();
+    useGameSimulationStore.setState({ gameSpeed: speed });
+    const clock = useGameSimulationStore.getState();
+    render(<OperationsPlayCard />);
+    const action = screen.getByRole('button', {
+      name: speed === 0 ? 'Resume shift for controller response' : 'Awaiting simulation update',
+    });
+    expect(useGameSimulationStore.getState()).toBe(clock);
+    expect(
+      screen.getByText(
+        speed === 0
+          ? /Resumes the whole shift at relaxed pace/
+          : /The shift is running at your chosen pace/
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen
+        .getByRole('group', { name: 'Recovery challenge progress' })
+        .compareDocumentPosition(action) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: 'Abandon challenge' }).closest('details')
+    ).not.toHaveAttribute('open');
+    if (speed) expect(action).toBeDisabled();
+    fireEvent.click(action);
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(speed || 30);
+    expect(useOperationsCampaignStore.getState()).toBe(campaign);
+    expect(useMaterialFlowStore.getState()).toBe(stock);
+    expect(
+      screen.queryByRole('button', { name: 'Restore challenge controller' })
+    ).not.toBeInTheDocument();
+  }
+);
+it.each(['deliberating', 'active', 'review'] as const)(
+  'keeps explicit resume separate from programme eligibility during linked %s',
+  (phase) => {
+    const w = useWorkplaceStore.getState();
+    expect(w.startMission('team').changed).toBe(true);
+    if (phase !== 'deliberating') {
+      w.campaignDecision('keep-target', 'coordinator');
+      w.selectPlan('steady');
+      for (const actor of ['packing', 'mind'])
+        for (const id of requiredChecks(actor))
+          w.answerCheck(actor, id, WORKPLACE_CHECKS.find((q) => q.id === id)!.correct);
+      w.understand('packing');
+      w.vote('packing', true);
+      w.simulateResponses();
+      expect(w.activate(useWorkplaceStore.getState().workplace.revision).changed).toBe(true);
+      if (phase === 'review') w.tick(90, 0, false);
+    }
+    expect(useWorkplaceStore.getState().workplace.phase).toBe(phase);
+    const campaign = queueControllerResponse(),
+      agreement = useWorkplaceStore.getState().workplace,
+      stock = useMaterialFlowStore.getState();
+    useGameSimulationStore.setState({ gameSpeed: 0 });
+    render(<OperationsPlayCard />);
+    const action = screen.getByRole('button', { name: 'Resume shift for controller response' });
+    expect(action).not.toBeDisabled();
+    expect(screen.getByLabelText('Active customer commitment', { exact: false })).toBeDisabled();
+    fireEvent.click(action);
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(30);
+    expect(useOperationsCampaignStore.getState()).toBe(campaign);
+    expect(useWorkplaceStore.getState().workplace).toBe(agreement);
+    expect(useMaterialFlowStore.getState()).toBe(stock);
+  }
+);
+it('routes completed-delivery response guidance to Overview without advancing the simulation', () => {
+  const state = queueControllerResponse(),
+    run = state.activeChallenge!;
+  useUIStore.getState().startDeliveryJourney(run.orderId);
+  useUIStore.getState().recordMachineInspection('mill-1');
+  useOperationsCampaignStore.setState({
+    orders: state.orders.map((order) => ({
+      ...order,
+      status: 'fulfilled',
+      shippedKg: order.requiredKg,
+    })),
+  });
+  const before = useOperationsCampaignStore.getState(),
+    clock = useGameSimulationStore.getState(),
+    onOpen = vi.fn();
+  render(<FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={onOpen} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Open current operations' }));
+  expect(onOpen).toHaveBeenCalledWith('overview');
+  expect(useOperationsCampaignStore.getState()).toBe(before);
+  expect(useGameSimulationStore.getState()).toBe(clock);
+});
+
+it('compacts directly without moving the camera or changing customer/inspection credit', () => {
+  const campaign = useOperationsCampaignStore.getState();
+  useUIStore.getState().startDeliveryJourney(campaign.activeOrderId);
+  render(<FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={vi.fn()} />);
+  const camera = useCameraStore.getState(),
+    deadline = screen.getByLabelText('Delivery deadline').textContent;
+  fireEvent.click(screen.getByRole('button', { name: 'Compact delivery guide' }));
+  expect(screen.getByRole('button', { name: 'Expand delivery guide' })).toHaveFocus();
+  expect(screen.getByRole('button', { name: 'Expand delivery guide' })).toHaveAttribute(
+    'aria-expanded',
+    'false'
+  );
+  expect(screen.getByLabelText('Delivery deadline')).toHaveTextContent(deadline!);
+  expect(useCameraStore.getState()).toBe(camera);
+  expect(useOperationsCampaignStore.getState()).toBe(campaign);
+  expect(useUIStore.getState().inspectedMachineIds).toEqual([]);
+  fireEvent.change(screen.getByRole('combobox', { name: 'Shift pace' }), {
+    target: { value: '0' },
+  });
+  expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+  fireEvent.click(screen.getByRole('button', { name: 'Expand delivery guide' }));
+  expect(screen.getByRole('button', { name: 'Compact delivery guide' })).toHaveFocus();
+  fireEvent.click(screen.getByRole('button', { name: 'Compact delivery guide' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Close guided delivery' }));
+  expect(useUIStore.getState().journeyVisible).toBe(false);
+  expect(useOperationsCampaignStore.getState()).toBe(campaign);
+});
+
+it('keeps fulfilled receipts reachable after compacting without granting new customer credit', () => {
+  const before = useOperationsCampaignStore.getState(),
+    order = before.orders[0];
+  useOperationsCampaignStore.setState({
+    orders: before.orders.map((o) =>
+      o.id === order.id ? { ...o, status: 'fulfilled', shippedKg: o.requiredKg } : o
+    ),
+  });
+  useUIStore.getState().startDeliveryJourney(order.id);
+  useUIStore.getState().recordMachineInspection('mill-1');
+  const state = useOperationsCampaignStore.getState();
+  render(<FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={vi.fn()} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Compact delivery guide' }));
+  expect(screen.getByRole('heading', { name: 'Delivery fulfilled' })).toBeInTheDocument();
+  expect(screen.getByRole('combobox', { name: 'Shift pace' })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Expand delivery guide' }));
+  expect(screen.getByText('Delivery receipt and learning')).toBeInTheDocument();
+  expect(useOperationsCampaignStore.getState()).toBe(state);
+});
+
+it.each([
+  ['planning', 'Open line controls', 'scada'],
+  ['quality_hold', 'Review delivery and QC', 'overview'],
+] as const)(
+  'opens the actual %s workspace from compact guidance without producing credit',
+  (stage, label, workspace) => {
+    const initial = useOperationsCampaignStore.getState();
+    useOperationsCampaignStore.setState({ execution: { ...initial.execution, stage } });
+    useUIStore.getState().startDeliveryJourney(initial.activeOrderId);
+    useUIStore.getState().recordMachineInspection('rm-101');
+    const before = useOperationsCampaignStore.getState(),
+      camera = useCameraStore.getState(),
+      open = vi.fn();
+    render(<FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={open} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Compact delivery guide' }));
+    fireEvent.click(screen.getByRole('button', { name: label }));
+    expect(open).toHaveBeenCalledWith(workspace);
+    expect(useOperationsCampaignStore.getState()).toBe(before);
+    expect(useCameraStore.getState()).toBe(camera);
+    expect(screen.getByRole('combobox', { name: 'Shift pace' })).toBeInTheDocument();
+  }
+);

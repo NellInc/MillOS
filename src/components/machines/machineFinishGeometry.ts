@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { DecalGeometry } from 'three/addons/geometries/DecalGeometry.js';
 
 import { SIFTER_LAYOUT, PACKER_HOPPER_LAYOUT } from '../../constants/siteLayout';
 
@@ -110,6 +111,79 @@ function frontFrame(
   }
 }
 
+/** Folded terminal enclosure with four clipped vertical corners. Its compact
+ * polygon keeps the seated lid/body legible inside the existing machine budget.
+ */
+function motorTerminalPart(parts: THREE.BufferGeometry[], centre: Vec3, size: Vec3) {
+  const [width, height, depth] = size,
+    x = width / 2,
+    z = depth / 2,
+    c = 0.025;
+  const shape = new THREE.Shape(
+    [
+      [-x + c, -z],
+      [x - c, -z],
+      [x, -z + c],
+      [x, z - c],
+      [x - c, z],
+      [-x + c, z],
+      [-x, z - c],
+      [-x, -z + c],
+    ].map((p) => new THREE.Vector2(...p))
+  );
+  const raw = new THREE.ExtrudeGeometry(shape, { depth: height, steps: 1, bevelEnabled: false });
+  raw.clearGroups();
+  raw.rotateX(-Math.PI / 2).translate(centre[0], centre[1] - height / 2, centre[2]);
+  parts.push(mergeVertices(raw));
+  raw.dispose();
+}
+
+/** Small axial fins, chamfered at their ends and rooted inside the retained
+ * .68m motor core. The lower mounting relief clears both original support feet.
+ * Working if every rib stays inside the old .73m radius and cooling gaps remain
+ * open throughout the existing12mm casing vibration, within the incumbent draw.
+ */
+export function createMillMotorFins(): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [];
+  const profile = new THREE.Shape(
+    [
+      [2.51, 0.65],
+      [3.51, 0.65],
+      [3.51, 0.695],
+      [3.475, 0.7298],
+      [2.545, 0.7298],
+      [2.51, 0.695],
+    ].map((p) => new THREE.Vector2(...p))
+  );
+  const raw = new THREE.ExtrudeGeometry(profile, { depth: 0.028, steps: 1, bevelEnabled: false });
+  raw.clearGroups();
+  const rib = mergeVertices(raw);
+  raw.dispose();
+  for (let i = 0; i < 12; i++) {
+    if (i === 6) continue;
+    parts.push(
+      rib
+        .clone()
+        .translate(0, 0, -0.014)
+        .rotateX((i * Math.PI) / 6)
+        .translate(0, 1.65, MILL_DRIVE_Z)
+    );
+  }
+  rib.dispose();
+  return finish(parts, 'mill-axial-cooling-ribs');
+}
+
+/** Both ends enter glands whose backs overlap the existing cast faces.
+ * Working if the short service lead meets the terminal and drive backplate
+ * throughout their shared vibration, clear of the fan and access panel.
+ */
+export const MILL_MOTOR_CONDUIT = new THREE.CubicBezierCurve3(
+  new THREE.Vector3(2.545, 2.39, MILL_DRIVE_Z),
+  new THREE.Vector3(2.6, 2.39, MILL_DRIVE_Z),
+  new THREE.Vector3(2.645, 2.43, MILL_DRIVE_Z),
+  new THREE.Vector3(2.7, 2.43, MILL_DRIVE_Z)
+);
+
 /**
  * The Blender study's four-slot casting, kept in the existing procedural batch.
  * Its 10 mm bevel surrounds real openings; the upper and lower slots retain
@@ -168,6 +242,8 @@ function millRecess(): THREE.BufferGeometry {
   const parts: THREE.BufferGeometry[] = [];
   box(parts, [0, 2.82, 1.93], [3.65, 2.7, 0.1]);
   frontFrame(parts, [0, 2.64, 2.66], 4.13, 2.5, 0.045, 0.09);
+  motorTerminalPart(parts, [2.95, 2.534, MILL_DRIVE_Z], [0.455, 0.012, 0.505]);
+  parts.push(new THREE.TubeGeometry(MILL_MOTOR_CONDUIT, 6, 0.024, 6, false));
   return finish(parts, 'mill-panel-gasket-and-recess');
 }
 
@@ -227,6 +303,10 @@ function millGuard(): THREE.BufferGeometry {
   box(parts, [3.02, 0.08, MILL_DRIVE_Z], [1.5, 0.16, 1.55]);
   for (const x of [2.65, 3.35]) box(parts, [x, 0.58, MILL_DRIVE_Z], [0.22, 0.84, 1.12]);
   for (const centre of MILL_INSPECTION_COVERS) cylinder(parts, centre, 0.31, 0.12, 'x', 16);
+  // The terminal base overlaps the fixed motor by20mm at rest, retaining
+  // 8..32mm of contact through the existing vibration sweep.
+  motorTerminalPart(parts, [2.95, 2.42, MILL_DRIVE_Z], [0.45, 0.22, 0.5]);
+  motorTerminalPart(parts, [2.95, 2.5525, MILL_DRIVE_Z], [0.47, 0.035, 0.52]);
   return finish(parts, 'mill-cast-inspection-guard');
 }
 
@@ -253,10 +333,12 @@ function millHardware(): THREE.BufferGeometry {
   for (const centre of MILL_FEEDER_FASTENERS) {
     cylinder(parts, centre, 0.05, 0.075, 'y', 6);
   }
-  // Ribbed aluminium motor casing. The seven fins share this one draw call.
-  for (let fin = 0; fin < 7; fin += 1) {
-    cylinder(parts, [2.53 + fin * 0.16, 1.65, MILL_DRIVE_Z], 0.73, 0.045, 'x', 20);
-  }
+  parts.push(createMillMotorFins());
+  for (const x of [2.79, 3.11])
+    for (const z of [MILL_DRIVE_Z - 0.18, MILL_DRIVE_Z + 0.18])
+      cylinder(parts, [x, 2.579, z], 0.026, 0.024, 'y', 6);
+  cylinder(parts, [2.52, 2.39, MILL_DRIVE_Z], 0.047, 0.065, 'x', 12);
+  cylinder(parts, [2.705, 2.43, MILL_DRIVE_Z], 0.047, 0.065, 'x', 12);
   for (const angle of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) {
     cylinder(
       parts,
@@ -295,6 +377,16 @@ function millHardware(): THREE.BufferGeometry {
         6
       );
     }
+  }
+  // Two stand-off handles sit on the solid cast margins beside the slotted
+  // service panel. The same instanced metal draw carries sockets and grips.
+  // Working if grips stand clear of their backing and leave all roll slots open.
+  for (const x of [-1.76, 1.76]) {
+    for (const y of [2.5, 2.88]) {
+      box(parts, [x, y, 2.715], [0.13, 0.1, 0.08]);
+      box(parts, [x, y, 2.79], [0.065, 0.06, 0.16]);
+    }
+    cylinder(parts, [x, 2.69, 2.87], 0.033, 0.44, 'y', 6);
   }
   return finish(parts, 'mill-machined-fittings');
 }
@@ -493,3 +585,192 @@ export const MACHINE_FINISH_GEOMETRY = {
   packerCovers: packerCovers(),
   packerHardware: packerHardware(),
 } as const;
+
+/** A closed filled cloth sack in the existing unit envelope.
+ * Rounded rectangular rings form the belly, shoulder and pinched neck. The
+ * rolled seal intersects the closed neck, with no floating strip or extra draw.
+ * Working if the complete unit bounds remain +/- .5, and the existing cloth
+ * material reads as a bag with a flat foot and folded closure at close range.
+ */
+function createPackerSackGeometry(): THREE.BufferGeometry {
+  const rings = [
+    [-0.5, 0.38, 0.31],
+    [-0.46, 0.44, 0.4],
+    [-0.32, 0.485, 0.47],
+    [-0.08, 0.5, 0.5],
+    [0.14, 0.49, 0.48],
+    [0.3, 0.46, 0.39],
+    [0.4, 0.43, 0.2],
+    [0.445, 0.415, 0.08],
+    [0.47, 0.41, 0.045],
+  ];
+  const segments = 24,
+    stride = segments + 1;
+  const positions: number[] = [],
+    uvs: number[] = [],
+    indices: number[] = [];
+  rings.forEach(([y, width, depth], row) => {
+    for (let segment = 0; segment <= segments; segment++) {
+      const angle = (segment / segments) * Math.PI * 2;
+      const c = Math.cos(angle),
+        s = Math.sin(angle);
+      // Two restrained vertical gusset folds, strongest through the full body.
+      const fold =
+        1 -
+        0.065 *
+          Math.exp(-(((Math.abs(c) - 0.82) / 0.12) ** 2)) *
+          Math.sin((Math.PI * (y + 0.5)) / 0.97);
+      positions.push(
+        width * Math.sign(c) * Math.abs(c) ** 0.6,
+        y,
+        depth * Math.sign(s) * Math.abs(s) ** 0.6 * fold
+      );
+      uvs.push(segment / segments, y + 0.5);
+      if (row < rings.length - 1 && segment < segments) {
+        const a = row * stride + segment,
+          b = a + stride;
+        indices.push(a, b, a + 1, a + 1, b, b + 1);
+      }
+    }
+  });
+  // Separate cap vertices keep a genuinely flat foot rather than rounding it
+  // into the wall normals. Both caps are closed and wound outwards.
+  for (const row of [0, rings.length - 1]) {
+    const start = positions.length / 3,
+      y = rings[row][0];
+    positions.push(0, y, 0);
+    uvs.push(0.5, 0.5);
+    for (let segment = 0; segment <= segments; segment++) {
+      const i = (row * stride + segment) * 3;
+      positions.push(positions[i], positions[i + 1], positions[i + 2]);
+      uvs.push(0.5 + positions[i], 0.5 + positions[i + 2]);
+      if (segment < segments) {
+        const a = start + segment + 1;
+        indices.push(...(row === 0 ? [start, a, a + 1] : [start, a + 1, a]));
+      }
+    }
+  }
+  const body = new THREE.BufferGeometry();
+  body.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  body.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  body.setIndex(indices);
+  body.computeVertexNormals();
+  const normals = body.getAttribute('normal'),
+    seamNormal = new THREE.Vector3();
+  for (let row = 0; row < rings.length; row++) {
+    const a = row * stride,
+      b = a + segments;
+    seamNormal
+      .fromBufferAttribute(normals, a)
+      .add(new THREE.Vector3().fromBufferAttribute(normals, b))
+      .normalize();
+    normals.setXYZ(a, seamNormal.x, seamNormal.y, seamNormal.z);
+    normals.setXYZ(b, seamNormal.x, seamNormal.y, seamNormal.z);
+  }
+  const seal = new THREE.CylinderGeometry(0.025, 0.025, 0.82, 8)
+    .rotateZ(Math.PI / 2)
+    .translate(0, 0.475, 0);
+  const stitches = Array.from({ length: 8 }, (_, i) =>
+    new THREE.BoxGeometry(0.035, 0.006, 0.008).translate(-0.28 + i * 0.08, 0.481, 0.024)
+  );
+  return finish([body, seal, ...stitches], 'packer-filled-cloth-sack');
+}
+export const PACKER_SACK_GEOMETRY = createPackerSackGeometry();
+/** Representative ordinary bag, never an inventory or weight authority.
+ * Its complete operating sweep stays beyond the base and before the unchanged
+ * QC/packing posts. Working if people remain clear without moving their routes.
+ */
+export const PACKER_SACK_LAYOUT = {
+  scale: [0.54, 0.84, 0.26] as const,
+  centreY: 0.84 / 2 + 0.002,
+  z: 2.32,
+  travel: 0.24,
+  guideX: 0.38,
+  guidePosition: [0, 0.52, 2.44] as const,
+  guideSize: [0.05, 1, 0.05] as const,
+} as const;
+
+/** Shared by initial layout and every moving frame, keeping the foot seated. */
+export function getPackerSackPosition(origin: Vec3, cycle = 0): [number, number, number] {
+  return [
+    origin[0],
+    origin[1] + PACKER_SACK_LAYOUT.centreY,
+    origin[2] + PACKER_SACK_LAYOUT.z + cycle * PACKER_SACK_LAYOUT.travel,
+  ];
+}
+
+/** Same approved raster as the mill signs, fitted onto actual cloth facets.
+ * Working if installed aspect is 1536:379 and every triangle is supported within
+ * 1.1mm, rather than a flat card hovering in front of the gusset.
+ */
+export const PACKER_SACK_PRINT_GEOMETRY = (() => {
+  const [sx, sy] = PACKER_SACK_LAYOUT.scale;
+  const width = 0.7;
+  const material = new THREE.MeshBasicMaterial();
+  const sack = new THREE.Mesh(PACKER_SACK_GEOMETRY, material);
+  const plate = new DecalGeometry(
+    sack,
+    new THREE.Vector3(0, 0.1, 0.43),
+    new THREE.Euler(),
+    new THREE.Vector3(width, (width * sx * 379) / (sy * 1536), 0.3)
+  );
+  const p = plate.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    p.setZ(i, p.getZ(i) + 0.004);
+  }
+  material.dispose();
+  plate.computeBoundingBox();
+  plate.computeBoundingSphere();
+  plate.name = 'packer-fitted-millos-print';
+  return plate;
+})();
+
+/** Formed outlet replaces the oversized soft block in the same shared draw.
+ * Metre-authored flange meets the actual lower cabinet face. The open lip
+ * stands above the sealed representative bag, then lifts as that bag leaves.
+ * Working if the rim has a real aperture and every operating pose stays clear
+ * of the unchanged observation posts and original housing/hopper/guards.
+ */
+export const PACKER_FILL_HEAD_GEOMETRY = (() => {
+  const path = new THREE.CatmullRomCurve3(
+    [
+      [0, 1.72, 1.49],
+      [0, 1.7, 1.82],
+      [0, 1.4, 2.17],
+      [0, 1.08, 2.3],
+      [0, 0.94, 2.32],
+    ].map((p) => new THREE.Vector3(...p))
+  );
+  const parts: THREE.BufferGeometry[] = [new THREE.TubeGeometry(path, 12, 0.07, 10, false)];
+  cylinder(parts, [0, 1.72, 1.49], 0.15, 0.12, 'z', 16);
+  for (const t of [0.23, 0.63]) {
+    const rotation = new THREE.Quaternion().setFromUnitVectors(
+      new THREE.Vector3(0, 0, 1),
+      path.getTangent(t).normalize()
+    );
+    parts.push(
+      new THREE.TorusGeometry(0.073, 0.009, 4, 12)
+        .applyQuaternion(rotation)
+        .translate(...path.getPoint(t).toArray())
+    );
+  }
+  parts.push(
+    new THREE.LatheGeometry(
+      [
+        [0.071, 0],
+        [0.098, 0],
+        [0.1, 0.012],
+        [0.1, 0.07],
+        [0.071, 0.07],
+        [0.071, 0],
+      ].map((p) => new THREE.Vector2(...p)),
+      12
+    ).translate(0, 0.88, PACKER_SACK_LAYOUT.z)
+  );
+  return finish(parts, 'packer-formed-outlet-and-open-lip');
+})();
+
+/** Same layout and operating transform, driven only by the incumbent clock. */
+export function getPackerHeadPosition(origin: Vec3, cycle = 0): [number, number, number] {
+  return [origin[0], origin[1] + cycle * 0.14, origin[2]];
+}

@@ -4,8 +4,31 @@ import * as THREE from 'three';
 import { EXTERIOR_LAMP_LENS_MATERIAL } from '../exterior/ExteriorLighting';
 import { useDracoGLTF } from '../../utils/dracoLoader';
 import { GENERATED_ASSET_PATHS } from '../../utils/modelLoader';
+import { civicUnderlyingHooks } from '../../shaders/civicLampShadows';
 
 export type LampStyle = 'modern' | 'victorian';
+
+const lampHooks = new WeakMap<
+  THREE.Material,
+  {
+    style: LampStyle;
+    before: THREE.Material['onBeforeCompile'];
+    key: THREE.Material['customProgramCacheKey'];
+  }
+>();
+
+/** Only this exact lens shader can instance safely without baking rest-space Y.
+ * Working if tampered hooks stay excluded, while the verified civic wrapper survives.
+ */
+export function lampLensStyle(material: THREE.Material): LampStyle | null {
+  const entry = lampHooks.get(material);
+  if (!entry) return null;
+  const civic = civicUnderlyingHooks(material);
+  return (civic?.before ?? material.onBeforeCompile) === entry.before &&
+    (civic?.key ?? material.customProgramCacheKey) === entry.key
+    ? entry.style
+    : null;
+}
 
 // Metre-space lens bounds from the authored optic shells, not the old
 // normalized provider mesh. Working if the post and cap never emit light.
@@ -15,6 +38,7 @@ export const LAMP_LENS_HEIGHTS: Record<LampStyle, readonly [number, number]> = {
 };
 
 export function applyLampLens(material: THREE.MeshStandardMaterial, style: LampStyle): void {
+  if (lampLensStyle(material) === style) return;
   const strength = {
     get value() {
       return EXTERIOR_LAMP_LENS_MATERIAL.emissiveIntensity;
@@ -39,6 +63,11 @@ export function applyLampLens(material: THREE.MeshStandardMaterial, style: LampS
       );
   };
   material.customProgramCacheKey = () => 'millos-generated-lamp-lens-v2';
+  lampHooks.set(material, {
+    style,
+    before: material.onBeforeCompile,
+    key: material.customProgramCacheKey,
+  });
 }
 
 export function GeneratedLampModel({ style }: { style: LampStyle }) {

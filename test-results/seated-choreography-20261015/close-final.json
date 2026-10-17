@@ -1,0 +1,87 @@
+{
+  "candidate": "final-build-seal.json",
+  "reviewer": "authoring chat, own work",
+  "readOnlyNaturalRoute": true,
+  "camera": "pub bench front three-quarter, fixed public camera only",
+  "status": "done",
+  "error": null,
+  "samples": 1177,
+  "durationMs": 70004.09999999999,
+  "worldReadyMs": 16846.90000000596,
+  "startupReadyMs": 21024.70000001788,
+  "audio": {
+    "activeNodes": 0,
+    "contextState": "not-created"
+  },
+  "consoleErrors": [],
+  "scripts": [
+    "http://127.0.0.1:4289/assets/main-BlHO4hDl.js"
+  ],
+  "transitions": [
+    {
+      "type": "rise",
+      "samples": 17,
+      "durationMs": 925,
+      "hipHeightRange": [
+        0.5500809756499364,
+        0.9023813503458786
+      ],
+      "maxPelvisMps": 0.5858623788785727,
+      "rootDrift": 0,
+      "leftFootDrift": 0,
+      "rightFootDrift": 0
+    },
+    {
+      "type": "lower",
+      "samples": 11,
+      "durationMs": 1049.3999999999942,
+      "hipHeightRange": [
+        0.5500156872713887,
+        0.901940119547419
+      ],
+      "maxPelvisMps": 0.7844272310583926,
+      "rootDrift": 0,
+      "leftFootDrift": 5.955433383072904e-14,
+      "rightFootDrift": 5.955433342649105e-14,
+      "firstFeet": [
+        [
+          -207.71015685437288,
+          0.03,
+          -13.187845791284268
+        ],
+        [
+          -207.71009705937504,
+          0.03000000000000001,
+          -13.01235247500123
+        ]
+      ],
+      "lastFeet": [
+        [
+          -207.71015685437283,
+          0.03000000000000001,
+          -13.187845791284248
+        ],
+        [
+          -207.71009705937504,
+          0.03000000000000001,
+          -13.01235247500121
+        ]
+      ]
+    },
+    {
+      "type": "rise",
+      "samples": 19,
+      "durationMs": 900,
+      "hipHeightRange": [
+        0.5502151090501627,
+        0.9023813503458786
+      ],
+      "maxPelvisMps": 0.5829330008248945,
+      "rootDrift": 0,
+      "leftFootDrift": 0,
+      "rightFootDrift": 0
+    }
+  ],
+  "finding": "Canonical authored boot reference eliminates the reproduced phase-dependent arrival drift. Supported contacts remain fixed during live lowering/rising. Actual sampled arrival spans 1.049s on this busy run; this is motion evidence, not a pacing budget pass.",
+  "rawEvidence": "First/middle/last transition rows and close screenshots remain in the tool conversation; full1177-row export and filesystem close PNG are not claimed."
+}

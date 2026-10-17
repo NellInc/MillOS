@@ -1,0 +1,14 @@
+{
+  "index": {
+    "url": "http://127.0.0.1:4288/",
+    "sha256": "1486fca6eee765c25ddff63bb5a56535e2bce1b52a3e5f8719cf7d2c9199d75d",
+    "bytes": 9887
+  },
+  "entries": [
+    {
+      "url": "http://127.0.0.1:4288/assets/main-B4FUKgVC.js",
+      "sha256": "5da50af92857467aedc08040b637a4ae8963232a1548e0db8be28cc79f5db1c7",
+      "bytes": 823785
+    }
+  ]
+}

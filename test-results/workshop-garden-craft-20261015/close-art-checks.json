@@ -1,0 +1,36 @@
+{
+  "savedImages": false,
+  "conversationEvidence": true,
+  "wateringCan": "Actual open vessel/rolled mouth/curved spout/rose/exterior handle shown in the retained allotment footprint",
+  "workerView": "Actual quality worker and another resident seen moving normally; tool visibility followed genuine work/walk/rest state",
+  "toolMicroviewLimit": "Initial wrist-target close camera did not expose the complete kit; subsequent normal route movement hid it. No actor/production/inventory override. Hardware shape/contact proved by focused tests, not claimed as fully photographed close-ups.",
+  "shadowPair": {
+    "actualLoadedQueries": "8d53724f5c14cc9f46d691767bab39628a40b9755aa0f1c717ce345051b106e4",
+    "atlasSha256": "55c34a972028fbf2de4c428c57e48a93fcf7e04f375ba595b7d3efc2e504b137",
+    "combinedPngJsonHash": "8d53724f5c14cc9f46d691767bab39628a40b9755aa0f1c717ce345051b106e4",
+    "atlasActive": true,
+    "sources": 27,
+    "unlinkedPrograms": 0,
+    "largestProgramSamplers": 12,
+    "maxFragmentSamplers": 16
+  },
+  "lateReload": {
+    "result": "Existing slow-animation loading cover remained; CDP readiness wait timed out",
+    "worldReady": true,
+    "loadingCover": true,
+    "startupReady": "not set",
+    "acceptedAsReady": false,
+    "overrideUsed": false,
+    "classification": "Pacing/startup acceptance remains OPEN, no UI/readiness change in this pass"
+  },
+  "audio": {
+    "activeNodes": 0,
+    "contextState": "not-created"
+  },
+  "consoleErrors": [],
+  "playerInput": false,
+  "viewportOverride": false,
+  "temporaryTabClosed": true,
+  "previewClosed": true,
+  "captureLockReleased": true
+}

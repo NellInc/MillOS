@@ -1,0 +1,35 @@
+{
+  "restoredDependencyTarget": "/Users/nellwatson/Documents/GitHub/MillOS/node_modules",
+  "borrowedEntriesVerified": 375,
+  "generatedRemoved": [
+    ".vite",
+    ".vite/vitest",
+    ".vite/vitest/da39a3ee5e6b4b0d3255bfef95601890afd80709",
+    ".vite/vitest/da39a3ee5e6b4b0d3255bfef95601890afd80709/results.json",
+    ".vite-temp"
+  ],
+  "noOpenHandles": [
+    {
+      "dir": "node_modules",
+      "exitCode": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "dir": "/private/tmp/millos-AF-npm-cache",
+      "exitCode": 1,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "ownedNpmCacheRemoved": "/private/tmp/millos-AF-npm-cache",
+  "sourcePinsExact": 6,
+  "protectedPinsExact": 184,
+  "compiledPinsExact": 415,
+  "primaryCustodyExact": true,
+  "previewExit": 0,
+  "ownTabClosed": true,
+  "captureLockAbsent": true,
+  "physicalSpaceRecovery": "not claimed",
+  "retained": "source, final dist, generated texture previews, raw native images, failure logs, history, unrelated output"
+}

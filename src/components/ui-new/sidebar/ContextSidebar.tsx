@@ -217,7 +217,13 @@ export const ContextSidebar: React.FC<ContextSidebarProps> = ({
                     className="w-6 h-6 rounded bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center text-sm border border-slate-600"
                     aria-hidden="true"
                   >
-                    🏭
+                    <img
+                      src={`${import.meta.env.BASE_URL}textures/signage/millos-mark-v1.webp`}
+                      alt=""
+                      width={20}
+                      height={20}
+                      className="block object-contain"
+                    />
                   </div>
                   <div>
                     <span className="text-xs font-bold text-white">

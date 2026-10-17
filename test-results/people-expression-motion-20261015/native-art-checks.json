@@ -1,0 +1,59 @@
+[
+  {
+    "capture": "X-people-day-20261015",
+    "scene": "milling",
+    "exactServedBuild": true,
+    "sandboxedNativeMetal": true,
+    "worldIntegrity": true,
+    "pageClean": true,
+    "communityPresence": true,
+    "generalMotionValid": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "pacingMisses": [
+      "p95Frame"
+    ],
+    "loadPerCore": 22.76,
+    "image": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/X-people-day-20261015/milling.png"
+  },
+  {
+    "capture": "X-people-day-20261015",
+    "scene": "square",
+    "exactServedBuild": true,
+    "sandboxedNativeMetal": true,
+    "worldIntegrity": true,
+    "pageClean": true,
+    "communityPresence": true,
+    "generalMotionValid": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "pacingMisses": [
+      "p95Frame"
+    ],
+    "loadPerCore": 26,
+    "image": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/X-people-day-20261015/square.png"
+  },
+  {
+    "capture": "X-people-dusk-20261015",
+    "scene": "busstop",
+    "exactServedBuild": true,
+    "sandboxedNativeMetal": true,
+    "worldIntegrity": true,
+    "pageClean": true,
+    "communityPresence": true,
+    "generalMotionValid": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "pacingMisses": [
+      "p95Frame"
+    ],
+    "loadPerCore": 21.73,
+    "image": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/X-people-dusk-20261015/busstop.png"
+  }
+]

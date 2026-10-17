@@ -1,0 +1,4 @@
+
+> grain-mill-simulator@0.40.0 typecheck
+> tsc --noEmit -p tsconfig.typecheck.json
+

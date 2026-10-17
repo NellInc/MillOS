@@ -1,0 +1,56 @@
+{
+  "pass": "AI",
+  "scope": "contact-aware stationary gardener rise and return",
+  "sourceOutcome": "implemented",
+  "baseline": {
+    "files": 2,
+    "passed": 125,
+    "failed": 0
+  },
+  "focused": {
+    "files": 2,
+    "passed": 128,
+    "failed": 0,
+    "delta": 3
+  },
+  "sourceGates": {
+    "typecheck": 0,
+    "lint": 0,
+    "format": 0,
+    "shaders": 0,
+    "productionBuild": 0,
+    "freshReachability": 0
+  },
+  "reproducedDefect": "old real-rig garden-to-idle pipeline jumps pelvis .37532132708209004m in one60Hz frame",
+  "delivered": [
+    "eased stationary pelvis/torso",
+    "planted garden feet",
+    "bounded reachable interim arms",
+    "exact-grip-gated trowel reveal",
+    "paused freeze and immediate disabled semantics",
+    "locomotion/seat/cycle/cart takeover unchanged"
+  ],
+  "proof": [
+    "existing real GLBs at both height/width extremes",
+    "mounted actual frame callback",
+    "native35sample stationary rain rise, fixed feet/root and visible palm error <=.003514m",
+    "silent sealed-build village day/dusk/night images inspected"
+  ],
+  "limits": {
+    "nativeClearWeatherReturn": "unverified as a distinct visual sequence: browser input timeouts and normal schedule; supported by rig and mounted tests",
+    "seatedDepartureChoreography": "future scope, route anticipation not changed",
+    "playerDevice": "DEFERRED",
+    "pacing": "OPEN. Native art day/dusk/night p95 misses17.5/17.5/17.4ms and dusk first-frame miss at load/core2.09/2.21/2.38; no quiet-host excuse, relaxed budget, retry for green or non-art performance pass",
+    "performanceCost": "extra garden idle IK work for one actor, no measured isolated cost claim, no new mesh/texture/light/frame loop"
+  },
+  "localOnly": true,
+  "muted": true,
+  "interfacePreserved": true,
+  "routesWorldQualityLoadingPreserved": true,
+  "taskRecord": "_contprompts/millos_place_led_beautification_20261010.md",
+  "buildSeal": "final-build-seal.json",
+  "nativeReports": "native-acceptance.json",
+  "closeProof": "close-observations.json",
+  "cleanup": "cleanup-custody.json",
+  "goal": "ACTIVE, this pass is progress under the recurring whole-world programme"
+}

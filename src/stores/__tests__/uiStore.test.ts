@@ -364,3 +364,22 @@ describe('guided delivery receipts', () => {
     expect(useUIStore.getState().journeyVisible).toBe(true);
   });
 });
+
+it('keeps scene response navigation transient and outside saved UI preferences', () => {
+  const state = useUIStore.getState();
+  try {
+    useUIStore.getState().setOperationalFocusId('live-incident');
+    const pending = useUIStore.getState();
+    expect(pending.operationalFocusId).toBe('live-incident');
+    expect(useUIStore.persist.getOptions().partialize?.(pending)).not.toHaveProperty(
+      'operationalFocusId'
+    );
+    expect(sanitizeUIState({ operationalFocusId: 'old-incident' })).not.toHaveProperty(
+      'operationalFocusId'
+    );
+    pending.setOperationalFocusId(null);
+    expect(useUIStore.getState().operationalFocusId).toBeNull();
+  } finally {
+    useUIStore.setState(state, true);
+  }
+});

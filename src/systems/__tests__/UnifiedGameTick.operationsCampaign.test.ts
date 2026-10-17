@@ -149,3 +149,34 @@ describe('UnifiedGameTick operations campaign consequences', () => {
     expect(useUIStore.getState().alerts.at(-1)?.title).toBe('Control network degraded');
   });
 });
+
+it('requires an admitted real tick after explicit resume before restoring a challenge, without delivery credit', () => {
+  resetUnifiedTickState();
+  useOperationsCampaignStore.getState().resetCampaign();
+  const state = useOperationsCampaignStore.getState();
+  useOperationsCampaignStore.setState({
+    execution: {
+      ...state.execution,
+      stage: 'milling',
+      sourceInventoryKg: 10000,
+      qualityReleased: true,
+    },
+  });
+  expect(useOperationsCampaignStore.getState().startChallenge('power_recovery')).toBe(true);
+  const run = useOperationsCampaignStore.getState().activeChallenge!;
+  useOperationsCampaignStore.getState().acknowledgeIncident(run.incidentId);
+  useOperationsCampaignStore.getState().mitigateIncident(run.incidentId);
+  useGameSimulationStore.getState().setGameSpeed(0);
+  unifiedGameTick({ ...context, gameSpeed: 0 });
+  expect(useOperationsCampaignStore.getState().finishChallengeRecovery()).toBe(false);
+  useGameSimulationStore.getState().setGameSpeed(30);
+  unifiedGameTick({ ...context, gameSpeed: 30 });
+  expect(
+    useOperationsCampaignStore.getState().incidents.find((i) => i.id === run.incidentId)
+      ?.effectApplied
+  ).toBe(true);
+  expect(useOperationsCampaignStore.getState().finishChallengeRecovery()).toBe(true);
+  const after = useOperationsCampaignStore.getState();
+  expect(after.activeChallenge?.status).toBe('active');
+  expect(after.orders.find((o) => o.id === run.orderId)?.shippedKg).toBe(0);
+});

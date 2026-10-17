@@ -1,0 +1,5 @@
+
+> grain-mill-simulator@0.40.0 validate:shaders
+> node scripts/validate-shaders.mjs
+
+Shader contracts valid: 34 families, 38 stable cache keys, 26 definition sites covered. No recompiles on your conscience.

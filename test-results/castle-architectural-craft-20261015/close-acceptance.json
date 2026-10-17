@@ -1,0 +1,30 @@
+{
+  "ready": {
+    "world": true,
+    "startup": true,
+    "cover": false
+  },
+  "consoleErrors": [],
+  "audio": {
+    "activeNodes": 0,
+    "contextState": "not-created"
+  },
+  "inspected": [
+    "castle lead mullions/transoms",
+    "near-glass curtains and recessed panelled rooms from two angles",
+    "roof gutter/collector/upper bend/wall clips",
+    "lower turned outlet, partly occluded by planter"
+  ],
+  "hardware": {
+    "visibleInTree": true,
+    "vertices": 6924,
+    "triangles": 2308,
+    "textures": 0,
+    "meshCount": 1
+  },
+  "boundary": "Lower outlet-to-grate alignment is proved in geometry/contact tests; the planter occludes its mouth in close art. Close screenshots are conversation evidence, not saved files.",
+  "playerDeviceChecks": "deferred",
+  "actorInventoryQualityReadinessOverride": false,
+  "temporaryTabClosed": true,
+  "previewClosed": true
+}

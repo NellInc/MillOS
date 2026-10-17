@@ -1,11 +1,17 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import {
   EffectComposer,
   Bloom,
   BrightnessContrast,
   ChromaticAberration,
   DepthOfField,
-  HueSaturation,
   N8AO,
   Noise,
   SMAA,
@@ -13,9 +19,10 @@ import {
   Vignette,
 } from '@react-three/postprocessing';
 import { BlendFunction } from 'postprocessing';
+import { DisplayHueSaturation } from './environment/DisplayHueSaturation';
 // `n8ao` ships no type declarations, so hold its ref through the base class.
 // The guarded transparency adapter handles the additional runtime contract.
-import type { Pass, VignetteEffect } from 'postprocessing';
+import type { EffectComposer as Composer, Pass, VignetteEffect } from 'postprocessing';
 import { useFrame } from '@react-three/fiber';
 import { useShallow } from 'zustand/react/shallow';
 import { useGraphicsStore, isPostProcessingActive } from '../stores/graphicsStore';
@@ -23,6 +30,7 @@ import { useAudioAnalyzerStore } from '../stores/audioAnalyzerStore';
 import { SSAO_PALETTE_COLOR } from '../utils/digitalTwinPalette';
 import { fulfilComposerCapture, setComposerCaptureAvailable } from '../utils/sceneCapture';
 import { reuseBeautyTransforms } from './performance/transparencyTransforms';
+import { drawStartupFrame, getStartupSnapshot, subscribeStartup } from '../utils/startupReadiness';
 import {
   AMBIENT_OCCLUSION,
   AO_QUALITY_LEVELS,
@@ -80,6 +88,31 @@ function ComposerCaptureReader(): null {
  * of the deps is a Settings switch that silently stops working.
  */
 export const PostProcessing: React.FC = () => {
+  const composerRef = useRef<Composer>(null);
+  const startupReady = useSyncExternalStore(subscribeStartup, () => getStartupSnapshot().ready);
+  // The real caller owns admission, before AO temporarily filters the scene.
+  // Working if rejected draws preserve every flag/target and never count as frames.
+  useFrame(
+    ({ gl }, delta) => {
+      if (startupReady || !isPostProcessingActive(useGraphicsStore.getState().graphics)) return;
+      const composer = composerRef.current;
+      if (!composer) return;
+      const first = composer.passes[0];
+      if (!first?.enabled || first.renderToScreen) return;
+      drawStartupFrame(composer.inputBuffer, () => {
+        const autoClear = gl.autoClear;
+        try {
+          gl.autoClear = true;
+          composer.render(delta);
+          if (gl.getContext().isContextLost()) throw new Error('Context lost during startup draw');
+        } finally {
+          gl.autoClear = autoClear;
+        }
+      });
+    },
+    startupReady ? 0 : 1
+  );
+
   // Selective subscription - only re-render when these specific values change.
   // Deliberately does NOT subscribe to the audio analyzer: that store is
   // written 30 times a second and would defeat the memo above.
@@ -223,7 +256,7 @@ export const PostProcessing: React.FC = () => {
           <BrightnessContrast brightness={COLOR_GRADE.brightness} contrast={COLOR_GRADE.contrast} />
         )}
         {graphics.enableColorGrade && (
-          <HueSaturation hue={COLOR_GRADE.hue} saturation={COLOR_GRADE.saturation} />
+          <DisplayHueSaturation hue={COLOR_GRADE.hue} saturation={COLOR_GRADE.saturation} />
         )}
 
         {/* `darkness` is the mount-time value only; the audio response writes
@@ -285,7 +318,12 @@ export const PostProcessing: React.FC = () => {
     // `multisampling` is set explicitly: the R3F default of 8 costs roughly
     // 132 MB of MSAA storage at 1920x1080 plus a per-frame resolve.
     <>
-      <EffectComposer enableNormalPass={false} multisampling={COMPOSER_MULTISAMPLING}>
+      <EffectComposer
+        ref={composerRef}
+        enabled={startupReady}
+        enableNormalPass={false}
+        multisampling={COMPOSER_MULTISAMPLING}
+      >
         {children}
       </EffectComposer>
       <ComposerCaptureReader />

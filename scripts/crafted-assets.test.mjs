@@ -5,6 +5,7 @@ import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import * as THREE from 'three';
 import { GENERATED_ASSETS } from './normalize-model-assets.mjs';
 import { decodeRGB } from './refine-authored-png.mjs';
+import sharp from 'sharp';
 
 const civic = GENERATED_ASSETS.filter(
   (s) => s.preparationScript === 'scripts/blender/refine_civic_props.py'
@@ -372,6 +373,50 @@ test('four fountain scuppers have open channels between their floors and hoods',
   }
 });
 
+test('shop display loaves have rounded crowns inside the retained shallow window recess', async () => {
+  const { doc, meshes } = await assembly('village-shop');
+  try {
+    const primitive = doc.getRoot().listMeshes()[0].listPrimitives()[0];
+    const positions = primitive.getAttribute('POSITION');
+    const uv = primitive.getAttribute('TEXCOORD_0');
+    const loaves = [];
+    for (let i = 0; i < positions.getCount(); i++) {
+      const [u, v] = uv.getElement(i, []);
+      // The amber atlas slot, after the glTF V-axis conversion, belongs only
+      // to these five display loaves in the delivered shop.
+      if (u >= 0.75 && u < 1 && v >= 0.25 && v < 0.5) loaves.push(positions.getElement(i, []));
+    }
+    loaves.sort((a, b) => a[0] - b[0]);
+    const groups = [];
+    for (const point of loaves) {
+      if (!groups.length || point[0] - groups.at(-1).at(-1)[0] > 0.1) groups.push([]);
+      groups.at(-1).push(point);
+    }
+    expect(groups).toHaveLength(5);
+    for (const points of groups) {
+      const bounds = new THREE.Box3().setFromPoints(points.map((p) => new THREE.Vector3(...p)));
+      const size = bounds.getSize(new THREE.Vector3());
+      expect(size.x).toBeLessThan(0.28);
+      expect(size.y).toBeLessThan(0.121);
+      expect(size.z).toBeLessThan(0.019);
+      expect(new Set(points.map((p) => p[2].toFixed(6))).size).toBeGreaterThan(5);
+      const centre = bounds.getCenter(new THREE.Vector3());
+      const crown = points.find(
+        (p) =>
+          Math.abs(p[0] - centre.x) < 0.001 && Math.abs(p[1] - centre.y) < 0.001 && p[2] > centre.z
+      );
+      expect(crown?.[2]).toBeCloseTo(bounds.max.z, 5);
+      expect(
+        points.some(
+          (p) => Math.abs(p[0] - bounds.max.x) < 0.001 && Math.abs(p[1] - bounds.max.y) < 0.001
+        )
+      ).toBe(false);
+    }
+  } finally {
+    dispose(meshes);
+  }
+});
+
 // The earlier Neuchatel draft was superseded by Nell's Neuschwanstein correction.
 // Pin the actual delivered architecture, its silhouette and traversable openings.
 test('Neuschwanstein castle preserves the landmark envelope with matte stone and slate', async () => {
@@ -389,6 +434,27 @@ test('Neuschwanstein castle preserves the landmark envelope with matte stone and
     expect(material.getRoughnessFactor()).toBeGreaterThanOrEqual(0.85);
     expect(material.getEmissiveFactor()).toEqual([0, 0, 0]);
     expect(doc.getRoot().getAsset().copyright).toContain('Neuschwanstein');
+  } finally {
+    dispose(meshes);
+  }
+});
+
+test('Neuschwanstein castle has one exposed paving surface above its supporting masonry', async () => {
+  const { meshes } = await assembly('village-castle');
+  try {
+    for (const mesh of meshes) mesh.material.side = THREE.FrontSide;
+    for (const [x, z] of [
+      [6, 4.5],
+      [3.1, -6.2],
+      [7.2, 11.1],
+    ]) {
+      const hits = new THREE.Raycaster(
+        new THREE.Vector3(x, 50, z),
+        new THREE.Vector3(0, -1, 0)
+      ).intersectObjects(meshes);
+      const court = hits.filter((hit) => Math.abs(hit.point.y - 3.2) < 0.001);
+      expect(court, `exposed court at ${x}, ${z}`).toHaveLength(1);
+    }
   } finally {
     dispose(meshes);
   }
@@ -661,6 +727,76 @@ test('v0.30 village landmarks recover their distinct silhouettes and clear entra
   }
 });
 
+test('school bell has a front-facing inner casting and a closed crown above its open mouth', async () => {
+  const { doc, meshes } = await assembly('village-school');
+  try {
+    expect(doc.getRoot().listMeshes()).toHaveLength(1);
+    expect(doc.getRoot().listMaterials()).toHaveLength(1);
+    for (const mesh of meshes) mesh.material.side = THREE.FrontSide;
+    // Rays originate inside the real hollow, off the central clapper. The old
+    // outer-only bell has no front-facing inner wall, so these must fail there.
+    for (const [x, z, dx, dz] of [
+      [0.2, 0.1, 1, 0],
+      [-0.2, 0.1, -1, 0],
+      [0.1, 0.2, 0, 1],
+      [0.1, -0.2, 0, -1],
+    ]) {
+      const hit = new THREE.Raycaster(
+        new THREE.Vector3(x, 9.72, z),
+        new THREE.Vector3(dx, 0, dz),
+        0,
+        0.4
+      ).intersectObjects(meshes, false)[0];
+      expect(hit, 'visible inward-facing bronze casting').toBeDefined();
+      expect(hit.distance).toBeGreaterThan(0.1);
+    }
+    const up = new THREE.Raycaster(
+      new THREE.Vector3(0.1, 9.74, 0.08),
+      new THREE.Vector3(0, 1, 0),
+      0,
+      0.6
+    ).intersectObjects(meshes, false)[0];
+    expect(up, 'closed inner crown').toBeDefined();
+    expect(up.point.y).toBeGreaterThan(10.2);
+    expect(up.point.y).toBeLessThan(10.3);
+    const down = new THREE.Raycaster(
+      new THREE.Vector3(0.2, 9.72, 0.1),
+      new THREE.Vector3(0, -1, 0),
+      0,
+      0.5
+    ).intersectObjects(meshes, false);
+    expect(down, 'open mouth below the inner casting').toHaveLength(0);
+  } finally {
+    dispose(meshes);
+  }
+});
+
+test('narrowboat chimney has an open outlet below its supported rain hood', async () => {
+  const { meshes } = await assembly('world-canal-boat');
+  for (const mesh of meshes) mesh.material.side = THREE.FrontSide;
+  try {
+    const gap = new THREE.Raycaster(new THREE.Vector3(-0.63, 3.27, -3), new THREE.Vector3(0, 0, 1));
+    expect(gap.intersectObjects(meshes)).toHaveLength(0);
+    const pipe = new THREE.Raycaster(
+      new THREE.Vector3(-0.63, 3.19, -3),
+      new THREE.Vector3(0, 0, 1)
+    );
+    expect(pipe.intersectObjects(meshes)[0]?.point.z).toBeCloseTo(-2.11, 2);
+    // The authoring envelope widens X by 1.028..., so probe the delivered
+    // hood's actual peak rather than the unscaled builder coordinate.
+    const crest = new THREE.Vector3();
+    for (const mesh of meshes) {
+      const positions = mesh.geometry.getAttribute('position');
+      for (let i = 0; i < positions.count; i++)
+        if (positions.getY(i) > crest.y) crest.fromBufferAttribute(positions, i);
+    }
+    expect(crest.y).toBeCloseTo(3.39, 3);
+    expect(heightAt(meshes, crest.x + 0.001, crest.z)).toBeGreaterThan(3.38);
+  } finally {
+    dispose(meshes);
+  }
+});
+
 test('authored narrowboat has a tapered closed hull, cambered roof and eight seated glazing discs', async () => {
   const { doc, meshes } = await assembly('world-canal-boat');
   try {
@@ -735,4 +871,212 @@ test('delivered town hall glazing UVs exclude timber, and clock dials contain no
   expect(glazing(ray(0.35, 2))).toBe(false);
   expect(ray(0.4, 12.32).point.z).toBeLessThan(2.18);
   dispose(meshes);
+});
+
+test('pub chimney has a recessed open flue and inward-facing pot walls', async () => {
+  const { doc, meshes } = await assembly('village-pub');
+  try {
+    expect(doc.getRoot().listMeshes()).toHaveLength(1);
+    expect(doc.getRoot().listMaterials()).toHaveLength(1);
+    for (const mesh of meshes) mesh.material.side = THREE.FrontSide;
+    const x = 3; // Actual pub flue and mounted smoke origin, unchanged metre envelope.
+    const down = new THREE.Raycaster(
+      new THREE.Vector3(x, 9, 0),
+      new THREE.Vector3(0, -1, 0)
+    ).intersectObjects(meshes, false)[0];
+    expect(down, 'recessed flue floor').toBeDefined();
+    expect(down.point.y).toBeLessThan(7.8);
+    expect(down.point.y).toBeGreaterThan(7.6);
+    for (const direction of [
+      [1, 0, 0],
+      [-1, 0, 0],
+      [0, 0, 1],
+      [0, 0, -1],
+    ]) {
+      const hit = new THREE.Raycaster(
+        new THREE.Vector3(x, 8.02, 0),
+        new THREE.Vector3(...direction),
+        0,
+        0.4
+      ).intersectObjects(meshes, false)[0];
+      expect(hit, 'visible inward-facing pot casting').toBeDefined();
+      expect(hit.distance).toBeGreaterThan(0.14);
+      expect(hit.distance).toBeLessThan(0.24);
+    }
+    // The rounded foot must seal the square cap's diagonal corners.
+    for (const sx of [-1, 1])
+      for (const sz of [-1, 1]) {
+        const seat = new THREE.Raycaster(
+          new THREE.Vector3(x + sx * 0.205, 9, sz * 0.205),
+          new THREE.Vector3(0, -1, 0)
+        ).intersectObjects(meshes, false)[0];
+        expect(seat, 'closed cap corner beneath the pot foot').toBeDefined();
+        expect(seat.point.y).toBeGreaterThan(7.8);
+        expect(seat.point.y).toBeLessThan(7.85);
+      }
+    const bounds = new THREE.Box3().setFromObject(new THREE.Group().add(...meshes));
+    expect(bounds.max.y).toBeCloseTo(8.18, 5);
+  } finally {
+    dispose(meshes);
+  }
+});
+
+test('cottage and forge highest flues are actually recessed and have inward-facing walls', async () => {
+  for (const id of ['village-cottage', 'village-forge']) {
+    const { meshes } = await assembly(id);
+    try {
+      for (const mesh of meshes) mesh.material.side = THREE.FrontSide;
+      const points = meshes.flatMap((mesh) => {
+        const p = mesh.geometry.getAttribute('position');
+        return Array.from({ length: p.count }, (_, i) =>
+          new THREE.Vector3().fromBufferAttribute(p, i)
+        );
+      });
+      // Both retained silhouettes have the flue as their highest component.
+      // Derive its real delivered centre and scale, never copy normalizer ratios.
+      const top = Math.max(...points.map((p) => p.y));
+      const rim = new THREE.Box3().setFromPoints(points.filter((p) => p.y > top - 0.0001));
+      const centre = rim.getCenter(new THREE.Vector3());
+      const span = rim.max.x - rim.min.x;
+      const floor = new THREE.Raycaster(
+        new THREE.Vector3(centre.x, top + 0.1, centre.z),
+        new THREE.Vector3(0, -1, 0)
+      ).intersectObjects(meshes, false)[0];
+      expect(floor, id + ' recessed floor').toBeDefined();
+      expect(floor.point.y).toBeLessThan(top - 0.1);
+      for (const direction of [
+        [1, 0, 0],
+        [-1, 0, 0],
+        [0, 0, 1],
+        [0, 0, -1],
+      ]) {
+        const inner = new THREE.Raycaster(
+          new THREE.Vector3(centre.x, top - span * 0.3, centre.z),
+          new THREE.Vector3(...direction),
+          0,
+          span
+        ).intersectObjects(meshes, false)[0];
+        expect(inner, id + ' inward-facing flue wall').toBeDefined();
+        expect(inner.distance).toBeGreaterThan(span * 0.25);
+        expect(inner.distance).toBeLessThan(span * 0.5);
+      }
+    } finally {
+      dispose(meshes);
+    }
+  }
+});
+
+test('hay uses continuous distinct matte straw, rolled-end and flax raster charts', async () => {
+  const doc = await io.read('public/models/farm/haybale.glb'),
+    material = doc.getRoot().listMaterials()[0],
+    primitive = doc.getRoot().listMeshes()[0].listPrimitives()[0];
+  const colour = await sharp(material.getBaseColorTexture().getImage())
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const orm = await sharp(material.getMetallicRoughnessTexture().getImage())
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  expect(colour.info.width).toBe(512);
+  expect(colour.info.height).toBe(512);
+  expect(doc.getRoot().listTextures()).toHaveLength(2);
+  const pixel = (image, u, v) => {
+    const x = Math.min(image.info.width - 1, Math.floor(u * image.info.width)),
+      y = Math.min(image.info.height - 1, Math.floor(v * image.info.height)),
+      at = (y * image.info.width + x) * image.info.channels;
+    return Array.from(image.data.subarray(at, at + 3));
+  };
+  const levels = [];
+  for (let y = 0; y < 32; y++)
+    for (let x = 0; x < 24; x++) {
+      const u = 0.04 + (x / 23) * 0.42,
+        v = 0.04 + (y / 31) * 0.92,
+        c = pixel(colour, u, v),
+        r = pixel(orm, u, v);
+      expect(c[0]).toBeGreaterThan(c[1]);
+      expect(c[1]).toBeGreaterThan(c[2]);
+      expect(r[1]).toBeGreaterThan(220);
+      expect((r[2] / 255) * material.getMetallicFactor()).toBeLessThan(0.01);
+      levels.push(c.reduce((a, b) => a + b) / 3);
+    }
+  const mean = levels.reduce((a, b) => a + b) / levels.length,
+    cv = Math.sqrt(levels.reduce((a, b) => a + (b - mean) ** 2, 0) / levels.length) / mean;
+  expect(cv).toBeGreaterThan(0.004);
+  expect(cv).toBeLessThan(0.07);
+  const positions = primitive.getAttribute('POSITION').getArray(),
+    normals = primitive.getAttribute('NORMAL').getArray(),
+    uv = primitive.getAttribute('TEXCOORD_0').getArray();
+  let barrel = 0,
+    ends = 0;
+  for (let i = 0; i < positions.length / 3; i++) {
+    const z = positions[i * 3 + 2],
+      u = uv[i * 2],
+      v = uv[i * 2 + 1],
+      radial = Math.hypot(positions[i * 3], positions[i * 3 + 1] - 0.6555);
+    if (Math.abs(z) < 0.4 && radial > 0.55 && Math.abs(normals[i * 3 + 2]) < 0.15) {
+      expect(u).toBeLessThan(0.5);
+      barrel++;
+    }
+    if (Math.abs(z) > 0.72 && radial < 0.54) {
+      expect(u).toBeGreaterThan(0.5);
+      expect(v).toBeLessThan(0.5);
+      ends++;
+    }
+  }
+  expect(barrel).toBeGreaterThan(150);
+  expect(ends).toBeGreaterThan(150);
+});
+
+test('both delivered flax bindings face outward and sit on the actual barrel, with no floating ring', async () => {
+  const doc = await io.read('public/models/farm/haybale.glb'),
+    p = doc.getRoot().listMeshes()[0].listPrimitives()[0],
+    positions = p.getAttribute('POSITION').getArray(),
+    uv = p.getAttribute('TEXCOORD_0').getArray(),
+    indices = p.getIndices().getArray(),
+    parts = { body: [], rope: [] };
+  for (let i = 0; i < indices.length; i += 3) {
+    const ids = Array.from(indices.subarray(i, i + 3));
+    const region = ids.every((j) => uv[j * 2] < 0.5)
+      ? 'body'
+      : ids.every((j) => uv[j * 2] > 0.5 && uv[j * 2 + 1] > 0.5)
+        ? 'rope'
+        : null;
+    if (region) for (const j of ids) parts[region].push(...positions.subarray(j * 3, j * 3 + 3));
+  }
+  const meshes = Object.fromEntries(
+    Object.entries(parts).map(([name, a]) => {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(a, 3));
+      const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ side: THREE.FrontSide }));
+      m.updateMatrixWorld();
+      return [name, m];
+    })
+  );
+  try {
+    expect(parts.rope.length).toBeGreaterThan(1000);
+    for (const sign of [-1, 1]) {
+      const axial = [];
+      for (let i = 0; i < parts.rope.length; i += 3)
+        if (parts.rope[i + 2] * sign > 0) axial.push(parts.rope[i + 2]);
+      const z = axial.reduce((a, b) => a + b) / axial.length;
+      expect(Math.abs(z)).toBeGreaterThan(0.45);
+      expect(Math.abs(z)).toBeLessThan(0.49);
+      for (let i = 0; i < 16; i++) {
+        const a = (i * Math.PI) / 8,
+          from = new THREE.Vector3(2 * Math.cos(a), 0.6555 + 2 * Math.sin(a), z),
+          direction = new THREE.Vector3(-Math.cos(a), -Math.sin(a), 0),
+          ray = new THREE.Raycaster(from, direction),
+          body = ray.intersectObject(meshes.body)[0],
+          rope = ray.intersectObject(meshes.rope)[0];
+        expect(body).toBeDefined();
+        expect(rope).toBeDefined();
+        const gap = body.distance - rope.distance;
+        expect(gap).toBeGreaterThan(0.001);
+        expect(gap).toBeLessThan(0.015);
+      }
+    }
+  } finally {
+    dispose(Object.values(meshes));
+  }
 });

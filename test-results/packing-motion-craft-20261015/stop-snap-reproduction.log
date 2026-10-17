@@ -1,0 +1,37 @@
+(node:11464) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+(node:11715) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ❯ src/simulation/__tests__/machineMotion.test.ts (5 tests | 1 failed) 8ms
+   × holds the live mechanical phase instead of snapping stopped rollers, sifters and packers to rest 5ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/simulation/__tests__/machineMotion.test.ts > holds the live mechanical phase instead of snapping stopped rollers, sifters and packers to rest
+AssertionError: expected null to be 2.3 // Object.is equality
+
+- Expected:
+2.3
+
++ Received:
+null
+
+ ❯ src/simulation/__tests__/machineMotion.test.ts:64:55
+     62|   const running = sampleMachineVisualPhase(clock, 2.3, true);
+     63|   expect(running).toBeCloseTo(2.3);
+     64|   expect(sampleMachineVisualPhase(clock, 2.4, false)).toBe(running);
+       |                                                       ^
+     65| });
+     66|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 4 passed (5)
+   Start at  04:07:42
+   Duration  5.55s (transform 152ms, setup 392ms, import 34ms, tests 8ms, environment 4.24s)
+

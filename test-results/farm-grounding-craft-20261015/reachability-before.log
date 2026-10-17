@@ -1,0 +1,17 @@
+
+> grain-mill-simulator@0.40.0 validate:reachability
+> node scripts/audit-module-reachability.mjs --why=src/components/scenery/Tunnel.tsx
+
+src/components/scenery/Tunnel.test.ts
+  -> src/components/scenery/Tunnel.tsx
+npm notice
+npm notice New major version of npm available! 11.19.1 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
+
+> grain-mill-simulator@0.40.0 validate:reachability
+> node scripts/audit-module-reachability.mjs --why=src/components/scenery/WorldPublicRealm.tsx
+
+src/components/scenery/WorldPublicRealm.test.ts
+  -> src/components/scenery/WorldPublicRealm.tsx

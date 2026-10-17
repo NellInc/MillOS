@@ -1,0 +1,52 @@
+(node:51979) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+(node:52343) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ❯ src/components/workers/WorkerModel.test.tsx (28 tests | 1 failed) 239ms
+   × shapes PPE shells, cushions and band inside the original head-fitting envelope 14ms
+(node:52559) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:54259) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ❯ src/components/exterior/lakeShoreDetails.test.ts (5 tests | 1 failed) 1670ms
+     × uses four separated short reaches and two finite bounded prototype surfaces 477ms
+(node:54462) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:54557) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/exterior/lakeShoreDetails.test.ts > concept lake shore details > uses four separated short reaches and two finite bounded prototype surfaces
+AssertionError: expected +0 to be close to 1, received difference is 1, but expected 0.000005
+ ❯ src/components/exterior/lakeShoreDetails.test.ts:56:61
+     54|       for (let i = 0; i < p.count; i++) {
+     55|         expect([p.getX(i), p.getY(i), p.getZ(i)].every(Number.isFinite…
+     56|         expect(Math.hypot(n.getX(i), n.getY(i), n.getZ(i))).toBeCloseT…
+       |                                                             ^
+     57|         expect(p.getY(i)).toBeLessThan(1.8);
+     58|       }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/components/workers/WorkerModel.test.tsx > shapes PPE shells, cushions and band inside the original head-fitting envelope
+AssertionError: expected 0.040977400216867646 to be less than 0.03
+ ❯ src/components/workers/WorkerModel.test.tsx:894:25
+    892|     ).intersectObject(band)[0];
+    893|     expect(hit).toBeDefined();
+    894|     expect(hit.point.y).toBeLessThan(0.03);
+       |                         ^
+    895|   }
+    896|   (band.material as THREE.Material).dispose();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  2 failed | 4 passed (6)
+      Tests  2 failed | 132 passed (134)
+   Start at  02:51:19
+   Duration  41.20s (transform 2.77s, setup 846ms, import 25.18s, tests 7.43s, environment 4.45s)
+

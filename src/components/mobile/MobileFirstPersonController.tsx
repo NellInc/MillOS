@@ -13,7 +13,8 @@ import { useGraphicsStore } from '../../stores/graphicsStore';
 import {
   sampleWalkingGroundHeight,
   moveWalkingPosition,
-  castleBlocks,
+  walkingBlocks,
+  isDryWalkingGround,
 } from '../../utils/castleNavigation';
 import { getTerrainGridSegments } from '../terrain/terrainTypes';
 import { FIRST_PERSON_EYE_HEIGHT, clampNavigationDelta } from '../../utils/cameraNavigation';
@@ -61,7 +62,12 @@ const collides = (x: number, z: number): boolean => {
 const findFreeSpawn = (x: number, z: number): [number, number] => {
   const free = (a: number, b: number) =>
     !collides(a, b) &&
-    !castleBlocks(
+    isDryWalkingGround(
+      a,
+      b,
+      getTerrainGridSegments(useGraphicsStore.getState().graphics.quality)
+    ) &&
+    !walkingBlocks(
       a,
       b,
       sampleWalkingGroundHeight(
@@ -71,7 +77,7 @@ const findFreeSpawn = (x: number, z: number): [number, number] => {
       )
     );
   if (free(x, z)) return [x, z];
-  for (let r = 1; r <= 24; r++) {
+  for (let r = 1; r <= 64; r++) {
     for (let i = 0; i < 16; i++) {
       const a = (i / 16) * Math.PI * 2;
       const cx = x + r * Math.cos(a);

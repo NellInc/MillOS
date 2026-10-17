@@ -1,0 +1,14 @@
+{
+  "index": {
+    "url": "http://127.0.0.1:4288/",
+    "sha256": "d4caff5fc7985e5323128203c7e37158dacb236ac54fcbc15fbcc11dd1b6d2a5",
+    "bytes": 9887
+  },
+  "entries": [
+    {
+      "url": "http://127.0.0.1:4288/assets/main-DVkXsHYT.js",
+      "sha256": "34de815d902ffde54ccfe2f758595e55a2beedf32fb068ce7dc428029c1f0221",
+      "bytes": 823379
+    }
+  ]
+}

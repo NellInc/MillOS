@@ -1,0 +1,35 @@
+
+> grain-mill-simulator@0.40.0 test
+> vitest run src/components/workers/WorkerModel.test.tsx src/components/workers/workerPose.test.ts
+
+(node:95665) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+(node:95812) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ❯ src/components/workers/WorkerModel.test.tsx (38 tests | 1 failed) 19046ms
+   × moves only a privately owned tail, settles at rest and freezes at zero elapsed time 18031ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/workers/WorkerModel.test.tsx > moves only a privately owned tail, settles at rest and freezes at zero elapsed time
+Error: Test timed out in 10000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/components/workers/WorkerModel.test.tsx:1132:1
+    1130| });
+    1131|
+    1132| it('moves only a privately owned tail, settles at rest and freezes at …
+       | ^
+    1133|   const source = WORKER_HAIR_GEOMETRIES.ponytail;
+    1134|   const original = source.attributes.position.array.slice();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 1 passed (2)
+      Tests  1 failed | 124 passed (125)
+   Start at  11:16:11
+   Duration  33.67s (transform 1.44s, setup 625ms, import 2.52s, tests 28.36s, environment 1.08s)
+

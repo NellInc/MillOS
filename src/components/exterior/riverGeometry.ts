@@ -306,16 +306,146 @@ export function createRiverFootbridgeAccessGeometry(): THREE.BufferGeometry {
     const top = b.centre[1] + b.size[1] / 2;
     for (const edge of [-1, 1]) {
       const x = b.centre[0] + (edge * b.size[0]) / 2;
-      g.beam([x, 1, outer], [x, top + 1, deckEdge], 0.1, '#394a49');
+      g.beam([x, 1.05, outer], [x, top + 1.05, deckEdge], 0.1, '#394a49');
+      g.beam([x, 0.6, outer], [x, top + 0.6, deckEdge], 0.08, '#394a49');
       for (let i = 0; i <= 4; i++) {
         const t = i / 4;
         const y = top * t;
         const z = outer + (deckEdge - outer) * t;
-        g.box([0.12, 1.1, 0.12], [x, y + 0.5, z], '#394a49');
+        g.box([0.12, 1.15, 0.12], [x, y + 0.525, z], '#394a49');
       }
     }
   }
   const geometry = g.finish();
   geometry.name = 'river-footbridge-ground-access';
+  return geometry;
+}
+
+/** Flat mineral deck panels. Joints are flush, not a second coplanar overlay.
+ * Working if every top ray agrees with the existing walking datum and bounds.
+ */
+export function createRiverFootbridgeDeckGeometry(): THREE.BufferGeometry {
+  const g = new PlotGeometry();
+  const [width, height, length] = RIVER_FOOTBRIDGE_DECK.size;
+  const count = 18,
+    joint = 0.022,
+    panel = (length - (count - 1) * joint) / count;
+  let z = -length / 2;
+  for (let i = 0; i < count; i++) {
+    g.box([width, height, panel], [0, 0, z + panel / 2], ['#a6a28f', '#a3a08e', '#aaa591'][i % 3]);
+    z += panel;
+    if (i < count - 1) {
+      g.box([width, height, joint], [0, 0, z + joint / 2], '#817e70');
+      z += joint;
+    }
+  }
+  const geometry = g.finish();
+  geometry.name = 'river-footbridge-flush-panels';
+  return geometry;
+}
+
+/** Open heritage ironwork with flanged girders, seated on the original piers.
+ * Working if the deck centre remains open and rail/approach tops meet at 3.5 m.
+ */
+export function createRiverFootbridgeFrameGeometry(): THREE.BufferGeometry {
+  const g = new PlotGeometry();
+  const [width, height, length] = RIVER_FOOTBRIDGE_DECK.size;
+  const top = RIVER_FOOTBRIDGE_DECK.centre[1] + height / 2;
+  const steel = '#394a49',
+    trim = '#53615a';
+  const bays = Math.ceil(length / 2.5),
+    pitch = length / bays;
+  for (const side of [-1, 1]) {
+    const x = (side * width) / 2;
+    g.box([0.13, 0.1, length], [x, top + 1.05, 0], trim);
+    g.box([0.08, 0.08, length], [x, top + 0.6, 0], steel);
+    g.box([0.1, 0.08, length], [x, top + 0.13, 0], steel);
+    for (let i = 0; i <= bays; i++) {
+      const z = -length / 2 + i * pitch;
+      g.box([0.12, 1.12, 0.12], [x, top + 0.54, z], steel);
+      // End plates terminate at the span boundary, joining the existing stair posts.
+      const plateZ = Math.max(-length / 2 + 0.13, Math.min(length / 2 - 0.13, z));
+      g.box([0.26, 0.05, 0.26], [x, top + 0.01, plateZ], trim);
+      if (i < bays) {
+        const a = z + 0.06,
+          b = z + pitch - 0.06;
+        g.beam([x, top + 0.17, a], [x, top + 0.99, b], 0.045, steel);
+        g.beam([x, top + 0.99, a], [x, top + 0.17, b], 0.045, steel);
+      }
+    }
+  }
+  for (const x of [-2, 0, 2]) {
+    g.box([0.12, 1, length - 2], [x, 1.15, 0], steel);
+    g.box([0.48, 0.15, length - 2], [x, 1.625, 0], trim);
+    g.box([0.48, 0.12, length - 2], [x, 0.65, 0], steel);
+  }
+  for (let i = 0; i < 9; i++) g.box([5.5, 0.3, 0.4], [0, 1.2, -32 + i * 8], steel);
+  for (let i = 0; i < 5; i++) {
+    const z = -28 + i * 14;
+    for (const x of [-2.2, 2.2]) g.box([0.8, 12, 0.8], [x, -4, z], steel);
+    g.box([5.4, 0.35, 0.8], [0, 1.45, z], trim);
+    g.box([4, 0.4, 0.4], [0, -2, z], steel);
+    g.beam([-2.2, -7, z], [2.2, -3, z], 0.2, steel);
+    g.beam([2.2, -7, z], [-2.2, -3, z], 0.2, steel);
+  }
+  const geometry = g.finish();
+  geometry.name = 'river-footbridge-open-ironwork';
+  return geometry;
+}
+
+/** Road hardware in the existing bridge-local coordinates. The old 12 m piers
+ * pierced the wearing course. Foundations stay at -11 m; heads now seat below.
+ * Working if no support intersects the 16 m carriageway above its 0.61 m datum.
+ */
+export function createRoadRiverBridgeFrameGeometry(): THREE.BufferGeometry {
+  const g = new PlotGeometry();
+  const steel = '#495958',
+    trim = '#738077';
+  for (const side of [-1, 1]) {
+    const x = side * 8.5;
+    const profile = new THREE.Shape();
+    const points = [
+      [-0.065, 0.96],
+      [0.065, 1.06],
+      [-0.065, 1.18],
+      [0.065, 1.3],
+      [0.045, 1.325],
+      [-0.105, 1.18],
+      [0.025, 1.06],
+      [-0.085, 0.985],
+    ];
+    points.forEach(([px, y], i) => (i ? profile.lineTo(px, y) : profile.moveTo(px, y)));
+    profile.closePath();
+    g.add(
+      new THREE.ExtrudeGeometry(profile, { depth: 70, bevelEnabled: false, steps: 1 }).translate(
+        x,
+        0,
+        -35
+      ),
+      trim
+    );
+    g.box([0.12, 0.1, 70], [x, 1.66, 0], trim);
+    for (let i = 0; i <= 20; i++) {
+      const z = -35 + i * 3.5;
+      g.box([0.12, 1.16, 0.14], [x, 1.13, z], steel);
+      const plateZ = Math.max(-34.85, Math.min(34.85, z));
+      g.box([0.28, 0.06, 0.3], [x, 0.62, plateZ], trim);
+    }
+  }
+  for (const x of [-6, 0, 6]) {
+    g.box([0.16, 0.55, 68], [x, -0.225, 0], steel);
+    g.box([0.6, 0.12, 68], [x, -0.01, 0], trim);
+    g.box([0.6, 0.12, 68], [x, -0.51, 0], steel);
+  }
+  for (let i = 0; i < 5; i++) {
+    const z = -28 + i * 14;
+    for (const x of [-6, 6]) g.box([1.2, 10.1, 1.2], [x, -5.95, z], steel);
+    g.box([15, 0.5, 1], [0, -0.75, z], trim);
+    g.box([11, 0.6, 0.6], [0, -3, z], steel);
+    g.beam([-6, -8.5, z], [0, -3.5, z], 0.3, steel);
+    g.beam([6, -8.5, z], [0, -3.5, z], 0.3, steel);
+  }
+  const geometry = g.finish();
+  geometry.name = 'road-river-bridge-seated-frame';
   return geometry;
 }

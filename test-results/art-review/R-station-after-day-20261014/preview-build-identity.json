@@ -1,0 +1,14 @@
+{
+  "index": {
+    "url": "http://127.0.0.1:4288/",
+    "sha256": "e79223d4a5712dc12a882dff889c84a93fec1e85e72b2d675e479babb37fa403",
+    "bytes": 9887
+  },
+  "entries": [
+    {
+      "url": "http://127.0.0.1:4288/assets/main-QzIS99bq.js",
+      "sha256": "7ae5bfe13a83af4fcfe53ce6c8fa83550a48e080b9e529ffdad2ec33909ce25f",
+      "bytes": 823379
+    }
+  ]
+}

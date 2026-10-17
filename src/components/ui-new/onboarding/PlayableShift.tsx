@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { X } from 'lucide-react';
+import { Minimize2, X } from 'lucide-react';
 import { useUIStore } from '../../../stores/uiStore';
 import { useMobileControlStore } from '../../../stores/mobileControlStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
@@ -18,12 +18,37 @@ import {
   RECOVERY_CHALLENGE_WINDOW_MINUTES,
 } from '../../../simulation/operationsPlay';
 import { LearningNote } from '../../knowledge/LearningNote';
-import { deriveDeliveryJourney } from './deliveryJourney';
+import { CAMERA_PRESETS, useCameraStore } from '../../CameraController';
+import { deriveDeliveryDeadline, deriveDeliveryJourney } from './deliveryJourney';
 import { MachineType, type MachineData } from '../../../types';
+import type { CustomerOrder } from '../../../stores/operationsCampaignStore';
 
 const BUTTON =
-  'min-h-11 rounded-lg border border-cyan-400/30 px-3 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-400/10 disabled:opacity-40';
+  'min-h-11 rounded-lg border border-cyan-400/30 px-3 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-400/10 disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300';
 const CARD = 'rounded-xl border border-cyan-400/20 bg-slate-900/90 p-3 text-sm text-slate-200';
+// Short, wide screens put the lesson beside the soundtrack and above the dock.
+// Working if compact pace remains visible at844x390 without covering either.
+const JOURNEY_FRAME =
+  'pointer-events-auto fixed bottom-[11.5rem] left-3 right-3 z-40 max-h-[calc(100dvh-20rem)] overflow-y-auto overscroll-contain rounded-xl border border-cyan-400/40 bg-slate-950/95 shadow-xl sm:left-5 sm:right-auto sm:w-[360px] [@media(min-width:640px)_and_(max-height:500px)]:left-auto [@media(min-width:640px)_and_(max-height:500px)]:right-5 [@media(min-width:640px)_and_(max-height:500px)]:bottom-28 [@media(min-width:640px)_and_(max-height:500px)]:max-h-[calc(100dvh-11rem)]';
+
+function DeliveryDeadline({
+  order,
+  elapsedMinutes,
+}: {
+  order: CustomerOrder | null;
+  elapsedMinutes: number;
+}) {
+  const deadline = deriveDeliveryDeadline(order, elapsedMinutes);
+  if (!deadline) return null;
+  return (
+    <p
+      aria-label="Delivery deadline"
+      className={`mt-1 text-xs tabular-nums ${deadline.overdue ? 'text-amber-200' : 'text-slate-300'}`}
+    >
+      {deadline.label}
+    </p>
+  );
+}
 
 export function TeachingPace() {
   const speed = useGameSimulationStore((s) => s.gameSpeed);
@@ -62,10 +87,31 @@ export function FirstDeliveryJourney({
     }))
   );
   const campaign = useOperationsCampaignStore(
-    useShallow((s) => ({ orders: s.orders, execution: s.execution }))
+    useShallow((s) => ({
+      orders: s.orders,
+      execution: s.execution,
+      activeOrderId: s.activeOrderId,
+      constraints: s.constraints,
+      incidents: s.incidents,
+      elapsedMinutes: s.elapsedMinutes,
+      activeChallenge: s.activeChallenge,
+      challengeHistory: s.challengeHistory,
+    }))
   );
   const order = campaign.orders.find((item) => item.id === ui.orderId) ?? null;
   const guide = deriveDeliveryJourney(order, campaign.execution, ui.inspected);
+  const [sceneFocused, setSceneFocused] = useState(false);
+  const expandButton = useRef<HTMLButtonElement>(null);
+  const collapseButton = useRef<HTMLButtonElement>(null);
+  const firstFocus = useRef(true);
+  useEffect(() => {
+    if (firstFocus.current) {
+      firstFocus.current = false;
+      return;
+    }
+    (sceneFocused ? expandButton : collapseButton).current?.focus();
+  }, [sceneFocused]);
+  useEffect(() => setSceneFocused(false), [ui.orderId]);
   useEffect(() => {
     if (
       selectedMachine &&
@@ -89,13 +135,143 @@ export function FirstDeliveryJourney({
     document.addEventListener('keydown', onKey, true);
     return () => document.removeEventListener('keydown', onKey, true);
   }, [ui.close]);
+  // Completion keeps its receipt available while yielding the foreground to
+  // the live commitment. This projection never advances an order or a truck.
+  const completed = order?.status === 'fulfilled' && ui.inspected;
+  const play = deriveOperationsPlay(campaign);
+  const compactWorkspace: 'overview' | 'scada' | null = completed
+    ? ['quality', 'programme', 'acknowledge', 'mitigate', 'resume', 'resolve'].includes(
+        play.nextAction.kind
+      )
+      ? 'overview'
+      : 'scada'
+    : guide.workspace;
+  if (completed && !sceneFocused)
+    return (
+      <section aria-label="Guided delivery" className={`${JOURNEY_FRAME} p-4`}>
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="font-semibold text-white">Delivery fulfilled</h2>
+          <button
+            ref={collapseButton}
+            className={BUTTON}
+            aria-label="Compact delivery guide"
+            aria-expanded={true}
+            onClick={() => setSceneFocused(true)}
+          >
+            <Minimize2 className="h-4 w-4" aria-hidden="true" />
+          </button>
+          <button
+            className={BUTTON}
+            aria-label="Close guided delivery"
+            onClick={() => ui.close(false)}
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+        <p className="mt-2 text-sm leading-6 text-slate-200">
+          {order.customer}: {order.shippedKg.toFixed(0)} kg dispatched.
+        </p>
+        <p className="mt-3 text-sm font-semibold text-cyan-100" aria-live="polite">
+          {play.nextAction.kind === 'programme'
+            ? 'Programme complete, review your shift'
+            : play.nextAction.label}
+        </p>
+        <p className="mt-1 text-xs leading-5 text-slate-300">
+          {play.nextAction.kind === 'programme'
+            ? 'Review delivery, quality and recovery before choosing the next commitments.'
+            : play.nextAction.consequence}
+        </p>
+        <button
+          className={`${BUTTON} mt-3`}
+          onClick={() =>
+            onOpenWorkspace(
+              ['quality', 'programme', 'acknowledge', 'mitigate', 'resume', 'resolve'].includes(
+                play.nextAction.kind
+              )
+                ? 'overview'
+                : 'scada'
+            )
+          }
+        >
+          {play.nextAction.kind === 'programme'
+            ? 'Review shift and next programme'
+            : 'Open current operations'}
+        </button>
+        <details className="mt-2 text-xs text-slate-300">
+          <summary className="min-h-11 cursor-pointer py-3 text-cyan-200">
+            Delivery receipt and learning
+          </summary>
+          <p className="leading-5">{guide.detail}</p>
+          <TeachingPace />
+          <LearningNote entryId={guide.entryId} />
+        </details>
+      </section>
+    );
+  // Keep the live inspection effects mounted while making room for the scene.
+  // Working if a scene shortcut reveals the machinery on a phone, selecting it
+  // still records the real inspection, and Guide restores the full lesson.
+  if (sceneFocused)
+    return (
+      <section aria-label="Guided delivery" className={`${JOURNEY_FRAME} p-3`}>
+        <div className="flex items-center justify-between gap-3">
+          <h2 aria-live="polite" className="min-w-0 flex-1 font-semibold text-white">
+            {guide.title}
+          </h2>
+          <button
+            className={`${BUTTON} shrink-0`}
+            ref={expandButton}
+            aria-expanded={false}
+            aria-label="Expand delivery guide"
+            onClick={() => setSceneFocused(false)}
+          >
+            Guide
+          </button>
+          <button
+            className={`${BUTTON} shrink-0`}
+            aria-label="Close guided delivery"
+            onClick={() => ui.close(false)}
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+        <DeliveryDeadline order={order} elapsedMinutes={campaign.elapsedMinutes} />
+        <p className="mt-1 text-xs leading-5 text-slate-300">
+          Inspection: {ui.inspected ? 'recorded' : 'waiting'} · Delivery:{' '}
+          {order?.shippedKg.toFixed(0) ?? 0} kg dispatched
+        </p>
+        <TeachingPace />
+        {compactWorkspace && (
+          <button
+            className={`${BUTTON} mt-2 w-full`}
+            onClick={() => onOpenWorkspace(compactWorkspace)}
+          >
+            {completed
+              ? 'Review current operations'
+              : compactWorkspace === 'overview'
+                ? 'Review delivery and QC'
+                : 'Open line controls'}
+          </button>
+        )}
+        {!ui.inspected && (
+          <p className="text-xs leading-5 text-cyan-200">
+            Select a machine to record your inspection.
+          </p>
+        )}
+      </section>
+    );
   return (
-    <section
-      aria-label="Guided delivery"
-      className="pointer-events-auto fixed bottom-[11.5rem] left-3 right-3 z-40 max-h-[calc(100dvh-15.5rem)] overflow-y-auto overscroll-contain rounded-xl border border-cyan-400/40 bg-slate-950/95 p-4 shadow-xl sm:left-5 sm:right-auto sm:w-[360px]"
-    >
+    <section aria-label="Guided delivery" className={`${JOURNEY_FRAME} p-4`}>
       <div className="flex items-center justify-between gap-2">
         <h2 className="font-semibold text-white">Your first delivery</h2>
+        <button
+          ref={collapseButton}
+          className={BUTTON}
+          aria-label="Compact delivery guide"
+          aria-expanded={true}
+          onClick={() => setSceneFocused(true)}
+        >
+          <Minimize2 className="h-4 w-4" aria-hidden="true" />
+        </button>
         <button
           className={BUTTON}
           aria-label="Close guided delivery"
@@ -109,16 +285,56 @@ export function FirstDeliveryJourney({
           ? `${order.customer}: ${order.requiredKg.toFixed(0)} kg ${order.recipe.label}`
           : 'Awaiting an order'}
       </p>
+      <DeliveryDeadline order={order} elapsedMinutes={campaign.elapsedMinutes} />
       <h3 aria-live="polite" className="mt-3 font-semibold text-white">
         {guide.title}
       </h3>
       <p className="mt-2 text-sm leading-6 text-slate-200">{guide.detail}</p>
+      {guide.loading && guide.loading.capacityKg > 0 && (
+        <div className="mt-3">
+          <p className="flex flex-wrap justify-between gap-x-3 gap-y-1 text-xs text-cyan-100">
+            <span>Shipping truck load</span>
+            <span className="tabular-nums">
+              {guide.loading.loadedKg.toFixed(0)} / {guide.loading.capacityKg.toFixed(0)} kg
+            </span>
+          </p>
+          <progress
+            aria-label="Shipping truck load"
+            aria-valuetext={`${guide.loading.loadedKg.toFixed(0)} of ${guide.loading.capacityKg.toFixed(0)} kilograms on the truck`}
+            max={guide.loading.capacityKg}
+            value={guide.loading.loadedKg}
+            className="mt-2 h-2 w-full overflow-hidden rounded-full border-0 bg-slate-700/80 [&::-moz-progress-bar]:bg-cyan-400 [&::-webkit-progress-bar]:bg-slate-700/80 [&::-webkit-progress-value]:bg-cyan-400"
+          />
+        </div>
+      )}
       <p className="mt-2 text-xs text-slate-300">
         Inspection: {ui.inspected ? 'recorded' : 'waiting'} · Delivery:{' '}
         {order?.status === 'fulfilled'
           ? 'fulfilled'
           : `${order?.shippedKg.toFixed(0) ?? 0} kg dispatched`}
       </p>
+      {guide.view && (
+        <button
+          className={`${BUTTON} mt-3`}
+          onClick={() => {
+            // Reuse the actual site camera, without granting an inspection receipt.
+            // The host hides this guide during first-person walking.
+            if (useUIStore.getState().fpsMode) return;
+            const index = CAMERA_PRESETS.findIndex((preset) => preset.name === guide.view);
+            if (index >= 0) {
+              useCameraStore.getState().setPreset(index);
+              setSceneFocused(true);
+            }
+          }}
+        >
+          Show{' '}
+          {guide.view === 'Milling'
+            ? 'milling line'
+            : guide.view === 'Packing'
+              ? 'packing line'
+              : 'shipping bay'}
+        </button>
+      )}
       {guide.workspace && (
         <button className={`${BUTTON} mt-3`} onClick={() => onOpenWorkspace(guide.workspace!)}>
           Open {guide.workspace === 'scada' ? 'operations' : 'Overview and QC'}
@@ -240,11 +456,37 @@ export function OperationsPlayCard() {
       challengeHistory: s.challengeHistory,
     }))
   );
+  const focusId = useUIStore((s) => s.operationalFocusId);
+  const nextActionRef = useRef<HTMLButtonElement>(null);
+  // Consume navigation only after the real control mounts, including lazy and
+  // compact panels. Inspection never executes its action or advances the clock.
+  // Working if the response is in view/focus and a stale/FPS request is discarded.
+  useEffect(() => {
+    if (!focusId) return;
+    // Let the panel's own modal focus trap capture its return target first.
+    const frame = requestAnimationFrame(() => {
+      if (useUIStore.getState().operationalFocusId !== focusId) return;
+      if (
+        !useUIStore.getState().fpsMode &&
+        useOperationsCampaignStore
+          .getState()
+          .incidents.some((incident) => incident.id === focusId && incident.phase !== 'resolved')
+      ) {
+        nextActionRef.current?.scrollIntoView?.({ block: 'center', behavior: 'instant' });
+        nextActionRef.current?.focus({ preventScroll: true });
+      }
+      useUIStore.getState().setOperationalFocusId(null);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [focusId]);
   const workplace = useWorkplaceStore((s) => s.workplace);
   const [profile, setProfile] = useState<WorkplaceProfile>('toe-dip');
   const [missionFeedback, setMissionFeedback] = useState<string | null>(null);
   const reviewPending = linkedReviewPending(workplace);
+  const gameSpeed = useGameSimulationStore((s) => s.gameSpeed);
   const play = deriveOperationsPlay(snapshot);
+  const awaitingResponse = play.nextAction.kind === 'resume' && gameSpeed > 0;
+  const nextLabel = awaitingResponse ? 'Awaiting simulation update' : play.nextAction.label;
   const canStartMission =
     workplace.phase === 'idle' &&
     !!play.activeOrder &&
@@ -258,6 +500,14 @@ export function OperationsPlayCard() {
     if (action.kind === 'acknowledge' && action.targetId)
       state.acknowledgeIncident(action.targetId);
     if (action.kind === 'mitigate' && action.targetId) state.mitigateIncident(action.targetId);
+    // The live action is rechecked at click time; the ordinary tick owns clock holds. Inspection never
+    // resumes, and a running/custom pace is retained. Working if this explicit
+    // choice changes only a paused shift's speed, with consequences processed
+    // by the ordinary game tick before controller restoration becomes available.
+    if (action.kind === 'resume') {
+      const simulation = useGameSimulationStore.getState();
+      if (simulation.gameSpeed === 0) simulation.setGameSpeed(30);
+    }
     if (action.kind === 'resolve') state.finishChallengeRecovery();
     if (action.kind === 'programme' && !linkedReviewPending(useWorkplaceStore.getState().workplace))
       state.acceptNextProgramme();
@@ -315,19 +565,44 @@ export function OperationsPlayCard() {
           ? `${play.activeOrder.customer}: ${play.activeOrder.shippedKg.toFixed(0)} / ${play.activeOrder.requiredKg.toFixed(0)} kg dispatched`
           : 'Current programme complete'}
       </p>
+      <DeliveryDeadline order={play.activeOrder} elapsedMinutes={snapshot.elapsedMinutes} />
       {play.blockers[0] && (
         <p className="mt-2 text-amber-200">
           Blocked: {play.blockers[0].label}. {play.blockers[0].detail}
         </p>
       )}
-      <p className="mt-2 text-cyan-200">Next: {play.nextAction.label}</p>
-      <p className="mt-1 text-xs leading-5 text-slate-300">{play.nextAction.consequence}</p>
+      {play.challengeProgress && (
+        <div
+          role="group"
+          aria-label="Recovery challenge progress"
+          className="mt-3 border-t border-slate-700 pt-3"
+        >
+          <p className="text-xs leading-5">
+            {play.challengeProgress.label}: {play.challengeProgress.dispatchedKg.toFixed(0)} /{' '}
+            {play.challengeProgress.targetKg.toFixed(0)} kg,{' '}
+            {Math.max(0, play.challengeProgress.remainingMinutes).toFixed(0)} simulation minutes
+            left
+          </p>
+          <p className="mt-1 text-xs leading-5 text-slate-300">
+            {awaitingResponse
+              ? 'The response is queued. Await the next simulation update before restoring the controller.'
+              : play.challengeProgress.instruction}
+          </p>
+        </div>
+      )}
+      <p className="mt-2 text-cyan-200">Next: {nextLabel}</p>
+      <p className="mt-1 text-xs leading-5 text-slate-300">
+        {awaitingResponse
+          ? 'The shift is running at your chosen pace. Production and customer deadlines continue; pause with Shift pace when needed.'
+          : play.nextAction.consequence}
+      </p>
       <button
+        ref={nextActionRef}
         className={`${BUTTON} mt-2`}
-        disabled={play.nextAction.kind === 'programme' && reviewPending}
+        disabled={awaitingResponse || (play.nextAction.kind === 'programme' && reviewPending)}
         onClick={performNext}
       >
-        {play.nextAction.label}
+        {nextLabel}
       </button>
       <button
         className={`${BUTTON} mt-2`}
@@ -413,20 +688,12 @@ export function OperationsPlayCard() {
           </div>
         ))}
         {play.challengeProgress && (
-          <div>
-            <p className="text-xs">
-              {play.challengeProgress.label}: {play.challengeProgress.dispatchedKg.toFixed(0)} /{' '}
-              {play.challengeProgress.targetKg.toFixed(0)} kg,{' '}
-              {Math.max(0, play.challengeProgress.remainingMinutes).toFixed(0)} simulation minutes
-              left
-            </p>
-            <button
-              className={`${BUTTON} mt-2`}
-              onClick={() => useOperationsCampaignStore.getState().abandonChallenge()}
-            >
-              Abandon challenge
-            </button>
-          </div>
+          <button
+            className={`${BUTTON} mt-2`}
+            onClick={() => useOperationsCampaignStore.getState().abandonChallenge()}
+          >
+            Abandon challenge
+          </button>
         )}
       </details>
       <LearningNote entryId="resource-tradeoffs" />

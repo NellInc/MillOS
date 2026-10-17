@@ -23,6 +23,41 @@ let snapshot: StartupSnapshot = {
   opened: false,
   ready: false,
 };
+/** Caller-owned startup admission. No renderer method or scene flag is replaced.
+ * Working if blocked CPU ticks never certify a draw, and throws never increment it.
+ */
+interface StartupDrawOwner {
+  prepare: (target: THREE.WebGLRenderTarget | null) => boolean;
+  fail: (error: unknown) => void;
+}
+let drawOwner: StartupDrawOwner | null = null;
+let completedStartupDraws = 0;
+
+export function registerStartupDrawOwner(owner: StartupDrawOwner): () => void {
+  drawOwner = owner;
+  return () => {
+    if (drawOwner === owner) drawOwner = null;
+  };
+}
+
+export const getStartupDrawSerial = (): number => completedStartupDraws;
+
+export function drawStartupFrame(
+  target: THREE.WebGLRenderTarget | null,
+  draw: () => void
+): boolean {
+  const owner = drawOwner;
+  if (!snapshot.ready && !owner?.prepare(target)) return false;
+  try {
+    draw();
+    completedStartupDraws++;
+    return true;
+  } catch (error) {
+    owner?.fail(error);
+    throw error;
+  }
+}
+
 const listeners = new Set<() => void>();
 let notificationQueued = false;
 let preparationGuard: (() => boolean) | null = null;

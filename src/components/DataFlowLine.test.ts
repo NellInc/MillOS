@@ -2,11 +2,19 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import {
   createDataFlowMaterial,
+  createDataFlowGeometry,
+  PROCESS_FLOW_SLEEVE_RADIUS,
   updateDataFlowUniforms,
   FLOW_TUBE_RADIUS,
   FLOW_DASH_PERIOD_METRES,
 } from './DataFlowLine';
 import { PROCESS_FLOW_COLORS } from './ProductionFlowVisualization';
+import {
+  createSpoutTubeGeometry,
+  createMachineSpoutRoute,
+  SPOUT_PIPE_RADIUS,
+} from './flow/spoutRoutes';
+import { MachineType } from '../types';
 
 describe('restrained process flow signals', () => {
   it('preserves three distinguishable process stages without borrowing alarm colours', () => {
@@ -28,6 +36,86 @@ describe('restrained process flow signals', () => {
     expect(material.blending).toBe(THREE.AdditiveBlending);
     expect(material.customProgramCacheKey()).toBe('millos-data-flow-line-v4');
     material.dispose();
+  });
+
+  it('fits its signal sleeve just outside the exact physical sweep, including every elbow', () => {
+    const from = {
+      id: 'mill',
+      type: MachineType.ROLLER_MILL,
+      position: [-15, 0, -6],
+      size: [4, 4, 4],
+    } as const;
+    const to = {
+      id: 'sifter',
+      type: MachineType.PLANSIFTER,
+      position: [-15, 9, 6],
+      size: [4, 4, 4],
+    } as const;
+    const route = createMachineSpoutRoute(
+      { ...from, position: [...from.position], size: [...from.size] },
+      { ...to, position: [...to.position], size: [...to.size] },
+      0
+    )!;
+    const signal = createDataFlowGeometry([0, 0, 0], [1, 1, 1], 24, route.curve);
+    const pipe = createSpoutTubeGeometry(route.curve, 12);
+    expect(signal.parameters.radius).toBe(PROCESS_FLOW_SLEEVE_RADIUS);
+    expect(PROCESS_FLOW_SLEEVE_RADIUS * Math.cos(Math.PI / 12)).toBeGreaterThan(SPOUT_PIPE_RADIUS);
+    expect(signal.attributes.position.count).toBe(pipe.attributes.position.count);
+    const sampling = signal.parameters.path;
+    const rings = signal.parameters.tubularSegments,
+      stride = 13;
+    const point = new THREE.Vector3(),
+      normal = new THREE.Vector3();
+    for (let ring = 0; ring <= rings; ring++) {
+      const centre = sampling.getPointAt(ring / rings);
+      for (let segment = 0; segment < stride; segment++) {
+        const index = ring * stride + segment;
+        point.fromBufferAttribute(signal.attributes.position, index);
+        expect(point.distanceTo(centre)).toBeCloseTo(PROCESS_FLOW_SLEEVE_RADIUS, 5);
+        point.fromBufferAttribute(pipe.attributes.position, index);
+        normal.fromBufferAttribute(pipe.attributes.normal, index);
+        point.addScaledVector(normal, PROCESS_FLOW_SLEEVE_RADIUS - SPOUT_PIPE_RADIUS);
+        expect(
+          point.distanceTo(
+            new THREE.Vector3().fromBufferAttribute(signal.attributes.position, index)
+          )
+        ).toBeLessThan(0.00001);
+      }
+    }
+    // Elbows receive extra rings, but dashes retain distance-based phase.
+    const uv = signal.attributes.uv;
+    let minStep = Infinity,
+      maxStep = 0;
+    for (let ring = 1; ring <= rings; ring++) {
+      const phaseStep = uv.getX(ring * stride) - uv.getX((ring - 1) * stride);
+      const distance = sampling
+        .getPointAt(ring / rings)
+        .distanceTo(sampling.getPointAt((ring - 1) / rings));
+      minStep = Math.min(minStep, phaseStep);
+      maxStep = Math.max(maxStep, phaseStep);
+      expect(phaseStep).toBeGreaterThan(0);
+      if (ring > 1) {
+        const priorStep = uv.getX((ring - 1) * stride) - uv.getX((ring - 2) * stride);
+        const priorDistance = sampling
+          .getPointAt((ring - 1) / rings)
+          .distanceTo(sampling.getPointAt((ring - 2) / rings));
+        expect(phaseStep / distance).toBeCloseTo(priorStep / priorDistance, 5);
+      }
+    }
+    expect(maxStep / minStep).toBeGreaterThan(10);
+    expect(uv.getX(0)).toBe(0);
+    expect(uv.getX(rings * stride)).toBe(1);
+    signal.dispose();
+    pipe.dispose();
+  });
+
+  it('retains the original thin arc for a point-to-point caller without a physical path', () => {
+    const geometry = createDataFlowGeometry([0, 2, 0], [10, 2, 0], 24);
+    expect(geometry.parameters.radius).toBe(FLOW_TUBE_RADIUS);
+    expect(geometry.parameters.tubularSegments).toBe(24);
+    expect(geometry.parameters.path.getPointAt(0).toArray()).toEqual([0, 2, 0]);
+    expect(geometry.parameters.path.getPointAt(1).toArray()).toEqual([10, 2, 0]);
+    geometry.dispose();
   });
 
   it('holds a dim stationary phase while a connection is paused or blocked, then resumes', () => {

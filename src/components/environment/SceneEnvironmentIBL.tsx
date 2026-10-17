@@ -174,6 +174,21 @@ const DAY_HORIZON_LUMINANCE =
   0.2126 * DAY_HORIZON.r + 0.7152 * DAY_HORIZON.g + 0.0722 * DAY_HORIZON.b;
 const GROUND_NIGHT_FLOOR = 0.12;
 
+/**
+ * Calibrate the existing hemisphere to its clear-noon white-irradiance budget.
+ * Its coloured sky previously delivered only 0.565 of that nominal energy.
+ * This deliberately adds diffuse fill: at noon the brightest direction reaches
+ * HEMISPHERE_INTENSITY in luminance, while vertical faces receive less. A common
+ * sky/ground gain preserves their chromaticities and ratio, including weather
+ * attenuation. Never normalize the live, possibly storm-darkened sky to white.
+ * Working if shaded faces gain readable form without changing the sun, PMREM,
+ * shadow passes or twilight/night light, and paired captures retain contrast.
+ */
+export function daylightHemisphereGain(daylight: number): number {
+  if (!Number.isFinite(daylight)) return 1;
+  return 1 + (1 / DAY_HORIZON_LUMINANCE - 1) * THREE.MathUtils.smoothstep(daylight, 0.85, 1);
+}
+
 /** Solar disc tint, matched to the key light's own noon-to-golden ramp. */
 const SUN_TINT_DAY = new THREE.Color('#fff1cf');
 const SUN_TINT_GOLDEN = new THREE.Color('#ffb15d');
@@ -546,13 +561,19 @@ export function SceneEnvironmentIBL(): React.JSX.Element {
 
     const hemisphere = hemisphereRef.current;
     if (hemisphere) {
-      hemisphere.intensity = useGraphicsStore.getState().graphics.perfDebug.disableLightingPolish
+      const referenceLighting =
+        useGraphicsStore.getState().graphics.perfDebug.disableLightingPolish;
+      hemisphere.intensity = referenceLighting
         ? HEMISPHERE_INTENSITY
         : hemisphereFillIntensity(atmosphere.daylight);
       hemisphere.color.copy(_horizon);
-      if (useGraphicsStore.getState().graphics.perfDebug.disableLightingPolish)
-        hemisphere.groundColor.copy(_ground);
-      else applyGroundBouncePalette(hemisphere.groundColor, _ground, atmosphere.daylight);
+      if (referenceLighting) hemisphere.groundColor.copy(_ground);
+      else {
+        applyGroundBouncePalette(hemisphere.groundColor, _ground, atmosphere.daylight);
+        const gain = daylightHemisphereGain(atmosphere.daylight);
+        hemisphere.color.multiplyScalar(gain);
+        hemisphere.groundColor.multiplyScalar(gain);
+      }
     }
 
     if (hdriEnvironmentActive) return;

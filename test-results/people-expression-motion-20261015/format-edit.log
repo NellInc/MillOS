@@ -1,0 +1,10 @@
+[error] src/components/models/WorkerModel.tsx: SyntaxError: An unary expression with the '-' operator is not allowed in the left-hand side of an exponentiation expression. Consider enclosing the expression in parentheses. (138:28)
+[error]   136 |     point.fromBufferAttribute(position, i).applyMatrix4(intoHead);
+[error]   137 |     const front = THREE.MathUtils.smoothstep(point.z, 0.035, 0.09);
+[error] > 138 |     const cheek = Math.exp(-((Math.abs(point.x) - 0.055) / 0.034) ** 2
+[error]       |                            ^
+[error]   139 |       - ((point.y - cheekY) / 0.045) ** 2) * front;
+[error]   140 |     const ear = Math.exp(-((Math.abs(point.x) - 0.095) / 0.025) ** 2
+[error]   141 |       - ((point.y - 0.055) / 0.05) ** 2 - ((point.z - 0.005) / 0.045) ** 2);
+src/components/workers/workerPose.ts 121ms
+src/components/workers/WorkerModel.test.tsx 139ms

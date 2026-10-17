@@ -1,0 +1,142 @@
+{
+  "scope": "Only existing legacy tracks with smaller highest-quality delivery encodes. All8MillOS original songs, every other legacy track and authored playback order unchanged. Lossy VBR, not bit-identical audio. Original Git blobs preserved. No audio played. Player/device/listening checks deferred.",
+  "assets": [
+    {
+      "file": "public/Fuzzball Parade.mp3",
+      "originalGitBlob": "b0c2da31601863086051bacaa2cc69918fab7e09",
+      "originalSha256": "35725bb9950d64d9a2fc4af28b91cf39f77db77c4203f22561e48e769328d1cd",
+      "sha256": "a4018c4115825fb01a838353d2fa20cf59839e76629301d276017aaf62da0b1f",
+      "beforeBytes": 12544962,
+      "afterBytes": 9684964,
+      "bytesSaved": 2859998,
+      "before": {
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "codec_name": "mp3",
+            "sample_rate": "44100",
+            "channels": 2
+          }
+        ],
+        "format": {
+          "duration": "313.521650",
+          "bit_rate": "320104",
+          "tags": {
+            "TSS": "Logic Pro X 10.4.4",
+            "iTunNORM": " 00000025 00000022 000001D9 0000016C 0002CC53 000414B1 0000380E 0000413E 0001C197 000414B1",
+            "iTunSMPB": " 00000000 00000210 000006F0 0000000000D2F000 00000000 00BF3B1A 00000000 00000000 00000000 00000000 00000000 00000000",
+            "artist": "Kevin MacLeod",
+            "TCM": "Kevin MacLeod",
+            "comment": "ISRC: USUAN1900017",
+            "TBP": "98",
+            "genre": "Jazz",
+            "date": "2019"
+          }
+        }
+      },
+      "after": {
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "codec_name": "mp3",
+            "sample_rate": "44100",
+            "channels": 2
+          }
+        ],
+        "format": {
+          "duration": "313.521633",
+          "bit_rate": "247127",
+          "tags": {
+            "TSS": "Logic Pro X 10.4.4",
+            "iTunNORM": " 00000025 00000022 000001D9 0000016C 0002CC53 000414B1 0000380E 0000413E 0001C197 000414B1",
+            "encoder": "Lavf63.1.102",
+            "artist": "Kevin MacLeod",
+            "TCM": "Kevin MacLeod",
+            "comment": "ISRC: USUAN1900017",
+            "TBP": "98",
+            "genre": "Jazz",
+            "date": "2019"
+          }
+        }
+      },
+      "method": "Offline FFmpeg libmp3lame highest-quality VBR q0. New Xing gapless header; remove stale iTunSMPB encoding-padding tag. Artist/title/licence comment/copyright/genre/date retained. Complete track, same channels/sample rate, duration within60ms. Silent decode success, no playback or listening claim; source original retained in Git."
+    },
+    {
+      "file": "public/The Builder.mp3",
+      "originalGitBlob": "b2764b8ffa71ec22dc2ef499674e5d4d6f4a4901",
+      "originalSha256": "e77d43a14ddf81c675d7171833ee3196a8bf8f7717039af6d48cc4f849b60577",
+      "sha256": "ce4db94d3319f1529ae7f0be9041ffeab066c859d3535308755a8572bb924474",
+      "beforeBytes": 4707417,
+      "afterBytes": 3681837,
+      "bytesSaved": 1025580,
+      "before": {
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "codec_name": "mp3",
+            "sample_rate": "44100",
+            "channels": 2
+          }
+        ],
+        "format": {
+          "duration": "117.629400",
+          "bit_rate": "320152",
+          "tags": {
+            "title": "The Builder",
+            "artist": "Kevin MacLeod",
+            "TCM": "Kevin MacLeod",
+            "album": "Royalty Free",
+            "iTunSMPB": " 00000000 00000210 000009B9 00000000004F1BB7 00000000 0047AAF1 00000000 00000000 00000000 00000000 00000000 00000000",
+            "TBP": "123",
+            "genre": "Soundtrack",
+            "comment": "ISRC 1400016",
+            "iTunPGAP": "0",
+            "encoded_by": "iTunes 11.1.5",
+            "iTunNORM": " 0000014A 00000162 0000169F 00000E56 00010397 00017D6D 000066E0 00007C97 00010397 0000B70F",
+            "date": "2014"
+          }
+        }
+      },
+      "after": {
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "codec_name": "mp3",
+            "sample_rate": "44100",
+            "channels": 2
+          }
+        ],
+        "format": {
+          "duration": "117.629388",
+          "bit_rate": "250402",
+          "tags": {
+            "title": "The Builder",
+            "artist": "Kevin MacLeod",
+            "TCM": "Kevin MacLeod",
+            "album": "Royalty Free",
+            "encoder": "Lavf63.1.102",
+            "TBP": "123",
+            "genre": "Soundtrack",
+            "comment": "ISRC 1400016",
+            "iTunPGAP": "0",
+            "encoded_by": "iTunes 11.1.5",
+            "iTunNORM": " 0000014A 00000162 0000169F 00000E56 00010397 00017D6D 000066E0 00007C97 00010397 0000B70F",
+            "date": "2014"
+          }
+        }
+      },
+      "method": "Offline FFmpeg libmp3lame highest-quality VBR q0. New Xing gapless header; remove stale iTunSMPB encoding-padding tag. Artist/title/licence comment/copyright/genre/date retained. Complete track, same channels/sample rate, duration within60ms. Silent decode success, no playback or listening claim; source original retained in Git."
+    }
+  ],
+  "skipped": [
+    {
+      "file": "Cloud Dancer.mp3",
+      "reason": "Highest-quality trial larger, original retained."
+    }
+  ],
+  "bytesSaved": 3885578
+}

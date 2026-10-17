@@ -1,0 +1,55 @@
+{
+  "pass": "AL",
+  "status": "finite32-item local pass accepted for selective check-in; repeating goal active",
+  "baseline": {
+    "tests": 140,
+    "files": 2,
+    "failed": 0
+  },
+  "final": {
+    "tests": 146,
+    "files": 2,
+    "failed": 0,
+    "delta": 6
+  },
+  "gates": {
+    "focused-serial": 0,
+    "typecheck": 0,
+    "lint": 0,
+    "format": 0,
+    "shaders": 0,
+    "build": 0,
+    "reachability": 0,
+    "native-day": 0,
+    "native-dusk": 0,
+    "native-night": 0
+  },
+  "sourceProof": "Real rigs, exact endpoints/restore, bounded wrists/knees/soles/stretch, current-frame gait contacts, mounted initial/pause/ownership/tool truth.",
+  "runtimeProof": "close-final.json; visible ordinary shopkeeper work-walk-work, no actor/stock override. Baker stocked runtime not observed.",
+  "visualProof": "native-acceptance.json; four actual PNGs inspected by authoring chat",
+  "pacing": "separately OPEN; all indicative art budgets fail on a contended host, no non-art gate; no green-seeking rerun",
+  "playerDevice": "DEFERRED",
+  "publication": "local only",
+  "cleanup": {
+    "protectedPrimaryExact": true,
+    "sourcePins": 4,
+    "compiledPins": 415,
+    "frozenPins": 1459,
+    "borrowedLinksVerified": 375,
+    "dependencyLinkRestored": "/Users/nellwatson/Documents/GitHub/MillOS/node_modules",
+    "unusedOwnCachesRemoved": [
+      "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/node_modules/.vite",
+      "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/node_modules/.vite-temp",
+      "/private/tmp/millos-AL-npm-cache"
+    ],
+    "filesRemoved": 13,
+    "logicalBytesRemoved": 11854,
+    "filesystemFreeBefore": 35345260544,
+    "filesystemFreeAfter": 35295674368,
+    "physicalDeltaAttribution": "Concurrent machine; no attribution of all free-space change to cleanup.",
+    "captureLockAbsent": true,
+    "ownTabClosed": 31,
+    "ownPreviewClosed": "normal PTY close, terminal0",
+    "foreignFilesOrProcessesTouched": false
+  }
+}

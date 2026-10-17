@@ -1,0 +1,17 @@
+
+> grain-mill-simulator@0.40.0 test
+> vitest run src/components/workers/WorkerModel.test.tsx src/components/workers/workerPose.test.ts
+
+(node:80440) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+(node:80664) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+ Test Files  2 passed (2)
+      Tests  125 passed (125)
+   Start at  11:09:09
+   Duration  17.00s (transform 428ms, setup 215ms, import 1.21s, tests 14.24s, environment 842ms)
+

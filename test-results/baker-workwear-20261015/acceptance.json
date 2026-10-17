@@ -1,0 +1,51 @@
+{
+  "scope": "AJ 32-item baker workwear pass, local only; wider repeating programme remains active",
+  "allowedSourceFiles": [
+    "src/components/models/WorkerModel.tsx",
+    "src/components/workers/SharedWorkerGeometries.ts",
+    "src/components/workers/workerPose.test.ts",
+    "src/components/workers/WorkerModel.test.tsx"
+  ],
+  "baseline": "128 passing tests in2 files",
+  "finalFocused": "133 passing tests in2 files, +5",
+  "sourceGates": {
+    "typecheck": 0,
+    "lint": 0,
+    "format": 0,
+    "shader": 0,
+    "productionBuild": 0,
+    "freshReachability": 0
+  },
+  "build": {
+    "files": 415,
+    "bytes": 181719825,
+    "seconds": 20.6,
+    "sourcePins": {
+      "src/components/models/WorkerModel.tsx": "2babe1d1c12a0c82bdd31f35f5a7346e84c7e3caf7cc3cb04237b96554c72dd3",
+      "src/components/workers/SharedWorkerGeometries.ts": "f18ca227e37cfc4c1c6ab65d825bccb0ee204f94f7f954c6d34297e15ea5a9f8",
+      "src/components/workers/workerPose.test.ts": "9fa196bcc365562f8e4554dadb3235ce93f4a0f602b7d2726a96b68e8e06b112",
+      "src/components/workers/WorkerModel.test.tsx": "808f869ad02ed19393da45948fae4d85be6c64929887a77c8f8784429a94f89e"
+    },
+    "indexSha256": "9d512baecb0ad75e32c5855d43a22d7bf8f2956a9146b150b7586d7b7dd04aa7"
+  },
+  "renderedEvidence": {
+    "close": "close-review.json",
+    "dayDuskNight": "native-acceptance.json",
+    "allNativeFunctionalChecksPassed": true,
+    "allNativeAudioInactive": true,
+    "allNativeServedBytesMatchSeal": true,
+    "nativeImagesInspectedByAuthoringChat": true
+  },
+  "openSeparately": {
+    "pacing": "p95 miss18.2/18.3/18.4ms and daytime59.99FPS below60 gate, load/core1.93-1.95. No non-art performance pass or overall budget pass.",
+    "playerDevice": "deferred by request",
+    "stockedBakeRuntime": "not staged; baker actually waiting for flour, empty-handed; actual bake rig deformation is source-tested"
+  },
+  "protectedState": {
+    "primaryExact": true,
+    "otherSourceAndAssetPins": 1459,
+    "interfaceRoutesWorldLayoutQualityReadinessAndDomainTruthUnchanged": true
+  },
+  "cleanup": "cleanup-custody.json",
+  "publication": "none"
+}

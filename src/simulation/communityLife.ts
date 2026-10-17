@@ -33,6 +33,101 @@ export interface CommunityPose {
   task: string;
   seated: boolean;
   visible: boolean;
+  /** Cosmetic support cue; route positions and dwell times are unchanged. */
+  seat?: { amount: number; support: number; position: Vec3Tuple; rotation: number };
+}
+
+export const createCommunityGreeting = () => ({ targetId: null as string | null, yaw: 0 });
+
+/** Resolve actual company after every resident has its current pose. No camera
+ * impersonation or periodic waves into empty space. Working if only visible,
+ * nearby people in the shopkeeper's forward view can receive the authored hello.
+ */
+export function sampleCommunityGreeting(
+  person: CommunityPerson,
+  pose: CommunityPose,
+  actors: readonly { person: CommunityPerson; pose: CommunityPose }[],
+  out: ReturnType<typeof createCommunityGreeting>
+) {
+  const previousTarget = out.targetId;
+  out.targetId = null;
+  out.yaw = 0;
+  if (
+    person.role !== 'Shopkeeper' ||
+    !pose.visible ||
+    pose.seated ||
+    pose.activity !== 'idle' ||
+    pose.task !== 'Greeting a neighbour'
+  )
+    return out;
+  let closest = 36,
+    heldDistance = Infinity,
+    heldYaw = 0;
+  for (const actor of actors) {
+    if (actor.person.id === person.id || !actor.pose.visible) continue;
+    const dx = actor.pose.position[0] - pose.position[0],
+      dz = actor.pose.position[2] - pose.position[2];
+    const distance = dx * dx + dz * dz;
+    const bearing = Math.atan2(dx, dz) - pose.rotation;
+    const yaw = Math.atan2(Math.sin(bearing), Math.cos(bearing));
+    if (distance < 0.16 || distance >= 36 || Math.abs(yaw) > 0.9) continue;
+    if (actor.person.id === previousTarget) {
+      heldDistance = distance;
+      heldYaw = yaw;
+    }
+    if (distance < closest) {
+      closest = distance;
+      out.targetId = actor.person.id;
+      out.yaw = Math.max(-0.3, Math.min(0.3, yaw));
+    }
+  }
+  // A meaningful distance advantage can change the recipient; centimetre
+  // jitter cannot repeatedly restart the existing one-shot wave.
+  // Working if current eligible company survives a1.2 distance-ratio tie.
+  if (previousTarget && heldDistance <= closest * 1.44) {
+    out.targetId = previousTarget;
+    out.yaw = Math.max(-0.3, Math.min(0.3, heldYaw));
+  }
+  return out;
+}
+
+/** A waiting passenger acknowledges the actual approaching shuttle, with a
+ * bounded head turn only. Working if distant/hidden buses, walking/boarding,
+ * seats and non-passenger work never receive this cosmetic attention.
+ */
+export function communityPassengerAttention(
+  person: CommunityPerson,
+  pose: CommunityPose,
+  bus: { x: number; z: number; phase: number; visible: boolean }
+) {
+  if (
+    person.district !== 'bus' ||
+    person.role !== 'Passenger' ||
+    !pose.visible ||
+    pose.seated ||
+    pose.activity !== 'idle' ||
+    !bus.visible ||
+    bus.phase >= 1.9
+  )
+    return 0;
+  const dx = bus.x - pose.position[0],
+    dz = bus.z - pose.position[2];
+  if (Math.hypot(dx, dz) > 22) return 0;
+  const angle = Math.atan2(dx, dz) - pose.rotation;
+  const yaw = Math.atan2(Math.sin(angle), Math.cos(angle));
+  return Math.abs(yaw) <= 1.4 ? Math.max(-0.26, Math.min(0.26, yaw)) : 0;
+}
+
+/** Describe the mounted service, never predict an arrival from a different clock.
+ * Working if a held bus keeps the same notice and the quiet phase between runs
+ * is still an operating service rather than a false closed sign.
+ */
+export function communityBusNotice(
+  pose: { serviceOpen?: boolean; doorsOpen?: boolean | number } | null
+) {
+  if (pose?.serviceOpen === undefined) return 'ROUTE INFORMATION';
+  if (!pose.serviceOpen) return 'SERVICE HOURS\n06:00 TO 22:00';
+  return pose.doorsOpen ? 'BUS AT THE STOP' : 'BUS ON ROUTE';
 }
 
 // The west operator represents coordination; the east operator remains unbound.
@@ -166,6 +261,35 @@ export function advanceCommunityPeopleClock(
   return moving ? hour + elapsed : hour;
 }
 
+/** Consume only time already admitted by the simulation, on the authored routes.
+ * The cursor is a display anchor, not a second plant clock. Holds rebase its anchor
+ * without advancing people; pause preserves an unfinished segment. Working if
+ * half-second ticks become continuous motion without extrapolation or catch-up.
+ */
+export function advanceCommunityPresentationClock(
+  hour: number,
+  worldHour: number,
+  observedElapsed: number,
+  deltaSeconds: number,
+  speed: number,
+  tabVisible: boolean,
+  emergency: boolean
+) {
+  if (!Number.isFinite(worldHour) || !Number.isFinite(observedElapsed)) return hour;
+  if (emergency || !tabVisible) return worldHour;
+  // Preserve the existing explicit art-time reframe contract.
+  if (
+    observedElapsed < 0 ||
+    Math.abs(observedElapsed) > 0.5 ||
+    (speed <= 0 && observedElapsed !== 0)
+  )
+    return worldHour;
+  if (!Number.isFinite(deltaSeconds) || !Number.isFinite(speed) || deltaSeconds <= 0 || speed <= 0)
+    return hour;
+  const authorizedGap = Math.max(0, worldHour - hour);
+  return hour + Math.min(authorizedGap, (speed * Math.min(deltaSeconds, 0.075)) / 3600);
+}
+
 export interface CommunityOperationsSnapshot {
   machines: readonly Pick<MachineData, 'id' | 'status'>[];
   workOrders: readonly Pick<MaintenanceWorkOrder, 'machineId' | 'phase'>[];
@@ -183,6 +307,9 @@ const MAINTENANCE_TASKS: Record<MaintenanceWorkOrder['phase'], string> = {
   restart_requested: 'Monitoring the requested line restart',
   returned_to_service: 'Checking the restored line',
 };
+
+const sampleStock = (batch: CommunityOperationsSnapshot['batches'][number]) =>
+  Number.isFinite(batch.availableKg) && batch.availableKg > 0;
 
 /** Responses are observations at authored safe posts, never physical repairs.
  * Working if open work orders and held batches alter work cues without stealing
@@ -216,7 +343,14 @@ export function communityWorkResponse(
   }
   if (
     person.role === 'Quality' &&
-    operations.batches.some((batch) => batch.availableKg > 0 && batch.disposition === 'hold')
+    operations.batches.some((batch) => sampleStock(batch) && batch.disposition === 'recalled')
+  ) {
+    out.task = 'Reviewing recalled stock from the quality inspection post';
+    return out;
+  }
+  if (
+    person.role === 'Quality' &&
+    operations.batches.some((batch) => sampleStock(batch) && batch.disposition === 'hold')
   ) {
     out.task = 'Reviewing flour held for quality investigation';
     return out;
@@ -237,7 +371,19 @@ export function communityWorkResponse(
   const machine = operations.machines.find((candidate) => candidate.id === person.machineId);
   if (machine?.status === 'critical' || machine?.status === 'warning')
     out.task = 'Inspecting a reported equipment fault';
-  else if (machine?.status === 'idle') out.task = 'Checking the idle line';
+  else if (
+    person.role === 'Quality' &&
+    !operations.batches.some((batch) => sampleStock(batch) && batch.disposition === 'released')
+  ) {
+    out.activity = 'idle';
+    out.task = 'Waiting for a production batch to sample';
+  } else if (machine?.status === 'idle' && person.role === 'Operator') {
+    // A stopped line is observed, never operated by cosmetic personnel.
+    // Working if ordinary operators wait, while fault/quality/maintenance and
+    // breaks above retain priority, and no production state is written here.
+    out.activity = 'idle';
+    out.task = 'Line stopped: waiting for production to resume';
+  } else if (machine?.status === 'idle') out.task = 'Checking the idle line';
   return out;
 }
 
@@ -366,7 +512,7 @@ export const COMMUNITY_ROSTER: readonly CommunityPerson[] = [
     stops: [
       stop(A.shopCustomer.position, -PI / 2, 1.4, 'Tending the village shop'),
       stop([-204.4, 0, 31.6], -PI / 2, 0.6, 'Checking the delivery crates'),
-      stop([-202.7, 0, 31.6], PI, 0.4, 'Greeting a neighbour', 'idle'),
+      stop([-202.7, 0, 31.6], 0, 0.4, 'Greeting a neighbour', 'idle'),
       via([-202.7, 0, 30]),
     ],
   },
@@ -469,6 +615,7 @@ export function sampleCommunityBus(hour: number) {
     rotation,
     phase,
     doorsOpen: phase >= 1.1 && phase < 1.9,
+    serviceOpen: h >= 6 && h < 22,
     visible: h >= 6 && h < 22 && phase < 3.8,
   };
 }
@@ -485,7 +632,16 @@ function samplePassenger(id: string, hour: number, out: CommunityPose) {
     : Math.max(0, Math.min(1, (p - 1.52) / 0.3));
   const from = arriving ? door : wait,
     to = arriving ? wait : door;
-  for (let i = 0; i < 3; i++) out.position[i] = from[i] + (to[i] - from[i]) * t;
+  // Short acceleration/braking ramps preserve the path and timing with a bounded steady walk.
+  // Working if endpoints have zero velocity and the middle remains a steady walk.
+  const ramp = 0.12;
+  const eased =
+    t < ramp
+      ? (t * t) / (2 * ramp * (1 - ramp))
+      : t > 1 - ramp
+        ? 1 - ((1 - t) * (1 - t)) / (2 * ramp * (1 - ramp))
+        : (t - ramp / 2) / (1 - ramp);
+  for (let i = 0; i < 3; i++) out.position[i] = from[i] + (to[i] - from[i]) * eased;
   out.visible = bus.visible && (arriving ? p >= 1.16 && p < 3.4 : p < 1.82);
   out.seated = arriving && t === 1;
   const x = out.position[0];
@@ -504,11 +660,37 @@ function samplePassenger(id: string, hour: number, out: CommunityPose) {
         : 'Waiting for Route 42';
 }
 
+function smoothSeat(value: number) {
+  const x = Math.max(0, Math.min(1, value));
+  return x * x * (3 - 2 * x);
+}
+function setSeatCue(
+  out: CommunityPose,
+  previous: CommunityPose['seat'],
+  anchor: CommunityStop,
+  amount: number,
+  support: number
+) {
+  const cue = previous ?? {
+    amount: 0,
+    support: 0,
+    position: anchor.position,
+    rotation: anchor.rotation,
+  };
+  cue.amount = amount;
+  cue.support = support;
+  cue.position = anchor.position;
+  cue.rotation = anchor.rotation;
+  out.seat = cue;
+}
+
 export function sampleCommunityPerson(
   person: CommunityPerson,
   hour: number,
   out = createCommunityPose()
 ): CommunityPose {
+  const previousSeat = out.seat;
+  out.seat = undefined;
   if (person.role === 'Cyclist') {
     const cycle = sampleCommunityCyclist(hour);
     out.position[0] = cycle.x;
@@ -561,6 +743,21 @@ export function sampleCommunityPerson(
       out.activity = node.activity;
       out.task = node.task;
       out.seated = node.seated ?? false;
+      if (node.seated) {
+        // At180x these are0.7s down,0.9s up and0.2s standing before departure.
+        // Short authored dwells reserve the same proportions without overlap.
+        const down = Math.min(0.035, node.hours * 0.3);
+        const up = Math.min(0.045, node.hours * 0.35);
+        const margin = Math.min(0.01, node.hours * 0.1);
+        setSeatCue(
+          out,
+          previousSeat,
+          node,
+          smoothSeat(elapsed / down) *
+            (1 - smoothSeat((elapsed - (node.hours - up - margin)) / up)),
+          1
+        );
+      }
       return out;
     }
     elapsed -= node.hours;
@@ -576,6 +773,32 @@ export function sampleCommunityPerson(
       out.activity = 'walking';
       out.task = next.task;
       out.seated = false;
+      // Keep the original centreline and clock. Support is acquired/released
+      // through visible steps around the seat, never a delayed seated slide.
+      const segment = distance(node.position, next.position);
+      if (next.seated && !node.seated) {
+        const window = Math.min(0.6, segment * 0.45);
+        const remaining = segment * (1 - t);
+        if (remaining < window)
+          setSeatCue(
+            out,
+            previousSeat,
+            next,
+            0,
+            smoothSeat((window - remaining) / (window * 0.75))
+          );
+      } else if (node.seated && !next.seated) {
+        const window = Math.min(0.55, segment * 0.45);
+        const travelled = segment * t;
+        if (travelled < window)
+          setSeatCue(
+            out,
+            previousSeat,
+            node,
+            0,
+            1 - smoothSeat((travelled - window * 0.4) / (window * 0.6))
+          );
+      }
       return out;
     }
     elapsed -= travel;

@@ -1,0 +1,79 @@
+[
+  {
+    "label": "Z-packing-motion-day-20261015",
+    "scene": "milling",
+    "p95": 17.6,
+    "loadPerCore": 5.43,
+    "failedBudgetChecks": [
+      "p95Frame"
+    ],
+    "servedSealMatches": true,
+    "nativeSandboxedMetal": true,
+    "pageClean": true,
+    "worldCommunity": true,
+    "generalMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "image": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/Z-packing-motion-day-20261015/milling.png"
+  },
+  {
+    "label": "Z-packing-motion-day-20261015",
+    "scene": "sifting",
+    "p95": 19.8,
+    "loadPerCore": 6.58,
+    "failedBudgetChecks": [
+      "averageFps",
+      "p95Frame"
+    ],
+    "servedSealMatches": true,
+    "nativeSandboxedMetal": true,
+    "pageClean": true,
+    "worldCommunity": true,
+    "generalMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "image": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/Z-packing-motion-day-20261015/sifting.png"
+  },
+  {
+    "label": "Z-packing-motion-day-20261015",
+    "scene": "packing",
+    "p95": 17.4,
+    "loadPerCore": 6.54,
+    "failedBudgetChecks": [
+      "p95Frame"
+    ],
+    "servedSealMatches": true,
+    "nativeSandboxedMetal": true,
+    "pageClean": true,
+    "worldCommunity": true,
+    "generalMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "image": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/Z-packing-motion-day-20261015/packing.png"
+  },
+  {
+    "label": "Z-packing-motion-night-20261015",
+    "scene": "packing",
+    "p95": 17.5,
+    "loadPerCore": 5.5,
+    "failedBudgetChecks": [
+      "p95Frame"
+    ],
+    "servedSealMatches": true,
+    "nativeSandboxedMetal": true,
+    "pageClean": true,
+    "worldCommunity": true,
+    "generalMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "image": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/Z-packing-motion-night-20261015/packing.png"
+  }
+]

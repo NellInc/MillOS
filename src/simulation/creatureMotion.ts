@@ -27,6 +27,46 @@ export function advanceCreatureStride(
   return (phase + Math.max(0, distance) * radiansPerMetre) % (Math.PI * 2);
 }
 
+/** Model metres per cycle. The farm driver divides world travel by instance scale. */
+export const QUADRUPED_WALK = {
+  cow: { cycle: 0.55, lift: 0.065, speed: 0.5 },
+  pig: { cycle: 0.18, lift: 0.022, speed: 0.34 },
+} as const;
+
+export interface HoofStep {
+  forward: number;
+  lift: number;
+}
+
+/**
+ * Four distinct footfalls: left hind, left fore, right hind, right fore.
+ * During stance the hoof travels backwards by exactly the consumed model
+ * distance. The short return arc has matching endpoint velocities and no
+ * vertical cusp. Starts, turns and the owner's amplitude easing are not a
+ * promise of world-space foot locking.
+ */
+export function sampleHoofStep(
+  species: keyof typeof QUADRUPED_WALK,
+  leg: number,
+  phase: number,
+  out: HoofStep
+): HoofStep {
+  const spec = QUADRUPED_WALK[species];
+  const offset = leg < 2 ? leg * 0.5 : 0.25 + (leg - 2) * 0.5;
+  const p = ((((Number.isFinite(phase) ? phase : 0) / (Math.PI * 2) + offset) % 1) + 1) % 1;
+  const stance = 0.68;
+  const half = (spec.cycle * stance) / 2;
+  out.forward = half - spec.cycle * p;
+  out.lift = 0;
+  if (p > stance) {
+    const u = (p - stance) / (1 - stance);
+    const ease = u * u * (3 - 2 * u);
+    out.forward = -half + half * 2 * ease - spec.cycle * (1 - stance) * u * (1 - u) * (1 - 2 * u);
+    out.lift = spec.lift * Math.sin(u * Math.PI) ** 2;
+  }
+  return out;
+}
+
 /** Match the authored 15 Hz blend while remaining stable across dropped frames. */
 export function creaturePoseBlend(authoredBlend: number, elapsed: number): number {
   return 1 - Math.pow(1 - authoredBlend, Math.max(0, elapsed) * 15);
@@ -53,6 +93,65 @@ export function creaturePerchLook(time: number, seed: number): number {
   return phase < 4
     ? Math.sin((phase / 4) * Math.PI) ** 2 * (sampleAmbientSequence(seed, 43) < 0.5 ? -0.4 : 0.4)
     : 0;
+}
+
+export interface HorseRestPose {
+  breath: number;
+  leftEar: number;
+  rightEar: number;
+  tail: number;
+}
+
+export const createHorseRestPose = (): HorseRestPose => ({
+  breath: 0,
+  leftEar: 0,
+  rightEar: 0,
+  tail: 0,
+});
+
+/** Existing owner time only: brief attention, long still dwells, no wall clock. */
+export function sampleHorseRest(time: number, seed: number, out: HorseRestPose): HorseRestPose {
+  out.breath = out.leftEar = out.rightEar = out.tail = 0;
+  if (!Number.isFinite(time) || time <= 0) return out;
+  const identity = Number.isFinite(seed) ? seed : 0;
+  const cadence = creatureCadence(identity);
+  const pulse = (period: number, delay: number, duration: number) => {
+    const phase = (time * cadence) % period;
+    return phase > delay && phase < delay + duration
+      ? Math.sin(((phase - delay) / duration) * Math.PI) ** 2
+      : 0;
+  };
+  out.breath = Math.sin((time * cadence * Math.PI * 2) / 4.7);
+  out.leftEar = pulse(12.5, 2.5 + sampleAmbientSequence(identity, 61) * 2, 0.9);
+  out.rightEar = pulse(16.5, 6.5 + sampleAmbientSequence(identity, 62) * 2, 1.2);
+  const tailPhase = (time * cadence) % 21;
+  const tailDelay = 10 + sampleAmbientSequence(identity, 63) * 2;
+  const tailProgress = (tailPhase - tailDelay) / 2.6;
+  if (tailProgress > 0 && tailProgress < 1)
+    out.tail = Math.sin(tailProgress * Math.PI) ** 2 * Math.sin(tailProgress * Math.PI * 2);
+  return out;
+}
+
+export type SheepRestPose = Pick<HorseRestPose, 'breath' | 'leftEar' | 'rightEar'>;
+export const createSheepRestPose = (): SheepRestPose => ({ breath: 0, leftEar: 0, rightEar: 0 });
+
+/** Quiet flank breathing and separate ear attention, driven by admitted farm time. */
+export function sampleSheepRest(time: number, seed: number, out: SheepRestPose): SheepRestPose {
+  out.breath = out.leftEar = out.rightEar = 0;
+  if (!Number.isFinite(time) || time <= 0) return out;
+  const identity = Number.isFinite(seed) ? seed : 0;
+  const t = time * creatureCadence(identity);
+  const onset = Math.min(1, t / 0.7);
+  out.breath =
+    Math.sin((t * Math.PI * 2) / 3.9 + sampleAmbientSequence(identity, 71) * Math.PI * 2) *
+    onset *
+    onset *
+    (3 - 2 * onset);
+  const left = ((t % 13) - 2 - sampleAmbientSequence(identity, 72) * 3) / 1.1;
+  const right = ((t % 17) - 7 - sampleAmbientSequence(identity, 73) * 3) / 1.3;
+  if (left > 0 && left < 1) out.leftEar = Math.sin(left * Math.PI) ** 2;
+  if (right > 0 && right < 1) out.rightEar = Math.sin(right * Math.PI) ** 2;
+  return out;
 }
 
 /** Short swims and long dabbling stops, always within 0.4 m of the authored anchor. */

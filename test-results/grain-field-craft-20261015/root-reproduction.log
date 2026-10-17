@@ -1,0 +1,36 @@
+
+> grain-mill-simulator@0.40.0 test
+> vitest run src/components/LivingWorldCreatures.test.tsx -t common ground-root datum
+
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+(node:71780) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:71809) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+ ❯ src/components/LivingWorldCreatures.test.tsx (10 tests | 1 failed | 9 skipped) 6ms
+   × authors the live crop geometry from a common ground-root datum for the wind shader 4ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/LivingWorldCreatures.test.tsx > authors the live crop geometry from a common ground-root datum for the wind shader
+AssertionError: expected -0.8999999761581421 to be greater than or equal to -0.000001
+ ❯ src/components/LivingWorldCreatures.test.tsx:378:34
+    376|   for (const g of Object.values(GRAIN_PLANT_GEOMETRY)) {
+    377|     g.computeBoundingBox();
+    378|     expect(g.boundingBox!.min.y).toBeGreaterThanOrEqual(-1e-6);
+       |                                  ^
+    379|   }
+    380|   const top=Math.max(...Object.values(GRAIN_PLANT_GEOMETRY).map(g=>g.b…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 9 skipped (10)
+   Start at  06:31:38
+   Duration  22.10s (transform 2.29s, setup 301ms, import 20.36s, tests 6ms, environment 940ms)
+

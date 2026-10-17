@@ -18,6 +18,7 @@ import {
 } from '../InstancedFoliage';
 import { applyWindShader, advanceWind, WIND_UNIFORMS, WIND_PERIOD } from '../WindDriver';
 import { createTreeMatrix, treeFormFromPosition } from '../treeForms';
+import { FOLIAGE_ALPHA_TEST } from '../../../textures/foliage';
 
 describe('canopy cage geometry', () => {
   const geo = createCanopyCage({ radius: 1.8, height: 1.5, centerY: 3.2, taper: 0 });
@@ -192,4 +193,23 @@ describe('species growth habit', () => {
       }
     }
   });
+});
+
+it('retains leaf alpha and wind-synced depth while restraining broadleaf relief only', () => {
+  expect(BROADLEAF_MATERIAL.normalScale.toArray()).toEqual([0.28, 0.28]);
+  expect(NEEDLE_MATERIAL.normalScale.toArray()).toEqual([0.6, 0.6]);
+  expect(BROADLEAF_MATERIAL.alphaTest).toBe(0.4);
+  expect(BROADLEAF_DEPTH.map).toBe(BROADLEAF_MATERIAL.map);
+  expect(BROADLEAF_DEPTH.alphaTest).toBe(BROADLEAF_MATERIAL.alphaTest);
+  expect(BROADLEAF_DEPTH.side).toBe(BROADLEAF_MATERIAL.side);
+  for (const [material, depth] of [
+    [BROADLEAF_MATERIAL, BROADLEAF_DEPTH],
+    [NEEDLE_MATERIAL, NEEDLE_DEPTH],
+  ]) {
+    expect(material.alphaTest).toBe(FOLIAGE_ALPHA_TEST);
+    expect(depth.alphaTest).toBe(FOLIAGE_ALPHA_TEST);
+    expect(depth.map).toBe(material.map);
+    expect(material.map!.mipmaps.length).toBe(9);
+    expect(material.map!.generateMipmaps).toBe(false);
+  }
 });

@@ -1,0 +1,6 @@
+
+> grain-mill-simulator@0.40.0 format:check
+> prettier --check "src/**/*.{ts,tsx,js,jsx,css}"
+
+Checking formatting...
+All matched files use Prettier code style!

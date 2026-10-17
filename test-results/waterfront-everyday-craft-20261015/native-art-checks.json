@@ -1,0 +1,222 @@
+[
+  {
+    "label": "T-waterfront-day-20261015",
+    "scene": "canal",
+    "identity": {
+      "index": {
+        "url": "http://127.0.0.1:4288/",
+        "sha256": "fbf29bf45e3dd3ea477d23e1d00489fc797cad2e73a35f9f6f5ce8dbc7eb58f5",
+        "bytes": 9887
+      },
+      "entries": [
+        {
+          "url": "http://127.0.0.1:4288/assets/main-DnJQZTvL.js",
+          "sha256": "cc0e37293f54385064dc03a0486d4c53d4fd3b2b618fcc6bc20d621c012ebc42",
+          "bytes": 823623
+        }
+      ]
+    },
+    "diagnostics": {
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": [],
+      "screenshotError": null
+    },
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "checks": {
+      "firstFrame": false,
+      "averageFps": true,
+      "p95Frame": false,
+      "p99Frame": true,
+      "onePercentLow": true,
+      "effectiveDpr": true,
+      "longTasks": true,
+      "framesOver50Ms": true,
+      "worldIntegrity": true,
+      "pageClean": true,
+      "communityPresence": true,
+      "checkpoints": true
+    },
+    "load": {
+      "cores": 10,
+      "loadAverage1m": 429.95,
+      "loadAverage5m": 416.9,
+      "loadPerCore": 42.99,
+      "contendedThreshold": 3,
+      "contended": true
+    },
+    "gpu": {
+      "sandboxed": true,
+      "inProcessGpu": false,
+      "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1 Max, Version 27.0.1 (Build 26A434))"
+    }
+  },
+  {
+    "label": "T-waterfront-day-20261015",
+    "scene": "village",
+    "identity": {
+      "index": {
+        "url": "http://127.0.0.1:4288/",
+        "sha256": "fbf29bf45e3dd3ea477d23e1d00489fc797cad2e73a35f9f6f5ce8dbc7eb58f5",
+        "bytes": 9887
+      },
+      "entries": [
+        {
+          "url": "http://127.0.0.1:4288/assets/main-DnJQZTvL.js",
+          "sha256": "cc0e37293f54385064dc03a0486d4c53d4fd3b2b618fcc6bc20d621c012ebc42",
+          "bytes": 823623
+        }
+      ]
+    },
+    "diagnostics": {
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": [],
+      "screenshotError": null
+    },
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "checks": {
+      "firstFrame": false,
+      "averageFps": false,
+      "p95Frame": false,
+      "p99Frame": true,
+      "onePercentLow": true,
+      "effectiveDpr": true,
+      "longTasks": true,
+      "framesOver50Ms": true,
+      "worldIntegrity": true,
+      "pageClean": true,
+      "communityPresence": true,
+      "checkpoints": true
+    },
+    "load": {
+      "cores": 10,
+      "loadAverage1m": 407.71,
+      "loadAverage5m": 413.26,
+      "loadPerCore": 40.77,
+      "contendedThreshold": 3,
+      "contended": true
+    },
+    "gpu": {
+      "sandboxed": true,
+      "inProcessGpu": false,
+      "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1 Max, Version 27.0.1 (Build 26A434))"
+    }
+  },
+  {
+    "label": "T-waterfront-day-20261015",
+    "scene": "farm",
+    "identity": {
+      "index": {
+        "url": "http://127.0.0.1:4288/",
+        "sha256": "fbf29bf45e3dd3ea477d23e1d00489fc797cad2e73a35f9f6f5ce8dbc7eb58f5",
+        "bytes": 9887
+      },
+      "entries": [
+        {
+          "url": "http://127.0.0.1:4288/assets/main-DnJQZTvL.js",
+          "sha256": "cc0e37293f54385064dc03a0486d4c53d4fd3b2b618fcc6bc20d621c012ebc42",
+          "bytes": 823623
+        }
+      ]
+    },
+    "diagnostics": {
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": [],
+      "screenshotError": null
+    },
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "checks": {
+      "firstFrame": false,
+      "averageFps": false,
+      "p95Frame": false,
+      "p99Frame": false,
+      "onePercentLow": false,
+      "effectiveDpr": true,
+      "longTasks": true,
+      "framesOver50Ms": true,
+      "worldIntegrity": true,
+      "pageClean": true,
+      "communityPresence": true,
+      "checkpoints": true
+    },
+    "load": {
+      "cores": 10,
+      "loadAverage1m": 377.56,
+      "loadAverage5m": 404.58,
+      "loadPerCore": 37.76,
+      "contendedThreshold": 3,
+      "contended": true
+    },
+    "gpu": {
+      "sandboxed": true,
+      "inProcessGpu": false,
+      "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1 Max, Version 27.0.1 (Build 26A434))"
+    }
+  },
+  {
+    "label": "T-waterfront-dusk-20261015",
+    "scene": "canal",
+    "identity": {
+      "index": {
+        "url": "http://127.0.0.1:4288/",
+        "sha256": "fbf29bf45e3dd3ea477d23e1d00489fc797cad2e73a35f9f6f5ce8dbc7eb58f5",
+        "bytes": 9887
+      },
+      "entries": [
+        {
+          "url": "http://127.0.0.1:4288/assets/main-DnJQZTvL.js",
+          "sha256": "cc0e37293f54385064dc03a0486d4c53d4fd3b2b618fcc6bc20d621c012ebc42",
+          "bytes": 823623
+        }
+      ]
+    },
+    "diagnostics": {
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": [],
+      "screenshotError": null
+    },
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "checks": {
+      "firstFrame": false,
+      "averageFps": true,
+      "p95Frame": false,
+      "p99Frame": true,
+      "onePercentLow": true,
+      "effectiveDpr": true,
+      "longTasks": true,
+      "framesOver50Ms": true,
+      "worldIntegrity": true,
+      "pageClean": true,
+      "communityPresence": true,
+      "checkpoints": true
+    },
+    "load": {
+      "cores": 10,
+      "loadAverage1m": 502.47,
+      "loadAverage5m": 421.82,
+      "loadPerCore": 50.25,
+      "contendedThreshold": 3,
+      "contended": true
+    },
+    "gpu": {
+      "sandboxed": true,
+      "inProcessGpu": false,
+      "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1 Max, Version 27.0.1 (Build 26A434))"
+    }
+  }
+]

@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   advanceCreatureStride,
   creatureCadence,
+  createHorseRestPose,
+  sampleHorseRest,
+  createSheepRestPose,
+  sampleSheepRest,
   creatureForageWeight,
   creaturePerchLook,
   duckSwimPose,
@@ -121,5 +125,125 @@ describe('quiet animal life between purposeful bouts', () => {
     expect(didSwim.size).toBe(4);
     expect(didRest.size).toBe(4);
     for (let i = 0; i < 4; i++) expect(duckSwimPose(0, 800 + i)).toMatchObject({ x: 0, z: 0 });
+  });
+});
+
+describe('quiet horse rest channels', () => {
+  it('has an exact neutral reset, finite inputs and reusable output', () => {
+    const out = createHorseRestPose();
+    for (const time of [0, -1, NaN, Infinity]) {
+      sampleHorseRest(4, 733, out);
+      expect(sampleHorseRest(time, 733, out)).toBe(out);
+      expect(out).toEqual(createHorseRestPose());
+    }
+    expect(Object.values(sampleHorseRest(4, NaN, out)).every(Number.isFinite)).toBe(true);
+  });
+
+  it('separates ears and tail with quiet dwells, bounded smooth motion and individual cadence', () => {
+    const sequences = [500, 733].map((seed) => {
+      const values = Array.from({ length: 3601 }, (_, i) => ({
+        ...sampleHorseRest(i / 60, seed, createHorseRestPose()),
+      }));
+      for (const key of ['leftEar', 'rightEar', 'tail'] as const) {
+        expect(values.filter((v) => v[key] === 0).length).toBeGreaterThan(3000);
+        expect(Math.max(...values.map((v) => Math.abs(v[key])))).toBeGreaterThan(0.6);
+      }
+      expect(values.some((v) => v.leftEar > 0.8 && v.rightEar === 0)).toBe(true);
+      expect(values.some((v) => v.rightEar > 0.8 && v.leftEar === 0)).toBe(true);
+      for (let i = 1; i < values.length; i++)
+        for (const key of ['breath', 'leftEar', 'rightEar', 'tail'] as const) {
+          expect(Math.abs(values[i][key])).toBeLessThanOrEqual(1);
+          expect(Math.abs(values[i][key] - values[i - 1][key])).toBeLessThan(0.075);
+        }
+      return values;
+    });
+    expect(sequences[0]).not.toEqual(sequences[1]);
+  });
+
+  it('samples the same pose regardless of display or owner throttle', () => {
+    for (const fps of [15, 30, 60, 120]) {
+      const out = createHorseRestPose();
+      for (let i = 0; i <= 18 * fps; i++) sampleHorseRest(i / fps, 500, out);
+      expect(out).toEqual(sampleHorseRest(18, 500, createHorseRestPose()));
+    }
+  });
+});
+
+describe('four-beat quadruped walk', () => {
+  it.each(['cow', 'pig'] as const)(
+    'matches %s stance travel, including instance scaling, and has four distinct return arcs',
+    async (species) => {
+      const { sampleHoofStep, QUADRUPED_WALK } = await import('../creatureMotion');
+      const step = { forward: 0, lift: 0 },
+        cycle = QUADRUPED_WALK[species].cycle;
+      for (const scale of [0.96, 1, 1.04]) {
+        const start = sampleHoofStep(species, 0, 0.3, step).forward;
+        const worldTravel = 0.025 * scale;
+        const phase = advanceCreatureStride(0.3, worldTravel / scale, (Math.PI * 2) / cycle);
+        expect(sampleHoofStep(species, 0, phase, step).forward - start).toBeCloseTo(
+          -worldTravel / scale,
+          12
+        );
+      }
+      const peaks = [];
+      for (let leg = 0; leg < 4; leg++) {
+        const samples = Array.from(
+          { length: 400 },
+          (_, i) => sampleHoofStep(species, leg, (i * Math.PI) / 200, step).lift
+        );
+        expect(samples.filter((v) => v === 0).length).toBeGreaterThan(270);
+        expect(Math.max(...samples)).toBeCloseTo(QUADRUPED_WALK[species].lift, 5);
+        peaks.push(samples.indexOf(Math.max(...samples)));
+        const start = { ...sampleHoofStep(species, leg, 0, step) };
+        expect(sampleHoofStep(species, leg, Math.PI * 2, step)).toEqual(start);
+      }
+      expect(new Set(peaks).size).toBe(4);
+    }
+  );
+});
+
+describe('independent quiet sheep attention', () => {
+  it('has exact neutral reset and smooth, bounded, distinct ear dwells and breathing', () => {
+    const schedules = [400, 401, 402, 403].map((seed) => {
+      const out = createSheepRestPose();
+      for (const time of [0, -1, NaN, Infinity]) {
+        sampleSheepRest(8, seed, out);
+        expect(sampleSheepRest(time, seed, out)).toBe(out);
+        expect(out).toEqual(createSheepRestPose());
+      }
+      const values = Array.from({ length: 2401 }, (_, i) => ({
+        ...sampleSheepRest(i / 60, seed, out),
+      }));
+      for (const key of ['leftEar', 'rightEar'] as const) {
+        expect(values.filter((v) => v[key] === 0).length).toBeGreaterThan(2100);
+        expect(Math.max(...values.map((v) => v[key]))).toBeGreaterThan(0.99);
+      }
+      expect(values.some((v) => v.leftEar > 0.8 && v.rightEar === 0)).toBe(true);
+      expect(values.some((v) => v.rightEar > 0.8 && v.leftEar === 0)).toBe(true);
+      let maxStep = 0,
+        maxValue = 0;
+      for (let i = 1; i < values.length; i++)
+        for (const key of ['breath', 'leftEar', 'rightEar'] as const) {
+          maxValue = Math.max(maxValue, Math.abs(values[i][key]));
+          maxStep = Math.max(maxStep, Math.abs(values[i][key] - values[i - 1][key]));
+        }
+      expect(maxValue).toBeLessThanOrEqual(1);
+      expect(maxStep).toBeLessThan(0.065);
+      return values.map((v) => Object.values(v).join(',')).join(';');
+    });
+    expect(new Set(schedules).size).toBe(4);
+    expect(
+      Object.values(sampleSheepRest(4, NaN, createSheepRestPose())).every(Number.isFinite)
+    ).toBe(true);
+  });
+  it('uses the same admitted time across rates, with a continuous initial breath and no accumulated phase', () => {
+    for (const fps of [15, 30, 60, 120]) {
+      const out = createSheepRestPose();
+      for (let i = 0; i <= fps * 20; i++) sampleSheepRest(i / fps, 401, out);
+      expect(out).toEqual(sampleSheepRest(20, 401, createSheepRestPose()));
+    }
+    expect(Math.abs(sampleSheepRest(0.00001, 400, createSheepRestPose()).breath)).toBeLessThan(
+      1e-8
+    );
   });
 });

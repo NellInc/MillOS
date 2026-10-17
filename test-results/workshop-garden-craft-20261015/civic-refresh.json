@@ -1,0 +1,13 @@
+{
+  "inputSha256": "cb3e1cd12ce8d441c3582995ae26a45dbdf8220b952231728c18d9753a6ce392",
+  "atlasSha256": "55c34a972028fbf2de4c428c57e48a93fcf7e04f375ba595b7d3efc2e504b137",
+  "oldAtlasSha256": "8de356b6e912c8ea42a7342988b1679a454ba2e4ee6f205b8513a629bda8fd71",
+  "sourcesAndBudgetsExact": true,
+  "versionAndAssetsPaired": true,
+  "triangles": 180416,
+  "bakerSeconds": 56.86,
+  "assetVersion": "8d53724f5c14cc9f46d691767bab39628a40b9755aa0f1c717ce345051b106e4",
+  "metadataSha256": "6b7898e417da0d18e067c549e7935c9770b51896807b617246de75fca4b17b91",
+  "versionConvention": "SHA256(PNG bytes followed by JSON bytes), existing contract",
+  "postExportSourceChange": "Type-only radio array annotation; stripping it reproduces the exact exported source hash. Static can geometry and light source manifest unchanged."
+}

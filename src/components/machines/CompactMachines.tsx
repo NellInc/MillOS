@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { ThreeEvent, useFrame } from '@react-three/fiber';
+import { useTexture } from '@react-three/drei';
+import { BUSINESS_BRANDS } from '../scenery/HeritageSignage';
 import { GeneratedBoundary } from '../models/GeneratedModel';
 import { GeneratedGeometrySurface } from '../models/GeneratedGeometrySurface';
 import type { GeneratedAssetId } from '../../utils/modelLoader';
@@ -18,7 +20,11 @@ import { useProductionStore } from '../../stores/productionStore';
 import { useMaterialFlowStore } from '../../stores/materialFlowStore';
 import { getMachineStatusColor } from '../../utils/statusColors';
 import { useShallow } from 'zustand/react/shallow';
-import { getMachineOperationalState } from '../../simulation/machineMotion';
+import {
+  getMachineOperationalState,
+  sampleMachineVisualPhase,
+  type MachineVisualClock,
+} from '../../simulation/machineMotion';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { isPostProcessingActive, useGraphicsStore } from '../../stores/graphicsStore';
 import {
@@ -27,11 +33,18 @@ import {
   MACHINE_FINISH_GEOMETRY,
   MILL_CONTROL_FACE,
   MILL_DRIVE_Z,
+  PACKER_SACK_GEOMETRY,
+  PACKER_SACK_LAYOUT,
+  PACKER_SACK_PRINT_GEOMETRY,
+  PACKER_FILL_HEAD_GEOMETRY,
+  getPackerSackPosition,
+  getPackerHeadPosition,
 } from './machineFinishGeometry';
 import {
   MACHINE_MATERIALS as MATERIALS,
   machineInstanceTint,
   setMachineScreenGlow,
+  createPackerPrintMaterial,
 } from './machineSurfaces';
 import {
   MACHINE_DECAL_GEOMETRY,
@@ -43,20 +56,17 @@ import {
 } from './machineDecals';
 
 const UNIT_BOX = new THREE.BoxGeometry(1, 1, 1);
-const ROUNDED_BOX = new RoundedBoxGeometry(1, 1, 1, 3, 0.08);
 /**
  * Thin plates, panels and plinths.
  *
- * `ROUNDED_BOX`'s 0.08 fillet is a UNIT radius, so the non-uniform instance
+ * The former rounded box's 0.08 fillet was a UNIT radius, so the non-uniform instance
  * scale stretches it with the part: on the mill panel ([3.5, 0.46, 0.12]) it
  * becomes 0.28 m across X and 0.0096 m across Z, a 29x anisotropy that reads as
  * a soft lozenge on one axis and a hard card on the other. That mismatch is
  * most of the "toy blocks" silhouette. Every plate-shaped part uses this 0.02
  * radius instead, which lands between 0.002 and 0.16 m - a plausible pressed
- * edge at every scale it is used at. `ROUNDED_BOX` is now down to the packer's
- * fill head and its sacks, which are small and near-cubic enough that the soft
- * fillet is right for both; the three machine bodies that used to share it are
- * designed housings, further down.
+ * edge at every scale it is used at. The machine bodies, formed packer outlet
+ * and sacks now have their own authored geometry.
  */
 const THIN_PLATE = new RoundedBoxGeometry(1, 1, 1, 1, 0.02);
 const SILO_BODY = new THREE.CylinderGeometry(1, 1, 1, 16);
@@ -650,6 +660,7 @@ export const MACHINE_PART_GEOMETRY = {
   inlet: INLET,
   beacon: BEACON,
   fanGrille: FAN_GRILLE,
+  packerSack: PACKER_SACK_GEOMETRY,
 } as const;
 const STATUS_COLOUR = new THREE.Color();
 /** Pointer travel (px) beyond which a click on a machine is the end of a drag. */
@@ -872,6 +883,16 @@ function CompactMachineSet({
   const packerCoversRef = useRef<THREE.InstancedMesh>(null);
   const packerHardwareRef = useRef<THREE.InstancedMesh>(null);
   const bagRef = useRef<THREE.InstancedMesh>(null);
+  const bagPrintRef = useRef<THREE.InstancedMesh>(null);
+  const bagPrint = useTexture(BUSINESS_BRANDS.mill.primary);
+  const bagPrintMaterial = useMemo(() => createPackerPrintMaterial(bagPrint), [bagPrint]);
+  useLayoutEffect(() => {
+    bagPrint.colorSpace = THREE.SRGBColorSpace;
+    bagPrint.anisotropy = 4;
+    bagPrint.needsUpdate = true;
+  }, [bagPrint]);
+  // Texture belongs to useTexture's shared cache, material belongs to this set.
+  useEffect(() => () => bagPrintMaterial.dispose(), [bagPrintMaterial]);
   const beaconRef = useRef<THREE.InstancedMesh>(null);
   const beaconBaseRef = useRef<THREE.InstancedMesh>(null);
   const decalRef = useRef<THREE.InstancedMesh>(null);
@@ -879,6 +900,7 @@ function CompactMachineSet({
   const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
   const objectRef = useRef(new THREE.Object3D());
   const flowVisualFrameRef = useRef(0);
+  const visualClocks = useRef(new Map<string, MachineVisualClock>());
 
   /**
    * `enableMachineColorVariation` is true on medium and above but had no effect
@@ -910,6 +932,9 @@ function CompactMachineSet({
   useLayoutEffect(() => {
     const object = objectRef.current;
     const tint = tintAmount;
+    const liveIds = new Set(allMachines.map((machine) => machine.id));
+    for (const id of visualClocks.current.keys())
+      if (!liveIds.has(id)) visualClocks.current.delete(id);
 
     subsets.silos.forEach((machine, index) => {
       const [x, y, z] = machine.position;
@@ -1215,10 +1240,17 @@ function CompactMachineSet({
         packerHeadRef.current,
         index,
         object,
-        [x, y + 1.75, z + 1.72],
-        [0.68, 1.4, 0.68]
+        getPackerHeadPosition(machine.position),
+        [1, 1, 1]
       );
-      setInstanceMatrix(bagRef.current, index, object, [x, y + 0.72, z + 2.75], [1.25, 1.45, 0.72]);
+      setInstanceMatrix(
+        bagRef.current,
+        index,
+        object,
+        getPackerSackPosition(machine.position),
+        PACKER_SACK_LAYOUT.scale
+      );
+      bagPrintRef.current?.setMatrixAt(index, object.matrix);
       setInstanceMatrix(
         packerScreenRef.current,
         index,
@@ -1226,13 +1258,17 @@ function CompactMachineSet({
         [x, y + 4.05, z + 1.78],
         [0.72, 0.5, 0.08]
       );
-      [-0.92, 0.92].forEach((offsetX, guideIndex) => {
+      [-PACKER_SACK_LAYOUT.guideX, PACKER_SACK_LAYOUT.guideX].forEach((offsetX, guideIndex) => {
         setInstanceMatrix(
           packerGuideRef.current,
           index * 2 + guideIndex,
           object,
-          [x + offsetX, y + 1.42, z + 2.55],
-          [0.09, 2.5, 0.09]
+          [
+            x + offsetX,
+            y + PACKER_SACK_LAYOUT.guidePosition[1],
+            z + PACKER_SACK_LAYOUT.guidePosition[2],
+          ],
+          PACKER_SACK_LAYOUT.guideSize
         );
       });
       [-1.34, 1.34].forEach((offsetX, guardIndex) => {
@@ -1352,6 +1388,7 @@ function CompactMachineSet({
       packerCoversRef,
       packerHardwareRef,
       bagRef,
+      bagPrintRef,
       beaconRef,
       beaconBaseRef,
     ].forEach((ref) => finishMatrixUpdate(ref.current, true));
@@ -1390,28 +1427,43 @@ function CompactMachineSet({
       decalRef,
       packerHeadRef,
       bagRef,
+      bagPrintRef,
     ],
     []
   );
 
   useFrame(() => {
-    if (!isTabVisible) return;
     const flowState = useMaterialFlowStore.getState();
     const time = flowState.simulationTime;
+    if (!isTabVisible) {
+      for (const clock of visualClocks.current.values())
+        sampleMachineVisualPhase(clock, time, false, false);
+      return;
+    }
     const object = objectRef.current;
     const roster = useProductionStore.getState().machines;
     if (enableMachineDetail && roster !== dialRosterRef.current) {
       writeDecalDialReadings(MACHINE_DECAL_GEOMETRY, decals, roster);
       dialRosterRef.current = roster;
     }
-    const canOperate = (machine: MachineData): boolean =>
-      getMachineOperationalState(machine.status, flowState.machineBuffers.get(machine.id)) ===
-      'operating';
+    const machinePhase = (machine: MachineData): number | null => {
+      let clock = visualClocks.current.get(machine.id);
+      if (!clock) {
+        clock = { sampleTime: time, phaseTime: null };
+        visualClocks.current.set(machine.id, clock);
+      }
+      return sampleMachineVisualPhase(
+        clock,
+        time,
+        getMachineOperationalState(machine.status, flowState.machineBuffers.get(machine.id)) ===
+          'operating'
+      );
+    };
 
     subsets.mills.forEach((machine, index) => {
       const [x, y, z] = machine.position;
-      const active = canOperate(machine);
-      const vibration = active ? Math.sin(time * 28 + index) * 0.012 : 0;
+      const phase = machinePhase(machine);
+      const vibration = phase === null ? 0 : Math.sin(phase * 28 + index) * 0.012;
       setInstanceMatrix(
         millBodyRef.current,
         index,
@@ -1459,17 +1511,16 @@ function CompactMachineSet({
           object,
           [x, y + 2.25 + rollerIndex * 1.1, z + 2.05],
           [0.48, 3.25, 0.48],
-          getMillRollerRotation(active ? time * (rollerIndex === 0 ? 4.5 : -4.5) : 0)
+          getMillRollerRotation((phase ?? 0) * (rollerIndex === 0 ? 4.5 : -4.5))
         );
       }
     });
 
     subsets.sifters.forEach((machine, index) => {
       const [x, y, z] = machine.position;
-      const active = canOperate(machine);
-      const phase = time * 10 + index * 1.7;
-      const offsetX = active ? Math.sin(phase) * 0.055 : 0;
-      const offsetZ = active ? Math.cos(phase) * 0.055 : 0;
+      const phase = machinePhase(machine);
+      const offsetX = phase === null ? 0 : Math.sin(phase * 10 + index * 1.7) * 0.055;
+      const offsetZ = phase === null ? 0 : Math.cos(phase * 10 + index * 1.7) * 0.055;
       setInstanceMatrix(
         sifterBodyRef.current,
         index,
@@ -1532,23 +1583,23 @@ function CompactMachineSet({
     });
 
     subsets.packers.forEach((machine, index) => {
-      const [x, y, z] = machine.position;
-      const active = canOperate(machine);
-      const cycle = active ? (Math.sin(time * 3.2 + index) + 1) * 0.5 : 0;
+      const phase = machinePhase(machine);
+      const cycle = phase === null ? 0 : (Math.sin(phase * 3.2 + index) + 1) * 0.5;
       setInstanceMatrix(
         packerHeadRef.current,
         index,
         object,
-        [x, y + 1.75 - cycle * 0.38, z + 1.72],
-        [0.68, 1.4, 0.68]
+        getPackerHeadPosition(machine.position, cycle),
+        [1, 1, 1]
       );
       setInstanceMatrix(
         bagRef.current,
         index,
         object,
-        [x, y + 0.72, z + 2.75 + cycle * 0.52],
-        [1.25, 1.45, 0.72]
+        getPackerSackPosition(machine.position, cycle),
+        PACKER_SACK_LAYOUT.scale
       );
+      bagPrintRef.current?.setMatrixAt(index, object.matrix);
     });
 
     flowVisualFrameRef.current += 1;
@@ -1854,13 +1905,21 @@ function CompactMachineSet({
         receiveShadow
       />
       <instancedMesh
+        name="packer-filling-heads"
         ref={packerHeadRef}
-        args={[ROUNDED_BOX, MATERIALS.packerTrim, subsets.packers.length]}
+        args={[PACKER_FILL_HEAD_GEOMETRY, MATERIALS.packerTrim, subsets.packers.length]}
         receiveShadow
       />
       <instancedMesh
+        name="packer-millos-prints"
+        ref={bagPrintRef}
+        args={[PACKER_SACK_PRINT_GEOMETRY, bagPrintMaterial, subsets.packers.length]}
+        receiveShadow
+      />
+      <instancedMesh
+        name="packer-output-sacks"
         ref={bagRef}
-        args={[ROUNDED_BOX, MATERIALS.bag, subsets.packers.length]}
+        args={[PACKER_SACK_GEOMETRY, MATERIALS.bag, subsets.packers.length]}
         castShadow
         receiveShadow
       />

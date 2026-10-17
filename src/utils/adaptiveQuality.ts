@@ -68,7 +68,8 @@ class AdaptiveQualityManager {
   private highFpsDurationMs = 0;
   private isInitialized = false;
   private isChangingQuality = false; // Prevent concurrent quality changes
-  private pendingQualityChange: GraphicsQuality | null = null;
+  private changeGeneration = 0;
+  private lastChoiceRevision: number | null = null;
   /** The last quality this manager applied; anything else was the user's choice. */
   private lastAppliedQuality: GraphicsQuality | null = null;
   /** The user's explicit choice: adaptive only restores what it took away. */
@@ -85,11 +86,19 @@ class AdaptiveQualityManager {
 
     // Any quality this manager did not apply (the persisted startup value, a
     // settings click, a keyboard shortcut) is the user's ceiling.
-    const current = useGraphicsStore.getState().graphics.quality;
+    const state = useGraphicsStore.getState();
+    const current = state.graphics.quality;
+    if (this.lastChoiceRevision === null) this.lastChoiceRevision = state.qualityChoiceRevision;
+    else if (state.qualityChoiceRevision !== this.lastChoiceRevision) {
+      this.lastChoiceRevision = state.qualityChoiceRevision;
+      this.acceptUserChoice(current);
+    }
     if (current !== this.lastAppliedQuality) {
-      this.userCeiling = current;
-      this.lastAppliedQuality = current;
-      this.upgradeBackoff = 1;
+      if (this.lastAppliedQuality !== null) this.acceptUserChoice(current);
+      else {
+        this.userCeiling = current;
+        this.lastAppliedQuality = current;
+      }
     }
 
     // Convert to FPS
@@ -165,40 +174,58 @@ class AdaptiveQualityManager {
    * Uses requestIdleCallback to avoid WebGL context issues
    */
   private safeQualityChange(newQuality: GraphicsQuality): void {
-    if (this.isChangingQuality) {
-      // Queue this change for later
-      this.pendingQualityChange = newQuality;
-      return;
-    }
+    // Both decision paths already refuse concurrent work; no deferred queue is needed.
+    if (this.isChangingQuality) return;
 
     this.isChangingQuality = true;
-    // Quality level is read from store when actually applied in scheduleChange callback
-
-    // Use requestIdleCallback if available, otherwise setTimeout
+    const generation = ++this.changeGeneration;
+    const { graphics, qualityChoiceRevision } = useGraphicsStore.getState();
+    const sourceQuality = graphics.quality;
     const scheduleChange =
       typeof requestIdleCallback !== 'undefined'
         ? requestIdleCallback
         : (cb: () => void) => setTimeout(cb, 100);
 
     scheduleChange(() => {
+      // A cancelled callback must never release the ownership of newer work.
+      if (generation !== this.changeGeneration) return;
       try {
+        const state = useGraphicsStore.getState();
+        if (
+          !this.config.enabled ||
+          state.qualityChoiceRevision !== qualityChoiceRevision ||
+          state.graphics.quality !== sourceQuality
+        )
+          return;
         this.lastAppliedQuality = newQuality;
-        useGraphicsStore.getState().setGraphicsQuality(newQuality);
-        this.frameTimes = []; // Reset samples after change
+        state.setGraphicsQuality(newQuality, 'adaptive');
+        this.frameTimes = [];
       } catch {
         // Failed to change quality, ignore
       } finally {
-        this.isChangingQuality = false;
-
-        // Process any pending change
-        if (this.pendingQualityChange !== null) {
-          const pending = this.pendingQualityChange;
-          this.pendingQualityChange = null;
-          // Wait a bit before processing pending change
-          setTimeout(() => this.safeQualityChange(pending), 1000);
-        }
+        if (generation === this.changeGeneration) this.isChangingQuality = false;
       }
     });
+  }
+
+  /** A real preset choice starts fresh measurement under the existing cooldown.
+   * Working if same-tier clicks invalidate old decisions, while fresh sustained
+   * low FPS can still adapt after the unchanged cooldown.
+   */
+  private acceptUserChoice(quality: GraphicsQuality): void {
+    this.invalidatePendingChange();
+    this.frameTimes = [];
+    this.lowFpsDurationMs = 0;
+    this.highFpsDurationMs = 0;
+    this.userCeiling = quality;
+    this.lastAppliedQuality = quality;
+    this.upgradeBackoff = 1;
+    this.lastChangeTime = Date.now();
+  }
+
+  private invalidatePendingChange(): void {
+    this.changeGeneration++;
+    this.isChangingQuality = false;
   }
 
   /**
@@ -254,6 +281,7 @@ class AdaptiveQualityManager {
   setEnabled(enabled: boolean): void {
     this.config.enabled = enabled;
     if (!enabled) {
+      this.invalidatePendingChange();
       this.frameTimes = [];
       this.lowFpsDurationMs = 0;
       this.highFpsDurationMs = 0;
@@ -278,6 +306,10 @@ class AdaptiveQualityManager {
    * Reset all state
    */
   reset(): void {
+    this.invalidatePendingChange();
+    this.lastChoiceRevision = null;
+    this.lastAppliedQuality = null;
+    this.userCeiling = null;
     this.frameTimes = [];
     this.lowFpsDurationMs = 0;
     this.highFpsDurationMs = 0;

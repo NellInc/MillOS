@@ -1,0 +1,35 @@
+
+> grain-mill-simulator@0.40.0 test
+> vitest run src/components/exterior/ConveyorBridge.test.tsx
+
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+(node:4921) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:5072) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+ ❯ src/components/exterior/ConveyorBridge.test.tsx (3 tests | 1 failed) 65ms
+     × keeps every pier and bearing below the unchanged wearing course 25ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/exterior/ConveyorBridge.test.tsx > actual road river bridge > keeps every pier and bearing below the unchanged wearing course
+AssertionError: carriageway at -26,-173: expected 1 to be close to 0.61, received difference is 0.39, but expected 0.000005
+ ❯ src/components/exterior/ConveyorBridge.test.tsx:99:60
+     97|         for (const z of [-173, -159, -145, -131, -117]) {
+     98|           const hit = new THREE.Raycaster(new THREE.Vector3(x, 3, z), …
+     99|           expect(hit?.point.y, `carriageway at ${x},${z}`).toBeCloseTo…
+       |                                                            ^
+    100|         }
+    101|     } finally { dispose(); }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 2 passed (3)
+   Start at  05:18:34
+   Duration  43.98s (transform 7.29s, setup 477ms, import 39.84s, tests 65ms, environment 2.71s)
+

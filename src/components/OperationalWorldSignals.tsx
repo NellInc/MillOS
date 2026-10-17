@@ -1,4 +1,4 @@
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { Billboard } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -11,8 +11,9 @@ import {
   type IncidentPhase,
   type OperationalIncident,
 } from '../stores/operationsCampaignStore';
-import { useGraphicsStore } from '../stores/graphicsStore';
+import { useGraphicsStore, type GraphicsQuality } from '../stores/graphicsStore';
 import { useReducedMotion } from '../hooks/useReducedMotion';
+import { useUIStore } from '../stores/uiStore';
 import { SceneText } from './shared/SceneText';
 
 type SignalPlacement = {
@@ -35,11 +36,11 @@ export const OPERATIONAL_INCIDENT_PLACEMENTS: Readonly<Record<IncidentKind, Sign
       0.08,
       SITE_LAYOUT.machines.rollerMills[0].position[2],
     ],
-    shortLabel: 'R.M. 101 HEAT',
+    shortLabel: 'R.M. 101 HOT BEARING',
   },
   dust_filter_pressure: {
     position: [5.25, SITE_LAYOUT.datum.mezzanine + 0.08, SITE_LAYOUT.factory.zones.sifting + 2.75],
-    shortLabel: 'FILTER DP',
+    shortLabel: 'FILTER PRESSURE HIGH',
   },
   power_sag: {
     // Off the south end of the silo bank. The old point sat 5 m from Silo
@@ -49,15 +50,15 @@ export const OPERATIONAL_INCIDENT_PLACEMENTS: Readonly<Record<IncidentKind, Sign
       0.04,
       SITE_LAYOUT.machines.silos[4].position[2] - SITE_LAYOUT.machineDimensions.silo[2] / 2 - 2.5,
     ],
-    shortLabel: 'POWER SAG',
+    shortLabel: 'SITE POWER DIP',
   },
   delayed_truck: {
     position: [24, 0.04, SITE_LAYOUT.docks.shipping.bayCentre[2] + 14],
-    shortLabel: 'DISPATCH DELAY',
+    shortLabel: 'SHIPPING TRUCK DELAY',
   },
   supplier_contamination: {
     position: [-22, 0.04, SITE_LAYOUT.docks.receiving.bayCentre[2] - 14],
-    shortLabel: 'LOT HOLD',
+    shortLabel: 'GRAIN LOT HOLD',
   },
   packaging_shortage: {
     position: [
@@ -69,13 +70,46 @@ export const OPERATIONAL_INCIDENT_PLACEMENTS: Readonly<Record<IncidentKind, Sign
   },
   severe_rain: {
     position: [118, SITE_LAYOUT.datum.water + 0.04, 116],
-    shortLabel: 'HIGH WATER',
+    shortLabel: 'HIGH RIVER LEVEL',
   },
   control_network_degraded: {
     position: [SITE_LAYOUT.portals.eastService.centre[0] - 7, 0.08, -20],
-    shortLabel: 'LINK DEGRADED',
+    shortLabel: 'NETWORK DEGRADED',
   },
 };
+
+/** Readable phase text complements the existing colours, without changing state.
+ * Working if Medium can identify a live incident and Low retains its cheap symbol.
+ */
+export function shouldLabelOperationalSignals(quality: GraphicsQuality): boolean {
+  return quality !== 'low';
+}
+
+export function getOperationalSignalLabel(kind: IncidentKind, phase: IncidentPhase): string {
+  const phases: Record<IncidentPhase, string> = {
+    raised: 'NEEDS ATTENTION',
+    acknowledged: 'ACKNOWLEDGED',
+    mitigated: 'RESPONSE APPLIED',
+    resolved: 'RESOLVED',
+  };
+  return `${OPERATIONAL_INCIDENT_PLACEMENTS[kind].shortLabel}\n${phases[phase]}`;
+}
+
+/** Scene inspection opens the existing response workspace, without acting on an incident.
+ * Working if a live beacon opens controls while FPS clicks and stale markers do nothing.
+ */
+export function openOperationalSignalWorkspace(incidentId: string): boolean {
+  if (
+    useUIStore.getState().fpsMode ||
+    !useOperationsCampaignStore
+      .getState()
+      .incidents.some((incident) => incident.id === incidentId && incident.phase !== 'resolved')
+  )
+    return false;
+  useUIStore.getState().setOperationalFocusId(incidentId);
+  window.dispatchEvent(new CustomEvent('millos:open-operations-workspace', { detail: 'overview' }));
+  return true;
+}
 
 const POST_GEOMETRY = new THREE.CylinderGeometry(0.1, 0.14, 1.35, 10);
 const BEACON_GEOMETRY = new THREE.SphereGeometry(0.24, 12, 8);
@@ -297,9 +331,12 @@ const OperationalSignalMarker: React.FC<{
   labelled: boolean;
   registerAnimated: (id: string, group: THREE.Group | null) => void;
 }> = ({ incident, detailed, labelled, registerAnimated }) => {
+  const [hovered, setHovered] = useState(false);
+  const fpsMode = useUIStore((state) => state.fpsMode);
   if (incident.phase === 'resolved') return null;
 
   const placement = OPERATIONAL_INCIDENT_PLACEMENTS[incident.kind];
+  const label = getOperationalSignalLabel(incident.kind, incident.phase);
   const material = PHASE_MATERIALS[incident.phase];
   const ringMaterial = RING_MATERIALS[incident.phase];
 
@@ -307,8 +344,20 @@ const OperationalSignalMarker: React.FC<{
     <group
       name={`operations-signal-${incident.kind}`}
       position={placement.position}
-      userData={{ operationalIncidentId: incident.id, incidentKind: incident.kind }}
+      userData={{
+        operationalIncidentId: incident.id,
+        incidentKind: incident.kind,
+        phase: incident.phase,
+        label,
+      }}
       dispose={null}
+      onClick={(event) => {
+        if (openOperationalSignalWorkspace(incident.id)) event.stopPropagation();
+      }}
+      onPointerOver={() => {
+        if (!useUIStore.getState().fpsMode) setHovered(true);
+      }}
+      onPointerOut={() => setHovered(false)}
     >
       <mesh
         geometry={RING_GEOMETRY}
@@ -331,12 +380,12 @@ const OperationalSignalMarker: React.FC<{
             fontSize={0.42}
             color={PHASE_COLOURS[incident.phase]}
             anchorX="center"
-            anchorY="middle"
+            anchorY="bottom"
             outlineWidth={0.025}
             outlineColor="#020617"
             maxWidth={6}
           >
-            {placement.shortLabel}
+            {hovered && !fpsMode ? `${label}\nOPEN RESPONSE` : label}
           </SceneText>
         </Billboard>
       )}
@@ -384,7 +433,7 @@ export const OperationalWorldSignals: React.FC = () => {
   if (activeIncidents.length === 0) return null;
 
   const detailed = quality !== 'low';
-  const labelled = quality === 'high' || quality === 'ultra';
+  const labelled = shouldLabelOperationalSignals(quality);
 
   return (
     <group name="operational-world-signals">

@@ -43,6 +43,7 @@ import { useGraphicsStore } from '../../stores/graphicsStore';
 import { EXTERIOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../../constants/renderLayers';
 import {
   generateLeafAtlas,
+  FOLIAGE_ALPHA_TEST,
   generateLeafNormal,
   generateLeafRoughness,
   generateGrassBladeAtlas,
@@ -405,9 +406,6 @@ const createClutterTuft = (width: number, tall: number): THREE.BufferGeometry =>
 // MATERIALS
 // ============================================================
 
-/** Base level stays binary at this threshold; the atlas writes a
- *  sub-threshold halo so mip reduction does not erode the canopy. */
-const FOLIAGE_ALPHA_TEST = 0.4;
 // A 384 px broadleaf atlas keeps 192 px per authored cell, well above the
 // feature and mip floor, while avoiding 44% of the synchronous texel work and
 // memory of the former 512 px map during first-world hydration.
@@ -427,11 +425,14 @@ export const createFoliageMaterial = (
   tint: string = '#ffffff'
 ): THREE.MeshStandardMaterial => {
   const atlasSize = kind === 'needle' ? 256 : BROADLEAF_ATLAS_SIZE;
+  // Preserve leaf-scale veins while avoiding the harsh speckled broadleaf finish.
+  // Working if generated and fallback leaves share this relief, with alpha intact.
+  const leafRelief = kind === 'broadleaf' ? 0.28 : 0.6;
   const material = new THREE.MeshStandardMaterial({
     color: tint,
     map: generateLeafAtlas(atlasSize, kind),
     normalMap: generateLeafNormal(atlasSize, kind),
-    normalScale: new THREE.Vector2(0.6, 0.6),
+    normalScale: new THREE.Vector2(leafRelief, leafRelief),
     roughnessMap: leafRoughness,
     roughness: 1.0,
     metalness: 0,

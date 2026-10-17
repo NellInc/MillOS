@@ -1,0 +1,85 @@
+[
+  {
+    "label": "day",
+    "scene": "milling",
+    "servedBuildMatches": true,
+    "sandboxedMetal": true,
+    "cleanDiagnostics": true,
+    "worldCommunityCheckpoints": true,
+    "generalVehicleMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "timingMisses": [
+      "firstFrame",
+      "averageFps",
+      "p95Frame",
+      "p99Frame",
+      "onePercentLow"
+    ],
+    "loadPerCore": 6.87,
+    "p95FrameMs": 30.1,
+    "startupMarks": {
+      "millos:bootstrap": 392.1,
+      "millos:first-frame": 510.2,
+      "millos:world-ready": 32658.1,
+      "millos:startup-ready": 41173.6
+    },
+    "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AC-people-hands-day-20261015/milling.png"
+  },
+  {
+    "label": "dusk",
+    "scene": "busstop",
+    "servedBuildMatches": true,
+    "sandboxedMetal": true,
+    "cleanDiagnostics": true,
+    "worldCommunityCheckpoints": true,
+    "generalVehicleMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "timingMisses": [
+      "firstFrame",
+      "p95Frame"
+    ],
+    "loadPerCore": 5.29,
+    "p95FrameMs": 18.1,
+    "startupMarks": {
+      "millos:bootstrap": 315.2,
+      "millos:first-frame": 408,
+      "millos:world-ready": 33235.1,
+      "millos:startup-ready": 41066.6
+    },
+    "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AC-people-hands-dusk-20261015/busstop.png"
+  },
+  {
+    "label": "night",
+    "scene": "milling",
+    "servedBuildMatches": true,
+    "sandboxedMetal": true,
+    "cleanDiagnostics": true,
+    "worldCommunityCheckpoints": true,
+    "generalVehicleMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "timingMisses": [
+      "averageFps",
+      "p95Frame",
+      "p99Frame",
+      "onePercentLow"
+    ],
+    "loadPerCore": 5.38,
+    "p95FrameMs": 29.2,
+    "startupMarks": {
+      "millos:bootstrap": 246.4,
+      "millos:first-frame": 333.3,
+      "millos:world-ready": 34020.3,
+      "millos:startup-ready": 41838.2
+    },
+    "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AC-people-hands-night-20261015/milling.png"
+  }
+]

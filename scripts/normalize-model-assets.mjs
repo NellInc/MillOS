@@ -3302,7 +3302,7 @@ export const GENERATED_ASSETS = [
   {
     yaw: 0,
     preparationMethod:
-      'Authored revival of the preserved v0.30 architecture: original nave, rear spire and rose; broad cream civic hall; hipped half-timbered Flour and Barrel; cream open-belfry schoolhouse. Closed layered hips, dressed stone, framed glazing and joinery. New reference-led metre envelopes, original provider source untouched.',
+      'Authored revival of the preserved v0.30 cream schoolhouse and open belfry, with closed layered hips, dressed stone, recessed sash glazing and grounded thresholds. A hollow closed bronze bell casting has a rolled sound bow, attached oak-yoke ironwork and rounded clapper. Retained metre envelope and silhouette; original provider source untouched.',
     preparationScript: 'scripts/blender/rebuild_village_architecture.py',
     preparedSource: 'school-crafted.glb',
     id: 'village-school',
@@ -3683,6 +3683,282 @@ async function normalizeGeneratedAsset(io, spec) {
     joints: root.listSkins()[0]?.listJoints().length ?? 0,
     outputBytes: (await stat(output)).size,
   };
+}
+
+/** Refine only ordinary-duty lower-body channels in an existing worker GLB.
+ * Reuses the two-chain construction in workerPose.ts, offline with fixed lengths.
+ * Working if the existing mixer receives balanced duty clips while original mesh,
+ * bind, gait and upper-body bytes remain intact; repeated refinement is byte exact.
+ */
+export function refineWorkerDutyClips(input) {
+  const bytes = Buffer.from(input);
+  if (bytes.readUInt32LE(0) !== 0x46546c67 || bytes.readUInt32LE(4) !== 2)
+    throw new Error('Expected binary glTF2 worker');
+  const jsonLength = bytes.readUInt32LE(12),
+    binAt = 20 + jsonLength;
+  if (bytes.readUInt32LE(16) !== 0x4e4f534a || bytes.readUInt32LE(binAt + 4) !== 0x004e4942)
+    throw new Error('Expected self-contained JSON/BIN worker');
+  const document = JSON.parse(bytes.subarray(20, binAt).toString());
+  const binary = bytes.subarray(binAt + 8, binAt + 8 + bytes.readUInt32LE(binAt));
+  if (document.buffers.length !== 1 || document.buffers[0].uri)
+    throw new Error('Worker must have one embedded buffer');
+  const clips = ['worker-inspect', 'worker-repair', 'worker-radio', 'worker-sample'];
+  const lowerNames = /^(UpperLeg|LowerLeg|Foot)\.[LR]$/;
+  const selectedChannels = () =>
+    document.animations
+      .filter((a) => clips.includes(a.name))
+      .flatMap((a) =>
+        a.channels
+          .filter(
+            (c) =>
+              lowerNames.test(document.nodes[c.target.node].name) &&
+              (c.target.path === 'rotation' ||
+                (document.nodes[c.target.node].name.startsWith('Foot.') &&
+                  c.target.path === 'translation'))
+          )
+          .map((c) => ({ animation: a, channel: c }))
+      );
+  const components = { SCALAR: 1, VEC3: 3, VEC4: 4 };
+  const data = (index) => {
+    const a = document.accessors[index],
+      v = document.bufferViews[a.bufferView],
+      size = components[a.type];
+    if (a.componentType !== 5126 || a.sparse || !size || v.byteStride)
+      throw new Error('Unsupported worker sampler');
+    const start = (v.byteOffset ?? 0) + (a.byteOffset ?? 0),
+      n = a.count * size;
+    const result = new Float32Array(n);
+    for (let i = 0; i < n; i++) result[i] = binary.readFloatLE(start + i * 4);
+    return result;
+  };
+  const channelHash = () => {
+    const digest = createHash('sha256');
+    for (const { animation: a, channel: c } of selectedChannels()) {
+      digest.update(a.name + '/' + document.nodes[c.target.node].name + '/' + c.target.path);
+      digest.update(Buffer.from(data(a.samplers[c.sampler].output).buffer));
+    }
+    return digest.digest('hex');
+  };
+  const payloadHash = (json, bin) => {
+    const payload = { ...json, extras: { ...json.extras } };
+    delete payload.extras.millosDutyStance;
+    if (!Object.keys(payload.extras).length) delete payload.extras;
+    return createHash('sha256').update(JSON.stringify(payload)).update(bin).digest('hex');
+  };
+  const existing = document.extras?.millosDutyStance;
+  if (existing) {
+    if (
+      existing.version !== 1 ||
+      existing.channelsSha256 !== channelHash() ||
+      existing.payloadSha256 !== payloadHash(document, binary)
+    )
+      throw new Error('Worker duty refinement marker differs from data');
+    return { bytes, receipt: { ...existing, unchanged: true } };
+  }
+  const nodes = document.nodes.map((n) => {
+    const o = new THREE.Object3D();
+    o.name = n.name ?? '';
+    if (n.matrix)
+      new THREE.Matrix4().fromArray(n.matrix).decompose(o.position, o.quaternion, o.scale);
+    else {
+      o.position.fromArray(n.translation ?? [0, 0, 0]);
+      o.quaternion.fromArray(n.rotation ?? [0, 0, 0, 1]);
+      o.scale.fromArray(n.scale ?? [1, 1, 1]);
+    }
+    return o;
+  });
+  document.nodes.forEach((n, i) => (n.children ?? []).forEach((j) => nodes[i].add(nodes[j])));
+  const root = new THREE.Group();
+  for (const i of document.scenes[document.scene ?? 0].nodes) root.add(nodes[i]);
+  const bind = nodes.map((o) => ({
+    position: o.position.clone(),
+    quaternion: o.quaternion.clone(),
+    scale: o.scale.clone(),
+  }));
+  const bindings = new Map();
+  for (const a of document.animations)
+    bindings.set(
+      a,
+      a.channels.map((c) => {
+        const s = a.samplers[c.sampler],
+          values = data(s.output),
+          times = data(s.input),
+          size = document.accessors[s.output].type === 'VEC4' ? 4 : 3;
+        if (s.interpolation && s.interpolation !== 'LINEAR')
+          throw new Error('Expected linear worker tracks');
+        const interpolate =
+          c.target.path === 'rotation'
+            ? new THREE.QuaternionLinearInterpolant(times, values, size)
+            : new THREE.LinearInterpolant(times, values, size);
+        return {
+          node: nodes[c.target.node],
+          property: { translation: 'position', rotation: 'quaternion', scale: 'scale' }[
+            c.target.path
+          ],
+          interpolate,
+        };
+      })
+    );
+  function sample(a, t) {
+    nodes.forEach((o, i) => {
+      o.position.copy(bind[i].position);
+      o.quaternion.copy(bind[i].quaternion);
+      o.scale.copy(bind[i].scale);
+    });
+    for (const b of bindings.get(a)) b.node[b.property].fromArray(b.interpolate.evaluate(t));
+    root.updateMatrixWorld(true);
+  }
+  const neutral = document.animations.find((a) => a.name === 'worker-break');
+  if (!neutral) throw new Error('Missing actual neutral stance');
+  sample(neutral, 0);
+  const sides = ['L', 'R'].map((side) => {
+    const byName = (name) => nodes.find((o) => o.name === name + '.' + side),
+      upper = byName('UpperLeg'),
+      lower = byName('LowerLeg'),
+      foot = byName('Foot');
+    if (!upper || !lower || !foot || foot.parent === lower)
+      throw new Error('Unexpected independent-foot rig');
+    return {
+      upper,
+      lower,
+      foot,
+      position: foot.position.clone(),
+      quaternion: foot.quaternion.clone(),
+      scale: foot.scale.clone(),
+      lengths: [
+        upper
+          .getWorldPosition(new THREE.Vector3())
+          .distanceTo(lower.getWorldPosition(new THREE.Vector3())),
+        lower
+          .getWorldPosition(new THREE.Vector3())
+          .distanceTo(foot.getWorldPosition(new THREE.Vector3())),
+      ],
+    };
+  });
+  const from = new THREE.Vector3(),
+    to = new THREE.Vector3(),
+    rotation = new THREE.Quaternion(),
+    inverse = new THREE.Matrix4();
+  function aim(bone, child, direction) {
+    if (child)
+      from.copy(child.position).multiply(bone.scale).applyQuaternion(bone.quaternion).normalize();
+    else from.set(0, 1, 0).applyQuaternion(bone.quaternion).normalize();
+    to.copy(direction);
+    if (bone.parent) to.transformDirection(inverse.copy(bone.parent.matrixWorld).invert());
+    rotation.setFromUnitVectors(from, to);
+    bone.quaternion.premultiply(rotation).normalize();
+    bone.updateWorldMatrix(false, true);
+  }
+  function plant() {
+    for (const s of sides) {
+      s.foot.position.copy(s.position);
+      s.foot.quaternion.copy(s.quaternion);
+      s.foot.scale.copy(s.scale);
+      s.foot.updateWorldMatrix(false, true);
+      const start = s.upper.getWorldPosition(new THREE.Vector3()),
+        end = s.foot.getWorldPosition(new THREE.Vector3()),
+        axis = end.clone().sub(start),
+        distance = axis.length(),
+        [upper, lower] = s.lengths;
+      if (distance > upper + lower + 1e-5 || distance < 1e-5)
+        throw new Error('Duty stance exceeds measured leg reach');
+      axis.divideScalar(distance);
+      const along = THREE.MathUtils.clamp(
+          (upper * upper + distance * distance - lower * lower) / (2 * distance),
+          -upper,
+          upper
+        ),
+        height = Math.sqrt(Math.max(0, upper * upper - along * along)),
+        bend = new THREE.Vector3(0, 0, 1).addScaledVector(axis, -axis.z).normalize();
+      const knee = start.clone().addScaledVector(axis, along).addScaledVector(bend, height);
+      aim(s.upper, s.lower, knee.sub(start));
+      aim(s.lower, undefined, end.sub(s.lower.getWorldPosition(new THREE.Vector3())));
+    }
+  }
+  const parts = [binary],
+    changes = [];
+  let binaryLength = binary.length;
+  for (const a of document.animations.filter((a) => clips.includes(a.name))) {
+    const channels = selectedChannels()
+      .filter((e) => e.animation === a)
+      .map((e) => e.channel);
+    if (channels.length !== 8) throw new Error('Expected eight authored lower-body channels');
+    for (const c of channels) {
+      const s = a.samplers[c.sampler],
+        old = document.accessors[s.output],
+        times = data(s.input),
+        count = components[old.type],
+        values = new Float32Array(old.count * count);
+      if (a.channels.filter((x) => x.sampler === c.sampler).length !== 1)
+        throw new Error('Shared worker sampler');
+      for (let key = 0; key < times.length; key++) {
+        sample(a, times[key]);
+        plant();
+        const node = nodes[c.target.node],
+          value = node[c.target.path === 'rotation' ? 'quaternion' : 'position'];
+        value.toArray(values, key * count);
+      }
+      const output = Buffer.alloc(values.length * 4);
+      values.forEach((v, i) => {
+        if (!Number.isFinite(v)) throw new Error('Nonfinite authored joint');
+        output.writeFloatLE(v, i * 4);
+      });
+      const view = document.bufferViews.length;
+      document.bufferViews.push({ buffer: 0, byteOffset: binaryLength, byteLength: output.length });
+      parts.push(output);
+      binaryLength += output.length;
+      const accessor = { ...old, bufferView: view, byteOffset: 0 };
+      delete accessor.min;
+      delete accessor.max;
+      const index = document.accessors.length;
+      document.accessors.push(accessor);
+      a.samplers[c.sampler] = { ...s, output: index };
+      changes.push({
+        clip: a.name,
+        node: document.nodes[c.target.node].name,
+        path: c.target.path,
+        previousOutput: s.output,
+        output: index,
+        keys: old.count,
+      });
+    }
+  }
+  document.buffers[0].byteLength = binaryLength;
+  const receipt = {
+    version: 1,
+    method: 'Neutral-source foot support, fixed-length two-chain leg solve at original duty keys',
+    sourceSha256: createHash('sha256').update(bytes).digest('hex'),
+    originalBinaryBytes: binary.length,
+    channels: changes,
+    channelsSha256: '',
+  };
+  // Hash the appended channels using the same accessor reader, without mutating source BIN.
+  const nextBinary = Buffer.concat(parts);
+  let hash = createHash('sha256');
+  for (const { animation: a, channel: c } of selectedChannels()) {
+    const accessor = document.accessors[a.samplers[c.sampler].output],
+      view = document.bufferViews[accessor.bufferView];
+    hash.update(a.name + '/' + document.nodes[c.target.node].name + '/' + c.target.path);
+    hash.update(nextBinary.subarray(view.byteOffset, view.byteOffset + view.byteLength));
+  }
+  receipt.channelsSha256 = hash.digest('hex');
+  document.extras = { ...document.extras, millosDutyStance: receipt };
+  receipt.payloadSha256 = payloadHash(document, nextBinary);
+  const json = Buffer.from(JSON.stringify(document)),
+    paddedJson = Buffer.alloc(Math.ceil(json.length / 4) * 4, 0x20);
+  json.copy(paddedJson);
+  const result = Buffer.alloc(12 + 8 + paddedJson.length + 8 + nextBinary.length);
+  result.writeUInt32LE(0x46546c67, 0);
+  result.writeUInt32LE(2, 4);
+  result.writeUInt32LE(result.length, 8);
+  result.writeUInt32LE(paddedJson.length, 12);
+  result.writeUInt32LE(0x4e4f534a, 16);
+  paddedJson.copy(result, 20);
+  const at = 20 + paddedJson.length;
+  result.writeUInt32LE(nextBinary.length, at);
+  result.writeUInt32LE(0x004e4942, at + 4);
+  nextBinary.copy(result, at + 8);
+  return { bytes: result, receipt };
 }
 
 async function main() {

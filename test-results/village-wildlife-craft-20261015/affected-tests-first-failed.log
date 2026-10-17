@@ -1,0 +1,63 @@
+(node:52895) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+(node:52989) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+ ❯ src/components/VillageArea.test.ts (25 tests | 1 failed) 3564ms
+     × seats eyes and both beak sections against the head, with eight supported toes 7ms
+(node:54412) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+ ❯ src/components/LivingWorldCreatures.test.tsx (9 tests | 1 failed) 155ms
+   × uses elapsed active time for actual duck dabbling across display rates and clears holds 10ms
+(node:55372) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:55435) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/LivingWorldCreatures.test.tsx > uses elapsed active time for actual duck dabbling across display rates and clears holds
+TypeError: Cannot set properties of undefined (setting 'y')
+ ❯ src/components/VillageArea.tsx:1598:34
+    1596|     if (isExcited) return;
+    1597|     if (groupRef.current) {
+    1598|       groupRef.current.position.y = position[1];
+       |                                  ^
+    1599|       groupRef.current.rotation.y = duckSwimPose(animationTime.current…
+    1600|     }
+ ❯ Object.react_stack_bottom_frame ../../../../Documents/GitHub/MillOS/node_modules/react-dom/cjs/react-dom-client.development.js:25989:20
+ ❯ runWithFiberInDEV ../../../../Documents/GitHub/MillOS/node_modules/react-dom/cjs/react-dom-client.development.js:874:13
+ ❯ commitHookEffectListMount ../../../../Documents/GitHub/MillOS/node_modules/react-dom/cjs/react-dom-client.development.js:13249:29
+ ❯ commitHookPassiveMountEffects ../../../../Documents/GitHub/MillOS/node_modules/react-dom/cjs/react-dom-client.development.js:13336:11
+ ❯ commitPassiveMountOnFiber ../../../../Documents/GitHub/MillOS/node_modules/react-dom/cjs/react-dom-client.development.js:15484:13
+ ❯ recursivelyTraversePassiveMountEffects ../../../../Documents/GitHub/MillOS/node_modules/react-dom/cjs/react-dom-client.development.js:15439:11
+ ❯ commitPassiveMountOnFiber ../../../../Documents/GitHub/MillOS/node_modules/react-dom/cjs/react-dom-client.development.js:15519:11
+ ❯ flushPassiveEffects ../../../../Documents/GitHub/MillOS/node_modules/react-dom/cjs/react-dom-client.development.js:18432:9
+ ❯ ../../../../Documents/GitHub/MillOS/node_modules/react-dom/cjs/react-dom-client.development.js:17923:15
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/components/VillageArea.test.ts > authored miniature fountain bird > seats eyes and both beak sections against the head, with eight supported toes
+AssertionError: expected 0.037392698054084995 to be less than 0.012
+ ❯ src/components/VillageArea.test.ts:897:27
+    895|       ).intersectObject(body)[0];
+    896|       expect(hit).toBeDefined();
+    897|       expect(hit.point.y).toBeLessThan(0.012);
+       |                           ^
+    898|     }
+    899|     for (const side of [-1, 1]) {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  2 failed | 2 passed (4)
+      Tests  2 failed | 45 passed (47)
+   Start at  03:47:22
+   Duration  53.97s (transform 4.85s, setup 1.75s, import 39.79s, tests 4.93s, environment 5.50s)
+

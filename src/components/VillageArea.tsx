@@ -7,18 +7,26 @@ import {
   inRealmPatch,
 } from '../constants/publicRealmLayout';
 import { communityChimneyLevel } from '../simulation/communityLife';
+import { FORGE_HEAT_LEVEL } from './models/GeneratedOfficeModel';
 import { VillagePublicRealm } from './scenery/WorldPublicRealm';
 import React, { useRef, useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import type { ThreeEvent } from '@react-three/fiber';
 import { shouldRunThisFrame } from '../utils/frameThrottle';
+import { createColorDataTexture, createLinearDataTexture } from '../utils/textureGenerator';
 import { SceneText as Text } from './shared/SceneText';
 import * as THREE from 'three';
+import { applyWaterRipples, applyFountainFoam } from '../utils/waterAppearance';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import Fireflies from './effects/Fireflies';
 import { Cat } from './scenery/Cat';
-import { AuthoredPropTrim, MarketGoods } from './scenery/AuthoredPropTrim';
+import {
+  AuthoredPropTrim,
+  MarketGoods,
+  MARKET_TRADE_NAMES,
+  MARKET_TRADE_PAINT,
+} from './scenery/AuthoredPropTrim';
 import {
   InstancedTreeField,
   InstancedGrassClutter,
@@ -42,7 +50,13 @@ import {
   instanceScale,
   instanceYaw,
 } from './models/GeneratedModel';
-import { VillageNameboard, VillageShopSign, FlourAndBarrelSign } from './scenery/VillageSignage';
+import {
+  VillageNameboard,
+  VillageShopSign,
+  FlourAndBarrelSign,
+  PubSignLighting,
+  CivicEntryLighting,
+} from './scenery/VillageSignage';
 import { NaturalDuckPond } from './scenery/NaturalDuckPond';
 import {
   VillageHome,
@@ -55,7 +69,6 @@ import {
   VILLAGE_PLOT_MATERIAL,
 } from './scenery/VillageGardens';
 import { CreatureBody, type CreatureRigHandle } from './models/RiggedCreatureModel';
-import { generateCobblestoneRoughness } from '../textures';
 import { SITE_LAYOUT, landmarkLocalToWorld } from '../constants/siteLayout';
 import {
   EXTERIOR_LAMP_LEVEL,
@@ -65,6 +78,7 @@ import {
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import {
   creatureForageWeight,
+  creaturePoseBlend,
   creaturePerchLook,
   duckSwimPose,
   fountainRippleScale,
@@ -118,9 +132,8 @@ import { OUTDOOR_MATERIALS } from '../utils/sharedMaterials';
 // Clone shared textures (same as farmyard), repeat (1,1) - UV divisor controls stone size
 const villageCobbleColor = PROCEDURAL_TEXTURES.cobblestoneColor.clone();
 const villageCobbleNormal = PROCEDURAL_TEXTURES.cobblestoneNormal.clone();
-// Roughness at 256/7 has the same cell count as the 512/14 albedo, so the
-// polished crowns line up with the stones instead of drifting across them.
-const villageCobbleRoughness = generateCobblestoneRoughness(256, 7).clone();
+// Share the same64-cell source as colour and relief, at the existing256px.
+const villageCobbleRoughness = PROCEDURAL_TEXTURES.cobblestoneRoughness.clone();
 villageCobbleColor.wrapS = villageCobbleColor.wrapT = THREE.RepeatWrapping;
 villageCobbleNormal.wrapS = villageCobbleNormal.wrapT = THREE.RepeatWrapping;
 villageCobbleRoughness.wrapS = villageCobbleRoughness.wrapT = THREE.RepeatWrapping;
@@ -160,6 +173,9 @@ stuccoColorTex.wrapS = stuccoColorTex.wrapT = THREE.RepeatWrapping;
 stuccoNormalTex.wrapS = stuccoNormalTex.wrapT = THREE.RepeatWrapping;
 stuccoColorTex.repeat.set(2, 2);
 stuccoNormalTex.repeat.set(2, 2);
+
+const shelteredWaterMaterial = new THREE.MeshStandardMaterial({ color: '#345c60' });
+applyWaterRipples(shelteredWaterMaterial);
 
 const SM = {
   grass: OUTDOOR_MATERIALS.grass, // Use shared grass material for seamless matching
@@ -247,7 +263,7 @@ const SM = {
   }),
   // Water is a DIELECTRIC. metalness 0.3 tinted the specular with the albedo
   // and drained the blue; the look lives in roughness and the environment.
-  water: new THREE.MeshStandardMaterial({ color: COLORS.water, roughness: 0.2, metalness: 0 }),
+  water: shelteredWaterMaterial,
   white: new THREE.MeshStandardMaterial({
     color: '#e8e8e8', // Slight tint for white stucco
     roughness: 0.75,
@@ -522,6 +538,7 @@ const ChimneySmoke: React.FC<{
     const drift = driftRef.current;
     const game = useGameSimulationStore.getState();
     const level = communityChimneyLevel(game.gameTime, offset, kind);
+    if (kind === 'forge') FORGE_HEAT_LEVEL.value = level;
     if (groupRef.current) groupRef.current.visible = level > 0.001;
     const time = (game.gameDay * 24 + game.gameTime) * 20 + offset;
     for (let i = 0; i < smokeRefs.current.length; i++) {
@@ -634,6 +651,15 @@ const ShopBuilding = React.memo<{
   >
     <GeneratedBody
       asset="shop"
+      shopTrade={
+        signText === 'BAKER' || signText === 'BAKERY'
+          ? 'bakery'
+          : signText === 'BUTCHER'
+            ? 'butcher'
+            : signText === 'GENERAL STORE'
+              ? 'general'
+              : undefined
+      }
       fallback={
         <ShopBuildingPrimitiveBody
           wallColor={wallColor}
@@ -798,6 +824,7 @@ const ChurchBuilding = React.memo<{
 }>(({ position, rotation = 0, isNight = false }) => (
   <group position={position} rotation={[0, rotation, 0]}>
     <GeneratedBody asset="church" fallback={<ChurchBuildingPrimitiveBody isNight={isNight} />} />
+    <CivicEntryLighting building="church" />
   </group>
 ));
 ChurchBuilding.displayName = 'ChurchBuilding';
@@ -1154,6 +1181,7 @@ const Pub = React.memo<{
       <VillageNameboard title="Flour & Barrel" caption="VILLAGE INN" width={3.42} height={0.76} />
     </group>
     <FlourAndBarrelSign />
+    <PubSignLighting />
     <ChimneySmoke position={[3, 8.23, 0]} offset={5} kind="pub" />
   </group>
 ));
@@ -1285,6 +1313,7 @@ const School = React.memo<{
   <group position={position} rotation={[0, rotation, 0]}>
     {/* Authored walls now meet the real ground datum; no buried turf disc. */}
     <GeneratedBody asset="school" fallback={<SchoolPrimitiveBody />} />
+    <CivicEntryLighting building="school" />
     <group position={[0, 5.23, 3.7]}>
       <VillageNameboard title="VILLAGE SCHOOL" width={4.4} height={0.68} colour="#354f59" />
     </group>
@@ -1478,7 +1507,7 @@ const DuckPrimitiveBody = React.memo(() => (
 ));
 DuckPrimitiveBody.displayName = 'DuckPrimitiveBody';
 
-const Duck = React.memo<{
+export const Duck = React.memo<{
   position: [number, number, number];
   delay: number;
   onClick: (pos: [number, number, number]) => void;
@@ -1488,16 +1517,24 @@ const Duck = React.memo<{
   const groupRef = useRef<THREE.Group>(null);
   const rigRef = useRef<CreatureRigHandle>(null);
   const dabbleRef = useRef(0);
+  const poseElapsed = useRef(0);
   const shakenRef = useRef(false);
   const [isExcited, setIsExcited] = React.useState(false);
 
+  // Elapsed active time keeps the existing .12-at-15Hz blend across display
+  // rates. Holds discard unsampled time, so no catch-up nudge on resume.
+  // Working if throttled 30/60/120Hz birds settle in the same wall-clock time.
   // Restored: a pond of perfectly still ducks beside animated water reads as
   // broken. Runs on the shared 1-in-4 throttle (~15 Hz), which is plenty for a
   // 2 cm bob - and it drops to every frame's worth of work only when petted.
   useFrame((_state, delta) => {
     const { isTabVisible, gameSpeed } = useGameSimulationStore.getState();
-    if (!isTabVisible || (!isExcited && gameSpeed <= 0)) return;
+    if (!isTabVisible) {
+      poseElapsed.current = 0;
+      return;
+    }
     if (reducedMotion) {
+      poseElapsed.current = 0;
       if (groupRef.current) {
         groupRef.current.position.set(...position);
         groupRef.current.rotation.y = 0;
@@ -1508,10 +1545,18 @@ const Duck = React.memo<{
       }
       return;
     }
-    animationTime.current += Math.min(delta, 0.1);
+    if (!isExcited && gameSpeed <= 0) {
+      poseElapsed.current = 0;
+      return;
+    }
+    const step = Math.min(delta, 0.1);
+    animationTime.current += step;
+    poseElapsed.current += step;
     if (!groupRef.current) return;
     if (!isExcited && !shouldRunThisFrame(4)) return;
     const time = animationTime.current;
+    const elapsed = poseElapsed.current;
+    poseElapsed.current = 0;
 
     const swim = duckSwimPose(time, 800 + delay);
     let yOffset = Math.sin(time * 2 + delay) * 0.02;
@@ -1535,7 +1580,11 @@ const Duck = React.memo<{
     if (!rig) return;
     const target =
       isExcited || swim.swimming ? 0 : Math.max(0, Math.sin(time * 0.9 + delay * 1.7)) ** 3;
-    dabbleRef.current = THREE.MathUtils.lerp(dabbleRef.current, target, 0.12);
+    dabbleRef.current = THREE.MathUtils.lerp(
+      dabbleRef.current,
+      target,
+      creaturePoseBlend(0.12, elapsed)
+    );
     // Shake first, graze second: every setter on the handle rebuilds the whole
     // pose from the rest quaternions and calls `updateMatrixWorld`, so writing
     // both unconditionally would double this bird's rig cost to no effect.
@@ -1578,6 +1627,7 @@ const Duck = React.memo<{
   return (
     <group
       ref={groupRef}
+      name={`village-duck-${delay}`}
       position={[position[0], position[1], position[2]]}
       userData={{ dynamic: true }}
       onClick={handleClick}
@@ -1674,22 +1724,8 @@ const DuckPondBasin = React.memo(() => (
     {/* Water pond - thin disc, its rim tucked under the kerb's lip. */}
     <mesh position={[0, 0.15, 0]}>
       <cylinderGeometry args={[5.5, 5.5, 0.08, 32]} />
-      <meshStandardMaterial
-        color="#3b82f6"
-        roughness={0.1}
-        // Water is a dielectric. At metalness 0.6 the pond was reflecting
-        // its own blue albedo as specular and reading as chalky enamel.
-        metalness={0}
-        // No polygonOffset. It carried -4/-4 to win against the flat annulus
-        // that used to be the shore, which itself carried -2/-2 against the
-        // cobbles. POND_SHORE is a solid bank now and its lip crosses over
-        // this disc with only 2.6 mm of clearance at r=5.5; a negative offset
-        // is applied along the view ray, so at the grazing angles you read a
-        // 14 m pond from it is worth centimetres of depth and would push the
-        // blue back out through the stone. Nothing here is coplanar with
-        // anything - the disc's wall intersects the cobble sheet at 0.12
-        // rather than lying on it - so no bias is needed in either direction.
-      />
+      {/* Opaque, lit, nearly still; the existing cylinder stays under its bank. */}
+      <primitive object={SM.water} attach="material" />
     </mesh>
   </group>
 ));
@@ -1888,11 +1924,8 @@ const MarketStallPrimitiveBody = React.memo<{ color1?: string; color2?: string }
 );
 MarketStallPrimitiveBody.displayName = 'MarketStallPrimitiveBody';
 
-/**
- * `color1` / `color2` chose the awning stripes. There is one generated stall, so
- * every pitch in the market now wears the same dyed canvas - which is what the
- * standing art verdict asked for ("saturated primaries... plastic toys"), but
- * it is also one stall repeated. Kept as props for the fallback.
+/** Four explicit trade cloths retain the delivered weave and cream stripes.
+ * Primitive fallback colours remain separate from the authored atlas.
  */
 const MarketStall = React.memo<{
   position: [number, number, number];
@@ -1906,17 +1939,26 @@ const MarketStall = React.memo<{
    */
   dressing?: number;
 }>(({ position, rotation = 0, color1, color2, dressing = 0 }) => (
-  // The four stalls stand in two rows 8 m apart and were the clearest case
-  // either reviewer named - "same awning, same crate arrangement, near-same
-  // rotation". Yaw is what a market stall actually varies in.
   <group
+    name={`village-market-stall-${dressing}`}
     position={position}
     rotation={[0, rotation + instanceYaw(position), 0]}
     scale={instanceScale(position)}
   >
     <GeneratedBoundary fallback={<MarketStallPrimitiveBody color1={color1} color2={color2} />}>
-      <GeneratedModel asset="marketstall" />
-      <AuthoredPropTrim kind="market" />
+      <GeneratedModel asset="marketstall" marketDressing={dressing} />
+      <AuthoredPropTrim kind="market" dressing={dressing} />
+      <Text
+        name={`market-trade-label-${dressing}`}
+        {...MARKET_TRADE_PAINT}
+        surface="painted"
+        anchorX="center"
+        anchorY="middle"
+        castShadow={false}
+        receiveShadow
+      >
+        {MARKET_TRADE_NAMES[dressing] ?? 'Market'}
+      </Text>
     </GeneratedBoundary>
     {/* INSIDE the yawed group, so the goods turn with the counter they stand
         on. Outside it they would slide off the table by up to 0.1 m at the
@@ -1963,58 +2005,116 @@ const Postbox = React.memo<{ position: [number, number, number]; rotation?: numb
 Postbox.displayName = 'Postbox';
 
 // ===== FOUNTAIN =====
-// Animated water assets - module level, shared by the single fountain instance.
-// Deterministic canvas texture (no Math.random) with wavy highlight streaks.
-const createFountainWaterTexture = (
-  base = '#5c8a6a',
-  lines = 'rgba(220, 240, 255, 0.35)'
-): THREE.CanvasTexture => {
-  const canvas = document.createElement('canvas');
-  canvas.width = 64;
-  canvas.height = 64;
-  const ctx = canvas.getContext('2d');
-  if (ctx) {
-    ctx.fillStyle = base;
-    ctx.fillRect(0, 0, 64, 64);
-    ctx.strokeStyle = lines;
-    ctx.lineWidth = 2;
-    for (let i = 0; i < 8; i++) {
-      ctx.beginPath();
-      const y = i * 8 + 4;
-      for (let x = 0; x <= 64; x += 4) {
-        const yy = y + Math.sin((x / 64) * Math.PI * 2 + i * 1.7) * 3;
-        if (x === 0) ctx.moveTo(x, yy);
-        else ctx.lineTo(x, yy);
-      }
-      ctx.stroke();
+/** Crossing periodic wave trains, in metres, instead of a repeated painted
+ * comb. Four small shared maps and the shared micro-relief, no added draw. Working if
+ * colour is sRGB, signed normals are linear, seams meet, and ripples stay lit.
+ */
+export function createFountainWaterTextures() {
+  const size = 128,
+    tau = Math.PI * 2;
+  const deep = [91, 135, 139],
+    highlight = [157, 187, 178];
+  const water = new Uint8Array(size * size * 4),
+    normal = water.slice(),
+    fall = water.slice(),
+    ripple = water.slice();
+  for (let y = 0; y < size; y++)
+    for (let x = 0; x < size; x++) {
+      const u = x / (size - 1),
+        v = y / (size - 1),
+        i = (y * size + x) * 4;
+      const a = tau * (3 * u + 2 * v) + 0.55 * Math.sin(tau * v);
+      const b = tau * (-2 * u + 5 * v) + 0.4 * Math.sin(tau * u);
+      const crest = Math.max(0, 1 - Math.abs(Math.sin(a)) / 0.35) ** 2;
+      const tint = 0.16 + 0.2 * (0.5 + 0.5 * Math.cos(b)) + 0.2 * crest;
+      for (let c = 0; c < 3; c++)
+        water[i + c] = Math.round(deep[c] + (highlight[c] - deep[c]) * tint);
+      water[i + 3] = 255;
+      const du =
+        0.006 * Math.cos(a) * tau * 3 + 0.0035 * Math.cos(b) * tau * (-2 + 0.4 * Math.cos(tau * u));
+      const dv =
+        0.006 * Math.cos(a) * tau * (2 + 0.55 * Math.cos(tau * v)) + 0.0035 * Math.cos(b) * tau * 5;
+      // One UV tile spans the generated basin's2.56m diameter. Heights above
+      // are millimetres of relief, so normal slopes stay small and signed.
+      const nx = -du / 2.56,
+        ny = -dv / 2.56,
+        length = Math.hypot(nx, ny, 1);
+      normal.set(
+        [
+          Math.round(((nx / length) * 0.5 + 0.5) * 255),
+          Math.round(((ny / length) * 0.5 + 0.5) * 255),
+          Math.round((0.5 / length + 0.5) * 255),
+          255,
+        ],
+        i
+      );
+      const filament = (0.5 + 0.5 * Math.cos(tau * (6 * v) + 0.65 * Math.sin(tau * 2 * u))) ** 3;
+      const flow = 0.5 + 0.5 * Math.sin(tau * (3 * u + v) + 0.35 * Math.sin(tau * v));
+      fall.set(
+        [
+          172 + 38 * filament,
+          199 + 25 * filament,
+          202 + 24 * filament,
+          100 + 105 * filament + 32 * flow,
+        ],
+        i
+      );
+      const rx = u * 2 - 1,
+        ry = v * 2 - 1,
+        radius = Math.hypot(rx, ry),
+        angle = Math.atan2(ry, rx);
+      const feather =
+        Math.exp(-(((radius - 0.87) / 0.065) ** 2)) *
+        THREE.MathUtils.clamp((1 - radius) / 0.04, 0, 1);
+      const broken = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(7 * angle + 0.7 * Math.sin(3 * angle)));
+      ripple.set([215, 232, 225, Math.round(210 * feather * broken)], i);
     }
+  // Duplicate the periodic edge texels exactly, including quantization, so
+  // bilinear filtering never introduces a colour/normal step at the wrap.
+  for (const data of [water, normal, fall, ripple]) {
+    for (let y = 0; y < size; y++)
+      for (let c = 0; c < 4; c++) data[(y * size + size - 1) * 4 + c] = data[y * size * 4 + c];
+    for (let x = 0; x < size; x++)
+      for (let c = 0; c < 4; c++) data[((size - 1) * size + x) * 4 + c] = data[x * 4 + c];
   }
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-};
-
-// Separate texture instances: surface and falling water scroll at different rates
-const fountainWaterTexture = createFountainWaterTexture();
-const fountainFallTexture = createFountainWaterTexture('#c6dfe8', 'rgba(255, 255, 255, 0.85)');
+  return {
+    water: createColorDataTexture(water, size, size),
+    normal: createLinearDataTexture(normal, size, size),
+    fall: createColorDataTexture(fall, size, size),
+    ripple: createColorDataTexture(ripple, size, size),
+  };
+}
+export const FOUNTAIN_WATER_TEXTURES = createFountainWaterTextures();
+const fountainWaterTexture = FOUNTAIN_WATER_TEXTURES.water;
+const fountainFallTexture = FOUNTAIN_WATER_TEXTURES.fall;
+// The new micro-relief and4Hz foam share this guarded visual clock.
+// At fountain speed0.7,2000PI wraps all three micro trains and foam seamlessly.
+// Working if pause/reduced holds preserve texture and shader phases together.
+const fountainWaterTime = { value: 0 };
+const FOUNTAIN_VISUAL_PERIOD = Math.PI * 2000;
 
 const fountainWaterMaterial = new THREE.MeshStandardMaterial({
-  color: '#7fb2d8',
+  color: '#ffffff',
   map: fountainWaterTexture,
+  normalMap: FOUNTAIN_WATER_TEXTURES.normal,
+  normalScale: new THREE.Vector2(0.8, 0.8),
+  depthWrite: false,
   transparent: true,
   opacity: 0.85,
   roughness: 0.15,
   metalness: 0, // dielectric - see the pond material
 });
 
-// Narrow additive falling-water sheath (transparent overlay - depthWrite off is correct)
-const fountainFallMaterial = new THREE.MeshBasicMaterial({
-  color: '#cfe8ff',
+applyWaterRipples(fountainWaterMaterial, fountainWaterTime, 'fountain');
+
+// The fallback sheath represents water too; its highlights follow scene light.
+const fountainFallMaterial = new THREE.MeshStandardMaterial({
+  color: '#ffffff',
   map: fountainFallTexture,
   transparent: true,
-  opacity: 0.3,
-  blending: THREE.AdditiveBlending,
+  opacity: 0.45,
+  roughness: 0.17,
+  metalness: 0,
   depthWrite: false,
   side: THREE.DoubleSide,
 });
@@ -2213,10 +2313,12 @@ const FountainPrimitiveBody = React.memo(() => {
     const cappedDelta = pendingDelta.current;
     pendingDelta.current = 0;
     animationTime.current += cappedDelta;
+    fountainWaterTime.value = animationTime.current % FOUNTAIN_VISUAL_PERIOD;
 
     // Scroll water surface slowly; falling water streams downward fast
     fountainWaterTexture.offset.x += cappedDelta * 0.02;
     fountainWaterTexture.offset.y += cappedDelta * 0.035;
+    FOUNTAIN_WATER_TEXTURES.normal.offset.copy(fountainWaterTexture.offset);
     fountainFallTexture.offset.y -= cappedDelta * 0.9;
 
     // Faint ripple ring expanding from the column
@@ -2237,13 +2339,23 @@ const FountainPrimitiveBody = React.memo(() => {
       </mesh>
       {/* Lower water - animated scrolling surface, drawn as a feathered sheet
           that dies into the coping rather than a slab standing on it. */}
-      <mesh position={[0, 0.65, 0]}>
+      <mesh position={[0, 0.65, 0]} receiveShadow>
         <primitive object={FOUNTAIN_WATER} attach="geometry" />
         <primitive object={fountainWaterMaterial} attach="material" />
+      </mesh>
+      {/* Froth stays at the falling cone's actual landing radius. */}
+      <mesh
+        name="fountain-froth-primitive"
+        position={[0, 0.708, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+      >
+        <ringGeometry args={[0.38, 0.76, 32]} />
+        <primitive object={fallbackFountainFoamMaterial} attach="material" />
       </mesh>
       {/* Ripple ring - faint, expands outward from the column */}
       <mesh
         name="fountain-ripple-primitive"
+        receiveShadow
         ref={rippleRef}
         position={[0, 0.72, 0]}
         rotation={[-Math.PI / 2, 0, 0]}
@@ -2252,7 +2364,8 @@ const FountainPrimitiveBody = React.memo(() => {
         {/* Lit: a ripple is water, not a light source, so it must not glow at night. */}
         <meshStandardMaterial
           ref={rippleMaterialRef}
-          color="#dbeafe"
+          color="#ffffff"
+          map={FOUNTAIN_WATER_TEXTURES.ripple}
           roughness={0.2}
           metalness={0}
           transparent
@@ -2290,6 +2403,154 @@ FountainPrimitiveBody.displayName = 'FountainPrimitiveBody';
  */
 export const FOUNTAIN_BIRD_PERCH: [number, number, number] = [1.48, 1.385, 0];
 export const FALLBACK_FOUNTAIN_BIRD_PERCH: [number, number, number] = [3, 0.6, 0];
+
+/** Shared, lit miniature bird, authored in the retained perch-local metres.
+ * Working if wings/tail/beak/eyes/toes attach in two surfaces, with no new draw
+ * per feather, texture, shadow or independent animation loop.
+ */
+function birdColour(geometry: THREE.BufferGeometry, hex: string, variation = 0) {
+  const p = geometry.getAttribute('position'),
+    colour = new THREE.Color(hex);
+  const colours = new Float32Array(p.count * 3);
+  for (let i = 0; i < p.count; i++) {
+    const shade = 1 + variation * Math.sin(p.getY(i) * 31 + p.getZ(i) * 23);
+    colours.set([colour.r * shade, colour.g * shade, colour.b * shade], i * 3);
+  }
+  geometry.setAttribute('color', new THREE.BufferAttribute(colours, 3));
+  return geometry;
+}
+function birdAssembly(parts: THREE.BufferGeometry[], name: string) {
+  const plain = parts.map((g) => (g.index ? g.toNonIndexed() : g));
+  const geometry = mergeGeometries(plain);
+  new Set([...parts, ...plain]).forEach((g) => g.dispose());
+  if (!geometry) throw new Error('Bird fittings require matching attributes');
+  geometry.name = name;
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+function birdToe(a: THREE.Vector3, b: THREE.Vector3) {
+  const geometry = new THREE.CylinderGeometry(0.0035, 0.004, a.distanceTo(b), 5);
+  geometry.applyQuaternion(
+    new THREE.Quaternion().setFromUnitVectors(
+      new THREE.Vector3(0, 1, 0),
+      b.clone().sub(a).normalize()
+    )
+  );
+  return geometry.translate(...a.clone().add(b).multiplyScalar(0.5).toArray());
+}
+export const FOUNTAIN_BIRD_TOE_CONTACTS = [-1, 1].flatMap((side) =>
+  [
+    [-0.018, 0.034],
+    [0, 0.044],
+    [0.018, 0.034],
+    [0, -0.027],
+  ].map(([spread, z]) => [side * 0.035 + spread, 0.004, z] as THREE.Vector3Tuple)
+);
+export function createFountainBirdGeometries() {
+  const body: THREE.BufferGeometry[] = [
+    birdColour(
+      new THREE.SphereGeometry(1, 12, 10).scale(0.0936, 0.12, 0.144).translate(0, 0.14, 0),
+      '#726c59',
+      0.045
+    ),
+    birdColour(
+      new THREE.SphereGeometry(1, 10, 8).scale(0.072, 0.09, 0.0495).translate(0, 0.13, 0.06),
+      '#cbbf9b',
+      0.035
+    ),
+  ];
+  for (const side of [-1, 1]) {
+    body.push(
+      birdColour(
+        new THREE.SphereGeometry(1, 10, 7)
+          .scale(0.029, 0.069, 0.103)
+          .rotateX(-0.23)
+          .rotateZ(side * 0.13)
+          .translate(side * 0.075, 0.151, -0.013),
+        '#655c48',
+        0.055
+      )
+    );
+    for (let feather = 0; feather < 3; feather++)
+      body.push(
+        birdColour(
+          new THREE.SphereGeometry(1, 8, 5)
+            .scale(0.007, 0.016, 0.059)
+            .rotateX(-0.31)
+            .translate(side * (0.091 - feather * 0.004), 0.137 + feather * 0.015, -0.037),
+          feather % 2 ? '#a29470' : '#827458'
+        )
+      );
+    body.push(
+      birdColour(
+        new THREE.CylinderGeometry(0.008, 0.009, 0.082, 5).translate(side * 0.035, 0.049, 0),
+        '#8c683e'
+      )
+    );
+  }
+  for (let feather = -1; feather <= 1; feather++)
+    body.push(
+      birdColour(
+        new THREE.SphereGeometry(1, 8, 5)
+          .scale(0.021, 0.009, 0.105)
+          .rotateX(-0.23)
+          .rotateY(feather * 0.08)
+          .translate(feather * 0.016, 0.095, -0.15),
+        feather === 0 ? '#454a43' : '#585744',
+        0.04
+      )
+    );
+  FOUNTAIN_BIRD_TOE_CONTACTS.forEach((contact, index) => {
+    const start = new THREE.Vector3(index < 4 ? -0.035 : 0.035, 0.01, 0);
+    body.push(birdColour(birdToe(start, new THREE.Vector3(...contact)), '#9c764c'));
+  });
+  const head: THREE.BufferGeometry[] = [
+    birdColour(new THREE.SphereGeometry(0.075, 12, 10), '#625f50', 0.04),
+    birdColour(
+      new THREE.SphereGeometry(1, 10, 6).scale(0.061, 0.027, 0.037).translate(0, 0.04, 0.028),
+      '#79715a'
+    ),
+  ];
+  const beak = new THREE.ConeGeometry(0.023, 0.075, 6)
+    .rotateX(Math.PI / 2)
+    .translate(0, -0.01, 0.085);
+  birdColour(beak, '#c39543');
+  const c = beak.getAttribute('color'),
+    p = beak.getAttribute('position');
+  for (let i = 0; i < p.count; i++)
+    if (p.getY(i) < -0.01) c.setXYZ(i, c.getX(i) * 0.76, c.getY(i) * 0.76, c.getZ(i) * 0.76);
+  head.push(beak);
+  for (const side of [-1, 1]) {
+    head.push(
+      birdColour(
+        new THREE.SphereGeometry(1, 8, 6)
+          .scale(0.007, 0.014, 0.016)
+          .translate(side * 0.062, 0.015, 0.032),
+        '#b9ad8d'
+      )
+    );
+    head.push(
+      birdColour(
+        new THREE.SphereGeometry(1, 8, 6)
+          .scale(0.006, 0.009, 0.01)
+          .translate(side * 0.067, 0.015, 0.035),
+        '#171c19'
+      )
+    );
+  }
+  return {
+    body: birdAssembly(body, 'fountain-bird-folded-plumage'),
+    head: birdAssembly(head, 'fountain-bird-face-and-beak'),
+  };
+}
+export const FOUNTAIN_BIRD_GEOMETRIES = createFountainBirdGeometries();
+export const FOUNTAIN_BIRD_MATERIAL = new THREE.MeshStandardMaterial({
+  vertexColors: true,
+  roughness: 0.84,
+  metalness: 0,
+});
+
 export const FountainBird = React.memo<{ position: [number, number, number] }>(({ position }) => {
   const reducedMotion = useReducedMotion();
   const clock = useRef(0);
@@ -2339,40 +2600,20 @@ export const FountainBird = React.memo<{ position: [number, number, number] }>((
       onPointerOut={resetCursor}
     >
       <group name="fountain-bird-motion" ref={body}>
-        <mesh position={[0, 0.14, 0]} scale={[0.78, 1, 1.2]}>
-          <sphereGeometry args={[0.12, 12, 10]} />
-          <meshStandardMaterial color="#686759" roughness={0.9} />
-        </mesh>
-        <mesh position={[0, 0.13, 0.06]} scale={[0.8, 1, 0.55]}>
-          <sphereGeometry args={[0.09, 10, 8]} />
-          <meshStandardMaterial color="#c7bb96" roughness={1} />
-        </mesh>
-        <mesh position={[0, 0.1, -0.16]} rotation={[-0.5, 0, 0]} scale={[0.07, 0.025, 0.2]}>
-          <boxGeometry />
-          <meshStandardMaterial color="#454a43" roughness={0.9} />
-        </mesh>
+        <mesh
+          name="fountain-bird-plumage"
+          geometry={FOUNTAIN_BIRD_GEOMETRIES.body}
+          material={FOUNTAIN_BIRD_MATERIAL}
+          dispose={null}
+        />
         <group name="fountain-bird-head" ref={head} position={[0, 0.23, 0.07]}>
-          <mesh>
-            <sphereGeometry args={[0.075, 12, 10]} />
-            <meshStandardMaterial color="#555a50" roughness={0.9} />
-          </mesh>
-          <mesh position={[0, -0.01, 0.085]} rotation={[Math.PI / 2, 0, 0]}>
-            <coneGeometry args={[0.023, 0.075, 6]} />
-            <meshStandardMaterial color="#c39543" roughness={0.8} />
-          </mesh>
-          {[-1, 1].map((side) => (
-            <mesh key={side} position={[side * 0.059, 0.015, 0.033]}>
-              <sphereGeometry args={[0.009, 6, 6]} />
-              <meshStandardMaterial color="#171c19" roughness={0.35} />
-            </mesh>
-          ))}
+          <mesh
+            name="fountain-bird-face"
+            geometry={FOUNTAIN_BIRD_GEOMETRIES.head}
+            material={FOUNTAIN_BIRD_MATERIAL}
+            dispose={null}
+          />
         </group>
-        {[-1, 1].map((side) => (
-          <mesh key={side} position={[side * 0.035, 0.045, 0]}>
-            <cylinderGeometry args={[0.008, 0.009, 0.09, 5]} />
-            <meshStandardMaterial color="#8c683e" roughness={0.85} />
-          </mesh>
-        ))}
       </group>
     </group>
   );
@@ -2413,14 +2654,14 @@ export const GENERATED_FOUNTAIN_STREAM_GEOMETRY = mergeGeometries(streamParts)!;
 streamParts.forEach((geometry) => geometry.dispose());
 const landingParts = GENERATED_FOUNTAIN_STREAM_PATHS.map((curve) => {
   const point = curve.getPoint(1);
-  return new THREE.RingGeometry(0.045, 0.08, 20)
+  return new THREE.CircleGeometry(0.14, 24)
     .rotateX(-Math.PI / 2)
     .translate(point.x, 1.269, point.z);
 });
-const GENERATED_FOUNTAIN_LANDING_GEOMETRY = mergeGeometries(landingParts)!;
+export const GENERATED_FOUNTAIN_LANDING_GEOMETRY = mergeGeometries(landingParts)!;
 landingParts.forEach((geometry) => geometry.dispose());
 export const GENERATED_FOUNTAIN_STREAM_MATERIAL = new THREE.MeshStandardMaterial({
-  color: '#d0e5e9',
+  color: '#ffffff',
   map: fountainFallTexture,
   transparent: true,
   opacity: 0.52,
@@ -2428,40 +2669,39 @@ export const GENERATED_FOUNTAIN_STREAM_MATERIAL = new THREE.MeshStandardMaterial
   metalness: 0,
   depthWrite: false,
 });
-const generatedFountainLandingMaterial = new THREE.MeshStandardMaterial({
+export const GENERATED_FOUNTAIN_LANDING_MATERIAL = new THREE.MeshStandardMaterial({
   color: '#c4dce5',
   transparent: true,
-  opacity: 0.32,
-  roughness: 0.25,
+  opacity: 0.82,
+  roughness: 0.65,
   depthWrite: false,
 });
 
-/**
- * Overlay material for the generated basin.
- *
- * Shares `fountainWaterTexture` with the primitive - one scroll drives both -
- * but at a third of the opacity, because this lies OVER a baked water surface
- * rather than standing in for one. At 0.85 it would replace the asset's own
- * water with a canvas texture, which is the swap running backwards.
- */
+applyFountainFoam(GENERATED_FOUNTAIN_LANDING_MATERIAL, fountainWaterTime);
+const fallbackFountainFoamMaterial = GENERATED_FOUNTAIN_LANDING_MATERIAL.clone();
+applyFountainFoam(fallbackFountainFoamMaterial, fountainWaterTime);
+
+// A normal-only water finish over the measured water annulus. The existing
+// 8 mm clearance stays fixed; there is no displacement into the baked pool.
 const generatedFountainWaterMaterial = new THREE.MeshStandardMaterial({
-  color: '#9ecbe8',
+  depthWrite: false,
+  color: '#ffffff',
   map: fountainWaterTexture,
+  normalMap: FOUNTAIN_WATER_TEXTURES.normal,
+  normalScale: new THREE.Vector2(0.8, 0.8),
   transparent: true,
   opacity: 0.3,
   roughness: 0.15,
   metalness: 0,
-  depthWrite: false,
 });
+applyWaterRipples(generatedFountainWaterMaterial, fountainWaterTime, 'fountain');
 
 /**
- * The two animations the fountain swap cost, put back on the generated basin.
+ * The generated basin carries lit micro-relief, gravity streams and impact froth.
  *
- * The generated fountain is a single mesh carrying its own static water, so
- * unlike the windmill there is no rigid sub-assembly to drive - but neither
- * lost animation was ever geometry. One is a texture scroll and the other is a
- * ring that grows and fades, and both can be laid over the asset at its own
- * measured water height.
+ * The generated fountain is a single mesh carrying its own static water.
+ * Surface relief changes only the normals. Froth footprints and expanding
+ * ripples sit at the asset's measured water height and stay within the coping.
  *
  * Rendered INSIDE `GeneratedBoundary` rather than hoisted beside it, which is
  * the difference from `ChimneySmoke`: the primitive fountain still owns water
@@ -2485,10 +2725,12 @@ const GeneratedFountainWater: React.FC = () => {
     const cappedDelta = pendingDelta.current;
     pendingDelta.current = 0;
     animationTime.current += cappedDelta;
+    fountainWaterTime.value = animationTime.current % FOUNTAIN_VISUAL_PERIOD;
     fountainWaterTexture.offset.x += cappedDelta * 0.02;
     fountainWaterTexture.offset.y += cappedDelta * 0.035;
+    FOUNTAIN_WATER_TEXTURES.normal.offset.copy(fountainWaterTexture.offset);
     fountainFallTexture.offset.x -= cappedDelta * 0.65;
-    generatedFountainLandingMaterial.opacity = 0.27 + Math.sin(animationTime.current * 3) * 0.06;
+    GENERATED_FOUNTAIN_LANDING_MATERIAL.opacity = 0.78 + Math.sin(animationTime.current * 3) * 0.06;
 
     if (rippleRef.current && rippleMaterialRef.current) {
       const phase = (animationTime.current * 0.35) % 1;
@@ -2506,23 +2748,37 @@ const GeneratedFountainWater: React.FC = () => {
 
   return (
     <group>
-      <mesh name="fountain-scupper-streams" geometry={GENERATED_FOUNTAIN_STREAM_GEOMETRY}>
+      <mesh
+        name="fountain-scupper-streams"
+        receiveShadow
+        geometry={GENERATED_FOUNTAIN_STREAM_GEOMETRY}
+      >
         <primitive object={GENERATED_FOUNTAIN_STREAM_MATERIAL} attach="material" />
       </mesh>
-      <mesh name="fountain-scupper-landings" geometry={GENERATED_FOUNTAIN_LANDING_GEOMETRY}>
-        <primitive object={generatedFountainLandingMaterial} attach="material" />
+      <mesh
+        name="fountain-scupper-landings"
+        receiveShadow
+        geometry={GENERATED_FOUNTAIN_LANDING_GEOMETRY}
+      >
+        <primitive object={GENERATED_FOUNTAIN_LANDING_MATERIAL} attach="material" />
       </mesh>
       {/* Sheet over the asset's own water. 8 mm proud: enough to win the depth
           test at every angle this square is read from, far too little to read
           as a step at the coping. `depthWrite` is off, as for every transparent
           overlay in this file. */}
-      <mesh position={[0, GENERATED_FOUNTAIN_WATER_Y + 0.008, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh
+        name="fountain-water-surface"
+        receiveShadow
+        position={[0, GENERATED_FOUNTAIN_WATER_Y + 0.008, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+      >
         <ringGeometry args={[GENERATED_FOUNTAIN_WATER_INNER, GENERATED_FOUNTAIN_WATER_OUTER, 48]} />
         <primitive object={generatedFountainWaterMaterial} attach="material" />
       </mesh>
       {/* Ripple ring, expanding from the column. */}
       <mesh
         name="fountain-ripple-generated"
+        receiveShadow
         ref={rippleRef}
         position={[0, GENERATED_FOUNTAIN_WATER_Y + 0.014, 0]}
         rotation={[-Math.PI / 2, 0, 0]}
@@ -2531,7 +2787,8 @@ const GeneratedFountainWater: React.FC = () => {
         {/* Lit: a ripple is water, not a light source, so it must not glow at night. */}
         <meshStandardMaterial
           ref={rippleMaterialRef}
-          color="#dbeafe"
+          color="#ffffff"
+          map={FOUNTAIN_WATER_TEXTURES.ripple}
           roughness={0.2}
           metalness={0}
           transparent
@@ -2568,205 +2825,224 @@ export const Fountain = React.memo<{ position: [number, number, number] }>(({ po
 ));
 Fountain.displayName = 'Fountain';
 
-// ===== HORSE =====
-// Redesigned v3: Detailed segmented model, clearer proportions
-const Horse = React.memo<{ position: [number, number, number]; rotation?: number; color?: string }>(
-  ({ position, rotation = 0, color = '#8d6e63' }) => {
-    const [isExcited, setIsExcited] = React.useState(false);
-    const [hearts, setHearts] = React.useState<{ id: number; pos: [number, number, number] }[]>([]);
-    const groupRef = React.useRef<THREE.Group>(null);
-    // Monotonic id avoids React key collisions on rapid pets (as Cat and Crow).
-    const nextHeartId = React.useRef(0);
+// ===== BLACKSMITH'S HORSE =====
+// Geometry-only fallback; its lowest hoof is -.175 before the retained .6 scale.
+const HorsePrimitiveBody = React.memo<{ color?: string }>(({ color = '#795548' }) => (
+  <group position={[0, 0.105, 0]} scale={0.6}>
+    {/* Main Body Group */}
+    <group position={[0, 1.4, 0]}>
+      {/* Torso */}
+      <mesh castShadow rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.55, 0.6, 1.2, 12]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+      {/* Shoulders */}
+      <mesh position={[0, 0.1, 0.7]} castShadow>
+        <sphereGeometry args={[0.62, 12, 12]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+      {/* Hindquarters */}
+      <mesh position={[0, 0.15, -0.7]} castShadow>
+        <sphereGeometry args={[0.65, 12, 12]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+    </group>
 
-    // A horse unmounted while hovered must not leave the pointer cursor stuck.
-    React.useEffect(() => resetCursor, []);
+    {/* Neck - Max upright/proud */}
+    <group position={[0, 2.1, 0.9]} rotation={[0.4, 0, 0]}>
+      <mesh position={[0, 0.5, 0]} castShadow>
+        <cylinderGeometry args={[0.25, 0.45, 1.2, 12]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+      {/* Mane */}
+      <mesh position={[0, 0.4, -0.3]} rotation={[0, 0, 0]}>
+        <boxGeometry args={[0.1, 1.3, 0.2]} />
+        <meshStandardMaterial color="#3e2723" />
+      </mesh>
+    </group>
 
-    const handlePet = (e: ThreeEvent<MouseEvent>) => {
-      e.stopPropagation();
-      setIsExcited(true);
-      playCritterSound('horse');
-      const id = nextHeartId.current++;
-      setHearts((prev) => [...prev, { id, pos: [0, 2.5, 0] }]);
-    };
+    {/* Head */}
+    <group position={[0, 3.1, 1.6]} rotation={[0.3, 0, 0]}>
+      <mesh castShadow>
+        <boxGeometry args={[0.35, 0.35, 0.7]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+      <mesh position={[0, -0.05, 0.35]} castShadow>
+        <boxGeometry args={[0.25, 0.25, 0.4]} />
+        <meshStandardMaterial color="#5d4037" />
+      </mesh>
+      {/* Ears - Larger and more prominent */}
+      {[-0.12, 0.12].map((x, i) => (
+        <mesh key={i} position={[x, 0.35, -0.2]} rotation={[0.2, 0, x > 0 ? -0.3 : 0.3]}>
+          <coneGeometry args={[0.08, 0.2, 4]} />
+          <meshStandardMaterial color={color} />
+        </mesh>
+      ))}
+      {/* Eyes - Moved to side of head */}
+      {[-0.16, 0.16].map((x, i) => (
+        <mesh key={i} position={[x, 0.1, 0.1]}>
+          <sphereGeometry args={[0.065, 8, 8]} />
+          <meshStandardMaterial color="black" />
+        </mesh>
+      ))}
+      {/* Forelock */}
+      <mesh position={[0, 0.2, 0.2]} rotation={[0.2, 0, 0]}>
+        <boxGeometry args={[0.05, 0.2, 0.3]} />
+        <meshStandardMaterial color="#3e2723" />
+      </mesh>
+    </group>
 
-    const removeHeart = (id: number) => {
-      setHearts((prev) => prev.filter((h) => h.id !== id));
-    };
+    {/* Legs */}
+    {/* Front Left */}
+    <group position={[-0.35, 1.4, 0.7]}>
+      <mesh position={[0, -0.4, 0]}>
+        <cylinderGeometry args={[0.12, 0.15, 0.8, 8]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+      <mesh position={[0, -1.1, 0]}>
+        <cylinderGeometry args={[0.1, 0.11, 0.7, 8]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+      <mesh position={[0, -1.5, 0]}>
+        <cylinderGeometry args={[0.12, 0.15, 0.15, 8]} />
+        <meshStandardMaterial color="#1a1110" />
+      </mesh>
+    </group>
+    {/* Front Right */}
+    <group position={[0.35, 1.4, 0.7]}>
+      <mesh position={[0, -0.4, 0]}>
+        <cylinderGeometry args={[0.12, 0.15, 0.8, 8]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+      <mesh position={[0, -1.1, 0]}>
+        <cylinderGeometry args={[0.1, 0.11, 0.7, 8]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+      <mesh position={[0, -1.5, 0]}>
+        <cylinderGeometry args={[0.12, 0.15, 0.15, 8]} />
+        <meshStandardMaterial color="#1a1110" />
+      </mesh>
+    </group>
+    {/* Back Left */}
+    <group position={[-0.35, 1.4, -0.7]}>
+      <mesh position={[0, -0.3, 0]}>
+        <cylinderGeometry args={[0.14, 0.18, 0.8, 8]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+      <mesh position={[0, -1.0, 0]}>
+        <cylinderGeometry args={[0.1, 0.12, 0.8, 8]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+      <mesh position={[0, -1.5, 0]}>
+        <cylinderGeometry args={[0.12, 0.15, 0.15, 8]} />
+        <meshStandardMaterial color="#1a1110" />
+      </mesh>
+    </group>
+    {/* Back Right */}
+    <group position={[0.35, 1.4, -0.7]}>
+      <mesh position={[0, -0.3, 0]}>
+        <cylinderGeometry args={[0.14, 0.18, 0.8, 8]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+      <mesh position={[0, -1.0, 0]}>
+        <cylinderGeometry args={[0.1, 0.12, 0.8, 8]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+      <mesh position={[0, -1.5, 0]}>
+        <cylinderGeometry args={[0.12, 0.15, 0.15, 8]} />
+        <meshStandardMaterial color="#1a1110" />
+      </mesh>
+    </group>
 
-    // Restored. Only does work while the animal is actually excited, so the
-    // steady-state cost is one ref check per frame.
-    useFrame((state) => {
-      const group = groupRef.current;
-      if (!group) return;
-      if (isExcited) {
-        const t = state.clock.elapsedTime * 15;
-        group.rotation.z = Math.sin(t) * 0.05; // Shake
-        group.position.y = Math.abs(Math.sin(t * 0.5)) * 0.1; // Rear up slightly
-      } else if (group.position.y !== 0 || group.rotation.z !== 0) {
-        group.rotation.z = 0;
-        group.position.y = 0;
+    {/* Tail */}
+    <group position={[0, 1.7, -1.0]} rotation={[0.2, 0, 0]}>
+      <mesh position={[0, -0.4, -0.2]} rotation={[-0.2, 0, 0]}>
+        <cylinderGeometry args={[0.08, 0.15, 1.2, 8]} />
+        <meshStandardMaterial color="#3e2723" />
+      </mesh>
+    </group>
+  </group>
+));
+HorsePrimitiveBody.displayName = 'HorsePrimitiveBody';
+
+/** Reuse the refined farm asset and its existing rig, preserving its baked coat.
+ * Working if the forge has one textured horse, with no extra asset/maps, and its
+ * quiet head looks/pet response keep every hoof and the root planted.
+ */
+export const BlacksmithHorse = React.memo<{
+  position: [number, number, number];
+  rotation?: number;
+}>(({ position, rotation = 0 }) => {
+  const reducedMotion = useReducedMotion();
+  const rig = useRef<CreatureRigHandle>(null);
+  const clock = useRef(0),
+    pet = useRef(0),
+    pending = useRef(0),
+    reset = useRef<CreatureRigHandle | null>(null);
+  const nextHeartId = useRef(0);
+  const [hearts, setHearts] = React.useState<{ id: number; pos: [number, number, number] }[]>([]);
+  useEffect(() => resetCursor, []);
+  useFrame((_state, delta) => {
+    const { isTabVisible, gameSpeed, emergencyActive, emergencyDrillMode } =
+      useGameSimulationStore.getState();
+    if (!isTabVisible || emergencyActive || emergencyDrillMode) return;
+    if (reducedMotion) {
+      if (rig.current && reset.current !== rig.current) {
+        rig.current.setHeadShake(0);
+        rig.current.setResting?.(0, 733);
+        reset.current = rig.current;
       }
-    });
-
-    React.useEffect(() => {
-      if (isExcited) {
-        const t = setTimeout(() => setIsExcited(false), 800);
-        return () => clearTimeout(t);
-      }
-    }, [isExcited]);
-
-    return (
-      <group
-        position={position}
-        rotation={[0, rotation, 0]}
-        scale={0.6}
-        onClick={handlePet}
-        onPointerOver={setPointerCursor}
-        onPointerOut={resetCursor}
-      >
-        <group ref={groupRef}>
-          {/* Main Body Group */}
-          <group position={[0, 1.4, 0]}>
-            {/* Torso */}
-            <mesh castShadow rotation={[Math.PI / 2, 0, 0]}>
-              <cylinderGeometry args={[0.55, 0.6, 1.2, 12]} />
-              <meshStandardMaterial color={color} />
-            </mesh>
-            {/* Shoulders */}
-            <mesh position={[0, 0.1, 0.7]} castShadow>
-              <sphereGeometry args={[0.62, 12, 12]} />
-              <meshStandardMaterial color={color} />
-            </mesh>
-            {/* Hindquarters */}
-            <mesh position={[0, 0.15, -0.7]} castShadow>
-              <sphereGeometry args={[0.65, 12, 12]} />
-              <meshStandardMaterial color={color} />
-            </mesh>
-          </group>
-
-          {/* Neck - Max upright/proud */}
-          <group position={[0, 2.1, 0.9]} rotation={[0.4, 0, 0]}>
-            <mesh position={[0, 0.5, 0]} castShadow>
-              <cylinderGeometry args={[0.25, 0.45, 1.2, 12]} />
-              <meshStandardMaterial color={color} />
-            </mesh>
-            {/* Mane */}
-            <mesh position={[0, 0.4, -0.3]} rotation={[0, 0, 0]}>
-              <boxGeometry args={[0.1, 1.3, 0.2]} />
-              <meshStandardMaterial color="#3e2723" />
-            </mesh>
-          </group>
-
-          {/* Head */}
-          <group position={[0, 3.1, 1.6]} rotation={[0.3, 0, 0]}>
-            <mesh castShadow>
-              <boxGeometry args={[0.35, 0.35, 0.7]} />
-              <meshStandardMaterial color={color} />
-            </mesh>
-            <mesh position={[0, -0.05, 0.35]} castShadow>
-              <boxGeometry args={[0.25, 0.25, 0.4]} />
-              <meshStandardMaterial color="#5d4037" />
-            </mesh>
-            {/* Ears - Larger and more prominent */}
-            {[-0.12, 0.12].map((x, i) => (
-              <mesh key={i} position={[x, 0.35, -0.2]} rotation={[0.2, 0, x > 0 ? -0.3 : 0.3]}>
-                <coneGeometry args={[0.08, 0.2, 4]} />
-                <meshStandardMaterial color={color} />
-              </mesh>
-            ))}
-            {/* Eyes - Moved to side of head */}
-            {[-0.16, 0.16].map((x, i) => (
-              <mesh key={i} position={[x, 0.1, 0.1]}>
-                <sphereGeometry args={[0.065, 8, 8]} />
-                <meshStandardMaterial color="black" />
-              </mesh>
-            ))}
-            {/* Forelock */}
-            <mesh position={[0, 0.2, 0.2]} rotation={[0.2, 0, 0]}>
-              <boxGeometry args={[0.05, 0.2, 0.3]} />
-              <meshStandardMaterial color="#3e2723" />
-            </mesh>
-          </group>
-
-          {/* Legs */}
-          {/* Front Left */}
-          <group position={[-0.35, 1.4, 0.7]}>
-            <mesh position={[0, -0.4, 0]}>
-              <cylinderGeometry args={[0.12, 0.15, 0.8, 8]} />
-              <meshStandardMaterial color={color} />
-            </mesh>
-            <mesh position={[0, -1.1, 0]}>
-              <cylinderGeometry args={[0.1, 0.11, 0.7, 8]} />
-              <meshStandardMaterial color={color} />
-            </mesh>
-            <mesh position={[0, -1.5, 0]}>
-              <cylinderGeometry args={[0.12, 0.15, 0.15, 8]} />
-              <meshStandardMaterial color="#1a1110" />
-            </mesh>
-          </group>
-          {/* Front Right */}
-          <group position={[0.35, 1.4, 0.7]}>
-            <mesh position={[0, -0.4, 0]}>
-              <cylinderGeometry args={[0.12, 0.15, 0.8, 8]} />
-              <meshStandardMaterial color={color} />
-            </mesh>
-            <mesh position={[0, -1.1, 0]}>
-              <cylinderGeometry args={[0.1, 0.11, 0.7, 8]} />
-              <meshStandardMaterial color={color} />
-            </mesh>
-            <mesh position={[0, -1.5, 0]}>
-              <cylinderGeometry args={[0.12, 0.15, 0.15, 8]} />
-              <meshStandardMaterial color="#1a1110" />
-            </mesh>
-          </group>
-          {/* Back Left */}
-          <group position={[-0.35, 1.4, -0.7]}>
-            <mesh position={[0, -0.3, 0]}>
-              <cylinderGeometry args={[0.14, 0.18, 0.8, 8]} />
-              <meshStandardMaterial color={color} />
-            </mesh>
-            <mesh position={[0, -1.0, 0]}>
-              <cylinderGeometry args={[0.1, 0.12, 0.8, 8]} />
-              <meshStandardMaterial color={color} />
-            </mesh>
-            <mesh position={[0, -1.5, 0]}>
-              <cylinderGeometry args={[0.12, 0.15, 0.15, 8]} />
-              <meshStandardMaterial color="#1a1110" />
-            </mesh>
-          </group>
-          {/* Back Right */}
-          <group position={[0.35, 1.4, -0.7]}>
-            <mesh position={[0, -0.3, 0]}>
-              <cylinderGeometry args={[0.14, 0.18, 0.8, 8]} />
-              <meshStandardMaterial color={color} />
-            </mesh>
-            <mesh position={[0, -1.0, 0]}>
-              <cylinderGeometry args={[0.1, 0.12, 0.8, 8]} />
-              <meshStandardMaterial color={color} />
-            </mesh>
-            <mesh position={[0, -1.5, 0]}>
-              <cylinderGeometry args={[0.12, 0.15, 0.15, 8]} />
-              <meshStandardMaterial color="#1a1110" />
-            </mesh>
-          </group>
-
-          {/* Tail */}
-          <group position={[0, 1.7, -1.0]} rotation={[0.2, 0, 0]}>
-            <mesh position={[0, -0.4, -0.2]} rotation={[-0.2, 0, 0]}>
-              <cylinderGeometry args={[0.08, 0.15, 1.2, 8]} />
-              <meshStandardMaterial color="#3e2723" />
-            </mesh>
-          </group>
-        </group>
-        {/* Local Hearts */}
-        {hearts.map((h) => (
-          <HeartParticle key={h.id} position={h.pos} onComplete={() => removeHeart(h.id)} />
-        ))}
-      </group>
+      pet.current = 0;
+      pending.current = 0;
+      return;
+    }
+    reset.current = null;
+    if (gameSpeed <= 0 && pet.current <= 0) return;
+    const step = Number.isFinite(delta) ? Math.min(Math.max(0, delta), 0.1) : 0;
+    if (gameSpeed > 0) clock.current += step;
+    pending.current += step;
+    if (pet.current <= 0 && !shouldRunThisFrame(4)) return;
+    pet.current = Math.max(0, pet.current - pending.current);
+    pending.current = 0;
+    if (gameSpeed > 0) rig.current?.setResting?.(clock.current, 733);
+    const look = creaturePerchLook(clock.current, 733) * 0.16;
+    // Head-only motion replaces the old whole-body rocking/rearing. No wall timer
+    // expires while hidden, and repeated pets restart one bounded response.
+    rig.current?.setHeadShake(
+      pet.current > 0 ? (Math.sin((0.8 - pet.current) * 12) * 0.11 * pet.current) / 0.8 : look
     );
-  }
-);
-Horse.displayName = 'Horse';
+  });
+  const handlePet = (e: ThreeEvent<MouseEvent>) => {
+    e.stopPropagation();
+    const state = useGameSimulationStore.getState();
+    if (state.emergencyActive || state.emergencyDrillMode) return;
+    if (!reducedMotion) pet.current = 0.8;
+    playCritterSound('horse');
+    const id = nextHeartId.current++;
+    setHearts((previous) => [...previous, { id, pos: [0, 2.05, 0] }]);
+  };
+  return (
+    <group
+      name="blacksmith-horse"
+      position={position}
+      rotation={[0, rotation, 0]}
+      userData={{ noStaticBatch: true }}
+      onClick={handlePet}
+      onPointerOver={setPointerCursor}
+      onPointerOut={resetCursor}
+    >
+      <CreatureBody creature="horse" ref={rig} fallback={<HorsePrimitiveBody />} />
+      {hearts.map((h) => (
+        <HeartParticle
+          key={h.id}
+          position={h.pos}
+          onComplete={() => setHearts((previous) => previous.filter((heart) => heart.id !== h.id))}
+        />
+      ))}
+    </group>
+  );
+});
+BlacksmithHorse.displayName = 'BlacksmithHorse';
 
 // ===== BLACKSMITH / FORGE =====
 const ForgePrimitiveBody = React.memo(() => (
@@ -2819,7 +3095,44 @@ const Forge = React.memo<{ position: [number, number, number]; rotation?: number
         <VillageNameboard title="BLACKSMITH" width={3.34} height={0.49} colour="#333e43" />
       </group>
       <ChimneySmoke position={[-0.4, 5.72, 1.78]} offset={2} kind="forge" />
-      <Horse position={[-4, 0, 4]} rotation={Math.PI / 4} color="#795548" />
+      <BlacksmithHorse position={[-4.35, 0, 4.6]} rotation={Math.PI / 4} />
+      {/* A rail and drinking bucket situate the companion outside the doorway.
+          All contacts are at ground level, clear of its 45-degree body envelope. */}
+      <group name="forge-hitching-rail" position={[-3.36, 0, 5.59]} rotation={[0, Math.PI / 4, 0]}>
+        {[-0.65, 0.65].map((x) => (
+          <mesh key={x} position={[x, 0.5, 0]} castShadow receiveShadow>
+            <boxGeometry args={[0.095, 1, 0.095]} />
+            <primitive object={SM.timber} attach="material" />
+          </mesh>
+        ))}
+        <mesh position={[0, 0.93, 0]} castShadow receiveShadow>
+          <boxGeometry args={[1.45, 0.09, 0.09]} />
+          <primitive object={SM.timber} attach="material" />
+        </mesh>
+      </group>
+      <group name="forge-water-bucket" position={[-5.55, 0, 6]}>
+        <mesh position={[0, 0.17, 0]} castShadow receiveShadow>
+          <cylinderGeometry args={[0.23, 0.17, 0.34, 16, 1, true]} />
+          <meshStandardMaterial
+            color="#676e70"
+            roughness={0.66}
+            metalness={0.45}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+        <mesh position={[0, 0.014, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+          <circleGeometry args={[0.17, 16]} />
+          <meshStandardMaterial color="#454e50" roughness={0.7} metalness={0.4} />
+        </mesh>
+        <mesh position={[0, 0.265, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+          <circleGeometry args={[0.216, 20]} />
+          <meshStandardMaterial color="#435f69" roughness={0.27} metalness={0.1} />
+        </mesh>
+        <mesh position={[0, 0.34, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+          <torusGeometry args={[0.23, 0.012, 5, 16]} />
+          <meshStandardMaterial color="#8b9392" roughness={0.5} metalness={0.5} />
+        </mesh>
+      </group>
     </group>
   )
 );

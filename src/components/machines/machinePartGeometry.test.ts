@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { NodeIO } from '@gltf-transform/core';
 import { restoreGeometryOrigin } from '../models/GeneratedGeometrySurface';
@@ -9,7 +9,16 @@ import {
   getSiloAssemblyScale,
 } from '../../constants/siteLayout';
 import { MachineType } from '../../types';
-import { MILL_FEEDER_FASTENERS } from './machineFinishGeometry';
+import { COMMUNITY_ANCHORS } from '../../constants/communityLayout';
+import { createPackerPrintMaterial } from './machineSurfaces';
+import {
+  MILL_FEEDER_FASTENERS,
+  PACKER_SACK_LAYOUT,
+  PACKER_FILL_HEAD_GEOMETRY,
+  PACKER_SACK_PRINT_GEOMETRY,
+  getPackerSackPosition,
+  getPackerHeadPosition,
+} from './machineFinishGeometry';
 import {
   MACHINE_PART_GEOMETRY,
   SILO_HARDWARE,
@@ -52,6 +61,7 @@ const EXPECTED_HALF_EXTENTS: Record<
   beacon: [1, 1, 1],
   // Cage rings lie in XY before the retained sideways motor-end mount.
   fanGrille: [1.1, 1.1, 0.1],
+  packerSack: [0.5, 0.5, 0.5],
 };
 
 const halfExtents = (geometry: THREE.BufferGeometry): [number, number, number] => {
@@ -423,4 +433,147 @@ describe('shared machine part geometry', () => {
     expect(distinctAngles(MACHINE_PART_GEOMETRY.siloOutlet)).toBe(shell);
     expect(distinctAngles(MACHINE_PART_GEOMETRY.siloRing)).toBe(shell);
   });
+});
+
+it('closes the packer sack neck onto its rolled seam and seats its foot within the existing guides', () => {
+  const geometry = MACHINE_PART_GEOMETRY.packerSack;
+  expect((geometry.index?.count ?? geometry.attributes.position.count) / 3).toBeLessThan(588);
+  const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
+  for (const x of [-0.25, 0, 0.25]) {
+    const hits = new THREE.Raycaster(
+      new THREE.Vector3(x, 0.6, 0),
+      new THREE.Vector3(0, -1, 0)
+    ).intersectObject(mesh);
+    expect(hits[0].point.y).toBeCloseTo(0.5, 6);
+    expect(hits.some((hit) => Math.abs(hit.point.y - 0.47) < 1e-6)).toBe(true);
+  }
+  expect(PACKER_SACK_LAYOUT.centreY - PACKER_SACK_LAYOUT.scale[1] / 2).toBeCloseTo(0.002, 8);
+  expect(PACKER_SACK_LAYOUT.scale[0] / 2).toBeLessThan(
+    PACKER_SACK_LAYOUT.guideX - PACKER_SACK_LAYOUT.guideSize[0] / 2
+  );
+  // The full bag travels in the original output lane, clear of the body/base.
+  expect(PACKER_SACK_LAYOUT.z - PACKER_SACK_LAYOUT.scale[2] / 2).toBeGreaterThan(4.25 / 2);
+  for (const cycle of [0, 0.35, 1]) {
+    const p = getPackerSackPosition([3, 0.2, -5], cycle);
+    expect(p[0]).toBe(3);
+    expect(p[1] - PACKER_SACK_LAYOUT.scale[1] / 2).toBeCloseTo(0.202, 8);
+    expect(p[2]).toBeCloseTo(-5 + 2.32 + cycle * 0.24, 8);
+  }
+  const n = geometry.getAttribute('normal');
+  for (let i = 0; i < n.count; i++)
+    expect(Math.hypot(n.getX(i), n.getY(i), n.getZ(i))).toBeCloseTo(1, 5);
+  (mesh.material as THREE.Material).dispose();
+});
+
+it('keeps the complete moving bag clear of the actual QC and packing observation posts without changing their anchors', () => {
+  const geometry = MACHINE_PART_GEOMETRY.packerSack,
+    p = geometry.attributes.position;
+  for (const [id, anchor] of [
+    ['packer-0', COMMUNITY_ANCHORS.millPacking],
+    ['packer-2', COMMUNITY_ANCHORS.millInspection],
+  ] as const) {
+    const machine = SITE_LAYOUT.machines.packers.find((m) => m.id === id)!;
+    expect(machine.position[0]).toBe(anchor.position[0]);
+    for (let step = 0; step <= 100; step++) {
+      const position = getPackerSackPosition(machine.position, step / 100);
+      for (let i = 0; i < p.count; i++) {
+        const z = position[2] + p.getZ(i) * PACKER_SACK_LAYOUT.scale[2];
+        expect(z, 'whole bag beyond original cabinet base').toBeGreaterThan(
+          machine.position[2] + 4.25 / 2 + 0.04
+        );
+        expect(z, 'whole sweep outside observation/approach envelope').toBeLessThan(
+          anchor.position[2] - 0.45
+        );
+      }
+    }
+  }
+  expect(PACKER_SACK_LAYOUT.scale).toEqual([0.54, 0.84, 0.26]);
+  expect(PACKER_SACK_LAYOUT.travel).toBeGreaterThan(0.2);
+  expect(PACKER_SACK_LAYOUT.guidePosition[1] - PACKER_SACK_LAYOUT.guideSize[1] / 2).toBeCloseTo(
+    0.02,
+    8
+  );
+});
+
+it('fits the approved MillOS raster aspect and every print vertex to the real sack while owning only its ink material', () => {
+  const plate = PACKER_SACK_PRINT_GEOMETRY,
+    material = new THREE.MeshBasicMaterial(),
+    sack = new THREE.Mesh(MACHINE_PART_GEOMETRY.packerSack, material),
+    p = plate.attributes.position,
+    size = plate.boundingBox!.getSize(new THREE.Vector3());
+  expect(
+    (size.x * PACKER_SACK_LAYOUT.scale[0]) / (size.y * PACKER_SACK_LAYOUT.scale[1])
+  ).toBeCloseTo(1536 / 379, 5);
+  expect(p.count / 3).toBeGreaterThan(10);
+  expect(p.count / 3).toBeLessThan(100);
+  for (let i = 0; i < p.count; i++) {
+    const hit = new THREE.Raycaster(
+      new THREE.Vector3(p.getX(i), p.getY(i), 0.65),
+      new THREE.Vector3(0, 0, -1)
+    ).intersectObject(sack)[0];
+    expect((p.getZ(i) - hit.point.z) * PACKER_SACK_LAYOUT.scale[2]).toBeCloseTo(0.00104, 6);
+  }
+  // A corner-only projection passed while triangle interiors cut through a
+  // gusset. The actual clipped source triangles must seat their interiors too.
+  for (let i = 0; i < p.count; i += 3) {
+    for (const weights of [
+      [1 / 3, 1 / 3, 1 / 3],
+      [0.6, 0.2, 0.2],
+    ]) {
+      const point = new THREE.Vector3();
+      for (let k = 0; k < 3; k++)
+        point.addScaledVector(new THREE.Vector3().fromBufferAttribute(p, i + k), weights[k]);
+      const hit = new THREE.Raycaster(
+        new THREE.Vector3(point.x, point.y, 0.65),
+        new THREE.Vector3(0, 0, -1)
+      ).intersectObject(sack)[0];
+      expect((point.z - hit.point.z) * PACKER_SACK_LAYOUT.scale[2]).toBeCloseTo(0.00104, 6);
+    }
+  }
+  const texture = new THREE.Texture(),
+    borrowedDispose = vi.spyOn(texture, 'dispose'),
+    ink = createPackerPrintMaterial(texture);
+  expect(ink.map).toBe(texture);
+  expect(ink).toMatchObject({
+    transparent: false,
+    metalness: 0,
+    roughness: 0.95,
+    depthWrite: true,
+  });
+  expect(ink.emissive.getHex()).toBe(0);
+  expect(ink.color.getHexString()).toBe('ffffff');
+  expect(ink.polygonOffset).toBe(true);
+  ink.dispose();
+  expect(borrowedDispose).not.toHaveBeenCalled();
+  borrowedDispose.mockRestore();
+  texture.dispose();
+  material.dispose();
+});
+
+it('gives the formed output a real open mouth and seats its moving flange in the original cabinet', () => {
+  const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }),
+    outlet = new THREE.Mesh(PACKER_FILL_HEAD_GEOMETRY, material),
+    body = new THREE.Mesh(MACHINE_PART_GEOMETRY.packerBody, material);
+  body.position.set(0, 2.65, 0);
+  body.scale.set(3.7, 4.75, 3.45);
+  body.updateMatrixWorld(true);
+  const ray = (x: number) =>
+    new THREE.Raycaster(
+      new THREE.Vector3(x, 0.86, PACKER_SACK_LAYOUT.z),
+      new THREE.Vector3(0, 1, 0)
+    ).intersectObject(outlet);
+  expect(ray(0)[0]?.point.y ?? Infinity, 'centre is an aperture').toBeGreaterThan(1);
+  expect(ray(0.087)[0].point.y, 'actual annular lip').toBeCloseTo(0.88, 6);
+  expect(PACKER_FILL_HEAD_GEOMETRY.index!.count / 3).toBeLessThan(700);
+  for (const cycle of [0, 0.25, 0.5, 1]) {
+    const y = 1.72 + getPackerHeadPosition([0, 0, 0], cycle)[1];
+    const hit = new THREE.Raycaster(
+      new THREE.Vector3(0, y, 3),
+      new THREE.Vector3(0, 0, -1)
+    ).intersectObject(body)[0];
+    expect(hit.point.z).toBeGreaterThan(1.43);
+    expect(hit.point.z).toBeLessThan(1.55);
+  }
+  expect(getPackerHeadPosition([3, 0.2, -5], 1)).toEqual([3, 0.34, -5]);
+  material.dispose();
 });

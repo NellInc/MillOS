@@ -3,7 +3,11 @@ import { GeneratedSurfaceMesh, GeneratedGeometrySurface } from '../models/Genera
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useTexture } from '@react-three/drei';
-import { HERITAGE_ART } from '../scenery/HeritageSignage';
+import {
+  BUSINESS_BRANDS,
+  heritagePrintSize,
+  transportBrandForCompany,
+} from '../scenery/HeritageSignage';
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { selectSafetyHoldActive, useGameSimulationStore } from '../../stores/gameSimulationStore';
@@ -315,46 +319,46 @@ function TruckIdentityDecals({
   readonly plateNumber: string;
   readonly colour: string;
 }) {
-  const wheat = useTexture(HERITAGE_ART.wheat);
+  const brand = transportBrandForCompany(company);
+  const artwork = useTexture(BUSINESS_BRANDS[brand ?? 'mill'].primary);
   const texture = useMemo(() => {
     const canvas = document.createElement('canvas');
     canvas.width = 1024;
     canvas.height = 256;
     const context = canvas.getContext('2d');
     if (context) {
-      context.fillStyle = '#eef1ed';
+      context.fillStyle = brand ? BUSINESS_BRANDS[brand].field : '#eef1ed';
       context.fillRect(0, 0, canvas.width, canvas.height);
       context.fillStyle = colour;
       context.fillRect(0, 0, 36, canvas.height);
-      context.fillStyle = '#19272b';
-      context.font = '700 80px Inter, Arial, sans-serif';
-      context.fillText(company, 78, 112);
-      context.fillStyle = '#526469';
-      context.font = '600 34px Inter, Arial, sans-serif';
-      context.fillText(`MILL LOGISTICS  •  ${plateNumber}`, 82, 178);
-      context.fillStyle = '#d5a429';
-      context.fillRect(78, 205, 820, 10);
-      if (company === 'GRAIN CO' && wheat.image) {
-        // Composite the shared white alpha mask into this EXISTING sign atlas.
-        // Both trailer faces keep their two draws and use the same gold mark
-        // as the shelter. No free-floating geometry or additional decal layer.
-        const badge = document.createElement('canvas');
-        badge.width = badge.height = 180;
-        const ink = badge.getContext('2d');
-        if (ink) {
-          ink.drawImage(wheat.image as CanvasImageSource, 0, 0, 180, 180);
-          ink.globalCompositeOperation = 'source-in';
-          ink.fillStyle = '#a27733';
-          ink.fillRect(0, 0, 180, 180);
-          context.drawImage(badge, 790, 14);
-        }
+      if (brand) {
+        // The authored wordmark enters the existing atlas, never a third decal.
+        const image = artwork.image as { width: number; height: number };
+        const [width, height] = heritagePrintSize(910, 162, image.width, image.height);
+        context.drawImage(
+          artwork.image as CanvasImageSource,
+          530 - width / 2,
+          96 - height / 2,
+          width,
+          height
+        );
+      } else {
+        // Unknown carriers retain their actual company name, never another logo.
+        context.fillStyle = '#19272b';
+        context.font = '700 80px Inter, Arial, sans-serif';
+        context.fillText(company, 78, 112);
       }
+      context.fillStyle = brand ? '#fff0d2' : '#526469';
+      context.font = '600 30px Inter, Arial, sans-serif';
+      context.fillText(`MILL LOGISTICS  •  ${plateNumber}`, 82, 219);
+      context.fillStyle = '#d5a429';
+      context.fillRect(78, 238, 870, 4);
     }
     const canvasTexture = new THREE.CanvasTexture(canvas);
     canvasTexture.colorSpace = THREE.SRGBColorSpace;
     canvasTexture.anisotropy = 4;
     return canvasTexture;
-  }, [colour, company, plateNumber, wheat]);
+  }, [colour, company, plateNumber, brand, artwork]);
   const material = useMemo(
     () =>
       new THREE.MeshStandardMaterial({

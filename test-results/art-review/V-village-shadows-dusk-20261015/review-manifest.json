@@ -1,0 +1,56 @@
+{
+  "label": "V-village-shadows-dusk-20261015",
+  "capturedAt": "2026-10-15T01:28:50.869Z",
+  "git": {
+    "commit": "94eca19061be88b8a98b5b97b91bc7604f2b60bb",
+    "branch": "codex/place-led-beautification-20261010",
+    "dirty": true,
+    "dirtyFileCount": 12,
+    "dirtyFiles": [
+      "_contprompts/millos_place_led_beautification_20261010.md",
+      "public/textures/civic-square-lamp-depth.json",
+      "public/textures/civic-square-lamp-depth.png",
+      "src/components/scenery/CommunityDetails.test.ts",
+      "src/components/scenery/CommunityDetails.tsx",
+      "src/components/workers/SharedWorkerMaterials.ts",
+      "src/components/workers/WorkerModel.test.tsx",
+      "src/components/workers/WorkerTools.tsx",
+      "src/components/workers/workerPose.test.ts",
+      "src/components/workers/workerPose.ts",
+      "src/constants/civicSquareLighting.ts",
+      "output/playwright/place-led-20261010/"
+    ]
+  },
+  "options": {
+    "label": "V-village-shadows-dusk-20261015",
+    "scenes": [
+      "village"
+    ],
+    "sceneSet": "explicit",
+    "quality": "medium",
+    "port": "4288",
+    "time": "19",
+    "weather": "clear",
+    "duration": "1",
+    "warmup": "1",
+    "settleTimeout": "240",
+    "perfGate": false,
+    "skipBuild": true,
+    "headed": false
+  },
+  "diagnostics": [],
+  "scenes": [
+    {
+      "scene": "village",
+      "image": "village.png",
+      "indicativeFps": 60.02
+    }
+  ],
+  "contactSheet": "contact-sheet.png",
+  "perfGate": null,
+  "caveats": [
+    "Working tree was dirty (12 files). These frames show uncommitted work, not commit 94eca19. Do not use as a baseline for a later comparison.",
+    "Captured with --skip-build; dist/ may predate the tree.",
+    "No performance gate was run. Art mode unpins reduced motion and restores full fidelity, so its frame samples are indicative only. A visual verdict from this capture is not shippable until a non-art budget run passes on the same commit."
+  ]
+}

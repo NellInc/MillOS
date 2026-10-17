@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MachineType, type MachineData } from '../types';
+import { buildSpoutRoutes } from './flow/spoutRoutes';
 import { buildProcessFlowConnections, isProcessFlowActive } from './ProductionFlowVisualization';
 
 function machine(
@@ -36,6 +37,23 @@ describe('scene-linked process flow', () => {
       'flow-mill-sifter',
       'flow-sifter-packer',
     ]);
+  });
+
+  it('shares real process ports, service-rack bends and cached paths with steel and grain', () => {
+    const connections = buildProcessFlowConnections(machines);
+    const routes = buildSpoutRoutes(machines);
+    connections.forEach((connection, index) => {
+      expect(connection.path).toBe(routes[index].curve);
+      expect(connection.from).toEqual(routes[index].curve.getPointAt(0).toArray());
+      expect(connection.to).toEqual(routes[index].curve.getPointAt(1).toArray());
+    });
+    const updated = buildProcessFlowConnections(machines.map((m) => ({ ...m, status: 'warning' })));
+    updated.forEach((connection, index) => expect(connection.path).toBe(connections[index].path));
+    const relocated = buildProcessFlowConnections(
+      machines.map((m) => (m.id === 'mill' ? { ...m, position: [3, 0, -6] } : m))
+    );
+    expect(relocated[0].path).not.toBe(connections[0].path);
+    expect(relocated[0].to[0]).toBe(3);
   });
 
   it('animates only when production is advancing and both endpoint machines run', () => {

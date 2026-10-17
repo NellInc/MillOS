@@ -50,7 +50,7 @@ import { MILL_LOAD_DIAL } from './machineFinishGeometry';
 /** Cell edge in pixels. */
 const CELL_PX = 128;
 const ATLAS_COLS = 4;
-const ATLAS_ROWS = 3;
+const ATLAS_ROWS = 6;
 const ATLAS_W = CELL_PX * ATLAS_COLS;
 const ATLAS_H = CELL_PX * ATLAS_ROWS;
 
@@ -81,6 +81,17 @@ export const DECAL_CELL = {
   mill102: 9,
   mill103: 10,
   mill104: 11,
+  siloAlpha: 12,
+  siloBeta: 13,
+  siloGamma: 14,
+  siloDelta: 15,
+  siloEpsilon: 16,
+  sifterA: 17,
+  sifterB: 18,
+  sifterC: 19,
+  packLine1: 20,
+  packLine2: 21,
+  packLine3: 22,
 } as const;
 
 export type DecalCell = (typeof DECAL_CELL)[keyof typeof DECAL_CELL];
@@ -89,11 +100,22 @@ type Rgba = readonly [number, number, number, number];
 /** Paints one cell. `u`,`v` are 0-1 inside the padded area; v = 0 is the bottom. */
 type CellPainter = (u: number, v: number) => Rgba;
 
-const MILL_ID_CELLS: Readonly<Record<string, DecalCell>> = {
+const MACHINE_ID_CELLS: Readonly<Record<string, DecalCell>> = {
   'rm-101': DECAL_CELL.mill101,
   'rm-102': DECAL_CELL.mill102,
   'rm-103': DECAL_CELL.mill103,
   'rm-104': DECAL_CELL.mill104,
+  'silo-0': DECAL_CELL.siloAlpha,
+  'silo-1': DECAL_CELL.siloBeta,
+  'silo-2': DECAL_CELL.siloGamma,
+  'silo-3': DECAL_CELL.siloDelta,
+  'silo-4': DECAL_CELL.siloEpsilon,
+  'sifter-a': DECAL_CELL.sifterA,
+  'sifter-b': DECAL_CELL.sifterB,
+  'sifter-c': DECAL_CELL.sifterC,
+  'packer-0': DECAL_CELL.packLine1,
+  'packer-1': DECAL_CELL.packLine2,
+  'packer-2': DECAL_CELL.packLine3,
 };
 
 const CLEAR: Rgba = [0, 0, 0, 0];
@@ -182,6 +204,19 @@ const BOLT = [0.58, 0.7, 0.4, 0.42, 0.5, 0.42, 0.42, 0.16, 0.62, 0.48, 0.51, 0.4
 
 /** Compact engraved lettering shared by serial plates and the instrument scale. */
 const MACHINE_GLYPHS: Readonly<Record<string, readonly string[]>> = {
+  ' ': ['00', '00', '00', '00', '00', '00', '00'],
+  B: ['11110', '10001', '10001', '11110', '10001', '10001', '11110'],
+  C: ['01111', '10000', '10000', '10000', '10000', '10000', '01111'],
+  E: ['11111', '10000', '10000', '11110', '10000', '10000', '11111'],
+  F: ['11111', '10000', '10000', '11110', '10000', '10000', '10000'],
+  G: ['01111', '10000', '10000', '10111', '10001', '10001', '01111'],
+  H: ['10001', '10001', '10001', '11111', '10001', '10001', '10001'],
+  I: ['111', '010', '010', '010', '010', '010', '111'],
+  K: ['10001', '10010', '10100', '11000', '10100', '10010', '10001'],
+  N: ['10001', '11001', '11001', '10101', '10011', '10011', '10001'],
+  P: ['11110', '10001', '10001', '11110', '10000', '10000', '10000'],
+  S: ['01111', '10000', '10000', '01110', '00001', '00001', '11110'],
+  T: ['11111', '00100', '00100', '00100', '00100', '00100', '00100'],
   R: ['11110', '10001', '10001', '11110', '10100', '10010', '10001'],
   M: ['10001', '11011', '10101', '10101', '10001', '10001', '10001'],
   '.': ['0', '0', '0', '0', '0', '1', '1'],
@@ -202,19 +237,29 @@ const letteringRows = (text: string): string[] =>
     [...text].map((letter) => MACHINE_GLYPHS[letter][row]).join('0')
   );
 
-function millIdentityPlate(serial: string): CellPainter {
-  const rows = letteringRows(serial);
+/** Painted, non-emissive identities at the retained physical plate positions.
+ * Working if all standard roster tags read distinctly without adding a draw.
+ */
+function machineIdentityPlate(identity: string, heading?: string): CellPainter {
+  const rows = letteringRows(identity);
+  const headingRows = heading ? letteringRows(heading) : null;
   const rim = opaque('#bda573');
-  const ink = opaque('#e2ce9e');
+  const ink = opaque('#f3e7ce');
   const background = opaque('#1d3031');
+  const letterAt = (text: readonly string[], u: number, v: number, top: number, height: number) => {
+    const width = Math.min(0.8, text[0].length * 0.028);
+    const col = Math.floor(((u - (1 - width) / 2) / width) * text[0].length);
+    const row = Math.floor(((top - v) / height) * 7);
+    return text[row]?.[col] === '1';
+  };
   return (u, v) => {
     const edge = roundedRect(u, v, 0.06);
     if (edge > 0) return CLEAR;
     if (edge > -0.035) return rim;
     if ((u < 0.065 || u > 0.935) && (v < 0.16 || v > 0.84)) return PLATE_SCREW;
-    const col = Math.floor(((u - 0.1) / 0.8) * rows[0].length);
-    const row = Math.floor(((0.72 - v) / 0.44) * 7);
-    return rows[row]?.[col] === '1' ? ink : background;
+    const main = letterAt(rows, u, v, heading ? 0.53 : 0.81, heading ? 0.4 : 0.62);
+    const caption = headingRows && letterAt(headingRows, u, v, 0.86, 0.2);
+    return main || caption ? ink : background;
   };
 }
 
@@ -328,10 +373,21 @@ const PAINTERS: readonly CellPainter[] = [
 
   // 7 - electricalWarning: lightning bolt.
   (u, v) => warningTriangle(u, v, (gu, gv) => pointInPolygon(gu, gv, BOLT)),
-  millIdentityPlate('R.M.101'),
-  millIdentityPlate('R.M.102'),
-  millIdentityPlate('R.M.103'),
-  millIdentityPlate('R.M.104'),
+  machineIdentityPlate('R.M.101'),
+  machineIdentityPlate('R.M.102'),
+  machineIdentityPlate('R.M.103'),
+  machineIdentityPlate('R.M.104'),
+  machineIdentityPlate('ALPHA', 'SILO'),
+  machineIdentityPlate('BETA', 'SILO'),
+  machineIdentityPlate('GAMMA', 'SILO'),
+  machineIdentityPlate('DELTA', 'SILO'),
+  machineIdentityPlate('EPSILON', 'SILO'),
+  machineIdentityPlate('A', 'SIFTER'),
+  machineIdentityPlate('B', 'SIFTER'),
+  machineIdentityPlate('C', 'SIFTER'),
+  machineIdentityPlate('LINE 1', 'PACK'),
+  machineIdentityPlate('LINE 2', 'PACK'),
+  machineIdentityPlate('LINE 3', 'PACK'),
 ];
 
 function buildDecalAtlas(): THREE.DataTexture {
@@ -389,7 +445,7 @@ function buildDecalAtlas(): THREE.DataTexture {
 
 let atlasCache: THREE.DataTexture | null = null;
 
-/** The placard atlas, built once on first use. 512 x 384, ~0.75 MB. */
+/** One shared placard atlas, built once on first use. 512 x 768, 1.5 MiB before mips. */
 export function getMachineDecalAtlas(): THREE.DataTexture {
   atlasCache ??= buildDecalAtlas();
   return atlasCache;
@@ -582,7 +638,7 @@ export function planMachineDecals(subsets: MachineDecalSubsets): MachineDecalPla
       SILO_ACCESS_LAYOUT.nameplateY,
       0.45,
       0.14,
-      DECAL_CELL.namePlate
+      MACHINE_ID_CELLS[machine.id] ?? DECAL_CELL.namePlate
     );
     // The caution plate follows the ground-level cover, clear of the ladder.
     place(
@@ -598,7 +654,7 @@ export function planMachineDecals(subsets: MachineDecalSubsets): MachineDecalPla
 
   subsets.mills.forEach((machine) => {
     // The flat lower service strip keeps both placards off the cast shoulder.
-    const identity = MILL_ID_CELLS[machine.id];
+    const identity = MACHINE_ID_CELLS[machine.id];
     push(
       machine,
       0,
@@ -625,7 +681,15 @@ export function planMachineDecals(subsets: MachineDecalSubsets): MachineDecalPla
   });
 
   subsets.sifters.forEach((machine) => {
-    push(machine, -0.78, 2.85, 3.12, 0.82, 0.26, DECAL_CELL.namePlate);
+    push(
+      machine,
+      -0.78,
+      2.85,
+      3.12,
+      0.82,
+      0.26,
+      MACHINE_ID_CELLS[machine.id] ?? DECAL_CELL.namePlate
+    );
     push(machine, 0.82, 1.45, 3.12, 0.36, 0.36, DECAL_CELL.cautionTriangle);
     // On the body below the service panel (which starts at y+0.935) and above
     // the platform deck (which tops out at y+0.05).
@@ -633,7 +697,15 @@ export function planMachineDecals(subsets: MachineDecalSubsets): MachineDecalPla
   });
 
   subsets.packers.forEach((machine) => {
-    push(machine, -0.62, 3.52, 1.825, 0.78, 0.26, DECAL_CELL.namePlate);
+    push(
+      machine,
+      -0.62,
+      3.52,
+      1.825,
+      0.78,
+      0.26,
+      MACHINE_ID_CELLS[machine.id] ?? DECAL_CELL.namePlate
+    );
     push(machine, 0.86, 2.62, 1.825, 0.34, 0.34, DECAL_CELL.lockoutRoundel);
     // The filled sack travels across the middle of this band, which is exactly
     // what happens on a real bagging line.

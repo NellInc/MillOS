@@ -1,0 +1,30 @@
+(node:5753) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+(node:5897) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ❯ src/components/scenery/FairytaleCastle.test.tsx (7 tests | 1 failed) 991ms
+   × seats the drainage straps, wall clips and outlets against the actual delivered castle 29ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/scenery/FairytaleCastle.test.tsx > seats the drainage straps, wall clips and outlets against the actual delivered castle
+AssertionError: closed gutter end: expected undefined to be defined
+ ❯ src/components/scenery/FairytaleCastle.test.tsx:231:42
+    229|         const cap = new THREE.Raycaster(new THREE.Vector3(r.gutterX, 2…
+    230|           new THREE.Vector3(0,0,direction),0,0.2).intersectObject(fitt…
+    231|         expect(cap, 'closed gutter end').toBeDefined();
+       |                                          ^
+    232|       }
+    233|       const strapCount=Math.ceil((r.endZ-r.startZ)/4);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 6 passed (7)
+   Start at  04:41:31
+   Duration  4.44s (transform 1.21s, setup 323ms, import 1.60s, tests 991ms, environment 1.10s)
+

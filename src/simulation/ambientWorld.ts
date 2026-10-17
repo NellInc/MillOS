@@ -41,20 +41,24 @@ export function createAnimalWanderPlan(
  * This keeps the farm alive without making livestock ignore the shared world.
  */
 export function getAnimalActivityMultiplier(weather: AtmosphereWeather, hour: number): number {
-  const normalizedHour = ((hour % 24) + 24) % 24;
+  const normalizedHour = Number.isFinite(hour) ? ((hour % 24) + 24) % 24 : 12;
+  const smooth = (value: number) => {
+    const t = Math.max(0, Math.min(1, value));
+    return t * t * (3 - 2 * t);
+  };
+  // Continuous morning/evening ramps remove the old6/8/19/21 speed steps.
+  // Working if adjacent minutes have no jump, with the old noon/night limits.
   const daylightActivity =
-    normalizedHour < 6 || normalizedHour >= 21
-      ? 0.25
-      : normalizedHour < 8 || normalizedHour >= 19
-        ? 0.65
-        : 1;
+    0.25 + 0.75 * smooth((normalizedHour - 6) / 2) * (1 - smooth((normalizedHour - 19) / 2));
   const weatherActivity = weather === 'storm' ? 0.2 : weather === 'rain' ? 0.55 : 1;
   return daylightActivity * weatherActivity;
 }
 
 /** Windmill speed in radians per second, driven by the canonical atmosphere wind scalar. */
 export function getWindmillAngularSpeed(wind: number): number {
-  return 0.3 + Math.max(0, Math.min(1, wind));
+  // Calm cannot power a windmill. Working if zero wind stops the sails,
+  // finite wind stays continuous, and maximum speed remains1.3rad/s.
+  return 1.3 * (Number.isFinite(wind) ? Math.max(0, Math.min(1, wind)) : 0);
 }
 
 /** Local water height within a culvert, from dry-weather trickle to storm discharge. */

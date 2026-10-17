@@ -1,0 +1,162 @@
+[
+  {
+    "label": "day",
+    "scene": "farm",
+    "servedBuildMatches": true,
+    "sandboxedMetal": true,
+    "cleanDiagnostics": true,
+    "worldCommunityCheckpoints": true,
+    "generalVehicleMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "timingMisses": [
+      "averageFps",
+      "p95Frame",
+      "p99Frame",
+      "onePercentLow"
+    ],
+    "loadPerCore": 2.74,
+    "p95FrameMs": 38.6,
+    "startupMarks": {
+      "millos:bootstrap": 235.9,
+      "millos:first-frame": 341.3,
+      "millos:world-ready": 25184.3,
+      "millos:startup-ready": 38152.4
+    },
+    "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AF-sett-paving-day-20261015/farm.png"
+  },
+  {
+    "label": "day",
+    "scene": "village",
+    "servedBuildMatches": true,
+    "sandboxedMetal": true,
+    "cleanDiagnostics": true,
+    "worldCommunityCheckpoints": true,
+    "generalVehicleMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "timingMisses": [
+      "averageFps",
+      "p95Frame"
+    ],
+    "loadPerCore": 2.58,
+    "p95FrameMs": 17.1,
+    "startupMarks": {
+      "millos:bootstrap": 240.9,
+      "millos:first-frame": 323.3,
+      "millos:world-ready": 26880.7,
+      "millos:startup-ready": 33150.8
+    },
+    "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AF-sett-paving-day-20261015/village.png"
+  },
+  {
+    "label": "dusk",
+    "scene": "farm",
+    "servedBuildMatches": true,
+    "sandboxedMetal": true,
+    "cleanDiagnostics": true,
+    "worldCommunityCheckpoints": true,
+    "generalVehicleMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "timingMisses": [
+      "averageFps",
+      "p95Frame",
+      "p99Frame",
+      "onePercentLow"
+    ],
+    "loadPerCore": 3.31,
+    "p95FrameMs": 35.3,
+    "startupMarks": {
+      "millos:bootstrap": 237.3,
+      "millos:first-frame": 333.2,
+      "millos:world-ready": 30202.5,
+      "millos:startup-ready": 41825
+    },
+    "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AF-sett-paving-dusk-20261015/farm.png"
+  },
+  {
+    "label": "dusk",
+    "scene": "village",
+    "servedBuildMatches": true,
+    "sandboxedMetal": true,
+    "cleanDiagnostics": true,
+    "worldCommunityCheckpoints": true,
+    "generalVehicleMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "timingMisses": [
+      "p95Frame"
+    ],
+    "loadPerCore": 2.56,
+    "p95FrameMs": 18.3,
+    "startupMarks": {
+      "millos:bootstrap": 219.4,
+      "millos:first-frame": 301.5,
+      "millos:world-ready": 26139.3,
+      "millos:startup-ready": 32180.6
+    },
+    "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AF-sett-paving-dusk-20261015/village.png"
+  },
+  {
+    "label": "night",
+    "scene": "farm",
+    "servedBuildMatches": true,
+    "sandboxedMetal": true,
+    "cleanDiagnostics": true,
+    "worldCommunityCheckpoints": true,
+    "generalVehicleMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "timingMisses": [
+      "averageFps",
+      "p95Frame",
+      "p99Frame",
+      "onePercentLow"
+    ],
+    "loadPerCore": 2.26,
+    "p95FrameMs": 35.8,
+    "startupMarks": {
+      "millos:bootstrap": 240.7,
+      "millos:first-frame": 330.5,
+      "millos:world-ready": 27462.8,
+      "millos:startup-ready": 38444.3
+    },
+    "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AF-sett-paving-night-20261015/farm.png"
+  },
+  {
+    "label": "night",
+    "scene": "village",
+    "servedBuildMatches": true,
+    "sandboxedMetal": true,
+    "cleanDiagnostics": true,
+    "worldCommunityCheckpoints": true,
+    "generalVehicleMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "timingMisses": [
+      "p95Frame"
+    ],
+    "loadPerCore": 1.6,
+    "p95FrameMs": 18,
+    "startupMarks": {
+      "millos:bootstrap": 228.5,
+      "millos:first-frame": 316.6,
+      "millos:world-ready": 28701.5,
+      "millos:startup-ready": 35268.4
+    },
+    "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AF-sett-paving-night-20261015/village.png"
+  }
+]

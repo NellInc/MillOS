@@ -1,0 +1,11 @@
+{
+  "verifiedNoOpenHandles": [
+    "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/node_modules/.vite-temp",
+    "/private/tmp/millos-U-npm-cache"
+  ],
+  "borrowedLinksRemoved": 375,
+  "originalDependencyTargetRestored": "/Users/nellwatson/Documents/GitHub/MillOS/node_modules",
+  "removedOnly": "Exact borrowed links, empty own .vite-temp and named U npm scratch",
+  "preserved": "Current build, source, raw native images, logs, history, primary checkout and unrelated output",
+  "spaceRecoveryClaim": null
+}

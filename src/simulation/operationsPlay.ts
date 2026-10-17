@@ -50,6 +50,7 @@ export interface OperationsNextAction {
   kind:
     | 'acknowledge'
     | 'mitigate'
+    | 'resume'
     | 'resolve'
     | 'quality'
     | 'receiving'
@@ -105,6 +106,7 @@ export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
   const recovery = getChallengeRecoveryIncident(state);
   const canAcceptNextProgramme =
     !run &&
+    state.orders.length > 0 &&
     state.orders.every((order) => order.status === 'fulfilled' || order.status === 'cancelled');
   let nextAction: OperationsNextAction;
   if (incident?.phase === 'raised') {
@@ -122,6 +124,14 @@ export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
       consequence:
         'Halves the incident’s throughput and quality penalties. Existing equipment failures and quality holds still require their own recovery.',
     };
+  } else if (recovery?.phase === 'mitigated' && !recovery.effectApplied) {
+    nextAction = {
+      kind: 'resume',
+      targetId: recovery.id,
+      label: 'Resume shift for controller response',
+      consequence:
+        'Resumes the whole shift at relaxed pace. Production and customer deadlines advance; the shift stays running until you pause it.',
+    };
   } else if (recovery?.phase === 'mitigated' && recovery.effectApplied) {
     nextAction = {
       kind: 'resolve',
@@ -130,6 +140,14 @@ export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
       consequence: run
         ? 'Restores this effect-only controller scenario to normal. Complete the challenge by dispatching its target mass through the real quality and shipping gates.'
         : 'Restores the abandoned or expired scenario controller to normal. Its recorded challenge result remains unchanged; a fresh challenge can then be started.',
+    };
+  } else if (canAcceptNextProgramme && !incident) {
+    nextAction = {
+      kind: 'programme',
+      targetId: null,
+      label: 'Accept next production programme',
+      consequence:
+        'Creates three new 3,000 kg customer commitments with real recipe, quality and dispatch requirements. Existing stock remains available; no goods or revenue are created.',
     };
   } else if (!state.execution.qualityReleased || state.execution.stage === 'quality_hold') {
     nextAction = {
@@ -151,14 +169,6 @@ export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
       targetId: activeOrder.id,
       label: 'Inspect incoming feedstock',
       consequence: `The ${activeOrder.recipe.sourceMaterial.replaceAll('_', ' ')} route is empty. Receiving and releasing the matching source lot permits milling to resume.`,
-    };
-  } else if (canAcceptNextProgramme) {
-    nextAction = {
-      kind: 'programme',
-      targetId: null,
-      label: 'Accept next production programme',
-      consequence:
-        'Creates three new 3,000 kg customer commitments with real recipe, quality and dispatch requirements. Existing stock remains available; no goods or revenue are created.',
     };
   } else if (
     ['ready_to_load', 'loading', 'ready_to_dispatch', 'dispatched'].includes(state.execution.stage)
@@ -182,6 +192,19 @@ export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
   }
   const blockedReason = challengeBlockReason(state);
   const challengeOrder = run && state.orders.find((order) => order.id === run.orderId);
+  const challengeIncident =
+    run && state.incidents.find((incident) => incident.id === run.incidentId);
+  const instruction = !challengeIncident
+    ? 'Inspect the incident in the operations workspace.'
+    : challengeIncident.phase === 'raised'
+      ? 'Acknowledge the incident, then apply mitigation.'
+      : challengeIncident.phase === 'acknowledged'
+        ? "Apply mitigation to reduce the controller's penalties."
+        : challengeIncident.phase === 'resolved'
+          ? 'Controller restored. Dispatch fresh, quality-released goods through the shipping bay.'
+          : challengeIncident.effectApplied
+            ? 'Restore the challenge controller, then dispatch fresh, quality-released goods.'
+            : 'The response is queued. Resume the shift to process it before restoring the controller.';
   return {
     activeOrder,
     blockers,
@@ -204,8 +227,9 @@ export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
           ),
           targetKg: run.targetKg,
           remainingMinutes: Math.max(0, run.deadlineMinute - state.elapsedMinutes),
+          instruction,
           phase:
-            state.incidents.find((incident) => incident.id === run.incidentId)?.phase === 'resolved'
+            challengeIncident?.phase === 'resolved'
               ? ('recovering' as const)
               : ('responding' as const),
         }

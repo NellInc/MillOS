@@ -1,0 +1,69 @@
+(node:77758) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+stderr | src/components/workers/workerPose.test.ts
+THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index 1. All geometries must have compatible attributes; make sure index attribute exists among all geometries, or in none of them.
+
+ ❯ src/components/workers/workerPose.test.ts (0 test)
+(node:78623) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/components/workers/WorkerModel.test.tsx
+THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index 1. All geometries must have compatible attributes; make sure index attribute exists among all geometries, or in none of them.
+
+ ❯ src/components/workers/WorkerModel.test.tsx (0 test)
+ ❯ src/components/scenery/CommunityDetails.test.ts (15 tests | 1 failed) 234ms
+     × gives the actual allotment can an open vessel, curved spout and attached rose inside the old plot 18ms
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/workers/WorkerModel.test.tsx [ src/components/workers/WorkerModel.test.tsx ]
+Error: Radio fittings require matching attributes
+ ❯ createWorkerRadioBody src/components/workers/WorkerTools.tsx:107:24
+    105|   const geometry = mergeGeometries(parts);
+    106|   parts.forEach((part) => part.dispose());
+    107|   if (!geometry) throw new Error('Radio fittings require matching attr…
+       |                        ^
+    108|   return geometry;
+    109| }
+ ❯ src/components/workers/WorkerTools.tsx:169:11
+ ❯ src/components/workers/WorkerModel.test.tsx:11:1
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  src/components/workers/workerPose.test.ts [ src/components/workers/workerPose.test.ts ]
+Error: Radio fittings require matching attributes
+ ❯ createWorkerRadioBody src/components/workers/WorkerTools.tsx:107:24
+    105|   const geometry = mergeGeometries(parts);
+    106|   parts.forEach((part) => part.dispose());
+    107|   if (!geometry) throw new Error('Radio fittings require matching attr…
+       |                        ^
+    108|   return geometry;
+    109| }
+ ❯ src/components/workers/WorkerTools.tsx:169:11
+ ❯ src/components/models/WorkerModel.tsx:16:1
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/scenery/CommunityDetails.test.ts > authored community details > gives the actual allotment can an open vessel, curved spout and attached rose inside the old plot
+AssertionError: expected 0.2637320360572395 to be close to 0.05, received difference is 0.2137320360572395, but expected 5e-7
+ ❯ src/components/scenery/CommunityDetails.test.ts:53:31
+     51|     addCommunityWateringCan(b);
+     52|     const g = b.finish();
+     53|     expect(heightAt(g, 0, 0)).toBeCloseTo(0.05, 6); // inside floor, n…
+       |                               ^
+     54|     expect(heightAt(g, 0.136, 0)).toBeGreaterThan(0.35); // rolled lip
+     55|     expect(g.boundingBox!.min.y).toBeCloseTo(0.02, 6);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  3 failed (3)
+      Tests  1 failed | 14 passed (15)
+   Start at  02:11:30
+   Duration  14.23s (transform 2.67s, setup 1.09s, import 2.85s, tests 234ms, environment 3.35s)
+

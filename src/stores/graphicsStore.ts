@@ -615,7 +615,9 @@ export function isPostProcessingActive(graphics: PostProcessingFlags): boolean {
 
 interface GraphicsStore {
   graphics: GraphicsSettings;
-  setGraphicsQuality: (quality: GraphicsQuality) => void;
+  // Ephemeral explicit intent, including reselecting the current tier.
+  qualityChoiceRevision: number;
+  setGraphicsQuality: (quality: GraphicsQuality, origin?: 'manual' | 'adaptive') => void;
   setGraphicsSetting: <K extends keyof GraphicsSettings>(
     key: K,
     value: GraphicsSettings[K]
@@ -632,11 +634,13 @@ export const useGraphicsStore = create<GraphicsStore>()(
     (set) => ({
       // Graphics settings - default to medium for better visuals
       graphics: GRAPHICS_PRESETS.medium,
+      qualityChoiceRevision: 0,
 
       // SCADA sync and adaptive quality are preferences, not part of a visual
       // preset, so a quality swap (manual or adaptive) carries them across.
-      setGraphicsQuality: (quality) =>
+      setGraphicsQuality: (quality, origin = 'manual') =>
         set((state) => ({
+          qualityChoiceRevision: state.qualityChoiceRevision + (origin === 'manual' ? 1 : 0),
           graphics: {
             ...GRAPHICS_PRESETS[quality],
             enableSCADA: state.graphics.enableSCADA,
@@ -659,7 +663,11 @@ export const useGraphicsStore = create<GraphicsStore>()(
           },
         })),
 
-      resetGraphicsToPreset: (quality) => set({ graphics: { ...GRAPHICS_PRESETS[quality] } }),
+      resetGraphicsToPreset: (quality) =>
+        set((state) => ({
+          graphics: { ...GRAPHICS_PRESETS[quality] },
+          qualityChoiceRevision: state.qualityChoiceRevision + 1,
+        })),
 
       // Performance debug actions
       setPerfDebug: (key, value) =>

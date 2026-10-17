@@ -9,7 +9,25 @@ export const CASTLE_ACCESS_LANTERNS = [
   [9.05, 3.1, 20.65],
   [5.35, 4.6, 16.15],
 ] as const;
+/** Retune the existing single source at the upper delivered optic.
+ * Working if both stair flights and the gateway paving receive warm light
+ * without adding a punctual source or shadow map.
+ */
+export const CASTLE_ACCESS_LIGHT = {
+  position: CASTLE_ACCESS_LANTERNS[1],
+  intensity: 96,
+  distance: 24,
+} as const;
 export const CASTLE_STAIR_END = 24.7;
+// A supported stone approach joins the sloping bank to the unchanged first
+// tread. Rendering, walking and physics share this small triangulated surface.
+// Working if both terrain tiers meet the outer edge and retain stair access.
+export const CASTLE_APPROACH = {
+  minZ: CASTLE_STAIR_END,
+  maxZ: 28,
+  columns: 8,
+  rows: 12,
+} as const;
 export const CASTLE_STAIR_RISE = 0.125;
 export const CASTLE_STAIR_TREAD = 0.3;
 export const CASTLE_STEPS = [

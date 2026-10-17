@@ -1,0 +1,15 @@
+src/components/scenery/AuthoredPropTrim.tsx 1469ms
+src/components/GasStationInstanced.tsx 687ms
+src/components/models/GeneratedModel.tsx 102ms (unchanged)
+src/components/scenery/CommunityDetails.tsx 127ms
+src/components/workers/workerPose.ts 160ms
+src/simulation/communityLife.ts 172ms (unchanged)
+src/components/scenery/AuthoredPropTrim.tsx 375ms
+src/components/GasStationInstanced.test.ts 229ms
+src/components/scenery/CommunityDetails.test.ts 258ms
+src/components/workers/workerPose.test.ts 238ms
+src/simulation/communityLife.ts 162ms (unchanged)
+src/simulation/__tests__/communityLife.test.ts 277ms
+src/components/GasStationInstanced.test.ts 5980ms (unchanged)
+src/components/scenery/CommunityDetails.tsx 1369ms (unchanged)
+src/components/scenery/CommunityDetails.test.ts 1103ms

@@ -8,7 +8,7 @@ import {
   CIVIC_SOURCE_LOOKUP,
 } from '../constants/civicSquareLighting';
 
-export const CIVIC_SHADOW_KEY = 'millos-civic-lamp-visibility-v4';
+export const CIVIC_SHADOW_KEY = 'millos-civic-lamp-visibility-v5';
 export const CIVIC_SHADOW_STRENGTH = { value: 1 };
 export const CIVIC_SHADOW_ATLAS: { value: THREE.Texture | null } = {
   value: null,
@@ -79,10 +79,10 @@ uniform vec4 civicSources[${CIVIC_WORLD_LIGHTS.length}];
 vec3 civicToWorld(vec3 v) {
   return vec3(dot(viewMatrix[0].xyz, v), dot(viewMatrix[1].xyz, v), dot(viewMatrix[2].xyz, v));
 }
-float civicDepthPass(vec2 uv, float receiver, float range) {
+float civicDepthPass(vec2 uv, float receiver, float range, float bias) {
   vec2 rg = texture2D(civicDepthAtlas, uv).rg;
   float depth = (rg.r * 65280.0 + rg.g * 255.0) / 65535.0 * range;
-  return step(receiver - (0.035 + receiver * 0.003), depth);
+  return step(receiver - bias, depth);
 }
 vec3 civicFaceDirection(float face, vec2 p) {
   ${CIVIC_CUBE_FACE_BASES.map((axes, i) => `if (face < ${i + 0.5}) return vec3(${axes[0].map((v) => `${v}.0`).join(',')}) + p.x * vec3(${axes[1].map((v) => `${v}.0`).join(',')}) + p.y * vec3(${axes[2].map((v) => `${v}.0`).join(',')});`).join('\n  ')}
@@ -101,7 +101,7 @@ void civicProject(vec3 direction, out float face, out vec2 p) {
     p = vec2(direction.z > 0.0 ? direction.x : -direction.x, -direction.y) / max(a.z, 0.0001);
   }
 }
-float civicVisibility(vec3 lightView, vec3 receiverView) {
+float civicVisibility(vec3 lightView, vec3 receiverView, vec3 receiverNormalView) {
   if (civicShadowStrength < 0.001) return 1.0;
   vec3 source = civicToWorld(lightView) + cameraPosition;
   // Distant unrelated sources take no atlas samples. Matched positions are
@@ -118,6 +118,10 @@ float civicVisibility(vec3 lightView, vec3 receiverView) {
   if (dot(delta, delta) >= 0.0004) return 1.0;
   vec3 direction = civicToWorld(receiverView - lightView);
   float receiver = length(direction);
+  vec3 receiverNormal = civicToWorld(receiverNormalView);
+  float planeDistance = dot(direction, receiverNormal);
+  // Keep the retained bias tied to this fragment, not an extrapolated tap.
+  float bias = 0.035 + receiver * 0.003;
   float face;
   vec2 p;
   civicProject(direction, face, p);
@@ -131,9 +135,24 @@ float civicVisibility(vec3 lightView, vec3 receiverView) {
     vec2 tapP;
     civicProject(civicFaceDirection(face, p + offset * (2.0 / ${CIVIC_SHADOW_FACE_SIZE}.0)), tapFace, tapP);
     vec2 origin = vec2(tapFace, float(i)) * ${CIVIC_SHADOW_FACE_SIZE}.0;
-    vec2 at = (tapP * 0.5 + 0.5) * ${CIVIC_SHADOW_FACE_SIZE}.0;
-    vec2 uv = (origin + clamp(at, vec2(0.5), vec2(${CIVIC_SHADOW_FACE_SIZE - 0.5}))) / size;
-    visibility += civicDepthPass(uv, receiver, civicSources[i].w);
+    vec2 cell = clamp(floor((tapP * 0.5 + 0.5) * ${CIVIC_SHADOW_FACE_SIZE}.0),
+      vec2(0.0), vec2(${CIVIC_SHADOW_FACE_SIZE - 1}.0));
+    vec2 sampleP = (cell + 0.5) * (2.0 / ${CIVIC_SHADOW_FACE_SIZE}.0) - 1.0;
+    vec3 tapDirection = normalize(civicFaceDirection(tapFace, sampleP));
+    float tapCosine = dot(tapDirection, receiverNormal);
+    float tapReceiver = receiver;
+    // Compare the baker's actual texel-centre ray against the receiver plane.
+    // Centre-distance comparisons stripe sloping walls even with no blocker.
+    // Geometric normals avoid inventing relief from a normal/bump finish.
+    // Working if planar self-shadow stripes disappear while blockers remain.
+    if (abs(tapCosine) > 0.0001) {
+      float projected = planeDistance / tapCosine;
+      // Grazing, sign-crossing or out-of-range planes retain the old comparison,
+      // never an unconditional visibility escape or an enlarged shadow bias.
+      if (projected > 0.0 && projected <= civicSources[i].w) tapReceiver = projected;
+    }
+    vec2 uv = (origin + cell + 0.5) / size;
+    visibility += civicDepthPass(uv, tapReceiver, civicSources[i].w, bias);
   }
   return mix(1.0, visibility * 0.2, civicShadowStrength);
 }
@@ -162,7 +181,7 @@ export function injectCivicLampShadows(shader: THREE.WebGLProgramParametersWithU
       throw new Error('Three civic shadow incident-light contract changed');
     chunk = chunk.replace(
       call,
-      `${call}\nif (directLight.visible) directLight.color *= civicVisibility(${variable}.position, geometryPosition);`
+      `${call} if (directLight.visible) directLight.color *= civicVisibility(${variable}.position, geometryPosition, nonPerturbedNormal);`
     );
   }
   if (!shader.fragmentShader.includes('#include <lights_fragment_begin>'))

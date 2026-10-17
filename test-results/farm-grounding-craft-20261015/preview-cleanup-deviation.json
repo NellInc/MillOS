@@ -1,0 +1,14 @@
+{
+  "pid": 57647,
+  "identity": "57647 57581 Thu Oct 15 07:19:18 2026     node --input-type=module",
+  "lock": {
+    "tag": "AE-close-art",
+    "pid": 57647,
+    "argv": "",
+    "acquiredAt": "2026-10-15T06:19:19.482Z",
+    "heartbeatAt": "2026-10-15T06:23:19.499Z"
+  },
+  "cwd": "p57647\nfcwd\nn/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS\n",
+  "listener": "p57647\nf17\nnlocalhost:4289\n",
+  "reason": "Heredoc stdin had reached EOF, normal close text could not reach owned preview; SIGTERM only this verified Node child, no shell or controller signalled."
+}

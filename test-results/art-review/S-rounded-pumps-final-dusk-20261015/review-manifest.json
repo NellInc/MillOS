@@ -1,0 +1,56 @@
+{
+  "label": "S-rounded-pumps-final-dusk-20261015",
+  "capturedAt": "2026-10-14T23:53:51.081Z",
+  "git": {
+    "commit": "d0b532e024f82fbb57e6cdf0ad16edf59eeb5dfa",
+    "branch": "codex/place-led-beautification-20261010",
+    "dirty": true,
+    "dirtyFileCount": 12,
+    "dirtyFiles": [
+      "_contprompts/millos_place_led_beautification_20261010.md",
+      "src/components/GasStationInstanced.test.ts",
+      "src/components/GasStationInstanced.tsx",
+      "src/components/models/GeneratedModel.tsx",
+      "src/components/scenery/AuthoredPropTrim.tsx",
+      "src/components/scenery/CommunityDetails.test.ts",
+      "src/components/scenery/CommunityDetails.tsx",
+      "src/components/workers/workerPose.test.ts",
+      "src/components/workers/workerPose.ts",
+      "src/simulation/__tests__/communityLife.test.ts",
+      "src/simulation/communityLife.ts",
+      "output/playwright/place-led-20261010/"
+    ]
+  },
+  "options": {
+    "label": "S-rounded-pumps-final-dusk-20261015",
+    "scenes": [
+      "forecourt"
+    ],
+    "sceneSet": "explicit",
+    "quality": "medium",
+    "port": "4288",
+    "time": "18.5",
+    "weather": "clear",
+    "duration": "1",
+    "warmup": "1",
+    "settleTimeout": "240",
+    "perfGate": false,
+    "skipBuild": true,
+    "headed": false
+  },
+  "diagnostics": [],
+  "scenes": [
+    {
+      "scene": "forecourt",
+      "image": "forecourt.png",
+      "indicativeFps": 59.98
+    }
+  ],
+  "contactSheet": "contact-sheet.png",
+  "perfGate": null,
+  "caveats": [
+    "Working tree was dirty (12 files). These frames show uncommitted work, not commit d0b532e. Do not use as a baseline for a later comparison.",
+    "Captured with --skip-build; dist/ may predate the tree.",
+    "No performance gate was run. Art mode unpins reduced motion and restores full fidelity, so its frame samples are indicative only. A visual verdict from this capture is not shippable until a non-art budget run passes on the same commit."
+  ]
+}

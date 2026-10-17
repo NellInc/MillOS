@@ -344,3 +344,63 @@ describe('ambient one-shot schedulers', () => {
     expect(clank).toHaveBeenCalledOnce();
   });
 });
+
+describe('muted-start audio gestures', () => {
+  let manager: typeof import('./audioManager').audioManager;
+  let cleanup: (() => void) | undefined;
+
+  beforeEach(async () => {
+    vi.stubGlobal('AudioContext', MockAudioContext);
+    vi.stubGlobal('requestIdleCallback', vi.fn());
+    MockAudioContext.instances = [];
+    vi.resetModules();
+    manager = (await import('./audioManager')).audioManager;
+  });
+
+  afterEach(() => {
+    cleanup?.();
+    cleanup = undefined;
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('keeps muted clicks and keys dormant, then unlocks once on a later unmuted click', async () => {
+    manager.muted = true;
+    const initialize = vi.fn(() => void manager.resume());
+    cleanup = manager.onFirstUnmutedGesture(initialize);
+    window.dispatchEvent(new MouseEvent('click'));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'o' }));
+    expect(initialize).not.toHaveBeenCalled();
+    expect(manager.initialized).toBe(false);
+    expect(manager.getDiagnostics()).toEqual({ activeNodes: 0, contextState: 'not-created' });
+    expect(MockAudioContext.instances).toHaveLength(0);
+
+    manager.muted = false;
+    window.dispatchEvent(new MouseEvent('click'));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'o' }));
+    expect(initialize).toHaveBeenCalledOnce();
+    expect(manager.initialized).toBe(true);
+    expect(MockAudioContext.instances).toHaveLength(1);
+  });
+
+  it('retains first-key initialization for an already unmuted session', () => {
+    manager.muted = false;
+    const initialize = vi.fn();
+    cleanup = manager.onFirstUnmutedGesture(initialize);
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'o' }));
+    window.dispatchEvent(new MouseEvent('click'));
+    expect(initialize).toHaveBeenCalledOnce();
+  });
+
+  it('removes both dormant listeners on unmount', () => {
+    manager.muted = true;
+    const initialize = vi.fn();
+    cleanup = manager.onFirstUnmutedGesture(initialize);
+    cleanup();
+    manager.muted = false;
+    window.dispatchEvent(new MouseEvent('click'));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'o' }));
+    expect(initialize).not.toHaveBeenCalled();
+    expect(MockAudioContext.instances).toHaveLength(0);
+  });
+});

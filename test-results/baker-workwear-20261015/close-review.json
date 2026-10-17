@@ -1,0 +1,58 @@
+{
+  "candidateSourcePins": {
+    "src/components/models/WorkerModel.tsx": "2babe1d1c12a0c82bdd31f35f5a7346e84c7e3caf7cc3cb04237b96554c72dd3",
+    "src/components/workers/SharedWorkerGeometries.ts": "f18ca227e37cfc4c1c6ab65d825bccb0ee204f94f7f954c6d34297e15ea5a9f8",
+    "src/components/workers/workerPose.test.ts": "9fa196bcc365562f8e4554dadb3235ce93f4a0f602b7d2726a96b68e8e06b112",
+    "src/components/workers/WorkerModel.test.tsx": "808f869ad02ed19393da45948fae4d85be6c64929887a77c8f8784429a94f89e"
+  },
+  "candidateIndexSha256": "9d512baecb0ad75e32c5855d43a22d7bf8f2956a9146b150b7586d7b7dd04aa7",
+  "reviewer": "authoring chat, self-review",
+  "localOnly": true,
+  "audio": {
+    "activeNodes": 0,
+    "contextState": "not-created"
+  },
+  "views": [
+    "natural outdoor pause, front three-quarter",
+    "natural counter wait, rear three-quarter"
+  ],
+  "observedPositions": [
+    [
+      -177,
+      0,
+      5
+    ],
+    [
+      -175.1,
+      0,
+      6.8
+    ]
+  ],
+  "activityObserved": "idle, truthful waiting for cooperative flour order; no staged inventory or actor pose",
+  "observedGeometry": {
+    "vertices": 1018,
+    "finite": true,
+    "lit": true,
+    "roughness": 0.94,
+    "textures": 0,
+    "castsShadow": true,
+    "receivesShadow": true
+  },
+  "artJudgment": "Bib, softly folded skirt, pocket, grain sprig, straps and rear waist tie visible; intentional centre vent, no random interior trouser openings in sampled final views. Actual run/walk/bake deformation is source-tested on both rigs, not a claim of every phase observed in browser.",
+  "consoleErrors": [],
+  "finalReadyMarksMs": {
+    "world": 20295.2,
+    "startup": 24477.9
+  },
+  "firstFinalLoadReadyMarksMs": {
+    "world": 16916.3,
+    "startup": 20914.6
+  },
+  "observationLimits": [
+    "Images displayed inline in tool conversation; no filesystem close-view PNG claimed.",
+    "Two asynchronous CDP natural-pause waits timed out, though the first camera action later completed. Switched to synchronous current-pose camera inspection and explicit daytime URL art framing.",
+    "Normal game time continues even without operations mode; earlier summary assumption of fixed daytime was incorrect.",
+    "No stocked baking/tray activity observed; no stock override.",
+    "Player/device checks deferred; pacing separately open."
+  ]
+}

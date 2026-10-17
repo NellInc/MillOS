@@ -17,7 +17,11 @@ import { generateRustPattern } from '../textures/rust';
 import { generateSafetyStripe } from '../textures/safetyStripe';
 import { generateBrick, generateBrickNormal } from '../textures/brick';
 import { generateBark, generateBarkNormal, generateBarkRoughness } from '../textures/bark';
-import { generateCobblestone, generateCobblestoneNormal } from '../textures/cobblestone';
+import {
+  generateCobblestone,
+  generateCobblestoneNormal,
+  generateCobblestoneRoughness,
+} from '../textures/cobblestone';
 import { generateMud, generateMudRoughness } from '../textures/mud';
 import {
   generateClayTiles,
@@ -122,8 +126,10 @@ const barkOakTexture = generateBark(256, 'oak');
 const barkBirchTexture = generateBark(256, 'birch');
 const barkOakRoughnessTexture = generateBarkRoughness(256, 'oak');
 const barkNormalTexture = generateBarkNormal(256);
-const cobblestoneColorTexture = generateCobblestone(512, { stoneSize: 14 }); // Medium cobblestones
-const cobblestoneNormalTexture = generateCobblestoneNormal(512, 14); // Match medium size
+// One64-cell laid family, registered across the existing512/512/256px maps.
+const cobblestoneColorTexture = generateCobblestone(512, { stoneSize: 8 });
+const cobblestoneNormalTexture = generateCobblestoneNormal(512, 8);
+const cobblestoneRoughnessTexture = generateCobblestoneRoughness(256, 4);
 
 // Enable wrapping for cobblestone textures (repeat set per-geometry for consistent world-scale)
 cobblestoneColorTexture.wrapS = cobblestoneColorTexture.wrapT = THREE.RepeatWrapping;
@@ -718,6 +724,7 @@ export const PROCEDURAL_TEXTURES = {
   barkNormal: barkNormalTexture,
   cobblestoneColor: cobblestoneColorTexture,
   cobblestoneNormal: cobblestoneNormalTexture,
+  cobblestoneRoughness: cobblestoneRoughnessTexture,
   mudColor: mudColorTexture,
   mudRoughness: mudRoughnessTexture,
   // Village roof textures

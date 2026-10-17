@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -195,4 +196,27 @@ describe('LoadingScreen final readiness', () => {
     await act(async () => vi.advanceTimersByTimeAsync(250));
     expect(screen.queryByRole('progressbar')).toBeNull();
   });
+});
+
+it('uses the MillOS mark for both loading covers and the sidebar inset without changing readiness', () => {
+  const view = render(<LoadingScreen />);
+  const image = view.container.querySelector('img')!;
+  expect(image.getAttribute('src')).toContain('textures/signage/millos-mark-v1.webp');
+  expect(image.getAttribute('width')).toBe('56');
+  expect(image.getAttribute('height')).toBe('56');
+  expect(image.getAttribute('aria-hidden')).toBe('true');
+  expect(image.getAttribute('alt')).toBe('');
+  expect(screen.getByRole('progressbar')).toBeVisible();
+  for (const file of [
+    'index.html',
+    'src/components/LoadingScreen.tsx',
+    'src/components/ui-new/sidebar/ContextSidebar.tsx',
+  ]) {
+    const source = readFileSync(file, 'utf8');
+    expect(source).toContain('millos-mark-v1.webp');
+    expect(source).not.toContain('🏭');
+  }
+  const html = readFileSync('index.html', 'utf8');
+  expect(html).toContain('%BASE_URL%textures/signage/millos-mark-v1.png');
+  expect(html).toContain('width="56"');
 });

@@ -1,4 +1,4 @@
-import React, { useState, Suspense, useEffect, useCallback, useRef } from 'react';
+import React, { useState, Suspense, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { registerReplayParticipant } from './simulation/workplaceReplayRuntime';
 import { Canvas } from '@react-three/fiber';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
@@ -141,7 +141,9 @@ const StartupInterface: React.FC = () => (
 );
 
 const CompleteWorldMarker: React.FC = () => {
-  useEffect(() => {
+  // Publish the committed Suspense subtree before its first draw. This marker
+  // submits warmup work only; assets, batching and settled frames still gate access.
+  useLayoutEffect(() => {
     document.documentElement.dataset.millosWorldReady = 'true';
     performance.mark('millos:world-ready');
     window.dispatchEvent(new Event('millos:world-ready'));
@@ -404,14 +406,9 @@ const App: React.FC = () => {
   }, [audioInitialized, runtimeMode.benchmark]);
 
   useEffect(() => {
-    const handleInteraction = () => initializeAudio();
-    window.addEventListener('click', handleInteraction, { once: true });
-    window.addEventListener('keydown', handleInteraction, { once: true });
-    return () => {
-      window.removeEventListener('click', handleInteraction);
-      window.removeEventListener('keydown', handleInteraction);
-    };
-  }, [initializeAudio]);
+    if (audioInitialized || runtimeMode.benchmark) return undefined;
+    return audioManager.onFirstUnmutedGesture(initializeAudio);
+  }, [audioInitialized, initializeAudio, runtimeMode.benchmark]);
 
   // Cleanup audio on unmount
   useEffect(() => {
@@ -715,6 +712,7 @@ const App: React.FC = () => {
             )}
             onCreated={({ gl }) => {
               glRef.current = gl;
+              gl.domElement.dataset.millosFpsEntry = 'true';
 
               // ONE TONE CURVE ON BOTH PATHS.
               //

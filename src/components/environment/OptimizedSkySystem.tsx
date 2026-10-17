@@ -178,11 +178,18 @@ void main() {
   sky = mix(sky, uAfterglowColor * 0.45 + vec3(0.0, 0.03, 0.06), afterglow * 0.55);
   sky += uAfterglowColor * afterglow * 0.86;
   vec4 clouds = millosSkyClouds(direction, cloudAmount, sunDir, uSunTint);
-  clouds.rgb += uAfterglowColor * afterglow * (1.0 - clouds.a * 0.75) * 1.05;
+  // High cloud shoulders keep seeing the hidden sun after the low air cools.
+  // Reuse coverage for rim/core separation: no extra cloud texture samples.
+  // Working if warm edges sit above a cool horizon without orange cloud cores.
+  float cloudAfterglow = uAfterglow * uSkyAfterglowStrength * pow(sunward, 2.0) *
+    smoothstep(-0.02, 0.06, height) * (1.0 - smoothstep(0.32, 0.70, height));
+  float cloudRim = 4.0 * clouds.a * (1.0 - clouds.a);
+  clouds.rgb += uAfterglowColor * cloudAfterglow * (0.08 + cloudRim * 0.72);
   float fieldStrength = mix( 1.0, 0.12 + smoothstep( 0.4, 0.85, cloudAmount ) * 0.88, uCloudAtlasReady );
   sky = mix(sky, clouds.rgb, clouds.a * fieldStrength);
   vec4 banks = millosCumulusBanks( direction, cloudAmount, sunDir, uSunTint );
-  banks.rgb += uAfterglowColor * afterglow * (1.0 - banks.a * 0.75) * 1.0;
+  float bankRim = 4.0 * banks.a * (1.0 - banks.a);
+  banks.rgb += uAfterglowColor * cloudAfterglow * (0.06 + bankRim * 0.62);
   sky = mix( sky, banks.rgb, banks.a );
 
   gl_FragColor = vec4(sky, 1.0);
@@ -200,9 +207,9 @@ void main() {
  * in the geometry and was invisible in the image: flat grey cut-outs pasted on
  * the sky, which is exactly how the baseline capture reads.
  *
- * WRAPPED LAMBERT, not clamped: a mountainside 300 units away is lit by the
- * whole sky hemisphere, not by the sun alone, so the terminator has to wrap
- * past 90 degrees or the shadowed side goes black and reads as a hole.
+ * Wooded foothills retain wrapped diffuse light. Alpine planes use the
+ * directional sun plus the same nonzero blue sky fill: compressing their
+ * incidence into a half-range erased the relief on exposed mineral faces.
  *
  * PER-CHANNEL AERIAL PERSPECTIVE is the cue that actually separates the rings.
  * Single-scattering extinction is
@@ -216,6 +223,17 @@ void main() {
  * instead of air. `uInscatter` is the SAME colour the fog is using this frame,
  * so the backdrop and the atmosphere in front of it cannot disagree.
  */
+/** Compact support fits the existing 3x3 seed stencil at every fragment.
+ * Working if maximum radius times largest axis stays below 1 + seedInset,
+ * and overlapping crowns have no discontinuous nearest-owner boundary.
+ */
+export const RIDGE_CANOPY_PROFILE = {
+  seedInset: 0.1,
+  radius: [0.6, 0.95],
+  axis: [0.8, 1.1],
+  amplitude: [0.55, 0.95],
+} as const;
+
 const ridgeVertexShader = `
 #include <common>
 #include <logdepthbuf_pars_vertex>
@@ -243,6 +261,17 @@ void main() {
 
 export const RIDGE_SNOW_STRENGTH = { value: 1 };
 
+/** Linear mineral albedo and metre-scale relief, independent of baked snow.
+ * Working if sheer faces reveal stone while upper shoulders retain white caps.
+ */
+export const RIDGE_ALPINE_PROFILE = {
+  mineralShade: [0.68, 1.12],
+  steepSnow: 0.1,
+  shoulderSnow: 0.84,
+  gullySnow: 0.28,
+  reliefMetres: 0.38,
+} as const;
+
 const ridgeFragmentShader = `
 #include <common>
 #include <logdepthbuf_pars_fragment>
@@ -254,6 +283,8 @@ uniform float uAerial;
 uniform float uDetailStrength;
 uniform float uSnowStrength;
 uniform float uWorldAnchored;
+uniform float uWoodlandStrength;
+uniform float uAlpineStrength;
 varying vec3 vRidgeColor;
 varying vec3 vRidgeNormal;
 varying vec3 vRidgePosition;
@@ -277,6 +308,37 @@ float ridgeFbm(vec2 p) {
   return ridgeNoise(p) * 0.54 + ridgeNoise(p * 2.03 + 7.2) * 0.28 +
     ridgeNoise(p * 4.11 - 3.8) * 0.18;
 }
+// Overlapping compact crowns have continuous shoulders and no nearest-owner
+// crease network. Kernel-weighted species remain continuous between stands.
+vec2 ridgeCanopy(vec2 p) {
+  vec2 base = floor(p), local = fract(p);
+  float uncovered = 1.0, weightSum = 0.0, speciesSum = 0.0;
+  for (int x = -1; x <= 1; x++) {
+    for (int z = -1; z <= 1; z++) {
+      vec2 offset = vec2(float(x), float(z));
+      float a = ridgeHash(base + offset);
+      float b = ridgeHash(base + offset + vec2(53.1, 7.7));
+      float c = ridgeHash(base + offset + vec2(17.7, 39.2));
+      float d = ridgeHash(base + offset + vec2(71.9, 5.3));
+      vec2 delta = offset + ${RIDGE_CANOPY_PROFILE.seedInset.toFixed(2)}
+        + vec2(a, b) * ${(1 - RIDGE_CANOPY_PROFILE.seedInset * 2).toFixed(2)} - local;
+      vec2 rotation = vec2(cos(d * 6.2831853), sin(d * 6.2831853));
+      vec2 rotated = vec2(dot(delta, rotation), dot(delta, vec2(-rotation.y, rotation.x)));
+      vec2 axes = mix(vec2(${RIDGE_CANOPY_PROFILE.axis[0].toFixed(2)}),
+        vec2(${RIDGE_CANOPY_PROFILE.axis[1].toFixed(2)}), vec2(b, a));
+      float radius = mix(${RIDGE_CANOPY_PROFILE.radius[0].toFixed(2)},
+        ${RIDGE_CANOPY_PROFILE.radius[1].toFixed(2)}, c);
+      vec2 shaped = rotated / (axes * radius);
+      float shoulder = max(0.0, 1.0 - dot(shaped, shaped));
+      float weight = mix(${RIDGE_CANOPY_PROFILE.amplitude[0].toFixed(2)},
+        ${RIDGE_CANOPY_PROFILE.amplitude[1].toFixed(2)}, fract(a + d)) * shoulder * shoulder;
+      uncovered *= 1.0 - weight;
+      weightSum += weight;
+      speciesSum += weight * a;
+    }
+  }
+  return vec2(1.0 - uncovered, speciesSum / max(weightSum, 0.0001));
+}
 
 void main() {
   #include <logdepthbuf_fragment>
@@ -287,28 +349,106 @@ void main() {
   // Two continuous vertical projections avoid both an angular seam and the
   // collapsed stripes of one oblique planar projection around a whole ring.
   float faceWeight = abs(normal.x) / max(0.001, abs(normal.x) + abs(normal.z));
-  float rock = smoothstep(0.48, 0.84,
-    vRidgeHeight + (ridgeNoise(p.xz * 0.055) - 0.5) * 0.22) * (1.0 - uWorldAnchored);
-  float forest = ridgeFbm(p.xz * 0.18 + p.y * 0.045);
-  float veins = mix(ridgeFbm(p.xy * vec2(0.11, 0.16)),
-    ridgeFbm(p.zy * vec2(0.11, 0.16)), faceWeight);
-  float scree = ridgeFbm(p.xz * 0.48 + p.y * 0.62 + veins * 3.0);
-  float meadow = smoothstep(0.42, 0.68, ridgeFbm(p.xz * 0.043));
-  // Separate broad meadow and woodland patches from the mineral upper slopes.
-  // These values are linear albedo, before lighting and atmospheric extinction.
-  // Working if the paired surface control removes the patches without changing the silhouette.
-  vec3 vegetation = mix(vec3(0.068, 0.104, 0.032),
-    vec3(0.21, 0.245, 0.074), meadow);
-  float finish = mix(0.5 + forest * 1.15, 0.4 + veins * 0.8 + scree * 0.32, rock);
-  vec3 detailedAlbedo = mix(vegetation, vRidgeColor, rock) * finish;
-  // Preserve snow through the mineral finish. Shallow shoulders retain cover,
-  // steep faces expose rock; gullies soften the boundary without more samples.
-  // Working if far caps read white while fixed low foothills remain wooded.
-  float snow = smoothstep(0.35, 0.65, vRidgeSnow + (veins - 0.5) * 0.25)
-    * (0.84 + 0.16 * smoothstep(0.08, 0.70, normal.y)) * uSnowStrength;
-  detailedAlbedo = mix(detailedAlbedo, vec3(0.81, 0.86, 0.91) * (0.92 + scree * 0.08), snow);
+  vec3 detailedAlbedo;
+  float relief;
+  if (uWorldAnchored > 0.5 && uWoodlandStrength > 0.5) {
+    // Continuous stands carry quieter variation than the former thresholded
+    // meadow/forest product. Bounded noise fields and nine crown candidates
+    // remain fixed in metres on the real slopes, without extra tree draws.
+    vec2 drift = vec2(ridgeNoise(p.xz * 0.012 + vec2(2.0, 9.0)),
+      ridgeNoise(p.xz * 0.012 + vec2(23.0, 1.0))) - 0.5;
+    vec2 grove = p.xz + drift * 9.0;
+    float stand = ridgeFbm(grove * 0.027 + vec2(17.2, 3.4));
+    vec2 canopy = ridgeCanopy(grove * 0.27);
+    float needles = ridgeNoise(grove * 0.71 + p.y * 0.07);
+    float footprint = max(length(dFdx(p.xz)), length(dFdy(p.xz)));
+    float crownVisibility = 1.0 - smoothstep(0.45, 1.8, footprint);
+    float crown = mix(0.5, canopy.x * (0.75 + needles * 0.5),
+      crownVisibility);
+    float gentleSlope = smoothstep(0.70, 0.97, abs(normal.y));
+    float glade = smoothstep(0.69, 0.90, stand) * gentleSlope * gentleSlope;
+    vec3 woodland = mix(vec3(0.047, 0.074, 0.046), vec3(0.067, 0.092, 0.052), stand);
+    woodland = mix(woodland, vec3(0.079, 0.110, 0.060), glade * 0.6);
+    float speciesTone = mix(1.0, 0.96 + canopy.y * 0.08, crownVisibility * min(crown, 1.0));
+    detailedAlbedo = woodland * (0.91 + crown * 0.22) * speciesTone;
+    float ledge = (1.0 - smoothstep(0.58, 0.84, abs(normal.y)))
+      * smoothstep(0.36, 0.68, stand);
+    detailedAlbedo = mix(detailedAlbedo, vec3(0.085, 0.092, 0.077)
+      * (0.92 + needles * 0.12), ledge * 0.38);
+    // Sub-metre canopy relief across roughly 3.7m crowns, below the existing
+    // crest undulation. Sub-pixel relief fades out with the same field.
+    relief = crown * 0.24 * crownVisibility * uDetailStrength;
+  } else if (uWorldAnchored < 0.5 && uAlpineStrength > 0.5) {
+    // Retain the true mineral vertex palette under deposited snow.
+    // Subordinate isotropic mineral variation leaves the real peak-rooted
+    // buttresses in charge of the large planes, without painted vertical pleats.
+    float drift = (ridgeNoise(p.xz * 0.018) - 0.5) * 4.0;
+    float footprint = max(length(dFdx(p)), length(dFdy(p)));
+    float fineVisibility = 1.0 - smoothstep(0.7, 2.4, footprint);
+    vec2 projectionX = vec2((p.x + drift) * 0.065, p.y * 0.065);
+    vec2 projectionZ = vec2((p.z + drift) * 0.065, p.y * 0.065);
+    float coarse = mix(ridgeNoise(projectionX), ridgeNoise(projectionZ), faceWeight);
+    float veins = mix(coarse,
+      mix(ridgeFbm(projectionX), ridgeFbm(projectionZ), faceWeight), fineVisibility);
+    veins = mix(0.5, veins, 1.0 - smoothstep(2.4, 6.0, footprint));
+    float strata = mix(0.5, mix(ridgeNoise(p.xy * vec2(0.075, 0.14)),
+      ridgeNoise(p.zy * vec2(0.075, 0.14)), faceWeight), fineVisibility);
+    float scree = mix(0.5, ridgeNoise(p.xz * 0.22 + p.y * 0.06), fineVisibility);
+    float rock = smoothstep(0.38, 0.74,
+      vRidgeHeight + (ridgeNoise(p.xz * 0.055) - 0.5) * 0.18);
+    vec3 vegetation = mix(vec3(0.054, 0.084, 0.050), vec3(0.072, 0.100, 0.060),
+      ridgeNoise(p.xz * 0.07));
+    vec3 mineral = vRidgeColor * mix(${RIDGE_ALPINE_PROFILE.mineralShade[0].toFixed(2)},
+      ${RIDGE_ALPINE_PROFILE.mineralShade[1].toFixed(2)}, 0.42 + veins * 0.28 + strata * 0.18)
+      * (0.93 + scree * 0.12);
+    detailedAlbedo = mix(vegetation, mineral,
+      max(rock, smoothstep(0.05, 0.30, vRidgeSnow)));
+    float snowPotential = smoothstep(0.35, 0.65,
+      vRidgeSnow + (veins - 0.5) * 0.18) * uSnowStrength;
+    float shoulder = smoothstep(0.35, 0.72, max(0.0, normal.y));
+    float pocket = smoothstep(0.48, 0.76, veins) * smoothstep(0.04, 0.32, normal.y);
+    float accumulation = clamp(${RIDGE_ALPINE_PROFILE.steepSnow.toFixed(2)}
+      + shoulder * ${RIDGE_ALPINE_PROFILE.shoulderSnow.toFixed(2)}
+      + pocket * ${RIDGE_ALPINE_PROFILE.gullySnow.toFixed(2)}, 0.0, 1.0);
+    // Keep recognizable upper caps even where a sharp summit normal is steep.
+    // The original potential still excludes all lower ground from snow.
+    float summit = smoothstep(0.76, 0.91, vRidgeHeight + (veins - 0.5) * 0.08) * 0.40;
+    float snow = snowPotential * max(accumulation, summit);
+    vec3 settledSnow = mix(vec3(0.70, 0.78, 0.86), vec3(0.84, 0.88, 0.92),
+      0.55 + veins * 0.22);
+    detailedAlbedo = mix(detailedAlbedo, settledSnow, snow);
+    relief = (veins * ${RIDGE_ALPINE_PROFILE.reliefMetres.toFixed(2)}
+      + strata * 0.08 + scree * 0.025 * fineVisibility)
+      * uDetailStrength * (1.0 - snow * 0.85);
+  } else {
+    // Retain the far range's geology/snow exactly. The private woodland control
+    // also admits the previous wooded finish for a same-page paired comparison.
+    float rock = smoothstep(0.48, 0.84,
+      vRidgeHeight + (ridgeNoise(p.xz * 0.055) - 0.5) * 0.22) * (1.0 - uWorldAnchored);
+    float forest = ridgeFbm(p.xz * 0.18 + p.y * 0.045);
+    float veins = mix(ridgeFbm(p.xy * vec2(0.11, 0.16)),
+      ridgeFbm(p.zy * vec2(0.11, 0.16)), faceWeight);
+    float scree = ridgeFbm(p.xz * 0.48 + p.y * 0.62 + veins * 3.0);
+    float meadow = smoothstep(0.42, 0.68, ridgeFbm(p.xz * 0.043));
+    // Separate broad meadow and woodland patches from the mineral upper slopes.
+    // These values are linear albedo, before lighting and atmospheric extinction.
+    // Working if the paired surface control removes the patches without changing the silhouette.
+    // The foothills are wooded, with clearings rather than a bright meadow
+    // blanket. Reuse the two existing scales, so the finish keeps its sample budget.
+    float clearing = meadow * smoothstep(0.42, 0.66, forest);
+    vec3 vegetation = mix(vec3(0.054, 0.084, 0.050),
+      vec3(0.101, 0.139, 0.085), clearing);
+    float finish = mix(0.88 + forest * 0.32, 0.4 + veins * 0.8 + scree * 0.32, rock);
+    detailedAlbedo = mix(vegetation, vRidgeColor, rock) * finish;
+    // Preserve snow through the mineral finish. Shallow shoulders retain cover,
+    // steep faces expose rock; gullies soften the boundary without more samples.
+    // Working if far caps read white while fixed low foothills remain wooded.
+    float snow = smoothstep(0.35, 0.65, vRidgeSnow + (veins - 0.5) * 0.25)
+      * (0.84 + 0.16 * smoothstep(0.08, 0.70, normal.y)) * uSnowStrength;
+    detailedAlbedo = mix(detailedAlbedo, vec3(0.81, 0.86, 0.91) * (0.92 + scree * 0.08), snow);
+    relief = mix(forest * 0.32, veins * 0.7 + scree * 0.16, rock) * uDetailStrength * (1.0 - snow * 0.8);
+  }
   vec3 albedo = mix(vRidgeColor, detailedAlbedo, uDetailStrength);
-  float relief = mix(forest * 0.32, veins * 0.7 + scree * 0.16, rock) * uDetailStrength * (1.0 - snow * 0.8);
   vec3 dx = dFdx(p), dy = dFdy(p);
   vec3 rx = cross(dy, normal), ry = cross(normal, dx);
   float determinant = dot(dx, rx);
@@ -317,6 +457,13 @@ void main() {
       (dFdx(relief) * rx + dFdy(relief) * ry));
   }
   float ndl = clamp(dot(normal, uSunDirection) * 0.5 + 0.5, 0.0, 1.0);
+  // Existing sky fill keeps alpine shadow planes readable without halving
+  // directional incidence. Working if bare-rock planes retain sun-facing
+  // contrast while woodland and the legacy comparison keep their exact light.
+  if (uWorldAnchored < 0.5 && uAlpineStrength > 0.5) {
+    float alpineSun = smoothstep(0.0, 0.20, uSunDirection.y);
+    ndl = mix(ndl, max(0.0, dot(normal, uSunDirection)), alpineSun);
+  }
   vec3 lit = albedo * mix(uShadowTint, uSunColor, pow(ndl, 0.9));
 
   lit.r = mix(lit.r, uInscatter.r, clamp(uAerial * 0.80, 0.0, 1.0));
@@ -325,7 +472,11 @@ void main() {
 
   // Valley haze. Air pools in the valleys, so they sit further back than the
   // peaks that rise out of it - the cue that turns a silhouette into a range.
-  lit = mix(lit, uInscatter, (1.0 - vRidgeHeight) * uAerial * 0.20);
+  // Leave the snow shoulders clear while a cool veil settles between massifs.
+  // Fixed wooded hills keep more contrast than the remote range.
+  float valleyAir = (1.0 - smoothstep(0.18, 0.82, vRidgeHeight)) *
+    uAerial * mix(0.28, 0.16, uWorldAnchored);
+  lit = mix(lit, uInscatter, valleyAir);
   // Solid land always writes depth. A height-based alpha feather exposed sky
   // through overlapping foothills below 15 m, creating floating ribbons.
   // Blend distant colour into the atmosphere without cutting holes in terrain.
@@ -550,6 +701,8 @@ interface MountainRidgeSpec {
   seed: number;
   colors: readonly [string, string, string];
   rollingHills?: boolean;
+  /** Broad far-face basin depth; the original foot, crest and envelope stay exact. */
+  alpineReliefMetres?: number;
 }
 
 /**
@@ -588,9 +741,11 @@ export function createMountainRidgeGeometry({
   seed,
   colors,
   rollingHills = false,
+  alpineReliefMetres = 0,
 }: MountainRidgeSpec): THREE.BufferGeometry {
   const segments = MOUNTAIN_RIDGE_SEGMENTS;
-  const rows = MOUNTAIN_RIDGE_ROWS;
+  const backRows = rollingHills ? 6 : 0;
+  const rows = MOUNTAIN_RIDGE_ROWS + backRows;
   const positions: number[] = [];
   const vertexColors: number[] = [];
   const ridgeHeights: number[] = [];
@@ -598,8 +753,8 @@ export function createMountainRidgeGeometry({
   const indices: number[] = [];
   const palette = colors.map((color) => new THREE.Color(color));
 
-  for (let index = 0; index <= segments; index += 1) {
-    const progress = index === segments ? 0 : index / segments;
+  const columns = Array.from({ length: segments }, (_, index) => {
+    const progress = index / segments;
     const angle = progress * Math.PI * 2;
     // Broad positive lobes form separated massifs. Sharper ridged harmonics
     // break each massif into individual peaks, while the very low valley floor
@@ -630,26 +785,100 @@ export function createMountainRidgeGeometry({
     const facetTint =
       0.9 + Math.sin(angle * 11 + seed * 2.4) * 0.065 + Math.sin(angle * 23 - seed) * 0.032;
 
+    return { angle, profile, height, baseRadius, facetTint };
+  });
+  // Root broad buttresses in the actual prominent skyline peaks. The previous
+  // 47th-harmonic recess was narrower than one column and read as pleated cloth.
+  // A few asymmetric, widening spurs leave connected basins between them.
+  // Working if the existing grid shades as planes descending from real peaks,
+  // while the optical silhouette, buried closure and grounded rings stay exact.
+  const circularDistance = (a: number, b: number) => {
+    const distance = Math.abs(a - b) % segments;
+    return Math.min(distance, segments - distance);
+  };
+  const peaks: number[] = [];
+  if (!rollingHills && alpineReliefMetres > 0) {
+    const candidates = columns
+      .map((column, index) => ({ ...column, index }))
+      .filter(
+        ({ height, index }) =>
+          height > maxHeight * 0.28 &&
+          height > columns[(index + segments - 1) % segments].height &&
+          height >= columns[(index + 1) % segments].height
+      )
+      .sort((a, b) => b.height - a.height || a.index - b.index);
+    for (const { index } of candidates) {
+      if (peaks.every((peak) => circularDistance(peak, index) >= 20)) peaks.push(index);
+      if (peaks.length === 10) break;
+    }
+  }
+
+  for (let index = 0; index <= segments; index += 1) {
+    const { angle, profile, height, baseRadius, facetTint } = columns[index % segments];
     for (let row = 0; row < rows; row += 1) {
-      const heightRatio = row / (rows - 1);
-      const shoulderRipple =
-        Math.sin(angle * 9 + seed * 1.7 + heightRatio * 0.6) * slopeDepth * heightRatio * 0.035 +
-        Math.sin(angle * 19 + seed + heightRatio * 0.4) *
-          slopeDepth *
-          Math.sin(heightRatio * Math.PI) *
-          0.12;
-      const localRadius = baseRadius + slopeDepth * Math.pow(heightRatio, 1.55) + shoulderRipple;
-      const terraceHeight =
+      const risingRatio = Math.min(row, MOUNTAIN_RIDGE_ROWS - 1) / (MOUNTAIN_RIDGE_ROWS - 1);
+      const descent = Math.max(0, row - MOUNTAIN_RIDGE_ROWS + 1) / Math.max(1, backRows);
+      const heightRatio = risingRatio * (1 - THREE.MathUtils.smoothstep(descent, 0, 1));
+      const radialRatio = rollingHills ? risingRatio : Math.pow(risingRatio, 1.55);
+      // The former sinusoidal radial ripple reversed some lower terraces by
+      // 1.79 m, producing back-facing holes. Keep wooded slopes monotonic and
+      // close them behind the crest. Working if daytime village views have
+      // continuous banks and every radial step advances toward the outer foot.
+      const shoulderRipple = rollingHills
+        ? slopeDepth *
+          radialRatio *
+          (Math.sin(angle * 9 + seed * 1.7) * 0.035 + Math.sin(angle * 19 + seed) * 0.055)
+        : Math.sin(angle * 9 + seed * 1.7 + heightRatio * 0.6) * slopeDepth * heightRatio * 0.035 +
+          Math.sin(angle * 19 + seed + heightRatio * 0.4) *
+            slopeDepth *
+            Math.sin(heightRatio * Math.PI) *
+            0.12;
+      const gully = Math.pow(1 - Math.abs(Math.sin(angle * 47 + seed + heightRatio * 0.8)), 5);
+      const localRadius = baseRadius + slopeDepth * (radialRatio + descent * 0.72) + shoulderRipple;
+      // Sub-metre canopy undulation breaks a mathematically smooth wooded
+      // crest. It tapers off before the foot, preserving the terrain join,
+      // and uses the existing segments rather than a ring of extra tree draws.
+      const canopy = rollingHills
+        ? Math.abs(Math.sin(angle * 71 + seed) * Math.sin(angle * 113 - seed)) *
+          0.6 *
+          THREE.MathUtils.smoothstep(heightRatio, 0.72, 1)
+        : 0;
+      const originalHeight =
         baseY +
+        canopy +
         height * (heightRatio * 0.16 + Math.pow(heightRatio, 1.24) * 0.84) -
-        ((1 - Math.cos(angle * 17 + seed)) * 0.028 +
-          Math.pow(1 - Math.abs(Math.sin(angle * 47 + seed + heightRatio * 0.8)), 5) * 0.055) *
+        ((1 - Math.cos(angle * 17 + seed)) * 0.028 + gully * 0.055) *
           height *
           Math.sin(heightRatio * Math.PI);
+      let basin = 0;
+      if (peaks.length && row > 0 && row < MOUNTAIN_RIDGE_ROWS - 1) {
+        let support = 0;
+        const widening = Math.pow(1 - heightRatio, 0.8);
+        for (const peak of peaks) {
+          const variation = Math.sin(peak * 1.7 + seed);
+          for (const side of [-1, 1]) {
+            const reach = side < 0 ? 12 + variation * 3 : 17 - variation * 4;
+            const centre = peak + side * reach * widening;
+            const width = 2 + (1 - heightRatio) * (side < 0 ? 3.2 : 4.6);
+            const distance = circularDistance(index % segments, centre) / width;
+            support = Math.max(support, Math.exp(-distance * distance * 1.4));
+          }
+        }
+        basin =
+          Math.min(30, Math.max(0, alpineReliefMetres), height * 0.25) *
+          (1 - support) *
+          Math.sin(heightRatio * Math.PI) ** 2 *
+          THREE.MathUtils.smoothstep(originalHeight, 30, 90);
+      }
+      const terraceHeight = originalHeight - basin;
+      // The 0.6 coupling preserves outward radial progress even where the
+      // asymmetric branches turn into a basin. Working if every visible row
+      // advances in both radius and altitude inside the original envelope.
+      const carvedRadius = localRadius + basin * 0.6;
       positions.push(
-        Math.cos(angle) * localRadius,
+        Math.cos(angle) * carvedRadius,
         row === 0 && baseClosureY !== undefined ? baseClosureY : terraceHeight,
-        Math.sin(angle) * localRadius
+        Math.sin(angle) * carvedRadius
       );
       // Combined so the haze pools where the ring is BOTH low on the slope and
       // in a valley of the profile, which is where real air collects.
@@ -715,8 +944,13 @@ export const FAR_MOUNTAIN_SPEC: MountainRidgeSpec = {
   minHeight: 10,
   maxHeight: 205,
   slopeDepth: 55,
+  alpineReliefMetres: 30,
   valleyFloor: 0.13,
-  snowLine: 0.46,
+  // Cover the upper shoulders visible from the village, not just the tips.
+  // The former 86 m datum left most of the visible range bare. This 62 m
+  // line retains exposed lower rock and snow-free wooded intermediate hills.
+  // Working if the village's high peaks have continuous irregular white caps.
+  snowLine: 0.34,
   seed: 0.37,
   // TRUE ALBEDO. These three arrays used to be pre-hazed blue-greys, i.e. they
   // had aerial perspective painted into them, which is why the far ring read as
@@ -854,10 +1088,16 @@ export function createRidgeMaterial(
       uDetailStrength: WORLD_SURFACE_STRENGTH,
       uSnowStrength: RIDGE_SNOW_STRENGTH,
       uWorldAnchored: { value: worldAnchored ? 1 : 0 },
+      // Per-material, unlike global surface/snow isolation. Working if a
+      // woodland comparison cannot retint the far range or another surface.
+      uWoodlandStrength: { value: worldAnchored ? 1 : 0 },
+      // Far-only and private: comparison cannot retint the finished woodland.
+      // Working if on/off/on leaves every other control and buffer unchanged.
+      uAlpineStrength: { value: worldAnchored ? 0 : 1 },
     },
   });
   material.userData.clearAerial = aerial;
-  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v8';
+  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v14';
   return material;
 }
 
@@ -944,7 +1184,7 @@ export function OptimizedSkySystem() {
         sunDirection: { value: new THREE.Vector3(0.5, 0.75, -0.4).normalize() },
       },
     });
-    material.customProgramCacheKey = () => 'millos-optimized-sky-v11';
+    material.customProgramCacheKey = () => 'millos-optimized-sky-v13';
     return material;
   }, []);
 

@@ -25,7 +25,7 @@ describe('OnboardingGuide', () => {
     const guide = screen.getByRole('region', { name: 'Getting started, step 1 of 3' });
     expect(guide).toBeVisible();
     expect(guide).toHaveClass(
-      'max-h-[calc(100dvh-15.5rem)]',
+      'max-h-[calc(100dvh-20rem)]',
       'overflow-y-auto',
       'overscroll-contain'
     );

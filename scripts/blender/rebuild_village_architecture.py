@@ -40,11 +40,12 @@ PALETTE = {
     'brass': ('ad8b46', .4), 'iron': ('354043', .65),
     'ink': ('202e32', .9), 'rose': ('bd8580', .8),
 }
+BASE_PALETTE = PALETTE.copy()
 KEYS = list(PALETTE)
 VERTS, FACES, UVS, PARTS = [], [], [], []
 
 
-def atlas():
+def atlas(bread_display=False):
     size, tile = 1024, 256
     pixels = np.ones((size, size, 4), dtype=np.float32)
     rough = np.ones_like(pixels)
@@ -63,6 +64,23 @@ def atlas():
             value += .025 * np.sin(xx / 6 + np.sin(yy / 63))
         if key in ('slate', 'tile'):
             value += .016 * np.sin(xx / 13) * np.cos(yy / 11)
+            # Gentle mineral variation belongs to individual lapped pieces,
+            # without painted highlights that would contradict the night rig.
+            value += .012 * (((xx // 22 + 3 * (yy // 30)) % 5) - 2)
+        if key == 'cream':
+            value += .006 * np.sin(xx * math.pi / 3)  # Woven linen and painted joinery.
+        if bread_display and key == 'amber':
+            # Crust, flour and three diagonal cuts, colour only. The shallow
+            # loaf itself provides the lighting, rather than painted shadows.
+            u, v = (xx / (tile - 1) - .5) * 2, (yy / (tile - 1) - .5) * 2
+            value += .022 * np.sin(xx / 7 + np.cos(yy / 17))
+            flour = np.maximum(0, np.sin(xx / 19) * np.cos(yy / 23) - .3)
+            value += .09 * flour
+            for cut in (-.43, 0, .43):
+                score = np.exp(-((u - cut - v * .21) / .035) ** 2)
+                score *= np.clip((.68 - np.abs(v)) / .12, 0, 1)
+                value += .14 * score
+
         y, x = (i // 4) * tile, (i % 4) * tile
         pixels[y:y + tile, x:x + tile, :3] = np.clip(rgb + value[..., None], 0, 1)
         rough[y:y + tile, x:x + tile, :3] = r
@@ -118,6 +136,42 @@ def box(name, c, d, key='plaster', yaw=0):
         points.append((x + u * math.cos(yaw) + v * math.sin(yaw), y + j * dy,
                        z - u * math.sin(yaw) + v * math.cos(yaw)))
     solid(name, points, CUBE_FACES, key)
+
+
+def display_loaf(name, centre, dims, yaw):
+    # Closed oval relief entirely inside the old display-block envelope.
+    # Working if front-face delivery rays see a rounded outline and crown,
+    # with one unchanged atlas/material and no new window/shadow silhouette.
+    x, y, z = centre
+    rx, ry, rz = [d / 2 for d in dims]
+    segments, rings = 12, 6
+    local = [(0, ry, 0)]
+    for ring in range(1, rings):
+        theta = math.pi * ring / rings
+        for i in range(segments):
+            phi = math.tau * i / segments
+            local.append((rx * math.sin(theta) * math.cos(phi),
+                          ry * math.cos(theta),
+                          rz * math.sin(theta) * math.sin(phi)))
+    local.append((0, -ry, 0))
+    bottom = len(local) - 1
+    faces = [(0, 1 + i, 1 + (i + 1) % segments) for i in range(segments)]
+    for row in range(rings - 2):
+        for i in range(segments):
+            a, b = 1 + row * segments + i, 1 + row * segments + (i + 1) % segments
+            faces.append((a, a + segments, b + segments, b))
+    faces += [(bottom, bottom - segments + (i + 1) % segments,
+               bottom - segments + i) for i in range(segments)]
+    points = [(x + u * math.cos(yaw) + w * math.sin(yaw), y + v,
+               z - u * math.sin(yaw) + w * math.cos(yaw)) for u, v, w in local]
+    solid(name, points, faces, 'amber')
+    tile = KEYS.index('amber')
+    # A continuous face projection keeps crust cuts joined over the crown.
+    for offset, face in enumerate(faces):
+        UVS[-len(faces) + offset] = [
+            ((tile % 4 + .03 + .94 * (local[n][0] / (2 * rx) + .5)) / 4,
+             (tile // 4 + .03 + .94 * (local[n][1] / (2 * ry) + .5)) / 4)
+            for n in face]
 
 
 def beam(name, p, q, width, key='timber'):
@@ -192,10 +246,42 @@ def frame(name, x, y, z, width=1, height=1.3, yaw=0, trim='cream', glass='glass'
     if door:
         for side in (-1, 1):
             part('door stile', side * width * .25, -.03, .066, (.035, height - .2, .022), 'timber')
+        # Traditional fielded panels sit inside the retained stile/latch depth.
+        # Broad portals retain their clear centre and existing entry projection.
+        for side in (() if name == 'Cabin glazed doors' else (-1, 1)):
+            for row in (-1, 1):
+                u, v = side * width * .23, row * height * .235
+                pw, ph = width * .34, height * .34
+                part('panel shadow', u, v, .061, (pw, ph, .012), 'timber')
+                part('fielded oak panel', u, v, .069,
+                     (max(.055, pw - .055), max(.09, ph - .055), .012), 'oak')
         part('latch', width * .3, -.06, .088, (.065, .14, .025), 'brass')
     else:
         part('mullion', 0, 0, .076, (.045, height, .04), trim)
         part('transom', 0, .09, .076, (width, .045, .04), trim)
+        # Shallow opaque room layers preserve the atlas glazing mask and the
+        # existing runtime virtual-room shader. No wall openings, translucent
+        # material, external silhouette or lamp occluder is changed.
+        if glass != 'ink' and name != 'Door upper pane':
+            part('upper reveal shadow', 0, height * .43, .063,
+                 (width - .15, .055, .014), 'ink')
+            part('interior sill shelf', 0, -height * .39, .064,
+                 (width - .15, .04, .022), 'oak')
+            if name == 'Shop display':
+                for i in range(5):
+                    u, v, w = (i - 2) * width * .15, -height * .34, .066
+                    display_loaf(name + ' display loaf',
+                                 (x + u * math.cos(yaw) + w * math.sin(yaw), y + v,
+                                  z - u * math.sin(yaw) + w * math.cos(yaw)),
+                                 (width * .09, .12, .018), yaw)
+            else:
+                # Two short folds per side; the blue centre stays clear. Keep
+                # every fold behind the existing projecting mullions and jambs.
+                for side in (-1, 1):
+                    for fold in range(2):
+                        u = side * width * (.335 + fold * .055)
+                        part('drawn linen fold', u, -.015, .064 + fold * .005,
+                             (width * .058, height - .22, .014), 'cream')
 
 
 def shell(name, width, depth, height, key='plaster', x=0, z=0):
@@ -205,9 +291,31 @@ def shell(name, width, depth, height, key='plaster', x=0, z=0):
 
 
 def chimney(x, z, bottom, top, width=.48):
-    box('Chimney shaft', (x, (bottom + top) / 2, z), (width, top - bottom, width), 'stone')
-    box('Chimney cap', (x, top - .12, z), (width + .13, .12, width + .13), 'cream')
-    box('Chimney open flue', (x, top - .051, z), (width * .61, .014, width * .61), 'ink')
+    # A scaled closed casting replaces the dark patch hidden by the solid shaft.
+    # Working if every caller keeps its old top/envelope and has a recessed throat.
+    shaft_top, cap_bottom, cap_top = top - width * .65, top - width * .70, top - width * .49
+    if shaft_top <= bottom:
+        raise RuntimeError('Chimney shaft is too short for its retained flue')
+    box('Chimney shaft', (x, (bottom + shaft_top) / 2, z), (width, shaft_top - bottom, width), 'stone')
+    outer, inner = width + .13, width * .61
+    thick, centre = (outer - inner) / 2, (outer + inner) / 4
+    for side in (-1, 1):
+        box('Open chimney cap front', (x, (cap_bottom + cap_top) / 2, z + side * centre),
+            (outer, cap_top - cap_bottom, thick), 'cream')
+        box('Open chimney cap side', (x + side * centre, (cap_bottom + cap_top) / 2, z),
+            (thick, cap_top - cap_bottom, inner), 'cream')
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            corner = [(x + sx * u, y, z + sz * v) for y in (cap_bottom, cap_top)
+                      for u, v in ((inner / 2, inner / 2), (inner / 2, width * .12),
+                                   (width * .12, inner / 2))]
+            solid('Sealed chimney cap corner', corner,
+                  [(0, 2, 1), (3, 4, 5), (0, 1, 4, 3), (1, 2, 5, 4), (2, 0, 3, 5)], 'cream')
+    lathe('Hollow village chimney pot', x, z,
+          [(r * width, top - h * width) for r, h in
+           [(.23, .54), (.34, .54), (.34, .46), (.30, .42),
+            (.30, .12), (.34, .08), (.34, .03), (.30, 0),
+            (.23, 0), (.22, .05), (.23, .54)]], 'stone', 24)
 
 
 def arch(name, x, y, z, width, height, key='cream'):
@@ -423,7 +531,26 @@ def townhall():
 def pub():
     shell('V030 Flour and Barrel',8,6,5)
     hip_roof('Rounded hipped thatch',9.1,8.4,5.09,7.91,'thatch',9)
-    chimney(3,0,5.5,8.18,.74)
+    # Replace the hidden dark top patch with a real flue, seated in an open cap.
+    # Keep the original 8.18 m roofline and all other pub geometry unchanged.
+    # Working if delivery rays see the recessed shaft and inward-facing pot wall.
+    box('Pub dressed chimney shaft', (3, 6.6, 0), (.74, 2.2, .74), 'stone')
+    for side in (-1, 1):
+        box('Pub open chimney cap front', (3, 7.74, side * .33), (.87, .16, .21), 'cream')
+        box('Pub open chimney cap side', (3 + side * .33, 7.74, 0), (.21, .16, .45), 'cream')
+    # The pot's circular foot covers the diagonal seats, sealing the square cap.
+    # These closed wedges stop daylight/weather gaps without filling the flue.
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            corner = [(3 + sx * u, y, sz * v) for y in (7.66, 7.82)
+                      for u, v in ((.225, .225), (.225, .09), (.09, .225))]
+            solid('Pub sealed cap corner seat', corner,
+                  [(0, 2, 1), (3, 4, 5), (0, 1, 4, 3),
+                   (1, 2, 5, 4), (2, 0, 3, 5)], 'cream')
+    lathe('Pub hollow rolled flue pot', 3, 0,
+          [(.17, 7.78), (.25, 7.78), (.25, 7.84), (.22, 7.87),
+           (.22, 8.09), (.25, 8.12), (.25, 8.16), (.22, 8.18),
+           (.17, 8.18), (.16, 8.14), (.17, 7.78)], 'stone', 24)
     for side in (-1,1):
         for x in (-3.77,-1.2,1.2,3.77):
             box('Pub pegged upright',(x,2.6,side*3.04),(.20,4.75,.18),'timber')
@@ -466,9 +593,29 @@ def school():
             box('Belfry post capital',(x,10.57,z),(.32,.15,.32),'cream')
     box('Belfry crown',(0,10.75,0),(2.3,.23,2.3),'cream')
     beam('Bell oak yoke',(-.75,10.38,0),(.75,10.38,0),.16,'timber')
-    lathe('School open bronze bell',0,0,[(.51,9.46),(.60,9.5),(.60,9.59),(.49,9.66),(.36,9.86),(.27,10.17),(.15,10.33),(.04,10.33)],'brass',28)
-    beam('Bell clapper',(0,9.43,0),(0,9.97,0),.055,'iron')
-    lathe('Bell clapper ball',0,0,[(0,9.36),(.1,9.43),(0,9.5)],'iron',12)
+    # A cast shell folds over its rolled sound bow and returns up the inside.
+    # The crown closes above the clapper; the mouth remains open. No two-sided
+    # material or separate runtime mesh hides missing bronze.
+    # Working if front-face delivery rays see the inner wall and crown from
+    # the hollow, while a downward off-centre ray clears the open mouth.
+    lathe('School open bronze bell',0,0,[
+        (.515,9.46),(.60,9.48),(.62,9.53),(.61,9.59),(.55,9.625),
+        (.48,9.69),(.38,9.84),(.295,10.1),(.24,10.24),(.16,10.32),
+        (.08,10.34),(0,10.34),(0,10.255),(.14,10.255),(.19,10.205),
+        (.245,10.08),(.335,9.82),(.425,9.66),(.515,9.54),(.515,9.46)
+    ],'brass',28)
+    # Hung iron bearings connect the old oak yoke to the crown overhead.
+    # Their supports enter both pieces rather than floating beside the bell.
+    for side in (-1,1):
+        box('Bell crown hanger',(side*.64,10.55,0),(.075,.23,.14),'iron')
+        box('Bell yoke bearing',(side*.64,10.39,0),(.14,.15,.24),'iron')
+        box('Bell yoke strap',(side*.18,10.38,0),(.065,.19,.195),'iron')
+    beam('Bell crown mounting bolt',(0,10.32,0),(0,10.43,0),.08,'iron')
+    beam('Bell clapper',(0,9.43,0),(0,10.255,0),.055,'iron')
+    lathe('Bell clapper ball',0,0,[
+        (0,9.34),(.047,9.35),(.081,9.385),(.096,9.43),
+        (.081,9.475),(.047,9.51),(0,9.52)
+    ],'iron',12)
     lathe('School swept bell cap',0,0,[(1.6,10.90),(1.56,11.0),(1.22,11.14),(.94,11.38),(.71,11.67),(.48,11.98),(.27,12.28),(.07,12.55),(0,12.63)],'slate',24)
     lathe('Belfry gilt finial',0,0,[(.035,12.5),(.1,12.65),(0,12.83)],'brass',12)
 
@@ -521,7 +668,20 @@ def canal_boat():
             frame('Door upper pane',x,2.1,z+(.095 if yaw==0 else -.095),.33,.43,yaw,'oak')
     for z in (-2.7,-.4,1.9):
         lathe('Mushroom brass roof vent',0,z,[(.10,2.76),(.10,2.84),(.23,2.87),(.23,2.91),(.10,3.01),(0,3.03)],'brass',16)
-    lathe('Black stove chimney',-.63,-2.0,[(.11,2.72),(.11,3.25),(.19,3.27),(.19,3.34),(0,3.39)],'iron',20)
+    # An actual open flue under a supported rain hood, within the original
+    # roof/chimney envelope. Working if the delivery ray crosses the outlet
+    # gap at y3.27, the pipe stays closed-sided and the hood still tops at3.39.
+    lathe('Boat recessed stove pipe',-.63,-2.0,
+          [(.11,2.72),(.11,3.24),(.083,3.24),(.083,2.72),
+           (.11,2.72)],'iron',12)
+    lathe('Boat stove rain hood',-.63,-2.0,
+          [(0,3.31),(.19,3.31),(.19,3.34),(0,3.39)],'iron',10)
+    for i in range(2):
+        a = i * math.pi
+        beam('Stove hood support',
+             (-.63 + .11 * math.cos(a),3.20,-2.0 + .11 * math.sin(a)),
+             (-.63 + .15 * math.cos(a),3.315,-2.0 + .15 * math.sin(a)),
+             .018,'iron')
     box('Roof timber storage locker',(.44,2.87,.55),(.72,.28,1.23),'green')
     for z in (.03,1.07): box('Locker brass strap',(.44,3.017,z),(.74,.014,.037),'brass')
     for side in (-1,1):
@@ -541,6 +701,16 @@ def canal_boat():
         p=(r*math.cos(a),1.195,4.77+r*math.sin(a))
         if prev:beam('Bow coiled rope',prev,p,.025,'thatch')
         prev=p
+    # Rope fenders are tied at the tapered wells, inside the unchanged maximum
+    # beam. The restrained ochre cord reads as rope rather than black car tyres.
+    for side in (-1, 1):
+        for z in (-5.15, 5.10):
+            x = side * 1.035
+            beam('Fender suspension rope', (side * .88, 1.15, z),
+                 (x, .94, z), .023, 'thatch')
+            lathe('Woven rope fender', x, z,
+                  [(0, .56), (.065, .59), (.087, .67), (.087, .88),
+                   (.062, .96), (0, .98)], 'thatch', 8)
     # Small traditional rose clusters, raised paint on the cabin end panels.
     for side in (-1,1):
         for z in (-3.60,2.84):
@@ -581,9 +751,13 @@ for slug, builder in BUILDERS.items():
     before = hashlib.sha256(original.read_bytes()).hexdigest()
     bpy.ops.wm.read_factory_settings(use_empty=True)
     VERTS, FACES, UVS, PARTS = [], [], [], []
+    # Per-asset state keeps coachwork variants isolated from masonry palettes.
+    PALETTE = BASE_PALETTE.copy()
     if slug == 'canal-boat':
         PALETTE.update(slate=('203c50', .42), brick=('772f32', .48), green=('284c42', .55), cream=('e8dbb5', .52), rose=('b55754', .5), glass=('345b69', .2))
-    mat = atlas()
+    if slug == 'shop':
+        PALETTE['amber'] = ('bc965b', .84)
+    mat = atlas(bread_display=slug == 'shop')
     builder()
     mesh = bpy.data.meshes.new(slug + ' planar architecture')
     mesh.from_pydata(VERTS, [], FACES)
@@ -601,7 +775,7 @@ for slug, builder in BUILDERS.items():
     bm.to_mesh(mesh)
     bm.free()
     for part in PARTS:
-        if part['name'] in ('Civic curving ogee cupola', 'School swept bell cap', 'School open bronze bell', 'Mushroom brass roof vent'):
+        if part['name'] in ('Civic curving ogee cupola', 'School swept bell cap', 'School open bronze bell', 'Bell clapper ball', 'Pub hollow rolled flue pot', 'Hollow village chimney pot', 'Mushroom brass roof vent', 'Boat recessed stove pipe', 'Boat stove rain hood', 'Shop display display loaf'):
             lo, hi = part['firstVertex'], part['firstVertex'] + part['vertexCount']
             for polygon in mesh.polygons:
                 if all(lo <= v < hi for v in polygon.vertices):

@@ -1,0 +1,14 @@
+{
+  "index": {
+    "url": "http://127.0.0.1:4288/",
+    "sha256": "90232e02b944080ba740d90f663cd384ecf56e96526b9ea0c646772def299c6f",
+    "bytes": 9887
+  },
+  "entries": [
+    {
+      "url": "http://127.0.0.1:4288/assets/main-BpfTTxmm.js",
+      "sha256": "0ec793a7d0ab8a01160a613de2a3716e68174325cd2272d13c7b179bc1c6dd52",
+      "bytes": 823785
+    }
+  ]
+}

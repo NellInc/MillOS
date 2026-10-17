@@ -1,0 +1,22 @@
+{
+  "borrowedLinksVerifiedBeforeRemoval": 375,
+  "removedOwnCaches": [
+    "node_modules/.vite",
+    "node_modules/.vite-temp",
+    "/private/tmp/millos-AI-npm-cache"
+  ],
+  "cacheLsofChecks": "all exit1 with empty stdout/stderr, verified cache inode unchanged immediately before removal",
+  "dependencyLinkRestored": "/Users/nellwatson/Documents/GitHub/MillOS/node_modules",
+  "protectedPinsExact": 1459,
+  "sourcePinsExact": 4,
+  "compiledPinsExact": 415,
+  "primaryExact": true,
+  "primaryStatusScope": "--porcelain=v1 --untracked-files=all, matching baseline; initial receipt check used collapsed default untracked scope and was corrected without mutating primary",
+  "captureLockAbsent": true,
+  "allOwnedJobsTerminal": true,
+  "ownTabsClosed": [
+    25
+  ],
+  "physicalSpaceRecovery": "not attributed, shared APFS volume",
+  "unrelatedOutput": "output/playwright/place-led-20261010/ preserved"
+}

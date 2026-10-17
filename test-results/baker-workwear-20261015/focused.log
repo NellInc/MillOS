@@ -1,0 +1,56 @@
+
+> grain-mill-simulator@0.40.0 test
+> vitest run src/components/workers/workerPose.test.ts src/components/workers/WorkerModel.test.tsx
+
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+(node:4947) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+stderr | src/components/workers/workerPose.test.ts > actual-rig baker linen skinning and distant preservation > masculine/0.95 binds cloth to the actual palette through work and locomotion
+THREE.BufferGeometryUtils: .mergeAttributes() failed. BufferAttribute.gpuType must be consistent across matching attributes.
+THREE.BufferGeometryUtils: .mergeGeometries() failed while trying to merge the position attribute.
+
+stderr | src/components/workers/workerPose.test.ts > actual-rig baker linen skinning and distant preservation > masculine/1.08 binds cloth to the actual palette through work and locomotion
+THREE.BufferGeometryUtils: .mergeAttributes() failed. BufferAttribute.gpuType must be consistent across matching attributes.
+THREE.BufferGeometryUtils: .mergeGeometries() failed while trying to merge the position attribute.
+
+stderr | src/components/workers/workerPose.test.ts > actual-rig baker linen skinning and distant preservation > feminine/0.95 binds cloth to the actual palette through work and locomotion
+THREE.BufferGeometryUtils: .mergeAttributes() failed. BufferAttribute.gpuType must be consistent across matching attributes.
+THREE.BufferGeometryUtils: .mergeGeometries() failed while trying to merge the position attribute.
+
+stderr | src/components/workers/workerPose.test.ts > actual-rig baker linen skinning and distant preservation > feminine/1.08 binds cloth to the actual palette through work and locomotion
+THREE.BufferGeometryUtils: .mergeAttributes() failed. BufferAttribute.gpuType must be consistent across matching attributes.
+THREE.BufferGeometryUtils: .mergeGeometries() failed while trying to merge the position attribute.
+
+ ❯ src/components/workers/workerPose.test.ts (93 tests | 4 failed) 7321ms
+     × masculine/0.95 binds cloth to the actual palette through work and locomotion 35ms
+     × masculine/1.08 binds cloth to the actual palette through work and locomotion 18ms
+     × feminine/0.95 binds cloth to the actual palette through work and locomotion 14ms
+     × feminine/1.08 binds cloth to the actual palette through work and locomotion 10ms
+(node:5426) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/workers/workerPose.test.ts > actual-rig baker linen skinning and distant preservation > masculine/0.95 binds cloth to the actual palette through work and locomotion
+ FAIL  src/components/workers/workerPose.test.ts > actual-rig baker linen skinning and distant preservation > masculine/1.08 binds cloth to the actual palette through work and locomotion
+ FAIL  src/components/workers/workerPose.test.ts > actual-rig baker linen skinning and distant preservation > feminine/0.95 binds cloth to the actual palette through work and locomotion
+ FAIL  src/components/workers/workerPose.test.ts > actual-rig baker linen skinning and distant preservation > feminine/1.08 binds cloth to the actual palette through work and locomotion
+AssertionError: expected null not to be null
+ ❯ src/components/workers/workerPose.test.ts:1513:25
+    1511|           expect(Array.from(geometry.attributes[key].array).every(Numb…
+    1512|         const lod = createWorkerBodyLod(scene)!;
+    1513|         expect(lod).not.toBeNull();
+       |                         ^
+    1514|         expect(lod.meshes).toHaveLength(2);
+    1515|         const cast = lod.sources.filter((m) => m.castShadow === apron.…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+
+ Test Files  1 failed | 1 passed (2)
+      Tests  4 failed | 129 passed (133)
+   Start at  12:45:22
+   Duration  10.04s (transform 422ms, setup 207ms, import 1.08s, tests 7.68s, environment 487ms)
+

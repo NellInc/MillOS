@@ -11,11 +11,13 @@ import { PointerLockControls } from '@react-three/drei';
 import { RigidBody, CapsuleCollider } from '@react-three/rapier';
 import type { RapierRigidBody } from '@react-three/rapier';
 import * as THREE from 'three';
+import { clampShelterVerticalMovement } from '../../constants/publicRealmLayout';
 import { useUIStore } from '../../stores/uiStore';
 import { useGraphicsStore } from '../../stores/graphicsStore';
 import {
   sampleWalkingGroundHeight,
-  castleBlocks,
+  walkingBlocks,
+  isDryWalkingGround,
   moveWalkingPosition,
 } from '../../utils/castleNavigation';
 import { getTerrainGridSegments } from '../terrain/terrainTypes';
@@ -39,6 +41,8 @@ const MOUSE_SENSITIVITY = 1.5;
 const PLAYER_RADIUS = PHYSICS_CONFIG.player.capsuleRadius;
 const VERTICAL_SPEED = 8;
 const MIN_BODY_HEIGHT = 0.02;
+const INSPECTION_BODY_HEIGHT =
+  2 * (PHYSICS_CONFIG.player.capsuleHalfHeight + PLAYER_RADIUS) + MIN_BODY_HEIGHT;
 const MAX_CAMERA_HEIGHT = 60;
 const PHYSICS_SPRINT_MULTIPLIER =
   PHYSICS_CONFIG.player.maxSprintVelocity / PHYSICS_CONFIG.player.maxLinearVelocity;
@@ -98,12 +102,19 @@ export const PhysicsFirstPersonController: React.FC<PhysicsFirstPersonController
     }
 
     const segments = getTerrainGridSegments(useGraphicsStore.getState().graphics.quality);
-    if (castleBlocks(spawnX, spawnZ, sampleWalkingGroundHeight(spawnX, spawnZ, segments))) {
-      search: for (let radius = 1; radius <= 24; radius++) {
+    if (
+      !isDryWalkingGround(spawnX, spawnZ, segments) ||
+      walkingBlocks(spawnX, spawnZ, sampleWalkingGroundHeight(spawnX, spawnZ, segments))
+    ) {
+      search: for (let radius = 1; radius <= 64; radius++) {
         for (let i = 0; i < 16; i++) {
           const x = spawnX + radius * Math.cos((i * Math.PI) / 8);
           const z = spawnZ + radius * Math.sin((i * Math.PI) / 8);
-          if (!castleBlocks(x, z, sampleWalkingGroundHeight(x, z, segments))) {
+          if (
+            Math.hypot(x, z) < WORLD_RADIUS - PLAYER_RADIUS &&
+            isDryWalkingGround(x, z, segments) &&
+            !walkingBlocks(x, z, sampleWalkingGroundHeight(x, z, segments))
+          ) {
             spawnX = x;
             spawnZ = z;
             break search;
@@ -130,6 +141,10 @@ export const PhysicsFirstPersonController: React.FC<PhysicsFirstPersonController
     y: spawnPosition[1],
     z: spawnPosition[2],
   });
+
+  const previousSegments = useRef(
+    getTerrainGridSegments(useGraphicsStore.getState().graphics.quality)
+  );
 
   // Set initial camera FOV and look direction
   useEffect(() => {
@@ -283,12 +298,22 @@ export const PhysicsFirstPersonController: React.FC<PhysicsFirstPersonController
     const incoming = rb.translation();
     const previous = previousPosition.current;
     const segments = getTerrainGridSegments(useGraphicsStore.getState().graphics.quality);
-    const oldFloor = sampleWalkingGroundHeight(previous.x, previous.z, segments);
+    const oldFloor = sampleWalkingGroundHeight(previous.x, previous.z, previousSegments.current);
     const grounded =
       keyboardIntent.vertical === 0 && previous.y <= oldFloor + MIN_BODY_HEIGHT + 0.05;
     const resolved = {
       x: previous.x,
-      y: grounded ? oldFloor + MIN_BODY_HEIGHT : incoming.y,
+      y: grounded
+        ? sampleWalkingGroundHeight(previous.x, previous.z, segments) + MIN_BODY_HEIGHT
+        : MIN_BODY_HEIGHT +
+          clampShelterVerticalMovement(
+            incoming.x,
+            incoming.z,
+            previous.y - MIN_BODY_HEIGHT,
+            incoming.y - MIN_BODY_HEIGHT,
+            PLAYER_RADIUS,
+            INSPECTION_BODY_HEIGHT
+          ),
       z: previous.z,
     };
     moveWalkingPosition(
@@ -298,10 +323,13 @@ export const PhysicsFirstPersonController: React.FC<PhysicsFirstPersonController
       segments,
       grounded,
       MIN_BODY_HEIGHT,
-      () => false
+      () => false,
+      INSPECTION_BODY_HEIGHT
     );
+    if (resolved.y !== incoming.y && !grounded) rb.setLinvel({ ...rb.linvel(), y: 0 }, true);
     rb.setTranslation(resolved, true);
     previousPosition.current = { ...rb.translation() };
+    previousSegments.current = segments;
 
     // Sync camera to physics body position
     const pos = rb.translation();
@@ -350,6 +378,9 @@ export const PhysicsFirstPersonController: React.FC<PhysicsFirstPersonController
       <PointerLockControls
         ref={controlsRef}
         domElement={gl.domElement}
+        // The instructions own handled native admission. Keep Drei's mouse
+        // and lock listeners, with no automatic document/canvas requests.
+        selector=":not(*)"
         pointerSpeed={MOUSE_SENSITIVITY}
         onLock={handleLock}
         onUnlock={handleUnlock}

@@ -1,0 +1,55 @@
+{
+  "label": "T-waterfront-dusk-20261015",
+  "capturedAt": "2026-10-15T00:18:56.025Z",
+  "git": {
+    "commit": "76b03a5fab96d21a606a8657868fd30031c5b5a2",
+    "branch": "codex/place-led-beautification-20261010",
+    "dirty": true,
+    "dirtyFileCount": 11,
+    "dirtyFiles": [
+      "_contprompts/millos_place_led_beautification_20261010.md",
+      "src/components/CommunityLife.tsx",
+      "src/components/FactoryExterior.tsx",
+      "src/components/scenery/AuthoredPropTrim.tsx",
+      "src/components/scenery/WorldPublicRealm.test.ts",
+      "src/components/scenery/WorldPublicRealm.tsx",
+      "src/simulation/__tests__/ambientWorld.test.ts",
+      "src/simulation/__tests__/communityLife.test.ts",
+      "src/simulation/ambientWorld.ts",
+      "src/simulation/communityLife.ts",
+      "output/playwright/place-led-20261010/"
+    ]
+  },
+  "options": {
+    "label": "T-waterfront-dusk-20261015",
+    "scenes": [
+      "canal"
+    ],
+    "sceneSet": "explicit",
+    "quality": "medium",
+    "port": "4288",
+    "time": "18.5",
+    "weather": "clear",
+    "duration": "1",
+    "warmup": "1",
+    "settleTimeout": "240",
+    "perfGate": false,
+    "skipBuild": true,
+    "headed": false
+  },
+  "diagnostics": [],
+  "scenes": [
+    {
+      "scene": "canal",
+      "image": "canal.png",
+      "indicativeFps": 60.02
+    }
+  ],
+  "contactSheet": "contact-sheet.png",
+  "perfGate": null,
+  "caveats": [
+    "Working tree was dirty (11 files). These frames show uncommitted work, not commit 76b03a5. Do not use as a baseline for a later comparison.",
+    "Captured with --skip-build; dist/ may predate the tree.",
+    "No performance gate was run. Art mode unpins reduced motion and restores full fidelity, so its frame samples are indicative only. A visual verdict from this capture is not shippable until a non-art budget run passes on the same commit."
+  ]
+}

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useMobileDetection } from '../../../hooks/useMobileDetection';
 import { useWorkplaceAutoplay } from '../../../simulation/workplaceAutoplay';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
 import { isBenchmarkRuntime } from '../../../runtime/runtimeMode';
@@ -380,6 +381,7 @@ export function WorkplaceAutomaticDemo({ profile }: { profile: WorkplaceProfile 
 }
 
 export function WorkplaceAutoplayStatus() {
+  const { isMobile } = useMobileDetection();
   const automatic = useWorkplaceAutoplay();
   const store = useWorkplaceStore();
   const orderId = useOperationsCampaignStore((s) => s.activeOrderId);
@@ -414,11 +416,21 @@ export function WorkplaceAutoplayStatus() {
   return (
     <aside
       aria-label="Fictional demo running"
-      className="pointer-events-auto fixed bottom-[8rem] left-3 z-40 max-w-[calc(100vw-1.5rem)] rounded-lg border border-cyan-300/25 bg-slate-950 p-3 text-xs text-cyan-100"
+      // The bottom-left touch pad owns movement, including the return route.
+      // Working if the season notice leaves every D-pad button hit-testable.
+      className={
+        isMobile
+          ? 'pointer-events-auto fixed top-4 left-3 z-40 max-w-[calc(100vw-6rem)] text-xs text-cyan-100'
+          : 'pointer-events-auto fixed bottom-[8rem] left-3 z-40 max-w-[calc(100vw-1.5rem)] rounded-lg border border-cyan-300/25 bg-slate-950 p-3 text-xs text-cyan-100'
+      }
     >
-      <p>Autonomous cooperative season</p>
-      <button className={`${button} mt-2`} onClick={() => automatic.pause()}>
-        Take over cooperative season
+      <p className={isMobile ? 'sr-only' : undefined}>Autonomous cooperative season</p>
+      <button
+        aria-label="Take over cooperative season"
+        className={`${button} ${isMobile ? 'max-w-full bg-slate-950 shadow-lg' : 'mt-2'}`}
+        onClick={() => automatic.pause()}
+      >
+        {isMobile ? 'Autonomous season: take over' : 'Take over cooperative season'}
       </button>
     </aside>
   );

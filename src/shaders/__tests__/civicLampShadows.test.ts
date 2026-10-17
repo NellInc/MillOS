@@ -4,6 +4,10 @@ import { createHash } from 'node:crypto';
 import * as THREE from 'three';
 import { createDerivedMaterial } from 'troika-three-utils';
 import {
+  compactUnshadowedPunctualLoops,
+  cullZeroPunctualContributions,
+} from '../punctualLightCulling';
+import {
   CIVIC_LAMPS,
   CIVIC_WORLD_LIGHTS,
   CIVIC_SHADOW_ATLAS_SIZE,
@@ -217,6 +221,26 @@ describe('located concept lighting', () => {
     const data = exportCivicOccluders(new THREE.Scene());
     expect(data.faceBases).toBe(CIVIC_CUBE_FACE_BASES);
   });
+  it('compares reprojected texel-centre rays against unperturbed receiver planes without increasing bias', () => {
+    const s = shader();
+    injectCivicLampShadows(s);
+    const fragment = s.fragmentShader;
+    expect(fragment).toContain('vec3 receiverNormal = civicToWorld(receiverNormalView);');
+    expect(fragment).toContain('float planeDistance = dot(direction, receiverNormal);');
+    expect(fragment).toContain('floor((tapP * 0.5 + 0.5) * 128.0)');
+    expect(fragment).toContain('vec2 sampleP = (cell + 0.5) * (2.0 / 128.0) - 1.0;');
+    expect(fragment).toContain('normalize(civicFaceDirection(tapFace, sampleP))');
+    expect(fragment).toContain('vec2 uv = (origin + cell + 0.5) / size;');
+    expect(fragment).toContain('float tapReceiver = receiver;');
+    expect(fragment).toContain('if (abs(tapCosine) > 0.0001)');
+    expect(fragment).toContain('projected > 0.0 && projected <= civicSources[i].w');
+    expect(fragment).toContain('civicDepthPass(uv, tapReceiver, civicSources[i].w, bias)');
+    expect(fragment).toContain('float bias = 0.035 + receiver * 0.003;');
+    expect(fragment).not.toContain('civicDepthPass(uv, receiver, civicSources[i].w)');
+    expect(fragment.match(/for \(int tap = 0; tap < 5;/g)).toHaveLength(1);
+    // Preserve Three's geometric-normal contract before bump/normal mapping.
+    expect(THREE.ShaderChunk.normal_fragment_begin).toContain('vec3 nonPerturbedNormal = normal;');
+  });
   it('keeps uplighter emitters above opaque metal and post emitters clear of the burner', () => {
     const mesh = new THREE.Mesh(CIVIC_FITTING_GEOMETRY, new THREE.MeshStandardMaterial());
     mesh.updateMatrixWorld(true);
@@ -330,6 +354,44 @@ describe('source-correct static occlusion composition', () => {
       expect(collectStaticBatchCandidates(scene)).toHaveLength(0);
     }
   });
+  it.each(['Standard', 'Physical'])(
+    'keeps %s civic incident terms inside compact-loop macros through Troika composition',
+    (type) => {
+      const original = THREE.ShaderChunk.lights_fragment_begin;
+      try {
+        THREE.ShaderChunk.lights_fragment_begin = compactUnshadowedPunctualLoops(
+          cullZeroPunctualContributions(original)
+        );
+        const material =
+          type === 'Physical'
+            ? new THREE.MeshPhysicalMaterial({ clearcoat: 0.3, sheen: 0.4 })
+            : new THREE.MeshStandardMaterial();
+        applyCivicLampShadows(material);
+        const derived = createDerivedMaterial(material, {});
+        const compiled = shader();
+        compiled.fragmentShader =
+          type === 'Physical' ? THREE.ShaderLib.physical.fragmentShader : compiled.fragmentShader;
+        derived.onBeforeCompile(compiled, {} as THREE.WebGLRenderer);
+        if (type === 'Physical') {
+          expect(derived).toBeInstanceOf(THREE.MeshPhysicalMaterial);
+          expect((derived as THREE.MeshPhysicalMaterial).clearcoat).toBe(0.3);
+          expect((derived as THREE.MeshPhysicalMaterial).sheen).toBe(0.4);
+        }
+        for (const type of ['POINT', 'SPOT']) {
+          const macro = compiled.fragmentShader
+            .split('\n')
+            .find((line) => line.trimStart().startsWith(`#define MILLOS_${type}_INCIDENT()`));
+          expect(macro).toContain('if (directLight.visible) directLight.color *= civicVisibility(');
+        }
+        const before = compiled.fragmentShader;
+        injectCivicLampShadows(compiled);
+        expect(compiled.fragmentShader).toBe(before);
+        expect(compiled.uniforms.civicDepthAtlas).toBe(CIVIC_SHADOW_ATLAS);
+      } finally {
+        THREE.ShaderChunk.lights_fragment_begin = original;
+      }
+    }
+  );
   it('composes once preserving host, normals, albedo and UVs', () => {
     const m = new THREE.MeshStandardMaterial({
       map: new THREE.Texture(),
@@ -352,14 +414,16 @@ describe('source-correct static occlusion composition', () => {
     expect(s.uniforms.civicDepthAtlas).toBe(CIVIC_SHADOW_ATLAS);
     expect(s.uniforms.civicShadowStrength).toBe(CIVIC_SHADOW_STRENGTH);
     expect(s.fragmentShader).toContain(
-      'if (directLight.visible) directLight.color *= civicVisibility(pointLight.position, geometryPosition);'
+      'if (directLight.visible) directLight.color *= civicVisibility(pointLight.position, geometryPosition, nonPerturbedNormal);'
     );
-    expect(s.fragmentShader).toContain('civicVisibility(spotLight.position, geometryPosition)');
+    expect(s.fragmentShader).toContain(
+      'civicVisibility(spotLight.position, geometryPosition, nonPerturbedNormal)'
+    );
     expect(s.fragmentShader).toContain('getDirectionalLightInfo(');
     expect(s.vertexShader).toBe(THREE.ShaderLib.standard.vertexShader);
     expect(m.map).toBe(map);
     expect(m.normalMap).toBe(normal);
-    expect(m.customProgramCacheKey()).toBe('retained-host|millos-civic-lamp-visibility-v4');
+    expect(m.customProgramCacheKey()).toBe('retained-host|millos-civic-lamp-visibility-v5');
     m.onBeforeCompile = () => {};
     expect(civicUnderlyingHooks(m)).toBeUndefined();
     expect(applyCivicLampShadows(new THREE.MeshBasicMaterial())).toBe(false);

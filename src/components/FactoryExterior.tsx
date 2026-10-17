@@ -1,11 +1,17 @@
 import { getExteriorLampLevel } from './exterior/ExteriorLighting';
 import { WorldPublicRealm } from './scenery/WorldPublicRealm';
-import { HeritagePoster } from './scenery/HeritageSignage';
+import { BusinessBrandMark, HeritagePoster, TransitServiceBoard } from './scenery/HeritageSignage';
 import React, { useMemo, useRef, useEffect, useLayoutEffect, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { SceneText as Text } from './shared/SceneText';
 import { useFrame, useThree, ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
+import {
+  WATER_PROFILES,
+  WATER_VISUAL_TIME,
+  WATER_WIND,
+  type WaterKind,
+} from '../utils/waterAppearance';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useGraphicsStore } from '../stores/graphicsStore';
 import { useReducedMotion } from '../hooks/useReducedMotion';
@@ -20,6 +26,7 @@ import {
 } from '../constants/renderLayers';
 import {
   BULK_STORAGE_GALLERY,
+  CANAL_BOAT_BERTH,
   GAS_STATION_SITE,
   RIVER_FOOTBRIDGE_DECK,
   SITE_LAYOUT,
@@ -40,10 +47,20 @@ import {
 import {
   createRiverCulvertGeometries,
   createRiverFootbridgeAccessGeometry,
+  createRiverFootbridgeDeckGeometry,
+  createRiverFootbridgeFrameGeometry,
+  createRoadRiverBridgeFrameGeometry,
   createRiverSurfaceGeometry,
   fitRiverCulvertBank,
 } from './exterior/riverGeometry';
 import { UTILITY_ASSET_DEFINITIONS } from '../constants/utilityAssets';
+import { ServiceBuildingCraft, SERVICE_BUILDING_ENVELOPES } from './exterior/serviceBuildingCraft';
+import { ServiceEntranceLighting } from './exterior/ServiceEntranceLighting';
+import {
+  UtilityTankHardware,
+  LpgValveHardware,
+  UtilityPressureGauge,
+} from './exterior/utilityVesselDetails';
 import {
   createAtmosphereState,
   createCelestialState,
@@ -52,13 +69,25 @@ import {
 } from '../simulation/atmosphere';
 import { positionRegistry } from '../utils/positionRegistry';
 import { PROCEDURAL_TEXTURES, TREE_MATERIALS } from '../utils/sharedMaterials';
-import { CAFE_COURT_LANTERN } from '../constants/publicRealmLayout';
+import {
+  BUS_SHELTER_SITE,
+  BUS_SHELTER_LIGHT,
+  CAFE_COURT_LANTERN,
+} from '../constants/publicRealmLayout';
 import { generateMachineORM } from '../textures';
 import { createCheckpointGateState, stepCheckpointGate } from './exterior/checkpointLogic';
+import { PlotGeometry } from '../utils/authoredPlotGeometry';
 import {
   EXTERIOR_LAMP_LENS_MATERIAL,
   ExteriorLampDriver,
+  ExteriorDownlight,
+  ExteriorPointLight,
   ExteriorLampPool,
+  PICNIC_SHELTER_LIGHT,
+  picnicShelterLightLayout,
+  CANAL_CROSSING_LAMPS,
+  CANAL_CROSSING_LIGHT,
+  CANAL_BOAT_LANTERN,
   WEST_FACTORY_PATH,
   WEST_FACTORY_PATH_LAMPS,
   WEST_FACTORY_PATH_POOL_RADIUS,
@@ -100,7 +129,12 @@ import {
 import { createTreeMatrix } from './scenery/treeForms';
 import { HedgeFoliage } from './exterior/HedgeFoliage';
 import { LandscapeDressing } from './exterior/LandscapeDressing';
-import { LockGateJoinery } from './scenery/AuthoredPropTrim';
+import {
+  LockGateJoinery,
+  LockGateLighting,
+  CANAL_BOAT_LANTERN_HOUSING,
+  CANAL_BOAT_LANTERN_METAL,
+} from './scenery/AuthoredPropTrim';
 import {
   CANAL_OUTLET,
   canalEastBankSections,
@@ -136,11 +170,6 @@ const TANK_SUPPORT_MATERIAL = new THREE.MeshStandardMaterial({
   color: '#64707a',
   roughness: 0.68,
   metalness: 0.08,
-});
-const TANK_FITTING_MATERIAL = new THREE.MeshStandardMaterial({
-  color: '#7c8991',
-  roughness: 0.48,
-  metalness: 0.22,
 });
 const UTILITY_CONCRETE_MATERIAL = new THREE.MeshStandardMaterial({
   color: '#a9afb0',
@@ -907,6 +936,47 @@ const OfficeApartment: React.FC<{
   );
 };
 
+/** Three fixed rails share one geometry, material and instance buffer.
+ * Working if the original heights and envelope survive with one draw per section.
+ */
+export function setFenceRailInstances(mesh: THREE.InstancedMesh): void {
+  const matrix = new THREE.Matrix4();
+  [2.2, 1.2, 0.4].forEach((height, index) => {
+    mesh.setMatrixAt(index, matrix.makeTranslation(0, height, 0));
+  });
+  mesh.instanceMatrix.needsUpdate = true;
+  mesh.computeBoundingBox();
+  mesh.computeBoundingSphere();
+}
+
+const FixedFenceRails: React.FC<{ length: number }> = ({ length }) => {
+  const ref = useRef<THREE.InstancedMesh>(null);
+  const geometry = useMemo(() => new THREE.BoxGeometry(0.11, 0.11, length), [length]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  useLayoutEffect(() => {
+    if (ref.current) setFenceRailInstances(ref.current);
+  }, [geometry]);
+  return (
+    <instancedMesh
+      name="authored-perimeter-fence-rails"
+      ref={ref}
+      args={[geometry, FENCE_RAIL_MATERIAL, 3]}
+      matrixAutoUpdate={false}
+      castShadow
+    >
+      <GeneratedBoundary fallback={null}>
+        <GeneratedGeometrySurface
+          asset="fenceRailUnit"
+          fitEnvelope
+          original={geometry}
+          meshRef={ref}
+          finishStaticSource
+        />
+      </GeneratedBoundary>
+    </instancedMesh>
+  );
+};
+
 // Perimeter fence section - optimized with InstancedMesh
 const FenceSection: React.FC<{
   start: [number, number, number];
@@ -964,30 +1034,7 @@ const FenceSection: React.FC<{
         {/* Rails thickened 0.08 -> 0.11: at 190 units of run the old section
             was sub-pixel from any exterior camera and the fence read as three
             aliasing hairlines rather than a structure. */}
-        {/* Top rail */}
-        <GeneratedBoxSurface
-          asset="fenceRailUnit"
-          size={[0.11, 0.11, length]}
-          material={FENCE_RAIL_MATERIAL}
-          position={[0, 2.2, 0]}
-          castShadow
-        />
-        {/* Middle rail */}
-        <GeneratedBoxSurface
-          asset="fenceRailUnit"
-          size={[0.11, 0.11, length]}
-          material={FENCE_RAIL_MATERIAL}
-          position={[0, 1.2, 0]}
-          castShadow
-        />
-        {/* Bottom rail */}
-        <GeneratedBoxSurface
-          asset="fenceRailUnit"
-          size={[0.11, 0.11, length]}
-          material={FENCE_RAIL_MATERIAL}
-          position={[0, 0.4, 0]}
-          castShadow
-        />
+        <FixedFenceRails length={length} />
       </group>
     </group>
   );
@@ -1015,8 +1062,6 @@ const WATER_COLORS = {
 // deleting its own equivalent disc.
 
 const waterMaterials = new Set<THREE.ShaderMaterial>();
-/** Shared same-page control; zero restores the retained broad-wave finish. */
-export const WATER_RIPPLE_FINISH = { value: 1 };
 /** One paired control for the real sky palette and single-count reflection radiance. */
 export const WATER_SKY_RADIANCE = { value: 1 };
 const DEFAULT_WATER_FLOW = [0.25, 1] as const;
@@ -1087,6 +1132,8 @@ export const WaterAnimationManager: React.FC = () => {
       if (horizon instanceof THREE.Color) _waterHorizon.lerp(horizon, WATER_SKY_RADIANCE.value);
     }
 
+    WATER_VISUAL_TIME.value = phase.current.time;
+    WATER_WIND.value = atmosphere.wind;
     waterMaterials.forEach((material) => {
       const uniforms = material.uniforms;
       uniforms.uTime.value = phase.current.time;
@@ -1118,6 +1165,7 @@ export const WaterAnimationManager: React.FC = () => {
 };
 
 interface UnifiedWaterSurfaceMaterialProps {
+  kind?: WaterKind;
   deep?: string;
   shallow?: string;
   reflection?: string;
@@ -1138,16 +1186,19 @@ interface UnifiedWaterSurfaceMaterialProps {
 }
 
 export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialProps> = ({
+  kind = 'lake',
   deep = '#153747',
   shallow = '#3f7f8c',
   reflection = '#b9dce3',
-  flowSpeed = 0.25,
+  flowSpeed,
   flowDirection = DEFAULT_WATER_FLOW,
   opacity = 0.88,
   radial = false,
   crossOnly = false,
   falling = false,
 }) => {
+  const profile = WATER_PROFILES[kind];
+  const speed = flowSpeed ?? profile.speed;
   const flowX = flowDirection[0];
   const flowY = flowDirection[1];
   const material = useMemo(() => {
@@ -1159,21 +1210,22 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
     // used to be `normalize()`d once PER FRAGMENT; hoisting them to uniforms is
     // bit-identical output for three fewer inverse square roots per pixel.
     const rippleA = crossFlow.clone().multiplyScalar(0.16).add(direction).normalize();
-    const rippleB = crossFlow
-      .clone()
-      .multiplyScalar(radial ? -1.15 : -0.31)
-      .add(direction)
-      .normalize();
-    const rippleC = crossFlow
-      .clone()
-      .multiplyScalar(radial ? 1.35 : 0.48)
-      .add(direction)
-      .normalize();
+    // Counter-cross the weaker trains so calm water avoids parallel bands.
+    const rippleB = crossFlow.clone().multiplyScalar(-0.85).add(direction).normalize();
+    const rippleC = crossFlow.clone().multiplyScalar(1.35).add(direction).normalize();
     const value = new THREE.ShaderMaterial({
       name: 'MillOS Unified Water Surface',
+      // These are authored, immutable material properties. Compile out work
+      // whose result is always zero or replaced by the falling-sheet finish.
+      // Working if sheltered water has no foam path and the weir has no sky
+      // reflection path, with identical pixels at the same phase and weather.
+      defines: falling
+        ? { MILLOS_FALLING_WATER: 1 }
+        : profile.shoreFoam > 0
+          ? { MILLOS_SHORE_FOAM: 1 }
+          : {},
       uniforms: {
         uTime: { value: 0 },
-        uFalling: { value: falling ? 1 : 0 },
         uDeep: { value: new THREE.Color(deep) },
         uShallow: { value: new THREE.Color(shallow) },
         uReflection: { value: new THREE.Color(reflection) },
@@ -1182,13 +1234,12 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
         uRippleA: { value: rippleA },
         uRippleB: { value: rippleB },
         uRippleC: { value: rippleC },
-        uRippleFinish: WATER_RIPPLE_FINISH,
         uSkyRadiance: WATER_SKY_RADIANCE,
-        // Keep the main train along the flow; counter-cross the weaker trains
-        // so calm water does not become a sheet of parallel reflective bands.
-        uRefinedB: { value: crossFlow.clone().multiplyScalar(-0.85).add(direction).normalize() },
-        uRefinedC: { value: crossFlow.clone().multiplyScalar(1.35).add(direction).normalize() },
-        uFlowSpeed: { value: flowSpeed },
+        uFlowSpeed: { value: speed },
+        uWaveHeight: { value: profile.waveHeight },
+        uRippleStrength: { value: profile.rippleStrength },
+        uRoughness: { value: profile.roughness },
+        uShoreFoam: { value: profile.shoreFoam },
         uOpacity: { value: opacity },
         uRadial: { value: radial ? 1 : 0 },
         uCrossOnly: { value: crossOnly ? 1 : 0 },
@@ -1211,6 +1262,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
         uniform vec2 uCrossFlow;
         uniform float uFlowSpeed;
         uniform float uWind;
+        uniform float uWaveHeight;
         uniform float uRadial;
         uniform float uCrossOnly;
         varying vec2 vUv;
@@ -1235,9 +1287,9 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
           // Hold the shoreline at its authored datum. Only the interior swell
           // moves, so a lower, uneven bank never exposes a flashing gap.
           float waveEnvelope = smoothstep(0.0, 0.12, edge);
-          vec2 heightDerivative = waveDerivative * 0.0175 * windAmplitude * waveEnvelope;
+          vec2 heightDerivative = waveDerivative * (uWaveHeight * 0.5) * windAmplitude * waveEnvelope;
           vec3 displaced = position;
-          displaced.z += vWave * 0.035 * windAmplitude * waveEnvelope;
+          displaced.z += vWave * uWaveHeight * windAmplitude * waveEnvelope;
           vec3 localNormal = normalize(vec3(-heightDerivative.x, -heightDerivative.y, 1.0));
           vWorldNormal = normalize(mat3(modelMatrix) * localNormal);
           vWorldPosition = (modelMatrix * vec4(displaced, 1.0)).xyz;
@@ -1248,16 +1300,15 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
       `,
       fragmentShader: `
         #include <fog_pars_fragment>
-        uniform float uFalling;
         uniform vec3 uDeep;
         uniform vec3 uShallow;
         uniform vec3 uReflection;
         uniform vec2 uRippleA;
         uniform vec2 uRippleB;
         uniform vec2 uRippleC;
-        uniform vec2 uRefinedB;
-        uniform vec2 uRefinedC;
-        uniform float uRippleFinish;
+        uniform float uRippleStrength;
+        uniform float uRoughness;
+        uniform float uShoreFoam;
         uniform float uSkyRadiance;
         uniform float uTime;
         uniform float uFlowSpeed;
@@ -1278,6 +1329,36 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
         varying vec3 vWorldPosition;
         varying vec3 vWorldNormal;
         void main() {
+          // Shade the water body once, before adding incident sky radiance.
+          // Previously a final daylight multiplier also darkened the already
+          // night-coloured reflection, making lit sky reflect as a black hole.
+          float illumination = mix(0.14, 1.0,
+            clamp(uDaylight * (1.0 + uWetness * 0.08), 0.0, 1.0));
+          float bodyLight = mix(1.0, illumination, uSkyRadiance);
+          vec3 colour;
+          #ifdef MILLOS_FALLING_WATER
+          // A vertical weir has no useful XZ phase gradient down its face.
+          // Thin falling ribbons in XY, with downward-travelling breakup,
+          // give it readable motion using the existing clock and one draw.
+          float fallY = vWorldPosition.y * 3.4 + uTime * 2.2;
+          float seam = vWorldPosition.x * 12.0
+            + sin(vWorldPosition.x * 2.7) * 3.4
+            + sin(vWorldPosition.x * 7.1) * 1.3;
+          float curl = sin(fallY + sin(vWorldPosition.x * 3.0)) * 1.5
+            + sin(fallY * 2.31 - vWorldPosition.x * 1.7) * 0.55;
+          float stream = 0.5 + 0.5 * sin(seam + curl);
+          float thread = 0.5 + 0.5 * sin(vWorldPosition.x * 41.3
+            + sin(fallY * 3.1 + vWorldPosition.x * 4.7) * 2.4);
+          float pulse = 0.5 + 0.5 * sin(vWorldPosition.y * 12.0
+            + uTime * 9.0 + vWorldPosition.x * 4.0);
+          float brokenFoam = smoothstep(0.70, 0.98,
+            stream * 0.5 + thread * 0.22 + pulse * 0.28);
+          float landing = 1.0 - smoothstep(0.0, 0.18, vUv.y);
+          colour = mix(uDeep, uShallow, 0.22 + 0.45 * stream);
+          colour = mix(colour, uReflection,
+            brokenFoam * 0.7 + landing * (0.12 + pulse * 0.12));
+          colour *= bodyLight;
+          #else
           vec2 centred = vUv * 2.0 - 1.0;
 
           // Three travelling wave trains in world space. UV-scaled phases
@@ -1286,17 +1367,16 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
           // ponds. World-space wavelengths stay physically consistent and
           // continue seamlessly between neighbouring water meshes.
           vec2 waterCoord = vWorldPosition.xz;
-          // Sub-metre chop, rather than the old 2-5 metre ripple trains.
-          // The legacy arm is retained in one uniform for paired native review.
+          // The accepted sub-metre finish is the production path.
           // Working if water keeps a quiet sheen without long parallel bands,
           // and distant crests fade instead of turning into sparkling aliases.
-          vec2 axisB = mix(uRippleB, uRefinedB, uRippleFinish);
-          vec2 axisC = mix(uRippleC, uRefinedC, uRippleFinish);
-          float frequencyA = mix(2.05, 7.30, uRippleFinish);
-          float frequencyB = mix(3.10, 11.70, uRippleFinish);
-          float frequencyC = mix(1.35, 4.90, uRippleFinish);
-          float bendC = mix(1.15, 0.85, uRippleFinish);
-          float bendA = mix(0.48, 0.35, uRippleFinish);
+          vec2 axisB = uRippleB;
+          vec2 axisC = uRippleC;
+          const float frequencyA = 7.30;
+          const float frequencyB = 11.70;
+          const float frequencyC = 4.90;
+          const float bendC = 0.85;
+          const float bendA = 0.35;
           float phaseC = dot(waterCoord, axisC) * frequencyC + uTime * uFlowSpeed * 0.63;
           float rawC = cos(phaseC);
           float phaseA = dot(waterCoord, uRippleA) * frequencyA + uTime * uFlowSpeed * 1.62
@@ -1306,18 +1386,22 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
             - uTime * uFlowSpeed * 1.09 + rawA * bendA;
           // Screen derivatives filter only the finish, never its world phase.
           // Neighbouring segments keep continuous waves regardless of UV size.
-          vec3 rippleFilter = mix(vec3(1.0),
-            1.0 - smoothstep(vec3(0.70), vec3(2.40),
-              vec3(fwidth(phaseA), fwidth(phaseB), fwidth(phaseC))), uRippleFinish);
+          vec3 rippleFilter = 1.0 - smoothstep(vec3(0.70), vec3(2.40),
+            vec3(fwidth(phaseA), fwidth(phaseB), fwidth(phaseC)));
           float rippleA = rawA * rippleFilter.x;
           float rippleB = sin(phaseB) * rippleFilter.y;
           float rippleC = rawC * rippleFilter.z;
-          vec2 rainTile = fract(vWorldPosition.xz * 0.19) - 0.5;
-          float rainDistance = length(rainTile);
-          float rainRipple =
-            sin(rainDistance * 46.0 - uTime * 2.1) *
-            (1.0 - smoothstep(0.08, 0.5, rainDistance)) *
-            uPrecipitation;
+          // Weather is uniform across the draw. Dry frames can skip the
+          // ring field; wet frames retain the exact phase and amplitude.
+          float rainRipple = 0.0;
+          if (uPrecipitation > 0.0) {
+            vec2 rainTile = fract(vWorldPosition.xz * 0.19) - 0.5;
+            float rainDistance = length(rainTile);
+            rainRipple =
+              sin(rainDistance * 46.0 - uTime * 2.1) *
+              (1.0 - smoothstep(0.08, 0.5, rainDistance)) *
+              uPrecipitation;
+          }
           float ripples =
             rippleA * 0.54 +
             rippleB * 0.26 +
@@ -1337,14 +1421,8 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
           float linearEdge = mix(boxEdge, crossEdge, uCrossOnly);
           float radialEdge = 1.0 - length(centred);
           float edge = max(mix(linearEdge, radialEdge, uRadial), 0.0);
-          float depth = clamp(smoothstep(0.0, 0.34, edge) + ripples * 0.045, 0.0, 1.0);
-          // Shade the water body once, before adding incident sky radiance.
-          // Previously a final daylight multiplier also darkened the already
-          // night-coloured reflection, making lit sky reflect as a black hole.
-          float illumination = mix(0.14, 1.0,
-            clamp(uDaylight * (1.0 + uWetness * 0.08), 0.0, 1.0));
-          float bodyLight = mix(1.0, illumination, uSkyRadiance);
-          vec3 colour = mix(uShallow, uDeep, depth) * bodyLight;
+          float depth = clamp(smoothstep(0.0, 0.34, edge) + ripples * 0.012 * uRippleStrength, 0.0, 1.0);
+          colour = mix(uShallow, uDeep, depth) * bodyLight;
 
           // Micro-relief from the analytic derivatives of the same three wave
           // trains. The vertex stage carries the long swell; this is the
@@ -1356,15 +1434,15 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
           vec2 gradientC = -sin(phaseC) * frequencyC * axisC;
           vec2 gradientA = cos(phaseA) * (frequencyA * uRippleA + gradientC * bendC);
           vec2 gradientB = cos(phaseB) * (frequencyB * axisB + gradientA * bendA);
-          vec2 slope = gradientA * rippleFilter.x * mix(0.0180, 0.0048, uRippleFinish)
-            + gradientB * rippleFilter.y * mix(0.0085, 0.0015, uRippleFinish)
-            + gradientC * rippleFilter.z * mix(0.0140, 0.0028, uRippleFinish);
-          vec3 normal = normalize(
-            vWorldNormal + vec3(slope.x + rainRipple * 0.018, 0.0, slope.y - rainRipple * 0.018)
-          );
+          vec2 slope = gradientA * rippleFilter.x * 0.0048
+            + gradientB * rippleFilter.y * 0.0015
+            + gradientC * rippleFilter.z * 0.0028;
+          slope *= uRippleStrength;
+          float rainSlope = rainRipple * (0.003 + uRippleStrength * 0.015);
+          vec3 normal = normalize(vWorldNormal + vec3(slope.x + rainSlope, 0.0, slope.y - rainSlope));
 
           vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
-          float fresnel = pow(1.0 - max(dot(normal, viewDirection), 0.0), 4.0);
+          float fresnel = pow(1.0 - max(dot(normal, viewDirection), 0.0), 5.0);
 
           // Reflection without a render target: bounce the view ray off the
           // perturbed normal and read a two-stop analytic sky whose colours are
@@ -1383,8 +1461,18 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
             skyColour = mix(skyColour, uAfterglowColour * 0.45 + vec3(0.0, 0.03, 0.06), glow * 0.55);
             skyColour += uAfterglowColour * glow * 0.86;
           }
+          // Broad broken cloud reflections give quiet water depth without a
+          // reflection camera. Metre-space phase follows the same slow breeze;
+          // avoid bright painted stripes and fade at the horizon/shore.
+          // Working if a moving ripple bends the soft sky bands, never the bank.
+          float cloudBand = sin(reflected.x * 8.0 + reflected.z * 5.0 + uTime * 0.004)
+            * sin(reflected.z * 13.0 - reflected.x * 3.0 - uTime * 0.003);
+          float cloudReflection = smoothstep(0.22, 0.75, cloudBand)
+            * smoothstep(0.04, 0.24, reflected.y) * (1.0 - smoothstep(0.58, 0.95, reflected.y));
+          skyColour = mix(skyColour, uSkyHorizon * 0.85 + uSkyZenith * 0.15,
+            cloudReflection * 0.2 * (0.3 + 0.7 * uDaylight));
           vec3 reflectionColour = mix(uReflection * mix(0.08, 1.0, uDaylight), skyColour, 0.75);
-          float reflectance = clamp(0.045 + fresnel * 0.76, 0.0, 0.85);
+          float reflectance = clamp(0.02 + fresnel * 0.98, 0.02, 0.95);
           colour = mix(colour, reflectionColour, reflectance);
 
           // Specular sun: a tight glitter lobe plus a broad sheen. Both are
@@ -1392,16 +1480,20 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
           // <tonemapping_fragment>), so they roll off on the no-composer path
           // instead of clipping to a flat white blob.
           float sunAlignment = max(dot(reflected, uSunDirection), 0.0);
-          float glitter = pow(sunAlignment, 160.0) * 1.6 + pow(sunAlignment, 24.0) * 0.10;
+          // Broaden unresolved highlights instead of flashing sub-pixel glitter.
+          // The same sky/sun radiance still passes through scene tone mapping.
+          float roughness = clamp(uRoughness + length(fwidth(slope)) * 0.5, 0.045, 0.45);
+          float sunPower = min(1024.0, 2.0 / (roughness * roughness) - 2.0);
+          float glitter = pow(sunAlignment, sunPower) * 0.9 + pow(sunAlignment, 24.0) * 0.035;
           colour += uSunColour * glitter * uDaylight;
 
           float crestSignal = rippleA * 0.7 + rippleB * 0.22 + rippleC * 0.08;
           float crest = smoothstep(0.78, 1.0, crestSignal);
-          colour = mix(colour, uReflection * bodyLight, crest * mix(0.025 + 0.035 * uDaylight, 0.010 + 0.015 * uDaylight, uRippleFinish));
+          colour = mix(colour, uReflection * bodyLight, crest * uRippleStrength * (0.010 + 0.015 * uDaylight));
 
-          // Sheltered water has occasional gathered foam, never a white
-          // contour around the whole pond. World-space pockets also keep
-          // adjoining canal segments continuous without extra texture taps.
+          #ifdef MILLOS_SHORE_FOAM
+          // The river alone carries gathered shore foam. World-space pockets
+          // keep neighbouring segments continuous without texture taps.
           float swell = sin(uTime * uFlowSpeed * 0.9 + crestSignal * 1.7) * 0.5 + 0.5;
           float foamBand = 1.0 - smoothstep(0.0, 0.018 + swell * 0.012, edge);
           float foamPocket = smoothstep(0.28, 0.72,
@@ -1409,36 +1501,15 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
             cos(waterCoord.y * 0.63 - waterCoord.x * 0.19));
           float lace = smoothstep(0.45, 1.0, foamBand) * (0.55 + 0.45 * rippleB);
           vec3 foamColour = mix(vec3(0.36, 0.46, 0.44), uReflection, 0.20) * bodyLight;
-          colour = mix(colour, foamColour, foamPocket * (foamBand * 0.15 + lace * 0.12));
+          colour = mix(colour, foamColour, uShoreFoam * foamPocket * (foamBand * 0.15 + lace * 0.12));
+          #endif
 
           // Damp margin so the bank mesh and the water meet on a wet
           // transition rather than a cut edge.
           float shore = smoothstep(0.0, 0.012, edge);
           colour = mix(vec3(0.16, 0.26, 0.26) * bodyLight, colour, shore);
 
-          // A vertical weir has no useful XZ phase gradient down its face.
-          // Thin falling ribbons in XY, with downward-travelling breakup,
-          // give it readable motion using the existing clock and one draw.
-          if (uFalling > 0.5) {
-            float fallY = vWorldPosition.y * 3.4 + uTime * 2.2;
-            float seam = vWorldPosition.x * 12.0
-              + sin(vWorldPosition.x * 2.7) * 3.4
-              + sin(vWorldPosition.x * 7.1) * 1.3;
-            float curl = sin(fallY + sin(vWorldPosition.x * 3.0)) * 1.5
-              + sin(fallY * 2.31 - vWorldPosition.x * 1.7) * 0.55;
-            float stream = 0.5 + 0.5 * sin(seam + curl);
-            float thread = 0.5 + 0.5 * sin(vWorldPosition.x * 41.3
-              + sin(fallY * 3.1 + vWorldPosition.x * 4.7) * 2.4);
-            float pulse = 0.5 + 0.5 * sin(vWorldPosition.y * 12.0
-              + uTime * 9.0 + vWorldPosition.x * 4.0);
-            float brokenFoam = smoothstep(0.70, 0.98,
-              stream * 0.5 + thread * 0.22 + pulse * 0.28);
-            float landing = 1.0 - smoothstep(0.0, 0.18, vUv.y);
-            colour = mix(uDeep, uShallow, 0.22 + 0.45 * stream);
-            colour = mix(colour, uReflection,
-              brokenFoam * 0.7 + landing * (0.12 + pulse * 0.12));
-            colour *= bodyLight;
-          }
+          #endif
           colour = mix(uDeep * 0.92 * bodyLight, colour, clamp(uOpacity, 0.0, 1.0));
           // The zero control restores the old double-attenuated reflection.
           // In the finish arm, only the body/foam receive this illumination.
@@ -1465,9 +1536,21 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
     // MANUALLY VERSIONED, never derived from time or randomness - see the
     // documented `Date.now()` cache-key bug. Bump this whenever the shader
     // source above changes or a stale cached program will be reused.
-    value.customProgramCacheKey = () => 'millos-unified-water-v16';
+    value.customProgramCacheKey = () => 'millos-unified-water-v20';
     return value;
-  }, [crossOnly, deep, falling, flowSpeed, flowX, flowY, opacity, radial, reflection, shallow]);
+  }, [
+    crossOnly,
+    deep,
+    falling,
+    speed,
+    profile,
+    flowX,
+    flowY,
+    opacity,
+    radial,
+    reflection,
+    shallow,
+  ]);
 
   useEffect(() => {
     waterMaterials.add(material);
@@ -1480,7 +1563,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
   return <primitive object={material} attach="material" />;
 };
 
-// Still canal water surface - shiny reflective without animation
+// Sheltered canal surface: almost level, with slow, fine reflection ripples.
 const StillCanalWater: React.FC<{
   width: number;
   length: number;
@@ -1512,7 +1595,7 @@ const StillCanalWater: React.FC<{
           deep={WATER_COLORS.deep}
           shallow={WATER_COLORS.shallow}
           reflection="#86aeb5"
-          flowSpeed={0.12}
+          kind="canal"
           opacity={0.9}
           crossOnly
         />
@@ -1702,7 +1785,7 @@ function CanalRiverOutlet() {
           deep={WATER_COLORS.deep}
           shallow={WATER_COLORS.shallow}
           reflection="#86aeb5"
-          flowSpeed={0.2}
+          kind="canal"
           flowDirection={[1, 0]}
           crossOnly
         />
@@ -1718,6 +1801,7 @@ function CanalRiverOutlet() {
           deep="#2e5962"
           shallow="#6999a1"
           reflection="#d2e3dc"
+          kind="river"
           flowSpeed={0.9}
           flowDirection={[0, -1]}
           falling
@@ -1751,6 +1835,12 @@ export const CanalBoat: React.FC<{
   }) => {
     const isNight = useGameSimulationStore(
       useShallow((state) => getExteriorLampLevel(state.gameTime, state.weather) > 0.1)
+    );
+    const realDeckLight = useGraphicsStore(
+      (state) =>
+        state.graphics.quality !== 'low' &&
+        !state.graphics.perfDebug.disablePunctualLights &&
+        !state.graphics.perfDebug.disableLightingPolish
     );
     useEffect(() => {
       CANAL_PORTHOLE_GLASS_MATERIAL.color.set(isNight ? '#ffaa00' : '#add8e6');
@@ -1955,7 +2045,7 @@ export const CanalBoat: React.FC<{
           }
         >
           {/* Hull-top measurement puts the waterline 0.6 m above its keel. */}
-          <group position={[0, -0.6, 0]}>
+          <group position={[0, -CANAL_BOAT_BERTH.keelSink, 0]}>
             <GeneratedBoatModel />
           </group>
           {[-1, 1].map((side) => (
@@ -1975,14 +2065,32 @@ export const CanalBoat: React.FC<{
               FLOURISH
             </Text>
           ))}
-          <group position={[0, 2.32, 3.08]}>
-            <mesh castShadow>
-              <boxGeometry args={[0.2, 0.3, 0.2]} />
-              <meshStandardMaterial color="#222222" metalness={0.6} />
+          <group name="canal-boat-bow-lantern" position={[...CANAL_BOAT_LANTERN.mount]}>
+            <mesh
+              name="canal-boat-lantern-bronze-frame"
+              geometry={CANAL_BOAT_LANTERN_HOUSING}
+              material={CANAL_BOAT_LANTERN_METAL}
+              dispose={null}
+              castShadow
+              receiveShadow
+            />
+            <mesh position={[0, -0.01, 0]} material={EXTERIOR_LAMP_LENS_MATERIAL}>
+              <boxGeometry args={[0.16, 0.235, 0.16]} />
             </mesh>
-            <mesh material={EXTERIOR_LAMP_LENS_MATERIAL}>
-              <boxGeometry args={[0.15, 0.25, 0.21]} />
-            </mesh>
+            {realDeckLight && (
+              <group
+                position={[...CANAL_BOAT_LANTERN.source]}
+                rotation={[CANAL_BOAT_LANTERN.tilt, 0, 0]}
+              >
+                <ExteriorDownlight
+                  name="canal-boat-deck-light"
+                  position={[0, 0, 0]}
+                  intensity={CANAL_BOAT_LANTERN.intensity}
+                  distance={CANAL_BOAT_LANTERN.distance}
+                  color={CANAL_BOAT_LANTERN.color}
+                />
+              </group>
+            )}
           </group>
         </GeneratedBoundary>
       </group>
@@ -2060,7 +2168,7 @@ const Lake: React.FC<{
           deep="#143b48"
           shallow="#4a8790"
           reflection="#c4e0e4"
-          flowSpeed={0.1}
+          kind="lake"
           opacity={0.85}
           radial
         />
@@ -2161,6 +2269,44 @@ const RiverTunnel: React.FC<{
   );
 });
 
+const ROAD_RIVER_BRIDGE_FRAME_GEOMETRY = createRoadRiverBridgeFrameGeometry();
+const RIVER_FOOTBRIDGE_DECK_GEOMETRY = createRiverFootbridgeDeckGeometry();
+const RIVER_FOOTBRIDGE_FRAME_GEOMETRY = createRiverFootbridgeFrameGeometry();
+
+export const RoadRiverBridge: React.FC = () => (
+  <group name="road-river-bridge" position={[-20, 0, -145]}>
+    {/* Road deck - spans the canyon */}
+    <mesh name="road-river-bridge-deck" position={[0, 0.3, 0]} castShadow receiveShadow>
+      <boxGeometry args={[18, 0.6, 70]} />
+      <meshStandardMaterial color="#4b5563" roughness={0.85} />
+    </mesh>
+    {/* Carriageway wearing course on top of the structural deck */}
+    <mesh
+      name="road-river-bridge-wearing-course"
+      position={[0, 0.61, 0]}
+      rotation={[-Math.PI / 2, 0, 0]}
+      receiveShadow
+    >
+      <planeGeometry args={[16, 68]} />
+      <meshStandardMaterial
+        color="#ffffff"
+        roughness={0.9}
+        map={TARMAC_ROAD_MAP}
+        roughnessMap={TARMAC_ROAD_ROUGHNESS}
+      />
+    </mesh>
+    <mesh
+      name="road-river-bridge-frame"
+      geometry={ROAD_RIVER_BRIDGE_FRAME_GEOMETRY}
+      castShadow
+      receiveShadow
+      dispose={null}
+    >
+      <meshStandardMaterial vertexColors roughness={0.74} metalness={0} />
+    </mesh>
+  </group>
+);
+
 const RIVER_FOOTBRIDGE_ACCESS_GEOMETRY = createRiverFootbridgeAccessGeometry();
 
 // The visible river and its shoreline share the actual terrain assembly.
@@ -2209,7 +2355,7 @@ const River: React.FC = React.memo(() => {
           deep="#123746"
           shallow="#3b7d8a"
           reflection="#c0e1e6"
-          flowSpeed={0.504}
+          kind="river"
           flowDirection={[1, 0.16]}
           opacity={0.9}
           crossOnly
@@ -2225,11 +2371,12 @@ const River: React.FC = React.memo(() => {
             RIVER_FOOTBRIDGE_DECK.centre[1],
             RIVER_FOOTBRIDGE_DECK.centre[2] - riverZ,
           ]}
+          geometry={RIVER_FOOTBRIDGE_DECK_GEOMETRY}
+          dispose={null}
           castShadow
           receiveShadow
         >
-          <boxGeometry args={[...RIVER_FOOTBRIDGE_DECK.size]} />
-          <meshStandardMaterial color="#6b7280" roughness={0.8} />
+          <meshStandardMaterial vertexColors roughness={0.9} />
         </mesh>
         <mesh
           name="river-footbridge-ground-access"
@@ -2241,64 +2388,20 @@ const River: React.FC = React.memo(() => {
         >
           <meshStandardMaterial vertexColors roughness={0.9} />
         </mesh>
-        {/* Bridge railings */}
-        {[-1, 1].map((side, i) => (
-          <mesh key={`railing-${i}`} position={[side * 3.1875, 2.7, 0]} castShadow>
-            <boxGeometry args={[0.3, 1, width * 2 + 30]} />
-            <meshStandardMaterial color="#4b5563" roughness={0.7} />
-          </mesh>
-        ))}
-        {/* Bridge support structure - extends down into canyon */}
-        {/* Main longitudinal beams under the deck */}
-        {[-2, 0, 2].map((xOff, i) => (
-          <mesh key={`main-beam-${i}`} position={[xOff, 1.2, 0]} castShadow>
-            <boxGeometry args={[0.4, 1.2, width * 2 + 28]} />
-            <meshStandardMaterial color="#374151" roughness={0.6} metalness={0.3} />
-          </mesh>
-        ))}
-        {/* Cross beams connecting the main beams */}
-        {Array.from({ length: 9 }, (_, i) => {
-          const zPos = -32 + i * 8;
-          return (
-            <mesh key={`cross-beam-${i}`} position={[0, 1.2, zPos]} castShadow>
-              <boxGeometry args={[5.5, 0.3, 0.4]} />
-              <meshStandardMaterial color="#374151" roughness={0.6} metalness={0.3} />
-            </mesh>
-          );
-        })}
-        {/* Vertical pier columns extending down to canyon floor */}
-        {/* Foundations extend below the river bed. */}
-        {Array.from({ length: 5 }, (_, i) => {
-          const zPos = -28 + i * 14; // 5 piers spread across the span
-          return (
-            <group key={`pier-${i}`}>
-              {/* Left pier */}
-              <mesh position={[-2.2, -4, zPos]} castShadow>
-                <boxGeometry args={[0.8, 12, 0.8]} />
-                <meshStandardMaterial color="#4b5563" roughness={0.7} metalness={0.2} />
-              </mesh>
-              {/* Right pier */}
-              <mesh position={[2.2, -4, zPos]} castShadow>
-                <boxGeometry args={[0.8, 12, 0.8]} />
-                <meshStandardMaterial color="#4b5563" roughness={0.7} metalness={0.2} />
-              </mesh>
-              {/* Cross brace between piers */}
-              <mesh position={[0, -2, zPos]} castShadow>
-                <boxGeometry args={[4, 0.4, 0.4]} />
-                <meshStandardMaterial color="#374151" roughness={0.6} metalness={0.3} />
-              </mesh>
-              {/* Diagonal bracing */}
-              <mesh position={[-1, -5, zPos]} rotation={[0, 0, Math.PI / 4]} castShadow>
-                <boxGeometry args={[0.2, 6, 0.2]} />
-                <meshStandardMaterial color="#374151" roughness={0.6} metalness={0.3} />
-              </mesh>
-              <mesh position={[1, -5, zPos]} rotation={[0, 0, -Math.PI / 4]} castShadow>
-                <boxGeometry args={[0.2, 6, 0.2]} />
-                <meshStandardMaterial color="#374151" roughness={0.6} metalness={0.3} />
-              </mesh>
-            </group>
-          );
-        })}
+        <mesh
+          name="river-footbridge-open-ironwork"
+          position={[
+            RIVER_FOOTBRIDGE_DECK.centre[0] - riverX,
+            0,
+            RIVER_FOOTBRIDGE_DECK.centre[2] - riverZ,
+          ]}
+          geometry={RIVER_FOOTBRIDGE_FRAME_GEOMETRY}
+          castShadow
+          receiveShadow
+          dispose={null}
+        >
+          <meshStandardMaterial vertexColors roughness={0.76} metalness={0} />
+        </mesh>
       </group>
       {/* Both five-metre foundations extend below the four-metre channel bed. */}
       <RiverTunnel
@@ -2621,7 +2724,7 @@ const Pond: React.FC<{
           deep="#183f4b"
           shallow="#4c8990"
           reflection="#c6e2e2"
-          flowSpeed={0.08}
+          kind="pond"
           opacity={0.9}
           radial
         />
@@ -2880,20 +2983,16 @@ const KioskCafe: React.FC<{
 
       {/* A small fascia gives the painted lettering a real surface. */}
       <mesh position={[0, 1.74, 2.95]} castShadow>
-        <boxGeometry args={[1.7, 0.32, 0.055]} />
+        <boxGeometry args={[1.7, 0.43, 0.055]} />
         <meshStandardMaterial color="#5d4037" roughness={0.7} />
       </mesh>
-      <Text
+      <BusinessBrandMark
+        brand="cafe"
+        width={1.64}
+        height={0.38}
         position={[0, 1.74, 2.981]}
-        fontSize={0.23}
-        surface="painted"
-        color="#fdf5e6"
-        anchorX="center"
-        anchorY="middle"
-        fontWeight="bold"
-      >
-        CAFE
-      </Text>
+        backlit={false}
+      />
     </group>
   );
 };
@@ -3340,12 +3439,42 @@ const FoodTruck: React.FC<{
 };
 
 // Brick carport/shelter structure - outdoor seating area with brick pillars
+// Shared rounded pendant buffers; no per-frame or per-render geometry work.
+const PICNIC_LAMP_GEOMETRY = {
+  housing: new THREE.CylinderGeometry(
+    PICNIC_SHELTER_LIGHT.housing.topRadius,
+    PICNIC_SHELTER_LIGHT.housing.bottomRadius,
+    PICNIC_SHELTER_LIGHT.housing.height,
+    24
+  ),
+  lens: new THREE.CylinderGeometry(
+    PICNIC_SHELTER_LIGHT.lens.topRadius,
+    PICNIC_SHELTER_LIGHT.lens.bottomRadius,
+    PICNIC_SHELTER_LIGHT.lens.height,
+    24
+  ),
+  cap: new THREE.CylinderGeometry(0.12, 0.12, 0.06, 16),
+  stem: new THREE.CylinderGeometry(0.022, 0.022, 1, 8),
+};
+const PICNIC_LAMP_PAINT = new THREE.MeshStandardMaterial({
+  color: '#29463c',
+  roughness: 0.68,
+  metalness: 0,
+});
+
 const BrickCarport: React.FC<{
   position: [number, number, number];
   rotation?: number;
   size?: [number, number, number]; // width, height, depth
 }> = ({ position, rotation = 0, size = [8, 3.5, 6] }) => {
   const [width, height, depth] = size;
+  const light = picnicShelterLightLayout(width, height, depth);
+  const realRoofLight = useGraphicsStore(
+    (state) =>
+      state.graphics.quality !== 'low' &&
+      !state.graphics.perfDebug.disablePunctualLights &&
+      !state.graphics.perfDebug.disableLightingPolish
+  );
 
   return (
     <group position={position} rotation={[0, rotation, 0]}>
@@ -3411,6 +3540,53 @@ const BrickCarport: React.FC<{
           normalMap={PROCEDURAL_TEXTURES.cobblestoneNormal}
         />
       </mesh>
+
+      <group name="picnic-shelter-pendant">
+        <mesh
+          name="picnic-shelter-ceiling-cap"
+          geometry={PICNIC_LAMP_GEOMETRY.cap}
+          material={PICNIC_LAMP_PAINT}
+          position={light.cap}
+          castShadow
+          receiveShadow
+        />
+        <mesh
+          name="picnic-shelter-hanger"
+          geometry={PICNIC_LAMP_GEOMETRY.stem}
+          material={PICNIC_LAMP_PAINT}
+          position={light.stem}
+          scale={[1, light.stemLength, 1]}
+          castShadow
+          receiveShadow
+        />
+        <mesh
+          name="picnic-shelter-housing"
+          geometry={PICNIC_LAMP_GEOMETRY.housing}
+          material={PICNIC_LAMP_PAINT}
+          position={light.housing}
+          castShadow
+          receiveShadow
+        />
+        <mesh
+          name="picnic-shelter-opal-lens"
+          geometry={PICNIC_LAMP_GEOMETRY.lens}
+          material={EXTERIOR_LAMP_LENS_MATERIAL}
+          position={light.lens}
+          userData={{ noStaticBatch: true }}
+        />
+        <group position={light.pool} scale={[PICNIC_SHELTER_LIGHT.poolWidthScale, 1, 1]}>
+          <ExteriorLampPool radius={light.poolRadius} />
+        </group>
+        {realRoofLight && (
+          <ExteriorDownlight
+            name="picnic-shelter-downlight"
+            position={light.source}
+            intensity={PICNIC_SHELTER_LIGHT.intensity}
+            distance={PICNIC_SHELTER_LIGHT.distance}
+            color={PICNIC_SHELTER_LIGHT.color}
+          />
+        )}
+      </group>
 
       {/* Picnic tables under the shelter */}
       {[-2, 2].map((x, i) => (
@@ -3788,7 +3964,12 @@ const LockGate: React.FC<{
         <GeneratedModel asset="lockGateStructure" receiveShadow={false} />
       </group>
     </GeneratedBoundary>
-    {width === 10 && <LockGateJoinery />}
+    {width === 10 && (
+      <>
+        <LockGateJoinery />
+        <LockGateLighting />
+      </>
+    )}
   </group>
 );
 
@@ -4012,70 +4193,20 @@ const WasteBin: React.FC<{
   </group>
 );
 
-// Curved text that wraps around a cylinder surface
-const CurvedText: React.FC<{
-  text: string;
-  radius: number;
-  height: number;
-  fontSize?: number;
-  color?: string;
-  arcAngle?: number; // Total arc angle in radians (default: auto-calculate based on text)
-  startAngle?: number; // Starting angle in radians (default: 0, facing +Z)
-}> = ({ text, radius, height, fontSize = 2, color = '#1e293b', arcAngle, startAngle = 0 }) => {
-  const chars = text.split('');
-  const charCount = chars.length;
-
-  // Estimate character width (approximately 0.6 * fontSize for most fonts)
-  const charWidth = fontSize * 0.6;
-  const totalTextWidth = charWidth * charCount;
-
-  // Calculate arc angle needed to fit text, or use provided arcAngle
-  // Arc length = radius * angle, so angle = arcLength / radius
-  const calculatedArcAngle = arcAngle ?? totalTextWidth / radius;
-
-  // Calculate angle step between characters
-  const angleStep = calculatedArcAngle / Math.max(charCount - 1, 1);
-
-  // Start angle offset to center the text
-  const centerOffset = calculatedArcAngle / 2;
-
-  return (
-    <group position={[0, height, 0]}>
-      {chars.map((char, i) => {
-        // Calculate angle for this character (centered around startAngle)
-        const angle = startAngle - centerOffset + i * angleStep;
-
-        // Position on cylinder surface (slightly offset outward for visibility)
-        const x = (radius + 0.1) * Math.sin(angle);
-        const z = (radius + 0.1) * Math.cos(angle);
-
-        // Rotation to face outward (perpendicular to cylinder surface)
-        const rotationY = angle;
-
-        return (
-          <Text
-            key={i}
-            position={[x, 0, z]}
-            rotation={[0, rotationY, 0]}
-            fontSize={fontSize}
-            color={color}
-            anchorX="center"
-            anchorY="middle"
-          >
-            {char}
-          </Text>
-        );
-      })}
-    </group>
-  );
-};
-
 // Industrial grain silo - typical flour mill storage
+// Matte printed ink has no glossy white highlight under the nearby roof lamp.
+// Working if the night timetable keeps dark, legible lettering on its lit paper.
 // European-style covered bus stop with advertisements
 const BusStop: React.FC<{
   position: [number, number, number];
   rotation?: number;
 }> = ({ position, rotation = 0 }) => {
+  const realRoofLight = useGraphicsStore(
+    (state) =>
+      state.graphics.quality !== 'low' &&
+      !state.graphics.perfDebug.disablePunctualLights &&
+      !state.graphics.perfDebug.disableLightingPolish
+  );
   const shelterWidth = 4;
   const shelterDepth = 1.8;
   const shelterHeight = 2.8;
@@ -4091,27 +4222,33 @@ const BusStop: React.FC<{
         fallback={
           <group>
             {/* Ground platform */}
-            <mesh position={[0, 0.05, 0]} castShadow receiveShadow>
-              <boxGeometry args={[shelterWidth + 0.4, 0.1, shelterDepth + 0.4]} />
+            <mesh position={[0, BUS_SHELTER_SITE.platform.top / 2, 0]} castShadow receiveShadow>
+              <boxGeometry
+                args={[
+                  BUS_SHELTER_SITE.platform.halfX * 2,
+                  BUS_SHELTER_SITE.platform.top,
+                  BUS_SHELTER_SITE.platform.halfZ * 2,
+                ]}
+              />
               <meshStandardMaterial color="#6b7280" roughness={0.9} />
             </mesh>
 
             {/* Corner posts - dark green metal */}
             {[
-              [-shelterWidth / 2, shelterDepth / 2],
-              [shelterWidth / 2, shelterDepth / 2],
-              [-shelterWidth / 2, -shelterDepth / 2],
-              [shelterWidth / 2, -shelterDepth / 2],
+              [-adPanelCentre, shelterDepth / 2],
+              [adPanelCentre, shelterDepth / 2],
+              [-adPanelCentre, -shelterDepth / 2],
+              [adPanelCentre, -shelterDepth / 2],
             ].map(([x, z], i) => (
-              <mesh key={i} position={[x, shelterHeight / 2, z]} castShadow>
-                <boxGeometry args={[0.08, shelterHeight, 0.08]} />
+              <mesh key={i} position={[x, 1.49, z]} castShadow>
+                <boxGeometry args={[0.08, 2.75, 0.08]} />
                 <meshStandardMaterial color="#1f4e3d" roughness={0.4} metalness={0.6} />
               </mesh>
             ))}
 
             {/* Roof */}
-            <mesh position={[0, shelterHeight + 0.15, 0]} castShadow>
-              <boxGeometry args={[shelterWidth + 0.3, 0.08, shelterDepth + 0.5]} />
+            <mesh position={[0, 2.9, 0]} castShadow>
+              <boxGeometry args={[4.28, 0.08, 2.26]} />
               <meshStandardMaterial color="#1f4e3d" roughness={0.4} metalness={0.6} />
             </mesh>
             {[-1, 1].map((side) => (
@@ -4124,10 +4261,16 @@ const BusStop: React.FC<{
             ))}
             {/* Bench */}
             <group position={[0, 0, -shelterDepth / 2 + 0.35]}>
-              <mesh position={[0, 0.45, 0]} castShadow>
-                <boxGeometry args={[shelterWidth - 0.5, 0.08, 0.4]} />
+              <mesh position={[0, 0.49, 0]} castShadow>
+                <boxGeometry args={[shelterWidth - 0.5, 0.064, 0.372]} />
                 <meshStandardMaterial color="#8b5a2b" roughness={0.8} />
               </mesh>
+              {[0.72, 0.91].map((y, i) => (
+                <mesh key={`back-${i}`} position={[0, y, i === 0 ? -0.225 : -0.25]} castShadow>
+                  <boxGeometry args={[3.5, 0.155, 0.055]} />
+                  <meshStandardMaterial color="#8b5a2b" roughness={0.8} />
+                </mesh>
+              ))}
               {[-1.2, 0, 1.2].map((x, i) => (
                 <mesh key={i} position={[x, 0.22, 0]} castShadow>
                   <boxGeometry args={[0.08, 0.44, 0.35]} />
@@ -4144,6 +4287,34 @@ const BusStop: React.FC<{
         <boxGeometry args={[shelterWidth - 0.1, 0.04, shelterDepth + 0.3]} />
         <meshStandardMaterial color="#a7f3d0" transparent opacity={0.3} roughness={0.1} />
       </mesh>
+
+      {/* Waterproof roof light shares the existing lens/pool dimmer. The
+          short-range real light never casts another shadow map. */}
+      <group name="bus-shelter-roof-light" userData={{ noStaticBatch: true }}>
+        <mesh name="bus-shelter-light-housing" position={[...BUS_SHELTER_LIGHT.housing.position]}>
+          <boxGeometry args={[...BUS_SHELTER_LIGHT.housing.size]} />
+          <meshStandardMaterial color="#274b3a" roughness={0.58} metalness={0.25} />
+        </mesh>
+        <mesh name="bus-shelter-light-lens" position={[...BUS_SHELTER_LIGHT.lens.position]}>
+          <boxGeometry args={[...BUS_SHELTER_LIGHT.lens.size]} />
+          <primitive object={EXTERIOR_LAMP_LENS_MATERIAL} attach="material" />
+        </mesh>
+        <group
+          position={[...BUS_SHELTER_LIGHT.pool.position]}
+          scale={[1, 1, BUS_SHELTER_LIGHT.pool.depthScale]}
+        >
+          <ExteriorLampPool radius={BUS_SHELTER_LIGHT.pool.radius} />
+        </group>
+        {realRoofLight && (
+          <ExteriorDownlight
+            name="bus-shelter-downlight"
+            position={[...BUS_SHELTER_LIGHT.downlight.position]}
+            intensity={BUS_SHELTER_LIGHT.downlight.intensity}
+            distance={BUS_SHELTER_LIGHT.downlight.distance}
+            color={BUS_SHELTER_LIGHT.downlight.color}
+          />
+        )}
+      </group>
 
       {/* Back panel - glass */}
       <mesh position={[0, shelterHeight / 2, -shelterDepth / 2 - 0.02]}>
@@ -4170,34 +4341,7 @@ const BusStop: React.FC<{
         </group>
       ))}
 
-      {/* Timetable */}
-      <mesh position={[0, 1.6, -shelterDepth / 2 + 0.02]} castShadow>
-        <boxGeometry args={[0.6, 0.8, 0.04]} />
-        <meshStandardMaterial color="#1f2937" roughness={0.6} />
-      </mesh>
-      <mesh position={[0, 1.6, -shelterDepth / 2 + 0.05]}>
-        <planeGeometry args={[0.5, 0.7]} />
-        <meshStandardMaterial color="#f5f5f5" roughness={0.85} />
-      </mesh>
-      <Text
-        position={[0, 1.85, -shelterDepth / 2 + 0.06]}
-        fontSize={0.06}
-        color="#1f2937"
-        fontWeight="bold"
-        anchorX="center"
-        anchorY="middle"
-      >
-        TIMETABLE
-      </Text>
-      <Text
-        position={[0, 1.65, -shelterDepth / 2 + 0.06]}
-        fontSize={0.04}
-        color="#4b5563"
-        anchorX="center"
-        anchorY="middle"
-      >
-        Route 42 to Town Centre
-      </Text>
+      <TransitServiceBoard />
     </group>
   );
 };
@@ -4577,7 +4721,15 @@ export const GrainSilo: React.FC<{
         0.55 above the ground. */}
     <GroundBlob position={[0, 0]} scale={radius * 3.1} />
     {/* Company marking on silo - curved to wrap around cylinder */}
-    <CurvedText text="MillOS" radius={radius} height={height * 0.6} fontSize={2} color="#1e293b" />
+    <BusinessBrandMark
+      brand="mill"
+      name="silo-millos-brand"
+      width={6}
+      height={2}
+      surfaceRadius={radius + 0.1}
+      position={[0, height * 0.6, 0]}
+      backlit={false}
+    />
   </group>
 );
 
@@ -4767,17 +4919,14 @@ export const GrainElevator: React.FC<{
         castShadow
         receiveShadow
       />
-      <Text
+      <BusinessBrandMark
+        brand="mill"
+        name="elevator-millos-brand"
+        width={4.5}
+        height={1.1}
         position={[0, 47.1, 3.63]}
-        fontSize={1.1}
-        color="#e8eeeb"
-        anchorX="center"
-        anchorY="middle"
-        fontWeight="bold"
-        surface="painted"
-      >
-        MillOS
-      </Text>
+        backlit={false}
+      />
     </group>
   );
 };
@@ -5210,36 +5359,9 @@ export const StorageTank: React.FC<{
         </group>
       ))}
       <GroundBlob position={[0, 0]} scale={length + 3} scaleZ={radius * 3.4} />
-      {/* Pipe fittings on top */}
-      <mesh material={TANK_FITTING_MATERIAL} position={[0, radius * 2 + 1.62, 0]} castShadow>
-        <cylinderGeometry args={[0.3, 0.3, 0.8, 8]} />
-      </mesh>
-      <mesh
-        material={TANK_FITTING_MATERIAL}
-        position={[length / 4, radius * 2 + 1.58, 0]}
-        castShadow
-      >
-        <cylinderGeometry args={[0.2, 0.2, 0.6, 8]} />
-      </mesh>
-      {/* Ladder access */}
-      <group position={[0, 0, -radius - 0.2]}>
-        <mesh position={[0, radius + 1.5, 0]} castShadow>
-          <boxGeometry args={[0.08, radius * 2 + 1, 0.08]} />
-          <meshStandardMaterial color="#fbbf24" roughness={0.4} metalness={0.5} />
-        </mesh>
-        <mesh position={[0.3, radius + 1.5, 0]} castShadow>
-          <boxGeometry args={[0.08, radius * 2 + 1, 0.08]} />
-          <meshStandardMaterial color="#fbbf24" roughness={0.4} metalness={0.5} />
-        </mesh>
-        {/* Rungs */}
-        {Array.from({ length: 8 }).map((_, i) => (
-          <mesh key={`rung-${i}`} position={[0.15, 0.5 + i * 0.5, 0]} castShadow>
-            <boxGeometry args={[0.25, 0.04, 0.04]} />
-            <meshStandardMaterial color="#fbbf24" roughness={0.4} metalness={0.5} />
-          </mesh>
-        ))}
-      </group>
+      <UtilityTankHardware radius={radius} length={length} />
       <Text
+        surface="painted"
         position={[0, centreY, radius + 0.08]}
         fontSize={0.42}
         color="#27343a"
@@ -5314,20 +5436,8 @@ export const PropaneTank: React.FC<{
         <meshStandardMaterial color="#374151" roughness={0.6} metalness={0.4} />
       </mesh>
     ))}
-    {/* Valve assembly on top */}
-    <mesh position={[0, height + radius + 0.75, 0]} castShadow>
-      <cylinderGeometry args={[0.15, 0.2, 0.4, 8]} />
-      <meshStandardMaterial color="#374151" roughness={0.4} metalness={0.6} />
-    </mesh>
-    <mesh position={[0, height + radius + 1.05, 0]} castShadow>
-      <boxGeometry args={[0.4, 0.2, 0.4]} />
-      <meshStandardMaterial color="#1f2937" roughness={0.4} metalness={0.6} />
-    </mesh>
-    {/* Pressure gauge */}
-    <mesh position={[radius + 0.1, height * 0.7, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
-      <cylinderGeometry args={[0.15, 0.15, 0.1, 12]} />
-      <meshStandardMaterial color="#1f2937" roughness={0.5} metalness={0.4} />
-    </mesh>
+    <LpgValveHardware radius={radius} height={height} />
+    <UtilityPressureGauge assetId={assetId} radius={radius} height={height} />
     {/* Rolled warning band, with tucked lips and a chamfered face. */}
     <mesh
       geometry={vesselWarningBandGeometry(radius)}
@@ -6488,6 +6598,25 @@ const CheckpointBarrier: React.FC<{
 
   // Arms span half the road from each side
   const armLength = roadWidth / 2 + 1;
+  const armGeometry = useMemo(() => {
+    const geometry = new PlotGeometry();
+    geometry.box([armLength, 0.2, 0.2], [armLength / 2, 0, 0], '#ffffff');
+    for (let i = 0; i < Math.floor(armLength / 1.2); i++)
+      geometry.box([0.5, 0.21, 0.02], [0.6 + i * 1.2, 0, 0.11], '#dc2626');
+    geometry.box([0.3, 0.3, 0.3], [armLength + 0.15, 0, 0], '#dc2626');
+    return geometry.finish();
+  }, [armLength]);
+  const armMaterial = useMemo(
+    () => new THREE.MeshStandardMaterial({ color: '#ffffff', vertexColors: true, roughness: 0.5 }),
+    []
+  );
+  useEffect(
+    () => () => {
+      armGeometry.dispose();
+      armMaterial.dispose();
+    },
+    [armGeometry, armMaterial]
+  );
   const boothWidth = 3.5;
   const boothDepth = 3;
   const boothHeight = 3.5;
@@ -6501,8 +6630,6 @@ const CheckpointBarrier: React.FC<{
       position={position}
       rotation={[0, rotation, 0]}
       userData={{
-        noStaticBatch: true,
-        dynamic: true,
         gateOpen: false,
         gatePhase: 'closed',
         clearanceSecondsRemaining: 0,
@@ -6613,7 +6740,7 @@ const CheckpointBarrier: React.FC<{
           <boxGeometry args={[0.5, 0.4, 0.5]} />
           <meshStandardMaterial color="#1f2937" roughness={0.5} />
         </mesh>
-        <mesh position={[0.26, 3.2, 0]}>
+        <mesh position={[0.26, 3.2, 0]} userData={{ noStaticBatch: true, dynamic: true }}>
           <circleGeometry args={[0.15, 12]} />
           <meshBasicMaterial ref={lightRef} color="#ff0000" />
         </mesh>
@@ -6625,26 +6752,15 @@ const CheckpointBarrier: React.FC<{
           position={[0, 2.9, 0]}
           userData={{ noStaticBatch: true, dynamic: true }}
         >
-          <mesh position={[armLength / 2, 0, 0]} castShadow>
-            <boxGeometry args={[armLength, 0.2, 0.2]} />
-            <meshStandardMaterial color="#ffffff" roughness={0.5} />
-          </mesh>
-          {/* Red stripes */}
-          {Array.from({ length: Math.floor(armLength / 1.2) }).map((_, i) => (
-            <mesh key={`stripe1-${i}`} position={[0.6 + i * 1.2, 0, 0.11]} castShadow>
-              <boxGeometry args={[0.5, 0.21, 0.02]} />
-              <meshStandardMaterial color="#dc2626" roughness={0.5} />
-            </mesh>
-          ))}
+          {/* Same arm, stripes and reflector, one draw rotating with the pivot.
+              Only pivots/signals are dynamic; fixed booth/bollards may batch.
+              Working if live arms and signals still respond to trucks while
+              fixed geometry and each striped beam require fewer submissions. */}
+          <mesh geometry={armGeometry} material={armMaterial} dispose={null} castShadow />
           {/* Counterweight */}
           <mesh position={[-0.4, 0, 0]} castShadow>
             <boxGeometry args={[0.6, 0.3, 0.3]} />
             <meshStandardMaterial color="#374151" roughness={0.6} />
-          </mesh>
-          {/* End reflector */}
-          <mesh position={[armLength + 0.15, 0, 0]} castShadow>
-            <boxGeometry args={[0.3, 0.3, 0.3]} />
-            <meshStandardMaterial color="#dc2626" roughness={0.5} />
           </mesh>
         </group>
       </group>
@@ -6661,7 +6777,7 @@ const CheckpointBarrier: React.FC<{
           <boxGeometry args={[0.5, 0.4, 0.5]} />
           <meshStandardMaterial color="#1f2937" roughness={0.5} />
         </mesh>
-        <mesh position={[-0.26, 3.2, 0]}>
+        <mesh position={[-0.26, 3.2, 0]} userData={{ noStaticBatch: true, dynamic: true }}>
           <circleGeometry args={[0.15, 12]} />
           <meshBasicMaterial ref={light2Ref} color="#ff0000" />
         </mesh>
@@ -6674,26 +6790,11 @@ const CheckpointBarrier: React.FC<{
           rotation={[0, Math.PI, 0]}
           userData={{ noStaticBatch: true, dynamic: true }}
         >
-          <mesh position={[armLength / 2, 0, 0]} castShadow>
-            <boxGeometry args={[armLength, 0.2, 0.2]} />
-            <meshStandardMaterial color="#ffffff" roughness={0.5} />
-          </mesh>
-          {/* Red stripes */}
-          {Array.from({ length: Math.floor(armLength / 1.2) }).map((_, i) => (
-            <mesh key={`stripe2-${i}`} position={[0.6 + i * 1.2, 0, 0.11]} castShadow>
-              <boxGeometry args={[0.5, 0.21, 0.02]} />
-              <meshStandardMaterial color="#dc2626" roughness={0.5} />
-            </mesh>
-          ))}
+          <mesh geometry={armGeometry} material={armMaterial} dispose={null} castShadow />
           {/* Counterweight */}
           <mesh position={[-0.4, 0, 0]} castShadow>
             <boxGeometry args={[0.6, 0.3, 0.3]} />
             <meshStandardMaterial color="#374151" roughness={0.6} />
-          </mesh>
-          {/* End reflector */}
-          <mesh position={[armLength + 0.15, 0, 0]} castShadow>
-            <boxGeometry args={[0.3, 0.3, 0.3]} />
-            <meshStandardMaterial color="#dc2626" roughness={0.5} />
           </mesh>
         </group>
       </group>
@@ -6751,6 +6852,12 @@ const CheckpointBarrier: React.FC<{
 
 // Factory exterior walls with large signs - positioned OUTSIDE the existing factory elements
 export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShell = true }) => {
+  const realCrossingLights = useGraphicsStore(
+    (state) =>
+      state.graphics.quality !== 'low' &&
+      !state.graphics.perfDebug.disablePunctualLights &&
+      !state.graphics.perfDebug.disableLightingPolish
+  );
   // Wall dimensions - positioned outside the factory floor
   const wallHeight = 20; // Same height for ALL walls
   const wallThickness = 0.4;
@@ -7098,41 +7205,48 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
             </mesh>
           </group>
 
-          {/* ========== FRONT SIGN - Large Red Sign (similar to truck signage) ========== */}
+          {/* ========== FRONT SIGN - Branded grain-mill sign ========== */}
           <group position={[0, wallHeight / 2 + 2, buildingFrontZ + 1.5]}>
-            {/* Main sign background - Red like the truck signs */}
+            {/* Physically lit enamel field */}
             <mesh frustumCulled={false}>
               <boxGeometry args={[80, 10, 0.5]} />
-              <meshBasicMaterial color="#dc2626" />
+              <meshStandardMaterial color="#173c45" roughness={0.7} />
             </mesh>
             {/* Gold trim border */}
             <mesh position={[0, 0, 0.3]} frustumCulled={false}>
               <boxGeometry args={[82, 10.6, 0.15]} />
-              <meshBasicMaterial color="#fbbf24" />
+              <meshStandardMaterial color="#d1aa60" roughness={0.55} metalness={0.05} />
             </mesh>
-            {/* Inner red panel */}
+            {/* Inner brand panel */}
             <mesh position={[0, 0, 0.4]} frustumCulled={false}>
               <boxGeometry args={[79, 9.5, 0.1]} />
-              <meshBasicMaterial color="#b91c1c" />
+              <meshStandardMaterial color="#173c45" roughness={0.7} />
             </mesh>
-            {/* Company name */}
-            <Text
+            {/* MillOS GRAIN MILL retains its business identity and old mounting. */}
+            <BusinessBrandMark
+              brand="mill"
+              width={72}
+              height={5.4}
               position={[0, 1.5, 0.6]}
-              fontSize={5}
-              color="#ffffff"
+              backlit={false}
+            />
+            <Text
+              position={[0, -1.9, 0.6]}
+              fontSize={1.3}
+              letterSpacing={0.14}
+              color="#fef3c7"
               anchorX="center"
               anchorY="middle"
-              fontWeight="bold"
-              outlineWidth={0.1}
-              outlineColor="#7f1d1d"
+              surface="painted"
             >
-              MillOS GRAIN MILL
+              GRAIN MILL
             </Text>
             {/* Tagline */}
             <Text
-              position={[0, -2.5, 0.6]}
-              fontSize={1.8}
+              position={[0, -3.45, 0.6]}
+              fontSize={1.1}
               color="#fef3c7"
+              surface="painted"
               anchorX="center"
               anchorY="middle"
             >
@@ -7394,41 +7508,48 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
             </mesh>
           </group>
 
-          {/* ========== BACK SIGN - Large Red Sign (matching front sign) ========== */}
+          {/* ========== BACK SIGN - Matching branded grain-mill sign ========== */}
           <group position={[0, wallHeight / 2 + 2, buildingBackZ - 1.5]} rotation={[0, Math.PI, 0]}>
-            {/* Main sign background - Red like the truck signs */}
+            {/* Physically lit enamel field */}
             <mesh frustumCulled={false}>
               <boxGeometry args={[80, 10, 0.5]} />
-              <meshBasicMaterial color="#dc2626" />
+              <meshStandardMaterial color="#173c45" roughness={0.7} />
             </mesh>
             {/* Gold trim border */}
             <mesh position={[0, 0, 0.3]} frustumCulled={false}>
               <boxGeometry args={[82, 10.6, 0.15]} />
-              <meshBasicMaterial color="#fbbf24" />
+              <meshStandardMaterial color="#d1aa60" roughness={0.55} metalness={0.05} />
             </mesh>
-            {/* Inner red panel */}
+            {/* Inner brand panel */}
             <mesh position={[0, 0, 0.4]} frustumCulled={false}>
               <boxGeometry args={[79, 9.5, 0.1]} />
-              <meshBasicMaterial color="#b91c1c" />
+              <meshStandardMaterial color="#173c45" roughness={0.7} />
             </mesh>
-            {/* Company name */}
-            <Text
+            {/* MillOS GRAIN MILL retains its business identity and old mounting. */}
+            <BusinessBrandMark
+              brand="mill"
+              width={72}
+              height={5.4}
               position={[0, 1.5, 0.6]}
-              fontSize={5}
-              color="#ffffff"
+              backlit={false}
+            />
+            <Text
+              position={[0, -1.9, 0.6]}
+              fontSize={1.3}
+              letterSpacing={0.14}
+              color="#fef3c7"
               anchorX="center"
               anchorY="middle"
-              fontWeight="bold"
-              outlineWidth={0.1}
-              outlineColor="#7f1d1d"
+              surface="painted"
             >
-              MillOS GRAIN MILL
+              GRAIN MILL
             </Text>
             {/* Tagline */}
             <Text
-              position={[0, -2.5, 0.6]}
-              fontSize={1.8}
+              position={[0, -3.45, 0.6]}
+              fontSize={1.1}
               color="#fef3c7"
+              surface="painted"
               anchorX="center"
               anchorY="middle"
             >
@@ -7975,62 +8096,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
 
       {/* ========== ROAD BRIDGE OVER RIVER CANYON ========== */}
       {/* Back road crosses river at z=-145, road centered at x=-20 */}
-      <group position={[-20, 0, -145]}>
-        {/* Road deck - spans the canyon */}
-        <mesh position={[0, 0.3, 0]} castShadow receiveShadow>
-          <boxGeometry args={[18, 0.6, 70]} />
-          <meshStandardMaterial color="#4b5563" roughness={0.85} />
-        </mesh>
-        {/* Carriageway wearing course on top of the structural deck */}
-        <mesh position={[0, 0.61, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-          <planeGeometry args={[16, 68]} />
-          <meshStandardMaterial
-            color="#ffffff"
-            roughness={0.9}
-            map={TARMAC_ROAD_MAP}
-            roughnessMap={TARMAC_ROAD_ROUGHNESS}
-          />
-        </mesh>
-        {/* Guard rails */}
-        {[-1, 1].map((side, i) => (
-          <mesh key={`road-rail-${i}`} position={[side * 8.5, 1.2, 0]} castShadow>
-            <boxGeometry args={[0.3, 1.5, 70]} />
-            <meshStandardMaterial color="#6b7280" roughness={0.7} metalness={0.2} />
-          </mesh>
-        ))}
-        {/* Vertical pier columns - similar to footbridge */}
-        {Array.from({ length: 5 }, (_, i) => {
-          const zPos = -28 + i * 14;
-          return (
-            <group key={`road-pier-${i}`}>
-              {/* Left pier */}
-              <mesh position={[-6, -5, zPos]} castShadow>
-                <boxGeometry args={[1.2, 12, 1.2]} />
-                <meshStandardMaterial color="#4b5563" roughness={0.7} metalness={0.2} />
-              </mesh>
-              {/* Right pier */}
-              <mesh position={[6, -5, zPos]} castShadow>
-                <boxGeometry args={[1.2, 12, 1.2]} />
-                <meshStandardMaterial color="#4b5563" roughness={0.7} metalness={0.2} />
-              </mesh>
-              {/* Cross brace */}
-              <mesh position={[0, -3, zPos]} castShadow>
-                <boxGeometry args={[11, 0.6, 0.6]} />
-                <meshStandardMaterial color="#374151" roughness={0.6} metalness={0.3} />
-              </mesh>
-              {/* Diagonal bracing */}
-              <mesh position={[-3, -6, zPos]} rotation={[0, 0, Math.PI / 4]} castShadow>
-                <boxGeometry args={[0.3, 7, 0.3]} />
-                <meshStandardMaterial color="#374151" roughness={0.6} metalness={0.3} />
-              </mesh>
-              <mesh position={[3, -6, zPos]} rotation={[0, 0, -Math.PI / 4]} castShadow>
-                <boxGeometry args={[0.3, 7, 0.3]} />
-                <meshStandardMaterial color="#374151" roughness={0.6} metalness={0.3} />
-              </mesh>
-            </group>
-          );
-        })}
-      </group>
+      <RoadRiverBridge />
 
       {/* ========== CHECKPOINT BARRIERS AT TRUCK BAY ENTRANCES ========== */}
       {/* Front checkpoint - shipping dock entrance (on the road at z=110) */}
@@ -8110,36 +8176,32 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
           <planeGeometry args={[4, 2]} />
           <meshStandardMaterial color="#90caf9" metalness={0.4} roughness={0.2} />
         </mesh>
-        {/* "SECURITY" sign */}
-        <Text
-          position={[0, 3.5, 2.6]}
-          fontSize={0.4}
-          color="#ffffff"
-          anchorX="center"
-          anchorY="middle"
-          surface="painted"
-        >
-          SECURITY
-        </Text>
+        {/* Opaque painted enamel, seated above the window and below the roof. */}
+        <mesh position={[0, 3.6, 2.535]} castShadow receiveShadow>
+          <boxGeometry args={[2.85, 0.76, 0.07]} />
+          <meshStandardMaterial color="#173c45" roughness={0.74} />
+        </mesh>
+        <BusinessBrandMark
+          brand="security"
+          width={2.75}
+          height={0.71}
+          position={[0, 3.6, 2.578]}
+          backlit={false}
+        />
       </group>
 
       {/* Maintenance shed - back area */}
-      <group position={[80, 0, -75]}>
+      <group
+        position={[...SERVICE_BUILDING_ENVELOPES.maintenance.position]}
+        name="maintenance-shed"
+      >
         <GroundBlob position={[0, 0]} scale={14} scaleZ={12} />
         <mesh position={[0, 2.5, 0]} castShadow receiveShadow>
           <boxGeometry args={[10, 5, 8]} />
           <meshStandardMaterial color="#6d4c41" {...OUTBUILDING_SURFACE} />
         </mesh>
-        {/* Pitched roof */}
-        <mesh position={[0, 5.5, 0]} rotation={[0, 0, 0]} castShadow>
-          <boxGeometry args={[11, 1, 9]} />
-          <meshStandardMaterial color="#5d4037" {...OUTBUILDING_SURFACE} />
-        </mesh>
-        {/* Large door */}
-        <mesh position={[0, 1.5, 4.05]}>
-          <planeGeometry args={[6, 3]} />
-          <meshStandardMaterial color="#3e2723" roughness={0.9} />
-        </mesh>
+        <ServiceBuildingCraft kind="maintenance" />
+        <ServiceEntranceLighting site="maintenance" />
       </group>
 
       {/* ========== STREET LAMPS ========== */}
@@ -8204,7 +8266,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
 
       {/* ========== BUS STOP ========== */}
       {/* European-style bus shelter on shipping road, past checkpoint, near farm */}
-      <BusStop position={[29, 0, 140]} rotation={-Math.PI / 2} />
+      <BusStop position={[...BUS_SHELTER_SITE.position]} rotation={BUS_SHELTER_SITE.rotation} />
 
       {/* ========== VISITOR PARKING LOT WITH CUTE CARS ========== */}
       {/* Parking lot positioned outside east fence (fence is at x=95) */}
@@ -8303,36 +8365,14 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
       </group>
 
       {/* Substation */}
-      <group position={[-70, 0, -60]}>
+      <group position={[-70, 0, -60]} name="site-substation">
         <GroundBlob position={[0, 0]} scale={8} scaleZ={7} />
         <mesh position={[0, 2, 0]} castShadow receiveShadow>
           <boxGeometry args={[5, 4, 4]} />
           <meshStandardMaterial color="#78909c" {...OUTBUILDING_SURFACE} />
         </mesh>
-        <mesh position={[0, 4.3, 0]} castShadow>
-          <boxGeometry args={[5.5, 0.4, 4.5]} />
-          <meshStandardMaterial color="#546e7a" {...OUTBUILDING_SURFACE} />
-        </mesh>
-        {/* Warning sign */}
-        <mesh position={[2.55, 2, 0]} rotation={[0, Math.PI / 2, 0]}>
-          <planeGeometry args={[1, 1]} />
-          <meshStandardMaterial color="#ffc107" roughness={0.85} />
-        </mesh>
-        <Text
-          position={[2.6, 2, 0]}
-          fontSize={0.15}
-          color="#000000"
-          anchorX="center"
-          anchorY="middle"
-          rotation={[0, Math.PI / 2, 0]}
-        >
-          DANGER
-        </Text>
-        {/* Electrical equipment on roof */}
-        <mesh position={[0, 4.8, 0]} castShadow>
-          <cylinderGeometry args={[0.3, 0.3, 1, 8]} />
-          <meshStandardMaterial color="#424242" roughness={0.6} metalness={0.4} />
-        </mesh>
+        <ServiceBuildingCraft kind="substation" />
+        <ServiceEntranceLighting site="substation" />
       </group>
 
       {/* Instanced trees and benches for draw call optimization (~48 -> 7 draw calls) */}
@@ -8357,7 +8397,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
       <Canal {...SITE_LAYOUT.exteriorFeatures.canal} />
 
       {/* Cute English narrowboat moored on the canal */}
-      <CanalBoat position={[-145, 0.1, 15]} rotation={0} />
+      <CanalBoat position={[...CANAL_BOAT_BERTH.position]} rotation={0} />
 
       {/* Canal Lock Gate - controls water level for barge access */}
       <LockGate position={[-145, 0, 50]} width={10} rotation={0} />
@@ -8744,8 +8784,32 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
       <PathLamp position={[-155, 0, 80]} style="victorian" />
       <PathLamp position={[-155, 0, 40]} style="victorian" />
       <PathLamp position={[-155, 0, 0]} style="victorian" />
-      <PathLamp position={[-155, 0, -40]} style="victorian" />
       <PathLamp position={[-155, 0, -80]} style="victorian" />
+      {/* Real light reaches the raised timber; Low keeps the shared glass and ground pools.
+          Working if the two dry-bank fixtures leave both approach flights clear. */}
+      {CANAL_CROSSING_LAMPS.map((lamp) => (
+        <group key={lamp.id} name={`canal-crossing-${lamp.id}`}>
+          <PathLamp
+            name={`canal-crossing-${lamp.id}-fixture`}
+            position={lamp.position}
+            style="victorian"
+            poolRadius={CANAL_CROSSING_LIGHT.poolRadius}
+          />
+          {realCrossingLights && (
+            <ExteriorPointLight
+              name={`canal-crossing-${lamp.id}-light`}
+              position={[
+                lamp.position[0],
+                lamp.position[1] + CANAL_CROSSING_LIGHT.height,
+                lamp.position[2],
+              ]}
+              intensity={CANAL_CROSSING_LIGHT.intensity}
+              distance={CANAL_CROSSING_LIGHT.distance}
+              color={CANAL_CROSSING_LIGHT.color}
+            />
+          )}
+        </group>
+      ))}
 
       {/* Modern lamps along factory paths */}
       {WEST_FACTORY_PATH_LAMPS.map((position) => (

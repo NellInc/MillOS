@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
@@ -8,9 +9,15 @@ import { MeshoptDecoder } from 'meshoptimizer';
 import {
   AUTHORED_PROP_TRIM,
   AUTHORED_MARKET_GOODS,
+  AUTHORED_MARKET_TRIM_VARIANTS,
+  MARKET_CANVAS_COLOURS,
+  MARKET_TRADE_NAMES,
+  MARKET_TRADE_PAINT,
+  createMarketCanopyGeometry,
   MARKET_TRAY_FLOOR,
   MARKET_GOODS_MATERIAL,
   MARKET_FRUIT_TEXTURES,
+  MARKET_FOOD_TILES,
   AUTHORED_PROP_TRIM_MATERIALS,
   FOUNTAIN_SETT_TOP,
   FOUNTAIN_SETT_DEPTH_LAYER,
@@ -18,6 +25,11 @@ import {
 import { EXTERIOR_LAYERS } from '../constants/renderLayers';
 import {
   DUCK_SWIM_DRAFT,
+  createFountainWaterTextures,
+  FOUNTAIN_WATER_TEXTURES,
+  FOUNTAIN_BIRD_GEOMETRIES,
+  FOUNTAIN_BIRD_MATERIAL,
+  FOUNTAIN_BIRD_TOE_CONTACTS,
   VILLAGE_GROUND_MATERIAL,
   VILLAGE_GROUND_GEOMETRY,
   VILLAGE_COBBLE_TILE_METRES,
@@ -28,6 +40,8 @@ import {
   GENERATED_FOUNTAIN_STREAM_PATHS,
   GENERATED_FOUNTAIN_STREAM_GEOMETRY,
   GENERATED_FOUNTAIN_STREAM_MATERIAL,
+  GENERATED_FOUNTAIN_LANDING_GEOMETRY,
+  GENERATED_FOUNTAIN_LANDING_MATERIAL,
   TOWN_HALL_LANTERN_GEOMETRY,
   TOWN_HALL_LENS_GEOMETRY,
 } from './VillageArea';
@@ -84,6 +98,25 @@ describe('bounded civic doorway lanterns', () => {
 });
 
 describe('authored fountain gravity streams', () => {
+  it('keeps aerated froth within the basin and lit by the scene', () => {
+    const position = GENERATED_FOUNTAIN_LANDING_GEOMETRY.getAttribute('position');
+    for (let i = 0; i < position.count; i++) {
+      expect(Math.hypot(position.getX(i), position.getZ(i))).toBeLessThan(1.28);
+      expect(position.getY(i)).toBeCloseTo(1.269, 5);
+    }
+    expect(GENERATED_FOUNTAIN_LANDING_MATERIAL.emissive.getHex()).toBe(0);
+    expect(GENERATED_FOUNTAIN_LANDING_MATERIAL.depthWrite).toBe(false);
+    const shader = {
+      uniforms: {},
+      vertexShader: THREE.ShaderLib.standard.vertexShader,
+      fragmentShader: THREE.ShaderLib.standard.fragmentShader,
+    } as THREE.WebGLProgramParametersWithUniforms;
+    GENERATED_FOUNTAIN_LANDING_MATERIAL.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
+    expect(shader.fragmentShader).toContain('bubbleRim');
+    expect(shader.fragmentShader).toContain('foamEdge');
+    expect(shader.fragmentShader).toContain('#include <lights_fragment_begin>');
+  });
+
   it('uses four finite gravity arcs that land within the existing water annulus', () => {
     expect(GENERATED_FOUNTAIN_STREAM_PATHS).toHaveLength(4);
     for (const curve of GENERATED_FOUNTAIN_STREAM_PATHS) {
@@ -259,6 +292,45 @@ describe('measured village and farm construction trim', () => {
       0,
       far
     ).intersectObjects(objects)[0];
+
+  it('fits four literal trade names on the delivered central tray face', async () => {
+    expect(new Set(MARKET_TRADE_NAMES).size).toBe(4);
+    expect(MARKET_TRADE_NAMES).toEqual([
+      'Greengrocer',
+      'Cheesemonger',
+      'Bread & Rolls',
+      'Farm Harvest',
+    ]);
+    const doc = await new NodeIO().read('public/models/village/marketstall.glb');
+    const primitive = doc.getRoot().listMeshes()[0].listPrimitives()[0];
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute(
+      'position',
+      new THREE.BufferAttribute(primitive.getAttribute('POSITION')!.getArray()!, 3)
+    );
+    geometry.setIndex(new THREE.BufferAttribute(primitive.getIndices()!.getArray()!, 1));
+    for (const z of [-MARKET_TRADE_PAINT.maxWidth / 2, 0, MARKET_TRADE_PAINT.maxWidth / 2]) {
+      const point = hit(
+        [mesh(geometry)],
+        [1.2, MARKET_TRADE_PAINT.position[1], z],
+        [-1, 0, 0]
+      ).point;
+      expect(point.x).toBeCloseTo(0.5134, 4);
+      expect(MARKET_TRADE_PAINT.position[0] - point.x).toBeGreaterThan(0.0008);
+      expect(MARKET_TRADE_PAINT.position[0] - point.x).toBeLessThan(0.0012);
+    }
+    expect(MARKET_TRADE_PAINT.rotation).toEqual([0, Math.PI / 2, 0]);
+    expect(MARKET_TRADE_PAINT.fontSize).toBeLessThan(0.08);
+    const source = readFileSync('src/components/VillageArea.tsx', 'utf8');
+    const stall = source.slice(
+      source.indexOf('const MarketStall ='),
+      source.indexOf('MarketStall.displayName =')
+    );
+    expect(stall).toContain('surface="painted"');
+    expect(stall).toContain('castShadow={false}');
+    expect(stall).toContain('MARKET_TRADE_NAMES[dressing]');
+    geometry.dispose();
+  });
 
   it('uses four finite, closed, single-draw geometries within the detail budget', () => {
     const limits = { market: 1000, fountain: 900, fence: 600, trough: 300 };
@@ -475,7 +547,7 @@ describe('measured village and farm construction trim', () => {
     const village = readFileSync('src/components/VillageArea.tsx', 'utf8');
     const farm = readFileSync('src/components/FarmArea.tsx', 'utf8');
     expect(village).toMatch(
-      /<GeneratedModel asset="marketstall" \/>\s*<AuthoredPropTrim kind="market" \/>/
+      /<GeneratedModel asset="marketstall" marketDressing=\{dressing\} \/>\s*<AuthoredPropTrim kind="market" dressing=\{dressing\} \/>/
     );
     expect(village).toMatch(
       /<GeneratedModel asset="fountain" \/>\s*<AuthoredPropTrim kind="fountain" \/>/
@@ -588,7 +660,7 @@ it('keeps the civic benches clear of the restored broad town hall and all villag
   }
 });
 
-it('maps actual fruit rind in sRGB while preserving non-fruit goods and linear roughness', () => {
+it('maps actual fruit and food finishes in sRGB with neutral furnishings and linear roughness', () => {
   expect(MARKET_GOODS_MATERIAL.map).toBe(MARKET_FRUIT_TEXTURES.colour);
   expect(MARKET_GOODS_MATERIAL.bumpMap).toBe(MARKET_FRUIT_TEXTURES.finish);
   expect(MARKET_FRUIT_TEXTURES.colour.colorSpace).toBe(THREE.SRGBColorSpace);
@@ -601,9 +673,318 @@ it('maps actual fruit rind in sRGB while preserving non-fruit goods and linear r
   let rind = 0,
     plain = 0;
   for (let i = 0; i < apples.count; i++) {
-    if (apples.getX(i) >= 0.125) rind++;
+    if (apples.getX(i) >= 0.125 && apples.getY(i) >= 0.125) rind++;
     if (apples.getX(i) === 0.03125 && apples.getY(i) === 0.03125) plain++;
   }
   expect(rind).toBeGreaterThan(100);
   expect(plain).toBeGreaterThan(100);
+  const colours = AUTHORED_MARKET_GOODS[0].getAttribute('color');
+  const peelColours = new Set<string>();
+  for (let i = 0; i < apples.count; i++) {
+    if (apples.getX(i) >= 0.125 && apples.getY(i) >= 0.125) {
+      peelColours.add(
+        [colours.getX(i), colours.getY(i), colours.getZ(i)].map((v) => v.toFixed(4)).join(',')
+      );
+    }
+  }
+  expect(peelColours.size).toBeGreaterThan(30);
+  const patch = [];
+  for (let y = 32; y < 256; y++) for (let x = 32; x < 256; x++) patch.push(data[(y * 256 + x) * 4]);
+  expect(Math.min(...patch)).toBeLessThan(200);
+  expect(MARKET_FRUIT_TEXTURES.colour.image.width).toBe(256);
+  expect(MARKET_FRUIT_TEXTURES.finish.image.width).toBe(256);
+  for (const trade of [1, 2]) {
+    const goods = AUTHORED_MARKET_GOODS[trade],
+      uv = goods.getAttribute('uv'),
+      colour = goods.getAttribute('color');
+    const finishes = new Set<string>();
+    const [left, right] = trade === 1 ? MARKET_FOOD_TILES.rind : MARKET_FOOD_TILES.crust;
+    let food = 0,
+      neutral = 0;
+    for (let i = 0; i < uv.count; i++) {
+      if (uv.getX(i) === 0.03125 && uv.getY(i) === 0.03125) neutral++;
+      else {
+        food++;
+        expect(uv.getX(i)).toBeGreaterThanOrEqual((left + 0.5) / 256);
+        expect(uv.getX(i)).toBeLessThanOrEqual((right - 0.5) / 256);
+        expect(uv.getY(i)).toBeGreaterThanOrEqual(4.5 / 256);
+        expect(uv.getY(i)).toBeLessThanOrEqual(27.5 / 256);
+      }
+      finishes.add(
+        [colour.getX(i), colour.getY(i), colour.getZ(i)].map((v) => v.toFixed(4)).join(',')
+      );
+    }
+    expect(finishes.size).toBeGreaterThan(30);
+    expect(food).toBeGreaterThan(100);
+    expect(neutral).toBeGreaterThan(100);
+  }
+});
+
+it('retains exact old fruit texels while food islands have broad finish and safe neutral gutters', () => {
+  for (const [kind, expected] of [
+    ['colour', 'bffdc1531363cddd7e95a95c7b0510591b7012bca13925a9b753e40ec96c4248'],
+    ['finish', '4fc8ab5fa20014d2b92b642fbb1ee29cf0f458ec7f96a95d9f9de554aa09da93'],
+  ] as const) {
+    const data = MARKET_FRUIT_TEXTURES[kind].image.data;
+    const fruit = [];
+    for (let y = 32; y < 256; y++)
+      for (let x = 32; x < 256; x++) {
+        const i = (y * 256 + x) * 4;
+        fruit.push(...data.slice(i, i + 4));
+      }
+    expect(createHash('sha256').update(new Uint8Array(fruit)).digest('hex')).toBe(expected);
+    for (const [left, right] of Object.values(MARKET_FOOD_TILES)) {
+      const values = new Set<number>();
+      for (let y = 4; y < 28; y++)
+        for (let x = left; x < right; x++) {
+          const i = (y * 256 + x) * 4;
+          expect(data[i + 3]).toBe(255);
+          values.add(data[i]);
+          if (kind === 'finish') {
+            expect(data[i + 1]).toBe(data[i + 2]);
+            expect(data[i + 1]).toBeGreaterThan(170);
+          }
+        }
+      expect(values.size).toBeGreaterThan(4);
+    }
+  }
+});
+
+it('varies only the real market red-cloth tile and its matching scallops, retaining atlas and geometry', async () => {
+  const primitive = (await new NodeIO().read('public/models/village/marketstall.glb'))
+    .getRoot()
+    .listMeshes()[0]
+    .listPrimitives()[0];
+  const source = new THREE.BufferGeometry();
+  for (const [name, semantic, size] of [
+    ['position', 'POSITION', 3],
+    ['normal', 'NORMAL', 3],
+    ['uv', 'TEXCOORD_0', 2],
+  ] as const)
+    source.setAttribute(
+      name,
+      new THREE.BufferAttribute(primitive.getAttribute(semantic)!.getArray() as Float32Array, size)
+    );
+  source.setIndex(new THREE.BufferAttribute(primitive.getIndices()!.getArray() as Uint16Array, 1));
+  const base = new THREE.Color('#912d26'),
+    uv = source.getAttribute('uv'),
+    baseChannels = base.toArray();
+  expect(new Set(MARKET_CANVAS_COLOURS).size).toBe(4);
+  for (let trade = 0; trade < 4; trade++) {
+    const variant = createMarketCanopyGeometry(source, trade);
+    for (const name of ['position', 'normal', 'uv'])
+      expect(variant.getAttribute(name).array).toEqual(source.getAttribute(name).array);
+    expect(variant.index!.array).toEqual(source.index!.array);
+    const colour = variant.getAttribute('color'),
+      target = new THREE.Color(MARKET_CANVAS_COLOURS[trade]),
+      targetChannels = target.toArray();
+    let cloth = 0;
+    for (let i = 0; i < uv.count; i++) {
+      const selected = Math.floor(uv.getX(i) * 6) === 4 && Math.floor(uv.getY(i) * 6) === 2;
+      if (selected) cloth++;
+      for (let channel = 0; channel < 3; channel++)
+        expect(colour.getComponent(i, channel)).toBeCloseTo(
+          selected ? targetChannels[channel] / baseChannels[channel] : 1,
+          5
+        );
+    }
+    expect(cloth).toBe(900);
+    const trim = AUTHORED_MARKET_TRIM_VARIANTS[trade],
+      original = AUTHORED_PROP_TRIM.market;
+    expect(trim.getAttribute('position').array).toEqual(original.getAttribute('position').array);
+    expect(trim.getAttribute('normal').array).toEqual(original.getAttribute('normal').array);
+    // Both scallop assemblies are deliberately non-indexed premerged draws.
+    expect(trim.index).toBeNull();
+    expect(original.index).toBeNull();
+    const trimColour = trim.getAttribute('color'),
+      originalColour = original.getAttribute('color');
+    for (let i = 0; i < trimColour.count; i++) {
+      const selected = Math.abs(originalColour.getX(i) - base.r) < 1e-6;
+      for (let channel = 0; channel < 3; channel++)
+        expect(trimColour.getComponent(i, channel)).toBeCloseTo(
+          selected ? targetChannels[channel] : originalColour.getComponent(i, channel),
+          6
+        );
+    }
+    variant.dispose();
+  }
+  expect(source.hasAttribute('color')).toBe(false);
+  source.dispose();
+});
+
+it('flours only bread crowns while retaining exact market geometry and other trades', () => {
+  const baseline = [
+    {
+      attributes: {
+        position: '14add3f02a718481282ce09c15b175887df5f5d1e0f0a293a0a912f72405ab83',
+        normal: 'd5d65e399bc2ebb244d5a624d913a3094e1d20d3646c0384a2c87060f832bf64',
+        uv: '60b0aa3a28657c984145afddf6865af4fb8ad573ad69e0ab89c48c41066c0dc5',
+        color: '490b52dcb33393533fbbb8e2b7e32dd99ecc93a2ce8d5539a0c3abf358c5f52a',
+      },
+      index: null,
+    },
+    {
+      attributes: {
+        position: '36438102c685c62607031e413e0a1976ef866ec47d6d27109ad6672a0391ad08',
+        uv: '707216b57570e3996a595c4e7fa6f5e54a4e58a12d6206b6fe0f973e92100cff',
+        normal: '20e8282621eb3d9fd9cd03795593929bd0f37f691d4a13ac9ba7f3fe2e41e24b',
+        color: '65de8dab09b88be56537224d6ee133136810e2b43b5d0b4a904278f3ec5ee82e',
+      },
+      index: null,
+    },
+    {
+      attributes: {
+        position: '9024b0f67c1dbb52ed4bd4154d33a274ce0d8735f122b192112e786194718a96',
+        normal: '55efd269a4e3cea334876ee1805bea616b46b785b37f9b679d0836b0979c3ceb',
+        uv: '1d6f3b484fa0d890ddb577610d044fc002fa829b35afbd7c11a24a5e7b8cf22a',
+        color: '0c3818254d9d6b636fcb3d054499f6d653163ae64c42dc66ed201a33854f1f52',
+      },
+      index: null,
+    },
+    {
+      attributes: {
+        position: 'fa3863a8dad70ac619609ff8e2cdf0c6ba022a09c734d844621f9baa881be859',
+        normal: '462381ea8775fde9b73731b1a16689567b31a582707033439069de9217372916',
+        uv: '916f1a2b130e9a62f47885dbd6b46b6d50196e56822bb04685893b7092e67d30',
+        color: '1c3fb983563a02b95a287641e3737a7ae5ff457f45ecfcd749abc38b2e3fc647',
+      },
+      index: null,
+    },
+  ];
+  const hash = (a: THREE.BufferAttribute) =>
+    createHash('sha256')
+      .update(Buffer.from(a.array.buffer, a.array.byteOffset, a.array.byteLength))
+      .digest('hex');
+  AUTHORED_MARKET_GOODS.forEach((g, trade) => {
+    for (const [name, expected] of Object.entries(baseline[trade].attributes)) {
+      if (name === 'color' && trade === 2) continue;
+      expect(hash(g.getAttribute(name) as THREE.BufferAttribute), `trade${trade}:${name}`).toBe(
+        expected
+      );
+    }
+    expect(g.index ? hash(g.index) : null).toBe(baseline[trade].index);
+  });
+  const bread = AUTHORED_MARKET_GOODS[2],
+    uv = bread.getAttribute('uv'),
+    colour = bread.getAttribute('color');
+  let pale = 0,
+    toasted = 0;
+  for (let i = 0; i < uv.count; i++) {
+    const x = uv.getX(i) * 256;
+    if (x < MARKET_FOOD_TILES.crust[0] || x > MARKET_FOOD_TILES.crust[1] || uv.getY(i) > 0.125)
+      continue;
+    if (colour.getZ(i) > 0.32) pale++;
+    if (colour.getZ(i) < 0.1) toasted++;
+  }
+  expect(pale).toBeGreaterThan(50);
+  expect(toasted).toBeGreaterThan(50);
+});
+
+describe('authored miniature fountain bird', () => {
+  it('keeps folded plumage and face in two finite, bounded shared lit surfaces', () => {
+    let triangles = 0;
+    for (const geometry of Object.values(FOUNTAIN_BIRD_GEOMETRIES)) {
+      const p = geometry.getAttribute('position'),
+        n = geometry.getAttribute('normal');
+      expect(geometry.getAttribute('color').count).toBe(p.count);
+      expect(geometry.groups).toHaveLength(0);
+      expect(Array.from(p.array).every(Number.isFinite)).toBe(true);
+      for (let i = 0; i < n.count; i++)
+        expect(Math.hypot(n.getX(i), n.getY(i), n.getZ(i))).toBeCloseTo(1, 5);
+      triangles += (geometry.index?.count ?? p.count) / 3;
+    }
+    const b = FOUNTAIN_BIRD_GEOMETRIES.body.boundingBox!;
+    expect(b.min.y).toBeGreaterThanOrEqual(-0.000001);
+    expect(b.min.y).toBeLessThan(0.004);
+    expect(b.min.z).toBeGreaterThan(-0.27);
+    expect(b.max.z).toBeLessThan(0.15);
+    expect(Math.max(-b.min.x, b.max.x)).toBeLessThan(0.11);
+    expect(triangles).toBeLessThan(3000);
+    expect(FOUNTAIN_BIRD_MATERIAL.vertexColors).toBe(true);
+    expect(FOUNTAIN_BIRD_MATERIAL.emissive.getHex()).toBe(0);
+    expect(FOUNTAIN_BIRD_MATERIAL.map).toBeNull();
+  });
+  it('seats eyes and both beak sections against the head, with eight supported toes', () => {
+    const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+    const body = new THREE.Mesh(FOUNTAIN_BIRD_GEOMETRIES.body, material),
+      head = new THREE.Mesh(FOUNTAIN_BIRD_GEOMETRIES.head, material);
+    body.updateMatrixWorld();
+    head.updateMatrixWorld();
+    expect(FOUNTAIN_BIRD_TOE_CONTACTS).toHaveLength(8);
+    for (const [x, , z] of FOUNTAIN_BIRD_TOE_CONTACTS) {
+      const hit = new THREE.Raycaster(
+        new THREE.Vector3(x, 0.015, z),
+        new THREE.Vector3(0, -1, 0)
+      ).intersectObject(body)[0];
+      expect(hit).toBeDefined();
+      expect(hit.point.y).toBeLessThan(0.012);
+    }
+    for (const side of [-1, 1]) {
+      const hits = new THREE.Raycaster(
+        new THREE.Vector3(side * 0.15, 0.015, 0.035),
+        new THREE.Vector3(-side, 0, 0)
+      ).intersectObject(head);
+      expect(hits[0].point.x * side).toBeGreaterThan(0.069);
+      // Eye sphere starts inside the .075m head; no detached highlight bead.
+      expect(hits.some((h) => Math.abs(h.point.x) < 0.065)).toBe(true);
+    }
+    for (const y of [-0.016, -0.004]) {
+      const hits = new THREE.Raycaster(
+        new THREE.Vector3(0, y, 0.2),
+        new THREE.Vector3(0, 0, -1)
+      ).intersectObject(head);
+      expect(hits[0].point.z).toBeGreaterThan(0.09);
+      expect(hits.some((h) => h.point.z < 0.08)).toBe(true);
+    }
+    material.dispose();
+  });
+});
+
+describe('seamless lit fountain water detail', () => {
+  it('makes deterministic128px colour/normal/flow/ripple maps with exact wrapped borders', () => {
+    const other = createFountainWaterTextures();
+    for (const key of ['water', 'normal', 'fall', 'ripple'] as const) {
+      const a = FOUNTAIN_WATER_TEXTURES[key],
+        b = other[key],
+        data = a.image.data;
+      expect(a.image.width).toBe(128);
+      expect(a.image.height).toBe(128);
+      expect(data).toEqual(b.image.data);
+      expect(a.colorSpace).toBe(key === 'normal' ? THREE.NoColorSpace : THREE.SRGBColorSpace);
+      expect(a.wrapS).toBe(THREE.RepeatWrapping);
+      expect(a.wrapT).toBe(THREE.RepeatWrapping);
+      for (let y = 0; y < 128; y++)
+        for (let c = 0; c < 4; c++)
+          expect(data[(y * 128 + 127) * 4 + c]).toBe(data[y * 128 * 4 + c]);
+      for (let x = 0; x < 128; x++)
+        for (let c = 0; c < 4; c++) expect(data[(127 * 128 + x) * 4 + c]).toBe(data[x * 4 + c]);
+      b.dispose();
+    }
+  });
+  it('uses small signed slopes and feathered broken crests instead of bright painted rings', () => {
+    const n = FOUNTAIN_WATER_TEXTURES.normal.image.data,
+      r = FOUNTAIN_WATER_TEXTURES.ripple.image.data;
+    let low = 255,
+      high = 0,
+      alpha = 0;
+    for (let i = 0; i < n.length; i += 4) {
+      const x = (n[i] / 255) * 2 - 1,
+        y = (n[i + 1] / 255) * 2 - 1,
+        z = (n[i + 2] / 255) * 2 - 1;
+      expect(Math.hypot(x, y)).toBeLessThan(0.15);
+      expect(Math.hypot(x, y, z)).toBeCloseTo(1, 2);
+      low = Math.min(low, n[i], n[i + 1]);
+      high = Math.max(high, n[i], n[i + 1]);
+      expect(n[i + 3]).toBe(255);
+      alpha = Math.max(alpha, r[i + 3]);
+    }
+    expect(low).toBeLessThan(125);
+    expect(high).toBeGreaterThan(130);
+    expect(alpha).toBeGreaterThan(190);
+    expect(alpha).toBeLessThanOrEqual(210);
+    expect(r[(64 * 128 + 64) * 4 + 3]).toBe(0);
+    expect(r[(64 * 128 + 127) * 4 + 3]).toBe(0);
+    expect(GENERATED_FOUNTAIN_STREAM_MATERIAL.map).toBe(FOUNTAIN_WATER_TEXTURES.fall);
+    expect(GENERATED_FOUNTAIN_STREAM_MATERIAL.emissive.getHex()).toBe(0);
+  });
 });

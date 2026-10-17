@@ -1,0 +1,49 @@
+(node:28331) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+(node:28381) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28488) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28713) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ❯ src/components/machines/machinePartGeometry.test.ts (16 tests | 2 failed) 625ms
+     × smooths the cast crown across courses without bowing the chamber wall 10ms
+   × closes the packer sack neck onto its rolled seam and seats its foot within the existing guides 1ms
+(node:28844) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/machines/machinePartGeometry.test.ts > shared machine part geometry > smooths the cast crown across courses without bowing the chamber wall
+ReferenceError: getPackerSackPosition is not defined
+ ❯ src/components/machines/machinePartGeometry.test.ts:252:17
+    250|     const p = geometry.getAttribute('position');
+    251|     for (const cycle of [0, 0.35, 1]) {
+    252|       const p = getPackerSackPosition([3, 0.2, -5], cycle);
+       |                 ^
+    253|       expect(p[0]).toBe(3);
+    254|       expect(p[1] - PACKER_SACK_LAYOUT.scale[1] / 2).toBeCloseTo(0.202…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/components/machines/machinePartGeometry.test.ts > closes the packer sack neck onto its rolled seam and seats its foot within the existing guides
+ReferenceError: getPackerSackPosition is not defined
+ ❯ src/components/machines/machinePartGeometry.test.ts:452:15
+    450|   expect(PACKER_SACK_LAYOUT.z - PACKER_SACK_LAYOUT.scale[2] / 2).toBeG…
+    451|   for (const cycle of [0, 0.35, 1]) {
+    452|     const p = getPackerSackPosition([3, 0.2, -5], cycle);
+       |               ^
+    453|     expect(p[0]).toBe(3);
+    454|     expect(p[1] - PACKER_SACK_LAYOUT.scale[1] / 2).toBeCloseTo(0.202, …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed | 3 passed (4)
+      Tests  2 failed | 77 passed (79)
+   Start at  04:13:00
+   Duration  10.76s (transform 881ms, setup 323ms, import 6.01s, tests 1.35s, environment 1.92s)
+
