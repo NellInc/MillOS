@@ -710,7 +710,7 @@
   },
   "dynamicLocalShadows": false,
   "inputSha256": "04d1165f3d4ffd01aa9efd3eaed25629631a079a483ffff3a2cf9ac6a10df86b",
-  "atlasSha256": "1ef4a785881d55158f89c5dba824ab5db36aacfd137b6d7a99af1821dd52494e",
+  "atlasSha256": "73522288d1e81c027678509906e115fba48e4bdff72c56a3d29a58d6008eed5a",
   "bakerSha256": "e4a1187f642e15650def16479000b54b52c562a1e7af3e1894d40db3aabe7973",
   "vertices": 420554,
   "triangles": 180364,
@@ -851,5 +851,11 @@
       "blockedRays": 46065,
       "rays": 98304
     }
-  ]
+  ],
+  "deliveryCompression": {
+    "method": "Lossless PNG zlib9 adaptive filtering, identical decoded RGBA bytes and color-management chunks",
+    "originalEncodedSha256": "1ef4a785881d55158f89c5dba824ab5db36aacfd137b6d7a99af1821dd52494e",
+    "rawRgbaSha256": "19f3befe0ab8ea23af5e24805ae2a8034a84b813868bd183189d012da5111fdb",
+    "bytesSaved": 938130
+  }
 }

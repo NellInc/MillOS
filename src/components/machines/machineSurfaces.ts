@@ -77,6 +77,7 @@ import {
   generateProceduralNormal,
 } from '../../textures';
 import { applyWorldSurface } from '../../utils/worldSurface';
+import { POLYGON_OFFSET } from '../../constants/renderLayers';
 import { generateGalvanizedORM, generateGalvanizedNormal } from '../../textures/brushedMetal';
 import { generateEnamelORM } from '../../textures/paintedMetal';
 import { createColorDataTexture, getTexture } from '../../utils/textureGenerator';
@@ -806,8 +807,8 @@ export function createPackerPrintMaterial(map: THREE.Texture): THREE.MeshStandar
     roughness: 0.95,
     metalness: 0,
     polygonOffset: true,
-    polygonOffsetFactor: -1,
-    polygonOffsetUnits: -1,
+    polygonOffsetFactor: POLYGON_OFFSET.standard.factor,
+    polygonOffsetUnits: POLYGON_OFFSET.standard.units,
   });
 }
 

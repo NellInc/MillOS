@@ -2006,7 +2006,7 @@ Postbox.displayName = 'Postbox';
 
 // ===== FOUNTAIN =====
 /** Crossing periodic wave trains, in metres, instead of a repeated painted
- * comb. Four small shared maps, no shader injection or added draw. Working if
+ * comb. Four small shared maps and the shared micro-relief, no added draw. Working if
  * colour is sRGB, signed normals are linear, seams meet, and ripples stay lit.
  */
 export function createFountainWaterTextures() {
