@@ -165,7 +165,7 @@ describe('OnboardingGuide', () => {
     expect(footer).not.toBeNull();
     // Sticky resolves against the nearest scroll box, which must be the card itself.
     expect(footer?.parentElement).toBe(guide);
-    expect(footer).toHaveClass('bottom-0', '-mx-4', '-mb-4', 'px-4', 'bg-slate-950/95');
+    expect(footer).toHaveClass('bottom-0', '-mx-4', '-mb-4', 'px-4', 'bg-slate-950');
     expect(footer).toContainElement(screen.getByRole('button', { name: 'Back' }));
     expect(footer).toContainElement(screen.getByRole('button', { name: 'Skip tour' }));
     expect(guide.lastElementChild).toBe(footer);

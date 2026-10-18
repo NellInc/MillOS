@@ -10,7 +10,6 @@ import { importWithBoundedRetry } from '../utils/recoverableLazy';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import ErrorBoundary from './ErrorBoundary';
 import { useGraphicsStore } from '../stores/graphicsStore';
-import { applySessionQuality } from '../utils/adaptiveQuality';
 import { useT } from '../i18n';
 import { loadingScreenMessages } from './LoadingScreen.messages';
 
@@ -199,13 +198,14 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
                   </button>
                 )}
                 {/* Lower graphics cannot clear an error, so it is offered only
-                  for a slow load, and it lasts for this session only. */}
+                  for a slow load. A visitor's click is their choice and is kept,
+                  so a slow device is not slowed again on its next visit. */}
                 {quality !== 'low' && !hasStartupError && (
                   <button
                     type="button"
                     onClick={() => {
                       resetStartupPreparation();
-                      applySessionQuality('low');
+                      useGraphicsStore.getState().setGraphicsQuality('low');
                     }}
                     className="min-h-11 rounded-md border border-slate-500 px-4 py-2 text-slate-100 transition-colors hover:border-amber-400 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400"
                   >

@@ -60,6 +60,10 @@ export function OnboardingGuide({
       aria-label={t('regionLabel', { step: stepIndex + 1, count: stepCount })}
       className="pointer-events-auto fixed bottom-[11.5rem] left-3 right-3 z-40 max-h-[calc(100dvh-20rem)] overflow-y-auto overscroll-contain rounded-xl border border-cyan-400/40 bg-slate-950/95 p-4 shadow-2xl shadow-black/40 backdrop-blur-md sm:left-5 sm:right-auto sm:w-[360px]"
     >
+      {/* First thing a visitor reads, so the language choice sits above the fold. */}
+      <div className="mb-2 flex justify-end">
+        <LanguageSwitcher compact />
+      </div>
       <div className="mb-3 flex items-start gap-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-cyan-400/30 bg-cyan-400/10">
           <StepIcon className="h-5 w-5 text-cyan-300" aria-hidden="true" />
@@ -96,14 +100,9 @@ export function OnboardingGuide({
         <p className="pb-2 leading-5">{t('cameraHelp')}</p>
       </details>
 
-      {/* First thing a visitor reads, so the language choice lives here too. */}
-      <div className="mt-2">
-        <LanguageSwitcher compact />
-      </div>
-
       {/* Pinned to the card's own scroll box so a 720p projector never hides
           Start operating. Working if the row stays visible on step 3 at 1280x657. */}
-      <div className="sticky bottom-0 -mx-4 -mb-4 mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 bg-slate-950/95 px-4 py-3">
+      <div className="sticky bottom-0 -mx-4 -mb-4 mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 bg-slate-950 px-4 py-3">
         <div className="flex gap-1.5" aria-hidden="true">
           {Array.from({ length: stepCount }, (_, index) => (
             <span
