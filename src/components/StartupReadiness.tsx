@@ -267,8 +267,13 @@ export function StartupReadiness(): null {
           }
           if (!remaining.size) {
             configuration.ready = true;
-            if (truck) finishTask();
-            else telemetry.worldCompletedAt = performance.now();
+            // Working if a hung first truck compile stays bounded, while a succeeded
+            // one retires its deadline so later re-preparation gets a fresh 15 s window.
+            if (truck) {
+              truckDeadline = undefined;
+              clearTimeout(deadlineTimer);
+              finishTask();
+            } else telemetry.worldCompletedAt = performance.now();
           } else timer = setTimeout(check, 10);
         } catch (error) {
           fail(error);
@@ -316,6 +321,9 @@ export function StartupReadiness(): null {
           telemetry.worldPrograms = world.programs.size;
           poll(world, false);
         }
+        // Opened sessions draw before admission; observe as soon as a world exists.
+        // Working if those DoubleSide draws never invalidate the compiled world.
+        observeDoubleSideDraws();
         if (!world?.ready || failed) return false;
         if (!trucks) {
           const fullTrucks = ['shipping-truck', 'receiving-truck'].flatMap((name) => {

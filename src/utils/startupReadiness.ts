@@ -47,11 +47,14 @@ export function drawStartupFrame(
   draw: () => void
 ): boolean {
   const owner = drawOwner;
-  if (!snapshot.ready && !owner?.prepare(target)) return false;
+  // Working if an explicitly opened slow session draws every tick (preparation
+  // still runs) yet only admitted draws certify, so strict readiness is unchanged.
+  const admitted = snapshot.ready || !!owner?.prepare(target);
+  if (!admitted && !snapshot.opened) return false;
   try {
     draw();
-    completedStartupDraws++;
-    return true;
+    if (admitted) completedStartupDraws++;
+    return admitted;
   } catch (error) {
     owner?.fail(error);
     throw error;

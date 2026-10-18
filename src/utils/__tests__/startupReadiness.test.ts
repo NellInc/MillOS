@@ -214,4 +214,32 @@ describe('startup caller admission ownership', () => {
     releaseLater();
     expect(startup.drawStartupFrame(null, draw)).toBe(false);
   });
+
+  it('keeps drawing an explicitly opened slow session but counts only admitted draws', async () => {
+    vi.resetModules();
+    const startup = await import('../startupReadiness');
+    const prepare = vi.fn(() => false),
+      draw = vi.fn();
+    const release = startup.registerStartupDrawOwner({ prepare, fail: vi.fn() });
+    const serial = startup.getStartupDrawSerial();
+    expect(startup.drawStartupFrame(null, draw)).toBe(false);
+    expect(draw).not.toHaveBeenCalled();
+    startup.markStartupPrepared(true, () => true);
+    expect(startup.openPreparedStartup()).toBe(true);
+    expect(startup.drawStartupFrame(null, draw)).toBe(false);
+    expect(prepare).toHaveBeenCalledTimes(2);
+    expect(draw).toHaveBeenCalledOnce();
+    expect(startup.getStartupDrawSerial()).toBe(serial);
+    expect(startup.getStartupSnapshot().ready).toBe(false);
+    prepare.mockReturnValue(true);
+    expect(startup.drawStartupFrame(null, draw)).toBe(true);
+    expect(startup.getStartupDrawSerial()).toBe(serial + 1);
+    startup.markStartupReady();
+    release();
+    expect(startup.drawStartupFrame(null, draw)).toBe(true);
+    expect(draw).toHaveBeenCalledTimes(3);
+    expect(startup.getStartupDrawSerial()).toBe(serial + 2);
+    delete document.documentElement.dataset.millosStartupDegraded;
+    delete document.documentElement.dataset.millosStartupReady;
+  });
 });
