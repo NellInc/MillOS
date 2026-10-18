@@ -110,4 +110,64 @@ describe('OnboardingGuide', () => {
     fireEvent.keyDown(document.body, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledOnce();
   });
+
+  it('leaves Escape to an open context sidebar so the topmost panel closes first', () => {
+    const onClose = vi.fn();
+    const sidebarEscape = vi.fn();
+    render(
+      <OnboardingGuide
+        step={step}
+        stepIndex={0}
+        stepCount={3}
+        onNext={vi.fn()}
+        onBack={vi.fn()}
+        onSkip={vi.fn()}
+        onClose={onClose}
+      />
+    );
+
+    // Mirrors ContextSidebar: role="complementary" aside, bubble-phase document listener.
+    const sidebar = document.createElement('aside');
+    sidebar.id = 'context-sidebar';
+    sidebar.setAttribute('role', 'complementary');
+    document.body.appendChild(sidebar);
+    document.addEventListener('keydown', sidebarEscape);
+    try {
+      fireEvent.keyDown(document.body, { key: 'Escape' });
+      expect(onClose).not.toHaveBeenCalled();
+      expect(sidebarEscape).toHaveBeenCalledOnce();
+      sidebar.remove();
+
+      fireEvent.keyDown(document.body, { key: 'Escape' });
+      expect(onClose).toHaveBeenCalledOnce();
+      expect(sidebarEscape).toHaveBeenCalledOnce();
+    } finally {
+      sidebar.remove();
+      document.removeEventListener('keydown', sidebarEscape);
+    }
+  });
+
+  it('pins Back, Skip tour and Start operating in a sticky footer of the card scroll box', () => {
+    render(
+      <OnboardingGuide
+        step={step}
+        stepIndex={2}
+        stepCount={3}
+        onNext={vi.fn()}
+        onBack={vi.fn()}
+        onSkip={vi.fn()}
+        onClose={vi.fn()}
+      />
+    );
+
+    const guide = screen.getByRole('region', { name: 'Getting started, step 3 of 3' });
+    const footer = screen.getByRole('button', { name: 'Start operating' }).closest('.sticky');
+    expect(footer).not.toBeNull();
+    // Sticky resolves against the nearest scroll box, which must be the card itself.
+    expect(footer?.parentElement).toBe(guide);
+    expect(footer).toHaveClass('bottom-0', '-mx-4', '-mb-4', 'px-4', 'bg-slate-950/95');
+    expect(footer).toContainElement(screen.getByRole('button', { name: 'Back' }));
+    expect(footer).toContainElement(screen.getByRole('button', { name: 'Skip tour' }));
+    expect(guide.lastElementChild).toBe(footer);
+  });
 });

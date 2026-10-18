@@ -73,7 +73,12 @@ export const AutonomyPanel: React.FC = () => {
     : 0;
 
   return (
-    <div className="space-y-4 p-3" data-testid="autonomy-panel">
+    // ContextSidebar clips its body (`flex-1 overflow-hidden`), so the panel owns
+    // its scroll root like its siblings. Working if the wheel reaches AgentCockpit.
+    <div
+      className="h-full space-y-4 overflow-y-auto overscroll-contain p-3"
+      data-testid="autonomy-panel"
+    >
       <WorkplaceLab />
       <section className="overflow-hidden rounded-2xl border border-cyan-400/20 bg-gradient-to-br from-cyan-950/45 via-slate-950/80 to-slate-950/95 p-4">
         <div className="flex items-center gap-3">

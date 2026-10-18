@@ -202,6 +202,54 @@ describe('playable shift UI', () => {
     expect(useUIStore.getState().journeyVisible).toBe(false);
   });
 
+  it('leaves Escape to an open context sidebar before closing the guide', () => {
+    const campaign = useOperationsCampaignStore.getState();
+    useUIStore.getState().startDeliveryJourney(campaign.activeOrderId);
+    const sidebarEscape = vi.fn();
+    render(<FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={vi.fn()} />);
+    // Mirrors ContextSidebar: role="complementary" aside, bubble-phase document listener.
+    const sidebar = document.createElement('aside');
+    sidebar.id = 'context-sidebar';
+    sidebar.setAttribute('role', 'complementary');
+    document.body.appendChild(sidebar);
+    document.addEventListener('keydown', sidebarEscape);
+    try {
+      fireEvent.keyDown(document.body, { key: 'Escape' });
+      expect(useUIStore.getState().journeyVisible).toBe(true);
+      expect(sidebarEscape).toHaveBeenCalledOnce();
+      sidebar.remove();
+      fireEvent.keyDown(document.body, { key: 'Escape' });
+      expect(useUIStore.getState().journeyVisible).toBe(false);
+      expect(sidebarEscape).toHaveBeenCalledOnce();
+    } finally {
+      sidebar.remove();
+      document.removeEventListener('keydown', sidebarEscape);
+    }
+  });
+
+  it('pins the view and workspace actions in a sticky footer without reordering the card', () => {
+    const campaign = useOperationsCampaignStore.getState();
+    useUIStore.getState().startDeliveryJourney(campaign.activeOrderId);
+    useUIStore.getState().recordMachineInspection('mill-1');
+    render(<FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={vi.fn()} />);
+    const card = screen.getByRole('region', { name: 'Guided delivery' });
+    const show = screen.getByRole('button', { name: 'Show milling line' });
+    const open = screen.getByRole('button', { name: 'Open operations' });
+    const footer = show.closest('.sticky');
+    expect(footer).not.toBeNull();
+    // Sticky resolves against the nearest scroll box, which must be the card itself.
+    expect(footer?.parentElement).toBe(card);
+    expect(footer).toHaveClass('bottom-0', '-mx-4', 'px-4', 'bg-slate-950/95');
+    expect(footer).toContainElement(open);
+    expect(show.compareDocumentPosition(open) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const pace = screen.getByRole('combobox', { name: 'Shift pace' });
+    const skip = screen.getByRole('button', { name: 'Skip guided delivery' });
+    expect(footer).not.toContainElement(pace);
+    expect(footer).not.toContainElement(skip);
+    expect(footer!.compareDocumentPosition(pace) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(pace.compareDocumentPosition(skip) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('shows the actual truck load separately from dispatched customer credit', () => {
     const campaign = useOperationsCampaignStore.getState();
     useUIStore.getState().startDeliveryJourney(campaign.activeOrderId);

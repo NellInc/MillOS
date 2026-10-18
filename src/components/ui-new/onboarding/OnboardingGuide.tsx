@@ -36,12 +36,13 @@ export function OnboardingGuide({
   const isLastStep = stepIndex === stepCount - 1;
 
   // Escape closes the tour for this session, unless a dialog (modal or the HUD
-  // notifications popover) or an open menu above it owns the key. Capture
-  // phase so panels underneath do not also close.
+  // notifications popover), an open menu or the context sidebar owns the key.
+  // Capture phase so nothing else also closes on the same press. Working if
+  // Escape with #context-sidebar open closes the sidebar and keeps the tour.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
-      if (document.querySelector('[role="dialog"], [role="menu"]')) return;
+      if (document.querySelector('[role="dialog"], [role="menu"], #context-sidebar')) return;
       event.preventDefault();
       event.stopPropagation();
       onClose();
@@ -93,7 +94,9 @@ export function OnboardingGuide({
         </p>
       </details>
 
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+      {/* Pinned to the card's own scroll box so a 720p projector never hides
+          Start operating. Working if the row stays visible on step 3 at 1280x657. */}
+      <div className="sticky bottom-0 -mx-4 -mb-4 mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 bg-slate-950/95 px-4 py-3">
         <div className="flex gap-1.5" aria-hidden="true">
           {Array.from({ length: stepCount }, (_, index) => (
             <span

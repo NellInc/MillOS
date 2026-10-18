@@ -126,7 +126,11 @@ export function FirstDeliveryJourney({
   }, [selectedMachine, ui.record]);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || document.querySelector('[role="dialog"], [role="menu"]'))
+      // Working if Escape closes an open sidebar or inspector before the guide.
+      if (
+        event.key !== 'Escape' ||
+        document.querySelector('[role="dialog"], [role="menu"], #context-sidebar')
+      )
         return;
       event.preventDefault();
       event.stopPropagation();
@@ -313,32 +317,39 @@ export function FirstDeliveryJourney({
           ? 'fulfilled'
           : `${order?.shippedKg.toFixed(0) ?? 0} kg dispatched`}
       </p>
-      {guide.view && (
-        <button
-          className={`${BUTTON} mt-3`}
-          onClick={() => {
-            // Reuse the actual site camera, without granting an inspection receipt.
-            // The host hides this guide during first-person walking.
-            if (useUIStore.getState().fpsMode) return;
-            const index = CAMERA_PRESETS.findIndex((preset) => preset.name === guide.view);
-            if (index >= 0) {
-              useCameraStore.getState().setPreset(index);
-              setSceneFocused(true);
-            }
-          }}
-        >
-          Show{' '}
-          {guide.view === 'Milling'
-            ? 'milling line'
-            : guide.view === 'Packing'
-              ? 'packing line'
-              : 'shipping bay'}
-        </button>
-      )}
-      {guide.workspace && (
-        <button className={`${BUTTON} mt-3`} onClick={() => onOpenWorkspace(guide.workspace!)}>
-          Open {guide.workspace === 'scada' ? 'operations' : 'Overview and QC'}
-        </button>
+      {/* The lesson's next actions stay pinned in the card's scroll box; pace,
+          note and Skip keep their order below. Working if Show/Open stay
+          visible at 1280x657 without scrolling the card. */}
+      {(guide.view || guide.workspace) && (
+        <div className="sticky bottom-0 -mx-4 mt-3 flex flex-wrap gap-2 border-t border-slate-800 bg-slate-950/95 px-4 py-3">
+          {guide.view && (
+            <button
+              className={BUTTON}
+              onClick={() => {
+                // Reuse the actual site camera, without granting an inspection receipt.
+                // The host hides this guide during first-person walking.
+                if (useUIStore.getState().fpsMode) return;
+                const index = CAMERA_PRESETS.findIndex((preset) => preset.name === guide.view);
+                if (index >= 0) {
+                  useCameraStore.getState().setPreset(index);
+                  setSceneFocused(true);
+                }
+              }}
+            >
+              Show{' '}
+              {guide.view === 'Milling'
+                ? 'milling line'
+                : guide.view === 'Packing'
+                  ? 'packing line'
+                  : 'shipping bay'}
+            </button>
+          )}
+          {guide.workspace && (
+            <button className={BUTTON} onClick={() => onOpenWorkspace(guide.workspace!)}>
+              Open {guide.workspace === 'scada' ? 'operations' : 'Overview and QC'}
+            </button>
+          )}
+        </div>
       )}
       <TeachingPace />
       <LearningNote entryId={guide.entryId} />
