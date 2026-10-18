@@ -11,6 +11,7 @@ import type {
   PackingContext,
   PackingEvidence,
   PackingRehearsals,
+  PackingFirstObservation,
 } from '../types/workplaceAdvice';
 export type {
   PackingAdvice,
@@ -19,6 +20,7 @@ export type {
   PackingContext,
   PackingEvidence,
   PackingRehearsals,
+  PackingFirstObservation,
 } from '../types/workplaceAdvice';
 
 const finite = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n);
@@ -267,6 +269,7 @@ function simulate(capture: PackingCapture, arrangement: PackingArrangement, step
   const seconds = 5400 / capture.context.gameSpeed;
   const boundary = (ARRANGEMENTS[arrangement].briefing * 60) / capture.context.gameSpeed;
   let elapsed = 0;
+  let firstPackedMinute: number | null = null;
   while (elapsed < seconds - 1e-10) {
     const paused = elapsed < boundary - 1e-10;
     const delta = Math.min(step, seconds - elapsed, paused ? boundary - elapsed : Infinity);
@@ -282,18 +285,21 @@ function simulate(capture: PackingCapture, arrangement: PackingArrangement, step
         { ...recipe, remainingFinishedKg: capture.evidence.remainingOrderKg! }
       );
     elapsed += delta;
+    if (firstPackedMinute === null && packed(store.getState()) > before)
+      firstPackedMinute = (elapsed * capture.context.gameSpeed) / 60;
   }
   const state = store.getState();
   return {
     packed: Math.max(0, packed(state) - before),
     released: released(state),
     error: Math.abs(state.getGenealogyBalance().errorKg),
+    firstPackedMinute,
   };
 }
-export function derivePackingAdvice(
+function modelPackingAdvice(
   capture: PackingCapture,
   arrangement: PackingArrangement
-): PackingAdvice {
+): { advice: PackingAdvice; firstPacking: PackingFirstObservation | null } {
   const params = ARRANGEMENTS[arrangement];
   const evidence = structuredClone(capture.evidence);
   const base: PackingAdvice = {
@@ -315,13 +321,13 @@ export function derivePackingAdvice(
     genealogyErrorKg: null,
     assumptions: [...ASSUMPTIONS],
   };
-  if (base.reasonToAbstain) return base;
+  if (base.reasonToAbstain) return { advice: base, firstPacking: null };
   const coarse = simulate(capture, arrangement, 0.5),
     fine = simulate(capture, arrangement, 0.25);
   base.genealogyErrorKg = Math.max(coarse.error, fine.error);
   if (base.genealogyErrorKg > 0.01) {
     base.reasonToAbstain = 'Engine genealogy conservation failed.';
-    return base;
+    return { advice: base, firstPacking: null };
   }
   base.packedLowKg = Math.min(coarse.packed, fine.packed);
   base.packedHighKg = Math.max(coarse.packed, fine.packed);
@@ -339,12 +345,29 @@ export function derivePackingAdvice(
       // only on departure. Total departure includes the already loaded mass.
       load.capacityKg
     );
-  return base;
+  return {
+    advice: base,
+    firstPacking: {
+      arrangement,
+      coarseFirstMinute: coarse.firstPackedMinute,
+      fineFirstMinute: fine.firstPackedMinute,
+    },
+  };
+}
+export function derivePackingAdvice(
+  capture: PackingCapture,
+  arrangement: PackingArrangement
+): PackingAdvice {
+  return modelPackingAdvice(capture, arrangement).advice;
 }
 export function runPackingRehearsals(capture: PackingCapture): PackingRehearsals {
+  const results = (['steady', 'briefing', 'buffer'] as const).map((arrangement) =>
+    modelPackingAdvice(capture, arrangement)
+  );
   return {
     fingerprint: capture.fingerprint,
-    arms: (['steady', 'briefing', 'buffer'] as const).map((a) => derivePackingAdvice(capture, a)),
+    arms: results.map((result) => result.advice),
+    firstPacking: results.flatMap((result) => (result.firstPacking ? [result.firstPacking] : [])),
   };
 }
 

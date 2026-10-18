@@ -512,6 +512,12 @@ it('freezes and resets the quality hypothesis, preserves original results and su
   render(<MatchedPackingRehearsal state={state} report={report} />);
   click('Run matched packing rehearsal');
   await screen.findByLabelText('Matched packing results');
+  fireEvent.click(screen.getByText('When did packing first appear?', { exact: true }));
+  const timing = screen.getByRole('group', { name: 'Packing time observations' });
+  expect(within(timing).getAllByText(/0.5-second steps:/)).toHaveLength(3);
+  expect(within(timing).getAllByText(/0.25-second steps:/)).toHaveLength(3);
+  expect(timing).toHaveTextContent('five paid minutes of pacing hold');
+  expect(timing).toHaveTextContent('which timing difference would you investigate');
   const prediction = screen.getByRole('combobox', { name: 'Our quality prediction (optional)' });
   fireEvent.change(prediction, { target: { value: 'override' } });
   click('Rehearse withheld dispatch release');
@@ -540,8 +546,23 @@ it('freezes and resets the quality hypothesis, preserves original results and su
   expect(
     screen.queryByRole('region', { name: 'Quality boundary results' })
   ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole('group', { name: 'Packing time observations' })
+  ).not.toBeInTheDocument();
   expect(screen.queryByLabelText('Matched packing results')).not.toBeInTheDocument();
   expect(screen.getByRole('status')).toHaveTextContent('comparison is stale');
+  act(() => useProductionStore.getState().setProductionSpeed(0));
+  click('Run matched packing rehearsal');
+  await screen.findByLabelText('Matched packing results');
+  fireEvent.click(screen.getByText('When did packing first appear?', { exact: true }));
+  const absent = screen.getByRole('group', { name: 'Packing time observations' });
+  expect(
+    within(absent).getAllByText('0.5-second steps: no additional packing observed.')
+  ).toHaveLength(3);
+  expect(
+    within(absent).getAllByText('0.25-second steps: no additional packing observed.')
+  ).toHaveLength(3);
+  expect(absent).not.toHaveTextContent('0.00 min');
 });
 
 it('holds final review while a real raiser-owned objection remains, retaining each review ballot', () => {
@@ -571,4 +592,19 @@ it('holds final review while a real raiser-owned objection remains, retaining ea
   click('Finalise handoff review');
   expect(get().workplace.improvement!.verdict).toBe('stop');
   expect(get().workplace.objections[0].status).toBe('resolved');
+});
+
+it('keeps timing unavailable for abstaining facts and clears the discussion on another prediction', async () => {
+  render(<MatchedPackingRehearsal state={createWorkplace()} report={report} />);
+  click('Run matched packing rehearsal');
+  await screen.findByLabelText('Matched packing results');
+  fireEvent.click(screen.getByText('When did packing first appear?', { exact: true }));
+  expect(screen.getByText(/Timing is unavailable for this comparison/)).toBeInTheDocument();
+  expect(
+    screen.queryByRole('group', { name: 'Packing time observations' })
+  ).not.toBeInTheDocument();
+  click('Prepare another prediction');
+  expect(
+    screen.queryByText('When did packing first appear?', { exact: true })
+  ).not.toBeInTheDocument();
 });

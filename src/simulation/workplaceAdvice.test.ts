@@ -442,3 +442,89 @@ describe('cooperative withheld-dispatch experiment', () => {
     expect(result.releaseAtCapture).toBeNull();
   });
 });
+
+describe('first additional packing observations', () => {
+  it('matches first-output observations to the unchanged real-engine grids and saved advice', () => {
+    for (const speed of [180, 30]) {
+      const f = fixture(speed),
+        capture = f.capture();
+      const before = structuredClone(capture);
+      const result = runPackingRehearsals(capture);
+      expect(result.firstPacking).toHaveLength(3);
+      for (const observation of result.firstPacking) {
+        const advice = result.arms.find((arm) => arm.arrangement === observation.arrangement)!;
+        expect(advice).toEqual(derivePackingAdvice(capture, observation.arrangement));
+        expect(validPackingAdvice(advice)).toEqual(advice);
+        for (const [step, observed] of [
+          [0.5, observation.coarseFirstMinute],
+          [0.25, observation.fineFirstMinute],
+        ]) {
+          const store = createMaterialFlowStore(capture.data);
+          const packed = () =>
+            store
+              .getState()
+              .productionBatches.reduce(
+                (n, b) =>
+                  n + (b.materialType === capture.evidence.finishedMaterial ? b.producedKg : 0),
+                0
+              );
+          const initial = packed();
+          const boundary = (advice.briefingMinutes * 60) / speed;
+          let elapsed = 0,
+            first: number | null = null;
+          while (elapsed < advice.physicalSeconds - 1e-10) {
+            const paused = elapsed < boundary - 1e-10;
+            const delta = Math.min(
+              step!,
+              advice.physicalSeconds - elapsed,
+              paused ? boundary - elapsed : Infinity
+            );
+            store.getState().tickMaterialFlow(delta, paused ? 0 : advice.linePacing, {
+              ...capture.context.order!.recipe,
+              remainingFinishedKg: capture.evidence.remainingOrderKg!,
+            });
+            elapsed += delta;
+            if (first === null && packed() > initial) first = (elapsed * speed) / 60;
+          }
+          expect(observed).toBe(first);
+          expect(observed).toBeGreaterThanOrEqual(advice.briefingMinutes);
+          expect(packed() - initial).toBeGreaterThanOrEqual(advice.packedLowKg);
+          expect(packed() - initial).toBeLessThanOrEqual(advice.packedHighKg);
+          expect(store.getState().manifests).toEqual([]);
+        }
+      }
+      expect(capture).toEqual(before);
+    }
+  });
+
+  it('retains absent first-output observations when machinery produces no new packed stock', () => {
+    const f = fixture();
+    for (const buffer of f.store.getState().machineBuffers.values()) buffer.isProcessing = false;
+    const result = runPackingRehearsals(f.capture());
+    expect(result.arms.every((arm) => !arm.reasonToAbstain && arm.packedHighKg === 0)).toBe(true);
+    expect(result.firstPacking).toHaveLength(3);
+    expect(
+      result.firstPacking.every((o) => o.coarseFirstMinute === null && o.fineFirstMinute === null)
+    ).toBe(true);
+  });
+
+  it('quarantines first-output samples when the real genealogy balance fails', () => {
+    const f = fixture();
+    f.store.setState({ initialInventoryKg: f.store.getState().initialInventoryKg + 1 });
+    const capture = f.capture();
+    expect(capture.reasonToAbstain).toBeNull();
+    const result = runPackingRehearsals(capture);
+    expect(
+      result.arms.every((arm) => arm.reasonToAbstain === 'Engine genealogy conservation failed.')
+    ).toBe(true);
+    expect(result.firstPacking).toEqual([]);
+  });
+
+  it('quarantines missing facts without fabricated zero-minute observations', () => {
+    const f = fixture();
+    f.context.qualityRelease = null;
+    const result = runPackingRehearsals(f.capture());
+    expect(result.arms.every((arm) => arm.reasonToAbstain)).toBe(true);
+    expect(result.firstPacking).toEqual([]);
+  });
+});

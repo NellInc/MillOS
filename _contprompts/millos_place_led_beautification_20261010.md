@@ -6224,3 +6224,55 @@ CB delivery complete: PR35 merged exact reviewedb3aa4c972fdef3c1910618695e83e25f
 Next CC remedy-route refinement completed while release gates ran, local commitdfbffc42,49affected tests/24native views and all applicable source/build gates. It was never included in PR35. Integrated the accepted release merge into its local branch with an exactly unchanged Git tree, verified before/after; no repeated build needed. Source/test/art pins remain exact. The only superseded release-dist copy(431compiled files,178128141logical bytes) was removed after verifying sealed hashes, committed source recoverability and live receipts; active local build/source/assets/screens/logs preserved. Observed filesystem-free delta179265536bytes, not an inferred APFS claim.
 
 Release status: live, verified in served bytes. CC status: completed LOCAL refinement, unpublished. Both stayed muted. Protected primary and unrelated files preserved. Repeating programme ACTIVE, physical player/device/manual checks DEFERRED and pacing/adaptive quality separately OPEN without waiver. Next continuation should choose another meaningful cooperative-play gap from actual use, rather than repeat review-copy or cosmetic changes to these completed paths.
+
+
+## CD. Learn from packing timing as well as final totals, 2026-10-18
+
+Previous goal turn is PROGRESS: BY/BZ/CA delivered through PR35 with all original PR/main CI and Pages gates plus served-byte proof; CC remedy route committed and natively accepted locally. Current3490790b tree is clean apart from ten unrelated screenshots. Continue LOCAL/MUTED; the earlier scoped publication amendment is complete and does not publish this pass.
+
+Observed live learning gap: accepted matched-rehearsal views show identical5940kg final packing bounds across all three arrangements. A90minute total alone hides when stock first appeared, including the paid briefing hold. Add first-additional-packing sample observations to the same existing six real-engine runs. No extra simulation, separate forecast, live clock movement or changed integration grid. This is numerical sample timing, not a statistical interval, customer departure or a verdict about workers.
+
+Allowed: workplaceAdvice.ts, its existing tests, types/workplaceAdvice.ts ephemeral rehearsal result only, WorkplacePackingEvidence.tsx and existing ImprovementPanel tests, this programme. Keep saved PackingAdvice shape/validator and derivePackingAdvice signature/output unchanged. Protect all stores, material engine, consent/pay/recovery/role transitions, people/world/lighting/quality/readiness and budgets. No new dependency, private data, score or saved schema. Working if teams can inspect actual first-output sample times alongside unchanged final totals, unknowns abstain, and no live state or current decision changes.
+
+Detailed finite task list:
+1. Reconcile current owned branch/base and prior source/runtime/publication boundaries.
+2. Pin dirty primary custody, canonical stores/authority/renderers and unrelated images.
+3. Confirm live advice and comparison consumers and ephemeral-versus-saved type boundaries.
+4. Record the named affected-test baseline and reproduce absence of time observations.
+5. Instrument each existing real-engine loop only until additional packed stock first appears.
+6. Use actual completed tick elapsed seconds converted through the captured intended resume speed to workplace minutes.
+7. Do not split or add physics ticks at observation times; original briefing split, coarse/fine grids, conservation and final output stay identical.
+8. Retain0.5second and0.25second observations separately, with explicit null when no additional packing was observed.
+9. Refactor privately to share the existing engine results without rerunning a model or widening the saved forecast.
+10. Preserve exact derivePackingAdvice signature, canonical advice validation and all existing saved fields.
+11. Add timing only to the ephemeral matched-comparison result, keyed by arrangement and original fingerprint.
+12. Keep missing facts and failed conservation out of numeric timing output.
+13. Reuse the existing comparison disclosure with a collapsed timing discussion, no extra panel or prediction select.
+14. Label these first-positive-output sample times and their physical step resolutions clearly.
+15. Distinguish an absent sample from zero minutes or a failed production result.
+16. Make the five paid workplace minutes visible without implying lost pay or an unpaid pause.
+17. Invite roles to compare timing with final stock and separate collection evidence, without ranking arrangements from one sample.
+18. Inherit original freshness/pause/reset/unmount boundaries so stale timing disappears with its comparison.
+19. Protect live source/stock/singleton, pay/ballots/clock purity and unchanged original bounds in focused real-engine tests.
+20. Exercise both observed and no-output/missing cases plus UI disclosure/stale/reset using the existing suites.
+21. Run typecheck/lint/format/depth/shaders and the available bundled design detector; triage existing warnings rather than repainting the interface.
+22. Build exact source with the existing lock, retain170MiB, and pass fresh bundle/reachability/community checks.
+23. Use actual public Handoff/proposal/comparison controls in silent native Metal desktop/mobile day/dusk/night views, no actor/inventory injection.
+24. Inspect all timing views once in a bounded art batch, retain raw failures and keep model, runtime, artistic and performance evidence separate.
+25. Verify source/compiled/protected custody, record finite acceptance and selectively commit this pass locally.
+26. Close owned resources; keep repeating programme ACTIVE, physical player/device DEFERRED and pacing/adaptive quality separately OPEN with no waiver.
+
+Pre-mortem: instrumentation might change the time grid and final forecast; first sample could be mislabelled exact continuous onset or delivery; or missing/invalid evidence could appear as zero-minute success. Compare original advice with the real manual engine, label both sample resolutions, preserve null/abstention and exercise current freshness gates.
+
+
+CD finite acceptance complete: all26planned items delivered. Baseline35passed/0failed, missing observation reproduced red(1failed/17passed), final40passed/0failed(+5). Four real-engine cases cover independent manual first-positive samples at180x/30x, unchanged original advice and canonical validation, paid briefing timing, no-output nulls, actual failed genealogy balance and missing-fact quarantine. Existing singleton/input purity cases remain green. UI adds unavailable/reset protection and extends the real known-input path through timing disclosure, original quality exercise, stale suppression and zero-production no-sample labels.
+
+Three production surfaces changed: private advice-result sharing plus observation-only reads after the existing physics tick; ephemeral PackingRehearsals timing fields; collapsed timing discussion. Saved PackingAdvice interface, validator, derivePackingAdvice signature, integration deltas, briefing split, physical engine and store transitions unchanged. Exactly the same original six integrations supply timing and final bounds; no extra model run, checkpoint split, live tick, profile score, role action or private data. First samples stay separate at0.5/0.25physical-second resolution, with null for no observed output and no timing records on abstention/conservation failure.
+
+Required typecheck/lint/format/depth91active/12relationships/shaders37families/41keys/design detector0findings, production build, bundle, fresh reachability and inhabited-world gates all pass. Exact build431files178131970bytes(169.88MiB), below unchanged170MiB cap, Vite13.85s. No dependency change or production correction after the coherent implementation.
+
+Native actual public Handoff/proposal/adviser/comparison controls pass20frames: desktop/mobile samples/discussion/reset at12:00/18:30/22:00, plus genuine missing startup facts. Original strict Medium/readiness/world/people/texture/page/request guards preserved. All sandboxed out-of-process Apple Metal, audio context not-created and0nodes, process additionally muted. Known observations record ordinary/buffer at0.25/0.13 workplace minutes and paid briefing at5.25/5.13 for the two resolutions. Within each same capture the final totals match across arrangements; these are model observations, not a between-page performance comparison or continuous-onset/departure promise.
+
+Root authored and personally self-reviewed all20frames through10lossless UI sheets plus full desktop context. Timing/paid-hold/discussion content readable, no horizontal overflow, mobile question reachable by ordinary scrolling. Collapse/reopen changes no observation. Preparing another prediction clears timing and restores original selector focus. Actual public workplace/campaign/material/logistics and direct clock observations byte-exact before/after each study, original three bounds and optional unsure prediction retained. No runtime actor/inventory override or automatic ballot. Browsers, previews and lock closed normally. No artistic correction round needed.
+
+Protected primary HEAD/NULstatus/binarydiff, six canonical authority/engine/renderer files and ten unrelated images exact; all25source/431compiled pins exact before this completion note. Documentation pinned separately afterward. Selective LOCAL commit only, no push/deploy/upload; prior PR35 remains the existing live release. Repeating programme ACTIVE. Player/device/manual first-person checks DEFERRED; pacing/adaptive quality separately OPEN with no waiver. Next continuation should move to another materially useful cooperative-play/world behaviour, avoiding an endless expansion of this optional comparison disclosure.
