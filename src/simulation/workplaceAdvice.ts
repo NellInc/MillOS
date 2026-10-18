@@ -348,6 +348,27 @@ export function runPackingRehearsals(capture: PackingCapture): PackingRehearsals
   };
 }
 
+/** Hypothetical dispatch restraint only; source and batch dispositions stay intact.
+ * Working if only isolated copies see the withheld gate and missing facts abstain.
+ */
+export function rehearseWithheldDispatch(capture: PackingCapture) {
+  const base = {
+    baseFingerprint: capture.fingerprint,
+    releaseAtCapture: capture.evidence.qualityRelease,
+    arms: [] as PackingAdvice[],
+    reasonToAbstain: capture.reasonToAbstain,
+  };
+  if (capture.reasonToAbstain) return base;
+  const copied = createMaterialFlowStore(capture.data);
+  const withheld = capturePackingPlant(copied.getState(), {
+    ...capture.context,
+    qualityRelease: false,
+  });
+  const result = runPackingRehearsals(withheld);
+  const reason = result.arms.find((arm) => arm.reasonToAbstain)?.reasonToAbstain ?? null;
+  return { ...base, arms: reason ? [] : result.arms, reasonToAbstain: reason };
+}
+
 /** Public inspection questions use captured facts, never authorise a plant action.
  * Working if abstention supplies no numeric observations and every view stays observational.
  */

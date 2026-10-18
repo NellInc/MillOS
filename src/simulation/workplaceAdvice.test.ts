@@ -8,6 +8,7 @@ import {
   capturePackingPlant,
   derivePackingAdvice,
   runPackingRehearsals,
+  rehearseWithheldDispatch,
   packingPredictionReview,
   packingInspectionPrompts,
   validPackingAdvice,
@@ -384,5 +385,60 @@ describe('role-led captured evidence inspection', () => {
     expect(roles.every((r) => !/\d/.test(r.fact))).toBe(true);
     expect(roles[1].question).toContain('qualified batch');
     expect(JSON.stringify(advice)).toBe(before);
+  });
+});
+
+describe('cooperative withheld-dispatch experiment', () => {
+  it('uses real cloned flow for every pacing arm, withholds eligibility and leaves all live inputs intact', () => {
+    const f = fixture(180);
+    const capture = f.capture();
+    const inputBefore = cloneMaterialFlowData(f.store.getState());
+    const singletonBefore = cloneMaterialFlowData(useMaterialFlowStore.getState());
+    const contextBefore = structuredClone(f.context);
+    const original = runPackingRehearsals(capture);
+    expect(original.arms.some((arm) => arm.dispatchUpperKg > 0)).toBe(true);
+    const held = rehearseWithheldDispatch(capture);
+    expect(held.baseFingerprint).toBe(capture.fingerprint);
+    expect(held.releaseAtCapture).toBe(true);
+    expect(held.reasonToAbstain).toBeNull();
+    expect(held.arms).toHaveLength(3);
+    for (const [index, arm] of held.arms.entries()) {
+      expect(arm.evidence.qualityRelease).toBe(false);
+      expect(validPackingAdvice(arm)).toEqual(arm);
+      expect(arm.packedHighKg).toBeGreaterThan(0);
+      expect(arm.packedLowKg).toBe(original.arms[index].packedLowKg);
+      expect(arm.packedHighKg).toBe(original.arms[index].packedHighKg);
+      expect(arm.dispatchLowerKg).toBe(0);
+      expect(arm.dispatchUpperKg).toBe(0);
+      expect(arm.genealogyErrorKg).toBeLessThan(0.01);
+    }
+    expect(cloneMaterialFlowData(f.store.getState())).toEqual(inputBefore);
+    expect(cloneMaterialFlowData(useMaterialFlowStore.getState())).toEqual(singletonBefore);
+    expect(f.context).toEqual(contextBefore);
+    expect(capture.context.qualityRelease).toBe(true);
+    expect(capture.data.manifests).toEqual([]);
+  });
+
+  it('preserves an already-held release and never releases held source lots', () => {
+    const f = fixture();
+    f.context.qualityRelease = false;
+    for (const lot of f.store.getState().sourceLots.values()) lot.disposition = 'hold';
+    const capture = f.capture();
+    const before = structuredClone(capture);
+    const result = rehearseWithheldDispatch(capture);
+    expect(result.reasonToAbstain).toBeNull();
+    expect(result.releaseAtCapture).toBe(false);
+    expect(result.arms.every((arm) => arm.dispatchUpperKg === 0)).toBe(true);
+    expect(capture).toEqual(before);
+  });
+
+  it('abstains on unknown evidence without fabricated zero-result arms', () => {
+    const f = fixture();
+    f.context.qualityRelease = null;
+    const capture = f.capture();
+    const result = rehearseWithheldDispatch(capture);
+    expect(result.reasonToAbstain).toContain('quality release');
+    expect(result.arms).toEqual([]);
+    expect(result.releaseAtCapture).toBeNull();
   });
 });

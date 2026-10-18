@@ -9,6 +9,8 @@ import { createWorkplace } from '../../../simulation/bilateralWorkplace';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { cloneMaterialFlowData, useMaterialFlowStore } from '../../../stores/materialFlowStore';
+import { useQCLabStore } from '../../../stores/qcLabStore';
+import { useTruckScheduleStore } from '../../../stores/truckScheduleStore';
 import { useProductionStore } from '../../../stores/productionStore';
 import {
   FrozenPackingAdvice,
@@ -443,4 +445,101 @@ it('lets roles inspect current plant views while abstaining facts remain unknown
   expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
   expect(JSON.stringify(useWorkplaceStore.getState().workplace)).toBe(before);
   expect(cloneMaterialFlowData(useMaterialFlowStore.getState())).toEqual(stock);
+});
+
+it('keeps the quality-boundary experiment unavailable when the captured comparison abstains', async () => {
+  render(<MatchedPackingRehearsal state={createWorkplace()} report={report} />);
+  click('Run matched packing rehearsal');
+  await screen.findByLabelText('Matched packing results');
+  expect(
+    screen.getByRole('button', { name: 'Rehearse withheld dispatch release', exact: true })
+  ).toBeDisabled();
+  expect(
+    screen.getByText(/Resolve missing captured facts before this exercise/)
+  ).toBeInTheDocument();
+});
+
+it('freezes and resets the quality hypothesis, preserves original results and suppresses both on changed inputs', async () => {
+  useMaterialFlowStore.getState().resetMaterialFlow();
+  useQCLabStore.getState().resetQCLab();
+  useTruckScheduleStore.getState().resetTruckSchedule();
+  useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
+  const operations = useOperationsCampaignStore.getState();
+  operations.initializeCampaign();
+  const material = useMaterialFlowStore.getState();
+  const source = operations.orders.find((o) => o.id === operations.activeOrderId)!.recipe
+    .sourceMaterial;
+  const sourceInventoryKg = [...material.machineBuffers.values()].reduce(
+    (sum, buffer) =>
+      sum +
+      [...buffer.inputBuffer, ...buffer.outputBuffer].reduce(
+        (n, m) => n + (m.type === source ? m.amount : 0),
+        0
+      ),
+    0
+  );
+  operations.tickCampaign(0.5, {
+    materialSessionId: material.sessionId,
+    shiftKey: 'quality-exercise',
+    shiftLabel: 'Morning',
+    manifests: material.manifests,
+    productionBatches: material.productionBatches,
+    totalEnergyKw: 0,
+    averageQuality: 99,
+    wasteKg: 0,
+    storageUtilization: 0,
+    shippingDocked: false,
+    receivingDocked: false,
+    dispatchReleased: true,
+    sourceInventoryKg,
+    finishedAvailableKg: 0,
+    releasedFinishedKg: 0,
+    dispatchLoad: {
+      cycleId: 'quality-exercise',
+      status: 'away',
+      loadedKg: 0,
+      capacityKg: 5000,
+      materialType: 'flour',
+      blockReason: null,
+      lastDispatchKg: 0,
+    },
+    openWorkOrders: 0,
+  });
+  const state = useWorkplaceStore.getState().workplace;
+  expect(captureCurrentPackingPlant(state).reasonToAbstain).toBeNull();
+  const before = cloneMaterialFlowData(useMaterialFlowStore.getState());
+  const accounts = useOperationsCampaignStore.getState();
+  render(<MatchedPackingRehearsal state={state} report={report} />);
+  click('Run matched packing rehearsal');
+  await screen.findByLabelText('Matched packing results');
+  const prediction = screen.getByRole('combobox', { name: 'Our quality prediction (optional)' });
+  fireEvent.change(prediction, { target: { value: 'override' } });
+  click('Rehearse withheld dispatch release');
+  const result = await screen.findByRole('region', { name: 'Quality boundary results' });
+  expect(prediction).toBeDisabled();
+  expect(within(result).getByText(/Recorded idea: Higher pacing can replace/)).toBeInTheDocument();
+  expect(
+    within(result).getByText(/original departure bounds were already zero/)
+  ).toBeInTheDocument();
+  expect(within(result).getAllByText(/with withheld release:/)).toHaveLength(3);
+  expect(cloneMaterialFlowData(useMaterialFlowStore.getState())).toEqual(before);
+  expect(useOperationsCampaignStore.getState()).toBe(accounts);
+  expect(useWorkplaceStore.getState().workplace).toBe(state);
+  expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+  click('Reset quality prediction');
+  expect(
+    screen.queryByRole('region', { name: 'Quality boundary results' })
+  ).not.toBeInTheDocument();
+  expect(prediction).toHaveValue('');
+  expect(prediction).toBeEnabled();
+  await waitFor(() => expect(prediction).toHaveFocus());
+  expect(screen.getByLabelText('Matched packing results')).toBeInTheDocument();
+  click('Rehearse withheld dispatch release');
+  await screen.findByRole('region', { name: 'Quality boundary results' });
+  act(() => useProductionStore.getState().setProductionSpeed(0.66));
+  expect(
+    screen.queryByRole('region', { name: 'Quality boundary results' })
+  ).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('Matched packing results')).not.toBeInTheDocument();
+  expect(screen.getByRole('status')).toHaveTextContent('comparison is stale');
 });

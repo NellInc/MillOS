@@ -6118,3 +6118,55 @@ Fixed nativeMedium art lane passes all original quality/readiness/world/people/t
 Final normal and art receipts all sandboxed out-of-process Apple Metal, audio context not-created and0nodes. Initial benchmark premise, unnecessary speed receipt, default demo state and wrong helper audio-schema failures retained, alongside normal adaptive misses. Chrome process mute prevented audible output throughout. Normal workflow now uses actual take-over and settled review; no actor/inventory/quality override, no automatic ballots or releases. Public domain and direct clock proof complement source/store purity. All owned browsers/server/locks close normally.
 
 Protected primary HEAD/NULstatus/binarydiff, eight canonical files and ten unrelated images exact. Runtime/test/art/compiled seals exact; later documentation separately pinned. No push/deploy/upload, LOCAL only. Physical player/device/manual checks DEFERRED and pacing OPEN separately. Repeating programme ACTIVE. Next continuation should build on actual collective supply/quality/collection reasoning or another materially worthwhile core-game gap; avoid another cosmetic rewording pass on this finished disclosure.
+
+## CA. Cooperative quality-boundary experiment, 2026-10-18
+
+Previous goal turn is PROGRESS: BZ role-to-world inspection implemented and locally committed502b744389b61108540cd9c7d258c1156693c79d,29tests and required source/build checks,30Medium art views plus24ordinary camera actions accepted as separate evidence. Ordinary adaptive Medium→Low remains an OPEN pacing/quality miss. Current LOCAL/MUTED pass adds an actual isolated learning exercise rather than rewording that finished disclosure.
+
+Observed opportunity: existing matched pacing model already separates packing from dispatch permission, but players cannot test this boundary as an explicit shared hypothesis. Extend the same collapsed comparison with an optional prediction and a withheld-dispatch-release scenario. Every arm uses the existing real flow engine and original source/batch dispositions, while only a copied context’s dispatch-release assumption becomes false. Never simulate granting release, shipment, ballots or consent. Existing actual forecast and live quality state remain unchanged.
+
+Allowed: workplaceAdvice.ts, WorkplacePackingEvidence.tsx, their existing Advice/ImprovementPanel tests, this programme. No saved type/schema, live store/transition/engine/validator/forecaster changes, new dependency, artwork, actor, lighting, budget or shell change. Protect primary dirty checkout, ten unrelated images and canonical store/engine/renderer files.
+
+Detailed finite task list:
+1. Reconcile base/ownership and prior acceptance; retain repeating goal ACTIVE.
+2. Pin protected primary HEAD/status/diff, contracts and unrelated images.
+3. Confirm current real-engine rehearsal, quality gate and UI consumers ship.
+4. Retain named baseline29/29, reproduce missing exercise before implementation.
+5. Add a separate pure ephemeral quality-boundary rehearsal using existing cloned-flow factories.
+6. Retain original capture fingerprint as provenance of the compared input.
+7. Assume only withheld dispatch release in copied context; keep original inventory, sources, batch dispositions, machinery, recipe and timing.
+8. Run ordinary, paid briefing and buffer arms through existing derivePackingAdvice, including original coarse/fine steps and conservation checks.
+9. Never create a departure or quality release, or convert source holds into released material.
+10. Quarantine missing/invalid/abstaining evidence without presenting measured zero as success.
+11. Offer an optional shared hypothesis about whether pacing can replace release, including unsure/skip.
+12. Freeze that per-run hypothesis on the deliberate rehearsal click, without a learner score or consensus claim.
+13. Show actual modeled packing and conditional departure bounds for each withheld-release arm.
+14. If captured release was already held, say so; no newly induced hold or release is claimed.
+15. If original departure bound was already zero, state that this comparison cannot attribute that original zero to quality alone.
+16. Invite Quality and Coordinator to identify the independent evidence needed for an actual departure.
+17. Keep this optional exercise within the existing disclosure and preserve all original three-arm results, prediction, role decisions and controls.
+18. Recheck pause and original fingerprint before/after local computation, using existing freshness subscriptions; stale inputs hide both old and new conclusions.
+19. Reset only local learning state on another prediction, restore deliberate focus and avoid overlapping local model runs.
+20. Add small existing-suite tests for genuine engine output/gate effect, held/unknown evidence, source/stock/ledger purity, UI abstention, freeze/reset and stale suppression.
+21. Run affected tests and required typecheck/lint/format/depth/shader and available design detection.
+22. Build exact source under the existing lock; preserve170MiB ceiling and fresh bundle/reachability/community checks.
+23. Exercise actual public Handoff/proposal/prediction controls for known and missing evidence, inspect desktop/mobile day/dusk/night native art, with correct flat mute preferences and unchanged readiness/quality guards.
+24. Keep artwork/framing, real functional behaviour, state purity and performance evidence distinct; retain raw failures and no actor/inventory runtime injection.
+25. Record finite acceptance, protected custody and exact seals; selective LOCAL commit, close owned resources and retain pacing OPEN/player-device DEFERRED.
+
+Pre-mortem: a hypothetical withheld gate could be read as a live QC hold; zero departure already caused by collection could become false causal proof; or stale/missing inputs could leave a confident lesson visible. Working if copies are labelled assumptions, original constraints remain visible, unknowns abstain and original plant/permission state stays byte-exact.
+
+
+CA finite acceptance complete: all25planned items implemented, with the named pacing/device boundaries retained. Baseline29passed/0failed, missing exercise reproduced red, final34passed/0failed(+5). Real cloned-flow tests protect positive packing with withheld dispatch, unchanged ordinary packing bounds, three valid canonical advice arms, conservation, original source/batch holds, unknown evidence abstention and input/singleton purity. UI tests protect missing-fact disabling, frozen optional hypothesis, isolated reset/focus, original comparison retention and stale suppression. No saved schema or live engine, validator, store or authority transition changed.
+
+Required typecheck/lint/format/depth/shader, bundled design detector(0findings), production build, bundle, fresh reachability and inhabited-world checks all pass. Build431files178128141bytes(169.88MiB), below unchanged170MiB ceiling, Vite23.02s. Native actual public Handoff/proposal/comparison controls pass23frames across desktop/mobile at12:00/18:30/22:00, plus genuine missing startup facts. All original Medium/readiness/world/people/texture/page/request/audio guards pass. Root authored and personally self-reviewed all23frames via11lossless UI sheets plus3full world frames. Existing scrolling, focus and shell preserved, no horizontal overflow. No artistic correction round needed.
+
+All native runs sandboxed out-of-process Apple Metal; audio context not-created and0nodes, browser process additionally muted. Public workplace/campaign/logistics/material observations and direct speed/clock unchanged before/after each local exercise. Native captures correctly disclose that original departure bounds were alreadyzero because collection was unavailable; tests separately prove withheld release reduces a nonzero eligible bound. No false causal claim, live hold/release, actor/inventory replacement or automatic consent. Browsers, previews and capture locks closed normally.
+
+Protected primary HEAD/NULstatus/binarydiff, seven canonical files, ten unrelated images and all24source/431compiled pins exact before this note; documentation separately pinned afterward. Individual CA pass complete locally; repeating programme ACTIVE. Physical player/device/manual checks DEFERRED, ordinary adaptive quality and pacing OPEN separately, with earlier raw failures retained and no acceptance waiver.
+
+## CB. Deliver completed learning refinements through the established release path, 2026-10-18
+
+Nell's latest request to get completed work live establishes the existing NellInc/MillOS main/Pages destination. BX delivered the earlier artwork and BT/BW cooperative foundations. This bounded release includes the completed BY handoff debrief, BZ role-led evidence inspection and CA quality-boundary experiment. It supersedes their local-only checkpoint wording for this exact reviewed scope. Future refinement remains local/muted until its required acceptance is complete. Working if a normal PR passes all original CI gates, the exact accepted head merges, Pages preserves archived releases, and actual served identity/modules match the reviewed source.
+
+Finite delivery list: (1) selective CA commit; (2) reconcile current remote main and outgoing three-pass diff; (3) secret and100MB checks on actual outgoing tree/history; (4) push named owned branch and create/attach PR; (5) wait for all five CI jobs with no bypass; (6) diagnose any failure against this scope; (7) merge only accepted head; (8) wait for main CI and standard Pages jobs; (9) verify served build identity, changed modules, raster hashes and archived versions; (10) record truthful delivery status; (11) resume the next finite cooperative-learning refinement. Pacing stays separately OPEN and device checks DEFERRED.

@@ -20,6 +20,7 @@ import { useQCLabStore } from '../../../stores/qcLabStore';
 import { useTruckScheduleStore } from '../../../stores/truckScheduleStore';
 import {
   runPackingRehearsals,
+  rehearseWithheldDispatch,
   packingInspectionPrompts,
   PACKING_PREDICTIONS,
   packingPredictionReview,
@@ -255,6 +256,18 @@ export function MatchedPackingRehearsal({
   const predictionRef = useRef<HTMLSelectElement>(null);
   const [running, setRunning] = useState(false);
   const [stale, setStale] = useState(false);
+  const [qualityPrediction, setQualityPrediction] = useState('');
+  const [retainedQualityPrediction, setRetainedQualityPrediction] = useState('');
+  const [qualityResult, setQualityResult] = useState<ReturnType<
+    typeof rehearseWithheldDispatch
+  > | null>(null);
+  const [qualityRunning, setQualityRunning] = useState(false);
+  const qualityPredictionRef = useRef<HTMLSelectElement>(null);
+  const qualityChoices = [
+    { id: 'override', label: 'Higher pacing can replace the withheld release' },
+    { id: 'held', label: 'Departure remains blocked at every pace' },
+    { id: 'unsure', label: 'We are unsure, compare the boundaries' },
+  ];
   // These selectors observe changes while the comparison is open. They grant
   // no plant authority, and the model is only run after an explicit click.
   const pace = useGameSimulationStore((s) => s.gameSpeed);
@@ -279,6 +292,9 @@ export function MatchedPackingRehearsal({
       return;
     }
     const committedPrediction = prediction || null;
+    setQualityResult(null);
+    setQualityPrediction('');
+    setRetainedQualityPrediction('');
     setRunning(true);
     try {
       // Let the loading state paint before the bounded synchronous local model.
@@ -309,6 +325,44 @@ export function MatchedPackingRehearsal({
       });
     } finally {
       setRunning(false);
+    }
+  };
+  const rehearseQuality = async () => {
+    if (
+      !result ||
+      useGameSimulationStore.getState().gameSpeed !== 0 ||
+      captureCurrentPackingPlant(useWorkplaceStore.getState().workplace).fingerprint !==
+        result.fingerprint
+    ) {
+      setStale(true);
+      return;
+    }
+    const selected = qualityPrediction;
+    setQualityRunning(true);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const capture = captureCurrentPackingPlant(useWorkplaceStore.getState().workplace);
+      const held = rehearseWithheldDispatch(capture);
+      if (
+        capture.fingerprint !== result.fingerprint ||
+        captureCurrentPackingPlant(useWorkplaceStore.getState().workplace).fingerprint !==
+          result.fingerprint ||
+        useGameSimulationStore.getState().gameSpeed !== 0
+      ) {
+        setStale(true);
+        setQualityResult(null);
+      } else {
+        setRetainedQualityPrediction(selected);
+        setQualityResult(held);
+      }
+    } catch {
+      setQualityResult(null);
+      report({
+        changed: false,
+        reason: 'The quality-boundary rehearsal could not complete. No live state changed.',
+      });
+    } finally {
+      setQualityRunning(false);
     }
   };
   const learning = result ? packingPredictionReview(result, retainedPrediction) : null;
@@ -345,7 +399,12 @@ export function MatchedPackingRehearsal({
         Compare ideas first and keep any disagreements. This optional prediction stays in this open
         comparison; it records no role ballot or permission.
       </p>
-      <button type="button" className={button} disabled={running} onClick={() => void run()}>
+      <button
+        type="button"
+        className={button}
+        disabled={running || qualityRunning}
+        onClick={() => void run()}
+      >
         {running ? 'Rehearsing packing…' : 'Run matched packing rehearsal'}
       </button>
       {result && (
@@ -390,6 +449,116 @@ export function MatchedPackingRehearsal({
                     : `${a.packedLowKg.toFixed(0)} to ${a.packedHighKg.toFixed(0)} kg additionally packed; conditional departure 0 to ${a.dispatchUpperKg.toFixed(0)} kg.`}
                 </p>
               ))}
+              <details className="space-y-2 border-t border-slate-700 pt-3">
+                <summary className="min-h-11 cursor-pointer py-2 font-medium text-cyan-100">
+                  Can pacing replace a release?
+                </summary>
+                <p className="text-xs text-slate-300">
+                  Assume dispatch release is withheld in isolated copies of these same inputs. The
+                  real flow engine still models packing; source and batch dispositions stay
+                  unchanged. This creates no live hold, release or departure.
+                </p>
+                <label className="block space-y-1">
+                  <span className="font-medium text-white">Our quality prediction (optional)</span>
+                  <select
+                    ref={qualityPredictionRef}
+                    aria-label="Our quality prediction (optional)"
+                    className={input}
+                    value={qualityPrediction}
+                    disabled={qualityRunning || qualityResult !== null}
+                    onChange={(event) => setQualityPrediction(event.target.value)}
+                  >
+                    <option value="">Discuss with Quality and the coordinator</option>
+                    {qualityChoices.map((choice) => (
+                      <option key={choice.id} value={choice.id}>
+                        {choice.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {result.arms.some((arm) => arm.reasonToAbstain) && (
+                  <p className="text-xs text-amber-100">
+                    Resolve missing captured facts before this exercise. Unknown inputs cannot
+                    establish a zero-output result.
+                  </p>
+                )}
+                <button
+                  type="button"
+                  className={button}
+                  disabled={
+                    running || qualityRunning || result.arms.some((arm) => !!arm.reasonToAbstain)
+                  }
+                  onClick={() => void rehearseQuality()}
+                >
+                  {qualityRunning
+                    ? 'Rehearsing withheld release…'
+                    : 'Rehearse withheld dispatch release'}
+                </button>
+                {qualityResult && (
+                  <section aria-label="Quality boundary results" className="space-y-2">
+                    <h5 className="font-semibold text-white">
+                      Packing and permission answer different questions
+                    </h5>
+                    <p className="text-xs">
+                      Recorded idea:{' '}
+                      {qualityChoices.find((choice) => choice.id === retainedQualityPrediction)
+                        ?.label ?? 'none recorded for this run'}
+                      .
+                    </p>
+                    {qualityResult.reasonToAbstain ? (
+                      <p className="text-amber-100">
+                        {qualityResult.reasonToAbstain} Keep the question open.
+                      </p>
+                    ) : (
+                      <>
+                        {qualityResult.arms.map((arm) => (
+                          <p key={arm.arrangement} className="text-xs tabular-nums">
+                            {arm.arrangement === 'steady'
+                              ? 'Ordinary work'
+                              : arm.arrangement === 'briefing'
+                                ? 'Paid briefing'
+                                : 'Buffer pacing'}{' '}
+                            with withheld release: {arm.packedLowKg.toFixed(0)} to{' '}
+                            {arm.packedHighKg.toFixed(0)} kg additionally packed; conditional
+                            departure {arm.dispatchLowerKg.toFixed(0)} to{' '}
+                            {arm.dispatchUpperKg.toFixed(0)} kg.
+                          </p>
+                        ))}
+                        {qualityResult.releaseAtCapture === false && (
+                          <p className="text-xs text-slate-300">
+                            Release was already held in the captured facts. This rehearsal grants no
+                            new permission.
+                          </p>
+                        )}
+                        {result.arms.every((arm) => arm.dispatchUpperKg === 0) && (
+                          <p className="text-xs text-slate-300">
+                            The original departure bounds were already zero. This comparison cannot
+                            attribute that original zero to quality alone.
+                          </p>
+                        )}
+                        <p className="text-cyan-100">
+                          Which independent evidence would Quality and the coordinator need before
+                          an actual departure? More packing supplies no missing release or
+                          collection receipt.
+                        </p>
+                      </>
+                    )}
+                    <button
+                      type="button"
+                      className={button}
+                      disabled={qualityRunning}
+                      onClick={() => {
+                        setQualityResult(null);
+                        setQualityPrediction('');
+                        setRetainedQualityPrediction('');
+                        requestAnimationFrame(() => qualityPredictionRef.current?.focus());
+                      }}
+                    >
+                      Reset quality prediction
+                    </button>
+                  </section>
+                )}
+              </details>
               {learning && (
                 <section
                   aria-label="Packing prediction review"
@@ -416,8 +585,11 @@ export function MatchedPackingRehearsal({
           <button
             type="button"
             className={button}
-            disabled={running}
+            disabled={running || qualityRunning}
             onClick={() => {
+              setQualityResult(null);
+              setQualityPrediction('');
+              setRetainedQualityPrediction('');
               setResult(null);
               setRetainedPrediction(null);
               setPrediction('');
