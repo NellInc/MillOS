@@ -684,3 +684,69 @@ it('leaves the remedy with its current separate-turn raiser after opening the re
   get().endTurn();
   useWorkplaceStore.setState({ participationMode: 'solo', turn: null });
 });
+
+it.each(['packing', 'mind'])(
+  'keeps %s learning feedback beside current answers without casting member decisions',
+  (actorId) => {
+    const get = () => useWorkplaceStore.getState();
+    get().startCampaign('cooperative', 17);
+    const stock = structuredClone(useMaterialFlowStore.getState().sources);
+    const finance = structuredClone(get().workplace.finance);
+    const minute = get().workplace.minute;
+    const role = actorId === 'mind' ? 'Adviser' : 'Packing';
+    const view = render(<WorkplaceLab />);
+    open('Agreement / Voices');
+    if (actorId === 'packing')
+      fireEvent.click(screen.getByText('Packing: policy vote pending', { exact: true }));
+    const questions = WORKPLACE_CHECKS.filter((q) => requiredChecks(actorId).includes(q.id));
+    for (const q of questions) {
+      const input = screen.getByLabelText(`${role}: ${q.prompt}`);
+      expect(input).not.toHaveAttribute('aria-invalid');
+      expect(document.getElementById(`check-answer-${actorId}-${q.id}`)).toBeNull();
+      const wrong = q.options.find((o) => o.value !== q.correct)!;
+      fireEvent.change(input, { target: { value: wrong.value } });
+      expect(input).toHaveValue(wrong.value);
+      expect(input).toHaveAttribute('aria-invalid', 'true');
+      const feedback = document.getElementById(`check-answer-${actorId}-${q.id}`)!;
+      expect(input).toHaveAttribute('aria-describedby', feedback.id);
+      expect(feedback).toHaveAttribute('aria-live', 'polite');
+      expect(feedback).toHaveTextContent(wrong.label);
+      expect(feedback).toHaveTextContent('Needs another look.');
+      expect(feedback).toHaveTextContent(q.clarification);
+      fireEvent.change(input, { target: { value: q.correct } });
+      expect(input).toHaveAttribute('aria-invalid', 'false');
+      expect(feedback).toHaveTextContent('Matches the current terms.');
+      expect(feedback).not.toHaveTextContent('Needs another look.');
+    }
+    expect(
+      get().workplace.members.every(
+        (m) => !m.understood && m.ballot === null && m.coverConsent === null
+      )
+    ).toBe(true);
+    expect(get().workplace.finance).toEqual(finance);
+    expect(get().workplace.minute).toBe(minute);
+    expect(useMaterialFlowStore.getState().sources).toEqual(stock);
+    expect(execute).not.toHaveBeenCalled();
+    // Feedback survives real remount from the saved current answers, with no render mutation.
+    const state = get().workplace;
+    view.unmount();
+    render(<WorkplaceLab />);
+    open('Agreement / Voices');
+    if (actorId === 'packing')
+      fireEvent.click(screen.getByText('Packing: policy vote pending', { exact: true }));
+    for (const q of questions)
+      expect(document.getElementById(`check-answer-${actorId}-${q.id}`)).toHaveTextContent(
+        q.clarification
+      );
+    expect(get().workplace).toBe(state);
+    act(() => {
+      get().selectPlan('resequence');
+    });
+    for (const q of questions) {
+      expect(document.getElementById(`check-answer-${actorId}-${q.id}`)).toBeNull();
+      expect(screen.getByLabelText(`${role}: ${q.prompt}`)).toHaveValue('');
+      expect(screen.getByLabelText(`${role}: ${q.prompt}`)).not.toHaveAttribute('aria-invalid');
+    }
+    expect(get().workplace.campaign?.adviserAcknowledged).toBe(false);
+  }
+);

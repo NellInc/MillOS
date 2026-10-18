@@ -6329,3 +6329,55 @@ Native public paid-briefing proposal/adviser/four-role approvals/activation/paus
 Root authored and personally self-reviewed all36frames through nine lossless four-person sheets, plus full native close views. Four representatives remain at their actual safe posts or existing bench, with natural standing attention and no forced seat changes. Original body/prop/seat contact geometry preserved. Night maintenance-post rendering is visibly dim in the existing lighting; preserve this as a grounded later lighting opportunity rather than changing exposure or adding a light inside this motion-only pass. No art correction round or source rebuild after native acceptance needed.
 
 Protected primary HEAD/NULstatus/binarydiff, ten canonical source/body-asset pins, ten unrelated images and all26source/431compiled pins exact before this completion note. Documentation separately pinned afterward. All owned browsers/previews/locks closed normally. Selective LOCAL commit only, no push/deploy/upload. Repeating programme ACTIVE, pacing/adaptive quality OPEN separately with no waiver, physical player/device/manual acceptance DEFERRED. Next continuation can address the observed dim service-post lighting or another substantial world/gameplay gap; do not keep expanding this finished briefing gesture.
+
+
+## CF. Publish completed CC/CD/CE and continue core cooperative learning, 2026-10-18
+
+Nell explicitly requests the completed work live, then renewed emphasis on the cooperative learning game. This supersedes the repeating goal's local-only restriction for the accepted CC/CD/CE delivery to NellInc/MillOS main and https://www.millos.net/v0.40/. PR36 isolates exact243a60dc. Source/build pins rechecked, complete outgoing tree/history below100MB, four outgoing commits gitleaks-clean. Preserve the original five CI gates, normal Pages archival assembly and exact served-byte verification. Subsequent refinements remain local/muted until their acceptance is complete. Working if the exact accepted head merges after original gates, main/Pages succeed and served modules/assets match that candidate without modifying the dirty primary.
+
+## CG. Explain cooperative decisions where players make them, 2026-10-18
+
+Observed live-source gap: the three separate-turn mandate checks and campaign role/adviser comprehension checks retain a chosen answer inline, while their existing authoritative clarification is absent from that answer's accessible description. Campaign refusal can report a transient clarification, yet navigating away loses it. Retain explanatory learning feedback beside current answers, without changing checks, marking understanding, casting votes or granting execution. Existing labels, layout, tabs and controls remain intact.
+
+Allowed production surfaces: WorkplaceParticipation.tsx and WorkplaceLab.tsx only; their two existing suites and this programme. Canonical store/domain/schema/plant/clock/people/graphics/quality/loading interfaces remain unchanged. No new dependency, scoring, private explanation, analytics or saved state. Working if each answered question has accurate current-term feedback, wrong answers remain editable and distinctly flagged, and only explicit existing actions can record understanding, consent or a vote.
+
+Detailed finite execution list:
+1. Preserve PR36's immutable head and accepted assembly while its original CI runs.
+2. Create an owned local successor branch so new learning changes cannot enter that PR.
+3. Pin the protected primary, canonical authority/engine/rendering files and unrelated images.
+4. Reopen both live renderers and the original question/clarification definitions.
+5. Verify their reachable production assembly before editing.
+6. Run the existing participation and lab suites, record named baseline failures if any.
+7. Reproduce missing persistent clarification with one existing-suite assertion.
+8. Keep each player's exact selected option visible in its original answer description.
+9. Use the existing authoritative clarification beside every answered mandate check.
+10. Distinguish an answer matching current terms from one needing another look, in words and colour.
+11. Mark an entered wrong answer aria-invalid and connect the explanation with aria-describedby.
+12. Announce changed feedback politely, with no modal, new panel or interrupted focus.
+13. Apply the same feedback to campaign role and adviser checks using their own original definitions.
+14. Keep unanswered checks quiet; no premature error or volunteered answer.
+15. Show that correct answers do not themselves confirm member understanding, policy ballots or cover consent.
+16. Preserve role-local turns, stale-token rejection, facilitator boundaries and manual takeover.
+17. Verify wrong-to-correct revision and repeat editing do not auto-select another answer or action.
+18. Verify changed shared terms clear old answers/feedback and require fresh understanding.
+19. Verify ending a turn removes its feedback and the next role starts with a clean answer set.
+20. Verify campaign/adviser boundaries, pay, obligations, inventory and clock are unchanged by feedback rendering.
+21. Run affected suites, typecheck, lint, formatting, depth/shaders and available design detection.
+22. Build under the existing lock, retain170MiB and fresh bundle/reachability/community gates.
+23. Exercise actual public ownership and campaign controls in muted native Metal desktop/mobile views at day/dusk/night.
+24. Inspect all correction/matching/reset views together, with unchanged quality/readiness/page guards and no actor/inventory overrides.
+25. Complete CF's actual required CI/merge/main/Pages/served checks, retaining failures honestly.
+26. Record finite source/runtime/visual acceptance, close owned resources, and selectively commit the next local refinement. Keep repeating goal ACTIVE, pacing OPEN separately, player/device checks DEFERRED.
+
+Pre-mortem: feedback could mistakenly imply consent; stale feedback could survive changed terms; selected wrong options could be hidden behind generic success wording. Keep original state-derived checks, preserve chosen labels, test actual transitions and tie both descriptions and validity to current answers only.
+
+
+CG local implementation and native acceptance complete. Baseline42passed/0failed, missing inline clarification reproduced3failed/41passed, final45passed/0failed(+3). Tests cover all original role/adviser question definitions, wrong-to-correct edits, exact chosen labels, current accessible descriptions/invalidity, remount purity, fresh-plan invalidation, clean explicit handovers and an advice-only mandate. One new test initially assumed facilitator configuration could run inside a participant turn; the existing guard correctly refused it. Corrected the test to preserve that refusal and explicitly end the turn before changing terms. No authority code was changed.
+
+Two production renderers add30lines total. Original question answers/clarifications remain the sole source; no new domain, persistent fields, timer, dependency, score, consent or action. Unanswered questions stay quiet. Member understanding, policy votes, cover choices and activation remain distinct deliberate actions. Existing adviser acknowledgment still follows its explicit three answers, unchanged.
+
+Required typecheck/lint/format/depth91files12relationships/shaders37families41keys, production build, unchanged bundle, fresh reachability and inhabited-world gates pass. Build431files178133244bytes(169.88MiB), Vite16.88s. Bundled design detector returns one unchanged selection-style warning: selection:bg-cyan-800 is paired explicitly with selection:text-white, while the element background stays slate950. No detector-green claim or bulk repaint.
+
+Native guarded sandboxed out-of-process Apple Metal passes42frames across12:00/18:30/22:00, desktop1600x1000 and mobile390x844: turn correction/matching, Packing correction/matching, Adviser correction/matching, fresh shared terms. Root authored this pass and personally reviewed all42frames through9lossless grouped sheets plus the full desktop context. Inline explanations wrap/read clearly, retain selected labels, and stay in the original interface. Original quality Medium/readiness/world/people/textures/page/request guards unchanged. No actor/inventory override; actual public separate-turn campaign actions only. Clock, material/logistics/customer facts, money and member choices remain exact across answer/render operations. Shared plan revision clears prior answers without creating current decisions. Audio context not-created/0nodes, process muted. Browsers/previews/lock closed normally.
+
+Two native harness-premise failures retained: unopened ownership disclosure and existing responsive workspace dismissal after viewport resize. Their snapshots show readiness passed. Reused ordinary disclosure and established responsive reopen; no product correction or rebuild was needed. Protected primary HEAD/NULstatus/binarydiff, seven canonical contracts, ten unrelated images and all source/compiled pins verified exact before this note. Documentation separately pinned afterwards. CG is a selective LOCAL completed refinement; CF's earlier accepted PR36 delivery continues through its original requiredCI, then main/Pages/served verification. Repeating programme ACTIVE, pacing OPEN separately without waiver, physical player/device/manual checks DEFERRED.
