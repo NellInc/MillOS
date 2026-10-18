@@ -805,32 +805,42 @@ export const MillScene: React.FC<MillSceneProps> = ({
       <WireframeController />
 
       {/* Internal dock openings remain mounted with the exterior site so the
-          factory reads as one continuous navigable world. */}
-      {authoredSiteReady && !isLowGraphics && (
-        <StaticMeshBatch
-          name="authored-dock-openings"
-          revision={staticBatchRevision}
-          surface={applyBatchWorldSurface}
-        >
-          <>
-            <AuthoredDockOpening
-              position={[0, 0, 48]}
-              rotation={0}
-              width={30}
-              height={14}
-              label="SHIPPING"
-              dock="shipping"
-            />
-            <AuthoredDockOpening
-              position={[0, 0, -48]}
-              rotation={Math.PI}
-              width={18}
-              height={14}
-              label="RECEIVING"
-              dock="receiving"
-            />
-          </>
-        </StaticMeshBatch>
+          factory reads as one continuous navigable world. Optional lazy scenery
+          below sits in `ErrorBoundary fallback={null}` so one failed chunk drops
+          that piece instead of App's Canvas boundary stopping the whole world.
+          This boundary sits OUTSIDE the low-tier branch: a fresh boundary per
+          remount is a fresh recovery generation, i.e. a fresh lazy payload that
+          would re-suspend the world on every low/medium round trip. Working if a
+          rejected chunk leaves the rest of the site rendering. */}
+      {authoredSiteReady && (
+        <ErrorBoundary fallback={null} resetKeys={[graphicsQuality]}>
+          {!isLowGraphics && (
+            <StaticMeshBatch
+              name="authored-dock-openings"
+              revision={staticBatchRevision}
+              surface={applyBatchWorldSurface}
+            >
+              <>
+                <AuthoredDockOpening
+                  position={[0, 0, 48]}
+                  rotation={0}
+                  width={30}
+                  height={14}
+                  label="SHIPPING"
+                  dock="shipping"
+                />
+                <AuthoredDockOpening
+                  position={[0, 0, -48]}
+                  rotation={Math.PI}
+                  width={18}
+                  height={14}
+                  label="RECEIVING"
+                  dock="receiving"
+                />
+              </>
+            </StaticMeshBatch>
+          )}
+        </ErrorBoundary>
       )}
 
       {/* The local HDRI is an explicit cinematic reflection option. Keeping it
@@ -935,40 +945,54 @@ export const MillScene: React.FC<MillSceneProps> = ({
           />
         )}
       </group>
+      {/* Startup-loaded optional site layers: boundary only, no new Suspense,
+          so their first load still holds App's Suspense and the world-ready
+          barrier exactly as before. Terrain, machines, conveyors and forklifts
+          stay unguarded on purpose so their failure is visible. */}
       {authoredSiteReady && (
         <>
-          <CommunityLife />
+          <ErrorBoundary fallback={null} resetKeys={[graphicsQuality]}>
+            <CommunityLife />
+          </ErrorBoundary>
           <StaticMeshBatch
             name="authored-factory-exterior"
             revision={staticBatchRevision}
             surface={applyBatchWorldSurface}
           >
-            <AuthoredFactoryExterior showFactoryShell={false} />
+            <ErrorBoundary fallback={null} resetKeys={[graphicsQuality]}>
+              <AuthoredFactoryExterior showFactoryShell={false} />
+            </ErrorBoundary>
           </StaticMeshBatch>
           <StaticMeshBatch
             name="authored-castle"
             revision={staticBatchRevision}
             surface={applyBatchWorldSurface}
           >
-            <AuthoredCastle
-              position={SITE_LAYOUT.landmarks.castle.position}
-              scale={SITE_LAYOUT.landmarks.castle.scale}
-              rotation={SITE_LAYOUT.landmarks.castle.rotation}
-            />
+            <ErrorBoundary fallback={null} resetKeys={[graphicsQuality]}>
+              <AuthoredCastle
+                position={SITE_LAYOUT.landmarks.castle.position}
+                scale={SITE_LAYOUT.landmarks.castle.scale}
+                rotation={SITE_LAYOUT.landmarks.castle.rotation}
+              />
+            </ErrorBoundary>
           </StaticMeshBatch>
           <StaticMeshBatch
             name="authored-farm"
             revision={staticBatchRevision}
             surface={applyBatchWorldSurface}
           >
-            <AuthoredFarm />
+            <ErrorBoundary fallback={null} resetKeys={[graphicsQuality]}>
+              <AuthoredFarm />
+            </ErrorBoundary>
           </StaticMeshBatch>
           <StaticMeshBatch
             name="authored-village"
             revision={staticBatchRevision}
             surface={applyBatchWorldSurface}
           >
-            <AuthoredVillage />
+            <ErrorBoundary fallback={null} resetKeys={[graphicsQuality]}>
+              <AuthoredVillage />
+            </ErrorBoundary>
           </StaticMeshBatch>
         </>
       )}
@@ -990,14 +1014,33 @@ export const MillScene: React.FC<MillSceneProps> = ({
       {/* Fire Drill Exit Markers - shown during active drill */}
       <ServiceEgressMarkers />
 
-      {/* AI Cascade Visualization - shows production flow stress (default OFF, toggle with 'K') */}
-      {authoredSiteReady && showCascadeVisualization && <OptionalCascadeVisualization />}
+      {/* AI Cascade Visualization - shows production flow stress (default OFF, toggle with 'K').
+          Its chunk is first fetched on demand after the world is ready, so it
+          gets a local Suspense (the first K press must not swap the world for
+          the core preview) and a boundary INSIDE the toggle, so K off/on is a
+          fresh recovery generation and a real retry. Working if a failed fetch
+          leaves the factory on screen with no cascade layer. */}
+      {authoredSiteReady && showCascadeVisualization && (
+        <ErrorBoundary fallback={null} resetKeys={[graphicsQuality]}>
+          <Suspense fallback={null}>
+            <OptionalCascadeVisualization />
+          </Suspense>
+        </ErrorBoundary>
+      )}
 
       {/* Strategic Overlay 3D - floating priority text above factory (default OFF, toggle with 'J') */}
-      {authoredSiteReady && <OptionalStrategicOverlay />}
+      {authoredSiteReady && (
+        <ErrorBoundary fallback={null} resetKeys={[graphicsQuality]}>
+          <OptionalStrategicOverlay />
+        </ErrorBoundary>
+      )}
 
       {/* Blueprint Mode - architectural overlay (toggle with Ctrl+B) */}
-      {authoredSiteReady && <OptionalBlueprintMode />}
+      {authoredSiteReady && (
+        <ErrorBoundary fallback={null} resetKeys={[graphicsQuality]}>
+          <OptionalBlueprintMode />
+        </ErrorBoundary>
+      )}
 
       {/* The composer now mounts on medium and above, so this subtree survives
           tier changes rather than being absent at every tier. `graphicsQuality`
@@ -1043,8 +1086,15 @@ export const MillScene: React.FC<MillSceneProps> = ({
         </DustAnimationManager>
       )}
 
-      {authoredSiteReady && useUltraQualityLayers && (isCameraInside || isCameraInDockZone) && (
-        <EnhancedHolographicDisplays />
+      {/* First fetched when the camera enters the building on Ultra, after the
+          world is ready: local Suspense plus boundary, both outside the camera
+          condition so walking in and out reuses one resolved payload. */}
+      {authoredSiteReady && useUltraQualityLayers && (
+        <ErrorBoundary fallback={null} resetKeys={[graphicsQuality]}>
+          <Suspense fallback={null}>
+            {(isCameraInside || isCameraInDockZone) && <EnhancedHolographicDisplays />}
+          </Suspense>
+        </ErrorBoundary>
       )}
 
       {/* Legacy environment, maintenance and ambient-detail worlds stay
