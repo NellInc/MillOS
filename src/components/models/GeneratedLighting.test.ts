@@ -4,6 +4,8 @@ import { NodeIO } from '@gltf-transform/core';
 import * as THREE from 'three';
 import {
   applyOfficeWindows,
+  OFFICE_INTERIOR_STRENGTH,
+  OFFICE_PANE_LAYOUT,
   applyFarmWindows,
   FARM_INTERIOR_STRENGTH,
   applyForgeWindows,
@@ -703,4 +705,118 @@ it('matches the real farm recesses and keeps the original loft brace in front of
   expect(barn.getRoot().listNodes()[0].getScale()[0]).toBeCloseTo(10.007632, 5);
   geometry.dispose();
   material.dispose();
+});
+
+it('gives office panes a filtered room basis while retaining the exact old zero-strength response', () => {
+  const material = new THREE.MeshStandardMaterial({ map: new THREE.Texture() }),
+    night = { value: 0.6 };
+  const map = material.map;
+  applyOfficeWindows(material, night);
+  const source = THREE.ShaderLib.standard;
+  const shader = {
+    uniforms: THREE.UniformsUtils.clone(source.uniforms),
+    vertexShader: source.vertexShader,
+    fragmentShader: source.fragmentShader,
+  } as Parameters<typeof material.onBeforeCompile>[0];
+  material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
+  expect(shader.uniforms.officeNight).toBe(night);
+  expect(shader.uniforms.officeRoomLight.value.b).toBeGreaterThan(
+    shader.uniforms.officeGlow.value.b * 4
+  );
+  expect(shader.fragmentShader).toContain('vec3 roomEmission = officeRoomLight');
+  expect(shader.uniforms.officeInteriorStrength).toBe(OFFICE_INTERIOR_STRENGTH);
+  expect(material.userData.officeInteriorStrength).toBe(OFFICE_INTERIOR_STRENGTH);
+  expect(material.map).toBe(map);
+  expect(shader.fragmentShader).toContain(
+    'diffuseColor.rgb = mix(diffuseColor.rgb, officeGlass, officeWindow)'
+  );
+  expect(shader.fragmentShader).toContain('totalEmissiveRadiance += officeGlow * officeWindow');
+  expect(shader.fragmentShader).toContain('if (officeStrength > 0.0 && officeMask > 0.5');
+  expect(shader.fragmentShader).toContain(
+    '(roomEmission - officeGlow * officeWindow) * officeStrength'
+  );
+  expect(shader.fragmentShader).toContain(
+    'officeGlazing(diffuseColor.rgb) * clamp(officeInteriorStrength'
+  );
+  expect(shader.fragmentShader.indexOf('dFdx(pane)')).toBeLessThan(
+    shader.fragmentShader.indexOf('if (officeStrength > 0.0')
+  );
+  expect(shader.fragmentShader).toContain('vec2 room = pane - slope * 0.20');
+  expect(shader.fragmentShader).toContain('vec2 cloth = pane - slope * 0.025');
+  expect(shader.fragmentShader).toContain('smoothstep(0.008, 0.025, officePixel)');
+  const key = material.customProgramCacheKey();
+  OFFICE_INTERIOR_STRENGTH.value = 0;
+  try {
+    expect(material.customProgramCacheKey()).toBe(key);
+    expect(shader.uniforms.officeInteriorStrength.value).toBe(0);
+  } finally {
+    OFFICE_INTERIOR_STRENGTH.value = 1;
+  }
+  expect(key).toBe('millos-generated-office-window-v3');
+  material.dispose();
+  map!.dispose();
+});
+
+it('calibrates office room coordinates to actual retained blue facade triangles and excludes non-glazing', async () => {
+  const { ALL_EXTENSIONS } = await import('@gltf-transform/extensions');
+  const { default: draco } = await import('draco3dgltf');
+  const { default: sharp } = await import('sharp');
+  const doc = await new NodeIO()
+    .registerExtensions(ALL_EXTENSIONS)
+    .registerDependencies({ 'draco3d.decoder': await draco.createDecoderModule() })
+    .read('public/models/world/small-office.glb');
+  const primitive = doc.getRoot().listMeshes()[0].listPrimitives()[0],
+    pos = primitive.getAttribute('POSITION')!,
+    uv = primitive.getAttribute('TEXCOORD_0')!,
+    indices = primitive.getIndices()!;
+  const { data, info } = await sharp(primitive.getMaterial()!.getBaseColorTexture()!.getImage()!)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const mask = (p: number[], c: THREE.Color) =>
+    Math.abs(p[0]) >= 0.095 &&
+    p[1] >= -0.16 &&
+    p[1] < 0.14 &&
+    p[2] >= 0.3 &&
+    c.b - c.r >= 0.055 &&
+    c.g - c.r >= 0.035;
+  const bays = new Set<number>();
+  let selected = 0;
+  for (let f = 0; f < indices.getCount(); f += 3) {
+    const p = [0, 0, 0],
+      t = [0, 0];
+    for (let j = 0; j < 3; j++) {
+      const i = indices.getScalar(f + j),
+        a = pos.getElement(i, []),
+        b = uv.getElement(i, []);
+      a.forEach((v, k) => (p[k] += v / 3));
+      b.forEach((v, k) => (t[k] += v / 3));
+    }
+    const x = Math.min(info.width - 1, Math.floor(t[0] * info.width)),
+      y = Math.min(info.height - 1, Math.floor(t[1] * info.height)),
+      o = (y * info.width + x) * 4;
+    const c = new THREE.Color().setRGB(
+      data[o] / 255,
+      data[o + 1] / 255,
+      data[o + 2] / 255,
+      THREE.SRGBColorSpace
+    );
+    if (!mask(p, c)) continue;
+    const bay = p[0] < 0 ? 0 : 1,
+      u = (p[0] - OFFICE_PANE_LAYOUT.centres[bay]) / OFFICE_PANE_LAYOUT.width + 0.5,
+      v = 1 - (p[1] - OFFICE_PANE_LAYOUT.bottom) / OFFICE_PANE_LAYOUT.height;
+    expect(u).toBeGreaterThan(0);
+    expect(u).toBeLessThan(1);
+    expect(v).toBeGreaterThan(0);
+    expect(v).toBeLessThan(1);
+    selected++;
+    bays.add(bay);
+  }
+  expect(selected).toBe(15);
+  expect(bays.size).toBe(2);
+  const blue = new THREE.Color('#65a2b8');
+  expect(mask([0, 0.04, 0.345], blue)).toBe(false);
+  expect(mask([0.2, 0.24, 0.345], blue)).toBe(false);
+  expect(mask([0.2, 0.04, -0.345], blue)).toBe(false);
+  expect(mask([0.2, 0.04, 0.345], new THREE.Color('#aaa79e'))).toBe(false);
 });
