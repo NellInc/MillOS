@@ -1,6 +1,12 @@
+import type { WorkplaceReplayRun } from '../types/workplaceReplay';
 import { describe, expect, it } from 'vitest';
 import { createWorkplace, transitionWorkplace, type WorkplaceCommand } from './bilateralWorkplace';
-import { fairnessReceipt, participationReceipt, demonstrationBeats } from './workplaceFairness';
+import {
+  fairnessReceipt,
+  participationReceipt,
+  demonstrationBeats,
+  replayLearningReview,
+} from './workplaceFairness';
 import { WORKPLACE_CHECKS } from './workplaceCampaign';
 
 describe('individual public cooperative receipts', () => {
@@ -105,5 +111,118 @@ describe('individual public cooperative receipts', () => {
       detail: 'forecast',
     });
     expect(demonstrationBeats(s)[3].observed).toBe(false);
+  });
+});
+
+function replayRun(): WorkplaceReplayRun {
+  const workplace = createWorkplace();
+  return {
+    id: 'run1',
+    checkpointId: 'checkpoint1',
+    profile: 'team',
+    planId: 'steady',
+    charter: {
+      practices: [...workplace.practices],
+      workerAutonomy: workplace.workerAutonomy,
+      governance: workplace.governance,
+      aiAuthority: workplace.aiAuthority,
+    },
+    shiftPlans: [{ shift: 0, planId: 'steady' }],
+    shiftCount: 1,
+    elapsedMinutes: 90,
+    agreementMinutes: 90,
+    targetKg: 600,
+    deferredKg: 0,
+    dispatchedKg: 123,
+    remainingKg: 477,
+    manifestIds: ['manifest1'],
+    materialErrorKg: 0,
+    genealogyErrorKg: 0,
+    financial: {
+      plantRevenue: 200,
+      plantCosts: 50,
+      workplaceWages: 32,
+      compensation: 8,
+      improvements: 0,
+    },
+    members: [],
+    receipts: [],
+    objections: [],
+    objectionsRaised: 0,
+    objectionsResolved: 0,
+    refusalsRespected: 0,
+    promisesKept: 0,
+  };
+}
+describe('actual replay learning review', () => {
+  it('needs two retained runs before inviting a comparison', () => {
+    expect(replayLearningReview([])).toBeNull();
+    expect(replayLearningReview([replayRun()])).toBeNull();
+  });
+  it('retains agreement duration in the horizon even when elapsed time and shifts match', () => {
+    const a = replayRun(),
+      b = { ...replayRun(), id: 'run2', agreementMinutes: 45 };
+    expect(replayLearningReview([a, b])).toMatchObject({
+      horizonsDiffer: true,
+      question: expect.stringContaining('equally long trials'),
+    });
+    expect(replayLearningReview([a, { ...b, agreementMinutes: 90 }])?.horizonsDiffer).toBe(false);
+  });
+  it('compares actual charters, ignores practice ordering and profile labels, and preserves inputs', () => {
+    const a = replayRun(),
+      b: WorkplaceReplayRun = {
+        ...replayRun(),
+        id: 'run2',
+        profile: 'cooperative',
+        charter: { ...a.charter, practices: [...a.charter.practices].reverse() },
+      };
+    const before = structuredClone([a, b]);
+    const review = replayLearningReview([a, b])!;
+    expect(review.caveats).toEqual([]);
+    expect(review.question).toContain('recorded charter and plan sequence match');
+    expect([a, b]).toEqual(before);
+    b.charter = { ...b.charter, aiAuthority: 'advice' };
+    expect(replayLearningReview([a, b])?.question).toContain('recorded plan sequence matches');
+  });
+  it('separates changed work plans from changed charter without ranking output', () => {
+    const a = replayRun(),
+      b: WorkplaceReplayRun = {
+        ...replayRun(),
+        id: 'run2',
+        shiftPlans: [{ shift: 0, planId: 'resequence' }],
+      };
+    expect(replayLearningReview([a, b])?.question).toContain('recorded charter held fixed');
+    b.charter = { ...b.charter, governance: 'consultative' };
+    const review = replayLearningReview([a, b])!;
+    expect(review.caveats).toContain(
+      'Both the recorded charter and shift-plan sequence changed. Their effects cannot be separated by this comparison.'
+    );
+    expect(review.question).toContain('Keep one charter and compare one plan change');
+    expect(Object.keys(review).sort()).toEqual(['caveats', 'horizonsDiffer', 'question']);
+  });
+  it('keeps a smaller agreed installment separate from the full customer obligation', () => {
+    const a = replayRun(),
+      b = { ...replayRun(), id: 'run2', targetKg: 480, deferredKg: 120 };
+    const review = replayLearningReview([a, b])!;
+    expect(review.caveats.join(' ')).toContain('full customer commitment remaining');
+    expect(review.question).toContain('what remains owed');
+    expect(b.remainingKg).toBe(477);
+  });
+  it.each([0.02, -0.02, NaN, Infinity])(
+    'quarantines uncertain balance evidence (%s) before a comparison lesson',
+    (error) => {
+      const a = replayRun(),
+        b = { ...replayRun(), id: 'run2', genealogyErrorKg: error, agreementMinutes: 45 };
+      const review = replayLearningReview([a, b])!;
+      expect(review.horizonsDiffer).toBe(true);
+      expect(review.caveats.join(' ')).toContain('unavailable or exceeds 0.01 kg');
+      expect(review.question).toContain('checkpoint or balance fact');
+    }
+  );
+  it('does not describe different retained checkpoints as matching starting conditions', () => {
+    const a = replayRun(),
+      b = { ...replayRun(), id: 'run2', checkpointId: 'another-checkpoint' };
+    expect(replayLearningReview([a, b])?.caveats[0]).toContain('starting conditions as unmatched');
+    expect(replayLearningReview([a, b])?.question).toContain('checkpoint or balance fact');
   });
 });

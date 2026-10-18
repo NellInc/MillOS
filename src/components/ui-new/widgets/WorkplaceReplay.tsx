@@ -6,6 +6,7 @@ import {
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
 import { PRACTICES, WORKPLACE_PLANS } from '../../../simulation/bilateralWorkplace';
+import { replayLearningReview } from '../../../simulation/workplaceFairness';
 import type { WorkplaceProfile } from '../../../types/workplace';
 
 const buttonClass =
@@ -58,7 +59,7 @@ export function WorkplaceReplay({
     URL.revokeObjectURL(url);
     setFeedback('Redacted run report downloaded locally. Plant checkpoint stays in memory.');
   };
-  const horizons = new Set(replay.runs.map((run) => `${run.elapsedMinutes}:${run.shiftCount}`));
+  const learning = replayLearningReview(replay.runs);
   return (
     <section
       aria-label="Matched plant replay"
@@ -130,11 +131,33 @@ export function WorkplaceReplay({
       ) : (
         <p>No checkpoint yet. Capture a paused plant to compare actual runs.</p>
       )}
-      {horizons.size > 1 && (
+      {learning?.horizonsDiffer && (
         <p className="text-amber-100">
-          Unequal horizons: elapsed time or shifts differ. Dispatch totals alone cannot establish a
-          better charter.
+          Unequal horizons: elapsed time, agreement time or shifts differ. Dispatch totals alone
+          cannot establish a better charter.
         </p>
+      )}
+      {learning && (
+        <details className="space-y-2">
+          <summary className="min-h-11 cursor-pointer py-2 font-medium text-cyan-100">
+            Discuss the actual replay evidence
+          </summary>
+          <div role="group" aria-label="Replay learning review" className="space-y-3">
+            {learning.caveats.length > 0 && (
+              <ul className="list-disc space-y-2 pl-4 text-amber-100">
+                {learning.caveats.map((caveat) => (
+                  <li key={caveat}>{caveat}</li>
+                ))}
+              </ul>
+            )}
+            <p className="text-cyan-100">{learning.question}</p>
+            <p>
+              Hear Packing, Quality, Maintenance and Coordinator before choosing the next trial. Use
+              the actual results and member receipts below; a shared starting point alone cannot
+              establish a charter’s causal effect.
+            </p>
+          </div>
+        </details>
       )}
       {replay.runs.map((run) => (
         <article

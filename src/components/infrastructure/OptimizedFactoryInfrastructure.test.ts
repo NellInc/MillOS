@@ -5,6 +5,7 @@ import { MachineData, MachineType } from '../../types';
 import { buildSpoutRoutes, SPOUT_PIPE_RADIUS } from '../flow/spoutRoutes';
 import { PIPE_SUPPORT_SEGMENTS } from '../SpoutingSystem';
 import {
+  buildCeilingFixtures,
   buildFactoryRoofEnvelope,
   buildFactoryRoofBatten,
   buildFactoryRoofGlazing,
@@ -517,4 +518,51 @@ describe('exposed factory roof steelwork', () => {
       material.dispose();
     }
   });
+});
+
+it('keeps ceiling fixtures clear of every actual pneumatic and finished-product route', () => {
+  const groups = [
+    [SITE_LAYOUT.machines.silos, MachineType.SILO, SITE_LAYOUT.machineDimensions.silo],
+    [
+      SITE_LAYOUT.machines.rollerMills,
+      MachineType.ROLLER_MILL,
+      SITE_LAYOUT.machineDimensions.rollerMill,
+    ],
+    [SITE_LAYOUT.machines.sifters, MachineType.PLANSIFTER, SITE_LAYOUT.machineDimensions.sifter],
+    [SITE_LAYOUT.machines.packers, MachineType.PACKER, SITE_LAYOUT.machineDimensions.packer],
+  ] as const;
+  const machines = groups.flatMap(([anchors, type, size]) =>
+    anchors.map((anchor) => ({ ...anchor, type, size: [...size] }))
+  ) as unknown as MachineData[];
+  const fixtures = buildCeilingFixtures();
+  expect(fixtures.housings).toHaveLength(15);
+  expect(fixtures.emitters).toHaveLength(15);
+  const envelopes = [...fixtures.housings, ...fixtures.emitters].map((part) =>
+    new THREE.Box3()
+      .setFromCenterAndSize(new THREE.Vector3(...part.position), new THREE.Vector3(...part.scale))
+      .expandByScalar(SPOUT_PIPE_RADIUS)
+  );
+  const routes = buildSpoutRoutes(machines);
+  expect(routes).toHaveLength(11);
+  // CurvePath.getPoints samples only LineCurve3 endpoints, regardless of the
+  // division count. Spaced samples exercise the actual straight pipe spans.
+  const samples = routes.flatMap((route) => route.curve.getSpacedPoints(3200));
+  const rejectedRow = fixtures.housings
+    .filter((part) => part.position[2] === 22)
+    .map((part) =>
+      new THREE.Box3()
+        .setFromCenterAndSize(
+          new THREE.Vector3(part.position[0], part.position[1], 18),
+          new THREE.Vector3(...part.scale)
+        )
+        .expandByScalar(SPOUT_PIPE_RADIUS)
+    );
+  expect(samples.some((point) => rejectedRow.some((box) => box.containsPoint(point)))).toBe(true);
+  for (const route of routes) {
+    for (const point of route.curve.getSpacedPoints(3200))
+      expect(
+        envelopes.some((box) => box.containsPoint(point)),
+        `${route.family}: ${point.toArray()}`
+      ).toBe(false);
+  }
 });

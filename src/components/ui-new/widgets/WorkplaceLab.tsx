@@ -162,6 +162,11 @@ export const WorkplaceLab: React.FC = () => {
             {check.prompt}
             <select
               aria-label={`${role}: ${check.prompt}`}
+              aria-invalid={
+                campaign?.checks[actorId]?.[check.id]
+                  ? campaign.checks[actorId][check.id] !== check.correct
+                  : undefined
+              }
               aria-describedby={
                 campaign?.checks[actorId]?.[check.id]
                   ? `check-answer-${actorId}-${check.id}`
@@ -185,6 +190,7 @@ export const WorkplaceLab: React.FC = () => {
             {campaign?.checks[actorId]?.[check.id] && (
               <span
                 id={`check-answer-${actorId}-${check.id}`}
+                aria-live="polite"
                 className="mt-1 block whitespace-normal break-words text-slate-300"
               >
                 {
@@ -192,6 +198,16 @@ export const WorkplaceLab: React.FC = () => {
                     (option) => option.value === campaign.checks[actorId]?.[check.id]
                   )?.label
                 }
+                <span
+                  className={`mt-1 block ${campaign.checks[actorId]?.[check.id] === check.correct ? 'text-cyan-100' : 'text-amber-100'}`}
+                >
+                  <strong>
+                    {campaign.checks[actorId]?.[check.id] === check.correct
+                      ? 'Matches the current terms. '
+                      : 'Needs another look. '}
+                  </strong>
+                  {check.clarification}
+                </span>
               </span>
             )}
           </label>

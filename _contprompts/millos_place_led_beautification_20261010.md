@@ -6329,3 +6329,157 @@ Native public paid-briefing proposal/adviser/four-role approvals/activation/paus
 Root authored and personally self-reviewed all36frames through nine lossless four-person sheets, plus full native close views. Four representatives remain at their actual safe posts or existing bench, with natural standing attention and no forced seat changes. Original body/prop/seat contact geometry preserved. Night maintenance-post rendering is visibly dim in the existing lighting; preserve this as a grounded later lighting opportunity rather than changing exposure or adding a light inside this motion-only pass. No art correction round or source rebuild after native acceptance needed.
 
 Protected primary HEAD/NULstatus/binarydiff, ten canonical source/body-asset pins, ten unrelated images and all26source/431compiled pins exact before this completion note. Documentation separately pinned afterward. All owned browsers/previews/locks closed normally. Selective LOCAL commit only, no push/deploy/upload. Repeating programme ACTIVE, pacing/adaptive quality OPEN separately with no waiver, physical player/device/manual acceptance DEFERRED. Next continuation can address the observed dim service-post lighting or another substantial world/gameplay gap; do not keep expanding this finished briefing gesture.
+
+
+## CF. Publish completed CC/CD/CE and continue core cooperative learning, 2026-10-18
+
+Nell explicitly requests the completed work live, then renewed emphasis on the cooperative learning game. This supersedes the repeating goal's local-only restriction for the accepted CC/CD/CE delivery to NellInc/MillOS main and https://www.millos.net/v0.40/. PR36 isolates exact243a60dc. Source/build pins rechecked, complete outgoing tree/history below100MB, four outgoing commits gitleaks-clean. Preserve the original five CI gates, normal Pages archival assembly and exact served-byte verification. Subsequent refinements remain local/muted until their acceptance is complete. Working if the exact accepted head merges after original gates, main/Pages succeed and served modules/assets match that candidate without modifying the dirty primary.
+
+## CG. Explain cooperative decisions where players make them, 2026-10-18
+
+Observed live-source gap: the three separate-turn mandate checks and campaign role/adviser comprehension checks retain a chosen answer inline, while their existing authoritative clarification is absent from that answer's accessible description. Campaign refusal can report a transient clarification, yet navigating away loses it. Retain explanatory learning feedback beside current answers, without changing checks, marking understanding, casting votes or granting execution. Existing labels, layout, tabs and controls remain intact.
+
+Allowed production surfaces: WorkplaceParticipation.tsx and WorkplaceLab.tsx only; their two existing suites and this programme. Canonical store/domain/schema/plant/clock/people/graphics/quality/loading interfaces remain unchanged. No new dependency, scoring, private explanation, analytics or saved state. Working if each answered question has accurate current-term feedback, wrong answers remain editable and distinctly flagged, and only explicit existing actions can record understanding, consent or a vote.
+
+Detailed finite execution list:
+1. Preserve PR36's immutable head and accepted assembly while its original CI runs.
+2. Create an owned local successor branch so new learning changes cannot enter that PR.
+3. Pin the protected primary, canonical authority/engine/rendering files and unrelated images.
+4. Reopen both live renderers and the original question/clarification definitions.
+5. Verify their reachable production assembly before editing.
+6. Run the existing participation and lab suites, record named baseline failures if any.
+7. Reproduce missing persistent clarification with one existing-suite assertion.
+8. Keep each player's exact selected option visible in its original answer description.
+9. Use the existing authoritative clarification beside every answered mandate check.
+10. Distinguish an answer matching current terms from one needing another look, in words and colour.
+11. Mark an entered wrong answer aria-invalid and connect the explanation with aria-describedby.
+12. Announce changed feedback politely, with no modal, new panel or interrupted focus.
+13. Apply the same feedback to campaign role and adviser checks using their own original definitions.
+14. Keep unanswered checks quiet; no premature error or volunteered answer.
+15. Show that correct answers do not themselves confirm member understanding, policy ballots or cover consent.
+16. Preserve role-local turns, stale-token rejection, facilitator boundaries and manual takeover.
+17. Verify wrong-to-correct revision and repeat editing do not auto-select another answer or action.
+18. Verify changed shared terms clear old answers/feedback and require fresh understanding.
+19. Verify ending a turn removes its feedback and the next role starts with a clean answer set.
+20. Verify campaign/adviser boundaries, pay, obligations, inventory and clock are unchanged by feedback rendering.
+21. Run affected suites, typecheck, lint, formatting, depth/shaders and available design detection.
+22. Build under the existing lock, retain170MiB and fresh bundle/reachability/community gates.
+23. Exercise actual public ownership and campaign controls in muted native Metal desktop/mobile views at day/dusk/night.
+24. Inspect all correction/matching/reset views together, with unchanged quality/readiness/page guards and no actor/inventory overrides.
+25. Complete CF's actual required CI/merge/main/Pages/served checks, retaining failures honestly.
+26. Record finite source/runtime/visual acceptance, close owned resources, and selectively commit the next local refinement. Keep repeating goal ACTIVE, pacing OPEN separately, player/device checks DEFERRED.
+
+Pre-mortem: feedback could mistakenly imply consent; stale feedback could survive changed terms; selected wrong options could be hidden behind generic success wording. Keep original state-derived checks, preserve chosen labels, test actual transitions and tie both descriptions and validity to current answers only.
+
+
+CG local implementation and native acceptance complete. Baseline42passed/0failed, missing inline clarification reproduced3failed/41passed, final45passed/0failed(+3). Tests cover all original role/adviser question definitions, wrong-to-correct edits, exact chosen labels, current accessible descriptions/invalidity, remount purity, fresh-plan invalidation, clean explicit handovers and an advice-only mandate. One new test initially assumed facilitator configuration could run inside a participant turn; the existing guard correctly refused it. Corrected the test to preserve that refusal and explicitly end the turn before changing terms. No authority code was changed.
+
+Two production renderers add30lines total. Original question answers/clarifications remain the sole source; no new domain, persistent fields, timer, dependency, score, consent or action. Unanswered questions stay quiet. Member understanding, policy votes, cover choices and activation remain distinct deliberate actions. Existing adviser acknowledgment still follows its explicit three answers, unchanged.
+
+Required typecheck/lint/format/depth91files12relationships/shaders37families41keys, production build, unchanged bundle, fresh reachability and inhabited-world gates pass. Build431files178133244bytes(169.88MiB), Vite16.88s. Bundled design detector returns one unchanged selection-style warning: selection:bg-cyan-800 is paired explicitly with selection:text-white, while the element background stays slate950. No detector-green claim or bulk repaint.
+
+Native guarded sandboxed out-of-process Apple Metal passes42frames across12:00/18:30/22:00, desktop1600x1000 and mobile390x844: turn correction/matching, Packing correction/matching, Adviser correction/matching, fresh shared terms. Root authored this pass and personally reviewed all42frames through9lossless grouped sheets plus the full desktop context. Inline explanations wrap/read clearly, retain selected labels, and stay in the original interface. Original quality Medium/readiness/world/people/textures/page/request guards unchanged. No actor/inventory override; actual public separate-turn campaign actions only. Clock, material/logistics/customer facts, money and member choices remain exact across answer/render operations. Shared plan revision clears prior answers without creating current decisions. Audio context not-created/0nodes, process muted. Browsers/previews/lock closed normally.
+
+Two native harness-premise failures retained: unopened ownership disclosure and existing responsive workspace dismissal after viewport resize. Their snapshots show readiness passed. Reused ordinary disclosure and established responsive reopen; no product correction or rebuild was needed. Protected primary HEAD/NULstatus/binarydiff, seven canonical contracts, ten unrelated images and all source/compiled pins verified exact before this note. Documentation separately pinned afterwards. CG is a selective LOCAL completed refinement; CF's earlier accepted PR36 delivery continues through its original requiredCI, then main/Pages/served verification. Repeating programme ACTIVE, pacing OPEN separately without waiver, physical player/device/manual checks DEFERRED.
+
+
+CF delivery complete: PR36 merged exact accepted243a60dcc42a7b1ebe0cd56c2707161f0b20601a atf095e61370d2f7fc04f650415a3830fd4245c56c. All five original PR CI jobs and all five post-merge main CI jobs passed. Standard Pages build/deploy passed, preserving v0.10/v0.20/v0.30. Actual https://www.millos.net/v0.40/ verification passes21HTTPresponses: exact merge build/cache identity, all other main/deferred-UI/scene-bridge/people module bytes match the accepted sealed assembly after only build identity and actual content-addressed import names are normalised, nine exact branded raster hashes, archived source matrix unchanged and three archives reachable. Verified actual main→MillScene→CommunityLife import chain; no guessed people-chunk URL. No gate bypass, re-run, runtime quality override or alternate deployment path. Status: live, verified in served bytes.
+
+CG successor completed during required release waits, local1df9f3d2,45tests/42nativeviews. It never entered PR36. Integrated the accepted release merge at5282d9d8 with exact same Git tree92de9cf2675dc83ec1949009736c1be3f19e290c before/after; all accepted runtime/build pins remain exact. Protected primary HEAD/NULstatus/binarydiff, seven canonical contracts and ten unrelated images rechecked exact after delivery. No task browser/server/capture lock remains. No dependencies or caches were installed or altered. Active final build, sealed release assembly, native originals and honest failure logs retained. Repeating programme ACTIVE; this is progress, not closure of the ongoing goal. Next continuation should prioritise a different substantive cooperative-game learning or observation gap, preserving current interface, muted local refinement, pacing OPEN separately and player/device checks DEFERRED.
+
+
+## CH. Learn fairly from actual cooperative replays, 2026-10-18
+
+Previous goal turn is PROGRESS: CF delivered PR36 through all original PR/main/Pages gates and exact served proof; CG local feedback pass accepted45tests/42nativeviews. Current41b2736a is clean except ten unrelated screenshots. Resume LOCAL/MUTED, no publication. Continue the latest emphasis on core cooperative learning.
+
+Observed source defect: the actual replay comparison's Unequal horizons warning compares elapsed time and shift count, omitting the separately retained agreementMinutes. Thus two runs with equal elapsed time and shift count but unequal bounded-work time silently lose that warning. The same retained records expose actual charters, plan sequences and agreed deferral, yet offer no context-sensitive way to discuss multiple changed conditions. Repair the missing warning and add an optional evidence-led group discussion to this existing replay view. Keep actual results and role receipts untouched; no winner, score or inferred causal charter bonus.
+
+Allowed: workplaceFairness.ts, WorkplaceReplay.tsx, their two existing tests and the existing real replay integration test. This programme tracks the pass. All replay capture/restore/store/schema/export/role/pay/clock/plant/graphics systems remain unchanged. No new dependency, persistent answer, analytics, private data or automatic action. Working if unequal agreement duration warns even with equal elapsed time, and players can distinguish matched starting stock from changed plans, charter, targets and retained evidence before drawing a lesson.
+
+Detailed finite task list:
+1. Verify owned branch/base and distinguish the live CF release from local CG.
+2. Pin primary dirty-state custody, canonical replay/authority/engine/renderers and ten unrelated images.
+3. Read actual replay records, authoritative question/render consumers and the existing real replay test.
+4. Confirm both production modules remain in the shipped graph.
+5. Run named affected-suite baseline before editing, including the existing real replay integration.
+6. Reproduce the missing agreement-duration warning in the existing UI suite.
+7. Derive a pure ephemeral learning review from actual retained replay runs, requiring at least two.
+8. Include elapsed time, bounded-agreement time and shift count in horizon comparison.
+9. Preserve actual dispatch, both currencies, per-role receipts and original source record identity.
+10. Compare actual recorded charters with canonicalised practice ordering, not profile labels alone.
+11. Compare ordered shift-plan sequences separately from charters.
+12. Explain when both charter and plan changed, so one cannot isolate a charter effect.
+13. Identify differing agreed targets/deferral without claiming unfinished customer work vanished.
+14. Flag mismatched checkpoints and non-finite or materially nonzero retained balance evidence before a numeric lesson; do not change recording/acceptance authority.
+15. Keep ordinary equal-condition results unranked and invite each role to inspect delivery and burden receipts.
+16. Place the optional discussion inside the existing replay flow, preserving tabs, layout and controls.
+17. Keep the original always-visible unequal-horizon warning, now covering agreement duration.
+18. Test exact input/store purity, zero/one-run absence, practice ordering, combined changes, target differences and evidence priority with established tests.
+19. Read the new review from actual existing real replay records, rather than a duplicate model table.
+20. Run affected suites, typecheck/lint/format/depth/shaders and available design detection.
+21. Build under the existing capture lock; retain170MiB and fresh bundle/reachability/community gates.
+22. Use public actual checkpoint/replay/role/clock controls to retain two genuinely played runs in silent sandboxed native Metal; no actor/inventory or report injection.
+23. Inspect optional review and original records at desktop/mobile day/dusk/night, preserving unchanged readiness/Medium/diagnostic/audio guards. Use meaningful authored clock controls, never synthetic tick advancement.
+24. Verify pins/custody, retain honest failed attempts, close owned resources, record finite acceptance and selectively commit locally. Keep repeating goal ACTIVE, pacing OPEN separately and physical player/device checks DEFERRED.
+
+Pre-mortem: matching start conditions could be mistaken for a causal result; reordered practice IDs could manufacture a charter difference; or a new teaching helper could secretly mutate replay/clock/consent. Compare actual public retained fields, canonicalise only set-like practice order, preserve the original records and exercise pure rendering plus real replay transitions.
+
+
+CH finite acceptance complete: all24planned items delivered. Baseline33passed/0failed. Missing agreement-duration warning reproduced in the existing UI suite(1failed/5passed), final43passed/0failed(+10). Pure cases cover no comparison before two records, retained agreement-time differences, exact input preservation, practice ordering/profile-label independence, actual charter versus ordered-plan changes, deferred commitments, different checkpoints and signed/non-finite balance evidence. Existing real-engine replay integration reads its own actual retained records, proving matched-clock and changed-charter/plan explanations without a duplicate simulation table. One initial pure fixture used member-vote as a supposedly changed charter, already the current default; corrected that fixture to consultative, preserving the honest failure. No domain repair or test guard was removed.
+
+Two production surfaces changed: pure ephemeral replayLearningReview and its original Replay renderer. Original always-visible warning now includes agreementMinutes; optional collapsed group discussion reads recorded charters, plan sequences, target/deferral, checkpoint and balance fields. Practice order is canonicalised without mutating arrays; profile labels alone never establish a charter difference. Uncertain balance/checkpoint evidence takes priority over a numerical lesson. The0.01kg discussion flag changes no record, capture, engine tolerance, release permission or acceptance gate. Existing raw results, currencies, public role receipts, capture/restore, schemas/export, pay/consent/authority/clock/plant/people/graphics untouched. No new state, dependency, framework, score or automatic participant action.
+
+Required typecheck/lint/format/depth91files12relationships/shaders37families41keys/design detector0findings, production build, unchanged bundle cap, fresh reachability and inhabited-world gates pass. Exact build431files178136072bytes(169.88MiB), Vite14.19s. No production correction after the first coherent build.
+
+All24native frames pass sandboxed out-of-process Apple Metal at12:00/18:30/22:00, desktop1600x1000/mobile390x844: horizon warning, open discussion, actual retained record and permitted forgotten-report state. Each session actually captures a real checkpoint, explicitly answers allfive role/adviser check sets and four member approvals, activates through the public agent, runs the ordinary180xclock for a full90minute toe-dip/steady trial, restores the checkpoint and deliberately stops cooperative/resequence at30minutes. Actual redacted report downloads retain these genuine records; no synthetic tick, report, actor or inventory injection. Both observed trials dispatch0kg with6000kg still owed. This is truthful play/review proof, not successful-delivery proof or a charter comparison: elapsed/agreement horizons and plans/charters differ. Existing real-engine integration separately retains positive-dispatch evidence. Native balance errors remain negligible and no unknown is relabelled as output.
+
+Root authored this pass and personally self-reviewed all24fullnativeframes through6lossless grouped UI sheets. Text wraps/readable, optional discussion stays in the existing interface, original figures/controls remain. No native/art correction round was needed. Opening/collapsing/reopening discussion and permitted forgetting change no observed live plant, material/logistics/customer state, clock, member money/choices or current workplace. Original Medium/readiness/world/people/texture/console/page/request guards preserved. Audio context not-created/0nodes, process muted. All owned browsers/previews/lock closed normally. Equal-elapsed/different-agreement, uncertain balances/checkpoints and deferral-priority branches are unit-tested; the native run uses actual90/30minute trials without fabricating those edge cases.
+
+Protected primary HEAD/NULstatus/binarydiff, eight canonical replay/authority/engine/renderer/schema files, ten unrelated images and all source/compiled pins exact before this note; documentation separately pinned afterwards. No dependency/cache setup to undo, all useful source/assets/builds/native originals and failed logs retained. Selective LOCAL commit only, no push/deploy/upload. Repeating programme ACTIVE, pacing/adaptive quality OPEN separately without waiver, physical player/device checks DEFERRED. Next continuation should move to a concrete world or playable behaviour gap supporting cooperative observation, rather than indefinitely adding more optional teaching disclosures.
+
+
+## CI. Interior workface and safe-route lighting, 2026-10-18
+
+User delivery amendment: hold the CG/CH push and deployment until this lighting pass is finished and checked, then ship the accepted passes together through existing release checks. Start3372e5b6, tracked clean except ten unrelated screenshots. Preserve interface, existing actors/routes/consent/gameplay/plant, all exterior assets and rail/port/mountain layout. Local and muted implementation; physical player/device checks remain deferred and pacing remains separately OPEN.
+
+Observed actual native CE22:00 maintenance representative at(-32.25,0,29.2556) is almost unlit from the front. Existing z30 ceiling bank sits behind the travelling heading while the other bank is beyond its cutoff; packing/quality workfronts also face away from their nearest bank. Rebalance the real hall illumination, with two/four sources by tier, fifteen physical fixtures/pools and zero added shadow maps. Reject global exposure/ambient changes, emissive skin and actor-facing cheats. Working if native paired views reveal readable people and workfaces without pipe hotspots, exterior contamination, additional sources or permission/state changes.
+
+Finite task list:
+1. Hold publication; identify exact CG/CH candidate and preserve unrelated primary work and screenshots.
+2. Read live rig, physical housings, roster/route headings, actual machine and process-pipe geometry.
+3. Establish named existing rig/envelope baseline and verify shipped reachability.
+4. Quantify the front-side coverage gap at actual posts and both directions of safe routes.
+5. Obtain bounded read-only advice before changing the cross-component fixture/source contract.
+6. Select the smallest justified source/layout/falloff correction; retain source counts and shadow budget.
+7. Keep lamps aligned with physical fittings and retain all fifteen additive pools.
+8. Protect ordinary milling controls and packing/quality duty fronts as well as the reported maintenance route.
+9. Sample actual pipes, floor coverage and exterior silos to reject hotspots and unintended spill.
+10. Add only focused regressions for this coverage defect and changed source contract.
+11. Reuse the existing runtime isolation API for a same-page reference, if needed, preserving shader light counts and restoring state.
+12. Validate affected source, typecheck/lint/format/depth/shaders, then build under the existing capture lock.
+13. Preserve unchanged170MiB bundle, fresh reachability/community and original readiness/quality/diagnostic/audio guards.
+14. Inspect matched day/dusk/night people, workfaces, hall and exterior frames using actual native Metal with no actor/inventory injection.
+15. Verify the reference restores exact lamp settings and observed physical/agreement state is untouched; do not present visual timing as pacing acceptance.
+16. Personally inspect the bounded native batch, fix concrete visual defects, close only owned resources and record actual acceptance and remaining limits.
+17. Selectively commit the finished local pass; only then begin the requested normal release of accepted CG/CH/CI scope. No manual/player checks or pacing waiver.
+
+Pre-mortem: a forward bank could approach high process pipes and create a hotspot; wider falloff could wash the yard or erase hall contrast; and a visual control could change shader counts or gameplay. Use actual pipe samples, floor/silo limits, same-load paired renders and exact state/count restoration. This lighting scope does not change gameplay decisions or certify machine pacing.
+
+
+CI pre-build findings: existing41light/envelope tests passed. New real-route regression reproduced zero front irradiance(1failed17passed). Read-only advice and root inspection rejected expanded60m cutoff because it reaches actual near silo walls, and rejected the first18m fixture row because it intersects live pneumatic pipes. The first root clearance check mistakenly used CurvePath.getPoints, which Three forces to one segment on straight LineCurve3 spans. It missed the collision. Source inspection confirmed this, and the corrected getSpacedPoints gate now checks every straight span, with the rejected18m row as its positive detection control. The22m choice independently preserves the original control-face minimum. The first coherent broad-bank candidate also failed the unchanged milling-control minimum(0.01915 versus0.05), so it is not accepted. Root personally inspected the24-frame exploratory same-page A/linear-bank/broad-bank/A batch: soft fill improves people/packing, but the16m source row darkens milling control shoulders. Corrected the source/fitting row to22m, which is clear of pipes and retains front light on the sloping controls. Retain the original44m cutoff, two/four count, fifteen fittings/pools, night fade and shadow budget. The new authored diffuse-bank approximation is explicitly bounded, not inverse-square bulb photometry. Full banks share energy at0.73per-source: the first0.75 candidate retained only0.73998reduced/full milling coverage versus the existing0.75minimum. The source gain was corrected rather than weakening that minimum. No global ambient/exposure, actor/clock or pipe-layout change.
+
+
+CI native diagnosis: day paired checks passed. Two dusk attempts exposed only existing celestial intensity damping after the ordinary clock pause(ambient2.87e-12 and sun1.92e-11 drift), while material/vehicle clock remains held. OptimizedSkySystem uses MathUtils.damp for these lights. The second attempt retained exact field differences. Corrected the capture setup to wait for those existing values to settle naturally for24consecutive frames below1e-14delta, retaining the original1e-12unchanged-light assertion. No clock/light/quality override, production change, safeguard relaxation or rebuild. Raw inconclusive and diagnostic attempts preserved.
+
+
+CI lighting acceptance complete(items1–16), delivery now eligible under the user's conditional request. Existing named light/envelope baseline41passed0failed; final same group44passed0failed(+3), with61existing graphics tests for105totalpassed. Missing front coverage reproduced as0; unchanged control-face and reduced/full coverage floors first rejected candidates and remain enforced. Actual shared fitting builder now proves fifteen housings/lenses clear all eleven live routes; getSpacedPoints also positively detects the rejected18m row, closing the observed straight-span blind spot. Near silo walls, not only distant centres, remain beyond the unchanged44m spheres. Existing floor coverage helper is an attenuation bound without a Lambert cosine, not a lux certificate. Numerical front-normal samples do not guarantee every walking heading is directly lit.
+
+Three production surfaces changed: real hall source/fitting grid and bounded diffuse-bank falloff; the actual physical fitting builder exposed unchanged shape data to its clearance test; and one default-off runtime illumination-reference boolean. No model/skin material, exposure, ambient fill, light count, extra shadow map, pipe route, actor schedule/root/consent, UI or gameplay changes. Low/Medium retain two lamps, High/Ultra four, all fifteen housings/lenses/pools retained.22m bank preserves original sloping-control minima; full source gain0.73 preserves reduced/full ordering. The reference keeps new physical fittings fixed and swaps only the old illumination uniforms; it is not a reconstruction of the old physical fitting layout.
+
+All required typecheck/lint/format/depth91active12relationships/shader37families41keys and available narrow design detection pass(no findings emitted). Production build431files178136398bytes,169.88MiB, below unchanged170MiB cap; Vite71s on the shared busy host. Fresh bundle/reachability/community gates pass. No post-build runtime correction or rebuild was needed.
+
+Native acceptance78frames:63Medium paired on/reference/on views across12:00/18:30/22:00, sixHigh and threeLow night frames, plus six camera-only night confirmations. Original startup/world/people/texture/console/page/request/preset/audio guards retained; sandboxed out-of-process Apple Metal, audio context not-created and0nodes plus process mute. Actual paid-handoff proposal/adviser/four-role approvals and ordinary pause establish the scenario, with no actor/pose/inventory/quality injection. Every paired sample retains exact lamp UUIDs/counts, cutoff and shadow budget; original reference values restore, physical fitting/pool matrices remain exact, and other lighting/environment/exposure remain within original1e-12arithmetic tolerance after natural celestial settling. Public/direct plant, clock, members/finance/choices and sampled bones stay exact across inspections. No timing or causal-production result is inferred.
+
+Root authored and self-reviewed the24frame exploratory batch and all78accepted frames via twenty-one Medium triptychs, three tier sheets and two camera-only close sheets, with originals retained. Day/dusk faces and packing/quality workfronts gain warm modelling; night hall keeps directional contrast and reduces concentrated overhead glare. The reported maintenance view gains warm side modelling. Existing packing support posts partly occlude the two night close views even after camera-only confirmation; this is an honest framing limit, not new actor movement or a certification of every facial angle. Exterior west glazing remains plausible warm spill; actual silo surfaces stay unchanged. No further art/source correction is warranted for this finite lighting contract.
+
+Primary HEAD/NULstatus/binarydiff, ten canonical files, ten unrelated images and all runtime source/431compiled pins rechecked exact. Programme closure is separately pinned after build. All owned browser/preview/lock resources close normally; no dependencies/caches installed or changed, no others' files deleted. Retain useful originals, failed candidates, endpoint-sampling miss and both dusk damping diagnostics. Pacing/adaptive quality remains OPEN separately without waiver; physical player/device/manual checks DEFERRED. Ongoing repeat goal ACTIVE. Proceed with the requested CG/CH/CI normal protected release; do not imply those earlier gameplay passes or all future polish were already live.

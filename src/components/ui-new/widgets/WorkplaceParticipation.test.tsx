@@ -242,11 +242,23 @@ it('explains current mandate checks without granting consent and focuses explici
     target: { value: 'unlimited' },
   });
   expect(screen.getByRole('status')).toHaveTextContent('Mandate checks: 0 of 3');
+  expect(screen.getByLabelText('Turn check: mandate')).toHaveAttribute('aria-invalid', 'true');
+  expect(document.getElementById('turn-answer-mandate')).toHaveTextContent('Needs another look.');
+  expect(document.getElementById('turn-answer-mandate')).toHaveTextContent(
+    turnChecks(get().workplace)[0].clarification
+  );
   for (const q of turnChecks(get().workplace))
     fireEvent.change(screen.getByLabelText(`Turn check: ${q.id}`), {
       target: { value: q.correct },
     });
   expect(screen.getByRole('status')).toHaveTextContent('Mandate checks: 3 of 3');
+  for (const q of turnChecks(get().workplace)) {
+    expect(screen.getByLabelText(`Turn check: ${q.id}`)).toHaveAttribute('aria-invalid', 'false');
+    expect(document.getElementById(`turn-answer-${q.id}`)).toHaveTextContent(
+      'Matches the current terms.'
+    );
+    expect(document.getElementById(`turn-answer-${q.id}`)).toHaveTextContent(q.clarification);
+  }
   expect(screen.getByRole('status')).toHaveTextContent(
     'Confirming understanding remains a separate choice'
   );
@@ -260,4 +272,50 @@ it('explains current mandate checks without granting consent and focuses explici
   fireEvent.click(screen.getByRole('button', { name: 'Begin participant turn' }));
   await waitFor(() => expect(screen.getByText(/Only Packing may/)).toHaveFocus());
   expect(screen.getByRole('status')).toHaveTextContent('Mandate checks: 0 of 3');
+  for (const q of turnChecks(get().workplace)) {
+    expect(document.getElementById(`turn-answer-${q.id}`)).toBeNull();
+    expect(screen.getByLabelText(`Turn check: ${q.id}`)).not.toHaveAttribute('aria-invalid');
+  }
+});
+
+it('relearns a changed advice-only mandate without retaining a previous turn or decisions', () => {
+  const get = () => useWorkplaceStore.getState();
+  get().setParticipationMode('separate-turns');
+  get().start('workshop', 17);
+  get().startTurn('packing');
+  render(<WorkplaceParticipation report={() => {}} />);
+  fireEvent.change(screen.getByLabelText('Turn check: mandate'), { target: { value: 'bounded' } });
+  expect(document.getElementById('turn-answer-mandate')).toHaveTextContent(
+    'Matches the current terms.'
+  );
+  // Facilitator changes are correctly refused during an owned participant turn.
+  act(() => {
+    expect(get().configure({ aiAuthority: 'advice' }).changed).toBe(false);
+  });
+  expect(get().workplace.aiAuthority).toBe('bounded');
+  fireEvent.click(screen.getByRole('button', { name: 'End participant turn' }));
+  act(() => {
+    expect(get().configure({ aiAuthority: 'advice' }).changed).toBe(true);
+  });
+  expect(get().turn).toBeNull();
+  expect(document.getElementById('turn-answer-mandate')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Begin participant turn' }));
+  const input = screen.getByLabelText('Turn check: mandate');
+  expect(input).toHaveValue('');
+  fireEvent.change(input, { target: { value: 'bounded' } });
+  expect(input).toHaveAttribute('aria-invalid', 'true');
+  expect(document.getElementById('turn-answer-mandate')).toHaveTextContent(
+    'This mandate is advice only. Execution needs a new bounded agreement.'
+  );
+  fireEvent.change(input, { target: { value: 'advice' } });
+  expect(input).toHaveAttribute('aria-invalid', 'false');
+  expect(document.getElementById('turn-answer-mandate')).toHaveTextContent(
+    'Matches the current terms.'
+  );
+  expect(get().workplace.phase).toBe('deliberating');
+  expect(
+    get().workplace.members.every(
+      (m) => !m.understood && m.ballot === null && m.coverConsent === null
+    )
+  ).toBe(true);
 });

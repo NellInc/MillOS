@@ -87,6 +87,9 @@ export function WorkplaceParticipation({
                         <select
                           className={input}
                           aria-label={`Turn check: ${q.id}`}
+                          aria-invalid={
+                            current.answers[q.id] ? current.answers[q.id] !== q.correct : undefined
+                          }
                           aria-describedby={
                             current.answers[q.id] ? `turn-answer-${q.id}` : undefined
                           }
@@ -107,9 +110,20 @@ export function WorkplaceParticipation({
                         {current.answers[q.id] && (
                           <span
                             id={`turn-answer-${q.id}`}
+                            aria-live="polite"
                             className="mt-1 block whitespace-normal break-words text-slate-300"
                           >
                             {q.options.find((o) => o.value === current.answers[q.id])?.label}
+                            <span
+                              className={`mt-1 block ${current.answers[q.id] === q.correct ? 'text-cyan-100' : 'text-amber-100'}`}
+                            >
+                              <strong>
+                                {current.answers[q.id] === q.correct
+                                  ? 'Matches the current terms. '
+                                  : 'Needs another look. '}
+                              </strong>
+                              {q.clarification}
+                            </span>
                           </span>
                         )}
                       </label>
