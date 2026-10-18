@@ -10,6 +10,7 @@ import {
   improvementSummary,
   improvementReviewWinner,
   improvementObligations,
+  improvementLearningReview,
 } from '../../../simulation/workplaceImprovement';
 import { turnChecks } from '../../../simulation/workplaceParticipation';
 import { workplaceReadiness } from '../../../simulation/bilateralWorkplace';
@@ -54,6 +55,7 @@ export function WorkplaceImprovementPanel({
   const s = store.workplace;
   const i = s.improvement;
   const summary = improvementSummary(s);
+  const learning = improvementLearningReview(s);
   const [selectedActor, setActor] = useState('quality');
   const actor =
     store.participationMode === 'separate-turns' ? (store.turn?.actorId ?? '') : selectedActor;
@@ -484,15 +486,28 @@ export function WorkplaceImprovementPanel({
       {s.phase === 'review' && (
         <div className="space-y-3 border-t border-slate-700 pt-4">
           <h5 className="font-semibold text-white">What should carry into the next shift?</h5>
-          <p className="tabular-nums">
-            {advice
-              ? advice.reasonToAbstain
-                ? 'No forecast was made because evidence was unavailable. '
-                : `Conditional departure bound 0 to ${advice.dispatchUpperKg.toFixed(0)} kg. `
-              : `Historical illustrative forecast ${summary.forecast.kg.toFixed(0)} kg. `}
-            Actual qualifying dispatch {s.shippedKg.toFixed(0)} kg. Packing potential, truck
-            departure and the arrangement’s causal effect remain separate.
-          </p>
+          {learning && (
+            <section aria-label="Handoff learning review" className="space-y-2">
+              <h5 className="font-semibold text-white">What did this handoff teach us?</h5>
+              <ul className="list-disc space-y-1 pl-4 text-xs tabular-nums text-slate-300">
+                {learning.evidence.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+              <p className="text-xs text-slate-300">{learning.limitation}</p>
+              <p className="text-cyan-100">{learning.question}</p>
+              {s.mode === 'game' && (
+                <>
+                  <p className="text-xs text-slate-300">
+                    The optional comparison below uses current paused plant inputs. It does not
+                    replay this finished shift or record a review ballot. Fresh terms still need
+                    fresh role decisions.
+                  </p>
+                  <MatchedPackingRehearsal state={s} report={report} />
+                </>
+              )}
+            </section>
+          )}
           <button
             type="button"
             className={button}

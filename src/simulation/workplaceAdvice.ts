@@ -348,6 +348,80 @@ export function runPackingRehearsals(capture: PackingCapture): PackingRehearsals
   };
 }
 
+/** Hypothetical dispatch restraint only; source and batch dispositions stay intact.
+ * Working if only isolated copies see the withheld gate and missing facts abstain.
+ */
+export function rehearseWithheldDispatch(capture: PackingCapture) {
+  const base = {
+    baseFingerprint: capture.fingerprint,
+    releaseAtCapture: capture.evidence.qualityRelease,
+    arms: [] as PackingAdvice[],
+    reasonToAbstain: capture.reasonToAbstain,
+  };
+  if (capture.reasonToAbstain) return base;
+  const copied = createMaterialFlowStore(capture.data);
+  const withheld = capturePackingPlant(copied.getState(), {
+    ...capture.context,
+    qualityRelease: false,
+  });
+  const result = runPackingRehearsals(withheld);
+  const reason = result.arms.find((arm) => arm.reasonToAbstain)?.reasonToAbstain ?? null;
+  return { ...base, arms: reason ? [] : result.arms, reasonToAbstain: reason };
+}
+
+/** Public inspection questions use captured facts, never authorise a plant action.
+ * Working if abstention supplies no numeric observations and every view stays observational.
+ */
+export function packingInspectionPrompts(advice: PackingAdvice) {
+  const e = advice.evidence;
+  const known = advice.reasonToAbstain === null && e.missingFacts.length === 0;
+  return [
+    {
+      role: 'Packing',
+      view: 'Packing',
+      action: 'View packing floor',
+      fact: known
+        ? `At capture: ${e.releasedPackedKg.toFixed(0)} kg released; ${e.heldPackedKg.toFixed(0)} kg held or recalled.`
+        : 'Usable captured stock facts are unavailable.',
+      question:
+        'Ask the coordinator which released bags could actually be collected. Packed stock alone proves no departure.',
+    },
+    {
+      role: 'Quality',
+      view: 'Packing',
+      action: 'View quality observation point',
+      fact: known
+        ? `Dispatch release at capture: ${e.qualityRelease === true ? 'open' : e.qualityRelease === false ? 'held' : 'unknown'}.`
+        : 'Usable captured release facts are unavailable.',
+      question:
+        known && e.qualityRelease === true
+          ? 'Which batch and source checks support release, and what new evidence would require a hold? A view cannot certify a batch.'
+          : 'Which qualified batch or source check is needed before release can be reconsidered? A team vote cannot clear a hold.',
+    },
+    {
+      role: 'Maintenance',
+      view: 'Milling',
+      action: 'View milling line',
+      fact: known
+        ? `At capture: ${e.processingMachines}/${e.totalMachines} machines marked processing.`
+        : 'Usable captured machine facts are unavailable.',
+      question:
+        'Ask Packing where material waits, then check upstream buffers and supply. Processing flags alone do not establish material flow.',
+    },
+    {
+      role: 'Coordinator',
+      view: 'Shipping',
+      action: 'View shipping dock',
+      fact:
+        known && e.truckStatus !== null && e.truckLoadedKg !== null && e.truckCapacityKg !== null
+          ? `Truck at capture: ${e.truckStatus}; ${e.truckLoadedKg.toFixed(0)} kg loaded / ${e.truckCapacityKg.toFixed(0)} kg capacity.`
+          : 'Usable captured collection facts are unavailable.',
+      question:
+        'Check material compatibility, free capacity and collection timing with Quality. A ready load still needs an actual departure receipt.',
+    },
+  ] as const;
+}
+
 export const PACKING_PREDICTIONS = [
   { id: 'higher', label: 'Buffer range entirely above ordinary work' },
   { id: 'overlap', label: 'No clear separation between packing ranges' },

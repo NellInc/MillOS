@@ -8,7 +8,9 @@ import {
   capturePackingPlant,
   derivePackingAdvice,
   runPackingRehearsals,
+  rehearseWithheldDispatch,
   packingPredictionReview,
+  packingInspectionPrompts,
   validPackingAdvice,
   type PackingContext,
 } from './workplaceAdvice';
@@ -336,5 +338,107 @@ describe('packing prediction evidence', () => {
       expect(packingPredictionReview({ ...result, arms }, 'higher').observation).toBe(
         'unavailable'
       );
+  });
+});
+
+describe('role-led captured evidence inspection', () => {
+  it('keeps open release, machine flags and ready load separate from actual flow and departure', () => {
+    const f = fixture();
+    f.context.dispatchLoad!.status = 'ready';
+    f.context.dispatchLoad!.loadedKg = f.context.dispatchLoad!.capacityKg;
+    const advice = derivePackingAdvice(f.capture(), 'buffer');
+    expect(advice.reasonToAbstain).toBeNull();
+    const before = JSON.stringify(advice);
+    const roles = packingInspectionPrompts(advice);
+    expect(roles.map((r) => r.role)).toEqual(['Packing', 'Quality', 'Maintenance', 'Coordinator']);
+    expect(roles[0].question).toContain('proves no departure');
+    expect(roles[1].fact).toBe('Dispatch release at capture: open.');
+    expect(roles[2].question).toContain('do not establish material flow');
+    expect(roles[3].fact).toContain('ready; 1000 kg loaded / 1000 kg capacity');
+    expect(roles[3].question).toContain('actual departure receipt');
+    expect(JSON.stringify(advice)).toBe(before);
+  });
+
+  it('treats a known held release and away truck as captured constraints, without inventing permission', () => {
+    const f = fixture();
+    f.context.qualityRelease = false;
+    f.context.dispatchLoad!.status = 'away';
+    const advice = derivePackingAdvice(f.capture(), 'briefing');
+    const roles = packingInspectionPrompts(advice);
+    expect(advice.reasonToAbstain).toBeNull();
+    expect(roles[1].fact).toBe('Dispatch release at capture: held.');
+    expect(roles[1].question).toContain('vote cannot clear a hold');
+    expect(roles[3].fact).toContain('away;');
+    expect(roles[3].view).toBe('Shipping');
+  });
+
+  it('quarantines every numeric observation during abstention, including sanitised missing values', () => {
+    const f = fixture();
+    f.context.order = null;
+    f.context.qualityRelease = null;
+    f.context.dispatchLoad = null;
+    const advice = derivePackingAdvice(f.capture(), 'steady');
+    expect(advice.reasonToAbstain).toBeTruthy();
+    const before = JSON.stringify(advice);
+    const roles = packingInspectionPrompts(advice);
+    expect(roles.every((r) => r.fact.includes('unavailable'))).toBe(true);
+    expect(roles.every((r) => !/\d/.test(r.fact))).toBe(true);
+    expect(roles[1].question).toContain('qualified batch');
+    expect(JSON.stringify(advice)).toBe(before);
+  });
+});
+
+describe('cooperative withheld-dispatch experiment', () => {
+  it('uses real cloned flow for every pacing arm, withholds eligibility and leaves all live inputs intact', () => {
+    const f = fixture(180);
+    const capture = f.capture();
+    const inputBefore = cloneMaterialFlowData(f.store.getState());
+    const singletonBefore = cloneMaterialFlowData(useMaterialFlowStore.getState());
+    const contextBefore = structuredClone(f.context);
+    const original = runPackingRehearsals(capture);
+    expect(original.arms.some((arm) => arm.dispatchUpperKg > 0)).toBe(true);
+    const held = rehearseWithheldDispatch(capture);
+    expect(held.baseFingerprint).toBe(capture.fingerprint);
+    expect(held.releaseAtCapture).toBe(true);
+    expect(held.reasonToAbstain).toBeNull();
+    expect(held.arms).toHaveLength(3);
+    for (const [index, arm] of held.arms.entries()) {
+      expect(arm.evidence.qualityRelease).toBe(false);
+      expect(validPackingAdvice(arm)).toEqual(arm);
+      expect(arm.packedHighKg).toBeGreaterThan(0);
+      expect(arm.packedLowKg).toBe(original.arms[index].packedLowKg);
+      expect(arm.packedHighKg).toBe(original.arms[index].packedHighKg);
+      expect(arm.dispatchLowerKg).toBe(0);
+      expect(arm.dispatchUpperKg).toBe(0);
+      expect(arm.genealogyErrorKg).toBeLessThan(0.01);
+    }
+    expect(cloneMaterialFlowData(f.store.getState())).toEqual(inputBefore);
+    expect(cloneMaterialFlowData(useMaterialFlowStore.getState())).toEqual(singletonBefore);
+    expect(f.context).toEqual(contextBefore);
+    expect(capture.context.qualityRelease).toBe(true);
+    expect(capture.data.manifests).toEqual([]);
+  });
+
+  it('preserves an already-held release and never releases held source lots', () => {
+    const f = fixture();
+    f.context.qualityRelease = false;
+    for (const lot of f.store.getState().sourceLots.values()) lot.disposition = 'hold';
+    const capture = f.capture();
+    const before = structuredClone(capture);
+    const result = rehearseWithheldDispatch(capture);
+    expect(result.reasonToAbstain).toBeNull();
+    expect(result.releaseAtCapture).toBe(false);
+    expect(result.arms.every((arm) => arm.dispatchUpperKg === 0)).toBe(true);
+    expect(capture).toEqual(before);
+  });
+
+  it('abstains on unknown evidence without fabricated zero-result arms', () => {
+    const f = fixture();
+    f.context.qualityRelease = null;
+    const capture = f.capture();
+    const result = rehearseWithheldDispatch(capture);
+    expect(result.reasonToAbstain).toContain('quality release');
+    expect(result.arms).toEqual([]);
+    expect(result.releaseAtCapture).toBeNull();
   });
 });
