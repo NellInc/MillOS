@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMobileDetection } from '../../../hooks/useMobileDetection';
 import { useWorkplaceAutoplay } from '../../../simulation/workplaceAutoplay';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
@@ -26,6 +26,10 @@ export function WorkplaceParticipation({
   const s = store.workplace;
   const [role, setRole] = useState('packing');
   const current = store.turn;
+  const turnInstructions = useRef<HTMLParagraphElement>(null);
+  const handover = useRef<HTMLSelectElement>(null);
+  const checks = turnChecks(s);
+  const completedChecks = checks.filter((q) => current?.answers[q.id] === q.correct).length;
   return (
     <section aria-label="Decision ownership" className="space-y-3 border-b border-slate-700 pb-4">
       <details open={store.participationMode === 'separate-turns'}>
@@ -61,14 +65,23 @@ export function WorkplaceParticipation({
           <div className="mt-3 space-y-2">
             {current ? (
               <>
-                <p className="font-medium text-cyan-100">
+                <p
+                  ref={turnInstructions}
+                  tabIndex={-1}
+                  className="font-medium text-cyan-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+                >
                   Only {s.members.find((m) => m.id === current.actorId)?.role ?? 'Adviser'} may
-                  record this turn’s role decisions. Changed terms end the turn.
+                  record this turn’s role decisions. Changed terms end the turn. End this turn
+                  before facilitator activation or settlement.
                 </p>
                 {s.phase === 'deliberating' && (
                   <fieldset className="space-y-2">
                     <legend className="font-semibold text-white">Current mandate checks</legend>
-                    {turnChecks(s).map((q) => (
+                    <p role="status" className="text-cyan-100">
+                      Mandate checks: {completedChecks} of {checks.length} match the current
+                      agreement. Confirming understanding remains a separate choice.
+                    </p>
+                    {checks.map((q) => (
                       <label key={q.id} className="block">
                         {q.prompt}
                         <select
@@ -103,7 +116,14 @@ export function WorkplaceParticipation({
                     ))}
                   </fieldset>
                 )}
-                <button className={button} onClick={() => report(store.endTurn())}>
+                <button
+                  className={button}
+                  onClick={() => {
+                    const result = store.endTurn();
+                    report(result);
+                    if (result.changed) requestAnimationFrame(() => handover.current?.focus());
+                  }}
+                >
                   End participant turn
                 </button>
               </>
@@ -114,6 +134,7 @@ export function WorkplaceParticipation({
                   <select
                     className={input}
                     aria-label="Hand over to fictional role"
+                    ref={handover}
                     value={role}
                     onChange={(e) => setRole(e.target.value)}
                   >
@@ -125,7 +146,15 @@ export function WorkplaceParticipation({
                     <option value="mind">Adviser</option>
                   </select>
                 </label>
-                <button className={button} onClick={() => report(store.startTurn(role))}>
+                <button
+                  className={button}
+                  onClick={() => {
+                    const result = store.startTurn(role);
+                    report(result);
+                    if (result.changed)
+                      requestAnimationFrame(() => turnInstructions.current?.focus());
+                  }}
+                >
                   Begin participant turn
                 </button>
                 <p className="text-slate-300">

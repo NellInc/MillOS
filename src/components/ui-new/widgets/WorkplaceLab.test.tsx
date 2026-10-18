@@ -586,3 +586,34 @@ describe('Living Cooperative campaign interface', () => {
     expect(screen.getByText(/Shift 1: Friday: the urgent order/)).toBeInTheDocument();
   });
 });
+
+it('turns the cooperative review into a discussion and comparison without changing the plant or agreement', () => {
+  const store = useWorkplaceStore.getState();
+  store.startCampaign('cooperative', 17);
+  store.stop();
+  const agreement = useWorkplaceStore.getState().workplace;
+  const speed = useGameSimulationStore.getState().gameSpeed;
+  const balance = useMaterialFlowStore.getState().getMaterialBalance();
+  render(<WorkplaceLab />);
+  open('Review');
+  const review = screen.getByRole('region', { name: 'Cooperative learning review' });
+  expect(within(review).getByText('Learn from this shift together')).toBeInTheDocument();
+  expect(within(review).getByText(/Teaching output:/)).toBeInTheDocument();
+  fireEvent.click(within(review).getByRole('button', { name: 'Compare another handoff' }));
+  expect(screen.getByRole('button', { name: 'Experiment', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true'
+  );
+  expect(useWorkplaceStore.getState().workplace).toBe(agreement);
+  expect(useGameSimulationStore.getState().gameSpeed).toBe(speed);
+  expect(useMaterialFlowStore.getState().getMaterialBalance()).toEqual(balance);
+});
+
+it('keeps cooperative reflection out of unfinished discussions', () => {
+  useWorkplaceStore.getState().startCampaign('cooperative', 17);
+  render(<WorkplaceLab />);
+  open('Review');
+  expect(
+    screen.queryByRole('region', { name: 'Cooperative learning review' })
+  ).not.toBeInTheDocument();
+});

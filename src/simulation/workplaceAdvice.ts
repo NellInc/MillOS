@@ -348,6 +348,68 @@ export function runPackingRehearsals(capture: PackingCapture): PackingRehearsals
   };
 }
 
+export const PACKING_PREDICTIONS = [
+  { id: 'higher', label: 'Buffer range entirely above ordinary work' },
+  { id: 'overlap', label: 'No clear separation between packing ranges' },
+  { id: 'lower', label: 'Buffer range entirely below ordinary work' },
+  { id: 'unsure', label: 'We are unsure, keep the question open' },
+] as const;
+export type PackingPrediction = (typeof PACKING_PREDICTIONS)[number]['id'];
+
+/** Discuss isolated packing evidence, never grade a team or authorise work.
+ * Working if overlapping or unusable evidence never becomes a claimed improvement.
+ */
+export function packingPredictionReview(
+  result: PackingRehearsals,
+  prediction: PackingPrediction | null
+) {
+  const ordinary = result.arms.filter((arm) => arm.arrangement === 'steady');
+  const buffer = result.arms.filter((arm) => arm.arrangement === 'buffer');
+  const usable = (arm: PackingAdvice) =>
+    arm.fingerprint === result.fingerprint &&
+    arm.reasonToAbstain === null &&
+    nonnegative(arm.packedLowKg) &&
+    nonnegative(arm.packedHighKg) &&
+    arm.packedLowKg <= arm.packedHighKg;
+  // Ten grams prevents numerical noise at a shared range boundary claiming an ordering.
+  const toleranceKg = 0.01;
+  const observation =
+    ordinary.length !== 1 || buffer.length !== 1 || ![...ordinary, ...buffer].every(usable)
+      ? 'unavailable'
+      : buffer[0].packedLowKg > ordinary[0].packedHighKg + toleranceKg
+        ? 'higher'
+        : ordinary[0].packedLowKg > buffer[0].packedHighKg + toleranceKg
+          ? 'lower'
+          : 'overlap';
+  const evidence = {
+    higher: 'The buffer’s entire modeled packing range is above ordinary work.',
+    lower: 'The buffer’s entire modeled packing range is below ordinary work.',
+    overlap:
+      'The modeled packing ranges overlap or meet within 0.01 kg. They do not establish a clear ordering.',
+    unavailable: 'This rehearsal has insufficient matching evidence to compare the packing ranges.',
+  };
+  return {
+    observation,
+    evidence: evidence[observation],
+    reflection:
+      observation === 'unavailable'
+        ? 'Keep the prediction open until both alternatives have usable evidence.'
+        : prediction === 'unsure'
+          ? 'We left the prediction open. Use these ranges to discuss what to test next.'
+          : prediction
+            ? observation === prediction
+              ? 'These modeled packing ranges support our prediction.'
+              : 'These modeled packing ranges differ from our prediction.'
+            : null,
+    question:
+      observation === 'unavailable'
+        ? 'Which missing fact needs checking before another rehearsal?'
+        : observation === 'overlap'
+          ? 'Which shared limit could keep extra pacing from adding packed stock? Check supply, machines and quality dispositions together.'
+          : 'Which supply, machine or pacing assumption explains the difference, and what would we check before changing the working agreement?',
+  };
+}
+
 /** Optional public historical evidence is quarantined independently of monetary state. */
 export function validPackingAdvice(value: unknown): PackingAdvice | undefined {
   if (!value || typeof value !== 'object') return;

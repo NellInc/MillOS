@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { useWorkplaceControls, useWorkplaceStore } from '../../../stores/workplaceStore';
 import { createWorkplace } from '../../../simulation/bilateralWorkplace';
@@ -229,4 +229,35 @@ it('reserves touch movement space in landscape and portrait while retaining take
     resize(width, height);
     delete document.documentElement.dataset.millosStartupReady;
   }
+});
+
+it('explains current mandate checks without granting consent and focuses explicit handovers', async () => {
+  const get = () => useWorkplaceStore.getState();
+  get().setParticipationMode('separate-turns');
+  get().start('workshop', 17);
+  get().startTurn('packing');
+  render(<WorkplaceParticipation report={() => {}} />);
+  expect(screen.getByRole('status')).toHaveTextContent('Mandate checks: 0 of 3');
+  fireEvent.change(screen.getByLabelText('Turn check: mandate'), {
+    target: { value: 'unlimited' },
+  });
+  expect(screen.getByRole('status')).toHaveTextContent('Mandate checks: 0 of 3');
+  for (const q of turnChecks(get().workplace))
+    fireEvent.change(screen.getByLabelText(`Turn check: ${q.id}`), {
+      target: { value: q.correct },
+    });
+  expect(screen.getByRole('status')).toHaveTextContent('Mandate checks: 3 of 3');
+  expect(screen.getByRole('status')).toHaveTextContent(
+    'Confirming understanding remains a separate choice'
+  );
+  expect(
+    get().workplace.members.every(
+      (member) => !member.understood && member.ballot === null && member.coverConsent === null
+    )
+  ).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: 'End participant turn' }));
+  await waitFor(() => expect(screen.getByLabelText('Hand over to fictional role')).toHaveFocus());
+  fireEvent.click(screen.getByRole('button', { name: 'Begin participant turn' }));
+  await waitFor(() => expect(screen.getByText(/Only Packing may/)).toHaveFocus());
+  expect(screen.getByRole('status')).toHaveTextContent('Mandate checks: 0 of 3');
 });

@@ -11,6 +11,7 @@ import {
   improvementReviewWinner,
   improvementObligations,
 } from '../../../simulation/workplaceImprovement';
+import { turnChecks } from '../../../simulation/workplaceParticipation';
 import { workplaceReadiness } from '../../../simulation/bilateralWorkplace';
 import {
   HandoffEpisodes,
@@ -29,7 +30,7 @@ import type {
 const button =
   'min-h-11 rounded-md border border-cyan-300/25 px-3 py-2 text-xs font-medium text-cyan-100 hover:bg-cyan-900/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 disabled:cursor-not-allowed disabled:opacity-50';
 const input =
-  'min-h-11 w-full min-w-0 rounded-md border border-slate-600 bg-slate-950 px-2 py-2 text-sm text-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300';
+  'min-h-11 w-full min-w-0 rounded-md border border-slate-600 bg-slate-950 px-2 py-2 text-sm text-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 disabled:cursor-not-allowed disabled:opacity-50';
 export function WorkplaceImprovementPanel({
   profile,
   setProfile,
@@ -60,6 +61,11 @@ export function WorkplaceImprovementPanel({
   const panelRef = useRef<HTMLElement>(null);
   const deliberating = s.phase === 'deliberating';
   const readiness = workplaceReadiness(s);
+  const separateTurns = store.participationMode === 'separate-turns';
+  const ownsRole = (id: string) => !separateTurns || store.turn?.actorId === id;
+  const facilitator = !separateTurns || !store.turn;
+  const mandateReady =
+    !separateTurns || turnChecks(s).every((q) => store.turn?.answers[q.id] === q.correct);
   const perform = (result: WorkplaceTransitionResult, pause = false) => {
     report(result);
     if (result.changed && pause) {
@@ -114,7 +120,9 @@ export function WorkplaceImprovementPanel({
         <button
           type="button"
           className={button}
-          disabled={(mode ?? s.mode) === 'pilot' || !['idle', 'review'].includes(s.phase)}
+          disabled={
+            (mode ?? s.mode) === 'pilot' || !['idle', 'review'].includes(s.phase) || !facilitator
+          }
           onClick={() =>
             perform(store.beginImprovement(profile, s.revision, undefined, mode ?? s.mode), true)
           }
@@ -173,6 +181,7 @@ export function WorkplaceImprovementPanel({
                 type="button"
                 className={`${button} ${i.proposalId === a.id ? 'bg-cyan-900/50' : ''}`}
                 aria-pressed={i.proposalId === a.id}
+                disabled={!ownsRole(a.author)}
                 onClick={() => perform(store.proposeImprovement(a.id, a.author))}
               >
                 {a.title}
@@ -222,10 +231,14 @@ export function WorkplaceImprovementPanel({
                   Challenge author
                   <select
                     aria-label="Challenge author"
+                    disabled={separateTurns}
                     className={input}
                     value={actor}
                     onChange={(e) => setActor(e.target.value)}
                   >
+                    <option value="" disabled>
+                      Begin a participant turn
+                    </option>
                     {[...s.members.map((m) => [m.id, m.role]), ['mind', 'Adviser']].map(
                       ([id, role]) => (
                         <option key={id} value={id}>
@@ -255,6 +268,7 @@ export function WorkplaceImprovementPanel({
                 <button
                   type="button"
                   className={button}
+                  disabled={!actor || !ownsRole(actor)}
                   onClick={() => perform(store.challengeImprovement(actor, challenge))}
                 >
                   Challenge this proposal
@@ -262,6 +276,7 @@ export function WorkplaceImprovementPanel({
                 <button
                   type="button"
                   className={button}
+                  disabled={!ownsRole('mind') || !mandateReady}
                   onClick={() => perform(store.acknowledgeImprovement())}
                 >
                   Hear the adviser response
@@ -318,7 +333,7 @@ export function WorkplaceImprovementPanel({
                 <button
                   type="button"
                   className={button}
-                  disabled={!i.acknowledged || m.understood}
+                  disabled={!i.acknowledged || m.understood || !mandateReady}
                   onClick={() => perform(store.understand(m.id))}
                 >
                   Confirm handoff understanding: {m.role}
@@ -354,7 +369,7 @@ export function WorkplaceImprovementPanel({
           <button
             type="button"
             className={button}
-            disabled={!readiness.allowed || busy}
+            disabled={!readiness.allowed || busy || !facilitator}
             onClick={async () => {
               await activate();
               if (useWorkplaceStore.getState().workplace.phase === 'active' && s.mode === 'game')
@@ -381,10 +396,14 @@ export function WorkplaceImprovementPanel({
             Stopping role
             <select
               aria-label="Stopping role"
+              disabled={separateTurns}
               className={input}
               value={actor}
               onChange={(e) => setActor(e.target.value)}
             >
+              <option value="" disabled>
+                Begin a participant turn
+              </option>
               {[...s.members.map((m) => [m.id, m.role]), ['mind', 'Adviser']].map(([id, role]) => (
                 <option key={id} value={id}>
                   {role}
@@ -396,7 +415,7 @@ export function WorkplaceImprovementPanel({
             <button
               type="button"
               className={button}
-              disabled={i.stopped}
+              disabled={i.stopped || !actor || !ownsRole(actor)}
               onClick={() => perform(store.stopImprovement(actor))}
             >
               Stop arrangement and keep steady work
@@ -477,7 +496,7 @@ export function WorkplaceImprovementPanel({
           <button
             type="button"
             className={button}
-            disabled={i.reviewAcknowledged}
+            disabled={i.reviewAcknowledged || !ownsRole('mind')}
             onClick={() => perform(store.acknowledgeImprovementReview())}
           >
             Hear the adviser review its forecast
@@ -505,7 +524,7 @@ export function WorkplaceImprovementPanel({
                 <select
                   aria-label={`${m.role} review decision`}
                   className={input}
-                  disabled={!i.reviewAcknowledged}
+                  disabled={!i.reviewAcknowledged || !ownsRole(m.id)}
                   value={i.ballots[m.id] ?? ''}
                   onChange={(e) =>
                     perform(store.voteImprovementReview(m.id, e.target.value as ImprovementVerdict))
@@ -526,7 +545,7 @@ export function WorkplaceImprovementPanel({
             <button
               type="button"
               className={button}
-              disabled={!winner || !i.reviewAcknowledged}
+              disabled={!winner || !i.reviewAcknowledged || !facilitator}
               onClick={() => perform(store.finishImprovementReview(s.revision))}
             >
               Finalise handoff review
@@ -540,6 +559,7 @@ export function WorkplaceImprovementPanel({
               <button
                 type="button"
                 className={button}
+                disabled={!facilitator}
                 onClick={() => perform(store.continueImprovement(s.revision), true)}
               >
                 Open next handoff shift

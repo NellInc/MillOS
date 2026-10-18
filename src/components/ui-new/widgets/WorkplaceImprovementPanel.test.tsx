@@ -1,6 +1,8 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WorkplaceImprovementPanel } from './WorkplaceImprovementPanel';
+import { WorkplaceParticipation } from './WorkplaceParticipation';
+import { turnChecks, type RoleCommand } from '../../../simulation/workplaceParticipation';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
 import { createWorkplace } from '../../../simulation/bilateralWorkplace';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
@@ -16,23 +18,30 @@ import { captureCurrentPackingPlant } from '../../../stores/workplaceStore';
 import { derivePackingAdvice } from '../../../simulation/workplaceAdvice';
 const report = vi.fn();
 beforeEach(() => {
-  useWorkplaceStore.setState({ workplace: createWorkplace() });
+  useWorkplaceStore.setState({
+    workplace: createWorkplace(),
+    participationMode: 'solo',
+    turn: null,
+  });
   useOperationsCampaignStore.setState({ orders: [], activeOrderId: null });
   report.mockReset();
   useGameSimulationStore.getState().setGameSpeed(0);
 });
 afterEach(cleanup);
 const click = (name: string) => fireEvent.click(screen.getByRole('button', { name, exact: true }));
-const mount = () =>
+const mount = (participation = false) =>
   render(
-    <WorkplaceImprovementPanel
-      profile="cooperative"
-      activate={async () => {
-        useWorkplaceStore.getState().activate(useWorkplaceStore.getState().workplace.revision);
-      }}
-      busy={false}
-      report={report}
-    />
+    <>
+      {participation && <WorkplaceParticipation report={report} />}
+      <WorkplaceImprovementPanel
+        profile="cooperative"
+        activate={async () => {
+          useWorkplaceStore.getState().activate(useWorkplaceStore.getState().workplace.revision);
+        }}
+        busy={false}
+        report={report}
+      />
+    </>
   );
 
 describe('choice-first handoff interface', () => {
@@ -186,4 +195,170 @@ describe('choice-first handoff interface', () => {
     ).toBe(108);
     act(() => store.stop());
   });
+});
+
+describe('predict then rehearse together', () => {
+  it('freezes the optional prediction, refuses a false verdict on abstention and resets only the comparison', async () => {
+    const state = useWorkplaceStore.getState().workplace;
+    const stock = cloneMaterialFlowData(useMaterialFlowStore.getState());
+    const speed = useGameSimulationStore.getState().gameSpeed;
+    render(<MatchedPackingRehearsal state={state} report={report} />);
+    const prediction = screen.getByRole('combobox', {
+      name: 'Our packing prediction (optional)',
+      exact: true,
+    });
+    expect(prediction).toHaveValue('');
+    fireEvent.change(prediction, { target: { value: 'higher' } });
+    click('Run matched packing rehearsal');
+    await waitFor(() => expect(prediction).toBeDisabled());
+    const review = await screen.findByRole('region', { name: 'Packing prediction review' });
+    expect(
+      within(review).getByText(/Our prediction: Buffer range entirely above/)
+    ).toBeInTheDocument();
+    expect(within(review).getByText(/insufficient matching evidence/)).toBeInTheDocument();
+    expect(within(review).queryByText(/support our prediction/)).not.toBeInTheDocument();
+    expect(
+      within(review).getByText(/More packed stock does not establish a truck departure/)
+    ).toBeInTheDocument();
+    click('Prepare another prediction');
+    expect(
+      screen.queryByRole('region', { name: 'Packing prediction review' })
+    ).not.toBeInTheDocument();
+    expect(prediction).toBeEnabled();
+    expect(prediction).toHaveValue('');
+    await waitFor(() => expect(prediction).toHaveFocus());
+    expect(useWorkplaceStore.getState().workplace).toBe(state);
+    expect(cloneMaterialFlowData(useMaterialFlowStore.getState())).toEqual(stock);
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(speed);
+    expect(report).not.toHaveBeenCalled();
+  });
+
+  it('allows a skipped prediction and suppresses all learning conclusions when inputs change', async () => {
+    render(<MatchedPackingRehearsal state={createWorkplace()} report={report} />);
+    click('Run matched packing rehearsal');
+    const review = await screen.findByRole('region', { name: 'Packing prediction review' });
+    expect(within(review).getByText(/none recorded for this run/)).toBeInTheDocument();
+    act(() => useGameSimulationStore.getState().setGameSpeed(30));
+    expect(
+      screen.queryByRole('region', { name: 'Packing prediction review' })
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('comparison is stale');
+  });
+});
+
+it('shows proposal and episode controls only to their current owner in separate turns', () => {
+  const store = useWorkplaceStore.getState();
+  store.setParticipationMode('separate-turns');
+  store.beginImprovement('cooperative', store.workplace.revision, undefined, 'workshop');
+  mount();
+  const packing = screen.getByRole('button', { name: 'Packing proposes a paid handoff briefing' });
+  const maintenance = screen.getByRole('button', {
+    name: 'Maintenance proposes a small packing buffer',
+  });
+  expect(packing).toBeDisabled();
+  expect(maintenance).toBeDisabled();
+  expect(screen.getByLabelText('Pressure episode')).toBeEnabled();
+  act(() => useWorkplaceStore.getState().startTurn('packing'));
+  expect(packing).toBeEnabled();
+  expect(maintenance).toBeDisabled();
+  expect(screen.getByLabelText('Pressure episode')).toBeDisabled();
+  click('Packing proposes a paid handoff briefing');
+  expect(useWorkplaceStore.getState().turn).toBeNull();
+  expect(screen.getByRole('button', { name: 'Hear the adviser response' })).toBeDisabled();
+  expect(screen.getByLabelText('Challenge author')).toBeDisabled();
+  expect(screen.getByLabelText('Challenge author')).toHaveValue('');
+});
+
+it('requires the adviser checks, then keeps understanding, policy choice and handover deliberate', async () => {
+  const get = () => useWorkplaceStore.getState();
+  get().setParticipationMode('separate-turns');
+  get().beginImprovement('cooperative', get().workplace.revision, undefined, 'workshop');
+  get().startTurn('maintenance');
+  get().runTurnCommand(get().turn!.token, {
+    type: 'proposeImprovement',
+    args: ['buffer', 'maintenance'],
+  });
+  get().startTurn('mind');
+  mount(true);
+  expect(screen.getByRole('button', { name: 'Hear the adviser response' })).toBeDisabled();
+  for (const q of turnChecks(get().workplace))
+    fireEvent.change(screen.getByLabelText(`Turn check: ${q.id}`), {
+      target: { value: q.correct },
+    });
+  expect(screen.getByRole('button', { name: 'Hear the adviser response' })).toBeEnabled();
+  click('Hear the adviser response');
+  expect(get().turn).toBeNull();
+  fireEvent.change(screen.getByLabelText('Hand over to fictional role'), {
+    target: { value: 'packing' },
+  });
+  click('Begin participant turn');
+  await waitFor(() => expect(screen.getByText(/Only Packing may/)).toHaveFocus());
+  const understand = screen.getByRole('button', { name: 'Confirm handoff understanding: Packing' });
+  const approve = screen.getByRole('button', { name: 'Approve handoff: Packing' });
+  expect(understand).toBeDisabled();
+  const finance = structuredClone(get().workplace.finance);
+  for (const q of turnChecks(get().workplace))
+    fireEvent.change(screen.getByLabelText(`Turn check: ${q.id}`), {
+      target: { value: q.correct },
+    });
+  expect(
+    get().workplace.members.every((member) => !member.understood && member.ballot === null)
+  ).toBe(true);
+  expect(understand).toBeEnabled();
+  expect(approve).toBeDisabled();
+  click('Confirm handoff understanding: Packing');
+  expect(approve).toBeEnabled();
+  click('Decline handoff: Packing');
+  expect(get().workplace.members.find((member) => member.id === 'packing')?.ballot).toBe(false);
+  expect(
+    get()
+      .workplace.members.filter((member) => member.id !== 'packing')
+      .every((member) => member.ballot === null)
+  ).toBe(true);
+  expect(get().workplace.finance).toEqual(finance);
+  click('End participant turn');
+  await waitFor(() => expect(screen.getByLabelText('Hand over to fictional role')).toHaveFocus());
+});
+
+it('keeps review ballots with each owner and final settlement with the facilitator', () => {
+  const get = () => useWorkplaceStore.getState();
+  get().setParticipationMode('separate-turns');
+  get().beginImprovement('cooperative', get().workplace.revision, undefined, 'workshop');
+  const command = (actor: string, action: RoleCommand) => {
+    get().startTurn(actor);
+    if (get().workplace.phase === 'deliberating')
+      for (const q of turnChecks(get().workplace))
+        get().answerTurnCheck(get().turn!.token, q.id, q.correct);
+    expect(get().runTurnCommand(get().turn!.token, action).changed).toBe(true);
+    get().endTurn();
+  };
+  command('maintenance', { type: 'proposeImprovement', args: ['buffer', 'maintenance'] });
+  command('mind', { type: 'acknowledgeImprovement', args: [] });
+  get().stop();
+  command('mind', { type: 'acknowledgeImprovementReview', args: [] });
+  get().startTurn('packing');
+  mount();
+  for (const member of get().workplace.members) {
+    const select = screen.getByLabelText(`${member.role} review decision`);
+    if (member.id !== 'packing') {
+      expect(select).toBeDisabled();
+      act(() => get().startTurn(member.id));
+    }
+    expect(select).toBeEnabled();
+    fireEvent.change(select, { target: { value: 'amend' } });
+    expect(get().turn).toBeNull();
+    expect(get().workplace.improvement?.ballots[member.id]).toBe('amend');
+  }
+  const settle = screen.getByRole('button', { name: 'Finalise handoff review' });
+  expect(settle).toBeEnabled();
+  act(() => get().startTurn('quality'));
+  expect(settle).toBeDisabled();
+  act(() => get().endTurn());
+  click('Finalise handoff review');
+  expect(get().workplace.improvement?.verdict).toBe('amend');
+  const next = screen.getByRole('button', { name: 'Open next handoff shift' });
+  expect(next).toBeEnabled();
+  act(() => get().startTurn('packing'));
+  expect(get().turn?.actorId).toBe('packing');
+  expect(next).toBeDisabled();
 });

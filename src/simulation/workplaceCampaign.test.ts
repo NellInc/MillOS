@@ -16,6 +16,7 @@ import {
   campaignComplete,
   campaignAgreementHonoured,
   campaignTotals,
+  campaignLearningReview,
   requiredChecks,
   WORKPLACE_CHECKS,
   CAMPAIGN_PRESSURES,
@@ -514,5 +515,107 @@ describe('Living Cooperative, synthetic multi-shift fairness', () => {
     const legacy = saveWorkplace(createWorkplace()) as Record<string, unknown>;
     delete legacy.campaign;
     expect(restoreWorkplace(legacy).phase).toBe('idle');
+  });
+});
+
+describe('cooperative learning from public review evidence', () => {
+  it.each(['toe-dip', 'team', 'cooperative'] as const)(
+    'keeps %s reflection read-only and review-only',
+    (profile) => {
+      const c = campaign(profile);
+      expect(campaignLearningReview(c.state)).toBeNull();
+      c.run({ type: 'stop', args: [] });
+      const before = JSON.stringify(c.state);
+      const review = campaignLearningReview(c.state)!;
+      expect(review.goal).toContain('protected rest');
+      expect(review.evidence[0]).toContain('Teaching output');
+      expect(review.evidence[0]).toContain('separate from customer shipment receipts');
+      expect(JSON.stringify(c.state)).toBe(before);
+    }
+  );
+
+  it('keeps stale delivery evidence blocked and the full deferred commitment visible', () => {
+    const c = campaign();
+    c.run({ type: 'stop', args: [] });
+    const state = {
+      ...c.state,
+      campaign: {
+        ...c.state.campaign!,
+        mission: {
+          orderId: 'order',
+          customer: 'Cooperative bakery',
+          materialSessionId: 'session',
+          startingShippedKg: 0,
+          originalTargetKg: 1000,
+          targetKg: 800,
+          observedShippedKg: 800,
+          creditedKg: 800,
+          manifestIds: ['manifest'],
+          evidence: 'stale' as const,
+        },
+      },
+    };
+    expect(campaignLearningReview(state)?.focus).toBe('evidence');
+    expect(campaignLearningReview(state)?.evidence.join(' ')).toContain('source evidence stale');
+    expect(campaignLearningReview(state)?.evidence.join(' ')).toContain('still open: 200.0 kg');
+    expect(campaignLearningReview(state)?.evidence.join(' ')).toContain('terms defer 200.0 kg');
+    expect(
+      campaignLearningReview({
+        ...state,
+        campaign: {
+          ...state.campaign,
+          mission: { ...state.campaign.mission, evidence: 'current' },
+        },
+      })?.focus
+    ).toBe('delivery');
+  });
+
+  it('prioritises raiser-owned remedies and delivered recovery without exposing private text', () => {
+    const c = campaign();
+    c.run({ type: 'stop', args: [] });
+    const state = {
+      ...c.state,
+      members: c.state.members.map((m) => ({
+        ...m,
+        preference: 'private note',
+        recoveryOwedMinutes: m.id === 'packing' ? 5 : 0,
+      })),
+      objections: [
+        {
+          id: 'o',
+          actorId: 'packing',
+          kind: 'burden' as const,
+          statement: 'unneeded statement',
+          status: 'open' as const,
+          resolution: null,
+        },
+      ],
+    };
+    const before = JSON.stringify(state);
+    expect(campaignLearningReview(state)?.focus).toBe('remedy');
+    expect(JSON.stringify(campaignLearningReview(state))).not.toMatch(
+      /private note|unneeded statement/
+    );
+    expect(JSON.stringify(state)).toBe(before);
+    expect(campaignLearningReview({ ...state, objections: [] })?.focus).toBe('recovery');
+    expect(campaignLearningReview(state)?.evidence.join(' ')).toContain('5.0 minutes still owed');
+  });
+
+  it('reports the retained quality receipt without inventing one for the first shift', () => {
+    const c = campaign();
+    c.run({ type: 'stop', args: [] });
+    expect(campaignLearningReview(c.state)?.evidence.join(' ')).not.toContain('modeled inspection');
+    const held = {
+      ...c.state,
+      campaign: { ...c.state.campaign!, shift: 1, inspectionComplete: false },
+    };
+    expect(campaignLearningReview(held)?.focus).toBe('quality');
+    const inspected = { ...held, campaign: { ...held.campaign, inspectionComplete: true } };
+    expect(campaignLearningReview(inspected)?.evidence.join(' ')).toContain(
+      'Quality completed the modeled inspection'
+    );
+    expect(campaignLearningReview(inspected)?.evidence.join(' ')).toContain(
+      'Actual batch certification still controls shipment'
+    );
   });
 });

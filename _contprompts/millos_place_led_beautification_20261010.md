@@ -5812,3 +5812,203 @@ Delivery authority update: Nell explicitly says, "Get these live please when fin
 Evidence currently complete: all nine originals and exact names inspected. Runtime artwork 652978 bytes total; full build431files178110247bytes, Vite27.23s, unchanged170MiB bundle gate passes at169.86MiB. Focused tests55/55, typecheck/lint/format/depth/shader/reachability/community pass. Day Medium, dusk Medium and day Low each have14 clean native views, original strict readiness, normal1x clock after admission, sandboxed out-of-process Metal, all nine actual public assets hash-matched. All new signs have zero emission, both hanging faces are in the real two-instance batch. Night review is the remaining local art checkpoint. Helper failures are retained separately: mismatched preview base rejected before browser launch, then a source-metadata-only query missed the intentionally batched two-sided sign. Correct the helper to actual base and instance transforms; neither required a game change or a weakened check.
 
 BS local acceptance complete: night Medium also passes,14 additional exact-build native views,56 total personally inspected. Both actual inn instance faces, civic/forge sign seats, four actual stock-linked tray prints, existing shops and village context are intact. World/people/texture/page/request/audio guards clean; no new sign emission, source drift, quality downgrade or readiness override. Night paint follows the original physical lamps; school/forge remain naturally darker where no fascia light existed. Programme pacing remains separately OPEN. Authoring and aesthetic review were by this root, not an independent reviewer. Art receipt/gallery/raw captures under test-results/village-raster-signs-20261018. Approved next delivery is normal selective PR, full CI and preserved-archive Pages with served-byte verification, not a direct production bypass.
+
+## BT. Cooperative learning through evidence-led shift review, 2026-10-18
+
+Nell's next requested focus is the core cooperative-learning game. The sign set is live and verified at a32b39e7a2d29ab82de2e3c626d164bd5dcea6fd (PR33,3410PR tests, Pages,20served responses/nine artwork hashes). Continue locally and muted from that exact tree. Preserve interface shell/tabs, all scene assets, votes/consent/privacy, financial and inventory ledgers, outcome rules, readiness/quality budgets. No new score, persistent learner data, replay reset, grant, model or external delivery in this pass.
+
+Observed live gap: Review reports outcome/account numbers, role burdens and relationship receipts, while explanation of how to learn from the joint result is thin. Existing Experiment already supplies matched forecasts and guarded plant replay. Reuse those; add a read-only consequence/discussion bridge inside Review rather than a new dashboard or machinery.
+
+Finite task list:
+1. Verify released base and exact four existing campaign/UI source boundaries.
+2. Keep the protected primary, unrelated images and all authored assets untouched.
+3. Record baseline49passed/0failed in workplaceCampaign and WorkplaceLab suites.
+4. Add a pure review projection to the existing campaign module; no saved schema or transitions.
+5. State the joint delivery-and-working-agreement goal without changing its win conditions.
+6. Read actual linked shipment evidence separately from standalone teaching output.
+7. Preserve explicit remaining full commitment after negotiated deferral.
+8. Distinguish modeled inspection receipt from actual batch release authority.
+9. Explain delivered and owed recovery from public role receipts, with no inferred willingness or ranking.
+10. Mention unresolved raiser-owned objections without exposing their statements/private preferences.
+11. Offer one state-relevant cooperative discussion prompt, prioritising unresolved promises/evidence.
+12. Route a deliberate comparison button to the existing Experiment tab only; never reset progress, choose a plan or start replay automatically.
+13. Reuse current Review typography, spacing and controls; retain keyboard/mobile fit.
+14. Extend the two established test suites for projection purity, evidence/deferral, recovery/objection priority, quality and navigation invariance.
+15. Run affected checks and required full source/build gates, then inspect desktop/mobile rendered UI through actual local controls with the original complete world/readiness and audio muted.
+16. Preserve raw failures and receipts, keep pacing OPEN separately and physical player/device acceptance DEFERRED.
+17. Check in the completed bounded pass locally and retain the repeating programme ACTIVE.
+
+Pre-mortem: a forecast could be mistaken for actual delivery, a discussion prompt could imply consent, and a comparison click could silently rewind progress. Working if language names the relevant evidence, projections never mutate state, and navigation leaves agreements, pay, stock and clock untouched.
+
+BS delivery complete: selective sign commit1b012d99060acb7ae71911e9ad105db0b155bbd7, normal PR33 merged as a32b39e7a2d29ab82de2e3c626d164bd5dcea6fd. PR CI39086990123 passed all five jobs,3410tests across262files; main CI39088176374 also passed all five. Pages39088176372 succeeded. Direct canonical served-byte check verified20responses, all nine raster hashes, the three changed compiled modules (normal generated-import/build-ID differences classified), preserved v0.10/v0.20/v0.30 navigation and build/cache identity v0.40-a32b39e7a2d2. Live, verified in served bytes at https://www.millos.net/v0.40/.
+
+BT completed bounded pass: baseline49/49, final57/57 in the two existing suites, eight new cases and no failures. Pure review projection uses public receipts only, retains full customer commitments after deferral, distinguishes modeled inspection from actual release, and prioritises open objections/recovery/evidence. Comparison navigates the existing Experiment tab without resetting or starting replay; tests retain exact agreement object identity, material balance and simulation speed. No persisted schema, consent, ballots, financial/inventory rules, scene assets, quality or readiness changes.
+
+BT validation: typecheck, ESLint, formatting, depth, shader/assets, community, bundle and fresh reachability gates pass. Actual production build passes,431files178113481bytes,169.86MiB inside the unchanged170MiB ceiling, Vite45.84s. Exact source and compiled SHA pins retained. Native sandboxed out-of-process Metal check uses actual UI campaign/review/comparison controls after original complete readiness; desktop1600x1000 and mobile390x844. Four final images personally inspected, new Review content unobscured with no horizontal overflow, existing comparison destination reached, world/people/textures/page/requests clean, audio context never created. Browser/server/lock closed normally. Physical player/device acceptance remains DEFERRED; pacing remains separately OPEN. This candidate stays local only.
+
+BT self-review disclosure: root authored and reviewed this pass. Initial native helper lacked benchmark operations=on, so real Lab controls were hidden; retained failure, corrected only the helper. First four images were functionally green but mobile was obscured by the existing onboarding tour. Retained them as initial-onboarding-covered evidence, then dismissed the real Skip tour button and captured the corrected four views against the unchanged sealed build. No quality, scene-ready or safety override. Impeccable detect reports one existing gray-on-color warning at WorkplaceLab:274; actual background is slate950, cyan800 belongs only to ::selection. Rendered body contrast 16.37:1 and white selection contrast 7.25:1; warning classified as pseudo-selector false positive, no unrelated restyle. Primary HEAD/status/binary diff are byte-identical to recorded custody, unrelated images retained. Runtime source/art/build seals match; this completion-note update is documentation-only after the build. Programme goal remains ACTIVE.
+
+## BU. Predict, rehearse and discuss the packing handoff, 2026-10-18
+
+Previous goal turn is PROGRESS: sign release verified live, BT gameplay refinement implemented,57focused checks plus source/build/native proof and local commit a95445dba8aaea087e141c5e1d7e642ec80897bf. Continue from that exact clean tracked tree. Nell's latest gameplay focus governs this pass; LOCAL and MUTED, no publication. The repeated goal stays ACTIVE.
+
+Observed live gap: MatchedPackingRehearsal already runs three isolated copies of real plant flow and truthfully separates packing from possible departure, but it reveals results without first eliciting a team hypothesis. The new BT review invites predictions verbally; this pass makes that interaction playable inside the existing handoff comparison. Use the existing details disclosure, controls, real flow model, freshness guard and role agreements.
+
+Allowed: workplaceAdvice.ts and its existing test; WorkplacePackingEvidence.tsx and existing WorkplaceImprovementPanel.test.tsx; this programme. No saved schema, localStorage, learner analytics, scoring, ballot, qualification, release, ledger, clock, world geometry, light or budget changes. No API or dependency additions.
+
+Detailed finite task list:
+1. Reconcile owned checkout, base SHA, clean tracked state and unrelated images.
+2. Pin protected primary HEAD/status/binary diff and untouched images before edits.
+3. Confirm actual Handoff comparison is shipped and uses the real flow engine.
+4. Read capture, freeze, freshness, abstention and result-range contracts.
+5. Retain named baseline tests for both affected existing suites, including any failure.
+6. Preserve the three original counterfactual arms and all collection/quality caveats.
+7. Ask an optional shared prediction about buffer versus ordinary packing ranges.
+8. Provide higher, overlapping, lower and unsure choices without selecting consensus for the team.
+9. Keep participant disagreements in the discussion, never infer agreement, duty or permission.
+10. Freeze the selected prediction when the existing rehearsal button is deliberately clicked.
+11. Prevent editing that retained prediction while the result is displayed.
+12. Derive feedback from actual returned ranges with explicit numerical tolerance.
+13. Treat overlapping bounds as unresolved ordering, including equal zero-output ranges.
+14. Treat absent, invalid, mismatched or abstaining evidence as unable to compare; never turn zeros into a successful prediction.
+15. State which evidence supports or differs from the prediction without a winner or learner score.
+16. Keep uncertain or skipped predictions useful, invite a question rather than marking them wrong.
+17. Give an observation question about the shared bottleneck, upstream supply or required fresh evidence.
+18. Continue to separate packing results from conditional departure and actual dispatch receipts.
+19. Hide reflective conclusions whenever the existing paused-input freshness predicate fails.
+20. Add a local Prepare another prediction action that clears only component learning/results state and restores focus.
+21. Protect the evidence classifier with small existing-suite cases for separation, overlap, abstention, provenance and purity.
+22. Protect the real UI flow for frozen prediction, stale suppression, reset and unchanged live stores.
+23. Reuse the current typography, focus treatment, touch targets and disclosure, with desktop/mobile overflow checks.
+24. Run focused checks, typecheck, lint, format, depth/shaders, actual production build, bundle and fresh reachability/community gates.
+25. Run one silent exact-build native desktop/mobile confirmation through real public controls, original strict readiness and quality; inspect day/dusk/night surrounds without claiming a performance result.
+26. Preserve raw failures and original evidence, record finite acceptance and selective local commit only.
+27. Keep physical player/device acceptance DEFERRED and pacing OPEN separately, restore own temporary runtime resources and retain the programme ACTIVE.
+
+Pre-mortem: overlapping numeric intervals could be called a win, editing after reveal could rewrite the original guess, and stale plant evidence could leave a confident learning verdict visible. Working if frozen per-run predictions are compared only with fresh matching non-abstaining range evidence, without altering any live plant or agreement state.
+
+BU baseline16/16 and first coherent20/20 tests pass, along with type/lint/format/depth/shaders and first build431files178116790bytes. Initial native browser reached the actual expanded comparison and new selector, but exact accessible-name selection timed out: implicit wrapping-label text included option text in the browser. Retained DOM/PNG/log. Add explicit aria-label matching visible label and test the exact combobox role/name. No loading/readiness or budget change. Also expose the classifier’s existing0.01kg tolerance in the overlap wording so a near-touching range is described honestly. This is the single coherent correction batch before the final native review.
+
+BU finite acceptance complete: all27planned tasks are implemented or retain their explicitly deferred boundary. Affected baseline16/16, final20/20(+4cases), with range-separation/overlap/tolerance, absent/invalid/abstaining/mismatched evidence and pure-state assertions in the established suites. Final exact-name combobox flow, optional/skipped prediction, frozen choice, stale-result suppression and Prepare another prediction focus/reset pass. Interface shell, original three rehearsal arms, consent/ballots, live plant/inventory/pay/clock, saved schemas and physical authority unchanged.
+
+Final typecheck, ESLint and format pass after the accessibility/copy correction. Depth91active files/12relationships, shaders37families/41stable keys, bundle, community and fresh reachability pass. Actual production build431files178116878bytes,169.87MiB inside unchanged170MiB cap; wrapper31432ms. Exact source/compiled pins in test-results/cooperative-prediction-loop-20261018/final-build-seal.json. Impeccable detector has zero findings, no new dependencies or assets.
+
+Native acceptance: sandboxed out-of-process Metal, original complete startup/world readiness, muted with no audio context. Actual public controls open Handoff, select member governance, propose the buffer, choose a prediction, run the real isolated flow model and prepare the next prediction. Desktop1600x1000 and mobile390x844 at12:00,18:30and22:00, eight personally inspected images including the focused reset selector. Within each matched input the three packing ranges overlap, despite higher nominal buffer pacing; reflection correctly differs from the higher-range hypothesis and asks about shared limits. Conditional departure stays0kg in these captured plant states; no shipment claim. Independent time-of-day runs have different live starting stock and are never treated as a causal A/B. All world/people/texture/page/request guards clean, original Medium preset retained, reflection unobscured/no horizontal overflow. All own browsers, previews and capture locks close normally. Root authored and self-reviewed, no independent-review claim.
+
+Primary HEAD/status/binary diff and all ten unrelated images match pre-pass pins. Runtime source/art/compiled seals match before this documentation-only completion note. Retain initial accessible-name failure and corrected final logs separately. Local only; no new publication. Physical player/device/manual checks remain DEFERRED and pacing OPEN separately, without waiver or performance claim. Repeating programme goal remains ACTIVE.
+
+## BV. Cooperative turn clarity from proposal through review, 2026-10-18
+
+Previous turn is PROGRESS: BU optional prediction/real-engine comparison implemented,20focused checks plus required full source/build and eight native views accepted; local commit523f88d8d7c7f9828b6a11be89e15abbee22ba7f. Continue from that exact clean tracked tree. LOCAL and MUTED, no new publication. Core cooperative learning remains Nell’s latest focus.
+
+Observed live gap: store token/actor/mandate guards already reject unowned role actions and facilitator changes during a participant turn. Handoff UI does not consistently reflect them: proposals, adviser responses, pressure episodes and review decisions can look available to the wrong role, and correct mandate checks do not clearly tell the participant when a deliberate understanding confirmation can follow. Preserve the store, role-command classification, token anchors, consent, qualification, privacy and vote thresholds; repair affordances and keyboard flow only.
+
+Allowed: WorkplaceImprovementPanel, WorkplacePackingEvidence pressure-episode block, WorkplaceParticipation and their existing ImprovementPanel/Participation tests, plus this programme. Prior prediction loop, learning review and scene assets retained. No change to simulation/store/types, persistence, controls shell, quality/readiness/budgets, routes or lighting.
+
+Detailed finite task list:
+1. Reconcile current base, owned checkout and clean tracked state.
+2. Pin primary dirty HEAD/status/diff and ten unrelated images.
+3. Pin the existing canonical actor/token/mandate contracts, which remain unchanged.
+4. Verify actual imports, shipped UI and existing role-guard tests.
+5. Record baseline counts/names for affected UI and underlying participation suites.
+6. Reproduce wrong-role enabled proposal/review affordances in the existing tests before repair.
+7. Allow only the proposal’s actual author during facilitated separate turns; preserve solo role-play.
+8. Keep the current turn’s challenge/stopping author visible and locked.
+9. Make no-active-turn and adviser-with-no-member-response states explicit rather than displaying a misleading first option.
+10. Restrict adviser response/review buttons to the adviser turn.
+11. Mirror the existing three mandate-check prerequisites before understanding or adviser acknowledgement.
+12. Show accurate current-check feedback without recording understanding or changing any ballot automatically.
+13. Retain fresh role-specific understanding, approve/decline and optional-duty distinctions.
+14. Keep pressure setup with the facilitator outside a participant turn.
+15. Keep planning episode responses with the current member, with no simulated permission or quality release.
+16. Leave isolated packing predictions/rehearsals observational and usable by every role.
+17. Gate each review decision to its owner after adviser review, preserving all verdict options and thresholds.
+18. Keep activation, final settlement and next-shift setup with the facilitator after ending the current turn.
+19. Preserve stop and emergency-safety routes even during a participant turn.
+20. Focus the current-turn explanation after explicit Begin; return focus to the handover selector after explicit End, without focus theft on background invalidation.
+21. Retain the existing shared-device synthetic-role and authentication limitations.
+22. Add small existing-suite regressions for facilitator/member/adviser states, check completion, review ownership, focus and solo compatibility.
+23. Retain existing stale-callback/old-token rejection tests as the authority proof, not UI disabling alone.
+24. Run affected suites and required whole typecheck/lint/format/depth/shader gates.
+25. Build the exact candidate, preserve bundle cap and fresh reachability/community gates.
+26. Use actual local controls for separate turns, proposals, checks, self-owned decisions, early review and facilitator settlement, without actor/inventory overrides.
+27. Inspect native desktop/mobile day/dusk/night views, meaningful disabled states, legible current-role/check feedback and keyboard return.
+28. Preserve failures and raw receipts, audit exact source/build/primary custody, selectively check in locally.
+29. Leave physical player/device checks DEFERRED and pacing OPEN separately, close only owned runtime resources and retain the repeating goal ACTIVE.
+
+Pre-mortem: UI disabling could accidentally suppress a safety stop, a guessed prerequisite could diverge from the real token guard, or a focus effect could steal input after a background revision. Working if UI mirrors the unchanged canonical guard, deliberate Begin/End own focus transitions only, and emergency/stop access remains.
+
+BV baseline51/51 across the two actual UI suites(19) and canonical workplaceStore.participation suite(32). Initial command used a non-existent store filename and therefore ran only the two UI suites; retain that log, run the discovered exact authority suite separately and use the truthful combined baseline. New regression reproduces the proposal owner affordance defect: Packing proposal enabled with no participant turn. Store authority still rejects it. Production repair makes that same regression pass while keeping the store files pinned unchanged.
+
+BV first coherent run54pass/1new fixture failure: the new adviser test assumed its acknowledgement keeps the turn open. Canonical acknowledgeImprovement calls invalidate, ends the turn and clears prior decisions. Preserve that contract and raw failure; test automatic expiry without an implicit focus move, and exercise explicit End/focus return after a member’s unchanged-terms ballot instead. No production guard change.
+
+BV first native round completes all19desktop/mobile day/dusk/night views through actual public controls, clean world/audio/request/quality guards and deliberate paused clock. It verifies correct-role proposals, three current answers, separate understanding/approve/decline, explicit focus handover, safe stop while Quality owns the turn, adviser review, four own-role review ballots and facilitator-only settlement. Root’s batched self-review finds disabled review selectors remain visually bright because the shared input classes omit disabled opacity/cursor, unlike existing buttons/participation controls. Add those same two tokens to the two affected input strings only. The settlement screenshot targeted its oversized parent; target the button itself in the helper. Preserve all19initial frames/logs/seal/source patch under initial-native. This is the single rendered correction batch; final confirmation adds computed-style checks for disabled review selects.
+
+BV finite acceptance complete: all29planned items close within their stated boundary. Baseline51/51(19UI+32authority), final55/55(+4newcases) across the three actual suites, with the corrected native-style candidate also55/55. Original guard files remain byte-exact. Reproduced proposal-owner regression goes from red to green. Tests cover facilitator/member/adviser affordances, current checks without automatic consent, deliberate member understanding/decline, self-owned review choices, facilitator settlement, old/stale token rejection, solo compatibility and Begin/End focus.
+
+Final required typecheck, lint and format pass. Depth91activefiles/12relationships, shaders37families/41stablekeys, zero final design-detector findings. Actual production build431files178118275bytes,169.87MiB under unchanged170MiB cap, wrapper55447ms. Fresh bundle/reachability/community gates pass. No new dependency, art asset, saved schema or gameplay-domain transition. Scene/models/lighting/railway, source state/ledger/consent/mandate/role guards, startup readiness and quality budgets unchanged.
+
+Final native confirmation:19exact-build original images and nine lossless paired UI review sheets, desktop1600x1000/mobile390x844 at12:00,18:30,22:00. Root personally inspected every final UI view and the corrected facilitator button frame; source authored and self-reviewed by this root, no independent-review claim. Actual public controls exercise two proposal authors, adviser checks/automatic term expiry, Packing declining with pay protected, Maintenance approving only its own policy, explicit focus handovers, safe stop while Quality owns the turn, adviser review, all four separate amend ballots, facilitator-only finalisation and next-shift setup. This is one automated synthetic role-play, not independent human participation or identity authentication. The original backend remains authoritative for domain eligibility; UI changes mirror role/turn/mandate prerequisites only.
+
+All final world/people/texture/page/request guards clean and Medium retained. Audio context never created. New disabled review selects are opacity0.5/cursor not-allowed, current owner’s select opacity1, observed in each desktop/mobile native run; static labels remain readable. No horizontal overflow or obscured target content. Own browser/server/lock lifecycles complete normally. Initial19native views, visual finding and source patch retained separately, with the first baseline filename omission, red regression and incorrect new test fixture logs intact.
+
+Protected primary HEAD/NULstatus/binarydiff, four canonical contract files and ten unrelated images match pre-pass hashes. Source and compiled seals match before this documentation-only completion record. No push/upload/deploy; LOCAL only. Physical player/device/manual checks remain DEFERRED, pacing separately OPEN without a budget waiver or new performance claim. Repeating programme goal remains ACTIVE.
+
+## BW. Handoff people and retained public receipts, 2026-10-18
+
+Previous turn is PROGRESS: BV shared-device ownership/focus pass,55tests and required gates plus19final native views, local commitddea98e00736d343b5b66fee28386b56943a92b7. Continue from that exact clean tracked base. Keep LOCAL and MUTED, no publication. Core cooperative learning now receives a world-facing people pass alongside truthful retained receipts.
+
+Observed gaps: communityAgreementCue explicitly excludes worker-led improvement trials, so the four existing representative residents do not display their actual handoff/rest states. The paid five-minute briefing should hold their route at the existing safe pose with idle/listening activity, not be presented as protected rest or an actual machine/QC action. The working-agreement companion separately falls back to600kg and current-shift receipts for linked handoffs; earlier compensation/recovery can disappear from its display after continuation. Underlying ledger/consent/physical dispatch remains authoritative and unchanged.
+
+Allowed: communityLife.ts and its established test; workplaceImprovement.ts and its existing test; WorkplaceCompanion.tsx and its existing test; this programme. No new actors, rigs, tools, destinations, seating, gestures, audio, lights, model files, saved schema, finance/inventory transitions, role guards or campaign outcome changes. Reuse current people, safe routes, semantic WorkerModel poses, typed arrangements and companion shell.
+
+Detailed finite task list:
+1. Reconcile base, owned checkout and completed prior pass.
+2. Pin primary dirty state, ten unrelated images and untouched canonical simulation/renderer files.
+3. Confirm these helpers and the companion are live, not superseded modules.
+4. Read arrangement timing, community motion, review release and current receipt semantics.
+5. Check all consumers of the cue-state union and summary additions.
+6. Record named three-suite baseline before changes.
+7. Reproduce missing active handoff cues and the wrong companion target in existing tests.
+8. Extend only the four already mapped residents to engaged game handoffs.
+9. Keep idle/deliberating/workshop/pilot and unrelated residents outside the binding.
+10. Derive paid briefing duration from the existing typed arrangement, not a second timing constant.
+11. Present a paid briefing as idle/listening work, with no protected-rest or consent claim.
+12. Hold each representative at its current safe route position, without teleporting, inventing a seat or changing the work clock.
+13. Restore ordinary representative duty at briefing expiry or explicit arrangement stop.
+14. Preserve qualified-task descriptions, valid optional-cover bounds, rest/recovery priority and emergency overrides.
+15. Release review participants back to normal life once no recovery is owed.
+16. Preserve pause/reduced-motion semantics, foot contact and the existing animation/LOD pipeline.
+17. Expose retained delivered recovery alongside already retained compensation in the pure handoff summary.
+18. Keep current recovery owed separate from historical delivered receipts, with no double-counted debt.
+19. Show linked customer credit against its actual agreed target and retain the full outstanding commitment.
+20. Distinguish total customer receipts from this handoff shift’s dispatch.
+21. Keep blocked evidence explicit and unlinked teaching output separate from customer delivery.
+22. Name the actual selected handoff arrangement in the companion instead of its fallback plan.
+23. Preserve campaign-only guidance, open remedies, consent, controls and camera actions.
+24. Add focused existing-suite cases for cue boundaries/clock/purity, retained receipts, linked target/blocking and companion navigation.
+25. Run focused tests, required typecheck/lint/format/depth/shaders and approved design detection.
+26. Build the exact candidate, keep original bundle/readiness/quality limits and run fresh reachability/community checks.
+27. Through actual public game controls, earn and activate a paid briefing, pause for inspection, inspect representative people/companion, stop the arrangement and review without actor or inventory overrides.
+28. Inspect silent exact-build native day/dusk/night people, semantic pose and companion views; distinguish visual/UI proof from physical player/device and performance acceptance.
+29. Retain source/compiled pins, initial failures, raw frames and acceptance; selective local check-in only, protect unrelated work and close owned browsers/preview/lock normally.
+30. Leave pacing OPEN separately, physical player/device/manual checks DEFERRED and repeating goal ACTIVE.
+
+Pre-mortem: a briefing might accidentally count as rest, a combined history might double-count current debt, or stale customer evidence might look like verified delivery. Working if cues stay presentational, delivered totals and current obligations remain distinct, and blocked evidence cannot be presented as current credit confirmation.
+
+BW baseline61/61, zero failures; two added regressions reproduce missing handoff briefing cues and the incorrect linked-target companion display. Paid briefing specifically requires the existing funded trial receipt. Its final fixture now earns activation through canonical transitions rather than assigning an unsupported active phase. Existing companion plan-revision test emitted an act warning at baseline; wrap that known store update in the established act helper while extending the same suite. No production timing/authority change.
+
+BW first coherent run65pass/1new fixture failure: the intended unlinked teaching-output case inherited a real active order from earlier fixture setup, so the real beginImprovement correctly linked it. Explicitly reset operations orders/active ID and participation mode in this existing suite’s beforeEach, rather than suppressing valid customer linking in production. The two reproduced production defects now pass; all other65cases passed.
+
+
+BW finite acceptance complete: all30 items close within their stated boundary. Baseline61/61, final66/66(+5); two observed defects reproduced red before repair. All required typecheck/lint/format, depth91activefiles/12relationships, shaders37families/41stablekeys, production build, bundle, fresh reachability and community gates pass. Actual build431files178119304bytes,169.87MiB below unchanged170MiB cap, Vite57.03s. Design detector exit2 retains one gray-on-color finding: native computed styles show neutral slate950/95 root, cyan belongs only to ::selection. No blanket warning fix.
+
+Native acceptance:36selected day/dusk/night views, all12desktop/mobile companion views and24people views. Eight occluded camera views were replaced by a single camera-only confirmation, original36frames and metadata retained in initial-art with hashes. Both confirmations exit0 and close owned browser/server/lock normally. Root authored and personally self-reviewed all selected views. All strict readiness/world/people/texture/page/request checks clean, sandboxed out-of-process Apple Metal and original Medium retained, audio context never created. Real public controls earn/activate the paid briefing, inspect idle/listening, resume/pause and explicitly stop then review. Four route roots hold bit-exact as workplace clock advances;62same-UUID bone pairs sampled with57to61animated in original round, natural expiry observed at5.3minutes and exact5minute boundary tested. No new actors, tools, seats, teleportation or production/QC/consent authority. Synthetic role-play only, no independent-human claim.
+
+Canonical five protected simulation/renderer files, primary HEAD/status/binarydiff and ten unrelated images match custody. Runtime source/art/compiled seals exact before this documentation note. Handoff receipts use actual customer targets and retained history, keeping delivered recovery distinct from current debt. Physical player/device/manual checks DEFERRED, pacing separately OPEN without waiver. Repeating programme ACTIVE.
+
+## BX. Publish completed cooperative work, then continue learning refinement, 2026-10-18
+
+Latest human request: “Get these live please when finished, and then proceed again with the refinements process. This time, focus more on the core cooperative learning game elements please.” This releases the prior local-publication hold for completed BT/BW cooperative work and establishes the existing NellInc/MillOS main/Pages destination https://www.millos.net/v0.40/. Preserve standard CI/Pages gates, archived releases, source custody and no secrets. The existing repeating goal tool text cannot edit an active objective; this scoped human amendment takes precedence over its older local-only delivery sentence. Further refinement remains muted and physical player/device checks remain deferred, pacing separately OPEN.
+
+Release task list: (1) finish BW camera-only confirmation; (2) inspect every corrected view; (3) reconcile exact source/build/primary pins; (4) selectively commit only owned seven files; (5) inspect the four-commit outgoing scope and secret/100MB preflight; (6) push the named owned branch; (7) create and attach a normal PR; (8) wait for all five CI jobs; (9) inspect any failure before deciding scope; (10) merge only the exact accepted head after full green; (11) wait for main CI and normal archived-release Pages build; (12) verify actual served build identity, changed compiled modules, raster pins and archives; (13) continue a finite gameplay-learning refinement grounded in live source rather than reopening already-finished art. Working if delivered source and hosted bytes match the reviewed changes, then a genuine cooperative-learning gap receives implementation without weakening consent, quality or readiness.

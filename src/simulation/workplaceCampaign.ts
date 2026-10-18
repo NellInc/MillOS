@@ -451,6 +451,82 @@ export function campaignOutcomes(s: WorkplaceState) {
   };
 }
 
+/** Public receipts become discussion prompts, never scores, decisions or consent.
+ * Working if reading a review leaves every agreement and ledger byte unchanged.
+ */
+export function campaignLearningReview(s: WorkplaceState) {
+  const campaign = s.campaign;
+  if (!campaign || s.phase !== 'review') return null;
+  const outcome = campaignOutcomes(s);
+  const totals = campaignTotals(s);
+  const owed = totals.members.reduce((sum, member) => sum + member.recoveryOwedMinutes, 0);
+  const recovered = totals.members.reduce((sum, member) => sum + member.recoveryMinutes, 0);
+  const open = s.objections.filter((objection) => objection.status === 'open');
+  const inspection =
+    campaign.shift === 1
+      ? campaign.inspectionComplete
+      : campaign.shift === 2
+        ? campaign.history.find((shift) => shift.shift === 1)?.inspectionComplete
+        : undefined;
+  const evidence = [
+    campaign.mission
+      ? `Delivery record: ${outcome.delivery.deliveredKg.toFixed(1)} kg credited; source evidence ${campaign.mission.evidence}. Full customer commitment still open: ${outcome.delivery.remainingKg.toFixed(1)} kg.`
+      : `Teaching output: ${outcome.delivery.deliveredKg.toFixed(1)} kg against ${outcome.delivery.targetKg.toFixed(1)} kg agreed. This exercise counter is separate from customer shipment receipts.`,
+    `Team recovery: ${recovered.toFixed(1)} minutes delivered; ${owed.toFixed(1)} minutes still owed. Earlier volunteering grants no new duty.`,
+  ];
+  if (outcome.delivery.deferredKg > 0)
+    evidence.push(
+      `These terms defer ${outcome.delivery.deferredKg.toFixed(1)} kg beyond this agreement. The full customer commitment remains recorded.`
+    );
+  if (inspection !== undefined)
+    evidence.push(
+      inspection
+        ? 'Quality completed the modeled inspection. Actual batch certification still controls shipment.'
+        : 'Quality has no completed modeled inspection for the held shift. Actual batch certification still controls shipment.'
+    );
+  if (open.length > 0)
+    evidence.push(
+      open.length === 1
+        ? 'One unresolved objection remains with its raiser. A team discussion cannot close it on someone else’s behalf.'
+        : `${open.length} unresolved objections remain with their raisers. A team discussion cannot close them on someone else’s behalf.`
+    );
+  if (totals.repairs > 0)
+    evidence.push('The adviser recorded a correction. Fresh terms still need fresh understanding.');
+
+  const focus =
+    open.length > 0
+      ? 'remedy'
+      : owed > 0
+        ? 'recovery'
+        : outcome.delivery.status === 'blocked'
+          ? 'evidence'
+          : inspection === false
+            ? 'quality'
+            : outcome.delivery.remainingKg > 0
+              ? 'delivery'
+              : 'comparison';
+  const questions = {
+    remedy:
+      'Ask each raiser which part of the proposed remedy addresses their objection. What remains unresolved?',
+    recovery:
+      'Which recovery promise remains owed, and how can the next handoff make room to deliver it?',
+    evidence:
+      'Which shipment evidence would the coordinator and Quality need to verify before calling the delivery met?',
+    quality:
+      'What observation would let Quality finish its inspection while the other roles protect the hold?',
+    delivery:
+      'Which change to the handoff might reduce waiting without borrowing another role’s rest or assuming cover consent?',
+    comparison:
+      'Before comparing forecasts, let each role predict what a different handoff would change. Which observed result would change your minds?',
+  };
+  return {
+    goal: 'Meet the agreed delivery together while honouring qualified work, protected rest and recovery promises.',
+    evidence,
+    focus,
+    question: questions[focus],
+  };
+}
+
 export function campaignComplete(s: WorkplaceState): boolean {
   return campaignOutcomes(s).complete;
 }
