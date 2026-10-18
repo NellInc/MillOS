@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { useCameraStore, CAMERA_PRESETS } from '../../CameraController';
 import type {
   WorkplaceState,
   WorkplaceTransitionResult,
@@ -19,6 +20,7 @@ import { useQCLabStore } from '../../../stores/qcLabStore';
 import { useTruckScheduleStore } from '../../../stores/truckScheduleStore';
 import {
   runPackingRehearsals,
+  packingInspectionPrompts,
   PACKING_PREDICTIONS,
   packingPredictionReview,
   type PackingPrediction,
@@ -148,6 +150,7 @@ export function HandoffEpisodes({
 
 export function FrozenPackingAdvice({ advice }: { advice: PackingAdvice }) {
   const e = advice.evidence;
+  const inspections = packingInspectionPrompts(advice);
   return (
     <div className="space-y-2" aria-label="Plant-grounded adviser evidence">
       <p className="font-medium text-white">
@@ -189,33 +192,8 @@ export function FrozenPackingAdvice({ advice }: { advice: PackingAdvice }) {
               </dd>
             </div>
             <div>
-              <dt className="inline text-slate-300">Packed stock: </dt>
-              <dd className="inline">
-                {e.releasedPackedKg.toFixed(0)} kg released; {e.heldPackedKg.toFixed(0)} kg held or
-                recalled.
-              </dd>
-            </div>
-            <div>
-              <dt className="inline text-slate-300">Plant and quality: </dt>
-              <dd className="inline">
-                {e.processingMachines}/{e.totalMachines} machines processing; release{' '}
-                {e.qualityRelease === null ? 'unknown' : e.qualityRelease ? 'open' : 'held'}.
-              </dd>
-            </div>
-            <div>
-              <dt className="inline text-slate-300">Truck evidence: </dt>
-              <dd className="inline">
-                {e.truckStatus ?? 'unknown'};{' '}
-                {e.truckLoadedKg === null ? 'unknown' : e.truckLoadedKg.toFixed(0)} kg loaded;{' '}
-                {e.truckCapacityKg === null ? 'unknown' : e.truckCapacityKg.toFixed(0)} kg capacity.
-              </dd>
-            </div>
-            <div>
               <dt className="inline text-slate-300">Captured material clock: </dt>
-              <dd className="inline">
-                {e.materialClockSeconds.toFixed(2)} seconds. Frozen before agreement; later plant
-                changes require a fresh response.
-              </dd>
+              <dd className="inline">{e.materialClockSeconds.toFixed(2)} seconds.</dd>
             </div>
             <div>
               <dt className="inline text-slate-300">Intended pace: </dt>
@@ -226,6 +204,31 @@ export function FrozenPackingAdvice({ advice }: { advice: PackingAdvice }) {
             </div>
           </dl>
         )}
+        <div role="group" aria-label="Inspect evidence together" className="space-y-3 pt-2">
+          <p className="text-xs text-slate-300">
+            Facts are frozen at the adviser’s capture. These views inspect the current plant;
+            changed facts need a fresh adviser response before another agreement. Looking records no
+            understanding, ballot or permission.
+          </p>
+          {inspections.map((item) => (
+            <div key={item.role} className="space-y-2 border-t border-slate-800 pt-3">
+              <h6 className="font-semibold text-white">{item.role}</h6>
+              <p className="text-xs tabular-nums text-slate-300">{item.fact}</p>
+              <p className="text-xs text-slate-300">{item.question}</p>
+              <button
+                type="button"
+                className={button}
+                onClick={() =>
+                  useCameraStore
+                    .getState()
+                    .setPreset(CAMERA_PRESETS.findIndex((preset) => preset.name === item.view))
+                }
+              >
+                {item.action}
+              </button>
+            </div>
+          ))}
+        </div>
         <ul className="mt-2 list-inside list-disc space-y-1 text-xs text-slate-300">
           {advice.assumptions.map((a) => (
             <li key={a}>{a}</li>

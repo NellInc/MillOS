@@ -1,5 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { useCameraStore, CAMERA_PRESETS } from '../../CameraController';
 import { WorkplaceImprovementPanel } from './WorkplaceImprovementPanel';
 import { WorkplaceParticipation } from './WorkplaceParticipation';
 import { turnChecks, type RoleCommand } from '../../../simulation/workplaceParticipation';
@@ -413,4 +414,33 @@ it('offers workshop reflection without a physical packing comparison or automati
   expect(screen.getByLabelText('Packing review decision')).toBeDisabled();
   expect(useWorkplaceStore.getState().workplace).toBe(before);
   expect(before.improvement?.reviewAcknowledged).toBe(false);
+});
+
+it('lets roles inspect current plant views while abstaining facts remain unknown and agreement stays untouched', () => {
+  const state = useWorkplaceStore.getState().workplace;
+  const advice = derivePackingAdvice(captureCurrentPackingPlant(state), 'briefing');
+  expect(advice.reasonToAbstain).toBeTruthy();
+  const before = JSON.stringify(state);
+  const stock = cloneMaterialFlowData(useMaterialFlowStore.getState());
+  render(<FrozenPackingAdvice advice={advice} />);
+  const inspections = screen.getByRole('group', { name: 'Inspect evidence together' });
+  expect(within(inspections).getByText('Packing')).toBeInTheDocument();
+  expect(within(inspections).getByText('Quality')).toBeInTheDocument();
+  expect(within(inspections).getByText('Maintenance')).toBeInTheDocument();
+  expect(within(inspections).getByText('Coordinator')).toBeInTheDocument();
+  expect(within(inspections).queryByText(/0 kg released/)).not.toBeInTheDocument();
+  for (const [action, destination] of [
+    ['View packing floor', 'Packing'],
+    ['View quality observation point', 'Packing'],
+    ['View milling line', 'Milling'],
+    ['View shipping dock', 'Shipping'],
+  ]) {
+    fireEvent.click(within(inspections).getByRole('button', { name: action, exact: true }));
+    const camera = useCameraStore.getState();
+    expect(camera.activePreset).toBe(CAMERA_PRESETS.findIndex((p) => p.name === destination));
+    expect(camera.targetPosition?.toArray()).toEqual(CAMERA_PRESETS[camera.activePreset!].position);
+  }
+  expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+  expect(JSON.stringify(useWorkplaceStore.getState().workplace)).toBe(before);
+  expect(cloneMaterialFlowData(useMaterialFlowStore.getState())).toEqual(stock);
 });
