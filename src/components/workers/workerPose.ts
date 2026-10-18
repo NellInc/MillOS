@@ -1320,7 +1320,7 @@ export function createSeatedWorkerPose(
   const controller = {
     applyTask,
     /** Quaternion crossfades and independent foot translations follow different
-     * curves. Close only an actual ordinary-duty handover using measured anatomy.
+     * curves. Close a standing duty/neutral handover using measured anatomy.
      * Working if ankles meet calves while feet, steady gait and restore stay exact.
      */
     closeDutyTransition(amount: number) {

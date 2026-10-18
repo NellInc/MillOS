@@ -333,6 +333,23 @@ export function selectWorkerLocomotion(speed: number, walkSpeed: number, previou
   return speed > walkSpeed * threshold ? 'worker-run' : 'worker-walk';
 }
 
+/** Empty-handed standing listeners use the authored neutral stance. Seat cues
+ * keep precedence, including an interrupted approach, with no rest semantics.
+ * Working if mount and admitted frames choose the same base while ordinary
+ * idle, walking, work and coupled props keep their original clips.
+ */
+function standingBriefing(motion: WorkerMotionState, moving: boolean): boolean {
+  return (
+    motion.briefing === true &&
+    motion.activity === 'idle' &&
+    !moving &&
+    !motion.seated &&
+    !motion.cycling &&
+    !motion.cartGrip &&
+    !validWorkerSeatCue(motion.seat)
+  );
+}
+
 const UNIT_BOX = new THREE.BoxGeometry(1, 1, 1);
 const SUPERVISOR_CABLE = new THREE.TorusGeometry(0.065, 0.005, 6, 18, Math.PI * 1.25);
 const SUPERVISOR_RADIO_KNOB = new THREE.CylinderGeometry(0.009, 0.009, 0.012, 10);
@@ -1529,7 +1546,10 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
           speed,
           CLIP_GROUND_SPEED[appearance.bodyType].walk * prepared.rigScale * appearance.bodyScale
         )
-      : motion.seated || motion.cycling || motion.activity === 'break'
+      : motion.seated ||
+          motion.cycling ||
+          motion.activity === 'break' ||
+          standingBriefing(motion, moving)
         ? 'worker-break'
         : motion.activity === 'working'
           ? TASK_CLIPS[appearance.workAction]
@@ -1643,11 +1663,12 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       lastPose.current.clip === 'worker-run' || lastPose.current.clip === 'worker-walk'
         ? lastPose.current.clip
         : undefined;
+    const briefing = standingBriefing(motion, moving);
     const activeClip: WorkerClipName = moving
       ? !motion.enabled && previousLocomotion
         ? previousLocomotion
         : selectWorkerLocomotion(speed, clipSpeed.walk * scale, previousLocomotion)
-      : motion.seated || motion.cycling || motion.activity === 'break'
+      : motion.seated || motion.cycling || motion.activity === 'break' || briefing
         ? 'worker-break'
         : motion.activity === 'working'
           ? TASK_CLIPS[appearance.workAction]
@@ -1660,14 +1681,6 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       (motion.seated || motion.activity === 'walking')
         ? motion.seat
         : undefined;
-    const briefing =
-      motion.briefing === true &&
-      motion.activity === 'idle' &&
-      !moving &&
-      !motion.seated &&
-      !motion.cycling &&
-      !motion.cartGrip &&
-      !seat;
     const seatChanged =
       lastPose.current.seatAmount !== seat?.amount ||
       lastPose.current.seatSupport !== seat?.support ||
@@ -1848,13 +1861,20 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     else if (motion.activity === 'walking') seatedPose.applyWalkingLook(gesture);
     else if (motion.activity === 'idle' || motion.activity === 'break')
       seatedPose.applyIdle(gesture);
+    // Neutral standing and the walk have independent Foot tracks too. Reuse
+    // the existing anatomical closure for this handover, preserving both foot
+    // targets and pure-clip endpoints. Seated/coupled and special bake/garden
+    // poses keep their own contact solvers.
+    const dutyMix = actionWeights.current[dutyClip];
+    const neutralMix = actionWeights.current['worker-break'];
+    const closureMix = dutyMix > 0.00001 && dutyMix < 0.99999 ? dutyMix : neutralMix;
     if (
       ordinaryDuty &&
       appearance.workAction !== 'bake' &&
-      actionWeights.current[dutyClip] > 0.00001 &&
-      actionWeights.current[dutyClip] < 0.99999
+      closureMix > 0.00001 &&
+      closureMix < 0.99999
     )
-      seatedPose.closeDutyTransition(actionWeights.current[dutyClip]);
+      seatedPose.closeDutyTransition(closureMix);
     handPose.apply(motion, appearance.tool, gesture, safeDelta);
     // Mixed Head/Neck weights require the final admitted pose, even when the
     // expression envelope is unchanged. Never sample the previous mixer frame.
