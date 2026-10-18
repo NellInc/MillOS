@@ -563,6 +563,13 @@ AuthoredPropTrim.displayName = 'AuthoredPropTrim';
  * earned inventory. Working if each actual pitch keeps its own trade name.
  */
 export const MARKET_TRADE_NAMES = ['Greengrocer', 'Cheesemonger', 'Bread & Rolls', 'Farm Harvest'];
+// Working if the raster identity follows the actual stock dressing, one to one.
+export const MARKET_TRADE_BRANDS = [
+  'greengrocer',
+  'cheesemonger',
+  'breadRolls',
+  'harvest',
+] as const;
 // Measured delivered central tray, front +X: x=.5134, y=.9297..1.104, z=+/- .322.
 // One millimetre of paint stand-off and clear margins retain the source board.
 export const MARKET_TRADE_PAINT = {
@@ -570,6 +577,7 @@ export const MARKET_TRADE_PAINT = {
   rotation: [0, Math.PI / 2, 0] as [number, number, number],
   fontSize: 0.061,
   maxWidth: 0.59,
+  height: 0.15,
   color: '#243e37',
   outlineWidth: 0.0012,
 };

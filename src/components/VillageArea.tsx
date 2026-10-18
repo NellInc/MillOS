@@ -15,6 +15,7 @@ import type { ThreeEvent } from '@react-three/fiber';
 import { shouldRunThisFrame } from '../utils/frameThrottle';
 import { createColorDataTexture, createLinearDataTexture } from '../utils/textureGenerator';
 import { SceneText as Text } from './shared/SceneText';
+import { BusinessBrandMark } from './scenery/HeritageSignage';
 import * as THREE from 'three';
 import { applyWaterRipples, applyFountainFoam } from '../utils/waterAppearance';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -24,7 +25,7 @@ import { Cat } from './scenery/Cat';
 import {
   AuthoredPropTrim,
   MarketGoods,
-  MARKET_TRADE_NAMES,
+  MARKET_TRADE_BRANDS,
   MARKET_TRADE_PAINT,
 } from './scenery/AuthoredPropTrim';
 import {
@@ -1068,7 +1069,14 @@ export const TownHall = React.memo<{ position: [number, number, number]; rotatio
         ))}
       </GeneratedBoundary>
       <group position={[0, 6.03, 5.19]}>
-        <VillageNameboard title="TOWN HALL" width={4.9} height={0.66} colour="#354f59" />
+        <VillageNameboard
+          title="TOWN HALL"
+          brand="townHall"
+          brandFace="fascia"
+          width={4.9}
+          height={0.66}
+          colour="#354f59"
+        />
       </group>
       <TownHallLanterns />
       <mesh
@@ -1178,7 +1186,14 @@ const Pub = React.memo<{
   <group position={position} rotation={[0, rotation, 0]}>
     <GeneratedBody asset="pub" fallback={<PubPrimitiveBody />} />
     <group position={[0, 3.77, 3.2]}>
-      <VillageNameboard title="Flour & Barrel" caption="VILLAGE INN" width={3.42} height={0.76} />
+      <VillageNameboard
+        title="Flour & Barrel"
+        brand="inn"
+        brandFace="fascia"
+        caption="VILLAGE INN"
+        width={3.42}
+        height={0.76}
+      />
     </group>
     <FlourAndBarrelSign />
     <PubSignLighting />
@@ -1315,7 +1330,14 @@ const School = React.memo<{
     <GeneratedBody asset="school" fallback={<SchoolPrimitiveBody />} />
     <CivicEntryLighting building="school" />
     <group position={[0, 5.23, 3.7]}>
-      <VillageNameboard title="VILLAGE SCHOOL" width={4.4} height={0.68} colour="#354f59" />
+      <VillageNameboard
+        title="VILLAGE SCHOOL"
+        brand="school"
+        brandFace="fascia"
+        width={4.4}
+        height={0.68}
+        colour="#354f59"
+      />
     </group>
   </group>
 ));
@@ -1948,17 +1970,20 @@ const MarketStall = React.memo<{
     <GeneratedBoundary fallback={<MarketStallPrimitiveBody color1={color1} color2={color2} />}>
       <GeneratedModel asset="marketstall" marketDressing={dressing} />
       <AuthoredPropTrim kind="market" dressing={dressing} />
-      <Text
-        name={`market-trade-label-${dressing}`}
-        {...MARKET_TRADE_PAINT}
-        surface="painted"
-        anchorX="center"
-        anchorY="middle"
-        castShadow={false}
-        receiveShadow
-      >
-        {MARKET_TRADE_NAMES[dressing] ?? 'Market'}
-      </Text>
+      {MARKET_TRADE_BRANDS[dressing] && (
+        <group
+          name={`market-trade-label-${dressing}`}
+          position={MARKET_TRADE_PAINT.position}
+          rotation={MARKET_TRADE_PAINT.rotation}
+        >
+          <BusinessBrandMark
+            brand={MARKET_TRADE_BRANDS[dressing]}
+            width={MARKET_TRADE_PAINT.maxWidth}
+            height={MARKET_TRADE_PAINT.height}
+            backlit={false}
+          />
+        </group>
+      )}
     </GeneratedBoundary>
     {/* INSIDE the yawed group, so the goods turn with the counter they stand
         on. Outside it they would slide off the table by up to 0.1 m at the
@@ -3092,7 +3117,14 @@ const Forge = React.memo<{ position: [number, number, number]; rotation?: number
     <group position={position} rotation={[0, rotation, 0]}>
       <GeneratedBody asset="forge" fallback={<ForgePrimitiveBody />} />
       <group position={[0, 2.95, 3.17]}>
-        <VillageNameboard title="BLACKSMITH" width={3.34} height={0.49} colour="#333e43" />
+        <VillageNameboard
+          title="BLACKSMITH"
+          brand="blacksmith"
+          brandFace="fascia"
+          width={3.34}
+          height={0.49}
+          colour="#333e43"
+        />
       </group>
       <ChimneySmoke position={[-0.4, 5.72, 1.78]} offset={2} kind="forge" />
       <BlacksmithHorse position={[-4.35, 0, 4.6]} rotation={Math.PI / 4} />
