@@ -1,3 +1,4 @@
+import { replayLearningReview } from '../../simulation/workplaceFairness';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -762,6 +763,17 @@ describe('whole operational checkpoint replay', () => {
     expect(c.record.manifestIds.length).toBeGreaterThan(0);
     expect(c.record.remainingKg).toBeGreaterThanOrEqual(0);
     expect(Math.abs(c.record.materialErrorKg)).toBeLessThan(0.001);
+    // Read the actual engine-backed replay records, with no copied output table.
+    const recordsBefore = structuredClone([a.record, b.record, c.record]);
+    expect(replayLearningReview([a.record, b.record])?.horizonsDiffer).toBe(false);
+    expect(replayLearningReview([a.record, b.record])?.question).toContain(
+      'recorded plan sequence matches'
+    );
+    expect(replayLearningReview([a.record, c.record])?.caveats.join(' ')).toContain(
+      'Both the recorded charter and shift-plan sequence changed'
+    );
+    expect([a.record, b.record, c.record]).toEqual(recordsBefore);
+
     emitEvidence('checkpoint-replay', { records: useWorkplaceReplayStore.getState().runs });
   });
   it('refuses to erase earned cover and recovery through capture, rewind, record or forget', () => {

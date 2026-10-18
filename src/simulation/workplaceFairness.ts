@@ -1,3 +1,4 @@
+import type { WorkplaceReplayRun } from '../types/workplaceReplay';
 import type { WorkplaceState, WorkplaceShiftRecord } from '../types/workplace';
 import { saveWorkplace, restoreWorkplace, WORKPLACE_PLANS } from './bilateralWorkplace';
 import { workplaceMission } from './workplaceImprovement';
@@ -186,4 +187,67 @@ export function participationReceipt(state: WorkplaceState, mode: 'solo' | 'sepa
     efficacy:
       'No measured worker wellbeing, real-cooperative effectiveness or authenticated participant consent is claimed.',
   };
+}
+
+/** Read-only discussion of actual retained runs, never a causal or wellbeing score.
+ * Working if changed horizons and conditions stay visible without changing a record.
+ */
+export function replayLearningReview(runs: readonly WorkplaceReplayRun[]) {
+  if (runs.length < 2) return null;
+  const horizonsDiffer =
+    new Set(runs.map((run) => `${run.elapsedMinutes}:${run.agreementMinutes}:${run.shiftCount}`))
+      .size > 1;
+  const sameCheckpoint = runs.every(
+    (run) => !!run.checkpointId && run.checkpointId === runs[0].checkpointId
+  );
+  const balanceUncertain = runs.some((run) =>
+    [run.materialErrorKg, run.genealogyErrorKg].some(
+      (error) => !Number.isFinite(error) || Math.abs(error) > 0.01
+    )
+  );
+  const targetsDiffer = new Set(runs.map((run) => `${run.targetKg}:${run.deferredKg}`)).size > 1;
+  const chartersDiffer =
+    new Set(
+      runs.map((run) =>
+        JSON.stringify([
+          run.charter.workerAutonomy,
+          run.charter.governance,
+          run.charter.aiAuthority,
+          [...run.charter.practices].sort(),
+        ])
+      )
+    ).size > 1;
+  const plansDiffer = new Set(runs.map((run) => JSON.stringify(run.shiftPlans))).size > 1;
+  const caveats: string[] = [];
+  if (!sameCheckpoint)
+    caveats.push(
+      'These records do not share one retained checkpoint. Treat their starting conditions as unmatched.'
+    );
+  if (balanceUncertain)
+    caveats.push(
+      'A retained material or genealogy error is unavailable or exceeds 0.01 kg. Check that evidence before interpreting dispatch differences.'
+    );
+  if (targetsDiffer)
+    caveats.push(
+      'Agreed targets or deferrals differ. Compare the full customer commitment remaining, including work deferred to later.'
+    );
+  if (chartersDiffer && plansDiffer)
+    caveats.push(
+      'Both the recorded charter and shift-plan sequence changed. Their effects cannot be separated by this comparison.'
+    );
+  const question =
+    !sameCheckpoint || balanceUncertain
+      ? 'Which checkpoint or balance fact must the group resolve before drawing a lesson?'
+      : horizonsDiffer
+        ? 'What would each role expect from equally long trials? Agree the elapsed and agreement horizons before comparing dispatch, pay and recovery.'
+        : targetsDiffer
+          ? 'Which customer work was deferred, and what remains owed? Decide together which commitment the next trial will hold fixed.'
+          : chartersDiffer && plansDiffer
+            ? 'Keep one charter and compare one plan change, or keep one plan and compare charters. Which observation would change each role’s view?'
+            : plansDiffer
+              ? 'With the recorded charter held fixed, which packing or collection observation would help explain the different plan results? Check each role’s burden receipts too.'
+              : chartersDiffer
+                ? 'The recorded plan sequence matches. Compare each role’s public pay and recovery receipts alongside actual delivery. Which other run conditions still need checking?'
+                : 'The recorded charter and plan sequence match. What varied in collection timing or public role receipts, and which observation would you check together next?';
+  return { horizonsDiffer, caveats, question };
 }
