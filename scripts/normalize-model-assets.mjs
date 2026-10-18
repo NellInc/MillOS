@@ -16,6 +16,13 @@ import { simplifyPrimitive, textureCompress, weldPrimitive } from '@gltf-transfo
 import { MeshoptDecoder, MeshoptEncoder, MeshoptSimplifier } from 'meshoptimizer';
 import draco3d from 'draco3dgltf';
 import * as THREE from 'three';
+import {
+  RECONCILED_FARM_MODELS,
+  AUTHORING_SCRIPT,
+  assertFarmDependencies,
+  deriveFarmModel,
+  assertFarmCurrentOutput,
+} from './reconcile-farm-models.mjs';
 
 const ROOT = process.cwd();
 const SOURCE_ROOT = path.join(ROOT, 'assets', 'source', 'models');
@@ -3499,13 +3506,24 @@ function titleCase(slug) {
  *    alongside an ORM map, so every surface reads as polished metal wherever
  *    that map's blue channel is not black. Roughness is left alone.
  */
-async function normalizeGeneratedAsset(io, spec) {
+export async function normalizeGeneratedAsset(io, spec) {
   const { source, output } = generatedAssetPaths(spec);
   if (spec.preparedSource && path.basename(spec.preparedSource) !== spec.preparedSource)
     throw new Error('Blender derivative must be a sibling source file');
   const prepared = spec.preparedSource
     ? path.join(path.dirname(source), spec.preparedSource)
     : null;
+  let farmInputs;
+  if (RECONCILED_FARM_MODELS[spec.id]) {
+    farmInputs = await Promise.all([
+      readFile(source),
+      readFile(prepared),
+      readFile(path.join(ROOT, AUTHORING_SCRIPT)),
+      readFile(path.join(OUTPUT_ROOT, 'asset-manifest.json'), 'utf8').then(JSON.parse),
+    ]);
+    assertFarmDependencies(spec.id, ...farmInputs);
+    assertFarmCurrentOutput(spec.id, await readFile(output));
+  }
   const document = await io.read(prepared ?? source);
   const root = document.getRoot();
   const scene = root.listScenes()[0];
@@ -3632,12 +3650,28 @@ async function normalizeGeneratedAsset(io, spec) {
   });
 
   indexGeneratedGeometry(document);
-  await writeBinaryGLB(io, output, document);
-  const finalBounds = getBounds(scene);
+  let geometryRefinement;
+  let finalRoot = root;
+  let finalBounds;
+  if (farmInputs) {
+    // This final stage cannot consume an already-refined or unknown input.
+    const result = await deriveFarmModel(spec.id, await io.writeBinary(document), ...farmInputs);
+    assertFarmCurrentOutput(spec.id, await readFile(output));
+    finalRoot = (await io.readBinary(result.bytes)).getRoot();
+    finalBounds = getBounds(finalRoot.listScenes()[0]);
+    const temporary = `${output}.tmp.glb`;
+    await writeFile(temporary, result.bytes);
+    await rename(temporary, output);
+    geometryRefinement = result.receipt;
+  } else {
+    await writeBinaryGLB(io, output, document);
+    finalBounds = getBounds(scene);
+  }
   return {
     id: spec.id,
     file: path.relative(OUTPUT_ROOT, output),
     bodyNode: bodyName,
+    ...(geometryRefinement ? { geometryRefinement } : {}),
     blenderPreparation: prepared
       ? {
           file: path.relative(ROOT, prepared),
@@ -3658,12 +3692,12 @@ async function normalizeGeneratedAsset(io, spec) {
       centreX: Number(((finalBounds.min[0] + finalBounds.max[0]) / 2).toFixed(5)),
       centreZ: Number(((finalBounds.min[2] + finalBounds.max[2]) / 2).toFixed(5)),
     },
-    materials: root.listMaterials().length,
-    textures: root.listTextures().length,
-    textureBytes: root
+    materials: finalRoot.listMaterials().length,
+    textures: finalRoot.listTextures().length,
+    textureBytes: finalRoot
       .listTextures()
       .reduce((total, texture) => total + (texture.getImage()?.byteLength ?? 0), 0),
-    renderVertices: root
+    renderVertices: finalRoot
       .listMeshes()
       .reduce(
         (total, mesh) =>
@@ -3680,7 +3714,7 @@ async function normalizeGeneratedAsset(io, spec) {
             ),
         0
       ),
-    joints: root.listSkins()[0]?.listJoints().length ?? 0,
+    joints: finalRoot.listSkins()[0]?.listJoints().length ?? 0,
     outputBytes: (await stat(output)).size,
   };
 }
