@@ -10,6 +10,7 @@ import { importWithBoundedRetry } from '../utils/recoverableLazy';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import ErrorBoundary from './ErrorBoundary';
 import { useGraphicsStore } from '../stores/graphicsStore';
+import { applySessionQuality } from '../utils/adaptiveQuality';
 
 // Decorative DOM content must never invalidate the 3D preparation window.
 // Working if a delayed or failed quote leaves scene task/error counts unchanged.
@@ -71,7 +72,18 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
   const safeProgress = startup.ready
     ? 100
     : Math.min(95, startup.totalAssets > 0 ? (startup.loadedAssets / startup.totalAssets) * 95 : 0);
-  const progressText = startup.ready ? 'Ready' : 'Preparing the complete scene';
+  // The startup error count only rises, and strict readiness needs it at zero,
+  // so a known error is final for this page load: say so and offer the way out
+  // at once instead of after the slow-load delay.
+  // Working if errors > 0 shows 'Loading could not finish' and Reload
+  // immediately, while an error-free slow load keeps the original status.
+  const hasStartupError = startup.errors > 0;
+  const recoveryVisible = showRecovery || hasStartupError;
+  const progressText = startup.ready
+    ? 'Ready'
+    : hasStartupError
+      ? 'Loading could not finish'
+      : 'Preparing the complete scene';
 
   return (
     <>
@@ -165,20 +177,34 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
             />
           </div>
 
-          {showRecovery &&
+          {recoveryVisible &&
             !startup.ready &&
-            (startup.prepared || startup.errors > 0 || quality !== 'low') && (
+            (startup.prepared || hasStartupError || quality !== 'low') && (
               <div className="mt-6 flex max-w-md flex-col items-center gap-3 text-center text-sm text-slate-300">
                 {startup.prepared && (
                   <p>The scene is loaded, but animation is still slow on this device.</p>
                 )}
-                {startup.errors > 0 && <p>Some resources could not be loaded.</p>}
-                {quality !== 'low' && (
+                {hasStartupError && <p>Some resources could not be loaded.</p>}
+                {/* Reload is the explicit recovery control the focus trap waits for.
+                  The service worker serves what already arrived, so it retries
+                  only what failed. Working if every error state has a control. */}
+                {hasStartupError && (
+                  <button
+                    type="button"
+                    onClick={() => window.location.reload()}
+                    className="min-h-11 rounded-md border border-slate-500 px-4 py-2 text-slate-100 transition-colors hover:border-amber-400 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400"
+                  >
+                    Reload
+                  </button>
+                )}
+                {/* Lower graphics cannot clear an error, so it is offered only
+                  for a slow load, and it lasts for this session only. */}
+                {quality !== 'low' && !hasStartupError && (
                   <button
                     type="button"
                     onClick={() => {
                       resetStartupPreparation();
-                      useGraphicsStore.getState().setGraphicsQuality('low');
+                      applySessionQuality('low');
                     }}
                     className="min-h-11 rounded-md border border-slate-500 px-4 py-2 text-slate-100 transition-colors hover:border-amber-400 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400"
                   >

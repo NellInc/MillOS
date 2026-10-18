@@ -51,6 +51,19 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T
   }
 }
 
+/** Settles with the first attempt to fulfil; rejects once every attempt has rejected. */
+function firstFulfilled<T>(attempts: readonly Promise<T>[]): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    let rejected = 0;
+    for (const attempt of attempts) {
+      attempt.then(resolve, (error: unknown) => {
+        rejected += 1;
+        if (rejected === attempts.length) reject(error);
+      });
+    }
+  });
+}
+
 export async function importWithBoundedRetry<T>(
   importer: () => Promise<T>,
   options: RecoverableLazyOptions = {}
@@ -65,10 +78,22 @@ export async function importWithBoundedRetry<T>(
     Math.floor(options.retryDelayMs ?? DEFAULT_OPTIONS.retryDelayMs)
   );
 
+  // A timeout cannot cancel a module fetch, and a browser shares one request
+  // per URL, so a retry after a stall usually waits on that same request.
+  // Every attempt therefore stays eligible: whichever lands first wins.
+  // Working if a first request that arrives during the retry still resolves.
+  const inFlight: Promise<T>[] = [];
   let lastError: unknown;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    let current: Promise<T>;
     try {
-      return await withTimeout(importer(), attemptTimeoutMs);
+      current = importer();
+    } catch (error) {
+      current = Promise.reject(error);
+    }
+    inFlight.push(current);
+    try {
+      return await withTimeout(firstFulfilled([...inFlight]), attemptTimeoutMs);
     } catch (error) {
       lastError = error;
       if (attempt < attempts && retryDelayMs > 0) await wait(retryDelayMs);

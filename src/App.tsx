@@ -12,7 +12,7 @@ import { FirstPersonController } from './components/FirstPersonController';
 import ErrorBoundary, { RecoverableFeatureBoundary } from './components/ErrorBoundary';
 import { LoadingScreen } from './components/LoadingScreen';
 import { StartupReadiness } from './components/StartupReadiness';
-import { beginStartupTask } from './utils/startupReadiness';
+import { beginStartupTask, getStartupSnapshot } from './utils/startupReadiness';
 import { MachineData } from './types';
 import type { ForkliftData } from './components/ForkliftSystem';
 import { audioManager } from './utils/audioManager';
@@ -48,7 +48,8 @@ import { getRuntimeMode } from './runtime/runtimeMode';
 import { CAMERA_DEPTH } from './constants/renderLayers';
 import { ORBIT_POLAR_LIMITS } from './utils/cameraNavigation';
 import { SITE_LAYOUT } from './constants/siteLayout';
-import { recoverableLazy } from './utils/recoverableLazy';
+import { importWithBoundedRetry, recoverableLazy } from './utils/recoverableLazy';
+import { restoreSessionScopedQuality } from './utils/adaptiveQuality';
 import { installAtmosphericFogChunks } from './shaders/atmosphericFog';
 import { installPunctualLightCulling } from './shaders/punctualLightCulling';
 import { CURRENT_RELEASE_VERSION } from './config/releaseVersions';
@@ -61,6 +62,20 @@ import { CURRENT_RELEASE_VERSION } from './config/releaseVersions';
 // is entitled to drop.
 installAtmosphericFogChunks();
 installPunctualLightCulling();
+// A previous session's automatic or recovery downgrade must not become this
+// session's tier. The graphics store has rehydrated by now and nothing has
+// rendered, so the restored choice is the first quality the scene sees.
+restoreSessionScopedQuality();
+
+// The Canvas fallback renders inside the z-0 <main>, under the loading cover,
+// so a crash before readiness must also reach the cover as a startup error.
+// Working if a Canvas crash behind the cover turns on the cover's Reload.
+function ReportStartupCrash(): null {
+  useEffect(() => {
+    if (!getStartupSnapshot().ready) beginStartupTask()(true);
+  }, []);
+  return null;
+}
 
 const PhysicsScene = recoverableLazy(() => import('./components/PhysicsScene'));
 const DeferredOrbitControls = recoverableLazy(() => import('./components/SceneOrbitControls'));
@@ -480,7 +495,9 @@ const App: React.FC = () => {
     const startPreload = (): void => {
       if (started || cancelled) return;
       started = true;
-      import('./utils/texturePreloader')
+      // Same bounded retry as the scene's lazy chunks, so one dropped request
+      // is retried and a stalled one ends as an error the cover can recover.
+      importWithBoundedRetry(() => import('./utils/texturePreloader'))
         .then(({ preloadGenerativeTexturesOnce }) => {
           if (!cancelled) return preloadGenerativeTexturesOnce();
         })
@@ -547,6 +564,7 @@ const App: React.FC = () => {
   // WebGL context loss fallback component
   const WebGLErrorFallback = (
     <div className="fixed inset-0 flex items-center justify-center bg-slate-950">
+      <ReportStartupCrash />
       <div
         role="alert"
         className="bg-slate-900 border border-amber-500/50 rounded-xl p-8 max-w-md text-center"
