@@ -13,9 +13,16 @@ export function WorkplaceCompanion({ onOpen }: { onOpen: () => void }) {
   const negotiation = thursdayNegotiation(state);
   const improvement = improvementSummary(state);
   const plan = WORKPLACE_PLANS.find((item) => item.id === state.planId);
-  const paid = guide.totals.members.reduce((sum, member) => sum + member.compensationPaid, 0);
-  const recovered = guide.totals.members.reduce((sum, member) => sum + member.recoveryMinutes, 0);
-  const owed = guide.totals.members.reduce((sum, member) => sum + member.recoveryOwedMinutes, 0);
+  const paid =
+    improvement?.lifetimeCompensation ??
+    guide.totals.members.reduce((sum, member) => sum + member.compensationPaid, 0);
+  const recovered =
+    improvement?.lifetimeRecoveryMinutes ??
+    guide.totals.members.reduce((sum, member) => sum + member.recoveryMinutes, 0);
+  const owed =
+    improvement?.currentRecoveryOwedMinutes ??
+    guide.totals.members.reduce((sum, member) => sum + member.recoveryOwedMinutes, 0);
+  const mission = workplaceMission(state);
   const cover = state.members.find((member) => member.id === state.activeCoverMemberId);
   const delivery = state.campaign
     ? guide.outcomes.delivery
@@ -25,6 +32,12 @@ export function WorkplaceCompanion({ onOpen }: { onOpen: () => void }) {
         remainingKg: Math.max(0, state.targetKg - state.shippedKg),
         status: 'pending',
       };
+  const deliveredKg = mission?.creditedKg ?? delivery.deliveredKg;
+  const targetKg = mission?.targetKg ?? delivery.targetKg;
+  const remainingKg = mission
+    ? Math.max(0, mission.originalTargetKg - mission.creditedKg)
+    : delivery.remainingKg;
+  const evidenceBlocked = mission ? mission.evidence !== 'current' : delivery.status === 'blocked';
   const title = improvement
     ? `Handoff shift ${improvement.cycle}`
     : guide.needsRemedy
@@ -38,7 +51,7 @@ export function WorkplaceCompanion({ onOpen }: { onOpen: () => void }) {
     >
       <h2 className="font-semibold text-white">Working agreement</h2>
       <p className="mt-1 text-xs text-cyan-200">
-        {plan?.title ?? state.planId}, revision {state.revision}
+        {improvement?.arrangement ?? plan?.title ?? state.planId}, revision {state.revision}
       </p>
       {state.improvement?.advice && (
         <p className="mt-2 text-xs text-slate-300">
@@ -84,27 +97,36 @@ export function WorkplaceCompanion({ onOpen }: { onOpen: () => void }) {
       )}
       <dl className="mt-3 space-y-1 border-t border-slate-700 pt-3 text-xs tabular-nums">
         <div>
-          <dt className="inline text-slate-300">Dispatch receipts: </dt>
+          <dt className="inline text-slate-300">
+            {mission ? 'Customer dispatch receipts: ' : 'Teaching output: '}
+          </dt>
           <dd className="inline">
-            {(improvement?.actualKg ?? delivery.deliveredKg).toFixed(0)} /{' '}
-            {delivery.targetKg.toFixed(0)} kg
-            {delivery.status === 'blocked' && '; evidence blocked'}.
+            {deliveredKg.toFixed(0)} / {targetKg.toFixed(0)} kg
+            {evidenceBlocked && '; evidence blocked'}.
           </dd>
         </div>
-        {workplaceMission(state) && (
+        {improvement && mission && (
+          <div>
+            <dt className="inline text-slate-300">This handoff shift’s dispatch: </dt>
+            <dd className="inline">{improvement.actualKg.toFixed(0)} kg.</dd>
+          </div>
+        )}
+        {mission && (
           <div>
             <dt className="inline text-slate-300">Full customer commitment remaining: </dt>
-            <dd className="inline">
-              {(improvement?.remainingKg ?? delivery.remainingKg).toFixed(0)} kg.
-            </dd>
+            <dd className="inline">{remainingKg.toFixed(0)} kg.</dd>
           </div>
         )}
         <div>
-          <dt className="inline text-slate-300">Compensation paid: </dt>
+          <dt className="inline text-slate-300">
+            {improvement ? 'Retained compensation paid: ' : 'Compensation paid: '}
+          </dt>
           <dd className="inline">{paid.toFixed(2)} illustrative credits.</dd>
         </div>
         <div>
-          <dt className="inline text-slate-300">Recovery: </dt>
+          <dt className="inline text-slate-300">
+            {improvement ? 'Retained recovery: ' : 'Recovery: '}
+          </dt>
           <dd className={`inline ${owed > 0 ? 'text-amber-100' : ''}`}>
             {recovered.toFixed(1)} min delivered; {owed.toFixed(1)} min owed.
           </dd>

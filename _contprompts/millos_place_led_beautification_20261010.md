@@ -5953,3 +5953,62 @@ Final native confirmation:19exact-build original images and nine lossless paired
 All final world/people/texture/page/request guards clean and Medium retained. Audio context never created. New disabled review selects are opacity0.5/cursor not-allowed, current owner’s select opacity1, observed in each desktop/mobile native run; static labels remain readable. No horizontal overflow or obscured target content. Own browser/server/lock lifecycles complete normally. Initial19native views, visual finding and source patch retained separately, with the first baseline filename omission, red regression and incorrect new test fixture logs intact.
 
 Protected primary HEAD/NULstatus/binarydiff, four canonical contract files and ten unrelated images match pre-pass hashes. Source and compiled seals match before this documentation-only completion record. No push/upload/deploy; LOCAL only. Physical player/device/manual checks remain DEFERRED, pacing separately OPEN without a budget waiver or new performance claim. Repeating programme goal remains ACTIVE.
+
+## BW. Handoff people and retained public receipts, 2026-10-18
+
+Previous turn is PROGRESS: BV shared-device ownership/focus pass,55tests and required gates plus19final native views, local commitddea98e00736d343b5b66fee28386b56943a92b7. Continue from that exact clean tracked base. Keep LOCAL and MUTED, no publication. Core cooperative learning now receives a world-facing people pass alongside truthful retained receipts.
+
+Observed gaps: communityAgreementCue explicitly excludes worker-led improvement trials, so the four existing representative residents do not display their actual handoff/rest states. The paid five-minute briefing should hold their route at the existing safe pose with idle/listening activity, not be presented as protected rest or an actual machine/QC action. The working-agreement companion separately falls back to600kg and current-shift receipts for linked handoffs; earlier compensation/recovery can disappear from its display after continuation. Underlying ledger/consent/physical dispatch remains authoritative and unchanged.
+
+Allowed: communityLife.ts and its established test; workplaceImprovement.ts and its existing test; WorkplaceCompanion.tsx and its existing test; this programme. No new actors, rigs, tools, destinations, seating, gestures, audio, lights, model files, saved schema, finance/inventory transitions, role guards or campaign outcome changes. Reuse current people, safe routes, semantic WorkerModel poses, typed arrangements and companion shell.
+
+Detailed finite task list:
+1. Reconcile base, owned checkout and completed prior pass.
+2. Pin primary dirty state, ten unrelated images and untouched canonical simulation/renderer files.
+3. Confirm these helpers and the companion are live, not superseded modules.
+4. Read arrangement timing, community motion, review release and current receipt semantics.
+5. Check all consumers of the cue-state union and summary additions.
+6. Record named three-suite baseline before changes.
+7. Reproduce missing active handoff cues and the wrong companion target in existing tests.
+8. Extend only the four already mapped residents to engaged game handoffs.
+9. Keep idle/deliberating/workshop/pilot and unrelated residents outside the binding.
+10. Derive paid briefing duration from the existing typed arrangement, not a second timing constant.
+11. Present a paid briefing as idle/listening work, with no protected-rest or consent claim.
+12. Hold each representative at its current safe route position, without teleporting, inventing a seat or changing the work clock.
+13. Restore ordinary representative duty at briefing expiry or explicit arrangement stop.
+14. Preserve qualified-task descriptions, valid optional-cover bounds, rest/recovery priority and emergency overrides.
+15. Release review participants back to normal life once no recovery is owed.
+16. Preserve pause/reduced-motion semantics, foot contact and the existing animation/LOD pipeline.
+17. Expose retained delivered recovery alongside already retained compensation in the pure handoff summary.
+18. Keep current recovery owed separate from historical delivered receipts, with no double-counted debt.
+19. Show linked customer credit against its actual agreed target and retain the full outstanding commitment.
+20. Distinguish total customer receipts from this handoff shift’s dispatch.
+21. Keep blocked evidence explicit and unlinked teaching output separate from customer delivery.
+22. Name the actual selected handoff arrangement in the companion instead of its fallback plan.
+23. Preserve campaign-only guidance, open remedies, consent, controls and camera actions.
+24. Add focused existing-suite cases for cue boundaries/clock/purity, retained receipts, linked target/blocking and companion navigation.
+25. Run focused tests, required typecheck/lint/format/depth/shaders and approved design detection.
+26. Build the exact candidate, keep original bundle/readiness/quality limits and run fresh reachability/community checks.
+27. Through actual public game controls, earn and activate a paid briefing, pause for inspection, inspect representative people/companion, stop the arrangement and review without actor or inventory overrides.
+28. Inspect silent exact-build native day/dusk/night people, semantic pose and companion views; distinguish visual/UI proof from physical player/device and performance acceptance.
+29. Retain source/compiled pins, initial failures, raw frames and acceptance; selective local check-in only, protect unrelated work and close owned browsers/preview/lock normally.
+30. Leave pacing OPEN separately, physical player/device/manual checks DEFERRED and repeating goal ACTIVE.
+
+Pre-mortem: a briefing might accidentally count as rest, a combined history might double-count current debt, or stale customer evidence might look like verified delivery. Working if cues stay presentational, delivered totals and current obligations remain distinct, and blocked evidence cannot be presented as current credit confirmation.
+
+BW baseline61/61, zero failures; two added regressions reproduce missing handoff briefing cues and the incorrect linked-target companion display. Paid briefing specifically requires the existing funded trial receipt. Its final fixture now earns activation through canonical transitions rather than assigning an unsupported active phase. Existing companion plan-revision test emitted an act warning at baseline; wrap that known store update in the established act helper while extending the same suite. No production timing/authority change.
+
+BW first coherent run65pass/1new fixture failure: the intended unlinked teaching-output case inherited a real active order from earlier fixture setup, so the real beginImprovement correctly linked it. Explicitly reset operations orders/active ID and participation mode in this existing suite’s beforeEach, rather than suppressing valid customer linking in production. The two reproduced production defects now pass; all other65cases passed.
+
+
+BW finite acceptance complete: all30 items close within their stated boundary. Baseline61/61, final66/66(+5); two observed defects reproduced red before repair. All required typecheck/lint/format, depth91activefiles/12relationships, shaders37families/41stablekeys, production build, bundle, fresh reachability and community gates pass. Actual build431files178119304bytes,169.87MiB below unchanged170MiB cap, Vite57.03s. Design detector exit2 retains one gray-on-color finding: native computed styles show neutral slate950/95 root, cyan belongs only to ::selection. No blanket warning fix.
+
+Native acceptance:36selected day/dusk/night views, all12desktop/mobile companion views and24people views. Eight occluded camera views were replaced by a single camera-only confirmation, original36frames and metadata retained in initial-art with hashes. Both confirmations exit0 and close owned browser/server/lock normally. Root authored and personally self-reviewed all selected views. All strict readiness/world/people/texture/page/request checks clean, sandboxed out-of-process Apple Metal and original Medium retained, audio context never created. Real public controls earn/activate the paid briefing, inspect idle/listening, resume/pause and explicitly stop then review. Four route roots hold bit-exact as workplace clock advances;62same-UUID bone pairs sampled with57to61animated in original round, natural expiry observed at5.3minutes and exact5minute boundary tested. No new actors, tools, seats, teleportation or production/QC/consent authority. Synthetic role-play only, no independent-human claim.
+
+Canonical five protected simulation/renderer files, primary HEAD/status/binarydiff and ten unrelated images match custody. Runtime source/art/compiled seals exact before this documentation note. Handoff receipts use actual customer targets and retained history, keeping delivered recovery distinct from current debt. Physical player/device/manual checks DEFERRED, pacing separately OPEN without waiver. Repeating programme ACTIVE.
+
+## BX. Publish completed cooperative work, then continue learning refinement, 2026-10-18
+
+Latest human request: “Get these live please when finished, and then proceed again with the refinements process. This time, focus more on the core cooperative learning game elements please.” This releases the prior local-publication hold for completed BT/BW cooperative work and establishes the existing NellInc/MillOS main/Pages destination https://www.millos.net/v0.40/. Preserve standard CI/Pages gates, archived releases, source custody and no secrets. The existing repeating goal tool text cannot edit an active objective; this scoped human amendment takes precedence over its older local-only delivery sentence. Further refinement remains muted and physical player/device checks remain deferred, pacing separately OPEN.
+
+Release task list: (1) finish BW camera-only confirmation; (2) inspect every corrected view; (3) reconcile exact source/build/primary pins; (4) selectively commit only owned seven files; (5) inspect the four-commit outgoing scope and secret/100MB preflight; (6) push the named owned branch; (7) create and attach a normal PR; (8) wait for all five CI jobs; (9) inspect any failure before deciding scope; (10) merge only the exact accepted head after full green; (11) wait for main CI and normal archived-release Pages build; (12) verify actual served build identity, changed compiled modules, raster pins and archives; (13) continue a finite gameplay-learning refinement grounded in live source rather than reopening already-finished art. Working if delivered source and hosted bytes match the reviewed changes, then a genuine cooperative-learning gap receives implementation without weakening consent, quality or readiness.

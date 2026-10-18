@@ -8,6 +8,7 @@ import type { MachineData } from '../types';
 import { COMMUNITY_ANCHORS as A, getCommunityHours } from '../constants/communityLayout';
 import type { Vec3Tuple } from '../constants/siteLayout';
 import type { WorkplaceState } from '../types/workplace';
+import { improvementArrangement } from './workplaceImprovement';
 
 export type CommunityActivity = 'working' | 'walking' | 'break' | 'idle';
 export interface CommunityStop {
@@ -139,21 +140,21 @@ export const COMMUNITY_AGREEMENT_MEMBERS: Readonly<Record<string, string>> = {
 };
 export interface CommunityAgreementCue {
   memberId: string;
-  state: 'duty' | 'cover' | 'rest' | 'recovery';
+  state: 'duty' | 'cover' | 'rest' | 'recovery' | 'briefing';
   label: string;
   task: string;
   offDuty: boolean;
 }
 
 /** Fictional agreement presentation, never evidence of a repair or QC release.
- * Working if only four mapped residents respond to an engaged game campaign,
+ * Working if only four mapped residents respond to an engaged game agreement,
  * qualified choices remain observational, and review without debt releases them.
  */
 export function communityAgreementCue(
   personId: string,
   workplace: WorkplaceState
 ): CommunityAgreementCue | null {
-  if (!workplace.campaign || workplace.mode !== 'game') return null;
+  if ((!workplace.campaign && !workplace.improvement) || workplace.mode !== 'game') return null;
   const member = workplace.members.find((m) => m.id === COMMUNITY_AGREEMENT_MEMBERS[personId]);
   if (!member || !['active', 'review'].includes(workplace.phase)) return null;
   const covering =
@@ -166,7 +167,20 @@ export function communityAgreementCue(
   const recovering = !covering && member.recoveryOwedMinutes > 0;
   if (workplace.phase === 'review' && !recovering) return null;
   const resting = workplace.phase === 'active' && workplace.minute >= 75;
-  const state = recovering ? 'recovery' : resting ? 'rest' : covering ? 'cover' : 'duty';
+  const briefing =
+    workplace.phase === 'active' &&
+    workplace.improvement?.funded &&
+    !workplace.improvement.stopped &&
+    workplace.minute < (improvementArrangement(workplace)?.briefingMinutes ?? 0);
+  const state = recovering
+    ? 'recovery'
+    : resting
+      ? 'rest'
+      : covering
+        ? 'cover'
+        : briefing
+          ? 'briefing'
+          : 'duty';
   const qualifiedTask = member.eligibleTasks.includes(member.chosenTask)
     ? member.chosenTask
     : 'Awaiting a qualified assignment';
@@ -177,21 +191,26 @@ export function communityAgreementCue(
         ? 'Protected rest'
         : state === 'cover'
           ? 'Voluntary cover'
-          : `Agreed: ${qualifiedTask}`;
+          : state === 'briefing'
+            ? 'Paid handoff briefing'
+            : `Agreed: ${qualifiedTask}`;
   return {
     memberId: member.id,
     state,
     label: `${member.role}\n${label}`,
     task:
-      state === 'duty'
-        ? `Representing the qualified ${qualifiedTask} agreement at a safe observation post`
-        : `${label} under the fictional shift agreement`,
+      state === 'briefing'
+        ? 'Attending a paid handoff briefing at the existing safe observation post'
+        : state === 'duty'
+          ? `Representing the qualified ${qualifiedTask} agreement at a safe observation post`
+          : `${label} under the fictional shift agreement`,
     offDuty: state === 'rest' || state === 'recovery',
   };
 }
 
 /** Hold the existing safe pose, rather than teleporting to a distant seat.
- * Working if rest stops the route clock, keeps seated false in transit, and
+ * Paid briefings also hold position, without counting as protected rest.
+ * Working if rest/briefings stop the route clock, keep seated false in transit, and
  * resumption advances from that same point without changing the work ledger.
  */
 export function advanceCommunityAgreementClock(
@@ -199,7 +218,9 @@ export function advanceCommunityAgreementClock(
   elapsed: number,
   cue: CommunityAgreementCue | null
 ): number {
-  return cue?.offDuty || !Number.isFinite(elapsed) ? hour : hour + elapsed;
+  return cue?.offDuty || cue?.state === 'briefing' || !Number.isFinite(elapsed)
+    ? hour
+    : hour + elapsed;
 }
 
 export function communityAgreementResponse(
@@ -208,7 +229,10 @@ export function communityAgreementResponse(
   response: Pick<CommunityPose, 'activity' | 'task'>
 ): void {
   if (!cue) return;
-  if (cue.offDuty) {
+  if (cue.state === 'briefing') {
+    response.activity = 'idle';
+    response.task = cue.task;
+  } else if (cue.offDuty) {
     response.activity = 'break';
     response.task = cue.task;
   } else if (pose.activity === 'walking') {

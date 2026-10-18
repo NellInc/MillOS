@@ -861,3 +861,67 @@ describe('analytic seat arrival and departure support', () => {
     expect(out.seat?.amount ?? 0).not.toBeNaN();
   });
 });
+
+function activeHandoffFixture() {
+  let state = createWorkplace('game', 17);
+  const run = (command: Parameters<typeof transitionWorkplace>[1]) => {
+    const result = transitionWorkplace(state, command);
+    expect(result.changed).toBe(true);
+    state = result.state;
+  };
+  run({ type: 'beginImprovement', args: ['cooperative', state.revision] });
+  run({ type: 'proposeImprovement', args: ['briefing', 'packing'] });
+  run({ type: 'acknowledgeImprovement', args: [] });
+  for (const member of state.members) {
+    run({ type: 'understand', args: [member.id] });
+    run({ type: 'vote', args: [member.id, true] });
+  }
+  run({ type: 'activate', args: [state.revision] });
+  return state;
+}
+
+it('shows a paid briefing for mapped residents in an active handoff trial', () => {
+  const active = activeHandoffFixture();
+  const before = JSON.stringify(active);
+  for (const person of COMMUNITY_ROSTER) {
+    const cue = communityAgreementCue(person.id, active);
+    if (!Object.hasOwn(COMMUNITY_AGREEMENT_MEMBERS, person.id)) {
+      expect(cue).toBeNull();
+      continue;
+    }
+    expect(cue?.state).toBe('briefing');
+    expect(cue?.offDuty).toBe(false);
+    expect(cue?.label).toContain('Paid handoff briefing');
+    const pose = sampleCommunityPerson(person, 12);
+    const position = [...pose.position];
+    const response = { activity: pose.activity, task: pose.task };
+    communityAgreementResponse(cue, pose, response);
+    expect(response.activity).toBe('idle');
+    expect(response.task).toContain('paid handoff briefing');
+    expect(advanceCommunityAgreementClock(12, 0.2, cue)).toBe(12);
+    expect(pose.position).toEqual(position);
+  }
+  expect(JSON.stringify(active)).toBe(before);
+});
+
+it('ends the briefing cue at its real boundary or stop, without losing protected recovery', () => {
+  const active = activeHandoffFixture();
+  for (const minute of [0, 4.999, 5, 75]) {
+    const cue = communityAgreementCue('mill-packer', { ...active, minute });
+    expect(cue?.state).toBe(minute < 5 ? 'briefing' : minute < 75 ? 'duty' : 'rest');
+  }
+  for (const change of [{ stopped: true }, { funded: false }, { proposalId: 'buffer' as const }])
+    expect(
+      communityAgreementCue('mill-packer', {
+        ...active,
+        improvement: { ...active.improvement!, ...change },
+      })?.state
+    ).toBe('duty');
+  const review = { ...active, phase: 'review' as const };
+  expect(communityAgreementCue('mill-packer', review)).toBeNull();
+  review.members.find((member) => member.id === 'packing')!.recoveryOwedMinutes = 3;
+  expect(communityAgreementCue('mill-packer', review)?.state).toBe('recovery');
+  expect(communityAgreementCue('mill-packer', active)?.state).toBe('recovery');
+  for (const mode of ['pilot', 'workshop'] as const)
+    expect(communityAgreementCue('mill-packer', { ...active, mode })).toBeNull();
+});

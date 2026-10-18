@@ -253,6 +253,10 @@ export function improvementSummary(s: WorkplaceState) {
     lifetimeCompensation:
       origin.members.reduce((n, m) => n + m.compensationPaid, 0) +
       records.reduce((n, r) => n + r.finance.compensationPaid, 0),
+    lifetimeRecoveryMinutes:
+      origin.members.reduce((n, m) => n + m.recoveryMinutes, 0) +
+      records.reduce((n, r) => n + r.members.reduce((sum, m) => sum + m.recoveryMinutes, 0), 0),
+    currentRecoveryOwedMinutes: s.members.reduce((n, m) => n + m.recoveryOwedMinutes, 0),
     history: i.history.map((h, n) => ({
       cycle: n + 1,
       proposalId: h.proposalId,

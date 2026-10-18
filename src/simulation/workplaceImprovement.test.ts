@@ -256,3 +256,21 @@ it('restores a proposal cancelled before funding after a fully paid steady fallb
   expect(e.state.improvement?.history[0].snapshot.finance.wagesPaid).toBe(108);
   expect(restoreWorkplace(saveWorkplace(e.state)).finance).toEqual(e.state.finance);
 });
+
+it('retains delivered recovery across origin and completed handoffs while showing only current debt', () => {
+  const e = exercise();
+  e.run({ type: 'proposeImprovement', args: ['briefing', 'packing'] });
+  e.agree();
+  e.run({ type: 'activate', args: [e.state.revision] });
+  e.run({ type: 'tick', args: [90, 0, false] });
+  e.review('amend');
+  e.run({ type: 'continueImprovement', args: [e.state.revision] });
+  e.state.improvement!.origin.members[0].recoveryMinutes = 10;
+  e.state.improvement!.history[0].snapshot.members[0].recoveryMinutes = 5;
+  e.state.members[0].recoveryMinutes = 2;
+  e.state.members[0].recoveryOwedMinutes = 3;
+  const before = JSON.stringify(e.state);
+  expect(improvementSummary(e.state)?.lifetimeRecoveryMinutes).toBe(17);
+  expect(improvementSummary(e.state)?.currentRecoveryOwedMinutes).toBe(3);
+  expect(JSON.stringify(e.state)).toBe(before);
+});
