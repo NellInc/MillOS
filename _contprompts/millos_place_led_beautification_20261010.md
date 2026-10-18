@@ -5847,3 +5847,52 @@ BT completed bounded pass: baseline49/49, final57/57 in the two existing suites,
 BT validation: typecheck, ESLint, formatting, depth, shader/assets, community, bundle and fresh reachability gates pass. Actual production build passes,431files178113481bytes,169.86MiB inside the unchanged170MiB ceiling, Vite45.84s. Exact source and compiled SHA pins retained. Native sandboxed out-of-process Metal check uses actual UI campaign/review/comparison controls after original complete readiness; desktop1600x1000 and mobile390x844. Four final images personally inspected, new Review content unobscured with no horizontal overflow, existing comparison destination reached, world/people/textures/page/requests clean, audio context never created. Browser/server/lock closed normally. Physical player/device acceptance remains DEFERRED; pacing remains separately OPEN. This candidate stays local only.
 
 BT self-review disclosure: root authored and reviewed this pass. Initial native helper lacked benchmark operations=on, so real Lab controls were hidden; retained failure, corrected only the helper. First four images were functionally green but mobile was obscured by the existing onboarding tour. Retained them as initial-onboarding-covered evidence, then dismissed the real Skip tour button and captured the corrected four views against the unchanged sealed build. No quality, scene-ready or safety override. Impeccable detect reports one existing gray-on-color warning at WorkplaceLab:274; actual background is slate950, cyan800 belongs only to ::selection. Rendered body contrast 16.37:1 and white selection contrast 7.25:1; warning classified as pseudo-selector false positive, no unrelated restyle. Primary HEAD/status/binary diff are byte-identical to recorded custody, unrelated images retained. Runtime source/art/build seals match; this completion-note update is documentation-only after the build. Programme goal remains ACTIVE.
+
+## BU. Predict, rehearse and discuss the packing handoff, 2026-10-18
+
+Previous goal turn is PROGRESS: sign release verified live, BT gameplay refinement implemented,57focused checks plus source/build/native proof and local commit a95445dba8aaea087e141c5e1d7e642ec80897bf. Continue from that exact clean tracked tree. Nell's latest gameplay focus governs this pass; LOCAL and MUTED, no publication. The repeated goal stays ACTIVE.
+
+Observed live gap: MatchedPackingRehearsal already runs three isolated copies of real plant flow and truthfully separates packing from possible departure, but it reveals results without first eliciting a team hypothesis. The new BT review invites predictions verbally; this pass makes that interaction playable inside the existing handoff comparison. Use the existing details disclosure, controls, real flow model, freshness guard and role agreements.
+
+Allowed: workplaceAdvice.ts and its existing test; WorkplacePackingEvidence.tsx and existing WorkplaceImprovementPanel.test.tsx; this programme. No saved schema, localStorage, learner analytics, scoring, ballot, qualification, release, ledger, clock, world geometry, light or budget changes. No API or dependency additions.
+
+Detailed finite task list:
+1. Reconcile owned checkout, base SHA, clean tracked state and unrelated images.
+2. Pin protected primary HEAD/status/binary diff and untouched images before edits.
+3. Confirm actual Handoff comparison is shipped and uses the real flow engine.
+4. Read capture, freeze, freshness, abstention and result-range contracts.
+5. Retain named baseline tests for both affected existing suites, including any failure.
+6. Preserve the three original counterfactual arms and all collection/quality caveats.
+7. Ask an optional shared prediction about buffer versus ordinary packing ranges.
+8. Provide higher, overlapping, lower and unsure choices without selecting consensus for the team.
+9. Keep participant disagreements in the discussion, never infer agreement, duty or permission.
+10. Freeze the selected prediction when the existing rehearsal button is deliberately clicked.
+11. Prevent editing that retained prediction while the result is displayed.
+12. Derive feedback from actual returned ranges with explicit numerical tolerance.
+13. Treat overlapping bounds as unresolved ordering, including equal zero-output ranges.
+14. Treat absent, invalid, mismatched or abstaining evidence as unable to compare; never turn zeros into a successful prediction.
+15. State which evidence supports or differs from the prediction without a winner or learner score.
+16. Keep uncertain or skipped predictions useful, invite a question rather than marking them wrong.
+17. Give an observation question about the shared bottleneck, upstream supply or required fresh evidence.
+18. Continue to separate packing results from conditional departure and actual dispatch receipts.
+19. Hide reflective conclusions whenever the existing paused-input freshness predicate fails.
+20. Add a local Prepare another prediction action that clears only component learning/results state and restores focus.
+21. Protect the evidence classifier with small existing-suite cases for separation, overlap, abstention, provenance and purity.
+22. Protect the real UI flow for frozen prediction, stale suppression, reset and unchanged live stores.
+23. Reuse the current typography, focus treatment, touch targets and disclosure, with desktop/mobile overflow checks.
+24. Run focused checks, typecheck, lint, format, depth/shaders, actual production build, bundle and fresh reachability/community gates.
+25. Run one silent exact-build native desktop/mobile confirmation through real public controls, original strict readiness and quality; inspect day/dusk/night surrounds without claiming a performance result.
+26. Preserve raw failures and original evidence, record finite acceptance and selective local commit only.
+27. Keep physical player/device acceptance DEFERRED and pacing OPEN separately, restore own temporary runtime resources and retain the programme ACTIVE.
+
+Pre-mortem: overlapping numeric intervals could be called a win, editing after reveal could rewrite the original guess, and stale plant evidence could leave a confident learning verdict visible. Working if frozen per-run predictions are compared only with fresh matching non-abstaining range evidence, without altering any live plant or agreement state.
+
+BU baseline16/16 and first coherent20/20 tests pass, along with type/lint/format/depth/shaders and first build431files178116790bytes. Initial native browser reached the actual expanded comparison and new selector, but exact accessible-name selection timed out: implicit wrapping-label text included option text in the browser. Retained DOM/PNG/log. Add explicit aria-label matching visible label and test the exact combobox role/name. No loading/readiness or budget change. Also expose the classifier’s existing0.01kg tolerance in the overlap wording so a near-touching range is described honestly. This is the single coherent correction batch before the final native review.
+
+BU finite acceptance complete: all27planned tasks are implemented or retain their explicitly deferred boundary. Affected baseline16/16, final20/20(+4cases), with range-separation/overlap/tolerance, absent/invalid/abstaining/mismatched evidence and pure-state assertions in the established suites. Final exact-name combobox flow, optional/skipped prediction, frozen choice, stale-result suppression and Prepare another prediction focus/reset pass. Interface shell, original three rehearsal arms, consent/ballots, live plant/inventory/pay/clock, saved schemas and physical authority unchanged.
+
+Final typecheck, ESLint and format pass after the accessibility/copy correction. Depth91active files/12relationships, shaders37families/41stable keys, bundle, community and fresh reachability pass. Actual production build431files178116878bytes,169.87MiB inside unchanged170MiB cap; wrapper31432ms. Exact source/compiled pins in test-results/cooperative-prediction-loop-20261018/final-build-seal.json. Impeccable detector has zero findings, no new dependencies or assets.
+
+Native acceptance: sandboxed out-of-process Metal, original complete startup/world readiness, muted with no audio context. Actual public controls open Handoff, select member governance, propose the buffer, choose a prediction, run the real isolated flow model and prepare the next prediction. Desktop1600x1000 and mobile390x844 at12:00,18:30and22:00, eight personally inspected images including the focused reset selector. Within each matched input the three packing ranges overlap, despite higher nominal buffer pacing; reflection correctly differs from the higher-range hypothesis and asks about shared limits. Conditional departure stays0kg in these captured plant states; no shipment claim. Independent time-of-day runs have different live starting stock and are never treated as a causal A/B. All world/people/texture/page/request guards clean, original Medium preset retained, reflection unobscured/no horizontal overflow. All own browsers, previews and capture locks close normally. Root authored and self-reviewed, no independent-review claim.
+
+Primary HEAD/status/binary diff and all ten unrelated images match pre-pass pins. Runtime source/art/compiled seals match before this documentation-only completion note. Retain initial accessible-name failure and corrected final logs separately. Local only; no new publication. Physical player/device/manual checks remain DEFERRED and pacing OPEN separately, without waiver or performance claim. Repeating programme goal remains ACTIVE.

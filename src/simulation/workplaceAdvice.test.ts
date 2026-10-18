@@ -8,6 +8,7 @@ import {
   capturePackingPlant,
   derivePackingAdvice,
   runPackingRehearsals,
+  packingPredictionReview,
   validPackingAdvice,
   type PackingContext,
 } from './workplaceAdvice';
@@ -273,5 +274,67 @@ describe('isolated packing advice', () => {
         dispatchUpperKg: 1,
       })
     ).toBeUndefined();
+  });
+});
+
+describe('packing prediction evidence', () => {
+  it('distinguishes separated, overlapping and numerically touching ranges without changing evidence', () => {
+    const result = runPackingRehearsals(fixture().capture());
+    const before = structuredClone(result);
+    for (const [ordinary, buffer, observation] of [
+      [[10, 20], [30, 40], 'higher'],
+      [[30, 40], [10, 20], 'lower'],
+      [[10, 30], [20, 40], 'overlap'],
+      [[0, 0], [0, 0], 'overlap'],
+      [[10, 20], [20.005, 30], 'overlap'],
+    ] as const) {
+      const compared = {
+        ...result,
+        arms: result.arms.map((arm) => {
+          const range = arm.arrangement === 'steady' ? ordinary : buffer;
+          return { ...arm, packedLowKg: range[0], packedHighKg: range[1] };
+        }),
+      };
+      const review = packingPredictionReview(compared, 'higher');
+      expect(review.observation).toBe(observation);
+      expect(review.reflection).toContain(observation === 'higher' ? 'support' : 'differ');
+      if (observation === 'overlap') expect(review.evidence).toContain('do not establish');
+    }
+    expect(result).toEqual(before);
+    expect(packingPredictionReview(result, null).reflection).toBeNull();
+    expect(packingPredictionReview(result, 'unsure').reflection).toContain(
+      'left the prediction open'
+    );
+  });
+
+  it('leaves abstaining, mismatched, missing or invalid evidence ungraded', () => {
+    const result = runPackingRehearsals(fixture().capture());
+    const buffer = result.arms.find((arm) => arm.arrangement === 'buffer')!;
+    for (const invalid of [
+      { ...buffer, reasonToAbstain: 'Quality evidence missing.' },
+      { ...buffer, fingerprint: 'another-input' },
+      { ...buffer, packedLowKg: Number.NaN },
+      { ...buffer, packedHighKg: Infinity },
+      { ...buffer, packedLowKg: -1 },
+      { ...buffer, packedLowKg: buffer.packedHighKg + 1 },
+    ]) {
+      const review = packingPredictionReview(
+        {
+          ...result,
+          arms: result.arms.map((arm) => (arm.arrangement === 'buffer' ? invalid : arm)),
+        },
+        'overlap'
+      );
+      expect(review.observation).toBe('unavailable');
+      expect(review.reflection).not.toContain('support');
+      expect(review.question).toContain('missing fact');
+    }
+    for (const arms of [
+      result.arms.filter((arm) => arm.arrangement !== 'steady'),
+      [...result.arms, buffer],
+    ])
+      expect(packingPredictionReview({ ...result, arms }, 'higher').observation).toBe(
+        'unavailable'
+      );
   });
 });

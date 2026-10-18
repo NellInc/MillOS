@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WorkplaceImprovementPanel } from './WorkplaceImprovementPanel';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
@@ -185,5 +185,54 @@ describe('choice-first handoff interface', () => {
       useWorkplaceStore.getState().workplace.improvement?.history[0].snapshot.finance.wagesPaid
     ).toBe(108);
     act(() => store.stop());
+  });
+});
+
+describe('predict then rehearse together', () => {
+  it('freezes the optional prediction, refuses a false verdict on abstention and resets only the comparison', async () => {
+    const state = useWorkplaceStore.getState().workplace;
+    const stock = cloneMaterialFlowData(useMaterialFlowStore.getState());
+    const speed = useGameSimulationStore.getState().gameSpeed;
+    render(<MatchedPackingRehearsal state={state} report={report} />);
+    const prediction = screen.getByRole('combobox', {
+      name: 'Our packing prediction (optional)',
+      exact: true,
+    });
+    expect(prediction).toHaveValue('');
+    fireEvent.change(prediction, { target: { value: 'higher' } });
+    click('Run matched packing rehearsal');
+    await waitFor(() => expect(prediction).toBeDisabled());
+    const review = await screen.findByRole('region', { name: 'Packing prediction review' });
+    expect(
+      within(review).getByText(/Our prediction: Buffer range entirely above/)
+    ).toBeInTheDocument();
+    expect(within(review).getByText(/insufficient matching evidence/)).toBeInTheDocument();
+    expect(within(review).queryByText(/support our prediction/)).not.toBeInTheDocument();
+    expect(
+      within(review).getByText(/More packed stock does not establish a truck departure/)
+    ).toBeInTheDocument();
+    click('Prepare another prediction');
+    expect(
+      screen.queryByRole('region', { name: 'Packing prediction review' })
+    ).not.toBeInTheDocument();
+    expect(prediction).toBeEnabled();
+    expect(prediction).toHaveValue('');
+    await waitFor(() => expect(prediction).toHaveFocus());
+    expect(useWorkplaceStore.getState().workplace).toBe(state);
+    expect(cloneMaterialFlowData(useMaterialFlowStore.getState())).toEqual(stock);
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(speed);
+    expect(report).not.toHaveBeenCalled();
+  });
+
+  it('allows a skipped prediction and suppresses all learning conclusions when inputs change', async () => {
+    render(<MatchedPackingRehearsal state={createWorkplace()} report={report} />);
+    click('Run matched packing rehearsal');
+    const review = await screen.findByRole('region', { name: 'Packing prediction review' });
+    expect(within(review).getByText(/none recorded for this run/)).toBeInTheDocument();
+    act(() => useGameSimulationStore.getState().setGameSpeed(30));
+    expect(
+      screen.queryByRole('region', { name: 'Packing prediction review' })
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('comparison is stale');
   });
 });
