@@ -147,6 +147,25 @@ describe('UnifiedGameTick maintenance causality', () => {
     expect(wear).toBeLessThanOrEqual(19.37);
   });
 
+  it('spaces a line’s wear warnings one machine at a time without speeding any unit up', () => {
+    const line = ['packer-0', 'packer-1', 'packer-2'].map((id) => ({
+      ...failingPacker,
+      id,
+      metrics: { ...failingPacker.metrics, wear: 10, efficiency: 100 },
+    }));
+    useProductionStore.setState({ machines: line });
+    for (let tick = 0; tick < 200; tick += 1) {
+      unifiedGameTick({ ...context, gameSpeed: 180, tickCount: 2 + tick });
+    }
+
+    const wear = useProductionStore.getState().machines.map((m) => m.metrics.wear ?? 0);
+    // The first unit keeps the documented pace (+9.36, as in the test above).
+    expect(wear[0]).toBeGreaterThanOrEqual(19.35);
+    expect(wear[0]).toBeLessThanOrEqual(19.37);
+    expect(wear[1]).toBeLessThan(wear[0] - 0.5);
+    expect(wear[2]).toBeLessThan(wear[1] - 0.5);
+  });
+
   it('predicts the wear breakdown window in game minutes when a machine first warns', () => {
     useProductionStore.setState({
       machines: [

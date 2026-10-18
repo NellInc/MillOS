@@ -278,11 +278,34 @@ const _changedData: Array<{
 // that, so without the carry the rounding erased every tick's wear.
 const _wearCarry = new Map<string, number>();
 
+// Every unit on a line used to start unworn at one rate, so all four mills (or
+// all three packers) warned in the same minute. Later units run a gentler duty:
+// the first unit of each line keeps the documented one-warning-per-game-day
+// pace and nothing wears faster than before. Working if a line's warnings
+// arrive one machine at a time and no breakdown comes earlier than it did.
+const WEAR_PACE: Readonly<Record<string, number>> = {
+  'rm-102': 0.88,
+  'rm-103': 0.78,
+  'rm-104': 0.7,
+  'sifter-b': 0.88,
+  'sifter-c': 0.78,
+  'packer-1': 0.88,
+  'packer-2': 0.78,
+};
+export const machineWearPace = (machineId: string): number => WEAR_PACE[machineId] ?? 1;
+
 /** Game minutes until wear reaches the breakdown threshold at the current load. */
-function gameMinutesToWearBreakdown(machineType: string, wear: number, load: number): number {
+function gameMinutesToWearBreakdown(
+  machineId: string,
+  machineType: string,
+  wear: number,
+  load: number
+): number {
   const wearConfig = getWearConfig(machineType);
   const ratePerGameSecond =
-    wearConfig.wearRatePerSecond * (0.5 + (Number.isFinite(load) ? load : 0) / 100);
+    wearConfig.wearRatePerSecond *
+    machineWearPace(machineId) *
+    (0.5 + (Number.isFinite(load) ? load : 0) / 100);
   if (!(ratePerGameSecond > 0)) return Number.POSITIVE_INFINITY;
   return Math.max(0, wearConfig.breakdownThreshold - wear) / ratePerGameSecond / 60;
 }
@@ -345,7 +368,8 @@ function updateMachineTruth(
   let newWear = baseWear;
   if (isRunning) {
     const loadFactor = 0.5 + baseLoad / 100;
-    const wearIncrement = wearConfig.wearRatePerSecond * gameSeconds * loadFactor;
+    const wearIncrement =
+      wearConfig.wearRatePerSecond * machineWearPace(machine.id) * gameSeconds * loadFactor;
     const preciseWear = baseWear + (_wearCarry.get(machine.id) ?? 0) + wearIncrement;
     // The epsilon keeps a stored value like 0.29 (28.999... x 100) from
     // flooring below itself; the max keeps wear monotonic while running.
@@ -644,7 +668,12 @@ function unifiedGameTick(ctx: TickContext): void {
             temperature: oldMachine.metrics.temperature,
             load: oldMachine.metrics.load,
           },
-          gameMinutesToWearBreakdown(oldMachine.type, data.newWear, oldMachine.metrics.load)
+          gameMinutesToWearBreakdown(
+            oldMachine.id,
+            oldMachine.type,
+            data.newWear,
+            oldMachine.metrics.load
+          )
         );
       }
     }
