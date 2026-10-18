@@ -6170,3 +6170,162 @@ Protected primary HEAD/NULstatus/binarydiff, seven canonical files, ten unrelate
 Nell's latest request to get completed work live establishes the existing NellInc/MillOS main/Pages destination. BX delivered the earlier artwork and BT/BW cooperative foundations. This bounded release includes the completed BY handoff debrief, BZ role-led evidence inspection and CA quality-boundary experiment. It supersedes their local-only checkpoint wording for this exact reviewed scope. Future refinement remains local/muted until its required acceptance is complete. Working if a normal PR passes all original CI gates, the exact accepted head merges, Pages preserves archived releases, and actual served identity/modules match the reviewed source.
 
 Finite delivery list: (1) selective CA commit; (2) reconcile current remote main and outgoing three-pass diff; (3) secret and100MB checks on actual outgoing tree/history; (4) push named owned branch and create/attach PR; (5) wait for all five CI jobs with no bypass; (6) diagnose any failure against this scope; (7) merge only accepted head; (8) wait for main CI and standard Pages jobs; (9) verify served build identity, changed modules, raster hashes and archived versions; (10) record truthful delivery status; (11) resume the next finite cooperative-learning refinement. Pacing stays separately OPEN and device checks DEFERRED.
+
+
+## CC. Carry an unresolved concern to its raiser's real controls, 2026-10-18
+
+While the completed BY/BZ/CA release runs through unchanged CI, continue LOCAL/MUTED implementation on a distinct branch from reviewedb3aa4c97. Prior release assembly retained independently. Observed gameplay gap: Handoff blocks review on unresolved objections using a generic message, yet supplies no path to the actual raiser-owned remedy record in Agreement / Voices. Finalise is visually enabled when a winner exists despite the domain rejecting owed obligations. Repair that dead-end without adding a resolution shortcut or changing authority.
+
+Allowed: WorkplaceImprovementPanel.tsx, WorkplaceLab.tsx, their two existing tests and this programme. Preserve all domain/store/role-token/schema/plant/clock/graphics code. No private explanation, score, free-text collection or new dependency. Working if an unresolved concern opens its exact existing record with keyboard focus, ownership remains untouched, returning restores Handoff review, and finalisation stays disabled while current obligations remain.
+
+Detailed finite task list:
+1. Retain the release's immutable head/assembly while CI runs; no new edits enter its PR.
+2. Pin canonical state/authority/renderer files, primary dirty work and unrelated images.
+3. Verify both real UI modules remain reachable and read their parent/consumer contracts.
+4. Run the existing two UI suites before edits, record pass/fail names and reproduce the missing remedy route.
+5. Show only current public open objections in Handoff, with raiser, kind and authored statement.
+6. Explain that navigation changes no role, ballot, remedy or execution permission.
+7. Link each concern to its exact existing Agreement / Voices record through a narrow parent callback.
+8. Keep the optional callback compatible with the standalone panel's existing consumers.
+9. Focus and scroll the target record after navigation; keep44px route targets and visible keyboard focus.
+10. Preserve original resolver selection and require the original raiser's deliberate confirmation.
+11. Keep facilitated turn ownership/token checks, pilot holds and domain validation intact.
+12. Provide a direct return to the existing Handoff review, with meaningful focus restoration.
+13. Do not choose a resolving author, start a participant turn or manufacture a remedy automatically.
+14. Derive the same existing obligations once and disable Finalise while any remain.
+15. Preserve review votes and allow discussion while blocked; do not silently discard a disagreement.
+16. Hide resolved concerns from the open-concern list while retaining their existing audit record.
+17. Test actual public object/resolve transitions and route callbacks with unchanged stock, clock and agreement identity during navigation.
+18. Test separate turns cannot resolve another role's concern; opening it supplies no role authority.
+19. Test resolved return, pending obligations and actual finalisation path without mocking the domain.
+20. Run affected tests, typecheck/lint/format/depth/shaders and available design detection.
+21. Build exact source under the capture lock, retain170MiB and fresh bundle/reachability/community gates.
+22. Exercise actual public Handoff activation, authored objection, review, route and return on native Metal, muted, no actor/inventory override.
+23. Inspect desktop/mobile day/dusk/night blocked and resolved states, preserving original readiness and Medium guards.
+24. Record source/runtime/visual/performance evidence separately; retain failures and close owned resources.
+25. Selectively commit the completed local pass; keep player/device DEFERRED, pacing OPEN and repeating programme ACTIVE.
+
+Pre-mortem: a route could silently impersonate the raiser; focus could land on a removed tab or wrong objection; button disabling could disagree with current obligations. Verify navigation purity, target identity and the unchanged domain's real transition results. No automatic remedy or new contract is introduced.
+
+
+CC finite acceptance complete:25planned items delivered, release scope isolated. Baseline46passed/0failed; missing exact remedy route reproduced red(1failed/29passed); final49passed/0failed(+3). Existing-suite cases exercise two distinct real concerns with exact target focus, blank resolver and unchanged agreement/stock/clock, current separate-turn token/owner refusal and subsequent deliberate Quality resolution, plus actual obligation-blocked review with retained ballots and successful finalisation after raiser resolution. No domain/store/schema/authority code changed.
+
+Required typecheck, lint, formatting, depth91active/12relationships, shaders37families/41keys, production build, bundle, fresh reachability and inhabited-world gates pass. Exact build431files178129772bytes,169.88MiB under unchanged170MiB cap, Vite13.03s. Bundled design detector exit2 retained one warning at unchanged WorkplaceLab selection classes: it treats selection:bg-cyan-800 as the element background alongside text-slate-200. The same existing selector explicitly sets selection:text-white; underlying element background remains slate950. Triaged against exact unchanged source, compiled utility order and native renders; no bulk style change or detector-green claim.
+
+All24native frames accepted on actual sandboxed out-of-process Apple Metal at12:00/18:30/22:00, desktop1600x1000/mobile390x844. Original strict Medium/readiness/world/people/texture/page/request/audio guards unchanged. Root authored and personally self-reviewed all24frames through12lossless UI sheets plus the full desktop context. Blocked concern, original record, unchanged returned votes and resolved finalisation are readable/reachable with ordinary scrolling and no horizontal overflow. No production correction or extra reassurance round needed.
+
+Real public controls begin and approve the paid briefing, activate, pause, raise Quality's privacy objection, settle into review, record current stop ballots, route to exact record and return. Navigation keeps direct clock and public workplace/plant/campaign/logistics facts exact. Only the deliberate existing original-raiser confirmation resolves the concern, preserving members, pay, stock, clock and review votes; actual Finalise then records stop. Separate-turn non-impersonation also checked in unit UI. No actor/inventory injection, automatic resolver/turn, fabricated receipt or consent. Audio context not-created/0nodes throughout, process additionally muted. All owned browsers/previews/locks closed normally.
+
+Primary HEAD/NULstatus/binarydiff, seven protected canonical files, ten unrelated images and exact source/compiled pins unchanged before this note; documentation pinned separately afterward. CC remains a selective LOCAL pass while CB publication continues for the earlier three-pass candidate. Repeating programme ACTIVE; physical player/device/manual acceptance DEFERRED, pacing/adaptive quality separately OPEN with raw earlier failures and no waiver.
+
+
+CB delivery complete: PR35 merged exact reviewedb3aa4c972fdef3c1910618695e83e25f5c5f2c18 atbc09c3ce6836112252631dc62f46ac404259aed0 after all five original CI jobs passed. Post-merge main CI also allfivejobs success. Standard Pages build/deploy both success. Actual https://www.millos.net/v0.40/ served verification passes19HTTPresponses: exact merge build/cache identity, complete main and deferred operational UI compared byte-for-byte after only merge identity and actual content-addressed import names are normalised, nine exact raster hashes, unchanged archived-source matrix and reachablev0.10/v0.20/v0.30. Initial verifier covered the UI chunk; a named follow-up closes the underlying pure-model main-chunk gap. Both receipts retained, no substituted source-only live claim.
+
+Next CC remedy-route refinement completed while release gates ran, local commitdfbffc42,49affected tests/24native views and all applicable source/build gates. It was never included in PR35. Integrated the accepted release merge into its local branch with an exactly unchanged Git tree, verified before/after; no repeated build needed. Source/test/art pins remain exact. The only superseded release-dist copy(431compiled files,178128141logical bytes) was removed after verifying sealed hashes, committed source recoverability and live receipts; active local build/source/assets/screens/logs preserved. Observed filesystem-free delta179265536bytes, not an inferred APFS claim.
+
+Release status: live, verified in served bytes. CC status: completed LOCAL refinement, unpublished. Both stayed muted. Protected primary and unrelated files preserved. Repeating programme ACTIVE, physical player/device/manual checks DEFERRED and pacing/adaptive quality separately OPEN without waiver. Next continuation should choose another meaningful cooperative-play gap from actual use, rather than repeat review-copy or cosmetic changes to these completed paths.
+
+
+## CD. Learn from packing timing as well as final totals, 2026-10-18
+
+Previous goal turn is PROGRESS: BY/BZ/CA delivered through PR35 with all original PR/main CI and Pages gates plus served-byte proof; CC remedy route committed and natively accepted locally. Current3490790b tree is clean apart from ten unrelated screenshots. Continue LOCAL/MUTED; the earlier scoped publication amendment is complete and does not publish this pass.
+
+Observed live learning gap: accepted matched-rehearsal views show identical5940kg final packing bounds across all three arrangements. A90minute total alone hides when stock first appeared, including the paid briefing hold. Add first-additional-packing sample observations to the same existing six real-engine runs. No extra simulation, separate forecast, live clock movement or changed integration grid. This is numerical sample timing, not a statistical interval, customer departure or a verdict about workers.
+
+Allowed: workplaceAdvice.ts, its existing tests, types/workplaceAdvice.ts ephemeral rehearsal result only, WorkplacePackingEvidence.tsx and existing ImprovementPanel tests, this programme. Keep saved PackingAdvice shape/validator and derivePackingAdvice signature/output unchanged. Protect all stores, material engine, consent/pay/recovery/role transitions, people/world/lighting/quality/readiness and budgets. No new dependency, private data, score or saved schema. Working if teams can inspect actual first-output sample times alongside unchanged final totals, unknowns abstain, and no live state or current decision changes.
+
+Detailed finite task list:
+1. Reconcile current owned branch/base and prior source/runtime/publication boundaries.
+2. Pin dirty primary custody, canonical stores/authority/renderers and unrelated images.
+3. Confirm live advice and comparison consumers and ephemeral-versus-saved type boundaries.
+4. Record the named affected-test baseline and reproduce absence of time observations.
+5. Instrument each existing real-engine loop only until additional packed stock first appears.
+6. Use actual completed tick elapsed seconds converted through the captured intended resume speed to workplace minutes.
+7. Do not split or add physics ticks at observation times; original briefing split, coarse/fine grids, conservation and final output stay identical.
+8. Retain0.5second and0.25second observations separately, with explicit null when no additional packing was observed.
+9. Refactor privately to share the existing engine results without rerunning a model or widening the saved forecast.
+10. Preserve exact derivePackingAdvice signature, canonical advice validation and all existing saved fields.
+11. Add timing only to the ephemeral matched-comparison result, keyed by arrangement and original fingerprint.
+12. Keep missing facts and failed conservation out of numeric timing output.
+13. Reuse the existing comparison disclosure with a collapsed timing discussion, no extra panel or prediction select.
+14. Label these first-positive-output sample times and their physical step resolutions clearly.
+15. Distinguish an absent sample from zero minutes or a failed production result.
+16. Make the five paid workplace minutes visible without implying lost pay or an unpaid pause.
+17. Invite roles to compare timing with final stock and separate collection evidence, without ranking arrangements from one sample.
+18. Inherit original freshness/pause/reset/unmount boundaries so stale timing disappears with its comparison.
+19. Protect live source/stock/singleton, pay/ballots/clock purity and unchanged original bounds in focused real-engine tests.
+20. Exercise both observed and no-output/missing cases plus UI disclosure/stale/reset using the existing suites.
+21. Run typecheck/lint/format/depth/shaders and the available bundled design detector; triage existing warnings rather than repainting the interface.
+22. Build exact source with the existing lock, retain170MiB, and pass fresh bundle/reachability/community checks.
+23. Use actual public Handoff/proposal/comparison controls in silent native Metal desktop/mobile day/dusk/night views, no actor/inventory injection.
+24. Inspect all timing views once in a bounded art batch, retain raw failures and keep model, runtime, artistic and performance evidence separate.
+25. Verify source/compiled/protected custody, record finite acceptance and selectively commit this pass locally.
+26. Close owned resources; keep repeating programme ACTIVE, physical player/device DEFERRED and pacing/adaptive quality separately OPEN with no waiver.
+
+Pre-mortem: instrumentation might change the time grid and final forecast; first sample could be mislabelled exact continuous onset or delivery; or missing/invalid evidence could appear as zero-minute success. Compare original advice with the real manual engine, label both sample resolutions, preserve null/abstention and exercise current freshness gates.
+
+
+CD finite acceptance complete: all26planned items delivered. Baseline35passed/0failed, missing observation reproduced red(1failed/17passed), final40passed/0failed(+5). Four real-engine cases cover independent manual first-positive samples at180x/30x, unchanged original advice and canonical validation, paid briefing timing, no-output nulls, actual failed genealogy balance and missing-fact quarantine. Existing singleton/input purity cases remain green. UI adds unavailable/reset protection and extends the real known-input path through timing disclosure, original quality exercise, stale suppression and zero-production no-sample labels.
+
+Three production surfaces changed: private advice-result sharing plus observation-only reads after the existing physics tick; ephemeral PackingRehearsals timing fields; collapsed timing discussion. Saved PackingAdvice interface, validator, derivePackingAdvice signature, integration deltas, briefing split, physical engine and store transitions unchanged. Exactly the same original six integrations supply timing and final bounds; no extra model run, checkpoint split, live tick, profile score, role action or private data. First samples stay separate at0.5/0.25physical-second resolution, with null for no observed output and no timing records on abstention/conservation failure.
+
+Required typecheck/lint/format/depth91active/12relationships/shaders37families/41keys/design detector0findings, production build, bundle, fresh reachability and inhabited-world gates all pass. Exact build431files178131970bytes(169.88MiB), below unchanged170MiB cap, Vite13.85s. No dependency change or production correction after the coherent implementation.
+
+Native actual public Handoff/proposal/adviser/comparison controls pass20frames: desktop/mobile samples/discussion/reset at12:00/18:30/22:00, plus genuine missing startup facts. Original strict Medium/readiness/world/people/texture/page/request guards preserved. All sandboxed out-of-process Apple Metal, audio context not-created and0nodes, process additionally muted. Known observations record ordinary/buffer at0.25/0.13 workplace minutes and paid briefing at5.25/5.13 for the two resolutions. Within each same capture the final totals match across arrangements; these are model observations, not a between-page performance comparison or continuous-onset/departure promise.
+
+Root authored and personally self-reviewed all20frames through10lossless UI sheets plus full desktop context. Timing/paid-hold/discussion content readable, no horizontal overflow, mobile question reachable by ordinary scrolling. Collapse/reopen changes no observation. Preparing another prediction clears timing and restores original selector focus. Actual public workplace/campaign/material/logistics and direct clock observations byte-exact before/after each study, original three bounds and optional unsure prediction retained. No runtime actor/inventory override or automatic ballot. Browsers, previews and lock closed normally. No artistic correction round needed.
+
+Protected primary HEAD/NULstatus/binarydiff, six canonical authority/engine/renderer files and ten unrelated images exact; all25source/431compiled pins exact before this completion note. Documentation pinned separately afterward. Selective LOCAL commit only, no push/deploy/upload; prior PR35 remains the existing live release. Repeating programme ACTIVE. Player/device/manual first-person checks DEFERRED; pacing/adaptive quality separately OPEN with no waiver. Next continuation should move to another materially useful cooperative-play/world behaviour, avoiding an endless expansion of this optional comparison disclosure.
+
+
+## CE. Attentive people during the actual paid briefing, 2026-10-18
+
+Previous goal turn is PROGRESS: CD packing-time learning committeda8f7348f with40tests and20native frames. Current owned tree is clean apart from ten unrelated screenshots. Return to people animation and world/game cohesion, keeping this pass LOCAL/MUTED and preserving the interface. Observed source/art gap: four real mapped briefing participants hold safe routes and show the right labels, but the renderer samples generic idle head glances. Its ordinary idle greeting remains eligible during a briefing. Add a restrained listening posture driven only by the existing paid-briefing cue, not a vote, agreement or worker feeling.
+
+Allowed: CommunityLife.tsx, models/WorkerModel.tsx, workers/workerTypes.ts, workers/workerPose.ts and their two existing pose/model test files, this programme. Run the existing communityLife domain suite unchanged. Protect all agreement/simulation stores, community schedules/cues, pay/consent/recovery, route positions, existing graphics/quality/readiness/budgets, shared body/prop geometry/materials and UI. No new clips, meshes, shaders, lights, draw calls, dependency, voice or private data. Working if only the current four briefing participants use phased quiet attention gestures, with planted feet, no work/wave action, correct pause/transition behaviour and unchanged ledgers.
+
+Detailed finite task list:
+1. Reconcile current local commit, ownership and previous accepted pass.
+2. Pin protected primary HEAD/status/diff, canonical authority/physics/advice files and unrelated images.
+3. Confirm actual CommunityLife and WorkerModel reach the world; read the full cue-to-pose path.
+4. Retain named baseline of existing community/worker-pose/worker-renderer suites and reproduce absence of dedicated briefing semantics.
+5. Add one optional presentation-only motion cue; old motions remain neutral.
+6. Populate it from the existing paid briefing state at initial preparation and each actual community frame.
+7. Clear absent old replay motion to neutral rather than retaining a future briefing flag.
+8. Suppress social wave eligibility during the briefing without changing recipient/route clocks.
+9. Guard the renderer so briefing applies only to an idle, standing, unencumbered, nonmoving person.
+10. Add briefing entry/exit to existing semantic-change detection, including paused changes.
+11. Reuse the original idle clip, admitted gesture clock, per-person phase and eased overlay.
+12. Author short attentive head dips and small held glances with long quiet dwells; avoid continuous bobbing or synchronized staff.
+13. Retain subtle standing settlement and zero work/tool/wave channels for this posture.
+14. Keep hands/tools, feet, seat/cycle/cart contact, body LOD, blink/gaze and existing skin attachments intact.
+15. Leave rest/recovery/work/walking and emergency precedence unchanged.
+16. Freeze animation at pause/reduced motion/far omission through the existing admission rules; add no independent timer or allocation loop.
+17. Protect finite bounded sampling and deterministic per-person variation in existing pose tests.
+18. On both real authored rigs, verify head/torso attention changes while foot transforms remain exact and restore removes the overlay.
+19. Exercise the actual renderer callback for briefing entry/exit, paused clock, legacy missing cue and work/seat precedence.
+20. Run focused existing suites, required typecheck/lint/format/depth/shader and available component design detection.
+21. Build exact source under the capture lock and pass unchanged170MiB bundle plus fresh reachability/community gates.
+22. Activate the actual paid handoff through existing public proposal/adviser/four-role approvals, using no actor/inventory override.
+23. Inspect four staff at day/dusk/night, compare actual admitted motion then paused holds, and exercise stop/expiry through real controls.
+24. Keep native hardware/world/readiness/audio and current quality guards; distinguish framing/art, animation, authority and pacing evidence.
+25. Personally inspect the bounded capture batch, retain raw failures, verify exact custody/seals, close owned resources and selectively commit locally.
+26. Keep repeating programme ACTIVE, pacing/adaptive quality OPEN separately and physical player/device/manual acceptance DEFERRED.
+
+Pre-mortem: a stale presentation flag could leak into rest/walking or old replay; a head overlay could accumulate or move planted feet; and an independent animation clock could keep people moving while paused. Guard semantic context, reset legacy absence, reuse admitted time and verify both real rigs plus native pause/stop behaviour. No head movement is consent or a measured inner state.
+
+
+CE pre-build correction: actual renderer test reproduces retained greetingYaw plus route attention contaminating the briefing sample(0.7865rad instead of the authored bounded profile). Both additive idle-attention branches now exclude the sanitized briefing state. Existing social/route behaviour remains unchanged outside briefing. Raw failing receipt retained; this is an in-scope context isolation repair before the first build/art batch, with no independent clock or permission change.
+
+
+CE finite acceptance complete: all26planned items delivered with the explicit standing/unencumbered renderer guard. Baseline245passed/0failed across the existing community, real-rig pose and renderer suites; absent profile reproduced red. Final corrected249passed/0failed(+4): bounded finite/deterministic attention with quiet dwells and zero procedural work/wave/tool channels, both actual authored rigs preserving incoming foot transforms and restoring head/abdomen, and real renderer-callback pause/entry/exit/legacy/context precedence plus stale gaze isolation. Initial generic-profile and later0.7865rad stale-gaze reproductions retained. Existing emitted reach diagnostics remain unchanged(masculine4 inherited misses/feminine0); this pass makes no new gait/ground-contact certification.
+
+Only four production files changed: optional presentation flag, current cue wiring/legacy neutral replay default, guarded semantic/attention selection and a small allocation-free gesture profile. No new clip, mesh, shader, material, light or draw call; no store, schedule, consent, pay, recovery, UI, route or quality change. Standing participants receive one restrained dip and held glances on their original phased/admitted animation clock. Already-seated people retain their seated/support pose, and working/walking/cart/cycle/rest precedence remains intact. Head movement records no understanding, ballot, consent or measured inner state.
+
+All corrected required typecheck/lint/format/depth91active/12relationships/shader37families/41keys/design detector0findings gates pass. Production build431files178132571bytes(169.88MiB) stays below unchanged170MiB cap; Vite15.62s. Fresh bundle/reachability/inhabited-world gates pass. Exact source/body assets/compiled seals retained. No dependency setup to restore.
+
+Native public paid-briefing proposal/adviser/four-role approvals/activation/pause/resume/stop/review pass36views: four actual mapped people in wide briefing, later near attention and restored ordinary-duty states at12:00/18:30/22:00. All original Medium/startup/world/people/texture/page/request/audio guards retained, sandboxed out-of-process Apple Metal, context not-created and0audio nodes, process additionally muted. No actor/inventory override. Real resumed time advances the workplace minute and sampled head transforms while every briefing route root stays exact; paused wide and near inspections keep all sampled bone transforms and public/direct physical/agreement clocks byte-exact. Normal stop clears the briefing cue, actual day expiry occurs at minute5.25, and ending the shift releases current presentation. Advancing the clock intentionally changes the ledger; this is animation/transition proof, not a controlled contribution or pacing benchmark.
+
+Root authored and personally self-reviewed all36frames through nine lossless four-person sheets, plus full native close views. Four representatives remain at their actual safe posts or existing bench, with natural standing attention and no forced seat changes. Original body/prop/seat contact geometry preserved. Night maintenance-post rendering is visibly dim in the existing lighting; preserve this as a grounded later lighting opportunity rather than changing exposure or adding a light inside this motion-only pass. No art correction round or source rebuild after native acceptance needed.
+
+Protected primary HEAD/NULstatus/binarydiff, ten canonical source/body-asset pins, ten unrelated images and all26source/431compiled pins exact before this completion note. Documentation separately pinned afterward. All owned browsers/previews/locks closed normally. Selective LOCAL commit only, no push/deploy/upload. Repeating programme ACTIVE, pacing/adaptive quality OPEN separately with no waiver, physical player/device/manual acceptance DEFERRED. Next continuation can address the observed dim service-post lighting or another substantial world/gameplay gap; do not keep expanding this finished briefing gesture.

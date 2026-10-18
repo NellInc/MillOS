@@ -449,6 +449,61 @@ export function MatchedPackingRehearsal({
                     : `${a.packedLowKg.toFixed(0)} to ${a.packedHighKg.toFixed(0)} kg additionally packed; conditional departure 0 to ${a.dispatchUpperKg.toFixed(0)} kg.`}
                 </p>
               ))}
+              <details className="space-y-3 border-t border-slate-700 pt-3">
+                <summary className="min-h-11 cursor-pointer py-2 font-medium text-cyan-100">
+                  When did packing first appear?
+                </summary>
+                <p className="text-xs text-slate-300">
+                  Each value marks the completed simulation tick that first recorded additional
+                  packed stock. These are workplace minutes from the same captured start. Discrete
+                  samples can differ with the physical step size.
+                </p>
+                {result.firstPacking.length ? (
+                  <div role="group" aria-label="Packing time observations" className="space-y-3">
+                    <dl className="space-y-3 text-xs tabular-nums">
+                      {result.firstPacking.map((observation) => (
+                        <div key={observation.arrangement}>
+                          <dt className="font-semibold text-white">
+                            {observation.arrangement === 'steady'
+                              ? 'Ordinary work'
+                              : observation.arrangement === 'briefing'
+                                ? 'Paid briefing'
+                                : 'Buffer pacing'}
+                          </dt>
+                          <dd className="text-slate-300">
+                            0.5-second steps:{' '}
+                            {observation.coarseFirstMinute === null
+                              ? 'no additional packing observed'
+                              : `${observation.coarseFirstMinute.toFixed(2)} min`}
+                            .
+                          </dd>
+                          <dd className="text-slate-300">
+                            0.25-second steps:{' '}
+                            {observation.fineFirstMinute === null
+                              ? 'no additional packing observed'
+                              : `${observation.fineFirstMinute.toFixed(2)} min`}
+                            .
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                    <p className="text-xs text-slate-300">
+                      The briefing retains its five paid minutes of pacing hold. Compare the sample
+                      times with the 90-minute totals above; an earlier first sample supplies no
+                      collection receipt.
+                    </p>
+                    <p className="text-cyan-100">
+                      If the final totals match, which timing difference would you investigate
+                      together before changing the handoff?
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-amber-100">
+                    Timing is unavailable for this comparison. Resolve the missing facts or model
+                    warning above before interpreting it.
+                  </p>
+                )}
+              </details>
               <details className="space-y-2 border-t border-slate-700 pt-3">
                 <summary className="min-h-11 cursor-pointer py-2 font-medium text-cyan-100">
                   Can pacing replace a release?

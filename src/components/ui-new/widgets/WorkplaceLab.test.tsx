@@ -617,3 +617,70 @@ it('keeps cooperative reflection out of unfinished discussions', () => {
     screen.queryByRole('region', { name: 'Cooperative learning review' })
   ).not.toBeInTheDocument();
 });
+
+it('opens the exact handoff objection without choosing its resolver or changing any agreement', async () => {
+  useWorkplaceStore.setState({ participationMode: 'solo', turn: null });
+  const store = useWorkplaceStore.getState();
+  store.beginImprovement('cooperative', store.workplace.revision, undefined, 'workshop');
+  store.object('quality', 'privacy');
+  store.object('packing', 'rest');
+  const before = useWorkplaceStore.getState().workplace;
+  const material = useMaterialFlowStore.getState();
+  const speed = useGameSimulationStore.getState().gameSpeed;
+  render(<WorkplaceLab />);
+  open('Review remedy: Quality (privacy)');
+  const target = screen.getByRole('group', { name: 'Objection record: Quality (privacy)' });
+  await waitFor(() => expect(target).toHaveFocus());
+  expect(within(target).getByLabelText('Resolving author for privacy')).toHaveValue('');
+  expect(within(target).getByRole('button', { name: 'Author confirms resolution' })).toBeDisabled();
+  expect(useWorkplaceStore.getState().workplace).toBe(before);
+  expect(useMaterialFlowStore.getState()).toBe(material);
+  expect(useGameSimulationStore.getState().gameSpeed).toBe(speed);
+  expect(execute).not.toHaveBeenCalled();
+  open('Return to handoff controls');
+  await waitFor(() =>
+    expect(screen.getByRole('region', { name: 'Handoff experiment' })).toHaveFocus()
+  );
+  expect(screen.getByRole('button', { name: 'Review remedy: Packing (rest)' })).toBeEnabled();
+  expect(useWorkplaceStore.getState().workplace).toBe(before);
+});
+
+it('leaves the remedy with its current separate-turn raiser after opening the record', async () => {
+  const get = () => useWorkplaceStore.getState();
+  useWorkplaceStore.setState({ participationMode: 'solo', turn: null });
+  get().setParticipationMode('separate-turns');
+  get().beginImprovement('cooperative', get().workplace.revision, undefined, 'workshop');
+  get().startTurn('quality');
+  expect(
+    get().runTurnCommand(get().turn!.token, { type: 'object', args: ['quality', 'privacy'] })
+      .changed
+  ).toBe(true);
+  get().endTurn();
+  get().startTurn('packing');
+  const before = get().workplace;
+  const token = get().turn!.token;
+  render(<WorkplaceLab />);
+  open('Review remedy: Quality (privacy)');
+  const record = screen.getByRole('group', { name: 'Objection record: Quality (privacy)' });
+  await waitFor(() => expect(record).toHaveFocus());
+  expect(get().turn!.actorId).toBe('packing');
+  expect(get().turn!.token).toBe(token);
+  expect(within(record).getByRole('button', { name: 'Author confirms resolution' })).toBeDisabled();
+  expect(
+    get().runTurnCommand(token, {
+      type: 'resolveObjection',
+      args: [before.objections[0].id, 'quality'],
+    }).changed
+  ).toBe(false);
+  expect(get().workplace).toBe(before);
+  act(() => {
+    get().endTurn();
+    get().startTurn('quality');
+  });
+  expect(within(record).getByRole('button', { name: 'Author confirms resolution' })).toBeEnabled();
+  fireEvent.click(within(record).getByRole('button', { name: 'Author confirms resolution' }));
+  expect(get().workplace.objections[0].status).toBe('resolved');
+  expect(execute).not.toHaveBeenCalled();
+  get().endTurn();
+  useWorkplaceStore.setState({ participationMode: 'solo', turn: null });
+});

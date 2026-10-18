@@ -59,7 +59,14 @@ export interface PackingAdvice {
   genealogyErrorKg: number | null;
   assumptions: string[];
 }
+/** Ephemeral numerical observations from the existing two packing integrations. */
+export interface PackingFirstObservation {
+  arrangement: PackingArrangement;
+  coarseFirstMinute: number | null;
+  fineFirstMinute: number | null;
+}
 export interface PackingRehearsals {
   fingerprint: string;
   arms: PackingAdvice[];
+  firstPacking: PackingFirstObservation[];
 }
