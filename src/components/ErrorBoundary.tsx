@@ -48,10 +48,17 @@ const DefaultErrorFallback = ({ error }: { error: Error | null }) => {
   );
 };
 
+// React discards a mount that suspends before committing and constructs the
+// boundary again on retry. A per-instance first generation would hand each
+// retry a new lazy payload that suspends again, forever. Working if a boundary
+// first mounted inside a suspending tree reuses one payload, and only a real
+// reset after an error mints a fresh one.
+const INITIAL_RECOVERY_GENERATION = {};
+
 class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false, error: null, recoveryGeneration: {} };
+    this.state = { hasError: false, error: null, recoveryGeneration: INITIAL_RECOVERY_GENERATION };
   }
 
   static getDerivedStateFromError(error: Error): Pick<State, 'hasError' | 'error'> {
