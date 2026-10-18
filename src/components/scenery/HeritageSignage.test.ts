@@ -410,8 +410,16 @@ describe('distinct world business brands', () => {
       'Electrical',
       'Security',
       'GRAIN CO',
+      'Flour & Barrel',
+      'Blacksmith',
+      'Village School',
+      'Town Hall',
+      'Greengrocer',
+      'Cheesemonger',
+      'Bread & Rolls',
+      'Farm Harvest',
     ]);
-    expect(new Set(Object.values(BUSINESS_BRANDS).map((brand) => brand.primary)).size).toBe(11);
+    expect(new Set(Object.values(BUSINESS_BRANDS).map((brand) => brand.primary)).size).toBe(19);
     expect(transportBrandForCompany('FLOUR EXPRESS')).toBe('flourExpress');
     expect(transportBrandForCompany('GRAIN CO')).toBe('grainCo');
     for (const name of ['', 'OTHER CARRIER', 'MillOS', 'Grain Co'])
@@ -425,6 +433,7 @@ describe('distinct world business brands', () => {
       ...assets,
       ...provenance.stationPosterAndAppBrand.assets,
       ...provenance.serviceBuildingBrands.assets,
+      ...provenance.villageBuildingAndMarketBrands.assets,
     ];
     expect(assets).toHaveLength(13);
     let total = 0;
@@ -591,5 +600,68 @@ describe('illustrated service building rasters', () => {
     expect(craft).not.toContain('MILL WORKSHOP');
     expect(craft).not.toContain('>ELECTRICAL<');
     expect(exterior).not.toMatch(/>\s*(?:CAFE|SECURITY)\s*<\//);
+  });
+});
+
+describe('illustrated village and market identities', () => {
+  it('ships nine compact opaque rasters with retained originals and verified provenance', async () => {
+    const assets = JSON.parse(readFileSync('public/textures/signage/PROVENANCE.json', 'utf8'))
+      .villageBuildingAndMarketBrands.assets;
+    expect(assets.map((a: { id: string }) => a.id)).toEqual([
+      'innFascia',
+      'innHanging',
+      'blacksmith',
+      'school',
+      'townHall',
+      'greengrocer',
+      'cheesemonger',
+      'breadRolls',
+      'harvest',
+    ]);
+    let total = 0;
+    for (const a of assets) {
+      const bytes = readFileSync(`public/textures/signage/${a.file}`);
+      expect(createHash('sha256').update(bytes).digest('hex')).toBe(a.sha256);
+      expect(createHash('sha256').update(readFileSync(a.source)).digest('hex')).toBe(
+        a.sourceSha256
+      );
+      const image = await sharp(bytes).metadata();
+      expect([image.width, image.height]).toEqual([a.width, a.height]);
+      expect(image.hasAlpha).toBe(false);
+      expect(image.width).toBeLessThanOrEqual(1280);
+      expect(bytes.length).toBeLessThan(145000);
+      total += bytes.length;
+    }
+    expect(total).toBeLessThan(750000);
+  });
+
+  it('fits complete illustrated faces in the retained boards without duplicating their captions', () => {
+    const signs = readFileSync('src/components/scenery/VillageSignage.tsx', 'utf8');
+    const village = readFileSync('src/components/VillageArea.tsx', 'utf8');
+    expect(signs).toContain('caption && !brandFace');
+    expect(signs).toContain("variant={brandFace ?? 'fascia'}");
+    expect(signs).toContain('backlit={illuminated}');
+    expect(signs).toContain('brandFace="primary"');
+    for (const brand of ['inn', 'blacksmith', 'school', 'townHall'])
+      expect(village).toMatch(
+        new RegExp(`<VillageNameboard[^>]*brand="${brand}"[^>]*brandFace="fascia"`)
+      );
+    const assets = JSON.parse(readFileSync('public/textures/signage/PROVENANCE.json', 'utf8'))
+      .villageBuildingAndMarketBrands.assets;
+    const seats: Record<string, [number, number]> = {
+      innFascia: [3.26, 0.62],
+      innHanging: [1.62, 0.77],
+      blacksmith: [3.18, 0.35],
+      school: [4.24, 0.54],
+      townHall: [4.74, 0.52],
+    };
+    for (const a of assets) {
+      const [w, h] = seats[a.id] ?? [0.59, 0.15];
+      const [pw, ph] = heritagePrintSize(w, h, a.width, a.height);
+      expect(pw / ph).toBeCloseTo(a.width / a.height, 8);
+      expect(pw).toBeLessThanOrEqual(w);
+      expect(ph).toBeLessThanOrEqual(h + 1e-12);
+      expect(pw).toBeGreaterThan(w * 0.8);
+    }
   });
 });

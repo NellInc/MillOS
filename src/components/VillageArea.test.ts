@@ -12,6 +12,7 @@ import {
   AUTHORED_MARKET_TRIM_VARIANTS,
   MARKET_CANVAS_COLOURS,
   MARKET_TRADE_NAMES,
+  MARKET_TRADE_BRANDS,
   MARKET_TRADE_PAINT,
   createMarketCanopyGeometry,
   MARKET_TRAY_FLOOR,
@@ -46,6 +47,7 @@ import {
   TOWN_HALL_LENS_GEOMETRY,
 } from './VillageArea';
 import { SITE_LAYOUT, landmarkLocalToWorld } from '../constants/siteLayout';
+import { BUSINESS_BRANDS } from './scenery/HeritageSignage';
 import { CIVIC_LAMPS, CIVIC_LIGHT_COLOR } from '../constants/civicSquareLighting';
 
 vi.mock('../utils/critterAudio', () => ({ playCritterSound: vi.fn() }));
@@ -326,9 +328,13 @@ describe('measured village and farm construction trim', () => {
       source.indexOf('const MarketStall ='),
       source.indexOf('MarketStall.displayName =')
     );
-    expect(stall).toContain('surface="painted"');
-    expect(stall).toContain('castShadow={false}');
-    expect(stall).toContain('MARKET_TRADE_NAMES[dressing]');
+    expect(MARKET_TRADE_BRANDS.map((id) => BUSINESS_BRANDS[id].name)).toEqual(MARKET_TRADE_NAMES);
+    expect(MARKET_TRADE_PAINT.height).toBeLessThan(1.104 - 0.9297);
+    expect(stall).toContain('brand={MARKET_TRADE_BRANDS[dressing]}');
+    expect(stall).toContain('position={MARKET_TRADE_PAINT.position}');
+    expect(stall).toContain('rotation={MARKET_TRADE_PAINT.rotation}');
+    expect(stall).toContain('backlit={false}');
+    expect(stall).not.toContain('<Text');
     geometry.dispose();
   });
 

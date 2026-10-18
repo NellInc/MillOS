@@ -58,7 +58,7 @@ export const HERITAGE_PRINT_ART = {
 export type HeritagePrintKind = keyof typeof HERITAGE_PRINT_ART;
 
 /** Each world business owns its name, symbol and application field.
- * Working if all seven names keep distinct raster identities on their old seats.
+ * Working if each name keeps its distinct raster identity on the existing sign seat.
  */
 export const BUSINESS_BRANDS = {
   dino: {
@@ -127,6 +127,54 @@ export const BUSINESS_BRANDS = {
     field: '#183d35',
     primary: `${import.meta.env.BASE_URL}textures/signage/brand-grain-co-v1.webp`,
     fascia: `${import.meta.env.BASE_URL}textures/signage/brand-grain-co-v1.webp`,
+  },
+  inn: {
+    name: 'Flour & Barrel',
+    field: '#143c2b',
+    primary: `${import.meta.env.BASE_URL}textures/signage/brand-inn-v1.webp`,
+    fascia: `${import.meta.env.BASE_URL}textures/signage/brand-inn-fascia-v1.webp`,
+  },
+  blacksmith: {
+    name: 'Blacksmith',
+    field: '#25343c',
+    primary: `${import.meta.env.BASE_URL}textures/signage/brand-blacksmith-v1.webp`,
+    fascia: `${import.meta.env.BASE_URL}textures/signage/brand-blacksmith-v1.webp`,
+  },
+  school: {
+    name: 'Village School',
+    field: '#263f55',
+    primary: `${import.meta.env.BASE_URL}textures/signage/brand-school-v1.webp`,
+    fascia: `${import.meta.env.BASE_URL}textures/signage/brand-school-v1.webp`,
+  },
+  townHall: {
+    name: 'Town Hall',
+    field: '#173c45',
+    primary: `${import.meta.env.BASE_URL}textures/signage/brand-town-hall-v1.webp`,
+    fascia: `${import.meta.env.BASE_URL}textures/signage/brand-town-hall-v1.webp`,
+  },
+  greengrocer: {
+    name: 'Greengrocer',
+    field: '#285136',
+    primary: `${import.meta.env.BASE_URL}textures/signage/brand-market-greengrocer-v1.webp`,
+    fascia: `${import.meta.env.BASE_URL}textures/signage/brand-market-greengrocer-v1.webp`,
+  },
+  cheesemonger: {
+    name: 'Cheesemonger',
+    field: '#1d344d',
+    primary: `${import.meta.env.BASE_URL}textures/signage/brand-market-cheesemonger-v1.webp`,
+    fascia: `${import.meta.env.BASE_URL}textures/signage/brand-market-cheesemonger-v1.webp`,
+  },
+  breadRolls: {
+    name: 'Bread & Rolls',
+    field: '#602b32',
+    primary: `${import.meta.env.BASE_URL}textures/signage/brand-market-bread-rolls-v1.webp`,
+    fascia: `${import.meta.env.BASE_URL}textures/signage/brand-market-bread-rolls-v1.webp`,
+  },
+  harvest: {
+    name: 'Farm Harvest',
+    field: '#c99031',
+    primary: `${import.meta.env.BASE_URL}textures/signage/brand-market-harvest-v1.webp`,
+    fascia: `${import.meta.env.BASE_URL}textures/signage/brand-market-harvest-v1.webp`,
   },
 } as const;
 export type BusinessBrandKind = keyof typeof BUSINESS_BRANDS;

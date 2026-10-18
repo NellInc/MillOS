@@ -30,6 +30,7 @@ export function VillageNameboard({
   illuminated = false,
   art,
   brand,
+  brandFace,
 }: {
   title: string;
   caption?: string;
@@ -40,6 +41,8 @@ export function VillageNameboard({
   illuminated?: boolean;
   art?: HeritagePrintKind;
   brand?: BusinessBrandKind;
+  /** Complete illustrated sign replaces lettering/caption within the existing frame. */
+  brandFace?: 'primary' | 'fascia';
 }) {
   const textWidth = width - (crest ? height * 1.5 : 0.42);
   const textX = crest ? height * 0.45 : 0;
@@ -67,24 +70,26 @@ export function VillageNameboard({
             <boxGeometry args={[0.055, height, 0.085]} />
             <meshStandardMaterial color={GOLD} roughness={0.5} metalness={0.05} />
           </mesh>
-          <mesh position={[0, side * (height / 2 - 0.115), 0.112]}>
-            <planeGeometry args={[width - 0.31, 0.009]} />
-            <meshStandardMaterial color={GOLD} roughness={0.7} />
-          </mesh>
+          {!brandFace && (
+            <mesh position={[0, side * (height / 2 - 0.115), 0.112]}>
+              <planeGeometry args={[width - 0.31, 0.009]} />
+              <meshStandardMaterial color={GOLD} roughness={0.7} />
+            </mesh>
+          )}
         </group>
       ))}
       {brand ? (
         <>
           <BusinessBrandMark
             brand={brand}
-            variant="fascia"
-            width={width - 0.2}
-            height={height * 0.51}
+            variant={brandFace ?? 'fascia'}
+            width={brandFace ? width - 0.16 : width - 0.2}
+            height={brandFace ? height - 0.14 : height * 0.51}
             name={`village-lettering-${title}`}
-            position={[0, height * 0.085, 0.12]}
+            position={[0, brandFace ? 0 : height * 0.085, 0.12]}
             backlit={illuminated}
           />
-          {caption && (
+          {caption && !brandFace && (
             <Lettering
               name={`village-caption-${title}`}
               position={[0, -height * 0.235, 0.12]}
@@ -229,6 +234,8 @@ export function FlourAndBarrelSign() {
         <group key={yaw} position={[0.93, -0.8, yaw === 0 ? 0.08 : -0.08]} rotation={[0, yaw, 0]}>
           <VillageNameboard
             title={'Flour & Barrel'}
+            brand="inn"
+            brandFace="primary"
             caption="VILLAGE INN"
             width={1.78}
             height={0.91}
