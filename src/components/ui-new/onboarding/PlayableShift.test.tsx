@@ -196,7 +196,7 @@ describe('playable shift UI', () => {
     );
     expect(useUIStore.getState().inspectedMachineIds).toEqual(['mill-1']);
     expect(screen.queryByRole('heading', { name: 'Delivery fulfilled' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Open operations' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open SCADA' }));
     expect(onOpen).toHaveBeenCalledWith('scada');
     fireEvent.keyDown(document.body, { key: 'Escape' });
     expect(useUIStore.getState().journeyVisible).toBe(false);
@@ -234,7 +234,7 @@ describe('playable shift UI', () => {
     render(<FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={vi.fn()} />);
     const card = screen.getByRole('region', { name: 'Guided delivery' });
     const show = screen.getByRole('button', { name: 'Show milling line' });
-    const open = screen.getByRole('button', { name: 'Open operations' });
+    const open = screen.getByRole('button', { name: 'Open SCADA' });
     const footer = show.closest('.sticky');
     expect(footer).not.toBeNull();
     // Sticky resolves against the nearest scroll box, which must be the card itself.
@@ -490,7 +490,7 @@ it('keeps real inspection tracking mounted in the compact scene guide and restor
   expect(screen.getByText(/Inspection: recorded/)).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Expand delivery guide' }));
   expect(screen.getByRole('combobox', { name: 'Shift pace' })).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Open operations' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Open SCADA' })).toBeInTheDocument();
   expect(useOperationsCampaignStore.getState()).toBe(campaign);
 });
 
@@ -746,7 +746,7 @@ it('keeps fulfilled receipts reachable after compacting without granting new cus
 });
 
 it.each([
-  ['planning', 'Open line controls', 'scada'],
+  ['planning', 'Open SCADA', 'scada'],
   ['quality_hold', 'Review delivery and QC', 'overview'],
 ] as const)(
   'opens the actual %s workspace from compact guidance without producing credit',
@@ -767,3 +767,84 @@ it.each([
     expect(screen.getByRole('combobox', { name: 'Shift pace' })).toBeInTheDocument();
   }
 );
+
+it('labels the pace options by what they do to customer deadlines without changing values', () => {
+  useGameSimulationStore.setState({ gameSpeed: 30 });
+  render(<TeachingPace />);
+  const pace = screen.getByRole('combobox', { name: 'Shift pace' });
+  expect(pace).toHaveValue('30');
+  expect(screen.getByRole('option', { name: 'Standard pace' })).toHaveValue('30');
+  const fast = screen.getByRole('option', { name: /Fast clock, 6x/ });
+  expect(fast).toHaveValue('180');
+  expect(fast).toHaveTextContent('deadlines tighten');
+  expect(screen.queryByRole('option', { name: /1x/ })).not.toBeInTheDocument();
+});
+
+it('shows fulfilment even when no machine inspection was recorded', () => {
+  const state = useOperationsCampaignStore.getState();
+  const first = state.orders[0];
+  useUIStore.getState().startDeliveryJourney(first.id);
+  useOperationsCampaignStore.setState({
+    orders: state.orders.map((order) =>
+      order.id === first.id ? { ...order, status: 'fulfilled', shippedKg: order.requiredKg } : order
+    ),
+  });
+  const before = useOperationsCampaignStore.getState();
+  render(<FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={vi.fn()} />);
+  expect(screen.queryByRole('heading', { name: 'Inspect the line' })).not.toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Delivery fulfilled' })).toBeInTheDocument();
+  expect(useUIStore.getState().inspectedMachineIds).toEqual([]);
+  expect(useOperationsCampaignStore.getState()).toBe(before);
+});
+
+it.each([
+  ['warning only', ['order-due'], 'Attention: Commitment due soon.'],
+  [
+    'warning ahead of a hard block',
+    ['storage-high', 'dispatch-isolated'],
+    'Blocked: Dispatch isolated.',
+  ],
+  ['overdue only', ['order-overdue'], 'Attention: Commitment overdue.'],
+] as const)('names constraints honestly for %s', (_case, ids, text) => {
+  const defs = {
+    'order-due': {
+      id: 'order-due-order-001',
+      severity: 'warning',
+      label: 'Commitment due soon',
+      detail: '85 simulated minutes remain.',
+      relatedId: null,
+    },
+    'order-overdue': {
+      id: 'order-due-order-001',
+      severity: 'critical',
+      label: 'Commitment overdue',
+      detail: 'Overdue.',
+      relatedId: null,
+    },
+    'storage-high': {
+      id: 'storage-high',
+      severity: 'warning',
+      label: 'Storage capacity',
+      detail: '88% of material capacity is occupied.',
+      relatedId: null,
+    },
+    'dispatch-isolated': {
+      id: 'dispatch-isolated',
+      severity: 'critical',
+      label: 'Dispatch isolated',
+      detail: 'An active incident requires the shipping quality gate to remain closed.',
+      relatedId: null,
+    },
+  } as const;
+  useOperationsCampaignStore.setState({ constraints: ids.map((id) => ({ ...defs[id] })) });
+  render(<OperationsPlayCard />);
+  expect(screen.getByText(new RegExp(`^${text.replace('.', '\\.')}`))).toBeInTheDocument();
+  if (text.startsWith('Attention')) expect(screen.queryByText(/^Blocked:/)).not.toBeInTheDocument();
+});
+
+it('points a linked campaign hold at the working agreement controls that can finish it', () => {
+  useWorkplaceStore.getState().startMission('toe-dip');
+  render(<OperationsPlayCard />);
+  expect(screen.getByLabelText('Active customer commitment', { exact: false })).toBeDisabled();
+  expect(screen.getByText(/Review working agreement opens Autonomy/)).toBeInTheDocument();
+});

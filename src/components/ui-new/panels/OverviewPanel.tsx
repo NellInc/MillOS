@@ -76,6 +76,9 @@ const GameClock: React.FC = React.memo(() => {
 });
 
 // Isolated Speed Controls
+// Production and trucks run in real seconds while customer deadlines follow this
+// clock, so every speed above standard pace (30) makes orders late. Working if
+// each faster button's title says so; button values and visible labels stay.
 const GameSpeedControls: React.FC = React.memo(() => {
   const gameSpeed = useGameSimulationStore((state) => state.gameSpeed);
   const setGameSpeed = useGameSimulationStore((state) => state.setGameSpeed);
@@ -103,7 +106,7 @@ const GameSpeedControls: React.FC = React.memo(() => {
             ? 'bg-orange-800 text-white'
             : 'bg-slate-700 text-slate-200 hover:bg-slate-600'
         }`}
-        title="Normal (1x - 24hrs in 8min)"
+        title="Fast clock (1x: 24 h in 8 min). Customer deadlines run 6x faster than standard pace while trucks and packing do not, so orders run late. Use Standard pace in Shift pace for deliveries."
       >
         <Play className="w-3.5 h-3.5" aria-hidden="true" />
         1x
@@ -116,7 +119,7 @@ const GameSpeedControls: React.FC = React.memo(() => {
             ? 'bg-orange-800 text-white'
             : 'bg-slate-700 text-slate-200 hover:bg-slate-600'
         }`}
-        title="Fast (10x)"
+        title="Very fast clock (10x). Customer deadlines pass far faster than trucks and packing can keep up; orders will be late."
       >
         <FastForward className="w-3.5 h-3.5" aria-hidden="true" />
         10x
@@ -129,7 +132,7 @@ const GameSpeedControls: React.FC = React.memo(() => {
             ? 'bg-orange-800 text-white'
             : 'bg-slate-700 text-slate-200 hover:bg-slate-600'
         }`}
-        title="Ultra (60x)"
+        title="Ultra fast clock (60x). Customer deadlines pass far faster than trucks and packing can keep up; orders will be late."
       >
         <FastForward className="w-3.5 h-3.5" aria-hidden="true" />
         60x

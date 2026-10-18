@@ -62,9 +62,12 @@ export function TeachingPace() {
         onChange={(e) => setSpeed(Number(e.target.value))}
         className="min-h-11 rounded bg-slate-800 px-2 text-white"
       >
+        {/* Production and trucks run in real seconds; customer deadlines run on
+            this clock. Working if 30 reads as the feasible standard pace and 180
+            warns that deadlines tighten, with option values unchanged. */}
         <option value={0}>Paused, inspect freely</option>
-        <option value={30}>Relaxed, 1/6 speed</option>
-        <option value={180}>Standard, 1x</option>
+        <option value={30}>Standard pace</option>
+        <option value={180}>Fast clock, 6x: deadlines tighten</option>
         {![0, 30, 180].includes(speed) && <option value="custom">Current custom pace</option>}
       </select>
     </label>
@@ -141,7 +144,9 @@ export function FirstDeliveryJourney({
   }, [ui.close]);
   // Completion keeps its receipt available while yielding the foreground to
   // the live commitment. This projection never advances an order or a truck.
-  const completed = order?.status === 'fulfilled' && ui.inspected;
+  // Working if a real fulfilment shows its receipt whether or not the
+  // inspection step was done; inspection stays a separate milestone.
+  const completed = order?.status === 'fulfilled';
   const play = deriveOperationsPlay(campaign);
   const compactWorkspace: 'overview' | 'scada' | null = completed
     ? ['quality', 'programme', 'acknowledge', 'mitigate', 'resume', 'resolve'].includes(
@@ -253,7 +258,7 @@ export function FirstDeliveryJourney({
               ? 'Review current operations'
               : compactWorkspace === 'overview'
                 ? 'Review delivery and QC'
-                : 'Open line controls'}
+                : 'Open SCADA'}
           </button>
         )}
         {!ui.inspected && (
@@ -346,7 +351,7 @@ export function FirstDeliveryJourney({
           )}
           {guide.workspace && (
             <button className={BUTTON} onClick={() => onOpenWorkspace(guide.workspace!)}>
-              Open {guide.workspace === 'scada' ? 'operations' : 'Overview and QC'}
+              Open {guide.workspace === 'scada' ? 'SCADA' : 'Overview and QC'}
             </button>
           )}
         </div>
@@ -497,6 +502,14 @@ export function OperationsPlayCard() {
   const gameSpeed = useGameSimulationStore((s) => s.gameSpeed);
   const play = deriveOperationsPlay(snapshot);
   const awaitingResponse = play.nextAction.kind === 'resume' && gameSpeed > 0;
+  // Only an isolated dispatch or an empty recipe feed stops work; due, overdue,
+  // storage and maintenance constraints call for attention. Working if a
+  // critical constraint leads a warning and only real stops read 'Blocked'.
+  const leadConstraint =
+    play.blockers.find((constraint) => constraint.severity === 'critical') ?? play.blockers[0];
+  const hardBlock =
+    !!leadConstraint &&
+    (leadConstraint.id === 'dispatch-isolated' || leadConstraint.id.startsWith('recipe-feed-'));
   const nextLabel = awaitingResponse ? 'Awaiting simulation update' : play.nextAction.label;
   const canStartMission =
     workplace.phase === 'idle' &&
@@ -566,7 +579,7 @@ export function OperationsPlayCard() {
             {snapshot.activeChallenge
               ? 'Finish or abandon the challenge before switching customers.'
               : reviewPending
-                ? 'Finish the linked working agreement review and owed recovery before switching customers.'
+                ? 'Finish the linked working agreement season and owed recovery before switching customers. Review working agreement opens Autonomy, where you can finish the remaining shifts or let the fictional demo run them.'
                 : 'Changing customer changes the scheduled recipe. Existing stock and shipping receipts remain unchanged.'}
           </span>
         </label>
@@ -577,9 +590,9 @@ export function OperationsPlayCard() {
           : 'Current programme complete'}
       </p>
       <DeliveryDeadline order={play.activeOrder} elapsedMinutes={snapshot.elapsedMinutes} />
-      {play.blockers[0] && (
+      {leadConstraint && (
         <p className="mt-2 text-amber-200">
-          Blocked: {play.blockers[0].label}. {play.blockers[0].detail}
+          {hardBlock ? 'Blocked' : 'Attention'}: {leadConstraint.label}. {leadConstraint.detail}
         </p>
       )}
       {play.challengeProgress && (
@@ -664,7 +677,7 @@ export function OperationsPlayCard() {
           </button>
           <p className="text-xs leading-5 text-slate-300">
             Opt in to three shifts with this customer delivery and a separate working agreement.
-            Starting sets relaxed shift pace. Fictional roles only.
+            Starting sets standard shift pace. Fictional roles only.
           </p>
         </div>
       )}
@@ -681,8 +694,8 @@ export function OperationsPlayCard() {
         <p className="mb-2 text-xs leading-5">
           New challenges allow {RECOVERY_CHALLENGE_WINDOW_MINUTES / 60} simulated hours to recover
           and dispatch up to {RECOVERY_CHALLENGE_TARGET_KG.toLocaleString()} kg of fresh,
-          quality-released goods. Relaxed pace gives you more real time. Abandoning a challenge
-          leaves its incident to recover; customer deadlines still apply.
+          quality-released goods. Standard pace gives you more real time than the fast clock.
+          Abandoning a challenge leaves its incident to recover; customer deadlines still apply.
         </p>
         {play.challenges.map((challenge) => (
           <div key={challenge.id} className="mb-2">

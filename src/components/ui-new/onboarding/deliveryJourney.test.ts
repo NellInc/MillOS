@@ -8,10 +8,18 @@ describe('guided delivery evidence', () => {
     useOperationsCampaignStore.setState(state, true);
     useOperationsCampaignStore.getState().initializeCampaign();
   });
-  it('requires an inspection receipt and credits only actual fulfillment', () => {
+  it('asks for an inspection first, credits only actual fulfillment and never hides it', () => {
     const campaign = useOperationsCampaignStore.getState();
     const order = campaign.orders[0];
     expect(deriveDeliveryJourney(order, campaign.execution, false).title).toBe('Inspect the line');
+    // A real fulfilment is reported even if the inspection step was never done.
+    expect(
+      deriveDeliveryJourney(
+        { ...order, status: 'fulfilled', shippedKg: order.requiredKg },
+        campaign.execution,
+        false
+      ).title
+    ).toBe('Delivery fulfilled');
     expect(deriveDeliveryJourney(order, campaign.execution, true).title).not.toBe(
       'Delivery fulfilled'
     );
@@ -199,4 +207,17 @@ it('explains buffer inspection without changing the live order or production', (
   const guide = deriveDeliveryJourney(campaign.orders[0], campaign.execution, false);
   expect(guide.detail).toContain('Full output buffers can reveal a downstream bottleneck');
   expect({ orders: campaign.orders, execution: campaign.execution }).toEqual(before);
+});
+
+it('names the workspace the follow-the-grain step actually opens', () => {
+  const { orders, execution } = useOperationsCampaignStore.getState();
+  const order = orders[0];
+  const guide = deriveDeliveryJourney(
+    order,
+    { ...execution, orderId: order.id, stage: 'milling' },
+    true
+  );
+  expect(guide.workspace).toBe('scada');
+  expect(guide.detail).toContain('Open SCADA');
+  expect(guide.detail).not.toContain('Open operations to review the recipe');
 });

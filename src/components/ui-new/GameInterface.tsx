@@ -58,7 +58,7 @@ const INTRO_STEPS: OnboardingStep[] = [
     title: 'Look first, touch second',
     icon: 'controls',
     content:
-      'Select any machine for its status, buffers, and maintenance record. Start operating begins the guided delivery at relaxed pace, preserving any pace you already chose. Shift pace lets you pause or speed it up. Press ? for controls.',
+      'Select any machine for its status, buffers, and maintenance record. Start operating begins the guided delivery at standard pace, preserving any pace you already chose. Shift pace lets you pause or speed it up. Press ? for controls.',
   },
 ];
 
@@ -112,7 +112,13 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   // toggles uiStore.showShortcuts; this is the only consumer that renders it).
   const showShortcuts = useUIStore((s) => s.showShortcuts);
   const setShowShortcuts = useUIStore((s) => s.setShowShortcuts);
-  const hasCriticalAlert = useUIStore((s) => s.alerts.some((alert) => alert.type === 'critical'));
+  // Alerts are kept as history and never expire, so only an unacknowledged
+  // critical alert holds the quiet/safety UI. Working if Acknowledge or Mark all
+  // as read restores music controls, PA flavour and AI reflection, while real
+  // safety stops (emergency, drill, crisis) still hold it via safetyStateActive.
+  const hasCriticalAlert = useUIStore((s) =>
+    s.alerts.some((alert) => alert.type === 'critical' && !alert.acknowledged)
+  );
   const fpsMode = useUIStore((s) => s.fpsMode);
   const safetyStateActive = useGameSimulationStore(
     (state) => state.emergencyActive || state.emergencyDrillMode || state.crisisState.active
@@ -126,13 +132,17 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   const startDeliveryJourney = useUIStore((s) => s.startDeliveryJourney);
   const [introStep, setIntroStep] = useState<number | null>(null);
   const introPaceRef = React.useRef<number | null>(null);
-  const releaseTourClock = React.useCallback((guided: boolean) => {
+  const releaseTourClock = React.useCallback(() => {
     const previousPace = introPaceRef.current;
     introPaceRef.current = null;
     const simulation = useGameSimulationStore.getState();
     // Release only our own hold; preserve a newer clock choice from another control.
+    // The 180 fast clock runs customer deadlines 6x faster than trucks and packing,
+    // so a default 180 hold always releases to standard pace (30). Working if
+    // Start operating, Skip, Close and unmount all land on 30 from the default,
+    // and any other chosen pace is restored unchanged.
     if (previousPace !== null && simulation.gameSpeed === 0) {
-      simulation.setGameSpeed(guided && previousPace === 180 ? 30 : previousPace);
+      simulation.setGameSpeed(previousPace === 180 ? 30 : previousPace);
     }
   }, []);
 
@@ -166,7 +176,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
     return () => {
       window.removeEventListener('millos:first-frame', showWhenReady);
       if (timer) clearTimeout(timer);
-      releaseTourClock(false);
+      releaseTourClock();
     };
   }, [hasSeenIntro, releaseTourClock]);
 
@@ -193,7 +203,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   const handleIntroNext = () => {
     const next = (introStep ?? 0) + 1;
     if (next >= INTRO_STEPS.length) {
-      releaseTourClock(true);
+      releaseTourClock();
       setHasSeenIntro(true);
       setIntroStep(null);
       const campaign = useOperationsCampaignStore.getState();
@@ -209,14 +219,14 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   };
 
   const handleIntroSkip = () => {
-    releaseTourClock(false);
+    releaseTourClock();
     setHasSeenIntro(true);
     setIntroStep(null);
     useCameraStore.getState().cancelAnimation();
   };
 
   const handleIntroClose = () => {
-    releaseTourClock(false);
+    releaseTourClock();
     setIntroStep(null);
     useCameraStore.getState().cancelAnimation();
   };

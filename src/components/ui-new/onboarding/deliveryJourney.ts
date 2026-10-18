@@ -51,6 +51,16 @@ export function deriveDeliveryJourney(
     };
   const product = order.recipe.label;
   const qualityTarget = `Recipe quality target: ${order.recipe.minimumQuality}/100.`;
+  // A real fulfilment is never hidden behind the inspection lesson. Working if
+  // a fulfilled order reads 'Delivery fulfilled' with or without an inspection,
+  // and an open order still starts at 'Inspect the line'.
+  if (order.status === 'fulfilled')
+    return {
+      title: 'Delivery fulfilled',
+      detail: `${order.shippedKg.toFixed(0)} kg of ${product} dispatched for ${order.customer} in recorded manifests. Departed manifests credit this customer. Inspection is a separate milestone.`,
+      workspace: 'overview' as const,
+      entryId: 'community-commitments',
+    };
   if (!inspected)
     return {
       title: 'Inspect the line',
@@ -59,13 +69,6 @@ export function deriveDeliveryJourney(
         'Select a silo, roller mill, plansifter or packer in the scene. Read its status and buffers before changing the line. Full output buffers can reveal a downstream bottleneck.',
       workspace: null,
       entryId: 'bottlenecks-and-buffers',
-    };
-  if (order.status === 'fulfilled')
-    return {
-      title: 'Delivery fulfilled',
-      detail: `${order.shippedKg.toFixed(0)} kg of ${product} dispatched for ${order.customer} in recorded manifests. Departed manifests credit this customer. Inspection is a separate milestone.`,
-      workspace: 'overview' as const,
-      entryId: 'community-commitments',
     };
   if (execution.orderId !== order.id)
     return {
@@ -85,6 +88,12 @@ export function deriveDeliveryJourney(
     };
   const load = execution.dispatchLoad;
   const departureRule = `Only a departed manifest credits this customer; packed ${product} alone does not.`;
+  // The feed budget stops the line once the rest of the order is packed, so the
+  // header reads 0 bags/h. Working if that idle line is explained, not a freeze.
+  const packedRest =
+    execution.remainingKg > 0 && execution.finishedAvailableKg >= execution.remainingKg - 1
+      ? ' The rest of this order is already packed; the line rests until the next truck collects it.'
+      : '';
   if (execution.stage === 'ready_to_load')
     return {
       title: 'Ready for the shipping truck',
@@ -97,7 +106,7 @@ export function deriveDeliveryJourney(
     return {
       title: execution.stage === 'loading' ? 'Loading the shipping truck' : 'Ready to depart',
       view: 'Shipping',
-      detail: `${load.blockReason ?? (execution.stage === 'loading' ? 'Follow the pallets from the packing line to the docked truck.' : 'The outbound load is ready. Watch its departure from the shipping bay.')} ${qualityTarget} ${departureRule}`,
+      detail: `${load.blockReason ?? (execution.stage === 'loading' ? 'Follow the pallets from the packing line to the docked truck.' : 'The outbound load is ready. Watch its departure from the shipping bay.')} ${qualityTarget} ${departureRule}${packedRest}`,
       workspace: 'scada',
       entryId: 'autonomous-logistics',
       // Truck capacity is distinct from the customer's full commitment.
@@ -108,7 +117,7 @@ export function deriveDeliveryJourney(
     return {
       title: 'Truck departed',
       view: 'Shipping',
-      detail: `${load.lastDispatchKg.toFixed(0)} kg left the shipping bay. Customer receipt: ${order.shippedKg.toFixed(0)} / ${order.requiredKg.toFixed(0)} kg for ${order.customer}. ${qualityTarget} ${departureRule}`,
+      detail: `${load.lastDispatchKg.toFixed(0)} kg left the shipping bay. Customer receipt: ${order.shippedKg.toFixed(0)} / ${order.requiredKg.toFixed(0)} kg for ${order.customer}. ${qualityTarget} ${departureRule}${packedRest}`,
       workspace: 'scada',
       entryId: 'autonomous-logistics',
     };
@@ -132,7 +141,7 @@ export function deriveDeliveryJourney(
   return {
     title: 'Follow the grain',
     view: 'Milling',
-    detail: `Source inventory: ${execution.sourceInventoryKg.toFixed(0)} kg of ${grain}. Line setpoint: ${execution.lineSetpointPercent.toFixed(0)}%. Released ${product}: ${execution.releasedFinishedKg.toFixed(0)} kg. ${quality} Open operations to review the recipe, buffers and any shortage.`,
+    detail: `Source inventory: ${execution.sourceInventoryKg.toFixed(0)} kg of ${grain}. Line setpoint: ${execution.lineSetpointPercent.toFixed(0)}%. Released ${product}: ${execution.releasedFinishedKg.toFixed(0)} kg. ${quality} Open SCADA for live line telemetry, or select a machine to read its buffers.`,
     workspace: 'scada' as const,
     entryId: 'autonomous-material-flow',
   };
