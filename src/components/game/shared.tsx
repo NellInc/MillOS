@@ -5,6 +5,8 @@ import { useSafetyStore } from '../../stores/safetyStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useAnnouncementsStore, type AnnouncementInput } from '../../stores/announcementsStore';
 import { audioManager } from '../../utils/audioManager';
+import { peekSCADAService } from '../../scada/SCADAService';
+import { isStandingCriticalAlarm } from '../../scada/SCADABridge';
 
 export interface CameraFeedContextType {
   feedRefs: Map<string, React.RefObject<HTMLDivElement>>;
@@ -24,6 +26,8 @@ interface AnnouncementConfig {
   type: NoticeType;
   category: AnnouncementCategory;
   stressWeight: number;
+  /** Claims the whole plant is fine; false while any critical condition stands. */
+  reassuring?: true;
 }
 
 interface EventAnnouncementConfig {
@@ -51,6 +55,7 @@ const AUTONOMOUS_NOTICES: AnnouncementConfig[] = [
     type: 'production',
     category: 'operations',
     stressWeight: 0.1,
+    reassuring: true,
   },
   {
     message: 'Silo inventory reconciled. Mass balance within tolerance — nothing unaccounted for.',
@@ -117,6 +122,7 @@ const AUTONOMOUS_NOTICES: AnnouncementConfig[] = [
     type: 'general',
     category: 'operations',
     stressWeight: 0.05,
+    reassuring: true,
   },
   {
     message: 'Vibration trend reviewed on the busiest asset. Nothing outside its envelope.',
@@ -300,7 +306,10 @@ const calculateOperationalStress = (): number => {
   const critical = machines.filter((machine) => machine.status === 'critical').length;
   const warning = machines.filter((machine) => machine.status === 'warning').length;
   const alerts = useUIStore.getState().alerts ?? [];
-  const criticalAlerts = alerts.filter((alert) => alert.type === 'critical').length;
+  // Acknowledged alerts are handled; they no longer raise PA stress.
+  const criticalAlerts = alerts.filter(
+    (alert) => alert.type === 'critical' && !alert.acknowledged
+  ).length;
   const warningAlerts = alerts.filter((alert) => alert.type === 'warning').length;
   const incidents = useSafetyStore.getState().safetyIncidents ?? [];
   const recentIncidents = incidents.filter(
@@ -316,9 +325,29 @@ const calculateOperationalStress = (): number => {
   );
 };
 
-const chooseNotice = (gameTime: number): AnnouncementConfig => {
+/**
+ * A critical condition is standing: a machine in 'critical', an unacknowledged
+ * critical alert, or an active in-service SCADA critical alarm (checked at the
+ * source, because the bell alert for it may have been dismissed).
+ */
+export const isCriticalConditionActive = (): boolean => {
+  const machines = useProductionStore.getState().machines ?? [];
+  if (machines.some((machine) => machine.status === 'critical')) return true;
+  const alerts = useUIStore.getState().alerts ?? [];
+  if (alerts.some((alert) => alert.type === 'critical' && !alert.acknowledged)) return true;
+  // peek, not get: a query must not construct the SCADA service.
+  return (peekSCADAService()?.getActiveAlarms() ?? []).some(isStandingCriticalAlarm);
+};
+
+export const chooseNotice = (
+  gameTime: number,
+  criticalActive: boolean = isCriticalConditionActive()
+): AnnouncementConfig => {
   const timeBand = gameTime >= 7 && gameTime < 19 ? 'day' : 'night';
-  const corpus = Math.random() < 0.2 ? TIME_NOTICES[timeBand] : AUTONOMOUS_NOTICES;
+  const pool = Math.random() < 0.2 ? TIME_NOTICES[timeBand] : AUTONOMOUS_NOTICES;
+  // Working if 'The mill is calm' never plays beside 'Critical alarms active!'.
+  // Only the whole-plant reassurances are held; other ambient notices continue.
+  const corpus = criticalActive ? pool.filter((notice) => !notice.reassuring) : pool;
   const stress = calculateOperationalStress();
   const ranked = corpus
     .map((announcement) => ({

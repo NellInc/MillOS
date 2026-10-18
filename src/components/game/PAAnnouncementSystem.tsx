@@ -323,9 +323,13 @@ export const PAAnnouncementSystem: React.FC = () => {
   return (
     <>
       {liveRegion}
+      {/* Working if the caption never covers the 48px status bar (top-16 clears
+          it) or an open side panel: the width cap lives on the centred
+          container, so the card is truly centred, and while a side panel is
+          open it narrows by the panel width on both sides. */}
       <div
-        className={`fixed left-1/2 -translate-x-1/2 z-[60] pointer-events-auto max-w-[90vw] ${
-          safetyOverlayActive ? 'top-20' : 'top-4'
+        className={`fixed left-1/2 -translate-x-1/2 z-[60] pointer-events-auto w-[min(32rem,90vw)] [[data-sidebar-visible=true]_&]:w-[min(32rem,max(16rem,calc(100vw-2*var(--millos-sidebar-width)-2rem)))] ${
+          safetyOverlayActive ? 'top-20' : 'top-16'
         }`}
         data-safety-offset={safetyOverlayActive ? 'true' : 'false'}
       >
@@ -337,7 +341,7 @@ export const PAAnnouncementSystem: React.FC = () => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -20, scale: 0.9 }}
             transition={prefersReducedMotion ? { duration: 0 } : undefined}
-            className={`flex items-start gap-3.5 px-5 py-4 rounded-xl border-2 backdrop-blur-xl shadow-2xl w-full max-w-lg ${getAnnouncementStyles(currentAnnouncement.priority)}`}
+            className={`flex items-start gap-3.5 px-5 py-4 rounded-xl border-2 backdrop-blur-xl shadow-2xl w-full ${getAnnouncementStyles(currentAnnouncement.priority)}`}
           >
             <div className="flex-shrink-0 mt-0.5" aria-hidden="true">
               {getAnnouncementIcon(currentAnnouncement.type)}

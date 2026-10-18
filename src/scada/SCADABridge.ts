@@ -204,7 +204,25 @@ function getMachineTagPrefix(machineId: string, machineName?: string): string | 
  */
 function getNumericValue(tagValue: TagValue | undefined): number | undefined {
   if (!tagValue || tagValue.quality !== 'GOOD') return undefined;
-  return typeof tagValue.value === 'number' ? tagValue.value : undefined;
+  // Working if: NaN and Infinity never reach machine metrics (they would print
+  // 'NaN' in the HUD and make the shift autosave refuse the session).
+  return typeof tagValue.value === 'number' && Number.isFinite(tagValue.value)
+    ? tagValue.value
+    : undefined;
+}
+
+/**
+ * ISA-18.2: a critical alarm is a standing condition while it is active (UNACK
+ * or ACKED) and in service. RTN_UNACK has returned to normal and only awaits
+ * acknowledgement; shelved, suppressed and out-of-service alarms do not
+ * annunciate. Working if 'Critical alarms active!' clears with the condition.
+ */
+export function isStandingCriticalAlarm(alarm: Alarm): boolean {
+  return (
+    alarm.priority === 'CRITICAL' &&
+    alarm.state !== 'RTN_UNACK' &&
+    (alarm.disposition ?? 'IN_SERVICE') === 'IN_SERVICE'
+  );
 }
 
 /**

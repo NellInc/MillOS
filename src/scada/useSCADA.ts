@@ -31,6 +31,7 @@ interface ActiveFault {
   severity: number;
 }
 import { MILL_TAGS } from './tagDatabase';
+import { isStandingCriticalAlarm } from './SCADABridge';
 import { useGraphicsStore } from '../stores/graphicsStore';
 import { logger } from '../utils/logger';
 
@@ -43,24 +44,28 @@ const TAG_MACHINE_ID = new Map(MILL_TAGS.map((t) => [t.id, t.machineId]));
 /** Shelved, suppressed and out-of-service alarms stay listed but do not annunciate. */
 const isInService = (alarm: Alarm): boolean => (alarm.disposition ?? 'IN_SERVICE') === 'IN_SERVICE';
 
-function summarizeAlarms(alarms: Alarm[]): {
+export function summarizeAlarms(alarms: Alarm[]): {
   total: number;
   unacknowledged: number;
   critical: number;
+  /** Criticals whose condition is still active (not RTN_UNACK); drives the banner. */
+  standingCritical: number;
   high: number;
 } {
   let unacknowledged = 0;
   let critical = 0;
+  let standingCritical = 0;
   let high = 0;
 
   alarms.forEach((a) => {
     if (!isInService(a)) return;
     if (a.state === 'UNACK' || a.state === 'RTN_UNACK') unacknowledged++;
     if (a.priority === 'CRITICAL') critical++;
+    if (isStandingCriticalAlarm(a)) standingCritical++;
     if (a.priority === 'HIGH') high++;
   });
 
-  return { total: alarms.length, unacknowledged, critical, high };
+  return { total: alarms.length, unacknowledged, critical, standingCritical, high };
 }
 
 // ============================================================================
@@ -734,6 +739,8 @@ export function useSCADAAlarms(): {
     takeOutOfService,
     suppressed,
     unsuppress,
-    hasCritical: summary.critical > 0,
+    // Working if the 'Critical alarms active!' banner clears when the condition
+    // does; a returned-to-normal critical stays listed and unacknowledged.
+    hasCritical: summary.standingCritical > 0,
   };
 }

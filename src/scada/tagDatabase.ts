@@ -871,7 +871,9 @@ const vehicleTags: TagDefinition[] = Object.entries(VEHICLE_TAG_IDS).flatMap(([v
       accessMode: 'READ' as const,
       engUnit: 'state',
       engLow: 0,
-      engHigh: 32,
+      // Highest phase code in store.ts buildOperationalTelemetry ('departure-ready').
+      // Working if unchocking (33) and departure-ready (34) are not clamped to 32.
+      engHigh: 34,
       deadband: 0,
       machineId: vehicleId,
       group: 'STATUS' as const,
