@@ -851,10 +851,13 @@ const vehicleTags: TagDefinition[] = Object.entries(VEHICLE_TAG_IDS).flatMap(([v
       engUnit: 'deg',
       engLow: isTruck ? -40 : -35,
       engHigh: isTruck ? 40 : 35,
-      alarmLo: isTruck ? -32 : undefined,
-      alarmHi: isTruck ? 32 : undefined,
-      alarmLoLo: isTruck ? -38 : undefined,
-      alarmHiHi: isTruck ? 38 : undefined,
+      // Controller-bounded kinematic state, not a process variable: every
+      // normal docking reaches the 0.7 rad (40.1 deg) truckController clamp.
+      // Working if no steering/articulation tag alarms inside that clamp.
+      alarmLo: undefined,
+      alarmHi: undefined,
+      alarmLoLo: undefined,
+      alarmHiHi: undefined,
       deadband: 0.25,
       machineId: vehicleId,
       group: 'POSITION' as const,

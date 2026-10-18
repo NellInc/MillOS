@@ -5,6 +5,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { SimulationAdapter } from '../adapters/SimulationAdapter';
 import { TagDefinition } from '../types';
+import { MILL_TAGS } from '../tagDatabase';
 
 // Sample tag definitions for testing
 const sampleTags: TagDefinition[] = [
@@ -292,6 +293,27 @@ describe('SimulationAdapter', () => {
       await vi.advanceTimersByTimeAsync(1100);
 
       expect(adapter.getActiveFaults()).toHaveLength(0);
+    });
+
+    it('never reports BAD quality over an hour of nominal samples without an injected fault', async () => {
+      // The real catalogue, not the 3-tag fixture: a rare spontaneous roll
+      // needs enough tag-samples to show up. BAD lasts one sample, so collect
+      // every notification rather than reading the final state.
+      const plant = new SimulationAdapter(MILL_TAGS);
+      const badSamples: string[] = [];
+      await plant.connect();
+      plant.subscribe(
+        MILL_TAGS.map((tag) => tag.id),
+        (values) =>
+          values.forEach((value) => {
+            if (value.quality === 'BAD') badSamples.push(value.tagId);
+          })
+      );
+
+      vi.advanceTimersByTime(3_600_000);
+
+      expect(badSamples).toEqual([]);
+      await plant.disconnect();
     });
   });
 
