@@ -260,6 +260,13 @@ test('maps, material properties, node names, transforms, topology mode and insta
 });
 
 test('candidate CLI is deterministic, within budgets, and leaves both input files byte-identical', async () => {
+  // These are byte-custody checks, not JavaScript object comparisons. Native
+  // Buffer equality checks every byte and length without enumerating millions
+  // of numeric properties under coverage instrumentation.
+  const expectIdenticalBytes = (actual, expected, label) => {
+    expect(actual.length, `${label}: byte length`).toBe(expected.length);
+    expect(actual.equals(expected), `${label}: exact bytes`).toBe(true);
+  };
   const output = path.join(temporary, 'coop.glb');
   // Run the original CLI against a disposable copy of its exact historical input.
   // The installed runtime candidate remains independent and must never be overwritten.
@@ -276,17 +283,19 @@ test('candidate CLI is deterministic, within budgets, and leaves both input file
       cwd: cliRoot,
     }
   );
-  expect(await readFile(path.join(cliRoot, INPUT))).toEqual(originalBytes);
-  expect(await readFile(INPUT)).toEqual(runtimeBefore);
-  expect(await readFile(output)).toEqual(Buffer.from(candidateBytes));
+  expectIdenticalBytes(await readFile(path.join(cliRoot, INPUT)), originalBytes, 'CLI input');
+  expectIdenticalBytes(await readFile(INPUT), runtimeBefore, 'installed runtime');
+  expectIdenticalBytes(await readFile(output), Buffer.from(candidateBytes), 'CLI output');
   expect(candidateBytes.length).toBe(335992);
   expect(candidateBytes.length).toBeLessThanOrEqual(437000);
   expect(primitive(candidate).getIndices().getCount()).toBe(6049 * 3);
   expect(primitive(candidate).getIndices().getCount()).toBeLessThanOrEqual(25200);
-  expect(await readFile('src/test/fixtures/farm-model-reconciliation/coop.baseline.glb')).toEqual(
-    originalBytes
+  expectIdenticalBytes(
+    await readFile('src/test/fixtures/farm-model-reconciliation/coop.baseline.glb'),
+    originalBytes,
+    'baseline fixture'
   );
-  expect(await readFile(SOURCE)).toEqual(sourceBytes);
+  expectIdenticalBytes(await readFile(SOURCE), sourceBytes, 'provider source');
 });
 
 test('rejects both direct and symlink writes into runtime/source asset trees', async () => {
