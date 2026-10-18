@@ -33,6 +33,10 @@ export interface PerfDebugSettings {
   disablePunctualLights: boolean;
   /** Same-load reference control for night fill, neutral hall lamps and forecourt light. */
   disableLightingPolish: boolean;
+  /** Same-page hall illumination reference, keeping source identities/counts.
+   * Working if old bank uniforms restore without changing quality or gameplay.
+   */
+  disableInteriorLightBanks: boolean;
   /**
    * Switch off the analytic surface treatment in `utils/worldSurface`.
    *
@@ -194,6 +198,7 @@ const DEFAULT_PERF_DEBUG: PerfDebugSettings = {
   disableTerrain: false,
   disablePunctualLights: false,
   disableLightingPolish: false,
+  disableInteriorLightBanks: false,
   disableSurfaceTreatment: false,
   disableAmbientOcclusion: false,
   disableBloom: false,

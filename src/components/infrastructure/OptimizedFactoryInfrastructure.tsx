@@ -1678,27 +1678,29 @@ function useFixtureLensExposure(): void {
   }, [composerActive]);
 }
 
+/** Actual fitting geometry, shared with pipe-clearance verification.
+ * Working if every physical housing/lens clears the live spouting assembly.
+ */
+export function buildCeilingFixtures(): {
+  housings: readonly BoxInstance[];
+  emitters: readonly BoxInstance[];
+} {
+  const housings = FIXTURE_GRID_X.flatMap((x) =>
+    FIXTURE_GRID_Z.map((z) => ({
+      position: [x, SITE_LAYOUT.factory.bounds.maxY - 3.8, z] as const,
+      scale: [6.2, 0.18, 0.78] as const,
+    }))
+  );
+  const emitters = housings.map(({ position }) => ({
+    position: [position[0], position[1] - 0.11, position[2]] as const,
+    scale: [5.55, 0.045, 0.48] as const,
+  }));
+  return { housings, emitters };
+}
+
 function CeilingLighting() {
   useFixtureLensExposure();
-
-  const housings = useMemo<readonly BoxInstance[]>(
-    () =>
-      FIXTURE_GRID_X.flatMap((x) =>
-        FIXTURE_GRID_Z.map((z) => ({
-          position: [x, SITE_LAYOUT.factory.bounds.maxY - 3.8, z] as const,
-          scale: [6.2, 0.18, 0.78] as const,
-        }))
-      ),
-    []
-  );
-  const emitters = useMemo<readonly BoxInstance[]>(
-    () =>
-      housings.map(({ position }) => ({
-        position: [position[0], position[1] - 0.11, position[2]] as const,
-        scale: [5.55, 0.045, 0.48] as const,
-      })),
-    [housings]
-  );
+  const { housings, emitters } = useMemo(buildCeilingFixtures, []);
 
   return (
     <group name="factory-ceiling-fixtures">

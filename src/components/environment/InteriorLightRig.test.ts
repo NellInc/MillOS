@@ -6,6 +6,8 @@ import {
   FIXTURE_GRID_Z,
   REDUCED_ZONE_LIGHT_POSITIONS,
   ZONE_LIGHT_DISTANCE,
+  ZONE_LIGHT_DECAY,
+  FULL_BANK_GAIN,
   ZONE_LIGHT_HEIGHT,
   ZONE_LIGHT_INTENSITY,
   ZONE_LIGHT_POSITIONS,
@@ -21,9 +23,14 @@ import { type MachineData, MachineType } from '../../types';
 import { COMMUNITY_ROSTER } from '../../simulation/communityLife';
 import { MILL_CONTROL_FACE } from '../machines/machineFinishGeometry';
 
-/** Three's `getDistanceAttenuation` for `decay` 2 with a cutoff distance. */
-function pointLightIrradiance(intensity: number, distance: number, cutoff: number): number {
-  const falloff = intensity / Math.max(distance * distance, 0.01);
+/** Three's actual distance window, parameterised by the shipped bank profile. */
+function pointLightIrradiance(
+  intensity: number,
+  distance: number,
+  cutoff: number,
+  decay = ZONE_LIGHT_DECAY
+): number {
+  const falloff = intensity / Math.max(distance ** decay, 0.01);
   const window = Math.pow(Math.max(0, Math.min(1, 1 - Math.pow(distance / cutoff, 4))), 2);
   return falloff * window;
 }
@@ -39,11 +46,15 @@ describe('zone lights', () => {
     for (let i = 1; i <= 100; i++) {
       const intensity = zoneWorkLightIntensity(i / 100);
       expect(intensity).toBeLessThanOrEqual(previous);
-      expect(previous - intensity).toBeLessThan(4);
+      expect(previous - intensity).toBeLessThan(ZONE_LIGHT_INTENSITY * 0.011);
       previous = intensity;
     }
-    expect(zoneWorkLightIntensity(sampleAtmosphere(0, 12, 'clear').daylight)).toBe(380);
-    expect(zoneWorkLightIntensity(sampleAtmosphere(0, 22, 'clear').daylight)).toBeCloseTo(627);
+    expect(zoneWorkLightIntensity(sampleAtmosphere(0, 12, 'clear').daylight)).toBe(
+      ZONE_LIGHT_INTENSITY
+    );
+    expect(zoneWorkLightIntensity(sampleAtmosphere(0, 22, 'clear').daylight)).toBeCloseTo(
+      ZONE_LIGHT_INTENSITY * 1.65
+    );
   });
 
   it('places four lights below real ceiling fixtures and no more', () => {
@@ -77,7 +88,11 @@ describe('zone lights', () => {
         const distance = direction.length();
         return (
           sum +
-          pointLightIrradiance(ZONE_LIGHT_INTENSITY, distance, ZONE_LIGHT_DISTANCE) *
+          pointLightIrradiance(
+            ZONE_LIGHT_INTENSITY * (lights === ZONE_LIGHT_POSITIONS ? FULL_BANK_GAIN : 1),
+            distance,
+            ZONE_LIGHT_DISTANCE
+          ) *
             Math.max(0, direction.normalize().dot(normal))
         );
       }, 0);
@@ -103,7 +118,42 @@ describe('zone lights', () => {
     expect(FIXTURE_GRID_Z[2]).toBe(SITE_LAYOUT.factory.zones.milling);
   });
 
-  it('keeps point sources away from every actual process pipe', () => {
+  it('lights the actual maintenance-route briefing and packing duty fronts', () => {
+    const direct = (point: THREE.Vector3, rotation: number, quality: 'medium' | 'high') => {
+      const normal = new THREE.Vector3(Math.sin(rotation), 0, Math.cos(rotation));
+      return zoneLightPositions(quality).reduce((sum, position) => {
+        const delta = new THREE.Vector3(...position).sub(point);
+        return (
+          sum +
+          pointLightIrradiance(
+            zoneWorkLightIntensity(1, quality),
+            delta.length(),
+            ZONE_LIGHT_DISTANCE
+          ) *
+            Math.max(0, delta.normalize().dot(normal))
+        );
+      }, 0);
+    };
+    for (const quality of ['medium', 'high'] as const) {
+      // Actual retained CE night view, ordinary safe-route root and heading.
+      expect(
+        direct(new THREE.Vector3(-32.25, 1.6, 29.255603277777357), Math.PI, quality)
+      ).toBeGreaterThan(0.06);
+      for (const id of ['mill-packer', 'mill-quality']) {
+        const duty = COMMUNITY_ROSTER.find((person) => person.id === id)!.stops[0];
+        expect(
+          direct(
+            new THREE.Vector3(...duty.position).add(new THREE.Vector3(0, 1.6, 0)),
+            duty.rotation,
+            quality
+          ),
+          id
+        ).toBeGreaterThan(0.3);
+      }
+    }
+  });
+
+  it('bounds light energy on every actual process pipe', () => {
     const sun = sampleCelestial(sampleAtmosphere(0, 12, 'clear')).sunLightIntensity;
     const groups = [
       [SITE_LAYOUT.machines.silos, MachineType.SILO, SITE_LAYOUT.machineDimensions.silo],
@@ -122,7 +172,7 @@ describe('zone lights', () => {
     expect(routes).toHaveLength(11);
     let peak = { irradiance: 0, family: '', point: [] as number[], light: [] as readonly number[] };
     for (const route of routes) {
-      for (const point of route.curve.getPoints(160)) {
+      for (const point of route.curve.getSpacedPoints(1600)) {
         for (const light of [...ZONE_LIGHT_POSITIONS, ...REDUCED_ZONE_LIGHT_POSITIONS]) {
           const distance = point.distanceTo(new THREE.Vector3(...light)) - SPOUT_PIPE_RADIUS;
           const irradiance = pointLightIrradiance(
@@ -170,13 +220,14 @@ describe('zone lights', () => {
 function floorIrradiance(
   lights: readonly (readonly [number, number, number])[],
   z: number,
-  x = 0
+  x = 0,
+  gain = lights === ZONE_LIGHT_POSITIONS ? FULL_BANK_GAIN : 1
 ): number {
   return lights.reduce(
     (total, light) =>
       total +
       pointLightIrradiance(
-        ZONE_LIGHT_INTENSITY,
+        ZONE_LIGHT_INTENSITY * gain,
         Math.hypot(x - light[0], ZONE_LIGHT_HEIGHT, z - light[2]),
         ZONE_LIGHT_DISTANCE
       ),
@@ -193,9 +244,7 @@ describe('zone light count by quality tier', () => {
     expect(key).toBeDefined();
     for (const quality of ['low', 'medium', 'high', 'ultra'] as const) {
       const names = zoneLightPositions(quality).map((position) =>
-        key!.replace(/\$\{position\[(\d)\]\}/g, (_token, axis: string) =>
-          String(position[Number(axis)])
-        )
+        key!.replace('${index}', String(zoneLightPositions(quality).indexOf(position)))
       );
       expect(new Set(names).size, `${quality}: ${names.join(', ')}`).toBe(names.length);
     }
@@ -223,12 +272,25 @@ describe('zone light count by quality tier', () => {
     }
   });
 
-  it('keeps intensity and cutoff untouched, so the trade is only the count', () => {
-    // Deliberately not retuned. A brighter pair would sit against the hotspot
-    // cap the irradiance test above asserts, and the outcome of a retune is not
-    // something the arithmetic here can check.
-    const full = pointLightIrradiance(ZONE_LIGHT_INTENSITY, ZONE_LIGHT_HEIGHT, ZONE_LIGHT_DISTANCE);
-    expect(floorIrradiance(REDUCED_ZONE_LIGHT_POSITIONS, -14)).toBeGreaterThan(full * 0.8);
+  it('retains the old under-fixture radiance with bounded broad banks', () => {
+    expect(ZONE_LIGHT_DECAY).toBe(0);
+    expect(ZONE_LIGHT_DISTANCE).toBe(44);
+    const old = pointLightIrradiance(380, ZONE_LIGHT_HEIGHT, 44, 2);
+    expect(pointLightIrradiance(ZONE_LIGHT_INTENSITY, ZONE_LIGHT_HEIGHT, 44)).toBeCloseTo(old, 10);
+    expect(floorIrradiance(REDUCED_ZONE_LIGHT_POSITIONS, -14)).toBeGreaterThan(old * 0.8);
+  });
+
+  it('keeps the illumination reference exact and the same source counts on every tier', () => {
+    for (const quality of ['low', 'medium', 'high', 'ultra'] as const) {
+      const reference = zoneLightPositions(quality, true);
+      expect(reference).toHaveLength(zoneLightPositions(quality).length);
+      expect([...new Set(reference.map((position) => position[2]))]).toEqual([-8, 30]);
+      expect(zoneWorkLightIntensity(1, quality, true)).toBe(380);
+      expect(zoneWorkLightIntensity(0, quality, true)).toBeCloseTo(627);
+      expect(zoneWorkLightIntensity(1, quality)).toBeCloseTo(
+        ZONE_LIGHT_INTENSITY * (quality === 'high' || quality === 'ultra' ? FULL_BANK_GAIN : 1)
+      );
+    }
   });
 
   it('preserves centre-line coverage while reducing outer-bay illumination', () => {
@@ -254,11 +316,15 @@ describe('zone light count by quality tier', () => {
   });
 });
 
-it('keeps exterior bulk storage outside the indoor fixture cutoff', () => {
+it('keeps every near silo wall outside the indoor fixture cutoff', () => {
   for (const {
     position: [x, , z],
   } of SITE_LAYOUT.machines.silos)
-    expect(floorIrradiance(ZONE_LIGHT_POSITIONS, z, x)).toBe(0);
+    for (const lights of [ZONE_LIGHT_POSITIONS, REDUCED_ZONE_LIGHT_POSITIONS]) {
+      expect(floorIrradiance(lights, z, x)).toBe(0);
+      for (const light of lights)
+        expect(Math.hypot(x - 6 - light[0], z - light[2])).toBeGreaterThan(ZONE_LIGHT_DISTANCE);
+    }
 });
 
 describe('floor pools', () => {

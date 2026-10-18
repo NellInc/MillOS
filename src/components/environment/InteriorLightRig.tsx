@@ -8,70 +8,54 @@ import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { useGraphicsStore, type GraphicsQuality } from '../../stores/graphicsStore';
 
 /**
- * Interior lighting.
+ * Fifteen real ceiling fittings and additive floor pools, supported by two
+ * broad banks on Low/Medium and four on High/Ultra. Counts stay fixed within
+ * a tier: changing a light uniform must never recompile every lit material.
  *
- * The building has fifteen ceiling fixtures. Every one of them was emissive
- * geometry and nothing else: a bright strip on the ceiling that put no light on
- * the floor, so the interior had no pools, no falloff between bays, and no
- * reason for the eye to read depth down the length of the hall.
- *
- * TWO PARTS, DELIBERATELY UNEQUAL:
- *
- * 1. FOUR real point lights, across the production hall. Four is a ceiling, not a
- *    budget guess. Three's forward renderer puts every point light in the
- *    uniform block of every lit material with no per-object culling, so light
- *    count is a per-fragment cost paid across the entire frame - including the
- *    exterior cameras where these contribute nothing at all. Fifteen would not
- *    hold the frame budget, and the four are placed on the work aisles so the
- *    falloff lands where the machinery is.
- *
- * 2. FIFTEEN additive floor pools, one per fixture, as a single InstancedMesh.
- *    This is what actually sells the fixture grid: the pools sit under all
- *    fifteen housings, including the x = +/-42 outer rows the point lights
- *    cannot reach, and they cost one draw call and no shader lights.
- *
- * The two are complementary. The point lights supply real falloff on geometry
- * and real shading direction; the pools supply the graphic read of a lit floor.
+ * The banks approximate the spread of long diffuse fluorescent fittings.
+ * Their radiance is bounded, with Three's smooth finite cutoff and ordinary
+ * surface-normal/specular response. They are deliberately not inverse-square
+ * bulbs: that concentrated energy on nearby process pipes while leaving the
+ * actual west-side people and packing workfronts unlit.
+ * Working if faces gain directional modelling, pipe highlights stay bounded,
+ * and no source, shadow map, exposure or ambient term is added.
  */
-
-/** Ceiling fixture grid, harvested from `OptimizedFactoryInfrastructure`. */
 export const FIXTURE_GRID_X = [-28, -14, 0, 14, 28] as const;
-/** The milling row sits over the machines, in front of the people tending them.
- * At the old z38 it lit their backs. The actual housings, lenses and floor pools
- * consume this same grid, so the move keeps physical fittings and light aligned.
- * Working if all three ordinary duty stations receive front-side light without
- * adding a source, lowering a fitting or changing the existing power/cutoff.
- */
-export const FIXTURE_GRID_Z = [-30, -8, SITE_LAYOUT.factory.zones.milling] as const;
-
-/** Height the four zone lights hang at, below the shared ceiling emitter plane. */
+/** Physical housings, lenses and all fifteen floor pools share this grid. */
+export const FIXTURE_GRID_Z = [-16, 22, SITE_LAYOUT.factory.zones.milling] as const;
 export const ZONE_LIGHT_HEIGHT = SITE_LAYOUT.factory.bounds.maxY - 4.5;
 
-/**
- * Intensity of one zone light.
- *
- * Three has used physical falloff since r155, so with `decay` 2 the irradiance
- * at the floor is `intensity / d^2` scaled by the cutoff window
- * `(1 - (d/distance)^4)^2`. At d = 17.5 and `distance` 44 that window is 0.951,
- * so 380 lands on about 1.18 directly under a fixture - a little over five
- * times the 0.22 ambient term, which is a readable pool rather than a hotspot.
- */
-export const ZONE_LIGHT_INTENSITY = 380;
+/** Match the old directly-below-fixture radiance at the unchanged floor height. */
+export const ZONE_LIGHT_INTENSITY = 380 / ZONE_LIGHT_HEIGHT ** 2;
+export const ZONE_LIGHT_DECAY = 0;
+/** Keep every actual outdoor silo surface beyond the source spheres. */
+export const ZONE_LIGHT_DISTANCE = 44;
+export const ZONE_LIGHT_COLOR = '#fff1db';
 
-/** Existing work lamps compensate gradually as daylight fades.
- * Working if night machinery gains warm modelling with the same two/four lamps,
- * while clear noon, source positions and all shadow budgets remain unchanged.
+const REFERENCE_GRID_Z = [-8, 30] as const;
+const REFERENCE_LIGHT_INTENSITY = 380;
+export const FULL_BANK_GAIN = 0.73;
+
+/** Existing continuous daylight compensation; invalid input stays at noon.
+ * Four distributed sources share the bank's energy, retaining the established
+ * reduced/full centre-line ordering instead of doubling broad overlapping fill.
+ * The reference is a same-page illumination control, never a quality override.
+ * Working if the night fade stays smooth and switching the reference restores
+ * exactly the old positions, intensity and decay without remounting any lamp.
  */
-export function zoneWorkLightIntensity(daylight: number): number {
+export function zoneWorkLightIntensity(
+  daylight: number,
+  quality: GraphicsQuality = 'medium',
+  referenceBanks = false
+): number {
   const t = Number.isFinite(daylight) ? THREE.MathUtils.clamp(daylight, 0, 1) : 1;
   const darkness = 1 - t * t * (3 - 2 * t);
-  return ZONE_LIGHT_INTENSITY * (1 + 0.65 * darkness);
+  const full = quality === 'high' || quality === 'ultra';
+  const base = referenceBanks
+    ? REFERENCE_LIGHT_INTENSITY
+    : ZONE_LIGHT_INTENSITY * (full ? FULL_BANK_GAIN : 1);
+  return base * (1 + 0.65 * darkness);
 }
-
-/** Cutoff radius. Beyond it the light contributes exactly zero. */
-export const ZONE_LIGHT_DISTANCE = 44;
-
-export const ZONE_LIGHT_COLOR = '#fff1db';
 
 /** Floor pool footprint. The housings are 6.2 x 0.78; light spreads. */
 export const FLOOR_POOL_SCALE = [13, 6.5] as const;
@@ -89,68 +73,26 @@ const POOL_TEXTURE_HEIGHT = 32;
  */
 const POOL_LENGTHWISE_FALLOFF = 0.62;
 
-/**
- * Four lights across two ceiling banks. The milling bank stays ten metres
- * clear of the high pneumatic risers and lights the real operator workfaces.
- * Working if every zone is lit and no live process pipe receives a hotspot.
- */
+/** Sources sit below the two working banks, clear of the physical fittings. */
 export const ZONE_LIGHT_POSITIONS: readonly (readonly [number, number, number])[] =
-  FIXTURE_GRID_Z.slice(1).flatMap((z) => [-14, 14].map((x) => [x, ZONE_LIGHT_HEIGHT, z] as const));
-
-/**
- * The two lights `low` and `medium` keep, one at each bank's centre.
- *
- * The historical cost analysis below predates `punctualLightCulling.ts`.
- * Standard/Physical materials now skip the BRDF at exactly zero incident
- * radiance. Light counts, cutoffs and the authored two/four-source tier split
- * remain unchanged; there is no camera-driven light removal or recompilation.
- *
- * WHY A POINT LIGHT IS AN EXTERIOR COST AT ALL. `NUM_POINT_LIGHTS` is a program
- * define and three's forward renderer has no per-object light culling, so
- * `lights_fragment_begin` unrolls a full `RE_Direct_Physical` - GGX specular
- * plus Lambert diffuse - for every one of these on every fragment of every lit
- * material in the frame. There is no early-out around it either: the loop tests
- * `directLight.visible` only to gate a shadow lookup, never the BRDF. So on the
- * `yard`, `farm` and `overview` cameras, where the nearest of these hangs
- * inside a building whose 44-unit cutoff reaches nothing on screen, each light
- * is a per-pixel evaluation of a term that is identically zero. The scene is
- * fill-bound - the harness measures 4.0 ms for the terrain shader against zero
- * draw calls, and half the pixel count buys back 36% of the frame - so this is
- * exactly the kind of cost that shows up in the average.
- *
- * WHY NOT SWITCH THEM OFF WHEN THE CAMERA IS OUTSIDE. Because it would work,
- * and then cost more than it saved. `projectObject` collects a light only when
- * `object.layers.test(camera.layers)` passes and only when `object.visible`, so
- * either switch really does drop `numPointLights` - and `numPointLights` is in
- * the program cache key, so the old program falls to refcount zero and
- * `releaseProgram` deletes it. Every walk in or out of a doorway would then
- * recompile every material in the scene. `intensity = 0` avoids the recompile
- * and saves nothing: the light stays in the uniform block and the BRDF still
- * runs. The only recompile-safe form is a count that moves with the quality
- * tier, which already rebuilds programs at the low/medium boundary because that
- * is where `castShadow` on the sun - and therefore `NUM_DIR_LIGHT_SHADOWS` -
- * changes.
- *
- * WHAT IS TRADED. Intensity and cutoff are identical between tiers, so the
- * floor directly under a fixture is unchanged and the arithmetic below is
- * checkable without a screenshot. The two central sources retain about 80-90%
- * of the full set's centre-line irradiance, with a larger loss at the outer mills.
- * That is a real dimming on `medium`, against ambient 0.22, hemisphere 0.22 and the
- * IBL - and still far more interior modelling than the zero point lights this
- * building had before the fixtures were lit at all. `high` and `ultra` keep all
- * four. The fifteen floor pools are untouched on every tier, and they are what
- * carries the graphic read of the fixture grid.
- */
+  FIXTURE_GRID_Z.slice(0, 2).flatMap((z) =>
+    [-14, 14].map((x) => [x, ZONE_LIGHT_HEIGHT, z] as const)
+  );
 export const REDUCED_ZONE_LIGHT_POSITIONS: readonly (readonly [number, number, number])[] =
-  FIXTURE_GRID_Z.slice(1).map((z) => [0, ZONE_LIGHT_HEIGHT, z] as const);
+  FIXTURE_GRID_Z.slice(0, 2).map((z) => [0, ZONE_LIGHT_HEIGHT, z] as const);
+const REFERENCE_FULL_POSITIONS: readonly (readonly [number, number, number])[] =
+  REFERENCE_GRID_Z.flatMap((z) => [-14, 14].map((x) => [x, ZONE_LIGHT_HEIGHT, z] as const));
+const REFERENCE_REDUCED_POSITIONS: readonly (readonly [number, number, number])[] =
+  REFERENCE_GRID_Z.map((z) => [0, ZONE_LIGHT_HEIGHT, z] as const);
 
-/** Zone lights for a quality tier. Full set above `medium`, reduced at or below. */
+/** Same two/four-source split on both arms; no camera-driven light removal. */
 export function zoneLightPositions(
-  quality: GraphicsQuality
+  quality: GraphicsQuality,
+  referenceBanks = false
 ): readonly (readonly [number, number, number])[] {
-  return quality === 'high' || quality === 'ultra'
-    ? ZONE_LIGHT_POSITIONS
-    : REDUCED_ZONE_LIGHT_POSITIONS;
+  const full = quality === 'high' || quality === 'ultra';
+  if (referenceBanks) return full ? REFERENCE_FULL_POSITIONS : REFERENCE_REDUCED_POSITIONS;
+  return full ? ZONE_LIGHT_POSITIONS : REDUCED_ZONE_LIGHT_POSITIONS;
 }
 
 /** One entry per ceiling fixture. */
@@ -198,7 +140,7 @@ const _poolQuaternion = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Mat
 const _poolScale = new THREE.Vector3(FLOOR_POOL_SCALE[0], FLOOR_POOL_SCALE[1], 1);
 
 export function InteriorLightRig() {
-  // Subscribed narrowly to the tier and nothing else. Anything that adaptive
+  // Source count follows only the tier. Anything that adaptive
   // quality mutates inside a tier would re-run this selector without changing
   // the light count, and anything that changes the count more often than the
   // tier does is the recompile storm the note above exists to avoid.
@@ -206,15 +148,19 @@ export function InteriorLightRig() {
   const referenceLighting = useGraphicsStore(
     (state) => state.graphics.perfDebug.disableLightingPolish
   );
-  const zoneLights = zoneLightPositions(quality);
+  const referenceBanks = useGraphicsStore(
+    (state) => state.graphics.perfDebug.disableInteriorLightBanks
+  );
+  const zoneLights = zoneLightPositions(quality, referenceBanks);
   const poolsRef = useRef<THREE.InstancedMesh>(null);
   const rigRef = useRef<THREE.Group>(null);
   const atmosphere = useMemo(() => createAtmosphereState(), []);
   useFrame(() => {
     const { gameDay, gameTime, weather } = useGameSimulationStore.getState();
-    const intensity = referenceLighting
-      ? ZONE_LIGHT_INTENSITY
-      : zoneWorkLightIntensity(sampleAtmosphere(gameDay, gameTime, weather, atmosphere).daylight);
+    const daylight = referenceLighting
+      ? 1
+      : sampleAtmosphere(gameDay, gameTime, weather, atmosphere).daylight;
+    const intensity = zoneWorkLightIntensity(daylight, quality, referenceBanks);
     for (const child of rigRef.current?.children ?? []) {
       if (child instanceof THREE.PointLight) child.intensity = intensity;
     }
@@ -266,15 +212,15 @@ export function InteriorLightRig() {
 
   return (
     <group ref={rigRef} name="interior-light-rig">
-      {zoneLights.map((position) => (
+      {zoneLights.map((position, index) => (
         <pointLight
-          key={`zone-light-${position[0]}-${position[2]}`}
-          name={`interior-zone-light-${position[0]}-${position[2]}`}
+          key={`zone-light-${index}`}
+          name={`interior-zone-light-${index}`}
           position={position as unknown as [number, number, number]}
           color={referenceLighting ? '#ffe8b0' : ZONE_LIGHT_COLOR}
-          intensity={ZONE_LIGHT_INTENSITY}
+          intensity={zoneWorkLightIntensity(1, quality, referenceBanks)}
           distance={ZONE_LIGHT_DISTANCE}
-          decay={2}
+          decay={referenceBanks ? 2 : ZONE_LIGHT_DECAY}
           castShadow={false}
         />
       ))}
