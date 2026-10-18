@@ -68,6 +68,7 @@ const destinations: SurplusDestination[] = ['members', 'reserve', 'community'];
 
 export const WorkplaceLab: React.FC = () => {
   const labRef = useRef<HTMLElement>(null);
+  const objectionTargets = useRef(new Map<string, HTMLDivElement>());
   const store = useWorkplaceControls();
   const state = store.workplace;
   const [section, setSection] = useState<(typeof sections)[number]>(
@@ -321,6 +322,14 @@ export const WorkplaceLab: React.FC = () => {
       {section === 'Handoff' && (
         <WorkplaceImprovementPanel
           onSeasonStart={() => setSection('Shift')}
+          onReviewObjection={(id) => {
+            setSection('Agreement / Voices');
+            requestAnimationFrame(() => {
+              const target = objectionTargets.current.get(id);
+              target?.scrollIntoView?.({ block: 'start', behavior: 'instant' });
+              target?.focus({ preventScroll: true });
+            });
+          }}
           profile={profile}
           setProfile={setProfile}
           mode={mode}
@@ -987,6 +996,24 @@ export const WorkplaceLab: React.FC = () => {
           ))}
           <div className="space-y-2 border-t border-slate-700 pt-3">
             <h4 className="font-semibold text-white">Authored objections</h4>
+            {state.improvement && (
+              <button
+                type="button"
+                className={`${buttonClass} min-h-11`}
+                onClick={() => {
+                  setSection('Handoff');
+                  requestAnimationFrame(() => {
+                    const target = labRef.current?.querySelector<HTMLElement>(
+                      '[aria-label="Handoff experiment"]'
+                    );
+                    target?.scrollIntoView?.({ block: 'start', behavior: 'instant' });
+                    target?.focus({ preventScroll: true });
+                  });
+                }}
+              >
+                Return to handoff controls
+              </button>
+            )}
             <label className="block">
               Objection author
               <select
@@ -1025,7 +1052,17 @@ export const WorkplaceLab: React.FC = () => {
             </button>
             {state.objections.length === 0 && <p>No authored objections recorded.</p>}
             {state.objections.map((objection) => (
-              <div key={objection.id} className="space-y-2">
+              <div
+                key={objection.id}
+                ref={(node) => {
+                  if (node) objectionTargets.current.set(objection.id, node);
+                  else objectionTargets.current.delete(objection.id);
+                }}
+                role="group"
+                aria-label={`Objection record: ${state.members.find((member) => member.id === objection.actorId)?.role ?? 'Adviser'} (${objection.kind})`}
+                tabIndex={-1}
+                className="space-y-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+              >
                 <p>
                   {state.members.find((member) => member.id === objection.actorId)?.role ??
                     'AI mind'}

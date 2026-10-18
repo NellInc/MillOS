@@ -41,6 +41,7 @@ export function WorkplaceImprovementPanel({
   busy,
   report,
   onSeasonStart,
+  onReviewObjection,
 }: {
   profile: WorkplaceProfile;
   setProfile?: (value: WorkplaceProfile) => void;
@@ -50,12 +51,15 @@ export function WorkplaceImprovementPanel({
   busy: boolean;
   report: (result: WorkplaceTransitionResult) => void;
   onSeasonStart?: () => void;
+  onReviewObjection?: (id: string) => void;
 }) {
   const store = useWorkplaceControls();
   const s = store.workplace;
   const i = s.improvement;
   const summary = improvementSummary(s);
   const learning = improvementLearningReview(s);
+  const obligations = improvementObligations(s);
+  const openObjections = s.objections.filter((objection) => objection.status === 'open');
   const [selectedActor, setActor] = useState('quality');
   const actor =
     store.participationMode === 'separate-turns' ? (store.turn?.actorId ?? '') : selectedActor;
@@ -173,6 +177,35 @@ export function WorkplaceImprovementPanel({
           extra duty or lost pay is required.
         </p>
       </div>
+      {openObjections.length > 0 && (
+        <section aria-label="Handoff remedies" className="space-y-3 border-b border-slate-700 pb-4">
+          <h5 className="font-semibold text-white">Whose concern needs a remedy?</h5>
+          <p className="text-slate-300">
+            Review each concern with its raiser. Opening a record changes no role, decision or
+            permission. Only that raiser can confirm resolution.
+          </p>
+          {openObjections.map((objection) => {
+            const role =
+              s.members.find((member) => member.id === objection.actorId)?.role ?? 'Adviser';
+            return (
+              <div key={objection.id} className="space-y-2">
+                <p className="text-amber-100">
+                  {role}: {objection.statement} ({objection.kind}, open)
+                </p>
+                {onReviewObjection && (
+                  <button
+                    type="button"
+                    className={button}
+                    onClick={() => onReviewObjection(objection.id)}
+                  >
+                    Review remedy: {role} ({objection.kind})
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </section>
+      )}
       {deliberating && <HandoffEpisodes state={s} report={report} />}
       {deliberating && (
         <div className="space-y-3">
@@ -527,7 +560,7 @@ export function WorkplaceImprovementPanel({
               Customer work, earned pay and individual remedies remain intact.”
             </p>
           )}
-          {improvementObligations(s).map((reason) => (
+          {obligations.map((reason) => (
             <p key={reason} className="text-amber-100">
               {reason}
             </p>
@@ -560,7 +593,7 @@ export function WorkplaceImprovementPanel({
             <button
               type="button"
               className={button}
-              disabled={!winner || !i.reviewAcknowledged || !facilitator}
+              disabled={!winner || !i.reviewAcknowledged || !facilitator || obligations.length > 0}
               onClick={() => perform(store.finishImprovementReview(s.revision))}
             >
               Finalise handoff review

@@ -543,3 +543,32 @@ it('freezes and resets the quality hypothesis, preserves original results and su
   expect(screen.queryByLabelText('Matched packing results')).not.toBeInTheDocument();
   expect(screen.getByRole('status')).toHaveTextContent('comparison is stale');
 });
+
+it('holds final review while a real raiser-owned objection remains, retaining each review ballot', () => {
+  const get = () => useWorkplaceStore.getState();
+  get().beginImprovement('cooperative', get().workplace.revision, undefined, 'workshop');
+  get().proposeImprovement('briefing', 'packing');
+  get().acknowledgeImprovement();
+  for (const member of get().workplace.members) {
+    get().understand(member.id);
+    get().vote(member.id, true);
+  }
+  expect(get().activate(get().workplace.revision).changed).toBe(true);
+  expect(get().object('quality', 'privacy').changed).toBe(true);
+  expect(get().workplace.phase).toBe('review');
+  get().acknowledgeImprovementReview();
+  for (const member of get().workplace.members) get().voteImprovementReview(member.id, 'stop');
+  mount();
+  const finish = screen.getByRole('button', { name: 'Finalise handoff review' });
+  expect(finish).toBeDisabled();
+  expect(screen.getByRole('region', { name: 'Handoff remedies' })).toHaveTextContent('Quality');
+  const votes = { ...get().workplace.improvement!.ballots };
+  const objection = get().workplace.objections[0];
+  act(() => get().resolveObjection(objection.id, 'quality'));
+  expect(screen.queryByRole('region', { name: 'Handoff remedies' })).not.toBeInTheDocument();
+  expect(get().workplace.improvement!.ballots).toEqual(votes);
+  expect(finish).toBeEnabled();
+  click('Finalise handoff review');
+  expect(get().workplace.improvement!.verdict).toBe('stop');
+  expect(get().workplace.objections[0].status).toBe('resolved');
+});

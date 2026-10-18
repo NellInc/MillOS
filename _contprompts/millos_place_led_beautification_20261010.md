@@ -6170,3 +6170,50 @@ Protected primary HEAD/NULstatus/binarydiff, seven canonical files, ten unrelate
 Nell's latest request to get completed work live establishes the existing NellInc/MillOS main/Pages destination. BX delivered the earlier artwork and BT/BW cooperative foundations. This bounded release includes the completed BY handoff debrief, BZ role-led evidence inspection and CA quality-boundary experiment. It supersedes their local-only checkpoint wording for this exact reviewed scope. Future refinement remains local/muted until its required acceptance is complete. Working if a normal PR passes all original CI gates, the exact accepted head merges, Pages preserves archived releases, and actual served identity/modules match the reviewed source.
 
 Finite delivery list: (1) selective CA commit; (2) reconcile current remote main and outgoing three-pass diff; (3) secret and100MB checks on actual outgoing tree/history; (4) push named owned branch and create/attach PR; (5) wait for all five CI jobs with no bypass; (6) diagnose any failure against this scope; (7) merge only accepted head; (8) wait for main CI and standard Pages jobs; (9) verify served build identity, changed modules, raster hashes and archived versions; (10) record truthful delivery status; (11) resume the next finite cooperative-learning refinement. Pacing stays separately OPEN and device checks DEFERRED.
+
+
+## CC. Carry an unresolved concern to its raiser's real controls, 2026-10-18
+
+While the completed BY/BZ/CA release runs through unchanged CI, continue LOCAL/MUTED implementation on a distinct branch from reviewedb3aa4c97. Prior release assembly retained independently. Observed gameplay gap: Handoff blocks review on unresolved objections using a generic message, yet supplies no path to the actual raiser-owned remedy record in Agreement / Voices. Finalise is visually enabled when a winner exists despite the domain rejecting owed obligations. Repair that dead-end without adding a resolution shortcut or changing authority.
+
+Allowed: WorkplaceImprovementPanel.tsx, WorkplaceLab.tsx, their two existing tests and this programme. Preserve all domain/store/role-token/schema/plant/clock/graphics code. No private explanation, score, free-text collection or new dependency. Working if an unresolved concern opens its exact existing record with keyboard focus, ownership remains untouched, returning restores Handoff review, and finalisation stays disabled while current obligations remain.
+
+Detailed finite task list:
+1. Retain the release's immutable head/assembly while CI runs; no new edits enter its PR.
+2. Pin canonical state/authority/renderer files, primary dirty work and unrelated images.
+3. Verify both real UI modules remain reachable and read their parent/consumer contracts.
+4. Run the existing two UI suites before edits, record pass/fail names and reproduce the missing remedy route.
+5. Show only current public open objections in Handoff, with raiser, kind and authored statement.
+6. Explain that navigation changes no role, ballot, remedy or execution permission.
+7. Link each concern to its exact existing Agreement / Voices record through a narrow parent callback.
+8. Keep the optional callback compatible with the standalone panel's existing consumers.
+9. Focus and scroll the target record after navigation; keep44px route targets and visible keyboard focus.
+10. Preserve original resolver selection and require the original raiser's deliberate confirmation.
+11. Keep facilitated turn ownership/token checks, pilot holds and domain validation intact.
+12. Provide a direct return to the existing Handoff review, with meaningful focus restoration.
+13. Do not choose a resolving author, start a participant turn or manufacture a remedy automatically.
+14. Derive the same existing obligations once and disable Finalise while any remain.
+15. Preserve review votes and allow discussion while blocked; do not silently discard a disagreement.
+16. Hide resolved concerns from the open-concern list while retaining their existing audit record.
+17. Test actual public object/resolve transitions and route callbacks with unchanged stock, clock and agreement identity during navigation.
+18. Test separate turns cannot resolve another role's concern; opening it supplies no role authority.
+19. Test resolved return, pending obligations and actual finalisation path without mocking the domain.
+20. Run affected tests, typecheck/lint/format/depth/shaders and available design detection.
+21. Build exact source under the capture lock, retain170MiB and fresh bundle/reachability/community gates.
+22. Exercise actual public Handoff activation, authored objection, review, route and return on native Metal, muted, no actor/inventory override.
+23. Inspect desktop/mobile day/dusk/night blocked and resolved states, preserving original readiness and Medium guards.
+24. Record source/runtime/visual/performance evidence separately; retain failures and close owned resources.
+25. Selectively commit the completed local pass; keep player/device DEFERRED, pacing OPEN and repeating programme ACTIVE.
+
+Pre-mortem: a route could silently impersonate the raiser; focus could land on a removed tab or wrong objection; button disabling could disagree with current obligations. Verify navigation purity, target identity and the unchanged domain's real transition results. No automatic remedy or new contract is introduced.
+
+
+CC finite acceptance complete:25planned items delivered, release scope isolated. Baseline46passed/0failed; missing exact remedy route reproduced red(1failed/29passed); final49passed/0failed(+3). Existing-suite cases exercise two distinct real concerns with exact target focus, blank resolver and unchanged agreement/stock/clock, current separate-turn token/owner refusal and subsequent deliberate Quality resolution, plus actual obligation-blocked review with retained ballots and successful finalisation after raiser resolution. No domain/store/schema/authority code changed.
+
+Required typecheck, lint, formatting, depth91active/12relationships, shaders37families/41keys, production build, bundle, fresh reachability and inhabited-world gates pass. Exact build431files178129772bytes,169.88MiB under unchanged170MiB cap, Vite13.03s. Bundled design detector exit2 retained one warning at unchanged WorkplaceLab selection classes: it treats selection:bg-cyan-800 as the element background alongside text-slate-200. The same existing selector explicitly sets selection:text-white; underlying element background remains slate950. Triaged against exact unchanged source, compiled utility order and native renders; no bulk style change or detector-green claim.
+
+All24native frames accepted on actual sandboxed out-of-process Apple Metal at12:00/18:30/22:00, desktop1600x1000/mobile390x844. Original strict Medium/readiness/world/people/texture/page/request/audio guards unchanged. Root authored and personally self-reviewed all24frames through12lossless UI sheets plus the full desktop context. Blocked concern, original record, unchanged returned votes and resolved finalisation are readable/reachable with ordinary scrolling and no horizontal overflow. No production correction or extra reassurance round needed.
+
+Real public controls begin and approve the paid briefing, activate, pause, raise Quality's privacy objection, settle into review, record current stop ballots, route to exact record and return. Navigation keeps direct clock and public workplace/plant/campaign/logistics facts exact. Only the deliberate existing original-raiser confirmation resolves the concern, preserving members, pay, stock, clock and review votes; actual Finalise then records stop. Separate-turn non-impersonation also checked in unit UI. No actor/inventory injection, automatic resolver/turn, fabricated receipt or consent. Audio context not-created/0nodes throughout, process additionally muted. All owned browsers/previews/locks closed normally.
+
+Primary HEAD/NULstatus/binarydiff, seven protected canonical files, ten unrelated images and exact source/compiled pins unchanged before this note; documentation pinned separately afterward. CC remains a selective LOCAL pass while CB publication continues for the earlier three-pass candidate. Repeating programme ACTIVE; physical player/device/manual acceptance DEFERRED, pacing/adaptive quality separately OPEN with raw earlier failures and no waiver.
