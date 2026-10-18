@@ -5,35 +5,128 @@ import { useDracoGLTF } from '../../utils/dracoLoader';
 import { GENERATED_ASSET_PATHS } from '../../utils/modelLoader';
 import { EXTERIOR_LAMP_LEVEL } from '../exterior/ExteriorLighting';
 
-/**
- * `night` is the live exterior dimmer, so dusk and dawn
- * write one float instead of re-cloning the model and all of its materials.
- */
+/** Default-one, same-program visual control for the small office only. */
+export const OFFICE_INTERIOR_STRENGTH = { value: 1 };
+/** Measured normalized facade bays. Node scales supply the delivered metres. */
+export const OFFICE_PANE_LAYOUT = {
+  centres: [-0.209, 0.187] as const,
+  width: 0.19,
+  bottom: -0.045,
+  height: 0.185,
+};
+
+/** Retain the original blue/outer-bay mask and exact zero-strength response.
+ * Reuse the village/boat derivative basis for a shallow office behind glass.
+ * Working if real oblique panes show blind/furniture parallax while centre,
+ * roof, atlas, dimmer and the original reference response remain unchanged. */
 export function applyOfficeWindows(material: THREE.MeshStandardMaterial, night: { value: number }) {
+  material.userData.officeInteriorStrength = OFFICE_INTERIOR_STRENGTH;
   material.onBeforeCompile = (shader) => {
     shader.uniforms.officeNight = night;
     shader.uniforms.officeGlow = { value: new THREE.Color('#ffb74d').multiplyScalar(0.9) };
     shader.uniforms.officeGlass = { value: new THREE.Color('#ffd28a') };
+    shader.uniforms.officeRoomLight = { value: new THREE.Color('#ffdfb2').multiplyScalar(0.9) };
+    shader.uniforms.officeInteriorStrength = OFFICE_INTERIOR_STRENGTH;
+    shader.uniforms.officePaneCentres = { value: new THREE.Vector2(...OFFICE_PANE_LAYOUT.centres) };
+    shader.uniforms.officePaneSize = {
+      value: new THREE.Vector2(OFFICE_PANE_LAYOUT.width, OFFICE_PANE_LAYOUT.height),
+    };
+    shader.uniforms.officePaneBottom = { value: OFFICE_PANE_LAYOUT.bottom };
+    shader.uniforms.officeLinen = { value: new THREE.Color('#e7dfc7') };
+    shader.uniforms.officeWall = { value: new THREE.Color('#a6b4aa') };
+    shader.uniforms.officeTimber = { value: new THREE.Color('#715f4c') };
     shader.vertexShader = `varying vec3 vOfficePosition;\n${shader.vertexShader}`.replace(
       '#include <begin_vertex>',
       '#include <begin_vertex>\nvOfficePosition = position;'
     );
-    shader.fragmentShader =
-      `varying vec3 vOfficePosition;\nuniform float officeNight;\nuniform vec3 officeGlow;\nuniform vec3 officeGlass;\n${shader.fragmentShader}`.replace(
+    shader.fragmentShader = `varying vec3 vOfficePosition;
+      uniform float officeNight;
+      uniform vec3 officeGlow;
+      uniform vec3 officeGlass;
+      uniform vec3 officeRoomLight;
+      uniform float officeInteriorStrength;
+      uniform vec2 officePaneCentres;
+      uniform vec2 officePaneSize;
+      uniform float officePaneBottom;
+      uniform vec3 officeLinen;
+      uniform vec3 officeWall;
+      uniform vec3 officeTimber;
+      float officeGlazing(vec3 albedo) {
+        // Original rest-space mask, including the dark central bay and roof.
+        return step(0.095, abs(vOfficePosition.x))
+          * step(-0.16, vOfficePosition.y) * (1.0 - step(0.14, vOfficePosition.y))
+          * step(0.30, vOfficePosition.z)
+          * smoothstep(0.015, 0.055, albedo.b - albedo.r)
+          * smoothstep(0.008, 0.035, albedo.g - albedo.r);
+      }
+      ${shader.fragmentShader}`
+      .replace(
+        '#include <roughnessmap_fragment>',
+        `#include <roughnessmap_fragment>
+        // Paint/frame/roof roughness and the zero-strength reference stay exact.
+        roughnessFactor = mix(roughnessFactor, 0.22,
+          officeGlazing(diffuseColor.rgb) * clamp(officeInteriorStrength, 0.0, 1.0));`
+      )
+      .replace(
         '#include <emissivemap_fragment>',
         `#include <emissivemap_fragment>
-      // Blue glazing only. Source vertices span x=-0.5..0.5 before normalization;
-      // the central bay stays dark. Height and front-face bounds exclude blue roof trim.
-      float officeWindow = officeNight * step(0.095, abs(vOfficePosition.x))
-        * step(-0.16, vOfficePosition.y) * (1.0 - step(0.14, vOfficePosition.y))
-        * step(0.30, vOfficePosition.z)
-        * smoothstep(0.015, 0.055, diffuseColor.b - diffuseColor.r)
-        * smoothstep(0.008, 0.035, diffuseColor.g - diffuseColor.r);
-      diffuseColor.rgb = mix(diffuseColor.rgb, officeGlass, officeWindow);
-      totalEmissiveRadiance += officeGlow * officeWindow;`
+        vec3 officeAlbedo = diffuseColor.rgb;
+        float officeMask = officeGlazing(officeAlbedo);
+        float officeWindow = officeNight * officeMask;
+        // Exact retained flat-window reference, evaluated before the new finish.
+        diffuseColor.rgb = mix(diffuseColor.rgb, officeGlass, officeWindow);
+        totalEmissiveRadiance += officeGlow * officeWindow;
+        float officeStrength = clamp(officeInteriorStrength, 0.0, 1.0);
+        float officeBay = step(0.0, vOfficePosition.x);
+        vec2 pane = vec2((vOfficePosition.x - mix(officePaneCentres.x, officePaneCentres.y, officeBay)) / officePaneSize.x + 0.5,
+          1.0 - (vOfficePosition.y - officePaneBottom) / officePaneSize.y);
+        // Derivatives remain outside non-uniform glazing branches.
+        vec2 du = dFdx(pane), dv = dFdy(pane);
+        vec3 px = dFdx(-vViewPosition), py = dFdy(-vViewPosition);
+        float officePixel = max(max(abs(du.x), abs(dv.x)), max(abs(du.y), abs(dv.y)));
+        float officeAA = max(0.001, officePixel);
+        float officeDetail = 1.0 - smoothstep(0.008, 0.025, officePixel);
+        float determinant = du.x * dv.y - du.y * dv.x;
+        if (officeStrength > 0.0 && officeMask > 0.5 && abs(determinant) > 0.00000001) {
+          float inverseDet = sign(determinant) / max(abs(determinant), 0.00000001);
+          vec3 tangent = normalize((px * dv.y - py * du.y) * inverseDet);
+          vec3 bitangent = normalize((py * du.x - px * dv.x) * inverseDet);
+          vec3 eye = normalize(vViewPosition);
+          float facing = abs(dot(eye, normalize(cross(tangent, bitangent))));
+          vec2 slope = clamp(vec2(dot(eye, tangent), dot(eye, bitangent)) / max(facing, 0.25), vec2(-1.5), vec2(1.5));
+          vec2 room = pane - slope * 0.20;
+          vec2 cloth = pane - slope * 0.025;
+          float edge = min(min(room.x, 1.0 - room.x), min(room.y, 1.0 - room.y));
+          float reveal = 0.30 + 0.70 * smoothstep(-0.02, 0.055, edge);
+          vec3 interior = officeWall * (0.55 + 0.35 * smoothstep(0.12, 0.75, room.y));
+          interior *= 1.0 - (1.0 - smoothstep(0.08, 0.17, room.y)) * 0.30;
+          float ledge = smoothstep(0.82, 0.85, room.y);
+          interior = mix(interior, officeTimber, ledge);
+          float desk = smoothstep(0.12, 0.16, room.x) * (1.0 - smoothstep(0.66, 0.70, room.x))
+            * smoothstep(0.63, 0.65, room.y) * (1.0 - smoothstep(0.70, 0.72, room.y));
+          interior = mix(interior, officeTimber * 0.52, desk);
+          float bookcase = smoothstep(0.74, 0.77, room.x) * (1.0 - smoothstep(0.94, 0.97, room.x));
+          float bookRows = smoothstep(0.30, 0.33, room.y) * (1.0 - smoothstep(0.57, 0.60, room.y));
+          float books = smoothstep(0.12, 0.28, fract(room.x * 36.0)) * bookRows * officeDetail;
+          float shelf = (1.0 - smoothstep(0.009, 0.009 + officeAA, abs(room.y - 0.43)))
+            + (1.0 - smoothstep(0.009, 0.009 + officeAA, abs(room.y - 0.60)));
+          interior = mix(interior, officeTimber * 0.70, bookcase * clamp(max(books * 0.65, shelf), 0.0, 1.0));
+          float blindBottom = mix(0.30, 0.43, officeBay);
+          float blind = 1.0 - smoothstep(blindBottom - officeAA, blindBottom + officeAA, cloth.y);
+          float hem = 1.0 - smoothstep(0.006, 0.006 + officeAA, abs(cloth.y - blindBottom + 0.012));
+          vec3 linen = officeLinen * (0.84 + 0.045 * cos(cloth.y * 72.0) * officeDetail) * (1.0 - hem * 0.12);
+          interior = mix(interior, linen, blind);
+          float lamp = (1.0 - smoothstep(0.06, 0.095, length(room - vec2(mix(0.35, 0.58, officeBay), 0.31)))) * (1.0 - blind);
+          float reflection = pow(1.0 - clamp(facing, 0.0, 1.0), 4.0);
+          vec3 roomDiffuse = mix(interior * 0.36 * reveal, officeAlbedo, reflection * 0.75);
+          vec3 roomEmission = officeRoomLight * (interior * 0.90 + vec3(lamp * 0.22))
+            * officeWindow * reveal * mix(1.0, 0.60, blind);
+          diffuseColor.rgb = mix(diffuseColor.rgb, roomDiffuse, officeStrength);
+          totalEmissiveRadiance += (roomEmission - officeGlow * officeWindow) * officeStrength;
+        }`
       );
   };
-  material.customProgramCacheKey = () => 'millos-generated-office-window-v2';
+  material.customProgramCacheKey = () => 'millos-generated-office-window-v3';
 }
 
 /** Reuse the village's bounded virtual room on the delivered apartments.

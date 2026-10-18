@@ -1,3 +1,10 @@
+import {
+  PondLilies,
+  POND_LILY_GEOMETRIES,
+  POND_LILY_MATERIAL,
+  POND_LILY_SITES,
+} from './scenery/PondLilies';
+import { duckSwimPose } from '../simulation/creatureMotion';
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { readFileSync } from 'node:fs';
@@ -992,5 +999,122 @@ describe('seamless lit fountain water detail', () => {
     expect(r[(64 * 128 + 127) * 4 + 3]).toBe(0);
     expect(GENERATED_FOUNTAIN_STREAM_MATERIAL.map).toBe(FOUNTAIN_WATER_TEXTURES.fall);
     expect(GENERATED_FOUNTAIN_STREAM_MATERIAL.emissive.getHex()).toBe(0);
+  });
+});
+
+describe('sculpted floating pond planting', () => {
+  it('keeps closed leaves and attached blossoms finite, inside their original three planting envelopes', () => {
+    let triangles = 0;
+    POND_LILY_GEOMETRIES.forEach((g, i) => {
+      const site = POND_LILY_SITES[i];
+      g.computeBoundingBox();
+      const b = g.boundingBox!;
+      expect(b.min.x).toBeGreaterThan(-site.radius);
+      expect(b.max.x).toBeLessThan(site.radius);
+      expect(b.min.z).toBeGreaterThan(-site.radius * site.depth);
+      expect(b.max.z).toBeLessThan(site.radius * site.depth);
+      expect(b.min.y).toBeGreaterThan(-0.004);
+      expect(b.max.y).toBeLessThan(0.19);
+      expect(b.max.y).toBeGreaterThan(i === 1 ? 0.008 : 0.1);
+      for (const attribute of Object.values(g.attributes))
+        expect(Array.from(attribute.array).every(Number.isFinite)).toBe(true);
+      expect(g.groups).toHaveLength(0);
+      triangles += g.attributes.position.count / 3;
+      const mesh = new THREE.Mesh(g, POND_LILY_MATERIAL);
+      mesh.updateMatrixWorld();
+      // The basal slit remains open, while the reverse leaf retains a solid underside.
+      const slit = new THREE.Raycaster(
+        new THREE.Vector3(site.radius * 0.8, 0.5, 0),
+        new THREE.Vector3(0, -1, 0)
+      );
+      expect(slit.intersectObject(mesh)).toHaveLength(0);
+      const underside = new THREE.Raycaster(
+        new THREE.Vector3(-site.radius * 0.7, -0.1, 0),
+        new THREE.Vector3(0, 1, 0)
+      );
+      expect(underside.intersectObject(mesh).length).toBeGreaterThan(0);
+    });
+    expect(triangles).toBeLessThan(10000);
+    expect(POND_LILY_MATERIAL).toBeInstanceOf(THREE.MeshStandardMaterial);
+    expect(POND_LILY_MATERIAL.vertexColors).toBe(true);
+    expect(POND_LILY_MATERIAL.transparent).toBe(false);
+    expect(POND_LILY_MATERIAL.map).toBeNull();
+    expect(POND_LILY_MATERIAL.emissive.getHex()).toBe(0);
+    expect(POND_LILY_MATERIAL.side).toBe(THREE.FrontSide);
+  });
+
+  it('preserves original leaf sites and leaves raised flowers clear of the actual duck routes', () => {
+    expect(POND_LILY_SITES.map((s) => s.position)).toEqual([
+      [-2, 0.395, 0],
+      [1, 0.395, -1.5],
+      [-0.5, 0.395, 2.5],
+    ]);
+    expect(POND_LILY_SITES.map((s) => s.bloom)).toEqual(['open', 'none', 'bud']);
+    const anchors = [
+      [2, 1],
+      [-1, -2],
+      [0, 2],
+      [1.5, -1.5],
+    ];
+    for (const [i, site] of POND_LILY_SITES.entries()) {
+      const p = POND_LILY_GEOMETRIES[i].attributes.position;
+      let flowerRadius = 0;
+      for (let j = 0; j < p.count; j++)
+        if (p.getY(j) > 0.025)
+          flowerRadius = Math.max(flowerRadius, Math.hypot(p.getX(j), p.getZ(j)));
+      if (site.bloom === 'none') {
+        expect(flowerRadius).toBe(0);
+        continue;
+      }
+      let clearance = Infinity;
+      for (let f = 0; f <= 10800; f++)
+        anchors.forEach(([x, z], duck) => {
+          const pose = duckSwimPose(f / 60, 800 + duck);
+          clearance = Math.min(
+            clearance,
+            Math.hypot(x + pose.x - site.position[0], z + pose.z - site.position[2]) -
+              0.4 -
+              flowerRadius
+          );
+        });
+      expect(clearance, `site ${i} body/bloom clearance`).toBeGreaterThan(0.1);
+    }
+  });
+});
+
+it('seats the floating leaves on the actual delivered pond water instead of 45mm above it', async () => {
+  const draco = createRequire(import.meta.url)('draco3dgltf');
+  const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({
+    'draco3d.decoder': await draco.createDecoderModule(),
+    'meshopt.decoder': MeshoptDecoder,
+  });
+  const doc = await io.read('public/models/village/duckpond.glb');
+  const meshes = doc
+    .getRoot()
+    .listMeshes()
+    .flatMap((m) =>
+      m.listPrimitives().map((p) => {
+        const g = new THREE.BufferGeometry();
+        g.setAttribute(
+          'position',
+          new THREE.Float32BufferAttribute(p.getAttribute('POSITION')!.getArray()!, 3)
+        );
+        if (p.getIndices()) g.setIndex(Array.from(p.getIndices()!.getArray()!));
+        return new THREE.Mesh(g, new THREE.MeshBasicMaterial());
+      })
+    );
+  meshes.forEach((m) => m.updateMatrixWorld());
+  const water =
+    new THREE.Raycaster(new THREE.Vector3(0, 2, 0), new THREE.Vector3(0, -1, 0)).intersectObjects(
+      meshes
+    )[0].point.y - 0.45;
+  expect(water).toBeCloseTo(0.35, 5);
+  const group = PondLilies();
+  expect(POND_LILY_SITES[0].position[1] + (group.props.position?.[1] ?? 0)).toBeCloseTo(water, 5);
+  const fallback = PondLilies({ waterLevel: 0.19 });
+  expect(POND_LILY_SITES[0].position[1] + fallback.props.position[1]).toBeCloseTo(0.19, 8);
+  meshes.forEach((m) => {
+    m.geometry.dispose();
+    m.material.dispose();
   });
 });

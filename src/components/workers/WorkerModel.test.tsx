@@ -2491,6 +2491,10 @@ it('admits briefing attention only in stationary idle, freezes it at pause and c
   harness.frame?.({}, 1 / 60);
   expect(sample.mock.calls.at(-1)![0]).toBe('idle');
   motion.cartGrip = undefined;
+  motion.seat = { amount: 0.3, support: 0.6, x: 0, z: 0, yaw: 0 };
+  harness.frame?.({}, 1 / 60);
+  expect(sample.mock.calls.at(-1)![0]).toBe('idle');
+  motion.seat = undefined;
   motion.enabled = true;
   harness.frame?.({}, 1 / 60);
   expect(sample.mock.calls.at(-1)![0]).toBe('briefing');
@@ -2513,3 +2517,173 @@ it('admits briefing attention only in stationary idle, freezes it at pause and c
   expect(target.lookPitch).toBe(expected.lookPitch);
   view.unmount();
 });
+
+it.each(['masculine', 'feminine'] as const)(
+  '%s uses the authored neutral standing clip for briefing and hands back the real gait cleanly',
+  async (bodyType) => {
+    const { readFileSync } = await import('node:fs');
+    const { NodeIO } = await import('@gltf-transform/core');
+    const { ALL_EXTENSIONS } = await import('@gltf-transform/extensions');
+    const { default: draco } = await import('draco3dgltf');
+    const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+    const { clone } = await vi.importActual<typeof import('three/addons/utils/SkeletonUtils.js')>(
+      'three/addons/utils/SkeletonUtils.js'
+    );
+    const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({
+      'draco3d.decoder': await draco.createDecoderModule(),
+    });
+    const document = await io.readBinary(
+      new Uint8Array(readFileSync(`public/models/worker/worker-${bodyType}.glb`))
+    );
+    for (const extension of document.getRoot().listExtensionsUsed()) extension.dispose();
+    const bytes = await io.writeBinary(document);
+    const asset = await new GLTFLoader().parseAsync(bytes.buffer as ArrayBuffer, '');
+    const neutral = clone(asset.scene),
+      neutralMixer = new THREE.AnimationMixer(neutral);
+    neutralMixer.clipAction(asset.animations.find((c) => c.name === 'worker-break')!).play();
+    neutralMixer.update(0);
+    neutral.updateMatrixWorld(true);
+    const calfEnds = ['L', 'R'].map((side) =>
+      neutral
+        .getObjectByName('LowerLeg' + side)!
+        .worldToLocal(neutral.getObjectByName('Foot' + side)!.getWorldPosition(new THREE.Vector3()))
+    );
+    neutralMixer.stopAllAction();
+    neutralMixer.uncacheRoot(neutral);
+    let model: THREE.Object3D;
+    harness.clone = (source) => (model = clone(source)) as THREE.Group;
+    harness.asset = asset;
+    const play = vi.spyOn(THREE.AnimationAction.prototype, 'play');
+    const motion: WorkerMotionState = {
+      activity: 'idle',
+      briefing: true,
+      groundSpeed: 0,
+      seated: false,
+      enabled: false,
+      phase: 2.3,
+    };
+    const view = render(
+      <WorkerModel
+        appearance={{
+          ...getWorkerAppearance('Engineer', '', 'neutral-briefing'),
+          bodyType,
+          bodyScale: 1,
+          heightScale: 1,
+        }}
+        motion={motion}
+      />
+    );
+    const tool = view.container.querySelector(
+      '[name="worker-held-tool"]'
+    ) as unknown as THREE.Group;
+    tool.position = new THREE.Vector3();
+    const actions = Object.fromEntries(play.mock.contexts.map((a) => [a.getClip().name, a]));
+    // Mount must select the same neutral base as an admitted frame.
+    expect(actions['worker-break'].getEffectiveWeight()).toBe(1);
+    const feet = () =>
+      ['FootL', 'FootR'].map((n) =>
+        model!.getObjectByName(n)!.getWorldPosition(new THREE.Vector3())
+      );
+    const camera = new THREE.PerspectiveCamera();
+    camera.position.set(0, 1.7, 5);
+    const frame = () => {
+      harness.frame?.({ camera }, 1 / 60);
+      model!.updateMatrixWorld(true);
+    };
+    frame();
+    expect(Math.abs(feet()[0].z - feet()[1].z)).toBeLessThan(0.06);
+    motion.enabled = true;
+    let previous = feet(),
+      maxStep = 0,
+      maxSeam = 0;
+    for (let i = 0; i < 270; i++) {
+      if (i === 30) {
+        motion.briefing = false;
+        motion.activity = 'walking';
+        motion.groundSpeed = 1.1;
+      }
+      if (i === 150) {
+        motion.briefing = true;
+        motion.activity = 'idle';
+        motion.groundSpeed = 0;
+      }
+      frame();
+      const current = feet();
+      current.forEach((p, j) => {
+        maxStep = Math.max(maxStep, p.distanceTo(previous[j]));
+        const calf = model!.getObjectByName('LowerLeg' + ['L', 'R'][j])!;
+        maxSeam = Math.max(maxSeam, calf.localToWorld(calfEnds[j].clone()).distanceTo(p));
+      });
+      previous = current;
+      if (i === 145) {
+        expect(actions['worker-walk'].getEffectiveWeight()).toBeGreaterThan(0.99999);
+        const control = clone(asset.scene),
+          mixer = new THREE.AnimationMixer(control),
+          action = mixer.clipAction(asset.animations.find((c) => c.name === 'worker-walk')!).play();
+        action.time = actions['worker-walk'].time;
+        mixer.update(0);
+        control.updateMatrixWorld(true);
+        for (const name of ['FootL', 'FootR', 'UpperLegL', 'UpperLegR', 'LowerLegL', 'LowerLegR'])
+          model!
+            .getObjectByName(name)!
+            .matrixWorld.elements.forEach((v, k) =>
+              expect(
+                Math.abs(v - control.getObjectByName(name)!.matrixWorld.elements[k])
+              ).toBeLessThan(1e-6)
+            );
+        mixer.stopAllAction();
+        mixer.uncacheRoot(control);
+      }
+    }
+    expect(maxStep, 'admitted neutral/gait handover').toBeLessThan(0.08);
+    expect(maxSeam, 'actual calf meets the independent boot through handover').toBeLessThan(0.02);
+    expect(actions['worker-break'].getEffectiveWeight()).toBeGreaterThan(0.99999);
+    expect(Math.abs(feet()[0].z - feet()[1].z)).toBeLessThan(0.06);
+    for (const side of ['L', 'R']) {
+      const foot = model!.getObjectByName('Foot' + side)!;
+      let sole = Infinity,
+        hits = 0;
+      model!.traverse((object) => {
+        const mesh = object as THREE.SkinnedMesh;
+        if (!mesh.isSkinnedMesh || !mesh.parent?.name.includes('Worker_Feet')) return;
+        mesh.skeleton.update();
+        const joint = mesh.skeleton.bones.indexOf(foot as THREE.Bone),
+          indices = mesh.geometry.attributes.skinIndex,
+          weights = mesh.geometry.attributes.skinWeight;
+        for (let i = 0; i < indices.count; i++) {
+          if (
+            ![0, 1, 2, 3].some(
+              (j) => indices.getComponent(i, j) === joint && weights.getComponent(i, j) > 0.5
+            )
+          )
+            continue;
+          sole = Math.min(
+            sole,
+            mesh.getVertexPosition(i, new THREE.Vector3()).applyMatrix4(mesh.matrixWorld).y
+          );
+          hits++;
+        }
+      });
+      expect(hits).toBeGreaterThan(8);
+      expect(sole, 'actual neutral boot sole').toBeGreaterThan(-0.003);
+      expect(sole, 'actual neutral boot sole').toBeLessThan(0.003);
+    }
+
+    motion.enabled = false;
+    frame();
+    const held = feet(),
+      head = model!.getObjectByName('Head')!.quaternion.toArray();
+    harness.frame?.({ camera }, 100);
+    feet().forEach((p, j) => expect(p.distanceTo(held[j])).toBeLessThan(1e-9));
+    expect(model!.getObjectByName('Head')!.quaternion.toArray()).toEqual(head);
+    motion.briefing = undefined;
+    frame();
+    expect(actions['worker-idle'].getEffectiveWeight()).toBe(1);
+    expect(Math.abs(feet()[0].z - feet()[1].z)).toBeGreaterThan(0.2);
+    process.stderr.write(
+      JSON.stringify({ bodyType, briefingMaxStep: maxStep, briefingMaxSeam: maxSeam }) + '\n'
+    );
+    view.unmount();
+  },
+  30000
+);

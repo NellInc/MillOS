@@ -59,6 +59,7 @@ import {
   CivicEntryLighting,
 } from './scenery/VillageSignage';
 import { NaturalDuckPond } from './scenery/NaturalDuckPond';
+import { PondLilies } from './scenery/PondLilies';
 import {
   VillageHome,
   VillageAllotment,
@@ -1796,8 +1797,16 @@ const DuckPond = React.memo<{ position: [number, number, number] }>(({ position 
           geometry is preserved separately, never overlaid beneath this model.
           NaturalDuckPond owns the sink inside the boundary: the procedural
           fallback remains at its own correct water datum. */}
-      <GeneratedBoundary fallback={<DuckPondBasin />}>
+      <GeneratedBoundary
+        fallback={
+          <>
+            <DuckPondBasin />
+            <PondLilies waterLevel={0.19} />
+          </>
+        }
+      >
         <NaturalDuckPond />
+        <PondLilies />
       </GeneratedBoundary>
       {/* Ducks - floating on water surface */}
       <group>
@@ -1815,30 +1824,6 @@ const DuckPond = React.memo<{ position: [number, number, number] }>(({ position 
           />
         ))}
       </group>
-      {/* Waxy, notched leaves in three olive greens. Their floating datum
-          and opaque depth contract stay unchanged. */}
-      {[
-        [-2, 0.395, 0],
-        [1, 0.395, -1.5],
-        [-0.5, 0.395, 2.5],
-      ].map(([x, y, z], i) => (
-        <mesh
-          key={`lily-${i}`}
-          name={`pond-lily-pad-${i}`}
-          scale={[1, 0.86 + i * 0.06, 1]}
-          position={[x as number, y as number, z as number]}
-          rotation={[-Math.PI / 2, 0, i]}
-        >
-          <circleGeometry args={[0.36 + (i % 2) * 0.06, 24, 0.16, Math.PI * 2 - 0.32]} />
-          <meshStandardMaterial
-            color={['#547447', '#627d49', '#436e52'][i]}
-            roughness={0.48}
-            polygonOffset
-            polygonOffsetFactor={-1}
-            polygonOffsetUnits={-1}
-          />
-        </mesh>
-      ))}
       {/* Render Active Hearts */}
       {hearts.map((h) => (
         <HeartParticle key={h.id} position={h.pos} onComplete={() => removeHeart(h.id)} />
