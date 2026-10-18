@@ -30,6 +30,7 @@ import {
   campaignTotals,
   campaignComplete,
   campaignOutcomes,
+  campaignLearningReview,
   campaignStory,
   MANAGEMENT_APPROACHES,
   CAMPAIGN_PRESSURES,
@@ -102,6 +103,7 @@ export const WorkplaceLab: React.FC = () => {
   const relationship = campaign ? campaignRelationship(state) : [];
   const totals = campaign ? campaignTotals(state) : null;
   const outcomes = campaign ? campaignOutcomes(state) : null;
+  const learningReview = campaignLearningReview(state);
   const mission = workplaceMission(state);
   const displayTarget = mission?.targetKg ?? state.targetKg;
   const configuring = state.phase === 'idle' || state.phase === 'deliberating';
@@ -1211,6 +1213,28 @@ export const WorkplaceLab: React.FC = () => {
                 </p>
               </div>
             </details>
+          )}
+          {learningReview && (
+            <section aria-label="Cooperative learning review" className="space-y-2">
+              <h4 className="font-semibold text-white">Learn from this shift together</h4>
+              <p>{learningReview.goal}</p>
+              <ul className="list-disc space-y-1 pl-4">
+                {learningReview.evidence.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+              <p className="text-cyan-100">{learningReview.question}</p>
+              <button
+                type="button"
+                className={buttonClass}
+                onClick={() => {
+                  setSection('Experiment');
+                  labRef.current?.scrollIntoView?.({ block: 'start', behavior: 'instant' });
+                }}
+              >
+                Compare another handoff
+              </button>
+            </section>
           )}
           {state.phase === 'review' && (
             <div className="space-y-2">
