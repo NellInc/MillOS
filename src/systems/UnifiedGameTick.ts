@@ -397,7 +397,13 @@ function unifiedGameTick(ctx: TickContext): void {
   const replayActive = isWorkplaceReplayActive();
   const workplaceBefore = useWorkplaceStore.getState().workplace;
   const workplacePhaseBefore = workplaceBefore.phase;
-  const improvementActive = workplaceBefore.mode === 'game' && !!workplaceBefore.improvement;
+  // A finalised member review (verdict set, which requires no owed recovery)
+  // releases the plant. Working if the trial and its deliberation stay held
+  // while the reviewed receipts stay fixed and play resumes ordinary pacing.
+  const improvementActive =
+    workplaceBefore.mode === 'game' &&
+    !!workplaceBefore.improvement &&
+    !(workplaceBefore.phase === 'review' && workplaceBefore.improvement.verdict);
   const controlMode =
     replayActive || improvementActive ? peekSCADAService()?.getState().mode : undefined;
   if (controlMode !== undefined && controlMode !== 'simulation') {
@@ -993,7 +999,7 @@ function unifiedGameTick(ctx: TickContext): void {
       );
     const reviewed = useWorkplaceStore.getState().workplace;
     if (
-      (replayActive || reviewed.improvement) &&
+      (replayActive || (reviewed.improvement && !reviewed.improvement.verdict)) &&
       reviewed.phase === 'review' &&
       (workplacePhaseBefore === 'active' ||
         reviewed.members.every((member) => member.recoveryOwedMinutes === 0))

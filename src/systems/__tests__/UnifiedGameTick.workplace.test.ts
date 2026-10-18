@@ -961,3 +961,50 @@ it('handoff trial pacing changes the real material assembly, stops immediately a
     )
   );
 });
+
+it('releases the plant clock once the handoff member review has a verdict, and not before', () => {
+  const w = useWorkplaceStore.getState();
+  expect(w.beginImprovement('cooperative', w.workplace.revision).changed).toBe(true);
+  expect(w.proposeImprovement('briefing', 'packing').changed).toBe(true);
+  // Deliberation (verdict null) keeps the hold: play is reset and no time passes.
+  useGameSimulationStore.getState().setGameSpeed(15);
+  const deliberatingTime = useGameSimulationStore.getState().gameTime;
+  replayStep();
+  expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+  expect(useGameSimulationStore.getState().gameTime).toBe(deliberatingTime);
+  w.acknowledgeImprovement();
+  for (const m of useWorkplaceStore.getState().workplace.members) {
+    w.understand(m.id);
+    w.vote(m.id, true);
+  }
+  expect(w.activate(useWorkplaceStore.getState().workplace.revision).changed).toBe(true);
+  useGameSimulationStore.getState().setGameSpeed(15);
+  replayTick = 0;
+  receivingDwell = 0;
+  for (let n = 0; n < 720 && useWorkplaceStore.getState().workplace.phase === 'active'; n++)
+    replayStep();
+  expect(useWorkplaceStore.getState().workplace.phase).toBe('review');
+  // Review without a verdict is still held.
+  useGameSimulationStore.getState().setGameSpeed(15);
+  const reviewTime = useGameSimulationStore.getState().gameTime;
+  replayStep();
+  expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+  expect(useGameSimulationStore.getState().gameTime).toBe(reviewTime);
+  w.acknowledgeImprovementReview();
+  for (const m of useWorkplaceStore.getState().workplace.members)
+    w.voteImprovementReview(m.id, 'stop');
+  w.finishImprovementReview(useWorkplaceStore.getState().workplace.revision);
+  const reviewed = useWorkplaceStore.getState().workplace;
+  expect(reviewed.phase).toBe('review');
+  expect(reviewed.improvement?.verdict).toBe('stop');
+  const settled = structuredClone(reviewed);
+  // "Stop, return to ordinary pacing": play holds and the plant clock advances,
+  // while the finalised review's receipts stay fixed.
+  useGameSimulationStore.getState().setGameSpeed(15);
+  const releasedTime = useGameSimulationStore.getState().gameTime;
+  replayStep();
+  replayStep();
+  expect(useGameSimulationStore.getState().gameSpeed).toBe(15);
+  expect(useGameSimulationStore.getState().gameTime).not.toBe(releasedTime);
+  expect(useWorkplaceStore.getState().workplace).toEqual(settled);
+});
