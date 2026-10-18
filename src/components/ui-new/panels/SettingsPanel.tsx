@@ -23,6 +23,8 @@ import {
 import { useGraphicsStore, GraphicsQuality } from '../../../stores/graphicsStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { suspendPersistence } from '../../../stores/storage';
+import { suspendResourcePersistence } from '../../../utils/resourcePersistence';
+import { AUDIO_SETTINGS_KEY } from '../../../utils/audioManager';
 import { LOCALE_STORAGE_KEY } from '../../../i18n';
 import { LanguageSwitcher } from '../../../i18n/LanguageSwitcher';
 import { useShallow } from 'zustand/react/shallow';
@@ -764,7 +766,7 @@ export const SettingsPanel: React.FC<{
         title="Reset to 10 AM"
         tone="amber"
         confirmLabel="Reset to 10 AM"
-        message="Wind the clock back to 10 AM — weather, run window and emergency state reset. Production totals, machine states, and achievements survive the trip."
+        message="Wind the clock back to 10 AM at the current pace. Weather, run window and emergency state reset. Customer orders and their deadlines keep their own clock, so an overdue order stays overdue; production totals, machine states and achievements carry on. For a fresh shift use Reset Simulation."
         onCancel={() => setResetConfirm(null)}
         onConfirm={() => {
           clearPersistedState();
@@ -778,7 +780,7 @@ export const SettingsPanel: React.FC<{
         title="Reset Simulation"
         tone="red"
         confirmLabel="Reset Everything"
-        message="Wipe everything — saved progress, graphics settings, your saved AI preferences — and reload from scratch. There is no undo."
+        message="Wipe everything — saved progress, graphics settings, your saved AI preferences — and reload from scratch. Sound and language settings are kept. There is no undo."
         onCancel={() => setResetConfirm(null)}
         onConfirm={() => {
           // Clear every persisted MillOS store (keys are namespaced "millos-*").
@@ -786,11 +788,16 @@ export const SettingsPanel: React.FC<{
           // Cloud API keys live in page memory and vanish on the reload below.
           // Pause first, then suspend persistence: the tick keeps running until
           // the reload commits, and its writes would restore the old orders and
-          // clock. Working if: no millos-* store key survives the reload.
+          // clock. The GPU resource cache writes outside the shared store
+          // storage, so it is suspended separately. Sound (mute, volume, music)
+          // and language are the listener's preferences, not simulation state.
+          // Working if: no millos-* key survives the reload except those two.
           useGameSimulationStore.getState().setGameSpeed(0);
           suspendPersistence();
+          suspendResourcePersistence();
+          const keptKeys = new Set([LOCALE_STORAGE_KEY, AUDIO_SETTINGS_KEY]);
           Object.keys(localStorage)
-            .filter((key) => key.startsWith('millos-') && key !== LOCALE_STORAGE_KEY)
+            .filter((key) => key.startsWith('millos-') && !keptKeys.has(key))
             .forEach((key) => localStorage.removeItem(key));
           // No graphics write here: the reload boots the default medium preset,
           // and any store write would persist millos-graphics straight back.

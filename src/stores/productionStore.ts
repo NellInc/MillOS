@@ -559,6 +559,24 @@ function enrichDecisionProvenance(
   };
 }
 
+// Data the backward-compatibility getters below read from their owning stores.
+// zustand merges with Object.assign, so the first set() freezes each getter into
+// a boot-time copy: these keys are never authoritative here. Working if the
+// physical save holds them only in their owners' domains, never in production.
+export const PRODUCTION_DELEGATED_KEYS = [
+  'qcLab',
+  'achievements',
+  'announcements',
+  'lastAnnouncementTime',
+  'replayMode',
+  'replayFrames',
+  'currentReplayIndex',
+  'sessionStartedAt',
+  'simulationSeed',
+  'commands',
+  'truckSchedule',
+] as const satisfies readonly (keyof ProductionStore)[];
+
 export const useProductionStore = create<ProductionStore>()(
   subscribeWithSelector((set, get) => ({
     // Initialize performance indices

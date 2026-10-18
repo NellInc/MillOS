@@ -323,9 +323,14 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
           crisisState: defaultCrisis(),
           celebrations: defaultCelebrations(),
         }),
+      // 'Reset to 10 AM'. Customer orders keep their own campaign clock, as the
+      // confirm copy says. Working if the clock returns to 10:00 at the pace the
+      // operator chose: a paused (or save-halted) shift stays paused.
       clearPersistedState: () => {
+        const { gameSpeed } = get();
         localStorage.removeItem('millos-autonomous-simulation');
         get().resetGameState();
+        set({ gameSpeed });
       },
 
       weather: 'clear',

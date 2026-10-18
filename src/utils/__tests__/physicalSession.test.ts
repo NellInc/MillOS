@@ -27,7 +27,7 @@ import {
   endReplayClock,
 } from '../../simulation/workplaceReplayRuntime';
 import { useMaterialFlowStore } from '../../stores/materialFlowStore';
-import { useProductionStore } from '../../stores/productionStore';
+import { useProductionStore, PRODUCTION_DELEGATED_KEYS } from '../../stores/productionStore';
 import { useOperationsCampaignStore } from '../../stores/operationsCampaignStore';
 import { useBreakdownStore } from '../../stores/breakdownStore';
 import { useQCLabStore } from '../../stores/qcLabStore';
@@ -432,4 +432,92 @@ it('migrates old shift records and restores layout before owner motion, with com
   expect(useLogisticsLayoutStore.getState().observation.activeSeconds).toBe(0);
   saved.logistics.layout.staging.shipping = [0, 0, 73];
   expect(() => decodePhysicalSession(encodePhysicalSession(saved))).toThrow('invalid clearance');
+});
+
+describe('save size and scene-owner visibility', () => {
+  it('saves production without the delegated snapshot copies and still reads records that carry them', () => {
+    heldShift();
+    const saved = capturePhysicalSession();
+    for (const key of PRODUCTION_DELEGATED_KEYS) expect(saved.production).not.toHaveProperty(key);
+    // Records written before this change carry boot-time copies of the owners' data.
+    const production = useProductionStore.getState() as unknown as Record<string, unknown>;
+    const legacy = structuredClone(saved);
+    Object.assign(
+      legacy.production,
+      structuredClone(Object.fromEntries(PRODUCTION_DELEGATED_KEYS.map((k) => [k, production[k]])))
+    );
+    expect(legacy.production).toHaveProperty('truckSchedule');
+    const decoded = decodePhysicalSession(encodePhysicalSession(legacy));
+    for (const key of PRODUCTION_DELEGATED_KEYS) expect(decoded.production).not.toHaveProperty(key);
+    expect(decoded.quality.qcLab.contaminationAlerts).toHaveLength(1);
+  });
+
+  it('compacts legacy batch credit keys when a saved shift is restored', () => {
+    heldShift();
+    const saved = capturePhysicalSession();
+    const legacyKey = JSON.stringify([
+      saved.material.sessionId,
+      'batch-0001',
+      10,
+      'flour',
+      5000,
+      [{ lotId: 'lot-0001', amount: 5000, path: ['silo-0', 'packer-0'] }],
+    ]);
+    saved.operations.creditedBatchKg = { [legacyKey]: 4900 };
+    localStorage.setItem(PHYSICAL_SESSION_KEY, encodePhysicalSession(saved));
+    resetPlant();
+    dispose = installPhysicalSession();
+    const credited = useOperationsCampaignStore.getState().creditedBatchKg;
+    expect(Object.values(credited)).toEqual([4900]);
+    expect(Object.keys(credited)[0]).not.toContain('lot-0001');
+  });
+
+  it('reports a scene owner that never registers, and never resumes a half-restored shift', () => {
+    heldShift();
+    useGameSimulationStore.getState().setGameSpeed(30);
+    localStorage.setItem(PHYSICAL_SESSION_KEY, encodePhysicalSession(capturePhysicalSession()));
+    resetPlant();
+    // The truck bay fails to mount, so its continuation can never be restored.
+    removeOwners.shift()?.();
+    const notices = () =>
+      useUIStore.getState().alerts.filter((a) => a.id === 'physical-scene-incomplete');
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    try {
+      dispose = installPhysicalSession();
+      ready();
+      vi.advanceTimersByTime(5000);
+      expect(notices()).toHaveLength(0);
+      vi.advanceTimersByTime(20000);
+      expect(notices()).toHaveLength(1);
+      expect(notices()[0].type).toBe('warning');
+      expect(notices()[0].message).toContain('paused');
+      expect(isPhysicalSessionRestoring()).toBe(true);
+      expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+      vi.advanceTimersByTime(60000);
+      expect(notices()).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('says so when losing a scene owner stops autosave in a running shift', () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    try {
+      dispose = installPhysicalSession();
+      ready();
+      useGameSimulationStore.getState().setGameSpeed(30);
+      vi.advanceTimersByTime(5000);
+      const written = localStorage.getItem(PHYSICAL_SESSION_KEY);
+      expect(written).not.toBeNull();
+      removeOwners.shift()?.();
+      vi.advanceTimersByTime(25000);
+      const notice = useUIStore.getState().alerts.find((a) => a.id === 'physical-scene-incomplete');
+      expect(notice?.title).toBe('Autosave paused');
+      // Play goes on; only saving stopped, and the last good record is kept.
+      expect(useGameSimulationStore.getState().gameSpeed).toBe(30);
+      expect(localStorage.getItem(PHYSICAL_SESSION_KEY)).toBe(written);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

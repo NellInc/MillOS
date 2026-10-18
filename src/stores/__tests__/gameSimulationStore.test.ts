@@ -295,3 +295,24 @@ describe('autonomous game simulation store', () => {
     expect(indexedReads).toBe(50);
   });
 });
+
+describe('Reset to 10 AM', () => {
+  afterEach(() => useGameSimulationStore.getState().resetGameState());
+
+  it.each([0, 30, 180, 900])(
+    'rewinds the clock to 10:00 but keeps the pace the operator chose (%i)',
+    (pace) => {
+      const store = useGameSimulationStore.getState();
+      store.setGameTime(17.5);
+      store.setWeather('storm');
+      store.setGameSpeed(pace);
+      useGameSimulationStore.getState().clearPersistedState();
+      const state = useGameSimulationStore.getState();
+      expect(state.gameTime).toBe(10);
+      expect(state.gameDay).toBe(0);
+      expect(state.weather).toBe('clear');
+      // A paused (or save-halted) shift must not silently restart at Standard 1x.
+      expect(state.gameSpeed).toBe(pace);
+    }
+  );
+});

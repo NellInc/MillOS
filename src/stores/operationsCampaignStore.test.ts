@@ -652,3 +652,83 @@ describe('autonomous operations programme', () => {
     expect(useOperationsCampaignStore.getState().economics.wasteCost).toBeCloseTo(5.4);
   });
 });
+
+describe('compact batch credit keys', () => {
+  beforeEach(() => useOperationsCampaignStore.getState().resetCampaign());
+  const legacyKey = (sessionId: string | null, batch: ProductionBatch) =>
+    JSON.stringify([
+      sessionId,
+      batch.id,
+      batch.simulationTime,
+      batch.materialType,
+      batch.producedKg,
+      batch.sourceContributions,
+    ]);
+  const shipped = () =>
+    useOperationsCampaignStore.getState().orders.reduce((sum, order) => sum + order.shippedKg, 0);
+
+  it('keys credit by a short digest instead of the whole source-contribution list', () => {
+    const sourceContributions = Array.from({ length: 40 }, (_, i) => ({
+      lotId: `lot-${i}`,
+      amount: 125,
+      path: ['silo-0', 'sifter-a', 'packer-0'],
+    }));
+    useOperationsCampaignStore.getState().tickCampaign(
+      60,
+      context({
+        materialSessionId: 'compact-session',
+        manifests: [shippingManifest],
+        productionBatches: [{ ...flourBatch, sourceContributions }],
+      })
+    );
+    const keys = Object.keys(useOperationsCampaignStore.getState().creditedBatchKg);
+    expect(keys).toHaveLength(1);
+    expect(keys[0].length).toBeLessThan(160);
+    expect(keys[0]).not.toContain('lot-');
+    expect(shipped()).toBe(5000);
+  });
+
+  it('honours credit recorded under the legacy key format and replaces that key', () => {
+    useOperationsCampaignStore.setState({
+      creditedBatchKg: { [legacyKey('legacy-session', flourBatch)]: 4900 },
+      lastMaterialSessionId: 'legacy-session',
+    });
+    const next = { ...shippingManifest, id: 'shipping-after-upgrade' };
+    useOperationsCampaignStore.getState().tickCampaign(
+      60,
+      context({
+        materialSessionId: 'legacy-session',
+        manifests: [next],
+        productionBatches: [{ ...flourBatch, dispatchManifestIds: [next.id] }],
+      })
+    );
+    expect(shipped()).toBe(100);
+    const credited = useOperationsCampaignStore.getState().creditedBatchKg;
+    expect(Object.values(credited)).toEqual([5000]);
+    expect(Object.keys(credited)[0]).not.toContain('lot-');
+  });
+
+  it('compacts legacy keys when a saved campaign is restored, without re-crediting', () => {
+    const options = useOperationsCampaignStore.persist.getOptions();
+    const merged = options.merge!(
+      {
+        creditedBatchKg: { [legacyKey('legacy-session', flourBatch)]: 4900 },
+        lastMaterialSessionId: 'legacy-session',
+      },
+      useOperationsCampaignStore.getState()
+    );
+    expect(Object.keys(merged.creditedBatchKg)).toHaveLength(1);
+    expect(Object.keys(merged.creditedBatchKg)[0]).not.toContain('lot-');
+    useOperationsCampaignStore.setState(merged);
+    const next = { ...shippingManifest, id: 'shipping-after-restore' };
+    useOperationsCampaignStore.getState().tickCampaign(
+      60,
+      context({
+        materialSessionId: 'legacy-session',
+        manifests: [next],
+        productionBatches: [{ ...flourBatch, dispatchManifestIds: [next.id] }],
+      })
+    );
+    expect(shipped()).toBe(100);
+  });
+});

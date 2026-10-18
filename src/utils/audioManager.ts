@@ -9,6 +9,9 @@ import {
 
 export type AmbientWeather = 'clear' | 'cloudy' | 'rain' | 'storm';
 
+/** localStorage key for the listener's mute, volume and music preferences. */
+export const AUDIO_SETTINGS_KEY = 'millos-audio';
+
 export interface OutdoorAmbientMix {
   birds: number;
   wind: number;
@@ -258,7 +261,7 @@ class AudioManager {
   }
 
   // LocalStorage key for audio settings persistence
-  private readonly STORAGE_KEY = 'millos-audio';
+  private readonly STORAGE_KEY = AUDIO_SETTINGS_KEY;
 
   // Save audio settings to localStorage
   private saveSettings(): void {

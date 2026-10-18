@@ -258,6 +258,88 @@ const MAX_LOG_ENTRIES = 160;
 const MAX_REPORTS = 12;
 const MAX_INCIDENTS = 32;
 const MAX_PROCESSED_MANIFESTS = MAX_MATERIAL_MANIFESTS;
+
+type BatchCreditEvidence = Pick<
+  ProductionBatch,
+  'id' | 'simulationTime' | 'materialType' | 'producedKg' | 'sourceContributions'
+>;
+
+// Batch IDs restart with material flow, so a credit key carries immutable
+// production evidence: a save cannot re-credit the same batch on a new manifest.
+// The source contributions enter as a digest, not verbatim, so saved size no
+// longer grows with every lot and path a shipped batch drew from.
+// Working if a key stays under ~160 chars and a credit saved under the older
+// full-evidence key still blocks re-crediting after an upgrade.
+function contributionDigest(contributions: BatchCreditEvidence['sourceContributions']): string {
+  const text = JSON.stringify(contributions ?? []);
+  let hash = 0x811c9dc5; // FNV-1a, 32-bit
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return `${contributions?.length ?? 0}:${(hash >>> 0).toString(36)}`;
+}
+
+export function batchCreditKey(sessionId: string | null, batch: BatchCreditEvidence): string {
+  return [
+    'b2',
+    sessionId ?? '~',
+    batch.id,
+    batch.simulationTime,
+    batch.materialType,
+    batch.producedKg,
+    contributionDigest(batch.sourceContributions),
+  ].join('|');
+}
+
+/** The key format saved before compact keys; read only to migrate old credit. */
+function legacyBatchCreditKey(sessionId: string | null, batch: BatchCreditEvidence): string {
+  return JSON.stringify([
+    sessionId,
+    batch.id,
+    batch.simulationTime,
+    batch.materialType,
+    batch.producedKg,
+    batch.sourceContributions,
+  ]);
+}
+
+function compactLegacyCreditKey(key: string): string {
+  if (!key.startsWith('[')) return key;
+  try {
+    const parsed: unknown = JSON.parse(key);
+    if (!Array.isArray(parsed) || parsed.length !== 6) return key;
+    const [sessionId, id, simulationTime, materialType, producedKg, sourceContributions] = parsed;
+    if (
+      (sessionId !== null && typeof sessionId !== 'string') ||
+      typeof id !== 'string' ||
+      typeof simulationTime !== 'number' ||
+      typeof materialType !== 'string' ||
+      typeof producedKg !== 'number' ||
+      !Array.isArray(sourceContributions)
+    )
+      return key;
+    return batchCreditKey(sessionId, {
+      id,
+      simulationTime,
+      materialType: materialType as BatchCreditEvidence['materialType'],
+      producedKg,
+      sourceContributions,
+    });
+  } catch {
+    return key;
+  }
+}
+
+/** Rewrites full-evidence credit keys from older saves into the compact form. */
+export function compactBatchCreditKeys(credited: Record<string, number>): Record<string, number> {
+  const compacted: Record<string, number> = {};
+  for (const [key, kg] of Object.entries(credited)) {
+    const next = compactLegacyCreditKey(key);
+    compacted[next] = Math.max(compacted[next] ?? 0, kg);
+  }
+  return compacted;
+}
 /** No open commitment: keep the line warm and build stock instead of stopping. */
 const STOCK_BUILD_SETPOINT_PERCENT = 70;
 
@@ -623,6 +705,9 @@ function executionMessage(execution: OrderExecutionState): string {
     case 'planning':
       return 'Production route planned.';
     case 'milling':
+      // Working if a line held by the feed budget never claims to be processing.
+      if (execution.remainingKg > 0 && execution.finishedAvailableKg >= execution.remainingKg - 1)
+        return 'The rest of this order is already packed; the line rests until shipping collects it.';
       return `Processing ${execution.sourceMaterial?.replaceAll('_', ' ') ?? 'scheduled grain'} for the active recipe.`;
     case 'quality_hold':
       return execution.dispatchLoad.blockReason ?? 'Finished goods are held at the quality gate.';
@@ -1167,28 +1252,27 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
               )
                 continue;
               const material = batch.materialType;
-              // Batch IDs restart with material flow. Include immutable production
-              // evidence so a save cannot re-credit the same batch on a new manifest.
-              const batchCreditKey = JSON.stringify([
-                context.materialSessionId ?? null,
-                batch.id,
-                batch.simulationTime,
-                batch.materialType,
-                batch.producedKg,
-                batch.sourceContributions,
-              ]);
+              const creditSessionId = context.materialSessionId ?? null;
+              const creditKey = batchCreditKey(creditSessionId, batch);
+              if (creditedBatchKg[creditKey] === undefined) {
+                // Adopt credit a record from before compact keys still holds.
+                const legacyKey = legacyBatchCreditKey(creditSessionId, batch);
+                if (creditedBatchKg[legacyKey] !== undefined) {
+                  creditedBatchKg[creditKey] = creditedBatchKg[legacyKey];
+                  delete creditedBatchKg[legacyKey];
+                }
+              }
               let productRemaining = Math.min(
                 Math.max(0, Number.isFinite(product.amount) ? product.amount : 0),
                 Math.max(
                   0,
                   (Number.isFinite(batch.producedKg) ? batch.producedKg : 0) -
-                    (creditedBatchKg[batchCreditKey] ?? 0)
+                    (creditedBatchKg[creditKey] ?? 0)
                 ),
                 materialRemaining.get(material) ?? 0,
                 remaining
               );
-              creditedBatchKg[batchCreditKey] =
-                (creditedBatchKg[batchCreditKey] ?? 0) + productRemaining;
+              creditedBatchKg[creditKey] = (creditedBatchKg[creditKey] ?? 0) + productRemaining;
               materialRemaining.set(
                 material,
                 (materialRemaining.get(material) ?? 0) - productRemaining
@@ -1599,10 +1683,12 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
                   ...new Set(restored.processedManifestIds.filter((id) => typeof id === 'string')),
                 ].slice(-MAX_PROCESSED_MANIFESTS)
               : [],
-          creditedBatchKg: Object.fromEntries(
-            Object.entries(restored.creditedBatchKg ?? {})
-              .filter(([, value]) => Number.isFinite(value) && value >= 0)
-              .slice(-1000)
+          creditedBatchKg: compactBatchCreditKeys(
+            Object.fromEntries(
+              Object.entries(restored.creditedBatchKg ?? {})
+                .filter(([, value]) => Number.isFinite(value) && value >= 0)
+                .slice(-1000)
+            )
           ),
           lastWasteKg:
             materialSessionId &&

@@ -383,3 +383,27 @@ it('keeps scene response navigation transient and outside saved UI preferences',
     useUIStore.setState(state, true);
   }
 });
+
+it('never reopens first-person or blueprint view after a reload', () => {
+  const state = useUIStore.getState();
+  try {
+    useUIStore.setState({ fpsMode: true, blueprintMode: true, showFPSCounter: true });
+    const options = useUIStore.persist.getOptions();
+    const saved = options.partialize!(useUIStore.getState());
+    expect(saved).not.toHaveProperty('fpsMode');
+    expect(saved).not.toHaveProperty('blueprintMode');
+    expect(saved).toHaveProperty('showFPSCounter', true);
+    // A record written by an older build still carries both view modes.
+    const legacy = { ...saved, fpsMode: true, blueprintMode: true };
+    useUIStore.setState({ fpsMode: false, blueprintMode: false });
+    const merged = options.merge!(legacy, useUIStore.getState());
+    expect(merged.fpsMode).toBe(false);
+    expect(merged.blueprintMode).toBe(false);
+    expect(merged.showFPSCounter).toBe(true);
+    const migrated = options.migrate!(legacy, 1);
+    expect(migrated).not.toHaveProperty('fpsMode');
+    expect(migrated).not.toHaveProperty('blueprintMode');
+  } finally {
+    useUIStore.setState(state, true);
+  }
+});

@@ -4,6 +4,16 @@ import { safeJSONStorage } from './storage';
 import { AlertData } from '../types';
 import { sanitizeUIState } from './persistenceMigrations';
 
+// First-person and blueprint are view modes, not preferences. Working if a
+// reload always opens on the overview, even when an older build saved either
+// mode as on.
+function withoutViewModes<T extends { fpsMode?: boolean; blueprintMode?: boolean }>(
+  state: T
+): Omit<T, 'fpsMode' | 'blueprintMode'> {
+  const { fpsMode: _fpsMode, blueprintMode: _blueprintMode, ...rest } = state;
+  return rest;
+}
+
 interface AlertIndices {
   alertsByPriority: Map<'info' | 'warning' | 'critical', AlertData[]>;
 }
@@ -259,7 +269,7 @@ export const useUIStore = create<UIStore>()(
       storage: safeJSONStorage,
       version: 2,
       migrate: (persisted, version) => {
-        const state = sanitizeUIState(persisted);
+        const state = withoutViewModes(sanitizeUIState(persisted));
         // v1 persisted showZones while it defaulted to true; drop it so existing
         // users pick up the off-by-default overlays.
         if (version < 2) delete state.showZones;
@@ -267,7 +277,7 @@ export const useUIStore = create<UIStore>()(
       },
       merge: (persisted, current) => ({
         ...current,
-        ...sanitizeUIState(persisted),
+        ...withoutViewModes(sanitizeUIState(persisted)),
       }),
       partialize: (state) => ({
         hasSeenIntro: state.hasSeenIntro,
@@ -281,9 +291,7 @@ export const useUIStore = create<UIStore>()(
         uiScale: state.uiScale,
         legendPosition: state.legendPosition,
         showMiniMap: state.showMiniMap,
-        fpsMode: state.fpsMode,
         showFPSCounter: state.showFPSCounter,
-        blueprintMode: state.blueprintMode,
       }),
       onRehydrateStorage: () => (state, error) => {
         if (error) {

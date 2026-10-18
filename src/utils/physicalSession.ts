@@ -2,9 +2,13 @@ import {
   useProductionStore,
   cleanupThrottledBags,
   resetThrottledBagState,
+  PRODUCTION_DELEGATED_KEYS,
 } from '../stores/productionStore';
 import { useMaterialFlowStore } from '../stores/materialFlowStore';
-import { useOperationsCampaignStore } from '../stores/operationsCampaignStore';
+import {
+  compactBatchCreditKeys,
+  useOperationsCampaignStore,
+} from '../stores/operationsCampaignStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useBreakdownStore } from '../stores/breakdownStore';
 import { useTruckScheduleStore } from '../stores/truckScheduleStore';
@@ -33,12 +37,20 @@ import {
 export const PHYSICAL_SESSION_KEY = 'millos-physical-session';
 const MAX_SAVE_BYTES = 3_000_000;
 type Data<S> = { [K in keyof S as S[K] extends (...args: never[]) => unknown ? never : K]: S[K] };
-function data<S extends object>(state: S): Data<S> {
+function data<S extends object, K extends keyof Data<S> = never>(
+  state: S,
+  omit: readonly K[] = []
+): Omit<Data<S>, K> {
   return structuredClone(
     Object.fromEntries(
-      Object.entries(state).filter(([, v]) => typeof v !== 'function' && v !== undefined)
+      Object.entries(state).filter(
+        ([k, v]) =>
+          typeof v !== 'function' &&
+          v !== undefined &&
+          !(omit as readonly PropertyKey[]).includes(k)
+      )
     )
-  ) as Data<S>;
+  ) as Omit<Data<S>, K>;
 }
 
 // One record keeps physical stock, quality authority, faults and dispatch credit
@@ -50,7 +62,9 @@ export function capturePhysicalSession() {
   return {
     version: 1 as const,
     logistics: captureSavedLogisticsLayout(),
-    production: data(useProductionStore.getState()),
+    // The delegated keys are stale copies of the quality, achievement, PA, replay
+    // and truck owners, which save their own domains below.
+    production: data(useProductionStore.getState(), PRODUCTION_DELEGATED_KEYS),
     material: data(useMaterialFlowStore.getState()),
     operations: data(useOperationsCampaignStore.getState()),
     game: data(useGameSimulationStore.getState()),
@@ -122,6 +136,10 @@ export function decodePhysicalSession(raw: string): PhysicalSession {
   }) as PhysicalSession;
   validateTree(value, { left: 200_000 });
   if (!value || value.version !== 1) throw new Error('Unsupported physical save');
+  // Records from before the delegated copies were dropped still carry them. Their
+  // owners' own domains are authoritative, so discard the copies, not the record.
+  if (value.production && typeof value.production === 'object')
+    for (const key of PRODUCTION_DELEGATED_KEYS) Reflect.deleteProperty(value.production, key);
   const defaults = capturePhysicalSession();
   for (const domain of [
     'production',
@@ -299,7 +317,10 @@ export const isPhysicalSessionRestoring = () => pending !== null;
 function restoreStores(saved: PhysicalSession) {
   resetThrottledBagState();
   useMaterialFlowStore.setState(saved.material);
-  useOperationsCampaignStore.setState(saved.operations);
+  useOperationsCampaignStore.setState({
+    ...saved.operations,
+    creditedBatchKg: compactBatchCreditKeys(saved.operations.creditedBatchKg),
+  });
   useBreakdownStore.setState(saved.maintenance);
   useTruckScheduleStore.setState(saved.trucks);
   useQCLabStore.setState(saved.quality);
@@ -479,7 +500,44 @@ export function installPhysicalSession(
     )
       queue();
   });
-  const timer = window.setInterval(save, 5000);
+  // A scene owner that fails to mount (an error boundary renders nothing) holds a
+  // restored clock at 0 and stops autosave with no sign. Never resume a half-
+  // restored shift; say what happened instead. Working if a required owner still
+  // missing ~20 s after the scene is ready raises one notice per outage.
+  let missingChecks = 0,
+    sceneWarned = false;
+  const watchScene = () => {
+    if (
+      disabled ||
+      !getStartupSnapshot().ready ||
+      isWorkplaceReplayActive() ||
+      !missingReplayParticipants().length
+    ) {
+      missingChecks = 0;
+      sceneWarned = false;
+      return;
+    }
+    if (++missingChecks < 4 || sceneWarned) return;
+    sceneWarned = true;
+    if (pending)
+      notify(
+        'physical-scene-incomplete',
+        'warning',
+        'Saved shift is waiting',
+        'Part of the scene did not load, so the saved shift cannot resume. The clock stays paused and the saved record is kept. Reload the page to try again; Settings > Simulation > Reset Simulation starts a fresh shift.'
+      );
+    else
+      notify(
+        'physical-scene-incomplete',
+        'info',
+        'Autosave paused',
+        'Part of the scene stopped running, so autosave is paused. The shift continues and the last good save is kept. Reload the page to resume saving.'
+      );
+  };
+  const timer = window.setInterval(() => {
+    watchScene();
+    save();
+  }, 5000);
   window.addEventListener('pagehide', save);
   const visibility = () => {
     if (document.hidden) save();
