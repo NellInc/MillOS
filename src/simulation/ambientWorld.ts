@@ -56,9 +56,10 @@ export function getAnimalActivityMultiplier(weather: AtmosphereWeather, hour: nu
 
 /** Windmill speed in radians per second, driven by the canonical atmosphere wind scalar. */
 export function getWindmillAngularSpeed(wind: number): number {
-  // Calm cannot power a windmill. Working if zero wind stops the sails,
-  // finite wind stays continuous, and maximum speed remains1.3rad/s.
-  return 1.3 * (Number.isFinite(wind) ? Math.max(0, Math.min(1, wind)) : 0);
+  // The ordinary 0.2 breeze drives the authored mill at 0.5 rad/s (about 5 RPM).
+  // Working if calm still stops it, response is smooth, and storms stay <= 1.3 rad/s.
+  const strength = Number.isFinite(wind) ? Math.max(0, Math.min(1, wind)) : 0;
+  return (1.3 * strength) / (0.4 + 0.6 * strength);
 }
 
 /** Local water height within a culvert, from dry-weather trickle to storm discharge. */

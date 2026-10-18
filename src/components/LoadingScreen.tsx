@@ -1,4 +1,4 @@
-import React, { Suspense, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import React, { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import {
   getStartupSnapshot,
   openPreparedStartup,
@@ -6,13 +6,17 @@ import {
   subscribeStartup,
 } from '../utils/startupReadiness';
 import { FEATURE_FLAGS } from '../config/featureFlags';
-import { recoverableLazy } from '../utils/recoverableLazy';
+import { importWithBoundedRetry } from '../utils/recoverableLazy';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import ErrorBoundary from './ErrorBoundary';
 import { useGraphicsStore } from '../stores/graphicsStore';
 
-const DeferredLoadingQuote = recoverableLazy(() =>
-  import('./knowledge/LoadingQuote').then((module) => ({ default: module.LoadingQuote }))
+// Decorative DOM content must never invalidate the 3D preparation window.
+// Working if a delayed or failed quote leaves scene task/error counts unchanged.
+const DeferredLoadingQuote = lazy(() =>
+  importWithBoundedRetry(() =>
+    import('./knowledge/LoadingQuote').then((module) => ({ default: module.LoadingQuote }))
+  )
 );
 
 interface LoadingScreenProps {
@@ -35,7 +39,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
   );
   const loadingRef = useRef<HTMLDivElement>(null);
   // Loading owns keyboard focus until readiness; Escape cannot skip preparation.
-  // Working if Tab stays on the cover, then cycles the delayed Reload control.
+  // Working if Tab stays on the cover until an explicit recovery control is available.
   useFocusTrap(loadingRef as React.RefObject<HTMLElement>, showLoading, () =>
     loadingRef.current?.focus()
   );
@@ -67,13 +71,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
   const safeProgress = startup.ready
     ? 100
     : Math.min(95, startup.totalAssets > 0 ? (startup.loadedAssets / startup.totalAssets) * 95 : 0);
-  const progressText = startup.ready
-    ? 'Ready'
-    : startup.pendingAssets > 0
-      ? `Loading scene assets, ${startup.loadedAssets} of ${startup.totalAssets}`
-      : startup.pendingTasks > 0
-        ? 'Building the complete mill'
-        : 'Warming up the scene and checking animation';
+  const progressText = startup.ready ? 'Ready' : 'Preparing the complete scene';
 
   return (
     <>
@@ -167,44 +165,37 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
             />
           </div>
 
-          {showRecovery && !startup.ready && (
-            <div className="mt-6 flex max-w-md flex-col items-center gap-3 text-center text-sm text-slate-300">
-              <p>
-                {startup.prepared
-                  ? 'The scene is loaded, but animation is still slow on this device.'
-                  : 'The scene is still preparing. You can keep waiting or reload.'}
-              </p>
-              {startup.errors > 0 && <p>Some resources could not be loaded.</p>}
-              {quality !== 'low' && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    resetStartupPreparation();
-                    useGraphicsStore.getState().setGraphicsQuality('low');
-                  }}
-                  className="min-h-11 rounded-md border border-slate-500 px-4 py-2 text-slate-100 transition-colors hover:border-amber-400 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400"
-                >
-                  Use low graphics
-                </button>
-              )}
-              {startup.prepared && startup.errors === 0 && (
-                <button
-                  type="button"
-                  onClick={openPreparedStartup}
-                  className="min-h-11 rounded-md border border-slate-500 px-4 py-2 text-slate-100 transition-colors hover:border-amber-400 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400"
-                >
-                  Open loaded scene (slow)
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => window.location.reload()}
-                className="min-h-11 rounded-md border border-slate-500 px-4 py-2 text-slate-100 transition-colors hover:border-amber-400 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400"
-              >
-                Reload
-              </button>
-            </div>
-          )}
+          {showRecovery &&
+            !startup.ready &&
+            (startup.prepared || startup.errors > 0 || quality !== 'low') && (
+              <div className="mt-6 flex max-w-md flex-col items-center gap-3 text-center text-sm text-slate-300">
+                {startup.prepared && (
+                  <p>The scene is loaded, but animation is still slow on this device.</p>
+                )}
+                {startup.errors > 0 && <p>Some resources could not be loaded.</p>}
+                {quality !== 'low' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      resetStartupPreparation();
+                      useGraphicsStore.getState().setGraphicsQuality('low');
+                    }}
+                    className="min-h-11 rounded-md border border-slate-500 px-4 py-2 text-slate-100 transition-colors hover:border-amber-400 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400"
+                  >
+                    Use low graphics
+                  </button>
+                )}
+                {startup.prepared && startup.errors === 0 && (
+                  <button
+                    type="button"
+                    onClick={openPreparedStartup}
+                    className="min-h-11 rounded-md border border-slate-500 px-4 py-2 text-slate-100 transition-colors hover:border-amber-400 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400"
+                  >
+                    Open loaded scene (slow)
+                  </button>
+                )}
+              </div>
+            )}
         </div>
       )}
     </>

@@ -29,6 +29,7 @@ import {
   CANAL_BOAT_BERTH,
   GAS_STATION_SITE,
   RIVER_FOOTBRIDGE_DECK,
+  RIVER_FOOTBRIDGE_LANDINGS,
   SITE_LAYOUT,
   STATION_ROAD_EDGE_SEGMENTS,
 } from '../constants/siteLayout';
@@ -3679,6 +3680,18 @@ function GroundPathGeometry({
   useEffect(() => () => geometry.dispose(), [geometry]);
   return <primitive object={geometry} attach="geometry" />;
 }
+
+// Meet the physical landing edge instead of drawing a second top beneath it.
+// Working if the receiving approach ends at the shared landing with no overlap.
+export const RIVER_FOOTBRIDGE_APPROACH = {
+  start: [0, 0, -85] as [number, number, number],
+  end: [
+    RIVER_FOOTBRIDGE_DECK.centre[0],
+    0,
+    Math.max(...RIVER_FOOTBRIDGE_LANDINGS.map((landing) => landing.maxZ)),
+  ] as [number, number, number],
+  width: 3,
+};
 
 // Gravel/paved path component
 export const GravelPath: React.FC<{
@@ -8751,7 +8764,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
       />
 
       {/* Path from back gate to river */}
-      <GravelPath start={[0, 0, -85]} end={[0, 0, -125]} width={3} type="paved" />
+      <GravelPath {...RIVER_FOOTBRIDGE_APPROACH} type="paved" />
 
       {/* Riverbank path removed - was crossing through river */}
 

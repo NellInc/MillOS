@@ -14,12 +14,19 @@ import {
 } from 'three';
 import {
   createGroundPathGeometry,
+  RIVER_FOOTBRIDGE_APPROACH,
   EAST_POND_APPROACH,
   GravelPath,
   HedgeRow,
   setFenceRailInstances,
 } from '../FactoryExterior';
-import { SITE_LAYOUT, getServiceAssetBounds, boundsOverlapXZ } from '../../constants/siteLayout';
+import {
+  SITE_LAYOUT,
+  RIVER_FOOTBRIDGE_DECK,
+  RIVER_FOOTBRIDGE_LANDINGS,
+  getServiceAssetBounds,
+  boundsOverlapXZ,
+} from '../../constants/siteLayout';
 import { sampleTerrainGroundHeight } from '../terrain/splatMapGenerator';
 import { readFileSync } from 'node:fs';
 import {
@@ -103,6 +110,19 @@ describe('exterior path and hedge centreline placement', () => {
       }
     }
   });
+});
+
+it('meets the rear bridge landing edge without layering the path underneath it', () => {
+  const path = RIVER_FOOTBRIDGE_APPROACH;
+  const outerEdge = Math.max(...RIVER_FOOTBRIDGE_LANDINGS.map((landing) => landing.maxZ));
+  expect(path.start).toEqual([0, 0, -85]);
+  expect(path.end).toEqual([RIVER_FOOTBRIDGE_DECK.centre[0], 0, outerEdge]);
+  expect(path.width).toBeLessThan(RIVER_FOOTBRIDGE_DECK.size[0]);
+  for (const landing of RIVER_FOOTBRIDGE_LANDINGS)
+    expect(Math.min(path.start[2], path.end[2])).toBeGreaterThanOrEqual(landing.maxZ);
+  expect(readFileSync('src/components/FactoryExterior.tsx', 'utf8')).toContain(
+    '<GravelPath {...RIVER_FOOTBRIDGE_APPROACH} type="paved" />'
+  );
 });
 
 it('writes depth for the opaque paths and edging before the late terrain draw', () => {
