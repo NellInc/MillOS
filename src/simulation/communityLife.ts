@@ -300,7 +300,8 @@ export function advanceCommunityPresentationClock(
   emergency: boolean
 ) {
   if (!Number.isFinite(worldHour) || !Number.isFinite(observedElapsed)) return hour;
-  if (emergency || !tabVisible) return worldHour;
+  // A non-finite presentation clock never recovers by stepping; reframe it.
+  if (emergency || !tabVisible || !Number.isFinite(hour)) return worldHour;
   // Preserve the existing explicit art-time reframe contract.
   if (
     observedElapsed < 0 ||
