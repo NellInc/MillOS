@@ -95,8 +95,29 @@ const createGuardedStorage = (base: StateStorage): StateStorage => ({
   },
 });
 
-export const safeJSONStorage: PersistStorage<unknown> = isTestEnvironment()
+const baseJSONStorage: PersistStorage<unknown> = isTestEnvironment()
   ? createMemoryPersistStorage()
   : (createJSONStorage(() =>
       createGuardedStorage(resolveLocalStorage() ?? createMemoryStorage())
     ) ?? createMemoryPersistStorage());
+
+let persistenceSuspended = false;
+
+// Reset Simulation clears every millos-* key and reloads, but the old document
+// keeps ticking until the navigation commits, and each tick's set() would write
+// the pre-reset orders and clock straight back. Every persist() store shares
+// this storage, so one flag stops them all. Working if: after
+// suspendPersistence(), no persisted store writes for the rest of the page's
+// life (reads and removals still work).
+export function suspendPersistence(): void {
+  persistenceSuspended = true;
+}
+
+export const safeJSONStorage: PersistStorage<unknown> = {
+  getItem: (name) => baseJSONStorage.getItem(name),
+  setItem: (name, value) => {
+    if (persistenceSuspended) return;
+    return baseJSONStorage.setItem(name, value);
+  },
+  removeItem: (name) => baseJSONStorage.removeItem(name),
+};

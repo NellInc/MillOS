@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useGraphicsStore, GraphicsQuality } from '../../../stores/graphicsStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
+import { suspendPersistence } from '../../../stores/storage';
 import { useShallow } from 'zustand/react/shallow';
 // Import optimized audio hook (uses useSyncExternalStore instead of forceUpdate)
 import { useAudioStateWithControls as useAudioState } from '../../../hooks/useAudioState';
@@ -777,6 +778,11 @@ export const SettingsPanel: React.FC<{
           // Clear every persisted MillOS store (keys are namespaced "millos-*").
           // This includes millos-graphics and millos-ai-config (AI preferences).
           // Cloud API keys live in page memory and vanish on the reload below.
+          // Pause first, then suspend persistence: the tick keeps running until
+          // the reload commits, and its writes would restore the old orders and
+          // clock. Working if: no millos-* store key survives the reload.
+          useGameSimulationStore.getState().setGameSpeed(0);
+          suspendPersistence();
           Object.keys(localStorage)
             .filter((key) => key.startsWith('millos-'))
             .forEach((key) => localStorage.removeItem(key));
