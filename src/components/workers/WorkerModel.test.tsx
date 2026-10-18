@@ -2415,3 +2415,101 @@ it('fits both original ear tips inside the cavity and carries the band clear of 
     hatMaterial.dispose();
   }
 });
+
+it('admits briefing attention only in stationary idle, freezes it at pause and clears missing legacy cues', () => {
+  const scene = new THREE.Group(),
+    body = new THREE.Group(),
+    hips = new THREE.Group(),
+    abdomen = new THREE.Bone(),
+    head = new THREE.Bone();
+  body.name = 'Body';
+  hips.name = 'Hips';
+  abdomen.name = 'Abdomen';
+  head.name = 'Head';
+  scene.add(body);
+  body.add(hips);
+  hips.add(abdomen);
+  abdomen.add(head);
+  harness.asset = {
+    scene,
+    animations: ['idle', 'walk', 'run', 'inspect', 'break'].map(
+      (name) =>
+        new THREE.AnimationClip(`worker-${name}`, 2, [
+          new THREE.NumberKeyframeTrack('Body.position[y]', [0, 2], [0, 0]),
+        ])
+    ),
+  };
+  const originalSample = workerPoses.sampleWorkerGesture;
+  const sample = vi.spyOn(workerPoses, 'sampleWorkerGesture'),
+    wave = vi.spyOn(workerPoses, 'sampleWorkerGreeting');
+  const motion: WorkerMotionState = {
+    activity: 'idle',
+    briefing: true,
+    greeting: true,
+    groundSpeed: 0,
+    seated: false,
+    phase: 3,
+    enabled: false,
+  };
+  const view = render(
+    <WorkerModel
+      appearance={getWorkerAppearance('Engineer', '', 'briefing-renderer')}
+      motion={motion}
+    />
+  );
+  harness.frame?.({}, 1 / 60);
+  expect(sample.mock.calls.at(-1)![0]).toBe('briefing');
+  expect(sample.mock.calls.at(-1)![1]).toBe(3);
+  expect(wave).not.toHaveBeenCalled();
+  const held = head.quaternion.toArray(),
+    calls = sample.mock.calls.length;
+  harness.frame?.({}, 100);
+  expect(head.quaternion.toArray()).toEqual(held);
+  expect(sample.mock.calls).toHaveLength(calls);
+  motion.briefing = undefined;
+  motion.greeting = false;
+  harness.frame?.({}, 100);
+  expect(sample.mock.calls.at(-1)![0]).toBe('idle');
+  expect(sample.mock.calls.at(-1)![1]).toBe(3);
+  expect(new THREE.Quaternion().fromArray(held).angleTo(head.quaternion)).toBeGreaterThan(0.05);
+  motion.briefing = true;
+  motion.activity = 'working';
+  harness.frame?.({}, 1 / 60);
+  expect(sample.mock.calls.at(-1)![0]).toBe('inspect');
+  motion.activity = 'idle';
+  motion.seated = true;
+  harness.frame?.({}, 1 / 60);
+  expect(sample.mock.calls.at(-1)![0]).toBe('rest');
+  motion.seated = false;
+  motion.groundSpeed = 1;
+  motion.activity = 'walking';
+  harness.frame?.({}, 1 / 60);
+  expect(sample.mock.calls.at(-1)![0]).toBe('idle');
+  motion.activity = 'idle';
+  motion.groundSpeed = 0;
+  motion.cartGrip = 'push';
+  harness.frame?.({}, 1 / 60);
+  expect(sample.mock.calls.at(-1)![0]).toBe('idle');
+  motion.cartGrip = undefined;
+  motion.enabled = true;
+  harness.frame?.({}, 1 / 60);
+  expect(sample.mock.calls.at(-1)![0]).toBe('briefing');
+  expect(sample.mock.calls.at(-1)![1]).toBeGreaterThan(3);
+  motion.briefing = false;
+  motion.attentionYaw = 0.26;
+  motion.greeting = true;
+  motion.greetingYaw = 0.4;
+  motion.greetingTargetId = 'previous-neighbour';
+  for (let frame = 0; frame < 15; frame++) harness.frame?.({}, 0.05);
+  motion.briefing = true;
+  motion.enabled = false;
+  const wavesBefore = wave.mock.calls.length;
+  harness.frame?.({}, 0.05);
+  const [kind, time, target] = sample.mock.calls.at(-1)!;
+  expect(kind).toBe('briefing');
+  expect(wave).toHaveBeenCalledTimes(wavesBefore);
+  const expected = originalSample('briefing', time, workerPoses.createWorkerGesture());
+  expect(target.lookYaw).toBe(expected.lookYaw);
+  expect(target.lookPitch).toBe(expected.lookPitch);
+  view.unmount();
+});

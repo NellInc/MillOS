@@ -1270,6 +1270,7 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     seated?: boolean;
     cycling?: boolean;
     greeting?: boolean;
+    briefing?: boolean;
     greetingTargetId?: string | null;
     cyclePhase?: number;
     cartGrip?: 'push' | 'pull';
@@ -1659,6 +1660,14 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       (motion.seated || motion.activity === 'walking')
         ? motion.seat
         : undefined;
+    const briefing =
+      motion.briefing === true &&
+      motion.activity === 'idle' &&
+      !moving &&
+      !motion.seated &&
+      !motion.cycling &&
+      !motion.cartGrip &&
+      !seat;
     const seatChanged =
       lastPose.current.seatAmount !== seat?.amount ||
       lastPose.current.seatSupport !== seat?.support ||
@@ -1671,6 +1680,7 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       lastPose.current.seated !== motion.seated ||
       lastPose.current.cycling !== motion.cycling ||
       lastPose.current.greeting !== motion.greeting ||
+      lastPose.current.briefing !== briefing ||
       lastPose.current.greetingTargetId !== motion.greetingTargetId ||
       lastPose.current.cartGrip !== motion.cartGrip ||
       lastPose.current.seatFloorOffset !== motion.seatFloorOffset ||
@@ -1699,12 +1709,19 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       motion.seated || motion.activity === 'break'
     );
     sampleWorkerGesture(
-      motion.seated ? 'rest' : motion.activity === 'working' ? appearance.workAction : 'idle',
+      motion.seated
+        ? 'rest'
+        : briefing
+          ? 'briefing'
+          : motion.activity === 'working'
+            ? appearance.workAction
+            : 'idle',
       gestureTime.current,
       sampledGesture
     );
     if (lastPose.current.greetingTargetId !== motion.greetingTargetId) greetingElapsed.current = 0;
-    const greetingActive = motion.greeting && motion.activity === 'idle' && !motion.seated;
+    const greetingActive =
+      !briefing && motion.greeting && motion.activity === 'idle' && !motion.seated;
     if (greetingActive) {
       greetingElapsed.current += safeDelta;
       sampleWorkerGreeting(greetingElapsed.current, sampledGesture);
@@ -1715,7 +1732,7 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       7,
       safeDelta
     );
-    if (motion.activity === 'idle')
+    if (motion.activity === 'idle' && !briefing)
       sampledGesture.lookYaw = greetingActive
         ? greetingYaw.current
         : sampledGesture.lookYaw + greetingYaw.current;
@@ -1731,7 +1748,7 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       7,
       safeDelta
     );
-    if (motion.activity === 'idle' && !motion.seated && !greetingActive)
+    if (motion.activity === 'idle' && !motion.seated && !greetingActive && !briefing)
       sampledGesture.lookYaw += attentionYaw.current;
     // Walking uses the same admitted attention channel. Only the existing head
     // overlay consumes it; authored torso, limbs, cadence and foot contacts stay exact.
@@ -1751,6 +1768,7 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       seated: motion.seated,
       cycling: motion.cycling,
       greeting: motion.greeting,
+      briefing,
       greetingTargetId: motion.greetingTargetId,
       cyclePhase: motion.cyclePhase,
       cartGrip: motion.cartGrip,

@@ -6276,3 +6276,56 @@ Native actual public Handoff/proposal/adviser/comparison controls pass20frames: 
 Root authored and personally self-reviewed all20frames through10lossless UI sheets plus full desktop context. Timing/paid-hold/discussion content readable, no horizontal overflow, mobile question reachable by ordinary scrolling. Collapse/reopen changes no observation. Preparing another prediction clears timing and restores original selector focus. Actual public workplace/campaign/material/logistics and direct clock observations byte-exact before/after each study, original three bounds and optional unsure prediction retained. No runtime actor/inventory override or automatic ballot. Browsers, previews and lock closed normally. No artistic correction round needed.
 
 Protected primary HEAD/NULstatus/binarydiff, six canonical authority/engine/renderer files and ten unrelated images exact; all25source/431compiled pins exact before this completion note. Documentation pinned separately afterward. Selective LOCAL commit only, no push/deploy/upload; prior PR35 remains the existing live release. Repeating programme ACTIVE. Player/device/manual first-person checks DEFERRED; pacing/adaptive quality separately OPEN with no waiver. Next continuation should move to another materially useful cooperative-play/world behaviour, avoiding an endless expansion of this optional comparison disclosure.
+
+
+## CE. Attentive people during the actual paid briefing, 2026-10-18
+
+Previous goal turn is PROGRESS: CD packing-time learning committeda8f7348f with40tests and20native frames. Current owned tree is clean apart from ten unrelated screenshots. Return to people animation and world/game cohesion, keeping this pass LOCAL/MUTED and preserving the interface. Observed source/art gap: four real mapped briefing participants hold safe routes and show the right labels, but the renderer samples generic idle head glances. Its ordinary idle greeting remains eligible during a briefing. Add a restrained listening posture driven only by the existing paid-briefing cue, not a vote, agreement or worker feeling.
+
+Allowed: CommunityLife.tsx, models/WorkerModel.tsx, workers/workerTypes.ts, workers/workerPose.ts and their two existing pose/model test files, this programme. Run the existing communityLife domain suite unchanged. Protect all agreement/simulation stores, community schedules/cues, pay/consent/recovery, route positions, existing graphics/quality/readiness/budgets, shared body/prop geometry/materials and UI. No new clips, meshes, shaders, lights, draw calls, dependency, voice or private data. Working if only the current four briefing participants use phased quiet attention gestures, with planted feet, no work/wave action, correct pause/transition behaviour and unchanged ledgers.
+
+Detailed finite task list:
+1. Reconcile current local commit, ownership and previous accepted pass.
+2. Pin protected primary HEAD/status/diff, canonical authority/physics/advice files and unrelated images.
+3. Confirm actual CommunityLife and WorkerModel reach the world; read the full cue-to-pose path.
+4. Retain named baseline of existing community/worker-pose/worker-renderer suites and reproduce absence of dedicated briefing semantics.
+5. Add one optional presentation-only motion cue; old motions remain neutral.
+6. Populate it from the existing paid briefing state at initial preparation and each actual community frame.
+7. Clear absent old replay motion to neutral rather than retaining a future briefing flag.
+8. Suppress social wave eligibility during the briefing without changing recipient/route clocks.
+9. Guard the renderer so briefing applies only to an idle, standing, unencumbered, nonmoving person.
+10. Add briefing entry/exit to existing semantic-change detection, including paused changes.
+11. Reuse the original idle clip, admitted gesture clock, per-person phase and eased overlay.
+12. Author short attentive head dips and small held glances with long quiet dwells; avoid continuous bobbing or synchronized staff.
+13. Retain subtle standing settlement and zero work/tool/wave channels for this posture.
+14. Keep hands/tools, feet, seat/cycle/cart contact, body LOD, blink/gaze and existing skin attachments intact.
+15. Leave rest/recovery/work/walking and emergency precedence unchanged.
+16. Freeze animation at pause/reduced motion/far omission through the existing admission rules; add no independent timer or allocation loop.
+17. Protect finite bounded sampling and deterministic per-person variation in existing pose tests.
+18. On both real authored rigs, verify head/torso attention changes while foot transforms remain exact and restore removes the overlay.
+19. Exercise the actual renderer callback for briefing entry/exit, paused clock, legacy missing cue and work/seat precedence.
+20. Run focused existing suites, required typecheck/lint/format/depth/shader and available component design detection.
+21. Build exact source under the capture lock and pass unchanged170MiB bundle plus fresh reachability/community gates.
+22. Activate the actual paid handoff through existing public proposal/adviser/four-role approvals, using no actor/inventory override.
+23. Inspect four staff at day/dusk/night, compare actual admitted motion then paused holds, and exercise stop/expiry through real controls.
+24. Keep native hardware/world/readiness/audio and current quality guards; distinguish framing/art, animation, authority and pacing evidence.
+25. Personally inspect the bounded capture batch, retain raw failures, verify exact custody/seals, close owned resources and selectively commit locally.
+26. Keep repeating programme ACTIVE, pacing/adaptive quality OPEN separately and physical player/device/manual acceptance DEFERRED.
+
+Pre-mortem: a stale presentation flag could leak into rest/walking or old replay; a head overlay could accumulate or move planted feet; and an independent animation clock could keep people moving while paused. Guard semantic context, reset legacy absence, reuse admitted time and verify both real rigs plus native pause/stop behaviour. No head movement is consent or a measured inner state.
+
+
+CE pre-build correction: actual renderer test reproduces retained greetingYaw plus route attention contaminating the briefing sample(0.7865rad instead of the authored bounded profile). Both additive idle-attention branches now exclude the sanitized briefing state. Existing social/route behaviour remains unchanged outside briefing. Raw failing receipt retained; this is an in-scope context isolation repair before the first build/art batch, with no independent clock or permission change.
+
+
+CE finite acceptance complete: all26planned items delivered with the explicit standing/unencumbered renderer guard. Baseline245passed/0failed across the existing community, real-rig pose and renderer suites; absent profile reproduced red. Final corrected249passed/0failed(+4): bounded finite/deterministic attention with quiet dwells and zero procedural work/wave/tool channels, both actual authored rigs preserving incoming foot transforms and restoring head/abdomen, and real renderer-callback pause/entry/exit/legacy/context precedence plus stale gaze isolation. Initial generic-profile and later0.7865rad stale-gaze reproductions retained. Existing emitted reach diagnostics remain unchanged(masculine4 inherited misses/feminine0); this pass makes no new gait/ground-contact certification.
+
+Only four production files changed: optional presentation flag, current cue wiring/legacy neutral replay default, guarded semantic/attention selection and a small allocation-free gesture profile. No new clip, mesh, shader, material, light or draw call; no store, schedule, consent, pay, recovery, UI, route or quality change. Standing participants receive one restrained dip and held glances on their original phased/admitted animation clock. Already-seated people retain their seated/support pose, and working/walking/cart/cycle/rest precedence remains intact. Head movement records no understanding, ballot, consent or measured inner state.
+
+All corrected required typecheck/lint/format/depth91active/12relationships/shader37families/41keys/design detector0findings gates pass. Production build431files178132571bytes(169.88MiB) stays below unchanged170MiB cap; Vite15.62s. Fresh bundle/reachability/inhabited-world gates pass. Exact source/body assets/compiled seals retained. No dependency setup to restore.
+
+Native public paid-briefing proposal/adviser/four-role approvals/activation/pause/resume/stop/review pass36views: four actual mapped people in wide briefing, later near attention and restored ordinary-duty states at12:00/18:30/22:00. All original Medium/startup/world/people/texture/page/request/audio guards retained, sandboxed out-of-process Apple Metal, context not-created and0audio nodes, process additionally muted. No actor/inventory override. Real resumed time advances the workplace minute and sampled head transforms while every briefing route root stays exact; paused wide and near inspections keep all sampled bone transforms and public/direct physical/agreement clocks byte-exact. Normal stop clears the briefing cue, actual day expiry occurs at minute5.25, and ending the shift releases current presentation. Advancing the clock intentionally changes the ledger; this is animation/transition proof, not a controlled contribution or pacing benchmark.
+
+Root authored and personally self-reviewed all36frames through nine lossless four-person sheets, plus full native close views. Four representatives remain at their actual safe posts or existing bench, with natural standing attention and no forced seat changes. Original body/prop/seat contact geometry preserved. Night maintenance-post rendering is visibly dim in the existing lighting; preserve this as a grounded later lighting opportunity rather than changing exposure or adding a light inside this motion-only pass. No art correction round or source rebuild after native acceptance needed.
+
+Protected primary HEAD/NULstatus/binarydiff, ten canonical source/body-asset pins, ten unrelated images and all26source/431compiled pins exact before this completion note. Documentation separately pinned afterward. All owned browsers/previews/locks closed normally. Selective LOCAL commit only, no push/deploy/upload. Repeating programme ACTIVE, pacing/adaptive quality OPEN separately with no waiver, physical player/device/manual acceptance DEFERRED. Next continuation can address the observed dim service-post lighting or another substantial world/gameplay gap; do not keep expanding this finished briefing gesture.

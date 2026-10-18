@@ -138,6 +138,7 @@ export function CommunityLife() {
       const activity = emergency && !pose.seated ? 'idle' : response.activity;
       const motion: WorkerMotionState = {
         activity,
+        briefing: !emergency && agreement?.state === 'briefing',
         groundSpeed: !emergency && pose.activity === 'walking' ? 1.1 : 0,
         seated: pose.seated,
         enabled: false,
@@ -197,6 +198,7 @@ export function CommunityLife() {
             resident.motion.seat = undefined;
             Object.assign(resident.pose, actor.pose);
             resident.motion.attentionYaw = actor.motion.attentionYaw ?? 0;
+            resident.motion.briefing = actor.motion.briefing ?? false;
             Object.assign(resident.motion, actor.motion);
             Object.assign(resident.response, actor.response);
           });
@@ -324,6 +326,7 @@ export function CommunityLife() {
       communityAgreementResponse(agreement, pose, response);
       const task = emergency ? 'Holding safely for the site safety stop' : response.task;
       if (!emergency) motion.activity = response.activity;
+      motion.briefing = !emergency && agreement?.state === 'briefing';
       Object.assign(root.userData, {
         activity: motion.activity,
         task,
@@ -363,7 +366,11 @@ export function CommunityLife() {
           ? THREE.MathUtils.clamp(Math.atan2(Math.sin(routeTurn), Math.cos(routeTurn)), -0.6, 0.6)
           : communityPassengerAttention(actor.person, actor.pose, bus);
       root.userData.attentionYaw = actor.motion.attentionYaw;
-      actor.motion.greeting = !emergency && actor.motion.activity === 'idle' && !!greeting.targetId;
+      actor.motion.greeting =
+        !emergency &&
+        !actor.motion.briefing &&
+        actor.motion.activity === 'idle' &&
+        !!greeting.targetId;
       root.userData.greeting = actor.motion.greeting;
       root.userData.greetingTargetId = greeting.targetId;
       if (!emergency && actor.pose.task === 'Greeting a neighbour')

@@ -769,7 +769,7 @@ export function sampleWorkerGreeting(seconds: number, out: WorkerGesture) {
  * Working if tools follow the same sampled offset as palms and feet stay planted.
  */
 export function sampleWorkerGesture(
-  kind: WorkerWorkAction | 'rest' | 'idle' | 'greet',
+  kind: WorkerWorkAction | 'rest' | 'idle' | 'greet' | 'briefing',
   seconds: number,
   out: WorkerGesture
 ) {
@@ -860,6 +860,25 @@ export function sampleWorkerGesture(
     kind === 'sample' ? 0.75 : kind === 'supervise' ? 0.65 : kind === 'repair' ? 0.9 : 1.15;
   out.workStroke = Math.sin(t * strokeRate) * attention * strokeRange;
   out.workCheck = Math.sin(t * checkRate) * attention;
+  // One attentive dip and two held glances, phased by the existing body clock.
+  // Working if listeners have quiet dwells, planted feet and no work/wave cue.
+  if (kind === 'briefing') {
+    const briefingTime = ((t % 18.4) + 18.4) % 18.4;
+    const near =
+      THREE.MathUtils.smoothstep(briefingTime, 0.9, 1.8) *
+      (1 - THREE.MathUtils.smoothstep(briefingTime, 4.8, 5.7));
+    const far =
+      THREE.MathUtils.smoothstep(briefingTime, 9.7, 10.6) *
+      (1 - THREE.MathUtils.smoothstep(briefingTime, 12.7, 13.6));
+    const dip =
+      THREE.MathUtils.smoothstep(briefingTime, 2.25, 2.75) *
+      (1 - THREE.MathUtils.smoothstep(briefingTime, 3.05, 3.8));
+    out.lookYaw = near * 0.13 - far * 0.09;
+    out.lookPitch = 0.018 + dip * 0.085 + far * 0.025;
+    out.idleSettle = near * 0.006 - far * 0.004;
+    out.workStroke = 0;
+    out.workCheck = 0;
+  }
   return out;
 }
 

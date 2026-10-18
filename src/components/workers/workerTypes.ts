@@ -23,6 +23,8 @@ export interface WorkerMotionState {
   cycling?: boolean;
   /** Brief empty-hand greeting at an authored social stop; never a plant action. */
   greeting?: boolean;
+  /** Paid briefing attention only; omitted legacy motion retains ordinary idle. */
+  briefing?: boolean;
   /** Actual anonymous recipient and bounded relative bearing, retained through holds. */
   greetingTargetId?: string | null;
   greetingYaw?: number;

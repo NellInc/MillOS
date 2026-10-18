@@ -3728,3 +3728,73 @@ describe('actual supported handheld work', () => {
         }
       });
 });
+
+it('gives paid briefing a quiet attention sample without work or greeting channels', () => {
+  const gesture = sampleWorkerGesture('briefing', 3, createWorkerGesture());
+  expect(gesture.lookPitch).toBeGreaterThan(0.06);
+  expect(gesture.workStroke).toBe(0);
+  expect(gesture.workCheck).toBe(0);
+  expect(gesture.greetingLift).toBe(0);
+  const dwells = [6, 7.5, 9].map((t) => {
+    sampleWorkerGesture('briefing', t, gesture);
+    return [gesture.lookYaw, gesture.lookPitch, gesture.idleSettle];
+  });
+  expect(dwells[0]).toEqual(dwells[1]);
+  expect(dwells[1]).toEqual(dwells[2]);
+  for (const t of [NaN, Infinity, -Infinity, ...Array.from({ length: 240 }, (_, n) => n / 4)]) {
+    expect(sampleWorkerGesture('briefing', t, gesture)).toBe(gesture);
+    expect(Object.values(gesture).every(Number.isFinite)).toBe(true);
+    expect(Math.abs(gesture.lookYaw)).toBeLessThanOrEqual(0.13);
+    expect(gesture.lookPitch).toBeGreaterThanOrEqual(0.018);
+    expect(gesture.lookPitch).toBeLessThanOrEqual(0.103000001);
+    expect(Math.abs(gesture.idleSettle)).toBeLessThanOrEqual(0.006);
+    expect([
+      gesture.workStroke,
+      gesture.workCheck,
+      gesture.toolY,
+      gesture.toolZ,
+      gesture.greetingLift,
+      gesture.greetingWave,
+    ]).toEqual([0, 0, 0, 0, 0, 0]);
+  }
+  expect(sampleWorkerGesture('briefing', 2, gesture).lookYaw).toBeGreaterThan(0.1);
+  expect(sampleWorkerGesture('briefing', 12, gesture).lookYaw).toBeLessThan(-0.08);
+});
+
+it.each(['masculine', 'feminine'])(
+  '%s briefing attention changes the real head while restoring the incoming rig and keeping boots planted',
+  (body) => {
+    const gltf = bodies.get(body)!,
+      scene = clone(gltf.scene),
+      mixer = new THREE.AnimationMixer(scene);
+    mixer.clipAction(gltf.animations.find((clip) => clip.name === 'worker-idle')!).play();
+    const pose = createSeatedWorkerPose(scene),
+      gesture = createWorkerGesture();
+    const head = scene.getObjectByName('Head')!,
+      abdomen = scene.getObjectByName('Abdomen')!,
+      point = new THREE.Vector3();
+    let largestHeadChange = 0;
+    for (let frame = 0; frame < 240; frame++) {
+      mixer.update(1 / 12);
+      scene.updateMatrixWorld(true);
+      const feet = ['FootL', 'FootR'].map((name) =>
+        scene.getObjectByName(name)!.getWorldPosition(point).clone()
+      );
+      const incomingHead = head.quaternion.clone(),
+        incomingAbdomen = abdomen.quaternion.clone();
+      sampleWorkerGesture('briefing', frame / 12, gesture);
+      pose.applyIdle(gesture);
+      largestHeadChange = Math.max(largestHeadChange, head.quaternion.angleTo(incomingHead));
+      for (const [i, name] of ['FootL', 'FootR'].entries())
+        expect(
+          scene.getObjectByName(name)!.getWorldPosition(point).distanceTo(feet[i])
+        ).toBeLessThan(0.000001);
+      pose.restore();
+      expect(head.quaternion.angleTo(incomingHead)).toBeLessThan(0.000001);
+      expect(abdomen.quaternion.angleTo(incomingAbdomen)).toBeLessThan(0.000001);
+    }
+    expect(largestHeadChange).toBeGreaterThan(0.1);
+    mixer.stopAllAction();
+    mixer.uncacheRoot(scene);
+  }
+);
