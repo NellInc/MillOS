@@ -23,6 +23,8 @@ import {
 import { useGraphicsStore, GraphicsQuality } from '../../../stores/graphicsStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { suspendPersistence } from '../../../stores/storage';
+import { LOCALE_STORAGE_KEY } from '../../../i18n';
+import { LanguageSwitcher } from '../../../i18n/LanguageSwitcher';
 import { useShallow } from 'zustand/react/shallow';
 // Import optimized audio hook (uses useSyncExternalStore instead of forceUpdate)
 import { useAudioStateWithControls as useAudioState } from '../../../hooks/useAudioState';
@@ -111,6 +113,10 @@ export const SettingsPanel: React.FC<{
 
   return (
     <div className="p-4 space-y-6 h-full overflow-y-auto custom-scrollbar">
+      <section>
+        <LanguageSwitcher />
+      </section>
+
       {/* Simulation Speed */}
       <section>
         <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3 flex items-center gap-2">
@@ -784,7 +790,7 @@ export const SettingsPanel: React.FC<{
           useGameSimulationStore.getState().setGameSpeed(0);
           suspendPersistence();
           Object.keys(localStorage)
-            .filter((key) => key.startsWith('millos-'))
+            .filter((key) => key.startsWith('millos-') && key !== LOCALE_STORAGE_KEY)
             .forEach((key) => localStorage.removeItem(key));
           // No graphics write here: the reload boots the default medium preset,
           // and any store write would persist millos-graphics straight back.
