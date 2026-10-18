@@ -33,7 +33,7 @@ import {
 const button =
   'min-h-11 rounded-md border border-cyan-300/25 px-3 py-2 text-xs font-medium text-cyan-100 hover:bg-cyan-900/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 disabled:cursor-not-allowed disabled:opacity-50';
 const input =
-  'min-h-11 w-full min-w-0 rounded-md border border-slate-600 bg-slate-950 px-2 py-2 text-sm text-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300';
+  'min-h-11 w-full min-w-0 rounded-md border border-slate-600 bg-slate-950 px-2 py-2 text-sm text-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 disabled:cursor-not-allowed disabled:opacity-50';
 
 export function HandoffEpisodes({
   state,
@@ -46,6 +46,7 @@ export function HandoffEpisodes({
   const [selectedActor, setActor] = useState('quality');
   const actor =
     store.participationMode === 'separate-turns' ? (store.turn?.actorId ?? '') : selectedActor;
+  const separateTurns = store.participationMode === 'separate-turns';
   const selected = HANDOFF_EPISODES.find((e) => e.id === state.improvement?.episode?.id);
   const outcome = improvementEpisodeOutcome(
     state,
@@ -67,6 +68,7 @@ export function HandoffEpisodes({
         Pressure episode
         <select
           aria-label="Pressure episode"
+          disabled={separateTurns && !!store.turn}
           className={input}
           value={selected?.id ?? ''}
           onChange={(e) =>
@@ -91,10 +93,19 @@ export function HandoffEpisodes({
             Rehearsal response author
             <select
               aria-label="Rehearsal response author"
+              disabled={separateTurns}
               className={input}
               value={actor}
               onChange={(e) => setActor(e.target.value)}
             >
+              <option value="" disabled>
+                Begin a member turn
+              </option>
+              {actor === 'mind' && (
+                <option value="mind" disabled>
+                  Adviser, no member response
+                </option>
+              )}
               {state.members.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.role}
@@ -109,6 +120,7 @@ export function HandoffEpisodes({
                 type="button"
                 className={button}
                 aria-pressed={state.improvement?.episode?.choice === choice.id}
+                disabled={!state.members.some((member) => member.id === actor)}
                 onClick={() =>
                   report(
                     store.respondImprovementEpisode(actor, choice.id as ImprovementEpisodeChoice)

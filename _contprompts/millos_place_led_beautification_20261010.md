@@ -5896,3 +5896,60 @@ Final typecheck, ESLint and format pass after the accessibility/copy correction.
 Native acceptance: sandboxed out-of-process Metal, original complete startup/world readiness, muted with no audio context. Actual public controls open Handoff, select member governance, propose the buffer, choose a prediction, run the real isolated flow model and prepare the next prediction. Desktop1600x1000 and mobile390x844 at12:00,18:30and22:00, eight personally inspected images including the focused reset selector. Within each matched input the three packing ranges overlap, despite higher nominal buffer pacing; reflection correctly differs from the higher-range hypothesis and asks about shared limits. Conditional departure stays0kg in these captured plant states; no shipment claim. Independent time-of-day runs have different live starting stock and are never treated as a causal A/B. All world/people/texture/page/request guards clean, original Medium preset retained, reflection unobscured/no horizontal overflow. All own browsers, previews and capture locks close normally. Root authored and self-reviewed, no independent-review claim.
 
 Primary HEAD/status/binary diff and all ten unrelated images match pre-pass pins. Runtime source/art/compiled seals match before this documentation-only completion note. Retain initial accessible-name failure and corrected final logs separately. Local only; no new publication. Physical player/device/manual checks remain DEFERRED and pacing OPEN separately, without waiver or performance claim. Repeating programme goal remains ACTIVE.
+
+## BV. Cooperative turn clarity from proposal through review, 2026-10-18
+
+Previous turn is PROGRESS: BU optional prediction/real-engine comparison implemented,20focused checks plus required full source/build and eight native views accepted; local commit523f88d8d7c7f9828b6a11be89e15abbee22ba7f. Continue from that exact clean tracked tree. LOCAL and MUTED, no new publication. Core cooperative learning remains Nell’s latest focus.
+
+Observed live gap: store token/actor/mandate guards already reject unowned role actions and facilitator changes during a participant turn. Handoff UI does not consistently reflect them: proposals, adviser responses, pressure episodes and review decisions can look available to the wrong role, and correct mandate checks do not clearly tell the participant when a deliberate understanding confirmation can follow. Preserve the store, role-command classification, token anchors, consent, qualification, privacy and vote thresholds; repair affordances and keyboard flow only.
+
+Allowed: WorkplaceImprovementPanel, WorkplacePackingEvidence pressure-episode block, WorkplaceParticipation and their existing ImprovementPanel/Participation tests, plus this programme. Prior prediction loop, learning review and scene assets retained. No change to simulation/store/types, persistence, controls shell, quality/readiness/budgets, routes or lighting.
+
+Detailed finite task list:
+1. Reconcile current base, owned checkout and clean tracked state.
+2. Pin primary dirty HEAD/status/diff and ten unrelated images.
+3. Pin the existing canonical actor/token/mandate contracts, which remain unchanged.
+4. Verify actual imports, shipped UI and existing role-guard tests.
+5. Record baseline counts/names for affected UI and underlying participation suites.
+6. Reproduce wrong-role enabled proposal/review affordances in the existing tests before repair.
+7. Allow only the proposal’s actual author during facilitated separate turns; preserve solo role-play.
+8. Keep the current turn’s challenge/stopping author visible and locked.
+9. Make no-active-turn and adviser-with-no-member-response states explicit rather than displaying a misleading first option.
+10. Restrict adviser response/review buttons to the adviser turn.
+11. Mirror the existing three mandate-check prerequisites before understanding or adviser acknowledgement.
+12. Show accurate current-check feedback without recording understanding or changing any ballot automatically.
+13. Retain fresh role-specific understanding, approve/decline and optional-duty distinctions.
+14. Keep pressure setup with the facilitator outside a participant turn.
+15. Keep planning episode responses with the current member, with no simulated permission or quality release.
+16. Leave isolated packing predictions/rehearsals observational and usable by every role.
+17. Gate each review decision to its owner after adviser review, preserving all verdict options and thresholds.
+18. Keep activation, final settlement and next-shift setup with the facilitator after ending the current turn.
+19. Preserve stop and emergency-safety routes even during a participant turn.
+20. Focus the current-turn explanation after explicit Begin; return focus to the handover selector after explicit End, without focus theft on background invalidation.
+21. Retain the existing shared-device synthetic-role and authentication limitations.
+22. Add small existing-suite regressions for facilitator/member/adviser states, check completion, review ownership, focus and solo compatibility.
+23. Retain existing stale-callback/old-token rejection tests as the authority proof, not UI disabling alone.
+24. Run affected suites and required whole typecheck/lint/format/depth/shader gates.
+25. Build the exact candidate, preserve bundle cap and fresh reachability/community gates.
+26. Use actual local controls for separate turns, proposals, checks, self-owned decisions, early review and facilitator settlement, without actor/inventory overrides.
+27. Inspect native desktop/mobile day/dusk/night views, meaningful disabled states, legible current-role/check feedback and keyboard return.
+28. Preserve failures and raw receipts, audit exact source/build/primary custody, selectively check in locally.
+29. Leave physical player/device checks DEFERRED and pacing OPEN separately, close only owned runtime resources and retain the repeating goal ACTIVE.
+
+Pre-mortem: UI disabling could accidentally suppress a safety stop, a guessed prerequisite could diverge from the real token guard, or a focus effect could steal input after a background revision. Working if UI mirrors the unchanged canonical guard, deliberate Begin/End own focus transitions only, and emergency/stop access remains.
+
+BV baseline51/51 across the two actual UI suites(19) and canonical workplaceStore.participation suite(32). Initial command used a non-existent store filename and therefore ran only the two UI suites; retain that log, run the discovered exact authority suite separately and use the truthful combined baseline. New regression reproduces the proposal owner affordance defect: Packing proposal enabled with no participant turn. Store authority still rejects it. Production repair makes that same regression pass while keeping the store files pinned unchanged.
+
+BV first coherent run54pass/1new fixture failure: the new adviser test assumed its acknowledgement keeps the turn open. Canonical acknowledgeImprovement calls invalidate, ends the turn and clears prior decisions. Preserve that contract and raw failure; test automatic expiry without an implicit focus move, and exercise explicit End/focus return after a member’s unchanged-terms ballot instead. No production guard change.
+
+BV first native round completes all19desktop/mobile day/dusk/night views through actual public controls, clean world/audio/request/quality guards and deliberate paused clock. It verifies correct-role proposals, three current answers, separate understanding/approve/decline, explicit focus handover, safe stop while Quality owns the turn, adviser review, four own-role review ballots and facilitator-only settlement. Root’s batched self-review finds disabled review selectors remain visually bright because the shared input classes omit disabled opacity/cursor, unlike existing buttons/participation controls. Add those same two tokens to the two affected input strings only. The settlement screenshot targeted its oversized parent; target the button itself in the helper. Preserve all19initial frames/logs/seal/source patch under initial-native. This is the single rendered correction batch; final confirmation adds computed-style checks for disabled review selects.
+
+BV finite acceptance complete: all29planned items close within their stated boundary. Baseline51/51(19UI+32authority), final55/55(+4newcases) across the three actual suites, with the corrected native-style candidate also55/55. Original guard files remain byte-exact. Reproduced proposal-owner regression goes from red to green. Tests cover facilitator/member/adviser affordances, current checks without automatic consent, deliberate member understanding/decline, self-owned review choices, facilitator settlement, old/stale token rejection, solo compatibility and Begin/End focus.
+
+Final required typecheck, lint and format pass. Depth91activefiles/12relationships, shaders37families/41stablekeys, zero final design-detector findings. Actual production build431files178118275bytes,169.87MiB under unchanged170MiB cap, wrapper55447ms. Fresh bundle/reachability/community gates pass. No new dependency, art asset, saved schema or gameplay-domain transition. Scene/models/lighting/railway, source state/ledger/consent/mandate/role guards, startup readiness and quality budgets unchanged.
+
+Final native confirmation:19exact-build original images and nine lossless paired UI review sheets, desktop1600x1000/mobile390x844 at12:00,18:30,22:00. Root personally inspected every final UI view and the corrected facilitator button frame; source authored and self-reviewed by this root, no independent-review claim. Actual public controls exercise two proposal authors, adviser checks/automatic term expiry, Packing declining with pay protected, Maintenance approving only its own policy, explicit focus handovers, safe stop while Quality owns the turn, adviser review, all four separate amend ballots, facilitator-only finalisation and next-shift setup. This is one automated synthetic role-play, not independent human participation or identity authentication. The original backend remains authoritative for domain eligibility; UI changes mirror role/turn/mandate prerequisites only.
+
+All final world/people/texture/page/request guards clean and Medium retained. Audio context never created. New disabled review selects are opacity0.5/cursor not-allowed, current owner’s select opacity1, observed in each desktop/mobile native run; static labels remain readable. No horizontal overflow or obscured target content. Own browser/server/lock lifecycles complete normally. Initial19native views, visual finding and source patch retained separately, with the first baseline filename omission, red regression and incorrect new test fixture logs intact.
+
+Protected primary HEAD/NULstatus/binarydiff, four canonical contract files and ten unrelated images match pre-pass hashes. Source and compiled seals match before this documentation-only completion record. No push/upload/deploy; LOCAL only. Physical player/device/manual checks remain DEFERRED, pacing separately OPEN without a budget waiver or new performance claim. Repeating programme goal remains ACTIVE.
