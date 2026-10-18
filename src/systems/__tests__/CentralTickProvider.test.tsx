@@ -73,12 +73,13 @@ afterEach(() => {
 });
 
 describe('CentralTickProvider player-ready simulation barrier', () => {
-  it('offers reload recovery while keeping the real shift frozen until readiness', async () => {
+  it('keeps the real shift frozen behind the streamlined loader until readiness', async () => {
     render(<LoadingScreen recoveryDelayMs={0} minimumLoadTimeMs={0} />);
     frame(90);
     expect(onTick).not.toHaveBeenCalled();
 
-    expect(await screen.findByRole('button', { name: 'Reload' })).toBeVisible();
+    expect(await screen.findByText('Preparing the complete scene')).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Reload' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Continue while preparing' })).toBeNull();
     frame(90.5);
 

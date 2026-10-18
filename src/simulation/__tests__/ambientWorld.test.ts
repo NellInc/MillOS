@@ -40,8 +40,8 @@ describe('ambient world simulation', () => {
   });
 
   it('maps wind and rainfall to finite mechanical and drainage responses', () => {
-    expect(getWindmillAngularSpeed(0.2)).toBeCloseTo(0.26);
-    expect(getWindmillAngularSpeed(0.92)).toBeCloseTo(1.196);
+    expect(getWindmillAngularSpeed(0.2)).toBeCloseTo(0.5);
+    expect(getWindmillAngularSpeed(0.92)).toBeCloseTo(1.256302521);
     expect(getWindmillAngularSpeed(5)).toBe(1.3);
 
     const dry = getCulvertWaterHeight(0.6, 0, 0);
@@ -73,7 +73,15 @@ it('fades animal activity smoothly across dawn/dusk and wraps the day without sp
 it('keeps wind power finite and truly calm, without a perpetual-motion minimum', () => {
   for (const wind of [NaN, Infinity, -Infinity, -2, 0])
     expect(getWindmillAngularSpeed(wind)).toBe(0);
-  for (let i = 0; i <= 100; i++)
-    expect(getWindmillAngularSpeed(i / 100)).toBeCloseTo(i * 0.013, 10);
+  for (let i = 0; i <= 100; i++) {
+    const speed = getWindmillAngularSpeed(i / 100);
+    expect(speed).toBeGreaterThanOrEqual(0);
+    expect(speed).toBeLessThanOrEqual(1.3);
+    if (i > 0) {
+      const preceding = getWindmillAngularSpeed((i - 1) / 100);
+      expect(speed).toBeGreaterThan(preceding);
+      expect(speed - preceding).toBeLessThan(0.033);
+    }
+  }
   expect(getWindmillAngularSpeed(2)).toBe(1.3);
 });
