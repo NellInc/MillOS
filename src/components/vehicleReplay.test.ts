@@ -72,6 +72,8 @@ import { useProductionStore } from '../stores/productionStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useTruckScheduleStore } from '../stores/truckScheduleStore';
 import { positionRegistry } from '../utils/positionRegistry';
+import { audioManager } from '../utils/audioManager';
+import { useSafetyStore } from '../stores/safetyStore';
 import { vehicleTelemetryRegistry } from '../simulation/vehicles/vehicleTelemetryRegistry';
 import {
   useLogisticsLayoutStore,
@@ -157,6 +159,115 @@ describe('component-owned vehicle replay', () => {
       speed / 30,
       6
     );
+  });
+
+  it('keeps slow-frame truck time where the 1.5 m display bound allows it', () => {
+    useProductionStore.setState({ productionSpeed: 1 });
+    useGameSimulationStore.setState({ gameSpeed: 1 });
+    const models: any[] = [];
+    const collect = (node: any): void => {
+      if (!node) return;
+      if (Array.isArray(node)) node.forEach(collect);
+      else if (node.type?.name === 'TruckVisualLOD') models.push(node);
+      else collect(node.props?.children);
+    };
+    collect(TruckBay({ productionSpeed: 1 }));
+    flushEffects();
+    const frame = harness.frames[0];
+    const participant = harness.participants.get('trucks')!;
+    // A truck at rest cannot cross the display bound in one tick interval, so
+    // a 4 FPS frame keeps its full time instead of the 80 ms top-speed floor.
+    const restElapsed = participant.capture().shippingControllerRef.phaseElapsed;
+    frame({ camera }, 0.25);
+    expect(participant.capture().shippingControllerRef.phaseElapsed - restElapsed).toBeGreaterThan(
+      0.2
+    );
+    for (let i = 0; i < 900 && models[0].props.stateRef.current.speed < 4; i++)
+      frame({ camera }, 1 / 60);
+    expect(models[0].props.stateRef.current).toMatchObject({ phase: 'entering' });
+    const before = { ...models[0].props.stateRef.current };
+    const elapsed = participant.capture().shippingControllerRef.phaseElapsed;
+    frame({ camera }, 2);
+    const pose = models[0].props.stateRef.current;
+    expect(Math.hypot(pose.x - before.x, pose.z - before.z)).toBeLessThanOrEqual(1.5);
+    expect(participant.capture().shippingControllerRef.phaseElapsed - elapsed).toBeGreaterThan(0.1);
+  });
+
+  it('moves both trucks on production pace even when the line setpoint is zero', () => {
+    const execution = useOperationsCampaignStore.getState().execution;
+    useOperationsCampaignStore.setState({ execution: { ...execution, lineSetpointPercent: 0 } });
+    try {
+      expect(useOperationsCampaignStore.getState().getProductionMultiplier()).toBe(0);
+      useProductionStore.setState({ productionSpeed: 1 });
+      useGameSimulationStore.setState({ gameSpeed: 1 });
+      TruckBay({ productionSpeed: 1 });
+      flushEffects();
+      const participant = harness.participants.get('trucks')!;
+      for (let i = 0; i < 60; i++) harness.frames[0]({ camera }, 1 / 60);
+      // The receiving truck is what refills an empty recipe source.
+      expect(participant.capture().receivingControllerRef.phaseElapsed).toBeGreaterThan(0.5);
+      expect(participant.capture().shippingControllerRef.phaseElapsed).toBeGreaterThan(0.5);
+    } finally {
+      useOperationsCampaignStore.setState({ execution });
+    }
+  });
+
+  it('does not count a planned forklift yield as a near miss, but still counts a blocked route', () => {
+    useProductionStore.setState({ productionSpeed: 1 });
+    useGameSimulationStore.setState({
+      gameSpeed: 1,
+      emergencyActive: false,
+      emergencyDrillMode: false,
+    });
+    vi.spyOn(audioManager, 'playHorn').mockImplementation(() => undefined);
+    const tree = ForkliftSystem({}) as React.ReactElement<{ children: any[] }>;
+    for (const element of tree.props.children[1]) element.type(element.props);
+    flushEffects();
+    const participant = harness.participants.get('forklift:forklift-1')!;
+    // Loaded at its pickup marker, the forklift has no dock interlock to wait
+    // on and travels its route, so only the peer decides why it stops.
+    const loaded = structuredClone(participant.capture());
+    loaded.hasCargoRef = true;
+    participant.restore(loaded);
+    const stops = () => useSafetyStore.getState().safetyMetrics.safetyStops;
+    // A moving peer is placed along forklift-1's heading: behind it is inside
+    // the 4 m yield radius but outside the route corridor; ahead blocks it.
+    const placePeer = (ahead: number) => {
+      const self = positionRegistry.getAllForklifts().find((entry) => entry.id === 'forklift-1');
+      if (!self) return;
+      positionRegistry.register(
+        'test-peer',
+        self.x + (self.dirX ?? 0) * ahead,
+        self.z + (self.dirZ ?? 0) * ahead,
+        self.dirX,
+        self.dirZ,
+        false,
+        self.y ?? 0
+      );
+    };
+    const reason = () => participant.capture().motionStateRef.stopReason;
+    try {
+      for (let i = 0; i < 900 && reason() !== 'vehicle-yield'; i++) {
+        placePeer(-3);
+        harness.frames[0]({ camera }, 1 / 30);
+      }
+      expect(reason()).toBe('vehicle-yield');
+      const stopsBeforeYield = stops();
+      for (let i = 0; i < 30; i++) {
+        placePeer(-3);
+        harness.frames[0]({ camera }, 1 / 30);
+      }
+      expect(reason()).toBe('vehicle-yield');
+      expect(stops()).toBe(stopsBeforeYield);
+      for (let i = 0; i < 30; i++) {
+        placePeer(2);
+        harness.frames[0]({ camera }, 1 / 30);
+      }
+      expect(reason()).toBe('route-blocked');
+      expect(stops()).toBeGreaterThan(stopsBeforeYield);
+    } finally {
+      positionRegistry.unregister('test-peer');
+    }
   });
   it('retains both truck models across distance hysteresis without remounting finishes', () => {
     const findLod = (node: any): any => {

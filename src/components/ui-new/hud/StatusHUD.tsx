@@ -15,6 +15,7 @@ import { useUIStore } from '../../../stores/uiStore';
 import { useProductionStore } from '../../../stores/productionStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { useGraphicsStore } from '../../../stores/graphicsStore';
+import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
 import { useShallow } from 'zustand/react/shallow';
 
 export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace = 'Overview' }) => {
@@ -38,6 +39,22 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace = 'Overv
     }))
   );
   const scadaEnabled = useGraphicsStore((state) => state.graphics.enableSCADA);
+  // The order feed budget (materialFlowStore) admits no more grain once the
+  // active order's whole remaining mass is packed or in process, and packed
+  // stock stays committed until its truck departs. The line then reads
+  // '0 bags/h' with a still target by design; say so instead of looking frozen.
+  // Working if the hint shows only while output is 0 and the unshipped
+  // remainder of an open order is already packed (1 kg bag-carry tolerance).
+  const orderPackedAwaitingTruck = useOperationsCampaignStore((state) => {
+    const execution = state.execution;
+    return (
+      !!execution?.orderId &&
+      execution.stage !== 'fulfilled' &&
+      execution.remainingKg > 1 &&
+      execution.finishedAvailableKg >= execution.remainingKg - 1
+    );
+  });
+  const lineIdleAwaitingTruck = throughput <= 0 && orderPackedAwaitingTruck;
 
   const [showNotifications, setShowNotifications] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -280,6 +297,16 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace = 'Overv
             <span className="hidden text-slate-400 min-[1400px]:inline">Production</span>
             <span>{throughput.toLocaleString()} bags/h</span>
           </div>
+
+          {lineIdleAwaitingTruck && (
+            <div
+              className="flex shrink-0 items-center gap-1.5 text-[12px] text-amber-200"
+              aria-label="Line idle: the active order is packed and awaiting dispatch"
+              title="The rest of this order is already packed. Milling resumes once it is dispatched."
+            >
+              <span>Line idle: order packed, awaiting dispatch</span>
+            </div>
+          )}
 
           <div className="hidden w-px h-3 bg-white/10 min-[1200px]:block" aria-hidden="true"></div>
 
