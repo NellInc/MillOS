@@ -4,6 +4,8 @@ import { useWorkplaceAutoplay } from '../../../simulation/workplaceAutoplay';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
 import { isBenchmarkRuntime } from '../../../runtime/runtimeMode';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
+import { useUIStore } from '../../../stores/uiStore';
+import { useAnnouncementsStore } from '../../../stores/announcementsStore';
 import { turnChecks } from '../../../simulation/workplaceParticipation';
 import {
   demonstrationBeats,
@@ -428,6 +430,20 @@ export function WorkplaceAutoplayStatus() {
   const automatic = useWorkplaceAutoplay();
   const store = useWorkplaceStore();
   const orderId = useOperationsCampaignStore((s) => s.activeOrderId);
+  // GameInterface publishes `introStep !== null` as the PA onboarding context;
+  // both stores are leaves, so reading them here adds no import cycle.
+  const tourShowing = useAnnouncementsStore((s) => s.context.onboarding);
+  const journeyVisible = useUIStore((s) => s.journeyVisible);
+  const guideCardShowing = tourShowing || journeyVisible;
+  // Closing the tour with X leaves hasSeenIntro unset, so remember that this
+  // mount has seen the tour rather than waiting for the persisted flag.
+  const tourSeen = useRef(false);
+  useEffect(() => {
+    if (useAnnouncementsStore.getState().context.onboarding) tourSeen.current = true;
+    return useAnnouncementsStore.subscribe((state) => {
+      if (state.context.onboarding) tourSeen.current = true;
+    });
+  }, []);
   useEffect(() => {
     if (
       automatic.manual ||
@@ -440,6 +456,13 @@ export function WorkplaceAutoplayStatus() {
       return;
     const admit = () => {
       if (isBenchmarkRuntime()) return;
+      // The tour holds the shift clock. Admission waits until it is neither
+      // pending (first load, before its card appears) nor showing, so the
+      // season never restarts the clock under it or binds the order mid-tour.
+      // Working if a fresh profile starts autonomous play only after the tour
+      // closes, skips or finishes, and the guided first delivery keeps it.
+      if (useAnnouncementsStore.getState().context.onboarding) return;
+      if (!useUIStore.getState().hasSeenIntro && !tourSeen.current) return;
       if (document.documentElement.dataset.millosStartupReady === 'true')
         automatic.start('toe-dip');
     };
@@ -456,6 +479,11 @@ export function WorkplaceAutoplayStatus() {
     store.workplace.phase,
   ]);
   if (!automatic.running) return null;
+  // The tour and first-delivery cards sit from bottom-[11.5rem] in the same
+  // bottom-left column. Beside them the notice collapses to its one 44px
+  // takeover control, which ends below the card instead of under it.
+  // Working if the takeover control stays fully visible while either card shows.
+  const compact = isMobile || guideCardShowing;
   return (
     <aside
       aria-label="Fictional demo running"
@@ -464,16 +492,18 @@ export function WorkplaceAutoplayStatus() {
       className={
         isMobile
           ? 'pointer-events-auto fixed top-4 left-3 z-40 max-w-[calc(100vw-6rem)] text-xs text-cyan-100'
-          : 'pointer-events-auto fixed bottom-[8rem] left-3 z-40 max-w-[calc(100vw-1.5rem)] rounded-lg border border-cyan-300/25 bg-slate-950 p-3 text-xs text-cyan-100'
+          : compact
+            ? 'pointer-events-auto fixed bottom-[8rem] left-3 z-40 max-w-[calc(100vw-1.5rem)] text-xs text-cyan-100'
+            : 'pointer-events-auto fixed bottom-[8rem] left-3 z-40 max-w-[calc(100vw-1.5rem)] rounded-lg border border-cyan-300/25 bg-slate-950 p-3 text-xs text-cyan-100'
       }
     >
-      <p className={isMobile ? 'sr-only' : undefined}>Autonomous cooperative season</p>
+      <p className={compact ? 'sr-only' : undefined}>Autonomous cooperative season</p>
       <button
         aria-label="Take over cooperative season"
-        className={`${button} ${isMobile ? 'max-w-full bg-slate-950 shadow-lg' : 'mt-2'}`}
+        className={`${button} ${compact ? 'max-w-full bg-slate-950 shadow-lg' : 'mt-2'}`}
         onClick={() => automatic.pause()}
       >
-        {isMobile ? 'Autonomous season: take over' : 'Take over cooperative season'}
+        {compact ? 'Autonomous season: take over' : 'Take over cooperative season'}
       </button>
     </aside>
   );

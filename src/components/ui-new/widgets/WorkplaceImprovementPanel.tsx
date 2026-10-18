@@ -604,6 +604,15 @@ export function WorkplaceImprovementPanel({
                 Review recorded: {i.verdict}. Every ending preserves the learning and earned
                 obligations.
               </p>
+              {/* A finalised review releases the plant clock (UnifiedGameTick).
+                  Working if the panel says the experiment is over and offers the
+                  plant pace here, with another handoff shift left optional. */}
+              <p className="text-cyan-100">
+                {s.mode === 'game'
+                  ? 'This handoff experiment is complete. The plant runs normally again: choose a shift pace to resume production. Another handoff shift is optional.'
+                  : 'This handoff experiment is complete. Another handoff shift is optional.'}
+              </p>
+              {s.mode === 'game' && <TeachingPace />}
               <button
                 type="button"
                 className={button}

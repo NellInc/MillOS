@@ -157,6 +157,10 @@ describe('live working agreement companion', () => {
     show();
     expect(screen.getByText('800 / 800 kg; evidence blocked.')).toBeInTheDocument();
     expect(screen.getByText('200 kg.')).toBeInTheDocument();
+    // The renegotiated installment is named as such beside the full commitment.
+    expect(screen.getByText('Agreed installment receipts:')).toBeInTheDocument();
+    expect(screen.queryByText('Customer dispatch receipts:')).toBeNull();
+    expect(screen.getByText('200 kg, still part of the full commitment.')).toBeInTheDocument();
   });
 });
 

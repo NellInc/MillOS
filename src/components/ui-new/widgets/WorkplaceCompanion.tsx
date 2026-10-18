@@ -37,6 +37,9 @@ export function WorkplaceCompanion({ onOpen }: { onOpen: () => void }) {
   const remainingKg = mission
     ? Math.max(0, mission.originalTargetKg - mission.creditedKg)
     : delivery.remainingKg;
+  // A renegotiated installment is the denominator here, not the order. Working
+  // if the receipts row names the installment and the deferral stays visible.
+  const deferredKg = mission ? Math.max(0, mission.originalTargetKg - mission.targetKg) : 0;
   const evidenceBlocked = mission ? mission.evidence !== 'current' : delivery.status === 'blocked';
   const title = improvement
     ? `Handoff shift ${improvement.cycle}`
@@ -98,13 +101,25 @@ export function WorkplaceCompanion({ onOpen }: { onOpen: () => void }) {
       <dl className="mt-3 space-y-1 border-t border-slate-700 pt-3 text-xs tabular-nums">
         <div>
           <dt className="inline text-slate-300">
-            {mission ? 'Customer dispatch receipts: ' : 'Teaching output: '}
+            {mission
+              ? deferredKg > 0
+                ? 'Agreed installment receipts: '
+                : 'Customer dispatch receipts: '
+              : 'Teaching output: '}
           </dt>
           <dd className="inline">
             {deliveredKg.toFixed(0)} / {targetKg.toFixed(0)} kg
             {evidenceBlocked && '; evidence blocked'}.
           </dd>
         </div>
+        {deferredKg > 0 && (
+          <div>
+            <dt className="inline text-slate-300">Agreed deferral: </dt>
+            <dd className="inline">
+              {deferredKg.toFixed(0)} kg, still part of the full commitment.
+            </dd>
+          </div>
+        )}
         {improvement && mission && (
           <div>
             <dt className="inline text-slate-300">This handoff shift’s dispatch: </dt>

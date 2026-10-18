@@ -70,7 +70,7 @@ export function deriveWorkplaceGuidance(state: WorkplaceState) {
       : inspectionHeld
         ? inspectionPending
           ? 'Use Quality initiates five-minute inspection in Shift. The line is held; deadline pressure grants no authority to skip the check.'
-          : `Inspection is running until modeled minute ${campaign?.inspectionUntilMinute}. Resume the plant clock when ready to deliver the remaining inspection time. Actual batch certification remains separate.`
+          : `Inspection is running until modeled minute ${Math.ceil(campaign?.inspectionUntilMinute ?? 0)}. Resume the plant clock when ready to deliver the remaining inspection time. Actual batch certification remains separate.`
         : reviewing
           ? 'Review paid compensation, delivered recovery and customer delivery separately. This shift cannot resume.'
           : running

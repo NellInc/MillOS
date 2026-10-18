@@ -750,3 +750,70 @@ it.each(['packing', 'mind'])(
     expect(get().workplace.campaign?.adviserAcknowledged).toBe(false);
   }
 );
+
+it('disables surplus decisions outside a shared-surplus charter and says where they live', () => {
+  useWorkplaceStore.getState().startCampaign('team', 17);
+  const state = useWorkplaceStore.getState().workplace;
+  expect(state.practices).not.toContain('gainsharing');
+  useWorkplaceStore.setState({
+    workplace: {
+      ...state,
+      phase: 'review',
+      finance: {
+        ...state.finance,
+        operatingRevenue: 100,
+        operatingCost: 0,
+        wagesPaid: 0,
+        compensationPaid: 0,
+        improvementSpend: 0,
+        distributed: 0,
+        communityAllocation: 0,
+      },
+    },
+  });
+  render(<WorkplaceLab />);
+  open('Review');
+  expect(screen.getByRole('button', { name: 'Record member surplus ballot' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Execute agreed allocation' })).toBeDisabled();
+  expect(screen.getByText(/Shared surplus is part of the Member governance charter/)).toBeVisible();
+  cleanup();
+  act(() => {
+    const current = useWorkplaceStore.getState().workplace;
+    useWorkplaceStore.setState({
+      workplace: { ...current, practices: [...current.practices, 'gainsharing'] },
+    });
+  });
+  render(<WorkplaceLab />);
+  open('Review');
+  expect(screen.getByRole('button', { name: 'Record member surplus ballot' })).toBeEnabled();
+  expect(screen.queryByText(/Shared surplus is part of the Member governance charter/)).toBeNull();
+});
+
+it('names the shift stop for what it does and rounds the inspection hold minute', () => {
+  prepare();
+  render(<WorkplaceLab />);
+  expect(screen.queryByRole('button', { name: /Pause and finish shift review/ })).toBeNull();
+  open('End shift now and review');
+  expect(useWorkplaceStore.getState().workplace.phase).toBe('review');
+  cleanup();
+  // A campaign starts only from the idle laboratory, not from the review above.
+  useWorkplaceStore.setState({ workplace: createWorkplace() });
+  expect(useWorkplaceStore.getState().startCampaign('team', 17).changed).toBe(true);
+  const state = useWorkplaceStore.getState().workplace;
+  useWorkplaceStore.setState({
+    workplace: {
+      ...state,
+      phase: 'active',
+      minute: 25.375,
+      campaign: {
+        ...state.campaign!,
+        shift: 1,
+        inspectionComplete: false,
+        inspectionUntilMinute: 30.375,
+      },
+    },
+  });
+  render(<WorkplaceLab />);
+  expect(screen.getByText('Quality hold in progress until minute 31.')).toBeInTheDocument();
+  expect(screen.queryByText(/30\.375/)).toBeNull();
+});

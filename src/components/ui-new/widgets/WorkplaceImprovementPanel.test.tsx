@@ -190,6 +190,13 @@ describe('choice-first handoff interface', () => {
       });
     click('Finalise handoff review');
     expect(screen.getByText(/Review recorded: amend/)).toBeInTheDocument();
+    // A finalised review releases the plant: the panel says so and offers the pace control.
+    expect(screen.getByText(/This handoff experiment is complete/)).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('combobox', { name: 'Shift pace' }), {
+      target: { value: '30' },
+    });
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(30);
+    expect(useWorkplaceStore.getState().workplace.phase).toBe('review');
     click('Open next handoff shift');
     expect(screen.getByText('The handoff experiment, shift 2')).toBeInTheDocument();
     expect(screen.getByText(/Retained earned pay/)).toBeInTheDocument();

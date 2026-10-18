@@ -123,6 +123,9 @@ export const WorkplaceLab: React.FC = () => {
       state.finance.distributed -
       state.finance.communityAllocation
   );
+  // The engine accepts surplus ballots and allocation only under the
+  // 'gainsharing' practice. Working if neither control is offered without it.
+  const sharedSurplus = state.practices.includes('gainsharing');
   const report = (result: WorkplaceTransitionResult) => {
     setFeedback(
       result.reason ?? (result.changed ? 'Recorded in this local scenario.' : 'No change.')
@@ -518,7 +521,7 @@ export const WorkplaceLab: React.FC = () => {
                   {campaign.inspectionComplete
                     ? 'Quality inspection complete.'
                     : campaign.inspectionUntilMinute !== null
-                      ? `Quality hold in progress until minute ${campaign.inspectionUntilMinute}.`
+                      ? `Quality hold in progress until minute ${Math.ceil(campaign.inspectionUntilMinute)}.`
                       : 'Quality can begin inspection from minute 25. Line pacing pauses; actual batch certification still gates shipping.'}
                 </p>
               )}
@@ -707,8 +710,10 @@ export const WorkplaceLab: React.FC = () => {
             </button>
           )}
           {['deliberating', 'active'].includes(state.phase) && (
+            // `stop` settles the shift into review and it cannot resume; the
+            // plant clock controls own pausing. Working if the label says so.
             <button className={buttonClass} onClick={() => report(store.stop())}>
-              Pause and finish shift review
+              End shift now and review
             </button>
           )}
           <p>
@@ -1446,10 +1451,19 @@ export const WorkplaceLab: React.FC = () => {
                   : `Allocate ${surplus.toFixed(2)} credits to the community. That cash leaves the next shift's budget.`}{' '}
               Three member ballots are required. Earned obligations must be settled first.
             </p>
+            {!sharedSurplus && (
+              <p className="text-amber-100">
+                Shared surplus is part of the Member governance charter.
+              </p>
+            )}
             <button
               className={buttonClass}
               disabled={
-                pilot || state.phase !== 'review' || surplus <= 0 || state.distributionComplete
+                pilot ||
+                !sharedSurplus ||
+                state.phase !== 'review' ||
+                surplus <= 0 ||
+                state.distributionComplete
               }
               onClick={() => report(store.voteSurplus(voter, destination))}
             >
@@ -1466,7 +1480,11 @@ export const WorkplaceLab: React.FC = () => {
             <button
               className={buttonClass}
               disabled={
-                pilot || state.phase !== 'review' || surplus <= 0 || state.distributionComplete
+                pilot ||
+                !sharedSurplus ||
+                state.phase !== 'review' ||
+                surplus <= 0 ||
+                state.distributionComplete
               }
               onClick={() => report(store.distributeSurplus())}
             >
