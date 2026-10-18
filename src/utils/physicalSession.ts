@@ -71,7 +71,8 @@ export function encodePhysicalSession(value: PhysicalSession): string {
     const original = this[key];
     if (original instanceof Date) return { [TAG]: 'date', value: original.toISOString() };
     if (original instanceof Map) return { [TAG]: 'map', value: [...original] };
-    if (typeof v === 'number' && !Number.isFinite(v)) throw new Error('Non-finite saved value');
+    if (typeof v === 'number' && !Number.isFinite(v))
+      throw new Error(`Non-finite saved value at ${key}`);
     return v;
   });
   if (encoded.length * 2 > MAX_SAVE_BYTES) throw new Error('Physical save is too large');
@@ -338,18 +339,29 @@ export function installPhysicalSession(
   let disabled = false,
     writing = false,
     queued = false,
+    saveFailed = false,
     lastWritten: string | null = null;
-  const warn = (message: string) => {
-    disabled = true;
-    useGameSimulationStore.getState().setGameSpeed(0);
+  const notify = (id: string, type: 'info' | 'warning', title: string, message: string) =>
     useUIStore.getState().addAlert({
-      id: 'physical-save-unavailable',
-      type: 'warning',
-      title: 'Shift save needs attention',
+      id,
+      type,
+      title,
       message,
       timestamp: new Date(),
       acknowledged: false,
     });
+  // Working if only a record this tab could not load pauses the shift: halt()
+  // guards restore integrity, notify() reports a save problem while play goes on.
+  const halt = (message: string, error?: unknown) => {
+    if (error !== undefined) console.error('[physicalSession] restore failed:', error);
+    disabled = true;
+    useGameSimulationStore.getState().setGameSpeed(0);
+    notify(
+      'physical-save-unavailable',
+      'warning',
+      'Shift save needs attention',
+      `${message} Settings > Simulation > Reset Simulation starts a fresh shift.`
+    );
   };
   const localControl = () =>
     !peekSCADAService() || peekSCADAService()?.getState().mode === 'simulation';
@@ -357,7 +369,7 @@ export function installPhysicalSession(
   try {
     storage = providedStorage ?? window.localStorage;
   } catch {
-    warn(
+    halt(
       'Browser storage is unavailable. This shift is paused and cannot be saved in this browser.'
     );
     return () => {
@@ -373,9 +385,10 @@ export function installPhysicalSession(
       pending = saved;
       lastWritten = raw;
     }
-  } catch {
-    warn(
-      'The saved physical shift could not be restored. Its record is retained. The clock is paused and this tab will not overwrite it.'
+  } catch (error) {
+    halt(
+      'The saved physical shift could not be restored. Its record is retained. The clock is paused and this tab will not overwrite it.',
+      error
     );
   }
   const save = () => {
@@ -393,22 +406,39 @@ export function installPhysicalSession(
     writing = true;
     try {
       // Reset Simulation clears local storage before reload. Never resurrect it.
+      // Another tab owns a non-null record: stop writing here, keep this shift running.
       if (storage.getItem(PHYSICAL_SESSION_KEY) !== lastWritten) {
+        disabled = true;
         if (storage.getItem(PHYSICAL_SESSION_KEY) !== null)
-          warn(
-            'The saved shift changed outside this tab. Reload to use that record; this tab is paused and will not overwrite it.'
+          notify(
+            'physical-save-other-tab',
+            'info',
+            'Autosave off in this tab',
+            'The saved shift changed outside this tab. This tab keeps running but will not overwrite that record; reload to use it.'
           );
-        else disabled = true;
         return;
       }
       cleanupThrottledBags();
       const raw = encodePhysicalSession(capturePhysicalSession());
       storage.setItem(PHYSICAL_SESSION_KEY, raw);
       lastWritten = raw;
-    } catch {
-      warn(
-        'Your latest physical shift could not be saved. Earlier saved progress is retained. Free browser storage before continuing; reloading may lose unsaved changes.'
-      );
+      saveFailed = false;
+    } catch (error) {
+      // Working if a failed cycle keeps the last good record, retries on the next
+      // interval and alerts once per failure run; only a quota error blames storage.
+      console.error('[physicalSession] autosave failed:', error);
+      const name = (error as { name?: unknown } | null)?.name;
+      const quota = name === 'QuotaExceededError' || name === 'NS_ERROR_DOM_QUOTA_REACHED';
+      if (!saveFailed)
+        notify(
+          'physical-autosave-skipped',
+          'info',
+          'Autosave skipped',
+          quota
+            ? 'Autosave skipped: browser storage is full. The shift continues and the last good save is kept.'
+            : 'Autosave skipped; the shift continues and the last good save is kept.'
+        );
+      saveFailed = true;
     } finally {
       writing = false;
     }
@@ -424,9 +454,10 @@ export function installPhysicalSession(
   const startup = subscribeStartup(() => {
     try {
       finishRestore();
-    } catch {
-      warn(
-        'Scene continuation could not be restored. The saved record is retained and the clock is paused.'
+    } catch (error) {
+      halt(
+        'Scene continuation could not be restored. The saved record is retained and the clock is paused.',
+        error
       );
     }
   });

@@ -254,6 +254,9 @@ describe('atomic local physical shift continuation', () => {
     exit();
     expect(localStorage.getItem(PHYSICAL_SESSION_KEY)).toBe(invalid);
     expect(useUIStore.getState().alerts.at(-1)?.title).toBe('Shift save needs attention');
+    expect(useUIStore.getState().alerts.at(-1)?.message).toContain(
+      'Settings > Simulation > Reset Simulation starts a fresh shift.'
+    );
     expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
   });
 
@@ -272,11 +275,72 @@ describe('atomic local physical shift continuation', () => {
     storage.setItem.mockImplementation(() => {
       throw new DOMException('Full', 'QuotaExceededError');
     });
-    exit();
-    expect(storage.setItem).toHaveBeenCalledWith(PHYSICAL_SESSION_KEY, expect.any(String));
-    expect(localStorage.getItem(PHYSICAL_SESSION_KEY)).toBe(previous);
-    expect(useUIStore.getState().alerts.at(-1)?.message).toContain('could not be saved');
-    expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const speed = useGameSimulationStore.getState().gameSpeed;
+    try {
+      exit();
+      exit();
+      expect(storage.setItem).toHaveBeenCalledWith(PHYSICAL_SESSION_KEY, expect.any(String));
+      expect(localStorage.getItem(PHYSICAL_SESSION_KEY)).toBe(previous);
+      // A failed write is announced once, names storage only for a quota error,
+      // and never pauses the shift or turns autosave off.
+      const notices = useUIStore
+        .getState()
+        .alerts.filter((a) => a.id === 'physical-autosave-skipped');
+      expect(notices).toHaveLength(1);
+      expect(notices[0]?.message).toContain('browser storage is full');
+      expect(notices[0]?.message).toContain('last good save is kept');
+      expect(useGameSimulationStore.getState().gameSpeed).toBe(speed);
+      expect(storage.setItem).toHaveBeenCalledTimes(2);
+      expect(String(logged.mock.calls[0]?.[1])).toContain('Full');
+    } finally {
+      logged.mockRestore();
+    }
+  });
+
+  it('retries a failed autosave on the next interval without pausing the shift', () => {
+    heldShift();
+    const previous = encodePhysicalSession(capturePhysicalSession());
+    localStorage.setItem(PHYSICAL_SESSION_KEY, previous);
+    const storage = {
+      getItem: (key: string) => localStorage.getItem(key),
+      setItem: vi.fn((key: string, value: string) => localStorage.setItem(key, value)),
+    };
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    try {
+      dispose = installPhysicalSession(storage);
+      ready();
+      storage.setItem.mockImplementationOnce(() => {
+        throw new Error('Non-finite saved value at x');
+      });
+      useGameSimulationStore.getState().setGameSpeed(30);
+      vi.advanceTimersByTime(5000);
+      expect(storage.setItem).toHaveBeenCalledTimes(1);
+      expect(localStorage.getItem(PHYSICAL_SESSION_KEY)).toBe(previous);
+      const notices = () =>
+        useUIStore.getState().alerts.filter((a) => a.id === 'physical-autosave-skipped');
+      expect(notices()).toHaveLength(1);
+      expect(notices()[0]?.message).toContain('Autosave skipped');
+      expect(notices()[0]?.message).not.toContain('storage');
+      expect(String(logged.mock.calls[0]?.[1])).toContain('Non-finite saved value at x');
+      vi.advanceTimersByTime(5000);
+      expect(storage.setItem).toHaveBeenCalledTimes(2);
+      expect(localStorage.getItem(PHYSICAL_SESSION_KEY)).not.toBe(previous);
+      expect(useGameSimulationStore.getState().gameSpeed).toBe(30);
+      expect(notices()).toHaveLength(1);
+      // A later failure after a good write is announced again.
+      storage.setItem.mockImplementationOnce(() => {
+        throw new Error('again');
+      });
+      useGameSimulationStore.getState().setGameSpeed(60);
+      vi.advanceTimersByTime(5000);
+      expect(notices()).toHaveLength(2);
+      expect(useGameSimulationStore.getState().gameSpeed).toBe(60);
+    } finally {
+      vi.useRealTimers();
+      logged.mockRestore();
+    }
   });
 
   it('preserves a record created by another tab before this tab writes its first save', () => {
@@ -287,8 +351,14 @@ describe('atomic local physical shift continuation', () => {
     useGameSimulationStore.getState().setGameSpeed(30);
     exit();
     expect(localStorage.getItem(PHYSICAL_SESSION_KEY)).toBe(elsewhere);
-    expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+    // This tab stops saving but keeps running; the other tab owns the record.
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(30);
     expect(useUIStore.getState().alerts.at(-1)?.message).toContain('outside this tab');
+    expect(useUIStore.getState().alerts.at(-1)?.message).not.toContain('paused');
+    useGameSimulationStore.getState().setGameSpeed(60);
+    exit();
+    expect(localStorage.getItem(PHYSICAL_SESSION_KEY)).toBe(elsewhere);
+    expect(useUIStore.getState().alerts).toHaveLength(1);
   });
 
   it('does not resurrect a deliberate Reset Simulation or persist experimental replay state', () => {
