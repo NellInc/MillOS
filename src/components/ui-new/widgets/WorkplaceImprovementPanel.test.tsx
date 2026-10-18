@@ -362,3 +362,55 @@ it('keeps review ballots with each owner and final settlement with the facilitat
   expect(get().turn?.actorId).toBe('packing');
   expect(next).toBeDisabled();
 });
+
+it('offers a review discussion and isolated next-test prediction without recording a decision', async () => {
+  const store = useWorkplaceStore.getState();
+  store.beginImprovement('cooperative', store.workplace.revision);
+  store.proposeImprovement('briefing', 'packing');
+  store.acknowledgeImprovement();
+  for (const member of useWorkplaceStore.getState().workplace.members) {
+    store.understand(member.id);
+    store.vote(member.id, true);
+  }
+  store.activate(useWorkplaceStore.getState().workplace.revision);
+  store.tick(12, 0, false);
+  store.stop();
+  const before = useWorkplaceStore.getState().workplace;
+  const stock = cloneMaterialFlowData(useMaterialFlowStore.getState());
+  mount();
+  const review = screen.getByRole('region', { name: 'Handoff learning review' });
+  expect(within(review).getByText('What did this handoff teach us?')).toBeInTheDocument();
+  expect(within(review).getByText(/Ended after 12.0 of 90 minutes/)).toBeInTheDocument();
+  expect(within(review).getByText(/current paused plant inputs/)).toBeInTheDocument();
+  click('Run matched packing rehearsal');
+  const reflection = await screen.findByRole('region', { name: 'Packing prediction review' });
+  expect(within(reflection).getByText(/insufficient matching evidence/)).toBeInTheDocument();
+  expect(useWorkplaceStore.getState().workplace).toBe(before);
+  expect(cloneMaterialFlowData(useMaterialFlowStore.getState())).toEqual(stock);
+  expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+  expect(before.improvement?.ballots).toEqual({});
+  expect(report).not.toHaveBeenCalled();
+});
+
+it('offers workshop reflection without a physical packing comparison or automatic review ballot', () => {
+  const store = useWorkplaceStore.getState();
+  store.beginImprovement('team', store.workplace.revision, undefined, 'workshop');
+  store.proposeImprovement('briefing', 'packing');
+  store.acknowledgeImprovement();
+  for (const member of useWorkplaceStore.getState().workplace.members) {
+    store.understand(member.id);
+    store.vote(member.id, true);
+  }
+  store.activate(useWorkplaceStore.getState().workplace.revision);
+  store.stop();
+  const before = useWorkplaceStore.getState().workplace;
+  mount();
+  const review = screen.getByRole('region', { name: 'Handoff learning review' });
+  expect(within(review).getByText(/Workshop records no plant shipment/)).toBeInTheDocument();
+  expect(
+    within(review).queryByText('Compare matched packing alternatives')
+  ).not.toBeInTheDocument();
+  expect(screen.getByLabelText('Packing review decision')).toBeDisabled();
+  expect(useWorkplaceStore.getState().workplace).toBe(before);
+  expect(before.improvement?.reviewAcknowledged).toBe(false);
+});

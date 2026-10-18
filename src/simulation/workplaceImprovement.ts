@@ -282,3 +282,59 @@ export function improvementSummary(s: WorkplaceState) {
               : 'Open the next shift with carried cash and a fresh agreement.',
   };
 }
+
+/** Public review prompts, never a score, causal verdict or new permission.
+ * Working if the finished horizon and evidence gaps stay visible without changing state.
+ */
+export function improvementLearningReview(s: WorkplaceState) {
+  if (!s.improvement || s.phase !== 'review') return null;
+  const summary = improvementSummary(s)!;
+  const mission = workplaceMission(s);
+  const open = s.objections.filter((o) => o.status === 'open');
+  const early = s.minute < 90;
+  const evidence = [
+    `${early ? 'Ended after' : 'Completed'} ${s.minute.toFixed(1)} of 90 minutes. ${s.improvement.stopped ? 'The arrangement was stopped. Any remaining work uses ordinary pacing.' : 'The selected arrangement stayed available until this shift ended.'}`,
+    s.mode === 'game'
+      ? `Qualifying dispatch this shift: ${s.shippedKg.toFixed(1)} kg. ${mission ? `Customer receipts: ${mission.creditedKg.toFixed(1)} kg credited; ${Math.max(0, mission.originalTargetKg - mission.creditedKg).toFixed(1)} kg still owed. Source evidence: ${mission.evidence}.` : 'This teaching counter is separate from customer shipment receipts.'}`
+      : 'Workshop records no plant shipment. Its teaching output cannot establish customer delivery.',
+  ];
+  const advice = s.improvement.advice;
+  evidence.push(
+    advice
+      ? advice.reasonToAbstain
+        ? `The adviser abstained: ${advice.reasonToAbstain} This outcome supplies no missing prior forecast.`
+        : `Frozen conditional departure bound: 0 to ${advice.dispatchUpperKg.toFixed(1)} kg for the original 90-minute assumptions. Packing potential and actual collection remain separate.`
+      : 'No plant-grounded departure forecast was retained for this shift.'
+  );
+  const focus = open.length
+    ? 'remedy'
+    : summary.currentRecoveryOwedMinutes > 0
+      ? 'recovery'
+      : mission && mission.evidence !== 'current'
+        ? 'evidence'
+        : early || s.improvement.stopped
+          ? 'trial'
+          : summary.remainingKg !== null && summary.remainingKg > 0
+            ? 'delivery'
+            : 'comparison';
+  const questions = {
+    remedy: `Let each of the ${open.length} unresolved objection raisers say what would address their concern. Which remedy remains theirs to confirm?`,
+    recovery: `${summary.currentRecoveryOwedMinutes.toFixed(1)} minutes of recovery remain owed. How will the next handoff deliver that time before asking for more work?`,
+    evidence:
+      'Which customer receipt or material-session fact needs checking before calling any further delivery verified?',
+    trial:
+      'What did each role observe before the ending or stop? Which single assumption would you test next while keeping pay and refusal protected?',
+    delivery:
+      'Where did packing or collection wait, and which one handoff change would you compare without borrowing another role’s rest?',
+    comparison:
+      'Let each role predict what another arrangement would change. Which observation would change your minds, and where do you still disagree?',
+  };
+  return {
+    evidence,
+    focus,
+    question: questions[focus],
+    limitation: early
+      ? 'This shortened trial cannot be treated as a completed 90-minute result. One trial cannot establish the arrangement’s causal effect.'
+      : 'One trial cannot establish the arrangement’s causal effect. A matched comparison keeps shared inputs fixed; real collection still needs its own receipts.',
+  };
+}

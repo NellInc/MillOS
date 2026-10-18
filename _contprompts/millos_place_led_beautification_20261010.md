@@ -6012,3 +6012,49 @@ Canonical five protected simulation/renderer files, primary HEAD/status/binarydi
 Latest human request: “Get these live please when finished, and then proceed again with the refinements process. This time, focus more on the core cooperative learning game elements please.” This releases the prior local-publication hold for completed BT/BW cooperative work and establishes the existing NellInc/MillOS main/Pages destination https://www.millos.net/v0.40/. Preserve standard CI/Pages gates, archived releases, source custody and no secrets. The existing repeating goal tool text cannot edit an active objective; this scoped human amendment takes precedence over its older local-only delivery sentence. Further refinement remains muted and physical player/device checks remain deferred, pacing separately OPEN.
 
 Release task list: (1) finish BW camera-only confirmation; (2) inspect every corrected view; (3) reconcile exact source/build/primary pins; (4) selectively commit only owned seven files; (5) inspect the four-commit outgoing scope and secret/100MB preflight; (6) push the named owned branch; (7) create and attach a normal PR; (8) wait for all five CI jobs; (9) inspect any failure before deciding scope; (10) merge only the exact accepted head after full green; (11) wait for main CI and normal archived-release Pages build; (12) verify actual served build identity, changed compiled modules, raster pins and archives; (13) continue a finite gameplay-learning refinement grounded in live source rather than reopening already-finished art. Working if delivered source and hosted bytes match the reviewed changes, then a genuine cooperative-learning gap receives implementation without weakening consent, quality or readiness.
+
+BX release complete: PR34 merged atbc9afbe714a5f475e05669b79612e0dcb9f4e2f4 after all five CI jobs passed,3431tests/262files. Normal Pages build and deploy passed. Actual live verifier confirms19HTTPresponses, correct merge build identity, changed compiled modules exact apart from merge-specific identity/content-addressed imports, nine exact raster hashes, unchanged archived sources and reachablev0.10/v0.20/v0.30. Source and native acceptance retained separately. Main post-merge CI remains in progress at this checkpoint, no green claim yet.
+
+## BY. Learn from the handoff before deciding, 2026-10-18
+
+Continue from accepted release mergebc9afbe7. Baseline24passed/0failed in existing improvement domain/UI suites, captured before edits. Live gap: Handoff review has receipts and verdict controls, but no tailored evidence-led discussion or accessible route back to the existing matched prediction/rehearsal. Campaign review already has this learning bridge. A stopped or shortened trial must remain useful without being read as a completed90minute experiment or causal proof.
+
+Allowed: workplaceImprovement.ts, WorkplaceImprovementPanel.tsx, their two existing tests and this programme. Preserve shell, people/world/lighting/quality/readiness/budgets. No domain/store transition, persistence, learner score, private response capture, actor or inventory manipulation.
+
+Detailed finite task list:
+1. Reconcile accepted remote merge and task checkout, preserve unrelated dirty primary and images.
+2. Pin unchanged authority, flow, prediction and actor/renderer files.
+3. Confirm current review and matched rehearsal consumers are live.
+4. Retain24test baseline and reproduce missing handoff learning region before repair.
+5. Add a pure review-only derivation using current public handoff receipts.
+6. State selected arrangement, elapsed minutes and whether this was an early ending or a completed window.
+7. Preserve stopped/funded distinction and do not label stoppage failure or full-trial proof.
+8. Separate actual qualifying dispatch and customer credit from current teaching output.
+9. Keep full outstanding commitment and blocked evidence explicit.
+10. Compare only recorded frozen departure bounds; abstention and absent historical evidence stay explicit.
+11. State that one trial cannot identify causal improvement against ordinary work.
+12. Prioritise each unresolved raiser’s remedy, then current recovery owed, then unavailable customer evidence, before optional comparison.
+13. Ask a concrete next-test question that lets roles disagree without a shared score or implied consensus.
+14. Display this discussion before adopt/amend/stop controls without changing vote ownership or prerequisites.
+15. Reuse the existing optional matched prediction/rehearsal in game review, collapsed by default.
+16. Explicitly distinguish today’s paused comparison inputs from a replay of the finished shift.
+17. Keep workshop/pilot free of physical forecast controls, and old consent out of new permission.
+18. Protect purity, review-only visibility, early/complete/stopped/blocked/owed/objection priorities and UI model navigation with small existing-suite tests.
+19. Run affected checks and required typecheck/lint/format/depth/shaders, exact production build, bundle and fresh reachability/community gates.
+20. Inspect desktop/mobile day/dusk/night native views through actual public activation/early review/prediction controls, muted, with no actor/inventory overrides.
+21. Preserve exact build/source pins, raw failures and bounded artistic review, then selectively commit the coherent pass locally.
+22. Keep new refinement local pending subsequent delivery, physical player/device checks DEFERRED, pacing OPEN separately and repeating programme ACTIVE.
+
+Pre-mortem: stopped early output might be compared as a full90minute result; missing shipment evidence could be read as zero verified delivery; current comparison could be mistaken for a historical replay. Working if the debrief names the actual horizon/evidence boundary, prioritises owed obligations, and existing isolated prediction controls leave plant, pay and ballots unchanged.
+
+
+BY first coherent29/29 checks and required source/build gates pass. Initial12native day/dusk/night frames also pass original startup/world/audio/quality guards and the real review-to-prediction loop. Root self-review finds the capture framed headings mid-scroll, leaving the mobile question below the image; capture correction aligns actual headings at scroll-container start and separately captures the question/reset controls. A zero-minute early ending also exposes overly strong copy “later work used ordinary pacing”; change to conditional “Any remaining work uses ordinary pacing.” No timing/authority change. Retain initial12frames/metadata/build seal. This is the one coherent correction batch and final confirmation round. Optional npx --no-install impeccable detector is unavailable (package missing); no dependency installed or detector-green claim. Existing required bundle tool initially lacked write permission for its report; the same gate passed with supported worktree write permission.
+
+BX post-merge main CI now allfivejobs success as well as Pages success and served-byte verification. No release gate remains open for PR34.
+
+
+BY finite acceptance complete: all22items close within the stated boundary. Baseline24/24, final29/29(+5). The missing review region is reproduced before repair. Pure tests cover review-only visibility, real early stop/full window, objection/recovery/stale-evidence priority, full remaining commitment and workshop boundary; UI exercises actual review-to-comparison without changing live state/stock/pace/ballots. Correction confirmation29/29, final whole typecheck/lint/format/depth/shaders pass. Corrected production build431files178122290bytes,169.87MiB inside unchanged170MiB cap, Vite20.12s. Fresh bundle/reachability/community gates pass. Optional design detector unavailable; package not installed, no detector-green claim.
+
+Final native confirmation18frames, desktop1600x1000/mobile390x844 at12:00/18:30/22:00. Root authored and personally self-reviewed all18UIviews via nine lossless sheets. Actual public controls earn/activate then immediately stop the briefing and end the shift; early0.0minute ending stays explicit, full90minute bound stays frozen and no completed-trial claim appears. Current paused comparison uses real isolated flow, unsure prediction remains open and overlapping packing ranges establish no ordering; conditional departure stays0kg. No ballot or pace changes, state/inventory purity separately protected by unit tests. Complete questions and reset controls are visible after ordinary scrolling, no horizontal overflow, headings unobscured and original interface retained. All world/people/texture/page/request guards clean; sandboxed out-of-process Apple Metal and Medium retained, audio context never created. Synthetic role-play only. Initial12frames and original seal/failures retained. Every owned browser/server/lock closes normally.
+
+Primary HEAD/NULstatus/binarydiff, six canonical/prediction/renderer files and ten unrelated images remain exact. Runtime source/art/compiled pins match before this documentation append. No new dependency/schema/score/private response/persistence/authority or scene change. Selective local check-in only for BY; prior PR34 release remains live and fully verified, with main allfiveCIjobs and normal Pages success. Pacing stays OPEN separately and physical player/device/manual checks DEFERRED. Repeating programme ACTIVE; next continuation should deepen role-to-role learning from actual quality/supply/collection evidence rather than repeat the finished debrief UI.
