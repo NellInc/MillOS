@@ -369,6 +369,25 @@ interface DrillMetrics {
 
 `@/*` maps to project root (configured in tsconfig.json and vite.config.ts)
 
+## Interface Language (English and Brazilian Portuguese)
+
+Every user-facing string goes through `src/i18n`. New copy is never hard-coded.
+
+- Put a component's copy in a co-located `<File>.messages.ts` built with
+  `defineMessages({ en: {...}, 'pt-BR': {...} })`. pt-BR must define every
+  English key, or `tsc` fails.
+- React: `const t = useT(catalog)`. Stores, simulation text, alerts, PA and
+  achievements: `translate(catalog, key, params)` (resolved when created).
+- No module-level copy: a constant array of labels freezes the first language.
+- Numbers in copy go through `formatFixed(value, digits)` (the `toFixed`
+  replacement) or `formatGrouped` (the `toLocaleString` replacement). pt-BR
+  reads "6,000" as six; English output stays identical to `toFixed`.
+- Vocabulary and the never-translate list (SCADA tag ids, machine
+  designations, proper names, lyrics, painted signage, agent protocol, logs)
+  live in `src/i18n/GLOSSARY.md`.
+- Language comes from `?lang=pt-BR`, then the saved `millos-locale` choice,
+  then the browser. Tests run in English.
+
 ## Code Style Rules
 
 ### No Emojis - Use Icons Instead
