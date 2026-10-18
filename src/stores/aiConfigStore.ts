@@ -18,6 +18,8 @@ import {
   DEFAULT_WEBGPU_MODEL_ID,
 } from '../utils/webgpuClient';
 import { logger } from '../utils/logger';
+import { formatFixed, translate } from '../i18n';
+import { aiConfigStoreMessages } from './aiConfigStore.messages';
 import type { StrategicPriority } from '../types';
 
 // `gemini` is the persisted legacy ID for strategic-only mode, not a provider.
@@ -49,9 +51,9 @@ export function getActiveCloudPricing(): { model: string; input: number; output:
   const backend = useAIConfigStore.getState().llmBackend;
   const model =
     backend === 'webgpu'
-      ? 'On-device'
+      ? translate(aiConfigStoreMessages, 'pricingOnDevice')
       : backend === 'chatgpt'
-        ? 'ChatGPT plan'
+        ? translate(aiConfigStoreMessages, 'pricingChatGPTPlan')
         : backend === 'openrouter-haiku'
           ? 'OpenRouter Haiku 5.5'
           : backend === 'openrouter-luna'
@@ -229,7 +231,10 @@ export const useAIConfigStore = create<AIConfigState>()(
         } catch (error) {
           set({
             chatgptStatus: null,
-            chatgptError: error instanceof Error ? error.message : 'Local companion unavailable',
+            chatgptError:
+              error instanceof Error
+                ? error.message
+                : translate(aiConfigStoreMessages, 'localCompanionUnavailable'),
           });
         }
       },
@@ -299,7 +304,7 @@ export const useAIConfigStore = create<AIConfigState>()(
           webgpuStatus: 'checking',
           webgpuError: null,
           webgpuProgress: 0,
-          webgpuMessage: 'Checking WebGPU compatibility...',
+          webgpuMessage: translate(aiConfigStoreMessages, 'checkingWebGPU'),
         });
 
         const report = await checkWebGPUAdapter();
@@ -307,9 +312,7 @@ export const useAIConfigStore = create<AIConfigState>()(
           set({
             webgpuStatus: 'unsupported',
             webgpuModelReady: false,
-            webgpuError:
-              report.warning ??
-              'WebGPU is unavailable in this browser. Use a WebGPU-capable browser or a cloud BYOK model.',
+            webgpuError: report.warning ?? translate(aiConfigStoreMessages, 'webgpuUnavailable'),
           });
           logger.warn('[AIConfigStore] WebGPU unsupported:', report.warning);
           return false;
@@ -320,7 +323,7 @@ export const useAIConfigStore = create<AIConfigState>()(
           webgpuAdapterWarning: report.warning ?? null,
           webgpuStatus: 'loading',
           webgpuProgress: 0,
-          webgpuMessage: 'Initializing model download...',
+          webgpuMessage: translate(aiConfigStoreMessages, 'initializingDownload'),
         });
 
         const ok = await webgpuClient.load((p) => {
@@ -349,7 +352,7 @@ export const useAIConfigStore = create<AIConfigState>()(
             webgpuStatus: 'ready',
             webgpuModelReady: true,
             webgpuProgress: 1,
-            webgpuMessage: 'Local neural core online',
+            webgpuMessage: translate(aiConfigStoreMessages, 'localCoreOnline'),
             webgpuError: null,
             // Mirror the cloud auto-switch: a fresh local core lights up the
             // strategic layer via Hybrid mode (keeps fast heuristic tactical).
@@ -368,7 +371,7 @@ export const useAIConfigStore = create<AIConfigState>()(
         set({
           webgpuStatus: 'error',
           webgpuModelReady: false,
-          webgpuError: 'The model could not be loaded. Try again or use a cloud BYOK model.',
+          webgpuError: translate(aiConfigStoreMessages, 'modelLoadFailed'),
         });
         return false;
       },
@@ -583,9 +586,17 @@ export const useAIConfigStore = create<AIConfigState>()(
       // Get formatted cost string
       getFormattedCost: () => {
         const { sessionCost, requestCount } = get().costTracking;
-        if (requestCount === 0) return '$0.00';
-        if (sessionCost < 0.01) return `$${sessionCost.toFixed(4)}`;
-        return `$${sessionCost.toFixed(2)}`;
+        if (requestCount === 0) {
+          return translate(aiConfigStoreMessages, 'sessionCost', { amount: formatFixed(0, 2) });
+        }
+        if (sessionCost < 0.01) {
+          return translate(aiConfigStoreMessages, 'sessionCost', {
+            amount: formatFixed(sessionCost, 4),
+          });
+        }
+        return translate(aiConfigStoreMessages, 'sessionCost', {
+          amount: formatFixed(sessionCost, 2),
+        });
       },
 
       setCloudApiKey: async (backend, key) => {
@@ -604,7 +615,12 @@ export const useAIConfigStore = create<AIConfigState>()(
           return true;
         } catch (error) {
           if (attempt === cloudKeyAttempt) {
-            set({ connectionError: error instanceof Error ? error.message : 'Connection failed.' });
+            set({
+              connectionError:
+                error instanceof Error
+                  ? error.message
+                  : translate(aiConfigStoreMessages, 'connectionFailed'),
+            });
           }
           return false;
         }

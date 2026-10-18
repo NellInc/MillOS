@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Info, ExternalLink } from 'lucide-react';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import pkg from '../../package.json';
+import { useT } from '../i18n';
+import { aboutModalMessages } from './AboutModal.messages';
 
 interface AboutModalProps {
   isOpen: boolean;
@@ -16,6 +18,7 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose, theme }
   const mutedClass = theme === 'light' ? 'text-slate-500' : 'text-slate-400';
   const borderClass = theme === 'light' ? 'border-slate-200' : 'border-slate-700';
 
+  const t = useT(aboutModalMessages);
   const modalRef = useRef<HTMLDivElement | null>(null);
   useFocusTrap(modalRef as React.RefObject<HTMLElement>, isOpen, onClose);
 
@@ -49,13 +52,13 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose, theme }
               <div className="flex items-center gap-2">
                 <Info className={`w-5 h-5 ${textClass}`} aria-hidden="true" />
                 <h2 id="about-modal-title" className={`text-lg font-semibold ${textClass}`}>
-                  About MillOS
+                  {t('title')}
                 </h2>
               </div>
               <button
                 type="button"
                 onClick={onClose}
-                aria-label="Close about dialog"
+                aria-label={t('close')}
                 className={`min-h-11 min-w-11 flex items-center justify-center rounded hover:bg-slate-500/20 focus:outline-none focus:ring-2 focus:ring-cyan-500 ${mutedClass}`}
               >
                 <X className="w-5 h-5" aria-hidden="true" />
@@ -64,18 +67,15 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose, theme }
 
             {/* Content */}
             <div className={`p-4 space-y-4 ${textClass}`}>
-              <p className={mutedClass}>
-                A digital twin of a grain mill — AI-managed, 3D-rendered, and opinionated about how
-                humans and machines should work together.
-              </p>
+              <p className={mutedClass}>{t('description')}</p>
 
               {/* Music Credits */}
               <div>
-                <h3 className="font-medium mb-2">Music</h3>
+                <h3 className="font-medium mb-2">{t('music')}</h3>
                 <ul className={`text-sm space-y-2 ${mutedClass}`}>
                   <li className="flex items-start gap-2">
                     <span>
-                      Music by{' '}
+                      {t('musicBy')}{' '}
                       <a
                         href="https://incompetech.com"
                         target="_blank"
@@ -89,7 +89,7 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose, theme }
                   </li>
                   <li className="flex items-start gap-2">
                     <span>
-                      Original MillOS soundtrack by Nell Watson, created with{' '}
+                      {t('soundtrackBy')}{' '}
                       <a
                         href="https://suno.com/@nellwatson"
                         target="_blank"
@@ -105,12 +105,12 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose, theme }
 
               {/* 3D Model Credits */}
               <div>
-                <h3 className="font-medium mb-2">3D Model Credits</h3>
+                <h3 className="font-medium mb-2">{t('modelCredits')}</h3>
                 <ul className={`text-sm space-y-2 ${mutedClass}`}>
                   <li className="flex items-start gap-2">
-                    <span className="shrink-0">Forklift:</span>
+                    <span className="shrink-0">{t('forklift')}</span>
                     <span>
-                      by Mantas Stankaitis via{' '}
+                      {t('forkliftBy')}{' '}
                       <a
                         href="https://sketchfab.com/3d-models/forklift-d40cae50e04145dd997cdca415cd72ad"
                         target="_blank"
@@ -123,14 +123,14 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose, theme }
                     </span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span>Scene, village and farm models generated for MillOS with Tripo3D</span>
+                    <span>{t('generatedModels')}</span>
                   </li>
                 </ul>
               </div>
 
               {/* Version */}
               <div className={`text-xs ${mutedClass} pt-2 border-t ${borderClass}`}>
-                <p>Version {pkg.version}</p>
+                <p>{t('version', { version: pkg.version })}</p>
               </div>
             </div>
           </motion.div>

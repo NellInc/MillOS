@@ -27,6 +27,8 @@ import type {
   WorkplaceMode,
   WorkplaceTransitionResult,
 } from '../../../types/workplace';
+import { formatFixed, translate, useT } from '../../../i18n';
+import { workplaceImprovementPanelMessages } from './WorkplaceImprovementPanel.messages';
 
 const button =
   'min-h-11 rounded-md border border-cyan-300/25 px-3 py-2 text-xs font-medium text-cyan-100 hover:bg-cyan-900/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 disabled:cursor-not-allowed disabled:opacity-50';
@@ -53,6 +55,7 @@ export function WorkplaceImprovementPanel({
   onSeasonStart?: () => void;
   onReviewObjection?: (id: string) => void;
 }) {
+  const t = useT(workplaceImprovementPanelMessages);
   const store = useWorkplaceControls();
   const s = store.workplace;
   const i = s.improvement;
@@ -87,38 +90,36 @@ export function WorkplaceImprovementPanel({
   };
   if (!i || !summary)
     return (
-      <section ref={panelRef} tabIndex={-1} aria-label="Handoff experiment" className="space-y-4">
-        <h4 className="text-base font-semibold text-white">The handoff experiment</h4>
-        <p>Try a member’s idea on the packing floor, then decide what stays.</p>
-        <p className="text-slate-300">
-          One 90-minute trial. Pay, qualified work and refusal stay protected.
-        </p>
+      <section ref={panelRef} tabIndex={-1} aria-label={t('regionLabel')} className="space-y-4">
+        <h4 className="text-base font-semibold text-white">{t('introHeading')}</h4>
+        <p>{t('introIdea')}</p>
+        <p className="text-slate-300">{t('introProtected')}</p>
         {s.phase === 'idle' && (
           <div className="grid gap-2 sm:grid-cols-2">
             <label>
-              Handoff mode
+              {t('modeLabel')}
               <select
-                aria-label="Handoff mode"
+                aria-label={t('modeLabel')}
                 className={input}
                 value={mode ?? s.mode}
                 onChange={(e) => setMode?.(e.target.value as WorkplaceMode)}
               >
-                <option value="game">Game</option>
-                <option value="workshop">Workshop</option>
-                <option value="pilot">Pilot preparation</option>
+                <option value="game">{t('modeGame')}</option>
+                <option value="workshop">{t('modeWorkshop')}</option>
+                <option value="pilot">{t('modePilot')}</option>
               </select>
             </label>
             <label>
-              Handoff governance
+              {t('governanceLabel')}
               <select
-                aria-label="Handoff governance"
+                aria-label={t('governanceLabel')}
                 className={input}
                 value={profile}
                 onChange={(e) => setProfile?.(e.target.value as WorkplaceProfile)}
               >
-                <option value="toe-dip">Coordinator-led</option>
-                <option value="team">Team agreement</option>
-                <option value="cooperative">Member governance</option>
+                <option value="toe-dip">{t('profileToeDip')}</option>
+                <option value="team">{t('profileTeam')}</option>
+                <option value="cooperative">{t('profileCooperative')}</option>
               </select>
             </label>
           </div>
@@ -133,7 +134,7 @@ export function WorkplaceImprovementPanel({
             perform(store.beginImprovement(profile, s.revision, undefined, mode ?? s.mode), true)
           }
         >
-          Open the handoff experiment
+          {t('openExperiment')}
         </button>
         {(mode ?? s.mode) === 'game' && setProfile && (
           <WorkplaceSeasonEntry
@@ -145,7 +146,7 @@ export function WorkplaceImprovementPanel({
               perform(
                 {
                   changed: true,
-                  reason: 'Season opened. Use Shift and Agreement / Voices for current decisions.',
+                  reason: translate(workplaceImprovementPanelMessages, 'seasonOpened'),
                 },
                 true
               );
@@ -153,44 +154,41 @@ export function WorkplaceImprovementPanel({
             }}
           />
         )}
-        {s.mode === 'pilot' && (
-          <p>
-            Pilot preparation remains planning-only. Use Game or Workshop for a local experiment.
-          </p>
-        )}
+        {s.mode === 'pilot' && <p>{t('pilotPlanningOnly')}</p>}
       </section>
     );
   const arrangement = HANDOFF_ARRANGEMENTS.find((a) => a.id === i.proposalId);
   const advice = i.advice;
   const winner = improvementReviewWinner(s);
   return (
-    <section ref={panelRef} tabIndex={-1} aria-label="Handoff experiment" className="space-y-4">
+    <section ref={panelRef} tabIndex={-1} aria-label={t('regionLabel')} className="space-y-4">
       <div className="space-y-2 border-b border-slate-700 pb-4">
         <h4 className="text-base font-semibold text-white">
-          The handoff experiment, shift {summary.cycle}
+          {t('shiftHeading', { cycle: formatFixed(summary.cycle, 0) })}
         </h4>
         <p className="text-cyan-100" aria-live="polite">
           {summary.next}
         </p>
-        <p className="text-xs text-slate-300">
-          Synthetic role-play. Everyone can challenge or stop an arrangement. No private reason,
-          extra duty or lost pay is required.
-        </p>
+        <p className="text-xs text-slate-300">{t('rolePlayNote')}</p>
       </div>
       {openObjections.length > 0 && (
-        <section aria-label="Handoff remedies" className="space-y-3 border-b border-slate-700 pb-4">
-          <h5 className="font-semibold text-white">Whose concern needs a remedy?</h5>
-          <p className="text-slate-300">
-            Review each concern with its raiser. Opening a record changes no role, decision or
-            permission. Only that raiser can confirm resolution.
-          </p>
+        <section
+          aria-label={t('remediesLabel')}
+          className="space-y-3 border-b border-slate-700 pb-4"
+        >
+          <h5 className="font-semibold text-white">{t('remediesHeading')}</h5>
+          <p className="text-slate-300">{t('remediesNote')}</p>
           {openObjections.map((objection) => {
             const role =
-              s.members.find((member) => member.id === objection.actorId)?.role ?? 'Adviser';
+              s.members.find((member) => member.id === objection.actorId)?.role ?? t('adviser');
             return (
               <div key={objection.id} className="space-y-2">
                 <p className="text-amber-100">
-                  {role}: {objection.statement} ({objection.kind}, open)
+                  {t('objectionLine', {
+                    role,
+                    statement: objection.statement,
+                    kind: objection.kind,
+                  })}
                 </p>
                 {onReviewObjection && (
                   <button
@@ -198,7 +196,7 @@ export function WorkplaceImprovementPanel({
                     className={button}
                     onClick={() => onReviewObjection(objection.id)}
                   >
-                    Review remedy: {role} ({objection.kind})
+                    {t('reviewRemedy', { role, kind: objection.kind })}
                   </button>
                 )}
               </div>
@@ -209,7 +207,7 @@ export function WorkplaceImprovementPanel({
       {deliberating && <HandoffEpisodes state={s} report={report} />}
       {deliberating && (
         <div className="space-y-3">
-          <h5 className="font-semibold text-white">Which idea should the team try?</h5>
+          <h5 className="font-semibold text-white">{t('whichIdea')}</h5>
           {HANDOFF_ARRANGEMENTS.map((a) => (
             <div key={a.id} className="space-y-2 border-b border-slate-800 pb-3">
               <button
@@ -222,14 +220,15 @@ export function WorkplaceImprovementPanel({
                 {a.title}
               </button>
               {i.proposalId === a.id && (
-                <p className="font-medium text-cyan-100">Selected for this trial.</p>
+                <p className="font-medium text-cyan-100">{t('selected')}</p>
               )}
               <p>{a.detail}</p>
               <p className="text-xs tabular-nums text-slate-300">
-                {a.cost} credits for a new arrangement;{' '}
-                {a.briefingMinutes ? `${a.briefingMinutes} paid minutes of pacing hold; ` : ''}
-                {a.capacity.toFixed(2)}× modeled pace. An adopted arrangement has no repeat
-                purchase.
+                {t('costLine', {
+                  cost: formatFixed(a.cost, 0),
+                  briefingMinutes: a.briefingMinutes ? formatFixed(a.briefingMinutes, 0) : '',
+                  capacity: formatFixed(a.capacity, 2),
+                })}
               </p>
             </div>
           ))}
@@ -239,17 +238,17 @@ export function WorkplaceImprovementPanel({
         <div className="space-y-2">
           <h5 className="font-semibold text-white">{arrangement.title}</h5>
           <p className="tabular-nums">
-            Reserve 108 credits for wages first. This shift’s purchase: {summary.cost.toFixed(2)}{' '}
-            credits. Cash before reservations: {s.finance.cash.toFixed(2)}.
+            {t('reserveLine', {
+              cost: formatFixed(summary.cost, 2),
+              cash: formatFixed(s.finance.cash, 2),
+            })}
           </p>
           {advice ? (
             <FrozenPackingAdvice advice={advice} />
           ) : (
             <p className="text-xs text-slate-300">
-              {s.mode === 'game'
-                ? 'Hear the adviser response to capture the current plant facts. Missing evidence will cause an explicit abstention.'
-                : 'Facilitated workshop: no physical packing or departure forecast.'}{' '}
-              Governance grants no capacity bonus.
+              {s.mode === 'game' ? t('hearAdviserHint') : t('workshopNoForecast')}{' '}
+              {t('noCapacityBonus')}
             </p>
           )}
           {deliberating && (
@@ -263,18 +262,18 @@ export function WorkplaceImprovementPanel({
             <>
               <div className="grid gap-2 sm:grid-cols-2">
                 <label>
-                  Challenge author
+                  {t('challengeAuthor')}
                   <select
-                    aria-label="Challenge author"
+                    aria-label={t('challengeAuthor')}
                     disabled={separateTurns}
                     className={input}
                     value={actor}
                     onChange={(e) => setActor(e.target.value)}
                   >
                     <option value="" disabled>
-                      Begin a participant turn
+                      {t('beginTurn')}
                     </option>
-                    {[...s.members.map((m) => [m.id, m.role]), ['mind', 'Adviser']].map(
+                    {[...s.members.map((m) => [m.id, m.role]), ['mind', t('adviser')]].map(
                       ([id, role]) => (
                         <option key={id} value={id}>
                           {role}
@@ -284,16 +283,16 @@ export function WorkplaceImprovementPanel({
                   </select>
                 </label>
                 <label>
-                  Challenge subject
+                  {t('challengeSubject')}
                   <select
-                    aria-label="Challenge subject"
+                    aria-label={t('challengeSubject')}
                     className={input}
                     value={challenge}
                     onChange={(e) => setChallenge(e.target.value as ImprovementChallenge)}
                   >
                     {IMPROVEMENT_CHALLENGES.map((kind) => (
                       <option key={kind} value={kind}>
-                        {kind}
+                        {t('challengeKind', { kind })}
                       </option>
                     ))}
                   </select>
@@ -306,7 +305,7 @@ export function WorkplaceImprovementPanel({
                   disabled={!actor || !ownsRole(actor)}
                   onClick={() => perform(store.challengeImprovement(actor, challenge))}
                 >
-                  Challenge this proposal
+                  {t('challengeProposal')}
                 </button>
                 <button
                   type="button"
@@ -314,7 +313,7 @@ export function WorkplaceImprovementPanel({
                   disabled={!ownsRole('mind') || !mandateReady}
                   onClick={() => perform(store.acknowledgeImprovement())}
                 >
-                  Hear the adviser response
+                  {t('hearAdviser')}
                 </button>
               </div>
             </>
@@ -323,33 +322,22 @@ export function WorkplaceImprovementPanel({
             <ul className="list-inside list-disc text-xs text-slate-300">
               {i.challenges.map((c) => (
                 <li key={`${c.actorId}-${c.kind}`}>
-                  {s.members.find((m) => m.id === c.actorId)?.role ?? 'Adviser'} challenged {c.kind}
-                  ;{' '}
-                  {i.acknowledged
-                    ? 'response recorded, individual objection rights retained'
-                    : 'response pending'}
-                  .
+                  {t('challengeItem', {
+                    role: s.members.find((m) => m.id === c.actorId)?.role ?? t('adviser'),
+                    kind: c.kind,
+                    acknowledged: i.acknowledged,
+                  })}
                 </li>
               ))}
             </ul>
           )}
-          {i.acknowledged && (
-            <p className="text-cyan-100">
-              Adviser: “These are uncertain operational assumptions. Spending stays bounded, work
-              stays qualified, and any role can return the line to steady pacing. I cannot waive a
-              boundary or close someone else’s objection.”
-            </p>
-          )}
+          {i.acknowledged && <p className="text-cyan-100">{t('adviserResponse')}</p>}
         </div>
       )}
       {deliberating && i.proposalId && (
         <div className="space-y-3">
-          <h5 className="font-semibold text-white">Fresh role decisions</h5>
-          <p className="text-xs text-slate-300">
-            A policy ballot grants no optional-duty consent. Team agreement requires all approvals;
-            member governance requires three; coordinator-led work hears every role before the
-            coordinator decides.
-          </p>
+          <h5 className="font-semibold text-white">{t('roleDecisionsHeading')}</h5>
+          <p className="text-xs text-slate-300">{t('roleDecisionsNote')}</p>
           {s.members.map((m) => (
             <fieldset
               key={m.id}
@@ -361,8 +349,10 @@ export function WorkplaceImprovementPanel({
               <legend className="font-medium text-white">{m.role}</legend>
               <p className="text-xs text-slate-300">{m.publicBoundary}</p>
               <p className="text-cyan-100" aria-live="polite">
-                Policy ballot: {m.ballot === null ? 'pending' : m.ballot ? 'approved' : 'declined'}.
-                {m.ballot === false && ' Ordinary pay is unchanged.'}
+                {t('policyBallot', {
+                  status: m.ballot === null ? 'pending' : m.ballot ? 'approved' : 'declined',
+                })}
+                {m.ballot === false && t('ordinaryPayUnchanged')}
               </p>
               <div className="flex flex-wrap gap-2">
                 <button
@@ -371,7 +361,7 @@ export function WorkplaceImprovementPanel({
                   disabled={!i.acknowledged || m.understood || !mandateReady}
                   onClick={() => perform(store.understand(m.id))}
                 >
-                  Confirm handoff understanding: {m.role}
+                  {t('confirmUnderstanding', { role: m.role })}
                 </button>
                 <button
                   type="button"
@@ -380,7 +370,7 @@ export function WorkplaceImprovementPanel({
                   aria-pressed={m.ballot === true}
                   onClick={() => perform(store.vote(m.id, true))}
                 >
-                  Approve handoff: {m.role}
+                  {t('approveHandoff', { role: m.role })}
                 </button>
                 <button
                   type="button"
@@ -389,7 +379,7 @@ export function WorkplaceImprovementPanel({
                   aria-pressed={m.ballot === false}
                   onClick={() => perform(store.vote(m.id, false))}
                 >
-                  Decline handoff: {m.role}
+                  {t('declineHandoff', { role: m.role })}
                 </button>
               </div>
             </fieldset>
@@ -412,10 +402,10 @@ export function WorkplaceImprovementPanel({
             }}
           >
             {busy
-              ? 'Checking current agreement…'
+              ? t('checkingAgreement')
               : s.mode === 'workshop'
-                ? 'Record handoff workshop agreement'
-                : 'Approve and run handoff trial'}
+                ? t('recordWorkshop')
+                : t('approveAndRun')}
           </button>
         </div>
       )}
@@ -424,26 +414,33 @@ export function WorkplaceImprovementPanel({
         <div className="space-y-3">
           <p className="tabular-nums">
             {i.stopped
-              ? 'Arrangement stopped: steady 0.78× pacing for the remaining agreed shift.'
-              : `Arrangement expires at minute 90. ${arrangement?.briefingMinutes && s.minute < 5 ? 'Paid briefing in progress; line pacing held.' : 'Watch the line and customer dispatch.'}`}
+              ? t('arrangementStopped')
+              : t('arrangementExpires', {
+                  detail:
+                    arrangement?.briefingMinutes && s.minute < 5
+                      ? t('briefingInProgress')
+                      : t('watchLineDispatch'),
+                })}
           </p>
           <label>
-            Stopping role
+            {t('stoppingRole')}
             <select
-              aria-label="Stopping role"
+              aria-label={t('stoppingRole')}
               disabled={separateTurns}
               className={input}
               value={actor}
               onChange={(e) => setActor(e.target.value)}
             >
               <option value="" disabled>
-                Begin a participant turn
+                {t('beginTurn')}
               </option>
-              {[...s.members.map((m) => [m.id, m.role]), ['mind', 'Adviser']].map(([id, role]) => (
-                <option key={id} value={id}>
-                  {role}
-                </option>
-              ))}
+              {[...s.members.map((m) => [m.id, m.role]), ['mind', t('adviser')]].map(
+                ([id, role]) => (
+                  <option key={id} value={id}>
+                    {role}
+                  </option>
+                )
+              )}
             </select>
           </label>
           <div className="flex flex-wrap gap-2">
@@ -453,10 +450,10 @@ export function WorkplaceImprovementPanel({
               disabled={i.stopped || !actor || !ownsRole(actor)}
               onClick={() => perform(store.stopImprovement(actor))}
             >
-              Stop arrangement and keep steady work
+              {t('stopArrangement')}
             </button>
             <button type="button" className={button} onClick={() => perform(store.stop(), true)}>
-              End handoff shift now
+              {t('endShiftNow')}
             </button>
             {s.mode === 'workshop' && (
               <button
@@ -466,7 +463,7 @@ export function WorkplaceImprovementPanel({
                   store.tick(5, 0, false);
                 }}
               >
-                Advance handoff rehearsal by 5 minutes
+                {t('advanceRehearsal')}
               </button>
             )}
           </div>
@@ -482,46 +479,54 @@ export function WorkplaceImprovementPanel({
               .setPreset(CAMERA_PRESETS.findIndex((p) => p.name === 'Packing'))
           }
         >
-          Watch the packing handoff
+          {t('watchPackingHandoff')}
         </button>
       )}
       <dl className="space-y-1 border-t border-slate-700 pt-3 text-xs tabular-nums">
         <div>
-          <dt className="inline text-slate-300">This shift’s actual dispatch: </dt>
+          <dt className="inline text-slate-300">{t('actualDispatch')}</dt>
           <dd className="inline">
-            {s.shippedKg.toFixed(0)} kg
-            {s.mode === 'workshop' && ' (workshop has no plant shipment)'}
+            {t('kgValue', { kg: formatFixed(s.shippedKg, 0) })}
+            {s.mode === 'workshop' && t('workshopNoShipment')}
           </dd>
         </div>
         {summary.remainingKg !== null && (
           <div>
-            <dt className="inline text-slate-300">Full customer commitment remaining: </dt>
+            <dt className="inline text-slate-300">{t('commitmentRemaining')}</dt>
             <dd className="inline">
-              {summary.remainingKg.toFixed(0)} kg; {summary.mission?.evidence} evidence
+              {t('commitmentValue', {
+                kg: formatFixed(summary.remainingKg, 0),
+                evidence: summary.mission?.evidence ?? '',
+              })}
             </dd>
           </div>
         )}
         <div>
-          <dt className="inline text-slate-300">Paid this shift: </dt>
+          <dt className="inline text-slate-300">{t('paidThisShift')}</dt>
           <dd className="inline">
-            {s.finance.wagesPaid.toFixed(2)} credits; purchase{' '}
-            {s.finance.improvementSpend.toFixed(2)}; closing cash {s.finance.cash.toFixed(2)}
+            {t('paidValue', {
+              wages: formatFixed(s.finance.wagesPaid, 2),
+              spend: formatFixed(s.finance.improvementSpend, 2),
+              cash: formatFixed(s.finance.cash, 2),
+            })}
           </dd>
         </div>
         <div>
-          <dt className="inline text-slate-300">Retained earned pay: </dt>
+          <dt className="inline text-slate-300">{t('retainedPay')}</dt>
           <dd className="inline">
-            {summary.lifetimeWages.toFixed(2)} credits; compensation{' '}
-            {summary.lifetimeCompensation.toFixed(2)}
+            {t('retainedPayValue', {
+              wages: formatFixed(summary.lifetimeWages, 2),
+              compensation: formatFixed(summary.lifetimeCompensation, 2),
+            })}
           </dd>
         </div>
       </dl>
       {s.phase === 'review' && (
         <div className="space-y-3 border-t border-slate-700 pt-4">
-          <h5 className="font-semibold text-white">What should carry into the next shift?</h5>
+          <h5 className="font-semibold text-white">{t('carryHeading')}</h5>
           {learning && (
-            <section aria-label="Handoff learning review" className="space-y-2">
-              <h5 className="font-semibold text-white">What did this handoff teach us?</h5>
+            <section aria-label={t('learningLabel')} className="space-y-2">
+              <h5 className="font-semibold text-white">{t('learningHeading')}</h5>
               <ul className="list-disc space-y-1 pl-4 text-xs tabular-nums text-slate-300">
                 {learning.evidence.map((line) => (
                   <li key={line}>{line}</li>
@@ -531,11 +536,7 @@ export function WorkplaceImprovementPanel({
               <p className="text-cyan-100">{learning.question}</p>
               {s.mode === 'game' && (
                 <>
-                  <p className="text-xs text-slate-300">
-                    The optional comparison below uses current paused plant inputs. It does not
-                    replay this finished shift or record a review ballot. Fresh terms still need
-                    fresh role decisions.
-                  </p>
+                  <p className="text-xs text-slate-300">{t('comparisonNote')}</p>
                   <MatchedPackingRehearsal state={s} report={report} />
                 </>
               )}
@@ -547,17 +548,23 @@ export function WorkplaceImprovementPanel({
             disabled={i.reviewAcknowledged || !ownsRole('mind')}
             onClick={() => perform(store.acknowledgeImprovementReview())}
           >
-            Hear the adviser review its forecast
+            {t('hearForecastReview')}
           </button>
           {i.reviewAcknowledged && (
             <p className="text-cyan-100">
-              Adviser: “
+              {t('adviserQuoteOpen')}
               {advice
                 ? advice.reasonToAbstain
-                  ? 'I had insufficient evidence to forecast. This outcome does not turn missing facts into a prior prediction.'
-                  : `I assumed fixed machinery, quality and ${advice.evidence.gameSpeed}× clock pace. Actual dispatch ${s.shippedKg.toFixed(0)} kg ${s.shippedKg <= advice.dispatchUpperKg ? 'fell within' : 'exceeded'} my conditional bound. Changed inputs or collection timing require a new explanation, never a retroactively edited forecast.`
-                : 'That retained teaching forecast was illustrative. New game trials capture plant-grounded facts.'}{' '}
-              Customer work, earned pay and individual remedies remain intact.”
+                  ? t('abstainedReview')
+                  : t('forecastReview', {
+                      speed: Number.isInteger(advice.evidence.gameSpeed)
+                        ? formatFixed(advice.evidence.gameSpeed, 0)
+                        : String(advice.evidence.gameSpeed),
+                      kg: formatFixed(s.shippedKg, 0),
+                      within: s.shippedKg <= advice.dispatchUpperKg,
+                    })
+                : t('teachingForecastReview')}{' '}
+              {t('adviserQuoteClose')}
             </p>
           )}
           {obligations.map((reason) => (
@@ -568,9 +575,9 @@ export function WorkplaceImprovementPanel({
           {!i.verdict &&
             s.members.map((m) => (
               <label key={m.id} className="block">
-                {m.role} review decision
+                {t('reviewDecision', { role: m.role })}
                 <select
-                  aria-label={`${m.role} review decision`}
+                  aria-label={t('reviewDecision', { role: m.role })}
                   className={input}
                   disabled={!i.reviewAcknowledged || !ownsRole(m.id)}
                   value={i.ballots[m.id] ?? ''}
@@ -579,13 +586,13 @@ export function WorkplaceImprovementPanel({
                   }
                 >
                   <option value="" disabled>
-                    Choose a review decision
+                    {t('chooseReviewDecision')}
                   </option>
                   <option value="adopt" disabled={i.stopped || !i.funded || s.minute !== 90}>
-                    Adopt, retain the purchase with fresh agreement
+                    {t('verdictAdopt')}
                   </option>
-                  <option value="amend">Amend, try the alternative next shift</option>
-                  <option value="stop">Stop, return to ordinary pacing</option>
+                  <option value="amend">{t('verdictAmend')}</option>
+                  <option value="stop">{t('verdictStop')}</option>
                 </select>
               </label>
             ))}
@@ -596,21 +603,18 @@ export function WorkplaceImprovementPanel({
               disabled={!winner || !i.reviewAcknowledged || !facilitator || obligations.length > 0}
               onClick={() => perform(store.finishImprovementReview(s.revision))}
             >
-              Finalise handoff review
+              {t('finaliseReview')}
             </button>
           ) : (
             <>
               <p className="font-medium text-white">
-                Review recorded: {i.verdict}. Every ending preserves the learning and earned
-                obligations.
+                {t('reviewRecorded', { verdict: i.verdict })}
               </p>
               {/* A finalised review releases the plant clock (UnifiedGameTick).
                   Working if the panel says the experiment is over and offers the
                   plant pace here, with another handoff shift left optional. */}
               <p className="text-cyan-100">
-                {s.mode === 'game'
-                  ? 'This handoff experiment is complete. The plant runs normally again: choose a shift pace to resume production. Another handoff shift is optional.'
-                  : 'This handoff experiment is complete. Another handoff shift is optional.'}
+                {s.mode === 'game' ? t('completeGame') : t('completeWorkshop')}
               </p>
               {s.mode === 'game' && <TeachingPace />}
               <button
@@ -619,7 +623,7 @@ export function WorkplaceImprovementPanel({
                 disabled={!facilitator}
                 onClick={() => perform(store.continueImprovement(s.revision), true)}
               >
-                Open next handoff shift
+                {t('openNextShift')}
               </button>
             </>
           )}
@@ -628,17 +632,22 @@ export function WorkplaceImprovementPanel({
       {s.phase === 'review' && <HandoffConduct state={s} />}
       <details>
         <summary className="min-h-11 cursor-pointer py-2 font-medium text-cyan-100">
-          Earlier decisions and retained receipts
+          {t('earlierDecisions')}
         </summary>
         <p className="text-xs text-slate-300">
-          Origin closing cash: {i.origin.finance.cash.toFixed(2)} credits. Earlier earned pay and
-          any campaign review remain retained; old consent supplies no current permission.
+          {t('originNote', { cash: formatFixed(i.origin.finance.cash, 2) })}
         </p>
         {summary.history.map((h) => (
           <p key={h.cycle} className="mt-2 text-xs tabular-nums">
-            Shift {h.cycle}: {h.proposalId}, {h.verdict}; dispatched {h.shippedKg.toFixed(0)} kg,
-            wages {h.wages.toFixed(2)}, purchase {h.spend.toFixed(2)}, closing cash{' '}
-            {h.closingCash.toFixed(2)}.
+            {t('historyLine', {
+              cycle: formatFixed(h.cycle, 0),
+              proposal: h.proposalId ?? '',
+              verdict: h.verdict ?? '',
+              kg: formatFixed(h.shippedKg, 0),
+              wages: formatFixed(h.wages, 2),
+              spend: formatFixed(h.spend, 2),
+              cash: formatFixed(h.closingCash, 2),
+            })}
           </p>
         ))}
       </details>

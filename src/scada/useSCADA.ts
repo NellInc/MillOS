@@ -34,9 +34,15 @@ import { MILL_TAGS } from './tagDatabase';
 import { isStandingCriticalAlarm } from './SCADABridge';
 import { useGraphicsStore } from '../stores/graphicsStore';
 import { logger } from '../utils/logger';
+import { translate } from '../i18n';
+import { useSCADAMessages } from './useSCADA.messages';
 
-/** Identity recorded on acknowledgements that do not name one. */
-const DEFAULT_CONTROL_SOURCE = 'Autonomous control layer';
+/**
+ * Identity recorded on acknowledgements that do not name one. SCADAPanel
+ * renders it as "Acknowledged by {who}", so it is resolved in the language
+ * active at acknowledgement time, the same as SCADAPanel's own default.
+ */
+const defaultControlSource = (): string => translate(useSCADAMessages, 'defaultControlSource');
 
 // O(1) tag -> machine lookup for the per-batch value callback.
 const TAG_MACHINE_ID = new Map(MILL_TAGS.map((t) => [t.id, t.machineId]));
@@ -429,7 +435,7 @@ export function useSCADA(): UseSCADAReturn {
   const acknowledgeAlarm = useCallback(
     (alarmId: string) => {
       if (!state.isConnected) return;
-      getSCADAService().acknowledgeAlarm(alarmId, DEFAULT_CONTROL_SOURCE);
+      getSCADAService().acknowledgeAlarm(alarmId, defaultControlSource());
     },
     [state.isConnected]
   );
@@ -437,7 +443,7 @@ export function useSCADA(): UseSCADAReturn {
   // Acknowledge all alarms
   const acknowledgeAllAlarms = useCallback(() => {
     if (!state.isConnected) return;
-    getSCADAService().acknowledgeAllAlarms(DEFAULT_CONTROL_SOURCE);
+    getSCADAService().acknowledgeAllAlarms(defaultControlSource());
   }, [state.isConnected]);
 
   // Get history for a tag
@@ -672,14 +678,14 @@ export function useSCADAAlarms(): {
   const summary = useMemo(() => summarizeAlarms(alarms), [alarms]);
 
   const acknowledge = useCallback(
-    (alarmId: string, controlSource = DEFAULT_CONTROL_SOURCE, note?: string) => {
+    (alarmId: string, controlSource = defaultControlSource(), note?: string) => {
       if (!sharedState.isConnected) return;
       getSCADAService().acknowledgeAlarm(alarmId, controlSource, note);
     },
     []
   );
 
-  const acknowledgeAll = useCallback((controlSource = DEFAULT_CONTROL_SOURCE, note?: string) => {
+  const acknowledgeAll = useCallback((controlSource = defaultControlSource(), note?: string) => {
     if (!sharedState.isConnected) return;
     getSCADAService().acknowledgeAllAlarms(controlSource, note);
   }, []);

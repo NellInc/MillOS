@@ -1,4 +1,6 @@
 import { beginStartupTask } from './startupReadiness';
+import { formatFixed, translate } from '../i18n';
+import { recoverableLazyMessages } from './recoverableLazy.messages';
 import {
   createContext,
   createElement,
@@ -34,16 +36,16 @@ function wait(delayMs: number): Promise<void> {
   return new Promise((resolve) => globalThis.setTimeout(resolve, delayMs));
 }
 
+const timeoutError = (ms: number) =>
+  new Error(translate(recoverableLazyMessages, 'loadTimeout', { ms: formatFixed(ms, 0) }));
+
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   let timeoutId: ReturnType<typeof globalThis.setTimeout> | undefined;
   try {
     return await Promise.race([
       promise,
       new Promise<never>((_, reject) => {
-        timeoutId = globalThis.setTimeout(
-          () => reject(new Error(`Optional feature load exceeded ${timeoutMs}ms`)),
-          timeoutMs
-        );
+        timeoutId = globalThis.setTimeout(() => reject(timeoutError(timeoutMs)), timeoutMs);
       }),
     ]);
   } finally {
@@ -100,7 +102,9 @@ export async function importWithBoundedRetry<T>(
     }
   }
 
-  throw lastError instanceof Error ? lastError : new Error('Optional feature failed to load');
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(translate(recoverableLazyMessages, 'loadFailed'));
 }
 
 // Match React.lazy's public generic contract. Component props are intentionally

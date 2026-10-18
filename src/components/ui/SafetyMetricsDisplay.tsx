@@ -2,18 +2,21 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Activity, AlertTriangle, Route, Shield } from 'lucide-react';
 import { useSafetyStore } from '../../stores/safetyStore';
 import { useUIStore } from '../../stores/uiStore';
+import { formatFixed, translate, useT } from '../../i18n';
+import { safetyMetricsDisplayMessages as messages } from './SafetyMetricsDisplay.messages';
 
 const formatTimeSince = (lastIncidentTime: number | null | undefined): string => {
-  if (!lastIncidentTime) return 'Clean record';
+  if (!lastIncidentTime) return translate(messages, 'cleanRecord');
   const seconds = Math.max(0, Math.floor((Date.now() - lastIncidentTime) / 1000));
-  if (seconds < 15) return 'just now';
-  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 15) return translate(messages, 'justNow');
+  if (seconds < 60) return translate(messages, 'secondsAgo', { count: formatFixed(seconds, 0) });
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  return `${Math.floor(minutes / 60)}h ago`;
+  if (minutes < 60) return translate(messages, 'minutesAgo', { count: formatFixed(minutes, 0) });
+  return translate(messages, 'hoursAgo', { count: formatFixed(Math.floor(minutes / 60), 0) });
 };
 
 export const SafetyMetricsDisplay: React.FC = () => {
+  const t = useT(messages);
   const safetyMetrics = useSafetyStore((state) => state.safetyMetrics);
   const theme = useUIStore((state) => state.theme);
   const [flashStop, setFlashStop] = useState(false);
@@ -73,11 +76,14 @@ export const SafetyMetricsDisplay: React.FC = () => {
             theme === 'light' ? 'text-slate-500' : 'text-slate-400'
           }`}
         >
-          Safety Stats
+          {t('title')}
         </span>
       </div>
       <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
-        Safety stops: {safetyMetrics.safetyStops}, route conflicts: {safetyMetrics.routeConflicts}
+        {t('liveStatus', {
+          stops: formatFixed(safetyMetrics.safetyStops, 0),
+          conflicts: formatFixed(safetyMetrics.routeConflicts, 0),
+        })}
       </div>
       <div className="grid grid-cols-3 gap-2">
         <div
@@ -87,12 +93,12 @@ export const SafetyMetricsDisplay: React.FC = () => {
             <AlertTriangle className="w-3 h-3 text-amber-500" />
           </div>
           <div className="text-lg font-bold text-amber-500 font-mono">
-            {safetyMetrics.safetyStops}
+            {formatFixed(safetyMetrics.safetyStops, 0)}
           </div>
           <div
             className={`text-[8px] uppercase ${theme === 'light' ? 'text-slate-400' : 'text-slate-500'}`}
           >
-            Stops
+            {t('stops')}
           </div>
         </div>
         <div
@@ -102,12 +108,12 @@ export const SafetyMetricsDisplay: React.FC = () => {
             <Route className="w-3 h-3 text-blue-500" />
           </div>
           <div className="text-lg font-bold text-blue-500 font-mono">
-            {safetyMetrics.routeConflicts}
+            {formatFixed(safetyMetrics.routeConflicts, 0)}
           </div>
           <div
             className={`text-[8px] uppercase ${theme === 'light' ? 'text-slate-400' : 'text-slate-500'}`}
           >
-            Conflicts
+            {t('conflicts')}
           </div>
         </div>
         <div className={`text-center p-1.5 rounded ${cardBg}`}>
@@ -120,7 +126,7 @@ export const SafetyMetricsDisplay: React.FC = () => {
           <div
             className={`text-[8px] uppercase ${theme === 'light' ? 'text-slate-400' : 'text-slate-500'}`}
           >
-            Last Event
+            {t('lastEvent')}
           </div>
         </div>
       </div>

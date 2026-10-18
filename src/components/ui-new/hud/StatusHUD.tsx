@@ -17,8 +17,19 @@ import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { useGraphicsStore } from '../../../stores/graphicsStore';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
 import { useShallow } from 'zustand/react/shallow';
+import { formatFixed, formatGrouped, useLocale, useT } from '../../../i18n';
+import { statusHudMessages } from './StatusHUD.messages';
 
-export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace = 'Overview' }) => {
+const SHIFT_KEYS = {
+  morning: 'shiftMorning',
+  afternoon: 'shiftAfternoon',
+  night: 'shiftNight',
+} as const;
+
+export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace: workspaceProp }) => {
+  const t = useT(statusHudMessages);
+  const locale = useLocale();
+  const workspace = workspaceProp ?? t('defaultWorkspace');
   const safetyMetrics = useSafetyStore((state) => state.safetyMetrics);
   const fps = useFPSStore((state) => state.fps);
   const alerts = useUIStore((state) => state.alerts);
@@ -233,13 +244,21 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace = 'Overv
     safetyScore > 90 ? 'text-emerald-300' : safetyScore > 70 ? 'text-yellow-400' : 'text-red-500';
   const SafetyIcon = safetyScore > 90 ? ShieldCheck : ShieldAlert;
 
+  const clockHours = Math.floor(gameTime).toString().padStart(2, '0');
+  const clockMinutes = Math.floor((gameTime % 1) * 60)
+    .toString()
+    .padStart(2, '0');
+  const clockTime = `${clockHours}:${clockMinutes}`;
+  const shiftKey = SHIFT_KEYS[currentShift];
+  const shiftLabel = shiftKey ? t(shiftKey) : currentShift;
+
   return (
     <header
       ref={hudRef}
       style={detached ? { left: position.x, top: position.y } : { left: 0, top: 0 }}
       className={`fixed flex items-center bg-[#06141e]/98 backdrop-blur-md border-b border-cyan-100/15 pointer-events-auto ${showNotifications ? 'z-50' : 'z-30'} ${detached ? 'max-w-[calc(100vw-32px)] rounded-md border shadow-lg' : 'w-full min-h-12'} ${isDragging ? 'cursor-grabbing' : ''}`}
       role="banner"
-      aria-label="System status bar"
+      aria-label={t('bannerLabel')}
     >
       {/* System Status Bar */}
       <div className="flex min-w-0 flex-1 items-stretch overflow-hidden">
@@ -249,7 +268,7 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace = 'Overv
           onKeyDown={handleKeyDown}
           className="px-1 py-2 min-w-[28px] cursor-grab hover:bg-white/10 transition-colors flex items-center border-r border-white/10"
           role="button"
-          aria-label="Reposition status bar. Drag with the mouse, or use the arrow keys to move it; hold Shift for larger steps. Press Home to dock it."
+          aria-label={t('repositionLabel')}
           tabIndex={0}
         >
           <GripVertical className="w-3 h-3 text-slate-500" aria-hidden="true" />
@@ -269,7 +288,7 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace = 'Overv
         <div
           className="flex min-w-0 flex-1 flex-wrap items-center gap-x-5 gap-y-2 px-5 py-3"
           role="group"
-          aria-label="Live operational metrics"
+          aria-label={t('metricsLabel')}
         >
           {/* Metrics remain readable in the accessibility tree without becoming
               live announcements every time the simulation updates. */}
@@ -277,10 +296,10 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace = 'Overv
             <>
               <div
                 className="flex shrink-0 items-center gap-1.5 text-[12px] text-slate-300 font-mono"
-                aria-label={`${fps} frames per second`}
+                aria-label={t('fpsLabel', { fps: formatFixed(fps, 0) })}
               >
                 <ActivityIcon size={12} aria-hidden="true" />
-                <span>{fps} FPS</span>
+                <span>{t('fpsValue', { fps: formatFixed(fps, 0) })}</span>
               </div>
               <div
                 className="hidden w-px h-3 bg-white/10 min-[1200px]:block"
@@ -291,20 +310,20 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace = 'Overv
 
           <div
             className="flex shrink-0 items-center gap-1.5 text-[12px] text-cyan-300 font-mono"
-            aria-label={`Final packer throughput ${throughput.toLocaleString()} bags per hour`}
-            title="Measured from final-stage packer mass flow"
+            aria-label={t('throughputLabel', { value: formatGrouped(throughput) })}
+            title={t('throughputTitle')}
           >
-            <span className="hidden text-slate-400 min-[1400px]:inline">Production</span>
-            <span>{throughput.toLocaleString()} bags/h</span>
+            <span className="hidden text-slate-400 min-[1400px]:inline">{t('production')}</span>
+            <span>{t('throughputValue', { value: formatGrouped(throughput) })}</span>
           </div>
 
           {lineIdleAwaitingTruck && (
             <div
               className="flex shrink-0 items-center gap-1.5 text-[12px] text-amber-200"
-              aria-label="Line idle: the active order is packed and awaiting dispatch"
-              title="The rest of this order is already packed. Milling resumes once it is dispatched."
+              aria-label={t('lineIdleLabel')}
+              title={t('lineIdleTitle')}
             >
-              <span>Line idle: order packed, awaiting dispatch</span>
+              <span>{t('lineIdleText')}</span>
             </div>
           )}
 
@@ -312,10 +331,16 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace = 'Overv
 
           <div
             className="flex shrink-0 items-center gap-1.5 text-[12px] text-slate-200 font-mono"
-            aria-label={`Daily target ${dailyBagsProduced} of ${targetBags} bags`}
+            aria-label={t('dailyTargetLabel', {
+              produced: formatFixed(dailyBagsProduced, 0),
+              target: formatFixed(targetBags, 0),
+            })}
           >
             <span>
-              Target {dailyBagsProduced.toLocaleString()} / {targetBags.toLocaleString()}
+              {t('targetValue', {
+                produced: formatGrouped(dailyBagsProduced),
+                target: formatGrouped(targetBags),
+              })}
             </span>
           </div>
 
@@ -323,14 +348,10 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace = 'Overv
 
           <div
             className="order-last ml-auto flex shrink-0 items-center gap-3 text-sm text-slate-200"
-            aria-label={`${currentShift} run window, simulation time ${Math.floor(gameTime)
-              .toString()
-              .padStart(2, '0')}:${Math.floor((gameTime % 1) * 60)
-              .toString()
-              .padStart(2, '0')}`}
+            aria-label={t('runWindowLabel', { shift: shiftLabel, time: clockTime })}
           >
             <span className="hidden uppercase text-xs text-slate-400 min-[1600px]:inline">
-              {currentShift}
+              {shiftLabel}
             </span>
             <time>
               {Math.floor(gameTime).toString().padStart(2, '0')}:
@@ -345,10 +366,10 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace = 'Overv
           {/* Safety Score */}
           <div
             className={`flex shrink-0 items-center gap-1.5 text-[12px] font-bold ${safetyColor}`}
-            aria-label={`Safety score: ${safetyScore} percent`}
+            aria-label={t('safetyScoreLabel', { score: formatFixed(safetyScore, 0) })}
           >
             <SafetyIcon size={12} aria-hidden="true" />
-            <span>{safetyScore}% safety</span>
+            <span>{t('safetyScoreValue', { score: formatFixed(safetyScore, 0) })}</span>
           </div>
 
           <div className="hidden w-px h-3 bg-white/10 min-[1200px]:block" aria-hidden="true"></div>
@@ -358,12 +379,10 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace = 'Overv
             className={`flex shrink-0 items-center gap-1.5 text-[12px] ${
               scadaEnabled ? 'text-cyan-300' : 'text-slate-400'
             }`}
-            aria-label={
-              scadaEnabled ? 'Simulated SCADA telemetry enabled' : 'SCADA telemetry disabled'
-            }
+            aria-label={scadaEnabled ? t('scadaEnabledLabel') : t('scadaDisabledLabel')}
           >
             <Database size={12} aria-hidden="true" />
-            <span>{scadaEnabled ? 'SCADA SIMULATED' : 'SCADA DISABLED'}</span>
+            <span>{scadaEnabled ? t('scadaSimulated') : t('scadaDisabled')}</span>
           </div>
         </div>
       </div>
@@ -374,7 +393,10 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace = 'Overv
           ref={bellRef}
           onClick={() => setShowNotifications(!showNotifications)}
           className="w-12 h-12 border-l border-white/10 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-colors pointer-events-auto relative"
-          aria-label={`Notifications (${unacknowledgedCount} unread)`}
+          aria-label={t('bellLabel', {
+            count: formatFixed(unacknowledgedCount, 0),
+            n: unacknowledgedCount,
+          })}
           aria-haspopup="dialog"
           aria-expanded={showNotifications}
         >
@@ -390,7 +412,7 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace = 'Overv
         {showNotifications && (
           <div
             role="dialog"
-            aria-label="Notifications"
+            aria-label={t('notifications')}
             style={{
               ...notificationPosition,
               maxHeight: `calc(100dvh - ${notificationPosition.top + 16}px)`,
@@ -398,7 +420,7 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace = 'Overv
             className="fixed flex w-[min(320px,calc(100vw-32px))] flex-col bg-[#071722]/98 backdrop-blur-xl border border-cyan-100/15 rounded-lg shadow-2xl overflow-hidden pointer-events-auto"
           >
             <div className="p-3 border-b border-white/10 flex items-center justify-between">
-              <h3 className="text-sm font-bold text-white">Notifications</h3>
+              <h3 className="text-sm font-bold text-white">{t('notifications')}</h3>
               <button
                 ref={notificationsCloseRef}
                 type="button"
@@ -407,15 +429,15 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace = 'Overv
                   bellRef.current?.focus();
                 }}
                 className="text-slate-400 hover:text-white p-2"
-                aria-label="Close notifications"
-                title="Close notifications"
+                aria-label={t('closeNotifications')}
+                title={t('closeNotifications')}
               >
                 <X size={14} />
               </button>
             </div>
             <div className="min-h-0 max-h-80 overflow-y-auto">
               {alerts.length === 0 ? (
-                <div className="p-6 text-center text-slate-400 text-sm">All clear.</div>
+                <div className="p-6 text-center text-slate-400 text-sm">{t('allClear')}</div>
               ) : (
                 alerts.slice(0, 10).map((alert) => (
                   <div
@@ -440,14 +462,16 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace = 'Overv
                         aria-hidden="true"
                       />
                       {/* The dot is colour-only; name the type for screen readers. */}
-                      <span className="sr-only">{alert.type}: </span>
+                      <span className="sr-only">{t('alertType', { type: alert.type })}: </span>
                       <div className="flex-1 min-w-0">
                         <div className="text-xs font-medium text-white truncate">{alert.title}</div>
                         <div className="text-[12px] text-slate-300 break-words">
                           {alert.message}
                         </div>
                         <div className="text-[12px] text-slate-400 mt-1">
-                          {new Date(alert.timestamp).toLocaleTimeString()}
+                          {new Date(alert.timestamp).toLocaleTimeString(
+                            locale === 'en' ? undefined : locale
+                          )}
                         </div>
                       </div>
                       <div className="flex gap-1">
@@ -455,8 +479,8 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace = 'Overv
                           <button
                             onClick={() => acknowledgeAlert(alert.id)}
                             className="p-2 text-slate-400 hover:text-green-400 transition-colors"
-                            title="Acknowledge"
-                            aria-label={`Acknowledge ${alert.title}`}
+                            title={t('acknowledge')}
+                            aria-label={t('acknowledgeLabel', { title: alert.title })}
                           >
                             <CheckCircle size={12} />
                           </button>
@@ -464,8 +488,8 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace = 'Overv
                         <button
                           onClick={() => removeAlert(alert.id)}
                           className="p-2 text-slate-400 hover:text-red-400 transition-colors"
-                          title="Dismiss"
-                          aria-label={`Dismiss ${alert.title}`}
+                          title={t('dismiss')}
+                          aria-label={t('dismissLabel', { title: alert.title })}
                         >
                           <X size={12} />
                         </button>
@@ -485,7 +509,7 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace = 'Overv
                   }}
                   className="w-full text-[12px] text-cyan-400 hover:text-cyan-300 py-1"
                 >
-                  Mark all as read
+                  {t('markAllRead')}
                 </button>
               </div>
             )}

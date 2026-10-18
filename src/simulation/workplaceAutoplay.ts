@@ -12,6 +12,8 @@ import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { isWorkplaceReplayActive } from './workplaceReplayRuntime';
 import { CAMPAIGN_PRESSURES, WORKPLACE_CHECKS, requiredChecks } from './workplaceCampaign';
 import type { WorkplaceProfile, WorkplaceTransitionResult } from '../types/workplace';
+import { translate } from '../i18n';
+import { workplaceAutoplayMessages as msg } from './workplaceAutoplay.messages';
 
 /** Explicit synthetic solo demonstration, using the supported game actions.
  * Working if facilitated turns, replay and pilot preparation never receive
@@ -22,9 +24,7 @@ export function autoplayWorkplaceStep(profile: WorkplaceProfile): WorkplaceTrans
   const s = store.workplace;
   const blocked = (reason: string) => ({ changed: false, reason });
   if (store.participationMode !== 'solo' || isWorkplaceReplayActive() || s.mode !== 'game')
-    return blocked(
-      'Automatic role decisions are available only in synthetic solo Game mode, outside replay.'
-    );
+    return blocked(translate(msg, 'soloOnly'));
   const safety = useGameSimulationStore.getState();
   const controlMode = peekSCADAService()?.getState().mode;
   if (
@@ -32,16 +32,11 @@ export function autoplayWorkplaceStep(profile: WorkplaceProfile): WorkplaceTrans
     safety.emergencyDrillMode ||
     (controlMode !== undefined && controlMode !== 'simulation')
   )
-    return blocked('The safety or control-mode boundary holds the automatic demonstration.');
+    return blocked(translate(msg, 'safetyBoundary'));
   if (s.phase === 'idle') return store.startMission(profile, s.seed);
-  if (!s.campaign || s.improvement)
-    return blocked(
-      'Automatic season demonstration needs its own cooperative campaign. Existing handoff decisions remain manual.'
-    );
+  if (!s.campaign || s.improvement) return blocked(translate(msg, 'needsCampaign'));
   if (s.objections.some((o) => o.status === 'open'))
-    return blocked(
-      'An open objection remains with its original raiser. Automatic demonstration paused.'
-    );
+    return blocked(translate(msg, 'openObjection'));
   const c = s.campaign;
   if (s.phase === 'deliberating') {
     const pressure = CAMPAIGN_PRESSURES[c.shift];
@@ -85,9 +80,7 @@ export function autoplayWorkplaceStep(profile: WorkplaceProfile): WorkplaceTrans
   }
   if (s.members.some((m) => m.recoveryOwedMinutes > 0)) return { changed: false, reason: null };
   if (c.shift < 2) return store.nextCampaignShift();
-  return blocked(
-    'Automatic three-shift season complete. Read the individual receipts and rehearse safe reload.'
-  );
+  return blocked(translate(msg, 'seasonComplete'));
 }
 
 let demonstrationInterval: ReturnType<typeof setInterval> | null = null;
@@ -106,13 +99,13 @@ export const useWorkplaceAutoplay = create<{
       start: (profile) => {
         if (get().running) return;
         if (useWorkplaceStore.getState().participationMode !== 'solo') {
-          set({ message: 'Separate participant turns stay manual.' });
+          set({ message: translate(msg, 'separateTurnsManual') });
           return;
         }
         set({
           manual: true,
           running: true,
-          message: 'Fictional solo role decisions are running. Pause whenever you want.',
+          message: translate(msg, 'running'),
         });
         demonstrationInterval = setInterval(() => {
           const result = withAutomaticWorkplaceStep(() => autoplayWorkplaceStep(profile));
@@ -129,7 +122,7 @@ export const useWorkplaceAutoplay = create<{
         set({
           running: false,
           manual: true,
-          message: 'Automatic decisions paused. Your choices take priority.',
+          message: translate(msg, 'paused'),
         });
         if (wasRunning && !preserveClock) useGameSimulationStore.getState().setGameSpeed(0);
       },

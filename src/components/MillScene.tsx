@@ -134,6 +134,8 @@ import { CameraBoundsTracker } from './CameraController';
 import { FLOOR_LAYERS, RENDER_ORDER, POLYGON_OFFSET } from '../constants/renderLayers';
 import { SITE_LAYOUT } from '../constants/siteLayout';
 import { useReducedMotion } from '../hooks/useReducedMotion';
+import { useT } from '../i18n';
+import { millSceneMessages } from './MillScene.messages';
 
 /**
  * Authored `wireframe` values of the materials the toggle has overridden, so
@@ -383,6 +385,8 @@ const ServiceEgressMarkers = React.memo(() => {
   const emergencyDrillMode = useGameSimulationStore((state) => state.emergencyDrillMode);
   const drillMetrics = useGameSimulationStore((state) => state.drillMetrics);
   const reducedMotion = useReducedMotion();
+  // Also subscribes to the language, so the egress labels re-resolve on a switch.
+  const t = useT(millSceneMessages);
   const materialRefs = useRef<(THREE.MeshStandardMaterial | null)[]>([]);
   // A drill may cover fewer zones than there are egress points. Only the zones
   // in the drill are marked and verified, so none is left pending when it ends.
@@ -509,7 +513,9 @@ const ServiceEgressMarkers = React.memo(() => {
               outlineWidth={0.05}
               outlineColor="#000000"
             >
-              {verified[i] ? `${exit.label.toUpperCase()} VERIFIED` : exit.label.toUpperCase()}
+              {verified[i]
+                ? t('egressVerified', { label: exit.label.toUpperCase() })
+                : exit.label.toUpperCase()}
             </Text>
             {/* Pointing arrow above */}
             <mesh position={[0, 3.5, 0]} rotation={[0, 0, Math.PI]}>

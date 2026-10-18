@@ -4,6 +4,8 @@ import {
   workplaceSimulationNow,
   workplaceSimulationRandom,
 } from '../simulation/workplaceReplayRuntime';
+import { translate } from '../i18n';
+import { breakdownStoreMessages } from './breakdownStore.messages';
 
 // =========================================================================
 // EQUIPMENT BREAKDOWN AND MAINTENANCE CAUSALITY
@@ -88,32 +90,52 @@ export interface MaintenanceScheduleItem {
   completed: boolean;
 }
 
-const BREAKDOWN_DESCRIPTIONS: Record<BreakdownType, string[]> = {
+type BreakdownMessageKey = keyof typeof breakdownStoreMessages.en;
+
+// Message keys, resolved when a breakdown is created so the description is
+// written in the language active at that moment.
+const BREAKDOWN_DESCRIPTIONS: Record<BreakdownType, BreakdownMessageKey[]> = {
   mechanical: [
-    'Bearing wear detected',
-    'Belt slippage occurring',
-    'Gear misalignment identified',
-    'Drive chain tension issue',
+    'mechanicalBearingWear',
+    'mechanicalBeltSlippage',
+    'mechanicalGearMisalignment',
+    'mechanicalChainTension',
   ],
   electrical: [
-    'Motor winding irregularity',
-    'Sensor malfunction detected',
-    'Control board fluctuation',
-    'Power supply instability',
+    'electricalMotorWinding',
+    'electricalSensorMalfunction',
+    'electricalControlBoard',
+    'electricalPowerSupply',
   ],
   overheating: [
-    'Thermal threshold exceeded',
-    'Cooling system strain',
-    'Friction heat buildup',
-    'Ventilation restricted',
+    'overheatingThermalThreshold',
+    'overheatingCoolingStrain',
+    'overheatingFrictionHeat',
+    'overheatingVentilation',
   ],
   vibration_failure: [
-    'Excessive vibration detected',
-    'Imbalance in rotating parts',
-    'Foundation settling issue',
-    'Shaft alignment deviation',
+    'vibrationExcessive',
+    'vibrationImbalance',
+    'vibrationFoundation',
+    'vibrationShaftAlignment',
   ],
 };
+
+const PART_LABEL_KEYS: Record<keyof PartsInventory, BreakdownMessageKey> = {
+  bearings: 'partBearings',
+  belts: 'partBelts',
+  filters: 'partFilters',
+  motors: 'partMotors',
+  sensors: 'partSensors',
+};
+
+/** Part names for audit notes, joined as the English notes always were. */
+const partList = (parts: (keyof PartsInventory)[]): string =>
+  parts
+    .map((part) =>
+      PART_LABEL_KEYS[part] ? translate(breakdownStoreMessages, PART_LABEL_KEYS[part]) : part
+    )
+    .join(', ');
 
 const PARTS_FOR_BREAKDOWN: Record<BreakdownType, (keyof PartsInventory)[]> = {
   mechanical: ['bearings', 'belts'],
@@ -249,7 +271,10 @@ export const useBreakdownStore = create<BreakdownStore>()(
         const breakdownId = makeId('breakdown', nextSequence);
         const workOrderId = makeId('wo', nextSequence);
         const requiredParts = [...PARTS_FOR_BREAKDOWN[breakdownType]];
-        const description = descriptions[nextSequence % descriptions.length];
+        const description = translate(
+          breakdownStoreMessages,
+          descriptions[nextSequence % descriptions.length]
+        );
         const severity = nextSequence % 3 === 0 ? 'moderate' : 'minor';
         const estimatedRepairTime = 30 + ((nextSequence * 7) % 30);
         const breakdown: BreakdownEvent = {
@@ -284,7 +309,7 @@ export const useBreakdownStore = create<BreakdownStore>()(
             {
               phase: 'diagnosed',
               timestamp: now,
-              note: `${description}. Work order opened; machine locked out pending repair.`,
+              note: translate(breakdownStoreMessages, 'auditOpened', { description }),
             },
           ],
         };
@@ -346,7 +371,9 @@ export const useBreakdownStore = create<BreakdownStore>()(
                       {
                         phase: 'awaiting_parts',
                         timestamp: workplaceSimulationNow(),
-                        note: `Repair blocked pending ${unavailable.join(', ')}.`,
+                        note: translate(breakdownStoreMessages, 'auditBlocked', {
+                          parts: partList(unavailable),
+                        }),
                       },
                     ],
                   }
@@ -376,7 +403,9 @@ export const useBreakdownStore = create<BreakdownStore>()(
                     {
                       phase: 'repairing',
                       timestamp: now,
-                      note: `Repair started. Consumed ${candidate.requiredParts.join(', ')}.`,
+                      note: translate(breakdownStoreMessages, 'auditStarted', {
+                        parts: partList(candidate.requiredParts),
+                      }),
                     },
                   ],
                 }
@@ -412,7 +441,7 @@ export const useBreakdownStore = create<BreakdownStore>()(
                         {
                           phase: 'verification',
                           timestamp: now,
-                          note: 'Physical repair complete. Independent verification required.',
+                          note: translate(breakdownStoreMessages, 'auditRepairComplete'),
                         },
                       ]
                     : candidate.audit,
@@ -422,7 +451,7 @@ export const useBreakdownStore = create<BreakdownStore>()(
         };
       }),
 
-    verifyRepair: (breakdownId, note = 'Functional checks passed. Restart may be requested.') => {
+    verifyRepair: (breakdownId, note = translate(breakdownStoreMessages, 'auditVerified')) => {
       let verified = false;
       set((state) => {
         const workOrder = state.workOrders.find(
@@ -469,7 +498,7 @@ export const useBreakdownStore = create<BreakdownStore>()(
                     {
                       phase: 'restart_requested',
                       timestamp: now,
-                      note: 'Controlled restart requested by the control layer.',
+                      note: translate(breakdownStoreMessages, 'auditRestartRequested'),
                     },
                   ],
                 }
@@ -507,7 +536,7 @@ export const useBreakdownStore = create<BreakdownStore>()(
                   {
                     phase: 'returned_to_service' as const,
                     timestamp: now,
-                    note: 'Machine returned to service after production state reset.',
+                    note: translate(breakdownStoreMessages, 'auditReturned'),
                   },
                 ],
               }
@@ -538,7 +567,10 @@ export const useBreakdownStore = create<BreakdownStore>()(
     // Compatibility alias. A direct resolve can only verify a fully completed
     // repair; it cannot bypass parts, repair work, or the explicit restart.
     resolveBreakdown: (breakdownId) => {
-      get().verifyRepair(breakdownId, 'Repair verified through compatibility action.');
+      get().verifyRepair(
+        breakdownId,
+        translate(breakdownStoreMessages, 'auditCompatibilityVerified')
+      );
     },
 
     tickDowntime: (deltaSeconds) => {

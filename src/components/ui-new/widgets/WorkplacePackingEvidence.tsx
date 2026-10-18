@@ -32,6 +32,9 @@ import {
   improvementEpisodeOutcome,
   improvementConduct,
 } from '../../../simulation/workplaceImprovement';
+import { displayEventDetail } from '../../../simulation/bilateralWorkplace';
+import { formatFixed, translate, useT } from '../../../i18n';
+import { workplacePackingEvidenceMessages } from './WorkplacePackingEvidence.messages';
 
 const button =
   'min-h-11 rounded-md border border-cyan-300/25 px-3 py-2 text-xs font-medium text-cyan-100 hover:bg-cyan-900/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 disabled:cursor-not-allowed disabled:opacity-50';
@@ -45,6 +48,7 @@ export function HandoffEpisodes({
   state: WorkplaceState;
   report: (result: WorkplaceTransitionResult) => void;
 }) {
+  const t = useT(workplacePackingEvidenceMessages);
   const store = useWorkplaceControls();
   const [selectedActor, setActor] = useState('quality');
   const actor =
@@ -58,19 +62,13 @@ export function HandoffEpisodes({
       : null
   );
   return (
-    <section
-      aria-label="Handoff pressure rehearsals"
-      className="space-y-3 border-b border-slate-700 pb-4"
-    >
-      <h5 className="font-semibold text-white">Try an agreement under pressure</h5>
-      <p className="text-xs text-slate-300">
-        Optional planning episodes. Their assumptions leave live trucks, stock, quality, cash and
-        customer commitments unchanged.
-      </p>
+    <section aria-label={t('handoffLabel')} className="space-y-3 border-b border-slate-700 pb-4">
+      <h5 className="font-semibold text-white">{t('handoffHeading')}</h5>
+      <p className="text-xs text-slate-300">{t('handoffIntro')}</p>
       <label className="block">
-        Pressure episode
+        {t('pressureEpisode')}
         <select
-          aria-label="Pressure episode"
+          aria-label={t('pressureEpisode')}
           disabled={separateTurns && !!store.turn}
           className={input}
           value={selected?.id ?? ''}
@@ -80,7 +78,7 @@ export function HandoffEpisodes({
             )
           }
         >
-          <option value="">Ordinary handoff</option>
+          <option value="">{t('ordinaryHandoff')}</option>
           {HANDOFF_EPISODES.map((e) => (
             <option key={e.id} value={e.id}>
               {e.title}
@@ -93,20 +91,20 @@ export function HandoffEpisodes({
           <p>{selected.premise}</p>
           <p className="text-cyan-100">{selected.recommendation}</p>
           <label className="block">
-            Rehearsal response author
+            {t('responseAuthor')}
             <select
-              aria-label="Rehearsal response author"
+              aria-label={t('responseAuthor')}
               disabled={separateTurns}
               className={input}
               value={actor}
               onChange={(e) => setActor(e.target.value)}
             >
               <option value="" disabled>
-                Begin a member turn
+                {t('beginMemberTurn')}
               </option>
               {actor === 'mind' && (
                 <option value="mind" disabled>
-                  Adviser, no member response
+                  {t('adviserNoResponse')}
                 </option>
               )}
               {state.members.map((m) => (
@@ -139,10 +137,7 @@ export function HandoffEpisodes({
               {outcome}
             </p>
           )}
-          <p className="text-xs text-slate-300">
-            To act in the plant, choose the real proposal below and make fresh role decisions. This
-            rehearsal records no live permission.
-          </p>
+          <p className="text-xs text-slate-300">{t('actInPlant')}</p>
         </>
       )}
     </section>
@@ -150,67 +145,76 @@ export function HandoffEpisodes({
 }
 
 export function FrozenPackingAdvice({ advice }: { advice: PackingAdvice }) {
+  const t = useT(workplacePackingEvidenceMessages);
   const e = advice.evidence;
   const inspections = packingInspectionPrompts(advice);
   return (
-    <div className="space-y-2" aria-label="Plant-grounded adviser evidence">
+    <div className="space-y-2" aria-label={t('evidenceLabel')}>
       <p className="font-medium text-white">
-        {advice.reasonToAbstain
-          ? 'The adviser abstains from a forecast'
-          : 'Conditional packing and departure bounds'}
+        {advice.reasonToAbstain ? t('adviserAbstains') : t('conditionalBounds')}
       </p>
       {advice.reasonToAbstain ? (
-        <p className="text-amber-100">{advice.reasonToAbstain} Unknown evidence remains unknown.</p>
+        <p className="text-amber-100">{t('abstainReason', { reason: advice.reasonToAbstain })}</p>
       ) : (
         <>
           <p className="tabular-nums">
-            Additional modeled packing: {advice.packedLowKg.toFixed(0)} to{' '}
-            {advice.packedHighKg.toFixed(0)} kg of {e.finishedMaterial}. Conditional departure: 0 to{' '}
-            {advice.dispatchUpperKg.toFixed(0)} kg.
+            {t('modeledPacking', {
+              low: formatFixed(advice.packedLowKg, 0),
+              high: formatFixed(advice.packedHighKg, 0),
+              material:
+                e.finishedMaterial === 'flour'
+                  ? t('materialFlour')
+                  : e.finishedMaterial === 'semolina'
+                    ? t('materialSemolina')
+                    : '',
+              upper: formatFixed(advice.dispatchUpperKg, 0),
+            })}
           </p>
-          <p className="text-xs text-slate-300">
-            These are scenario bounds. No departure is simulated or guaranteed. Held stock supplies
-            no eligible dispatch.
-          </p>
+          <p className="text-xs text-slate-300">{t('scenarioBounds')}</p>
         </>
       )}
       <details>
         <summary className="min-h-11 cursor-pointer py-2 font-medium text-cyan-100">
-          Known facts, age and assumptions
+          {t('factsSummary')}
         </summary>
         {advice.reasonToAbstain ? (
-          <p className="text-xs text-slate-300">
-            Numeric plant facts are unavailable for this forecast. Resolve the missing evidence
-            above, then hear a fresh response before deciding.
-          </p>
+          <p className="text-xs text-slate-300">{t('factsUnavailable')}</p>
         ) : (
           <dl className="space-y-1 text-xs tabular-nums">
             <div>
-              <dt className="inline text-slate-300">Order and recipe: </dt>
+              <dt className="inline text-slate-300">{t('orderAndRecipe')}</dt>
               <dd className="inline">
-                {e.orderId ?? 'unknown'}; {e.recipeId ?? 'unknown'}. Remaining{' '}
-                {e.remainingOrderKg === null ? 'unknown' : `${e.remainingOrderKg.toFixed(0)} kg`}.
+                {t('orderRecipeValue', {
+                  order: e.orderId ?? t('unknown'),
+                  recipe: e.recipeId ?? t('unknown'),
+                  remaining:
+                    e.remainingOrderKg === null
+                      ? t('unknown')
+                      : t('kg', { value: formatFixed(e.remainingOrderKg, 0) }),
+                })}
               </dd>
             </div>
             <div>
-              <dt className="inline text-slate-300">Captured material clock: </dt>
-              <dd className="inline">{e.materialClockSeconds.toFixed(2)} seconds.</dd>
+              <dt className="inline text-slate-300">{t('materialClock')}</dt>
+              <dd className="inline">
+                {t('secondsValue', { value: formatFixed(e.materialClockSeconds, 2) })}
+              </dd>
             </div>
             <div>
-              <dt className="inline text-slate-300">Intended pace: </dt>
+              <dt className="inline text-slate-300">{t('intendedPace')}</dt>
               <dd className="inline">
-                {e.gameSpeed}×, 90 workplace minutes in {advice.physicalSeconds.toFixed(1)} physical
-                seconds.
+                {t('paceValue', {
+                  speed: Number.isInteger(e.gameSpeed)
+                    ? formatFixed(e.gameSpeed, 0)
+                    : String(e.gameSpeed),
+                  seconds: formatFixed(advice.physicalSeconds, 1),
+                })}
               </dd>
             </div>
           </dl>
         )}
-        <div role="group" aria-label="Inspect evidence together" className="space-y-3 pt-2">
-          <p className="text-xs text-slate-300">
-            Facts are frozen at the adviser’s capture. These views inspect the current plant;
-            changed facts need a fresh adviser response before another agreement. Looking records no
-            understanding, ballot or permission.
-          </p>
+        <div role="group" aria-label={t('inspectTogether')} className="space-y-3 pt-2">
+          <p className="text-xs text-slate-300">{t('frozenFacts')}</p>
           {inspections.map((item) => (
             <div key={item.role} className="space-y-2 border-t border-slate-800 pt-3">
               <h6 className="font-semibold text-white">{item.role}</h6>
@@ -236,7 +240,7 @@ export function FrozenPackingAdvice({ advice }: { advice: PackingAdvice }) {
           ))}
         </ul>
         <p className="mt-2 break-all text-xs text-slate-300">
-          Input receipt: {advice.fingerprint}; material session {e.materialSessionId}.
+          {t('inputReceipt', { fingerprint: advice.fingerprint, session: e.materialSessionId })}
         </p>
       </details>
     </div>
@@ -250,6 +254,7 @@ export function MatchedPackingRehearsal({
   state: WorkplaceState;
   report: (result: WorkplaceTransitionResult) => void;
 }) {
+  const t = useT(workplacePackingEvidenceMessages);
   const [result, setResult] = useState<PackingRehearsals | null>(null);
   const [prediction, setPrediction] = useState<PackingPrediction | ''>('');
   const [retainedPrediction, setRetainedPrediction] = useState<PackingPrediction | null>(null);
@@ -264,9 +269,9 @@ export function MatchedPackingRehearsal({
   const [qualityRunning, setQualityRunning] = useState(false);
   const qualityPredictionRef = useRef<HTMLSelectElement>(null);
   const qualityChoices = [
-    { id: 'override', label: 'Higher pacing can replace the withheld release' },
-    { id: 'held', label: 'Departure remains blocked at every pace' },
-    { id: 'unsure', label: 'We are unsure, compare the boundaries' },
+    { id: 'override', label: t('qualityOverride') },
+    { id: 'held', label: t('qualityHeld') },
+    { id: 'unsure', label: t('qualityUnsure') },
   ];
   // These selectors observe changes while the comparison is open. They grant
   // no plant authority, and the model is only run after an explicit click.
@@ -287,7 +292,7 @@ export function MatchedPackingRehearsal({
     if (useGameSimulationStore.getState().gameSpeed !== 0) {
       report({
         changed: false,
-        reason: 'Pause the plant before capturing matched packing inputs.',
+        reason: translate(workplacePackingEvidenceMessages, 'pauseFirst'),
       });
       return;
     }
@@ -310,7 +315,7 @@ export function MatchedPackingRehearsal({
         setResult(null);
         report({
           changed: false,
-          reason: 'Plant inputs changed during rehearsal. Pause and capture again.',
+          reason: translate(workplacePackingEvidenceMessages, 'inputsChangedDuring'),
         });
       } else {
         setResult(matched);
@@ -321,7 +326,7 @@ export function MatchedPackingRehearsal({
       setResult(null);
       report({
         changed: false,
-        reason: 'The local packing rehearsal could not complete. No live plant state was changed.',
+        reason: translate(workplacePackingEvidenceMessages, 'rehearsalFailed'),
       });
     } finally {
       setRunning(false);
@@ -359,7 +364,7 @@ export function MatchedPackingRehearsal({
       setQualityResult(null);
       report({
         changed: false,
-        reason: 'The quality-boundary rehearsal could not complete. No live state changed.',
+        reason: translate(workplacePackingEvidenceMessages, 'qualityFailed'),
       });
     } finally {
       setQualityRunning(false);
@@ -370,24 +375,20 @@ export function MatchedPackingRehearsal({
   return (
     <details className="space-y-2">
       <summary className="min-h-11 cursor-pointer py-2 font-medium text-cyan-100">
-        Compare matched packing alternatives
+        {t('compareSummary')}
       </summary>
-      <p className="text-xs text-slate-300">
-        Three isolated copies of one plant input, using the real flow engine. No live inventory,
-        shipping receipt, pay, customer credit or consent is changed. Pressure episodes remain
-        separate planning assumptions.
-      </p>
+      <p className="text-xs text-slate-300">{t('isolatedCopies')}</p>
       <label className="block space-y-1">
-        <span className="font-medium text-white">Our packing prediction (optional)</span>
+        <span className="font-medium text-white">{t('packingPrediction')}</span>
         <select
           ref={predictionRef}
-          aria-label="Our packing prediction (optional)"
+          aria-label={t('packingPrediction')}
           className={input}
           value={prediction}
           disabled={running || result !== null}
           onChange={(event) => setPrediction(event.target.value as PackingPrediction | '')}
         >
-          <option value="">Discuss before revealing the ranges</option>
+          <option value="">{t('discussFirst')}</option>
           {PACKING_PREDICTIONS.map((choice) => (
             <option key={choice.id} value={choice.id}>
               {choice.label}
@@ -395,23 +396,19 @@ export function MatchedPackingRehearsal({
           ))}
         </select>
       </label>
-      <p className="text-xs text-slate-300">
-        Compare ideas first and keep any disagreements. This optional prediction stays in this open
-        comparison; it records no role ballot or permission.
-      </p>
+      <p className="text-xs text-slate-300">{t('compareIdeas')}</p>
       <button
         type="button"
         className={button}
         disabled={running || qualityRunning}
         onClick={() => void run()}
       >
-        {running ? 'Rehearsing packing…' : 'Run matched packing rehearsal'}
+        {running ? t('rehearsingPacking') : t('runRehearsal')}
       </button>
       {result && (
         <>
           <p className="break-all text-xs text-slate-300">
-            Matched input: {result.fingerprint}. Fixed machinery and dispositions; no collection,
-            wear or maintenance simulation.
+            {t('matchedInput', { fingerprint: result.fingerprint })}
           </p>
           <button
             type="button"
@@ -423,14 +420,14 @@ export function MatchedPackingRehearsal({
               )
             }
           >
-            Check rehearsal freshness
+            {t('checkFreshness')}
           </button>
           {outdated || pace !== 0 ? (
             <p role="status" className="text-amber-100">
-              Inputs changed. This comparison is stale; capture again before using it.
+              {t('staleComparison')}
             </p>
           ) : (
-            <div aria-label="Matched packing results" className="space-y-2">
+            <div aria-label={t('resultsLabel')} className="space-y-2">
               {result.arms.map((a) => (
                 <p
                   key={a.arrangement}
@@ -438,92 +435,84 @@ export function MatchedPackingRehearsal({
                 >
                   <strong className="text-white">
                     {a.arrangement === 'steady'
-                      ? 'Ordinary work'
+                      ? t('arrangementSteady')
                       : a.arrangement === 'briefing'
-                        ? 'Paid briefing'
-                        : 'Buffer pacing'}
+                        ? t('arrangementBriefing')
+                        : t('arrangementBuffer')}
                   </strong>
                   :{' '}
                   {a.reasonToAbstain
-                    ? `abstained, ${a.reasonToAbstain}`
-                    : `${a.packedLowKg.toFixed(0)} to ${a.packedHighKg.toFixed(0)} kg additionally packed; conditional departure 0 to ${a.dispatchUpperKg.toFixed(0)} kg.`}
+                    ? t('armAbstained', { reason: a.reasonToAbstain })
+                    : t('armRange', {
+                        low: formatFixed(a.packedLowKg, 0),
+                        high: formatFixed(a.packedHighKg, 0),
+                        upper: formatFixed(a.dispatchUpperKg, 0),
+                      })}
                 </p>
               ))}
               <details className="space-y-3 border-t border-slate-700 pt-3">
                 <summary className="min-h-11 cursor-pointer py-2 font-medium text-cyan-100">
-                  When did packing first appear?
+                  {t('firstPackingSummary')}
                 </summary>
-                <p className="text-xs text-slate-300">
-                  Each value marks the completed simulation tick that first recorded additional
-                  packed stock. These are workplace minutes from the same captured start. Discrete
-                  samples can differ with the physical step size.
-                </p>
+                <p className="text-xs text-slate-300">{t('firstPackingExplain')}</p>
                 {result.firstPacking.length ? (
-                  <div role="group" aria-label="Packing time observations" className="space-y-3">
+                  <div role="group" aria-label={t('timingLabel')} className="space-y-3">
                     <dl className="space-y-3 text-xs tabular-nums">
                       {result.firstPacking.map((observation) => (
                         <div key={observation.arrangement}>
                           <dt className="font-semibold text-white">
                             {observation.arrangement === 'steady'
-                              ? 'Ordinary work'
+                              ? t('arrangementSteady')
                               : observation.arrangement === 'briefing'
-                                ? 'Paid briefing'
-                                : 'Buffer pacing'}
+                                ? t('arrangementBriefing')
+                                : t('arrangementBuffer')}
                           </dt>
                           <dd className="text-slate-300">
-                            0.5-second steps:{' '}
-                            {observation.coarseFirstMinute === null
-                              ? 'no additional packing observed'
-                              : `${observation.coarseFirstMinute.toFixed(2)} min`}
-                            .
+                            {t('coarseSteps', {
+                              value:
+                                observation.coarseFirstMinute === null
+                                  ? t('noPackingObserved')
+                                  : t('minutesValue', {
+                                      value: formatFixed(observation.coarseFirstMinute, 2),
+                                    }),
+                            })}
                           </dd>
                           <dd className="text-slate-300">
-                            0.25-second steps:{' '}
-                            {observation.fineFirstMinute === null
-                              ? 'no additional packing observed'
-                              : `${observation.fineFirstMinute.toFixed(2)} min`}
-                            .
+                            {t('fineSteps', {
+                              value:
+                                observation.fineFirstMinute === null
+                                  ? t('noPackingObserved')
+                                  : t('minutesValue', {
+                                      value: formatFixed(observation.fineFirstMinute, 2),
+                                    }),
+                            })}
                           </dd>
                         </div>
                       ))}
                     </dl>
-                    <p className="text-xs text-slate-300">
-                      The briefing retains its five paid minutes of pacing hold. Compare the sample
-                      times with the 90-minute totals above; an earlier first sample supplies no
-                      collection receipt.
-                    </p>
-                    <p className="text-cyan-100">
-                      If the final totals match, which timing difference would you investigate
-                      together before changing the handoff?
-                    </p>
+                    <p className="text-xs text-slate-300">{t('briefingRetains')}</p>
+                    <p className="text-cyan-100">{t('timingQuestion')}</p>
                   </div>
                 ) : (
-                  <p className="text-xs text-amber-100">
-                    Timing is unavailable for this comparison. Resolve the missing facts or model
-                    warning above before interpreting it.
-                  </p>
+                  <p className="text-xs text-amber-100">{t('timingUnavailable')}</p>
                 )}
               </details>
               <details className="space-y-2 border-t border-slate-700 pt-3">
                 <summary className="min-h-11 cursor-pointer py-2 font-medium text-cyan-100">
-                  Can pacing replace a release?
+                  {t('releaseSummary')}
                 </summary>
-                <p className="text-xs text-slate-300">
-                  Assume dispatch release is withheld in isolated copies of these same inputs. The
-                  real flow engine still models packing; source and batch dispositions stay
-                  unchanged. This creates no live hold, release or departure.
-                </p>
+                <p className="text-xs text-slate-300">{t('assumeWithheld')}</p>
                 <label className="block space-y-1">
-                  <span className="font-medium text-white">Our quality prediction (optional)</span>
+                  <span className="font-medium text-white">{t('qualityPrediction')}</span>
                   <select
                     ref={qualityPredictionRef}
-                    aria-label="Our quality prediction (optional)"
+                    aria-label={t('qualityPrediction')}
                     className={input}
                     value={qualityPrediction}
                     disabled={qualityRunning || qualityResult !== null}
                     onChange={(event) => setQualityPrediction(event.target.value)}
                   >
-                    <option value="">Discuss with Quality and the coordinator</option>
+                    <option value="">{t('discussQuality')}</option>
                     {qualityChoices.map((choice) => (
                       <option key={choice.id} value={choice.id}>
                         {choice.label}
@@ -532,10 +521,7 @@ export function MatchedPackingRehearsal({
                   </select>
                 </label>
                 {result.arms.some((arm) => arm.reasonToAbstain) && (
-                  <p className="text-xs text-amber-100">
-                    Resolve missing captured facts before this exercise. Unknown inputs cannot
-                    establish a zero-output result.
-                  </p>
+                  <p className="text-xs text-amber-100">{t('resolveMissing')}</p>
                 )}
                 <button
                   type="button"
@@ -545,57 +531,47 @@ export function MatchedPackingRehearsal({
                   }
                   onClick={() => void rehearseQuality()}
                 >
-                  {qualityRunning
-                    ? 'Rehearsing withheld release…'
-                    : 'Rehearse withheld dispatch release'}
+                  {qualityRunning ? t('rehearsingWithheld') : t('rehearseWithheld')}
                 </button>
                 {qualityResult && (
-                  <section aria-label="Quality boundary results" className="space-y-2">
-                    <h5 className="font-semibold text-white">
-                      Packing and permission answer different questions
-                    </h5>
+                  <section aria-label={t('qualityResultsLabel')} className="space-y-2">
+                    <h5 className="font-semibold text-white">{t('differentQuestions')}</h5>
                     <p className="text-xs">
-                      Recorded idea:{' '}
-                      {qualityChoices.find((choice) => choice.id === retainedQualityPrediction)
-                        ?.label ?? 'none recorded for this run'}
-                      .
+                      {t('recordedIdea', {
+                        idea:
+                          qualityChoices.find((choice) => choice.id === retainedQualityPrediction)
+                            ?.label ?? t('noneRecorded'),
+                      })}
                     </p>
                     {qualityResult.reasonToAbstain ? (
                       <p className="text-amber-100">
-                        {qualityResult.reasonToAbstain} Keep the question open.
+                        {t('keepOpen', { reason: qualityResult.reasonToAbstain })}
                       </p>
                     ) : (
                       <>
                         {qualityResult.arms.map((arm) => (
                           <p key={arm.arrangement} className="text-xs tabular-nums">
-                            {arm.arrangement === 'steady'
-                              ? 'Ordinary work'
-                              : arm.arrangement === 'briefing'
-                                ? 'Paid briefing'
-                                : 'Buffer pacing'}{' '}
-                            with withheld release: {arm.packedLowKg.toFixed(0)} to{' '}
-                            {arm.packedHighKg.toFixed(0)} kg additionally packed; conditional
-                            departure {arm.dispatchLowerKg.toFixed(0)} to{' '}
-                            {arm.dispatchUpperKg.toFixed(0)} kg.
+                            {t('withheldArm', {
+                              arrangement:
+                                arm.arrangement === 'steady'
+                                  ? t('arrangementSteady')
+                                  : arm.arrangement === 'briefing'
+                                    ? t('arrangementBriefing')
+                                    : t('arrangementBuffer'),
+                              low: formatFixed(arm.packedLowKg, 0),
+                              high: formatFixed(arm.packedHighKg, 0),
+                              lower: formatFixed(arm.dispatchLowerKg, 0),
+                              upper: formatFixed(arm.dispatchUpperKg, 0),
+                            })}
                           </p>
                         ))}
                         {qualityResult.releaseAtCapture === false && (
-                          <p className="text-xs text-slate-300">
-                            Release was already held in the captured facts. This rehearsal grants no
-                            new permission.
-                          </p>
+                          <p className="text-xs text-slate-300">{t('alreadyHeld')}</p>
                         )}
                         {result.arms.every((arm) => arm.dispatchUpperKg === 0) && (
-                          <p className="text-xs text-slate-300">
-                            The original departure bounds were already zero. This comparison cannot
-                            attribute that original zero to quality alone.
-                          </p>
+                          <p className="text-xs text-slate-300">{t('alreadyZero')}</p>
                         )}
-                        <p className="text-cyan-100">
-                          Which independent evidence would Quality and the coordinator need before
-                          an actual departure? More packing supplies no missing release or
-                          collection receipt.
-                        </p>
+                        <p className="text-cyan-100">{t('independentEvidence')}</p>
                       </>
                     )}
                     <button
@@ -609,30 +585,28 @@ export function MatchedPackingRehearsal({
                         requestAnimationFrame(() => qualityPredictionRef.current?.focus());
                       }}
                     >
-                      Reset quality prediction
+                      {t('resetQuality')}
                     </button>
                   </section>
                 )}
               </details>
               {learning && (
                 <section
-                  aria-label="Packing prediction review"
+                  aria-label={t('reviewLabel')}
                   className="space-y-2 border-t border-slate-700 pt-3"
                 >
-                  <h5 className="font-semibold text-white">What did the rehearsal show?</h5>
+                  <h5 className="font-semibold text-white">{t('rehearsalShowed')}</h5>
                   <p>
-                    Our prediction:{' '}
-                    {PACKING_PREDICTIONS.find((choice) => choice.id === retainedPrediction)
-                      ?.label ?? 'none recorded for this run'}
-                    .
+                    {t('ourPrediction', {
+                      prediction:
+                        PACKING_PREDICTIONS.find((choice) => choice.id === retainedPrediction)
+                          ?.label ?? t('noneRecorded'),
+                    })}
                   </p>
                   <p>{learning.evidence}</p>
                   {learning.reflection && <p>{learning.reflection}</p>}
                   <p className="text-cyan-100">{learning.question}</p>
-                  <p className="text-xs text-slate-300">
-                    More packed stock does not establish a truck departure. Collection, qualified
-                    release and actual dispatch receipts still need their own evidence.
-                  </p>
+                  <p className="text-xs text-slate-300">{t('moreStock')}</p>
                 </section>
               )}
             </div>
@@ -652,7 +626,7 @@ export function MatchedPackingRehearsal({
               requestAnimationFrame(() => predictionRef.current?.focus());
             }}
           >
-            Prepare another prediction
+            {t('anotherPrediction')}
           </button>
         </>
       )}
@@ -661,45 +635,54 @@ export function MatchedPackingRehearsal({
 }
 
 export function HandoffConduct({ state }: { state: WorkplaceState }) {
+  const t = useT(workplacePackingEvidenceMessages);
   const conduct = improvementConduct(state);
   return (
-    <section
-      aria-label="Handoff conduct debrief"
-      className="space-y-2 border-t border-slate-700 pt-4"
-    >
-      <h5 className="font-semibold text-white">How did we treat each other?</h5>
+    <section aria-label={t('conductLabel')} className="space-y-2 border-t border-slate-700 pt-4">
+      <h5 className="font-semibold text-white">{t('treatEachOther')}</h5>
       <p>
-        {conduct.challenges} public {conduct.challenges === 1 ? 'challenge' : 'challenges'};{' '}
-        {conduct.adviceChanges} evidence-driven advice updates.{' '}
-        {conduct.declined.length
-          ? `${conduct.declined.length} ${conduct.declined.length === 1 ? 'role' : 'roles'} recorded a declined policy ballot without a pay penalty.`
-          : 'No declined policy ballot was recorded.'}
+        {t('challenges', {
+          count: conduct.challenges,
+          countText: formatFixed(conduct.challenges, 0),
+        })}{' '}
+        {t('adviceUpdates', { count: formatFixed(conduct.adviceChanges, 0) })}{' '}
+        {t('declined', {
+          count: conduct.declined.length,
+          countText: formatFixed(conduct.declined.length, 0),
+        })}
       </p>
-      <p className="text-xs text-slate-300">
-        A declined policy ballot grants no extra-duty permission. Coordinated or majority ordinary
-        work can proceed under the selected governance rule. Private explanations stay optional.
-      </p>
+      <p className="text-xs text-slate-300">{t('declinedNoPermission')}</p>
       {conduct.roles.map((m) => (
         <p key={m.id} className="text-xs tabular-nums">
-          <strong className="text-white">{m.role}</strong>: earned {m.earnedPay.toFixed(2)} credits;
-          rest {m.restMinutes.toFixed(1)} min; extra duty {m.extraMinutes.toFixed(1)} min;
-          compensation paid {m.compensationPaid.toFixed(2)}; recovery delivered{' '}
-          {m.recoveryMinutes.toFixed(1)} min, owed {m.recoveryOwedMinutes.toFixed(1)} min.
+          <strong className="text-white">{m.role}</strong>
+          {t('roleLedger', {
+            pay: formatFixed(m.earnedPay, 2),
+            rest: formatFixed(m.restMinutes, 1),
+            extra: formatFixed(m.extraMinutes, 1),
+            compensation: formatFixed(m.compensationPaid, 2),
+            recovery: formatFixed(m.recoveryMinutes, 1),
+            owed: formatFixed(m.recoveryOwedMinutes, 1),
+          })}
         </p>
       ))}
       <p className={conduct.openObjections.length ? 'text-amber-100' : 'text-slate-300'}>
-        {conduct.openObjections.length} unresolved{' '}
-        {conduct.openObjections.length === 1 ? 'objection' : 'objections'}. Each remedy belongs to
-        its original raiser; a promise supplies no delivered recovery.
+        {t('objections', {
+          count: conduct.openObjections.length,
+          countText: formatFixed(conduct.openObjections.length, 0),
+        })}
       </p>
       <details>
         <summary className="min-h-11 cursor-pointer py-2 font-medium text-cyan-100">
-          Public conduct receipts
+          {t('receiptsSummary')}
         </summary>
         <ol className="space-y-2 text-xs text-slate-300">
           {conduct.receipts.map((e) => (
             <li key={e.id}>
-              {e.minute.toFixed(1)} min, {e.actorId}: {e.detail}
+              {t('receipt', {
+                minute: formatFixed(e.minute, 1),
+                actor: e.actorId,
+                detail: displayEventDetail(e.detail),
+              })}
             </li>
           ))}
         </ol>

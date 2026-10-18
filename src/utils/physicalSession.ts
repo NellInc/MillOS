@@ -33,6 +33,8 @@ import {
   useLogisticsLayoutStore,
   validateSavedLogisticsLayout,
 } from '../stores/logisticsLayoutStore';
+import { translate } from '../i18n';
+import { physicalSessionMessages as messages } from './physicalSession.messages';
 
 export const PHYSICAL_SESSION_KEY = 'millos-physical-session';
 const MAX_SAVE_BYTES = 3_000_000;
@@ -380,8 +382,8 @@ export function installPhysicalSession(
     notify(
       'physical-save-unavailable',
       'warning',
-      'Shift save needs attention',
-      `${message} Settings > Simulation > Reset Simulation starts a fresh shift.`
+      translate(messages, 'saveNeedsAttention'),
+      translate(messages, 'resetHint', { reason: message })
     );
   };
   const localControl = () =>
@@ -390,9 +392,7 @@ export function installPhysicalSession(
   try {
     storage = providedStorage ?? window.localStorage;
   } catch {
-    halt(
-      'Browser storage is unavailable. This shift is paused and cannot be saved in this browser.'
-    );
+    halt(translate(messages, 'storageUnavailable'));
     return () => {
       pending = null;
     };
@@ -407,10 +407,7 @@ export function installPhysicalSession(
       lastWritten = raw;
     }
   } catch (error) {
-    halt(
-      'The saved physical shift could not be restored. Its record is retained. The clock is paused and this tab will not overwrite it.',
-      error
-    );
+    halt(translate(messages, 'restoreFailed'), error);
   }
   const save = () => {
     const startup = getStartupSnapshot();
@@ -434,8 +431,8 @@ export function installPhysicalSession(
           notify(
             'physical-save-other-tab',
             'info',
-            'Autosave off in this tab',
-            'The saved shift changed outside this tab. This tab keeps running but will not overwrite that record; reload to use it.'
+            translate(messages, 'otherTabTitle'),
+            translate(messages, 'otherTabMessage')
           );
         return;
       }
@@ -454,10 +451,10 @@ export function installPhysicalSession(
         notify(
           'physical-autosave-skipped',
           'info',
-          'Autosave skipped',
+          translate(messages, 'autosaveSkippedTitle'),
           quota
-            ? 'Autosave skipped: browser storage is full. The shift continues and the last good save is kept.'
-            : 'Autosave skipped; the shift continues and the last good save is kept.'
+            ? translate(messages, 'autosaveSkippedQuota')
+            : translate(messages, 'autosaveSkippedMessage')
         );
       saveFailed = true;
     } finally {
@@ -476,10 +473,7 @@ export function installPhysicalSession(
     try {
       finishRestore();
     } catch (error) {
-      halt(
-        'Scene continuation could not be restored. The saved record is retained and the clock is paused.',
-        error
-      );
+      halt(translate(messages, 'continuationFailed'), error);
     }
   });
   // Coalesce a quality or repair action after all its synchronous store writes.
@@ -523,15 +517,15 @@ export function installPhysicalSession(
       notify(
         'physical-scene-incomplete',
         'warning',
-        'Saved shift is waiting',
-        'Part of the scene did not load, so the saved shift cannot resume. The clock stays paused and the saved record is kept. Reload the page to try again; Settings > Simulation > Reset Simulation starts a fresh shift.'
+        translate(messages, 'sceneWaitingTitle'),
+        translate(messages, 'sceneWaitingMessage')
       );
     else
       notify(
         'physical-scene-incomplete',
         'info',
-        'Autosave paused',
-        'Part of the scene stopped running, so autosave is paused. The shift continues and the last good save is kept. Reload the page to resume saving.'
+        translate(messages, 'autosavePausedTitle'),
+        translate(messages, 'autosavePausedMessage')
       );
   };
   const timer = window.setInterval(() => {

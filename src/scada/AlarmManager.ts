@@ -10,6 +10,8 @@
  */
 
 import { logger } from '../utils/logger';
+import { formatGrouped, getLocale, translate } from '../i18n';
+import { alarmManagerMessages } from './AlarmManager.messages';
 import {
   TagDefinition,
   TagValue,
@@ -24,6 +26,12 @@ import {
 
 /** Shelved, suppressed and out-of-service alarms stay listed but do not annunciate. */
 const isInService = (alarm: Alarm): boolean => (alarm.disposition ?? 'IN_SERVICE') === 'IN_SERVICE';
+
+/** A configured limit as written: String() in English, decimal comma in pt-BR. */
+const formatThreshold = (threshold: number): string =>
+  getLocale() === 'en' || !Number.isFinite(threshold)
+    ? String(threshold)
+    : formatGrouped(threshold, { useGrouping: false, maximumFractionDigits: 10 });
 
 export class AlarmManager {
   private activeAlarms: Map<string, Alarm> = new Map();
@@ -285,8 +293,12 @@ export class AlarmManager {
         quality,
         condition:
           type === 'BAD_QUALITY'
-            ? 'Source quality is BAD'
-            : `${type} threshold ${threshold} ${tag.engUnit}`,
+            ? translate(alarmManagerMessages, 'sourceQualityBad')
+            : translate(alarmManagerMessages, 'thresholdCondition', {
+                type,
+                threshold: formatThreshold(threshold),
+                unit: tag.engUnit,
+              }),
         disposition: 'IN_SERVICE',
         machineId: tag.machineId,
       };

@@ -3,6 +3,8 @@ import type {
   DispatchLoadSnapshot,
   OrderExecutionState,
 } from '../../../stores/operationsCampaignStore';
+import { formatFixed, translate } from '../../../i18n';
+import { deliveryJourneyMessages as m } from './deliveryJourney.messages';
 
 interface DeliveryJourney {
   title: string;
@@ -27,12 +29,17 @@ export function deriveDeliveryDeadline(order: CustomerOrder | null, elapsedMinut
   )
     return null;
   const remaining = order.dueAtMinute - elapsedMinutes;
-  if (remaining === 0) return { label: 'Due now (simulated)', overdue: false };
+  if (remaining === 0) return { label: translate(m, 'dueNow'), overdue: false };
   const minutes = Math.ceil(Math.abs(remaining));
   const hours = Math.floor(minutes / 60);
-  const duration = hours ? `${hours}h ${minutes % 60}m` : `${minutes}m`;
+  const duration = hours
+    ? translate(m, 'durationHours', {
+        hours: formatFixed(hours, 0),
+        minutes: formatFixed(minutes % 60, 0),
+      })
+    : translate(m, 'durationMinutes', { minutes: formatFixed(minutes, 0) });
   return {
-    label: `${remaining < 0 ? 'Overdue by' : 'Due in'} ${duration} (simulated)`,
+    label: translate(m, remaining < 0 ? 'overdueBy' : 'dueIn', { duration }),
     overdue: remaining < 0,
   };
 }
@@ -44,104 +51,133 @@ export function deriveDeliveryJourney(
 ): DeliveryJourney {
   if (!order)
     return {
-      title: 'Choose a delivery',
-      detail: 'Choose an available customer in Your shift commitment in Overview.',
+      title: translate(m, 'chooseTitle'),
+      detail: translate(m, 'chooseDetail'),
       workspace: 'overview' as const,
       entryId: 'community-commitments',
     };
   const product = order.recipe.label;
-  const qualityTarget = `Recipe quality target: ${order.recipe.minimumQuality}/100.`;
+  const qualityTarget = translate(m, 'qualityTarget', {
+    minimum: formatFixed(order.recipe.minimumQuality, 0),
+  });
   // A real fulfilment is never hidden behind the inspection lesson. Working if
   // a fulfilled order reads 'Delivery fulfilled' with or without an inspection,
   // and an open order still starts at 'Inspect the line'.
   if (order.status === 'fulfilled')
     return {
-      title: 'Delivery fulfilled',
-      detail: `${order.shippedKg.toFixed(0)} kg of ${product} dispatched for ${order.customer} in recorded manifests. Departed manifests credit this customer. Inspection is a separate milestone.`,
+      title: translate(m, 'fulfilledTitle'),
+      detail: translate(m, 'fulfilledDetail', {
+        kg: formatFixed(order.shippedKg, 0),
+        product,
+        customer: order.customer,
+      }),
       workspace: 'overview' as const,
       entryId: 'community-commitments',
     };
   if (!inspected)
     return {
-      title: 'Inspect the line',
+      title: translate(m, 'inspectTitle'),
       view: 'Milling',
-      detail:
-        'Select a silo, roller mill, plansifter or packer in the scene. Read its status and buffers before changing the line. Full output buffers can reveal a downstream bottleneck.',
+      detail: translate(m, 'inspectDetail'),
       workspace: null,
       entryId: 'bottlenecks-and-buffers',
     };
   if (execution.orderId !== order.id)
     return {
-      title: 'Return to your commitment',
-      detail:
-        'A different order is active. Choose this customer in Your shift commitment in Overview to continue its live route.',
+      title: translate(m, 'returnTitle'),
+      detail: translate(m, 'returnDetail'),
       workspace: 'overview' as const,
       entryId: 'community-commitments',
     };
   if (execution.stage === 'quality_hold')
     return {
-      title: `Check ${product}`,
+      title: translate(m, 'checkTitle', { product }),
       view: 'Packing',
-      detail: `${qualityTarget} Review the QC batch hold in Overview. Test the affected batch and release conforming output before loading.`,
+      detail: translate(m, 'qualityHoldDetail', { qualityTarget }),
       workspace: 'overview' as const,
       entryId: 'batch-quality',
     };
   const load = execution.dispatchLoad;
-  const departureRule = `Only a departed manifest credits this customer; packed ${product} alone does not.`;
+  const departureRule = translate(m, 'departureRule', { product });
   // The feed budget stops the line once the rest of the order is packed, so the
   // header reads 0 bags/h. Working if that idle line is explained, not a freeze.
   const packedRest =
     execution.remainingKg > 0 && execution.finishedAvailableKg >= execution.remainingKg - 1
-      ? ' The rest of this order is already packed; the line rests until the next truck collects it.'
+      ? translate(m, 'packedRest')
       : '';
-  if (execution.stage === 'ready_to_load')
+  if (execution.stage === 'ready_to_load') {
+    const waiting =
+      load.blockReason ??
+      translate(m, 'releasedWaiting', {
+        kg: formatFixed(execution.releasedFinishedKg, 0),
+        product,
+      });
     return {
-      title: 'Ready for the shipping truck',
+      title: translate(m, 'readyToLoadTitle'),
       view: 'Shipping',
-      detail: `${load.blockReason ?? `${execution.releasedFinishedKg.toFixed(0)} kg of released ${product} is waiting at shipping.`} ${qualityTarget} ${departureRule}`,
+      detail: `${waiting} ${qualityTarget} ${departureRule}`,
       workspace: 'scada',
       entryId: 'autonomous-logistics',
     };
-  if (execution.stage === 'loading' || execution.stage === 'ready_to_dispatch')
+  }
+  if (execution.stage === 'loading' || execution.stage === 'ready_to_dispatch') {
+    const step =
+      load.blockReason ??
+      translate(m, execution.stage === 'loading' ? 'loadingDetail' : 'readyToDepartDetail');
     return {
-      title: execution.stage === 'loading' ? 'Loading the shipping truck' : 'Ready to depart',
+      title: translate(m, execution.stage === 'loading' ? 'loadingTitle' : 'readyToDepartTitle'),
       view: 'Shipping',
-      detail: `${load.blockReason ?? (execution.stage === 'loading' ? 'Follow the pallets from the packing line to the docked truck.' : 'The outbound load is ready. Watch its departure from the shipping bay.')} ${qualityTarget} ${departureRule}${packedRest}`,
+      detail: `${step} ${qualityTarget} ${departureRule}${packedRest}`,
       workspace: 'scada',
       entryId: 'autonomous-logistics',
       // Truck capacity is distinct from the customer's full commitment.
       // This projection never credits cargo, changes the load or dispatches it.
       loading: { loadedKg: load.loadedKg, capacityKg: load.capacityKg },
     };
-  if (execution.stage === 'dispatched')
+  }
+  if (execution.stage === 'dispatched') {
+    const receipt = translate(m, 'departedDetail', {
+      lastKg: formatFixed(load.lastDispatchKg, 0),
+      shippedKg: formatFixed(order.shippedKg, 0),
+      requiredKg: formatFixed(order.requiredKg, 0),
+      customer: order.customer,
+    });
     return {
-      title: 'Truck departed',
+      title: translate(m, 'departedTitle'),
       view: 'Shipping',
-      detail: `${load.lastDispatchKg.toFixed(0)} kg left the shipping bay. Customer receipt: ${order.shippedKg.toFixed(0)} / ${order.requiredKg.toFixed(0)} kg for ${order.customer}. ${qualityTarget} ${departureRule}${packedRest}`,
+      detail: `${receipt} ${qualityTarget} ${departureRule}${packedRest}`,
       workspace: 'scada',
       entryId: 'autonomous-logistics',
     };
+  }
   // Explain this customer's real preparation and flow; never equate the
   // setpoint with measured output. Working if both recipes show their own grain,
   // target and released stock without advancing production or customer credit.
-  const grain = order.recipe.sourceMaterial.replace('_', ' ');
+  const grain = translate(m, 'grain', { material: order.recipe.sourceMaterial });
   // This is the campaign recipe's quality score, never a physical assay or yield.
   // Working if each selected recipe names its own release threshold read-only.
-  const quality = `${qualityTarget} Conforming output must pass QC before loading.`;
+  const quality = translate(m, 'qualityRule', { qualityTarget });
   // Customer switching retains the previous execution snapshot until a tick.
   // Working if paused preparation names the recipe without claiming stale stock.
   if (execution.stage === 'planning')
     return {
-      title: `Prepare ${order.recipe.label}`,
+      title: translate(m, 'prepareTitle', { product: order.recipe.label }),
       view: 'Milling',
-      detail: `Scheduled grain: ${grain}. ${quality} Resume the shift to refresh this customer's stock and line setpoint.`,
+      detail: translate(m, 'planningDetail', { grain, quality }),
       workspace: 'scada' as const,
       entryId: 'autonomous-material-flow',
     };
   return {
-    title: 'Follow the grain',
+    title: translate(m, 'followTitle'),
     view: 'Milling',
-    detail: `Source inventory: ${execution.sourceInventoryKg.toFixed(0)} kg of ${grain}. Line setpoint: ${execution.lineSetpointPercent.toFixed(0)}%. Released ${product}: ${execution.releasedFinishedKg.toFixed(0)} kg. ${quality} Open SCADA for live line telemetry, or select a machine to read its buffers.`,
+    detail: translate(m, 'followDetail', {
+      sourceKg: formatFixed(execution.sourceInventoryKg, 0),
+      grain,
+      setpoint: formatFixed(execution.lineSetpointPercent, 0),
+      product,
+      releasedKg: formatFixed(execution.releasedFinishedKg, 0),
+      quality,
+    }),
     workspace: 'scada' as const,
     entryId: 'autonomous-material-flow',
   };

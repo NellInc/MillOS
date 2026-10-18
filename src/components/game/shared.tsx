@@ -7,6 +7,14 @@ import { useAnnouncementsStore, type AnnouncementInput } from '../../stores/anno
 import { audioManager } from '../../utils/audioManager';
 import { peekSCADAService } from '../../scada/SCADAService';
 import { isStandingCriticalAlarm } from '../../scada/SCADABridge';
+import { translate } from '../../i18n';
+import { sharedMessages } from './shared.messages';
+
+type SharedMessageKey = keyof typeof sharedMessages.en;
+
+// Notice text is a getter so it resolves in the language active when spoken;
+// a plain string here would freeze the language at import time.
+const say = (key: SharedMessageKey): string => translate(sharedMessages, key);
 
 export interface CameraFeedContextType {
   feedRefs: Map<string, React.RefObject<HTMLDivElement>>;
@@ -51,99 +59,131 @@ export const getRandomMachineOfType = (type: keyof typeof MACHINE_IDS): string =
 
 const AUTONOMOUS_NOTICES: AnnouncementConfig[] = [
   {
-    message: 'Process path verified, receiving through packing. All interlocks ready.',
+    get message() {
+      return say('processPathVerified');
+    },
     type: 'production',
     category: 'operations',
     stressWeight: 0.1,
     reassuring: true,
   },
   {
-    message: 'Silo inventory reconciled. Mass balance within tolerance — nothing unaccounted for.',
+    get message() {
+      return say('siloInventoryReconciled');
+    },
     type: 'production',
     category: 'production',
     stressWeight: 0.15,
   },
   {
-    message: 'Roller gap control is stable. Extraction load is tracking the current recipe.',
+    get message() {
+      return say('rollerGapStable');
+    },
     type: 'production',
     category: 'production',
     stressWeight: 0.2,
   },
   {
-    message: 'Plansifter differential pressure is nominal across all active sections.',
+    get message() {
+      return say('plansifterPressureNominal');
+    },
     type: 'production',
     category: 'operations',
     stressWeight: 0.2,
   },
   {
-    message: 'Packing line verified. Checkweigher and reject gate standing by.',
+    get message() {
+      return say('packingLineVerified');
+    },
     type: 'production',
     category: 'production',
     stressWeight: 0.2,
   },
   {
-    message: 'Dock sequencing has cleared a path for the next delivery.',
+    get message() {
+      return say('dockSequencingCleared');
+    },
     type: 'general',
     category: 'logistics',
     stressWeight: 0.25,
   },
   {
-    message: 'Forklift routes deconflicted. Trucks and conveyors accounted for.',
+    get message() {
+      return say('forkliftRoutesDeconflicted');
+    },
     type: 'safety',
     category: 'logistics',
     stressWeight: 0.35,
   },
   {
-    message: 'Mobile equipment geofences match the active production zones.',
+    get message() {
+      return say('geofencesMatch');
+    },
     type: 'safety',
     category: 'safety',
     stressWeight: 0.3,
   },
   {
-    message: 'Dust extraction stable. Differential pressure inside the control band.',
+    get message() {
+      return say('dustExtractionStable');
+    },
     type: 'general',
     category: 'safety',
     stressWeight: 0.25,
   },
   {
-    message: 'Waterway telemetry is healthy. The stream is doing what streams do.',
+    get message() {
+      return say('waterwayHealthy');
+    },
     type: 'general',
     category: 'environment',
     stressWeight: 0.1,
   },
   {
-    message: 'Weather feed checked. Lighting and vehicle limits match the conditions outside.',
+    get message() {
+      return say('weatherFeedChecked');
+    },
     type: 'general',
     category: 'environment',
     stressWeight: 0.2,
   },
   {
-    message: 'The mill is calm. This is a measured condition, not optimism.',
+    get message() {
+      return say('millIsCalm');
+    },
     type: 'general',
     category: 'operations',
     stressWeight: 0.05,
     reassuring: true,
   },
   {
-    message: 'Vibration trend reviewed on the busiest asset. Nothing outside its envelope.',
+    get message() {
+      return say('vibrationTrendReviewed');
+    },
     type: 'general',
     category: 'operations',
     stressWeight: 0.45,
   },
   {
-    message: 'Constraint analysis updated. The bottleneck is marked in SCADA.',
+    get message() {
+      return say('constraintAnalysisUpdated');
+    },
     type: 'production',
     category: 'production',
     stressWeight: 0.45,
   },
   {
-    message: 'Short cycle-time variance detected and corrected. The line controller handled it.',
+    get message() {
+      return say('cycleTimeVarianceCorrected');
+    },
     type: 'production',
     category: 'operations',
     stressWeight: 0.55,
   },
   {
-    message: 'Housekeeping cycle complete. Lanes clear, sensors unobstructed.',
+    get message() {
+      return say('housekeepingComplete');
+    },
     type: 'general',
     category: 'safety',
     stressWeight: 0.15,
@@ -153,13 +193,17 @@ const AUTONOMOUS_NOTICES: AnnouncementConfig[] = [
 const TIME_NOTICES: Record<'day' | 'night', AnnouncementConfig[]> = {
   day: [
     {
-      message: 'Daylight control active. Exterior lights following the sun.',
+      get message() {
+        return say('daylightControlActive');
+      },
       type: 'general',
       category: 'environment',
       stressWeight: 0.1,
     },
     {
-      message: 'Solar loading forecast applied. Ventilation and cooling setpoints adjusted.',
+      get message() {
+        return say('solarLoadingApplied');
+      },
       type: 'general',
       category: 'environment',
       stressWeight: 0.2,
@@ -167,15 +211,17 @@ const TIME_NOTICES: Record<'day' | 'night', AnnouncementConfig[]> = {
   ],
   night: [
     {
-      message:
-        'Night profile active. Perimeter lighting and low-visibility vehicle limits are engaged.',
+      get message() {
+        return say('nightProfileActive');
+      },
       type: 'safety',
       category: 'environment',
       stressWeight: 0.25,
     },
     {
-      message:
-        'Facility lighting is tracking the sky. The celestial clock and the electrical one agree.',
+      get message() {
+        return say('lightingTrackingSky');
+      },
       type: 'general',
       category: 'environment',
       stressWeight: 0.1,
@@ -185,47 +231,51 @@ const TIME_NOTICES: Record<'day' | 'night', AnnouncementConfig[]> = {
 
 const MACHINE_STATUS_NOTICES = {
   warning: {
-    template: 'Warning at {MACHINE}. Needs a diagnostic review before the next control change.',
+    messageKey: 'machineWarning' as const,
     type: 'production' as const,
     priority: 'high' as const,
   },
   critical: {
-    template: 'Critical alarm at {MACHINE}. Process held safe until this is resolved.',
+    messageKey: 'machineCritical' as const,
     type: 'emergency' as const,
     priority: 'critical' as const,
   },
   running: {
-    template: '{MACHINE} recovery complete. Interlocks clear, production resumed.',
+    messageKey: 'machineRecovered' as const,
     type: 'production' as const,
     priority: 'medium' as const,
   },
 };
 
-const MILESTONE_MESSAGES: Record<number, string> = {
-  25: 'Daily target 25% packed. The line has found its rhythm.',
-  50: 'Halfway to the daily target. Packing is holding pace.',
-  75: 'Daily target 75% packed. The finish line is in sight.',
-  90: 'Daily target 90% packed. Just the last bags to fill.',
-  100: 'Daily target achieved. The batch record is filed in SCADA. Well done, mill.',
+const MILESTONE_MESSAGES: Record<number, SharedMessageKey> = {
+  25: 'milestone25',
+  50: 'milestone50',
+  75: 'milestone75',
+  90: 'milestone90',
+  100: 'milestone100',
 };
 
 export const SAFETY_INCIDENT_ANNOUNCEMENTS: EventAnnouncementConfig[] = [
   {
-    message: 'Safety interlock event logged. The affected zone is held safe.',
+    get message() {
+      return say('safetyInterlockLogged');
+    },
     type: 'safety',
     priority: 'high',
     duration: 20,
   },
   {
-    message:
-      'Near-miss logic triggered. Mobile equipment stopped while route telemetry is reviewed.',
+    get message() {
+      return say('nearMissTriggered');
+    },
     type: 'safety',
     priority: 'high',
     duration: 20,
   },
   {
-    message:
-      'Vehicle proximity event. Conflicting routes are locked until the control system clears them.',
+    get message() {
+      return say('vehicleProximity');
+    },
     type: 'safety',
     priority: 'high',
     duration: 24,
@@ -234,45 +284,52 @@ export const SAFETY_INCIDENT_ANNOUNCEMENTS: EventAnnouncementConfig[] = [
 
 export const FIRE_DRILL_ANNOUNCEMENTS: EventAnnouncementConfig[] = [
   {
-    message:
-      'Egress verification drill started. Equipment is in a safe stop while service exits are checked.',
+    get message() {
+      return say('drillStarted');
+    },
     type: 'emergency',
     priority: 'critical',
     duration: 20,
   },
   {
-    message: 'Service egress sensors under test. Isolation interlocks holding.',
+    get message() {
+      return say('drillSensorsUnderTest');
+    },
     type: 'emergency',
     priority: 'critical',
     duration: 20,
   },
   {
-    message:
-      'Egress verification complete. All service exits confirmed clear; production resuming.',
+    get message() {
+      return say('drillComplete');
+    },
     type: 'emergency',
     priority: 'critical',
     duration: 20,
   },
 ];
 
-const DRILL_ENDED_EARLY_MESSAGE = 'Egress verification drill ended early. Production restored.';
-
 export const EMERGENCY_STOP_ANNOUNCEMENTS: EventAnnouncementConfig[] = [
   {
-    message: 'Emergency stop activated. Everything is stationary.',
+    get message() {
+      return say('emergencyStopActivated');
+    },
     type: 'emergency',
     priority: 'critical',
     duration: 20,
   },
   {
-    message:
-      'Facility emergency stop engaged. Restart held until the cause is found and interlocks clear.',
+    get message() {
+      return say('facilityStopEngaged');
+    },
     type: 'emergency',
     priority: 'critical',
     duration: 20,
   },
   {
-    message: 'All vehicles secure. Route reservations locked until the all-clear.',
+    get message() {
+      return say('vehiclesSecure');
+    },
     type: 'emergency',
     priority: 'critical',
     duration: 22,
@@ -283,7 +340,9 @@ export const EMERGENCY_STOP_ANNOUNCEMENTS: EventAnnouncementConfig[] = [
 // while production keeps running, so it must not claim the whole site stopped.
 export const FORKLIFT_STOP_ANNOUNCEMENTS: EventAnnouncementConfig[] = [
   {
-    message: 'Forklift emergency stop. Every forklift is holding position; the mill keeps running.',
+    get message() {
+      return say('forkliftStop');
+    },
     type: 'emergency',
     priority: 'critical',
     duration: 20,
@@ -385,7 +444,7 @@ const announceDrillTransition = (
   } else if (drill.verificationComplete && !previous.verificationComplete) {
     message = FIRE_DRILL_ANNOUNCEMENTS[2].message;
   } else if (previous.active && !drill.active && !previous.verificationComplete) {
-    message = DRILL_ENDED_EARLY_MESSAGE;
+    message = say('drillEndedEarly');
   }
   if (!message) return;
   // Emergency items are allowed in every PA mode, so there is no mode gate.
@@ -417,7 +476,7 @@ const checkEventAnnouncements = (addAnnouncement: (input: AnnouncementInput) => 
       lastMilestoneReached = reached;
       addAnnouncement({
         type: 'success',
-        message: MILESTONE_MESSAGES[reached],
+        message: say(MILESTONE_MESSAGES[reached]),
         priority: reached === 100 ? 4 : reached >= 50 ? 3 : 2,
         source: 'Production controller',
         channel: 'operational',
@@ -449,7 +508,9 @@ const checkEventAnnouncements = (addAnnouncement: (input: AnnouncementInput) => 
         const notice = MACHINE_STATUS_NOTICES[current as keyof typeof MACHINE_STATUS_NOTICES];
         addAnnouncement({
           type: mapAnnouncementType(notice.type),
-          message: notice.template.replace('{MACHINE}', machine.name || machine.id),
+          message: translate(sharedMessages, notice.messageKey, {
+            machine: machine.name || machine.id,
+          }),
           priority: mapPriority(notice.priority),
           source: 'Asset diagnostics',
           channel: 'operational',

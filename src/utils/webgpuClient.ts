@@ -25,6 +25,8 @@
 
 import type { WebWorkerMLCEngine, InitProgressReport } from '@mlc-ai/web-llm';
 import { logger } from './logger';
+import { formatFixed, translate } from '../i18n';
+import { webgpuClientMessages as messages } from './webgpuClient.messages';
 
 // ============================================================================
 // CONFIGURATION
@@ -132,7 +134,7 @@ export async function checkWebGPUAdapter(): Promise<WebGPUAdapterReport> {
     if (!adapter) {
       return {
         supported: false,
-        warning: 'No WebGPU adapter available (GPU may be blocklisted or disabled).',
+        warning: translate(messages, 'noAdapter'),
       };
     }
 
@@ -151,11 +153,10 @@ export async function checkWebGPUAdapter(): Promise<WebGPUAdapterReport> {
 
     let warning: string | undefined;
     if (maxBufferSize > 0 && maxBufferSize < ADVISORY_MIN_MAX_BUFFER_SIZE) {
-      warning =
-        `This GPU reports a small memory budget (maxBufferSize ` +
-        `${(maxBufferSize / 1_048_576).toFixed(0)}MB, maxStorageBuffer ` +
-        `${(maxStorage / 1_048_576).toFixed(0)}MB). Qwen3-4B needs ~2.7GB and may ` +
-        `fail to load or stutter the 3D scene. A smaller model or a cloud BYOK model may work better.`;
+      warning = translate(messages, 'smallMemory', {
+        buffer: formatFixed(maxBufferSize / 1_048_576, 0),
+        storage: formatFixed(maxStorage / 1_048_576, 0),
+      });
     }
 
     return { supported: true, warning, adapterLabel };
@@ -163,7 +164,7 @@ export async function checkWebGPUAdapter(): Promise<WebGPUAdapterReport> {
     logger.warn('[WebGPU] Adapter probe failed:', error);
     return {
       supported: false,
-      warning: error instanceof Error ? error.message : 'WebGPU adapter probe failed.',
+      warning: error instanceof Error ? error.message : translate(messages, 'probeFailed'),
     };
   }
 }
@@ -512,18 +513,21 @@ class WebGPUClient {
    */
   async testConnection(): Promise<{ success: boolean; message: string }> {
     if (!this.engine) {
-      return { success: false, message: 'Model not loaded' };
+      return { success: false, message: translate(messages, 'modelNotLoaded') };
     }
     try {
       const text = await this.generateContent('Reply with exactly: MillOS local core online');
       if (text && text.toLowerCase().includes('online')) {
-        return { success: true, message: 'Local model verified' };
+        return { success: true, message: translate(messages, 'modelVerified') };
       }
-      return { success: !!text, message: text ? 'Connected (response received)' : 'No response' };
+      return {
+        success: !!text,
+        message: text ? translate(messages, 'responseReceived') : translate(messages, 'noResponse'),
+      };
     } catch (error) {
       return {
         success: false,
-        message: error instanceof Error ? error.message : 'Unknown error',
+        message: error instanceof Error ? error.message : translate(messages, 'unknownError'),
       };
     }
   }
@@ -559,8 +563,8 @@ class WebGPUClient {
       const used = estimate.usage ?? 0;
       const formatted =
         used > 1_073_741_824
-          ? `${(used / 1_073_741_824).toFixed(1)} GB`
-          : `${(used / 1_048_576).toFixed(0)} MB`;
+          ? translate(messages, 'sizeGb', { size: formatFixed(used / 1_073_741_824, 1) })
+          : translate(messages, 'sizeMb', { size: formatFixed(used / 1_048_576, 0) });
       return { bytes: used, formatted };
     } catch {
       return null;

@@ -11,6 +11,8 @@ import {
   type ForkliftRoutePlan,
 } from './vehicles/forkliftController';
 import { sampleArcLengthPath } from './vehicles/vehicleKinematics';
+import { translate } from '../i18n';
+import { logisticsRuntimeMessages } from './logisticsRuntime.messages';
 
 export function drivenLogisticsRoute(dock: Dock, points: readonly Vec3Tuple[]) {
   const rounded = createRoundedForkliftRoute(
@@ -86,7 +88,7 @@ export function prepareLogisticsFleet(layout: LogisticsProposal): (() => void) |
   const commits: Array<() => void> = [];
   for (const dock of ['shipping', 'receiving'] as const) {
     const owner = owners.get(dock);
-    if (!owner) return 'Wait for both forklifts to finish loading into the scene.';
+    if (!owner) return translate(logisticsRuntimeMessages, 'fleetNotReady');
     const prepared = owner.prepare(layout.routes[dock]);
     if (typeof prepared === 'string') return prepared;
     commits.push(prepared);

@@ -12,6 +12,8 @@ import { useAIConfigStore } from '../../stores/aiConfigStore';
 import { useProductionStore } from '../../stores/productionStore';
 import { useGameSimulationStore, useUIStore } from '../../stores';
 import { encodeFactoryContextVCL } from '../../utils/vclEncoder';
+import { useT } from '../../i18n';
+import { vclDiffPanelMessages } from './VCLDiffPanel.messages';
 
 // VCP glyphs are mostly astral emoji, many with a U+FE0F variation selector, so
 // a UTF-16 split('') cuts one glyph into 2-3 units: highlights land on lone
@@ -28,6 +30,7 @@ function graphemes(value: string): string[] {
 }
 
 export const VCLDiffPanel: React.FC = () => {
+  const t = useT(vclDiffPanelMessages);
   const showVCLDebug = useAIConfigStore((state) => state.showVCLDebug);
   const [previousVCL, setPreviousVCL] = useState<string>('');
   const [currentVCL, setCurrentVCL] = useState<string>('');
@@ -72,7 +75,9 @@ export const VCLDiffPanel: React.FC = () => {
   const handleCopy = async () => {
     if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
     try {
-      await navigator.clipboard.writeText(`Previous:\n${previousVCL}\n\nCurrent:\n${currentVCL}`);
+      await navigator.clipboard.writeText(
+        t('clipboard', { previous: previousVCL, current: currentVCL })
+      );
       setCopyFailed(false);
       setCopied(true);
       copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
@@ -113,22 +118,16 @@ export const VCLDiffPanel: React.FC = () => {
         <div className="flex items-center justify-between px-3 py-2 bg-indigo-500/10 border-b border-indigo-500/20">
           <div className="flex items-center gap-2">
             <GitCompare className="w-4 h-4 text-indigo-400" />
-            <span className="text-xs font-medium text-indigo-300">VCP Diff</span>
+            <span className="text-xs font-medium text-indigo-300">{t('title')}</span>
             {hasChanges && (
               <span className="px-1.5 py-0.5 rounded-full bg-green-500/20 text-[9px] text-green-400">
-                {added.size} {added.size === 1 ? 'change' : 'changes'}
+                {t('changeCount', { count: added.size })}
               </span>
             )}
           </div>
           <button
             onClick={handleCopy}
-            aria-label={
-              copied
-                ? 'Copied VCP diff to clipboard'
-                : copyFailed
-                  ? 'Failed to copy VCP diff to clipboard'
-                  : 'Copy VCP diff to clipboard'
-            }
+            aria-label={copied ? t('copied') : copyFailed ? t('copyFailed') : t('copy')}
             className="p-1 hover:bg-indigo-500/20 rounded transition-colors"
           >
             {copied ? (
@@ -148,7 +147,7 @@ export const VCLDiffPanel: React.FC = () => {
               {/* Previous */}
               <div>
                 <div className="flex items-center gap-1 mb-1">
-                  <span className="text-[9px] text-red-400 uppercase">Previous</span>
+                  <span className="text-[9px] text-red-400 uppercase">{t('previous')}</span>
                 </div>
                 <div className="font-mono text-[10px] text-slate-400 bg-slate-800/50 rounded p-2 break-all">
                   {prevChars.map((char, i) => (
@@ -162,7 +161,7 @@ export const VCLDiffPanel: React.FC = () => {
               {/* Current */}
               <div>
                 <div className="flex items-center gap-1 mb-1">
-                  <span className="text-[9px] text-green-400 uppercase">Current</span>
+                  <span className="text-[9px] text-green-400 uppercase">{t('current')}</span>
                   <ArrowRight className="w-2.5 h-2.5 text-slate-500" />
                 </div>
                 <div className="font-mono text-[10px] text-slate-300 bg-slate-800/50 rounded p-2 break-all">
@@ -177,9 +176,9 @@ export const VCLDiffPanel: React.FC = () => {
           ) : (
             <div className="text-center py-4">
               <RefreshCw className="w-5 h-5 text-slate-500 mx-auto mb-2" />
-              <p className="text-[10px] text-slate-400">Waiting for VCP change...</p>
+              <p className="text-[10px] text-slate-400">{t('waiting')}</p>
               <div className="font-mono text-[10px] text-slate-400 bg-slate-800/50 rounded p-2 mt-2 break-all">
-                {currentVCL || 'No VCP yet'}
+                {currentVCL || t('noVcpYet')}
               </div>
             </div>
           )}

@@ -15,6 +15,8 @@ import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useAudioMuted } from '../../hooks/useAudioState';
 import { audioManager } from '../../utils/audioManager';
 import { logger } from '../../utils/logger';
+import { formatFixed, useT } from '../../i18n';
+import { paAnnouncementSystemMessages } from './PAAnnouncementSystem.messages';
 
 // Retain captions long enough to read before advancing the queue.
 const FALLBACK_TIMEOUT_MS = 10000;
@@ -75,6 +77,7 @@ export function selectAnnouncementForDisplay(
  */
 
 export const PAAnnouncementSystem: React.FC = () => {
+  const t = useT(paAnnouncementSystemMessages);
   // CRITICAL: Must use useAnnouncementsStore directly for reactivity
   // productionStore.announcements is a static snapshot from store creation
   const announcements = useAnnouncementsStore((state) => state.announcements);
@@ -259,11 +262,11 @@ export const PAAnnouncementSystem: React.FC = () => {
                 className="text-[8px] text-slate-500 uppercase tracking-wider flex-shrink-0"
                 aria-hidden="true"
               >
-                PA
+                {t('tag')}
               </span>
               <button
                 onClick={() => dismissAnnouncement(currentAnnouncement.id)}
-                aria-label="Dismiss announcement"
+                aria-label={t('dismiss')}
                 className="flex-shrink-0 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
               >
                 <X className="w-3 h-3 text-slate-300" aria-hidden="true" />
@@ -353,13 +356,14 @@ export const PAAnnouncementSystem: React.FC = () => {
               <div className="flex items-center gap-2.5 opacity-50">
                 <div className="h-[1px] bg-current flex-1 opacity-70" />
                 <p className="text-[9px] uppercase tracking-[0.2em] font-semibold whitespace-nowrap">
-                  PA System{queueCount > 0 ? ` (+${queueCount} queued)` : ''}
+                  {t('system')}
+                  {queueCount > 0 ? t('queued', { count: formatFixed(queueCount, 0) }) : ''}
                 </p>
               </div>
             </div>
             <button
               onClick={() => dismissAnnouncement(currentAnnouncement.id)}
-              aria-label="Dismiss announcement"
+              aria-label={t('dismiss')}
               className="flex-shrink-0 w-11 h-11 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
             >
               <X className="w-4 h-4" aria-hidden="true" />

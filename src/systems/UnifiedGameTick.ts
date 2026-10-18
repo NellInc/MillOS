@@ -47,6 +47,8 @@ import {
 import { peekSCADAService } from '../scada/SCADAService';
 import { useLogisticsLayoutStore } from '../stores/logisticsLayoutStore';
 import { logisticsLoadingRate } from '../simulation/layoutPlanning';
+import { formatFixed, formatGrouped, translate } from '../i18n';
+import { unifiedGameTickMessages as msg } from './UnifiedGameTick.messages';
 
 // Tracks the receiving dock's docked state across ticks so a false->true
 // transition (a grain truck arriving) triggers exactly one silo delivery.
@@ -189,7 +191,7 @@ function applyCampaignIncidentConsequence(incident: OperationalIncident): void {
           .filter((batch) => batch.availableKg > 0 && batch.disposition !== 'shipped')
           .map((batch) => batch.id),
         controlSource: 'Operations campaign controller',
-        controlNote: 'Supplier notification requires traceability review before dispatch release.',
+        controlNote: translate(msg, 'supplierTraceabilityNote'),
       });
       break;
     case 'severe_rain':
@@ -206,7 +208,7 @@ function applyCampaignIncidentConsequence(incident: OperationalIncident): void {
     id: `campaign-${incident.id}`,
     type: incident.severity === 'critical' ? 'critical' : 'warning',
     title: incident.title,
-    message: `${incident.description} The operations workspace records the response and residual controls.`,
+    message: translate(msg, 'incidentAlert', { description: incident.description }),
     machineId: incident.affectedMachineId ?? undefined,
     timestamp: new Date(),
     acknowledged: false,
@@ -459,8 +461,11 @@ function unifiedGameTick(ctx: TickContext): void {
         value: dayBags,
         message:
           dayBags >= DAILY_TARGET_BAGS
-            ? `Day complete: ${Math.round(dayBags).toLocaleString()} bags - target met!`
-            : `Day complete: ${Math.round(dayBags).toLocaleString()} of ${DAILY_TARGET_BAGS.toLocaleString()} bags`,
+            ? translate(msg, 'dayCompleteTargetMet', { bags: formatGrouped(Math.round(dayBags)) })
+            : translate(msg, 'dayComplete', {
+                bags: formatGrouped(Math.round(dayBags)),
+                target: formatGrouped(DAILY_TARGET_BAGS),
+              }),
       });
     }
     dayEndStore.resetDailyBagsProduced();
@@ -673,8 +678,8 @@ function unifiedGameTick(ctx: TickContext): void {
           value: Math.round(prodStore.dailyBagsProduced),
           message:
             threshold === 100
-              ? `Daily target reached: ${DAILY_TARGET_BAGS.toLocaleString()} bags!`
-              : `Daily target ${threshold}% complete`,
+              ? translate(msg, 'dailyTargetReached', { target: formatGrouped(DAILY_TARGET_BAGS) })
+              : translate(msg, 'dailyTargetMilestone', { threshold: formatFixed(threshold, 0) }),
         });
       }
     }
@@ -785,11 +790,11 @@ function unifiedGameTick(ctx: TickContext): void {
   const shippingTransferReady = shippingSchedule.transferReady;
   const dockFlow = useMaterialFlowStore.getState();
   const reasonByCode = {
-    certification_expired: 'Quality certification is expired.',
-    unresolved_contamination: 'A contamination alert remains unresolved.',
-    failed_quality_test: 'The latest laboratory result failed.',
-    batch_quality_hold: 'Available production batches remain on quality hold.',
-    batch_recalled: 'Recalled production remains isolated from dispatch.',
+    certification_expired: translate(msg, 'certificationExpired'),
+    unresolved_contamination: translate(msg, 'unresolvedContamination'),
+    failed_quality_test: translate(msg, 'failedQualityTest'),
+    batch_quality_hold: translate(msg, 'batchQualityHold'),
+    batch_recalled: translate(msg, 'batchRecalled'),
   } as const;
   if (shippingSchedule.departureCount < _lastShippingDepartureCount) {
     _shippingLoad = {
@@ -812,11 +817,11 @@ function unifiedGameTick(ctx: TickContext): void {
     );
     const departureBlockReason = useOperationsCampaignStore.getState().getIncidentEffect()
       .dispatchBlocked
-      ? 'An active operational incident requires dispatch isolation.'
+      ? translate(msg, 'incidentDispatchIsolation')
       : departureQuality.reason
         ? reasonByCode[departureQuality.reason]
         : !departureQuality.released
-          ? 'The quality interlock is not released.'
+          ? translate(msg, 'qualityInterlockNotReleased')
           : null;
     const actualKg = departureBlockReason
       ? 0
@@ -831,7 +836,7 @@ function unifiedGameTick(ctx: TickContext): void {
           ? null
           : (departureBlockReason ??
             _shippingLoad.blockReason ??
-            'Truck departed without a released load.'),
+            translate(msg, 'departedWithoutLoad')),
     };
   }
   const shippingCycleId = `shipping-${shippingSchedule.departureCount + 1}`;
@@ -856,11 +861,11 @@ function unifiedGameTick(ctx: TickContext): void {
       .getState()
       .getIncidentEffect().dispatchBlocked;
     const qualityBlockReason = incidentDispatchBlocked
-      ? 'An active operational incident requires dispatch isolation.'
+      ? translate(msg, 'incidentDispatchIsolation')
       : qualityStatus.reason
         ? reasonByCode[qualityStatus.reason]
         : !qualityStatus.released
-          ? 'The quality interlock is not released.'
+          ? translate(msg, 'qualityInterlockNotReleased')
           : null;
     const releasedKg = getFinishedGoodsAvailability(
       dockFlow,
@@ -889,7 +894,7 @@ function unifiedGameTick(ctx: TickContext): void {
         blockReason:
           _shippingLoad.loadedKg > 0
             ? null
-            : `Waiting for released ${_shippingLoad.materialType} at the packers.`,
+            : translate(msg, 'waitingForMaterial', { material: _shippingLoad.materialType }),
       };
     } else {
       const loadedKg = Math.min(
@@ -919,10 +924,12 @@ function unifiedGameTick(ctx: TickContext): void {
       useUIStore.getState().addAlert({
         id: `${qualityBlockReason ? 'dispatch-quality-hold' : 'dispatch-supply-wait'}-${_shippingLoad.cycleId}`,
         type: qualityBlockReason ? 'warning' : 'info',
-        title: qualityBlockReason ? 'Dispatch Quality Hold' : 'Shipping Awaiting Product',
+        title: qualityBlockReason
+          ? translate(msg, 'dispatchQualityHoldTitle')
+          : translate(msg, 'shippingAwaitingProductTitle'),
         message: qualityBlockReason
-          ? `${qualityBlockReason} Clear the condition before release.`
-          : (_shippingLoad.blockReason ?? 'Waiting for released product at the packers.'),
+          ? translate(msg, 'clearBeforeRelease', { reason: qualityBlockReason })
+          : (_shippingLoad.blockReason ?? translate(msg, 'waitingForProduct')),
         timestamp: new Date(),
         acknowledged: false,
       });
@@ -965,7 +972,7 @@ function unifiedGameTick(ctx: TickContext): void {
   const finishedAvailability = getFinishedGoodsAvailability(latestFlow, executionMaterial);
   useOperationsCampaignStore.getState().tickCampaign(deltaSeconds * safeGameSpeed, {
     shiftKey: `day-${latestGame.gameDay}-${latestGame.currentShift}`,
-    shiftLabel: `${latestGame.currentShift[0].toUpperCase()}${latestGame.currentShift.slice(1)}`,
+    shiftLabel: translate(msg, 'shiftLabel', { shift: latestGame.currentShift }),
     manifests: latestFlow.manifests,
     materialSessionId: latestFlow.sessionId,
     productionBatches: latestFlow.productionBatches,
@@ -1017,8 +1024,12 @@ function unifiedGameTick(ctx: TickContext): void {
       useUIStore.getState().addAlert({
         id: `breakdown-${id}-${Date.now()}`,
         type: 'critical',
-        title: 'Machine Breakdown',
-        message: `${name} (${machineType}) has broken down due to excessive wear. Work order ${breakdown.workOrderId} requires repair, verification, and controlled restart.`,
+        title: translate(msg, 'breakdownTitle'),
+        message: translate(msg, 'breakdownMessage', {
+          name,
+          machineType,
+          workOrderId: breakdown.workOrderId,
+        }),
         machineId: id,
         timestamp: new Date(),
         acknowledged: false,

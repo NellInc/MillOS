@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, X } from 'lucide-react';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { useT } from '../../i18n';
+import { confirmDialogMessages } from './ConfirmDialog.messages';
 
 interface ConfirmDialogProps {
   isOpen: boolean;
@@ -25,12 +27,13 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   isOpen,
   title,
   message,
-  confirmLabel = 'Confirm',
-  cancelLabel = 'Cancel',
+  confirmLabel,
+  cancelLabel,
   tone = 'amber',
   onConfirm,
   onCancel,
 }) => {
+  const t = useT(confirmDialogMessages);
   const modalRef = useRef<HTMLDivElement | null>(null);
   const titleId = useId();
   const descId = useId();
@@ -89,7 +92,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
               </div>
               <button
                 onClick={onCancel}
-                aria-label="Close dialog"
+                aria-label={t('close')}
                 className="p-1 rounded text-slate-400 hover:bg-slate-500/20 focus:outline-none focus:ring-2 focus:ring-cyan-500"
               >
                 <X className="w-5 h-5" aria-hidden="true" />
@@ -109,13 +112,13 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
                 onClick={onCancel}
                 className="px-4 py-2 rounded-lg text-sm font-medium bg-slate-700 text-slate-200 hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-colors"
               >
-                {cancelLabel}
+                {cancelLabel ?? t('cancel')}
               </button>
               <button
                 onClick={onConfirm}
                 className={`px-4 py-2 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 transition-colors ${toneStyles.confirm}`}
               >
-                {confirmLabel}
+                {confirmLabel ?? t('confirm')}
               </button>
             </div>
           </motion.div>

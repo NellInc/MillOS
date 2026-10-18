@@ -17,6 +17,8 @@ import { motion } from 'framer-motion';
 import { useUIStore } from '../../../stores/uiStore';
 import { useMobileDetection } from '../../../hooks/useMobileDetection';
 import { useMobileControlStore } from '../../../stores/mobileControlStore';
+import { translate, useT } from '../../../i18n';
+import { dockMessages } from './Dock.messages';
 
 export type DockMode =
   | 'overview'
@@ -40,6 +42,7 @@ export const Dock: React.FC<DockProps> = ({
   onDatalinksOpen,
   sidebarVisible = false,
 }) => {
+  const t = useT(dockMessages);
   const fpsMode = useUIStore((state) => state.fpsMode);
   const toggleFpsMode = useUIStore((state) => state.toggleFpsMode);
   const { isMobile, isCompactLayout } = useMobileDetection();
@@ -167,7 +170,7 @@ export const Dock: React.FC<DockProps> = ({
           ? 'p-1 gap-0.5 max-w-[calc(100vw-1rem)]'
           : 'p-0 gap-0 w-[min(48rem,calc(100vw-2rem))]'
       }`}
-      aria-label="Main Navigation"
+      aria-label={t('navLabel')}
       role="navigation"
       style={
         isCompactLayout
@@ -187,7 +190,7 @@ export const Dock: React.FC<DockProps> = ({
       <DockItem
         mode="overview"
         icon={<Factory size={24} />}
-        label="Mill Overview"
+        label={t('itemOverview')}
         isActive={activeMode === 'overview'}
         onClick={(trigger) => handleModeChange('overview', trigger)}
         isMobile={isCompactLayout}
@@ -195,7 +198,7 @@ export const Dock: React.FC<DockProps> = ({
       <DockItem
         mode="production"
         icon={<ChartColumn size={26} />}
-        label="Production"
+        label={t('itemProduction')}
         isActive={activeMode === 'production'}
         onClick={(trigger) => handleModeChange('production', trigger)}
         isMobile={isCompactLayout}
@@ -204,7 +207,7 @@ export const Dock: React.FC<DockProps> = ({
         <DockItem
           mode="management"
           icon={<Heart size={24} />}
-          label="Bilateral Autonomy System (BAS)"
+          label={t('itemManagement')}
           isActive={activeMode === 'management'}
           onClick={(trigger) => handleModeChange('management', trigger)}
           isMobile={isCompactLayout}
@@ -213,7 +216,7 @@ export const Dock: React.FC<DockProps> = ({
       <DockItem
         mode="safety"
         icon={<Shield size={24} />}
-        label="Safety & Emergency"
+        label={t('itemSafety')}
         isActive={activeMode === 'safety'}
         onClick={(trigger) => handleModeChange('safety', trigger)}
         isMobile={isCompactLayout}
@@ -221,7 +224,7 @@ export const Dock: React.FC<DockProps> = ({
       <DockItem
         mode="scada"
         icon={<Activity size={26} />}
-        label="Simulated SCADA"
+        label={t('itemScada')}
         isActive={activeMode === 'scada'}
         onClick={(trigger) => handleModeChange('scada', trigger)}
         isMobile={isCompactLayout}
@@ -229,7 +232,7 @@ export const Dock: React.FC<DockProps> = ({
       <DockItem
         mode="settings"
         icon={<Settings size={24} />}
-        label="Settings"
+        label={t('itemSettings')}
         isActive={activeMode === 'settings'}
         onClick={(trigger) => handleModeChange('settings', trigger)}
         isMobile={isCompactLayout}
@@ -240,7 +243,7 @@ export const Dock: React.FC<DockProps> = ({
           ref={moreMenuTriggerRef}
           type="button"
           onClick={() => setMoreOpen((open) => !open)}
-          aria-label="More workspaces and view controls"
+          aria-label={t('moreLabel')}
           aria-haspopup="menu"
           aria-expanded={moreOpen}
           className={`relative min-h-[44px] min-w-[44px] rounded-xl p-2 text-slate-300 transition-colors hover:bg-white/5 hover:text-white ${
@@ -252,7 +255,7 @@ export const Dock: React.FC<DockProps> = ({
         {moreOpen && (
           <div
             role="menu"
-            aria-label="More workspaces and view controls"
+            aria-label={t('moreLabel')}
             className="absolute bottom-full right-0 mb-2 w-60 overflow-hidden rounded-xl border border-white/10 bg-slate-950/98 p-1.5 shadow-2xl"
           >
             <button
@@ -264,7 +267,7 @@ export const Dock: React.FC<DockProps> = ({
               className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm text-slate-200 transition-colors hover:bg-white/10"
             >
               <Brain size={18} aria-hidden="true" />
-              AI Partner
+              {t('menuAiPartner')}
               <kbd className="ml-auto text-[10px] text-slate-400">I</kbd>
             </button>
             {isCompactLayout && (
@@ -276,7 +279,7 @@ export const Dock: React.FC<DockProps> = ({
                   className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm text-slate-200 transition-colors hover:bg-white/10"
                 >
                   <Heart size={18} aria-hidden="true" />
-                  Bilateral Autonomy System
+                  {t('menuManagement')}
                 </button>
               </>
             )}
@@ -292,7 +295,7 @@ export const Dock: React.FC<DockProps> = ({
                 className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm text-slate-200 transition-colors hover:bg-white/10"
               >
                 <Database size={18} aria-hidden="true" />
-                Datalinks
+                {t('menuDatalinks')}
               </button>
             )}
             <button
@@ -307,7 +310,7 @@ export const Dock: React.FC<DockProps> = ({
               className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm text-slate-200 transition-colors hover:bg-white/10"
             >
               <Eye size={18} aria-hidden="true" />
-              First-person view
+              {t('menuFirstPerson')}
               <kbd className="ml-auto text-[10px] text-slate-400">V</kbd>
             </button>
           </div>
@@ -318,8 +321,8 @@ export const Dock: React.FC<DockProps> = ({
       {isMobile && fullscreenSupported && (
         <button
           onClick={toggleFullscreen}
-          aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-          title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+          aria-label={isFullscreen ? t('exitFullscreen') : t('enterFullscreen')}
+          title={isFullscreen ? t('exitFullscreen') : t('enterFullscreen')}
           className={`relative rounded-xl transition-all p-2 min-w-[44px] min-h-[44px] ${
             isFullscreen
               ? 'bg-cyan-500/20 text-cyan-400'
@@ -333,14 +336,40 @@ export const Dock: React.FC<DockProps> = ({
   );
 };
 
+const DOCK_LABEL_KEYS = {
+  overview: 'labelOverview',
+  production: 'labelProduction',
+  ai: 'labelAi',
+  scada: 'labelScada',
+  management: 'labelManagement',
+  safety: 'labelSafety',
+  settings: 'labelSettings',
+} as const satisfies Record<DockMode, keyof (typeof dockMessages)['en']>;
+
+// Getters, not constants: each read resolves in the language active now, so
+// importers that index DOCK_LABELS during render follow a language change.
 export const DOCK_LABELS: Record<DockMode, string> = {
-  overview: 'Overview',
-  production: 'Production',
-  ai: 'AI Partner',
-  scada: 'SCADA',
-  management: 'Autonomy',
-  safety: 'Safety',
-  settings: 'Settings',
+  get overview() {
+    return translate(dockMessages, DOCK_LABEL_KEYS.overview);
+  },
+  get production() {
+    return translate(dockMessages, DOCK_LABEL_KEYS.production);
+  },
+  get ai() {
+    return translate(dockMessages, DOCK_LABEL_KEYS.ai);
+  },
+  get scada() {
+    return translate(dockMessages, DOCK_LABEL_KEYS.scada);
+  },
+  get management() {
+    return translate(dockMessages, DOCK_LABEL_KEYS.management);
+  },
+  get safety() {
+    return translate(dockMessages, DOCK_LABEL_KEYS.safety);
+  },
+  get settings() {
+    return translate(dockMessages, DOCK_LABEL_KEYS.settings);
+  },
 };
 
 const DockItem: React.FC<{
@@ -351,6 +380,7 @@ const DockItem: React.FC<{
   onClick: (trigger: HTMLButtonElement) => void;
   isMobile?: boolean;
 }> = ({ mode, icon, label, isActive, onClick, isMobile }) => {
+  const t = useT(dockMessages);
   return (
     <button
       onClick={(event) => onClick(event.currentTarget)}
@@ -368,7 +398,7 @@ const DockItem: React.FC<{
       <span aria-hidden="true">{icon}</span>
       {!isMobile && (
         <span data-dock-label="" className="text-[12px] leading-4 whitespace-nowrap">
-          {DOCK_LABELS[mode]}
+          {t(DOCK_LABEL_KEYS[mode])}
         </span>
       )}
       {isActive && (

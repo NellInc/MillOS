@@ -4,33 +4,39 @@ import { useSafetyStore } from '../stores/safetyStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useUIStore } from '../stores/uiStore';
 import type { AlertData } from '../types';
+import { translate } from '../i18n';
+import { alertSystemMessages } from './AlertSystem.messages';
+
+type PlainMessageKey = Exclude<keyof typeof alertSystemMessages.en, 'typedLiveRegion'>;
+const m = (key: PlainMessageKey): string => translate(alertSystemMessages, key);
 
 // Sample alerts for random rotation (shift changes handled by PA system in GameFeatures)
 const getSampleAlerts = (): Omit<AlertData, 'id' | 'timestamp' | 'acknowledged'>[] => [
   {
     type: 'success',
-    title: 'Maintenance Complete',
-    message: 'Roller Mill RM-103 back online',
+    title: m('maintenanceCompleteTitle'),
+    message: m('maintenanceCompleteMessage'),
     machineId: 'rm-103',
   },
   {
     type: 'warning',
-    title: 'Temperature Rising',
-    message: 'Plansifter B bearing temperature elevated',
+    title: m('temperatureRisingTitle'),
+    message: m('temperatureRisingMessage'),
     machineId: 'sifter-b',
   },
-  { type: 'info', title: 'Quality Check', message: 'Hourly sample collection under way' },
-  { type: 'success', title: 'Target Met', message: 'Daily production target reached' },
-  { type: 'warning', title: 'Low Stock', message: 'Packaging supplies below reorder point' },
-  { type: 'info', title: 'Conveyor Check', message: 'Belt tension nominal' },
+  { type: 'info', title: m('qualityCheckTitle'), message: m('qualityCheckMessage') },
+  { type: 'success', title: m('targetMetTitle'), message: m('targetMetMessage') },
+  { type: 'warning', title: m('lowStockTitle'), message: m('lowStockMessage') },
+  { type: 'info', title: m('conveyorCheckTitle'), message: m('conveyorCheckMessage') },
 ];
 
-const NEAR_MISS_MESSAGES = [
-  'Forklift stopped for a blocked aisle - safety protocol activated',
-  'Unexpected load detected in forklift path - collision averted',
-  'Proximity alert - forklift yielded to crossing equipment',
-  'Safety system engaged - near-miss avoided',
-];
+// Keys, not text: resolved when the alert is raised, in the language active then.
+const NEAR_MISS_MESSAGE_KEYS = [
+  'nearMissBlockedAisle',
+  'nearMissUnexpectedLoad',
+  'nearMissProximity',
+  'nearMissSafetySystem',
+] as const;
 
 /**
  * AlertSystem - Generates alerts and pushes them to uiStore
@@ -53,11 +59,13 @@ export const AlertSystem: React.FC = () => {
       useSafetyStore.getState().forkliftEmergencyStop ||
       useGameSimulationStore.getState().emergencyActive;
     if (safetyMetrics.safetyStops > prevSafetyStopsRef.current && !deliberateHold) {
-      const message = NEAR_MISS_MESSAGES[Math.floor(Math.random() * NEAR_MISS_MESSAGES.length)];
+      const message = m(
+        NEAR_MISS_MESSAGE_KEYS[Math.floor(Math.random() * NEAR_MISS_MESSAGE_KEYS.length)]
+      );
       const newAlert: AlertData = {
         id: `safety-${Date.now()}`,
         type: 'safety',
-        title: 'Near-Miss Avoided',
+        title: m('nearMissTitle'),
         message,
         timestamp: new Date(),
         acknowledged: false,
@@ -67,7 +75,12 @@ export const AlertSystem: React.FC = () => {
       audioManager.playAlert();
 
       // Announce to screen readers
-      setLiveRegionMessage(`Safety alert: ${newAlert.title}. ${newAlert.message}`);
+      setLiveRegionMessage(
+        translate(alertSystemMessages, 'safetyLiveRegion', {
+          title: newAlert.title,
+          message: newAlert.message,
+        })
+      );
 
       // Push to uiStore for StatusHUD display
       addAlert(newAlert);
@@ -109,7 +122,13 @@ export const AlertSystem: React.FC = () => {
 
       // Announce critical and warning alerts to screen readers
       if (newAlert.type === 'critical' || newAlert.type === 'warning') {
-        setLiveRegionMessage(`${newAlert.type} alert: ${newAlert.title}. ${newAlert.message}`);
+        setLiveRegionMessage(
+          translate(alertSystemMessages, 'typedLiveRegion', {
+            type: newAlert.type,
+            title: newAlert.title,
+            message: newAlert.message,
+          })
+        );
       }
 
       // Push to uiStore for StatusHUD display

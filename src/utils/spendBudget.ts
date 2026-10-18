@@ -1,4 +1,7 @@
 /** Per-tab browser-session admission budget for billable BYOK calls. */
+import { translate } from '../i18n';
+import { spendBudgetMessages } from './spendBudget.messages';
+
 export interface BilledUsage {
   inputTokens: number;
   outputTokens: number;
@@ -88,7 +91,7 @@ export class SpendBudget {
 
   setCap(value: number | null): void {
     if (value !== null && (!Number.isFinite(value) || value < 0.01 || value > 1000)) {
-      throw new Error('Enter a cap between $0.01 and $1,000, or turn it off.');
+      throw new Error(translate(spendBudgetMessages, 'capRange'));
     }
     this.update({ capUsd: value });
   }
@@ -101,7 +104,7 @@ export class SpendBudget {
     const amount = estimatedInputTokens * INPUT_RATE + maxOutputTokens * OUTPUT_RATE;
     const s = this.snapshot;
     if (s.capUsd !== null && s.spentUsd + s.reservedUsd + s.uncertainUsd + amount > s.capUsd) {
-      throw new SpendCapError('Session cost cap reached. No paid request was sent.');
+      throw new SpendCapError(translate(spendBudgetMessages, 'capReached'));
     }
     const id = ++this.nextId;
     this.reservations.set(id, amount);

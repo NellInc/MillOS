@@ -14,6 +14,8 @@ import {
 } from '../../../simulation/workplaceFairness';
 import { MANAGEMENT_APPROACHES } from '../../../simulation/workplaceCampaign';
 import type { WorkplaceProfile, WorkplaceTransitionResult } from '../../../types/workplace';
+import { formatFixed, useT } from '../../../i18n';
+import { workplaceParticipationMessages } from './WorkplaceParticipation.messages';
 
 const button =
   'min-h-11 rounded-md border border-cyan-300/25 px-3 py-2 text-xs font-medium text-cyan-100 hover:bg-cyan-900/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 disabled:cursor-not-allowed disabled:opacity-50';
@@ -24,6 +26,7 @@ export function WorkplaceParticipation({
 }: {
   report: (result: WorkplaceTransitionResult) => void;
 }) {
+  const t = useT(workplaceParticipationMessages);
   const store = useWorkplaceStore();
   const s = store.workplace;
   const [role, setRole] = useState('packing');
@@ -33,25 +36,23 @@ export function WorkplaceParticipation({
   const checks = turnChecks(s);
   const completedChecks = checks.filter((q) => current?.answers[q.id] === q.correct).length;
   return (
-    <section aria-label="Decision ownership" className="space-y-3 border-b border-slate-700 pb-4">
+    <section aria-label={t('regionLabel')} className="space-y-3 border-b border-slate-700 pb-4">
       <details open={store.participationMode === 'separate-turns'}>
         <summary className="min-h-11 cursor-pointer py-2 font-semibold text-white">
-          Decision ownership:{' '}
+          {t('ownershipPrefix')}{' '}
           {store.participationMode === 'solo'
-            ? 'solo role-play'
+            ? t('soloRolePlay')
             : current
-              ? `${s.members.find((m) => m.id === current.actorId)?.role ?? 'Adviser'} turn`
-              : 'facilitator handover'}
+              ? t('roleTurn', {
+                  role: s.members.find((m) => m.id === current.actorId)?.role ?? t('adviser'),
+                })
+              : t('facilitatorHandover')}
         </summary>
-        <p className="mb-3 text-slate-300">
-          Shared-device synthetic rehearsal. Separate turns limit local role actions. They provide
-          no identity authentication or proof of freedom from coercion. Real worker sessions need
-          separate authentication and agreed safeguards.
-        </p>
+        <p className="mb-3 text-slate-300">{t('rehearsalNotice')}</p>
         <label className="block">
-          Interaction mode
+          {t('interactionMode')}
           <select
-            aria-label="Interaction mode"
+            aria-label={t('interactionMode')}
             className={input}
             disabled={s.phase !== 'idle'}
             value={store.participationMode}
@@ -59,8 +60,8 @@ export function WorkplaceParticipation({
               report(store.setParticipationMode(e.target.value as 'solo' | 'separate-turns'))
             }
           >
-            <option value="solo">Solo role-play</option>
-            <option value="separate-turns">Facilitated separate turns</option>
+            <option value="solo">{t('optionSolo')}</option>
+            <option value="separate-turns">{t('optionSeparate')}</option>
           </select>
         </label>
         {store.participationMode === 'separate-turns' && s.phase !== 'idle' && (
@@ -72,23 +73,25 @@ export function WorkplaceParticipation({
                   tabIndex={-1}
                   className="font-medium text-cyan-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
                 >
-                  Only {s.members.find((m) => m.id === current.actorId)?.role ?? 'Adviser'} may
-                  record this turn’s role decisions. Changed terms end the turn. End this turn
-                  before facilitator activation or settlement.
+                  {t('turnOnly', {
+                    role: s.members.find((m) => m.id === current.actorId)?.role ?? t('adviser'),
+                  })}
                 </p>
                 {s.phase === 'deliberating' && (
                   <fieldset className="space-y-2">
-                    <legend className="font-semibold text-white">Current mandate checks</legend>
+                    <legend className="font-semibold text-white">{t('mandateChecksLegend')}</legend>
                     <p role="status" className="text-cyan-100">
-                      Mandate checks: {completedChecks} of {checks.length} match the current
-                      agreement. Confirming understanding remains a separate choice.
+                      {t('mandateChecksStatus', {
+                        done: formatFixed(completedChecks, 0),
+                        total: formatFixed(checks.length, 0),
+                      })}
                     </p>
                     {checks.map((q) => (
                       <label key={q.id} className="block">
                         {q.prompt}
                         <select
                           className={input}
-                          aria-label={`Turn check: ${q.id}`}
+                          aria-label={t('turnCheckLabel', { id: q.id })}
                           aria-invalid={
                             current.answers[q.id] ? current.answers[q.id] !== q.correct : undefined
                           }
@@ -101,7 +104,7 @@ export function WorkplaceParticipation({
                           }
                         >
                           <option value="" disabled>
-                            Select an answer
+                            {t('selectAnswer')}
                           </option>
                           {q.options.map((o) => (
                             <option key={o.value} value={o.value}>
@@ -121,8 +124,8 @@ export function WorkplaceParticipation({
                             >
                               <strong>
                                 {current.answers[q.id] === q.correct
-                                  ? 'Matches the current terms. '
-                                  : 'Needs another look. '}
+                                  ? t('matchesTerms')
+                                  : t('needsAnotherLook')}
                               </strong>
                               {q.clarification}
                             </span>
@@ -140,16 +143,16 @@ export function WorkplaceParticipation({
                     if (result.changed) requestAnimationFrame(() => handover.current?.focus());
                   }}
                 >
-                  End participant turn
+                  {t('endTurn')}
                 </button>
               </>
             ) : (
               <>
                 <label className="block">
-                  Hand over to fictional role
+                  {t('handOver')}
                   <select
                     className={input}
-                    aria-label="Hand over to fictional role"
+                    aria-label={t('handOver')}
                     ref={handover}
                     value={role}
                     onChange={(e) => setRole(e.target.value)}
@@ -159,7 +162,7 @@ export function WorkplaceParticipation({
                         {m.role}
                       </option>
                     ))}
-                    <option value="mind">Adviser</option>
+                    <option value="mind">{t('adviser')}</option>
                   </select>
                 </label>
                 <button
@@ -171,12 +174,9 @@ export function WorkplaceParticipation({
                       requestAnimationFrame(() => turnInstructions.current?.focus());
                   }}
                 >
-                  Begin participant turn
+                  {t('beginTurn')}
                 </button>
-                <p className="text-slate-300">
-                  Hand the device over before beginning. The facilitator may prepare terms and
-                  explain facts, and cannot record role decisions.
-                </p>
+                <p className="text-slate-300">{t('handOverNote')}</p>
               </>
             )}
           </div>
@@ -196,21 +196,19 @@ export function WorkplaceSeasonEntry({
   report: (r: WorkplaceTransitionResult) => void;
   onStart: () => void;
 }) {
+  const t = useT(workplaceParticipationMessages);
   const store = useWorkplaceStore();
   if (store.workplace.phase !== 'idle') return null;
   return (
     <details className="space-y-3 border-t border-slate-700 pt-3">
       <summary className="min-h-11 cursor-pointer py-2 font-semibold text-white">
-        Play a three-shift cooperative season
+        {t('seasonSummary')}
       </summary>
-      <p>
-        Friday: agree an urgent delivery. Monday: inspect under pressure. Thursday: renegotiate
-        repeated burden. Cash, pay and workload carry forward; each shift needs fresh consent.
-      </p>
+      <p>{t('seasonIntro')}</p>
       <label className="block">
-        Season adoption route
+        {t('seasonRoute')}
         <select
-          aria-label="Season adoption route"
+          aria-label={t('seasonRoute')}
           className={input}
           value={profile}
           onChange={(e) => setProfile(e.target.value as WorkplaceProfile)}
@@ -223,8 +221,7 @@ export function WorkplaceSeasonEntry({
         </select>
       </label>
       <p>
-        {MANAGEMENT_APPROACHES.find((a) => a.id === profile)?.detail} Keep this degree of adoption
-        throughout; escalation is optional in a future exercise.
+        {MANAGEMENT_APPROACHES.find((a) => a.id === profile)?.detail} {t('adoptionNote')}
       </p>
       <button
         className={button}
@@ -234,64 +231,68 @@ export function WorkplaceSeasonEntry({
           if (r.changed) onStart();
         }}
       >
-        Start season with current customer commitment
+        {t('startSeason')}
       </button>
-      <p className="text-slate-300">
-        Requires an open, qualified customer commitment. Real dispatch earns delivery; a defensible
-        shortfall is a valid ending.
-      </p>
+      <p className="text-slate-300">{t('seasonRequires')}</p>
     </details>
   );
 }
 export function WorkplaceFairness() {
+  const t = useT(workplaceParticipationMessages);
   const store = useWorkplaceStore();
   const s = store.workplace;
   return (
     <details className="border-t border-slate-700 pt-3">
       <summary className="min-h-11 cursor-pointer py-2 font-semibold text-white">
-        Individual fairness receipts
+        {t('fairnessSummary')}
       </summary>
-      <p className="mb-3">
-        Illustrative credits and modeled minutes. Earned pay includes member distributions;
-        extra-duty compensation is separate. Current reservations are earmarked funds, awaiting
-        work.
-      </p>
+      <p className="mb-3">{t('fairnessIntro')}</p>
       {fairnessReceipt(s).map((r) => (
         <section
           key={r.id}
-          aria-label={`Fairness: ${r.role}`}
+          aria-label={t('fairnessLabel', { role: r.role })}
           className="space-y-1 border-t border-slate-800 py-3"
         >
           <h5 className="font-semibold text-white">{r.role}</h5>
+          <p>{t('qualifiedTasks', { tasks: r.qualifiedTasks.join(', '), task: r.currentTask })}</p>
           <p>
-            Qualified tasks: {r.qualifiedTasks.join(', ')}. Current task: {r.currentTask}.
-          </p>
-          <p>
-            Current optional duty:{' '}
-            {r.currentCoverConsent === null
-              ? 'no decision'
-              : r.currentCoverConsent
-                ? 'volunteered'
-                : 'declined'}
-            . {r.extraMinutes.toFixed(1)} extra minutes across {r.shiftsWithExtraDuty} shifts;{' '}
-            {r.earlierExtraMinutes.toFixed(1)} earlier minutes.
+            {t('dutyLine', {
+              duty:
+                r.currentCoverConsent === null
+                  ? t('dutyNoDecision')
+                  : r.currentCoverConsent
+                    ? t('dutyVolunteered')
+                    : t('dutyDeclined'),
+              extra: formatFixed(r.extraMinutes, 1),
+              shifts: formatFixed(r.shiftsWithExtraDuty, 0),
+              earlier: formatFixed(r.earlierExtraMinutes, 1),
+            })}
           </p>
           <p className="tabular-nums">
-            Earned pay and member distributions: {r.earnedPayAndMemberDistributions.toFixed(2)}.
-            Compensation paid: {r.compensationPaid.toFixed(2)}. Wages reserved:{' '}
-            {r.wagesReserved.toFixed(2)}. Compensation reserved: {r.compensationReserved.toFixed(2)}
-            .
+            {t('payLine', {
+              earned: formatFixed(r.earnedPayAndMemberDistributions, 2),
+              paid: formatFixed(r.compensationPaid, 2),
+              wages: formatFixed(r.wagesReserved, 2),
+              reserved: formatFixed(r.compensationReserved, 2),
+            })}
           </p>
           <p className="tabular-nums">
-            Rest delivered: {r.restMinutes.toFixed(1)} min. Recovery delivered:{' '}
-            {r.recoveryDelivered.toFixed(1)} min. Recovery owed: {r.recoveryOwed.toFixed(1)} min.
+            {t('restLine', {
+              rest: formatFixed(r.restMinutes, 1),
+              recovery: formatFixed(r.recoveryDelivered, 1),
+              owed: formatFixed(r.recoveryOwed, 1),
+            })}
           </p>
           <p>
-            {r.openObjections.length} retained open objections. {r.historicalObjectionDetail}
+            {t('openObjections', {
+              count: r.openObjections.length,
+              formatted: formatFixed(r.openObjections.length, 0),
+            })}{' '}
+            {r.historicalObjectionDetail}
           </p>
           {r.openObjections.map((o, n) => (
             <p key={n} className="text-amber-100">
-              {o.kind}: {o.statement}
+              {t('objectionKind', { kind: o.kind })}: {o.statement}
             </p>
           ))}
         </section>
@@ -306,30 +307,27 @@ export function WorkplaceDemonstration({
   navigate: (section: 'Handoff' | 'Shift' | 'Agreement / Voices' | 'Review') => void;
   report: (r: WorkplaceTransitionResult) => void;
 }) {
+  const t = useT(workplaceParticipationMessages);
   const store = useWorkplaceStore();
   const [enabled, setEnabled] = useState(false);
   const beats = demonstrationBeats(store.workplace);
   return (
-    <section aria-label="Guided bilateral demonstration" className="space-y-2">
+    <section aria-label={t('demoLabel')} className="space-y-2">
       <button className={button} aria-pressed={enabled} onClick={() => setEnabled(!enabled)}>
-        {enabled ? 'Close ten-minute guide' : 'Open ten-minute guide'}
+        {enabled ? t('closeGuide') : t('openGuide')}
       </button>
       {enabled && (
         <div className="space-y-3">
-          <p>
-            About ten minutes of discussion, with plant time controlled separately. Evidence marks
-            observed choices; a skipped optional choice stays available. The guide never makes
-            decisions for you.
-          </p>
+          <p>{t('guideIntro')}</p>
           {beats.map((b) => (
             <div key={b.title} className="space-y-1 border-t border-slate-800 pt-3">
               <h5 className="font-semibold text-white">{b.title}</h5>
               <p>{b.detail}</p>
               <p className="text-cyan-100">
-                {b.observed ? 'Evidence present' : 'Available to explore'}
+                {b.observed ? t('evidencePresent') : t('availableToExplore')}
               </p>
               <button className={button} onClick={() => navigate(b.section)}>
-                Go to {b.section}
+                {t('goTo', { section: t('sectionLabel', { section: b.section }) })}
               </button>
             </div>
           ))}
@@ -359,13 +357,13 @@ export function WorkplaceDemonstration({
               URL.revokeObjectURL(url);
             }}
           >
-            Download public cooperative receipt
+            {t('downloadReceipt')}
           </button>
           <button
             className={button}
             onClick={() => report(store.rehearseReload(store.workplace.revision))}
           >
-            Save and safely reload workplace
+            {t('saveReload')}
           </button>
         </div>
       )}
@@ -375,6 +373,7 @@ export function WorkplaceDemonstration({
 
 /** Idle/skip automation is visible, interruptible and restricted to fictional solo roles. */
 export function WorkplaceAutomaticDemo({ profile }: { profile: WorkplaceProfile }) {
+  const t = useT(workplaceParticipationMessages);
   const store = useWorkplaceStore();
   const automatic = useWorkplaceAutoplay();
   const running = automatic.running;
@@ -385,16 +384,13 @@ export function WorkplaceAutomaticDemo({ profile }: { profile: WorkplaceProfile 
     !store.workplace.improvement;
   if (!eligible) return null;
   return (
-    <section
-      aria-label="Automatic fictional demonstration"
-      className="space-y-2 border-b border-slate-700 pb-3"
-    >
+    <section aria-label={t('autoLabel')} className="space-y-2 border-b border-slate-700 pb-3">
       <p className="text-slate-300">
         {running
-          ? 'Automatic solo demonstration: fictional roles choose, refuse and revoke sharing. Real simulated plant departures earn delivery.'
+          ? t('autoRunning')
           : store.workplace.phase === 'idle' && !automatic.manual
-            ? 'The cooperative season runs autonomously by default. Take over whenever you want. Separate participant turns always stay manual.'
-            : 'You can let fictional solo roles demonstrate the season, or keep making the choices yourself.'}
+            ? t('autoIdle')
+            : t('autoManual')}
       </p>
       {automatic.message && (
         <p className="text-cyan-100" role="status">
@@ -409,7 +405,7 @@ export function WorkplaceAutomaticDemo({ profile }: { profile: WorkplaceProfile 
             automatic.start(profile);
           }}
         >
-          Skip guide and run fictional demo
+          {t('skipGuide')}
         </button>
         <button
           className={button}
@@ -418,7 +414,7 @@ export function WorkplaceAutomaticDemo({ profile }: { profile: WorkplaceProfile 
           }}
         >
           {' '}
-          {running ? 'Pause automatic demo' : 'Keep decisions manual'}{' '}
+          {running ? t('pauseDemo') : t('keepManual')}{' '}
         </button>
       </div>
     </section>
@@ -426,6 +422,7 @@ export function WorkplaceAutomaticDemo({ profile }: { profile: WorkplaceProfile 
 }
 
 export function WorkplaceAutoplayStatus() {
+  const t = useT(workplaceParticipationMessages);
   const { isMobile } = useMobileDetection();
   const automatic = useWorkplaceAutoplay();
   const store = useWorkplaceStore();
@@ -486,7 +483,7 @@ export function WorkplaceAutoplayStatus() {
   const compact = isMobile || guideCardShowing;
   return (
     <aside
-      aria-label="Fictional demo running"
+      aria-label={t('demoRunningLabel')}
       // The bottom-left touch pad owns movement, including the return route.
       // Working if the season notice leaves every D-pad button hit-testable.
       className={
@@ -497,13 +494,13 @@ export function WorkplaceAutoplayStatus() {
             : 'pointer-events-auto fixed bottom-[8rem] left-3 z-40 max-w-[calc(100vw-1.5rem)] rounded-lg border border-cyan-300/25 bg-slate-950 p-3 text-xs text-cyan-100'
       }
     >
-      <p className={compact ? 'sr-only' : undefined}>Autonomous cooperative season</p>
+      <p className={compact ? 'sr-only' : undefined}>{t('autonomousSeason')}</p>
       <button
-        aria-label="Take over cooperative season"
+        aria-label={t('takeOver')}
         className={`${button} ${compact ? 'max-w-full bg-slate-950 shadow-lg' : 'mt-2'}`}
         onClick={() => automatic.pause()}
       >
-        {compact ? 'Autonomous season: take over' : 'Take over cooperative season'}
+        {compact ? t('takeOverCompact') : t('takeOver')}
       </button>
     </aside>
   );

@@ -3,9 +3,12 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { OctagonX, Siren } from 'lucide-react';
 import { useSafetyStore } from '../stores/safetyStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
+import { useT } from '../i18n';
+import { emergencyOverlayMessages } from './EmergencyOverlay.messages';
 
 // Emergency Overlay Component - shows flashing red border
 export const EmergencyOverlay: React.FC = () => {
+  const t = useT(emergencyOverlayMessages);
   const forkliftEmergencyStop = useSafetyStore((state) => state.forkliftEmergencyStop);
   const emergencyActive = useGameSimulationStore((state) => state.emergencyActive);
   const emergencyDrillMode = useGameSimulationStore((state) => state.emergencyDrillMode);
@@ -20,15 +23,15 @@ export const EmergencyOverlay: React.FC = () => {
   const wash = isDrill ? 'rgba(245, 158, 11, 0.16)' : 'rgba(239, 68, 68, 0.24)';
   const Icon = isDrill ? Siren : OctagonX;
   const title = isDrill
-    ? 'Simulated fire drill'
+    ? t('drillTitle')
     : forkliftOnly
-      ? 'Forklift emergency stop'
-      : 'Facility emergency stop';
+      ? t('forkliftStopTitle')
+      : t('facilityStopTitle');
   const guidance = isDrill
-    ? 'Drill in progress. Production and forklifts hold while each service egress verifies itself; it ends once every egress checks in, or from the Safety panel.'
+    ? t('drillGuidance')
     : forkliftOnly
-      ? 'Every forklift is holding position; the mill keeps running. Press Space or release it from the Safety panel.'
-      : 'Everything is stopped. Find the cause, fix it, then clear the interlock from the Safety panel.';
+      ? t('forkliftStopGuidance')
+      : t('facilityStopGuidance');
 
   return (
     <AnimatePresence>

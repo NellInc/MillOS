@@ -25,10 +25,13 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BAG_WEIGHT_KG } from '../types';
+import { formatFixed, useT } from '../i18n';
+import { productionTargetWidgetMessages } from './ProductionTargetWidget.messages';
 
 const DAILY_TARGET_MASS = DAILY_TARGET_BAGS * BAG_WEIGHT_KG; // 30,000 kg = 30 t
 
 export const ProductionTargetWidget: React.FC = () => {
+  const t = useT(productionTargetWidgetMessages);
   const onboarding = useAnnouncementsStore((state) => state.context.onboarding);
   const journeyVisible = useUIStore((state) => state.journeyVisible);
   const mobilePanelVisible = useMobileControlStore((state) => state.mobilePanelVisible);
@@ -145,11 +148,11 @@ export const ProductionTargetWidget: React.FC = () => {
       <button
         type="button"
         onClick={() => setShowProductionTarget(true)}
-        aria-label="Show production target tracker"
+        aria-label={t('showTracker')}
         className="fixed bottom-[min(11rem,30dvh)] left-4 z-30 flex items-center gap-2 rounded-lg border border-white/10 bg-slate-900/90 px-3 py-2 text-slate-200 shadow-lg backdrop-blur-sm transition-colors hover:bg-slate-800 pointer-events-auto"
       >
         <Target className="w-4 h-4 text-green-400" />
-        <span className="text-xs font-medium">Target</span>
+        <span className="text-xs font-medium">{t('launcher')}</span>
       </button>
     );
   }
@@ -203,7 +206,7 @@ export const ProductionTargetWidget: React.FC = () => {
       <motion.div
         ref={cardRef}
         role="region"
-        aria-label="Production target tracker"
+        aria-label={t('trackerLabel')}
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 20 }}
@@ -217,7 +220,7 @@ export const ProductionTargetWidget: React.FC = () => {
         <div className="flex flex-wrap items-center justify-between gap-2 mb-3 cursor-move select-none">
           <div className="flex items-center gap-2">
             <Target className={`w-5 h-5 ${colors.text}`} />
-            <span className="text-white font-semibold text-sm">Production Target</span>
+            <span className="text-white font-semibold text-sm">{t('title')}</span>
             <GripVertical className="w-3 h-3 text-slate-500" aria-hidden="true" />
           </div>
           <div className="flex items-center gap-2">
@@ -225,15 +228,20 @@ export const ProductionTargetWidget: React.FC = () => {
               <Clock className="w-4 h-4 text-slate-400" />
               <span className="text-slate-300 text-xs">
                 {targetData.hoursRemaining < 1
-                  ? `${Math.max(1, Math.ceil(targetData.hoursRemaining * 60 - 1e-7))}m left`
-                  : `${targetData.hoursRemaining.toFixed(1)}h left`}
+                  ? t('minutesLeft', {
+                      minutes: formatFixed(
+                        Math.max(1, Math.ceil(targetData.hoursRemaining * 60 - 1e-7)),
+                        0
+                      ),
+                    })
+                  : t('hoursLeft', { hours: formatFixed(targetData.hoursRemaining, 1) })}
               </span>
             </div>
             <button
               type="button"
               onClick={() => setShowProductionTarget(false)}
               onPointerDownCapture={(e) => e.stopPropagation()}
-              aria-label="Close production target tracker"
+              aria-label={t('closeTracker')}
               className="-m-2.5 -mr-3.5 p-3.5 rounded text-slate-400 hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
@@ -247,7 +255,7 @@ export const ProductionTargetWidget: React.FC = () => {
           aria-valuenow={Math.round(targetData.progress)}
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-label="Daily production target progress"
+          aria-label={t('progressLabel')}
           className="h-3 bg-slate-700 rounded-full overflow-hidden mb-3"
         >
           <motion.div
@@ -261,28 +269,32 @@ export const ProductionTargetWidget: React.FC = () => {
         {/* Stats */}
         <div className="grid grid-cols-2 gap-2 text-xs">
           <div className="text-slate-400">
-            Produced:{' '}
+            {t('produced')}{' '}
             <span className="text-white font-mono whitespace-nowrap">
-              {(targetData.producedMass / 1000).toFixed(1)}t
+              {t('tonnes', { value: formatFixed(targetData.producedMass / 1000, 1) })}
             </span>
           </div>
           <div className="text-slate-400">
-            Target:{' '}
+            {t('target')}{' '}
             <span className="text-white font-mono whitespace-nowrap">
-              {(DAILY_TARGET_MASS / 1000).toFixed(0)}t
+              {t('tonnes', { value: formatFixed(DAILY_TARGET_MASS / 1000, 0) })}
             </span>
           </div>
           <div className="col-span-2 text-slate-400">
-            Rate:{' '}
+            {t('rate')}{' '}
             <span className="text-white font-mono whitespace-nowrap">
-              {(targetData.currentRateMass / 1000).toFixed(1)} t/game h
+              {t('ratePerGameHour', {
+                value: formatFixed(targetData.currentRateMass / 1000, 1),
+              })}
             </span>
           </div>
           {targetData.status !== 'met' && (
             <div className="col-span-2 text-slate-400">
-              Req:{' '}
+              {t('required')}{' '}
               <span className={`font-mono whitespace-nowrap ${colors.text}`}>
-                {(targetData.requiredRateMass / 1000).toFixed(1)} t/game h
+                {t('ratePerGameHour', {
+                  value: formatFixed(targetData.requiredRateMass / 1000, 1),
+                })}
               </span>
             </div>
           )}
@@ -293,14 +305,14 @@ export const ProductionTargetWidget: React.FC = () => {
           <TrendIcon className={`w-4 h-4 ${colors.text}`} />
           <span className={`text-sm font-medium ${colors.text}`}>
             {targetData.status === 'met'
-              ? 'TARGET MET'
+              ? t('statusMet')
               : targetData.status === 'paused'
-                ? 'PAUSED'
+                ? t('statusPaused')
                 : targetData.status === 'onTrack'
-                  ? 'ON TRACK'
+                  ? t('statusOnTrack')
                   : targetData.status === 'behind'
-                    ? 'BEHIND SCHEDULE'
-                    : 'AT RISK'}
+                    ? t('statusBehind')
+                    : t('statusAtRisk')}
           </span>
         </div>
       </motion.div>

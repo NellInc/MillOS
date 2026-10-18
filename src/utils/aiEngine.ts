@@ -16,6 +16,8 @@ import { chatgptClient } from './chatgptClient';
 import { SpendCapError } from './spendBudget';
 import { webgpuClient } from './webgpuClient';
 import { logger } from './logger';
+import { formatFixed, translate } from '../i18n';
+import { aiEngineMessages as msg } from './aiEngine.messages';
 
 export const AI_ENGINE_TIMING = {
   tacticalDecisionInterval: 6000,
@@ -269,48 +271,61 @@ function decisionForType(type: DecisionType, machine: MachineData): AIDecision {
     case 'coordination':
       return {
         ...common,
-        action: `Allocate autonomous service route to ${machine.name}`,
-        reasoning: `The route planner detected equipment demand at ${machine.id} with ${load.toFixed(0)} percent load.`,
+        action: translate(msg, 'coordinationAction', { machine: machine.name }),
+        reasoning: translate(msg, 'coordinationReasoning', {
+          machineId: machine.id,
+          load: formatFixed(load, 0),
+        }),
         confidence: clamp(78 + adjustment, 45, 98),
-        impact: 'Keeps service traffic deterministic and clears shared aisles.',
+        impact: translate(msg, 'coordinationImpact'),
         priority: load > 90 ? 'high' : 'medium',
       };
     case 'maintenance':
       return {
         ...common,
-        action: `Queue condition-based maintenance for ${machine.name}`,
-        reasoning: `Telemetry reports ${temperature.toFixed(1)} C, ${vibration.toFixed(2)} mm/s vibration, and ${wear.toFixed(0)} percent wear.`,
+        action: translate(msg, 'maintenanceAction', { machine: machine.name }),
+        reasoning: translate(msg, 'maintenanceReasoning', {
+          temperature: formatFixed(temperature, 1),
+          vibration: formatFixed(vibration, 2),
+          wear: formatFixed(wear, 0),
+        }),
         confidence: clamp(82 + adjustment, 45, 98),
-        impact: 'Reduces breakdown risk while preserving the controlled production path.',
+        impact: translate(msg, 'maintenanceImpact'),
         priority: temperature >= 80 || vibration >= 4.5 || wear >= 85 ? 'critical' : 'high',
       };
     case 'safety':
       return {
         ...common,
-        action: `Engage interlocked safe state around ${machine.name}`,
-        reasoning:
-          'The autonomous safety layer detected a limit or test condition requiring isolation.',
+        action: translate(msg, 'safetyAction', { machine: machine.name }),
+        reasoning: translate(msg, 'safetyReasoning'),
         confidence: clamp(94 + adjustment, 50, 99),
-        impact:
-          'Stops hazardous motion, closes affected routes, and preserves diagnostic evidence.',
+        impact: translate(msg, 'safetyImpact'),
         priority: 'critical',
       };
     case 'prediction':
       return {
         ...common,
-        action: `Statistical anomaly detected on ${machine.name}`,
-        reasoning: `Trend analysis combines ${temperature.toFixed(1)} C, ${vibration.toFixed(2)} mm/s vibration, ${load.toFixed(0)} percent load, and ${wear.toFixed(0)} percent wear.`,
+        action: translate(msg, 'predictionAction', { machine: machine.name }),
+        reasoning: translate(msg, 'predictionReasoning', {
+          temperature: formatFixed(temperature, 1),
+          vibration: formatFixed(vibration, 2),
+          load: formatFixed(load, 0),
+          wear: formatFixed(wear, 0),
+        }),
         confidence: clamp(76 + adjustment, 40, 96),
-        impact: 'Provides lead time for an automatic derate or maintenance queue entry.',
+        impact: translate(msg, 'predictionImpact'),
         priority: temperature >= 80 || vibration >= 4.5 ? 'high' : 'medium',
       };
     case 'optimization':
       return {
         ...common,
-        action: `Balance process load through ${machine.name}`,
-        reasoning: `The line is carrying ${load.toFixed(0)} percent load at ${finite(machine.metrics?.efficiency, 100).toFixed(0)} percent local efficiency.`,
+        action: translate(msg, 'optimizationAction', { machine: machine.name }),
+        reasoning: translate(msg, 'optimizationReasoning', {
+          load: formatFixed(load, 0),
+          efficiency: formatFixed(finite(machine.metrics?.efficiency, 100), 0),
+        }),
         confidence: clamp(74 + adjustment, 40, 95),
-        impact: 'Smooths material flow, limits recirculation, and protects downstream capacity.',
+        impact: translate(msg, 'optimizationImpact'),
         priority: load > 90 ? 'high' : 'medium',
       };
   }
@@ -402,8 +417,8 @@ export function applyDecisionEffects(
     decision.id,
     'completed',
     disposition === 'automatic'
-      ? 'Completed by autonomous control layer'
-      : 'Completed after control confirmation'
+      ? translate(msg, 'completedAutomatic')
+      : translate(msg, 'completedConfirmed')
   );
 }
 
@@ -428,7 +443,10 @@ function recordDecisionOutcome(decision: AIDecision, success: boolean): void {
   typeStats.successRate = Math.round(rate * 100);
   if (
     success &&
-    /shutdown|safe state|derate|maintenance/i.test(`${decision.action} ${decision.impact}`)
+    // pt-BR words match the same engine decisions as the English ones (aiEngine.messages.ts).
+    /shutdown|safe state|derate|maintenance|desligamento|estado seguro|manutenção/i.test(
+      `${decision.action} ${decision.impact}`
+    )
   ) {
     impactStats.preventedShutdowns += 1;
     impactStats.estimatedSavings += 2500;
@@ -519,7 +537,7 @@ export function shouldTriggerAudioCue(decision: AIDecision): boolean {
   return (
     decision.priority === 'critical' ||
     (decision.priority === 'high' && decision.type === 'safety') ||
-    (decision.type === 'prediction' && /anomaly/i.test(decision.action))
+    (decision.type === 'prediction' && /anomaly|anomalia/i.test(decision.action))
   );
 }
 
@@ -688,7 +706,7 @@ function parseStrategicResponse(response: string): {
     const actionPlan = clipList(parsed.actionPlan);
     return {
       priorities,
-      reasoning: clip(parsed.reasoning) ?? 'Strategic analysis complete.',
+      reasoning: clip(parsed.reasoning) ?? translate(msg, 'strategicReasoningFallback'),
       insight: clip(parsed.insight),
       tradeoff: clip(parsed.tradeoff),
       focusMachine: clip(parsed.focusMachine),
@@ -761,15 +779,17 @@ async function runStrategicDecision(
       id: makeId('strategic'),
       timestamp: new Date(),
       type: 'optimization',
-      action: `Strategic: ${strategic.priorities[0]}`,
+      action: translate(msg, 'strategicAction', { priority: strategic.priorities[0] }),
       reasoning: [strategic.reasoning, strategic.insight, strategic.tradeoff]
         .filter(Boolean)
         .join(' '),
       confidence: 85,
       impact:
         strategic.priorities.length > 1
-          ? `Additional priorities: ${strategic.priorities.slice(1).join('; ')}`
-          : 'Strategic guidance recorded for the tactical controller.',
+          ? translate(msg, 'strategicAdditionalPriorities', {
+              priorities: strategic.priorities.slice(1).join('; '),
+            })
+          : translate(msg, 'strategicRecorded'),
       machineId: focusMachine,
       status: 'completed',
       priority: 'medium',
@@ -797,7 +817,9 @@ async function runStrategicDecision(
     }
     if (requestBackend === 'chatgpt') {
       const current = useAIConfigStore.getState();
-      current.setChatGPTError(error instanceof Error ? error.message : 'ChatGPT request failed.');
+      current.setChatGPTError(
+        error instanceof Error ? error.message : translate(msg, 'chatgptRequestFailed')
+      );
       if (!chatgptClient.isConnected()) void current.refreshChatGPT();
     }
     logger.ai.error('Strategic decision generation failed', error);

@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { safeJSONStorage } from './storage';
+import { translate } from '../i18n';
+import { safetyStoreMessages as msg } from './safetyStore.messages';
 
 interface IncidentHeatMapIndex {
   incidentHeatMapIndex: Map<string, { x: number; z: number; intensity: number; type: string }>;
@@ -25,6 +27,22 @@ function findNearbyIncidentKey(
 
 function getGridKey(x: number, z: number, threshold: number): string {
   return `${Math.round(x / threshold)}_${Math.round(z / threshold)}`;
+}
+
+/**
+ * The six default speed zones. Names are user-editable data persisted with the
+ * zones, so they are produced in the language active when the defaults are
+ * created (first load, or a rehydrate that found no zones).
+ */
+function defaultSpeedZones(): SafetyStore['speedZones'] {
+  return [
+    { id: 'zone-1', x: 0, z: 0, radius: 5, name: translate(msg, 'zoneCentralArea') },
+    { id: 'zone-2', x: 0, z: 28, radius: 4, name: translate(msg, 'zoneNorthLoading') },
+    { id: 'zone-3', x: 0, z: -28, radius: 4, name: translate(msg, 'zoneSouthLoading') },
+    { id: 'zone-4', x: -28, z: 0, radius: 3, name: translate(msg, 'zoneWestCorridor') },
+    { id: 'zone-5', x: 28, z: 0, radius: 3, name: translate(msg, 'zoneEastCorridor') },
+    { id: 'zone-6', x: 0, z: 18, radius: 4, name: translate(msg, 'zonePackingZone') },
+  ];
 }
 
 export interface SafetyMetrics {
@@ -322,14 +340,7 @@ export const useSafetyStore = create<SafetyStore>()(
         })),
 
       // Speed zones updated to match new forklift perimeter paths
-      speedZones: [
-        { id: 'zone-1', x: 0, z: 0, radius: 5, name: 'Central Area' },
-        { id: 'zone-2', x: 0, z: 28, radius: 4, name: 'North Loading' },
-        { id: 'zone-3', x: 0, z: -28, radius: 4, name: 'South Loading' },
-        { id: 'zone-4', x: -28, z: 0, radius: 3, name: 'West Corridor' },
-        { id: 'zone-5', x: 28, z: 0, radius: 3, name: 'East Corridor' },
-        { id: 'zone-6', x: 0, z: 18, radius: 4, name: 'Packing Zone' },
-      ],
+      speedZones: defaultSpeedZones(),
       addSpeedZone: (zone) =>
         set((state) => {
           const baseId = `zone-${Date.now()}`;
@@ -411,14 +422,7 @@ export const useSafetyStore = create<SafetyStore>()(
         // Validate arrays exist (a persisted null is falsy, so test the shape
         // directly rather than truthiness).
         if (state && !Array.isArray(state.speedZones)) {
-          state.speedZones = [
-            { id: 'zone-1', x: 0, z: 0, radius: 5, name: 'Central Area' },
-            { id: 'zone-2', x: 0, z: 28, radius: 4, name: 'North Loading' },
-            { id: 'zone-3', x: 0, z: -28, radius: 4, name: 'South Loading' },
-            { id: 'zone-4', x: -28, z: 0, radius: 3, name: 'West Corridor' },
-            { id: 'zone-5', x: 28, z: 0, radius: 3, name: 'East Corridor' },
-            { id: 'zone-6', x: 0, z: 18, radius: 4, name: 'Packing Zone' },
-          ];
+          state.speedZones = defaultSpeedZones();
         }
       },
     }

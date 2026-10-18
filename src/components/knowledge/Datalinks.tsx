@@ -51,6 +51,8 @@ import {
 } from '../../stores/knowledgeStore';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
+import { formatFixed, useT } from '../../i18n';
+import { datalinksMessages } from './Datalinks.messages';
 
 // Icon mapping from KnowledgeIcon to Lucide component
 const ICON_MAP: Record<KnowledgeIcon, LucideIcon> = {
@@ -92,6 +94,7 @@ interface DatalinksProps {
 }
 
 export function Datalinks({ isOpen, onClose }: DatalinksProps) {
+  const t = useT(datalinksMessages);
   const reducedMotion = useReducedMotion();
   const [audience, setAudience] = useState<'player' | 'developer'>('player');
   const [searchQuery, setSearchQuery] = useState('');
@@ -191,6 +194,7 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
   };
 
   const categories: KnowledgeCategory[] = ['principles', 'pioneers', 'systems', 'case-studies'];
+  const audienceEntryCount = getKnowledgeEntries(audience).length;
 
   return (
     <AnimatePresence>
@@ -228,19 +232,22 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
                     id="datalinks-title"
                     className="text-xl font-semibold text-white tracking-wide"
                   >
-                    DATALINKS
+                    {t('title')}
                   </h2>
                   <p className="text-[10px] text-slate-300 uppercase tracking-widest">
-                    Mill field guide
+                    {t('subtitle')}
                   </p>
                 </div>
                 <span className="hidden shrink-0 px-2 py-0.5 text-xs bg-slate-700 rounded-full text-slate-300 sm:inline">
-                  {getKnowledgeEntries(audience).length} entries
+                  {t('entryCount', {
+                    count: formatFixed(audienceEntryCount, 0),
+                    n: audienceEntryCount,
+                  })}
                 </span>
               </div>
               <button
                 onClick={onClose}
-                aria-label="Close"
+                aria-label={t('close')}
                 className="shrink-0 p-3 rounded-lg hover:bg-slate-700 transition-colors"
               >
                 <X className="w-5 h-5 text-slate-400" />
@@ -248,7 +255,7 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
             </div>
 
             <div
-              aria-label="Guide section"
+              aria-label={t('guideSection')}
               className="flex shrink-0 flex-wrap gap-2 border-b border-slate-700 px-3 py-2 sm:px-4"
             >
               {(['player', 'developer'] as const).map((section) => (
@@ -263,7 +270,7 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
                     setSelectedCategory('all');
                   }}
                 >
-                  {section === 'player' ? 'Operating guide' : 'Developer reference'}
+                  {section === 'player' ? t('operatingGuide') : t('developerReference')}
                 </button>
               ))}
             </div>
@@ -283,8 +290,8 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
                     <input
                       ref={searchInputRef}
                       type="text"
-                      placeholder="Search..."
-                      aria-label="Search knowledge entries"
+                      placeholder={t('searchPlaceholder')}
+                      aria-label={t('searchLabel')}
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-600 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:border-slate-400"
@@ -303,7 +310,7 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
                         : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
                     }`}
                   >
-                    All
+                    {t('all')}
                   </button>
                   {categories.map((cat) => (
                     <button
@@ -380,7 +387,7 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
                                       </span>
                                       {isNewEntry && (
                                         <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-white/20 text-white rounded">
-                                          NEW
+                                          {t('newBadge')}
                                         </span>
                                       )}
                                     </div>
@@ -399,15 +406,15 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
                       <Search className="w-10 h-10 text-slate-700 mb-4" />
                       <p className="text-sm text-slate-400 mb-1">
                         {searchQuery
-                          ? `No entries match "${searchQuery}"`
-                          : 'No entries in this category'}
+                          ? t('noMatch', { query: searchQuery })
+                          : t('noEntriesInCategory')}
                       </p>
                       {searchQuery && (
                         <button
                           onClick={() => setSearchQuery('')}
                           className="mt-3 px-3 py-1 text-xs rounded-full bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors"
                         >
-                          Clear search
+                          {t('clearSearch')}
                         </button>
                       )}
                     </div>
@@ -438,19 +445,15 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
                   <div className="h-full flex flex-col items-center justify-center text-center p-8">
                     <Database className="w-16 h-16 text-slate-700 mb-6" />
                     <h3 className="text-lg font-medium text-slate-300 mb-3 tracking-wide">
-                      WELCOME TO THE DATALINKS
+                      {t('welcome')}
                     </h3>
                     <p className="text-sm text-slate-400 max-w-md mb-4 italic">
-                      "Alignment isn't something you do TO AI. It's something you build WITH AI."
+                      {t('welcomeQuote')}
                     </p>
-                    <p className="text-xs text-slate-500 mb-6">— Bilateral Alignment</p>
-                    <p className="text-sm text-slate-500 max-w-md">
-                      Field notes on how this mill thinks: where every kilo came from, why an alarm
-                      fired, how a repair earns its restart, and the evidence behind each autonomous
-                      decision.
-                    </p>
+                    <p className="text-xs text-slate-500 mb-6">{t('welcomeQuoteSource')}</p>
+                    <p className="text-sm text-slate-500 max-w-md">{t('welcomeBody')}</p>
                     <p className="text-xs text-slate-400 mt-6 uppercase tracking-wider">
-                      Select an entry to begin
+                      {t('selectEntry')}
                     </p>
                   </div>
                 )}

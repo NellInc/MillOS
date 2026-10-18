@@ -24,6 +24,8 @@ import {
 } from './simulation/vehicles/vehicleTelemetryRegistry';
 import type { MachineData } from './types';
 import type { Alarm } from './scada/types';
+import { formatFixed, translate } from './i18n';
+import { storeMessages as msg } from './store.messages';
 
 // Re-export everything from the new stores
 export {
@@ -70,20 +72,38 @@ const MACHINE_SYNC_DEBOUNCE_MS = 200;
  * says 'at or' because AlarmManager trips on >= and <=.
  */
 export function formatAlarmMessage(alarm: Alarm): string {
-  if (alarm.type === 'BAD_QUALITY') return `${alarm.tagName}: source signal quality is BAD`;
+  if (alarm.type === 'BAD_QUALITY')
+    return translate(msg, 'alarmBadQuality', { tag: alarm.tagName });
   const isLow = alarm.type === 'LO' || alarm.type === 'LOLO';
   const dataType = getTagById(alarm.tagId)?.dataType;
   if (dataType === 'BOOL') {
     const on = alarm.value >= 0.5;
-    return `${alarm.tagName}: ${on ? 'on' : 'off'}, expected ${isLow ? 'on' : 'off'}`;
+    return translate(msg, 'alarmBool', {
+      tag: alarm.tagName,
+      state: translate(msg, on ? 'alarmOn' : 'alarmOff'),
+      expected: translate(msg, isLow ? 'alarmOn' : 'alarmOff'),
+    });
   }
   const isInteger = dataType === 'INT16' || dataType === 'INT32';
   const format = (n: number): string =>
-    isInteger && Number.isInteger(n) ? String(n) : n.toFixed(1);
-  const value = isInteger ? String(Math.round(alarm.value)) : alarm.value.toFixed(1);
+    isInteger && Number.isInteger(n) ? formatFixed(n, 0) : formatFixed(n, 1);
+  const value = isInteger ? formatFixed(Math.round(alarm.value), 0) : formatFixed(alarm.value, 1);
   const unit = alarm.unit ? ` ${alarm.unit}` : '';
-  const direction = isLow ? 'at or below' : 'at or above';
-  return `${alarm.tagName}: ${value}${unit}, ${direction} the ${format(alarm.threshold)}${unit} limit`;
+  const direction = translate(msg, isLow ? 'alarmAtOrBelow' : 'alarmAtOrAbove');
+  return translate(msg, 'alarmThreshold', {
+    tag: alarm.tagName,
+    value,
+    unit,
+    direction,
+    threshold: format(alarm.threshold),
+  });
+}
+
+/** HI/HIHI/LO/LOLO stay SCADA codes; the two worded types translate. */
+function scadaAlarmTypeLabel(type: Alarm['type']): string {
+  if (type === 'BAD_QUALITY') return translate(msg, 'alarmTypeBadQuality');
+  if (type === 'RATE_OF_CHANGE') return translate(msg, 'alarmTypeRateOfChange');
+  return type.replaceAll('_', ' ');
 }
 
 /** One alert per alarm occurrence: occurrenceCount rises only when the condition re-enters. */
@@ -423,7 +443,7 @@ export function initializeSCADASync(): () => void {
             uiStore.addAlert({
               id: `scada-${alarm.id}`,
               type: alarm.priority === 'CRITICAL' ? 'critical' : 'warning',
-              title: `SCADA: ${alarm.type.replaceAll('_', ' ')}`,
+              title: translate(msg, 'scadaAlertTitle', { type: scadaAlarmTypeLabel(alarm.type) }),
               message: formatAlarmMessage(alarm),
               timestamp: new Date(alarm.lastOccurrenceAt ?? alarm.timestamp),
               machineId: alarm.machineId,

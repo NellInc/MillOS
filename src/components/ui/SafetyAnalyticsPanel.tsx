@@ -3,10 +3,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { TrendingUp, ChevronDown, ChevronUp, Truck, FileText, Download } from 'lucide-react';
 import { useSafetyStore } from '../../stores/safetyStore';
 import { useUIStore } from '../../stores/uiStore';
+import { formatFixed, useT } from '../../i18n';
+import { safetyAnalyticsPanelMessages } from './SafetyAnalyticsPanel.messages';
 
 // The expanded body owns the metric subscriptions, so a collapsed panel does not
 // re-render every time the forklift metrics or incident log change.
 const SafetyAnalyticsBody: React.FC<{ theme: 'dark' | 'light' }> = ({ theme }) => {
+  const t = useT(safetyAnalyticsPanelMessages);
   // Two-step inline confirmation for destructive, irreversible data wipes.
   const [confirmClearHeatMap, setConfirmClearHeatMap] = useState(false);
   const [confirmResetMetrics, setConfirmResetMetrics] = useState(false);
@@ -124,22 +127,22 @@ const SafetyAnalyticsBody: React.FC<{ theme: 'dark' | 'light' }> = ({ theme }) =
           <div
             className={`text-[10px] uppercase tracking-wider ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}
           >
-            Last Hour
+            {t('lastHour')}
           </div>
           <div className="text-xl font-bold text-cyan-500">{lastHourIncidents.length}</div>
           <div className={`text-[9px] ${theme === 'light' ? 'text-slate-400' : 'text-slate-500'}`}>
-            incidents
+            {t('incidents')}
           </div>
         </div>
         <div className={`rounded-lg p-2 ${theme === 'light' ? 'bg-slate-100' : 'bg-slate-800/50'}`}>
           <div
             className={`text-[10px] uppercase tracking-wider ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}
           >
-            This Session
+            {t('thisSession')}
           </div>
           <div className="text-xl font-bold text-blue-500">{safetyIncidents.length}</div>
           <div className={`text-[9px] ${theme === 'light' ? 'text-slate-400' : 'text-slate-500'}`}>
-            incidents
+            {t('incidents')}
           </div>
         </div>
       </div>
@@ -151,17 +154,17 @@ const SafetyAnalyticsBody: React.FC<{ theme: 'dark' | 'light' }> = ({ theme }) =
             <div
               className={`text-[10px] uppercase tracking-wider ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}
             >
-              Incident Heat Map
+              {t('heatMap')}
             </div>
             <p className={`text-[9px] ${theme === 'light' ? 'text-slate-400' : 'text-slate-500'}`}>
-              {incidentHeatMap.length} hotspots recorded
+              {t('hotspotsRecorded', { count: formatFixed(incidentHeatMap.length, 0) })}
             </p>
           </div>
           <div className="flex gap-1">
             <button
               onClick={() => setShowIncidentHeatMap(!showIncidentHeatMap)}
               aria-pressed={showIncidentHeatMap}
-              aria-label="Show incident heat map"
+              aria-label={t('showHeatMap')}
               className={`py-1 px-3 rounded text-[10px] font-medium transition-all ${
                 showIncidentHeatMap
                   ? 'bg-red-600 text-white'
@@ -170,20 +173,12 @@ const SafetyAnalyticsBody: React.FC<{ theme: 'dark' | 'light' }> = ({ theme }) =
                     : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
               }`}
             >
-              {showIncidentHeatMap ? 'ON' : 'OFF'}
+              {showIncidentHeatMap ? t('on') : t('off')}
             </button>
             <button
               onClick={handleClearHeatMap}
-              aria-label={
-                confirmClearHeatMap
-                  ? 'Confirm clearing incident heat map (irreversible)'
-                  : 'Clear incident heat map'
-              }
-              title={
-                confirmClearHeatMap
-                  ? 'Click again to permanently clear all hotspot data'
-                  : 'Permanently clear all recorded hotspots'
-              }
+              aria-label={confirmClearHeatMap ? t('confirmClearLabel') : t('clearLabel')}
+              title={confirmClearHeatMap ? t('confirmClearTitle') : t('clearTitle')}
               className={`py-1 px-2 rounded text-[10px] font-medium ${
                 confirmClearHeatMap
                   ? 'bg-red-600 text-white hover:bg-red-500'
@@ -192,7 +187,7 @@ const SafetyAnalyticsBody: React.FC<{ theme: 'dark' | 'light' }> = ({ theme }) =
                     : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
               }`}
             >
-              {confirmClearHeatMap ? 'Confirm?' : 'Clear'}
+              {confirmClearHeatMap ? t('confirm') : t('clear')}
             </button>
           </div>
         </div>
@@ -206,21 +201,13 @@ const SafetyAnalyticsBody: React.FC<{ theme: 'dark' | 'light' }> = ({ theme }) =
             <span
               className={`text-[10px] uppercase tracking-wider ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}
             >
-              Forklift Efficiency
+              {t('forkliftEfficiency')}
             </span>
           </div>
           <button
             onClick={handleResetMetrics}
-            aria-label={
-              confirmResetMetrics
-                ? 'Confirm resetting forklift efficiency metrics (irreversible)'
-                : 'Reset forklift efficiency metrics'
-            }
-            title={
-              confirmResetMetrics
-                ? 'Click again to permanently reset all forklift metrics'
-                : 'Permanently reset all forklift efficiency metrics'
-            }
+            aria-label={confirmResetMetrics ? t('confirmResetLabel') : t('resetLabel')}
+            title={confirmResetMetrics ? t('confirmResetTitle') : t('resetTitle')}
             className={`text-[9px] font-medium transition-colors ${
               confirmResetMetrics
                 ? 'text-red-500'
@@ -229,14 +216,14 @@ const SafetyAnalyticsBody: React.FC<{ theme: 'dark' | 'light' }> = ({ theme }) =
                   : 'text-slate-500 hover:text-red-400'
             }`}
           >
-            {confirmResetMetrics ? 'Confirm?' : 'Reset'}
+            {confirmResetMetrics ? t('confirm') : t('reset')}
           </button>
         </div>
         {efficiencyData.length === 0 ? (
           <div
             className={`text-[10px] text-center py-2 ${theme === 'light' ? 'text-slate-400' : 'text-slate-500'}`}
           >
-            Waiting for data
+            {t('waitingForData')}
           </div>
         ) : (
           <div className="space-y-1.5">
@@ -244,7 +231,7 @@ const SafetyAnalyticsBody: React.FC<{ theme: 'dark' | 'light' }> = ({ theme }) =
               <div key={id} className="space-y-0.5">
                 <div className="flex items-center justify-between text-[10px]">
                   <span className={theme === 'light' ? 'text-slate-500' : 'text-slate-400'}>
-                    {id.replace('forklift-', 'Forklift ')}
+                    {t('forkliftName', { id })}
                   </span>
                   <span
                     className={`font-bold ${
@@ -255,7 +242,7 @@ const SafetyAnalyticsBody: React.FC<{ theme: 'dark' | 'light' }> = ({ theme }) =
                           : 'text-red-500'
                     }`}
                   >
-                    {efficiency.toFixed(1)}%
+                    {formatFixed(efficiency, 1)}%
                   </span>
                 </div>
                 <div
@@ -275,8 +262,8 @@ const SafetyAnalyticsBody: React.FC<{ theme: 'dark' | 'light' }> = ({ theme }) =
                 <div
                   className={`flex justify-between text-[8px] ${theme === 'light' ? 'text-slate-400' : 'text-slate-500'}`}
                 >
-                  <span>Moving: {movingTime.toFixed(0)}s</span>
-                  <span>Stopped: {stoppedTime.toFixed(0)}s</span>
+                  <span>{t('moving', { seconds: formatFixed(movingTime, 0) })}</span>
+                  <span>{t('stopped', { seconds: formatFixed(stoppedTime, 0) })}</span>
                 </div>
               </div>
             ))}
@@ -290,7 +277,7 @@ const SafetyAnalyticsBody: React.FC<{ theme: 'dark' | 'light' }> = ({ theme }) =
         className="w-full py-2 rounded-lg font-medium text-xs bg-gradient-to-r from-cyan-600 to-blue-600 text-white hover:from-cyan-500 hover:to-blue-500 transition-all flex items-center justify-center gap-2"
       >
         <FileText className="w-4 h-4" />
-        Download Safety Report
+        {t('downloadReport')}
         <Download className="w-3.5 h-3.5" />
       </button>
     </>
@@ -300,6 +287,7 @@ const SafetyAnalyticsBody: React.FC<{ theme: 'dark' | 'light' }> = ({ theme }) =
 export const SafetyAnalyticsPanel: React.FC = () => {
   const [expanded, setExpanded] = useState(false);
   const theme = useUIStore((state) => state.theme);
+  const t = useT(safetyAnalyticsPanelMessages);
 
   return (
     <div
@@ -317,7 +305,7 @@ export const SafetyAnalyticsPanel: React.FC = () => {
       >
         <span className="flex items-center gap-2">
           <TrendingUp className="w-4 h-4 text-cyan-500" aria-hidden="true" />
-          Safety Analytics
+          {t('title')}
         </span>
         {expanded ? (
           <ChevronUp className="w-4 h-4" aria-hidden="true" />

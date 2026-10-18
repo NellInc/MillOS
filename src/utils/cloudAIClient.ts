@@ -1,5 +1,7 @@
 /** Browser BYOK transport. Keys remain in this module's memory, never in Zustand persistence. */
 import { spendBudget, type SpendBudget } from './spendBudget';
+import { formatFixed, translate } from '../i18n';
+import { cloudAIClientMessages as messages } from './cloudAIClient.messages';
 
 export type CloudBackend = 'haiku' | 'luna' | 'openrouter-haiku' | 'openrouter-luna';
 
@@ -41,31 +43,28 @@ function isOpenRouterBackend(backend: CloudBackend): boolean {
 
 function assertPublicProviderBoundary(backend: CloudBackend): void {
   if (!isOpenRouterBackend(backend) && !isLocalCompanionHost()) {
-    throw new Error(
-      'Direct provider keys are available only on localhost. Use OpenRouter on the public site.'
-    );
+    throw new Error(translate(messages, 'directKeysLocalOnly'));
   }
 }
 
 function tokenCount(value: unknown): number {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
-    throw new Error('Provider omitted usage data; check charges in your provider account.');
+    throw new Error(translate(messages, 'usageMissing'));
   }
   return value;
 }
 
 function errorForStatus(status: number): Error {
-  if (status === 401 || status === 403)
-    return new Error('API key or model access was rejected. Check your provider account.');
-  if (status === 402) return new Error('Provider credit or spending limit reached.');
-  if (status === 429) return new Error('Provider rate limit reached. Try again later.');
-  return new Error(`Provider request failed (HTTP ${status}).`);
+  if (status === 401 || status === 403) return new Error(translate(messages, 'keyRejected'));
+  if (status === 402) return new Error(translate(messages, 'creditLimit'));
+  if (status === 429) return new Error(translate(messages, 'rateLimit'));
+  return new Error(translate(messages, 'requestFailed', { status: formatFixed(status, 0) }));
 }
 
 function textFromResponse(backend: CloudBackend, record: Record<string, unknown>): string {
   if (backend === 'haiku') {
     if (record.stop_reason !== 'end_turn' || !Array.isArray(record.content))
-      throw new Error('Haiku did not complete a text response. Try again.');
+      throw new Error(translate(messages, 'haikuIncomplete'));
     return record.content
       .filter(
         (block): block is { type: string; text: string } =>
@@ -79,7 +78,7 @@ function textFromResponse(backend: CloudBackend, record: Record<string, unknown>
   }
   if (backend === 'luna') {
     if (record.status !== 'completed' || !Array.isArray(record.output))
-      throw new Error('Luna did not complete a text response. Try again.');
+      throw new Error(translate(messages, 'lunaIncomplete'));
     return record.output
       .filter(
         (item): item is { type: string; content: unknown[] } =>
@@ -101,8 +100,7 @@ function textFromResponse(backend: CloudBackend, record: Record<string, unknown>
   }
   const choices = Array.isArray(record.choices) ? record.choices : [];
   const first = choices[0] as Record<string, unknown> | undefined;
-  if (first?.finish_reason !== 'stop')
-    throw new Error('OpenRouter did not complete a text response. Try again.');
+  if (first?.finish_reason !== 'stop') throw new Error(translate(messages, 'openRouterIncomplete'));
   const message = first.message as Record<string, unknown> | undefined;
   return typeof message?.content === 'string' ? message.content : '';
 }
@@ -122,7 +120,7 @@ export class CloudAIClient {
   setKey(backend: CloudBackend, key: string): void {
     assertPublicProviderBoundary(backend);
     const trimmed = key.trim();
-    if (!trimmed) throw new Error('Enter an API key.');
+    if (!trimmed) throw new Error(translate(messages, 'enterKey'));
     this.invalidate();
     this.keys[backend] = trimmed;
     if (isOpenRouterBackend(backend)) this.openRouterBillingUnknown = false;
@@ -155,7 +153,7 @@ export class CloudAIClient {
   async generateContent(backend: CloudBackend, prompt: string): Promise<CloudResult> {
     assertPublicProviderBoundary(backend);
     const key = this.keys[backend];
-    if (!key) throw new Error('Connect an API key for the selected model.');
+    if (!key) throw new Error(translate(messages, 'connectKey'));
     if (!isOpenRouterBackend(backend)) return this.request(backend, key, prompt, 4096);
 
     // Match CABAL's one-paid-call-at-a-time browser session. The key limit can
@@ -169,14 +167,11 @@ export class CloudAIClient {
     await prior;
     try {
       if (epoch !== this.epoch || this.keys[backend] !== key)
-        throw new Error('Request cancelled after configuration changed.');
-      if (this.openRouterBillingUnknown)
-        throw new Error(
-          'OpenRouter billing is unverified. Check charges and reconnect a limited key.'
-        );
+        throw new Error(translate(messages, 'cancelledAfterChange'));
+      if (this.openRouterBillingUnknown) throw new Error(translate(messages, 'billingUnverified'));
       await this.verifyOpenRouterKey(key);
       if (epoch !== this.epoch || this.keys[backend] !== key)
-        throw new Error('Request cancelled after configuration changed.');
+        throw new Error(translate(messages, 'cancelledAfterChange'));
       return await this.request(backend, key, prompt, 4096);
     } finally {
       release();
@@ -185,9 +180,9 @@ export class CloudAIClient {
 
   private async verifyOpenRouterKey(key: string): Promise<void> {
     if (!key || key.length > 512 || /\s/.test(key))
-      throw new Error('Enter a valid OpenRouter API key.');
+      throw new Error(translate(messages, 'invalidOpenRouterKey'));
     if (this.budget.getSnapshot().capUsd === null)
-      throw new Error('Set a session cost cap before connecting OpenRouter.');
+      throw new Error(translate(messages, 'capRequired'));
     let response: Response;
     try {
       response = await fetch(OPENROUTER_KEY_URL, {
@@ -199,21 +194,21 @@ export class CloudAIClient {
         redirect: 'error',
       });
     } catch {
-      throw new Error(
-        'Cannot verify the OpenRouter key limit. Check your network or browser privacy settings.'
-      );
+      throw new Error(translate(messages, 'cannotVerifyLimit'));
     }
     if (!response.ok)
-      throw new Error(`OpenRouter could not verify the key limit (HTTP ${response.status}).`);
+      throw new Error(
+        translate(messages, 'limitHttpError', { status: formatFixed(response.status, 0) })
+      );
     let payload: unknown;
     try {
       payload = await response.json();
     } catch {
-      throw new Error('OpenRouter returned no verifiable key limit.');
+      throw new Error(translate(messages, 'noVerifiableLimit'));
     }
     const data = payload && typeof payload === 'object' && 'data' in payload ? payload.data : null;
     if (!data || typeof data !== 'object')
-      throw new Error('OpenRouter returned no verifiable key limit.');
+      throw new Error(translate(messages, 'noVerifiableLimit'));
     const details = data as Record<string, unknown>;
     if (
       typeof details.limit !== 'number' ||
@@ -226,9 +221,7 @@ export class CloudAIClient {
       details.include_byok_in_limit !== true ||
       details.is_management_key === true
     )
-      throw new Error(
-        'Use a lifetime spend-limited OpenRouter inference key with BYOK usage included in its limit.'
-      );
+      throw new Error(translate(messages, 'limitedKeyRequired'));
   }
 
   private async request(
@@ -237,9 +230,9 @@ export class CloudAIClient {
     prompt: string,
     maxTokens: number
   ): Promise<CloudResult> {
-    if (!key) throw new Error('Enter an API key.');
-    if (!prompt.trim()) throw new Error('The request is empty.');
-    if (prompt.length > MAX_PROMPT_CHARS) throw new Error('The plant context is too large.');
+    if (!key) throw new Error(translate(messages, 'enterKey'));
+    if (!prompt.trim()) throw new Error(translate(messages, 'emptyRequest'));
+    if (prompt.length > MAX_PROMPT_CHARS) throw new Error(translate(messages, 'contextTooLarge'));
 
     const reservation = this.budget.reserve(prompt, maxTokens);
     const epoch = this.epoch;
@@ -316,7 +309,7 @@ export class CloudAIClient {
       }
       const data: unknown = await response.json();
       if (!data || typeof data !== 'object')
-        throw new Error('Provider returned an invalid response.');
+        throw new Error(translate(messages, 'invalidResponse'));
       const record = data as Record<string, unknown>;
       const usage =
         record.usage && typeof record.usage === 'object'
@@ -341,9 +334,7 @@ export class CloudAIClient {
           usage.cost < 0 ||
           !upstreamValid)
       )
-        throw new Error(
-          'OpenRouter did not report a verifiable USD charge. Paid inference stopped.'
-        );
+        throw new Error(translate(messages, 'unverifiableCharge'));
       const openRouterCost = isOpenRouter
         ? (usage.cost as number) + (typeof upstreamCost === 'number' ? upstreamCost : 0)
         : undefined;
@@ -354,9 +345,9 @@ export class CloudAIClient {
       });
       billingUnverified = false;
       if (epoch !== this.epoch || controller.signal.aborted)
-        throw new Error('Request cancelled after configuration changed.');
+        throw new Error(translate(messages, 'cancelledAfterChange'));
       const text = textFromResponse(backend, record);
-      if (!text.trim()) throw new Error('Provider returned no text. Try again.');
+      if (!text.trim()) throw new Error(translate(messages, 'noText'));
       return { text, inputTokens, outputTokens };
     } catch (error) {
       if (billingUnverified) {
@@ -364,11 +355,8 @@ export class CloudAIClient {
         if (isOpenRouter) this.openRouterBillingUnknown = true;
       }
       if (controller.signal.aborted && epoch === this.epoch)
-        throw new Error('Provider request timed out. Check charges before retrying.');
-      if (error instanceof TypeError)
-        throw new Error(
-          'Cannot reach the provider. Check your network or browser privacy settings.'
-        );
+        throw new Error(translate(messages, 'timedOut'));
+      if (error instanceof TypeError) throw new Error(translate(messages, 'unreachable'));
       throw error;
     } finally {
       clearTimeout(timeout);

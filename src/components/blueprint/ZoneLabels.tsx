@@ -10,6 +10,8 @@ import { SceneText as Text } from '../shared/SceneText';
 import * as THREE from 'three';
 import { PALETTE } from '../../utils/digitalTwinPalette';
 import { FACTORY_ZONE_Z } from '../../constants/factoryLayout';
+import { useT } from '../../i18n';
+import { zoneLabelsMessages } from './ZoneLabels.messages';
 
 interface ZoneLabelProps {
   label: string;
@@ -90,35 +92,37 @@ interface ZoneLabelsProps {
   transition: number;
 }
 
-// Zone configurations with positions and colors
+// Zone configurations with positions and colors. Labels are message keys,
+// resolved at render so the blueprint follows the active language.
 const ZONES = [
   {
     id: 'silos',
-    label: 'ZONE 1: STORAGE',
+    labelKey: 'storage',
     position: [0, 20, FACTORY_ZONE_Z.silos] as [number, number, number],
     color: PALETTE.zones.silos,
   },
   {
     id: 'milling',
-    label: 'ZONE 2: MILLING',
+    labelKey: 'milling',
     position: [0, 14, FACTORY_ZONE_Z.milling] as [number, number, number],
     color: PALETTE.zones.milling,
   },
   {
     id: 'sifting',
-    label: 'ZONE 3: SIFTING',
+    labelKey: 'sifting',
     position: [0, 20, FACTORY_ZONE_Z.sifting] as [number, number, number],
     color: PALETTE.zones.sifting,
   },
   {
     id: 'packing',
-    label: 'ZONE 4: PACKING',
+    labelKey: 'packing',
     position: [0, 14, FACTORY_ZONE_Z.packing] as [number, number, number],
     color: PALETTE.zones.packing,
   },
-];
+] as const;
 
 export const ZoneLabels: React.FC<ZoneLabelsProps> = ({ transition }) => {
+  const t = useT(zoneLabelsMessages);
   if (transition < 0.01) return null;
 
   return (
@@ -126,7 +130,7 @@ export const ZoneLabels: React.FC<ZoneLabelsProps> = ({ transition }) => {
       {ZONES.map((zone) => (
         <ZoneLabel
           key={zone.id}
-          label={zone.label}
+          label={t(zone.labelKey)}
           position={zone.position}
           color={zone.color}
           transition={transition}

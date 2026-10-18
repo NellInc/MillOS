@@ -23,6 +23,8 @@ import {
   canonicalProcessMachines,
   resolveMaterialTransport,
 } from '../simulation/materialTransport';
+import { translate } from '../i18n';
+import { materialFlowStoreMessages } from './materialFlowStore.messages';
 
 // =============================================================================
 // MATERIAL TYPES
@@ -582,7 +584,7 @@ function createInitialSourceLots(
             materialType: material.type,
             origin: 'opening_stock',
             sourceManifestId: null,
-            supplier: 'Opening inventory',
+            supplier: translate(materialFlowStoreMessages, 'openingInventory'),
             receivedKg: contribution.amount,
             simulationTime: 0,
             disposition: 'released',
@@ -937,7 +939,9 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
                 sourceContributions: [],
                 disposition,
                 dispositionReason:
-                  disposition === 'released' ? null : 'Inherited source-lot disposition',
+                  disposition === 'released'
+                    ? null
+                    : translate(materialFlowStoreMessages, 'inheritedDisposition'),
                 qcTestIds: [],
                 dispatchManifestIds: [],
                 sealed: false,
@@ -1431,7 +1435,9 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
           materialType: grainType,
           origin: 'receiving',
           sourceManifestId: manifestId,
-          supplier: details?.supplier?.trim() || 'Scheduled farm intake',
+          supplier:
+            details?.supplier?.trim() ||
+            translate(materialFlowStoreMessages, 'scheduledFarmIntake'),
           receivedKg: toAdd,
           simulationTime: state.simulationTime,
           disposition: 'released',
@@ -1504,7 +1510,7 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
               if (batch.availableKg <= GENEALOGY_EPSILON_KG) {
                 batch.availableKg = 0;
                 batch.disposition = 'shipped';
-                batch.dispositionReason = 'Fully dispatched';
+                batch.dispositionReason = translate(materialFlowStoreMessages, 'fullyDispatched');
               }
               materials.set(materialType, (materials.get(materialType) ?? 0) + toShip);
               shippedBatchContributions.push({ batchId: batch.id, amount: toShip });

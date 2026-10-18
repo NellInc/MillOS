@@ -11,6 +11,8 @@ import { useFocusTrap } from '../hooks/useFocusTrap';
 import ErrorBoundary from './ErrorBoundary';
 import { useGraphicsStore } from '../stores/graphicsStore';
 import { applySessionQuality } from '../utils/adaptiveQuality';
+import { useT } from '../i18n';
+import { loadingScreenMessages } from './LoadingScreen.messages';
 
 // Decorative DOM content must never invalidate the 3D preparation window.
 // Working if a delayed or failed quote leaves scene task/error counts unchanged.
@@ -29,6 +31,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
   minimumLoadTimeMs = 700,
   recoveryDelayMs = 30000,
 }) => {
+  const t = useT(loadingScreenMessages);
   const startup = useSyncExternalStore(subscribeStartup, getStartupSnapshot);
   const quality = useGraphicsStore((state) => state.graphics.quality);
   const [showLoading, setShowLoading] = useState(true);
@@ -80,10 +83,10 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
   const hasStartupError = startup.errors > 0;
   const recoveryVisible = showRecovery || hasStartupError;
   const progressText = startup.ready
-    ? 'Ready'
+    ? t('ready')
     : hasStartupError
-      ? 'Loading could not finish'
-      : 'Preparing the complete scene';
+      ? t('couldNotFinish')
+      : t('preparing');
 
   return (
     <>
@@ -92,7 +95,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
           ref={loadingRef}
           role="dialog"
           aria-modal="true"
-          aria-label="Loading MillOS"
+          aria-label={t('dialogLabel')}
           tabIndex={-1}
           className="fixed inset-0 z-[9999] flex flex-col items-center justify-center px-6"
           style={{
@@ -120,7 +123,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
               textAlign: 'center',
             }}
           >
-            WARMING UP THE ROLLERS
+            {t('heading')}
           </div>
 
           <div
@@ -151,7 +154,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
             presentational, which would hide the live text and recovery control. */}
           <div
             role="progressbar"
-            aria-label="Loading MillOS"
+            aria-label={t('progressLabel')}
             aria-valuenow={Math.round(safeProgress)}
             aria-valuemin={0}
             aria-valuemax={100}
@@ -181,10 +184,8 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
             !startup.ready &&
             (startup.prepared || hasStartupError || quality !== 'low') && (
               <div className="mt-6 flex max-w-md flex-col items-center gap-3 text-center text-sm text-slate-300">
-                {startup.prepared && (
-                  <p>The scene is loaded, but animation is still slow on this device.</p>
-                )}
-                {hasStartupError && <p>Some resources could not be loaded.</p>}
+                {startup.prepared && <p>{t('slowAnimation')}</p>}
+                {hasStartupError && <p>{t('resourcesFailed')}</p>}
                 {/* Reload is the explicit recovery control the focus trap waits for.
                   The service worker serves what already arrived, so it retries
                   only what failed. Working if every error state has a control. */}
@@ -194,7 +195,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
                     onClick={() => window.location.reload()}
                     className="min-h-11 rounded-md border border-slate-500 px-4 py-2 text-slate-100 transition-colors hover:border-amber-400 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400"
                   >
-                    Reload
+                    {t('reload')}
                   </button>
                 )}
                 {/* Lower graphics cannot clear an error, so it is offered only
@@ -208,7 +209,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
                     }}
                     className="min-h-11 rounded-md border border-slate-500 px-4 py-2 text-slate-100 transition-colors hover:border-amber-400 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400"
                   >
-                    Use low graphics
+                    {t('useLowGraphics')}
                   </button>
                 )}
                 {startup.prepared && startup.errors === 0 && (
@@ -217,7 +218,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
                     onClick={openPreparedStartup}
                     className="min-h-11 rounded-md border border-slate-500 px-4 py-2 text-slate-100 transition-colors hover:border-amber-400 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400"
                   >
-                    Open loaded scene (slow)
+                    {t('openLoadedScene')}
                   </button>
                 )}
               </div>

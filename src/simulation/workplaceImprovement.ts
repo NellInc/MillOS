@@ -6,15 +6,20 @@ import type {
   ImprovementEpisode,
 } from '../types/workplace';
 import { campaignTotals } from './workplaceCampaign';
+import { formatFixed, translate } from '../i18n';
+import { workplaceImprovementMessages as msg } from './workplaceImprovement.messages';
 
 /** Paid ordinary work only; no new individual duty, qualification or release authority. */
 export const HANDOFF_ARRANGEMENTS = [
   {
     id: 'briefing' as const,
     author: 'packing',
-    title: 'Packing proposes a paid handoff briefing',
-    detail:
-      'Pause line pacing for five paid minutes, then use a clearer handoff sequence. All work stays within current qualifications.',
+    get title() {
+      return translate(msg, 'briefingTitle');
+    },
+    get detail() {
+      return translate(msg, 'briefingDetail');
+    },
     cost: 8,
     capacity: 0.9,
     briefingMinutes: 5,
@@ -22,9 +27,12 @@ export const HANDOFF_ARRANGEMENTS = [
   {
     id: 'buffer' as const,
     author: 'maintenance',
-    title: 'Maintenance proposes a small packing buffer',
-    detail:
-      'Fund a reusable staging arrangement. Higher modeled line capacity costs more upfront; quality release and machine safety remain unchanged.',
+    get title() {
+      return translate(msg, 'bufferTitle');
+    },
+    get detail() {
+      return translate(msg, 'bufferDetail');
+    },
     cost: 32,
     capacity: 1.02,
     briefingMinutes: 0,
@@ -36,32 +44,66 @@ export const MAX_IMPROVEMENT_CYCLES = 8;
 export const HANDOFF_EPISODES = [
   {
     id: 'late-truck' as const,
-    title: 'The collection truck is late',
-    premise: 'Assume collection loses the first 45 minutes of this 90-minute window.',
-    recommendation:
-      'Recommend deferral if collection cannot be confirmed. Packed stock can wait; extra work cannot make a truck arrive.',
+    get title() {
+      return translate(msg, 'lateTruckTitle');
+    },
+    get premise() {
+      return translate(msg, 'lateTruckPremise');
+    },
+    get recommendation() {
+      return translate(msg, 'lateTruckRecommendation');
+    },
   },
   {
     id: 'quality-hold' as const,
-    title: 'Quality asks the line to wait',
-    premise: 'Assume the finished stock is held pending a qualified quality review.',
-    recommendation:
-      'Recommend a quality review or deferral. A deadline grants no release authority.',
+    get title() {
+      return translate(msg, 'qualityHoldTitle');
+    },
+    get premise() {
+      return translate(msg, 'qualityHoldPremise');
+    },
+    get recommendation() {
+      return translate(msg, 'qualityHoldRecommendation');
+    },
   },
   {
     id: 'tight-cash' as const,
-    title: 'The team has little cash to spare',
-    premise:
-      'Assume only 116 credits are available: 108 reserved for ordinary wages, 8 for an arrangement.',
-    recommendation:
-      'Recommend ordinary pacing or the 8-credit paid briefing. A new 32-credit buffer would invade the wage reserve.',
+    get title() {
+      return translate(msg, 'tightCashTitle');
+    },
+    get premise() {
+      return translate(msg, 'tightCashPremise');
+    },
+    get recommendation() {
+      return translate(msg, 'tightCashRecommendation');
+    },
   },
 ];
 export const HANDOFF_EPISODE_CHOICES = [
-  { id: 'ordinary' as const, label: 'Keep qualified ordinary work' },
-  { id: 'smaller-delivery' as const, label: 'Discuss a smaller delivery' },
-  { id: 'defer' as const, label: 'Defer this trial' },
-  { id: 'decline' as const, label: 'Decline extra duty' },
+  {
+    id: 'ordinary' as const,
+    get label() {
+      return translate(msg, 'choiceOrdinary');
+    },
+  },
+  {
+    id: 'smaller-delivery' as const,
+    get label() {
+      return translate(msg, 'choiceSmallerDelivery');
+    },
+  },
+  {
+    id: 'defer' as const,
+    get label() {
+      return translate(msg, 'choiceDefer');
+    },
+  },
+  {
+    id: 'decline' as const,
+    get label() {
+      return translate(msg, 'choiceDecline');
+    },
+  },
 ];
 
 /** Scenario choices retain public learning only, without changing physical or financial facts. */
@@ -83,23 +125,21 @@ export function validImprovementEpisode(input: unknown): ImprovementEpisode | un
 export function improvementEpisodeOutcome(s: WorkplaceState, releasedKg: number | null = null) {
   const e = s.improvement?.episode;
   if (!e?.choice) return null;
-  if (e.choice === 'decline')
-    return 'Extra duty is declined in this rehearsal. Ordinary pay and rest stay protected. No live role ballot or consent has been recorded.';
-  if (e.choice === 'defer')
-    return 'The rehearsal trial is deferred. No purchase is made. The customer commitment remains outstanding; a conversation does not renegotiate an order.';
-  if (e.id === 'quality-hold')
-    return 'Conditional departure is 0 kg while this assumed hold remains. Qualified review or a new collection window is needed; this choice cannot release a real batch.';
-  if (e.id === 'tight-cash')
-    return 'After the 108-credit wage reserve, 8 credits remain in this scenario. Ordinary pacing costs 0; a new paid briefing costs 8; a new buffer costs 32 and is unaffordable. Actual cash is unchanged.';
+  if (e.choice === 'decline') return translate(msg, 'outcomeDecline');
+  if (e.choice === 'defer') return translate(msg, 'outcomeDefer');
+  if (e.id === 'quality-hold') return translate(msg, 'outcomeQualityHold');
+  if (e.id === 'tight-cash') return translate(msg, 'outcomeTightCash');
   if (e.choice === 'smaller-delivery') {
     const remaining = s.improvement?.mission
       ? Math.max(0, s.improvement.mission.originalTargetKg - s.improvement.mission.creditedKg)
       : null;
     return remaining !== null && releasedKg !== null
-      ? `Discuss at most ${Math.min(remaining / 2, releasedKg).toFixed(0)} kg from known released stock, subject to collection and quality. The rest stays owed. No delivery or customer acceptance is assumed.`
-      : 'Discuss a smaller delivery once released stock and the remaining commitment are known. The customer must still accept any change; no credit is created.';
+      ? translate(msg, 'outcomeSmallerKnown', {
+          kg: formatFixed(Math.min(remaining / 2, releasedKg), 0),
+        })
+      : translate(msg, 'outcomeSmallerUnknown');
   }
-  return '45 minutes remain for collection in this scenario. Packing can continue within qualified ordinary work; departure remains unverified and rest is retained.';
+  return translate(msg, 'outcomeOrdinary');
 }
 
 /** A public account of conduct, never a numerical relationship or wellbeing score. */
@@ -220,16 +260,16 @@ export function improvementReviewWinner(s: WorkplaceState) {
 export function improvementObligations(s: WorkplaceState): string[] {
   const reasons: string[] = [];
   if (s.members.some((m) => m.recoveryOwedMinutes > 0))
-    reasons.push('Deliver owed recovery before continuing.');
+    reasons.push(translate(msg, 'obligationRecovery'));
   if (s.objections.some((o) => o.status === 'open'))
-    reasons.push('Each objection must be resolved by its original raiser.');
+    reasons.push(translate(msg, 'obligationObjections'));
   if (
     s.finance.wageReserve > 0 ||
     s.finance.compensationReserve > 0 ||
     s.activeCoverMemberId ||
     s.coverRemainingMinutes > 0
   )
-    reasons.push('Settle reserved pay and optional work first.');
+    reasons.push(translate(msg, 'obligationSettle'));
   return reasons;
 }
 export function improvementSummary(s: WorkplaceState) {
@@ -269,17 +309,17 @@ export function improvementSummary(s: WorkplaceState) {
     next:
       s.phase === 'deliberating'
         ? !i.proposalId
-          ? 'Choose a worker proposal.'
+          ? translate(msg, 'nextChooseProposal')
           : !i.acknowledged
-            ? 'Challenge the forecast or hear the adviser response.'
-            : 'Confirm each role’s understanding and current policy ballot in Fresh role decisions here in Handoff.'
+            ? translate(msg, 'nextChallenge')
+            : translate(msg, 'nextConfirm')
         : s.phase === 'active'
-          ? 'Watch the packing floor. Any role may stop the arrangement immediately.'
+          ? translate(msg, 'nextWatch')
           : !i.reviewAcknowledged
-            ? 'Hear the adviser compare its forecast with actual dispatch.'
+            ? translate(msg, 'nextHearComparison')
             : !i.verdict
-              ? 'Each member records adopt, amend or stop, then finalise the review.'
-              : 'Open the next shift with carried cash and a fresh agreement.',
+              ? translate(msg, 'nextVerdicts')
+              : translate(msg, 'nextOpenShift'),
   };
 }
 
@@ -293,18 +333,31 @@ export function improvementLearningReview(s: WorkplaceState) {
   const open = s.objections.filter((o) => o.status === 'open');
   const early = s.minute < 90;
   const evidence = [
-    `${early ? 'Ended after' : 'Completed'} ${s.minute.toFixed(1)} of 90 minutes. ${s.improvement.stopped ? 'The arrangement was stopped. Any remaining work uses ordinary pacing.' : 'The selected arrangement stayed available until this shift ended.'}`,
+    translate(msg, 'evidenceHorizon', {
+      prefix: translate(msg, early ? 'evidenceEndedAfter' : 'evidenceCompleted'),
+      minute: formatFixed(s.minute, 1),
+      status: translate(msg, s.improvement.stopped ? 'evidenceStopped' : 'evidenceAvailable'),
+    }),
     s.mode === 'game'
-      ? `Qualifying dispatch this shift: ${s.shippedKg.toFixed(1)} kg. ${mission ? `Customer receipts: ${mission.creditedKg.toFixed(1)} kg credited; ${Math.max(0, mission.originalTargetKg - mission.creditedKg).toFixed(1)} kg still owed. Source evidence: ${mission.evidence}.` : 'This teaching counter is separate from customer shipment receipts.'}`
-      : 'Workshop records no plant shipment. Its teaching output cannot establish customer delivery.',
+      ? translate(msg, 'evidenceDispatch', {
+          kg: formatFixed(s.shippedKg, 1),
+          receipts: mission
+            ? translate(msg, 'evidenceReceipts', {
+                credited: formatFixed(mission.creditedKg, 1),
+                owed: formatFixed(Math.max(0, mission.originalTargetKg - mission.creditedKg), 1),
+                evidence: mission.evidence,
+              })
+            : translate(msg, 'evidenceTeachingCounter'),
+        })
+      : translate(msg, 'evidenceWorkshop'),
   ];
   const advice = s.improvement.advice;
   evidence.push(
     advice
       ? advice.reasonToAbstain
-        ? `The adviser abstained: ${advice.reasonToAbstain} This outcome supplies no missing prior forecast.`
-        : `Frozen conditional departure bound: 0 to ${advice.dispatchUpperKg.toFixed(1)} kg for the original 90-minute assumptions. Packing potential and actual collection remain separate.`
-      : 'No plant-grounded departure forecast was retained for this shift.'
+        ? translate(msg, 'evidenceAbstained', { reason: advice.reasonToAbstain })
+        : translate(msg, 'evidenceBound', { kg: formatFixed(advice.dispatchUpperKg, 1) })
+      : translate(msg, 'evidenceNoForecast')
   );
   const focus = open.length
     ? 'remedy'
@@ -318,23 +371,19 @@ export function improvementLearningReview(s: WorkplaceState) {
             ? 'delivery'
             : 'comparison';
   const questions = {
-    remedy: `Let each of the ${open.length} unresolved objection raisers say what would address their concern. Which remedy remains theirs to confirm?`,
-    recovery: `${summary.currentRecoveryOwedMinutes.toFixed(1)} minutes of recovery remain owed. How will the next handoff deliver that time before asking for more work?`,
-    evidence:
-      'Which customer receipt or material-session fact needs checking before calling any further delivery verified?',
-    trial:
-      'What did each role observe before the ending or stop? Which single assumption would you test next while keeping pay and refusal protected?',
-    delivery:
-      'Where did packing or collection wait, and which one handoff change would you compare without borrowing another role’s rest?',
-    comparison:
-      'Let each role predict what another arrangement would change. Which observation would change your minds, and where do you still disagree?',
+    remedy: translate(msg, 'questionRemedy', { count: formatFixed(open.length, 0) }),
+    recovery: translate(msg, 'questionRecovery', {
+      minutes: formatFixed(summary.currentRecoveryOwedMinutes, 1),
+    }),
+    evidence: translate(msg, 'questionEvidence'),
+    trial: translate(msg, 'questionTrial'),
+    delivery: translate(msg, 'questionDelivery'),
+    comparison: translate(msg, 'questionComparison'),
   };
   return {
     evidence,
     focus,
     question: questions[focus],
-    limitation: early
-      ? 'This shortened trial cannot be treated as a completed 90-minute result. One trial cannot establish the arrangement’s causal effect.'
-      : 'One trial cannot establish the arrangement’s causal effect. A matched comparison keeps shared inputs fixed; real collection still needs its own receipts.',
+    limitation: early ? translate(msg, 'limitationEarly') : translate(msg, 'limitationComplete'),
   };
 }

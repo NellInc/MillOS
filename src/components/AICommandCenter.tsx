@@ -34,6 +34,8 @@ import {
   getDecisionTypeColor,
   getDecisionPriorityBadge,
 } from '../utils/decisionIcons';
+import { formatFixed, useT } from '../i18n';
+import { aiCommandCenterMessages } from './AICommandCenter.messages';
 
 interface AICommandCenterProps {
   isOpen: boolean;
@@ -52,6 +54,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
   onClose: _onClose,
   embedded = false,
 }) => {
+  const t = useT(aiCommandCenterMessages);
   const [activeTab, setActiveTab] = useState<'decisions' | 'strategic' | 'advisory'>('decisions');
   const [selectedDecision, setSelectedDecision] = useState<AIDecision | null>(null);
 
@@ -119,7 +122,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
     llmBackend === 'webgpu'
       ? null
       : llmBackend === 'chatgpt'
-        ? 'ChatGPT plan'
+        ? t('chatgptPlan')
         : CLOUD_MODELS[llmBackend].label;
   const llmReady =
     llmBackend === 'webgpu'
@@ -136,11 +139,11 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
   const modeLabel =
     aiMode === 'gemini' && llmReady
       ? isLocalBackend
-        ? 'Local'
+        ? t('modeLocal')
         : cloudLabel
       : aiMode === 'hybrid' && llmReady
-        ? 'Hybrid'
-        : 'Heuristic';
+        ? t('modeHybrid')
+        : t('modeHeuristic');
   const [showAISettings, setShowAISettings] = useState(false);
 
   // React to new alerts
@@ -214,42 +217,48 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
           <div className="p-3 border-b border-cyan-500/20">
             <div className="flex items-center gap-2 text-cyan-400 mb-2">
               <Brain className="w-5 h-5" aria-hidden="true" />
-              <span className="font-bold text-sm">AI Partner</span>
+              <span className="font-bold text-sm">{t('title')}</span>
               {/* Fixed width container prevents layout jitter */}
               <span
                 className={`text-xs ml-1 w-16 ${isThinking ? 'motion-safe:animate-pulse' : 'invisible'}`}
               >
-                reviewing...
+                {t('reviewing')}
               </span>
               {/* AI Settings Button */}
               <button
                 onClick={() => setShowAISettings(true)}
-                aria-label={`AI settings, current mode: ${modeLabel}`}
+                aria-label={t('settingsLabel', { mode: String(modeLabel) })}
                 className="ml-auto flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 transition-colors"
                 title={
                   aiMode === 'gemini'
-                    ? `${isLocalBackend ? 'Local AI' : `${cloudLabel} AI`} Active: configure`
+                    ? isLocalBackend
+                      ? t('settingsTitleLocal')
+                      : t('settingsTitleCloud', { label: String(cloudLabel) })
                     : aiMode === 'hybrid'
-                      ? 'Hybrid Mode Active - Click to configure'
-                      : 'Heuristic Mode - Click to configure AI backend'
+                      ? t('settingsTitleHybrid')
+                      : t('settingsTitleHeuristic')
                 }
               >
                 {aiMode === 'gemini' && llmReady ? (
                   <>
                     <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
                     <span className="text-[10px] text-green-400 font-medium">
-                      {isLocalBackend ? 'Local' : cloudLabel}
+                      {isLocalBackend ? t('modeLocal') : cloudLabel}
                     </span>
                   </>
                 ) : aiMode === 'hybrid' && llmReady ? (
                   <>
                     <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
-                    <span className="text-[10px] text-purple-400 font-medium">Hybrid</span>
+                    <span className="text-[10px] text-purple-400 font-medium">
+                      {t('modeHybrid')}
+                    </span>
                   </>
                 ) : (
                   <>
                     <span className="w-2 h-2 rounded-full bg-amber-400" />
-                    <span className="text-[10px] text-amber-400 font-medium">Heuristic</span>
+                    <span className="text-[10px] text-amber-400 font-medium">
+                      {t('modeHeuristic')}
+                    </span>
                   </>
                 )}
                 <Settings className="w-3 h-3 text-slate-400" aria-hidden="true" />
@@ -260,30 +269,32 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
               <div className="bg-slate-800/50 rounded px-2 py-1">
                 <span className="text-slate-400">CPU</span>
                 <span className="text-cyan-400 ml-1" data-testid="ai-cpu-value">
-                  {systemStatus.cpu.toFixed(0)}%
+                  {formatFixed(systemStatus.cpu, 0)}%
                 </span>
               </div>
               <div className="bg-slate-800/50 rounded px-2 py-1">
                 <span className="text-slate-400">MEM</span>
                 <span className="text-green-400 ml-1" data-testid="ai-memory-value">
-                  {systemStatus.memory.toFixed(0)}%
+                  {formatFixed(systemStatus.memory, 0)}%
                 </span>
               </div>
               <div className="bg-slate-800/50 rounded px-2 py-1">
                 <span className="text-slate-400">DEC</span>
                 <span className="text-purple-400 ml-1" data-testid="ai-decisions-count">
-                  {systemStatus.decisions}
+                  {formatFixed(systemStatus.decisions, 0)}
                 </span>
               </div>
               <div className="bg-slate-800/50 rounded px-2 py-1">
                 {(aiMode === 'gemini' || aiMode === 'hybrid') && !isLocalBackend && llmReady ? (
                   <>
-                    <span className="text-emerald-400">{formattedSessionCost} est.</span>
+                    <span className="text-emerald-400">
+                      {t('sessionCost', { cost: formattedSessionCost })}
+                    </span>
                   </>
                 ) : (
                   <>
                     {/* Local WebGPU inference and heuristic mode have no API cost. */}
-                    <span className="text-emerald-400">NO API COST</span>
+                    <span className="text-emerald-400">{t('noApiCost')}</span>
                   </>
                 )}
               </div>
@@ -293,23 +304,23 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
               <div className="mt-2 px-2 py-1.5 bg-red-500/20 rounded-lg border border-red-500/30 motion-safe:animate-pulse">
                 <div className="flex items-center gap-2 text-red-400 text-[10px] font-bold">
                   <Shield className="w-3 h-3" aria-hidden="true" />
-                  EGRESS DRILL IN PROGRESS
+                  {t('egressDrill')}
                 </div>
               </div>
             )}
             {/* Context: Weather & Shift */}
             <div className="mt-2 flex items-center justify-between text-[9px] text-slate-400">
               <span className="capitalize">
-                {weather} | {currentShift} run window
+                {t('weather', { value: weather })} | {t('runWindow', { value: currentShift })}
               </span>
-              <span>Eff: {metrics.efficiency.toFixed(0)}%</span>
+              <span>{t('efficiency', { value: formatFixed(metrics.efficiency, 0) })}</span>
             </div>
           </div>
 
           {/* Tab Switcher */}
           <div
             role="tablist"
-            aria-label="AI Partner views"
+            aria-label={t('tabsLabel')}
             className="px-3 py-2 border-b border-slate-800 flex gap-2"
           >
             <button
@@ -325,7 +336,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
               }`}
             >
               <Activity className="w-3 h-3 inline mr-1" aria-hidden="true" />
-              Decisions ({aiDecisions.length})
+              {t('tabDecisions', { count: formatFixed(aiDecisions.length, 0) })}
             </button>
 
             <button
@@ -341,7 +352,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
               }`}
             >
               <Target className="w-3 h-3 inline mr-1" aria-hidden="true" />
-              Strategic
+              {t('tabStrategic')}
             </button>
             <button
               role="tab"
@@ -356,13 +367,13 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
               }`}
             >
               <Shield className="w-3 h-3 inline mr-1" aria-hidden="true" />
-              Advisory
+              {t('tabAdvisory')}
             </button>
           </div>
 
           {/* Screen-reader-only live region announcing the newest AI decision */}
           <div className="sr-only" role="status" aria-live="polite">
-            {aiDecisions[0]?.action ? `New AI decision: ${aiDecisions[0].action}` : ''}
+            {aiDecisions[0]?.action ? t('newDecision', { action: aiDecisions[0].action }) : ''}
           </div>
 
           {/* Content Area */}
@@ -398,12 +409,12 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                           <span className="text-[9px] px-1 py-0.5 rounded bg-slate-700 text-slate-400 uppercase">
-                            {decision.type}
+                            {t('decisionType', { value: decision.type })}
                           </span>
                           <span
                             className={`text-[9px] px-1 py-0.5 rounded border ${getDecisionPriorityBadge(decision.priority)}`}
                           >
-                            {decision.priority}
+                            {t('priority', { value: decision.priority })}
                           </span>
                           <div className="flex items-center gap-1 ml-auto">
                             {getDecisionStatusIcon(decision.status, 'xs')}
@@ -417,7 +428,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
                         </div>
                         {decision.response && (
                           <p className="mt-1 text-[9px] capitalize text-slate-400">
-                            Response: {decision.response.disposition}
+                            {t('response', { value: decision.response.disposition })}
                           </p>
                         )}
                         <div className="mt-2 flex flex-wrap gap-1">
@@ -427,7 +438,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
                             className="inline-flex min-h-8 items-center gap-1 rounded-md bg-slate-900/70 px-2 text-[9px] text-cyan-300 transition-colors hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
                           >
                             <Eye className="h-3 w-3" aria-hidden="true" />
-                            Inspect evidence
+                            {t('inspectEvidence')}
                           </button>
                           {decision.status === 'pending' && (
                             <>
@@ -437,7 +448,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
                                 className="inline-flex min-h-8 items-center gap-1 rounded-md bg-emerald-500/15 px-2 text-[9px] text-emerald-300 transition-colors hover:bg-emerald-500/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
                               >
                                 <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
-                                Accept
+                                {t('accept')}
                               </button>
                               <button
                                 type="button"
@@ -445,7 +456,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
                                 className="inline-flex min-h-8 items-center gap-1 rounded-md bg-amber-500/15 px-2 text-[9px] text-amber-300 transition-colors hover:bg-amber-500/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
                               >
                                 <Clock3 className="h-3 w-3" aria-hidden="true" />
-                                Defer
+                                {t('defer')}
                               </button>
                               <button
                                 type="button"
@@ -453,7 +464,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
                                 className="inline-flex min-h-8 items-center gap-1 rounded-md bg-red-500/15 px-2 text-[9px] text-red-300 transition-colors hover:bg-red-500/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
                               >
                                 <XCircle className="h-3 w-3" aria-hidden="true" />
-                                Reject
+                                {t('reject')}
                               </button>
                             </>
                           )}
@@ -464,13 +475,13 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
                 ))}
                 {aiDecisions.length > 15 && (
                   <p className="text-center text-[10px] text-slate-500 py-1" role="status">
-                    Showing 15 of {aiDecisions.length} decisions
+                    {t('showingDecisions', { count: formatFixed(aiDecisions.length, 0) })}
                   </p>
                 )}
                 {aiDecisions.length === 0 && (
                   <div className="text-center py-6 text-slate-500">
                     <Bot className="w-6 h-6 mx-auto mb-2" />
-                    <p className="text-xs">No recommendations have been recorded.</p>
+                    <p className="text-xs">{t('noRecommendations')}</p>
                   </div>
                 )}
               </>

@@ -7,8 +7,11 @@ import {
   requestJevAdvice,
   type JevAdvice,
 } from '../../utils/jevClient';
+import { formatFixed, translate, useT } from '../../i18n';
+import { jevAdvisoryPanelMessages } from './JevAdvisoryPanel.messages';
 
 export function JevAdvisoryPanel({ latestAlert }: { latestAlert?: string }) {
+  const t = useT(jevAdvisoryPanelMessages);
   const [apiKey, setApiKey] = useState('');
   const [text, setText] = useState('');
   const [consent, setConsent] = useState(false);
@@ -52,7 +55,11 @@ export function JevAdvisoryPanel({ latestAlert }: { latestAlert?: string }) {
       if (request.current === controller) setResult(advice);
     } catch (failure) {
       if (request.current === controller)
-        setError(failure instanceof Error ? failure.message : 'No advisory was returned.');
+        setError(
+          failure instanceof Error
+            ? failure.message
+            : translate(jevAdvisoryPanelMessages, 'noAdvisory')
+        );
     } finally {
       if (request.current === controller) {
         request.current = null;
@@ -66,20 +73,17 @@ export function JevAdvisoryPanel({ latestAlert }: { latestAlert?: string }) {
     'min-h-9 rounded-lg border border-slate-600 px-3 py-2 text-xs text-slate-200 hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 disabled:cursor-not-allowed disabled:opacity-40';
 
   return (
-    <section aria-label="Jev advisory" className="space-y-4 text-xs text-slate-300">
+    <section aria-label={t('regionLabel')} className="space-y-4 text-xs text-slate-300">
       <div className="space-y-2">
         <h3 className="flex items-center gap-2 text-sm font-semibold text-cyan-300">
           <Shield className="h-4 w-4" aria-hidden="true" />
-          Jev incident routing
+          {t('title')}
         </h3>
-        <p>
-          Get a suggested queue for incident text. Alerts, machine controls and your selected AI
-          backend stay unchanged.
-        </p>
+        <p>{t('intro')}</p>
       </div>
       <div className="space-y-2">
         <label htmlFor="jev-api-key" className="block font-medium">
-          Your OpenRouter API key
+          {t('apiKeyLabel')}
         </label>
         <input
           id="jev-api-key"
@@ -97,7 +101,7 @@ export function JevAdvisoryPanel({ latestAlert }: { latestAlert?: string }) {
           }}
         />
         <p id="jev-key-help" className="text-slate-400">
-          Kept in memory only while this Advisory view is open. Never saved to browser storage.
+          {t('apiKeyHelp')}
         </p>
         {apiKey && (
           <button
@@ -109,13 +113,13 @@ export function JevAdvisoryPanel({ latestAlert }: { latestAlert?: string }) {
               setConsent(false);
             }}
           >
-            Forget key
+            {t('forgetKey')}
           </button>
         )}
       </div>
       <div className="space-y-2">
         <label htmlFor="jev-incident" className="block font-medium">
-          Incident text
+          {t('incidentLabel')}
         </label>
         <textarea
           id="jev-incident"
@@ -130,7 +134,10 @@ export function JevAdvisoryPanel({ latestAlert }: { latestAlert?: string }) {
         />
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="text-slate-400">
-            {text.length}/{JEV_MAX_TEXT_LENGTH} characters
+            {t('characterCount', {
+              count: formatFixed(text.length, 0),
+              max: formatFixed(JEV_MAX_TEXT_LENGTH, 0),
+            })}
           </span>
           {latestAlert && (
             <button
@@ -142,7 +149,7 @@ export function JevAdvisoryPanel({ latestAlert }: { latestAlert?: string }) {
                 setConsent(false);
               }}
             >
-              Review latest alert
+              {t('reviewLatestAlert')}
             </button>
           )}
         </div>
@@ -157,10 +164,7 @@ export function JevAdvisoryPanel({ latestAlert }: { latestAlert?: string }) {
             setConsent(event.target.checked);
           }}
         />
-        <span>
-          Allow the text above to be sent to OpenRouter and TypeSafe when I select Send to Jev.
-          Requests use my OpenRouter balance.
-        </span>
+        <span>{t('consent')}</span>
       </label>
       <div className="flex flex-wrap gap-2">
         <button
@@ -169,17 +173,15 @@ export function JevAdvisoryPanel({ latestAlert }: { latestAlert?: string }) {
           disabled={pending || !consent || !isJevKeyValid(apiKey) || !text.trim()}
           onClick={() => void send()}
         >
-          {pending ? 'Requesting advice...' : 'Send to Jev'}
+          {pending ? t('requesting') : t('send')}
         </button>
         {pending && (
           <button type="button" className={buttonClass} onClick={cancel}>
-            Cancel request
+            {t('cancelRequest')}
           </button>
         )}
       </div>
-      <p className="text-slate-400">
-        Only this text is sent. No automatic requests or retries. Cancellation may still be billed.
-      </p>
+      <p className="text-slate-400">{t('sendNote')}</p>
       {error && (
         <p
           role="alert"
@@ -191,13 +193,10 @@ export function JevAdvisoryPanel({ latestAlert }: { latestAlert?: string }) {
       <div role="status" aria-live="polite">
         {result && (
           <div className="space-y-2 rounded-lg border border-cyan-500/30 bg-slate-800/70 p-3">
-            <p className="text-slate-400">Suggested queue for the submitted text</p>
+            <p className="text-slate-400">{t('resultHeading')}</p>
             <p className="text-sm font-semibold text-slate-100">{result.queue}</p>
-            <p>
-              Review the underlying evidence. This suggestion cannot clear an incident or establish
-              that the mill is safe.
-            </p>
-            <p className="text-slate-400">Expires after one minute or when the text changes.</p>
+            <p>{t('resultCaveat')}</p>
+            <p className="text-slate-400">{t('resultExpiry')}</p>
           </div>
         )}
       </div>

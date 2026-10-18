@@ -37,6 +37,8 @@ import {
   type CommunityOperationsSnapshot,
 } from '../simulation/communityLife';
 import { EXTERIOR_LAYERS, POLYGON_OFFSET } from '../constants/renderLayers';
+import { useT } from '../i18n';
+import { communityLifeMessages } from './CommunityLife.messages';
 
 const COLOURS = ['#596e72', '#53637c', '#9a7654', '#6b8568', '#bdad82', '#6b5871'];
 const _truckPosition = new THREE.Vector3();
@@ -64,6 +66,7 @@ function updateSeatCue(
 }
 
 function AgreementLabel({ personId }: { personId: string }) {
+  const t = useT(communityLifeMessages);
   const label = useWorkplaceStore((s) => communityAgreementCue(personId, s.workplace)?.label);
   const emergency = useGameSimulationStore((s) => s.emergencyActive || s.emergencyDrillMode);
   if (!label) return null;
@@ -79,7 +82,7 @@ function AgreementLabel({ personId }: { personId: string }) {
         outlineWidth={0.025}
         outlineColor="#172c32"
       >
-        {emergency ? 'Site safety stop' : label}
+        {emergency ? t('siteSafetyStop') : label}
       </SceneText>
     </Billboard>
   );

@@ -1,3 +1,6 @@
+import { translate } from '../i18n';
+import { utilityAssetsMessages } from './utilityAssets.messages';
+
 export type UtilityAssetKind = 'horizontal_tank' | 'lpg_vessel';
 export type UtilityCompound = 'tank_farm' | 'propane';
 
@@ -106,3 +109,21 @@ export const UTILITY_ASSET_DEFINITIONS: readonly UtilityAssetDefinition[] = [
     accentColor: '#b83a32',
   },
 ];
+
+const UTILITY_CONTENTS_KEYS: Record<string, keyof typeof utilityAssetsMessages.en> = {
+  'utility-fuel-oil-01': 'lowSulphurFuelOil',
+  'utility-process-oil-02': 'foodGradeProcessOil',
+  'utility-diesel-03': 'standbyGeneratorDiesel',
+  'utility-lpg-01': 'liquefiedPetroleumGas',
+  'utility-lpg-02': 'liquefiedPetroleumGas',
+};
+
+/**
+ * What a vessel holds, in the language active now. `contents` stays the
+ * canonical English contract (it is copied into telemetry state and the SCADA
+ * tag descriptions), so display code resolves the label here at render time.
+ */
+export function getUtilityAssetContentsLabel(asset: { id: string; contents: string }): string {
+  const key = UTILITY_CONTENTS_KEYS[asset.id];
+  return key ? translate(utilityAssetsMessages, key) : asset.contents;
+}

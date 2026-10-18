@@ -16,10 +16,13 @@ import {
   getDecisionPriorityBadge,
 } from '../../utils/decisionIcons';
 import { formatTime } from '../../utils/timeFormatting';
+import { useT } from '../../i18n';
+import { decisionHistoryPanelMessages } from './DecisionHistoryPanel.messages';
 
 const ITEMS_PER_PAGE = 5;
 
 export const DecisionHistoryPanel: React.FC = () => {
+  const t = useT(decisionHistoryPanelMessages);
   const [currentPage, setCurrentPage] = useState(0);
   const [expanded, setExpanded] = useState(true);
 
@@ -65,12 +68,12 @@ export const DecisionHistoryPanel: React.FC = () => {
       <button
         onClick={() => setExpanded(!expanded)}
         aria-expanded={expanded}
-        aria-label="Toggle decision history"
+        aria-label={t('toggle')}
         className="w-full flex items-center justify-between p-3 hover:bg-slate-700/30 transition-colors"
       >
         <div className="flex items-center gap-2">
           <History className="w-4 h-4 text-cyan-400" />
-          <span className="text-sm font-medium text-slate-200">Decision History</span>
+          <span className="text-sm font-medium text-slate-200">{t('title')}</span>
           <span className="text-xs text-slate-400">({sortedDecisions.length})</span>
         </div>
         <motion.div animate={{ rotate: expanded ? 180 : 0 }} transition={{ duration: 0.2 }}>
@@ -89,7 +92,7 @@ export const DecisionHistoryPanel: React.FC = () => {
             {/* Decision List */}
             <div className="px-3 pb-2 space-y-2 max-h-64 overflow-y-auto">
               {paginatedDecisions.length === 0 ? (
-                <div className="text-center text-slate-400 text-xs py-4">No decisions yet</div>
+                <div className="text-center text-slate-400 text-xs py-4">{t('empty')}</div>
               ) : (
                 paginatedDecisions.map((decision) => (
                   <DecisionReplayTrigger key={decision.id} decision={decision}>
@@ -113,7 +116,7 @@ export const DecisionHistoryPanel: React.FC = () => {
                             <span
                               className={`text-[9px] px-1.5 py-0.5 rounded border ${getDecisionPriorityBadge(decision.priority)}`}
                             >
-                              {decision.priority}
+                              {t('priority', { value: decision.priority })}
                             </span>
                             {decision.confidence && (
                               <span className="text-[9px] text-cyan-400">
@@ -135,7 +138,7 @@ export const DecisionHistoryPanel: React.FC = () => {
                 <button
                   onClick={goToPrevPage}
                   disabled={currentPage === 0}
-                  aria-label="Previous page"
+                  aria-label={t('previousPage')}
                   className="p-1 rounded hover:bg-slate-700/50 disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   <ChevronLeft className="w-4 h-4 text-slate-400" aria-hidden="true" />
@@ -146,7 +149,7 @@ export const DecisionHistoryPanel: React.FC = () => {
                 <button
                   onClick={goToNextPage}
                   disabled={currentPage >= totalPages - 1}
-                  aria-label="Next page"
+                  aria-label={t('nextPage')}
                   className="p-1 rounded hover:bg-slate-700/50 disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   <ChevronRight className="w-4 h-4 text-slate-400" aria-hidden="true" />

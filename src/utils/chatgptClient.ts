@@ -1,3 +1,6 @@
+import { translate } from '../i18n';
+import { chatgptClientMessages } from './chatgptClient.messages';
+
 /** Browser bridge for the optional loopback companion. OAuth tokens never enter this module. */
 export interface ChatGPTAccount {
   id: string;
@@ -19,6 +22,20 @@ export interface ChatGPTModel {
 
 const endpoint = '/api/chatgpt';
 
+/**
+ * The message is shown to the person, so it is translated; whether the error
+ * means the session is gone is carried separately, because generateContent()
+ * cannot recognise a pt-BR message by its English wording.
+ */
+class ChatGPTClientError extends Error {
+  constructor(
+    key: keyof (typeof chatgptClientMessages)['en'],
+    readonly disconnects: boolean
+  ) {
+    super(translate(chatgptClientMessages, key));
+  }
+}
+
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${endpoint}${path}`, {
     credentials: 'same-origin',
@@ -26,22 +43,21 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
   });
   if (!response.headers.get('content-type')?.startsWith('application/json')) {
-    throw new Error('ChatGPT local companion is not running');
+    throw new ChatGPTClientError('companionNotRunning', true);
   }
   const data = await response.json();
   if (!response.ok) {
     if (data.error === 'invalid_grant') {
-      throw new Error('ChatGPT session expired. Sign in again.');
+      throw new ChatGPTClientError('sessionExpired', true);
     }
     if (data.error === 'subscription_sharing_usage_limit_exceeded') {
-      throw new Error('ChatGPT plan usage limit reached. Manage usage in ChatGPT Settings.');
+      throw new ChatGPTClientError('usageLimitReached', false);
     }
     if (data.error === 'subscription_sharing_usage_unavailable') {
-      throw new Error(
-        'ChatGPT plan usage is unavailable. Check your app access in ChatGPT Settings.'
-      );
+      throw new ChatGPTClientError('usageUnavailable', false);
     }
-    throw new Error(data.error || 'ChatGPT local companion request failed');
+    if (data.error) throw new Error(data.error);
+    throw new ChatGPTClientError('requestFailed', false);
   }
   return data as T;
 }
@@ -105,7 +121,11 @@ export const chatgptClient = {
       });
       return result.text || null;
     } catch (error) {
-      if (error instanceof Error && /sign in|401|companion is not running/i.test(error.message))
+      if (
+        error instanceof ChatGPTClientError
+          ? error.disconnects
+          : error instanceof Error && /sign in|401|companion is not running/i.test(error.message)
+      )
         connected = false;
       throw error;
     }

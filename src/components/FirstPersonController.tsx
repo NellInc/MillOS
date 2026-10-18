@@ -18,6 +18,8 @@ import {
 } from '../constants/factoryObstacles';
 import { WORLD_RADIUS, SITE_LAYOUT, getSiloAssemblyScale } from '../constants/siteLayout';
 import { useUIStore } from '../stores/uiStore';
+import { useT } from '../i18n';
+import { fpsInstructionsMessages } from './FirstPersonController.messages';
 import {
   FIRST_PERSON_EYE_HEIGHT,
   clampNavigationDelta,
@@ -410,6 +412,7 @@ export const FPSCrosshair: React.FC = () => {
 
 // FPS mode instructions overlay
 export const FPSInstructions: React.FC<{ visible: boolean }> = ({ visible }) => {
+  const t = useT(fpsInstructionsMessages);
   const [captureFailed, setCaptureFailed] = React.useState(false);
   const surfaceRef = useRef<HTMLDivElement>(null);
   const pending = useRef(false);
@@ -482,15 +485,13 @@ export const FPSInstructions: React.FC<{ visible: boolean }> = ({ visible }) => 
       className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center pointer-events-auto"
     >
       <div className="bg-slate-900/95 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-8 max-w-md text-center shadow-2xl">
-        <h2 className="text-2xl font-bold text-white mb-4">First-Person Mode</h2>
+        <h2 className="text-2xl font-bold text-white mb-4">{t('heading')}</h2>
         {captureFailed ? (
           <p role="alert" className="text-amber-200 mb-6">
-            Mouse capture unavailable. Click to retry or press V to leave.
+            {t('captureFailed')}
           </p>
         ) : (
-          <p className="text-slate-300 mb-6">
-            Click anywhere to enter first-person exploration mode
-          </p>
+          <p className="text-slate-300 mb-6">{t('clickToEnter')}</p>
         )}
 
         <div className="grid grid-cols-2 gap-4 mb-6 text-left">
@@ -501,7 +502,7 @@ export const FPSInstructions: React.FC<{ visible: boolean }> = ({ visible }) => 
               <kbd className="px-2 py-1 bg-slate-700 rounded text-white text-sm font-mono">S</kbd>
               <kbd className="px-2 py-1 bg-slate-700 rounded text-white text-sm font-mono">D</kbd>
             </div>
-            <span className="text-slate-400 text-sm">Move around</span>
+            <span className="text-slate-400 text-sm">{t('moveAround')}</span>
           </div>
 
           <div className="bg-slate-800/50 rounded-lg p-3">
@@ -509,14 +510,14 @@ export const FPSInstructions: React.FC<{ visible: boolean }> = ({ visible }) => 
               <kbd className="px-2 py-1 bg-slate-700 rounded text-white text-sm font-mono">Q</kbd>
               <kbd className="px-2 py-1 bg-slate-700 rounded text-white text-sm font-mono">E</kbd>
             </div>
-            <span className="text-slate-400 text-sm">Move down / up</span>
+            <span className="text-slate-400 text-sm">{t('moveDownUp')}</span>
           </div>
 
           <div className="bg-slate-800/50 rounded-lg p-3">
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-slate-300 text-sm">Mouse</span>
+              <span className="text-slate-300 text-sm">{t('mouse')}</span>
             </div>
-            <span className="text-slate-400 text-sm">Look around</span>
+            <span className="text-slate-400 text-sm">{t('lookAround')}</span>
           </div>
 
           <div className="bg-slate-800/50 rounded-lg p-3">
@@ -525,14 +526,14 @@ export const FPSInstructions: React.FC<{ visible: boolean }> = ({ visible }) => 
                 Shift
               </kbd>
             </div>
-            <span className="text-slate-400 text-sm">Sprint</span>
+            <span className="text-slate-400 text-sm">{t('sprint')}</span>
           </div>
 
           <div className="bg-slate-800/50 rounded-lg p-3 col-span-2">
             <div className="flex items-center gap-2 mb-2">
               <kbd className="px-2 py-1 bg-slate-700 rounded text-white text-sm font-mono">ESC</kbd>
             </div>
-            <span className="text-slate-400 text-sm">Exit first-person</span>
+            <span className="text-slate-400 text-sm">{t('exitFirstPerson')}</span>
           </div>
         </div>
 
@@ -542,10 +543,10 @@ export const FPSInstructions: React.FC<{ visible: boolean }> = ({ visible }) => 
             onClick={() => useUIStore.getState().setFpsMode(false)}
             className="rounded-lg border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-300"
           >
-            Return to overview
+            {t('returnToOverview')}
           </button>
         ) : (
-          <p className="text-slate-500 text-sm">Press ESC anytime to return to orbit camera</p>
+          <p className="text-slate-500 text-sm">{t('pressEsc')}</p>
         )}
       </div>
     </div>

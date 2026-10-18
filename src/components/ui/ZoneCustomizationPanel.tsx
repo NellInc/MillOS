@@ -3,8 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { MapPin, ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
 import { useSafetyStore } from '../../stores/safetyStore';
 import { useUIStore } from '../../stores/uiStore';
+import { formatFixed, useT } from '../../i18n';
+import { zoneCustomizationPanelMessages } from './ZoneCustomizationPanel.messages';
 
 export const ZoneCustomizationPanel: React.FC = () => {
+  const t = useT(zoneCustomizationPanelMessages);
   const [expanded, setExpanded] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   // Numeric fields are held as the raw text typed, and parsed only on submit, so
@@ -74,7 +77,7 @@ export const ZoneCustomizationPanel: React.FC = () => {
       >
         <span className="flex items-center gap-2">
           <MapPin className="w-4 h-4 text-amber-500" />
-          Speed Zones ({speedZones.length})
+          {t('title', { count: formatFixed(speedZones.length, 0) })}
         </span>
         {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
       </button>
@@ -113,10 +116,10 @@ export const ZoneCustomizationPanel: React.FC = () => {
                     <button
                       onClick={() => handleRemoveClick(zone.id)}
                       className="opacity-100 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-600 hover:bg-red-500 text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-red-400 transition-all whitespace-nowrap"
-                      title={`Confirm removing zone ${zone.name}`}
-                      aria-label={`Confirm removing zone ${zone.name}`}
+                      title={t('confirmRemove', { name: zone.name })}
+                      aria-label={t('confirmRemove', { name: zone.name })}
                     >
-                      Confirm?
+                      {t('confirm')}
                     </button>
                   ) : (
                     <button
@@ -126,8 +129,8 @@ export const ZoneCustomizationPanel: React.FC = () => {
                           ? 'text-red-500 hover:text-red-600'
                           : 'text-red-400 hover:text-red-300'
                       }`}
-                      title="Remove zone"
-                      aria-label={`Remove zone ${zone.name}`}
+                      title={t('removeZoneTitle')}
+                      aria-label={t('removeZone', { name: zone.name })}
                     >
                       <Trash2 className="w-3 h-3" aria-hidden="true" />
                     </button>
@@ -148,8 +151,8 @@ export const ZoneCustomizationPanel: React.FC = () => {
               >
                 <input
                   type="text"
-                  aria-label="Zone name"
-                  placeholder="Zone name"
+                  aria-label={t('zoneName')}
+                  placeholder={t('zoneName')}
                   value={newZone.name}
                   onChange={(e) => setNewZone({ ...newZone, name: e.target.value })}
                   className={`w-full rounded px-2 py-1 text-xs border outline-none ${
@@ -202,7 +205,7 @@ export const ZoneCustomizationPanel: React.FC = () => {
                       htmlFor="zone-radius"
                       className={`text-[9px] ${theme === 'light' ? 'text-slate-400' : 'text-slate-500'}`}
                     >
-                      Radius
+                      {t('radius')}
                     </label>
                     <input
                       id="zone-radius"
@@ -223,7 +226,7 @@ export const ZoneCustomizationPanel: React.FC = () => {
                   <p
                     className={`text-[9px] ${theme === 'light' ? 'text-slate-400' : 'text-slate-500'}`}
                   >
-                    Enter a zone name to add.
+                    {t('enterName')}
                   </p>
                 )}
                 <div className="flex gap-1">
@@ -232,7 +235,7 @@ export const ZoneCustomizationPanel: React.FC = () => {
                     disabled={!newZone.name.trim()}
                     className="flex-1 bg-amber-600 hover:bg-amber-500 disabled:bg-amber-600/40 disabled:cursor-not-allowed disabled:hover:bg-amber-600/40 text-white py-1 rounded text-xs font-medium transition-colors"
                   >
-                    Add Zone
+                    {t('addZone')}
                   </button>
                   <button
                     type="button"
@@ -243,7 +246,7 @@ export const ZoneCustomizationPanel: React.FC = () => {
                         : 'bg-slate-700 hover:bg-slate-600 text-white'
                     }`}
                   >
-                    Cancel
+                    {t('cancel')}
                   </button>
                 </div>
               </form>
@@ -257,7 +260,7 @@ export const ZoneCustomizationPanel: React.FC = () => {
                 }`}
               >
                 <Plus className="w-3 h-3" />
-                Add Speed Zone
+                {t('addSpeedZone')}
               </button>
             )}
           </motion.div>

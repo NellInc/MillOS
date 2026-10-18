@@ -15,6 +15,8 @@ import { useGraphicsStore, type GraphicsQuality } from '../stores/graphicsStore'
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useUIStore } from '../stores/uiStore';
 import { SceneText } from './shared/SceneText';
+import { translate, useT } from '../i18n';
+import { operationalWorldSignalsMessages } from './OperationalWorldSignals.messages';
 
 type SignalPlacement = {
   readonly position: Vec3Tuple;
@@ -26,6 +28,7 @@ type SignalPlacement = {
  * second coordinate system. Each marker sits beside the affected asset, not
  * through it, so live incidents enrich the same world without creating the
  * central-factory pile-up that earlier scene variants caused.
+ * `shortLabel` is a getter so it resolves in the language active when read.
  */
 export const OPERATIONAL_INCIDENT_PLACEMENTS: Readonly<Record<IncidentKind, SignalPlacement>> = {
   bearing_overheat: {
@@ -36,11 +39,15 @@ export const OPERATIONAL_INCIDENT_PLACEMENTS: Readonly<Record<IncidentKind, Sign
       0.08,
       SITE_LAYOUT.machines.rollerMills[0].position[2],
     ],
-    shortLabel: 'R.M. 101 HOT BEARING',
+    get shortLabel() {
+      return translate(operationalWorldSignalsMessages, 'hotBearing');
+    },
   },
   dust_filter_pressure: {
     position: [5.25, SITE_LAYOUT.datum.mezzanine + 0.08, SITE_LAYOUT.factory.zones.sifting + 2.75],
-    shortLabel: 'FILTER PRESSURE HIGH',
+    get shortLabel() {
+      return translate(operationalWorldSignalsMessages, 'filterPressureHigh');
+    },
   },
   power_sag: {
     // Off the south end of the silo bank. The old point sat 5 m from Silo
@@ -50,15 +57,21 @@ export const OPERATIONAL_INCIDENT_PLACEMENTS: Readonly<Record<IncidentKind, Sign
       0.04,
       SITE_LAYOUT.machines.silos[4].position[2] - SITE_LAYOUT.machineDimensions.silo[2] / 2 - 2.5,
     ],
-    shortLabel: 'SITE POWER DIP',
+    get shortLabel() {
+      return translate(operationalWorldSignalsMessages, 'sitePowerDip');
+    },
   },
   delayed_truck: {
     position: [24, 0.04, SITE_LAYOUT.docks.shipping.bayCentre[2] + 14],
-    shortLabel: 'SHIPPING TRUCK DELAY',
+    get shortLabel() {
+      return translate(operationalWorldSignalsMessages, 'shippingTruckDelay');
+    },
   },
   supplier_contamination: {
     position: [-22, 0.04, SITE_LAYOUT.docks.receiving.bayCentre[2] - 14],
-    shortLabel: 'GRAIN LOT HOLD',
+    get shortLabel() {
+      return translate(operationalWorldSignalsMessages, 'grainLotHold');
+    },
   },
   packaging_shortage: {
     position: [
@@ -66,15 +79,21 @@ export const OPERATIONAL_INCIDENT_PLACEMENTS: Readonly<Record<IncidentKind, Sign
       0.08,
       SITE_LAYOUT.machines.packers[0].position[2],
     ],
-    shortLabel: 'PACKAGING LOW',
+    get shortLabel() {
+      return translate(operationalWorldSignalsMessages, 'packagingLow');
+    },
   },
   severe_rain: {
     position: [118, SITE_LAYOUT.datum.water + 0.04, 116],
-    shortLabel: 'HIGH RIVER LEVEL',
+    get shortLabel() {
+      return translate(operationalWorldSignalsMessages, 'highRiverLevel');
+    },
   },
   control_network_degraded: {
     position: [SITE_LAYOUT.portals.eastService.centre[0] - 7, 0.08, -20],
-    shortLabel: 'NETWORK DEGRADED',
+    get shortLabel() {
+      return translate(operationalWorldSignalsMessages, 'networkDegraded');
+    },
   },
 };
 
@@ -87,10 +106,10 @@ export function shouldLabelOperationalSignals(quality: GraphicsQuality): boolean
 
 export function getOperationalSignalLabel(kind: IncidentKind, phase: IncidentPhase): string {
   const phases: Record<IncidentPhase, string> = {
-    raised: 'NEEDS ATTENTION',
-    acknowledged: 'ACKNOWLEDGED',
-    mitigated: 'RESPONSE APPLIED',
-    resolved: 'RESOLVED',
+    raised: translate(operationalWorldSignalsMessages, 'phaseRaised'),
+    acknowledged: translate(operationalWorldSignalsMessages, 'phaseAcknowledged'),
+    mitigated: translate(operationalWorldSignalsMessages, 'phaseMitigated'),
+    resolved: translate(operationalWorldSignalsMessages, 'phaseResolved'),
   };
   return `${OPERATIONAL_INCIDENT_PLACEMENTS[kind].shortLabel}\n${phases[phase]}`;
 }
@@ -333,6 +352,8 @@ const OperationalSignalMarker: React.FC<{
 }> = ({ incident, detailed, labelled, registerAnimated }) => {
   const [hovered, setHovered] = useState(false);
   const fpsMode = useUIStore((state) => state.fpsMode);
+  // Subscribes to the language, so the translate()-based label below re-resolves on a switch.
+  const t = useT(operationalWorldSignalsMessages);
   if (incident.phase === 'resolved') return null;
 
   const placement = OPERATIONAL_INCIDENT_PLACEMENTS[incident.kind];
@@ -385,7 +406,7 @@ const OperationalSignalMarker: React.FC<{
             outlineColor="#020617"
             maxWidth={6}
           >
-            {hovered && !fpsMode ? `${label}\nOPEN RESPONSE` : label}
+            {hovered && !fpsMode ? t('hoverOpenResponse', { label }) : label}
           </SceneText>
         </Billboard>
       )}

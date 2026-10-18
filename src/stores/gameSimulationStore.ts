@@ -6,6 +6,8 @@ import { audioManager } from '../utils/audioManager';
 import { useProductionStore } from './productionStore';
 import { useSafetyStore } from './safetyStore';
 import { sanitizeGameSimulationState, sanitizeGameSpeed } from './persistenceMigrations';
+import { translate } from '../i18n';
+import { gameSimulationStoreMessages } from './gameSimulationStore.messages';
 
 export type CelebrationType = 'milestone' | 'zero_incident' | 'target_met' | 'shift_complete';
 export type CrisisType = 'fire' | 'power_outage' | 'supply_emergency' | 'inspection' | 'weather';
@@ -55,16 +57,31 @@ export interface DrillMetrics {
   finalTimeSeconds: number | null;
 }
 
+// `label` is a getter so it reads in the active language whenever it is used.
 export const SERVICE_EGRESS_POINTS = [
-  { id: 'front', position: { x: 0, z: 52 }, label: 'Front Service Egress' },
-  { id: 'back', position: { x: 0, z: -52 }, label: 'Back Service Egress' },
+  {
+    id: 'front',
+    position: { x: 0, z: 52 },
+    get label() {
+      return translate(gameSimulationStoreMessages, 'egressFront');
+    },
+  },
+  {
+    id: 'back',
+    position: { x: 0, z: -52 },
+    get label() {
+      return translate(gameSimulationStoreMessages, 'egressBack');
+    },
+  },
   {
     id: 'west',
     position: {
       x: SITE_LAYOUT.portals.westService.centre[0] - 2,
       z: SITE_LAYOUT.portals.westService.centre[2],
     },
-    label: 'West Service Egress',
+    get label() {
+      return translate(gameSimulationStoreMessages, 'egressWest');
+    },
   },
   {
     id: 'east',
@@ -72,7 +89,9 @@ export const SERVICE_EGRESS_POINTS = [
       x: SITE_LAYOUT.portals.eastService.centre[0] + 2,
       z: SITE_LAYOUT.portals.eastService.centre[2],
     },
-    label: 'East Service Egress',
+    get label() {
+      return translate(gameSimulationStoreMessages, 'egressEast');
+    },
   },
 ] as const;
 
@@ -360,13 +379,15 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
           id,
           kind: 'facility_stop',
           cause:
-            machineId === 'E-STOP' ? 'Facility emergency stop command' : `${machineId} interlock`,
+            machineId === 'E-STOP'
+              ? translate(gameSimulationStoreMessages, 'facilityStopCause')
+              : translate(gameSimulationStoreMessages, 'interlockCause', { machineId }),
           severity: 'critical',
           simulated: true,
           stage: 'active',
           startedAt: Date.now(),
-          response: 'Production and mobile equipment placed in a fail-safe stop.',
-          recovery: 'Awaiting explicit interlock clearance.',
+          response: translate(gameSimulationStoreMessages, 'facilityStopResponse'),
+          recovery: translate(gameSimulationStoreMessages, 'facilityStopRecovery'),
         };
         set({
           emergencyActive: true,
@@ -394,7 +415,7 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
                   ...event,
                   stage: 'cleared' as const,
                   clearedAt: Date.now(),
-                  recovery: 'Interlock cleared after state verification.',
+                  recovery: translate(gameSimulationStoreMessages, 'facilityStopCleared'),
                 }
               : event
           ),
@@ -418,13 +439,13 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
         const event: SafetyEventRecord = {
           id,
           kind: 'fire_drill',
-          cause: 'Automated emergency egress verification',
+          cause: translate(gameSimulationStoreMessages, 'drillCause'),
           severity: 'medium',
           simulated: true,
           stage: 'active',
           startedAt: Date.now(),
-          response: 'All equipment stopped while egress sensors run their verification sequence.',
-          recovery: 'Awaiting all service egress zones.',
+          response: translate(gameSimulationStoreMessages, 'drillResponse'),
+          recovery: translate(gameSimulationStoreMessages, 'drillRecovery'),
         };
         set({
           emergencyActive: true,
@@ -461,7 +482,7 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
                   ...event,
                   stage: 'cleared' as const,
                   clearedAt: Date.now(),
-                  recovery: 'Automated egress verification closed.',
+                  recovery: translate(gameSimulationStoreMessages, 'drillCleared'),
                 }
               : event
           ),
@@ -512,15 +533,15 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
         const event: SafetyEventRecord = {
           id,
           kind: 'crisis',
-          cause: `${type.replaceAll('_', ' ')} condition`,
+          cause: translate(gameSimulationStoreMessages, 'crisisCause', { type }),
           severity,
           simulated: true,
           stage: 'active',
           startedAt: Date.now(),
           response: interlocked
-            ? 'Fail-safe process stop applied.'
-            : 'Condition isolated for autonomous monitoring.',
-          recovery: 'Awaiting verified recovery state.',
+            ? translate(gameSimulationStoreMessages, 'crisisInterlockedResponse')
+            : translate(gameSimulationStoreMessages, 'crisisMonitoredResponse'),
+          recovery: translate(gameSimulationStoreMessages, 'crisisRecovery'),
         };
         set({
           crisisState: {
@@ -555,7 +576,7 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
                   ...event,
                   stage: 'cleared' as const,
                   clearedAt: Date.now(),
-                  recovery: 'Recovery state verified and interlocks released.',
+                  recovery: translate(gameSimulationStoreMessages, 'crisisCleared'),
                 }
               : event
           ),

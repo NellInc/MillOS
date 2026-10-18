@@ -36,6 +36,8 @@ import { AchievementsPanel } from '../../GameFeatures';
 import { TimelinePlayback } from '../../ui/TimelinePlayback';
 import { recoverableLazy } from '../../../utils/recoverableLazy';
 import { RecoverableFeatureBoundary } from '../../ErrorBoundary';
+import { formatFixed, formatGrouped, translate, useT } from '../../../i18n';
+import { overviewPanelMessages } from './OverviewPanel.messages';
 
 import { OperationsPlayCard, ShiftDebrief } from '../onboarding/PlayableShift';
 
@@ -51,6 +53,7 @@ const PredictiveMaintenancePanel = recoverableLazy(() =>
 const GameClock: React.FC = React.memo(() => {
   const gameTime = useGameSimulationStore((state) => state.gameTime);
   const gameSpeed = useGameSimulationStore((state) => state.gameSpeed);
+  const t = useT(overviewPanelMessages);
 
   const formatGameTime = (time: number) => {
     const hours = Math.floor(time);
@@ -60,8 +63,14 @@ const GameClock: React.FC = React.memo(() => {
 
   // 180 game-seconds per real second is 1x; agent commands may set any speed.
   const speedRatio = gameSpeed / 180;
+  // Number(...) drops a trailing .0, so whole ratios print without decimals.
+  const roundedRatio = Number(speedRatio.toFixed(1));
   const speedLabel =
-    gameSpeed === 0 ? 'PAUSED' : speedRatio < 0.1 ? '<0.1x' : `${Number(speedRatio.toFixed(1))}x`;
+    gameSpeed === 0
+      ? t('paused')
+      : speedRatio < 0.1
+        ? `<${formatFixed(0.1, 1)}x`
+        : `${formatFixed(roundedRatio, Number.isInteger(roundedRatio) ? 0 : 1)}x`;
 
   return (
     <div className="text-right">
@@ -82,19 +91,20 @@ const GameClock: React.FC = React.memo(() => {
 const GameSpeedControls: React.FC = React.memo(() => {
   const gameSpeed = useGameSimulationStore((state) => state.gameSpeed);
   const setGameSpeed = useGameSimulationStore((state) => state.setGameSpeed);
+  const t = useT(overviewPanelMessages);
 
   return (
     <div className="flex gap-1">
       <button
         onClick={() => setGameSpeed(0)}
-        aria-label="Pause"
+        aria-label={t('pause')}
         aria-pressed={gameSpeed === 0}
         className={`flex min-h-11 flex-1 items-center justify-center gap-1 rounded-lg py-2 text-xs font-bold transition-all ${
           gameSpeed === 0
             ? 'bg-orange-800 text-white'
             : 'bg-slate-700 text-slate-200 hover:bg-slate-600'
         }`}
-        title="Pause"
+        title={t('pause')}
       >
         <Pause className="w-3.5 h-3.5" aria-hidden="true" />
       </button>
@@ -106,7 +116,7 @@ const GameSpeedControls: React.FC = React.memo(() => {
             ? 'bg-orange-800 text-white'
             : 'bg-slate-700 text-slate-200 hover:bg-slate-600'
         }`}
-        title="Fast clock (1x: 24 h in 8 min). Customer deadlines run 6x faster than standard pace while trucks and packing do not, so orders run late. Use Standard pace in Shift pace for deliveries."
+        title={t('fastClockTitle')}
       >
         <Play className="w-3.5 h-3.5" aria-hidden="true" />
         1x
@@ -119,7 +129,7 @@ const GameSpeedControls: React.FC = React.memo(() => {
             ? 'bg-orange-800 text-white'
             : 'bg-slate-700 text-slate-200 hover:bg-slate-600'
         }`}
-        title="Very fast clock (10x). Customer deadlines pass far faster than trucks and packing can keep up; orders will be late."
+        title={t('veryFastClockTitle')}
       >
         <FastForward className="w-3.5 h-3.5" aria-hidden="true" />
         10x
@@ -132,7 +142,7 @@ const GameSpeedControls: React.FC = React.memo(() => {
             ? 'bg-orange-800 text-white'
             : 'bg-slate-700 text-slate-200 hover:bg-slate-600'
         }`}
-        title="Ultra fast clock (60x). Customer deadlines pass far faster than trucks and packing can keep up; orders will be late."
+        title={t('ultraFastClockTitle')}
       >
         <FastForward className="w-3.5 h-3.5" aria-hidden="true" />
         60x
@@ -144,11 +154,14 @@ const GameSpeedControls: React.FC = React.memo(() => {
 // Isolated Shift Display
 const ShiftDisplay: React.FC = React.memo(() => {
   const currentShift = useGameSimulationStore((state) => state.currentShift);
+  const t = useT(overviewPanelMessages);
 
   return (
     <div>
-      <div className="text-[10px] text-slate-500 uppercase tracking-wider">Run window</div>
-      <div className="text-sm font-bold text-white capitalize">{currentShift}</div>
+      <div className="text-[10px] text-slate-500 uppercase tracking-wider">{t('runWindow')}</div>
+      <div className="text-sm font-bold text-white capitalize">
+        {t('runWindowValue', { value: currentShift })}
+      </div>
     </div>
   );
 });
@@ -172,29 +185,29 @@ const MaterialTraceabilitySection: React.FC = React.memo(() => {
     }))
   );
   const latestManifests = useMemo(() => manifests.slice(-3).reverse(), [manifests]);
-  const formatKg = (value: number): string =>
-    value.toLocaleString(undefined, { maximumFractionDigits: 1 });
+  const t = useT(overviewPanelMessages);
+  const formatKg = (value: number): string => formatGrouped(value, { maximumFractionDigits: 1 });
 
   return (
     <section className="bg-slate-800/50 border border-white/5 rounded-xl p-3">
       <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
         <History size={14} className="text-teal-400" aria-hidden="true" />
-        Material Traceability
+        {t('materialTraceability')}
       </h3>
       <dl className="grid grid-cols-2 gap-2 mb-3">
         <div className="rounded-lg bg-slate-900/45 p-2">
-          <dt className="text-[10px] uppercase tracking-wider text-slate-500">Received</dt>
+          <dt className="text-[10px] uppercase tracking-wider text-slate-500">{t('received')}</dt>
           <dd className="text-sm font-mono font-bold text-cyan-300">{formatKg(receivedKg)} kg</dd>
         </div>
         <div className="rounded-lg bg-slate-900/45 p-2">
-          <dt className="text-[10px] uppercase tracking-wider text-slate-500">Shipped</dt>
+          <dt className="text-[10px] uppercase tracking-wider text-slate-500">{t('shipped')}</dt>
           <dd className="text-sm font-mono font-bold text-emerald-300">{formatKg(shippedKg)} kg</dd>
         </div>
       </dl>
       {latestManifests.length === 0 ? (
-        <p className="text-xs text-slate-500 py-1">Awaiting first dock transfer</p>
+        <p className="text-xs text-slate-500 py-1">{t('awaitingFirstTransfer')}</p>
       ) : (
-        <ol className="space-y-2" aria-label="Latest material manifests">
+        <ol className="space-y-2" aria-label={t('latestManifests')}>
           {latestManifests.map((manifest) => (
             <li
               key={manifest.id}
@@ -211,13 +224,13 @@ const MaterialTraceabilitySection: React.FC = React.memo(() => {
                       : 'bg-emerald-500/15 text-emerald-300'
                   }`}
                 >
-                  {manifest.kind}
+                  {t('manifestKind', { value: manifest.kind })}
                 </span>
               </div>
               <div className="mt-1 flex items-end justify-between gap-2 text-[10px] text-slate-400">
                 <span className="min-w-0 truncate">
                   {manifest.materials
-                    .map((material) => material.type.replaceAll('_', ' '))
+                    .map((material) => t('material', { value: material.type }))
                     .join(', ')}
                 </span>
                 <span className="shrink-0 font-mono text-slate-300">
@@ -255,6 +268,7 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
   const completeQCTest = useQCLabStore((state) => state.completeQCTest);
   const triggerContaminationAlert = useQCLabStore((state) => state.triggerContaminationAlert);
   const resolveContaminationAlert = useQCLabStore((state) => state.resolveContaminationAlert);
+  const t = useT(overviewPanelMessages);
   const displayedBatches = useMemo(() => {
     const investigationBatchIds = new Set(
       qcLab.contaminationAlerts
@@ -295,8 +309,8 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
       controlSource: 'Autonomous QC controller',
       controlNote:
         testType === 'retest'
-          ? 'Conforming retest completed after corrective investigation'
-          : 'Routine batch release test completed',
+          ? translate(overviewPanelMessages, 'noteRetest')
+          : translate(overviewPanelMessages, 'noteRoutineTest'),
       grade: 'A',
       moistureContent: 13.2,
       proteinLevel: 11.8,
@@ -315,7 +329,7 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
             alert.id,
             'released',
             'Autonomous QC controller',
-            'Conforming retest released the investigated scope'
+            translate(overviewPanelMessages, 'noteRetestReleased')
           )
         );
     }
@@ -333,13 +347,13 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
         batchIds: [batchId],
         severity: 'high',
         controlSource: 'Autonomous QC controller',
-        controlNote: 'Targeted batch recall investigation',
+        controlNote: translate(overviewPanelMessages, 'noteRecallInvestigation'),
       });
     resolveContaminationAlert(
       alertId,
       'recalled',
       'Autonomous QC controller',
-      'Affected batch recalled and isolated from dispatch'
+      translate(overviewPanelMessages, 'noteRecalled')
     );
   };
 
@@ -349,10 +363,13 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
         <div>
           <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-400">
             <Link2 size={14} className="text-cyan-400" aria-hidden="true" />
-            Batch genealogy and quality
+            {t('batchGenealogy')}
           </h3>
           <p className="mt-1 text-[10px] text-slate-500">
-            {sourceLotCount} source lots, {productionBatches.length} production batches
+            {t('lotSummary', {
+              lots: formatFixed(sourceLotCount, 0),
+              batches: formatFixed(productionBatches.length, 0),
+            })}
           </p>
         </div>
         <div
@@ -363,19 +380,16 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
               : 'border-amber-500/50 text-amber-300'
           }`}
         >
-          Genealogy {genealogyErrorKg >= 0 ? '+' : ''}
-          {genealogyErrorKg.toFixed(2)} kg
+          {t('genealogyBalance', {
+            sign: genealogyErrorKg >= 0 ? '+' : '',
+            value: formatFixed(genealogyErrorKg, 2),
+          })}
         </div>
       </div>
       {displayedBatches.length === 0 ? (
-        <p className="py-2 text-xs text-slate-500">
-          Packing is building the first traceable batch.
-        </p>
+        <p className="py-2 text-xs text-slate-500">{t('firstBatch')}</p>
       ) : (
-        <ol
-          className="space-y-2"
-          aria-label="Held and investigated batches, then recent production"
-        >
+        <ol className="space-y-2" aria-label={t('batchListLabel')}>
           {displayedBatches.map((batch) => {
             const unresolvedAlert = qcLab.contaminationAlerts.some(
               (alert) => !alert.resolved && alert.batchIds.includes(batch.id)
@@ -391,8 +405,10 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
                       {batch.id.toUpperCase()}
                     </div>
                     <div className="mt-0.5 text-[10px] text-slate-500">
-                      {batch.materialType.replaceAll('_', ' ')}, {batch.availableKg.toFixed(1)} kg
-                      available
+                      {t('batchAvailable', {
+                        material: t('material', { value: batch.materialType }),
+                        kg: formatFixed(batch.availableKg, 1),
+                      })}
                     </div>
                   </div>
                   <span
@@ -404,7 +420,7 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
                           : 'bg-red-500/15 text-red-300'
                     }`}
                   >
-                    {batch.disposition}
+                    {t('disposition', { value: batch.disposition })}
                   </span>
                 </div>
                 {batch.dispositionReason && (
@@ -419,7 +435,7 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
                     }
                     className="min-h-11 rounded bg-slate-700 px-3 text-xs font-semibold text-white hover:bg-slate-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
                   >
-                    {selectedBatchId === batch.id ? 'Hide trace' : 'Trace batch'}
+                    {selectedBatchId === batch.id ? t('hideTrace') : t('traceBatch')}
                   </button>
                   {batch.disposition === 'released' && (
                     <>
@@ -429,7 +445,7 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
                         className="inline-flex min-h-11 items-center gap-1.5 rounded bg-cyan-700 px-3 text-xs font-semibold text-white hover:bg-cyan-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
                       >
                         <FlaskConical size={14} aria-hidden="true" />
-                        Test batch
+                        {t('testBatch')}
                       </button>
                       <button
                         type="button"
@@ -438,12 +454,12 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
                             batchIds: [batch.id],
                             severity: 'medium',
                             controlSource: 'Autonomous QC controller',
-                            controlNote: 'Automated targeted quality hold initiated',
+                            controlNote: translate(overviewPanelMessages, 'noteHold'),
                           })
                         }
                         className="min-h-11 rounded bg-amber-800 px-3 text-xs font-semibold text-white hover:bg-amber-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-300"
                       >
-                        Place hold
+                        {t('placeHold')}
                       </button>
                     </>
                   )}
@@ -455,14 +471,14 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
                         className="inline-flex min-h-11 items-center gap-1.5 rounded bg-emerald-700 px-3 text-xs font-semibold text-white hover:bg-emerald-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-300"
                       >
                         <ShieldCheck size={14} aria-hidden="true" />
-                        Retest and release
+                        {t('retestAndRelease')}
                       </button>
                       <button
                         type="button"
                         onClick={() => recallBatch(batch.id)}
                         className="min-h-11 rounded bg-red-700 px-3 text-xs font-semibold text-white hover:bg-red-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-300"
                       >
-                        Recall batch
+                        {t('recallBatch')}
                       </button>
                     </>
                   )}
@@ -471,7 +487,7 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
                       role="status"
                       className="flex min-h-11 items-center text-xs text-amber-300"
                     >
-                      Investigation active
+                      {t('investigationActive')}
                     </span>
                   )}
                 </div>
@@ -484,21 +500,21 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
         <div
           className="mt-3 rounded-lg border border-cyan-500/25 bg-cyan-950/15 p-2.5"
           role="region"
-          aria-label={`Trace for ${selectedTrace.batch.id}`}
+          aria-label={t('traceFor', { id: selectedTrace.batch.id })}
         >
           <div className="text-[10px] font-bold uppercase tracking-wider text-cyan-300">
-            Upstream provenance
+            {t('upstreamProvenance')}
           </div>
           <ul className="mt-2 space-y-2">
             {selectedTrace.sourceLots.map(({ lot, amount, paths }) => (
               <li key={lot.id} className="text-[10px] text-slate-300">
                 <div className="flex justify-between gap-2">
                   <span className="font-mono text-cyan-200">{lot.id}</span>
-                  <span>{amount.toFixed(1)} kg</span>
+                  <span>{formatFixed(amount, 1)} kg</span>
                 </div>
                 <div className="mt-0.5 text-slate-500">
-                  {lot.supplier}, {lot.disposition}.{' '}
-                  {paths.map((path) => path.join(' to ')).join('; ')}
+                  {lot.supplier}, {t('disposition', { value: lot.disposition })}.{' '}
+                  {paths.map((path) => path.join(t('pathJoiner'))).join('; ')}
                 </div>
               </li>
             ))}
@@ -521,6 +537,7 @@ export const OverviewPanel: React.FC = React.memo(() => {
   // Removed direct gameTime/gameSpeed/currentShift subscriptions from main panel!
 
   const safetyMetrics = useSafetyStore((state) => state.safetyMetrics);
+  const t = useT(overviewPanelMessages);
 
   // Calculate machine status counts
   const machineStats = {
@@ -549,33 +566,33 @@ export const OverviewPanel: React.FC = React.memo(() => {
       <section>
         <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
           <Activity size={14} className="text-cyan-400" />
-          Production Summary
+          {t('productionSummary')}
         </h3>
         <div className="grid grid-cols-2 gap-2">
           <StatCard
-            label="Throughput"
-            value={metrics.throughput.toLocaleString()}
-            unit="bags/hr"
+            label={t('throughput')}
+            value={formatGrouped(metrics.throughput)}
+            unit={t('bagsPerHr')}
             icon={<Package size={14} />}
             color="cyan"
           />
           <StatCard
-            label="Efficiency"
-            value={`${metrics.efficiency.toFixed(1)}`}
+            label={t('efficiency')}
+            value={formatFixed(metrics.efficiency, 1)}
             unit="%"
             icon={<TrendingUp size={14} />}
             color="green"
           />
           <StatCard
-            label="Uptime"
-            value={`${metrics.uptime.toFixed(1)}`}
+            label={t('uptime')}
+            value={formatFixed(metrics.uptime, 1)}
             unit="%"
             icon={<Clock size={14} />}
             color="blue"
           />
           <StatCard
-            label="Quality"
-            value={`${metrics.quality.toFixed(1)}`}
+            label={t('quality')}
+            value={formatFixed(metrics.quality, 1)}
             unit="%"
             icon={<Thermometer size={14} />}
             color="purple"
@@ -587,10 +604,10 @@ export const OverviewPanel: React.FC = React.memo(() => {
       {productionTarget && (
         <section className="bg-slate-800/50 border border-white/5 rounded-xl p-3">
           <div className="flex justify-between items-center mb-2">
-            <span className="text-xs text-slate-400">Daily Target</span>
+            <span className="text-xs text-slate-400">{t('dailyTarget')}</span>
             <span className="text-xs font-mono text-cyan-400">
-              {productionTarget.producedBags.toLocaleString()} /{' '}
-              {productionTarget.targetBags.toLocaleString()}
+              {formatGrouped(productionTarget.producedBags)} /{' '}
+              {formatGrouped(productionTarget.targetBags)}
             </span>
           </div>
           <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
@@ -602,7 +619,7 @@ export const OverviewPanel: React.FC = React.memo(() => {
             />
           </div>
           <div className="text-right text-[10px] text-slate-500 mt-1">
-            {targetProgress.toFixed(1)}% complete
+            {t('percentComplete', { value: formatFixed(targetProgress, 1) })}
           </div>
         </section>
       )}
@@ -611,13 +628,13 @@ export const OverviewPanel: React.FC = React.memo(() => {
       <section>
         <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
           <Activity size={14} className="text-orange-400" />
-          Machine Status
+          {t('machineStatus')}
         </h3>
         <div className="grid grid-cols-4 gap-2">
-          <MiniStat label="Running" value={machineStats.running} color="green" />
-          <MiniStat label="Warning" value={machineStats.warning} color="yellow" />
-          <MiniStat label="Critical" value={machineStats.critical} color="red" />
-          <MiniStat label="Idle" value={machineStats.idle} color="slate" />
+          <MiniStat label={t('running')} value={machineStats.running} color="green" />
+          <MiniStat label={t('warning')} value={machineStats.warning} color="yellow" />
+          <MiniStat label={t('critical')} value={machineStats.critical} color="red" />
+          <MiniStat label={t('idle')} value={machineStats.idle} color="slate" />
         </div>
       </section>
 
@@ -633,12 +650,18 @@ export const OverviewPanel: React.FC = React.memo(() => {
       {/* Weather & Site Mode */}
       <section className="grid grid-cols-2 gap-2">
         <div className="bg-slate-800/50 border border-white/5 rounded-xl p-3">
-          <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Weather</div>
-          <div className="text-sm font-bold text-white capitalize">{weather}</div>
+          <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">
+            {t('weather')}
+          </div>
+          <div className="text-sm font-bold text-white capitalize">
+            {t('weatherValue', { value: weather })}
+          </div>
         </div>
         <div className="bg-slate-800/50 border border-white/5 rounded-xl p-3">
-          <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Site Mode</div>
-          <div className="text-sm font-bold text-white">Staffed · Autonomous logistics</div>
+          <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">
+            {t('siteMode')}
+          </div>
+          <div className="text-sm font-bold text-white">{t('siteModeValue')}</div>
         </div>
       </section>
 
@@ -657,31 +680,31 @@ export const OverviewPanel: React.FC = React.memo(() => {
               }
             />
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              Safety Score
+              {t('safetyScore')}
             </span>
           </div>
           <span
             className={`text-lg font-bold font-mono ${safetyScore > 90 ? 'text-green-400' : safetyScore > 70 ? 'text-yellow-400' : 'text-red-500'}`}
           >
-            {safetyScore}%
+            {formatFixed(safetyScore, 0)}%
           </span>
         </div>
         <div className="grid grid-cols-3 gap-2 text-center">
           <div>
             <div className="text-lg font-bold text-slate-300">{safetyMetrics?.nearMisses ?? 0}</div>
-            <div className="text-[10px] text-slate-500">Near Misses</div>
+            <div className="text-[10px] text-slate-500">{t('nearMisses')}</div>
           </div>
           <div>
             <div className="text-lg font-bold text-slate-300">
               {safetyMetrics?.safetyStops ?? 0}
             </div>
-            <div className="text-[10px] text-slate-500">Safety Stops</div>
+            <div className="text-[10px] text-slate-500">{t('safetyStops')}</div>
           </div>
           <div>
             <div className="text-lg font-bold text-slate-300">
               {safetyMetrics?.daysSinceIncident ?? 0}
             </div>
-            <div className="text-[10px] text-slate-500">Days Safe</div>
+            <div className="text-[10px] text-slate-500">{t('daysSafe')}</div>
           </div>
         </div>
       </section>
@@ -690,17 +713,17 @@ export const OverviewPanel: React.FC = React.memo(() => {
       <section>
         <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
           <Truck size={14} className="text-amber-400" />
-          Dock Status
+          {t('dockStatus')}
         </h3>
         <div className="grid grid-cols-2 gap-2">
           <DockCard
-            label="Receiving"
+            label={t('receiving')}
             status={dockStatus.receiving.status}
             eta={dockStatus.receiving.etaMinutes}
             receiving
           />
           <DockCard
-            label="Shipping"
+            label={t('shipping')}
             status={dockStatus.shipping.status}
             eta={dockStatus.shipping.etaMinutes}
           />
@@ -713,17 +736,17 @@ export const OverviewPanel: React.FC = React.memo(() => {
         className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-cyan-700 bg-cyan-950 px-3 py-2 text-sm text-cyan-100 hover:bg-cyan-900"
       >
         <Route size={18} aria-hidden="true" />
-        Plan logistics
+        {t('planLogistics')}
       </button>
       <BatchGenealogySection />
 
       {/* Maintenance (breakdowns, predictive alerts, parts, schedule) */}
       <section>
-        <RecoverableFeatureBoundary featureName="Predictive maintenance">
+        <RecoverableFeatureBoundary featureName={t('predictiveMaintenance')}>
           <Suspense
             fallback={
               <div className="h-20 bg-slate-800/30 rounded-lg animate-pulse" role="status">
-                <span className="sr-only">Loading maintenance panel...</span>
+                <span className="sr-only">{t('loadingMaintenance')}</span>
               </div>
             }
           >
@@ -735,10 +758,10 @@ export const OverviewPanel: React.FC = React.memo(() => {
       {/* Total Production */}
       <div className="text-center py-3 bg-gradient-to-r from-cyan-900/20 to-blue-900/20 rounded-xl border border-cyan-500/20">
         <div className="text-[10px] text-slate-500 uppercase tracking-wider">
-          Total Bags Produced
+          {t('totalBagsProduced')}
         </div>
         <div className="text-2xl font-bold font-mono text-cyan-400">
-          {totalBagsProduced.toLocaleString()}
+          {formatGrouped(totalBagsProduced)}
         </div>
       </div>
 
@@ -814,18 +837,23 @@ const DockCard: React.FC<{ label: string; status: string; eta: number; receiving
   };
 
   const colors = statusColors[status] || statusColors.clear;
+  const t = useT(overviewPanelMessages);
 
   return (
     <div className={`${colors.bg} border border-white/5 rounded-lg p-3`}>
       <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">{label}</div>
       <div className={`text-sm font-bold capitalize ${colors.text}`}>
-        {receiving && status === 'loading' ? 'Unloading' : status}
+        {receiving && status === 'loading' ? t('unloading') : t('dockState', { value: status })}
       </div>
       {status === 'clear' && eta > 0 && (
-        <div className="text-[10px] text-slate-500">Next truck in {eta} min</div>
+        <div className="text-[10px] text-slate-500">
+          {t('nextTruck', { minutes: formatFixed(eta, 0) })}
+        </div>
       )}
       {status !== 'clear' && eta > 0 && (
-        <div className="text-[10px] text-slate-500">ETA: {eta} min</div>
+        <div className="text-[10px] text-slate-500">
+          {t('eta', { minutes: formatFixed(eta, 0) })}
+        </div>
       )}
     </div>
   );
@@ -846,6 +874,7 @@ const QuickActionsSection: React.FC = () => {
     }))
   );
   const isReplaying = useHistoricalPlaybackStore((state) => state.isReplaying);
+  const t = useT(overviewPanelMessages);
 
   // Same visibility rule as AchievementsPanel: untracked goals are not counted.
   const unlockedCount = achievements.filter((a) => a.tracked !== false && a.unlockedAt).length;
@@ -894,7 +923,7 @@ const QuickActionsSection: React.FC = () => {
       <section>
         <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
           <Activity size={14} className="text-purple-400" />
-          Quick Actions
+          {t('quickActions')}
         </h3>
         <div className="grid grid-cols-2 gap-2">
           {/* Achievements */}
@@ -906,10 +935,10 @@ const QuickActionsSection: React.FC = () => {
                 ? 'bg-yellow-600 text-white'
                 : 'bg-slate-700/80 text-slate-300 hover:bg-slate-600'
             }`}
-            title="Achievements"
+            title={t('achievements')}
           >
             <Trophy size={16} className={showAchievements ? 'text-white' : 'text-yellow-400'} />
-            <span className="text-xs font-medium">Achievements</span>
+            <span className="text-xs font-medium">{t('achievements')}</span>
             {unlockedCount > 0 && (
               <span className="ml-auto w-5 h-5 bg-yellow-500 text-black text-[10px] font-bold rounded-full flex items-center justify-center">
                 {unlockedCount}
@@ -926,10 +955,10 @@ const QuickActionsSection: React.FC = () => {
                 ? 'bg-red-600 text-white'
                 : 'bg-slate-700/80 text-slate-300 hover:bg-slate-600'
             }`}
-            title="Replay History"
+            title={t('replayHistory')}
           >
             <History size={16} className={isReplaying ? 'text-white' : 'text-red-400'} />
-            <span className="text-xs font-medium">Replay</span>
+            <span className="text-xs font-medium">{t('replay')}</span>
           </button>
 
           {/* Mini-map */}
@@ -941,10 +970,10 @@ const QuickActionsSection: React.FC = () => {
                 ? 'bg-green-600 text-white'
                 : 'bg-slate-700/80 text-slate-300 hover:bg-slate-600'
             }`}
-            title="Mini-map"
+            title={t('miniMap')}
           >
             <Map size={16} className={showMiniMap ? 'text-white' : 'text-green-400'} />
-            <span className="text-xs font-medium">Mini-map</span>
+            <span className="text-xs font-medium">{t('miniMap')}</span>
           </button>
         </div>
 
@@ -953,18 +982,18 @@ const QuickActionsSection: React.FC = () => {
           <button
             onClick={handleScreenshot}
             className="flex-1 min-h-11 rounded-lg flex items-center justify-center gap-1.5 text-xs bg-slate-700/60 text-slate-400 hover:bg-slate-600 hover:text-white transition-colors"
-            title="Screenshot"
+            title={t('screenshot')}
           >
             <Image size={12} />
-            Screenshot
+            {t('screenshot')}
           </button>
           <button
             onClick={handleExport}
             className="flex-1 min-h-11 rounded-lg flex items-center justify-center gap-1.5 text-xs bg-slate-700/60 text-slate-400 hover:bg-slate-600 hover:text-white transition-colors"
-            title="Export Report"
+            title={t('exportReport')}
           >
             <Download size={12} />
-            Export
+            {t('export')}
           </button>
         </div>
       </section>

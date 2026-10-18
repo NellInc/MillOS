@@ -33,6 +33,8 @@ import {
   LucideIcon,
 } from 'lucide-react';
 import { KnowledgeEntry, KnowledgeIcon, useKnowledgeStore } from '../../stores/knowledgeStore';
+import { useT } from '../../i18n';
+import { unlockNotificationMessages } from './UnlockNotification.messages';
 
 // Icon mapping from KnowledgeIcon to Lucide component
 const ICON_MAP: Record<KnowledgeIcon, LucideIcon> = {
@@ -81,6 +83,7 @@ export function UnlockNotification({
   onDismiss,
   autoDismissMs = 8000,
 }: UnlockNotificationProps) {
+  const t = useT(unlockNotificationMessages);
   const { showUnlockNotifications } = useKnowledgeStore();
   const [isVisible, setIsVisible] = useState(true);
 
@@ -132,7 +135,7 @@ export function UnlockNotification({
                 <KnowledgeIconComponent icon={entry.icon} className="w-5 h-5 text-amber-400" />
               </div>
               <div className="flex-1">
-                <p className="text-xs text-amber-400 font-medium">New Knowledge Unlocked</p>
+                <p className="text-xs text-amber-400 font-medium">{t('unlocked')}</p>
                 <p className="text-sm text-white font-semibold truncate">{entry.title}</p>
               </div>
               <button
@@ -155,14 +158,14 @@ export function UnlockNotification({
                 onClick={handleReadNow}
                 className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-amber-500 hover:bg-amber-400 text-black text-sm font-medium rounded-lg transition-colors"
               >
-                Read Now
+                {t('readNow')}
                 <ChevronRight className="w-4 h-4" />
               </button>
               <button
                 onClick={handleDismiss}
                 className="px-3 py-2 text-slate-400 hover:text-white text-sm transition-colors"
               >
-                Later
+                {t('later')}
               </button>
             </div>
           </div>

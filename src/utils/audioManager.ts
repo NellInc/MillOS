@@ -6,6 +6,8 @@ import {
   type MusicStation,
   type MusicTrack,
 } from '../audio/millosSoundtrackCatalog';
+import { getLocale, translate } from '../i18n';
+import { audioManagerMessages } from './audioManager.messages';
 
 export type AmbientWeather = 'clear' | 'cloudy' | 'rain' | 'storm';
 
@@ -868,14 +870,16 @@ class AudioManager {
   private updateMediaSession(): void {
     if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
     const artworkSize = this.currentTrack.trackNumber === 7 ? '360x360' : '1024x1024';
-    const mediaSessionKey = `${this._musicStation}:${this.currentTrack.id}`;
+    const mediaSessionKey = `${getLocale()}:${this._musicStation}:${this.currentTrack.id}`;
     if (typeof MediaMetadata !== 'undefined' && mediaSessionKey !== this.lastMediaSessionKey) {
       this.lastMediaSessionKey = mediaSessionKey;
       navigator.mediaSession.metadata = new MediaMetadata({
         title: this.currentTrack.name,
         artist: this.currentTrack.artist,
         album:
-          this._musicStation === 'original' ? 'Songs of the Living Mill' : 'MillOS Legacy Music',
+          this._musicStation === 'original'
+            ? 'Songs of the Living Mill'
+            : translate(audioManagerMessages, 'legacyAlbum'),
         artwork: this.currentTrack.artwork
           ? [{ src: this.currentTrack.artwork, sizes: artworkSize, type: 'image/jpeg' }]
           : [],

@@ -19,6 +19,9 @@ import {
   type Dock,
   type LogisticsProposal,
 } from '../simulation/layoutPlanning';
+import { translate } from '../i18n';
+import { logisticsLayoutStoreMessages } from './logisticsLayoutStore.messages';
+import { logisticsRuntimeMessages } from '../simulation/logisticsRuntime.messages';
 import {
   logisticsFleetReady,
   prepareLogisticsFleet,
@@ -84,15 +87,16 @@ export function validateSavedLogisticsLayout(
 }
 
 export function logisticsControlHold(): string | null {
-  if (isPhysicalSessionRestoring()) return 'Wait for the saved shift to finish restoring.';
+  if (isPhysicalSessionRestoring())
+    return translate(logisticsLayoutStoreMessages, 'sessionRestoring');
   const game = useGameSimulationStore.getState();
   if (selectSafetyHoldActive(game) || useSafetyStore.getState().forkliftEmergencyStop)
-    return 'Resolve the site safety hold first.';
+    return translate(logisticsLayoutStoreMessages, 'safetyHold');
   if (isWorkplaceReplayActive() || isWorkplaceReplayRestoring())
-    return 'Finish the replay experiment before changing logistics.';
+    return translate(logisticsLayoutStoreMessages, 'replayActive');
   const service = peekSCADAService();
   if (service ? service.getState().mode !== 'simulation' : useProductionStore.getState().scadaLive)
-    return 'Logistics changes require local simulation control, never live or hybrid SCADA.';
+    return translate(logisticsLayoutStoreMessages, 'localControlOnly');
   return null;
 }
 
@@ -147,13 +151,13 @@ export const useLogisticsLayoutStore = create<LogisticsLayoutState>((set, get) =
       (useProductionStore.getState().productionSpeed !== 0 ||
         useGameSimulationStore.getState().gameSpeed !== 0)
     )
-      reason = 'Pause the mill before applying or undoing a layout.';
+      reason = translate(logisticsLayoutStoreMessages, 'pauseFirst');
     const machines = useProductionStore.getState().machines;
     if (
       !reason &&
       (!machines.length || state.revision !== revision || spoutMachineKey(machines) !== machineKey)
     )
-      reason = 'The live layout changed. Capture current again.';
+      reason = translate(logisticsLayoutStoreMessages, 'layoutChanged');
     if (
       !reason &&
       !scoreLogisticsLayout(
@@ -162,10 +166,9 @@ export const useLogisticsLayoutStore = create<LogisticsLayoutState>((set, get) =
         capturedPlanningObstacles(machines, positionRegistry.getAllObstacles())
       ).feasible
     )
-      reason =
-        'The proposal fails the live clearance check. Capture current again and resolve its conflicts.';
+      reason = translate(logisticsLayoutStoreMessages, 'clearanceFailed');
     if (!reason && !logisticsFleetReady())
-      reason = 'Wait for both forklifts to finish loading into the scene.';
+      reason = translate(logisticsRuntimeMessages, 'fleetNotReady');
     if (reason) return { changed: false, reason };
     const install = prepareLogisticsFleet(proposal);
     if (typeof install === 'string') return { changed: false, reason: install };
@@ -196,7 +199,7 @@ export const useLogisticsLayoutStore = create<LogisticsLayoutState>((set, get) =
       const previous = get().previous;
       return previous
         ? commit(previous, revision, machineKey, true)
-        : { changed: false, reason: 'There is no applied layout to undo.' };
+        : { changed: false, reason: translate(logisticsLayoutStoreMessages, 'nothingToUndo') };
     },
     restoreSaved: (saved) => {
       pendingMetres = pendingUnloads = 0;

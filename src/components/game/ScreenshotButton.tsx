@@ -5,8 +5,11 @@ import { useProductionStore } from '../../stores/productionStore';
 import { useSafetyStore } from '../../stores/safetyStore';
 import { useAchievementsStore } from '../../stores/achievementsStore';
 import { useUIStore } from '../../stores/uiStore';
+import { translate, useT } from '../../i18n';
+import { screenshotButtonMessages } from './ScreenshotButton.messages';
 
 export const ScreenshotButton: React.FC = () => {
+  const t = useT(screenshotButtonMessages);
   const [isExporting, setIsExporting] = useState(false);
 
   const handleScreenshot = async () => {
@@ -22,8 +25,8 @@ export const ScreenshotButton: React.FC = () => {
         useUIStore.getState().addAlert({
           id: `screenshot-fail-${Date.now()}`,
           type: 'warning',
-          title: 'Screenshot Failed',
-          message: 'Rendering surface unavailable. Try again in a moment.',
+          title: translate(screenshotButtonMessages, 'failedTitle'),
+          message: translate(screenshotButtonMessages, 'surfaceUnavailable'),
           timestamp: new Date(),
           acknowledged: false,
         });
@@ -34,8 +37,8 @@ export const ScreenshotButton: React.FC = () => {
       useUIStore.getState().addAlert({
         id: `screenshot-fail-${Date.now()}`,
         type: 'warning',
-        title: 'Screenshot Failed',
-        message: 'Could not capture the scene. Try again in a moment.',
+        title: translate(screenshotButtonMessages, 'failedTitle'),
+        message: translate(screenshotButtonMessages, 'captureFailed'),
         timestamp: new Date(),
         acknowledged: false,
       });
@@ -75,18 +78,18 @@ export const ScreenshotButton: React.FC = () => {
         onClick={handleScreenshot}
         disabled={isExporting}
         className="flex items-center gap-1.5 px-2 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition-colors disabled:opacity-50"
-        title="Take Screenshot"
+        title={t('takeScreenshot')}
       >
         <Image className="w-3.5 h-3.5" />
-        <span className="hidden sm:inline">Screenshot</span>
+        <span className="hidden sm:inline">{t('screenshot')}</span>
       </button>
       <button
         onClick={handleExportReport}
         className="flex items-center gap-1.5 px-2 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition-colors"
-        title="Export Report"
+        title={t('exportReport')}
       >
         <Download className="w-3.5 h-3.5" />
-        <span className="hidden sm:inline">Export</span>
+        <span className="hidden sm:inline">{t('export')}</span>
       </button>
     </div>
   );

@@ -25,7 +25,7 @@ import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { suspendPersistence } from '../../../stores/storage';
 import { suspendResourcePersistence } from '../../../utils/resourcePersistence';
 import { AUDIO_SETTINGS_KEY } from '../../../utils/audioManager';
-import { LOCALE_STORAGE_KEY } from '../../../i18n';
+import { LOCALE_STORAGE_KEY, formatFixed, useT } from '../../../i18n';
 import { LanguageSwitcher } from '../../../i18n/LanguageSwitcher';
 import { useShallow } from 'zustand/react/shallow';
 // Import optimized audio hook (uses useSyncExternalStore instead of forceUpdate)
@@ -38,6 +38,7 @@ import { useUIStore } from '../../../stores/uiStore';
 import { useAnnouncementsStore, type PAMode } from '../../../stores/announcementsStore';
 import { BuildCacheDiagnostics } from './BuildCacheDiagnostics';
 import { useIncidentReplayStore } from '../../../stores/incidentReplayStore';
+import { settingsPanelMessages } from './SettingsPanel.messages';
 
 export const SettingsPanel: React.FC<{
   productionSpeed: number;
@@ -45,6 +46,7 @@ export const SettingsPanel: React.FC<{
   showZones?: boolean;
   setShowZones?: (v: boolean) => void;
 }> = ({ productionSpeed, setProductionSpeed, showZones, setShowZones }) => {
+  const t = useT(settingsPanelMessages);
   // Subscribe to the used slice only — the bare useGraphicsStore() form
   // re-rendered the whole panel on any graphics-store mutation.
   const graphics = useGraphicsStore(
@@ -123,18 +125,18 @@ export const SettingsPanel: React.FC<{
       <section>
         <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3 flex items-center gap-2">
           <Gauge size={14} className="text-orange-500" aria-hidden="true" />
-          Simulation Control
+          {t('simulationControl')}
         </h3>
         <div className="bg-slate-800/50 p-3 rounded-xl border border-white/5">
           <div className="flex justify-between text-xs mb-2">
             <label htmlFor="production-speed-slider" className="text-slate-300">
-              Production Speed
+              {t('productionSpeed')}
             </label>
             <output
               htmlFor="production-speed-slider"
               className="text-orange-400 font-mono font-bold"
             >
-              {(productionSpeed * 100).toFixed(0)}%
+              {formatFixed(productionSpeed * 100, 0)}%
             </output>
           </div>
           <input
@@ -149,7 +151,7 @@ export const SettingsPanel: React.FC<{
             aria-valuemin={0}
             aria-valuemax={200}
             aria-valuenow={productionSpeed * 100}
-            aria-valuetext={`${(productionSpeed * 100).toFixed(0)} percent`}
+            aria-valuetext={t('percentValue', { value: formatFixed(productionSpeed * 100, 0) })}
           />
         </div>
       </section>
@@ -158,22 +160,22 @@ export const SettingsPanel: React.FC<{
       <section>
         <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3 flex items-center gap-2">
           <Volume2 size={14} className="text-cyan-400" aria-hidden="true" />
-          Audio
+          {t('audio')}
         </h3>
         <div className="bg-slate-800/50 p-3 rounded-xl border border-white/5 space-y-4">
           {/* Master Volume */}
           <div>
             <div className="flex justify-between items-center mb-2">
               <label htmlFor="master-volume-slider" className="text-xs text-slate-200">
-                Master Volume
+                {t('masterVolume')}
               </label>
               <button
                 onClick={() => audio.setMuted(!audio.muted)}
-                aria-label="Mute audio"
+                aria-label={t('muteAudio')}
                 aria-pressed={audio.muted}
                 className="text-[10px] text-cyan-400 hover:text-cyan-300"
               >
-                {audio.muted ? 'UNMUTE' : 'MUTE'}
+                {audio.muted ? t('unmute') : t('mute')}
               </button>
             </div>
             <input
@@ -189,7 +191,9 @@ export const SettingsPanel: React.FC<{
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={Math.round(audio.volume * 100)}
-              aria-valuetext={`${Math.round(audio.volume * 100)} percent`}
+              aria-valuetext={t('percentValue', {
+                value: formatFixed(Math.round(audio.volume * 100), 0),
+              })}
             />
           </div>
 
@@ -199,16 +203,16 @@ export const SettingsPanel: React.FC<{
               <div className="flex items-center gap-2">
                 <Music size={12} className="text-slate-300" aria-hidden="true" />
                 <label htmlFor="music-volume-slider" className="text-xs text-slate-200">
-                  Music
+                  {t('music')}
                 </label>
               </div>
               <button
                 onClick={() => audio.setMusicEnabled(!audio.musicEnabled)}
-                aria-label="Music playback"
+                aria-label={t('musicPlayback')}
                 aria-pressed={audio.musicEnabled}
                 className={`text-[10px] px-2 py-0.5 rounded ${audio.musicEnabled ? 'bg-emerald-700 text-white' : 'bg-slate-700 text-white/70'}`}
               >
-                {audio.musicEnabled ? 'ON' : 'OFF'}
+                {audio.musicEnabled ? t('on') : t('off')}
               </button>
             </div>
             <input
@@ -224,7 +228,9 @@ export const SettingsPanel: React.FC<{
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={Math.round(audio.musicVolume * 100)}
-              aria-valuetext={`${Math.round(audio.musicVolume * 100)} percent`}
+              aria-valuetext={t('percentValue', {
+                value: formatFixed(Math.round(audio.musicVolume * 100), 0),
+              })}
             />
           </div>
 
@@ -234,7 +240,7 @@ export const SettingsPanel: React.FC<{
               <div className="flex items-center gap-2">
                 <Cog size={12} className="text-slate-300" aria-hidden="true" />
                 <label htmlFor="machine-volume-slider" className="text-xs text-slate-200">
-                  Machine Sounds
+                  {t('machineSounds')}
                 </label>
               </div>
               <span className="text-[10px] text-orange-400 font-mono">
@@ -253,18 +259,20 @@ export const SettingsPanel: React.FC<{
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={Math.round(audio.machineVolume * 100)}
-              aria-valuetext={`${Math.round(audio.machineVolume * 100)} percent`}
+              aria-valuetext={t('percentValue', {
+                value: formatFixed(Math.round(audio.machineVolume * 100), 0),
+              })}
             />
           </div>
 
           <fieldset className="space-y-2 border-t border-white/5 pt-3">
-            <legend className="text-xs font-medium text-slate-200">PA mode</legend>
-            <div className="grid grid-cols-3 gap-1" role="radiogroup" aria-label="PA mode">
+            <legend className="text-xs font-medium text-slate-200">{t('paMode')}</legend>
+            <div className="grid grid-cols-3 gap-1" role="radiogroup" aria-label={t('paMode')}>
               {(
                 [
-                  ['focused', 'Focused'],
-                  ['characterful', 'Characterful'],
-                  ['off', 'Off'],
+                  ['focused', t('paFocused')],
+                  ['characterful', t('paCharacterful')],
+                  ['off', t('paOff')],
                 ] as const satisfies ReadonlyArray<readonly [PAMode, string]>
               ).map(([mode, label]) => (
                 <button
@@ -283,38 +291,35 @@ export const SettingsPanel: React.FC<{
                 </button>
               ))}
             </div>
-            <p className="text-[10px] leading-4 text-slate-400">
-              Focused keeps the PA terse. Characterful lets it talk. Safety messages come through
-              regardless.
-            </p>
+            <p className="text-[10px] leading-4 text-slate-400">{t('paModeHelp')}</p>
           </fieldset>
 
           {/* The v0.40 audio policy exposes text captions and non-vocal signal tones only. */}
           <div className="flex items-center justify-between border-t border-white/5 pt-2">
             <span className="flex items-center gap-2 text-xs text-slate-200">
               <Captions size={12} aria-hidden="true" />
-              PA captions
+              {t('paCaptions')}
             </span>
             <button
               type="button"
               onClick={() => setCaptionsEnabled(!captionsEnabled)}
-              aria-label="PA captions"
+              aria-label={t('paCaptions')}
               aria-pressed={captionsEnabled}
               className={`rounded px-2 py-0.5 text-[10px] ${
                 captionsEnabled ? 'bg-teal-700 text-white' : 'bg-slate-700 text-white/70'
               }`}
             >
-              {captionsEnabled ? 'ON' : 'OFF'}
+              {captionsEnabled ? t('on') : t('off')}
             </button>
           </div>
 
           <details className="border-t border-white/5 pt-3">
             <summary className="cursor-pointer text-xs font-medium text-slate-200">
-              PA transcript ({transcript.length})
+              {t('paTranscriptSummary', { count: formatFixed(transcript.length, 0) })}
             </summary>
             <div className="mt-3 space-y-2">
               <label className="relative block">
-                <span className="sr-only">Search PA transcript</span>
+                <span className="sr-only">{t('searchPaTranscript')}</span>
                 <Search
                   size={13}
                   className="pointer-events-none absolute left-2.5 top-2.5 text-slate-500"
@@ -324,21 +329,19 @@ export const SettingsPanel: React.FC<{
                   type="search"
                   value={transcriptQuery}
                   onChange={(event) => setTranscriptQuery(event.target.value)}
-                  placeholder="Search transcript"
+                  placeholder={t('searchTranscript')}
                   className="min-h-10 w-full rounded-lg border border-slate-700 bg-slate-950/70 pl-8 pr-3 text-xs text-slate-200 outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
                 />
               </label>
               <div
                 role="log"
-                aria-label="PA transcript"
+                aria-label={t('paTranscript')}
                 aria-live="off"
                 className="max-h-48 space-y-1 overflow-y-auto rounded-lg bg-slate-950/50 p-2"
               >
                 {filteredTranscript.length === 0 ? (
                   <p className="p-2 text-[10px] text-slate-400">
-                    {transcript.length === 0
-                      ? 'Nothing announced yet. The mill is either very new or very quiet.'
-                      : 'No matches. Try a different search, or accept the silence.'}
+                    {transcript.length === 0 ? t('transcriptEmpty') : t('transcriptNoMatches')}
                   </p>
                 ) : (
                   filteredTranscript.map((announcement) => (
@@ -347,7 +350,7 @@ export const SettingsPanel: React.FC<{
                       className="rounded border border-slate-800 bg-slate-900/60 p-2"
                     >
                       <div className="mb-1 flex items-center justify-between gap-2 text-[9px] uppercase tracking-wider text-slate-500">
-                        <span>{announcement.channel}</span>
+                        <span>{t('paChannel', { channel: announcement.channel })}</span>
                         <time dateTime={announcement.timestamp.toISOString()}>
                           {announcement.timestamp.toLocaleTimeString([], {
                             hour: '2-digit',
@@ -367,7 +370,7 @@ export const SettingsPanel: React.FC<{
                 className="inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-[10px] font-medium text-slate-300 transition-colors hover:bg-slate-700 disabled:opacity-40"
               >
                 <Trash2 size={12} aria-hidden="true" />
-                Clear transcript
+                {t('clearTranscript')}
               </button>
             </div>
           </details>
@@ -379,7 +382,7 @@ export const SettingsPanel: React.FC<{
         <section>
           <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3 flex items-center gap-2">
             <BookOpen size={14} className="text-amber-400" aria-hidden="true" />
-            Knowledge System
+            {t('knowledgeSystem')}
           </h3>
           <div className="bg-slate-800/50 p-3 rounded-xl border border-white/5 space-y-1">
             <button
@@ -387,23 +390,23 @@ export const SettingsPanel: React.FC<{
               onClick={() => replayGettingStarted(false)}
               className="mb-2 flex min-h-11 w-full items-center justify-between rounded-lg border border-cyan-500/20 bg-cyan-500/10 px-3 text-left text-xs text-cyan-200 transition-colors hover:bg-cyan-500/20"
             >
-              <span>Replay getting started</span>
+              <span>{t('replayGettingStarted')}</span>
               <BookOpen size={14} aria-hidden="true" />
             </button>
             <Toggle
-              label="Philosophy Tooltips"
+              label={t('philosophyTooltips')}
               icon={<MessageSquare size={12} />}
               value={showTooltips}
               onChange={setShowTooltips}
             />
             <Toggle
-              label="Loading Screen Quotes"
+              label={t('loadingScreenQuotes')}
               icon={<Sparkles size={12} />}
               value={showLoadingQuotes}
               onChange={setShowLoadingQuotes}
             />
             <Toggle
-              label="AI Reflections"
+              label={t('aiReflections')}
               icon={<Eye size={12} />}
               value={showAINarration && narrationEnabled}
               onChange={(v) => {
@@ -413,15 +416,13 @@ export const SettingsPanel: React.FC<{
             />
             {FEATURE_FLAGS.KNOWLEDGE_UNLOCK_TOASTS_ENABLED && (
               <Toggle
-                label="Unlock Notifications"
+                label={t('unlockNotifications')}
                 icon={<Bell size={12} />}
                 value={showUnlockNotifications}
                 onChange={setShowUnlockNotifications}
               />
             )}
-            <p className="text-[9px] text-slate-400 mt-2 px-2">
-              Controls the depth of bilateral alignment and economic democracy content.
-            </p>
+            <p className="text-[9px] text-slate-400 mt-2 px-2">{t('knowledgeHelp')}</p>
           </div>
         </section>
       )}
@@ -430,19 +431,23 @@ export const SettingsPanel: React.FC<{
       <section>
         <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3 flex items-center gap-2">
           <Monitor size={14} className="text-purple-400" aria-hidden="true" />
-          Graphics
+          {t('graphics')}
         </h3>
 
         <div className="bg-slate-800/50 p-3 rounded-xl border border-white/5 space-y-4">
           {/* Quality Presets */}
-          <div className="grid grid-cols-4 gap-1" role="radiogroup" aria-label="Graphics quality">
+          <div
+            className="grid grid-cols-4 gap-1"
+            role="radiogroup"
+            aria-label={t('graphicsQuality')}
+          >
             {(['low', 'medium', 'high', 'ultra'] as GraphicsQuality[]).map((quality) => (
               <button
                 key={quality}
                 onClick={() => setGraphicsQuality(quality)}
                 role="radio"
                 aria-checked={graphics.graphics.quality === quality}
-                aria-label={`${quality} quality`}
+                aria-label={t('qualityLabel', { quality })}
                 className={`py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-all ${
                   graphics.graphics.quality === quality
                     ? quality === 'low'
@@ -455,7 +460,7 @@ export const SettingsPanel: React.FC<{
                     : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                 }`}
               >
-                {quality}
+                {t('qualityName', { quality })}
               </button>
             ))}
           </div>
@@ -463,46 +468,46 @@ export const SettingsPanel: React.FC<{
           {/* Post-Processing */}
           <div className="space-y-1">
             <div className="text-[9px] uppercase tracking-wider text-slate-400 mb-1">
-              Post-Processing
+              {t('postProcessing')}
             </div>
             <Toggle
-              label="Light Shafts"
+              label={t('lightShafts')}
               icon={<Eye size={12} />}
               value={graphics.graphics.enableLightShafts}
               onChange={(v) => graphics.setGraphicsSetting('enableLightShafts', v)}
             />
             <Toggle
-              label="Colour Grade"
+              label={t('colourGrade')}
               icon={<Palette size={12} />}
               value={graphics.graphics.enableColorGrade}
               onChange={(v) => graphics.setGraphicsSetting('enableColorGrade', v)}
             />
             <Toggle
-              label="Ambient Occlusion"
+              label={t('ambientOcclusion')}
               icon={<Eye size={12} />}
               value={graphics.graphics.enableAmbientOcclusion}
               onChange={(v) => graphics.setGraphicsSetting('enableAmbientOcclusion', v)}
             />
             <Toggle
-              label="Bloom Glow"
+              label={t('bloomGlow')}
               icon={<Eye size={12} />}
               value={graphics.graphics.enableBloom}
               onChange={(v) => graphics.setGraphicsSetting('enableBloom', v)}
             />
             <Toggle
-              label="Vignette"
+              label={t('vignette')}
               icon={<Monitor size={12} />}
               value={graphics.graphics.enableVignette}
               onChange={(v) => graphics.setGraphicsSetting('enableVignette', v)}
             />
             <Toggle
-              label="Anti-Aliasing"
+              label={t('antiAliasing')}
               icon={<Monitor size={12} />}
               value={graphics.graphics.enableSMAA}
               onChange={(v) => graphics.setGraphicsSetting('enableSMAA', v)}
             />
             <Toggle
-              label="Depth of Field"
+              label={t('depthOfField')}
               icon={<Eye size={12} />}
               value={graphics.graphics.enableDepthOfField}
               onChange={(v) => graphics.setGraphicsSetting('enableDepthOfField', v)}
@@ -512,16 +517,16 @@ export const SettingsPanel: React.FC<{
           {/* Particles & Effects */}
           <div className="space-y-1">
             <div className="text-[9px] uppercase tracking-wider text-slate-400 mb-1">
-              Particles & Effects
+              {t('particlesEffects')}
             </div>
             <Toggle
-              label="Dust Particles"
+              label={t('dustParticles')}
               icon={<Wind size={12} />}
               value={graphics.graphics.enableDustParticles}
               onChange={(v) => graphics.setGraphicsSetting('enableDustParticles', v)}
             />
             <Toggle
-              label="Grain Flow"
+              label={t('grainFlow')}
               icon={<Wind size={12} />}
               value={graphics.graphics.enableGrainFlow}
               onChange={(v) => graphics.setGraphicsSetting('enableGrainFlow', v)}
@@ -531,16 +536,16 @@ export const SettingsPanel: React.FC<{
           {/* Scene & Machines */}
           <div className="space-y-1">
             <div className="text-[9px] uppercase tracking-wider text-slate-400 mb-1">
-              Scene & Machines
+              {t('sceneMachines')}
             </div>
             <Toggle
-              label="Machine Vibration"
+              label={t('machineVibration')}
               icon={<Activity size={12} />}
               value={graphics.graphics.enableMachineVibration}
               onChange={(v) => graphics.setGraphicsSetting('enableMachineVibration', v)}
             />
             <Toggle
-              label="Wireframe Mode"
+              label={t('wireframeMode')}
               icon={<Grid3X3 size={12} />}
               value={graphics.graphics.enableWireframe}
               onChange={(v) => graphics.setGraphicsSetting('enableWireframe', v)}
@@ -557,32 +562,32 @@ export const SettingsPanel: React.FC<{
                 control is gone rather than mislabelled. See the notes on both
                 keys in `graphicsStore.ts`. */}
             <Toggle
-              label="Contact Shadows"
+              label={t('contactShadows')}
               icon={<Eye size={12} />}
               value={graphics.graphics.enableContactShadows}
               onChange={(v) => graphics.setGraphicsSetting('enableContactShadows', v)}
             />
             <Toggle
-              label="High-Res Shadows"
+              label={t('highResShadows')}
               icon={<Eye size={12} />}
               value={graphics.graphics.enableHighResShadows}
               onChange={(v) => graphics.setGraphicsSetting('enableHighResShadows', v)}
             />
             <Toggle
-              label="Floor Puddles"
+              label={t('floorPuddles')}
               icon={<Wind size={12} />}
               value={graphics.graphics.enableFloorPuddles}
               onChange={(v) => graphics.setGraphicsSetting('enableFloorPuddles', v)}
             />
             <Toggle
-              label="Audio Reactive"
+              label={t('audioReactive')}
               icon={<Activity size={12} />}
               value={graphics.graphics.enableAudioReactive}
               onChange={(v) => graphics.setGraphicsSetting('enableAudioReactive', v)}
             />
             {setShowZones && (
               <Toggle
-                label="Zone Markers"
+                label={t('zoneMarkers')}
                 icon={<Grid3X3 size={12} />}
                 value={showZones ?? true}
                 onChange={setShowZones}
@@ -596,7 +601,7 @@ export const SettingsPanel: React.FC<{
               <div className="flex items-center gap-2">
                 <Monitor size={12} className="text-slate-300" aria-hidden="true" />
                 <label htmlFor="resolution-scale-slider" className="text-xs text-slate-200">
-                  Resolution Scale
+                  {t('resolutionScale')}
                 </label>
               </div>
               <output
@@ -616,11 +621,13 @@ export const SettingsPanel: React.FC<{
               onChange={(e) =>
                 graphics.setGraphicsSetting('resolutionScale', parseFloat(e.target.value))
               }
-              aria-label="Resolution scale"
+              aria-label={t('resolutionScaleLabel')}
               aria-valuemin={25}
               aria-valuemax={100}
               aria-valuenow={Math.round((graphics.graphics.resolutionScale ?? 1) * 100)}
-              aria-valuetext={`${Math.round((graphics.graphics.resolutionScale ?? 1) * 100)} percent`}
+              aria-valuetext={t('percentValue', {
+                value: formatFixed(Math.round((graphics.graphics.resolutionScale ?? 1) * 100), 0),
+              })}
               className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
             />
             <div className="flex justify-between text-[9px] text-slate-400 mt-1" aria-hidden="true">
@@ -636,12 +643,12 @@ export const SettingsPanel: React.FC<{
       <section>
         <h3 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-300">
           <Monitor size={14} className="text-cyan-400" aria-hidden="true" />
-          Interface accessibility
+          {t('interfaceAccessibility')}
         </h3>
         <div className="rounded-xl border border-white/5 bg-slate-800/50 p-3">
           <div className="mb-2 flex items-center justify-between gap-3">
             <label htmlFor="ui-scale-slider" className="text-xs text-slate-200">
-              Interface scale
+              {t('interfaceScale')}
             </label>
             <output htmlFor="ui-scale-slider" className="font-mono text-xs font-bold text-cyan-300">
               {Math.round(uiScale * 100)}%
@@ -658,12 +665,11 @@ export const SettingsPanel: React.FC<{
             aria-valuemin={90}
             aria-valuemax={150}
             aria-valuenow={Math.round(uiScale * 100)}
-            aria-valuetext={`${Math.round(uiScale * 100)} percent`}
+            aria-valuetext={t('percentValue', { value: formatFixed(Math.round(uiScale * 100), 0) })}
             className="w-full cursor-pointer accent-cyan-500"
           />
           <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
-            Makes controls and text larger without reducing the 3D render resolution. Browser zoom
-            and OS text size still work as expected.
+            {t('interfaceScaleHelp')}
           </p>
         </div>
       </section>
@@ -671,21 +677,22 @@ export const SettingsPanel: React.FC<{
       <section>
         <h3 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-300">
           <Download size={14} className="text-emerald-400" aria-hidden="true" />
-          Diagnostic replay
+          {t('diagnosticReplay')}
         </h3>
         <div className="space-y-3 rounded-xl border border-white/5 bg-slate-800/50 p-3">
-          <p className="text-[11px] leading-relaxed text-slate-400">
-            The last ten minutes of the simulation are buffered — frames, commands, build ID and
-            seed. No credentials or identity data leave the building.
-          </p>
+          <p className="text-[11px] leading-relaxed text-slate-400">{t('diagnosticReplayHelp')}</p>
           <div className="grid grid-cols-2 gap-2 text-center text-xs">
             <div className="rounded-lg bg-slate-900/60 p-2">
-              <div className="font-mono text-lg text-white">{replayFrames.length}</div>
-              <div className="text-slate-400">frames</div>
+              <div className="font-mono text-lg text-white">
+                {formatFixed(replayFrames.length, 0)}
+              </div>
+              <div className="text-slate-400">{t('frames')}</div>
             </div>
             <div className="rounded-lg bg-slate-900/60 p-2">
-              <div className="font-mono text-lg text-white">{diagnosticCommands.length}</div>
-              <div className="text-slate-400">commands</div>
+              <div className="font-mono text-lg text-white">
+                {formatFixed(diagnosticCommands.length, 0)}
+              </div>
+              <div className="text-slate-400">{t('commands')}</div>
             </div>
           </div>
           <div className="grid gap-2 sm:grid-cols-3">
@@ -695,7 +702,7 @@ export const SettingsPanel: React.FC<{
               onClick={() => setReplayMode(true)}
               className="min-h-10 rounded-lg bg-cyan-600 px-3 text-xs font-semibold text-white hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              Enter replay
+              {t('enterReplay')}
             </button>
             <button
               type="button"
@@ -721,7 +728,7 @@ export const SettingsPanel: React.FC<{
               }}
               className="min-h-10 rounded-lg bg-emerald-700 px-3 text-xs font-semibold text-white hover:bg-emerald-600"
             >
-              Export JSON
+              {t('exportJson')}
             </button>
             <button
               type="button"
@@ -729,7 +736,7 @@ export const SettingsPanel: React.FC<{
               className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-slate-700 px-3 text-xs font-semibold text-slate-100 hover:bg-slate-600"
             >
               <Trash2 size={12} aria-hidden="true" />
-              Clear buffer
+              {t('clearBuffer')}
             </button>
           </div>
         </div>
@@ -741,21 +748,21 @@ export const SettingsPanel: React.FC<{
       <section>
         <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3 flex items-center gap-2">
           <RotateCcw size={14} className="text-amber-500" aria-hidden="true" />
-          Simulation
+          {t('simulation')}
         </h3>
         <div className="bg-slate-800/50 p-3 rounded-xl border border-white/5 space-y-2">
           <button
             onClick={() => setResetConfirm('day')}
             className="w-full py-2 rounded-lg text-xs font-medium bg-amber-900/30 text-amber-400 hover:bg-amber-900/50 flex items-center justify-center gap-2 transition-colors"
           >
-            Reset to 10 AM
+            {t('resetToTen')}
           </button>
           <button
             onClick={() => setResetConfirm('full')}
             className="w-full py-2 rounded-lg text-xs font-medium text-red-400 hover:bg-red-900/20 flex items-center justify-center gap-2 transition-colors"
           >
             <RotateCcw size={12} aria-hidden="true" />
-            Reset Simulation
+            {t('resetSimulation')}
           </button>
         </div>
       </section>
@@ -763,10 +770,10 @@ export const SettingsPanel: React.FC<{
       {/* Reset to 10am confirmation */}
       <ConfirmDialog
         isOpen={resetConfirm === 'day'}
-        title="Reset to 10 AM"
+        title={t('resetToTen')}
         tone="amber"
-        confirmLabel="Reset to 10 AM"
-        message="Wind the clock back to 10 AM at the current pace. Weather, run window and emergency state reset. Customer orders and their deadlines keep their own clock, so an overdue order stays overdue; production totals, machine states and achievements carry on. For a fresh shift use Reset Simulation."
+        confirmLabel={t('resetToTen')}
+        message={t('resetDayMessage')}
         onCancel={() => setResetConfirm(null)}
         onConfirm={() => {
           clearPersistedState();
@@ -777,10 +784,10 @@ export const SettingsPanel: React.FC<{
       {/* Full reset confirmation (destructive) */}
       <ConfirmDialog
         isOpen={resetConfirm === 'full'}
-        title="Reset Simulation"
+        title={t('resetSimulation')}
         tone="red"
-        confirmLabel="Reset Everything"
-        message="Wipe everything — saved progress, graphics settings, your saved AI preferences — and reload from scratch. Sound and language settings are kept. There is no undo."
+        confirmLabel={t('resetEverything')}
+        message={t('resetFullMessage')}
         onCancel={() => setResetConfirm(null)}
         onConfirm={() => {
           // Clear every persisted MillOS store (keys are namespaced "millos-*").
@@ -813,23 +820,28 @@ const Toggle: React.FC<{
   icon: React.ReactNode;
   value: boolean;
   onChange: (v: boolean) => void;
-}> = ({ label, icon, value, onChange }) => (
-  <button
-    onClick={() => onChange(!value)}
-    aria-label={label}
-    aria-pressed={value}
-    className={`w-full flex items-center justify-between p-2 rounded-lg transition-colors ${value ? 'bg-slate-700/50 text-white' : 'hover:bg-slate-800 text-slate-300'}`}
-  >
-    <div className="flex items-center gap-2 text-xs">
-      <span aria-hidden="true">{icon}</span>
-      <span>{label}</span>
-    </div>
-    <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider">
-      <span className={value ? 'text-green-300' : 'text-slate-400'}>{value ? 'On' : 'Off'}</span>
-      <span
-        className={`w-2 h-2 rounded-full ${value ? 'bg-green-400' : 'bg-slate-500'}`}
-        aria-hidden="true"
-      />
-    </span>
-  </button>
-);
+}> = ({ label, icon, value, onChange }) => {
+  const t = useT(settingsPanelMessages);
+  return (
+    <button
+      onClick={() => onChange(!value)}
+      aria-label={label}
+      aria-pressed={value}
+      className={`w-full flex items-center justify-between p-2 rounded-lg transition-colors ${value ? 'bg-slate-700/50 text-white' : 'hover:bg-slate-800 text-slate-300'}`}
+    >
+      <div className="flex items-center gap-2 text-xs">
+        <span aria-hidden="true">{icon}</span>
+        <span>{label}</span>
+      </div>
+      <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider">
+        <span className={value ? 'text-green-300' : 'text-slate-400'}>
+          {value ? t('toggleOn') : t('toggleOff')}
+        </span>
+        <span
+          className={`w-2 h-2 rounded-full ${value ? 'bg-green-400' : 'bg-slate-500'}`}
+          aria-hidden="true"
+        />
+      </span>
+    </button>
+  );
+};

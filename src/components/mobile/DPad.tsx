@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Move, Eye, ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useMobileControlStore, type DPadDirection } from '../../stores/mobileControlStore';
 import { useUIStore } from '../../stores/uiStore';
+import { useT } from '../../i18n';
+import { dPadMessages } from './DPad.messages';
 
 interface DPadProps {
   disabled?: boolean;
@@ -21,6 +23,7 @@ export const DPad: React.FC<DPadProps> = ({
   idleOpacity = 0.4,
   activeOpacity = 1,
 }) => {
+  const t = useT(dPadMessages);
   // Optimize selectors to avoid re-renders
   const dpadMode = useMobileControlStore((state) => state.dpadMode);
   const toggleDpadMode = useMobileControlStore((state) => state.toggleDpadMode);
@@ -72,8 +75,18 @@ export const DPad: React.FC<DPadProps> = ({
   // Accessible names follow what the buttons actually do in each mode.
   const labels =
     dpadMode === 'move' || fpsMode
-      ? { up: 'Move forward', down: 'Move back', left: 'Strafe left', right: 'Strafe right' }
-      : { up: 'Orbit up', down: 'Orbit down', left: 'Orbit left', right: 'Orbit right' };
+      ? {
+          up: t('moveForward'),
+          down: t('moveBack'),
+          left: t('strafeLeft'),
+          right: t('strafeRight'),
+        }
+      : {
+          up: t('orbitUp'),
+          down: t('orbitDown'),
+          left: t('orbitLeft'),
+          right: t('orbitRight'),
+        };
 
   // touch-action below owns scroll suppression; React's touch listeners are
   // passive, so preventDefault here would only produce a browser warning.
@@ -229,7 +242,7 @@ export const DPad: React.FC<DPadProps> = ({
         onClick={() => !fpsMode && toggleDpadMode()}
         onTouchStart={(e) => e.stopPropagation()}
         disabled={disabled || fpsMode}
-        aria-label={`Switch to ${dpadMode === 'move' ? 'look' : 'move'} mode`}
+        aria-label={dpadMode === 'move' ? t('switchToLook') : t('switchToMove')}
       >
         {fpsMode || dpadMode === 'move' ? (
           <Move className="w-5 h-5 text-white" />

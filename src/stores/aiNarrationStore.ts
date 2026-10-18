@@ -4,6 +4,8 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { safeJSONStorage } from './storage';
 import { CURRENT_RELEASE_VERSION } from '../config/releaseVersions';
+import { translate } from '../i18n';
+import { aiNarrationStoreMessages as msg } from './aiNarrationStore.messages';
 
 export type NarrationTrigger =
   | 'first-play'
@@ -33,6 +35,7 @@ export interface AINarrationState {
   getAllForTrigger: (trigger: NarrationTrigger) => NarrationEntry[];
 }
 
+// `content` is a getter, so every read resolves in the active language.
 export const AI_NARRATIONS: NarrationEntry[] = [
   {
     id: 'welcome-autonomous-mill',
@@ -40,26 +43,34 @@ export const AI_NARRATIONS: NarrationEntry[] = [
     oneTime: true,
     priority: 100,
     unlocksEntry: 'unified-digital-twin',
-    content: `Welcome to MillOS ${CURRENT_RELEASE_VERSION}.\n\nThis is a staffed grain-mill digital twin with autonomous logistics. The factory floor, loading yard, garage, village, farm, stream, mountains, sky, and celestial cycle form one continuous world.\n\nI coordinate process state, logistics, safety interlocks, quality genealogy, maintenance, and SCADA evidence. Open Datalinks for concise explanations of how each subsystem fits together.`,
+    get content() {
+      return translate(msg, 'welcome', { version: CURRENT_RELEASE_VERSION });
+    },
   },
   {
     id: 'library-autonomous-mill',
     trigger: 'library-opened',
     oneTime: true,
     priority: 80,
-    content: `Datalinks explains the mill as you explore: follow waiting grain, investigate a held batch, compare useful output with running costs, and see how a completed order supplies the bakery. Optional developer references sit in a separate section.`,
+    get content() {
+      return translate(msg, 'library');
+    },
   },
   {
     id: 'extended-autonomous-session',
     trigger: 'extended-play',
     oneTime: true,
     minPlayTime: 60,
-    content: `The simulation has been running for an hour. This is a useful point to review alarm history, maintenance wear, genealogy balance, and graphics performance before increasing the time scale.`,
+    get content() {
+      return translate(msg, 'extendedSession');
+    },
   },
   {
     id: 'autonomous-emergency-active',
     trigger: 'emergency-active',
-    content: `A fail-safe stop is active. Production and mobile equipment remain interlocked until the recovery state is verified.`,
+    get content() {
+      return translate(msg, 'emergencyActive');
+    },
   },
 ];
 
