@@ -237,6 +237,89 @@ export async function activateWaitingServiceWorker(): Promise<boolean> {
   });
 }
 
+export const SERVICE_WORKER_UPDATE_WAITING_MESSAGE =
+  'A new MillOS build is waiting; reload to activate it.';
+export const SERVICE_WORKER_UPDATE_ACTIVE_MESSAGE =
+  'A new MillOS build is now active; reload to use it.';
+
+export interface ServiceWorkerUpdatePolicy {
+  /** True once the scene has opened; a build update must never reload it. */
+  isSessionActive: () => boolean;
+  reload: () => void;
+  warn: (message: string) => void;
+}
+
+/**
+ * Register the worker and decide when a new build may reload the page.
+ *
+ * A new worker used to park in `waiting` until every tab closed, so a deploy
+ * never reached open tabs; activating it and reloading fixed that, but did so
+ * mid-session too. The rule now has three parts:
+ * (a) an update found while the scene is open stays waiting, with a warning;
+ * (b) a controller change never reloads a tab whose scene is open;
+ * (c) at the next startup, before the scene opens, a waiting worker is
+ *     activated and the page reloads once, so a build is never stranded.
+ * Working if an open scene is never reloaded by a deploy, and the reload after
+ * a deploy happens on the loader of the next startup instead.
+ */
+export async function registerServiceWorkerWithUpdatePolicy(
+  policy: ServiceWorkerUpdatePolicy,
+  config?: ServiceWorkerConfig
+): Promise<ServiceWorkerRegistration | null> {
+  if (!isServiceWorkerSupported()) return null;
+  const container = navigator.serviceWorker;
+  let hadController = false;
+  try {
+    hadController = Boolean(container.controller);
+  } catch {
+    hadController = false;
+  }
+
+  let reloading = false;
+  const reloadOnce = (): void => {
+    if (reloading) return;
+    if (policy.isSessionActive()) {
+      policy.warn(SERVICE_WORKER_UPDATE_ACTIVE_MESSAGE);
+      return;
+    }
+    reloading = true;
+    policy.reload();
+  };
+  container.addEventListener('controllerchange', () => {
+    // First install claims the page without a build change; only a
+    // replacement controller means the shell on screen is stale.
+    if (hadController) reloadOnce();
+  });
+
+  let activating = false;
+  const activateWaiting = (reloadWhenActivated: boolean): void => {
+    if (activating || reloading) return;
+    if (policy.isSessionActive()) {
+      policy.warn(SERVICE_WORKER_UPDATE_WAITING_MESSAGE);
+      return;
+    }
+    activating = true;
+    void activateWaitingServiceWorker().then((activated) => {
+      activating = false;
+      if (!activated) policy.warn(SERVICE_WORKER_UPDATE_WAITING_MESSAGE);
+      else if (reloadWhenActivated) reloadOnce();
+    });
+  };
+
+  const registration = await registerServiceWorker({
+    ...config,
+    onUpdate: (updated) => {
+      config?.onUpdate?.(updated);
+      activateWaiting(true);
+    },
+  });
+  // A build that finished installing in an earlier session. An uncontrolled
+  // page already loaded its shell from the network, so only the controller
+  // change (when there was a previous controller) reloads it.
+  if (registration?.waiting) activateWaiting(false);
+  return registration;
+}
+
 async function postMessageWithReply<T>(
   type: 'CLEAR_CACHE' | 'GET_CACHE_SIZE' | 'GET_BUILD_INFO'
 ): Promise<T | null> {
