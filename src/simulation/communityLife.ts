@@ -9,6 +9,8 @@ import { COMMUNITY_ANCHORS as A, getCommunityHours } from '../constants/communit
 import type { Vec3Tuple } from '../constants/siteLayout';
 import type { WorkplaceState } from '../types/workplace';
 import { improvementArrangement } from './workplaceImprovement';
+import { translate } from '../i18n';
+import { communityAgreementMessages } from './communityLife.messages';
 
 export type CommunityActivity = 'working' | 'walking' | 'break' | 'idle';
 export interface CommunityStop {
@@ -194,10 +196,26 @@ export function communityAgreementCue(
           : state === 'briefing'
             ? 'Paid handoff briefing'
             : `Agreed: ${qualifiedTask}`;
+  // The billboard label resolves in the active language; `task` stays English
+  // diagnostic data read by scene inspection.
+  const displayTask = member.eligibleTasks.includes(member.chosenTask)
+    ? translate(communityAgreementMessages, 'task', { value: member.chosenTask })
+    : translate(communityAgreementMessages, 'awaitingAssignment');
+  const displayLabel =
+    state === 'recovery'
+      ? translate(communityAgreementMessages, 'protectedRecovery')
+      : state === 'rest'
+        ? translate(communityAgreementMessages, 'protectedRest')
+        : state === 'cover'
+          ? translate(communityAgreementMessages, 'voluntaryCover')
+          : state === 'briefing'
+            ? translate(communityAgreementMessages, 'paidBriefing')
+            : translate(communityAgreementMessages, 'agreed', { task: displayTask });
+  const displayRole = translate(communityAgreementMessages, 'role', { value: member.role });
   return {
     memberId: member.id,
     state,
-    label: `${member.role}\n${label}`,
+    label: `${displayRole}\n${displayLabel}`,
     task:
       state === 'briefing'
         ? 'Attending a paid handoff briefing at the existing safe observation post'
@@ -300,7 +318,8 @@ export function advanceCommunityPresentationClock(
   emergency: boolean
 ) {
   if (!Number.isFinite(worldHour) || !Number.isFinite(observedElapsed)) return hour;
-  if (emergency || !tabVisible) return worldHour;
+  // A non-finite presentation clock never recovers by stepping; reframe it.
+  if (emergency || !tabVisible || !Number.isFinite(hour)) return worldHour;
   // Preserve the existing explicit art-time reframe contract.
   if (
     observedElapsed < 0 ||

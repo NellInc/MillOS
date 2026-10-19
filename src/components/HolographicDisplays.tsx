@@ -17,6 +17,8 @@ import { shouldRunThisFrame, getThrottleLevel } from '../utils/frameThrottle';
 import { MachineType, type MachineData } from '../types';
 import { SITE_LAYOUT } from '../constants/siteLayout';
 import { useReducedMotion } from '../hooks/useReducedMotion';
+import { formatFixed, formatGrouped, useT } from '../i18n';
+import { holographicDisplaysMessages } from './HolographicDisplays.messages';
 
 /** Shared positions keep optional zone labels attached when production moves. */
 export const HOLOGRAPHIC_ZONE_POSITIONS: Record<
@@ -65,6 +67,7 @@ type DockStatus = 'arriving' | 'loading' | 'departing' | 'clear';
 type Dock = 'shipping' | 'receiving';
 
 export const HolographicDisplays: React.FC = () => {
+  const t = useT(holographicDisplaysMessages);
   // Use useShallow to prevent re-renders when unrelated store values change
   const { dockStatus, machines, metrics, totalBagsProduced } = useProductionStore(
     useShallow((state) => ({
@@ -84,23 +87,24 @@ export const HolographicDisplays: React.FC = () => {
   const getStatusDisplay = (status: DockStatus, dock: Dock) => {
     switch (status) {
       case 'arriving':
-        return 'Incoming';
+        return t('statusIncoming');
       case 'loading':
-        return dock === 'shipping' ? 'Loading' : 'Unloading';
+        return dock === 'shipping' ? t('statusLoading') : t('statusUnloading');
       case 'departing':
-        return 'Departing';
+        return t('statusDeparting');
       case 'clear':
-        return 'Clear';
+        return t('statusClear');
     }
   };
 
   // TruckBay publishes etaMinutes = 0 while a truck is at the bay and the
   // next-arrival minutes while the bay is clear.
   const getSubValue = (status: DockStatus, dock: Dock, eta: number) => {
-    if (status === 'arriving') return 'On approach';
-    if (status === 'loading') return dock === 'shipping' ? 'Loading flour' : 'Unloading grain';
-    if (status === 'departing') return 'Bay clearing';
-    return eta > 0 ? `Next truck in ${eta} min` : 'Awaiting truck';
+    if (status === 'arriving') return t('subOnApproach');
+    if (status === 'loading')
+      return dock === 'shipping' ? t('subLoadingFlour') : t('subUnloadingGrain');
+    if (status === 'departing') return t('subBayClearing');
+    return eta > 0 ? t('subNextTruck', { minutes: formatFixed(eta, 0) }) : t('subAwaitingTruck');
   };
 
   return (
@@ -108,8 +112,11 @@ export const HolographicDisplays: React.FC = () => {
       {/* Main production display - centered, high visibility */}
       <HoloPanel
         position={[0, 14, -30]}
-        title="PRODUCTION STATUS"
-        value={`${zoneMetrics.runningMachines}/${machines.length} RUNNING`}
+        title={t('productionTitle')}
+        value={t('productionValue', {
+          running: formatFixed(zoneMetrics.runningMachines, 0),
+          total: formatFixed(machines.length, 0),
+        })}
         color="#22c55e"
         size={[14, 4.5]}
       />
@@ -117,12 +124,14 @@ export const HolographicDisplays: React.FC = () => {
       {/* Zone displays follow the canonical production layout. */}
       <HoloPanel
         position={HOLOGRAPHIC_ZONE_POSITIONS.storage}
-        title="ZONE 1: STORAGE"
-        value={`${machines.filter((m) => m.type === MachineType.SILO).length} Silos Monitored`}
+        title={t('storageTitle')}
+        value={t('silosMonitored', {
+          count: formatFixed(machines.filter((m) => m.type === MachineType.SILO).length, 0),
+        })}
         subValue={
           zoneMetrics.siloLevel === null
-            ? 'Level unavailable'
-            : `Mean level: ${zoneMetrics.siloLevel}%`
+            ? t('levelUnavailable')
+            : t('meanLevel', { level: formatFixed(zoneMetrics.siloLevel, 0) })
         }
         color="#3b82f6"
         size={[7, 2.8]}
@@ -130,12 +139,12 @@ export const HolographicDisplays: React.FC = () => {
 
       <HoloPanel
         position={HOLOGRAPHIC_ZONE_POSITIONS.milling}
-        title="ZONE 2: MILLING"
-        value={`${zoneMetrics.runningMills} Mills Running`}
+        title={t('millingTitle')}
+        value={t('millsRunning', { count: formatFixed(zoneMetrics.runningMills, 0) })}
         subValue={
           zoneMetrics.millAvailability === null
-            ? 'No mills configured'
-            : `Running: ${zoneMetrics.millAvailability}%`
+            ? t('noMills')
+            : t('millsRunningShare', { share: formatFixed(zoneMetrics.millAvailability, 0) })
         }
         color="#8b5cf6"
         size={[7, 2.8]}
@@ -143,12 +152,14 @@ export const HolographicDisplays: React.FC = () => {
 
       <HoloPanel
         position={HOLOGRAPHIC_ZONE_POSITIONS.sifting}
-        title="ZONE 3: SIFTING"
-        value={`${machines.filter((m) => m.type === MachineType.PLANSIFTER).length} Plansifters`}
+        title={t('siftingTitle')}
+        value={t('plansifters', {
+          count: formatFixed(machines.filter((m) => m.type === MachineType.PLANSIFTER).length, 0),
+        })}
         subValue={
           zoneMetrics.qualityGrade === null
-            ? 'Quality unavailable'
-            : `Quality: ${zoneMetrics.qualityGrade.toFixed(1)}%`
+            ? t('qualityUnavailable')
+            : t('quality', { quality: formatFixed(zoneMetrics.qualityGrade, 1) })
         }
         color="#ec4899"
         size={[7, 2.8]}
@@ -156,16 +167,16 @@ export const HolographicDisplays: React.FC = () => {
 
       <HoloPanel
         position={HOLOGRAPHIC_ZONE_POSITIONS.packing}
-        title="ZONE 4: PACKING"
+        title={t('packingTitle')}
         value={
           zoneMetrics.bagsPerMin === null
-            ? 'Output unavailable'
-            : `${zoneMetrics.bagsPerMin.toFixed(1)} bags/min`
+            ? t('outputUnavailable')
+            : t('bagsPerMin', { value: formatFixed(zoneMetrics.bagsPerMin, 1) })
         }
         subValue={
           zoneMetrics.totalBags === null
-            ? 'Total unavailable'
-            : `Total: ${zoneMetrics.totalBags.toLocaleString()} bags`
+            ? t('totalUnavailable')
+            : t('totalBags', { total: formatGrouped(zoneMetrics.totalBags) })
         }
         color="#f59e0b"
         size={[7, 2.8]}
@@ -174,7 +185,7 @@ export const HolographicDisplays: React.FC = () => {
       {/* Dock status displays */}
       <HoloPanel
         position={[0, 8, 42]}
-        title="SHIPPING DOCK"
+        title={t('shippingTitle')}
         value={getStatusDisplay(dockStatus.shipping.status, 'shipping')}
         subValue={getSubValue(
           dockStatus.shipping.status,
@@ -187,7 +198,7 @@ export const HolographicDisplays: React.FC = () => {
 
       <HoloPanel
         position={[0, 8, -42]}
-        title="RECEIVING DOCK"
+        title={t('receivingTitle')}
         value={getStatusDisplay(dockStatus.receiving.status, 'receiving')}
         subValue={getSubValue(
           dockStatus.receiving.status,

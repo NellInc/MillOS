@@ -2,9 +2,13 @@ import {
   useProductionStore,
   cleanupThrottledBags,
   resetThrottledBagState,
+  PRODUCTION_DELEGATED_KEYS,
 } from '../stores/productionStore';
 import { useMaterialFlowStore } from '../stores/materialFlowStore';
-import { useOperationsCampaignStore } from '../stores/operationsCampaignStore';
+import {
+  compactBatchCreditKeys,
+  useOperationsCampaignStore,
+} from '../stores/operationsCampaignStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useBreakdownStore } from '../stores/breakdownStore';
 import { useTruckScheduleStore } from '../stores/truckScheduleStore';
@@ -29,16 +33,26 @@ import {
   useLogisticsLayoutStore,
   validateSavedLogisticsLayout,
 } from '../stores/logisticsLayoutStore';
+import { translate } from '../i18n';
+import { physicalSessionMessages as messages } from './physicalSession.messages';
 
 export const PHYSICAL_SESSION_KEY = 'millos-physical-session';
 const MAX_SAVE_BYTES = 3_000_000;
 type Data<S> = { [K in keyof S as S[K] extends (...args: never[]) => unknown ? never : K]: S[K] };
-function data<S extends object>(state: S): Data<S> {
+function data<S extends object, K extends keyof Data<S> = never>(
+  state: S,
+  omit: readonly K[] = []
+): Omit<Data<S>, K> {
   return structuredClone(
     Object.fromEntries(
-      Object.entries(state).filter(([, v]) => typeof v !== 'function' && v !== undefined)
+      Object.entries(state).filter(
+        ([k, v]) =>
+          typeof v !== 'function' &&
+          v !== undefined &&
+          !(omit as readonly PropertyKey[]).includes(k)
+      )
     )
-  ) as Data<S>;
+  ) as Omit<Data<S>, K>;
 }
 
 // One record keeps physical stock, quality authority, faults and dispatch credit
@@ -50,7 +64,9 @@ export function capturePhysicalSession() {
   return {
     version: 1 as const,
     logistics: captureSavedLogisticsLayout(),
-    production: data(useProductionStore.getState()),
+    // The delegated keys are stale copies of the quality, achievement, PA, replay
+    // and truck owners, which save their own domains below.
+    production: data(useProductionStore.getState(), PRODUCTION_DELEGATED_KEYS),
     material: data(useMaterialFlowStore.getState()),
     operations: data(useOperationsCampaignStore.getState()),
     game: data(useGameSimulationStore.getState()),
@@ -71,7 +87,8 @@ export function encodePhysicalSession(value: PhysicalSession): string {
     const original = this[key];
     if (original instanceof Date) return { [TAG]: 'date', value: original.toISOString() };
     if (original instanceof Map) return { [TAG]: 'map', value: [...original] };
-    if (typeof v === 'number' && !Number.isFinite(v)) throw new Error('Non-finite saved value');
+    if (typeof v === 'number' && !Number.isFinite(v))
+      throw new Error(`Non-finite saved value at ${key}`);
     return v;
   });
   if (encoded.length * 2 > MAX_SAVE_BYTES) throw new Error('Physical save is too large');
@@ -121,6 +138,10 @@ export function decodePhysicalSession(raw: string): PhysicalSession {
   }) as PhysicalSession;
   validateTree(value, { left: 200_000 });
   if (!value || value.version !== 1) throw new Error('Unsupported physical save');
+  // Records from before the delegated copies were dropped still carry them. Their
+  // owners' own domains are authoritative, so discard the copies, not the record.
+  if (value.production && typeof value.production === 'object')
+    for (const key of PRODUCTION_DELEGATED_KEYS) Reflect.deleteProperty(value.production, key);
   const defaults = capturePhysicalSession();
   for (const domain of [
     'production',
@@ -298,7 +319,10 @@ export const isPhysicalSessionRestoring = () => pending !== null;
 function restoreStores(saved: PhysicalSession) {
   resetThrottledBagState();
   useMaterialFlowStore.setState(saved.material);
-  useOperationsCampaignStore.setState(saved.operations);
+  useOperationsCampaignStore.setState({
+    ...saved.operations,
+    creditedBatchKg: compactBatchCreditKeys(saved.operations.creditedBatchKg),
+  });
   useBreakdownStore.setState(saved.maintenance);
   useTruckScheduleStore.setState(saved.trucks);
   useQCLabStore.setState(saved.quality);
@@ -338,18 +362,29 @@ export function installPhysicalSession(
   let disabled = false,
     writing = false,
     queued = false,
+    saveFailed = false,
     lastWritten: string | null = null;
-  const warn = (message: string) => {
-    disabled = true;
-    useGameSimulationStore.getState().setGameSpeed(0);
+  const notify = (id: string, type: 'info' | 'warning', title: string, message: string) =>
     useUIStore.getState().addAlert({
-      id: 'physical-save-unavailable',
-      type: 'warning',
-      title: 'Shift save needs attention',
+      id,
+      type,
+      title,
       message,
       timestamp: new Date(),
       acknowledged: false,
     });
+  // Working if only a record this tab could not load pauses the shift: halt()
+  // guards restore integrity, notify() reports a save problem while play goes on.
+  const halt = (message: string, error?: unknown) => {
+    if (error !== undefined) console.error('[physicalSession] restore failed:', error);
+    disabled = true;
+    useGameSimulationStore.getState().setGameSpeed(0);
+    notify(
+      'physical-save-unavailable',
+      'warning',
+      translate(messages, 'saveNeedsAttention'),
+      translate(messages, 'resetHint', { reason: message })
+    );
   };
   const localControl = () =>
     !peekSCADAService() || peekSCADAService()?.getState().mode === 'simulation';
@@ -357,9 +392,7 @@ export function installPhysicalSession(
   try {
     storage = providedStorage ?? window.localStorage;
   } catch {
-    warn(
-      'Browser storage is unavailable. This shift is paused and cannot be saved in this browser.'
-    );
+    halt(translate(messages, 'storageUnavailable'));
     return () => {
       pending = null;
     };
@@ -373,10 +406,8 @@ export function installPhysicalSession(
       pending = saved;
       lastWritten = raw;
     }
-  } catch {
-    warn(
-      'The saved physical shift could not be restored. Its record is retained. The clock is paused and this tab will not overwrite it.'
-    );
+  } catch (error) {
+    halt(translate(messages, 'restoreFailed'), error);
   }
   const save = () => {
     const startup = getStartupSnapshot();
@@ -393,22 +424,39 @@ export function installPhysicalSession(
     writing = true;
     try {
       // Reset Simulation clears local storage before reload. Never resurrect it.
+      // Another tab owns a non-null record: stop writing here, keep this shift running.
       if (storage.getItem(PHYSICAL_SESSION_KEY) !== lastWritten) {
+        disabled = true;
         if (storage.getItem(PHYSICAL_SESSION_KEY) !== null)
-          warn(
-            'The saved shift changed outside this tab. Reload to use that record; this tab is paused and will not overwrite it.'
+          notify(
+            'physical-save-other-tab',
+            'info',
+            translate(messages, 'otherTabTitle'),
+            translate(messages, 'otherTabMessage')
           );
-        else disabled = true;
         return;
       }
       cleanupThrottledBags();
       const raw = encodePhysicalSession(capturePhysicalSession());
       storage.setItem(PHYSICAL_SESSION_KEY, raw);
       lastWritten = raw;
-    } catch {
-      warn(
-        'Your latest physical shift could not be saved. Earlier saved progress is retained. Free browser storage before continuing; reloading may lose unsaved changes.'
-      );
+      saveFailed = false;
+    } catch (error) {
+      // Working if a failed cycle keeps the last good record, retries on the next
+      // interval and alerts once per failure run; only a quota error blames storage.
+      console.error('[physicalSession] autosave failed:', error);
+      const name = (error as { name?: unknown } | null)?.name;
+      const quota = name === 'QuotaExceededError' || name === 'NS_ERROR_DOM_QUOTA_REACHED';
+      if (!saveFailed)
+        notify(
+          'physical-autosave-skipped',
+          'info',
+          translate(messages, 'autosaveSkippedTitle'),
+          quota
+            ? translate(messages, 'autosaveSkippedQuota')
+            : translate(messages, 'autosaveSkippedMessage')
+        );
+      saveFailed = true;
     } finally {
       writing = false;
     }
@@ -424,10 +472,8 @@ export function installPhysicalSession(
   const startup = subscribeStartup(() => {
     try {
       finishRestore();
-    } catch {
-      warn(
-        'Scene continuation could not be restored. The saved record is retained and the clock is paused.'
-      );
+    } catch (error) {
+      halt(translate(messages, 'continuationFailed'), error);
     }
   });
   // Coalesce a quality or repair action after all its synchronous store writes.
@@ -448,7 +494,44 @@ export function installPhysicalSession(
     )
       queue();
   });
-  const timer = window.setInterval(save, 5000);
+  // A scene owner that fails to mount (an error boundary renders nothing) holds a
+  // restored clock at 0 and stops autosave with no sign. Never resume a half-
+  // restored shift; say what happened instead. Working if a required owner still
+  // missing ~20 s after the scene is ready raises one notice per outage.
+  let missingChecks = 0,
+    sceneWarned = false;
+  const watchScene = () => {
+    if (
+      disabled ||
+      !getStartupSnapshot().ready ||
+      isWorkplaceReplayActive() ||
+      !missingReplayParticipants().length
+    ) {
+      missingChecks = 0;
+      sceneWarned = false;
+      return;
+    }
+    if (++missingChecks < 4 || sceneWarned) return;
+    sceneWarned = true;
+    if (pending)
+      notify(
+        'physical-scene-incomplete',
+        'warning',
+        translate(messages, 'sceneWaitingTitle'),
+        translate(messages, 'sceneWaitingMessage')
+      );
+    else
+      notify(
+        'physical-scene-incomplete',
+        'info',
+        translate(messages, 'autosavePausedTitle'),
+        translate(messages, 'autosavePausedMessage')
+      );
+  };
+  const timer = window.setInterval(() => {
+    watchScene();
+    save();
+  }, 5000);
   window.addEventListener('pagehide', save);
   const visibility = () => {
     if (document.hidden) save();

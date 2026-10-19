@@ -32,6 +32,8 @@ import { useSafetyStore } from '../stores/safetyStore';
 import { useBreakdownStore } from '../stores/breakdownStore';
 import { useUIStore } from '../stores/uiStore';
 import type { AIDecision } from '../types';
+import { translate } from '../i18n';
+import { achievementTrackerMessages } from './useAchievementTracker.messages';
 
 /** Polling cadence for aggregate checks (full-capacity and safety streaks). */
 const POLL_INTERVAL_MS = 5000;
@@ -80,14 +82,17 @@ const startTracking = (): (() => void) => {
           useUIStore.getState().addAlert({
             id: `achievement-${a.id}-${Date.now()}`,
             type: 'success',
-            title: 'Achievement Unlocked',
-            message: `${a.name} - ${a.description}`,
+            title: translate(achievementTrackerMessages, 'unlockedTitle'),
+            message: translate(achievementTrackerMessages, 'unlockedMessage', {
+              name: a.name,
+              description: a.description,
+            }),
             timestamp: new Date(),
             acknowledged: false,
           });
 
           useGameSimulationStore.getState().triggerCelebration('milestone', {
-            message: `Achievement unlocked: ${a.name}`,
+            message: translate(achievementTrackerMessages, 'unlockedCelebration', { name: a.name }),
           });
         });
       }

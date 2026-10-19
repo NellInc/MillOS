@@ -1,0 +1,60 @@
+import { defineMessages } from '../../../i18n';
+
+const PT_MACHINE_TYPES: Record<string, string> = {
+  SILO: 'silo',
+  ROLLER_MILL: 'moinho de rolos',
+  PLANSIFTER: 'plansifter',
+  PACKER: 'ensacadeira',
+  CONTROL_ROOM: 'sala de controle',
+};
+
+export const contextSidebarMessages = defineMessages({
+  en: {
+    inspector: 'Inspector',
+    scada: 'Simulated SCADA',
+    aiPartner: 'AI Partner',
+    systemSettings: 'System Settings',
+    safety: 'Safety & Emergency',
+    management: 'Workplace & Autonomy',
+    production: 'Production',
+    overview: 'Mill Overview',
+    // The machine type enum, shown as words (capitalised by CSS).
+    machineType: (p: { type: string }) => p.type.toLowerCase().replaceAll('_', ' '),
+    panelLabel: '{title} sidebar panel',
+    closePanel: 'Close sidebar panel',
+    selectVersion: 'Select MillOS version',
+    releaseCurrent: '{label} (current)',
+    releaseHistorical: '{label} (historical)',
+    goToVersion: 'Go to MillOS version {version}',
+    go: 'Go',
+    aboutLabel: 'About MillOS',
+    about: 'About',
+    sourceLabel: 'View source code on GitHub',
+    source: 'Source',
+    loadingPanel: 'Loading panel content...',
+  },
+  'pt-BR': {
+    inspector: 'Inspetor',
+    scada: 'SCADA simulado',
+    aiPartner: 'Parceiro de IA',
+    systemSettings: 'Configurações do sistema',
+    safety: 'Segurança e emergência',
+    management: 'Trabalho e autonomia',
+    production: 'Produção',
+    overview: 'Visão geral do moinho',
+    machineType: (p: { type: string }) =>
+      PT_MACHINE_TYPES[p.type] ?? p.type.toLowerCase().replaceAll('_', ' '),
+    panelLabel: 'Painel lateral: {title}',
+    closePanel: 'Fechar painel lateral',
+    selectVersion: 'Selecionar a versão do MillOS',
+    releaseCurrent: '{label} (atual)',
+    releaseHistorical: '{label} (histórica)',
+    goToVersion: 'Ir para a versão {version} do MillOS',
+    go: 'Ir',
+    aboutLabel: 'Sobre o MillOS',
+    about: 'Sobre',
+    sourceLabel: 'Ver o código-fonte no GitHub',
+    source: 'Código-fonte',
+    loadingPanel: 'Carregando o conteúdo do painel...',
+  },
+});

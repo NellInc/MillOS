@@ -5,17 +5,21 @@ import { useUIStore } from '../../stores/uiStore';
 import { useShallow } from 'zustand/react/shallow';
 import { positionRegistry, type EntityPosition } from '../../utils/positionRegistry';
 import { FACTORY_ZONE_Z } from '../../constants/siteLayout';
+import { useT } from '../../i18n';
+import { miniMapMessages } from './MiniMap.messages';
 
 // True top-down view matching the overview camera: +x right, -z (the far side
 // of the site) up. The tick is a bar hanging down from the dot, so rotate()
 // must carry screen (0, 1) onto the heading (dirX, dirZ).
+// Labels are message keys, resolved at render so a language change reaches them.
 const ZONE_LABELS = [
-  { label: 'Packing', z: FACTORY_ZONE_Z.packing },
-  { label: 'Sifters', z: FACTORY_ZONE_Z.sifting },
-  { label: 'Mills', z: FACTORY_ZONE_Z.milling },
+  { id: 'packing', labelKey: 'zonePacking', z: FACTORY_ZONE_Z.packing },
+  { id: 'sifting', labelKey: 'zoneSifters', z: FACTORY_ZONE_Z.sifting },
+  { id: 'milling', labelKey: 'zoneMills', z: FACTORY_ZONE_Z.milling },
 ] as const;
 
 export const MiniMap: React.FC = () => {
+  const t = useT(miniMapMessages);
   const { showMiniMap, setShowMiniMap } = useUIStore(
     useShallow((state) => ({
       showMiniMap: state.showMiniMap,
@@ -65,11 +69,11 @@ export const MiniMap: React.FC = () => {
         <div className="flex items-center justify-between px-3 py-2 border-b border-slate-800 bg-slate-800/50">
           <div className="flex items-center gap-2">
             <Map className="w-4 h-4 text-cyan-400" />
-            <span className="text-xs font-medium text-white">Fleet Map</span>
+            <span className="text-xs font-medium text-white">{t('title')}</span>
           </div>
           <button
             onClick={() => setShowMiniMap(false)}
-            aria-label="Close mini map"
+            aria-label={t('close')}
             className="w-5 h-5 rounded flex items-center justify-center hover:bg-slate-700 transition-colors"
           >
             <X className="w-3 h-3 text-slate-400" />
@@ -96,13 +100,13 @@ export const MiniMap: React.FC = () => {
 
           {/* Zone indicators, placed at each zone's real z. The silo pad sits at
               x=65, outside the mapped +/-60 m, so it has no label here. */}
-          {ZONE_LABELS.map(({ label, z }) => (
+          {ZONE_LABELS.map(({ id, labelKey, z }) => (
             <div
-              key={label}
+              key={id}
               className="absolute left-2 -translate-y-1/2 text-[8px] text-slate-400"
               style={{ top: offsetZ + (z * mapScale) / 2 }}
             >
-              {label}
+              {t(labelKey)}
             </div>
           ))}
 
@@ -138,7 +142,7 @@ export const MiniMap: React.FC = () => {
         <div className="flex items-center justify-center gap-4 px-3 py-1.5 border-t border-slate-800 bg-slate-800/30">
           <div className="flex items-center gap-1">
             <div className="w-2 h-2 bg-amber-500 rounded-sm" />
-            <span className="text-[9px] text-slate-400">Forklifts</span>
+            <span className="text-[9px] text-slate-400">{t('forklifts')}</span>
           </div>
         </div>
       </div>

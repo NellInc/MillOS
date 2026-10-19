@@ -374,6 +374,43 @@ describe('retained truck first-use preparation', () => {
     expect(probe.markReady).not.toHaveBeenCalled();
   });
 
+  it.each(['deadline-passed', 'stale-timer'])(
+    'retires a succeeded truck deadline before later re-preparation (%s)',
+    (route) => {
+      const { material, programs } = truckPrograms();
+      programs[1].isReady.mockReturnValue(true);
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+      render(<StartupReadiness />);
+      draw();
+      vi.advanceTimersByTime(10);
+      expect(probe.startup.pendingTasks).toBe(0);
+      if (route === 'deadline-passed') {
+        // 'Use low graphics' after the recovery delay: resetStartupPreparation bumps the revision.
+        now = 20000;
+        probe.startup.revision++;
+        frames(1);
+      } else {
+        // A re-preparation still compiling when the first attempt's 15 s timer fires.
+        vi.advanceTimersByTime(14970);
+        programs[1].isReady.mockReturnValue(false);
+        material.needsUpdate = true;
+        frames(1);
+        vi.advanceTimersByTime(30);
+        programs[1].isReady.mockReturnValue(true);
+      }
+      expect(probe.startup.errors).toBe(0);
+      expect(probe.startup.pendingTasks).toBe(1);
+      draw();
+      vi.advanceTimersByTime(10);
+      expect(probe.startup.pendingTasks).toBe(0);
+      frames(44);
+      frames();
+      expect(probe.markReady).toHaveBeenCalled();
+      expect(probe.startup.errors).toBe(0);
+      expect(error).not.toHaveBeenCalled();
+    }
+  );
+
   it('accepts only the actual two DoubleSide renderer increments and retires its object hooks', () => {
     const { material, programs } = truckPrograms();
     material.transparent = true;
@@ -555,4 +592,76 @@ describe('StartupReadiness actual work barriers', () => {
       expect(probe.markReady).toHaveBeenCalled();
     }
   );
+});
+
+// Opening is one-way module state on the real snapshot, so this block must stay last.
+describe('explicitly opened slow session', () => {
+  it('draws during truck preparation without DoubleSide draws forcing per-frame recompiles', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const actual = await vi.importActual<typeof import('../utils/startupReadiness')>(
+      '../utils/startupReadiness'
+    );
+    const truck = new THREE.Group();
+    truck.name = 'shipping-truck';
+    const full = new THREE.Group();
+    full.name = 'truck-full-detail';
+    full.visible = false;
+    truck.add(full);
+    scene.add(truck);
+    const glass = new THREE.MeshStandardMaterial({ transparent: true, side: THREE.DoubleSide });
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(), glass);
+    scene.add(mesh);
+    const truckMaterial = new THREE.MeshStandardMaterial();
+    const program = (ready: boolean) => ({
+      program: {} as WebGLProgram,
+      isReady: vi.fn(() => ready),
+      getUniforms: vi.fn(),
+      getAttributes: vi.fn(),
+    });
+    const worldProgram = program(true),
+      truckProgram = program(false);
+    gl.compile.mockImplementation(
+      (object: THREE.Object3D) => new Set([object === scene ? glass : truckMaterial])
+    );
+    gl.properties.get.mockImplementation((candidate: THREE.Material) => ({
+      programs: new Map([['p', candidate === glass ? worldProgram : truckProgram]]),
+    }));
+    gl.render.mockImplementation(() => {
+      const args = [
+        gl as unknown as THREE.WebGLRenderer,
+        scene,
+        camera,
+        mesh.geometry,
+        glass,
+        null,
+      ];
+      mesh.onBeforeRender(...(args as Parameters<THREE.Object3D['onBeforeRender']>));
+      glass.side = THREE.BackSide;
+      glass.needsUpdate = true;
+      glass.side = THREE.FrontSide;
+      glass.needsUpdate = true;
+      glass.side = THREE.DoubleSide;
+      mesh.onAfterRender(...(args as Parameters<THREE.Object3D['onAfterRender']>));
+    });
+    actual.markStartupPrepared(true, () => true);
+    expect(actual.openPreparedStartup()).toBe(true);
+    render(<StartupReadiness />);
+    const serial = actual.getStartupDrawSerial();
+    frames(5);
+    expect(gl.render.mock.calls.length).toBeGreaterThanOrEqual(5);
+    expect(gl.compile).toHaveBeenCalledTimes(2);
+    expect(actual.getStartupDrawSerial()).toBe(serial);
+    expect(probe.startup.errors).toBe(0);
+    expect(probe.startup.pendingTasks).toBe(1);
+    truckProgram.isReady.mockReturnValue(true);
+    vi.advanceTimersByTime(10);
+    expect(probe.startup.pendingTasks).toBe(0);
+    frames(44);
+    expect(probe.markReady).not.toHaveBeenCalled();
+    frames();
+    expect(probe.markReady).toHaveBeenCalled();
+    expect(gl.compile).toHaveBeenCalledTimes(2);
+    delete document.documentElement.dataset.millosStartupDegraded;
+  });
 });

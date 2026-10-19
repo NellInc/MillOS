@@ -1,0 +1,53 @@
+import { defineMessages } from '../../../i18n';
+
+export const dockMessages = defineMessages({
+  en: {
+    navLabel: 'Main Navigation',
+    itemOverview: 'Mill Overview',
+    itemProduction: 'Production',
+    itemManagement: 'Bilateral Autonomy System (BAS)',
+    itemSafety: 'Safety & Emergency',
+    itemScada: 'Simulated SCADA',
+    itemSettings: 'Settings',
+    moreLabel: 'More workspaces and view controls',
+    menuAiPartner: 'AI Partner',
+    menuManagement: 'Bilateral Autonomy System',
+    menuDatalinks: 'Datalinks',
+    menuFirstPerson: 'First-person view',
+    exitFullscreen: 'Exit fullscreen',
+    enterFullscreen: 'Enter fullscreen',
+
+    // Short labels under each dock icon (DOCK_LABELS).
+    labelOverview: 'Overview',
+    labelProduction: 'Production',
+    labelAi: 'AI Partner',
+    labelScada: 'SCADA',
+    labelManagement: 'Autonomy',
+    labelSafety: 'Safety',
+    labelSettings: 'Settings',
+  },
+  'pt-BR': {
+    navLabel: 'Navegação principal',
+    itemOverview: 'Visão geral do moinho',
+    itemProduction: 'Produção',
+    itemManagement: 'Sistema de Autonomia Bilateral (BAS)',
+    itemSafety: 'Segurança e emergência',
+    itemScada: 'SCADA simulado',
+    itemSettings: 'Configurações',
+    moreLabel: 'Mais espaços de trabalho e controles de visualização',
+    menuAiPartner: 'Parceiro de IA',
+    menuManagement: 'Sistema de Autonomia Bilateral',
+    menuDatalinks: 'Datalinks',
+    menuFirstPerson: 'Visão em primeira pessoa',
+    exitFullscreen: 'Sair da tela cheia',
+    enterFullscreen: 'Entrar em tela cheia',
+
+    labelOverview: 'Visão geral',
+    labelProduction: 'Produção',
+    labelAi: 'Parceiro de IA',
+    labelScada: 'SCADA',
+    labelManagement: 'Autonomia',
+    labelSafety: 'Segurança',
+    labelSettings: 'Configurações',
+  },
+});

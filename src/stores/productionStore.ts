@@ -16,6 +16,8 @@ import { useIncidentReplayStore, type IncidentReplayStore } from './incidentRepl
 import { useTruckScheduleStore, type TruckScheduleStore } from './truckScheduleStore';
 import { useUIStore } from './uiStore';
 import { useBreakdownStore } from './breakdownStore';
+import { formatFixed, translate } from '../i18n';
+import { productionStoreMessages } from './productionStore.messages';
 
 // Re-export from new focused stores for backward compatibility
 export { useQCLabStore } from './qcLabStore';
@@ -471,7 +473,7 @@ function enrichDecisionProvenance(
           : 'simulation';
   const observations: NonNullable<AIDecision['provenance']>['observations'] = [
     {
-      label: 'Production throughput',
+      label: translate(productionStoreMessages, 'observationThroughput'),
       value: state.metrics.throughput,
       unit: 'bags/h',
       source: 'simulation',
@@ -479,7 +481,7 @@ function enrichDecisionProvenance(
       capturedAt,
     },
     {
-      label: 'Process efficiency',
+      label: translate(productionStoreMessages, 'observationEfficiency'),
       value: state.metrics.efficiency,
       unit: '%',
       source: 'simulation',
@@ -487,7 +489,7 @@ function enrichDecisionProvenance(
       capturedAt,
     },
     {
-      label: 'Product quality',
+      label: translate(productionStoreMessages, 'observationQuality'),
       value: state.metrics.quality,
       unit: '%',
       source: 'simulation',
@@ -499,14 +501,18 @@ function enrichDecisionProvenance(
   if (machine) {
     observations.push(
       {
-        label: `${machine.name} status`,
+        label: translate(productionStoreMessages, 'observationMachineStatus', {
+          machine: machine.name,
+        }),
         value: machine.status,
         source,
         quality: 'good',
         capturedAt,
       },
       {
-        label: `${machine.name} temperature`,
+        label: translate(productionStoreMessages, 'observationMachineTemperature', {
+          machine: machine.name,
+        }),
         value: machine.metrics.temperature,
         unit: '°C',
         source,
@@ -514,7 +520,9 @@ function enrichDecisionProvenance(
         capturedAt,
       },
       {
-        label: `${machine.name} load`,
+        label: translate(productionStoreMessages, 'observationMachineLoad', {
+          machine: machine.name,
+        }),
         value: machine.metrics.load,
         unit: '%',
         source,
@@ -531,17 +539,19 @@ function enrichDecisionProvenance(
       observations,
       assumptions: decision.uncertainty
         ? [decision.uncertainty]
-        : ['Simulator telemetry is current at the captured time.'],
-      affectedSystems: ['Autonomous production control'],
-      affectedEquipment: machine ? [`${machine.name} (${machine.id})`] : ['Production system'],
+        : [translate(productionStoreMessages, 'assumptionTelemetryCurrent')],
+      affectedSystems: [translate(productionStoreMessages, 'affectedSystemAutonomousControl')],
+      affectedEquipment: machine
+        ? [`${machine.name} (${machine.id})`]
+        : [translate(productionStoreMessages, 'affectedEquipmentProductionSystem')],
       expectedEffect: decision.impact,
       alternatives:
         decision.alternatives && decision.alternatives.length > 0
           ? decision.alternatives
           : [
               {
-                action: 'Maintain the current simulated operating state',
-                tradeoff: 'Avoids intervention while leaving the observed condition unchanged.',
+                action: translate(productionStoreMessages, 'alternativeMaintainAction'),
+                tradeoff: translate(productionStoreMessages, 'alternativeMaintainTradeoff'),
               },
             ],
       inputSnapshot: {
@@ -558,6 +568,24 @@ function enrichDecisionProvenance(
     },
   };
 }
+
+// Data the backward-compatibility getters below read from their owning stores.
+// zustand merges with Object.assign, so the first set() freezes each getter into
+// a boot-time copy: these keys are never authoritative here. Working if the
+// physical save holds them only in their owners' domains, never in production.
+export const PRODUCTION_DELEGATED_KEYS = [
+  'qcLab',
+  'achievements',
+  'announcements',
+  'lastAnnouncementTime',
+  'replayMode',
+  'replayFrames',
+  'currentReplayIndex',
+  'sessionStartedAt',
+  'simulationSeed',
+  'commands',
+  'truckSchedule',
+] as const satisfies readonly (keyof ProductionStore)[];
 
 export const useProductionStore = create<ProductionStore>()(
   subscribeWithSelector((set, get) => ({
@@ -809,8 +837,8 @@ export const useProductionStore = create<ProductionStore>()(
             outcome:
               disposition === 'rejected'
                 ? options?.note
-                  ? `Rejected: ${options.note}`
-                  : 'Rejected by the control layer'
+                  ? translate(productionStoreMessages, 'rejectedWithNote', { note: options.note })
+                  : translate(productionStoreMessages, 'rejectedByControlLayer')
                 : decision.outcome,
           };
         }),
@@ -854,7 +882,11 @@ export const useProductionStore = create<ProductionStore>()(
       const machine = state.machines.find((m) => m.id === machineId);
 
       if (!machine) {
-        return { success: false, wearReduced: 0, message: 'Machine not found' };
+        return {
+          success: false,
+          wearReduced: 0,
+          message: translate(productionStoreMessages, 'maintenanceMachineNotFound'),
+        };
       }
 
       const maintenance = useBreakdownStore.getState();
@@ -876,7 +908,7 @@ export const useProductionStore = create<ProductionStore>()(
         return {
           success: false,
           wearReduced: 0,
-          message: 'Repair lockout: complete and verify the work order, then request restart.',
+          message: translate(productionStoreMessages, 'maintenanceRepairLockout'),
         };
       }
 
@@ -885,7 +917,11 @@ export const useProductionStore = create<ProductionStore>()(
       // bearing overheat) can trip a machine at any wear, and its controlled
       // restart must still return it to service.
       if (currentWear <= 0 && machine.status !== 'critical') {
-        return { success: false, wearReduced: 0, message: 'Machine has no wear to repair' };
+        return {
+          success: false,
+          wearReduced: 0,
+          message: translate(productionStoreMessages, 'maintenanceNoWear'),
+        };
       }
 
       const wearConfig = getWearConfig(machine.type);
@@ -928,11 +964,19 @@ export const useProductionStore = create<ProductionStore>()(
       useUIStore.getState().addAlert({
         id: `maintenance-${machineId}-${Date.now()}`,
         type: 'success',
-        title: 'Maintenance Complete',
+        title: translate(productionStoreMessages, 'maintenanceCompleteTitle'),
         message:
           wearReduced > 0
-            ? `${machine.name} maintained. Wear reduced by ${wearReduced.toFixed(1)}%, now at ${newWear.toFixed(1)}%. Efficiency: ${newEfficiency}%`
-            : `${machine.name} restored to service. Efficiency: ${newEfficiency}%`,
+            ? translate(productionStoreMessages, 'maintenanceCompleteWearMessage', {
+                name: machine.name,
+                reduced: formatFixed(wearReduced, 1),
+                wear: formatFixed(newWear, 1),
+                efficiency: formatFixed(newEfficiency, 0),
+              })
+            : translate(productionStoreMessages, 'maintenanceCompleteRestoredMessage', {
+                name: machine.name,
+                efficiency: formatFixed(newEfficiency, 0),
+              }),
         machineId,
         timestamp: new Date(),
         acknowledged: false,
@@ -943,8 +987,11 @@ export const useProductionStore = create<ProductionStore>()(
         wearReduced: Math.round(wearReduced * 10) / 10,
         message:
           wearReduced > 0
-            ? `Wear reduced from ${currentWear.toFixed(1)}% to ${newWear.toFixed(1)}%`
-            : 'Restored to service',
+            ? translate(productionStoreMessages, 'maintenanceResultWearReduced', {
+                from: formatFixed(currentWear, 1),
+                to: formatFixed(newWear, 1),
+              })
+            : translate(productionStoreMessages, 'maintenanceResultRestored'),
       };
     },
 
@@ -1149,8 +1196,8 @@ export const useProductionStore = create<ProductionStore>()(
           useUIStore.getState().addAlert({
             id: `breakdown-${id}-${Date.now()}`,
             type: 'critical',
-            title: 'Machine Breakdown',
-            message: `${name} (${type}) has broken down due to excessive wear. Maintenance required.`,
+            title: translate(productionStoreMessages, 'breakdownTitle'),
+            message: translate(productionStoreMessages, 'breakdownMessage', { name, type }),
             machineId: id,
             timestamp: new Date(),
             acknowledged: false,
@@ -1180,8 +1227,8 @@ export const useProductionStore = create<ProductionStore>()(
           useUIStore.getState().addAlert({
             id: `breakdown-${id}-${Date.now()}`,
             type: 'critical',
-            title: 'Machine Breakdown',
-            message: `${name} (${type}) has broken down due to excessive wear. Maintenance required.`,
+            title: translate(productionStoreMessages, 'breakdownTitle'),
+            message: translate(productionStoreMessages, 'breakdownMessage', { name, type }),
             machineId: id,
             timestamp: new Date(),
             acknowledged: false,

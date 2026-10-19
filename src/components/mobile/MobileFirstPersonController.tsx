@@ -18,6 +18,8 @@ import {
 } from '../../utils/castleNavigation';
 import { getTerrainGridSegments } from '../terrain/terrainTypes';
 import { FIRST_PERSON_EYE_HEIGHT, clampNavigationDelta } from '../../utils/cameraNavigation';
+import { useT } from '../../i18n';
+import { mobileFirstPersonControllerMessages } from './MobileFirstPersonController.messages';
 
 // Movement configuration (same as desktop FPS)
 const MOVE_SPEED = 12;
@@ -307,6 +309,7 @@ export const MobileFPSInstructions: React.FC<{ visible: boolean; onDismiss: () =
   visible,
   onDismiss,
 }) => {
+  const t = useT(mobileFirstPersonControllerMessages);
   const dismissButtonRef = useRef<HTMLButtonElement | null>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
 
@@ -343,21 +346,21 @@ export const MobileFPSInstructions: React.FC<{ visible: boolean; onDismiss: () =
         onClick={(e) => e.stopPropagation()}
       >
         <h2 id="mobile-fps-instructions-title" className="text-white text-sm font-semibold mb-3">
-          First-Person Controls
+          {t('title')}
         </h2>
         <div className="flex gap-3 mb-4">
           <div className="flex-1 bg-slate-800/50 rounded-lg p-3 flex flex-col items-center gap-1">
             <div className="w-8 h-8 bg-slate-700 rounded-lg flex items-center justify-center">
               <Move className="w-5 h-5 text-slate-200" aria-hidden="true" />
             </div>
-            <div className="text-white text-xs font-medium">D-pad: walk</div>
+            <div className="text-white text-xs font-medium">{t('dpadWalk')}</div>
           </div>
 
           <div className="flex-1 bg-slate-800/50 rounded-lg p-3 flex flex-col items-center gap-1">
             <div className="w-8 h-8 bg-slate-700 rounded-lg flex items-center justify-center">
               <Hand className="w-5 h-5 text-slate-200" aria-hidden="true" />
             </div>
-            <div className="text-white text-xs font-medium">Drag: look around</div>
+            <div className="text-white text-xs font-medium">{t('dragLook')}</div>
           </div>
         </div>
 
@@ -366,7 +369,7 @@ export const MobileFPSInstructions: React.FC<{ visible: boolean; onDismiss: () =
           onClick={onDismiss}
           className="w-full py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-medium transition-colors text-sm"
         >
-          Start exploring
+          {t('startExploring')}
         </button>
       </div>
     </div>

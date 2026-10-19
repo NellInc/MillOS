@@ -37,6 +37,8 @@ import {
   type CommunityOperationsSnapshot,
 } from '../simulation/communityLife';
 import { EXTERIOR_LAYERS, POLYGON_OFFSET } from '../constants/renderLayers';
+import { useT } from '../i18n';
+import { communityLifeMessages } from './CommunityLife.messages';
 
 const COLOURS = ['#596e72', '#53637c', '#9a7654', '#6b8568', '#bdad82', '#6b5871'];
 const _truckPosition = new THREE.Vector3();
@@ -64,6 +66,7 @@ function updateSeatCue(
 }
 
 function AgreementLabel({ personId }: { personId: string }) {
+  const t = useT(communityLifeMessages);
   const label = useWorkplaceStore((s) => communityAgreementCue(personId, s.workplace)?.label);
   const emergency = useGameSimulationStore((s) => s.emergencyActive || s.emergencyDrillMode);
   if (!label) return null;
@@ -79,7 +82,7 @@ function AgreementLabel({ personId }: { personId: string }) {
         outlineWidth={0.025}
         outlineColor="#172c32"
       >
-        {emergency ? 'Site safety stop' : label}
+        {emergency ? t('siteSafetyStop') : label}
       </SceneText>
     </Billboard>
   );
@@ -189,7 +192,20 @@ export function CommunityLife() {
           cart,
         }),
         restore: (saved) => {
-          clocks.current = saved.clocks;
+          // Saves from before a clock existed lack it; a missing clock would turn
+          // NaN on the next frame and make every later save fail. Working if an
+          // older record restores with each absent clock on the saved world hour.
+          const savedClocks: Partial<Record<keyof typeof clocks.current, unknown>> =
+            saved.clocks ?? {};
+          const finite = (value: unknown, fallback: number) =>
+            typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+          const world = finite(savedClocks.world, clocks.current.world);
+          clocks.current = {
+            world,
+            presentation: finite(savedClocks.presentation, world),
+            people: finite(savedClocks.people, world),
+            bus: finite(savedClocks.bus, world),
+          };
           saved.residents.forEach((actor, index) => {
             const resident = residents[index];
             if (!resident) return;

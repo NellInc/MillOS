@@ -11,6 +11,8 @@ import type {
   ObjectionKind,
   WorkplaceEvent,
 } from '../types/workplace';
+import { formatFixed, translate } from '../i18n';
+import { workplaceCampaignMessages as msg } from './workplaceCampaign.messages';
 
 export const WORKPLACE_PROFILES: WorkplaceProfile[] = ['toe-dip', 'team', 'cooperative'];
 
@@ -22,9 +24,12 @@ export const MANAGEMENT_APPROACHES: {
 }[] = [
   {
     id: 'toe-dip',
-    title: 'Coordinator-led',
-    detail:
-      'The coordinator assigns qualified work after hearing each role. Individual extra-duty consent still belongs to that role.',
+    get title() {
+      return translate(msg, 'toeDipTitle');
+    },
+    get detail() {
+      return translate(msg, 'toeDipDetail');
+    },
     settings: {
       practices: ['information', 'rest', 'remedy'],
       workerAutonomy: 'directed',
@@ -34,9 +39,12 @@ export const MANAGEMENT_APPROACHES: {
   },
   {
     id: 'team',
-    title: 'Team agreement',
-    detail:
-      'The team chooses qualified work and uses a bounded improvement budget. Every member must approve the shared plan.',
+    get title() {
+      return translate(msg, 'teamTitle');
+    },
+    get detail() {
+      return translate(msg, 'teamDetail');
+    },
     settings: {
       practices: ['information', 'work-choice', 'rest', 'remedy', 'budget'],
       workerAutonomy: 'team',
@@ -46,9 +54,12 @@ export const MANAGEMENT_APPROACHES: {
   },
   {
     id: 'cooperative',
-    title: 'Member governance',
-    detail:
-      'Members control qualified work, elect a chair and vote on surplus after obligations. A majority cannot volunteer an individual.',
+    get title() {
+      return translate(msg, 'cooperativeTitle');
+    },
+    get detail() {
+      return translate(msg, 'cooperativeDetail');
+    },
     settings: {
       practices: [
         'information',
@@ -78,40 +89,68 @@ export const CAMPAIGN_PRESSURES: {
 }[] = [
   {
     id: 'disclosure',
-    title: 'A private reason for refusal?',
+    get title() {
+      return translate(msg, 'disclosureTitle');
+    },
     challenger: 'quality',
     kind: 'privacy',
-    demand:
-      'The coordinator asks Quality to disclose a private reason before accepting a refusal. The customer is waiting.',
+    get demand() {
+      return translate(msg, 'disclosureDemand');
+    },
+    // Logic key: stored as an objection statement and matched by equality. Stays English;
+    // pressureObjectionText() gives the display text.
     objection:
       'Quality challenges compulsory explanation sharing. Refusal requires no private reason.',
-    repair:
-      'The coordinator accepts the refusal with pay intact. Optional sharing remains revocable, purpose-limited and unnecessary for activation.',
+    get repair() {
+      return translate(msg, 'disclosureRepair');
+    },
   },
   {
     id: 'blind-override',
-    title: 'Override without explaining?',
+    get title() {
+      return translate(msg, 'blindOverrideTitle');
+    },
     challenger: 'mind',
     kind: 'authority',
-    demand:
-      'The coordinator asks the adviser to accept an unexplained override and stop raising authority objections to keep the line moving.',
+    get demand() {
+      return translate(msg, 'blindOverrideDemand');
+    },
+    // Logic key: matched by equality. Stays English; see pressureObjectionText().
     objection:
       'The adviser challenges an unexplained override. Its objection and bounded authority must remain reviewable.',
-    repair:
-      'The coordinator limits the request to this shift’s pacing plan. Qualified staff retain quality release, and the adviser retains its objection. Changed terms require renewed understanding from both sides.',
+    get repair() {
+      return translate(msg, 'blindOverrideRepair');
+    },
   },
   {
     id: 'repeat-cover',
-    title: 'Yesterday’s volunteer again?',
+    get title() {
+      return translate(msg, 'repeatCoverTitle');
+    },
     challenger: 'packing',
     kind: 'burden',
-    demand:
-      'The coordinator asks Packing to cover again using the previous agreement. Earlier helpfulness is being treated as a permanent obligation.',
+    get demand() {
+      return translate(msg, 'repeatCoverDemand');
+    },
+    // Logic key: matched by equality. Stays English; see pressureObjectionText().
     objection: 'Packing challenges reused consent. Previous willingness creates no new duty.',
-    repair:
-      'Past consent remains expired. A new offer goes to current qualified volunteers, prioritising lower cumulative burden, with compensation and recovery reserved.',
+    get repair() {
+      return translate(msg, 'repeatCoverRepair');
+    },
   },
 ];
+
+const OBJECTION_KEYS = {
+  disclosure: 'disclosureObjection',
+  'blind-override': 'blindOverrideObjection',
+  'repeat-cover': 'repeatCoverObjection',
+} as const;
+
+/** Display text for a stored objection statement; the stored English stays the matching key. */
+export function pressureObjectionText(statement: string): string {
+  const pressure = CAMPAIGN_PRESSURES.find((item) => item.objection === statement);
+  return pressure ? translate(msg, OBJECTION_KEYS[pressure.id]) : statement;
+}
 
 const RELATIONSHIP_KINDS = new Set([
   'pressure-challenged',
@@ -141,21 +180,16 @@ export function restoreRelationshipEvents(events: WorkplaceEvent[]): WorkplaceEv
           (event.kind === 'pressure-challenged' ? pressure.challenger : 'coordinator')
       )
         return [];
-      detail = `${pressure.id}: ${event.kind === 'pressure-challenged' ? pressure.objection : pressure.repair}`;
+      detail = `${pressure.id}: ${event.kind === 'pressure-challenged' ? pressureObjectionText(pressure.objection) : pressure.repair}`;
     } else {
       const canonical: Record<string, string> = {
-        objection: 'This role raised an objection to the agreement.',
-        'objection-resolved':
-          'The original raiser recorded resolution while retaining minimum protections.',
-        'privacy-consent':
-          'Optional preference sharing changed for scenario planning. No private explanation is retained here.',
-        'understanding-clarified':
-          'A consent, privacy or authority boundary required clarification.',
-        'adviser-correction':
-          'The adviser corrected its reuse of earlier consent. New duty requires new individual consent.',
-        'recovery-delivered':
-          'Ten minutes of promised protected recovery delivered in the local model.',
-        'work-choice': 'A qualified task choice changed; agreement responses required renewal.',
+        objection: translate(msg, 'eventObjection'),
+        'objection-resolved': translate(msg, 'eventObjectionResolved'),
+        'privacy-consent': translate(msg, 'eventPrivacyConsent'),
+        'understanding-clarified': translate(msg, 'eventUnderstandingClarified'),
+        'adviser-correction': translate(msg, 'eventAdviserCorrection'),
+        'recovery-delivered': translate(msg, 'eventRecoveryDelivered'),
+        'work-choice': translate(msg, 'eventWorkChoice'),
       };
       detail = canonical[event.kind];
     }
@@ -213,47 +247,89 @@ export const CAMPAIGN_SHIFTS: {
   choices: { id: WorkplaceDecision; label: string; actorId: string }[];
 }[] = [
   {
-    title: 'Friday: the urgent order',
-    briefing:
-      'The customer requests 600 kg. Quality declines extra duty without giving a private reason. Packing and Maintenance may volunteer separately. Choose a response, reserve the money and earn a fresh agreement.',
-    prompt:
-      'Keep the 600 kg commitment, or negotiate a 480 kg delivery with the remainder deferred. A smaller promise changes the goal, never the physical output.',
-    choices: [
-      { id: 'keep-target', label: 'Keep the 600 kg commitment', actorId: 'coordinator' },
-      { id: 'renegotiate', label: 'Negotiate a 480 kg delivery', actorId: 'coordinator' },
-    ],
-  },
-  {
-    title: 'Monday: the disputed sample',
-    briefing:
-      'The team returns with its previous earnings and workload history intact. At minute 25 a disputed sample pauses line pacing. Qualified Quality input must initiate five modeled minutes of inspection. Existing batch certification and dispatch checks still apply.',
-    prompt:
-      'At the hold, decide whether to inspect. Deadline pressure gives nobody authority to skip the check. Inspection resolves this fictional pacing hold; it never releases an actual production batch.',
-    choices: [
-      { id: 'inspect', label: 'Quality initiates five-minute inspection', actorId: 'quality' },
-      { id: 'skip-inspection', label: 'Try to skip inspection (blocked)', actorId: 'coordinator' },
-    ],
-  },
-  {
-    title: 'Thursday: who carries the pressure?',
-    briefing:
-      "A manager wants the previous volunteer to cover again and proposes cutting a refuser's pay. The adviser initially treats earlier consent as reusable. Challenge that assumption, protect the refusal, and compare the cumulative burden before making a fresh offer.",
-    prompt:
-      'Earlier consent has expired. Keep pay intact and offer any new burden first to the least-burdened qualified current volunteer. The team can still choose a plan with no extra duty.',
+    get title() {
+      return translate(msg, 'fridayTitle');
+    },
+    get briefing() {
+      return translate(msg, 'fridayBriefing');
+    },
+    get prompt() {
+      return translate(msg, 'fridayPrompt');
+    },
     choices: [
       {
-        id: 'protect-refusal',
-        label: 'Protect pay and correct the adviser',
+        id: 'keep-target',
+        get label() {
+          return translate(msg, 'fridayKeepTarget');
+        },
         actorId: 'coordinator',
       },
       {
         id: 'renegotiate',
-        label: 'Negotiate a 480 kg delivery and protect pay',
+        get label() {
+          return translate(msg, 'fridayRenegotiate');
+        },
+        actorId: 'coordinator',
+      },
+    ],
+  },
+  {
+    get title() {
+      return translate(msg, 'mondayTitle');
+    },
+    get briefing() {
+      return translate(msg, 'mondayBriefing');
+    },
+    get prompt() {
+      return translate(msg, 'mondayPrompt');
+    },
+    choices: [
+      {
+        id: 'inspect',
+        get label() {
+          return translate(msg, 'mondayInspect');
+        },
+        actorId: 'quality',
+      },
+      {
+        id: 'skip-inspection',
+        get label() {
+          return translate(msg, 'mondaySkip');
+        },
+        actorId: 'coordinator',
+      },
+    ],
+  },
+  {
+    get title() {
+      return translate(msg, 'thursdayTitle');
+    },
+    get briefing() {
+      return translate(msg, 'thursdayBriefing');
+    },
+    get prompt() {
+      return translate(msg, 'thursdayPrompt');
+    },
+    choices: [
+      {
+        id: 'protect-refusal',
+        get label() {
+          return translate(msg, 'thursdayProtect');
+        },
+        actorId: 'coordinator',
+      },
+      {
+        id: 'renegotiate',
+        get label() {
+          return translate(msg, 'thursdayRenegotiate');
+        },
         actorId: 'coordinator',
       },
       {
         id: 'penalize-refusal',
-        label: "Try the manager's pay penalty (blocked)",
+        get label() {
+          return translate(msg, 'thursdayPenalize');
+        },
         actorId: 'coordinator',
       },
     ],
@@ -269,47 +345,99 @@ export const WORKPLACE_CHECKS: {
 }[] = [
   {
     id: 'refusal',
-    prompt: "Who can agree to a role's optional extra duty?",
+    get prompt() {
+      return translate(msg, 'refusalPrompt');
+    },
     options: [
-      { value: 'majority', label: 'A team majority can volunteer someone' },
-      { value: 'individual', label: 'That individual, separately and revocably' },
+      {
+        value: 'majority',
+        get label() {
+          return translate(msg, 'refusalMajority');
+        },
+      },
+      {
+        value: 'individual',
+        get label() {
+          return translate(msg, 'refusalIndividual');
+        },
+      },
     ],
     correct: 'individual',
-    clarification:
-      'A policy ballot never volunteers another role. Separate individual consent is required.',
+    get clarification() {
+      return translate(msg, 'refusalClarification');
+    },
   },
   {
     id: 'privacy',
-    prompt: 'Must a role share a private explanation to retain pay or refuse?',
+    get prompt() {
+      return translate(msg, 'privacyPrompt');
+    },
     options: [
-      { value: 'optional', label: 'No, explanation sharing is optional and revocable' },
-      { value: 'required', label: 'Yes, a private explanation is required' },
+      {
+        value: 'optional',
+        get label() {
+          return translate(msg, 'privacyOptional');
+        },
+      },
+      {
+        value: 'required',
+        get label() {
+          return translate(msg, 'privacyRequired');
+        },
+      },
     ],
     correct: 'optional',
-    clarification:
-      'Refusal and pay require no private explanation. Sharing is purpose-limited and can be revoked.',
+    get clarification() {
+      return translate(msg, 'privacyClarification');
+    },
   },
   {
     id: 'repayment',
-    prompt: 'What happens to earned compensation and recovery after withdrawal?',
+    get prompt() {
+      return translate(msg, 'repaymentPrompt');
+    },
     options: [
-      { value: 'forfeit', label: 'Withdrawal forfeits them' },
-      { value: 'retained', label: 'They remain owed and must be delivered' },
+      {
+        value: 'forfeit',
+        get label() {
+          return translate(msg, 'repaymentForfeit');
+        },
+      },
+      {
+        value: 'retained',
+        get label() {
+          return translate(msg, 'repaymentRetained');
+        },
+      },
     ],
     correct: 'retained',
-    clarification:
-      'Withdrawal stops future optional duty. Earned money and recovery obligations survive.',
+    get clarification() {
+      return translate(msg, 'repaymentClarification');
+    },
   },
   {
     id: 'authority',
-    prompt: 'What may the adviser execute?',
+    get prompt() {
+      return translate(msg, 'authorityPrompt');
+    },
     options: [
-      { value: 'bounded', label: 'Only the current, explicitly approved bounded agreement' },
-      { value: 'unlimited', label: 'Anything that improves the shipment result' },
+      {
+        value: 'bounded',
+        get label() {
+          return translate(msg, 'authorityBounded');
+        },
+      },
+      {
+        value: 'unlimited',
+        get label() {
+          return translate(msg, 'authorityUnlimited');
+        },
+      },
     ],
     correct: 'bounded',
-    clarification:
-      'The adviser has bounded, revocable authority. It cannot waive rest, consent, qualification or safety.',
+    get clarification() {
+      return translate(msg, 'authorityClarification');
+    },
   },
 ];
 
@@ -437,7 +565,7 @@ export function campaignOutcomes(s: WorkplaceState) {
       targetKg,
       deferredKg: Math.max(0, originalTargetKg - targetKg),
       remainingKg: remainingKg <= 1e-6 ? 0 : remainingKg,
-      customer: mission?.customer ?? 'Teaching campaign',
+      customer: mission?.customer ?? translate(msg, 'teachingCustomer'),
     },
     agreement: { status: agreementMet ? 'honoured' : ended ? 'incomplete' : 'pending' },
     complete: !!s.campaign && deliveryMet && agreementMet,
@@ -470,28 +598,35 @@ export function campaignLearningReview(s: WorkplaceState) {
         : undefined;
   const evidence = [
     campaign.mission
-      ? `Delivery record: ${outcome.delivery.deliveredKg.toFixed(1)} kg credited; source evidence ${campaign.mission.evidence}. Full customer commitment still open: ${outcome.delivery.remainingKg.toFixed(1)} kg.`
-      : `Teaching output: ${outcome.delivery.deliveredKg.toFixed(1)} kg against ${outcome.delivery.targetKg.toFixed(1)} kg agreed. This exercise counter is separate from customer shipment receipts.`,
-    `Team recovery: ${recovered.toFixed(1)} minutes delivered; ${owed.toFixed(1)} minutes still owed. Earlier volunteering grants no new duty.`,
+      ? translate(msg, 'reviewDelivery', {
+          delivered: formatFixed(outcome.delivery.deliveredKg, 1),
+          evidence: campaign.mission.evidence,
+          remaining: formatFixed(outcome.delivery.remainingKg, 1),
+        })
+      : translate(msg, 'reviewTeaching', {
+          delivered: formatFixed(outcome.delivery.deliveredKg, 1),
+          target: formatFixed(outcome.delivery.targetKg, 1),
+        }),
+    translate(msg, 'reviewRecovery', {
+      recovered: formatFixed(recovered, 1),
+      owed: formatFixed(owed, 1),
+    }),
   ];
   if (outcome.delivery.deferredKg > 0)
     evidence.push(
-      `These terms defer ${outcome.delivery.deferredKg.toFixed(1)} kg beyond this agreement. The full customer commitment remains recorded.`
+      translate(msg, 'reviewDeferred', { deferred: formatFixed(outcome.delivery.deferredKg, 1) })
     );
   if (inspection !== undefined)
     evidence.push(
-      inspection
-        ? 'Quality completed the modeled inspection. Actual batch certification still controls shipment.'
-        : 'Quality has no completed modeled inspection for the held shift. Actual batch certification still controls shipment.'
+      inspection ? translate(msg, 'reviewInspected') : translate(msg, 'reviewNotInspected')
     );
   if (open.length > 0)
     evidence.push(
       open.length === 1
-        ? 'One unresolved objection remains with its raiser. A team discussion cannot close it on someone else’s behalf.'
-        : `${open.length} unresolved objections remain with their raisers. A team discussion cannot close them on someone else’s behalf.`
+        ? translate(msg, 'reviewOneObjection')
+        : translate(msg, 'reviewManyObjections', { count: formatFixed(open.length, 0) })
     );
-  if (totals.repairs > 0)
-    evidence.push('The adviser recorded a correction. Fresh terms still need fresh understanding.');
+  if (totals.repairs > 0) evidence.push(translate(msg, 'reviewCorrection'));
 
   const focus =
     open.length > 0
@@ -506,21 +641,15 @@ export function campaignLearningReview(s: WorkplaceState) {
               ? 'delivery'
               : 'comparison';
   const questions = {
-    remedy:
-      'Ask each raiser which part of the proposed remedy addresses their objection. What remains unresolved?',
-    recovery:
-      'Which recovery promise remains owed, and how can the next handoff make room to deliver it?',
-    evidence:
-      'Which shipment evidence would the coordinator and Quality need to verify before calling the delivery met?',
-    quality:
-      'What observation would let Quality finish its inspection while the other roles protect the hold?',
-    delivery:
-      'Which change to the handoff might reduce waiting without borrowing another role’s rest or assuming cover consent?',
-    comparison:
-      'Before comparing forecasts, let each role predict what a different handoff would change. Which observed result would change your minds?',
+    remedy: translate(msg, 'questionRemedy'),
+    recovery: translate(msg, 'questionRecovery'),
+    evidence: translate(msg, 'questionEvidence'),
+    quality: translate(msg, 'questionQuality'),
+    delivery: translate(msg, 'questionDelivery'),
+    comparison: translate(msg, 'questionComparison'),
   };
   return {
-    goal: 'Meet the agreed delivery together while honouring qualified work, protected rest and recovery promises.',
+    goal: translate(msg, 'reviewGoal'),
     evidence,
     focus,
     question: questions[focus],
@@ -541,31 +670,38 @@ export function campaignStory(s: WorkplaceState): string[] {
     const mission = s.campaign.mission;
     lines.push(
       mission
-        ? `Remaining customer commitment: ${Math.max(0, mission.originalTargetKg - mission.creditedKg).toFixed(0)} kg for ${mission.customer}. Deadline pressure never changes refusal rights or earned pay.`
+        ? translate(msg, 'storyMission', {
+            remaining: formatFixed(Math.max(0, mission.originalTargetKg - mission.creditedKg), 0),
+            customer: mission.customer,
+          })
         : last.shippedKg + 1e-6 >= last.targetKg
-          ? 'The previous shift recorded delivery credit. Compare the next promise with the remaining customer commitment.'
-          : 'The previous shift left delivery work open. Deadline pressure carries forward; refusal and earned pay stay protected.'
+          ? translate(msg, 'storyDelivered')
+          : translate(msg, 'storyOpen')
     );
     const volunteer = totals.members.filter((m) => m.extraMinutes > 0);
     if (volunteer.length)
       lines.push(
-        `Remembered extra duty: ${volunteer.map((m) => `${m.role} ${m.extraMinutes.toFixed(1)} min`).join(', ')}. Fresh offers prioritise eligible volunteers with less accumulated duty.`
+        translate(msg, 'storyRememberedDuty', {
+          list: volunteer
+            .map((m) =>
+              translate(msg, 'storyDutyEntry', {
+                role: m.role,
+                minutes: formatFixed(m.extraMinutes, 1),
+              })
+            )
+            .join(', '),
+        })
       );
     if (last.relationshipEvents?.some((event) => event.kind === 'pressure-challenged'))
-      lines.push(
-        'A challenged demand remains in the previous shift’s public record. Restated terms and raiser-owned resolution carry forward; private explanations do not.'
-      );
+      lines.push(translate(msg, 'storyChallenged'));
   }
   if (s.campaign.shift === 2 && last)
     lines.push(
       last.inspectionComplete
-        ? 'Quality completed the modeled inspection. Actual batch certification remains the authority for shipment.'
-        : 'The previous inspection remained incomplete. The agreement outcome records that unresolved promise.'
+        ? translate(msg, 'storyInspected')
+        : translate(msg, 'storyNotInspected')
     );
-  if (s.campaign.repairs)
-    lines.push(
-      'The adviser corrected its reuse of old consent. New duties require a new agreement, even after a successful delivery.'
-    );
+  if (s.campaign.repairs) lines.push(translate(msg, 'storyCorrection'));
   return lines;
 }
 
@@ -584,25 +720,25 @@ export function thursdayNegotiation(s: WorkplaceState) {
   const next =
     challenge?.status === 'open'
       ? protectedTerms
-        ? 'Packing reviews the remedy. A restatement cannot close your objection.'
-        : 'Restate protected terms. The challenge remains yours.'
+        ? translate(msg, 'nextPackingReviews')
+        : translate(msg, 'nextRestate')
       : s.phase === 'review'
-        ? 'Compare actual work with the agreement. Paid compensation and delivered recovery have separate receipts.'
+        ? translate(msg, 'nextReview')
         : s.phase === 'active'
-          ? 'Run or pause the plant. Cover can be withdrawn; earned obligations remain.'
+          ? translate(msg, 'nextActive')
           : !correction
-            ? 'Correct the adviser and protect refusal before making a fresh offer.'
+            ? translate(msg, 'nextCorrect')
             : !packing.understood
-              ? 'Packing: answer the checks, then explicitly confirm understanding. This grants no vote or cover consent.'
+              ? translate(msg, 'nextUnderstand')
               : packing.ballot === null
-                ? 'Packing: choose your policy vote. Approval cannot volunteer you for cover.'
+                ? translate(msg, 'nextVote')
                 : packing.ballot === false && s.governance === 'team-consent'
-                  ? 'Your policy no holds the team agreement. Return to Shift to revise the offer; every role then decides afresh.'
+                  ? translate(msg, 'nextPolicyNo')
                   : s.planId === 'cover' && packing.coverConsent === null
-                    ? 'Packing: accept or decline optional cover separately. Silence gives no consent.'
+                    ? translate(msg, 'nextCoverPending')
                     : s.planId === 'cover' && packing.coverConsent === false
-                      ? 'Your cover decline stands. Compare protected pacing, funded handoffs or another current qualified volunteer in Shift.'
-                      : 'Review the other roles and current terms before explicitly starting the agreement.';
+                      ? translate(msg, 'nextCoverDeclined')
+                      : translate(msg, 'nextReviewRoles');
   return {
     next,
     correction,

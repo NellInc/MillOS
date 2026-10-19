@@ -13,6 +13,8 @@ import type {
   PackingRehearsals,
   PackingFirstObservation,
 } from '../types/workplaceAdvice';
+import { formatFixed, translate } from '../i18n';
+import { workplaceAdviceMessages as msg } from './workplaceAdvice.messages';
 export type {
   PackingAdvice,
   PackingArrangement,
@@ -30,12 +32,13 @@ const ARRANGEMENTS = {
   briefing: { pacing: 0.9, briefing: 5 },
   buffer: { pacing: 1.02, briefing: 0 },
 };
-const ASSUMPTIONS = [
-  '90 workplace minutes; physical seconds = 90 * 60 / selected resume game speed.',
-  'Real material engine at 0.5 and 0.25 physical-second steps; bounds reflect time resolution, not statistical confidence.',
-  'Fixed machinery, recipe, quality interlock and source dispositions. No arrivals, maintenance, dock movements or shipping are simulated.',
-  'Whole-line pacing only; buffer arrangement adds no physical storage capacity.',
-  'Dispatch lower bound is zero: no departure is simulated. Conditional upper requires release, a compatible truck and available load capacity within the horizon.',
+// Resolved when advice is modeled, so frozen advice keeps the language it was captured in.
+const assumptions = () => [
+  translate(msg, 'assumptionHorizon'),
+  translate(msg, 'assumptionEngine'),
+  translate(msg, 'assumptionFixed'),
+  translate(msg, 'assumptionPacing'),
+  translate(msg, 'assumptionDispatch'),
 ];
 function canonical(value: unknown): unknown {
   if (value instanceof Map)
@@ -83,10 +86,10 @@ export function capturePackingPlant(
     remaining === null ||
     !['active', 'late'].includes(order.status)
   )
-    missing.push('Active order and recipe are unavailable.');
-  if (!context.executionFresh) missing.push('Order execution facts are stale or mismatched.');
+    missing.push(translate(msg, 'missingOrder'));
+  if (!context.executionFresh) missing.push(translate(msg, 'missingExecution'));
   if (!context.missionMaterialSessionId || context.missionMaterialSessionId !== data.sessionId)
-    missing.push('Mission and material session do not match.');
+    missing.push(translate(msg, 'missingSession'));
   if (
     !nonnegative(context.productionSpeed) ||
     context.productionSpeed > 10 ||
@@ -96,12 +99,10 @@ export function capturePackingPlant(
     context.gameSpeed < 9 ||
     context.gameSpeed > 3600
   )
-    missing.push(
-      'Finite bounded production controls and a positive resume speed (9 to 3600x) are required.'
-    );
-  if (!nonnegative(data.simulationTime)) missing.push('Material clock is invalid.');
+    missing.push(translate(msg, 'missingControls'));
+  if (!nonnegative(data.simulationTime)) missing.push(translate(msg, 'missingClock'));
   if (context.qualityRelease !== true && context.qualityRelease !== false)
-    missing.push('Direct quality release is unavailable.');
+    missing.push(translate(msg, 'missingRelease'));
   const load = context.dispatchLoad;
   const loadKnown =
     !!load &&
@@ -111,7 +112,7 @@ export function capturePackingPlant(
     nonnegative(load.lastDispatchKg) &&
     ['away', 'loading', 'held', 'ready', 'departed'].includes(load.status) &&
     typeof load.cycleId === 'string';
-  if (!loadKnown) missing.push('Direct dispatch load is unavailable.');
+  if (!loadKnown) missing.push(translate(msg, 'missingLoad'));
   let provenanceValid = true;
   for (const [id, lot] of data.sourceLots) {
     if (
@@ -159,14 +160,14 @@ export function capturePackingPlant(
     'packer-2',
   ];
   if (requiredMachines.some((id) => !data.machineBuffers.has(id)))
-    missing.push('Required machine buffers are missing.');
+    missing.push(translate(msg, 'missingBuffers'));
   for (const buffer of data.machineBuffers.values()) {
     if (
       ![buffer.inputCapacity, buffer.outputCapacity, buffer.processingRate].every(nonnegative) ||
       typeof buffer.isProcessing !== 'boolean' ||
       buffer.conversionRatios.some((c) => c.outputs.some((o) => !nonnegative(o.ratio)))
     )
-      missing.push('Machine capacity or conversion facts are invalid.');
+      missing.push(translate(msg, 'invalidMachines'));
     for (const m of [...buffer.inputBuffer, ...buffer.outputBuffer])
       checkSources(m.amount, m.sourceContributions);
   }
@@ -178,7 +179,7 @@ export function capturePackingPlant(
         nonnegative
       )
     )
-      missing.push('Conveyor facts are invalid.');
+      missing.push(translate(msg, 'invalidConveyors'));
     for (const t of segment.inTransit) {
       checkSources(t.amount, t.sourceContributions);
       if (!nonnegative(t.arrivalTime)) provenanceValid = false;
@@ -201,7 +202,7 @@ export function capturePackingPlant(
     if (batch.disposition === 'released' && sourcesReleased) released += batch.availableKg;
     else if (batch.disposition !== 'shipped') held += batch.availableKg;
   }
-  if (!provenanceValid) missing.push('Source genealogy is missing, unknown or unbalanced.');
+  if (!provenanceValid) missing.push(translate(msg, 'invalidGenealogy'));
   const cleanNumber = (n: number) => (nonnegative(n) ? n : 0);
   const evidence: PackingEvidence = {
     materialSessionId: data.sessionId,
@@ -319,14 +320,14 @@ function modelPackingAdvice(
     dispatchLowerKg: 0,
     dispatchUpperKg: 0,
     genealogyErrorKg: null,
-    assumptions: [...ASSUMPTIONS],
+    assumptions: assumptions(),
   };
   if (base.reasonToAbstain) return { advice: base, firstPacking: null };
   const coarse = simulate(capture, arrangement, 0.5),
     fine = simulate(capture, arrangement, 0.25);
   base.genealogyErrorKg = Math.max(coarse.error, fine.error);
   if (base.genealogyErrorKg > 0.01) {
-    base.reasonToAbstain = 'Engine genealogy conservation failed.';
+    base.reasonToAbstain = translate(msg, 'conservationFailed');
     return { advice: base, firstPacking: null };
   }
   base.packedLowKg = Math.min(coarse.packed, fine.packed);
@@ -392,64 +393,110 @@ export function rehearseWithheldDispatch(capture: PackingCapture) {
   return { ...base, arms: reason ? [] : result.arms, reasonToAbstain: reason };
 }
 
+const TRUCK_STATUS_KEYS = {
+  away: 'truckAway',
+  loading: 'truckLoading',
+  held: 'truckHeld',
+  ready: 'truckReady',
+  departed: 'truckDeparted',
+} as const satisfies Record<NonNullable<PackingEvidence['truckStatus']>, string>;
+
 /** Public inspection questions use captured facts, never authorise a plant action.
  * Working if abstention supplies no numeric observations and every view stays observational.
  */
 export function packingInspectionPrompts(advice: PackingAdvice) {
   const e = advice.evidence;
   const known = advice.reasonToAbstain === null && e.missingFacts.length === 0;
+  // `view` names a camera preset and stays untranslated; the rest is copy.
   return [
     {
-      role: 'Packing',
+      role: translate(msg, 'rolePacking'),
       view: 'Packing',
-      action: 'View packing floor',
+      action: translate(msg, 'viewPackingFloor'),
       fact: known
-        ? `At capture: ${e.releasedPackedKg.toFixed(0)} kg released; ${e.heldPackedKg.toFixed(0)} kg held or recalled.`
-        : 'Usable captured stock facts are unavailable.',
-      question:
-        'Ask the coordinator which released bags could actually be collected. Packed stock alone proves no departure.',
+        ? translate(msg, 'stockFact', {
+            released: formatFixed(e.releasedPackedKg, 0),
+            held: formatFixed(e.heldPackedKg, 0),
+          })
+        : translate(msg, 'stockUnavailable'),
+      question: translate(msg, 'packingQuestion'),
     },
     {
-      role: 'Quality',
+      role: translate(msg, 'roleQuality'),
       view: 'Packing',
-      action: 'View quality observation point',
+      action: translate(msg, 'viewQualityPoint'),
       fact: known
-        ? `Dispatch release at capture: ${e.qualityRelease === true ? 'open' : e.qualityRelease === false ? 'held' : 'unknown'}.`
-        : 'Usable captured release facts are unavailable.',
+        ? translate(msg, 'releaseFact', {
+            state: translate(
+              msg,
+              e.qualityRelease === true
+                ? 'releaseOpen'
+                : e.qualityRelease === false
+                  ? 'releaseHeld'
+                  : 'releaseUnknown'
+            ),
+          })
+        : translate(msg, 'releaseUnavailable'),
       question:
         known && e.qualityRelease === true
-          ? 'Which batch and source checks support release, and what new evidence would require a hold? A view cannot certify a batch.'
-          : 'Which qualified batch or source check is needed before release can be reconsidered? A team vote cannot clear a hold.',
+          ? translate(msg, 'qualityQuestionOpen')
+          : translate(msg, 'qualityQuestionHeld'),
     },
     {
-      role: 'Maintenance',
+      role: translate(msg, 'roleMaintenance'),
       view: 'Milling',
-      action: 'View milling line',
+      action: translate(msg, 'viewMillingLine'),
       fact: known
-        ? `At capture: ${e.processingMachines}/${e.totalMachines} machines marked processing.`
-        : 'Usable captured machine facts are unavailable.',
-      question:
-        'Ask Packing where material waits, then check upstream buffers and supply. Processing flags alone do not establish material flow.',
+        ? translate(msg, 'machineFact', {
+            processing: formatFixed(e.processingMachines, 0),
+            total: formatFixed(e.totalMachines, 0),
+          })
+        : translate(msg, 'machineUnavailable'),
+      question: translate(msg, 'maintenanceQuestion'),
     },
     {
-      role: 'Coordinator',
+      role: translate(msg, 'roleCoordinator'),
       view: 'Shipping',
-      action: 'View shipping dock',
+      action: translate(msg, 'viewShippingDock'),
       fact:
         known && e.truckStatus !== null && e.truckLoadedKg !== null && e.truckCapacityKg !== null
-          ? `Truck at capture: ${e.truckStatus}; ${e.truckLoadedKg.toFixed(0)} kg loaded / ${e.truckCapacityKg.toFixed(0)} kg capacity.`
-          : 'Usable captured collection facts are unavailable.',
-      question:
-        'Check material compatibility, free capacity and collection timing with Quality. A ready load still needs an actual departure receipt.',
+          ? translate(msg, 'truckFact', {
+              status: translate(msg, TRUCK_STATUS_KEYS[e.truckStatus]),
+              loaded: formatFixed(e.truckLoadedKg, 0),
+              capacity: formatFixed(e.truckCapacityKg, 0),
+            })
+          : translate(msg, 'collectionUnavailable'),
+      question: translate(msg, 'coordinatorQuestion'),
     },
   ] as const;
 }
 
+// Labels are getters so a module-level list still reads in the current language.
 export const PACKING_PREDICTIONS = [
-  { id: 'higher', label: 'Buffer range entirely above ordinary work' },
-  { id: 'overlap', label: 'No clear separation between packing ranges' },
-  { id: 'lower', label: 'Buffer range entirely below ordinary work' },
-  { id: 'unsure', label: 'We are unsure, keep the question open' },
+  {
+    id: 'higher',
+    get label() {
+      return translate(msg, 'predictionHigher');
+    },
+  },
+  {
+    id: 'overlap',
+    get label() {
+      return translate(msg, 'predictionOverlap');
+    },
+  },
+  {
+    id: 'lower',
+    get label() {
+      return translate(msg, 'predictionLower');
+    },
+  },
+  {
+    id: 'unsure',
+    get label() {
+      return translate(msg, 'predictionUnsure');
+    },
+  },
 ] as const;
 export type PackingPrediction = (typeof PACKING_PREDICTIONS)[number]['id'];
 
@@ -479,31 +526,30 @@ export function packingPredictionReview(
           ? 'lower'
           : 'overlap';
   const evidence = {
-    higher: 'The buffer’s entire modeled packing range is above ordinary work.',
-    lower: 'The buffer’s entire modeled packing range is below ordinary work.',
-    overlap:
-      'The modeled packing ranges overlap or meet within 0.01 kg. They do not establish a clear ordering.',
-    unavailable: 'This rehearsal has insufficient matching evidence to compare the packing ranges.',
-  };
+    higher: 'evidenceHigher',
+    lower: 'evidenceLower',
+    overlap: 'evidenceOverlap',
+    unavailable: 'evidenceUnavailable',
+  } as const;
   return {
     observation,
-    evidence: evidence[observation],
+    evidence: translate(msg, evidence[observation]),
     reflection:
       observation === 'unavailable'
-        ? 'Keep the prediction open until both alternatives have usable evidence.'
+        ? translate(msg, 'reflectionUnavailable')
         : prediction === 'unsure'
-          ? 'We left the prediction open. Use these ranges to discuss what to test next.'
+          ? translate(msg, 'reflectionUnsure')
           : prediction
             ? observation === prediction
-              ? 'These modeled packing ranges support our prediction.'
-              : 'These modeled packing ranges differ from our prediction.'
+              ? translate(msg, 'reflectionSupport')
+              : translate(msg, 'reflectionDiffer')
             : null,
     question:
       observation === 'unavailable'
-        ? 'Which missing fact needs checking before another rehearsal?'
+        ? translate(msg, 'questionUnavailable')
         : observation === 'overlap'
-          ? 'Which shared limit could keep extra pacing from adding packed stock? Check supply, machines and quality dispositions together.'
-          : 'Which supply, machine or pacing assumption explains the difference, and what would we check before changing the working agreement?',
+          ? translate(msg, 'questionOverlap')
+          : translate(msg, 'questionDifference'),
   };
 }
 

@@ -13,6 +13,8 @@ import {
   type LogisticsProposal,
   type PlanningAssumptions,
 } from './layoutPlanning';
+import { formatFixed, translate } from '../i18n';
+import { layoutPlanExportMessages } from './layoutPlanningExport.messages';
 
 const xml = (value: string) =>
   value.replace(
@@ -20,6 +22,8 @@ const xml = (value: string) =>
     (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[c]!
   );
 const n = (value: number) => (Number.isFinite(value) ? value.toFixed(2) : '0');
+/** Numbers inside readable copy; `n` stays the geometry/DXF formatter. */
+const copyN = (value: number) => (Number.isFinite(value) ? formatFixed(value, 2) : '0');
 const x = (world: number) => (world - PLANNING_VIEW.minX) * 3 + 30;
 const z = (world: number) => (world - PLANNING_VIEW.minZ) * 3 + 40;
 
@@ -40,7 +44,7 @@ export function layoutPlanSvg(
     ...new Set(
       snapshot.machines
         .filter((machine) => machine.type === MachineType.PLANSIFTER)
-        .map((machine) => n(machine.position[1]))
+        .map((machine) => copyN(machine.position[1]))
     ),
   ].join('/');
   const transport = resolveMaterialTransport(snapshot.machines, snapshot.segments);
@@ -60,7 +64,15 @@ export function layoutPlanSvg(
           (s) => s.fromMachineId === route.fromMachineId && s.toMachineId === route.toMachineId
         )
         .reduce((sum, s) => sum + s.currentLoad, 0);
-      return `<polyline points="${points}" fill="none" stroke="#86adb0" stroke-width="${n(1 + Math.min(3, load / 100))}" marker-end="url(#${arrowId})" ${route.provenance === 'modeled' ? 'stroke-dasharray="5 4"' : ''}><title>${xml(key)}: ${n(load)} kg in transit; ${n(segment.flowRate * 60)} kg/min rated; ${route.provenance} path, ${n(route.transitSeconds ?? 0)} s</title></polyline>`;
+      return `<polyline points="${points}" fill="none" stroke="#86adb0" stroke-width="${n(1 + Math.min(3, load / 100))}" marker-end="url(#${arrowId})" ${route.provenance === 'modeled' ? 'stroke-dasharray="5 4"' : ''}><title>${xml(
+        translate(layoutPlanExportMessages, 'flowTitle', {
+          key,
+          load: copyN(load),
+          rate: copyN(segment.flowRate * 60),
+          provenance: route.provenance,
+          seconds: copyN(route.transitSeconds ?? 0),
+        })
+      )}</title></polyline>`;
     })
     .join('');
   const machines = snapshot.machines
@@ -87,8 +99,15 @@ export function layoutPlanSvg(
           },
           `fill="${(queue?.utilization ?? 0) >= 0.8 ? '#63441f' : '#213342'}" stroke="#c2cdd4" ${y > 3 ? 'stroke-dasharray="3 2"' : ''}`
         ) +
-        `<text x="${n(x(mx))}" y="${n(z(mz) + 3)}" fill="#f1f5f9" text-anchor="middle" font-size="8"><title>${xml(machine.id)} at +${n(y)} m; ${n(queue?.inputKg ?? 0)} kg in / ${n(queue?.outputKg ?? 0)} kg out</title>${xml(label)}</text>` +
-        `<text x="${n(x(mx))}" y="${n(z(mz) + depth * 1.5 + 9)}" fill="#cbd5e1" text-anchor="middle" font-size="7">${((queue?.utilization ?? 0) * 100).toFixed(0)}%</text>`
+        `<text x="${n(x(mx))}" y="${n(z(mz) + 3)}" fill="#f1f5f9" text-anchor="middle" font-size="8"><title>${xml(
+          translate(layoutPlanExportMessages, 'machineTitle', {
+            id: machine.id,
+            height: copyN(y),
+            input: copyN(queue?.inputKg ?? 0),
+            output: copyN(queue?.outputKg ?? 0),
+          })
+        )}</title>${xml(label)}</text>` +
+        `<text x="${n(x(mx))}" y="${n(z(mz) + depth * 1.5 + 9)}" fill="#cbd5e1" text-anchor="middle" font-size="7">${formatFixed((queue?.utilization ?? 0) * 100, 0)}%</text>`
       );
     })
     .join('');
@@ -100,13 +119,18 @@ export function layoutPlanSvg(
     const stage = stagingBounds(dock, proposal.staging[dock]);
     const color = dock === 'shipping' ? '#f3ba77' : '#6dd3e0';
     return (
-      `<polyline points="${points}" fill="none" stroke="${color}" stroke-width="3"><title>${dock} forklift loop, full ${n(route.halfWidth * 2)} m clearance corridor checked</title></polyline>` +
+      `<polyline points="${points}" fill="none" stroke="${color}" stroke-width="3"><title>${xml(
+        translate(layoutPlanExportMessages, 'loopTitle', {
+          dock,
+          width: copyN(route.halfWidth * 2),
+        })
+      )}</title></polyline>` +
       rect(stage, `fill="${color}" fill-opacity="0.15" stroke="${color}"`) +
-      `<text x="${n(x((stage.minX + stage.maxX) / 2))}" y="${n(z(stage.maxZ) + 12)}" text-anchor="middle" fill="${color}" font-size="9">${dock === 'shipping' ? '50 pallet spaces' : 'Return pallets'}</text>`
+      `<text x="${n(x((stage.minX + stage.maxX) / 2))}" y="${n(z(stage.maxZ) + 12)}" text-anchor="middle" fill="${color}" font-size="9">${xml(translate(layoutPlanExportMessages, dock === 'shipping' ? 'shippingStaging' : 'receivingStaging'))}</text>`
     );
   }).join('');
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 700" width="460" height="700" role="img" aria-label="${xml(title)} dimensioned mill logistics plan">
-    <title>${xml(title)}: mill logistics and captured material queues</title>
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 700" width="460" height="700" role="img" aria-label="${xml(translate(layoutPlanExportMessages, 'ariaLabel', { title }))}">
+    <title>${xml(translate(layoutPlanExportMessages, 'svgTitle', { title }))}</title>
     <defs><marker id="${arrowId}" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L8 4 L0 8 Z" fill="#86adb0"/></marker></defs>
     <rect width="460" height="700" fill="#0c1c28"/>
     <text x="30" y="22" fill="#f1f5f9" font-family="sans-serif" font-size="15">${xml(title)}</text>
@@ -122,15 +146,15 @@ export function layoutPlanSvg(
       .join('')}
     ${flowSvg}${machines}${logistics}
     <path d="M${x(-40)} ${z(50) + 30} H${x(40)} M${x(-40)} ${z(50) + 26} V${z(50) + 34} M${x(40)} ${z(50) + 26} V${z(50) + 34}" stroke="#cbd5e1" fill="none"/>
-    <text x="${x(0)}" y="${z(50) + 44}" text-anchor="middle" fill="#cbd5e1" font-size="10">80 m factory width</text>
+    <text x="${x(0)}" y="${z(50) + 44}" text-anchor="middle" fill="#cbd5e1" font-size="10">${xml(translate(layoutPlanExportMessages, 'factoryWidth'))}</text>
     <path d="M${x(-40) - 15} ${z(-50)} V${z(50)}" stroke="#cbd5e1" fill="none"/>
-    <text x="${x(-40) - 20}" y="${z(0)}" transform="rotate(-90 ${x(-40) - 20} ${z(0)})" text-anchor="middle" fill="#cbd5e1" font-size="10">100 m factory depth</text>
+    <text x="${x(-40) - 20}" y="${z(0)}" transform="rotate(-90 ${x(-40) - 20} ${z(0)})" text-anchor="middle" fill="#cbd5e1" font-size="10">${xml(translate(layoutPlanExportMessages, 'factoryDepth'))}</text>
     <path d="M30 646 H90 M30 642 V650 M90 642 V650" stroke="#f1f5f9" fill="none"/>
     <text x="60" y="662" text-anchor="middle" fill="#cbd5e1" font-size="10">20 m</text>
-    <text x="120" y="646" fill="#cbd5e1" font-size="9">Solid: rendered pipes. Dashed: modeled paths.</text>
-    <text x="120" y="661" fill="#cbd5e1" font-size="9">Amber/cyan: forklift loops. Green: protected access.</text>
-    <text x="30" y="681" fill="#cbd5e1" font-size="9">Queue snapshot at material clock ${n(snapshot.simulationTime)} s. Coordinates in metres.</text>
-    <text x="30" y="695" fill="#cbd5e1" font-size="9">S: silo. M: mill. SF: sifter (+${xml(sifterHeights)} m). P: packer. %: buffer fill.</text>
+    <text x="120" y="646" fill="#cbd5e1" font-size="9">${xml(translate(layoutPlanExportMessages, 'legendPaths'))}</text>
+    <text x="120" y="661" fill="#cbd5e1" font-size="9">${xml(translate(layoutPlanExportMessages, 'legendColours'))}</text>
+    <text x="30" y="681" fill="#cbd5e1" font-size="9">${xml(translate(layoutPlanExportMessages, 'queueSnapshot', { clock: copyN(snapshot.simulationTime) }))}</text>
+    <text x="30" y="695" fill="#cbd5e1" font-size="9">${xml(translate(layoutPlanExportMessages, 'legendMachines', { heights: sifterHeights }))}</text>
     </g></svg>`;
 }
 

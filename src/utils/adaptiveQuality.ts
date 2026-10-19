@@ -24,6 +24,59 @@ import { useGraphicsStore, GraphicsQuality } from '../stores/graphicsStore';
 // Quality levels in order of performance cost (low to high)
 const QUALITY_ORDER: GraphicsQuality[] = ['low', 'medium', 'high', 'ultra'];
 
+/**
+ * `millos-graphics` persists every quality write, so without this record an
+ * automatic or recovery downgrade would come back as the next session's tier
+ * and, through `userCeiling`, as a permanent cap. The record names the tier
+ * such a downgrade applied and the explicit choice it displaced.
+ * Working if an adaptive or 'Use low graphics' downgrade lasts only for the
+ * session that needed it, while an explicit choice in Settings still persists.
+ */
+const SESSION_TIER_KEY = 'millos-graphics-session-tier';
+
+interface SessionTierRecord {
+  applied: GraphicsQuality;
+  restoreTo: GraphicsQuality;
+}
+
+const isQuality = (value: unknown): value is GraphicsQuality =>
+  QUALITY_ORDER.includes(value as GraphicsQuality);
+
+function readSessionTier(): SessionTierRecord | null {
+  try {
+    const raw = globalThis.localStorage?.getItem(SESSION_TIER_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<SessionTierRecord> | null;
+    return parsed && isQuality(parsed.applied) && isQuality(parsed.restoreTo)
+      ? { applied: parsed.applied, restoreTo: parsed.restoreTo }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearSessionTier(): void {
+  try {
+    globalThis.localStorage?.removeItem(SESSION_TIER_KEY);
+  } catch {
+    // Storage unavailable: nothing was recorded either.
+  }
+}
+
+/** Records a session-only tier, keeping the first displaced choice across steps. */
+function recordSessionTier(applied: GraphicsQuality, displaced: GraphicsQuality): void {
+  const restoreTo = readSessionTier()?.restoreTo ?? displaced;
+  if (applied === restoreTo) {
+    clearSessionTier();
+    return;
+  }
+  try {
+    globalThis.localStorage?.setItem(SESSION_TIER_KEY, JSON.stringify({ applied, restoreTo }));
+  } catch {
+    // Without storage the downgrade cannot outlive the session anyway.
+  }
+}
+
 interface AdaptiveQualityConfig {
   /** Target FPS to maintain */
   targetFps: number;
@@ -91,6 +144,7 @@ class AdaptiveQualityManager {
     if (this.lastChoiceRevision === null) this.lastChoiceRevision = state.qualityChoiceRevision;
     else if (state.qualityChoiceRevision !== this.lastChoiceRevision) {
       this.lastChoiceRevision = state.qualityChoiceRevision;
+      clearSessionTier();
       this.acceptUserChoice(current);
     }
     if (current !== this.lastAppliedQuality) {
@@ -197,6 +251,7 @@ class AdaptiveQualityManager {
           state.graphics.quality !== sourceQuality
         )
           return;
+        recordSessionTier(newQuality, this.userCeiling ?? sourceQuality);
         this.lastAppliedQuality = newQuality;
         state.setGraphicsQuality(newQuality, 'adaptive');
         this.frameTimes = [];
@@ -221,6 +276,11 @@ class AdaptiveQualityManager {
     this.lastAppliedQuality = quality;
     this.upgradeBackoff = 1;
     this.lastChangeTime = Date.now();
+  }
+
+  /** A recovery choice caps this session only; it is not recorded as the user's tier. */
+  acceptSessionChoice(quality: GraphicsQuality): void {
+    this.acceptUserChoice(quality);
   }
 
   private invalidatePendingChange(): void {
@@ -320,6 +380,40 @@ class AdaptiveQualityManager {
 
 // Singleton instance
 export const adaptiveQualityManager = new AdaptiveQualityManager();
+
+/**
+ * Applies a recovery tier (the loading cover's 'Use low graphics') for this
+ * session only. It is the session's ceiling, so adaptive will not climb back
+ * over it, but the next session starts at the visitor's own choice.
+ */
+export function applySessionQuality(quality: GraphicsQuality): void {
+  const state = useGraphicsStore.getState();
+  const current = state.graphics.quality;
+  if (current === quality) return;
+  recordSessionTier(quality, current);
+  adaptiveQualityManager.acceptSessionChoice(quality);
+  state.setGraphicsQuality(quality, 'adaptive');
+}
+
+let explicitChoiceWatcher: (() => void) | null = null;
+
+/**
+ * Call once at startup, before the scene first renders: puts back the explicit
+ * choice that an automatic or recovery downgrade displaced last session, and
+ * forgets the record as soon as the visitor makes a new explicit choice.
+ */
+export function restoreSessionScopedQuality(): void {
+  explicitChoiceWatcher ??= useGraphicsStore.subscribe((next, previous) => {
+    if (next.qualityChoiceRevision !== previous.qualityChoiceRevision) clearSessionTier();
+  });
+  const record = readSessionTier();
+  if (!record) return;
+  clearSessionTier();
+  const state = useGraphicsStore.getState();
+  // Anything other than the recorded automatic tier was chosen since; keep it.
+  if (state.graphics.quality !== record.applied) return;
+  state.setGraphicsQuality(record.restoreTo, 'adaptive');
+}
 
 // Export config type for external use
 export type { AdaptiveQualityConfig };

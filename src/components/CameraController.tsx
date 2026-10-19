@@ -15,6 +15,8 @@ import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useMobileDetection } from '../hooks/useMobileDetection';
 import { useUIStore } from '../stores/uiStore';
 import { useAnnouncementsStore } from '../stores/announcementsStore';
+import { useT } from '../i18n';
+import { cameraControllerMessages } from './CameraController.messages';
 import {
   ORBIT_POLAR_LIMITS,
   clampNavigationDelta,
@@ -519,6 +521,7 @@ export const useActivePreset = () => {
 
 // Camera preset indicator UI component
 export const CameraPresetIndicator: React.FC = () => {
+  const t = useT(cameraControllerMessages);
   const { isCompactLayout } = useMobileDetection();
   const activePreset = useCameraStore((state) => state.activePreset);
   const isAnimating = useCameraStore((state) => state.isAnimating);
@@ -538,7 +541,7 @@ export const CameraPresetIndicator: React.FC = () => {
     // Compact layouts own a menu.
     <div
       role="status"
-      aria-label="Camera view"
+      aria-label={t('cameraView')}
       className="fixed top-32 left-4 z-40 pointer-events-none max-w-[calc(100vw-2rem)]"
     >
       <div
@@ -550,8 +553,12 @@ export const CameraPresetIndicator: React.FC = () => {
         </div>
         {/* Preset info */}
         <div className="flex flex-col">
-          <span className="text-white text-xs font-semibold">{preset.name}</span>
-          <span className="text-slate-400 text-[10px]">{preset.description}</span>
+          <span className="text-white text-xs font-semibold">
+            {t('presetName', { name: preset.name })}
+          </span>
+          <span className="text-slate-400 text-[10px]">
+            {t('presetDescription', { description: preset.description })}
+          </span>
         </div>
         {/* Animating indicator */}
         {isAnimating && <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse ml-1" />}

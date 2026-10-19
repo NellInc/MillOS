@@ -42,10 +42,13 @@ import {
   getSiteDemandKw,
 } from '../../utils/energyCalculations';
 import { MachineType } from '../../types';
+import { formatFixed, formatGrouped, useT } from '../../i18n';
+import { energyDashboardMessages } from './EnergyDashboard.messages';
 
 const SIMULATED_GRID_INTENSITY_KG_PER_KWH = 0.4;
 
 const EnergyDashboardBody: React.FC = () => {
+  const t = useT(energyDashboardMessages);
   const machines = useProductionStore((state) => state.machines);
   const gameTime = useGameSimulationStore((state) => state.gameTime);
   const emergencyActive = useGameSimulationStore((state) => state.emergencyActive);
@@ -109,7 +112,7 @@ const EnergyDashboardBody: React.FC = () => {
     };
   }, [machines, gameTime, emergencyActive]);
 
-  const formatNumber = (n: number, decimals = 1) => n.toFixed(decimals);
+  const formatNumber = (n: number, decimals = 1) => formatFixed(n, decimals);
   const formatTime = (hour: number) => {
     // Whole minutes, floored: rounding the fraction showed 'HH:60' near the hour.
     const total = Math.floor(hour * 60);
@@ -127,7 +130,7 @@ const EnergyDashboardBody: React.FC = () => {
       dragMomentum={false}
       dragElastic={0.1}
       role="region"
-      aria-label="Energy dashboard"
+      aria-label={t('regionLabel')}
       className="fixed left-4 bottom-20 w-80 bg-slate-900/95 backdrop-blur-xl rounded-xl border border-emerald-500/30 shadow-xl z-40 max-h-[80vh] overflow-y-auto"
     >
       {/* Header - Drag Handle */}
@@ -136,7 +139,7 @@ const EnergyDashboardBody: React.FC = () => {
           <div className="p-1.5 rounded-lg bg-emerald-500/20">
             <Zap className="w-4 h-4 text-emerald-400" />
           </div>
-          <span className="text-sm font-medium text-white">Energy Dashboard</span>
+          <span className="text-sm font-medium text-white">{t('title')}</span>
           <GripVertical className="w-3 h-3 text-slate-500" aria-hidden="true" />
         </div>
         <div className="flex items-center gap-2">
@@ -150,11 +153,11 @@ const EnergyDashboardBody: React.FC = () => {
           >
             {metrics.isPeakHours ? (
               <>
-                <Sun className="w-3 h-3" /> Peak
+                <Sun className="w-3 h-3" /> {t('peak')}
               </>
             ) : (
               <>
-                <Moon className="w-3 h-3" /> Off-Peak
+                <Moon className="w-3 h-3" /> {t('offPeak')}
               </>
             )}
           </div>
@@ -162,7 +165,7 @@ const EnergyDashboardBody: React.FC = () => {
             type="button"
             onPointerDownCapture={(e) => e.stopPropagation()}
             onClick={() => useAIConfigStore.getState().setShowEnergyDashboard(false)}
-            aria-label="Close energy dashboard"
+            aria-label={t('close')}
             className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-700/50"
           >
             <X className="w-4 h-4" aria-hidden="true" />
@@ -176,26 +179,26 @@ const EnergyDashboardBody: React.FC = () => {
           <div className="p-3 rounded-lg bg-red-500/20 border border-red-500/40">
             <div className="flex items-center gap-2 text-red-400 font-medium text-sm mb-2">
               <Shield className="w-4 h-4" />
-              Emergency Mode Active
+              {t('emergencyActive')}
             </div>
             <div className="grid grid-cols-3 gap-2 text-[10px]">
               <div className="text-center">
                 <div className="text-red-300 font-mono">
                   {formatNumber(metrics.emergencyLoad.lighting)} kW
                 </div>
-                <div className="text-slate-400">Lighting (30%)</div>
+                <div className="text-slate-400">{t('emergencyLighting')}</div>
               </div>
               <div className="text-center">
                 <div className="text-red-300 font-mono">
                   {formatNumber(metrics.emergencyLoad.hvac)} kW
                 </div>
-                <div className="text-slate-400">HVAC (50%)</div>
+                <div className="text-slate-400">{t('emergencyHvac')}</div>
               </div>
               <div className="text-center">
                 <div className="text-red-300 font-mono">
                   {formatNumber(metrics.emergencyLoad.baseSystems)} kW
                 </div>
-                <div className="text-slate-400">Base Systems</div>
+                <div className="text-slate-400">{t('baseSystems')}</div>
               </div>
             </div>
           </div>
@@ -210,7 +213,7 @@ const EnergyDashboardBody: React.FC = () => {
             <span className="text-sm font-normal text-slate-400 ml-1">kW</span>
           </div>
           <div className="text-[10px] text-slate-400 mt-0.5">
-            {emergencyActive ? 'Emergency demand' : 'Current demand'}
+            {emergencyActive ? t('emergencyDemand') : t('currentDemand')}
           </div>
         </div>
 
@@ -218,23 +221,23 @@ const EnergyDashboardBody: React.FC = () => {
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-xs font-medium text-slate-300">
             <Factory className="w-3.5 h-3.5 text-cyan-400" />
-            Machine Demand (kW)
+            {t('machineDemand')}
           </div>
           <div className="bg-slate-800/50 rounded-lg overflow-hidden">
             <table className="w-full text-[10px]">
               <thead>
                 <tr className="border-b border-slate-700/50">
                   <th scope="col" className="text-left py-1.5 px-2 text-slate-400 font-normal">
-                    Type
+                    {t('colType')}
                   </th>
                   <th scope="col" className="text-center py-1.5 px-1 text-green-400 font-normal">
-                    Running
+                    {t('colRunning')}
                   </th>
                   <th scope="col" className="text-center py-1.5 px-1 text-slate-500 font-normal">
-                    Idle
+                    {t('colIdle')}
                   </th>
                   <th scope="col" className="text-right py-1.5 px-2 text-cyan-400 font-normal">
-                    Now
+                    {t('colNow')}
                   </th>
                 </tr>
               </thead>
@@ -252,13 +255,13 @@ const EnergyDashboardBody: React.FC = () => {
                         {count > 0 && <span className="text-slate-500 ml-1">({count})</span>}
                       </td>
                       <td className="py-1.5 px-1 text-center font-mono text-green-400/70">
-                        {consumption.running}
+                        {formatGrouped(consumption.running)}
                       </td>
                       <td className="py-1.5 px-1 text-center font-mono text-slate-500">
-                        {consumption.idle}
+                        {formatGrouped(consumption.idle)}
                       </td>
                       <td className="py-1.5 px-2 text-right font-mono text-cyan-400">
-                        {stat ? formatNumber(stat.totalEnergy) : '0.0'}
+                        {stat ? formatNumber(stat.totalEnergy) : formatNumber(0)}
                       </td>
                     </tr>
                   );
@@ -272,13 +275,13 @@ const EnergyDashboardBody: React.FC = () => {
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-xs font-medium text-slate-300">
             <Gauge className="w-3.5 h-3.5 text-purple-400" />
-            Energy Modifiers
+            {t('energyModifiers')}
           </div>
           <div className="grid grid-cols-2 gap-2">
             {/* Load Factor */}
             <div className="bg-slate-800/50 rounded-lg p-2">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-[10px] text-slate-400">Load Factor</span>
+                <span className="text-[10px] text-slate-400">{t('loadFactor')}</span>
                 <span className="text-[10px] font-mono text-blue-400">
                   {Math.round(70 + (metrics.avgLoadFactor / 100) * 30)}%
                 </span>
@@ -289,7 +292,7 @@ const EnergyDashboardBody: React.FC = () => {
                   style={{ width: `${metrics.avgLoadFactor}%` }}
                 />
               </div>
-              <div className="text-[9px] text-slate-400 mt-1">70-100% of base energy</div>
+              <div className="text-[9px] text-slate-400 mt-1">{t('loadFactorRange')}</div>
             </div>
 
             {/* Warning Status */}
@@ -304,16 +307,18 @@ const EnergyDashboardBody: React.FC = () => {
                     metrics.warningCount > 0 ? 'text-amber-400' : 'text-slate-500'
                   }`}
                 />
-                <span className="text-[10px] text-slate-400">Warning Status</span>
+                <span className="text-[10px] text-slate-400">{t('warningStatus')}</span>
               </div>
               <div
                 className={`text-sm font-mono ${
                   metrics.warningCount > 0 ? 'text-amber-400' : 'text-slate-500'
                 }`}
               >
-                {metrics.warningCount > 0 ? `+10% (${metrics.warningCount})` : 'None'}
+                {metrics.warningCount > 0
+                  ? t('warningPenalty', { count: formatFixed(metrics.warningCount, 0) })
+                  : t('none')}
               </div>
-              <div className="text-[9px] text-slate-400">Inefficient operation</div>
+              <div className="text-[9px] text-slate-400">{t('inefficient')}</div>
             </div>
 
             {/* Maintenance Due */}
@@ -328,7 +333,7 @@ const EnergyDashboardBody: React.FC = () => {
                     metrics.maintenanceDueCount > 0 ? 'text-yellow-400' : 'text-slate-500'
                   }`}
                 />
-                <span className="text-[10px] text-slate-400">Maintenance Due</span>
+                <span className="text-[10px] text-slate-400">{t('maintenanceDue')}</span>
               </div>
               <div
                 className={`text-sm font-mono ${
@@ -336,10 +341,10 @@ const EnergyDashboardBody: React.FC = () => {
                 }`}
               >
                 {metrics.maintenanceDueCount > 0
-                  ? `+5-25% (${metrics.maintenanceDueCount})`
-                  : 'None'}
+                  ? t('maintenancePenalty', { count: formatFixed(metrics.maintenanceDueCount, 0) })
+                  : t('none')}
               </div>
-              <div className="text-[9px] text-slate-400">Within 24hrs</div>
+              <div className="text-[9px] text-slate-400">{t('within24')}</div>
             </div>
 
             {/* Overdue Maintenance */}
@@ -354,16 +359,18 @@ const EnergyDashboardBody: React.FC = () => {
                     metrics.overdueCount > 0 ? 'text-red-400' : 'text-slate-500'
                   }`}
                 />
-                <span className="text-[10px] text-slate-400">Overdue</span>
+                <span className="text-[10px] text-slate-400">{t('overdue')}</span>
               </div>
               <div
                 className={`text-sm font-mono ${
                   metrics.overdueCount > 0 ? 'text-red-400' : 'text-slate-500'
                 }`}
               >
-                {metrics.overdueCount > 0 ? `+25% (${metrics.overdueCount})` : 'None'}
+                {metrics.overdueCount > 0
+                  ? t('overduePenalty', { count: formatFixed(metrics.overdueCount, 0) })
+                  : t('none')}
               </div>
-              <div className="text-[9px] text-slate-400">Max penalty</div>
+              <div className="text-[9px] text-slate-400">{t('maxPenalty')}</div>
             </div>
           </div>
         </div>
@@ -372,7 +379,7 @@ const EnergyDashboardBody: React.FC = () => {
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-xs font-medium text-slate-300">
             <Server className="w-3.5 h-3.5 text-orange-400" />
-            Facility Base Load
+            {t('facilityBaseLoad')}
           </div>
           <div className="space-y-2">
             {/* Lighting */}
@@ -380,8 +387,8 @@ const EnergyDashboardBody: React.FC = () => {
               <div className="flex items-center gap-2">
                 <Lightbulb className="w-3.5 h-3.5 text-yellow-400" />
                 <div>
-                  <span className="text-slate-300">Lighting</span>
-                  <div className="text-[9px] text-slate-400">8 kW day to 35 kW night</div>
+                  <span className="text-slate-300">{t('lighting')}</span>
+                  <div className="text-[9px] text-slate-400">{t('lightingRange')}</div>
                 </div>
               </div>
               <span className="text-yellow-400 font-mono">
@@ -394,8 +401,8 @@ const EnergyDashboardBody: React.FC = () => {
               <div className="flex items-center gap-2">
                 <ThermometerSun className="w-3.5 h-3.5 text-orange-400" />
                 <div>
-                  <span className="text-slate-300">HVAC</span>
-                  <div className="text-[9px] text-slate-400">20 to 30 to 45 to 35 kW curve</div>
+                  <span className="text-slate-300">{t('hvac')}</span>
+                  <div className="text-[9px] text-slate-400">{t('hvacCurve')}</div>
                 </div>
               </div>
               <span className="text-orange-400 font-mono">
@@ -408,8 +415,8 @@ const EnergyDashboardBody: React.FC = () => {
               <div className="flex items-center gap-2">
                 <Shield className="w-3.5 h-3.5 text-slate-400" />
                 <div>
-                  <span className="text-slate-300">Other</span>
-                  <div className="text-[9px] text-slate-400">Security, IT, fire systems</div>
+                  <span className="text-slate-300">{t('other')}</span>
+                  <div className="text-[9px] text-slate-400">{t('otherDetail')}</div>
                 </div>
               </div>
               <span className="text-slate-400 font-mono">
@@ -422,27 +429,27 @@ const EnergyDashboardBody: React.FC = () => {
         {/* Cost & Carbon */}
         <div className="pt-2 border-t border-slate-700/50 space-y-2">
           <div className="flex items-center justify-between text-xs">
-            <span className="text-slate-400">Simulation cost / h</span>
+            <span className="text-slate-400">{t('simulationCost')}</span>
             <span
               className={`font-mono ${metrics.isPeakHours ? 'text-amber-400' : 'text-emerald-400'}`}
             >
               ${formatNumber(metrics.estimatedCostPerHour, 2)}
               <span className="text-[9px] text-slate-400 ml-1">
-                ({metrics.isPeakHours ? '$0.15' : '$0.08'}/kWh)
+                (${formatFixed(metrics.isPeakHours ? 0.15 : 0.08, 2)}/kWh)
               </span>
             </span>
           </div>
           <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-1.5">
               <Leaf className="w-3 h-3 text-green-400" />
-              <span className="text-slate-400">Scenario carbon / h</span>
+              <span className="text-slate-400">{t('scenarioCarbon')}</span>
             </div>
             <span className="text-green-400 font-mono">
               {formatNumber(metrics.carbonKg)} kg CO₂
             </span>
           </div>
           <div className="text-[9px] text-slate-500 text-right">
-            Simulation factor: {SIMULATED_GRID_INTENSITY_KG_PER_KWH.toFixed(2)} kg CO₂/kWh
+            {t('simulationFactor', { value: formatFixed(SIMULATED_GRID_INTENSITY_KG_PER_KWH, 2) })}
           </div>
         </div>
 
@@ -452,10 +459,10 @@ const EnergyDashboardBody: React.FC = () => {
             <Wind className="w-3.5 h-3.5 text-emerald-400 mt-0.5 flex-shrink-0" />
             <p className="text-[10px] text-emerald-300">
               {emergencyActive
-                ? 'Emergency mode: Only essential systems active. Resume normal operations when safe.'
+                ? t('tipEmergency')
                 : metrics.isPeakHours
-                  ? 'Peak hours active. Consider deferring heavy operations to off-peak (9 PM - 9 AM) for 47% cost savings.'
-                  : 'Off-peak rates active! Optimal time for energy-intensive operations.'}
+                  ? t('tipPeak')
+                  : t('tipOffPeak')}
             </p>
           </div>
         </div>

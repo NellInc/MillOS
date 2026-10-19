@@ -18,6 +18,8 @@ import {
   type OperationsChallengeId,
   type OperationsChallengeRun,
 } from '../simulation/operationsPlay';
+import { formatFixed, translate } from '../i18n';
+import { operationsCampaignMessages as messages } from './operationsCampaignStore.messages';
 
 export type OrderStatus = 'planned' | 'active' | 'late' | 'fulfilled' | 'cancelled';
 export type IncidentKind =
@@ -258,6 +260,88 @@ const MAX_LOG_ENTRIES = 160;
 const MAX_REPORTS = 12;
 const MAX_INCIDENTS = 32;
 const MAX_PROCESSED_MANIFESTS = MAX_MATERIAL_MANIFESTS;
+
+type BatchCreditEvidence = Pick<
+  ProductionBatch,
+  'id' | 'simulationTime' | 'materialType' | 'producedKg' | 'sourceContributions'
+>;
+
+// Batch IDs restart with material flow, so a credit key carries immutable
+// production evidence: a save cannot re-credit the same batch on a new manifest.
+// The source contributions enter as a digest, not verbatim, so saved size no
+// longer grows with every lot and path a shipped batch drew from.
+// Working if a key stays under ~160 chars and a credit saved under the older
+// full-evidence key still blocks re-crediting after an upgrade.
+function contributionDigest(contributions: BatchCreditEvidence['sourceContributions']): string {
+  const text = JSON.stringify(contributions ?? []);
+  let hash = 0x811c9dc5; // FNV-1a, 32-bit
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return `${contributions?.length ?? 0}:${(hash >>> 0).toString(36)}`;
+}
+
+export function batchCreditKey(sessionId: string | null, batch: BatchCreditEvidence): string {
+  return [
+    'b2',
+    sessionId ?? '~',
+    batch.id,
+    batch.simulationTime,
+    batch.materialType,
+    batch.producedKg,
+    contributionDigest(batch.sourceContributions),
+  ].join('|');
+}
+
+/** The key format saved before compact keys; read only to migrate old credit. */
+function legacyBatchCreditKey(sessionId: string | null, batch: BatchCreditEvidence): string {
+  return JSON.stringify([
+    sessionId,
+    batch.id,
+    batch.simulationTime,
+    batch.materialType,
+    batch.producedKg,
+    batch.sourceContributions,
+  ]);
+}
+
+function compactLegacyCreditKey(key: string): string {
+  if (!key.startsWith('[')) return key;
+  try {
+    const parsed: unknown = JSON.parse(key);
+    if (!Array.isArray(parsed) || parsed.length !== 6) return key;
+    const [sessionId, id, simulationTime, materialType, producedKg, sourceContributions] = parsed;
+    if (
+      (sessionId !== null && typeof sessionId !== 'string') ||
+      typeof id !== 'string' ||
+      typeof simulationTime !== 'number' ||
+      typeof materialType !== 'string' ||
+      typeof producedKg !== 'number' ||
+      !Array.isArray(sourceContributions)
+    )
+      return key;
+    return batchCreditKey(sessionId, {
+      id,
+      simulationTime,
+      materialType: materialType as BatchCreditEvidence['materialType'],
+      producedKg,
+      sourceContributions,
+    });
+  } catch {
+    return key;
+  }
+}
+
+/** Rewrites full-evidence credit keys from older saves into the compact form. */
+export function compactBatchCreditKeys(credited: Record<string, number>): Record<string, number> {
+  const compacted: Record<string, number> = {};
+  for (const [key, kg] of Object.entries(credited)) {
+    const next = compactLegacyCreditKey(key);
+    compacted[next] = Math.max(compacted[next] ?? 0, kg);
+  }
+  return compacted;
+}
 /** No open commitment: keep the line warm and build stock instead of stopping. */
 const STOCK_BUILD_SETPOINT_PERCENT = 70;
 
@@ -292,21 +376,27 @@ const EMPTY_DISPATCH_LOAD: DispatchLoadSnapshot = {
 export const MILL_RECIPES: Record<string, MillRecipe> = {
   strong_white: {
     id: 'strong_white',
-    label: 'Strong white bread flour',
+    get label() {
+      return translate(messages, 'recipeStrongWhite');
+    },
     finishedMaterial: 'flour',
     sourceMaterial: 'wheat_grain',
     minimumQuality: 95,
   },
   fine_semolina: {
     id: 'fine_semolina',
-    label: 'Fine corn semolina',
+    get label() {
+      return translate(messages, 'recipeFineSemolina');
+    },
     finishedMaterial: 'semolina',
     sourceMaterial: 'corn_grain',
     minimumQuality: 90,
   },
   community_flour: {
     id: 'community_flour',
-    label: 'Community all-purpose flour',
+    get label() {
+      return translate(messages, 'recipeCommunityFlour');
+    },
     finishedMaterial: 'flour',
     sourceMaterial: 'wheat_grain',
     minimumQuality: 92,
@@ -327,8 +417,12 @@ export const INCIDENT_DEFINITIONS: Record<
 > = {
   bearing_overheat: {
     kind: 'bearing_overheat',
-    title: 'Roller mill bearing overheat',
-    description: 'R.M. 101 bearing temperature is rising toward the trip point.',
+    get title() {
+      return translate(messages, 'bearingOverheatTitle');
+    },
+    get description() {
+      return translate(messages, 'bearingOverheatDescription');
+    },
     severity: 'high',
     affectedMachineId: 'rm-101',
     effect: {
@@ -341,8 +435,12 @@ export const INCIDENT_DEFINITIONS: Record<
   },
   dust_filter_pressure: {
     kind: 'dust_filter_pressure',
-    title: 'Dust filter differential pressure',
-    description: 'Extraction resistance is increasing around the sifting floor.',
+    get title() {
+      return translate(messages, 'dustFilterPressureTitle');
+    },
+    get description() {
+      return translate(messages, 'dustFilterPressureDescription');
+    },
     severity: 'high',
     affectedMachineId: 'sifter-b',
     effect: {
@@ -355,8 +453,12 @@ export const INCIDENT_DEFINITIONS: Record<
   },
   power_sag: {
     kind: 'power_sag',
-    title: 'Site power sag',
-    description: 'Incoming voltage is unstable and motor protection is limiting load.',
+    get title() {
+      return translate(messages, 'powerSagTitle');
+    },
+    get description() {
+      return translate(messages, 'powerSagDescription');
+    },
     severity: 'critical',
     affectedMachineId: null,
     effect: {
@@ -369,8 +471,12 @@ export const INCIDENT_DEFINITIONS: Record<
   },
   delayed_truck: {
     kind: 'delayed_truck',
-    title: 'Delayed dispatch truck',
-    description: 'The scheduled collection is delayed, increasing finished goods pressure.',
+    get title() {
+      return translate(messages, 'delayedTruckTitle');
+    },
+    get description() {
+      return translate(messages, 'delayedTruckDescription');
+    },
     severity: 'medium',
     affectedMachineId: null,
     effect: {
@@ -383,8 +489,12 @@ export const INCIDENT_DEFINITIONS: Record<
   },
   supplier_contamination: {
     kind: 'supplier_contamination',
-    title: 'Supplier contamination alert',
-    description: 'A source lot notification requires an immediate hold and traceability review.',
+    get title() {
+      return translate(messages, 'supplierContaminationTitle');
+    },
+    get description() {
+      return translate(messages, 'supplierContaminationDescription');
+    },
     severity: 'critical',
     affectedMachineId: null,
     effect: {
@@ -397,8 +507,12 @@ export const INCIDENT_DEFINITIONS: Record<
   },
   packaging_shortage: {
     kind: 'packaging_shortage',
-    title: 'Packaging material shortage',
-    description: 'Packer consumables are below the active order requirement.',
+    get title() {
+      return translate(messages, 'packagingShortageTitle');
+    },
+    get description() {
+      return translate(messages, 'packagingShortageDescription');
+    },
     severity: 'high',
     affectedMachineId: 'packer-0',
     effect: {
@@ -411,8 +525,12 @@ export const INCIDENT_DEFINITIONS: Record<
   },
   severe_rain: {
     kind: 'severe_rain',
-    title: 'Severe rain and drainage loading',
-    description: 'Yard drainage and the stream are rising, slowing vehicle movements.',
+    get title() {
+      return translate(messages, 'severeRainTitle');
+    },
+    get description() {
+      return translate(messages, 'severeRainDescription');
+    },
     severity: 'high',
     affectedMachineId: null,
     effect: {
@@ -425,8 +543,12 @@ export const INCIDENT_DEFINITIONS: Record<
   },
   control_network_degraded: {
     kind: 'control_network_degraded',
-    title: 'Control network degraded',
-    description: 'Redundant control links have fallen below the required availability threshold.',
+    get title() {
+      return translate(messages, 'controlNetworkDegradedTitle');
+    },
+    get description() {
+      return translate(messages, 'controlNetworkDegradedDescription');
+    },
     severity: 'high',
     affectedMachineId: null,
     effect: {
@@ -618,26 +740,46 @@ function deriveExecution(
   };
 }
 
+/** Grain name in running copy; English keeps the id with spaces ("wheat grain"). */
+function sourceMaterialName(material: string): string {
+  if (material === 'wheat_grain') return translate(messages, 'materialWheatGrain');
+  if (material === 'corn_grain') return translate(messages, 'materialCornGrain');
+  return material.replaceAll('_', ' ');
+}
+
 function executionMessage(execution: OrderExecutionState): string {
   switch (execution.stage) {
     case 'planning':
-      return 'Production route planned.';
+      return translate(messages, 'execPlanning');
     case 'milling':
-      return `Processing ${execution.sourceMaterial?.replaceAll('_', ' ') ?? 'scheduled grain'} for the active recipe.`;
+      // Working if a line held by the feed budget never claims to be processing.
+      if (execution.remainingKg > 0 && execution.finishedAvailableKg >= execution.remainingKg - 1)
+        return translate(messages, 'execPackedResting');
+      return translate(messages, 'execProcessing', {
+        material:
+          execution.sourceMaterial != null
+            ? sourceMaterialName(execution.sourceMaterial)
+            : translate(messages, 'materialScheduledGrain'),
+      });
     case 'quality_hold':
-      return execution.dispatchLoad.blockReason ?? 'Finished goods are held at the quality gate.';
+      return execution.dispatchLoad.blockReason ?? translate(messages, 'execQualityHold');
     case 'ready_to_load':
-      return 'Released finished goods are ready at the shipping bay.';
+      return translate(messages, 'execReadyToLoad');
     case 'loading':
-      return `Shipping load is ${execution.dispatchLoad.loadedKg.toFixed(0)} of ${execution.dispatchLoad.capacityKg.toFixed(0)} kg.`;
+      return translate(messages, 'execLoading', {
+        loaded: formatFixed(execution.dispatchLoad.loadedKg, 0),
+        capacity: formatFixed(execution.dispatchLoad.capacityKg, 0),
+      });
     case 'ready_to_dispatch':
-      return 'The outbound load is ready for departure.';
+      return translate(messages, 'execReadyToDispatch');
     case 'dispatched':
-      return `${execution.dispatchLoad.lastDispatchKg.toFixed(0)} kg left the shipping bay.`;
+      return translate(messages, 'execDispatched', {
+        kg: formatFixed(execution.dispatchLoad.lastDispatchKg, 0),
+      });
     case 'fulfilled':
       return execution.orderId === null
-        ? 'All commitments fulfilled. Accept the next production programme or review the completed period.'
-        : 'Commitment fulfilled.';
+        ? translate(messages, 'execAllFulfilled')
+        : translate(messages, 'execFulfilled');
   }
 }
 
@@ -668,10 +810,6 @@ function combinedIncidentEffect(incidents: ReadonlyArray<OperationalIncident>): 
   };
 }
 
-function sentenceStart(text: string): string {
-  return text.charAt(0).toUpperCase() + text.slice(1);
-}
-
 function makeConstraints(
   state: Pick<OperationsCampaignState, 'orders' | 'activeOrderId' | 'incidents' | 'elapsedMinutes'>,
   context: CampaignTickContext,
@@ -682,8 +820,10 @@ function makeConstraints(
     constraints.push({
       id: 'storage-high',
       severity: context.storageUtilization >= 0.95 ? 'critical' : 'warning',
-      label: 'Storage capacity',
-      detail: `${Math.round(context.storageUtilization * 100)}% of material capacity is occupied.`,
+      label: translate(messages, 'constraintStorageLabel'),
+      detail: translate(messages, 'constraintStorageDetail', {
+        percent: formatFixed(Math.round(context.storageUtilization * 100), 0),
+      }),
       relatedId: null,
     });
   }
@@ -692,8 +832,10 @@ function makeConstraints(
     constraints.push({
       id: `recipe-feed-${activeOrder.id}`,
       severity: 'critical',
-      label: 'Recipe feed unavailable',
-      detail: `${sentenceStart(activeOrder.recipe.sourceMaterial.replaceAll('_', ' '))} inventory is empty.`,
+      label: translate(messages, 'constraintFeedLabel'),
+      detail: translate(messages, 'constraintFeedDetail', {
+        material: sourceMaterialName(activeOrder.recipe.sourceMaterial),
+      }),
       relatedId: activeOrder.id,
     });
   }
@@ -706,11 +848,22 @@ function makeConstraints(
       constraints.push({
         id: `order-due-${nextOrder.id}`,
         severity: remainingMinutes <= 0 ? 'critical' : 'warning',
-        label: remainingMinutes <= 0 ? 'Commitment overdue' : 'Commitment due soon',
+        label: translate(
+          messages,
+          remainingMinutes <= 0 ? 'constraintOverdueLabel' : 'constraintDueSoonLabel'
+        ),
         detail:
           remainingMinutes <= 0
-            ? `${nextOrder.customer} is ${Math.max(1, Math.ceil(-remainingMinutes))} simulated minutes overdue.`
-            : `${Math.ceil(remainingMinutes)} simulated minutes remain for ${nextOrder.customer}.`,
+            ? translate(messages, 'constraintOverdueDetail', {
+                customer: nextOrder.customer,
+                count: Math.max(1, Math.ceil(-remainingMinutes)),
+                minutes: formatFixed(Math.max(1, Math.ceil(-remainingMinutes)), 0),
+              })
+            : translate(messages, 'constraintDueSoonDetail', {
+                customer: nextOrder.customer,
+                count: Math.ceil(remainingMinutes),
+                minutes: formatFixed(Math.ceil(remainingMinutes), 0),
+              }),
         relatedId: nextOrder.id,
       });
     }
@@ -719,8 +872,8 @@ function makeConstraints(
     constraints.push({
       id: 'dispatch-isolated',
       severity: 'critical',
-      label: 'Dispatch isolated',
-      detail: 'An active incident requires the shipping quality gate to remain closed.',
+      label: translate(messages, 'constraintDispatchLabel'),
+      detail: translate(messages, 'constraintDispatchDetail'),
       relatedId:
         state.incidents.find(
           (incident) =>
@@ -734,8 +887,11 @@ function makeConstraints(
     constraints.push({
       id: 'maintenance-queue',
       severity: context.openWorkOrders > 3 ? 'warning' : 'info',
-      label: 'Maintenance queue',
-      detail: `${context.openWorkOrders} autonomous work order${context.openWorkOrders === 1 ? '' : 's'} open.`,
+      label: translate(messages, 'constraintMaintenanceLabel'),
+      detail: translate(messages, 'constraintMaintenanceDetail', {
+        count: context.openWorkOrders,
+        countText: formatFixed(context.openWorkOrders, 0),
+      }),
       relatedId: null,
     });
   }
@@ -766,13 +922,21 @@ function gradePeriod(
             ? 'D'
             : 'F';
   const gradeReasons = [
-    `${metrics.dispatchedKg.toFixed(0)} kg dispatched; net contribution ${margin.toFixed(2)} after recorded costs.`,
-    `${risks.length} material or deadline risks carried into the next period.`,
+    translate(messages, 'gradeDispatchReason', {
+      kg: formatFixed(metrics.dispatchedKg, 0),
+      margin: formatFixed(margin, 2),
+    }),
+    translate(messages, 'gradeRiskReason', {
+      count: risks.length,
+      countText: formatFixed(risks.length, 0),
+    }),
   ];
   if ((metrics.qualityFailureKg ?? 0) > 0) {
     grade = 'F';
     gradeReasons.push(
-      `${metrics.qualityFailureKg.toFixed(0)} kg failed the commitment quality threshold; quality failure caps the grade at F.`
+      translate(messages, 'gradeQualityFailureReason', {
+        kg: formatFixed(metrics.qualityFailureKg, 0),
+      })
     );
   }
   const unsafe = incidents.filter(
@@ -783,7 +947,9 @@ function gradePeriod(
   if (unsafe.length) {
     if (grade === 'A' || grade === 'B' || grade === 'C') grade = 'D';
     gradeReasons.push(
-      `Unresolved high-severity controls cap the grade at D: ${unsafe.map((incident) => incident.title).join(', ')}.`
+      translate(messages, 'gradeUnsafeReason', {
+        titles: unsafe.map((incident) => incident.title).join(', '),
+      })
     );
   }
   return { grade, gradeReasons };
@@ -834,9 +1000,9 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
           ),
         });
         state.addLogEntry(
-          'Recovery challenge',
+          translate(messages, 'sourceRecoveryChallenge'),
           'operation',
-          'Challenge abandoned; its incident controls remain active.'
+          translate(messages, 'logChallengeAbandoned')
         );
       },
       finishChallengeRecovery: () => {
@@ -865,9 +1031,9 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
           execution: { ...createInitialExecution(), orderId: programme[0].id, remainingKg: 3000 },
         });
         state.addLogEntry(
-          'Order scheduler',
+          translate(messages, 'sourceOrderScheduler'),
           'operation',
-          'Accepted three 3,000 kg repeat commitments. Existing material and genealogy remain unchanged.'
+          translate(messages, 'logProgrammeAccepted')
         );
         return true;
       },
@@ -882,9 +1048,9 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
             {
               id: `log-${String(state.sequence + 1).padStart(4, '0')}`,
               simulationMinute: state.elapsedMinutes,
-              source: 'Autonomous execution',
+              source: translate(messages, 'sourceAutonomousExecution'),
               category: 'operation',
-              message: 'Production programme initialized from equipment and inventory state.',
+              message: translate(messages, 'logProgrammeInitialized'),
               relatedId: state.activeOrderId,
             },
             MAX_LOG_ENTRIES
@@ -921,9 +1087,12 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
               {
                 id: `log-${String(sequence).padStart(4, '0')}`,
                 simulationMinute: state.elapsedMinutes,
-                source: 'Order scheduler',
+                source: translate(messages, 'sourceOrderScheduler'),
                 category: 'operation',
-                message: `${selected.customer}: ${selected.recipe.label} is now the active commitment.`,
+                message: translate(messages, 'logOrderActivated', {
+                  customer: selected.customer,
+                  recipe: selected.recipe.label,
+                }),
                 relatedId: selected.id,
               },
               MAX_LOG_ENTRIES
@@ -962,7 +1131,7 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
             {
               id: `log-${String(sequence).padStart(4, '0')}`,
               simulationMinute: state.elapsedMinutes,
-              source: 'Incident controller',
+              source: translate(messages, 'sourceIncidentController'),
               category: definition.severity === 'critical' ? 'safety' : 'operation',
               message: definition.title,
               relatedId: incident.id,
@@ -992,9 +1161,9 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
               {
                 id: `log-${String(sequence).padStart(4, '0')}`,
                 simulationMinute: state.elapsedMinutes,
-                source: 'Incident controller',
+                source: translate(messages, 'sourceIncidentController'),
                 category: 'operation',
-                message: `${target.title} acknowledged.`,
+                message: translate(messages, 'logIncidentAcknowledged', { title: target.title }),
                 relatedId: incidentId,
               },
               MAX_LOG_ENTRIES
@@ -1036,9 +1205,9 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
               {
                 id: `log-${String(sequence).padStart(4, '0')}`,
                 simulationMinute: state.elapsedMinutes,
-                source: 'Incident controller',
+                source: translate(messages, 'sourceIncidentController'),
                 category: 'operation',
-                message: `${target.title} mitigated; residual effect halved.`,
+                message: translate(messages, 'logIncidentMitigated', { title: target.title }),
                 relatedId: incidentId,
               },
               MAX_LOG_ENTRIES
@@ -1075,9 +1244,9 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
               {
                 id: `log-${String(sequence).padStart(4, '0')}`,
                 simulationMinute: state.elapsedMinutes,
-                source: 'Incident controller',
+                source: translate(messages, 'sourceIncidentController'),
                 category: 'maintenance',
-                message: `${target.title} resolved and controls returned to normal.`,
+                message: translate(messages, 'logIncidentResolved', { title: target.title }),
                 relatedId: incidentId,
               },
               MAX_LOG_ENTRIES
@@ -1104,7 +1273,7 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
               {
                 id: `log-${String(sequence).padStart(4, '0')}`,
                 simulationMinute: state.elapsedMinutes,
-                source: source.trim() || 'Control layer',
+                source: source.trim() || translate(messages, 'sourceControlLayer'),
                 category,
                 message: trimmed,
                 relatedId,
@@ -1167,28 +1336,27 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
               )
                 continue;
               const material = batch.materialType;
-              // Batch IDs restart with material flow. Include immutable production
-              // evidence so a save cannot re-credit the same batch on a new manifest.
-              const batchCreditKey = JSON.stringify([
-                context.materialSessionId ?? null,
-                batch.id,
-                batch.simulationTime,
-                batch.materialType,
-                batch.producedKg,
-                batch.sourceContributions,
-              ]);
+              const creditSessionId = context.materialSessionId ?? null;
+              const creditKey = batchCreditKey(creditSessionId, batch);
+              if (creditedBatchKg[creditKey] === undefined) {
+                // Adopt credit a record from before compact keys still holds.
+                const legacyKey = legacyBatchCreditKey(creditSessionId, batch);
+                if (creditedBatchKg[legacyKey] !== undefined) {
+                  creditedBatchKg[creditKey] = creditedBatchKg[legacyKey];
+                  delete creditedBatchKg[legacyKey];
+                }
+              }
               let productRemaining = Math.min(
                 Math.max(0, Number.isFinite(product.amount) ? product.amount : 0),
                 Math.max(
                   0,
                   (Number.isFinite(batch.producedKg) ? batch.producedKg : 0) -
-                    (creditedBatchKg[batchCreditKey] ?? 0)
+                    (creditedBatchKg[creditKey] ?? 0)
                 ),
                 materialRemaining.get(material) ?? 0,
                 remaining
               );
-              creditedBatchKg[batchCreditKey] =
-                (creditedBatchKg[batchCreditKey] ?? 0) + productRemaining;
+              creditedBatchKg[creditKey] = (creditedBatchKg[creditKey] ?? 0) + productRemaining;
               materialRemaining.set(
                 material,
                 (materialRemaining.get(material) ?? 0) - productRemaining
@@ -1239,9 +1407,12 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
               {
                 id: `log-${String(sequence).padStart(4, '0')}`,
                 simulationMinute: elapsedMinutes,
-                source: 'Dispatch controller',
+                source: translate(messages, 'sourceDispatchController'),
                 category: 'operation',
-                message: `${manifest.id} allocated ${allocatedManifestKg.toFixed(1)} kg of evidenced dispatch across active commitments.`,
+                message: translate(messages, 'logManifestAllocated', {
+                  manifest: manifest.id,
+                  kg: formatFixed(allocatedManifestKg, 1),
+                }),
                 relatedId: manifest.id,
               },
               MAX_LOG_ENTRIES
@@ -1416,7 +1587,9 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
                 .map((entry) => entry.message),
               summary:
                 grade === 'A' || grade === 'B'
-                  ? `${shiftMetrics.dispatchedKg.toFixed(0)} kg shipped with nonnegative contribution and controlled carry-over risk.`
+                  ? translate(messages, 'reportSummaryGood', {
+                      kg: formatFixed(shiftMetrics.dispatchedKg, 0),
+                    })
                   : gradeReasons.join(' '),
             };
             reports = appendBounded(reports, report, MAX_REPORTS);
@@ -1442,7 +1615,7 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
               {
                 id: `log-${String(sequence).padStart(4, '0')}`,
                 simulationMinute: elapsedMinutes,
-                source: 'Production execution',
+                source: translate(messages, 'sourceProductionExecution'),
                 category: execution.stage === 'quality_hold' ? 'quality' : 'operation',
                 message: executionMessage(execution),
                 relatedId: execution.orderId,
@@ -1585,6 +1758,19 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
         return {
           ...current,
           ...restored,
+          // JSON froze each recipe label in the save's language; re-link restored
+          // orders to the live MILL_RECIPES entries so a language switch reaches them.
+          ...(Array.isArray(restored.orders)
+            ? {
+                orders: restored.orders.map((order) => {
+                  const recipeId = order?.recipe?.id;
+                  return typeof recipeId === 'string' &&
+                    Object.prototype.hasOwnProperty.call(MILL_RECIPES, recipeId)
+                    ? { ...order, recipe: MILL_RECIPES[recipeId] }
+                    : order;
+                }),
+              }
+            : {}),
           shiftMetrics: {
             ...ZERO_SHIFT_METRICS,
             ...(restored.shiftMetrics ?? current.shiftMetrics),
@@ -1599,10 +1785,12 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
                   ...new Set(restored.processedManifestIds.filter((id) => typeof id === 'string')),
                 ].slice(-MAX_PROCESSED_MANIFESTS)
               : [],
-          creditedBatchKg: Object.fromEntries(
-            Object.entries(restored.creditedBatchKg ?? {})
-              .filter(([, value]) => Number.isFinite(value) && value >= 0)
-              .slice(-1000)
+          creditedBatchKg: compactBatchCreditKeys(
+            Object.fromEntries(
+              Object.entries(restored.creditedBatchKg ?? {})
+                .filter(([, value]) => Number.isFinite(value) && value >= 0)
+                .slice(-1000)
+            )
           ),
           lastWasteKg:
             materialSessionId &&

@@ -31,6 +31,8 @@ import {
   layoutProposalJson,
 } from '../../../simulation/layoutPlanningExport';
 import { MATERIAL_TRANSPORT_SPEEDS } from '../../../simulation/materialTransport';
+import { formatFixed, formatGrouped, translate, useT } from '../../../i18n';
+import { layoutPlannerMessages } from './LayoutPlanner.messages';
 
 function captureLayout(): LayoutSnapshot {
   const flow = useMaterialFlowStore.getState();
@@ -73,18 +75,19 @@ async function planPng(svg: string): Promise<Blob> {
     const image = new Image();
     await new Promise<void>((resolve, reject) => {
       image.onload = () => resolve();
-      image.onerror = () => reject(new Error('The drawing could not be rendered. Try SVG export.'));
+      image.onerror = () => reject(new Error(translate(layoutPlannerMessages, 'renderFailed')));
       image.src = url;
     });
     const canvas = document.createElement('canvas');
     canvas.width = 920;
     canvas.height = 1400;
     const context = canvas.getContext('2d');
-    if (!context) throw new Error('PNG export is unavailable in this browser. Try SVG export.');
+    if (!context) throw new Error(translate(layoutPlannerMessages, 'pngUnavailable'));
     context.drawImage(image, 0, 0, canvas.width, canvas.height);
     return await new Promise<Blob>((resolve, reject) =>
       canvas.toBlob(
-        (blob) => (blob ? resolve(blob) : reject(new Error('PNG export failed. Try SVG export.'))),
+        (blob) =>
+          blob ? resolve(blob) : reject(new Error(translate(layoutPlannerMessages, 'pngFailed'))),
         'image/png'
       )
     );
@@ -131,6 +134,7 @@ function NumberField({
 }
 
 export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+  const t = useT(layoutPlannerMessages);
   const dialog = useRef<HTMLDivElement>(null);
   useFocusTrap(dialog as React.RefObject<HTMLElement>, true, onClose);
   const [snapshot, setSnapshot] = useState(captureLayout);
@@ -149,7 +153,7 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
     structuredClone(DEFAULT_PLANNING_ASSUMPTIONS)
   );
   const [dock, setDock] = useState<Dock>('shipping');
-  const [message, setMessage] = useState('Edit a proposal or search for a lower-cost arrangement.');
+  const [message, setMessage] = useState(() => translate(layoutPlannerMessages, 'initialMessage'));
   const [busy, setBusy] = useState(false);
   const [stale, setStale] = useState(false);
   const [liveQueues, setLiveQueues] = useState(true);
@@ -170,13 +174,15 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
     () => scoreLogisticsLayout(proposal, assumptions, snapshot.obstacles),
     [proposal, assumptions, snapshot.obstacles]
   );
+  const currentTitle = t('svgCurrentTitle');
+  const proposedTitle = t('svgProposedTitle');
   const currentSvg = useMemo(
-    () => layoutPlanSvg(snapshot, baseline, 'Current layout'),
-    [snapshot, baseline]
+    () => layoutPlanSvg(snapshot, baseline, currentTitle),
+    [snapshot, baseline, currentTitle]
   );
   const proposedSvg = useMemo(
-    () => layoutPlanSvg(snapshot, proposal, 'Proposed layout'),
-    [snapshot, proposal]
+    () => layoutPlanSvg(snapshot, proposal, proposedTitle),
+    [snapshot, proposal, proposedTitle]
   );
   const queues = useMemo(() => planningQueueSummary(snapshot.buffers), [snapshot.buffers]);
   const layoutChangedNow = () =>
@@ -208,7 +214,7 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
   const change = (next: LogisticsProposal) => {
     setHistory((prior) => [...prior.slice(0, historyIndex + 1), structuredClone(next)].slice(-40));
     setHistoryIndex(Math.min(historyIndex + 1, 39));
-    setMessage('Proposal updated. The running mill is unchanged.');
+    setMessage(translate(layoutPlannerMessages, 'proposalUpdated'));
   };
   const refresh = () => {
     const current = structuredClone(useLogisticsLayoutStore.getState().layout);
@@ -217,7 +223,7 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
     setHistory([structuredClone(current)]);
     setHistoryIndex(0);
     setStale(false);
-    setMessage('Current layout captured; the proposal has been reset.');
+    setMessage(translate(layoutPlannerMessages, 'layoutCaptured'));
   };
   const pause = () => {
     if (logisticsControlHold()) return;
@@ -225,7 +231,7 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
     if (gameSpeed > 0) resumeSpeeds.current.game = gameSpeed;
     useProductionStore.getState().setProductionSpeed(0);
     useGameSimulationStore.getState().setGameSpeed(0);
-    setMessage('Mill paused. Apply a clear proposal, then run production to measure it.');
+    setMessage(translate(layoutPlannerMessages, 'millPausedMessage'));
   };
   const run = () => {
     const reason = logisticsControlHold();
@@ -247,11 +253,11 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
       refresh();
       setMessage(
         undo
-          ? 'Previous geometry restored. Stock, shipments and vehicle progress are retained.'
-          : 'Layout applied to the mill. Run production, then return here to compare observed results.'
+          ? translate(layoutPlannerMessages, 'geometryRestored')
+          : translate(layoutPlannerMessages, 'layoutApplied')
       );
     } else {
-      setMessage(result.reason ?? 'The layout could not be applied.');
+      setMessage(result.reason ?? translate(layoutPlannerMessages, 'applyFailed'));
       if (layoutChangedNow()) setStale(true);
     }
   };
@@ -261,17 +267,20 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
       return;
     }
     setBusy(true);
-    setMessage('Comparing bounded route and staging alternatives…');
+    setMessage(translate(layoutPlannerMessages, 'comparing'));
     window.setTimeout(() => {
       if (!mounted.current) return;
       try {
         const result = optimizeLogisticsLayout(proposal, assumptions, snapshot.obstacles);
         if (result.improved) change(result.proposal);
         setMessage(
-          `${result.evaluations.toLocaleString()} alternatives checked. ${result.improved ? 'A lower-cost proposal is ready to compare.' : 'No lower-cost clearance-feasible alternative was found.'}`
+          translate(layoutPlannerMessages, 'alternativesChecked', {
+            count: formatGrouped(result.evaluations),
+            improved: result.improved,
+          })
         );
       } catch {
-        setMessage('The search could not finish. Check the proposal coordinates and try again.');
+        setMessage(translate(layoutPlannerMessages, 'searchFailed'));
       } finally {
         setBusy(false);
       }
@@ -305,10 +314,15 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
               }
             );
       downloadBlob(blob, format);
-      if (mounted.current) setMessage(`${format.toUpperCase()} download started.`);
+      if (mounted.current)
+        setMessage(
+          translate(layoutPlannerMessages, 'downloadStarted', { format: format.toUpperCase() })
+        );
     } catch (error) {
       if (mounted.current)
-        setMessage(error instanceof Error ? error.message : 'Export failed. Try SVG or JSON.');
+        setMessage(
+          error instanceof Error ? error.message : translate(layoutPlannerMessages, 'exportFailed')
+        );
     } finally {
       if (mounted.current) setBusy(false);
     }
@@ -350,37 +364,30 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
           <div>
             <h2 id="layout-planner-title" className="flex items-center gap-2 text-xl font-semibold">
               <Route size={22} aria-hidden="true" />
-              Logistics planning
+              {t('title')}
             </h2>
-            <p className="mt-1 text-sm text-slate-300">
-              Plan, pause, apply and run the mill. Compare observed results and undo the applied
-              geometry.
-            </p>
+            <p className="mt-1 text-sm text-slate-300">{t('subtitle')}</p>
           </div>
-          <button className={buttonClass} onClick={onClose} aria-label="Close logistics planning">
+          <button className={buttonClass} onClick={onClose} aria-label={t('close')}>
             <X size={20} aria-hidden="true" />
           </button>
         </header>
         <div className="overflow-y-auto p-4 sm:p-6 custom-scrollbar">
           {snapshot.machines.length === 0 ? (
             <p role="status" className="mb-4 text-amber-200">
-              The scene has not registered its machines yet. Close this view and reopen it after the
-              mill loads.
+              {t('noMachines')}
             </p>
           ) : null}
           {stale && (
             <p role="alert" className="mb-4 text-amber-200">
-              The live process layout changed. Capture current again before exporting this proposal.
+              {t('stale')}
             </p>
           )}
-          <section
-            className="mb-5 border-b border-slate-700 pb-4"
-            aria-label="Operate planned layout"
-          >
+          <section className="mb-5 border-b border-slate-700 pb-4" aria-label={t('operateLabel')}>
             <div className="flex flex-wrap gap-2">
               <button className={buttonClass} disabled={paused || !!hold} onClick={pause}>
                 <Pause size={16} className="mr-1 inline" aria-hidden="true" />
-                Pause mill
+                {t('pauseMill')}
               </button>
               <button
                 className={`${buttonClass} bg-cyan-900 text-white`}
@@ -395,33 +402,26 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                 }
                 onClick={() => install(false)}
               >
-                Apply to mill
+                {t('applyToMill')}
               </button>
               <button
                 className={buttonClass}
                 disabled={busy || !paused || !!hold || stale || !applied.previous}
                 onClick={() => install(true)}
               >
-                Undo applied layout
+                {t('undoApplied')}
               </button>
               <button className={buttonClass} disabled={!!hold} onClick={run}>
                 <Play size={16} className="mr-1 inline" aria-hidden="true" />
-                Run production
+                {t('runProduction')}
               </button>
             </div>
             <p className="mt-2 text-sm text-slate-300">
-              {hold ??
-                (paused
-                  ? 'Mill paused. Apply changes while both clocks are stopped.'
-                  : 'Mill running. Pause before applying or undoing geometry.')}{' '}
-              Layout revision {applied.revision}.
+              {hold ?? (paused ? t('pausedNote') : t('runningNote'))}{' '}
+              {t('layoutRevision', { revision: formatFixed(applied.revision, 0) })}
             </p>
             <p className="mt-2 text-sm text-slate-300">
-              Dock loading capacity uses a geometry-based handling assumption:{' '}
-              {logisticsLoadingRate(applied.layout).toFixed(0)} kg/s, calibrated to 400 kg/s for the
-              authored layout. Vehicle travel and staging distance affect this capacity. Released
-              stock, quality interlocks and truck capacity still limit each load. Planning weights
-              never change gameplay.
+              {t('loadingCapacity', { rate: formatFixed(logisticsLoadingRate(applied.layout), 0) })}
             </p>
             <p role="status" className="mt-3 text-sm text-cyan-200">
               {message}
@@ -433,57 +433,59 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
               disabled={busy || stale || !snapshot.machines.length}
               onClick={optimize}
             >
-              Find lower-cost layout
+              {t('findLowerCost')}
             </button>
             <button
               className={buttonClass}
               disabled={busy || historyIndex === 0}
               onClick={() => {
                 setHistoryIndex(historyIndex - 1);
-                setMessage('Proposal edit undone.');
+                setMessage(t('editUndone'));
               }}
             >
               <Undo2 size={16} className="inline mr-1" aria-hidden="true" />
-              Undo
+              {t('undo')}
             </button>
             <button
               className={buttonClass}
               disabled={busy || historyIndex === history.length - 1}
               onClick={() => {
                 setHistoryIndex(historyIndex + 1);
-                setMessage('Proposal edit restored.');
+                setMessage(t('editRestored'));
               }}
             >
               <Redo2 size={16} className="inline mr-1" aria-hidden="true" />
-              Redo
+              {t('redo')}
             </button>
             <button className={buttonClass} disabled={busy} onClick={() => change(baseline)}>
               <RotateCcw size={16} className="inline mr-1" aria-hidden="true" />
-              Reset proposal
+              {t('resetProposal')}
             </button>
             <button className={buttonClass} disabled={busy} onClick={refresh}>
               <RefreshCw size={16} className="inline mr-1" aria-hidden="true" />
-              Capture current again
+              {t('captureAgain')}
             </button>
           </div>
           <div className="grid gap-4 sm:grid-cols-2" data-testid="layout-plan-comparison">
             {(['current', 'proposed'] as const).map((name) => (
               <div key={name} className="min-w-0">
                 <div className="mb-2 flex items-center justify-between gap-2">
-                  <h3 className="text-base font-semibold capitalize">{name} layout</h3>
+                  <h3 className="text-base font-semibold capitalize">
+                    {t('planHeading', { plan: name })}
+                  </h3>
                   <button
                     className={buttonClass}
                     aria-pressed={zoomedPlans[name]}
                     onClick={() => setZoomedPlans({ ...zoomedPlans, [name]: !zoomedPlans[name] })}
                   >
-                    {zoomedPlans[name] ? 'Fit' : 'Enlarge'} {name} plan
+                    {t('zoomPlan', { plan: name, zoomed: zoomedPlans[name] })}
                   </button>
                 </div>
                 <div
                   className="max-h-[32rem] overflow-auto overscroll-contain"
                   tabIndex={0}
                   role="region"
-                  aria-label={`${name} drawing, scroll to inspect enlarged details`}
+                  aria-label={t('drawingRegion', { plan: name })}
                 >
                   <div
                     style={zoomedPlans[name] ? { width: 920 } : undefined}
@@ -498,42 +500,42 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
           </div>
           <section aria-labelledby="layout-comparison-heading" className="mt-5">
             <h3 id="layout-comparison-heading" className="text-base font-semibold">
-              Estimated comparison
+              {t('estimatedComparison')}
             </h3>
             <div className="mt-2 overflow-x-auto">
               <table className="w-full text-left text-sm tabular-nums">
                 <thead className="text-slate-300">
                   <tr>
-                    <th className="py-2 pr-3">Measure</th>
-                    <th className="py-2 pr-3">Current</th>
-                    <th className="py-2">Proposal</th>
+                    <th className="py-2 pr-3">{t('measure')}</th>
+                    <th className="py-2 pr-3">{t('current')}</th>
+                    <th className="py-2">{t('proposal')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-700">
                   <ComparisonRow
-                    label="Vehicle travel (m/hr)"
+                    label={t('vehicleTravel')}
                     current={currentScore.travelMetresPerHour}
                     proposed={proposalScore.travelMetresPerHour}
                   />
                   <ComparisonRow
-                    label="Staging handling (m/hr)"
+                    label={t('stagingHandling')}
                     current={currentScore.handlingMetresPerHour}
                     proposed={proposalScore.handlingMetresPerHour}
                   />
                   <ComparisonRow
-                    label="Slow-zone visits/hr"
+                    label={t('slowZoneVisits')}
                     current={currentScore.crossingsPerHour}
                     proposed={proposalScore.crossingsPerHour}
                   />
                   <ComparisonRow
-                    label="Weighted cost (equivalent m/hr)"
+                    label={t('weightedCost')}
                     current={currentScore.weightedCost}
                     proposed={proposalScore.weightedCost}
                   />
                   {PLANNING_DOCKS.map((name) => (
                     <ComparisonRow
                       key={name}
-                      label={`${name === 'shipping' ? 'Shipping' : 'Receiving'} cycle (s)`}
+                      label={name === 'shipping' ? t('shippingCycle') : t('receivingCycle')}
                       current={currentScore.routes[name].cycleSeconds}
                       proposed={proposalScore.routes[name].cycleSeconds}
                     />
@@ -543,15 +545,12 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
             </div>
             {saving !== null && (
               <p className="mt-3 text-sm text-cyan-200">
-                {Math.abs(saving).toFixed(1)}% {saving >= 0 ? 'lower' : 'higher'} weighted cost with
-                the same assumptions.
+                {t(saving >= 0 ? 'savingLower' : 'savingHigher', {
+                  pct: formatFixed(Math.abs(saving), 1),
+                })}
               </p>
             )}
-            <p className="mt-2 text-sm text-slate-300">
-              Travel estimates use the rounded route, a conservative 1.8 m/s average and 13 seconds
-              for loading/unloading. Staging handling uses rectilinear distance. Acceleration,
-              traffic waits and production gains are outside this estimate.
-            </p>
+            <p className="mt-2 text-sm text-slate-300">{t('travelEstimates')}</p>
           </section>
           <ObservedComparison
             before={applied.before}
@@ -560,7 +559,7 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
           <fieldset disabled={busy} className="mt-6 grid min-w-0 gap-6 lg:grid-cols-2">
             <section aria-labelledby="proposal-controls-heading">
               <h3 id="proposal-controls-heading" className="text-base font-semibold">
-                Proposal controls
+                {t('proposalControls')}
               </h3>
               <div className="mt-3 flex gap-2">
                 {PLANNING_DOCKS.map((name) => (
@@ -570,25 +569,23 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                     aria-pressed={dock === name}
                     onClick={() => setDock(name)}
                   >
-                    {name}
+                    {t('dockName', { dock: name })}
                   </button>
                 ))}
               </div>
               <p className="mt-3 text-sm text-slate-300">
-                {dock === 'shipping'
-                  ? 'Reserve all 50 pallet spaces.'
-                  : 'Position the two stacks of empty return pallets.'}{' '}
-                Process machines, elevated sifters and pipe endpoints remain fixed.
+                {dock === 'shipping' ? t('shippingStagingNote') : t('receivingStagingNote')}{' '}
+                {t('fixedNote')}
               </p>
               <div className="mt-3 grid grid-cols-2 gap-3">
                 <NumberField
-                  label={`${dock} staging X (m)`}
+                  label={t('stagingX', { dock })}
                   value={proposal.staging[dock][0]}
                   onChange={(v) => updateStaging(0, v)}
                   max={100}
                 />
                 <NumberField
-                  label={`${dock} staging Z (m)`}
+                  label={t('stagingZ', { dock })}
                   value={proposal.staging[dock][2]}
                   onChange={(v) => updateStaging(2, v)}
                   max={100}
@@ -596,24 +593,20 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
               </div>
               <details className="mt-4">
                 <summary className="min-h-11 cursor-pointer py-2 text-sm text-cyan-200">
-                  Travel waypoints
+                  {t('travelWaypoints')}
                 </summary>
-                <p className="my-2 text-sm text-slate-300">
-                  Pickup, dropoff and approach legs are locked. Corners use the controller’s
-                  rounding model and may not tighten its existing turning envelope. Apply also
-                  checks each vehicle can keep its current pose and next action.
-                </p>
+                <p className="my-2 text-sm text-slate-300">{t('waypointNote')}</p>
                 {proposal.routes[dock].map((point, index) =>
                   isEditableRoutePoint(dock, index) ? (
                     <div key={index} className="mb-3 grid grid-cols-2 gap-3">
                       <NumberField
-                        label={`Waypoint ${index + 1} X (m)`}
+                        label={t('waypointX', { index: index + 1 })}
                         value={point[0]}
                         onChange={(v) => updateWaypoint(index, 0, v)}
                         max={100}
                       />
                       <NumberField
-                        label={`Waypoint ${index + 1} Z (m)`}
+                        label={t('waypointZ', { index: index + 1 })}
                         value={point[2]}
                         onChange={(v) => updateWaypoint(index, 2, v)}
                         max={100}
@@ -621,7 +614,7 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                     </div>
                   ) : (
                     <p key={index} className="py-1 text-sm text-slate-300">
-                      Waypoint {index + 1}: {point[0]}, {point[2]} m (locked)
+                      {t('waypointLocked', { index: index + 1, x: point[0], z: point[2] })}
                     </p>
                   )
                 )}
@@ -632,9 +625,7 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                     proposalScore.feasible ? 'text-sm text-green-200' : 'text-sm text-amber-200'
                   }
                 >
-                  {proposalScore.feasible
-                    ? 'Proposal clears the modeled footprints and protected pedestrian approaches.'
-                    : 'Resolve these clearance conflicts before applying or exporting:'}
+                  {proposalScore.feasible ? t('feasible') : t('resolveConflicts')}
                 </p>
                 {!proposalScore.feasible && (
                   <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-200">
@@ -643,22 +634,18 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                     ))}
                   </ul>
                 )}
-                <p className="mt-2 text-sm text-slate-300">
-                  Swept checks use the controller’s 2.7 m corridor plus a 0.1 m sampling margin.
-                  Dock pedestrian approaches reserve 3 m. Vehicle crossings may still require a
-                  stop; this view makes no evacuation certification.
-                </p>
+                <p className="mt-2 text-sm text-slate-300">{t('sweptNote')}</p>
               </div>
             </section>
             <section aria-labelledby="planning-assumptions-heading">
               <h3 id="planning-assumptions-heading" className="text-base font-semibold">
-                Planning assumptions
+                {t('planningAssumptions')}
               </h3>
               <div className="mt-3 grid grid-cols-2 gap-3">
                 {PLANNING_DOCKS.map((name) => (
                   <NumberField
                     key={name}
-                    label={`${name} trips/hr`}
+                    label={t('tripsPerHour', { dock: name })}
                     value={assumptions.tripsPerHour[name]}
                     min={0}
                     onChange={(value) =>
@@ -674,7 +661,7 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                 {(['travel', 'handling', 'crossing'] as const).map((key) => (
                   <NumberField
                     key={key}
-                    label={`${key} weight`}
+                    label={t('weight', { weight: key })}
                     value={assumptions.weights[key]}
                     min={0}
                     max={5}
@@ -687,7 +674,7 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                   />
                 ))}
                 <NumberField
-                  label="Slow-zone delay (s)"
+                  label={t('slowZoneDelay')}
                   value={assumptions.crossingDelaySeconds}
                   min={0}
                   max={120}
@@ -696,45 +683,47 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                   }
                 />
               </div>
-              <h3 className="mt-6 text-base font-semibold">Observed material queues</h3>
+              <h3 className="mt-6 text-base font-semibold">{t('observedQueues')}</h3>
               <label className="mt-2 flex min-h-11 items-center gap-2 text-sm text-slate-300">
                 <input
                   type="checkbox"
                   checked={liveQueues}
                   onChange={(event) => setLiveQueues(event.target.checked)}
                 />
-                Update queue telemetry every second
+                {t('liveQueues')}
               </label>
               <p className="mt-1 text-sm text-slate-300">
-                Material clock {snapshot.simulationTime.toFixed(1)} s; packing output{' '}
-                {snapshot.packerKgPerSecond.toFixed(1)} kg/s. Both drawings show this same
-                observation, not forecast queues.
+                {t('materialClock', {
+                  clock: formatFixed(snapshot.simulationTime, 1),
+                  output: formatFixed(snapshot.packerKgPerSecond, 1),
+                })}
               </p>
               <ul className="mt-3 divide-y divide-slate-700 text-sm">
                 {queues.slice(0, 4).map((queue) => (
                   <li key={queue.id} className="flex justify-between gap-3 py-2">
                     <span>{queue.id}</span>
                     <span className="text-right font-mono">
-                      {queue.inputKg.toFixed(0)} kg in / {queue.outputKg.toFixed(0)} kg out
+                      {t('queueFlow', {
+                        input: formatFixed(queue.inputKg, 0),
+                        output: formatFixed(queue.outputKg, 0),
+                      })}
                       <br />
-                      {(queue.utilization * 100).toFixed(0)}% buffer use
+                      {t('queueUse', { pct: formatFixed(queue.utilization * 100, 0) })}
                     </span>
                   </li>
                 ))}
               </ul>
               <p className="mt-3 text-sm text-slate-300">
-                Transport timing follows service-route arc length. Assumed speeds: intake{' '}
-                {MATERIAL_TRANSPORT_SPEEDS.intake}, pneumatic {MATERIAL_TRANSPORT_SPEEDS.pneumatic},
-                finished {MATERIAL_TRANSPORT_SPEEDS.finished} m/s.{' '}
-                {snapshot.segments.filter((s) => s.routeProvenance === 'modeled').length}{' '}
-                connections use modeled paths; arrivals already in flight keep their timestamps.
+                {t('transportNote', {
+                  intake: MATERIAL_TRANSPORT_SPEEDS.intake,
+                  pneumatic: MATERIAL_TRANSPORT_SPEEDS.pneumatic,
+                  finished: MATERIAL_TRANSPORT_SPEEDS.finished,
+                  modeled: snapshot.segments.filter((s) => s.routeProvenance === 'modeled').length,
+                })}
               </p>
             </section>
           </fieldset>
-          <section
-            className="mt-6 border-t border-slate-700 pt-4"
-            aria-label="Export logistics proposal"
-          >
+          <section className="mt-6 border-t border-slate-700 pt-4" aria-label={t('exportLabel')}>
             <div className="flex flex-wrap gap-2">
               {(['svg', 'png', 'dxf', 'json'] as const).map((format) => (
                 <button
@@ -744,14 +733,13 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                   onClick={() => void exportPlan(format)}
                 >
                   <Download size={16} className="mr-1 inline" aria-hidden="true" />
-                  {format === 'json' ? 'Save proposal JSON' : `Export ${format.toUpperCase()}`}
+                  {format === 'json'
+                    ? t('saveJson')
+                    : t('exportFormat', { format: format.toUpperCase() })}
                 </button>
               ))}
             </div>
-            <p className="mt-2 text-sm text-slate-300">
-              Files download locally. DXF uses metre units and semantic layers; SVG and PNG include
-              dimensions and a scale bar.
-            </p>
+            <p className="mt-2 text-sm text-slate-300">{t('filesNote')}</p>
           </section>
         </div>
       </div>
@@ -768,12 +756,13 @@ function ComparisonRow({
   current: number;
   proposed: number;
 }) {
+  const t = useT(layoutPlannerMessages);
   const format = (value: number) =>
     Number.isFinite(value)
-      ? value.toLocaleString(undefined, { maximumFractionDigits: 1 })
+      ? formatGrouped(value, { maximumFractionDigits: 1 })
       : Number.isNaN(value)
-        ? 'Pending'
-        : 'Clearance conflict';
+        ? t('pending')
+        : t('clearanceConflict');
   return (
     <tr>
       <th className="py-2 pr-3 font-normal text-slate-300">{label}</th>
@@ -790,6 +779,7 @@ function ObservedComparison({
   before: LogisticsObservation | null;
   after: LogisticsObservation;
 }) {
+  const t = useT(layoutPlannerMessages);
   const rate = (o: LogisticsObservation | null, n: number | undefined) =>
     o && o.activeSeconds > 0 ? ((n ?? 0) * 60) / o.activeSeconds : NaN;
   const matched =
@@ -800,52 +790,48 @@ function ObservedComparison({
   return (
     <section className="mt-5" aria-labelledby="layout-observed-heading">
       <h3 id="layout-observed-heading" className="text-base font-semibold">
-        Observed operating results
+        {t('observedHeading')}
       </h3>
       <p className="mt-2 text-sm text-slate-300">
-        {before
-          ? 'Before is sealed when a layout is applied. After measures the subsequent run.'
-          : 'Run the current mill to collect a baseline, then apply a proposal.'}{' '}
-        Active seconds are admitted central-tick time; material seconds follow the production clock.
-        Undo retains the completed after window. Reload and replay clear these comparisons.
+        {before ? t('beforeSealed') : t('runBaseline')} {t('observedNote')}
       </p>
       <div className="mt-2 overflow-x-auto">
         <table className="w-full text-left text-sm tabular-nums">
           <thead className="text-slate-300">
             <tr>
-              <th className="py-2 pr-3">Measure</th>
-              <th className="py-2 pr-3">Before apply</th>
-              <th className="py-2">{before ? 'After apply' : 'Current run'}</th>
+              <th className="py-2 pr-3">{t('measure')}</th>
+              <th className="py-2 pr-3">{t('beforeApply')}</th>
+              <th className="py-2">{before ? t('afterApply') : t('currentRun')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-700">
             <ComparisonRow
-              label="Active seconds"
+              label={t('activeSeconds')}
               current={before?.activeSeconds ?? NaN}
               proposed={after.activeSeconds}
             />
             <ComparisonRow
-              label="Material seconds"
+              label={t('materialSeconds')}
               current={before?.materialSeconds ?? NaN}
               proposed={after.materialSeconds}
             />
             <ComparisonRow
-              label="Packed kg / active minute"
+              label={t('packedPerMinute')}
               current={rate(before, before?.packedKg)}
               proposed={rate(after, after.packedKg)}
             />
             <ComparisonRow
-              label="Shipped kg / active minute"
+              label={t('shippedPerMinute')}
               current={rate(before, before?.shippedKg)}
               proposed={rate(after, after.shippedKg)}
             />
             <ComparisonRow
-              label="Vehicle metres / active minute"
+              label={t('vehicleMetresPerMinute')}
               current={rate(before, before?.vehicleMetres)}
               proposed={rate(after, after.vehicleMetres)}
             />
             <ComparisonRow
-              label="Completed vehicle unloads"
+              label={t('completedUnloads')}
               current={before?.completedUnloads ?? NaN}
               proposed={after.completedUnloads}
             />
@@ -854,9 +840,7 @@ function ObservedComparison({
       </div>
       {before && (
         <p className="mt-2 text-sm text-amber-200">
-          {matched
-            ? 'Recorded operating controls match. Stock, traffic and truck timing can still affect results; this is an observed comparison.'
-            : 'Operating controls changed or measurement is pending. These windows do not establish a layout-only production gain.'}
+          {matched ? t('controlsMatched') : t('controlsChanged')}
         </p>
       )}
     </section>

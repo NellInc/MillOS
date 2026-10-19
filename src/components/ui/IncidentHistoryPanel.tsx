@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { History, ChevronDown, ChevronUp, Clock } from 'lucide-react';
 import { useSafetyStore } from '../../stores/safetyStore';
 import { useUIStore } from '../../stores/uiStore';
+import { formatFixed, useLocale, useT } from '../../i18n';
+import { incidentHistoryPanelMessages } from './IncidentHistoryPanel.messages';
 
 export const IncidentHistoryPanel: React.FC = () => {
   const [expanded, setExpanded] = useState(false);
@@ -10,6 +12,8 @@ export const IncidentHistoryPanel: React.FC = () => {
   const safetyIncidents = useSafetyStore((state) => state.safetyIncidents);
   const clearSafetyIncidents = useSafetyStore((state) => state.clearSafetyIncidents);
   const theme = useUIStore((state) => state.theme);
+  const t = useT(incidentHistoryPanelMessages);
+  const locale = useLocale();
 
   const handleClearClick = () => {
     if (confirmingClear) {
@@ -22,7 +26,8 @@ export const IncidentHistoryPanel: React.FC = () => {
 
   const formatTime = (timestamp: number) => {
     const date = new Date(timestamp);
-    return date.toLocaleTimeString('en-US', {
+    // pt-BR reads clock times as 24-hour.
+    return date.toLocaleTimeString(locale === 'en' ? 'en-US' : 'pt-BR', {
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit',
@@ -77,7 +82,7 @@ export const IncidentHistoryPanel: React.FC = () => {
       >
         <span className="flex items-center gap-2">
           <History className="w-4 h-4 text-blue-500" />
-          Incident Log ({safetyIncidents.length})
+          {t('incidentLog', { count: formatFixed(safetyIncidents.length, 0) })}
         </span>
         {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
       </button>
@@ -95,7 +100,7 @@ export const IncidentHistoryPanel: React.FC = () => {
               <div
                 className={`text-center text-xs py-2 ${theme === 'light' ? 'text-slate-400' : 'text-slate-500'}`}
               >
-                No incidents recorded
+                {t('noIncidents')}
               </div>
             ) : (
               <>
@@ -122,7 +127,7 @@ export const IncidentHistoryPanel: React.FC = () => {
                   <div
                     className={`text-center text-[9px] ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}
                   >
-                    Showing latest 20 of {safetyIncidents.length}
+                    {t('showingLatest', { total: formatFixed(safetyIncidents.length, 0) })}
                   </div>
                 )}
                 {safetyIncidents.length > 0 &&
@@ -136,7 +141,7 @@ export const IncidentHistoryPanel: React.FC = () => {
                             : 'text-red-400 bg-red-500/20 hover:bg-red-500/30'
                         }`}
                       >
-                        Confirm clear?
+                        {t('confirmClear')}
                       </button>
                       <button
                         onClick={() => setConfirmingClear(false)}
@@ -146,7 +151,7 @@ export const IncidentHistoryPanel: React.FC = () => {
                             : 'text-slate-300 bg-slate-500/20 hover:bg-slate-500/30'
                         }`}
                       >
-                        Cancel
+                        {t('cancel')}
                       </button>
                     </div>
                   ) : (
@@ -158,7 +163,7 @@ export const IncidentHistoryPanel: React.FC = () => {
                           : 'text-slate-500 hover:text-red-400'
                       }`}
                     >
-                      Clear history
+                      {t('clearHistory')}
                     </button>
                   ))}
               </>

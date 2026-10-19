@@ -19,6 +19,8 @@ import {
   Activity,
 } from 'lucide-react';
 import type { AIDecision } from '../types';
+import { translate } from '../i18n';
+import { decisionIconsMessages as msg } from './decisionIcons.messages';
 
 type DecisionType = AIDecision['type'];
 type DecisionStatus = AIDecision['status'];
@@ -70,29 +72,43 @@ export function getDecisionStatusIcon(
   switch (status) {
     case 'completed':
       return (
-        <CheckCircle className={`${sizeClass} text-green-400`} role="img" aria-label="Completed" />
+        <CheckCircle
+          className={`${sizeClass} text-green-400`}
+          role="img"
+          aria-label={translate(msg, 'statusCompleted')}
+        />
       );
     case 'in_progress':
       return (
         <Activity
           className={`${sizeClass} text-blue-400 motion-safe:animate-pulse`}
           role="img"
-          aria-label="In progress"
+          aria-label={translate(msg, 'statusInProgress')}
         />
       );
     case 'pending':
-      return <Clock className={`${sizeClass} text-yellow-400`} role="img" aria-label="Pending" />;
+      return (
+        <Clock
+          className={`${sizeClass} text-yellow-400`}
+          role="img"
+          aria-label={translate(msg, 'statusPending')}
+        />
+      );
     case 'superseded':
       return (
         <AlertTriangle
           className={`${sizeClass} text-slate-400`}
           role="img"
-          aria-label="Superseded"
+          aria-label={translate(msg, 'statusSuperseded')}
         />
       );
     default:
       return (
-        <Clock className={`${sizeClass} text-slate-400`} role="img" aria-label="Status unknown" />
+        <Clock
+          className={`${sizeClass} text-slate-400`}
+          role="img"
+          aria-label={translate(msg, 'statusUnknown')}
+        />
       );
   }
 }

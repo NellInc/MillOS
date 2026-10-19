@@ -276,15 +276,29 @@ describe('first-use journey wiring', () => {
     expect(useGameSimulationStore.getState().gameSpeed).toBe(pace);
   });
 
+  // The 180 fast clock runs customer deadlines 6x faster than trucks and packing,
+  // so every tour exit releases a default 180 hold to the standard 30 pace,
+  // exactly as Start operating does. Chosen non-default paces are kept.
   it.each(['Skip tour', 'Close getting started for this session'])(
-    'restores the existing clock when using %s',
+    'releases the default fast clock to standard pace when using %s',
     (control) => {
       renderInterface();
       act(() => vi.advanceTimersByTime(700));
       expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
       fireEvent.click(screen.getByRole('button', { name: control }));
-      expect(useGameSimulationStore.getState().gameSpeed).toBe(180);
+      expect(useGameSimulationStore.getState().gameSpeed).toBe(30);
       expect(useUIStore.getState().journeyVisible).toBe(false);
+    }
+  );
+
+  it.each(['Skip tour', 'Close getting started for this session'])(
+    'preserves an already chosen 60 pace when using %s',
+    (control) => {
+      useGameSimulationStore.setState({ gameSpeed: 60 });
+      renderInterface();
+      act(() => vi.advanceTimersByTime(700));
+      fireEvent.click(screen.getByRole('button', { name: control }));
+      expect(useGameSimulationStore.getState().gameSpeed).toBe(60);
     }
   );
 
@@ -293,7 +307,7 @@ describe('first-use journey wiring', () => {
     act(() => vi.advanceTimersByTime(700));
     expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
     first.unmount();
-    expect(useGameSimulationStore.getState().gameSpeed).toBe(180);
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(30);
     const second = renderInterface();
     act(() => vi.advanceTimersByTime(700));
     act(() => useGameSimulationStore.getState().setGameSpeed(60));
@@ -322,7 +336,7 @@ describe('first-use journey wiring', () => {
     expect(screen.getByRole('region', { name: 'Guided delivery' })).toBeVisible();
     expect(useMobileControlStore.getState().mobilePanelVisible).toBe(false);
     act(() => useUIStore.getState().recordMachineInspection('mill-0'));
-    fireEvent.click(screen.getByRole('button', { name: 'Open operations' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open SCADA' }));
     expect(useMobileControlStore.getState().mobilePanelVisible).toBe(true);
     expect(useMobileControlStore.getState().mobilePanelContent).toBe('scada');
   });
@@ -364,11 +378,14 @@ describe('first-use journey wiring', () => {
       journeyOrderId: useOperationsCampaignStore.getState().activeOrderId,
       alerts: [
         {
-          id: 'scada-TRUCK_SHIPPING.PT001.PV-HIHI',
+          // A still-reachable CRITICAL tag (RM101.IT001.PV alarmHiHi 135 A), in
+          // the SCADA bridge's own id and message shape.
+          id: 'scada-RM101.IT001.PV-HIHI',
           type: 'critical',
           title: 'SCADA: HIHI',
-          message: 'Shipping Truck Articulation: 40.0 deg, above the 38.0 deg limit',
+          message: 'RM-101 Motor Current: 138.0 A, above the 135.0 A limit',
           timestamp: new Date(),
+          machineId: 'rm-101',
           acknowledged: false,
         },
       ],
@@ -381,6 +398,38 @@ describe('first-use journey wiring', () => {
     act(() => useGameSimulationStore.setState({ emergencyActive: false }));
     expect(screen.getByRole('region', { name: 'Guided delivery' })).toBeVisible();
     expect(useUIStore.getState().alerts).toHaveLength(1);
+  });
+
+  it('releases the critical UI state once every critical alert is acknowledged', () => {
+    useUIStore.setState({
+      hasSeenIntro: true,
+      alerts: [
+        {
+          id: 'scada-RM101.IT001.PV-HIHI',
+          type: 'critical',
+          title: 'SCADA: HIHI',
+          message: 'RM-101 Motor Current: 138.0 A, above the 135.0 A limit',
+          timestamp: new Date(),
+          machineId: 'rm-101',
+          acknowledged: false,
+        },
+      ],
+    });
+    renderInterface();
+    act(() =>
+      runtime.narrate?.({
+        id: 'after-alarm',
+        trigger: 'first-play',
+        content: 'Reflection after the alarm.',
+      } as NarrationEntry)
+    );
+    expect(screen.getByTestId('soundtrack')).toHaveAttribute('data-quiet', 'true');
+    expect(screen.queryByRole('complementary', { name: 'AI reflection' })).not.toBeInTheDocument();
+    act(() => useUIStore.getState().acknowledgeAlert('scada-RM101.IT001.PV-HIHI'));
+    // History is kept; only an unacknowledged critical alert holds the UI quiet.
+    expect(useUIStore.getState().alerts).toHaveLength(1);
+    expect(screen.getByTestId('soundtrack')).toHaveAttribute('data-quiet', 'false');
+    expect(screen.getByRole('complementary', { name: 'AI reflection' })).toBeInTheDocument();
   });
 
   it('hides music behind a compact sheet without unmounting playback controls', () => {

@@ -1,4 +1,6 @@
 import { beginStartupTask } from './startupReadiness';
+import { formatFixed, translate } from '../i18n';
+import { recoverableLazyMessages } from './recoverableLazy.messages';
 import {
   createContext,
   createElement,
@@ -34,21 +36,34 @@ function wait(delayMs: number): Promise<void> {
   return new Promise((resolve) => globalThis.setTimeout(resolve, delayMs));
 }
 
+const timeoutError = (ms: number) =>
+  new Error(translate(recoverableLazyMessages, 'loadTimeout', { ms: formatFixed(ms, 0) }));
+
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   let timeoutId: ReturnType<typeof globalThis.setTimeout> | undefined;
   try {
     return await Promise.race([
       promise,
       new Promise<never>((_, reject) => {
-        timeoutId = globalThis.setTimeout(
-          () => reject(new Error(`Optional feature load exceeded ${timeoutMs}ms`)),
-          timeoutMs
-        );
+        timeoutId = globalThis.setTimeout(() => reject(timeoutError(timeoutMs)), timeoutMs);
       }),
     ]);
   } finally {
     if (timeoutId !== undefined) globalThis.clearTimeout(timeoutId);
   }
+}
+
+/** Settles with the first attempt to fulfil; rejects once every attempt has rejected. */
+function firstFulfilled<T>(attempts: readonly Promise<T>[]): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    let rejected = 0;
+    for (const attempt of attempts) {
+      attempt.then(resolve, (error: unknown) => {
+        rejected += 1;
+        if (rejected === attempts.length) reject(error);
+      });
+    }
+  });
 }
 
 export async function importWithBoundedRetry<T>(
@@ -65,17 +80,31 @@ export async function importWithBoundedRetry<T>(
     Math.floor(options.retryDelayMs ?? DEFAULT_OPTIONS.retryDelayMs)
   );
 
+  // A timeout cannot cancel a module fetch, and a browser shares one request
+  // per URL, so a retry after a stall usually waits on that same request.
+  // Every attempt therefore stays eligible: whichever lands first wins.
+  // Working if a first request that arrives during the retry still resolves.
+  const inFlight: Promise<T>[] = [];
   let lastError: unknown;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    let current: Promise<T>;
     try {
-      return await withTimeout(importer(), attemptTimeoutMs);
+      current = importer();
+    } catch (error) {
+      current = Promise.reject(error);
+    }
+    inFlight.push(current);
+    try {
+      return await withTimeout(firstFulfilled([...inFlight]), attemptTimeoutMs);
     } catch (error) {
       lastError = error;
       if (attempt < attempts && retryDelayMs > 0) await wait(retryDelayMs);
     }
   }
 
-  throw lastError instanceof Error ? lastError : new Error('Optional feature failed to load');
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(translate(recoverableLazyMessages, 'loadFailed'));
 }
 
 // Match React.lazy's public generic contract. Component props are intentionally

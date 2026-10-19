@@ -14,12 +14,18 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { PlayCircle, PauseCircle, SkipBack, X, Clock, Activity, Brain } from 'lucide-react';
 import { useHistoricalMode } from '../../hooks/useHistoricalMode';
 import { useHistoricalPlaybackStore } from '../../stores/historicalPlaybackStore';
+import { formatFixed, useLocale, useT } from '../../i18n';
+import { timelinePlaybackMessages } from './TimelinePlayback.messages';
+import { aiCommandCenterMessages } from '../AICommandCenter.messages';
 
 interface TimelinePlaybackProps {
   className?: string;
 }
 
 export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = '' }) => {
+  const t = useT(timelinePlaybackMessages);
+  const tAi = useT(aiCommandCenterMessages);
+  const locale = useLocale();
   const {
     isReplaying,
     playbackTime,
@@ -36,24 +42,34 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
   const decisionHistory = useHistoricalPlaybackStore((s) => s.decisionHistory);
 
   // Format timestamp for display
+  // English keeps the browser default ([]), so its output is unchanged; pt-BR is 24-hour.
   const formatTime = (ts: number): string => {
     const date = new Date(ts);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    return date.toLocaleTimeString(locale === 'en' ? [] : locale, {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
   };
 
   const formatDuration = (ms: number): string => {
     const totalSec = Math.floor(ms / 1000);
-    if (totalSec < 60) return 'just now';
+    if (totalSec < 60) return t('justNow');
     const hours = Math.floor(totalSec / 3600);
     const mins = Math.floor((totalSec % 3600) / 60);
-    if (hours > 0) return `${hours}h ${mins}m ago`;
-    return `${mins}m ago`;
+    if (hours > 0) {
+      return t('hoursMinutesAgo', { hours: formatFixed(hours, 0), minutes: formatFixed(mins, 0) });
+    }
+    return t('minutesAgo', { minutes: formatFixed(mins, 0) });
   };
 
   const formatSpan = (ms: number): string => {
     const totalMins = Math.floor(ms / 60000);
-    if (totalMins < 60) return `${totalMins}m`;
-    return `${Math.floor(totalMins / 60)}h ${String(totalMins % 60).padStart(2, '0')}m`;
+    if (totalMins < 60) return t('spanMinutes', { minutes: formatFixed(totalMins, 0) });
+    return t('spanHoursMinutes', {
+      hours: formatFixed(Math.floor(totalMins / 60), 0),
+      minutes: formatFixed(totalMins % 60, 0).padStart(2, '0'),
+    });
   };
 
   // Auto-play logic
@@ -108,7 +124,7 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
         className={`flex items-center gap-2 px-3 py-2 bg-slate-800/90 backdrop-blur-sm rounded-lg border border-slate-700/50 hover:border-cyan-500/50 transition-colors ${className}`}
       >
         <Clock className="w-4 h-4 text-cyan-400" />
-        <span className="text-xs text-slate-300">History</span>
+        <span className="text-xs text-slate-300">{t('history')}</span>
       </motion.button>
     );
   }
@@ -126,11 +142,11 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Clock className="w-4 h-4 text-cyan-400" />
-            <span className="text-sm font-medium text-cyan-300">REPLAY MODE</span>
+            <span className="text-sm font-medium text-cyan-300">{t('replayMode')}</span>
           </div>
           <button
             onClick={exitReplay}
-            aria-label="Exit replay mode"
+            aria-label={t('exitReplay')}
             className="p-1 hover:bg-slate-700/50 rounded transition-colors"
           >
             <X className="w-4 h-4 text-slate-400 hover:text-white" aria-hidden="true" />
@@ -139,9 +155,7 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
 
         {/* Empty state: replay entered but no telemetry recorded yet */}
         {!availableRange ? (
-          <div className="text-center py-6 px-2 text-sm text-slate-400">
-            Nothing recorded yet. Run the simulation and come back.
-          </div>
+          <div className="text-center py-6 px-2 text-sm text-slate-400">{t('nothingRecorded')}</div>
         ) : (
           <>
             {/* Current Time Display */}
@@ -161,7 +175,7 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
               <div className="mb-3">
                 <input
                   type="range"
-                  aria-label="Playback timeline"
+                  aria-label={t('timeline')}
                   min={availableRange.start}
                   max={availableRange.end}
                   value={playbackTime ?? availableRange.end}
@@ -190,14 +204,14 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
               <button
                 onClick={jumpToStart}
                 className="p-2 hover:bg-slate-700/50 rounded-lg transition-colors"
-                aria-label="Jump to start"
-                title="Jump to start"
+                aria-label={t('jumpToStart')}
+                title={t('jumpToStart')}
               >
                 <SkipBack className="w-5 h-5 text-slate-300" aria-hidden="true" />
               </button>
               <button
                 onClick={() => setIsPlaying(!isPlaying)}
-                aria-label={isPlaying ? 'Pause playback' : 'Play playback'}
+                aria-label={isPlaying ? t('pausePlayback') : t('playPlayback')}
                 className="p-2 hover:bg-slate-700/50 rounded-lg transition-colors"
               >
                 {isPlaying ? (
@@ -209,7 +223,7 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
               <select
                 value={playbackSpeed}
                 onChange={(e) => setPlaybackSpeed(Number(e.target.value))}
-                aria-label="Playback speed"
+                aria-label={t('playbackSpeed')}
                 className="bg-slate-700 text-slate-200 text-xs rounded px-2 py-1 border border-slate-600"
               >
                 {/* Each 100ms step advances 1s x speed of history, so value 1 replays at 10x. */}
@@ -226,7 +240,7 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
                 <div className="flex items-center gap-1.5 mb-2">
                   <Brain className="w-3 h-3 text-purple-400" />
                   <span className="text-[10px] text-purple-300 uppercase tracking-wider">
-                    AI Decisions ({nearbyDecisions.length})
+                    {t('aiDecisions', { count: formatFixed(nearbyDecisions.length, 0) })}
                   </span>
                 </div>
                 <div className="space-y-1.5 max-h-24 overflow-y-auto">
@@ -239,7 +253,7 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
                       <div className="min-w-0">
                         <div className="text-slate-200 truncate">{d.action}</div>
                         <div className="text-[10px] text-slate-500">
-                          {formatTime(d.timestamp)} · {d.type}
+                          {formatTime(d.timestamp)} · {tAi('decisionType', { value: d.type })}
                         </div>
                       </div>
                     </div>
@@ -251,15 +265,17 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
             {/* Stats */}
             <div className="flex items-center justify-center gap-4 mt-3 pt-3 border-t border-slate-700/50">
               <div className="text-center">
-                <div className="text-lg font-mono text-cyan-400">{decisionHistory.length}</div>
-                <div className="text-[9px] text-slate-400 uppercase">Decisions</div>
+                <div className="text-lg font-mono text-cyan-400">
+                  {formatFixed(decisionHistory.length, 0)}
+                </div>
+                <div className="text-[9px] text-slate-400 uppercase">{t('decisions')}</div>
               </div>
               {availableRange && (
                 <div className="text-center">
                   <div className="text-lg font-mono text-cyan-400">
                     {formatSpan(availableRange.end - availableRange.start)}
                   </div>
-                  <div className="text-[9px] text-slate-400 uppercase">History</div>
+                  <div className="text-[9px] text-slate-400 uppercase">{t('history')}</div>
                 </div>
               )}
             </div>

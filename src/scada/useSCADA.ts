@@ -31,11 +31,18 @@ interface ActiveFault {
   severity: number;
 }
 import { MILL_TAGS } from './tagDatabase';
+import { isStandingCriticalAlarm } from './SCADABridge';
 import { useGraphicsStore } from '../stores/graphicsStore';
 import { logger } from '../utils/logger';
+import { translate } from '../i18n';
+import { useSCADAMessages } from './useSCADA.messages';
 
-/** Identity recorded on acknowledgements that do not name one. */
-const DEFAULT_CONTROL_SOURCE = 'Autonomous control layer';
+/**
+ * Identity recorded on acknowledgements that do not name one. SCADAPanel
+ * renders it as "Acknowledged by {who}", so it is resolved in the language
+ * active at acknowledgement time, the same as SCADAPanel's own default.
+ */
+const defaultControlSource = (): string => translate(useSCADAMessages, 'defaultControlSource');
 
 // O(1) tag -> machine lookup for the per-batch value callback.
 const TAG_MACHINE_ID = new Map(MILL_TAGS.map((t) => [t.id, t.machineId]));
@@ -43,24 +50,28 @@ const TAG_MACHINE_ID = new Map(MILL_TAGS.map((t) => [t.id, t.machineId]));
 /** Shelved, suppressed and out-of-service alarms stay listed but do not annunciate. */
 const isInService = (alarm: Alarm): boolean => (alarm.disposition ?? 'IN_SERVICE') === 'IN_SERVICE';
 
-function summarizeAlarms(alarms: Alarm[]): {
+export function summarizeAlarms(alarms: Alarm[]): {
   total: number;
   unacknowledged: number;
   critical: number;
+  /** Criticals whose condition is still active (not RTN_UNACK); drives the banner. */
+  standingCritical: number;
   high: number;
 } {
   let unacknowledged = 0;
   let critical = 0;
+  let standingCritical = 0;
   let high = 0;
 
   alarms.forEach((a) => {
     if (!isInService(a)) return;
     if (a.state === 'UNACK' || a.state === 'RTN_UNACK') unacknowledged++;
     if (a.priority === 'CRITICAL') critical++;
+    if (isStandingCriticalAlarm(a)) standingCritical++;
     if (a.priority === 'HIGH') high++;
   });
 
-  return { total: alarms.length, unacknowledged, critical, high };
+  return { total: alarms.length, unacknowledged, critical, standingCritical, high };
 }
 
 // ============================================================================
@@ -424,7 +435,7 @@ export function useSCADA(): UseSCADAReturn {
   const acknowledgeAlarm = useCallback(
     (alarmId: string) => {
       if (!state.isConnected) return;
-      getSCADAService().acknowledgeAlarm(alarmId, DEFAULT_CONTROL_SOURCE);
+      getSCADAService().acknowledgeAlarm(alarmId, defaultControlSource());
     },
     [state.isConnected]
   );
@@ -432,7 +443,7 @@ export function useSCADA(): UseSCADAReturn {
   // Acknowledge all alarms
   const acknowledgeAllAlarms = useCallback(() => {
     if (!state.isConnected) return;
-    getSCADAService().acknowledgeAllAlarms(DEFAULT_CONTROL_SOURCE);
+    getSCADAService().acknowledgeAllAlarms(defaultControlSource());
   }, [state.isConnected]);
 
   // Get history for a tag
@@ -667,14 +678,14 @@ export function useSCADAAlarms(): {
   const summary = useMemo(() => summarizeAlarms(alarms), [alarms]);
 
   const acknowledge = useCallback(
-    (alarmId: string, controlSource = DEFAULT_CONTROL_SOURCE, note?: string) => {
+    (alarmId: string, controlSource = defaultControlSource(), note?: string) => {
       if (!sharedState.isConnected) return;
       getSCADAService().acknowledgeAlarm(alarmId, controlSource, note);
     },
     []
   );
 
-  const acknowledgeAll = useCallback((controlSource = DEFAULT_CONTROL_SOURCE, note?: string) => {
+  const acknowledgeAll = useCallback((controlSource = defaultControlSource(), note?: string) => {
     if (!sharedState.isConnected) return;
     getSCADAService().acknowledgeAllAlarms(controlSource, note);
   }, []);
@@ -734,6 +745,8 @@ export function useSCADAAlarms(): {
     takeOutOfService,
     suppressed,
     unsuppress,
-    hasCritical: summary.critical > 0,
+    // Working if the 'Critical alarms active!' banner clears when the condition
+    // does; a returned-to-normal critical stays listed and unacknowledged.
+    hasCritical: summary.standingCritical > 0,
   };
 }

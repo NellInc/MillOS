@@ -6,6 +6,8 @@ import { audioManager } from '../../../utils/audioManager';
 import { ConfirmDialog } from '../../ui/ConfirmDialog';
 import { recoverableLazy } from '../../../utils/recoverableLazy';
 import { RecoverableFeatureBoundary } from '../../ErrorBoundary';
+import { formatFixed, translate, useT } from '../../../i18n';
+import { safetyPanelMessages } from './SafetyPanel.messages';
 
 // Re-homed safety widgets (formerly orphaned in ui/ after the UIOverlay removal)
 const SafetyMetricsDisplay = recoverableLazy(() =>
@@ -26,17 +28,21 @@ const ZoneCustomizationPanel = recoverableLazy(() =>
 
 type SafetyTab = 'controls' | 'analytics' | 'config';
 
-const TabLoader = () => (
-  <div
-    className="h-20 bg-slate-800/30 rounded-lg animate-pulse flex items-center justify-center border border-slate-700/30"
-    role="status"
-  >
-    <Activity className="w-4 h-4 text-cyan-500/50" aria-hidden="true" />
-    <span className="sr-only">Loading...</span>
-  </div>
-);
+const TabLoader = () => {
+  const t = useT(safetyPanelMessages);
+  return (
+    <div
+      className="h-20 bg-slate-800/30 rounded-lg animate-pulse flex items-center justify-center border border-slate-700/30"
+      role="status"
+    >
+      <Activity className="w-4 h-4 text-cyan-500/50" aria-hidden="true" />
+      <span className="sr-only">{t('loading')}</span>
+    </div>
+  );
+};
 
 export const SafetyPanel: React.FC = () => {
+  const t = useT(safetyPanelMessages);
   const [tab, setTab] = useState<SafetyTab>('controls');
   const [confirmEmergencyStop, setConfirmEmergencyStop] = useState(false);
   const forkliftEmergencyStop = useSafetyStore((state) => state.forkliftEmergencyStop);
@@ -76,16 +82,16 @@ export const SafetyPanel: React.FC = () => {
     value: 'clear' | 'cloudy' | 'rain' | 'storm';
     label: string;
   }> = [
-    { value: 'clear', label: 'Clear' },
-    { value: 'cloudy', label: 'Cloudy' },
-    { value: 'rain', label: 'Rain' },
-    { value: 'storm', label: 'Storm' },
+    { value: 'clear', label: t('weatherClear') },
+    { value: 'cloudy', label: t('weatherCloudy') },
+    { value: 'rain', label: t('weatherRain') },
+    { value: 'storm', label: t('weatherStorm') },
   ];
 
   const tabs: Array<{ id: SafetyTab; label: string }> = [
-    { id: 'controls', label: 'Controls' },
-    { id: 'analytics', label: 'Analytics' },
-    { id: 'config', label: 'Config' },
+    { id: 'controls', label: t('tabControls') },
+    { id: 'analytics', label: t('tabAnalytics') },
+    { id: 'config', label: t('tabConfig') },
   ];
 
   return (
@@ -127,17 +133,17 @@ export const SafetyPanel: React.FC = () => {
       <div role="tabpanel" id={`safety-tabpanel-${tab}`} aria-labelledby={`safety-tab-${tab}`}>
         {tab === 'analytics' && (
           <div className="space-y-4">
-            <RecoverableFeatureBoundary featureName="Safety metrics">
+            <RecoverableFeatureBoundary featureName={t('featureSafetyMetrics')}>
               <Suspense fallback={<TabLoader />}>
                 <SafetyMetricsDisplay />
               </Suspense>
             </RecoverableFeatureBoundary>
-            <RecoverableFeatureBoundary featureName="Safety analytics">
+            <RecoverableFeatureBoundary featureName={t('featureSafetyAnalytics')}>
               <Suspense fallback={<TabLoader />}>
                 <SafetyAnalyticsPanel />
               </Suspense>
             </RecoverableFeatureBoundary>
-            <RecoverableFeatureBoundary featureName="Incident history">
+            <RecoverableFeatureBoundary featureName={t('featureIncidentHistory')}>
               <Suspense fallback={<TabLoader />}>
                 <IncidentHistoryPanel />
               </Suspense>
@@ -147,12 +153,12 @@ export const SafetyPanel: React.FC = () => {
 
         {tab === 'config' && (
           <div className="space-y-4">
-            <RecoverableFeatureBoundary featureName="Safety configuration">
+            <RecoverableFeatureBoundary featureName={t('featureSafetyConfiguration')}>
               <Suspense fallback={<TabLoader />}>
                 <SafetyConfigPanel />
               </Suspense>
             </RecoverableFeatureBoundary>
-            <RecoverableFeatureBoundary featureName="Zone customization">
+            <RecoverableFeatureBoundary featureName={t('featureZoneCustomization')}>
               <Suspense fallback={<TabLoader />}>
                 <ZoneCustomizationPanel />
               </Suspense>
@@ -166,7 +172,7 @@ export const SafetyPanel: React.FC = () => {
             <section>
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                 <Shield size={14} className="text-orange-500" />
-                Emergency Response
+                {t('emergencyResponse')}
               </h3>
 
               <div className="space-y-3">
@@ -183,11 +189,11 @@ export const SafetyPanel: React.FC = () => {
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <span className="text-xs font-bold uppercase tracking-wide text-white">
                         {activeSafetyEvent.simulated
-                          ? 'Simulated safety event'
-                          : 'Safety interlock'}
+                          ? t('simulatedSafetyEvent')
+                          : t('safetyInterlock')}
                       </span>
                       <span className="rounded border border-white/20 px-2 py-0.5 text-[10px] uppercase text-slate-200">
-                        {activeSafetyEvent.stage}
+                        {t('stage', { value: activeSafetyEvent.stage })}
                       </span>
                     </div>
                     <p className="mt-2 text-xs text-slate-200">{activeSafetyEvent.cause}</p>
@@ -198,12 +204,12 @@ export const SafetyPanel: React.FC = () => {
                         onClick={() =>
                           acknowledgeSafetyEvent(
                             activeSafetyEvent.id,
-                            'Acknowledged in the Safety workspace'
+                            translate(safetyPanelMessages, 'acknowledgementNote')
                           )
                         }
                         className="mt-3 min-h-9 rounded-lg bg-slate-700 px-3 text-xs font-semibold text-white hover:bg-slate-600"
                       >
-                        Acknowledge event
+                        {t('acknowledgeEvent')}
                       </button>
                     )}
                   </div>
@@ -213,16 +219,16 @@ export const SafetyPanel: React.FC = () => {
                   <div
                     className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3"
                     role="status"
-                    aria-label="Safety state recovered"
+                    aria-label={t('safetyStateRecovered')}
                     aria-live="polite"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-emerald-100">
                         <CheckCircle2 size={14} aria-hidden="true" />
-                        Safety state recovered
+                        {t('safetyStateRecovered')}
                       </span>
                       <span className="rounded border border-emerald-300/30 px-2 py-0.5 text-[10px] uppercase text-emerald-100">
-                        Cleared
+                        {t('cleared')}
                       </span>
                     </div>
                     <p className="mt-2 text-xs text-slate-200">{latestClearedSafetyEvent.cause}</p>
@@ -238,11 +244,11 @@ export const SafetyPanel: React.FC = () => {
                 <div
                   className="rounded-xl border border-white/5 bg-slate-800/50 p-3"
                   role="group"
-                  aria-label="Emergency egress verification drill"
+                  aria-label={t('drillGroupLabel')}
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-xs font-bold uppercase tracking-wide text-slate-200">
-                      Egress verification drill
+                      {t('drillTitle')}
                     </span>
                     {emergencyDrillMode && (
                       <span
@@ -251,36 +257,34 @@ export const SafetyPanel: React.FC = () => {
                         aria-live="polite"
                       >
                         {drillMetrics.verificationComplete
-                          ? 'All zones verified'
-                          : `${drillMetrics.verifiedZoneIds.length}/${drillMetrics.totalZones} zones verified`}
+                          ? t('allZonesVerified')
+                          : t('zonesVerified', {
+                              verified: formatFixed(drillMetrics.verifiedZoneIds.length, 0),
+                              total: formatFixed(drillMetrics.totalZones, 0),
+                            })}
                       </span>
                     )}
                   </div>
-                  <p className="mt-1 text-[11px] text-slate-400">
-                    Halts production and grounds every forklift while the egress sensors verify
-                    themselves. Nothing moves until they agree.
-                  </p>
+                  <p className="mt-1 text-[11px] text-slate-400">{t('drillDescription')}</p>
                   {emergencyDrillMode ? (
                     <button
                       type="button"
                       onClick={() => endEmergencyDrill()}
                       className="mt-3 min-h-9 rounded-lg bg-amber-600 px-3 text-xs font-semibold text-white hover:bg-amber-500"
                     >
-                      END DRILL
+                      {t('endDrill')}
                     </button>
                   ) : (
                     <button
                       type="button"
                       disabled={emergencyActive || crisisActive}
                       title={
-                        emergencyActive || crisisActive
-                          ? 'Clear the active emergency before starting a drill'
-                          : undefined
+                        emergencyActive || crisisActive ? t('clearEmergencyBeforeDrill') : undefined
                       }
                       onClick={() => startEmergencyDrill()}
                       className="mt-3 min-h-9 rounded-lg bg-slate-700 px-3 text-xs font-semibold text-white hover:bg-slate-600 disabled:cursor-not-allowed disabled:opacity-40"
                     >
-                      START DRILL
+                      {t('startDrill')}
                     </button>
                   )}
                 </div>
@@ -297,7 +301,7 @@ export const SafetyPanel: React.FC = () => {
                     className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-amber-500/50 bg-amber-900/30 text-sm font-bold text-amber-100 transition-colors hover:bg-amber-900/50"
                   >
                     <AlertTriangle size={16} aria-hidden="true" />
-                    RELEASE FORKLIFT STOP
+                    {t('releaseForkliftStop')}
                   </button>
                 )}
 
@@ -308,9 +312,9 @@ export const SafetyPanel: React.FC = () => {
                   aria-disabled={crisisActive || emergencyDrillMode}
                   title={
                     crisisActive
-                      ? 'Resolve the active crisis before clearing its interlock'
+                      ? t('resolveCrisisFirst')
                       : emergencyDrillMode
-                        ? 'End the active egress verification drill before using the emergency stop'
+                        ? t('endDrillFirst')
                         : undefined
                   }
                   onClick={() => {
@@ -332,12 +336,12 @@ export const SafetyPanel: React.FC = () => {
                 >
                   <AlertTriangle size={16} />
                   {crisisActive
-                    ? 'CRISIS INTERLOCK ACTIVE'
+                    ? t('crisisInterlockActive')
                     : emergencyDrillMode
-                      ? 'DRILL INTERLOCK ACTIVE'
+                      ? t('drillInterlockActive')
                       : emergencyActive && !emergencyDrillMode
-                        ? 'CLEAR EMERGENCY'
-                        : 'TRIGGER EMERGENCY STOP'}
+                        ? t('clearEmergency')
+                        : t('triggerEmergencyStop')}
                 </button>
               </div>
             </section>
@@ -346,20 +350,22 @@ export const SafetyPanel: React.FC = () => {
             <section>
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                 <Cloud size={14} className="text-blue-400" />
-                Environment
+                {t('environment')}
               </h3>
 
               <div className="bg-slate-800/50 p-3 rounded-xl border border-white/5 space-y-4">
                 {/* Weather */}
-                <div role="group" aria-label="Weather conditions">
-                  <span className="text-xs text-slate-500 block mb-2">Weather Conditions</span>
+                <div role="group" aria-label={t('weatherConditionsLabel')}>
+                  <span className="text-xs text-slate-500 block mb-2">
+                    {t('weatherConditions')}
+                  </span>
                   <div className="grid grid-cols-2 gap-2">
                     {weatherOptions.map((opt) => (
                       <button
                         key={opt.value}
                         onClick={() => setWeather(opt.value)}
                         aria-pressed={weather === opt.value}
-                        aria-label={`Set weather to ${opt.label}`}
+                        aria-label={t('setWeatherTo', { label: opt.label })}
                         className={`px-2 py-1.5 rounded text-xs font-medium transition-colors ${
                           weather === opt.value
                             ? 'bg-blue-700 text-white'
@@ -379,9 +385,9 @@ export const SafetyPanel: React.FC = () => {
 
       <ConfirmDialog
         isOpen={confirmEmergencyStop}
-        title="Trigger facility emergency stop?"
-        message="Everything stops — machines, forklifts, the lot. The alarm stays on until you clear the interlock from this panel."
-        confirmLabel="Trigger emergency stop"
+        title={t('confirmTitle')}
+        message={t('confirmMessage')}
+        confirmLabel={t('confirmLabel')}
         tone="red"
         onCancel={() => setConfirmEmergencyStop(false)}
         onConfirm={() => {

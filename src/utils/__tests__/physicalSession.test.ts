@@ -27,7 +27,7 @@ import {
   endReplayClock,
 } from '../../simulation/workplaceReplayRuntime';
 import { useMaterialFlowStore } from '../../stores/materialFlowStore';
-import { useProductionStore } from '../../stores/productionStore';
+import { useProductionStore, PRODUCTION_DELEGATED_KEYS } from '../../stores/productionStore';
 import { useOperationsCampaignStore } from '../../stores/operationsCampaignStore';
 import { useBreakdownStore } from '../../stores/breakdownStore';
 import { useQCLabStore } from '../../stores/qcLabStore';
@@ -254,6 +254,9 @@ describe('atomic local physical shift continuation', () => {
     exit();
     expect(localStorage.getItem(PHYSICAL_SESSION_KEY)).toBe(invalid);
     expect(useUIStore.getState().alerts.at(-1)?.title).toBe('Shift save needs attention');
+    expect(useUIStore.getState().alerts.at(-1)?.message).toContain(
+      'Settings > Simulation > Reset Simulation starts a fresh shift.'
+    );
     expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
   });
 
@@ -272,11 +275,72 @@ describe('atomic local physical shift continuation', () => {
     storage.setItem.mockImplementation(() => {
       throw new DOMException('Full', 'QuotaExceededError');
     });
-    exit();
-    expect(storage.setItem).toHaveBeenCalledWith(PHYSICAL_SESSION_KEY, expect.any(String));
-    expect(localStorage.getItem(PHYSICAL_SESSION_KEY)).toBe(previous);
-    expect(useUIStore.getState().alerts.at(-1)?.message).toContain('could not be saved');
-    expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const speed = useGameSimulationStore.getState().gameSpeed;
+    try {
+      exit();
+      exit();
+      expect(storage.setItem).toHaveBeenCalledWith(PHYSICAL_SESSION_KEY, expect.any(String));
+      expect(localStorage.getItem(PHYSICAL_SESSION_KEY)).toBe(previous);
+      // A failed write is announced once, names storage only for a quota error,
+      // and never pauses the shift or turns autosave off.
+      const notices = useUIStore
+        .getState()
+        .alerts.filter((a) => a.id === 'physical-autosave-skipped');
+      expect(notices).toHaveLength(1);
+      expect(notices[0]?.message).toContain('browser storage is full');
+      expect(notices[0]?.message).toContain('last good save is kept');
+      expect(useGameSimulationStore.getState().gameSpeed).toBe(speed);
+      expect(storage.setItem).toHaveBeenCalledTimes(2);
+      expect(String(logged.mock.calls[0]?.[1])).toContain('Full');
+    } finally {
+      logged.mockRestore();
+    }
+  });
+
+  it('retries a failed autosave on the next interval without pausing the shift', () => {
+    heldShift();
+    const previous = encodePhysicalSession(capturePhysicalSession());
+    localStorage.setItem(PHYSICAL_SESSION_KEY, previous);
+    const storage = {
+      getItem: (key: string) => localStorage.getItem(key),
+      setItem: vi.fn((key: string, value: string) => localStorage.setItem(key, value)),
+    };
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    try {
+      dispose = installPhysicalSession(storage);
+      ready();
+      storage.setItem.mockImplementationOnce(() => {
+        throw new Error('Non-finite saved value at x');
+      });
+      useGameSimulationStore.getState().setGameSpeed(30);
+      vi.advanceTimersByTime(5000);
+      expect(storage.setItem).toHaveBeenCalledTimes(1);
+      expect(localStorage.getItem(PHYSICAL_SESSION_KEY)).toBe(previous);
+      const notices = () =>
+        useUIStore.getState().alerts.filter((a) => a.id === 'physical-autosave-skipped');
+      expect(notices()).toHaveLength(1);
+      expect(notices()[0]?.message).toContain('Autosave skipped');
+      expect(notices()[0]?.message).not.toContain('storage');
+      expect(String(logged.mock.calls[0]?.[1])).toContain('Non-finite saved value at x');
+      vi.advanceTimersByTime(5000);
+      expect(storage.setItem).toHaveBeenCalledTimes(2);
+      expect(localStorage.getItem(PHYSICAL_SESSION_KEY)).not.toBe(previous);
+      expect(useGameSimulationStore.getState().gameSpeed).toBe(30);
+      expect(notices()).toHaveLength(1);
+      // A later failure after a good write is announced again.
+      storage.setItem.mockImplementationOnce(() => {
+        throw new Error('again');
+      });
+      useGameSimulationStore.getState().setGameSpeed(60);
+      vi.advanceTimersByTime(5000);
+      expect(notices()).toHaveLength(2);
+      expect(useGameSimulationStore.getState().gameSpeed).toBe(60);
+    } finally {
+      vi.useRealTimers();
+      logged.mockRestore();
+    }
   });
 
   it('preserves a record created by another tab before this tab writes its first save', () => {
@@ -287,8 +351,14 @@ describe('atomic local physical shift continuation', () => {
     useGameSimulationStore.getState().setGameSpeed(30);
     exit();
     expect(localStorage.getItem(PHYSICAL_SESSION_KEY)).toBe(elsewhere);
-    expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+    // This tab stops saving but keeps running; the other tab owns the record.
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(30);
     expect(useUIStore.getState().alerts.at(-1)?.message).toContain('outside this tab');
+    expect(useUIStore.getState().alerts.at(-1)?.message).not.toContain('paused');
+    useGameSimulationStore.getState().setGameSpeed(60);
+    exit();
+    expect(localStorage.getItem(PHYSICAL_SESSION_KEY)).toBe(elsewhere);
+    expect(useUIStore.getState().alerts).toHaveLength(1);
   });
 
   it('does not resurrect a deliberate Reset Simulation or persist experimental replay state', () => {
@@ -362,4 +432,92 @@ it('migrates old shift records and restores layout before owner motion, with com
   expect(useLogisticsLayoutStore.getState().observation.activeSeconds).toBe(0);
   saved.logistics.layout.staging.shipping = [0, 0, 73];
   expect(() => decodePhysicalSession(encodePhysicalSession(saved))).toThrow('invalid clearance');
+});
+
+describe('save size and scene-owner visibility', () => {
+  it('saves production without the delegated snapshot copies and still reads records that carry them', () => {
+    heldShift();
+    const saved = capturePhysicalSession();
+    for (const key of PRODUCTION_DELEGATED_KEYS) expect(saved.production).not.toHaveProperty(key);
+    // Records written before this change carry boot-time copies of the owners' data.
+    const production = useProductionStore.getState() as unknown as Record<string, unknown>;
+    const legacy = structuredClone(saved);
+    Object.assign(
+      legacy.production,
+      structuredClone(Object.fromEntries(PRODUCTION_DELEGATED_KEYS.map((k) => [k, production[k]])))
+    );
+    expect(legacy.production).toHaveProperty('truckSchedule');
+    const decoded = decodePhysicalSession(encodePhysicalSession(legacy));
+    for (const key of PRODUCTION_DELEGATED_KEYS) expect(decoded.production).not.toHaveProperty(key);
+    expect(decoded.quality.qcLab.contaminationAlerts).toHaveLength(1);
+  });
+
+  it('compacts legacy batch credit keys when a saved shift is restored', () => {
+    heldShift();
+    const saved = capturePhysicalSession();
+    const legacyKey = JSON.stringify([
+      saved.material.sessionId,
+      'batch-0001',
+      10,
+      'flour',
+      5000,
+      [{ lotId: 'lot-0001', amount: 5000, path: ['silo-0', 'packer-0'] }],
+    ]);
+    saved.operations.creditedBatchKg = { [legacyKey]: 4900 };
+    localStorage.setItem(PHYSICAL_SESSION_KEY, encodePhysicalSession(saved));
+    resetPlant();
+    dispose = installPhysicalSession();
+    const credited = useOperationsCampaignStore.getState().creditedBatchKg;
+    expect(Object.values(credited)).toEqual([4900]);
+    expect(Object.keys(credited)[0]).not.toContain('lot-0001');
+  });
+
+  it('reports a scene owner that never registers, and never resumes a half-restored shift', () => {
+    heldShift();
+    useGameSimulationStore.getState().setGameSpeed(30);
+    localStorage.setItem(PHYSICAL_SESSION_KEY, encodePhysicalSession(capturePhysicalSession()));
+    resetPlant();
+    // The truck bay fails to mount, so its continuation can never be restored.
+    removeOwners.shift()?.();
+    const notices = () =>
+      useUIStore.getState().alerts.filter((a) => a.id === 'physical-scene-incomplete');
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    try {
+      dispose = installPhysicalSession();
+      ready();
+      vi.advanceTimersByTime(5000);
+      expect(notices()).toHaveLength(0);
+      vi.advanceTimersByTime(20000);
+      expect(notices()).toHaveLength(1);
+      expect(notices()[0].type).toBe('warning');
+      expect(notices()[0].message).toContain('paused');
+      expect(isPhysicalSessionRestoring()).toBe(true);
+      expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+      vi.advanceTimersByTime(60000);
+      expect(notices()).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('says so when losing a scene owner stops autosave in a running shift', () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    try {
+      dispose = installPhysicalSession();
+      ready();
+      useGameSimulationStore.getState().setGameSpeed(30);
+      vi.advanceTimersByTime(5000);
+      const written = localStorage.getItem(PHYSICAL_SESSION_KEY);
+      expect(written).not.toBeNull();
+      removeOwners.shift()?.();
+      vi.advanceTimersByTime(25000);
+      const notice = useUIStore.getState().alerts.find((a) => a.id === 'physical-scene-incomplete');
+      expect(notice?.title).toBe('Autosave paused');
+      // Play goes on; only saving stopped, and the last good record is kept.
+      expect(useGameSimulationStore.getState().gameSpeed).toBe(30);
+      expect(localStorage.getItem(PHYSICAL_SESSION_KEY)).toBe(written);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

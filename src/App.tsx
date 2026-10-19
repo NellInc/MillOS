@@ -12,7 +12,7 @@ import { FirstPersonController } from './components/FirstPersonController';
 import ErrorBoundary, { RecoverableFeatureBoundary } from './components/ErrorBoundary';
 import { LoadingScreen } from './components/LoadingScreen';
 import { StartupReadiness } from './components/StartupReadiness';
-import { beginStartupTask } from './utils/startupReadiness';
+import { beginStartupTask, getStartupSnapshot } from './utils/startupReadiness';
 import { MachineData } from './types';
 import type { ForkliftData } from './components/ForkliftSystem';
 import { audioManager } from './utils/audioManager';
@@ -48,10 +48,13 @@ import { getRuntimeMode } from './runtime/runtimeMode';
 import { CAMERA_DEPTH } from './constants/renderLayers';
 import { ORBIT_POLAR_LIMITS } from './utils/cameraNavigation';
 import { SITE_LAYOUT } from './constants/siteLayout';
-import { recoverableLazy } from './utils/recoverableLazy';
+import { importWithBoundedRetry, recoverableLazy } from './utils/recoverableLazy';
+import { restoreSessionScopedQuality } from './utils/adaptiveQuality';
 import { installAtmosphericFogChunks } from './shaders/atmosphericFog';
 import { installPunctualLightCulling } from './shaders/punctualLightCulling';
 import { CURRENT_RELEASE_VERSION } from './config/releaseVersions';
+import { useT } from './i18n';
+import { appMessages } from './App.messages';
 
 // MUST run before any fog-enabled material compiles a program. Three.js
 // snapshots shader chunk source at compile time, so a program already built
@@ -61,6 +64,20 @@ import { CURRENT_RELEASE_VERSION } from './config/releaseVersions';
 // is entitled to drop.
 installAtmosphericFogChunks();
 installPunctualLightCulling();
+// A previous session's automatic or recovery downgrade must not become this
+// session's tier. The graphics store has rehydrated by now and nothing has
+// rendered, so the restored choice is the first quality the scene sees.
+restoreSessionScopedQuality();
+
+// The Canvas fallback renders inside the z-0 <main>, under the loading cover,
+// so a crash before readiness must also reach the cover as a startup error.
+// Working if a Canvas crash behind the cover turns on the cover's Reload.
+function ReportStartupCrash(): null {
+  useEffect(() => {
+    if (!getStartupSnapshot().ready) beginStartupTask()(true);
+  }, []);
+  return null;
+}
 
 const PhysicsScene = recoverableLazy(() => import('./components/PhysicsScene'));
 const DeferredOrbitControls = recoverableLazy(() => import('./components/SceneOrbitControls'));
@@ -127,18 +144,21 @@ const CoreScenePreview: React.FC = () => (
   </>
 );
 
-const StartupInterface: React.FC = () => (
-  <div
-    role="status"
-    aria-live="polite"
-    className="pointer-events-none fixed left-4 top-4 z-20 rounded-lg border border-white/15 bg-slate-950/80 px-4 py-3 text-slate-100 shadow-lg backdrop-blur-md"
-  >
-    <div className="text-sm font-semibold tracking-[0.12em]">
-      MILLOS {CURRENT_RELEASE_VERSION.replace(/^v/, '')}
+const StartupInterface: React.FC = () => {
+  const t = useT(appMessages);
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="pointer-events-none fixed left-4 top-4 z-20 rounded-lg border border-white/15 bg-slate-950/80 px-4 py-3 text-slate-100 shadow-lg backdrop-blur-md"
+    >
+      <div className="text-sm font-semibold tracking-[0.12em]">
+        MILLOS {CURRENT_RELEASE_VERSION.replace(/^v/, '')}
+      </div>
+      <div className="mt-1 text-xs text-slate-300">{t('startupStatus')}</div>
     </div>
-    <div className="mt-1 text-xs text-slate-300">Bringing operations online</div>
-  </div>
-);
+  );
+};
 
 const CompleteWorldMarker: React.FC = () => {
   // Publish the committed Suspense subtree before its first draw. This marker
@@ -160,6 +180,7 @@ const App: React.FC = () => {
 
   // DEV: Detect PlaneGeometry NaN errors and log them
   useGeometryNaNDetector();
+  const t = useT(appMessages);
 
   // Mobile detection for touch controls
   const { isMobile, isCompactLayout, isLandscape } = useMobileDetection();
@@ -480,7 +501,9 @@ const App: React.FC = () => {
     const startPreload = (): void => {
       if (started || cancelled) return;
       started = true;
-      import('./utils/texturePreloader')
+      // Same bounded retry as the scene's lazy chunks, so one dropped request
+      // is retried and a stalled one ends as an error the cover can recover.
+      importWithBoundedRetry(() => import('./utils/texturePreloader'))
         .then(({ preloadGenerativeTexturesOnce }) => {
           if (!cancelled) return preloadGenerativeTexturesOnce();
         })
@@ -547,6 +570,7 @@ const App: React.FC = () => {
   // WebGL context loss fallback component
   const WebGLErrorFallback = (
     <div className="fixed inset-0 flex items-center justify-center bg-slate-950">
+      <ReportStartupCrash />
       <div
         role="alert"
         className="bg-slate-900 border border-amber-500/50 rounded-xl p-8 max-w-md text-center"
@@ -562,10 +586,8 @@ const App: React.FC = () => {
           <path d="M10.3 3.4 2.2 17.5A2 2 0 0 0 4 20.5h16a2 2 0 0 0 1.7-3L13.7 3.4a2 2 0 0 0-3.4 0Z" />
           <path d="M12 8v5M12 17h.01" />
         </svg>
-        <h2 className="text-xl font-bold text-white mb-2">3D view stopped</h2>
-        <p className="text-slate-400 mb-4">
-          The 3D view hit an unexpected problem. Reloading usually restores it.
-        </p>
+        <h2 className="text-xl font-bold text-white mb-2">{t('viewStoppedTitle')}</h2>
+        <p className="text-slate-400 mb-4">{t('viewStoppedBody')}</p>
         <button
           type="button"
           onClick={() => window.location.reload()}
@@ -582,7 +604,7 @@ const App: React.FC = () => {
             <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
             <path d="M3 3v5h5" />
           </svg>
-          Reload Application
+          {t('reloadApplication')}
         </button>
       </div>
     </div>
@@ -598,29 +620,25 @@ const App: React.FC = () => {
           href="#main-content"
           className="px-4 py-2 bg-cyan-600 text-white rounded-lg shadow-lg outline-none ring-2 ring-cyan-400 hover:bg-cyan-500 focus:bg-cyan-500"
         >
-          Skip to main content
+          {t('skipToMain')}
         </a>
         <a
           href="#navigation-dock"
           className="px-4 py-2 bg-cyan-600 text-white rounded-lg shadow-lg outline-none ring-2 ring-cyan-400 hover:bg-cyan-500 focus:bg-cyan-500"
         >
-          Skip to navigation
+          {t('skipToNavigation')}
         </a>
       </div>
 
       {/* 3D Canvas keyboard accessibility notice - visible to screen readers */}
-      <div role="note" aria-label="3D visualization keyboard controls" className="sr-only">
-        The 3D factory visualization is interactive. Use W, A, S, D or the arrow keys to move, Q and
-        E to move down and up, and Shift to move faster. Press V to toggle first-person view mode.
-        Press 1-7 to switch camera presets. Keyboard movement pauses while an interface control has
-        focus. Press Space to toggle the forklift emergency stop, and the question mark key for the
-        full list of shortcuts.
+      <div role="note" aria-label={t('keyboardNoteLabel')} className="sr-only">
+        {t('keyboardNote')}
       </div>
 
       {showOperationalUI && !deferredUIReady && <StartupInterface />}
       {showOperationalUI && deferredUIReady && (
         <RecoverableFeatureBoundary
-          featureName="Operations controls"
+          featureName={t('operationsControls')}
           fallbackClassName="fixed left-4 top-4 z-30 max-w-md"
         >
           <Suspense fallback={<StartupInterface />}>
@@ -652,12 +670,8 @@ const App: React.FC = () => {
       )}
 
       {/* 3D Canvas with Error Boundary */}
-      <main
-        id="main-content"
-        className="absolute inset-0 z-0"
-        aria-label="3D factory visualization"
-      >
-        <h1 className="sr-only">MillOS Industrial Factory Simulation</h1>
+      <main id="main-content" className="absolute inset-0 z-0" aria-label={t('mainLabel')}>
+        <h1 className="sr-only">{t('pageHeading')}</h1>
         <ErrorBoundary fallback={WebGLErrorFallback}>
           <Canvas
             key={`canvas-depth-${enableLogarithmicDepth ? 'log' : 'linear'}`}

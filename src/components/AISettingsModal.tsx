@@ -39,9 +39,12 @@ import {
   DEFAULT_WEBGPU_MODEL_LABEL,
 } from '../utils/webgpuClient';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import { formatFixed, translate, useT } from '../i18n';
+import { aiSettingsModalMessages } from './AISettingsModal.messages';
 
 // Visualization Toggles Component
 const VisualizationToggles: React.FC = () => {
+  const t = useT(aiSettingsModalMessages);
   const showCascadeVisualization = useAIConfigStore((s) => s.showCascadeVisualization);
   const showProductionTarget = useAIConfigStore((s) => s.showProductionTarget);
   const showStrategicOverlay = useAIConfigStore((s) => s.showStrategicOverlay);
@@ -66,49 +69,49 @@ const VisualizationToggles: React.FC = () => {
     setEnabled: (v: boolean) => void;
   }> = [
     {
-      label: 'Cascade Visualization',
+      label: t('toggleCascade'),
       key: 'K',
       enabled: showCascadeVisualization,
       setEnabled: setShowCascadeVisualization,
     },
     {
-      label: 'Strategic Overlay',
+      label: t('toggleStrategic'),
       key: 'J',
       enabled: showStrategicOverlay,
       setEnabled: setShowStrategicOverlay,
     },
     {
-      label: 'Production Target',
+      label: t('toggleTarget'),
       key: 'T',
       enabled: showProductionTarget,
       setEnabled: setShowProductionTarget,
     },
     {
-      label: 'Energy Dashboard',
+      label: t('toggleEnergy'),
       key: 'U',
       enabled: showEnergyDashboard,
       setEnabled: setShowEnergyDashboard,
     },
     {
-      label: 'Multi-Objective',
+      label: t('toggleMultiObjective'),
       key: 'Y',
       enabled: showMultiObjective,
       setEnabled: setShowMultiObjective,
     },
     {
-      label: 'API Cost Tracker',
+      label: t('toggleCost'),
       key: '$',
       enabled: showCostOverlay,
       setEnabled: setShowCostOverlay,
     },
     // No keyboard handler registered: button-only toggle.
-    { label: 'VCL Context', enabled: showVCLDebug, setEnabled: setShowVCLDebug },
+    { label: t('toggleVcl'), enabled: showVCLDebug, setEnabled: setShowVCLDebug },
   ];
 
   return (
     <div className="p-3 rounded-lg bg-slate-800/50 space-y-2">
       <label className="block text-sm font-medium text-slate-300 mb-2">
-        AI Visualization Overlays
+        {t('overlaysHeading')}
       </label>
       <div className="grid grid-cols-2 gap-2">
         {toggles.map((toggle) => (
@@ -131,9 +134,7 @@ const VisualizationToggles: React.FC = () => {
           </button>
         ))}
       </div>
-      <p className="text-[10px] text-slate-500 mt-1">
-        Toggle overlays with keyboard shortcuts or buttons above
-      </p>
+      <p className="text-[10px] text-slate-500 mt-1">{t('overlaysHint')}</p>
     </div>
   );
 };
@@ -144,6 +145,7 @@ const VisualizationToggles: React.FC = () => {
  * non-blocking (MillOS's local AI is optional, not a hard app gate).
  */
 const WebGPUModelPanel: React.FC = () => {
+  const t = useT(aiSettingsModalMessages);
   const webgpuStatus = useAIConfigStore((s) => s.webgpuStatus);
   const webgpuProgress = useAIConfigStore((s) => s.webgpuProgress);
   const webgpuMessage = useAIConfigStore((s) => s.webgpuMessage);
@@ -205,29 +207,26 @@ const WebGPUModelPanel: React.FC = () => {
     <div className="p-3 rounded-lg bg-slate-800/50 space-y-3">
       <div className="flex items-center gap-2">
         <Cpu className="w-4 h-4 text-emerald-400" aria-hidden="true" />
-        <span className="text-sm font-medium text-slate-300">Local Neural Core</span>
+        <span className="text-sm font-medium text-slate-300">{t('localCoreTitle')}</span>
         {webgpuModelReady && (
           <span className="ml-auto flex items-center gap-1 text-xs text-green-400">
             <CheckCircle className="w-3.5 h-3.5" aria-hidden="true" />
-            Online
+            {t('online')}
           </span>
         )}
       </div>
 
       {/* Model info */}
       <div className="flex justify-between text-[11px] text-slate-500 font-mono">
-        <span>Model: {DEFAULT_WEBGPU_MODEL_LABEL}</span>
-        <span>Backend: WebGPU</span>
+        <span>{t('modelInfo', { model: DEFAULT_WEBGPU_MODEL_LABEL })}</span>
+        <span>{t('backendInfo')}</span>
       </div>
 
       {/* Unsupported */}
       {!supported && (
         <div role="alert" className="flex items-start gap-2 text-xs text-red-400">
           <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" aria-hidden="true" />
-          <span>
-            WebGPU is unavailable in this browser. Use a WebGPU-capable browser (recent Chrome,
-            Edge, or Safari 17+) or select a cloud BYOK model.
-          </span>
+          <span>{t('webgpuUnavailable')}</span>
         </div>
       )}
 
@@ -244,9 +243,9 @@ const WebGPUModelPanel: React.FC = () => {
         <div>
           <div className="flex justify-between text-[10px] text-slate-400 font-mono mb-1">
             <span className="uppercase tracking-wider">
-              {webgpuStatus === 'compiling' ? 'Compiling shaders' : 'Downloading weights'}
+              {webgpuStatus === 'compiling' ? t('compilingShaders') : t('downloadingWeights')}
             </span>
-            <span className="text-emerald-400/80">{percent}%</span>
+            <span className="text-emerald-400/80">{formatFixed(percent, 0)}%</span>
           </div>
           <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
             <div
@@ -261,7 +260,7 @@ const WebGPUModelPanel: React.FC = () => {
             onClick={() => cancelWebGPUModelLoad()}
             className="mt-2 w-full py-1.5 px-3 bg-slate-700/50 border border-slate-600 rounded text-slate-300 text-xs font-medium hover:bg-slate-700 transition-colors"
           >
-            Cancel download
+            {t('cancelDownload')}
           </button>
         </div>
       )}
@@ -287,10 +286,10 @@ const WebGPUModelPanel: React.FC = () => {
             >
               <Download className="w-4 h-4" aria-hidden="true" />
               {webgpuError
-                ? 'Try again'
+                ? t('tryAgain')
                 : cacheInfo.cached
-                  ? 'Load model'
-                  : 'Download & load model'}
+                  ? t('loadModel')
+                  : t('downloadAndLoad')}
             </button>
           )}
 
@@ -300,7 +299,7 @@ const WebGPUModelPanel: React.FC = () => {
               disabled={busy}
               className="w-full py-2 px-4 bg-slate-700/50 border border-slate-600 rounded-lg text-slate-300 text-sm font-medium hover:bg-slate-700 disabled:opacity-50 transition-colors"
             >
-              Unload model (free GPU memory)
+              {t('unloadModel')}
             </button>
           )}
 
@@ -314,23 +313,22 @@ const WebGPUModelPanel: React.FC = () => {
               className="w-full flex items-center justify-center gap-2 py-2 px-4 bg-red-900/30 border border-red-700/40 rounded-lg text-red-400 text-sm font-medium hover:bg-red-900/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <Trash2 className="w-4 h-4" aria-hidden="true" />
-              {busy ? 'Deleting...' : 'Delete downloaded model'}
+              {busy ? t('deleting') : t('deleteModel')}
             </button>
           )}
 
           <p className="text-[10px] text-slate-500 font-mono">
             {cacheInfo.cached
-              ? `Cached in this browser${cacheInfo.size ? ` (~${cacheInfo.size} used)` : ''}`
-              : 'Not downloaded yet'}
+              ? cacheInfo.size
+                ? t('cachedWithSize', { size: cacheInfo.size })
+                : t('cachedInBrowser')
+              : t('notDownloaded')}
           </p>
         </div>
       )}
 
       <p className="text-[10px] text-slate-500 leading-relaxed">
-        The model ({DEFAULT_WEBGPU_MODEL_LABEL}, ~2.7GB) downloads automatically when you select
-        this backend, once, from the Hugging Face CDN, and is cached in your browser. After that all
-        inference runs on your GPU and your simulation data never leaves your device — no API key,
-        no cost. Use “Delete downloaded model” any time to remove it and free the space.
+        {t('modelDownloadNote', { model: DEFAULT_WEBGPU_MODEL_LABEL })}
       </p>
     </div>
   );
@@ -342,6 +340,7 @@ interface AISettingsModalProps {
 }
 
 function ChatGPTPanel() {
+  const t = useT(aiSettingsModalMessages);
   const status = useAIConfigStore((s) => s.chatgptStatus);
   const statusError = useAIConfigStore((s) => s.chatgptError);
   const refresh = useAIConfigStore((s) => s.refreshChatGPT);
@@ -358,7 +357,11 @@ function ChatGPTPanel() {
       .models()
       .then(setModels)
       .catch((cause) => {
-        setError(cause instanceof Error ? cause.message : 'Model catalog unavailable.');
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : translate(aiSettingsModalMessages, 'modelCatalogUnavailable')
+        );
       });
   }, [active?.id, active?.signedIn]);
 
@@ -369,7 +372,11 @@ function ChatGPTPanel() {
       await action();
       await refresh();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'ChatGPT operation failed.');
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : translate(aiSettingsModalMessages, 'chatgptOperationFailed')
+      );
     } finally {
       setBusy(false);
     }
@@ -377,18 +384,20 @@ function ChatGPTPanel() {
 
   return (
     <div className="p-3 rounded-lg bg-slate-800/50 space-y-3">
-      <p className="text-sm font-medium text-slate-200">ChatGPT plan login</p>
+      <p className="text-sm font-medium text-slate-200">{t('chatgptTitle')}</p>
       <p className="text-xs text-slate-400">
-        Available in the local MillOS companion. Run <code>npm run play:chatgpt</code> and open its
-        127.0.0.1 address. Public-site ChatGPT plan access requires OpenAI approval. This plan route
-        is separate from the dollar cap on BYOK calls.
+        {t('chatgptIntroBefore')}
+        <code>npm run play:chatgpt</code>
+        {t('chatgptIntroAfter')}
       </p>
       {local && active?.signedIn ? (
         <>
-          <p className="text-xs text-green-400">Connected as {active.email || 'ChatGPT account'}</p>
+          <p className="text-xs text-green-400">
+            {t('connectedAs', { account: active.email || t('chatgptAccountFallback') })}
+          </p>
           {status && status.accounts.length > 1 && (
             <select
-              aria-label="ChatGPT account"
+              aria-label={t('chatgptAccountLabel')}
               value={status.activeId || ''}
               disabled={busy}
               onChange={(event) => void run(() => chatgptClient.selectAccount(event.target.value))}
@@ -402,13 +411,13 @@ function ChatGPTPanel() {
             </select>
           )}
           <select
-            aria-label="ChatGPT plan model"
+            aria-label={t('planModelLabel')}
             value={active.model || ''}
             disabled={busy}
             onChange={(event) => void run(() => chatgptClient.selectModel(event.target.value))}
             className="w-full p-2 bg-slate-900 border border-slate-600 rounded text-white text-xs"
           >
-            <option value="">Select a plan model</option>
+            <option value="">{t('selectPlanModel')}</option>
             {models.map((model) => (
               <option key={model.slug} value={model.slug}>
                 {model.name}
@@ -422,15 +431,13 @@ function ChatGPTPanel() {
               void run(async () => {
                 const confirmed = await chatgptClient.signOut();
                 if (!confirmed) {
-                  setError(
-                    'Signed out locally; remote revocation was not confirmed. Disconnect MillOS in ChatGPT Settings.'
-                  );
+                  setError(translate(aiSettingsModalMessages, 'signOutUnconfirmed'));
                 }
               })
             }
             className="text-xs text-slate-300 underline disabled:opacity-50"
           >
-            Sign out locally
+            {t('signOutLocally')}
           </button>
           <button
             type="button"
@@ -442,7 +449,7 @@ function ChatGPTPanel() {
             }
             className="text-xs text-slate-300 underline disabled:opacity-50 ml-3"
           >
-            Add another ChatGPT account
+            {t('addAccount')}
           </button>
         </>
       ) : local ? (
@@ -450,7 +457,7 @@ function ChatGPTPanel() {
           {status && status.accounts.length > 0 && (
             <>
               <select
-                aria-label="Reconnect ChatGPT account"
+                aria-label={t('reconnectAccount')}
                 value={returningId || status.accounts[0].id}
                 disabled={busy}
                 onChange={(event) => setReturningId(event.target.value)}
@@ -474,7 +481,7 @@ function ChatGPTPanel() {
                 }
                 className="w-full p-2 bg-cyan-600/20 border border-cyan-500/40 rounded text-cyan-300 text-sm disabled:opacity-50"
               >
-                Reconnect ChatGPT account
+                {t('reconnectAccount')}
               </button>
             </>
           )}
@@ -488,7 +495,7 @@ function ChatGPTPanel() {
             }
             className="text-xs text-slate-300 underline disabled:opacity-50"
           >
-            {status?.accounts.length ? 'Add another ChatGPT account' : 'Continue with ChatGPT'}
+            {status?.accounts.length ? t('addAccount') : t('continueWithChatGPT')}
           </button>
         </>
       ) : null}
@@ -502,6 +509,7 @@ function ChatGPTPanel() {
 }
 
 export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
+  const t = useT(aiSettingsModalMessages);
   // Selected, not the whole store: this modal is always mounted, and a bare
   // useAIConfigStore() would re-render it on every status and cost update.
   const {
@@ -568,7 +576,7 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
     ? CLOUD_MODELS[cloudBackend].label
     : isChatGPT
       ? 'ChatGPT'
-      : 'Local';
+      : t('localModelLabel');
   const chatgptAccount = chatgptStatus?.accounts.find(
     (account) => account.id === chatgptStatus.activeId
   );
@@ -599,15 +607,18 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
         setTestResult({
           success: true,
           message: cloudBackend.startsWith('openrouter-')
-            ? 'OpenRouter key and spending limit verified. Model access is checked on first request.'
-            : 'Key and model access verified for this session.',
+            ? translate(aiSettingsModalMessages, 'keyVerifiedOpenRouter')
+            : translate(aiSettingsModalMessages, 'keyVerified'),
         });
       }
     } catch (error) {
       if (useAIConfigStore.getState().llmBackend === cloudBackend) {
         setTestResult({
           success: false,
-          message: error instanceof Error ? error.message : 'Connection failed.',
+          message:
+            error instanceof Error
+              ? error.message
+              : translate(aiSettingsModalMessages, 'connectionFailed'),
         });
       }
     } finally {
@@ -622,14 +633,19 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
     const success = await setCloudApiKey(cloudBackend, inputKey.trim());
     if (useAIConfigStore.getState().llmBackend === cloudBackend) {
       if (success) {
-        setTestResult({ success: true, message: 'Connected for this page session.' });
+        setTestResult({
+          success: true,
+          message: translate(aiSettingsModalMessages, 'connectedForSession'),
+        });
         setInputKey('');
         setKeyEntryOpen(false);
         setOpenRouterConsent(false);
       } else {
         setTestResult({
           success: false,
-          message: useAIConfigStore.getState().connectionError || 'Connection failed.',
+          message:
+            useAIConfigStore.getState().connectionError ||
+            translate(aiSettingsModalMessages, 'connectionFailed'),
         });
       }
     }
@@ -672,12 +688,12 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
             <div className="flex items-center gap-2">
               <Brain className="w-5 h-5 text-cyan-400" aria-hidden="true" />
               <h2 id="ai-settings-title" className="text-lg font-semibold text-white">
-                AI Settings
+                {t('title')}
               </h2>
             </div>
             <button
               onClick={handleClose}
-              aria-label="Close settings"
+              aria-label={t('closeSettings')}
               className="p-1 rounded-lg hover:bg-slate-800 transition-colors"
             >
               <X className="w-5 h-5 text-slate-400" aria-hidden="true" />
@@ -688,8 +704,14 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
           <div className="p-4 space-y-4 flex-1 overflow-y-auto">
             {/* Backend Selector */}
             <div className="p-3 rounded-lg bg-slate-800/50 space-y-2">
-              <label className="block text-sm font-medium text-slate-300">AI Backend</label>
-              <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="AI Backend">
+              <label className="block text-sm font-medium text-slate-300">
+                {t('backendLabel')}
+              </label>
+              <div
+                className="grid grid-cols-2 gap-2"
+                role="radiogroup"
+                aria-label={t('backendLabel')}
+              >
                 {isLocalCompanionHost() && (
                   <button
                     role="radio"
@@ -762,8 +784,8 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                   }`}
                 >
                   <Cloud className="w-4 h-4 mx-auto mb-1" aria-hidden="true" />
-                  <div className="text-xs font-medium">ChatGPT plan</div>
-                  <div className="text-[9px] opacity-70">Local companion</div>
+                  <div className="text-xs font-medium">{t('chatgptPlan')}</div>
+                  <div className="text-[9px] opacity-70">{t('localCompanion')}</div>
                 </button>
                 <button
                   role="radio"
@@ -776,8 +798,8 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                   }`}
                 >
                   <Cpu className="w-4 h-4 mx-auto mb-1" aria-hidden="true" />
-                  <div className="text-xs font-medium">Local (WebGPU)</div>
-                  <div className="text-[9px] opacity-70">On-device • free</div>
+                  <div className="text-xs font-medium">{t('localWebGPU')}</div>
+                  <div className="text-[9px] opacity-70">{t('onDeviceFree')}</div>
                 </button>
               </div>
             </div>
@@ -792,12 +814,16 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                   setSpendCap(capInput.trim() ? Number(capInput) : null);
                   setCapError(null);
                 } catch (error) {
-                  setCapError(error instanceof Error ? error.message : 'Invalid cost cap.');
+                  setCapError(
+                    error instanceof Error
+                      ? error.message
+                      : translate(aiSettingsModalMessages, 'invalidCostCap')
+                  );
                 }
               }}
             >
               <label htmlFor="ai-cost-cap" className="block text-sm font-medium text-slate-300">
-                BYOK session cost cap (USD)
+                {t('costCapLabel')}
               </label>
               <div className="flex gap-2">
                 <input
@@ -806,7 +832,7 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                   min="0.01"
                   max="1000"
                   step="0.01"
-                  placeholder="Off"
+                  placeholder={t('costCapPlaceholder')}
                   value={capInput}
                   onChange={(event) => setCapInput(event.target.value)}
                   className="min-w-0 flex-1 px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white text-sm"
@@ -815,20 +841,19 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                   type="submit"
                   className="px-3 py-2 rounded-lg bg-cyan-600/20 border border-cyan-500/40 text-cyan-300 text-xs"
                 >
-                  Apply
+                  {t('apply')}
                 </button>
               </div>
               <p className="text-xs text-slate-400">
-                Used {`$${costTracking.sessionCost.toFixed(4)}`}; in flight or uncertain{' '}
-                {`$${(costTracking.reservedCost + costTracking.uncertainCost).toFixed(4)}`}.
-                {spendCapUsd === null ? ' No cap set.' : ` Cap: $${spendCapUsd.toFixed(2)}.`}
+                {t('costUsage', {
+                  used: formatFixed(costTracking.sessionCost, 4),
+                  pending: formatFixed(costTracking.reservedCost + costTracking.uncertainCost, 4),
+                })}
+                {spendCapUsd === null
+                  ? t('noCap')
+                  : t('capSet', { cap: formatFixed(spendCapUsd, 2) })}
               </p>
-              <p className="text-[10px] text-slate-400">
-                OpenRouter needs a cap and a lifetime spend-limited inference key that includes BYOK
-                usage. Its key check is free; direct-provider key tests on localhost are billable.
-                This tab reserves an estimate before paid calls; charges can exceed it. OpenRouter
-                reports its account charge and any upstream BYOK charge. Verify your provider bill.
-              </p>
+              <p className="text-[10px] text-slate-400">{t('costNote')}</p>
               {capError && (
                 <p role="alert" className="text-xs text-red-400">
                   {capError}
@@ -839,26 +864,26 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
             {/* Current Status */}
             <div className="p-3 rounded-lg bg-slate-800/50">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-400">Current Mode:</span>
+                <span className="text-sm text-slate-400">{t('currentMode')}</span>
                 <div className="flex items-center gap-2">
                   {aiMode === 'gemini' && (
                     <>
                       <Zap className="w-4 h-4 text-cyan-400" />
                       <span className="text-sm font-medium text-cyan-400">
-                        {isLocal ? 'Local Only' : `${modelLabel} Only`}
+                        {isLocal ? t('localOnly') : t('modelOnly', { model: modelLabel })}
                       </span>
                     </>
                   )}
                   {aiMode === 'hybrid' && (
                     <>
                       <Zap className="w-4 h-4 text-purple-400" />
-                      <span className="text-sm font-medium text-purple-400">Hybrid Mode</span>
+                      <span className="text-sm font-medium text-purple-400">{t('hybridMode')}</span>
                     </>
                   )}
                   {aiMode === 'heuristic' && (
                     <>
                       <Brain className="w-4 h-4 text-amber-400" />
-                      <span className="text-sm font-medium text-amber-400">Heuristic</span>
+                      <span className="text-sm font-medium text-amber-400">{t('heuristic')}</span>
                     </>
                   )}
                 </div>
@@ -867,14 +892,14 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
               {cloudBackend && llmReady && (
                 <div className="mt-2 flex items-center gap-2 text-sm text-green-400">
                   <CheckCircle className="w-4 h-4" aria-hidden="true" />
-                  <span>Connected • {modelLabel} • key held in memory</span>
+                  <span>{t('connectedStatus', { model: modelLabel })}</span>
                 </div>
               )}
 
               {isLocal && webgpuModelReady && (
                 <div className="mt-2 flex items-center gap-2 text-sm text-green-400">
                   <CheckCircle className="w-4 h-4" aria-hidden="true" />
-                  <span>Local neural core online • {DEFAULT_WEBGPU_MODEL_LABEL}</span>
+                  <span>{t('localCoreOnline', { model: DEFAULT_WEBGPU_MODEL_LABEL })}</span>
                 </div>
               )}
 
@@ -890,7 +915,7 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
             {cloudBackend && (
               <div className="space-y-2">
                 <label htmlFor="cloud-api-key" className="block text-sm font-medium text-slate-300">
-                  {CLOUD_MODELS[cloudBackend!].provider} API Key
+                  {t('apiKeyLabel', { provider: CLOUD_MODELS[cloudBackend!].provider })}
                 </label>
                 {/* Keep the password field unmounted until requested: autocomplete=off did not stop browser autofill. */}
                 {keyEntryOpen ? (
@@ -909,8 +934,10 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                       onChange={(e) => setInputKey(e.target.value)}
                       placeholder={
                         llmReady
-                          ? 'Enter new key to update...'
-                          : `Enter your ${CLOUD_MODELS[cloudBackend!].provider} API key...`
+                          ? t('placeholderUpdate')
+                          : t('placeholderEnter', {
+                              provider: CLOUD_MODELS[cloudBackend!].provider,
+                            })
                       }
                       className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
                     />
@@ -921,11 +948,13 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                     onClick={() => setKeyEntryOpen(true)}
                     className="w-full px-3 py-2 rounded-lg border border-slate-600 bg-slate-800 text-left text-sm text-cyan-300 hover:border-cyan-500"
                   >
-                    {llmReady ? 'Replace' : 'Enter'} {CLOUD_MODELS[cloudBackend].provider} API key
+                    {llmReady
+                      ? t('replaceKey', { provider: CLOUD_MODELS[cloudBackend].provider })
+                      : t('enterKey', { provider: CLOUD_MODELS[cloudBackend].provider })}
                   </button>
                 )}
                 <p className="text-xs text-slate-500">
-                  Get your API key from{' '}
+                  {t('getKeyFrom')}{' '}
                   <a
                     href={
                       cloudBackend === 'haiku'
@@ -938,16 +967,12 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                     rel="noopener noreferrer"
                     className="text-cyan-400 hover:underline"
                   >
-                    {CLOUD_MODELS[cloudBackend!].provider} Console
+                    {t('providerConsole', { provider: CLOUD_MODELS[cloudBackend!].provider })}
                   </a>
                 </p>
                 {cloudBackend.startsWith('openrouter-') && (
                   <>
-                    <p className="text-xs text-slate-400">
-                      Set a session cap above, then use a lifetime spend-limited OpenRouter
-                      inference key with BYOK usage included in its limit. MillOS checks that limit
-                      before every paid request.
-                    </p>
+                    <p className="text-xs text-slate-400">{t('openRouterKeyAdvice')}</p>
                     <label className="flex items-start gap-2 text-xs text-slate-300">
                       <input
                         type="checkbox"
@@ -955,22 +980,15 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                         onChange={(event) => setOpenRouterConsent(event.target.checked)}
                         className="mt-0.5"
                       />
-                      <span>
-                        Send simulated plant telemetry to OpenRouter and its model provider. My
-                        account pays for strategic requests. The app cap is an estimate; my provider
-                        bill is authoritative.
-                      </span>
+                      <span>{t('openRouterConsent')}</span>
                     </label>
                   </>
                 )}
                 <p className="text-[10px] text-slate-400 leading-relaxed">
-                  Your key stays in this page&rsquo;s memory and is sent directly to
-                  {` ${CLOUD_MODELS[cloudBackend!].provider}`} with plant telemetry. Reloading
-                  clears it. MillOS has no server-side key vault; page scripts and browser
-                  extensions can access a key while this page is open.{' '}
+                  {t('keyMemoryNote', { provider: CLOUD_MODELS[cloudBackend!].provider })}{' '}
                   {cloudBackend.startsWith('openrouter-')
-                    ? 'The key check is free; strategic requests are billable.'
-                    : 'Key tests and strategic requests are billable.'}
+                    ? t('keyCheckFree')
+                    : t('keyTestsBillable')}
                 </p>
               </div>
             )}
@@ -1008,12 +1026,12 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
             {llmReady && (
               <div className="p-3 rounded-lg bg-slate-800/50 space-y-3">
                 <label className="block text-sm font-medium text-slate-300">
-                  AI Operating Mode
+                  {t('operatingMode')}
                 </label>
                 <div
                   className="grid grid-cols-3 gap-2"
                   role="radiogroup"
-                  aria-label="AI Operating Mode"
+                  aria-label={t('operatingMode')}
                 >
                   <button
                     onClick={() => setAIMode('heuristic')}
@@ -1026,8 +1044,8 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                     }`}
                   >
                     <Brain className="w-4 h-4 mx-auto mb-1" aria-hidden="true" />
-                    <div className="text-xs font-medium">Heuristic</div>
-                    <div className="text-[9px] opacity-70">Fast rules</div>
+                    <div className="text-xs font-medium">{t('heuristic')}</div>
+                    <div className="text-[9px] opacity-70">{t('fastRules')}</div>
                   </button>
                   <button
                     onClick={() => setAIMode('hybrid')}
@@ -1040,8 +1058,8 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                     }`}
                   >
                     <Zap className="w-4 h-4 mx-auto mb-1" aria-hidden="true" />
-                    <div className="text-xs font-medium">Hybrid</div>
-                    <div className="text-[9px] opacity-70">Best of both</div>
+                    <div className="text-xs font-medium">{t('hybrid')}</div>
+                    <div className="text-[9px] opacity-70">{t('bestOfBoth')}</div>
                   </button>
                   <button
                     onClick={() => {
@@ -1059,19 +1077,19 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                   >
                     <Zap className="w-4 h-4 mx-auto mb-1" aria-hidden="true" />
                     <div className="text-xs font-medium">{modelLabel}</div>
-                    <div className="text-[9px] opacity-70">LLM only</div>
+                    <div className="text-[9px] opacity-70">{t('llmOnly')}</div>
                   </button>
                 </div>
                 <p className="text-xs text-slate-500">
-                  {aiMode === 'heuristic' && 'Fast rule-based decisions. No API cost.'}
+                  {aiMode === 'heuristic' && t('modeHeuristicDesc')}
                   {aiMode === 'gemini' &&
                     (isLocal
-                      ? 'Strategic decisions from the local model only (every 45s); the fast rules layer is paused.'
-                      : `Strategic decisions from ${modelLabel} only (every 45s); the fast rules layer is paused.`)}
+                      ? t('modeLocalOnlyDesc')
+                      : t('modeModelOnlyDesc', { model: modelLabel }))}
                   {aiMode === 'hybrid' &&
                     (isLocal
-                      ? 'Tactical (heuristic 6s) + Strategic (local model 45s).'
-                      : `Tactical (heuristic 6s) + Strategic (${modelLabel} 45s).`)}
+                      ? t('modeLocalHybridDesc')
+                      : t('modeModelHybridDesc', { model: modelLabel }))}
                 </p>
               </div>
             )}
@@ -1088,18 +1106,16 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                     <Zap className="w-5 h-5 text-purple-400" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold text-white mb-1">Consider Hybrid Mode?</h3>
+                    <h3 className="text-sm font-semibold text-white mb-1">{t('considerHybrid')}</h3>
                     <p className="text-xs text-slate-300 leading-relaxed">
-                      <strong className="text-purple-400">Hybrid Mode</strong> combines fast
-                      heuristic decisions (every 6s) with strategic insights (every 45s), giving you
-                      the best of both worlds.
+                      <strong className="text-purple-400">{t('hybridMode')}</strong>
+                      {t('hybridExplanation')}
                     </p>
                     <p className="text-xs text-slate-400 mt-2">
                       <strong className="text-cyan-400">
-                        {isLocal ? 'Local Only' : `${modelLabel} Only`}
+                        {isLocal ? t('localOnly') : t('modelOnly', { model: modelLabel })}
                       </strong>{' '}
-                      runs only the strategic LLM layer and pauses the fast rules layer, so the
-                      plant responds to changes more slowly.
+                      {t('llmOnlyExplanation')}
                     </p>
                   </div>
                 </div>
@@ -1112,7 +1128,7 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                     }}
                     className="px-3 py-1.5 text-xs font-medium text-white bg-purple-600 hover:bg-purple-500 rounded-lg transition-colors"
                   >
-                    Use Hybrid
+                    {t('useHybrid')}
                   </button>
                   <button
                     onClick={(e) => {
@@ -1126,7 +1142,7 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                     }}
                     className="px-3 py-1.5 text-xs font-medium text-slate-300 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
                   >
-                    {isLocal ? 'Use Local Only' : `Use ${modelLabel} Only`}
+                    {isLocal ? t('useLocalOnly') : t('useModelOnly', { model: modelLabel })}
                   </button>
                   <button
                     onClick={(e) => {
@@ -1135,7 +1151,7 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                     }}
                     className="px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-slate-300 transition-colors"
                   >
-                    Cancel
+                    {t('cancel')}
                   </button>
                 </div>
               </motion.div>
@@ -1154,7 +1170,7 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                   className="flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-red-500/20 rounded-lg transition-colors"
                 >
                   <Trash2 className="w-4 h-4" />
-                  Disconnect Key
+                  {t('disconnectKey')}
                 </button>
               ) : (
                 <div />
@@ -1168,7 +1184,7 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                   }
                   className="px-4 py-2 text-sm font-medium text-slate-300 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
                 >
-                  {isTesting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Test Connection'}
+                  {isTesting ? <Loader2 className="w-4 h-4 animate-spin" /> : t('testConnection')}
                 </button>
                 <button
                   onClick={handleSave}
@@ -1177,7 +1193,11 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                   }
                   className="px-4 py-2 text-sm font-medium text-white bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
                 >
-                  {isTesting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Connect for Session'}
+                  {isTesting ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    t('connectForSession')
+                  )}
                 </button>
               </div>
             </div>

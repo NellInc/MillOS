@@ -3,8 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Shield, ChevronDown, ChevronUp } from 'lucide-react';
 import { useSafetyStore } from '../../stores/safetyStore';
 import { useUIStore } from '../../stores/uiStore';
+import { formatFixed, useT } from '../../i18n';
+import { safetyConfigPanelMessages } from './SafetyConfigPanel.messages';
 
 export const SafetyConfigPanel: React.FC = () => {
+  const t = useT(safetyConfigPanelMessages);
   const [expanded, setExpanded] = useState(false);
   const safetyConfig = useSafetyStore((state) => state.safetyConfig);
   const setSafetyConfig = useSafetyStore((state) => state.setSafetyConfig);
@@ -25,7 +28,7 @@ export const SafetyConfigPanel: React.FC = () => {
       >
         <span className="flex items-center gap-2">
           <Shield className="w-4 h-4 text-green-500" />
-          Safety Configuration
+          {t('title')}
         </span>
         {expanded ? (
           <ChevronUp className="w-4 h-4" aria-hidden="true" />
@@ -46,20 +49,22 @@ export const SafetyConfigPanel: React.FC = () => {
             <div>
               <div className="flex justify-between text-xs mb-1">
                 <span className={theme === 'light' ? 'text-slate-500' : 'text-slate-400'}>
-                  Vehicle Detection
+                  {t('vehicleDetection')}
                 </span>
                 <span className="text-green-500 font-mono font-bold">
-                  {safetyConfig.vehicleDetectionRadius.toFixed(1)}m
+                  {formatFixed(safetyConfig.vehicleDetectionRadius, 1)}m
                 </span>
               </div>
               <input
                 type="range"
-                aria-label="Vehicle detection radius (meters)"
+                aria-label={t('vehicleDetectionAria')}
                 min="1"
                 max="5"
                 step="0.1"
                 value={safetyConfig.vehicleDetectionRadius}
-                aria-valuetext={`${safetyConfig.vehicleDetectionRadius.toFixed(1)} metres`}
+                aria-valuetext={t('valueMetres', {
+                  value: formatFixed(safetyConfig.vehicleDetectionRadius, 1),
+                })}
                 onChange={(e) =>
                   setSafetyConfig({ vehicleDetectionRadius: parseFloat(e.target.value) })
                 }
@@ -73,20 +78,22 @@ export const SafetyConfigPanel: React.FC = () => {
             <div>
               <div className="flex justify-between text-xs mb-1">
                 <span className={theme === 'light' ? 'text-slate-500' : 'text-slate-400'}>
-                  Forklift Spacing
+                  {t('forkliftSpacing')}
                 </span>
                 <span className="text-blue-500 font-mono font-bold">
-                  {safetyConfig.forkliftSafetyRadius.toFixed(1)}m
+                  {formatFixed(safetyConfig.forkliftSafetyRadius, 1)}m
                 </span>
               </div>
               <input
                 type="range"
-                aria-label="Forklift spacing (meters)"
+                aria-label={t('forkliftSpacingAria')}
                 min="2"
                 max="8"
                 step="0.5"
                 value={safetyConfig.forkliftSafetyRadius}
-                aria-valuetext={`${safetyConfig.forkliftSafetyRadius.toFixed(1)} metres`}
+                aria-valuetext={t('valueMetres', {
+                  value: formatFixed(safetyConfig.forkliftSafetyRadius, 1),
+                })}
                 onChange={(e) =>
                   setSafetyConfig({ forkliftSafetyRadius: parseFloat(e.target.value) })
                 }
@@ -100,20 +107,22 @@ export const SafetyConfigPanel: React.FC = () => {
             <div>
               <div className="flex justify-between text-xs mb-1">
                 <span className={theme === 'light' ? 'text-slate-500' : 'text-slate-400'}>
-                  Look-ahead Distance
+                  {t('lookAheadDistance')}
                 </span>
                 <span className="text-purple-500 font-mono font-bold">
-                  {safetyConfig.pathCheckDistance.toFixed(1)}m
+                  {formatFixed(safetyConfig.pathCheckDistance, 1)}m
                 </span>
               </div>
               <input
                 type="range"
-                aria-label="Look-ahead distance (meters)"
+                aria-label={t('lookAheadDistanceAria')}
                 min="2"
                 max="10"
                 step="0.5"
                 value={safetyConfig.pathCheckDistance}
-                aria-valuetext={`${safetyConfig.pathCheckDistance.toFixed(1)} metres`}
+                aria-valuetext={t('valueMetres', {
+                  value: formatFixed(safetyConfig.pathCheckDistance, 1),
+                })}
                 onChange={(e) => setSafetyConfig({ pathCheckDistance: parseFloat(e.target.value) })}
                 className={`w-full h-2 rounded-lg appearance-none cursor-pointer accent-purple-500 ${
                   theme === 'light' ? 'bg-slate-200' : 'bg-slate-800'
@@ -125,20 +134,22 @@ export const SafetyConfigPanel: React.FC = () => {
             <div>
               <div className="flex justify-between text-xs mb-1">
                 <span className={theme === 'light' ? 'text-slate-500' : 'text-slate-400'}>
-                  Speed Zone Rate
+                  {t('speedZoneRate')}
                 </span>
                 <span className="text-amber-500 font-mono font-bold">
-                  {(safetyConfig.speedZoneSlowdown * 100).toFixed(0)}%
+                  {formatFixed(safetyConfig.speedZoneSlowdown * 100, 0)}%
                 </span>
               </div>
               <input
                 type="range"
-                aria-label="Speed zone rate (percent)"
+                aria-label={t('speedZoneRateAria')}
                 min="0.2"
                 max="0.8"
                 step="0.1"
                 value={safetyConfig.speedZoneSlowdown}
-                aria-valuetext={`${Math.round(safetyConfig.speedZoneSlowdown * 100)} percent`}
+                aria-valuetext={t('valuePercent', {
+                  value: formatFixed(Math.round(safetyConfig.speedZoneSlowdown * 100), 0),
+                })}
                 onChange={(e) => setSafetyConfig({ speedZoneSlowdown: parseFloat(e.target.value) })}
                 className={`w-full h-2 rounded-lg appearance-none cursor-pointer accent-amber-500 ${
                   theme === 'light' ? 'bg-slate-200' : 'bg-slate-800'
@@ -155,23 +166,20 @@ export const SafetyConfigPanel: React.FC = () => {
               }`}
             >
               <p>
-                <span className="text-green-500">Vehicle Detection:</span> Protected separation
-                between mobile units
+                <span className="text-green-500">{t('vehicleDetectionLabel')}</span>{' '}
+                {t('vehicleDetectionHelp')}
               </p>
               <p>
-                <span className="text-blue-500">Forklift Spacing:</span> Min distance between
-                forklifts
+                <span className="text-blue-500">{t('forkliftSpacingLabel')}</span>{' '}
+                {t('forkliftSpacingHelp')}
               </p>
               <p>
-                <span className="text-purple-500">Look-ahead:</span> How far ahead to check path
+                <span className="text-purple-500">{t('lookAheadLabel')}</span> {t('lookAheadHelp')}
               </p>
               <p>
-                <span className="text-amber-500">Speed Zone:</span> Speed % in slow zones
+                <span className="text-amber-500">{t('speedZoneLabel')}</span> {t('speedZoneHelp')}
               </p>
-              <p className="italic">
-                Detection, spacing and look-ahead drive the forklift controller live. Speed zone
-                rate is a planning value and is not enforced yet.
-              </p>
+              <p className="italic">{t('enforcementNote')}</p>
             </div>
           </motion.div>
         )}

@@ -13,6 +13,8 @@ import { useGraphicsStore } from '../stores/graphicsStore';
 // Conveyor animation is now purely visual - no bag counting here
 import { selectSafetyHoldActive, useGameSimulationStore } from '../stores/gameSimulationStore';
 import { BAG_WEIGHT_KG, GrainQuality } from '../types';
+import { formatFixed, useT } from '../i18n';
+import { conveyorSystemMessages } from './ConveyorSystem.messages';
 import { SHARED_GEOMETRIES } from '../utils/sharedMaterials';
 // The conveyor branch's surface finish. See `conveyors/conveyorSurfaces.ts` for
 // why these are treated clones of the shared singletons rather than the
@@ -1329,6 +1331,7 @@ const InstancedFlourBags: React.FC<{
   bags: FlourBag[];
   productionSpeed: number;
 }> = React.memo(({ bags, productionSpeed }) => {
+  const t = useT(conveyorSystemMessages);
   const bodiesRef = useRef<THREE.InstancedMesh>(null);
   const stripesRef = useRef<THREE.InstancedMesh>(null);
   const tooltipRef = useRef<THREE.Group>(null);
@@ -1453,17 +1456,17 @@ const InstancedFlourBags: React.FC<{
               <div className="text-xs font-mono font-bold text-white">{hoveredBag.batchNumber}</div>
               <div className="mt-1 text-[10px] text-slate-400">
                 <div className="flex justify-between">
-                  <span>Quality:</span>
+                  <span>{t('quality')}</span>
                   <span
                     style={{ color: QUALITY_COLORS[hoveredBag.quality] }}
                     className="font-medium capitalize"
                   >
-                    {hoveredBag.quality}
+                    {t('qualityValue', { quality: hoveredBag.quality })}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Weight:</span>
-                  <span className="text-white">{hoveredBag.weight} kg</span>
+                  <span>{t('weight')}</span>
+                  <span className="text-white">{formatFixed(hoveredBag.weight, 0)} kg</span>
                 </div>
               </div>
             </div>

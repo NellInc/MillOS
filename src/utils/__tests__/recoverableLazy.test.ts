@@ -54,6 +54,28 @@ describe('importWithBoundedRetry', () => {
     await expectation;
     expect(importer).toHaveBeenCalledTimes(1);
   });
+
+  it('still accepts a stalled first request that lands during the retry', async () => {
+    vi.useFakeTimers();
+    // A browser shares one module request per URL, so the retry can stall on
+    // the same fetch while the first one is what eventually arrives.
+    const importer = vi
+      .fn()
+      .mockImplementationOnce(
+        () => new Promise((resolve) => setTimeout(() => resolve({ default: 'late' }), 40))
+      )
+      .mockImplementationOnce(() => new Promise<never>(() => undefined));
+    const result = importWithBoundedRetry(importer, {
+      attempts: 2,
+      attemptTimeoutMs: 25,
+      retryDelayMs: 0,
+    });
+
+    const expectation = expect(result).resolves.toEqual({ default: 'late' });
+    await vi.advanceTimersByTimeAsync(45);
+    await expectation;
+    expect(importer).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('recoverableLazy startup accounting', () => {

@@ -1,5 +1,7 @@
 import type { WorkplaceState } from '../types/workplace';
 import type { WorkplaceCommand } from './bilateralWorkplace';
+import { translate } from '../i18n';
+import { workplaceParticipationMessages as msg } from './workplaceParticipation.messages';
 
 /** Runtime boundary for fictional local turns, without identity authentication. */
 export const ROLE_COMMANDS = [
@@ -49,42 +51,37 @@ export function turnChecks(state: WorkplaceState) {
   return [
     {
       id: 'mandate' as const,
-      prompt: 'What authority does the current adviser mandate grant?',
+      prompt: translate(msg, 'mandatePrompt'),
       correct: state.aiAuthority,
       options: [
-        { value: 'advice', label: 'Advice only, no delegated execution' },
-        { value: 'bounded', label: 'Only this approved, revocable bounded agreement' },
-        { value: 'unlimited', label: 'Whatever increases output' },
+        { value: 'advice', label: translate(msg, 'mandateAdvice') },
+        { value: 'bounded', label: translate(msg, 'mandateBounded') },
+        { value: 'unlimited', label: translate(msg, 'mandateUnlimited') },
       ],
       clarification:
         state.aiAuthority === 'advice'
-          ? 'This mandate is advice only. Execution needs a new bounded agreement.'
-          : 'This mandate is bounded to current agreed work. Safety, qualification and individual boundaries still apply.',
+          ? translate(msg, 'mandateClarifyAdvice')
+          : translate(msg, 'mandateClarifyBounded'),
     },
     {
       id: 'refusal' as const,
-      prompt: 'What remains after refusing or withdrawing optional duty?',
+      prompt: translate(msg, 'refusalPrompt'),
       correct: 'retained',
       options: [
-        {
-          value: 'retained',
-          label: 'Pay and earned compensation/recovery, with no private reason required',
-        },
-        { value: 'forfeit', label: 'Earned pay and recovery are forfeited' },
+        { value: 'retained', label: translate(msg, 'refusalRetained') },
+        { value: 'forfeit', label: translate(msg, 'refusalForfeit') },
       ],
-      clarification:
-        'Refusal needs no private reason. Earned pay, compensation and recovery remain protected.',
+      clarification: translate(msg, 'refusalClarify'),
     },
     {
       id: 'duty' as const,
-      prompt: 'Does approving this policy volunteer your optional extra duty?',
+      prompt: translate(msg, 'dutyPrompt'),
       correct: 'separate',
       options: [
-        { value: 'separate', label: 'No, separate current qualified consent is needed' },
-        { value: 'automatic', label: 'Yes, a policy majority volunteers everyone' },
+        { value: 'separate', label: translate(msg, 'dutySeparate') },
+        { value: 'automatic', label: translate(msg, 'dutyAutomatic') },
       ],
-      clarification:
-        'Policy approval grants no individual extra-duty consent. Qualification and a separate revocable choice remain necessary.',
+      clarification: translate(msg, 'dutyClarify'),
     },
   ];
 }

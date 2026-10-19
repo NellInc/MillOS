@@ -2,7 +2,8 @@
  * MillOS version isolated service worker.
  *
  * Every deployment scope and build receives its own cache namespace. Navigation
- * uses a network first strategy, while immutable assets use cache first.
+ * uses a network first strategy (falling back to a complete cached shell when
+ * the network stalls), while immutable assets use cache first.
  */
 
 const GENERATED_BUILD_ID = '__MILLOS_BUILD_ID__';
@@ -42,6 +43,54 @@ const OPTIONAL_CHUNK_PATTERN =
   /(rapier|recharts|charts?|postprocessing|web[._-]?llm|webgpu|scada)/i;
 const HASHED_ASSET_PATTERN = /\/assets\/.+-[a-zA-Z0-9_-]{6,}\.[a-zA-Z0-9]+$/;
 const ARCHIVE_PATH_PATTERN = /^\/v\d+\.\d+(?:\/|$)/;
+const INDEX_URL = new URL('index.html', SCOPE_URL).href;
+// Working if a stalled navigation serves the cached shell after this long, but
+// only when that shell's whole entry graph is cached too; a network that
+// answers first always wins, and a cold cache keeps waiting as before.
+const NAVIGATION_NETWORK_TIMEOUT_MS = 4000;
+
+/**
+ * The hashed entry graph a shell document boots from: its module scripts,
+ * module preloads and stylesheets, limited to this scope's immutable assets.
+ */
+function entryAssetUrls(html) {
+  const urls = new Set();
+  for (const [tag, name] of html.matchAll(/<(script|link)\b[^>]*>/gi)) {
+    const attributes = {};
+    for (const [, key, value] of tag.matchAll(/([a-zA-Z-]+)\s*=\s*["']([^"']*)["']/g)) {
+      attributes[key.toLowerCase()] = value;
+    }
+    const isEntry =
+      name.toLowerCase() === 'script'
+        ? attributes.type === 'module' && attributes.src
+        : /^(?:modulepreload|stylesheet)$/i.test(attributes.rel || '') && attributes.href;
+    if (!isEntry) continue;
+    let url;
+    try {
+      url = new URL(attributes.src || attributes.href, SCOPE_URL);
+    } catch {
+      continue;
+    }
+    if (
+      url.origin === self.location.origin &&
+      isRequestWithinScope(url) &&
+      HASHED_ASSET_PATTERN.test(url.pathname)
+    ) {
+      urls.add(url.href);
+    }
+  }
+  return [...urls];
+}
+
+async function shellIsComplete(shellResponse) {
+  const urls = entryAssetUrls(await shellResponse.clone().text());
+  if (urls.length === 0) return false;
+  for (const url of urls) {
+    const cache = await caches.open(cacheNameFor(new URL(url)));
+    if (!(await cache.match(url))) return false;
+  }
+  return true;
+}
 
 function getExtension(url) {
   const pathname = new URL(url).pathname;
@@ -90,7 +139,26 @@ self.addEventListener('install', (event) => {
           })
         )
       );
-      const failures = results.filter((result) => result.status === 'rejected');
+      // The entry bundle loads before this worker exists on a first visit, so
+      // it never passes the fetch handler. Precache the graph index.html names,
+      // so one visit is enough to boot offline. Hashed names are immutable, so
+      // the browser's HTTP cache usually answers. Working if one visit followed
+      // by an offline reload boots past the inline loader.
+      const shell = await cache.match(INDEX_URL);
+      const entryUrls = shell ? entryAssetUrls(await shell.text()) : [];
+      const entryResults = await Promise.allSettled(
+        entryUrls.map(async (url) => {
+          const response = await fetch(url);
+          if (!isCacheable(response)) {
+            throw new Error(`Precache failed with status ${response.status}`);
+          }
+          const target = await caches.open(cacheNameFor(new URL(url)));
+          await target.put(url, response);
+        })
+      );
+      const failures = [...results, ...entryResults].filter(
+        (result) => result.status === 'rejected'
+      );
       if (failures.length > 0) {
         console.warn(`[SW] ${failures.length} shell resources were unavailable during install.`);
       }
@@ -180,17 +248,55 @@ async function cacheFirst(event, request, cacheName) {
   return networkResponse;
 }
 
+/**
+ * Resolve with the cached shell only when the network has not answered within
+ * NAVIGATION_NETWORK_TIMEOUT_MS and that shell can boot from cache. Otherwise
+ * resolve null, and the caller keeps waiting on the same network request.
+ */
+async function cachedShellIfNetworkStalls(cache, request, networkPromise) {
+  let timer;
+  const stalled = await Promise.race([
+    networkPromise.then(
+      () => false,
+      () => false
+    ),
+    new Promise((resolve) => {
+      timer = setTimeout(() => resolve(true), NAVIGATION_NETWORK_TIMEOUT_MS);
+    }),
+  ]);
+  clearTimeout(timer);
+  if (!stalled) return null;
+
+  const shell = (await cache.match(request)) || (await cache.match(INDEX_URL));
+  if (!shell || !(await shellIsComplete(shell))) return null;
+  return shell;
+}
+
 async function networkFirst(event, request, cacheName) {
   const cache = await caches.open(cacheName);
+  const networkPromise = fetch(request, { cache: 'no-store' });
+  if (request.mode === 'navigate') {
+    const stalledShell = await cachedShellIfNetworkStalls(cache, request, networkPromise);
+    if (stalledShell) {
+      // The late answer still refreshes the cached shell for the next load.
+      event.waitUntil(
+        networkPromise
+          .then((response) => (isCacheable(response) ? cache.put(request, response) : undefined))
+          .catch(() => {})
+      );
+      return stalledShell;
+    }
+  }
+
   let networkResponse;
   try {
-    networkResponse = await fetch(request, { cache: 'no-store' });
+    networkResponse = await networkPromise;
   } catch {
     const cachedResponse = await cache.match(request);
     if (cachedResponse) return cachedResponse;
 
     if (request.mode === 'navigate') {
-      const indexResponse = await cache.match(new URL('index.html', SCOPE_URL).href);
+      const indexResponse = await cache.match(INDEX_URL);
       if (indexResponse) return indexResponse;
     }
     return new Response('Offline', {

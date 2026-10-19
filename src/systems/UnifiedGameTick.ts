@@ -47,6 +47,8 @@ import {
 import { peekSCADAService } from '../scada/SCADAService';
 import { useLogisticsLayoutStore } from '../stores/logisticsLayoutStore';
 import { logisticsLoadingRate } from '../simulation/layoutPlanning';
+import { formatFixed, formatGrouped, translate } from '../i18n';
+import { unifiedGameTickMessages as msg } from './UnifiedGameTick.messages';
 
 // Tracks the receiving dock's docked state across ticks so a false->true
 // transition (a grain truck arriving) triggers exactly one silo delivery.
@@ -189,7 +191,7 @@ function applyCampaignIncidentConsequence(incident: OperationalIncident): void {
           .filter((batch) => batch.availableKg > 0 && batch.disposition !== 'shipped')
           .map((batch) => batch.id),
         controlSource: 'Operations campaign controller',
-        controlNote: 'Supplier notification requires traceability review before dispatch release.',
+        controlNote: translate(msg, 'supplierTraceabilityNote'),
       });
       break;
     case 'severe_rain':
@@ -206,7 +208,7 @@ function applyCampaignIncidentConsequence(incident: OperationalIncident): void {
     id: `campaign-${incident.id}`,
     type: incident.severity === 'critical' ? 'critical' : 'warning',
     title: incident.title,
-    message: `${incident.description} The operations workspace records the response and residual controls.`,
+    message: translate(msg, 'incidentAlert', { description: incident.description }),
     machineId: incident.affectedMachineId ?? undefined,
     timestamp: new Date(),
     acknowledged: false,
@@ -276,11 +278,34 @@ const _changedData: Array<{
 // that, so without the carry the rounding erased every tick's wear.
 const _wearCarry = new Map<string, number>();
 
+// Every unit on a line used to start unworn at one rate, so all four mills (or
+// all three packers) warned in the same minute. Later units run a gentler duty:
+// the first unit of each line keeps the documented one-warning-per-game-day
+// pace and nothing wears faster than before. Working if a line's warnings
+// arrive one machine at a time and no breakdown comes earlier than it did.
+const WEAR_PACE: Readonly<Record<string, number>> = {
+  'rm-102': 0.88,
+  'rm-103': 0.78,
+  'rm-104': 0.7,
+  'sifter-b': 0.88,
+  'sifter-c': 0.78,
+  'packer-1': 0.88,
+  'packer-2': 0.78,
+};
+export const machineWearPace = (machineId: string): number => WEAR_PACE[machineId] ?? 1;
+
 /** Game minutes until wear reaches the breakdown threshold at the current load. */
-function gameMinutesToWearBreakdown(machineType: string, wear: number, load: number): number {
+function gameMinutesToWearBreakdown(
+  machineId: string,
+  machineType: string,
+  wear: number,
+  load: number
+): number {
   const wearConfig = getWearConfig(machineType);
   const ratePerGameSecond =
-    wearConfig.wearRatePerSecond * (0.5 + (Number.isFinite(load) ? load : 0) / 100);
+    wearConfig.wearRatePerSecond *
+    machineWearPace(machineId) *
+    (0.5 + (Number.isFinite(load) ? load : 0) / 100);
   if (!(ratePerGameSecond > 0)) return Number.POSITIVE_INFINITY;
   return Math.max(0, wearConfig.breakdownThreshold - wear) / ratePerGameSecond / 60;
 }
@@ -343,7 +368,8 @@ function updateMachineTruth(
   let newWear = baseWear;
   if (isRunning) {
     const loadFactor = 0.5 + baseLoad / 100;
-    const wearIncrement = wearConfig.wearRatePerSecond * gameSeconds * loadFactor;
+    const wearIncrement =
+      wearConfig.wearRatePerSecond * machineWearPace(machine.id) * gameSeconds * loadFactor;
     const preciseWear = baseWear + (_wearCarry.get(machine.id) ?? 0) + wearIncrement;
     // The epsilon keeps a stored value like 0.29 (28.999... x 100) from
     // flooring below itself; the max keeps wear monotonic while running.
@@ -397,7 +423,13 @@ function unifiedGameTick(ctx: TickContext): void {
   const replayActive = isWorkplaceReplayActive();
   const workplaceBefore = useWorkplaceStore.getState().workplace;
   const workplacePhaseBefore = workplaceBefore.phase;
-  const improvementActive = workplaceBefore.mode === 'game' && !!workplaceBefore.improvement;
+  // A finalised member review (verdict set, which requires no owed recovery)
+  // releases the plant. Working if the trial and its deliberation stay held
+  // while the reviewed receipts stay fixed and play resumes ordinary pacing.
+  const improvementActive =
+    workplaceBefore.mode === 'game' &&
+    !!workplaceBefore.improvement &&
+    !(workplaceBefore.phase === 'review' && workplaceBefore.improvement.verdict);
   const controlMode =
     replayActive || improvementActive ? peekSCADAService()?.getState().mode : undefined;
   if (controlMode !== undefined && controlMode !== 'simulation') {
@@ -453,8 +485,11 @@ function unifiedGameTick(ctx: TickContext): void {
         value: dayBags,
         message:
           dayBags >= DAILY_TARGET_BAGS
-            ? `Day complete: ${Math.round(dayBags).toLocaleString()} bags - target met!`
-            : `Day complete: ${Math.round(dayBags).toLocaleString()} of ${DAILY_TARGET_BAGS.toLocaleString()} bags`,
+            ? translate(msg, 'dayCompleteTargetMet', { bags: formatGrouped(Math.round(dayBags)) })
+            : translate(msg, 'dayComplete', {
+                bags: formatGrouped(Math.round(dayBags)),
+                target: formatGrouped(DAILY_TARGET_BAGS),
+              }),
       });
     }
     dayEndStore.resetDailyBagsProduced();
@@ -633,7 +668,12 @@ function unifiedGameTick(ctx: TickContext): void {
             temperature: oldMachine.metrics.temperature,
             load: oldMachine.metrics.load,
           },
-          gameMinutesToWearBreakdown(oldMachine.type, data.newWear, oldMachine.metrics.load)
+          gameMinutesToWearBreakdown(
+            oldMachine.id,
+            oldMachine.type,
+            data.newWear,
+            oldMachine.metrics.load
+          )
         );
       }
     }
@@ -667,8 +707,8 @@ function unifiedGameTick(ctx: TickContext): void {
           value: Math.round(prodStore.dailyBagsProduced),
           message:
             threshold === 100
-              ? `Daily target reached: ${DAILY_TARGET_BAGS.toLocaleString()} bags!`
-              : `Daily target ${threshold}% complete`,
+              ? translate(msg, 'dailyTargetReached', { target: formatGrouped(DAILY_TARGET_BAGS) })
+              : translate(msg, 'dailyTargetMilestone', { threshold: formatFixed(threshold, 0) }),
         });
       }
     }
@@ -779,11 +819,11 @@ function unifiedGameTick(ctx: TickContext): void {
   const shippingTransferReady = shippingSchedule.transferReady;
   const dockFlow = useMaterialFlowStore.getState();
   const reasonByCode = {
-    certification_expired: 'Quality certification is expired.',
-    unresolved_contamination: 'A contamination alert remains unresolved.',
-    failed_quality_test: 'The latest laboratory result failed.',
-    batch_quality_hold: 'Available production batches remain on quality hold.',
-    batch_recalled: 'Recalled production remains isolated from dispatch.',
+    certification_expired: translate(msg, 'certificationExpired'),
+    unresolved_contamination: translate(msg, 'unresolvedContamination'),
+    failed_quality_test: translate(msg, 'failedQualityTest'),
+    batch_quality_hold: translate(msg, 'batchQualityHold'),
+    batch_recalled: translate(msg, 'batchRecalled'),
   } as const;
   if (shippingSchedule.departureCount < _lastShippingDepartureCount) {
     _shippingLoad = {
@@ -806,11 +846,11 @@ function unifiedGameTick(ctx: TickContext): void {
     );
     const departureBlockReason = useOperationsCampaignStore.getState().getIncidentEffect()
       .dispatchBlocked
-      ? 'An active operational incident requires dispatch isolation.'
+      ? translate(msg, 'incidentDispatchIsolation')
       : departureQuality.reason
         ? reasonByCode[departureQuality.reason]
         : !departureQuality.released
-          ? 'The quality interlock is not released.'
+          ? translate(msg, 'qualityInterlockNotReleased')
           : null;
     const actualKg = departureBlockReason
       ? 0
@@ -825,7 +865,7 @@ function unifiedGameTick(ctx: TickContext): void {
           ? null
           : (departureBlockReason ??
             _shippingLoad.blockReason ??
-            'Truck departed without a released load.'),
+            translate(msg, 'departedWithoutLoad')),
     };
   }
   const shippingCycleId = `shipping-${shippingSchedule.departureCount + 1}`;
@@ -850,11 +890,11 @@ function unifiedGameTick(ctx: TickContext): void {
       .getState()
       .getIncidentEffect().dispatchBlocked;
     const qualityBlockReason = incidentDispatchBlocked
-      ? 'An active operational incident requires dispatch isolation.'
+      ? translate(msg, 'incidentDispatchIsolation')
       : qualityStatus.reason
         ? reasonByCode[qualityStatus.reason]
         : !qualityStatus.released
-          ? 'The quality interlock is not released.'
+          ? translate(msg, 'qualityInterlockNotReleased')
           : null;
     const releasedKg = getFinishedGoodsAvailability(
       dockFlow,
@@ -883,7 +923,7 @@ function unifiedGameTick(ctx: TickContext): void {
         blockReason:
           _shippingLoad.loadedKg > 0
             ? null
-            : `Waiting for released ${_shippingLoad.materialType} at the packers.`,
+            : translate(msg, 'waitingForMaterial', { material: _shippingLoad.materialType }),
       };
     } else {
       const loadedKg = Math.min(
@@ -913,10 +953,12 @@ function unifiedGameTick(ctx: TickContext): void {
       useUIStore.getState().addAlert({
         id: `${qualityBlockReason ? 'dispatch-quality-hold' : 'dispatch-supply-wait'}-${_shippingLoad.cycleId}`,
         type: qualityBlockReason ? 'warning' : 'info',
-        title: qualityBlockReason ? 'Dispatch Quality Hold' : 'Shipping Awaiting Product',
+        title: qualityBlockReason
+          ? translate(msg, 'dispatchQualityHoldTitle')
+          : translate(msg, 'shippingAwaitingProductTitle'),
         message: qualityBlockReason
-          ? `${qualityBlockReason} Clear the condition before release.`
-          : (_shippingLoad.blockReason ?? 'Waiting for released product at the packers.'),
+          ? translate(msg, 'clearBeforeRelease', { reason: qualityBlockReason })
+          : (_shippingLoad.blockReason ?? translate(msg, 'waitingForProduct')),
         timestamp: new Date(),
         acknowledged: false,
       });
@@ -959,7 +1001,7 @@ function unifiedGameTick(ctx: TickContext): void {
   const finishedAvailability = getFinishedGoodsAvailability(latestFlow, executionMaterial);
   useOperationsCampaignStore.getState().tickCampaign(deltaSeconds * safeGameSpeed, {
     shiftKey: `day-${latestGame.gameDay}-${latestGame.currentShift}`,
-    shiftLabel: `${latestGame.currentShift[0].toUpperCase()}${latestGame.currentShift.slice(1)}`,
+    shiftLabel: translate(msg, 'shiftLabel', { shift: latestGame.currentShift }),
     manifests: latestFlow.manifests,
     materialSessionId: latestFlow.sessionId,
     productionBatches: latestFlow.productionBatches,
@@ -993,7 +1035,7 @@ function unifiedGameTick(ctx: TickContext): void {
       );
     const reviewed = useWorkplaceStore.getState().workplace;
     if (
-      (replayActive || reviewed.improvement) &&
+      (replayActive || (reviewed.improvement && !reviewed.improvement.verdict)) &&
       reviewed.phase === 'review' &&
       (workplacePhaseBefore === 'active' ||
         reviewed.members.every((member) => member.recoveryOwedMinutes === 0))
@@ -1011,8 +1053,12 @@ function unifiedGameTick(ctx: TickContext): void {
       useUIStore.getState().addAlert({
         id: `breakdown-${id}-${Date.now()}`,
         type: 'critical',
-        title: 'Machine Breakdown',
-        message: `${name} (${machineType}) has broken down due to excessive wear. Work order ${breakdown.workOrderId} requires repair, verification, and controlled restart.`,
+        title: translate(msg, 'breakdownTitle'),
+        message: translate(msg, 'breakdownMessage', {
+          name,
+          machineType,
+          workOrderId: breakdown.workOrderId,
+        }),
         machineId: id,
         timestamp: new Date(),
         acknowledged: false,

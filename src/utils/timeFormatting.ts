@@ -5,15 +5,22 @@
  * across multiple components with inconsistent implementations.
  */
 
+import { getLocale } from '../i18n';
+
 /**
- * Format a Date object to a time string (e.g., "02:30 PM")
+ * Format a Date object to a time string (e.g., "02:30 PM"; pt-BR "14:30")
  * @param date - Date object or timestamp
  * @returns Formatted time string
  */
 export function formatTime(date: Date | number | string): string {
   const d = new Date(date);
   if (isNaN(d.getTime())) return '--:--';
-  return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  const locale = getLocale();
+  if (locale === 'en') {
+    return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  }
+  // The glossary keeps clock times 24-hour outside English.
+  return d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 }
 
 /**

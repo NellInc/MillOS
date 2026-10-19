@@ -13,10 +13,15 @@ import {
 import { WorkplaceLab } from './WorkplaceLab';
 import { useWorkplaceAutoplay } from '../../../simulation/workplaceAutoplay';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
+import { useUIStore } from '../../../stores/uiStore';
+import { useAnnouncementsStore } from '../../../stores/announcementsStore';
 
 beforeEach(() => {
   useWorkplaceAutoplay.getState().pause();
   useWorkplaceAutoplay.setState({ manual: false, message: null });
+  // Admission waits for the onboarding tour; these tests start after it.
+  useUIStore.setState({ hasSeenIntro: true, journeyVisible: false });
+  useAnnouncementsStore.getState().setContext({ onboarding: false });
   useWorkplaceStore.setState({
     workplace: createWorkplace(),
     participationMode: 'solo',
@@ -163,6 +168,82 @@ it('waits for actual startup readiness before autonomous admission', () => {
   view.unmount();
   delete document.documentElement.dataset.millosStartupReady;
   vi.useRealTimers();
+});
+
+it('holds autonomous admission while the onboarding tour is pending or showing', () => {
+  useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
+  useOperationsCampaignStore.getState().initializeCampaign();
+  useUIStore.setState({ hasSeenIntro: false, journeyVisible: false });
+  vi.useFakeTimers();
+  document.documentElement.dataset.millosStartupReady = 'true';
+  const view = render(<WorkplaceAutoplayStatus />);
+  try {
+    // First-load profile: the tour card has not appeared yet.
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(useWorkplaceAutoplay.getState().running).toBe(false);
+    act(() => {
+      useAnnouncementsStore.getState().setContext({ onboarding: true });
+    });
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+    expect(useWorkplaceAutoplay.getState().running).toBe(false);
+    expect(useWorkplaceAutoplay.getState().manual).toBe(false);
+    // Closing the tour with X leaves hasSeenIntro unset; the tour is still over.
+    act(() => {
+      useAnnouncementsStore.getState().setContext({ onboarding: false });
+    });
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(useWorkplaceAutoplay.getState().running).toBe(true);
+  } finally {
+    act(() => {
+      useWorkplaceAutoplay.getState().pause(true);
+    });
+    view.unmount();
+    delete document.documentElement.dataset.millosStartupReady;
+    vi.useRealTimers();
+  }
+});
+
+it('keeps the desktop takeover control clear of the guide card column', () => {
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  const resize = (w: number, h: number) => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: w });
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: h });
+    fireEvent(window, new Event('resize'));
+  };
+  resize(1440, 900);
+  useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
+  useOperationsCampaignStore.getState().initializeCampaign();
+  useUIStore.setState({ journeyVisible: true });
+  document.documentElement.dataset.millosStartupReady = 'true';
+  const view = render(<WorkplaceAutoplayStatus />);
+  try {
+    const status = screen.getByRole('complementary', { name: 'Fictional demo running' });
+    const takeover = screen.getByRole('button', { name: 'Take over cooperative season' });
+    // The journey card starts 11.5rem up; one 44px control from 8rem stays below it.
+    expect(status.className).toContain('bottom-[8rem]');
+    expect(status.className).not.toContain('p-3');
+    expect(screen.getByText('Autonomous cooperative season').className).toBe('sr-only');
+    expect(takeover.textContent).toBe('Autonomous season: take over');
+    act(() => {
+      useUIStore.setState({ journeyVisible: false });
+    });
+    expect(status.className).toContain('p-3');
+    expect(takeover.textContent).toBe('Take over cooperative season');
+  } finally {
+    act(() => {
+      useWorkplaceAutoplay.getState().pause(true);
+    });
+    view.unmount();
+    resize(width, height);
+    delete document.documentElement.dataset.millosStartupReady;
+  }
 });
 
 it('keeps fixed benchmark runs outside automatic admission', () => {

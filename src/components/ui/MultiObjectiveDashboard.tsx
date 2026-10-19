@@ -13,9 +13,20 @@ import { useProductionStore } from '../../stores/productionStore';
 import { useAIConfigStore } from '../../stores/aiConfigStore';
 
 import { BAG_WEIGHT_KG } from '../../types';
+import { formatFixed, formatGrouped, useT } from '../../i18n';
+import { multiObjectiveDashboardMessages } from './MultiObjectiveDashboard.messages';
+
+// `label` is the objective's identity (compared below); the visible name comes from the catalog.
+type ObjectiveLabel = 'Production' | 'Quality' | 'Energy' | 'Carbon';
+const OBJECTIVE_LABEL_KEYS = {
+  Production: 'labelProduction',
+  Quality: 'labelQuality',
+  Energy: 'labelEnergy',
+  Carbon: 'labelCarbon',
+} as const satisfies Record<ObjectiveLabel, string>;
 
 interface ObjectiveMetric {
-  label: string;
+  label: ObjectiveLabel;
   value: number;
   target: number;
   unit: string;
@@ -38,6 +49,7 @@ export const MultiObjectiveDashboard: React.FC = () => {
   const showMultiObjective = useAIConfigStore((state) => state.showMultiObjective);
   const metrics = useProductionStore((state) => state.metrics);
   const machines = useProductionStore((state) => state.machines);
+  const t = useT(multiObjectiveDashboardMessages);
 
   // Calculate metrics
   const objectives = useMemo<ObjectiveMetric[]>(() => {
@@ -136,7 +148,7 @@ export const MultiObjectiveDashboard: React.FC = () => {
   return (
     <motion.div
       role="region"
-      aria-label="Multi-objective dashboard"
+      aria-label={t('regionLabel')}
       initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -20 }}
@@ -148,7 +160,7 @@ export const MultiObjectiveDashboard: React.FC = () => {
           <div className="p-1.5 rounded-lg bg-purple-500/20">
             <Target className="w-4 h-4 text-purple-400" />
           </div>
-          <span className="text-sm font-medium text-white">Multi-Objective</span>
+          <span className="text-sm font-medium text-white">{t('title')}</span>
         </div>
         {/* Not a live region: the score moves every metrics tick, and the
             trade-off banner below already announces the changes that matter. */}
@@ -161,7 +173,7 @@ export const MultiObjectiveDashboard: React.FC = () => {
                 : 'bg-red-500/20 text-red-400'
           }`}
         >
-          <span className="sr-only">Overall objective score </span>
+          <span className="sr-only">{t('overallScore')}</span>
           {overallScore}%
         </div>
       </div>
@@ -186,9 +198,11 @@ export const MultiObjectiveDashboard: React.FC = () => {
                   <TrendingDown className="w-3 h-3 text-red-400" />
                 ) : null}
               </div>
-              <p className="text-[10px] text-slate-400 uppercase">{obj.label}</p>
+              <p className="text-[10px] text-slate-400 uppercase">
+                {t(OBJECTIVE_LABEL_KEYS[obj.label])}
+              </p>
               <p className={`text-sm font-mono font-bold ${colorClasses.text}`}>
-                {obj.value.toLocaleString()}
+                {formatGrouped(obj.value)}
                 <span className="text-[9px] font-normal text-slate-500 ml-0.5">{obj.unit}</span>
               </p>
               {/* Progress bar */}
@@ -201,7 +215,7 @@ export const MultiObjectiveDashboard: React.FC = () => {
                 />
               </div>
               <p className="text-[8px] text-slate-500 mt-0.5">
-                Target: {obj.target} {obj.unit}
+                {t('target', { target: formatFixed(obj.target, 0), unit: obj.unit })}
               </p>
             </div>
           );
@@ -218,9 +232,7 @@ export const MultiObjectiveDashboard: React.FC = () => {
               : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
           }`}
         >
-          {overallScore >= 80
-            ? 'All objectives balanced optimally.'
-            : 'Trade-off detected. Some objectives need attention.'}
+          {overallScore >= 80 ? t('balanced') : t('tradeOff')}
         </div>
       </div>
     </motion.div>

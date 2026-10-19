@@ -23,6 +23,8 @@ import type { SpoutMachine } from '../components/flow/spoutRoutes';
 import type { ConveyorSegment, MachineBuffer } from '../stores/materialFlowStore';
 import type { Obstacle } from '../utils/positionRegistry';
 import { canonicalProcessMachines } from './materialTransport';
+import { translate } from '../i18n';
+import { layoutPlanningMessages } from './layoutPlanning.messages';
 
 export type Dock = 'shipping' | 'receiving';
 export type PlanningBounds = Pick<SiteBounds, 'minX' | 'maxX' | 'minZ' | 'maxZ'>;
@@ -257,8 +259,9 @@ export function scoreLogisticsLayout(
     assumptions.crossingDelaySeconds,
   ];
   if (values.some((value) => !Number.isFinite(value) || value < 0 || value > 10000))
-    violations.push('Planning assumptions must be finite and between 0 and 10,000.');
+    violations.push(translate(layoutPlanningMessages, 'assumptionsRange'));
   for (const dock of PLANNING_DOCKS) {
+    const dockName = translate(layoutPlanningMessages, 'dock', { value: dock });
     const points = proposal.routes[dock];
     const baseline = SITE_LAYOUT.routes.forklifts[dock].points;
     const origin = proposal.staging[dock];
@@ -270,18 +273,18 @@ export function scoreLogisticsLayout(
       origin.every(Number.isFinite) &&
       origin[1] === 0;
     if (!valid) {
-      violations.push(`${dock}: invalid coordinates or route/action alignment.`);
+      violations.push(translate(layoutPlanningMessages, 'invalidCoordinates', { dock: dockName }));
       routes[dock] = { length: 0, cycleSeconds: 0, crossings: 0 };
       continue;
     }
     points.forEach((point, index) => {
       if (!isEditableRoutePoint(dock, index) && !samePoint(point, baseline[index]))
-        violations.push(`${dock}: pickup, dropoff and approach poses must stay fixed.`);
+        violations.push(translate(layoutPlanningMessages, 'fixedPoses', { dock: dockName }));
       if (index > 0 && distance(points[index - 1], point) < 0.05)
-        violations.push(`${dock}: a travel leg is too short.`);
+        violations.push(translate(layoutPlanningMessages, 'shortLeg', { dock: dockName }));
     });
     if (minimumRoundedTurnRadius(dock, points) + 1e-6 < minimumRoundedTurnRadius(dock, baseline))
-      violations.push(`${dock}: proposed corners tighten the existing turning envelope.`);
+      violations.push(translate(layoutPlanningMessages, 'tighterCorners', { dock: dockName }));
     const route = roundedPlanningRoute(dock, points);
     const width = route.halfWidth + 0.1; // Conservative envelope plus curve-sampling margin.
     if (
@@ -293,20 +296,33 @@ export function scoreLogisticsLayout(
           z + width > 50
       )
     )
-      violations.push(`${dock}: vehicle clearance leaves the operating floor.`);
+      violations.push(translate(layoutPlanningMessages, 'leavesFloor', { dock: dockName }));
     for (const obstacle of obstacles) {
       if ((obstacle.minY ?? 0) > 3) continue;
       if (routeIntersectsBoundsXZ(route, obstacle, 0.1))
-        violations.push(`${dock}: swept route meets ${obstacle.id}.`);
+        violations.push(
+          translate(layoutPlanningMessages, 'routeMeets', { dock: dockName, obstacle: obstacle.id })
+        );
     }
     const stage = stagingBounds(dock, origin);
     if (!inside(stage, SITE_LAYOUT.docks[dock].apron))
-      violations.push(`${dock}: staging capacity leaves its apron.`);
+      violations.push(translate(layoutPlanningMessages, 'stagingLeavesApron', { dock: dockName }));
     for (const obstacle of obstacles)
-      if (overlaps(stage, obstacle)) violations.push(`${dock}: staging meets ${obstacle.id}.`);
+      if (overlaps(stage, obstacle))
+        violations.push(
+          translate(layoutPlanningMessages, 'stagingMeets', {
+            dock: dockName,
+            obstacle: obstacle.id,
+          })
+        );
     for (const egress of protectedEgressApproaches())
       if (overlaps(stage, egress))
-        violations.push(`${dock}: staging blocks ${egress.id} pedestrian access.`);
+        violations.push(
+          translate(layoutPlanningMessages, 'stagingBlocksEgress', {
+            dock: dockName,
+            egress: egress.id,
+          })
+        );
     for (const other of PLANNING_DOCKS) {
       const otherPoints = proposal.routes[other];
       if (
@@ -314,7 +330,12 @@ export function scoreLogisticsLayout(
         otherPoints.every((point) => point.every(Number.isFinite))
       ) {
         if (routeIntersectsBoundsXZ(roundedPlanningRoute(other, otherPoints), stage, 0.1))
-          violations.push(`${dock}: staging blocks the ${other} vehicle corridor.`);
+          violations.push(
+            translate(layoutPlanningMessages, 'stagingBlocksCorridor', {
+              dock: dockName,
+              other: translate(layoutPlanningMessages, 'dock', { value: other }),
+            })
+          );
       }
     }
     let length = 0;

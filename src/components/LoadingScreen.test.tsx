@@ -219,9 +219,50 @@ describe('LoadingScreen final readiness', () => {
     render(<LoadingScreen />);
     await act(async () => vi.advanceTimersByTimeAsync(60000));
     expect(screen.getByText('Some resources could not be loaded.')).toBeVisible();
-    expect(screen.queryByRole('button', { name: 'Reload' })).toBeNull();
+    // Reversed from cdd997ce: a known error can never clear, so the cover must
+    // offer an explicit way out rather than strand the visitor.
+    expect(screen.getByRole('button', { name: 'Reload' })).toBeVisible();
     expect(screen.getByRole('progressbar')).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Continue while preparing' })).toBeNull();
+  });
+
+  it('offers Reload as soon as an error is known, with a truthful status and a held focus trap', async () => {
+    useGraphicsStore.getState().setGraphicsQuality('medium');
+    state.errors = 1;
+    render(
+      <>
+        <LoadingScreen />
+        <button>Covered application control</button>
+      </>
+    );
+    // No 30-second wait once the error is already known.
+    await act(async () => vi.advanceTimersByTimeAsync(10));
+    expect(screen.getByText('Loading could not finish')).toBeVisible();
+    expect(screen.getByRole('progressbar')).toHaveAttribute(
+      'aria-valuetext',
+      'Loading could not finish'
+    );
+    expect(screen.getByText('Some resources could not be loaded.')).toBeVisible();
+    const reload = screen.getByRole('button', { name: 'Reload' });
+    // A quality switch cannot clear an error, so it is not offered as a way out.
+    expect(screen.queryByRole('button', { name: 'Use low graphics' })).toBeNull();
+
+    const cover = screen.getByRole('dialog', { name: 'Loading MillOS' });
+    cover.focus();
+    fireEvent.keyDown(cover, { key: 'Tab' });
+    expect(reload).toHaveFocus();
+    fireEvent.keyDown(reload, { key: 'Tab' });
+    expect(reload).toHaveFocus();
+    fireEvent.keyDown(reload, { key: 'Tab', shiftKey: true });
+    expect(reload).toHaveFocus();
+    expect(screen.getByRole('button', { name: 'Covered application control' })).not.toHaveFocus();
+  });
+
+  it('never leaves a low-quality load with an error and no control', async () => {
+    state.errors = 1;
+    render(<LoadingScreen />);
+    await act(async () => vi.advanceTimersByTimeAsync(60000));
+    expect(screen.getAllByRole('button').map((button) => button.textContent)).toEqual(['Reload']);
   });
 
   it('hands over immediately with reduced motion, only after real readiness', async () => {

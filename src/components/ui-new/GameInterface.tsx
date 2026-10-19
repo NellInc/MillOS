@@ -36,31 +36,19 @@ import { MillOSMusicPlayer } from './MillOSMusicPlayer';
 import { WorkplaceAutoplayStatus } from './widgets/WorkplaceParticipation';
 import { WorkplaceCompanion } from './widgets/WorkplaceCompanion';
 import { useWorkplaceStore } from '../../stores/workplaceStore';
+import { useT } from '../../i18n';
+import { gameInterfaceMessages } from './GameInterface.messages';
 
 const LayoutPlanner = recoverableLazy(() =>
   import('./widgets/LayoutPlanner').then((module) => ({ default: module.LayoutPlanner }))
 );
 
-const INTRO_STEPS: OnboardingStep[] = [
-  {
-    title: 'Follow the grain',
-    icon: 'factory',
-    content:
-      'The tour holds the shift clock while you look around. Grain enters the silos, passes through milling and sifting, and leaves as packed flour. Follow the route to understand how each stage supports the next.',
-  },
-  {
-    title: "Protect the day's flour",
-    icon: 'goal',
-    content:
-      "Every bag at the packers began as grain in the silos. Keep packing on pace for today's target — when a stage starves or backs up, select its machine to see what it is waiting for.",
-  },
-  {
-    title: 'Look first, touch second',
-    icon: 'controls',
-    content:
-      'Select any machine for its status, buffers, and maintenance record. Start operating begins the guided delivery at relaxed pace, preserving any pace you already chose. Shift pace lets you pause or speed it up. Press ? for controls.',
-  },
-];
+// Keys only: the copy is resolved at render so a language switch reaches the tour.
+const INTRO_STEPS = [
+  { titleKey: 'introGrainTitle', contentKey: 'introGrainContent', icon: 'factory' },
+  { titleKey: 'introFlourTitle', contentKey: 'introFlourContent', icon: 'goal' },
+  { titleKey: 'introLookTitle', contentKey: 'introLookContent', icon: 'controls' },
+] as const;
 
 interface GameInterfaceProps {
   productionSpeed: number;
@@ -90,6 +78,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   onSCADAPanelChange,
   onFocusMachine,
 }) => {
+  const t = useT(gameInterfaceMessages);
   // Mobile detection - hide complex desktop UI on mobile
   const { isCompactLayout } = useMobileDetection();
 
@@ -112,7 +101,13 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   // toggles uiStore.showShortcuts; this is the only consumer that renders it).
   const showShortcuts = useUIStore((s) => s.showShortcuts);
   const setShowShortcuts = useUIStore((s) => s.setShowShortcuts);
-  const hasCriticalAlert = useUIStore((s) => s.alerts.some((alert) => alert.type === 'critical'));
+  // Alerts are kept as history and never expire, so only an unacknowledged
+  // critical alert holds the quiet/safety UI. Working if Acknowledge or Mark all
+  // as read restores music controls, PA flavour and AI reflection, while real
+  // safety stops (emergency, drill, crisis) still hold it via safetyStateActive.
+  const hasCriticalAlert = useUIStore((s) =>
+    s.alerts.some((alert) => alert.type === 'critical' && !alert.acknowledged)
+  );
   const fpsMode = useUIStore((s) => s.fpsMode);
   const safetyStateActive = useGameSimulationStore(
     (state) => state.emergencyActive || state.emergencyDrillMode || state.crisisState.active
@@ -126,13 +121,17 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   const startDeliveryJourney = useUIStore((s) => s.startDeliveryJourney);
   const [introStep, setIntroStep] = useState<number | null>(null);
   const introPaceRef = React.useRef<number | null>(null);
-  const releaseTourClock = React.useCallback((guided: boolean) => {
+  const releaseTourClock = React.useCallback(() => {
     const previousPace = introPaceRef.current;
     introPaceRef.current = null;
     const simulation = useGameSimulationStore.getState();
     // Release only our own hold; preserve a newer clock choice from another control.
+    // The 180 fast clock runs customer deadlines 6x faster than trucks and packing,
+    // so a default 180 hold always releases to standard pace (30). Working if
+    // Start operating, Skip, Close and unmount all land on 30 from the default,
+    // and any other chosen pace is restored unchanged.
     if (previousPace !== null && simulation.gameSpeed === 0) {
-      simulation.setGameSpeed(guided && previousPace === 180 ? 30 : previousPace);
+      simulation.setGameSpeed(previousPace === 180 ? 30 : previousPace);
     }
   }, []);
 
@@ -166,7 +165,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
     return () => {
       window.removeEventListener('millos:first-frame', showWhenReady);
       if (timer) clearTimeout(timer);
-      releaseTourClock(false);
+      releaseTourClock();
     };
   }, [hasSeenIntro, releaseTourClock]);
 
@@ -193,7 +192,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   const handleIntroNext = () => {
     const next = (introStep ?? 0) + 1;
     if (next >= INTRO_STEPS.length) {
-      releaseTourClock(true);
+      releaseTourClock();
       setHasSeenIntro(true);
       setIntroStep(null);
       const campaign = useOperationsCampaignStore.getState();
@@ -209,14 +208,14 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   };
 
   const handleIntroSkip = () => {
-    releaseTourClock(false);
+    releaseTourClock();
     setHasSeenIntro(true);
     setIntroStep(null);
     useCameraStore.getState().cancelAnimation();
   };
 
   const handleIntroClose = () => {
-    releaseTourClock(false);
+    releaseTourClock();
     setIntroStep(null);
     useCameraStore.getState().cancelAnimation();
   };
@@ -374,6 +373,15 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
     });
   };
 
+  const introStepDef = introStep !== null ? INTRO_STEPS[introStep] : undefined;
+  const introStepCopy: OnboardingStep | null = introStepDef
+    ? {
+        title: t(introStepDef.titleKey),
+        content: t(introStepDef.contentKey),
+        icon: introStepDef.icon,
+      }
+    : null;
+
   // Determine if Sidebar should be visible
   const isSidebarVisible = sidebarVisible;
   const hasWorkingAgreement = useWorkplaceStore(
@@ -408,7 +416,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       {/* 1. Top HUD Layer - Desktop only (draggable, complex interactions) */}
       {!isCompactLayout && (
         <StatusHUD
-          workspace={activeMode === 'production' ? 'Production floor' : DOCK_LABELS[activeMode]}
+          workspace={activeMode === 'production' ? t('productionFloor') : DOCK_LABELS[activeMode]}
         />
       )}
 
@@ -473,14 +481,14 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       {/* 8. Datalinks Modal */}
       {planningOpen &&
         createPortal(
-          <RecoverableFeatureBoundary featureName="Logistics planning">
+          <RecoverableFeatureBoundary featureName={t('logisticsPlanning')}>
             <Suspense
               fallback={
                 <div
                   role="status"
                   className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950 text-slate-100"
                 >
-                  Loading logistics planning…
+                  {t('loadingLogisticsPlanning')}
                 </div>
               }
             >
@@ -518,7 +526,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
         !hasCriticalAlert &&
         !safetyStateActive && (
           <aside
-            aria-label="AI reflection"
+            aria-label={t('aiReflection')}
             className="pointer-events-auto fixed bottom-[11.5rem] right-4 z-40 max-h-[calc(100dvh-13rem)] w-[min(24rem,calc(100vw-2rem))] overflow-y-auto overscroll-contain rounded-xl"
           >
             <AINarration narration={currentNarration} onDismiss={handleNarrationDismiss} />
@@ -526,9 +534,9 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
         )}
 
       {/* The tour owns the quiet onboarding slot. Narration remains queued until it closes. */}
-      {introStep !== null && INTRO_STEPS[introStep] && (
+      {introStep !== null && introStepCopy && (
         <OnboardingGuide
-          step={INTRO_STEPS[introStep]}
+          step={introStepCopy}
           stepIndex={introStep}
           stepCount={INTRO_STEPS.length}
           onNext={handleIntroNext}

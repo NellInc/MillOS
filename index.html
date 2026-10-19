@@ -253,6 +253,33 @@
         <div class="loading-bar"></div>
       </div>
     </div>
+    <!-- Mirrors detectLocale() in src/i18n/index.ts so a Portuguese visitor's
+      first frame is already Portuguese. Working if ?lang=, the saved choice and
+      the browser language agree with the React shell that replaces this one. -->
+    <script>
+      (function () {
+        try {
+          var pick = function (v) {
+            v = String(v || '').toLowerCase().replace('_', '-');
+            return v === 'pt' || v.indexOf('pt-') === 0 ? 'pt-BR' : v === 'en' || v.indexOf('en-') === 0 ? 'en' : null;
+          };
+          var saved = null;
+          try { saved = localStorage.getItem('millos-locale'); } catch (e) {}
+          var langs = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language];
+          var locale = pick(new URLSearchParams(location.search).get('lang')) ||
+            (saved === 'en' || saved === 'pt-BR' ? saved : null);
+          for (var i = 0; !locale && i < langs.length; i++) locale = pick(langs[i]);
+          if (locale !== 'pt-BR') return;
+          document.documentElement.lang = 'pt-BR';
+          var screen = document.querySelector('#root .loading-screen');
+          if (screen) screen.setAttribute('aria-label', 'Carregando o MillOS');
+          var text = document.querySelector('#root .loading-text');
+          if (text) text.textContent = 'AQUECENDO OS ROLOS';
+          var sub = document.querySelector('#root .loading-sub');
+          if (sub) sub.textContent = 'Ligando o moinho';
+        } catch (e) {}
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -6,6 +6,7 @@ import { useProductionStore } from '../../../stores/productionStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { useGraphicsStore } from '../../../stores/graphicsStore';
 import { computeSafetyScore, useSafetyStore } from '../../../stores/safetyStore';
+import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
 
 const viewport = { width: window.innerWidth, height: window.innerHeight };
 
@@ -53,6 +54,53 @@ describe('StatusHUD operational controls', () => {
       })
     );
     expect(screen.getByLabelText('SCADA telemetry disabled')).toBeVisible();
+  });
+
+  it('says why the line is idle once the active order is already packed', () => {
+    const execution = useOperationsCampaignStore.getState().execution;
+    try {
+      useProductionStore.setState({
+        metrics: { ...useProductionStore.getState().metrics, throughput: 0 },
+      });
+      useOperationsCampaignStore.setState({
+        execution: { ...execution, orderId: 'order-001', stage: 'milling', remainingKg: 6000 },
+      });
+      render(<StatusHUD />);
+      expect(screen.queryByLabelText(/Line idle/)).not.toBeInTheDocument();
+      act(() =>
+        useOperationsCampaignStore.setState({
+          execution: {
+            ...execution,
+            orderId: 'order-001',
+            stage: 'dispatched',
+            remainingKg: 1000,
+            finishedAvailableKg: 999.5,
+          },
+        })
+      );
+      expect(screen.getByLabelText('Final packer throughput 0 bags per hour')).toBeVisible();
+      expect(
+        screen.getByLabelText('Line idle: the active order is packed and awaiting dispatch')
+      ).toBeVisible();
+      // Output resumes, or the order is fulfilled: the explanation goes away.
+      act(() =>
+        useProductionStore.setState({
+          metrics: { ...useProductionStore.getState().metrics, throughput: 240 },
+        })
+      );
+      expect(screen.queryByLabelText(/Line idle/)).not.toBeInTheDocument();
+      act(() => {
+        useProductionStore.setState({
+          metrics: { ...useProductionStore.getState().metrics, throughput: 0 },
+        });
+        useOperationsCampaignStore.setState({
+          execution: { ...execution, orderId: null, stage: 'fulfilled', remainingKg: 0 },
+        });
+      });
+      expect(screen.queryByLabelText(/Line idle/)).not.toBeInTheDocument();
+    } finally {
+      useOperationsCampaignStore.setState({ execution });
+    }
   });
 
   it('retains keyboard movement and clamps the HUD after viewport resizing', () => {

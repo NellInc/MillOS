@@ -3,10 +3,8 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import ErrorBoundary from './components/ErrorBoundary';
 import './index.css';
-import {
-  activateWaitingServiceWorker,
-  registerServiceWorker,
-} from './utils/serviceWorkerRegistration';
+import { registerServiceWorkerWithUpdatePolicy } from './utils/serviceWorkerRegistration';
+import { getStartupSnapshot } from './utils/startupReadiness';
 import { logger } from './utils/logger';
 import { isBenchmarkRuntime } from './runtime/runtimeMode';
 import { installPhysicalSession } from './utils/physicalSession';
@@ -63,34 +61,16 @@ if (!isBenchmarkRuntime()) {
   // Register service worker for offline caching (production only by default).
   // Set VITE_ENABLE_SW=true in .env to enable during development.
   // A new worker used to park in `waiting` until every tab closed, so a deploy
-  // never reached open tabs. Activate it and reload once, guarded so a
-  // controller change can never loop.
-  let reloadingForUpdate = false;
-  const reloadOnce = () => {
-    if (reloadingForUpdate) return;
-    reloadingForUpdate = true;
-    window.location.reload();
-  };
-  if ('serviceWorker' in navigator) {
-    const hadController = Boolean(navigator.serviceWorker.controller);
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      // First install claims the page without a build change; only a
-      // replacement controller means the shell on screen is stale.
-      if (hadController) reloadOnce();
-    });
-  }
-  registerServiceWorker({
-    onSuccess: () => {
-      // Service worker installed successfully
+  // never reached open tabs. A waiting build is now activated, with one
+  // guarded reload, only before the scene opens: at this startup, or at the
+  // next one if the update arrived mid-session. Working if a deploy never
+  // reloads an open scene and still reaches the tab on its next load.
+  void registerServiceWorkerWithUpdatePolicy({
+    isSessionActive: () => {
+      const startup = getStartupSnapshot();
+      return startup.opened || startup.ready;
     },
-    onUpdate: () => {
-      void activateWaitingServiceWorker().then((activated) => {
-        if (activated) reloadOnce();
-        else logger.warn('A new MillOS build is waiting; reload to activate it.');
-      });
-    },
-    onError: () => {
-      // Service worker registration failed
-    },
+    reload: () => window.location.reload(),
+    warn: (message) => logger.warn(message),
   });
 }

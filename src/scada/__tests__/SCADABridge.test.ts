@@ -11,7 +11,9 @@ import {
   scadaToStoreMetrics,
   getAlarmVisualConfig,
   vibrationTagToStoreVelocity,
+  isStandingCriticalAlarm,
 } from '../SCADABridge';
+import { summarizeAlarms } from '../useSCADA';
 import { TagValue, Alarm } from '../types';
 
 describe('SCADABridge', () => {
@@ -252,6 +254,17 @@ describe('SCADABridge', () => {
       expect(result).toBeNull();
     });
 
+    it('rejects non-finite GOOD values instead of writing them into store metrics', () => {
+      const values = new Map<string, TagValue>();
+      values.set('RM101.TT001.PV', createTagValue('RM101.TT001.PV', Number.POSITIVE_INFINITY));
+      values.set('RM101.FT001.PV', createTagValue('RM101.FT001.PV', Number.NaN));
+      values.set('RM101.ST001.PV', createTagValue('RM101.ST001.PV', 1450));
+      const result = scadaToStoreMetrics('rm-101', values, []);
+      expect(result?.metrics.temperature).toBeUndefined();
+      expect(result?.metrics.load).toBeUndefined();
+      expect(result?.metrics.rpm).toBe(1450);
+    });
+
     it('maps sifter stroke amplitude (mm) onto the store velocity scale', () => {
       const values = new Map<string, TagValue>();
       // Healthy amplitude, inside the 4-9 mm band: must not read as a 7 mm/s fault.
@@ -343,6 +356,40 @@ describe('SCADABridge', () => {
 
       expect(config.pulseSpeed).toBe(0);
       expect(config.opacity).toBe(0.5);
+    });
+  });
+
+  describe('standing critical alarms', () => {
+    const critical = (state: Alarm['state'], overrides: Partial<Alarm> = {}): Alarm => ({
+      id: `TRUCK_SHIPPING.PT001.PV-HIHI-${state}`,
+      tagId: 'TRUCK_SHIPPING.PT001.PV',
+      tagName: 'Shipping Truck Articulation',
+      type: 'HIHI',
+      state,
+      priority: 'CRITICAL',
+      value: 40,
+      threshold: 38,
+      timestamp: 0,
+      disposition: 'IN_SERVICE',
+      ...overrides,
+    });
+
+    it('counts an active critical, acknowledged or not, but not one that returned to normal', () => {
+      expect(isStandingCriticalAlarm(critical('UNACK'))).toBe(true);
+      expect(isStandingCriticalAlarm(critical('ACKED'))).toBe(true);
+      expect(isStandingCriticalAlarm(critical('RTN_UNACK'))).toBe(false);
+      expect(isStandingCriticalAlarm(critical('UNACK', { disposition: 'SHELVED' }))).toBe(false);
+      expect(isStandingCriticalAlarm(critical('UNACK', { priority: 'HIGH' }))).toBe(false);
+    });
+
+    it('keeps the Critical alarms active banner off once every critical has returned to normal', () => {
+      const summary = summarizeAlarms([critical('RTN_UNACK')]);
+      // Still listed, still awaiting acknowledgement, still in the Critical tile...
+      expect(summary.critical).toBe(1);
+      expect(summary.unacknowledged).toBe(1);
+      // ...but no longer an active condition.
+      expect(summary.standingCritical).toBe(0);
+      expect(summarizeAlarms([critical('RTN_UNACK'), critical('ACKED')]).standingCritical).toBe(1);
     });
   });
 });

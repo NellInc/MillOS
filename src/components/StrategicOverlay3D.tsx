@@ -12,11 +12,14 @@ import { useAIConfigStore } from '../stores/aiConfigStore';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useReducedMotion } from '../hooks/useReducedMotion';
+import { useT } from '../i18n';
+import { strategicOverlay3DMessages } from './StrategicOverlay3D.messages';
 
 export const StrategicOverlay3D: React.FC = () => {
   const showStrategicOverlay = useAIConfigStore((state) => state.showStrategicOverlay);
   const strategic = useAIConfigStore((state) => state.strategic);
   const reducedMotion = useReducedMotion();
+  const t = useT(strategicOverlay3DMessages);
 
   // Animated border glow. The backdrop behind the text stays at a constant
   // opacity so the priority's contrast never breathes.
@@ -42,7 +45,8 @@ export const StrategicOverlay3D: React.FC = () => {
       const priority = strategic.priorities[0].priority;
       return priority.length > 50 ? priority.slice(0, 47) + '...' : priority;
     }
-    return 'No Strategic Priorities Set';
+    // The fallback is resolved at render so it follows the active language.
+    return null;
   }, [strategic.priorities, strategic.legacyPriorities]);
 
   // Don't render if toggle is off
@@ -79,7 +83,7 @@ export const StrategicOverlay3D: React.FC = () => {
           outlineWidth={0.02}
           outlineColor="#000"
         >
-          STRATEGIC PRIORITY
+          {t('heading')}
         </Text>
 
         {/* Priority text */}
@@ -93,7 +97,7 @@ export const StrategicOverlay3D: React.FC = () => {
           outlineColor="#000"
           maxWidth={24}
         >
-          {topPriority}
+          {topPriority ?? t('noPriorities')}
         </Text>
 
         {/* Thinking indicator */}
@@ -105,7 +109,7 @@ export const StrategicOverlay3D: React.FC = () => {
             anchorX="center"
             anchorY="middle"
           >
-            Strategic model thinking...
+            {t('thinking')}
           </Text>
         )}
       </Billboard>

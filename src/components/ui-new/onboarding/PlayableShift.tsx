@@ -22,6 +22,8 @@ import { CAMERA_PRESETS, useCameraStore } from '../../CameraController';
 import { deriveDeliveryDeadline, deriveDeliveryJourney } from './deliveryJourney';
 import { MachineType, type MachineData } from '../../../types';
 import type { CustomerOrder } from '../../../stores/operationsCampaignStore';
+import { formatFixed, formatGrouped, useT } from '../../../i18n';
+import { playableShiftMessages } from './PlayableShift.messages';
 
 const BUTTON =
   'min-h-11 rounded-lg border border-cyan-400/30 px-3 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-400/10 disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300';
@@ -38,11 +40,12 @@ function DeliveryDeadline({
   order: CustomerOrder | null;
   elapsedMinutes: number;
 }) {
+  const t = useT(playableShiftMessages);
   const deadline = deriveDeliveryDeadline(order, elapsedMinutes);
   if (!deadline) return null;
   return (
     <p
-      aria-label="Delivery deadline"
+      aria-label={t('deliveryDeadline')}
       className={`mt-1 text-xs tabular-nums ${deadline.overdue ? 'text-amber-200' : 'text-slate-300'}`}
     >
       {deadline.label}
@@ -53,19 +56,23 @@ function DeliveryDeadline({
 export function TeachingPace() {
   const speed = useGameSimulationStore((s) => s.gameSpeed);
   const setSpeed = useGameSimulationStore((s) => s.setGameSpeed);
+  const t = useT(playableShiftMessages);
   return (
     <label className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-300">
-      Shift pace
+      {t('shiftPace')}
       <select
-        aria-label="Shift pace"
+        aria-label={t('shiftPace')}
         value={[0, 30, 180].includes(speed) ? speed : 'custom'}
         onChange={(e) => setSpeed(Number(e.target.value))}
         className="min-h-11 rounded bg-slate-800 px-2 text-white"
       >
-        <option value={0}>Paused, inspect freely</option>
-        <option value={30}>Relaxed, 1/6 speed</option>
-        <option value={180}>Standard, 1x</option>
-        {![0, 30, 180].includes(speed) && <option value="custom">Current custom pace</option>}
+        {/* Production and trucks run in real seconds; customer deadlines run on
+            this clock. Working if 30 reads as the feasible standard pace and 180
+            warns that deadlines tighten, with option values unchanged. */}
+        <option value={0}>{t('pacePaused')}</option>
+        <option value={30}>{t('paceStandard')}</option>
+        <option value={180}>{t('paceFast')}</option>
+        {![0, 30, 180].includes(speed) && <option value="custom">{t('paceCustom')}</option>}
       </select>
     </label>
   );
@@ -78,6 +85,7 @@ export function FirstDeliveryJourney({
   selectedMachine: MachineData | null;
   onOpenWorkspace: (mode: 'scada' | 'overview') => void;
 }) {
+  const t = useT(playableShiftMessages);
   const ui = useUIStore(
     useShallow((s) => ({
       orderId: s.journeyOrderId,
@@ -126,7 +134,11 @@ export function FirstDeliveryJourney({
   }, [selectedMachine, ui.record]);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || document.querySelector('[role="dialog"], [role="menu"]'))
+      // Working if Escape closes an open sidebar or inspector before the guide.
+      if (
+        event.key !== 'Escape' ||
+        document.querySelector('[role="dialog"], [role="menu"], #context-sidebar')
+      )
         return;
       event.preventDefault();
       event.stopPropagation();
@@ -137,7 +149,9 @@ export function FirstDeliveryJourney({
   }, [ui.close]);
   // Completion keeps its receipt available while yielding the foreground to
   // the live commitment. This projection never advances an order or a truck.
-  const completed = order?.status === 'fulfilled' && ui.inspected;
+  // Working if a real fulfilment shows its receipt whether or not the
+  // inspection step was done; inspection stays a separate milestone.
+  const completed = order?.status === 'fulfilled';
   const play = deriveOperationsPlay(campaign);
   const compactWorkspace: 'overview' | 'scada' | null = completed
     ? ['quality', 'programme', 'acknowledge', 'mitigate', 'resume', 'resolve'].includes(
@@ -148,37 +162,34 @@ export function FirstDeliveryJourney({
     : guide.workspace;
   if (completed && !sceneFocused)
     return (
-      <section aria-label="Guided delivery" className={`${JOURNEY_FRAME} p-4`}>
+      <section aria-label={t('guidedDelivery')} className={`${JOURNEY_FRAME} p-4`}>
         <div className="flex items-center justify-between gap-2">
-          <h2 className="font-semibold text-white">Delivery fulfilled</h2>
+          <h2 className="font-semibold text-white">{t('deliveryFulfilled')}</h2>
           <button
             ref={collapseButton}
             className={BUTTON}
-            aria-label="Compact delivery guide"
+            aria-label={t('compactGuide')}
             aria-expanded={true}
             onClick={() => setSceneFocused(true)}
           >
             <Minimize2 className="h-4 w-4" aria-hidden="true" />
           </button>
-          <button
-            className={BUTTON}
-            aria-label="Close guided delivery"
-            onClick={() => ui.close(false)}
-          >
+          <button className={BUTTON} aria-label={t('closeGuide')} onClick={() => ui.close(false)}>
             <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
         <p className="mt-2 text-sm leading-6 text-slate-200">
-          {order.customer}: {order.shippedKg.toFixed(0)} kg dispatched.
+          {t('fulfilledDispatched', {
+            customer: order.customer,
+            kg: formatFixed(order.shippedKg, 0),
+          })}
         </p>
         <p className="mt-3 text-sm font-semibold text-cyan-100" aria-live="polite">
-          {play.nextAction.kind === 'programme'
-            ? 'Programme complete, review your shift'
-            : play.nextAction.label}
+          {play.nextAction.kind === 'programme' ? t('programmeComplete') : play.nextAction.label}
         </p>
         <p className="mt-1 text-xs leading-5 text-slate-300">
           {play.nextAction.kind === 'programme'
-            ? 'Review delivery, quality and recovery before choosing the next commitments.'
+            ? t('programmeCompleteDetail')
             : play.nextAction.consequence}
         </p>
         <button
@@ -194,12 +205,12 @@ export function FirstDeliveryJourney({
           }
         >
           {play.nextAction.kind === 'programme'
-            ? 'Review shift and next programme'
-            : 'Open current operations'}
+            ? t('reviewShiftProgramme')
+            : t('openCurrentOperations')}
         </button>
         <details className="mt-2 text-xs text-slate-300">
           <summary className="min-h-11 cursor-pointer py-3 text-cyan-200">
-            Delivery receipt and learning
+            {t('receiptAndLearning')}
           </summary>
           <p className="leading-5">{guide.detail}</p>
           <TeachingPace />
@@ -212,7 +223,7 @@ export function FirstDeliveryJourney({
   // still records the real inspection, and Guide restores the full lesson.
   if (sceneFocused)
     return (
-      <section aria-label="Guided delivery" className={`${JOURNEY_FRAME} p-3`}>
+      <section aria-label={t('guidedDelivery')} className={`${JOURNEY_FRAME} p-3`}>
         <div className="flex items-center justify-between gap-3">
           <h2 aria-live="polite" className="min-w-0 flex-1 font-semibold text-white">
             {guide.title}
@@ -221,14 +232,14 @@ export function FirstDeliveryJourney({
             className={`${BUTTON} shrink-0`}
             ref={expandButton}
             aria-expanded={false}
-            aria-label="Expand delivery guide"
+            aria-label={t('expandGuide')}
             onClick={() => setSceneFocused(false)}
           >
-            Guide
+            {t('guide')}
           </button>
           <button
             className={`${BUTTON} shrink-0`}
-            aria-label="Close guided delivery"
+            aria-label={t('closeGuide')}
             onClick={() => ui.close(false)}
           >
             <X className="h-4 w-4" aria-hidden="true" />
@@ -236,8 +247,10 @@ export function FirstDeliveryJourney({
         </div>
         <DeliveryDeadline order={order} elapsedMinutes={campaign.elapsedMinutes} />
         <p className="mt-1 text-xs leading-5 text-slate-300">
-          Inspection: {ui.inspected ? 'recorded' : 'waiting'} · Delivery:{' '}
-          {order?.shippedKg.toFixed(0) ?? 0} kg dispatched
+          {t('inspectionStatus', {
+            inspection: ui.inspected ? t('inspectionRecorded') : t('inspectionWaiting'),
+            delivery: t('kgDispatched', { kg: formatFixed(order?.shippedKg ?? 0, 0) }),
+          })}
         </p>
         <TeachingPace />
         {compactWorkspace && (
@@ -246,44 +259,42 @@ export function FirstDeliveryJourney({
             onClick={() => onOpenWorkspace(compactWorkspace)}
           >
             {completed
-              ? 'Review current operations'
+              ? t('reviewCurrentOperations')
               : compactWorkspace === 'overview'
-                ? 'Review delivery and QC'
-                : 'Open line controls'}
+                ? t('reviewDeliveryQc')
+                : t('openScada')}
           </button>
         )}
         {!ui.inspected && (
-          <p className="text-xs leading-5 text-cyan-200">
-            Select a machine to record your inspection.
-          </p>
+          <p className="text-xs leading-5 text-cyan-200">{t('selectMachineHint')}</p>
         )}
       </section>
     );
   return (
-    <section aria-label="Guided delivery" className={`${JOURNEY_FRAME} p-4`}>
+    <section aria-label={t('guidedDelivery')} className={`${JOURNEY_FRAME} p-4`}>
       <div className="flex items-center justify-between gap-2">
-        <h2 className="font-semibold text-white">Your first delivery</h2>
+        <h2 className="font-semibold text-white">{t('firstDelivery')}</h2>
         <button
           ref={collapseButton}
           className={BUTTON}
-          aria-label="Compact delivery guide"
+          aria-label={t('compactGuide')}
           aria-expanded={true}
           onClick={() => setSceneFocused(true)}
         >
           <Minimize2 className="h-4 w-4" aria-hidden="true" />
         </button>
-        <button
-          className={BUTTON}
-          aria-label="Close guided delivery"
-          onClick={() => ui.close(false)}
-        >
+        <button className={BUTTON} aria-label={t('closeGuide')} onClick={() => ui.close(false)}>
           <X className="h-4 w-4" aria-hidden="true" />
         </button>
       </div>
       <p className="mt-2 text-xs text-cyan-200">
         {order
-          ? `${order.customer}: ${order.requiredKg.toFixed(0)} kg ${order.recipe.label}`
-          : 'Awaiting an order'}
+          ? t('orderLine', {
+              customer: order.customer,
+              kg: formatFixed(order.requiredKg, 0),
+              product: order.recipe.label,
+            })
+          : t('awaitingOrder')}
       </p>
       <DeliveryDeadline order={order} elapsedMinutes={campaign.elapsedMinutes} />
       <h3 aria-live="polite" className="mt-3 font-semibold text-white">
@@ -293,14 +304,20 @@ export function FirstDeliveryJourney({
       {guide.loading && guide.loading.capacityKg > 0 && (
         <div className="mt-3">
           <p className="flex flex-wrap justify-between gap-x-3 gap-y-1 text-xs text-cyan-100">
-            <span>Shipping truck load</span>
+            <span>{t('truckLoad')}</span>
             <span className="tabular-nums">
-              {guide.loading.loadedKg.toFixed(0)} / {guide.loading.capacityKg.toFixed(0)} kg
+              {t('truckLoadValue', {
+                loaded: formatFixed(guide.loading.loadedKg, 0),
+                capacity: formatFixed(guide.loading.capacityKg, 0),
+              })}
             </span>
           </p>
           <progress
-            aria-label="Shipping truck load"
-            aria-valuetext={`${guide.loading.loadedKg.toFixed(0)} of ${guide.loading.capacityKg.toFixed(0)} kilograms on the truck`}
+            aria-label={t('truckLoad')}
+            aria-valuetext={t('truckLoadValueText', {
+              loaded: formatFixed(guide.loading.loadedKg, 0),
+              capacity: formatFixed(guide.loading.capacityKg, 0),
+            })}
             max={guide.loading.capacityKg}
             value={guide.loading.loadedKg}
             className="mt-2 h-2 w-full overflow-hidden rounded-full border-0 bg-slate-700/80 [&::-moz-progress-bar]:bg-cyan-400 [&::-webkit-progress-bar]:bg-slate-700/80 [&::-webkit-progress-value]:bg-cyan-400"
@@ -308,42 +325,51 @@ export function FirstDeliveryJourney({
         </div>
       )}
       <p className="mt-2 text-xs text-slate-300">
-        Inspection: {ui.inspected ? 'recorded' : 'waiting'} · Delivery:{' '}
-        {order?.status === 'fulfilled'
-          ? 'fulfilled'
-          : `${order?.shippedKg.toFixed(0) ?? 0} kg dispatched`}
+        {t('inspectionStatus', {
+          inspection: ui.inspected ? t('inspectionRecorded') : t('inspectionWaiting'),
+          delivery:
+            order?.status === 'fulfilled'
+              ? t('deliveryStatusFulfilled')
+              : t('kgDispatched', { kg: formatFixed(order?.shippedKg ?? 0, 0) }),
+        })}
       </p>
-      {guide.view && (
-        <button
-          className={`${BUTTON} mt-3`}
-          onClick={() => {
-            // Reuse the actual site camera, without granting an inspection receipt.
-            // The host hides this guide during first-person walking.
-            if (useUIStore.getState().fpsMode) return;
-            const index = CAMERA_PRESETS.findIndex((preset) => preset.name === guide.view);
-            if (index >= 0) {
-              useCameraStore.getState().setPreset(index);
-              setSceneFocused(true);
-            }
-          }}
-        >
-          Show{' '}
-          {guide.view === 'Milling'
-            ? 'milling line'
-            : guide.view === 'Packing'
-              ? 'packing line'
-              : 'shipping bay'}
-        </button>
-      )}
-      {guide.workspace && (
-        <button className={`${BUTTON} mt-3`} onClick={() => onOpenWorkspace(guide.workspace!)}>
-          Open {guide.workspace === 'scada' ? 'operations' : 'Overview and QC'}
-        </button>
+      {/* The lesson's next actions stay pinned in the card's scroll box; pace,
+          note and Skip keep their order below. Working if Show/Open stay
+          visible at 1280x657 without scrolling the card. */}
+      {(guide.view || guide.workspace) && (
+        <div className="sticky bottom-0 -mx-4 mt-3 flex flex-wrap gap-2 border-t border-slate-800 bg-slate-950 px-4 py-3">
+          {guide.view && (
+            <button
+              className={BUTTON}
+              onClick={() => {
+                // Reuse the actual site camera, without granting an inspection receipt.
+                // The host hides this guide during first-person walking.
+                if (useUIStore.getState().fpsMode) return;
+                const index = CAMERA_PRESETS.findIndex((preset) => preset.name === guide.view);
+                if (index >= 0) {
+                  useCameraStore.getState().setPreset(index);
+                  setSceneFocused(true);
+                }
+              }}
+            >
+              {guide.view === 'Milling'
+                ? t('showMilling')
+                : guide.view === 'Packing'
+                  ? t('showPacking')
+                  : t('showShipping')}
+            </button>
+          )}
+          {guide.workspace && (
+            <button className={BUTTON} onClick={() => onOpenWorkspace(guide.workspace!)}>
+              {guide.workspace === 'scada' ? t('openScada') : t('openOverviewQc')}
+            </button>
+          )}
+        </div>
       )}
       <TeachingPace />
       <LearningNote entryId={guide.entryId} />
       <button className={`${BUTTON} mt-3`} onClick={() => ui.close(false)}>
-        Skip guided delivery
+        {t('skipGuide')}
       </button>
     </section>
   );
@@ -366,18 +392,21 @@ function linkedReviewPending(state: WorkplaceState) {
 }
 
 function WorkingAgreementSummary({ state }: { state: WorkplaceState }) {
+  const t = useT(playableShiftMessages);
   const trial = improvementSummary(state);
   if (trial)
     return (
       <div className="mt-3 space-y-2 border-t border-slate-700 pt-3 text-xs leading-5">
-        <h4 className="font-semibold text-white">Handoff working agreement</h4>
+        <h4 className="font-semibold text-white">{t('handoffAgreement')}</h4>
         <p>{trial.next}</p>
         <p>
-          Current shift receipts: {trial.actualKg.toFixed(0)} kg; retained earned pay{' '}
-          {trial.lifetimeWages.toFixed(2)} credits.
+          {t('trialReceipts', {
+            kg: formatFixed(trial.actualKg, 0),
+            pay: formatFixed(trial.lifetimeWages, 2),
+          })}
         </p>
         {trial.remainingKg !== null && (
-          <p>Full customer commitment remaining: {trial.remainingKg.toFixed(0)} kg.</p>
+          <p>{t('trialRemaining', { kg: formatFixed(trial.remainingKg, 0) })}</p>
         )}
       </div>
     );
@@ -386,46 +415,60 @@ function WorkingAgreementSummary({ state }: { state: WorkplaceState }) {
   const totals = campaignTotals(state);
   return (
     <div className="mt-3 space-y-2 border-t border-slate-700 pt-3 text-xs leading-5">
-      <h4 className="font-semibold text-white">Linked working agreement</h4>
+      <h4 className="font-semibold text-white">{t('linkedAgreement')}</h4>
       <p>
-        Delivery: {outcome.delivery.status}, {outcome.delivery.deliveredKg.toFixed(0)} /{' '}
-        {outcome.delivery.targetKg.toFixed(0)} kg for {outcome.delivery.customer}.
+        {t('deliveryOutcome', {
+          status: t('deliveryStatus', { status: outcome.delivery.status }),
+          deliveredKg: formatFixed(outcome.delivery.deliveredKg, 0),
+          targetKg: formatFixed(outcome.delivery.targetKg, 0),
+          customer: outcome.delivery.customer,
+        })}
       </p>
       {outcome.delivery.deferredKg > 0 && (
-        <p>Agreed deferral: {outcome.delivery.deferredKg.toFixed(0)} kg.</p>
+        <p>{t('agreedDeferral', { kg: formatFixed(outcome.delivery.deferredKg, 0) })}</p>
       )}
       <p>
-        Remaining full customer commitment: {outcome.delivery.remainingKg.toFixed(0)} kg.
-        {outcome.delivery.remainingKg === 0 && ' Full customer commitment dispatched.'}
+        {t('remainingCommitment', { kg: formatFixed(outcome.delivery.remainingKg, 0) })}
+        {outcome.delivery.remainingKg === 0 && t('fullCommitmentDispatched')}
       </p>
       <p>
-        Working agreement: {outcome.agreement.status}. Combined outcome:{' '}
-        {outcome.complete ? 'complete' : 'unfinished'}.
+        {t('agreementOutcome', {
+          status: t('agreementStatus', { status: outcome.agreement.status }),
+          combined: outcome.complete ? t('outcomeComplete') : t('outcomeUnfinished'),
+        })}
       </p>
       <details>
         <summary className="min-h-11 cursor-pointer py-3 text-cyan-200">
-          Individual obligations
+          {t('individualObligations')}
         </summary>
         {state.members.map((member) => (
           <p key={member.id}>
-            {member.role}: current rest {member.restMinutes.toFixed(1)} min; recovery owed{' '}
-            {member.recoveryOwedMinutes.toFixed(1)} min.
+            {t('memberCurrent', {
+              role: t('role', { role: member.role }),
+              rest: formatFixed(member.restMinutes, 1),
+              owed: formatFixed(member.recoveryOwedMinutes, 1),
+            })}
           </p>
         ))}
         {totals.members.map((member) => (
           <p key={member.id}>
-            {member.role}, cumulative: extra duty {member.extraMinutes.toFixed(1)} min; rest{' '}
-            {member.restMinutes.toFixed(1)} min; recovery owed{' '}
-            {member.recoveryOwedMinutes.toFixed(1)} min.
+            {t('memberCumulative', {
+              role: t('role', { role: member.role }),
+              extra: formatFixed(member.extraMinutes, 1),
+              rest: formatFixed(member.restMinutes, 1),
+              owed: formatFixed(member.recoveryOwedMinutes, 1),
+            })}
           </p>
         ))}
       </details>
       <p>
-        Illustrative workplace credits, separate from main mill revenue and pounds: closing cash{' '}
-        {outcome.accounts.closingCash.toFixed(2)}; wages {outcome.accounts.wages.toFixed(2)};
-        compensation {outcome.accounts.compensation.toFixed(2)}; improvements{' '}
-        {outcome.accounts.improvements.toFixed(2)}; allocations{' '}
-        {outcome.accounts.allocations.toFixed(2)}.
+        {t('accounts', {
+          cash: formatFixed(outcome.accounts.closingCash, 2),
+          wages: formatFixed(outcome.accounts.wages, 2),
+          compensation: formatFixed(outcome.accounts.compensation, 2),
+          improvements: formatFixed(outcome.accounts.improvements, 2),
+          allocations: formatFixed(outcome.accounts.allocations, 2),
+        })}
       </p>
 
       <button
@@ -436,13 +479,14 @@ function WorkingAgreementSummary({ state }: { state: WorkplaceState }) {
           )
         }
       >
-        Review working agreement
+        {t('reviewAgreement')}
       </button>
     </div>
   );
 }
 
 export function OperationsPlayCard() {
+  const t = useT(playableShiftMessages);
   // Project only changing campaign references; the panel host never subscribes to ticks.
   const snapshot = useOperationsCampaignStore(
     useShallow((s) => ({
@@ -486,7 +530,15 @@ export function OperationsPlayCard() {
   const gameSpeed = useGameSimulationStore((s) => s.gameSpeed);
   const play = deriveOperationsPlay(snapshot);
   const awaitingResponse = play.nextAction.kind === 'resume' && gameSpeed > 0;
-  const nextLabel = awaitingResponse ? 'Awaiting simulation update' : play.nextAction.label;
+  // Only an isolated dispatch or an empty recipe feed stops work; due, overdue,
+  // storage and maintenance constraints call for attention. Working if a
+  // critical constraint leads a warning and only real stops read 'Blocked'.
+  const leadConstraint =
+    play.blockers.find((constraint) => constraint.severity === 'critical') ?? play.blockers[0];
+  const hardBlock =
+    !!leadConstraint &&
+    (leadConstraint.id === 'dispatch-isolated' || leadConstraint.id.startsWith('recipe-feed-'));
+  const nextLabel = awaitingResponse ? t('awaitingUpdate') : play.nextAction.label;
   const canStartMission =
     workplace.phase === 'idle' &&
     !!play.activeOrder &&
@@ -520,13 +572,13 @@ export function OperationsPlayCard() {
     }
   };
   return (
-    <section aria-label="Your shift commitment" className={CARD}>
-      <h3 className="font-semibold text-white">Your shift commitment</h3>
+    <section aria-label={t('shiftCommitment')} className={CARD}>
+      <h3 className="font-semibold text-white">{t('shiftCommitment')}</h3>
       {snapshot.orders.some(
         (order) => order.status !== 'fulfilled' && order.status !== 'cancelled'
       ) && (
         <label className="mt-2 block text-xs text-slate-300">
-          Active customer commitment
+          {t('activeCommitment')}
           <select
             value={snapshot.activeOrderId ?? ''}
             disabled={snapshot.activeChallenge !== null || reviewPending}
@@ -541,7 +593,7 @@ export function OperationsPlayCard() {
             className="mt-1 min-h-11 w-full rounded border border-slate-600 bg-slate-800 px-2 text-white disabled:opacity-50"
           >
             <option value="" disabled>
-              Choose a customer
+              {t('chooseCustomer')}
             </option>
             {snapshot.orders
               .filter((order) => order.status !== 'fulfilled' && order.status !== 'cancelled')
@@ -553,48 +605,51 @@ export function OperationsPlayCard() {
           </select>
           <span className="mt-1 block leading-5">
             {snapshot.activeChallenge
-              ? 'Finish or abandon the challenge before switching customers.'
+              ? t('switchChallengeHint')
               : reviewPending
-                ? 'Finish the linked working agreement review and owed recovery before switching customers.'
-                : 'Changing customer changes the scheduled recipe. Existing stock and shipping receipts remain unchanged.'}
+                ? t('switchReviewHint')
+                : t('switchHint')}
           </span>
         </label>
       )}
       <p className="mt-2">
         {play.activeOrder
-          ? `${play.activeOrder.customer}: ${play.activeOrder.shippedKg.toFixed(0)} / ${play.activeOrder.requiredKg.toFixed(0)} kg dispatched`
-          : 'Current programme complete'}
+          ? t('activeOrderProgress', {
+              customer: play.activeOrder.customer,
+              shippedKg: formatFixed(play.activeOrder.shippedKg, 0),
+              requiredKg: formatFixed(play.activeOrder.requiredKg, 0),
+            })
+          : t('programmeCompleteCurrent')}
       </p>
       <DeliveryDeadline order={play.activeOrder} elapsedMinutes={snapshot.elapsedMinutes} />
-      {play.blockers[0] && (
+      {leadConstraint && (
         <p className="mt-2 text-amber-200">
-          Blocked: {play.blockers[0].label}. {play.blockers[0].detail}
+          {hardBlock ? t('blocked') : t('attention')}: {leadConstraint.label}.{' '}
+          {leadConstraint.detail}
         </p>
       )}
       {play.challengeProgress && (
         <div
           role="group"
-          aria-label="Recovery challenge progress"
+          aria-label={t('challengeProgress')}
           className="mt-3 border-t border-slate-700 pt-3"
         >
           <p className="text-xs leading-5">
-            {play.challengeProgress.label}: {play.challengeProgress.dispatchedKg.toFixed(0)} /{' '}
-            {play.challengeProgress.targetKg.toFixed(0)} kg,{' '}
-            {Math.max(0, play.challengeProgress.remainingMinutes).toFixed(0)} simulation minutes
-            left
+            {t('challengeProgressLine', {
+              label: play.challengeProgress.label,
+              dispatchedKg: formatFixed(play.challengeProgress.dispatchedKg, 0),
+              targetKg: formatFixed(play.challengeProgress.targetKg, 0),
+              minutes: formatFixed(Math.max(0, play.challengeProgress.remainingMinutes), 0),
+            })}
           </p>
           <p className="mt-1 text-xs leading-5 text-slate-300">
-            {awaitingResponse
-              ? 'The response is queued. Await the next simulation update before restoring the controller.'
-              : play.challengeProgress.instruction}
+            {awaitingResponse ? t('responseQueued') : play.challengeProgress.instruction}
           </p>
         </div>
       )}
-      <p className="mt-2 text-cyan-200">Next: {nextLabel}</p>
+      <p className="mt-2 text-cyan-200">{t('nextLine', { label: nextLabel })}</p>
       <p className="mt-1 text-xs leading-5 text-slate-300">
-        {awaitingResponse
-          ? 'The shift is running at your chosen pace. Production and customer deadlines continue; pause with Shift pace when needed.'
-          : play.nextAction.consequence}
+        {awaitingResponse ? t('runningAtPace') : play.nextAction.consequence}
       </p>
       <button
         ref={nextActionRef}
@@ -611,28 +666,29 @@ export function OperationsPlayCard() {
           useMobileControlStore.getState().closeMobilePanel();
         }}
       >
-        Replay guided delivery
+        {t('replayGuide')}
       </button>
       {snapshot.challengeHistory.at(-1) && (
         <p className="mt-2 text-xs text-slate-300">
-          Last challenge: {snapshot.challengeHistory.at(-1)!.status}. The delivery manifests and
-          quality checks remain the result record.
+          {t('lastChallenge', {
+            status: t('challengeStatus', { status: snapshot.challengeHistory.at(-1)!.status }),
+          })}
         </p>
       )}
       <WorkingAgreementSummary state={workplace} />
       {workplace.phase === 'idle' && (
         <div className="mt-3 space-y-2 border-t border-slate-700 pt-3">
           <label className="block text-xs text-slate-300">
-            Working agreement profile
+            {t('agreementProfile')}
             <select
-              aria-label="Working agreement profile"
+              aria-label={t('agreementProfile')}
               value={profile}
               onChange={(event) => setProfile(event.target.value as WorkplaceProfile)}
               className="mt-1 min-h-11 w-full rounded border border-slate-600 bg-slate-800 px-2 text-white"
             >
-              <option value="toe-dip">Toe dip: protected practice set</option>
-              <option value="team">Team: shared work and consent</option>
-              <option value="cooperative">Cooperative: member governance</option>
+              <option value="toe-dip">{t('profileToeDip')}</option>
+              <option value="team">{t('profileTeam')}</option>
+              <option value="cooperative">{t('profileCooperative')}</option>
             </select>
           </label>
           <button
@@ -649,12 +705,9 @@ export function OperationsPlayCard() {
               }
             }}
           >
-            Start linked cooperative campaign
+            {t('startCampaign')}
           </button>
-          <p className="text-xs leading-5 text-slate-300">
-            Opt in to three shifts with this customer delivery and a separate working agreement.
-            Starting sets relaxed shift pace. Fictional roles only.
-          </p>
+          <p className="text-xs leading-5 text-slate-300">{t('campaignOptIn')}</p>
         </div>
       )}
       {missionFeedback && (
@@ -665,13 +718,13 @@ export function OperationsPlayCard() {
       <TeachingPace />
       <details className="mt-3">
         <summary className="min-h-11 cursor-pointer py-3 text-xs font-semibold text-cyan-200">
-          Adjust the challenge
+          {t('adjustChallenge')}
         </summary>
         <p className="mb-2 text-xs leading-5">
-          New challenges allow {RECOVERY_CHALLENGE_WINDOW_MINUTES / 60} simulated hours to recover
-          and dispatch up to {RECOVERY_CHALLENGE_TARGET_KG.toLocaleString()} kg of fresh,
-          quality-released goods. Relaxed pace gives you more real time. Abandoning a challenge
-          leaves its incident to recover; customer deadlines still apply.
+          {t('challengeRules', {
+            hours: formatFixed(RECOVERY_CHALLENGE_WINDOW_MINUTES / 60, 0),
+            kg: formatGrouped(RECOVERY_CHALLENGE_TARGET_KG),
+          })}
         </p>
         {play.challenges.map((challenge) => (
           <div key={challenge.id} className="mb-2">
@@ -692,7 +745,7 @@ export function OperationsPlayCard() {
             className={`${BUTTON} mt-2`}
             onClick={() => useOperationsCampaignStore.getState().abandonChallenge()}
           >
-            Abandon challenge
+            {t('abandonChallenge')}
           </button>
         )}
       </details>
@@ -706,18 +759,16 @@ export function ShiftDebrief() {
   const reviewPending = linkedReviewPending(workplace);
   const reports = useOperationsCampaignStore((s) => s.reports);
   const canNext = useOperationsCampaignStore((s) => deriveOperationsPlay(s).canAcceptNextProgramme);
+  const t = useT(playableShiftMessages);
   return (
-    <section aria-label="Saved shift reports" className={CARD}>
-      <h3 className="font-semibold text-white">Shift debrief</h3>
+    <section aria-label={t('savedReports')} className={CARD}>
+      <h3 className="font-semibold text-white">{t('shiftDebrief')}</h3>
       {reports.length === 0 ? (
-        <p className="mt-2 text-xs text-slate-300">
-          Your report is saved when the run window changes. Keep operating, or inspect freely at a
-          slower pace.
-        </p>
+        <p className="mt-2 text-xs text-slate-300">{t('noReports')}</p>
       ) : (
         <details className="mt-2">
           <summary className="min-h-11 cursor-pointer py-3 text-cyan-200">
-            Read {reports.length} saved {reports.length === 1 ? 'report' : 'reports'}
+            {t('readReports', { count: reports.length, countText: formatFixed(reports.length, 0) })}
           </summary>
           {reports
             .slice()
@@ -725,7 +776,7 @@ export function ShiftDebrief() {
             .map((report) => (
               <article key={report.id} className="mb-3 border-t border-slate-700 pt-3">
                 <h4 className="font-semibold">
-                  {report.shiftLabel}: grade {report.grade}
+                  {t('reportHeading', { shift: report.shiftLabel, grade: report.grade })}
                 </h4>
                 <p className="mt-1 text-xs leading-5">{report.summary}</p>
                 <ul className="mt-2 list-inside list-disc text-xs leading-5">
@@ -735,7 +786,7 @@ export function ShiftDebrief() {
                 </ul>
                 <details className="mt-2">
                   <summary className="min-h-11 cursor-pointer py-3 text-xs text-cyan-200">
-                    Decisions during this shift
+                    {t('decisionsHeading')}
                   </summary>
                   {report.decisions?.length ? (
                     <ul className="list-inside list-disc text-xs leading-5">
@@ -745,15 +796,13 @@ export function ShiftDebrief() {
                     </ul>
                   ) : (
                     <p className="text-xs">
-                      {report.decisions
-                        ? 'No recorded operational choices in this saved window.'
-                        : 'Decisions were not saved with this report.'}
+                      {report.decisions ? t('noDecisions') : t('decisionsNotSaved')}
                     </p>
                   )}
                 </details>
                 {report.openRisks.length > 0 && (
                   <p className="text-xs text-amber-200">
-                    Carry forward: {report.openRisks.join('; ')}
+                    {t('carryForward', { risks: report.openRisks.join('; ') })}
                   </p>
                 )}
               </article>
@@ -769,14 +818,10 @@ export function ShiftDebrief() {
             useOperationsCampaignStore.getState().acceptNextProgramme();
         }}
       >
-        Accept next delivery programme
+        {t('acceptNextProgramme')}
       </button>
       {(!canNext || reviewPending) && (
-        <p className="mt-1 text-xs text-slate-300">
-          Finish current customer commitments, any challenge and the linked final review with
-          recovery and objections resolved first. A new programme continues this world without
-          resetting it.
-        </p>
+        <p className="mt-1 text-xs text-slate-300">{t('acceptNextHint')}</p>
       )}
     </section>
   );

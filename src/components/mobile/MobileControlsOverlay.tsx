@@ -5,12 +5,15 @@ import { MobilePanel } from './MobilePanel';
 import { CameraPresetMenu } from './CameraPresetMenu';
 import { useMobileControlStore } from '../../stores/mobileControlStore';
 import { useUIStore } from '../../stores/uiStore';
+import { useT } from '../../i18n';
+import { mobileControlsOverlayMessages } from './MobileControlsOverlay.messages';
 
 /**
  * Sprint button for mobile FPS mode.
  * Hold to sprint, release to walk.
  */
 const SprintButton: React.FC = () => {
+  const t = useT(mobileControlsOverlayMessages);
   const setIsSprinting = useMobileControlStore((s) => s.setIsSprinting);
   const isSprinting = useMobileControlStore((s) => s.isSprinting);
 
@@ -61,7 +64,7 @@ const SprintButton: React.FC = () => {
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
       onTouchCancel={handleTouchEnd}
-      aria-label="Sprint"
+      aria-label={t('sprint')}
       aria-pressed={isSprinting}
     >
       <Zap className={`w-6 h-6 ${isSprinting ? 'text-white' : 'text-amber-400'}`} />
@@ -73,10 +76,12 @@ const SprintButton: React.FC = () => {
  * Switches between walking the floor and the orbit view. Phones have no V key,
  * and without this the orbit presets and touch-orbit were unreachable.
  */
-const ViewModeToggle: React.FC<{ fpsMode: boolean }> = ({ fpsMode }) => (
-  <button
-    type="button"
-    className={`
+const ViewModeToggle: React.FC<{ fpsMode: boolean }> = ({ fpsMode }) => {
+  const t = useT(mobileControlsOverlayMessages);
+  return (
+    <button
+      type="button"
+      className={`
       w-11 h-11 rounded-full
       flex items-center justify-center
       transition-colors duration-100
@@ -90,16 +95,17 @@ const ViewModeToggle: React.FC<{ fpsMode: boolean }> = ({ fpsMode }) => (
       }
       border-2
     `}
-    onClick={() => useUIStore.getState().toggleFpsMode()}
-    aria-pressed={fpsMode}
-    aria-label="Walk mode"
-  >
-    <Footprints
-      className={`w-5 h-5 ${fpsMode ? 'text-white' : 'text-cyan-400'}`}
-      aria-hidden="true"
-    />
-  </button>
-);
+      onClick={() => useUIStore.getState().toggleFpsMode()}
+      aria-pressed={fpsMode}
+      aria-label={t('walkMode')}
+    >
+      <Footprints
+        className={`w-5 h-5 ${fpsMode ? 'text-white' : 'text-cyan-400'}`}
+        aria-hidden="true"
+      />
+    </button>
+  );
+};
 
 /**
  * Main overlay container for mobile controls.

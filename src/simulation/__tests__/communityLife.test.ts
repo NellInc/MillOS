@@ -531,6 +531,11 @@ describe('village daily details', () => {
 
 describe('bounded personnel presentation between actual simulation ticks', () => {
   const step = advanceCommunityPresentationClock;
+  it('reframes a missing or non-finite presentation clock from an older save to world time', () => {
+    for (const stale of [Number.NaN, undefined as unknown as number, Infinity]) {
+      expect(step(stale, 10.25, 0, 1 / 60, 180, true, false)).toBe(10.25);
+    }
+  });
   it('consumes a stepped target evenly without overshooting or inventing time', () => {
     for (const speed of [30, 180]) {
       const start = 12,

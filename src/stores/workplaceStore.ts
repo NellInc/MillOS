@@ -23,6 +23,8 @@ import {
 import { workplaceMission } from '../simulation/workplaceImprovement';
 import { safeJSONStorage } from './storage';
 import { isWorkplaceReplayActive } from '../simulation/workplaceReplayRuntime';
+import { translate } from '../i18n';
+import { workplaceStoreMessages as msg } from './workplaceStore.messages';
 
 import {
   ROLE_COMMANDS,
@@ -184,14 +186,12 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
             )
               return {
                 changed: false,
-                reason:
-                  'Hand over to this role and use its current turn. Facilitators cannot record participant decisions.',
+                reason: translate(msg, 'useCurrentTurn'),
               };
             if (command.type === 'respondToPressure' && command.args[1] === 'accept-demand')
               return {
                 changed: false,
-                reason:
-                  'This authored challenge cannot speak for a participant. Hand over to the affected role to raise its own objection.',
+                reason: translate(msg, 'challengeCannotSpeak'),
               };
             if (
               ['understand', 'acknowledgeImprovement'].includes(command.type) &&
@@ -199,19 +199,17 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
             )
               return {
                 changed: false,
-                reason:
-                  'Answer the current mandate, refusal and optional-duty checks correctly before confirming understanding.',
+                reason: translate(msg, 'answerChecksFirst'),
               };
           } else if (command.type === 'simulateResponses')
             return {
               changed: false,
-              reason:
-                'Separate turns require each role decision. Simulated responses are disabled.',
+              reason: translate(msg, 'simulatedResponsesDisabled'),
             };
           else if (command.type !== 'tick' && command.type !== 'stop' && access.turn)
             return {
               changed: false,
-              reason: 'End the participant turn before facilitator setup or settlement.',
+              reason: translate(msg, 'endTurnBeforeSetup'),
             };
         }
         if (
@@ -220,7 +218,7 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
         )
           return {
             changed: false,
-            reason: 'Finish or forget the matched replay before continuing workplace obligations.',
+            reason: translate(msg, 'finishReplayBeforeObligations'),
           };
         const { state, changed, reason } = transitionWorkplace(get().workplace, command);
         if (changed) {
@@ -302,7 +300,7 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
           )
             return {
               changed: false,
-              reason: 'Choose the interaction mode only before opening an untouched scenario.',
+              reason: translate(msg, 'chooseModeBeforeScenario'),
             };
           set({ participationMode: mode, turn: null });
           return { changed: true, reason: null };
@@ -318,8 +316,7 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
           )
             return {
               changed: false,
-              reason:
-                'End the previous turn and choose a fictional role in an open scenario, outside replay.',
+              reason: translate(msg, 'chooseFictionalRole'),
             };
           set({ turn: { token: crypto.randomUUID(), actorId, anchor: s, answers: {} } });
           return { changed: true, reason: null };
@@ -343,10 +340,10 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
           )
             return {
               changed: false,
-              reason: 'Use a known answer in the current participant turn.',
+              reason: translate(msg, 'knownAnswerRequired'),
             };
           if (turn.answers[question] === answer)
-            return { changed: false, reason: 'Answer unchanged.' };
+            return { changed: false, reason: translate(msg, 'answerUnchanged') };
           const state = structuredClone(workplace);
           const actor = state.members.find((m) => m.id === turn.actorId);
           if (actor) {
@@ -368,7 +365,7 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
         },
         runTurnCommand: (token, command) => {
           if (!isRoleCommand(command))
-            return { changed: false, reason: 'Participant dispatch accepts role decisions only.' };
+            return { changed: false, reason: translate(msg, 'roleDecisionsOnly') };
           return command.type === 'acknowledgeImprovement'
             ? presentAdvice(token)
             : apply(command, token);
@@ -378,13 +375,12 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
           if (revision !== get().workplace.revision || isWorkplaceReplayActive())
             return {
               changed: false,
-              reason: 'Read the current workplace outside replay before rehearsing reload.',
+              reason: translate(msg, 'readBeforeReload'),
             };
           set({ workplace: restoreWorkplace(saveWorkplace(get().workplace)), turn: null });
           return {
             changed: true,
-            reason:
-              'Local reload rehearsal completed. Future authority expired; earned pay and recovery remain in review.',
+            reason: translate(msg, 'reloadRehearsed'),
           };
         },
         beginImprovement: (profile, revision, _mission, mode = get().workplace.mode) =>
@@ -406,15 +402,15 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
         archiveCampaign: (expectedRevision) => {
           interruptAutomaticWorkplace();
           if (get().participationMode === 'separate-turns' && get().turn)
-            return { changed: false, reason: 'End the participant turn before archiving.' };
+            return { changed: false, reason: translate(msg, 'endTurnBeforeArchive') };
           const current = get().workplace;
           if (!Number.isSafeInteger(expectedRevision) || expectedRevision !== current.revision)
             return {
               changed: false,
-              reason: 'The review changed. Read its current outcome first.',
+              reason: translate(msg, 'reviewChanged'),
             };
           if (isWorkplaceReplayActive())
-            return { changed: false, reason: 'Finish or forget the matched replay first.' };
+            return { changed: false, reason: translate(msg, 'finishReplayFirst') };
           if (
             current.mode !== 'game' ||
             current.phase !== 'review' ||
@@ -423,7 +419,7 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
           )
             return {
               changed: false,
-              reason: 'Complete all three shifts before archiving a review.',
+              reason: translate(msg, 'completeThreeShifts'),
             };
           if (
             recoveryOutstanding(current) ||
@@ -435,14 +431,13 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
           )
             return {
               changed: false,
-              reason:
-                'Deliver owed recovery and settle objections and reserved pay before archiving.',
+              reason: translate(msg, 'settleBeforeArchive'),
             };
           const review = completedReview(saveWorkplace(current));
           if (!review)
             return {
               changed: false,
-              reason: 'This review could not be validated for the archive.',
+              reason: translate(msg, 'reviewNotValidated'),
             };
           const fresh = createWorkplace('game', current.seed === 0xffffffff ? 1 : current.seed + 1);
           fresh.revision = current.revision + 1;
@@ -468,8 +463,7 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
           )
             return {
               changed: false,
-              reason:
-                'Choose an open, quality-qualified customer commitment with no active recovery challenge.',
+              reason: translate(msg, 'openCommitmentRequired'),
             };
           return apply({
             type: 'startCampaign',
@@ -516,20 +510,18 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
           )
             return {
               changed: false,
-              reason:
-                'The safety stop holds this agreement. No new work during an emergency or drill.',
+              reason: translate(msg, 'safetyStopHolds'),
             };
           if (get().participationMode === 'separate-turns' && get().turn)
             return {
               changed: false,
-              reason: 'End the participant turn before facilitator activation.',
+              reason: translate(msg, 'endTurnBeforeActivation'),
             };
           const mission = workplaceMission(get().workplace);
           if (mission && mission.materialSessionId !== useMaterialFlowStore.getState().sessionId)
             return {
               changed: false,
-              reason:
-                'The physical material session changed. Historical receipts cannot authorise a new agreement.',
+              reason: translate(msg, 'materialSessionChanged'),
             };
           const current = get().workplace;
           if (current.mode === 'game' && current.improvement) {
@@ -537,16 +529,14 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
             if (!advice || advice.fingerprint !== captureCurrentPackingPlant(current).fingerprint)
               return {
                 changed: false,
-                reason:
-                  'Plant evidence or the intended pace changed. Hear a fresh adviser response, then confirm understanding and ballots again.',
+                reason: translate(msg, 'freshAdviceRequired'),
               };
           }
           const refreshed = current.improvement && linkedMission();
           if (refreshed && refreshed.evidence !== 'current')
             return {
               changed: false,
-              reason:
-                'Current quality-qualified dispatch evidence is required before funding a trial.',
+              reason: translate(msg, 'dispatchEvidenceRequired'),
             };
           const activationInput = refreshed
             ? { ...current, improvement: { ...current.improvement!, mission: refreshed } }

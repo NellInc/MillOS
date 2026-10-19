@@ -20,11 +20,7 @@ import {
   FaultType,
   FaultInjection,
 } from '../types';
-import {
-  deterministicValue,
-  deterministicVariance,
-  idToSeed,
-} from '../../systems/CentralTickSystem';
+import { deterministicVariance, idToSeed } from '../../systems/CentralTickSystem';
 
 /** Machine state from Zustand store */
 interface MachineState {
@@ -453,11 +449,8 @@ export class SimulationAdapter implements IProtocolAdapter {
         // 5. Clamp to engineering range
         newValue = Math.max(tag.engLow, Math.min(tag.engHigh, newValue));
 
-        // 6. Reproducible sensor failure sequence (0.005% chance per sample)
-        if (deterministicValue(idToSeed(`${id}:quality`), this.sampleIndex) < 0.00005) {
-          quality = 'BAD';
-          newValue = tag.engLow;
-        }
+        // Working if nominal samples are never BAD: sensor failure comes only
+        // from injectFault('sensor_fail'), never from a spontaneous roll.
       }
 
       // Handle integer types

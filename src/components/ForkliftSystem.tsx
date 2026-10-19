@@ -53,6 +53,8 @@ import {
 } from '../simulation/vehicles/vehicleTelemetryRegistry';
 import * as THREE from 'three';
 import { applyWorldSurface } from '../utils/worldSurface';
+import { translate, useT } from '../i18n';
+import { forkliftSystemMessages } from './ForkliftSystem.messages';
 
 // Path visualization component - shows forklift routes on the floor. The dashed
 // line follows the rounded route; markers sit only on the authored waypoints,
@@ -466,10 +468,14 @@ const withRoundedRoute = (forklift: Forklift): RoutedForklift => {
 };
 
 // In-world tags use the SCADA vehicle names (tagDatabase FLT01/FLT02) plus the
-// forklift's role; data.id stays the key for logic and selection.
-const FORKLIFT_DISPLAY_LABELS: Record<string, string> = {
-  'forklift-1': 'FLT01 · SHIPPING',
-  'forklift-2': 'FLT02 · RECEIVING',
+// forklift's role; data.id stays the key for logic and selection. The role is a
+// message key so the tag follows the interface language at render time.
+const FORKLIFT_DISPLAY_LABELS: Record<
+  string,
+  { tag: string; role: 'roleShipping' | 'roleReceiving' }
+> = {
+  'forklift-1': { tag: 'FLT01', role: 'roleShipping' },
+  'forklift-2': { tag: 'FLT02', role: 'roleReceiving' },
 };
 
 // Path colors for each forklift
@@ -699,6 +705,8 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
   data,
   onSelect,
 }) => {
+  const t = useT(forkliftSystemMessages);
+  const displayLabel = FORKLIFT_DISPLAY_LABELS[data.id];
   const ref = useRef<THREE.Group>(null);
   const initialRoutePlan = useMemo(
     () => createForkliftRoutePlan(data.path, data.pathActions),
@@ -910,7 +918,7 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
             actionMarkerIndexRef.current
           );
           if (!motion)
-            return `${data.id} occupies a changed or ambiguous route corner. Run to an unchanged leg, then pause and try again.`;
+            return translate(forkliftSystemMessages, 'routeCornerAmbiguous', { id: data.id });
           return () => {
             routePlanRef.current = next;
             motionStateRef.current = motion;
@@ -1288,9 +1296,15 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
         stateChangeTimerRef.current = 0;
         // Only a genuine obstruction is a near-miss. Commanded waits (crossing
         // reservation, logistics interlock, e-stop or drill) keep the red
-        // beacon but neither sound the horn nor reset Days Safe.
+        // beacon but neither sound the horn nor reset Days Safe. A planned
+        // yield to a nearby vehicle sounds the horn as a courtesy, but it is
+        // routine fleet priority, not a near miss.
+        // Working if a yield never raises 'Near-Miss Avoided' or lowers the
+        // safety score, while a blocked route still records one.
         if (stopReason === 'route-blocked' || stopReason === 'vehicle-yield') {
           audioManager.playHorn(data.id);
+        }
+        if (stopReason === 'route-blocked') {
           recordSafetyStop();
           useSafetyStore
             .getState()
@@ -1423,7 +1437,9 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
             outlineWidth={0.02}
             outlineColor="#000"
           >
-            {FORKLIFT_DISPLAY_LABELS[data.id] ?? data.id}
+            {displayLabel
+              ? t('fleetLabel', { tag: displayLabel.tag, role: t(displayLabel.role) })
+              : data.id}
           </Text>
           {/* Show operation status when loading/unloading */}
           {isOperating && (
@@ -1436,7 +1452,7 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
               outlineWidth={0.02}
               outlineColor="#000"
             >
-              {currentOperation === 'loading' ? 'LOADING' : 'UNLOADING'}
+              {currentOperation === 'loading' ? t('operationLoading') : t('operationUnloading')}
             </Text>
           )}
         </Billboard>
