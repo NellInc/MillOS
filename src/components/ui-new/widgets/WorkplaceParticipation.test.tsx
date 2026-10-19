@@ -150,9 +150,13 @@ it('defaults to autonomous play and keeps human takeover across remount', () => 
   vi.useRealTimers();
 });
 
-it.each([false, true])(
-  'a reload mid-season resumes the running season unless it was taken over (taken over: %s)',
-  async (tookOver) => {
+it.each([
+  [false, false],
+  [true, false],
+  [false, true],
+])(
+  'a reload mid-season resumes the running season unless it was taken over (taken over: %s, orders all fulfilled: %s)',
+  async (tookOver, ordersDone) => {
     useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
     useOperationsCampaignStore.getState().initializeCampaign();
     vi.useFakeTimers();
@@ -176,6 +180,8 @@ it.each([false, true])(
       await useWorkplaceAutoplay.persist.rehydrate();
     });
     expect(useWorkplaceAutoplay.getState().running).toBe(false);
+    // The season outlives the delivery programme that started it.
+    if (ordersDone) useOperationsCampaignStore.setState({ activeOrderId: null });
     render(<WorkplaceAutoplayStatus />);
     document.documentElement.dataset.millosStartupReady = 'true';
     act(() => {

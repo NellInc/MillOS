@@ -447,10 +447,10 @@ export function WorkplaceAutoplayStatus() {
   useEffect(() => {
     if (
       automatic.running ||
-      !orderId ||
       store.participationMode !== 'solo' ||
       store.workplace.mode !== 'game' ||
-      (!resumeProfile && (automatic.manual || store.workplace.phase !== 'idle'))
+      // A new season binds an active order; a resumed one outlives it.
+      (!resumeProfile && (!orderId || automatic.manual || store.workplace.phase !== 'idle'))
     )
       return;
     const admit = () => {
