@@ -7,6 +7,7 @@ const harness = vi.hoisted(() => ({
   frames: [] as Array<(state: { camera: THREE.PerspectiveCamera }, delta: number) => void>,
   participants: new Map<string, { capture: () => any; restore: (state: any) => void }>(),
   restoring: false,
+  reducedMotion: false,
 }));
 
 // Invoke the live component functions with deterministic hooks. JSX remains
@@ -42,7 +43,7 @@ vi.mock('zustand', async (importOriginal) => {
       initializer ? build(initializer) : build,
   };
 });
-vi.mock('../hooks/useReducedMotion', () => ({ useReducedMotion: () => false }));
+vi.mock('../hooks/useReducedMotion', () => ({ useReducedMotion: () => harness.reducedMotion }));
 vi.mock('zustand/react/shallow', () => ({ useShallow: (selector: unknown) => selector }));
 vi.mock('@react-three/fiber', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@react-three/fiber')>()),
@@ -64,7 +65,12 @@ vi.mock('../simulation/workplaceReplayRuntime', () => ({
 
 import { CommunityLife } from './CommunityLife';
 import { useOperationsCampaignStore } from '../stores/operationsCampaignStore';
-import { COMMUNITY_ROSTER, sampleCommunityPerson } from '../simulation/communityLife';
+import {
+  COMMUNITY_ROSTER,
+  COMMUNITY_WALK_SPEED_MPS,
+  sampleCommunityCyclist,
+  sampleCommunityPerson,
+} from '../simulation/communityLife';
 import { TruckBay } from './TruckBay';
 import { TRUCK_WHEEL_RADIUS } from './truckbay/OptimizedTruckBay';
 import { ForkliftSystem } from './ForkliftSystem';
@@ -104,6 +110,7 @@ beforeEach(() => {
   harness.effects.length = 0;
   harness.participants.clear();
   harness.restoring = false;
+  harness.reducedMotion = false;
   useProductionStore.setState({ productionSpeed: 0 });
   useGameSimulationStore.setState({ gameSpeed: 0, isTabVisible: true });
 });
@@ -486,16 +493,30 @@ it('interpolates live personnel safely and restores the captured presentation cu
   expect(roots.filter((root: THREE.Group) => root.userData.greeting)).toEqual([]);
   const checkpoint = structuredClone(participant.capture());
   useGameSimulationStore.setState({ gameTime: 12.025 });
-  const at = roots[0].position.clone();
+  // One display frame consumes 180/60 game seconds of the admitted tick, which a
+  // resident on a straight walking segment covers at walking pace, scaled by 180.
+  const frameHours = 180 / 60 / 3600;
+  const walkerIndex = COMMUNITY_ROSTER.findIndex((person) => {
+    if (person.district !== 'mill') return false;
+    const a = sampleCommunityPerson(person, 36),
+      b = sampleCommunityPerson(person, 36 + frameHours);
+    return a.activity === 'walking' && b.activity === 'walking' && a.rotation === b.rotation;
+  });
+  expect(walkerIndex).toBeGreaterThanOrEqual(0);
+  const walker = roots[walkerIndex];
+  const at = walker.position.clone();
   frame({ camera, scene }, 1 / 60);
-  expect(roots[0].position.distanceTo(at)).toBeCloseTo(1.1 / 60, 6);
+  expect(walker.position.distanceTo(at)).toBeCloseTo(
+    (COMMUNITY_WALK_SPEED_MPS * 180) / STANDARD_GAME_SPEED / 60,
+    6
+  );
   useGameSimulationStore.setState({ gameSpeed: 0 });
-  const paused = roots[0].position.clone();
+  const paused = walker.position.clone();
   frame({ camera, scene }, 1 / 60);
-  expect(roots[0].position.equals(paused)).toBe(true);
+  expect(walker.position.equals(paused)).toBe(true);
   useGameSimulationStore.setState({ gameTime: 20, emergencyDrillMode: true });
   frame({ camera, scene }, 1 / 60);
-  expect(roots[0].position.equals(paused)).toBe(true);
+  expect(walker.position.equals(paused)).toBe(true);
   expect(shopkeeper.userData.greeting).toBe(false);
   const held = participant.capture();
   expect(held.clocks.presentation).toBe(44);
@@ -503,13 +524,22 @@ it('interpolates live personnel safely and restores the captured presentation cu
   useGameSimulationStore.setState({ gameTime: 12, emergencyDrillMode: false, gameSpeed: 180 });
   participant.restore(structuredClone(checkpoint));
   frame({ camera, scene }, 1 / 60);
-  expect(roots[0].position.equals(at)).toBe(true);
+  expect(walker.position.equals(at)).toBe(true);
   useGameSimulationStore.setState({ gameTime: 12.025 });
   frame({ camera, scene }, 1 / 60);
   participant.restore(structuredClone(checkpoint));
   expect(participant.capture().clocks).toEqual(checkpoint.clocks);
   expect(checkpoint.clocks.presentation).toBe(36);
-  useGameSimulationStore.setState({ gameDay: 0, gameTime: 12, gameSpeed: 0 });
+  // Reframe, paused, to a moment the shopkeeper's schedule puts her at the social stop.
+  const shopkeeperPerson = COMMUNITY_ROSTER.find((p) => p.id === 'village-shopkeeper')!;
+  let greetingHour = 7;
+  while (
+    greetingHour < 18 &&
+    sampleCommunityPerson(shopkeeperPerson, greetingHour).task !== 'Greeting a neighbour'
+  )
+    greetingHour += 0.001;
+  expect(greetingHour).toBeLessThan(18);
+  useGameSimulationStore.setState({ gameDay: 0, gameTime: greetingHour, gameSpeed: 0 });
   frame({ camera, scene }, 1 / 60);
   // A social stop is eligible, but an empty street must never generate a wave.
   const social = participant
@@ -523,8 +553,18 @@ it('interpolates live personnel safely and restores the captured presentation cu
 });
 
 it('locks a turning rider to the actual bicycle heading, preserving pedal and hand contacts', () => {
+  // A moment the schedule puts the rider into one of the loop's turns.
+  let turnHour = 11.1;
+  while (
+    turnHour < 12 &&
+    Math.abs(
+      sampleCommunityCyclist(turnHour + 0.025).rotation - sampleCommunityCyclist(turnHour).rotation
+    ) < 0.5
+  )
+    turnHour += 0.001;
+  expect(turnHour).toBeLessThan(12);
   useGameSimulationStore.setState({
-    gameTime: 11.76,
+    gameTime: turnHour,
     gameDay: 0,
     gameSpeed: 180,
     isTabVisible: true,
@@ -545,7 +585,7 @@ it('locks a turning rider to the actual bicycle heading, preserving pedal and ha
   const scene = new THREE.Scene();
   roots.forEach((root: THREE.Group) => scene.add(root));
   const frame = harness.frames[0] as (state: any, delta: number) => void;
-  useGameSimulationStore.setState({ gameTime: 11.785 });
+  useGameSimulationStore.setState({ gameTime: turnHour + 0.025 });
   const initialHeading = harness.participants.get('personnel')!.capture().bicycle.rotation;
   let finalHeading = initialHeading;
   for (let i = 0; i < 30; i++) {
@@ -565,10 +605,144 @@ it('locks a turning rider to the actual bicycle heading, preserving pedal and ha
   expect(Math.abs(finalHeading - initialHeading)).toBeGreaterThan(0.1);
 });
 
-it('transports seat frames after root turning, freezes holds and clears old replay cues', () => {
+function mountCommunity(state: Partial<ReturnType<typeof useGameSimulationStore.getState>>) {
   useGameSimulationStore.setState({
     gameDay: 0,
-    gameTime: 0.015,
+    isTabVisible: true,
+    emergencyActive: false,
+    emergencyDrillMode: false,
+    ...state,
+  });
+  const nodes = CommunityLife().props.children[0].props.children;
+  const roots: THREE.Group[] = nodes.map((node: any) => {
+    const root = new THREE.Group();
+    root.name = node.props.name;
+    root.position.fromArray(node.props.position);
+    root.rotation.y = node.props.rotation[1];
+    node.props.ref(root);
+    return root;
+  });
+  flushEffects();
+  const scene = new THREE.Scene();
+  roots.forEach((root) => scene.add(root));
+  const frame = harness.frames[harness.frames.length - 1] as (state: any, delta: number) => void;
+  return {
+    roots,
+    step: (delta = 1 / 60) => frame({ camera, scene }, delta),
+    capture: () => harness.participants.get('personnel')!.capture(),
+  };
+}
+/** The first moment from `from` when a mill resident walks one straight segment
+ * for `span` game hours, and which resident it is. */
+function findMillWalk(from: number, span: number) {
+  for (let hour = from; hour < from + 4; hour += 0.001) {
+    const index = COMMUNITY_ROSTER.findIndex((person) => {
+      if (person.district !== 'mill') return false;
+      const a = sampleCommunityPerson(person, hour),
+        b = sampleCommunityPerson(person, hour + span);
+      return a.activity === 'walking' && b.activity === 'walking' && a.rotation === b.rotation;
+    });
+    if (index >= 0) return { hour, index };
+  }
+  throw new Error('no mill resident walks a straight segment');
+}
+
+it('walks a time-lapsed resident with its real-time gait and uncapped ground speed', () => {
+  const pace = 120;
+  const { hour, index } = findMillWalk(10, 0.002);
+  const community = mountCommunity({ gameTime: hour, gameSpeed: pace });
+  useGameSimulationStore.setState({ gameTime: hour + 0.002 });
+  community.step();
+  community.step();
+  const motion = community.capture().residents[index].motion;
+  expect(motion.gaitScale).toBe(pace / STANDARD_GAME_SPEED);
+  expect(motion.groundSpeed).toBeCloseTo(
+    (COMMUNITY_WALK_SPEED_MPS * pace) / STANDARD_GAME_SPEED,
+    6
+  );
+});
+
+it('keeps a pausing walker turned where it was, rather than snapping to the route heading', () => {
+  const { hour, index } = findMillWalk(10, 0.002);
+  const community = mountCommunity({ gameTime: hour, gameSpeed: STANDARD_GAME_SPEED });
+  community.step();
+  const root = community.roots[index];
+  // Mid-turn: the body still lags the route's heading by a fraction of a radian.
+  root.rotation.y -= 0.5;
+  const turning = root.rotation.y;
+  useGameSimulationStore.setState({ gameSpeed: 0 });
+  community.step();
+  expect(root.rotation.y).toBe(turning);
+  useGameSimulationStore.setState({ gameSpeed: STANDARD_GAME_SPEED, gameTime: hour + 0.001 });
+  community.step();
+  expect(Math.abs(root.rotation.y - turning)).toBeGreaterThan(0);
+});
+
+it('settles walkers into the drill stance over a short blend, then holds', () => {
+  const { hour, index } = findMillWalk(10, 0.01);
+  const community = mountCommunity({ gameTime: hour, gameSpeed: STANDARD_GAME_SPEED });
+  useGameSimulationStore.setState({ gameTime: hour + 0.002 });
+  community.step();
+  const motion = () => community.capture().residents[index].motion;
+  // Watch from close by; other tests leave the shared camera elsewhere.
+  const viewpoint = camera.position.clone();
+  camera.position.copy(community.roots[index].position).add(new THREE.Vector3(0, 2, 5));
+  try {
+    community.step();
+    expect(motion().activity).toBe('walking');
+    expect(motion().enabled).toBe(true);
+    useGameSimulationStore.setState({ emergencyDrillMode: true });
+    community.step();
+    // Still animating, so the walk clip damps into the stance instead of snapping.
+    expect(motion().activity).toBe('idle');
+    expect(motion().enabled).toBe(true);
+    expect(motion().groundSpeed).toBe(0);
+    const at = community.roots[index].position.clone();
+    for (let i = 0; i < 40; i++) community.step();
+    expect(motion().enabled).toBe(false);
+    expect(community.roots[index].position.equals(at)).toBe(true);
+  } finally {
+    camera.position.copy(viewpoint);
+  }
+});
+
+it('holds reduced-motion residents still between stops instead of gliding them', () => {
+  harness.reducedMotion = true;
+  const { hour, index } = findMillWalk(10, 0.01);
+  const community = mountCommunity({ gameTime: hour, gameSpeed: STANDARD_GAME_SPEED });
+  community.step();
+  const root = community.roots[index];
+  const at = root.position.clone(),
+    heading = root.rotation.y;
+  const cyclist = community.roots.find((r) => r.name === 'village-cyclist')!;
+  for (let i = 1; i <= 20; i++) {
+    useGameSimulationStore.setState({ gameTime: hour + i * 0.0003 });
+    community.step();
+    const motion = community.capture().residents[index].motion;
+    // The schedule walks on underneath; the body stays where its trip began.
+    expect(root.position.equals(at)).toBe(true);
+    expect(root.rotation.y).toBe(heading);
+    expect(motion.groundSpeed).toBe(0);
+    expect(motion.activity).not.toBe('walking');
+    expect(motion.enabled).toBe(false);
+  }
+  expect(cyclist.position.z).toBeCloseTo(sampleCommunityCyclist(11).z, 9);
+});
+
+it('transports seat frames after root turning, freezes holds and clears old replay cues', () => {
+  // A moment the schedule has a mill resident fully seated on a rest.
+  let seatedHour = 0;
+  while (
+    seatedHour < 4 &&
+    !COMMUNITY_ROSTER.some(
+      (p) => p.district === 'mill' && sampleCommunityPerson(p, seatedHour).seat?.amount === 1
+    )
+  )
+    seatedHour += 0.005;
+  expect(seatedHour).toBeLessThan(4);
+  useGameSimulationStore.setState({
+    gameDay: 0,
+    gameTime: seatedHour,
     gameSpeed: 180,
     isTabVisible: true,
     emergencyActive: false,

@@ -40,6 +40,11 @@ export const COMMUNITY_ANCHORS = Object.freeze({
   pubSeatNorth: village([-18.1, 0, -16.9], Math.PI / 2, 0.46),
   pubSeatSouth: village([-18.1, 0, -13.1], Math.PI / 2, 0.46),
   pubDoor: village([-19.5, 0, -15], -Math.PI / 2),
+  /** The general store mirrors the bakery across the square (same shop body, the
+   * door 4.4 m in front of the building centre, facing the street). */
+  shopDoor: village([-15.6, 0, 30], Math.PI / 2),
+  /** In front of the allotment tool shed's door (shed-local [-3.3, -2.5]). */
+  allotmentShedDoor: village([-27.5, 0, 12.3], Math.PI / 2),
   busSeat: anchor([29.55, 0, 140], -Math.PI / 2, 0.522),
   busWaiting: anchor([28.4, 0.1, 140], -Math.PI / 2),
 });
@@ -89,6 +94,12 @@ export const COMMUNITY_OPENING_HOURS = {
   shops: { open: 7, close: 18 },
   pub: { open: 11, close: 23 },
 } as const;
+/** Village routines without a public sign; the same hours drive the people. */
+export const COMMUNITY_ACTIVITY_HOURS = {
+  gardening: { open: 8, close: 17 },
+  delivery: { open: 9, close: 11 },
+  cycling: { open: 11, close: 18 },
+} as const;
 
 /** A closed board tells visitors when to return, without promising stock.
  * Working if its hour comes from the same schedule that opens the real place.
@@ -110,8 +121,10 @@ export function getCommunityHours(hour: number) {
   return {
     shopsOpen: h >= COMMUNITY_OPENING_HOURS.shops.open && h < COMMUNITY_OPENING_HOURS.shops.close,
     pubOpen: h >= COMMUNITY_OPENING_HOURS.pub.open && h < COMMUNITY_OPENING_HOURS.pub.close,
-    deliveryActive: h >= 9 && h < 11,
-    gardeningActive: h >= 8 && h < 17,
+    deliveryActive:
+      h >= COMMUNITY_ACTIVITY_HOURS.delivery.open && h < COMMUNITY_ACTIVITY_HOURS.delivery.close,
+    gardeningActive:
+      h >= COMMUNITY_ACTIVITY_HOURS.gardening.open && h < COMMUNITY_ACTIVITY_HOURS.gardening.close,
   };
 }
 
