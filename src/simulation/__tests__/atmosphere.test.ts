@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sampleAtmosphere, sampleCelestial } from '../atmosphere';
+import { getOvercastWeight, sampleAtmosphere, sampleCelestial } from '../atmosphere';
 
 describe('atmosphere sampling', () => {
   it('follows a coherent dawn, noon, dusk, and night solar path', () => {
@@ -143,4 +143,47 @@ it('retains a broad, continuous twilight shoulder instead of losing all fill by 
     expect(at(hour) - at(hour + 1 / 60)).toBeLessThan(0.011);
     expect(at(hour + 1 / 60)).toBeLessThanOrEqual(at(hour));
   }
+});
+
+describe('overcast weather', () => {
+  it('hides the solar disc under rain cloud and leaves clear weather exactly unchanged', () => {
+    const at = (weather: 'clear' | 'cloudy' | 'rain' | 'storm') =>
+      sampleCelestial(sampleAtmosphere(0, 12, weather));
+    expect(at('clear').sunOpacity).toBeCloseTo(1 - 0.2 * 0.42, 10);
+    expect(at('cloudy').sunOpacity).toBeGreaterThan(0.45);
+    expect(at('rain').sunOpacity).toBeLessThan(0.1);
+    expect(at('storm').sunOpacity).toBe(0);
+  });
+
+  it('moves rain light from the key into the fill, so shadows soften', () => {
+    const clear = sampleCelestial(sampleAtmosphere(0, 12, 'clear'));
+    const rain = sampleCelestial(sampleAtmosphere(0, 12, 'rain'));
+    expect(getOvercastWeight(0.2)).toBe(0);
+    expect(clear.sunLightIntensity).toBeCloseTo(3.1, 10);
+    // Clear rain key was 2.10: crisp full-strength shadows under a rain sky.
+    expect(rain.sunLightIntensity).toBeLessThan(1.4);
+    expect(rain.ambientLightIntensity / rain.sunLightIntensity).toBeGreaterThan(0.22);
+    expect(rain.ambientLightIntensity).toBeGreaterThan(clear.ambientLightIntensity);
+  });
+});
+
+describe('twilight sky after an 18:00 sunset', () => {
+  it('keeps the faint star field back an hour after sunset while the bright stars show', () => {
+    const dusk = sampleCelestial(sampleAtmosphere(0, 19, 'clear'));
+    const night = sampleCelestial(sampleAtmosphere(0, 22, 'clear'));
+    expect(dusk.faintStarOpacity).toBeLessThan(0.35);
+    expect(dusk.starOpacity).toBeGreaterThan(0.5);
+    expect(night.faintStarOpacity).toBeCloseTo(night.starOpacity, 10);
+    expect(sampleCelestial(sampleAtmosphere(0, 12, 'clear')).faintStarOpacity).toBe(0);
+  });
+
+  it('dims a moon low in the sky, which is what threw window shafts across packing at 19:00', () => {
+    const rising = sampleCelestial(sampleAtmosphere(0, 19, 'clear'));
+    const high = sampleCelestial(sampleAtmosphere(0, 22, 'clear'));
+    expect(rising.moonLightIntensity).toBeLessThan(high.moonLightIntensity * 0.45);
+    expect(high.moonLightIntensity).toBeCloseTo(
+      (1 - sampleAtmosphere(0, 22, 'clear').daylight) * 0.48 * (1 - 0.2 * 0.82),
+      10
+    );
+  });
 });

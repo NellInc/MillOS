@@ -1438,7 +1438,7 @@ export function OptimizedSkySystem() {
     if (starsMaterialRef.current) {
       starsMaterialRef.current.opacity = THREE.MathUtils.damp(
         starsMaterialRef.current.opacity,
-        celestial.starOpacity * 0.82,
+        celestial.faintStarOpacity * 0.82,
         response,
         delta
       );
