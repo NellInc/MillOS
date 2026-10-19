@@ -7,7 +7,11 @@ import { trackRender } from './utils/renderProfiler';
 import './utils/perfMonitor';
 import { SpatialAudioTracker } from './components/SpatialAudioTracker';
 import { FPSTracker, useFPSStore } from './components/FPSMonitor';
-import { CameraController, useCameraStore } from './components/CameraController';
+import {
+  CameraController,
+  IDLE_ORBIT_DEFAULT,
+  useCameraStore,
+} from './components/CameraController';
 import { FirstPersonController } from './components/FirstPersonController';
 import ErrorBoundary, { RecoverableFeatureBoundary } from './components/ErrorBoundary';
 import { LoadingScreen } from './components/LoadingScreen';
@@ -241,11 +245,10 @@ const App: React.FC = () => {
 
   const [audioInitialized, setAudioInitialized] = useState(false);
   const [qualityNotification, setQualityNotification] = useState<string | null>(null);
-  // A continuous orbit of the whole scene is a vestibular trigger, so it starts
-  // off for anyone who has asked the OS for reduced motion.
-  const [autoRotate, setAutoRotate] = useState(
-    () => !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-  );
+  // The camera moves only on input: the idle showcase orbit is opt-in (C), so
+  // an unattended camera never drifts, and nobody who asked for reduced motion
+  // gets a turning scene. See IDLE_ORBIT_DEFAULT in CameraController.
+  const [autoRotate, setAutoRotate] = useState(IDLE_ORBIT_DEFAULT);
 
   // PERFORMANCE: Consolidated store subscriptions with useShallow to prevent unnecessary re-renders
   const {
@@ -856,8 +859,6 @@ const App: React.FC = () => {
                         minPolarAngle={runtimeMode.benchmark ? 0 : ORBIT_POLAR_LIMITS.min}
                         minDistance={runtimeMode.benchmark ? 0.25 : 15}
                         maxDistance={runtimeMode.benchmark ? 1000 : 220}
-                        autoRotate
-                        autoRotateSpeed={0}
                         target={[...SITE_LAYOUT.cameras.overview.target]}
                         enableDamping
                         dampingFactor={0.05}
@@ -887,7 +888,6 @@ const App: React.FC = () => {
               <CameraController
                 orbitControlsRef={orbitControlsRef}
                 autoRotateEnabled={autoRotate && !selectedMachine}
-                targetSpeed={0.15}
               />
             )}
 

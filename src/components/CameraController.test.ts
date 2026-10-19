@@ -8,6 +8,7 @@ import { ORBIT_POLAR_LIMITS } from '../utils/cameraNavigation';
 import {
   CAMERA_PRESETS,
   CameraController,
+  IDLE_ORBIT_DEFAULT,
   shouldResolveCameraCollisionForFrame,
   useCameraStore,
 } from './CameraController';
@@ -169,8 +170,8 @@ describe('the unattended camera', () => {
       controls.maxDistance = 220;
       controls.enableDamping = true;
       controls.dampingFactor = 0.05;
-      controls.autoRotate = true;
-      controls.autoRotateSpeed = 0;
+      // App no longer lends the turn to OrbitControls (it was per frame).
+      controls.autoRotate = false;
       camera.position.set(...preset.position);
       controls.target.set(...preset.target);
       controls.update();
@@ -180,7 +181,6 @@ describe('the unattended camera', () => {
         createElement(CameraController, {
           orbitControlsRef: { current: controls },
           autoRotateEnabled: true,
-          targetSpeed: 0.15,
         })
       );
 
@@ -194,7 +194,9 @@ describe('the unattended camera', () => {
       }
 
       expect(machineContacts).toBe(0);
-      expect(closest).toBeGreaterThan(radius * 0.99);
+      // A clear circle keeps its radius exactly; no collision ever shortens it.
+      expect(closest).toBeGreaterThan(radius - 1e-6);
+      expect(camera.userData.lastCollision ?? null).toBeNull();
       // Inside the hall an orbit has no clear path, so the camera holds the
       // view the player (or the tour) left it at.
       if (isPositionInsideFactory(start.x, start.y, start.z, 0)) {
@@ -207,4 +209,46 @@ describe('the unattended camera', () => {
       controls.dispose();
     }
   );
+
+  it('turns by time, not by frame: the same angle at 30 and 120 frames per second', () => {
+    const overview = CAMERA_PRESETS.find((preset) => preset.name === 'Overview')!;
+    const angleAfter = (fps: number) => {
+      const camera = (touchHarness.camera = new THREE.PerspectiveCamera());
+      const canvas = (touchHarness.canvas = document.createElement('canvas'));
+      const controls = new OrbitControls(camera, canvas);
+      controls.autoRotate = false;
+      camera.position.set(...overview.position);
+      controls.target.set(...overview.target);
+      controls.update();
+      const startAngle = Math.atan2(
+        camera.position.x - controls.target.x,
+        camera.position.z - controls.target.z
+      );
+      render(
+        createElement(CameraController, {
+          orbitControlsRef: { current: controls },
+          autoRotateEnabled: true,
+        })
+      );
+      for (let frame = 0; frame < fps * 60; frame++) {
+        controls.update();
+        touchHarness.frame?.({}, 1 / fps);
+      }
+      const end = Math.atan2(
+        camera.position.x - controls.target.x,
+        camera.position.z - controls.target.z
+      );
+      cleanup();
+      controls.dispose();
+      return Math.abs(end - startAngle);
+    };
+    const slow = angleAfter(30);
+    const fast = angleAfter(120);
+    expect(slow).toBeGreaterThan(0.1);
+    expect(Math.abs(fast - slow)).toBeLessThan(slow * 0.01);
+  });
+
+  it('is off by default: the camera moves only on input until C turns the showcase on', () => {
+    expect(IDLE_ORBIT_DEFAULT).toBe(false);
+  });
 });
