@@ -21,6 +21,7 @@ import * as THREE from 'three';
 import { useDracoGLTF } from '../../utils/dracoLoader';
 import { GENERATED_ASSET_PATHS, type GeneratedAssetId } from '../../utils/modelLoader';
 import ErrorBoundary from '../ErrorBoundary';
+import { applyWorldSurface } from '../../utils/worldSurface';
 import {
   createMarketCanopyGeometry,
   createBarnJoineryGeometry,
@@ -35,6 +36,28 @@ import {
   applyForgeWindows,
   type VillageShopTrade,
 } from './GeneratedOfficeModel';
+
+/**
+ * The utility and LPG vessel shells.
+ *
+ * Their GLBs carry a metallicRoughness map whose green channel is a near
+ * constant 60/255, so the effective roughness is 0.64 x 0.24 = 0.15 - glossy
+ * plastic, which is what the art review named on every tank in tank-farm,
+ * packing and silos. The packed normal map is flat (std 0.6/255) and inert.
+ * The owned clone drops both, takes a painted-steel roughness, and wears the
+ * `painted` world-surface finish: metre-scale tonal drift and roughness
+ * break-up sampled in world space, so no UV unwrap is needed. No profile
+ * overrides on purpose - a batched clone is re-finished from its profile alone
+ * (`applyBatchWorldSurface`), so an override here would be lost there.
+ */
+const VESSEL_SHELLS = new Set<GeneratedAssetId>([
+  'utilityFuelShell',
+  'utilityProcessShell',
+  'propaneLargeShell',
+  'propaneSmallShell',
+]);
+/** Weathered two-pack paint on steel: satin, not gloss. */
+const VESSEL_SHELL_ROUGHNESS = 0.5;
 
 const VILLAGE_GLAZING = new Set<GeneratedAssetId>([
   'cottage',
@@ -194,6 +217,16 @@ export const GeneratedModel: React.FC<GeneratedModelProps> = ({
           geometries.push(geometry);
           materials.push(material);
         }
+      }
+      if (VESSEL_SHELLS.has(asset) && mesh.material instanceof THREE.MeshStandardMaterial) {
+        const material = mesh.material.clone();
+        material.roughnessMap = null;
+        material.metalnessMap = null;
+        material.normalMap = null;
+        material.roughness = VESSEL_SHELL_ROUGHNESS;
+        applyWorldSurface(material, 'painted');
+        mesh.material = material;
+        materials.push(material);
       }
       if (
         (VILLAGE_GLAZING.has(asset) || asset === 'farmhouse' || asset === 'barn') &&
