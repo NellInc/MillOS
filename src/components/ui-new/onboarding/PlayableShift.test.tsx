@@ -353,6 +353,15 @@ describe('playable shift UI', () => {
       )
     ).toBeInTheDocument();
     expect(screen.getByText('Check shipping in SCADA')).toBeInTheDocument();
+    // Compacted for the scene, the card keeps the current goal, not the first
+    // delivery's inspection status or deadline.
+    fireEvent.click(screen.getByRole('button', { name: 'Compact delivery guide' }));
+    expect(
+      screen.getByText(
+        'Now: Community Pasta Works, 1,000 of 4,000 kg shipped. Due in 1h 0m (simulated).'
+      )
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/^Inspection: /)).not.toBeInTheDocument();
     expect(useOperationsCampaignStore.getState()).toBe(before);
     cleanup();
     // Once every order is in, the programme-complete state takes over.

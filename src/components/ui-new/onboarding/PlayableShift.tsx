@@ -350,13 +350,32 @@ export function FirstDeliveryJourney({
             <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
-        <DeliveryDeadline order={order} elapsedMinutes={campaign.elapsedMinutes} />
-        <p className="mt-1 text-xs leading-5 text-slate-300">
-          {t('inspectionStatus', {
-            inspection: ui.inspected ? t('inspectionRecorded') : t('inspectionWaiting'),
-            delivery: t('kgDispatched', { kg: formatFixed(order?.shippedKg ?? 0, 0) }),
-          })}
-        </p>
+        {/* Once the first order is in, the compact card carries the same
+            current goal as the full one instead of that order's status. */}
+        {completed ? (
+          <p className="mt-1 text-xs leading-5 text-white">
+            {currentOrder && currentDeadline
+              ? t('currentOrder', {
+                  customer: currentOrder.customer,
+                  shipped: formatGrouped(Math.round(currentOrder.shippedKg)),
+                  required: formatGrouped(Math.round(currentOrder.requiredKg)),
+                  due: currentDeadline.label,
+                })
+              : play.nextAction.kind === 'programme'
+                ? t('programmeComplete')
+                : play.nextAction.label}
+          </p>
+        ) : (
+          <>
+            <DeliveryDeadline order={order} elapsedMinutes={campaign.elapsedMinutes} />
+            <p className="mt-1 text-xs leading-5 text-slate-300">
+              {t('inspectionStatus', {
+                inspection: ui.inspected ? t('inspectionRecorded') : t('inspectionWaiting'),
+                delivery: t('kgDispatched', { kg: formatFixed(order?.shippedKg ?? 0, 0) }),
+              })}
+            </p>
+          </>
+        )}
         <TeachingPace />
         {compactWorkspace && (
           <button
