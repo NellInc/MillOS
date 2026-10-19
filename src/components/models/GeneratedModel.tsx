@@ -21,6 +21,7 @@ import * as THREE from 'three';
 import { useDracoGLTF } from '../../utils/dracoLoader';
 import { GENERATED_ASSET_PATHS, type GeneratedAssetId } from '../../utils/modelLoader';
 import ErrorBoundary from '../ErrorBoundary';
+import { CLOSED_DOUBLE_FACED_ASSETS } from './closedDoubleFacedAssets';
 import {
   createMarketCanopyGeometry,
   createBarnJoineryGeometry,
@@ -239,6 +240,21 @@ export const GeneratedModel: React.FC<GeneratedModelProps> = ({
         }
         mesh.material = material;
         materials.push(material);
+      }
+      // Both faces of every thin part are modelled, so the authored
+      // DoubleSide only makes each sheet's back face fight its partner's
+      // front. See `closedDoubleFacedAssets.ts` for the geometry contract.
+      if (
+        CLOSED_DOUBLE_FACED_ASSETS.has(asset) &&
+        mesh.material instanceof THREE.Material &&
+        mesh.material.side !== THREE.FrontSide
+      ) {
+        const owned = materials.includes(mesh.material) ? mesh.material : mesh.material.clone();
+        owned.side = THREE.FrontSide;
+        if (owned !== mesh.material) {
+          mesh.material = owned;
+          materials.push(owned);
+        }
       }
       const authoredCast = mesh.userData.authoredCastShadow;
       const authoredReceive = mesh.userData.authoredReceiveShadow;

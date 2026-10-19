@@ -77,6 +77,33 @@ it('preserves mixed authored shadow flags and explicit per-instance overrides', 
   (mesh.material as THREE.Material).dispose();
 });
 
+it('draws closed double-faced assets front-side only, on an owned material it disposes', () => {
+  const source = new THREE.Group();
+  const shared = new THREE.MeshStandardMaterial({ side: THREE.DoubleSide });
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(), shared);
+  source.add(mesh);
+  holder.scene = source;
+  let clone: THREE.Group;
+  const original = source.clone.bind(source);
+  vi.spyOn(source, 'clone').mockImplementation((recursive) => (clone = original(recursive)));
+  const view = render(<GeneratedModel asset="dockCanopyStructure" />);
+  const owned = (clone!.children[0] as THREE.Mesh).material as THREE.Material;
+  expect(owned).not.toBe(shared);
+  expect(owned.side).toBe(THREE.FrontSide);
+  expect(shared.side).toBe(THREE.DoubleSide);
+  const dispose = vi.spyOn(owned, 'dispose');
+  view.unmount();
+  expect(dispose).toHaveBeenCalled();
+
+  // An asset with genuinely single-sheet parts keeps its authored DoubleSide.
+  render(<GeneratedModel asset="brickCarport" />);
+  expect(((clone!.children[0] as THREE.Mesh).material as THREE.Material).side).toBe(
+    THREE.DoubleSide
+  );
+  mesh.geometry.dispose();
+  shared.dispose();
+});
+
 it('keeps an empty 3D fallback empty when an optional model fails', () => {
   const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
   const FailedModel = () => {
