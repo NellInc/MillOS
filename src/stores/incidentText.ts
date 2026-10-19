@@ -2,7 +2,9 @@ import { translate } from '../i18n';
 import type { IncidentKind, OperationalIncident } from './operationsCampaignStore';
 import { operationsCampaignMessages as messages } from './operationsCampaignStore.messages';
 
-type MessageKey = keyof typeof messages.en & string;
+type En = typeof messages.en;
+/** Plain-string keys only: incident copy takes no parameters. */
+type MessageKey = { [K in keyof En]: En[K] extends string ? K : never }[keyof En] & string;
 
 /*
  * An incident record copies its title and description when it fires, and the
