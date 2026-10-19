@@ -23,7 +23,6 @@ import { setLocale } from '../../../i18n';
 import { MachineType } from '../../../types';
 import type { MachineData } from '../../../types';
 import type { OperationalIncident } from '../../../stores/operationsCampaignStore';
-import { setLocale } from '../../../i18n';
 vi.mock('../../knowledge/LearningNote', () => ({ LearningNote: () => null }));
 
 beforeEach(() => {
@@ -96,6 +95,52 @@ describe('playable shift UI', () => {
       screen.getByLabelText('Active customer commitment', { exact: false })
     ).not.toBeDisabled();
   });
+  it.each([
+    [
+      'en',
+      'Working agreement: incomplete',
+      'Why: Reload safety: future authority and consent revoked; earned pay retained.',
+    ],
+    [
+      'pt-BR',
+      'Acordo de trabalho: incompleto',
+      'Motivo: Proteção na recarga: autoridade e consentimento futuros revogados; remuneração adquirida mantida.',
+    ],
+  ] as const)(
+    'debrief (%s) says why a reload left the agreement incomplete',
+    (locale, status, why) => {
+      useWorkplaceStore.getState().startMission('team');
+      const state = useWorkplaceStore.getState().workplace;
+      const record = campaignRecord({ ...state, minute: 90 });
+      useWorkplaceStore.setState({
+        workplace: {
+          ...state,
+          // A reload settled the third shift at minute 76, short of its 90.
+          phase: 'review',
+          minute: 76,
+          reviewReason: 'Reload safety: future authority and consent revoked; earned pay retained.',
+          campaign: {
+            ...state.campaign!,
+            shift: 2,
+            decision: 'protect-refusal',
+            repairs: 1,
+            history: [
+              { ...record, shift: 0, agreementProved: true },
+              { ...record, shift: 1, agreementProved: true, inspectionComplete: true },
+            ],
+          },
+        },
+      });
+      setLocale(locale);
+      try {
+        render(<ShiftDebrief />);
+        expect(screen.getByText(new RegExp(status))).toBeInTheDocument();
+        expect(screen.getByText(why)).toBeInTheDocument();
+      } finally {
+        setLocale('en');
+      }
+    }
+  );
   it.each([0, 80, 100])(
     'debrief separates delivery, deferral and agreement outcomes at %s kg',
     (delivered) => {

@@ -82,6 +82,7 @@ export const playableShiftMessages = defineMessages({
     followOnCredit:
       'The season now works {customer}: {kg} kg of its dispatch credited to the cooperative.',
     agreementOutcome: 'Working agreement: {status}. Combined outcome: {combined}.',
+    agreementWhy: 'Why: {reason}',
     agreementStatus: (p: { status: string }) => p.status,
     outcomeComplete: 'complete',
     outcomeUnfinished: 'unfinished',
@@ -209,6 +210,7 @@ export const playableShiftMessages = defineMessages({
     followOnCredit:
       'A temporada agora atende {customer}: {kg} kg da expedição creditados à cooperativa.',
     agreementOutcome: 'Acordo de trabalho: {status}. Resultado combinado: {combined}.',
+    agreementWhy: 'Motivo: {reason}',
     agreementStatus: (p: { status: string }) => pick(PT_AGREEMENT_STATUS, p.status),
     outcomeComplete: 'concluído',
     outcomeUnfinished: 'não concluído',

@@ -242,6 +242,21 @@ describe('Workplace laboratory interface', () => {
     expect(
       screen.getByText(/Working agreement: incomplete. Combined outcome: unfinished/)
     ).toBeInTheDocument();
+    // The review reason renders through displayEventDetail, so the English
+    // reload sentinel kept in state reads in the active language.
+    act(() => {
+      useWorkplaceStore.setState({
+        workplace: {
+          ...useWorkplaceStore.getState().workplace,
+          reviewReason: 'Reload safety: future authority and consent revoked; earned pay retained.',
+        },
+      });
+    });
+    expect(
+      screen.getAllByText(
+        /Reload safety: future authority and consent revoked; earned pay retained\./
+      ).length
+    ).toBeGreaterThan(0);
     expect(
       screen.getByText(
         /Remaining full customer commitment: 0 kg. Full customer commitment dispatched/

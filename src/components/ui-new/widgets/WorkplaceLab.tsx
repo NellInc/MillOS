@@ -1389,7 +1389,7 @@ export const WorkplaceLab: React.FC = () => {
               shipped: formatFixed(mission?.creditedKg ?? state.shippedKg, 1),
               target: formatFixed(displayTarget, 0),
             })}{' '}
-            {state.reviewReason ?? t('reviewOpens')}
+            {state.reviewReason ? displayEventDetail(state.reviewReason) : t('reviewOpens')}
           </p>
           <div>
             <h4 className="font-semibold text-white">{t('relationshipEvidence')}</h4>

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { pendingFollowOn, useWorkplaceStore } from '../../../stores/workplaceStore';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
 import { useWorkplaceReplayStore } from '../../../stores/workplaceReplayStore';
-import { exportWorkplace } from '../../../simulation/bilateralWorkplace';
+import { displayEventDetail, exportWorkplace } from '../../../simulation/bilateralWorkplace';
 import { campaignOutcomes, campaignTotals } from '../../../simulation/workplaceCampaign';
 import { improvementObligations } from '../../../simulation/workplaceImprovement';
 import { useWorkplaceAutoplay } from '../../../simulation/workplaceAutoplay';
@@ -68,7 +68,7 @@ function ReviewRecord({ state, left = false }: { state: WorkplaceState; left?: b
             })}
           </p>
         ))}
-        <p>{state.reviewReason}</p>
+        <p>{state.reviewReason && displayEventDetail(state.reviewReason)}</p>
         <button type="button" className={buttonClass} onClick={download}>
           {t('download')}
         </button>

@@ -18,6 +18,7 @@ import {
   improvementObligations,
 } from '../../../simulation/workplaceImprovement';
 import { campaignOutcomes, campaignTotals } from '../../../simulation/workplaceCampaign';
+import { displayEventDetail } from '../../../simulation/bilateralWorkplace';
 import type { WorkplaceProfile, WorkplaceState } from '../../../types/workplace';
 import {
   selectProvisionalShiftReport,
@@ -584,6 +585,11 @@ function WorkingAgreementSummary({
           combined: outcome.complete ? t('outcomeComplete') : t('outcomeUnfinished'),
         })}
       </p>
+      {/* An incomplete agreement says what settled the shift (a reload's
+          safety settle, an objection, a stop), as the BAS panel does. */}
+      {outcome.agreement.status === 'incomplete' && state.reviewReason && (
+        <p>{t('agreementWhy', { reason: displayEventDetail(state.reviewReason) })}</p>
+      )}
       <details>
         <summary className="min-h-11 cursor-pointer py-3 text-cyan-200">
           {t('individualObligations')}
