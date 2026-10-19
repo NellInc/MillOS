@@ -28,6 +28,11 @@ import {
   TRUCK_CONTROLLER_STEP_SECONDS,
 } from '../../components/truckbay/truckClock';
 import { PACE_GAME_SPEEDS, STANDARD_GAME_SPEED } from '../../simulation/pace';
+import { createElement } from 'react';
+import { cleanup, render, screen } from '@testing-library/react';
+import { ShiftDebrief } from '../../components/ui-new/onboarding/PlayableShift';
+import { useUIStore } from '../../stores/uiStore';
+import { setLocale } from '../../i18n';
 
 // Execute the actual current scene's roster factory, rather than duplicating a
 // machine table. The final lane also couples the real truck controller and dock
@@ -165,6 +170,32 @@ it('fulfils the bakery commitment within its actual default-speed morning window
   expect(campaign.orders[0].completedAtMinute).toBeLessThanOrEqual(campaign.orders[0].dueAtMinute);
   expect(hasCommunityBakerySupply(campaign.orders, campaign.elapsedMinutes)).toBe(true);
   expect(campaign.reports.length).toBeGreaterThan(0);
+});
+
+// The ordinary path to a shift review: the real tick closes the 10:00-14:00
+// Morning, announces it, and the debrief reads it in the player's language.
+it.each([
+  ['en', /^Morning shift closed: grade [A-F]$/, 'Shift debrief', /delivered on time\.$/],
+  ['pt-BR', /^Turno da manhã encerrado: nota [A-F]$/, 'Balanço do turno', /entregue no prazo\.$/],
+] as const)('closes, announces and reviews the Morning in %s', (locale, title, heading, onTime) => {
+  setLocale(locale);
+  try {
+    for (let i = 0; i < morningWindowTicks; i++) step();
+    const report = useOperationsCampaignStore.getState().reports[0];
+    expect(report).toMatchObject({ shiftKey: 'day-0-morning', grade: expect.any(String) });
+    expect(report.orderOutcomes?.[0]?.id).toBe('order-001');
+    expect(report.orderOutcomes?.[0]?.shippedKg).toBeCloseTo(6000, 6);
+    const notice = useUIStore.getState().alerts.find((a) => a.id === `shift-review-${report.id}`);
+    expect(notice?.title).toMatch(title);
+    render(createElement(ShiftDebrief));
+    expect(screen.getByRole('heading', { name: heading })).toBeVisible();
+    expect(screen.getByText(new RegExp(`^Riverside Bakers' Cooperative: .*`))).toHaveTextContent(
+      onTime
+    );
+  } finally {
+    cleanup();
+    setLocale('en');
+  }
 });
 
 it('recovers actual certification hold and dispatches within the default morning window', () => {

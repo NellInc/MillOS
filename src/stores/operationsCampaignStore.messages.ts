@@ -40,6 +40,7 @@ export const operationsCampaignMessages = defineMessages({
     sourceControlLayer: 'Control layer',
 
     // Logbook messages
+    logChallengeStarted: 'Started the recovery challenge: {label}.',
     logChallengeAbandoned: 'Challenge abandoned; its incident controls remain active.',
     logProgrammeAccepted:
       'Accepted three 3,000 kg repeat commitments. Existing material and genealogy remain unchanged.',
@@ -88,16 +89,6 @@ export const operationsCampaignMessages = defineMessages({
     constraintMaintenanceLabel: 'Maintenance queue',
     constraintMaintenanceDetail: (p: { count: number; countText: string }) =>
       `${p.countText} autonomous work order${p.count === 1 ? '' : 's'} open.`,
-
-    // Period grading
-    gradeDispatchReason: '{kg} kg dispatched; net contribution {margin} after recorded costs.',
-    gradeRiskReason: (p: { count: number; countText: string }) =>
-      `${p.countText} material or deadline risks carried into the next period.`,
-    gradeQualityFailureReason:
-      '{kg} kg failed the commitment quality threshold; quality failure caps the grade at F.',
-    gradeUnsafeReason: 'Unresolved high-severity controls cap the grade at D: {titles}.',
-    reportSummaryGood:
-      '{kg} kg shipped with nonnegative contribution and controlled carry-over risk.',
   },
   'pt-BR': {
     recipeStrongWhite: 'Farinha de trigo forte para pão',
@@ -137,6 +128,7 @@ export const operationsCampaignMessages = defineMessages({
     sourceProductionExecution: 'Execução da produção',
     sourceControlLayer: 'Camada de controle',
 
+    logChallengeStarted: 'Desafio de recuperação iniciado: {label}.',
     logChallengeAbandoned: 'Desafio abandonado; os controles da ocorrência continuam ativos.',
     logProgrammeAccepted:
       'Foram aceitos três compromissos recorrentes de 3.000 kg. O material e a genealogia existentes permanecem inalterados.',
@@ -187,17 +179,5 @@ export const operationsCampaignMessages = defineMessages({
       p.count === 1
         ? `${p.countText} ordem de serviço autônoma aberta.`
         : `${p.countText} ordens de serviço autônomas abertas.`,
-
-    gradeDispatchReason:
-      '{kg} kg expedidos; contribuição líquida de {margin} após os custos registrados.',
-    gradeRiskReason: (p: { count: number; countText: string }) =>
-      p.count === 1
-        ? `${p.countText} risco de material ou de prazo transferido para o próximo período.`
-        : `${p.countText} riscos de material ou de prazo transferidos para o próximo período.`,
-    gradeQualityFailureReason:
-      '{kg} kg não atingiram o limite de qualidade do compromisso; a falha de qualidade limita a nota a F.',
-    gradeUnsafeReason: 'Controles de alta severidade não resolvidos limitam a nota a D: {titles}.',
-    reportSummaryGood:
-      '{kg} kg expedidos com contribuição não negativa e risco transferido ao próximo período sob controle.',
   },
 });

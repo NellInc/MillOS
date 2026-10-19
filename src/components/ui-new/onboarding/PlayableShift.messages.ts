@@ -27,6 +27,11 @@ const PT_ROLE: Record<string, string> = {
   Maintenance: 'Manutenção',
   Coordinator: 'Coordenação',
 };
+const PT_SHIFT_OF: Record<string, string> = {
+  morning: 'da manhã',
+  afternoon: 'da tarde',
+  night: 'da noite',
+};
 
 export const playableShiftMessages = defineMessages({
   en: {
@@ -39,7 +44,7 @@ export const playableShiftMessages = defineMessages({
     fulfilledDispatched: '{customer}: {kg} kg dispatched.',
     programmeComplete: 'Programme complete, review your shift',
     programmeCompleteDetail:
-      'Review delivery, quality and recovery before choosing the next commitments.',
+      'The shift debrief shows this shift so far: each delivery, whether it was on time, what held the grade back and what to try next. Then choose the next commitments.',
     reviewShiftProgramme: 'Review shift and next programme',
     receiptAndLearning: 'Delivery receipt and learning',
     expandGuide: 'Expand delivery guide',
@@ -123,14 +128,24 @@ export const playableShiftMessages = defineMessages({
     abandonChallenge: 'Abandon challenge',
     savedReports: 'Saved shift reports',
     shiftDebrief: 'Shift debrief',
-    noReports:
-      'Your report is saved when the run window changes. Keep operating, or inspect freely at a slower pace.',
-    readReports: (p: { count: number; countText: string }) =>
-      `Read ${p.countText} saved ${p.count === 1 ? 'report' : 'reports'}`,
+    noReports: (p: { shift: string; time: string }) =>
+      `The ${p.shift.charAt(0).toUpperCase()}${p.shift.slice(1)} report is saved when the shift closes at ${p.time}. Keep operating, or inspect freely at a slower pace.`,
+    readEarlierReports: (p: { count: number; countText: string }) =>
+      `Read ${p.countText} earlier ${p.count === 1 ? 'report' : 'reports'}`,
     reportHeading: '{shift}: grade {grade}',
-    decisionsHeading: 'Decisions during this shift',
-    noDecisions: 'No recorded operational choices in this saved window.',
-    decisionsNotSaved: 'Decisions were not saved with this report.',
+    reportHeadingUngraded: '{shift}: no customer commitments, no grade',
+    reportHeadingProvisional: '{shift} so far: provisional grade {grade}',
+    reportHeadingProvisionalUngraded: '{shift} so far: no customer commitments yet',
+    provisionalNote:
+      'This shift is still open. Its report is saved, with this evidence, when the shift closes.',
+    ordersHeading: 'Orders this shift',
+    choicesHeading: 'Your decisions this shift',
+    agentChoice: 'AI agent: {message}',
+    noChoices: 'No choices were recorded this shift; the mill ran on its controllers.',
+    narrationHeading: 'What the mill did',
+    shiftLogHeading: 'Shift log',
+    noDecisions: 'Nothing was logged in this saved window.',
+    decisionsNotSaved: 'The log was not saved with this report.',
     carryForward: 'Carry forward: {risks}',
     acceptNextProgramme: 'Accept next delivery programme',
     acceptNextHint:
@@ -146,7 +161,7 @@ export const playableShiftMessages = defineMessages({
     fulfilledDispatched: '{customer}: {kg} kg expedidos.',
     programmeComplete: 'Programa concluído, revise seu turno',
     programmeCompleteDetail:
-      'Revise entrega, qualidade e recuperação antes de escolher os próximos compromissos.',
+      'O balanço do turno mostra este turno até agora: cada entrega, se chegou no prazo, o que impediu uma nota melhor e o que tentar a seguir. Depois escolha os próximos compromissos.',
     reviewShiftProgramme: 'Revisar o turno e o próximo programa',
     receiptAndLearning: 'Comprovante da entrega e aprendizado',
     expandGuide: 'Expandir o guia de entrega',
@@ -231,14 +246,25 @@ export const playableShiftMessages = defineMessages({
     abandonChallenge: 'Abandonar desafio',
     savedReports: 'Relatórios de turno salvos',
     shiftDebrief: 'Balanço do turno',
-    noReports:
-      'Seu relatório é salvo quando a janela de execução muda. Continue operando ou inspecione à vontade em um ritmo mais lento.',
-    readReports: (p: { count: number; countText: string }) =>
-      `Ler ${p.countText} ${p.count === 1 ? 'relatório salvo' : 'relatórios salvos'}`,
+    noReports: (p: { shift: string; time: string }) =>
+      `O relatório do turno ${PT_SHIFT_OF[p.shift] ?? p.shift} é salvo quando o turno fecha às ${p.time}. Continue operando ou inspecione à vontade em um ritmo mais lento.`,
+    readEarlierReports: (p: { count: number; countText: string }) =>
+      `Ler ${p.countText} ${p.count === 1 ? 'relatório anterior' : 'relatórios anteriores'}`,
     reportHeading: '{shift}: nota {grade}',
-    decisionsHeading: 'Decisões durante este turno',
-    noDecisions: 'Nenhuma escolha operacional registrada nesta janela salva.',
-    decisionsNotSaved: 'As decisões não foram salvas com este relatório.',
+    reportHeadingUngraded: '{shift}: sem compromissos com clientes, sem nota',
+    reportHeadingProvisional: '{shift} até agora: nota provisória {grade}',
+    reportHeadingProvisionalUngraded: '{shift} até agora: ainda sem compromissos com clientes',
+    provisionalNote:
+      'Este turno ainda está aberto. O relatório é salvo, com estas evidências, quando o turno fecha.',
+    ordersHeading: 'Pedidos neste turno',
+    choicesHeading: 'Suas decisões neste turno',
+    agentChoice: 'Agente de IA: {message}',
+    noChoices:
+      'Nenhuma escolha foi registrada neste turno; o moinho funcionou com seus controladores.',
+    narrationHeading: 'O que o moinho fez',
+    shiftLogHeading: 'Registro do turno',
+    noDecisions: 'Nada foi registrado nesta janela salva.',
+    decisionsNotSaved: 'O registro não foi salvo com este relatório.',
     carryForward: 'Levar para o próximo turno: {risks}',
     acceptNextProgramme: 'Aceitar o próximo programa de entregas',
     acceptNextHint:

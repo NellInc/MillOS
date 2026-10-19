@@ -2583,7 +2583,9 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                       campaign.addLogEntry(
                         controlIdentity.trim() || defaultControlIdentity(),
                         'operation',
-                        operationsLogMessage
+                        operationsLogMessage,
+                        null,
+                        'operator'
                       );
                       setOperationsLogMessage('');
                     }}

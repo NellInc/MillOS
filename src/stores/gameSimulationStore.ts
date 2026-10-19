@@ -198,6 +198,24 @@ export const getShiftForHour = (hour: number): RunWindow => {
   return 'night';
 };
 
+/** When each shift window closes and its report is written (24-hour clock). */
+export const SHIFT_CLOSING_TIME: Record<RunWindow, string> = {
+  morning: '14:00',
+  afternoon: '22:00',
+  night: '06:00',
+};
+
+/**
+ * The key of the shift window the clock is in. Night runs 22:00 to 06:00 across
+ * midnight, so its hours after midnight belong to the day on which it started;
+ * keying by the current day split every night into a 2 h and a 6 h report.
+ * Working if 22:00 to 06:00 closes exactly one Night report.
+ */
+export function getShiftWindowKey(gameDay: number, gameTime: number, shift: RunWindow): string {
+  const day = shift === 'night' && gameTime < 6 ? Math.max(0, gameDay - 1) : gameDay;
+  return `day-${day}-${shift}`;
+}
+
 const defaultCrisis = (): CrisisState => ({
   active: false,
   type: null,

@@ -15,10 +15,20 @@ import {
   OPERATIONS_CHALLENGES,
   RECOVERY_CHALLENGE_TARGET_KG,
   RECOVERY_CHALLENGE_WINDOW_MINUTES,
+  challengeLabel,
   type OperationsChallengeId,
   type OperationsChallengeRun,
 } from '../simulation/operationsPlay';
-import { formatFixed, translate } from '../i18n';
+import { formatFixed, getLocale, translate } from '../i18n';
+import {
+  gradeShift,
+  shiftGradeBasis,
+  shiftGradeReasons,
+  shiftHeadline,
+  type ShiftGrade,
+  type ShiftGradeBasis,
+  type ShiftOrderOutcome,
+} from '../simulation/shiftReview';
 import { operationsCampaignMessages as messages } from './operationsCampaignStore.messages';
 
 export type OrderStatus = 'planned' | 'active' | 'late' | 'fulfilled' | 'cancelled';
@@ -33,6 +43,13 @@ export type IncidentKind =
   | 'control_network_degraded';
 export type IncidentPhase = 'raised' | 'acknowledged' | 'mitigated' | 'resolved';
 export type LogCategory = 'operation' | 'quality' | 'maintenance' | 'safety' | 'period';
+/**
+ * Who a logbook entry records: the operator's own choice, an AI agent command,
+ * or the plant's controllers narrating what they did. Tagged at the call site,
+ * since the same store action serves the operator, agents and the tick.
+ * Entries saved before store v3 carry none and read as 'controller'.
+ */
+export type CampaignActor = 'operator' | 'agent' | 'controller';
 
 export interface MillRecipe {
   id: string;
@@ -88,6 +105,11 @@ export interface ShiftCampaignMetrics extends CampaignEconomics {
   qualityFailureKg: number;
   incidentsResolved: number;
   automaticActions: number;
+  /**
+   * Game minutes in the window during which a customer order was open. Held
+   * clock time is not counted: a held tick never reaches tickCampaign.
+   */
+  commitmentMinutes: number;
 }
 
 export interface ShiftCampaignReport {
@@ -99,10 +121,23 @@ export interface ShiftCampaignReport {
   metrics: ShiftCampaignMetrics;
   completedOrderIds: string[];
   openRisks: string[];
-  grade: 'A' | 'B' | 'C' | 'D' | 'F';
+  /** Null when no customer commitment was open and nothing shipped (store v3). */
+  grade: ShiftGrade | null;
   summary: string;
+  /** The evidence the grade was computed from (store v3; older reports lack it). */
+  gradeBasis?: ShiftGradeBasis;
+  /** Each order completed in, or still open at the end of, the window (store v3). */
+  orderOutcomes?: ShiftOrderOutcome[];
   gradeReasons?: string[];
+  /**
+   * Before store v3, the window's last eight logbook lines of any origin; from
+   * v3, the messages of `choices` only.
+   */
   decisions?: string[];
+  /** Operator and agent choices in the window (store v3). */
+  choices?: ShiftChoice[];
+  /** The plant's own narration in the window, last eight lines (store v3). */
+  narration?: string[];
 }
 
 export interface CampaignLogEntry {
@@ -112,6 +147,14 @@ export interface CampaignLogEntry {
   category: LogCategory;
   message: string;
   relatedId: string | null;
+  actor?: CampaignActor;
+}
+
+/** A choice made in the window, by the operator or an AI agent. */
+export interface ShiftChoice {
+  minute: number;
+  actor: Exclude<CampaignActor, 'controller'>;
+  message: string;
 }
 
 export interface CampaignConstraint {
@@ -232,10 +275,10 @@ interface OperationsCampaignState {
   challengeHistory: OperationsChallengeRun[];
   creditedBatchKg: Record<string, number>;
   lastMaterialSessionId: string | null;
-  startChallenge: (id: OperationsChallengeId) => boolean;
-  abandonChallenge: () => void;
-  finishChallengeRecovery: () => boolean;
-  acceptNextProgramme: () => boolean;
+  startChallenge: (id: OperationsChallengeId, actor?: CampaignActor) => boolean;
+  abandonChallenge: (actor?: CampaignActor) => void;
+  finishChallengeRecovery: (actor?: CampaignActor) => boolean;
+  acceptNextProgramme: (actor?: CampaignActor) => boolean;
   elapsedMinutes: number;
   orders: CustomerOrder[];
   activeOrderId: string | null;
@@ -254,17 +297,18 @@ interface OperationsCampaignState {
   shiftStartedAtMinute: number;
   sequence: number;
   initializeCampaign: () => void;
-  activateOrder: (orderId: string) => void;
+  activateOrder: (orderId: string, actor?: CampaignActor) => void;
   triggerIncident: (kind: IncidentKind) => OperationalIncident | null;
-  acknowledgeIncident: (incidentId: string) => void;
-  mitigateIncident: (incidentId: string) => void;
-  resolveIncident: (incidentId: string) => void;
+  acknowledgeIncident: (incidentId: string, actor?: CampaignActor) => void;
+  mitigateIncident: (incidentId: string, actor?: CampaignActor) => void;
+  resolveIncident: (incidentId: string, actor?: CampaignActor) => void;
   markIncidentEffectApplied: (incidentId: string) => void;
   addLogEntry: (
     source: string,
     category: LogCategory,
     message: string,
-    relatedId?: string | null
+    relatedId?: string | null,
+    actor?: CampaignActor
   ) => void;
   tickCampaign: (deltaSimulationSeconds: number, context: CampaignTickContext) => void;
   getActiveProductionPlan: () => {
@@ -289,6 +333,7 @@ interface OperationsCampaignState {
 
 const MAX_LOG_ENTRIES = 160;
 const MAX_REPORTS = 12;
+const MAX_REPORT_CHOICES = 24;
 const MAX_INCIDENTS = 32;
 const MAX_PROCESSED_MANIFESTS = MAX_MATERIAL_MANIFESTS;
 
@@ -392,6 +437,7 @@ const ZERO_SHIFT_METRICS: ShiftCampaignMetrics = {
   qualityFailureKg: 0,
   incidentsResolved: 0,
   automaticActions: 0,
+  commitmentMinutes: 0,
 };
 
 const EMPTY_DISPATCH_LOAD: DispatchLoadSnapshot = {
@@ -942,61 +988,131 @@ function makeConstraints(
   return constraints;
 }
 
-function gradePeriod(
-  metrics: ShiftCampaignMetrics,
-  risks: string[],
-  incidents: OperationalIncident[]
-) {
-  const margin =
-    metrics.revenue -
-    metrics.energyCost -
-    metrics.automationCost -
-    metrics.wasteCost -
-    metrics.maintenanceCost -
-    metrics.demurrageCost -
-    metrics.latePenalties;
-  let grade: ShiftCampaignReport['grade'] =
-    risks.length === 0 && margin >= 0 && metrics.dispatchedKg >= 4000
-      ? 'A'
-      : risks.length <= 1 && margin >= 0 && metrics.dispatchedKg >= 2500
-        ? 'B'
-        : risks.length <= 2 && metrics.dispatchedKg > 0
-          ? 'C'
-          : metrics.dispatchedKg > 0
-            ? 'D'
-            : 'F';
-  const gradeReasons = [
-    translate(messages, 'gradeDispatchReason', {
-      kg: formatFixed(metrics.dispatchedKg, 0),
-      margin: formatFixed(margin, 2),
-    }),
-    translate(messages, 'gradeRiskReason', {
-      count: risks.length,
-      countText: formatFixed(risks.length, 0),
-    }),
-  ];
-  if ((metrics.qualityFailureKg ?? 0) > 0) {
-    grade = 'F';
-    gradeReasons.push(
-      translate(messages, 'gradeQualityFailureReason', {
-        kg: formatFixed(metrics.qualityFailureKg, 0),
-      })
-    );
-  }
-  const unsafe = incidents.filter(
-    (incident) =>
-      incident.phase !== 'resolved' &&
-      (incident.severity === 'high' || incident.severity === 'critical')
+export interface ShiftReportInput {
+  id: string;
+  shiftKey: string;
+  shiftLabel: string;
+  startedAtMinute: number;
+  endedAtMinute: number;
+  metrics: ShiftCampaignMetrics;
+  orders: ReadonlyArray<CustomerOrder>;
+  logbook: ReadonlyArray<CampaignLogEntry>;
+  /** Labels of the non-info constraints open at close. */
+  risks: string[];
+  incidents: ReadonlyArray<OperationalIncident>;
+}
+
+/**
+ * One shift report from the evidence the campaign holds. Pure: the closing
+ * tick and the live "this shift so far" view both call it.
+ */
+export function buildShiftReport(input: ShiftReportInput): ShiftCampaignReport {
+  const { orders, startedAtMinute } = input;
+  const completedHere = (order: CustomerOrder) =>
+    order.status === 'fulfilled' &&
+    order.completedAtMinute !== null &&
+    order.completedAtMinute >= startedAtMinute;
+  const open = (order: CustomerOrder) =>
+    order.status !== 'fulfilled' && order.status !== 'cancelled';
+  const completed = orders.filter(completedHere);
+  const gradeBasis = shiftGradeBasis(
+    input.metrics,
+    input.risks,
+    input.incidents
+      .filter(
+        (incident) =>
+          incident.phase !== 'resolved' &&
+          (incident.severity === 'high' || incident.severity === 'critical')
+      )
+      .map((incident) => incident.title),
+    completed.filter((order) => order.completedAtMinute! > order.dueAtMinute + 1e-6).length
   );
-  if (unsafe.length) {
-    if (grade === 'A' || grade === 'B' || grade === 'C') grade = 'D';
-    gradeReasons.push(
-      translate(messages, 'gradeUnsafeReason', {
-        titles: unsafe.map((incident) => incident.title).join(', '),
-      })
-    );
-  }
-  return { grade, gradeReasons };
+  const grade = gradeShift(gradeBasis);
+  const locale = getLocale();
+  const inWindow = input.logbook.filter(
+    (entry) => entry.simulationMinute >= startedAtMinute && entry.category !== 'period'
+  );
+  // Every choice in the window is kept up to a generous bound; narration is
+  // what the plant did and is only a tail.
+  const choices: ShiftChoice[] = inWindow
+    .filter((entry) => entry.actor === 'operator' || entry.actor === 'agent')
+    .slice(-MAX_REPORT_CHOICES)
+    .map((entry) => ({
+      minute: entry.simulationMinute,
+      actor: entry.actor as ShiftChoice['actor'],
+      message: entry.message,
+    }));
+  return {
+    id: input.id,
+    shiftKey: input.shiftKey,
+    shiftLabel: input.shiftLabel,
+    startedAtMinute,
+    endedAtMinute: input.endedAtMinute,
+    metrics: { ...input.metrics },
+    completedOrderIds: completed.map((order) => order.id),
+    orderOutcomes: orders
+      .filter((order) => completedHere(order) || open(order))
+      .map((order) => ({
+        id: order.id,
+        customer: order.customer,
+        requiredKg: order.requiredKg,
+        shippedKg: order.shippedKg,
+        dueAtMinute: order.dueAtMinute,
+        completedAtMinute: completedHere(order) ? order.completedAtMinute : null,
+        qualityFailureKg: order.qualityFailureKg,
+      })),
+    openRisks: [...input.risks],
+    grade,
+    gradeBasis,
+    gradeReasons: shiftGradeReasons(gradeBasis, locale),
+    decisions: choices.map((choice) => choice.message),
+    choices,
+    narration: inWindow
+      .filter((entry) => (entry.actor ?? 'controller') === 'controller')
+      .slice(-8)
+      .map((entry) => entry.message),
+    summary: shiftHeadline(gradeBasis, grade, locale),
+  };
+}
+
+export type ProvisionalReportSource = Pick<
+  OperationsCampaignState,
+  | 'currentShiftKey'
+  | 'currentShiftLabel'
+  | 'shiftStartedAtMinute'
+  | 'elapsedMinutes'
+  | 'shiftMetrics'
+  | 'orders'
+  | 'logbook'
+  | 'constraints'
+  | 'incidents'
+>;
+
+/**
+ * The open window as a report: what "this shift so far" shows before the
+ * clock closes it. Its risks are the constraints the last tick computed, the
+ * same set a closing report uses. Null before the first tick of a window.
+ * Working if the window in which a programme completes can be reviewed at
+ * once, with the same grade rules and order lines as a saved report.
+ */
+export function selectProvisionalShiftReport(
+  state: ProvisionalReportSource
+): ShiftCampaignReport | null {
+  if (!state.currentShiftKey || state.elapsedMinutes <= state.shiftStartedAtMinute) return null;
+  return buildShiftReport({
+    id: `provisional-${state.currentShiftKey}`,
+    shiftKey: state.currentShiftKey,
+    shiftLabel: state.currentShiftLabel,
+    startedAtMinute: state.shiftStartedAtMinute,
+    endedAtMinute: state.elapsedMinutes,
+    metrics: state.shiftMetrics,
+    orders: state.orders,
+    logbook: state.logbook,
+    risks: state.constraints
+      .filter((constraint) => constraint.severity !== 'info')
+      .map((constraint) => constraint.label),
+    incidents: state.incidents,
+  });
 }
 
 export const useOperationsCampaignStore = create<OperationsCampaignState>()(
@@ -1004,7 +1120,7 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
     (set, get) => ({
       ...emptyState(),
 
-      startChallenge: (id) => {
+      startChallenge: (id, actor = 'controller') => {
         const state = get();
         const definition = OPERATIONS_CHALLENGES.find((challenge) => challenge.id === id);
         if (!definition || challengeBlockReason(state)) return false;
@@ -1026,9 +1142,16 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
             endedAtMinute: null,
           },
         });
+        get().addLogEntry(
+          translate(messages, 'sourceRecoveryChallenge'),
+          'operation',
+          translate(messages, 'logChallengeStarted', { label: challengeLabel(id) }),
+          incident.id,
+          actor
+        );
         return true;
       },
-      abandonChallenge: () => {
+      abandonChallenge: (actor = 'controller') => {
         const state = get();
         if (!state.activeChallenge) return;
         set({
@@ -1046,17 +1169,19 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
         state.addLogEntry(
           translate(messages, 'sourceRecoveryChallenge'),
           'operation',
-          translate(messages, 'logChallengeAbandoned')
+          translate(messages, 'logChallengeAbandoned'),
+          null,
+          actor
         );
       },
-      finishChallengeRecovery: () => {
+      finishChallengeRecovery: (actor = 'controller') => {
         const state = get();
         const incident = getChallengeRecoveryIncident(state);
         if (!incident || incident.phase !== 'mitigated' || !incident.effectApplied) return false;
-        state.resolveIncident(incident.id);
+        state.resolveIncident(incident.id, actor);
         return true;
       },
-      acceptNextProgramme: () => {
+      acceptNextProgramme: (actor = 'controller') => {
         const state = get();
         if (
           state.activeChallenge ||
@@ -1077,7 +1202,9 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
         state.addLogEntry(
           translate(messages, 'sourceOrderScheduler'),
           'operation',
-          translate(messages, 'logProgrammeAccepted')
+          translate(messages, 'logProgrammeAccepted'),
+          null,
+          actor
         );
         return true;
       },
@@ -1102,7 +1229,7 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
         }));
       },
 
-      activateOrder: (orderId) =>
+      activateOrder: (orderId, actor = 'controller') =>
         set((state) => {
           const selected = state.orders.find((order) => order.id === orderId);
           if (!selected || selected.status === 'fulfilled' || selected.status === 'cancelled')
@@ -1138,6 +1265,7 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
                   recipe: selected.recipe.label,
                 }),
                 relatedId: selected.id,
+                actor,
               },
               MAX_LOG_ENTRIES
             ),
@@ -1186,7 +1314,7 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
         return incident;
       },
 
-      acknowledgeIncident: (incidentId) =>
+      acknowledgeIncident: (incidentId, actor = 'controller') =>
         set((state) => {
           const target = state.incidents.find(
             (incident) => incident.id === incidentId && incident.phase === 'raised'
@@ -1209,13 +1337,14 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
                 category: 'operation',
                 message: translate(messages, 'logIncidentAcknowledged', { title: target.title }),
                 relatedId: incidentId,
+                actor,
               },
               MAX_LOG_ENTRIES
             ),
           };
         }),
 
-      mitigateIncident: (incidentId) =>
+      mitigateIncident: (incidentId, actor = 'controller') =>
         set((state) => {
           // Only a live incident can be mitigated; an unknown or already
           // settled id is a no-op, not an automatic action.
@@ -1253,13 +1382,14 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
                 category: 'operation',
                 message: translate(messages, 'logIncidentMitigated', { title: target.title }),
                 relatedId: incidentId,
+                actor,
               },
               MAX_LOG_ENTRIES
             ),
           };
         }),
 
-      resolveIncident: (incidentId) =>
+      resolveIncident: (incidentId, actor = 'controller') =>
         set((state) => {
           const target = state.incidents.find(
             (incident) => incident.id === incidentId && incident.phase !== 'resolved'
@@ -1292,6 +1422,7 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
                 category: 'maintenance',
                 message: translate(messages, 'logIncidentResolved', { title: target.title }),
                 relatedId: incidentId,
+                actor,
               },
               MAX_LOG_ENTRIES
             ),
@@ -1305,7 +1436,7 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
           ),
         })),
 
-      addLogEntry: (source, category, message, relatedId = null) =>
+      addLogEntry: (source, category, message, relatedId = null, actor = 'controller') =>
         set((state) => {
           const trimmed = message.trim();
           if (!trimmed) return state;
@@ -1321,6 +1452,7 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
                 category,
                 message: trimmed,
                 relatedId,
+                actor,
               },
               MAX_LOG_ENTRIES
             ),
@@ -1572,6 +1704,14 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
                 deltaHours
             );
           }, 0);
+          // Exposure is read at the start of the tick: an order fulfilled by
+          // this tick's manifest was still owed while the tick ran.
+          if (
+            state.orders.some(
+              (order) => order.status !== 'fulfilled' && order.status !== 'cancelled'
+            )
+          )
+            shiftMetrics.commitmentMinutes = (shiftMetrics.commitmentMinutes ?? 0) + deltaMinutes;
           for (const [key, value] of Object.entries({
             energyCost,
             automationCost,
@@ -1602,40 +1742,19 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
             const risks = makeConstraints(constraintInput, context, incidentEffect)
               .filter((constraint) => constraint.severity !== 'info')
               .map((constraint) => constraint.label);
-            const { grade, gradeReasons } = gradePeriod(shiftMetrics, risks, state.incidents);
             sequence += 1;
-            const report: ShiftCampaignReport = {
+            const report = buildShiftReport({
               id: `period-report-${String(sequence).padStart(4, '0')}`,
               shiftKey: currentShiftKey,
               shiftLabel: currentShiftLabel,
               startedAtMinute: shiftStartedAtMinute,
               endedAtMinute: elapsedMinutes,
-              metrics: { ...shiftMetrics },
-              completedOrderIds: orders
-                .filter(
-                  (order) =>
-                    order.status === 'fulfilled' &&
-                    order.completedAtMinute !== null &&
-                    order.completedAtMinute >= shiftStartedAtMinute
-                )
-                .map((order) => order.id),
-              openRisks: risks,
-              grade,
-              gradeReasons,
-              decisions: logbook
-                .filter(
-                  (entry) =>
-                    entry.simulationMinute >= shiftStartedAtMinute && entry.category !== 'period'
-                )
-                .slice(-8)
-                .map((entry) => entry.message),
-              summary:
-                grade === 'A' || grade === 'B'
-                  ? translate(messages, 'reportSummaryGood', {
-                      kg: formatFixed(shiftMetrics.dispatchedKg, 0),
-                    })
-                  : gradeReasons.join(' '),
-            };
+              metrics: shiftMetrics,
+              orders,
+              logbook,
+              risks,
+              incidents: state.incidents,
+            });
             reports = appendBounded(reports, report, MAX_REPORTS);
             currentShiftKey = context.shiftKey;
             currentShiftLabel = context.shiftLabel;
@@ -1814,7 +1933,15 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
     {
       name: 'millos-autonomous-operations',
       storage: safeJSONStorage,
-      version: 2,
+      // v3: shift reports may carry no letter (grade null) and optional review
+      // evidence; shift metrics gain commitmentMinutes. Every addition is
+      // optional or defaulted in merge, so a v2 save passes through unchanged
+      // and its reports still render from their saved summary and reasons.
+      // Zustand drops a save whose version differs when no migrate is given,
+      // which is why this pass-through exists. An older build reading a v3
+      // save has no migrate and starts fresh (a downgrade only).
+      version: 3,
+      migrate: (persisted) => persisted as Partial<OperationsCampaignState>,
       partialize: (state) => ({
         initialized: state.initialized,
         activeChallenge: state.activeChallenge,
