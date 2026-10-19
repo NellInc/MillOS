@@ -92,8 +92,8 @@ export const decisionReplayMessages = defineMessages({
     viewDetails: 'View details: {action}',
   },
   'pt-BR': {
-    dialogLabel: 'Replay da decisão',
-    title: 'Replay da decisão',
+    dialogLabel: 'Reprodução da decisão',
+    title: 'Reprodução da decisão',
     close: 'Fechar',
     type: (p: { value: string }) => PT_DECISION_TYPES[p.value] ?? p.value,
     status: (p: { value: string }) => PT_DECISION_STATUSES[p.value] ?? p.value,
@@ -120,7 +120,7 @@ export const decisionReplayMessages = defineMessages({
     noMeasuredResult: 'Nenhum resultado medido foi registrado para esta decisão simulada.',
     measurementLabel: (p: { key: string }) =>
       upperFirst(PT_MEASUREMENTS[p.key] ?? spacedKey(p.key)),
-    closeReplay: 'Fechar replay',
+    closeReplay: 'Fechar reprodução',
     viewDetails: 'Ver detalhes: {action}',
   },
 });
