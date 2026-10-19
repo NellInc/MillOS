@@ -118,6 +118,15 @@ export interface ForkliftLoadPose {
   readonly forkHeight: number;
   readonly mastTilt: number;
   readonly cargoEngaged: boolean;
+  /**
+   * How present the pallet is, 0..1, for every render tier to draw from. At a
+   * pickup it fades in on the floor while the forklift aligns and lowers, so
+   * the forks go into something; at a dropoff it stays on the floor while the
+   * forks withdraw and fades as the mast resets. It is 1 whenever the cargo
+   * is engaged. It replaced per-model fades that hid a set-down pallet in one
+   * frame and ran on the line setpoint rather than plant time.
+   */
+  readonly cargoPresence: number;
   readonly operationComplete: boolean;
 }
 
@@ -560,6 +569,8 @@ export function sampleForkliftLoadPose(
       forkHeight,
       mastTilt,
       cargoEngaged: segmentIndex >= 3,
+      // Fades in across aligning and lowering, whole by inserting.
+      cargoPresence: smootherstep((t * segments.length) / 2),
       operationComplete: t >= 1,
     };
   }
@@ -580,6 +591,8 @@ export function sampleForkliftLoadPose(
     forkHeight,
     mastTilt,
     cargoEngaged: segmentIndex < 3,
+    // On the floor through disengaging and withdrawing, fading while the mast resets.
+    cargoPresence: 1 - smootherstep(t * segments.length - (segments.length - 1)),
     operationComplete: t >= 1,
   };
 }

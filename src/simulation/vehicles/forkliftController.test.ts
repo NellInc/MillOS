@@ -160,6 +160,38 @@ describe('forklift controller', () => {
     expect(plan.pivots?.some(({ start }) => start === 0)).toBe(true);
   });
 
+  it.each(['pickup', 'dropoff'] as const)(
+    'shows the %s pallet continuously, never popping in or out with the forks at the floor',
+    (action) => {
+      const duration = action === 'pickup' ? 7 : 6;
+      const steps = duration * 60;
+      let prior = sampleForkliftLoadPose(action, 0, 0.72);
+      let largestStep = 0;
+      for (let step = 1; step <= steps; step += 1) {
+        const pose = sampleForkliftLoadPose(action, step / steps, 0.72);
+        largestStep = Math.max(largestStep, Math.abs(pose.cargoPresence - prior.cargoPresence));
+        // While the cargo is attached it is fully there.
+        if (pose.cargoEngaged) expect(pose.cargoPresence).toBe(1);
+        prior = pose;
+      }
+      // Over at least half a second of plant time, never in one frame.
+      expect(largestStep).toBeLessThan(1 / 30);
+      expect(sampleForkliftLoadPose(action, 0, 0.72).cargoPresence).toBe(
+        action === 'pickup' ? 0 : 1
+      );
+      expect(sampleForkliftLoadPose(action, 1, 0.72).cargoPresence).toBe(
+        action === 'pickup' ? 1 : 0
+      );
+    }
+  );
+
+  it('leaves a set-down pallet on the floor while the forks withdraw', () => {
+    const withdrawing = sampleForkliftLoadPose('dropoff', 0.75, 0.72);
+    expect(withdrawing.phase).toBe('withdrawing');
+    expect(withdrawing.cargoEngaged).toBe(false);
+    expect(withdrawing.cargoPresence).toBe(1);
+  });
+
   it('places and disengages a carried pallet in distinct phases', () => {
     const placing = sampleForkliftLoadPose('dropoff', 0.4, 1.2);
     const disengaged = sampleForkliftLoadPose('dropoff', 0.65, 1.2);

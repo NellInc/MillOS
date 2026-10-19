@@ -39,7 +39,6 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { useModelAvailable, MODEL_PATHS } from '../../utils/modelLoader';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useGraphicsStore } from '../../stores/graphicsStore';
-import { useProductionStore } from '../../stores/productionStore';
 import { applyVehicleSurface } from '../../utils/vehicleSurface';
 import { applyWorldSurface } from '../../utils/worldSurface';
 import { PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
@@ -221,11 +220,31 @@ const TELESCOPING_RAM_NODES = new Set(['forklift-hydraulic02-poles-19']);
 /** Node name of the second mast stage. Its local +Y is genuinely vertical. */
 const FORK_CARRIER_NODES = ['lift02_9', 'lift01_11'];
 
-// Cargo fade-in duration in seconds (fast for smooth but minimal overhead)
-const CARGO_FADE_DURATION = 0.25;
+/**
+ * Draws the carried pallet at the presence ForkliftSystem publishes, 0..1
+ * (sampleForkliftLoadPose's cargoPresence during a pickup or dropoff). Every
+ * tier reads that one ref: each used to run its own fade, on the line
+ * setpoint rather than plant time (a pallet stayed invisible at 0%), and hid
+ * a set-down pallet in one frame. Working if the pallet fades in on the floor
+ * at a pickup, stays put while the forks withdraw at a dropoff, and never
+ * pops at a tier swap.
+ */
+export const applyCargoPresence = (
+  presenceRef: React.MutableRefObject<number> | undefined,
+  group: THREE.Object3D | null,
+  materials: readonly (THREE.MeshStandardMaterial | undefined)[]
+): void => {
+  const raw = presenceRef?.current ?? 0;
+  const opacity = Number.isFinite(raw) ? THREE.MathUtils.clamp(raw, 0, 1) : 0;
+  if (group) group.visible = opacity > 0.01;
+  for (const material of materials) {
+    if (material && material.opacity !== opacity) material.opacity = opacity;
+  }
+};
 
 interface ForkliftModelProps {
-  hasCargo: boolean;
+  /** Carried-pallet presence, 0..1, shared by every tier (see applyCargoPresence). */
+  cargoPresenceRef?: React.MutableRefObject<number>;
   isMoving: boolean;
   speedMultiplier?: number;
   forkHeightRef?: React.MutableRefObject<number>; // Ref for fork animation - avoids re-renders
@@ -566,7 +585,7 @@ const setCompactInstances = (
 };
 
 const CompactForklift: React.FC<ForkliftModelProps> = ({
-  hasCargo,
+  cargoPresenceRef,
   forkHeightRef,
   mastTiltRef,
   steeringAngleRef,
@@ -584,6 +603,8 @@ const CompactForklift: React.FC<ForkliftModelProps> = ({
   const tailLightRef = useRef<THREE.InstancedMesh>(null);
   const mastAssemblyTiltRef = useRef<THREE.Group>(null);
   const forkAssemblyRef = useRef<THREE.Group>(null);
+  const cargoGroupRef = useRef<THREE.Group>(null);
+  const cargoMaterialsRef = useRef<THREE.MeshStandardMaterial[]>([]);
   const wheelAngleRef = useRef(0);
   const worldPositionRef = useRef(new THREE.Vector3());
   const previousWorldPositionRef = useRef(new THREE.Vector3());
@@ -662,6 +683,7 @@ const CompactForklift: React.FC<ForkliftModelProps> = ({
     if (mastAssemblyTiltRef.current) {
       mastAssemblyTiltRef.current.rotation.x = mastTiltRef?.current ?? 0;
     }
+    applyCargoPresence(cargoPresenceRef, cargoGroupRef.current, cargoMaterialsRef.current);
 
     if (!modelRef.current || !wheelRef.current) return;
     modelRef.current.getWorldPosition(worldPositionRef.current);
@@ -793,11 +815,15 @@ const CompactForklift: React.FC<ForkliftModelProps> = ({
             receiveShadow
           />
           <group
+            ref={cargoGroupRef}
             name="compact-forklift-cargo"
             position={COMPACT_FORK_LOAD.palletPosition}
-            visible={hasCargo}
+            visible={(cargoPresenceRef?.current ?? 0) > 0.01}
           >
-            <FlourPallet />
+            <FlourPallet
+              opacity={cargoPresenceRef?.current ?? 0}
+              materialRefs={cargoMaterialsRef}
+            />
           </group>
         </group>
       </group>
@@ -899,7 +925,7 @@ const measureWheelRadius = (node: THREE.Object3D): number => {
 };
 
 const GLTFForklift: React.FC<ForkliftModelProps> = ({
-  hasCargo,
+  cargoPresenceRef,
   isMoving,
   forkHeightRef,
   mastTiltRef,
@@ -912,9 +938,6 @@ const GLTFForklift: React.FC<ForkliftModelProps> = ({
   const cargoMastRef = useRef<THREE.Group>(null);
   const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
 
-  // Cargo fade-in refs (no re-renders)
-  const cargoOpacityRef = useRef(hasCargo ? 1 : 0);
-  const prevHasCargoRef = useRef(hasCargo);
   const cargoMaterialsRef = useRef<THREE.MeshStandardMaterial[]>([]);
   const wheelNodesRef = useRef<AuthoredWheelNode[]>([]);
   const travelDistanceRef = useRef(0);
@@ -1028,13 +1051,12 @@ const GLTFForklift: React.FC<ForkliftModelProps> = ({
 
   // Drive visible pose from the authoritative parent transform. Wheel rotation
   // is distance-correct, so frame rate and speed changes cannot alter slip.
-  useFrame((_, delta) => {
+  useFrame(() => {
     if (!isTabVisible) {
       hasPreviousWorldPositionRef.current = false;
       return;
     }
     if (!modelRef.current) return;
-    const animationDelta = delta * Math.max(0, useProductionStore.getState().productionSpeed);
 
     const mastTilt = mastTiltRef?.current ?? 0;
     if (mastRootRef.current) {
@@ -1079,28 +1101,7 @@ const GLTFForklift: React.FC<ForkliftModelProps> = ({
       materials.lampGlass.emissiveIntensity = isMoving ? 3.5 : 0;
     }
 
-    // Cargo fade-in animation (ref-based, no re-renders)
-    if (hasCargo && !prevHasCargoRef.current) {
-      cargoOpacityRef.current = 0;
-    }
-    prevHasCargoRef.current = hasCargo;
-
-    const targetOpacity = hasCargo ? 1 : 0;
-    if (cargoOpacityRef.current !== targetOpacity) {
-      const fadeSpeed = 1 / CARGO_FADE_DURATION;
-      if (hasCargo) {
-        cargoOpacityRef.current = Math.min(1, cargoOpacityRef.current + animationDelta * fadeSpeed);
-      } else {
-        cargoOpacityRef.current = 0;
-      }
-      const opacity = cargoOpacityRef.current;
-      cargoMaterialsRef.current.forEach((mat) => {
-        if (mat) {
-          mat.opacity = opacity;
-          mat.visible = opacity > 0.01;
-        }
-      });
-    }
+    applyCargoPresence(cargoPresenceRef, cargoRef.current, cargoMaterialsRef.current);
 
     modelRef.current.getWorldPosition(worldPositionRef.current);
     if (!hasPreviousWorldPositionRef.current) {
@@ -1151,9 +1152,9 @@ const GLTFForklift: React.FC<ForkliftModelProps> = ({
         <group
           ref={cargoRef}
           position={[0, 0.34, 1.02]}
-          visible={hasCargo || cargoOpacityRef.current > 0.01}
+          visible={(cargoPresenceRef?.current ?? 0) > 0.01}
         >
-          <FlourPallet opacity={cargoOpacityRef.current} materialRefs={cargoMaterialsRef} />
+          <FlourPallet opacity={cargoPresenceRef?.current ?? 0} materialRefs={cargoMaterialsRef} />
         </group>
       </group>
     </group>
@@ -1165,7 +1166,7 @@ const GLTFForklift: React.FC<ForkliftModelProps> = ({
 
 // Procedural fallback (improved from original)
 const ProceduralForklift: React.FC<ForkliftModelProps> = ({
-  hasCargo,
+  cargoPresenceRef,
   forkHeightRef,
   mastTiltRef,
   steeringAngleRef,
@@ -1185,17 +1186,13 @@ const ProceduralForklift: React.FC<ForkliftModelProps> = ({
   const previousWorldPositionRef = useRef(new THREE.Vector3());
   const hasPreviousWorldPositionRef = useRef(false);
 
-  // Cargo fade-in refs (no re-renders)
-  const cargoOpacityRef = useRef(hasCargo ? 1 : 0);
-  const prevHasCargoRef = useRef(hasCargo);
   const cargoMaterialsRef = useRef<THREE.MeshStandardMaterial[]>([]);
 
-  useFrame((_, delta) => {
+  useFrame(() => {
     if (!isTabVisible) {
       hasPreviousWorldPositionRef.current = false;
       return;
     }
-    const animationDelta = delta * Math.max(0, useProductionStore.getState().productionSpeed);
 
     // Update fork height directly from ref (no re-render needed)
     const forkHeight = forkHeightRef?.current ?? 0;
@@ -1210,31 +1207,7 @@ const ProceduralForklift: React.FC<ForkliftModelProps> = ({
     if (forkTiltRef.current) forkTiltRef.current.rotation.x = mastTilt;
     if (cargoTiltRef.current) cargoTiltRef.current.rotation.x = mastTilt;
 
-    // Cargo fade-in animation (ref-based, no re-renders)
-    if (hasCargo && !prevHasCargoRef.current) {
-      // Cargo just spawned - start fade from 0
-      cargoOpacityRef.current = 0;
-    }
-    prevHasCargoRef.current = hasCargo;
-
-    // Animate opacity towards target
-    const targetOpacity = hasCargo ? 1 : 0;
-    if (cargoOpacityRef.current !== targetOpacity) {
-      const fadeSpeed = 1 / CARGO_FADE_DURATION;
-      if (hasCargo) {
-        cargoOpacityRef.current = Math.min(1, cargoOpacityRef.current + animationDelta * fadeSpeed);
-      } else {
-        cargoOpacityRef.current = 0; // Instant hide on unload
-      }
-      // Update all cargo materials directly
-      const opacity = cargoOpacityRef.current;
-      cargoMaterialsRef.current.forEach((mat) => {
-        if (mat) {
-          mat.opacity = opacity;
-          mat.visible = opacity > 0.01;
-        }
-      });
-    }
+    applyCargoPresence(cargoPresenceRef, cargoRef.current, cargoMaterialsRef.current);
 
     if (!modelRef.current) return;
     const centreSteering = steeringAngleRef?.current ?? 0;
@@ -1509,9 +1482,9 @@ const ProceduralForklift: React.FC<ForkliftModelProps> = ({
         <group
           ref={cargoRef}
           position={[0, 0.6, 0.7]}
-          visible={hasCargo || cargoOpacityRef.current > 0.01}
+          visible={(cargoPresenceRef?.current ?? 0) > 0.01}
         >
-          <FlourPallet opacity={cargoOpacityRef.current} materialRefs={cargoMaterialsRef} />
+          <FlourPallet opacity={cargoPresenceRef?.current ?? 0} materialRefs={cargoMaterialsRef} />
         </group>
       </group>
     </group>
