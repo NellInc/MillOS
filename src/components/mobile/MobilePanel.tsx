@@ -861,7 +861,16 @@ export const MobilePanel: React.FC<MobilePanelProps> = ({ isVisible, content, on
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
-      previouslyFocused?.focus?.();
+      // Take over unmounts itself as it opens this sheet, so the control that
+      // opened it can be gone (or focus was already on <body>). Land on this
+      // sheet's dock item, else Overview, rather than at the top of the page.
+      // Working if Tab continues from the dock after Take over's sheet closes.
+      const opener =
+        previouslyFocused && previouslyFocused !== document.body && previouslyFocused.isConnected
+          ? previouslyFocused
+          : (document.querySelector<HTMLElement>(`[data-dock-mode="${content}"]`) ??
+            document.querySelector<HTMLElement>('[data-dock-mode="overview"]'));
+      opener?.focus?.();
     };
   }, [isVisible, content, onClose]);
 
