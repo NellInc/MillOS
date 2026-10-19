@@ -56,6 +56,7 @@ import { importWithBoundedRetry, recoverableLazy } from './utils/recoverableLazy
 import { restoreSessionScopedQuality } from './utils/adaptiveQuality';
 import { installAtmosphericFogChunks } from './shaders/atmosphericFog';
 import { installPunctualLightCulling } from './shaders/punctualLightCulling';
+import { installInteriorLighting } from './shaders/interiorLighting';
 import { CURRENT_RELEASE_VERSION } from './config/releaseVersions';
 import { applyFirstVisitQuality } from './utils/firstVisitQuality';
 import { useT } from './i18n';
@@ -69,6 +70,8 @@ import { appMessages } from './App.messages';
 // is entitled to drop.
 installAtmosphericFogChunks();
 installPunctualLightCulling();
+// After punctual compaction: extends its single-line point incident macro.
+installInteriorLighting();
 // A previous session's automatic or recovery downgrade must not become this
 // session's tier. The graphics store has rehydrated by now and nothing has
 // rendered, so the restored choice is the first quality the scene sees.
