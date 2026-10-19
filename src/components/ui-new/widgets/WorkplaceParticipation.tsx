@@ -441,14 +441,16 @@ export function WorkplaceAutoplayStatus() {
       if (state.context.onboarding) tourSeen.current = true;
     });
   }, []);
+  // A season that was running when the page reloaded resumes with its own
+  // profile; otherwise admission starts a fresh default season once.
+  const resumeProfile = automatic.resumeProfile;
   useEffect(() => {
     if (
-      automatic.manual ||
       automatic.running ||
       !orderId ||
       store.participationMode !== 'solo' ||
       store.workplace.mode !== 'game' ||
-      store.workplace.phase !== 'idle'
+      (!resumeProfile && (automatic.manual || store.workplace.phase !== 'idle'))
     )
       return;
     const admit = () => {
@@ -461,7 +463,7 @@ export function WorkplaceAutoplayStatus() {
       if (useAnnouncementsStore.getState().context.onboarding) return;
       if (!useUIStore.getState().hasSeenIntro && !tourSeen.current) return;
       if (document.documentElement.dataset.millosStartupReady === 'true')
-        automatic.start('toe-dip');
+        automatic.start(resumeProfile ?? 'toe-dip');
     };
     admit();
     const timer = window.setInterval(admit, 1000);
@@ -470,6 +472,7 @@ export function WorkplaceAutoplayStatus() {
     automatic.manual,
     automatic.running,
     automatic.start,
+    resumeProfile,
     orderId,
     store.participationMode,
     store.workplace.mode,

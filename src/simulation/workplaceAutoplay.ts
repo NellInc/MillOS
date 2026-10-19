@@ -105,6 +105,8 @@ let demonstrationInterval: ReturnType<typeof setInterval> | null = null;
 export const useWorkplaceAutoplay = create<{
   manual: boolean;
   running: boolean;
+  /** The profile a running season resumes with after a reload; null once paused or taken over. */
+  resumeProfile: WorkplaceProfile | null;
   message: string | null;
   start: (profile: WorkplaceProfile) => void;
   pause: (preserveClock?: boolean) => void;
@@ -113,6 +115,7 @@ export const useWorkplaceAutoplay = create<{
     (set, get) => ({
       manual: false,
       running: false,
+      resumeProfile: null,
       message: null,
       start: (profile) => {
         if (get().running) return;
@@ -123,6 +126,7 @@ export const useWorkplaceAutoplay = create<{
         set({
           manual: true,
           running: true,
+          resumeProfile: profile,
           message: translate(msg, 'running'),
         });
         demonstrationInterval = setInterval(() => {
@@ -160,6 +164,7 @@ export const useWorkplaceAutoplay = create<{
         set({
           running: false,
           manual: true,
+          resumeProfile: null,
           message: translate(msg, 'paused'),
         });
         if (wasRunning && !preserveClock) useGameSimulationStore.getState().holdClock('workplace');
@@ -169,13 +174,25 @@ export const useWorkplaceAutoplay = create<{
       name: 'millos-workplace-demo-preference',
       version: 1,
       storage: safeJSONStorage,
-      partialize: (state) => ({ manual: state.manual }),
-      merge: (saved, current) => ({
-        ...current,
-        manual: !!(saved && typeof saved === 'object' && 'manual' in saved && saved.manual),
-        running: false,
-        message: null,
-      }),
+      // The runner itself never survives a reload; the season it was running
+      // does. Working if a reload mid-season resumes autonomous decisions with
+      // the same profile once startup is ready, and a taken-over season stays
+      // the player's.
+      partialize: (state) => ({ manual: state.manual, resumeProfile: state.resumeProfile }),
+      merge: (saved, current) => {
+        const record = saved && typeof saved === 'object' ? (saved as Record<string, unknown>) : {};
+        const profile = record.resumeProfile;
+        return {
+          ...current,
+          manual: !!record.manual,
+          running: false,
+          resumeProfile:
+            profile === 'toe-dip' || profile === 'team' || profile === 'cooperative'
+              ? profile
+              : null,
+          message: null,
+        };
+      },
     }
   )
 );

@@ -150,6 +150,47 @@ it('defaults to autonomous play and keeps human takeover across remount', () => 
   vi.useRealTimers();
 });
 
+it.each([false, true])(
+  'a reload mid-season resumes the running season unless it was taken over (taken over: %s)',
+  async (tookOver) => {
+    useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
+    useOperationsCampaignStore.getState().initializeCampaign();
+    vi.useFakeTimers();
+    document.documentElement.dataset.millosStartupReady = 'true';
+    const view = render(<WorkplaceAutoplayStatus />);
+    expect(useWorkplaceAutoplay.getState().running).toBe(true);
+    act(() => {
+      vi.advanceTimersByTime(4000);
+    });
+    expect(useWorkplaceStore.getState().workplace.phase).not.toBe('idle');
+    if (tookOver)
+      fireEvent.click(screen.getByRole('button', { name: 'Take over cooperative season' }));
+    view.unmount();
+    // A reload ends the page's runner without anyone pausing it.
+    const { name, storage } = useWorkplaceAutoplay.persist.getOptions();
+    const saved = await storage!.getItem(name!);
+    act(() => useWorkplaceAutoplay.getState().pause(true));
+    await storage!.setItem(name!, saved!);
+    delete document.documentElement.dataset.millosStartupReady;
+    await act(async () => {
+      await useWorkplaceAutoplay.persist.rehydrate();
+    });
+    expect(useWorkplaceAutoplay.getState().running).toBe(false);
+    render(<WorkplaceAutoplayStatus />);
+    document.documentElement.dataset.millosStartupReady = 'true';
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(useWorkplaceAutoplay.getState().running).toBe(!tookOver);
+    expect(screen.queryByRole('button', { name: 'Take over cooperative season' }) !== null).toBe(
+      !tookOver
+    );
+    act(() => useWorkplaceAutoplay.getState().pause(true));
+    delete document.documentElement.dataset.millosStartupReady;
+    vi.useRealTimers();
+  }
+);
+
 it('waits for actual startup readiness before autonomous admission', () => {
   useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
   useOperationsCampaignStore.getState().initializeCampaign();
