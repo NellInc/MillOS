@@ -75,9 +75,12 @@ describe('UnifiedGameTick operations campaign consequences', () => {
     const incident = useOperationsCampaignStore.getState().triggerIncident('delayed_truck')!;
     unifiedGameTick({ ...context, tickCount: 2 });
     expect(useTruckScheduleStore.getState().truckSchedule.shipping.nextArrivalMinutes).toBe(20);
-    expect(
-      useUIStore.getState().alerts.some((alert) => alert.id === `campaign-${incident.id}`)
-    ).toBe(true);
+    const incidentAlert = useUIStore
+      .getState()
+      .alerts.find((alert) => alert.id === `campaign-${incident.id}`);
+    expect(incidentAlert).toBeDefined();
+    // Critical incidents interrupt; the rest are read politely, from the bell.
+    expect(incidentAlert?.announce).toBe(incident.severity === 'critical' ? 'assertive' : 'polite');
 
     useTruckScheduleStore.getState().recordTruckDeparture('shipping', 30);
     const cadenceMinutes =

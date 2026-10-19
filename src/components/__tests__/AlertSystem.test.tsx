@@ -160,6 +160,78 @@ describe('AlertSystem', () => {
     });
   });
 
+  // Breakdowns, wear warnings and quality holds are read from the bell itself,
+  // so a player who muted game audio (which silences the PA) still hears them.
+  describe('Production faults reach a screen reader whatever the audio', () => {
+    const fault = (
+      id: string,
+      type: 'critical' | 'warning',
+      announce?: 'polite' | 'assertive'
+    ) => ({
+      id,
+      type,
+      title: `${id} title`,
+      message: `${id} message.`,
+      machineId: 'rm-103',
+      timestamp: new Date(),
+      acknowledged: false,
+      ...(announce ? { announce } : {}),
+    });
+    const assertiveRegion = () => document.querySelector('[role="alert"]');
+    const politeRegion = () => document.querySelector('[role="status"][aria-live="polite"]');
+
+    it('reads a breakdown assertively and a wear warning politely as they are filed', () => {
+      useUIStore.getState().addAlert(fault('breakdown-before-mount', 'critical', 'assertive'));
+      render(<AlertSystem />);
+      // Already in the bell at mount: not news.
+      expect(assertiveRegion()).toHaveTextContent('');
+
+      act(() => useUIStore.getState().addAlert(fault('breakdown-rm-103', 'critical', 'assertive')));
+      expect(assertiveRegion()).toHaveTextContent(
+        'breakdown-rm-103 title. breakdown-rm-103 message.'
+      );
+      expect(politeRegion()).toHaveTextContent('');
+
+      act(() => useUIStore.getState().addAlert(fault('wear-warning-rm-103', 'warning', 'polite')));
+      expect(politeRegion()).toHaveTextContent(
+        'wear-warning-rm-103 title. wear-warning-rm-103 message.'
+      );
+      // Unmarked alerts (SCADA alarms, sample traffic) stay in the bell only.
+      act(() => useUIStore.getState().addAlert(fault('scada-1', 'critical')));
+      expect(assertiveRegion()).toHaveTextContent(
+        'breakdown-rm-103 title. breakdown-rm-103 message.'
+      );
+    });
+
+    it('reads two faults filed in one tick, and re-reads an identical later one', () => {
+      render(<AlertSystem />);
+      act(() =>
+        useUIStore.setState((state) => ({
+          alerts: [
+            // Newest first, as addAlert files them: a, then b.
+            fault('breakdown-b', 'critical', 'assertive'),
+            fault('breakdown-a', 'critical', 'assertive'),
+            ...state.alerts,
+          ],
+        }))
+      );
+      expect(assertiveRegion()).toHaveTextContent(
+        'breakdown-a title. breakdown-a message. breakdown-b title. breakdown-b message.'
+      );
+      const first = assertiveRegion()!.textContent;
+      act(() =>
+        useUIStore.setState((state) => ({
+          alerts: [
+            { ...fault('breakdown-b', 'critical', 'assertive'), id: 'breakdown-b2' },
+            { ...fault('breakdown-a', 'critical', 'assertive'), id: 'breakdown-a2' },
+            ...state.alerts,
+          ],
+        }))
+      );
+      expect(assertiveRegion()!.textContent).not.toBe(first);
+    });
+  });
+
   describe('Safety Integration', () => {
     it('should create safety alert when safety stop occurs', async () => {
       vi.spyOn(Math, 'random').mockReturnValue(0);

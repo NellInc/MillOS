@@ -63,6 +63,8 @@ describe('a wear breakdown is surfaced with a route to the repair', () => {
     expect(alert?.message).toContain('Mill Overview');
     expect(alert?.message).toContain('£90.00 per game hour');
     expect(alert?.message).toContain('Maintenance');
+    // Read to screen readers from the bell, not only through the mutable PA.
+    expect(alert?.announce).toBe('assertive');
   });
 
   it('returns the card to ordinary production once the machine is back in service', () => {

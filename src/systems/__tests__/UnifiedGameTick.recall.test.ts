@@ -120,5 +120,7 @@ describe('a recalled batch is written off instead of wedging dispatch', () => {
     unifiedGameTick({ ...tickContext, tickCount: 2 });
     const hold = useUIStore.getState().alerts.find((a) => a.id.startsWith('dispatch-quality-hold'));
     expect(hold?.message).toContain('£120.00 per game hour');
+    // Read politely from the bell whatever the PA mode or mute.
+    expect(hold?.announce).toBe('polite');
   });
 });

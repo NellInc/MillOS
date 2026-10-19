@@ -97,6 +97,8 @@ describe('the first standard-pace shift meets one wear warning', () => {
     expect(wearAlerts).toHaveLength(1);
     expect(wearAlerts[0].title).toBe('Wear warning');
     expect(wearAlerts[0].message).toContain('Maintenance and repairs');
+    // Read politely from the bell, so muting game audio does not hide it.
+    expect(wearAlerts[0].announce).toBe('polite');
     // The warned unit's breakdown is still well beyond the first game day.
     const alert = useBreakdownStore.getState().predictiveAlerts[0];
     expect(alert.predictedTimeToFailure).toBeGreaterThan(24 * 60);
