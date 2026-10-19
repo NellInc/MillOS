@@ -54,6 +54,9 @@ export const unifiedGameTickMessages = defineMessages({
     breakdownTitle: 'Machine Breakdown',
     breakdownMessage:
       '{name} ({machineType}) has broken down due to excessive wear. Open Mill Overview, Maintenance: work order {workOrderId} needs service dispatched, the repair verified and a controlled restart. Each open work order costs £{rate} per game hour.',
+    wearWarningTitle: 'Wear warning',
+    wearWarningMessage:
+      '{name} has reached its wear warning and is losing efficiency. Schedule maintenance before it breaks down: Mill Overview, Maintenance and repairs.',
   },
   'pt-BR': {
     supplierTraceabilityNote:
@@ -87,5 +90,8 @@ export const unifiedGameTickMessages = defineMessages({
     breakdownTitle: 'Pane de máquina',
     breakdownMessage:
       '{name} ({machineType}) entrou em pane por desgaste excessivo. Abra Visão geral do moinho, Manutenção: a ordem de serviço {workOrderId} precisa do envio da equipe, da verificação do reparo e de um reinício controlado. Cada ordem de serviço aberta custa £{rate} por hora de jogo.',
+    wearWarningTitle: 'Alerta de desgaste',
+    wearWarningMessage:
+      '{name} atingiu o alerta de desgaste e está perdendo eficiência. Agende a manutenção antes que entre em pane: Visão geral do moinho, Manutenção e reparos.',
   },
 });

@@ -89,6 +89,14 @@ describe('the first standard-pace shift meets one wear warning', () => {
     expect(firstWarningHour).toBeLessThan(5);
     // The warning raised the predictive alert that Mill Overview lists.
     expect(useBreakdownStore.getState().predictiveAlerts.map((a) => a.machineId)).toEqual(warned);
+    // It also stays in the bell, tied to the machine, so the spoken PA line is
+    // not the only record and the bell can open the repair.
+    const wearAlerts = useUIStore
+      .getState()
+      .alerts.filter((a) => a.type === 'warning' && a.machineId === warned[0]);
+    expect(wearAlerts).toHaveLength(1);
+    expect(wearAlerts[0].title).toBe('Wear warning');
+    expect(wearAlerts[0].message).toContain('Maintenance and repairs');
     // The warned unit's breakdown is still well beyond the first game day.
     const alert = useBreakdownStore.getState().predictiveAlerts[0];
     expect(alert.predictedTimeToFailure).toBeGreaterThan(24 * 60);

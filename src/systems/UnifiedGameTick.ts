@@ -756,6 +756,18 @@ function unifiedGameTick(ctx: TickContext): void {
             oldMachine.metrics.load
           )
         );
+        // The PA line is spoken once; the bell keeps it, tied to the machine,
+        // so its Open repair action can take the player to the maintenance.
+        // Working if a wear warning is listed in the bell with Open repair.
+        useUIStore.getState().addAlert({
+          id: `wear-warning-${oldMachine.id}-${Date.now()}`,
+          type: 'warning',
+          title: translate(msg, 'wearWarningTitle'),
+          message: translate(msg, 'wearWarningMessage', { name: oldMachine.name }),
+          machineId: oldMachine.id,
+          timestamp: new Date(),
+          acknowledged: false,
+        });
       }
     }
 
