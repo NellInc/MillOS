@@ -70,6 +70,29 @@ describe('compact operating controls', () => {
     expect(useQCLabStore.getState().qcLab.contaminationAlerts[0].batchIds).toEqual([batch.id]);
   });
 
+  // Pace is the main control on a phone; a 27 px row put Pause 4 px from 1/2x.
+  // Working if each pace button and the sheet close are 44 px targets, the
+  // same as desktop pace (min-h-11), and the row still fits a 390 px phone.
+  it('gives the pace buttons and the sheet close 44px targets', () => {
+    render(<MobilePanel isVisible content="overview" onClose={vi.fn()} />);
+    const group = screen.getByRole('group', { name: /The pace runs the whole plant/ });
+    const paces = within(group).getAllByRole('button');
+    expect(paces).toHaveLength(5);
+    for (const pace of paces) expect(pace).toHaveClass('min-h-11', 'min-w-0', 'flex-1');
+    expect(group).toHaveClass('gap-1.5');
+    expect(screen.getByRole('button', { name: 'Close panel' })).toHaveClass('min-h-11', 'min-w-11');
+  });
+
+  // At the 10 px floor, 'THROUGHPUT' is 70.6 px of Inter; a four-column row
+  // leaves 64.5 px per label at 390 px, so the word broke mid-word.
+  // Working if the metrics sit two to a row with 10 px labels.
+  it('sets the production metrics two to a row with 10px labels', () => {
+    render(<MobilePanel isVisible content="overview" onClose={vi.fn()} />);
+    const label = screen.getByText('Throughput');
+    expect(label).toHaveClass('text-[10px]');
+    expect(label.closest('.grid')).toHaveClass('grid-cols-2');
+  });
+
   it('shows the pace a handoff hold resumes at, with the same hold note as Shift pace', () => {
     try {
       // A handoff decision holds the clock; 2x was chosen meanwhile.

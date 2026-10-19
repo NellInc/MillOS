@@ -242,7 +242,7 @@ const OverviewContent: React.FC = () => {
             <span className="text-lg font-mono font-bold text-white">
               {formatGameTime(gameTime)}
             </span>
-            <span className="text-[10px] text-slate-500 capitalize">
+            <span className="text-[10px] text-slate-400 capitalize">
               {formatShift(currentShift, t)}
             </span>
           </div>
@@ -255,14 +255,14 @@ const OverviewContent: React.FC = () => {
           </span>
         </div>
         {/* The same paces and words as Shift pace (src/simulation/pace.ts). */}
-        <div className="flex gap-1" role="group" aria-label={pace('paceTitle')}>
+        <div className="flex gap-1.5" role="group" aria-label={pace('paceTitle')}>
           {PACE_GAME_SPEEDS.map((value) => (
             <button
               key={value}
               onClick={() => setGameSpeed(value)}
               aria-label={pace(`pace${value}`)}
               aria-pressed={chosenPace === value}
-              className={`flex-1 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 ${
+              className={`flex-1 min-w-0 min-h-11 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 ${
                 chosenPace === value ? 'bg-orange-700 text-white' : 'bg-slate-700 text-white/70'
               }`}
             >
@@ -280,8 +280,9 @@ const OverviewContent: React.FC = () => {
         <PaceHoldNote />
       </div>
 
-      {/* Production Metrics - 2x2 grid */}
-      <div className="grid grid-cols-4 gap-1.5">
+      {/* Production Metrics - 2x2 grid. At the 10 px label floor, four to a
+          row leaves 64.5 px at 390 px and 'THROUGHPUT' needs 70.6 px. */}
+      <div className="grid grid-cols-2 gap-1.5">
         <MiniMetric
           label={t('throughput')}
           value={formatFixed(metrics.throughput, 0)}
@@ -310,7 +311,7 @@ const OverviewContent: React.FC = () => {
 
       {/* Machine Status */}
       <div className="bg-slate-800/50 rounded-lg p-2">
-        <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1.5">
+        <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-1.5">
           {t('machines')}
         </div>
         <div className="grid grid-cols-4 gap-1">
@@ -327,7 +328,7 @@ const OverviewContent: React.FC = () => {
         {productionTarget && (
           <div className="bg-slate-800/50 rounded-lg p-2">
             <div className="flex justify-between text-[10px] mb-1">
-              <span className="text-slate-500">{t('dailyTarget')}</span>
+              <span className="text-slate-400">{t('dailyTarget')}</span>
               <span className="text-cyan-400 font-mono">{formatFixed(targetProgress, 0)}%</span>
             </div>
             <div className="w-full h-1.5 bg-slate-700 rounded-full">
@@ -336,7 +337,7 @@ const OverviewContent: React.FC = () => {
                 style={{ width: `${targetProgress}%` }}
               />
             </div>
-            <div className="text-[9px] text-slate-500 mt-1">
+            <div className="text-[10px] text-slate-400 mt-1">
               {formatFixed(productionTarget.producedBags, 0)}/
               {formatFixed(productionTarget.targetBags, 0)}
             </div>
@@ -346,7 +347,7 @@ const OverviewContent: React.FC = () => {
         {/* Safety Score */}
         <div className="bg-slate-800/50 rounded-lg p-2">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] text-slate-500">{t('safety')}</span>
+            <span className="text-[10px] text-slate-400">{t('safety')}</span>
             <span
               className={`text-sm font-bold font-mono ${
                 safetyScore > 90
@@ -359,14 +360,14 @@ const OverviewContent: React.FC = () => {
               {formatFixed(safetyScore, 0)}%
             </span>
           </div>
-          <div className="grid grid-cols-2 gap-1 text-[9px]">
-            <div className="text-slate-500">
+          <div className="grid grid-cols-2 gap-1 text-[10px]">
+            <div className="text-slate-400">
               {t('nearMisses')}{' '}
               <span className="text-slate-300">
                 {formatFixed(safetyMetrics?.nearMisses ?? 0, 0)}
               </span>
             </div>
-            <div className="text-slate-500">
+            <div className="text-slate-400">
               {t('daysSinceIncident')}{' '}
               <span className="text-slate-300">
                 {formatFixed(safetyMetrics?.daysSinceIncident ?? 0, 0)}
@@ -392,7 +393,7 @@ const OverviewContent: React.FC = () => {
             })}
           </span>
         </div>
-        <div className="mt-1 grid grid-cols-2 gap-2 text-[9px]">
+        <div className="mt-1 grid grid-cols-2 gap-2 text-[10px]">
           <div className="text-slate-400">
             {t('activeIncidents')}{' '}
             <span className="font-semibold text-amber-300">
@@ -409,7 +410,7 @@ const OverviewContent: React.FC = () => {
             </span>
           </div>
         </div>
-        <div className="mt-1.5 rounded bg-slate-950/35 p-1.5 text-[9px]">
+        <div className="mt-1.5 rounded bg-slate-950/35 p-1.5 text-[10px]">
           <div className="flex items-center justify-between gap-2">
             <span className="capitalize text-cyan-200">
               {formatStage(campaignExecution.stage, t)}
@@ -431,14 +432,14 @@ const OverviewContent: React.FC = () => {
           </div>
         </div>
         {campaignConstraints[0] && (
-          <p className="mt-1.5 text-[9px] text-amber-100">
+          <p className="mt-1.5 text-[10px] text-amber-100">
             {campaignConstraints[0].label}: {campaignConstraints[0].detail}
           </p>
         )}
       </div>
 
       <div className="text-center py-2 bg-gradient-to-r from-cyan-900/20 to-blue-900/20 rounded-lg border border-cyan-500/20">
-        <div className="text-[10px] text-slate-500">{t('totalBags')}</div>
+        <div className="text-[10px] text-slate-400">{t('totalBags')}</div>
         <div className="text-xl font-bold font-mono text-cyan-400">
           {formatGrouped(totalBagsProduced)}
         </div>
@@ -465,7 +466,7 @@ const MiniMetric: React.FC<{
     <div className="bg-slate-800/50 rounded p-1.5 text-center">
       <div className={`${colorClasses[color]} flex justify-center mb-0.5`}>{icon}</div>
       <div className={`text-sm font-bold font-mono ${colorClasses[color]}`}>{value}</div>
-      <div className="text-[8px] text-slate-500 uppercase">{label}</div>
+      <div className="break-words text-[10px] leading-tight text-slate-400 uppercase">{label}</div>
     </div>
   );
 };
@@ -486,7 +487,7 @@ const MachineStatusBadge: React.FC<{ label: string; count: number; color: string
   return (
     <div className={`${colorClasses[color]} rounded py-1 text-center`}>
       <div className="text-sm font-bold">{formatFixed(count, 0)}</div>
-      <div className="text-[8px] uppercase">{label}</div>
+      <div className="break-words text-[10px] leading-tight uppercase">{label}</div>
     </div>
   );
 };
@@ -583,7 +584,7 @@ const AIContent: React.FC = () => {
               <span>{t('recentDecisions')}</span>
             </div>
             {recentDecisions.length === 0 ? (
-              <div className="text-center py-4 text-slate-500 text-sm">{t('noDecisions')}</div>
+              <div className="text-center py-4 text-slate-400 text-sm">{t('noDecisions')}</div>
             ) : (
               <div className="space-y-2">
                 {recentDecisions.map((decision) => (
@@ -645,7 +646,7 @@ const SCADAContent: React.FC = () => {
           <span>{t('systemMetrics')}</span>
         </div>
         <div
-          className={`flex items-center gap-1 text-xs ${scadaLive ? 'text-green-400' : 'text-slate-500'}`}
+          className={`flex items-center gap-1 text-xs ${scadaLive ? 'text-green-400' : 'text-slate-400'}`}
         >
           {scadaLive ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
           <span>{scadaLive ? t('telemetryOn') : t('telemetryOff')}</span>
@@ -708,11 +709,11 @@ const SCADAContent: React.FC = () => {
         <div className="grid grid-cols-2 gap-1.5">
           {utilityAssets.map((asset) => (
             <div key={asset.id} className="rounded bg-slate-800/50 p-2">
-              <div className="truncate text-[9px] font-semibold text-slate-200">{asset.label}</div>
+              <div className="truncate text-[10px] font-semibold text-slate-200">{asset.label}</div>
               <div className="mt-0.5 font-mono text-xs text-cyan-300">
                 {formatFixed(asset.levelPercent, 1)}%
               </div>
-              <div className="font-mono text-[9px] text-slate-500">
+              <div className="font-mono text-[10px] text-slate-400">
                 {formatFixed(asset.temperatureC, 1)} °C · {formatFixed(asset.pressureBar, 2)} bar
               </div>
             </div>
@@ -748,13 +749,13 @@ const ManagementContent: React.FC = () => {
       <div className="grid grid-cols-3 gap-2">
         <div className="rounded bg-slate-800/50 p-2 text-center">
           <div className="text-sm font-bold text-emerald-400">{formatFixed(activeAssets, 0)}</div>
-          <div className="text-[9px] text-slate-500">{t('activeAssets')}</div>
+          <div className="text-[10px] text-slate-400">{t('activeAssets')}</div>
         </div>
         <div className="rounded bg-slate-800/50 p-2 text-center">
           <div className="text-sm font-bold text-cyan-400">
             {formatFixed(metrics.throughput, 0)}
           </div>
-          <div className="text-[9px] text-slate-500">{t('bagsPerHour')}</div>
+          <div className="text-[10px] text-slate-400">{t('bagsPerHour')}</div>
         </div>
         <div className="rounded bg-slate-800/50 p-2 text-center">
           <div
@@ -766,10 +767,10 @@ const ManagementContent: React.FC = () => {
           >
             {formatFixed(openIncidents, 0)}
           </div>
-          <div className="text-[9px] text-slate-500">{t('openIncidents')}</div>
+          <div className="text-[10px] text-slate-400">{t('openIncidents')}</div>
         </div>
       </div>
-      <div className="text-center text-[10px] text-slate-500">{t('closedLoopNote')}</div>
+      <div className="text-center text-[10px] text-slate-400">{t('closedLoopNote')}</div>
     </div>
   );
 };
@@ -910,7 +911,7 @@ export const MobilePanel: React.FC<MobilePanelProps> = ({ isVisible, content, on
                 <button
                   ref={closeButtonRef}
                   onClick={onClose}
-                  className="p-2 rounded-lg hover:bg-slate-700/50 transition-colors"
+                  className="flex min-h-11 min-w-11 items-center justify-center rounded-lg hover:bg-slate-700/50 transition-colors"
                   aria-label={t('closePanel')}
                 >
                   <X className="w-5 h-5 text-slate-400" />
