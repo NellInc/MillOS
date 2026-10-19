@@ -33,6 +33,34 @@ const schedule = (machineId: string, machineName: string) => {
     .maintenanceSchedule.find((task) => task.machineId === machineId)!;
 };
 
+describe('PredictiveMaintenancePanel repair work orders', () => {
+  afterEach(() => {
+    cleanup();
+    act(() => useBreakdownStore.getState().resetBreakdownStore());
+  });
+
+  it('shows the game time a repair has left instead of completing it on a click', () => {
+    useBreakdownStore.getState().resetBreakdownStore();
+    const fault = useBreakdownStore
+      .getState()
+      .triggerBreakdown('rm-101', 'Mill 101', 'mechanical')!;
+    expect(useBreakdownStore.getState().startRepair(fault.id).started).toBe(true);
+    render(<PredictiveMaintenancePanel />);
+
+    expect(screen.queryByRole('button', { name: /Complete repair/ })).not.toBeInTheDocument();
+    const minutes = fault.estimatedRepairTime;
+    expect(
+      screen.getByText(`Service unit at work: ${minutes} min of game time left`)
+    ).toBeVisible();
+
+    act(() => useBreakdownStore.getState().tickDowntime(10 * 60));
+    expect(
+      screen.getByText(`Service unit at work: ${minutes - 10} min of game time left`)
+    ).toBeVisible();
+    expect(useBreakdownStore.getState().workOrders[0].phase).toBe('repairing');
+  });
+});
+
 describe('PredictiveMaintenancePanel scheduled maintenance', () => {
   const machines = useProductionStore.getState().machines;
 

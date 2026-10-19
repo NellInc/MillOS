@@ -34,6 +34,7 @@ export interface BreakdownEvent {
   machineName: string;
   type: BreakdownType;
   startTime: number;
+  /** Game minutes the dispatched service unit needs (30-59); see tickDowntime. */
   estimatedRepairTime: number;
   severity: 'minor' | 'moderate';
   repairProgress: number;
@@ -404,8 +405,10 @@ export const useBreakdownStore = create<BreakdownStore>()(
         );
         const breakdown = state.activeBreakdowns.find((candidate) => candidate.id === breakdownId);
         if (!workOrder || !breakdown || workOrder.phase !== 'repairing') return {};
-        const repairProgress = Math.min(100, Math.max(0, breakdown.repairProgress + progressDelta));
-        const completed = repairProgress >= 100;
+        // Snap the last float ulps: n ticks of 100/n must finish, not read 99.99...
+        const rawProgress = Math.max(0, breakdown.repairProgress + progressDelta);
+        const completed = rawProgress >= 100 - 1e-9;
+        const repairProgress = completed ? 100 : rawProgress;
         const now = workplaceSimulationNow();
         return {
           activeBreakdowns: state.activeBreakdowns.map((candidate) =>
@@ -574,6 +577,17 @@ export const useBreakdownStore = create<BreakdownStore>()(
             : { ...workOrder, downtimeSeconds: workOrder.downtimeSeconds + deltaSeconds }
         ),
       }));
+      // A dispatched service unit works for its estimated time on the same
+      // game clock, so a paused shift holds the repair and a faster pace
+      // shortens it in real time only. Working if a repair reaches
+      // verification exactly when its estimated game minutes have elapsed.
+      const { workOrders, activeBreakdowns } = get();
+      for (const breakdown of activeBreakdowns) {
+        const workOrder = workOrders.find((order) => order.breakdownId === breakdown.id);
+        if (workOrder?.phase !== 'repairing') continue;
+        const repairSeconds = Math.max(1, breakdown.estimatedRepairTime) * 60;
+        get().updateRepairProgress(breakdown.id, (deltaSeconds / repairSeconds) * 100);
+      }
     },
 
     addPredictiveAlert: (machineId, machineName, metrics, predictedMinutes) => {

@@ -206,7 +206,6 @@ const ActiveBreakdownsSection: React.FC = () => {
   const workOrders = useBreakdownStore((state) => state.workOrders);
   const partsInventory = useBreakdownStore((state) => state.partsInventory);
   const startRepair = useBreakdownStore((state) => state.startRepair);
-  const updateRepairProgress = useBreakdownStore((state) => state.updateRepairProgress);
   const verifyRepair = useBreakdownStore((state) => state.verifyRepair);
   const requestMachineRestart = useBreakdownStore((state) => state.requestMachineRestart);
   const t = useT(messages);
@@ -291,15 +290,28 @@ const ActiveBreakdownsSection: React.FC = () => {
                     {t('dispatchServiceUnit')}
                   </button>
                 )}
+                {/* The repair runs on the shift clock (breakdownStore.tickDowntime);
+                    there is nothing to click until it reaches verification. */}
                 {workOrder.phase === 'repairing' && (
-                  <button
-                    type="button"
-                    onClick={() => updateRepairProgress(breakdown.id, 100)}
-                    className="inline-flex min-h-11 items-center gap-2 rounded bg-emerald-800 px-3 text-xs font-semibold text-white hover:bg-emerald-700"
+                  <div
+                    role="status"
+                    className="flex min-h-11 items-center gap-2 text-xs text-emerald-300"
                   >
-                    <Wrench className="h-4 w-4" aria-hidden="true" />
-                    {t('completeRepair')}
-                  </button>
+                    <Clock className="h-4 w-4" aria-hidden="true" />
+                    {t('repairRemaining', {
+                      minutes: formatFixed(
+                        Math.max(
+                          0,
+                          Math.ceil(
+                            ((100 - breakdown.repairProgress) / 100) *
+                              breakdown.estimatedRepairTime -
+                              1e-6
+                          )
+                        ),
+                        0
+                      ),
+                    })}
+                  </div>
                 )}
                 {workOrder.phase === 'verification' && (
                   <button

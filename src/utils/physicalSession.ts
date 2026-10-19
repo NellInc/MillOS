@@ -499,10 +499,9 @@ export function installPhysicalSession(
       now.idSequence !== before.idSequence ||
       now.partsInventory !== before.partsInventory ||
       now.maintenanceSchedule !== before.maintenanceSchedule ||
-      now.workOrders.some((w, i) => w.phase !== before.workOrders[i]?.phase) ||
-      now.activeBreakdowns.some(
-        (b, i) => b.repairProgress !== before.activeBreakdowns[i]?.repairProgress
-      )
+      // Repair progress now advances every tick on the shift clock, so it rides
+      // the paced autosave; its start and finish are phase changes above.
+      now.workOrders.some((w, i) => w.phase !== before.workOrders[i]?.phase)
     )
       queue();
   });
