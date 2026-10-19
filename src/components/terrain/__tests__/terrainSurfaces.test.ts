@@ -69,6 +69,63 @@ const SURFACES: Array<[string, (size: number) => THREE.DataTexture]> = [
   ['dirt', generateDirtSurface],
 ];
 
+describe('asphalt crack network', () => {
+  /**
+   * The crack term thresholded F2 - F1, which collapses toward zero over a wide
+   * region wherever two feature points nearly coincide. That drew one or two fat
+   * dark smudges per 3.3 m tile, and through the normal map and cavity AO they
+   * repeated as the scalloped lattice in `yard` (x 300-1300, y 950-1440). A
+   * crack must stay a line: a 9 x 9 box blur of the height channel - wider than
+   * any crack, narrower than any cell - must never fall far below the mean.
+   */
+  it('draws cracks as lines, never as smudges that survive a cell-scale blur', () => {
+    const size = 256;
+    const data = generateTarmacSurface(size).image.data as Uint8Array;
+    const k = 9;
+    const r = (k - 1) / 2;
+    let minBlur = Infinity;
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        let sum = 0;
+        for (let dy = -r; dy <= r; dy++) {
+          for (let dx = -r; dx <= r; dx++) {
+            const yy = (y + dy + size) % size;
+            const xx = (x + dx + size) % size;
+            sum += data[(yy * size + xx) * 4 + 3];
+          }
+        }
+        minBlur = Math.min(minBlur, sum / (k * k) / 255);
+      }
+    }
+    // Mean is 0.5 by construction. Measured: 0.117 with F2 - F1, 0.331 with
+    // the true border distance.
+    expect(minBlur).toBeGreaterThan(0.25);
+  });
+});
+
+describe('asphalt tile lattice', () => {
+  const source = readFileSync('src/components/terrain/TerrainMaterial.tsx', 'utf8');
+
+  it('warps the asphalt UV and carries the warp Jacobian into its relief normal', () => {
+    // Phase coefficients c1 (x) and c2 (y): uv += a * sin(dot(uv, c)).
+    const phase = source.match(
+      /asphaltWarpPhase = vec2\(\s*dot\(asphaltUV, vec2\(([\d.-]+), ([\d.-]+)\)\),\s*dot\(asphaltUV, vec2\(([\d.-]+), ([\d.-]+)\)\)/
+    );
+    expect(phase).not.toBeNull();
+    const [c1x, c1y, c2x, c2y] = phase!.slice(1).map(Number);
+    expect(source).toMatch(/asphaltUV \+= vec2\([\d.]+, [\d.]+\) \* sin\(asphaltWarpPhase\)/);
+    // The normal must go through J^T, J = I + diag(slope) * [c1; c2].
+    const normal = source.match(
+      /nAsphalt = vec2\(\s*\(1\.0 \+ ([\d.]+) \* asphaltWarpSlope\.x\) \* nAsphalt\.x \+ ([\d.]+) \* asphaltWarpSlope\.y \* nAsphalt\.y,\s*([\d.]+) \* asphaltWarpSlope\.x \* nAsphalt\.x \+ \(1\.0 - ([\d.]+) \* asphaltWarpSlope\.y\) \* nAsphalt\.y/
+    );
+    expect(normal).not.toBeNull();
+    const [jxx, jyx, jxy, jyy] = normal!.slice(1).map(Number);
+    expect([jxx, jyx, jxy, -jyy]).toEqual([c1x, c2x, c1y, c2y]);
+    // A changed program needs a changed, stable cache key.
+    expect(source).toContain('terrain_v13_');
+  });
+});
+
 describe('weathered yard albedo', () => {
   it('lifts the real tarmac into warm aggregate without exceeding diffuse reflectance', () => {
     const texture = generateTarmac(128);
