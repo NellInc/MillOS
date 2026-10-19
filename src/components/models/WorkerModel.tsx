@@ -346,7 +346,7 @@ export function workerGaitRates(
   runSpeed: number,
   gaitScale?: number,
   previous?: string
-) {
+): { clip: 'worker-walk' | 'worker-run'; walk: number; run: number } {
   const scale = Number.isFinite(gaitScale) && gaitScale! > 0 ? gaitScale! : 1;
   return {
     clip: selectWorkerLocomotion(speed / scale, walkSpeed, previous),
