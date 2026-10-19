@@ -42,12 +42,13 @@ once, keep working elsewhere) or a hard resource limit; then report what remains
 
 ## Decisions waiting for Nell (ask once, in the same message as finished work)
 
-1. **Idle camera orbit:** stays on by default as an exterior showcase (now kept outside the
-   hall, stops at its first collision). Off by default is a one-line change.
-2. **Reload safety:** a reload during a live cooperative shift settles it by design, so that
-   season can no longer be "honoured". Now explained in the debrief; rule unchanged.
-3. **Native Brazilian reader** for the cooperative vocabulary and newer strings ("Ver a
-   expedição", "Acordo entre turnos", wear warning, reload reason).
+1. **Native Brazilian reader** for the cooperative vocabulary and newer strings ("Ver a
+   expedição", "Acordo entre turnos", wear warning, reload pause and resume).
+
+Resolved on Nell's "fix these properly" (see the ledger's Round 3): the idle orbit is off by
+default, time-based and clear before it turns; a reload pauses a cooperative shift for fresh
+consent instead of ending it, so the season can still be honoured. Don't reopen either
+unless Nell asks.
 
 If Nell has answered any of these in the conversation, follow the answer.
 

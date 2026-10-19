@@ -93,7 +93,7 @@ structural problems that the readiness pass only labelled or mitigated:
    `UnifiedGameTick`), but check that a first-time player can find Maintain,
    knows what it costs, and sees the result.
 5. **The cooperative layer.** This is what the WCM audience came for:
-   roles, ballots, *sobras* (surplus), pay and rest, handoff experiments and
+   roles, ballots, _sobras_ (surplus), pay and rest, handoff experiments and
    member review.
    - Make sure it connects to the plant, not just to panels.
    - The autonomous season starts by itself after the tour. Make its
@@ -112,6 +112,7 @@ structural problems that the readiness pass only labelled or mitigated:
    made itself.
 
 For each gameplay change, give the before and after evidence:
+
 - a failing-then-passing test on the real simulation path;
 - one short runtime confirmation of what the player sees.
 
@@ -207,26 +208,26 @@ with every claim above backed by a test or a screenshot.
 
 ### Pause holders (inventory before any change)
 
-| Holder | Writes | Restores | Released by |
-|---|---|---|---|
-| Shift pace select (`PlayableShift` `TeachingPace`) | 0 / 30 / 180 | — | player |
-| Overview pace buttons (`OverviewPanel`) | 0 / 180 / 1800 / 10800 | — | player |
-| Mobile pace buttons (`MobilePanel`) | 0 / 180 / 1800 / 10800 | — | player |
-| P key (`useKeyboardShortcuts`) | productionSpeed 0 **and** gameSpeed 0 | own ref, only if clock still 0 | P |
-| `-` key / Settings line slider | productionSpeed → 0 (froze trucks and forklifts) | — | player |
-| Tour (`GameInterface`) | 0 | prior pace (180→30) | Start/Skip/Close/unmount |
-| Restore warm-up (`physicalSession.applyRestore`) | 0 | saved pace in `finishRestore` | restore |
-| Restore failure (`physicalSession.halt`) | 0 | never | player picks a pace |
-| Handoff / improvement (`WorkplaceImprovementPanel`, `UnifiedGameTick` L437/454/1043) | 0 | 30 on activate | panel buttons |
-| Replay (`WorkplaceReplay`) | 0 | 30 | replay button |
-| Workplace lab (`WorkplaceLab`) | 15 / 30 | — | lab |
-| Season autoplay (`workplaceAutoplay`) | 30 on activate, 0 on pause | — | autoplay |
-| Layout planner (`LayoutPlanner`) | productionSpeed 0 + gameSpeed 0 | both refs | Run |
-| Mission start (`PlayableShift`) | 30 | — | — |
-| Operations resume action (`PlayableShift`) | 30 if 0 | — | — |
-| Reset simulation (`SettingsPanel`) | 0 before reload | — | reload |
-| Benchmark route (`RuntimeController`) | 180 / 0 | previous | route exit |
-| Agent command `simulation.set-speed` | any | — | agent |
+| Holder                                                                               | Writes                                           | Restores                       | Released by              |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------ | ------------------------------ | ------------------------ |
+| Shift pace select (`PlayableShift` `TeachingPace`)                                   | 0 / 30 / 180                                     | —                              | player                   |
+| Overview pace buttons (`OverviewPanel`)                                              | 0 / 180 / 1800 / 10800                           | —                              | player                   |
+| Mobile pace buttons (`MobilePanel`)                                                  | 0 / 180 / 1800 / 10800                           | —                              | player                   |
+| P key (`useKeyboardShortcuts`)                                                       | productionSpeed 0 **and** gameSpeed 0            | own ref, only if clock still 0 | P                        |
+| `-` key / Settings line slider                                                       | productionSpeed → 0 (froze trucks and forklifts) | —                              | player                   |
+| Tour (`GameInterface`)                                                               | 0                                                | prior pace (180→30)            | Start/Skip/Close/unmount |
+| Restore warm-up (`physicalSession.applyRestore`)                                     | 0                                                | saved pace in `finishRestore`  | restore                  |
+| Restore failure (`physicalSession.halt`)                                             | 0                                                | never                          | player picks a pace      |
+| Handoff / improvement (`WorkplaceImprovementPanel`, `UnifiedGameTick` L437/454/1043) | 0                                                | 30 on activate                 | panel buttons            |
+| Replay (`WorkplaceReplay`)                                                           | 0                                                | 30                             | replay button            |
+| Workplace lab (`WorkplaceLab`)                                                       | 15 / 30                                          | —                              | lab                      |
+| Season autoplay (`workplaceAutoplay`)                                                | 30 on activate, 0 on pause                       | —                              | autoplay                 |
+| Layout planner (`LayoutPlanner`)                                                     | productionSpeed 0 + gameSpeed 0                  | both refs                      | Run                      |
+| Mission start (`PlayableShift`)                                                      | 30                                               | —                              | —                        |
+| Operations resume action (`PlayableShift`)                                           | 30 if 0                                          | —                              | —                        |
+| Reset simulation (`SettingsPanel`)                                                   | 0 before reload                                  | —                              | reload                   |
+| Benchmark route (`RuntimeController`)                                                | 180 / 0                                          | previous                       | route exit               |
+| Agent command `simulation.set-speed`                                                 | any                                              | —                              | agent                    |
 
 Problems: two pause authorities (productionSpeed and gameSpeed); no holder knows
 whether another holds the clock; a held 0 can be persisted and restored as if
@@ -275,6 +276,7 @@ What worked: at standard pace (30) every order was met (order 1 at minute ~142 o
 
 40 findings: 27 accepted by both refuters, 5 split, 8 refuted by both. Full JSON
 kept outside the repo (scratchpad `audit-resolute.json`); fixes were assigned as:
+
 - lead (waves 1, 2, D): 0/35 guided card, 1/15/38 autoplay freeze and chip, 3 labels,
   4 idle line, 5 Skip tour, 6 pace position, 13 pace writers, 28/37 bags/h, 29 line-rate
   owner and AI decision, 30 replay hold, 31 truck clock, 32 old paces, 33 advice, 34 PA,
@@ -282,7 +284,7 @@ kept outside the repo (scratchpad `audit-resolute.json`); fixes were assigned as
 - wave A (failure and recovery): 7, 8, 9, 10, 11, 12 and first-shift wear timing;
 - wave B (cooperative): 16, 18, 19 and an honest season exit (2/14/17 lighter design);
 - wave C (shift ending): 21, 22, 23, 24, 26.
-Not re-opened: 20, 25, 27, 39 (refuted by both, no new evidence).
+  Not re-opened: 20, 25, 27, 39 (refuted by both, no new evidence).
 
 ### Decisions taken (with reasons)
 
@@ -418,13 +420,35 @@ incident in an ungraded review. The 7.5-minute standard-pace narrative run (orde
 changeover, Truck 1 of 2) was on the pre-round-2 build; final-build runs used 1x briefly,
 then 4x.
 
-### What remains (3 need Nell, 4 recorded)
+### Round 3 (20 Oct, on Nell's "fix these properly")
 
-Need Nell: (1) idle orbit stays on by default as an exterior showcase (G kept it; off by
-default is a one-line change); (2) a reload during a live cooperative shift settles it by
-design ("reload safety"), so that season can no longer be honoured: now explained, rule
-unchanged; (3) a native Brazilian reader for the cooperative vocabulary and the new strings
-("Ver a expedição", "Acordo entre turnos", wear warning, reload reason).
+- **Idle orbit, fixed properly:** off by default (the camera moves only on input; C turns
+  it on). The turn is ours, not OrbitControls' per-frame `autoRotate`: radians per second,
+  exact radius and height, and it starts only when its whole circle is checked clear of
+  the hall and every collider (`idleOrbitPathClear`); the collision stop is a backstop.
+  Browser: 0 m of movement over 120 s idle after the tour; after `0` then C, 65 m of turn
+  in 30 s at constant height. Tests: same angle at 30 and 120 fps; exact radius from all
+  seven presets over twelve simulated minutes.
+- **Reload during a cooperative shift, fixed properly:** reload safety still settles the
+  saved snapshot (every grant, ballot, check and cover consent expires; money settles), but
+  it no longer ends the work. `resumeShift` returns a reload-settled, unfinished campaign
+  shift to deliberation at the minute reached; it runs only after fresh consent; the
+  resumed activation buys nothing again, reserves wages and cover only for what is left,
+  keeps its one cover member and counts no second AI action. Restore keeps exactly the
+  reload sentinel (any other reason is still replaced), so the shift stays resumable.
+  Autoplay resumes before sharing sobras or moving on; the BAS panel offers "Resume the
+  shift with fresh consent"; the outcome reads pending, and the debrief says "Paused by a
+  reload at minute N". Tests: a season reloaded twice mid-shift is honoured; resumed cover;
+  reject cases (stopped, finished). Browser, pt-BR: reload at shift 2 minute 20 → review
+  "pending" → deliberating 21 → active 22 → season end "Acordo de trabalho: cumprido.
+  Resultado combinado: concluído." No `translated-ltr`.
+- **Gate:** all checks 0; vitest 3,761 pass, the same 5 `assets/source` ENOENT fails, plus 2
+  `workplaceAdvice.test.ts` timeouts at load average 56–64 that pass 21/21 alone.
+
+### What remains (1 needs Nell, 4 recorded)
+
+Needs Nell: a native Brazilian reader for the cooperative vocabulary and the newer strings
+("Ver a expedição", "Acordo entre turnos", wear warning, reload pause and resume).
 Recorded: no SCADA setpoint control exists in the UI, so only agent writes reach the log
 today; no axe scan of the loading overlay (not deterministic without request stalling);
 time to ready 35–57 s on this machine under load 5–25 (no frame-rate claims); pt-BR not
