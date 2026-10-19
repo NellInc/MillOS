@@ -23,7 +23,7 @@ export const deliveryJourneyMessages = defineMessages({
       '{kg} kg of {product} dispatched for {customer} in recorded manifests. Departed manifests credit this customer. Inspection is a separate milestone.',
     inspectTitle: 'Inspect the line',
     inspectDetail:
-      'Select a silo, roller mill, plansifter or packer in the scene. Read its status and buffers before changing the line. Full output buffers can reveal a downstream bottleneck.',
+      'Select a silo, roller mill, plansifter or packer in the scene, or use Inspect a roller mill below. Read its status and buffers before changing the line. Full output buffers can reveal a downstream bottleneck.',
     returnTitle: 'Return to your commitment',
     returnDetail:
       'A different order is active. Choose this customer in Your shift commitment in Overview to continue its live route.',
@@ -75,7 +75,7 @@ export const deliveryJourneyMessages = defineMessages({
       '{kg} kg de {product} expedidos para {customer} em romaneios registrados. Os romaneios com saída registrada são creditados a este cliente. A inspeção é uma etapa à parte.',
     inspectTitle: 'Inspecione a linha',
     inspectDetail:
-      'Selecione um silo, moinho de rolos, plansifter ou ensacadeira na cena. Leia o status e os estoques intermediários antes de alterar a linha. Estoques intermediários de saída cheios podem revelar um gargalo mais adiante no fluxo.',
+      'Selecione um silo, moinho de rolos, plansifter ou ensacadeira na cena, ou use Inspecionar um moinho de rolos abaixo. Leia o status e os estoques intermediários antes de alterar a linha. Estoques intermediários de saída cheios podem revelar um gargalo mais adiante no fluxo.',
     returnTitle: 'Volte ao seu compromisso',
     returnDetail:
       'Outro pedido está ativo. Escolha este cliente em Seu compromisso do turno, na Visão geral, para continuar a rota ao vivo dele.',

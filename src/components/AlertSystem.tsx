@@ -6,6 +6,7 @@ import { useUIStore } from '../stores/uiStore';
 import type { AlertData } from '../types';
 import { translate } from '../i18n';
 import { alertSystemMessages } from './AlertSystem.messages';
+import { LiveRegionPortal } from './ui/LiveRegionPortal';
 
 type PlainMessageKey = Exclude<keyof typeof alertSystemMessages.en, 'typedLiveRegion'>;
 const m = (key: PlainMessageKey): string => translate(alertSystemMessages, key);
@@ -92,27 +93,40 @@ export const AlertSystem: React.FC = () => {
     prevSafetyStopsRef.current = safetyMetrics.safetyStops;
   }, [safetyMetrics.safetyStops, addAlert]);
 
-  // An alert filed with announce: 'polite' (a closed shift, say) is read once
-  // as it is filed. Alerts already in the bell at mount are not news, and
-  // routine info and success alerts stay silent.
-  // Working if a closed shift reaches a screen reader with the PA off or muted.
+  // An alert filed with an announce level is read once as it is filed:
+  // 'assertive' (a breakdown, a critical incident) in the alert region,
+  // 'polite' (a wear warning, a quality hold, a closed shift) in the status
+  // region. This path does not depend on the PA, its mode or the audio mute.
+  // Alerts already in the bell at mount are not news, and unmarked alerts stay
+  // silent. Working if a breakdown, a wear warning and a quality hold reach a
+  // screen reader with game audio muted, and a closed shift with the PA off.
   useEffect(() => {
     let seen = new Set(useUIStore.getState().alerts.map((alert) => alert.id));
     return useUIStore.subscribe(({ alerts }) => {
-      const fresh = alerts.filter((alert) => !seen.has(alert.id) && alert.announce === 'polite');
+      const fresh = alerts.filter((alert) => !seen.has(alert.id) && alert.announce);
       seen = new Set(alerts.map((alert) => alert.id));
-      const notice = fresh[0];
-      if (!notice) return;
-      const text = translate(alertSystemMessages, 'politeLiveRegion', {
-        title: notice.title,
-        message: notice.message,
-      });
+      if (fresh.length === 0) return;
+      // The bell lists newest first; read them in the order they were filed.
+      const read = (level: 'polite' | 'assertive') =>
+        fresh
+          .filter((alert) => alert.announce === level)
+          .reverse()
+          .map((alert) =>
+            translate(alertSystemMessages, 'politeLiveRegion', {
+              title: alert.title,
+              message: alert.message,
+            })
+          )
+          .join(' ');
       // A live region whose text does not change is not read again, so a
       // notice worded like the last alternates a trailing no-break space.
       // Working if two identical shift-close notices are each read once.
-      setPoliteMessage((previous) =>
-        previous.trimEnd() !== text ? text : previous.endsWith(NBSP) ? text : `${text}${NBSP}`
-      );
+      const reread = (text: string) => (previous: string) =>
+        previous.trimEnd() !== text ? text : previous.endsWith(NBSP) ? text : `${text}${NBSP}`;
+      const assertive = read('assertive');
+      const polite = read('polite');
+      if (assertive) setLiveRegionMessage(reread(assertive));
+      if (polite) setPoliteMessage(reread(polite));
     });
   }, []);
 
@@ -170,13 +184,13 @@ export const AlertSystem: React.FC = () => {
   // Only render screen reader live region - no visible UI
   // Alerts are displayed via StatusHUD notification dropdown
   return (
-    <>
+    <LiveRegionPortal>
       <div role="alert" aria-atomic="true" className="sr-only">
         {liveRegionMessage}
       </div>
       <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
         {politeMessage}
       </div>
-    </>
+    </LiveRegionPortal>
   );
 };

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { Minimize2, X } from 'lucide-react';
 import { useUIStore } from '../../../stores/uiStore';
@@ -51,6 +51,8 @@ import {
 } from '../../../simulation/shiftReview';
 import { playableShiftMessages } from './PlayableShift.messages';
 import { openRepairWorkspace } from '../openRepairWorkspace';
+import { useProductionStore } from '../../../stores/productionStore';
+import { focusDockItem } from '../dock/focusDockItem';
 
 const BUTTON =
   'min-h-11 rounded-lg border border-cyan-400/30 px-3 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-400/10 disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300';
@@ -128,9 +130,17 @@ export function TeachingPace() {
 export function FirstDeliveryJourney({
   selectedMachine,
   onOpenWorkspace,
+  onInspectMachine,
+  focusHeadingOnMount = false,
+  onHeadingFocused,
 }: {
   selectedMachine: MachineData | null;
   onOpenWorkspace: (mode: 'scada' | 'overview') => void;
+  /** Selects a machine and flies the camera to it, as a click in the scene does. */
+  onInspectMachine?: (machineId: string) => void;
+  /** The tour just closed: take focus on this card's heading when it mounts. */
+  focusHeadingOnMount?: boolean;
+  onHeadingFocused?: () => void;
 }) {
   const t = useT(playableShiftMessages);
   const locale = useLocale();
@@ -188,6 +198,48 @@ export function FirstDeliveryJourney({
     (sceneFocused ? expandButton : collapseButton).current?.focus();
   }, [sceneFocused]);
   useEffect(() => setSceneFocused(false), [ui.orderId]);
+  // The tour's last button unmounted with it; this card's heading takes over.
+  // Working if Start operating or Skip tour leaves focus on 'Your first delivery'.
+  const cardRef = useRef<HTMLElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const lessonRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (!focusHeadingOnMount) return;
+    headingRef.current?.focus();
+    onHeadingFocused?.();
+  }, [focusHeadingOnMount, onHeadingFocused]);
+  // Closing removes the focused control with the card, so focus goes to the
+  // dock, unless it was somewhere else (an Escape from the scene keeps it).
+  const closeJourney = ui.close;
+  const closeGuide = useCallback(() => {
+    const active = document.activeElement;
+    if (!active || active === document.body || cardRef.current?.contains(active))
+      focusDockItem('overview');
+    closeJourney(false);
+  }, [closeJourney]);
+  // A keyboard route to the opening lesson: the host selects a real roller
+  // mill and flies to it, so the receipt is the one a click records.
+  const inspectTarget = useProductionStore(
+    (s) => s.machines.find((machine) => machine.type === MachineType.ROLLER_MILL)?.id ?? null
+  );
+  const inspectFromCard =
+    onInspectMachine && inspectTarget && !ui.inspected
+      ? () => {
+          onInspectMachine(inspectTarget);
+          // The button goes once the inspection is recorded. A desktop sidebar
+          // takes focus on the inspector; otherwise the lesson heading does.
+          if (useUIStore.getState().panelFocusRequested) return;
+          requestAnimationFrame(() => (lessonRef.current ?? headingRef.current)?.focus());
+        }
+      : null;
+  const inspectButton = (className: string) =>
+    inspectFromCard && (
+      <button className={className} onClick={inspectFromCard}>
+        {t('inspectMill')}
+      </button>
+    );
+  const HEADING_FOCUS =
+    'rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300';
   useEffect(() => {
     if (
       selectedMachine &&
@@ -210,11 +262,11 @@ export function FirstDeliveryJourney({
         return;
       event.preventDefault();
       event.stopPropagation();
-      ui.close(false);
+      closeGuide();
     };
     document.addEventListener('keydown', onKey, true);
     return () => document.removeEventListener('keydown', onKey, true);
-  }, [ui.close]);
+  }, [closeGuide]);
   // Completion keeps its receipt available while yielding the foreground to
   // the live commitment. This projection never advances an order or a truck.
   // Working if a real fulfilment shows its receipt whether or not the
@@ -244,9 +296,15 @@ export function FirstDeliveryJourney({
     : guide.workspace;
   if (completed && !sceneFocused)
     return (
-      <section aria-label={t('guidedDelivery')} className={`${JOURNEY_FRAME} p-4`}>
+      <section ref={cardRef} aria-label={t('guidedDelivery')} className={`${JOURNEY_FRAME} p-4`}>
         <div className="flex items-center justify-between gap-2">
-          <h2 className="font-semibold text-white">{t('deliveryFulfilled')}</h2>
+          <h2
+            ref={headingRef}
+            tabIndex={-1}
+            className={`font-semibold text-white ${HEADING_FOCUS}`}
+          >
+            {t('deliveryFulfilled')}
+          </h2>
           <button
             ref={collapseButton}
             className={BUTTON}
@@ -256,7 +314,7 @@ export function FirstDeliveryJourney({
           >
             <Minimize2 className="h-4 w-4" aria-hidden="true" />
           </button>
-          <button className={BUTTON} aria-label={t('closeGuide')} onClick={() => ui.close(false)}>
+          <button className={BUTTON} aria-label={t('closeGuide')} onClick={closeGuide}>
             <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
@@ -337,9 +395,14 @@ export function FirstDeliveryJourney({
   // still records the real inspection, and Guide restores the full lesson.
   if (sceneFocused)
     return (
-      <section aria-label={t('guidedDelivery')} className={`${JOURNEY_FRAME} p-3`}>
+      <section ref={cardRef} aria-label={t('guidedDelivery')} className={`${JOURNEY_FRAME} p-3`}>
         <div className="flex items-center justify-between gap-3">
-          <h2 aria-live="polite" className="min-w-0 flex-1 font-semibold text-white">
+          <h2
+            ref={headingRef}
+            tabIndex={-1}
+            aria-live="polite"
+            className={`min-w-0 flex-1 font-semibold text-white ${HEADING_FOCUS}`}
+          >
             {guide.title}
           </h2>
           <button
@@ -354,7 +417,7 @@ export function FirstDeliveryJourney({
           <button
             className={`${BUTTON} shrink-0`}
             aria-label={t('closeGuide')}
-            onClick={() => ui.close(false)}
+            onClick={closeGuide}
           >
             <X className="h-4 w-4" aria-hidden="true" />
           </button>
@@ -401,12 +464,15 @@ export function FirstDeliveryJourney({
         {!ui.inspected && (
           <p className="text-xs leading-5 text-cyan-200">{t('selectMachineHint')}</p>
         )}
+        {!completed && inspectButton(`${BUTTON} mt-2 w-full`)}
       </section>
     );
   return (
-    <section aria-label={t('guidedDelivery')} className={`${JOURNEY_FRAME} p-4`}>
+    <section ref={cardRef} aria-label={t('guidedDelivery')} className={`${JOURNEY_FRAME} p-4`}>
       <div className="flex items-center justify-between gap-2">
-        <h2 className="font-semibold text-white">{t('firstDelivery')}</h2>
+        <h2 ref={headingRef} tabIndex={-1} className={`font-semibold text-white ${HEADING_FOCUS}`}>
+          {t('firstDelivery')}
+        </h2>
         <button
           ref={collapseButton}
           className={BUTTON}
@@ -416,7 +482,7 @@ export function FirstDeliveryJourney({
         >
           <Minimize2 className="h-4 w-4" aria-hidden="true" />
         </button>
-        <button className={BUTTON} aria-label={t('closeGuide')} onClick={() => ui.close(false)}>
+        <button className={BUTTON} aria-label={t('closeGuide')} onClick={closeGuide}>
           <X className="h-4 w-4" aria-hidden="true" />
         </button>
       </div>
@@ -433,7 +499,12 @@ export function FirstDeliveryJourney({
       {/* Pace sits with the deadline it is read against, above the fold, so it
           is visible at 1366x768 without scrolling the card. */}
       <TeachingPace />
-      <h3 aria-live="polite" className="mt-3 font-semibold text-white">
+      <h3
+        ref={lessonRef}
+        tabIndex={-1}
+        aria-live="polite"
+        className={`mt-3 font-semibold text-white ${HEADING_FOCUS}`}
+      >
         {guide.title}
       </h3>
       <p className="mt-2 text-sm leading-6 text-slate-200">{guide.detail}</p>
@@ -476,6 +547,7 @@ export function FirstDeliveryJourney({
           visible at 1280x657 without scrolling the card, with no text under them. */}
       {(guide.view || guide.workspace) && (
         <div className="sticky bottom-[-1rem] -mx-4 mt-3 flex flex-wrap gap-2 border-t border-slate-800 bg-slate-950 px-4 pt-3 pb-7">
+          {guide.inspect && inspectButton(BUTTON)}
           {guide.view && (
             <button
               className={BUTTON}
@@ -505,7 +577,7 @@ export function FirstDeliveryJourney({
         </div>
       )}
       <LearningNote entryId={guide.entryId} />
-      <button className={`${BUTTON} mt-3`} onClick={() => ui.close(false)}>
+      <button className={`${BUTTON} mt-3`} onClick={closeGuide}>
         {t('skipGuide')}
       </button>
     </section>

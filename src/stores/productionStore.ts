@@ -1274,6 +1274,7 @@ export const useProductionStore = create<ProductionStore>()(
             machineId: id,
             timestamp: new Date(),
             acknowledged: false,
+            announce: 'assertive',
           });
         });
       }
@@ -1305,6 +1306,7 @@ export const useProductionStore = create<ProductionStore>()(
             machineId: id,
             timestamp: new Date(),
             acknowledged: false,
+            announce: 'assertive',
           });
         });
       }

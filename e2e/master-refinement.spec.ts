@@ -53,6 +53,20 @@ async function expectNoWcagViolations(page: Page, testInfo: TestInfo, state: str
       contentType: 'application/json',
     });
   }
+  // Text on a translucent, blurred panel over the WebGL canvas has no single
+  // background, so axe reports its contrast as 'incomplete', not a violation.
+  // Attach those nodes for review, so low-contrast labels cannot hide there.
+  const contrastUnchecked = results.incomplete
+    .filter((result) => result.id === 'color-contrast')
+    .flatMap((result) =>
+      result.nodes.map((node) => ({ target: node.target, summary: node.failureSummary }))
+    );
+  if (contrastUnchecked.length > 0) {
+    await testInfo.attach(`axe-${state}-contrast-incomplete`, {
+      body: Buffer.from(JSON.stringify(contrastUnchecked, null, 2)),
+      contentType: 'application/json',
+    });
+  }
   expect(violations, `${state} has WCAG A or AA violations`).toEqual([]);
 }
 

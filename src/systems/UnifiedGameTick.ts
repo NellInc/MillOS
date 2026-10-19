@@ -219,6 +219,8 @@ function applyCampaignIncidentConsequence(incident: OperationalIncident): void {
     machineId: incident.affectedMachineId ?? undefined,
     timestamp: new Date(),
     acknowledged: false,
+    // Read from the bell, so a muted PA does not hide it from a screen reader.
+    announce: incident.severity === 'critical' ? 'assertive' : 'polite',
   });
   useOperationsCampaignStore.getState().markIncidentEffectApplied(incident.id);
 }
@@ -767,6 +769,8 @@ function unifiedGameTick(ctx: TickContext): void {
           machineId: oldMachine.id,
           timestamp: new Date(),
           acknowledged: false,
+          // The bell reads it to screen readers; the PA line is caption-only.
+          announce: 'polite',
         });
       }
     }
@@ -1058,6 +1062,8 @@ function unifiedGameTick(ctx: TickContext): void {
           : (_shippingLoad.blockReason ?? translate(msg, 'waitingForProduct')),
         timestamp: new Date(),
         acknowledged: false,
+        // A quality hold stops the truck: read it whatever the PA or mute.
+        ...(qualityBlockReason ? { announce: 'polite' as const } : {}),
       });
     }
   }
@@ -1168,6 +1174,8 @@ function unifiedGameTick(ctx: TickContext): void {
         machineId: id,
         timestamp: new Date(),
         acknowledged: false,
+        // The bell reads it to screen readers; the PA line is caption-only.
+        announce: 'assertive',
       });
     });
   }

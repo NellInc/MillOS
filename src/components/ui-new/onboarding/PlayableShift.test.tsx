@@ -12,6 +12,7 @@ import { useOperationsCampaignStore } from '../../../stores/operationsCampaignSt
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
 import { useMaterialFlowStore } from '../../../stores/materialFlowStore';
+import { useProductionStore } from '../../../stores/productionStore';
 import { createWorkplace } from '../../../simulation/bilateralWorkplace';
 import { useWorkplaceAutoplay } from '../../../simulation/workplaceAutoplay';
 import {
@@ -1106,3 +1107,107 @@ it.each([
     }
   }
 );
+
+describe('the guided delivery without a pointer', () => {
+  const mill = { id: 'rm-101', name: 'R.M. 101', type: MachineType.ROLLER_MILL } as MachineData;
+  let dock: HTMLButtonElement;
+  beforeEach(() => {
+    useProductionStore.setState({ machines: [mill] });
+    useUIStore.getState().startDeliveryJourney(useOperationsCampaignStore.getState().activeOrderId);
+    dock = document.createElement('button');
+    dock.dataset.dockMode = 'overview';
+    dock.textContent = 'Overview';
+    document.body.appendChild(dock);
+  });
+  afterEach(() => {
+    dock.remove();
+    useProductionStore.setState({ machines: [] });
+  });
+
+  // 'Inspect the line' asked for a click on a 3D machine and offered no other
+  // route. Working if Enter on the card inspects a real roller mill, exactly
+  // as selecting it in the scene does.
+  it('inspects a real roller mill from the card, in full and compact form', () => {
+    const onInspect = vi.fn();
+    const { rerender } = render(
+      <FirstDeliveryJourney
+        selectedMachine={null}
+        onOpenWorkspace={vi.fn()}
+        onInspectMachine={onInspect}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect a roller mill' }));
+    expect(onInspect).toHaveBeenCalledWith('rm-101');
+    // The phone-sized card keeps the same route beside its hint.
+    fireEvent.click(screen.getByRole('button', { name: 'Show milling line' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect a roller mill' }));
+    expect(onInspect).toHaveBeenCalledTimes(2);
+    // The host selects the machine; the receipt is the real one.
+    rerender(
+      <FirstDeliveryJourney
+        selectedMachine={mill}
+        onOpenWorkspace={vi.fn()}
+        onInspectMachine={onInspect}
+      />
+    );
+    expect(useUIStore.getState().inspectedMachineIds).toEqual(['rm-101']);
+    expect(screen.queryByRole('button', { name: 'Inspect a roller mill' })).not.toBeInTheDocument();
+  });
+
+  it('names the keyboard inspection in Brazilian Portuguese', () => {
+    setLocale('pt-BR');
+    try {
+      render(
+        <FirstDeliveryJourney
+          selectedMachine={null}
+          onOpenWorkspace={vi.fn()}
+          onInspectMachine={vi.fn()}
+        />
+      );
+      expect(screen.getByRole('button', { name: 'Inspecionar um moinho de rolos' })).toBeVisible();
+      expect(screen.getByText(/ou use Inspecionar um moinho de rolos/)).toBeInTheDocument();
+    } finally {
+      setLocale('en');
+    }
+  });
+
+  it('takes focus on its heading when the tour hands it over, once', () => {
+    const focused = vi.fn();
+    render(
+      <FirstDeliveryJourney
+        selectedMachine={null}
+        onOpenWorkspace={vi.fn()}
+        focusHeadingOnMount
+        onHeadingFocused={focused}
+      />
+    );
+    expect(screen.getByRole('heading', { name: 'Your first delivery' })).toHaveFocus();
+    expect(focused).toHaveBeenCalledOnce();
+  });
+
+  it.each(['Skip guided delivery', 'Close guided delivery'])(
+    'returns focus to the dock when %s removes the card',
+    (control) => {
+      render(<FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={vi.fn()} />);
+      const pressed = screen.getByRole('button', { name: control });
+      pressed.focus();
+      fireEvent.click(pressed);
+      expect(useUIStore.getState().journeyVisible).toBe(false);
+      expect(dock).toHaveFocus();
+    }
+  );
+
+  it('leaves focus where it was when Escape closes the card from elsewhere', () => {
+    render(<FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={vi.fn()} />);
+    const elsewhere = document.createElement('input');
+    document.body.appendChild(elsewhere);
+    try {
+      elsewhere.focus();
+      fireEvent.keyDown(document.body, { key: 'Escape' });
+      expect(useUIStore.getState().journeyVisible).toBe(false);
+      expect(elsewhere).toHaveFocus();
+    } finally {
+      elsewhere.remove();
+    }
+  });
+});

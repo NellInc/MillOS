@@ -4,7 +4,13 @@ import { useProductionStore } from '../../stores/productionStore';
 import { useUIStore } from '../../stores/uiStore';
 import { renderHook } from '@testing-library/react';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
-import { chooseNotice, isCriticalConditionActive, usePAScheduler } from './shared';
+import { useAnnouncementsStore } from '../../stores/announcementsStore';
+import {
+  chooseNotice,
+  isCriticalConditionActive,
+  useEventAnnouncementScheduler,
+  usePAScheduler,
+} from './shared';
 
 const scada = vi.hoisted(() => ({ alarms: [] as Alarm[] }));
 
@@ -104,6 +110,61 @@ describe('ambient PA scheduler and the shift clock', () => {
     useGameSimulationStore.getState().releaseClock('tour');
     vi.advanceTimersByTime(400_000);
     expect(addAnnouncement).toHaveBeenCalled();
+    hook.unmount();
+  });
+});
+
+// The bell reads a breakdown or wear warning to screen readers whatever the
+// audio (AlertSystem); the PA status line for the same machine is then a
+// caption for the eye, so an unmuted screen-reader user hears it once.
+describe('machine status PA notices beside an announced bell alert', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    useUIStore.setState({ alerts: [] });
+  });
+  it('captions a fault the bell already reads, and still reads one it does not', () => {
+    vi.useFakeTimers();
+    const addAnnouncement = vi.fn();
+    const machine = (id: string, name: string, status: string) => ({ id, name, status });
+    useAnnouncementsStore.setState({ mode: 'focused' });
+    useProductionStore.setState({
+      addAnnouncement,
+      productionTarget: null,
+      machines: [
+        machine('dedupe-a', 'R.M. 901', 'running'),
+        machine('dedupe-b', 'R.M. 902', 'running'),
+      ],
+    } as never);
+    const hook = renderHook(() => useEventAnnouncementScheduler());
+    vi.advanceTimersByTime(5000);
+    useUIStore.setState({
+      alerts: [
+        {
+          id: 'breakdown-dedupe-a',
+          type: 'critical',
+          title: 'Machine breakdown',
+          message: 'R.M. 901 has broken down.',
+          machineId: 'dedupe-a',
+          timestamp: new Date(),
+          acknowledged: false,
+          announce: 'assertive',
+        },
+      ],
+    });
+    useProductionStore.setState({
+      machines: [
+        machine('dedupe-a', 'R.M. 901', 'critical'),
+        machine('dedupe-b', 'R.M. 902', 'critical'),
+      ],
+    } as never);
+    vi.advanceTimersByTime(5000);
+    const inputs = addAnnouncement.mock.calls.map(
+      ([input]) => input as { message: string; captionOnly?: boolean }
+    );
+    expect(inputs.find((input) => input.message.includes('R.M. 901'))?.captionOnly).toBe(true);
+    const unread = inputs.find((input) => input.message.includes('R.M. 902'));
+    expect(unread).toBeDefined();
+    expect(unread?.captionOnly).toBeFalsy();
     hook.unmount();
   });
 });

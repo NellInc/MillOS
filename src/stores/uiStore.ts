@@ -91,6 +91,12 @@ interface UIStore {
   maintenanceFocusRequested: boolean;
   requestMaintenanceFocus: () => void;
   clearMaintenanceFocus: () => void;
+  // One-shot request for the desktop context sidebar to focus its heading once
+  // it is open: the control that opened it (Take over, a companion's Open)
+  // has unmounted. Never persisted.
+  panelFocusRequested: boolean;
+  requestPanelFocus: () => void;
+  clearPanelFocus: () => void;
 
   // Legend position (for draggable legend)
   legendPosition: { x: number; y: number };
@@ -256,6 +262,9 @@ export const useUIStore = create<UIStore>()(
       maintenanceFocusRequested: false,
       requestMaintenanceFocus: () => set({ maintenanceFocusRequested: true }),
       clearMaintenanceFocus: () => set({ maintenanceFocusRequested: false }),
+      panelFocusRequested: false,
+      requestPanelFocus: () => set({ panelFocusRequested: true }),
+      clearPanelFocus: () => set({ panelFocusRequested: false }),
 
       // Legend position
       legendPosition: { x: -1, y: -1 }, // -1 means use default position

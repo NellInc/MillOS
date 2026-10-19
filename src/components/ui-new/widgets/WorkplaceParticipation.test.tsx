@@ -15,6 +15,7 @@ import { useWorkplaceAutoplay } from '../../../simulation/workplaceAutoplay';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
 import { useUIStore } from '../../../stores/uiStore';
 import { useAnnouncementsStore } from '../../../stores/announcementsStore';
+import { setLocale } from '../../../i18n';
 
 beforeEach(() => {
   useWorkplaceAutoplay.getState().pause();
@@ -269,7 +270,8 @@ it('keeps the desktop takeover control clear of the guide card column', () => {
   const view = render(<WorkplaceAutoplayStatus />);
   try {
     const status = screen.getByRole('complementary', { name: 'Fictional demo running' });
-    const takeover = screen.getByRole('button', { name: 'Take over cooperative season' });
+    // Its name is its visible compact wording (WCAG 2.5.3).
+    const takeover = screen.getByRole('button', { name: 'Cooperative season running: take over' });
     // The journey card starts 11.5rem up; one 44px control from 8rem stays below it.
     expect(status.className).toContain('bottom-[8rem]');
     expect(status.className).not.toContain('p-3');
@@ -336,7 +338,7 @@ it('reserves touch movement space in landscape and portrait while retaining take
   const view = render(<WorkplaceAutoplayStatus />);
   try {
     const status = screen.getByRole('complementary', { name: 'Fictional demo running' });
-    const takeover = screen.getByRole('button', { name: 'Take over cooperative season' });
+    const takeover = screen.getByRole('button', { name: 'Cooperative season running: take over' });
     expect(status.className).toContain('top-4');
     expect(status.className).not.toContain('bottom-');
     expect(takeover.textContent).toBe('Cooperative season running: take over');
@@ -443,4 +445,28 @@ it('relearns a changed advice-only mandate without retaining a previous turn or 
       (m) => !m.understood && m.ballot === null && m.coverConsent === null
     )
   ).toBe(true);
+});
+
+// WCAG 2.5.3: a voice-control user says what they see. Beside the guide card
+// the button shows its compact wording, which must be its name too.
+it.each([
+  ['en', 'Cooperative season running: take over'],
+  ['pt-BR', 'Temporada cooperativa em andamento: assumir'],
+] as const)('names the compact takeover by its visible words in %s', (locale, visible) => {
+  useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
+  useOperationsCampaignStore.getState().initializeCampaign();
+  useUIStore.setState({ journeyVisible: true });
+  vi.useFakeTimers();
+  document.documentElement.dataset.millosStartupReady = 'true';
+  setLocale(locale);
+  try {
+    render(<WorkplaceAutoplayStatus />);
+    const button = screen.getByRole('button', { name: visible });
+    expect(button).toHaveTextContent(visible);
+  } finally {
+    act(() => useWorkplaceAutoplay.getState().pause(true));
+    setLocale('en');
+    delete document.documentElement.dataset.millosStartupReady;
+    vi.useRealTimers();
+  }
 });

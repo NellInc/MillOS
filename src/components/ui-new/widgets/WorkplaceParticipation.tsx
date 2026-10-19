@@ -505,8 +505,9 @@ export function WorkplaceAutoplayStatus() {
           them, and never freezes the plant: the shift keeps its pace. Running
           the demo again from that panel reverses it. Working if Take over opens
           the BAS season with the clock still running. */}
+      {/* No aria-label: the visible words are the name in both wordings, so a
+          voice-control user can say what they see (WCAG 2.5.3). */}
       <button
-        aria-label={t('takeOver')}
         title={t('autonomousSeasonDetail')}
         className={`${button} ${compact ? 'max-w-full bg-slate-950 shadow-lg' : 'mt-2'}`}
         onClick={() => {

@@ -31,6 +31,16 @@ describe('guided delivery evidence', () => {
       ).title
     ).toBe('Delivery fulfilled');
   });
+  // The opening lesson can be done without a pointer: the card offers to
+  // inspect a machine, and only this stage is marked as the inspection.
+  it('marks only the opening lesson as the inspection, and names its keyboard route', () => {
+    const campaign = useOperationsCampaignStore.getState();
+    const order = campaign.orders[0];
+    const lesson = deriveDeliveryJourney(order, campaign.execution, false);
+    expect(lesson.inspect).toBe(true);
+    expect(lesson.detail).toContain('Inspect a roller mill');
+    expect(deriveDeliveryJourney(order, campaign.execution, true).inspect).toBeUndefined();
+  });
   it('narrates the truck stages even when no machine was inspected', () => {
     const campaign = useOperationsCampaignStore.getState();
     const order = campaign.orders[0];

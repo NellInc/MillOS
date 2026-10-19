@@ -94,11 +94,12 @@ export interface AlertData {
    */
   returnedToNormal?: boolean;
   /**
-   * Read once to screen readers, politely, when it is filed (AlertSystem).
-   * For a notice a player must not miss that is neither critical nor a
-   * warning, such as a closed shift; routine alerts leave it unset.
+   * Read once to screen readers when it is filed (AlertSystem), whatever the
+   * PA mode or audio mute: 'assertive' interrupts (a breakdown, a critical
+   * incident), 'polite' waits (a wear warning, a quality hold, a closed
+   * shift). Routine alerts and SCADA alarm traffic leave it unset.
    */
-  announce?: 'polite';
+  announce?: 'polite' | 'assertive';
 }
 
 export type AIDecisionDisposition = 'accepted' | 'modified' | 'rejected' | 'deferred' | 'automatic';

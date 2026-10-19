@@ -458,6 +458,27 @@ const announceDrillTransition = (
   });
 };
 
+// How long a filed bell alert counts as the screen-reader voice of a status change.
+const BELL_ALERT_PAIRING_MS = 60000;
+
+/**
+ * Whether the bell has just filed an announced alert for this machine (a
+ * breakdown, a wear warning, a campaign incident). AlertSystem reads those to
+ * screen readers whatever the PA mode or mute, so the PA status line for the
+ * same change is a caption only. A status change with no such alert (a live
+ * SCADA escalation) is still read by the PA.
+ * Working if an unmuted screen-reader player hears a breakdown once.
+ */
+const bellReadsMachineAlert = (machineId: string, now: number): boolean =>
+  useUIStore
+    .getState()
+    .alerts.some(
+      (alert) =>
+        alert.machineId === machineId &&
+        alert.announce !== undefined &&
+        now - new Date(alert.timestamp).getTime() < BELL_ALERT_PAIRING_MS
+    );
+
 const checkEventAnnouncements = (addAnnouncement: (input: AnnouncementInput) => void): void => {
   if (useAnnouncementsStore.getState().mode === 'off') return;
   const state = useProductionStore.getState();
@@ -515,6 +536,9 @@ const checkEventAnnouncements = (addAnnouncement: (input: AnnouncementInput) => 
           tone: 'literal',
           audience: 'control',
           cooldownMs: 90000,
+          ...(current !== 'running' && bellReadsMachineAlert(machine.id, now)
+            ? { captionOnly: true }
+            : {}),
         });
         lastMachineStatusAnnouncementTime[cooldownKey] = now;
       }
