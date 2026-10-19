@@ -1,4 +1,4 @@
-import { defineMessages } from '../../i18n';
+import { defineMessages, upperFirst } from '../../i18n';
 
 /**
  * Store enums render as their raw value in English (underscores spaced, and the
@@ -19,7 +19,7 @@ const PT_FAILURE: Record<string, string> = {
   vibration_failure: 'falha por vibração',
 };
 
-const PT_PHASE: Record<string, string> = {
+export const PT_PHASE: Record<string, string> = {
   diagnosed: 'diagnosticada',
   awaiting_parts: 'aguardando peças',
   repairing: 'em reparo',
@@ -122,7 +122,7 @@ export const predictiveMaintenancePanelMessages = defineMessages({
     acknowledge: 'Reconhecer',
 
     activeFaults: 'Falhas ativas',
-    phase: (p: { phase: string }) => PT_PHASE[p.phase] ?? p.phase.replaceAll('_', ' '),
+    phase: (p: { phase: string }) => upperFirst(PT_PHASE[p.phase] ?? p.phase.replaceAll('_', ' ')),
     service: 'Atendimento:',
     serviceUnit: 'Unidade de serviço autônoma',
     downtime: 'Tempo de parada:',

@@ -1,4 +1,4 @@
-import { defineMessages, formatGrouped } from '../../../i18n';
+import { defineMessages, formatGrouped, upperFirst } from '../../../i18n';
 
 type PlanParams = { plan: string };
 type ZoomParams = { plan: string; zoomed: boolean };
@@ -190,7 +190,7 @@ export const layoutPlannerMessages = defineMessages({
     editRestored: 'Edição da proposta refeita.',
     resetProposal: 'Reiniciar proposta',
     captureAgain: 'Capturar estado atual de novo',
-    planHeading: (p: PlanParams) => `layout ${ptPlan(p.plan)}`,
+    planHeading: (p: PlanParams) => `Layout ${ptPlan(p.plan)}`,
     zoomPlan: (p: ZoomParams) => `${p.zoomed ? 'Ajustar' : 'Ampliar'} desenho ${ptPlan(p.plan)}`,
     drawingRegion: (p: PlanParams) =>
       `Desenho do layout ${ptPlan(p.plan)}; role para inspecionar os detalhes ampliados`,
@@ -209,7 +209,7 @@ export const layoutPlannerMessages = defineMessages({
     travelEstimates:
       'As estimativas de deslocamento usam a rota arredondada, uma média conservadora de 1,8 m/s e 13 segundos para carga/descarga. O manuseio na área de preparação usa distância retilínea. Aceleração, esperas no tráfego e ganhos de produção ficam fora desta estimativa.',
     proposalControls: 'Controles da proposta',
-    dockName: (p: DockParams) => ptDock(p.dock),
+    dockName: (p: DockParams) => upperFirst(ptDock(p.dock)),
     shippingStagingNote: 'Reserve todas as 50 posições de palete.',
     receivingStagingNote: 'Posicione as duas pilhas de paletes vazios de retorno.',
     fixedNote:

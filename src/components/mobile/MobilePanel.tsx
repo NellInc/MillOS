@@ -33,7 +33,14 @@ import { SafetyPanel } from '../ui-new/panels/SafetyPanel';
 import { JevAdvisoryPanel } from '../ui/JevAdvisoryPanel';
 import { WorkplaceLab } from '../ui-new/widgets/WorkplaceLab';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
-import { formatFixed, formatGrouped, useT, type Translator } from '../../i18n';
+import {
+  capitalizeIn,
+  formatFixed,
+  formatGrouped,
+  useLocale,
+  useT,
+  type Translator,
+} from '../../i18n';
 import { mobilePanelMessages } from './MobilePanel.messages';
 import { PACE_GAME_SPEEDS, STANDARD_GAME_SPEED } from '../../simulation/pace';
 import { paceMessages } from '../../simulation/pace.messages';
@@ -168,6 +175,7 @@ const MOBILE_PACE_LABELS: Record<number, string> = { 15: '1/2x', 30: '1x', 60: '
 const OverviewContent: React.FC = () => {
   const t = useT(mobilePanelMessages);
   const pace = useT(paceMessages);
+  const locale = useLocale();
   const metrics = useProductionStore((s) => s.metrics);
   const machines = useProductionStore((s) => s.machines);
   const totalBagsProduced = useProductionStore((s) => s.totalBagsProduced);
@@ -242,7 +250,7 @@ const OverviewContent: React.FC = () => {
             <span className="text-lg font-mono font-bold text-white">
               {formatGameTime(gameTime)}
             </span>
-            <span className="text-[10px] text-slate-500 capitalize">
+            <span className={`text-[10px] text-slate-500 ${capitalizeIn(locale)}`}>
               {formatShift(currentShift, t)}
             </span>
           </div>
@@ -411,7 +419,7 @@ const OverviewContent: React.FC = () => {
         </div>
         <div className="mt-1.5 rounded bg-slate-950/35 p-1.5 text-[9px]">
           <div className="flex items-center justify-between gap-2">
-            <span className="capitalize text-cyan-200">
+            <span className={`${capitalizeIn(locale)} text-cyan-200`}>
               {formatStage(campaignExecution.stage, t)}
             </span>
             <span className="font-mono text-slate-300">
@@ -632,6 +640,7 @@ const MetricCard: React.FC<{
 // Simulated SCADA panel content
 const SCADAContent: React.FC = () => {
   const t = useT(mobilePanelMessages);
+  const locale = useLocale();
   const metrics = useProductionStore((s) => s.metrics);
   const scadaLive = useProductionStore((s) => s.scadaLive);
   const campaignExecution = useOperationsCampaignStore((s) => s.execution);
@@ -680,7 +689,7 @@ const SCADAContent: React.FC = () => {
       <div className="rounded-lg border border-cyan-500/20 bg-cyan-950/15 p-2">
         <div className="flex items-center justify-between text-[10px]">
           <span className="uppercase text-slate-400">{t('executionRoute')}</span>
-          <span className="capitalize text-cyan-200">
+          <span className={`${capitalizeIn(locale)} text-cyan-200`}>
             {formatStage(campaignExecution.stage, t)}
           </span>
         </div>

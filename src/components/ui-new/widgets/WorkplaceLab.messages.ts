@@ -58,7 +58,7 @@ const PT_DECISION: Record<string, string> = {
   'penalize-refusal': 'penalizar a recusa',
 };
 
-const PT_TASK: Record<string, string> = {
+export const PT_TASK: Record<string, string> = {
   Packing: 'Ensaque',
   'Pallet checks': 'Conferência de paletes',
   'Quality release': 'Liberação de qualidade',

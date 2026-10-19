@@ -1,4 +1,4 @@
-import { defineMessages } from '../../../i18n';
+import { defineMessages, upperFirst } from '../../../i18n';
 
 /*
  * Store enums (run window, weather, manifest kind, disposition, dock status,
@@ -21,7 +21,7 @@ const PT_MANIFEST_KIND: Record<string, string> = {
   receiving: 'recebimento',
   shipping: 'expedição',
 };
-const PT_DISPOSITION: Record<string, string> = {
+export const PT_DISPOSITION: Record<string, string> = {
   released: 'liberado',
   hold: 'retido',
   recalled: 'recolhido',
@@ -33,7 +33,7 @@ const PT_DOCK_STATUS: Record<string, string> = {
   loading: 'carregando',
   departing: 'saindo',
 };
-const PT_MATERIAL: Record<string, string> = {
+export const PT_MATERIAL: Record<string, string> = {
   wheat_grain: 'grão de trigo',
   corn_grain: 'grão de milho',
   flour: 'farinha',
@@ -137,7 +137,7 @@ export const overviewPanelMessages = defineMessages({
   'pt-BR': {
     paused: 'PAUSADO',
     runWindow: 'Janela de operação',
-    runWindowValue: (p: { value: string }) => PT_RUN_WINDOW[p.value] ?? p.value,
+    runWindowValue: (p: { value: string }) => upperFirst(PT_RUN_WINDOW[p.value] ?? p.value),
 
     materialTraceability: 'Rastreabilidade de materiais',
     received: 'Recebido',
@@ -193,7 +193,7 @@ export const overviewPanelMessages = defineMessages({
     idle: 'Ociosas',
 
     weather: 'Clima',
-    weatherValue: (p: { value: string }) => PT_WEATHER[p.value] ?? p.value,
+    weatherValue: (p: { value: string }) => upperFirst(PT_WEATHER[p.value] ?? p.value),
     siteMode: 'Modo da unidade',
     siteModeValue: 'Com equipe · Logística autônoma',
 
@@ -205,7 +205,7 @@ export const overviewPanelMessages = defineMessages({
     dockStatus: 'Status das docas',
     receiving: 'Recebimento',
     shipping: 'Expedição',
-    dockState: (p: { value: string }) => PT_DOCK_STATUS[p.value] ?? p.value,
+    dockState: (p: { value: string }) => upperFirst(PT_DOCK_STATUS[p.value] ?? p.value),
     unloading: 'Descarregando',
     nextTruck: 'Próximo caminhão em {minutes} min',
     eta: 'Previsão: {minutes} min',

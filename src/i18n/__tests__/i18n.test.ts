@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  capitalizeIn,
   createTranslator,
   defineMessages,
   detectLocale,
@@ -10,6 +11,7 @@ import {
   normalizeLocale,
   setLocale,
   translate,
+  upperFirst,
 } from '../index';
 
 const catalog = defineMessages({
@@ -88,5 +90,18 @@ describe('numbers', () => {
     expect(formatFixed(Number.NaN, 1, 'pt-BR')).toBe('NaN');
     expect(formatGrouped(8640, undefined, 'en')).toBe('8,640');
     expect(formatGrouped(8640, undefined, 'pt-BR')).toBe('8.640');
+  });
+});
+
+describe('casing', () => {
+  it('upper-cases only the first letter, as Portuguese sentence case needs', () => {
+    expect(upperFirst('moinho de rolos')).toBe('Moinho de rolos');
+    expect(upperFirst('em estado crítico')).toBe('Em estado crítico');
+    expect(upperFirst('')).toBe('');
+  });
+
+  it('keeps CSS capitalize for English only', () => {
+    expect(capitalizeIn('en')).toBe('capitalize');
+    expect(capitalizeIn('pt-BR')).toBe('');
   });
 });

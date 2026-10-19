@@ -1,4 +1,4 @@
-import { defineMessages } from '../../i18n';
+import { defineMessages, upperFirst } from '../../i18n';
 
 /** pt-BR names for AIDecision enum values; English shows the raw value, as before. */
 export const PT_DECISION_TYPES: Record<string, string> = {
@@ -46,6 +46,20 @@ const PT_QUALITIES: Record<string, string> = {
   bad: 'ruim',
 };
 
+/* Keys of AIDecision.measuredOutcome.measurements (productionStore). */
+const EN_MEASUREMENTS: Record<string, string> = {
+  totalBagsProduced: 'total bags produced',
+};
+const PT_MEASUREMENTS: Record<string, string> = {
+  throughput: 'vazão',
+  efficiency: 'eficiência',
+  uptime: 'disponibilidade',
+  quality: 'qualidade',
+  totalBagsProduced: 'sacos produzidos',
+};
+// An unknown camelCase key still reads as words: "someMetric" -> "some metric".
+const spacedKey = (key: string): string => key.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase();
+
 export const decisionReplayMessages = defineMessages({
   en: {
     dialogLabel: 'Decision replay',
@@ -72,6 +86,8 @@ export const decisionReplayMessages = defineMessages({
     noControlResponse: 'No control response was recorded.',
     measuredOutcome: 'Measured outcome',
     noMeasuredResult: 'No measured result has been recorded for this simulated decision.',
+    // English is capitalised by CSS, as before.
+    measurementLabel: (p: { key: string }) => EN_MEASUREMENTS[p.key] ?? spacedKey(p.key),
     closeReplay: 'Close Replay',
     viewDetails: 'View details: {action}',
   },
@@ -96,12 +112,14 @@ export const decisionReplayMessages = defineMessages({
     affectedSystems: 'Sistemas afetados',
     affectedEquipment: 'Equipamentos afetados',
     decisionResponse: 'Resposta à decisão',
-    disposition: (p: { value: string }) => PT_DISPOSITIONS[p.value] ?? p.value,
+    disposition: (p: { value: string }) => upperFirst(PT_DISPOSITIONS[p.value] ?? p.value),
     awaitingResponse:
       'Aguardando resposta. Aceite, adie ou rejeite a decisão no cartão de decisão.',
     noControlResponse: 'Nenhuma resposta de controle foi registrada.',
     measuredOutcome: 'Resultado medido',
     noMeasuredResult: 'Nenhum resultado medido foi registrado para esta decisão simulada.',
+    measurementLabel: (p: { key: string }) =>
+      upperFirst(PT_MEASUREMENTS[p.key] ?? spacedKey(p.key)),
     closeReplay: 'Fechar replay',
     viewDetails: 'Ver detalhes: {action}',
   },

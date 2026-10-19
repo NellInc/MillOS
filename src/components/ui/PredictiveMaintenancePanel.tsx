@@ -24,7 +24,7 @@ import { missingParts, useBreakdownStore, type PredictiveAlert } from '../../sto
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { minimumServiceWear, useProductionStore } from '../../stores/productionStore';
 import { useUIStore } from '../../stores/uiStore';
-import { formatFixed, translate, useT } from '../../i18n';
+import { capitalizeIn, formatFixed, translate, useLocale, useT } from '../../i18n';
 import { predictiveMaintenancePanelMessages } from './PredictiveMaintenancePanel.messages';
 
 const messages = predictiveMaintenancePanelMessages;
@@ -209,6 +209,7 @@ const ActiveBreakdownsSection: React.FC = () => {
   const verifyRepair = useBreakdownStore((state) => state.verifyRepair);
   const requestMachineRestart = useBreakdownStore((state) => state.requestMachineRestart);
   const t = useT(messages);
+  const locale = useLocale();
   const listParts = (parts: readonly string[]) =>
     parts.map((part) => t('part', { part })).join(', ');
 
@@ -240,7 +241,9 @@ const ActiveBreakdownsSection: React.FC = () => {
                   <div className="text-sm font-medium text-slate-200">{breakdown.machineName}</div>
                   <div className="text-[11px] text-slate-500">{workOrder.id}</div>
                 </div>
-                <span className="rounded bg-red-500/20 px-2 py-1 text-xs text-red-300 capitalize">
+                <span
+                  className={`rounded bg-red-500/20 px-2 py-1 text-xs text-red-300 ${capitalizeIn(locale)}`}
+                >
                   {phaseLabel}
                 </span>
               </div>

@@ -18,7 +18,7 @@ import { AboutModal } from '../../AboutModal';
 import { RecoverableFeatureBoundary } from '../../ErrorBoundary';
 import { recoverableLazy } from '../../../utils/recoverableLazy';
 import { CURRENT_RELEASE_VERSION, SELECTABLE_RELEASES } from '../../../config/releaseVersions';
-import { useT } from '../../../i18n';
+import { capitalizeIn, useLocale, useT } from '../../../i18n';
 import { contextSidebarMessages } from './ContextSidebar.messages';
 
 // Lazy load the heavy panels
@@ -62,6 +62,7 @@ export const ContextSidebar: React.FC<ContextSidebarProps> = ({
   onFocusMachine,
 }) => {
   const t = useT(contextSidebarMessages);
+  const locale = useLocale();
   React.useEffect(() => {
     if (!isVisible) return;
     const handleEscape = (event: KeyboardEvent) => {
@@ -186,7 +187,7 @@ export const ContextSidebar: React.FC<ContextSidebarProps> = ({
                     {headerTitle}
                   </h2>
                   {selectedMachine && mode !== 'scada' && (
-                    <p className="mt-3 text-lg capitalize text-slate-300">
+                    <p className={`mt-3 text-lg ${capitalizeIn(locale)} text-slate-300`}>
                       {t('machineType', { type: selectedMachine.type })}
                     </p>
                   )}

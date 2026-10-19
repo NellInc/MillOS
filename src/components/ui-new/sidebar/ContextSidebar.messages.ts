@@ -1,6 +1,6 @@
-import { defineMessages } from '../../../i18n';
+import { defineMessages, upperFirst } from '../../../i18n';
 
-const PT_MACHINE_TYPES: Record<string, string> = {
+export const PT_MACHINE_TYPES: Record<string, string> = {
   SILO: 'silo',
   ROLLER_MILL: 'moinho de rolos',
   PLANSIFTER: 'plansifter',
@@ -43,7 +43,7 @@ export const contextSidebarMessages = defineMessages({
     production: 'Produção',
     overview: 'Visão geral do moinho',
     machineType: (p: { type: string }) =>
-      PT_MACHINE_TYPES[p.type] ?? p.type.toLowerCase().replaceAll('_', ' '),
+      upperFirst(PT_MACHINE_TYPES[p.type] ?? p.type.toLowerCase().replaceAll('_', ' ')),
     panelLabel: 'Painel lateral: {title}',
     closePanel: 'Fechar painel lateral',
     selectVersion: 'Selecionar a versão do MillOS',

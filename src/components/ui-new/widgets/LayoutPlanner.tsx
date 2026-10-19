@@ -32,7 +32,14 @@ import {
   layoutProposalJson,
 } from '../../../simulation/layoutPlanningExport';
 import { MATERIAL_TRANSPORT_SPEEDS } from '../../../simulation/materialTransport';
-import { formatFixed, formatGrouped, translate, useT } from '../../../i18n';
+import {
+  capitalizeIn,
+  formatFixed,
+  formatGrouped,
+  translate,
+  useLocale,
+  useT,
+} from '../../../i18n';
 import { layoutPlannerMessages } from './LayoutPlanner.messages';
 
 function captureLayout(): LayoutSnapshot {
@@ -136,6 +143,7 @@ function NumberField({
 
 export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const t = useT(layoutPlannerMessages);
+  const locale = useLocale();
   const dialog = useRef<HTMLDivElement>(null);
   useFocusTrap(dialog as React.RefObject<HTMLElement>, true, onClose);
   const [snapshot, setSnapshot] = useState(captureLayout);
@@ -471,7 +479,7 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
             {(['current', 'proposed'] as const).map((name) => (
               <div key={name} className="min-w-0">
                 <div className="mb-2 flex items-center justify-between gap-2">
-                  <h3 className="text-base font-semibold capitalize">
+                  <h3 className={`text-base font-semibold ${capitalizeIn(locale)}`}>
                     {t('planHeading', { plan: name })}
                   </h3>
                   <button
@@ -566,7 +574,7 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                 {PLANNING_DOCKS.map((name) => (
                   <button
                     key={name}
-                    className={`${buttonClass} capitalize ${dock === name ? 'bg-slate-700 text-white' : ''}`}
+                    className={`${buttonClass} ${capitalizeIn(locale)} ${dock === name ? 'bg-slate-700 text-white' : ''}`}
                     aria-pressed={dock === name}
                     onClick={() => setDock(name)}
                   >

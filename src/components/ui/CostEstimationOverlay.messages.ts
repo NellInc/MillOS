@@ -1,4 +1,4 @@
-import { defineMessages } from '../../i18n';
+import { defineMessages, upperFirst } from '../../i18n';
 
 const PT_AI_MODES: Record<string, string> = {
   heuristic: 'heurístico',
@@ -32,7 +32,7 @@ export const costEstimationOverlayMessages = defineMessages({
     title: 'Uso da API (BYOK)',
     connected: 'Conectado',
     disconnected: 'Desconectado',
-    aiMode: (p: { mode: string }) => PT_AI_MODES[p.mode] ?? p.mode,
+    aiMode: (p: { mode: string }) => upperFirst(PT_AI_MODES[p.mode] ?? p.mode),
     usd: 'US$ {amount}',
     durationHours: '{hours}h {minutes}min',
     durationMinutes: '{minutes}min',

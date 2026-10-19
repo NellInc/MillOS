@@ -2,7 +2,12 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TagDefinition, TagHistoryPoint, TagValue } from '../scada/types';
+import { setLocale } from '../i18n';
+import { useBreakdownStore } from '../stores/breakdownStore';
 import { useGraphicsStore } from '../stores/graphicsStore';
+import { useMaterialFlowStore } from '../stores/materialFlowStore';
+import { useOperationsCampaignStore } from '../stores/operationsCampaignStore';
+import { useQCLabStore } from '../stores/qcLabStore';
 import { SCADAPanel } from './SCADAPanel';
 
 const testState = vi.hoisted(() => {
@@ -195,5 +200,71 @@ describe('SCADAPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'CSV' }));
     expect(testState.exportToCSV).toHaveBeenCalledWith(['RM101.TT001.PV'], 5 * 60 * 1000);
+  });
+
+  it('renders plant-state values and an English-raised incident in Portuguese', () => {
+    const campaign = useOperationsCampaignStore.getState();
+    const flow = useMaterialFlowStore.getState();
+    const breakdowns = useBreakdownStore.getState();
+    const qc = useQCLabStore.getState();
+    try {
+      setLocale('en');
+      campaign.resetCampaign();
+      useOperationsCampaignStore.getState().triggerIncident('power_sag');
+      setLocale('pt-BR');
+      useOperationsCampaignStore.setState((state) => ({
+        execution: {
+          ...state.execution,
+          stage: 'quality_hold',
+          sourceMaterial: 'wheat_grain',
+          finishedMaterial: 'flour',
+          dispatchLoad: { ...state.execution.dispatchLoad, status: 'departed', blockReason: null },
+        },
+      }));
+      useMaterialFlowStore.setState({
+        productionBatches: [
+          {
+            ...(flow.productionBatches[0] ?? {}),
+            id: 'batch-0042',
+            disposition: 'released',
+            availableKg: 1234.5,
+          } as never,
+        ],
+      });
+      useBreakdownStore.setState({
+        workOrders: [{ id: 'wo-0007', phase: 'awaiting_parts' } as never],
+      });
+      useQCLabStore.setState((state) => ({
+        qcLab: {
+          ...state.qcLab,
+          dispositionHistory: [
+            { id: 'qd-0003', action: 'hold', referenceId: 'batch-0042' } as never,
+          ],
+        },
+      }));
+
+      const { container } = render(<SCADAPanel isOpen onClose={vi.fn()} />);
+      const text = container.textContent ?? '';
+
+      expect(screen.getByText('Retenção de qualidade')).toBeInTheDocument();
+      expect(screen.getByText('Grão de trigo')).toBeInTheDocument();
+      expect(screen.getByText('para farinha')).toBeInTheDocument();
+      expect(screen.getByText('Saiu')).toBeInTheDocument();
+      expect(screen.getByText('Aguardando peças, serviço autônomo')).toBeInTheDocument();
+      expect(screen.getByText(/^Liberado, 1\.234,5 kg$/)).toBeInTheDocument();
+      expect(screen.getByText('Retenção, batch-0042')).toBeInTheDocument();
+      expect(screen.getByText('Queda de tensão na unidade')).toBeInTheDocument();
+      expect(text).not.toMatch(
+        /quality hold|wheat grain|\bflour\b|departed|released|awaiting parts|Site power sag/i
+      );
+      // Portuguese never title-cases: the Overview carries no CSS capitalize.
+      expect(container.querySelector('.capitalize')).toBeNull();
+    } finally {
+      setLocale('en');
+      campaign.resetCampaign();
+      useMaterialFlowStore.setState({ productionBatches: flow.productionBatches });
+      useBreakdownStore.setState({ workOrders: breakdowns.workOrders });
+      useQCLabStore.setState({ qcLab: qc.qcLab });
+    }
   });
 });
