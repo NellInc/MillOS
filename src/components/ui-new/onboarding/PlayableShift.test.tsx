@@ -353,6 +353,11 @@ describe('playable shift UI', () => {
       )
     ).toBeInTheDocument();
     expect(screen.getByText('Check shipping in SCADA')).toBeInTheDocument();
+    // The action stays pinned in the card's scroll box however long the lines.
+    expect(screen.getByRole('button', { name: 'Open SCADA' }).closest('.sticky')).toHaveClass(
+      'bottom-[-1rem]',
+      'pb-7'
+    );
     // Compacted for the scene, the card keeps the current goal, not the first
     // delivery's inspection status or deadline.
     fireEvent.click(screen.getByRole('button', { name: 'Compact delivery guide' }));

@@ -289,30 +289,34 @@ export function FirstDeliveryJourney({
             ? t('programmeCompleteDetail')
             : play.nextAction.consequence}
         </p>
-        <button
-          className={`${BUTTON} mt-3`}
-          onClick={() =>
-            openWorkspace(
-              [
-                'quality',
-                'programme',
-                'acknowledge',
-                'mitigate',
-                'resume',
-                'resolve',
-                'repair',
-              ].includes(play.nextAction.kind)
-                ? 'overview'
-                : 'scada'
-            )
-          }
-        >
-          {play.nextAction.kind === 'programme'
-            ? t('reviewShiftProgramme')
-            : compactWorkspace === 'overview'
-              ? t('openOverview')
-              : t('openScada')}
-        </button>
+        {/* Pinned like the first delivery's actions, so a long current-order
+            line (pt-BR at 1280x657) never pushes the next step below the fold. */}
+        <div className="sticky bottom-[-1rem] -mx-4 mt-3 border-t border-slate-800 bg-slate-950 px-4 pt-3 pb-7">
+          <button
+            className={BUTTON}
+            onClick={() =>
+              openWorkspace(
+                [
+                  'quality',
+                  'programme',
+                  'acknowledge',
+                  'mitigate',
+                  'resume',
+                  'resolve',
+                  'repair',
+                ].includes(play.nextAction.kind)
+                  ? 'overview'
+                  : 'scada'
+              )
+            }
+          >
+            {play.nextAction.kind === 'programme'
+              ? t('reviewShiftProgramme')
+              : compactWorkspace === 'overview'
+                ? t('openOverview')
+                : t('openScada')}
+          </button>
+        </div>
         <details className="mt-2 text-xs text-slate-300">
           <summary className="min-h-11 cursor-pointer py-3 text-cyan-200">
             {t('receiptAndLearning')}
