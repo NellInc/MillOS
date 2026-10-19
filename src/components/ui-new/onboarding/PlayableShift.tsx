@@ -420,10 +420,12 @@ export function FirstDeliveryJourney({
         })}
       </p>
       {/* The lesson's next actions stay pinned in the card's scroll box; the
-          note and Skip keep their order below. Working if Show/Open stay
-          visible at 1280x657 without scrolling the card. */}
+          note and Skip keep their order below. The sticky edge is inset by the
+          card's 1rem padding, so the row pins into it and covers it: nothing
+          scrolls half-visible beneath the buttons. Working if Show/Open stay
+          visible at 1280x657 without scrolling the card, with no text under them. */}
       {(guide.view || guide.workspace) && (
-        <div className="sticky bottom-0 -mx-4 mt-3 flex flex-wrap gap-2 border-t border-slate-800 bg-slate-950 px-4 py-3">
+        <div className="sticky bottom-[-1rem] -mx-4 mt-3 flex flex-wrap gap-2 border-t border-slate-800 bg-slate-950 px-4 pt-3 pb-7">
           {guide.view && (
             <button
               className={BUTTON}

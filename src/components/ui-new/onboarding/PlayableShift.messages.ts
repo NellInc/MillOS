@@ -190,9 +190,9 @@ export const playableShiftMessages = defineMessages({
     truckLoad: 'Carga do caminhão de expedição',
     truckLoadValue: '{loaded} / {capacity} kg',
     truckLoadValueText: '{loaded} de {capacity} quilogramas no caminhão',
-    showMilling: 'Mostrar a linha de moagem',
-    showPacking: 'Mostrar a linha de ensaque',
-    showShipping: 'Mostrar a área de expedição',
+    showMilling: 'Ver a moagem',
+    showPacking: 'Ver o ensaque',
+    showShipping: 'Ver a expedição',
     skipGuide: 'Pular a entrega guiada',
     handoffAgreement: 'Acordo de trabalho da passagem de turno',
     trialReceipts:

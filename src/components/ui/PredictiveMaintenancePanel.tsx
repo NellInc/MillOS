@@ -60,21 +60,23 @@ const PartsInventorySection: React.FC = () => {
           </span>
         )}
       </div>
-      <div className="grid grid-cols-5 gap-2">
+      {/* Tiles wrap rather than truncate, so every part name stays readable
+          in the narrow sidebar and in pt-BR. Working if no label is clipped. */}
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(5.5rem,1fr))] gap-2">
         {parts.map(({ key, label }) => {
           const count = partsInventory[key];
           const isLow = count < 3;
           return (
             <div
               key={key}
-              className={`text-center p-2 rounded ${
+              className={`text-center px-1 py-2 rounded ${
                 isLow ? 'bg-red-500/20 border border-red-500/30' : 'bg-slate-700/50'
               }`}
             >
               <div className={`text-lg font-bold ${isLow ? 'text-red-400' : 'text-slate-200'}`}>
                 {count}
               </div>
-              <div className="text-xs text-slate-400 truncate">{label}</div>
+              <div className="text-xs leading-tight text-slate-400 break-words">{label}</div>
             </div>
           );
         })}

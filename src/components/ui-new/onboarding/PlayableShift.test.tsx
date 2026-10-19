@@ -240,7 +240,7 @@ describe('playable shift UI', () => {
     expect(footer).not.toBeNull();
     // Sticky resolves against the nearest scroll box, which must be the card itself.
     expect(footer?.parentElement).toBe(card);
-    expect(footer).toHaveClass('bottom-0', '-mx-4', 'px-4', 'bg-slate-950');
+    expect(footer).toHaveClass('bottom-[-1rem]', 'pb-7', '-mx-4', 'px-4', 'bg-slate-950');
     expect(footer).toContainElement(open);
     expect(show.compareDocumentPosition(open) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const pace = screen.getByRole('combobox', { name: 'Shift pace' });
