@@ -24,8 +24,16 @@ import { LearningNote } from '../../knowledge/LearningNote';
 import { CAMERA_PRESETS, useCameraStore } from '../../CameraController';
 import { deriveDeliveryDeadline, deriveDeliveryJourney } from './deliveryJourney';
 import { MachineType, type MachineData } from '../../../types';
-import type { CustomerOrder } from '../../../stores/operationsCampaignStore';
-import { formatFixed, formatGrouped, useT } from '../../../i18n';
+import type { CustomerOrder, ShiftCampaignReport } from '../../../stores/operationsCampaignStore';
+import { formatFixed, formatGrouped, useLocale, useT } from '../../../i18n';
+import {
+  describeOrderOutcome,
+  describeShiftGap,
+  describeShiftTryNext,
+  shiftGradeReasons,
+  shiftHeadline,
+  shiftWindowName,
+} from '../../../simulation/shiftReview';
 import { playableShiftMessages } from './PlayableShift.messages';
 
 const BUTTON =
@@ -102,6 +110,7 @@ export function FirstDeliveryJourney({
   onOpenWorkspace: (mode: 'scada' | 'overview') => void;
 }) {
   const t = useT(playableShiftMessages);
+  const locale = useLocale();
   const ui = useUIStore(
     useShallow((s) => ({
       orderId: s.journeyOrderId,
@@ -202,10 +211,16 @@ export function FirstDeliveryJourney({
           </button>
         </div>
         <p className="mt-2 text-sm leading-6 text-slate-200">
-          {t('fulfilledDispatched', {
-            customer: order.customer,
-            kg: formatFixed(order.shippedKg, 0),
-          })}
+          {order.completedAtMinute !== null
+            ? describeOrderOutcome(
+                { ...order, completedAtMinute: order.completedAtMinute },
+                campaign.elapsedMinutes,
+                locale
+              )
+            : t('fulfilledDispatched', {
+                customer: order.customer,
+                kg: formatFixed(order.shippedKg, 0),
+              })}
         </p>
         <p className="mt-3 text-sm font-semibold text-cyan-100" aria-live="polite">
           {play.nextAction.kind === 'programme' ? t('programmeComplete') : play.nextAction.label}
@@ -779,6 +794,73 @@ export function OperationsPlayCard() {
   );
 }
 
+/**
+ * One shift report. A report written by store v3 carries its evidence, so its
+ * headline, reasons, order lines, gap and next step render in the reader's
+ * language; an older report shows the text it was saved with.
+ * Working if a report says which orders were on time, what held the grade
+ * back and one thing to try next, in English and in Brazilian Portuguese.
+ */
+function ShiftReportArticle({ report }: { report: ShiftCampaignReport }) {
+  const t = useT(playableShiftMessages);
+  const locale = useLocale();
+  const basis = report.gradeBasis;
+  const shift = shiftWindowName(report.shiftKey, report.shiftLabel, locale);
+  const reasons = basis ? shiftGradeReasons(basis, locale) : (report.gradeReasons ?? []);
+  const summary = basis ? shiftHeadline(basis, report.grade, locale) : report.summary;
+  const gap = basis ? describeShiftGap(basis, report.grade, locale) : null;
+  const tryNext = basis ? describeShiftTryNext(basis, report.grade, locale) : null;
+  return (
+    <article className="mb-3 border-t border-slate-700 pt-3">
+      <h4 className="font-semibold">
+        {report.grade === null
+          ? t('reportHeadingUngraded', { shift })
+          : t('reportHeading', { shift, grade: report.grade })}
+      </h4>
+      {/* Older C to F reports saved their reasons as the summary too. */}
+      {summary !== reasons.join(' ') && <p className="mt-1 text-xs leading-5">{summary}</p>}
+      <ul className="mt-2 list-inside list-disc text-xs leading-5">
+        {reasons.map((reason, index) => (
+          <li key={index}>{reason}</li>
+        ))}
+      </ul>
+      {report.orderOutcomes && report.orderOutcomes.length > 0 && (
+        <>
+          <h5 className="mt-2 text-xs font-semibold text-white">{t('ordersHeading')}</h5>
+          <ul className="list-inside list-disc text-xs leading-5">
+            {report.orderOutcomes.map((outcome) => (
+              <li key={outcome.id}>
+                {describeOrderOutcome(outcome, report.endedAtMinute, locale)}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {gap && <p className="mt-2 text-xs leading-5">{gap}</p>}
+      {tryNext && <p className="mt-1 text-xs leading-5 text-cyan-100">{tryNext}</p>}
+      <details className="mt-2">
+        <summary className="min-h-11 cursor-pointer py-3 text-xs text-cyan-200">
+          {t('decisionsHeading')}
+        </summary>
+        {report.decisions?.length ? (
+          <ul className="list-inside list-disc text-xs leading-5">
+            {report.decisions.map((decision, index) => (
+              <li key={index}>{decision}</li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-xs">{report.decisions ? t('noDecisions') : t('decisionsNotSaved')}</p>
+        )}
+      </details>
+      {report.openRisks.length > 0 && (
+        <p className="text-xs text-amber-200">
+          {t('carryForward', { risks: report.openRisks.join('; ') })}
+        </p>
+      )}
+    </article>
+  );
+}
+
 export function ShiftDebrief() {
   const workplace = useWorkplaceStore((s) => s.workplace);
   const reviewPending = linkedReviewPending(workplace);
@@ -799,40 +881,7 @@ export function ShiftDebrief() {
             .slice()
             .reverse()
             .map((report) => (
-              <article key={report.id} className="mb-3 border-t border-slate-700 pt-3">
-                <h4 className="font-semibold">
-                  {report.grade === null
-                    ? t('reportHeadingUngraded', { shift: report.shiftLabel })
-                    : t('reportHeading', { shift: report.shiftLabel, grade: report.grade })}
-                </h4>
-                <p className="mt-1 text-xs leading-5">{report.summary}</p>
-                <ul className="mt-2 list-inside list-disc text-xs leading-5">
-                  {report.gradeReasons?.map((reason, index) => (
-                    <li key={index}>{reason}</li>
-                  ))}
-                </ul>
-                <details className="mt-2">
-                  <summary className="min-h-11 cursor-pointer py-3 text-xs text-cyan-200">
-                    {t('decisionsHeading')}
-                  </summary>
-                  {report.decisions?.length ? (
-                    <ul className="list-inside list-disc text-xs leading-5">
-                      {report.decisions.map((decision, index) => (
-                        <li key={index}>{decision}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-xs">
-                      {report.decisions ? t('noDecisions') : t('decisionsNotSaved')}
-                    </p>
-                  )}
-                </details>
-                {report.openRisks.length > 0 && (
-                  <p className="text-xs text-amber-200">
-                    {t('carryForward', { risks: report.openRisks.join('; ') })}
-                  </p>
-                )}
-              </article>
+              <ShiftReportArticle key={report.id} report={report} />
             ))}
         </details>
       )}

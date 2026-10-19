@@ -88,10 +88,6 @@ export const operationsCampaignMessages = defineMessages({
     constraintMaintenanceLabel: 'Maintenance queue',
     constraintMaintenanceDetail: (p: { count: number; countText: string }) =>
       `${p.countText} autonomous work order${p.count === 1 ? '' : 's'} open.`,
-
-    // Period grading (reasons live in simulation/shiftReview.messages.ts)
-    reportSummaryGood:
-      '{kg} kg shipped with nonnegative contribution and controlled carry-over risk.',
   },
   'pt-BR': {
     recipeStrongWhite: 'Farinha de trigo forte para pão',
@@ -181,8 +177,5 @@ export const operationsCampaignMessages = defineMessages({
       p.count === 1
         ? `${p.countText} ordem de serviço autônoma aberta.`
         : `${p.countText} ordens de serviço autônomas abertas.`,
-
-    reportSummaryGood:
-      '{kg} kg expedidos com contribuição não negativa e risco transferido ao próximo período sob controle.',
   },
 });

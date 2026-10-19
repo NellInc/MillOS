@@ -37,6 +37,8 @@ export interface ShiftGradeBasis {
   /** Unresolved high or critical incidents at close, by title. */
   unsafeTitles: string[];
   qualityFailureKg: number;
+  /** Orders fulfilled in this window after their deadline. */
+  lateDeliveries: number;
   /** The kilogram bars in force for this window. */
   kgForA: number;
   kgForB: number;
@@ -54,10 +56,25 @@ export function shiftMargin(metrics: ShiftCampaignMetrics): number {
   );
 }
 
+/**
+ * One order as it stood when the window closed, copied into the report: the
+ * campaign keeps only its last 30 orders, so ids alone stop resolving.
+ */
+export interface ShiftOrderOutcome {
+  id: string;
+  customer: string;
+  requiredKg: number;
+  shippedKg: number;
+  dueAtMinute: number;
+  completedAtMinute: number | null;
+  qualityFailureKg: number;
+}
+
 export function shiftGradeBasis(
   metrics: ShiftCampaignMetrics,
   risks: string[],
-  unsafeTitles: string[]
+  unsafeTitles: string[],
+  lateDeliveries = 0
 ): ShiftGradeBasis {
   const commitmentMinutes = Math.max(0, metrics.commitmentMinutes ?? 0);
   const hours = commitmentMinutes / 60;
@@ -68,6 +85,7 @@ export function shiftGradeBasis(
     risks: [...risks],
     unsafeTitles: [...unsafeTitles],
     qualityFailureKg: metrics.qualityFailureKg ?? 0,
+    lateDeliveries: Math.max(0, lateDeliveries),
     kgForA: Math.ceil(GRADE_A_KG_PER_COMMITMENT_HOUR * hours),
     kgForB: Math.ceil(GRADE_B_KG_PER_COMMITMENT_HOUR * hours),
   };
@@ -78,15 +96,29 @@ export function hasNoCommitment(basis: ShiftGradeBasis): boolean {
   return basis.commitmentMinutes <= 0 && basis.dispatchedKg <= 0;
 }
 
-/** The letter before caps: delivery against the bar, risks and margin. */
-function uncappedGrade(basis: ShiftGradeBasis): ShiftGrade {
+/** Carried risks plus late deliveries: an A allows none, a B one, a C two. */
+const issueCount = (basis: ShiftGradeBasis) => basis.risks.length + (basis.lateDeliveries ?? 0);
+const ISSUES_ALLOWED: Record<'A' | 'B' | 'C', number> = { A: 0, B: 1, C: 2 };
+
+/** Why `target` was not reached, in the order a player can act on it. */
+export type ShiftBinding = 'late' | 'risks' | 'margin' | 'kg' | 'no_dispatch';
+
+function failsFor(basis: ShiftGradeBasis, target: ShiftGrade): ShiftBinding | null {
   const kg = basis.dispatchedKg;
-  const risks = basis.risks.length;
-  if (kg > 0 && risks === 0 && basis.margin >= 0 && kg >= basis.kgForA) return 'A';
-  if (kg > 0 && risks <= 1 && basis.margin >= 0 && kg >= basis.kgForB) return 'B';
-  if (kg > 0 && risks <= 2) return 'C';
-  if (kg > 0) return 'D';
-  return 'F';
+  if (target === 'F') return null;
+  if (kg <= 0) return 'no_dispatch';
+  if (target === 'D') return null;
+  if (issueCount(basis) > ISSUES_ALLOWED[target])
+    return basis.risks.length <= ISSUES_ALLOWED[target] ? 'late' : 'risks';
+  if (target === 'C') return null;
+  if (basis.margin < 0) return 'margin';
+  if (kg < (target === 'A' ? basis.kgForA : basis.kgForB)) return 'kg';
+  return null;
+}
+
+/** The letter before caps: delivery against the bar, issues and margin. */
+function uncappedGrade(basis: ShiftGradeBasis): ShiftGrade {
+  return (['A', 'B', 'C', 'D'] as const).find((grade) => !failsFor(basis, grade)) ?? 'F';
 }
 
 /** Null means no customer commitments: nothing to grade, so no letter. */
@@ -121,4 +153,187 @@ export function shiftGradeReasons(basis: ShiftGradeBasis, locale: Locale): strin
   if (basis.unsafeTitles.length)
     reasons.push(t('unsafeReason', { titles: basis.unsafeTitles.join(', ') }));
   return reasons;
+}
+
+const NEXT_GRADE: Record<ShiftGrade, ShiftGrade | null> = {
+  A: null,
+  B: 'A',
+  C: 'B',
+  D: 'C',
+  F: 'D',
+};
+
+export interface ShiftGradeGap {
+  next: ShiftGrade;
+  binding: 'quality' | 'unsafe' | ShiftBinding;
+  /** Kilograms short of the next grade's bar when the binding is 'kg'. */
+  shortKg: number;
+}
+
+/** What stood between this grade and the next one up. Null for an A or no grade. */
+export function shiftGradeGap(
+  basis: ShiftGradeBasis,
+  grade: ShiftGrade | null
+): ShiftGradeGap | null {
+  if (grade === null) return null;
+  const next = NEXT_GRADE[grade];
+  if (!next) return null;
+  if (basis.qualityFailureKg > 0) return { next, binding: 'quality', shortKg: 0 };
+  const binding = failsFor(basis, next);
+  if (!binding && basis.unsafeTitles.length) return { next, binding: 'unsafe', shortKg: 0 };
+  if (!binding) return null;
+  const bar = next === 'A' ? basis.kgForA : basis.kgForB;
+  return {
+    next,
+    binding,
+    shortKg: binding === 'kg' ? Math.max(0, Math.ceil(bar - basis.dispatchedKg)) : 0,
+  };
+}
+
+/** "3h 43m" in English, "3h 43min" in pt-BR. */
+export function formatShiftDuration(minutes: number, locale: Locale): string {
+  const t = createTranslator(shiftReviewMessages, locale);
+  const total = Math.max(0, Math.round(minutes));
+  const hours = Math.floor(total / 60);
+  const rest = total % 60;
+  return hours > 0
+    ? t('durationHours', {
+        hours: formatFixed(hours, 0, locale),
+        minutes: formatFixed(rest, 0, locale),
+      })
+    : t('durationMinutes', { minutes: formatFixed(rest, 0, locale) });
+}
+
+const kgText = (kg: number, locale: Locale) => formatGrouped(Math.round(kg), undefined, locale);
+
+/** The one-line headline: never a repeat of the reasons listed under it. */
+export function shiftHeadline(
+  basis: ShiftGradeBasis,
+  grade: ShiftGrade | null,
+  locale: Locale
+): string {
+  const t = createTranslator(shiftReviewMessages, locale);
+  if (grade === null) return t('noCommitment');
+  if (grade === 'A' || grade === 'B')
+    return t('headlineGood', { kg: kgText(basis.dispatchedKg, locale) });
+  const gap = shiftGradeGap(basis, grade);
+  return t('headlineHeldBack', {
+    kg: kgText(basis.dispatchedKg, locale),
+    cause: gap?.binding ?? 'risks',
+  });
+}
+
+/** The gap to the next grade, from the bars stored with the report. */
+export function describeShiftGap(
+  basis: ShiftGradeBasis,
+  grade: ShiftGrade | null,
+  locale: Locale
+): string | null {
+  const gap = shiftGradeGap(basis, grade);
+  if (!gap) return null;
+  const t = createTranslator(shiftReviewMessages, locale);
+  const { next } = gap;
+  switch (gap.binding) {
+    case 'quality':
+      return t('gapQuality', { next });
+    case 'unsafe':
+      return t('gapUnsafe', { next, titles: basis.unsafeTitles.join(', ') });
+    case 'late':
+      return t('gapLate', {
+        next,
+        count: basis.lateDeliveries,
+        countText: formatFixed(basis.lateDeliveries, 0, locale),
+      });
+    case 'risks': {
+      const allowed = ISSUES_ALLOWED[next as 'A' | 'B' | 'C'];
+      return t('gapRisks', {
+        next,
+        allowed,
+        allowedText: formatFixed(allowed, 0, locale),
+        count: basis.risks.length,
+        countText: formatFixed(basis.risks.length, 0, locale),
+        labels: basis.risks.join('; '),
+      });
+    }
+    case 'margin':
+      return t('gapMargin', { next, amount: formatFixed(-basis.margin, 2, locale) });
+    case 'kg':
+      return t('gapKg', {
+        next,
+        target: kgText(next === 'A' ? basis.kgForA : basis.kgForB, locale),
+        duration: formatShiftDuration(basis.commitmentMinutes, locale),
+        short: kgText(gap.shortKg, locale),
+      });
+    case 'no_dispatch':
+      return t('gapNoDispatch', { next });
+  }
+}
+
+/** One thing to try next, keyed to what held the grade back. */
+export function describeShiftTryNext(
+  basis: ShiftGradeBasis,
+  grade: ShiftGrade | null,
+  locale: Locale
+): string | null {
+  const t = createTranslator(shiftReviewMessages, locale);
+  if (grade === null) return t('tryNoCommitment');
+  const gap = shiftGradeGap(basis, grade);
+  if (!gap) return null;
+  switch (gap.binding) {
+    case 'quality':
+      return t('tryQuality');
+    case 'unsafe':
+      return t('tryUnsafe', { titles: basis.unsafeTitles.join(', ') });
+    case 'late':
+      return t('tryLate');
+    case 'risks':
+      return basis.risks.length ? t('tryRisk', { risk: basis.risks[0] }) : t('tryLate');
+    case 'margin':
+      return t('tryMargin');
+    case 'kg':
+    case 'no_dispatch':
+      return t('tryKg');
+  }
+}
+
+/** One order line: what it got, and whether on time. */
+export function describeOrderOutcome(
+  outcome: ShiftOrderOutcome,
+  endedAtMinute: number,
+  locale: Locale
+): string {
+  const t = createTranslator(shiftReviewMessages, locale);
+  const kg = {
+    customer: outcome.customer,
+    shipped: kgText(outcome.shippedKg, locale),
+    required: kgText(outcome.requiredKg, locale),
+  };
+  const line =
+    outcome.completedAtMinute !== null
+      ? outcome.completedAtMinute <= outcome.dueAtMinute + 1e-6
+        ? t('outcomeOnTime', kg)
+        : t('outcomeLate', {
+            ...kg,
+            duration: formatShiftDuration(outcome.completedAtMinute - outcome.dueAtMinute, locale),
+          })
+      : endedAtMinute > outcome.dueAtMinute
+        ? t('outcomeOverdue', {
+            ...kg,
+            duration: formatShiftDuration(endedAtMinute - outcome.dueAtMinute, locale),
+          })
+        : t('outcomeOpen', {
+            ...kg,
+            duration: formatShiftDuration(outcome.dueAtMinute - endedAtMinute, locale),
+          });
+  return outcome.qualityFailureKg > 0
+    ? `${line} ${t('outcomeQualityFailure', { kg: kgText(outcome.qualityFailureKg, locale) })}`
+    : line;
+}
+
+/** The window's name in the reader's language, from its key ("day-0-night"). */
+export function shiftWindowName(shiftKey: string, fallback: string, locale: Locale): string {
+  const match = /(morning|afternoon|night)$/.exec(shiftKey);
+  return match
+    ? createTranslator(shiftReviewMessages, locale)('shiftName', { shift: match[1] })
+    : fallback;
 }

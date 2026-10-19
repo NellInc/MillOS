@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { MaterialManifest, ProductionBatch } from './materialFlowStore';
 import { useOperationsCampaignStore, type CampaignTickContext } from './operationsCampaignStore';
+import {
+  describeOrderOutcome,
+  describeShiftGap,
+  describeShiftTryNext,
+} from '../simulation/shiftReview';
 
 // The shift review, built by the real tickCampaign from real tick contexts.
 
@@ -142,5 +147,77 @@ describe('shift grades follow customer commitments (row 24)', () => {
     tick(1, { manifests: [manifest], productionBatches: [batch], averageQuality: 80 });
     tick(1, { shiftKey: 'day-0-afternoon' });
     expect(lastReport().grade).toBe('F');
+  });
+});
+
+describe('the review says why and what to try next (row 23)', () => {
+  it('snapshots each order outcome into the report, so trimmed orders still read', () => {
+    tick(1, { manifests: [programmeManifest], productionBatches: [flourBatch, semolinaBatch] });
+    tick(1, { shiftKey: 'day-0-afternoon' });
+    const report = lastReport();
+    expect(report.orderOutcomes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'order-001',
+          customer: "Riverside Bakers' Cooperative",
+          shippedKg: 6000,
+          requiredKg: 6000,
+          dueAtMinute: 240,
+          completedAtMinute: 1,
+        }),
+      ])
+    );
+    // acceptNextProgramme keeps only the last 30 orders; the snapshot is what survives.
+    useOperationsCampaignStore.setState({ orders: [] });
+    expect(lastReport().orderOutcomes).toHaveLength(3);
+    expect(describeOrderOutcome(report.orderOutcomes![0], report.endedAtMinute, 'en')).toBe(
+      "Riverside Bakers' Cooperative: 6,000 of 6,000 kg, delivered on time."
+    );
+  });
+
+  it('names a late delivery as what held the grade back, and what to try next', () => {
+    tick(249);
+    const [manifest, batch] = partialManifest('shipping-0001', 6000);
+    tick(1, { manifests: [manifest], productionBatches: [batch] });
+    tick(1, { shiftKey: 'day-0-afternoon' });
+    const report = lastReport();
+    expect(report.grade).toBe('B');
+    expect(report.gradeBasis?.lateDeliveries).toBe(1);
+    expect(describeOrderOutcome(report.orderOutcomes![0], report.endedAtMinute, 'en')).toBe(
+      "Riverside Bakers' Cooperative: 6,000 of 6,000 kg, delivered 10m late."
+    );
+    expect(describeShiftGap(report.gradeBasis!, report.grade, 'en')).toBe(
+      'A needs every delivery on time; 1 arrived late.'
+    );
+    expect(describeShiftTryNext(report.gradeBasis!, report.grade, 'en')).toMatch(/^Try next: /);
+    expect(describeShiftTryNext(report.gradeBasis!, report.grade, 'pt-BR')).toMatch(
+      /^Tente a seguir: /
+    );
+  });
+
+  it('states the kilogram gap to the next grade from the bar in force', () => {
+    // Two hours on the first order, 400 kg shipped: B needs 625 kg.
+    const [manifest, batch] = partialManifest('shipping-0001', 400);
+    tick(1, { manifests: [manifest], productionBatches: [batch] });
+    tick(119);
+    tick(0.0001, { shiftKey: 'day-0-afternoon' });
+    const report = lastReport();
+    expect(report.grade).toBe('C');
+    expect(describeShiftGap(report.gradeBasis!, report.grade, 'en')).toBe(
+      'B needs 626 kg for 2h 0m on commitments; you were 226 kg short.'
+    );
+  });
+
+  it('gives a C to F report its own headline instead of repeating its reasons', () => {
+    useOperationsCampaignStore.getState().triggerIncident('bearing_overheat');
+    const [manifest, batch] = partialManifest('shipping-0001', 1000);
+    tick(1, { manifests: [manifest], productionBatches: [batch] });
+    tick(1, { shiftKey: 'day-0-afternoon' });
+    const report = lastReport();
+    expect(report.grade).toBe('D');
+    expect(report.summary).not.toBe(report.gradeReasons!.join(' '));
+    expect(describeShiftGap(report.gradeBasis!, report.grade, 'en')).toBe(
+      'C needs Roller mill bearing overheat resolved before the shift closes.'
+    );
   });
 });

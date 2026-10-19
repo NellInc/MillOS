@@ -23,8 +23,10 @@ import {
   gradeShift,
   shiftGradeBasis,
   shiftGradeReasons,
+  shiftHeadline,
   type ShiftGrade,
   type ShiftGradeBasis,
+  type ShiftOrderOutcome,
 } from '../simulation/shiftReview';
 import { operationsCampaignMessages as messages } from './operationsCampaignStore.messages';
 
@@ -116,6 +118,8 @@ export interface ShiftCampaignReport {
   summary: string;
   /** The evidence the grade was computed from (store v3; older reports lack it). */
   gradeBasis?: ShiftGradeBasis;
+  /** Each order completed in, or still open at the end of, the window (store v3). */
+  orderOutcomes?: ShiftOrderOutcome[];
   gradeReasons?: string[];
   decisions?: string[];
 }
@@ -958,6 +962,78 @@ function makeConstraints(
   return constraints;
 }
 
+export interface ShiftReportInput {
+  id: string;
+  shiftKey: string;
+  shiftLabel: string;
+  startedAtMinute: number;
+  endedAtMinute: number;
+  metrics: ShiftCampaignMetrics;
+  orders: ReadonlyArray<CustomerOrder>;
+  logbook: ReadonlyArray<CampaignLogEntry>;
+  /** Labels of the non-info constraints open at close. */
+  risks: string[];
+  incidents: ReadonlyArray<OperationalIncident>;
+}
+
+/**
+ * One shift report from the evidence the campaign holds. Pure: the closing
+ * tick and the live "this shift so far" view both call it.
+ */
+export function buildShiftReport(input: ShiftReportInput): ShiftCampaignReport {
+  const { orders, startedAtMinute } = input;
+  const completedHere = (order: CustomerOrder) =>
+    order.status === 'fulfilled' &&
+    order.completedAtMinute !== null &&
+    order.completedAtMinute >= startedAtMinute;
+  const open = (order: CustomerOrder) =>
+    order.status !== 'fulfilled' && order.status !== 'cancelled';
+  const completed = orders.filter(completedHere);
+  const gradeBasis = shiftGradeBasis(
+    input.metrics,
+    input.risks,
+    input.incidents
+      .filter(
+        (incident) =>
+          incident.phase !== 'resolved' &&
+          (incident.severity === 'high' || incident.severity === 'critical')
+      )
+      .map((incident) => incident.title),
+    completed.filter((order) => order.completedAtMinute! > order.dueAtMinute + 1e-6).length
+  );
+  const grade = gradeShift(gradeBasis);
+  const locale = getLocale();
+  return {
+    id: input.id,
+    shiftKey: input.shiftKey,
+    shiftLabel: input.shiftLabel,
+    startedAtMinute,
+    endedAtMinute: input.endedAtMinute,
+    metrics: { ...input.metrics },
+    completedOrderIds: completed.map((order) => order.id),
+    orderOutcomes: orders
+      .filter((order) => completedHere(order) || open(order))
+      .map((order) => ({
+        id: order.id,
+        customer: order.customer,
+        requiredKg: order.requiredKg,
+        shippedKg: order.shippedKg,
+        dueAtMinute: order.dueAtMinute,
+        completedAtMinute: completedHere(order) ? order.completedAtMinute : null,
+        qualityFailureKg: order.qualityFailureKg,
+      })),
+    openRisks: [...input.risks],
+    grade,
+    gradeBasis,
+    gradeReasons: shiftGradeReasons(gradeBasis, locale),
+    decisions: input.logbook
+      .filter((entry) => entry.simulationMinute >= startedAtMinute && entry.category !== 'period')
+      .slice(-8)
+      .map((entry) => entry.message),
+    summary: shiftHeadline(gradeBasis, grade, locale),
+  };
+}
+
 export const useOperationsCampaignStore = create<OperationsCampaignState>()(
   persist(
     (set, get) => ({
@@ -1569,55 +1645,19 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
             const risks = makeConstraints(constraintInput, context, incidentEffect)
               .filter((constraint) => constraint.severity !== 'info')
               .map((constraint) => constraint.label);
-            const gradeBasis = shiftGradeBasis(
-              shiftMetrics,
-              risks,
-              state.incidents
-                .filter(
-                  (incident) =>
-                    incident.phase !== 'resolved' &&
-                    (incident.severity === 'high' || incident.severity === 'critical')
-                )
-                .map((incident) => incident.title)
-            );
-            const grade = gradeShift(gradeBasis);
-            const gradeReasons = shiftGradeReasons(gradeBasis, getLocale());
             sequence += 1;
-            const report: ShiftCampaignReport = {
+            const report = buildShiftReport({
               id: `period-report-${String(sequence).padStart(4, '0')}`,
               shiftKey: currentShiftKey,
               shiftLabel: currentShiftLabel,
               startedAtMinute: shiftStartedAtMinute,
               endedAtMinute: elapsedMinutes,
-              metrics: { ...shiftMetrics },
-              completedOrderIds: orders
-                .filter(
-                  (order) =>
-                    order.status === 'fulfilled' &&
-                    order.completedAtMinute !== null &&
-                    order.completedAtMinute >= shiftStartedAtMinute
-                )
-                .map((order) => order.id),
-              openRisks: risks,
-              grade,
-              gradeBasis,
-              gradeReasons,
-              decisions: logbook
-                .filter(
-                  (entry) =>
-                    entry.simulationMinute >= shiftStartedAtMinute && entry.category !== 'period'
-                )
-                .slice(-8)
-                .map((entry) => entry.message),
-              summary:
-                grade === null
-                  ? gradeReasons[0]
-                  : grade === 'A' || grade === 'B'
-                    ? translate(messages, 'reportSummaryGood', {
-                        kg: formatFixed(shiftMetrics.dispatchedKg, 0),
-                      })
-                    : gradeReasons.join(' '),
-            };
+              metrics: shiftMetrics,
+              orders,
+              logbook,
+              risks,
+              incidents: state.incidents,
+            });
             reports = appendBounded(reports, report, MAX_REPORTS);
             currentShiftKey = context.shiftKey;
             currentShiftLabel = context.shiftLabel;
