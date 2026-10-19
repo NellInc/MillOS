@@ -1146,6 +1146,27 @@ export function transitionWorkplace(
       record(fresh, 'members', 'improvement-continued', translate(wm, 'evContinued'));
       return { state: fresh, changed: true, reason: null };
     }
+    case 'closeImprovement': {
+      // Every handoff shift's honest exit once decided, the first included:
+      // nothing owed is dropped and no new shift opens. Cancelling restores the
+      // origin only before funding; afterwards pay was paid, so the experiment
+      // ends at idle, as leaving a season does. Working if a verdict on any
+      // shift, the eighth too, can end the experiment without another shift.
+      const [revision] = command.args;
+      const i = s.improvement;
+      if (
+        !i ||
+        s.phase !== 'review' ||
+        !i.verdict ||
+        revision !== s.revision ||
+        !Number.isSafeInteger(revision) ||
+        improvementObligations(s).length
+      )
+        return reject(translate(wm, 'rejCloseImprovement'));
+      const fresh = createWorkplace(s.mode, s.seed === 0xffffffff ? 1 : s.seed + 1);
+      fresh.revision = s.revision + 1;
+      return { state: fresh, changed: true, reason: null };
+    }
     case 'startCampaign': {
       const [profile, seed = 1, mission] = command.args;
       if (

@@ -13,6 +13,7 @@ import {
   improvementObligations,
   improvementLearningReview,
   handoffHoldsClock,
+  MAX_IMPROVEMENT_CYCLES,
 } from '../../../simulation/workplaceImprovement';
 import { turnChecks } from '../../../simulation/workplaceParticipation';
 import { workplaceReadiness } from '../../../simulation/bilateralWorkplace';
@@ -677,11 +678,21 @@ export function WorkplaceImprovementPanel({
               <button
                 type="button"
                 className={button}
-                disabled={!facilitator}
+                disabled={!facilitator || i.history.length + 1 >= MAX_IMPROVEMENT_CYCLES}
                 onClick={() => perform(store.continueImprovement(s.revision), true)}
               >
                 {t('openNextShift')}
               </button>
+              {/* Every decided shift can end here, the eighth included. */}
+              <button
+                type="button"
+                className={button}
+                disabled={!facilitator || obligations.length > 0}
+                onClick={() => perform(store.closeImprovement(s.revision), true)}
+              >
+                {t('closeExperiment')}
+              </button>
+              <p className="text-xs text-slate-300">{t('closeNote')}</p>
             </>
           )}
         </div>

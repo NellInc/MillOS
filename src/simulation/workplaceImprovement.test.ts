@@ -221,6 +221,33 @@ it('retains the origin campaign, caps eight shifts without discarding receipts a
   privateSave.improvement!.history[0].snapshot.members[0].preference = 'private detail';
   expect(restoreWorkplace(privateSave).phase).toBe('idle');
   expect(e.run({ type: 'start', args: ['game', 17] }).changed).toBe(false);
+  // The capped eighth shift still has an exit: closing the experiment.
+  expect(e.run({ type: 'closeImprovement', args: [e.state.revision] }).changed).toBe(true);
+  expect(e.run({ type: 'start', args: ['game', 17] }).changed).toBe(true);
+});
+
+it('closes a later handoff shift after its verdict without opening another, and only then', () => {
+  const e = exercise();
+  e.run({ type: 'proposeImprovement', args: ['buffer', 'maintenance'] });
+  e.agree();
+  e.run({ type: 'activate', args: [e.state.revision] });
+  e.run({ type: 'tick', args: [90, 600, false] });
+  expect(e.review('adopt').changed).toBe(true);
+  expect(e.run({ type: 'continueImprovement', args: [e.state.revision] }).changed).toBe(true);
+  e.agree();
+  expect(e.run({ type: 'activate', args: [e.state.revision] }).changed).toBe(true);
+  e.run({ type: 'tick', args: [90, 450, false] });
+  expect(e.state.improvement?.history).toHaveLength(1);
+  // A trial carrying pay is decided before it can be closed.
+  expect(e.run({ type: 'closeImprovement', args: [e.state.revision] }).changed).toBe(false);
+  expect(e.review('stop').changed).toBe(true);
+  expect(e.run({ type: 'closeImprovement', args: [e.state.revision - 1] }).changed).toBe(false);
+  const revision = e.state.revision;
+  expect(e.run({ type: 'closeImprovement', args: [revision] }).changed).toBe(true);
+  expect(e.state).toMatchObject({ phase: 'idle', campaign: null, revision: revision + 1 });
+  expect(e.state.improvement).toBeUndefined();
+  // Nothing new opened: the next exercise or season starts from idle.
+  expect(e.run({ type: 'start', args: ['game', 17] }).changed).toBe(true);
 });
 
 it('freezes the disclosed forecast after stopping and rejects minority-imposed review', () => {

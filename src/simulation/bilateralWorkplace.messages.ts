@@ -225,6 +225,8 @@ export const bilateralWorkplaceMessages = defineMessages({
       '{winner}: retain this review and all obligations; future work needs fresh agreement.',
     rejContinue:
       'Finalise this review and settle obligations before continuing. Eight shifts is the retained-record limit; no receipts are discarded.',
+    rejCloseImprovement:
+      'Close the handoff experiment only after the member review is finalised, with no owed recovery, open objection or reserve, from the current revision.',
     evContinued:
       'Opening cash equals the previous closing balance. History and customer work remain; prior consent is expired.',
     rejStartCampaign:
@@ -570,6 +572,8 @@ export const bilateralWorkplaceMessages = defineMessages({
       '{winner}: manter esta revisão e todas as obrigações; trabalho futuro precisa de novo acordo.',
     rejContinue:
       'Finalize esta revisão e quite as obrigações antes de continuar. Oito turnos é o limite de registros mantidos; nenhum comprovante é descartado.',
+    rejCloseImprovement:
+      'Encerre o experimento de passagem de turno só depois de concluir a avaliação dos cooperados, sem recuperação devida, objeção aberta ou reserva, a partir da revisão atual.',
     evContinued:
       'O caixa de abertura é igual ao saldo de fechamento anterior. O histórico e o trabalho para clientes permanecem; o consentimento anterior expirou.',
     rejStartCampaign:

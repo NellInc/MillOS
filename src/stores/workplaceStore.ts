@@ -239,7 +239,12 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
             };
         }
         if (
-          ['beginImprovement', 'continueImprovement', 'cancelImprovement'].includes(command.type) &&
+          [
+            'beginImprovement',
+            'continueImprovement',
+            'cancelImprovement',
+            'closeImprovement',
+          ].includes(command.type) &&
           isWorkplaceReplayActive()
         )
           return {
@@ -451,6 +456,26 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
         finishImprovementReview: (...args) => apply({ type: 'finishImprovementReview', args }),
         continueImprovement: (revision) =>
           apply({ type: 'continueImprovement', args: [revision, linkedMission()] }),
+        closeImprovement: (revision) => {
+          const origin = get().workplace.improvement?.origin;
+          const result = apply({ type: 'closeImprovement', args: [revision] });
+          // A season the experiment opened from is kept as archiving or leaving
+          // keeps it: completed after its final review, otherwise left early.
+          // Working if closing never silently drops the season it began from.
+          const completed = result.changed && origin ? completedReview(origin) : null;
+          const left = result.changed && origin?.campaign && !completed ? leftReview(origin) : null;
+          if (completed)
+            set({
+              completedCampaigns: [...get().completedCampaigns, completed].slice(
+                -MAX_COMPLETED_CAMPAIGNS
+              ),
+            });
+          if (left)
+            set({
+              leftCampaigns: [...get().leftCampaigns, left].slice(-MAX_COMPLETED_CAMPAIGNS),
+            });
+          return result;
+        },
         workplace: createWorkplace(),
         completedCampaigns: [],
         archiveCampaign: (expectedRevision) => {

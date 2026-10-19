@@ -211,6 +211,9 @@ export const workplaceImprovementPanelMessages = defineMessages({
       'This handoff experiment is complete. The plant runs normally again at the shift pace below; change it there if you like. Another handoff shift is optional.',
     completeWorkshop: 'This handoff experiment is complete. Another handoff shift is optional.',
     openNextShift: 'Open next handoff shift',
+    closeExperiment: 'Close the handoff experiment',
+    closeNote:
+      'Closing ends the experiment without opening another shift. Pay was paid and nothing is owed, so the laboratory returns to idle for a fresh exercise or season. A season it began from, if any, is kept with your seasons; the shift receipts of this experiment are not kept after closing.',
     earlierDecisions: 'Earlier decisions and retained receipts',
     originNote:
       'Origin closing cash: {cash} credits. Earlier earned pay and any campaign review remain retained; old consent supplies no current permission.',
@@ -343,6 +346,9 @@ export const workplaceImprovementPanelMessages = defineMessages({
     completeWorkshop:
       'Este experimento de passagem de turno está concluído. Outro turno do experimento é opcional.',
     openNextShift: 'Abrir o próximo turno do experimento',
+    closeExperiment: 'Encerrar o experimento de passagem de turno',
+    closeNote:
+      'Encerrar finaliza o experimento sem abrir outro turno. A remuneração foi paga e nada está devido, então o laboratório volta a ficar ocioso para um novo exercício ou temporada. A temporada de onde ele partiu, se houver, fica guardada com as suas temporadas; os comprovantes dos turnos deste experimento não são mantidos depois de encerrar.',
     earlierDecisions: 'Decisões anteriores e comprovantes mantidos',
     originNote:
       'Caixa de fechamento de origem: {cash} créditos. A remuneração conquistada anteriormente e qualquer revisão de campanha continuam mantidas; um consentimento antigo não concede permissão atual.',

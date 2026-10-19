@@ -295,6 +295,11 @@ export interface WorkplaceActions {
     expectedRevision: number,
     mission?: WorkplaceMission
   ) => WorkplaceTransitionResult;
+  /**
+   * After any shift's verdict, end the experiment without opening another
+   * shift. Nothing may be owed; the workplace returns to idle.
+   */
+  closeImprovement: (expectedRevision: number) => WorkplaceTransitionResult;
   startCampaign: (
     profile: WorkplaceProfile,
     seed?: number,

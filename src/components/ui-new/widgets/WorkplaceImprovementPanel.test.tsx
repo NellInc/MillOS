@@ -211,6 +211,45 @@ describe('choice-first handoff interface', () => {
     ).toBe(108);
     act(() => store.stop());
   });
+
+  it('closes a decided later shift without opening another, as any decided shift can', () => {
+    const store = useWorkplaceStore.getState();
+    store.beginImprovement('team', store.workplace.revision);
+    store.proposeImprovement('briefing', 'packing');
+    store.acknowledgeImprovement();
+    for (const m of useWorkplaceStore.getState().workplace.members) {
+      store.understand(m.id);
+      store.vote(m.id, true);
+    }
+    store.activate(useWorkplaceStore.getState().workplace.revision);
+    store.tick(90, 500, false);
+    mount();
+    const decide = () => {
+      click('Hear the adviser review its forecast');
+      for (const role of ['Packing', 'Quality', 'Maintenance', 'Coordinator'])
+        fireEvent.change(screen.getByLabelText(`${role} review decision`), {
+          target: { value: 'stop' },
+        });
+      click('Finalise handoff review');
+    };
+    decide();
+    click('Open next handoff shift');
+    expect(screen.getByText('The handoff experiment, shift 2')).toBeInTheDocument();
+    // The second shift is ended unworked and decided: it carries the first's pay.
+    act(() => {
+      useWorkplaceStore.getState().stop();
+    });
+    decide();
+    expect(screen.getByText(/Review recorded: stop/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Closing ends the experiment without opening another shift/)
+    ).toBeInTheDocument();
+    click('Close the handoff experiment');
+    const after = useWorkplaceStore.getState().workplace;
+    expect(after.phase).toBe('idle');
+    expect(after.improvement).toBeUndefined();
+    expect(screen.getByRole('button', { name: 'Open the handoff experiment' })).toBeEnabled();
+  });
 });
 
 describe('the handoff clock hold', () => {

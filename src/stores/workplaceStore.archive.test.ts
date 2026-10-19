@@ -220,3 +220,35 @@ describe('leaving a cooperative season early', () => {
     expect(useWorkplaceStore.getState().leftCampaigns).toEqual([]);
   });
 });
+
+describe('closing a handoff experiment opened from a season', () => {
+  it.each([
+    [1, 'leftCampaigns'],
+    [3, 'completedCampaigns'],
+  ] as const)(
+    'keeps the season it began from (%i shifts) in %s once the decided experiment closes',
+    (shifts, kept) => {
+      const before = finalReview(shifts);
+      const store = useWorkplaceStore.getState();
+      expect(store.beginImprovement('cooperative', before.revision).changed).toBe(true);
+      // A final season review leaves too little cash for a paid trial, so the
+      // team ends the shift unworked and decides it.
+      expect(store.stop().changed).toBe(true);
+      expect(useWorkplaceStore.getState().workplace.phase).toBe('review');
+      store.acknowledgeImprovementReview();
+      for (const member of useWorkplaceStore.getState().workplace.members)
+        store.voteImprovementReview(member.id, 'stop');
+      const decided = useWorkplaceStore.getState().workplace;
+      expect(store.finishImprovementReview(decided.revision).changed).toBe(true);
+      const revision = useWorkplaceStore.getState().workplace.revision;
+      expect(store.closeImprovement(revision).changed).toBe(true);
+      const after = useWorkplaceStore.getState();
+      expect(after.workplace).toMatchObject({ phase: 'idle', campaign: null });
+      expect(after.workplace.improvement).toBeUndefined();
+      expect(after[kept]).toHaveLength(1);
+      expect(after[kept][0].campaign?.shift).toBe(before.campaign?.shift);
+      expect(campaignOutcomes(after[kept][0]).accounts).toEqual(campaignOutcomes(before).accounts);
+      expect(after.startCampaign('team', 23).changed).toBe(true);
+    }
+  );
+});
