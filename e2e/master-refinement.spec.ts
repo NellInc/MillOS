@@ -201,9 +201,6 @@ async function waitForCoreExperience(page: Page) {
     });
   });
   await page.goto('/');
-  await page
-    .waitForSelector('text=INITIALIZING DIGITAL TWIN', { state: 'detached', timeout: 60_000 })
-    .catch(() => {});
   await page.getByRole('button', { name: 'Mill Overview' }).waitFor({ timeout: 240_000 });
   await page.waitForFunction(
     () => document.documentElement.dataset.sceneReady === 'true',
@@ -216,6 +213,19 @@ async function waitForCoreExperience(page: Page) {
   // between steps, which made the final action intermittently unactionable.
   await page.waitForFunction(
     () => document.documentElement.dataset.millosWorldReady === 'true',
+    undefined,
+    { timeout: 240_000 }
+  );
+  // World readiness is not the end of loading: the 'Loading MillOS' cover
+  // stays over the scene until strict startup readiness, then fades for
+  // 220 ms before it unmounts. On a loaded machine the first axe scan ran
+  // over that cover, so wait for both, as capture-operational-review.mjs does.
+  // The cover's 'Open loaded scene' path sets millosStartupDegraded, never
+  // millosStartupReady; this suite never takes it.
+  await page.waitForFunction(
+    () =>
+      document.documentElement.dataset.millosStartupReady === 'true' &&
+      document.querySelector('[aria-label="Loading MillOS"]') === null,
     undefined,
     { timeout: 240_000 }
   );
