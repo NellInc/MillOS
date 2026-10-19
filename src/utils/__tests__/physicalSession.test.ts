@@ -19,6 +19,7 @@ import {
   installPhysicalSession,
   isPhysicalSessionRestoring,
   PHYSICAL_SESSION_KEY,
+  MAX_SAVE_BYTES,
 } from '../physicalSession';
 import {
   registerReplayParticipant,
@@ -26,7 +27,11 @@ import {
   beginReplayClock,
   endReplayClock,
 } from '../../simulation/workplaceReplayRuntime';
-import { useMaterialFlowStore } from '../../stores/materialFlowStore';
+import {
+  MAX_MATERIAL_MANIFESTS,
+  MAX_PRODUCTION_BATCHES,
+  useMaterialFlowStore,
+} from '../../stores/materialFlowStore';
 import { useProductionStore, PRODUCTION_DELEGATED_KEYS } from '../../stores/productionStore';
 import { useOperationsCampaignStore } from '../../stores/operationsCampaignStore';
 import { useBreakdownStore } from '../../stores/breakdownStore';
@@ -337,6 +342,96 @@ describe('atomic local physical shift continuation', () => {
       vi.advanceTimersByTime(5000);
       expect(notices()).toHaveLength(2);
       expect(useGameSimulationStore.getState().gameSpeed).toBe(60);
+    } finally {
+      vi.useRealTimers();
+      logged.mockRestore();
+    }
+  });
+
+  // A record written before the windows narrowed (up to the 1.5 M-char gate)
+  // must load, and must not carry its fat tails into the first autosave, which
+  // runs while the reload waits for consent and no tick trims anything.
+  it('loads a legacy record with long histories, trimmed to the current windows', () => {
+    const heldId = heldShift();
+    const record = capturePhysicalSession();
+    const held = record.material.productionBatches.find((b) => b.id === heldId)!;
+    record.material.processGenealogy = Array.from({ length: 500 }, (_, i) => ({
+      id: `process-${i}`,
+      machineId: 'rm-101',
+      inputType: 'wheat_grain' as const,
+      inputKg: 1,
+      outputs: [],
+      wasteKg: 0,
+      sourceContributions: [{ lotId: 'lot-opening-silo-0', amount: 1, path: ['silo-0'] }],
+      simulationTime: i,
+    }));
+    record.material.productionBatches = [
+      ...Array.from({ length: 200 }, (_, i) => ({
+        ...held,
+        id: `shipped-${i}`,
+        availableKg: 0,
+        disposition: 'shipped' as const,
+      })),
+      ...record.material.productionBatches,
+    ];
+    record.material.manifests = Array.from({ length: 200 }, (_, i) => ({
+      id: `receiving-${i}`,
+      kind: 'receiving' as const,
+      dock: 'receiving' as const,
+      requestedKg: 1,
+      actualKg: 1,
+      materials: [],
+      sourceLots: [],
+      productBatches: [],
+      simulationTime: i,
+    }));
+    const saved = decodePhysicalSession(encodePhysicalSession(record));
+    expect(saved.material.processGenealogy).toEqual([]);
+    expect(saved.material.manifests.map((m) => m.id)).toEqual(
+      record.material.manifests.slice(-MAX_MATERIAL_MANIFESTS).map((m) => m.id)
+    );
+    const shipped = saved.material.productionBatches.filter((b) => b.disposition === 'shipped');
+    expect(shipped.map((b) => b.id)).toEqual(
+      Array.from(
+        { length: MAX_PRODUCTION_BATCHES },
+        (_, i) => `shipped-${200 - MAX_PRODUCTION_BATCHES + i}`
+      )
+    );
+    // The held batch the quality alert binds is never history.
+    expect(saved.material.productionBatches.find((b) => b.id === heldId)?.disposition).toBe('hold');
+  });
+
+  // The play-test console logged 'Physical save is too large' every 5 s with a
+  // notice that read like a one-off skip. Working if an oversized record raises
+  // one notice and one log per failure run, saying a reload returns to the last
+  // good save, and the shift keeps running.
+  it('names an oversized record once per failure run, without pausing the shift', () => {
+    heldShift();
+    const previous = encodePhysicalSession(capturePhysicalSession());
+    localStorage.setItem(PHYSICAL_SESSION_KEY, previous);
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    try {
+      dispose = installPhysicalSession();
+      ready();
+      useGameSimulationStore.getState().setGameSpeed(30);
+      const [machine] = useProductionStore.getState().machines;
+      useProductionStore.setState({
+        machines: [{ ...machine, name: 'x'.repeat(MAX_SAVE_BYTES / 2) }],
+      });
+      vi.advanceTimersByTime(5000);
+      vi.advanceTimersByTime(5000);
+      exit();
+      expect(localStorage.getItem(PHYSICAL_SESSION_KEY)).toBe(previous);
+      const notices = useUIStore
+        .getState()
+        .alerts.filter((a) => a.id === 'physical-autosave-skipped');
+      expect(notices).toHaveLength(1);
+      expect(notices[0]?.title).toBe('Autosave stopped');
+      expect(notices[0]?.message).toContain('a reload returns to the last good save');
+      expect(logged).toHaveBeenCalledTimes(1);
+      expect(String(logged.mock.calls[0]?.[1])).toContain('Physical save is too large');
+      expect(useGameSimulationStore.getState().gameSpeed).toBe(30);
     } finally {
       vi.useRealTimers();
       logged.mockRestore();
