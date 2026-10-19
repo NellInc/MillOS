@@ -55,11 +55,13 @@ export const DEPTH_REGISTRY: readonly DepthRegistryEntry[] = [
   },
   {
     id: 'exterior-ground-stack',
-    owner: 'OptimizedExterior',
+    // `exterior/OptimizedExterior.tsx` is imported by nothing; these are the
+    // live owners of the coplanar ground surfaces.
+    owner: 'TerrainGround, TruckBay (truckbay/yardSurfaces) and FactoryExterior',
     classification: 'ground-layer',
     surfaces: ['grass', 'yard asphalt', 'roads', 'farm plots', 'paths'],
     repair:
-      'Coplanar solid surfaces share the yard datum and use exteriorBase through exteriorTop.',
+      'Coplanar solid surfaces share the ground datum and declare a named bias: terrain exteriorBase, turnaround exteriorMid, truck yard explicitly unbiased, apron and roads exteriorTop or moderate.',
     validationCameras: ['overview', 'yard', 'shipping', 'receiving', 'high-angle'],
     polygonOffset: 'exteriorBase',
     depthWrite: true,
@@ -67,7 +69,7 @@ export const DEPTH_REGISTRY: readonly DepthRegistryEntry[] = [
   },
   {
     id: 'yard-road-markings',
-    owner: 'OptimizedExterior',
+    owner: 'TruckBay and FactoryExterior',
     classification: 'decal',
     surfaces: ['lane centres', 'parking guides', 'crossings', 'stop bars'],
     repair: 'Markings use the ground overlay datum, exteriorOverlay bias, and no depth writes.',
@@ -79,7 +81,7 @@ export const DEPTH_REGISTRY: readonly DepthRegistryEntry[] = [
   },
   {
     id: 'dock-guides-and-apron',
-    owner: 'OptimizedTruckBay',
+    owner: 'TruckBay (truckbay/dockApronLayout)',
     classification: 'decal',
     surfaces: ['dock apron', 'bay guides', 'vehicle channel'],
     repair: 'Dock guides use the named truck marking layer and exterior overlay bias.',
@@ -91,7 +93,7 @@ export const DEPTH_REGISTRY: readonly DepthRegistryEntry[] = [
   },
   {
     id: 'water-bed-and-surface',
-    owner: 'OptimizedExterior.WaterNetwork',
+    owner: 'FactoryExterior water features (Canal, River, outlet) and TerrainGround',
     classification: 'water-edge',
     surfaces: ['canal bed', 'river bed', 'lake bed', 'water surfaces'],
     repair: 'Opaque beds use the terrain datum; transparent water uses the named water datum.',
@@ -102,7 +104,7 @@ export const DEPTH_REGISTRY: readonly DepthRegistryEntry[] = [
   },
   {
     id: 'water-bank-intersections',
-    owner: 'OptimizedExterior.WaterNetwork',
+    owner: 'FactoryExterior water features (Canal, River, outlet) and TerrainGround',
     classification: 'water-edge',
     surfaces: ['canal walls', 'river banks', 'lake ring', 'water surfaces'],
     repair: 'Banks physically straddle the water datum while water remains one transparent layer.',
