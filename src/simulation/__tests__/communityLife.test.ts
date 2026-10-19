@@ -30,6 +30,7 @@ import {
   communityPassengerWalkHours,
   COMMUNITY_COURIER_SCHEDULE,
   COMMUNITY_STREET_END_Z,
+  MILL_ROUTINE_HOURS,
   type CommunityPose,
 } from '../communityLife';
 import { STANDARD_GAME_SPEED } from '../pace';
@@ -187,6 +188,69 @@ describe('inhabited world routines', () => {
       expect([...activities]).toEqual(expect.arrayContaining(['walking', 'working', 'break']));
     }
   });
+  it('gives every mill resident a lane of their own: no shared line, no stop on a route', () => {
+    type P = readonly [number, number];
+    const mill = COMMUNITY_ROSTER.filter((p) => p.district === 'mill');
+    const segments = (person: (typeof mill)[number]) =>
+      person.stops
+        .map((s, i) => {
+          const n = person.stops[(i + 1) % person.stops.length];
+          return [
+            [s.position[0], s.position[2]],
+            [n.position[0], n.position[2]],
+          ] as const;
+        })
+        .filter(([a, b]) => a[0] !== b[0] || a[1] !== b[1]);
+    const toSegment = (p: P, [a, b]: readonly [P, P]) => {
+      const dx = b[0] - a[0],
+        dz = b[1] - a[1];
+      const t = Math.max(
+        0,
+        Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dz) / (dx * dx + dz * dz))
+      );
+      return Math.hypot(p[0] - a[0] - dx * t, p[1] - a[1] - dz * t);
+    };
+    for (const a of mill)
+      for (const b of mill) {
+        if (a === b) continue;
+        for (const s of a.stops.filter((s) => s.hours > 0))
+          for (const segment of segments(b))
+            expect(
+              toSegment([s.position[0], s.position[2]], segment),
+              `${a.id} ${s.task} on ${b.id}'s route`
+            ).toBeGreaterThanOrEqual(0.6);
+        for (const [p, q] of segments(a))
+          for (const [r, s] of segments(b)) {
+            const u = [q[0] - p[0], q[1] - p[1]],
+              v = [s[0] - r[0], s[1] - r[1]];
+            if (Math.abs(u[0] * v[1] - u[1] * v[0]) > 1e-9) continue; // crossings are timed
+            const close =
+              [r, s].some((x) => toSegment(x, [p, q]) < 0.6) ||
+              [p, q].some((x) => toSegment(x, [r, s]) < 0.6);
+            expect(close, `${a.id} shares a line with ${b.id}`).toBe(false);
+          }
+      }
+  });
+  it('keeps mill residents apart where their routes cross, for every day', () => {
+    const mill = COMMUNITY_ROSTER.filter((p) => p.district === 'mill');
+    // One shared period means one period of checks holds for all time.
+    for (const person of mill)
+      expect(routineDuration(person), person.id).toBeCloseTo(MILL_ROUTINE_HOURS, 9);
+    let closest = Infinity,
+      pair = '';
+    for (let h = 0; h < MILL_ROUTINE_HOURS; h += 0.0005) {
+      const poses = mill.map((p) => sampleCommunityPerson(p, h));
+      for (let i = 0; i < mill.length; i++)
+        for (let j = i + 1; j < mill.length; j++) {
+          const d = Math.hypot(
+            poses[i].position[0] - poses[j].position[0],
+            poses[i].position[2] - poses[j].position[2]
+          );
+          if (d < closest) [closest, pair] = [d, `${mill[i].id}|${mill[j].id} at ${h}`];
+        }
+    }
+    expect(closest, pair).toBeGreaterThanOrEqual(0.6);
+  });
   it('is deterministic, finite and continuous through midnight', () => {
     for (const person of COMMUNITY_ROSTER) {
       for (const h of [NaN, Infinity, -2, 0, 10, 24, 48.2]) {
@@ -304,10 +368,23 @@ describe('inhabited world routines', () => {
     const step = 0.0002;
     const amount = (pose: CommunityPose) => (pose.seat ? pose.seat.amount : pose.seated ? 1 : 0);
     const seen = new Set<string>();
+    // Finely around each stop (the shuttle leaves the tunnel at phase ~0.94 and is
+    // gone by 1.9); between stops a commuter is either seated or away, unchanged.
+    const hours: number[] = [];
+    for (let h = 5; h < 23; h += 0.01) {
+      const phase = (((h - 6) % 4) + 4) % 4;
+      if (phase > 0.9 && phase < 1.95) for (let f = h; f < h + 0.01; f += step) hours.push(f);
+      else hours.push(h);
+    }
     for (const p of COMMUNITY_ROSTER.filter((p) => p.district === 'bus')) {
-      for (let h = 5; h < 23; h += step) {
+      for (let k = 0; k + 1 < hours.length; k++) {
+        const h = hours[k];
         const a = sampleCommunityPerson(p, h),
-          b = sampleCommunityPerson(p, h + step);
+          b = sampleCommunityPerson(p, hours[k + 1]);
+        if (hours[k + 1] - h > step * 1.5) {
+          expect(b.visible, `${p.id} unchanged between stops at ${h}`).toBe(a.visible);
+          continue;
+        }
         if (a.visible !== b.visible) {
           const shown = a.visible ? a : b;
           seen.add(`${p.id} ${a.visible ? 'boards' : 'alights'}`);

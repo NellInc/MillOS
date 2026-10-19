@@ -619,23 +619,26 @@ function mountCommunity(state: Partial<ReturnType<typeof useGameSimulationStore.
     capture: () => harness.participants.get('personnel')!.capture(),
   };
 }
-/** A mill resident walking a straight segment from `hour` for `span` game hours. */
-function millWalkerAt(hour: number, span: number) {
-  const index = COMMUNITY_ROSTER.findIndex((person) => {
-    if (person.district !== 'mill') return false;
-    const a = sampleCommunityPerson(person, hour),
-      b = sampleCommunityPerson(person, hour + span);
-    return a.activity === 'walking' && b.activity === 'walking' && a.rotation === b.rotation;
-  });
-  expect(index).toBeGreaterThanOrEqual(0);
-  return index;
+/** The first moment from `from` when a mill resident walks one straight segment
+ * for `span` game hours, and which resident it is. */
+function findMillWalk(from: number, span: number) {
+  for (let hour = from; hour < from + 4; hour += 0.001) {
+    const index = COMMUNITY_ROSTER.findIndex((person) => {
+      if (person.district !== 'mill') return false;
+      const a = sampleCommunityPerson(person, hour),
+        b = sampleCommunityPerson(person, hour + span);
+      return a.activity === 'walking' && b.activity === 'walking' && a.rotation === b.rotation;
+    });
+    if (index >= 0) return { hour, index };
+  }
+  throw new Error('no mill resident walks a straight segment');
 }
 
 it('walks a time-lapsed resident with its real-time gait and uncapped ground speed', () => {
   const pace = 120;
-  const community = mountCommunity({ gameTime: 10, gameSpeed: pace });
-  const index = millWalkerAt(10, 0.02);
-  useGameSimulationStore.setState({ gameTime: 10.02 });
+  const { hour, index } = findMillWalk(10, 0.002);
+  const community = mountCommunity({ gameTime: hour, gameSpeed: pace });
+  useGameSimulationStore.setState({ gameTime: hour + 0.002 });
   community.step();
   community.step();
   const motion = community.capture().residents[index].motion;

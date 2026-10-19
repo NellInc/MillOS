@@ -467,25 +467,51 @@ export const COMMUNITY_SEAT_RAMP = Object.freeze({
   up: standardSeconds(1.3),
   standing: standardSeconds(0.3),
 });
+/** Every mill routine repeats on this one period, so routes that cross stay
+ * apart in time for ever instead of drifting into each other days later. */
+export const MILL_ROUTINE_HOURS = 4;
+/** Lengthen or shorten the first (working) stop so the loop takes `period`. */
+function fitPeriod(stops: CommunityStop[], period = MILL_ROUTINE_HOURS): CommunityStop[] {
+  const walking = stops.reduce((total, node, i) => {
+    const next = stops[(i + 1) % stops.length].position;
+    return (
+      total +
+      node.hours +
+      Math.hypot(node.position[0] - next[0], node.position[2] - next[2]) * WALK_HOURS_PER_METRE
+    );
+  }, 0);
+  return [{ ...stops[0], hours: stops[0].hours + period - walking }, ...stops.slice(1)];
+}
 const millLoop = (
   work: Vec3Tuple,
+  aisle: number,
   lane: number,
   seat: Vec3Tuple,
-  job: string,
-  workHours = 2.4
-): CommunityStop[] => [
-  stop(work, PI, workHours, job),
-  via([work[0], 0, 35.2]),
-  via([lane, 0, 35.2]),
-  via([lane, 0, seat[2]]),
-  rest(seat, PI / 2),
-  via([lane, 0, seat[2]]),
-  via([lane, 0, 35.2]),
-  via([work[0], 0, 35.2]),
-];
+  job: string
+): CommunityStop[] =>
+  fitPeriod([
+    stop(work, PI, 0, job),
+    via([work[0], 0, aisle]),
+    via([lane, 0, aisle]),
+    via([lane, 0, seat[2]]),
+    rest(seat, PI / 2),
+    via([lane, 0, seat[2]]),
+    via([lane, 0, aisle]),
+    via([work[0], 0, aisle]),
+  ]);
 
 /** Closed, authored pedestrian circuits stay on the mill side of conveyors.
  * Working if sampled segments clear machine/belt footprints and vehicle lanes.
+ *
+ * Every mill resident has a lane of their own, 0.7 m from the next, so nobody
+ * shares a line with anyone or stands on anyone else's route. The order is what
+ * makes that possible: the roller-mill aisles step north (34.2, 34.9, 35.6) as
+ * their west lanes step west (-30.9, -31.6, -32.3) and their seats step north,
+ * and the supervisor keeps the westmost lane (-33) to the northmost seat. The two
+ * packing routes come in from the east, packer (-6.4) south of quality (-5.2),
+ * each to the seat on its own side. What is left are square crossings of an east
+ * route with a west lane; one shared period and the phases keep those apart in time.
+ * Working if the pairwise separation test finds every pair at least 0.6 m apart.
  */
 export const COMMUNITY_ROSTER: readonly CommunityPerson[] = [
   {
@@ -494,7 +520,7 @@ export const COMMUNITY_ROSTER: readonly CommunityPerson[] = [
     district: 'mill',
     phase: 0,
     machineId: 'rm-101',
-    stops: millLoop([-24, 0, 33.5], -33, [-34, 0, -8.45], 'Checking the roller mill'),
+    stops: millLoop([-24, 0, 33.5], 34.2, -30.9, [-34, 0, -12.45], 'Checking the roller mill'),
   },
   {
     id: 'mill-operator-east',
@@ -502,7 +528,7 @@ export const COMMUNITY_ROSTER: readonly CommunityPerson[] = [
     district: 'mill',
     phase: 2.3,
     machineId: 'rm-104',
-    stops: millLoop([18, 0, 33.5], -31.5, [-34, 0, -12.45], 'Adjusting the milling controls', 3.4),
+    stops: millLoop([18, 0, 33.5], 35.6, -32.3, [-34, 0, -8.45], 'Adjusting the milling controls'),
   },
   {
     id: 'mill-engineer',
@@ -510,7 +536,7 @@ export const COMMUNITY_ROSTER: readonly CommunityPerson[] = [
     district: 'mill',
     phase: 4.2,
     machineId: 'rm-102',
-    stops: millLoop([-10, 0, 33.5], -32.25, [-34, 0, -11.55], 'Equipment inspection', 1.8),
+    stops: millLoop([-10, 0, 33.5], 34.9, -31.6, [-34, 0, -11.55], 'Equipment inspection'),
   },
   {
     id: 'mill-quality',
@@ -518,14 +544,14 @@ export const COMMUNITY_ROSTER: readonly CommunityPerson[] = [
     district: 'mill',
     phase: 0.4,
     machineId: 'packer-2',
-    stops: [
-      stop(A.millInspection.position, PI, 2.4, 'Taking a flour sample'),
-      via([8, 0, -6.4]),
-      via([-32.3, 0, -6.4]),
-      rest([-34, 0, -7.55], PI / 2),
-      via([-32.3, 0, -6.4]),
-      via([8, 0, -6.4]),
-    ],
+    stops: fitPeriod([
+      stop(A.millInspection.position, PI, 0, 'Taking a flour sample'),
+      via([8, 0, -5.2]),
+      via([-33, 0, -5.2]),
+      rest([-34, 0, -4.45], PI / 2),
+      via([-33, 0, -5.2]),
+      via([8, 0, -5.2]),
+    ]),
   },
   {
     id: 'mill-packer',
@@ -533,29 +559,28 @@ export const COMMUNITY_ROSTER: readonly CommunityPerson[] = [
     district: 'mill',
     phase: 1.8,
     machineId: 'packer-0',
-    stops: [
-      stop(A.millPacking.position, PI, 2.2, 'Checking the packing line'),
-      via([-8, 0, -5.2]),
-      via([-32, 0, -5.2]),
-      rest([-34, 0, -4.45], PI / 2),
-      via([-32, 0, -5.2]),
-      via([-8, 0, -5.2]),
-    ],
+    stops: fitPeriod([
+      stop(A.millPacking.position, PI, 0, 'Checking the packing line'),
+      via([-8, 0, -6.4]),
+      via([-33, 0, -6.4]),
+      rest([-34, 0, -7.55], PI / 2),
+      via([-33, 0, -6.4]),
+      via([-8, 0, -6.4]),
+    ]),
   },
   {
     id: 'mill-supervisor',
     role: 'Supervisor',
     district: 'mill',
     phase: 0.7,
-    stops: [
-      stop([-33, 0, 8], PI / 2, 0.7, 'Reviewing the shift'),
-      via([-33, 0, 25]),
-      stop([-29.5, 0, 25], PI / 2, 1.1, 'Inspecting the milling floor'),
-      via([-33, 0, 25]),
-      via([-32.7, 0, -3.55]),
+    stops: fitPeriod([
+      stop([-33, 0, 8], PI / 2, 0, 'Reviewing the shift'),
+      // Overlooks the floor from its own lane rather than stepping across the others.
+      stop([-33, 0, 25], PI / 2, 1.1, 'Inspecting the milling floor'),
+      via([-33, 0, -3.55]),
       rest([-34, 0, -3.55], PI / 2),
-      via([-32.7, 0, -3.55]),
-    ],
+      via([-33, 0, -3.55]),
+    ]),
   },
   {
     id: 'village-baker',
