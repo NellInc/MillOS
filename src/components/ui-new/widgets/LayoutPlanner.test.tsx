@@ -125,7 +125,8 @@ it('pauses, applies, runs, compares and undoes through the workspace controls', 
     fireEvent.change(screen.getByLabelText('shipping staging X (m)'), { target: { value: '18' } });
     expect(screen.getByRole('button', { name: 'Apply to mill' })).toBeDisabled();
     click('Pause mill');
-    expect(useProductionStore.getState().productionSpeed).toBe(0);
+    // The shift clock is the pause; the line rate is left as the operator set it.
+    expect(useProductionStore.getState().productionSpeed).toBe(1.5);
     expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
     click('Apply to mill');
     expect(useLogisticsLayoutStore.getState().layout.staging.shipping[0]).toBe(18);

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { STANDARD_GAME_SPEED } from '../../simulation/pace';
 import { resetUnifiedTickState, unifiedGameTick } from '../UnifiedGameTick';
 import type { TickContext } from '../CentralTickSystem';
 import { useMaterialFlowStore } from '../../stores/materialFlowStore';
@@ -13,10 +14,11 @@ import {
 import { currentLogisticsLayout, logisticsLoadingRate } from '../../simulation/layoutPlanning';
 import { useProductionStore } from '../../stores/productionStore';
 
+// Standard pace: one real second is one plant second (src/simulation/pace.ts).
 const tickContext: TickContext = {
   deltaSeconds: 0.1,
   gameTime: 0,
-  gameSpeed: 1,
+  gameSpeed: STANDARD_GAME_SPEED,
   elapsedTime: 0,
   tickCount: 0,
 };
