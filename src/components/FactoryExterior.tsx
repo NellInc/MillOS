@@ -55,6 +55,11 @@ import {
   fitRiverCulvertBank,
 } from './exterior/riverGeometry';
 import { UTILITY_ASSET_DEFINITIONS } from '../constants/utilityAssets';
+import {
+  containmentLayoutForVessels,
+  generateContainmentPad,
+  generateContainmentPadRoughness,
+} from '../textures/containmentPad';
 import { ServiceBuildingCraft, SERVICE_BUILDING_ENVELOPES } from './exterior/serviceBuildingCraft';
 import { ServiceEntranceLighting } from './exterior/ServiceEntranceLighting';
 import {
@@ -175,6 +180,33 @@ const TANK_SUPPORT_MATERIAL = new THREE.MeshStandardMaterial({
 const UTILITY_CONCRETE_MATERIAL = new THREE.MeshStandardMaterial({
   color: '#a9afb0',
   roughness: 0.92,
+  metalness: 0,
+});
+/**
+ * The tank farm's bund slab. It was `UTILITY_CONCRETE_MATERIAL`, one flat
+ * mint-grey with no map, and the art review's one blocker: "an untextured slab"
+ * filling the tank-farm frame (luma std 4.7 on low). Its map is generated at
+ * repeat 1 from the same vessel table the tanks are placed from, so the
+ * drip stains sit under the real saddles and the drip lines under the real
+ * flanks - see `textures/containmentPad.ts`. The albedo is sRGB, so the tint is
+ * white. The propane pad keeps the plain material: this layout is not its own.
+ */
+const TANK_FARM_PAD_SIZE = { width: 22, height: 0.18, depth: 42 } as const;
+const TANK_FARM_PAD_LAYOUT = containmentLayoutForVessels(
+  TANK_FARM_PAD_SIZE.width,
+  TANK_FARM_PAD_SIZE.depth,
+  UTILITY_ASSET_DEFINITIONS.filter((asset) => asset.compound === 'tank_farm').map((asset) => ({
+    x: asset.relativePosition[0],
+    z: asset.relativePosition[2],
+    length: asset.length ?? 8,
+    radius: asset.radius,
+  }))
+);
+const TANK_FARM_PAD_MATERIAL = new THREE.MeshStandardMaterial({
+  color: '#ffffff',
+  map: generateContainmentPad(TANK_FARM_PAD_LAYOUT),
+  roughnessMap: generateContainmentPadRoughness(TANK_FARM_PAD_LAYOUT),
+  roughness: 1,
   metalness: 0,
 });
 const UTILITY_CURB_MATERIAL = new THREE.MeshStandardMaterial({
@@ -5475,18 +5507,23 @@ const UtilityTankFarm: React.FC = React.memo(() => (
   >
     {/* Raised containment pad. Its underside meets the shared exterior datum,
         so it neither floats nor competes with TerrainGround. */}
-    <mesh position={[0, EXTERIOR_LAYERS.ground + 0.09, 0]} receiveShadow>
-      <boxGeometry args={[22, 0.18, 42]} />
-      <primitive object={UTILITY_CONCRETE_MATERIAL} attach="material" />
+    <mesh position={[0, EXTERIOR_LAYERS.ground + TANK_FARM_PAD_SIZE.height / 2, 0]} receiveShadow>
+      <boxGeometry
+        args={[TANK_FARM_PAD_SIZE.width, TANK_FARM_PAD_SIZE.height, TANK_FARM_PAD_SIZE.depth]}
+      />
+      <primitive object={TANK_FARM_PAD_MATERIAL} attach="material" />
     </mesh>
     {/* Low bund walls contain a spill while keeping the vessels readable from
-        the yard camera and leaving the west-side service access unobstructed. */}
+        the yard camera and leaving the west-side service access unobstructed.
+        0.55 m tall (0.45 m above the slab): the old 0.34 m read as a kerb line,
+        not a wall, from the tank-farm camera. 924 m2 at 0.45 m holds ~400 m3,
+        far above 110% of the largest 36 m3 vessel. */}
     {[
-      { position: [0, 0.23, -21] as [number, number, number], size: [22, 0.34, 0.28] },
-      { position: [0, 0.23, 21] as [number, number, number], size: [22, 0.34, 0.28] },
-      { position: [11, 0.23, 0] as [number, number, number], size: [0.28, 0.34, 42] },
-      { position: [-11, 0.23, -12] as [number, number, number], size: [0.28, 0.34, 18] },
-      { position: [-11, 0.23, 12] as [number, number, number], size: [0.28, 0.34, 18] },
+      { position: [0, 0.335, -21] as [number, number, number], size: [22, 0.55, 0.28] },
+      { position: [0, 0.335, 21] as [number, number, number], size: [22, 0.55, 0.28] },
+      { position: [11, 0.335, 0] as [number, number, number], size: [0.28, 0.55, 42] },
+      { position: [-11, 0.335, -12] as [number, number, number], size: [0.28, 0.55, 18] },
+      { position: [-11, 0.335, 12] as [number, number, number], size: [0.28, 0.55, 18] },
     ].map(({ position, size }, index) => (
       <mesh key={`tank-bund-${index}`} position={position} castShadow receiveShadow>
         <boxGeometry args={size as [number, number, number]} />
