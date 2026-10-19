@@ -22,6 +22,11 @@ import {
 } from '../types';
 import { deterministicVariance, idToSeed } from '../../systems/CentralTickSystem';
 
+/** Seconds for a setpoint-following reading to close ~63% of the gap. */
+const SETPOINT_TIME_CONSTANT_S = 4;
+/** Fraction of the remaining gap closed per 1 Hz sample. */
+const SETPOINT_LAG_PER_SAMPLE = 1 - Math.exp(-1 / SETPOINT_TIME_CONSTANT_S);
+
 /** Machine state from Zustand store */
 interface MachineState {
   id: string;
@@ -49,6 +54,8 @@ export class SimulationAdapter implements IProtocolAdapter {
   private machineStates: Map<string, MachineState> = new Map();
   private activeFaults: Map<string, ActiveFault> = new Map();
   private operationalValues: Map<string, number> = new Map();
+  /** Where each setpoint-following reading has got to on its way to the setpoint. */
+  private trackedBase: Map<string, number> = new Map();
   private sampleIndex = 0;
 
   // Statistics
@@ -421,7 +428,7 @@ export class SimulationAdapter implements IProtocolAdapter {
       // Normal operation
       else {
         // FIXED: Start from base value each tick to prevent accumulation
-        const baseValue = sim.baseValue;
+        const baseValue = this.followSetpoint(id, sim.baseValue, sim.setpointTagId);
         newValue = baseValue;
 
         // 1. Apply load factor FIRST (scales the base value)
@@ -472,6 +479,22 @@ export class SimulationAdapter implements IProtocolAdapter {
 
     // Notify subscribers
     this.notifySubscribers(changedTags);
+  }
+
+  /**
+   * A drive does not jump to a new speed: the reading closes the gap to its
+   * setpoint with a first-order lag (time constant SETPOINT_TIME_CONSTANT_S at
+   * the 1 Hz sample rate). It advances only on running samples, so a stopped
+   * machine still reads zero and resumes from where it was. Noise is applied
+   * on top by the caller, so it never accumulates in the tracked value.
+   */
+  private followSetpoint(tagId: string, ownBase: number, setpointTagId?: string): number {
+    const target = setpointTagId ? this.tags.get(setpointTagId)?.simulation?.baseValue : undefined;
+    if (target === undefined || !Number.isFinite(target)) return ownBase;
+    const current = this.trackedBase.get(tagId) ?? ownBase;
+    const next = current + (target - current) * SETPOINT_LAG_PER_SAMPLE;
+    this.trackedBase.set(tagId, next);
+    return next;
   }
 
   private applyFault(

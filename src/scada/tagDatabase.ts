@@ -175,6 +175,7 @@ const rollerMillTags: TagDefinition[] = MILL_NUMBERS.flatMap((num, idx) => [
       driftRate: 0,
       loadFactor: false,
       statusDependent: true,
+      setpointTagId: `RM${num}.ST001.SP`,
     },
   },
   // Bearing Temperature

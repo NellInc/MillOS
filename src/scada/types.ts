@@ -53,6 +53,11 @@ export interface TagSimulationParams {
   loadFactor?: boolean;
   /** Whether tag only has valid data when machine is running */
   statusDependent?: boolean;
+  /**
+   * Writable setpoint tag this process value follows while the machine runs.
+   * The simulated reading approaches the setpoint with a first-order lag.
+   */
+  setpointTagId?: string;
 }
 
 /** Complete definition of a SCADA tag */
