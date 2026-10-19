@@ -30,6 +30,7 @@ import {
   communityPassengerWalkHours,
   COMMUNITY_COURIER_SCHEDULE,
   COMMUNITY_STREET_END_Z,
+  type CommunityPose,
 } from '../communityLife';
 import { STANDARD_GAME_SPEED } from '../pace';
 import { createWorkplace, transitionWorkplace } from '../bilateralWorkplace';
@@ -291,21 +292,75 @@ describe('inhabited world routines', () => {
       if (bus.doorsOpen) expect([bus.x, bus.z, bus.rotation]).toEqual([23, 140, Math.PI]);
       for (const p of COMMUNITY_ROSTER.filter((p) => p.district === 'bus')) {
         const person = sampleCommunityPerson(p, h);
-        if (person.visible && person.activity === 'walking')
+        // Stepping up from the bench to the kerb is not boarding; crossing to the bus is.
+        if (person.visible && /bus$/.test(person.task))
           expect(bus.doorsOpen, `${p.id} at ${h}`).toBe(true);
       }
     }
     expect(sampleCommunityBus(23).visible).toBe(false);
   });
+  it('seats both commuters with ramps and only shows or hides them at the open bus door', () => {
+    const door = [24.1, 0.36, 137.6];
+    const step = 0.0002;
+    const amount = (pose: CommunityPose) => (pose.seat ? pose.seat.amount : pose.seated ? 1 : 0);
+    const seen = new Set<string>();
+    for (const p of COMMUNITY_ROSTER.filter((p) => p.district === 'bus')) {
+      for (let h = 5; h < 23; h += step) {
+        const a = sampleCommunityPerson(p, h),
+          b = sampleCommunityPerson(p, h + step);
+        if (a.visible !== b.visible) {
+          const shown = a.visible ? a : b;
+          seen.add(`${p.id} ${a.visible ? 'boards' : 'alights'}`);
+          expect(sampleCommunityBus(h).doorsOpen, `${p.id} at ${h}`).toBe(true);
+          expect(
+            Math.hypot(shown.position[0] - door[0], shown.position[2] - door[2]),
+            `${p.id} at the door at ${h}`
+          ).toBeLessThanOrEqual(step / WALK_HOURS_PER_METRE + 1e-9);
+        }
+        if (!a.visible || !b.visible) continue;
+        // No posture pop: sitting and rising ramp, and the body never jumps.
+        expect(Math.abs(amount(b) - amount(a)), `${p.id} seat at ${h}`).toBeLessThan(0.05);
+        expect(Math.abs(b.position[1] - a.position[1]), `${p.id} height at ${h}`).toBeLessThan(
+          0.03
+        );
+        if (a.seated || a.seat) expect(a.seat, `${p.id} seat cue at ${h}`).toBeDefined();
+      }
+    }
+    expect([...seen].sort()).toEqual([
+      'bus-arriving alights',
+      'bus-arriving boards',
+      'bus-departing alights',
+      'bus-departing boards',
+    ]);
+    // The two commuters sit at their own places on the bench.
+    const arriving = sampleCommunityPerson(
+      COMMUNITY_ROSTER.find((p) => p.id === 'bus-arriving')!,
+      8
+    );
+    const departing = sampleCommunityPerson(
+      COMMUNITY_ROSTER.find((p) => p.id === 'bus-departing')!,
+      12
+    );
+    expect(arriving.seat?.amount).toBe(1);
+    expect(departing.seat?.amount).toBe(1);
+    expect(
+      Math.hypot(
+        arriving.position[0] - departing.position[0],
+        arriving.position[2] - departing.position[2]
+      )
+    ).toBeGreaterThan(1);
+  });
   it('eases passenger starts and arrivals without moving anchors, times or the path', () => {
-    for (const [id, start] of [
-      ['bus-arriving', 7.16],
-      ['bus-departing', 7.52],
+    for (const [id, start, leg] of [
+      ['bus-arriving', 7.16, 'alight'],
+      ['bus-arriving', 11.52, 'board'],
+      ['bus-departing', 11.16, 'alight'],
+      ['bus-departing', 15.52, 'board'],
     ] as const) {
       const person = COMMUNITY_ROSTER.find((p) => p.id === id)!;
       // The walk lasts as long as its authored distance takes at walking pace,
       // with the brief starting and stopping ramps added.
-      const walk = communityPassengerWalkHours(id);
+      const walk = communityPassengerWalkHours(id, leg);
       const from = sampleCommunityPerson(person, start),
         to = sampleCommunityPerson(person, start + walk);
       const distance = (a: typeof from, b: typeof from) =>
@@ -832,8 +887,9 @@ describe('greetings acknowledge actual passing company', () => {
 describe('actual transit attention and service notice', () => {
   const passenger = COMMUNITY_ROSTER.find((p) => p.id === 'bus-departing')!;
   it('acknowledges only a nearby visible shuttle while waiting, with bounded attention', () => {
-    // The moment the shuttle, braking into the stop, is 7 m short of it.
-    let hour = 7;
+    // The moment the 14:00 run, braking into the stop, is 7 m short of it; this
+    // commuter has stood up from the bench to catch it.
+    let hour = 14;
     while (sampleCommunityBus(hour).z > 147) hour += 0.00001;
     const pose = sampleCommunityPerson(passenger, hour),
       bus = sampleCommunityBus(hour);
@@ -1027,12 +1083,23 @@ describe('analytic seat arrival and departure support', () => {
         if (out.seat.amount > 0) expect(out.seat.support).toBe(1);
       }
     }
-    for (const id of ['village-cyclist', 'village-courier', 'bus-arriving', 'bus-departing']) {
+    // Hours when each special-route person has no seat (the commuters are riding).
+    for (const [id, hour] of [
+      ['village-cyclist', 12],
+      ['village-courier', 12],
+      ['bus-arriving', 12],
+      ['bus-departing', 8],
+    ] as const) {
       sampleCommunityPerson(person, 0.015, out);
       expect(out.seat).toBeDefined();
-      sampleCommunityPerson(COMMUNITY_ROSTER.find((p) => p.id === id)!, 12, out);
-      expect(out.seat).toBeUndefined();
+      sampleCommunityPerson(COMMUNITY_ROSTER.find((p) => p.id === id)!, hour, out);
+      expect(out.seat, id).toBeUndefined();
     }
+    // A seated commuter replaces a reused cue with its own bench place.
+    sampleCommunityPerson(person, 0.015, out);
+    sampleCommunityPerson(COMMUNITY_ROSTER.find((p) => p.id === 'bus-departing')!, 12, out);
+    expect(out.seat?.position).not.toEqual(person.stops[0].position);
+    expect(out.seat?.rotation).toBe(-Math.PI / 2);
     sampleCommunityPerson(person, NaN, out);
     expect(out.seat?.amount ?? 0).not.toBeNaN();
   });

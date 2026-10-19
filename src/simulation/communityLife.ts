@@ -708,54 +708,154 @@ export function sampleCommunityBus(hour: number) {
   };
 }
 const PASSENGER_DOOR: Vec3Tuple = [24.1, 0.36, 137.6];
-const passengerWait = (arriving: boolean): Vec3Tuple =>
-  arriving ? [29.55, A.busSeat.seatHeight! - 0.46, 140.5] : [28.4, 0.11, 139];
+/** Root height of a commuter seated on the shelter bench. */
+const BENCH_ROOT_Y = A.busSeat.seatHeight! - 0.46;
+const PLATFORM_Y = 0.11;
+/** Each commuter's own place on the shelter bench, and the kerb spot in front of it. */
+const COMMUTERS: Readonly<Record<string, { seat: CommunityStop; kerb: Vec3Tuple }>> = {
+  'bus-arriving': {
+    seat: stop([29.55, BENCH_ROOT_Y, 140.5], -PI / 2, 0, 'Resting at the shelter', 'break', true),
+    kerb: [28.4, PLATFORM_Y, 140.5],
+  },
+  'bus-departing': {
+    seat: stop([29.55, BENCH_ROOT_Y, 139], -PI / 2, 0, 'Resting at the shelter', 'break', true),
+    kerb: [28.4, PLATFORM_Y, 139],
+  },
+};
+/** Bus phases: the alighting commuter steps off once the doors have opened; the
+ * boarding one stands up as the shuttle comes out of the tunnel, and boards
+ * after the other has stepped clear. */
+const ALIGHT_AT = 1.16;
+const BOARD_AT = 1.52;
+const STAND_AT = BUS_APPROACH_START;
 // Short acceleration/braking ramps preserve the path and timing with a bounded steady walk.
 // Working if endpoints have zero velocity and the middle remains a steady walk.
 const PASSENGER_RAMP = 0.12;
-/** Game hours a passenger takes between the bus door and the shelter. The steady
- * middle of the eased walk runs at 1 / (1 - ramp) of the mean pace, which is
- * the walking speed. */
-export function communityPassengerWalkHours(id: string) {
-  return (
-    (distance(PASSENGER_DOOR, passengerWait(id === 'bus-arriving')) * WALK_HOURS_PER_METRE) /
-    (1 - PASSENGER_RAMP)
-  );
+const easedWalkHours = (from: Vec3Tuple, to: Vec3Tuple) =>
+  (distance(from, to) * WALK_HOURS_PER_METRE) / (1 - PASSENGER_RAMP);
+/** Game hours a commuter takes from the bus door to the bench, or from the kerb
+ * to the door. The steady middle of the eased walk runs at 1 / (1 - ramp) of
+ * the mean pace, which is the walking speed. */
+export function communityPassengerWalkHours(id: string, leg: 'alight' | 'board') {
+  const commuter = COMMUTERS[id] ?? COMMUTERS['bus-arriving'];
+  return leg === 'alight'
+    ? easedWalkHours(PASSENGER_DOOR, commuter.seat.position)
+    : easedWalkHours(commuter.kerb, PASSENGER_DOOR);
 }
-function samplePassenger(id: string, hour: number, out: CommunityPose) {
-  const bus = sampleCommunityBus(hour),
-    p = bus.phase;
-  const arriving = id === 'bus-arriving';
-  const wait = passengerWait(arriving);
-  const door = PASSENGER_DOOR;
-  const from = arriving ? door : wait,
-    to = arriving ? wait : door;
+function easePassenger(t: number) {
   const ramp = PASSENGER_RAMP;
-  const walk = communityPassengerWalkHours(id);
-  const t = Math.max(0, Math.min(1, (p - (arriving ? 1.16 : 1.52)) / walk));
-  const eased =
-    t < ramp
-      ? (t * t) / (2 * ramp * (1 - ramp))
-      : t > 1 - ramp
-        ? 1 - ((1 - t) * (1 - t)) / (2 * ramp * (1 - ramp))
-        : (t - ramp / 2) / (1 - ramp);
+  return t < ramp
+    ? (t * t) / (2 * ramp * (1 - ramp))
+    : t > 1 - ramp
+      ? 1 - ((1 - t) * (1 - t)) / (2 * ramp * (1 - ramp))
+      : (t - ramp / 2) / (1 - ramp);
+}
+/** Which way a commuter uses this run. Two commuters share the rota: the first run
+ * of the day only brings one in, the last only takes one away, and between them
+ * whoever came in on the previous run waits on the bench for the next one. */
+function commuterRole(id: string, hour: number): 'alight' | 'board' | 'away' {
+  const h = communityHour(hour);
+  if (h < 6 || h >= 22) return 'away';
+  const run = Math.floor((h - 6) / 4),
+    index = id === 'bus-arriving' ? 0 : 1;
+  if (run <= 2 && run % 2 === index) return 'alight';
+  if (run >= 1 && (run - 1) % 2 === index) return 'board';
+  return 'away';
+}
+/** Two commuters: each steps off one run, sits on the bench with the same seat
+ * ramps as the mill rests, and boards the next. Working if they only appear or
+ * disappear in the open bus doorway and never pop between standing and seated. */
+function samplePassenger(
+  id: string,
+  hour: number,
+  out: CommunityPose,
+  previousSeat: CommunityPose['seat']
+) {
+  const commuter = COMMUTERS[id] ?? COMMUTERS['bus-arriving'];
+  const { seat, kerb } = commuter;
+  const p = sampleCommunityBus(hour).phase,
+    role = commuterRole(id, hour);
+  let from: Vec3Tuple = PASSENGER_DOOR,
+    to: Vec3Tuple = seat.position,
+    t = 0,
+    support = 0;
+  out.visible = true;
+  out.seated = false;
+  out.rotation = seat.rotation;
+  out.activity = 'idle';
+  out.task = 'Waiting for Route 42';
+  const walk = (a: Vec3Tuple, b: Vec3Tuple, start: number) => {
+    from = a;
+    to = b;
+    t = Math.max(0, Math.min(1, (p - start) / easedWalkHours(a, b)));
+    out.rotation = Math.atan2(b[0] - a[0], b[2] - a[2]);
+    out.activity = 'walking';
+  };
+  const seated = (amount: number) => {
+    from = to = seat.position;
+    out.seated = true;
+    out.rotation = seat.rotation;
+    out.activity = 'break';
+    out.task = seat.task;
+    support = 1;
+    setSeatCue(out, previousSeat, seat, amount, 1);
+  };
+  const riseEnd = STAND_AT + COMMUNITY_SEAT_RAMP.up + COMMUNITY_SEAT_RAMP.standing;
+  if (role === 'away' || (role === 'alight' && p < ALIGHT_AT)) {
+    // Riding, or still on the bus: held in its doorway, out of sight.
+    from = to = PASSENGER_DOOR;
+    out.visible = false;
+    out.rotation = Math.atan2(seat.position[0] - from[0], seat.position[2] - from[2]);
+    out.task = 'Riding Route 42';
+  } else if (role === 'alight') {
+    walk(PASSENGER_DOOR, seat.position, ALIGHT_AT);
+    out.task = 'Leaving the bus';
+    if (t >= 1)
+      seated(smoothSeat((p - ALIGHT_AT - easedWalkHours(from, to)) / COMMUNITY_SEAT_RAMP.down));
+    else {
+      const segment = distance(from, to),
+        window = Math.min(0.6, segment * 0.45),
+        remaining = segment * (1 - easePassenger(t));
+      if (remaining < window) {
+        support = smoothSeat((window - remaining) / (window * 0.75));
+        setSeatCue(out, previousSeat, seat, 0, support);
+      }
+    }
+  } else if (p < STAND_AT) seated(1);
+  else if (p < riseEnd) seated(1 - smoothSeat((p - STAND_AT) / COMMUNITY_SEAT_RAMP.up));
+  else if (p < BOARD_AT) {
+    walk(seat.position, kerb, riseEnd);
+    out.task = 'Waiting for Route 42';
+    if (t >= 1) {
+      out.activity = 'idle';
+      out.rotation = seat.rotation;
+    } else {
+      const segment = distance(from, to),
+        window = Math.min(0.55, segment * 0.45),
+        travelled = segment * easePassenger(t);
+      if (travelled < window) {
+        support = 1 - smoothSeat((travelled - window * 0.4) / (window * 0.6));
+        setSeatCue(out, previousSeat, seat, 0, support);
+      }
+    }
+  } else {
+    walk(kerb, PASSENGER_DOOR, BOARD_AT);
+    out.task = 'Boarding the bus';
+    // Through the doorway and on board.
+    if (t >= 1) {
+      out.visible = false;
+      out.activity = 'idle';
+      out.task = 'Riding Route 42';
+    }
+  }
+  const eased = easePassenger(t);
   for (let i = 0; i < 3; i++) out.position[i] = from[i] + (to[i] - from[i]) * eased;
-  out.visible = bus.visible && (arriving ? p >= 1.16 && p < 3.4 : p < 1.82);
-  out.seated = arriving && t === 1;
   const x = out.position[0];
   const busStep = 0.36 * Math.max(0, Math.min(1, (24.7 - x) / 0.6));
-  const platform = 0.11 * Math.max(0, Math.min(1, (x - 27.25) / 0.2));
-  out.position[1] = out.seated ? A.busSeat.seatHeight! - 0.46 : Math.max(busStep, platform);
-  out.rotation = out.seated ? -PI / 2 : Math.atan2(to[0] - from[0], to[2] - from[2]);
-  out.activity = t > 0 && t < 1 ? 'walking' : out.seated ? 'break' : 'idle';
-  out.task =
-    out.activity === 'walking'
-      ? arriving
-        ? 'Leaving the bus'
-        : 'Boarding the bus'
-      : arriving
-        ? 'Resting at the shelter'
-        : 'Waiting for Route 42';
+  const platform = PLATFORM_Y * Math.max(0, Math.min(1, (x - 27.25) / 0.2));
+  // Seat support settles the root onto the bench height (WorkerModel adds the
+  // bus floor offset back to the soles).
+  out.position[1] = Math.max(busStep, platform) - (PLATFORM_Y - BENCH_ROOT_Y) * support;
 }
 
 function smoothSeat(value: number) {
@@ -814,7 +914,7 @@ export function sampleCommunityPerson(
     return out;
   }
   if (person.district === 'bus') {
-    samplePassenger(person.id, hour, out);
+    samplePassenger(person.id, hour, out, previousSeat);
     return out;
   }
   const h = communityHour(hour),
