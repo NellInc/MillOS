@@ -70,6 +70,10 @@ import type {
   Alarm,
 } from '../scada/types';
 import { useGraphicsStore } from '../stores/graphicsStore';
+import {
+  selectInAppReducedMotion,
+  useMotionPreferenceStore,
+} from '../stores/motionPreferenceStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { processTrendHistory, TREND_QUALITY_SUFFIX, type TrendRow } from '../scada/trendProcessing';
 import { OPERATION_TAG_IDS, UTILITY_ASSET_TAG_IDS } from '../scada/tagDatabase';
@@ -289,7 +293,9 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
   } = useSCADAAlarms();
   const scadaEnabled = useGraphicsStore((state) => state.graphics.enableSCADA);
   const setSCADAEnabled = useGraphicsStore((state) => state.setSCADAEnabled);
-  const reduceMotion = useReducedMotion();
+  // framer's hook reads only the OS media query; the in-app setting is OR'd in.
+  const inAppReducedMotion = useMotionPreferenceStore(selectInAppReducedMotion);
+  const reduceMotion = useReducedMotion() || inAppReducedMotion;
   const t = useT(scadaPanelMessages);
   const locale = useLocale();
   // English keeps the browser default (unchanged output); pt-BR dates and times follow pt-BR.

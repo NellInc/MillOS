@@ -112,6 +112,21 @@
       animation: none !important;
     }
   }
+
+  /* The in-app Reduce motion setting (motionPreferenceStore sets the
+     attribute). Same rules as the media query above. */
+  html[data-motion='reduce'] *,
+  html[data-motion='reduce'] *::before,
+  html[data-motion='reduce'] *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  html[data-motion='reduce'] .animate-pulse {
+    animation: none !important;
+  }
 }
 
 @layer components {
@@ -194,6 +209,11 @@
   ::view-transition-new(*) {
     animation: none !important;
   }
+}
+html[data-motion='reduce']::view-transition-group(*),
+html[data-motion='reduce']::view-transition-old(*),
+html[data-motion='reduce']::view-transition-new(*) {
+  animation: none !important;
 }
 
 @layer utilities {

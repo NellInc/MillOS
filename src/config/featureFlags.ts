@@ -60,6 +60,18 @@ export const FEATURE_FLAGS = {
 
   /** Chaos-weighted announcements during high chaos */
   PA_CHAOS_SCALING_ENABLED: true,
+
+  // =========================================================================
+  // ACCESSIBILITY
+  // =========================================================================
+
+  /** In-app "Reduce motion" setting (Settings, Interface accessibility).
+   * Gates the control AND every reader of the in-app mode
+   * (`selectInAppReducedMotion`), so one flip turns the whole feature on.
+   * Off until `src/hooks/useReducedMotion.ts` also reads the store: without
+   * it the 3D scene would ignore the setting while the interface honoured
+   * it. The OS `prefers-reduced-motion` setting is honoured either way. */
+  IN_APP_REDUCED_MOTION_ENABLED: false,
 };
 
 /** Anonymous, locally rendered people inhabit the site. Autonomous testing was

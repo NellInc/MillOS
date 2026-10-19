@@ -86,6 +86,11 @@ export const settingsPanelMessages = defineMessages({
     interfaceScale: 'Interface scale',
     interfaceScaleHelp:
       'Makes controls and text larger without reducing the 3D render resolution. Browser zoom and OS text size still work as expected.',
+    reduceMotion: 'Reduce motion',
+    reduceMotionSystem: 'Follow system',
+    reduceMotionOn: 'On',
+    reduceMotionHelp:
+      'Follow system uses your device setting. On holds people and decorative loops still and cuts camera and panel animations; plant equipment keeps moving because its motion shows its state.',
 
     diagnosticReplay: 'Diagnostic replay',
     diagnosticReplayHelp:
@@ -104,6 +109,8 @@ export const settingsPanelMessages = defineMessages({
     resetEverything: 'Reset Everything',
     resetFullMessage:
       'Wipe everything — saved progress, graphics settings, your saved AI preferences — and reload from scratch. Sound and language settings are kept. There is no undo.',
+    resetFullMessageWithMotion:
+      'Wipe everything — saved progress, graphics settings, your saved AI preferences — and reload from scratch. Sound, language and motion settings are kept. There is no undo.',
 
     toggleOn: 'On',
     toggleOff: 'Off',
@@ -178,6 +185,11 @@ export const settingsPanelMessages = defineMessages({
     interfaceScale: 'Escala da interface',
     interfaceScaleHelp:
       'Aumenta controles e textos sem reduzir a resolução da renderização 3D. O zoom do navegador e o tamanho de texto do sistema continuam funcionando normalmente.',
+    reduceMotion: 'Reduzir movimento',
+    reduceMotionSystem: 'Seguir o sistema',
+    reduceMotionOn: 'Ligado',
+    reduceMotionHelp:
+      'Seguir o sistema usa a configuração do seu dispositivo. Ligado deixa pessoas e animações decorativas paradas e corta as animações de câmera e de painéis; os equipamentos da fábrica continuam se movendo porque o movimento mostra o estado deles.',
 
     diagnosticReplay: 'Reprodução de diagnóstico',
     diagnosticReplayHelp:
@@ -196,6 +208,8 @@ export const settingsPanelMessages = defineMessages({
     resetEverything: 'Apagar tudo',
     resetFullMessage:
       'Apaga tudo (progresso salvo, configurações gráficas, suas preferências de IA salvas) e recarrega do zero. As configurações de som e idioma são mantidas. Não é possível desfazer.',
+    resetFullMessageWithMotion:
+      'Apaga tudo (progresso salvo, configurações gráficas, suas preferências de IA salvas) e recarrega do zero. As configurações de som, idioma e movimento são mantidas. Não é possível desfazer.',
 
     toggleOn: 'Ligado',
     toggleOff: 'Desligado',

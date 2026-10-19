@@ -2,6 +2,10 @@ import React from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { OctagonX, Siren } from 'lucide-react';
 import { useSafetyStore } from '../stores/safetyStore';
+import {
+  selectInAppReducedMotion,
+  useMotionPreferenceStore,
+} from '../stores/motionPreferenceStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useT } from '../i18n';
 import { emergencyOverlayMessages } from './EmergencyOverlay.messages';
@@ -13,7 +17,9 @@ export const EmergencyOverlay: React.FC = () => {
   const forkliftEmergencyStop = useSafetyStore((state) => state.forkliftEmergencyStop);
   const emergencyActive = useGameSimulationStore((state) => state.emergencyActive);
   const emergencyDrillMode = useGameSimulationStore((state) => state.emergencyDrillMode);
-  const reduceMotion = useReducedMotion();
+  // framer's hook reads only the OS media query; the in-app setting is OR'd in.
+  const inAppReducedMotion = useMotionPreferenceStore(selectInAppReducedMotion);
+  const reduceMotion = useReducedMotion() || inAppReducedMotion;
 
   // Either emergency type triggers the overlay
   const isEmergency = forkliftEmergencyStop || emergencyActive;

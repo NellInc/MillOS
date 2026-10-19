@@ -1,5 +1,6 @@
 import React from 'react';
-import { AnimatePresence, MotionConfig, motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
+import { AppMotionConfig } from './AppMotionConfig';
 import { X } from 'lucide-react';
 import { GameInterface } from './ui-new/GameInterface';
 import { ProductionTargetWidget } from './ProductionTargetWidget';
@@ -74,7 +75,7 @@ export const DeferredOperationalUI: React.FC<DeferredOperationalUIProps> = ({
 }) => {
   const t = useT(deferredOperationalUIMessages);
   return (
-    <MotionConfig reducedMotion="user">
+    <AppMotionConfig>
       {enableAudioReactive && <AudioReactiveProvider />}
 
       <GameInterface
@@ -179,7 +180,7 @@ export const DeferredOperationalUI: React.FC<DeferredOperationalUIProps> = ({
       <CostEstimationOverlay />
       <WeatherEffectsOverlay />
       <RotateDeviceOverlay visible={isMobile && !isLandscape} />
-    </MotionConfig>
+    </AppMotionConfig>
   );
 };
 

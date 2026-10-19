@@ -10,6 +10,10 @@ import { importWithBoundedRetry } from '../utils/recoverableLazy';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import ErrorBoundary from './ErrorBoundary';
 import { useGraphicsStore } from '../stores/graphicsStore';
+import {
+  selectInAppReducedMotion,
+  useMotionPreferenceStore,
+} from '../stores/motionPreferenceStore';
 import { useT } from '../i18n';
 import { loadingScreenMessages } from './LoadingScreen.messages';
 
@@ -40,9 +44,11 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
   const [minimumTimePassed, setMinimumTimePassed] = useState(false);
   const [showRecovery, setShowRecovery] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
-  const [reducedMotion, setReducedMotion] = useState(
+  const [osReducedMotion, setReducedMotion] = useState(
     () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
   );
+  const inAppReducedMotion = useMotionPreferenceStore(selectInAppReducedMotion);
+  const reducedMotion = osReducedMotion || inAppReducedMotion;
   const loadingRef = useRef<HTMLDivElement>(null);
   // Loading owns keyboard focus until readiness; Escape cannot skip preparation.
   // Working if Tab stays on the cover until an explicit recovery control is available.
