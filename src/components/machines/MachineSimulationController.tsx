@@ -3,7 +3,7 @@ import { storeOwnedLoad } from '../../simulation/machineLoad';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { MachineData } from '../../types';
-import { useProductionStore } from '../../stores/productionStore';
+import { useProductionStore, wearHoldsWarning } from '../../stores/productionStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { centralTick } from '../../systems/CentralTickSystem';
 import {
@@ -24,7 +24,7 @@ const RUNNING_VIBRATION_MM_S: Record<string, number> = {
   CONTROL_ROOM: 0.3,
 };
 
-function updateOfflineMachineMetrics() {
+export function updateOfflineMachineMetrics() {
   const {
     machines: storeMachines,
     batchUpdateMachineMetrics,
@@ -93,7 +93,7 @@ function updateOfflineMachineMetrics() {
     } else if (machine.status === 'warning') {
       if (newTemperature > 80 || newVibration > 8) {
         updateMachineStatus(machine.id, 'critical');
-      } else if (newTemperature < 55 && newVibration < 3.5) {
+      } else if (newTemperature < 55 && newVibration < 3.5 && !wearHoldsWarning(machine)) {
         updateMachineStatus(machine.id, 'running');
       }
     } else if (machine.status === 'critical' && newTemperature < 40 && newVibration < 2) {

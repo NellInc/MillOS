@@ -857,3 +857,47 @@ it('points a linked campaign hold at the working agreement controls that can fin
   expect(screen.getByLabelText('Active customer commitment', { exact: false })).toBeDisabled();
   expect(screen.getByText(/Review working agreement opens Autonomy/)).toBeInTheDocument();
 });
+
+it('routes a stopped machine to Mill Overview, Maintenance as Attention, not Blocked', () => {
+  useOperationsCampaignStore.setState({
+    constraints: [
+      {
+        id: 'maintenance-queue',
+        severity: 'warning',
+        label: 'Machine stopped for repair',
+        detail: 'Pack Line 1 is down on work order wo-00001.',
+        relatedId: 'packer-0',
+      },
+    ],
+  });
+  const handler = vi.fn();
+  window.addEventListener('millos:open-operations-workspace', handler);
+  render(<OperationsPlayCard />);
+  expect(screen.getByText(/^Attention: Machine stopped for repair\./)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Repair the stopped machine in Overview' }));
+  expect(handler.mock.calls[0][0].detail).toBe('overview');
+  expect(useUIStore.getState().maintenanceFocusRequested).toBe(true);
+  window.removeEventListener('millos:open-operations-workspace', handler);
+});
+
+it('shows on the shift card what each failure is costing and what this shift has paid', () => {
+  render(<OperationsPlayCard />);
+  expect(screen.queryByRole('group', { name: 'Failure costs' })).not.toBeInTheDocument();
+  act(() => {
+    useOperationsCampaignStore.setState((state) => ({
+      costRates: { maintenance: 90, demurrage: 120, late: 15 },
+      shiftMetrics: {
+        ...state.shiftMetrics,
+        latePenalties: 40,
+        maintenanceCost: 30,
+        demurrageCost: 20,
+      },
+    }));
+  });
+  const costs = screen.getByRole('group', { name: 'Failure costs' });
+  expect(costs).toHaveTextContent('Late delivery: £15.00 per game hour');
+  expect(costs).toHaveTextContent('Open work orders: £90.00 per game hour');
+  expect(costs).toHaveTextContent('Truck held at the dock: £120.00 per game hour');
+  expect(costs).toHaveTextContent('This shift so far: £90 in');
+  expect(costs).toHaveTextContent(/late and quality penalties/);
+});

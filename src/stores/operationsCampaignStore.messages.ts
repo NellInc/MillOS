@@ -86,9 +86,18 @@ export const operationsCampaignMessages = defineMessages({
     constraintDispatchLabel: 'Dispatch isolated',
     constraintDispatchDetail:
       'An active incident requires the shipping quality gate to remain closed.',
-    constraintMaintenanceLabel: 'Maintenance queue',
+    constraintMaintenanceLabel: 'Machine stopped for repair',
     constraintMaintenanceDetail: (p: { count: number; countText: string }) =>
-      `${p.countText} autonomous work order${p.count === 1 ? '' : 's'} open.`,
+      `${p.countText} work order${p.count === 1 ? '' : 's'} open. Open Mill Overview, Maintenance to dispatch service, verify the repair and restart.`,
+    constraintMachineDownDetail: (p: {
+      machine: string;
+      workOrderId: string;
+      others: number;
+      othersText: string;
+    }) =>
+      `${p.machine} is stopped on work order ${p.workOrderId}${
+        p.others > 0 ? `, with ${p.othersText} more open` : ''
+      }. Open Mill Overview, Maintenance to dispatch service, verify the repair and restart it.`,
   },
   'pt-BR': {
     recipeStrongWhite: 'Farinha de trigo forte para pão',
@@ -174,10 +183,21 @@ export const operationsCampaignMessages = defineMessages({
     constraintDispatchLabel: 'Expedição isolada',
     constraintDispatchDetail:
       'Uma ocorrência ativa exige que a barreira de qualidade da expedição permaneça fechada.',
-    constraintMaintenanceLabel: 'Fila de manutenção',
+    constraintMaintenanceLabel: 'Máquina parada para reparo',
     constraintMaintenanceDetail: (p: { count: number; countText: string }) =>
-      p.count === 1
-        ? `${p.countText} ordem de serviço autônoma aberta.`
-        : `${p.countText} ordens de serviço autônomas abertas.`,
+      `${
+        p.count === 1
+          ? `${p.countText} ordem de serviço aberta.`
+          : `${p.countText} ordens de serviço abertas.`
+      } Abra Visão geral do moinho, Manutenção para enviar a equipe, verificar o reparo e reiniciar.`,
+    constraintMachineDownDetail: (p: {
+      machine: string;
+      workOrderId: string;
+      others: number;
+      othersText: string;
+    }) =>
+      `A máquina ${p.machine} está parada na ordem de serviço ${p.workOrderId}${
+        p.others > 0 ? `, com mais ${p.othersText} em aberto` : ''
+      }. Abra Visão geral do moinho, Manutenção para enviar a equipe, verificar o reparo e reiniciá-la.`,
   },
 });

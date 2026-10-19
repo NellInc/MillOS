@@ -274,11 +274,14 @@ it.each([STANDARD_GAME_SPEED, 120])(
 it('improves worn-machine quality through real preventive service and parts consumption', () => {
   // Wear runs on game time, so operate whole programmes until a unit has worn;
   // the old 180x clock did this in two only because deadlines outran the line.
+  // Product quality reads the running mills, sifters and packers; a silo
+  // (Silo Alpha starts part-worn) stores grain and does not change it.
+  const wornOnProductPath = (m: MachineData) =>
+    m.type !== MachineType.SILO && m.metrics.efficiency < 100;
   completeProgramme();
   for (
     let programme = 0;
-    programme < 8 &&
-    !useProductionStore.getState().machines.some((m) => m.metrics.efficiency < 100);
+    programme < 8 && !useProductionStore.getState().machines.some(wornOnProductPath);
     programme++
   ) {
     expect(useOperationsCampaignStore.getState().acceptNextProgramme()).toBe(true);
@@ -288,7 +291,7 @@ it('improves worn-machine quality through real preventive service and parts cons
   const qualityBefore = production.metrics.quality;
   const materialBefore = useMaterialFlowStore.getState().getMaterialBalance();
   const partsBefore = { ...useBreakdownStore.getState().partsInventory };
-  const worn = production.machines.filter((m) => m.metrics.efficiency < 100);
+  const worn = production.machines.filter(wornOnProductPath);
   expect(worn.length).toBeGreaterThan(0);
   for (const machine of worn) {
     const parts = useBreakdownStore.getState();

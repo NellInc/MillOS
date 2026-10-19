@@ -6,6 +6,7 @@ import {
   AIDecision,
   ProductionTarget,
   type AIDecisionDisposition,
+  type MaintenanceRecord,
 } from '../types';
 import { useHistoricalPlaybackStore } from './historicalPlaybackStore';
 import { useMaterialFlowStore } from './materialFlowStore';
@@ -16,6 +17,9 @@ import { useIncidentReplayStore, type IncidentReplayStore } from './incidentRepl
 import { useTruckScheduleStore, type TruckScheduleStore } from './truckScheduleStore';
 import { useUIStore } from './uiStore';
 import { useBreakdownStore } from './breakdownStore';
+// Read only inside performMaintenance (game-clock service dates), never at
+// module evaluation, so the import cycle with gameSimulationStore is inert.
+import { useGameSimulationStore } from './gameSimulationStore';
 import { formatFixed, translate } from '../i18n';
 import { productionStoreMessages } from './productionStore.messages';
 import { bagsPerGameHour } from '../simulation/pace';
@@ -211,6 +215,24 @@ export function calculateEfficiency(wear: number, machineType: string): number {
   const wearInRange = wear - config.warningThreshold * 0.5;
   const degradation = Math.min(1, wearInRange / degradationRange);
   return Math.round((1 - degradation * 0.4) * 100);
+}
+
+/** Service records kept per machine; machines are saved with the session. */
+const MAX_MAINTENANCE_RECORDS = 10;
+
+/**
+ * True while wear alone keeps a machine at or above its warning threshold.
+ * Restarting or cooling such a machine does not clear the warning; only
+ * maintenance does. Shared by every writer of the warning status so the wear
+ * tick and the offline metrics model never flip it back and forth.
+ */
+export function wearHoldsWarning(machine: Pick<MachineData, 'type' | 'metrics'>): boolean {
+  const wear = machine.metrics?.wear;
+  return (
+    typeof wear === 'number' &&
+    Number.isFinite(wear) &&
+    wear >= getWearConfig(machine.type).warningThreshold
+  );
 }
 
 function updateMachinesForTick(
@@ -943,6 +965,40 @@ export const useProductionStore = create<ProductionStore>()(
         newStatus = machine.status === 'idle' ? 'idle' : 'running';
       }
 
+      // Every service leaves a record on the game clock, newest first, so the
+      // inspector's log shows what was done. One write here covers the
+      // inspector, the maintenance schedule and the work-order restart.
+      const clock = useGameSimulationStore.getState();
+      const day = Number.isFinite(clock.gameDay) ? Math.max(1, Math.floor(clock.gameDay)) : 1;
+      const minuteOfDay = Number.isFinite(clock.gameTime)
+        ? Math.floor((((clock.gameTime % 24) + 24) % 24) * 60 + 1e-6)
+        : 0;
+      const history = machine.maintenanceHistory ?? [];
+      const baseId = `${machineId}-svc-${day}-${minuteOfDay}`;
+      let recordId = baseId;
+      for (let n = 2; history.some((entry) => entry.id === recordId); n += 1)
+        recordId = `${baseId}-${n}`;
+      const wearNote = translate(productionStoreMessages, 'maintenanceResultWearReduced', {
+        from: formatFixed(currentWear, 1),
+        to: formatFixed(newWear, 1),
+      });
+      const record: MaintenanceRecord = {
+        id: recordId,
+        date: translate(productionStoreMessages, 'maintenanceRecordDate', {
+          day: formatFixed(day, 0),
+          time: `${String(Math.floor(minuteOfDay / 60)).padStart(2, '0')}:${String(minuteOfDay % 60).padStart(2, '0')}`,
+        }),
+        type: authorizedRestart ? 'corrective' : 'preventive',
+        serviceUnit: authorizedRestart
+          ? (restartWorkOrderId ?? '')
+          : translate(productionStoreMessages, 'maintenanceRecordRoutineUnit'),
+        notes: authorizedRestart
+          ? translate(productionStoreMessages, 'maintenanceRecordRestartNote', { wear: wearNote })
+          : `${wearNote}.`,
+        duration: 0,
+      };
+      const maintenanceHistory = [record, ...history].slice(0, MAX_MAINTENANCE_RECORDS);
+
       // Update machine state
       set((state) => ({
         machines: state.machines.map((m) =>
@@ -951,6 +1007,7 @@ export const useProductionStore = create<ProductionStore>()(
                 ...m,
                 status: newStatus,
                 lastMaintenance: new Date().toISOString(),
+                maintenanceHistory,
                 metrics: {
                   ...m.metrics,
                   wear: Math.round(newWear * 100) / 100,

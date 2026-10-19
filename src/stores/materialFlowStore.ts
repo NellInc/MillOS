@@ -101,6 +101,13 @@ export interface ProductionBatch {
   qcTestIds: string[];
   dispatchManifestIds: string[];
   sealed: boolean;
+  /** Mass scrapped when the batch was recalled. Absent on batches never recalled. */
+  writtenOffKg?: number;
+  /**
+   * Product quality score (0-100) of the flour in this batch, averaged over the
+   * mass as it was packed. Absent on batches saved before it was recorded.
+   */
+  qualityScore?: number;
 }
 
 export interface ProcessGenealogyRecord {
@@ -273,7 +280,9 @@ export interface MaterialFlowState {
   tickMaterialFlow: (
     deltaSeconds: number,
     productionSpeed: number,
-    productionPlan?: MaterialFlowProductionPlan
+    productionPlan?: MaterialFlowProductionPlan,
+    /** Quality score (0-100) of product packed this tick; stamped on its batch. */
+    productQuality?: number
   ) => void;
   /**
    * Couple machine status to flow: stopped/idle/critical machines stop
@@ -450,6 +459,65 @@ function mergeProductBatchContributions(
   current?.forEach(merge);
   additions?.forEach(merge);
   return [...merged.entries()].map(([batchId, amount]) => ({ batchId, amount }));
+}
+
+/**
+ * A recall is terminal, so the recalled mass is scrapped where it sits: drained
+ * from packer output the way shipFinishedGoods drains it, and booked as waste
+ * with its source genealogy. Kept in the buffer, it held a fifth of a packer's
+ * capacity for the rest of the session. Working if both balances stay closed
+ * and the batch reads 'recalled' with no available mass.
+ */
+function writeOffRecalledMass(
+  state: Pick<MaterialFlowState, 'machineBuffers' | 'wasteKg' | 'wasteSourceContributions'>,
+  productionBatches: ProductionBatch[],
+  batchIds: ReadonlySet<string>
+): Pick<MaterialFlowState, 'machineBuffers' | 'wasteKg' | 'wasteSourceContributions'> | null {
+  if (batchIds.size === 0) return null;
+  const machineBuffers = new Map(state.machineBuffers);
+  let wasteKg = state.wasteKg;
+  let wasteSourceContributions = state.wasteSourceContributions;
+  machineBuffers.forEach((buffer, machineId) => {
+    if (!buffer.outputBuffer.some((m) => m.productBatches?.some((p) => batchIds.has(p.batchId))))
+      return;
+    const outputBuffer = buffer.outputBuffer.map((material) => {
+      if (!material.productBatches?.some((p) => batchIds.has(p.batchId))) return material;
+      let amount = material.amount;
+      let sourceContributions = cloneSourceContributions(material.sourceContributions);
+      const productBatches = material.productBatches.map((p) => ({ ...p }));
+      for (const contribution of productBatches) {
+        const batch = batchIds.has(contribution.batchId)
+          ? productionBatches.find((candidate) => candidate.id === contribution.batchId)
+          : undefined;
+        if (!batch) continue;
+        const writtenOff = Math.min(contribution.amount, batch.availableKg);
+        if (writtenOff <= 0) continue;
+        const sources = scaleSourceContributions(
+          batch.sourceContributions,
+          batch.producedKg > 0 ? writtenOff / batch.producedKg : 0
+        );
+        amount -= writtenOff;
+        contribution.amount -= writtenOff;
+        sourceContributions = subtractSourceContributions(sourceContributions, sources);
+        wasteSourceContributions = mergeSourceContributions(wasteSourceContributions, sources);
+        wasteKg += writtenOff;
+        batch.availableKg -= writtenOff;
+        batch.writtenOffKg = (batch.writtenOffKg ?? 0) + writtenOff;
+        if (batch.availableKg <= GENEALOGY_EPSILON_KG) batch.availableKg = 0;
+      }
+      return {
+        ...material,
+        amount,
+        sourceContributions,
+        productBatches: productBatches.filter((p) => p.amount > GENEALOGY_EPSILON_KG),
+      };
+    });
+    machineBuffers.set(machineId, {
+      ...buffer,
+      outputBuffer: outputBuffer.filter((material) => material.amount > GENEALOGY_EPSILON_KG),
+    });
+  });
+  return { machineBuffers, wasteKg, wasteSourceContributions };
 }
 
 function openingMaterial(machineId: string, type: MaterialType, amount: number): MaterialAmount {
@@ -735,7 +803,7 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
       processSequence: 0,
       simulationTime: 0,
 
-      tickMaterialFlow: (deltaSeconds, productionSpeed, productionPlan) => {
+      tickMaterialFlow: (deltaSeconds, productionSpeed, productionPlan, productQuality) => {
         if (
           !Number.isFinite(deltaSeconds) ||
           !Number.isFinite(productionSpeed) ||
@@ -955,6 +1023,14 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
               sourceContributions,
               amountKg > 0 ? portion / amountKg : 0
             );
+            // Mass-weighted, so a batch carries the quality its flour was
+            // made at rather than whatever the plant reads when it ships.
+            if (productQuality !== undefined && Number.isFinite(productQuality)) {
+              const previousKg = batch.producedKg;
+              batch.qualityScore =
+                ((batch.qualityScore ?? productQuality) * previousKg + productQuality * portion) /
+                Math.max(GENEALOGY_EPSILON_KG, previousKg + portion);
+            }
             batch.producedKg += portion;
             batch.availableKg += portion;
             batch.sourceContributions = mergeSourceContributions(
@@ -1581,14 +1657,17 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
       setBatchDisposition: (batchIds, disposition, reason, qcTestId) => {
         const requested = new Set(batchIds);
         const changed: string[] = [];
-        set((state) => ({
-          productionBatches: state.productionBatches.map((batch) => {
+        set((state) => {
+          const newlyRecalled = new Set<string>();
+          const productionBatches = state.productionBatches.map((batch) => {
             if (!requested.has(batch.id) || batch.disposition === 'shipped') return batch;
             // A recall is a terminal product disposition. A later passing retest
             // may release a hold, but must never reverse a recall - not even in
             // two steps (recalled -> hold -> released).
             if (batch.disposition === 'recalled' && disposition !== 'recalled') return batch;
             changed.push(batch.id);
+            if (disposition === 'recalled' && batch.disposition !== 'recalled')
+              newlyRecalled.add(batch.id);
             return {
               ...batch,
               disposition,
@@ -1599,8 +1678,12 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
                   ? [...batch.qcTestIds, qcTestId]
                   : batch.qcTestIds,
             };
-          }),
-        }));
+          });
+          return {
+            productionBatches,
+            ...writeOffRecalledMass(state, productionBatches, newlyRecalled),
+          };
+        });
         return changed;
       },
 
@@ -1616,6 +1699,7 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
             sourceLots.set(lotId, { ...lot, disposition, dispositionReason: reason });
           }
 
+          const newlyRecalled = new Set<string>();
           const productionBatches = state.productionBatches.map((batch) => {
             if (batch.disposition === 'shipped' || batch.disposition === 'recalled') return batch;
             if (!batch.sourceContributions.some((source) => requested.has(source.lotId)))
@@ -1629,6 +1713,7 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
                 ? 'hold'
                 : disposition;
             affectedBatchIds.push(batch.id);
+            if (nextDisposition === 'recalled') newlyRecalled.add(batch.id);
             return {
               ...batch,
               disposition: nextDisposition,
@@ -1636,7 +1721,11 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
               sealed: batch.sealed || nextDisposition !== 'released',
             };
           });
-          return { sourceLots, productionBatches };
+          return {
+            sourceLots,
+            productionBatches,
+            ...writeOffRecalledMass(state, productionBatches, newlyRecalled),
+          };
         });
         return affectedBatchIds;
       },

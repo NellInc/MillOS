@@ -477,6 +477,59 @@ describe('autonomous operations programme', () => {
     expect(useOperationsCampaignStore.getState().challengeHistory.at(-1)?.status).toBe('failed');
   });
 
+  it('publishes what each failure is costing per game hour, from the same formula it books', () => {
+    const store = useOperationsCampaignStore.getState();
+    const late = { ...store.orders[0], status: 'late' as const, shippedKg: 1000 };
+    useOperationsCampaignStore.setState({ orders: [late, ...store.orders.slice(1)] });
+    const before = useOperationsCampaignStore.getState().economics;
+    store.tickCampaign(
+      3600,
+      context({ openWorkOrders: 2, shippingDocked: true, dispatchReleased: false })
+    );
+    const after = useOperationsCampaignStore.getState();
+    const lateRate = (late.requiredKg - late.shippedKg) * late.latePenaltyPerKgHour;
+    expect(after.costRates).toEqual({ maintenance: 180, demurrage: 120, late: lateRate });
+    expect(after.economics.maintenanceCost - before.maintenanceCost).toBeCloseTo(180, 6);
+    expect(after.economics.demurrageCost - before.demurrageCost).toBeCloseTo(120, 6);
+    expect(after.economics.latePenalties - before.latePenalties).toBeCloseTo(lateRate, 6);
+    // An unchanged rate keeps its reference, so the card does not re-render each tick.
+    const rates = after.costRates;
+    store.tickCampaign(
+      1,
+      context({ openWorkOrders: 2, shippingDocked: true, dispatchReleased: false })
+    );
+    expect(useOperationsCampaignStore.getState().costRates).toBe(rates);
+    store.tickCampaign(1, context());
+    expect(useOperationsCampaignStore.getState().costRates).toMatchObject({
+      maintenance: 0,
+      demurrage: 0,
+    });
+  });
+
+  it('judges a shipped batch by the quality it was made at, not the plant reading at dispatch', () => {
+    const store = useOperationsCampaignStore.getState();
+    store.tickCampaign(
+      60,
+      context({
+        manifests: [shippingManifest],
+        productionBatches: [{ ...flourBatch, qualityScore: 99 }],
+        averageQuality: 90,
+      })
+    );
+    expect(useOperationsCampaignStore.getState().orders[0].qualityFailureKg).toBe(0);
+
+    store.resetCampaign();
+    store.tickCampaign(
+      60,
+      context({
+        manifests: [shippingManifest],
+        productionBatches: [{ ...flourBatch, qualityScore: 93 }],
+        averageQuality: 99,
+      })
+    );
+    expect(useOperationsCampaignStore.getState().orders[0].qualityFailureKg).toBeGreaterThan(0);
+  });
+
   it('caps period grading for unsafe recovery and quality failures with causal reasons', () => {
     const store = useOperationsCampaignStore.getState();
     store.triggerIncident('bearing_overheat');

@@ -100,6 +100,18 @@ export interface CampaignEconomics {
   latePenalties: number;
 }
 
+/** Failure costs accruing right now, per game hour; written by the tick that books them. */
+export interface CampaignCostRates {
+  maintenance: number;
+  demurrage: number;
+  late: number;
+}
+/** Each open work order costs this per game hour while its machine is down. */
+export const MAINTENANCE_COST_PER_WORK_ORDER_HOUR = 90;
+/** A docked shipping truck held by quality or isolation costs this per game hour. */
+export const DEMURRAGE_COST_PER_HOUR = 120;
+const ZERO_COST_RATES: CampaignCostRates = { maintenance: 0, demurrage: 0, late: 0 };
+
 export interface ShiftCampaignMetrics extends CampaignEconomics {
   dispatchedKg: number;
   qualityFailureKg: number;
@@ -251,6 +263,8 @@ export interface CampaignTickContext {
   releasedFinishedKg: number;
   dispatchLoad: DispatchLoadSnapshot;
   openWorkOrders: number;
+  /** The oldest open work order, so the shift card can name the stopped machine. */
+  openWorkOrder?: { id: string; machineId: string; machineName: string } | null;
   /** The order the line is producing for this tick (see LineProductionPlan). */
   lineOrderId?: string | null;
   lineCustomer?: string | null;
@@ -285,6 +299,8 @@ interface OperationsCampaignState {
   incidents: OperationalIncident[];
   economics: CampaignEconomics;
   shiftMetrics: ShiftCampaignMetrics;
+  /** Instantaneous; not persisted. Reference is kept while the rates are unchanged. */
+  costRates: CampaignCostRates;
   reports: ShiftCampaignReport[];
   logbook: CampaignLogEntry[];
   constraints: CampaignConstraint[];
@@ -748,6 +764,7 @@ function emptyState() {
     incidents: [] as OperationalIncident[],
     economics: { ...ZERO_ECONOMICS },
     shiftMetrics: { ...ZERO_SHIFT_METRICS },
+    costRates: ZERO_COST_RATES,
     reports: [] as ShiftCampaignReport[],
     logbook: [] as CampaignLogEntry[],
     constraints: [] as CampaignConstraint[],
@@ -973,16 +990,28 @@ function makeConstraints(
         )?.id ?? null,
     });
   }
+  // An open work order is a stopped machine: every phase short of
+  // returned_to_service keeps it locked out. It reads as Attention, never as a
+  // background note the shift card drops. Working if the card names the machine
+  // and the repair becomes the next action.
   if (context.openWorkOrders > 0) {
+    const order = context.openWorkOrder;
     constraints.push({
       id: 'maintenance-queue',
-      severity: context.openWorkOrders > 3 ? 'warning' : 'info',
+      severity: 'warning',
       label: translate(messages, 'constraintMaintenanceLabel'),
-      detail: translate(messages, 'constraintMaintenanceDetail', {
-        count: context.openWorkOrders,
-        countText: formatFixed(context.openWorkOrders, 0),
-      }),
-      relatedId: null,
+      detail: order
+        ? translate(messages, 'constraintMachineDownDetail', {
+            machine: order.machineName,
+            workOrderId: order.id,
+            others: context.openWorkOrders - 1,
+            othersText: formatFixed(context.openWorkOrders - 1, 0),
+          })
+        : translate(messages, 'constraintMaintenanceDetail', {
+            count: context.openWorkOrders,
+            countText: formatFixed(context.openWorkOrders, 0),
+          }),
+      relatedId: order?.machineId ?? null,
     });
   }
   return constraints;
@@ -1559,7 +1588,12 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
                 allocatedManifestKg += allocated;
                 if (!order.batchIds.includes(product.batchId)) order.batchIds.push(product.batchId);
                 if (!order.manifestIds.includes(manifest.id)) order.manifestIds.push(manifest.id);
-                if (context.averageQuality < order.recipe.minimumQuality) {
+                // Each batch is judged at the quality it was packed at; batches
+                // saved before that was recorded fall back to the plant reading.
+                const shippedQuality = Number.isFinite(batch.qualityScore)
+                  ? (batch.qualityScore as number)
+                  : context.averageQuality;
+                if (shippedQuality < order.recipe.minimumQuality) {
                   order.qualityFailureKg += allocated;
                   shiftMetrics.qualityFailureKg = (shiftMetrics.qualityFailureKg ?? 0) + allocated;
                   economics.latePenalties += allocated * 0.08;
@@ -1690,20 +1724,31 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
               ? context.wasteKg
               : context.wasteKg - state.lastWasteKg;
           const wasteCost = Math.max(0, newWasteKg) * 0.18;
-          const maintenanceCost = context.openWorkOrders * 90 * deltaHours;
-          const demurrageCost =
-            context.shippingDocked && (!context.dispatchReleased || incidentEffect.dispatchBlocked)
-              ? 120 * deltaHours
-              : 0;
-          const latePenalties = orders.reduce((sum, order) => {
-            if (order.status !== 'late') return sum;
-            return (
-              sum +
-              Math.max(0, order.requiredKg - order.shippedKg) *
-                order.latePenaltyPerKgHour *
-                deltaHours
-            );
-          }, 0);
+          // Rates first, so the cost the card shows per game hour and the cost
+          // booked here can never disagree.
+          const rates: CampaignCostRates = {
+            maintenance: context.openWorkOrders * MAINTENANCE_COST_PER_WORK_ORDER_HOUR,
+            demurrage:
+              context.shippingDocked &&
+              (!context.dispatchReleased || incidentEffect.dispatchBlocked)
+                ? DEMURRAGE_COST_PER_HOUR
+                : 0,
+            late: orders.reduce((sum, order) => {
+              if (order.status !== 'late') return sum;
+              return (
+                sum + Math.max(0, order.requiredKg - order.shippedKg) * order.latePenaltyPerKgHour
+              );
+            }, 0),
+          };
+          const costRates =
+            rates.maintenance === state.costRates?.maintenance &&
+            rates.demurrage === state.costRates?.demurrage &&
+            Math.abs(rates.late - (state.costRates?.late ?? Number.NaN)) < 1e-9
+              ? state.costRates
+              : rates;
+          const maintenanceCost = rates.maintenance * deltaHours;
+          const demurrageCost = rates.demurrage * deltaHours;
+          const latePenalties = rates.late * deltaHours;
           // Exposure is read at the start of the tick: an order fulfilled by
           // this tick's manifest was still owed while the tick ran.
           if (
@@ -1839,6 +1884,7 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
             activeOrderId,
             economics,
             shiftMetrics,
+            costRates,
             reports,
             logbook,
             constraints,

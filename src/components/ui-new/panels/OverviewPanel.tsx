@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, Suspense, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, Suspense, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { PACE_GAME_SPEEDS, STANDARD_GAME_SPEED } from '../../../simulation/pace';
 import { paceMessages } from '../../../simulation/pace.messages';
@@ -32,7 +32,7 @@ import { saveScenePng } from '../../../utils/sceneCapture';
 import { useUIStore } from '../../../stores/uiStore';
 import { useHistoricalPlaybackStore } from '../../../stores/historicalPlaybackStore';
 import { useMaterialFlowStore } from '../../../stores/materialFlowStore';
-import { useQCLabStore, type QCTestType } from '../../../stores/qcLabStore';
+import { useQCLabStore, type QCGrade, type QCTestType } from '../../../stores/qcLabStore';
 import { useShallow } from 'zustand/react/shallow';
 import { AchievementsPanel } from '../../GameFeatures';
 import { TimelinePlayback } from '../../ui/TimelinePlayback';
@@ -227,8 +227,18 @@ const MaterialTraceabilitySection: React.FC = React.memo(() => {
 const readGenealogyErrorKg = () =>
   Math.round(useMaterialFlowStore.getState().getGenealogyBalance().errorKg * 100) / 100;
 
+/** Lab grade bands over the 0-100 product quality score stamped on a batch. */
+function labGradeForQuality(score: number | undefined): QCGrade {
+  if (score === undefined || !Number.isFinite(score) || score >= 95) return 'A';
+  if (score >= 85) return 'B';
+  if (score >= 70) return 'C';
+  return 'FAIL';
+}
+
 export const BatchGenealogySection: React.FC = React.memo(() => {
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
+  // A recall is terminal and scraps the mass, so it is asked once before acting.
+  const [confirmRecallId, setConfirmRecallId] = useState<string | null>(null);
   const productionBatches = useMaterialFlowStore((state) => state.productionBatches);
   const sourceLotCount = useMaterialFlowStore((state) => state.sourceLots.size);
   // Read once up front so the first paint never shows a false +0.00 kg.
@@ -250,8 +260,11 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
         .flatMap((alert) => alert.batchIds)
     );
     const newestFirst = [...productionBatches].reverse();
+    // A recalled batch stays listed: it is the record of what was scrapped.
     const needsAttention = (batch: (typeof productionBatches)[number]) =>
-      batch.disposition === 'hold' || investigationBatchIds.has(batch.id);
+      batch.disposition === 'hold' ||
+      batch.disposition === 'recalled' ||
+      investigationBatchIds.has(batch.id);
     // Quality recovery stays reachable as newer production arrives. Final
     // dispositions keep their existing trace-only controls even during an alert.
     return [
@@ -269,6 +282,9 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
       .productionBatches.find((candidate) => candidate.id === batchId);
     if (!batch) return;
     const sourceLotIds = [...new Set(batch.sourceContributions.map((source) => source.lotId))];
+    // The lab reports the quality the batch was made at; a batch saved before
+    // that was recorded reads as conforming, as every test did before.
+    const grade = labGradeForQuality(batch.qualityScore);
     startQCTest(batch.packerId, {
       batchId,
       sourceLotIds,
@@ -285,12 +301,12 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
         testType === 'retest'
           ? translate(overviewPanelMessages, 'noteRetest')
           : translate(overviewPanelMessages, 'noteRoutineTest'),
-      grade: 'A',
+      grade,
       moistureContent: 13.2,
       proteinLevel: 11.8,
       ashContent: 0.52,
       particleSize: 120,
-      passed: true,
+      passed: grade !== 'FAIL',
     });
     if (testType === 'retest') {
       useQCLabStore
@@ -400,6 +416,43 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
                 {batch.dispositionReason && (
                   <p className="mt-1 text-[10px] text-slate-400">{batch.dispositionReason}</p>
                 )}
+                {batch.disposition === 'recalled' && (batch.writtenOffKg ?? 0) > 0 && (
+                  <p className="mt-1 text-[10px] text-red-300">
+                    {t('writtenOff', { kg: formatFixed(batch.writtenOffKg ?? 0, 1) })}
+                  </p>
+                )}
+                {confirmRecallId === batch.id && batch.disposition === 'hold' && (
+                  <div
+                    role="alert"
+                    className="mt-2 rounded border border-red-500/40 bg-red-950/30 p-2 text-xs text-red-100"
+                  >
+                    <p>
+                      {t('recallConfirm', {
+                        kg: formatFixed(batch.availableKg, 1),
+                        material: t('material', { value: batch.materialType }),
+                      })}
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setConfirmRecallId(null);
+                          recallBatch(batch.id);
+                        }}
+                        className="min-h-11 rounded bg-red-700 px-3 text-xs font-semibold text-white hover:bg-red-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-300"
+                      >
+                        {t('confirmRecall')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmRecallId(null)}
+                        className="min-h-11 rounded bg-slate-700 px-3 text-xs font-semibold text-white hover:bg-slate-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+                      >
+                        {t('cancelRecall')}
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <div className="mt-2 flex flex-wrap gap-2">
                   <button
                     type="button"
@@ -449,7 +502,8 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
                       </button>
                       <button
                         type="button"
-                        onClick={() => recallBatch(batch.id)}
+                        aria-expanded={confirmRecallId === batch.id}
+                        onClick={() => setConfirmRecallId(batch.id)}
                         className="min-h-11 rounded bg-red-700 px-3 text-xs font-semibold text-white hover:bg-red-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-300"
                       >
                         {t('recallBatch')}
@@ -498,6 +552,50 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
     </section>
   );
 });
+
+/**
+ * Maintenance (breakdowns, predictive alerts, parts, schedule). The wrapper is
+ * always mounted, so a repair request from the shift card is consumed here even
+ * while the lazy panel inside is still loading. Working if Repair lands the
+ * player on the work orders, not at the top of Overview.
+ */
+export const MaintenanceSection: React.FC = () => {
+  const t = useT(overviewPanelMessages);
+  const requested = useUIStore((state) => state.maintenanceFocusRequested);
+  const sectionRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!requested) return;
+    const frame = requestAnimationFrame(() => {
+      if (!useUIStore.getState().maintenanceFocusRequested) return;
+      useUIStore.getState().clearMaintenanceFocus();
+      if (useUIStore.getState().fpsMode) return;
+      sectionRef.current?.scrollIntoView?.({ block: 'start', behavior: 'instant' });
+      sectionRef.current?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [requested]);
+  return (
+    <section
+      ref={sectionRef}
+      id="overview-maintenance"
+      tabIndex={-1}
+      aria-label={t('maintenanceSection')}
+      className="scroll-mt-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+    >
+      <RecoverableFeatureBoundary featureName={t('predictiveMaintenance')}>
+        <Suspense
+          fallback={
+            <div className="h-20 bg-slate-800/30 rounded-lg animate-pulse" role="status">
+              <span className="sr-only">{t('loadingMaintenance')}</span>
+            </div>
+          }
+        >
+          <PredictiveMaintenancePanel />
+        </Suspense>
+      </RecoverableFeatureBoundary>
+    </section>
+  );
+};
 
 // Optimized OverviewPanel - No longer subscribes to high-frequency gameTime
 export const OverviewPanel: React.FC = React.memo(() => {
@@ -714,20 +812,7 @@ export const OverviewPanel: React.FC = React.memo(() => {
       </button>
       <BatchGenealogySection />
 
-      {/* Maintenance (breakdowns, predictive alerts, parts, schedule) */}
-      <section>
-        <RecoverableFeatureBoundary featureName={t('predictiveMaintenance')}>
-          <Suspense
-            fallback={
-              <div className="h-20 bg-slate-800/30 rounded-lg animate-pulse" role="status">
-                <span className="sr-only">{t('loadingMaintenance')}</span>
-              </div>
-            }
-          >
-            <PredictiveMaintenancePanel />
-          </Suspense>
-        </RecoverableFeatureBoundary>
-      </section>
+      <MaintenanceSection />
 
       {/* Total Production */}
       <div className="text-center py-3 bg-gradient-to-r from-cyan-900/20 to-blue-900/20 rounded-xl border border-cyan-500/20">

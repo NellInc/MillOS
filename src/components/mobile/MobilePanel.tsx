@@ -39,7 +39,7 @@ import { PACE_GAME_SPEEDS, STANDARD_GAME_SPEED } from '../../simulation/pace';
 import { paceMessages } from '../../simulation/pace.messages';
 
 import { OperationsPlayCard, ShiftDebrief } from '../ui-new/onboarding/PlayableShift';
-import { BatchGenealogySection } from '../ui-new/panels/OverviewPanel';
+import { BatchGenealogySection, MaintenanceSection } from '../ui-new/panels/OverviewPanel';
 
 interface MobilePanelProps {
   isVisible: boolean;
@@ -230,6 +230,8 @@ const OverviewContent: React.FC = () => {
         </summary>
         <BatchGenealogySection />
       </details>
+      {/* The repair next action lands here on a phone, as it does in Overview. */}
+      <MaintenanceSection />
       {/* Time & Speed Controls */}
       <div className="bg-slate-800/50 rounded-lg p-2">
         <div className="flex items-center justify-between mb-2">

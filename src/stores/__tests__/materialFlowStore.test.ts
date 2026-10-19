@@ -638,9 +638,12 @@ describe('MaterialFlowStore', () => {
       expect(state.productionBatches.find((batch) => batch.id === held.id)?.availableKg).toBe(
         held.availableKg
       );
-      expect(state.productionBatches.find((batch) => batch.id === recalled.id)?.availableKg).toBe(
-        recalled.availableKg
-      );
+      // A recall writes its mass off as waste rather than leaving it in the packer.
+      const recalledAfter = state.productionBatches.find((batch) => batch.id === recalled.id);
+      expect(recalledAfter?.availableKg).toBe(0);
+      expect(recalledAfter?.writtenOffKg).toBeCloseTo(recalled.availableKg, 6);
+      expect(Math.abs(state.getGenealogyBalance().errorKg)).toBeLessThanOrEqual(0.01);
+      expect(Math.abs(state.getMaterialBalance().errorKg)).toBeLessThanOrEqual(0.01);
     });
 
     it('conserves source contributions through backpressure, waste, and dispatch', () => {

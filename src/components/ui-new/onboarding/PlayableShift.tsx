@@ -22,6 +22,7 @@ import {
   useOperationsCampaignStore,
 } from '../../../stores/operationsCampaignStore';
 import { useTruckScheduleStore } from '../../../stores/truckScheduleStore';
+import { useBreakdownStore } from '../../../stores/breakdownStore';
 import {
   deriveOperationsPlay,
   RECOVERY_CHALLENGE_TARGET_KG,
@@ -145,8 +146,21 @@ export function FirstDeliveryJourney({
       nextArrivalMinutes: Math.ceil(s.truckSchedule.shipping.nextArrivalMinutes),
     }))
   );
+  // The oldest open work order, so the guide can turn to the repair.
+  const fault = useBreakdownStore(
+    useShallow((s) => {
+      const open = s.workOrders.find((workOrder) => workOrder.phase !== 'returned_to_service');
+      return { machineName: open?.machineName ?? '', workOrderId: open?.id ?? '' };
+    })
+  );
   const order = campaign.orders.find((item) => item.id === ui.orderId) ?? null;
-  const guide = deriveDeliveryJourney(order, campaign.execution, ui.inspected, shippingTruck);
+  const guide = deriveDeliveryJourney(
+    order,
+    campaign.execution,
+    ui.inspected,
+    shippingTruck,
+    fault.workOrderId ? fault : null
+  );
   const [sceneFocused, setSceneFocused] = useState(false);
   const expandButton = useRef<HTMLButtonElement>(null);
   const collapseButton = useRef<HTMLButtonElement>(null);
@@ -192,8 +206,17 @@ export function FirstDeliveryJourney({
   // inspection step was done; inspection stays a separate milestone.
   const completed = order?.status === 'fulfilled';
   const play = deriveOperationsPlay(campaign);
+  // Opening Overview for a repair also lands on its maintenance section.
+  const openWorkspace = (mode: 'scada' | 'overview') => {
+    if (
+      mode === 'overview' &&
+      (guide.focus === 'maintenance' || (completed && play.nextAction.kind === 'repair'))
+    )
+      useUIStore.getState().requestMaintenanceFocus();
+    onOpenWorkspace(mode);
+  };
   const compactWorkspace: 'overview' | 'scada' | null = completed
-    ? ['quality', 'programme', 'acknowledge', 'mitigate', 'resume', 'resolve'].includes(
+    ? ['quality', 'programme', 'acknowledge', 'mitigate', 'resume', 'resolve', 'repair'].includes(
         play.nextAction.kind
       )
       ? 'overview'
@@ -240,10 +263,16 @@ export function FirstDeliveryJourney({
         <button
           className={`${BUTTON} mt-3`}
           onClick={() =>
-            onOpenWorkspace(
-              ['quality', 'programme', 'acknowledge', 'mitigate', 'resume', 'resolve'].includes(
-                play.nextAction.kind
-              )
+            openWorkspace(
+              [
+                'quality',
+                'programme',
+                'acknowledge',
+                'mitigate',
+                'resume',
+                'resolve',
+                'repair',
+              ].includes(play.nextAction.kind)
                 ? 'overview'
                 : 'scada'
             )
@@ -303,7 +332,7 @@ export function FirstDeliveryJourney({
         {compactWorkspace && (
           <button
             className={`${BUTTON} mt-2 w-full`}
-            onClick={() => onOpenWorkspace(compactWorkspace)}
+            onClick={() => openWorkspace(compactWorkspace)}
           >
             {compactWorkspace === 'overview'
               ? completed
@@ -410,7 +439,7 @@ export function FirstDeliveryJourney({
             </button>
           )}
           {guide.workspace && (
-            <button className={BUTTON} onClick={() => onOpenWorkspace(guide.workspace!)}>
+            <button className={BUTTON} onClick={() => openWorkspace(guide.workspace!)}>
               {guide.workspace === 'scada' ? t('openScada') : t('openOverviewQc')}
             </button>
           )}
@@ -549,6 +578,14 @@ export function OperationsPlayCard() {
       challengeHistory: s.challengeHistory,
     }))
   );
+  // Rates keep their reference while unchanged, and the shift total is read in
+  // whole pounds, so the card does not re-render on every tick.
+  const costRates = useOperationsCampaignStore((s) => s.costRates);
+  const shiftFailureCost = useOperationsCampaignStore((s) =>
+    Math.round(
+      s.shiftMetrics.latePenalties + s.shiftMetrics.maintenanceCost + s.shiftMetrics.demurrageCost
+    )
+  );
   const focusId = useUIStore((s) => s.operationalFocusId);
   const nextActionRef = useRef<HTMLButtonElement>(null);
   // Consume navigation only after the real control mounts, including lazy and
@@ -613,10 +650,11 @@ export function OperationsPlayCard() {
     if (action.kind === 'resolve') state.finishChallengeRecovery('operator');
     if (action.kind === 'programme' && !linkedReviewPending(useWorkplaceStore.getState().workplace))
       state.acceptNextProgramme('operator');
-    if (['quality', 'receiving', 'dispatch', 'production'].includes(action.kind)) {
+    if (action.kind === 'repair') useUIStore.getState().requestMaintenanceFocus();
+    if (['quality', 'repair', 'receiving', 'dispatch', 'production'].includes(action.kind)) {
       window.dispatchEvent(
         new CustomEvent('millos:open-operations-workspace', {
-          detail: action.kind === 'quality' ? 'overview' : 'scada',
+          detail: action.kind === 'quality' || action.kind === 'repair' ? 'overview' : 'scada',
         })
       );
     }
@@ -677,6 +715,29 @@ export function OperationsPlayCard() {
           {hardBlock ? t('blocked') : t('attention')}: {leadConstraint.label}.{' '}
           {leadConstraint.detail}
         </p>
+      )}
+      {/* What each failure is costing now, from the rates the tick books.
+          Working if an overdue order, an open work order or a held truck shows
+          its price on the card before the shift report does. */}
+      {(costRates.late > 0 ||
+        costRates.maintenance > 0 ||
+        costRates.demurrage > 0 ||
+        shiftFailureCost > 0) && (
+        <div role="group" aria-label={t('failureCosts')} className="mt-2 text-xs leading-5">
+          <p className="font-semibold text-amber-100">{t('failureCosts')}</p>
+          {costRates.late > 0 && <p>{t('costLate', { rate: formatFixed(costRates.late, 2) })}</p>}
+          {costRates.maintenance > 0 && (
+            <p>{t('costMaintenance', { rate: formatFixed(costRates.maintenance, 2) })}</p>
+          )}
+          {costRates.demurrage > 0 && (
+            <p>{t('costDemurrage', { rate: formatFixed(costRates.demurrage, 2) })}</p>
+          )}
+          {shiftFailureCost > 0 && (
+            <p className="text-slate-300">
+              {t('costShiftTotal', { total: formatGrouped(shiftFailureCost) })}
+            </p>
+          )}
+        </div>
       )}
       {play.challengeProgress && (
         <div

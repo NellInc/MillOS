@@ -38,8 +38,6 @@ export const unifiedGameTickMessages = defineMessages({
     certificationExpired: 'Quality certification is expired.',
     unresolvedContamination: 'A contamination alert remains unresolved.',
     failedQualityTest: 'The latest laboratory result failed.',
-    batchQualityHold: 'Available production batches remain on quality hold.',
-    batchRecalled: 'Recalled production remains isolated from dispatch.',
     incidentDispatchIsolation: 'An active operational incident requires dispatch isolation.',
     qualityInterlockNotReleased: 'The quality interlock is not released.',
     departedWithoutLoad: 'Truck departed without a released load.',
@@ -47,12 +45,13 @@ export const unifiedGameTickMessages = defineMessages({
       `Waiting for released ${p.material} at the packers.`,
     dispatchQualityHoldTitle: 'Dispatch Quality Hold',
     shippingAwaitingProductTitle: 'Shipping Awaiting Product',
-    clearBeforeRelease: '{reason} Clear the condition before release.',
+    clearBeforeRelease:
+      '{reason} Clear the condition before release. While the truck waits at the dock it costs £{rate} per game hour.',
     waitingForProduct: 'Waiting for released product at the packers.',
     shiftLabel: (p: { shift: string }) => capitalise(p.shift),
     breakdownTitle: 'Machine Breakdown',
     breakdownMessage:
-      '{name} ({machineType}) has broken down due to excessive wear. Work order {workOrderId} requires repair, verification, and controlled restart.',
+      '{name} ({machineType}) has broken down due to excessive wear. Open Mill Overview, Maintenance: work order {workOrderId} needs service dispatched, the repair verified and a controlled restart. Each open work order costs £{rate} per game hour.',
   },
   'pt-BR': {
     supplierTraceabilityNote:
@@ -70,8 +69,6 @@ export const unifiedGameTickMessages = defineMessages({
     certificationExpired: 'A certificação de qualidade está vencida.',
     unresolvedContamination: 'Um alerta de contaminação continua sem resolução.',
     failedQualityTest: 'O resultado de laboratório mais recente foi reprovado.',
-    batchQualityHold: 'Os lotes de produção disponíveis continuam em retenção de qualidade.',
-    batchRecalled: 'A produção recolhida continua isolada da expedição.',
     incidentDispatchIsolation: 'Uma ocorrência operacional ativa exige o isolamento da expedição.',
     qualityInterlockNotReleased: 'O intertravamento de qualidade não está liberado.',
     departedWithoutLoad: 'O caminhão saiu sem uma carga liberada.',
@@ -79,11 +76,12 @@ export const unifiedGameTickMessages = defineMessages({
       `Aguardando ${PT_MATERIALS[p.material] ?? p.material} nas ensacadeiras.`,
     dispatchQualityHoldTitle: 'Retenção de qualidade na expedição',
     shippingAwaitingProductTitle: 'Expedição aguardando produto',
-    clearBeforeRelease: '{reason} Resolva a condição antes da liberação.',
+    clearBeforeRelease:
+      '{reason} Resolva a condição antes da liberação. Enquanto o caminhão espera na doca, o custo é de £{rate} por hora de jogo.',
     waitingForProduct: 'Aguardando produto liberado nas ensacadeiras.',
     shiftLabel: (p: { shift: string }) => PT_SHIFT_LABELS[p.shift] ?? capitalise(p.shift),
     breakdownTitle: 'Pane de máquina',
     breakdownMessage:
-      '{name} ({machineType}) entrou em pane por desgaste excessivo. A ordem de serviço {workOrderId} exige reparo, verificação e reinício controlado.',
+      '{name} ({machineType}) entrou em pane por desgaste excessivo. Abra Visão geral do moinho, Manutenção: a ordem de serviço {workOrderId} precisa do envio da equipe, da verificação do reparo e de um reinício controlado. Cada ordem de serviço aberta custa £{rate} por hora de jogo.',
   },
 });

@@ -26,6 +26,9 @@ export const productionStoreMessages = defineMessages({
     maintenanceCompleteRestoredMessage: '{name} restored to service. Efficiency: {efficiency}%',
     maintenanceResultWearReduced: 'Wear reduced from {from}% to {to}%',
     maintenanceResultRestored: 'Restored to service',
+    maintenanceRecordDate: 'Day {day}, {time}',
+    maintenanceRecordRoutineUnit: 'Line maintenance',
+    maintenanceRecordRestartNote: 'Repaired and restarted under the work order. {wear}.',
     breakdownTitle: 'Machine Breakdown',
     breakdownMessage:
       '{name} ({type}) has broken down due to excessive wear. Maintenance required.',
@@ -54,6 +57,9 @@ export const productionStoreMessages = defineMessages({
     maintenanceCompleteRestoredMessage: '{name} voltou a operar. Eficiência: {efficiency}%',
     maintenanceResultWearReduced: 'Desgaste reduzido de {from}% para {to}%',
     maintenanceResultRestored: 'De volta à operação',
+    maintenanceRecordDate: 'Dia {day}, {time}',
+    maintenanceRecordRoutineUnit: 'Manutenção de linha',
+    maintenanceRecordRestartNote: 'Reparada e reiniciada pela ordem de serviço. {wear}.',
     breakdownTitle: 'Pane de máquina',
     breakdownMessage:
       '{name} ({type}) entrou em pane por desgaste excessivo. Manutenção necessária.',

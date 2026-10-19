@@ -63,6 +63,7 @@ export interface OperationsNextAction {
     | 'mitigate'
     | 'resume'
     | 'resolve'
+    | 'repair'
     | 'quality'
     | 'receiving'
     | 'dispatch'
@@ -115,6 +116,11 @@ export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
   const incident = state.incidents.find((candidate) => candidate.phase !== 'resolved');
   const run = state.activeChallenge;
   const recovery = getChallengeRecoveryIncident(state);
+  // A stopped machine outranks the delivery steps: its line cannot run until
+  // the work order is repaired, verified and restarted in Mill Overview.
+  const machineDown = state.constraints.find(
+    (constraint) => constraint.id === 'maintenance-queue' && constraint.severity !== 'info'
+  );
   const canAcceptNextProgramme =
     !run &&
     state.orders.length > 0 &&
@@ -151,6 +157,13 @@ export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
       consequence: run
         ? translate(operationsPlayMessages, 'resolveConsequenceActive')
         : translate(operationsPlayMessages, 'resolveConsequenceEnded'),
+    };
+  } else if (machineDown) {
+    nextAction = {
+      kind: 'repair',
+      targetId: machineDown.relatedId,
+      label: translate(operationsPlayMessages, 'repairLabel'),
+      consequence: machineDown.detail,
     };
   } else if (canAcceptNextProgramme && !incident) {
     nextAction = {
