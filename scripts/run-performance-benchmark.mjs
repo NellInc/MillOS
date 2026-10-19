@@ -1097,6 +1097,10 @@ async function main() {
     ignoreDefaultArgs: ['--enable-unsafe-swiftshader'],
     args: [
       '--mute-audio',
+      // Playwright 1.62 stopped passing this by default, and without it CDP
+      // Browser.getBrowserCommandLine refuses, so the sandbox admission below
+      // could never read the arguments it checks.
+      '--enable-automation',
       ...(process.platform === 'darwin' && !options.headed
         ? ['--use-gl=angle', '--use-angle=metal']
         : []),
