@@ -15,6 +15,7 @@ import { useWorkplaceAutoplay } from '../../../simulation/workplaceAutoplay';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
 import { useUIStore } from '../../../stores/uiStore';
 import { useAnnouncementsStore } from '../../../stores/announcementsStore';
+import { setLocale } from '../../../i18n';
 
 beforeEach(() => {
   useWorkplaceAutoplay.getState().pause();
@@ -111,6 +112,19 @@ it('shows outstanding individual debt without optional preference reasons', () =
   expect(screen.queryByText('PRIVATE')).not.toBeInTheDocument();
 });
 
+it('names qualified and current tasks in Portuguese on the fairness receipts', () => {
+  setLocale('pt-BR');
+  try {
+    useWorkplaceStore.setState({ workplace: createWorkplace() });
+    const { container } = render(<WorkplaceFairness />);
+    expect(container).toHaveTextContent(
+      'Tarefas habilitadas: Ensaque, Conferência de paletes. Tarefa atual: Ensaque.'
+    );
+    expect(container).not.toHaveTextContent(/Pallet checks|Quality release|Sampling/);
+  } finally {
+    setLocale('en');
+  }
+});
 it('reuses the existing workshop recovery control beside individual receipts', () => {
   const s = createWorkplace('workshop');
   s.phase = 'review';
