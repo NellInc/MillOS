@@ -39,7 +39,10 @@ export interface BreakdownEvent {
   severity: 'minor' | 'moderate';
   repairProgress: number;
   resolved: boolean;
+  /** Written in the language active when it fired; render breakdownDescription(). */
   description: string;
+  /** Catalog key of the description, so a language switch reaches it. */
+  descriptionKey?: string;
   downtimeSeconds: number;
 }
 
@@ -93,8 +96,9 @@ export interface MaintenanceScheduleItem {
 
 type BreakdownMessageKey = keyof typeof breakdownStoreMessages.en;
 
-// Message keys, resolved when a breakdown is created so the description is
-// written in the language active at that moment.
+// Message keys. The description is resolved when a breakdown is created (alerts
+// and audit notes keep that text); the key rides along so the live panels can
+// re-resolve it in the language active now.
 const BREAKDOWN_DESCRIPTIONS: Record<BreakdownType, BreakdownMessageKey[]> = {
   mechanical: [
     'mechanicalBearingWear',
@@ -168,6 +172,16 @@ const countParts = (
   }, {});
 
 /** Parts the inventory cannot cover, counting a part listed twice as two. */
+/** The breakdown's description in the language active now; stored text if the key is unknown. */
+export const breakdownDescription = (
+  breakdown: Pick<BreakdownEvent, 'description' | 'descriptionKey'>
+): string => {
+  const key = breakdown.descriptionKey;
+  return key && Object.prototype.hasOwnProperty.call(breakdownStoreMessages.en, key)
+    ? translate(breakdownStoreMessages, key as BreakdownMessageKey)
+    : breakdown.description;
+};
+
 export const missingParts = (
   inventory: PartsInventory,
   required: (keyof PartsInventory)[]
@@ -268,10 +282,8 @@ export const useBreakdownStore = create<BreakdownStore>()(
         const breakdownId = makeId('breakdown', nextSequence);
         const workOrderId = makeId('wo', nextSequence);
         const requiredParts = [...PARTS_FOR_BREAKDOWN[breakdownType]];
-        const description = translate(
-          breakdownStoreMessages,
-          descriptions[nextSequence % descriptions.length]
-        );
+        const descriptionKey = descriptions[nextSequence % descriptions.length];
+        const description = translate(breakdownStoreMessages, descriptionKey);
         const severity = nextSequence % 3 === 0 ? 'moderate' : 'minor';
         const estimatedRepairTime = 30 + ((nextSequence * 7) % 30);
         const breakdown: BreakdownEvent = {
@@ -286,6 +298,7 @@ export const useBreakdownStore = create<BreakdownStore>()(
           repairProgress: 0,
           resolved: false,
           description,
+          descriptionKey,
           downtimeSeconds: 0,
         };
         const workOrder: MaintenanceWorkOrder = {

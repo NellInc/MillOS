@@ -6,7 +6,8 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { useBreakdownStore } from '../breakdownStore';
+import { setLocale } from '../../i18n';
+import { breakdownDescription, useBreakdownStore } from '../breakdownStore';
 import type { PartsInventory } from '../breakdownStore';
 
 const DEFAULT_INVENTORY: PartsInventory = {
@@ -400,5 +401,22 @@ describe('BreakdownStore', () => {
       schedule({ ...task, scheduledTime: 17 });
       expect(useBreakdownStore.getState().maintenanceSchedule).toHaveLength(1);
     });
+  });
+});
+
+describe('breakdown description language', () => {
+  afterEach(() => setLocale('en'));
+
+  it('renders in the language active now, not the one active when it fired', () => {
+    setLocale('en');
+    const breakdown = useBreakdownStore
+      .getState()
+      .triggerBreakdown('rm-locale', 'R.M. 103', 'mechanical')!;
+    const english = breakdownDescription(breakdown);
+    expect(english).toBe(breakdown.description);
+
+    setLocale('pt-BR');
+    expect(breakdownDescription(breakdown)).not.toBe(english);
+    expect(breakdownDescription({ ...breakdown, descriptionKey: undefined })).toBe(english);
   });
 });

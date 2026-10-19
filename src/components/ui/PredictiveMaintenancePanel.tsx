@@ -20,7 +20,12 @@ import {
   ClipboardCheck,
   RotateCcw,
 } from 'lucide-react';
-import { missingParts, useBreakdownStore, type PredictiveAlert } from '../../stores/breakdownStore';
+import {
+  breakdownDescription,
+  missingParts,
+  useBreakdownStore,
+  type PredictiveAlert,
+} from '../../stores/breakdownStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { minimumServiceWear, useProductionStore } from '../../stores/productionStore';
 import { useUIStore } from '../../stores/uiStore';
@@ -247,7 +252,7 @@ const ActiveBreakdownsSection: React.FC = () => {
                   {phaseLabel}
                 </span>
               </div>
-              <div className="text-xs text-slate-400 mt-2">{breakdown.description}</div>
+              <div className="text-xs text-slate-400 mt-2">{breakdownDescription(breakdown)}</div>
               <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
                 <div className="text-slate-400">
                   {t('service')} <span className="text-amber-300">{t('serviceUnit')}</span>
