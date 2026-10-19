@@ -152,6 +152,42 @@ describe('keyboard control ownership', () => {
     expect(speed).toBe(0);
   });
 
+  it('P holds the shift clock with the line and releases only its own hold', () => {
+    useGameSimulationStore.setState({ gameSpeed: 180 });
+    const { rerender } = renderHook(
+      ({ speed }) => useKeyboardShortcuts({ ...config, productionSpeed: speed }),
+      { initialProps: { speed: 1 } }
+    );
+    fireEvent.keyDown(window, { key: 'p' });
+    expect(config.setProductionSpeed).toHaveBeenLastCalledWith(0);
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+    rerender({ speed: 0 });
+    fireEvent.keyDown(window, { key: 'p' });
+    expect(config.setProductionSpeed).toHaveBeenLastCalledWith(1);
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(180);
+  });
+
+  it('P leaves a clock hold or pace choice made by another control alone', () => {
+    // A tour or save-failure hold already owns gameSpeed 0.
+    useGameSimulationStore.setState({ gameSpeed: 0 });
+    const { rerender } = renderHook(
+      ({ speed }) => useKeyboardShortcuts({ ...config, productionSpeed: speed }),
+      { initialProps: { speed: 1 } }
+    );
+    fireEvent.keyDown(window, { key: 'p' });
+    rerender({ speed: 0 });
+    fireEvent.keyDown(window, { key: 'p' });
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+    // A pace picked while P holds the clock wins over P's remembered pace.
+    useGameSimulationStore.setState({ gameSpeed: 180 });
+    rerender({ speed: 1 });
+    fireEvent.keyDown(window, { key: 'p' });
+    useGameSimulationStore.setState({ gameSpeed: 30 });
+    rerender({ speed: 0 });
+    fireEvent.keyDown(window, { key: 'p' });
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(30);
+  });
+
   it('leaves first-person before flying to a camera preset', () => {
     useUIStore.setState({ fpsMode: true });
     renderHook(() => useKeyboardShortcuts(config));
