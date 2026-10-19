@@ -10,7 +10,7 @@ import {
 } from '../../../stores/gameSimulationStore';
 import { isPaceGameSpeed, PACE_GAME_SPEEDS, STANDARD_GAME_SPEED } from '../../../simulation/pace';
 import { paceMessages } from '../../../simulation/pace.messages';
-import { WorkplaceLeaveSeason } from '../widgets/WorkplaceCampaignArchive';
+import { FollowOnNotice, WorkplaceLeaveSeason } from '../widgets/WorkplaceCampaignArchive';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
 import {
   improvementSummary,
@@ -532,6 +532,7 @@ function WorkingAgreementSummary({
           })}
         </p>
       )}
+      <FollowOnNotice state={state} />
       <p>
         {t('agreementOutcome', {
           status: t('agreementStatus', { status: outcome.agreement.status }),

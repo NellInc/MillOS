@@ -9,7 +9,11 @@ import { WorkplaceImprovementPanel } from './WorkplaceImprovementPanel';
 import { workplaceMission } from '../../../simulation/workplaceImprovement';
 import { WorkplacePressureChapter } from './WorkplacePressureChapter';
 import { WorkplacePracticeProposal } from './WorkplaceNegotiation';
-import { WorkplaceCampaignArchive, WorkplaceLeaveSeason } from './WorkplaceCampaignArchive';
+import {
+  FollowOnNotice,
+  WorkplaceCampaignArchive,
+  WorkplaceLeaveSeason,
+} from './WorkplaceCampaignArchive';
 import { WorkplaceReplay, WorkplaceReplayGuide, WorkplaceReplayResume } from './WorkplaceReplay';
 import { useWorkplaceStore, useWorkplaceControls } from '../../../stores/workplaceStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
@@ -619,12 +623,15 @@ export const WorkplaceLab: React.FC = () => {
             </p>
           )}
           {campaign?.followOn ? (
-            <p className="tabular-nums">
-              {t('followOnCredit', {
-                customer: campaign.followOn.customer,
-                credited: formatFixed(campaign.followOn.creditedKg, 1),
-              })}
-            </p>
+            <>
+              <p className="tabular-nums">
+                {t('followOnCredit', {
+                  customer: campaign.followOn.customer,
+                  credited: formatFixed(campaign.followOn.creditedKg, 1),
+                })}
+              </p>
+              <FollowOnNotice state={state} />
+            </>
           ) : (
             campaign?.mission &&
             campaign.mission.creditedKg + 1e-6 >= campaign.mission.originalTargetKg && (

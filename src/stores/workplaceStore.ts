@@ -38,6 +38,57 @@ import {
 } from '../simulation/workplaceParticipation';
 
 const MAX_COMPLETED_CAMPAIGNS = 6;
+
+/** A fresh link to the mill's active order, when it is open and quality-qualified. */
+function openActiveOrderMission(exceptOrderId?: string): WorkplaceMission | undefined {
+  const operations = useOperationsCampaignStore.getState();
+  const order = operations.orders.find((o) => o.id === operations.activeOrderId);
+  if (
+    !order ||
+    order.id === exceptOrderId ||
+    order.status === 'fulfilled' ||
+    order.status === 'cancelled' ||
+    operations.activeChallenge ||
+    order.qualityFailureKg !== 0 ||
+    order.requiredKg <= order.shippedKg
+  )
+    return undefined;
+  return {
+    orderId: order.id,
+    customer: order.customer,
+    materialSessionId: useMaterialFlowStore.getState().sessionId,
+    startingShippedKg: order.shippedKg,
+    originalTargetKg: order.requiredKg - order.shippedKg,
+    targetKg: order.requiredKg - order.shippedKg,
+    observedShippedKg: order.shippedKg,
+    creditedKg: 0,
+    manifestIds: [...order.manifestIds],
+    evidence: 'current',
+  };
+}
+
+/**
+ * The order the next campaign shift links, if any: the mill's open active
+ * order, once the order being worked is fulfilled or the follow-on's evidence
+ * has gone bad (cancelled, quality-failed or stale), the two cases the engine
+ * accepts a new link for. Read-only, so the season card can say what happens.
+ * Working if a bad follow-on is replaced, a fulfilled commitment is never
+ * relinked to itself, and the last shift offers nothing.
+ */
+export function pendingFollowOn(state: WorkplaceState): WorkplaceMission | undefined {
+  const campaign = state.campaign;
+  if (!campaign?.mission || campaign.shift >= 2) return undefined;
+  const link = campaign.followOn ?? campaign.mission;
+  const fulfilled =
+    useOperationsCampaignStore.getState().orders.find((o) => o.id === link.orderId)?.status ===
+    'fulfilled';
+  if (!fulfilled && (!campaign.followOn || campaign.followOn.evidence === 'current'))
+    return undefined;
+  // A stale link to an order still open may be relinked fresh; it starts at
+  // that order's current shipped weight, so no earlier dispatch is re-credited.
+  const next = openActiveOrderMission(fulfilled ? link.orderId : undefined);
+  return next && next.orderId !== campaign.mission.orderId ? next : undefined;
+}
 /** Observation only. Freshness is checked against the current physical facts,
  * rather than assuming that a matching order id makes its execution cache fresh. */
 export function captureCurrentPackingPlant(state: WorkplaceState) {
@@ -299,33 +350,6 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
                 : ('current' as const),
         };
       };
-      /** A fresh link to the mill's active order, when it is open and quality-qualified. */
-      const openActiveOrderMission = (exceptOrderId?: string): WorkplaceMission | undefined => {
-        const operations = useOperationsCampaignStore.getState();
-        const order = operations.orders.find((o) => o.id === operations.activeOrderId);
-        if (
-          !order ||
-          order.id === exceptOrderId ||
-          order.status === 'fulfilled' ||
-          order.status === 'cancelled' ||
-          operations.activeChallenge ||
-          order.qualityFailureKg !== 0 ||
-          order.requiredKg <= order.shippedKg
-        )
-          return undefined;
-        return {
-          orderId: order.id,
-          customer: order.customer,
-          materialSessionId: useMaterialFlowStore.getState().sessionId,
-          startingShippedKg: order.shippedKg,
-          originalTargetKg: order.requiredKg - order.shippedKg,
-          targetKg: order.requiredKg - order.shippedKg,
-          observedShippedKg: order.shippedKg,
-          creditedKg: 0,
-          manifestIds: [...order.manifestIds],
-          evidence: 'current',
-        };
-      };
       const presentAdvice = (token?: string) => {
         const current = get().workplace;
         const advice =
@@ -543,20 +567,12 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
           return apply({ type: 'startCampaign', args: [profile, seed, mission] });
         },
         startCampaign: (...args) => apply({ type: 'startCampaign', args }),
-        // Once the order being worked is fulfilled, the next shift works the
-        // mill's active order, so later dispatch still earns the cooperative.
-        // Working if a fulfilled commitment is never relinked to itself.
+        // Once the order being worked is fulfilled, or a follow-on can no
+        // longer earn, the next shift works the mill's active order, so later
+        // dispatch still earns the cooperative (see pendingFollowOn).
         nextCampaignShift: () => {
-          const campaign = get().workplace.campaign;
-          const link = campaign?.followOn ?? campaign?.mission;
-          const operations = useOperationsCampaignStore.getState();
-          const linkedOrder = link && operations.orders.find((o) => o.id === link.orderId);
-          const next =
-            linkedOrder?.status === 'fulfilled' ? openActiveOrderMission(link!.orderId) : undefined;
-          return apply({
-            type: 'nextCampaignShift',
-            args: next && next.orderId !== campaign?.mission?.orderId ? [next] : [],
-          });
+          const next = pendingFollowOn(get().workplace);
+          return apply({ type: 'nextCampaignShift', args: next ? [next] : [] });
         },
         answerCheck: (...args) => apply({ type: 'answerCheck', args }),
         campaignDecision: (...args) => apply({ type: 'campaignDecision', args }),

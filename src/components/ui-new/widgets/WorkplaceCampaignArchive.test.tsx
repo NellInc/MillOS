@@ -1,7 +1,14 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { WorkplaceCampaignArchive, WorkplaceLeaveSeason } from './WorkplaceCampaignArchive';
+import {
+  FollowOnNotice,
+  WorkplaceCampaignArchive,
+  WorkplaceLeaveSeason,
+} from './WorkplaceCampaignArchive';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
+import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
+import { setLocale } from '../../../i18n';
+import type { WorkplaceMission } from '../../../types/workplace';
 import { useWorkplaceReplayStore } from '../../../stores/workplaceReplayStore';
 import { createWorkplace } from '../../../simulation/bilateralWorkplace';
 import { requiredChecks, WORKPLACE_CHECKS } from '../../../simulation/workplaceCampaign';
@@ -151,5 +158,77 @@ describe('leaving a season from the laboratory', () => {
     expect(screen.getByText('Left early at shift 1 of 3, seed 17')).toBeInTheDocument();
     expect(screen.queryByText(/Retained campaign reviews/)).not.toBeInTheDocument();
     expect(useWorkplaceStore.getState().workplace.phase).toBe('idle');
+  });
+});
+
+describe('the season’s earning link after its commitment', () => {
+  const link = (orderId: string, customer: string, evidence: WorkplaceMission['evidence']) => ({
+    orderId,
+    customer,
+    materialSessionId: 'session-real',
+    startingShippedKg: 0,
+    originalTargetKg: 2000,
+    targetKg: 2000,
+    observedShippedKg: 0,
+    creditedKg: 0,
+    manifestIds: [],
+    evidence,
+  });
+  const season = (shift: number, followOn?: WorkplaceMission, missionKg = 0) => {
+    useWorkplaceStore.getState().startCampaign('cooperative', 17);
+    const state = useWorkplaceStore.getState().workplace;
+    return {
+      ...state,
+      campaign: {
+        ...state.campaign!,
+        shift,
+        mission: { ...link('order-old', 'First customer', 'current'), creditedKg: missionKg },
+        ...(followOn ? { followOn } : {}),
+      },
+    };
+  };
+  beforeEach(() => {
+    useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
+    useOperationsCampaignStore.getState().initializeCampaign();
+  });
+  afterEach(() => setLocale('en'));
+
+  it('says a follow-on with bad evidence has stopped earning, and names its replacement', () => {
+    const active = useOperationsCampaignStore.getState().orders[0];
+    const state = season(1, link('order-next', 'Second customer', 'quality-failed'));
+    render(<FollowOnNotice state={state} />);
+    expect(
+      screen.getByText(
+        `Credit from Second customer has stopped: a load failed its quality threshold. The next shift credits dispatch to ${active.customer} in its place.`
+      )
+    ).toBeInTheDocument();
+    cleanup();
+    setLocale('pt-BR');
+    render(<FollowOnNotice state={state} />);
+    expect(
+      screen.getByText(
+        `O crédito de Second customer foi interrompido: uma carga não atingiu o limite de qualidade. O próximo turno credita a expedição para ${active.customer} no lugar dele.`
+      )
+    ).toBeInTheDocument();
+  });
+
+  it('says when nothing can replace it yet, and that the last shift replaces nothing', () => {
+    const stopped = link('order-next', 'Second customer', 'missing');
+    useOperationsCampaignStore.setState({ activeOrderId: null });
+    const { unmount } = render(<FollowOnNotice state={season(1, stopped)} />);
+    expect(screen.getByText(/No other open order can take its place yet/)).toBeInTheDocument();
+    unmount();
+    useOperationsCampaignStore.getState().initializeCampaign();
+    render(<FollowOnNotice state={season(2, stopped)} />);
+    expect(
+      screen.getByText(/This is the season’s last shift, so nothing replaces it\./)
+    ).toBeInTheDocument();
+  });
+
+  it('says nothing while the follow-on still earns', () => {
+    const { container } = render(
+      <FollowOnNotice state={season(1, link('order-next', 'Second customer', 'current'))} />
+    );
+    expect(container).toBeEmptyDOMElement();
   });
 });
