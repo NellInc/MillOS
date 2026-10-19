@@ -12,6 +12,7 @@ import {
   buildFactoryRoofStructure,
   buildFactoryGlazing,
   buildFactoryShellColumns,
+  buildSafetyStations,
   buildProcessGallery,
   FACTORY_ENVELOPE_SPEC,
   FLOOR_JOINT_PITCH,
@@ -104,6 +105,34 @@ describe('optimized factory envelope', () => {
       const leftOfCentre = Math.max(...edges.filter((x) => x <= 0));
       const rightOfCentre = Math.min(...edges.filter((x) => x >= 0));
       expect(rightOfCentre - leftOfCentre).toBeLessThanOrEqual(0.28 + 1e-9);
+    }
+  });
+
+  it('mounts every safety station on a wall column, clear of the pedestrian lane', () => {
+    // The stations stood free 3.2 m off the side walls - in the middle of the
+    // 3 m pedestrian lane at x = +/-37 - and read as a red slab hanging in
+    // front of the glazing (art review, forklift x 1650-1740, y 435-635).
+    const halfWidth = SITE_LAYOUT.factory.floor.width / 2;
+    const shafts = buildFactoryShellColumns().filter(
+      (c) => c.scale[0] === 0.42 && Math.abs(Math.abs(c.position[0]) - (halfWidth - 0.45)) < 1e-6
+    );
+    for (const station of buildSafetyStations()) {
+      const [x, , z] = station.position;
+      const [sx, sy, sz] = station.scale;
+      // Not in the lane centred 3 m in from the wall, 1.5 m either side.
+      const laneInner = halfWidth - 3 - 1.5;
+      const laneOuter = halfWidth - 3 + 1.5;
+      const nearFace = Math.abs(x) - sx / 2;
+      expect(nearFace >= laneOuter || Math.abs(x) + sx / 2 <= laneInner).toBe(true);
+      // Its wall-side face sits on a column's inner face, and it spans that column.
+      const column = shafts.find(
+        (c) => Math.sign(c.position[0]) === Math.sign(x) && Math.abs(c.position[2] - z) < sz / 2
+      );
+      expect(column).toBeDefined();
+      const columnInner = Math.abs(column!.position[0]) - column!.scale[0] / 2;
+      expect(Math.abs(Math.abs(x) + sx / 2 - columnInner)).toBeLessThanOrEqual(0.02);
+      // Standing on the floor.
+      expect(station.position[1] - sy / 2).toBeCloseTo(0, 6);
     }
   });
 

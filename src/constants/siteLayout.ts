@@ -579,7 +579,12 @@ export const SITE_LAYOUT = {
     processFloor: { position: [-36, 4.5, 42], target: [12, 5.5, 23], fov: 50 },
     tankFarm: { position: [69, 8.5, -97], target: [69, 3.5, -70], fov: 55 },
     logisticsClose: { position: [18, 3.8, 96], target: [14, 1.8, 82], fov: 45 },
-    forklift: { position: [48, 3.8, 33], target: [40, 1.15, 24] },
+    // Inside the hall at the west end of the shipping aisle, looking east along
+    // the z = 42 forklift lane. The old pose stood outside the east wall looking
+    // at bare floor 15 m from either route, so the scene named for the forklift
+    // never contained one. Stills run at gameSpeed 0, which parks the shipping
+    // forklift at its route start (-16, 42), about 12 m in front of the lens.
+    forklift: { position: [-27, 4.2, 46.5], target: [-4, 1, 42], fov: 50 },
     shipping: { position: [34, 9, 104], target: [5, 2.5, 82] },
     receiving: { position: [-34, 9, -104], target: [-5, 2.5, -82] },
     yard: { position: [110, 36, 58], target: [72, 1.5, 12] },

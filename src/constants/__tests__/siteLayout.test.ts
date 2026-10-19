@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import * as THREE from 'three';
 import { resolveCameraCollision } from '../../utils/cameraCollision';
 import {
   createMachineObstacles,
@@ -463,5 +464,46 @@ describe('canonical site layout', () => {
     expect(SITE_LAYOUT.datum.waterBed).toBeGreaterThan(SITE_LAYOUT.datum.terrain);
     expect(SITE_LAYOUT.datum.water).toBeGreaterThan(SITE_LAYOUT.datum.waterBed);
     expect(SITE_LAYOUT.datum.water).toBeGreaterThan(SITE_LAYOUT.datum.terrain);
+  });
+
+  /**
+   * A benchmark camera named for a subject must frame that subject. `forklift`
+   * sat outside the east wall looking at an empty stretch of floor 15 m from
+   * the nearest forklift route, so every art review of it judged a scene with
+   * no forklift in it. Benchmark stills run at gameSpeed 0, so the shipping
+   * forklift sits at its route start; the motion capture drives it east.
+   */
+  it('frames the shipping forklift and its aisle from the forklift camera', () => {
+    const pose = SITE_LAYOUT.cameras.forklift;
+    const camera = new THREE.PerspectiveCamera(pose.fov ?? 45, 16 / 9, 0.8, 300);
+    camera.position.set(...pose.position);
+    camera.lookAt(new THREE.Vector3(...pose.target));
+    camera.updateMatrixWorld(true);
+    camera.updateProjectionMatrix();
+    const frustum = new THREE.Frustum().setFromProjectionMatrix(
+      new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)
+    );
+    const route = SITE_LAYOUT.routes.forklifts.shipping.points;
+    const visible = (point: readonly number[]) =>
+      frustum.containsPoint(new THREE.Vector3(point[0], 1, point[2]));
+    expect(visible(route[0])).toBe(true);
+    expect(route.filter(visible).length / route.length).toBeGreaterThanOrEqual(0.6);
+    // Inside the hall, and not standing in a machine, belt or dock platform.
+    expect(containsPoint(FACTORY_BOUNDS, ...pose.position)).toBe(true);
+    for (const obstacle of [
+      ...createMachineObstacles(0),
+      ...createConveyorObstacles(),
+      ...DOCK_PLATFORM_OBSTACLES,
+    ]) {
+      const [x, y, z] = pose.position;
+      const inside =
+        x > obstacle.minX &&
+        x < obstacle.maxX &&
+        z > obstacle.minZ &&
+        z < obstacle.maxZ &&
+        y > (obstacle.minY ?? 0) &&
+        y < (obstacle.maxY ?? Infinity);
+      expect(inside, obstacle.id).toBe(false);
+    }
   });
 });

@@ -1906,6 +1906,29 @@ function PortalFrames() {
   );
 }
 
+/**
+ * The four red safety stations (fire points), each fixed to the inner face of a
+ * side-wall column.
+ *
+ * They stood free 3.2 m off the walls, which put every one of them in the 3 m
+ * pedestrian lane (`WALKWAY_LANES`, centred 3 m in) and left a red 2.5 m slab
+ * with nothing behind it but glazing - "unsupported against the glazing" in
+ * the forklift review frame. Backed onto the steel at z = +/-10 and -30 they
+ * read as mounted, and the lane is clear. The 1 cm gap keeps the back face off
+ * the column face so the two never share a plane.
+ */
+export function buildSafetyStations(): BoxInstance[] {
+  const depth = 0.45;
+  const columnInner = FLOOR_WIDTH / 2 - 0.45 - 0.21;
+  const x = columnInner - depth / 2 - 0.01;
+  return [
+    { position: [-x, 1.25, 10], scale: [depth, 2.5, 1.4] },
+    { position: [x, 1.25, 10], scale: [depth, 2.5, 1.4] },
+    { position: [-x, 1.25, -30], scale: [depth, 2.5, 1.4] },
+    { position: [x, 1.25, -30], scale: [depth, 2.5, 1.4] },
+  ];
+}
+
 function SafetyFurniture() {
   const rails = useMemo<readonly BoxInstance[]>(
     () => [
@@ -1916,15 +1939,7 @@ function SafetyFurniture() {
     ],
     []
   );
-  const stations = useMemo<readonly BoxInstance[]>(
-    () => [
-      { position: [-FLOOR_WIDTH / 2 + 3.2, 1.25, 12], scale: [0.45, 2.5, 1.4] },
-      { position: [FLOOR_WIDTH / 2 - 3.2, 1.25, 12], scale: [0.45, 2.5, 1.4] },
-      { position: [-FLOOR_WIDTH / 2 + 3.2, 1.25, -35], scale: [0.45, 2.5, 1.4] },
-      { position: [FLOOR_WIDTH / 2 - 3.2, 1.25, -35], scale: [0.45, 2.5, 1.4] },
-    ],
-    []
-  );
+  const stations = useMemo(buildSafetyStations, []);
 
   return (
     <>
