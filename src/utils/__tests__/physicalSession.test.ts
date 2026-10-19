@@ -30,6 +30,7 @@ import {
 import {
   MAX_MATERIAL_MANIFESTS,
   MAX_PRODUCTION_BATCHES,
+  MAX_SOURCE_LOTS,
   useMaterialFlowStore,
 } from '../../stores/materialFlowStore';
 import { useProductionStore, PRODUCTION_DELEGATED_KEYS } from '../../stores/productionStore';
@@ -399,6 +400,30 @@ describe('atomic local physical shift continuation', () => {
     );
     // The held batch the quality alert binds is never history.
     expect(saved.material.productionBatches.find((b) => b.id === heldId)?.disposition).toBe('hold');
+  });
+
+  // The lot window evicted oldest-first whatever a lot's state, so a held lot
+  // bound to an open alert could vanish, and the decode then rejected the whole
+  // record as 'Unbound source hold'. Working if filling past the window keeps
+  // the held lot, the record restores, and the hold is still bound.
+  it('never evicts a held lot from the lot window, so the record restores', () => {
+    const lots = () => useMaterialFlowStore.getState().sourceLots;
+    const heldLot = lots().keys().next().value as string;
+    useQCLabStore.getState().triggerContaminationAlert({
+      sourceLotIds: [heldLot],
+      severity: 'medium',
+      controlSource: 'test controller',
+    });
+    expect(lots().get(heldLot)?.disposition).toBe('hold');
+    for (let i = 0; i <= MAX_SOURCE_LOTS; i++)
+      expect(useMaterialFlowStore.getState().receiveGrainDelivery(1)).toBe(1);
+    expect(lots().size).toBeLessThanOrEqual(MAX_SOURCE_LOTS + 1);
+    expect(lots().get(heldLot)?.disposition).toBe('hold');
+    const saved = decodePhysicalSession(encodePhysicalSession(capturePhysicalSession()));
+    expect(saved.material.sourceLots.get(heldLot)?.disposition).toBe('hold');
+    expect(saved.quality.qcLab.contaminationAlerts.find((a) => !a.resolved)?.sourceLotIds).toEqual([
+      heldLot,
+    ]);
   });
 
   // The play-test console logged 'Physical save is too large' every 5 s with a

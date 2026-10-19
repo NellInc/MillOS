@@ -375,7 +375,7 @@ export function retainShippedBatchWindow<T extends { disposition: MaterialDispos
 }
 const newMaterialSessionId = (): string =>
   globalThis.crypto?.randomUUID?.() ?? `flow-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-const MAX_SOURCE_LOTS = 1000;
+export const MAX_SOURCE_LOTS = 1000;
 
 function contributionKey(contribution: SourceContribution): string {
   return `${contribution.lotId}|${contribution.path.join('>')}`;
@@ -1656,10 +1656,18 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
           disposition: 'released',
           dispositionReason: null,
         });
-        while (sourceLots.size > MAX_SOURCE_LOTS) {
-          const oldestLotId = sourceLots.keys().next().value as string | undefined;
-          if (!oldestLotId) break;
-          sourceLots.delete(oldestLotId);
+        // Evict the oldest released lots only. A held or recalled lot is bound
+        // by its quality alert, and the save rejects an open alert whose lot is
+        // missing ('Unbound source hold'), so it stays until it is released,
+        // as held and recalled batches do; those are bounded by QC actions.
+        if (sourceLots.size > MAX_SOURCE_LOTS) {
+          let excess = sourceLots.size - MAX_SOURCE_LOTS;
+          for (const [id, lot] of sourceLots) {
+            if (excess <= 0) break;
+            if (lot.disposition !== 'released') continue;
+            sourceLots.delete(id);
+            excess -= 1;
+          }
         }
         set({
           machineBuffers: newBuffers,
