@@ -22,6 +22,7 @@ import {
 import { MachineType } from '../../../types';
 import type { MachineData } from '../../../types';
 import type { OperationalIncident } from '../../../stores/operationsCampaignStore';
+import { setLocale } from '../../../i18n';
 vi.mock('../../knowledge/LearningNote', () => ({ LearningNote: () => null }));
 
 beforeEach(() => {
@@ -310,6 +311,81 @@ describe('playable shift UI', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Review shift and next programme' }));
     expect(onOpen).toHaveBeenCalledWith('overview');
     expect(useOperationsCampaignStore.getState()).toBe(before);
+  });
+  it('keeps the first receipt but puts the current order and its next step in front', () => {
+    const state = useOperationsCampaignStore.getState();
+    const [first, second] = state.orders;
+    useUIStore.getState().startDeliveryJourney(first.id);
+    useUIStore.getState().recordMachineInspection('mill-1');
+    useOperationsCampaignStore.setState({
+      orders: state.orders.map((order) =>
+        order.id === first.id
+          ? { ...order, status: 'fulfilled' as const, shippedKg: order.requiredKg, completedAtMinute: 142 }
+          : order.id === second.id
+            ? { ...order, status: 'active' as const, shippedKg: 1000 }
+            : order
+      ),
+      activeOrderId: second.id,
+      elapsedMinutes: second.dueAtMinute - 60,
+      execution: {
+        ...state.execution,
+        orderId: second.id,
+        stage: 'loading',
+        qualityReleased: true,
+        dispatchLoad: { ...state.execution.dispatchLoad, loadedKg: 2000 },
+      },
+    });
+    const before = useOperationsCampaignStore.getState();
+    render(<FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={vi.fn()} />);
+    expect(screen.getByRole('heading', { name: 'Delivery fulfilled' })).toBeInTheDocument();
+    expect(screen.getByText(/^Riverside Bakers' Cooperative: 6,000 of 6,000 kg/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Now: Community Pasta Works, 1,000 of 4,000 kg shipped. Due in 1h 0m (simulated).'
+      )
+    ).toBeInTheDocument();
+    expect(screen.getByText('Check shipping in SCADA')).toBeInTheDocument();
+    expect(useOperationsCampaignStore.getState()).toBe(before);
+    cleanup();
+    // Once every order is in, the programme-complete state takes over.
+    useOperationsCampaignStore.setState({
+      orders: before.orders.map((order) => ({
+        ...order,
+        status: 'fulfilled' as const,
+        shippedKg: order.requiredKg,
+      })),
+      activeOrderId: null,
+    });
+    render(<FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={vi.fn()} />);
+    expect(screen.getByText('Programme complete, review your shift')).toBeInTheDocument();
+    expect(screen.queryByText(/^Now: /)).not.toBeInTheDocument();
+  });
+  it('names the current order in Brazilian Portuguese', () => {
+    const state = useOperationsCampaignStore.getState();
+    const [first, second] = state.orders;
+    useUIStore.getState().startDeliveryJourney(first.id);
+    useOperationsCampaignStore.setState({
+      orders: state.orders.map((order) =>
+        order.id === first.id
+          ? { ...order, status: 'fulfilled' as const, shippedKg: order.requiredKg, completedAtMinute: 142 }
+          : order.id === second.id
+            ? { ...order, status: 'active' as const, shippedKg: 1000 }
+            : order
+      ),
+      activeOrderId: second.id,
+      elapsedMinutes: second.dueAtMinute - 60,
+    });
+    setLocale('pt-BR');
+    try {
+      render(<FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={vi.fn()} />);
+      expect(
+        screen.getByText(
+          'Agora: Community Pasta Works, 1.000 de 4.000 kg expedidos. Vence em 1h 0min (tempo simulado).'
+        )
+      ).toBeInTheDocument();
+    } finally {
+      setLocale('en');
+    }
   });
   it('shows one read-only deadline on both guidance surfaces, pauses with the clock and drops completed countdowns', () => {
     const campaign = useOperationsCampaignStore.getState();

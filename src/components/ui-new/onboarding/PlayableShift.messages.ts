@@ -42,6 +42,7 @@ export const playableShiftMessages = defineMessages({
     compactGuide: 'Compact delivery guide',
     closeGuide: 'Close guided delivery',
     fulfilledDispatched: '{customer}: {kg} kg dispatched.',
+    currentOrder: 'Now: {customer}, {shipped} of {required} kg shipped. {due}.',
     programmeComplete: 'Programme complete, review your shift',
     programmeCompleteDetail:
       'The shift debrief shows this shift so far: each delivery, whether it was on time, what held the grade back and what to try next. Then choose the next commitments.',
@@ -167,6 +168,7 @@ export const playableShiftMessages = defineMessages({
     compactGuide: 'Compactar o guia de entrega',
     closeGuide: 'Fechar a entrega guiada',
     fulfilledDispatched: '{customer}: {kg} kg expedidos.',
+    currentOrder: 'Agora: {customer}, {shipped} de {required} kg expedidos. {due}.',
     programmeComplete: 'Programa concluído, revise seu turno',
     programmeCompleteDetail:
       'O balanço do turno mostra este turno até agora: cada entrega, se chegou no prazo, o que impediu uma nota melhor e o que tentar a seguir. Depois escolha os próximos compromissos.',
