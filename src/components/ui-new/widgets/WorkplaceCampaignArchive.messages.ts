@@ -17,6 +17,18 @@ const PT_AGREEMENT: Record<string, string> = {
   pending: 'pendente',
 };
 
+/* Why a follow-on order stopped earning, by its receipt evidence. */
+const EN_EVIDENCE: Record<string, string> = {
+  'quality-failed': 'a load failed its quality threshold',
+  stale: 'its dispatch record no longer matches the plant, for example after a reset',
+  missing: 'the order was cancelled or is no longer on the books',
+};
+const PT_EVIDENCE: Record<string, string> = {
+  'quality-failed': 'uma carga não atingiu o limite de qualidade',
+  stale: 'o registro de expedição não confere mais com a fábrica, por exemplo após um reinício',
+  missing: 'o pedido foi cancelado ou não consta mais da carteira',
+};
+
 interface ReviewSummaryParams {
   profile: string;
   seed: string;
@@ -58,6 +70,12 @@ export const workplaceCampaignArchiveMessages = defineMessages({
     leftNote:
       'Each was left before its final review. It keeps the pay, recovery and receipts it earned and does not count as a completed season.',
     leftSummary: 'Left early at shift {shift} of 3, seed {seed}',
+    followOnStopped: (p: { customer: string; evidence: string }) =>
+      `Credit from ${p.customer} has stopped: ${EN_EVIDENCE[p.evidence] ?? EN_EVIDENCE.missing}.`,
+    followOnReplacement: 'The next shift credits dispatch to {customer} in its place.',
+    followOnNoReplacement:
+      'No other open order can take its place yet. The next shift links one if the mill has one open by then; until then, further dispatch earns the cooperative nothing.',
+    followOnLastShift: 'This is the season’s last shift, so nothing replaces it.',
   },
   'pt-BR': {
     reviewSummary: (p: ReviewSummaryParams) =>
@@ -95,5 +113,11 @@ export const workplaceCampaignArchiveMessages = defineMessages({
     leftNote:
       'Cada uma foi encerrada antes da revisão final. Ela mantém a remuneração, a recuperação e os comprovantes conquistados e não conta como temporada concluída.',
     leftSummary: 'Encerrada antes do fim no turno {shift} de 3, semente {seed}',
+    followOnStopped: (p: { customer: string; evidence: string }) =>
+      `O crédito de ${p.customer} foi interrompido: ${PT_EVIDENCE[p.evidence] ?? PT_EVIDENCE.missing}.`,
+    followOnReplacement: 'O próximo turno credita a expedição para {customer} no lugar dele.',
+    followOnNoReplacement:
+      'Ainda não há outro pedido aberto para substituí-lo. O próximo turno vincula um se o moinho tiver algum aberto até lá; até então, a expedição adicional não rende nada à cooperativa.',
+    followOnLastShift: 'Este é o último turno da temporada, então nada o substitui.',
   },
 });

@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useWorkplaceStore } from '../../../stores/workplaceStore';
+import { pendingFollowOn, useWorkplaceStore } from '../../../stores/workplaceStore';
+import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
 import { useWorkplaceReplayStore } from '../../../stores/workplaceReplayStore';
 import { exportWorkplace } from '../../../simulation/bilateralWorkplace';
 import { campaignOutcomes, campaignTotals } from '../../../simulation/workplaceCampaign';
@@ -81,6 +82,29 @@ function ReviewRecord({ state, left = false }: { state: WorkplaceState; left?: b
  * plant running. Working if a debt-free season ends at idle with its receipts
  * kept as left early, and the customer and programme locks open again.
  */
+/**
+ * What happens to the season's earning link next. A follow-on order whose
+ * evidence went bad stops earning; the next shift links the mill's open
+ * active order in its place when there is one (pendingFollowOn).
+ * Working if a stopped follow-on says why, and what replaces it or that
+ * nothing can yet, in either language.
+ */
+export function FollowOnNotice({ state }: { state: WorkplaceState }) {
+  const t = useT(workplaceCampaignArchiveMessages);
+  // Re-read as orders move, so the named replacement is the one the shift links.
+  const next = useOperationsCampaignStore(() => pendingFollowOn(state)?.customer ?? null);
+  const followOn = state.campaign?.followOn;
+  if (!followOn || followOn.evidence === 'current') return null;
+  return (
+    <p>
+      {t('followOnStopped', { customer: followOn.customer, evidence: followOn.evidence })}{' '}
+      {next
+        ? t('followOnReplacement', { customer: next })
+        : t(state.campaign!.shift >= 2 ? 'followOnLastShift' : 'followOnNoReplacement')}
+    </p>
+  );
+}
+
 export function WorkplaceLeaveSeason({ onLeft }: { onLeft?: (message: string) => void }) {
   const t = useT(workplaceCampaignArchiveMessages);
   const state = useWorkplaceStore((store) => store.workplace);

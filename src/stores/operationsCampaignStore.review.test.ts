@@ -5,6 +5,8 @@ import {
   describeOrderOutcome,
   describeShiftGap,
   describeShiftTryNext,
+  shiftGradeReasons,
+  shiftHeadline,
 } from '../simulation/shiftReview';
 
 // The shift review, built by the real tickCampaign from real tick contexts.
@@ -123,6 +125,43 @@ describe('shift grades follow customer commitments (row 24)', () => {
     expect(afternoon.grade).toBeNull();
     expect(afternoon.metrics.commitmentMinutes).toBe(0);
     expect(afternoon.gradeReasons).toContain('No customer commitments this shift.');
+  });
+
+  it('reports a serious incident left open in an ungraded shift, and its next step', () => {
+    tick(1, { manifests: [programmeManifest], productionBatches: [flourBatch, semolinaBatch] });
+    tick(239);
+    tick(1, { shiftKey: 'day-0-afternoon', shiftLabel: 'Afternoon' });
+    // No order is open this afternoon, but the bearing overheat is raised and left.
+    useOperationsCampaignStore.getState().triggerIncident('bearing_overheat');
+    tick(479, { shiftKey: 'day-0-afternoon', shiftLabel: 'Afternoon' });
+    tick(1, { shiftKey: 'day-0-night', shiftLabel: 'Night' });
+    const report = lastReport();
+    const basis = report.gradeBasis!;
+    expect(report.grade).toBeNull();
+    expect(report.summary).toBe(
+      'No customer commitments this shift, but an unresolved incident held it back.'
+    );
+    expect(shiftGradeReasons(basis, 'en')).toEqual([
+      'No customer commitments this shift.',
+      'Still open at close, not yet acknowledged: Roller mill bearing overheat. R.M. 101 bearing temperature is rising toward the trip point.',
+    ]);
+    expect(describeShiftTryNext(basis, null, 'en')).toBe(
+      'Try next: acknowledge and mitigate Roller mill bearing overheat in Overview as soon as it is raised, then resolve it before the shift closes.'
+    );
+    expect(shiftHeadline(basis, null, 'pt-BR')).toBe(
+      'Nenhum compromisso com clientes neste turno, mas uma ocorrência não resolvida o prejudicou.'
+    );
+    expect(shiftGradeReasons(basis, 'pt-BR')[1]).toMatch(
+      /^Ainda aberta no fechamento, sem reconhecimento: Roller mill bearing overheat\. R\.M\. 101/
+    );
+    expect(describeShiftTryNext(basis, null, 'pt-BR')).toMatch(
+      /^Tente a seguir: reconheça e mitigue Roller mill bearing overheat/
+    );
+    // A report saved before the location was kept still names what is open.
+    const { openIncidents: _kept, ...older } = basis;
+    expect(shiftGradeReasons(older, 'en')[1]).toBe(
+      'Still open at close: Roller mill bearing overheat.'
+    );
   });
 
   it('grades a short window against the time it held a commitment', () => {

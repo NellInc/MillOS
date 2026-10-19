@@ -13,7 +13,9 @@ import { shiftReviewMessages } from './shiftReview.messages';
  * to the time they actually had.
  * Working if an idle window after a finished programme reads "No customer
  * commitments this shift" rather than F, and the quality (F) and unsafe
- * incident (D) caps still apply to every graded window.
+ * incident (D) caps still apply to every graded window. An ungraded window
+ * with a serious incident still open has no letter either, but its review
+ * names the incident and its next step rather than reading as clean.
  */
 
 export type ShiftGrade = 'A' | 'B' | 'C' | 'D' | 'F';
@@ -24,6 +26,14 @@ export type ShiftGrade = 'A' | 'B' | 'C' | 'D' | 'F';
  */
 export const GRADE_A_KG_PER_COMMITMENT_HOUR = 500;
 export const GRADE_B_KG_PER_COMMITMENT_HOUR = 312.5;
+
+/** A serious incident still open when the window closed. */
+export interface ShiftOpenIncident {
+  title: string;
+  /** The incident's description, which names where it is. */
+  detail: string;
+  phase: 'raised' | 'acknowledged' | 'mitigated';
+}
 
 /** The evidence a grade is computed from, stored with the report. */
 export interface ShiftGradeBasis {
@@ -36,6 +46,11 @@ export interface ShiftGradeBasis {
   risks: string[];
   /** Unresolved high or critical incidents at close, by title. */
   unsafeTitles: string[];
+  /**
+   * The same incidents with where they are (their description) and how far
+   * they were handled. Optional: reports saved before it name titles only.
+   */
+  openIncidents?: ShiftOpenIncident[];
   qualityFailureKg: number;
   /** Orders fulfilled in this window after their deadline. */
   lateDeliveries: number;
@@ -74,7 +89,8 @@ export function shiftGradeBasis(
   metrics: ShiftCampaignMetrics,
   risks: string[],
   unsafeTitles: string[],
-  lateDeliveries = 0
+  lateDeliveries = 0,
+  openIncidents?: ShiftOpenIncident[]
 ): ShiftGradeBasis {
   const commitmentMinutes = Math.max(0, metrics.commitmentMinutes ?? 0);
   const hours = commitmentMinutes / 60;
@@ -84,6 +100,7 @@ export function shiftGradeBasis(
     margin: shiftMargin(metrics),
     risks: [...risks],
     unsafeTitles: [...unsafeTitles],
+    ...(openIncidents ? { openIncidents: openIncidents.map((incident) => ({ ...incident })) } : {}),
     qualityFailureKg: metrics.qualityFailureKg ?? 0,
     lateDeliveries: Math.max(0, lateDeliveries),
     kgForA: Math.ceil(GRADE_A_KG_PER_COMMITMENT_HOUR * hours),
@@ -133,7 +150,16 @@ export function gradeShift(basis: ShiftGradeBasis): ShiftGrade | null {
 /** The reasons for a grade, in the given language. */
 export function shiftGradeReasons(basis: ShiftGradeBasis, locale: Locale): string[] {
   const t = createTranslator(shiftReviewMessages, locale);
-  if (hasNoCommitment(basis)) return [t('noCommitment')];
+  // Nothing to grade is not a clean shift when a serious incident was left
+  // open: each is named, with where it is and how far it was handled.
+  // Working if an ungraded window with an open incident lists it.
+  if (hasNoCommitment(basis))
+    return [
+      t('noCommitment'),
+      ...(basis.openIncidents
+        ? basis.openIncidents.map((incident) => t('openIncidentReason', { ...incident }))
+        : basis.unsafeTitles.map((title) => t('openIncidentTitleReason', { title }))),
+    ];
   const reasons = [
     t('dispatchReason', {
       kg: formatGrouped(Math.round(basis.dispatchedKg), undefined, locale),
@@ -213,7 +239,8 @@ export function shiftHeadline(
   locale: Locale
 ): string {
   const t = createTranslator(shiftReviewMessages, locale);
-  if (grade === null) return t('noCommitment');
+  if (grade === null)
+    return basis.unsafeTitles.length ? t('noCommitmentIncident') : t('noCommitment');
   if (grade === 'A' || grade === 'B')
     return t('headlineGood', { kg: kgText(basis.dispatchedKg, locale) });
   const gap = shiftGradeGap(basis, grade);
@@ -276,7 +303,10 @@ export function describeShiftTryNext(
   locale: Locale
 ): string | null {
   const t = createTranslator(shiftReviewMessages, locale);
-  if (grade === null) return t('tryNoCommitment');
+  if (grade === null)
+    return basis.unsafeTitles.length
+      ? t('tryUnsafe', { titles: basis.unsafeTitles.join(', ') })
+      : t('tryNoCommitment');
   const gap = shiftGradeGap(basis, grade);
   if (!gap) return null;
   switch (gap.binding) {

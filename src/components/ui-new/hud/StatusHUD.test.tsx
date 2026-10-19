@@ -314,4 +314,36 @@ describe('StatusHUD operational controls', () => {
       useUIStore.setState({ maintenanceFocusRequested: false });
     }
   });
+
+  it('files achievements and other successes as records, not as unread items needing action', () => {
+    const alert = (id: string, type: 'success' | 'info', title: string) => ({
+      id,
+      type,
+      title,
+      message: `${title}.`,
+      timestamp: new Date(),
+      acknowledged: false,
+    });
+    useUIStore.setState({
+      alerts: [
+        alert('achievement-first-bag', 'success', 'Achievement unlocked'),
+        alert('achievement-century', 'success', 'Achievement unlocked again'),
+        alert('shift-review-1', 'info', 'Morning shift closed: grade B'),
+      ],
+    });
+    render(<StatusHUD />);
+    const bell = screen.getByRole('button', { name: 'Notifications (1 unread)' });
+    expect(bell).toHaveTextContent('1');
+    fireEvent.click(bell);
+    // Still listed and dismissable, but nothing to acknowledge.
+    expect(screen.getByText('Achievement unlocked')).toBeVisible();
+    expect(
+      screen.queryByRole('button', { name: 'Acknowledge Achievement unlocked' })
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Dismiss Achievement unlocked' })).toBeVisible();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Acknowledge Morning shift closed: grade B' })
+    );
+    expect(screen.getByRole('button', { name: 'Notifications (0 unread)' })).toBeVisible();
+  });
 });

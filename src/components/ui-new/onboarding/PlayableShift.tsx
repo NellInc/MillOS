@@ -11,7 +11,7 @@ import {
 } from '../../../stores/gameSimulationStore';
 import { isPaceGameSpeed, PACE_GAME_SPEEDS, STANDARD_GAME_SPEED } from '../../../simulation/pace';
 import { paceMessages } from '../../../simulation/pace.messages';
-import { WorkplaceLeaveSeason } from '../widgets/WorkplaceCampaignArchive';
+import { FollowOnNotice, WorkplaceLeaveSeason } from '../widgets/WorkplaceCampaignArchive';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
 import {
   improvementSummary,
@@ -216,6 +216,11 @@ export function FirstDeliveryJourney({
   // inspection step was done; inspection stays a separate milestone.
   const completed = order?.status === 'fulfilled';
   const play = deriveOperationsPlay(campaign);
+  const currentOrder =
+    completed && play.nextAction.kind !== 'programme' && play.activeOrder?.id !== order.id
+      ? play.activeOrder
+      : null;
+  const currentDeadline = deriveDeliveryDeadline(currentOrder, campaign.elapsedMinutes);
   // Opening Overview for a repair also lands on its maintenance section.
   const openWorkspace = (mode: 'scada' | 'overview') => {
     if (
@@ -262,6 +267,20 @@ export function FirstDeliveryJourney({
                 kg: formatFixed(order.shippedKg, 0),
               })}
         </p>
+        {/* The receipt stays, but the order being made now is the goal on
+            screen. Working if a later order reads its customer, shipped of
+            required and due time until the programme completes. Not live:
+            its kilograms change every tick. */}
+        {currentOrder && currentDeadline && (
+          <p className="mt-2 text-sm leading-6 text-white">
+            {t('currentOrder', {
+              customer: currentOrder.customer,
+              shipped: formatGrouped(Math.round(currentOrder.shippedKg)),
+              required: formatGrouped(Math.round(currentOrder.requiredKg)),
+              due: currentDeadline.label,
+            })}
+          </p>
+        )}
         <p className="mt-3 text-sm font-semibold text-cyan-100" aria-live="polite">
           {play.nextAction.kind === 'programme' ? t('programmeComplete') : play.nextAction.label}
         </p>
@@ -535,6 +554,7 @@ function WorkingAgreementSummary({
           })}
         </p>
       )}
+      <FollowOnNotice state={state} />
       <p>
         {t('agreementOutcome', {
           status: t('agreementStatus', { status: outcome.agreement.status }),

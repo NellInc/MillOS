@@ -112,8 +112,13 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace: workspa
   const dragStartPos = useRef({ x: 0, y: 0 });
   const elementStartPos = useRef({ x: 0, y: 0 });
 
-  // Count unacknowledged alerts
-  const unacknowledgedCount = alerts.filter((a) => !a.acknowledged).length;
+  // Count unacknowledged alerts. A success (an achievement, a finished
+  // repair) is a record, not something to act on: it is listed but never
+  // unread, so the badge only counts what needs reading.
+  // Working if two achievement unlocks leave the badge at zero.
+  const unread = (alert: (typeof alerts)[number]) =>
+    !alert.acknowledged && alert.type !== 'success';
+  const unacknowledgedCount = alerts.filter(unread).length;
 
   // Machines a notification can send the player to repair, read live so a
   // notice about a machine already back in service offers nothing: an open
@@ -511,7 +516,7 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace: workspa
                   <div
                     key={alert.id}
                     className={`p-3 border-b border-white/5 last:border-0 ${
-                      !alert.acknowledged ? 'bg-white/5' : ''
+                      unread(alert) ? 'bg-white/5' : ''
                     }`}
                   >
                     <div className="flex items-start gap-2">
@@ -556,7 +561,7 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace: workspa
                             <Wrench size={12} />
                           </button>
                         )}
-                        {!alert.acknowledged && (
+                        {unread(alert) && (
                           <button
                             onClick={() => acknowledgeAlert(alert.id)}
                             className="p-2 text-slate-400 hover:text-green-400 transition-colors"

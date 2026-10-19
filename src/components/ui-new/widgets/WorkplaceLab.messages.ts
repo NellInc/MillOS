@@ -364,7 +364,11 @@ export const workplaceLabMessages = defineMessages({
     followOnCredit:
       'Commitment order fulfilled. This season now works {customer}: {credited} kg of its dispatch credited to the cooperative.',
     followOnPending:
-      'Commitment order fulfilled. Dispatch to the mill’s next customer is credited to the cooperative from the next shift.',
+      'Commitment order fulfilled. Dispatch to {customer} is credited to the cooperative from the next shift.',
+    followOnNone:
+      'Commitment order fulfilled. No other customer order is open, so further dispatch earns the cooperative nothing. The next shift links one if the mill has one open by then.',
+    followOnNoneLastShift:
+      'Commitment order fulfilled. This is the season’s last shift, so further dispatch earns the cooperative nothing.',
     recordSurplusBallot: 'Record member surplus ballot',
     noSurplusBallots: 'No surplus ballots.',
     executeAllocation: 'Execute agreed allocation',
@@ -694,7 +698,11 @@ export const workplaceLabMessages = defineMessages({
     followOnCredit:
       'Pedido do compromisso cumprido. Esta temporada agora atende {customer}: {credited} kg da expedição creditados à cooperativa.',
     followOnPending:
-      'Pedido do compromisso cumprido. A expedição para o próximo cliente do moinho é creditada à cooperativa a partir do próximo turno.',
+      'Pedido do compromisso cumprido. A expedição para {customer} é creditada à cooperativa a partir do próximo turno.',
+    followOnNone:
+      'Pedido do compromisso cumprido. Nenhum outro pedido de cliente está aberto, então a expedição adicional não rende nada à cooperativa. O próximo turno vincula um se o moinho tiver algum aberto até lá.',
+    followOnNoneLastShift:
+      'Pedido do compromisso cumprido. Este é o último turno da temporada, então a expedição adicional não rende nada à cooperativa.',
     recordSurplusBallot: 'Registrar voto do cooperado sobre as sobras',
     noSurplusBallots: 'Nenhum voto sobre as sobras.',
     executeAllocation: 'Executar a destinação acordada',

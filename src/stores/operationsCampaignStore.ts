@@ -27,6 +27,7 @@ import {
   shiftHeadline,
   type ShiftGrade,
   type ShiftGradeBasis,
+  type ShiftOpenIncident,
   type ShiftOrderOutcome,
 } from '../simulation/shiftReview';
 import { operationsCampaignMessages as messages } from './operationsCampaignStore.messages';
@@ -1044,17 +1045,21 @@ export function buildShiftReport(input: ShiftReportInput): ShiftCampaignReport {
   const open = (order: CustomerOrder) =>
     order.status !== 'fulfilled' && order.status !== 'cancelled';
   const completed = orders.filter(completedHere);
+  const unsafe = input.incidents.filter(
+    (incident) =>
+      incident.phase !== 'resolved' &&
+      (incident.severity === 'high' || incident.severity === 'critical')
+  );
   const gradeBasis = shiftGradeBasis(
     input.metrics,
     input.risks,
-    input.incidents
-      .filter(
-        (incident) =>
-          incident.phase !== 'resolved' &&
-          (incident.severity === 'high' || incident.severity === 'critical')
-      )
-      .map((incident) => incident.title),
-    completed.filter((order) => order.completedAtMinute! > order.dueAtMinute + 1e-6).length
+    unsafe.map((incident) => incident.title),
+    completed.filter((order) => order.completedAtMinute! > order.dueAtMinute + 1e-6).length,
+    unsafe.map((incident) => ({
+      title: incident.title,
+      detail: incident.description,
+      phase: incident.phase as ShiftOpenIncident['phase'],
+    }))
   );
   const grade = gradeShift(gradeBasis);
   const locale = getLocale();

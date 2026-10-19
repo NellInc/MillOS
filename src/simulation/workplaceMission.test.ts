@@ -299,6 +299,45 @@ describe('work after the commitment is fulfilled', () => {
     expect(restoreWorkplace(forged).campaign).toBeNull();
   });
 
+  it('replaces a follow-on whose evidence went bad with the mill’s open active order at the next shift', () => {
+    const c = meetCommitment(3000);
+    c.run({ type: 'nextCampaignShift', args: [nextOrder()] });
+    c.agree();
+    c.run({
+      type: 'tick',
+      args: [
+        5,
+        999999,
+        false,
+        {
+          orderId: 'order-real',
+          materialSessionId: 'session-real',
+          shippedKg: 3100,
+          qualityFailureKg: 0,
+          manifestIds: ['old', 'd-1'],
+          cancelled: false,
+        },
+        nextObservation({ shippedKg: 300, manifestIds: ['n-1'], qualityFailureKg: 5 }),
+      ],
+    });
+    c.finish();
+    expect(c.state.phase).toBe('review');
+    expect(c.state.campaign?.followOn?.evidence).toBe('quality-failed');
+    useWorkplaceStore.setState({ workplace: c.state });
+    const ops = useOperationsCampaignStore.getState();
+    const active = ops.orders.find((o) => o.id === ops.activeOrderId)!;
+    expect(useWorkplaceStore.getState().nextCampaignShift().changed).toBe(true);
+    const campaign = useWorkplaceStore.getState().workplace.campaign!;
+    expect(campaign.shift).toBe(2);
+    expect(campaign.followOn).toMatchObject({
+      orderId: active.id,
+      customer: active.customer,
+      creditedKg: 0,
+      evidence: 'current',
+    });
+    expect(campaign.mission?.orderId).toBe('order-real');
+  });
+
   it('keeps the follow-on link in a handoff opened from that review, across a reload', () => {
     const c = meetCommitment(3000);
     c.run({ type: 'nextCampaignShift', args: [nextOrder()] });

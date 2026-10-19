@@ -72,14 +72,48 @@ describe('a closed shift is announced (row 21)', () => {
         message: expect.stringContaining('Overview'),
       }),
     ]);
+    // Screen readers hear the bell notice once, politely, whether or not the
+    // PA is on or muted; the PA caption is for the eye, so it is not read twice.
+    expect(reviewAlerts()[0].announce).toBe('polite');
     // The PA caption carries it to where the player is looking.
     expect(
       useAnnouncementsStore
         .getState()
         .announcements.filter((a) => /^Morning shift closed: /.test(a.message))
-    ).toHaveLength(1);
+    ).toEqual([expect.objectContaining({ captionOnly: true })]);
     for (let i = 0; i < 20; i++) tickAt(STANDARD_GAME_SPEED);
     expect(reviewAlerts()).toHaveLength(1);
+  });
+
+  it('does not close an ungraded shift with an open serious incident as if it were clean', () => {
+    const ops = useOperationsCampaignStore.getState();
+    ops.initializeCampaign();
+    useOperationsCampaignStore.setState({
+      orders: useOperationsCampaignStore
+        .getState()
+        .orders.map((o) => ({ ...o, status: 'fulfilled', shippedKg: o.requiredKg })),
+      activeOrderId: null,
+    });
+    useOperationsCampaignStore.getState().triggerIncident('bearing_overheat');
+    useGameSimulationStore.getState().setGameTime(13.9);
+    for (let i = 0; i < 20; i++) tickAt(STANDARD_GAME_SPEED);
+    const report = useOperationsCampaignStore.getState().reports.at(-1)!;
+    expect(report.grade).toBeNull();
+    expect(reviewAlerts()[0]?.title).toBe(
+      'Morning shift closed: no customer commitments, an incident still open'
+    );
+    setLocale('pt-BR');
+    try {
+      useUIStore.setState({ alerts: [] });
+      useOperationsCampaignStore.setState({ reports: [] });
+      useGameSimulationStore.getState().setGameTime(21.9);
+      for (let i = 0; i < 20; i++) tickAt(STANDARD_GAME_SPEED);
+      expect(reviewAlerts()[0]?.title).toBe(
+        'Turno da tarde encerrado: sem compromissos com clientes, ocorrência ainda aberta'
+      );
+    } finally {
+      setLocale('en');
+    }
   });
 
   it('announces in Brazilian Portuguese', () => {

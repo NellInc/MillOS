@@ -20,6 +20,7 @@ export const alertSystemMessages = defineMessages({
     nearMissSafetySystem: 'Safety system engaged - near-miss avoided',
     nearMissTitle: 'Near-Miss Avoided',
     safetyLiveRegion: 'Safety alert: {title}. {message}',
+    politeLiveRegion: '{title}. {message}',
     /** `type` is the alert's own type id ('critical' | 'warning'), read as-is in English. */
     typedLiveRegion: (p: { type: string; title: string; message: string }) =>
       `${p.type} alert: ${p.title}. ${p.message}`,
@@ -46,6 +47,7 @@ export const alertSystemMessages = defineMessages({
     nearMissSafetySystem: 'Sistema de segurança acionado - quase acidente evitado',
     nearMissTitle: 'Quase acidente evitado',
     safetyLiveRegion: 'Alerta de segurança: {title}. {message}',
+    politeLiveRegion: '{title}. {message}',
     typedLiveRegion: (p: { type: string; title: string; message: string }) =>
       `${p.type === 'critical' ? 'Alerta crítico' : 'Alerta de atenção'}: ${p.title}. ${p.message}`,
   },

@@ -44,6 +44,7 @@ const NEAR_MISS_MESSAGE_KEYS = [
  */
 export const AlertSystem: React.FC = () => {
   const [liveRegionMessage, setLiveRegionMessage] = useState('');
+  const [politeMessage, setPoliteMessage] = useState('');
   const isInitialMount = useRef(true);
   const safetyMetrics = useSafetyStore((state) => state.safetyMetrics);
   const prevSafetyStopsRef = useRef(safetyMetrics.safetyStops);
@@ -87,6 +88,26 @@ export const AlertSystem: React.FC = () => {
     }
     prevSafetyStopsRef.current = safetyMetrics.safetyStops;
   }, [safetyMetrics.safetyStops, addAlert]);
+
+  // An alert filed with announce: 'polite' (a closed shift, say) is read once
+  // as it is filed. Alerts already in the bell at mount are not news, and
+  // routine info and success alerts stay silent.
+  // Working if a closed shift reaches a screen reader with the PA off or muted.
+  useEffect(() => {
+    let seen = new Set(useUIStore.getState().alerts.map((alert) => alert.id));
+    return useUIStore.subscribe(({ alerts }) => {
+      const fresh = alerts.filter((alert) => !seen.has(alert.id) && alert.announce === 'polite');
+      seen = new Set(alerts.map((alert) => alert.id));
+      const notice = fresh[0];
+      if (notice)
+        setPoliteMessage(
+          translate(alertSystemMessages, 'politeLiveRegion', {
+            title: notice.title,
+            message: notice.message,
+          })
+        );
+    });
+  }, []);
 
   useEffect(() => {
     if (!import.meta.env.DEV) {
@@ -142,8 +163,13 @@ export const AlertSystem: React.FC = () => {
   // Only render screen reader live region - no visible UI
   // Alerts are displayed via StatusHUD notification dropdown
   return (
-    <div role="alert" aria-atomic="true" className="sr-only">
-      {liveRegionMessage}
-    </div>
+    <>
+      <div role="alert" aria-atomic="true" className="sr-only">
+        {liveRegionMessage}
+      </div>
+      <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+        {politeMessage}
+      </div>
+    </>
   );
 };
