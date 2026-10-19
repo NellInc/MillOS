@@ -39,6 +39,7 @@ import { useWorkplaceStore } from '../../stores/workplaceStore';
 import { workplaceOwnsGuidance } from '../../simulation/workplaceImprovement';
 import { useT } from '../../i18n';
 import { gameInterfaceMessages } from './GameInterface.messages';
+import { focusDockItem } from './dock/focusDockItem';
 
 const LayoutPlanner = recoverableLazy(() =>
   import('./widgets/LayoutPlanner').then((module) => ({ default: module.LayoutPlanner }))
@@ -121,6 +122,11 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   const journeyVisible = useUIStore((s) => s.journeyVisible);
   const startDeliveryJourney = useUIStore((s) => s.startDeliveryJourney);
   const [introStep, setIntroStep] = useState<number | null>(null);
+  // The tour's buttons unmount with it, so its exits hand focus on: to the
+  // guided delivery's heading when that card opens, else to the dock.
+  // Working if focus never falls to <body> after Start operating, Skip or Close.
+  const [focusJourneyHeading, setFocusJourneyHeading] = useState(false);
+  const clearJourneyHeadingFocus = React.useCallback(() => setFocusJourneyHeading(false), []);
   const releaseTourClock = React.useCallback(() => {
     // The tour holds the clock through the shared authority and releases only
     // its own hold, so a newer pace choice or another holder is preserved.
@@ -189,6 +195,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       setIntroStep(null);
       const campaign = useOperationsCampaignStore.getState();
       startDeliveryJourney(campaign.activeOrderId ?? campaign.orders[0]?.id ?? null);
+      setFocusJourneyHeading(true);
       setSidebarVisible(false);
       return;
     }
@@ -210,12 +217,17 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
     useCameraStore.getState().cancelAnimation();
     const campaign = useOperationsCampaignStore.getState();
     startDeliveryJourney(campaign.activeOrderId ?? campaign.orders[0]?.id ?? null);
+    setFocusJourneyHeading(true);
   };
 
   const handleIntroClose = () => {
     releaseTourClock();
     setIntroStep(null);
     useCameraStore.getState().cancelAnimation();
+    // A guide already open from an earlier session takes focus as it shows;
+    // otherwise nothing replaces the tour, so focus goes to the dock.
+    if (useUIStore.getState().journeyVisible) setFocusJourneyHeading(true);
+    else focusDockItem('overview');
   };
 
   // AI Narration - get current narration to display
@@ -330,6 +342,11 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       const mode = requestedMode === 'autonomy' ? 'management' : requestedMode;
       if (isCompactLayout) useMobileControlStore.getState().openMobilePanel(mode);
       else {
+        // The control that sent this (Take over, the companion's Open) often
+        // unmounts as the panel opens; the panel heading takes focus instead.
+        // A repair route keeps its own target, the maintenance section.
+        if (!useUIStore.getState().maintenanceFocusRequested)
+          useUIStore.getState().requestPanelFocus();
         setActiveMode(mode);
         setSidebarVisible(true);
         onAIPanelChange?.(false);
@@ -553,6 +570,19 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
         (!isCompactLayout || !mobilePanelVisible) && (
           <FirstDeliveryJourney
             selectedMachine={selectedMachine}
+            focusHeadingOnMount={focusJourneyHeading}
+            onHeadingFocused={clearJourneyHeadingFocus}
+            // A keyboard route to the opening lesson: the same selection and
+            // camera flight as clicking the machine. On a desktop the inspector
+            // opens in the sidebar, whose heading takes focus.
+            onInspectMachine={
+              onFocusMachine
+                ? (machineId) => {
+                    if (!isCompactLayout) useUIStore.getState().requestPanelFocus();
+                    onFocusMachine(machineId);
+                  }
+                : undefined
+            }
             onOpenWorkspace={(mode) => {
               if (isCompactLayout) useMobileControlStore.getState().openMobilePanel(mode);
               else {

@@ -15,6 +15,8 @@ interface DeliveryJourney {
   loading?: Pick<DispatchLoadSnapshot, 'loadedKg' | 'capacityKg'>;
   /** Overview should land on this section when the guide opens it. */
   focus?: 'maintenance';
+  /** The opening lesson: the card offers a keyboard route to inspect a machine. */
+  inspect?: true;
 }
 
 /** The oldest open work order, as the guide reads it; read-only. */
@@ -148,6 +150,7 @@ export function deriveDeliveryJourney(
       view: 'Milling',
       detail: translate(m, 'inspectDetail'),
       workspace: null,
+      inspect: true,
       entryId: 'bottlenecks-and-buffers',
     };
   if (execution.orderId !== order.id)
