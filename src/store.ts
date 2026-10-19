@@ -47,7 +47,11 @@ export type { GraphicsQuality, GraphicsSettings } from './stores/graphicsStore';
 
 import { initializeSCADA, shutdownSCADA } from './scada/SCADAService';
 import { useProductionStore, useUIStore } from './stores';
-import { useMaterialFlowStore, type MaterialFlowState } from './stores/materialFlowStore';
+import {
+  getRecalledStock,
+  useMaterialFlowStore,
+  type MaterialFlowState,
+} from './stores/materialFlowStore';
 import {
   useOperationsCampaignStore,
   type UtilityAssetTelemetry,
@@ -228,8 +232,16 @@ export function buildOperationalTelemetry(
   const activeQualityHolds = flow.productionBatches.filter(
     (batch) => batch.disposition === 'hold' && batch.availableKg > 0
   ).length;
+  // Recalled product is scrapped when it is recalled or packed, so a recalled
+  // batch is unresolved only while it still holds mass or its recalled lots
+  // are still in the plant. Counting every recall ever made held the HI alarm
+  // for the rest of the session.
+  const recalledStock = getRecalledStock(flow);
   const recalledBatches = flow.productionBatches.filter(
-    (batch) => batch.disposition === 'recalled'
+    (batch) =>
+      batch.disposition === 'recalled' &&
+      (batch.availableKg > 0 ||
+        batch.sourceContributions.some((source) => recalledStock.lotIds.has(source.lotId)))
   ).length;
   const openWorkOrders = workOrders.filter(
     (workOrder) => workOrder.phase !== 'returned_to_service'

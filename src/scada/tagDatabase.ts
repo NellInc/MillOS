@@ -1177,7 +1177,8 @@ const operationalTags: TagDefinition[] = [
     get name() {
       return translate(msg, 'recalledProductBatches');
     },
-    description: 'Production batches under terminal recall disposition',
+    description:
+      'Recalled production batches whose recall is unresolved: stock held, or recalled lot material still in the plant',
     dataType: 'INT16',
     accessMode: 'READ',
     engUnit: 'batches',
