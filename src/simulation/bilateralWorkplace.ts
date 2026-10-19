@@ -254,6 +254,31 @@ const memberCopy = (t: WorkplaceTranslator) => [
   },
 ];
 
+const MEMBER_ORDER = ['packing', 'quality', 'maintenance', 'coordinator'];
+
+/**
+ * Members store their public copy as text in the language active when it was
+ * written. Rewrite it in the language active now, keeping everything else; the
+ * state is returned unchanged when there is nothing to rewrite.
+ */
+export function localizeWorkplaceMembers(s: WorkplaceState): WorkplaceState {
+  const copy = memberCopy(createTranslator(bilateralWorkplaceMessages, getLocale()));
+  let changed = false;
+  const members = s.members.map((m) => {
+    const next = copy[MEMBER_ORDER.indexOf(m.id)];
+    if (
+      !next ||
+      (m.role === next.role &&
+        m.publicBoundary === next.publicBoundary &&
+        m.preference === next.preference)
+    )
+      return m;
+    changed = true;
+    return { ...m, ...next };
+  });
+  return changed ? { ...s, members } : s;
+}
+
 /** All identities and preference explanations below are authored fiction. */
 export function createWorkplace(mode: WorkplaceMode = 'game', seed = 1): WorkplaceState {
   const copy = memberCopy(createTranslator(bilateralWorkplaceMessages, getLocale()));

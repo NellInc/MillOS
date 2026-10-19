@@ -16,6 +16,7 @@ import { getDispatchQualityStatus, useQCLabStore } from './qcLabStore';
 import { capturePackingPlant, derivePackingAdvice } from '../simulation/workplaceAdvice';
 import {
   createWorkplace,
+  localizeWorkplaceMembers,
   restoreWorkplace,
   saveWorkplace,
   transitionWorkplace,
@@ -24,7 +25,7 @@ import {
 import { handoffHoldsClock, workplaceMission } from '../simulation/workplaceImprovement';
 import { safeJSONStorage } from './storage';
 import { isWorkplaceReplayActive } from '../simulation/workplaceReplayRuntime';
-import { translate } from '../i18n';
+import { translate, useLocaleStore } from '../i18n';
 import { workplaceStoreMessages as msg } from './workplaceStore.messages';
 
 import {
@@ -756,6 +757,20 @@ useWorkplaceStore.subscribe(({ workplace }, previous) => {
   if (workplace !== previous.workplace) syncHandoffHold(workplace);
 });
 syncHandoffHold(useWorkplaceStore.getState().workplace);
+
+// Member roles, boundaries and preferences are stored as text; a language
+// switch rewrites them in place (a reload already regenerates them on restore).
+// It is not an out-of-band replacement, so an open participant turn moves with it.
+useLocaleStore.subscribe((state, previous) => {
+  if (state.locale === previous.locale) return;
+  const { workplace, turn } = useWorkplaceStore.getState();
+  const localized = localizeWorkplaceMembers(workplace);
+  if (localized === workplace) return;
+  useWorkplaceStore.setState({
+    workplace: localized,
+    turn: turn && turn.anchor === workplace ? { ...turn, anchor: localized } : turn,
+  });
+});
 
 /** Captures a render's token so retained callbacks cannot borrow the next turn. */
 export function useWorkplaceControls() {
