@@ -23,7 +23,13 @@ import {
   communityAgreementCue,
   communityAgreementResponse,
   advanceCommunityAgreementClock,
+  COMMUNITY_WALK_SPEED_MPS,
+  COMMUNITY_CYCLE_SPEED_MPS,
+  COMMUNITY_SEAT_RAMP,
+  STANDARD_HOURS_PER_REAL_SECOND,
+  communityPassengerWalkHours,
 } from '../communityLife';
+import { STANDARD_GAME_SPEED } from '../pace';
 import { createWorkplace, transitionWorkplace } from '../bilateralWorkplace';
 import {
   createMachineObstacles,
@@ -123,9 +129,10 @@ describe('fictional campaign worker presentation', () => {
           person,
           advanceCommunityAgreementClock(heldHour, 0.00001, null)
         );
+        // Resuming continues from the held point: one walking step of 0.00001 h at most.
         expect(
           Math.hypot(resumed.position[0] - held.position[0], resumed.position[2] - held.position[2])
-        ).toBeLessThan(0.001);
+        ).toBeLessThanOrEqual(0.00001 / WALK_HOURS_PER_METRE + 1e-9);
         expect(advanceCommunityAgreementClock(heldHour, 0, null)).toBe(heldHour);
         const safetyHour = advanceCommunityPeopleClock(hour, hour + 12, 12, true, true);
         expect(advanceCommunityAgreementClock(hour, safetyHour - hour, null)).toBe(hour);
@@ -192,16 +199,89 @@ describe('inhabited world routines', () => {
       );
     }
   });
-  it('bounds pedestrian speed rather than sliding at 180 times the walk clip', () => {
-    for (const person of COMMUNITY_ROSTER.filter((p) => p.district === 'mill')) {
-      for (let h = 0; h < 24; h += 0.037) {
-        const a = sampleCommunityPerson(person, h),
-          b = sampleCommunityPerson(person, h + 0.0001);
-        expect(
-          Math.hypot(a.position[0] - b.position[0], a.position[2] - b.position[2]) / 0.0001
-        ).toBeLessThanOrEqual(1 / WALK_HOURS_PER_METRE + 0.001);
+  // Metres per REAL second when the clock runs at standard pace. Every other pace
+  // scales this together with the trucks and forklifts (pace.ts).
+  const realSpeed = (
+    sample: (hour: number) => { position?: number[]; x?: number; z?: number },
+    hour: number,
+    step = 0.00002
+  ) => {
+    const at = (h: number) => {
+      const s = sample(h);
+      return s.position ? [s.position[0], s.position[2]] : [s.x!, s.z!];
+    };
+    const [ax, az] = at(hour),
+      [bx, bz] = at(hour + step);
+    return (Math.hypot(bx - ax, bz - az) / step) * STANDARD_HOURS_PER_REAL_SECOND;
+  };
+  it('walks residents at a believable real-time speed at standard pace', () => {
+    expect(STANDARD_HOURS_PER_REAL_SECOND).toBe(STANDARD_GAME_SPEED / 3600);
+    expect(COMMUNITY_WALK_SPEED_MPS).toBeGreaterThanOrEqual(1.2);
+    expect(COMMUNITY_WALK_SPEED_MPS).toBeLessThanOrEqual(1.4);
+    expect((1 / WALK_HOURS_PER_METRE) * STANDARD_HOURS_PER_REAL_SECOND).toBeCloseTo(
+      COMMUNITY_WALK_SPEED_MPS,
+      9
+    );
+    const fastest = new Map<string, number>(),
+      walking = new Map<string, number>();
+    const people = COMMUNITY_ROSTER.filter((p) => p.stops.length > 0);
+    for (const person of people)
+      for (let h = 0; h < 24; h += 0.002) {
+        const pose = sampleCommunityPerson(person, h);
+        const speed = realSpeed((hour) => sampleCommunityPerson(person, hour), h);
+        fastest.set(person.id, Math.max(fastest.get(person.id) ?? 0, speed));
+        if (pose.activity === 'walking')
+          walking.set(person.id, Math.max(walking.get(person.id) ?? 0, speed));
       }
+    for (const person of people) {
+      expect(fastest.get(person.id), person.id).toBeLessThanOrEqual(1.4);
+      expect(walking.get(person.id), person.id).toBeGreaterThanOrEqual(1.2);
     }
+  });
+  it('rides, boards and drives at real-time speeds at standard pace', () => {
+    let cyclist = 0;
+    for (let h = 11.5; h < 12; h += 0.001)
+      cyclist = Math.max(cyclist, realSpeed(sampleCommunityCyclist, h));
+    // A leisurely village cyclist, roughly 8 to 10 km/h.
+    expect(COMMUNITY_CYCLE_SPEED_MPS).toBeGreaterThan(2);
+    expect(COMMUNITY_CYCLE_SPEED_MPS).toBeLessThan(3);
+    expect(cyclist).toBeCloseTo(COMMUNITY_CYCLE_SPEED_MPS, 3);
+    for (const id of ['bus-arriving', 'bus-departing']) {
+      const person = COMMUNITY_ROSTER.find((p) => p.id === id)!;
+      let fastest = 0;
+      // A passenger who is out of sight may be re-placed for the next run.
+      for (let h = 6; h < 22; h += 0.0002)
+        if (
+          sampleCommunityPerson(person, h).visible &&
+          sampleCommunityPerson(person, h + 0.00002).visible
+        )
+          fastest = Math.max(
+            fastest,
+            realSpeed((hour) => sampleCommunityPerson(person, hour), h)
+          );
+      expect(fastest, id).toBeGreaterThanOrEqual(1.2);
+      expect(fastest, id).toBeLessThanOrEqual(1.4);
+    }
+    // The shuttle covers its 115 m tunnel approach at road speed, not 3 km/h.
+    let approach = 0;
+    for (let h = 6; h < 7.1; h += 0.0005)
+      if (sampleCommunityBus(h).visible)
+        approach = Math.max(approach, realSpeed(sampleCommunityBus, h));
+    expect(approach).toBeGreaterThan(8);
+    expect(approach).toBeLessThan(16);
+  });
+  it('lowers people onto seats in about a second of real time at standard pace', () => {
+    const person = COMMUNITY_ROSTER.find((p) => p.id === 'mill-operator-west')!;
+    let first = NaN,
+      settled = NaN;
+    for (let h = 0; h < routineDuration(person) * 2 && Number.isNaN(settled); h += 0.00002) {
+      const amount = sampleCommunityPerson(person, h).seat?.amount ?? 0;
+      if (Number.isNaN(first) && amount > 0.01) first = h;
+      if (!Number.isNaN(first) && amount > 0.99) settled = h;
+    }
+    const seconds = (settled - first) / STANDARD_HOURS_PER_REAL_SECOND;
+    expect(seconds).toBeGreaterThan(0.6);
+    expect(seconds).toBeLessThan(1.6);
   });
   it('ties passengers to open bus doors and a stopped bus', () => {
     for (let h = 6; h < 22; h += 0.001) {
@@ -221,21 +301,28 @@ describe('inhabited world routines', () => {
       ['bus-departing', 7.52],
     ] as const) {
       const person = COMMUNITY_ROSTER.find((p) => p.id === id)!;
+      // The walk lasts as long as its authored distance takes at walking pace,
+      // with the brief starting and stopping ramps added.
+      const walk = communityPassengerWalkHours(id);
       const from = sampleCommunityPerson(person, start),
-        to = sampleCommunityPerson(person, start + 0.3);
-      const early = sampleCommunityPerson(person, start + 0.003);
-      const late = sampleCommunityPerson(person, start + 0.297);
+        to = sampleCommunityPerson(person, start + walk);
       const distance = (a: typeof from, b: typeof from) =>
         Math.hypot(a.position[0] - b.position[0], a.position[2] - b.position[2]);
       const total = distance(from, to);
+      expect(walk).toBeGreaterThan(total * WALK_HOURS_PER_METRE);
+      expect(walk).toBeLessThan((total * WALK_HOURS_PER_METRE) / 0.85);
+      expect(distance(sampleCommunityPerson(person, start - walk * 0.01), from)).toBe(0);
+      expect(distance(sampleCommunityPerson(person, start + walk * 1.01), to)).toBe(0);
+      const early = sampleCommunityPerson(person, start + walk * 0.01);
+      const late = sampleCommunityPerson(person, start + walk * 0.99);
       expect(distance(from, early) / total).toBeLessThan(0.001);
       expect(distance(late, to) / total).toBeLessThan(0.001);
-      expect(distance(from, sampleCommunityPerson(person, start + 0.15)) / total).toBeCloseTo(
+      expect(distance(from, sampleCommunityPerson(person, start + walk / 2)) / total).toBeCloseTo(
         0.5,
         6
       );
       for (let step = 0; step <= 30; step++) {
-        const hour = start + step * 0.01,
+        const hour = start + (step * walk) / 30,
           pose = sampleCommunityPerson(person, hour);
         expect(distance(from, pose) + distance(pose, to)).toBeCloseTo(total, 6);
         expect(sampleCommunityPerson(person, hour)).toEqual(pose);
@@ -529,7 +616,10 @@ describe('village daily details', () => {
       expect(p.x).toBeLessThanOrEqual(-200.799);
       expect(p.z).toBeGreaterThanOrEqual(32.799);
       expect(p.z).toBeLessThanOrEqual(56.201);
-      expect(Math.hypot(p.x - next.x, p.z - next.z)).toBeLessThan(0.001);
+      // One 0.00001 h step at riding speed, never a jump.
+      expect(Math.hypot(p.x - next.x, p.z - next.z)).toBeLessThanOrEqual(
+        (0.00001 * COMMUNITY_CYCLE_SPEED_MPS) / STANDARD_HOURS_PER_REAL_SECOND + 1e-9
+      );
       expect(p.visible).toBe(true);
       const dx = next.x - p.x,
         dz = next.z - p.z;
@@ -573,11 +663,13 @@ describe('bounded personnel presentation between actual simulation ticks', () =>
     }
   });
   it('keeps interpolated routes grounded and their rider, courier and prop schedules aligned', () => {
+    // Half a second of standard-pace clock, presented over 30 display frames.
     let hour = 12;
-    const target = hour + 0.025;
+    const admitted = (STANDARD_GAME_SPEED * 0.5) / 3600;
+    const target = hour + admitted;
     const previous = COMMUNITY_ROSTER.map((p) => sampleCommunityPerson(p, hour));
     for (let i = 0; i < 30; i++) {
-      const next = step(hour, target, i ? 0 : 0.025, 1 / 60, 180, true, false);
+      const next = step(hour, target, i ? 0 : admitted, 1 / 60, STANDARD_GAME_SPEED, true, false);
       COMMUNITY_ROSTER.forEach((person, index) => {
         const pose = sampleCommunityPerson(person, next);
         if (
@@ -590,7 +682,7 @@ describe('bounded personnel presentation between actual simulation ticks', () =>
               pose.position[0] - previous[index].position[0],
               pose.position[2] - previous[index].position[2]
             )
-          ).toBeLessThanOrEqual(1.1 / 60 + 1e-8);
+          ).toBeLessThanOrEqual(COMMUNITY_WALK_SPEED_MPS / 60 + 1e-8);
         }
         previous[index] = pose;
       });
@@ -686,8 +778,12 @@ describe('greetings acknowledge actual passing company', () => {
 describe('actual transit attention and service notice', () => {
   const passenger = COMMUNITY_ROSTER.find((p) => p.id === 'bus-departing')!;
   it('acknowledges only a nearby visible shuttle while waiting, with bounded attention', () => {
-    const pose = sampleCommunityPerson(passenger, 7.03),
-      bus = sampleCommunityBus(7.03);
+    // The moment the shuttle, braking into the stop, is 7 m short of it.
+    let hour = 7;
+    while (sampleCommunityBus(hour).z > 147) hour += 0.00001;
+    const pose = sampleCommunityPerson(passenger, hour),
+      bus = sampleCommunityBus(hour);
+    expect(bus.doorsOpen).toBe(false);
     expect(pose.activity).toBe('idle');
     expect(pose.seated).toBe(false);
     expect(communityPassengerAttention(passenger, pose, bus)).toBeCloseTo(0.26);
@@ -809,7 +905,7 @@ describe('analytic seat arrival and departure support', () => {
           const sample = (at: number) => sampleCommunityPerson(person, start + at);
           const beginning = sample(1e-7),
             settled = sample(node.hours * 0.5),
-            standing = sample(node.hours - 0.005),
+            standing = sample(node.hours - COMMUNITY_SEAT_RAMP.standing / 2),
             outgoing = sample(node.hours + 0.00001),
             incoming = sample(-0.00001);
           expect(beginning.seat?.amount, person.id).toBeLessThan(0.001);

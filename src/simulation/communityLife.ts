@@ -11,6 +11,7 @@ import type { WorkplaceState } from '../types/workplace';
 import { improvementArrangement } from './workplaceImprovement';
 import { translate } from '../i18n';
 import { communityAgreementMessages } from './communityLife.messages';
+import { STANDARD_GAME_SPEED } from './pace';
 
 export type CommunityActivity = 'working' | 'walking' | 'break' | 'idle';
 export interface CommunityStop {
@@ -447,9 +448,25 @@ const via = (position: Vec3Tuple) => stop(position, 0, 0, 'Walking between dutie
 const rest = (position: Vec3Tuple, rotation: number, hours = 0.8) =>
   stop(position, rotation, hours, 'Tea break', 'break', true);
 const PI = Math.PI;
-// Time is accelerated 180x by default. One metre takes about one real second,
-// rather than multiplying a walking animation by 180 and sliding across the site.
-export const WALK_HOURS_PER_METRE = 180 / (3600 * 1.1);
+/** An unhurried adult walk, in metres per REAL second at standard pace. */
+export const COMMUNITY_WALK_SPEED_MPS = 1.25;
+/** Game hours that pass in one real second at standard pace. */
+export const STANDARD_HOURS_PER_REAL_SECOND = STANDARD_GAME_SPEED / 3600;
+/** Game hours for a span authored as real seconds at standard pace. */
+const standardSeconds = (seconds: number) => seconds * STANDARD_HOURS_PER_REAL_SECOND;
+// People live on the one game clock with the trucks and forklifts (pace.ts): at
+// standard pace they walk at real speed, and a faster pace is a time-lapse of
+// the same routes. Authoring a sub-hour duration as `standardSeconds(n)` keeps
+// the number and its on-screen meaning from drifting apart again; these were
+// once written for a 180x default and played six times too slowly at 30x.
+// Working if every walking segment plays at COMMUNITY_WALK_SPEED_MPS at pace 30.
+export const WALK_HOURS_PER_METRE = standardSeconds(1 / COMMUNITY_WALK_SPEED_MPS);
+/** Sitting down, standing up and the standing pause before walking away, in game hours. */
+export const COMMUNITY_SEAT_RAMP = Object.freeze({
+  down: standardSeconds(1.1),
+  up: standardSeconds(1.3),
+  standing: standardSeconds(0.3),
+});
 const millLoop = (
   work: Vec3Tuple,
   lane: number,
@@ -626,8 +643,24 @@ export function createCommunityPose(): CommunityPose {
   };
 }
 
+const BUS_DOORS_OPEN = 1.1;
+const BUS_DOORS_CLOSE = 1.9;
+/** 115 m out of the tunnel, braking evenly from about 12 m/s to the stop. */
+const BUS_APPROACH_HOURS = standardSeconds(19);
+const BUS_APPROACH_START = BUS_DOORS_OPEN - BUS_APPROACH_HOURS;
+const BUS_TURN_LEGS = [Math.hypot(4, 22), 7 * PI, Math.hypot(4, 22)] as const;
+const BUS_TURN_METRES = BUS_TURN_LEGS[0] + BUS_TURN_LEGS[1] + BUS_TURN_LEGS[2];
+const BUS_DEPARTURE_METRES = BUS_TURN_METRES + 115;
+/** Turnaround and return, accelerating evenly from the stop into the tunnel. */
+const BUS_DEPARTURE_HOURS = standardSeconds(40);
+const BUS_DEPARTURE_END = BUS_DOORS_CLOSE + BUS_DEPARTURE_HOURS;
+const BUS_TURN_END =
+  BUS_DOORS_CLOSE + BUS_DEPARTURE_HOURS * Math.sqrt(BUS_TURN_METRES / BUS_DEPARTURE_METRES);
+
 /** A four-hour village shuttle: tunnel approach, stop, turnaround, tunnel return.
- * The .8h dwell is sixteen real seconds at the default clock, enough to board.
+ * The .8h dwell is about a minute and a half at standard pace, enough to board;
+ * the bus waits out of sight in the tunnel for the rest of each cycle.
+ * Working if the bus drives at road speed and stops and starts without a jump.
  */
 export function sampleCommunityBus(hour: number) {
   const h = communityHour(hour),
@@ -635,54 +668,71 @@ export function sampleCommunityBus(hour: number) {
   let x = 23,
     z = 255,
     rotation = PI;
-  if (phase < 1.1) z = 255 - 115 * (phase / 1.1);
-  else if (phase < 1.9) z = 140;
-  else if (phase < 2.1) {
-    const t = (phase - 1.9) / 0.2;
-    x = 23 + 4 * t;
-    z = 140 - 22 * t;
-    rotation = Math.atan2(4, -22);
-  } else if (phase < 2.5) {
-    const angle = (-PI * (phase - 2.1)) / 0.4;
-    x = 20 + 7 * Math.cos(angle);
-    z = 118 + 7 * Math.sin(angle);
-    rotation = PI - angle;
-  } else if (phase < 2.7) {
-    const t = (phase - 2.5) / 0.2;
-    x = 13 + 4 * t;
-    z = 118 + 22 * t;
-    rotation = Math.atan2(4, 22);
-  } else {
-    x = 17;
-    z = 140 + 115 * Math.min(1, (phase - 2.7) / 1.1);
-    rotation = 0;
+  if (phase < BUS_APPROACH_START) z = 255;
+  else if (phase < BUS_DOORS_OPEN) {
+    const u = (phase - BUS_APPROACH_START) / BUS_APPROACH_HOURS;
+    z = 255 - 115 * (1 - (1 - u) * (1 - u));
+  } else if (phase < BUS_DOORS_CLOSE) z = 140;
+  else {
+    const u = Math.min(1, (phase - BUS_DOORS_CLOSE) / BUS_DEPARTURE_HOURS);
+    let s = BUS_DEPARTURE_METRES * u * u;
+    if (s < BUS_TURN_LEGS[0]) {
+      const t = s / BUS_TURN_LEGS[0];
+      x = 23 + 4 * t;
+      z = 140 - 22 * t;
+      rotation = Math.atan2(4, -22);
+    } else if ((s -= BUS_TURN_LEGS[0]) < BUS_TURN_LEGS[1]) {
+      const angle = -PI * (s / BUS_TURN_LEGS[1]);
+      x = 20 + 7 * Math.cos(angle);
+      z = 118 + 7 * Math.sin(angle);
+      rotation = PI - angle;
+    } else if ((s -= BUS_TURN_LEGS[1]) < BUS_TURN_LEGS[2]) {
+      const t = s / BUS_TURN_LEGS[2];
+      x = 13 + 4 * t;
+      z = 118 + 22 * t;
+      rotation = Math.atan2(4, 22);
+    } else {
+      x = 17;
+      z = 140 + Math.min(115, s - BUS_TURN_LEGS[2]);
+      rotation = 0;
+    }
   }
   return {
     x,
     z,
     rotation,
     phase,
-    doorsOpen: phase >= 1.1 && phase < 1.9,
+    doorsOpen: phase >= BUS_DOORS_OPEN && phase < BUS_DOORS_CLOSE,
     serviceOpen: h >= 6 && h < 22,
-    visible: h >= 6 && h < 22 && phase < 3.8,
+    visible: h >= 6 && h < 22 && phase >= BUS_APPROACH_START && phase < BUS_DEPARTURE_END,
   };
+}
+const PASSENGER_DOOR: Vec3Tuple = [24.1, 0.36, 137.6];
+const passengerWait = (arriving: boolean): Vec3Tuple =>
+  arriving ? [29.55, A.busSeat.seatHeight! - 0.46, 140.5] : [28.4, 0.11, 139];
+// Short acceleration/braking ramps preserve the path and timing with a bounded steady walk.
+// Working if endpoints have zero velocity and the middle remains a steady walk.
+const PASSENGER_RAMP = 0.12;
+/** Game hours a passenger takes between the bus door and the shelter. The steady
+ * middle of the eased walk runs at 1 / (1 - ramp) of the mean pace, which is
+ * the walking speed. */
+export function communityPassengerWalkHours(id: string) {
+  return (
+    (distance(PASSENGER_DOOR, passengerWait(id === 'bus-arriving')) * WALK_HOURS_PER_METRE) /
+    (1 - PASSENGER_RAMP)
+  );
 }
 function samplePassenger(id: string, hour: number, out: CommunityPose) {
   const bus = sampleCommunityBus(hour),
     p = bus.phase;
   const arriving = id === 'bus-arriving';
-  const wait: Vec3Tuple = arriving
-    ? [29.55, A.busSeat.seatHeight! - 0.46, 140.5]
-    : [28.4, 0.11, 139];
-  const door: Vec3Tuple = [24.1, 0.36, 137.6];
-  const t = arriving
-    ? Math.max(0, Math.min(1, (p - 1.16) / 0.3))
-    : Math.max(0, Math.min(1, (p - 1.52) / 0.3));
+  const wait = passengerWait(arriving);
+  const door = PASSENGER_DOOR;
   const from = arriving ? door : wait,
     to = arriving ? wait : door;
-  // Short acceleration/braking ramps preserve the path and timing with a bounded steady walk.
-  // Working if endpoints have zero velocity and the middle remains a steady walk.
-  const ramp = 0.12;
+  const ramp = PASSENGER_RAMP;
+  const walk = communityPassengerWalkHours(id);
+  const t = Math.max(0, Math.min(1, (p - (arriving ? 1.16 : 1.52)) / walk));
   const eased =
     t < ramp
       ? (t * t) / (2 * ramp * (1 - ramp))
@@ -792,11 +842,11 @@ export function sampleCommunityPerson(
       out.task = node.task;
       out.seated = node.seated ?? false;
       if (node.seated) {
-        // At180x these are0.7s down,0.9s up and0.2s standing before departure.
+        // At standard pace: 1.1 s down, 1.3 s up and 0.3 s standing before departure.
         // Short authored dwells reserve the same proportions without overlap.
-        const down = Math.min(0.035, node.hours * 0.3);
-        const up = Math.min(0.045, node.hours * 0.35);
-        const margin = Math.min(0.01, node.hours * 0.1);
+        const down = Math.min(COMMUNITY_SEAT_RAMP.down, node.hours * 0.3);
+        const up = Math.min(COMMUNITY_SEAT_RAMP.up, node.hours * 0.35);
+        const margin = Math.min(COMMUNITY_SEAT_RAMP.standing, node.hours * 0.1);
         setSeatCue(
           out,
           previousSeat,
@@ -960,10 +1010,14 @@ export function advanceCommunityBusClock(
   const next = hour + safeElapsed;
   const phase = sampleCommunityBus(next).phase;
   const previousPhase = sampleCommunityBus(hour).phase;
-  if (trafficBlocked && previousPhase <= 1.860001 && phase >= 1.86 && phase < 2.7)
+  if (trafficBlocked && previousPhase <= 1.860001 && phase >= 1.86 && phase < BUS_TURN_END)
     return next - phase + 1.86;
   return next;
 }
+
+/** A leisurely 8.6 km/h at standard pace, gentle enough for 1.2 m turns. */
+export const COMMUNITY_CYCLE_SPEED_MPS = 2.4;
+const CYCLIST_METRES_PER_HOUR = COMMUNITY_CYCLE_SPEED_MPS / STANDARD_HOURS_PER_REAL_SECOND;
 
 /** Both lanes and both turn arcs fit the existing west village cobbled street.
  * The courier's morning cart stop ends before cycling hours begin.
@@ -973,7 +1027,7 @@ export function sampleCommunityCyclist(hour: number) {
     radius = 1.2,
     straight = 21;
   const length = 2 * straight + 2 * Math.PI * radius;
-  const travelled = (Number.isFinite(hour) ? hour : 12) * 44;
+  const travelled = (Number.isFinite(hour) ? hour : 12) * CYCLIST_METRES_PER_HOUR;
   let d = ((travelled % length) + length) % length;
   let x = -203.2,
     z = 34,

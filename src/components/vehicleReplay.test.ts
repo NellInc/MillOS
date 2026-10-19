@@ -64,7 +64,11 @@ vi.mock('../simulation/workplaceReplayRuntime', () => ({
 
 import { CommunityLife } from './CommunityLife';
 import { useOperationsCampaignStore } from '../stores/operationsCampaignStore';
-import { COMMUNITY_ROSTER, sampleCommunityPerson } from '../simulation/communityLife';
+import {
+  COMMUNITY_ROSTER,
+  COMMUNITY_WALK_SPEED_MPS,
+  sampleCommunityPerson,
+} from '../simulation/communityLife';
 import { TruckBay } from './TruckBay';
 import { TRUCK_WHEEL_RADIUS } from './truckbay/OptimizedTruckBay';
 import { ForkliftSystem } from './ForkliftSystem';
@@ -486,16 +490,30 @@ it('interpolates live personnel safely and restores the captured presentation cu
   expect(roots.filter((root: THREE.Group) => root.userData.greeting)).toEqual([]);
   const checkpoint = structuredClone(participant.capture());
   useGameSimulationStore.setState({ gameTime: 12.025 });
-  const at = roots[0].position.clone();
+  // One display frame consumes 180/60 game seconds of the admitted tick, which a
+  // resident on a straight walking segment covers at walking pace, scaled by 180.
+  const frameHours = 180 / 60 / 3600;
+  const walkerIndex = COMMUNITY_ROSTER.findIndex((person) => {
+    if (person.district !== 'mill') return false;
+    const a = sampleCommunityPerson(person, 36),
+      b = sampleCommunityPerson(person, 36 + frameHours);
+    return a.activity === 'walking' && b.activity === 'walking' && a.rotation === b.rotation;
+  });
+  expect(walkerIndex).toBeGreaterThanOrEqual(0);
+  const walker = roots[walkerIndex];
+  const at = walker.position.clone();
   frame({ camera, scene }, 1 / 60);
-  expect(roots[0].position.distanceTo(at)).toBeCloseTo(1.1 / 60, 6);
+  expect(walker.position.distanceTo(at)).toBeCloseTo(
+    (COMMUNITY_WALK_SPEED_MPS * 180) / STANDARD_GAME_SPEED / 60,
+    6
+  );
   useGameSimulationStore.setState({ gameSpeed: 0 });
-  const paused = roots[0].position.clone();
+  const paused = walker.position.clone();
   frame({ camera, scene }, 1 / 60);
-  expect(roots[0].position.equals(paused)).toBe(true);
+  expect(walker.position.equals(paused)).toBe(true);
   useGameSimulationStore.setState({ gameTime: 20, emergencyDrillMode: true });
   frame({ camera, scene }, 1 / 60);
-  expect(roots[0].position.equals(paused)).toBe(true);
+  expect(walker.position.equals(paused)).toBe(true);
   expect(shopkeeper.userData.greeting).toBe(false);
   const held = participant.capture();
   expect(held.clocks.presentation).toBe(44);
@@ -503,13 +521,22 @@ it('interpolates live personnel safely and restores the captured presentation cu
   useGameSimulationStore.setState({ gameTime: 12, emergencyDrillMode: false, gameSpeed: 180 });
   participant.restore(structuredClone(checkpoint));
   frame({ camera, scene }, 1 / 60);
-  expect(roots[0].position.equals(at)).toBe(true);
+  expect(walker.position.equals(at)).toBe(true);
   useGameSimulationStore.setState({ gameTime: 12.025 });
   frame({ camera, scene }, 1 / 60);
   participant.restore(structuredClone(checkpoint));
   expect(participant.capture().clocks).toEqual(checkpoint.clocks);
   expect(checkpoint.clocks.presentation).toBe(36);
-  useGameSimulationStore.setState({ gameDay: 0, gameTime: 12, gameSpeed: 0 });
+  // Reframe, paused, to a moment the shopkeeper's schedule puts her at the social stop.
+  const shopkeeperPerson = COMMUNITY_ROSTER.find((p) => p.id === 'village-shopkeeper')!;
+  let greetingHour = 7;
+  while (
+    greetingHour < 18 &&
+    sampleCommunityPerson(shopkeeperPerson, greetingHour).task !== 'Greeting a neighbour'
+  )
+    greetingHour += 0.001;
+  expect(greetingHour).toBeLessThan(18);
+  useGameSimulationStore.setState({ gameDay: 0, gameTime: greetingHour, gameSpeed: 0 });
   frame({ camera, scene }, 1 / 60);
   // A social stop is eligible, but an empty street must never generate a wave.
   const social = participant
