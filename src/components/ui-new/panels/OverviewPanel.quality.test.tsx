@@ -184,6 +184,19 @@ describe('Overview batch quality recovery', () => {
     expect(screen.getByText('SUSPECT')).toBeInTheDocument();
   });
 
+  it.each([
+    [99, 'A'],
+    [88, 'B'],
+    [undefined, 'A'],
+  ] as const)('grades a lab test from the batch made at quality %s as %s', (score, grade) => {
+    useMaterialFlowStore.setState({
+      productionBatches: [{ ...batch('lot'), qualityScore: score }],
+    });
+    render(<BatchGenealogySection />);
+    fireEvent.click(row('lot').getByRole('button', { name: 'Test batch' }));
+    expect(useQCLabStore.getState().qcLab.testHistory.at(-1)?.grade).toBe(grade);
+  });
+
   it('lets a recall be cancelled', () => {
     useMaterialFlowStore.setState({ productionBatches: [batch('suspect', 'hold')] });
     render(<BatchGenealogySection />);

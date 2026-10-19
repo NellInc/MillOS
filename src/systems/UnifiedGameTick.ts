@@ -229,8 +229,33 @@ function getStorageUtilization(): number {
 // Machine status type (matches MachineData.status)
 type MachineStatus = 'running' | 'idle' | 'warning' | 'critical';
 
-// QC grade -> quality score mapping (mirrors deprecated productionStore.tickMetrics)
-const QC_GRADE_SCORES: Record<string, number> = { A: 100, B: 85, C: 70, FAIL: 0 };
+/**
+ * Product quality from the machines actually making product: running or
+ * warning mills, sifters and packers. Silos store grain, and a stopped unit
+ * makes nothing, so neither can lower the quality of flour the others make.
+ * Each point of average efficiency lost costs 0.2 quality points, so a line
+ * whose units sit just short of their warnings (~80% efficiency) still makes
+ * Strong White (95) and only a line run well past its warnings drops below it.
+ * Working if one breakdown leaves shipped quality unchanged and a fully worn
+ * line still fails.
+ */
+const PRODUCT_PATH_TYPES: ReadonlySet<string> = new Set(['ROLLER_MILL', 'PLANSIFTER', 'PACKER']);
+const QUALITY_PER_EFFICIENCY_POINT = 0.2;
+const PRISTINE_QUALITY = 99.5;
+export function productPathQuality(machines: readonly MachineData[]): number {
+  let sum = 0;
+  let count = 0;
+  for (const machine of machines) {
+    if (!PRODUCT_PATH_TYPES.has(machine.type)) continue;
+    if (machine.status !== 'running' && machine.status !== 'warning') continue;
+    const efficiency = machine.metrics.efficiency;
+    sum += Number.isFinite(efficiency) ? Math.max(0, Math.min(100, efficiency)) : 100;
+    count += 1;
+  }
+  if (count === 0) return PRISTINE_QUALITY;
+  const quality = PRISTINE_QUALITY - (100 - sum / count) * QUALITY_PER_EFFICIENCY_POINT;
+  return Math.round(Math.max(0, Math.min(PRISTINE_QUALITY, quality)) * 10) / 10;
+}
 
 // Daily-target milestone tracking (percent thresholds, fired once each per day,
 // reset on day rollover). Bitmask index matches _MILESTONE_THRESHOLDS.
@@ -551,7 +576,6 @@ function unifiedGameTick(ctx: TickContext): void {
   let anyMachineChanged = false;
   let runningCount = 0;
   let totalRunningDelta = 0;
-  let efficiencySum = 0;
 
   // Check each machine for truth changes
   // Use module-level reusable arrays (cleared here, never reallocated)
@@ -566,7 +590,6 @@ function unifiedGameTick(ctx: TickContext): void {
       runningCount++;
       totalRunningDelta += plantSeconds;
     }
-    efficiencySum += machine.metrics.efficiency ?? 100;
 
     const result = updateMachineTruth(machine, deltaSeconds * safeGameSpeed);
 
@@ -618,22 +641,13 @@ function unifiedGameTick(ctx: TickContext): void {
   // Efficiency: percentage of machines running
   _metricsUpdate.efficiency = Math.round((runningCount / totalMachines) * 100 * 10) / 10;
 
-  // Quality: latest QC Lab test grade (A=100, B=85, C=70, FAIL=0 - mirrors the
-  // deprecated productionStore.tickMetrics mapping). Before any test exists,
-  // derive an estimate from average machine health so the KPI isn't frozen at
-  // its 99.5 initial value: pristine machines read 99.5, worn ones drag it down.
-  const qcHistory = useQCLabStore.getState().qcLab.testHistory;
-  const latestTest = qcHistory[qcHistory.length - 1];
-  if (latestTest) {
-    _metricsUpdate.quality = QC_GRADE_SCORES[latestTest.grade] ?? 99.5;
-  } else {
-    const avgMachineEfficiency = efficiencySum / totalMachines; // 0-100
-    _metricsUpdate.quality =
-      Math.round(Math.max(0, Math.min(99.5, 99.5 * (avgMachineEfficiency / 100))) * 10) / 10;
-  }
+  // Quality of the product being made now, from the running product path (see
+  // productPathQuality). It is stamped on every batch packed this tick, and a
+  // shipment is judged by its batches' stamps. A lab test records a batch's
+  // grade; it no longer overrides the plant reading for the rest of the session.
   _metricsUpdate.quality = Math.max(
     0,
-    _metricsUpdate.quality -
+    productPathQuality(machines) -
       useOperationsCampaignStore.getState().getIncidentEffect().qualityPenalty
   );
 
@@ -802,7 +816,8 @@ function unifiedGameTick(ctx: TickContext): void {
           finishedMaterial: linePlan.finishedMaterial,
           remainingFinishedKg: linePlan.remainingFinishedKg,
         }
-      : undefined
+      : undefined,
+    _metricsUpdate.quality
   );
 
   // 4c. Convert the exact final-stage mass flow into completed 25 kg bags on

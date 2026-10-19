@@ -32,7 +32,7 @@ import { saveScenePng } from '../../../utils/sceneCapture';
 import { useUIStore } from '../../../stores/uiStore';
 import { useHistoricalPlaybackStore } from '../../../stores/historicalPlaybackStore';
 import { useMaterialFlowStore } from '../../../stores/materialFlowStore';
-import { useQCLabStore, type QCTestType } from '../../../stores/qcLabStore';
+import { useQCLabStore, type QCGrade, type QCTestType } from '../../../stores/qcLabStore';
 import { useShallow } from 'zustand/react/shallow';
 import { AchievementsPanel } from '../../GameFeatures';
 import { TimelinePlayback } from '../../ui/TimelinePlayback';
@@ -227,6 +227,14 @@ const MaterialTraceabilitySection: React.FC = React.memo(() => {
 const readGenealogyErrorKg = () =>
   Math.round(useMaterialFlowStore.getState().getGenealogyBalance().errorKg * 100) / 100;
 
+/** Lab grade bands over the 0-100 product quality score stamped on a batch. */
+function labGradeForQuality(score: number | undefined): QCGrade {
+  if (score === undefined || !Number.isFinite(score) || score >= 95) return 'A';
+  if (score >= 85) return 'B';
+  if (score >= 70) return 'C';
+  return 'FAIL';
+}
+
 export const BatchGenealogySection: React.FC = React.memo(() => {
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
   // A recall is terminal and scraps the mass, so it is asked once before acting.
@@ -274,6 +282,9 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
       .productionBatches.find((candidate) => candidate.id === batchId);
     if (!batch) return;
     const sourceLotIds = [...new Set(batch.sourceContributions.map((source) => source.lotId))];
+    // The lab reports the quality the batch was made at; a batch saved before
+    // that was recorded reads as conforming, as every test did before.
+    const grade = labGradeForQuality(batch.qualityScore);
     startQCTest(batch.packerId, {
       batchId,
       sourceLotIds,
@@ -290,12 +301,12 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
         testType === 'retest'
           ? translate(overviewPanelMessages, 'noteRetest')
           : translate(overviewPanelMessages, 'noteRoutineTest'),
-      grade: 'A',
+      grade,
       moistureContent: 13.2,
       proteinLevel: 11.8,
       ashContent: 0.52,
       particleSize: 120,
-      passed: true,
+      passed: grade !== 'FAIL',
     });
     if (testType === 'retest') {
       useQCLabStore

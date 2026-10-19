@@ -103,6 +103,11 @@ export interface ProductionBatch {
   sealed: boolean;
   /** Mass scrapped when the batch was recalled. Absent on batches never recalled. */
   writtenOffKg?: number;
+  /**
+   * Product quality score (0-100) of the flour in this batch, averaged over the
+   * mass as it was packed. Absent on batches saved before it was recorded.
+   */
+  qualityScore?: number;
 }
 
 export interface ProcessGenealogyRecord {
@@ -275,7 +280,9 @@ export interface MaterialFlowState {
   tickMaterialFlow: (
     deltaSeconds: number,
     productionSpeed: number,
-    productionPlan?: MaterialFlowProductionPlan
+    productionPlan?: MaterialFlowProductionPlan,
+    /** Quality score (0-100) of product packed this tick; stamped on its batch. */
+    productQuality?: number
   ) => void;
   /**
    * Couple machine status to flow: stopped/idle/critical machines stop
@@ -796,7 +803,7 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
       processSequence: 0,
       simulationTime: 0,
 
-      tickMaterialFlow: (deltaSeconds, productionSpeed, productionPlan) => {
+      tickMaterialFlow: (deltaSeconds, productionSpeed, productionPlan, productQuality) => {
         if (
           !Number.isFinite(deltaSeconds) ||
           !Number.isFinite(productionSpeed) ||
@@ -1016,6 +1023,14 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
               sourceContributions,
               amountKg > 0 ? portion / amountKg : 0
             );
+            // Mass-weighted, so a batch carries the quality its flour was
+            // made at rather than whatever the plant reads when it ships.
+            if (productQuality !== undefined && Number.isFinite(productQuality)) {
+              const previousKg = batch.producedKg;
+              batch.qualityScore =
+                ((batch.qualityScore ?? productQuality) * previousKg + productQuality * portion) /
+                Math.max(GENEALOGY_EPSILON_KG, previousKg + portion);
+            }
             batch.producedKg += portion;
             batch.availableKg += portion;
             batch.sourceContributions = mergeSourceContributions(

@@ -477,6 +477,30 @@ describe('autonomous operations programme', () => {
     expect(useOperationsCampaignStore.getState().challengeHistory.at(-1)?.status).toBe('failed');
   });
 
+  it('judges a shipped batch by the quality it was made at, not the plant reading at dispatch', () => {
+    const store = useOperationsCampaignStore.getState();
+    store.tickCampaign(
+      60,
+      context({
+        manifests: [shippingManifest],
+        productionBatches: [{ ...flourBatch, qualityScore: 99 }],
+        averageQuality: 90,
+      })
+    );
+    expect(useOperationsCampaignStore.getState().orders[0].qualityFailureKg).toBe(0);
+
+    store.resetCampaign();
+    store.tickCampaign(
+      60,
+      context({
+        manifests: [shippingManifest],
+        productionBatches: [{ ...flourBatch, qualityScore: 93 }],
+        averageQuality: 99,
+      })
+    );
+    expect(useOperationsCampaignStore.getState().orders[0].qualityFailureKg).toBeGreaterThan(0);
+  });
+
   it('caps period grading for unsafe recovery and quality failures with causal reasons', () => {
     const store = useOperationsCampaignStore.getState();
     store.triggerIncident('bearing_overheat');

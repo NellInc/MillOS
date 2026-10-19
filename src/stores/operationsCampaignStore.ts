@@ -1441,7 +1441,12 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
                 allocatedManifestKg += allocated;
                 if (!order.batchIds.includes(product.batchId)) order.batchIds.push(product.batchId);
                 if (!order.manifestIds.includes(manifest.id)) order.manifestIds.push(manifest.id);
-                if (context.averageQuality < order.recipe.minimumQuality) {
+                // Each batch is judged at the quality it was packed at; batches
+                // saved before that was recorded fall back to the plant reading.
+                const shippedQuality = Number.isFinite(batch.qualityScore)
+                  ? (batch.qualityScore as number)
+                  : context.averageQuality;
+                if (shippedQuality < order.recipe.minimumQuality) {
                   order.qualityFailureKg += allocated;
                   shiftMetrics.qualityFailureKg = (shiftMetrics.qualityFailureKg ?? 0) + allocated;
                   economics.latePenalties += allocated * 0.08;
