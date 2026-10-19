@@ -54,6 +54,7 @@ If Nell has answered any of these in the conversation, follow the answer.
 ## Open items carried over (fix or verify; each is part of "everything")
 
 Seen only in unit tests, never in a browser: verify each in pixels, EN and pt-BR:
+
 - the repair countdown ("Service unit at work: N min of game time left") after a breakdown;
 - Overview/mobile pace buttons under a handoff hold;
 - the close-experiment button after a decided handoff shift;
@@ -62,6 +63,7 @@ Seen only in unit tests, never in a browser: verify each in pixels, EN and pt-BR
 - an open serious incident in an ungraded shift review.
 
 Also open:
+
 - The 7.5-minute standard-pace narrative run (orders 1–2, changeover, Truck 1 of 2) was on
   the pre-round-2 build; repeat it on the current build.
 - No SCADA setpoint control exists in the UI; the operator decision-log path is wired but
