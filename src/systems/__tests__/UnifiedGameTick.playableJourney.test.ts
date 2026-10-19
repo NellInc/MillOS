@@ -277,8 +277,9 @@ it.each([STANDARD_GAME_SPEED, 120])(
 );
 
 it('improves worn-machine quality through real preventive service and parts consumption', () => {
-  // Wear runs on game time, so operate whole programmes until a unit has worn;
-  // the old 180x clock did this in two only because deadlines outran the line.
+  // Wear runs on game time, so operate whole programmes until a unit has worn.
+  // R.M. 101 starts part-worn (wear 46, efficiency 89), so after the guided
+  // programme it is already the worn unit and the loop adds none.
   // Product quality reads the running mills, sifters and packers; a silo
   // (Silo Alpha starts part-worn) stores grain and does not change it.
   const wornOnProductPath = (m: MachineData) =>
