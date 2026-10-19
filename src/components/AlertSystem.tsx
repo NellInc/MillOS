@@ -42,6 +42,9 @@ const NEAR_MISS_MESSAGE_KEYS = [
  * AlertSystem - Generates alerts and pushes them to uiStore
  * Alerts are displayed via the StatusHUD notification dropdown
  */
+// Re-reading marker for the polite live region; a constant, not a literal.
+const NBSP = String.fromCharCode(0xa0);
+
 export const AlertSystem: React.FC = () => {
   const [liveRegionMessage, setLiveRegionMessage] = useState('');
   const [politeMessage, setPoliteMessage] = useState('');
@@ -99,13 +102,17 @@ export const AlertSystem: React.FC = () => {
       const fresh = alerts.filter((alert) => !seen.has(alert.id) && alert.announce === 'polite');
       seen = new Set(alerts.map((alert) => alert.id));
       const notice = fresh[0];
-      if (notice)
-        setPoliteMessage(
-          translate(alertSystemMessages, 'politeLiveRegion', {
-            title: notice.title,
-            message: notice.message,
-          })
-        );
+      if (!notice) return;
+      const text = translate(alertSystemMessages, 'politeLiveRegion', {
+        title: notice.title,
+        message: notice.message,
+      });
+      // A live region whose text does not change is not read again, so a
+      // notice worded like the last alternates a trailing no-break space.
+      // Working if two identical shift-close notices are each read once.
+      setPoliteMessage((previous) =>
+        previous.trimEnd() !== text ? text : previous.endsWith(NBSP) ? text : `${text}${NBSP}`
+      );
     });
   }, []);
 

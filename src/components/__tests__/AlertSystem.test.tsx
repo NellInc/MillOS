@@ -134,6 +134,30 @@ describe('AlertSystem', () => {
       act(() => useUIStore.getState().addAlert(notice('routine-2')));
       expect(politeRegion()).toHaveTextContent('shift-review-1 title. shift-review-1 message.');
     });
+
+    it('reads a notice again when the next one has the same words', () => {
+      render(<AlertSystem />);
+      const same = (id: string) => ({
+        id,
+        type: 'info' as const,
+        title: 'Afternoon shift closed: grade A',
+        message: 'Its review is in Overview.',
+        timestamp: new Date(),
+        acknowledged: false,
+        announce: 'polite' as const,
+      });
+      act(() => useUIStore.getState().addAlert(same('shift-review-2')));
+      const first = politeRegion()!.textContent;
+      act(() => useUIStore.getState().addAlert(same('shift-review-3')));
+      const second = politeRegion()!.textContent;
+      // A live region whose text does not change is not read again.
+      expect(second).not.toBe(first);
+      expect(politeRegion()).toHaveTextContent(
+        'Afternoon shift closed: grade A. Its review is in Overview.'
+      );
+      act(() => useUIStore.getState().addAlert(same('shift-review-4')));
+      expect(politeRegion()!.textContent).not.toBe(second);
+    });
   });
 
   describe('Safety Integration', () => {
