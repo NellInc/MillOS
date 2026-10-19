@@ -71,6 +71,16 @@ describe('MachineInspector evidence', () => {
     ).toBeVisible();
   });
 
+  it('shows wear against its thresholds and the cost of service without opening Inspect', () => {
+    const worn = { ...machine, metrics: { ...machine.metrics, wear: 52.4, efficiency: 85 } };
+    renderComponent(<MachineInspector machine={worn} />);
+    expect(screen.getByText('Wear')).toBeVisible();
+    expect(screen.getByText('52.4')).toBeVisible();
+    expect(screen.getByText(/Warning at 60%, breakdown at 90%/)).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Perform Maintenance' })).toBeVisible();
+    expect(screen.getByText(/Uses 1 spare part: filters \(15 in stock\)/)).toBeVisible();
+  });
+
   it('places the primary Inspect disclosure before the secondary focus action', () => {
     renderComponent(<MachineInspector machine={machine} onFocusMachine={vi.fn()} />);
     const inspect = screen.getByText('Inspect').closest('summary')!;
@@ -232,6 +242,22 @@ describe('MachineInspector evidence', () => {
       expect(restartAlert?.title).toBe('Machine Recovered');
     });
 
+    it('lists the service in View Maintenance Logs once Maintain has run', async () => {
+      vi.useFakeTimers();
+      useBreakdownStore.getState().resetBreakdownStore();
+      const worn = { ...machine, metrics: { ...machine.metrics, wear: 40 } };
+      useProductionStore.setState({ machines: [worn] });
+      render(<MachineInspector machine={worn} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Perform Maintenance' }));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1300);
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'View Maintenance Logs' }));
+      expect(screen.queryByText(/No maintenance on record/)).not.toBeInTheDocument();
+      expect(screen.getByText(/Wear reduced from 40.0% to 0.0%/)).toBeVisible();
+      expect(useBreakdownStore.getState().partsInventory.filters).toBe(14);
+    });
+
     it('finishes a restart even when the panel closes mid-sequence', async () => {
       vi.useFakeTimers();
       useProductionStore.setState({ machines: [{ ...machine, status: 'warning' }] });
@@ -335,7 +361,8 @@ describe('MachineInspector evidence', () => {
         }}
       />
     );
-    expect(screen.getAllByText('--')).toHaveLength(4);
+    // Feed or RPM, load, temperature, wear and vibration.
+    expect(screen.getAllByText('--')).toHaveLength(5);
     rerender(
       <MachineInspector
         machine={{

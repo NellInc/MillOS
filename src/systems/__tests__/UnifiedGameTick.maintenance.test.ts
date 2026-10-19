@@ -4,6 +4,7 @@ import { useBreakdownStore } from '../../stores/breakdownStore';
 import { useMaterialFlowStore } from '../../stores/materialFlowStore';
 import { useProductionStore } from '../../stores/productionStore';
 import { useUIStore } from '../../stores/uiStore';
+import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import type { TickContext } from '../CentralTickSystem';
 import { resetUnifiedTickState, unifiedGameTick } from '../UnifiedGameTick';
 
@@ -106,6 +107,44 @@ describe('UnifiedGameTick maintenance causality', () => {
     expect(
       useUIStore.getState().alerts.some((alert) => alert.message.includes('restored to service'))
     ).toBe(true);
+  });
+
+  it('records every service in the machine log, on the game clock, capped at ten', () => {
+    useGameSimulationStore.setState({ gameDay: 2, gameTime: 13.5 });
+    useProductionStore.setState({
+      machines: [{ ...failingPacker, metrics: { ...failingPacker.metrics, wear: 60 } }],
+    });
+    expect(useProductionStore.getState().performMaintenance('packer-0').success).toBe(true);
+    const [record] = useProductionStore.getState().machines[0].maintenanceHistory ?? [];
+    expect(record).toMatchObject({ type: 'preventive', date: 'Day 2, 13:30' });
+    expect(record.notes).toContain('60.0%');
+    expect(record.notes).toContain('12.0%');
+
+    // A controlled restart after a breakdown is recorded as corrective work
+    // under its work order.
+    useProductionStore.setState({
+      machines: [{ ...failingPacker, maintenanceHistory: [record] }],
+    });
+    unifiedGameTick(context);
+    const breakdownId = useBreakdownStore.getState().activeBreakdowns[0].id;
+    useBreakdownStore.getState().startRepair(breakdownId);
+    useBreakdownStore.getState().updateRepairProgress(breakdownId, 100);
+    useBreakdownStore.getState().verifyRepair(breakdownId);
+    useBreakdownStore.getState().requestMachineRestart(breakdownId);
+    unifiedGameTick({ ...context, tickCount: 2 });
+    const history = useProductionStore.getState().machines[0].maintenanceHistory ?? [];
+    expect(history[0]).toMatchObject({ type: 'corrective', serviceUnit: 'wo-00001' });
+    expect(history[1]).toEqual(record);
+
+    for (let index = 0; index < 12; index += 1) {
+      useProductionStore.setState((state) => ({
+        machines: state.machines.map((m) => ({ ...m, metrics: { ...m.metrics, wear: 40 } })),
+      }));
+      useProductionStore.getState().performMaintenance('packer-0');
+    }
+    const capped = useProductionStore.getState().machines[0].maintenanceHistory ?? [];
+    expect(capped).toHaveLength(10);
+    expect(new Set(capped.map((entry) => entry.id)).size).toBe(10);
   });
 
   it('accumulates sub-resolution wear across ticks instead of rounding it away', () => {

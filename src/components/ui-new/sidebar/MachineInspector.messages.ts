@@ -54,6 +54,12 @@ export const machineInspectorMessages = defineMessages({
     hideLogs: 'Hide Maintenance Logs',
     viewLogs: 'View Maintenance Logs',
     outOfParts: 'Out of spare parts — maintenance needs one to proceed.',
+    wearAndService: 'Wear and service',
+    wear: 'Wear',
+    wearThresholds:
+      'Warning at {warning}%, breakdown at {breakdown}%. Efficiency {efficiency}%. Maintenance lowers wear; a restart does not.',
+    maintenanceCost: (p: { part: string; count: string }) =>
+      `Uses 1 spare part: ${p.part} (${p.count} in stock).`,
     maintenanceTitle: (p: { part: string }) =>
       `Reduces machine wear (consumes 1 spare part: ${p.part})`,
     performingMaintenance: 'Performing Maintenance...',
@@ -113,6 +119,12 @@ export const machineInspectorMessages = defineMessages({
     hideLogs: 'Ocultar registros de manutenção',
     viewLogs: 'Ver registros de manutenção',
     outOfParts: 'Sem peças de reposição: a manutenção precisa de uma para continuar.',
+    wearAndService: 'Desgaste e manutenção',
+    wear: 'Desgaste',
+    wearThresholds:
+      'Alerta em {warning}%, pane em {breakdown}%. Eficiência de {efficiency}%. A manutenção reduz o desgaste; o reinício, não.',
+    maintenanceCost: (p: { part: string; count: string }) =>
+      `Usa 1 peça de reposição: ${PT_PARTS[p.part] ?? p.part} (${p.count} em estoque).`,
     maintenanceTitle: (p: { part: string }) =>
       `Reduz o desgaste da máquina (consome 1 peça de reposição: ${PT_PARTS[p.part] ?? p.part})`,
     performingMaintenance: 'Fazendo manutenção...',

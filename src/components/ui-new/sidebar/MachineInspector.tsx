@@ -89,6 +89,7 @@ export const MachineInspector: React.FC<{
   const addAlert = useUIStore((state) => state.addAlert);
 
   const availablePart = MAINTENANCE_PART_PRIORITY.find((part) => (partsInventory[part] ?? 0) > 0);
+  const wearConfig = getWearConfig(machine.type);
 
   const mountedRef = useRef(true);
   useEffect(() => {
@@ -298,6 +299,57 @@ export const MachineInspector: React.FC<{
       {flowTag && (
         <RecordedFeedTrend history={scadaEnabled ? history : []} unit={flowTag.engUnit ?? ''} />
       )}
+      {/* Wear is what Maintain changes, so it sits beside the readings with
+          its thresholds, and the service and its cost are visible without
+          opening Inspect. Working if a player can tell whether a unit needs
+          service and what it costs before acting, on touch as well. */}
+      <section aria-label={t('wearAndService')} className="space-y-2">
+        <dl>
+          <MetricCard label={t('wear')} value={formatReading(metrics?.wear, 1)} unit="%" />
+        </dl>
+        <p className="text-xs leading-5 text-slate-300">
+          {t('wearThresholds', {
+            warning: formatFixed(wearConfig.warningThreshold, 0),
+            breakdown: formatFixed(wearConfig.breakdownThreshold, 0),
+            efficiency: formatReading(metrics?.efficiency, 0),
+          })}
+        </p>
+        <button
+          onClick={handleMaintenance}
+          disabled={isMaintaining || isRestarting || Boolean(activeFault)}
+          title={
+            activeFault
+              ? repairGuidance
+              : !availablePart
+                ? t('outOfParts')
+                : t('maintenanceTitle', { part: availablePart })
+          }
+          className="w-full min-h-11 border border-white/15 bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed text-white py-2 rounded-lg font-medium text-xs transition-colors flex items-center justify-center gap-2"
+        >
+          {isMaintaining ? (
+            <>
+              <Loader2 size={14} className="animate-spin" />
+              {t('performingMaintenance')}
+            </>
+          ) : (
+            <>
+              <Wrench size={14} />
+              {t('performMaintenance')}
+            </>
+          )}
+        </button>
+        {/* An active fault is explained once, in the status guidance above. */}
+        {!activeFault && (
+          <p className="text-xs leading-5 text-slate-300">
+            {availablePart
+              ? t('maintenanceCost', {
+                  part: availablePart,
+                  count: formatFixed(partsInventory[availablePart] ?? 0, 0),
+                })
+              : t('outOfParts')}
+          </p>
+        )}
+      </section>
       <details className="group">
         <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between border border-cyan-300 px-4 text-base text-cyan-200 hover:bg-cyan-300/10">
           {t('inspect')}{' '}
@@ -351,30 +403,6 @@ export const MachineInspector: React.FC<{
             >
               <FileText size={14} />
               {showLogs ? t('hideLogs') : t('viewLogs')}
-            </button>
-            <button
-              onClick={handleMaintenance}
-              disabled={isMaintaining || isRestarting || Boolean(activeFault)}
-              title={
-                activeFault
-                  ? repairGuidance
-                  : !availablePart
-                    ? t('outOfParts')
-                    : t('maintenanceTitle', { part: availablePart })
-              }
-              className="w-full min-h-11 border border-white/15 bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed text-white py-2 rounded-lg font-medium text-xs transition-colors flex items-center justify-center gap-2"
-            >
-              {isMaintaining ? (
-                <>
-                  <Loader2 size={14} className="animate-spin" />
-                  {t('performingMaintenance')}
-                </>
-              ) : (
-                <>
-                  <Wrench size={14} />
-                  {t('performMaintenance')}
-                </>
-              )}
             </button>
             <button
               onClick={handleRestart}
