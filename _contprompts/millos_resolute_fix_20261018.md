@@ -305,3 +305,62 @@ Not re-opened: 20, 25, 27, 39 (refuted by both, no new evidence).
   suspend loop, readiness never arrived, so a preview rebuild's new worker reloaded a
   visible scene. The context-restore reload needs an empty GPU tracker, which App's
   startup registration rules out. To confirm: log navigations in the runtime pass.
+  **Confirmed by the runtime pass:** every run logged exactly one navigation per
+  deliberate load or reload (9 runs, 0 unexplained).
+
+### Runtime confirmation (20 Oct 00:20–01:45, built `VERSION=v0.40`, Metal headless, 1366×768 unless noted)
+
+Load 2.8–8.3 per machine, so no frame-rate claims. Scripts and frames in the session
+scratchpad (`playtest/`, `sw/`).
+
+- **Standard pace (EN, 7.5 real min):** orders 1 and 2 on time; Truck 1 departs at
+  5,000 kg, then the 1,000 kg second trip; HUD "Changing over to the next order" then
+  "Line idle: order packed, awaiting dispatch"; bags/h 189–288 beside "Target n / 1,200".
+- **Guide card:** "Truck 1 of 2 for this order (up to 5000 kg each); 6000 kg still to
+  ship", "Inspection: waiting · Delivery: 0 kg dispatched", receipt "6,000 of 6,000 kg,
+  delivered on time".
+- **4x pace:** the clock, deadlines, loading and dispatch all move 4x together.
+  Overview "Standard, 1x" button sets 30 (pt-BR "Padrão, 1x" too).
+- **P:** 120 → 0 → 120, its own hold only.
+- **Take over:** opens Autonomy, clock stays at 120; "Automatic decisions paused. Your
+  choices take priority."
+- **Second tab:** the stage tab kept running (14:13 → 15:14 in 30 s at 4x).
+- **Autosave failure (setItem throwing QuotaExceededError for 20 s):** five failed
+  cycles, one bell notice, last good record kept byte-identical, writing resumed after.
+- **Shift review:** "Morning shift closed: grade A…" announced in EN and pt-BR; Overview
+  "Balanço do turno" shows Manhã nota A (three orders, on time), Tarde provisória A,
+  linked agreement and season exit; **the same after reload**.
+- **pt-BR via the in-app switcher from an English load:** every captured surface
+  Portuguese, `html.translated-ltr` never set, no console errors.
+- **Wear → maintenance:** Silo Alpha warning at ~13:44; Predictive Maintenance shows
+  Silo Alpha electrical 55%, Schedule → "Silo Alpha · Predictive · 17:54 · Parts:
+  sensors, motors" with Complete.
+- **Load:** cold load to `millosStartupReady` 35.3 s and 35.4 s, reload 36.7 s and 37.6 s,
+  with "Use low graphics" offered on the loading screen.
+- **Service worker (built app, fixture server, build B differing only in sw.js and
+  build-info):** cold boots; reload served from the versioned shell cache (21 entries);
+  offline reload boots; a 4 s stalled navigation still one navigation; deploy while open
+  does not reload the open scene, the new worker waits and the old build keeps serving;
+  next visit runs B with only B's caches.
+- **e2e (`e2e/`, headless Metal via a scratch config):** 2/2 pass after one fix below.
+
+Defects the runtime pass found, each fixed failing-test-first and re-confirmed in pixels:
+
+1. Choosing any pace stopped the autonomous season silently (Take over vanished; the
+   default path lost its sobras). A pace is now only a speed; P/Paused defer its steps.
+2. A reload mid-season dropped the season and its Take over (the runner is ephemeral and
+   `manual` persisted). The running profile now persists and resumes after startup,
+   also once every order is fulfilled; a taken-over season stays the player's. Late-season
+   reload then stops by itself with "Automatic three-shift season complete" in the bell.
+3. First-delivery card: text bled half-clipped under the pinned actions (sticky edge inset
+   by the card padding). Pinned into the padding; shorter pt-BR view labels ("Ver a
+   expedição") keep the row on one line at 1280×657 so Shift pace stays visible.
+4. Parts inventory labels truncated ("Be…", "Mo…"); tiles now wrap and keep "Rolamentos" whole.
+5. Loading-screen quote attribution 4.02:1 (axe, e2e); now 7.29:1, knowledge card too.
+
+### Whole gate after the runtime fixes (vs the named baseline)
+
+typecheck 0, agent:typecheck 0, lint 0, format 0, agent:manifest:check 0 (after
+regenerating the gitignored inventory). vitest 3,702 pass, 28 skipped, 5 fail: the same
+five `assets/source` ENOENT tests as the baseline, nothing new. `VERSION=v0.40` build 0,
+dist 171M; validate:bundle/reachability/community/depth/shaders 0. dist deleted.
