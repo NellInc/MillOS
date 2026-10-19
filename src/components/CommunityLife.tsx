@@ -11,7 +11,7 @@ import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useProductionStore } from '../stores/productionStore';
 import { useOperationsCampaignStore } from '../stores/operationsCampaignStore';
 import { useBreakdownStore } from '../stores/breakdownStore';
-import { useMaterialFlowStore } from '../stores/materialFlowStore';
+import { getRecalledStock, useMaterialFlowStore } from '../stores/materialFlowStore';
 import { useGraphicsStore } from '../stores/graphicsStore';
 import { useWorkplaceStore } from '../stores/workplaceStore';
 import { SceneText } from './shared/SceneText';
@@ -95,7 +95,10 @@ function readCommunityOperations(out: CommunityOperationsSnapshot) {
   const campaign = useOperationsCampaignStore.getState();
   out.machines = useProductionStore.getState().machines;
   out.workOrders = useBreakdownStore.getState().workOrders;
-  out.batches = useMaterialFlowStore.getState().productionBatches;
+  const flow = useMaterialFlowStore.getState();
+  out.batches = flow.productionBatches;
+  // Memoised on the flow state, so this per-frame read walks it once per tick.
+  out.recalledStockKg = getRecalledStock(flow).kg;
   out.bakeryStocked = hasCommunityBakerySupply(campaign.orders, campaign.elapsedMinutes);
   out.weather = useGameSimulationStore.getState().weather;
 }

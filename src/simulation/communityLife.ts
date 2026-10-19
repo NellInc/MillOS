@@ -337,6 +337,8 @@ export interface CommunityOperationsSnapshot {
   machines: readonly Pick<MachineData, 'id' | 'status'>[];
   workOrders: readonly Pick<MaintenanceWorkOrder, 'machineId' | 'phase'>[];
   batches: readonly Pick<ProductionBatch, 'packerId' | 'availableKg' | 'disposition'>[];
+  /** Recalled-lot material still in the plant (getRecalledStock); absent reads as none. */
+  recalledStockKg?: number;
   bakeryStocked: boolean;
   weather?: RuntimeWeather;
 }
@@ -384,9 +386,12 @@ export function communityWorkResponse(
     out.task = 'Waiting for the cooperative flour order';
     return out;
   }
+  // Recalled product is written off as it is recalled or packed, so a recall
+  // is still being dealt with while its lot's material remains in the plant.
   if (
     person.role === 'Quality' &&
-    operations.batches.some((batch) => sampleStock(batch) && batch.disposition === 'recalled')
+    ((operations.recalledStockKg ?? 0) > 0 ||
+      operations.batches.some((batch) => sampleStock(batch) && batch.disposition === 'recalled'))
   ) {
     out.task = 'Reviewing recalled stock from the quality inspection post';
     return out;

@@ -313,11 +313,12 @@ it('improves worn-machine quality through real preventive service and parts cons
     const task = useBreakdownStore
       .getState()
       .maintenanceSchedule.find((t) => t.machineId === machine.id && !t.completed)!;
-    parts.completeMaintenanceTask(task.id);
+    // The service runs first; its parts are consumed only once it is done.
+    expect(production.performMaintenance(machine.id).success).toBe(true);
+    expect(parts.completeMaintenanceTask(task.id)).toBe(true);
     expect(
       useBreakdownStore.getState().maintenanceSchedule.find((t) => t.id === task.id)?.completed
     ).toBe(true);
-    expect(production.performMaintenance(machine.id).success).toBe(true);
   }
   const partsAfter = useBreakdownStore.getState().partsInventory;
   expect(

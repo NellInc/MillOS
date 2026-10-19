@@ -740,6 +740,42 @@ describe('MaterialFlowStore', () => {
       const heldKg = heldBatches.reduce((sum, batch) => sum + batch.producedKg, 0);
       expect(heldBatches.length).toBeLessThanOrEqual(Math.ceil(heldKg / 1000) + 6);
     });
+
+    it('writes off batches packed later from a recalled lot, as the recall itself does', () => {
+      const lots = useMaterialFlowStore.getState().sourceLots;
+      const recalledLotIds = [...lots.keys()].filter((id) => !id.startsWith('lot-opening-packer'));
+      useMaterialFlowStore
+        .getState()
+        .setLotDisposition(recalledLotIds, 'recalled', 'Supplier recall');
+      const wasteBefore = useMaterialFlowStore.getState().wasteKg;
+
+      for (let tick = 0; tick < 120; tick += 1) {
+        useMaterialFlowStore.getState().tickMaterialFlow(0.5, 1);
+      }
+
+      const state = useMaterialFlowStore.getState();
+      const recalled = state.productionBatches.filter((batch) => batch.disposition === 'recalled');
+      expect(recalled.length).toBeGreaterThan(0);
+      for (const batch of recalled) {
+        expect(batch.availableKg).toBe(0);
+        expect(batch.writtenOffKg).toBeCloseTo(batch.producedKg, 6);
+      }
+      // The scrapped mass is waste, not packer stock.
+      const recalledIds = new Set(recalled.map((batch) => batch.id));
+      for (const packerId of ['packer-0', 'packer-1', 'packer-2']) {
+        const held = state
+          .getMachineBuffer(packerId)
+          ?.outputBuffer.flatMap((material) => material.productBatches ?? [])
+          .filter((contribution) => recalledIds.has(contribution.batchId));
+        expect(held).toEqual([]);
+      }
+      const recalledKg = recalled.reduce((sum, batch) => sum + batch.producedKg, 0);
+      expect(state.wasteKg - wasteBefore).toBeGreaterThanOrEqual(recalledKg - 1e-6);
+      // One open recalled batch fills toward the target, not one per tick.
+      expect(recalled.length).toBeLessThanOrEqual(Math.ceil(recalledKg / 1000) + 6);
+      expect(Math.abs(state.getGenealogyBalance().errorKg)).toBeLessThan(0.001);
+      expect(Math.abs(state.getMaterialBalance().errorKg)).toBeLessThan(0.001);
+    });
   });
 
   describe('resetMaterialFlow', () => {

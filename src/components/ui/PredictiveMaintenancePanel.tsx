@@ -20,9 +20,9 @@ import {
   ClipboardCheck,
   RotateCcw,
 } from 'lucide-react';
-import { useBreakdownStore, type PredictiveAlert } from '../../stores/breakdownStore';
+import { missingParts, useBreakdownStore, type PredictiveAlert } from '../../stores/breakdownStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
-import { useProductionStore } from '../../stores/productionStore';
+import { minimumServiceWear, useProductionStore } from '../../stores/productionStore';
 import { useUIStore } from '../../stores/uiStore';
 import { formatFixed, translate, useT } from '../../i18n';
 import { predictiveMaintenancePanelMessages } from './PredictiveMaintenancePanel.messages';
@@ -206,7 +206,6 @@ const ActiveBreakdownsSection: React.FC = () => {
   const workOrders = useBreakdownStore((state) => state.workOrders);
   const partsInventory = useBreakdownStore((state) => state.partsInventory);
   const startRepair = useBreakdownStore((state) => state.startRepair);
-  const updateRepairProgress = useBreakdownStore((state) => state.updateRepairProgress);
   const verifyRepair = useBreakdownStore((state) => state.verifyRepair);
   const requestMachineRestart = useBreakdownStore((state) => state.requestMachineRestart);
   const t = useT(messages);
@@ -291,15 +290,28 @@ const ActiveBreakdownsSection: React.FC = () => {
                     {t('dispatchServiceUnit')}
                   </button>
                 )}
+                {/* The repair runs on the shift clock (breakdownStore.tickDowntime);
+                    there is nothing to click until it reaches verification. */}
                 {workOrder.phase === 'repairing' && (
-                  <button
-                    type="button"
-                    onClick={() => updateRepairProgress(breakdown.id, 100)}
-                    className="inline-flex min-h-11 items-center gap-2 rounded bg-emerald-800 px-3 text-xs font-semibold text-white hover:bg-emerald-700"
+                  <div
+                    role="status"
+                    className="flex min-h-11 items-center gap-2 text-xs text-emerald-300"
                   >
-                    <Wrench className="h-4 w-4" aria-hidden="true" />
-                    {t('completeRepair')}
-                  </button>
+                    <Clock className="h-4 w-4" aria-hidden="true" />
+                    {t('repairRemaining', {
+                      minutes: formatFixed(
+                        Math.max(
+                          0,
+                          Math.ceil(
+                            ((100 - breakdown.repairProgress) / 100) *
+                              breakdown.estimatedRepairTime -
+                              1e-6
+                          )
+                        ),
+                        0
+                      ),
+                    })}
+                  </div>
                 )}
                 {workOrder.phase === 'verification' && (
                   <button
@@ -341,6 +353,20 @@ const ScheduleSection: React.FC = () => {
   const partsInventory = useBreakdownStore((state) => state.partsInventory);
   const completeMaintenanceTask = useBreakdownStore((state) => state.completeMaintenanceTask);
   const activeBreakdowns = useBreakdownStore((state) => state.activeBreakdowns);
+  // `id=minimum` for each unit performMaintenance would refuse as still new.
+  // A string keeps the selector stable while wear creeps up every tick.
+  const belowMinimum = useProductionStore((state) =>
+    state.machines
+      .filter((m) => m.status !== 'critical' && (m.metrics.wear ?? 0) < minimumServiceWear(m.type))
+      .map((m) => `${m.id}=${minimumServiceWear(m.type)}`)
+      .join('|')
+  );
+  const minimumWearFor = new Map(
+    belowMinimum
+      .split('|')
+      .filter(Boolean)
+      .map((entry) => [entry.split('=')[0], Number(entry.split('=')[1])] as const)
+  );
   const t = useT(messages);
   const pendingTasks = maintenanceSchedule.filter((task) => !task.completed);
   const formatScheduledTime = (time: number): string => {
@@ -350,28 +376,31 @@ const ScheduleSection: React.FC = () => {
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
   };
 
-  // Completing a task services the machine: parts are consumed and wear is
-  // reduced. A machine with an active fault must go through its work order
-  // (repair, verify, controlled restart) instead.
+  // Completing a task services the machine: wear is reduced, then the parts
+  // are consumed. The service runs first because performMaintenance can refuse
+  // it, and a refused service must leave the stock untouched. A machine with an
+  // active fault must go through its work order (repair, verify, controlled
+  // restart) instead.
   const completeTask = (taskId: string, machineId: string, machineName: string) => {
-    if (useBreakdownStore.getState().getBreakdownForMachine(machineId)) return;
-    completeMaintenanceTask(taskId);
-    const completed = useBreakdownStore
-      .getState()
-      .maintenanceSchedule.find((task) => task.id === taskId)?.completed;
-    if (!completed) return;
+    const maintenance = useBreakdownStore.getState();
+    if (maintenance.getBreakdownForMachine(machineId)) return;
+    const task = maintenance.maintenanceSchedule.find((candidate) => candidate.id === taskId);
+    if (!task || task.completed) return;
+    if (missingParts(maintenance.partsInventory, task.partsNeeded).length > 0) return;
     const result = useProductionStore.getState().performMaintenance(machineId);
     if (!result.success) {
       useUIStore.getState().addAlert({
         id: `maintenance-skip-${machineId}-${Date.now()}`,
         type: 'info',
-        title: translate(messages, 'maintenanceNotNeeded'),
+        title: translate(messages, 'maintenanceNotPerformed'),
         message: `${machineName}: ${result.message}`,
         timestamp: new Date(),
         machineId,
         acknowledged: false,
       });
+      return;
     }
+    completeMaintenanceTask(taskId);
   };
 
   if (pendingTasks.length === 0) {
@@ -394,10 +423,15 @@ const ScheduleSection: React.FC = () => {
       </div>
       <div className="space-y-2 max-h-[150px] overflow-y-auto">
         {pendingTasks.map((task) => {
-          const partsAvailable = task.partsNeeded.every((part) => partsInventory[part] > 0);
+          const partsAvailable = missingParts(partsInventory, task.partsNeeded).length === 0;
           const underRepair = activeBreakdowns.some(
             (breakdown) => breakdown.machineId === task.machineId
           );
+          const minimumWear = minimumWearFor.get(task.machineId);
+          const notNeededYet =
+            minimumWear !== undefined
+              ? t('belowMinimumHint', { minimum: formatFixed(minimumWear, 1) })
+              : null;
           return (
             <div
               key={task.id}
@@ -416,6 +450,9 @@ const ScheduleSection: React.FC = () => {
                         : t('inspectionOnly'),
                   })}
                 </div>
+                {notNeededYet && !underRepair && (
+                  <div className="text-[11px] leading-4 text-slate-300">{notNeededYet}</div>
+                )}
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1">
                 <span
@@ -431,14 +468,16 @@ const ScheduleSection: React.FC = () => {
                 </span>
                 <button
                   onClick={() => completeTask(task.id, task.machineId, task.machineName)}
-                  disabled={underRepair || !partsAvailable}
+                  disabled={underRepair || !partsAvailable || notNeededYet !== null}
                   aria-label={t('completeMaintenanceOn', { machine: task.machineName })}
                   title={
                     underRepair
                       ? t('underRepairHint')
-                      : partsAvailable
-                        ? t('completeHint')
-                        : t('partsUnavailableHint')
+                      : notNeededYet
+                        ? notNeededYet
+                        : partsAvailable
+                          ? t('completeHint')
+                          : t('partsUnavailableHint')
                   }
                   className="min-h-11 px-3 rounded bg-purple-800 text-xs font-semibold text-white hover:bg-purple-700 disabled:bg-slate-600 disabled:text-white/90"
                 >

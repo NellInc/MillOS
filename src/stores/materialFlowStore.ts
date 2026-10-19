@@ -520,6 +520,78 @@ function writeOffRecalledMass(
   return { machineBuffers, wasteKg, wasteSourceContributions };
 }
 
+/** Below this, a recalled lot's remaining genealogy is rounding, not stock. */
+const RECALLED_STOCK_TOLERANCE_KG = 1;
+
+export interface RecalledStock {
+  /** Mass from recalled source lots still in machine buffers or in transit. */
+  kg: number;
+  /** Recalled lots that still have more than the tolerance in the plant. */
+  lotIds: ReadonlySet<string>;
+}
+
+const NO_RECALLED_STOCK: RecalledStock = { kg: 0, lotIds: new Set() };
+let recalledStockCache: {
+  machineBuffers: MaterialFlowState['machineBuffers'];
+  segments: MaterialFlowState['network']['segments'];
+  sourceLots: MaterialFlowState['sourceLots'];
+  value: RecalledStock;
+} | null = null;
+
+/**
+ * Recalled stock the plant is still dealing with. Product is written off when
+ * it is recalled or packed (writeOffRecalledMass, appendPackedBatch), so what
+ * remains of a recall is its lots' material upstream, on its way to the packer
+ * and the scrap bin. Working if this is non-zero exactly while that material
+ * is in the plant. Memoised on the state it reads, because readers poll it per
+ * frame while the flow changes per tick.
+ */
+export function getRecalledStock(
+  state: Pick<MaterialFlowState, 'machineBuffers' | 'network' | 'sourceLots'>
+): RecalledStock {
+  const cache = recalledStockCache;
+  if (
+    cache &&
+    cache.machineBuffers === state.machineBuffers &&
+    cache.segments === state.network.segments &&
+    cache.sourceLots === state.sourceLots
+  )
+    return cache.value;
+  const recalledKgByLot = new Map<string, number>();
+  for (const lot of state.sourceLots.values())
+    if (lot.disposition === 'recalled') recalledKgByLot.set(lot.id, 0);
+  if (recalledKgByLot.size > 0) {
+    const count = (contributions: readonly SourceContribution[] | undefined) => {
+      for (const contribution of contributions ?? []) {
+        const kg = recalledKgByLot.get(contribution.lotId);
+        if (kg !== undefined) recalledKgByLot.set(contribution.lotId, kg + contribution.amount);
+      }
+    };
+    state.machineBuffers.forEach((buffer) => {
+      buffer.inputBuffer.forEach((material) => count(material.sourceContributions));
+      buffer.outputBuffer.forEach((material) => count(material.sourceContributions));
+    });
+    state.network.segments.forEach((segment) =>
+      segment.inTransit.forEach((transit) => count(transit.sourceContributions))
+    );
+  }
+  let kg = 0;
+  const lotIds = new Set<string>();
+  recalledKgByLot.forEach((lotKg, lotId) => {
+    if (lotKg <= RECALLED_STOCK_TOLERANCE_KG) return;
+    kg += lotKg;
+    lotIds.add(lotId);
+  });
+  const value = lotIds.size > 0 ? { kg, lotIds } : NO_RECALLED_STOCK;
+  recalledStockCache = {
+    machineBuffers: state.machineBuffers,
+    segments: state.network.segments,
+    sourceLots: state.sourceLots,
+    value,
+  };
+  return value;
+}
+
 function openingMaterial(machineId: string, type: MaterialType, amount: number): MaterialAmount {
   return {
     type,
@@ -966,8 +1038,14 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
           materialType: Extract<MaterialType, 'flour' | 'semolina'>,
           amountKg: number,
           sourceContributions: readonly SourceContribution[]
-        ): ProductBatchContribution[] => {
+        ): {
+          assignments: ProductBatchContribution[];
+          writtenOffKg: number;
+          writtenOffSources: SourceContribution[];
+        } => {
           const assignments: ProductBatchContribution[] = [];
+          let writtenOffKg = 0;
+          let writtenOffSources: SourceContribution[] = [];
           // Material only joins an open batch of the same disposition, so a
           // held lot never dilutes into a released batch, and held output
           // fills one batch toward the target instead of a fragment per tick.
@@ -989,7 +1067,9 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
                 candidate.materialType === materialType &&
                 !candidate.sealed &&
                 candidate.disposition === disposition &&
-                candidate.availableKg === candidate.producedKg
+                // A recalled batch is written off as it forms, so it never
+                // holds its produced mass; it still fills toward the target.
+                (disposition === 'recalled' || candidate.availableKg === candidate.producedKg)
               ) {
                 batch = candidate;
                 break;
@@ -1032,16 +1112,26 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
                 Math.max(GENEALOGY_EPSILON_KG, previousKg + portion);
             }
             batch.producedKg += portion;
-            batch.availableKg += portion;
             batch.sourceContributions = mergeSourceContributions(
               batch.sourceContributions,
               portionSources
             );
             batch.sealed = batch.producedKg >= PRODUCT_BATCH_TARGET_KG - GENEALOGY_EPSILON_KG;
-            assignments.push({ batchId: batch.id, amount: portion });
+            if (disposition === 'recalled') {
+              // A recall is terminal, so product packed from a recalled lot is
+              // scrapped at formation with the accounting writeOffRecalledMass
+              // applies: no available mass, written-off kg on the batch, and
+              // the exact portion sources booked to waste by the caller.
+              batch.writtenOffKg = (batch.writtenOffKg ?? 0) + portion;
+              writtenOffKg += portion;
+              writtenOffSources = mergeSourceContributions(writtenOffSources, portionSources);
+            } else {
+              batch.availableKg += portion;
+              assignments.push({ batchId: batch.id, amount: portion });
+            }
             remaining -= portion;
           }
-          return assignments;
+          return { assignments, writtenOffKg, writtenOffSources };
         };
 
         // 1. Process each machine: convert input -> output
@@ -1121,7 +1211,7 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
               }
 
               if (buffer.machineType === 'packer' && (type === 'flour' || type === 'semolina')) {
-                const assignments = appendPackedBatch(
+                const packed = appendPackedBatch(
                   buffer.machineId,
                   type,
                   outputAmount,
@@ -1131,8 +1221,22 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
                 if (packedOutput) {
                   packedOutput.productBatches = mergeProductBatchContributions(
                     packedOutput.productBatches,
-                    assignments
+                    packed.assignments
                   );
+                  // Recalled product leaves the packer as waste the moment it
+                  // forms; left in the buffer it would hold packer capacity.
+                  if (packed.writtenOffKg > 0) {
+                    packedOutput.amount -= packed.writtenOffKg;
+                    packedOutput.sourceContributions = subtractSourceContributions(
+                      packedOutput.sourceContributions,
+                      packed.writtenOffSources
+                    );
+                    wasteThisTick += packed.writtenOffKg;
+                    wasteSourceContributions = mergeSourceContributions(
+                      wasteSourceContributions,
+                      packed.writtenOffSources
+                    );
+                  }
                 }
               }
 

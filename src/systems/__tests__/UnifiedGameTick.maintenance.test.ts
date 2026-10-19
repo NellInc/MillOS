@@ -80,6 +80,35 @@ describe('UnifiedGameTick maintenance causality', () => {
     expect(maintenance.workOrders[0].consumedParts).toEqual(['bearings', 'belts']);
   });
 
+  it('takes the estimated game time to repair, holding while paused and scaling with pace', () => {
+    unifiedGameTick(context);
+    const fault = useBreakdownStore.getState().activeBreakdowns[0];
+    const minutes = fault.estimatedRepairTime;
+    expect(minutes).toBeGreaterThan(1);
+    expect(useBreakdownStore.getState().startRepair(fault.id).started).toBe(true);
+    const progress = () => useBreakdownStore.getState().activeBreakdowns[0]?.repairProgress;
+    const phase = () => useBreakdownStore.getState().workOrders[0].phase;
+
+    // A paused clock grants no game time, so the service unit makes no progress.
+    unifiedGameTick({ ...context, gameSpeed: 0, tickCount: 2 });
+    expect(progress()).toBe(0);
+    expect(phase()).toBe('repairing');
+
+    // At 4x pace a 0.5 s tick is 60 game seconds: one game minute per tick.
+    const fast = { ...context, gameSpeed: 120 };
+    for (let tick = 0; tick < minutes - 1; tick += 1)
+      unifiedGameTick({ ...fast, tickCount: 3 + tick });
+    expect(phase()).toBe('repairing');
+    expect(progress()).toBeCloseTo(((minutes - 1) / minutes) * 100, 6);
+    expect(useProductionStore.getState().machines[0].status).toBe('critical');
+
+    unifiedGameTick({ ...fast, tickCount: 3 + minutes });
+    expect(progress()).toBe(100);
+    expect(phase()).toBe('verification');
+    // Only the verified, requested restart returns the machine to service.
+    expect(useProductionStore.getState().machines[0].status).toBe('critical');
+  });
+
   it('returns a zero-wear machine tripped by a campaign fault to service', () => {
     useProductionStore.setState({
       machines: [
