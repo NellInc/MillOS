@@ -309,6 +309,20 @@ function gameMinutesToWearBreakdown(
   return Math.max(0, wearConfig.breakdownThreshold - wear) / ratePerGameSecond / 60;
 }
 
+/** Open work orders for the campaign context, naming the oldest one. */
+function openWorkOrderSummary() {
+  const open = useBreakdownStore
+    .getState()
+    .workOrders.filter((workOrder) => workOrder.phase !== 'returned_to_service');
+  const oldest = open[0];
+  return {
+    openWorkOrders: open.length,
+    openWorkOrder: oldest
+      ? { id: oldest.id, machineId: oldest.machineId, machineName: oldest.machineName }
+      : null,
+  };
+}
+
 function inferBreakdownType(machine: MachineData): BreakdownType {
   if (machine.metrics.temperature >= 80) return 'overheating';
   if (machine.type === 'PLANSIFTER') return 'vibration_failure';
@@ -1024,9 +1038,7 @@ function unifiedGameTick(ctx: TickContext): void {
     finishedAvailableKg: finishedAvailability.availableKg,
     releasedFinishedKg: finishedAvailability.releasedKg,
     dispatchLoad: { ..._shippingLoad },
-    openWorkOrders: useBreakdownStore
-      .getState()
-      .workOrders.filter((workOrder) => workOrder.phase !== 'returned_to_service').length,
+    ...openWorkOrderSummary(),
     clockMinuteOfDay: latestGame.gameTime * 60,
     lineOrderId: linePlan?.orderId ?? null,
     lineCustomer: linePlan?.prestaged ? linePlan.customer : null,

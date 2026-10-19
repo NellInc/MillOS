@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, Suspense, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, Suspense, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { PACE_GAME_SPEEDS, STANDARD_GAME_SPEED } from '../../../simulation/pace';
 import { paceMessages } from '../../../simulation/pace.messages';
@@ -542,6 +542,50 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
   );
 });
 
+/**
+ * Maintenance (breakdowns, predictive alerts, parts, schedule). The wrapper is
+ * always mounted, so a repair request from the shift card is consumed here even
+ * while the lazy panel inside is still loading. Working if Repair lands the
+ * player on the work orders, not at the top of Overview.
+ */
+export const MaintenanceSection: React.FC = () => {
+  const t = useT(overviewPanelMessages);
+  const requested = useUIStore((state) => state.maintenanceFocusRequested);
+  const sectionRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!requested) return;
+    const frame = requestAnimationFrame(() => {
+      if (!useUIStore.getState().maintenanceFocusRequested) return;
+      useUIStore.getState().clearMaintenanceFocus();
+      if (useUIStore.getState().fpsMode) return;
+      sectionRef.current?.scrollIntoView?.({ block: 'start', behavior: 'instant' });
+      sectionRef.current?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [requested]);
+  return (
+    <section
+      ref={sectionRef}
+      id="overview-maintenance"
+      tabIndex={-1}
+      aria-label={t('maintenanceSection')}
+      className="scroll-mt-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+    >
+      <RecoverableFeatureBoundary featureName={t('predictiveMaintenance')}>
+        <Suspense
+          fallback={
+            <div className="h-20 bg-slate-800/30 rounded-lg animate-pulse" role="status">
+              <span className="sr-only">{t('loadingMaintenance')}</span>
+            </div>
+          }
+        >
+          <PredictiveMaintenancePanel />
+        </Suspense>
+      </RecoverableFeatureBoundary>
+    </section>
+  );
+};
+
 // Optimized OverviewPanel - No longer subscribes to high-frequency gameTime
 export const OverviewPanel: React.FC = React.memo(() => {
   const metrics = useProductionStore((state) => state.metrics);
@@ -757,20 +801,7 @@ export const OverviewPanel: React.FC = React.memo(() => {
       </button>
       <BatchGenealogySection />
 
-      {/* Maintenance (breakdowns, predictive alerts, parts, schedule) */}
-      <section>
-        <RecoverableFeatureBoundary featureName={t('predictiveMaintenance')}>
-          <Suspense
-            fallback={
-              <div className="h-20 bg-slate-800/30 rounded-lg animate-pulse" role="status">
-                <span className="sr-only">{t('loadingMaintenance')}</span>
-              </div>
-            }
-          >
-            <PredictiveMaintenancePanel />
-          </Suspense>
-        </RecoverableFeatureBoundary>
-      </section>
+      <MaintenanceSection />
 
       {/* Total Production */}
       <div className="text-center py-3 bg-gradient-to-r from-cyan-900/20 to-blue-900/20 rounded-xl border border-cyan-500/20">

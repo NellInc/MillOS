@@ -16,6 +16,9 @@ export const deliveryJourneyMessages = defineMessages({
     chooseDetail: 'Choose an available customer in Your shift commitment in Overview.',
     qualityTarget: 'Recipe quality target: {minimum}/100.',
     fulfilledTitle: 'Delivery fulfilled',
+    repairTitle: 'Repair {machine}',
+    repairDetail:
+      '{machine} has broken down and its part of the line has stopped. Open Mill Overview, Maintenance: dispatch service on work order {workOrderId}, complete and verify the repair, then request a controlled restart.',
     fulfilledDetail:
       '{kg} kg of {product} dispatched for {customer} in recorded manifests. Departed manifests credit this customer. Inspection is a separate milestone.',
     inspectTitle: 'Inspect the line',
@@ -65,6 +68,9 @@ export const deliveryJourneyMessages = defineMessages({
     chooseDetail: 'Escolha um cliente disponível em Seu compromisso do turno, na Visão geral.',
     qualityTarget: 'Meta de qualidade da receita: {minimum}/100.',
     fulfilledTitle: 'Entrega concluída',
+    repairTitle: 'Reparar {machine}',
+    repairDetail:
+      'A máquina {machine} entrou em pane e a parte dela na linha parou. Abra Visão geral do moinho, Manutenção: envie a equipe na ordem de serviço {workOrderId}, conclua e verifique o reparo e, depois, solicite um reinício controlado.',
     fulfilledDetail:
       '{kg} kg de {product} expedidos para {customer} em romaneios registrados. Os romaneios com saída registrada são creditados a este cliente. A inspeção é uma etapa à parte.',
     inspectTitle: 'Inspecione a linha',

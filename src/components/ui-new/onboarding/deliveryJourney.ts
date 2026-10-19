@@ -13,6 +13,14 @@ interface DeliveryJourney {
   entryId: string;
   view?: 'Milling' | 'Packing' | 'Shipping';
   loading?: Pick<DispatchLoadSnapshot, 'loadedKg' | 'capacityKg'>;
+  /** Overview should land on this section when the guide opens it. */
+  focus?: 'maintenance';
+}
+
+/** The oldest open work order, as the guide reads it; read-only. */
+export interface MachineFaultView {
+  machineName: string;
+  workOrderId: string;
 }
 
 /** Read-only customer deadline, in the same minutes as the campaign clock.
@@ -88,7 +96,8 @@ export function deriveDeliveryJourney(
   order: CustomerOrder | null,
   execution: OrderExecutionState,
   inspected: boolean,
-  truck?: ShippingTruckView
+  truck?: ShippingTruckView,
+  fault?: MachineFaultView | null
 ): DeliveryJourney {
   if (!order)
     return {
@@ -114,6 +123,20 @@ export function deriveDeliveryJourney(
       }),
       workspace: 'overview' as const,
       entryId: 'community-commitments',
+    };
+  // A stopped machine stops its part of the line, so the guide turns to the
+  // repair before any delivery step. Working if a breakdown during the first
+  // delivery reads 'Repair <machine>' and opens Overview at Maintenance.
+  if (fault)
+    return {
+      title: translate(m, 'repairTitle', { machine: fault.machineName }),
+      detail: translate(m, 'repairDetail', {
+        machine: fault.machineName,
+        workOrderId: fault.workOrderId,
+      }),
+      workspace: 'overview' as const,
+      focus: 'maintenance' as const,
+      entryId: 'predictive-maintenance',
     };
   // Inspection is the opening lesson, never a gate on the delivery itself: once
   // stock is moving toward a truck the guide narrates that instead. Working if

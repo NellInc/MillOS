@@ -268,3 +268,22 @@ it('names the workspace the follow-the-grain step actually opens', () => {
   expect(guide.detail).toContain('Open SCADA');
   expect(guide.detail).not.toContain('Open operations to review the recipe');
 });
+
+it('turns the guide to the repair while a machine is stopped, and names where to go', () => {
+  const campaign = useOperationsCampaignStore.getState();
+  campaign.initializeCampaign();
+  const state = useOperationsCampaignStore.getState();
+  const order = state.orders[0];
+  const execution = { ...state.execution, orderId: order.id, stage: 'milling' as const };
+  const guide = deriveDeliveryJourney(order, execution, true, undefined, {
+    machineName: 'R.M. 101',
+    workOrderId: 'wo-00001',
+  });
+  expect(guide.title).toBe('Repair R.M. 101');
+  expect(guide.detail).toContain('wo-00001');
+  expect(guide.detail).toContain('Mill Overview');
+  expect(guide.workspace).toBe('overview');
+  expect(guide.focus).toBe('maintenance');
+  // Without a fault the same state still reads the ordinary lesson.
+  expect(deriveDeliveryJourney(order, execution, true).title).not.toBe('Repair R.M. 101');
+});

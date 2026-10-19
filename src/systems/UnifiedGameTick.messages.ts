@@ -39,7 +39,7 @@ export const unifiedGameTickMessages = defineMessages({
     shiftLabel: (p: { shift: string }) => capitalise(p.shift),
     breakdownTitle: 'Machine Breakdown',
     breakdownMessage:
-      '{name} ({machineType}) has broken down due to excessive wear. Work order {workOrderId} requires repair, verification, and controlled restart.',
+      '{name} ({machineType}) has broken down due to excessive wear. Open Mill Overview, Maintenance: work order {workOrderId} needs service dispatched, the repair verified and a controlled restart.',
   },
   'pt-BR': {
     supplierTraceabilityNote:
@@ -65,6 +65,6 @@ export const unifiedGameTickMessages = defineMessages({
     shiftLabel: (p: { shift: string }) => PT_SHIFT_LABELS[p.shift] ?? capitalise(p.shift),
     breakdownTitle: 'Pane de máquina',
     breakdownMessage:
-      '{name} ({machineType}) entrou em pane por desgaste excessivo. A ordem de serviço {workOrderId} exige reparo, verificação e reinício controlado.',
+      '{name} ({machineType}) entrou em pane por desgaste excessivo. Abra Visão geral do moinho, Manutenção: a ordem de serviço {workOrderId} precisa do envio da equipe, da verificação do reparo e de um reinício controlado.',
   },
 });

@@ -208,6 +208,8 @@ export interface CampaignTickContext {
   releasedFinishedKg: number;
   dispatchLoad: DispatchLoadSnapshot;
   openWorkOrders: number;
+  /** The oldest open work order, so the shift card can name the stopped machine. */
+  openWorkOrder?: { id: string; machineId: string; machineName: string } | null;
   /** The order the line is producing for this tick (see LineProductionPlan). */
   lineOrderId?: string | null;
   lineCustomer?: string | null;
@@ -927,16 +929,28 @@ function makeConstraints(
         )?.id ?? null,
     });
   }
+  // An open work order is a stopped machine: every phase short of
+  // returned_to_service keeps it locked out. It reads as Attention, never as a
+  // background note the shift card drops. Working if the card names the machine
+  // and the repair becomes the next action.
   if (context.openWorkOrders > 0) {
+    const order = context.openWorkOrder;
     constraints.push({
       id: 'maintenance-queue',
-      severity: context.openWorkOrders > 3 ? 'warning' : 'info',
+      severity: 'warning',
       label: translate(messages, 'constraintMaintenanceLabel'),
-      detail: translate(messages, 'constraintMaintenanceDetail', {
-        count: context.openWorkOrders,
-        countText: formatFixed(context.openWorkOrders, 0),
-      }),
-      relatedId: null,
+      detail: order
+        ? translate(messages, 'constraintMachineDownDetail', {
+            machine: order.machineName,
+            workOrderId: order.id,
+            others: context.openWorkOrders - 1,
+            othersText: formatFixed(context.openWorkOrders - 1, 0),
+          })
+        : translate(messages, 'constraintMaintenanceDetail', {
+            count: context.openWorkOrders,
+            countText: formatFixed(context.openWorkOrders, 0),
+          }),
+      relatedId: order?.machineId ?? null,
     });
   }
   return constraints;

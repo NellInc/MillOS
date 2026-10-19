@@ -86,6 +86,11 @@ interface UIStore {
   // One-shot scene-to-workspace navigation, never persisted.
   operationalFocusId: string | null;
   setOperationalFocusId: (id: string | null) => void;
+  // One-shot request for Mill Overview to bring its maintenance section into
+  // view and focus (the repair next action). Never persisted.
+  maintenanceFocusRequested: boolean;
+  requestMaintenanceFocus: () => void;
+  clearMaintenanceFocus: () => void;
 
   // Legend position (for draggable legend)
   legendPosition: { x: number; y: number };
@@ -248,6 +253,9 @@ export const useUIStore = create<UIStore>()(
 
       operationalFocusId: null,
       setOperationalFocusId: (id) => set({ operationalFocusId: id }),
+      maintenanceFocusRequested: false,
+      requestMaintenanceFocus: () => set({ maintenanceFocusRequested: true }),
+      clearMaintenanceFocus: () => set({ maintenanceFocusRequested: false }),
 
       // Legend position
       legendPosition: { x: -1, y: -1 }, // -1 means use default position

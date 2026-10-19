@@ -121,6 +121,7 @@ export const overviewPanelMessages = defineMessages({
 
     planLogistics: 'Plan logistics',
     predictiveMaintenance: 'Predictive maintenance',
+    maintenanceSection: 'Maintenance and repairs',
     loadingMaintenance: 'Loading maintenance panel...',
     totalBagsProduced: 'Total Bags Produced',
 
@@ -211,6 +212,7 @@ export const overviewPanelMessages = defineMessages({
 
     planLogistics: 'Planejar logística',
     predictiveMaintenance: 'Manutenção preditiva',
+    maintenanceSection: 'Manutenção e reparos',
     loadingMaintenance: 'Carregando o painel de manutenção...',
     totalBagsProduced: 'Total de sacos produzidos',
 

@@ -35,6 +35,7 @@ export const operationsPlayMessages = defineMessages({
       'Restores this effect-only controller scenario to normal. Complete the challenge by dispatching its target mass through the real quality and shipping gates.',
     resolveConsequenceEnded:
       'Restores the abandoned or expired scenario controller to normal. Its recorded challenge result remains unchanged; a fresh challenge can then be started.',
+    repairLabel: 'Repair the stopped machine in Overview',
     programmeLabel: 'Accept next production programme',
     programmeConsequence:
       'Creates three new 3,000 kg customer commitments with real recipe, quality and dispatch requirements. Existing stock remains available; no goods or revenue are created.',
@@ -92,6 +93,7 @@ export const operationsPlayMessages = defineMessages({
       'Restaura ao normal este cenário do controlador, que atua apenas sobre os efeitos. Conclua o desafio expedindo a massa-alvo pelas etapas reais de qualidade e de expedição.',
     resolveConsequenceEnded:
       'Restaura ao normal o controlador do cenário abandonado ou expirado. O resultado registrado do desafio não muda; depois disso, um novo desafio pode ser iniciado.',
+    repairLabel: 'Reparar a máquina parada na Visão geral',
     programmeLabel: 'Aceitar o próximo programa de produção',
     programmeConsequence:
       'Cria três novos compromissos de 3.000 kg com clientes, com exigências reais de receita, qualidade e expedição. O estoque existente continua disponível; nenhum produto ou faturamento é criado.',
