@@ -13,6 +13,7 @@ import {
 } from '../../utils/flourSacks';
 import { EXTERIOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../../constants/renderLayers';
 import { SceneText } from '../shared/SceneText';
+import { DOCK_LINE_WIDTH } from './dockApronLayout';
 import {
   getStagedFlourBagCount,
   stagedPalletPosition,
@@ -126,11 +127,13 @@ export const PalletStaging: React.FC<{ dock: 'shipping' | 'receiving' }> = ({ do
       {/* A perimeter, rather than a translucent fill over the whole apron. Yard
           paint, so it takes the exterior overlay datum rather than an interior
           floor layer that left it floating ~10 cm over the tarmac. */}
+      {/* 0.25 m lines: at 0.08 m the perimeter resolved to under a pixel at
+          review distance and broke into dashes. */}
       {[
-        [centreX, centreZ - depth / 2, width, 0.08],
-        [centreX, centreZ + depth / 2, width, 0.08],
-        [centreX - width / 2, centreZ, 0.08, depth],
-        [centreX + width / 2, centreZ, 0.08, depth],
+        [centreX, centreZ - depth / 2, width, DOCK_LINE_WIDTH],
+        [centreX, centreZ + depth / 2, width, DOCK_LINE_WIDTH],
+        [centreX - width / 2, centreZ, DOCK_LINE_WIDTH, depth],
+        [centreX + width / 2, centreZ, DOCK_LINE_WIDTH, depth],
       ].map(([x, z, w, d], index) => (
         <mesh
           key={index}
@@ -149,8 +152,9 @@ export const PalletStaging: React.FC<{ dock: 'shipping' | 'receiving' }> = ({ do
           />
         </mesh>
       ))}
+      {/* Biased paint: receiving's label lies partly on the dock apron. */}
       <SceneText
-        surface="painted"
+        surface="painted-ground"
         position={[centreX, EXTERIOR_LAYERS.groundOverlay, centreZ + depth / 2 + 0.6]}
         rotation={[-Math.PI / 2, 0, 0]}
         fontSize={0.35}

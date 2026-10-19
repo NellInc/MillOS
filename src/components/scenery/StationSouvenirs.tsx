@@ -1,3 +1,4 @@
+import { POLYGON_OFFSET } from '../../constants/renderLayers';
 import React, { useEffect, useLayoutEffect, useMemo } from 'react';
 import { useTexture } from '@react-three/drei';
 import * as THREE from 'three';
@@ -588,8 +589,8 @@ export const StationSouvenirs = React.memo(() => {
         vertexColors: true,
         roughness: 0.72,
         polygonOffset: true,
-        polygonOffsetFactor: -1,
-        polygonOffsetUnits: -1,
+        polygonOffsetFactor: POLYGON_OFFSET.standard.factor,
+        polygonOffsetUnits: POLYGON_OFFSET.standard.units,
       }),
     [texture]
   );

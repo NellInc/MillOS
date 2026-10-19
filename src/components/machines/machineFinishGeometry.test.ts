@@ -749,3 +749,22 @@ it('keeps the full terminal gasket footprint housed beneath the clipped lid', ()
     material.dispose();
   }
 });
+
+it('keeps no up-facing mill guard face flush with the 0.16 m factory plinth', () => {
+  // The drive-motor base plate was 0.16 m tall, so its top lay exactly on the
+  // milling plinth's top: 2.3 m^2 of coplanar up-facing faces under each mill.
+  const geometry = MACHINE_FINISH_GEOMETRY.millGuard.toNonIndexed();
+  const position = geometry.getAttribute('position');
+  let flush = 0;
+  for (let i = 0; i < position.count; i += 3) {
+    const ys = [position.getY(i), position.getY(i + 1), position.getY(i + 2)];
+    if (!ys.every((y) => Math.abs(y - 0.16) < 0.005)) continue;
+    const a = new THREE.Vector3().fromBufferAttribute(position, i);
+    const b = new THREE.Vector3().fromBufferAttribute(position, i + 1);
+    const c = new THREE.Vector3().fromBufferAttribute(position, i + 2);
+    // Down-facing faces at this height are leg soles, hidden inside the plate.
+    if (b.sub(a).cross(c.sub(a)).y > 0) flush++;
+  }
+  geometry.dispose();
+  expect(flush).toBe(0);
+});

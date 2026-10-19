@@ -433,7 +433,9 @@ export function createRoadRiverBridgeFrameGeometry(): THREE.BufferGeometry {
     }
   }
   for (const x of [-6, 0, 6]) {
-    g.box([0.16, 0.55, 68], [x, -0.225, 0], steel);
+    // Web top stops 1 cm inside the top flange (y 0.04): at 0.55 tall it
+    // ended on the flange's top face and the two were coplanar along 68 m.
+    g.box([0.16, 0.54, 68], [x, -0.23, 0], steel);
     g.box([0.6, 0.12, 68], [x, -0.01, 0], trim);
     g.box([0.6, 0.12, 68], [x, -0.51, 0], steel);
   }

@@ -414,8 +414,10 @@ export const OpenDockOpening: React.FC<OpenDockOpeningProps> = ({
         />
       </group>
 
-      {/* Warning stripes at floor level */}
-      <mesh position={[0, FLOOR_LAYERS.safetyMain, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      {/* Warning stripes at floor level, wholly inboard of the threshold
+          (local z -1.5..0). Centred on it, the outboard half lay under the dock
+          leveler plate (z 0..2, y 0.005-0.155) and stippled through it. */}
+      <mesh position={[0, FLOOR_LAYERS.safetyMain, -0.75]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[width + 2, 1.5]} />
         <primitive object={HAZARD_PAINT_YELLOW} attach="material" />
       </mesh>
@@ -423,7 +425,7 @@ export const OpenDockOpening: React.FC<OpenDockOpeningProps> = ({
       {Array.from({ length: stripeCount }, (_, i) => (
         <mesh
           key={`stripe-${i}`}
-          position={[(i - (stripeCount - 1) / 2) * 4, FLOOR_LAYERS.safetyMain + 0.005, 0]}
+          position={[(i - (stripeCount - 1) / 2) * 4, FLOOR_LAYERS.safetyMain + 0.005, -0.75]}
           rotation={[-Math.PI / 2, 0, Math.PI / 4]}
         >
           {/* 1.7 m long: rotated 45 degrees it reaches +/-0.74 m, inside the 1.5 m band. */}
@@ -465,11 +467,15 @@ export const OpenDockOpening: React.FC<OpenDockOpeningProps> = ({
               castShadow
             />
           ))}
+          {/* Fascia along the hood's inboard edge. It stands 1 cm above and
+              2 cm beyond the hood slab: at (0, -0.05, -3.9) its top and its
+              -z face were flush with the slab's, two coplanar pairs the full
+              width of the opening. */}
           <mesh
             geometry={UNIT_BOX}
             material={MATERIALS.trim}
             scale={[width + 4.2, 0.3, 0.2]}
-            position={[0, -0.05, -3.9]}
+            position={[0, -0.04, -3.92]}
           />
         </group>
       )}

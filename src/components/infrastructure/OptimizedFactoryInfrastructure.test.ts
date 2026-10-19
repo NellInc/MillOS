@@ -241,6 +241,39 @@ describe('factory roof light paths', () => {
     expect(bottom).toBeLessThan(deckTop);
   });
 
+  it('stands every skylight kerb proud of the deck panel end it rises from', () => {
+    // Kerbs and panels share each half's pitch, so faces compare in the deck
+    // frame: z is world z, x is distance along the slope from the half centre.
+    // A kerb's aperture-facing face flush with the panel end below it (the
+    // aperture edge) is a coplanar pair the size of the panel's 0.36 m end:
+    // 38.9 m^2 over the twelve z edges alone.
+    const { panels, kerbs } = buildFactoryRoofEnvelope();
+    const centre = SITE_LAYOUT.factory.floor.width / 4;
+    const frame = (box: (typeof panels)[number]) => {
+      const side = box.position[0] > 0 ? 1 : -1;
+      return { side, x: (box.position[0] - centre * side) / Math.cos(0.05), z: box.position[2] };
+    };
+    const panelEnds = { x: [] as number[], z: [] as number[] };
+    for (const panel of panels) {
+      const { x, z } = frame(panel);
+      panelEnds.x.push(x - panel.scale[0] / 2, x + panel.scale[0] / 2);
+      panelEnds.z.push(z - panel.scale[2] / 2, z + panel.scale[2] / 2);
+    }
+    expect(kerbs).toHaveLength(24);
+    for (const kerb of kerbs) {
+      const { side, x, z } = frame(kerb);
+      const axis = kerb.scale[0] < kerb.scale[2] ? 'x' : 'z';
+      // Skylight centre in this frame: deck-local x = -5 * side, z nearest.
+      const skylightZ = [-26, 0, 26].reduce((a, b) => (Math.abs(b - z) < Math.abs(a - z) ? b : a));
+      const at = axis === 'x' ? x : z;
+      const toward = axis === 'x' ? -5 * side : skylightZ;
+      const half = (axis === 'x' ? kerb.scale[0] : kerb.scale[2]) / 2;
+      const inner = at + Math.sign(toward - at) * half;
+      const nearest = Math.min(...panelEnds[axis].map((end) => Math.abs(end - inner)));
+      expect(nearest, `${axis} kerb at ${at.toFixed(3)}`).toBeGreaterThan(0.005);
+    }
+  });
+
   it('leaves all six skylight centres open through the actual deck and kerbs', () => {
     const { panels, kerbs } = buildFactoryRoofEnvelope();
     const geometry = new THREE.BoxGeometry(1, 1, 1);

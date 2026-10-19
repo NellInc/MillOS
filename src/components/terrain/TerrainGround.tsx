@@ -140,7 +140,7 @@ export const TerrainGround = React.memo(function TerrainGround({
    * every authored plane it is supposed to sit under (`EXTERIOR_LAYERS.ground`
    * = `SITE_LAYOUT.datum.terrain` = -0.02) and 5 cm above the interior factory
    * slab at y = 0. Nothing looked wrong at review distance because this
-   * material carries `POLYGON_OFFSET.exteriorBase`, and a factor-4 depth bias
+   * material carries `POLYGON_OFFSET.exteriorBase`, and a factor-6 depth bias
    * is large enough to hide 7 cm of wrong-side geometry at 30 m.
    *
    * It is not large enough at 2 m, where the depth buffer resolves finely, so
@@ -152,8 +152,9 @@ export const TerrainGround = React.memo(function TerrainGround({
    *
    * On the datum, the whole documented stack in CLAUDE.md's "Exterior Ground
    * Z-Fighting Prevention" works as written: terrain and the authored planes
-   * share one Y and separate by `polygonOffset` alone (base 4 behind, mid 2,
-   * top 0, overlay -2), and the interior slab at y = 0 is now genuinely above
+   * share one Y and separate by `polygonOffset` alone (`exteriorBase` +6
+   * behind, `exteriorMid` +3, `exteriorTop` -1, `exteriorOverlay` -4 on top;
+   * see `renderLayers.ts`), and the interior slab at y = 0 is now genuinely above
    * the terrain rather than winning a bias fight it should never have been in.
    */
   yPosition = SITE_LAYOUT.datum.terrain,

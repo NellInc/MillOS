@@ -987,7 +987,9 @@ function CompactMachineSet({
           index * 3 + ringIndex,
           object,
           [x, y + ringY, z],
-          [2.28 / 1.03, 0.4, 2.28 / 1.03],
+          // y 1.25: 0.2 m bands. At 0.4 (6.4 cm) a ring was under a pixel tall
+          // at Low's review distance and broke into dots.
+          [2.28 / 1.03, 1.25, 2.28 / 1.03],
           undefined,
           siloFrame
         );

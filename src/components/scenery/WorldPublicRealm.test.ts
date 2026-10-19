@@ -359,6 +359,28 @@ describe('world public realm', () => {
     world.paving.dispose();
     world.solid.dispose();
   });
+  it('lets the village paths own their junctions with the west world path', () => {
+    // The village's east paths end at village-local x 36.8, across the world
+    // path at x -155.3; both pavings were laid there at the same datum and
+    // bias (-4), ~10 m^2 of coplanar overlap at z -59 and z 12.
+    const world = createWorldRealm(128);
+    const [vx, , vz] = landmarkLocalToWorld(SITE_LAYOUT.landmarks.village, [0, 0, 0]);
+    const village = VILLAGE_REALM_GEOMETRY.paving.clone().translate(vx, 0, vz);
+    for (const [x, z] of [
+      [-155.3, -59],
+      [-154.3, -58],
+      [-155.3, 12],
+      [-155.9, 13.2],
+    ]) {
+      const hits =
+        ray(world.paving, [x, 5, z], [0, -1, 0]).length +
+        ray(village, [x, 5, z], [0, -1, 0]).length;
+      expect(hits, `${x}, ${z}`).toBe(1);
+    }
+    village.dispose();
+    world.paving.dispose();
+    world.solid.dispose();
+  });
   it('routes around the caravan and the field culvert rather than beneath them', async () => {
     const doc = await new NodeIO().read('public/models/world/caravan.glb');
     const bounds = new THREE.Box3();

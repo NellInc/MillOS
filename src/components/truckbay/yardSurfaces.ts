@@ -1,0 +1,86 @@
+import * as THREE from 'three';
+import { POLYGON_OFFSET } from '../../constants/renderLayers';
+import { PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
+import { YARD_PAVING_TINT } from '../terrain/terrainTypes';
+
+/**
+ * THE TRUCK-YARD GROUND STACK. Yard, dock apron and approach road all sit on
+ * `EXTERIOR_LAYERS.ground` with the terrain, so polygonOffset alone decides
+ * which is drawn where they overlap:
+ *
+ *   terrain `exteriorBase` +6  >  shuttle turnaround `exteriorMid` +3
+ *     >  yard 0  >  apron = road `exteriorTop` -1  >  paint `exteriorOverlay` -4
+ *
+ * All three were at 0 once their offsets were lost in a refactor, so the apron
+ * and the road tied with the yard they lie on and z-fought across the whole
+ * dock front. The yard is left UNBIASED on purpose rather than restored to
+ * `exteriorMid`: the village shuttle turnaround in `CommunityLife.tsx` was
+ * added afterwards at `exteriorMid` and overlaps the shipping yard, so a +3
+ * yard would tie with it. Apron and road share -1 because they never overlap.
+ *
+ * Anything painted ON the apron or the road must be biased in front of -1:
+ * a label 1 cm up with no bias of its own loses to a -1 surface beyond about
+ * 5.5 m. `SceneText surface="painted-ground"` is that material.
+ *
+ * `yardGroundStack.test.ts` pins this ordering against the real terrain and
+ * turnaround sources.
+ */
+export const YARD_GROUND_DEPTH = {
+  yard: { polygonOffset: false },
+  apron: {
+    polygonOffset: true,
+    polygonOffsetFactor: POLYGON_OFFSET.exteriorTop.factor,
+    polygonOffsetUnits: POLYGON_OFFSET.exteriorTop.units,
+  },
+  road: {
+    polygonOffset: true,
+    polygonOffsetFactor: POLYGON_OFFSET.exteriorTop.factor,
+    polygonOffsetUnits: POLYGON_OFFSET.exteriorTop.units,
+  },
+} as const;
+
+const cloneYardTexture = (
+  source: THREE.Texture,
+  repeatX: number,
+  repeatY: number
+): THREE.Texture => {
+  const texture = source.clone();
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(repeatX, repeatY);
+  return texture;
+};
+
+const YARD_TARMAC_MAP = cloneYardTexture(PROCEDURAL_TEXTURES.tarmacColor, 18, 18);
+const YARD_TARMAC_ROUGHNESS = cloneYardTexture(PROCEDURAL_TEXTURES.tarmacRoughness, 18, 18);
+const ROAD_TARMAC_MAP = cloneYardTexture(PROCEDURAL_TEXTURES.tarmacColor, 4, 28);
+const ROAD_TARMAC_ROUGHNESS = cloneYardTexture(PROCEDURAL_TEXTURES.tarmacRoughness, 4, 28);
+const APRON_CONCRETE_MAP = cloneYardTexture(PROCEDURAL_TEXTURES.concreteColor, 6, 5);
+const APRON_CONCRETE_ROUGHNESS = cloneYardTexture(PROCEDURAL_TEXTURES.concreteRoughness, 6, 5);
+
+// The shared linear gain keeps the authored yard and its terrain perimeter
+// on the same weathered aggregate finish. Lighting alone governs the night.
+export const YARD_TARMAC_SURFACE = {
+  color: YARD_PAVING_TINT,
+  map: YARD_TARMAC_MAP,
+  roughnessMap: YARD_TARMAC_ROUGHNESS,
+  roughness: 1,
+  metalness: 0,
+  ...YARD_GROUND_DEPTH.yard,
+} as const;
+export const ROAD_TARMAC_SURFACE = {
+  color: '#ffffff',
+  map: ROAD_TARMAC_MAP,
+  roughnessMap: ROAD_TARMAC_ROUGHNESS,
+  roughness: 1,
+  metalness: 0,
+  ...YARD_GROUND_DEPTH.road,
+} as const;
+export const APRON_CONCRETE_SURFACE = {
+  color: '#ffffff',
+  map: APRON_CONCRETE_MAP,
+  roughnessMap: APRON_CONCRETE_ROUGHNESS,
+  roughness: 0.92,
+  metalness: 0,
+  ...YARD_GROUND_DEPTH.apron,
+} as const;

@@ -171,8 +171,16 @@ describe('continuous canal-to-river overflow', () => {
     const canal = SITE_LAYOUT.exteriorFeatures.canal;
     expect(CANAL_OUTLET.west).toBe(canal.position[0] + (canal.width - 1) / 2);
     const sections = canalEastBankSections(canal.length, canal.position[2]);
-    expect(sections[0][1] + canal.position[2]).toBe(CANAL_OUTLET.south - CANAL_OUTLET.width);
-    expect(sections[1][0] + canal.position[2]).toBe(CANAL_OUTLET.south);
+    // Each bank stub ends INSIDE the 0.8 m outlet wall it meets, not flush with
+    // its face: flush, the stub's end and the wall's face were coplanar
+    // (10 m^2 at z -114 down the deep footing, 1.5 m^2 at z -106).
+    const stubEnd = sections[0][1] + canal.position[2];
+    const opening = CANAL_OUTLET.south - CANAL_OUTLET.width;
+    expect(stubEnd).toBeLessThan(opening - 0.005);
+    expect(stubEnd).toBeGreaterThan(opening - 0.8);
+    const stubStart = sections[1][0] + canal.position[2];
+    expect(stubStart).toBeGreaterThan(CANAL_OUTLET.south + 0.005);
+    expect(stubStart).toBeLessThan(CANAL_OUTLET.south + 0.8);
     expect(sections.every(([a, b]) => b > a)).toBe(true);
     const g = createCanalOutletSurface();
     const mesh = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));

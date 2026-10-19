@@ -2,6 +2,7 @@ import { Text } from '@react-three/drei';
 import { forwardRef, useCallback } from 'react';
 import type { ComponentProps, ComponentRef } from 'react';
 import * as THREE from 'three';
+import { POLYGON_OFFSET } from '../../constants/renderLayers';
 
 /**
  * Drop-in replacement for drei's <Text> that defaults to a SELF-HOSTED font.
@@ -107,11 +108,32 @@ const PAINTED_TEXT_MATERIAL = new THREE.MeshStandardMaterial({
 });
 
 /**
+ * The same paint, biased like the yard markings it sits among
+ * (`POLYGON_OFFSET.exteriorOverlay`). A ground label at
+ * `EXTERIOR_LAYERS.groundOverlay` is only 1 cm above the ground datum, and with
+ * no bias of its own it loses to a biased surface such as the dock apron
+ * (`exteriorTop` -1) beyond about 5.5 m on medium. troika derives its text
+ * material with `Object.create(base)`, so the offset is inherited.
+ */
+const PAINTED_GROUND_TEXT_MATERIAL = PAINTED_TEXT_MATERIAL.clone();
+PAINTED_GROUND_TEXT_MATERIAL.polygonOffset = true;
+PAINTED_GROUND_TEXT_MATERIAL.polygonOffsetFactor = POLYGON_OFFSET.exteriorOverlay.factor;
+PAINTED_GROUND_TEXT_MATERIAL.polygonOffsetUnits = POLYGON_OFFSET.exteriorOverlay.units;
+
+const SURFACE_MATERIALS: Record<SceneTextSurface, THREE.Material | undefined> = {
+  unlit: undefined,
+  painted: PAINTED_TEXT_MATERIAL,
+  'painted-ground': PAINTED_GROUND_TEXT_MATERIAL,
+};
+
+/**
  * `unlit` (default) keeps troika's basic material - status readouts, signage
  * that is internally illuminated, anything that must stay legible after dark.
  * `painted` is for text that represents PAINT on a surface.
+ * `painted-ground` is paint on a biased exterior ground surface (the dock
+ * apron, the approach road): painted, plus the overlay bias.
  */
-export type SceneTextSurface = 'unlit' | 'painted';
+export type SceneTextSurface = 'unlit' | 'painted' | 'painted-ground';
 
 type SceneTextProps = ComponentProps<typeof Text> & {
   surface?: SceneTextSurface;
@@ -134,7 +156,7 @@ export const SceneText = forwardRef<ComponentRef<typeof Text>, SceneTextProps>(f
     <Text
       ref={attachRef}
       {...props}
-      material={material ?? (surface === 'painted' ? PAINTED_TEXT_MATERIAL : undefined)}
+      material={material ?? SURFACE_MATERIALS[surface]}
       font={font ?? DEFAULT_3D_FONT}
     />
   );
