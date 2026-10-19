@@ -954,5 +954,33 @@ describe('aiEngine - Core Functions', () => {
       cleanup3();
       expect(vi.getTimerCount()).toBe(0);
     });
+
+    it('files nothing while the shift clock is held and does not burst on resume', () => {
+      const production = vi.mocked(useProductionStore.getState)();
+      const game = {
+        currentShift: 'morning',
+        weather: 'clear',
+        emergencyDrillMode: false,
+        gameSpeed: 0,
+      };
+      vi.mocked(useGameSimulationStore.getState).mockImplementation(() => game as any);
+      const cleanup = initializeAIEngine();
+      cleanups.push(cleanup);
+      singletonCleanups.push(cleanup);
+
+      // A frozen plant gets no advice, however long the player stays paused.
+      vi.advanceTimersByTime(60_000);
+      expect(production.addAIDecision).not.toHaveBeenCalled();
+
+      // Held time does not count toward the cadence, so resuming does not
+      // fire the overdue decision at once.
+      game.gameSpeed = 30;
+      vi.advanceTimersByTime(2_000);
+      expect(production.addAIDecision).not.toHaveBeenCalled();
+
+      // The cadence picks up again once the plant has run for a full interval.
+      vi.advanceTimersByTime(6_000);
+      expect(production.addAIDecision).toHaveBeenCalled();
+    });
   });
 });
