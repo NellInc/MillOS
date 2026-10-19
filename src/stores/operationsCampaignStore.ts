@@ -1075,6 +1075,46 @@ export function buildShiftReport(input: ShiftReportInput): ShiftCampaignReport {
   };
 }
 
+export type ProvisionalReportSource = Pick<
+  OperationsCampaignState,
+  | 'currentShiftKey'
+  | 'currentShiftLabel'
+  | 'shiftStartedAtMinute'
+  | 'elapsedMinutes'
+  | 'shiftMetrics'
+  | 'orders'
+  | 'logbook'
+  | 'constraints'
+  | 'incidents'
+>;
+
+/**
+ * The open window as a report: what "this shift so far" shows before the
+ * clock closes it. Its risks are the constraints the last tick computed, the
+ * same set a closing report uses. Null before the first tick of a window.
+ * Working if the window in which a programme completes can be reviewed at
+ * once, with the same grade rules and order lines as a saved report.
+ */
+export function selectProvisionalShiftReport(
+  state: ProvisionalReportSource
+): ShiftCampaignReport | null {
+  if (!state.currentShiftKey || state.elapsedMinutes <= state.shiftStartedAtMinute) return null;
+  return buildShiftReport({
+    id: `provisional-${state.currentShiftKey}`,
+    shiftKey: state.currentShiftKey,
+    shiftLabel: state.currentShiftLabel,
+    startedAtMinute: state.shiftStartedAtMinute,
+    endedAtMinute: state.elapsedMinutes,
+    metrics: state.shiftMetrics,
+    orders: state.orders,
+    logbook: state.logbook,
+    risks: state.constraints
+      .filter((constraint) => constraint.severity !== 'info')
+      .map((constraint) => constraint.label),
+    incidents: state.incidents,
+  });
+}
+
 export const useOperationsCampaignStore = create<OperationsCampaignState>()(
   persist(
     (set, get) => ({

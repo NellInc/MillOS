@@ -13,7 +13,10 @@ import {
 } from '../../../simulation/workplaceImprovement';
 import { campaignOutcomes, campaignTotals } from '../../../simulation/workplaceCampaign';
 import type { WorkplaceProfile, WorkplaceState } from '../../../types/workplace';
-import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
+import {
+  selectProvisionalShiftReport,
+  useOperationsCampaignStore,
+} from '../../../stores/operationsCampaignStore';
 import { useTruckScheduleStore } from '../../../stores/truckScheduleStore';
 import {
   deriveOperationsPlay,
@@ -804,7 +807,13 @@ export function OperationsPlayCard() {
  * Working if a report says which orders were on time, what held the grade
  * back and one thing to try next, in English and in Brazilian Portuguese.
  */
-function ShiftReportArticle({ report }: { report: ShiftCampaignReport }) {
+function ShiftReportArticle({
+  report,
+  provisional = false,
+}: {
+  report: ShiftCampaignReport;
+  provisional?: boolean;
+}) {
   const t = useT(playableShiftMessages);
   const locale = useLocale();
   const basis = report.gradeBasis;
@@ -816,10 +825,15 @@ function ShiftReportArticle({ report }: { report: ShiftCampaignReport }) {
   return (
     <article className="mb-3 border-t border-slate-700 pt-3">
       <h4 className="font-semibold">
-        {report.grade === null
-          ? t('reportHeadingUngraded', { shift })
-          : t('reportHeading', { shift, grade: report.grade })}
+        {provisional
+          ? report.grade === null
+            ? t('reportHeadingProvisionalUngraded', { shift })
+            : t('reportHeadingProvisional', { shift, grade: report.grade })
+          : report.grade === null
+            ? t('reportHeadingUngraded', { shift })
+            : t('reportHeading', { shift, grade: report.grade })}
       </h4>
+      {provisional && <p className="mt-1 text-xs text-slate-300">{t('provisionalNote')}</p>}
       {/* Older C to F reports saved their reasons as the summary too. */}
       {summary !== reasons.join(' ') && <p className="mt-1 text-xs leading-5">{summary}</p>}
       <ul className="mt-2 list-inside list-disc text-xs leading-5">
@@ -904,9 +918,24 @@ export function ShiftDebrief() {
   const reports = useOperationsCampaignStore((s) => s.reports);
   const canNext = useOperationsCampaignStore((s) => deriveOperationsPlay(s).canAcceptNextProgramme);
   const t = useT(playableShiftMessages);
+  const open = useOperationsCampaignStore(
+    useShallow((s) => ({
+      currentShiftKey: s.currentShiftKey,
+      currentShiftLabel: s.currentShiftLabel,
+      shiftStartedAtMinute: s.shiftStartedAtMinute,
+      elapsedMinutes: s.elapsedMinutes,
+      shiftMetrics: s.shiftMetrics,
+      orders: s.orders,
+      logbook: s.logbook,
+      constraints: s.constraints,
+      incidents: s.incidents,
+    }))
+  );
+  const provisional = selectProvisionalShiftReport(open);
   return (
     <section aria-label={t('savedReports')} className={CARD}>
       <h3 className="font-semibold text-white">{t('shiftDebrief')}</h3>
+      {provisional && <ShiftReportArticle report={provisional} provisional />}
       {reports.length === 0 ? (
         <p className="mt-2 text-xs text-slate-300">{t('noReports')}</p>
       ) : (

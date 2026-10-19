@@ -162,3 +162,35 @@ it("tags a customer switch in the commitment card as the operator's choice", () 
     relatedId: 'order-002',
   });
 });
+
+describe('this shift so far (row 22)', () => {
+  it('shows the deliveries of the window still open when the programme completes', () => {
+    tick(1);
+    tick(250, { shiftKey: 'day-0-afternoon', shiftLabel: 'Afternoon' });
+    const [flour, flourBatch] = shipment('shipping-0001', 14000);
+    const [semolina, semolinaBatch] = shipment('shipping-0002', 4000);
+    const semolinaManifest = {
+      ...semolina,
+      materials: [{ type: 'semolina' as const, amount: 4000 }],
+    };
+    tick(1, {
+      shiftKey: 'day-0-afternoon',
+      shiftLabel: 'Afternoon',
+      manifests: [flour, semolinaManifest],
+      productionBatches: [flourBatch, { ...semolinaBatch, materialType: 'semolina' }],
+    });
+    expect(
+      useOperationsCampaignStore.getState().orders.every((o) => o.status === 'fulfilled')
+    ).toBe(true);
+    render(<ShiftDebrief />);
+    expect(
+      screen.getByRole('heading', { name: /^Afternoon so far: provisional grade [A-F]$/ })
+    ).toBeVisible();
+    expect(
+      screen.getByText('Community Pasta Works: 4,000 of 4,000 kg, delivered on time.')
+    ).toBeVisible();
+    expect(
+      screen.getByText('County School Meals: 8,000 of 8,000 kg, delivered on time.')
+    ).toBeVisible();
+  });
+});

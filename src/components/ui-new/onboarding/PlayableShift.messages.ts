@@ -39,7 +39,7 @@ export const playableShiftMessages = defineMessages({
     fulfilledDispatched: '{customer}: {kg} kg dispatched.',
     programmeComplete: 'Programme complete, review your shift',
     programmeCompleteDetail:
-      'Review delivery, quality and recovery before choosing the next commitments.',
+      'The shift debrief shows this shift so far: each delivery, whether it was on time, what held the grade back and what to try next. Then choose the next commitments.',
     reviewShiftProgramme: 'Review shift and next programme',
     receiptAndLearning: 'Delivery receipt and learning',
     expandGuide: 'Expand delivery guide',
@@ -129,6 +129,10 @@ export const playableShiftMessages = defineMessages({
       `Read ${p.countText} saved ${p.count === 1 ? 'report' : 'reports'}`,
     reportHeading: '{shift}: grade {grade}',
     reportHeadingUngraded: '{shift}: no customer commitments, no grade',
+    reportHeadingProvisional: '{shift} so far: provisional grade {grade}',
+    reportHeadingProvisionalUngraded: '{shift} so far: no customer commitments yet',
+    provisionalNote:
+      'This shift is still open. Its report is saved, with this evidence, when the shift closes.',
     ordersHeading: 'Orders this shift',
     choicesHeading: 'Your decisions this shift',
     agentChoice: 'AI agent: {message}',
@@ -152,7 +156,7 @@ export const playableShiftMessages = defineMessages({
     fulfilledDispatched: '{customer}: {kg} kg expedidos.',
     programmeComplete: 'Programa concluído, revise seu turno',
     programmeCompleteDetail:
-      'Revise entrega, qualidade e recuperação antes de escolher os próximos compromissos.',
+      'O balanço do turno mostra este turno até agora: cada entrega, se chegou no prazo, o que impediu uma nota melhor e o que tentar a seguir. Depois escolha os próximos compromissos.',
     reviewShiftProgramme: 'Revisar o turno e o próximo programa',
     receiptAndLearning: 'Comprovante da entrega e aprendizado',
     expandGuide: 'Expandir o guia de entrega',
@@ -243,6 +247,10 @@ export const playableShiftMessages = defineMessages({
       `Ler ${p.countText} ${p.count === 1 ? 'relatório salvo' : 'relatórios salvos'}`,
     reportHeading: '{shift}: nota {grade}',
     reportHeadingUngraded: '{shift}: sem compromissos com clientes, sem nota',
+    reportHeadingProvisional: '{shift} até agora: nota provisória {grade}',
+    reportHeadingProvisionalUngraded: '{shift} até agora: ainda sem compromissos com clientes',
+    provisionalNote:
+      'Este turno ainda está aberto. O relatório é salvo, com estas evidências, quando o turno fecha.',
     ordersHeading: 'Pedidos neste turno',
     choicesHeading: 'Suas decisões neste turno',
     agentChoice: 'Agente de IA: {message}',
