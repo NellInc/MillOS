@@ -213,6 +213,21 @@ export function calculateEfficiency(wear: number, machineType: string): number {
   return Math.round((1 - degradation * 0.4) * 100);
 }
 
+/**
+ * True while wear alone keeps a machine at or above its warning threshold.
+ * Restarting or cooling such a machine does not clear the warning; only
+ * maintenance does. Shared by every writer of the warning status so the wear
+ * tick and the offline metrics model never flip it back and forth.
+ */
+export function wearHoldsWarning(machine: Pick<MachineData, 'type' | 'metrics'>): boolean {
+  const wear = machine.metrics?.wear;
+  return (
+    typeof wear === 'number' &&
+    Number.isFinite(wear) &&
+    wear >= getWearConfig(machine.type).warningThreshold
+  );
+}
+
 function updateMachinesForTick(
   machines: MachineData[],
   productionSpeed: number,

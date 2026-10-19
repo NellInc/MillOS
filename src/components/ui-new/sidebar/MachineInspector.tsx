@@ -1,7 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MachineData } from '../../../types';
 import { RotateCcw, FileText, CheckCircle, Loader2, Wrench, Focus } from 'lucide-react';
-import { useProductionStore } from '../../../stores/productionStore';
+import {
+  getWearConfig,
+  useProductionStore,
+  wearHoldsWarning,
+} from '../../../stores/productionStore';
 import { useBreakdownStore, PartsInventory } from '../../../stores/breakdownStore';
 import { useUIStore } from '../../../stores/uiStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
@@ -189,11 +193,35 @@ export const MachineInspector: React.FC<{
       return;
     }
 
+    // A restart resets temperature, vibration and load, never wear. A machine
+    // still worn past its warning threshold goes straight back to 'warning'
+    // (no fresh running-to-warning transition, so no second predictive alert)
+    // and the player is told that only maintenance clears it.
+    const live = useProductionStore.getState().machines.find((m) => m.id === machine.id);
+    if (live && wearHoldsWarning(live)) {
+      updateMachineStatus(machine.id, 'warning');
+      if (mountedRef.current) setIsRestarting(false);
+      addAlert({
+        id: `restart-${machine.id}-${Date.now()}`,
+        type: 'warning',
+        title: translate(machineInspectorMessages, 'machineRestartedWornTitle'),
+        message: translate(machineInspectorMessages, 'machineRestartedWornMessage', {
+          name: machine.name,
+          wear: formatFixed(live.metrics.wear, 1),
+          threshold: formatFixed(getWearConfig(live.type).warningThreshold, 0),
+        }),
+        timestamp: new Date(),
+        machineId: machine.id,
+        acknowledged: false,
+      });
+      return;
+    }
+
     // Set back to running with clean state
     updateMachineStatus(machine.id, 'running');
     if (mountedRef.current) setIsRestarting(false);
 
-    const wasWarning = previousStatus === 'warning' || previousStatus === 'critical';
+    const wasWarning = previousStatus === 'warning';
     addAlert({
       id: `restart-${machine.id}-${Date.now()}`,
       type: 'success',

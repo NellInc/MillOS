@@ -74,6 +74,9 @@ export const machineInspectorMessages = defineMessages({
     machineRestartedTitle: 'Machine Restarted',
     machineRecoveredMessage: '{name} has been restarted and metrics reset to healthy values.',
     machineRestartedMessage: '{name} has been successfully restarted.',
+    machineRestartedWornTitle: 'Restarted, Still Worn',
+    machineRestartedWornMessage:
+      '{name} restarted, but wear is still {wear}% (it warns from {threshold}%). A restart does not reduce wear: use Perform Maintenance.',
 
     trendLabel: 'Recorded feed rate trend in {unit}',
     trendWaiting: 'Waiting for the historian to collect enough to draw a line.',
@@ -131,6 +134,9 @@ export const machineInspectorMessages = defineMessages({
     machineRecoveredMessage:
       '{name}: reinício concluído e métricas redefinidas para valores saudáveis.',
     machineRestartedMessage: '{name}: reinício concluído com sucesso.',
+    machineRestartedWornTitle: 'Reiniciada, ainda desgastada',
+    machineRestartedWornMessage:
+      '{name} reiniciou, mas o desgaste continua em {wear}% (o alerta começa em {threshold}%). Reiniciar não reduz o desgaste: use Fazer manutenção.',
 
     trendLabel: 'Tendência registrada da vazão de alimentação em {unit}',
     trendWaiting: 'Aguardando o histórico reunir dados suficientes para traçar uma linha.',

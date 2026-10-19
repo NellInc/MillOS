@@ -5,6 +5,8 @@ import { MachineType, type MachineData } from '../../../types';
 import { useMaterialFlowStore, type MachineBuffer } from '../../../stores/materialFlowStore';
 import { useProductionStore } from '../../../stores/productionStore';
 import { useBreakdownStore } from '../../../stores/breakdownStore';
+import { useUIStore } from '../../../stores/uiStore';
+import { unifiedGameTick } from '../../../systems/UnifiedGameTick';
 
 const machine: MachineData = {
   id: 'review-mill',
@@ -184,6 +186,50 @@ describe('MachineInspector evidence', () => {
       } finally {
         act(() => useBreakdownStore.setState(previous));
       }
+    });
+
+    it('keeps a worn machine in warning after Restart and says wear still needs service', async () => {
+      vi.useFakeTimers();
+      const worn = { ...machine, status: 'warning' as const };
+      worn.metrics = { ...machine.metrics, wear: 70, efficiency: 80 };
+      useBreakdownStore.getState().resetBreakdownStore();
+      useUIStore.setState({ alerts: [] });
+      useProductionStore.setState({ machines: [worn] });
+      render(<MachineInspector machine={worn} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Restart Unit' }));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2600);
+      });
+      expect(useProductionStore.getState().machines[0].status).toBe('warning');
+      const restartAlert = useUIStore.getState().alerts.find((a) => a.id.startsWith('restart-'));
+      expect(restartAlert?.title).not.toBe('Machine Recovered');
+      expect(restartAlert?.type).toBe('warning');
+      expect(restartAlert?.message).toContain('70.0%');
+      expect(restartAlert?.message).toMatch(/Perform Maintenance/);
+      // Restart wrote the warning directly, so the wear tick finds no new
+      // running-to-warning transition and raises no second predictive alert.
+      unifiedGameTick({
+        deltaSeconds: 0.5,
+        gameTime: 0,
+        gameSpeed: 1,
+        elapsedTime: 0,
+        tickCount: 1,
+      });
+      expect(useBreakdownStore.getState().predictiveAlerts).toHaveLength(0);
+    });
+
+    it('still reports a recovery when a metric-only warning restarts below the wear threshold', async () => {
+      vi.useFakeTimers();
+      useUIStore.setState({ alerts: [] });
+      useProductionStore.setState({ machines: [{ ...machine, status: 'warning' }] });
+      render(<MachineInspector machine={machine} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Restart Unit' }));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2600);
+      });
+      expect(useProductionStore.getState().machines[0].status).toBe('running');
+      const restartAlert = useUIStore.getState().alerts.find((a) => a.id.startsWith('restart-'));
+      expect(restartAlert?.title).toBe('Machine Recovered');
     });
 
     it('finishes a restart even when the panel closes mid-sequence', async () => {
