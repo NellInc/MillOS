@@ -315,6 +315,48 @@ describe('StatusHUD operational controls', () => {
     }
   });
 
+  it('offers Open repair while wear holds a machine in warning, and not once it is serviced', () => {
+    const machines = useProductionStore.getState().machines;
+    // Only type, status and wear decide whether wear holds a warning.
+    const silo = {
+      id: 'silo-alpha',
+      name: 'Silo Alpha',
+      type: 'silo',
+      status: 'running',
+      metrics: { wear: 0 },
+    } as unknown as (typeof machines)[number];
+    const setWear = (wear: number) =>
+      useProductionStore.setState({
+        machines: [...machines, { ...silo, metrics: { ...silo.metrics, wear } }],
+      });
+    useBreakdownStore.getState().resetBreakdownStore();
+    useUIStore.setState({
+      alerts: [
+        {
+          id: `wear-${silo.id}`,
+          type: 'warning',
+          title: 'Wear warning',
+          message: `${silo.name} needs a diagnostic review.`,
+          machineId: silo.id,
+          timestamp: new Date(),
+          acknowledged: false,
+        },
+      ],
+    });
+    try {
+      setWear(95);
+      render(<StatusHUD />);
+      fireEvent.click(screen.getByRole('button', { name: 'Notifications (1 unread)' }));
+      expect(screen.getByRole('button', { name: 'Open repair for Wear warning' })).toBeVisible();
+      act(() => setWear(0));
+      expect(
+        screen.queryByRole('button', { name: 'Open repair for Wear warning' })
+      ).not.toBeInTheDocument();
+    } finally {
+      useProductionStore.setState({ machines });
+    }
+  });
+
   it('files achievements and other successes as records, not as unread items needing action', () => {
     const alert = (id: string, type: 'success' | 'info', title: string) => ({
       id,
