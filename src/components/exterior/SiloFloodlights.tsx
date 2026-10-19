@@ -222,7 +222,6 @@ export function SiloFloodlights() {
         ref={washRef}
         args={[washGeometry, washMaterial, SITE_LAYOUT.machines.silos.length]}
         renderOrder={2}
-        frustumCulled={false}
       />
     </group>
   );
