@@ -131,12 +131,20 @@ export const useWorkplaceAutoplay = create<{
         });
         demonstrationInterval = setInterval(() => {
           // A pace is only a speed (src/simulation/pace.ts), so choosing one
-          // never ends the season. An explicit player pause defers its steps:
-          // the fictional roles wait with the plant and continue on resume.
-          // Working if Take over stays offered at every pace and a P pause
-          // changes no workplace state until the clock runs again.
+          // never ends the season. Any hold that is not the season's own
+          // (workplace, handoff) defers its steps: the fictional roles wait with
+          // the plant and continue on resume. Live SCADA control is not deferred
+          // here; the step itself stops at that safety boundary and says so.
+          // Working if Take over stays offered at every pace and a P, tour,
+          // restore or layout hold changes no workplace state until it ends.
           const holder = selectClockHolder(useGameSimulationStore.getState());
-          if (holder === 'player' || holder === 'shortcut') return;
+          if (
+            holder !== null &&
+            holder !== 'workplace' &&
+            holder !== 'handoff' &&
+            holder !== 'scada'
+          )
+            return;
           const result = withAutomaticWorkplaceStep(() => autoplayWorkplaceStep(profile));
           if (result.reason && !result.changed) {
             // Stopping by itself (season complete, a boundary, an objection)

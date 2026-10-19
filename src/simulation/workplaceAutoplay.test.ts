@@ -107,20 +107,20 @@ it.each([15, 30, 120])(
     vi.useRealTimers();
   }
 );
-it.each(['player', 'shortcut'] as const)(
-  'a %s pause defers the season without ending it, and it continues on resume',
+it.each(['player', 'shortcut', 'tour', 'restore', 'restoreFailed', 'layout'] as const)(
+  'a %s hold defers the season without ending it, and it continues on resume',
   (holder) => {
     vi.useFakeTimers();
     useGameSimulationStore.getState().setGameSpeed(30);
     useWorkplaceAutoplay.getState().start('team');
     if (holder === 'player') useGameSimulationStore.getState().setGameSpeed(0);
-    else useGameSimulationStore.getState().holdClock('shortcut');
+    else useGameSimulationStore.getState().holdClock(holder);
     const before = useWorkplaceStore.getState().workplace;
     vi.advanceTimersByTime(2000);
     expect(useWorkplaceAutoplay.getState().running).toBe(true);
     expect(useWorkplaceStore.getState().workplace).toBe(before);
     if (holder === 'player') useGameSimulationStore.getState().setGameSpeed(30);
-    else useGameSimulationStore.getState().releaseClock('shortcut');
+    else useGameSimulationStore.getState().releaseClock(holder);
     vi.advanceTimersByTime(2000);
     expect(useWorkplaceStore.getState().workplace).not.toBe(before);
     expect(useGameSimulationStore.getState().gameSpeed).toBe(30);
