@@ -1077,6 +1077,32 @@ const WATER_HORIZON_NIGHT = new THREE.Color('#141c2e');
 const WATER_HORIZON_TWILIGHT = new THREE.Color('#e0995c');
 const WATER_OVERCAST = new THREE.Color('#9aa7b0');
 const WATER_SUN_TINT = new THREE.Color('#fff2d5');
+/**
+ * Colour of the light the water body scatters back, relative to noon.
+ *
+ * The body term (deep/shallow) carried a fixed noon cyan at every hour and was
+ * only scaled in brightness, so at a steep view - where Fresnel leaves the sky
+ * reflection at a few percent - the dawn pond stayed the same cyan as noon under
+ * an orange sky (base-med-06). The body is lit by that sky: tint it by the
+ * horizon's chromaticity through golden hour. Exactly white at noon and night.
+ */
+export function waterBodyTint(
+  target: THREE.Color,
+  horizon: THREE.Color,
+  goldenHour: number
+): THREE.Color {
+  target.setRGB(1, 1, 1);
+  const weight = Number.isFinite(goldenHour) ? THREE.MathUtils.clamp(goldenHour, 0, 1) * 0.65 : 0;
+  if (weight <= 0) return target;
+  const luminance = Math.max(1e-4, 0.2126 * horizon.r + 0.7152 * horizon.g + 0.0722 * horizon.b);
+  const channel = (value: number) => THREE.MathUtils.clamp(value / luminance, 0.35, 1.6);
+  return target.lerp(
+    _waterTintScratch.setRGB(channel(horizon.r), channel(horizon.g), channel(horizon.b)),
+    weight
+  );
+}
+const _waterTintScratch = new THREE.Color();
+
 // useFrame scratch - never allocate per frame.
 const _waterZenith = new THREE.Color();
 const _waterHorizon = new THREE.Color();
@@ -1155,6 +1181,7 @@ export const WaterAnimationManager: React.FC = () => {
       if (afterglowColour instanceof THREE.Color)
         uniforms.uAfterglowColour.value.copy(afterglowColour);
       uniforms.uSunColour.value.copy(_waterSun);
+      waterBodyTint(uniforms.uBodyTint.value, _waterHorizon, celestial.goldenHour);
       uniforms.uSunDirection.value.set(
         celestial.sunDirection[0],
         celestial.sunDirection[1],
@@ -1248,6 +1275,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
         uPrecipitation: { value: 0 },
         uWind: { value: 0.2 },
         uDaylight: { value: 1 },
+        uBodyTint: { value: new THREE.Color(1, 1, 1) },
         uSkyZenith: { value: WATER_ZENITH_DAY.clone() },
         uSkyHorizon: { value: WATER_HORIZON_DAY.clone() },
         uSunColour: { value: WATER_SUN_TINT.clone() },
@@ -1319,6 +1347,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
         uniform float uWetness;
         uniform float uPrecipitation;
         uniform float uDaylight;
+        uniform vec3 uBodyTint;
         uniform vec3 uSkyZenith;
         uniform vec3 uSkyHorizon;
         uniform vec3 uSunColour;
@@ -1423,7 +1452,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
           float radialEdge = 1.0 - length(centred);
           float edge = max(mix(linearEdge, radialEdge, uRadial), 0.0);
           float depth = clamp(smoothstep(0.0, 0.34, edge) + ripples * 0.012 * uRippleStrength, 0.0, 1.0);
-          colour = mix(uShallow, uDeep, depth) * bodyLight;
+          colour = mix(uShallow, uDeep, depth) * bodyLight * uBodyTint;
 
           // Micro-relief from the analytic derivatives of the same three wave
           // trains. The vertex stage carries the long swell; this is the
@@ -1511,7 +1540,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
           colour = mix(vec3(0.16, 0.26, 0.26) * bodyLight, colour, shore);
 
           #endif
-          colour = mix(uDeep * 0.92 * bodyLight, colour, clamp(uOpacity, 0.0, 1.0));
+          colour = mix(uDeep * 0.92 * bodyLight * uBodyTint, colour, clamp(uOpacity, 0.0, 1.0));
           // The zero control restores the old double-attenuated reflection.
           // In the finish arm, only the body/foam receive this illumination.
           colour *= mix(illumination, 1.0, uSkyRadiance);
@@ -1537,7 +1566,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
     // MANUALLY VERSIONED, never derived from time or randomness - see the
     // documented `Date.now()` cache-key bug. Bump this whenever the shader
     // source above changes or a stale cached program will be reused.
-    value.customProgramCacheKey = () => 'millos-unified-water-v20';
+    value.customProgramCacheKey = () => 'millos-unified-water-v21';
     return value;
   }, [
     crossOnly,
