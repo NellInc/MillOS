@@ -33,6 +33,7 @@ import {
 import { useTruckScheduleStore } from '../stores/truckScheduleStore';
 import { useBreakdownStore, type BreakdownType } from '../stores/breakdownStore';
 import { useUIStore } from '../stores/uiStore';
+import { useAnnouncementsStore } from '../stores/announcementsStore';
 import { BAG_WEIGHT_KG, type MachineData } from '../types';
 import {
   DEMURRAGE_COST_PER_HOUR,
@@ -234,16 +235,27 @@ function announceClosedShift(lastReportBefore: string | undefined): void {
   const report = useOperationsCampaignStore.getState().reports.at(-1);
   if (!report || report.id === lastReportBefore) return;
   const shift = /(morning|afternoon|night)$/.exec(report.shiftKey)?.[1] ?? report.shiftLabel;
+  const title =
+    report.grade === null
+      ? translate(msg, 'shiftClosedUngradedTitle', { shift })
+      : translate(msg, 'shiftClosedTitle', { shift, grade: report.grade });
+  const message = translate(msg, 'shiftClosedMessage');
   useUIStore.getState().addAlert({
     id: `shift-review-${report.id}`,
     type: 'info',
-    title:
-      report.grade === null
-        ? translate(msg, 'shiftClosedUngradedTitle', { shift })
-        : translate(msg, 'shiftClosedTitle', { shift, grade: report.grade }),
-    message: translate(msg, 'shiftClosedMessage'),
+    title,
+    message,
     timestamp: new Date(),
     acknowledged: false,
+  });
+  // The bell files it; the PA caption is what a player actually sees (and a
+  // screen reader hears) at the moment the shift ends.
+  useAnnouncementsStore.getState().addAnnouncement({
+    type: report.grade === 'A' || report.grade === 'B' ? 'success' : 'info',
+    message: `${title}. ${message}`,
+    priority: 3,
+    source: 'Shift review',
+    channel: 'operational',
   });
 }
 

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { useAnnouncementsStore } from '../../stores/announcementsStore';
 import { resetUnifiedTickState, unifiedGameTick } from '../UnifiedGameTick';
 import { getShiftWindowKey, useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useOperationsCampaignStore } from '../../stores/operationsCampaignStore';
@@ -52,7 +53,10 @@ describe('a closed shift is announced (row 21)', () => {
   const reviewAlerts = () =>
     useUIStore.getState().alerts.filter((alert) => alert.id.startsWith('shift-review-'));
 
-  beforeEach(() => useUIStore.setState({ alerts: [] }));
+  beforeEach(() => {
+    useUIStore.setState({ alerts: [] });
+    useAnnouncementsStore.setState({ announcements: [], lastAnnouncementTime: {} });
+  });
 
   it('raises one notice when the 14:00 boundary writes the Morning report', () => {
     useGameSimulationStore.getState().setGameTime(13.9);
@@ -68,6 +72,12 @@ describe('a closed shift is announced (row 21)', () => {
         message: expect.stringContaining('Overview'),
       }),
     ]);
+    // The PA caption carries it to where the player is looking.
+    expect(
+      useAnnouncementsStore
+        .getState()
+        .announcements.filter((a) => /^Morning shift closed: /.test(a.message))
+    ).toHaveLength(1);
     for (let i = 0; i < 20; i++) tickAt(STANDARD_GAME_SPEED);
     expect(reviewAlerts()).toHaveLength(1);
   });

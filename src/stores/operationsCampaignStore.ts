@@ -1611,22 +1611,25 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
                 }
               }
             }
-            sequence += 1;
-            logbook = appendBounded(
-              logbook,
-              {
-                id: `log-${String(sequence).padStart(4, '0')}`,
-                simulationMinute: elapsedMinutes,
-                source: translate(messages, 'sourceDispatchController'),
-                category: 'operation',
-                message: translate(messages, 'logManifestAllocated', {
-                  manifest: manifest.id,
-                  kg: formatFixed(allocatedManifestKg, 1),
-                }),
-                relatedId: manifest.id,
-              },
-              MAX_LOG_ENTRIES
-            );
+            // An empty shipment (nothing owed of its product) is not news.
+            if (allocatedManifestKg > EPSILON_KG) {
+              sequence += 1;
+              logbook = appendBounded(
+                logbook,
+                {
+                  id: `log-${String(sequence).padStart(4, '0')}`,
+                  simulationMinute: elapsedMinutes,
+                  source: translate(messages, 'sourceDispatchController'),
+                  category: 'operation',
+                  message: translate(messages, 'logManifestAllocated', {
+                    manifest: manifest.id,
+                    kg: formatFixed(allocatedManifestKg, 1),
+                  }),
+                  relatedId: manifest.id,
+                },
+                MAX_LOG_ENTRIES
+              );
+            }
           }
           processedManifestIds = processedManifestIds.slice(-MAX_PROCESSED_MANIFESTS);
 
