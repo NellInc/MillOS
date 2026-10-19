@@ -54,6 +54,23 @@ export const shouldResolveCameraCollisionForFrame = (
   manualMovementApplied: boolean
 ): boolean => !isAnimating || manualMovementApplied;
 
+/**
+ * The idle orbit is deliberate: a slow showcase turn of the site from outside
+ * the hall, off for reduced motion and toggled with C. It turns about the
+ * orbit target at a fixed radius, so inside the hall it always meets a wall or
+ * a mill, and each collision push shortens the radius until the camera is
+ * pressed against the machine row. It therefore never runs inside the hall,
+ * and it stops for good at its first collision until a new flight or a
+ * toggle. Working if an unattended camera never moves inside the hall and
+ * never touches a machine anywhere.
+ */
+export const shouldIdleOrbit = (
+  autoRotateEnabled: boolean,
+  hasManualInput: boolean,
+  cameraInsideFactory: boolean,
+  orbitBlocked: boolean
+): boolean => autoRotateEnabled && !hasManualInput && !cameraInsideFactory && !orbitBlocked;
+
 // Camera preset definitions based on MillOS factory zones
 export interface CameraPreset {
   name: string;
@@ -191,6 +208,7 @@ export const CameraController: React.FC<CameraControllerProps> = ({
   const previousCameraPosition = useRef(new THREE.Vector3());
   const cameraPositionInitialized = useRef(false);
   const currentSpeed = useRef(0);
+  const idleOrbitBlocked = useRef(false);
 
   // Vectors for movement calculations (reused to avoid allocations)
   const moveDirection = useRef(new THREE.Vector3());
@@ -360,14 +378,29 @@ export const CameraController: React.FC<CameraControllerProps> = ({
     }
     // Frame-rate independent exponential smoothing for perfectly smooth rotation
     if (orbitControlsRef?.current) {
-      const target = autoRotateEnabled && !hasManualInput ? targetSpeed : 0;
+      const cameraInside = isPositionInsideFactory(
+        camera.position.x,
+        camera.position.y,
+        camera.position.z,
+        0
+      );
+      const target = shouldIdleOrbit(
+        autoRotateEnabled,
+        hasManualInput,
+        cameraInside,
+        idleOrbitBlocked.current
+      )
+        ? targetSpeed
+        : 0;
       // Exponential decay smoothing - completely frame-rate independent
       // smoothTime controls how quickly we reach target (lower = faster)
       const smoothTime = 2.5; // seconds to reach ~63% of target
       const alpha = 1 - Math.exp(-movementDelta / smoothTime);
-      currentSpeed.current = hasManualInput
-        ? 0
-        : currentSpeed.current + (target - currentSpeed.current) * alpha;
+      // Input, the hall and a blocked orbit stop the turn at once.
+      currentSpeed.current =
+        hasManualInput || cameraInside || idleOrbitBlocked.current
+          ? 0
+          : currentSpeed.current + (target - currentSpeed.current) * alpha;
       orbitControlsRef.current.autoRotateSpeed = currentSpeed.current;
     }
 
@@ -424,6 +457,17 @@ export const CameraController: React.FC<CameraControllerProps> = ({
         );
       }
       camera.userData.lastCollision = collision.collidedWith;
+      // The idle orbit hit something: keep the last clear pose rather than the
+      // slid one, which is a step closer to the target, and stop turning.
+      if (collision.collidedWith && !manualMovementApplied && currentSpeed.current > 0) {
+        idleOrbitBlocked.current = true;
+        currentSpeed.current = 0;
+        camera.position.copy(collisionStart);
+        if (orbitControlsRef?.current) {
+          orbitControlsRef.current.autoRotateSpeed = 0;
+          camera.lookAt(orbitControlsRef.current.target);
+        }
+      }
     } else {
       camera.userData.lastCollision = null;
     }
@@ -434,9 +478,16 @@ export const CameraController: React.FC<CameraControllerProps> = ({
     previousCameraPosition.current.copy(camera.position);
   });
 
+  // A toggle (C, or a selection ending) gives a blocked idle orbit a fresh try.
+  useEffect(() => {
+    idleOrbitBlocked.current = false;
+  }, [autoRotateEnabled]);
+
   // Reset animation progress when target changes
   useEffect(() => {
     if (isAnimating) {
+      // A new flight is a new view, which the idle orbit may try again.
+      idleOrbitBlocked.current = false;
       animationProgress.current = 0;
       animationStartPosition.current.copy(camera.position);
       if (camera instanceof THREE.PerspectiveCamera) animationStartFov.current = camera.fov;

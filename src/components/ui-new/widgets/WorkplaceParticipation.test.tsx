@@ -77,7 +77,7 @@ it('opens the season from Handoff and navigates to the real campaign decisions',
   useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
   useOperationsCampaignStore.getState().initializeCampaign();
   render(<WorkplaceLab />);
-  fireEvent.click(screen.getByRole('button', { name: 'Handoff', exact: true }));
+  fireEvent.click(screen.getByRole('button', { name: 'Handoff' }));
   fireEvent.click(screen.getByText('Play a three-shift cooperative season'));
   fireEvent.change(screen.getByLabelText('Season adoption route'), {
     target: { value: 'cooperative' },
@@ -86,11 +86,8 @@ it('opens the season from Handoff and navigates to the real campaign decisions',
     screen.getByRole('button', { name: 'Start season with current customer commitment' })
   );
   expect(useWorkplaceStore.getState().workplace.campaign?.mission).toBeDefined();
-  expect(screen.getByRole('button', { name: 'Shift', exact: true })).toHaveAttribute(
-    'aria-pressed',
-    'true'
-  );
-  fireEvent.click(screen.getByRole('button', { name: 'Agreement / Voices', exact: true }));
+  expect(screen.getByRole('button', { name: 'Shift' })).toHaveAttribute('aria-pressed', 'true');
+  fireEvent.click(screen.getByRole('button', { name: 'Agreement / Voices' }));
   fireEvent.click(screen.getByText('Packing: policy vote pending', { exact: true }));
   fireEvent.change(
     screen.getByLabelText(
@@ -120,7 +117,7 @@ it('reuses the existing workshop recovery control beside individual receipts', (
   s.members[0].recoveryOwedMinutes = 5;
   useWorkplaceStore.setState({ workplace: s });
   render(<WorkplaceLab />);
-  fireEvent.click(screen.getByRole('button', { name: 'Review', exact: true }));
+  fireEvent.click(screen.getByRole('button', { name: 'Review' }));
   fireEvent.click(screen.getByText('Individual fairness receipts'));
   expect(
     screen.getAllByRole('button', { name: 'Deliver modeled recovery (5 minutes)' })
@@ -313,7 +310,7 @@ it('does not claim automatic decisions are running after human takeover', () => 
     act(() => {
       useWorkplaceAutoplay.getState().start('team');
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Pause automatic demo', exact: true }));
+    fireEvent.click(screen.getByRole('button', { name: 'Pause automatic demo' }));
     expect(useWorkplaceAutoplay.getState().running).toBe(false);
     expect(
       screen.queryByText('Fictional solo role decisions are running. Pause whenever you want.')

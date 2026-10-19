@@ -534,9 +534,7 @@ it.each(['mounted', 'lazy-mount', 'resolved', 'fps'] as const)(
       await waitFor(() => expect(useUIStore.getState().operationalFocusId).toBeNull());
       if (mode === 'mounted' || mode === 'lazy-mount') {
         expect(scroll).toHaveBeenCalledWith({ block: 'center', behavior: 'instant' });
-        expect(
-          screen.getByRole('button', { name: 'Acknowledge incident', exact: true })
-        ).toHaveFocus();
+        expect(screen.getByRole('button', { name: 'Acknowledge incident' })).toHaveFocus();
       } else expect(scroll).not.toHaveBeenCalled();
       expect(useUIStore.getState().operationalFocusId).toBeNull();
       expect(useOperationsCampaignStore.getState()).toBe(before);

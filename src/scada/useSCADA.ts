@@ -457,11 +457,11 @@ export function useSCADA(): UseSCADAReturn {
     [state.isConnected]
   );
 
-  // Write setpoint
+  // Write setpoint: a write through the UI is the operator's decision.
   const writeSetpoint = useCallback(
     async (tagId: string, value: number): Promise<boolean> => {
       if (!state.isConnected) return false;
-      return getSCADAService().writeSetpoint(tagId, value);
+      return getSCADAService().writeSetpoint(tagId, value, 'operator');
     },
     [state.isConnected]
   );
