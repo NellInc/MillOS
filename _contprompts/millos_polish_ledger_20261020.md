@@ -14,6 +14,12 @@ runtime confirmation.
 - Disk 3.9 GB free; load 10.5 on 10 cores. The system disk then filled to 0 twice from outside
   this work (6.2 GB -> 0 in ~25 min; later 6.9 GB -> 0), halting every write until Nell freed
   space. All agents paused writes; no file was truncated (checked per worktree).
+- The machine then rebooted twice (14:46, 16:23; no panic report). `/private/tmp` was cleared:
+  every worktree, the session scratchpad (probe, play-test and confirmation scripts) and the
+  baseline art sheets were lost. Every commit survived in the shared object store
+  (`claude/resolute-fix-20261018` at `95de49b4`). The tooling was rewritten, and the baseline was
+  recaptured from `d0a188f0` in the same session as the final captures (a cleaner A/B than the
+  original, taken a day earlier). Baseline numbers above are from the first capture.
 
 ## Baseline (named, `d0a188f0`, before any product change)
 
@@ -107,8 +113,13 @@ partly); their builds failed only on the `public/` symlink in sparse worktrees.
 ## Decisions for Nell
 
 1. Native Brazilian reader (carried).
-2. In-app reduced-motion setting: needs a small change to `src/hooks/useReducedMotion.ts`
-   (consent gate). _pending: exact diff_
+2. In-app reduced-motion setting: built and merged (`87d5c4ef`), off behind
+   `FEATURE_FLAGS.IN_APP_REDUCED_MOTION_ENABLED`. Turning it on needs a consent-gated change
+   to `src/hooks/useReducedMotion.ts`; one patch carries all of it (hook: one import, one store
+   subscription, return `prefersReducedMotion || inAppReducedMotion`; a 5-case hook test; the
+   flag flip): `scratchpad/mp/in-app-reduced-motion.patch` (session scratchpad), `git apply
+   --check` clean on `95de49b4`. Against copies outside `src/hooks`: patched 5/5, original 3/5
+   (the two in-app cases fail).
 3. 19:00 is astronomical night in the sim (sunset 18:00); the contprompt checks 19:00 as dusk.
    Shift the sun model, or check dusk at 18:30? Not changed.
 
