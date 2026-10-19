@@ -15,13 +15,17 @@ import { beginReplayClock, endReplayClock } from '../simulation/workplaceReplayR
 beforeEach(async () => {
   endReplayClock();
   await safeJSONStorage.removeItem('millos-workplace-laboratory');
-  useWorkplaceStore.setState({ workplace: createWorkplace(), completedCampaigns: [] });
+  useWorkplaceStore.setState({
+    workplace: createWorkplace(),
+    completedCampaigns: [],
+    leftCampaigns: [],
+  });
 });
 
-function finalReview() {
+function finalReview(shifts = 3) {
   const store = useWorkplaceStore.getState();
   expect(store.startCampaign('cooperative', 17).changed).toBe(true);
-  for (let shift = 0; shift < 3; shift++) {
+  for (let shift = 0; shift < shifts; shift++) {
     if (shift !== 1)
       expect(
         store.campaignDecision(shift === 0 ? 'keep-target' : 'protect-refusal', 'coordinator')
@@ -45,7 +49,7 @@ function finalReview() {
         store.campaignDecision('inspect', 'quality');
       store.tick(5, 0, false);
     }
-    if (shift < 2) expect(store.nextCampaignShift().changed).toBe(true);
+    if (shift < shifts - 1) expect(store.nextCampaignShift().changed).toBe(true);
   }
   return useWorkplaceStore.getState().workplace;
 }
@@ -137,5 +141,82 @@ describe('completed cooperative campaign archive', () => {
     expect(useWorkplaceStore.getState().workplace.mode).toBe('workshop');
     expect(useWorkplaceStore.getState().completedCampaigns).toEqual([]);
     expect(typeof useWorkplaceStore.getState().archiveCampaign).toBe('function');
+  });
+});
+
+describe('leaving a cooperative season early', () => {
+  it('keeps the earned pay and receipts as a season left early, not a completed one, across a reload', async () => {
+    const before = finalReview(1);
+    expect(before.phase).toBe('review');
+    expect(before.campaign?.shift).toBe(0);
+    const store = useWorkplaceStore.getState();
+    expect(store.leaveCampaign(before.revision - 1).changed).toBe(false);
+    expect(store.leaveCampaign(before.revision).changed).toBe(true);
+    const { workplace, completedCampaigns, leftCampaigns } = useWorkplaceStore.getState();
+    expect(workplace.phase).toBe('idle');
+    expect(workplace.campaign).toBeNull();
+    expect(workplace.revision).toBeGreaterThan(before.revision);
+    expect(completedCampaigns).toEqual([]);
+    expect(leftCampaigns).toHaveLength(1);
+    expect(leftCampaigns[0].campaign?.shift).toBe(0);
+    expect(campaignOutcomes(leftCampaigns[0]).accounts).toEqual(campaignOutcomes(before).accounts);
+    expect(campaignOutcomes(leftCampaigns[0]).accounts.wages).toBeCloseTo(108);
+    expect(campaignTotals(leftCampaigns[0]).members).toEqual(campaignTotals(before).members);
+    expect(leftCampaigns[0].members.every((m) => m.preference === '')).toBe(true);
+    await useWorkplaceStore.persist.rehydrate();
+    const saved = useWorkplaceStore.getState();
+    expect(saved.workplace.phase).toBe('idle');
+    expect(saved.completedCampaigns).toEqual([]);
+    expect(saved.leftCampaigns).toHaveLength(1);
+    expect(campaignOutcomes(saved.leftCampaigns[0]).accounts).toEqual(
+      campaignOutcomes(before).accounts
+    );
+    expect(saved.startCampaign('team', 23).changed).toBe(true);
+  });
+
+  it('leaves from a later deliberation, and refuses a running shift, a debt, the final review and a replay', () => {
+    const reviewed = finalReview(1);
+    const store = useWorkplaceStore.getState();
+    expect(store.nextCampaignShift().changed).toBe(true);
+    const deliberating = useWorkplaceStore.getState().workplace;
+    expect(deliberating.phase).toBe('deliberating');
+    beginReplayClock(17, 1);
+    expect(store.leaveCampaign(deliberating.revision).changed).toBe(false);
+    endReplayClock();
+    const running = structuredClone(deliberating);
+    running.phase = 'active';
+    running.finance.wageReserve = 108;
+    useWorkplaceStore.setState({ workplace: running });
+    expect(store.leaveCampaign(running.revision).changed).toBe(false);
+    const owed = structuredClone(reviewed);
+    owed.members[0].recoveryOwedMinutes = 5;
+    useWorkplaceStore.setState({ workplace: owed });
+    expect(store.leaveCampaign(owed.revision).changed).toBe(false);
+    useWorkplaceStore.setState({ workplace: deliberating });
+    expect(store.leaveCampaign(deliberating.revision).changed).toBe(true);
+    const left = useWorkplaceStore.getState().leftCampaigns[0];
+    // The unworked deliberation is recorded as stopped, never as a worked shift.
+    expect(left.phase).toBe('review');
+    expect(left.campaign?.shift).toBe(1);
+    expect(left.minute).toBe(0);
+    expect(left.campaign?.history).toHaveLength(1);
+    expect(useWorkplaceStore.getState().workplace.campaign).toBeNull();
+    useWorkplaceStore.setState({ workplace: createWorkplace(), leftCampaigns: [] });
+    const final = finalReview();
+    expect(useWorkplaceStore.getState().leaveCampaign(final.revision).changed).toBe(false);
+    expect(useWorkplaceStore.getState().leftCampaigns).toEqual([]);
+  });
+
+  it('discards a malformed left-season record on reload', async () => {
+    await safeJSONStorage.setItem('millos-workplace-laboratory', {
+      version: 2,
+      state: {
+        workplace: saveWorkplace(createWorkplace()),
+        completedCampaigns: [],
+        leftCampaigns: [{ phase: 'active', cash: 1e99 }, saveWorkplace(createWorkplace())],
+      },
+    });
+    await useWorkplaceStore.persist.rehydrate();
+    expect(useWorkplaceStore.getState().leftCampaigns).toEqual([]);
   });
 });

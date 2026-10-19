@@ -136,6 +136,29 @@ function completedReview(input: unknown): WorkplaceState | null {
   return saveWorkplace(restored) as WorkplaceState;
 }
 
+/** A season left early: a validated, redacted stopped review that owes nothing. */
+function leftReview(input: unknown): WorkplaceState | null {
+  const restored = restoreWorkplace(input);
+  if (
+    restored.mode !== 'game' ||
+    restored.phase !== 'review' ||
+    !restored.campaign ||
+    restored.improvement ||
+    recoveryOutstanding(restored) ||
+    restored.objections.some((objection) => objection.status === 'open')
+  )
+    return null;
+  return saveWorkplace(restored) as WorkplaceState;
+}
+
+function retainedLeftSeasons(input: unknown): WorkplaceState[] {
+  if (!Array.isArray(input)) return [];
+  return input
+    .slice(-MAX_COMPLETED_CAMPAIGNS)
+    .map(leftReview)
+    .filter((review): review is WorkplaceState => review !== null);
+}
+
 function retainedReviews(input: unknown): WorkplaceState[] {
   if (!Array.isArray(input)) return [];
   return input
@@ -164,6 +187,8 @@ export interface WorkplaceStore extends WorkplaceActions {
   rehearseReload: (revision: number) => WorkplaceTransitionResult;
   workplace: WorkplaceState;
   completedCampaigns: WorkplaceState[];
+  /** Seasons left before their final review, kept with what they earned. */
+  leftCampaigns: WorkplaceState[];
   startMission: (profile: WorkplaceProfile, seed?: number) => WorkplaceTransitionResult;
   archiveCampaign: (expectedRevision: number) => WorkplaceTransitionResult;
 }
@@ -451,6 +476,35 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
           });
           return { changed: true, reason: null };
         },
+        leftCampaigns: [],
+        leaveCampaign: (expectedRevision) => {
+          interruptAutomaticWorkplace();
+          if (get().participationMode === 'separate-turns' && get().turn)
+            return { changed: false, reason: translate(msg, 'endTurnBeforeLeave') };
+          const current = get().workplace;
+          if (!Number.isSafeInteger(expectedRevision) || expectedRevision !== current.revision)
+            return { changed: false, reason: translate(msg, 'reviewChanged') };
+          if (isWorkplaceReplayActive())
+            return { changed: false, reason: translate(msg, 'finishReplayFirst') };
+          const result = transitionWorkplace(current, {
+            type: 'leaveCampaign',
+            args: [expectedRevision],
+          });
+          if (!result.changed) return { changed: false, reason: result.reason };
+          // An unworked deliberation is kept as stopped, never as a worked shift.
+          const stopped =
+            current.phase === 'deliberating'
+              ? transitionWorkplace(current, { type: 'stop', args: [] }).state
+              : current;
+          const record = leftReview(saveWorkplace(stopped));
+          if (!record) return { changed: false, reason: translate(msg, 'reviewNotValidated') };
+          set({
+            workplace: result.state,
+            turn: null,
+            leftCampaigns: [...get().leftCampaigns, record].slice(-MAX_COMPLETED_CAMPAIGNS),
+          });
+          return { changed: true, reason: null };
+        },
         startMission: (profile, seed = 1) => {
           const operations = useOperationsCampaignStore.getState();
           const order = operations.orders.find((o) => o.id === operations.activeOrderId);
@@ -585,6 +639,7 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
         participationMode: state.participationMode,
         workplace: saveWorkplace(state.workplace),
         completedCampaigns: state.completedCampaigns.map(saveWorkplace),
+        leftCampaigns: state.leftCampaigns.map(saveWorkplace),
       }),
       migrate: (persisted, version) => {
         if (version !== 1 || !persisted || typeof persisted !== 'object') return {};
@@ -593,6 +648,7 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
             'participationMode' in persisted ? persisted.participationMode : 'solo',
           workplace: 'workplace' in persisted ? persisted.workplace : null,
           completedCampaigns: [],
+          leftCampaigns: [],
         };
       },
       merge: (persisted, current) => {
@@ -608,6 +664,7 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
           completedCampaigns: retainedReviews(
             'completedCampaigns' in saved ? saved.completedCampaigns : null
           ),
+          leftCampaigns: retainedLeftSeasons('leftCampaigns' in saved ? saved.leftCampaigns : null),
         };
       },
     }

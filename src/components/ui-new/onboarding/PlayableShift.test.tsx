@@ -13,6 +13,7 @@ import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
 import { useMaterialFlowStore } from '../../../stores/materialFlowStore';
 import { createWorkplace } from '../../../simulation/bilateralWorkplace';
+import { useWorkplaceAutoplay } from '../../../simulation/workplaceAutoplay';
 import {
   campaignRecord,
   requiredChecks,
@@ -856,4 +857,26 @@ it('points a linked campaign hold at the working agreement controls that can fin
   render(<OperationsPlayCard />);
   expect(screen.getByLabelText('Active customer commitment', { exact: false })).toBeDisabled();
   expect(screen.getByText(/Review working agreement opens Autonomy/)).toBeInTheDocument();
+});
+
+it('leaves a linked season from the play card, keeping its receipts and reopening customer choice', () => {
+  useWorkplaceStore.setState({ leftCampaigns: [] });
+  useGameSimulationStore.getState().setGameSpeed(30);
+  expect(useWorkplaceStore.getState().startMission('toe-dip').changed).toBe(true);
+  useWorkplaceAutoplay.getState().start('toe-dip');
+  render(<OperationsPlayCard />);
+  const customer = screen.getByLabelText('Active customer commitment', { exact: false });
+  expect(customer).toBeDisabled();
+  expect(screen.getByText(/Leaving keeps what was earned: 0 kg delivered to/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Leave this season' }));
+  const after = useWorkplaceStore.getState();
+  expect(after.workplace.phase).toBe('idle');
+  expect(after.workplace.campaign).toBeNull();
+  expect(after.leftCampaigns).toHaveLength(1);
+  expect(after.completedCampaigns).toEqual([]);
+  expect(customer).not.toBeDisabled();
+  expect(screen.getByRole('status')).toHaveTextContent('Season left early at shift 1 of 3');
+  // Leaving stops the demo without freezing the plant, and it does not restart.
+  expect(useWorkplaceAutoplay.getState()).toMatchObject({ running: false, manual: true });
+  expect(useGameSimulationStore.getState().gameSpeed).toBe(30);
 });

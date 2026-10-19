@@ -1213,6 +1213,28 @@ export function transitionWorkplace(
       record(fresh, 'system', 'campaign-shift-opened', translate(wm, 'evShiftOpened'));
       return { state: fresh, changed: true, reason: null };
     }
+    case 'leaveCampaign': {
+      // An honest exit: nothing owed is dropped and nothing is presented as a
+      // completed review. The store keeps the stopped season as left early.
+      // Working if leaving needs a settled, debt-free shift and ends at idle.
+      const [revision] = command.args;
+      const c = s.campaign;
+      if (
+        s.mode !== 'game' ||
+        !c ||
+        s.improvement ||
+        revision !== s.revision ||
+        !Number.isSafeInteger(revision) ||
+        !['deliberating', 'review'].includes(s.phase) ||
+        (s.phase === 'review' && c.shift === 2) ||
+        improvementObligations(s).length ||
+        c.history.some((h) => h.members.some((m) => m.recoveryOwedMinutes > 0))
+      )
+        return reject(translate(wm, 'rejLeaveCampaign'));
+      const fresh = createWorkplace('game', s.seed === 0xffffffff ? 1 : s.seed + 1);
+      fresh.revision = s.revision + 1;
+      return { state: fresh, changed: true, reason: null };
+    }
     case 'answerCheck': {
       const [actor, question, answer] = command.args;
       const check = WORKPLACE_CHECKS.find((q) => q.id === question);

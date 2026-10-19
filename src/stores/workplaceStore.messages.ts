@@ -25,6 +25,7 @@ export const workplaceStoreMessages = defineMessages({
     reloadRehearsed:
       'Local reload rehearsal completed. Future authority expired; earned pay and recovery remain in review.',
     endTurnBeforeArchive: 'End the participant turn before archiving.',
+    endTurnBeforeLeave: 'End the participant turn before leaving the season.',
     reviewChanged: 'The review changed. Read its current outcome first.',
     finishReplayFirst: 'Finish or forget the matched replay first.',
     completeThreeShifts: 'Complete all three shifts before archiving a review.',
@@ -68,6 +69,7 @@ export const workplaceStoreMessages = defineMessages({
     reloadRehearsed:
       'Ensaio de recarregamento local concluído. A autoridade futura expirou; a remuneração e o tempo de recuperação conquistados continuam em revisão.',
     endTurnBeforeArchive: 'Encerre a vez do participante antes de arquivar.',
+    endTurnBeforeLeave: 'Encerre a vez do participante antes de sair da temporada.',
     reviewChanged: 'A revisão mudou. Leia primeiro o resultado atual.',
     finishReplayFirst: 'Conclua ou descarte primeiro a reprodução pareada.',
     completeThreeShifts: 'Conclua os três turnos antes de arquivar uma revisão.',

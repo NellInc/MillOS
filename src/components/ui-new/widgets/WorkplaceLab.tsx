@@ -9,7 +9,7 @@ import { WorkplaceImprovementPanel } from './WorkplaceImprovementPanel';
 import { workplaceMission } from '../../../simulation/workplaceImprovement';
 import { WorkplacePressureChapter } from './WorkplacePressureChapter';
 import { WorkplacePracticeProposal } from './WorkplaceNegotiation';
-import { WorkplaceCampaignArchive } from './WorkplaceCampaignArchive';
+import { WorkplaceCampaignArchive, WorkplaceLeaveSeason } from './WorkplaceCampaignArchive';
 import { WorkplaceReplay, WorkplaceReplayGuide, WorkplaceReplayResume } from './WorkplaceReplay';
 import { useWorkplaceStore, useWorkplaceControls } from '../../../stores/workplaceStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
@@ -139,6 +139,13 @@ export const WorkplaceLab: React.FC = () => {
   // 'gainsharing' practice. Working if neither control is offered without it.
   const sharedSurplus = state.practices.includes('gainsharing');
   const modeLabelKey = modes.find((item) => item.value === state.mode)?.labelKey;
+  const freshExercise = () => {
+    setSection('Shift');
+    setMode('game');
+    setSeed(String(useWorkplaceStore.getState().workplace.seed));
+    setFeedback(translate(messages, 'freshExercise'));
+    setReceipt(null);
+  };
   const report = (result: WorkplaceTransitionResult) => {
     setFeedback(result.reason ?? translate(messages, result.changed ? 'recorded' : 'noChange'));
     setReceipt(null);
@@ -386,15 +393,8 @@ export const WorkplaceLab: React.FC = () => {
       />
       <WorkplaceReplayResume />
       <WorkplacePressureChapter state={state} navigate={setSection} />
-      <WorkplaceCampaignArchive
-        onFreshExercise={() => {
-          setSection('Shift');
-          setMode('game');
-          setSeed(String(useWorkplaceStore.getState().workplace.seed));
-          setFeedback(translate(messages, 'freshExercise'));
-          setReceipt(null);
-        }}
-      />
+      <WorkplaceCampaignArchive onFreshExercise={freshExercise} />
+      <WorkplaceLeaveSeason onLeft={freshExercise} />
 
       {section === 'Shift' && (
         <div className="space-y-4">

@@ -47,6 +47,17 @@ export const workplaceCampaignArchiveMessages = defineMessages({
     retainedReviews: 'Retained campaign reviews ({count})',
     retainedNote:
       'The last six reviews stay on this browser, with private preferences redacted. Download any review you want to keep longer. A historical review cannot restart an agreement.',
+    leaveButton: 'Leave this season',
+    leaveKept:
+      'Leaving keeps what was earned: {kg} kg delivered to {customer}, {pay} credits in pay and cover, and {recovery} minutes of recovery delivered. It is kept as a season left early, not a completed one, and customer and next-programme choices open again.',
+    leaveWaitActive: 'Leaving waits until this shift is stopped or ends, so its pay settles first.',
+    leaveWaitObligations: 'Leaving waits until nothing is owed. {reasons}',
+    leftFeedback:
+      'Season left early at shift {shift} of 3. Its pay, recovery and receipts are kept under Seasons left early.',
+    leftSeasons: 'Seasons left early ({count})',
+    leftNote:
+      'Each was left before its final review. It keeps the pay, recovery and receipts it earned and does not count as a completed season.',
+    leftSummary: 'Left early at shift {shift} of 3, seed {seed}',
   },
   'pt-BR': {
     reviewSummary: (p: ReviewSummaryParams) =>
@@ -72,5 +83,17 @@ export const workplaceCampaignArchiveMessages = defineMessages({
     retainedReviews: 'Revisões de campanha guardadas ({count})',
     retainedNote:
       'As seis revisões mais recentes ficam neste navegador, com as preferências privadas ocultadas. Baixe qualquer revisão que quiser guardar por mais tempo. Uma revisão histórica não pode reiniciar um acordo.',
+    leaveButton: 'Sair desta temporada',
+    leaveKept:
+      'Sair mantém o que foi conquistado: {kg} kg entregues a {customer}, {pay} créditos de remuneração e cobertura e {recovery} minutos de recuperação concedida. Ela fica guardada como temporada encerrada antes do fim, não como concluída, e as escolhas de cliente e do próximo programa voltam a ficar disponíveis.',
+    leaveWaitActive:
+      'Para sair, espere este turno ser parado ou terminar, para que a remuneração seja acertada antes.',
+    leaveWaitObligations: 'Para sair, nada pode estar devido. {reasons}',
+    leftFeedback:
+      'Temporada encerrada antes do fim no turno {shift} de 3. A remuneração, a recuperação e os comprovantes ficam em Temporadas encerradas antes do fim.',
+    leftSeasons: 'Temporadas encerradas antes do fim ({count})',
+    leftNote:
+      'Cada uma foi encerrada antes da revisão final. Ela mantém a remuneração, a recuperação e os comprovantes conquistados e não conta como temporada concluída.',
+    leftSummary: 'Encerrada antes do fim no turno {shift} de 3, semente {seed}',
   },
 });

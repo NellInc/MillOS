@@ -233,6 +233,8 @@ export const bilateralWorkplaceMessages = defineMessages({
       'Three fictional shifts. Fairness and closing cash carry forward; every shift needs fresh consent.',
     rejNextShift:
       'Review this shift, deliver owed recovery and resolve objections before the next of three shifts.',
+    rejLeaveCampaign:
+      'Leave a season from a stopped or reviewed shift with nothing owed: no running shift, owed recovery, open objection, reserve or active cover. Its final review is archived instead.',
     evShiftOpened:
       'Previous burden, pay, rest and closing cash retained. Private explanations and past consent are not reused.',
     rejAnswerCheck: 'Choose a known answer for a current role or adviser understanding check.',
@@ -576,6 +578,8 @@ export const bilateralWorkplaceMessages = defineMessages({
       'Três turnos fictícios. A equidade e o caixa de fechamento passam para o turno seguinte; cada turno precisa de novo consentimento.',
     rejNextShift:
       'Revise este turno, entregue a recuperação devida e resolva as objeções antes do próximo dos três turnos.',
+    rejLeaveCampaign:
+      'Saia de uma temporada a partir de um turno parado ou revisado, sem nada devido: nenhum turno em andamento, recuperação devida, objeção aberta, reserva ou cobertura ativa. A revisão final é arquivada em vez disso.',
     evShiftOpened:
       'Carga, remuneração, descanso e caixa de fechamento anteriores mantidos. Explicações privadas e consentimentos passados não são reutilizados.',
     rejAnswerCheck:

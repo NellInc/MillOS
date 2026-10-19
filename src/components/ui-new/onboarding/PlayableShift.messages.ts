@@ -90,7 +90,7 @@ export const playableShiftMessages = defineMessages({
     chooseCustomer: 'Choose a customer',
     switchChallengeHint: 'Finish or abandon the challenge before switching customers.',
     switchReviewHint:
-      'Finish the linked working agreement season and owed recovery before switching customers. Review working agreement opens Autonomy, where you can finish the remaining shifts or let the fictional demo run them.',
+      'Finish the linked working agreement season and owed recovery before switching customers. Review working agreement opens Autonomy, where you can finish the remaining shifts or let the fictional demo run them. Leave this season, below, ends it early and keeps what was earned.',
     switchHint:
       'Changing customer changes the scheduled recipe. Existing stock and shipping receipts remain unchanged.',
     activeOrderProgress: '{customer}: {shippedKg} / {requiredKg} kg dispatched',
@@ -198,7 +198,7 @@ export const playableShiftMessages = defineMessages({
     chooseCustomer: 'Escolha um cliente',
     switchChallengeHint: 'Conclua ou abandone o desafio antes de trocar de cliente.',
     switchReviewHint:
-      'Conclua a temporada do acordo de trabalho vinculado e a recuperação devida antes de trocar de cliente. O botão Revisar o acordo de trabalho abre Autonomia, onde você pode concluir os turnos restantes ou deixar a demonstração fictícia executá-los.',
+      'Conclua a temporada do acordo de trabalho vinculado e a recuperação devida antes de trocar de cliente. O botão Revisar o acordo de trabalho abre Autonomia, onde você pode concluir os turnos restantes ou deixar a demonstração fictícia executá-los. Sair desta temporada, abaixo, a encerra antes do fim e mantém o que foi conquistado.',
     switchHint:
       'Trocar de cliente muda a receita programada. O estoque existente e os comprovantes de expedição permanecem inalterados.',
     activeOrderProgress: '{customer}: {shippedKg} / {requiredKg} kg expedidos',

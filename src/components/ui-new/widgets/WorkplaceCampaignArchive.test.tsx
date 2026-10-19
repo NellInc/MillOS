@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { WorkplaceCampaignArchive } from './WorkplaceCampaignArchive';
+import { WorkplaceCampaignArchive, WorkplaceLeaveSeason } from './WorkplaceCampaignArchive';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
 import { useWorkplaceReplayStore } from '../../../stores/workplaceReplayStore';
 import { createWorkplace } from '../../../simulation/bilateralWorkplace';
@@ -37,7 +37,11 @@ function finishCampaign() {
 
 beforeEach(() => {
   endReplayClock();
-  useWorkplaceStore.setState({ workplace: createWorkplace(), completedCampaigns: [] });
+  useWorkplaceStore.setState({
+    workplace: createWorkplace(),
+    completedCampaigns: [],
+    leftCampaigns: [],
+  });
   useWorkplaceReplayStore.setState({ activeRunId: null });
 });
 afterEach(cleanup);
@@ -101,5 +105,51 @@ describe('completed campaign review interface', () => {
     expect(
       screen.queryByRole('region', { name: 'Completed workplace campaigns' })
     ).not.toBeInTheDocument();
+  });
+});
+
+describe('leaving a season from the laboratory', () => {
+  it('waits for a running shift, then keeps the left season apart from completed reviews', () => {
+    const store = useWorkplaceStore.getState();
+    store.startCampaign('cooperative', 17);
+    store.campaignDecision('keep-target', 'coordinator');
+    for (const actor of ['packing', 'mind']) {
+      for (const check of requiredChecks(actor))
+        store.answerCheck(
+          actor,
+          check,
+          WORKPLACE_CHECKS.find((item) => item.id === check)!.correct
+        );
+      if (actor === 'packing') store.understand(actor);
+    }
+    store.vote('packing', true);
+    store.simulateResponses();
+    expect(store.activate(useWorkplaceStore.getState().workplace.revision).changed).toBe(true);
+    store.tick(30, 0, false);
+    const fresh = vi.fn();
+    render(
+      <>
+        <WorkplaceCampaignArchive onFreshExercise={vi.fn()} />
+        <WorkplaceLeaveSeason onLeft={fresh} />
+      </>
+    );
+    expect(
+      screen.queryByRole('region', { name: 'Completed workplace campaigns' })
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Leave this season' })).toBeDisabled();
+    expect(
+      screen.getByText(/Leaving waits until this shift is stopped or ends/)
+    ).toBeInTheDocument();
+    act(() => {
+      store.stop();
+    });
+    expect(screen.getByText(/36.00 credits in pay and cover/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Leave this season' }));
+    expect(fresh).toHaveBeenCalledOnce();
+    expect(screen.getByRole('status')).toHaveTextContent('Season left early at shift 1 of 3');
+    expect(screen.getByText('Seasons left early (1)')).toBeInTheDocument();
+    expect(screen.getByText('Left early at shift 1 of 3, seed 17')).toBeInTheDocument();
+    expect(screen.queryByText(/Retained campaign reviews/)).not.toBeInTheDocument();
+    expect(useWorkplaceStore.getState().workplace.phase).toBe('idle');
   });
 });

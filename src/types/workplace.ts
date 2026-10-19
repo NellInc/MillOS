@@ -295,6 +295,11 @@ export interface WorkplaceActions {
     mission?: WorkplaceMission
   ) => WorkplaceTransitionResult;
   nextCampaignShift: () => WorkplaceTransitionResult;
+  /**
+   * End an unfinished season with nothing owed. The season is kept as left
+   * early, never as a completed review, and the workplace returns to idle.
+   */
+  leaveCampaign: (expectedRevision: number) => WorkplaceTransitionResult;
   answerCheck: (
     actorId: string,
     question: WorkplaceCheckId,

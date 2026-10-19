@@ -6,6 +6,7 @@ import { useMobileControlStore } from '../../../stores/mobileControlStore';
 import { selectClockHolder, useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { isPaceGameSpeed, PACE_GAME_SPEEDS } from '../../../simulation/pace';
 import { paceMessages } from '../../../simulation/pace.messages';
+import { WorkplaceLeaveSeason } from '../widgets/WorkplaceCampaignArchive';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
 import {
   improvementSummary,
@@ -422,7 +423,13 @@ function linkedReviewPending(state: WorkplaceState) {
   );
 }
 
-function WorkingAgreementSummary({ state }: { state: WorkplaceState }) {
+function WorkingAgreementSummary({
+  state,
+  onLeft,
+}: {
+  state: WorkplaceState;
+  onLeft?: (message: string) => void;
+}) {
   const t = useT(playableShiftMessages);
   const trial = improvementSummary(state);
   if (trial)
@@ -512,6 +519,7 @@ function WorkingAgreementSummary({ state }: { state: WorkplaceState }) {
       >
         {t('reviewAgreement')}
       </button>
+      <WorkplaceLeaveSeason onLeft={onLeft} />
     </div>
   );
 }
@@ -706,7 +714,7 @@ export function OperationsPlayCard() {
           })}
         </p>
       )}
-      <WorkingAgreementSummary state={workplace} />
+      <WorkingAgreementSummary state={workplace} onLeft={setMissionFeedback} />
       {workplace.phase === 'idle' && (
         <div className="mt-3 space-y-2 border-t border-slate-700 pt-3">
           <label className="block text-xs text-slate-300">
