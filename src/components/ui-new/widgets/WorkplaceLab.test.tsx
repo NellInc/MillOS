@@ -585,6 +585,56 @@ describe('Living Cooperative campaign interface', () => {
     open('Review');
     expect(screen.getByText(/Shift 1: Friday: the urgent order/)).toBeInTheDocument();
   });
+  it('promises credit from the next shift only when a next order and a next shift exist', () => {
+    const ops = useOperationsCampaignStore.getState();
+    const first = ops.orders.find((o) => o.id === ops.activeOrderId)!;
+    expect(useWorkplaceStore.getState().startMission('team', 17).changed).toBe(true);
+    const met = (shift: number) => {
+      const state = useWorkplaceStore.getState().workplace;
+      const mission = state.campaign!.mission!;
+      useWorkplaceStore.setState({
+        workplace: {
+          ...state,
+          campaign: {
+            ...state.campaign!,
+            shift,
+            mission: { ...mission, creditedKg: mission.originalTargetKg },
+          },
+        },
+      });
+    };
+    // Every order shipped: nothing is open, so nothing is promised.
+    useOperationsCampaignStore.setState({
+      orders: ops.orders.map((o) => ({ ...o, status: 'fulfilled', shippedKg: o.requiredKg })),
+      activeOrderId: null,
+    });
+    met(0);
+    const none = render(<WorkplaceLab />);
+    expect(screen.queryByText(/from the next shift/)).not.toBeInTheDocument();
+    expect(screen.getByText(/No other customer order is open/)).toBeInTheDocument();
+    none.unmount();
+    // The mill has moved on to a next order: that one is named.
+    const second = ops.orders.find((o) => o.id !== first.id)!;
+    useOperationsCampaignStore.setState({
+      orders: ops.orders.map((o) =>
+        o.id === first.id ? { ...o, status: 'fulfilled', shippedKg: o.requiredKg } : o
+      ),
+      activeOrderId: second.id,
+    });
+    const { unmount } = render(<WorkplaceLab />);
+    expect(
+      screen.getByText(
+        `Commitment order fulfilled. Dispatch to ${second.customer} is credited to the cooperative from the next shift.`
+      )
+    ).toBeInTheDocument();
+    unmount();
+    // The last shift has no next shift, whatever is open.
+    useOperationsCampaignStore.setState({ activeOrderId: second.id });
+    met(2);
+    render(<WorkplaceLab />);
+    expect(screen.queryByText(/from the next shift/)).not.toBeInTheDocument();
+    expect(screen.getByText(/This is the season’s last shift/)).toBeInTheDocument();
+  });
 });
 
 it('turns the cooperative review into a discussion and comparison without changing the plant or agreement', () => {

@@ -15,7 +15,12 @@ import {
   WorkplaceLeaveSeason,
 } from './WorkplaceCampaignArchive';
 import { WorkplaceReplay, WorkplaceReplayGuide, WorkplaceReplayResume } from './WorkplaceReplay';
-import { useWorkplaceStore, useWorkplaceControls } from '../../../stores/workplaceStore';
+import {
+  pendingFollowOn,
+  useWorkplaceStore,
+  useWorkplaceControls,
+} from '../../../stores/workplaceStore';
+import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import {
   PRACTICES,
@@ -122,6 +127,11 @@ export const WorkplaceLab: React.FC = () => {
   const outcomes = campaign ? campaignOutcomes(state) : null;
   const learningReview = campaignLearningReview(state);
   const mission = workplaceMission(state);
+  // The order the next shift would link, re-read as orders move; "from the
+  // next shift" is promised only when there is one and a next shift.
+  const nextLinkCustomer = useOperationsCampaignStore(
+    () => pendingFollowOn(state)?.customer ?? null
+  );
   const displayTarget = mission?.targetKg ?? state.targetKg;
   const configuring = state.phase === 'idle' || state.phase === 'deliberating';
   const canConfigure = state.phase === 'deliberating';
@@ -635,7 +645,11 @@ export const WorkplaceLab: React.FC = () => {
           ) : (
             campaign?.mission &&
             campaign.mission.creditedKg + 1e-6 >= campaign.mission.originalTargetKg && (
-              <p>{t('followOnPending')}</p>
+              <p>
+                {nextLinkCustomer
+                  ? t('followOnPending', { customer: nextLinkCustomer })
+                  : t(campaign.shift >= 2 ? 'followOnNoneLastShift' : 'followOnNone')}
+              </p>
             )
           )}
           <div>
