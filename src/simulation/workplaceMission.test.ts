@@ -298,4 +298,16 @@ describe('work after the commitment is fulfilled', () => {
     forged.campaign!.followOn = { ...forged.campaign!.followOn!, orderId: 'order-real' };
     expect(restoreWorkplace(forged).campaign).toBeNull();
   });
+
+  it('keeps the follow-on link in a handoff opened from that review, across a reload', () => {
+    const c = meetCommitment(3000);
+    c.run({ type: 'nextCampaignShift', args: [nextOrder()] });
+    expect(c.run({ type: 'stop', args: [] }).changed).toBe(true);
+    const followOn = structuredClone(c.state.campaign!.followOn!);
+    expect(
+      c.run({ type: 'beginImprovement', args: ['cooperative', c.state.revision] }).changed
+    ).toBe(true);
+    const reloaded = restoreWorkplace(saveWorkplace(c.state));
+    expect(reloaded.improvement?.origin.campaign?.followOn).toEqual(followOn);
+  });
 });

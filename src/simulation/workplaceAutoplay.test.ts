@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { useWorkplaceStore } from '../stores/workplaceStore';
-import { createWorkplace } from './bilateralWorkplace';
+import { createWorkplace, restoreWorkplace, saveWorkplace } from './bilateralWorkplace';
 import { autoplayWorkplaceStep, useWorkplaceAutoplay } from './workplaceAutoplay';
 import { useOperationsCampaignStore } from '../stores/operationsCampaignStore';
 import { useMaterialFlowStore } from '../stores/materialFlowStore';
@@ -202,5 +202,10 @@ it('demonstrates sharing the sobras by member vote in the default season before 
   shared.members.forEach((m, i) => expect(m.earnedPay - pay[i]).toBeCloseTo(surplus / 4, 6));
   expect(shared.events.some((e) => e.kind === 'surplus-decided')).toBe(true);
   expect(autoplayWorkplaceStep('toe-dip').changed).toBe(true);
-  expect(useWorkplaceStore.getState().workplace.campaign?.shift).toBe(1);
+  const next = useWorkplaceStore.getState().workplace;
+  expect(next.campaign?.shift).toBe(1);
+  // The shared sobras survive a reload as part of the reviewed shift.
+  const reloaded = restoreWorkplace(saveWorkplace(next));
+  expect(reloaded.campaign?.shift).toBe(1);
+  expect(reloaded.campaign?.history[0].finance.distributed).toBeCloseTo(surplus, 6);
 });
