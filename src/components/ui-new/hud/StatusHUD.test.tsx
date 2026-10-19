@@ -7,6 +7,8 @@ import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { useGraphicsStore } from '../../../stores/graphicsStore';
 import { computeSafetyScore, useSafetyStore } from '../../../stores/safetyStore';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
+import { useWorkplaceStore } from '../../../stores/workplaceStore';
+import { createWorkplace } from '../../../simulation/bilateralWorkplace';
 
 const viewport = { width: window.innerWidth, height: window.innerHeight };
 
@@ -129,6 +131,22 @@ describe('StatusHUD operational controls', () => {
       expect(screen.queryByLabelText(/Line idle/)).not.toBeInTheDocument();
     } finally {
       useOperationsCampaignStore.setState({ execution });
+    }
+  });
+
+  it('names the agreed line pacing beside the plant rate while a cooperative shift runs', () => {
+    try {
+      useWorkplaceStore.setState({ workplace: { ...createWorkplace(), phase: 'active' } });
+      render(<StatusHUD />);
+      // The steady plan paces the line to 78% of the plant rate.
+      expect(
+        screen.getByLabelText('The cooperative agreement paces the line at 78% of the plant rate')
+      ).toBeVisible();
+      expect(screen.getByText('Agreement pacing 78%')).toBeVisible();
+      act(() => useWorkplaceStore.setState({ workplace: createWorkplace() }));
+      expect(screen.queryByText(/Agreement pacing/)).not.toBeInTheDocument();
+    } finally {
+      useWorkplaceStore.setState({ workplace: createWorkplace() });
     }
   });
 

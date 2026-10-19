@@ -81,6 +81,23 @@ export function autoplayWorkplaceStep(profile: WorkplaceProfile): WorkplaceTrans
     return { changed: false, reason: null }; // Actual plant tick owns time and dispatch.
   }
   if (s.members.some((m) => m.recoveryOwedMinutes > 0)) return { changed: false, reason: null };
+  // Sobras: once a reviewed shift owes nothing, the fictional members vote to
+  // share a positive surplus among themselves, then the allocation runs.
+  // Working if the default season shows a real rateio whenever it earned one.
+  const f = s.finance;
+  const surplus =
+    f.operatingRevenue - f.operatingCost - f.wagesPaid - f.compensationPaid - f.improvementSpend;
+  if (
+    s.practices.includes('gainsharing') &&
+    !s.distributionComplete &&
+    surplus > 1e-8 &&
+    f.cash > 1e-8 &&
+    f.wageReserve === 0 &&
+    f.compensationReserve === 0
+  ) {
+    const voter = s.members.find((m) => s.surplusBallots[m.id] !== 'members');
+    return voter ? store.voteSurplus(voter.id, 'members') : store.distributeSurplus();
+  }
   if (c.shift < 2) return store.nextCampaignShift();
   return blocked(translate(msg, 'seasonComplete'));
 }

@@ -16,6 +16,8 @@ import { useProductionStore } from '../../../stores/productionStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { useGraphicsStore } from '../../../stores/graphicsStore';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
+import { useWorkplaceStore } from '../../../stores/workplaceStore';
+import { workplaceCapacity } from '../../../simulation/bilateralWorkplace';
 import { useShallow } from 'zustand/react/shallow';
 import { formatFixed, formatGrouped, useLocale, useT } from '../../../i18n';
 import { statusHudMessages } from './StatusHUD.messages';
@@ -72,6 +74,14 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace: workspa
   );
   const lineIdleAwaitingTruck = throughput <= 0 && orderPackedAwaitingTruck;
   const lineChangingOver = lineIdleAwaitingTruck && !!prestagingCustomer;
+  // The cooperative plan multiplies the plant rate (UnifiedGameTick), so the
+  // rate beside it says why it reads lower. Working if a 0.78 plan shows 78%
+  // while its shift runs and nothing shows outside one.
+  const agreementPacing = useWorkplaceStore((state) =>
+    state.workplace.mode === 'game' && state.workplace.phase === 'active'
+      ? workplaceCapacity(state.workplace)
+      : null
+  );
 
   const [showNotifications, setShowNotifications] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -322,6 +332,20 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace: workspa
             <span className="hidden text-slate-400 min-[1400px]:inline">{t('production')}</span>
             <span>{t('throughputValue', { value: formatGrouped(throughput) })}</span>
           </div>
+
+          {agreementPacing !== null && Math.abs(agreementPacing - 1) > 1e-9 && (
+            <div
+              className="flex shrink-0 items-center gap-1.5 text-[12px] text-amber-200"
+              aria-label={t('agreementPacingLabel', {
+                value: formatFixed(agreementPacing * 100, 0),
+              })}
+              title={t('agreementPacingTitle')}
+            >
+              <span>
+                {t('agreementPacingText', { value: formatFixed(agreementPacing * 100, 0) })}
+              </span>
+            </div>
+          )}
 
           {lineIdleAwaitingTruck && (
             <div

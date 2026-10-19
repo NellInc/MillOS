@@ -21,6 +21,8 @@ export const paceMessages = defineMessages({
       'Paused: the saved shift could not be restored. Choose a pace to continue, or reset in Settings.',
     heldBy_workplace:
       'Paused for a cooperative workplace step. Finish it in the Bilateral Autonomy System (BAS) panel, or choose a pace.',
+    heldBy_handoff:
+      "Held while the team decides the handoff experiment, so the adviser's forecast stays true. A pace you choose now starts when it resumes. To resume, cancel the experiment or finish its member review in the Bilateral Autonomy System (BAS) panel.",
     heldBy_layout: 'Paused for the layout planner. Run the mill from the planner to resume.',
     heldBy_scada: 'Paused: live SCADA control is active, so the simulation clock is held.',
   },
@@ -41,6 +43,8 @@ export const paceMessages = defineMessages({
       'Pausado: não foi possível restaurar o turno salvo. Escolha um ritmo para continuar ou reinicie em Configurações.',
     heldBy_workplace:
       'Pausado para uma etapa do trabalho cooperativo. Conclua-a no painel Sistema de Autonomia Bilateral (BAS) ou escolha um ritmo.',
+    heldBy_handoff:
+      'Parado enquanto a equipe decide o experimento de passagem de turno, para que a previsão do conselheiro continue válida. O ritmo que você escolher agora começa quando o relógio voltar. Para continuar, cancele o experimento ou conclua a avaliação dos cooperados no painel Sistema de Autonomia Bilateral (BAS).',
     heldBy_layout:
       'Pausado para o planejador de layout. Coloque o moinho para rodar pelo planejador para continuar.',
     heldBy_scada:

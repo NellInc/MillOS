@@ -775,7 +775,9 @@ it('disables surplus decisions outside a shared-surplus charter and says where t
   open('Review');
   expect(screen.getByRole('button', { name: 'Record member surplus ballot' })).toBeDisabled();
   expect(screen.getByRole('button', { name: 'Execute agreed allocation' })).toBeDisabled();
-  expect(screen.getByText(/Shared surplus is part of the Member governance charter/)).toBeVisible();
+  expect(
+    screen.getByText(/Shared surplus is part of the Coordinator-led and Member governance charters/)
+  ).toBeVisible();
   cleanup();
   act(() => {
     const current = useWorkplaceStore.getState().workplace;
@@ -786,7 +788,37 @@ it('disables surplus decisions outside a shared-surplus charter and says where t
   render(<WorkplaceLab />);
   open('Review');
   expect(screen.getByRole('button', { name: 'Record member surplus ballot' })).toBeEnabled();
-  expect(screen.queryByText(/Shared surplus is part of the Member governance charter/)).toBeNull();
+  expect(screen.queryByText(/Shared surplus is part of the/)).toBeNull();
+});
+
+it('names why there is no surplus to share in the default charter', () => {
+  useWorkplaceStore.getState().startCampaign('toe-dip', 17);
+  const state = useWorkplaceStore.getState().workplace;
+  expect(state.practices).toContain('gainsharing');
+  useWorkplaceStore.setState({
+    workplace: {
+      ...state,
+      phase: 'review',
+      finance: {
+        ...state.finance,
+        operatingRevenue: 100,
+        operatingCost: 40,
+        wagesPaid: 108,
+        compensationPaid: 6,
+        improvementSpend: 0,
+        distributed: 0,
+        communityAllocation: 0,
+      },
+    },
+  });
+  render(<WorkplaceLab />);
+  open('Review');
+  expect(
+    screen.getByText(
+      'No surplus this shift: revenue 100.00 did not cover material costs 40.00, wages 108.00, cover 6.00 and purchases 0.00.'
+    )
+  ).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Record member surplus ballot' })).toBeDisabled();
 });
 
 it('names the shift stop for what it does and rounds the inspection hold minute', () => {

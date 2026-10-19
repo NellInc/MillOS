@@ -19,7 +19,7 @@ export const workplaceCampaignMessages = defineMessages({
     // Management approaches
     toeDipTitle: 'Coordinator-led',
     toeDipDetail:
-      'The coordinator assigns qualified work after hearing each role. Individual extra-duty consent still belongs to that role.',
+      'The coordinator assigns qualified work after hearing each role. Individual extra-duty consent still belongs to that role, and members vote on sharing any surplus after obligations.',
     teamTitle: 'Team agreement',
     teamDetail:
       'The team chooses qualified work and uses a bounded improvement budget. Every member must approve the shared plan.',
@@ -187,7 +187,7 @@ export const workplaceCampaignMessages = defineMessages({
   'pt-BR': {
     toeDipTitle: 'Conduzido pela coordenação',
     toeDipDetail:
-      'A coordenação atribui o trabalho qualificado depois de ouvir cada função. O consentimento individual para trabalho extra continua sendo dessa função.',
+      'A coordenação atribui o trabalho qualificado depois de ouvir cada função. O consentimento individual para trabalho extra continua sendo dessa função, e os cooperados votam a destinação das sobras depois das obrigações.',
     teamTitle: 'Acordo da equipe',
     teamDetail:
       'A equipe escolhe o trabalho qualificado e usa um orçamento delimitado de melhorias. Cada cooperado precisa aprovar o plano compartilhado.',

@@ -143,10 +143,16 @@ describe('choice-first handoff interface', () => {
       screen.getByLabelText('Matched packing results').textContent?.match(/abstained/g)
     ).toHaveLength(3);
     expect(cloneMaterialFlowData(useMaterialFlowStore.getState())).toEqual(before);
-    act(() => useGameSimulationStore.getState().setGameSpeed(180));
+    // A pace chosen while the handoff holds the plant changes no plant input.
+    act(() => useGameSimulationStore.getState().setGameSpeed(120));
+    expect(
+      screen.queryByText('Inputs changed. This comparison is stale; capture again before using it.')
+    ).not.toBeInTheDocument();
+    act(() => useProductionStore.getState().setProductionSpeed(0.5));
     expect(
       screen.getByText('Inputs changed. This comparison is stale; capture again before using it.')
     ).toBeInTheDocument();
+    act(() => useProductionStore.getState().setProductionSpeed(1));
   });
   it('offers canonical worker ideas, public challenge and individual decisions before execution', () => {
     mount();
@@ -204,6 +210,48 @@ describe('choice-first handoff interface', () => {
       useWorkplaceStore.getState().workplace.improvement?.history[0].snapshot.finance.wagesPaid
     ).toBe(108);
     act(() => store.stop());
+  });
+});
+
+describe('the handoff clock hold', () => {
+  it('names the hold while a handoff is decided, keeps a chosen pace and cancels before funding', () => {
+    useGameSimulationStore.getState().setGameSpeed(30);
+    mount();
+    expect(screen.getByText(/Opening it holds the plant clock/)).toBeInTheDocument();
+    click('Open the handoff experiment');
+    const hold = screen.getByRole('region', { name: 'Plant clock held for this decision' });
+    expect(
+      within(hold).getByText(/Held while the team decides the handoff experiment/)
+    ).toBeInTheDocument();
+    const pace = within(hold).getByRole('combobox', { name: 'Shift pace' });
+    fireEvent.change(pace, { target: { value: '60' } });
+    // The choice stays shown as the resume pace instead of snapping back to Paused.
+    expect(pace).toHaveValue('60');
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+    fireEvent.click(within(hold).getByRole('button', { name: 'Cancel the handoff experiment' }));
+    expect(useWorkplaceStore.getState().workplace.phase).toBe('idle');
+    expect(useWorkplaceStore.getState().workplace.improvement).toBeUndefined();
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(60);
+    expect(
+      screen.queryByRole('region', { name: 'Plant clock held for this decision' })
+    ).not.toBeInTheDocument();
+  });
+
+  it('starts a season from the panel at standard pace, as the play card does', () => {
+    useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
+    useOperationsCampaignStore.getState().initializeCampaign();
+    render(
+      <WorkplaceImprovementPanel
+        profile="toe-dip"
+        setProfile={() => undefined}
+        activate={async () => undefined}
+        busy={false}
+        report={report}
+      />
+    );
+    click('Start season with current customer commitment');
+    expect(useWorkplaceStore.getState().workplace.campaign?.mission).toBeDefined();
+    expect(useGameSimulationStore.getState()).toMatchObject({ gameSpeed: 30, clockHolds: [] });
   });
 });
 

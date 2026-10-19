@@ -36,6 +36,7 @@ import { MillOSMusicPlayer } from './MillOSMusicPlayer';
 import { WorkplaceAutoplayStatus } from './widgets/WorkplaceParticipation';
 import { WorkplaceCompanion } from './widgets/WorkplaceCompanion';
 import { useWorkplaceStore } from '../../stores/workplaceStore';
+import { workplaceOwnsGuidance } from '../../simulation/workplaceImprovement';
 import { useT } from '../../i18n';
 import { gameInterfaceMessages } from './GameInterface.messages';
 
@@ -381,9 +382,8 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
 
   // Determine if Sidebar should be visible
   const isSidebarVisible = sidebarVisible;
-  const hasWorkingAgreement = useWorkplaceStore(
-    (store) => store.workplace.mode === 'game' && store.workplace.phase !== 'idle'
-  );
+  // One slot predicate with ProductionTargetWidget, so the two never overlap.
+  const hasWorkingAgreement = useWorkplaceStore((store) => workplaceOwnsGuidance(store.workplace));
   const quietSlotAvailable =
     introStep === null &&
     !journeyVisible &&

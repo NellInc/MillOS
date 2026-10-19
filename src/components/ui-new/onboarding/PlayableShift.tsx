@@ -10,6 +10,7 @@ import {
 } from '../../../stores/gameSimulationStore';
 import { isPaceGameSpeed, PACE_GAME_SPEEDS, STANDARD_GAME_SPEED } from '../../../simulation/pace';
 import { paceMessages } from '../../../simulation/pace.messages';
+import { WorkplaceLeaveSeason } from '../widgets/WorkplaceCampaignArchive';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
 import {
   improvementSummary,
@@ -78,7 +79,13 @@ export function TeachingPace() {
   const setSpeed = useGameSimulationStore((s) => s.setGameSpeed);
   const t = useT(playableShiftMessages);
   const pace = useT(paceMessages);
-  const known = isPaceGameSpeed(speed);
+  // Under a derived hold a chosen pace waits as the resume pace, so show it
+  // rather than 'Paused'. Working if the choice never appears to snap back.
+  const resume = useGameSimulationStore(
+    (s) => s.clockHolds.find((hold) => hold.holder === 'handoff')?.resumeSpeed
+  );
+  const shown = holder === 'handoff' && resume !== undefined ? resume : speed;
+  const known = isPaceGameSpeed(shown);
   return (
     <div className="mt-3">
       <label className="flex flex-wrap items-center gap-2 text-xs text-slate-300">
@@ -89,7 +96,7 @@ export function TeachingPace() {
         <select
           aria-label={t('shiftPace')}
           title={pace('paceTitle')}
-          value={known ? speed : 'custom'}
+          value={known ? shown : 'custom'}
           onChange={(e) => setSpeed(Number(e.target.value))}
           className="min-h-11 rounded bg-slate-800 px-2 text-white"
         >
@@ -469,7 +476,13 @@ function linkedReviewPending(state: WorkplaceState) {
   );
 }
 
-function WorkingAgreementSummary({ state }: { state: WorkplaceState }) {
+function WorkingAgreementSummary({
+  state,
+  onLeft,
+}: {
+  state: WorkplaceState;
+  onLeft?: (message: string) => void;
+}) {
   const t = useT(playableShiftMessages);
   const trial = improvementSummary(state);
   if (trial)
@@ -509,6 +522,14 @@ function WorkingAgreementSummary({ state }: { state: WorkplaceState }) {
         {t('remainingCommitment', { kg: formatFixed(outcome.delivery.remainingKg, 0) })}
         {outcome.delivery.remainingKg === 0 && t('fullCommitmentDispatched')}
       </p>
+      {state.campaign.followOn && (
+        <p>
+          {t('followOnCredit', {
+            customer: state.campaign.followOn.customer,
+            kg: formatFixed(state.campaign.followOn.creditedKg, 0),
+          })}
+        </p>
+      )}
       <p>
         {t('agreementOutcome', {
           status: t('agreementStatus', { status: outcome.agreement.status }),
@@ -559,6 +580,7 @@ function WorkingAgreementSummary({ state }: { state: WorkplaceState }) {
       >
         {t('reviewAgreement')}
       </button>
+      <WorkplaceLeaveSeason onLeft={onLeft} />
     </div>
   );
 }
@@ -786,7 +808,7 @@ export function OperationsPlayCard() {
           })}
         </p>
       )}
-      <WorkingAgreementSummary state={workplace} />
+      <WorkingAgreementSummary state={workplace} onLeft={setMissionFeedback} />
       {workplace.phase === 'idle' && (
         <div className="mt-3 space-y-2 border-t border-slate-700 pt-3">
           <label className="block text-xs text-slate-300">

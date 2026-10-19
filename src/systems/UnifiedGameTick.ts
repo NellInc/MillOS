@@ -46,6 +46,7 @@ import { sanitizeGameSpeed } from '../stores/persistenceMigrations';
 import { bagsPerGameHour, plantSecondsForGameSeconds } from '../simulation/pace';
 import { useWorkplaceStore } from '../stores/workplaceStore';
 import { workplaceTickCapacity } from '../simulation/bilateralWorkplace';
+import { handoffHoldsClock } from '../simulation/workplaceImprovement';
 import {
   advanceReplayClock,
   endReplayClock,
@@ -520,7 +521,10 @@ function unifiedGameTick(ctx: TickContext): void {
           ? Math.max(0, ...agreement.members.map((member) => member.recoveryOwedMinutes))
           : 0;
     if (game.gameSpeed === 0 || remainingMinutes === 0) {
-      if (game.gameSpeed !== 0) game.holdClock('workplace');
+      // A handoff decision holds through its derived hold (workplaceStore), which
+      // keeps a pace chosen meanwhile as its resume pace; this is the backstop.
+      if (game.gameSpeed !== 0)
+        game.holdClock(!replayActive && handoffHoldsClock(agreement) ? 'handoff' : 'workplace');
       return;
     }
     // This one admitted delta drives all plant clocks, material, costs, wear
@@ -648,7 +652,8 @@ function unifiedGameTick(ctx: TickContext): void {
   const campaignStore = useOperationsCampaignStore.getState();
   const campaignMultiplier = campaignStore.getProductionMultiplier();
   const activeProductionPlan = campaignStore.getActiveProductionPlan();
-  // Opt-in negotiated line pacing. It never creates product, releases quality
+  // Negotiated line pacing: the autonomous season applies it by default and
+  // StatusHUD names it beside the plant rate. It never creates product, releases quality
   // holds, changes machine safety status, or alters decorative pedestrian routes.
   const effectiveProductionSpeed =
     productionSpeed *
@@ -1097,11 +1102,14 @@ function unifiedGameTick(ctx: TickContext): void {
         latestGame.emergencyActive
       );
     const reviewed = useWorkplaceStore.getState().workplace;
+    // The derived handoff hold already covers a review with nothing owed; an
+    // ended trial that owes recovery waits here for an explicit resume.
     if (
       (replayActive || (reviewed.improvement && !reviewed.improvement.verdict)) &&
       reviewed.phase === 'review' &&
       (workplacePhaseBefore === 'active' ||
-        reviewed.members.every((member) => member.recoveryOwedMinutes === 0))
+        reviewed.members.every((member) => member.recoveryOwedMinutes === 0)) &&
+      (replayActive || !handoffHoldsClock(reviewed))
     )
       useGameSimulationStore.getState().holdClock('workplace');
   }

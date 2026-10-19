@@ -29,6 +29,10 @@ export const statusHudMessages = defineMessages({
     lineChangeoverTitle:
       "The rest of this order is packed and waits for its truck. The line is filling with the next commitment's grain, so packing resumes shortly.",
     lineChangeoverText: 'Changing over to the next order',
+    agreementPacingLabel: 'The cooperative agreement paces the line at {value}% of the plant rate',
+    agreementPacingTitle:
+      'The cooperative season runs to its agreed plan, which sets the line pace. The Bilateral Autonomy System (BAS) panel shows the plan and who chose it.',
+    agreementPacingText: 'Agreement pacing {value}%',
     dailyTargetLabel: 'Daily target {produced} of {target} bags',
     targetValue: 'Target {produced} / {target}',
     runWindowLabel: '{shift} run window, simulation time {time}',
@@ -74,6 +78,11 @@ export const statusHudMessages = defineMessages({
     lineChangeoverTitle:
       'O restante deste pedido está ensacado e aguarda o caminhão. A linha está recebendo o grão do próximo compromisso, então o ensaque volta em breve.',
     lineChangeoverText: 'Trocando para o próximo pedido',
+    agreementPacingLabel:
+      'O acordo da cooperativa define o ritmo da linha em {value}% da taxa da planta',
+    agreementPacingTitle:
+      'A temporada cooperativa segue o plano acordado, que define o ritmo da linha. O painel Sistema de Autonomia Bilateral (BAS) mostra o plano e quem o escolheu.',
+    agreementPacingText: 'Ritmo do acordo {value}%',
     dailyTargetLabel: 'Meta diária: {produced} de {target} sacos',
     targetValue: 'Meta {produced} / {target}',
     runWindowLabel: 'Janela de operação da {shift}, horário da simulação {time}',

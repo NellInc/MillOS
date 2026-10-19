@@ -9,7 +9,7 @@ import { WorkplaceImprovementPanel } from './WorkplaceImprovementPanel';
 import { workplaceMission } from '../../../simulation/workplaceImprovement';
 import { WorkplacePressureChapter } from './WorkplacePressureChapter';
 import { WorkplacePracticeProposal } from './WorkplaceNegotiation';
-import { WorkplaceCampaignArchive } from './WorkplaceCampaignArchive';
+import { WorkplaceCampaignArchive, WorkplaceLeaveSeason } from './WorkplaceCampaignArchive';
 import { WorkplaceReplay, WorkplaceReplayGuide, WorkplaceReplayResume } from './WorkplaceReplay';
 import { useWorkplaceStore, useWorkplaceControls } from '../../../stores/workplaceStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
@@ -139,6 +139,13 @@ export const WorkplaceLab: React.FC = () => {
   // 'gainsharing' practice. Working if neither control is offered without it.
   const sharedSurplus = state.practices.includes('gainsharing');
   const modeLabelKey = modes.find((item) => item.value === state.mode)?.labelKey;
+  const freshExercise = () => {
+    setSection('Shift');
+    setMode('game');
+    setSeed(String(useWorkplaceStore.getState().workplace.seed));
+    setFeedback(translate(messages, 'freshExercise'));
+    setReceipt(null);
+  };
   const report = (result: WorkplaceTransitionResult) => {
     setFeedback(result.reason ?? translate(messages, result.changed ? 'recorded' : 'noChange'));
     setReceipt(null);
@@ -386,15 +393,8 @@ export const WorkplaceLab: React.FC = () => {
       />
       <WorkplaceReplayResume />
       <WorkplacePressureChapter state={state} navigate={setSection} />
-      <WorkplaceCampaignArchive
-        onFreshExercise={() => {
-          setSection('Shift');
-          setMode('game');
-          setSeed(String(useWorkplaceStore.getState().workplace.seed));
-          setFeedback(translate(messages, 'freshExercise'));
-          setReceipt(null);
-        }}
-      />
+      <WorkplaceCampaignArchive onFreshExercise={freshExercise} />
+      <WorkplaceLeaveSeason onLeft={freshExercise} />
 
       {section === 'Shift' && (
         <div className="space-y-4">
@@ -617,6 +617,19 @@ export const WorkplaceLab: React.FC = () => {
               })}
               {mission.creditedKg >= mission.originalTargetKg && t('fullDispatchedSuffix')}
             </p>
+          )}
+          {campaign?.followOn ? (
+            <p className="tabular-nums">
+              {t('followOnCredit', {
+                customer: campaign.followOn.customer,
+                credited: formatFixed(campaign.followOn.creditedKg, 1),
+              })}
+            </p>
+          ) : (
+            campaign?.mission &&
+            campaign.mission.creditedKg + 1e-6 >= campaign.mission.originalTargetKg && (
+              <p>{t('followOnPending')}</p>
+            )
           )}
           <div>
             <h4 className="font-semibold text-white">{t('chooseResponse')}</h4>
@@ -1485,6 +1498,17 @@ export const WorkplaceLab: React.FC = () => {
               {t('ballotsRequired')}
             </p>
             {!sharedSurplus && <p className="text-amber-100">{t('surplusCharter')}</p>}
+            {sharedSurplus && surplus <= 1e-8 && !state.distributionComplete && (
+              <p className="tabular-nums text-amber-100">
+                {t('noSurplusReason', {
+                  revenue: formatFixed(state.finance.operatingRevenue, 2),
+                  cost: formatFixed(state.finance.operatingCost, 2),
+                  wages: formatFixed(state.finance.wagesPaid, 2),
+                  cover: formatFixed(state.finance.compensationPaid, 2),
+                  purchases: formatFixed(state.finance.improvementSpend, 2),
+                })}
+              </p>
+            )}
             <button
               className={buttonClass}
               disabled={

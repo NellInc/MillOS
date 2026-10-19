@@ -6,7 +6,12 @@ import { join } from 'node:path';
 import * as ts from 'typescript';
 import { unifiedGameTick, resetUnifiedTickState } from '../UnifiedGameTick';
 import { useWorkplaceStore } from '../../stores/workplaceStore';
-import { createWorkplace, workplaceCapacity } from '../../simulation/bilateralWorkplace';
+import {
+  createWorkplace,
+  restoreWorkplace,
+  saveWorkplace,
+  workplaceCapacity,
+} from '../../simulation/bilateralWorkplace';
 import { useProductionStore } from '../../stores/productionStore';
 import { useMaterialFlowStore } from '../../stores/materialFlowStore';
 import { useOperationsCampaignStore } from '../../stores/operationsCampaignStore';
@@ -574,6 +579,7 @@ it('binds the three-shift game to actual selected-order dispatch without double-
   expect(useOperationsCampaignStore.getState().economics.revenue).toBe(revenueBefore);
   const binding = structuredClone(useWorkplaceStore.getState().workplace.campaign!.mission!);
   const reviews = [];
+  const earned: { revenue: number; followOn: string | null; followOnCreditedKg: number }[] = [];
   for (let shift = 0; shift < 3; shift++) {
     if (shift !== 1)
       expect(
@@ -595,6 +601,14 @@ it('binds the three-shift game to actual selected-order dispatch without double-
     );
     expect(workplace.campaign!.mission!.manifestIds).toEqual(actualOrder.manifestIds);
     expect(workplace.campaign!.mission!.evidence).toBe('current');
+    // Later shifts work the mill's next order once the commitment's order is
+    // fulfilled, so the cooperative's books keep earning from real dispatch.
+    expect(workplace.finance.operatingRevenue).toBeCloseTo(workplace.shippedKg * 0.5, 6);
+    earned.push({
+      revenue: workplace.finance.operatingRevenue,
+      followOn: workplace.campaign!.followOn?.orderId ?? null,
+      followOnCreditedKg: workplace.campaign!.followOn?.creditedKg ?? 0,
+    });
     reviews.push({
       workplace: structuredClone(workplace),
       physical: replayResult(),
@@ -603,6 +617,19 @@ it('binds the three-shift game to actual selected-order dispatch without double-
     if (shift < 2) expect(s.nextCampaignShift().changed).toBe(true);
   }
   const outcome = campaignOutcomes(useWorkplaceStore.getState().workplace);
+  const orders = useOperationsCampaignStore.getState().orders;
+  expect(orders.find((o) => o.id === binding.orderId)!.status).toBe('fulfilled');
+  expect(earned[0].followOn).toBeNull();
+  for (const shift of [1, 2]) {
+    expect(earned[shift].followOn).not.toBeNull();
+    expect(earned[shift].followOn).not.toBe(binding.orderId);
+    expect(earned[shift].followOnCreditedKg).toBeGreaterThan(0);
+    expect(earned[shift].revenue).toBeCloseTo(earned[shift].followOnCreditedKg * 0.5, 6);
+  }
+  const final = useWorkplaceStore.getState().workplace;
+  expect(restoreWorkplace(saveWorkplace(final)).campaign?.followOn).toEqual(
+    final.campaign?.followOn
+  );
   expect(useMaterialFlowStore.getState().shippedKg).toBeGreaterThan(0);
   expect(outcome.agreement.status).toBe('honoured');
   expect(outcome.accounts.wages).toBeCloseTo(324);
@@ -1007,4 +1034,38 @@ it('releases the plant clock once the handoff member review has a verdict, and n
   expect(useGameSimulationStore.getState().gameSpeed).toBe(15);
   expect(useGameSimulationStore.getState().gameTime).not.toBe(releasedTime);
   expect(useWorkplaceStore.getState().workplace).toEqual(settled);
+});
+
+it('keeps a pace chosen during handoff deliberation as its resume pace, and a cancel before funding resumes the origin at it', () => {
+  useGameSimulationStore.getState().setGameSpeed(30);
+  const origin = structuredClone(useWorkplaceStore.getState().workplace);
+  const w = useWorkplaceStore.getState();
+  expect(w.beginImprovement('cooperative', w.workplace.revision).changed).toBe(true);
+  // Opening the experiment holds the plant through the derived handoff hold.
+  expect(useGameSimulationStore.getState()).toMatchObject({
+    gameSpeed: 0,
+    clockHolds: [{ holder: 'handoff', resumeSpeed: 30 }],
+  });
+  // A pace chosen now is not undone by the next ticks: it waits as the resume pace.
+  useGameSimulationStore.getState().setGameSpeed(60);
+  const heldTime = useGameSimulationStore.getState().gameTime;
+  for (let n = 0; n < 4; n++) replayStep();
+  expect(useGameSimulationStore.getState()).toMatchObject({
+    gameSpeed: 0,
+    clockHolds: [{ holder: 'handoff', resumeSpeed: 60 }],
+  });
+  expect(useGameSimulationStore.getState().gameTime).toBe(heldTime);
+  expect(w.proposeImprovement('briefing', 'packing').changed).toBe(true);
+  const deliberating = useWorkplaceStore.getState().workplace;
+  expect(w.cancelImprovement(deliberating.revision - 1).changed).toBe(false);
+  expect(w.cancelImprovement(deliberating.revision).changed).toBe(true);
+  const restored = useWorkplaceStore.getState().workplace;
+  expect(restored.phase).toBe('idle');
+  expect(restored.improvement).toBeUndefined();
+  expect(restored.revision).toBe(deliberating.revision + 1);
+  expect(restored.finance).toEqual(origin.finance);
+  expect(restored.events.at(-1)?.kind).toBe('improvement-cancelled');
+  expect(useGameSimulationStore.getState()).toMatchObject({ gameSpeed: 60, clockHolds: [] });
+  replayStep();
+  expect(useGameSimulationStore.getState().gameTime).not.toBe(heldTime);
 });
