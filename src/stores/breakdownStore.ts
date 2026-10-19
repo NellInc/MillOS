@@ -225,10 +225,6 @@ export interface BreakdownStore {
 
   scheduleMaintenanceTask: (task: Omit<MaintenanceScheduleItem, 'id' | 'completed'>) => void;
   completeMaintenanceTask: (taskId: string) => void;
-  tickBreakdownSimulation: (
-    gameTime: number,
-    machines: Array<{ id: string; name: string; status: string }>
-  ) => BreakdownEvent | null;
 
   getBreakdownForMachine: (machineId: string) => BreakdownEvent | undefined;
   getWorkOrderForBreakdown: (breakdownId: string) => MaintenanceWorkOrder | undefined;
@@ -726,12 +722,6 @@ export const useBreakdownStore = create<BreakdownStore>()(
           ),
         };
       }),
-
-    tickBreakdownSimulation: (_gameTime, machines) => {
-      const breakdown = get().triggerRandomBreakdown(machines);
-      get().clearOldPredictiveAlerts();
-      return breakdown;
-    },
 
     getBreakdownForMachine: (machineId) =>
       get().activeBreakdowns.find((breakdown) => breakdown.machineId === machineId),

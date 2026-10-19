@@ -593,8 +593,16 @@ export const MillScene: React.FC<MillSceneProps> = ({
           temperature: 20 + idx * 0.4, // Deterministic: 20-21.6°C
           vibration: 0.8 + idx * 0.04, // Deterministic: 0.8-0.96
           load: 60 + idx * 3, // Deterministic: 60-72%
-          wear: 0, // Start with no wear
-          efficiency: 100, // Start at full efficiency
+          // Silo Alpha starts part-worn, so a first standard-pace shift meets
+          // one wear warning (about 3.8 game hours in, before the 14:00
+          // handover) and with it Maintain. No unit wears faster and no line
+          // warns together (see WEAR_PACE in UnifiedGameTick). A silo's slow
+          // rate keeps this breakdown ~67 game hours out, after the first
+          // mill's, and it is off the product path, so first-shift flour is
+          // unaffected. The first tick derives its efficiency from this wear.
+          // Working if exactly one predictive alert arrives in the first shift.
+          wear: anchor.id === 'silo-0' ? 68.5 : 0,
+          efficiency: 100,
         },
         lastMaintenance: '2024-01-15',
         nextMaintenance: '2024-04-15',
