@@ -13,6 +13,9 @@ import { ORM_MEAN_ROUGHNESS, PIPE_MATERIALS } from '../utils/sharedMaterials';
 import { shouldRunThisFrame } from '../utils/frameThrottle';
 import { selectSafetyHoldActive, useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useGraphicsStore } from '../stores/graphicsStore';
+import { useProductionStore } from '../stores/productionStore';
+import { useMaterialFlowStore } from '../stores/materialFlowStore';
+import { isFlowAudible, machineFlowState } from '../simulation/lineFlow';
 import { useShallow } from 'zustand/react/shallow';
 import { generateProceduralNormal } from '../textures/normalGenerator';
 import {
@@ -304,7 +307,9 @@ export const SpoutingSystem = React.memo<{
 
   // Calculate spouting sound positions (midpoints of key pipe connections)
   const spoutPositions = useMemo(() => {
-    const positions: { id: string; x: number; y: number; z: number }[] = [];
+    // `machineId` is the machine the product is pouring into or through; the
+    // pour is audible only while that machine is working.
+    const positions: { id: string; machineId: string; x: number; y: number; z: number }[] = [];
     const silos = machines.filter((m) => m.type === MachineType.SILO);
     const mills = machines.filter((m) => m.type === MachineType.ROLLER_MILL);
     const sifters = machines.filter((m) => m.type === MachineType.PLANSIFTER);
@@ -315,6 +320,7 @@ export const SpoutingSystem = React.memo<{
       if (silo) {
         positions.push({
           id: `spout-silo-mill-${i}`,
+          machineId: mill.id,
           x: (silo.position[0] + mill.position[0]) / 2,
           y: 8,
           z: (silo.position[2] + mill.position[2]) / 2,
@@ -325,6 +331,7 @@ export const SpoutingSystem = React.memo<{
     sifters.forEach((sifter, i) => {
       positions.push({
         id: `spout-sifter-${i}`,
+        machineId: sifter.id,
         x: sifter.position[0],
         y: sifter.position[1],
         z: sifter.position[2],
@@ -334,31 +341,49 @@ export const SpoutingSystem = React.memo<{
     return positions;
   }, [machineKey]); // Use stable key instead of full machines array
 
-  // Start spouting sounds once the audio context exists
+  // Each pour sound follows the product it stands for: silent while the shift
+  // clock or a safety hold stops the plant, and while its machine is critical,
+  // idle or starved (the state the machine itself animates from). Reconciled
+  // from the frame loop on a throttle, so per-tick status churn never
+  // re-renders this component.
   const audioReady = useAudioInitialized();
+  const playingRef = useRef(new Set<string>());
   useEffect(() => {
-    if (!enableAudio || !audioReady || safetyHold) return;
-    spoutPositions.forEach((pos) => {
-      audioManager.startSpoutingSound(pos.id, pos.x, pos.y, pos.z);
-    });
-
+    const playing = playingRef.current;
     return () => {
-      spoutPositions.forEach((pos) => {
-        audioManager.stopSpoutingSound(pos.id);
-      });
+      playing.forEach((id) => audioManager.stopSpoutingSound(id));
+      playing.clear();
     };
-  }, [enableAudio, audioReady, safetyHold, spoutPositions]);
+  }, [enableAudio, audioReady, spoutPositions]);
 
-  // Update spatial audio volumes each frame
   useFrame(() => {
-    if (!enableAudio || safetyHold) return;
     if (!isTabVisible) return;
+    const playing = playingRef.current;
+    if (shouldRunThisFrame(15)) {
+      const { gameSpeed } = useGameSimulationStore.getState();
+      const machinesNow = useProductionStore.getState().machines;
+      const buffers = useMaterialFlowStore.getState().machineBuffers;
+      spoutPositions.forEach((pos) => {
+        const audible =
+          enableAudio &&
+          audioReady &&
+          isFlowAudible(
+            machineFlowState(pos.machineId, machinesNow, buffers),
+            gameSpeed,
+            safetyHold
+          );
+        if (audible && !playing.has(pos.id)) {
+          audioManager.startSpoutingSound(pos.id, pos.x, pos.y, pos.z);
+          playing.add(pos.id);
+        } else if (!audible && playing.has(pos.id)) {
+          audioManager.stopSpoutingSound(pos.id);
+          playing.delete(pos.id);
+        }
+      });
+    }
     // Spatial volume is fine at ~30fps; throttle to reduce per-frame audio work
-    if (!shouldRunThisFrame(2)) return;
-
-    spoutPositions.forEach((pos) => {
-      audioManager.updateSpoutingSpatialVolume(pos.id);
-    });
+    if (playing.size === 0 || !shouldRunThisFrame(2)) return;
+    playing.forEach((id) => audioManager.updateSpoutingSpatialVolume(id));
   });
 
   // Silhouette quality by tier. 8 radial segments on a 0.17 m pipe is a visible

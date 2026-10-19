@@ -109,6 +109,11 @@ interface SafetyStore {
   // Forklift update times for debouncing (moved from module-level state to Zustand)
   forkliftUpdateTimes: Map<string, number>;
   updateForkliftMetrics: (forkliftId: string, isMoving: boolean) => void;
+  /**
+   * Rebase a forklift's sample clock to now without booking the gap, for
+   * when sampling resumes after the clock was held or the tab was hidden.
+   */
+  resumeForkliftMetrics: (forkliftId: string) => void;
   resetForkliftMetrics: () => void;
   cleanupForkliftUpdateTimes: () => void; // Cleanup stale entries
 
@@ -249,6 +254,21 @@ export const useSafetyStore = create<SafetyStore>()(
           };
         });
       },
+      resumeForkliftMetrics: (forkliftId) =>
+        set((state) => {
+          const existing = state.forkliftMetrics[forkliftId];
+          if (!existing) return {};
+          const now = Date.now();
+          const forkliftUpdateTimes = new Map(state.forkliftUpdateTimes);
+          forkliftUpdateTimes.set(forkliftId, now);
+          return {
+            forkliftMetrics: {
+              ...state.forkliftMetrics,
+              [forkliftId]: { ...existing, lastUpdateTime: now },
+            },
+            forkliftUpdateTimes,
+          };
+        }),
       resetForkliftMetrics: () =>
         set({
           forkliftMetrics: {},

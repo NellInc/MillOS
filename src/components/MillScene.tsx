@@ -16,6 +16,7 @@ import { OptimizedFactoryEnvironment } from './environment/OptimizedFactoryEnvir
 import { getTerrainGridSegments } from './terrain/terrainTypes';
 import { ENVIRONMENT_INTENSITY } from './environment/SceneEnvironmentIBL';
 import { CentralTickProvider, useUnifiedGameTick } from '../systems';
+import { registerEgressDrillSequencer } from '../systems/egressDrillSequencer';
 import { ProductionFlowVisualization } from './ProductionFlowVisualization';
 import { useAIConfigStore } from '../stores/aiConfigStore';
 import { recoverableLazy } from '../utils/recoverableLazy';
@@ -400,44 +401,9 @@ const ServiceEgressMarkers = React.memo(() => {
   );
 
   // The verification sequence itself. Nothing else calls markZoneVerified, so
-  // without this a started drill could never complete: each egress point is
-  // verified in turn, and the drill ends shortly after the last one.
-  useEffect(() => {
-    if (!emergencyDrillMode || !drillMetrics.active) return;
-    const ZONE_INTERVAL_MS = 4000;
-    const COMPLETION_HOLD_MS = 5000;
-    let completionTimer: number | undefined;
-    const store = () => useGameSimulationStore.getState();
-    const timer = window.setInterval(() => {
-      const current = store();
-      if (!current.emergencyDrillMode || !current.drillMetrics.active) return;
-      if (current.drillMetrics.verificationComplete) {
-        window.clearInterval(timer);
-        completionTimer = window.setTimeout(() => {
-          const latest = store();
-          if (latest.emergencyDrillMode && latest.drillMetrics.verificationComplete) {
-            latest.endEmergencyDrill();
-          }
-        }, COMPLETION_HOLD_MS);
-        return;
-      }
-      const zone = SERVICE_EGRESS_POINTS.slice(0, current.drillMetrics.totalZones).find(
-        (point) => !current.drillMetrics.verifiedZoneIds.includes(point.id)
-      );
-      // Defensive: every drill zone is verified without the drill completing
-      // (startEmergencyDrill clamps totalZones, so this should not happen).
-      // Stop ticking instead of spinning until END DRILL.
-      if (!zone) {
-        window.clearInterval(timer);
-        return;
-      }
-      current.markZoneVerified(zone.id);
-    }, ZONE_INTERVAL_MS);
-    return () => {
-      window.clearInterval(timer);
-      if (completionTimer !== undefined) window.clearTimeout(completionTimer);
-    };
-  }, [emergencyDrillMode, drillMetrics.active]);
+  // without this a started drill could never complete. It runs on the central
+  // tick in game seconds, so it holds with the shift clock and follows pace.
+  useEffect(() => registerEgressDrillSequencer(), []);
 
   // Pending markers pulse during the automated verification sequence. Verified
   // markers, and every marker under reduced motion, hold their resting glow.

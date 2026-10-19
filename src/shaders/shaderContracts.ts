@@ -803,7 +803,8 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     qualityVariants: ['medium', 'high', 'ultra'],
     uniformOwner: 'MachineSteamParticle memoized material',
     timeSource: 'none',
-    cacheKey: 'millos-machine-steam-v1',
+    // Suffixed with the point-size cap in source (steam 128, dust/exhaust 64).
+    cacheKey: 'millos-machine-steam-v2',
     disposalOwner: 'MachineSteamParticle cleanup effect',
     fallbackMaterial: 'plain PointsMaterial with constant opacity',
   },

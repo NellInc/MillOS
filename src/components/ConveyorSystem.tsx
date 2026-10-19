@@ -1,4 +1,4 @@
-import { CONVEYOR_LAYOUT } from '../constants/siteLayout';
+import { CONVEYOR_LAYOUT, SITE_LAYOUT } from '../constants/siteLayout';
 import { GeneratedBoundary } from './models/GeneratedModel';
 import { GeneratedBoxSurface, GeneratedGeometrySurface } from './models/GeneratedGeometrySurface';
 import React, { useRef, useMemo, useEffect, useLayoutEffect, useState } from 'react';
@@ -12,6 +12,16 @@ import { useGraphicsStore } from '../stores/graphicsStore';
 // Note: Production counting moved to App.tsx interval-based system (scales with gameSpeed)
 // Conveyor animation is now purely visual - no bag counting here
 import { selectSafetyHoldActive, useGameSimulationStore } from '../stores/gameSimulationStore';
+import { useProductionStore } from '../stores/productionStore';
+import { useMaterialFlowStore } from '../stores/materialFlowStore';
+import { plantTimeScale } from '../simulation/pace';
+import {
+  clampFrameDelta,
+  easeToward,
+  isMachineDischarging,
+  lineMotionRate,
+  machineFlowState,
+} from '../simulation/lineFlow';
 import { BAG_WEIGHT_KG, GrainQuality } from '../types';
 import { formatFixed, useT } from '../i18n';
 import { conveyorSystemMessages } from './ConveyorSystem.messages';
@@ -47,8 +57,7 @@ const BELT_NORMAL_SCALE = new THREE.Vector2(0.85, 0.85);
 const BELT_LINEAR_SPEED = 5.0;
 /** World units covered by one texture tile (belt `repeat.x = length / 4`). */
 const WORLD_UNITS_PER_TILE = 4;
-/** Texture tiles per second at productionSpeed 1. */
-const BELT_UV_RATE = BELT_LINEAR_SPEED / WORLD_UNITS_PER_TILE;
+// Belt UV advances by `beltTravelMetres / WORLD_UNITS_PER_TILE` tiles a frame.
 
 /**
  * Roller spin is DELIBERATELY not derived from `BELT_LINEAR_SPEED`.
@@ -61,6 +70,29 @@ const BELT_UV_RATE = BELT_LINEAR_SPEED / WORLD_UNITS_PER_TILE;
  */
 const DRIVE_ROLLER_SPIN = 3; // rad/sec at productionSpeed 1
 const IDLER_ROLLER_SPIN = 5; // rad/sec at productionSpeed 1
+
+/**
+ * DIRECTION. Cargo travels toward local +x on every run (the main belt toward
+ * the transfer, the transfer toward the shipping junction, the shipping run
+ * toward its west end). On a box's top face u runs from x = -L/2 to +L/2 and
+ * three samples `repeat * u + offset`, so a texel moves toward +x only while
+ * the offset DECREASES. The belt used to add, which ran the cleats backwards
+ * under the sacks at twice belt speed.
+ */
+export function scrollBeltOffset(offset: number, travelTiles: number): number {
+  const next = (offset - travelTiles) % 1;
+  return next < 0 ? next + 1 : next;
+}
+
+/**
+ * A roller whose top surface moves toward local +x turns NEGATIVELY about its
+ * axis: both the drive-roller group (spun about z) and the idlers (Euler
+ * `(PI/2, angle, 0)`, barrel axis mapped to z) carry the top point (0, r, 0)
+ * to (-r sin(angle), r cos(angle), 0).
+ */
+export function advanceRollerAngle(angle: number, radians: number): number {
+  return (angle - radians) % (Math.PI * 2);
+}
 
 // Module-level registry for centralized conveyor audio updates
 const conveyorAudioRegistry = new Map<string, { position: THREE.Vector3; isRunning: boolean }>();
@@ -119,6 +151,29 @@ const BELT_TILE_PX = 512;
  * productionSpeed 2 - comfortably clear of temporal aliasing.
  */
 const BELT_CLEATS_PER_TILE = 8;
+/** Metres between cleats (0.5). */
+const BELT_CLEAT_PITCH = WORLD_UNITS_PER_TILE / BELT_CLEATS_PER_TILE;
+/**
+ * Most belt travel one rendered frame may show: 0.45 of a cleat. Past half a
+ * cleat per frame the eye pairs each cleat with the one behind it and the belt
+ * reads as crawling BACKWARDS. 4x pace asks for 16 m/s (0.53 cleat per 60 Hz
+ * frame), so the belt and the sacks riding it share this cap: they stay in
+ * lockstep and read as fast forward travel instead of a reversed belt.
+ */
+const MAX_BELT_TRAVEL_PER_FRAME = 0.45 * BELT_CLEAT_PITCH;
+
+/** Metres of belt surface travel this frame, shared by belt UV and sacks. */
+export function beltTravelMetres(delta: number, rate: number): number {
+  if (!(rate > 0)) return 0;
+  return Math.min(clampFrameDelta(delta) * rate * BELT_LINEAR_SPEED, MAX_BELT_TRAVEL_PER_FRAME);
+}
+
+/**
+ * Rollers spin at the authored rate up to productionSpeed 1 and no faster:
+ * see DRIVE_ROLLER_SPIN for why a faster spin strobes. They carry no cargo, so
+ * capping them cannot open a slip against anything riding them.
+ */
+export const rollerSpinRate = (rate: number): number => Math.min(Math.max(0, rate), 1);
 /** Height-to-slope gain for the belt normal map. */
 const BELT_NORMAL_AMPLITUDE = 12;
 
@@ -373,8 +428,75 @@ const cloneConveyorTexture = (
   return texture;
 };
 
+// === LINE DRIVE ==========================================================
+//
+// ONE rate per frame for every belt, roller and sack, so they cannot disagree.
+// It is the line setpoint times plant time (0 under a clock or safety hold,
+// 4x at 4x pace), times an eased interlock with the packers: the conveyors
+// carry finished sacks, so they run while a packer is packing or sacks are
+// still aboard, then ease to a stop. A broken or starved packer stops sending
+// sacks, so its share of the belt thins out instead of streaming past it.
+
+/** Packers in layout order; sack slot `i` is filled by packer `i % count`. */
+const PACKER_IDS: readonly string[] = SITE_LAYOUT.machines.packers.map(({ id }) => id);
+/** Machine state ticks at 2 Hz; re-reading it every 15 frames is ample. */
+const DRIVE_STATE_REFRESH_FRAMES = 15;
+/** Plant seconds for the line to ease to a stop or back up to speed. */
+const LINE_INTERLOCK_EASE_SECONDS = 0.6;
+
+interface ConveyorDrive {
+  /** Multiple of the authored belt speed this frame; 0 when the line is still. */
+  rate: number;
+  /** Belt surface travel this frame in metres, shared by belt UV and sacks. */
+  travel: number;
+  /** Eased 0..1 interlock with the packers. */
+  activity: number;
+  /** Whether each packer (PACKER_IDS order) is discharging sacks. */
+  packerDischarging: boolean[];
+  /** Sacks visible on the shipping run, reported by the cargo loop. */
+  sacksAboard: number;
+}
+
+const ConveyorLineDrive: React.FC<{
+  drive: ConveyorDrive;
+  productionSpeed: number;
+  safetyHold: boolean;
+  onRunningChange: (running: boolean) => void;
+}> = ({ drive, productionSpeed, safetyHold, onRunningChange }) => {
+  const frameRef = useRef(0);
+  const runningRef = useRef(drive.rate > 0);
+
+  useFrame((_, delta) => {
+    if (frameRef.current % DRIVE_STATE_REFRESH_FRAMES === 0) {
+      const machines = useProductionStore.getState().machines;
+      const buffers = useMaterialFlowStore.getState().machineBuffers;
+      PACKER_IDS.forEach((id, index) => {
+        drive.packerDischarging[index] = isMachineDischarging(
+          machineFlowState(id, machines, buffers)
+        );
+      });
+    }
+    frameRef.current = (frameRef.current + 1) % DRIVE_STATE_REFRESH_FRAMES;
+
+    const { gameSpeed } = useGameSimulationStore.getState();
+    const baseRate = lineMotionRate(productionSpeed, gameSpeed, safetyHold);
+    const plantDelta = baseRate > 0 ? clampFrameDelta(delta) * plantTimeScale(gameSpeed) : 0;
+    const target = drive.packerDischarging.some(Boolean) || drive.sacksAboard > 0 ? 1 : 0;
+    drive.activity = easeToward(drive.activity, target, plantDelta, LINE_INTERLOCK_EASE_SECONDS);
+    drive.rate = baseRate * drive.activity;
+    drive.travel = beltTravelMetres(delta, drive.rate);
+
+    const running = drive.rate > 0;
+    if (running !== runningRef.current) {
+      runningRef.current = running;
+      onRunningChange(running);
+    }
+  });
+  return null;
+};
+
 // Centralized audio manager component - updates all conveyors in one pass
-const ConveyorAudioManager: React.FC<{ productionSpeed: number }> = ({ productionSpeed }) => {
+const ConveyorAudioManager: React.FC<{ drive: ConveyorDrive }> = ({ drive }) => {
   const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
 
   useFrame(() => {
@@ -385,7 +507,7 @@ const ConveyorAudioManager: React.FC<{ productionSpeed: number }> = ({ productio
     // Throttle to every 4th frame (was 2nd frame per conveyor)
     // With 10-15 conveyors, this reduces from 150-225 updates/sec to 37-56 updates/sec
     if (!shouldRunThisFrame(4)) return;
-    if (productionSpeed === 0) return;
+    if (drive.rate <= 0) return;
 
     // Update all registered conveyors in one pass
     conveyorAudioRegistry.forEach((data, id) => {
@@ -442,7 +564,21 @@ export const ConveyorSystem = React.memo<ConveyorSystemProps>(({ productionSpeed
   // A fire drill or emergency stop halts every belt, sack and conveyor hum,
   // matching the machines and forklifts the hold has already stopped.
   const safetyHold = useGameSimulationStore(selectSafetyHoldActive);
-  const effectiveSpeed = safetyHold ? 0 : productionSpeed;
+  // Written by ConveyorLineDrive every frame and read by every belt, roller and
+  // sack loop, so nothing here re-renders at frame rate. The belt starts
+  // stocked and running, as authored; real state takes over on the first frame.
+  const drive = useMemo<ConveyorDrive>(
+    () => ({
+      rate: 0,
+      travel: 0,
+      activity: 1,
+      packerDischarging: PACKER_IDS.map(() => true),
+      sacksAboard: 0,
+    }),
+    []
+  );
+  // Only the hum needs React: it starts and stops with the line.
+  const [lineRunning, setLineRunning] = useState(false);
 
   const bags = useMemo(() => {
     const _bags: FlourBag[] = [];
@@ -465,8 +601,15 @@ export const ConveyorSystem = React.memo<ConveyorSystemProps>(({ productionSpeed
 
   return (
     <group>
+      {/* First child, so its frame callback runs before the belts read the rate. */}
+      <ConveyorLineDrive
+        drive={drive}
+        productionSpeed={productionSpeed}
+        safetyHold={safetyHold}
+        onRunningChange={setLineRunning}
+      />
       {/* Centralized audio manager - updates all conveyors in one pass */}
-      <ConveyorAudioManager productionSpeed={effectiveSpeed} />
+      <ConveyorAudioManager drive={drive} />
 
       {Object.values(CONVEYOR_LAYOUT).map((run) => (
         <BeltContactShadow
@@ -482,7 +625,8 @@ export const ConveyorSystem = React.memo<ConveyorSystemProps>(({ productionSpeed
       <MemoizedConveyorBelt
         position={[CONVEYOR_LAYOUT.main.position[0], 0.5, CONVEYOR_LAYOUT.main.position[2]]}
         length={CONVEYOR_LAYOUT.main.length}
-        productionSpeed={effectiveSpeed}
+        drive={drive}
+        running={lineRunning}
       />
       <group position={[...CONVEYOR_LAYOUT.main.position]}>
         <SideRails position={[-2, 1.3, 0]} length={CONVEYOR_LAYOUT.main.length - 4} />
@@ -493,7 +637,8 @@ export const ConveyorSystem = React.memo<ConveyorSystemProps>(({ productionSpeed
 
       <RollerConveyor
         position={[CONVEYOR_LAYOUT.roller.position[0], 0.5, CONVEYOR_LAYOUT.roller.position[2]]}
-        productionSpeed={effectiveSpeed}
+        drive={drive}
+        running={lineRunning}
       />
 
       {/* The transfer runs down the right wall; its return delivers sacks along
@@ -503,7 +648,8 @@ export const ConveyorSystem = React.memo<ConveyorSystemProps>(({ productionSpeed
           <MemoizedConveyorBelt
             position={[0, 0.5, 0]}
             length={run.length}
-            productionSpeed={effectiveSpeed}
+            drive={drive}
+            running={lineRunning}
             enableAudio={false}
           />
           <SideRails
@@ -514,7 +660,7 @@ export const ConveyorSystem = React.memo<ConveyorSystemProps>(({ productionSpeed
             positions={SUPPORT_LEG_POSITIONS.filter((x) => Math.abs(x) < run.length / 2 - 1)}
           />
           {run.id === CONVEYOR_LAYOUT.shipping.id && (
-            <InstancedFlourBags bags={bags} productionSpeed={effectiveSpeed} />
+            <InstancedFlourBags bags={bags} drive={drive} />
           )}
         </group>
       ))}
@@ -798,9 +944,10 @@ const DRIVE_ROLLER_BEARING_MATERIAL = CONVEYOR_MATERIALS.paintedSlate;
 export const ConveyorBelt: React.FC<{
   position: [number, number, number];
   length: number;
-  productionSpeed: number;
+  drive: ConveyorDrive;
+  running: boolean;
   enableAudio?: boolean;
-}> = ({ position, length, productionSpeed, enableAudio = true }) => {
+}> = ({ position, length, drive, running, enableAudio = true }) => {
   const beltRef = useRef<THREE.Mesh>(null);
   const driveRollerRef = useRef<THREE.Group>(null);
   // Roller count derived from the belt's actual length (one every 4 units,
@@ -857,8 +1004,8 @@ export const ConveyorBelt: React.FC<{
   const positionVec = useMemo(() => new THREE.Vector3(posX, posY, posZ), [posX, posY, posZ]);
 
   // Start conveyor sound and register for centralized audio updates. The hum
-  // follows the belt: it stops when the belt stops and restarts with it.
-  const running = productionSpeed > 0;
+  // follows the belt: it stops when the belt stops (clock held, safety hold,
+  // packing stopped) and restarts with it.
   const audioReady = useAudioInitialized();
   useEffect(() => {
     if (!enableAudio || !audioReady || !running) return;
@@ -906,37 +1053,36 @@ export const ConveyorBelt: React.FC<{
   useEffect(() => () => beltMaterial.dispose(), [beltMaterial]);
 
   useFrame((_, delta) => {
-    // PERFORMANCE: Skip animations when tab hidden or production stopped
-    if (!isTabVisible || productionSpeed === 0) return;
-    // Skip animations on low graphics
-    if (quality === 'low') return;
+    // PERFORMANCE: Skip animations when tab hidden or the line is still
+    // (clock held, safety hold, packing stopped).
+    const rate = drive.rate;
+    if (!isTabVisible || rate <= 0) return;
 
-    // UV SCROLL RUNS EVERY FRAME, OUTSIDE THE THROTTLE. This is three float
-    // writes. At the previous 3-frame throttle the belt advanced a full cleat
-    // per update and simply looked stationary - the 60 Hz write is a
-    // requirement of the cleats reading as motion at all, not polish.
-    const uvDelta = Math.min(delta, 0.1);
-    const scrollAmount = uvDelta * productionSpeed * BELT_UV_RATE;
+    // UV SCROLL RUNS EVERY FRAME, OUTSIDE THE THROTTLE, ON EVERY TIER. This is
+    // three float writes. At the previous 3-frame throttle the belt advanced a
+    // full cleat per update and simply looked stationary - the 60 Hz write is a
+    // requirement of the cleats reading as motion at all, not polish. Low used
+    // to skip it while the sacks still moved, so they slid over a dead belt.
+    const scrollAmount = drive.travel / WORLD_UNITS_PER_TILE;
     // three keeps a SEPARATE transform uniform per map slot, so all three
     // offsets must advance together or the relief slides off the albedo.
-    activeMaps.map.offset.x = (activeMaps.map.offset.x + scrollAmount) % 1;
+    activeMaps.map.offset.x = scrollBeltOffset(activeMaps.map.offset.x, scrollAmount);
     if (activeMaps.normal) {
-      activeMaps.normal.offset.x = (activeMaps.normal.offset.x + scrollAmount) % 1;
+      activeMaps.normal.offset.x = scrollBeltOffset(activeMaps.normal.offset.x, scrollAmount);
     }
     if (activeMaps.roughness) {
-      activeMaps.roughness.offset.x = (activeMaps.roughness.offset.x + scrollAmount) % 1;
+      activeMaps.roughness.offset.x = scrollBeltOffset(activeMaps.roughness.offset.x, scrollAmount);
     }
 
     // Roller matrix work stays throttled - see DRIVE_ROLLER_SPIN.
-    if (!shouldRunThisFrame(movementThrottle)) return;
+    if (!driveRollerRef.current || !shouldRunThisFrame(movementThrottle)) return;
     const cappedDelta = Math.min(delta * movementThrottle, 0.1);
 
     // Animate drive rollers - wrap to prevent float precision issues
-    if (driveRollerRef.current) {
-      driveRollerRef.current.rotation.z =
-        (driveRollerRef.current.rotation.z + cappedDelta * productionSpeed * DRIVE_ROLLER_SPIN) %
-        (Math.PI * 2);
-    }
+    driveRollerRef.current.rotation.z = advanceRollerAngle(
+      driveRollerRef.current.rotation.z,
+      cappedDelta * rollerSpinRate(rate) * DRIVE_ROLLER_SPIN
+    );
     // Audio updates now handled by centralized ConveyorAudioManager
   });
 
@@ -1114,9 +1260,10 @@ const _tempEuler = new THREE.Euler();
 // Instanced roller conveyor - 25 rollers rendered in 1 draw call
 export const RollerConveyor: React.FC<{
   position: [number, number, number];
-  productionSpeed: number;
+  drive: ConveyorDrive;
+  running: boolean;
   enableAudio?: boolean;
-}> = ({ position, productionSpeed, enableAudio = true }) => {
+}> = ({ position, drive, running, enableAudio = true }) => {
   const rollersRef = useRef<THREE.InstancedMesh>(null);
   const axlesRef = useRef<THREE.InstancedMesh>(null);
   const posX = position[0];
@@ -1180,7 +1327,6 @@ export const RollerConveyor: React.FC<{
 
   // Start roller conveyor sound and register for centralized audio updates;
   // silent while the rollers are stopped.
-  const running = productionSpeed > 0;
   const audioReady = useAudioInitialized();
   useEffect(() => {
     if (!enableAudio || !audioReady || !running) return;
@@ -1193,10 +1339,11 @@ export const RollerConveyor: React.FC<{
   }, [conveyorId, enableAudio, audioReady, running, posX, posY, posZ, positionVec]);
 
   useFrame((_, delta) => {
-    // PERFORMANCE: Skip animations when tab hidden or production stopped
-    if (!isTabVisible || productionSpeed === 0) return;
-    // Skip animations on low graphics
-    if (quality === 'low') return;
+    // PERFORMANCE: Skip animations when tab hidden or the line is still.
+    // Runs on Low too: 25 instance matrices every third frame is trivial, and a
+    // stationary roller line beside moving belts read as broken.
+    const rate = drive.rate;
+    if (!isTabVisible || rate <= 0) return;
     if (!rollersRef.current) return;
     if (!shouldRunThisFrame(movementThrottle)) return;
 
@@ -1206,10 +1353,10 @@ export const RollerConveyor: React.FC<{
     // Update rotations for each roller
     for (let i = 0; i < ROLLER_COUNT; i++) {
       const speedVariation = 1 + Math.sin(i * 0.5) * 0.1;
-      rotationsRef.current[i] =
-        (rotationsRef.current[i] +
-          cappedDelta * productionSpeed * IDLER_ROLLER_SPIN * speedVariation) %
-        (Math.PI * 2);
+      rotationsRef.current[i] = advanceRollerAngle(
+        rotationsRef.current[i],
+        cappedDelta * rollerSpinRate(rate) * IDLER_ROLLER_SPIN * speedVariation
+      );
 
       // Update instance matrix with new rotation (reuse module-level Euler).
       //
@@ -1305,7 +1452,6 @@ export {
 export const BAG_BODY_OFFSET = new THREE.Matrix4().makeTranslation(0, FLOUR_SACK_HEIGHT / 2, 0);
 // Body and all five printed faces share the same belt-contact datum.
 export const BAG_STRIPE_OFFSET = BAG_BODY_OFFSET.clone();
-const BAG_SCALE = new THREE.Vector3(1, 1, 1);
 const BAG_UP = new THREE.Vector3(0, 1, 0);
 const BAG_IDLE_COLOR = new THREE.Color('#ffffff');
 const BAG_HOVER_COLOR = new THREE.Color('#ffd99a');
@@ -1318,8 +1464,43 @@ export function advanceBagPosition(
 ): number {
   const cappedDelta = Math.min(Math.max(delta, 0), 0.1);
   const next = currentX + speed * Math.max(0, productionSpeed) * cappedDelta;
+  return wrapBagPosition(next);
+}
+
+/** Wrap a sack slot that has run past the tail back to the head. */
+export function wrapBagPosition(next: number): number {
   if (next <= BAG_BOUNDARY) return next;
   return -BAG_BOUNDARY + ((next - BAG_BOUNDARY) % (BAG_BOUNDARY * 2));
+}
+
+/**
+ * Belt length over which a sack scales in at the head and out at the tail.
+ * The slot still wraps 42 m in one frame, but it does so at BAG_MIN_SCALE on
+ * both sides, so no sack blinks out of or into existence mid-belt.
+ */
+const BAG_FADE_METRES = 1.2;
+/** Never 0: InstancedMesh raycasting inverts each instance matrix. */
+export const BAG_MIN_SCALE = 0.01;
+
+export function bagEdgeScale(x: number): number {
+  return Math.max(
+    BAG_MIN_SCALE,
+    smoothstep(BAG_BOUNDARY, BAG_BOUNDARY - BAG_FADE_METRES, Math.abs(x))
+  );
+}
+
+/**
+ * A slot keeps its sack mid-belt. When it wraps back to the head it is refilled
+ * only if its packer is packing, so a broken or starved packer thins the belt
+ * and an idle line runs its sacks off the end instead of streaming forever.
+ */
+export function nextBagOccupied(
+  previousX: number,
+  nextX: number,
+  occupied: boolean,
+  packerDischarging: boolean
+): boolean {
+  return nextX < previousX ? packerDischarging : occupied;
 }
 
 /**
@@ -1329,13 +1510,15 @@ export function advanceBagPosition(
  */
 const InstancedFlourBags: React.FC<{
   bags: FlourBag[];
-  productionSpeed: number;
-}> = React.memo(({ bags, productionSpeed }) => {
+  drive: ConveyorDrive;
+}> = React.memo(({ bags, drive }) => {
   const t = useT(conveyorSystemMessages);
   const bodiesRef = useRef<THREE.InstancedMesh>(null);
   const stripesRef = useRef<THREE.InstancedMesh>(null);
   const tooltipRef = useRef<THREE.Group>(null);
   const positionsRef = useRef<number[]>(bags.map((bag) => bag.position[0]));
+  const occupiedRef = useRef<boolean[]>(bags.map(() => true));
+  const bagScale = useMemo(() => new THREE.Vector3(), []);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
   const groupPosition = useMemo(() => new THREE.Vector3(), []);
@@ -1354,9 +1537,12 @@ const InstancedFlourBags: React.FC<{
 
     for (let index = 0; index < bags.length; index += 1) {
       const bag = bags[index];
-      groupPosition.set(positionsRef.current[index], bag.position[1], bag.position[2]);
+      const x = positionsRef.current[index];
+      groupPosition.set(x, bag.position[1], bag.position[2]);
       groupRotation.setFromAxisAngle(BAG_UP, bag.rotation);
-      groupMatrix.compose(groupPosition, groupRotation, BAG_SCALE);
+      // Scaling the group shrinks the sack into its belt-contact datum.
+      bagScale.setScalar(occupiedRef.current[index] ? bagEdgeScale(x) : BAG_MIN_SCALE);
+      groupMatrix.compose(groupPosition, groupRotation, bagScale);
 
       instanceMatrix.multiplyMatrices(groupMatrix, BAG_BODY_OFFSET);
       bodies.setMatrixAt(index, instanceMatrix);
@@ -1374,6 +1560,8 @@ const InstancedFlourBags: React.FC<{
     if (!bodies || !stripes) return;
 
     positionsRef.current = bags.map((bag) => bag.position[0]);
+    occupiedRef.current = bags.map(() => true);
+    drive.sacksAboard = bags.length;
     bodies.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     stripes.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     for (let index = 0; index < bags.length; index += 1) {
@@ -1386,7 +1574,7 @@ const InstancedFlourBags: React.FC<{
     bodies.computeBoundingSphere();
     stripes.computeBoundingSphere();
     setHoveredIndex(null);
-  }, [bags, qualityColours]);
+  }, [bags, qualityColours, drive]);
 
   useEffect(() => {
     const bodies = bodiesRef.current;
@@ -1397,16 +1585,27 @@ const InstancedFlourBags: React.FC<{
     if (bodies.instanceColor) bodies.instanceColor.needsUpdate = true;
   }, [bags.length, hoveredIndex]);
 
-  useFrame((_, delta) => {
-    if (isTabVisible && productionSpeed > 0) {
+  useFrame(() => {
+    // Sacks ride the belt: they move by exactly the belt's own travel this
+    // frame, so cargo and cleats cannot slip against each other.
+    const travel = drive.travel;
+    if (isTabVisible && travel > 0) {
+      const packers = drive.packerDischarging;
+      let aboard = 0;
       for (let index = 0; index < bags.length; index += 1) {
-        positionsRef.current[index] = advanceBagPosition(
-          positionsRef.current[index],
-          bags[index].speed,
-          productionSpeed,
-          delta
+        const previous = positionsRef.current[index];
+        const next = wrapBagPosition(previous + travel);
+        const occupied = nextBagOccupied(
+          previous,
+          next,
+          occupiedRef.current[index],
+          packers.length === 0 || packers[index % packers.length]
         );
+        positionsRef.current[index] = next;
+        occupiedRef.current[index] = occupied;
+        if (occupied) aboard += 1;
       }
+      drive.sacksAboard = aboard;
       writeMatrices();
     }
 
@@ -1431,7 +1630,10 @@ const InstancedFlourBags: React.FC<{
         receiveShadow
         onPointerOver={(event) => {
           event.stopPropagation();
-          if (event.instanceId !== undefined) setHoveredIndex(event.instanceId);
+          // An empty slot is a sub-centimetre speck; it has no batch to show.
+          if (event.instanceId !== undefined && occupiedRef.current[event.instanceId]) {
+            setHoveredIndex(event.instanceId);
+          }
         }}
         onPointerOut={() => setHoveredIndex(null)}
       >

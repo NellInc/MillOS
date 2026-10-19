@@ -11,6 +11,13 @@ import {
   getFlourBagStartX,
   getFlourSackGeometry,
   getConveyorSupportMatrices,
+  advanceRollerAngle,
+  beltTravelMetres,
+  rollerSpinRate,
+  bagEdgeScale,
+  BAG_MIN_SCALE,
+  nextBagOccupied,
+  scrollBeltOffset,
 } from './ConveyorSystem';
 import { FLOUR_SACK_PRINT_GEOMETRY, FLOUR_INK_STANDOFF } from '../utils/flourSacks';
 
@@ -156,5 +163,131 @@ describe('flour sack printing', () => {
     for (let i = 3; i < bytes.length; i += 4) if (bytes[i] === 255) inkPixels++;
     expect(inkPixels / (bytes.length / 4)).toBeGreaterThan(0.05);
     expect(inkPixels / (bytes.length / 4)).toBeLessThan(0.2);
+  });
+});
+
+describe('belt, roller and sack agree on direction', () => {
+  /** World x of the top-face point whose transformed uv.x is `texel`. */
+  const texelX = (geometry: THREE.BoxGeometry, repeat: number, offset: number, texel: number) => {
+    // Top face (+y) of a box: u runs linearly along x. Read the mapping from
+    // the real geometry rather than assuming it.
+    const position = geometry.getAttribute('position');
+    const normal = geometry.getAttribute('normal');
+    const uv = geometry.getAttribute('uv');
+    const top: { x: number; u: number }[] = [];
+    for (let i = 0; i < position.count; i++) {
+      if (normal.getY(i) > 0.5) top.push({ x: position.getX(i), u: uv.getX(i) });
+    }
+    const minX = Math.min(...top.map((p) => p.x));
+    const maxX = Math.max(...top.map((p) => p.x));
+    const uAtMin = top.find((p) => p.x === minX)!.u;
+    const uAtMax = top.find((p) => p.x === maxX)!.u;
+    // three samples repeat * u + offset.
+    const u = (texel - offset) / repeat;
+    return minX + ((u - uAtMin) / (uAtMax - uAtMin)) * (maxX - minX);
+  };
+
+  it('scrolls the belt cleats the same way the sacks travel', () => {
+    const length = CONVEYOR_LAYOUT.shipping.length;
+    const geometry = new THREE.BoxGeometry(length, 0.1, 2);
+    const repeat = length / 4;
+    try {
+      const before = texelX(geometry, repeat, 0.5, 5.5);
+      const after = texelX(geometry, repeat, scrollBeltOffset(0.5, 0.05), 5.5);
+      const sackStep = advanceBagPosition(0, 5, 1, 0.01);
+      expect(sackStep).toBeGreaterThan(0);
+      expect(after - before).toBeGreaterThan(0);
+      // One tile is 4 m, so 0.05 tile is 0.2 m of belt travel.
+      expect(after - before).toBeCloseTo(0.2, 6);
+    } finally {
+      geometry.dispose();
+    }
+  });
+
+  it('wraps a scrolled offset into [0, 1)', () => {
+    expect(scrollBeltOffset(0.02, 0.05)).toBeCloseTo(0.97, 9);
+    expect(scrollBeltOffset(0.5, 3.25)).toBeCloseTo(0.25, 9);
+    expect(scrollBeltOffset(0.5, 0)).toBe(0.5);
+  });
+
+  it('turns the idler rollers so their top surface runs with the cargo', () => {
+    // RollerConveyor composes Euler(PI/2, angle, 0); the barrel axis is local y.
+    const top = new THREE.Vector3(0, 0, -0.15); // pre-image of (0, 0.15, 0) at angle 0
+    const at = (angle: number) =>
+      top
+        .clone()
+        .applyQuaternion(
+          new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, angle, 0))
+        );
+    expect(at(0).y).toBeCloseTo(0.15, 9);
+    expect(at(advanceRollerAngle(0, 0.01)).x).toBeGreaterThan(0);
+  });
+
+  it('turns the drive rollers so their top surface runs with the belt', () => {
+    // The drive-roller group spins about its own z axis.
+    const top = new THREE.Vector3(0, 0.12, 0);
+    const moved = top.clone().applyEuler(new THREE.Euler(0, 0, advanceRollerAngle(0, 0.01)));
+    expect(moved.x).toBeGreaterThan(0);
+  });
+});
+
+describe('belt travel follows the plant clock', () => {
+  it('is still while the clock is held and scales with pace', () => {
+    // lineMotionRate(0.8, gameSpeed, false) at paused, 1/2x, 1x, 2x.
+    expect(beltTravelMetres(1 / 60, 0)).toBe(0);
+    const half = beltTravelMetres(1 / 60, 0.4);
+    const standard = beltTravelMetres(1 / 60, 0.8);
+    const double = beltTravelMetres(1 / 60, 1.6);
+    expect(standard).toBeCloseTo(5 * 0.8 * (1 / 60), 9);
+    expect(half * 2).toBeCloseTo(standard, 9);
+    expect(double).toBeCloseTo(standard * 2, 9);
+  });
+
+  it('never shows more than half a cleat per frame, so 4x cannot read as reversed', () => {
+    const cleatPitch = 0.5;
+    for (const rate of [3.2, 10]) {
+      for (const delta of [1 / 60, 1 / 30, 5]) {
+        expect(beltTravelMetres(delta, rate)).toBeLessThan(cleatPitch / 2);
+      }
+    }
+  });
+
+  it('caps roller spin at the authored rate that does not strobe', () => {
+    expect(rollerSpinRate(0)).toBe(0);
+    expect(rollerSpinRate(0.4)).toBe(0.4);
+    expect(rollerSpinRate(3.2)).toBe(1);
+  });
+});
+
+describe('sacks enter and leave by scale, never by a mid-belt pop', () => {
+  it('is full size mid-belt and nearly gone at both ends', () => {
+    expect(bagEdgeScale(0)).toBe(1);
+    expect(bagEdgeScale(BAG_BOUNDARY)).toBe(BAG_MIN_SCALE);
+    expect(bagEdgeScale(-BAG_BOUNDARY)).toBe(BAG_MIN_SCALE);
+    expect(bagEdgeScale(BAG_BOUNDARY - 0.3)).toBeGreaterThan(BAG_MIN_SCALE);
+    expect(bagEdgeScale(BAG_BOUNDARY - 0.3)).toBeLessThan(1);
+  });
+
+  it('never writes a singular instance matrix', () => {
+    for (let x = -BAG_BOUNDARY - 1; x <= BAG_BOUNDARY + 1; x += 0.05) {
+      expect(bagEdgeScale(x)).toBeGreaterThan(0);
+    }
+  });
+
+  it('is invisible on both sides of the wrap, so the 42 m jump cannot be seen', () => {
+    const before = BAG_BOUNDARY - 0.01;
+    const after = advanceBagPosition(before, 5, 1, 0.016);
+    expect(after).toBeLessThan(0);
+    expect(bagEdgeScale(before)).toBeLessThan(0.02);
+    expect(bagEdgeScale(after)).toBeLessThan(0.05);
+  });
+
+  it('refills a wrapped slot only while its packer is packing', () => {
+    // Mid-belt a sack keeps whatever it carries.
+    expect(nextBagOccupied(1, 1.1, true, false)).toBe(true);
+    expect(nextBagOccupied(1, 1.1, false, true)).toBe(false);
+    // At the wrap the slot re-enters at the head only if its packer is operating.
+    expect(nextBagOccupied(BAG_BOUNDARY - 0.01, -BAG_BOUNDARY + 0.07, true, false)).toBe(false);
+    expect(nextBagOccupied(BAG_BOUNDARY - 0.01, -BAG_BOUNDARY + 0.07, false, true)).toBe(true);
   });
 });
