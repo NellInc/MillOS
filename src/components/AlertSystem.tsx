@@ -6,6 +6,7 @@ import { useUIStore } from '../stores/uiStore';
 import type { AlertData } from '../types';
 import { translate } from '../i18n';
 import { alertSystemMessages } from './AlertSystem.messages';
+import { LiveRegionPortal } from './ui/LiveRegionPortal';
 
 type PlainMessageKey = Exclude<keyof typeof alertSystemMessages.en, 'typedLiveRegion'>;
 const m = (key: PlainMessageKey): string => translate(alertSystemMessages, key);
@@ -170,13 +171,13 @@ export const AlertSystem: React.FC = () => {
   // Only render screen reader live region - no visible UI
   // Alerts are displayed via StatusHUD notification dropdown
   return (
-    <>
+    <LiveRegionPortal>
       <div role="alert" aria-atomic="true" className="sr-only">
         {liveRegionMessage}
       </div>
       <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
         {politeMessage}
       </div>
-    </>
+    </LiveRegionPortal>
   );
 };
