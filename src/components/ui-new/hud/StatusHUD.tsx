@@ -337,10 +337,11 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace: workspa
           {workspace}
         </span>
         {/* On desktop the bar stays one row: a wrapped row grew it into the
-            cards below and pushed the clock under the open panel. Only the two
-            long amber status chips give way, truncating; their full text stays
-            in aria-label and title. Working if the bar is one row at 1280 px
-            with both chips showing, in English and pt-BR. */}
+            cards below and pushed the clock under the open panel. Only the long
+            line-idle chip gives way, truncating; its full text stays in
+            aria-label and title, and the agreement reading keeps its number.
+            Working if the bar is one row at 1280 px with both chips showing,
+            in English and pt-BR. */}
         <div
           className="flex min-w-0 flex-1 flex-wrap items-center gap-x-5 gap-y-2 px-5 py-3 lg:flex-nowrap"
           role="group"
@@ -375,7 +376,7 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace: workspa
 
           {agreementPacing !== null && (
             <div
-              className="flex min-w-0 shrink items-center gap-1.5 text-[12px] text-amber-200"
+              className="flex shrink-0 items-center gap-1.5 text-[12px] text-amber-200"
               aria-label={
                 agreementPacing === 'between'
                   ? t('agreementBetweenLabel')
@@ -383,7 +384,7 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace: workspa
               }
               title={t('agreementPacingTitle')}
             >
-              <span className="truncate">
+              <span>
                 {agreementPacing === 'between'
                   ? t('agreementBetweenText')
                   : t('agreementPacingText', { value: formatFixed(agreementPacing * 100, 0) })}
@@ -393,7 +394,7 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace: workspa
 
           {lineIdleAwaitingTruck && (
             <div
-              className="flex min-w-0 shrink-[3] items-center gap-1.5 text-[12px] text-amber-200"
+              className="flex min-w-0 shrink items-center gap-1.5 text-[12px] text-amber-200"
               aria-label={
                 lineChangingOver
                   ? t('lineChangeoverLabel', { customer: prestagingCustomer! })
