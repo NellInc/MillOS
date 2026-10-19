@@ -295,6 +295,7 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
             'continueImprovement',
             'cancelImprovement',
             'closeImprovement',
+            'resumeShift',
           ].includes(command.type) &&
           isWorkplaceReplayActive()
         )
@@ -480,6 +481,7 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
         finishImprovementReview: (...args) => apply({ type: 'finishImprovementReview', args }),
         continueImprovement: (revision) =>
           apply({ type: 'continueImprovement', args: [revision, linkedMission()] }),
+        resumeShift: (revision) => apply({ type: 'resumeShift', args: [revision] }),
         closeImprovement: (revision) => {
           const origin = get().workplace.improvement?.origin;
           const result = apply({ type: 'closeImprovement', args: [revision] });

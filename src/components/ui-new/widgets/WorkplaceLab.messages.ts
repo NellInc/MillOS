@@ -332,6 +332,9 @@ export const workplaceLabMessages = defineMessages({
     prepareNextPilot: 'Prepare next pilot draft',
     shippedOf: 'Shipped {shipped} of {target} kg.',
     reviewOpens: 'Review opens after the shift finishes.',
+    resumeAfterReloadNote:
+      'A reload paused this shift at minute {minute} and expired every grant. It can carry on from there once everyone consents again; nothing runs before that.',
+    resumeShift: 'Resume the shift with fresh consent',
     relationshipEvidence: 'Relationship evidence',
     relationshipEvidenceLine:
       'Refusals respected: {refusals}. Promises kept: {promises}. Open objections: {open}. Current agreement confirmations: {confirmed}/{total}.',
@@ -663,6 +666,9 @@ export const workplaceLabMessages = defineMessages({
     prepareNextPilot: 'Preparar o próximo rascunho do piloto',
     shippedOf: 'Expedidos {shipped} de {target} kg.',
     reviewOpens: 'A revisão abre quando o turno terminar.',
+    resumeAfterReloadNote:
+      'Uma recarga pausou este turno no minuto {minute} e expirou todas as autorizações. Ele pode continuar dali quando todos consentirem de novo; nada roda antes disso.',
+    resumeShift: 'Retomar o turno com novo consentimento',
     relationshipEvidence: 'Evidências da relação',
     relationshipEvidenceLine:
       'Recusas respeitadas: {refusals}. Promessas cumpridas: {promises}. Objeções abertas: {open}. Confirmações do acordo atual: {confirmed}/{total}.',

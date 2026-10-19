@@ -98,27 +98,36 @@ describe('playable shift UI', () => {
   it.each([
     [
       'en',
-      'Working agreement: incomplete',
-      'Why: Reload safety: future authority and consent revoked; earned pay retained.',
+      'Reload safety: future authority and consent revoked; earned pay retained.',
+      'Working agreement: pending',
+      'Paused by a reload at minute 76: the shift carries on once everyone consents again, in the Bilateral Autonomy System (BAS) panel.',
     ],
     [
       'pt-BR',
+      'Reload safety: future authority and consent revoked; earned pay retained.',
+      'Acordo de trabalho: pendente',
+      'Pausado por uma recarga no minuto 76: o turno continua quando todos consentirem de novo, no painel Sistema de Autonomia Bilateral (BAS).',
+    ],
+    ['en', 'Stopped by the team.', 'Working agreement: incomplete', 'Why: Stopped by the team.'],
+    [
+      'pt-BR',
+      'Stopped by the team.',
       'Acordo de trabalho: incompleto',
-      'Motivo: Proteção na recarga: autoridade e consentimento futuros revogados; remuneração adquirida mantida.',
+      'Motivo: Stopped by the team.',
     ],
   ] as const)(
-    'debrief (%s) says why a reload left the agreement incomplete',
-    (locale, status, why) => {
+    'debrief (%s) tells a reload pause (resumable) from an ending (%s)',
+    (locale, reason, status, line) => {
       useWorkplaceStore.getState().startMission('team');
       const state = useWorkplaceStore.getState().workplace;
       const record = campaignRecord({ ...state, minute: 90 });
       useWorkplaceStore.setState({
         workplace: {
           ...state,
-          // A reload settled the third shift at minute 76, short of its 90.
+          // The third shift settled at minute 76, short of its 90.
           phase: 'review',
           minute: 76,
-          reviewReason: 'Reload safety: future authority and consent revoked; earned pay retained.',
+          reviewReason: reason,
           campaign: {
             ...state.campaign!,
             shift: 2,
@@ -135,7 +144,7 @@ describe('playable shift UI', () => {
       try {
         render(<ShiftDebrief />);
         expect(screen.getByText(new RegExp(status))).toBeInTheDocument();
-        expect(screen.getByText(why)).toBeInTheDocument();
+        expect(screen.getByText(line)).toBeInTheDocument();
       } finally {
         setLocale('en');
       }

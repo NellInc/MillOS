@@ -13,6 +13,27 @@ import type {
 } from '../types/workplace';
 import { formatFixed, translate } from '../i18n';
 import { workplaceCampaignMessages as msg } from './workplaceCampaign.messages';
+import { bilateralWorkplaceMessages } from './bilateralWorkplace.messages';
+
+/**
+ * A campaign shift that a reload settled before its end can resume: reload
+ * safety expires every grant, it does not end the work. Only that ending is
+ * resumable; a stop, an objection, an emergency or a changed mission stand.
+ * The reload's settle stores the English sentinel as reviewReason, and restore
+ * keeps exactly that sentinel (any other reason is replaced with canonical
+ * text). Working if a reload mid-shift no longer costs the season its agreement.
+ */
+export function shiftResumable(s: WorkplaceState): boolean {
+  return (
+    s.mode === 'game' &&
+    !!s.campaign &&
+    !s.improvement &&
+    s.phase === 'review' &&
+    s.reviewReason === bilateralWorkplaceMessages.en.evReloadSafety &&
+    s.minute > 0 &&
+    s.minute < s.durationMinutes
+  );
+}
 
 export const WORKPLACE_PROFILES: WorkplaceProfile[] = ['toe-dip', 'team', 'cooperative'];
 
@@ -569,7 +590,10 @@ export function campaignOutcomes(s: WorkplaceState) {
       remainingKg: remainingKg <= 1e-6 ? 0 : remainingKg,
       customer: mission?.customer ?? translate(msg, 'teachingCustomer'),
     },
-    agreement: { status: agreementMet ? 'honoured' : ended ? 'incomplete' : 'pending' },
+    // A shift paused by a reload has not ended: it can resume with fresh consent.
+    agreement: {
+      status: agreementMet ? 'honoured' : ended && !shiftResumable(s) ? 'incomplete' : 'pending',
+    },
     complete: !!s.campaign && deliveryMet && agreementMet,
     accounts: {
       closingCash: s.finance.cash,

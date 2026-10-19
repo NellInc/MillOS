@@ -230,3 +230,32 @@ it('demonstrates sharing the sobras by member vote in the default season before 
   expect(reloaded.campaign?.shift).toBe(1);
   expect(reloaded.campaign?.history[0].finance.distributed).toBeCloseTo(surplus, 6);
 });
+
+it('resumes a shift a reload paused, before sharing sobras or moving on, and finishes it', () => {
+  for (let i = 0; i < 200 && useWorkplaceStore.getState().workplace.phase !== 'active'; i++)
+    autoplayWorkplaceStep('toe-dip');
+  useWorkplaceStore.getState().tick(30, 0, false);
+  expect(useWorkplaceStore.getState().workplace.minute).toBe(30);
+  // The page reloads: the store restores the safety-settled snapshot.
+  useWorkplaceStore.setState({
+    workplace: restoreWorkplace(saveWorkplace(useWorkplaceStore.getState().workplace)),
+  });
+  expect(useWorkplaceStore.getState().workplace.phase).toBe('review');
+  const step = autoplayWorkplaceStep('toe-dip');
+  expect(step.changed).toBe(true);
+  const resumed = useWorkplaceStore.getState().workplace;
+  expect(resumed.phase).toBe('deliberating');
+  expect(resumed.minute).toBe(30);
+  expect(resumed.distributionComplete).toBe(false);
+  expect(resumed.campaign?.shift).toBe(0);
+  // Fresh consent, then the same shift runs on to its full ninety minutes.
+  for (let i = 0; i < 200 && useWorkplaceStore.getState().workplace.phase !== 'review'; i++) {
+    autoplayWorkplaceStep('toe-dip');
+    if (useWorkplaceStore.getState().workplace.phase === 'active')
+      useWorkplaceStore.getState().tick(5, 0, false);
+  }
+  const finished = useWorkplaceStore.getState().workplace;
+  expect(finished.minute).toBe(90);
+  expect(finished.campaign?.shift).toBe(0);
+  expect(finished.campaign?.agreementProved).toBe(true);
+});

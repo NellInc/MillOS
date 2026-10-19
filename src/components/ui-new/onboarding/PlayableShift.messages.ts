@@ -83,6 +83,8 @@ export const playableShiftMessages = defineMessages({
       'The season now works {customer}: {kg} kg of its dispatch credited to the cooperative.',
     agreementOutcome: 'Working agreement: {status}. Combined outcome: {combined}.',
     agreementWhy: 'Why: {reason}',
+    agreementPausedByReload:
+      'Paused by a reload at minute {minute}: the shift carries on once everyone consents again, in the Bilateral Autonomy System (BAS) panel.',
     agreementStatus: (p: { status: string }) => p.status,
     outcomeComplete: 'complete',
     outcomeUnfinished: 'unfinished',
@@ -211,6 +213,8 @@ export const playableShiftMessages = defineMessages({
       'A temporada agora atende {customer}: {kg} kg da expedição creditados à cooperativa.',
     agreementOutcome: 'Acordo de trabalho: {status}. Resultado combinado: {combined}.',
     agreementWhy: 'Motivo: {reason}',
+    agreementPausedByReload:
+      'Pausado por uma recarga no minuto {minute}: o turno continua quando todos consentirem de novo, no painel Sistema de Autonomia Bilateral (BAS).',
     agreementStatus: (p: { status: string }) => pick(PT_AGREEMENT_STATUS, p.status),
     outcomeComplete: 'concluído',
     outcomeUnfinished: 'não concluído',

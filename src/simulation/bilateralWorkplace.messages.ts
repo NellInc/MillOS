@@ -295,6 +295,10 @@ export const bilateralWorkplaceMessages = defineMessages({
     // Display copy for two English record sentinels (see displayEventDetail).
     evBallotDeclined: 'Plan declined without penalty.',
     evReloadSafety: 'Reload safety: future authority and consent revoked; earned pay retained.',
+    evShiftResumed:
+      'Shift resumed at minute {minute} after a reload; it continues once everyone consents again.',
+    rejResumeShift:
+      'Only a campaign shift that a reload stopped before its end can resume; other endings stand.',
     rejCoverConsent:
       'Record distinct cover consent only after understanding the current cover plan.',
     rejNotQualified: 'This role is not qualified for cover.',
@@ -647,6 +651,10 @@ export const bilateralWorkplaceMessages = defineMessages({
     evBallotDeclined: 'Plano recusado sem penalidade.',
     evReloadSafety:
       'Proteção na recarga: autoridade e consentimento futuros revogados; remuneração adquirida mantida.',
+    evShiftResumed:
+      'Turno retomado no minuto {minute} após uma recarga; continua quando todos consentirem de novo.',
+    rejResumeShift:
+      'Só um turno da temporada interrompido por uma recarga antes do fim pode ser retomado; os outros encerramentos permanecem.',
     rejCoverConsent:
       'Registre um consentimento de cobertura distinto só depois de entender o plano de cobertura atual.',
     rejNotQualified: 'Esta função não é qualificada para cobertura.',

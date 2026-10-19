@@ -15,6 +15,7 @@ import {
 import {
   campaignComplete,
   campaignAgreementHonoured,
+  campaignOutcomes,
   campaignTotals,
   campaignLearningReview,
   requiredChecks,
@@ -132,6 +133,106 @@ describe('Living Cooperative, synthetic multi-shift fairness', () => {
     expect(campaignRelationship(c.state)).toHaveLength(3);
     expect(campaignAgreementHonoured(c.state)).toBe(true);
     expect(campaignComplete(c.state)).toBe(false);
+  });
+
+  it('a reload mid-shift pauses the shift for fresh consent, and the season can still be honoured', () => {
+    const c = campaign();
+    const reloadAt = (minutes: number) => {
+      c.run({ type: 'tick', args: [minutes, 0, false] });
+      c.restore();
+      // Reload safety still settles: authority and consent are gone.
+      expect(c.state.phase).toBe('review');
+      expect(c.state.members.every((m) => !m.understood && m.ballot === null)).toBe(true);
+      expect(campaignOutcomes(c.state).agreement.status).toBe('pending');
+      const before = structuredClone(c.state);
+      expect(c.run({ type: 'resumeShift', args: [before.revision + 1] }).changed).toBe(false);
+      expect(c.run({ type: 'resumeShift', args: [before.revision] }).changed).toBe(true);
+      expect(c.state.phase).toBe('deliberating');
+      expect(c.state.minute).toBe(before.minute);
+      expect(c.state.finance).toEqual(before.finance);
+      // No minute passes until consent is given again.
+      c.run({ type: 'tick', args: [5, 0, false] });
+      expect(c.state.minute).toBe(before.minute);
+      c.agree();
+    };
+    for (let shift = 0; shift < 3; shift++) {
+      const pressure = CAMPAIGN_PRESSURES[shift];
+      if (shift !== 1)
+        c.run({
+          type: 'campaignDecision',
+          args: [shift === 0 ? 'keep-target' : 'protect-refusal', 'coordinator'],
+        });
+      c.run({ type: 'respondToPressure', args: [pressure.id, 'protect-boundary'] });
+      c.agree();
+      const cashBefore = c.state.finance.cash;
+      expect(c.activate().changed).toBe(true);
+      const fullReserve = c.state.finance.wageReserve;
+      const charged = cashBefore - c.state.finance.cash;
+      if (shift === 2) {
+        reloadAt(40);
+        const cash = c.state.finance.cash;
+        expect(c.activate().changed).toBe(true);
+        // Already funded: no second plan charge, wages only for what is left.
+        expect(cash - c.state.finance.cash).toBe(0);
+        expect(c.state.finance.wageReserve).toBeCloseTo((fullReserve * 50) / 90, 9);
+        // A second reload in the resumed shift resumes again.
+        reloadAt(20);
+        expect(c.activate().changed).toBe(true);
+        expect(charged).toBeGreaterThanOrEqual(0);
+      }
+      c.finish();
+      expect(c.state.minute).toBe(90);
+      if (shift < 2) expect(c.run({ type: 'nextCampaignShift', args: [] }).changed).toBe(true);
+    }
+    expect(campaignAgreementHonoured(c.state)).toBe(true);
+    expect(campaignOutcomes(c.state).agreement.status).toBe('honoured');
+  });
+
+  it('a resumed cover shift keeps its one cover member and only the cover left', () => {
+    const c = campaign();
+    c.run({ type: 'campaignDecision', args: ['keep-target', 'coordinator'] });
+    c.run({ type: 'respondToPressure', args: ['disclosure', 'protect-boundary'] });
+    expect(c.run({ type: 'selectPlan', args: ['cover'] }).changed).toBe(true);
+    c.agree();
+    expect(c.activate().changed).toBe(true);
+    const coverer = c.state.activeCoverMemberId!;
+    c.run({ type: 'tick', args: [4, 0, false] });
+    const delivered = c.state.members.find((m) => m.id === coverer)!.extraMinutes;
+    expect(delivered).toBeGreaterThan(0);
+    c.restore();
+    expect(c.run({ type: 'resumeShift', args: [c.state.revision] }).changed).toBe(true);
+    c.agree();
+    expect(c.activate().changed).toBe(true);
+    expect(c.state.activeCoverMemberId).toBe(coverer);
+    expect(c.state.coverRemainingMinutes).toBeCloseTo(10 - delivered, 9);
+    expect(c.state.finance.compensationReserve).toBeCloseTo((10 - delivered) * 0.8, 9);
+    c.finish();
+    // Still one member's cover, no more than ten minutes, and a valid save.
+    expect(c.state.members.filter((m) => m.extraMinutes > 0)).toHaveLength(1);
+    expect(c.state.members.find((m) => m.id === coverer)!.extraMinutes).toBeCloseTo(10, 9);
+    c.restore();
+    expect(c.state.phase).toBe('review');
+  });
+
+  it('only a reload-settled, unfinished campaign shift can resume', () => {
+    const c = campaign();
+    c.run({ type: 'campaignDecision', args: ['keep-target', 'coordinator'] });
+    c.run({ type: 'respondToPressure', args: ['disclosure', 'protect-boundary'] });
+    c.agree();
+    c.activate();
+    // Stopped by a person, not by a reload: that ending stands.
+    c.run({ type: 'tick', args: [10, 0, false] });
+    c.run({ type: 'stop', args: [] });
+    expect(c.run({ type: 'resumeShift', args: [c.state.revision] }).changed).toBe(false);
+    // A shift that reached its end has nothing to resume, reload or not.
+    const d = campaign();
+    d.run({ type: 'campaignDecision', args: ['keep-target', 'coordinator'] });
+    d.run({ type: 'respondToPressure', args: ['disclosure', 'protect-boundary'] });
+    d.agree();
+    d.activate();
+    d.finish();
+    d.restore();
+    expect(d.run({ type: 'resumeShift', args: [d.state.revision] }).changed).toBe(false);
   });
 
   it('proactive protection never manufactures an objection, sharing or a completed agreement', () => {

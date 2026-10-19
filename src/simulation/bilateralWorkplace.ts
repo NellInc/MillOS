@@ -29,6 +29,7 @@ import {
   campaignRelationship,
   validRelationshipEvents,
   restoreRelationshipEvents,
+  shiftResumable,
 } from './workplaceCampaign';
 
 import {
@@ -1146,6 +1147,19 @@ export function transitionWorkplace(
       record(fresh, 'members', 'improvement-continued', translate(wm, 'evContinued'));
       return { state: fresh, changed: true, reason: null };
     }
+    case 'resumeShift': {
+      if (!Number.isSafeInteger(command.args[0]) || command.args[0] !== s.revision)
+        return reject(translate(wm, 'rejStaleRevision'));
+      if (!shiftResumable(s)) return reject(translate(wm, 'rejResumeShift'));
+      // Back to deliberation at the minute reached. invalidate() keeps every
+      // understanding, ballot and proof expired; checks and cover consent were
+      // cleared by the reload's settle, so nothing runs without fresh consent.
+      s.phase = 'deliberating';
+      s.reviewReason = null;
+      invalidate(s);
+      record(s, 'team', 'shift-resumed', translate(wm, 'evShiftResumed', { minute: s.minute }));
+      break;
+    }
     case 'closeImprovement': {
       // Every handoff shift's honest exit once decided, the first included:
       // nothing owed is dropped and no new shift opens. Cancelling restores the
@@ -1669,29 +1683,47 @@ export function transitionWorkplace(
       const readiness = workplaceReadiness(s);
       if (!readiness.allowed) return reject(readiness.reasons.join(' '));
       const p = planOf(s);
-      s.finance.wageReserve = WAGE * s.durationMinutes * s.members.length;
-      s.finance.compensationReserve = p.optionalCoverMinutes * p.compensationPerMinute;
-      const improvementPurchase = improvementCost(s);
-      s.finance.cash -= p.budgetCost + improvementPurchase;
-      s.finance.improvementSpend += p.budgetCost + improvementPurchase;
+      // Every shift deliberates from minute 0, so deliberating later means a
+      // shift resumed after a reload: it was funded when it first activated.
+      // It reserves wages and cover only for what is left, and buys nothing again.
+      const resumed = s.minute > 0;
+      const coverDelivered = resumed ? s.members.reduce((n, m) => n + m.extraMinutes, 0) : 0;
+      const coverLeft = Math.max(0, p.optionalCoverMinutes - coverDelivered);
+      s.finance.wageReserve = WAGE * (s.durationMinutes - s.minute) * s.members.length;
+      s.finance.compensationReserve = coverLeft * p.compensationPerMinute;
+      if (!resumed) {
+        const improvementPurchase = improvementCost(s);
+        s.finance.cash -= p.budgetCost + improvementPurchase;
+        s.finance.improvementSpend += p.budgetCost + improvementPurchase;
+      }
       // A cancelled proposal authorizes paid steady work, without purchasing
       // the abandoned arrangement. Keep that distinction in its saved receipt.
       if (s.improvement && !s.improvement.stopped) s.improvement.funded = true;
-      if (p.optionalCoverMinutes) {
+      if (coverLeft > 0) {
         const totals = campaignTotals(s);
         const burden = (id: string) => totals.members.find((m) => m.id === id)!.extraMinutes;
-        const chosen = s.members
-          .filter((m) => m.coverConsent === true && eligibleCover(m))
-          .sort((a, b) => burden(a.id) - burden(b.id) || a.id.localeCompare(b.id))[0];
-        s.activeCoverMemberId = chosen.id;
-        s.coverRemainingMinutes = p.optionalCoverMinutes;
+        // One member covers a shift: a resumed shift continues with whoever
+        // already began, if they consent again; otherwise it has no cover.
+        const began = resumed ? s.members.find((m) => m.extraMinutes > 0) : undefined;
+        const chosen = began
+          ? began.coverConsent === true && eligibleCover(began)
+            ? began
+            : undefined
+          : s.members
+              .filter((m) => m.coverConsent === true && eligibleCover(m))
+              .sort((a, b) => burden(a.id) - burden(b.id) || a.id.localeCompare(b.id))[0];
+        if (chosen) {
+          s.activeCoverMemberId = chosen.id;
+          s.coverRemainingMinutes = coverLeft;
+        } else s.finance.compensationReserve = 0;
       }
       for (const m of s.members)
         if (m.coverConsent === false && !m.refusalRespected) {
           m.refusalRespected = true;
           s.refusalsRespected += 1;
         }
-      if (s.mode === 'game' && s.aiAuthority === 'bounded') s.aiActions += 1;
+      // One bounded AI action per shift; resuming is the same shift's action.
+      if (s.mode === 'game' && s.aiAuthority === 'bounded' && !resumed) s.aiActions += 1;
       s.phase = 'active';
       if (s.campaign) s.campaign.agreementProved = true;
       record(s, 'team', 'activated', translate(wm, 'evActivated'));
@@ -2463,7 +2495,14 @@ function restoreWorkplaceSnapshot(
         o.status === 'resolved' ? translate(wm, 'restoredResolution', { actor: o.actorId }) : null,
     };
   });
-  s.reviewReason = s.phase === 'review' ? translate(wm, 'reasonReloaded') : null;
+  // Imported prose never survives a restore; only the exact reload-safety
+  // sentinel does, so a shift a reload paused stays resumable (shiftResumable).
+  s.reviewReason =
+    s.phase !== 'review'
+      ? null
+      : s.reviewReason === RELOAD_SAFETY_DETAIL
+        ? RELOAD_SAFETY_DETAIL
+        : translate(wm, 'reasonReloaded');
   s.revision += 1;
   return s;
 }

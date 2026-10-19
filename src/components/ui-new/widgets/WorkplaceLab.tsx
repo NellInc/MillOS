@@ -45,6 +45,7 @@ import {
   MANAGEMENT_APPROACHES,
   CAMPAIGN_PRESSURES,
   campaignRelationship,
+  shiftResumable,
 } from '../../../simulation/workplaceCampaign';
 import { executeAgentCommand } from '../../../agent/client/executeAgentCommand';
 import { formatFixed, formatGrouped, getLocale, translate, useT } from '../../../i18n';
@@ -1391,6 +1392,19 @@ export const WorkplaceLab: React.FC = () => {
             })}{' '}
             {state.reviewReason ? displayEventDetail(state.reviewReason) : t('reviewOpens')}
           </p>
+          {/* A reload expired every grant but did not end the shift: it
+              resumes at the minute reached once everyone consents again. */}
+          {shiftResumable(state) && (
+            <div className="space-y-2">
+              <p>{t('resumeAfterReloadNote', { minute: formatFixed(state.minute, 0) })}</p>
+              <button
+                className={buttonClass}
+                onClick={() => report(store.resumeShift(state.revision))}
+              >
+                {t('resumeShift')}
+              </button>
+            </div>
+          )}
           <div>
             <h4 className="font-semibold text-white">{t('relationshipEvidence')}</h4>
             <p>

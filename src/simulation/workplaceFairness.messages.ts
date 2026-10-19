@@ -25,7 +25,7 @@ export const workplaceFairnessMessages = defineMessages({
       'Read every role receipt. Compensation is separate from earned pay and member distributions. Owed recovery remains visible until model time delivers it.',
     beatReloadTitle: 'Rehearse safe reload (1 minute)',
     beatReloadDetail:
-      'Use Save and safely reload workplace. It expires future grants, settles earned money and retains recovery debt. It leaves the physical plant untouched.',
+      'Use Save and safely reload workplace. It expires future grants, settles earned money and retains recovery debt; an unfinished season shift then resumes only with fresh consent. It leaves the physical plant untouched.',
     receiptScope:
       'Shared-device fictional role turns. The local runtime checks turn ownership; same-origin code and device possession are outside identity security.',
     receiptEfficacy:
@@ -77,7 +77,7 @@ export const workplaceFairnessMessages = defineMessages({
       'Leia o comprovante de cada função. A compensação é separada da remuneração conquistada e das distribuições aos cooperados. O tempo de recuperação devido continua visível até que o tempo do modelo o conceda.',
     beatReloadTitle: 'Ensaie a recarga segura (1 minuto)',
     beatReloadDetail:
-      'Use Salvar e recarregar o local de trabalho com segurança. Isso faz expirar as autorizações futuras, acerta o dinheiro ganho e mantém a dívida de recuperação. A planta física não é alterada.',
+      'Use Salvar e recarregar o local de trabalho com segurança. Isso faz expirar as autorizações futuras, acerta o dinheiro ganho e mantém a dívida de recuperação; um turno da temporada ainda não concluído só é retomado com novo consentimento. A planta física não é alterada.',
     receiptScope:
       'Revezamento fictício entre funções em um dispositivo compartilhado. O ambiente de execução local verifica de quem é cada vez; código da mesma origem e a posse do dispositivo ficam fora da segurança de identidade.',
     receiptEfficacy:

@@ -300,6 +300,12 @@ export interface WorkplaceActions {
    * shift. Nothing may be owed; the workplace returns to idle.
    */
   closeImprovement: (expectedRevision: number) => WorkplaceTransitionResult;
+  /**
+   * After a reload settled a campaign shift before its end (reload safety),
+   * return it to deliberation at the minute it reached. Every grant stays
+   * expired: it continues only after fresh checks, ballots and consent.
+   */
+  resumeShift: (expectedRevision: number) => WorkplaceTransitionResult;
   startCampaign: (
     profile: WorkplaceProfile,
     seed?: number,

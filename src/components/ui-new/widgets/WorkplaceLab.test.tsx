@@ -5,7 +5,13 @@ import { useWorkplaceStore } from '../../../stores/workplaceStore';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
 import { useMaterialFlowStore } from '../../../stores/materialFlowStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
-import { createWorkplace, workplaceReadiness } from '../../../simulation/bilateralWorkplace';
+import {
+  createWorkplace,
+  restoreWorkplace,
+  saveWorkplace,
+  workplaceReadiness,
+} from '../../../simulation/bilateralWorkplace';
+import { autoplayWorkplaceStep } from '../../../simulation/workplaceAutoplay';
 import {
   CAMPAIGN_SHIFTS,
   WORKPLACE_CHECKS,
@@ -53,6 +59,26 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('Workplace laboratory interface', () => {
+  it('offers to resume a shift a reload paused, with fresh consent, from the minute reached', () => {
+    for (let i = 0; i < 200 && useWorkplaceStore.getState().workplace.phase !== 'active'; i++)
+      autoplayWorkplaceStep('toe-dip');
+    useWorkplaceStore.getState().tick(30, 0, false);
+    // The page reloads: the store restores the safety-settled snapshot.
+    useWorkplaceStore.setState({
+      workplace: restoreWorkplace(saveWorkplace(useWorkplaceStore.getState().workplace)),
+    });
+    render(<WorkplaceLab />);
+    open('Review');
+    expect(
+      screen.getByText(/A reload paused this shift at minute 30 and expired every grant/)
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Resume the shift with fresh consent' }));
+    const resumed = useWorkplaceStore.getState().workplace;
+    expect(resumed.phase).toBe('deliberating');
+    expect(resumed.minute).toBe(30);
+    expect(resumed.members.every((m) => !m.understood && m.ballot === null)).toBe(true);
+  });
+
   it('stages the direct third-shift chapter and exposes its pressure controls without consent', () => {
     useWorkplaceStore.getState().startCampaign('team', 17);
     const state = useWorkplaceStore.getState().workplace;

@@ -17,7 +17,11 @@ import {
   improvementSummary,
   improvementObligations,
 } from '../../../simulation/workplaceImprovement';
-import { campaignOutcomes, campaignTotals } from '../../../simulation/workplaceCampaign';
+import {
+  campaignOutcomes,
+  campaignTotals,
+  shiftResumable,
+} from '../../../simulation/workplaceCampaign';
 import { displayEventDetail } from '../../../simulation/bilateralWorkplace';
 import type { WorkplaceProfile, WorkplaceState } from '../../../types/workplace';
 import {
@@ -589,6 +593,10 @@ function WorkingAgreementSummary({
           safety settle, an objection, a stop), as the BAS panel does. */}
       {outcome.agreement.status === 'incomplete' && state.reviewReason && (
         <p>{t('agreementWhy', { reason: displayEventDetail(state.reviewReason) })}</p>
+      )}
+      {/* A reload pauses rather than ends: say where it carries on. */}
+      {shiftResumable(state) && (
+        <p>{t('agreementPausedByReload', { minute: formatFixed(state.minute, 0) })}</p>
       )}
       <details>
         <summary className="min-h-11 cursor-pointer py-3 text-cyan-200">

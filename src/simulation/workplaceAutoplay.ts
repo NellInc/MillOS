@@ -10,7 +10,12 @@ import { useWorkplaceStore } from '../stores/workplaceStore';
 import { selectClockHolder, useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useUIStore } from '../stores/uiStore';
 import { isWorkplaceReplayActive } from './workplaceReplayRuntime';
-import { CAMPAIGN_PRESSURES, WORKPLACE_CHECKS, requiredChecks } from './workplaceCampaign';
+import {
+  CAMPAIGN_PRESSURES,
+  WORKPLACE_CHECKS,
+  requiredChecks,
+  shiftResumable,
+} from './workplaceCampaign';
 import type { WorkplaceProfile, WorkplaceTransitionResult } from '../types/workplace';
 import { translate } from '../i18n';
 import { workplaceAutoplayMessages as msg } from './workplaceAutoplay.messages';
@@ -35,6 +40,10 @@ export function autoplayWorkplaceStep(profile: WorkplaceProfile): WorkplaceTrans
     return blocked(translate(msg, 'safetyBoundary'));
   if (s.phase === 'idle') return store.startMission(profile, s.seed);
   if (!s.campaign || s.improvement) return blocked(translate(msg, 'needsCampaign'));
+  // A shift a reload paused resumes first, before any sobras or a next shift:
+  // its fictional members then consent afresh through the steps below.
+  // Working if a reload mid-season still lets the default season be honoured.
+  if (shiftResumable(s)) return store.resumeShift(s.revision);
   if (s.objections.some((o) => o.status === 'open'))
     return blocked(translate(msg, 'openObjection'));
   const c = s.campaign;
