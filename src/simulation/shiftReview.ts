@@ -147,6 +147,10 @@ export function gradeShift(basis: ShiftGradeBasis): ShiftGrade | null {
   return grade;
 }
 
+/** Money in review copy: two decimals, grouped in every language. */
+const money = (value: number, locale: Locale) =>
+  formatGrouped(value, { minimumFractionDigits: 2, maximumFractionDigits: 2 }, locale);
+
 /** The reasons for a grade, in the given language. */
 export function shiftGradeReasons(basis: ShiftGradeBasis, locale: Locale): string[] {
   const t = createTranslator(shiftReviewMessages, locale);
@@ -163,7 +167,7 @@ export function shiftGradeReasons(basis: ShiftGradeBasis, locale: Locale): strin
   const reasons = [
     t('dispatchReason', {
       kg: formatGrouped(Math.round(basis.dispatchedKg), undefined, locale),
-      margin: formatFixed(basis.margin, 2, locale),
+      margin: money(basis.margin, locale),
     }),
     t('riskReason', {
       count: basis.risks.length,
@@ -259,7 +263,8 @@ export function describeShiftGap(
   const gap = shiftGradeGap(basis, grade);
   if (!gap) return null;
   const t = createTranslator(shiftReviewMessages, locale);
-  const { next } = gap;
+  // A bare letter reads as a word ("C needs ..."); name it as the grade.
+  const next = t('gradeLabel', { grade: gap.next });
   switch (gap.binding) {
     case 'quality':
       return t('gapQuality', { next });
@@ -283,7 +288,7 @@ export function describeShiftGap(
       });
     }
     case 'margin':
-      return t('gapMargin', { next, amount: formatFixed(-basis.margin, 2, locale) });
+      return t('gapMargin', { next, amount: money(-basis.margin, locale) });
     case 'kg':
       return t('gapKg', {
         next,

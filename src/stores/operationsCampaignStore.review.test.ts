@@ -226,7 +226,7 @@ describe('the review says why and what to try next (row 23)', () => {
       "Riverside Bakers' Cooperative: 6,000 of 6,000 kg, delivered 10m late."
     );
     expect(describeShiftGap(report.gradeBasis!, report.grade, 'en')).toBe(
-      'A needs every delivery on time; 1 arrived late.'
+      'Grade A needs every delivery on time; 1 arrived late.'
     );
     expect(describeShiftTryNext(report.gradeBasis!, report.grade, 'en')).toMatch(/^Try next: /);
     expect(describeShiftTryNext(report.gradeBasis!, report.grade, 'pt-BR')).toMatch(
@@ -243,7 +243,7 @@ describe('the review says why and what to try next (row 23)', () => {
     const report = lastReport();
     expect(report.grade).toBe('C');
     expect(describeShiftGap(report.gradeBasis!, report.grade, 'en')).toBe(
-      'B needs 626 kg for 2h 0m on commitments; you were 226 kg short.'
+      'Grade B needs 626 kg for 2h 0m on commitments; you were 226 kg short.'
     );
   });
 
@@ -256,8 +256,20 @@ describe('the review says why and what to try next (row 23)', () => {
     expect(report.grade).toBe('D');
     expect(report.summary).not.toBe(report.gradeReasons!.join(' '));
     expect(describeShiftGap(report.gradeBasis!, report.grade, 'en')).toBe(
-      'C needs Roller mill bearing overheat resolved before the shift closes.'
+      'Grade C needs Roller mill bearing overheat resolved before the shift closes.'
     );
+    expect(describeShiftGap(report.gradeBasis!, report.grade, 'pt-BR')).toMatch(
+      /^Nota C exige resolver /
+    );
+  });
+
+  it('groups money in the review in both languages', () => {
+    const [manifest, batch] = partialManifest('shipping-0001', 1000);
+    tick(1, { manifests: [manifest], productionBatches: [batch] });
+    tick(1, { shiftKey: 'day-0-afternoon' });
+    const basis = { ...lastReport().gradeBasis!, margin: 8195.15 };
+    expect(shiftGradeReasons(basis, 'en')[0]).toContain('net contribution 8,195.15 after');
+    expect(shiftGradeReasons(basis, 'pt-BR')[0]).toContain('contribuição líquida de 8.195,15');
   });
 });
 

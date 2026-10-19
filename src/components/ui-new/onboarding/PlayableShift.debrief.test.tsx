@@ -106,7 +106,9 @@ describe('shift debrief', () => {
     expect(
       screen.getByText("Riverside Bakers' Cooperative: 6,000 of 6,000 kg, delivered 10m late.")
     ).toBeInTheDocument();
-    expect(screen.getByText('A needs every delivery on time; 1 arrived late.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Grade A needs every delivery on time; 1 arrived late.')
+    ).toBeInTheDocument();
     expect(
       screen.getByText(/^Try next: serve the earliest-due customer first/)
     ).toBeInTheDocument();
@@ -125,7 +127,7 @@ describe('shift debrief', () => {
       )
     ).toBeInTheDocument();
     expect(
-      screen.getByText('A exige todas as entregas no prazo; 1 chegou atrasada.')
+      screen.getByText('Nota A exige todas as entregas no prazo; 1 chegou atrasada.')
     ).toBeInTheDocument();
     expect(screen.getByText(/^Tente a seguir: /)).toBeInTheDocument();
   });

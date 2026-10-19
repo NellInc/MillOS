@@ -59,6 +59,7 @@ export const shiftReviewMessages = defineMessages({
     headlineGood: '{kg} kg shipped with a nonnegative contribution and carry-over risk in hand.',
     headlineHeldBack: (p: { kg: string; cause: string }) =>
       `${p.kg} kg shipped; ${EN_CAUSE[p.cause] ?? EN_CAUSE.risks} held the grade back.`,
+    gradeLabel: 'Grade {grade}',
     gapQuality: '{next} needs every load to meet the recipe quality target.',
     gapUnsafe: '{next} needs {titles} resolved before the shift closes.',
     gapLate: (p: { next: string; count: number; countText: string }) =>
@@ -119,6 +120,7 @@ export const shiftReviewMessages = defineMessages({
       '{kg} kg expedidos com contribuição não negativa e risco transferido sob controle.',
     headlineHeldBack: (p: { kg: string; cause: string }) =>
       `${p.kg} kg expedidos; ${PT_CAUSE[p.cause] ?? PT_CAUSE.risks} impediu uma nota melhor.`,
+    gradeLabel: 'Nota {grade}',
     gapQuality: '{next} exige que toda carga atinja a meta de qualidade da receita.',
     gapUnsafe: '{next} exige resolver {titles} antes de o turno fechar.',
     gapLate: (p: { next: string; count: number; countText: string }) =>
