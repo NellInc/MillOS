@@ -936,9 +936,10 @@ const vehicleTags: TagDefinition[] = Object.entries(VEHICLE_TAG_IDS).flatMap(([v
       engUnit: 'deg',
       engLow: isTruck ? -40 : -35,
       engHigh: isTruck ? 40 : 35,
-      // Controller-bounded kinematic state, not a process variable: every
-      // normal docking reaches the 0.7 rad (40.1 deg) truckController clamp.
-      // Working if no steering/articulation tag alarms inside that clamp.
+      // Controller-bounded kinematic state, not a process variable: a normal
+      // docking peaks near 0.62 rad (36 deg) on the 14 m yard turns, inside
+      // the 0.7 rad (40.1 deg) truckController coupling limit.
+      // Working if no steering/articulation tag alarms inside that limit.
       alarmLo: undefined,
       alarmHi: undefined,
       alarmLoLo: undefined,
