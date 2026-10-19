@@ -99,8 +99,8 @@ export function bankLineIrradiance(
   const D = Math.max(perp2, BANK_LINE.minDistance ** 2);
   const nw = normal.dot(w);
   const nd = normal.x;
-  let t0 = -L;
-  let t1 = L;
+  let t0: number = -L;
+  let t1: number = L;
   if (Math.abs(nd) > 1e-5) {
     const tz = -nw / nd;
     if (nd > 0) t0 = Math.max(t0, tz);
