@@ -151,12 +151,21 @@ const SHIPPING_DOCK_SOLIDS: readonly Rect[] = [
  * shipping group sits at z = 50, the receiving group at z = -50, unrotated).
  */
 const SHIPPING_YARD_SOLIDS: readonly Rect[] = [
-  // WeightScale at (0, 102): the deck is drive-over; its indicator booth and roof are not.
-  { id: 'weigh-scale-booth', minX: 2.3, maxX: 4.7, minZ: 100.55, maxZ: 103.45 },
+  // WeightScale at (-16, 100), turned pi: a 0.2 m deck with end ramps, and its
+  // booth to the west. The truck has no ride height, so crossing the deck would
+  // sink its tyres into it; at (0, 102) on the dock lane it did.
+  { id: 'weigh-scale-deck', minX: -18.1, maxX: -13.9, minZ: 92.75, maxZ: 107.25 },
+  { id: 'weigh-scale-booth', minX: -20.7, maxX: -18.3, minZ: 98.55, maxZ: 101.45 },
+  // ScaleTicketKiosk at (-19, 100).
+  { id: 'scale-kiosk', minX: -19.5, maxX: -18.5, minZ: 99.4, maxZ: 100.6 },
   // YardAccessNode at (18, 100), turned a quarter: a card-reader post beside the road.
   { id: 'shipping-access-node', minX: 17.9, maxX: 18.2, minZ: 99.3, maxZ: 100.7 },
 ];
 const RECEIVING_YARD_SOLIDS: readonly Rect[] = [
+  // The shipping weigh scale and kiosk turned half a revolution: (16, -100).
+  { id: 'receiving-weigh-scale-deck', minX: 13.9, maxX: 18.1, minZ: -107.25, maxZ: -92.75 },
+  { id: 'receiving-weigh-scale-booth', minX: 18.3, maxX: 20.7, minZ: -101.45, maxZ: -98.55 },
+  { id: 'receiving-scale-kiosk', minX: 18.5, maxX: 19.5, minZ: -100.6, maxZ: -99.4 },
   // YardJockey at receiving-group (35, 0, -42): shuttles +/-8 m in x, body 2.5 x 2 m.
   // At (0, 0, -25) it crossed the back-in lane.
   { id: 'receiving-yard-jockey', minX: 25.75, maxX: 44.25, minZ: -93, maxZ: -91 },
