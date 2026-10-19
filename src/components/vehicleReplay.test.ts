@@ -7,6 +7,7 @@ const harness = vi.hoisted(() => ({
   frames: [] as Array<(state: { camera: THREE.PerspectiveCamera }, delta: number) => void>,
   participants: new Map<string, { capture: () => any; restore: (state: any) => void }>(),
   restoring: false,
+  reducedMotion: false,
 }));
 
 // Invoke the live component functions with deterministic hooks. JSX remains
@@ -42,7 +43,7 @@ vi.mock('zustand', async (importOriginal) => {
       initializer ? build(initializer) : build,
   };
 });
-vi.mock('../hooks/useReducedMotion', () => ({ useReducedMotion: () => false }));
+vi.mock('../hooks/useReducedMotion', () => ({ useReducedMotion: () => harness.reducedMotion }));
 vi.mock('zustand/react/shallow', () => ({ useShallow: (selector: unknown) => selector }));
 vi.mock('@react-three/fiber', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@react-three/fiber')>()),
@@ -109,6 +110,7 @@ beforeEach(() => {
   harness.effects.length = 0;
   harness.participants.clear();
   harness.restoring = false;
+  harness.reducedMotion = false;
   useProductionStore.setState({ productionSpeed: 0 });
   useGameSimulationStore.setState({ gameSpeed: 0, isTabVisible: true });
 });
@@ -702,6 +704,29 @@ it('settles walkers into the drill stance over a short blend, then holds', () =>
   } finally {
     camera.position.copy(viewpoint);
   }
+});
+
+it('holds reduced-motion residents still between stops instead of gliding them', () => {
+  harness.reducedMotion = true;
+  const { hour, index } = findMillWalk(10, 0.01);
+  const community = mountCommunity({ gameTime: hour, gameSpeed: STANDARD_GAME_SPEED });
+  community.step();
+  const root = community.roots[index];
+  const at = root.position.clone(),
+    heading = root.rotation.y;
+  const cyclist = community.roots.find((r) => r.name === 'village-cyclist')!;
+  for (let i = 1; i <= 20; i++) {
+    useGameSimulationStore.setState({ gameTime: hour + i * 0.0003 });
+    community.step();
+    const motion = community.capture().residents[index].motion;
+    // The schedule walks on underneath; the body stays where its trip began.
+    expect(root.position.equals(at)).toBe(true);
+    expect(root.rotation.y).toBe(heading);
+    expect(motion.groundSpeed).toBe(0);
+    expect(motion.activity).not.toBe('walking');
+    expect(motion.enabled).toBe(false);
+  }
+  expect(cyclist.position.z).toBeCloseTo(sampleCommunityCyclist(11).z, 9);
 });
 
 it('transports seat frames after root turning, freezes holds and clears old replay cues', () => {

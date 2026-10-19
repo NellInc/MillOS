@@ -32,6 +32,7 @@ import {
   COMMUNITY_STREET_END_Z,
   MILL_ROUTINE_HOURS,
   communityRootYaw,
+  communityStillHour,
   type CommunityPose,
 } from '../communityLife';
 import { STANDARD_GAME_SPEED } from '../pace';
@@ -577,6 +578,54 @@ describe('inhabited world routines', () => {
       expect(hasCommunityBakerySupply([{ ...order, ...change } as typeof order], 101)).toBe(false);
     expect(hasCommunityBakerySupply([], 10)).toBe(false);
     expect(hasCommunityBakerySupply([order], NaN)).toBe(false);
+  });
+  it('shows reduced-motion residents where a trip began, then cuts to where it ends', SWEEP, () => {
+    // Several samples inside even the shortest walking leg (about 0.008 h).
+    const step = 0.002;
+    for (const person of COMMUNITY_ROSTER) {
+      let previous = sampleCommunityPerson(person, 0),
+        previousStill = communityStillHour(person, 0),
+        cuts = 0;
+      for (let h = step; h < 24; h += step) {
+        const now = sampleCommunityPerson(person, h);
+        const still = communityStillHour(person, h);
+        expect(still, `${person.id} at ${h}`).toBeLessThanOrEqual(h);
+        if (now.activity !== 'walking') expect(still, `${person.id} at ${h}`).toBe(h);
+        // Mid-trip the shown moment does not move, so neither does the body.
+        if (
+          now.visible &&
+          previous.visible &&
+          now.activity === 'walking' &&
+          previous.activity === 'walking'
+        ) {
+          if (Math.abs(still - previousStill) > 1e-9) cuts++;
+        }
+        // What is shown is a stop, or the very start of a trip from a doorway (a
+        // village door, the bus door) or the street end: never part-way along.
+        const shown = sampleCommunityPerson(person, still);
+        if (shown.activity === 'walking') {
+          const [x, , z] = shown.position;
+          const origins = [
+            [24.1, 137.6],
+            ...(person.day ? [[person.day.door[0], person.day.door[2]]] : []),
+          ];
+          expect(
+            origins.some(([ox, oz]) => Math.hypot(x - ox, z - oz) < 1e-6) ||
+              Math.abs(z - COMMUNITY_STREET_END_Z) < 1e-6,
+            `${person.id} shown part-way along a trip at ${h}`
+          ).toBe(true);
+        }
+        previous = now;
+        previousStill = still;
+      }
+      // Consecutive legs through a waypoint are one trip; only an arrival cuts.
+      expect(cuts, `${person.id} restarted a trip mid-walk`).toBe(0);
+    }
+    // The cyclist waits at the street end, where the ride begins.
+    const cyclist = COMMUNITY_ROSTER.find((p) => p.role === 'Cyclist')!;
+    const parked = sampleCommunityPerson(cyclist, communityStillHour(cyclist, 14));
+    expect(parked.position[2]).toBeCloseTo(COMMUNITY_STREET_END_Z, 9);
+    expect(parked.visible).toBe(true);
   });
   it('keeps an unfinished turn where it is while held, and only snaps on a cut', () => {
     const quarter = Math.PI / 2;

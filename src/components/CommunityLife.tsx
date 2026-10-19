@@ -36,6 +36,7 @@ import {
   advanceCommunityAgreementClock,
   COMMUNITY_WALK_SPEED_MPS,
   communityRootYaw,
+  communityStillHour,
   type CommunityOperationsSnapshot,
 } from '../simulation/communityLife';
 import { EXTERIOR_LAYERS, POLYGON_OFFSET } from '../constants/renderLayers';
@@ -46,6 +47,8 @@ import { communityLifeMessages } from './CommunityLife.messages';
 const COLOURS = ['#596e72', '#53637c', '#9a7654', '#6b8568', '#bdad82', '#6b5871'];
 /** Real seconds a safety stop lets bodies blend into the held stance. */
 const SAFETY_SETTLE_SECONDS = 0.4;
+const CYCLIST = COMMUNITY_ROSTER.find((person) => person.role === 'Cyclist')!;
+const COURIER = COMMUNITY_ROSTER.find((person) => person.id === 'village-courier')!;
 const _truckPosition = new THREE.Vector3();
 
 /** Convert after the actor's real eased heading, not the route's target yaw.
@@ -297,8 +300,12 @@ export function CommunityLife() {
     if (reframe) clocks.current.bus = advanceCommunityBusClock(worldHour, 0, trafficBlocked);
     clocks.current.world = worldHour;
     Object.assign(bus, sampleCommunityBus(clocks.current.bus));
-    Object.assign(bicycle, sampleCommunityCyclist(clocks.current.people));
-    const drop = sampleCommunityDelivery(clocks.current.people);
+    // Under reduced motion people cut from stop to stop (communityStillHour);
+    // the shuttle is a vehicle and keeps driving, like the plant's trucks.
+    const shownHour = (person: (typeof COMMUNITY_ROSTER)[number], hour: number) =>
+      reducedMotion ? communityStillHour(person, hour) : hour;
+    Object.assign(bicycle, sampleCommunityCyclist(shownHour(CYCLIST, clocks.current.people)));
+    const drop = sampleCommunityDelivery(shownHour(COURIER, clocks.current.people));
     const workplace = useWorkplaceStore.getState().workplace;
     readCommunityOperations(operations);
     for (let i = 0; i < residents.length; i++) {
@@ -315,7 +322,7 @@ export function CommunityLife() {
       );
       sampleCommunityPerson(
         actor.person,
-        actor.person.district === 'bus' ? clocks.current.bus : actor.hour,
+        shownHour(actor.person, actor.person.district === 'bus' ? clocks.current.bus : actor.hour),
         actor.pose
       );
       const { pose, motion } = actor;
@@ -328,7 +335,7 @@ export function CommunityLife() {
         (actor.person.id === 'village-courier' && !!drop.cartGrip);
       root.rotation.y = communityRootYaw(root.rotation.y, pose.rotation, delta, {
         moving,
-        cut: reframe,
+        cut: reframe || reducedMotion,
         coupled,
       });
       root.visible = pose.visible;
@@ -343,7 +350,7 @@ export function CommunityLife() {
       // while its cadence follows the ground covered (WorkerModel.workerGaitRates).
       motion.gaitScale = gaitScale;
       motion.groundSpeed =
-        moving && !jump && delta > 0
+        moving && !jump && !reducedMotion && delta > 0
           ? Math.min(
               4 * gaitScale,
               Math.hypot(pose.position[0] - oldX, pose.position[2] - oldZ) / delta
@@ -365,6 +372,8 @@ export function CommunityLife() {
       communityAgreementResponse(agreement, pose, response);
       const task = emergency ? 'Holding safely for the site safety stop' : response.task;
       if (!emergency) motion.activity = response.activity;
+      // A trip shown from its doorway is a person standing there, not mid-stride.
+      if (reducedMotion && motion.activity === 'walking') motion.activity = 'idle';
       motion.briefing = !emergency && agreement?.state === 'briefing';
       Object.assign(root.userData, {
         activity: motion.activity,

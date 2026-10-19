@@ -1059,6 +1059,8 @@ function sampleRoute(
   out: CommunityPose,
   previousSeat: CommunityPose['seat']
 ) {
+  let trip = 0,
+    afterDwell = false;
   for (let i = 0; i < stops.length; i++) {
     const node = stops[i],
       next = loop ? stops[(i + 1) % stops.length] : stops[i + 1];
@@ -1088,8 +1090,14 @@ function sampleRoute(
       return out;
     }
     elapsed -= node.hours;
+    if (node.hours > 0) {
+      trip = 0;
+      afterDwell = true;
+    }
     const travel = distance(node.position, next.position) * WALK_HOURS_PER_METRE;
     if (elapsed < travel) {
+      routeTrip.into = trip + elapsed;
+      routeTrip.afterDwell = afterDwell;
       const t = elapsed / travel;
       for (let axis = 0; axis < 3; axis++)
         out.position[axis] = node.position[axis] + (next.position[axis] - node.position[axis]) * t;
@@ -1129,8 +1137,59 @@ function sampleRoute(
       return out;
     }
     elapsed -= travel;
+    trip += travel;
   }
   return out;
+}
+
+/** How far into its current trip the last walking route sample was, in game
+ * hours, and whether that trip began at the end of a dwell. Waypoints with no
+ * dwell (`via`) continue the same trip. */
+const routeTrip = { into: 0, afterDwell: false };
+/** A shown moment just inside the dwell a trip leaves from. */
+const STILL_EPSILON = 1e-7;
+const stillScratch = createCommunityPose();
+
+/** The hour to show a resident at under reduced motion: the moment their current
+ * trip began, until they arrive, so the body cuts from stop to stop instead of
+ * gliding along a route with frozen limbs. A trip from a dwell shows the end of
+ * that dwell; a trip from a doorway (village door, bus door) or the street end
+ * shows its first instant there. The cyclist waits at the street end. Vehicles
+ * are not people and keep their own clocks.
+ * Working if every value is at most `hour` and is constant through a trip. */
+export function communityStillHour(person: CommunityPerson, hour: number): number {
+  if (!Number.isFinite(hour)) return hour;
+  const h = communityHour(hour);
+  if (person.role === 'Cyclist') {
+    const { open, close } = COMMUNITY_ACTIVITY_HOURS.cycling;
+    return h >= open && h < close ? hour - (h - open) : hour;
+  }
+  stillScratch.seat = undefined;
+  const pose = sampleCommunityPerson(person, hour, stillScratch);
+  if (pose.activity !== 'walking') return hour;
+  if (person.id === 'village-courier') {
+    const s = COMMUNITY_COURIER_SCHEDULE;
+    const [start, fromDwell] =
+      h < s.parked
+        ? [s.start, false]
+        : h < s.inspect
+          ? [s.stepAround, true]
+          : h < s.turn
+            ? [s.returning, true]
+            : [s.pull, true];
+    return hour - (h - start) - (fromDwell ? STILL_EPSILON : 0);
+  }
+  if (person.district === 'bus') {
+    const p = sampleCommunityBus(hour).phase;
+    const start =
+      pose.task === 'Leaving the bus'
+        ? ALIGHT_AT
+        : pose.task === 'Boarding the bus'
+          ? BOARD_AT
+          : STAND_AT + COMMUNITY_SEAT_RAMP.up + COMMUNITY_SEAT_RAMP.standing;
+    return hour - (p - start) - (start === ALIGHT_AT ? 0 : STILL_EPSILON);
+  }
+  return hour - routeTrip.into - (routeTrip.afterDwell ? STILL_EPSILON : 0);
 }
 
 /** Inspect actual mounted roots, not an empty retired workforce store. */
