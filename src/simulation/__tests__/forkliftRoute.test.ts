@@ -3,6 +3,7 @@ import {
   createRoundedForkliftRoute,
   canPerformForkliftLogisticsAction,
   dampAngle,
+  hydraulicSoundSeconds,
   isForkliftSimulationPaused,
   moveTowards,
   resolveForkliftMastTilt,
@@ -113,5 +114,23 @@ describe('forklift route motion', () => {
         receivingDocked: false,
       })
     ).toBe(false);
+  });
+});
+
+describe('hydraulic sound length on plant time', () => {
+  it('lasts as long as the lift does in real seconds at every pace', () => {
+    expect(hydraulicSoundSeconds(1.5, 30)).toBeCloseTo(1.5, 9);
+    expect(hydraulicSoundSeconds(1.5, 15)).toBeCloseTo(3, 9);
+    expect(hydraulicSoundSeconds(1.5, 120)).toBeCloseTo(0.375, 9);
+  });
+
+  it('never schedules an envelope shorter than its own attack and release', () => {
+    expect(hydraulicSoundSeconds(0.6, 120)).toBe(0.3);
+  });
+
+  it('plays nothing while the clock is held or once the lift is done', () => {
+    expect(hydraulicSoundSeconds(1.5, 0)).toBe(0);
+    expect(hydraulicSoundSeconds(0, 30)).toBe(0);
+    expect(hydraulicSoundSeconds(Number.NaN, 30)).toBe(0);
   });
 });

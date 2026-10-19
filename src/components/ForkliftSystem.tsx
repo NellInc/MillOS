@@ -32,6 +32,7 @@ import { planningRouteActions } from '../simulation/layoutPlanning';
 import { plantTimeScale } from '../simulation/pace';
 import {
   canPerformForkliftLogisticsAction,
+  hydraulicSoundSeconds,
   isForkliftSimulationPaused,
   resolveForkliftMastTilt,
   type ForkliftOperationPhase,
@@ -837,18 +838,29 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
     audioManager.updateForkliftEngine(data.id, !motionStopped && !isOperating, effectiveStopped);
   }, [audioReady, data.id, effectiveStopped, isOperating, motionStopped]);
 
+  // Lift and place sounds last the rest of the operation in real seconds at the
+  // current pace. They stop when the operation ends, the clock is held, an
+  // e-stop or drill freezes the cycle, or the forklift unmounts, and a release
+  // plays only what is left. A pace change mid-lift does not restart them.
+  const hydraulicHeld = simulationPaused || forkliftEmergencyStop || emergencyDrillMode;
   useEffect(() => {
-    if (!audioReady) return;
-    if (replayOperationRef.current === currentOperation) return;
+    if (!audioReady) return undefined;
+    if (replayOperationRef.current === currentOperation) return undefined;
     replayOperationRef.current = null;
-    if (simulationPaused || isWorkplaceReplayRestoring()) return;
-    const duration = Math.max(0.6, operationDurationRef.current || 1.5);
+    if (hydraulicHeld || isWorkplaceReplayRestoring()) return undefined;
+    if (currentOperation !== 'loading' && currentOperation !== 'unloading') return undefined;
+    const seconds = hydraulicSoundSeconds(
+      (operationDurationRef.current || 1.5) - operationTimerRef.current,
+      useGameSimulationStore.getState().gameSpeed
+    );
+    if (seconds <= 0) return undefined;
     if (currentOperation === 'loading') {
-      audioManager.playHydraulicLift(data.id, duration);
-    } else if (currentOperation === 'unloading') {
-      audioManager.playHydraulicLower(data.id, duration);
+      audioManager.playHydraulicLift(data.id, seconds);
+    } else {
+      audioManager.playHydraulicLower(data.id, seconds);
     }
-  }, [audioReady, currentOperation, data.id, simulationPaused]);
+    return () => audioManager.stopHydraulic(data.id);
+  }, [audioReady, currentOperation, data.id, hydraulicHeld]);
 
   // Set initial position only once (not via prop to avoid reset on re-render)
   const initializedRef = useRef(false);
