@@ -4,7 +4,9 @@ import { PACE_GAME_SPEEDS, STANDARD_GAME_SPEED } from '../pace';
 import {
   clampFrameDelta,
   easeToward,
+  isFlowAudible,
   isSpoutRouteFlowing,
+  spoutRouteTargets,
   lineMotionRate,
   machineFlowState,
 } from '../lineFlow';
@@ -101,5 +103,66 @@ describe('isSpoutRouteFlowing', () => {
 
   it('keeps the authored flow while the roster has not loaded', () => {
     expect(isSpoutRouteFlowing(null, null)).toBe(true);
+  });
+});
+
+describe('spoutRouteTargets', () => {
+  const routes = [
+    { fromMachineId: 'silo-0', toMachineId: 'rm-101' },
+    { fromMachineId: 'rm-101', toMachineId: 'sifter-a' },
+    { fromMachineId: 'sifter-a', toMachineId: 'packer-0' },
+  ];
+  const machine = (id: string, status = 'running') => ({ id, status });
+  const full = (machineId: string, machineType: MachineBuffer['machineType']) =>
+    buffer({
+      machineId,
+      machineType,
+      inputBuffer: machineType === 'silo' ? [] : [{ type: 'wheat_grain', amount: 50 }],
+      outputBuffer: [{ type: 'flour', amount: 50 }],
+    });
+  const buffers = new Map<string, MachineBuffer>([
+    ['silo-0', full('silo-0', 'silo')],
+    ['rm-101', full('rm-101', 'roller_mill')],
+    ['sifter-a', full('sifter-a', 'plansifter')],
+    ['packer-0', full('packer-0', 'packer')],
+  ]);
+
+  it('runs every route of a healthy line', () => {
+    const machines = ['silo-0', 'rm-101', 'sifter-a', 'packer-0'].map((id) => machine(id));
+    expect(Array.from(spoutRouteTargets(routes, machines, buffers))).toEqual([1, 1, 1]);
+  });
+
+  it('stops product into and out of a critical mill', () => {
+    const machines = [
+      machine('silo-0'),
+      machine('rm-101', 'critical'),
+      machine('sifter-a'),
+      machine('packer-0'),
+    ];
+    expect(Array.from(spoutRouteTargets(routes, machines, buffers))).toEqual([0, 0, 1]);
+  });
+
+  it('stops the finished-product spout into a broken packer', () => {
+    const machines = [
+      machine('silo-0'),
+      machine('rm-101'),
+      machine('sifter-a'),
+      machine('packer-0', 'critical'),
+    ];
+    expect(Array.from(spoutRouteTargets(routes, machines, buffers))).toEqual([1, 1, 0]);
+  });
+});
+
+describe('isFlowAudible', () => {
+  it('is silent while the clock or a safety hold stops the plant', () => {
+    expect(isFlowAudible('operating', 0, false)).toBe(false);
+    expect(isFlowAudible('operating', STANDARD_GAME_SPEED, true)).toBe(false);
+  });
+
+  it('follows the machine the product is flowing through', () => {
+    expect(isFlowAudible('operating', STANDARD_GAME_SPEED, false)).toBe(true);
+    expect(isFlowAudible('starved', STANDARD_GAME_SPEED, false)).toBe(false);
+    expect(isFlowAudible('faulted', STANDARD_GAME_SPEED, false)).toBe(false);
+    expect(isFlowAudible(null, STANDARD_GAME_SPEED, false)).toBe(true);
   });
 });

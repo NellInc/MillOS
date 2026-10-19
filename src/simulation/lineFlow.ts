@@ -83,3 +83,30 @@ export function isSpoutRouteFlowing(
 ): boolean {
   return isMachineDischarging(from) && isMachineAccepting(to);
 }
+
+/** 1 for each spout route that carries product now, 0 for each that does not. */
+export function spoutRouteTargets(
+  routes: ReadonlyArray<{ fromMachineId: string; toMachineId: string }>,
+  machines: ReadonlyArray<{ id: string; status: string }>,
+  buffers: ReadonlyMap<string, MachineBuffer>,
+  out: Uint8Array = new Uint8Array(routes.length)
+): Uint8Array {
+  routes.forEach((route, index) => {
+    out[index] = isSpoutRouteFlowing(
+      machineFlowState(route.fromMachineId, machines, buffers),
+      machineFlowState(route.toMachineId, machines, buffers)
+    )
+      ? 1
+      : 0;
+  });
+  return out;
+}
+
+/** A pour or belt sound plays only while its machine is working on a running clock. */
+export function isFlowAudible(
+  state: MachineOperationalState | null,
+  gameSpeed: number,
+  safetyHold: boolean
+): boolean {
+  return !safetyHold && plantTimeScale(gameSpeed) > 0 && isMachineDischarging(state);
+}

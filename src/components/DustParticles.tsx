@@ -14,6 +14,16 @@ import { buildFactoryRoofGlazing } from './infrastructure/OptimizedFactoryInfras
 import { useGraphicsStore } from '../stores/graphicsStore';
 import { selectSafetyHoldActive, useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useProductionStore } from '../stores/productionStore';
+import { useMaterialFlowStore } from '../stores/materialFlowStore';
+import { plantTimeScale } from '../simulation/pace';
+import {
+  clampFrameDelta,
+  easeToward,
+  isMachineDischarging,
+  lineMotionRate,
+  machineFlowState,
+  spoutRouteTargets,
+} from '../simulation/lineFlow';
 import { shouldRunThisFrame, getThrottleLevel } from '../utils/frameThrottle';
 import { useShallow } from 'zustand/react/shallow';
 import { useReducedMotion } from '../hooks/useReducedMotion';
@@ -100,7 +110,15 @@ interface GrainFlowEntry {
   jitter: Float32Array;
   count: number;
   throttleLevel: number;
-  speedMultiplier: number; // Production speed multiplier
+  /** Line setpoint; the pace term is read from the clock each frame. */
+  productionSpeed: number;
+  safetyHold: boolean;
+  /** Eased 0..1 per route: product stops in a pipe whose machines stop. */
+  routeActivity: Float32Array;
+  /** 1 where the route's machines are passing product now (spoutRouteTargets). */
+  routeTargets: Uint8Array;
+  /** Frames until the route targets are re-read from the machine state. */
+  refreshCountdown: number;
 }
 
 interface MachineSteamEntry {
@@ -144,6 +162,11 @@ export const DustAnimationManager: React.FC<{ children: React.ReactNode }> = ({ 
     // buffer, which is why it never appeared at all.
     if (prefersReducedMotion) return;
 
+    // Grain and machine exhaust are plant motion: they hold with the shift
+    // clock and run at the pace. Dust motes are air and stay on wall time.
+    const gameSpeed = useGameSimulationStore.getState().gameSpeed;
+    const plantScale = plantTimeScale(gameSpeed);
+
     entriesRef.current.forEach((entry) => {
       switch (entry.type) {
         case 'dustParticles':
@@ -152,11 +175,12 @@ export const DustAnimationManager: React.FC<{ children: React.ReactNode }> = ({ 
           break;
         case 'grainFlow':
           if (!shouldRunThisFrame(entry.throttleLevel)) return;
-          animateGrainFlow(entry, delta);
+          animateGrainFlow(entry, delta, gameSpeed);
           break;
         case 'machineSteam':
-          if (!shouldRunThisFrame(3)) return;
-          animateMachineSteam(entry, Math.min(delta * 3, 0.1));
+          if (plantScale <= 0 || !shouldRunThisFrame(3)) return;
+          // Capped so a 4x step stays a stable integration step for the puffs.
+          animateMachineSteam(entry, Math.min(delta * 3 * plantScale, 0.2));
           break;
       }
     });
@@ -257,21 +281,59 @@ const GRAIN_FLOW_SPEED = 6.0;
 // Module-level scratch - no allocation inside the frame loop.
 const _grainPoint = new THREE.Vector3();
 
-function animateGrainFlow(entry: GrainFlowEntry, delta: number) {
+/** Plant seconds for product in a pipe to stop, or to come back up to speed. */
+const GRAIN_ROUTE_EASE_SECONDS = 0.8;
+/** Machine state ticks at 2 Hz; route targets are re-read every this many updates. */
+const GRAIN_ROUTE_REFRESH_UPDATES = 8;
+
+function animateGrainFlow(entry: GrainFlowEntry, delta: number, gameSpeed: number) {
   const points = entry.particlesRef.current;
   if (!points || entry.routes.length === 0) return;
+
+  // Product in the spouts is plant motion: still while the clock or a safety
+  // hold stops the plant, 4x at 4x pace. A held frame writes nothing, so the
+  // grain freezes where it is.
+  const rate = lineMotionRate(entry.productionSpeed, gameSpeed, entry.safetyHold);
+  if (rate <= 0) return;
+
   const posAttr = points.geometry.attributes.position as THREE.BufferAttribute;
   const posArray = posAttr.array as Float32Array;
 
   // The old integrator added a raw per-frame velocity with no `delta`, so grain
   // fell at a rate proportional to framerate AND inversely proportional to the
   // quality throttle - 4x slower on low than on ultra.
-  const cappedDelta = Math.min(delta * entry.throttleLevel, 0.1);
-  const step = cappedDelta * entry.speedMultiplier * GRAIN_FLOW_SPEED;
+  const cappedDelta = clampFrameDelta(delta * entry.throttleLevel);
+  const step = cappedDelta * rate * GRAIN_FLOW_SPEED;
+
+  // Each route follows the machines at its two ends, from the same state the
+  // machines animate from: grain stops in the pipes into and out of a critical
+  // mill or a broken packer, and in a run whose source is starved.
+  if (entry.refreshCountdown <= 0) {
+    spoutRouteTargets(
+      entry.routes,
+      useProductionStore.getState().machines,
+      useMaterialFlowStore.getState().machineBuffers,
+      entry.routeTargets
+    );
+    entry.refreshCountdown = GRAIN_ROUTE_REFRESH_UPDATES;
+  }
+  entry.refreshCountdown -= 1;
+  const plantDelta = cappedDelta * plantTimeScale(gameSpeed);
+  for (let r = 0; r < entry.routes.length; r++) {
+    entry.routeActivity[r] = easeToward(
+      entry.routeActivity[r],
+      entry.routeTargets[r],
+      plantDelta,
+      GRAIN_ROUTE_EASE_SECONDS
+    );
+  }
 
   for (let i = 0; i < entry.count; i++) {
-    const route = entry.routes[entry.routeIndex[i] % entry.routes.length];
-    let t = entry.progress[i] + (step * entry.rates[i]) / Math.max(1, route.length);
+    const routeSlot = entry.routeIndex[i] % entry.routes.length;
+    const route = entry.routes[routeSlot];
+    const activity = entry.routeActivity[routeSlot];
+    if (activity <= 0) continue;
+    let t = entry.progress[i] + (step * activity * entry.rates[i]) / Math.max(1, route.length);
     if (t >= 1) t -= Math.floor(t);
     entry.progress[i] = t;
 
@@ -822,9 +884,19 @@ export const GrainFlow: React.FC = () => {
   const throttleLevel = getThrottleLevel(quality);
 
   // Get production speed for velocity scaling. A fire drill or emergency stop
-  // halts product in the spouts along with the machines feeding them.
+  // halts product in the spouts along with the machines feeding them; the
+  // clock hold and pace are read per frame (lineMotionRate).
   const productionSpeed = useProductionStore((state) => state.productionSpeed);
   const safetyHold = useGameSimulationStore(selectSafetyHoldActive);
+
+  // Per-route flow state survives a setpoint change; only a new layout resets it.
+  const routeFlow = useMemo(
+    () => ({
+      activity: new Float32Array(routes.length).fill(1),
+      targets: new Uint8Array(routes.length).fill(1),
+    }),
+    [routes]
+  );
 
   const entry = useMemo<GrainFlowEntry>(
     () => ({
@@ -837,9 +909,13 @@ export const GrainFlow: React.FC = () => {
       jitter: buffers.jitter,
       count,
       throttleLevel,
-      speedMultiplier: safetyHold ? 0 : productionSpeed,
+      productionSpeed,
+      safetyHold,
+      routeActivity: routeFlow.activity,
+      routeTargets: routeFlow.targets,
+      refreshCountdown: 0,
     }),
-    [routes, buffers, count, throttleLevel, productionSpeed, safetyHold]
+    [routes, buffers, count, throttleLevel, productionSpeed, safetyHold, routeFlow]
   );
 
   // Register with manager if available. Machines load asynchronously, so on the
@@ -857,7 +933,7 @@ export const GrainFlow: React.FC = () => {
     if (context) return; // Manager handles animation
     if (!particlesRef.current || !isEnabled || !isTabVisible) return;
     if (!shouldRunThisFrame(throttleLevel)) return;
-    animateGrainFlow(entry, delta);
+    animateGrainFlow(entry, delta, useGameSimulationStore.getState().gameSpeed);
   });
 
   // Return null if disabled (after all hooks have been called).
@@ -1138,6 +1214,8 @@ const MachineSteamParticle: React.FC<MachineSteamProps> = ({ position, type, int
 //   beacon (MACHINE_BEACON_MOUNTS), clear of the central inlet,
 // - packers: on the hopper lid (HOPPER is 1.5 m tall at y 5.72), off its centre.
 type SteamSource = {
+  /** The machine this vent belongs to; it vents only while that machine works. */
+  machineId: string;
   position: [number, number, number];
   type: 'steam' | 'dust' | 'exhaust';
   intensity: number;
@@ -1167,16 +1245,19 @@ const offsetFrom = (
 ): [number, number, number] => [x + dx, y + dy, z + dz];
 
 const STEAM_SOURCES: readonly SteamSource[] = [
-  ...SITE_LAYOUT.machines.rollerMills.map(({ position }, i) => ({
+  ...SITE_LAYOUT.machines.rollerMills.map(({ id, position }, i) => ({
+    machineId: id,
     position: offsetFrom(position, MILL_VENT_OFFSET),
     ...MILL_VENTS[i % MILL_VENTS.length],
   })),
-  ...SITE_LAYOUT.machines.sifters.map(({ position }, i) => ({
+  ...SITE_LAYOUT.machines.sifters.map(({ id, position }, i) => ({
+    machineId: id,
     position: offsetFrom(position, SIFTER_VENT_OFFSET),
     type: 'dust' as const,
     intensity: SIFTER_DUST_INTENSITY[i % SIFTER_DUST_INTENSITY.length],
   })),
-  ...SITE_LAYOUT.machines.packers.map(({ position }, i) => ({
+  ...SITE_LAYOUT.machines.packers.map(({ id, position }, i) => ({
+    machineId: id,
     position: offsetFrom(position, PACKER_VENT_OFFSET),
     type: 'dust' as const,
     intensity: PACKER_DUST_INTENSITY[i % PACKER_DUST_INTENSITY.length],
@@ -1217,12 +1298,20 @@ export const MachineSteamVents: React.FC = () => {
     group.visible = !safetyHold;
     if (safetyHold) return;
 
+    // A vent breathes only while its own machine is working, read from the
+    // state the machine animates from: a critical, idle or starved mill stops
+    // venting along with its rollers.
+    const machines = useProductionStore.getState().machines;
+    const buffers = useMaterialFlowStore.getState().machineBuffers;
     const cullDistSq = cullDistance * cullDistance;
     for (let i = 0; i < group.children.length; i++) {
       const child = group.children[i];
+      const source = activeSources[i];
       const dx = child.position.x - camera.position.x;
       const dz = child.position.z - camera.position.z;
-      child.visible = dx * dx + dz * dz < cullDistSq;
+      child.visible =
+        dx * dx + dz * dz < cullDistSq &&
+        (!source || isMachineDischarging(machineFlowState(source.machineId, machines, buffers)));
     }
   });
 
