@@ -34,6 +34,7 @@ import {
   SPOUT_PIPE_RADIUS,
   type SpoutRoute,
 } from './flow/spoutRoutes';
+import { buildVapourSpriteAlpha, STEAM_PUFF, VAPOUR_SPRITE_SIZE } from './flow/vapourSprite';
 
 // ============================================================
 // Shared particle sprite
@@ -77,6 +78,23 @@ const getParticleSprite = (): THREE.DataTexture => {
   texture.wrapT = THREE.ClampToEdgeWrapping;
   texture.needsUpdate = true;
   particleSpriteCache = texture;
+  return texture;
+};
+
+/** The steam vents' Gaussian vapour sprite (flow/vapourSprite.ts), shared. */
+let vapourSpriteCache: THREE.DataTexture | null = null;
+
+const getVapourSprite = (): THREE.DataTexture => {
+  if (vapourSpriteCache) return vapourSpriteCache;
+  const texture = createColorDataTexture(
+    buildVapourSpriteAlpha(),
+    VAPOUR_SPRITE_SIZE,
+    VAPOUR_SPRITE_SIZE
+  );
+  texture.wrapS = THREE.ClampToEdgeWrapping;
+  texture.wrapT = THREE.ClampToEdgeWrapping;
+  texture.needsUpdate = true;
+  vapourSpriteCache = texture;
   return texture;
 };
 
@@ -1040,7 +1058,8 @@ export const AtmosphericHaze: React.FC = () => {
 // Machine steam / dust vents
 // ============================================================
 
-const MACHINE_STEAM_CACHE_KEY = 'millos-machine-steam-v1';
+/** Device-pixel cap on a dust or exhaust puff; steam uses STEAM_PUFF's. */
+const VENT_MAX_POINT_PIXELS = 64;
 
 /**
  * Steam material with per-point life response.
@@ -1053,13 +1072,16 @@ const MACHINE_STEAM_CACHE_KEY = 'millos-machine-steam-v1';
 const createMachineSteamMaterial = (
   color: string,
   size: number,
-  opacity: number
+  opacity: number,
+  sprite: THREE.Texture,
+  maxPointPixels: number
 ): THREE.PointsMaterial => {
+  const maxPoint = Math.max(1, Math.round(maxPointPixels)).toFixed(1);
   const material = new THREE.PointsMaterial({
     color,
     size,
     opacity,
-    map: getParticleSprite(),
+    map: sprite,
     transparent: true,
     depthWrite: false,
     sizeAttenuation: true,
@@ -1079,7 +1101,7 @@ const createMachineSteamMaterial = (
         // vapour rather than dots. Clamped because gl_PointSize above the
         // driver's ALIASED_POINT_SIZE_RANGE is silently clamped anyway.
         gl_PointSize *= 1.0 + 1.6 * aLife;
-        gl_PointSize = clamp( gl_PointSize, 1.0, 64.0 );
+        gl_PointSize = clamp( gl_PointSize, 1.0, ${maxPoint} );
         vLifeAlpha = smoothstep( 0.0, 0.12, aLife ) * ( 1.0 - smoothstep( 0.55, 1.0, aLife ) );
         #include <logdepthbuf_vertex>`
       );
@@ -1097,7 +1119,8 @@ const createMachineSteamMaterial = (
       );
   };
 
-  material.customProgramCacheKey = () => MACHINE_STEAM_CACHE_KEY;
+  // Stable per configuration: the cap is the only thing that changes the source.
+  material.customProgramCacheKey = () => `millos-machine-steam-v2-${maxPoint}`;
   return material;
 };
 
@@ -1115,7 +1138,8 @@ const MachineSteamParticle: React.FC<MachineSteamProps> = ({ position, type, int
   const context = useDustAnimation();
   const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
   const prefersReducedMotion = useReducedMotion();
-  const count = type === 'dust' ? 30 : 20;
+  const isSteam = type === 'steam';
+  const count = isSteam ? STEAM_PUFF.count : type === 'dust' ? 30 : 20;
 
   const { positions, velocities, lifetimes } = useMemo(() => {
     const pos = new Float32Array(count * 3);
@@ -1140,12 +1164,19 @@ const MachineSteamParticle: React.FC<MachineSteamProps> = ({ position, type, int
   }, [count, type]);
 
   const color = type === 'steam' ? '#e2e8f0' : type === 'dust' ? '#d4a574' : '#9ca3af';
-  const baseOpacity = type === 'steam' ? 0.34 : 0.44;
-  const baseSize = type === 'steam' ? 0.34 : 0.2;
+  const baseOpacity = isSteam ? STEAM_PUFF.opacity : 0.44;
+  const baseSize = isSteam ? STEAM_PUFF.size : 0.2;
 
   const material = useMemo(
-    () => createMachineSteamMaterial(color, baseSize * intensity, baseOpacity * intensity),
-    [color, baseSize, baseOpacity, intensity]
+    () =>
+      createMachineSteamMaterial(
+        color,
+        baseSize * intensity,
+        baseOpacity * intensity,
+        isSteam ? getVapourSprite() : getParticleSprite(),
+        isSteam ? STEAM_PUFF.maxPointPixels : VENT_MAX_POINT_PIXELS
+      ),
+    [color, baseSize, baseOpacity, intensity, isSteam]
   );
   useEffect(() => () => material.dispose(), [material]);
 
@@ -1175,7 +1206,10 @@ const MachineSteamParticle: React.FC<MachineSteamProps> = ({ position, type, int
     if (context) return; // Manager handles animation
     if (!particlesRef.current || !isTabVisible || prefersReducedMotion) return;
     if (!shouldRunThisFrame(3)) return;
-    animateMachineSteam(entry, Math.min(delta * 3, 0.1));
+    // Plant motion, as in the manager: held with the clock, scaled by pace.
+    const plantScale = plantTimeScale(useGameSimulationStore.getState().gameSpeed);
+    if (plantScale <= 0) return;
+    animateMachineSteam(entry, Math.min(delta * 3 * plantScale, 0.2));
   });
 
   // Use key to force remount when count changes, preventing buffer resize error
