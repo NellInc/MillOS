@@ -123,6 +123,20 @@ describe('BreakdownStore', () => {
       expect(useBreakdownStore.getState().partsInventory.sensors).toBe(12);
     });
 
+    it('still finishes a repair restored without a finite time estimate', () => {
+      const breakdown = createRepair();
+      useBreakdownStore.setState((state) => ({
+        activeBreakdowns: state.activeBreakdowns.map((b) => ({
+          ...b,
+          estimatedRepairTime: undefined as unknown as number,
+        })),
+      }));
+      expect(useBreakdownStore.getState().startRepair(breakdown.id).started).toBe(true);
+      useBreakdownStore.getState().tickDowntime(30 * 60);
+      expect(useBreakdownStore.getState().activeBreakdowns[0].repairProgress).toBe(100);
+      expect(useBreakdownStore.getState().workOrders[0].phase).toBe('verification');
+    });
+
     it('requires repair completion, verification, and explicit restart in order', () => {
       const breakdown = createRepair();
       const state = useBreakdownStore.getState();

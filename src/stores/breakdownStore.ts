@@ -585,7 +585,12 @@ export const useBreakdownStore = create<BreakdownStore>()(
       for (const breakdown of activeBreakdowns) {
         const workOrder = workOrders.find((order) => order.breakdownId === breakdown.id);
         if (workOrder?.phase !== 'repairing') continue;
-        const repairSeconds = Math.max(1, breakdown.estimatedRepairTime) * 60;
+        // A save without a finite estimate takes the shortest authored repair
+        // rather than a NaN that would never finish.
+        const minutes = Number.isFinite(breakdown.estimatedRepairTime)
+          ? Math.max(1, breakdown.estimatedRepairTime)
+          : 30;
+        const repairSeconds = minutes * 60;
         get().updateRepairProgress(breakdown.id, (deltaSeconds / repairSeconds) * 100);
       }
     },
