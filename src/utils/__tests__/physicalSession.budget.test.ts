@@ -333,6 +333,10 @@ it.each([
 
     // A reload decodes against a fresh page's stores, not the playing ones: a
     // genuine mid-play record failed there with 'Invalid physical field'.
+    // Merged retry parcels conserve mass and every lot's share of it.
+    const flow = useMaterialFlowStore.getState();
+    expect(Math.abs(flow.getMaterialBalance().errorKg)).toBeLessThan(0.001);
+    expect(Math.abs(flow.getGenealogyBalance().errorKg)).toBeLessThan(0.001);
     freshPage();
     expect(() => decodePhysicalSession(raw)).not.toThrow();
     const storage = { getItem: () => raw, setItem: vi.fn() };

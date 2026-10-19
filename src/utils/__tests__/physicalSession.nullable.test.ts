@@ -49,7 +49,12 @@ it('lists exactly the saved fields whose type admits null', () => {
     for (const field of checker.getPropertiesOfType(checker.getTypeOfSymbol(domain))) {
       const type = checker.getTypeOfSymbol(field);
       const parts = type.isUnion() ? type.types : [type];
-      if (field.flags & ts.SymbolFlags.Optional) optional.push(`${domain.name}.${field.name}`);
+      // data() drops undefined values, so `?` and `| undefined` both vanish from defaults.
+      if (
+        field.flags & ts.SymbolFlags.Optional ||
+        parts.some((part) => part.flags & ts.TypeFlags.Undefined)
+      )
+        optional.push(`${domain.name}.${field.name}`);
       if (parts.some((part) => part.flags & ts.TypeFlags.Null))
         (derived[domain.name] ??= []).push(field.name);
     }
