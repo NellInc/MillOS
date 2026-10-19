@@ -11,6 +11,7 @@ import {
   buildFactoryRoofGlazing,
   buildFactoryRoofStructure,
   buildFactoryGlazing,
+  buildFactoryShellColumns,
   buildProcessGallery,
   FACTORY_ENVELOPE_SPEC,
   FLOOR_JOINT_PITCH,
@@ -60,6 +61,49 @@ describe('optimized factory envelope', () => {
           );
         }
       }
+    }
+  });
+
+  it('stands no gable column inside a dock opening', () => {
+    // The 20 m column grid put a full-height column at x = 0 in the middle of
+    // the 30 m shipping opening (and the 18 m receiving one), on the forklift
+    // channel's line and in front of both SHIPPING signs - the art review's
+    // "SH PPING". The dock header beam spans the opening instead.
+    const columns = buildFactoryShellColumns();
+    for (const portal of [SITE_LAYOUT.portals.shipping, SITE_LAYOUT.portals.receiving]) {
+      const wallZ = portal.centre[2];
+      const inWall = columns.filter((c) => Math.abs(c.position[2] - wallZ) < 1);
+      for (const column of inWall) {
+        const halfSpan = column.scale[0] / 2;
+        expect(Math.abs(column.position[0] - portal.centre[0]) - halfSpan).toBeGreaterThanOrEqual(
+          portal.halfWidth
+        );
+      }
+      // The rest of the gable grid is still there: x = -40, -20, 20, 40.
+      const shafts = inWall.filter(
+        (c) => c.scale[0] === 0.42 && c.scale[1] === SITE_LAYOUT.factory.bounds.maxY
+      );
+      expect(shafts.map((c) => c.position[0]).sort((a, b) => a - b)).toEqual([-40, -20, 20, 40]);
+    }
+  });
+
+  it('closes the glazing over a dock where the gable column used to stand', () => {
+    // Window frames are 0.14 m wide and sit outside each pane edge, so two
+    // panes whose edges are 0.28 m apart meet in one mullion with no open slot.
+    const panes = buildFactoryGlazing();
+    for (const portal of [SITE_LAYOUT.portals.shipping, SITE_LAYOUT.portals.receiving]) {
+      const overDoor = panes.filter(
+        (pane) =>
+          Math.abs(pane.position[2] - portal.centre[2]) < 1 &&
+          pane.position[1] - pane.scale[1] / 2 >= FACTORY_ENVELOPE_SPEC.dockWindowSill - 0.01
+      );
+      const edges = overDoor.flatMap((pane) => [
+        pane.position[0] - pane.scale[0] / 2,
+        pane.position[0] + pane.scale[0] / 2,
+      ]);
+      const leftOfCentre = Math.max(...edges.filter((x) => x <= 0));
+      const rightOfCentre = Math.min(...edges.filter((x) => x >= 0));
+      expect(rightOfCentre - leftOfCentre).toBeLessThanOrEqual(0.28 + 1e-9);
     }
   });
 

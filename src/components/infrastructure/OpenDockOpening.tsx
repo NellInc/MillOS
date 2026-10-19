@@ -163,6 +163,19 @@ const MATERIALS = {
 } as const;
 
 /**
+ * Where the dock label board sits, in the opening's local +Z (outdoors).
+ *
+ * MillScene places both openings 2 m inside the wall line (z = +/-48 against
+ * the +/-50 portals), and `buildFactoryGlazing` puts the facade panes 0.31 m
+ * outside the wall line with 0.16 m-deep frames, so the frame face is at local
+ * 2 + 0.31 + 0.08 = 2.39. The 0.15 m board is centred 0.17 m proud of that, and
+ * a short standoff (overlapping both by 5 mm, so no face is coplanar) bolts it
+ * to the mullion at x = 0.
+ */
+const DOCK_SIGN_LOCAL_Z = 2.56;
+const DOCK_SIGN_STANDOFF = 0.11;
+
+/**
  * Floor hazard paint at the dock threshold: 26 m of it, and the largest flat
  * row this branch had.
  *
@@ -461,8 +474,20 @@ export const OpenDockOpening: React.FC<OpenDockOpeningProps> = ({
         </group>
       )}
 
-      {/* Dock label sign */}
-      <group position={[0, height + 2.5, 0.5]}>
+      {/* Dock label sign, on the OUTSIDE of the facade glazing. It used to hang
+          0.5 m in front of the opening, 1.5 m inside the wall line, where the
+          gable column and the glazing mullion over the door stood between it
+          and every exterior camera ("SH PPING" in shipping and
+          logistics-close). The column is gone from the opening and the panes
+          now meet in one mullion at x = 0; the board is bolted to that mullion
+          through a short standoff, in front of everything. */}
+      <group position={[0, height + 2.5, DOCK_SIGN_LOCAL_Z]}>
+        <mesh
+          geometry={UNIT_BOX}
+          material={MATERIALS.flange}
+          scale={[0.2, 0.36, DOCK_SIGN_STANDOFF]}
+          position={[0, 0, -0.075 - DOCK_SIGN_STANDOFF / 2 + 0.005]}
+        />
         <mesh geometry={UNIT_BOX} material={MATERIALS.sign} scale={[6, 1.2, 0.15]} />
         {/* Painted lettering on a lit board: it darkens with the board at night instead of glowing. */}
         <Text

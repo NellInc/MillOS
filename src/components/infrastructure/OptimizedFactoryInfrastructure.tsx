@@ -1346,6 +1346,25 @@ export function buildFactoryGlazing(): BoxInstance[] {
         if (Math.abs(right - openingLeft) < 0.2) right = openingLeft - 0.2;
         if (Math.abs(left - openingRight) < 0.2) left = openingRight + 0.2;
         const crosses = right > openingLeft && left < openingRight;
+        // Over a dock the gable column is omitted (see `buildFactoryShellColumns`),
+        // so the 0.9 m slot it filled would be open air. Pull both pane edges in
+        // until their 0.14 m frames meet in a single mullion.
+        if (front && crosses) {
+          const gridX = Math.round((right + 0.45) / 20) * 20;
+          if (
+            Math.abs(right - (gridX - 0.45)) < 1e-6 &&
+            Math.abs(gridX - opening) < portal.halfWidth
+          ) {
+            right = gridX - 0.14;
+          }
+          const leftGridX = Math.round((left - 0.45) / 20) * 20;
+          if (
+            Math.abs(left - (leftGridX + 0.45)) < 1e-6 &&
+            Math.abs(leftGridX - opening) < portal.halfWidth
+          ) {
+            left = leftGridX + 0.14;
+          }
+        }
         const bottom = crosses ? openingTop : sill;
         add(left, right, bottom, SITE_LAYOUT.datum.mezzanine - 0.3);
         add(left, right, Math.max(bottom, SITE_LAYOUT.datum.mezzanine), head);
@@ -1357,6 +1376,57 @@ export function buildFactoryGlazing(): BoxInstance[] {
     }
   }
   return panes;
+}
+
+/** Wall columns, their base plates and the chamfered building corners. */
+export function buildFactoryShellColumns(): BoxInstance[] {
+  const result: BoxInstance[] = [];
+  const height = SITE_LAYOUT.factory.bounds.maxY;
+  // A gable column never stands inside a dock opening. The 20 m grid put one at
+  // x = 0 in the middle of both docks: on the shipping forklift channel's line,
+  // and in front of the SHIPPING board and facade lettering from every exterior
+  // camera, which read "SH PPING". The dock opening's own header beam spans the
+  // gap. Camera collision already treats each portal as fully open.
+  const frontPortals = [SITE_LAYOUT.portals.shipping, SITE_LAYOUT.portals.receiving];
+  const inOpening = (x: number, z: number, halfSpan: number): boolean =>
+    frontPortals.some(
+      (portal) =>
+        Math.sign(portal.centre[2]) === Math.sign(z) &&
+        Math.abs(x - portal.centre[0]) - halfSpan < portal.halfWidth
+    );
+  for (let x = -FLOOR_WIDTH / 2; x <= FLOOR_WIDTH / 2; x += 20) {
+    for (const z of [-49.55, 49.55]) {
+      if (inOpening(x, z, 1.05 / 2)) continue;
+      result.push({ position: [x, height / 2, z], scale: [0.42, height, 0.42] });
+      result.push({ position: [x, 0.06, z], scale: [1.05, 0.12, 1.05] });
+    }
+  }
+  for (const z of FACTORY_SIDE_COLUMN_Z) {
+    result.push({
+      position: [-FLOOR_WIDTH / 2 + 0.45, height / 2, z],
+      scale: [0.42, height, 0.42],
+    });
+    result.push({
+      position: [FLOOR_WIDTH / 2 - 0.45, height / 2, z],
+      scale: [0.42, height, 0.42],
+    });
+    result.push({ position: [-FLOOR_WIDTH / 2 + 0.45, 0.06, z], scale: [1.05, 0.12, 1.05] });
+    result.push({ position: [FLOOR_WIDTH / 2 - 0.45, 0.06, z], scale: [1.05, 0.12, 1.05] });
+  }
+  // Chamfer the four vertical building corners. These are the shell's most
+  // camera-facing hard edges from every exterior angle.
+  for (const x of [-FLOOR_WIDTH / 2 + 0.15, FLOOR_WIDTH / 2 - 0.15]) {
+    for (const z of [-49.85, 49.85]) {
+      result.push(
+        chamferStrip(
+          [x, height / 2, z],
+          [1.45, height, 0.16],
+          [0, (Math.PI / 4) * Math.sign(x * z), 0]
+        )
+      );
+    }
+  }
+  return result;
 }
 
 function FactoryShell() {
@@ -1392,42 +1462,7 @@ function FactoryShell() {
     ];
   }, []);
 
-  const columns = useMemo<readonly BoxInstance[]>(() => {
-    const result: BoxInstance[] = [];
-    const height = SITE_LAYOUT.factory.bounds.maxY;
-    for (let x = -FLOOR_WIDTH / 2; x <= FLOOR_WIDTH / 2; x += 20) {
-      result.push({ position: [x, height / 2, -49.55], scale: [0.42, height, 0.42] });
-      result.push({ position: [x, height / 2, 49.55], scale: [0.42, height, 0.42] });
-      result.push({ position: [x, 0.06, -49.55], scale: [1.05, 0.12, 1.05] });
-      result.push({ position: [x, 0.06, 49.55], scale: [1.05, 0.12, 1.05] });
-    }
-    for (const z of FACTORY_SIDE_COLUMN_Z) {
-      result.push({
-        position: [-FLOOR_WIDTH / 2 + 0.45, height / 2, z],
-        scale: [0.42, height, 0.42],
-      });
-      result.push({
-        position: [FLOOR_WIDTH / 2 - 0.45, height / 2, z],
-        scale: [0.42, height, 0.42],
-      });
-      result.push({ position: [-FLOOR_WIDTH / 2 + 0.45, 0.06, z], scale: [1.05, 0.12, 1.05] });
-      result.push({ position: [FLOOR_WIDTH / 2 - 0.45, 0.06, z], scale: [1.05, 0.12, 1.05] });
-    }
-    // Chamfer the four vertical building corners. These are the shell's most
-    // camera-facing hard edges from every exterior angle.
-    for (const x of [-FLOOR_WIDTH / 2 + 0.15, FLOOR_WIDTH / 2 - 0.15]) {
-      for (const z of [-49.85, 49.85]) {
-        result.push(
-          chamferStrip(
-            [x, height / 2, z],
-            [1.45, height, 0.16],
-            [0, (Math.PI / 4) * Math.sign(x * z), 0]
-          )
-        );
-      }
-    }
-    return result;
-  }, []);
+  const columns = useMemo(buildFactoryShellColumns, []);
 
   const roofStructure = useMemo(buildFactoryRoofStructure, []);
   const roofTrusses = useMemo(
