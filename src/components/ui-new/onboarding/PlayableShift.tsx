@@ -62,7 +62,13 @@ export function TeachingPace() {
   const setSpeed = useGameSimulationStore((s) => s.setGameSpeed);
   const t = useT(playableShiftMessages);
   const pace = useT(paceMessages);
-  const known = isPaceGameSpeed(speed);
+  // Under a derived hold a chosen pace waits as the resume pace, so show it
+  // rather than 'Paused'. Working if the choice never appears to snap back.
+  const resume = useGameSimulationStore(
+    (s) => s.clockHolds.find((hold) => hold.holder === 'handoff')?.resumeSpeed
+  );
+  const shown = holder === 'handoff' && resume !== undefined ? resume : speed;
+  const known = isPaceGameSpeed(shown);
   return (
     <div className="mt-3">
       <label className="flex flex-wrap items-center gap-2 text-xs text-slate-300">
@@ -73,7 +79,7 @@ export function TeachingPace() {
         <select
           aria-label={t('shiftPace')}
           title={pace('paceTitle')}
-          value={known ? speed : 'custom'}
+          value={known ? shown : 'custom'}
           onChange={(e) => setSpeed(Number(e.target.value))}
           className="min-h-11 rounded bg-slate-800 px-2 text-white"
         >

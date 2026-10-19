@@ -228,4 +228,63 @@ describe('improvement store boundaries', () => {
       loaded.members.every((m) => !m.sharing && m.ballot === null && m.coverConsent === null)
     ).toBe(true);
   });
+
+  it('cancels an unfunded first handoff shift back to its origin, after a reload too, and holds the clock only while it is decided', async () => {
+    const store = useWorkplaceStore.getState();
+    expect(store.startCampaign('team', 3).changed).toBe(true);
+    expect(store.stop().changed).toBe(true);
+    const origin = structuredClone(useWorkplaceStore.getState().workplace);
+    expect(origin.campaign?.shift).toBe(0);
+    useGameSimulationStore.getState().setGameSpeed(30);
+    expect(store.beginImprovement('cooperative', origin.revision).changed).toBe(true);
+    store.proposeImprovement('buffer', 'maintenance');
+    expect(useGameSimulationStore.getState().clockHolds).toEqual([
+      { holder: 'handoff', resumeSpeed: 30 },
+    ]);
+    // A reload settles deliberation into review; the hold is derived again.
+    useGameSimulationStore.getState().resetGameState();
+    await useWorkplaceStore.persist.rehydrate();
+    const reloaded = useWorkplaceStore.getState().workplace;
+    expect(reloaded.phase).toBe('review');
+    expect(reloaded.improvement?.funded).toBe(false);
+    expect(useGameSimulationStore.getState()).toMatchObject({
+      gameSpeed: 0,
+      clockHolds: [{ holder: 'handoff', resumeSpeed: 30 }],
+    });
+    beginReplayClock(17, 1);
+    expect(store.cancelImprovement(reloaded.revision).changed).toBe(false);
+    endReplayClock();
+    expect(store.cancelImprovement(reloaded.revision).changed).toBe(true);
+    const restored = useWorkplaceStore.getState().workplace;
+    expect(restored.improvement).toBeUndefined();
+    expect(restored.campaign?.shift).toBe(0);
+    expect(restored.phase).toBe('review');
+    expect(restored.finance).toEqual(origin.finance);
+    expect(restored.revision).toBeGreaterThan(reloaded.revision);
+    expect(useGameSimulationStore.getState()).toMatchObject({ gameSpeed: 30, clockHolds: [] });
+  });
+
+  it('refuses to cancel a funded trial or a later handoff cycle', () => {
+    const store = prepare();
+    expect(store.activate(useWorkplaceStore.getState().workplace.revision).changed).toBe(true);
+    const funded = useWorkplaceStore.getState().workplace;
+    expect(store.cancelImprovement(funded.revision).changed).toBe(false);
+    store.stop();
+    const stopped = useWorkplaceStore.getState().workplace;
+    expect(stopped.improvement?.funded).toBe(true);
+    expect(store.cancelImprovement(stopped.revision).changed).toBe(false);
+    expect(useWorkplaceStore.getState().workplace).toBe(stopped);
+    store.acknowledgeImprovementReview();
+    for (const m of stopped.members) store.voteImprovementReview(m.id, 'stop');
+    expect(
+      store.finishImprovementReview(useWorkplaceStore.getState().workplace.revision).changed
+    ).toBe(true);
+    expect(store.continueImprovement(useWorkplaceStore.getState().workplace.revision).changed).toBe(
+      true
+    );
+    const later = useWorkplaceStore.getState().workplace;
+    expect(later.improvement?.history).toHaveLength(1);
+    expect(later.improvement?.funded).toBeFalsy();
+    expect(store.cancelImprovement(later.revision).changed).toBe(false);
+  });
 });

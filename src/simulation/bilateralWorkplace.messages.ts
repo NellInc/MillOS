@@ -175,6 +175,10 @@ export const bilateralWorkplaceMessages = defineMessages({
       'Read the current settled review, retain all obligations and choose a known profile before opening a trial.',
     evImprovementOpened:
       'The team opens a bounded handoff trial. Earlier cash, pay and customer obligations remain in the origin review.',
+    rejCancelImprovement:
+      'Cancel only an unfunded first handoff shift, with no owed recovery, open objection or reserve, from the current revision.',
+    evImprovementCancelled:
+      'The team cancels the handoff experiment before funding it. No trial ran and nothing was spent; the earlier review, pay and customer obligations are back as they were.',
     rejPropose:
       'The qualified proposing role may offer a different canonical arrangement before activation.',
     evProposed:
@@ -513,6 +517,10 @@ export const bilateralWorkplaceMessages = defineMessages({
       'Leia a revisão encerrada atual, mantenha todas as obrigações e escolha um perfil conhecido antes de abrir um teste.',
     evImprovementOpened:
       'A equipe abre um teste limitado de passagem de turno. O caixa, a remuneração e as obrigações com clientes anteriores permanecem na revisão de origem.',
+    rejCancelImprovement:
+      'Cancele apenas um primeiro turno de passagem de turno ainda não financiado, sem recuperação devida, objeção aberta ou reserva, a partir da revisão atual.',
+    evImprovementCancelled:
+      'A equipe cancela o experimento de passagem de turno antes de financiá-lo. Nenhum teste rodou e nada foi gasto; a revisão anterior, a remuneração e as obrigações com clientes voltam ao que eram.',
     rejPropose:
       'A função qualificada que propõe pode oferecer outro arranjo predefinido antes da ativação.',
     evProposed:

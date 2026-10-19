@@ -272,6 +272,21 @@ export function improvementObligations(s: WorkplaceState): string[] {
     reasons.push(translate(msg, 'obligationSettle'));
   return reasons;
 }
+/**
+ * The handoff experiment holds the plant clock while it is being decided: its
+ * adviser forecast is frozen on the current plant inputs. The trial itself
+ * runs, owed recovery runs on an explicit resume, and a verdict releases it.
+ * Working if the clock is held exactly when the tick grants a handoff no time.
+ */
+export function handoffHoldsClock(s: WorkplaceState): boolean {
+  const i = s.improvement;
+  return (
+    s.mode === 'game' &&
+    !!i &&
+    (s.phase === 'deliberating' ||
+      (s.phase === 'review' && !i.verdict && !s.members.some((m) => m.recoveryOwedMinutes > 0)))
+  );
+}
 export function improvementSummary(s: WorkplaceState) {
   const i = s.improvement;
   if (!i) return null;

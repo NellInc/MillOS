@@ -342,6 +342,26 @@ describe('one time model: pace migration and clock holds', () => {
     expect(useGameSimulationStore.getState()).toMatchObject({ gameSpeed: 120, clockHolds: [] });
   });
 
+  it('keeps a derived handoff hold under any pace choice, and resumes at the pace chosen', () => {
+    const store = useGameSimulationStore.getState();
+    store.setGameSpeed(30);
+    store.holdClock('handoff');
+    store.setGameSpeed(0);
+    // A pace chosen while the handoff decision holds the plant waits as its
+    // resume pace: the clock stays held and the player's pause is replaced.
+    store.setGameSpeed(60);
+    expect(useGameSimulationStore.getState()).toMatchObject({
+      gameSpeed: 0,
+      clockHolds: [{ holder: 'handoff', resumeSpeed: 60 }],
+    });
+    expect(selectClockHolder(useGameSimulationStore.getState())).toBe('handoff');
+    expect(persistedGameSpeed(useGameSimulationStore.getState())).toBe(60);
+    expect(store.releaseClock('tour')).toBe(false);
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+    expect(store.releaseClock('handoff')).toBe(true);
+    expect(useGameSimulationStore.getState()).toMatchObject({ gameSpeed: 60, clockHolds: [] });
+  });
+
   it('persists the pace under a session hold, never the hold itself', () => {
     const store = useGameSimulationStore.getState();
     store.setGameSpeed(60);

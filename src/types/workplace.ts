@@ -268,6 +268,8 @@ export interface WorkplaceActions {
     mission?: WorkplaceMission,
     mode?: WorkplaceMode
   ) => WorkplaceTransitionResult;
+  /** Before funding, the first handoff shift can be cancelled back to its origin. */
+  cancelImprovement: (expectedRevision: number) => WorkplaceTransitionResult;
   proposeImprovement: (id: ImprovementId, actorId: string) => WorkplaceTransitionResult;
   challengeImprovement: (actorId: string, kind: ImprovementChallenge) => WorkplaceTransitionResult;
   acknowledgeImprovement: (advice?: PackingAdvice) => WorkplaceTransitionResult;

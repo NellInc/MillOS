@@ -107,8 +107,18 @@ export type ClockHolder =
   | 'restore'
   | 'restoreFailed'
   | 'workplace'
+  | 'handoff'
   | 'layout'
   | 'scada';
+
+/**
+ * Holds derived from game state rather than from a control: the state that
+ * creates them also ends them, so a pace choice cannot. A positive pace made
+ * under one becomes the pace it resumes at instead of starting the clock.
+ * Working if choosing a pace during a handoff decision leaves the clock held
+ * and the plant resumes at that pace once the decision ends.
+ */
+const DERIVED_HOLDERS: readonly ClockHolder[] = ['handoff'];
 
 export interface ClockHold {
   readonly holder: ClockHolder;
@@ -124,7 +134,10 @@ export interface GameSimulationStore {
   gameDay: number;
   gameSpeed: number;
   setGameTime: (time: number) => void;
-  /** An explicit pace choice: a positive pace clears every hold; 0 is a player pause. */
+  /**
+   * An explicit pace choice: a positive pace clears every hold except a derived
+   * one (DERIVED_HOLDERS), whose resume pace it sets instead; 0 is a player pause.
+   */
   setGameSpeed: (speed: number) => void;
   /** Holds stacked over the clock, oldest first. Never persisted. */
   clockHolds: ClockHold[];
@@ -352,11 +365,17 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
       },
       setGameSpeed: (speed) => {
         const gameSpeed = sanitizeGameSpeed(speed);
+        const { gameSpeed: current, clockHolds } = get();
         if (gameSpeed > 0) {
-          set({ gameSpeed, clockHolds: [] });
+          const derived =
+            current === 0 ? clockHolds.filter((hold) => DERIVED_HOLDERS.includes(hold.holder)) : [];
+          set(
+            derived.length
+              ? { clockHolds: [{ ...derived[0], resumeSpeed: gameSpeed }, ...derived.slice(1)] }
+              : { gameSpeed, clockHolds: [] }
+          );
           return;
         }
-        const { gameSpeed: current, clockHolds } = get();
         if (current === 0 && clockHolds.at(-1)?.holder === 'player') return;
         set({
           gameSpeed: 0,

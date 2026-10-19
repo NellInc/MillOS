@@ -20,7 +20,7 @@ import {
   transitionWorkplace,
   type WorkplaceCommand,
 } from '../simulation/bilateralWorkplace';
-import { workplaceMission } from '../simulation/workplaceImprovement';
+import { handoffHoldsClock, workplaceMission } from '../simulation/workplaceImprovement';
 import { safeJSONStorage } from './storage';
 import { isWorkplaceReplayActive } from '../simulation/workplaceReplayRuntime';
 import { translate } from '../i18n';
@@ -213,7 +213,7 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
             };
         }
         if (
-          ['beginImprovement', 'continueImprovement'].includes(command.type) &&
+          ['beginImprovement', 'continueImprovement', 'cancelImprovement'].includes(command.type) &&
           isWorkplaceReplayActive()
         )
           return {
@@ -385,6 +385,7 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
         },
         beginImprovement: (profile, revision, _mission, mode = get().workplace.mode) =>
           apply({ type: 'beginImprovement', args: [profile, revision, linkedMission(mode), mode] }),
+        cancelImprovement: (...args) => apply({ type: 'cancelImprovement', args }),
         proposeImprovement: (...args) => apply({ type: 'proposeImprovement', args }),
         challengeImprovement: (...args) => apply({ type: 'challengeImprovement', args }),
         acknowledgeImprovement: () => presentAdvice(),
@@ -618,6 +619,22 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
 useWorkplaceStore.subscribe(({ workplace, turn }) => {
   if (turn && turn.anchor !== workplace) useWorkplaceStore.setState({ turn: null });
 });
+
+// The handoff hold is derived from workplace state, never pushed by a button,
+// so a restore, replay rollback or persist merge re-establishes or ends it.
+// Working if the clock is held exactly while handoffHoldsClock is true and a
+// pace chosen meanwhile is the pace the plant resumes at.
+function syncHandoffHold(workplace: WorkplaceState) {
+  const clock = useGameSimulationStore.getState();
+  const held = clock.clockHolds.some((hold) => hold.holder === 'handoff');
+  if (handoffHoldsClock(workplace)) {
+    if (!held || clock.gameSpeed > 0) clock.holdClock('handoff');
+  } else if (held) clock.releaseClock('handoff');
+}
+useWorkplaceStore.subscribe(({ workplace }, previous) => {
+  if (workplace !== previous.workplace) syncHandoffHold(workplace);
+});
+syncHandoffHold(useWorkplaceStore.getState().workplace);
 
 /** Captures a render's token so retained callbacks cannot borrow the next turn. */
 export function useWorkplaceControls() {

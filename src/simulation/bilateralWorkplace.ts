@@ -869,6 +869,28 @@ export function transitionWorkplace(
       record(fresh, 'packing', 'improvement-opened', translate(wm, 'evImprovementOpened'));
       return { state: fresh, changed: true, reason: null };
     }
+    case 'cancelImprovement': {
+      // Before funding nothing has been bought or worked, so the honest exit
+      // is the origin review exactly as it was. Later cycles carry trial pay
+      // and are left through their review. Working if a cancelled first shift
+      // restores the origin with a newer revision and spends nothing.
+      const [revision] = command.args;
+      const i = s.improvement;
+      if (
+        !i ||
+        revision !== s.revision ||
+        !Number.isSafeInteger(revision) ||
+        i.funded ||
+        i.history.length > 0 ||
+        !['deliberating', 'review'].includes(s.phase) ||
+        improvementObligations(s).length
+      )
+        return reject(translate(wm, 'rejCancelImprovement'));
+      const origin = restoreWorkplace(i.origin);
+      origin.revision = s.revision + 1;
+      record(origin, 'members', 'improvement-cancelled', translate(wm, 'evImprovementCancelled'));
+      return { state: origin, changed: true, reason: null };
+    }
     case 'proposeImprovement': {
       const [id, actor] = command.args;
       const a = HANDOFF_ARRANGEMENTS.find((item) => item.id === id);
