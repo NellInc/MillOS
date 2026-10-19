@@ -4231,8 +4231,11 @@ export const TruckBay: React.FC = () => {
             {/* Tire inspection area */}
             <TireInspectionArea position={[-25, 0, -35]} rotation={-Math.PI / 2} />
 
-            {/* Yard jockey patrolling */}
-            <YardJockey position={[0, 0, -25]} rotation={Math.PI} />
+            {/* Yard jockey patrolling. World (35, -92): the shipping jockey's
+                place turned half a revolution, pulled 2 m clear of the fuel
+                island canopy. At local (0, -25) its 16 m shuttle crossed the
+                receiving truck's back-in lane at z -75. */}
+            <YardJockey position={[35, 0, -42]} rotation={Math.PI} />
 
             {/* Dumpster area for receiving - relocated to east periphery */}
             <DumpsterArea position={[65, 0, -25]} rotation={-Math.PI / 2} />
