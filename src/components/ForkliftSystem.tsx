@@ -18,6 +18,7 @@ import { useOperationsCampaignStore } from '../stores/operationsCampaignStore';
 import { useShallow } from 'zustand/react/shallow';
 import { getForkliftWarningColor } from '../utils/statusColors';
 import { ForkliftModel } from './models';
+import { applyCargoPresence } from './models/ForkliftModel';
 import { shouldRunThisFrame } from '../utils/frameThrottle';
 import { ForkliftData } from '../types';
 import { POLYGON_OFFSET } from '../constants/renderLayers';
@@ -42,13 +43,25 @@ import {
   createForkliftRoutePlan,
   createInitialForkliftMotion,
   distanceAheadOnClosedPath,
+  forkliftRouteHeading,
   sampleForkliftLoadPose,
   resolveForkliftStopReason,
   stepForkliftMotion,
   type ForkliftLoadPhase,
+  type ForkliftRoutePlan,
   type ForkliftStopReason,
 } from '../simulation/vehicles/forkliftController';
 import { sampleArcLengthPath } from '../simulation/vehicles/vehicleKinematics';
+
+/**
+ * The direction a forklift publishes for traffic checks: where the route goes
+ * from here. At a pickup or dropoff that turns, the path's own tangent still
+ * points along the arriving leg; the route heading is the leaving one.
+ */
+const routeDirection = (plan: ForkliftRoutePlan, distance: number): [number, number] => {
+  const heading = forkliftRouteHeading(plan, distance);
+  return [Math.sin(heading), Math.cos(heading)];
+};
 import {
   vehicleTelemetryRegistry,
   type VehicleTelemetrySnapshot,
@@ -263,9 +276,6 @@ const WarningLight = React.memo<{
   );
 });
 
-// Cargo fade-in duration for billboard (matches detailed model)
-const BILLBOARD_CARGO_FADE_DURATION = 0.25;
-
 /**
  * sRGB of the authored forklift's linear `painted-safety-amber` baseColorFactor
  * (0.6939, 0.3231, 0.0242). Keeps the far LOD the same hue as the near one.
@@ -326,42 +336,19 @@ const BILLBOARD_MATERIALS = {
   ),
 };
 
-const ForkliftBillboard: React.FC<{ hasCargo: boolean; simulationPaused: boolean }> = ({
-  hasCargo,
-  simulationPaused,
+const ForkliftBillboard: React.FC<{ cargoPresenceRef: React.MutableRefObject<number> }> = ({
+  cargoPresenceRef,
 }) => {
-  // Cargo fade-in refs (no re-renders, minimal overhead)
-  const cargoOpacityRef = useRef(hasCargo ? 1 : 0);
-  const prevHasCargoRef = useRef(hasCargo);
+  // The far tier draws the same pallet presence as the near models.
+  const cargoMeshRef = useRef<THREE.Mesh>(null);
   const cargoMaterialRef = useRef<THREE.MeshStandardMaterial>(null);
   const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
 
-  useFrame((_, delta) => {
-    if (!isTabVisible || simulationPaused) return;
-    const animationDelta = delta * plantTimeScale(useGameSimulationStore.getState().gameSpeed);
-
-    // Detect cargo spawn
-    if (hasCargo && !prevHasCargoRef.current) {
-      cargoOpacityRef.current = 0;
-    }
-    prevHasCargoRef.current = hasCargo;
-
-    // Animate opacity (only when needed)
-    const targetOpacity = hasCargo ? 1 : 0;
-    if (cargoOpacityRef.current !== targetOpacity) {
-      if (hasCargo) {
-        cargoOpacityRef.current = Math.min(
-          1,
-          cargoOpacityRef.current + animationDelta / BILLBOARD_CARGO_FADE_DURATION
-        );
-      } else {
-        cargoOpacityRef.current = 0;
-      }
-      if (cargoMaterialRef.current) {
-        cargoMaterialRef.current.opacity = cargoOpacityRef.current;
-        cargoMaterialRef.current.visible = cargoOpacityRef.current > 0.01;
-      }
-    }
+  useFrame(() => {
+    if (!isTabVisible) return;
+    applyCargoPresence(cargoPresenceRef, cargoMeshRef.current, [
+      cargoMaterialRef.current ?? undefined,
+    ]);
   });
 
   return (
@@ -410,12 +397,13 @@ const ForkliftBillboard: React.FC<{ hasCargo: boolean; simulationPaused: boolean
         <boxGeometry args={[0.8, 2, 0.15]} />
         <primitive object={BILLBOARD_MATERIALS.mast} attach="material" />
       </mesh>
-      {/* Cargo - always mounted, opacity animated */}
+      {/* Cargo - always mounted, opacity from the shared presence */}
       <mesh
+        ref={cargoMeshRef}
         position={[0, 1.4, 1.8]}
         castShadow
         receiveShadow
-        visible={hasCargo || cargoOpacityRef.current > 0.01}
+        visible={cargoPresenceRef.current > 0.01}
       >
         <boxGeometry args={[0.9, 0.7, 0.9]} />
         {/* Sacking on a pallet, in OBJECT rest space - the forklift drives, and
@@ -429,7 +417,7 @@ const ForkliftBillboard: React.FC<{ hasCargo: boolean; simulationPaused: boolean
           roughness={0.7}
           metalness={0}
           transparent
-          opacity={cargoOpacityRef.current}
+          opacity={cargoPresenceRef.current}
         />
       </mesh>
     </group>
@@ -724,6 +712,9 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
   const [currentOperation, setCurrentOperation] = useState<ForkliftOperation>('traveling');
   const forkHeightRef = useRef(0); // Ref for fork animation - avoids re-renders
   const hasCargoRef = useRef(data.cargo === 'pallet'); // Ref mirror for useFrame access
+  // The one pallet visibility every render tier reads (sampleForkliftLoadPose's
+  // cargoPresence during an operation), so no tier fades on its own clock.
+  const cargoPresenceRef = useRef(data.cargo === 'pallet' ? 1 : 0);
   const operationRef = useRef<ForkliftOperation>('traveling'); // Ref mirror for useFrame access
   const loadPhaseRef = useRef<ForkliftLoadPhase>('idle');
   const stopReasonRef = useRef<ForkliftStopReason>('none');
@@ -992,6 +983,18 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
           innerSteeringAngleRef.current = snapshot.innerSteeringAngleRef;
           outerSteeringAngleRef.current = snapshot.outerSteeringAngleRef;
           stoppedMirrorRef.current = snapshot.stoppedMirrorRef;
+          // Derived, so not in the snapshot: mid-operation it follows the
+          // operation's progress, otherwise the cargo flag.
+          cargoPresenceRef.current =
+            operationRef.current === 'loading' || operationRef.current === 'unloading'
+              ? sampleForkliftLoadPose(
+                  operationRef.current === 'loading' ? 'pickup' : 'dropoff',
+                  operationTimerRef.current / Math.max(0.1, operationDurationRef.current),
+                  FORK_LIFT_HEIGHT
+                ).cargoPresence
+              : hasCargoRef.current
+                ? 1
+                : 0;
           setHasCargo(hasCargoRef.current);
           setCurrentOperation(operationRef.current);
           setIsStopped(stoppedMirrorRef.current);
@@ -1010,14 +1013,14 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
             }
             ref.current.updateMatrixWorld(true);
             const motion = motionStateRef.current;
-            const sample = sampleArcLengthPath(routePlanRef.current.path, motion.routeDistance);
-            dirNormalizedRef.current.set(sample.tangentX, 0, sample.tangentZ);
+            const [dirX, dirZ] = routeDirection(routePlanRef.current, motion.routeDistance);
+            dirNormalizedRef.current.set(dirX, 0, dirZ);
             positionRegistry.register(
               data.id,
               motion.x,
               motion.z,
-              sample.tangentX,
-              sample.tangentZ,
+              dirX,
+              dirZ,
               true,
               ref.current.position.y
             );
@@ -1057,14 +1060,14 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
 
     const framePaused = isForkliftSimulationPaused(useGameSimulationStore.getState().gameSpeed);
     if (framePaused || isWorkplaceReplayRestoring()) {
-      const sample = sampleArcLengthPath(routePlan.path, motionBefore.routeDistance);
-      dirNormalizedRef.current.set(sample.tangentX, 0, sample.tangentZ);
+      const [dirX, dirZ] = routeDirection(routePlan, motionBefore.routeDistance);
+      dirNormalizedRef.current.set(dirX, 0, dirZ);
       positionRegistry.register(
         data.id,
         motionBefore.x,
         motionBefore.z,
-        sample.tangentX,
-        sample.tangentZ,
+        dirX,
+        dirZ,
         true,
         vehicle.position.y
       );
@@ -1072,12 +1075,8 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       return;
     }
 
-    const currentSample = sampleArcLengthPath(routePlan.path, motionBefore.routeDistance);
-    const direction = dirNormalizedRef.current.set(
-      currentSample.tangentX,
-      0,
-      currentSample.tangentZ
-    );
+    const [currentDirX, currentDirZ] = routeDirection(routePlan, motionBefore.routeDistance);
+    const direction = dirNormalizedRef.current.set(currentDirX, 0, currentDirZ);
     frameCountRef.current += 1;
     const shouldCheckCollisions = frameCountRef.current % 3 === 0;
     let pathClear: boolean;
@@ -1212,6 +1211,7 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       loadPhaseRef.current = loadPose.phase;
       forkHeightRef.current = loadPose.forkHeight;
       mastTiltRef.current = loadPose.mastTilt;
+      cargoPresenceRef.current = loadPose.cargoPresence;
       stopReasonRef.current = 'load-operation';
 
       if (action === 'pickup' && loadPose.cargoEngaged && !hasCargoRef.current) {
@@ -1345,6 +1345,7 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
     innerSteeringAngleRef.current = nextMotion.innerSteeringAngle;
     outerSteeringAngleRef.current = nextMotion.outerSteeringAngle;
     loadPhaseRef.current = hasCargoRef.current ? 'carrying' : 'idle';
+    cargoPresenceRef.current = hasCargoRef.current ? 1 : 0;
 
     const poseResponse = 1 - Math.exp(-7 * simulationDelta);
     const nextSample = sampleArcLengthPath(routePlan.path, nextMotion.routeDistance);
@@ -1362,12 +1363,13 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       (resolveForkliftMastTilt('traveling', hasCargoRef.current) - mastTiltRef.current) *
       poseResponse;
 
+    const [nextDirX, nextDirZ] = routeDirection(routePlan, nextMotion.routeDistance);
     positionRegistry.register(
       data.id,
       nextMotion.x,
       nextMotion.z,
-      nextSample.tangentX,
-      nextSample.tangentZ,
+      nextDirX,
+      nextDirZ,
       requestedStopped || nextMotion.speed <= 0.01,
       vehicle.position.y
     );
@@ -1408,7 +1410,7 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       {/* Forklift model - full detail when close, billboard when far */}
       {distanceTier === 'close' ? (
         <ForkliftModel
-          hasCargo={hasCargo}
+          cargoPresenceRef={cargoPresenceRef}
           isMoving={!motionStopped && !isOperating}
           forkHeightRef={forkHeightRef}
           mastTiltRef={mastTiltRef}
@@ -1418,7 +1420,7 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
           grime={forkliftGrime}
         />
       ) : (
-        <ForkliftBillboard hasCargo={hasCargo} simulationPaused={simulationPaused} />
+        <ForkliftBillboard cargoPresenceRef={cargoPresenceRef} />
       )}
 
       {/* Warning light - always mounted so the point-light count is constant;

@@ -419,14 +419,18 @@ export const SITE_LAYOUT = {
       shipping: {
         id: 'forklift-shipping',
         vehicle: 'forklift',
+        // The east end is three right-angle corners. It used to run on to
+        // x 25 and double back to (22.5, 43): a 158-degree reversal on a
+        // 0.1 m arc, which spun the forklift about 140 degrees in 0.1 s.
+        // Saves holding the old points are migrated in logisticsLayoutStore.
         points: [
           [-16, 0, 42],
           [12, 0, 42],
-          [25, 0, 42],
-          [22.5, 0, 43],
+          [16, 0, 42],
+          [22.5, 0, 42],
           [22.5, 0, 48],
-          [26, 0, 48],
-          [26, 0, 42],
+          [28.5, 0, 48],
+          [28.5, 0, 42],
           [-16, 0, 42],
         ],
         halfWidth: 1.35,

@@ -46,10 +46,11 @@ const LayoutPlanner = recoverableLazy(() =>
 );
 
 // Keys only: the copy is resolved at render so a language switch reaches the tour.
+// Each step's copy matches TOUR_CAMERA_PRESETS: silos, milling, packing.
 const INTRO_STEPS = [
   { titleKey: 'introGrainTitle', contentKey: 'introGrainContent', icon: 'factory' },
-  { titleKey: 'introFlourTitle', contentKey: 'introFlourContent', icon: 'goal' },
   { titleKey: 'introLookTitle', contentKey: 'introLookContent', icon: 'controls' },
+  { titleKey: 'introFlourTitle', contentKey: 'introFlourContent', icon: 'goal' },
 ] as const;
 
 interface GameInterfaceProps {

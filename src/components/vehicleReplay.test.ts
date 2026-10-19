@@ -135,11 +135,13 @@ describe('component-owned vehicle replay', () => {
     flushEffects();
     expect(models).toHaveLength(2);
     const frame = harness.frames[0];
-    // Reach incoming road speed through the live fixed-step authority.
-    for (let i = 0; i < 900 && models[0].props.stateRef.current.speed < 16.5; i++)
+    // Reach incoming road speed through the live fixed-step authority. The
+    // speed plan tops out near 13 m/s on the incoming road, because it brakes
+    // in time to meet the yard turn at 5 m/s instead of carrying 15 into it.
+    for (let i = 0; i < 900 && models[0].props.stateRef.current.speed < 12; i++)
       frame({ camera }, 1 / 60);
     expect(models[0].props.stateRef.current).toMatchObject({ phase: 'entering' });
-    expect(models[0].props.stateRef.current.speed).toBeGreaterThanOrEqual(16.5);
+    expect(models[0].props.stateRef.current.speed).toBeGreaterThanOrEqual(12);
     frame({ camera }, 0.007);
     const participant = harness.participants.get('trucks')!;
     expect(participant.capture().shippingAccumulatorRef).toBeGreaterThan(0);
@@ -166,7 +168,8 @@ describe('component-owned vehicle replay', () => {
     // The stall's plant time is carried, not dropped, and paid back over the
     // following frames, so the yard never falls behind the clock for good.
     const carried = participant.capture().shippingAccumulatorRef;
-    expect(carried).toBeGreaterThan(speed * 2 - 0.2);
+    // Less one capped frame: about 0.22 s of 2x plant time at 12 m/s.
+    expect(carried).toBeGreaterThan(speed * 2 - 0.25);
     for (let i = 0; i < 600 && participant.capture().shippingAccumulatorRef > 1 / 30; i++)
       frame({ camera }, 1 / 60);
     expect(participant.capture().shippingAccumulatorRef).toBeLessThanOrEqual(1 / 30);

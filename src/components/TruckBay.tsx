@@ -3671,8 +3671,15 @@ export const TruckBay: React.FC = () => {
             The objects reappear near the yard instead of burdening overview views. */}
         {showDecorativeAnimations && (
           <YardDetailLOD centre={[0, 100]}>
-            {/* Weight scale at yard entrance */}
-            <WeightScale position={[0, 0, 52]} rotation={0} weightKg={SHIPPING_SCALE_WEIGHT_KG} />
+            {/* Weight scale at yard entrance, world (-16, 100), booth to the
+                west. On the dock lane at (0, 102) the trucks, which now line up
+                north of z 96 before backing in, drove across its 0.2 m deck
+                with no ride height (truckController footprint test). */}
+            <WeightScale
+              position={[-16, 0, 50]}
+              rotation={Math.PI}
+              weightKg={SHIPPING_SCALE_WEIGHT_KG}
+            />
 
             {/* Guard shack at entrance - relocated to periphery */}
             <GuardShack
@@ -3699,10 +3706,10 @@ export const TruckBay: React.FC = () => {
             {/* Air hose station */}
             <AirHoseStation position={[30, 0, 20]} rotation={-Math.PI / 2} />
 
-            {/* Scale ticket kiosk */}
+            {/* Scale ticket kiosk, beside the scale on its booth side */}
             <ScaleTicketKiosk
-              position={[3, 0, 52]}
-              rotation={0}
+              position={[-19, 0, 50]}
+              rotation={Math.PI}
               weightKg={SHIPPING_SCALE_WEIGHT_KG}
             />
 
@@ -4149,10 +4156,11 @@ export const TruckBay: React.FC = () => {
         {/* Receiving-yard counterpart to the shipping detail LOD above. */}
         {showDecorativeAnimations && (
           <YardDetailLOD centre={[0, -100]}>
-            {/* Weight scale at yard entrance */}
+            {/* Weight scale at yard entrance: the shipping placement turned half
+                a revolution, world (16, -100), off the back-in lane. */}
             <WeightScale
-              position={[0, 0, -52]}
-              rotation={Math.PI}
+              position={[16, 0, -50]}
+              rotation={0}
               weightKg={RECEIVING_SCALE_WEIGHT_KG}
             />
 
@@ -4172,8 +4180,11 @@ export const TruckBay: React.FC = () => {
             {/* Tire inspection area */}
             <TireInspectionArea position={[-25, 0, -35]} rotation={-Math.PI / 2} />
 
-            {/* Yard jockey patrolling */}
-            <YardJockey position={[0, 0, -25]} rotation={Math.PI} />
+            {/* Yard jockey patrolling. World (35, -92): the shipping jockey's
+                place turned half a revolution, pulled 2 m clear of the fuel
+                island canopy. At local (0, -25) its 16 m shuttle crossed the
+                receiving truck's back-in lane at z -75. */}
+            <YardJockey position={[35, 0, -42]} rotation={Math.PI} />
 
             {/* Dumpster area for receiving - relocated to east periphery */}
             <DumpsterArea position={[65, 0, -25]} rotation={-Math.PI / 2} />
@@ -4189,8 +4200,8 @@ export const TruckBay: React.FC = () => {
 
             {/* Scale ticket kiosk */}
             <ScaleTicketKiosk
-              position={[-3, 0, -52]}
-              rotation={Math.PI}
+              position={[19, 0, -50]}
+              rotation={0}
               weightKg={RECEIVING_SCALE_WEIGHT_KG}
             />
 
