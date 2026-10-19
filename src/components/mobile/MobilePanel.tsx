@@ -281,8 +281,9 @@ const OverviewContent: React.FC = () => {
       </div>
 
       {/* Production Metrics - 2x2 grid. At the 10 px label floor, four to a
-          row leaves 64.5 px at 390 px and 'THROUGHPUT' needs 70.6 px. */}
-      <div className="grid grid-cols-2 gap-1.5">
+          row leaves 64.5 px at 390 px and 'THROUGHPUT' needs 70.6 px; from
+          640 px four fit at 127 px each. */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
         <MiniMetric
           label={t('throughput')}
           value={formatFixed(metrics.throughput, 0)}

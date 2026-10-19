@@ -90,7 +90,8 @@ describe('compact operating controls', () => {
     render(<MobilePanel isVisible content="overview" onClose={vi.fn()} />);
     const label = screen.getByText('Throughput');
     expect(label).toHaveClass('text-[10px]');
-    expect(label.closest('.grid')).toHaveClass('grid-cols-2');
+    // From 640 px (a landscape phone, a touch laptop) four fit: 127 px each.
+    expect(label.closest('.grid')).toHaveClass('grid-cols-2', 'sm:grid-cols-4');
   });
 
   it('shows the pace a handoff hold resumes at, with the same hold note as Shift pace', () => {
