@@ -3,6 +3,8 @@ import { OptimizedSkySystem } from './OptimizedSkySystem';
 import { SceneEnvironmentIBL } from './SceneEnvironmentIBL';
 import { SunShadowRig } from './SunShadowRig';
 import { NearHorizonCity } from './NearHorizonCity';
+import { SiloFloodlights } from '../exterior/SiloFloodlights';
+import { Precipitation } from './Precipitation';
 
 /**
  * Default-quality environment. The shell belongs to
@@ -38,6 +40,11 @@ export function OptimizedFactoryEnvironment() {
           cannot drift: both are driven from the sky's live band colours. */}
       <SceneEnvironmentIBL />
       <InteriorLightRig />
+      {/* Floodlit silo battery: lamp heads plus an additive shell wash on the
+          shared lamp clock. No light and no shadow caster. */}
+      <SiloFloodlights />
+      {/* Rain streaks: one draw, camera-local, never under the hall roof. */}
+      <Precipitation />
     </group>
   );
 }

@@ -34,7 +34,10 @@ export interface CelestialState {
   moonDirection: [number, number, number];
   sunOpacity: number;
   moonOpacity: number;
+  /** The bright stars and planets: out from civil twilight. */
   starOpacity: number;
+  /** The faint field: only once the sky is properly dark (below about -12 degrees). */
+  faintStarOpacity: number;
   goldenHour: number;
   sunLightIntensity: number;
   moonLightIntensity: number;
@@ -46,6 +49,18 @@ const smoothstep = (edge0: number, edge1: number, value: number): number => {
   const t = clamp01((value - edge0) / (edge1 - edge0));
   return t * t * (3 - 2 * t);
 };
+
+/**
+ * How overcast the sky is, 0 for fair weather to 1 for a closed storm deck.
+ *
+ * Clear (0.20) is exactly 0, so nothing downstream of this moves in clear
+ * weather. Rain (0.74) is 0.71 and storm (0.90) is 1. Before this, weather only
+ * DIMMED the scene through `lightMultiplier`: the rain capture kept a visible
+ * sun disc, a blue sky and crisp full-strength shadows - a darker clear noon.
+ */
+export function getOvercastWeight(cloudCoverage: number): number {
+  return Number.isFinite(cloudCoverage) ? smoothstep(0.45, 0.9, cloudCoverage) : 0;
+}
 
 /**
  * The weather contribution, hoisted out of `sampleAtmosphere`.
@@ -188,6 +203,7 @@ export function createCelestialState(): CelestialState {
     sunOpacity: 1,
     moonOpacity: 0,
     starOpacity: 0,
+    faintStarOpacity: 0,
     goldenHour: 0,
     // Seeded at the clear-noon values `sampleCelestial` produces, so the very
     // first frame is already on the shipping key/fill ratio instead of easing
@@ -226,11 +242,19 @@ export function sampleCelestial(
   const goldenHour =
     sunVisibility * (1 - smoothstep(0.08, 0.52, Math.max(0, atmosphere.solarElevation)));
 
-  target.sunOpacity = sunVisibility * (1 - atmosphere.cloudCoverage * 0.42);
+  const overcast = getOvercastWeight(atmosphere.cloudCoverage);
+  // A closed deck hides the disc outright; broken cloud only veils it.
+  target.sunOpacity =
+    sunVisibility * (1 - atmosphere.cloudCoverage * 0.42) * (1 - overcast) * (1 - overcast);
   target.moonOpacity = moonVisibility * (0.94 - atmosphere.cloudCoverage * 0.34);
   // Solar luminance, rather than weather-darkened world light, prevents
   // stars appearing at midday during a storm. Cloud cover still veils them.
   target.starOpacity = Math.pow(1 - atmosphere.daylight, 1.65) * 0.9 * clearSkyFactor;
+  // The sun model sets at 18:00 and is 15 degrees down at 19:00: nautical
+  // twilight, when the bright stars are out but the faint field is not. The
+  // single curve above had the whole field at 0.70 by then.
+  target.faintStarOpacity =
+    target.starOpacity * smoothstep(-0.21, -0.35, atmosphere.solarElevation);
   target.goldenHour = goldenHour;
   // KEY AND FILL ARE ONE DECISION, NOT TWO.
   //
@@ -244,9 +268,27 @@ export function sampleCelestial(
   // material). Anything that reads these numbers is reading a lighting ratio,
   // not an absolute brightness: `constants/colorGrade.ts` owns the exposure
   // that maps them to the display.
-  target.sunLightIntensity = sunVisibility * (0.15 + visualDaylight * 2.95);
-  target.moonLightIntensity = moonVisibility * (1 - atmosphere.daylight) * 0.48 * clearSkyFactor;
+  //
+  // OVERCAST MOVES LIGHT FROM THE KEY INTO THE FILL. A cloud deck scatters the
+  // sun, it does not just dim it: rain keeps 57% of its key and returns the
+  // rest as sky fill, so shadows soften and lose contrast while the key still
+  // leads (a storm reads as a dull day, not as a flat one).
+  const scattered = 0.6 * overcast;
+  target.sunLightIntensity = sunVisibility * (0.15 + visualDaylight * 2.95) * (1 - scattered);
+  // A low moon shines through several air masses and through the hall's side
+  // glazing at a raking angle; at 19:00 (15 degrees up) it threw full-strength
+  // window shafts across the packing floor. Extinction ramps it in with height.
+  const moonElevation = -atmosphere.solarElevation;
+  target.moonLightIntensity =
+    moonVisibility *
+    (1 - atmosphere.daylight) *
+    0.48 *
+    clearSkyFactor *
+    smoothstep(0.08, 0.5, moonElevation);
   target.ambientLightIntensity =
-    0.1 + visualDaylight * 0.12 + moonVisibility * (1 - atmosphere.daylight) * 0.06;
+    0.1 +
+    visualDaylight * 0.12 +
+    scattered * visualDaylight * 0.5 +
+    moonVisibility * (1 - atmosphere.daylight) * 0.06;
   return target;
 }

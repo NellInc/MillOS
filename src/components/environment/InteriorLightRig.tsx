@@ -8,17 +8,20 @@ import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { useGraphicsStore, type GraphicsQuality } from '../../stores/graphicsStore';
 
 /**
- * Fifteen real ceiling fittings and additive floor pools, supported by two
- * broad banks on Low/Medium and four on High/Ultra. Counts stay fixed within
- * a tier: changing a light uniform must never recompile every lit material.
+ * Fifteen real ceiling fittings and additive floor pools, lit by one source per
+ * row of fittings. Counts stay fixed within a tier: changing a light uniform
+ * must never recompile every lit material.
  *
- * The banks approximate the spread of long diffuse fluorescent fittings.
- * Their radiance is bounded, with Three's smooth finite cutoff and ordinary
- * surface-normal/specular response. They are deliberately not inverse-square
- * bulbs: that concentrated energy on nearby process pipes while leaving the
- * actual west-side people and packing workfronts unlit.
- * Working if faces gain directional modelling, pipe highlights stay bounded,
- * and no source, shadow map, exposure or ambient term is added.
+ * Each source is a point light in three's terms but is SHADED AS A LINE: every
+ * light marked `decay === 0` is evaluated by `shaders/interiorLighting.ts` as a
+ * finite fluorescent row along world X, spanning the fixture grid, with a
+ * down-facing optic and a small uplight. An isotropic point on the centre-line
+ * lit only the faces that looked back at x = 0 - one plansifter in three - and
+ * no placement of two points can light a row of machines alike; a row of
+ * fittings does. Radiance under the row centre equals the old point light's.
+ * Working if the three plansifters' camera-facing faces read alike at night,
+ * the silo battery stays outside the rows, and no source, shadow map, exposure
+ * or ambient term is added.
  */
 export const FIXTURE_GRID_X = [-28, -14, 0, 14, 28] as const;
 /** Physical housings, lenses and all fifteen floor pools share this grid. */
@@ -34,26 +37,21 @@ export const ZONE_LIGHT_COLOR = '#fff1db';
 
 const REFERENCE_GRID_Z = [-8, 30] as const;
 const REFERENCE_LIGHT_INTENSITY = 380;
-export const FULL_BANK_GAIN = 0.73;
 
 /** Existing continuous daylight compensation; invalid input stays at noon.
- * Four distributed sources share the bank's energy, retaining the established
- * reduced/full centre-line ordering instead of doubling broad overlapping fill.
+ * Every tier draws the same two rows, so there is no per-tier gain.
  * The reference is a same-page illumination control, never a quality override.
  * Working if the night fade stays smooth and switching the reference restores
  * exactly the old positions, intensity and decay without remounting any lamp.
  */
 export function zoneWorkLightIntensity(
   daylight: number,
-  quality: GraphicsQuality = 'medium',
+  _quality: GraphicsQuality = 'medium',
   referenceBanks = false
 ): number {
   const t = Number.isFinite(daylight) ? THREE.MathUtils.clamp(daylight, 0, 1) : 1;
   const darkness = 1 - t * t * (3 - 2 * t);
-  const full = quality === 'high' || quality === 'ultra';
-  const base = referenceBanks
-    ? REFERENCE_LIGHT_INTENSITY
-    : ZONE_LIGHT_INTENSITY * (full ? FULL_BANK_GAIN : 1);
+  const base = referenceBanks ? REFERENCE_LIGHT_INTENSITY : ZONE_LIGHT_INTENSITY;
   return base * (1 + 0.65 * darkness);
 }
 
@@ -73,26 +71,21 @@ const POOL_TEXTURE_HEIGHT = 32;
  */
 const POOL_LENGTHWISE_FALLOFF = 0.62;
 
-/** Sources sit below the two working banks, clear of the physical fittings. */
+/** Row centres below the two working rows of fittings, clear of the housings. */
 export const ZONE_LIGHT_POSITIONS: readonly (readonly [number, number, number])[] =
-  FIXTURE_GRID_Z.slice(0, 2).flatMap((z) =>
-    [-14, 14].map((x) => [x, ZONE_LIGHT_HEIGHT, z] as const)
-  );
-export const REDUCED_ZONE_LIGHT_POSITIONS: readonly (readonly [number, number, number])[] =
   FIXTURE_GRID_Z.slice(0, 2).map((z) => [0, ZONE_LIGHT_HEIGHT, z] as const);
-const REFERENCE_FULL_POSITIONS: readonly (readonly [number, number, number])[] =
-  REFERENCE_GRID_Z.flatMap((z) => [-14, 14].map((x) => [x, ZONE_LIGHT_HEIGHT, z] as const));
-const REFERENCE_REDUCED_POSITIONS: readonly (readonly [number, number, number])[] =
-  REFERENCE_GRID_Z.map((z) => [0, ZONE_LIGHT_HEIGHT, z] as const);
+/** Kept as a name: every tier now draws the same two rows. */
+export const REDUCED_ZONE_LIGHT_POSITIONS = ZONE_LIGHT_POSITIONS;
+const REFERENCE_POSITIONS: readonly (readonly [number, number, number])[] = REFERENCE_GRID_Z.map(
+  (z) => [0, ZONE_LIGHT_HEIGHT, z] as const
+);
 
-/** Same two/four-source split on both arms; no camera-driven light removal. */
+/** Two sources on both arms and every tier; no camera-driven light removal. */
 export function zoneLightPositions(
-  quality: GraphicsQuality,
+  _quality: GraphicsQuality,
   referenceBanks = false
 ): readonly (readonly [number, number, number])[] {
-  const full = quality === 'high' || quality === 'ultra';
-  if (referenceBanks) return full ? REFERENCE_FULL_POSITIONS : REFERENCE_REDUCED_POSITIONS;
-  return full ? ZONE_LIGHT_POSITIONS : REDUCED_ZONE_LIGHT_POSITIONS;
+  return referenceBanks ? REFERENCE_POSITIONS : ZONE_LIGHT_POSITIONS;
 }
 
 /** One entry per ceiling fixture. */
