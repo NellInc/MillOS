@@ -81,6 +81,16 @@ describe('MachineInspector evidence', () => {
     expect(screen.getByText(/Uses 1 spare part: filters \(15 in stock\)/)).toBeVisible();
   });
 
+  it('does not offer Maintain on a unit still below the service minimum, and says why', () => {
+    // A roller mill runs at full efficiency until wear 30 (half its warning).
+    renderComponent(<MachineInspector machine={machine} />);
+    expect(screen.getByRole('button', { name: 'Perform Maintenance' })).toBeDisabled();
+    expect(
+      screen.getByText(/Not needed yet: wear 5.0% is below the 30.0% service minimum/)
+    ).toBeVisible();
+    expect(screen.queryByText(/Uses 1 spare part/)).not.toBeInTheDocument();
+  });
+
   it('places the primary Inspect disclosure before the secondary focus action', () => {
     renderComponent(<MachineInspector machine={machine} onFocusMachine={vi.fn()} />);
     const inspect = screen.getByText('Inspect').closest('summary')!;
@@ -153,9 +163,12 @@ describe('MachineInspector evidence', () => {
       const previous = useBreakdownStore.getState();
       try {
         useBreakdownStore.getState().resetBreakdownStore();
-        useProductionStore.setState({ machines: [{ ...machine, status: 'warning' }] });
-        render(<MachineInspector machine={machine} />);
+        // Worn past the service minimum, so the click itself is accepted.
+        const worn = { ...machine, metrics: { ...machine.metrics, wear: 40 } };
+        useProductionStore.setState({ machines: [{ ...worn, status: 'warning' }] });
+        render(<MachineInspector machine={worn} />);
         fireEvent.click(screen.getByRole('button', { name: 'Perform Maintenance' }));
+        expect(screen.getByText('Performing Maintenance...')).toBeVisible();
         act(() =>
           useBreakdownStore.setState({
             partsInventory: { bearings: 0, belts: 0, filters: 0, motors: 0, sensors: 0 },
@@ -164,7 +177,7 @@ describe('MachineInspector evidence', () => {
         await act(async () => {
           await vi.advanceTimersByTimeAsync(1300);
         });
-        expect(useProductionStore.getState().machines[0].metrics.wear).toBe(machine.metrics.wear);
+        expect(useProductionStore.getState().machines[0].metrics.wear).toBe(40);
         expect(useProductionStore.getState().machines[0].lastMaintenance).toBe(
           machine.lastMaintenance
         );

@@ -19,7 +19,8 @@ export const productionStoreMessages = defineMessages({
     maintenanceMachineNotFound: 'Machine not found',
     maintenanceRepairLockout:
       'Repair lockout: complete and verify the work order, then request restart.',
-    maintenanceNoWear: 'Machine has no wear to repair',
+    maintenanceBelowMinimumWear:
+      'Wear is {wear}%, below the {minimum}% service minimum: the machine still runs at full efficiency.',
     maintenanceCompleteTitle: 'Maintenance Complete',
     maintenanceCompleteWearMessage:
       '{name} maintained. Wear reduced by {reduced}%, now at {wear}%. Efficiency: {efficiency}%',
@@ -50,7 +51,8 @@ export const productionStoreMessages = defineMessages({
     maintenanceMachineNotFound: 'Máquina não encontrada',
     maintenanceRepairLockout:
       'Bloqueio de reparo: conclua e verifique a ordem de serviço; depois, solicite a nova partida.',
-    maintenanceNoWear: 'A máquina não tem desgaste a reparar',
+    maintenanceBelowMinimumWear:
+      'O desgaste está em {wear}%, abaixo do mínimo de {minimum}% para manutenção: a máquina ainda opera com eficiência total.',
     maintenanceCompleteTitle: 'Manutenção concluída',
     maintenanceCompleteWearMessage:
       'Manutenção feita em {name}. Desgaste reduzido em {reduced}%, agora em {wear}%. Eficiência: {efficiency}%',

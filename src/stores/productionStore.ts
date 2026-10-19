@@ -204,15 +204,26 @@ export function getWearConfig(machineType: string): WearConfig {
 }
 
 /**
+ * Least wear at which routine service is worth its parts and downtime: half the
+ * warning threshold, where efficiency starts to fall. Below it the machine runs
+ * as new, so Maintain would spend a part and buy nothing measurable. Working if
+ * every surface that offers Maintain and performMaintenance agree on it.
+ */
+export function minimumServiceWear(machineType: string): number {
+  return getWearConfig(machineType).warningThreshold * 0.5;
+}
+
+/**
  * Efficiency from wear: 100% until half the warning threshold, then a linear
  * fall to 60% at the breakdown threshold, and 0% once broken down.
  */
 export function calculateEfficiency(wear: number, machineType: string): number {
   const config = getWearConfig(machineType);
+  const knee = minimumServiceWear(machineType);
   if (wear >= config.breakdownThreshold) return 0;
-  if (wear < config.warningThreshold * 0.5) return 100;
-  const degradationRange = config.breakdownThreshold - config.warningThreshold * 0.5;
-  const wearInRange = wear - config.warningThreshold * 0.5;
+  if (wear < knee) return 100;
+  const degradationRange = config.breakdownThreshold - knee;
+  const wearInRange = wear - knee;
   const degradation = Math.min(1, wearInRange / degradationRange);
   return Math.round((1 - degradation * 0.4) * 100);
 }
@@ -939,11 +950,15 @@ export const useProductionStore = create<ProductionStore>()(
       // A broken-down machine is always serviceable: a campaign fault (e.g. a
       // bearing overheat) can trip a machine at any wear, and its controlled
       // restart must still return it to service.
-      if (currentWear <= 0 && machine.status !== 'critical') {
+      const minimumWear = minimumServiceWear(machine.type);
+      if (currentWear < minimumWear && machine.status !== 'critical') {
         return {
           success: false,
           wearReduced: 0,
-          message: translate(productionStoreMessages, 'maintenanceNoWear'),
+          message: translate(productionStoreMessages, 'maintenanceBelowMinimumWear', {
+            wear: formatFixed(currentWear, 1),
+            minimum: formatFixed(minimumWear, 1),
+          }),
         };
       }
 

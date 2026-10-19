@@ -11,6 +11,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   cleanupThrottledBags,
+  minimumServiceWear,
   resetThrottledBagState,
   throttledIncrementBags,
   useProductionStore,
@@ -685,4 +686,41 @@ describe('production maintenance work-order lockout', () => {
       }
     }
   );
+});
+
+describe('production maintenance minimum wear', () => {
+  it('refuses routine service below the wear at which efficiency starts to fall', () => {
+    const production = useProductionStore.getState();
+    const machines = production.machines;
+    const alerts = useUIStore.getState().alerts;
+    const mill = (wear: number): MachineData => ({
+      id: 'maintenance-minimum',
+      name: 'Minimum wear mill',
+      type: MachineType.ROLLER_MILL,
+      position: [0, 0, 0],
+      size: [1, 1, 1],
+      rotation: 0,
+      status: 'running',
+      metrics: { rpm: 0, temperature: 45, vibration: 1, load: 60, wear, efficiency: 100 },
+      lastMaintenance: '',
+      nextMaintenance: '',
+    });
+    try {
+      // A roller mill warns at 60, so it runs at full efficiency below 30.
+      expect(minimumServiceWear(MachineType.ROLLER_MILL)).toBe(30);
+      const nearlyNew = mill(29.5);
+      production.setMachines([nearlyNew]);
+      const refused = production.performMaintenance(nearlyNew.id);
+      expect(refused.success).toBe(false);
+      expect(refused.message).toContain('30');
+      expect(useProductionStore.getState().machines[0]).toBe(nearlyNew);
+      expect(useUIStore.getState().alerts).toBe(alerts);
+
+      production.setMachines([mill(30)]);
+      expect(production.performMaintenance('maintenance-minimum').success).toBe(true);
+    } finally {
+      useProductionStore.setState({ machines });
+      useUIStore.setState({ alerts });
+    }
+  });
 });

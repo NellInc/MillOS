@@ -62,6 +62,8 @@ export const machineInspectorMessages = defineMessages({
       `Uses 1 spare part: ${p.part} (${p.count} in stock).`,
     maintenanceTitle: (p: { part: string }) =>
       `Reduces machine wear (consumes 1 spare part: ${p.part})`,
+    maintenanceBelowMinimum:
+      'Not needed yet: wear {wear}% is below the {minimum}% service minimum, so the unit runs at full efficiency.',
     performingMaintenance: 'Performing Maintenance...',
     performMaintenance: 'Perform Maintenance',
     restarting: 'Restarting...',
@@ -127,6 +129,8 @@ export const machineInspectorMessages = defineMessages({
       `Usa 1 peça de reposição: ${PT_PARTS[p.part] ?? p.part} (${p.count} em estoque).`,
     maintenanceTitle: (p: { part: string }) =>
       `Reduz o desgaste da máquina (consome 1 peça de reposição: ${PT_PARTS[p.part] ?? p.part})`,
+    maintenanceBelowMinimum:
+      'Ainda não é necessária: o desgaste de {wear}% está abaixo do mínimo de {minimum}% para manutenção, e a unidade opera com eficiência total.',
     performingMaintenance: 'Fazendo manutenção...',
     performMaintenance: 'Fazer manutenção',
     restarting: 'Reiniciando...',

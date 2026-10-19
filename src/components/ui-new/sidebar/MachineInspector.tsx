@@ -3,6 +3,7 @@ import { MachineData } from '../../../types';
 import { RotateCcw, FileText, CheckCircle, Loader2, Wrench, Focus } from 'lucide-react';
 import {
   getWearConfig,
+  minimumServiceWear,
   useProductionStore,
   wearHoldsWarning,
 } from '../../../stores/productionStore';
@@ -90,6 +91,13 @@ export const MachineInspector: React.FC<{
 
   const availablePart = MAINTENANCE_PART_PRIORITY.find((part) => (partsInventory[part] ?? 0) > 0);
   const wearConfig = getWearConfig(machine.type);
+  // performMaintenance refuses below this; a broken-down unit is exempt.
+  const minimumWear = minimumServiceWear(machine.type);
+  const belowMinimumWear = machine.status !== 'critical' && (metrics?.wear ?? 0) < minimumWear;
+  const belowMinimumReason = t('maintenanceBelowMinimum', {
+    wear: formatFixed(metrics?.wear ?? 0, 1),
+    minimum: formatFixed(minimumWear, 1),
+  });
 
   const mountedRef = useRef(true);
   useEffect(() => {
@@ -316,13 +324,15 @@ export const MachineInspector: React.FC<{
         </p>
         <button
           onClick={handleMaintenance}
-          disabled={isMaintaining || isRestarting || Boolean(activeFault)}
+          disabled={isMaintaining || isRestarting || Boolean(activeFault) || belowMinimumWear}
           title={
             activeFault
               ? repairGuidance
-              : !availablePart
-                ? t('outOfParts')
-                : t('maintenanceTitle', { part: availablePart })
+              : belowMinimumWear
+                ? belowMinimumReason
+                : !availablePart
+                  ? t('outOfParts')
+                  : t('maintenanceTitle', { part: availablePart })
           }
           className="w-full min-h-11 border border-white/15 bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed text-white py-2 rounded-lg font-medium text-xs transition-colors flex items-center justify-center gap-2"
         >
@@ -341,12 +351,14 @@ export const MachineInspector: React.FC<{
         {/* An active fault is explained once, in the status guidance above. */}
         {!activeFault && (
           <p className="text-xs leading-5 text-slate-300">
-            {availablePart
-              ? t('maintenanceCost', {
-                  part: availablePart,
-                  count: formatFixed(partsInventory[availablePart] ?? 0, 0),
-                })
-              : t('outOfParts')}
+            {belowMinimumWear
+              ? belowMinimumReason
+              : availablePart
+                ? t('maintenanceCost', {
+                    part: availablePart,
+                    count: formatFixed(partsInventory[availablePart] ?? 0, 0),
+                  })
+                : t('outOfParts')}
           </p>
         )}
       </section>
