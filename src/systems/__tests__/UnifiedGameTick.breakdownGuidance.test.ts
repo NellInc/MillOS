@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { setLocale } from '../../i18n';
 import { MachineType, type MachineData } from '../../types';
 import { useBreakdownStore } from '../../stores/breakdownStore';
 import { useMaterialFlowStore } from '../../stores/materialFlowStore';
@@ -78,5 +79,23 @@ describe('a wear breakdown is surfaced with a route to the repair', () => {
     const campaign = useOperationsCampaignStore.getState();
     expect(campaign.constraints.some((c) => c.id === 'maintenance-queue')).toBe(false);
     expect(deriveOperationsPlay(campaign).nextAction.kind).not.toBe('repair');
+  });
+
+  describe('names the machine type in words, never the enum', () => {
+    afterEach(() => setLocale('en'));
+
+    it('reads "(packer)" in English', () => {
+      unifiedGameTick(context);
+      const alert = useUIStore.getState().alerts.find((a) => a.id.startsWith('breakdown-'));
+      expect(alert?.message).toContain('Pack Line 1 (packer) has broken down');
+      expect(alert?.message).not.toContain('PACKER');
+    });
+
+    it('reads "(ensacadeira)" in Portuguese', () => {
+      setLocale('pt-BR');
+      unifiedGameTick(context);
+      const alert = useUIStore.getState().alerts.find((a) => a.id.startsWith('breakdown-'));
+      expect(alert?.message).toContain('Pack Line 1 (ensacadeira) entrou em pane');
+    });
   });
 });

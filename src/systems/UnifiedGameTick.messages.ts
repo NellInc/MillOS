@@ -1,4 +1,5 @@
 import { defineMessages } from '../i18n';
+import { PT_MACHINE_TYPES } from '../components/ui-new/sidebar/ContextSidebar.messages';
 
 const capitalise = (value: string): string => `${value[0].toUpperCase()}${value.slice(1)}`;
 
@@ -19,6 +20,10 @@ const PT_MATERIALS: Record<string, string> = {
   flour: 'farinha liberada',
   semolina: 'semolina liberada',
 };
+
+type BreakdownParams = { name: string; machineType: string; workOrderId: string; rate: string };
+/* The MachineType enum ('ROLLER_MILL') in words, as the machine inspector shows it. */
+const machineTypeWords = (type: string): string => type.toLowerCase().replaceAll('_', ' ');
 
 /** Alerts, celebrations and dispatch hold reasons raised by the unified game tick. */
 export const unifiedGameTickMessages = defineMessages({
@@ -52,8 +57,8 @@ export const unifiedGameTickMessages = defineMessages({
     waitingForProduct: 'Waiting for released product at the packers.',
     shiftLabel: (p: { shift: string }) => capitalise(p.shift),
     breakdownTitle: 'Machine Breakdown',
-    breakdownMessage:
-      '{name} ({machineType}) has broken down due to excessive wear. Open Mill Overview, Maintenance: work order {workOrderId} needs service dispatched, the repair verified and a controlled restart. Each open work order costs £{rate} per game hour.',
+    breakdownMessage: (p: BreakdownParams) =>
+      `${p.name} (${machineTypeWords(p.machineType)}) has broken down due to excessive wear. Open Mill Overview, Maintenance: work order ${p.workOrderId} needs service dispatched, the repair verified and a controlled restart. Each open work order costs £${p.rate} per game hour.`,
     wearWarningTitle: 'Wear warning',
     wearWarningMessage:
       '{name} has reached its wear warning and is losing efficiency. Schedule maintenance before it breaks down: Mill Overview, Maintenance and repairs.',
@@ -88,8 +93,8 @@ export const unifiedGameTickMessages = defineMessages({
     waitingForProduct: 'Aguardando produto liberado nas ensacadeiras.',
     shiftLabel: (p: { shift: string }) => PT_SHIFT_LABELS[p.shift] ?? capitalise(p.shift),
     breakdownTitle: 'Pane de máquina',
-    breakdownMessage:
-      '{name} ({machineType}) entrou em pane por desgaste excessivo. Abra Visão geral do moinho, Manutenção: a ordem de serviço {workOrderId} precisa do envio da equipe, da verificação do reparo e de um reinício controlado. Cada ordem de serviço aberta custa £{rate} por hora de jogo.',
+    breakdownMessage: (p: BreakdownParams) =>
+      `${p.name} (${PT_MACHINE_TYPES[p.machineType] ?? machineTypeWords(p.machineType)}) entrou em pane por desgaste excessivo. Abra Visão geral do moinho, Manutenção: a ordem de serviço ${p.workOrderId} precisa do envio da equipe, da verificação do reparo e de um reinício controlado. Cada ordem de serviço aberta custa £${p.rate} por hora de jogo.`,
     wearWarningTitle: 'Alerta de desgaste',
     wearWarningMessage:
       '{name} atingiu o alerta de desgaste e está perdendo eficiência. Agende a manutenção antes que entre em pane: Visão geral do moinho, Manutenção e reparos.',
