@@ -1,6 +1,8 @@
 import { GeneratedBoundary } from '../models/GeneratedModel';
 import { GeneratedGeometrySurface } from '../models/GeneratedGeometrySurface';
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
+import { EXTERIOR_LAMP_LEVEL } from '../exterior/ExteriorLighting';
 import * as THREE from 'three';
 import { FLOOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../../constants/renderLayers';
 import { SITE_LAYOUT, PROCESS_GALLERY_POST_X } from '../../constants/siteLayout';
@@ -1596,44 +1598,77 @@ function FactoryShell() {
   );
 }
 
+/** Peak emissive of the backlit letters at full night. */
+export const IDENTITY_SIGN_GLOW = 1.4;
+
+/**
+ * Backlit lettering follows the shared exterior lamp clock. The fascia sign
+ * was paint only, so at 22:00 it was lit by the night fill alone and vanished
+ * into the facade; a fascia like this is a light box at night.
+ */
+export function identitySignGlow(lampLevel: number): number {
+  return Number.isFinite(lampLevel)
+    ? THREE.MathUtils.clamp(lampLevel, 0, 1) * IDENTITY_SIGN_GLOW
+    : 0;
+}
+
+function drawIdentityLettering(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  lettersOnly: boolean
+) {
+  context.fillStyle = lettersOnly ? '#000000' : '#14242a';
+  context.fillRect(0, 0, width, height);
+  context.font = '600 148px Inter, Arial, sans-serif';
+  context.textBaseline = 'middle';
+  const wordWidth = context.measureText('MillOS').width;
+  const start = (width - wordWidth) / 2;
+  context.fillStyle = '#edf4f1';
+  context.fillText('Mill', start, height / 2);
+  context.fillStyle = '#3ab0a5';
+  context.fillText('OS', start + context.measureText('Mill').width, height / 2);
+}
+
 function FactoryIdentitySign() {
-  const texture = useMemo(() => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 1024;
-    canvas.height = 256;
-    const context = canvas.getContext('2d');
-    if (context) {
-      context.fillStyle = '#14242a';
-      context.fillRect(0, 0, canvas.width, canvas.height);
-      context.font = '600 148px Inter, Arial, sans-serif';
-      context.textBaseline = 'middle';
-      const wordWidth = context.measureText('MillOS').width;
-      const start = (canvas.width - wordWidth) / 2;
-      context.fillStyle = '#edf4f1';
-      context.fillText('Mill', start, canvas.height / 2);
-      context.fillStyle = '#3ab0a5';
-      context.fillText('OS', start + context.measureText('Mill').width, canvas.height / 2);
-    }
-    const canvasTexture = new THREE.CanvasTexture(canvas);
-    canvasTexture.colorSpace = THREE.SRGBColorSpace;
-    canvasTexture.needsUpdate = true;
-    return canvasTexture;
+  const [texture, glowTexture] = useMemo(() => {
+    const make = (lettersOnly: boolean) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1024;
+      canvas.height = 256;
+      const context = canvas.getContext('2d');
+      if (context) drawIdentityLettering(context, canvas.width, canvas.height, lettersOnly);
+      const canvasTexture = new THREE.CanvasTexture(canvas);
+      canvasTexture.colorSpace = THREE.SRGBColorSpace;
+      canvasTexture.needsUpdate = true;
+      return canvasTexture;
+    };
+    return [make(false), make(true)] as const;
   }, []);
   const material = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
         map: texture,
         roughness: 0.6,
+        // The panel stays lit paint; only the letters emit, through this mask.
+        emissive: '#ffffff',
+        emissiveMap: glowTexture,
+        emissiveIntensity: 0,
       }),
-    [texture]
+    [texture, glowTexture]
   );
+
+  useFrame(() => {
+    material.emissiveIntensity = identitySignGlow(EXTERIOR_LAMP_LEVEL.value);
+  });
 
   useEffect(
     () => () => {
       material.dispose();
       texture.dispose();
+      glowTexture.dispose();
     },
-    [material, texture]
+    [material, texture, glowTexture]
   );
 
   return (
