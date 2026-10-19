@@ -322,6 +322,43 @@ export const WORLD_SURFACE_PROFILES = {
     bareColor: BARE_CONCRETE,
   },
   /**
+   * Tiled ground and wall substrates that already carry their own aggregate:
+   * the shared tarmac and concrete maps. A MACRO TERM AND ALMOST NOTHING ELSE.
+   *
+   * These surfaces are mapped, so the automatic paths decline them (see
+   * `isOutOfSurfaceScope`), and that left the truck yard - the tarmac tile at
+   * 18 x 18 over 60 m - with nothing varying above its 3.3 m tile: luma std 7.3
+   * across the lower 40% of `shipping`. CLAUDE.md rule 7 asks for exactly the
+   * term a tiling map cannot carry, a sub-tile-frequency macro. The map opts in
+   * through `markSurfaceSubstrate`, on the texture, so every tiling cloned from
+   * it inherits the flag without its call site changing.
+   *
+   * Meso and relief are token values, not zero: the map already draws the
+   * aggregate and a second fine field would double it, but the profile
+   * invariants require a datum-free term and a physical relief slope. No grime,
+   * dust or edge wear: on a road those read as a repainted surface, and the
+   * 60 m apron has already been turned into a sand beach once (see `masonry`).
+   * The 11 m macro period spans 3.3 yard tiles, so the drift cannot lock to the
+   * repeat; 0.2 is masonry's 0.17 raised by the share the meso term gave up.
+   */
+  paving: {
+    macroPeriod: 11,
+    macro: 0.2,
+    mesoPeriod: 0.6,
+    meso: 0.04,
+    reliefMetres: 0.004,
+    mesoFadeMetres: 40,
+    grime: 0,
+    grimeHeight: 1,
+    datum: 0,
+    dust: 0,
+    edge: 0,
+    objectSpace: 0,
+    grimeColor: GRIME_BROWN,
+    dustColor: DUST_PALE,
+    bareColor: BARE_CONCRETE,
+  },
+  /**
    * Bare, galvanised and plated metal. Metalness 1 means diffuse is ZERO, so a
    * diffuse-side grime tint barely reads and the work has to be done by
    * roughness and by the edge term - which is also what makes a metal silhouette
@@ -999,6 +1036,40 @@ export function ownsOnlyWorldSurface(material: THREE.Material | null | undefined
   return hasWorldSurface(material) && !surfaceMaterial?.userData?.millosWorldSurfaceComposed;
 }
 
+/** `Texture.userData` key a tiled substrate map uses to opt its surfaces in. */
+const SUBSTRATE_OPT_IN_KEY = 'millosWorldSurfaceSubstrate';
+
+/**
+ * Opt every surface that samples this map as its albedo into a profile.
+ *
+ * The automatic paths decline mapped materials, rightly for atlases (see
+ * `isOutOfSurfaceScope`), but a small TILED map is the opposite case: it is
+ * correct within its tile and cannot vary above it. Marking the texture rather
+ * than a material is what makes this reach the call sites: `Texture.copy()`
+ * deep-copies `userData`, so every `.clone()` tiling made after the mark
+ * inherits it, and the batcher's clones of the materials keep the same map.
+ * Mark the source before any clone is taken.
+ */
+export function markSurfaceSubstrate<T extends THREE.Texture>(
+  texture: T,
+  profile: WorldSurfaceProfileName
+): T {
+  texture.userData[SUBSTRATE_OPT_IN_KEY] = profile;
+  return texture;
+}
+
+/** The profile a material's albedo map opted it into, if any. */
+function substrateOptIn(
+  material: THREE.Material | null | undefined
+): WorldSurfaceProfileName | null {
+  const value = (material as THREE.MeshStandardMaterial | null | undefined)?.map?.userData?.[
+    SUBSTRATE_OPT_IN_KEY
+  ];
+  return typeof value === 'string' && Object.hasOwn(WORLD_SURFACE_PROFILES, value)
+    ? (value as WorldSurfaceProfileName)
+    : null;
+}
+
 /** Linear luminance of a colour, for the substrate heuristics below. */
 const luminanceOf = (color: THREE.Color): number =>
   0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b;
@@ -1040,7 +1111,14 @@ function isOutOfSurfaceScope(
     standard.metalnessMap ||
     standard.aoMap ||
     standard.displacementMap;
-  if (hasSubstrateMaps && !allowMapped && !hasWorldSurface(material)) return true;
+  if (
+    hasSubstrateMaps &&
+    !allowMapped &&
+    !hasWorldSurface(material) &&
+    substrateOptIn(material) === null
+  ) {
+    return true;
+  }
   return luminanceOf(standard.emissive) * standard.emissiveIntensity > 0.02;
 }
 
@@ -1058,6 +1136,10 @@ export function resolveSurfaceProfile(
   allowMapped = false
 ): WorldSurfaceProfileName | null {
   if (isOutOfSurfaceScope(material, allowMapped)) return null;
+  // An explicit treatment, or an explicit `allowMapped` request, keeps deciding
+  // for itself exactly as it did before opt-ins existed.
+  const optIn = hasWorldSurface(material) || allowMapped ? null : substrateOptIn(material);
+  if (optIn) return optIn;
   const standard = material as THREE.MeshStandardMaterial;
   if ((standard.metalness ?? 0) >= 0.55) return 'metal';
 
@@ -1107,6 +1189,11 @@ export function resolveBatchSurfaceProfile(
   material: THREE.Material | null | undefined
 ): WorldSurfaceProfileName | null {
   if (isOutOfSurfaceScope(material)) return null;
+  // The map is part of the merge key, so unlike the colour it DOES speak for
+  // every member of the group. An explicitly treated source keeps the
+  // roughness-based answer it got before opt-ins existed.
+  const optIn = hasWorldSurface(material) ? null : substrateOptIn(material);
+  if (optIn) return optIn;
   const standard = material as THREE.MeshStandardMaterial;
   if ((standard.metalness ?? 0) >= 0.55) return 'metal';
   if ((standard.roughness ?? 1) >= 0.8) return 'masonry';

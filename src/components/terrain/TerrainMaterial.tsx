@@ -311,6 +311,16 @@ const fragmentShaderPreamble = `
     vec2 grassWarpSlope = vec2(0.68, 0.53) * cos(grassWarpPhase);
     grassUV += vec2(0.68, 0.53) * sin(grassWarpPhase);
     vec2 asphaltUV = worldXZ / uAsphaltScale;
+    // The same zero-tap warp for the asphalt lattice. Its 3.3 m tile repeats
+    // 18 times across the yard, and the eye locked onto it as a scalloped grid
+    // in the 'yard' capture. Different coefficients from the grass so the two
+    // fields never move together; the Jacobian stays positive (det > 0.8).
+    vec2 asphaltWarpPhase = vec2(
+      dot(asphaltUV, vec2(0.13, 0.31)),
+      dot(asphaltUV, vec2(0.27, -0.17))
+    );
+    vec2 asphaltWarpSlope = vec2(0.6, 0.55) * cos(asphaltWarpPhase);
+    asphaltUV += vec2(0.6, 0.55) * sin(asphaltWarpPhase);
     vec2 roadUV = worldXZ / uRoadScale;
     vec2 dirtUV = worldXZ / uDirtScale;
 
@@ -507,6 +517,12 @@ const fragmentShaderPreamble = `
         -TERRAIN_GRASS_SIN * nGrass.x + TERRAIN_GRASS_COS * nGrass.y
       );
       vec2 nAsphalt = surfAsphalt.rg * 2.0 - 1.0;
+      // Warp Jacobian transpose, as for the grass, or the relief lights a
+      // slope that is no longer under its own albedo.
+      nAsphalt = vec2(
+        (1.0 + 0.13 * asphaltWarpSlope.x) * nAsphalt.x + 0.27 * asphaltWarpSlope.y * nAsphalt.y,
+        0.31 * asphaltWarpSlope.x * nAsphalt.x + (1.0 - 0.17 * asphaltWarpSlope.y) * nAsphalt.y
+      );
       vec2 nRoad = surfRoad.rg * 2.0 - 1.0;
       vec2 nDirt = surfDirt.rg * 2.0 - 1.0;
 
@@ -739,7 +755,7 @@ export function TerrainMaterial(props: TerrainMaterialProps) {
     // v12: continuous grass UV warp and matching relief Jacobian. three uses this key
     // INSTEAD of hashing the injected source, so it has to be bumped whenever
     // that source changes or a warm program cache could serve the old one.
-    mat.customProgramCacheKey = () => `terrain_v12_${hasDisplacementKey}`;
+    mat.customProgramCacheKey = () => `terrain_v13_${hasDisplacementKey}`;
 
     // Inject custom shader code
     mat.onBeforeCompile = (shader) => {

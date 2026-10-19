@@ -42,6 +42,7 @@ import {
   MACHINE_ORM_MEAN_ROUGHNESS,
   MACHINE_ORM_ROUGHNESS_RANGE,
 } from '../components/machines/machineSurfaces';
+import { resolveBatchSurfaceProfile } from './worldSurface';
 
 /** The groups this file re-authored as a strict conductor/dielectric split. */
 const metalGroups = {
@@ -218,4 +219,21 @@ it('shares a registered fine-scale sett family within the existing map-size budg
   expect(clone.source).toBe(maps[2].source);
   expect(clone.image.data).toBe(maps[2].image.data);
   clone.dispose();
+});
+
+it('opts the tiled tarmac and concrete albedo into the paving macro, through every clone', () => {
+  // Rule 7: the yard tarmac is tiled 18 x 18 and the dock apron concrete 6 x 5;
+  // the map alone cannot vary above its own tile. The flag rides the texture so
+  // every `cloneTiledTexture` / `cloneYardTexture` tiling made from it inherits
+  // it without the call sites changing.
+  for (const map of [PROCEDURAL_TEXTURES.tarmacColor, PROCEDURAL_TEXTURES.concreteColor]) {
+    const tiling = map.clone();
+    tiling.repeat.set(18, 18);
+    const material = new THREE.MeshStandardMaterial({ map: tiling, roughness: 1 });
+    expect(resolveBatchSurfaceProfile(material)).toBe('paving');
+    tiling.dispose();
+  }
+  // Only those two: an atlas-like map such as the cobbles keeps its exclusion.
+  const cobbles = new THREE.MeshStandardMaterial({ map: PROCEDURAL_TEXTURES.cobblestoneColor });
+  expect(resolveBatchSurfaceProfile(cobbles)).toBeNull();
 });

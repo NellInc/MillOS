@@ -12,6 +12,8 @@ import {
   FORGE_HEAT_LEVEL,
   FORGE_HEAT_STRENGTH,
   applyApartmentWindows,
+  applyApartmentFacade,
+  APARTMENT_FACADE_CACHE_KEY,
   applyVillageWindows,
   applyCastlePaving,
   CASTLE_PAVING_STRENGTH,
@@ -29,6 +31,7 @@ import {
 import { applyLampLens, LAMP_LENS_HEIGHTS } from './GeneratedLampModel';
 import { EXTERIOR_LAMP_LENS_MATERIAL } from '../exterior/ExteriorLighting';
 import { WORKSHOP_GLAZING } from '../TruckBay';
+import { hasWorldSurface, WORLD_SURFACE_CACHE_KEY } from '../../utils/worldSurface';
 
 function compile(apply: (material: THREE.MeshStandardMaterial, night: { value: number }) => void) {
   const material = new THREE.MeshStandardMaterial();
@@ -819,4 +822,34 @@ it('calibrates office room coordinates to actual retained blue facade triangles 
   expect(mask([0.2, 0.24, 0.345], blue)).toBe(false);
   expect(mask([0.2, 0.04, -0.345], blue)).toBe(false);
   expect(mask([0.2, 0.04, 0.345], new THREE.Color('#aaa79e'))).toBe(false);
+});
+
+it('composes a facade finish on the apartments without losing their window shader', () => {
+  const material = new THREE.MeshStandardMaterial();
+  applyApartmentWindows(material, { value: 1 }, 4);
+  applyApartmentFacade(material);
+  expect(hasWorldSurface(material)).toBe(true);
+  expect(material.userData.millosWorldSurfaceComposed).toBe(true);
+  expect(material.customProgramCacheKey()).toBe(
+    `${APARTMENT_FACADE_CACHE_KEY}_${WORLD_SURFACE_CACHE_KEY}`
+  );
+  const lib = THREE.ShaderLib.physical;
+  const shader = {
+    uniforms: THREE.UniformsUtils.clone(lib.uniforms),
+    vertexShader: lib.vertexShader,
+    fragmentShader: lib.fragmentShader,
+  } as Parameters<typeof material.onBeforeCompile>[0];
+  material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
+  // Both injections are present, and the finish runs BEFORE the window code,
+  // whose glazing mask reads a chroma ratio a tonal scale cannot change.
+  expect(shader.fragmentShader).toContain('roomHeight');
+  expect(shader.fragmentShader).toContain('surfMacro');
+  expect(shader.fragmentShader.indexOf('surfMacro')).toBeLessThan(
+    shader.fragmentShader.indexOf('float roomHeight')
+  );
+  // Ledge dust is the term that separates the storeys; grime stays below the door glass.
+  const mask = (shader.uniforms.uSurfMask.value as THREE.Vector4).toArray();
+  expect(mask[1]).toBeGreaterThan(0.15);
+  expect((shader.uniforms.uSurfSpan.value as THREE.Vector4).y).toBeLessThanOrEqual(1.2);
+  material.dispose();
 });

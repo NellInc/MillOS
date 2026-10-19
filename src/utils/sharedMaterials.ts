@@ -7,6 +7,7 @@
  * IMPORTANT: These materials should NOT be disposed - they are module-level singletons.
  */
 import * as THREE from 'three';
+import { markSurfaceSubstrate } from './worldSurface';
 import { generateBrushedMetal, generateMachineORM } from '../textures/brushedMetal';
 import {
   generateMachinePanelNormal,
@@ -513,6 +514,11 @@ export const BASIC_MATERIALS = {
 // Generate concrete/wall textures
 import { generateConcrete, generateConcreteRoughness } from '../textures/concrete';
 const concreteColorTexture = generateConcrete(512, 64, true);
+// Rule 7: this map is tiled 6 x 5 on the dock aprons and up to 110 x 1 on the
+// canal walls, and it cannot vary above its own tile. The flag rides the
+// texture into every `.clone()` tiling, so those surfaces take the `paving`
+// world-space macro from the batcher. Set before any module clones it.
+markSurfaceSubstrate(concreteColorTexture, 'paving');
 const concreteRoughnessTexture = generateConcreteRoughness(512);
 
 // === WALL/SURFACE MATERIALS ===
@@ -602,6 +608,9 @@ configureTexture(grassRoughnessTexture, 16);
 
 // Generate tarmac textures with proper filtering
 const tarmacColorTexture = generateTarmac(512);
+// Rule 7 again: the truck yard tiles this 18 x 18 over 60 m (luma std 7.3 across
+// the lower frame of `shipping`), the car parks 25 x 25. See the concrete note.
+markSurfaceSubstrate(tarmacColorTexture, 'paving');
 const tarmacRoughnessTexture = generateTarmacRoughness(512);
 configureTexture(tarmacColorTexture, 16);
 configureTexture(tarmacRoughnessTexture, 16);

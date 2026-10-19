@@ -6,6 +6,7 @@ import { NodeIO } from '@gltf-transform/core';
 import { createShopDisplayGeometry, SHOP_DISPLAY_ITEM_GRID } from './GeneratedOfficeModel';
 import { createBarnJoineryGeometry } from '../scenery/AuthoredPropTrim';
 import { GeneratedBody, GeneratedBoundary, GeneratedModel } from './GeneratedModel';
+import { hasWorldSurface } from '../../utils/worldSurface';
 
 const holder = vi.hoisted(() => ({ scene: null as THREE.Group | null }));
 vi.mock('../../utils/dracoLoader', () => ({ useDracoGLTF: () => ({ scene: holder.scene }) }));
@@ -629,4 +630,55 @@ it('cleans up real barn replacement geometry and paint while leaving cached asse
   geometry.dispose();
   material.map!.dispose();
   material.dispose();
+});
+
+it('takes the vessel shells off their near-mirror roughness map and gives them the painted finish', () => {
+  // The four tank GLBs ship a metallicRoughness map whose green channel is a
+  // near-constant 60/255: 0.64 x 0.24 = 0.15 effective roughness, i.e. the
+  // "uniform plastic gloss" the art review named on every tank. Their normal
+  // map is flat (std 0.6/255) and does nothing.
+  const flat = new THREE.DataTexture(new Uint8Array([128, 128, 255, 255]), 1, 1);
+  const orm = new THREE.DataTexture(new Uint8Array([255, 60, 8, 255]), 1, 1);
+  for (const asset of [
+    'utilityFuelShell',
+    'utilityProcessShell',
+    'propaneLargeShell',
+    'propaneSmallShell',
+  ] as const) {
+    const source = new THREE.Group();
+    const material = new THREE.MeshStandardMaterial({
+      roughness: 0.64,
+      metalness: 0.03,
+      roughnessMap: orm,
+      metalnessMap: orm,
+      normalMap: flat,
+      vertexColors: true,
+    });
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(), material);
+    source.add(mesh);
+    holder.scene = source;
+    let clone: THREE.Group;
+    const original = source.clone.bind(source);
+    vi.spyOn(source, 'clone').mockImplementation((recursive) => (clone = original(recursive)));
+    const view = render(<GeneratedModel asset={asset} />);
+    const finished = (clone!.children[0] as THREE.Mesh).material as THREE.MeshStandardMaterial;
+    expect(finished).not.toBe(material);
+    expect(finished.roughnessMap).toBeNull();
+    expect(finished.metalnessMap).toBeNull();
+    expect(finished.normalMap).toBeNull();
+    expect(finished.roughness).toBeGreaterThanOrEqual(0.45);
+    expect(finished.vertexColors).toBe(true);
+    expect(hasWorldSurface(finished)).toBe(true);
+    expect(finished.userData.millosWorldSurfaceProfile).toBe('painted');
+    // The cached loader material is untouched.
+    expect(material.roughnessMap).toBe(orm);
+    expect(hasWorldSurface(material)).toBe(false);
+    const dispose = vi.spyOn(finished, 'dispose');
+    view.unmount();
+    expect(dispose).toHaveBeenCalled();
+    mesh.geometry.dispose();
+    material.dispose();
+  }
+  flat.dispose();
+  orm.dispose();
 });

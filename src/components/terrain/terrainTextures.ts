@@ -113,8 +113,20 @@ const tileFbm = (u: number, v: number, cells: number, octaves: number): number =
   return value / maxValue;
 };
 
-/** Tiling Worley/voronoi over `cells` cells across the texture. */
-const tileVoronoi = (u: number, v: number, cells: number): { dist: number; edge: number } => {
+/**
+ * Tiling Worley/voronoi over `cells` cells across the texture.
+ *
+ * `edge` is the classic F2 - F1. It is NOT a distance to the cell boundary: it
+ * collapses toward zero over a wide region wherever two feature points sit
+ * close together, so a threshold on it draws a fat dark smudge there instead
+ * of a line. `border` is the true distance to the bisector of the two nearest
+ * points, (F2^2 - F1^2) / (2 |p2 - p1|), and is what a line should threshold.
+ */
+const tileVoronoi = (
+  u: number,
+  v: number,
+  cells: number
+): { dist: number; edge: number; border: number } => {
   const x = u * cells;
   const y = v * cells;
   const ix = Math.floor(x);
@@ -124,6 +136,10 @@ const tileVoronoi = (u: number, v: number, cells: number): { dist: number; edge:
 
   let minDist = 8;
   let secondDist = 8;
+  let ax = 0;
+  let ay = 0;
+  let bx = 0;
+  let by = 0;
 
   for (let ox = -1; ox <= 1; ox++) {
     for (let oy = -1; oy <= 1; oy++) {
@@ -134,14 +150,22 @@ const tileVoronoi = (u: number, v: number, cells: number): { dist: number; edge:
       const d = Math.sqrt(dx * dx + dy * dy);
       if (d < minDist) {
         secondDist = minDist;
+        bx = ax;
+        by = ay;
         minDist = d;
+        ax = dx;
+        ay = dy;
       } else if (d < secondDist) {
         secondDist = d;
+        bx = dx;
+        by = dy;
       }
     }
   }
 
-  return { dist: minDist, edge: secondDist - minDist };
+  const separation = Math.max(1e-4, Math.hypot(bx - ax, by - ay));
+  const border = (secondDist * secondDist - minDist * minDist) / (2 * separation);
+  return { dist: minDist, edge: secondDist - minDist, border };
 };
 
 interface SurfaceSample {
@@ -266,12 +290,17 @@ export const generateGrassSurface = (size: number = 256): THREE.DataTexture =>
  * crack cells ~36px.
  */
 export const generateTarmacSurface = (size: number = 256): THREE.DataTexture =>
-  buildSurfaceTexture(`terrain-tarmac-surface-v2-${size}`, size, 0.3, (u, v) => {
+  buildSurfaceTexture(`terrain-tarmac-surface-v3-${size}`, size, 0.3, (u, v) => {
     const aggregate = tileVoronoi(u, v, 40);
     const stone = clamp01(1 - aggregate.dist * 1.9);
     const binder = tileFbm(u, v, 64, 2);
     const crack = tileVoronoi(u + 0.13, v + 0.61, 7);
-    const crackDepth = crack.edge < 0.07 ? (0.07 - crack.edge) / 0.07 : 0;
+    // Threshold the true border distance, not F2 - F1: the latter drew a fat
+    // dark smudge wherever two feature points nearly coincided, one or two per
+    // 3.3 m tile, and through the normal map and cavity AO those repeated as
+    // the scalloped lattice the art review saw in `yard`. 0.035 cells is
+    // ~1.3 px each side at 256: a crack line, not a gutter.
+    const crackDepth = crack.border < 0.035 ? (0.035 - crack.border) / 0.035 : 0;
     const polish = tileFbm(u + 0.44, v + 0.29, 5, 2);
 
     let height = 0.42 + stone * 0.42 + (binder - 0.5) * 0.16;

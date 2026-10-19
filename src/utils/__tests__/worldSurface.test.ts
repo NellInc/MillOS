@@ -10,6 +10,7 @@ import {
   canApplyWorldSurface,
   composeWorldSurface,
   hasWorldSurface,
+  markSurfaceSubstrate,
   ownsOnlyWorldSurface,
   resolveBatchSurfaceProfile,
   resolveSurfaceProfile,
@@ -375,6 +376,51 @@ describe('profile resolution', () => {
     expect(hasWorldSurface(clone)).toBe(true);
     expect(clone.map).toBe(map);
     expect(clone.userData.millosWorldSurface.uSurfStrength).toBe(WORLD_SURFACE_STRENGTH);
+  });
+
+  /**
+   * CLAUDE.md procedural-texture rule 7: anything tiled more than ~10x needs a
+   * sub-tile-frequency macro term. The truck yard is the shared tarmac map at
+   * 18 x 18 over 60 m and measured luma std 7.3 across the lower frame of
+   * `shipping`, because the mapped-substrate exclusion kept every such surface
+   * out of the batcher's finish. A tiled substrate map may opt its surfaces in
+   * by flagging the TEXTURE, which `Texture.clone()` carries to every tiling.
+   */
+  it('lets a flagged tiled substrate opt its surfaces into the paving macro', () => {
+    const tile = markSurfaceSubstrate(new THREE.Texture(), 'paving');
+    const tiling = tile.clone();
+    tiling.repeat.set(18, 18);
+    for (const map of [tile, tiling]) {
+      const material = new THREE.MeshStandardMaterial({ map, roughness: 1 });
+      expect(resolveBatchSurfaceProfile(material)).toBe('paving');
+      expect(resolveSurfaceProfile(material)).toBe('paving');
+      const target = material.clone();
+      expect(applyBatchWorldSurface(target, material)).toBe('paving');
+      expect(hasWorldSurface(target)).toBe(true);
+      expect(target.map).toBe(map);
+    }
+    // An explicit allowMapped request keeps its roughness-based answer.
+    expect(
+      resolveSurfaceProfile(new THREE.MeshStandardMaterial({ map: tile, roughness: 1 }), true)
+    ).toBe('masonry');
+    // The opt-in is the map's, not any substrate's: an unflagged atlas stays out.
+    const atlas = new THREE.MeshStandardMaterial({ map: new THREE.Texture(), roughness: 1 });
+    expect(resolveBatchSurfaceProfile(atlas)).toBeNull();
+    // And it never overrides the transparent / emissive exclusions.
+    const markingPaint = new THREE.MeshStandardMaterial({ map: tile, transparent: true });
+    expect(resolveBatchSurfaceProfile(markingPaint)).toBeNull();
+  });
+
+  it('keeps paving to a macro term: no dirt, no dust, no edge wear on a road', () => {
+    const paving = WORLD_SURFACE_PROFILES.paving;
+    expect(paving.grime).toBe(0);
+    expect(paving.dust).toBe(0);
+    expect(paving.edge).toBe(0);
+    // Sub-tile: the period spans several 3.3 m yard tiles.
+    expect(paving.macroPeriod).toBeGreaterThan(3 * (60 / 18));
+    expect(paving.macro).toBeGreaterThanOrEqual(0.18);
+    // The tile already carries the aggregate; the meso term must not double it.
+    expect(paving.meso).toBeLessThanOrEqual(0.05);
   });
 
   it('declines transparent, sub-unit-opacity and emissive surfaces', () => {

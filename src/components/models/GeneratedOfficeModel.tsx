@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { useDracoGLTF } from '../../utils/dracoLoader';
 import { GENERATED_ASSET_PATHS } from '../../utils/modelLoader';
 import { EXTERIOR_LAMP_LEVEL } from '../exterior/ExteriorLighting';
+import { composeWorldSurface } from '../../utils/worldSurface';
 
 /** Default-one, same-program visual control for the small office only. */
 export const OFFICE_INTERIOR_STRENGTH = { value: 1 };
@@ -210,6 +211,45 @@ export function applyApartmentWindows(
   material.customProgramCacheKey = () => 'millos-generated-apartment-window-v5';
 }
 
+/** Program key for the apartment windows plus the composed facade finish. */
+export const APARTMENT_FACADE_CACHE_KEY = 'millos-generated-apartment-facade-v1';
+
+/**
+ * Facade definition for the two apartment blocks, composed on top of their
+ * window/room injection.
+ *
+ * The art review read the navy block in `shipping` (x 0-320, y 280-600) as
+ * "stacked untreated slabs in a single flat colour". The world-surface finish
+ * is this repo's instanced-procedural answer to exactly that, and
+ * `composeWorldSurface` is the sanctioned way to stack it on a host injection:
+ * the window shader runs first and is kept, under a new constant cache key.
+ *
+ * Masonry, turned down for a mapped atlas - the farmhouse showed that full
+ * masonry meso over an atlas reads as metre-wide plaster blobs. What is kept is
+ * what a 16 m facade shows from 100 m: a ~6 m tonal drift across the render,
+ * dust settled on every cornice and sill top (the ledges are what separate one
+ * storey from the next), and a low splash line at the base. Grime stays under
+ * 1.2 m so the ground-floor door glass keeps the chroma its glazing mask reads.
+ * The window shader sits at `emissivemap_fragment`, after this finish, and
+ * reads a chroma RATIO, which a uniform tonal scale leaves unchanged.
+ */
+export function applyApartmentFacade(material: THREE.MeshStandardMaterial) {
+  return composeWorldSurface(material, 'masonry', {
+    cacheKey: APARTMENT_FACADE_CACHE_KEY,
+    overrides: {
+      macroPeriod: 6,
+      macro: 0.12,
+      mesoPeriod: 0.35,
+      meso: 0.05,
+      reliefMetres: 0.004,
+      grime: 0.22,
+      grimeHeight: 1.2,
+      dust: 0.22,
+      edge: 0.04,
+    },
+  });
+}
+
 type OfficeAsset = 'smallOffice' | 'officeApartment' | 'officeApartmentThree';
 export function GeneratedOfficeModel({ asset = 'smallOffice' }: { asset?: OfficeAsset }) {
   const { scene } = useDracoGLTF(GENERATED_ASSET_PATHS[asset]);
@@ -223,7 +263,10 @@ export function GeneratedOfficeModel({ asset = 'smallOffice' }: { asset?: Office
         throw new Error('Office lighting requires a standard material');
       const material = object.material.clone();
       if (asset === 'smallOffice') applyOfficeWindows(material, night);
-      else applyApartmentWindows(material, night, asset === 'officeApartmentThree' ? 3 : 4);
+      else {
+        applyApartmentWindows(material, night, asset === 'officeApartmentThree' ? 3 : 4);
+        applyApartmentFacade(material);
+      }
       object.material = material;
       object.castShadow = true;
       object.receiveShadow = true;
