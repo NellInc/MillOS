@@ -933,7 +933,7 @@ export const MillScene: React.FC<MillSceneProps> = ({
           >
             <ErrorBoundary fallback={null} resetKeys={[graphicsQuality]}>
               <Suspense fallback={null}>
-                <TruckBay productionSpeed={productionSpeed} />
+                <TruckBay />
               </Suspense>
             </ErrorBoundary>
           </StaticMeshBatch>

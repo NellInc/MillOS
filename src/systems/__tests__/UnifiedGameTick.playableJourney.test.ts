@@ -23,6 +23,11 @@ import {
 } from '../../components/truckbay/truckController';
 import type { TruckAnimState } from '../../components/truckbay/useTruckPhysics';
 import type { TruckLifecyclePhase } from '../../stores/truckScheduleStore';
+import {
+  advanceTruckClock,
+  TRUCK_CONTROLLER_STEP_SECONDS,
+} from '../../components/truckbay/truckClock';
+import { PACE_GAME_SPEEDS, STANDARD_GAME_SPEED } from '../../simulation/pace';
 
 // Execute the actual current scene's roster factory, rather than duplicating a
 // machine table. The final lane also couples the real truck controller and dock
@@ -59,7 +64,7 @@ const makeRoster = new Function(
   `${rosterJS}; return buildRoster();`
 ) as (layout: typeof SITE_LAYOUT, types: typeof MachineType) => MachineData[];
 const deltaSeconds = centralTick.getStats().tickInterval;
-const morningWindowTicks = Math.ceil((240 * 60) / (180 * deltaSeconds)) + 1;
+const morningWindowTicks = Math.ceil((240 * 60) / (STANDARD_GAME_SPEED * deltaSeconds)) + 1;
 let tickCount = 0;
 let receivingDwell = 0;
 let fetchCalls = 0;
@@ -152,7 +157,7 @@ function step(gameSpeed = useGameSimulationStore.getState().gameSpeed) {
 }
 
 it('fulfils the bakery commitment within its actual default-speed morning window', () => {
-  expect(useGameSimulationStore.getState().gameSpeed).toBe(180);
+  expect(useGameSimulationStore.getState().gameSpeed).toBe(STANDARD_GAME_SPEED);
   for (let i = 0; i < morningWindowTicks; i++) step();
 
   const campaign = useOperationsCampaignStore.getState();
@@ -217,7 +222,7 @@ function completeProgramme() {
   );
 }
 
-it.each([30, 180])(
+it.each([STANDARD_GAME_SPEED, 120])(
   'completes all real recipes and replays without resetting physical stock at %ix',
   (speed) => {
     useGameSimulationStore.getState().setGameSpeed(speed);
@@ -236,9 +241,18 @@ it.each([30, 180])(
 );
 
 it('improves worn-machine quality through real preventive service and parts consumption', () => {
+  // Wear runs on game time, so operate whole programmes until a unit has worn;
+  // the old 180x clock did this in two only because deadlines outran the line.
   completeProgramme();
-  expect(useOperationsCampaignStore.getState().acceptNextProgramme()).toBe(true);
-  completeProgramme();
+  for (
+    let programme = 0;
+    programme < 8 &&
+    !useProductionStore.getState().machines.some((m) => m.metrics.efficiency < 100);
+    programme++
+  ) {
+    expect(useOperationsCampaignStore.getState().acceptNextProgramme()).toBe(true);
+    completeProgramme();
+  }
   const production = useProductionStore.getState();
   const qualityBefore = production.metrics.quality;
   const materialBefore = useMaterialFlowStore.getState().getMaterialBalance();
@@ -313,66 +327,83 @@ const dockPredicates = new Function(
   getTruckLifecycle: (pose: TruckAnimState) => TruckLifecyclePhase;
 };
 
-it('completes the guided programme through real truck travel and recipe changeovers', () => {
+// One time model: the pace scales the clock, material, loading and the yard
+// together, so the same programme lands on the same game minutes at every pace.
+// Trucks advance exactly as TruckBay does: render frames converted to plant
+// time by advanceTruckClock, run in the controller's fixed steps.
+function runGuidedProgrammeWithRealTrucks(pace: number, onTick?: () => void) {
   const controllers: Record<'shipping' | 'receiving', TruckControllerState> = {
     shipping: createTruckController('shipping'),
     receiving: createTruckController('receiving'),
   };
-  useGameSimulationStore.getState().setGameSpeed(30);
+  const accumulators = { shipping: 0, receiving: 0 };
+  const renderFrame = 1 / 60;
+  const framesPerTick = Math.round(deltaSeconds / renderFrame);
+  useGameSimulationStore.getState().setGameSpeed(pace);
+  const maxTicks = Math.ceil((1920 * STANDARD_GAME_SPEED) / pace);
   for (
     let tick = 0;
-    tick < 1920 &&
+    tick < maxTicks &&
     !useOperationsCampaignStore.getState().orders.every((o) => o.status === 'fulfilled');
     tick++
   ) {
-    // Ten physical 20 Hz controller steps per ordinary 2 Hz simulation tick.
-    for (let frame = 0; frame < 10; frame++) {
+    for (let frame = 0; frame < framesPerTick; frame++) {
       for (const dock of ['receiving', 'shipping'] as const) {
-        const trucks = useTruckScheduleStore.getState();
-        const campaign = useOperationsCampaignStore.getState();
-        const result = stepTruckController(controllers[dock], {
-          deltaSeconds: 0.05,
-          arrivalReady: trucks.truckSchedule[dock].arrivalReady,
-          safetyHold: false,
-          serviceComplete:
-            dock === 'receiving' || campaign.execution.dispatchLoad.status === 'ready',
-          speedMultiplier: campaign.getIncidentEffect().vehicleSpeedMultiplier,
-        });
-        controllers[dock] = result.state;
-        if (trucks.truckSchedule[dock].arrivalReady && result.state.active)
-          trucks.consumeTruckArrival(dock);
-        if (result.departedThisStep)
-          trucks.recordTruckDeparture(
-            dock,
-            toSimulationMinutes({
-              day: useGameSimulationStore.getState().gameDay,
-              hour: useGameSimulationStore.getState().gameTime,
-            })
-          );
-        if (
-          trucks.truckSchedule[dock].truckDocked !==
-          dockPredicates.isTruckPhysicallyDocked(result.pose)
-        )
-          trucks.setTruckDocked(dock, dockPredicates.isTruckPhysicallyDocked(result.pose));
-        if (
-          useTruckScheduleStore.getState().truckSchedule[dock].transferReady !==
-          dockPredicates.isTruckTransferReady(result.pose)
-        )
-          trucks.setTruckTransferReady(dock, dockPredicates.isTruckTransferReady(result.pose));
-        if (
-          useTruckScheduleStore.getState().truckSchedule[dock].lifecyclePhase !==
-          dockPredicates.getTruckLifecycle(result.pose)
-        )
-          trucks.setTruckLifecycle(dock, dockPredicates.getTruckLifecycle(result.pose));
+        const clock = advanceTruckClock(
+          accumulators[dock],
+          renderFrame,
+          pace,
+          controllers[dock].motion.speed
+        );
+        accumulators[dock] = clock.accumulator;
+        for (let step = 0; step < clock.steps; step++) {
+          const trucks = useTruckScheduleStore.getState();
+          const campaign = useOperationsCampaignStore.getState();
+          const result = stepTruckController(controllers[dock], {
+            deltaSeconds: TRUCK_CONTROLLER_STEP_SECONDS,
+            arrivalReady: trucks.truckSchedule[dock].arrivalReady,
+            safetyHold: false,
+            serviceComplete:
+              dock === 'receiving' || campaign.execution.dispatchLoad.status === 'ready',
+            speedMultiplier: campaign.getIncidentEffect().vehicleSpeedMultiplier,
+          });
+          controllers[dock] = result.state;
+          if (trucks.truckSchedule[dock].arrivalReady && result.state.active)
+            trucks.consumeTruckArrival(dock);
+          if (result.departedThisStep)
+            trucks.recordTruckDeparture(
+              dock,
+              toSimulationMinutes({
+                day: useGameSimulationStore.getState().gameDay,
+                hour: useGameSimulationStore.getState().gameTime,
+              })
+            );
+          if (
+            trucks.truckSchedule[dock].truckDocked !==
+            dockPredicates.isTruckPhysicallyDocked(result.pose)
+          )
+            trucks.setTruckDocked(dock, dockPredicates.isTruckPhysicallyDocked(result.pose));
+          if (
+            useTruckScheduleStore.getState().truckSchedule[dock].transferReady !==
+            dockPredicates.isTruckTransferReady(result.pose)
+          )
+            trucks.setTruckTransferReady(dock, dockPredicates.isTruckTransferReady(result.pose));
+          if (
+            useTruckScheduleStore.getState().truckSchedule[dock].lifecyclePhase !==
+            dockPredicates.getTruckLifecycle(result.pose)
+          )
+            trucks.setTruckLifecycle(dock, dockPredicates.getTruckLifecycle(result.pose));
+        }
       }
     }
     unifiedGameTick({
       deltaSeconds,
-      gameSpeed: 30,
+      gameSpeed: pace,
       gameTime: useGameSimulationStore.getState().gameTime,
       elapsedTime: tickCount * deltaSeconds,
       tickCount: ++tickCount,
     });
+    onTick?.();
     expect(
       useMaterialFlowStore.getState().manifests.filter((m) => m.kind === 'shipping').length
     ).toBeLessThanOrEqual(useTruckScheduleStore.getState().truckSchedule.shipping.departureCount);
@@ -383,5 +414,60 @@ it('completes the guided programme through real truck travel and recipe changeov
   expect(orders.every((o) => o.completedAtMinute! <= o.dueAtMinute)).toBe(true);
   expect(orders.every((o) => o.manifestIds.length > 0 && o.qualityFailureKg === 0)).toBe(true);
   expect(useMaterialFlowStore.getState().shippedKg).toBeCloseTo(18000, 6);
-  expect(useTruckScheduleStore.getState().truckSchedule.shipping.departureCount).toBe(5);
+  return orders.map((o) => o.completedAtMinute!);
+}
+
+const STANDARD_COMPLETION: number[] = [];
+it.each([
+  STANDARD_GAME_SPEED,
+  ...PACE_GAME_SPEEDS.filter((pace) => pace > 0 && pace !== STANDARD_GAME_SPEED),
+])(
+  'completes the guided programme through real truck travel on time at pace %i, on the same game minutes',
+  (pace) => {
+    const completed = runGuidedProgrammeWithRealTrucks(pace);
+    if (pace === STANDARD_GAME_SPEED) STANDARD_COMPLETION.splice(0, 3, ...completed);
+    if (STANDARD_COMPLETION.length === 3)
+      // One 0.5 s tick at 4x is a game minute; the yard and loading quantise
+      // to the tick, so allow a few minutes, never a deadline's worth.
+      completed.forEach((minute, i) =>
+        expect(Math.abs(minute - STANDARD_COMPLETION[i])).toBeLessThanOrEqual(6)
+      );
+  }
+);
+
+// The idle line: once an order's remainder is packed and waiting for its truck,
+// the line starts the next commitment instead of reading '0 bags/h' until the
+// truck leaves. Working if the first order still ships only its own flour, on
+// time, and the semolina is already being made when it is fulfilled.
+it('pre-stages the next commitment while the first order waits for its second truck', () => {
+  let idleTicksWithOpenWork = 0;
+  let semolinaAtFirstFulfilment: number | null = null;
+  runGuidedProgrammeWithRealTrucks(STANDARD_GAME_SPEED, () => {
+    const campaign = useOperationsCampaignStore.getState();
+    const flow = useMaterialFlowStore.getState();
+    // Unpacked work exists when open commitments need more of a product than
+    // is already packed: only then is an idle line dead time.
+    const unpackedKg = (['flour', 'semolina'] as const).reduce((sum, material) => {
+      const owed = campaign.orders
+        .filter((o) => o.status !== 'fulfilled' && o.recipe.finishedMaterial === material)
+        .reduce((n, o) => n + Math.max(0, o.requiredKg - o.shippedKg), 0);
+      const packed = flow.productionBatches
+        .filter((b) => b.materialType === material)
+        .reduce((n, b) => n + b.availableKg, 0);
+      return sum + Math.max(0, owed - packed);
+    }, 0);
+    if (unpackedKg > 1000 && flow.currentPackerFlowRate === 0) idleTicksWithOpenWork++;
+    if (semolinaAtFirstFulfilment === null && campaign.orders[0].status === 'fulfilled')
+      semolinaAtFirstFulfilment = flow.productionBatches
+        .filter((b) => b.materialType === 'semolina')
+        .reduce((sum, b) => sum + b.producedKg, 0);
+  });
+  expect(semolinaAtFirstFulfilment).toBeGreaterThan(1000);
+  // Only the start and each recipe changeover fill the line before packing:
+  // 63 ticks here, against 425 (about 212 game minutes) without pre-staging.
+  expect(idleTicksWithOpenWork).toBeLessThan(80);
+  const manifests = useMaterialFlowStore.getState().manifests.filter((m) => m.kind === 'shipping');
+  const firstOrder = useOperationsCampaignStore.getState().orders[0];
+  expect(firstOrder.shippedKg).toBeCloseTo(6000, 6);
+  expect(manifests.length).toBeGreaterThan(0);
 });

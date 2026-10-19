@@ -45,13 +45,6 @@ const PT_MATERIAL: Record<string, string> = {
 export const overviewPanelMessages = defineMessages({
   en: {
     paused: 'PAUSED',
-    pause: 'Pause',
-    fastClockTitle:
-      'Fast clock (1x: 24 h in 8 min). Customer deadlines run 6x faster than standard pace while trucks and packing do not, so orders run late. Use Standard pace in Shift pace for deliveries.',
-    veryFastClockTitle:
-      'Very fast clock (10x). Customer deadlines pass far faster than trucks and packing can keep up; orders will be late.',
-    ultraFastClockTitle:
-      'Ultra fast clock (60x). Customer deadlines pass far faster than trucks and packing can keep up; orders will be late.',
     runWindow: 'Run window',
     runWindowValue: (p: { value: string }) => p.value,
 
@@ -137,13 +130,6 @@ export const overviewPanelMessages = defineMessages({
   },
   'pt-BR': {
     paused: 'PAUSADO',
-    pause: 'Pausar',
-    fastClockTitle:
-      'Relógio rápido (1x: 24 h em 8 min). Os prazos dos clientes correm 6x mais rápido que no ritmo padrão, enquanto caminhões e ensaque não aceleram, então os pedidos atrasam. Para entregas, use Ritmo padrão em Ritmo do turno.',
-    veryFastClockTitle:
-      'Relógio muito rápido (10x). Os prazos dos clientes passam muito mais rápido do que caminhões e ensaque conseguem acompanhar; os pedidos vão atrasar.',
-    ultraFastClockTitle:
-      'Relógio ultrarrápido (60x). Os prazos dos clientes passam muito mais rápido do que caminhões e ensaque conseguem acompanhar; os pedidos vão atrasar.',
     runWindow: 'Janela de operação',
     runWindowValue: (p: { value: string }) => PT_RUN_WINDOW[p.value] ?? p.value,
 

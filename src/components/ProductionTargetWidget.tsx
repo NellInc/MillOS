@@ -48,11 +48,11 @@ export const ProductionTargetWidget: React.FC = () => {
   const gameSpeed = useGameSimulationStore((state) => state.gameSpeed);
 
   const targetData = useMemo(() => {
-    // The production metric is bags per real hour. The deadline follows the
-    // game clock, so both rates here must use game hours, including at pause.
+    // The production metric is bags per game hour, the same clock as the
+    // deadline (src/simulation/pace.ts), so it needs no pace conversion.
     const currentThroughputBags = metrics.throughput || 0;
     const paused = gameSpeed <= 0;
-    const currentThroughputMass = paused ? 0 : (currentThroughputBags * BAG_WEIGHT_KG) / gameSpeed;
+    const currentThroughputMass = paused ? 0 : currentThroughputBags * BAG_WEIGHT_KG;
 
     // Today's production only - the counter resets at day rollover, so the
     // widget never locks at 100% after the first day.

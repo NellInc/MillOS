@@ -3,7 +3,9 @@ import { useShallow } from 'zustand/react/shallow';
 import { Minimize2, X } from 'lucide-react';
 import { useUIStore } from '../../../stores/uiStore';
 import { useMobileControlStore } from '../../../stores/mobileControlStore';
-import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
+import { selectClockHolder, useGameSimulationStore } from '../../../stores/gameSimulationStore';
+import { isPaceGameSpeed, PACE_GAME_SPEEDS } from '../../../simulation/pace';
+import { paceMessages } from '../../../simulation/pace.messages';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
 import {
   improvementSummary,
@@ -12,6 +14,7 @@ import {
 import { campaignOutcomes, campaignTotals } from '../../../simulation/workplaceCampaign';
 import type { WorkplaceProfile, WorkplaceState } from '../../../types/workplace';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
+import { useTruckScheduleStore } from '../../../stores/truckScheduleStore';
 import {
   deriveOperationsPlay,
   RECOVERY_CHALLENGE_TARGET_KG,
@@ -55,26 +58,39 @@ function DeliveryDeadline({
 
 export function TeachingPace() {
   const speed = useGameSimulationStore((s) => s.gameSpeed);
+  const holder = useGameSimulationStore(selectClockHolder);
   const setSpeed = useGameSimulationStore((s) => s.setGameSpeed);
   const t = useT(playableShiftMessages);
+  const pace = useT(paceMessages);
+  const known = isPaceGameSpeed(speed);
   return (
-    <label className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-300">
-      {t('shiftPace')}
-      <select
-        aria-label={t('shiftPace')}
-        value={[0, 30, 180].includes(speed) ? speed : 'custom'}
-        onChange={(e) => setSpeed(Number(e.target.value))}
-        className="min-h-11 rounded bg-slate-800 px-2 text-white"
-      >
-        {/* Production and trucks run in real seconds; customer deadlines run on
-            this clock. Working if 30 reads as the feasible standard pace and 180
-            warns that deadlines tighten, with option values unchanged. */}
-        <option value={0}>{t('pacePaused')}</option>
-        <option value={30}>{t('paceStandard')}</option>
-        <option value={180}>{t('paceFast')}</option>
-        {![0, 30, 180].includes(speed) && <option value="custom">{t('paceCustom')}</option>}
-      </select>
-    </label>
+    <div className="mt-3">
+      <label className="flex flex-wrap items-center gap-2 text-xs text-slate-300">
+        {t('shiftPace')}
+        {/* One time model (src/simulation/pace.ts): a pace scales the clock,
+            deadlines, production and vehicles together, so no option needs a
+            caveat. Working if every option keeps the first delivery winnable. */}
+        <select
+          aria-label={t('shiftPace')}
+          title={pace('paceTitle')}
+          value={known ? speed : 'custom'}
+          onChange={(e) => setSpeed(Number(e.target.value))}
+          className="min-h-11 rounded bg-slate-800 px-2 text-white"
+        >
+          {PACE_GAME_SPEEDS.map((value) => (
+            <option key={value} value={value}>
+              {pace(`pace${value}`)}
+            </option>
+          ))}
+          {!known && <option value="custom">{pace('paceCustom')}</option>}
+        </select>
+      </label>
+      {holder && holder !== 'player' && (
+        <p className="mt-1 text-xs leading-5 text-amber-200" aria-live="polite">
+          {pace(`heldBy_${holder}`)}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -106,8 +122,15 @@ export function FirstDeliveryJourney({
       challengeHistory: s.challengeHistory,
     }))
   );
+  const shippingTruck = useTruckScheduleStore(
+    useShallow((s) => ({
+      active: s.truckSchedule.shipping.truckActive,
+      docked: s.truckSchedule.shipping.truckDocked,
+      nextArrivalMinutes: Math.ceil(s.truckSchedule.shipping.nextArrivalMinutes),
+    }))
+  );
   const order = campaign.orders.find((item) => item.id === ui.orderId) ?? null;
-  const guide = deriveDeliveryJourney(order, campaign.execution, ui.inspected);
+  const guide = deriveDeliveryJourney(order, campaign.execution, ui.inspected, shippingTruck);
   const [sceneFocused, setSceneFocused] = useState(false);
   const expandButton = useRef<HTMLButtonElement>(null);
   const collapseButton = useRef<HTMLButtonElement>(null);

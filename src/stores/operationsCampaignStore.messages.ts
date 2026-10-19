@@ -55,6 +55,8 @@ export const operationsCampaignMessages = defineMessages({
     execPlanning: 'Production route planned.',
     execPackedResting:
       'The rest of this order is already packed; the line rests until shipping collects it.',
+    execPackedPrestaging:
+      'The rest of this order is packed and waits for its truck, so the line has started the next commitment for {customer}.',
     execProcessing: 'Processing {material} for the active recipe.',
     materialWheatGrain: 'wheat grain',
     materialCornGrain: 'corn grain',
@@ -150,6 +152,8 @@ export const operationsCampaignMessages = defineMessages({
     execPlanning: 'Rota de produção planejada.',
     execPackedResting:
       'O restante deste pedido já está ensacado; a linha aguarda até a expedição coletá-lo.',
+    execPackedPrestaging:
+      'O restante deste pedido está ensacado e aguarda o caminhão, então a linha já começou o próximo compromisso, para {customer}.',
     execProcessing: 'Processando {material} para a receita ativa.',
     materialWheatGrain: 'trigo em grão',
     materialCornGrain: 'milho em grão',

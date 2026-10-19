@@ -78,7 +78,7 @@ export function WorkplaceImprovementPanel({
   const perform = (result: WorkplaceTransitionResult, pause = false) => {
     report(result);
     if (result.changed && pause) {
-      if (s.mode === 'game') useGameSimulationStore.getState().setGameSpeed(0);
+      if (s.mode === 'game') useGameSimulationStore.getState().holdClock('workplace');
       // Opening a shift replaces the entry form. Put its decision heading and
       // optional episode control together in view, beyond the lab navigation.
       if (s.phase === 'idle' || s.phase === 'review')
@@ -142,7 +142,7 @@ export function WorkplaceImprovementPanel({
             setProfile={setProfile}
             report={report}
             onStart={() => {
-              useGameSimulationStore.getState().setGameSpeed(0);
+              useGameSimulationStore.getState().holdClock('workplace');
               perform(
                 {
                   changed: true,
@@ -398,7 +398,7 @@ export function WorkplaceImprovementPanel({
             onClick={async () => {
               await activate();
               if (useWorkplaceStore.getState().workplace.phase === 'active' && s.mode === 'game')
-                useGameSimulationStore.getState().setGameSpeed(30);
+                useGameSimulationStore.getState().resumeClockFrom('workplace');
             }}
           >
             {busy

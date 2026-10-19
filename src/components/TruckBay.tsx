@@ -40,6 +40,7 @@ import {
   stepTruckController,
   type TruckControllerState,
 } from './truckbay/truckController';
+import { advanceTruckClock, TRUCK_CONTROLLER_STEP_SECONDS } from './truckbay/truckClock';
 import {
   vehicleTelemetryRegistry,
   type VehicleTelemetrySnapshot,
@@ -99,10 +100,6 @@ import {
 // NOTE: ExhaustSmoke, WheelChock, FuelTank, AirTank, LandingGear, DEFTank,
 // CBAntennaComponent, SunVisor, GrainCoLogo, FlourExpressLogo are defined
 // locally in this file - do not import from TruckSmallParts/TruckLogos
-
-interface TruckBayProps {
-  productionSpeed: number;
-}
 
 const cloneYardTexture = (
   source: THREE.Texture,
@@ -2784,8 +2781,6 @@ const DockLeveler: React.FC<{
   );
 };
 
-const TRUCK_CONTROLLER_STEP_SECONDS = 1 / 60;
-
 // One reusable telemetry snapshot per dock. The registry copies the fields into
 // its own entry on publish, so mutating these each frame allocates nothing.
 const createTruckTelemetrySnapshot = (
@@ -2804,31 +2799,6 @@ const TRUCK_TELEMETRY_SNAPSHOTS = {
   shipping: createTruckTelemetrySnapshot('shipping'),
   receiving: createTruckTelemetrySnapshot('receiving'),
 } as const;
-// The per-frame cap is set by how far the truck can travel, not by a flat
-// time. From its current speed under the controller's strongest longitudinal
-// limit (2.4 m/s^2 braking; 1.4 m/s^2 accelerating; 18 m/s ceiling, duplicated
-// from truckController's TRUCK_LIMITS), the longest frame that keeps travel
-// within 1.44 m is the root of |v|t + a t^2 / 2 = 1.44. At the speed ceiling
-// that is the old flat 80 ms; at rest or docked it reaches one 0.5 s tick
-// interval, the most simulation time CentralTickSystem advances per frame.
-// Only time a stall would turn into a jump is dropped, so a slow machine's
-// docking and loading keep pace with the clock and material.
-// Working if the real frame callback stays below the 1.5 m motion gate after
-// stalls, and a stationary or slow truck below 12.5 FPS loses no service time.
-const MAXIMUM_TRUCK_DISPLAY_TRAVEL_METRES = 1.44;
-const TRUCK_DISPLAY_BOUND_ACCELERATION = 2.4;
-const MINIMUM_TRUCK_CONTROLLER_DELTA_SECONDS = 0.08;
-const MAXIMUM_TRUCK_CONTROLLER_DELTA_SECONDS = 0.5;
-const truckControllerDeltaCap = (speedMps: number): number => {
-  const speed = Number.isFinite(speedMps) ? Math.min(18, Math.abs(speedMps)) : 18;
-  const a = TRUCK_DISPLAY_BOUND_ACCELERATION;
-  const seconds =
-    (-speed + Math.sqrt(speed * speed + 2 * a * MAXIMUM_TRUCK_DISPLAY_TRAVEL_METRES)) / a;
-  return Math.min(
-    MAXIMUM_TRUCK_CONTROLLER_DELTA_SECONDS,
-    Math.max(MINIMUM_TRUCK_CONTROLLER_DELTA_SECONDS, seconds)
-  );
-};
 
 // Only the flags the dock render actually reads: each change re-renders the
 // whole TruckBay tree, so nothing is tracked here that nothing consumes.
@@ -2888,7 +2858,9 @@ const dockVisualChanged = (prior: DockVisualState, next: DockVisualState): boole
   prior.dockLocked !== next.dockLocked ||
   prior.levelerDeployed !== next.levelerDeployed;
 
-export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
+export const TruckBay: React.FC = () => {
+  // Engines follow the yard clock, not the line setpoint (see tickTrucks).
+  const clockRunning = useGameSimulationStore((state) => state.gameSpeed > 0);
   // The controllers and poses that seed the refs below are built once, not on
   // every TruckBay render.
   const [
@@ -3008,7 +2980,7 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
 
   useEffect(() => {
     if (!audioReady) return;
-    const running = productionSpeed > 0 && !safetyHoldActive;
+    const running = clockRunning && !safetyHoldActive;
     const shippingMoving = running && Math.abs(shippingTruckStateRef.current.speed) > 0.05;
     const receivingMoving = running && Math.abs(receivingTruckStateRef.current.speed) > 0.05;
     audioManager.updateTruckEngine('shipping-truck', shippingMoving);
@@ -3019,7 +2991,7 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
       audioManager.stopBackupBeeper?.('receiving-truck');
       backupBeeperRef.current = { shipping: false, receiving: false };
     }
-  }, [audioReady, productionSpeed, safetyHoldActive]);
+  }, [audioReady, clockRunning, safetyHoldActive]);
 
   const replayPresentationRef = useRef<() => void>(() => undefined);
   useEffect(
@@ -3086,19 +3058,18 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
     const gameSimulation = useGameSimulationStore.getState();
     const gameSpeed = gameSimulation.gameSpeed;
     const safetyHoldActive = selectSafetyHoldActive(gameSimulation);
-    const productionSpeed = useProductionStore.getState().productionSpeed;
-    const allowAdvance =
-      !presentationOnly && !isWorkplaceReplayRestoring() && gameSpeed > 0 && productionSpeed > 0;
+    const allowAdvance = !presentationOnly && !isWorkplaceReplayRestoring() && gameSpeed > 0;
     // The simulation store publishes at 2 Hz. Reading its accumulated time here
     // made each truck execute roughly 30 fixed steps in one render and then
     // remain still for the next half second. Feed the deterministic controller
-    // from render delta instead, scaled by productionSpeed and gated by pause.
-    // Trucks are logistics, not the line: the campaign production multiplier
-    // (line setpoint x incident) is deliberately not applied. A 0 setpoint on
-    // an empty recipe source froze the receiving truck that refills it, and a
+    // from render delta instead, converted to plant time by the shift pace and
+    // gated by pause (src/simulation/pace.ts), so a faster pace speeds the yard
+    // up with the clock. Trucks are logistics, not the line: neither the line
+    // setpoint (productionSpeed) nor the campaign multiplier applies. A 0
+    // setpoint froze the receiving truck that refills an empty source, and a
     // power sag slowed road travel. Incident effects on vehicles arrive through
     // vehicleSpeedMultiplier. Working if both docks keep moving at any setpoint.
-    const scaledDelta = allowAdvance ? Math.max(0, delta) * productionSpeed : 0;
+    const renderDelta = allowAdvance ? Math.max(0, delta) : 0;
     const simulationMinutes = toSimulationMinutes({
       day: gameSimulation.gameDay,
       hour: gameSimulation.gameTime,
@@ -3122,14 +3093,15 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
       const scheduleBefore = useTruckScheduleStore.getState().truckSchedule[dock];
       let controller = controllerRef.current;
       let previousController = previousControllerRef.current;
-      const controllerDelta = Math.min(
-        truckControllerDeltaCap(controllerRef.current.motion.speed),
-        scaledDelta
+      const clock = advanceTruckClock(
+        accumulatorRef.current,
+        renderDelta,
+        gameSpeed,
+        controllerRef.current.motion.speed
       );
-      let accumulator = accumulatorRef.current + controllerDelta;
       let departedThisFrame = false;
 
-      while (allowAdvance && accumulator >= TRUCK_CONTROLLER_STEP_SECONDS) {
+      for (let step = 0; allowAdvance && step < clock.steps; step++) {
         previousController = controller;
         const result = stepTruckController(controller, {
           deltaSeconds: TRUCK_CONTROLLER_STEP_SECONDS,
@@ -3140,11 +3112,10 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
         });
         controller = result.state;
         departedThisFrame ||= result.departedThisStep;
-        accumulator -= TRUCK_CONTROLLER_STEP_SECONDS;
       }
       controllerRef.current = controller;
       previousControllerRef.current = previousController;
-      accumulatorRef.current = accumulator;
+      if (allowAdvance) accumulatorRef.current = clock.accumulator;
 
       if (allowAdvance && scheduleBefore.arrivalReady && controller.active) {
         useTruckScheduleStore.getState().consumeTruckArrival(dock);
@@ -3156,7 +3127,9 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
       const displayController = interpolateTruckControllerState(
         previousController,
         controller,
-        accumulator / TRUCK_CONTROLLER_STEP_SECONDS
+        allowAdvance
+          ? clock.alpha
+          : Math.min(1, accumulatorRef.current / TRUCK_CONTROLLER_STEP_SECONDS)
       );
       const truckState = getTruckControllerPose(
         displayController,

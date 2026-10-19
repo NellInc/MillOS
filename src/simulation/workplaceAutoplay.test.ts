@@ -7,6 +7,7 @@ import { useMaterialFlowStore } from '../stores/materialFlowStore';
 import { beginReplayClock, endReplayClock } from './workplaceReplayRuntime';
 import { fairnessReceipt } from './workplaceFairness';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
+import { useUIStore } from '../stores/uiStore';
 beforeEach(() => {
   useWorkplaceAutoplay.getState().pause();
   endReplayClock();
@@ -90,7 +91,7 @@ it('rechecks emergency and drill before any automated work or clock resume', () 
     useGameSimulationStore.setState({ [field]: false });
   }
 });
-it.each([0, 30, 180])(
+it.each([0, 30, 120])(
   'manual pace %s takes over without losing the chosen clock speed',
   (speed) => {
     vi.useFakeTimers();
@@ -105,6 +106,23 @@ it.each([0, 30, 180])(
     vi.useRealTimers();
   }
 );
+it('stopping by itself keeps the plant running and says why where the player looks', () => {
+  vi.useFakeTimers();
+  useGameSimulationStore.getState().setGameSpeed(30);
+  useWorkplaceAutoplay.getState().start('team');
+  // A safety boundary is one of the reasons the runner stops on its own.
+  useGameSimulationStore.setState({ emergencyActive: true });
+  vi.advanceTimersByTime(500);
+  expect(useWorkplaceAutoplay.getState().running).toBe(false);
+  expect(useGameSimulationStore.getState().gameSpeed).toBe(30);
+  expect(
+    useUIStore
+      .getState()
+      .alerts.some((alert) => alert.title === 'Automatic cooperative season stopped')
+  ).toBe(true);
+  useGameSimulationStore.setState({ emergencyActive: false });
+  vi.useRealTimers();
+});
 it.each(['wrong-answer', 'manual-stop', 'reload'] as const)(
   'manual %s pauses the runner before its next action',
   (action) => {

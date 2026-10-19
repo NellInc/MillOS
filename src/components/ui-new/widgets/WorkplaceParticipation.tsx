@@ -495,10 +495,23 @@ export function WorkplaceAutoplayStatus() {
       }
     >
       <p className={compact ? 'sr-only' : undefined}>{t('autonomousSeason')}</p>
+      <p className={compact ? 'sr-only' : 'mt-1 max-w-xs text-slate-300'}>
+        {t('autonomousSeasonDetail')}
+      </p>
+      {/* Taking over hands the decisions to the player where they can make
+          them, and never freezes the plant: the shift keeps its pace. Running
+          the demo again from that panel reverses it. Working if Take over opens
+          the BAS season with the clock still running. */}
       <button
         aria-label={t('takeOver')}
+        title={t('autonomousSeasonDetail')}
         className={`${button} ${compact ? 'max-w-full bg-slate-950 shadow-lg' : 'mt-2'}`}
-        onClick={() => automatic.pause()}
+        onClick={() => {
+          automatic.pause(true);
+          window.dispatchEvent(
+            new CustomEvent('millos:open-operations-workspace', { detail: 'autonomy' })
+          );
+        }}
       >
         {compact ? t('takeOverCompact') : t('takeOver')}
       </button>

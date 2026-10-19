@@ -768,16 +768,25 @@ it.each([
   }
 );
 
-it('labels the pace options by what they do to customer deadlines without changing values', () => {
-  useGameSimulationStore.setState({ gameSpeed: 30 });
+it('offers the shared paces, each scaling the whole plant, with no deadline caveat', () => {
+  useGameSimulationStore.setState({ gameSpeed: 30, clockHolds: [] });
   render(<TeachingPace />);
   const pace = screen.getByRole('combobox', { name: 'Shift pace' });
   expect(pace).toHaveValue('30');
-  expect(screen.getByRole('option', { name: 'Standard pace' })).toHaveValue('30');
-  const fast = screen.getByRole('option', { name: /Fast clock, 6x/ });
-  expect(fast).toHaveValue('180');
-  expect(fast).toHaveTextContent('deadlines tighten');
-  expect(screen.queryByRole('option', { name: /1x/ })).not.toBeInTheDocument();
+  expect(screen.getByRole('option', { name: 'Standard, 1x' })).toHaveValue('30');
+  expect(screen.getByRole('option', { name: 'Fast, 2x' })).toHaveValue('60');
+  expect(screen.getByRole('option', { name: 'Fastest, 4x' })).toHaveValue('120');
+  expect(screen.getByRole('option', { name: 'Slow, 1/2x' })).toHaveValue('15');
+  expect(screen.queryByRole('option', { name: /deadlines/ })).not.toBeInTheDocument();
+});
+
+it('names who holds the clock when something other than the player paused it', () => {
+  useGameSimulationStore.setState({ gameSpeed: 30, clockHolds: [] });
+  useGameSimulationStore.getState().holdClock('tour');
+  render(<TeachingPace />);
+  expect(screen.getByText(/Paused for the tour/)).toBeInTheDocument();
+  act(() => useGameSimulationStore.getState().setGameSpeed(0));
+  expect(screen.queryByText(/Paused for the tour/)).not.toBeInTheDocument();
 });
 
 it('shows fulfilment even when no machine inspection was recorded', () => {

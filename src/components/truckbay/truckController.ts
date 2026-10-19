@@ -58,7 +58,7 @@ const MAXIMUM_STEERING = 0.55;
 const MAXIMUM_ARTICULATION = 0.7;
 const FIXED_STEP_LIMIT = 1 / 20;
 
-const TRUCK_LIMITS = {
+export const TRUCK_LIMITS = {
   maximumForwardSpeed: 18,
   maximumReverseSpeed: 1.5,
   maximumAcceleration: 1.4,

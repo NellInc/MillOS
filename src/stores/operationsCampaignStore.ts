@@ -157,6 +157,25 @@ export interface OrderExecutionState {
   releasedFinishedKg: number;
   qualityReleased: boolean;
   dispatchLoad: DispatchLoadSnapshot;
+  /**
+   * The order the line is producing for. It is the dispatch order until that
+   * order's remainder is packed and waiting for a truck; then the line starts
+   * the next commitment. Null before the first tick.
+   */
+  lineOrderId?: string | null;
+  /** Customer of `lineOrderId` when it is not the dispatch order. */
+  lineCustomer?: string | null;
+}
+
+/** What the line should make now: the dispatch order, or the next one pre-staged. */
+export interface LineProductionPlan {
+  orderId: string;
+  customer: string;
+  sourceMaterial: Extract<MaterialType, 'wheat_grain' | 'corn_grain'>;
+  finishedMaterial: Extract<MaterialType, 'flour' | 'semolina'>;
+  /** Finished kg still to admit for, counted against everything already committed. */
+  remainingFinishedKg: number;
+  prestaged: boolean;
 }
 
 export interface UtilityAssetTelemetry {
@@ -189,6 +208,9 @@ export interface CampaignTickContext {
   releasedFinishedKg: number;
   dispatchLoad: DispatchLoadSnapshot;
   openWorkOrders: number;
+  /** The order the line is producing for this tick (see LineProductionPlan). */
+  lineOrderId?: string | null;
+  lineCustomer?: string | null;
   /**
    * Minute of day on the visible game clock (gameTime * 60). The peak energy
    * tariff follows it; campaign elapsed time is used only when it is absent.
@@ -251,6 +273,15 @@ interface OperationsCampaignState {
     finishedMaterial: Extract<MaterialType, 'flour' | 'semolina'>;
     lineSetpointPercent: number;
   } | null;
+  /**
+   * The recipe and feed budget for the line. Working if, once the dispatch
+   * order's remainder is packed and waiting, the line pre-stages the next open
+   * commitment instead of idling, while shipping keeps loading the dispatch
+   * order's material.
+   */
+  getLineProductionPlan: (
+    finishedAvailableKg: Partial<Record<Extract<MaterialType, 'flour' | 'semolina'>, number>>
+  ) => LineProductionPlan | null;
   getProductionMultiplier: () => number;
   getIncidentEffect: () => IncidentEffect;
   resetCampaign: () => void;
@@ -640,6 +671,8 @@ function createInitialExecution(): OrderExecutionState {
     releasedFinishedKg: 0,
     qualityReleased: true,
     dispatchLoad: { ...EMPTY_DISPATCH_LOAD },
+    lineOrderId: null,
+    lineCustomer: null,
   };
 }
 
@@ -716,6 +749,9 @@ function deriveExecution(
     };
   }
   const remainingKg = Math.max(0, order.requiredKg - order.shippedKg);
+  const remainderPacked =
+    remainingKg > EPSILON_KG && context.finishedAvailableKg >= remainingKg - 1;
+  const lineOrderId = context.lineOrderId ?? order.id;
   let stage: FulfillmentStage = 'milling';
   if (order.status === 'fulfilled' || remainingKg <= EPSILON_KG) stage = 'fulfilled';
   else if (context.dispatchLoad.status === 'departed' && context.dispatchLoad.lastDispatchKg > 0)
@@ -730,13 +766,19 @@ function deriveExecution(
     sourceMaterial: order.recipe.sourceMaterial,
     finishedMaterial: order.recipe.finishedMaterial,
     stage,
-    lineSetpointPercent: deriveLineSetpoint(order, elapsedMinutes, context.sourceInventoryKg),
+    lineSetpointPercent: deriveLineSetpoint(
+      order,
+      elapsedMinutes,
+      remainderPacked && lineOrderId !== order.id ? Infinity : context.sourceInventoryKg
+    ),
     remainingKg,
     sourceInventoryKg: context.sourceInventoryKg,
     finishedAvailableKg: context.finishedAvailableKg,
     releasedFinishedKg: context.releasedFinishedKg,
     qualityReleased: context.dispatchReleased,
     dispatchLoad: { ...context.dispatchLoad },
+    lineOrderId,
+    lineCustomer: lineOrderId !== order.id ? (context.lineCustomer ?? null) : null,
   };
 }
 
@@ -754,7 +796,9 @@ function executionMessage(execution: OrderExecutionState): string {
     case 'milling':
       // Working if a line held by the feed budget never claims to be processing.
       if (execution.remainingKg > 0 && execution.finishedAvailableKg >= execution.remainingKg - 1)
-        return translate(messages, 'execPackedResting');
+        return execution.lineCustomer
+          ? translate(messages, 'execPackedPrestaging', { customer: execution.lineCustomer })
+          : translate(messages, 'execPackedResting');
       return translate(messages, 'execProcessing', {
         material:
           execution.sourceMaterial != null
@@ -1701,6 +1745,59 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
           finishedMaterial: order.recipe.finishedMaterial,
           lineSetpointPercent:
             state.execution.orderId === order.id ? state.execution.lineSetpointPercent : 100,
+        };
+      },
+
+      getLineProductionPlan: (finishedAvailableKg) => {
+        const state = get();
+        const active = state.orders.find((candidate) => candidate.id === state.activeOrderId);
+        if (!active || active.status === 'fulfilled' || active.status === 'cancelled') return null;
+        // Walk the commitments in the order dispatch will serve them: the
+        // active order, then the same priority/due order activation uses. Packed
+        // stock covers them in turn; the line works on the first one it does not
+        // cover. The feed budget counts every committed kg of a product, so the
+        // plan's budget is the remainder of every queued order of that product
+        // up to and including it.
+        const queue = [
+          active,
+          ...state.orders
+            .filter(
+              (order) =>
+                order.id !== active.id &&
+                order.status !== 'fulfilled' &&
+                order.status !== 'cancelled'
+            )
+            .sort(
+              (a, b) =>
+                priorityRank(a.priority) - priorityRank(b.priority) || a.dueAtMinute - b.dueAtMinute
+            ),
+        ];
+        const stock = { flour: 0, semolina: 0, ...finishedAvailableKg };
+        const queuedKg = { flour: 0, semolina: 0 };
+        for (const order of queue) {
+          const material = order.recipe.finishedMaterial;
+          const remainingKg = Math.max(0, order.requiredKg - order.shippedKg);
+          queuedKg[material] += remainingKg;
+          const covered = Math.min(remainingKg, Math.max(0, stock[material]));
+          stock[material] -= covered;
+          if (remainingKg - covered > 1)
+            return {
+              orderId: order.id,
+              customer: order.customer,
+              sourceMaterial: order.recipe.sourceMaterial,
+              finishedMaterial: material,
+              remainingFinishedKg: queuedKg[material],
+              prestaged: order.id !== active.id,
+            };
+        }
+        // Everything queued is packed: keep the active recipe, with no new feed.
+        return {
+          orderId: active.id,
+          customer: active.customer,
+          sourceMaterial: active.recipe.sourceMaterial,
+          finishedMaterial: active.recipe.finishedMaterial,
+          remainingFinishedKg: queuedKg[active.recipe.finishedMaterial],
+          prestaged: false,
         };
       },
 

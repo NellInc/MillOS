@@ -96,8 +96,10 @@ export const workplaceParticipationMessages = defineMessages({
     // Autoplay status
     demoRunningLabel: 'Fictional demo running',
     autonomousSeason: 'Autonomous cooperative season',
+    autonomousSeasonDetail:
+      "Fictional cooperative roles are making this season's decisions while the plant runs. Take over to make them yourself in the Bilateral Autonomy System (BAS) panel; the shift keeps running.",
     takeOver: 'Take over cooperative season',
-    takeOverCompact: 'Autonomous season: take over',
+    takeOverCompact: 'Cooperative season running: take over',
   },
   'pt-BR': {
     sectionLabel: (p: { section: string }) =>
@@ -203,6 +205,8 @@ export const workplaceParticipationMessages = defineMessages({
     demoRunningLabel: 'Demonstração fictícia em andamento',
     autonomousSeason: 'Temporada cooperativa autônoma',
     takeOver: 'Assumir a temporada cooperativa',
-    takeOverCompact: 'Temporada autônoma: assumir',
+    autonomousSeasonDetail:
+      'Funções cooperativas fictícias tomam as decisões desta temporada enquanto o moinho opera. Assuma para decidir você mesmo no painel Sistema de Autonomia Bilateral (BAS); o turno continua.',
+    takeOverCompact: 'Temporada cooperativa em andamento: assumir',
   },
 });

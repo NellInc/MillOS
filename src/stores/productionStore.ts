@@ -18,6 +18,7 @@ import { useUIStore } from './uiStore';
 import { useBreakdownStore } from './breakdownStore';
 import { formatFixed, translate } from '../i18n';
 import { productionStoreMessages } from './productionStore.messages';
+import { bagsPerGameHour } from '../simulation/pace';
 
 // Re-export from new focused stores for backward compatibility
 export { useQCLabStore } from './qcLabStore';
@@ -1064,7 +1065,7 @@ export const useProductionStore = create<ProductionStore>()(
 
         // Throughput: Use REAL material flow rate from materialFlowStore
         // This represents actual kg/sec flowing through the system
-        // Convert to bags/hour: (kg/sec) / 25 kg/bag * 3600 sec/hour
+        // Converted to bags per game hour by the shared pace model.
         const materialFlowState = useMaterialFlowStore.getState();
         // Final-stage (packer) rate only - the documented basis for throughput.
         // currentFlowRate sums every processing stage (mill + sifter + packer),
@@ -1075,8 +1076,8 @@ export const useProductionStore = create<ProductionStore>()(
         // If material flow is not initialized yet, fall back to RPM-based calculation
         let throughput: number;
         if (flowRateKgPerSec > 0) {
-          // Real throughput from material flow: bags per hour
-          throughput = Math.round((flowRateKgPerSec / BAG_WEIGHT_KG) * 3600);
+          // Real throughput from material flow: bags per game hour
+          throughput = bagsPerGameHour(flowRateKgPerSec, BAG_WEIGHT_KG);
         } else {
           // Fallback: estimate from packer RPM
           const BAGS_PER_RPM_PER_MIN = 0.2;

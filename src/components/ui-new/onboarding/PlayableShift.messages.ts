@@ -32,10 +32,6 @@ export const playableShiftMessages = defineMessages({
   en: {
     deliveryDeadline: 'Delivery deadline',
     shiftPace: 'Shift pace',
-    pacePaused: 'Paused, inspect freely',
-    paceStandard: 'Standard pace',
-    paceFast: 'Fast clock, 6x: deadlines tighten',
-    paceCustom: 'Current custom pace',
     guidedDelivery: 'Guided delivery',
     deliveryFulfilled: 'Delivery fulfilled',
     compactGuide: 'Compact delivery guide',
@@ -124,7 +120,7 @@ export const playableShiftMessages = defineMessages({
       'Opt in to three shifts with this customer delivery and a separate working agreement. Starting sets standard shift pace. Fictional roles only.',
     adjustChallenge: 'Adjust the challenge',
     challengeRules:
-      'New challenges allow {hours} simulated hours to recover and dispatch up to {kg} kg of fresh, quality-released goods. Standard pace gives you more real time than the fast clock. Abandoning a challenge leaves its incident to recover; customer deadlines still apply.',
+      'New challenges allow {hours} simulated hours to recover and dispatch up to {kg} kg of fresh, quality-released goods. Abandoning a challenge leaves its incident to recover; customer deadlines still apply.',
     abandonChallenge: 'Abandon challenge',
     savedReports: 'Saved shift reports',
     shiftDebrief: 'Shift debrief',
@@ -144,10 +140,6 @@ export const playableShiftMessages = defineMessages({
   'pt-BR': {
     deliveryDeadline: 'Prazo de entrega',
     shiftPace: 'Ritmo do turno',
-    pacePaused: 'Pausado, inspecione à vontade',
-    paceStandard: 'Ritmo padrão',
-    paceFast: 'Relógio rápido, 6x: os prazos apertam',
-    paceCustom: 'Ritmo personalizado atual',
     guidedDelivery: 'Entrega guiada',
     deliveryFulfilled: 'Entrega concluída',
     compactGuide: 'Compactar o guia de entrega',
@@ -237,7 +229,7 @@ export const playableShiftMessages = defineMessages({
       'Participe, por escolha própria, de três turnos com esta entrega ao cliente e um acordo de trabalho separado. Ao iniciar, o ritmo do turno passa a ser o padrão. Somente funções fictícias.',
     adjustChallenge: 'Ajustar o desafio',
     challengeRules:
-      'Novos desafios dão {hours} horas simuladas para recuperar e expedir até {kg} kg de produtos recém-produzidos e liberados pelo CQ. O ritmo padrão dá a você mais tempo real do que o relógio rápido. Abandonar um desafio deixa a ocorrência dele pendente de recuperação; os prazos dos clientes continuam valendo.',
+      'Novos desafios dão {hours} horas simuladas para recuperar e expedir até {kg} kg de produtos recém-produzidos e liberados pelo CQ. Abandonar um desafio deixa a ocorrência dele pendente de recuperação; os prazos dos clientes continuam valendo.',
     abandonChallenge: 'Abandonar desafio',
     savedReports: 'Relatórios de turno salvos',
     shiftDebrief: 'Balanço do turno',

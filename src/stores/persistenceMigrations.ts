@@ -1,3 +1,5 @@
+import { MAX_GAME_SPEED } from '../simulation/pace';
+
 type PlainRecord = Record<string, unknown>;
 
 function asRecord(value: unknown): PlainRecord | null {
@@ -23,7 +25,8 @@ function stringArray(value: unknown, maximum = 500): string[] | undefined {
   );
 }
 
-export const MAX_GAME_SPEED = 10800;
+// The pace ceiling belongs to the one time model.
+export { MAX_GAME_SPEED };
 
 export function sanitizeGameSpeed(value: unknown, fallback = 0): number {
   return typeof value === 'number' && Number.isFinite(value)

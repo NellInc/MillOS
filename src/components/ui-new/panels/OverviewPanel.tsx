@@ -1,5 +1,7 @@
 import React, { useState, useCallback, useEffect, Suspense, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import { PACE_GAME_SPEEDS, STANDARD_GAME_SPEED } from '../../../simulation/pace';
+import { paceMessages } from '../../../simulation/pace.messages';
 import { AnimatePresence } from 'framer-motion';
 import {
   Activity,
@@ -61,8 +63,8 @@ const GameClock: React.FC = React.memo(() => {
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
   };
 
-  // 180 game-seconds per real second is 1x; agent commands may set any speed.
-  const speedRatio = gameSpeed / 180;
+  // Standard pace is 1x (src/simulation/pace.ts); agent commands may set others.
+  const speedRatio = gameSpeed / STANDARD_GAME_SPEED;
   // Number(...) drops a trailing .0, so whole ratios print without decimals.
   const roundedRatio = Number(speedRatio.toFixed(1));
   const speedLabel =
@@ -85,68 +87,40 @@ const GameClock: React.FC = React.memo(() => {
 });
 
 // Isolated Speed Controls
-// Production and trucks run in real seconds while customer deadlines follow this
-// clock, so every speed above standard pace (30) makes orders late. Working if
-// each faster button's title says so; button values and visible labels stay.
+// One time model: each pace runs the clock, deadlines, production and vehicles
+// together, so every button keeps deliveries feasible. Working if the buttons
+// and the Shift pace select offer the same paces with the same words.
+const PACE_BUTTON_LABELS: Record<number, string> = { 15: '1/2x', 30: '1x', 60: '2x', 120: '4x' };
 const GameSpeedControls: React.FC = React.memo(() => {
   const gameSpeed = useGameSimulationStore((state) => state.gameSpeed);
   const setGameSpeed = useGameSimulationStore((state) => state.setGameSpeed);
-  const t = useT(overviewPanelMessages);
+  const pace = useT(paceMessages);
 
   return (
-    <div className="flex gap-1">
-      <button
-        onClick={() => setGameSpeed(0)}
-        aria-label={t('pause')}
-        aria-pressed={gameSpeed === 0}
-        className={`flex min-h-11 flex-1 items-center justify-center gap-1 rounded-lg py-2 text-xs font-bold transition-all ${
-          gameSpeed === 0
-            ? 'bg-orange-800 text-white'
-            : 'bg-slate-700 text-slate-200 hover:bg-slate-600'
-        }`}
-        title={t('pause')}
-      >
-        <Pause className="w-3.5 h-3.5" aria-hidden="true" />
-      </button>
-      <button
-        onClick={() => setGameSpeed(180)}
-        aria-pressed={gameSpeed === 180}
-        className={`flex min-h-11 flex-1 items-center justify-center gap-1 rounded-lg py-2 text-xs font-bold transition-all ${
-          gameSpeed === 180
-            ? 'bg-orange-800 text-white'
-            : 'bg-slate-700 text-slate-200 hover:bg-slate-600'
-        }`}
-        title={t('fastClockTitle')}
-      >
-        <Play className="w-3.5 h-3.5" aria-hidden="true" />
-        1x
-      </button>
-      <button
-        onClick={() => setGameSpeed(1800)}
-        aria-pressed={gameSpeed === 1800}
-        className={`flex min-h-11 flex-1 items-center justify-center gap-1 rounded-lg py-2 text-xs font-bold transition-all ${
-          gameSpeed === 1800
-            ? 'bg-orange-800 text-white'
-            : 'bg-slate-700 text-slate-200 hover:bg-slate-600'
-        }`}
-        title={t('veryFastClockTitle')}
-      >
-        <FastForward className="w-3.5 h-3.5" aria-hidden="true" />
-        10x
-      </button>
-      <button
-        onClick={() => setGameSpeed(10800)}
-        aria-pressed={gameSpeed === 10800}
-        className={`flex min-h-11 flex-1 items-center justify-center gap-1 rounded-lg py-2 text-xs font-bold transition-all ${
-          gameSpeed === 10800
-            ? 'bg-orange-800 text-white'
-            : 'bg-slate-700 text-slate-200 hover:bg-slate-600'
-        }`}
-        title={t('ultraFastClockTitle')}
-      >
-        <FastForward className="w-3.5 h-3.5" aria-hidden="true" />
-        60x
-      </button>
+    <div className="flex gap-1" role="group" aria-label={pace('paceTitle')}>
+      {PACE_GAME_SPEEDS.map((value) => (
+        <button
+          key={value}
+          onClick={() => setGameSpeed(value)}
+          aria-label={pace(`pace${value}`)}
+          aria-pressed={gameSpeed === value}
+          className={`flex min-h-11 flex-1 items-center justify-center gap-1 rounded-lg py-2 text-xs font-bold transition-all ${
+            gameSpeed === value
+              ? 'bg-orange-800 text-white'
+              : 'bg-slate-700 text-slate-200 hover:bg-slate-600'
+          }`}
+          title={pace(`pace${value}`)}
+        >
+          {value === 0 ? (
+            <Pause className="w-3.5 h-3.5" aria-hidden="true" />
+          ) : value > STANDARD_GAME_SPEED ? (
+            <FastForward className="w-3.5 h-3.5" aria-hidden="true" />
+          ) : (
+            <Play className="w-3.5 h-3.5" aria-hidden="true" />
+          )}
+          {value > 0 && <span aria-hidden="true">{PACE_BUTTON_LABELS[value]}</span>}
+        </button>
+      ))}
     </div>
   );
 });

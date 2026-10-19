@@ -9,7 +9,8 @@ import {
   compactBatchCreditKeys,
   useOperationsCampaignStore,
 } from '../stores/operationsCampaignStore';
-import { useGameSimulationStore } from '../stores/gameSimulationStore';
+import { persistedGameSpeed, useGameSimulationStore } from '../stores/gameSimulationStore';
+import { migrateLegacyGameSpeed } from '../simulation/pace';
 import { useBreakdownStore } from '../stores/breakdownStore';
 import { useTruckScheduleStore } from '../stores/truckScheduleStore';
 import { useQCLabStore } from '../stores/qcLabStore';
@@ -331,8 +332,19 @@ function restoreStores(saved: PhysicalSession) {
   useProductionStore.setState({ ...saved.production, scadaLive: false });
   useLogisticsLayoutStore.getState().restoreSaved(saved.logistics);
   // Frame-driven owners also observe gameSpeed; hold them through warm-up,
-  // then resume the saved speed together with the central clock.
-  useGameSimulationStore.setState({ ...saved.game, gameSpeed: 0, isTabVisible: !document.hidden });
+  // then resume the saved pace together with the central clock. A save taken
+  // under a tour or other session hold resumes the pace the player had chosen,
+  // and a save from before the single time model maps its 180 default to 30.
+  const savedHolds = Array.isArray(saved.game.clockHolds) ? saved.game.clockHolds : [];
+  useGameSimulationStore.setState({
+    ...saved.game,
+    gameSpeed: migrateLegacyGameSpeed(
+      persistedGameSpeed({ gameSpeed: saved.game.gameSpeed, clockHolds: savedHolds })
+    ),
+    clockHolds: [],
+    isTabVisible: !document.hidden,
+  });
+  useGameSimulationStore.getState().holdClock('restore');
 }
 
 function finishRestore() {
@@ -352,7 +364,7 @@ function finishRestore() {
   restoreUnifiedTickState(saved.tick);
   centralTick.restoreClock(saved.clock);
   useProductionStore.getState().setProductionSpeed(saved.production.productionSpeed);
-  useGameSimulationStore.getState().setGameSpeed(saved.game.gameSpeed);
+  useGameSimulationStore.getState().releaseClock('restore');
   pending = null;
 }
 
@@ -378,7 +390,7 @@ export function installPhysicalSession(
   const halt = (message: string, error?: unknown) => {
     if (error !== undefined) console.error('[physicalSession] restore failed:', error);
     disabled = true;
-    useGameSimulationStore.getState().setGameSpeed(0);
+    useGameSimulationStore.getState().holdClock('restoreFailed');
     notify(
       'physical-save-unavailable',
       'warning',

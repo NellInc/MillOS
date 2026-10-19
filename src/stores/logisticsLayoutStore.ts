@@ -146,11 +146,7 @@ export const useLogisticsLayoutStore = create<LogisticsLayoutState>((set, get) =
   ) => {
     const state = get();
     let reason = logisticsControlHold();
-    if (
-      !reason &&
-      (useProductionStore.getState().productionSpeed !== 0 ||
-        useGameSimulationStore.getState().gameSpeed !== 0)
-    )
+    if (!reason && useGameSimulationStore.getState().gameSpeed !== 0)
       reason = translate(logisticsLayoutStoreMessages, 'pauseFirst');
     const machines = useProductionStore.getState().machines;
     if (

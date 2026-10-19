@@ -37,7 +37,7 @@ export const workplacePackingEvidenceMessages = defineMessages({
     materialClock: 'Captured material clock: ',
     secondsValue: '{value} seconds.',
     intendedPace: 'Intended pace: ',
-    paceValue: '{speed}×, 90 workplace minutes in {seconds} physical seconds.',
+    paceValue: '{speed}x pace. 90 workplace minutes are {seconds} plant seconds at every pace.',
     inspectTogether: 'Inspect evidence together',
     frozenFacts:
       'Facts are frozen at the adviser’s capture. These views inspect the current plant; changed facts need a fresh adviser response before another agreement. Looking records no understanding, ballot or permission.',
@@ -164,7 +164,8 @@ export const workplacePackingEvidenceMessages = defineMessages({
     materialClock: 'Relógio de material capturado: ',
     secondsValue: '{value} segundos.',
     intendedPace: 'Ritmo pretendido: ',
-    paceValue: '{speed}×, 90 minutos de trabalho em {seconds} segundos físicos.',
+    paceValue:
+      'Ritmo {speed}x. 90 minutos de trabalho correspondem a {seconds} segundos de operação do moinho em qualquer ritmo.',
     inspectTogether: 'Examinem as evidências juntos',
     frozenFacts:
       'Os fatos ficam congelados no momento da captura do conselheiro. Estas visões mostram o moinho atual; fatos alterados exigem uma nova resposta do conselheiro antes de outro acordo. Olhar não registra entendimento, voto nem permissão.',

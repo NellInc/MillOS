@@ -54,7 +54,7 @@ export function WorkplaceReplay({
   };
   const guide = () => {
     if (!validSeed) return;
-    useGameSimulationStore.getState().setGameSpeed(0);
+    useGameSimulationStore.getState().holdClock('workplace');
     if (!report(replay.capture(seed))) return;
     if (!report(useWorkplaceReplayStore.getState().begin('toe-dip'))) return;
     useWorkplaceReplayStore.getState().setGuided(true);
@@ -386,7 +386,7 @@ export function WorkplaceReplayResume() {
           useWorkplaceStore.getState().workplace.phase === 'active' &&
           useGameSimulationStore.getState().gameSpeed === 0
         ) {
-          useGameSimulationStore.getState().setGameSpeed(30);
+          useGameSimulationStore.getState().resumeClockFrom('workplace');
         }
       }}
     >

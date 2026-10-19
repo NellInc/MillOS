@@ -35,6 +35,8 @@ import { WorkplaceLab } from '../ui-new/widgets/WorkplaceLab';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { formatFixed, formatGrouped, useT, type Translator } from '../../i18n';
 import { mobilePanelMessages } from './MobilePanel.messages';
+import { PACE_GAME_SPEEDS, STANDARD_GAME_SPEED } from '../../simulation/pace';
+import { paceMessages } from '../../simulation/pace.messages';
 
 import { OperationsPlayCard, ShiftDebrief } from '../ui-new/onboarding/PlayableShift';
 import { BatchGenealogySection } from '../ui-new/panels/OverviewPanel';
@@ -162,8 +164,10 @@ const formatMaterial = (material: string, t: PanelT) => {
 };
 
 // Overview panel content - comprehensive version matching desktop
+const MOBILE_PACE_LABELS: Record<number, string> = { 15: '1/2x', 30: '1x', 60: '2x', 120: '4x' };
 const OverviewContent: React.FC = () => {
   const t = useT(mobilePanelMessages);
+  const pace = useT(paceMessages);
   const metrics = useProductionStore((s) => s.metrics);
   const machines = useProductionStore((s) => s.machines);
   const totalBagsProduced = useProductionStore((s) => s.totalBagsProduced);
@@ -243,50 +247,31 @@ const OverviewContent: React.FC = () => {
           >
             {gameSpeed === 0
               ? t('paused')
-              : `${formatGrouped(Number((gameSpeed / 180).toFixed(1)), { useGrouping: false })}x`}
+              : `${formatGrouped(Number((gameSpeed / STANDARD_GAME_SPEED).toFixed(1)), { useGrouping: false })}x`}
           </span>
         </div>
-        <div className="flex gap-1">
-          <button
-            onClick={() => setGameSpeed(0)}
-            aria-label={t('pauseSimulation')}
-            aria-pressed={gameSpeed === 0}
-            className={`flex-1 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 ${
-              gameSpeed === 0 ? 'bg-orange-700 text-white' : 'bg-slate-700 text-white/70'
-            }`}
-          >
-            <Pause className="w-3 h-3" aria-hidden="true" />
-          </button>
-          <button
-            onClick={() => setGameSpeed(180)}
-            aria-pressed={gameSpeed === 180}
-            className={`flex-1 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 ${
-              gameSpeed === 180 ? 'bg-orange-700 text-white' : 'bg-slate-700 text-white/70'
-            }`}
-          >
-            <Play className="w-3 h-3" aria-hidden="true" />
-            1x
-          </button>
-          <button
-            onClick={() => setGameSpeed(1800)}
-            aria-pressed={gameSpeed === 1800}
-            className={`flex-1 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 ${
-              gameSpeed === 1800 ? 'bg-orange-700 text-white' : 'bg-slate-700 text-white/70'
-            }`}
-          >
-            <FastForward className="w-3 h-3" aria-hidden="true" />
-            10x
-          </button>
-          <button
-            onClick={() => setGameSpeed(10800)}
-            aria-pressed={gameSpeed === 10800}
-            className={`flex-1 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 ${
-              gameSpeed === 10800 ? 'bg-orange-700 text-white' : 'bg-slate-700 text-white/70'
-            }`}
-          >
-            <FastForward className="w-3 h-3" aria-hidden="true" />
-            60x
-          </button>
+        {/* The same paces and words as Shift pace (src/simulation/pace.ts). */}
+        <div className="flex gap-1" role="group" aria-label={pace('paceTitle')}>
+          {PACE_GAME_SPEEDS.map((value) => (
+            <button
+              key={value}
+              onClick={() => setGameSpeed(value)}
+              aria-label={pace(`pace${value}`)}
+              aria-pressed={gameSpeed === value}
+              className={`flex-1 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 ${
+                gameSpeed === value ? 'bg-orange-700 text-white' : 'bg-slate-700 text-white/70'
+              }`}
+            >
+              {value === 0 ? (
+                <Pause className="w-3 h-3" aria-hidden="true" />
+              ) : value > STANDARD_GAME_SPEED ? (
+                <FastForward className="w-3 h-3" aria-hidden="true" />
+              ) : (
+                <Play className="w-3 h-3" aria-hidden="true" />
+              )}
+              {value > 0 && <span aria-hidden="true">{MOBILE_PACE_LABELS[value]}</span>}
+            </button>
+          ))}
         </div>
       </div>
 

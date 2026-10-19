@@ -13,7 +13,6 @@ import { useSafetyStore } from '../stores/safetyStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useGraphicsStore } from '../stores/graphicsStore';
 import { useTruckScheduleStore } from '../stores/truckScheduleStore';
-import { useProductionStore } from '../stores/productionStore';
 import { useOperationsCampaignStore } from '../stores/operationsCampaignStore';
 import { useShallow } from 'zustand/react/shallow';
 import { getForkliftWarningColor } from '../utils/statusColors';
@@ -29,6 +28,7 @@ import {
   registerLogisticsVehicle,
 } from '../simulation/logisticsRuntime';
 import { planningRouteActions } from '../simulation/layoutPlanning';
+import { plantTimeScale } from '../simulation/pace';
 import {
   canPerformForkliftLogisticsAction,
   isForkliftSimulationPaused,
@@ -336,7 +336,7 @@ const ForkliftBillboard: React.FC<{ hasCargo: boolean; simulationPaused: boolean
 
   useFrame((_, delta) => {
     if (!isTabVisible || simulationPaused) return;
-    const animationDelta = delta * Math.max(0, useProductionStore.getState().productionSpeed);
+    const animationDelta = delta * plantTimeScale(useGameSimulationStore.getState().gameSpeed);
 
     // Detect cargo spawn
     if (hasCargo && !prevHasCargoRef.current) {
@@ -766,7 +766,6 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
   const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
   const emergencyDrillMode = useGameSimulationStore((state) => state.emergencyDrillMode);
   const gameSpeed = useGameSimulationStore((state) => state.gameSpeed);
-  const productionSpeed = useProductionStore((state) => state.productionSpeed);
   const audioReady = useAudioInitialized();
   const truckTransferReady = useTruckScheduleStore(
     useShallow((state) => ({
@@ -809,7 +808,7 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
   // twice, so the amount is derived from the id and differs across the fleet.
   const forkliftGrime = data.id === 'forklift-1' ? 0.74 : 0.52;
   const effectiveStopped = isStopped || forkliftEmergencyStop || emergencyDrillMode;
-  const simulationPaused = isForkliftSimulationPaused(productionSpeed, gameSpeed);
+  const simulationPaused = isForkliftSimulationPaused(gameSpeed);
   const motionStopped = effectiveStopped || simulationPaused;
   const isOperating = currentOperation === 'loading' || currentOperation === 'unloading';
   const replayOperationRef = useRef<ForkliftOperation | null>(null);
@@ -1025,7 +1024,7 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
     const routePlan = routePlanRef.current;
 
     const wallDelta = Math.min(Math.max(delta, 1 / 240), 0.1);
-    const simulationDelta = wallDelta * Math.max(0, productionSpeed);
+    const simulationDelta = wallDelta * plantTimeScale(useGameSimulationStore.getState().gameSpeed);
     const vehicle = ref.current;
     const motionBefore = motionStateRef.current;
 
@@ -1047,10 +1046,7 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       setDistanceTier('close');
     }
 
-    const framePaused = isForkliftSimulationPaused(
-      useProductionStore.getState().productionSpeed,
-      useGameSimulationStore.getState().gameSpeed
-    );
+    const framePaused = isForkliftSimulationPaused(useGameSimulationStore.getState().gameSpeed);
     if (framePaused || isWorkplaceReplayRestoring()) {
       const sample = sampleArcLengthPath(routePlan.path, motionBefore.routeDistance);
       dirNormalizedRef.current.set(sample.tangentX, 0, sample.tangentZ);

@@ -6,6 +6,7 @@ import { audioManager } from '../utils/audioManager';
 import { useProductionStore } from './productionStore';
 import { useSafetyStore } from './safetyStore';
 import { sanitizeGameSimulationState, sanitizeGameSpeed } from './persistenceMigrations';
+import { migrateLegacyGameSpeed, STANDARD_GAME_SPEED } from '../simulation/pace';
 import { translate } from '../i18n';
 import { gameSimulationStoreMessages } from './gameSimulationStore.messages';
 
@@ -95,6 +96,26 @@ export const SERVICE_EGRESS_POINTS = [
   },
 ] as const;
 
+/**
+ * Who is holding the shift clock at 0. 'player' is an explicit pause choice;
+ * every other holder pauses for its own reason and releases only its own hold.
+ */
+export type ClockHolder =
+  | 'player'
+  | 'shortcut'
+  | 'tour'
+  | 'restore'
+  | 'restoreFailed'
+  | 'workplace'
+  | 'layout'
+  | 'scada';
+
+export interface ClockHold {
+  readonly holder: ClockHolder;
+  /** The pace to return to when this hold is released; 0 stays paused. */
+  readonly resumeSpeed: number;
+}
+
 export interface GameSimulationStore {
   isTabVisible: boolean;
   setTabVisible: (visible: boolean) => void;
@@ -103,7 +124,22 @@ export interface GameSimulationStore {
   gameDay: number;
   gameSpeed: number;
   setGameTime: (time: number) => void;
+  /** An explicit pace choice: a positive pace clears every hold; 0 is a player pause. */
   setGameSpeed: (speed: number) => void;
+  /** Holds stacked over the clock, oldest first. Never persisted. */
+  clockHolds: ClockHold[];
+  /** Pause the clock for `holder`, remembering the pace to return to. */
+  holdClock: (holder: Exclude<ClockHolder, 'player'>) => void;
+  /**
+   * Release `holder`'s hold. Only the newest hold resumes the clock; releasing
+   * an older one passes its resume pace up. Returns false if it held nothing.
+   */
+  releaseClock: (holder: ClockHolder) => boolean;
+  /**
+   * An explicit "run" from a holder's own control: release its hold and, if the
+   * clock is still stopped underneath, start it at standard pace.
+   */
+  resumeClockFrom: (holder: Exclude<ClockHolder, 'player'>) => void;
   tickGameTime: (deltaSeconds: number) => void;
   resetGameState: () => void;
   clearPersistedState: () => void;
@@ -275,6 +311,22 @@ const restoreProduction = (statuses: Map<string, string>): void => {
 const eventId = (kind: SafetyEventKind): string =>
   `${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
+/** The pace to persist: the player's choice underneath any session hold. */
+export function persistedGameSpeed(state: Pick<GameSimulationStore, 'gameSpeed' | 'clockHolds'>) {
+  const base = state.clockHolds[0];
+  if (state.gameSpeed > 0 || !base) return state.gameSpeed;
+  // Releasing every session hold would leave a player pause in place wherever
+  // it sits in the stack; otherwise the clock returns to the oldest resume pace.
+  return state.clockHolds.some((hold) => hold.holder === 'player') ? 0 : base.resumeSpeed;
+}
+
+/** Who holds the clock at 0, or null while it runs. Unrecorded holds read as the player's. */
+export function selectClockHolder(
+  state: Pick<GameSimulationStore, 'gameSpeed' | 'clockHolds'>
+): ClockHolder | null {
+  return state.gameSpeed > 0 ? null : (state.clockHolds.at(-1)?.holder ?? 'player');
+}
+
 export const selectSafetyHoldActive = (
   state: Pick<GameSimulationStore, 'emergencyActive' | 'emergencyDrillMode'>
 ): boolean => state.emergencyActive || state.emergencyDrillMode;
@@ -287,7 +339,7 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
 
       gameTime: 10,
       gameDay: 0,
-      gameSpeed: 180,
+      gameSpeed: STANDARD_GAME_SPEED,
       setGameTime: (time) => {
         if (!Number.isFinite(time)) return;
         const gameTime = ((time % 24) + 24) % 24;
@@ -298,7 +350,59 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
           shiftStartTime: state.currentShift === currentShift ? state.shiftStartTime : Date.now(),
         }));
       },
-      setGameSpeed: (speed) => set({ gameSpeed: sanitizeGameSpeed(speed) }),
+      setGameSpeed: (speed) => {
+        const gameSpeed = sanitizeGameSpeed(speed);
+        if (gameSpeed > 0) {
+          set({ gameSpeed, clockHolds: [] });
+          return;
+        }
+        const { gameSpeed: current, clockHolds } = get();
+        if (current === 0 && clockHolds.at(-1)?.holder === 'player') return;
+        set({
+          gameSpeed: 0,
+          clockHolds: [
+            ...(current > 0 ? [] : clockHolds),
+            { holder: 'player', resumeSpeed: current > 0 ? current : 0 },
+          ],
+        });
+      },
+      clockHolds: [],
+      holdClock: (holder) => {
+        const { gameSpeed: current, clockHolds } = get();
+        if (current === 0 && clockHolds.at(-1)?.holder === holder) return;
+        // A positive pace means any recorded hold is stale (a direct setState).
+        const holds = current > 0 ? [] : clockHolds;
+        set({ gameSpeed: 0, clockHolds: [...holds, { holder, resumeSpeed: current }] });
+      },
+      releaseClock: (holder) => {
+        const { gameSpeed: current, clockHolds } = get();
+        let index = -1;
+        for (let i = clockHolds.length - 1; i >= 0; i--)
+          if (clockHolds[i].holder === holder) {
+            index = i;
+            break;
+          }
+        if (index < 0) return false;
+        const released = clockHolds[index];
+        if (index < clockHolds.length - 1) {
+          const holds = clockHolds.slice();
+          holds[index + 1] = { ...holds[index + 1], resumeSpeed: released.resumeSpeed };
+          holds.splice(index, 1);
+          set({ clockHolds: holds });
+          return true;
+        }
+        const holds = clockHolds.slice(0, -1);
+        set(
+          current === 0
+            ? { gameSpeed: sanitizeGameSpeed(released.resumeSpeed), clockHolds: holds }
+            : { clockHolds: holds }
+        );
+        return true;
+      },
+      resumeClockFrom: (holder) => {
+        get().releaseClock(holder);
+        if (get().gameSpeed === 0) get().setGameSpeed(STANDARD_GAME_SPEED);
+      },
       tickGameTime: (deltaSeconds) =>
         set((state) => {
           if (!Number.isFinite(deltaSeconds) || deltaSeconds <= 0) return {};
@@ -327,7 +431,8 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
         set({
           gameTime: 10,
           gameDay: 0,
-          gameSpeed: 180,
+          gameSpeed: STANDARD_GAME_SPEED,
+          clockHolds: [],
           currentShift: 'morning',
           shiftStartTime: Date.now(),
           shiftChangeActive: false,
@@ -346,10 +451,10 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
       // confirm copy says. Working if the clock returns to 10:00 at the pace the
       // operator chose: a paused (or save-halted) shift stays paused.
       clearPersistedState: () => {
-        const { gameSpeed } = get();
+        const { gameSpeed, clockHolds } = get();
         localStorage.removeItem('millos-autonomous-simulation');
         get().resetGameState();
-        set({ gameSpeed });
+        set({ gameSpeed, clockHolds });
       },
 
       weather: 'clear',
@@ -632,12 +737,24 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
     }),
     {
       name: 'millos-autonomous-simulation',
-      version: 1,
+      // v2: one time model. Version 1 saves wrote 180 as "Standard, 1x".
+      version: 2,
       storage: safeJSONStorage,
+      migrate: (persisted, version) => {
+        const record =
+          persisted !== null && typeof persisted === 'object' && !Array.isArray(persisted)
+            ? (persisted as Record<string, unknown>)
+            : {};
+        return version < 2 && typeof record.gameSpeed === 'number'
+          ? { ...record, gameSpeed: migrateLegacyGameSpeed(record.gameSpeed) }
+          : record;
+      },
       partialize: (state) => ({
         gameTime: state.gameTime,
         gameDay: state.gameDay,
-        gameSpeed: state.gameSpeed,
+        // A hold belongs to this page; persist the pace the player had chosen
+        // underneath it, so a reload never inherits a tour or restore pause.
+        gameSpeed: persistedGameSpeed(state),
         weather: state.weather,
         currentShift: state.currentShift,
         celebrations: state.celebrations,

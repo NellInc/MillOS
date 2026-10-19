@@ -230,7 +230,7 @@ it('keeps the desktop takeover control clear of the guide card column', () => {
     expect(status.className).toContain('bottom-[8rem]');
     expect(status.className).not.toContain('p-3');
     expect(screen.getByText('Autonomous cooperative season').className).toBe('sr-only');
-    expect(takeover.textContent).toBe('Autonomous season: take over');
+    expect(takeover.textContent).toBe('Cooperative season running: take over');
     act(() => {
       useUIStore.setState({ journeyVisible: false });
     });
@@ -295,7 +295,7 @@ it('reserves touch movement space in landscape and portrait while retaining take
     const takeover = screen.getByRole('button', { name: 'Take over cooperative season' });
     expect(status.className).toContain('top-4');
     expect(status.className).not.toContain('bottom-');
-    expect(takeover.textContent).toBe('Autonomous season: take over');
+    expect(takeover.textContent).toBe('Cooperative season running: take over');
     expect(screen.getByText('Autonomous cooperative season').className).toBe('sr-only');
     resize(375, 812);
     expect(status.className).toContain('top-4');

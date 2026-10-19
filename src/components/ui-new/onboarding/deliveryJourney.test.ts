@@ -31,6 +31,53 @@ describe('guided delivery evidence', () => {
       ).title
     ).toBe('Delivery fulfilled');
   });
+  it('narrates the truck stages even when no machine was inspected', () => {
+    const campaign = useOperationsCampaignStore.getState();
+    const order = campaign.orders[0];
+    const execution = { ...campaign.execution, orderId: order.id };
+    for (const stage of ['ready_to_load', 'loading', 'ready_to_dispatch'] as const)
+      expect(deriveDeliveryJourney(order, { ...execution, stage }, false).title).not.toBe(
+        'Inspect the line'
+      );
+    expect(
+      deriveDeliveryJourney(
+        { ...order, shippedKg: 5000 },
+        {
+          ...execution,
+          stage: 'dispatched',
+          dispatchLoad: { ...execution.dispatchLoad, status: 'departed', lastDispatchKg: 5000 },
+        },
+        false
+      ).title
+    ).toBe('Truck departed');
+  });
+  it('names the second trip and the next truck for an order larger than one truck', () => {
+    const campaign = useOperationsCampaignStore.getState();
+    const order = campaign.orders[0];
+    const load = { ...campaign.execution.dispatchLoad, capacityKg: 5000 };
+    const loading = deriveDeliveryJourney(
+      order,
+      { ...campaign.execution, orderId: order.id, stage: 'loading', dispatchLoad: load },
+      true,
+      { active: true, docked: true, nextArrivalMinutes: 0 }
+    );
+    expect(loading.detail).toContain('Truck 1 of 2');
+    expect(loading.detail).toContain('6000 kg still to ship');
+    const departed = deriveDeliveryJourney(
+      { ...order, shippedKg: 5000 },
+      {
+        ...campaign.execution,
+        orderId: order.id,
+        stage: 'dispatched',
+        dispatchLoad: { ...load, status: 'departed', lastDispatchKg: 5000 },
+      },
+      true,
+      { active: false, docked: false, nextArrivalMinutes: 14 }
+    );
+    expect(departed.detail).toContain('Truck 2 of 2');
+    expect(departed.detail).toContain('1000 kg still to ship');
+    expect(departed.detail).toContain('due on site in 14 min');
+  });
   it('routes QC holds to real batch controls and loading to operations', () => {
     const campaign = useOperationsCampaignStore.getState();
     const order = campaign.orders[0];

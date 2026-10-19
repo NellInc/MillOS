@@ -14,6 +14,7 @@ export const workplaceAutoplayMessages = defineMessages({
     separateTurnsManual: 'Separate participant turns stay manual.',
     running: 'Fictional solo role decisions are running. Pause whenever you want.',
     paused: 'Automatic decisions paused. Your choices take priority.',
+    stoppedTitle: 'Automatic cooperative season stopped',
   },
   'pt-BR': {
     soloOnly:
@@ -29,5 +30,6 @@ export const workplaceAutoplayMessages = defineMessages({
     running:
       'As decisões fictícias das funções no modo solo estão em andamento. Pause quando quiser.',
     paused: 'Decisões automáticas pausadas. Suas escolhas têm prioridade.',
+    stoppedTitle: 'Temporada cooperativa automática interrompida',
   },
 });

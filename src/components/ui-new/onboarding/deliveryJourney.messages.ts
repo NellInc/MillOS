@@ -31,6 +31,12 @@ export const deliveryJourneyMessages = defineMessages({
       'Only a departed manifest credits this customer; packed {product} alone does not.',
     packedRest:
       ' The rest of this order is already packed; the line rests until the next truck collects it.',
+    packedRestNext:
+      ' The rest of this order is already packed and waits for the next truck, so the line has moved on to the next commitment, for {customer}.',
+    tripStatus:
+      ' Truck {current} of {total} for this order (up to {capacity} kg each); {left} kg still to ship.',
+    nextTruckOnWay: ' The next truck is on its way to the dock.',
+    nextTruckDue: ' The next truck is due on site in {minutes} min (simulated).',
     readyToLoadTitle: 'Ready for the shipping truck',
     releasedWaiting: '{kg} kg of released {product} is waiting at shipping.',
     loadingTitle: 'Loading the shipping truck',
@@ -74,6 +80,12 @@ export const deliveryJourneyMessages = defineMessages({
       'Só um romaneio com saída registrada é creditado a este cliente; apenas ensacar {product} não basta.',
     packedRest:
       ' O restante deste pedido já está ensacado; a linha fica parada até o próximo caminhão buscá-lo.',
+    packedRestNext:
+      ' O restante deste pedido já está ensacado e aguarda o próximo caminhão, então a linha já passou ao próximo compromisso, para {customer}.',
+    tripStatus:
+      ' Caminhão {current} de {total} deste pedido (até {capacity} kg cada); faltam expedir {left} kg.',
+    nextTruckOnWay: ' O próximo caminhão está a caminho da doca.',
+    nextTruckDue: ' O próximo caminhão chega ao pátio em {minutes} min (tempo simulado).',
     readyToLoadTitle: 'Pronto para o caminhão de expedição',
     releasedWaiting: '{kg} kg liberados de {product} aguardam na expedição.',
     loadingTitle: 'Carregando o caminhão de expedição',

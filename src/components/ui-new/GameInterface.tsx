@@ -120,19 +120,12 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   const journeyVisible = useUIStore((s) => s.journeyVisible);
   const startDeliveryJourney = useUIStore((s) => s.startDeliveryJourney);
   const [introStep, setIntroStep] = useState<number | null>(null);
-  const introPaceRef = React.useRef<number | null>(null);
   const releaseTourClock = React.useCallback(() => {
-    const previousPace = introPaceRef.current;
-    introPaceRef.current = null;
-    const simulation = useGameSimulationStore.getState();
-    // Release only our own hold; preserve a newer clock choice from another control.
-    // The 180 fast clock runs customer deadlines 6x faster than trucks and packing,
-    // so a default 180 hold always releases to standard pace (30). Working if
-    // Start operating, Skip, Close and unmount all land on 30 from the default,
-    // and any other chosen pace is restored unchanged.
-    if (previousPace !== null && simulation.gameSpeed === 0) {
-      simulation.setGameSpeed(previousPace === 180 ? 30 : previousPace);
-    }
+    // The tour holds the clock through the shared authority and releases only
+    // its own hold, so a newer pace choice or another holder is preserved.
+    // Working if Start operating, Skip, Close and unmount all resume the pace
+    // the visitor had, and a pace chosen during the tour is kept.
+    useGameSimulationStore.getState().releaseClock('tour');
   }, []);
 
   useEffect(() => {
@@ -151,9 +144,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
     let timer: ReturnType<typeof setTimeout> | null = null;
     const showWhenReady = () => {
       timer = setTimeout(() => {
-        const simulation = useGameSimulationStore.getState();
-        introPaceRef.current = simulation.gameSpeed;
-        simulation.setGameSpeed(0);
+        useGameSimulationStore.getState().holdClock('tour');
         setIntroStep(0);
       }, 700);
     };

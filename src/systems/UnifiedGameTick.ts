@@ -37,6 +37,7 @@ import {
 } from '../stores/operationsCampaignStore';
 import { getSiteDemandKw } from '../utils/energyCalculations';
 import { sanitizeGameSpeed } from '../stores/persistenceMigrations';
+import { bagsPerGameHour, plantSecondsForGameSeconds } from '../simulation/pace';
 import { useWorkplaceStore } from '../stores/workplaceStore';
 import { workplaceTickCapacity } from '../simulation/bilateralWorkplace';
 import {
@@ -95,13 +96,11 @@ export const calculateBagsProducedForTick = (
   return (Math.max(0, deltaSeconds) * Math.max(0, packerFlowKgPerSecond)) / bagWeightKg;
 };
 
+/** Bags per game hour; see bagsPerGameHour in src/simulation/pace.ts. */
 export const calculatePackerThroughputBagsPerHour = (
   packerFlowKgPerSecond: number,
   bagWeightKg: number = BAG_WEIGHT_KG
-): number =>
-  Number.isFinite(packerFlowKgPerSecond) && Number.isFinite(bagWeightKg) && bagWeightKg > 0
-    ? Math.round((Math.max(0, packerFlowKgPerSecond) / bagWeightKg) * 3600)
-    : 0;
+): number => bagsPerGameHour(packerFlowKgPerSecond, bagWeightKg);
 
 function sumMaterialInventory(flow: MaterialFlowState, materialType: MaterialType): number {
   let total = 0;
@@ -434,7 +433,7 @@ function unifiedGameTick(ctx: TickContext): void {
     replayActive || improvementActive ? peekSCADAService()?.getState().mode : undefined;
   if (controlMode !== undefined && controlMode !== 'simulation') {
     useWorkplaceStore.getState().stop();
-    useGameSimulationStore.getState().setGameSpeed(0);
+    useGameSimulationStore.getState().holdClock('scada');
     endReplayClock();
     return;
   }
@@ -451,7 +450,7 @@ function unifiedGameTick(ctx: TickContext): void {
           ? Math.max(0, ...agreement.members.map((member) => member.recoveryOwedMinutes))
           : 0;
     if (game.gameSpeed === 0 || remainingMinutes === 0) {
-      if (game.gameSpeed !== 0) game.setGameSpeed(0);
+      if (game.gameSpeed !== 0) game.holdClock('workplace');
       return;
     }
     // This one admitted delta drives all plant clocks, material, costs, wear
@@ -459,6 +458,12 @@ function unifiedGameTick(ctx: TickContext): void {
     deltaSeconds = Math.min(deltaSeconds, (remainingMinutes * 60) / safeGameSpeed);
   }
   advanceReplayClock(deltaSeconds * safeGameSpeed * 1000);
+  // One time model (src/simulation/pace.ts): the clock and campaign advance by
+  // game seconds, everything physical by plant seconds, a fixed fraction of
+  // them. Working if a pace change scales material, loading, bags, downtime and
+  // the yard together with the deadlines it is measured against.
+  const gameSeconds = deltaSeconds * safeGameSpeed;
+  const plantSeconds = plantSecondsForGameSeconds(gameSeconds);
   const workplaceShippedBefore = useMaterialFlowStore.getState().shippedKg;
   const materialTimeBefore = useMaterialFlowStore.getState().simulationTime;
   const celebrateDay = 86400 / safeGameSpeed >= MIN_CELEBRATED_DAY_REAL_SECONDS;
@@ -506,7 +511,8 @@ function unifiedGameTick(ctx: TickContext): void {
     .forEach(applyCampaignIncidentConsequence);
   prodStore = useProductionStore.getState();
   const maintenanceStore = useBreakdownStore.getState();
-  maintenanceStore.tickDowntime(deltaSeconds);
+  // Downtime is read against the shift clock, so it is counted in game seconds.
+  maintenanceStore.tickDowntime(gameSeconds);
 
   // A restart request is the final far-side contract in the maintenance loop.
   // The production store resets machine wear/status first; only then does the
@@ -544,7 +550,7 @@ function unifiedGameTick(ctx: TickContext): void {
 
     if (isRunning) {
       runningCount++;
-      totalRunningDelta += deltaSeconds;
+      totalRunningDelta += plantSeconds;
     }
     efficiencySum += machine.metrics.efficiency ?? 100;
 
@@ -621,7 +627,7 @@ function unifiedGameTick(ctx: TickContext): void {
   _metricTrackingUpdate.totalRunningSeconds =
     prodStore._metricTracking.totalRunningSeconds + totalRunningDelta;
   _metricTrackingUpdate.totalElapsedSeconds =
-    prodStore._metricTracking.totalElapsedSeconds + deltaSeconds;
+    prodStore._metricTracking.totalElapsedSeconds + plantSeconds;
 
   // Uptime: percentage of time machines have been running
   _metricsUpdate.uptime =
@@ -766,19 +772,21 @@ function unifiedGameTick(ctx: TickContext): void {
   flowStore.syncTransportGeometry(
     anyMachineChanged ? useProductionStore.getState().machines : machines
   );
-  const activeOrderForFeed = campaignStore.orders.find(
-    (order) => order.id === activeProductionPlan?.orderId
-  );
+  // The line works to its own plan: the dispatch order, or once that order's
+  // remainder is packed and waiting for a truck, the next commitment. Shipping
+  // below still loads the dispatch order's material.
+  const linePlan = campaignStore.getLineProductionPlan({
+    flour: getFinishedGoodsAvailability(flowStore, 'flour').availableKg,
+    semolina: getFinishedGoodsAvailability(flowStore, 'semolina').availableKg,
+  });
   flowStore.tickMaterialFlow(
-    deltaSeconds,
+    plantSeconds,
     effectiveProductionSpeed,
-    activeProductionPlan
+    linePlan
       ? {
-          sourceMaterial: activeProductionPlan.sourceMaterial,
-          finishedMaterial: activeProductionPlan.finishedMaterial,
-          remainingFinishedKg: activeOrderForFeed
-            ? Math.max(0, activeOrderForFeed.requiredKg - activeOrderForFeed.shippedKg)
-            : undefined,
+          sourceMaterial: linePlan.sourceMaterial,
+          finishedMaterial: linePlan.finishedMaterial,
+          remainingFinishedKg: linePlan.remainingFinishedKg,
         }
       : undefined
   );
@@ -790,7 +798,7 @@ function unifiedGameTick(ctx: TickContext): void {
   if (runningPackerCount > 0) {
     const liveFlow = useMaterialFlowStore.getState();
     const flowRate = liveFlow.currentPackerFlowRate;
-    _bagProductionCarry += calculateBagsProducedForTick(deltaSeconds, flowRate);
+    _bagProductionCarry += calculateBagsProducedForTick(plantSeconds, flowRate);
     const completedBags = Math.floor(_bagProductionCarry);
     if (completedBags > 0) {
       _bagProductionCarry -= completedBags;
@@ -933,7 +941,7 @@ function unifiedGameTick(ctx: TickContext): void {
             useLogisticsLayoutStore.getState().layout,
             SHIPPING_LOAD_RATE_KG_PER_SECOND
           ) *
-            deltaSeconds
+            plantSeconds
       );
       _shippingLoad = {
         ..._shippingLoad,
@@ -975,9 +983,9 @@ function unifiedGameTick(ctx: TickContext): void {
     .getState()
     .observe(
       latestFlow.sessionId,
-      deltaSeconds,
+      plantSeconds,
       materialSeconds,
-      latestFlow.currentPackerFlowRate * deltaSeconds,
+      latestFlow.currentPackerFlowRate * plantSeconds,
       Math.max(0, latestFlow.shippedKg - workplaceShippedBefore),
       JSON.stringify([
         latestProduction.productionSpeed,
@@ -1022,6 +1030,8 @@ function unifiedGameTick(ctx: TickContext): void {
       .getState()
       .workOrders.filter((workOrder) => workOrder.phase !== 'returned_to_service').length,
     clockMinuteOfDay: latestGame.gameTime * 60,
+    lineOrderId: linePlan?.orderId ?? null,
+    lineCustomer: linePlan?.prestaged ? linePlan.customer : null,
   });
   // Workshops advance only through facilitator inputs. They must not acquire a
   // clock, pay or apparent shipment evidence from unrelated plant activity.
@@ -1040,7 +1050,7 @@ function unifiedGameTick(ctx: TickContext): void {
       (workplacePhaseBefore === 'active' ||
         reviewed.members.every((member) => member.recoveryOwedMinutes === 0))
     )
-      useGameSimulationStore.getState().setGameSpeed(0);
+      useGameSimulationStore.getState().holdClock('workplace');
   }
 
   // 5. Handle breakdowns (async, outside main path)

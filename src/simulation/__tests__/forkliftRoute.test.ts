@@ -78,12 +78,12 @@ describe('forklift route motion', () => {
     expect(smoothOperationHeight(0.25, 1.2)).toBeCloseTo(smoothOperationHeight(0.75, 1.2));
   });
 
-  it('stops vehicle motion when either canonical simulation control is paused', () => {
-    expect(isForkliftSimulationPaused(0.8, 180)).toBe(false);
-    expect(isForkliftSimulationPaused(0, 180)).toBe(true);
-    expect(isForkliftSimulationPaused(0.8, 0)).toBe(true);
-    expect(isForkliftSimulationPaused(Number.NaN, 180)).toBe(true);
-    expect(isForkliftSimulationPaused(0.8, Number.NaN)).toBe(true);
+  it('stops vehicle motion only when the shift clock is paused, never for a line setpoint', () => {
+    expect(isForkliftSimulationPaused(30)).toBe(false);
+    expect(isForkliftSimulationPaused(120)).toBe(false);
+    expect(isForkliftSimulationPaused(0)).toBe(true);
+    expect(isForkliftSimulationPaused(-1)).toBe(true);
+    expect(isForkliftSimulationPaused(Number.NaN)).toBe(true);
   });
 
   it('gates dock actions against released stock and truck presence', () => {

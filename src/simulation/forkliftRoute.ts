@@ -169,13 +169,13 @@ export function smoothOperationHeight(progress: number, maximumHeight: number): 
   return maximumHeight * eased;
 }
 
-export function isForkliftSimulationPaused(productionSpeed: number, gameSpeed: number): boolean {
-  return (
-    !Number.isFinite(productionSpeed) ||
-    !Number.isFinite(gameSpeed) ||
-    productionSpeed <= 0 ||
-    gameSpeed <= 0
-  );
+/**
+ * Forklifts are logistics on plant time, like the trucks: only the shift clock
+ * pauses them, never the line setpoint. Working if a line stopped at 0% leaves
+ * the fleet moving while P or a paused pace holds it.
+ */
+export function isForkliftSimulationPaused(gameSpeed: number): boolean {
+  return !Number.isFinite(gameSpeed) || gameSpeed <= 0;
 }
 
 export interface ForkliftLogisticsGate {

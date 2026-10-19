@@ -17,6 +17,7 @@ import { SITE_LAYOUT, type Vec3Tuple } from '../constants/siteLayout';
 import { inspectWorldIntegrity, type WorldIntegrityReport } from '../constants/worldContract';
 import { inspectCommunityPresence } from '../simulation/communityLife';
 import { sampleAtmosphere, sampleCelestial } from '../simulation/atmosphere';
+import { STANDARD_GAME_SPEED } from '../simulation/pace';
 import { audioManager } from '../utils/audioManager';
 import { installMillOSAgentRuntime } from '../agent/adapters/runtime/installAgentRuntime';
 import { registerSceneCapture } from '../utils/sceneCapture';
@@ -1627,7 +1628,7 @@ export const RuntimeController: React.FC<RuntimeControllerProps> = ({
     useAnnouncementsStore.getState().setMode(mode.paMode);
     const game = useGameSimulationStore.getState();
     game.setGameTime(mode.gameTime);
-    game.setGameSpeed(mode.motionCapture ? 180 : 0);
+    game.setGameSpeed(mode.motionCapture ? STANDARD_GAME_SPEED : 0);
     game.setWeather(mode.weather);
 
     const benchmarkCamera = resolveBenchmarkCamera(

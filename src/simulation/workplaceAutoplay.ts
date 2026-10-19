@@ -9,6 +9,7 @@ import {
 import { peekSCADAService } from '../scada/SCADAService';
 import { useWorkplaceStore } from '../stores/workplaceStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
+import { useUIStore } from '../stores/uiStore';
 import { isWorkplaceReplayActive } from './workplaceReplayRuntime';
 import { CAMPAIGN_PRESSURES, WORKPLACE_CHECKS, requiredChecks } from './workplaceCampaign';
 import type { WorkplaceProfile, WorkplaceTransitionResult } from '../types/workplace';
@@ -70,7 +71,8 @@ export function autoplayWorkplaceStep(profile: WorkplaceProfile): WorkplaceTrans
         );
     }
     const result = store.activate(s.revision);
-    if (result.changed) useGameSimulationStore.getState().setGameSpeed(30);
+    // Release only a workplace hold. A pause the player made stays theirs.
+    if (result.changed) useGameSimulationStore.getState().releaseClock('workplace');
     return result;
   }
   if (s.phase === 'active') {
@@ -110,8 +112,21 @@ export const useWorkplaceAutoplay = create<{
         demonstrationInterval = setInterval(() => {
           const result = withAutomaticWorkplaceStep(() => autoplayWorkplaceStep(profile));
           if (result.reason && !result.changed) {
-            get().pause();
+            // Stopping by itself (season complete, a boundary, an objection)
+            // never freezes the plant: the shift keeps its pace, and the reason
+            // is announced where the player is looking, not only in the panel.
+            // Working if the clock keeps running after a completed season and
+            // the alert names what stopped and where to read it.
+            get().pause(true);
             set({ message: result.reason });
+            useUIStore.getState().addAlert({
+              id: `workplace-autoplay-stopped-${useWorkplaceStore.getState().workplace.revision}`,
+              type: 'info',
+              title: translate(msg, 'stoppedTitle'),
+              message: result.reason,
+              timestamp: new Date(),
+              acknowledged: false,
+            });
           }
         }, 400);
       },
@@ -124,7 +139,7 @@ export const useWorkplaceAutoplay = create<{
           manual: true,
           message: translate(msg, 'paused'),
         });
-        if (wasRunning && !preserveClock) useGameSimulationStore.getState().setGameSpeed(0);
+        if (wasRunning && !preserveClock) useGameSimulationStore.getState().holdClock('workplace');
       },
     }),
     {
