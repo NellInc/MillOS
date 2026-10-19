@@ -88,8 +88,11 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
   // `prepared` means every asset and task is done and the frame window is full
   // but still too slow: exactly what Low graphics fixes. Once that has held for
   // a few seconds, offer the way out then rather than at the 30 s timer. A
-  // resource change resets `prepared` and bumps the revision, so a brief slow
-  // window that clears never shows the controls.
+  // brief slow window that clears never starts the latch. Once set, it holds
+  // for that resource revision: a >1 s hitch restarts the frame window
+  // (`prepared` false) without a resource change, and the controls must not
+  // flicker away on the slow device they were offered to. A real resource
+  // change bumps the revision and releases it.
   const [slowWorldRevision, setSlowWorldRevision] = useState<number | null>(null);
   useEffect(() => {
     if (!startup.prepared || startup.ready) return;
@@ -97,7 +100,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
     const timer = window.setTimeout(() => setSlowWorldRevision(revision), slowWorldDelayMs);
     return () => window.clearTimeout(timer);
   }, [startup.prepared, startup.ready, startup.revision, slowWorldDelayMs]);
-  const slowWorldConfirmed = startup.prepared && slowWorldRevision === startup.revision;
+  const slowWorldConfirmed = !startup.ready && slowWorldRevision === startup.revision;
   // The startup error count only rises, and strict readiness needs it at zero,
   // so a known error is final for this page load: say so and offer the way out
   // at once instead of after the slow-load delay.
@@ -205,13 +208,14 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
 
           {recoveryVisible &&
             !startup.ready &&
-            (startup.prepared || hasStartupError || quality !== 'low') && (
+            (startup.prepared || slowWorldConfirmed || hasStartupError || quality !== 'low') && (
               <div className="mt-6 flex max-w-md flex-col items-center gap-3 text-center text-sm text-slate-300">
-                {startup.prepared && <p>{t('slowAnimation')}</p>}
+                {(startup.prepared || slowWorldConfirmed) && <p>{t('slowAnimation')}</p>}
                 {/* Say why a bare quality switch appeared on a slow load. */}
-                {!startup.prepared && !hasStartupError && quality !== 'low' && (
-                  <p>{t('slowLoad')}</p>
-                )}
+                {!startup.prepared &&
+                  !slowWorldConfirmed &&
+                  !hasStartupError &&
+                  quality !== 'low' && <p>{t('slowLoad')}</p>}
                 {hasStartupError && <p>{t('resourcesFailed')}</p>}
                 {/* Reload is the explicit recovery control the focus trap waits for.
                   The service worker serves what already arrived, so it retries

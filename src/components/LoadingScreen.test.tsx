@@ -141,8 +141,18 @@ describe('LoadingScreen final readiness', () => {
     ).toBeVisible();
     expect(screen.getByRole('button', { name: 'Use low graphics' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'Open loaded scene (slow)' })).toBeVisible();
-    // A frame window that resets is no longer a confirmed slow world.
+    // A >1 s hitch restarts the frame window without any resource change. The
+    // way out must not flicker away on the device it was offered to.
     state.prepared = false;
+    view.rerender(<LoadingScreen />);
+    expect(screen.getByRole('button', { name: 'Use low graphics' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Open loaded scene (slow)' })).toBeNull();
+    expect(
+      screen.getByText('The scene is loaded, but animation is still slow on this device.')
+    ).toBeVisible();
+    expect(screen.queryByText(/taking longer than usual/)).toBeNull();
+    // A real resource change is a new world to judge.
+    state.revision++;
     view.rerender(<LoadingScreen />);
     expect(screen.queryByRole('button', { name: 'Use low graphics' })).toBeNull();
   });
