@@ -1124,6 +1124,12 @@ const skylightLocalX = (side: -1 | 1): number => -5 * side;
 /** Clearance a batten keeps from a skylight kerb. */
 const SKYLIGHT_BATTEN_CLEARANCE = SKYLIGHT_SIZE.x / 2 + 0.7;
 const SKYLIGHT_KERB_HEIGHT = 0.9;
+/**
+ * How far a kerb's inner face stands into the aperture past the deck panel end
+ * below it. Flush, the two faces were coplanar over the full 0.36 m panel end
+ * (38.9 m^2 across the twelve end kerbs alone) and z-fought seen from below.
+ */
+const SKYLIGHT_KERB_PROUD = 0.02;
 
 /** Slope of one roof half, as a rotation about Z. */
 const roofSlope = (side: -1 | 1): number => -ROOF_PITCH * side;
@@ -1177,14 +1183,21 @@ export function buildFactoryRoofEnvelope(): { panels: BoxInstance[]; kerbs: BoxI
       const seat = deckPoint(side, x);
       // An upstand is a hollow frame, never a solid box underneath the pane.
       for (const edge of [-1, 1]) {
-        const edgeSeat = deckPoint(side, x + edge * (SKYLIGHT_SIZE.x / 2 + 0.175));
+        const edgeSeat = deckPoint(
+          side,
+          x + edge * (SKYLIGHT_SIZE.x / 2 + 0.175 - SKYLIGHT_KERB_PROUD)
+        );
         kerbs.push({
           position: [edgeSeat.x, edgeSeat.y, z],
           scale: [0.35, SKYLIGHT_KERB_HEIGHT, SKYLIGHT_SIZE.z + 0.7],
           rotation: [0, 0, roofSlope(side)],
         });
         kerbs.push({
-          position: [seat.x, seat.y, z + edge * (SKYLIGHT_SIZE.z / 2 + 0.175)],
+          position: [
+            seat.x,
+            seat.y,
+            z + edge * (SKYLIGHT_SIZE.z / 2 + 0.175 - SKYLIGHT_KERB_PROUD),
+          ],
           scale: [SKYLIGHT_SIZE.x, SKYLIGHT_KERB_HEIGHT, 0.35],
           rotation: [0, 0, roofSlope(side)],
         });
