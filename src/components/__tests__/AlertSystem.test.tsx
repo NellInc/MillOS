@@ -98,6 +98,44 @@ describe('AlertSystem', () => {
     });
   });
 
+  describe('Polite notices', () => {
+    const notice = (id: string, announce?: 'polite') => ({
+      id,
+      type: 'info' as const,
+      title: `${id} title`,
+      message: `${id} message.`,
+      timestamp: new Date(),
+      acknowledged: false,
+      ...(announce ? { announce } : {}),
+    });
+    const politeRegion = () => document.querySelector('[role="status"][aria-live="polite"]');
+
+    it('reads an alert marked polite once, and leaves routine info alerts silent', async () => {
+      // Present before mount: already filed, so not news.
+      useUIStore.getState().addAlert(notice('restored', 'polite'));
+      render(<AlertSystem />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(100);
+      });
+      expect(politeRegion()).toBeInTheDocument();
+      expect(politeRegion()).toHaveClass('sr-only');
+      expect(politeRegion()).toHaveTextContent('');
+
+      act(() => useUIStore.getState().addAlert(notice('routine')));
+      expect(politeRegion()).toHaveTextContent('');
+
+      act(() => useUIStore.getState().addAlert(notice('shift-review-1', 'polite')));
+      expect(politeRegion()).toHaveTextContent('shift-review-1 title. shift-review-1 message.');
+      // The assertive region stays for safety, critical and warning alerts.
+      expect(document.querySelector('[role="alert"]')).toHaveTextContent('');
+
+      // Acknowledging it in the bell changes the list but is not a new notice.
+      act(() => useUIStore.getState().acknowledgeAlert('shift-review-1'));
+      act(() => useUIStore.getState().addAlert(notice('routine-2')));
+      expect(politeRegion()).toHaveTextContent('shift-review-1 title. shift-review-1 message.');
+    });
+  });
+
   describe('Safety Integration', () => {
     it('should create safety alert when safety stop occurs', async () => {
       vi.spyOn(Math, 'random').mockReturnValue(0);

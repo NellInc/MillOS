@@ -201,7 +201,7 @@ export const PAAnnouncementSystem: React.FC = () => {
       aria-live={isUrgent ? 'assertive' : 'polite'}
       aria-atomic="true"
     >
-      {isShowing ? currentAnnouncement.message : ''}
+      {isShowing && !currentAnnouncement.captionOnly ? currentAnnouncement.message : ''}
     </div>
   );
 

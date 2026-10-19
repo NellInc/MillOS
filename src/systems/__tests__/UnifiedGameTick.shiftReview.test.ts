@@ -72,12 +72,15 @@ describe('a closed shift is announced (row 21)', () => {
         message: expect.stringContaining('Overview'),
       }),
     ]);
+    // Screen readers hear the bell notice once, politely, whether or not the
+    // PA is on or muted; the PA caption is for the eye, so it is not read twice.
+    expect(reviewAlerts()[0].announce).toBe('polite');
     // The PA caption carries it to where the player is looking.
     expect(
       useAnnouncementsStore
         .getState()
         .announcements.filter((a) => /^Morning shift closed: /.test(a.message))
-    ).toHaveLength(1);
+    ).toEqual([expect.objectContaining({ captionOnly: true })]);
     for (let i = 0; i < 20; i++) tickAt(STANDARD_GAME_SPEED);
     expect(reviewAlerts()).toHaveLength(1);
   });

@@ -93,6 +93,12 @@ export interface AlertData {
    * holds the safety-critical UI.
    */
   returnedToNormal?: boolean;
+  /**
+   * Read once to screen readers, politely, when it is filed (AlertSystem).
+   * For a notice a player must not miss that is neither critical nor a
+   * warning, such as a closed shift; routine alerts leave it unset.
+   */
+  announce?: 'polite';
 }
 
 export type AIDecisionDisposition = 'accepted' | 'modified' | 'rejected' | 'deferred' | 'automatic';

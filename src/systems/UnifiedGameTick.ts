@@ -254,15 +254,18 @@ function announceClosedShift(lastReportBefore: string | undefined): void {
     message,
     timestamp: new Date(),
     acknowledged: false,
+    announce: 'polite',
   });
-  // The bell files it; the PA caption is what a player actually sees (and a
-  // screen reader hears) at the moment the shift ends.
+  // The bell files it and reads it once to screen readers, whatever the PA
+  // mode or mute; the PA caption is what a sighted player sees at the moment
+  // the shift ends, so it is caption-only rather than read a second time.
   useAnnouncementsStore.getState().addAnnouncement({
     type: report.grade === 'A' || report.grade === 'B' ? 'success' : 'info',
     message: `${title}. ${message}`,
     priority: 3,
     source: 'Shift review',
     channel: 'operational',
+    captionOnly: true,
   });
 }
 
