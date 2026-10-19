@@ -59,6 +59,7 @@ import { installPunctualLightCulling } from './shaders/punctualLightCulling';
 import { installInteriorLighting } from './shaders/interiorLighting';
 import { CURRENT_RELEASE_VERSION } from './config/releaseVersions';
 import { applyFirstVisitQuality } from './utils/firstVisitQuality';
+import { preloadStartupWorldAssets } from './utils/startupAssetPreload';
 import { useT } from './i18n';
 import { appMessages } from './App.messages';
 
@@ -78,6 +79,11 @@ installInteriorLighting();
 restoreSessionScopedQuality();
 // A first visit on a weak GPU opens on Low rather than waiting out the cover.
 applyFirstVisitQuality();
+// Start every startup-world download now, at the tier just chosen. The scene
+// chunk's evaluation blocks the main thread for seconds once it lands; these
+// requests ride out that block instead of being discovered one world re-render
+// at a time afterwards. Readiness is unchanged: each still counts as an asset.
+preloadStartupWorldAssets(useGraphicsStore.getState().graphics.quality);
 
 // The Canvas fallback renders inside the z-0 <main>, under the loading cover,
 // so a crash before readiness must also reach the cover as a startup error.

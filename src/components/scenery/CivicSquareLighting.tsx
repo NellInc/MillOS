@@ -9,7 +9,8 @@ import {
   CIVIC_SHADOW_ATLAS_SIZE,
   CIVIC_SHADOW_FACE_SIZE,
   CIVIC_SHADOW_BAKE_READY,
-  CIVIC_SHADOW_ASSET_VERSION,
+  CIVIC_SHADOW_DEPTH_URL,
+  CIVIC_SHADOW_METADATA_URL,
   CIVIC_CUBE_FACE_BASES,
   CIVIC_SHADOW_CONVENTION,
   CIVIC_SOURCE_LOOKUP,
@@ -279,14 +280,10 @@ function CivicShadowAssembly({ texture }: { texture: THREE.Texture | null }) {
 }
 
 function LoadedCivicShadows() {
-  const texture = useLoader(
-    THREE.TextureLoader,
-    `${import.meta.env.BASE_URL}textures/civic-square-lamp-depth.png?v=${CIVIC_SHADOW_ASSET_VERSION}`
-  );
-  const metadata = useLoader(
-    THREE.FileLoader,
-    `${import.meta.env.BASE_URL}textures/civic-square-lamp-depth.json?v=${CIVIC_SHADOW_ASSET_VERSION}`
-  );
+  // Two sequential loader hooks suspend twice; utils/startupAssetPreload.ts
+  // starts both requests at App load so neither costs a world re-render.
+  const texture = useLoader(THREE.TextureLoader, CIVIC_SHADOW_DEPTH_URL);
+  const metadata = useLoader(THREE.FileLoader, CIVIC_SHADOW_METADATA_URL);
   useMemo(() => validateCivicShadowBake(JSON.parse(String(metadata))), [metadata]);
   useMemo(() => {
     texture.colorSpace = THREE.NoColorSpace;

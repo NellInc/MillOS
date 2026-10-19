@@ -12,6 +12,7 @@ import { createPortal, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { useDracoGLTF } from '../../utils/dracoLoader';
+import { WORKER_ASSET_PATHS } from '../../constants/worldAssetUrls';
 import type { WorkerAppearance, WorkerBodyType, WorkerWorkAction } from '../workers/workerTypes';
 import { ToolAccessory, createWorkerHandheldMount } from '../workers/WorkerTools';
 import {
@@ -46,11 +47,6 @@ import {
   type WorkerEyeSurface,
 } from '../workers/workerPose';
 export type { WorkerAppearance, WorkerMotionState } from '../workers/workerTypes';
-
-const WORKER_ASSET_PATHS = {
-  masculine: `${import.meta.env.BASE_URL}models/worker/worker-masculine.glb`,
-  feminine: `${import.meta.env.BASE_URL}models/worker/worker-feminine.glb`,
-};
 
 /**
  * SkeletonUtils clones one Skeleton for each glTF primitive, even when they

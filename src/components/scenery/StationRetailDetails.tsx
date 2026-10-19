@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { createColorDataTexture } from '../../utils/textureGenerator';
+import { STATION_RETAIL_ART } from '../../constants/worldAssetUrls';
 
 /** Authored, stationary shop dressing in station-local metres. Five merged draws,
  * including all printed goods; the retained GLBs still own the fixtures' bodies.
@@ -13,7 +14,8 @@ import { createColorDataTexture } from '../../utils/textureGenerator';
 const DRINK_COLORS = ['#a74336', '#538145', '#ca8638', '#437c94'];
 const PACK_COLORS = ['#b54b3a', '#b68b36', '#4f7850', '#466b83', '#8e625a'];
 const TILE_SIZE = 128;
-export const STATION_RETAIL_ART = `${import.meta.env.BASE_URL}textures/signage/station-retail-raster-v1.webp`;
+// Defined in the leaf so the startup preload can name it without this module.
+export { STATION_RETAIL_ART };
 export const RETAIL_LIGHT = {
   position: [-10.6, 4.15, -1.2] as [number, number, number],
   intensity: 48,
