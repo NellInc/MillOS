@@ -32,7 +32,7 @@ const CHALLENGE_LABEL_KEYS = {
   packaging_recovery: 'challengePackagingRecovery',
   network_recovery: 'challengeNetworkRecovery',
 } as const satisfies Record<OperationsChallengeId, string>;
-const challengeLabel = (id: OperationsChallengeId) =>
+export const challengeLabel = (id: OperationsChallengeId) =>
   translate(operationsPlayMessages, CHALLENGE_LABEL_KEYS[id]);
 export interface OperationsChallengeRun {
   id: string;

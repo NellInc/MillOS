@@ -40,6 +40,7 @@ export const operationsCampaignMessages = defineMessages({
     sourceControlLayer: 'Control layer',
 
     // Logbook messages
+    logChallengeStarted: 'Started the recovery challenge: {label}.',
     logChallengeAbandoned: 'Challenge abandoned; its incident controls remain active.',
     logProgrammeAccepted:
       'Accepted three 3,000 kg repeat commitments. Existing material and genealogy remain unchanged.',
@@ -127,6 +128,7 @@ export const operationsCampaignMessages = defineMessages({
     sourceProductionExecution: 'Execução da produção',
     sourceControlLayer: 'Camada de controle',
 
+    logChallengeStarted: 'Desafio de recuperação iniciado: {label}.',
     logChallengeAbandoned: 'Desafio abandonado; os controles da ocorrência continuam ativos.',
     logProgrammeAccepted:
       'Foram aceitos três compromissos recorrentes de 3.000 kg. O material e a genealogia existentes permanecem inalterados.',

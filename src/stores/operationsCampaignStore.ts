@@ -15,6 +15,7 @@ import {
   OPERATIONS_CHALLENGES,
   RECOVERY_CHALLENGE_TARGET_KG,
   RECOVERY_CHALLENGE_WINDOW_MINUTES,
+  challengeLabel,
   type OperationsChallengeId,
   type OperationsChallengeRun,
 } from '../simulation/operationsPlay';
@@ -42,6 +43,13 @@ export type IncidentKind =
   | 'control_network_degraded';
 export type IncidentPhase = 'raised' | 'acknowledged' | 'mitigated' | 'resolved';
 export type LogCategory = 'operation' | 'quality' | 'maintenance' | 'safety' | 'period';
+/**
+ * Who a logbook entry records: the operator's own choice, an AI agent command,
+ * or the plant's controllers narrating what they did. Tagged at the call site,
+ * since the same store action serves the operator, agents and the tick.
+ * Entries saved before store v3 carry none and read as 'controller'.
+ */
+export type CampaignActor = 'operator' | 'agent' | 'controller';
 
 export interface MillRecipe {
   id: string;
@@ -121,7 +129,15 @@ export interface ShiftCampaignReport {
   /** Each order completed in, or still open at the end of, the window (store v3). */
   orderOutcomes?: ShiftOrderOutcome[];
   gradeReasons?: string[];
+  /**
+   * Before store v3, the window's last eight logbook lines of any origin; from
+   * v3, the messages of `choices` only.
+   */
   decisions?: string[];
+  /** Operator and agent choices in the window (store v3). */
+  choices?: ShiftChoice[];
+  /** The plant's own narration in the window, last eight lines (store v3). */
+  narration?: string[];
 }
 
 export interface CampaignLogEntry {
@@ -131,6 +147,14 @@ export interface CampaignLogEntry {
   category: LogCategory;
   message: string;
   relatedId: string | null;
+  actor?: CampaignActor;
+}
+
+/** A choice made in the window, by the operator or an AI agent. */
+export interface ShiftChoice {
+  minute: number;
+  actor: Exclude<CampaignActor, 'controller'>;
+  message: string;
 }
 
 export interface CampaignConstraint {
@@ -251,10 +275,10 @@ interface OperationsCampaignState {
   challengeHistory: OperationsChallengeRun[];
   creditedBatchKg: Record<string, number>;
   lastMaterialSessionId: string | null;
-  startChallenge: (id: OperationsChallengeId) => boolean;
-  abandonChallenge: () => void;
-  finishChallengeRecovery: () => boolean;
-  acceptNextProgramme: () => boolean;
+  startChallenge: (id: OperationsChallengeId, actor?: CampaignActor) => boolean;
+  abandonChallenge: (actor?: CampaignActor) => void;
+  finishChallengeRecovery: (actor?: CampaignActor) => boolean;
+  acceptNextProgramme: (actor?: CampaignActor) => boolean;
   elapsedMinutes: number;
   orders: CustomerOrder[];
   activeOrderId: string | null;
@@ -273,17 +297,18 @@ interface OperationsCampaignState {
   shiftStartedAtMinute: number;
   sequence: number;
   initializeCampaign: () => void;
-  activateOrder: (orderId: string) => void;
+  activateOrder: (orderId: string, actor?: CampaignActor) => void;
   triggerIncident: (kind: IncidentKind) => OperationalIncident | null;
-  acknowledgeIncident: (incidentId: string) => void;
-  mitigateIncident: (incidentId: string) => void;
-  resolveIncident: (incidentId: string) => void;
+  acknowledgeIncident: (incidentId: string, actor?: CampaignActor) => void;
+  mitigateIncident: (incidentId: string, actor?: CampaignActor) => void;
+  resolveIncident: (incidentId: string, actor?: CampaignActor) => void;
   markIncidentEffectApplied: (incidentId: string) => void;
   addLogEntry: (
     source: string,
     category: LogCategory,
     message: string,
-    relatedId?: string | null
+    relatedId?: string | null,
+    actor?: CampaignActor
   ) => void;
   tickCampaign: (deltaSimulationSeconds: number, context: CampaignTickContext) => void;
   getActiveProductionPlan: () => {
@@ -308,6 +333,7 @@ interface OperationsCampaignState {
 
 const MAX_LOG_ENTRIES = 160;
 const MAX_REPORTS = 12;
+const MAX_REPORT_CHOICES = 24;
 const MAX_INCIDENTS = 32;
 const MAX_PROCESSED_MANIFESTS = MAX_MATERIAL_MANIFESTS;
 
@@ -1003,6 +1029,19 @@ export function buildShiftReport(input: ShiftReportInput): ShiftCampaignReport {
   );
   const grade = gradeShift(gradeBasis);
   const locale = getLocale();
+  const inWindow = input.logbook.filter(
+    (entry) => entry.simulationMinute >= startedAtMinute && entry.category !== 'period'
+  );
+  // Every choice in the window is kept up to a generous bound; narration is
+  // what the plant did and is only a tail.
+  const choices: ShiftChoice[] = inWindow
+    .filter((entry) => entry.actor === 'operator' || entry.actor === 'agent')
+    .slice(-MAX_REPORT_CHOICES)
+    .map((entry) => ({
+      minute: entry.simulationMinute,
+      actor: entry.actor as ShiftChoice['actor'],
+      message: entry.message,
+    }));
   return {
     id: input.id,
     shiftKey: input.shiftKey,
@@ -1026,8 +1065,10 @@ export function buildShiftReport(input: ShiftReportInput): ShiftCampaignReport {
     grade,
     gradeBasis,
     gradeReasons: shiftGradeReasons(gradeBasis, locale),
-    decisions: input.logbook
-      .filter((entry) => entry.simulationMinute >= startedAtMinute && entry.category !== 'period')
+    decisions: choices.map((choice) => choice.message),
+    choices,
+    narration: inWindow
+      .filter((entry) => (entry.actor ?? 'controller') === 'controller')
       .slice(-8)
       .map((entry) => entry.message),
     summary: shiftHeadline(gradeBasis, grade, locale),
@@ -1039,7 +1080,7 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
     (set, get) => ({
       ...emptyState(),
 
-      startChallenge: (id) => {
+      startChallenge: (id, actor = 'controller') => {
         const state = get();
         const definition = OPERATIONS_CHALLENGES.find((challenge) => challenge.id === id);
         if (!definition || challengeBlockReason(state)) return false;
@@ -1061,9 +1102,16 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
             endedAtMinute: null,
           },
         });
+        get().addLogEntry(
+          translate(messages, 'sourceRecoveryChallenge'),
+          'operation',
+          translate(messages, 'logChallengeStarted', { label: challengeLabel(id) }),
+          incident.id,
+          actor
+        );
         return true;
       },
-      abandonChallenge: () => {
+      abandonChallenge: (actor = 'controller') => {
         const state = get();
         if (!state.activeChallenge) return;
         set({
@@ -1081,17 +1129,19 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
         state.addLogEntry(
           translate(messages, 'sourceRecoveryChallenge'),
           'operation',
-          translate(messages, 'logChallengeAbandoned')
+          translate(messages, 'logChallengeAbandoned'),
+          null,
+          actor
         );
       },
-      finishChallengeRecovery: () => {
+      finishChallengeRecovery: (actor = 'controller') => {
         const state = get();
         const incident = getChallengeRecoveryIncident(state);
         if (!incident || incident.phase !== 'mitigated' || !incident.effectApplied) return false;
-        state.resolveIncident(incident.id);
+        state.resolveIncident(incident.id, actor);
         return true;
       },
-      acceptNextProgramme: () => {
+      acceptNextProgramme: (actor = 'controller') => {
         const state = get();
         if (
           state.activeChallenge ||
@@ -1112,7 +1162,9 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
         state.addLogEntry(
           translate(messages, 'sourceOrderScheduler'),
           'operation',
-          translate(messages, 'logProgrammeAccepted')
+          translate(messages, 'logProgrammeAccepted'),
+          null,
+          actor
         );
         return true;
       },
@@ -1137,7 +1189,7 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
         }));
       },
 
-      activateOrder: (orderId) =>
+      activateOrder: (orderId, actor = 'controller') =>
         set((state) => {
           const selected = state.orders.find((order) => order.id === orderId);
           if (!selected || selected.status === 'fulfilled' || selected.status === 'cancelled')
@@ -1173,6 +1225,7 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
                   recipe: selected.recipe.label,
                 }),
                 relatedId: selected.id,
+                actor,
               },
               MAX_LOG_ENTRIES
             ),
@@ -1221,7 +1274,7 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
         return incident;
       },
 
-      acknowledgeIncident: (incidentId) =>
+      acknowledgeIncident: (incidentId, actor = 'controller') =>
         set((state) => {
           const target = state.incidents.find(
             (incident) => incident.id === incidentId && incident.phase === 'raised'
@@ -1244,13 +1297,14 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
                 category: 'operation',
                 message: translate(messages, 'logIncidentAcknowledged', { title: target.title }),
                 relatedId: incidentId,
+                actor,
               },
               MAX_LOG_ENTRIES
             ),
           };
         }),
 
-      mitigateIncident: (incidentId) =>
+      mitigateIncident: (incidentId, actor = 'controller') =>
         set((state) => {
           // Only a live incident can be mitigated; an unknown or already
           // settled id is a no-op, not an automatic action.
@@ -1288,13 +1342,14 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
                 category: 'operation',
                 message: translate(messages, 'logIncidentMitigated', { title: target.title }),
                 relatedId: incidentId,
+                actor,
               },
               MAX_LOG_ENTRIES
             ),
           };
         }),
 
-      resolveIncident: (incidentId) =>
+      resolveIncident: (incidentId, actor = 'controller') =>
         set((state) => {
           const target = state.incidents.find(
             (incident) => incident.id === incidentId && incident.phase !== 'resolved'
@@ -1327,6 +1382,7 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
                 category: 'maintenance',
                 message: translate(messages, 'logIncidentResolved', { title: target.title }),
                 relatedId: incidentId,
+                actor,
               },
               MAX_LOG_ENTRIES
             ),
@@ -1340,7 +1396,7 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
           ),
         })),
 
-      addLogEntry: (source, category, message, relatedId = null) =>
+      addLogEntry: (source, category, message, relatedId = null, actor = 'controller') =>
         set((state) => {
           const trimmed = message.trim();
           if (!trimmed) return state;
@@ -1356,6 +1412,7 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
                 category,
                 message: trimmed,
                 relatedId,
+                actor,
               },
               MAX_LOG_ENTRIES
             ),

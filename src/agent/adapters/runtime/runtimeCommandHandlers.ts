@@ -144,7 +144,7 @@ function activateOrderHandler(): AgentCommandHandler {
     execute: (command) => {
       const orderId = localId(command.targetUri, 'order');
       const before = useOperationsCampaignStore.getState();
-      before.activateOrder(orderId);
+      before.activateOrder(orderId, 'agent');
       const after = useOperationsCampaignStore.getState();
       return {
         changed: before.activeOrderId !== after.activeOrderId,
@@ -181,13 +181,13 @@ function activateOrderHandler(): AgentCommandHandler {
 
 function acknowledgeIncidentHandler(): AgentCommandHandler {
   return incidentHandler('incident.acknowledge', 'raised', (id) =>
-    useOperationsCampaignStore.getState().acknowledgeIncident(id)
+    useOperationsCampaignStore.getState().acknowledgeIncident(id, 'agent')
   );
 }
 
 function mitigateIncidentHandler(): AgentCommandHandler {
   return incidentHandler('incident.mitigate', 'unresolved', (id) =>
-    useOperationsCampaignStore.getState().mitigateIncident(id)
+    useOperationsCampaignStore.getState().mitigateIncident(id, 'agent')
   );
 }
 

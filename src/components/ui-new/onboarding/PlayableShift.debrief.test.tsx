@@ -1,6 +1,6 @@
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ShiftDebrief } from './PlayableShift';
+import { OperationsPlayCard, ShiftDebrief } from './PlayableShift';
 import { useUIStore } from '../../../stores/uiStore';
 import {
   useOperationsCampaignStore,
@@ -127,5 +127,38 @@ describe('shift debrief', () => {
       screen.getByText('A exige todas as entregas no prazo; 1 chegou atrasada.')
     ).toBeInTheDocument();
     expect(screen.getByText(/^Tente a seguir: /)).toBeInTheDocument();
+  });
+});
+
+describe('decisions in the debrief', () => {
+  it('lists the operator choice under its own heading and plant narration apart', () => {
+    tick(1);
+    useOperationsCampaignStore.getState().activateOrder('order-002', 'operator');
+    for (let i = 0; i < 10; i++)
+      tick(1, {
+        dispatchLoad: { ...context().dispatchLoad, status: i % 2 ? 'ready' : 'loading' },
+      });
+    tick(1, { shiftKey: 'day-0-afternoon' });
+    render(<ShiftDebrief />);
+    expect(screen.getByRole('heading', { name: 'Your decisions this shift' })).toBeInTheDocument();
+    expect(
+      screen.getByText('Community Pasta Works: Fine corn semolina is now the active commitment.')
+    ).toBeInTheDocument();
+    const narration = screen.getByText('What the mill did');
+    expect(narration.closest('details')).not.toHaveAttribute('open');
+    expect(screen.getAllByText('Shipping load is 0 of 5000 kg.')[0].closest('details')).toBe(
+      narration.closest('details')
+    );
+  });
+});
+
+it("tags a customer switch in the commitment card as the operator's choice", () => {
+  render(<OperationsPlayCard />);
+  fireEvent.change(screen.getByLabelText('Active customer commitment', { exact: false }), {
+    target: { value: 'order-002' },
+  });
+  expect(useOperationsCampaignStore.getState().logbook.at(-1)).toMatchObject({
+    actor: 'operator',
+    relatedId: 'order-002',
   });
 });

@@ -221,3 +221,62 @@ describe('the review says why and what to try next (row 23)', () => {
     );
   });
 });
+
+describe('decisions are the choices people made (row 26)', () => {
+  const load = (status: 'loading' | 'ready') =>
+    tick(1, {
+      dispatchLoad: { ...context().dispatchLoad, status, loadedKg: status === 'ready' ? 5000 : 0 },
+    });
+
+  it('keeps the operator choice past a truck cycle of plant narration', () => {
+    tick(1);
+    useOperationsCampaignStore.getState().activateOrder('order-002', 'operator');
+    for (let i = 0; i < 10; i++) load(i % 2 ? 'ready' : 'loading');
+    tick(1, { shiftKey: 'day-0-afternoon' });
+    const report = lastReport();
+    expect(report.decisions).toEqual([
+      'Community Pasta Works: Fine corn semolina is now the active commitment.',
+    ]);
+    expect(report.choices).toEqual([
+      expect.objectContaining({
+        actor: 'operator',
+        message: 'Community Pasta Works: Fine corn semolina is now the active commitment.',
+      }),
+    ]);
+    expect(report.narration).toContain('Shipping load is 0 of 5000 kg.');
+  });
+
+  it('records incident responses as decisions and the incident itself as narration', () => {
+    const store = useOperationsCampaignStore.getState();
+    const incident = store.triggerIncident('delayed_truck')!;
+    store.acknowledgeIncident(incident.id, 'operator');
+    store.mitigateIncident(incident.id, 'operator');
+    store.resolveIncident(incident.id, 'operator');
+    tick(1);
+    tick(1, { shiftKey: 'day-0-afternoon' });
+    const report = lastReport();
+    expect(report.choices?.map((choice) => choice.actor)).toEqual([
+      'operator',
+      'operator',
+      'operator',
+    ]);
+    expect(report.narration).toContain('Delayed dispatch truck');
+  });
+
+  it('attributes an AI agent activation to the agent, not the operator', async () => {
+    const { createMillOSRuntimeCommandHandlers } =
+      await import('../agent/adapters/runtime/runtimeCommandHandlers');
+    const handler = createMillOSRuntimeCommandHandlers().find(
+      (candidate) => candidate.capabilityId === 'operations.activate-order'
+    )!;
+    tick(1);
+    await handler.execute({
+      targetUri: 'millos://order/order-002',
+      parameters: { orderUri: 'millos://order/order-002' },
+    } as never);
+    tick(1, { shiftKey: 'day-0-afternoon' });
+    expect(lastReport().choices).toEqual([
+      expect.objectContaining({ actor: 'agent', message: expect.stringContaining('Pasta') }),
+    ]);
+  });
+});

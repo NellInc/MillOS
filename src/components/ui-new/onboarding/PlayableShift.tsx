@@ -590,8 +590,9 @@ export function OperationsPlayCard() {
     const state = useOperationsCampaignStore.getState();
     const action = deriveOperationsPlay(state).nextAction;
     if (action.kind === 'acknowledge' && action.targetId)
-      state.acknowledgeIncident(action.targetId);
-    if (action.kind === 'mitigate' && action.targetId) state.mitigateIncident(action.targetId);
+      state.acknowledgeIncident(action.targetId, 'operator');
+    if (action.kind === 'mitigate' && action.targetId)
+      state.mitigateIncident(action.targetId, 'operator');
     // The live action is rechecked at click time; the ordinary tick owns clock holds. Inspection never
     // resumes, and a running/custom pace is retained. Working if this explicit
     // choice changes only a paused shift's speed, with consequences processed
@@ -600,9 +601,9 @@ export function OperationsPlayCard() {
       const simulation = useGameSimulationStore.getState();
       if (simulation.gameSpeed === 0) simulation.setGameSpeed(30);
     }
-    if (action.kind === 'resolve') state.finishChallengeRecovery();
+    if (action.kind === 'resolve') state.finishChallengeRecovery('operator');
     if (action.kind === 'programme' && !linkedReviewPending(useWorkplaceStore.getState().workplace))
-      state.acceptNextProgramme();
+      state.acceptNextProgramme('operator');
     if (['quality', 'receiving', 'dispatch', 'production'].includes(action.kind)) {
       window.dispatchEvent(
         new CustomEvent('millos:open-operations-workspace', {
@@ -628,7 +629,7 @@ export function OperationsPlayCard() {
                 !current.activeChallenge &&
                 !linkedReviewPending(useWorkplaceStore.getState().workplace)
               )
-                current.activateOrder(event.target.value);
+                current.activateOrder(event.target.value, 'operator');
             }}
             className="mt-1 min-h-11 w-full rounded border border-slate-600 bg-slate-800 px-2 text-white disabled:opacity-50"
           >
@@ -771,7 +772,9 @@ export function OperationsPlayCard() {
             <button
               className={BUTTON}
               disabled={!challenge.available}
-              onClick={() => useOperationsCampaignStore.getState().startChallenge(challenge.id)}
+              onClick={() =>
+                useOperationsCampaignStore.getState().startChallenge(challenge.id, 'operator')
+              }
             >
               {challenge.label}
             </button>
@@ -783,7 +786,7 @@ export function OperationsPlayCard() {
         {play.challengeProgress && (
           <button
             className={`${BUTTON} mt-2`}
-            onClick={() => useOperationsCampaignStore.getState().abandonChallenge()}
+            onClick={() => useOperationsCampaignStore.getState().abandonChallenge('operator')}
           >
             {t('abandonChallenge')}
           </button>
@@ -838,20 +841,54 @@ function ShiftReportArticle({ report }: { report: ShiftCampaignReport }) {
       )}
       {gap && <p className="mt-2 text-xs leading-5">{gap}</p>}
       {tryNext && <p className="mt-1 text-xs leading-5 text-cyan-100">{tryNext}</p>}
-      <details className="mt-2">
-        <summary className="min-h-11 cursor-pointer py-3 text-xs text-cyan-200">
-          {t('decisionsHeading')}
-        </summary>
-        {report.decisions?.length ? (
-          <ul className="list-inside list-disc text-xs leading-5">
-            {report.decisions.map((decision, index) => (
-              <li key={index}>{decision}</li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-xs">{report.decisions ? t('noDecisions') : t('decisionsNotSaved')}</p>
-        )}
-      </details>
+      {report.choices ? (
+        <>
+          <h5 className="mt-2 text-xs font-semibold text-white">{t('choicesHeading')}</h5>
+          {report.choices.length ? (
+            <ul className="list-inside list-disc text-xs leading-5">
+              {report.choices.map((choice, index) => (
+                <li key={index}>
+                  {choice.actor === 'agent'
+                    ? t('agentChoice', { message: choice.message })
+                    : choice.message}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs">{t('noChoices')}</p>
+          )}
+          {report.narration && report.narration.length > 0 && (
+            <details className="mt-2">
+              <summary className="min-h-11 cursor-pointer py-3 text-xs text-cyan-200">
+                {t('narrationHeading')}
+              </summary>
+              <ul className="list-inside list-disc text-xs leading-5">
+                {report.narration.map((line, index) => (
+                  <li key={index}>{line}</li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </>
+      ) : (
+        // Saved before choices were told apart from narration: a log, not decisions.
+        <details className="mt-2">
+          <summary className="min-h-11 cursor-pointer py-3 text-xs text-cyan-200">
+            {t('shiftLogHeading')}
+          </summary>
+          {report.decisions?.length ? (
+            <ul className="list-inside list-disc text-xs leading-5">
+              {report.decisions.map((decision, index) => (
+                <li key={index}>{decision}</li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs">
+              {report.decisions ? t('noDecisions') : t('decisionsNotSaved')}
+            </p>
+          )}
+        </details>
+      )}
       {report.openRisks.length > 0 && (
         <p className="text-xs text-amber-200">
           {t('carryForward', { risks: report.openRisks.join('; ') })}
@@ -891,7 +928,7 @@ export function ShiftDebrief() {
         disabled={!canNext || reviewPending}
         onClick={() => {
           if (!linkedReviewPending(useWorkplaceStore.getState().workplace))
-            useOperationsCampaignStore.getState().acceptNextProgramme();
+            useOperationsCampaignStore.getState().acceptNextProgramme('operator');
         }}
       >
         {t('acceptNextProgramme')}
