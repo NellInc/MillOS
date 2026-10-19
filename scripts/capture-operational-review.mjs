@@ -54,6 +54,9 @@ async function triggerFacilityStop(page) {
 // Exercise shipping role controls. The query plane below is observation-only;
 // no fixture writes directly to a store or manufactures physical output.
 const workplaceLab = (page) => page.getByRole('region', { name: 'Workplace laboratory' });
+// The takeover button is named by its visible words (WCAG 2.5.3), which are
+// the compact wording beside the guide card and on phones.
+const TAKE_OVER_NAME = /^(Take over cooperative season|Cooperative season running: take over)$/;
 const observeWorkplace = (page) =>
   page.evaluate(() => {
     const read = (fields) => {
@@ -2185,9 +2188,7 @@ SCENARIOS['workplace-auto-season'] = {
   surfaceName: 'Workplace & Autonomy sidebar panel',
   afterOpen: async (page) => {
     const lab = workplaceLab(page);
-    await expect(
-      page.getByRole('button', { name: 'Take over cooperative season', exact: true })
-    ).toBeVisible();
+    await expect(page.getByRole('button', { name: TAKE_OVER_NAME })).toBeVisible();
     await page.waitForFunction(
       () =>
         window.__MILLOS_AGENT__.query({
@@ -2321,14 +2322,12 @@ for (const mobile of [false, true])
       );
       if (mobile) await closeMobilePanel(page);
       else await page.getByRole('button', { name: 'Close sidebar panel', exact: true }).click();
-      await expect(
-        page.getByRole('button', { name: 'Take over cooperative season', exact: true })
-      ).toBeVisible();
+      await expect(page.getByRole('button', { name: TAKE_OVER_NAME })).toBeVisible();
       await page.screenshot({
         path: path.join(outputDirectory, `auto-${mobile ? 'mobile' : 'desktop'}-running.png`),
         fullPage: true,
       });
-      await page.getByRole('button', { name: 'Take over cooperative season', exact: true }).click();
+      await page.getByRole('button', { name: TAKE_OVER_NAME }).click();
       const held = await observeWorkplace(page);
       await openWorkplace(page, mobile);
       const lab = workplaceLab(page);
