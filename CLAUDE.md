@@ -321,8 +321,8 @@ When triggered via "START DRILL":
 
 1. **Production stops** - `startEmergencyDrill()` calls `stopProduction()` and records a simulated `fire_drill` safety event
 2. **Mobile equipment stops** - `setForkliftEmergencyStop(true)` halts every forklift
-3. **Egress markers appear** - `FireDrillExitMarkers` in `MillScene.tsx` draws one marker per service egress point
-4. **Zones are verified in sequence** - the egress sequencer marks each zone through `markZoneVerified(zoneId)`; the Safety panel shows "X/Y zones verified"
+3. **Egress markers appear** - `ServiceEgressMarkers` in `MillScene.tsx` draws one marker per service egress point
+4. **Zones are verified in sequence** - `src/systems/egressDrillSequencer.ts`, on game time (one zone per 120 game seconds, so P holds it and pace scales it), marks each zone through `markZoneVerified(zoneId)`; the Safety panel shows "X/Y zones verified"
 5. **Drill ends** - automatically when every zone is verified, or on "END DRILL"
 
 No alarm is started by the drill; `endEmergencyDrill()` calls `stopEmergencyStopAlarm()` defensively.
@@ -341,7 +341,8 @@ No alarm is started by the drill; `endEmergencyDrill()` calls `stopEmergencyStop
 | File | Responsibility |
 |------|----------------|
 | `src/stores/gameSimulationStore.ts` | Drill state, metrics, `SERVICE_EGRESS_POINTS`, `markZoneVerified()` |
-| `src/components/MillScene.tsx` | `FireDrillExitMarkers` (markers plus the verification sequencer) |
+| `src/components/MillScene.tsx` | `ServiceEgressMarkers` (markers) |
+| `src/systems/egressDrillSequencer.ts` | Game-time verification sequencer |
 | `src/components/ForkliftSystem.tsx` | Emergency stop enforcement (drill mode forces stop) |
 | `src/components/ui-new/panels/SafetyPanel.tsx` | START/END DRILL controls with zone progress |
 | `src/agent/adapters/runtime/runtimeCommandHandlers.ts` | `simulation.start-fire-drill` agent capability |
@@ -510,10 +511,17 @@ When adding new 3D effects:
 
 | Preset | Factor | Use For |
 |--------|--------|---------|
-| `exteriorBase` | 4 | Grass fields (renders behind) |
-| `exteriorMid` | 2 | Asphalt, parking lots |
-| `exteriorTop` | 0 | Roads (renders on top of grass) |
-| `exteriorOverlay` | -2 | Road markings, lines (always visible) |
+| `exteriorBase` | 6 | Terrain and grass (renders behind) |
+| `exteriorMid` | 3 | Asphalt areas, the shuttle turnaround |
+| `exteriorTop` | -1 | Roads, dock apron, towpath |
+| `carriagewayMarking` | -3 | Paint on a -2 carriageway or footpath |
+| `exteriorOverlay` | -4 | Road and yard markings (always visible) |
+
+The truck yard tarmac is deliberately unbiased (0) so it cannot tie with the
+turnaround at +3 (`truckbay/yardSurfaces.ts`, pinned by `yardGroundStack.test.ts`).
+Ground lettering on the apron or a road uses `SceneText surface="painted-ground"`.
+`npm run validate:depth` rejects a raw offset number anywhere in `src/components`
+and any `EXTERIOR_LAYERS.ground` mesh that declares no bias.
 
 #### Adding New Exterior Ground Surfaces
 
