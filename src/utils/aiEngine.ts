@@ -16,7 +16,7 @@ import { chatgptClient } from './chatgptClient';
 import { SpendCapError } from './spendBudget';
 import { webgpuClient } from './webgpuClient';
 import { logger } from './logger';
-import { formatFixed, translate } from '../i18n';
+import { formatFixed, getLocale, translate } from '../i18n';
 import { aiEngineMessages as msg } from './aiEngine.messages';
 
 export const AI_ENGINE_TIMING = {
@@ -671,6 +671,12 @@ function strategicPrompt(machines: MachineData[]): string {
     'You are the strategic controller for a staffed grain mill digital twin with autonomous logistics.',
     'Return one JSON object only: {"priorities": 1-3 short imperative strings (under 80 characters each), "reasoning": 1-2 sentences, "insight"?: string, "tradeoff"?: string, "focusMachine"?: one equipment id from the telemetry, "actionPlan"?: [immediate, short-term, preparation] as 3 strings}.',
     'Prioritize safety interlocks, stable material flow, quality, energy, condition maintenance, and autonomous logistics.',
+    // Model text lands verbatim in the player's decision cards, so ask for their language.
+    ...(getLocale() === 'pt-BR'
+      ? [
+          'Write every string value in Brazilian Portuguese (pt-BR), using 24-hour times; keep the JSON keys and equipment ids unchanged.',
+        ]
+      : []),
     `Plant period: ${simulation.currentShift}. Weather: ${simulation.weather}.`,
     `Production: ${JSON.stringify(production.metrics)}.`,
     `Equipment telemetry: ${JSON.stringify(telemetry)}.`,
