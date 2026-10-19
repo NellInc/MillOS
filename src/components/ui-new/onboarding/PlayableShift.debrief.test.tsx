@@ -223,3 +223,95 @@ describe('the end of a shift is in view (row 21)', () => {
     expect(screen.getByText(/fecha às 14:00/)).toBeVisible();
   });
 });
+
+describe('the review persists across reload', () => {
+  // The store's own persist storage (in-memory under test), and its own
+  // migrate and merge, exactly as a page load would run them.
+  const KEY = 'millos-autonomous-operations';
+  const storage = () => useOperationsCampaignStore.persist.getOptions().storage!;
+  afterEach(() => storage().removeItem(KEY));
+
+  it('rehydrates a version 2 save and still renders its reports', async () => {
+    const metrics = { ...useOperationsCampaignStore.getState().shiftMetrics } as Record<
+      string,
+      number
+    >;
+    delete metrics.commitmentMinutes;
+    storage().setItem(
+      KEY,
+      JSON.parse(
+        JSON.stringify({
+          version: 2,
+          state: {
+            initialized: true,
+            elapsedMinutes: 300,
+            shiftMetrics: metrics,
+            currentShiftKey: 'day-0-afternoon',
+            currentShiftLabel: 'Afternoon',
+            shiftStartedAtMinute: 240,
+            logbook: [
+              {
+                id: 'log-0001',
+                simulationMinute: 10,
+                source: 'Order scheduler',
+                category: 'operation',
+                message: 'Old line without an actor.',
+                relatedId: null,
+              },
+            ],
+            reports: [
+              {
+                id: 'period-report-0007',
+                shiftKey: 'day-0-morning',
+                shiftLabel: 'Morning',
+                startedAtMinute: 0,
+                endedAtMinute: 240,
+                metrics,
+                completedOrderIds: ['order-001'],
+                openRisks: [],
+                grade: 'C',
+                summary: 'Saved summary.',
+                gradeReasons: ['Saved reason one.', 'Saved reason two.'],
+                decisions: ['Shipping load is 0 of 5000 kg.'],
+              },
+            ],
+          },
+        })
+      )
+    );
+    await useOperationsCampaignStore.persist.rehydrate();
+    const state = useOperationsCampaignStore.getState();
+    expect(state.reports.map((report) => report.id)).toEqual(['period-report-0007']);
+    expect(state.shiftMetrics.commitmentMinutes).toBe(0);
+    render(<ShiftDebrief />);
+    expect(screen.getByRole('heading', { name: 'Morning: grade C' })).toBeVisible();
+    expect(screen.getByText('Saved summary.')).toBeVisible();
+    expect(screen.getByText('Saved reason two.')).toBeVisible();
+    fireEvent.click(screen.getByText('Shift log'));
+    expect(screen.getByText('Shipping load is 0 of 5000 kg.')).toBeVisible();
+    // An old untagged entry is narration, never the player's decision.
+    tick(1, { shiftKey: 'day-0-night', shiftLabel: 'Night' });
+    expect(useOperationsCampaignStore.getState().reports.at(-1)?.choices).toEqual([]);
+  });
+
+  it('saves a version 3 report and renders the same review after reload', async () => {
+    lateMorning();
+    const before = useOperationsCampaignStore.getState().reports.at(-1)!;
+    // The real persist write, then a fresh store state read back from it.
+    useOperationsCampaignStore.setState({});
+    const saved = JSON.parse(JSON.stringify(await storage().getItem(KEY)));
+    expect(saved.version).toBe(3);
+    useOperationsCampaignStore.getState().resetCampaign();
+    storage().setItem(KEY, saved);
+    await useOperationsCampaignStore.persist.rehydrate();
+    expect(useOperationsCampaignStore.getState().reports.at(-1)).toEqual(before);
+    act(() => setLocale('pt-BR'));
+    render(<ShiftDebrief />);
+    expect(screen.getByRole('heading', { name: 'Manhã: nota B' })).toBeVisible();
+    expect(
+      screen.getByText(
+        "Riverside Bakers' Cooperative: 6.000 de 6.000 kg, entregue com 10min de atraso."
+      )
+    ).toBeVisible();
+  });
+});
