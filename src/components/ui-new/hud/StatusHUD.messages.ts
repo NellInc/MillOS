@@ -55,6 +55,8 @@ export const statusHudMessages = defineMessages({
     acknowledgeLabel: 'Acknowledge {title}',
     dismiss: 'Dismiss',
     dismissLabel: 'Dismiss {title}',
+    openRepair: 'Open repair',
+    openRepairLabel: 'Open repair for {title}',
     markAllRead: 'Mark all as read',
   },
   'pt-BR': {
@@ -105,6 +107,8 @@ export const statusHudMessages = defineMessages({
     acknowledgeLabel: 'Reconhecer {title}',
     dismiss: 'Dispensar',
     dismissLabel: 'Dispensar {title}',
+    openRepair: 'Abrir reparo',
+    openRepairLabel: 'Abrir reparo de {title}',
     markAllRead: 'Marcar todas como lidas',
   },
 });

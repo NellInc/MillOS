@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StatusHUD } from './StatusHUD';
 import { useUIStore } from '../../../stores/uiStore';
 import { useProductionStore } from '../../../stores/productionStore';
+import { useBreakdownStore } from '../../../stores/breakdownStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { useGraphicsStore } from '../../../stores/graphicsStore';
 import { computeSafetyScore, useSafetyStore } from '../../../stores/safetyStore';
@@ -206,5 +207,52 @@ describe('StatusHUD operational controls', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(screen.getByRole('banner')).toHaveClass('z-30');
     expect(bell).toHaveFocus();
+  });
+
+  it('offers Open repair on an alert about a broken machine, by the shift card route', () => {
+    useBreakdownStore.getState().resetBreakdownStore();
+    useBreakdownStore.getState().triggerBreakdown('rm-101', 'R.M. 101', 'mechanical');
+    useUIStore.setState({
+      maintenanceFocusRequested: false,
+      alerts: [
+        {
+          id: 'breakdown-rm-101',
+          type: 'critical',
+          title: 'Machine Breakdown',
+          message: 'R.M. 101 has broken down.',
+          machineId: 'rm-101',
+          timestamp: new Date(),
+          acknowledged: false,
+        },
+        {
+          id: 'maintenance-skip-rm-102',
+          type: 'info',
+          title: 'Maintenance Not Needed',
+          message: 'R.M. 102 runs as new.',
+          machineId: 'rm-102',
+          timestamp: new Date(),
+          acknowledged: false,
+        },
+      ],
+    });
+    const opened = vi.fn();
+    window.addEventListener('millos:open-operations-workspace', opened);
+    try {
+      render(<StatusHUD />);
+      fireEvent.click(screen.getByRole('button', { name: 'Notifications (2 unread)' }));
+      // A healthy machine's notice has nothing to repair.
+      expect(
+        screen.queryByRole('button', { name: 'Open repair for Maintenance Not Needed' })
+      ).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Open repair for Machine Breakdown' }));
+      expect(useUIStore.getState().maintenanceFocusRequested).toBe(true);
+      expect(opened).toHaveBeenCalledTimes(1);
+      expect((opened.mock.calls[0][0] as CustomEvent).detail).toBe('overview');
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    } finally {
+      window.removeEventListener('millos:open-operations-workspace', opened);
+      useBreakdownStore.getState().resetBreakdownStore();
+      useUIStore.setState({ maintenanceFocusRequested: false });
+    }
   });
 });

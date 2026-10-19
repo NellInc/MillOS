@@ -8,11 +8,14 @@ import {
   X,
   CheckCircle,
   GripVertical,
+  Wrench,
 } from 'lucide-react';
 import { computeSafetyScore, useSafetyStore } from '../../../stores/safetyStore';
 import { useFPSStore } from '../../FPSMonitor';
 import { useUIStore } from '../../../stores/uiStore';
-import { useProductionStore } from '../../../stores/productionStore';
+import { useProductionStore, wearHoldsWarning } from '../../../stores/productionStore';
+import { useBreakdownStore } from '../../../stores/breakdownStore';
+import { openRepairWorkspace } from '../openRepairWorkspace';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { useGraphicsStore } from '../../../stores/graphicsStore';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
@@ -99,6 +102,21 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace: workspa
 
   // Count unacknowledged alerts
   const unacknowledgedCount = alerts.filter((a) => !a.acknowledged).length;
+
+  // Machines a notification can send the player to repair, read live so a
+  // notice about a machine already back in service offers nothing: an open
+  // fault, a breakdown, or wear holding a warning. Joined strings keep the
+  // selectors stable while wear creeps up every tick.
+  const faultedIds = useBreakdownStore((state) =>
+    state.activeBreakdowns.map((breakdown) => breakdown.machineId).join('|')
+  );
+  const wornIds = useProductionStore((state) =>
+    state.machines
+      .filter((machine) => machine.status === 'critical' || wearHoldsWarning(machine))
+      .map((machine) => machine.id)
+      .join('|')
+  );
+  const repairableIds = new Set(`${faultedIds}|${wornIds}`.split('|').filter(Boolean));
 
   // Handle mouse down on grip
   const handleMouseDown = useCallback(
@@ -509,6 +527,19 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace: workspa
                         </div>
                       </div>
                       <div className="flex gap-1">
+                        {alert.machineId && repairableIds.has(alert.machineId) && (
+                          <button
+                            onClick={() => {
+                              setShowNotifications(false);
+                              openRepairWorkspace();
+                            }}
+                            className="p-2 text-slate-400 hover:text-amber-300 transition-colors"
+                            title={t('openRepair')}
+                            aria-label={t('openRepairLabel', { title: alert.title })}
+                          >
+                            <Wrench size={12} />
+                          </button>
+                        )}
                         {!alert.acknowledged && (
                           <button
                             onClick={() => acknowledgeAlert(alert.id)}

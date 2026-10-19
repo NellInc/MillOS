@@ -44,6 +44,7 @@ import {
   shiftWindowName,
 } from '../../../simulation/shiftReview';
 import { playableShiftMessages } from './PlayableShift.messages';
+import { openRepairWorkspace } from '../openRepairWorkspace';
 
 const BUTTON =
   'min-h-11 rounded-lg border border-cyan-400/30 px-3 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-400/10 disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300';
@@ -674,11 +675,11 @@ export function OperationsPlayCard() {
     if (action.kind === 'resolve') state.finishChallengeRecovery('operator');
     if (action.kind === 'programme' && !linkedReviewPending(useWorkplaceStore.getState().workplace))
       state.acceptNextProgramme('operator');
-    if (action.kind === 'repair') useUIStore.getState().requestMaintenanceFocus();
-    if (['quality', 'repair', 'receiving', 'dispatch', 'production'].includes(action.kind)) {
+    if (action.kind === 'repair') openRepairWorkspace();
+    else if (['quality', 'receiving', 'dispatch', 'production'].includes(action.kind)) {
       window.dispatchEvent(
         new CustomEvent('millos:open-operations-workspace', {
-          detail: action.kind === 'quality' || action.kind === 'repair' ? 'overview' : 'scada',
+          detail: action.kind === 'quality' ? 'overview' : 'scada',
         })
       );
     }
