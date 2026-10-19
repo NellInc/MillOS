@@ -56,6 +56,35 @@ describe('StatusHUD operational controls', () => {
     expect(screen.getByLabelText('SCADA telemetry disabled')).toBeVisible();
   });
 
+  it('says the line is changing over when it has moved on to the next commitment', () => {
+    const execution = useOperationsCampaignStore.getState().execution;
+    try {
+      useProductionStore.setState({
+        metrics: { ...useProductionStore.getState().metrics, throughput: 0 },
+      });
+      useOperationsCampaignStore.setState({
+        execution: {
+          ...execution,
+          orderId: 'order-001',
+          stage: 'dispatched',
+          remainingKg: 1000,
+          finishedAvailableKg: 1000,
+          lineOrderId: 'order-002',
+          lineCustomer: 'Community Pasta Works',
+        },
+      });
+      render(<StatusHUD />);
+      expect(
+        screen.getByLabelText(
+          'Changing over: the line is starting the next order, for Community Pasta Works'
+        )
+      ).toBeVisible();
+      expect(screen.queryByLabelText(/Line idle/)).not.toBeInTheDocument();
+    } finally {
+      useOperationsCampaignStore.setState({ execution });
+    }
+  });
+
   it('says why the line is idle once the active order is already packed', () => {
     const execution = useOperationsCampaignStore.getState().execution;
     try {

@@ -65,7 +65,13 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace: workspa
       execution.finishedAvailableKg >= execution.remainingKg - 1
     );
   });
+  // Once the remainder is packed the line pre-stages the next commitment, so
+  // a zero rate then means the line is filling with that order's grain.
+  const prestagingCustomer = useOperationsCampaignStore(
+    (state) => state.execution?.lineCustomer ?? null
+  );
   const lineIdleAwaitingTruck = throughput <= 0 && orderPackedAwaitingTruck;
+  const lineChangingOver = lineIdleAwaitingTruck && !!prestagingCustomer;
 
   const [showNotifications, setShowNotifications] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -320,10 +326,14 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace: workspa
           {lineIdleAwaitingTruck && (
             <div
               className="flex shrink-0 items-center gap-1.5 text-[12px] text-amber-200"
-              aria-label={t('lineIdleLabel')}
-              title={t('lineIdleTitle')}
+              aria-label={
+                lineChangingOver
+                  ? t('lineChangeoverLabel', { customer: prestagingCustomer! })
+                  : t('lineIdleLabel')
+              }
+              title={lineChangingOver ? t('lineChangeoverTitle') : t('lineIdleTitle')}
             >
-              <span>{t('lineIdleText')}</span>
+              <span>{lineChangingOver ? t('lineChangeoverText') : t('lineIdleText')}</span>
             </div>
           )}
 

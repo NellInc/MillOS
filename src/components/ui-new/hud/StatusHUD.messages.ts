@@ -25,6 +25,10 @@ export const statusHudMessages = defineMessages({
     lineIdleTitle:
       'The rest of this order is already packed. Milling resumes once it is dispatched.',
     lineIdleText: 'Line idle: order packed, awaiting dispatch',
+    lineChangeoverLabel: 'Changing over: the line is starting the next order, for {customer}',
+    lineChangeoverTitle:
+      "The rest of this order is packed and waits for its truck. The line is filling with the next commitment's grain, so packing resumes shortly.",
+    lineChangeoverText: 'Changing over to the next order',
     dailyTargetLabel: 'Daily target {produced} of {target} bags',
     targetValue: 'Target {produced} / {target}',
     runWindowLabel: '{shift} run window, simulation time {time}',
@@ -65,6 +69,11 @@ export const statusHudMessages = defineMessages({
     lineIdleTitle:
       'O restante deste pedido já está ensacado. A moagem é retomada assim que ele for expedido.',
     lineIdleText: 'Linha ociosa: pedido ensacado, aguardando expedição',
+    lineChangeoverLabel:
+      'Troca de pedido: a linha está começando o próximo pedido, para {customer}',
+    lineChangeoverTitle:
+      'O restante deste pedido está ensacado e aguarda o caminhão. A linha está recebendo o grão do próximo compromisso, então o ensaque volta em breve.',
+    lineChangeoverText: 'Trocando para o próximo pedido',
     dailyTargetLabel: 'Meta diária: {produced} de {target} sacos',
     targetValue: 'Meta {produced} / {target}',
     runWindowLabel: 'Janela de operação da {shift}, horário da simulação {time}',
