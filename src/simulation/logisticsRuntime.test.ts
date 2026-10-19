@@ -118,9 +118,11 @@ describe('live logistics contract', () => {
     for (const dock of ['shipping', 'receiving'] as const)
       removals.push(registerLogisticsVehicle(dock, { prepare: () => () => {}, restore: () => {} }));
     const store = useLogisticsLayoutStore.getState();
-    useProductionStore.getState().setProductionSpeed(1);
-    expect(store.apply(plan, 0, key()).reason).toContain('Pause');
+    // The shift clock is the one pause; the line rate is not.
+    useGameSimulationStore.getState().setGameSpeed(30);
     useProductionStore.getState().setProductionSpeed(0);
+    expect(store.apply(plan, 0, key()).reason).toContain('Pause');
+    useGameSimulationStore.getState().holdClock('layout');
     useSafetyStore.getState().setForkliftEmergencyStop(true);
     expect(store.apply(plan, 0, key()).reason).toContain('safety hold');
     useSafetyStore.getState().setForkliftEmergencyStop(false);

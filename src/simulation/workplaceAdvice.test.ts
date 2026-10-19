@@ -15,7 +15,7 @@ import {
   type PackingContext,
 } from './workplaceAdvice';
 
-function fixture(gameSpeed = 180) {
+function fixture(gameSpeed = 30) {
   const store = createMaterialFlowStore();
   const context: PackingContext = {
     order: {
@@ -86,13 +86,14 @@ describe('isolated packing advice', () => {
     expect(result.arms).toHaveLength(3);
     expect(result.arms.every((a) => a.genealogyErrorKg! < 0.01)).toBe(true);
   });
-  it('matches clock and real engine packed deltas at named default and teaching pace', () => {
-    for (const speed of [180, 30]) {
+  it('matches clock and real engine packed deltas at every pace, on one plant span', () => {
+    for (const speed of [30, 15, 120]) {
       const f = fixture(speed),
         capture = f.capture();
       expect(capture.reasonToAbstain).toBeNull();
       const advice = derivePackingAdvice(capture, 'steady');
-      expect(advice.physicalSeconds).toBe(5400 / speed);
+      // 90 workplace minutes are 180 plant seconds whatever the pace.
+      expect(advice.physicalSeconds).toBe(180);
       const manual = createMaterialFlowStore(capture.data);
       for (let t = 0; t < advice.physicalSeconds; t += 0.5)
         manual.getState().tickMaterialFlow(0.5, 0.78, {
@@ -114,15 +115,16 @@ describe('isolated packing advice', () => {
     }
   });
   it('splits five paid workplace minutes at the physical briefing boundary', () => {
-    const f = fixture(180),
+    const f = fixture(),
       capture = f.capture();
     const advice = derivePackingAdvice(capture, 'briefing');
     const manual = createMaterialFlowStore(capture.data);
-    const boundary = (5 * 60) / 180;
+    // Plant seconds: five briefing minutes are 10, the 90-minute shift 180.
+    const boundary = (5 * 60) / 30;
     let elapsed = 0;
-    while (elapsed < 30 - 1e-10) {
+    while (elapsed < 180 - 1e-10) {
       const pause = elapsed < boundary - 1e-10;
-      const delta = Math.min(0.5, 30 - elapsed, pause ? boundary - elapsed : Infinity);
+      const delta = Math.min(0.5, 180 - elapsed, pause ? boundary - elapsed : Infinity);
       manual.getState().tickMaterialFlow(delta, pause ? 0 : 0.9, {
         sourceMaterial: 'wheat_grain',
         finishedMaterial: 'flour',
@@ -130,7 +132,7 @@ describe('isolated packing advice', () => {
       });
       elapsed += delta;
     }
-    expect(manual.getState().simulationTime).toBeCloseTo((30 - boundary) * 0.9, 8);
+    expect(manual.getState().simulationTime).toBeCloseTo((180 - boundary) * 0.9, 8);
     const packed = manual
       .getState()
       .productionBatches.reduce((n, b) => n + (b.materialType === 'flour' ? b.producedKg : 0), 0);
@@ -390,7 +392,7 @@ describe('role-led captured evidence inspection', () => {
 
 describe('cooperative withheld-dispatch experiment', () => {
   it('uses real cloned flow for every pacing arm, withholds eligibility and leaves all live inputs intact', () => {
-    const f = fixture(180);
+    const f = fixture(120);
     const capture = f.capture();
     const inputBefore = cloneMaterialFlowData(f.store.getState());
     const singletonBefore = cloneMaterialFlowData(useMaterialFlowStore.getState());
@@ -445,7 +447,8 @@ describe('cooperative withheld-dispatch experiment', () => {
 
 describe('first additional packing observations', () => {
   it('matches first-output observations to the unchanged real-engine grids and saved advice', () => {
-    for (const speed of [180, 30]) {
+    // Plant time is game time / 30 at every pace, so both paces read the same.
+    for (const speed of [30, 120]) {
       const f = fixture(speed),
         capture = f.capture();
       const before = structuredClone(capture);
@@ -469,7 +472,7 @@ describe('first additional packing observations', () => {
                 0
               );
           const initial = packed();
-          const boundary = (advice.briefingMinutes * 60) / speed;
+          const boundary = (advice.briefingMinutes * 60) / 30;
           let elapsed = 0,
             first: number | null = null;
           while (elapsed < advice.physicalSeconds - 1e-10) {
@@ -484,7 +487,7 @@ describe('first additional packing observations', () => {
               remainingFinishedKg: capture.evidence.remainingOrderKg!,
             });
             elapsed += delta;
-            if (first === null && packed() > initial) first = (elapsed * speed) / 60;
+            if (first === null && packed() > initial) first = (elapsed * 30) / 60;
           }
           expect(observed).toBe(first);
           expect(observed).toBeGreaterThanOrEqual(advice.briefingMinutes);

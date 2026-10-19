@@ -633,7 +633,10 @@ export function validPackingAdvice(value: unknown): PackingAdvice | undefined {
     (a.reasonToAbstain !== null && (a.packedLowKg !== 0 || a.packedHighKg !== 0)) ||
     (a.reasonToAbstain === null &&
       (e.gameSpeed < 9 ||
-        Math.abs(a.physicalSeconds - 5400 / e.gameSpeed) > 1e-9 ||
+        // A 90-minute shift is one fixed plant span at every pace; advice
+        // saved under the old real-second model no longer matches and is
+        // re-derived rather than trusted.
+        Math.abs(a.physicalSeconds - plantSecondsForGameSeconds(5400)) > 1e-9 ||
         a.genealogyErrorKg === null ||
         a.genealogyErrorKg > 0.01 ||
         e.orderId === null ||
