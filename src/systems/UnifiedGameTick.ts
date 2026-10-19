@@ -975,6 +975,22 @@ function unifiedGameTick(ctx: TickContext): void {
     };
   }
 
+  // No open commitment (a programme is complete): a truck that loaded now
+  // would carry the line's stock-build output to no customer, with no order
+  // credit and no revenue, and the batches it took could never be credited to
+  // the next programme. It holds at the dock instead, never 'ready', so the
+  // yard keeps it docked until a programme opens a commitment. An empty cycle
+  // follows the live recipe, since it opened before there was one.
+  // Working if the stock built while waiting is still there to ship.
+  const commitmentHoldReason = activeProductionPlan ? null : translate(msg, 'noCommitmentToShip');
+  if (
+    shippingTransferReady &&
+    activeProductionPlan &&
+    _shippingLoad.loadedKg <= 1e-6 &&
+    _shippingLoad.materialType !== activeProductionPlan.finishedMaterial
+  )
+    _shippingLoad = { ..._shippingLoad, materialType: activeProductionPlan.finishedMaterial };
+
   if (shippingTransferReady) {
     const qualityStatus = getDispatchQualityStatus(
       useQCLabStore.getState().qcLab,
@@ -1008,7 +1024,9 @@ function unifiedGameTick(ctx: TickContext): void {
     const previousStatus = _shippingLoad.status;
     const previousBlockReason = _shippingLoad.blockReason;
 
-    if (qualityBlockReason) {
+    if (commitmentHoldReason) {
+      _shippingLoad = { ..._shippingLoad, status: 'held', blockReason: commitmentHoldReason };
+    } else if (qualityBlockReason) {
       _shippingLoad = { ..._shippingLoad, status: 'held', blockReason: qualityBlockReason };
     } else if (releasedKg <= _shippingLoad.loadedKg + 1e-6) {
       _shippingLoad = {
@@ -1044,21 +1062,32 @@ function unifiedGameTick(ctx: TickContext): void {
       _shippingLoad.status === 'held' &&
       (previousStatus !== 'held' || previousBlockReason !== _shippingLoad.blockReason)
     ) {
-      useUIStore.getState().addAlert({
-        id: `${qualityBlockReason ? 'dispatch-quality-hold' : 'dispatch-supply-wait'}-${_shippingLoad.cycleId}`,
-        type: qualityBlockReason ? 'warning' : 'info',
-        title: qualityBlockReason
-          ? translate(msg, 'dispatchQualityHoldTitle')
-          : translate(msg, 'shippingAwaitingProductTitle'),
-        message: qualityBlockReason
-          ? translate(msg, 'clearBeforeRelease', {
-              reason: qualityBlockReason,
-              rate: formatFixed(DEMURRAGE_COST_PER_HOUR, 2),
-            })
-          : (_shippingLoad.blockReason ?? translate(msg, 'waitingForProduct')),
-        timestamp: new Date(),
-        acknowledged: false,
-      });
+      useUIStore.getState().addAlert(
+        commitmentHoldReason
+          ? {
+              id: `dispatch-commitment-wait-${_shippingLoad.cycleId}`,
+              type: 'info',
+              title: translate(msg, 'shippingAwaitingProgrammeTitle'),
+              message: commitmentHoldReason,
+              timestamp: new Date(),
+              acknowledged: false,
+            }
+          : {
+              id: `${qualityBlockReason ? 'dispatch-quality-hold' : 'dispatch-supply-wait'}-${_shippingLoad.cycleId}`,
+              type: qualityBlockReason ? 'warning' : 'info',
+              title: qualityBlockReason
+                ? translate(msg, 'dispatchQualityHoldTitle')
+                : translate(msg, 'shippingAwaitingProductTitle'),
+              message: qualityBlockReason
+                ? translate(msg, 'clearBeforeRelease', {
+                    reason: qualityBlockReason,
+                    rate: formatFixed(DEMURRAGE_COST_PER_HOUR, 2),
+                  })
+                : (_shippingLoad.blockReason ?? translate(msg, 'waitingForProduct')),
+              timestamp: new Date(),
+              acknowledged: false,
+            }
+      );
     }
   }
   _lastShippingDepartureCount = shippingSchedule.departureCount;

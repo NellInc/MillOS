@@ -47,6 +47,9 @@ export const unifiedGameTickMessages = defineMessages({
       `Waiting for released ${p.material} at the packers.`,
     dispatchQualityHoldTitle: 'Dispatch Quality Hold',
     shippingAwaitingProductTitle: 'Shipping Awaiting Product',
+    shippingAwaitingProgrammeTitle: 'Shipping Waiting for a Programme',
+    noCommitmentToShip:
+      'No customer commitment is open, so packed stock stays in the warehouse for the next programme. Accept the next programme to load this truck.',
     clearBeforeRelease:
       '{reason} Clear the condition before release. While the truck waits at the dock it costs £{rate} per game hour.',
     waitingForProduct: 'Waiting for released product at the packers.',
@@ -83,6 +86,9 @@ export const unifiedGameTickMessages = defineMessages({
       `Aguardando ${PT_MATERIALS[p.material] ?? p.material} nas ensacadeiras.`,
     dispatchQualityHoldTitle: 'Retenção de qualidade na expedição',
     shippingAwaitingProductTitle: 'Expedição aguardando produto',
+    shippingAwaitingProgrammeTitle: 'Expedição aguardando um programa',
+    noCommitmentToShip:
+      'Nenhum compromisso com cliente está aberto, então o estoque ensacado fica no armazém para o próximo programa. Aceite o próximo programa para carregar este caminhão.',
     clearBeforeRelease:
       '{reason} Resolva a condição antes da liberação. Enquanto o caminhão espera na doca, o custo é de £{rate} por hora de jogo.',
     waitingForProduct: 'Aguardando produto liberado nas ensacadeiras.',

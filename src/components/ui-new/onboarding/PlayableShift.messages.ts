@@ -45,7 +45,7 @@ export const playableShiftMessages = defineMessages({
     currentOrder: 'Now: {customer}, {shipped} of {required} kg shipped. {due}.',
     programmeComplete: 'Programme complete, review your shift',
     programmeCompleteDetail:
-      'The shift debrief shows this shift so far: each delivery, whether it was on time, what held the grade back and what to try next. Then choose the next commitments.',
+      'The shift debrief shows this shift so far: each delivery, whether it was on time, what held the grade back and what to try next. Then choose the next commitments. Until you do, the line builds stock and the shipping truck waits at the dock, so the stock is there for the next programme.',
     reviewShiftProgramme: 'Review shift and next programme',
     receiptAndLearning: 'Delivery receipt and learning',
     expandGuide: 'Expand delivery guide',
@@ -175,7 +175,7 @@ export const playableShiftMessages = defineMessages({
     currentOrder: 'Agora: {customer}, {shipped} de {required} kg expedidos. {due}.',
     programmeComplete: 'Programa concluído, revise seu turno',
     programmeCompleteDetail:
-      'O balanço do turno mostra este turno até agora: cada entrega, se chegou no prazo, o que impediu uma nota melhor e o que tentar a seguir. Depois escolha os próximos compromissos.',
+      'O balanço do turno mostra este turno até agora: cada entrega, se chegou no prazo, o que impediu uma nota melhor e o que tentar a seguir. Depois escolha os próximos compromissos. Até lá, a linha forma estoque e o caminhão de expedição espera na doca, então o estoque fica para o próximo programa.',
     reviewShiftProgramme: 'Revisar o turno e o próximo programa',
     receiptAndLearning: 'Comprovante da entrega e aprendizado',
     expandGuide: 'Expandir o guia de entrega',
