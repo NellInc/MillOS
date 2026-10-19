@@ -344,12 +344,38 @@ const PRODUCT_BATCH_TARGET_KG = 1000;
 // millfeed system whenever its co-product bin reaches this level. Without the
 // outlet they filled the mill's output buffer and stopped the line for good.
 const MILLFEED_DISCHARGE_KG = 500;
+// The process log is an in-memory diagnostic window (about four plant minutes
+// at this rate); the physical save does not carry it. Batch traces read each
+// batch's own contributions instead.
 const MAX_PROCESS_GENEALOGY_RECORDS = 500;
-export const MAX_MATERIAL_MANIFESTS = 200;
-const MAX_PRODUCTION_BATCHES = 500;
+// Retained history windows. Each record carries lot contributions (~1.4 K chars),
+// and the physical save must fit its 1.5 M-char gate with the rest of the shift.
+// The panels show the newest 3 manifests and 4 settled batches; the campaign's
+// processed-receipt window follows the manifest window.
+export const MAX_MATERIAL_MANIFESTS = 32;
+/**
+ * Shipped batches retained as dispatch history. Only shipped batches are ever
+ * dropped, oldest first: stock, holds and recalls stay until they settle, and
+ * are bounded by packer capacity and the controller's own dispositions.
+ */
+export const MAX_PRODUCTION_BATCHES = 32;
+export function retainShippedBatchWindow<T extends { disposition: MaterialDisposition }>(
+  batches: T[]
+): T[] {
+  let toDrop = batches.filter((batch) => batch.disposition === 'shipped').length;
+  toDrop -= MAX_PRODUCTION_BATCHES;
+  if (toDrop <= 0) return batches;
+  return batches.filter((batch) => {
+    if (toDrop > 0 && batch.disposition === 'shipped') {
+      toDrop -= 1;
+      return false;
+    }
+    return true;
+  });
+}
 const newMaterialSessionId = (): string =>
   globalThis.crypto?.randomUUID?.() ?? `flow-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-const MAX_SOURCE_LOTS = 1000;
+export const MAX_SOURCE_LOTS = 1000;
 
 function contributionKey(contribution: SourceContribution): string {
   return `${contribution.lotId}|${contribution.path.join('>')}`;
@@ -1328,6 +1354,11 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
           // spaceOnConveyor hit 0 and the belt stalled PERMANENTLY (and the
           // rejected material was silently destroyed). With the re-queue, a
           // jammed belt backs up and then recovers once downstream drains.
+          // A full destination rejects every arriving parcel; their remainders
+          // wait at the belt end together, so this tick's retries of one type
+          // share one parcel. Without that a jammed belt re-queued one parcel
+          // per tick and an idle plant's save grew by ~3 K chars per game hour.
+          const retries = new Map<MaterialType, ConveyorSegment['inTransit'][number]>();
           arrivedMaterial.forEach((arrived) => {
             const totalInput = toBuffer.inputBuffer.reduce((sum, m) => sum + m.amount, 0);
             const spaceAvailable = toBuffer.inputCapacity - totalInput;
@@ -1359,15 +1390,27 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
             if (remainder > GENEALOGY_EPSILON_KG) {
               // Destination full: keep the remainder on the belt (currentLoad
               // still includes it) and retry in 1s of sim time.
-              segment.inTransit.push({
-                amount: remainder,
-                arrivalTime: newTime + 1,
-                type: arrived.type,
-                sourceContributions: scaleSourceContributions(
-                  arrived.sourceContributions,
-                  arrived.amount > 0 ? remainder / arrived.amount : 0
-                ),
-              });
+              const remainderContributions = scaleSourceContributions(
+                arrived.sourceContributions,
+                arrived.amount > 0 ? remainder / arrived.amount : 0
+              );
+              const retry = retries.get(arrived.type);
+              if (retry) {
+                retry.amount += remainder;
+                retry.sourceContributions = mergeSourceContributions(
+                  retry.sourceContributions,
+                  remainderContributions
+                );
+              } else {
+                const parcel = {
+                  amount: remainder,
+                  arrivalTime: newTime + 1,
+                  type: arrived.type,
+                  sourceContributions: remainderContributions,
+                };
+                retries.set(arrived.type, parcel);
+                segment.inTransit.push(parcel);
+              }
             }
           });
 
@@ -1454,17 +1497,7 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
           );
         });
 
-        let batchesToDrop = Math.max(0, productionBatches.length - MAX_PRODUCTION_BATCHES);
-        const boundedProductionBatches =
-          batchesToDrop > 0
-            ? productionBatches.filter((batch) => {
-                if (batchesToDrop > 0 && batch.disposition === 'shipped') {
-                  batchesToDrop -= 1;
-                  return false;
-                }
-                return true;
-              })
-            : productionBatches;
+        const boundedProductionBatches = retainShippedBatchWindow(productionBatches);
 
         set({
           machineBuffers: newBuffers,
@@ -1623,10 +1656,18 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
           disposition: 'released',
           dispositionReason: null,
         });
-        while (sourceLots.size > MAX_SOURCE_LOTS) {
-          const oldestLotId = sourceLots.keys().next().value as string | undefined;
-          if (!oldestLotId) break;
-          sourceLots.delete(oldestLotId);
+        // Evict the oldest released lots only. A held or recalled lot is bound
+        // by its quality alert, and the save rejects an open alert whose lot is
+        // missing ('Unbound source hold'), so it stays until it is released,
+        // as held and recalled batches do; those are bounded by QC actions.
+        if (sourceLots.size > MAX_SOURCE_LOTS) {
+          let excess = sourceLots.size - MAX_SOURCE_LOTS;
+          for (const [id, lot] of sourceLots) {
+            if (excess <= 0) break;
+            if (lot.disposition !== 'released') continue;
+            sourceLots.delete(id);
+            excess -= 1;
+          }
         }
         set({
           machineBuffers: newBuffers,
