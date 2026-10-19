@@ -403,10 +403,20 @@ card; bell "1 unread" = the wear warning, achievements listed but not unread; Op
 lands on Maintenance and repairs; bar 49 px, clock unobstructed with the panel open (EN,
 pt-BR); pt-BR reload keeps the review and says "Motivo: …"; 0 console errors.
 
-**Final gate (vs baseline):** typecheck/agent:typecheck/lint/format/manifest 0; vitest
-3,754 pass, 28 skipped, the same 5 `assets/source` ENOENT fails, nothing new; build and
-the five validators 0; dist deleted. **e2e 2/2** (AI Partner failed once at load 25 on its
-60 s boot wait, passed alone at 49.5 s).
+**Final gate (vs baseline):** typecheck/agent:typecheck/lint/format 0; agent:manifest:check
+0 after regenerating the gitignored inventory (it read stale at first, as in every gate
+here); vitest 3,754 pass, 28 skipped, the same 5 `assets/source` ENOENT fails, nothing
+new; build and the five validators 0; dist deleted. **e2e: both pass, in two runs on the
+final tree** (master refinement passed in the full-suite run where AI Partner timed out
+on its 60 s boot wait at load 25; AI Partner then passed alone at 49.5 s).
+
+**In pixels vs tests only.** Seen in a browser on the final build: the items listed above.
+Unit-tested only, never seen in a browser: D's repair countdown ("Service unit at work: N
+min left"; no breakdown occurs in a run), E's pace buttons under a handoff hold, E's close-
+experiment button, E's leave message in the debrief, F's follow-on replacement notice, F's
+incident in an ungraded review. The 7.5-minute standard-pace narrative run (orders 1–2,
+changeover, Truck 1 of 2) was on the pre-round-2 build; final-build runs used 1x briefly,
+then 4x.
 
 ### What remains (3 need Nell, 4 recorded)
 
