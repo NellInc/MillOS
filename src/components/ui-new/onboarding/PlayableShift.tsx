@@ -1027,6 +1027,14 @@ export function ShiftDebrief() {
   const provisional = selectProvisionalShiftReport(open);
   // The shift label, not the clock: this re-renders three times a day, not every tick.
   const currentShift = useGameSimulationStore((s) => s.currentShift);
+  // Leaving unmounts the summary that holds the Leave button, so its message
+  // lives here, as on the play card, until another season starts.
+  // Working if the debrief says the season was left and what it kept.
+  const [leftMessage, setLeftMessage] = useState<string | null>(null);
+  const seasonOpen = !!workplace.campaign;
+  useEffect(() => {
+    if (seasonOpen) setLeftMessage(null);
+  }, [seasonOpen]);
   return (
     <section aria-label={t('savedReports')} className={CARD}>
       <h3 className="font-semibold text-white">{t('shiftDebrief')}</h3>
@@ -1058,7 +1066,12 @@ export function ShiftDebrief() {
           )}
         </>
       )}
-      <WorkingAgreementSummary state={workplace} />
+      <WorkingAgreementSummary state={workplace} onLeft={setLeftMessage} />
+      {leftMessage && (
+        <p role="status" className="mt-2 text-xs text-amber-200">
+          {leftMessage}
+        </p>
+      )}
       <button
         className={`${BUTTON} mt-3`}
         disabled={!canNext || reviewPending}

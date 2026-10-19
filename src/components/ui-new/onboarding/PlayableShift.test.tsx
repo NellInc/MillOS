@@ -19,6 +19,7 @@ import {
   requiredChecks,
   WORKPLACE_CHECKS,
 } from '../../../simulation/workplaceCampaign';
+import { setLocale } from '../../../i18n';
 import { MachineType } from '../../../types';
 import type { MachineData } from '../../../types';
 import type { OperationalIncident } from '../../../stores/operationsCampaignStore';
@@ -924,3 +925,30 @@ it('leaves a linked season from the play card, keeping its receipts and reopenin
   expect(useWorkplaceAutoplay.getState()).toMatchObject({ running: false, manual: true });
   expect(useGameSimulationStore.getState().gameSpeed).toBe(30);
 });
+
+it.each([
+  ['en', 'Season left early at shift 1 of 3. Its pay, recovery and receipts are kept'],
+  ['pt-BR', 'Temporada encerrada antes do fim no turno 1 de 3. A remuneração'],
+] as const)(
+  'says in the shift debrief (%s) that the season was left and what it kept',
+  (locale, said) => {
+    try {
+      setLocale(locale);
+      useWorkplaceStore.setState({ leftCampaigns: [] });
+      expect(useWorkplaceStore.getState().startMission('toe-dip').changed).toBe(true);
+      render(<ShiftDebrief />);
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: locale === 'en' ? 'Leave this season' : 'Sair desta temporada',
+        })
+      );
+      expect(useWorkplaceStore.getState().workplace.campaign).toBeNull();
+      expect(screen.getByRole('status')).toHaveTextContent(said);
+      expect(
+        screen.queryByRole('button', { name: /Leave this season|Sair desta temporada/ })
+      ).not.toBeInTheDocument();
+    } finally {
+      setLocale('en');
+    }
+  }
+);
