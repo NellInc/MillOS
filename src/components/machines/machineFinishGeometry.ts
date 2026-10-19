@@ -300,7 +300,9 @@ function millGuard(): THREE.BufferGeometry {
   }
   castCover(parts, [2.425, 2.65, 0], [0.08, 1.92, 3.04]);
   castCover(parts, [2.4, 1.66, MILL_DRIVE_Z], [0.21, 1.63, 1.58]);
-  box(parts, [3.02, 0.08, MILL_DRIVE_Z], [1.5, 0.16, 1.55]);
+  // Motor base plate, 0.18 m: at 0.16 its top lay flush with the milling
+  // plinth's and the two z-fought over the plate's full 2.3 m^2.
+  box(parts, [3.02, 0.09, MILL_DRIVE_Z], [1.5, 0.18, 1.55]);
   for (const x of [2.65, 3.35]) box(parts, [x, 0.58, MILL_DRIVE_Z], [0.22, 0.84, 1.12]);
   for (const centre of MILL_INSPECTION_COVERS) cylinder(parts, centre, 0.31, 0.12, 'x', 16);
   // The terminal base overlaps the fixed motor by20mm at rest, retaining

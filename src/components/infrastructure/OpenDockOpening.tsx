@@ -454,11 +454,15 @@ export const OpenDockOpening: React.FC<OpenDockOpeningProps> = ({
               castShadow
             />
           ))}
+          {/* Fascia along the hood's inboard edge. It stands 1 cm above and
+              2 cm beyond the hood slab: at (0, -0.05, -3.9) its top and its
+              -z face were flush with the slab's, two coplanar pairs the full
+              width of the opening. */}
           <mesh
             geometry={UNIT_BOX}
             material={MATERIALS.trim}
             scale={[width + 4.2, 0.3, 0.2]}
-            position={[0, -0.05, -3.9]}
+            position={[0, -0.04, -3.92]}
           />
         </group>
       )}
