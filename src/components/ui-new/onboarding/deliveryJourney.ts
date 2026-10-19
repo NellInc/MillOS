@@ -4,6 +4,7 @@ import type {
   OrderExecutionState,
 } from '../../../stores/operationsCampaignStore';
 import { formatFixed, translate } from '../../../i18n';
+import { dispatchBlockText } from '../../../stores/dispatchBlockText';
 import { deliveryJourneyMessages as m } from './deliveryJourney.messages';
 
 interface DeliveryJourney {
@@ -181,7 +182,7 @@ export function deriveDeliveryJourney(
   const tripStatus = deriveTripStatus(order, load, truck);
   if (execution.stage === 'ready_to_load') {
     const waiting =
-      load.blockReason ??
+      dispatchBlockText(load) ??
       translate(m, 'releasedWaiting', {
         kg: formatFixed(execution.releasedFinishedKg, 0),
         product,
@@ -196,7 +197,7 @@ export function deriveDeliveryJourney(
   }
   if (execution.stage === 'loading' || execution.stage === 'ready_to_dispatch') {
     const step =
-      load.blockReason ??
+      dispatchBlockText(load) ??
       translate(m, execution.stage === 'loading' ? 'loadingDetail' : 'readyToDepartDetail');
     return {
       title: translate(m, execution.stage === 'loading' ? 'loadingTitle' : 'readyToDepartTitle'),

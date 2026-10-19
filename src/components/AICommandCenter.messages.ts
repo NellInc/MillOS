@@ -1,4 +1,4 @@
-import { defineMessages } from '../i18n';
+import { defineMessages, upperFirst } from '../i18n';
 
 const PT_WEATHER: Record<string, string> = {
   clear: 'céu limpo',
@@ -90,8 +90,8 @@ export const aiCommandCenterMessages = defineMessages({
     sessionCost: '{cost} estim.',
     noApiCost: 'SEM CUSTO DE API',
     egressDrill: 'VERIFICAÇÃO DAS ROTAS DE SAÍDA EM ANDAMENTO',
-    weather: (p: { value: string }) => PT_WEATHER[p.value] ?? p.value,
-    runWindow: (p: { value: string }) => `período: ${PT_RUN_WINDOW[p.value] ?? p.value}`,
+    weather: (p: { value: string }) => upperFirst(PT_WEATHER[p.value] ?? p.value),
+    runWindow: (p: { value: string }) => `Período: ${PT_RUN_WINDOW[p.value] ?? p.value}`,
     efficiency: 'Efic.: {value}%',
     tabsLabel: 'Visões do parceiro de IA',
     tabDecisions: 'Decisões ({count})',

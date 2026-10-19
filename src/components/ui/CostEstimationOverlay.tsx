@@ -9,11 +9,12 @@ import React, { useRef } from 'react';
 import { motion } from 'framer-motion';
 import { DollarSign, Zap, Brain, TrendingUp, GripVertical } from 'lucide-react';
 import { getActiveCloudPricing, useAIConfigStore } from '../../stores/aiConfigStore';
-import { formatFixed, useT } from '../../i18n';
+import { capitalizeIn, formatFixed, useLocale, useT } from '../../i18n';
 import { costEstimationOverlayMessages } from './CostEstimationOverlay.messages';
 
 export const CostEstimationOverlay: React.FC = () => {
   const t = useT(costEstimationOverlayMessages);
+  const locale = useLocale();
   const showCostOverlay = useAIConfigStore((state) => state.showCostOverlay);
   const llmBackend = useAIConfigStore((state) => state.llmBackend);
   const connectedProviders = useAIConfigStore((state) => state.connectedProviders);
@@ -109,7 +110,7 @@ export const CostEstimationOverlay: React.FC = () => {
             </div>
             <div className="flex items-center gap-1">
               <Brain className="w-3 h-3 text-purple-400" />
-              <span className="text-[10px] text-purple-300 capitalize">
+              <span className={`text-[10px] text-purple-300 ${capitalizeIn(locale)}`}>
                 {t('aiMode', { mode: aiMode })}
               </span>
             </div>

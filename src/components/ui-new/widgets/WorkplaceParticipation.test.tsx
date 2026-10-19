@@ -112,6 +112,53 @@ it('shows outstanding individual debt without optional preference reasons', () =
   expect(screen.queryByText('PRIVATE')).not.toBeInTheDocument();
 });
 
+it('names qualified and current tasks in Portuguese on the fairness receipts', () => {
+  setLocale('pt-BR');
+  try {
+    useWorkplaceStore.setState({ workplace: createWorkplace() });
+    const { container } = render(<WorkplaceFairness />);
+    expect(container).toHaveTextContent(
+      'Tarefas habilitadas: Ensaque, Conferência de paletes. Tarefa atual: Ensaque.'
+    );
+    expect(container).not.toHaveTextContent(/Pallet checks|Quality release|Sampling/);
+  } finally {
+    setLocale('en');
+  }
+});
+it('renames fairness receipts when the language changes after the workplace was created', () => {
+  useWorkplaceStore.setState({ workplace: createWorkplace() });
+  setLocale('pt-BR');
+  try {
+    render(<WorkplaceFairness />);
+    fireEvent.click(screen.getByText('Comprovantes individuais de equidade'));
+    expect(screen.getByLabelText('Equidade: Ensaque')).toBeInTheDocument();
+    expect(useWorkplaceStore.getState().workplace.members.map((m) => m.role)).toEqual([
+      'Ensaque',
+      'Qualidade',
+      'Manutenção',
+      'Coordenação',
+    ]);
+  } finally {
+    setLocale('en');
+  }
+  expect(useWorkplaceStore.getState().workplace.members[0].role).toBe('Packing');
+});
+it('keeps an open participant turn across a language switch', () => {
+  const store = useWorkplaceStore.getState();
+  store.setParticipationMode('separate-turns');
+  store.start('workshop');
+  store.startTurn('packing');
+  const token = useWorkplaceStore.getState().turn!.token;
+  setLocale('pt-BR');
+  try {
+    expect(useWorkplaceStore.getState().workplace.members[0].role).toBe('Ensaque');
+    expect(useWorkplaceStore.getState().turn?.token).toBe(token);
+    expect(useWorkplaceStore.getState().turn?.anchor).toBe(useWorkplaceStore.getState().workplace);
+  } finally {
+    setLocale('en');
+  }
+  expect(useWorkplaceStore.getState().turn?.token).toBe(token);
+});
 it('reuses the existing workshop recovery control beside individual receipts', () => {
   const s = createWorkplace('workshop');
   s.phase = 'review';

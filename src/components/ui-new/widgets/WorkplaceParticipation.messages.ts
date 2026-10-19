@@ -1,4 +1,5 @@
 import { defineMessages } from '../../../i18n';
+import { PT_TASK } from './WorkplaceLab.messages';
 
 /** pt-BR label for a logic value; an unknown value falls back to itself. */
 const pick = (labels: Record<string, string>, value: string): string => labels[value] ?? value;
@@ -58,6 +59,8 @@ export const workplaceParticipationMessages = defineMessages({
       'Illustrative credits and modeled minutes. Earned pay includes member distributions; extra-duty compensation is separate. Current reservations are earmarked funds, awaiting work.',
     fairnessLabel: 'Fairness: {role}',
     qualifiedTasks: 'Qualified tasks: {tasks}. Current task: {task}.',
+    // Task names are logic values (bilateralWorkplace); English shows them as-is.
+    taskLabel: (p: { task: string }) => p.task,
     dutyLine:
       'Current optional duty: {duty}. {extra} extra minutes across {shifts} shifts; {earlier} earlier minutes.',
     dutyNoDecision: 'no decision',
@@ -166,6 +169,7 @@ export const workplaceParticipationMessages = defineMessages({
       'Créditos ilustrativos e minutos modelados. A remuneração conquistada inclui as distribuições aos cooperados; a compensação por trabalho extra é separada. As reservas atuais são fundos destinados, aguardando o trabalho.',
     fairnessLabel: 'Equidade: {role}',
     qualifiedTasks: 'Tarefas habilitadas: {tasks}. Tarefa atual: {task}.',
+    taskLabel: (p: { task: string }) => pick(PT_TASK, p.task),
     dutyLine:
       'Trabalho opcional atual: {duty}. {extra} minutos extras em {shifts} turnos; {earlier} minutos anteriores.',
     dutyNoDecision: 'sem decisão',

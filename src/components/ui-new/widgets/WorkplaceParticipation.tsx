@@ -254,7 +254,12 @@ export function WorkplaceFairness() {
           className="space-y-1 border-t border-slate-800 py-3"
         >
           <h5 className="font-semibold text-white">{r.role}</h5>
-          <p>{t('qualifiedTasks', { tasks: r.qualifiedTasks.join(', '), task: r.currentTask })}</p>
+          <p>
+            {t('qualifiedTasks', {
+              tasks: r.qualifiedTasks.map((task) => t('taskLabel', { task })).join(', '),
+              task: t('taskLabel', { task: r.currentTask }),
+            })}
+          </p>
           <p>
             {t('dutyLine', {
               duty:

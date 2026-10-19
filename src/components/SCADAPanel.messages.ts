@@ -1,4 +1,6 @@
-import { defineMessages } from '../i18n';
+import { defineMessages, upperFirst } from '../i18n';
+import { PT_PHASE } from './ui/PredictiveMaintenancePanel.messages';
+import { PT_DISPOSITION, PT_MATERIAL } from './ui-new/panels/OverviewPanel.messages';
 
 const PT_ASSET_STATUS: Record<string, string> = {
   critical: 'crítico',
@@ -36,6 +38,48 @@ const PT_INCIDENT_PHASE: Record<string, string> = {
   mitigated: 'mitigada',
   resolved: 'resolvida',
 };
+
+// Plant-state enums shown as values. English renders the raw value (CSS
+// capitalize in English only); pt-BR renders sentence case from here.
+/* Same wording as MobilePanel.messages stage* keys. */
+const PT_FULFILLMENT_STAGE: Record<string, string> = {
+  planning: 'planejamento',
+  milling: 'moagem',
+  quality_hold: 'retenção de qualidade',
+  ready_to_load: 'pronto para carregar',
+  loading: 'carregando',
+  ready_to_dispatch: 'pronto para expedir',
+  dispatched: 'expedido',
+  fulfilled: 'atendido',
+};
+
+const PT_QUALITY_ACTION: Record<string, string> = {
+  hold: 'retenção',
+  test: 'teste',
+  retest: 'reteste',
+  release: 'liberação',
+  recall: 'recolhimento',
+};
+
+const PT_DISPATCH_STATUS: Record<string, string> = {
+  away: 'fora da doca',
+  loading: 'carregando',
+  held: 'retido',
+  ready: 'pronto',
+  departed: 'saiu',
+};
+
+// ISA-18.2 dispositions; uppercase like the English, matching the Engavetar /
+// Suprimir / fora de serviço buttons.
+const PT_ALARM_DISPOSITION: Record<string, string> = {
+  SHELVED: 'ENGAVETADO',
+  SUPPRESSED: 'SUPRIMIDO',
+  OUT_OF_SERVICE: 'FORA DE SERVIÇO',
+};
+
+const spaced = (value: string): string => value.replaceAll('_', ' ');
+const ptValue = (labels: Record<string, string>, value: string): string =>
+  labels[value] ?? spaced(value);
 
 // Spoken aria text only; the visible quality codes (GOOD, BAD...) stay as codes.
 const PT_SIGNAL_QUALITY: Record<string, string> = {
@@ -136,7 +180,9 @@ export const scadaPanelMessages = defineMessages({
     noDockManifest: 'no dock manifest',
     maintenanceProvenance: 'Maintenance provenance',
     noOpenWorkOrder: 'no open work order',
-    workOrderPhase: '{phase}, autonomous service',
+    workOrderPhase: (p: { phase: string }) => `${spaced(p.phase)}, autonomous service`,
+    batchDisposition: (p: { value: string }) => p.value,
+    qualityAction: (p: { value: string }) => p.value,
     qualityProvenance: 'Quality provenance',
     noDispositionAction: 'no disposition action',
     operationsCommitments: 'Operations commitments',
@@ -153,8 +199,11 @@ export const scadaPanelMessages = defineMessages({
     topConstraint: 'Top constraint',
     noActiveConstraint: 'No active constraint',
     planUnconstrained: 'Plan is unconstrained',
+    executionStage: (p: { value: string }) => spaced(p.value),
     recipeRoute: 'Recipe route',
     noSource: 'no source',
+    sourceMaterial: (p: { value: string }) => spaced(p.value),
+    productName: (p: { value: string }) => spaced(p.value),
     toProduct: 'to {product}',
     noProduct: 'no product',
     qualityGate: 'Quality gate',
@@ -162,6 +211,7 @@ export const scadaPanelMessages = defineMessages({
     held: 'Held',
     kgDispatchable: '{kg} kg dispatchable',
     truckLoad: 'Truck load',
+    dispatchStatus: (p: { value: string }) => p.value,
     utilityHeading: 'Utility vessel telemetry',
     utilityBody: 'Historian-linked instruments for the visible tank farm and LPG compound.',
     assetLevelAria: (p: { status: string; quality: string }) =>
@@ -212,6 +262,7 @@ export const scadaPanelMessages = defineMessages({
     alarmPriority: (p: { value: string }) => p.value,
     // SCADAMode and FaultType codes render as-is in English.
     modeName: (p: { value: string }) => p.value,
+    modeHeading: (p: { value: string }) => p.value,
     faultName: (p: { value: string }) => p.value,
     incidentTitle: (p: { phase: string; description: string }) => `${p.phase}: ${p.description}`,
     shelveAria: 'Shelve {tag} alarm for 15 minutes',
@@ -230,6 +281,7 @@ export const scadaPanelMessages = defineMessages({
     awaitingAcknowledgement: 'Awaiting acknowledgement',
     noteField: 'Note: {note}',
     suppressedHeading: 'Shelved, suppressed, or out of service',
+    alarmDisposition: (p: { value: string }) => spaced(p.value),
     suppressedEntry: '{tag}: {disposition} by {who}. {reason}',
     suppressedUntil: ' Until {time}.',
     restoreToService: 'Restore to service',
@@ -427,7 +479,10 @@ export const scadaPanelMessages = defineMessages({
     noDockManifest: 'sem romaneio de doca',
     maintenanceProvenance: 'Rastreabilidade da manutenção',
     noOpenWorkOrder: 'nenhuma ordem de serviço aberta',
-    workOrderPhase: '{phase}, serviço autônomo',
+    workOrderPhase: (p: { phase: string }) =>
+      `${upperFirst(ptValue(PT_PHASE, p.phase))}, serviço autônomo`,
+    batchDisposition: (p: { value: string }) => upperFirst(ptValue(PT_DISPOSITION, p.value)),
+    qualityAction: (p: { value: string }) => upperFirst(ptValue(PT_QUALITY_ACTION, p.value)),
     qualityProvenance: 'Rastreabilidade da qualidade',
     noDispositionAction: 'nenhuma ação de destinação',
     operationsCommitments: 'Compromissos operacionais',
@@ -444,8 +499,11 @@ export const scadaPanelMessages = defineMessages({
     topConstraint: 'Principal restrição',
     noActiveConstraint: 'Nenhuma restrição ativa',
     planUnconstrained: 'O plano não tem restrições',
+    executionStage: (p: { value: string }) => upperFirst(ptValue(PT_FULFILLMENT_STAGE, p.value)),
     recipeRoute: 'Rota da receita',
     noSource: 'sem origem',
+    sourceMaterial: (p: { value: string }) => upperFirst(ptValue(PT_MATERIAL, p.value)),
+    productName: (p: { value: string }) => ptValue(PT_MATERIAL, p.value),
     toProduct: 'para {product}',
     noProduct: 'sem produto',
     qualityGate: 'Liberação de qualidade',
@@ -453,6 +511,7 @@ export const scadaPanelMessages = defineMessages({
     held: 'Retido',
     kgDispatchable: '{kg} kg liberados para expedição',
     truckLoad: 'Carga do caminhão',
+    dispatchStatus: (p: { value: string }) => upperFirst(ptValue(PT_DISPATCH_STATUS, p.value)),
     utilityHeading: 'Telemetria dos tanques de utilidades',
     utilityBody:
       'Instrumentos vinculados ao histórico para o parque de tanques visível e a área de GLP.',
@@ -501,6 +560,7 @@ export const scadaPanelMessages = defineMessages({
     stateNormal: 'Normalizado',
     alarmPriority: (p: { value: string }) => PT_ALARM_PRIORITY[p.value] ?? p.value,
     modeName: (p: { value: string }) => PT_SCADA_MODE[p.value] ?? p.value,
+    modeHeading: (p: { value: string }) => upperFirst(PT_SCADA_MODE[p.value] ?? p.value),
     faultName: (p: { value: string }) => PT_FAULT_TYPE[p.value] ?? p.value,
     incidentTitle: (p: { phase: string; description: string }) =>
       `${PT_INCIDENT_PHASE[p.phase] ?? p.phase}: ${p.description}`,
@@ -520,6 +580,7 @@ export const scadaPanelMessages = defineMessages({
     awaitingAcknowledgement: 'Aguardando reconhecimento',
     noteField: 'Nota: {note}',
     suppressedHeading: 'Engavetados, suprimidos ou fora de serviço',
+    alarmDisposition: (p: { value: string }) => ptValue(PT_ALARM_DISPOSITION, p.value),
     suppressedEntry: '{tag}: {disposition} por {who}. {reason}',
     suppressedUntil: ' Até {time}.',
     restoreToService: 'Recolocar em serviço',
@@ -538,8 +599,8 @@ export const scadaPanelMessages = defineMessages({
     duration24h: '24h',
     tagsSelected: '{count}/6 tags selecionadas',
     trendView: 'Visualização da tendência',
-    viewChart: 'gráfico',
-    viewTable: 'tabela',
+    viewChart: 'Gráfico',
+    viewTable: 'Tabela',
     refresh: 'Atualizar',
     resume: 'Retomar',
     pause: 'Pausar',
@@ -576,11 +637,11 @@ export const scadaPanelMessages = defineMessages({
 
     simulationLabBanner:
       'Somente simulação de treinamento. As falhas injetadas afetam a telemetria e os alarmes simulados; elas não controlam equipamentos físicos.',
-    faultSensorFail: 'falha de sensor',
-    faultSpike: 'pico',
-    faultDrift: 'deriva',
-    faultStuck: 'travado',
-    faultNoise: 'ruído',
+    faultSensorFail: 'Falha de sensor',
+    faultSpike: 'Pico',
+    faultDrift: 'Deriva',
+    faultStuck: 'Travado',
+    faultNoise: 'Ruído',
     faultSensorFailDescription: 'Simula falha de sensor (qualidade BAD)',
     faultSpikeDescription: 'Pico repentino do valor até perto do máximo',
     faultDriftDescription: 'Deriva acelerada do valor ao longo do tempo',

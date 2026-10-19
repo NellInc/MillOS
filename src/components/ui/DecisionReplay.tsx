@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { AIDecision } from '../../types';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
-import { useLocale, useT } from '../../i18n';
+import { capitalizeIn, formatFixed, useLocale, useT } from '../../i18n';
 import { decisionReplayMessages } from './DecisionReplay.messages';
 
 interface DecisionReplayProps {
@@ -283,7 +283,7 @@ export const DecisionReplay: React.FC<DecisionReplayProps> = ({ decision, onClos
               </h3>
               {decision.response ? (
                 <div className="space-y-1">
-                  <p className="text-xs font-medium capitalize text-slate-200">
+                  <p className={`text-xs font-medium ${capitalizeIn(locale)} text-slate-200`}>
                     {t('disposition', { value: decision.response.disposition })}
                   </p>
                   {decision.response.note && (
@@ -315,8 +315,14 @@ export const DecisionReplay: React.FC<DecisionReplayProps> = ({ decision, onClos
                   <dl className="grid grid-cols-2 gap-2">
                     {Object.entries(decision.measuredOutcome.measurements).map(([label, value]) => (
                       <div key={label} className="rounded bg-slate-950/35 p-2">
-                        <dt className="text-[9px] capitalize text-slate-500">{label}</dt>
-                        <dd className="font-mono text-[10px] text-slate-200">{String(value)}</dd>
+                        <dt className={`text-[9px] ${capitalizeIn(locale)} text-slate-500`}>
+                          {t('measurementLabel', { key: label })}
+                        </dt>
+                        <dd className="font-mono text-[10px] text-slate-200">
+                          {typeof value === 'number'
+                            ? formatFixed(value, Number.isInteger(value) ? 0 : 1)
+                            : String(value)}
+                        </dd>
                       </div>
                     ))}
                   </dl>

@@ -27,6 +27,7 @@ import { suspendResourcePersistence } from '../../../utils/resourcePersistence';
 import { AUDIO_SETTINGS_KEY } from '../../../utils/audioManager';
 import { LOCALE_STORAGE_KEY, formatFixed, useT } from '../../../i18n';
 import { LanguageSwitcher } from '../../../i18n/LanguageSwitcher';
+import { formatTime } from '../../../utils/timeFormatting';
 import { useShallow } from 'zustand/react/shallow';
 // Import optimized audio hook (uses useSyncExternalStore instead of forceUpdate)
 import { useAudioStateWithControls as useAudioState } from '../../../hooks/useAudioState';
@@ -352,10 +353,7 @@ export const SettingsPanel: React.FC<{
                       <div className="mb-1 flex items-center justify-between gap-2 text-[9px] uppercase tracking-wider text-slate-500">
                         <span>{t('paChannel', { channel: announcement.channel })}</span>
                         <time dateTime={announcement.timestamp.toISOString()}>
-                          {announcement.timestamp.toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
+                          {formatTime(announcement.timestamp)}
                         </time>
                       </div>
                       <p className="text-[11px] leading-4 text-slate-300">{announcement.message}</p>

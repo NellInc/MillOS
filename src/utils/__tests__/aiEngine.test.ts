@@ -34,6 +34,7 @@ import { cloudAIClient, type CloudResult } from '../cloudAIClient';
 import { SpendCapError } from '../spendBudget';
 import { webgpuClient } from '../webgpuClient';
 import { MachineType, AIDecision } from '../../types';
+import { setLocale } from '../../i18n';
 
 // Mock the store
 vi.mock('../../stores/productionStore', () => ({
@@ -773,6 +774,36 @@ describe('aiEngine - Core Functions', () => {
       expect(useAIConfigStore.getState().aiMode).toBe('heuristic');
       expect(isTacticalLayerActive()).toBe(true);
       expect(useAIConfigStore.getState().connectionError).toMatch(/cap reached/);
+    });
+
+    it('asks for Brazilian Portuguese text when the player reads pt-BR, on every backend', async () => {
+      configureStrategicLayer();
+      vi.spyOn(cloudAIClient, 'hasKey').mockReturnValue(true);
+      const cloudGenerate = vi
+        .spyOn(cloudAIClient, 'generateContent')
+        .mockResolvedValue(cloud('{"priorities":["Proteger o moinho"],"reasoning":"Carga"}'));
+      try {
+        await generateStrategicDecision();
+        expect(cloudGenerate.mock.calls[0][1]).not.toMatch(/Portuguese/);
+
+        setLocale('pt-BR');
+        await generateStrategicDecision();
+        const portuguese = cloudGenerate.mock.calls[1][1];
+        expect(portuguese).toMatch(/Brazilian Portuguese/);
+        // The output contract is unchanged: same JSON keys, ids left as they are.
+        expect(portuguese).toContain('"priorities"');
+        expect(portuguese).toMatch(/JSON keys and equipment ids unchanged/);
+
+        useAIConfigStore.setState({ llmBackend: 'webgpu', webgpuModelReady: true });
+        vi.spyOn(webgpuClient, 'isConnected').mockReturnValue(true);
+        const localGenerate = vi
+          .spyOn(webgpuClient, 'generateContent')
+          .mockResolvedValue('{"priorities":["Proteger o moinho"],"reasoning":"Carga"}');
+        await generateStrategicDecision();
+        expect(localGenerate.mock.calls[0][0]).toMatch(/Brazilian Portuguese/);
+      } finally {
+        setLocale('en');
+      }
     });
 
     it('invalidates an old backend response and starts the newly selected backend', async () => {

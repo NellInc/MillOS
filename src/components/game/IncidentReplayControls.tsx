@@ -4,6 +4,7 @@ import { SkipBack, SkipForward, Play, Pause } from 'lucide-react';
 import { useIncidentReplayStore } from '../../stores/incidentReplayStore';
 import { useShallow } from 'zustand/react/shallow';
 import { formatFixed, useT } from '../../i18n';
+import { formatTime } from '../../utils/timeFormatting';
 import { incidentReplayControlsMessages } from './IncidentReplayControls.messages';
 
 export const IncidentReplayControls: React.FC = () => {
@@ -68,7 +69,7 @@ export const IncidentReplayControls: React.FC = () => {
   if (!replayMode) return null;
 
   const frameTime = replayFrames[currentReplayIndex]?.timestamp;
-  const frameLabel = frameTime ? new Date(frameTime).toLocaleTimeString() : null;
+  const frameLabel = frameTime ? formatTime(frameTime, { seconds: true }) : null;
 
   // Sits above the dock (bottom-6, z-50) and the always-present music player
   // (bottom-[6.75rem]). At bottom-4 the play and skip buttons were behind the dock.

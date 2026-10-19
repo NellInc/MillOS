@@ -20,11 +20,16 @@ import {
   ClipboardCheck,
   RotateCcw,
 } from 'lucide-react';
-import { missingParts, useBreakdownStore, type PredictiveAlert } from '../../stores/breakdownStore';
+import {
+  breakdownDescription,
+  missingParts,
+  useBreakdownStore,
+  type PredictiveAlert,
+} from '../../stores/breakdownStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { minimumServiceWear, useProductionStore } from '../../stores/productionStore';
 import { useUIStore } from '../../stores/uiStore';
-import { formatFixed, translate, useT } from '../../i18n';
+import { capitalizeIn, formatFixed, translate, useLocale, useT } from '../../i18n';
 import { predictiveMaintenancePanelMessages } from './PredictiveMaintenancePanel.messages';
 
 const messages = predictiveMaintenancePanelMessages;
@@ -209,6 +214,7 @@ const ActiveBreakdownsSection: React.FC = () => {
   const verifyRepair = useBreakdownStore((state) => state.verifyRepair);
   const requestMachineRestart = useBreakdownStore((state) => state.requestMachineRestart);
   const t = useT(messages);
+  const locale = useLocale();
   const listParts = (parts: readonly string[]) =>
     parts.map((part) => t('part', { part })).join(', ');
 
@@ -240,11 +246,13 @@ const ActiveBreakdownsSection: React.FC = () => {
                   <div className="text-sm font-medium text-slate-200">{breakdown.machineName}</div>
                   <div className="text-[11px] text-slate-500">{workOrder.id}</div>
                 </div>
-                <span className="rounded bg-red-500/20 px-2 py-1 text-xs text-red-300 capitalize">
+                <span
+                  className={`rounded bg-red-500/20 px-2 py-1 text-xs text-red-300 ${capitalizeIn(locale)}`}
+                >
                   {phaseLabel}
                 </span>
               </div>
-              <div className="text-xs text-slate-400 mt-2">{breakdown.description}</div>
+              <div className="text-xs text-slate-400 mt-2">{breakdownDescription(breakdown)}</div>
               <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
                 <div className="text-slate-400">
                   {t('service')} <span className="text-amber-300">{t('serviceUnit')}</span>

@@ -234,12 +234,12 @@ export const knowledgeStoreMessages = defineMessages({
     depthAndMaterialPolicyArticle: `## Superfícies estáveis\n\nAs superfícies externas do chão compartilham uma única elevação e usam polygon offset para se ordenar. As marcações do piso desativam a escrita de profundidade. Os decalques usam deslocamentos delimitados. Os planos near e far da câmera preservam a precisão de profundidade em todo o local.\n\nAs texturas procedurais de albedo declaram o espaço de cor sRGB. Os mapas de normal, rugosidade, metalicidade e altura permanecem lineares. Errar nisso faz os paralelepípedos brilharem ou dá ao metal o brilho de sabão molhado — nenhum dos dois fica bonito.\n\nEsses contratos evitam cintilação, cores desbotadas, falhas de rugosidade espelhada e as emendas que aparecem quando as superfícies são separadas no chute.`,
     depthAndMaterialPolicySeeInAction: 'Chão de fábrica\nEstradas e margens do riacho',
     // autonomous-evidence
-    autonomousEvidenceTitle: 'Evidências autônomas e replay',
+    autonomousEvidenceTitle: 'Evidências autônomas e reprodução',
     autonomousEvidenceTooltip:
       'Cada decisão traz observações, premissas, alternativas e o efeito esperado.',
     autonomousEvidenceBrief:
       'A autonomia é confiável quando você pode perguntar o porquê. Cada decisão traz suas evidências.',
-    autonomousEvidenceArticle: `## Autonomia legível\n\nConfiança exige transparência. Cada decisão autônoma registra sua telemetria, o horário, as premissas, as alternativas, o efeito esperado e os equipamentos no escopo. Você sempre pode perguntar por quê.\n\nO registro de replay amostra o estado das máquinas, os alertas e as posições dos veículos sem credenciais nem dados pessoais. Os comandos ficam armazenados separados dos quadros, para que uma revisão consiga distinguir o que aconteceu daquilo que o solicitou.\n\nO nível de confiança vem acompanhado do raciocínio, e não como uma porcentagem sem explicação. Quando as evidências não justificam uma intervenção, o sistema se mantém estável em vez de adivinhar.`,
-    autonomousEvidenceSeeInAction: 'Central de comando de IA\nReplay da decisão',
+    autonomousEvidenceArticle: `## Autonomia legível\n\nConfiança exige transparência. Cada decisão autônoma registra sua telemetria, o horário, as premissas, as alternativas, o efeito esperado e os equipamentos no escopo. Você sempre pode perguntar por quê.\n\nO registro de reprodução amostra o estado das máquinas, os alertas e as posições dos veículos sem credenciais nem dados pessoais. Os comandos ficam armazenados separados dos quadros, para que uma revisão consiga distinguir o que aconteceu daquilo que o solicitou.\n\nO nível de confiança vem acompanhado do raciocínio, e não como uma porcentagem sem explicação. Quando as evidências não justificam uma intervenção, o sistema se mantém estável em vez de adivinhar.`,
+    autonomousEvidenceSeeInAction: 'Central de comando de IA\nReprodução da decisão',
   },
 });

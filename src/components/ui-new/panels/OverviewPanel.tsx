@@ -38,7 +38,14 @@ import { AchievementsPanel } from '../../GameFeatures';
 import { TimelinePlayback } from '../../ui/TimelinePlayback';
 import { recoverableLazy } from '../../../utils/recoverableLazy';
 import { RecoverableFeatureBoundary } from '../../ErrorBoundary';
-import { formatFixed, formatGrouped, translate, useT } from '../../../i18n';
+import {
+  capitalizeIn,
+  formatFixed,
+  formatGrouped,
+  translate,
+  useLocale,
+  useT,
+} from '../../../i18n';
 import { overviewPanelMessages } from './OverviewPanel.messages';
 
 import { OperationsPlayCard, PaceHoldNote, ShiftDebrief } from '../onboarding/PlayableShift';
@@ -133,11 +140,12 @@ export const GameSpeedControls: React.FC = React.memo(() => {
 const ShiftDisplay: React.FC = React.memo(() => {
   const currentShift = useGameSimulationStore((state) => state.currentShift);
   const t = useT(overviewPanelMessages);
+  const locale = useLocale();
 
   return (
     <div>
       <div className="text-[10px] text-slate-400 uppercase tracking-wider">{t('runWindow')}</div>
-      <div className="text-sm font-bold text-white capitalize">
+      <div className={`text-sm font-bold text-white ${capitalizeIn(locale)}`}>
         {t('runWindowValue', { value: currentShift })}
       </div>
     </div>
@@ -614,6 +622,7 @@ export const OverviewPanel: React.FC = React.memo(() => {
 
   const safetyMetrics = useSafetyStore((state) => state.safetyMetrics);
   const t = useT(overviewPanelMessages);
+  const locale = useLocale();
 
   // Calculate machine status counts
   const machineStats = {
@@ -729,7 +738,7 @@ export const OverviewPanel: React.FC = React.memo(() => {
           <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">
             {t('weather')}
           </div>
-          <div className="text-sm font-bold text-white capitalize">
+          <div className={`text-sm font-bold text-white ${capitalizeIn(locale)}`}>
             {t('weatherValue', { value: weather })}
           </div>
         </div>
@@ -902,11 +911,12 @@ const DockCard: React.FC<{ label: string; status: string; eta: number; receiving
 
   const colors = statusColors[status] || statusColors.clear;
   const t = useT(overviewPanelMessages);
+  const locale = useLocale();
 
   return (
     <div className={`${colors.bg} border border-white/5 rounded-lg p-3`}>
       <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">{label}</div>
-      <div className={`text-sm font-bold capitalize ${colors.text}`}>
+      <div className={`text-sm font-bold ${capitalizeIn(locale)} ${colors.text}`}>
         {receiving && status === 'loading' ? t('unloading') : t('dockState', { value: status })}
       </div>
       {status === 'clear' && eta > 0 && (

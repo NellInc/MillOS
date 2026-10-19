@@ -1,4 +1,4 @@
-import { defineMessages } from '../../../i18n';
+import { defineMessages, upperFirst } from '../../../i18n';
 
 const PT_STATUS: Record<string, string> = {
   running: 'em operação',
@@ -104,9 +104,9 @@ export const machineInspectorMessages = defineMessages({
     processingStopped: 'Processamento parado',
     materialReady: 'Material disponível',
 
-    status: (p: { status: string }) => PT_STATUS[p.status] ?? p.status,
+    status: (p: { status: string }) => upperFirst(PT_STATUS[p.status] ?? p.status),
     statusLabel: (p: { status: string }) => `Status da máquina: ${PT_STATUS[p.status] ?? p.status}`,
-    maintenanceType: (p: { type: string }) => PT_MAINTENANCE_TYPES[p.type] ?? p.type,
+    maintenanceType: (p: { type: string }) => upperFirst(PT_MAINTENANCE_TYPES[p.type] ?? p.type),
 
     feedRate: 'Vazão de alimentação',
     rpm: 'RPM',

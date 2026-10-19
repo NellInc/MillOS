@@ -16,7 +16,14 @@ import { useSCADATag } from '../../../scada/useSCADA';
 import { getTagsByMachine } from '../../../scada/tagDatabase';
 import type { TagHistoryPoint } from '../../../scada/types';
 import { getMachineOperationalState } from '../../../simulation/machineMotion';
-import { formatFixed, formatGrouped, translate, useT } from '../../../i18n';
+import {
+  capitalizeIn,
+  formatFixed,
+  formatGrouped,
+  translate,
+  useLocale,
+  useT,
+} from '../../../i18n';
 import { machineInspectorMessages } from './MachineInspector.messages';
 
 // Order in which spare parts are consumed by routine maintenance
@@ -33,6 +40,7 @@ export const MachineInspector: React.FC<{
   onFocusMachine?: (machineId: string) => void;
 }> = ({ machine: selected, onFocusMachine }) => {
   const t = useT(machineInspectorMessages);
+  const locale = useLocale();
   // The selection is a click-time snapshot; status and metrics come from the
   // store so the panel follows the machine (including its own Restart and
   // Maintenance). The snapshot stands in when the id is not in the store.
@@ -253,7 +261,7 @@ export const MachineInspector: React.FC<{
     <div className="p-6 space-y-4 overflow-y-auto h-full custom-scrollbar">
       <div className="border-b border-white/10 pb-6">
         <p
-          className="flex items-center gap-3 text-lg capitalize text-slate-200"
+          className={`flex items-center gap-3 text-lg ${capitalizeIn(locale)} text-slate-200`}
           role="status"
           aria-label={t('statusLabel', { status: machine.status })}
         >
@@ -467,7 +475,7 @@ export const MachineInspector: React.FC<{
                   <CheckCircle size={12} className="text-green-400 mt-0.5 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-center">
-                      <span className="text-xs text-white font-medium capitalize">
+                      <span className={`text-xs text-white font-medium ${capitalizeIn(locale)}`}>
                         {t('maintenanceType', { type: log.type })}
                       </span>
                       <span className="text-xs text-slate-400">{log.date}</span>

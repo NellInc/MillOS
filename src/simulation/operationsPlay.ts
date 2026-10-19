@@ -7,6 +7,8 @@ import type {
 import { formatFixed, formatGrouped, getLocale, translate } from '../i18n';
 import { formatShiftDuration } from './shiftReview';
 import { PROGRAMME_BULK, PROGRAMME_RUSH, PROGRAMME_STANDARD } from './programmes';
+import { incidentTitle } from '../stores/incidentText';
+import { dispatchBlockText } from '../stores/dispatchBlockText';
 import { operationsPlayMessages } from './operationsPlay.messages';
 
 /** Shared fulfilment tolerance; cosmetic consequences must agree with credit. */
@@ -134,7 +136,7 @@ export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
       targetId: incident.id,
       label: translate(operationsPlayMessages, 'acknowledgeLabel'),
       consequence: translate(operationsPlayMessages, 'acknowledgeConsequence', {
-        title: incident.title,
+        title: incidentTitle(incident),
       }),
     };
   } else if (incident?.phase === 'acknowledged') {
@@ -188,7 +190,7 @@ export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
       targetId: activeOrder?.id ?? null,
       label: translate(operationsPlayMessages, 'qualityLabel'),
       consequence:
-        state.execution.dispatchLoad.blockReason ??
+        dispatchBlockText(state.execution.dispatchLoad) ??
         translate(operationsPlayMessages, 'qualityConsequence'),
     };
   } else if (
@@ -224,7 +226,9 @@ export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
         ? translate(operationsPlayMessages, 'residualLabel')
         : translate(operationsPlayMessages, 'productionLabel'),
       consequence: incident
-        ? translate(operationsPlayMessages, 'residualConsequence', { title: incident.title })
+        ? translate(operationsPlayMessages, 'residualConsequence', {
+            title: incidentTitle(incident),
+          })
         : translate(operationsPlayMessages, 'productionConsequence'),
     };
   }

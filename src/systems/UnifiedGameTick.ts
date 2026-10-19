@@ -39,6 +39,7 @@ import {
   DEMURRAGE_COST_PER_HOUR,
   MAINTENANCE_COST_PER_WORK_ORDER_HOUR,
   useOperationsCampaignStore,
+  type DispatchQualityBlockCode,
   type DispatchLoadSnapshot,
   type OperationalIncident,
 } from '../stores/operationsCampaignStore';
@@ -70,6 +71,7 @@ let _shippingLoad: DispatchLoadSnapshot = {
   capacityKg: 5000,
   materialType: 'flour',
   blockReason: null,
+  blockCode: null,
   lastDispatchKg: 0,
 };
 
@@ -918,11 +920,21 @@ function unifiedGameTick(ctx: TickContext): void {
   const shippingSchedule = useTruckScheduleStore.getState().truckSchedule.shipping;
   const shippingTransferReady = shippingSchedule.transferReady;
   const dockFlow = useMaterialFlowStore.getState();
-  const reasonByCode = {
-    certification_expired: translate(msg, 'certificationExpired'),
-    unresolved_contamination: translate(msg, 'unresolvedContamination'),
-    failed_quality_test: translate(msg, 'failedQualityTest'),
-  } as const;
+  const codeByQualityReason = {
+    certification_expired: 'certificationExpired',
+    unresolved_contamination: 'unresolvedContamination',
+    failed_quality_test: 'failedQualityTest',
+  } as const satisfies Record<string, DispatchQualityBlockCode>;
+  const qualityBlockCodeFor = (
+    quality: ReturnType<typeof getDispatchQualityStatus>
+  ): DispatchQualityBlockCode | null =>
+    useOperationsCampaignStore.getState().getIncidentEffect().dispatchBlocked
+      ? 'incidentDispatchIsolation'
+      : quality.reason
+        ? codeByQualityReason[quality.reason]
+        : !quality.released
+          ? 'qualityInterlockNotReleased'
+          : null;
   if (shippingSchedule.departureCount < _lastShippingDepartureCount) {
     _shippingLoad = {
       cycleId: 'shipping-0',
@@ -931,6 +943,7 @@ function unifiedGameTick(ctx: TickContext): void {
       capacityKg: FINISHED_GOODS_SHIPMENT_KG,
       materialType: 'flour',
       blockReason: null,
+      blockCode: null,
       lastDispatchKg: 0,
     };
   }
@@ -942,14 +955,8 @@ function unifiedGameTick(ctx: TickContext): void {
       useQCLabStore.getState().qcLab,
       dockFlow.productionBatches
     );
-    const departureBlockReason = useOperationsCampaignStore.getState().getIncidentEffect()
-      .dispatchBlocked
-      ? translate(msg, 'incidentDispatchIsolation')
-      : departureQuality.reason
-        ? reasonByCode[departureQuality.reason]
-        : !departureQuality.released
-          ? translate(msg, 'qualityInterlockNotReleased')
-          : null;
+    const departureBlockCode = qualityBlockCodeFor(departureQuality);
+    const departureBlockReason = departureBlockCode ? translate(msg, departureBlockCode) : null;
     const actualKg = departureBlockReason
       ? 0
       : dockFlow.shipFinishedGoods(_shippingLoad.loadedKg, _shippingLoad.materialType);
@@ -964,6 +971,14 @@ function unifiedGameTick(ctx: TickContext): void {
           : (departureBlockReason ??
             _shippingLoad.blockReason ??
             translate(msg, 'departedWithoutLoad')),
+      // A held reason from a load saved before codes existed keeps its stored text.
+      blockCode:
+        actualKg > 0
+          ? null
+          : (departureBlockCode ??
+            (_shippingLoad.blockReason
+              ? (_shippingLoad.blockCode ?? null)
+              : 'departedWithoutLoad')),
     };
   }
   const shippingCycleId = `shipping-${shippingSchedule.departureCount + 1}`;
@@ -975,6 +990,7 @@ function unifiedGameTick(ctx: TickContext): void {
       capacityKg: FINISHED_GOODS_SHIPMENT_KG,
       materialType: activeProductionPlan?.finishedMaterial ?? 'flour',
       blockReason: null,
+      blockCode: null,
       lastDispatchKg: 0,
     };
   }
@@ -1000,16 +1016,8 @@ function unifiedGameTick(ctx: TickContext): void {
       useQCLabStore.getState().qcLab,
       dockFlow.productionBatches
     );
-    const incidentDispatchBlocked = useOperationsCampaignStore
-      .getState()
-      .getIncidentEffect().dispatchBlocked;
-    const qualityBlockReason = incidentDispatchBlocked
-      ? translate(msg, 'incidentDispatchIsolation')
-      : qualityStatus.reason
-        ? reasonByCode[qualityStatus.reason]
-        : !qualityStatus.released
-          ? translate(msg, 'qualityInterlockNotReleased')
-          : null;
+    const qualityBlockCode = qualityBlockCodeFor(qualityStatus);
+    const qualityBlockReason = qualityBlockCode ? translate(msg, qualityBlockCode) : null;
     const releasedKg = getFinishedGoodsAvailability(
       dockFlow,
       _shippingLoad.materialType
@@ -1029,9 +1037,19 @@ function unifiedGameTick(ctx: TickContext): void {
     const previousBlockReason = _shippingLoad.blockReason;
 
     if (commitmentHoldReason) {
-      _shippingLoad = { ..._shippingLoad, status: 'held', blockReason: commitmentHoldReason };
+      _shippingLoad = {
+        ..._shippingLoad,
+        status: 'held',
+        blockReason: commitmentHoldReason,
+        blockCode: 'noCommitmentToShip',
+      };
     } else if (qualityBlockReason) {
-      _shippingLoad = { ..._shippingLoad, status: 'held', blockReason: qualityBlockReason };
+      _shippingLoad = {
+        ..._shippingLoad,
+        status: 'held',
+        blockReason: qualityBlockReason,
+        blockCode: qualityBlockCode,
+      };
     } else if (releasedKg <= _shippingLoad.loadedKg + 1e-6) {
       _shippingLoad = {
         ..._shippingLoad,
@@ -1040,6 +1058,7 @@ function unifiedGameTick(ctx: TickContext): void {
           _shippingLoad.loadedKg > 0
             ? null
             : translate(msg, 'waitingForMaterial', { material: _shippingLoad.materialType }),
+        blockCode: _shippingLoad.loadedKg > 0 ? null : 'waitingForMaterial',
       };
     } else {
       const loadedKg = Math.min(
@@ -1059,6 +1078,7 @@ function unifiedGameTick(ctx: TickContext): void {
             ? 'ready'
             : 'loading',
         blockReason: null,
+        blockCode: null,
       };
     }
 
@@ -1229,6 +1249,7 @@ export function resetUnifiedTickState(): void {
     capacityKg: 5000,
     materialType: 'flour',
     blockReason: null,
+    blockCode: null,
     lastDispatchKg: 0,
   };
   _bagProductionCarry = 0;

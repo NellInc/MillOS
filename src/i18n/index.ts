@@ -186,6 +186,21 @@ export function useT<E extends MessageTable>(catalog: MessageCatalog<E>): Transl
 }
 
 // ---------------------------------------------------------------------------
+// Casing
+// ---------------------------------------------------------------------------
+
+/** Sentence case for a label that starts a line: "moinho de rolos" -> "Moinho de rolos". */
+export const upperFirst = (text: string): string =>
+  text ? `${text[0].toUpperCase()}${text.slice(1)}` : text;
+
+/**
+ * CSS `capitalize` title-cases every word whatever the language, so Portuguese
+ * reads "Moinho De Rolos". English labels built from raw enum values rely on
+ * it; pt-BR copy carries its own sentence case from the catalog instead.
+ */
+export const capitalizeIn = (locale: Locale): string => (locale === 'en' ? 'capitalize' : '');
+
+// ---------------------------------------------------------------------------
 // Numbers
 // ---------------------------------------------------------------------------
 

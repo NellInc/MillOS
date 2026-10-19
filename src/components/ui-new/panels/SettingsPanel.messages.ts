@@ -179,12 +179,12 @@ export const settingsPanelMessages = defineMessages({
     interfaceScaleHelp:
       'Aumenta controles e textos sem reduzir a resolução da renderização 3D. O zoom do navegador e o tamanho de texto do sistema continuam funcionando normalmente.',
 
-    diagnosticReplay: 'Replay de diagnóstico',
+    diagnosticReplay: 'Reprodução de diagnóstico',
     diagnosticReplayHelp:
       'Os últimos dez minutos da simulação ficam em memória: quadros, comandos, ID do build e semente. Nenhuma credencial ou dado de identidade sai daqui.',
     frames: 'quadros',
     commands: 'comandos',
-    enterReplay: 'Entrar no replay',
+    enterReplay: 'Entrar na reprodução',
     exportJson: 'Exportar JSON',
     clearBuffer: 'Limpar memória',
 
