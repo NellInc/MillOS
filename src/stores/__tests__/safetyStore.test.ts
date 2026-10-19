@@ -232,6 +232,28 @@ describe('SafetyStore', () => {
         isMoving: true,
       });
     });
+
+    it('books none of a held span once sampling resumes', () => {
+      const { updateForkliftMetrics, resumeForkliftMetrics } = useSafetyStore.getState();
+
+      updateForkliftMetrics('forklift-1', true);
+      vi.advanceTimersByTime(60_000); // clock held or tab hidden: no samples
+      resumeForkliftMetrics('forklift-1');
+      vi.advanceTimersByTime(1000);
+      updateForkliftMetrics('forklift-1', true);
+
+      expect(useSafetyStore.getState().forkliftMetrics['forklift-1']).toEqual({
+        totalMovingTime: 1,
+        totalStoppedTime: 0,
+        lastUpdateTime: FIXED_NOW.getTime() + 61_000,
+        isMoving: true,
+      });
+    });
+
+    it('resuming a forklift with no samples yet creates nothing', () => {
+      useSafetyStore.getState().resumeForkliftMetrics('forklift-9');
+      expect(useSafetyStore.getState().forkliftMetrics['forklift-9']).toBeUndefined();
+    });
   });
 
   describe('Incident Heat Map', () => {

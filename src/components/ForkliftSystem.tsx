@@ -9,6 +9,7 @@ import { SceneText as Text } from './shared/SceneText';
 import { positionRegistry, EntityPosition } from '../utils/positionRegistry';
 import { audioManager } from '../utils/audioManager';
 import { useAudioInitialized } from '../hooks/useAudioState';
+import { useForkliftMetricsSampler } from './useForkliftMetricsSampler';
 import { useSafetyStore } from '../stores/safetyStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useGraphicsStore } from '../stores/graphicsStore';
@@ -817,17 +818,13 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
   const effectiveStoppedRef = useRef(effectiveStopped);
   effectiveStoppedRef.current = effectiveStopped;
 
-  // 1 Hz utilisation sample for Safety Analytics. The store books wall-clock
-  // deltas, so the first sample after a resume attributes the pause gap to the
-  // last known state.
-  useEffect(() => {
-    if (simulationPaused) return undefined;
-    const id = setInterval(
-      () => useSafetyStore.getState().updateForkliftMetrics(data.id, !effectiveStoppedRef.current),
-      1000
-    );
-    return () => clearInterval(id);
-  }, [data.id, simulationPaused]);
+  // 1 Hz utilisation sample for Safety Analytics, off while the clock is held
+  // or the tab is hidden; a resume books none of the gap.
+  useForkliftMetricsSampler(
+    data.id,
+    !simulationPaused && isTabVisible,
+    () => !effectiveStoppedRef.current
+  );
 
   useEffect(() => {
     if (!audioReady) return undefined;
