@@ -46,6 +46,7 @@
  * these into arithmetic.
  */
 
+import { SURFACE_WETNESS, WET_GROUND_GLSL } from '../../shaders/surfaceWetness';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import {
@@ -185,6 +186,8 @@ function createTerrainUniforms(props: TerrainMaterialProps) {
     uRoughnessRemap: { value: new THREE.Vector4(...roughnessRemap) },
     uAOIntensity: { value: props.aoIntensity ?? 0.8 },
     uBlendSharpness: { value: props.blendSharpness ?? 0.18 },
+    // Shared by reference: the sky's frame loop drives it, nothing recompiles.
+    uSurfaceWetness: SURFACE_WETNESS,
     uTerrainBoundsMin: {
       value: new THREE.Vector2(
         props.bounds?.minX ?? TERRAIN_BOUNDS.minX,
@@ -241,6 +244,7 @@ const vertexShaderWorldPos = `
  * where reflectedLight is in scope).
  */
 const fragmentShaderPreamble = `
+  ${WET_GROUND_GLSL}
   uniform sampler2D uSplatMap;
   uniform vec3 uGrassColor;
   uniform vec3 uAsphaltColor;
@@ -540,6 +544,10 @@ const fragmentShaderDiffuseReplace = `
 
 const fragmentShaderRoughnessReplace = `
   roughnessFactor = gTerrainRoughness;
+  // Rain soaks the ground: darker albedo, glossier film. Inert while dry.
+  vec3 terrainWetAlbedo = diffuseColor.rgb;
+  millosWetGround( terrainWetAlbedo, roughnessFactor );
+  diffuseColor.rgb = terrainWetAlbedo;
 `;
 
 // <normal_fragment_maps> compiles to nothing without USE_NORMALMAP, and sits
@@ -736,10 +744,10 @@ export function TerrainMaterial(props: TerrainMaterialProps) {
     // Everything added since is gated on uniform floats rather than #defines, so
     // there are still exactly two program variants and this key stays correct.
     const hasDisplacementKey = hasDisplacement ? 'disp' : 'nodisp';
-    // v12: continuous grass UV warp and matching relief Jacobian. three uses this key
+    // v13: wet-ground response. v12: continuous grass UV warp and matching relief Jacobian. three uses this key
     // INSTEAD of hashing the injected source, so it has to be bumped whenever
     // that source changes or a warm program cache could serve the old one.
-    mat.customProgramCacheKey = () => `terrain_v12_${hasDisplacementKey}`;
+    mat.customProgramCacheKey = () => `terrain_v13_${hasDisplacementKey}`;
 
     // Inject custom shader code
     mat.onBeforeCompile = (shader) => {

@@ -19,6 +19,7 @@ import {
   getCumulusAtlas,
 } from '../../shaders/skyClouds';
 import { WORLD_SURFACE_STRENGTH } from '../../utils/worldSurface';
+import { SURFACE_WETNESS, dampSurfaceWetness } from '../../shaders/surfaceWetness';
 import { FOG_HORIZON_START, FOG_HORIZON_END } from '../../shaders/atmosphericFog';
 
 /** Shared sunset tint for the sky and its mountain/terrain inscatter. */
@@ -1325,6 +1326,7 @@ export function OptimizedSkySystem() {
     const celestial = sampleCelestial(atmosphere, celestialStateRef.current);
     const visualDaylight = atmosphere.daylight * atmosphere.lightMultiplier;
     const response = 3.2;
+    SURFACE_WETNESS.value = dampSurfaceWetness(SURFACE_WETNESS.value, atmosphere.wetness, delta);
 
     // Cloud scroll, wrapped to one texture period on the CPU. `simulationMinutes`
     // grows without bound (day * 1440), so feeding it straight into a texture
