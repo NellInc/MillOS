@@ -360,6 +360,27 @@ describe('inhabited world routines', () => {
     expect(recalled).toEqual(before);
   });
 
+  it('reviews a recall while its lot is still being worked off, though every batch is scrapped', () => {
+    const person = COMMUNITY_ROSTER.find((p) => p.role === 'Quality')!;
+    const pose = { ...sampleCommunityPerson(person, 12), activity: 'working' as const };
+    // Recalled batches are written off as they form, so they never hold stock;
+    // what the plant is dealing with is the recalled lot still upstream.
+    const scrapped = {
+      machines: [],
+      workOrders: [],
+      batches: [{ packerId: 'packer-2', disposition: 'recalled' as const, availableKg: 0 }],
+      bakeryStocked: false,
+    };
+    expect(communityWorkResponse(person, pose, { ...scrapped, recalledStockKg: 300 })).toEqual({
+      activity: 'working',
+      task: 'Reviewing recalled stock from the quality inspection post',
+    });
+    expect(communityWorkResponse(person, pose, { ...scrapped, recalledStockKg: 0 })).toEqual({
+      activity: 'idle',
+      task: 'Waiting for a production batch to sample',
+    });
+  });
+
   it('keeps quality maintenance, fault, released-stock and protected-break priorities', () => {
     const person = COMMUNITY_ROSTER.find((p) => p.role === 'Quality')!;
     const pose = { ...sampleCommunityPerson(person, 12), activity: 'working' as const };
