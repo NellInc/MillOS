@@ -595,7 +595,8 @@ function unifiedGameTick(ctx: TickContext): void {
   const campaignStore = useOperationsCampaignStore.getState();
   const campaignMultiplier = campaignStore.getProductionMultiplier();
   const activeProductionPlan = campaignStore.getActiveProductionPlan();
-  // Opt-in negotiated line pacing. It never creates product, releases quality
+  // Negotiated line pacing: the autonomous season applies it by default and
+  // StatusHUD names it beside the plant rate. It never creates product, releases quality
   // holds, changes machine safety status, or alters decorative pedestrian routes.
   const effectiveProductionSpeed =
     productionSpeed *

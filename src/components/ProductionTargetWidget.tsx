@@ -10,6 +10,7 @@ import { useAIConfigStore } from '../stores/aiConfigStore';
 import { useAnnouncementsStore } from '../stores/announcementsStore';
 import { useUIStore } from '../stores/uiStore';
 import { useWorkplaceStore } from '../stores/workplaceStore';
+import { workplaceOwnsGuidance } from '../simulation/workplaceImprovement';
 import { useMobileControlStore } from '../stores/mobileControlStore';
 import { useProductionStore, DAILY_TARGET_BAGS } from '../stores/productionStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
@@ -35,9 +36,7 @@ export const ProductionTargetWidget: React.FC = () => {
   const onboarding = useAnnouncementsStore((state) => state.context.onboarding);
   const journeyVisible = useUIStore((state) => state.journeyVisible);
   const mobilePanelVisible = useMobileControlStore((state) => state.mobilePanelVisible);
-  const workingAgreement = useWorkplaceStore(
-    (state) => state.workplace.mode === 'game' && state.workplace.phase !== 'idle'
-  );
+  const workingAgreement = useWorkplaceStore((state) => workplaceOwnsGuidance(state.workplace));
   // Working if the current agreement owns the guidance slot without changing the saved target preference.
   const guidanceActive = onboarding || journeyVisible || mobilePanelVisible || workingAgreement;
   const showProductionTarget = useAIConfigStore((state) => state.showProductionTarget);

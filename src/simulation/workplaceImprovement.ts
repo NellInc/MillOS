@@ -287,6 +287,17 @@ export function handoffHoldsClock(s: WorkplaceState): boolean {
       (s.phase === 'review' && !i.verdict && !s.members.some((m) => m.recoveryOwedMinutes > 0)))
   );
 }
+/**
+ * Whether the cooperative agreement owns the HUD guidance slot (companion)
+ * instead of the daily production target. A review that owes nothing, and is
+ * not an undecided handoff, hands the slot back.
+ * Working if a finished season no longer hides the daily target for good.
+ */
+export function workplaceOwnsGuidance(s: WorkplaceState): boolean {
+  if (s.mode !== 'game' || s.phase === 'idle') return false;
+  if (s.phase !== 'review') return true;
+  return improvementObligations(s).length > 0 || (!!s.improvement && !s.improvement.verdict);
+}
 export function improvementSummary(s: WorkplaceState) {
   const i = s.improvement;
   if (!i) return null;

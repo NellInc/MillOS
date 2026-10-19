@@ -59,6 +59,19 @@ describe('ProductionTargetWidget', () => {
     }
   );
 
+  it('returns once the agreement reaches a review that owes nothing, and not while one is owed', () => {
+    render(<ProductionTargetWidget />);
+    const owing = createWorkplace();
+    owing.phase = 'review';
+    owing.members[0].recoveryOwedMinutes = 30;
+    act(() => useWorkplaceStore.setState({ workplace: owing }));
+    expect(screen.queryByRole('region', { name: 'Production target tracker' })).toBeNull();
+    act(() => useWorkplaceStore.setState({ workplace: { ...createWorkplace(), phase: 'review' } }));
+    expect(screen.getByRole('region', { name: 'Production target tracker' })).toBeInTheDocument();
+    act(() => useWorkplaceStore.setState({ workplace: { ...createWorkplace(), phase: 'active' } }));
+    expect(screen.queryByRole('region', { name: 'Production target tracker' })).toBeNull();
+  });
+
   it.each([
     [180, '1.2 t/game h', 'BEHIND SCHEDULE'],
     [30, '7.2 t/game h', 'ON TRACK'],
