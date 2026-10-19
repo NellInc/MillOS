@@ -660,6 +660,50 @@ it('walks a time-lapsed resident with its real-time gait and uncapped ground spe
   );
 });
 
+it('keeps a pausing walker turned where it was, rather than snapping to the route heading', () => {
+  const { hour, index } = findMillWalk(10, 0.002);
+  const community = mountCommunity({ gameTime: hour, gameSpeed: STANDARD_GAME_SPEED });
+  community.step();
+  const root = community.roots[index];
+  // Mid-turn: the body still lags the route's heading by a fraction of a radian.
+  root.rotation.y -= 0.5;
+  const turning = root.rotation.y;
+  useGameSimulationStore.setState({ gameSpeed: 0 });
+  community.step();
+  expect(root.rotation.y).toBe(turning);
+  useGameSimulationStore.setState({ gameSpeed: STANDARD_GAME_SPEED, gameTime: hour + 0.001 });
+  community.step();
+  expect(Math.abs(root.rotation.y - turning)).toBeGreaterThan(0);
+});
+
+it('settles walkers into the drill stance over a short blend, then holds', () => {
+  const { hour, index } = findMillWalk(10, 0.01);
+  const community = mountCommunity({ gameTime: hour, gameSpeed: STANDARD_GAME_SPEED });
+  useGameSimulationStore.setState({ gameTime: hour + 0.002 });
+  community.step();
+  const motion = () => community.capture().residents[index].motion;
+  // Watch from close by; other tests leave the shared camera elsewhere.
+  const viewpoint = camera.position.clone();
+  camera.position.copy(community.roots[index].position).add(new THREE.Vector3(0, 2, 5));
+  try {
+    community.step();
+    expect(motion().activity).toBe('walking');
+    expect(motion().enabled).toBe(true);
+    useGameSimulationStore.setState({ emergencyDrillMode: true });
+    community.step();
+    // Still animating, so the walk clip damps into the stance instead of snapping.
+    expect(motion().activity).toBe('idle');
+    expect(motion().enabled).toBe(true);
+    expect(motion().groundSpeed).toBe(0);
+    const at = community.roots[index].position.clone();
+    for (let i = 0; i < 40; i++) community.step();
+    expect(motion().enabled).toBe(false);
+    expect(community.roots[index].position.equals(at)).toBe(true);
+  } finally {
+    camera.position.copy(viewpoint);
+  }
+});
+
 it('transports seat frames after root turning, freezes holds and clears old replay cues', () => {
   // A moment the schedule has a mill resident fully seated on a rest.
   let seatedHour = 0;

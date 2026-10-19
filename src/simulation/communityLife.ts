@@ -347,6 +347,22 @@ export function advanceCommunityPresentationClock(
   return hour + Math.min(authorizedGap, (speed * Math.min(deltaSeconds, 0.075)) / 3600);
 }
 
+/** A resident body's yaw this frame. Moving bodies ease into the route's heading;
+ * a held body (paused, safety stop, hidden tab) keeps whatever heading it had
+ * reached; a cut (a clock jump or reframe, or reduced motion) and a coupled prop
+ * take the heading exactly. Working if pausing mid-turn never snaps the body. */
+export function communityRootYaw(
+  current: number,
+  target: number,
+  delta: number,
+  state: { moving: boolean; cut?: boolean; coupled?: boolean }
+): number {
+  if (state.cut || state.coupled) return target;
+  if (!state.moving) return current;
+  const turn = Math.atan2(Math.sin(target - current), Math.cos(target - current));
+  return current + turn * (1 - Math.exp(-delta * 8));
+}
+
 export interface CommunityOperationsSnapshot {
   machines: readonly Pick<MachineData, 'id' | 'status'>[];
   workOrders: readonly Pick<MaintenanceWorkOrder, 'machineId' | 'phase'>[];

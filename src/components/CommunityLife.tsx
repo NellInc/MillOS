@@ -35,6 +35,7 @@ import {
   communityAgreementResponse,
   advanceCommunityAgreementClock,
   COMMUNITY_WALK_SPEED_MPS,
+  communityRootYaw,
   type CommunityOperationsSnapshot,
 } from '../simulation/communityLife';
 import { EXTERIOR_LAYERS, POLYGON_OFFSET } from '../constants/renderLayers';
@@ -43,6 +44,8 @@ import { STANDARD_GAME_SPEED } from '../simulation/pace';
 import { communityLifeMessages } from './CommunityLife.messages';
 
 const COLOURS = ['#596e72', '#53637c', '#9a7654', '#6b8568', '#bdad82', '#6b5871'];
+/** Real seconds a safety stop lets bodies blend into the held stance. */
+const SAFETY_SETTLE_SECONDS = 0.4;
 const _truckPosition = new THREE.Vector3();
 
 /** Convert after the actor's real eased heading, not the route's target yaw.
@@ -121,6 +124,7 @@ export function CommunityLife() {
   const initialHour = useRef(
     useGameSimulationStore.getState().gameDay * 24 + useGameSimulationStore.getState().gameTime
   ).current;
+  const safetySettle = useRef({ emergency: false, left: 0 });
   const clocks = useRef({
     world: initialHour,
     presentation: initialHour,
@@ -249,6 +253,14 @@ export function CommunityLife() {
     const held = emergency || !game.isTabVisible;
     const moving = !held && game.gameSpeed > 0;
     const gaitScale = moving ? game.gameSpeed / STANDARD_GAME_SPEED : 1;
+    // A safety stop holds everyone where they stand, but the bodies keep animating
+    // for a moment so a walking stride damps into the stance instead of snapping.
+    // Working if a drill start blends walkers to idle and then freezes them.
+    const blend = safetySettle.current;
+    if (emergency && !blend.emergency) blend.left = SAFETY_SETTLE_SECONDS;
+    blend.emergency = emergency;
+    blend.left = emergency ? Math.max(0, blend.left - (Number.isFinite(delta) ? delta : 0)) : 0;
+    const settling = emergency && game.isTabVisible && blend.left > 0;
     const previousPresentation = clocks.current.presentation;
     clocks.current.presentation = advanceCommunityPresentationClock(
       previousPresentation,
@@ -308,20 +320,17 @@ export function CommunityLife() {
       );
       const { pose, motion } = actor;
       root.position.set(...pose.position);
-      const turn = Math.atan2(
-        Math.sin(pose.rotation - root.rotation.y),
-        Math.cos(pose.rotation - root.rotation.y)
-      );
       // Riders and held cart grips share their prop's exact heading. Easing only
       // the body breaks the hand/foot contacts during turns.
       // Working if rider and bicycle transforms agree on every moving frame.
       const coupled =
         actor.person.role === 'Cyclist' ||
         (actor.person.id === 'village-courier' && !!drop.cartGrip);
-      root.rotation.y =
-        moving && !jump && !coupled
-          ? root.rotation.y + turn * (1 - Math.exp(-delta * 8))
-          : pose.rotation;
+      root.rotation.y = communityRootYaw(root.rotation.y, pose.rotation, delta, {
+        moving,
+        cut: reframe,
+        coupled,
+      });
       root.visible = pose.visible;
       motion.activity = emergency && !pose.seated ? 'idle' : pose.activity;
       motion.seated = pose.seated;
@@ -348,8 +357,7 @@ export function CommunityLife() {
       motion.animationInterval =
         distanceSquared < 18 * 18 ? 1 / 60 : distanceSquared < 50 * 50 ? 1 / 30 : 1 / 15;
       motion.enabled =
-        moving &&
-        presentedElapsed > 0 &&
+        ((moving && presentedElapsed > 0) || settling) &&
         !reducedMotion &&
         pose.visible &&
         distanceSquared < 150 * 150;

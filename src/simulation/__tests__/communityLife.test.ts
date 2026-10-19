@@ -31,6 +31,7 @@ import {
   COMMUNITY_COURIER_SCHEDULE,
   COMMUNITY_STREET_END_Z,
   MILL_ROUTINE_HOURS,
+  communityRootYaw,
   type CommunityPose,
 } from '../communityLife';
 import { STANDARD_GAME_SPEED } from '../pace';
@@ -40,6 +41,9 @@ import {
   createConveyorObstacles,
   DOCK_PLATFORM_OBSTACLES,
 } from '../../constants/factoryObstacles';
+
+/** Whole-day deterministic sweeps; their run time follows machine load, not the code. */
+const SWEEP = { timeout: 60_000 };
 
 describe('fictional campaign worker presentation', () => {
   const workplace = () => {
@@ -231,7 +235,7 @@ describe('inhabited world routines', () => {
           }
       }
   });
-  it('keeps mill residents apart where their routes cross, for every day', () => {
+  it('keeps mill residents apart where their routes cross, for every day', SWEEP, () => {
     const mill = COMMUNITY_ROSTER.filter((p) => p.district === 'mill');
     // One shared period means one period of checks holds for all time.
     for (const person of mill)
@@ -281,7 +285,7 @@ describe('inhabited world routines', () => {
       [bx, bz] = at(hour + step);
     return (Math.hypot(bx - ax, bz - az) / step) * STANDARD_HOURS_PER_REAL_SECOND;
   };
-  it('walks residents at a believable real-time speed at standard pace', () => {
+  it('walks residents at a believable real-time speed at standard pace', SWEEP, () => {
     expect(STANDARD_HOURS_PER_REAL_SECOND).toBe(STANDARD_GAME_SPEED / 3600);
     expect(COMMUNITY_WALK_SPEED_MPS).toBeGreaterThanOrEqual(1.2);
     expect(COMMUNITY_WALK_SPEED_MPS).toBeLessThanOrEqual(1.4);
@@ -363,70 +367,74 @@ describe('inhabited world routines', () => {
     }
     expect(sampleCommunityBus(23).visible).toBe(false);
   });
-  it('seats both commuters with ramps and only shows or hides them at the open bus door', () => {
-    const door = [24.1, 0.36, 137.6];
-    const step = 0.0002;
-    const amount = (pose: CommunityPose) => (pose.seat ? pose.seat.amount : pose.seated ? 1 : 0);
-    const seen = new Set<string>();
-    // Finely around each stop (the shuttle leaves the tunnel at phase ~0.94 and is
-    // gone by 1.9); between stops a commuter is either seated or away, unchanged.
-    const hours: number[] = [];
-    for (let h = 5; h < 23; h += 0.01) {
-      const phase = (((h - 6) % 4) + 4) % 4;
-      if (phase > 0.9 && phase < 1.95) for (let f = h; f < h + 0.01; f += step) hours.push(f);
-      else hours.push(h);
-    }
-    for (const p of COMMUNITY_ROSTER.filter((p) => p.district === 'bus')) {
-      for (let k = 0; k + 1 < hours.length; k++) {
-        const h = hours[k];
-        const a = sampleCommunityPerson(p, h),
-          b = sampleCommunityPerson(p, hours[k + 1]);
-        if (hours[k + 1] - h > step * 1.5) {
-          expect(b.visible, `${p.id} unchanged between stops at ${h}`).toBe(a.visible);
-          continue;
-        }
-        if (a.visible !== b.visible) {
-          const shown = a.visible ? a : b;
-          seen.add(`${p.id} ${a.visible ? 'boards' : 'alights'}`);
-          expect(sampleCommunityBus(h).doorsOpen, `${p.id} at ${h}`).toBe(true);
-          expect(
-            Math.hypot(shown.position[0] - door[0], shown.position[2] - door[2]),
-            `${p.id} at the door at ${h}`
-          ).toBeLessThanOrEqual(step / WALK_HOURS_PER_METRE + 1e-9);
-        }
-        if (!a.visible || !b.visible) continue;
-        // No posture pop: sitting and rising ramp, and the body never jumps.
-        expect(Math.abs(amount(b) - amount(a)), `${p.id} seat at ${h}`).toBeLessThan(0.05);
-        expect(Math.abs(b.position[1] - a.position[1]), `${p.id} height at ${h}`).toBeLessThan(
-          0.03
-        );
-        if (a.seated || a.seat) expect(a.seat, `${p.id} seat cue at ${h}`).toBeDefined();
+  it(
+    'seats both commuters with ramps and only shows or hides them at the open bus door',
+    SWEEP,
+    () => {
+      const door = [24.1, 0.36, 137.6];
+      const step = 0.0002;
+      const amount = (pose: CommunityPose) => (pose.seat ? pose.seat.amount : pose.seated ? 1 : 0);
+      const seen = new Set<string>();
+      // Finely around each stop (the shuttle leaves the tunnel at phase ~0.94 and is
+      // gone by 1.9); between stops a commuter is either seated or away, unchanged.
+      const hours: number[] = [];
+      for (let h = 5; h < 23; h += 0.01) {
+        const phase = (((h - 6) % 4) + 4) % 4;
+        if (phase > 0.9 && phase < 1.95) for (let f = h; f < h + 0.01; f += step) hours.push(f);
+        else hours.push(h);
       }
+      for (const p of COMMUNITY_ROSTER.filter((p) => p.district === 'bus')) {
+        for (let k = 0; k + 1 < hours.length; k++) {
+          const h = hours[k];
+          const a = sampleCommunityPerson(p, h),
+            b = sampleCommunityPerson(p, hours[k + 1]);
+          if (hours[k + 1] - h > step * 1.5) {
+            expect(b.visible, `${p.id} unchanged between stops at ${h}`).toBe(a.visible);
+            continue;
+          }
+          if (a.visible !== b.visible) {
+            const shown = a.visible ? a : b;
+            seen.add(`${p.id} ${a.visible ? 'boards' : 'alights'}`);
+            expect(sampleCommunityBus(h).doorsOpen, `${p.id} at ${h}`).toBe(true);
+            expect(
+              Math.hypot(shown.position[0] - door[0], shown.position[2] - door[2]),
+              `${p.id} at the door at ${h}`
+            ).toBeLessThanOrEqual(step / WALK_HOURS_PER_METRE + 1e-9);
+          }
+          if (!a.visible || !b.visible) continue;
+          // No posture pop: sitting and rising ramp, and the body never jumps.
+          expect(Math.abs(amount(b) - amount(a)), `${p.id} seat at ${h}`).toBeLessThan(0.05);
+          expect(Math.abs(b.position[1] - a.position[1]), `${p.id} height at ${h}`).toBeLessThan(
+            0.03
+          );
+          if (a.seated || a.seat) expect(a.seat, `${p.id} seat cue at ${h}`).toBeDefined();
+        }
+      }
+      expect([...seen].sort()).toEqual([
+        'bus-arriving alights',
+        'bus-arriving boards',
+        'bus-departing alights',
+        'bus-departing boards',
+      ]);
+      // The two commuters sit at their own places on the bench.
+      const arriving = sampleCommunityPerson(
+        COMMUNITY_ROSTER.find((p) => p.id === 'bus-arriving')!,
+        8
+      );
+      const departing = sampleCommunityPerson(
+        COMMUNITY_ROSTER.find((p) => p.id === 'bus-departing')!,
+        12
+      );
+      expect(arriving.seat?.amount).toBe(1);
+      expect(departing.seat?.amount).toBe(1);
+      expect(
+        Math.hypot(
+          arriving.position[0] - departing.position[0],
+          arriving.position[2] - departing.position[2]
+        )
+      ).toBeGreaterThan(1);
     }
-    expect([...seen].sort()).toEqual([
-      'bus-arriving alights',
-      'bus-arriving boards',
-      'bus-departing alights',
-      'bus-departing boards',
-    ]);
-    // The two commuters sit at their own places on the bench.
-    const arriving = sampleCommunityPerson(
-      COMMUNITY_ROSTER.find((p) => p.id === 'bus-arriving')!,
-      8
-    );
-    const departing = sampleCommunityPerson(
-      COMMUNITY_ROSTER.find((p) => p.id === 'bus-departing')!,
-      12
-    );
-    expect(arriving.seat?.amount).toBe(1);
-    expect(departing.seat?.amount).toBe(1);
-    expect(
-      Math.hypot(
-        arriving.position[0] - departing.position[0],
-        arriving.position[2] - departing.position[2]
-      )
-    ).toBeGreaterThan(1);
-  });
+  );
   it('eases passenger starts and arrivals without moving anchors, times or the path', () => {
     for (const [id, start, leg] of [
       ['bus-arriving', 7.16, 'alight'],
@@ -569,6 +577,22 @@ describe('inhabited world routines', () => {
       expect(hasCommunityBakerySupply([{ ...order, ...change } as typeof order], 101)).toBe(false);
     expect(hasCommunityBakerySupply([], 10)).toBe(false);
     expect(hasCommunityBakerySupply([order], NaN)).toBe(false);
+  });
+  it('keeps an unfinished turn where it is while held, and only snaps on a cut', () => {
+    const quarter = Math.PI / 2;
+    // Held (paused, drill, hidden tab): the eased yaw stays put mid-turn.
+    expect(communityRootYaw(0.4, quarter, 1 / 60, { moving: false })).toBe(0.4);
+    // Moving: eases towards the route's heading by the existing rate.
+    expect(communityRootYaw(0.4, quarter, 1 / 60, { moving: true })).toBeCloseTo(
+      0.4 + (quarter - 0.4) * (1 - Math.exp(-8 / 60)),
+      12
+    );
+    // The short way round, across the wrap.
+    expect(communityRootYaw(3, -3, 1 / 60, { moving: true })).toBeGreaterThan(3);
+    // A deliberate cut (jump, reframe, reduced motion) or a coupled prop takes the heading.
+    for (const flags of [{ cut: true }, { coupled: true }])
+      for (const moving of [false, true])
+        expect(communityRootYaw(0.4, quarter, 1 / 60, { moving, ...flags })).toBe(quarter);
   });
   it('freezes safety stops even across clock jumps and preserves ordinary pause', () => {
     expect(advanceCommunityPeopleClock(8, 20, 12, false, true)).toBe(8);
@@ -740,7 +764,7 @@ describe('inhabited world routines', () => {
       task: pose.task,
     });
   });
-  it('brings village residents out of and back into their own doors, standing', () => {
+  it('brings village residents out of and back into their own doors, standing', SWEEP, () => {
     const step = 0.0002;
     const village = COMMUNITY_ROSTER.filter((p) => p.district === 'village' && p.stops.length);
     expect(village.map((p) => p.id).sort()).toEqual([
