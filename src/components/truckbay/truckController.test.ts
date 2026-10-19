@@ -386,7 +386,9 @@ describe('schedule-owned articulated truck controller', () => {
     let state = createTruckController('shipping');
     for (let frame = 0; frame < 60 * 4; frame += 1) state = step(state).state;
     const heldPhase = state.phase;
-    for (let frame = 0; frame < 60 * 4; frame += 1) {
+    // A jerk-limited stop eases its braking off over the last 1.8 m/s instead
+    // of releasing 2.4 m/s^2 at the standstill, so allow 5 s rather than 4.
+    for (let frame = 0; frame < 60 * 5; frame += 1) {
       state = step(state, { safetyHold: true }).state;
     }
     const pose = getTruckControllerPose(state, true);

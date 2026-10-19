@@ -40,13 +40,25 @@ import {
   createForkliftRoutePlan,
   createInitialForkliftMotion,
   distanceAheadOnClosedPath,
+  forkliftRouteHeading,
   sampleForkliftLoadPose,
   resolveForkliftStopReason,
   stepForkliftMotion,
   type ForkliftLoadPhase,
+  type ForkliftRoutePlan,
   type ForkliftStopReason,
 } from '../simulation/vehicles/forkliftController';
 import { sampleArcLengthPath } from '../simulation/vehicles/vehicleKinematics';
+
+/**
+ * The direction a forklift publishes for traffic checks: where the route goes
+ * from here. At a pickup or dropoff that turns, the path's own tangent still
+ * points along the arriving leg; the route heading is the leaving one.
+ */
+const routeDirection = (plan: ForkliftRoutePlan, distance: number): [number, number] => {
+  const heading = forkliftRouteHeading(plan, distance);
+  return [Math.sin(heading), Math.cos(heading)];
+};
 import {
   vehicleTelemetryRegistry,
   type VehicleTelemetrySnapshot,
@@ -1001,14 +1013,14 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
             }
             ref.current.updateMatrixWorld(true);
             const motion = motionStateRef.current;
-            const sample = sampleArcLengthPath(routePlanRef.current.path, motion.routeDistance);
-            dirNormalizedRef.current.set(sample.tangentX, 0, sample.tangentZ);
+            const [dirX, dirZ] = routeDirection(routePlanRef.current, motion.routeDistance);
+            dirNormalizedRef.current.set(dirX, 0, dirZ);
             positionRegistry.register(
               data.id,
               motion.x,
               motion.z,
-              sample.tangentX,
-              sample.tangentZ,
+              dirX,
+              dirZ,
               true,
               ref.current.position.y
             );
@@ -1048,14 +1060,14 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
 
     const framePaused = isForkliftSimulationPaused(useGameSimulationStore.getState().gameSpeed);
     if (framePaused || isWorkplaceReplayRestoring()) {
-      const sample = sampleArcLengthPath(routePlan.path, motionBefore.routeDistance);
-      dirNormalizedRef.current.set(sample.tangentX, 0, sample.tangentZ);
+      const [dirX, dirZ] = routeDirection(routePlan, motionBefore.routeDistance);
+      dirNormalizedRef.current.set(dirX, 0, dirZ);
       positionRegistry.register(
         data.id,
         motionBefore.x,
         motionBefore.z,
-        sample.tangentX,
-        sample.tangentZ,
+        dirX,
+        dirZ,
         true,
         vehicle.position.y
       );
@@ -1063,12 +1075,8 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       return;
     }
 
-    const currentSample = sampleArcLengthPath(routePlan.path, motionBefore.routeDistance);
-    const direction = dirNormalizedRef.current.set(
-      currentSample.tangentX,
-      0,
-      currentSample.tangentZ
-    );
+    const [currentDirX, currentDirZ] = routeDirection(routePlan, motionBefore.routeDistance);
+    const direction = dirNormalizedRef.current.set(currentDirX, 0, currentDirZ);
     frameCountRef.current += 1;
     const shouldCheckCollisions = frameCountRef.current % 3 === 0;
     let pathClear: boolean;
@@ -1353,12 +1361,13 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       (resolveForkliftMastTilt('traveling', hasCargoRef.current) - mastTiltRef.current) *
       poseResponse;
 
+    const [nextDirX, nextDirZ] = routeDirection(routePlan, nextMotion.routeDistance);
     positionRegistry.register(
       data.id,
       nextMotion.x,
       nextMotion.z,
-      nextSample.tangentX,
-      nextSample.tangentZ,
+      nextDirX,
+      nextDirZ,
       requestedStopped || nextMotion.speed <= 0.01,
       vehicle.position.y
     );

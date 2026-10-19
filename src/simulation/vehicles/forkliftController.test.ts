@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { createRoundedForkliftRoute, type ForkliftWaypointAction } from '../forkliftRoute';
+import { drivenLogisticsRoute } from '../logisticsRuntime';
 import { sampleArcLengthPath } from './vehicleKinematics';
 import {
   FORKLIFT_MAXIMUM_STEERING_RADIANS,
@@ -80,6 +81,9 @@ describe('forklift controller', () => {
   it('uses a lower loaded speed envelope', () => {
     const plan = createForkliftRoutePlan(points, actions);
     let state = createInitialForkliftMotion(plan, [0, 0, 0]);
+    // This square's corners are unrounded, so the speed dips at each; the
+    // envelope is the top speed reached on its 10 m legs.
+    let fastest = 0;
     for (let index = 0; index < 600; index += 1) {
       state = stepForkliftMotion(state, plan, {
         targetSpeed: 3.5,
@@ -87,8 +91,9 @@ describe('forklift controller', () => {
         loaded: true,
         deltaSeconds: 1 / 60,
       });
+      fastest = Math.max(fastest, state.speed);
     }
-    expect(state.speed).toBeCloseTo(1.8);
+    expect(fastest).toBeCloseTo(1.8);
   });
 
   it('publishes explicit pickup phases and attaches cargo only after engagement', () => {
@@ -142,16 +147,17 @@ describe('forklift controller', () => {
     expect(measuredLength / plan.path.totalLength).toBeGreaterThan(0.7);
     expect((worstLegDeviation * 180) / Math.PI).toBeLessThan(3);
 
-    // The closed route's seam is the pickup: no one-frame heading snap across it.
+    // The closed route's seam is the pickup, where the route turns back on
+    // itself. That turn is a standing pivot: the path arrives on its incoming
+    // leg and leaves on its outgoing one, and the plan marks the span between
+    // them so the body turns in place (the driven-lap test bounds its rate).
     const beforeSeam = sampleArcLengthPath(plan.path, plan.path.totalLength - 0.01);
-    const afterSeam = sampleArcLengthPath(plan.path, 0.01);
-    const seamStep = Math.abs(
-      Math.atan2(
-        beforeSeam.tangentX * afterSeam.tangentZ - beforeSeam.tangentZ * afterSeam.tangentX,
-        beforeSeam.tangentX * afterSeam.tangentX + beforeSeam.tangentZ * afterSeam.tangentZ
-      )
+    const lastLeg = plan.path.samples.at(-2)!;
+    expect(headingOf(beforeSeam.tangentX, beforeSeam.tangentZ)).toBeCloseTo(
+      headingOf(route[0][0] - lastLeg.x, route[0][2] - lastLeg.z),
+      6
     );
-    expect((seamStep * 180) / Math.PI).toBeLessThan(5);
+    expect(plan.pivots?.some(({ start }) => start === 0)).toBe(true);
   });
 
   it('places and disengages a carried pallet in distinct phases', () => {
@@ -273,6 +279,79 @@ describe('forklift controller', () => {
     expect(state.wheelTravel - wheelTravel).toBeCloseTo(0.08);
     expect(state.speed).toBe(0);
   });
+});
+
+const wrapAngle = (angle: number): number => Math.atan2(Math.sin(angle), Math.cos(angle));
+
+/**
+ * Drives the default route for two full load cycles the way ForkliftSystem
+ * does: travel up to the next action marker under its braking target and
+ * movement authority, hold there for the action, then go on.
+ */
+const simulateDrivenLaps = (dock: 'shipping' | 'receiving') => {
+  const authored = SITE_LAYOUT.routes.forklifts[dock].points;
+  const { plan } = drivenLogisticsRoute(dock, authored);
+  const cruise = dock === 'shipping' ? 3.5 : 3;
+  let state = createInitialForkliftMotion(plan, authored[0]);
+  let markerIndex = 0;
+  let loaded = false;
+  let actions = 0;
+  let worstYawStep = 0;
+  let worstCrab = 0;
+  let peakLateral = 0;
+  for (let frame = 0; frame < 60 * 600 && actions < 4; frame += 1) {
+    const marker = plan.markers[markerIndex];
+    const ahead = distanceAheadOnClosedPath(plan.path, state.routeDistance, marker.distance);
+    const relevant = (marker.action.type === 'pickup') !== loaded;
+    if (relevant && ahead <= 0.06) {
+      // The load operation snaps the vehicle onto its marker and holds it
+      // there, heading unchanged, as ForkliftSystem does.
+      const at = sampleArcLengthPath(plan.path, marker.distance);
+      state = { ...state, routeDistance: marker.distance, x: at.x, z: at.z, speed: 0 };
+      loaded = marker.action.type === 'pickup';
+      markerIndex = (markerIndex + 1) % plan.markers.length;
+      actions += 1;
+      continue;
+    }
+    const targetSpeed =
+      relevant && ahead < 5 ? Math.min(cruise, Math.sqrt(Math.max(0, 3 * (ahead - 0.03)))) : cruise;
+    const next = stepForkliftMotion(state, plan, {
+      targetSpeed,
+      stopReason: 'none',
+      loaded,
+      deltaSeconds: 1 / 60,
+      maximumTravelDistance: relevant ? ahead : undefined,
+    });
+    const yawStep = Math.abs(wrapAngle(next.heading - state.heading));
+    worstYawStep = Math.max(worstYawStep, yawStep);
+    const travel = Math.hypot(next.x - state.x, next.z - state.z);
+    if (travel > 1e-3) {
+      peakLateral = Math.max(peakLateral, yawStep * 60 * next.speed);
+      const travelHeading = Math.atan2(next.x - state.x, next.z - state.z);
+      worstCrab = Math.max(worstCrab, Math.abs(wrapAngle(next.heading - travelHeading)));
+    }
+    state = next;
+  }
+  return { actions, worstYawStep, peakLateral, worstCrab };
+};
+
+describe('forklift driven laps on the default layout', () => {
+  it.each(['shipping', 'receiving'] as const)(
+    'turns the %s forklift at a bounded yaw rate and never drives sideways',
+    (dock) => {
+      const { actions, worstYawStep, peakLateral, worstCrab } = simulateDrivenLaps(dock);
+      expect(actions).toBe(4);
+      // Corners are taken at the 1.05 m/s^2 the speed limit is designed for
+      // (2.9 when the look-ahead ignored the jerk it takes to start braking).
+      expect(peakLateral).toBeLessThan(1.4);
+      // Shipping spun 140 degrees in about 0.1 s at x 24.5 (28 rad/s peak).
+      // The per-step check reads across +/-pi through wrapAngle.
+      expect(worstYawStep).toBeLessThan(1.5 / 60);
+      // And at the 180-degree pickup cusp the body turned 90 degrees sideways
+      // while it travelled straight: it now stops and pivots instead.
+      expect(worstCrab).toBeLessThan(0.3);
+    }
+  );
 });
 
 describe('forklift fleet-priority safety arbitration', () => {

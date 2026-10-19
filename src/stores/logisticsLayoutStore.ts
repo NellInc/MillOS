@@ -15,10 +15,12 @@ import {
   capturedPlanningObstacles,
   currentLogisticsLayout,
   DEFAULT_PLANNING_ASSUMPTIONS,
+  isEditableRoutePoint,
   scoreLogisticsLayout,
   type Dock,
   type LogisticsProposal,
 } from '../simulation/layoutPlanning';
+import { SITE_LAYOUT, type Vec3Tuple } from '../constants/siteLayout';
 import { translate } from '../i18n';
 import { logisticsLayoutStoreMessages } from './logisticsLayoutStore.messages';
 import { logisticsRuntimeMessages } from '../simulation/logisticsRuntime.messages';
@@ -57,6 +59,61 @@ export const defaultSavedLogisticsLayout = (): SavedLogisticsLayout => ({
   revision: 0,
 });
 
+/**
+ * The default shipping route until 2026-10-20, whose east end doubled back
+ * from (25, 42) to (22.5, 43) and spun the forklift. Its fixed poses differ
+ * from today's, so a save holding it would fail the fixed-pose check and halt
+ * the restore. Working if such a save restores onto the current route.
+ */
+const LEGACY_SHIPPING_ROUTE: readonly Vec3Tuple[] = [
+  [-16, 0, 42],
+  [12, 0, 42],
+  [25, 0, 42],
+  [22.5, 0, 43],
+  [22.5, 0, 48],
+  [26, 0, 48],
+  [26, 0, 42],
+  [-16, 0, 42],
+];
+
+const samePoint = (a: unknown, b: Vec3Tuple): boolean =>
+  Array.isArray(a) && a.length === 3 && a.every((value, axis) => value === b[axis]);
+
+/**
+ * Moves a layout drawn on the legacy shipping route onto the current one. A
+ * corner the player moved is kept when the result still passes `feasible`,
+ * and returned to the default otherwise; any other layout is left untouched.
+ */
+function migrateLegacyShippingRoute(
+  layout: LogisticsProposal | null,
+  feasible: (layout: LogisticsProposal) => boolean
+): LogisticsProposal | null {
+  const route = layout?.routes?.shipping;
+  if (!layout || !Array.isArray(route) || route.length !== LEGACY_SHIPPING_ROUTE.length)
+    return layout;
+  const editable = (index: number) => isEditableRoutePoint('shipping', index);
+  if (
+    !LEGACY_SHIPPING_ROUTE.every(
+      (point, index) => editable(index) || samePoint(route[index], point)
+    )
+  )
+    return layout;
+  const current = SITE_LAYOUT.routes.forklifts.shipping.points;
+  const withRoute = (keepEdits: boolean): LogisticsProposal => ({
+    ...layout,
+    routes: {
+      ...layout.routes,
+      shipping: current.map((point, index) =>
+        keepEdits && editable(index) && !samePoint(route[index], LEGACY_SHIPPING_ROUTE[index])
+          ? [...(route[index] as Vec3Tuple)]
+          : [...point]
+      ),
+    },
+  });
+  const kept = withRoute(true);
+  return feasible(kept) ? kept : withRoute(false);
+}
+
 export function validateSavedLogisticsLayout(
   raw: unknown,
   machines: readonly SpoutMachine[]
@@ -67,21 +124,22 @@ export function validateSavedLogisticsLayout(
   if (!Number.isSafeInteger(saved.revision) || saved.revision < 0)
     throw new Error('Invalid layout revision');
   if (!saved.layout) throw new Error('Missing saved logistics layout');
-  for (const layout of [saved.layout, saved.previous]) {
-    if (layout === null && layout === saved.previous) continue;
-    if (
-      !layout ||
-      !scoreLogisticsLayout(
-        layout,
-        DEFAULT_PLANNING_ASSUMPTIONS,
-        capturedPlanningObstacles(machines, [])
-      ).feasible
-    )
+  const feasible = (layout: LogisticsProposal) =>
+    scoreLogisticsLayout(
+      layout,
+      DEFAULT_PLANNING_ASSUMPTIONS,
+      capturedPlanningObstacles(machines, [])
+    ).feasible;
+  const layout = migrateLegacyShippingRoute(saved.layout, feasible);
+  const previous = migrateLegacyShippingRoute(saved.previous, feasible);
+  for (const candidate of [layout, previous]) {
+    if (candidate === null && candidate === previous) continue;
+    if (!candidate || !feasible(candidate))
       throw new Error('Saved logistics layout has invalid clearance');
   }
   return structuredClone({
-    layout: saved.layout,
-    previous: saved.previous,
+    layout: layout as LogisticsProposal,
+    previous,
     revision: saved.revision,
   });
 }
