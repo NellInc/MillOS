@@ -22,7 +22,7 @@ import {
   vehicleTelemetryRegistry,
   type VehicleTelemetrySnapshot,
 } from './simulation/vehicles/vehicleTelemetryRegistry';
-import type { MachineData } from './types';
+import type { AlertData, MachineData } from './types';
 import type { Alarm } from './scada/types';
 import { formatFixed, translate } from './i18n';
 import { storeMessages as msg } from './store.messages';
@@ -60,6 +60,7 @@ import {
 import { getDispatchQualityStatus, useQCLabStore, type QCLabState } from './stores/qcLabStore';
 import { shallow } from 'zustand/shallow';
 import { isWorkplaceReplayActive } from './simulation/workplaceReplayRuntime';
+import { storeOwnedLoad } from './simulation/machineLoad';
 
 // Debounced machine state sync to prevent flooding SCADA with updates
 let lastMachineSyncTime = 0;
@@ -110,6 +111,36 @@ function scadaAlarmTypeLabel(type: Alarm['type']): string {
 const alarmOccurrenceKey = (alarm: Alarm): string => `${alarm.id}:${alarm.occurrenceCount ?? 1}`;
 
 /**
+ * ISA-18.2: an alert whose alarm returned to normal (RTN_UNACK) or cleared
+ * stays listed for acknowledgement but stops holding the safety-critical UI;
+ * if the condition re-enters, the same alert stands again.
+ * Working if the quiet UI lifts when the condition does, while the alert can
+ * still be acknowledged.
+ */
+export function reconcileReturnedAlarmAlerts(
+  alerts: readonly AlertData[],
+  alarms: readonly Alarm[]
+): Array<{ id: string; returned: boolean; message: string }> {
+  const alarmById = new Map(alarms.map((alarm) => [alarm.id, alarm]));
+  const changes: Array<{ id: string; returned: boolean; message: string }> = [];
+  for (const alert of alerts) {
+    if (!alert.id.startsWith('scada-') || alert.acknowledged) continue;
+    const alarm = alarmById.get(alert.id.slice('scada-'.length));
+    const standing = !!alarm && alarm.state !== 'RTN_UNACK';
+    if (standing === !alert.returnedToNormal) continue;
+    changes.push({
+      id: alert.id,
+      returned: !standing,
+      message:
+        alarm && standing
+          ? formatAlarmMessage(alarm)
+          : `${alert.message} ${translate(msg, 'alarmReturnedToNormal')}`,
+    });
+  }
+  return changes;
+}
+
+/**
  * Choose the SCADA alarms to raise as UI alerts. `announced` remembers the
  * occurrences already alerted, so an alert the operator dismissed (or that the
  * 10-slot alert list evicted) stays gone while that occurrence stands. Keys of
@@ -146,28 +177,8 @@ export function selectSCADAAlarmsToAlert(
   return toAlert;
 }
 
-/**
- * Store-owned machine load in simulation mode, eased like the offline model in
- * MachineSimulationController (updateOfflineMachineMetrics): 50 + pace * 30
- * while running, 0 when idle, held otherwise.
- * Working if: SCADA's feed-derived load (itself driven by this load) is never
- * written back, so mills hold ~80% at nominal pace instead of climbing to 100%.
- */
-export function storeOwnedLoad(
-  machine: { status: MachineData['status']; metrics: Pick<MachineData['metrics'], 'load'> },
-  productionSpeed: number
-): number {
-  const current = machine.metrics.load;
-  const isRunning =
-    productionSpeed > 0 && (machine.status === 'running' || machine.status === 'warning');
-  let target = current;
-  if (isRunning) target = 50 + productionSpeed * 30;
-  else if (machine.status === 'idle') target = 0;
-  const clamp = (n: number): number => Math.max(0, Math.min(100, n));
-  if (!Number.isFinite(current)) return Number.isFinite(target) ? clamp(target) : 0;
-  const next = current + (target - current) * 0.1;
-  return clamp(Math.abs(target - next) < 0.05 ? target : next);
-}
+// The one machine-load formula, shared with the offline machine model.
+export { storeOwnedLoad };
 
 export function buildOperationalTelemetry(
   flow: MaterialFlowState,
@@ -301,6 +312,7 @@ export function buildOperationalTelemetry(
     'load-operation': 7,
     'safety-hold': 8,
     scheduled: 9,
+    'vehicle-queue': 10,
   };
   vehicleTelemetry.forEach((vehicle) => {
     const tagIds = VEHICLE_TAG_IDS[vehicle.id as keyof typeof VEHICLE_TAG_IDS];
@@ -437,6 +449,10 @@ export function initializeSCADASync(): () => void {
 
         // New critical/high occurrences only (3 per notify); dismissed ones stay dismissed.
         const existingAlertIds = new Set(uiStore.alerts.map((a) => a.id));
+
+        reconcileReturnedAlarmAlerts(uiStore.alerts, alarms).forEach((change) =>
+          uiStore.setAlertReturnedToNormal(change.id, change.returned, change.message)
+        );
 
         selectSCADAAlarmsToAlert(alarms, existingAlertIds, announcedAlarmOccurrences).forEach(
           (alarm) => {

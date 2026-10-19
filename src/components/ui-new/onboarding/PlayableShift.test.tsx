@@ -364,7 +364,7 @@ describe('playable shift UI', () => {
     const handler = vi.fn();
     window.addEventListener('millos:open-operations-workspace', handler);
     render(<OperationsPlayCard />);
-    fireEvent.click(screen.getByRole('button', { name: 'Review quality hold' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Review the quality hold in Overview' }));
     expect(handler.mock.calls[0][0].detail).toBe('overview');
     window.removeEventListener('millos:open-operations-workspace', handler);
   });
@@ -691,7 +691,7 @@ it('routes completed-delivery response guidance to Overview without advancing th
     clock = useGameSimulationStore.getState(),
     onOpen = vi.fn();
   render(<FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={onOpen} />);
-  fireEvent.click(screen.getByRole('button', { name: 'Open current operations' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Open Overview' }));
   expect(onOpen).toHaveBeenCalledWith('overview');
   expect(useOperationsCampaignStore.getState()).toBe(before);
   expect(useGameSimulationStore.getState()).toBe(clock);

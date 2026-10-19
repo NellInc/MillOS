@@ -22,7 +22,7 @@ import { useAINarrationStore } from '../../stores/aiNarrationStore';
 import type { NarrationEntry } from '../../stores/aiNarrationStore';
 import { useKnowledgeStore } from '../../stores/knowledgeStore';
 import { useKnowledgeIntegration } from '../../hooks/useKnowledgeIntegration';
-import { useUIStore } from '../../stores/uiStore';
+import { isStandingCriticalAlert, useUIStore } from '../../stores/uiStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useAnnouncementsStore } from '../../stores/announcementsStore';
 import { useMobileControlStore } from '../../stores/mobileControlStore';
@@ -105,9 +105,9 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   // critical alert holds the quiet/safety UI. Working if Acknowledge or Mark all
   // as read restores music controls, PA flavour and AI reflection, while real
   // safety stops (emergency, drill, crisis) still hold it via safetyStateActive.
-  const hasCriticalAlert = useUIStore((s) =>
-    s.alerts.some((alert) => alert.type === 'critical' && !alert.acknowledged)
-  );
+  // A SCADA alarm that returned to normal (ISA-18.2 RTN_UNACK) stays listed
+  // for acknowledgement but no longer holds this state.
+  const hasCriticalAlert = useUIStore((s) => s.alerts.some(isStandingCriticalAlert));
   const fpsMode = useUIStore((s) => s.fpsMode);
   const safetyStateActive = useGameSimulationStore(
     (state) => state.emergencyActive || state.emergencyDrillMode || state.crisisState.active

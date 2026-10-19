@@ -1,10 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useGraphicsStore } from '../../stores/graphicsStore';
-import {
-  adaptiveQualityManager,
-  applySessionQuality,
-  restoreSessionScopedQuality,
-} from '../adaptiveQuality';
+import { adaptiveQualityManager, restoreSessionScopedQuality } from '../adaptiveQuality';
 
 // An automatic or recovery downgrade belongs to the session that needed it;
 // only an explicit choice in Settings may follow the visitor to the next one.
@@ -78,16 +74,22 @@ describe('session-scoped quality downgrades', () => {
     expect(useGraphicsStore.getState().graphics.quality).toBe('low');
   });
 
-  it('holds a recovery downgrade for this session only', () => {
-    applySessionQuality('low');
-    expect(useGraphicsStore.getState().graphics.quality).toBe('low');
-    // Adaptive must not climb back over the visitor's recovery choice mid-session.
-    vi.setSystemTime(240000);
-    for (let frame = 0; frame < 1600; frame++) adaptiveQualityManager.update(1 / 60);
-    expect(idle).toHaveLength(0);
-    expect(useGraphicsStore.getState().graphics.quality).toBe('low');
+  it('keeps the record in the graphics store and adopts an older standalone key once', () => {
+    dropOneTierAdaptively();
+    expect(useGraphicsStore.getState().sessionTier).toEqual({
+      applied: 'low',
+      restoreTo: 'medium',
+    });
+    expect(window.localStorage.getItem('millos-graphics-session-tier')).toBeNull();
+    useGraphicsStore.setState({ sessionTier: null });
+    useGraphicsStore.getState().setGraphicsQuality('low', 'adaptive');
+    window.localStorage.setItem(
+      'millos-graphics-session-tier',
+      JSON.stringify({ applied: 'low', restoreTo: 'high' })
+    );
     startNextSession();
-    expect(useGraphicsStore.getState().graphics.quality).toBe('medium');
+    expect(useGraphicsStore.getState().graphics.quality).toBe('high');
+    expect(window.localStorage.getItem('millos-graphics-session-tier')).toBeNull();
   });
 
   it('leaves a session alone when nothing was downgraded automatically', () => {

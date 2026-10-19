@@ -38,18 +38,18 @@ export const operationsPlayMessages = defineMessages({
     programmeLabel: 'Accept next production programme',
     programmeConsequence:
       'Creates three new 3,000 kg customer commitments with real recipe, quality and dispatch requirements. Existing stock remains available; no goods or revenue are created.',
-    qualityLabel: 'Review quality hold',
+    qualityLabel: 'Review the quality hold in Overview',
     qualityConsequence:
       'Inspect source traceability and tests in the QC lab. Held batches cannot satisfy a customer commitment.',
-    receivingLabel: 'Inspect incoming feedstock',
+    receivingLabel: 'Check incoming grain in SCADA',
     sourceMaterial: (p: { value: string }) => p.value.replaceAll('_', ' '),
     receivingConsequence:
       'The {material} route is empty. Receiving and releasing the matching source lot permits milling to resume.',
-    dispatchLabel: 'Inspect shipping progress',
+    dispatchLabel: 'Check shipping in SCADA',
     dispatchConsequence:
       'Only material recorded on a departed shipping manifest credits the commitment. Loading and released stock alone earn no revenue.',
-    residualLabel: 'Inspect residual incident effects',
-    productionLabel: 'Inspect active production route',
+    residualLabel: 'Check remaining incident effects in SCADA',
+    productionLabel: 'Check the production line in SCADA',
     residualConsequence:
       '{title} retains residual effects. Recover the affected equipment or hold in its owning workspace; acknowledgement alone cannot restore it.',
     productionConsequence:
@@ -95,18 +95,18 @@ export const operationsPlayMessages = defineMessages({
     programmeLabel: 'Aceitar o próximo programa de produção',
     programmeConsequence:
       'Cria três novos compromissos de 3.000 kg com clientes, com exigências reais de receita, qualidade e expedição. O estoque existente continua disponível; nenhum produto ou faturamento é criado.',
-    qualityLabel: 'Revisar a retenção de qualidade',
+    qualityLabel: 'Revisar a retenção de qualidade na Visão geral',
     qualityConsequence:
       'Inspecione a rastreabilidade da origem e os testes no laboratório de CQ. Lotes retidos não podem atender a um compromisso com o cliente.',
-    receivingLabel: 'Inspecionar a matéria-prima recebida',
+    receivingLabel: 'Verificar o grão recebido no SCADA',
     sourceMaterial: (p: { value: string }) => PT_MATERIAL[p.value] ?? p.value.replaceAll('_', ' '),
     receivingConsequence:
       'A rota de {material} está vazia. Receber e liberar o lote de origem correspondente permite retomar a moagem.',
-    dispatchLabel: 'Inspecionar o andamento da expedição',
+    dispatchLabel: 'Verificar a expedição no SCADA',
     dispatchConsequence:
       'Somente o material registrado em um romaneio de expedição que já saiu conta para o compromisso. O carregamento e o estoque liberado, por si sós, não geram faturamento.',
-    residualLabel: 'Inspecionar os efeitos residuais da ocorrência',
-    productionLabel: 'Inspecionar a rota de produção ativa',
+    residualLabel: 'Verificar os efeitos restantes da ocorrência no SCADA',
+    productionLabel: 'Verificar a linha de produção no SCADA',
     residualConsequence:
       '{title} mantém efeitos residuais. Recupere o equipamento afetado ou resolva a retenção no espaço de trabalho correspondente; só o reconhecimento não basta para restabelecer a operação.',
     productionConsequence:

@@ -14,13 +14,17 @@ export type ForkliftStopReason =
   | 'simulation-paused'
   | 'emergency-stop'
   | 'route-blocked'
+  | 'vehicle-queue'
   | 'vehicle-yield'
   | 'crossing-reservation'
   | 'logistics-interlock'
   | 'load-operation';
 
 /** Fleet priority can release a peer wait, never a safety or physical barrier hold.
- * Working if hard holds and static obstacles survive every peer ordering.
+ * A static obstruction on the route is 'route-blocked' (a near miss); another
+ * vehicle on it is 'vehicle-queue', routine traffic that is never one.
+ * Working if hard holds and static obstacles survive every peer ordering, and
+ * queuing behind a peer never reads as an obstruction.
  */
 export function resolveForkliftStopReason({
   id,
@@ -46,7 +50,7 @@ export function resolveForkliftStopReason({
   const canReleasePeerWait =
     nearby.length > 0 &&
     nearby.every((peer) => peer.kind !== 'truck' && peer.isStopped && id < peer.id);
-  if (!pathClear && !canReleasePeerWait) return 'route-blocked';
+  if (!pathClear && !canReleasePeerWait) return 'vehicle-queue';
   if (nearby.some((peer) => !peer.isStopped || id > peer.id)) return 'vehicle-yield';
   return 'none';
 }

@@ -4,15 +4,9 @@ import { safeJSONStorage } from './storage';
 import { AlertData } from '../types';
 import { sanitizeUIState } from './persistenceMigrations';
 
-// First-person and blueprint are view modes, not preferences. Working if a
-// reload always opens on the overview, even when an older build saved either
-// mode as on.
-function withoutViewModes<T extends { fpsMode?: boolean; blueprintMode?: boolean }>(
-  state: T
-): Omit<T, 'fpsMode' | 'blueprintMode'> {
-  const { fpsMode: _fpsMode, blueprintMode: _blueprintMode, ...rest } = state;
-  return rest;
-}
+/** A critical alert whose condition still stands and is not yet acknowledged. */
+export const isStandingCriticalAlert = (alert: AlertData): boolean =>
+  alert.type === 'critical' && !alert.acknowledged && !alert.returnedToNormal;
 
 interface AlertIndices {
   alertsByPriority: Map<'info' | 'warning' | 'critical', AlertData[]>;
@@ -50,6 +44,8 @@ interface UIStore {
   addAlert: (alert: AlertData) => void;
   dismissAlert: (alertId: string) => void;
   acknowledgeAlert: (alertId: string) => void;
+  /** Mark (or clear) an alert's condition as returned to normal, keeping it listed. */
+  setAlertReturnedToNormal: (alertId: string, returned: boolean, message?: string) => void;
   removeAlert: (alertId: string) => void;
   getAlertsByPriority: (priority: 'info' | 'warning' | 'critical') => AlertData[];
 
@@ -177,6 +173,27 @@ export const useUIStore = create<UIStore>()(
             },
           };
         }),
+      setAlertReturnedToNormal: (alertId, returned, message) =>
+        set((state) => {
+          if (!state.alerts.some((a) => a.id === alertId && !!a.returnedToNormal !== returned))
+            return {};
+          const updatedAlerts = state.alerts.map((a) =>
+            a.id === alertId
+              ? {
+                  ...a,
+                  returnedToNormal: returned,
+                  ...(message !== undefined ? { message } : {}),
+                  ...(returned ? {} : { acknowledged: false, timestamp: new Date() }),
+                }
+              : a
+          );
+          return {
+            alerts: updatedAlerts,
+            _alertIndices: {
+              alertsByPriority: rebuildAlertIndex(updatedAlerts),
+            },
+          };
+        }),
       removeAlert: (alertId) =>
         set((state) => {
           const updatedAlerts = state.alerts.filter((a) => a.id !== alertId);
@@ -269,7 +286,9 @@ export const useUIStore = create<UIStore>()(
       storage: safeJSONStorage,
       version: 2,
       migrate: (persisted, version) => {
-        const state = withoutViewModes(sanitizeUIState(persisted));
+        // First-person and blueprint are view modes, not preferences: the
+        // sanitiser drops them, so a reload always opens on the overview.
+        const state = sanitizeUIState(persisted);
         // v1 persisted showZones while it defaulted to true; drop it so existing
         // users pick up the off-by-default overlays.
         if (version < 2) delete state.showZones;
@@ -277,7 +296,7 @@ export const useUIStore = create<UIStore>()(
       },
       merge: (persisted, current) => ({
         ...current,
-        ...withoutViewModes(sanitizeUIState(persisted)),
+        ...sanitizeUIState(persisted),
       }),
       partialize: (state) => ({
         hasSeenIntro: state.hasSeenIntro,

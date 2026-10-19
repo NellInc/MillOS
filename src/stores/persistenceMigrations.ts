@@ -79,9 +79,7 @@ export interface PersistedUIState {
   uiScale?: number;
   legendPosition?: { x: number; y: number };
   showMiniMap?: boolean;
-  fpsMode?: boolean;
   showFPSCounter?: boolean;
-  blueprintMode?: boolean;
 }
 
 export function sanitizeUIState(value: unknown): PersistedUIState {
@@ -95,9 +93,9 @@ export function sanitizeUIState(value: unknown): PersistedUIState {
     'showAIPanel',
     'panelMinimized',
     'showMiniMap',
-    'fpsMode',
+    // First-person and blueprint views are never restored, so an older
+    // record's fpsMode and blueprintMode are dropped here, not parsed.
     'showFPSCounter',
-    'blueprintMode',
   ] as const;
   booleanKeys.forEach((key) => {
     const candidate = booleanValue(source[key]);

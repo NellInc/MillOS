@@ -229,7 +229,9 @@ export function FirstDeliveryJourney({
         >
           {play.nextAction.kind === 'programme'
             ? t('reviewShiftProgramme')
-            : t('openCurrentOperations')}
+            : compactWorkspace === 'overview'
+              ? t('openOverview')
+              : t('openScada')}
         </button>
         <details className="mt-2 text-xs text-slate-300">
           <summary className="min-h-11 cursor-pointer py-3 text-cyan-200">
@@ -281,11 +283,11 @@ export function FirstDeliveryJourney({
             className={`${BUTTON} mt-2 w-full`}
             onClick={() => onOpenWorkspace(compactWorkspace)}
           >
-            {completed
-              ? t('reviewCurrentOperations')
-              : compactWorkspace === 'overview'
-                ? t('reviewDeliveryQc')
-                : t('openScada')}
+            {compactWorkspace === 'overview'
+              ? completed
+                ? t('openOverview')
+                : t('reviewDeliveryQc')
+              : t('openScada')}
           </button>
         )}
         {!ui.inspected && (

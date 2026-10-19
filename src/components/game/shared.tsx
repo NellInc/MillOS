@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef } from 'react';
 import { useProductionStore } from '../../stores/productionStore';
-import { useUIStore } from '../../stores/uiStore';
+import { isStandingCriticalAlert, useUIStore } from '../../stores/uiStore';
 import { useSafetyStore } from '../../stores/safetyStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useAnnouncementsStore, type AnnouncementInput } from '../../stores/announcementsStore';
@@ -366,9 +366,7 @@ const calculateOperationalStress = (): number => {
   const warning = machines.filter((machine) => machine.status === 'warning').length;
   const alerts = useUIStore.getState().alerts ?? [];
   // Acknowledged alerts are handled; they no longer raise PA stress.
-  const criticalAlerts = alerts.filter(
-    (alert) => alert.type === 'critical' && !alert.acknowledged
-  ).length;
+  const criticalAlerts = alerts.filter(isStandingCriticalAlert).length;
   const warningAlerts = alerts.filter((alert) => alert.type === 'warning').length;
   const incidents = useSafetyStore.getState().safetyIncidents ?? [];
   const recentIncidents = incidents.filter(
@@ -393,7 +391,7 @@ export const isCriticalConditionActive = (): boolean => {
   const machines = useProductionStore.getState().machines ?? [];
   if (machines.some((machine) => machine.status === 'critical')) return true;
   const alerts = useUIStore.getState().alerts ?? [];
-  if (alerts.some((alert) => alert.type === 'critical' && !alert.acknowledged)) return true;
+  if (alerts.some(isStandingCriticalAlert)) return true;
   // peek, not get: a query must not construct the SCADA service.
   return (peekSCADAService()?.getActiveAlarms() ?? []).some(isStandingCriticalAlarm);
 };

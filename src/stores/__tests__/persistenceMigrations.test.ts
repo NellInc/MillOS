@@ -56,7 +56,8 @@ describe('persistence migrations', () => {
     ).toEqual({
       gameTime: 1.5,
       gameDay: 2,
-      gameSpeed: 10800,
+      // Clamped to the 4x pace ceiling of the one time model.
+      gameSpeed: 120,
       weather: 'storm',
     });
 

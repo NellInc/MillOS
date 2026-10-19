@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { storeOwnedLoad } from '../../simulation/machineLoad';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { MachineData } from '../../types';
@@ -49,17 +50,7 @@ function updateOfflineMachineMetrics() {
     };
     const machineBaseTemperature = baseTemperature[machine.type] ?? 30;
 
-    let targetLoad = machine.metrics.load;
-    if (isRunning) {
-      targetLoad = 50 + productionSpeed * 30;
-    } else if (isIdle) {
-      targetLoad = 0;
-    }
-    const newLoad = THREE.MathUtils.clamp(
-      machine.metrics.load + (targetLoad - machine.metrics.load) * 0.1,
-      0,
-      100
-    );
+    const newLoad = storeOwnedLoad(machine, productionSpeed);
 
     let targetTemperature = machineBaseTemperature;
     if (isRunning) targetTemperature += (newLoad / 100) * 20;

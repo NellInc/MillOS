@@ -1290,11 +1290,12 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       if (stateChangeTimerRef.current >= HYSTERESIS_TIME) {
         setIsStopped(requestedStopped);
         stateChangeTimerRef.current = 0;
-        // Only a genuine obstruction is a near-miss. Commanded waits (crossing
-        // reservation, logistics interlock, e-stop or drill) keep the red
-        // beacon but neither sound the horn nor reset Days Safe. A planned
-        // yield to a nearby vehicle sounds the horn as a courtesy, but it is
-        // routine fleet priority, not a near miss.
+        // Only a genuine static obstruction is a near-miss. Commanded waits
+        // (crossing reservation, logistics interlock, e-stop or drill) and
+        // queuing behind another vehicle keep the red beacon but neither sound
+        // the horn nor reset Days Safe. A planned yield to a nearby vehicle
+        // sounds the horn as a courtesy, but it is routine fleet priority, not
+        // a near miss.
         // Working if a yield never raises 'Near-Miss Avoided' or lowers the
         // safety score, while a blocked route still records one.
         if (stopReason === 'route-blocked' || stopReason === 'vehicle-yield') {

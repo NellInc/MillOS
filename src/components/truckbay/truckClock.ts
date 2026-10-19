@@ -60,8 +60,14 @@ export function advanceTruckClock(
     Math.max(0, Number.isFinite(renderDeltaSeconds) ? renderDeltaSeconds : 0) *
       plantTimeScale(gameSpeed);
   const carried = Math.min(owed, MAXIMUM_TRUCK_CARRIED_SECONDS);
-  const budget = Math.min(carried, truckControllerDeltaCap(speedMps, gameSpeed));
-  const steps = Math.floor(budget / TRUCK_CONTROLLER_STEP_SECONDS + 1e-9);
+  const cap = truckControllerDeltaCap(speedMps, gameSpeed);
+  // While time is carried the display jumps to the newest step (alpha 1), so
+  // spend one step less: displayed travel then stays within the bound too.
+  const capSteps = Math.floor(cap / TRUCK_CONTROLLER_STEP_SECONDS + 1e-9);
+  const steps =
+    carried > cap
+      ? Math.max(0, capSteps - 1)
+      : Math.floor(carried / TRUCK_CONTROLLER_STEP_SECONDS + 1e-9);
   const remaining = Math.max(0, carried - steps * TRUCK_CONTROLLER_STEP_SECONDS);
   return {
     steps,

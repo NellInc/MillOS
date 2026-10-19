@@ -70,6 +70,7 @@ import { TRUCK_WHEEL_RADIUS } from './truckbay/OptimizedTruckBay';
 import { ForkliftSystem } from './ForkliftSystem';
 import { useProductionStore } from '../stores/productionStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
+import { STANDARD_GAME_SPEED } from '../simulation/pace';
 import { useTruckScheduleStore } from '../stores/truckScheduleStore';
 import { positionRegistry } from '../utils/positionRegistry';
 import { audioManager } from '../utils/audioManager';
@@ -112,9 +113,10 @@ afterEach(() => {
 });
 
 describe('component-owned vehicle replay', () => {
-  it.each([1, 2])('bounds real truck display steps after a stall at %sx production', (speed) => {
-    useProductionStore.setState({ productionSpeed: speed });
-    useGameSimulationStore.setState({ gameSpeed: 1 });
+  // Trucks run on plant time: a pace multiplier scales them with the clock.
+  it.each([1, 2])('bounds real truck display steps after a stall at %sx pace', (speed) => {
+    useProductionStore.setState({ productionSpeed: 1 });
+    useGameSimulationStore.setState({ gameSpeed: STANDARD_GAME_SPEED * speed });
     const models: any[] = [];
     const collect = (node: any): void => {
       if (!node) return;
@@ -122,7 +124,7 @@ describe('component-owned vehicle replay', () => {
       else if (node.type?.name === 'TruckVisualLOD') models.push(node);
       else collect(node.props?.children);
     };
-    collect(TruckBay({ productionSpeed: speed }));
+    collect(TruckBay());
     flushEffects();
     expect(models).toHaveLength(2);
     const frame = harness.frames[0];
@@ -147,23 +149,25 @@ describe('component-owned vehicle replay', () => {
       const wheelTravel =
         (model.props.wheelRotationRef.current - before[i].wheelRotation) * TRUCK_WHEEL_RADIUS;
       expect(distance).toBeGreaterThan(0);
-      expect(distance).toBeLessThanOrEqual(1.5);
+      // The per-frame display bound scales with the pace it accelerates.
+      expect(distance).toBeLessThanOrEqual(1.5 * speed);
       expect(wheelTravel).toBeCloseTo(distance, 5);
       expect(pose.phase).toBe('entering');
     }
     expect(depart).not.toHaveBeenCalled();
     expect(consume).not.toHaveBeenCalled();
-    const elapsed = participant.capture().shippingControllerRef.phaseElapsed;
-    frame({ camera }, 1 / 30);
-    expect(participant.capture().shippingControllerRef.phaseElapsed - elapsed).toBeCloseTo(
-      speed / 30,
-      6
-    );
+    // The stall's plant time is carried, not dropped, and paid back over the
+    // following frames, so the yard never falls behind the clock for good.
+    const carried = participant.capture().shippingAccumulatorRef;
+    expect(carried).toBeGreaterThan(speed * 2 - 0.2);
+    for (let i = 0; i < 600 && participant.capture().shippingAccumulatorRef > 1 / 30; i++)
+      frame({ camera }, 1 / 60);
+    expect(participant.capture().shippingAccumulatorRef).toBeLessThanOrEqual(1 / 30);
   });
 
   it('keeps slow-frame truck time where the 1.5 m display bound allows it', () => {
     useProductionStore.setState({ productionSpeed: 1 });
-    useGameSimulationStore.setState({ gameSpeed: 1 });
+    useGameSimulationStore.setState({ gameSpeed: STANDARD_GAME_SPEED });
     const models: any[] = [];
     const collect = (node: any): void => {
       if (!node) return;
@@ -171,7 +175,7 @@ describe('component-owned vehicle replay', () => {
       else if (node.type?.name === 'TruckVisualLOD') models.push(node);
       else collect(node.props?.children);
     };
-    collect(TruckBay({ productionSpeed: 1 }));
+    collect(TruckBay());
     flushEffects();
     const frame = harness.frames[0];
     const participant = harness.participants.get('trucks')!;
@@ -193,14 +197,15 @@ describe('component-owned vehicle replay', () => {
     expect(participant.capture().shippingControllerRef.phaseElapsed - elapsed).toBeGreaterThan(0.1);
   });
 
-  it('moves both trucks on production pace even when the line setpoint is zero', () => {
+  it('moves both trucks at the shift pace even when the line is stopped', () => {
     const execution = useOperationsCampaignStore.getState().execution;
     useOperationsCampaignStore.setState({ execution: { ...execution, lineSetpointPercent: 0 } });
     try {
       expect(useOperationsCampaignStore.getState().getProductionMultiplier()).toBe(0);
-      useProductionStore.setState({ productionSpeed: 1 });
-      useGameSimulationStore.setState({ gameSpeed: 1 });
-      TruckBay({ productionSpeed: 1 });
+      // Neither the campaign setpoint nor the line rate is a pause.
+      useProductionStore.setState({ productionSpeed: 0 });
+      useGameSimulationStore.setState({ gameSpeed: STANDARD_GAME_SPEED });
+      TruckBay();
       flushEffects();
       const participant = harness.participants.get('trucks')!;
       for (let i = 0; i < 60; i++) harness.frames[0]({ camera }, 1 / 60);
@@ -212,10 +217,10 @@ describe('component-owned vehicle replay', () => {
     }
   });
 
-  it('does not count a planned forklift yield as a near miss, but still counts a blocked route', () => {
+  it('counts neither a yield nor a queue behind a vehicle as a near miss, but counts a barrier', () => {
     useProductionStore.setState({ productionSpeed: 1 });
     useGameSimulationStore.setState({
-      gameSpeed: 1,
+      gameSpeed: STANDARD_GAME_SPEED,
       emergencyActive: false,
       emergencyDrillMode: false,
     });
@@ -246,6 +251,7 @@ describe('component-owned vehicle replay', () => {
       );
     };
     const reason = () => participant.capture().motionStateRef.stopReason;
+    const obstaclesBefore = positionRegistry.getAllObstacles();
     try {
       for (let i = 0; i < 900 && reason() !== 'vehicle-yield'; i++) {
         placePeer(-3);
@@ -263,10 +269,23 @@ describe('component-owned vehicle replay', () => {
         placePeer(2);
         harness.frames[0]({ camera }, 1 / 30);
       }
+      // Another vehicle ahead is traffic: the forklift queues behind it.
+      expect(reason()).toBe('vehicle-queue');
+      expect(stops()).toBe(stopsBeforeYield);
+      positionRegistry.unregister('test-peer');
+      // A static barrier on the route, whichever way it turns next.
+      const at = positionRegistry.getAllForklifts().find((entry) => entry.id === 'forklift-1')!;
+      const [bx, bz] = [at.x, at.z];
+      positionRegistry.registerObstacles([
+        ...obstaclesBefore,
+        { id: 'test-barrier', minX: bx - 3, maxX: bx + 3, minZ: bz - 3, maxZ: bz + 3 },
+      ]);
+      for (let i = 0; i < 30; i++) harness.frames[0]({ camera }, 1 / 30);
       expect(reason()).toBe('route-blocked');
       expect(stops()).toBeGreaterThan(stopsBeforeYield);
     } finally {
       positionRegistry.unregister('test-peer');
+      positionRegistry.registerObstacles(obstaclesBefore);
     }
   });
   it('retains both truck models across distance hysteresis without remounting finishes', () => {
@@ -276,7 +295,7 @@ describe('component-owned vehicle replay', () => {
       if (node.type?.name === 'TruckVisualLOD') return node;
       return findLod(node.props?.children);
     };
-    const element = findLod(TruckBay({ productionSpeed: 0 }));
+    const element = findLod(TruckBay());
     expect(element).toBeDefined();
     const tree = element.type(element.props);
     const [full, compact] = tree.props.children;

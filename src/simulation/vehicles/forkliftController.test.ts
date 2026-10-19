@@ -315,11 +315,11 @@ describe('forklift fleet-priority safety arbitration', () => {
         ...peerWait,
         nearby: [{ ...stoppedHigherPeer, isStopped: false }],
       })
-    ).toBe('route-blocked');
-    expect(resolveForkliftStopReason({ ...peerWait, nearby: [] })).toBe('route-blocked');
+    ).toBe('vehicle-queue');
+    expect(resolveForkliftStopReason({ ...peerWait, nearby: [] })).toBe('vehicle-queue');
     expect(
       resolveForkliftStopReason({ ...peerWait, nearby: [{ ...stoppedHigherPeer, kind: 'truck' }] })
-    ).toBe('route-blocked');
+    ).toBe('vehicle-queue');
   });
 
   it('compares all peer IDs independently of registry insertion order', () => {
@@ -329,9 +329,16 @@ describe('forklift fleet-priority safety arbitration', () => {
     ];
     for (const nearby of [peers, [...peers].reverse()]) {
       expect(resolveForkliftStopReason({ ...peerWait, id: 'forklift-2', nearby })).toBe(
-        'route-blocked'
+        'vehicle-queue'
       );
     }
+  });
+
+  it('queues behind a vehicle without calling it an obstruction, but a barrier still blocks', () => {
+    expect(resolveForkliftStopReason({ ...peerWait, nearby: [] })).toBe('vehicle-queue');
+    expect(resolveForkliftStopReason({ ...peerWait, nearby: [], obstaclePathClear: false })).toBe(
+      'route-blocked'
+    );
   });
 
   it('retains yielding on a clear path and releases an unopposed clear route', () => {

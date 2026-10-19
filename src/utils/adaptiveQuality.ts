@@ -19,7 +19,12 @@
  *   adaptiveQualityManager.update(deltaTime);
  */
 
-import { useGraphicsStore, GraphicsQuality } from '../stores/graphicsStore';
+import {
+  useGraphicsStore,
+  GraphicsQuality,
+  sanitizeSessionTier,
+  type SessionTierRecord,
+} from '../stores/graphicsStore';
 
 // Quality levels in order of performance cost (low to high)
 const QUALITY_ORDER: GraphicsQuality[] = ['low', 'medium', 'high', 'ultra'];
@@ -32,49 +37,33 @@ const QUALITY_ORDER: GraphicsQuality[] = ['low', 'medium', 'high', 'ultra'];
  * Working if an adaptive or 'Use low graphics' downgrade lasts only for the
  * session that needed it, while an explicit choice in Settings still persists.
  */
-const SESSION_TIER_KEY = 'millos-graphics-session-tier';
-
-interface SessionTierRecord {
-  applied: GraphicsQuality;
-  restoreTo: GraphicsQuality;
-}
-
-const isQuality = (value: unknown): value is GraphicsQuality =>
-  QUALITY_ORDER.includes(value as GraphicsQuality);
+// Before the record moved into graphicsStore it had its own key; read it once.
+const LEGACY_SESSION_TIER_KEY = 'millos-graphics-session-tier';
 
 function readSessionTier(): SessionTierRecord | null {
-  try {
-    const raw = globalThis.localStorage?.getItem(SESSION_TIER_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<SessionTierRecord> | null;
-    return parsed && isQuality(parsed.applied) && isQuality(parsed.restoreTo)
-      ? { applied: parsed.applied, restoreTo: parsed.restoreTo }
-      : null;
-  } catch {
-    return null;
-  }
+  return useGraphicsStore.getState().sessionTier;
 }
 
 function clearSessionTier(): void {
+  if (useGraphicsStore.getState().sessionTier) useGraphicsStore.getState().setSessionTier(null);
+}
+
+function adoptLegacySessionTier(): void {
   try {
-    globalThis.localStorage?.removeItem(SESSION_TIER_KEY);
+    const raw = globalThis.localStorage?.getItem(LEGACY_SESSION_TIER_KEY);
+    if (raw === null || raw === undefined) return;
+    globalThis.localStorage?.removeItem(LEGACY_SESSION_TIER_KEY);
+    const legacy = sanitizeSessionTier(JSON.parse(raw));
+    if (legacy && !readSessionTier()) useGraphicsStore.getState().setSessionTier(legacy);
   } catch {
-    // Storage unavailable: nothing was recorded either.
+    // Unreadable legacy record: nothing to restore.
   }
 }
 
 /** Records a session-only tier, keeping the first displaced choice across steps. */
 function recordSessionTier(applied: GraphicsQuality, displaced: GraphicsQuality): void {
   const restoreTo = readSessionTier()?.restoreTo ?? displaced;
-  if (applied === restoreTo) {
-    clearSessionTier();
-    return;
-  }
-  try {
-    globalThis.localStorage?.setItem(SESSION_TIER_KEY, JSON.stringify({ applied, restoreTo }));
-  } catch {
-    // Without storage the downgrade cannot outlive the session anyway.
-  }
+  useGraphicsStore.getState().setSessionTier(applied === restoreTo ? null : { applied, restoreTo });
 }
 
 interface AdaptiveQualityConfig {
@@ -381,20 +370,6 @@ class AdaptiveQualityManager {
 // Singleton instance
 export const adaptiveQualityManager = new AdaptiveQualityManager();
 
-/**
- * Applies a recovery tier (the loading cover's 'Use low graphics') for this
- * session only. It is the session's ceiling, so adaptive will not climb back
- * over it, but the next session starts at the visitor's own choice.
- */
-export function applySessionQuality(quality: GraphicsQuality): void {
-  const state = useGraphicsStore.getState();
-  const current = state.graphics.quality;
-  if (current === quality) return;
-  recordSessionTier(quality, current);
-  adaptiveQualityManager.acceptSessionChoice(quality);
-  state.setGraphicsQuality(quality, 'adaptive');
-}
-
 let explicitChoiceWatcher: (() => void) | null = null;
 
 /**
@@ -406,6 +381,7 @@ export function restoreSessionScopedQuality(): void {
   explicitChoiceWatcher ??= useGraphicsStore.subscribe((next, previous) => {
     if (next.qualityChoiceRevision !== previous.qualityChoiceRevision) clearSessionTier();
   });
+  adoptLegacySessionTier();
   const record = readSessionTier();
   if (!record) return;
   clearSessionTier();

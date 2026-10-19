@@ -87,6 +87,12 @@ export interface AlertData {
   machineId?: string;
   timestamp: Date;
   acknowledged: boolean;
+  /**
+   * ISA-18.2 RTN_UNACK: the condition behind this alert has cleared but nobody
+   * has acknowledged it. It stays listed for acknowledgement; it no longer
+   * holds the safety-critical UI.
+   */
+  returnedToNormal?: boolean;
 }
 
 export type AIDecisionDisposition = 'accepted' | 'modified' | 'rejected' | 'deferred' | 'automatic';
