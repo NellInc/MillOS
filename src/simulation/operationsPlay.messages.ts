@@ -38,7 +38,7 @@ export const operationsPlayMessages = defineMessages({
     repairLabel: 'Repair the stopped machine in Overview',
     programmeLabel: 'Accept next production programme',
     programmeConsequence:
-      'Creates three new 3,000 kg customer commitments with real recipe, quality and dispatch requirements. Existing stock remains available; no goods or revenue are created.',
+      'Creates three customer commitments, {dayKg} kg in all ({nightKg} kg on the night shift): a one-truck rush that pays {premium}% more but is due within {window} and costs double the usual late penalty, a {standardKg} kg order and a two-truck bulk order. The rush customer changes with each programme. Existing stock remains available; no goods or revenue are created.',
     qualityLabel: 'Review the quality hold in Overview',
     qualityConsequence:
       'Inspect source traceability and tests in the QC lab. Held batches cannot satisfy a customer commitment.',
@@ -96,7 +96,7 @@ export const operationsPlayMessages = defineMessages({
     repairLabel: 'Reparar a máquina parada na Visão geral',
     programmeLabel: 'Aceitar o próximo programa de produção',
     programmeConsequence:
-      'Cria três novos compromissos de 3.000 kg com clientes, com exigências reais de receita, qualidade e expedição. O estoque existente continua disponível; nenhum produto ou faturamento é criado.',
+      'Cria três compromissos com clientes, {dayKg} kg no total ({nightKg} kg no turno da noite): um pedido urgente de um caminhão, que paga {premium}% a mais, mas vence em {window} e custa o dobro da multa usual por atraso, um pedido de {standardKg} kg e um pedido a granel de dois caminhões. O cliente urgente muda a cada programa. O estoque existente continua disponível; nenhum produto ou faturamento é criado.',
     qualityLabel: 'Revisar a retenção de qualidade na Visão geral',
     qualityConsequence:
       'Inspecione a rastreabilidade da origem e os testes no laboratório de CQ. Lotes retidos não podem atender a um compromisso com o cliente.',

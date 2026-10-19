@@ -36,6 +36,8 @@ import {
   RECOVERY_CHALLENGE_TARGET_KG,
   RECOVERY_CHALLENGE_WINDOW_MINUTES,
 } from '../../../simulation/operationsPlay';
+import { operationsPlayMessages } from '../../../simulation/operationsPlay.messages';
+import { openRush } from '../../../simulation/programmes';
 import { LearningNote } from '../../knowledge/LearningNote';
 import { CAMERA_PRESETS, useCameraStore } from '../../CameraController';
 import { deriveDeliveryDeadline, deriveDeliveryJourney } from './deliveryJourney';
@@ -668,6 +670,7 @@ function WorkingAgreementSummary({
 
 export function OperationsPlayCard() {
   const t = useT(playableShiftMessages);
+  const playT = useT(operationsPlayMessages);
   // Project only changing campaign references; the panel host never subscribes to ticks.
   const snapshot = useOperationsCampaignStore(
     useShallow((s) => ({
@@ -719,6 +722,8 @@ export function OperationsPlayCard() {
   const gameSpeed = useGameSimulationStore((s) => s.gameSpeed);
   const play = deriveOperationsPlay(snapshot);
   const awaitingResponse = play.nextAction.kind === 'resume' && gameSpeed > 0;
+  const rush = openRush(snapshot.orders);
+  const rushDeadline = deriveDeliveryDeadline(rush?.order ?? null, snapshot.elapsedMinutes);
   // Only an isolated dispatch or an empty recipe feed stops work; due, overdue,
   // storage and maintenance constraints call for attention. Working if a
   // critical constraint leads a warning and only real stops read 'Blocked'.
@@ -802,6 +807,25 @@ export function OperationsPlayCard() {
                 : t('switchHint')}
           </span>
         </label>
+      )}
+      {/* The programme's one choice, beside the select that makes it: the
+          rush pays more and runs first; another commitment first risks it
+          late at double the penalty. Working if the card names the rush,
+          its premium and deadline, and a changeover when it needs one. */}
+      {rush && rushDeadline && (
+        <p className="mt-2 text-xs leading-5 text-cyan-100">
+          {t('rushChoice', {
+            customer: rush.order.customer,
+            premium: formatFixed(rush.order.rushPremiumPercent ?? 0, 0),
+            kg: formatGrouped(rush.order.requiredKg),
+            product: rush.order.recipe.label,
+            due: rushDeadline.label,
+          })}
+          {rush.onlyOnItsGrain &&
+            t('rushChangeover', {
+              grain: playT('sourceMaterial', { value: rush.order.recipe.sourceMaterial }),
+            })}
+        </p>
       )}
       <p className="mt-2">
         {play.activeOrder

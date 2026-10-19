@@ -19,7 +19,8 @@ import {
   type OperationsChallengeId,
   type OperationsChallengeRun,
 } from '../simulation/operationsPlay';
-import { formatFixed, getLocale, translate } from '../i18n';
+import { formatFixed, formatGrouped, getLocale, translate } from '../i18n';
+import { buildProgramme, programmeShift } from '../simulation/programmes';
 import {
   gradeShift,
   shiftGradeBasis,
@@ -75,6 +76,11 @@ export interface CustomerOrder {
   batchIds: string[];
   manifestIds: string[];
   completedAtMinute: number | null;
+  /**
+   * A programme's rush order: how much more it pays per kg than its
+   * customer's usual terms (src/simulation/programmes.ts). Absent otherwise.
+   */
+  rushPremiumPercent?: number;
 }
 
 export interface OperationalIncident {
@@ -313,6 +319,8 @@ interface OperationsCampaignState {
   currentShiftLabel: string;
   shiftStartedAtMinute: number;
   sequence: number;
+  /** Programmes accepted after the guided one; picks the next programme's variant. */
+  programmeCount: number;
   initializeCampaign: () => void;
   activateOrder: (orderId: string, actor?: CampaignActor) => void;
   triggerIncident: (kind: IncidentKind) => OperationalIncident | null;
@@ -780,6 +788,7 @@ function emptyState() {
     currentShiftLabel: 'Morning',
     shiftStartedAtMinute: 0,
     sequence: 0,
+    programmeCount: 0,
   };
 }
 
@@ -1225,21 +1234,39 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
           state.orders.some((order) => order.status !== 'fulfilled' && order.status !== 'cancelled')
         )
           return false;
-        const programme = createInitialOrders().map((order, index) => ({
-          ...order,
-          id: `programme-${state.sequence + 1}-order-${index + 1}`,
-          requiredKg: 3000,
-          dueAtMinute: state.elapsedMinutes + 180 + index * 120,
-        }));
+        // Varied by programme number and shift (src/simulation/programmes.ts);
+        // ids keep the logbook sequence, so they stay unique across a session.
+        const number = state.programmeCount + 2;
+        const programme = buildProgramme(
+          createInitialOrders(),
+          number,
+          programmeShift(state.currentShiftKey),
+          state.elapsedMinutes,
+          `programme-${state.sequence + 1}`
+        );
+        const lead = programme[0];
         set({
           orders: [...state.orders.slice(-30), ...programme],
-          activeOrderId: programme[0].id,
-          execution: { ...createInitialExecution(), orderId: programme[0].id, remainingKg: 3000 },
+          activeOrderId: lead.id,
+          programmeCount: state.programmeCount + 1,
+          execution: {
+            ...createInitialExecution(),
+            orderId: lead.id,
+            recipeId: lead.recipe.id,
+            sourceMaterial: lead.recipe.sourceMaterial,
+            finishedMaterial: lead.recipe.finishedMaterial,
+            remainingKg: lead.requiredKg,
+          },
         });
         state.addLogEntry(
           translate(messages, 'sourceOrderScheduler'),
           'operation',
-          translate(messages, 'logProgrammeAccepted'),
+          translate(messages, 'logProgrammeAccepted', {
+            number: formatFixed(number, 0),
+            customer: lead.customer,
+            rushKg: formatGrouped(lead.requiredKg),
+            totalKg: formatGrouped(programme.reduce((sum, order) => sum + order.requiredKg, 0)),
+          }),
           null,
           actor
         );
@@ -2022,6 +2049,7 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
         currentShiftLabel: state.currentShiftLabel,
         shiftStartedAtMinute: state.shiftStartedAtMinute,
         sequence: state.sequence,
+        programmeCount: state.programmeCount,
       }),
       // Restore receipts only alongside their physical session identity. A real
       // material reset clears them in tickCampaign, while same-session rehydrate

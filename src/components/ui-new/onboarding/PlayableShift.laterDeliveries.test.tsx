@@ -1,6 +1,6 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { FirstDeliveryJourney } from './PlayableShift';
+import { FirstDeliveryJourney, OperationsPlayCard } from './PlayableShift';
 import { useUIStore } from '../../../stores/uiStore';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
@@ -113,4 +113,37 @@ it('reads the live order when the guided order has been trimmed from the list', 
   expect(screen.queryByText('Choose a delivery')).not.toBeInTheDocument();
   expect(screen.getByText(new RegExp(`^Now: ${active.customer}, 0 of `))).toBeInTheDocument();
   expect(screen.getByRole('combobox', { name: 'Shift pace' })).toBeVisible();
+});
+
+it.each([
+  [
+    'en',
+    'Rush: Community Pasta Works pays 30% more for 2,500 kg Fine corn semolina. Due in 2h 30m (simulated). The controller runs it first; choosing another commitment first may make it late, at double the usual late penalty. It is the only order on corn grain, so running it first changes the line over to it and back.',
+  ],
+  [
+    'pt-BR',
+    'Urgente: Community Pasta Works paga 30% a mais por 2.500 kg de Semolina fina de milho. Vence em 2h 30min (tempo simulado). O controlador o executa primeiro; escolher outro compromisso antes pode atrasá-lo, com o dobro da multa usual por atraso. É o único pedido de grão de milho, então executá-lo primeiro troca a linha para ele e de volta.',
+  ],
+] as const)("names the programme's choice on the shift card (%s)", (locale, copy) => {
+  setLocale(locale);
+  const state = useOperationsCampaignStore.getState();
+  useOperationsCampaignStore.setState({
+    orders: state.orders.map((order) => ({
+      ...order,
+      status: 'fulfilled' as const,
+      shippedKg: order.requiredKg,
+      completedAtMinute: 400,
+    })),
+    activeOrderId: null,
+    elapsedMinutes: 480,
+  });
+  expect(useOperationsCampaignStore.getState().acceptNextProgramme()).toBe(true);
+  render(<OperationsPlayCard />);
+  expect(screen.getByText(copy)).toBeInTheDocument();
+  // The choice is made in the commitment select right above it.
+  expect(
+    screen.getByRole('combobox', {
+      name: /^(Active customer commitment|Compromisso ativo com o cliente)/,
+    })
+  ).toBeEnabled();
 });

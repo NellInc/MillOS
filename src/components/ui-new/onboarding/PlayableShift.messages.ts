@@ -105,6 +105,10 @@ export const playableShiftMessages = defineMessages({
       'Finish the linked working agreement season and owed recovery before switching customers. Review working agreement opens Autonomy, where you can finish the remaining shifts or let the fictional demo run them. Leave this season, below, ends it early and keeps what was earned.',
     switchHint:
       'Changing customer changes the scheduled recipe. Existing stock and shipping receipts remain unchanged.',
+    rushChoice:
+      'Rush: {customer} pays {premium}% more for {kg} kg {product}. {due}. The controller runs it first; choosing another commitment first may make it late, at double the usual late penalty.',
+    rushChangeover:
+      ' It is the only order on {grain}, so running it first changes the line over to it and back.',
     activeOrderProgress: '{customer}: {shippedKg} / {requiredKg} kg dispatched',
     programmeCompleteCurrent: 'Current programme complete',
     blocked: 'Blocked',
@@ -236,6 +240,10 @@ export const playableShiftMessages = defineMessages({
       'Conclua a temporada do acordo de trabalho vinculado e a recuperação devida antes de trocar de cliente. O botão Revisar o acordo de trabalho abre Autonomia, onde você pode concluir os turnos restantes ou deixar a demonstração fictícia executá-los. Sair desta temporada, abaixo, a encerra antes do fim e mantém o que foi conquistado.',
     switchHint:
       'Trocar de cliente muda a receita programada. O estoque existente e os comprovantes de expedição permanecem inalterados.',
+    rushChoice:
+      'Urgente: {customer} paga {premium}% a mais por {kg} kg de {product}. {due}. O controlador o executa primeiro; escolher outro compromisso antes pode atrasá-lo, com o dobro da multa usual por atraso.',
+    rushChangeover:
+      ' É o único pedido de {grain}, então executá-lo primeiro troca a linha para ele e de volta.',
     activeOrderProgress: '{customer}: {shippedKg} / {requiredKg} kg expedidos',
     programmeCompleteCurrent: 'Programa atual concluído',
     blocked: 'Bloqueado',

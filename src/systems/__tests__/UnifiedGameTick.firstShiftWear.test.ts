@@ -105,4 +105,34 @@ describe('the first standard-pace shift meets one wear warning', () => {
     expect(batches.length).toBeGreaterThan(0);
     for (const batch of batches) expect(batch.qualityScore ?? 0).toBeGreaterThanOrEqual(95);
   });
+
+  it('warns R.M. 101 after the first handover and breaks it on day 2 if left unserviced', () => {
+    // R.M. 101 starts part-worn (MillScene). Its warning belongs to the
+    // afternoon, not the first shift, and ignoring it costs the mill overnight.
+    const tick: TickContext = {
+      deltaSeconds: 1,
+      gameTime: 10,
+      gameSpeed: STANDARD_GAME_SPEED,
+      elapsedTime: 0,
+      tickCount: 0,
+    };
+    const ticksPerGameHour = 3600 / STANDARD_GAME_SPEED;
+    const clock = () => {
+      const game = useGameSimulationStore.getState();
+      return (game.gameDay - 1) * 24 + game.gameTime;
+    };
+    const mill = () => useProductionStore.getState().machines.find((m) => m.id === 'rm-101')!;
+    expect(mill().metrics.wear).toBe(46);
+    let warnedAt: number | null = null;
+    let brokeAt: number | null = null;
+    for (let index = 0; index < 22 * ticksPerGameHour && brokeAt === null; index += 1) {
+      unifiedGameTick({ ...tick, tickCount: index + 1 });
+      if (warnedAt === null && mill().status === 'warning') warnedAt = clock();
+      if (mill().metrics.wear >= 90 || mill().status === 'critical') brokeAt = clock();
+    }
+    // About 16:29 on day 1, and about 06:22 on day 2 (30 h after day 1 00:00).
+    expect(warnedAt).toBeGreaterThan(14);
+    expect(Math.abs(warnedAt! - (16 + 29 / 60))).toBeLessThan(0.25);
+    expect(Math.abs(brokeAt! - (24 + 6 + 22 / 60))).toBeLessThan(0.5);
+  });
 });
