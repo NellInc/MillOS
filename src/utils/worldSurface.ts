@@ -1136,8 +1136,9 @@ export function resolveSurfaceProfile(
   allowMapped = false
 ): WorldSurfaceProfileName | null {
   if (isOutOfSurfaceScope(material, allowMapped)) return null;
-  // An explicit treatment keeps deciding for itself, as it did before opt-ins.
-  const optIn = hasWorldSurface(material) ? null : substrateOptIn(material);
+  // An explicit treatment, or an explicit `allowMapped` request, keeps deciding
+  // for itself exactly as it did before opt-ins existed.
+  const optIn = hasWorldSurface(material) || allowMapped ? null : substrateOptIn(material);
   if (optIn) return optIn;
   const standard = material as THREE.MeshStandardMaterial;
   if ((standard.metalness ?? 0) >= 0.55) return 'metal';

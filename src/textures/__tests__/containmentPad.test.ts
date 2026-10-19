@@ -59,6 +59,17 @@ describe('containment pad concrete', () => {
     expect(first.z).toBeCloseTo(21 - 21 / 256, 5);
     expect(last.x).toBeCloseTo(11 - 11 / 128, 5);
     expect(last.z).toBeCloseTo(-21 + 21 / 256, 5);
+    // And that is what the real pad geometry does: u follows +x, v follows -z.
+    const box = new THREE.BoxGeometry(22, 0.18, 42);
+    const pos = box.getAttribute('position');
+    const uv = box.getAttribute('uv');
+    const normal = box.getAttribute('normal');
+    for (let i = 0; i < pos.count; i++) {
+      if (normal.getY(i) < 0.5) continue;
+      expect(uv.getX(i)).toBeCloseTo((pos.getX(i) + 11) / 22, 6);
+      expect(uv.getY(i)).toBeCloseTo((21 - pos.getZ(i)) / 42, 6);
+    }
+    box.dispose();
   });
 
   it('declares sRGB albedo with a non-mint, weathered concrete mean', () => {

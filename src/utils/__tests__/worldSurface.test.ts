@@ -399,6 +399,10 @@ describe('profile resolution', () => {
       expect(hasWorldSurface(target)).toBe(true);
       expect(target.map).toBe(map);
     }
+    // An explicit allowMapped request keeps its roughness-based answer.
+    expect(
+      resolveSurfaceProfile(new THREE.MeshStandardMaterial({ map: tile, roughness: 1 }), true)
+    ).toBe('masonry');
     // The opt-in is the map's, not any substrate's: an unflagged atlas stays out.
     const atlas = new THREE.MeshStandardMaterial({ map: new THREE.Texture(), roughness: 1 });
     expect(resolveBatchSurfaceProfile(atlas)).toBeNull();
