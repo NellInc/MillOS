@@ -5,6 +5,7 @@ import type {
   OrderExecutionState,
 } from '../stores/operationsCampaignStore';
 import { translate } from '../i18n';
+import { incidentTitle } from '../stores/incidentText';
 import { operationsPlayMessages } from './operationsPlay.messages';
 
 /** Shared fulfilment tolerance; cosmetic consequences must agree with credit. */
@@ -132,7 +133,7 @@ export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
       targetId: incident.id,
       label: translate(operationsPlayMessages, 'acknowledgeLabel'),
       consequence: translate(operationsPlayMessages, 'acknowledgeConsequence', {
-        title: incident.title,
+        title: incidentTitle(incident),
       }),
     };
   } else if (incident?.phase === 'acknowledged') {
@@ -214,7 +215,9 @@ export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
         ? translate(operationsPlayMessages, 'residualLabel')
         : translate(operationsPlayMessages, 'productionLabel'),
       consequence: incident
-        ? translate(operationsPlayMessages, 'residualConsequence', { title: incident.title })
+        ? translate(operationsPlayMessages, 'residualConsequence', {
+            title: incidentTitle(incident),
+          })
         : translate(operationsPlayMessages, 'productionConsequence'),
     };
   }

@@ -31,6 +31,7 @@ import {
   type ShiftOrderOutcome,
 } from '../simulation/shiftReview';
 import { operationsCampaignMessages as messages } from './operationsCampaignStore.messages';
+import { incidentDescription, incidentTitle } from './incidentText';
 
 export type OrderStatus = 'planned' | 'active' | 'late' | 'fulfilled' | 'cancelled';
 export type IncidentKind =
@@ -1053,11 +1054,11 @@ export function buildShiftReport(input: ShiftReportInput): ShiftCampaignReport {
   const gradeBasis = shiftGradeBasis(
     input.metrics,
     input.risks,
-    unsafe.map((incident) => incident.title),
+    unsafe.map((incident) => incidentTitle(incident)),
     completed.filter((order) => order.completedAtMinute! > order.dueAtMinute + 1e-6).length,
     unsafe.map((incident) => ({
-      title: incident.title,
-      detail: incident.description,
+      title: incidentTitle(incident),
+      detail: incidentDescription(incident),
       phase: incident.phase as ShiftOpenIncident['phase'],
     }))
   );
