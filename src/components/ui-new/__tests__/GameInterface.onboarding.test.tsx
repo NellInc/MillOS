@@ -242,7 +242,11 @@ describe('first-use journey wiring', () => {
     expect(screen.getByRole('heading', { name: 'Follow the grain' })).toBeVisible();
     expect(screen.getByTestId('soundtrack')).toHaveAttribute('data-quiet', 'true');
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    // The copy follows the camera: milling is where machines are selected...
+    expect(screen.getByRole('heading', { name: 'Look first, touch second' })).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    // ...and the packers close the tour on the day's flour.
+    expect(screen.getByRole('heading', { name: "Protect the day's flour" })).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: 'Start operating' }));
     expect(useUIStore.getState().hasSeenIntro).toBe(true);
     expect(screen.queryByRole('region', { name: /Getting started/ })).not.toBeInTheDocument();
@@ -252,7 +256,8 @@ describe('first-use journey wiring', () => {
       useOperationsCampaignStore.getState().activeOrderId
     );
     expect(screen.getByTestId('soundtrack')).toHaveAttribute('data-quiet', 'true');
-    expect(runtime.setPreset.mock.calls.map(([preset]) => preset)).toEqual([1, 4, 2]);
+    // Silos, Milling, Packing: the grain's order, and no flight through a silo.
+    expect(runtime.setPreset.mock.calls.map(([preset]) => preset)).toEqual([1, 2, 4]);
   });
 
   it('holds the introductory clock and starts the default guided delivery at standard pace', () => {
