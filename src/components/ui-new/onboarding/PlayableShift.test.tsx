@@ -320,7 +320,12 @@ describe('playable shift UI', () => {
     useOperationsCampaignStore.setState({
       orders: state.orders.map((order) =>
         order.id === first.id
-          ? { ...order, status: 'fulfilled' as const, shippedKg: order.requiredKg, completedAtMinute: 142 }
+          ? {
+              ...order,
+              status: 'fulfilled' as const,
+              shippedKg: order.requiredKg,
+              completedAtMinute: 142,
+            }
           : order.id === second.id
             ? { ...order, status: 'active' as const, shippedKg: 1000 }
             : order
@@ -338,7 +343,9 @@ describe('playable shift UI', () => {
     const before = useOperationsCampaignStore.getState();
     render(<FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={vi.fn()} />);
     expect(screen.getByRole('heading', { name: 'Delivery fulfilled' })).toBeInTheDocument();
-    expect(screen.getByText(/^Riverside Bakers' Cooperative: 6,000 of 6,000 kg/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/^Riverside Bakers' Cooperative: 6,000 of 6,000 kg/)
+    ).toBeInTheDocument();
     expect(
       screen.getByText(
         'Now: Community Pasta Works, 1,000 of 4,000 kg shipped. Due in 1h 0m (simulated).'
@@ -367,7 +374,12 @@ describe('playable shift UI', () => {
     useOperationsCampaignStore.setState({
       orders: state.orders.map((order) =>
         order.id === first.id
-          ? { ...order, status: 'fulfilled' as const, shippedKg: order.requiredKg, completedAtMinute: 142 }
+          ? {
+              ...order,
+              status: 'fulfilled' as const,
+              shippedKg: order.requiredKg,
+              completedAtMinute: 142,
+            }
           : order.id === second.id
             ? { ...order, status: 'active' as const, shippedKg: 1000 }
             : order
