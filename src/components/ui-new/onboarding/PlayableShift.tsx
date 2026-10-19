@@ -4,6 +4,7 @@ import { Minimize2, X } from 'lucide-react';
 import { useUIStore } from '../../../stores/uiStore';
 import { useMobileControlStore } from '../../../stores/mobileControlStore';
 import {
+  selectChosenPace,
   selectClockHolder,
   SHIFT_CLOSING_TIME,
   useGameSimulationStore,
@@ -73,18 +74,23 @@ function DeliveryDeadline({
   );
 }
 
-export function TeachingPace() {
-  const speed = useGameSimulationStore((s) => s.gameSpeed);
+/** Names who holds the clock, beside every pace control. A player pause needs no note. */
+export function PaceHoldNote() {
   const holder = useGameSimulationStore(selectClockHolder);
+  const pace = useT(paceMessages);
+  if (!holder || holder === 'player') return null;
+  return (
+    <p className="mt-1 text-xs leading-5 text-amber-200" aria-live="polite">
+      {pace(`heldBy_${holder}`)}
+    </p>
+  );
+}
+
+export function TeachingPace() {
   const setSpeed = useGameSimulationStore((s) => s.setGameSpeed);
   const t = useT(playableShiftMessages);
   const pace = useT(paceMessages);
-  // Under a derived hold a chosen pace waits as the resume pace, so show it
-  // rather than 'Paused'. Working if the choice never appears to snap back.
-  const resume = useGameSimulationStore(
-    (s) => s.clockHolds.find((hold) => hold.holder === 'handoff')?.resumeSpeed
-  );
-  const shown = holder === 'handoff' && resume !== undefined ? resume : speed;
+  const shown = useGameSimulationStore(selectChosenPace);
   const known = isPaceGameSpeed(shown);
   return (
     <div className="mt-3">
@@ -108,11 +114,7 @@ export function TeachingPace() {
           {!known && <option value="custom">{pace('paceCustom')}</option>}
         </select>
       </label>
-      {holder && holder !== 'player' && (
-        <p className="mt-1 text-xs leading-5 text-amber-200" aria-live="polite">
-          {pace(`heldBy_${holder}`)}
-        </p>
-      )}
+      <PaceHoldNote />
     </div>
   );
 }

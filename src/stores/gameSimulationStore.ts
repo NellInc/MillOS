@@ -358,6 +358,18 @@ export function selectClockHolder(
   return state.gameSpeed > 0 ? null : (state.clockHolds.at(-1)?.holder ?? 'player');
 }
 
+/**
+ * The pace a pace control shows as chosen. Under a derived hold a chosen pace
+ * waits as the resume pace, so it is shown rather than 'Paused'.
+ * Working if every pace control agrees and a choice never appears to snap back.
+ */
+export function selectChosenPace(
+  state: Pick<GameSimulationStore, 'gameSpeed' | 'clockHolds'>
+): number {
+  const top = state.gameSpeed > 0 ? undefined : state.clockHolds.at(-1);
+  return top && DERIVED_HOLDERS.includes(top.holder) ? top.resumeSpeed : state.gameSpeed;
+}
+
 export const selectSafetyHoldActive = (
   state: Pick<GameSimulationStore, 'emergencyActive' | 'emergencyDrillMode'>
 ): boolean => state.emergencyActive || state.emergencyDrillMode;

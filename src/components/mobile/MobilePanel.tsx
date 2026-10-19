@@ -26,7 +26,7 @@ import {
 import type { DockMode } from '../ui-new/dock/Dock';
 import { useProductionStore } from '../../stores/productionStore';
 import { useUIStore } from '../../stores/uiStore';
-import { useGameSimulationStore } from '../../stores/gameSimulationStore';
+import { selectChosenPace, useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useSafetyStore } from '../../stores/safetyStore';
 import { useOperationsCampaignStore } from '../../stores/operationsCampaignStore';
 import { SafetyPanel } from '../ui-new/panels/SafetyPanel';
@@ -38,7 +38,7 @@ import { mobilePanelMessages } from './MobilePanel.messages';
 import { PACE_GAME_SPEEDS, STANDARD_GAME_SPEED } from '../../simulation/pace';
 import { paceMessages } from '../../simulation/pace.messages';
 
-import { OperationsPlayCard, ShiftDebrief } from '../ui-new/onboarding/PlayableShift';
+import { OperationsPlayCard, PaceHoldNote, ShiftDebrief } from '../ui-new/onboarding/PlayableShift';
 import { BatchGenealogySection, MaintenanceSection } from '../ui-new/panels/OverviewPanel';
 
 interface MobilePanelProps {
@@ -176,6 +176,8 @@ const OverviewContent: React.FC = () => {
   const gameTime = useGameSimulationStore((s) => s.gameTime);
   const currentShift = useGameSimulationStore((s) => s.currentShift);
   const gameSpeed = useGameSimulationStore((s) => s.gameSpeed);
+  // The same chosen pace and hold note as Shift pace (TeachingPace).
+  const chosenPace = useGameSimulationStore(selectChosenPace);
   const setGameSpeed = useGameSimulationStore((s) => s.setGameSpeed);
 
   const safetyMetrics = useSafetyStore((s) => s.safetyMetrics);
@@ -259,9 +261,9 @@ const OverviewContent: React.FC = () => {
               key={value}
               onClick={() => setGameSpeed(value)}
               aria-label={pace(`pace${value}`)}
-              aria-pressed={gameSpeed === value}
+              aria-pressed={chosenPace === value}
               className={`flex-1 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 ${
-                gameSpeed === value ? 'bg-orange-700 text-white' : 'bg-slate-700 text-white/70'
+                chosenPace === value ? 'bg-orange-700 text-white' : 'bg-slate-700 text-white/70'
               }`}
             >
               {value === 0 ? (
@@ -275,6 +277,7 @@ const OverviewContent: React.FC = () => {
             </button>
           ))}
         </div>
+        <PaceHoldNote />
       </div>
 
       {/* Production Metrics - 2x2 grid */}

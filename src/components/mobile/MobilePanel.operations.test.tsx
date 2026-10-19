@@ -4,6 +4,7 @@ import { MobilePanel } from './MobilePanel';
 import { useOperationsCampaignStore } from '../../stores/operationsCampaignStore';
 import { useMaterialFlowStore, type ProductionBatch } from '../../stores/materialFlowStore';
 import { useQCLabStore } from '../../stores/qcLabStore';
+import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 vi.mock('../../hooks/useReducedMotion', () => ({ useReducedMotion: () => false }));
 
 vi.mock('framer-motion', () => ({
@@ -67,5 +68,31 @@ describe('compact operating controls', () => {
     });
     expect(controls.getByRole('button', { name: 'Retest and release' })).toBeInTheDocument();
     expect(useQCLabStore.getState().qcLab.contaminationAlerts[0].batchIds).toEqual([batch.id]);
+  });
+
+  it('shows the pace a handoff hold resumes at, with the same hold note as Shift pace', () => {
+    try {
+      // A handoff decision holds the clock; 2x was chosen meanwhile.
+      useGameSimulationStore.setState({
+        gameSpeed: 0,
+        clockHolds: [{ holder: 'handoff', resumeSpeed: 60 }],
+      });
+      render(<MobilePanel isVisible content="overview" onClose={vi.fn()} />);
+      const group = screen.getByRole('group', { name: /The pace runs the whole plant/ });
+      const buttons = within(group);
+      expect(buttons.getByRole('button', { name: 'Fast, 2x' })).toHaveAttribute(
+        'aria-pressed',
+        'true'
+      );
+      expect(buttons.getByRole('button', { name: 'Paused, inspect freely' })).toHaveAttribute(
+        'aria-pressed',
+        'false'
+      );
+      expect(
+        within(group.parentElement!).getByText(/Held while the team decides the handoff experiment/)
+      ).toBeInTheDocument();
+    } finally {
+      useGameSimulationStore.setState({ gameSpeed: 30, clockHolds: [] });
+    }
   });
 });

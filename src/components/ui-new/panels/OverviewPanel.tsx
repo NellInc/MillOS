@@ -25,7 +25,7 @@ import {
   Route,
 } from 'lucide-react';
 import { useProductionStore } from '../../../stores/productionStore';
-import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
+import { selectChosenPace, useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { useAchievementsStore } from '../../../stores/achievementsStore';
 import { computeSafetyScore, useSafetyStore } from '../../../stores/safetyStore';
 import { saveScenePng } from '../../../utils/sceneCapture';
@@ -41,7 +41,7 @@ import { RecoverableFeatureBoundary } from '../../ErrorBoundary';
 import { formatFixed, formatGrouped, translate, useT } from '../../../i18n';
 import { overviewPanelMessages } from './OverviewPanel.messages';
 
-import { OperationsPlayCard, ShiftDebrief } from '../onboarding/PlayableShift';
+import { OperationsPlayCard, PaceHoldNote, ShiftDebrief } from '../onboarding/PlayableShift';
 
 // Re-homed from ui/ (orphaned after the UIOverlay removal): live breakdown
 // mechanics — active breakdowns, predictive alerts, parts inventory, schedule.
@@ -91,37 +91,41 @@ const GameClock: React.FC = React.memo(() => {
 // together, so every button keeps deliveries feasible. Working if the buttons
 // and the Shift pace select offer the same paces with the same words.
 const PACE_BUTTON_LABELS: Record<number, string> = { 15: '1/2x', 30: '1x', 60: '2x', 120: '4x' };
-const GameSpeedControls: React.FC = React.memo(() => {
-  const gameSpeed = useGameSimulationStore((state) => state.gameSpeed);
+export const GameSpeedControls: React.FC = React.memo(() => {
+  // The same chosen pace and hold note as Shift pace (TeachingPace).
+  const gameSpeed = useGameSimulationStore(selectChosenPace);
   const setGameSpeed = useGameSimulationStore((state) => state.setGameSpeed);
   const pace = useT(paceMessages);
 
   return (
-    <div className="flex gap-1" role="group" aria-label={pace('paceTitle')}>
-      {PACE_GAME_SPEEDS.map((value) => (
-        <button
-          key={value}
-          onClick={() => setGameSpeed(value)}
-          aria-label={pace(`pace${value}`)}
-          aria-pressed={gameSpeed === value}
-          className={`flex min-h-11 flex-1 items-center justify-center gap-1 rounded-lg py-2 text-xs font-bold transition-all ${
-            gameSpeed === value
-              ? 'bg-orange-800 text-white'
-              : 'bg-slate-700 text-slate-200 hover:bg-slate-600'
-          }`}
-          title={pace(`pace${value}`)}
-        >
-          {value === 0 ? (
-            <Pause className="w-3.5 h-3.5" aria-hidden="true" />
-          ) : value > STANDARD_GAME_SPEED ? (
-            <FastForward className="w-3.5 h-3.5" aria-hidden="true" />
-          ) : (
-            <Play className="w-3.5 h-3.5" aria-hidden="true" />
-          )}
-          {value > 0 && <span aria-hidden="true">{PACE_BUTTON_LABELS[value]}</span>}
-        </button>
-      ))}
-    </div>
+    <>
+      <div className="flex gap-1" role="group" aria-label={pace('paceTitle')}>
+        {PACE_GAME_SPEEDS.map((value) => (
+          <button
+            key={value}
+            onClick={() => setGameSpeed(value)}
+            aria-label={pace(`pace${value}`)}
+            aria-pressed={gameSpeed === value}
+            className={`flex min-h-11 flex-1 items-center justify-center gap-1 rounded-lg py-2 text-xs font-bold transition-all ${
+              gameSpeed === value
+                ? 'bg-orange-800 text-white'
+                : 'bg-slate-700 text-slate-200 hover:bg-slate-600'
+            }`}
+            title={pace(`pace${value}`)}
+          >
+            {value === 0 ? (
+              <Pause className="w-3.5 h-3.5" aria-hidden="true" />
+            ) : value > STANDARD_GAME_SPEED ? (
+              <FastForward className="w-3.5 h-3.5" aria-hidden="true" />
+            ) : (
+              <Play className="w-3.5 h-3.5" aria-hidden="true" />
+            )}
+            {value > 0 && <span aria-hidden="true">{PACE_BUTTON_LABELS[value]}</span>}
+          </button>
+        ))}
+      </div>
+      <PaceHoldNote />
+    </>
   );
 });
 
