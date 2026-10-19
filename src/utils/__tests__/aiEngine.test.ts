@@ -25,6 +25,7 @@ import {
   isTacticalLayerActive,
   initializeAIEngine,
   initializeDecisionOutcomeTracking,
+  applyDecisionEffects,
 } from '../aiEngine';
 import { useProductionStore } from '../../stores/productionStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
@@ -185,6 +186,25 @@ describe('aiEngine - Core Functions', () => {
   afterEach(() => {
     singletonCleanups.splice(0).forEach((cleanup) => cleanup());
     resetShiftStats();
+  });
+
+  describe('applyDecisionEffects line rate', () => {
+    const decision = (id: string): AIDecision =>
+      ({ id, type: 'optimization', status: 'pending', machineId: 'RM-101' }) as AIDecision;
+    it('trims the line rate only for a load-balancing decision and never restarts a stopped line', () => {
+      const store = vi.mocked(useProductionStore.getState)();
+      applyDecisionEffects(decision('ai-1'), 'accepted');
+      expect(store.setProductionSpeed).toHaveBeenCalledWith(0.98);
+      vi.mocked(store.setProductionSpeed).mockClear();
+      applyDecisionEffects(decision('strategic-1-abc'), 'accepted');
+      expect(store.setProductionSpeed).not.toHaveBeenCalled();
+      vi.mocked(useProductionStore.getState).mockReturnValue({
+        ...store,
+        productionSpeed: 0,
+      } as any);
+      applyDecisionEffects(decision('ai-2'), 'accepted');
+      expect(store.setProductionSpeed).not.toHaveBeenCalled();
+    });
   });
 
   describe('generateContextAwareDecision', () => {

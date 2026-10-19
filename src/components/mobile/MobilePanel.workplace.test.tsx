@@ -53,7 +53,7 @@ it('mounts the real workplace laboratory in a tall, bounded mobile workspace', (
   );
   expect(screen.getByRole('region', { name: 'Workplace laboratory' })).toBeInTheDocument();
   expect(
-    screen.getByRole('button', { name: 'Start playable shift at teaching pace (15×)' })
+    screen.getByRole('button', { name: 'Start playable shift at teaching pace (1/2x)' })
   ).toBeInTheDocument();
 });
 

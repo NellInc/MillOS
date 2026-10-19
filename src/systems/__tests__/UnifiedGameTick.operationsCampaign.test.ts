@@ -101,10 +101,10 @@ describe('UnifiedGameTick operations campaign consequences', () => {
     const minutesToArrival =
       useTruckScheduleStore.getState().truckSchedule.receiving.nextArrivalMinutes;
 
-    // At 180x one 0.5 s tick advances 1.5 game minutes.
-    const ticks = Math.ceil(minutesToArrival / 1.5);
+    // At the 4x pace (120) one 0.5 s tick advances 1 game minute.
+    const ticks = Math.ceil(minutesToArrival / 1);
     for (let tick = 0; tick < ticks; tick += 1) {
-      unifiedGameTick({ ...context, gameSpeed: 180, tickCount: 2 + tick });
+      unifiedGameTick({ ...context, gameSpeed: 120, tickCount: 2 + tick });
     }
 
     expect(useTruckScheduleStore.getState().truckSchedule.receiving).toMatchObject({

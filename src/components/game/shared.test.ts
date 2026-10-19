@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Alarm } from '../../scada/types';
 import { useProductionStore } from '../../stores/productionStore';
 import { useUIStore } from '../../stores/uiStore';
-import { chooseNotice, isCriticalConditionActive } from './shared';
+import { renderHook } from '@testing-library/react';
+import { useGameSimulationStore } from '../../stores/gameSimulationStore';
+import { chooseNotice, isCriticalConditionActive, usePAScheduler } from './shared';
 
 const scada = vi.hoisted(() => ({ alarms: [] as Alarm[] }));
 
@@ -83,5 +85,25 @@ describe('ambient PA reassurance lines', () => {
       ],
     });
     expect(isCriticalConditionActive()).toBe(true);
+  });
+});
+
+describe('ambient PA scheduler and the shift clock', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    useGameSimulationStore.getState().resetGameState();
+  });
+  it('stays quiet over a paused shift and speaks again once the clock runs', () => {
+    vi.useFakeTimers();
+    const addAnnouncement = vi.fn();
+    useProductionStore.setState({ addAnnouncement } as never);
+    useGameSimulationStore.getState().holdClock('tour');
+    const hook = renderHook(() => usePAScheduler());
+    vi.advanceTimersByTime(400_000);
+    expect(addAnnouncement).not.toHaveBeenCalled();
+    useGameSimulationStore.getState().releaseClock('tour');
+    vi.advanceTimersByTime(400_000);
+    expect(addAnnouncement).toHaveBeenCalled();
+    hook.unmount();
   });
 });

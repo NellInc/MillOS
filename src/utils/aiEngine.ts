@@ -409,8 +409,12 @@ export function applyDecisionEffects(
   } else if (decision.machineId && decision.type === 'maintenance') {
     const machine = store.machines.find((item) => item.id === decision.machineId);
     if (machine?.status === 'critical') store.updateMachineStatus?.(decision.machineId, 'warning');
-  } else if (decision.type === 'optimization') {
-    store.setProductionSpeed?.(clamp(finite(store.productionSpeed, 1) * 0.98, 0.55, 1.35));
+  } else if (decision.type === 'optimization' && !decision.id.startsWith('strategic-')) {
+    // A load-balancing decision trims the line rate by 2%, as its impact text
+    // says. Strategic guidance only records priorities, and a stopped line
+    // stays stopped. Working if no accepted decision silently changes pace.
+    const current = finite(store.productionSpeed, 1);
+    if (current > 0) store.setProductionSpeed?.(clamp(current * 0.98, 0.55, 1.35));
   }
 
   store.updateDecisionStatus?.(

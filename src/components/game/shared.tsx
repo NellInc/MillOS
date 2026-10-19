@@ -576,10 +576,12 @@ const usePAScheduler = () => {
       return setTimeout(
         () => {
           const mode = useAnnouncementsStore.getState().mode;
-          // Ambient notices such as 'The mill is calm' are false during a hold.
-          // Skip them, but keep the timer running.
+          // Ambient notices such as 'The mill is calm' are false during a hold,
+          // and narration over a paused shift (tour, P, a planner, a player
+          // pause) talks over a stopped plant. Skip them, but keep the timer.
           const game = useGameSimulationStore.getState();
           const safetyHold =
+            game.gameSpeed === 0 ||
             game.emergencyActive ||
             game.emergencyDrillMode ||
             game.crisisState.active ||

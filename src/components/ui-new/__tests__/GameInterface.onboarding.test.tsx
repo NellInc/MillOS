@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
+import { STANDARD_GAME_SPEED } from '../../../simulation/pace';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GameInterface } from '../GameInterface';
 import { MachineType, type MachineData } from '../../../types';
@@ -153,7 +154,8 @@ describe('first-use journey wiring', () => {
     useOperationsCampaignStore.getState().resetCampaign();
     useWorkplaceStore.setState({ workplace: createWorkplace() });
     useGameSimulationStore.setState({
-      gameSpeed: 180,
+      gameSpeed: STANDARD_GAME_SPEED,
+      clockHolds: [],
       emergencyActive: false,
       emergencyDrillMode: false,
       crisisState: { ...useGameSimulationStore.getState().crisisState, active: false },
@@ -253,7 +255,7 @@ describe('first-use journey wiring', () => {
     expect(runtime.setPreset.mock.calls.map(([preset]) => preset)).toEqual([1, 4, 2]);
   });
 
-  it('holds the introductory clock and starts the default guided delivery at relaxed pace', () => {
+  it('holds the introductory clock and starts the default guided delivery at standard pace', () => {
     renderInterface();
     act(() => vi.advanceTimersByTime(700));
     expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
@@ -276,20 +278,20 @@ describe('first-use journey wiring', () => {
     expect(useGameSimulationStore.getState().gameSpeed).toBe(pace);
   });
 
-  // The 180 fast clock runs customer deadlines 6x faster than trucks and packing,
-  // so every tour exit releases a default 180 hold to the standard 30 pace,
-  // exactly as Start operating does. Chosen non-default paces are kept.
-  it.each(['Skip tour', 'Close getting started for this session'])(
-    'releases the default fast clock to standard pace when using %s',
-    (control) => {
-      renderInterface();
-      act(() => vi.advanceTimersByTime(700));
-      expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
-      fireEvent.click(screen.getByRole('button', { name: control }));
-      expect(useGameSimulationStore.getState().gameSpeed).toBe(30);
-      expect(useUIStore.getState().journeyVisible).toBe(false);
-    }
-  );
+  // Every tour exit releases the tour's own clock hold, back to the default
+  // standard pace, exactly as Start operating does. Skip still starts the
+  // guided delivery; only closing getting started for the session dismisses it.
+  it.each([
+    ['Skip tour', true],
+    ['Close getting started for this session', false],
+  ] as const)('releases the tour hold to standard pace when using %s', (control, journey) => {
+    renderInterface();
+    act(() => vi.advanceTimersByTime(700));
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+    fireEvent.click(screen.getByRole('button', { name: control }));
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(30);
+    expect(useUIStore.getState().journeyVisible).toBe(journey);
+  });
 
   it.each(['Skip tour', 'Close getting started for this session'])(
     'preserves an already chosen 60 pace when using %s',

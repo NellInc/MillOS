@@ -246,8 +246,9 @@ describe('playable shift UI', () => {
     const skip = screen.getByRole('button', { name: 'Skip guided delivery' });
     expect(footer).not.toContainElement(pace);
     expect(footer).not.toContainElement(skip);
-    expect(footer!.compareDocumentPosition(pace) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(pace.compareDocumentPosition(skip) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Pace sits above the lesson, beside the deadline; Skip stays below.
+    expect(pace.compareDocumentPosition(footer!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(footer!.compareDocumentPosition(skip) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('shows the actual truck load separately from dispatched customer credit', () => {
@@ -620,7 +621,7 @@ it.each([0, 30, 180])(
     expect(
       screen.getByText(
         speed === 0
-          ? /Resumes the whole shift at relaxed pace/
+          ? /Resumes the whole shift at standard pace/
           : /The shift is running at your chosen pace/
       )
     ).toBeInTheDocument();

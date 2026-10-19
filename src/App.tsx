@@ -207,17 +207,17 @@ const App: React.FC = () => {
     return () => window.removeEventListener('millos:first-frame', reveal);
   }, [deferredUIReady, showOperationalUI]);
 
-  const [productionSpeed, setProductionSpeedLocal] = useState(0.8);
-  const replayProductionSpeed = useRef(productionSpeed);
-  replayProductionSpeed.current = productionSpeed;
+  // The production store is the one owner of the line rate. A local mirror went
+  // stale whenever another writer (layout planner, restore, an AI decision)
+  // changed the store, so the scene and the controls disagreed.
+  // Working if every writer is reflected in the conveyors and the HUD at once.
+  const productionSpeed = useProductionStore((state) => state.productionSpeed);
+  const setProductionSpeed = useProductionStore((state) => state.setProductionSpeed);
   useEffect(
     () =>
       registerReplayParticipant('app-controls', {
-        capture: () => replayProductionSpeed.current,
-        restore: (speed) => {
-          replayProductionSpeed.current = speed;
-          setProductionSpeedLocal(speed);
-        },
+        capture: () => useProductionStore.getState().productionSpeed,
+        restore: (speed) => useProductionStore.getState().setProductionSpeed(speed),
       }),
     []
   );
@@ -226,19 +226,9 @@ const App: React.FC = () => {
   const showZones = useUIStore((state) => state.showZones);
   const setShowZones = useUIStore((state) => state.setShowZones);
 
-  // Sync local production speed to store (HolographicDisplays reads from store)
-  const setStoreProductionSpeed = useProductionStore((state) => state.setProductionSpeed);
-  const setProductionSpeed = useCallback(
-    (speed: number) => {
-      setProductionSpeedLocal(speed);
-      setStoreProductionSpeed(speed);
-    },
-    [setStoreProductionSpeed]
-  );
-
-  // Initialize store with local state on mount
+  // The line boots at 80% of its rated pace.
   useEffect(() => {
-    setStoreProductionSpeed(productionSpeed);
+    useProductionStore.getState().setProductionSpeed(0.8);
   }, []);
 
   // New UI handles panels via Dock/Sidebar, but we still need some state for selection

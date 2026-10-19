@@ -29,7 +29,7 @@ export const operationsPlayMessages = defineMessages({
       'Halves the incident’s throughput and quality penalties. Existing equipment failures and quality holds still require their own recovery.',
     resumeLabel: 'Resume shift for controller response',
     resumeConsequence:
-      'Resumes the whole shift at relaxed pace. Production and customer deadlines advance; the shift stays running until you pause it.',
+      'Resumes the whole shift at standard pace. Production and customer deadlines advance; the shift stays running until you pause it.',
     resolveLabel: 'Restore challenge controller',
     resolveConsequenceActive:
       'Restores this effect-only controller scenario to normal. Complete the challenge by dispatching its target mass through the real quality and shipping gates.',
@@ -86,7 +86,7 @@ export const operationsPlayMessages = defineMessages({
       'Reduz à metade as penalidades de vazão e de qualidade da ocorrência. As falhas de equipamento e as retenções de qualidade existentes ainda exigem sua própria recuperação.',
     resumeLabel: 'Retomar o turno para a resposta do controlador',
     resumeConsequence:
-      'Retoma o turno inteiro em ritmo tranquilo. A produção e os prazos dos clientes avançam; o turno continua rodando até você pausá-lo.',
+      'Retoma o turno inteiro em ritmo padrão. A produção e os prazos dos clientes avançam; o turno continua rodando até você pausá-lo.',
     resolveLabel: 'Restaurar o controlador do desafio',
     resolveConsequenceActive:
       'Restaura ao normal este cenário do controlador, que atua apenas sobre os efeitos. Conclua o desafio expedindo a massa-alvo pelas etapas reais de qualidade e de expedição.',

@@ -198,11 +198,17 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
     setIntroStep((step) => Math.max(0, (step ?? 0) - 1));
   };
 
+  // Skipping the tour skips the explanation, not the goal: a stranger who skips
+  // still gets the guided first delivery, which has its own close. Closing
+  // getting started for the session (X) is the way to dismiss both.
+  // Working if Skip leaves a named next action on screen within a second.
   const handleIntroSkip = () => {
     releaseTourClock();
     setHasSeenIntro(true);
     setIntroStep(null);
     useCameraStore.getState().cancelAnimation();
+    const campaign = useOperationsCampaignStore.getState();
+    startDeliveryJourney(campaign.activeOrderId ?? campaign.orders[0]?.id ?? null);
   };
 
   const handleIntroClose = () => {

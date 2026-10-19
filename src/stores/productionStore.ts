@@ -1153,7 +1153,7 @@ export const useProductionStore = create<ProductionStore>()(
 
         let throughput: number;
         if (flowRateKgPerSec > 0) {
-          throughput = Math.round((flowRateKgPerSec / BAG_WEIGHT_KG) * 3600);
+          throughput = bagsPerGameHour(flowRateKgPerSec, BAG_WEIGHT_KG);
         } else {
           const BAGS_PER_RPM_PER_MIN = 0.2;
           const packers = nextMachines.filter((m) => m.type.toString() === 'PACKER');

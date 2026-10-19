@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { STANDARD_GAME_SPEED } from '../../../simulation/pace';
 import {
   exportWorkplaceReplayReport,
   useWorkplaceReplayStore,
@@ -386,7 +387,8 @@ export function WorkplaceReplayResume() {
           useWorkplaceStore.getState().workplace.phase === 'active' &&
           useGameSimulationStore.getState().gameSpeed === 0
         ) {
-          useGameSimulationStore.getState().resumeClockFrom('workplace');
+          // The button names its pace, so it sets it: an explicit choice.
+          useGameSimulationStore.getState().setGameSpeed(STANDARD_GAME_SPEED);
         }
       }}
     >

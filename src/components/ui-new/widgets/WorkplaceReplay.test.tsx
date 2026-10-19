@@ -181,7 +181,7 @@ describe('Matched plant replay interface', () => {
     useWorkplaceStore.setState({ workplace: { ...createWorkplace(), phase: 'active' } });
     view.rerender(<WorkplaceReplayResume />);
     fireEvent.click(
-      screen.getByRole('button', { name: 'Resume agreed replay at teaching pace (30×)' })
+      screen.getByRole('button', { name: 'Resume agreed replay at standard pace (1x)' })
     );
     expect(useGameSimulationStore.getState().gameSpeed).toBe(30);
     expect(replay.begin).not.toHaveBeenCalled();

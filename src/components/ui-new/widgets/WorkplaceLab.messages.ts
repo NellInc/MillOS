@@ -140,12 +140,12 @@ export const workplaceLabMessages = defineMessages({
     profileCooperative: 'Member governance: cooperative and bounded execution',
     startCampaign: 'Start Living Cooperative campaign',
     campaignPaceNote:
-      'Local game only. Starting selects Relaxed pace, 1/6 of Standard (30× simulated time, compared with Standard 180×). Profiles introduce practices incrementally; every profile retains basic protections.',
-    startGame: 'Start playable shift at teaching pace (15×)',
+      'Local game only. Starting selects standard pace (1x), where the clock, production and vehicles run together. Profiles introduce practices incrementally; every profile retains basic protections.',
+    startGame: 'Start playable shift at teaching pace (1/2x)',
     startWorkshop: 'Start manual workshop',
     preparePilot: 'Prepare pilot charter',
     gameNote:
-      'Opt in to local simulation control. This standalone teaching pace runs at 1/12 of Standard (15× simulated time). Campaign Relaxed pace is 1/6 of Standard (30×).',
+      'Opt in to local simulation control. This standalone teaching pace runs at half of standard pace (1/2x); a campaign runs at standard pace (1x).',
     otherNote:
       'No live plant control. Workshop inputs remain manual; pilot preparation permits charter design and export only.',
     shiftHeading: 'Shift {number} of 3: {title}',
@@ -327,7 +327,7 @@ export const workplaceLabMessages = defineMessages({
     campaignIncomplete:
       'Campaign review: delivery or working agreement remains incomplete. Earned pay, recovery obligations and the shift history remain recorded.',
     continueCampaign: 'Continue to next campaign shift',
-    startNextGame: 'Start next playable shift at teaching pace (15×)',
+    startNextGame: 'Start next playable shift at teaching pace (1/2x)',
     startNextWorkshop: 'Start next manual workshop',
     prepareNextPilot: 'Prepare next pilot draft',
     shippedOf: 'Shipped {shipped} of {target} kg.',
@@ -460,12 +460,12 @@ export const workplaceLabMessages = defineMessages({
     profileCooperative: 'Governança dos cooperados: cooperativa e execução delimitada',
     startCampaign: 'Iniciar a campanha Cooperativa Viva',
     campaignPaceNote:
-      'Somente jogo local. Ao iniciar, o ritmo Tranquilo é selecionado: 1/6 do Padrão (tempo simulado a 30×, contra 180× no Padrão). Os perfis introduzem práticas aos poucos; todo perfil mantém as proteções básicas.',
-    startGame: 'Iniciar turno jogável em ritmo didático (15×)',
+      'Somente jogo local. Ao iniciar, o ritmo padrão (1x) é selecionado: relógio, produção e veículos avançam juntos. Os perfis introduzem práticas aos poucos; todo perfil mantém as proteções básicas.',
+    startGame: 'Iniciar turno jogável em ritmo didático (1/2x)',
     startWorkshop: 'Iniciar oficina manual',
     preparePilot: 'Preparar estatuto do piloto',
     gameNote:
-      'Adesão opcional ao controle da simulação local. Este ritmo didático avulso roda a 1/12 do Padrão (tempo simulado a 15×). O ritmo Tranquilo da campanha é 1/6 do Padrão (30×).',
+      'Adesão opcional ao controle da simulação local. Este ritmo didático avulso roda à metade do ritmo padrão (1/2x); uma campanha roda no ritmo padrão (1x).',
     otherNote:
       'Sem controle da planta real. As entradas da oficina continuam manuais; a preparação do piloto permite apenas desenhar e exportar o estatuto.',
     shiftHeading: 'Turno {number} de 3: {title}',
@@ -647,7 +647,7 @@ export const workplaceLabMessages = defineMessages({
     campaignIncomplete:
       'Revisão da campanha: a entrega ou o acordo de trabalho continua incompleto. A remuneração conquistada, as obrigações de recuperação e o histórico do turno continuam registrados.',
     continueCampaign: 'Continuar para o próximo turno da campanha',
-    startNextGame: 'Iniciar o próximo turno jogável em ritmo didático (15×)',
+    startNextGame: 'Iniciar o próximo turno jogável em ritmo didático (1/2x)',
     startNextWorkshop: 'Iniciar a próxima oficina manual',
     prepareNextPilot: 'Preparar o próximo rascunho do piloto',
     shippedOf: 'Expedidos {shipped} de {target} kg.',

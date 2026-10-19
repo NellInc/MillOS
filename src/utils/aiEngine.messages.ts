@@ -31,7 +31,7 @@ export const aiEngineMessages = defineMessages({
     optimizationReasoning:
       'The line is carrying {load} percent load at {efficiency} percent local efficiency.',
     optimizationImpact:
-      'Smooths material flow, limits recirculation, and protects downstream capacity.',
+      'Lowers the line rate by 2% (never below 55%) to smooth material flow, limit recirculation and protect downstream capacity.',
     completedAutomatic: 'Completed by autonomous control layer',
     completedConfirmed: 'Completed after control confirmation',
     strategicReasoningFallback: 'Strategic analysis complete.',
@@ -64,7 +64,7 @@ export const aiEngineMessages = defineMessages({
     optimizationReasoning:
       'A linha opera com {load}% de carga e {efficiency}% de eficiência local.',
     optimizationImpact:
-      'Suaviza o fluxo de material, limita a recirculação e protege a capacidade a jusante.',
+      'Reduz a taxa da linha em 2% (nunca abaixo de 55%) para suavizar o fluxo de material, limitar a recirculação e proteger a capacidade a jusante.',
     completedAutomatic: 'Concluída pela camada de controle autônoma',
     completedConfirmed: 'Concluída após confirmação do controle',
     strategicReasoningFallback: 'Análise estratégica concluída.',

@@ -136,10 +136,10 @@ describe('UnifiedGameTick maintenance causality', () => {
         },
       ],
     });
-    // Same 200 real ticks as above, at the default 180x: 180 times the wear.
-    // Packer: 0.0004 x (0.5 s x 180) x 1.3 = 0.0468 wear per tick -> +9.36.
-    for (let tick = 0; tick < 200; tick += 1) {
-      unifiedGameTick({ ...context, gameSpeed: 180, tickCount: 2 + tick });
+    // The same 18,000 game seconds as 200 ticks at the old 180x, at the 4x pace.
+    // Packer: 0.0004 x (0.5 s x 120) x 1.3 = 0.0312 wear per tick x 300 -> +9.36.
+    for (let tick = 0; tick < 300; tick += 1) {
+      unifiedGameTick({ ...context, gameSpeed: 120, tickCount: 2 + tick });
     }
 
     const wear = useProductionStore.getState().machines[0].metrics.wear ?? 0;
@@ -154,8 +154,8 @@ describe('UnifiedGameTick maintenance causality', () => {
       metrics: { ...failingPacker.metrics, wear: 10, efficiency: 100 },
     }));
     useProductionStore.setState({ machines: line });
-    for (let tick = 0; tick < 200; tick += 1) {
-      unifiedGameTick({ ...context, gameSpeed: 180, tickCount: 2 + tick });
+    for (let tick = 0; tick < 300; tick += 1) {
+      unifiedGameTick({ ...context, gameSpeed: 120, tickCount: 2 + tick });
     }
 
     const wear = useProductionStore.getState().machines.map((m) => m.metrics.wear ?? 0);

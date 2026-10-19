@@ -18,10 +18,11 @@ describe('ProductionTargetWidget', () => {
     useAIConfigStore.getState().setShowProductionTarget(true);
     useAnnouncementsStore.getState().setContext({ onboarding: false });
     useUIStore.getState().setJourneyVisible(false);
-    useGameSimulationStore.setState({ gameTime: 12, gameSpeed: 180 });
+    useGameSimulationStore.setState({ gameTime: 12, gameSpeed: 30 });
+    // Throughput is bags per game hour: 48 bags is 1.2 t per game hour.
     useProductionStore.setState({
       dailyBagsProduced: 0,
-      metrics: { ...useProductionStore.getState().metrics, throughput: 8640 },
+      metrics: { ...useProductionStore.getState().metrics, throughput: 48 },
     });
   });
 
@@ -59,17 +60,23 @@ describe('ProductionTargetWidget', () => {
     }
   );
 
-  it.each([
-    [180, '1.2 t/game h', 'BEHIND SCHEDULE'],
-    [30, '7.2 t/game h', 'ON TRACK'],
-    [1, '216.0 t/game h', 'ON TRACK'],
-  ] as const)('compares forecast and remaining clock time at %ix', (pace, rate, status) => {
+  // One time model: the plant speeds up with the clock, so the forecast rate
+  // per game hour is the same at every pace.
+  it.each([15, 30, 60, 120])('compares forecast and remaining clock time at pace %i', (pace) => {
     useGameSimulationStore.setState({ gameSpeed: pace });
+    useProductionStore.setState({
+      metrics: { ...useProductionStore.getState().metrics, throughput: 288 },
+    });
     render(<ProductionTargetWidget />);
-    expect(screen.getByText(rate)).toBeInTheDocument();
+    expect(screen.getByText('7.2 t/game h')).toBeInTheDocument();
     expect(screen.getByText('2.5 t/game h')).toBeInTheDocument();
-    expect(screen.getByText(status)).toBeInTheDocument();
-    expect(useProductionStore.getState().metrics.throughput).toBe(8640);
+    expect(screen.getByText('ON TRACK')).toBeInTheDocument();
+  });
+
+  it('reports a slow line as behind schedule', () => {
+    render(<ProductionTargetWidget />);
+    expect(screen.getByText('1.2 t/game h')).toBeInTheDocument();
+    expect(screen.getByText('BEHIND SCHEDULE')).toBeInTheDocument();
   });
 
   it('keeps each complete rate on its own full-width row at larger text sizes', () => {

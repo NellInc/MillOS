@@ -115,7 +115,7 @@ export const workplaceReplayMessages = defineMessages({
       'Optional navigation only. No votes, checks, consent or approval are supplied by the guide.',
 
     // Resume
-    resume: 'Resume agreed replay at teaching pace (30×)',
+    resume: 'Resume agreed replay at standard pace (1x)',
   },
   'pt-BR': {
     sectionLabel: (p: { section: string }) =>
@@ -233,6 +233,6 @@ export const workplaceReplayMessages = defineMessages({
     optionalNavigation:
       'Somente navegação opcional. O guia não fornece votos, verificações, consentimento nem aprovação.',
 
-    resume: 'Retomar a reprodução acordada no ritmo didático (30×)',
+    resume: 'Retomar a reprodução acordada no ritmo padrão (1x)',
   },
 });

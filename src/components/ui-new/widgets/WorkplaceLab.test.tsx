@@ -270,7 +270,7 @@ describe('Workplace laboratory interface', () => {
     expect(
       screen.getByText(/No real worker data or independently authenticated ballots/)
     ).toBeInTheDocument();
-    open('Start playable shift at teaching pace (15×)');
+    open('Start playable shift at teaching pace (1/2x)');
     expect(useGameSimulationStore.getState().gameSpeed).toBe(15);
     expect(useWorkplaceStore.getState().workplace.phase).toBe('deliberating');
     expect(execute).not.toHaveBeenCalled();
@@ -496,7 +496,7 @@ describe('Living Cooperative campaign interface', () => {
     fireEvent.change(screen.getByLabelText(`${role}: ${question.prompt}`), { target: { value } });
   };
 
-  it('starts only explicitly with the selected profile and a 30× local clock', () => {
+  it('starts only explicitly with the selected profile and a standard-pace local clock', () => {
     render(<WorkplaceLab />);
     expect(useGameSimulationStore.getState().gameSpeed).toBe(180);
     fireEvent.change(screen.getByLabelText('Adoption profile'), { target: { value: 'team' } });

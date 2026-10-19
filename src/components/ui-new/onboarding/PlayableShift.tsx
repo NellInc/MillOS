@@ -4,7 +4,7 @@ import { Minimize2, X } from 'lucide-react';
 import { useUIStore } from '../../../stores/uiStore';
 import { useMobileControlStore } from '../../../stores/mobileControlStore';
 import { selectClockHolder, useGameSimulationStore } from '../../../stores/gameSimulationStore';
-import { isPaceGameSpeed, PACE_GAME_SPEEDS } from '../../../simulation/pace';
+import { isPaceGameSpeed, PACE_GAME_SPEEDS, STANDARD_GAME_SPEED } from '../../../simulation/pace';
 import { paceMessages } from '../../../simulation/pace.messages';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
 import {
@@ -322,6 +322,9 @@ export function FirstDeliveryJourney({
           : t('awaitingOrder')}
       </p>
       <DeliveryDeadline order={order} elapsedMinutes={campaign.elapsedMinutes} />
+      {/* Pace sits with the deadline it is read against, above the fold, so it
+          is visible at 1366x768 without scrolling the card. */}
+      <TeachingPace />
       <h3 aria-live="polite" className="mt-3 font-semibold text-white">
         {guide.title}
       </h3>
@@ -358,7 +361,7 @@ export function FirstDeliveryJourney({
               : t('kgDispatched', { kg: formatFixed(order?.shippedKg ?? 0, 0) }),
         })}
       </p>
-      {/* The lesson's next actions stay pinned in the card's scroll box; pace,
+      {/* The lesson's next actions stay pinned in the card's scroll box; the
           note and Skip keep their order below. Working if Show/Open stay
           visible at 1280x657 without scrolling the card. */}
       {(guide.view || guide.workspace) && (
@@ -391,7 +394,6 @@ export function FirstDeliveryJourney({
           )}
         </div>
       )}
-      <TeachingPace />
       <LearningNote entryId={guide.entryId} />
       <button className={`${BUTTON} mt-3`} onClick={() => ui.close(false)}>
         {t('skipGuide')}
@@ -583,7 +585,7 @@ export function OperationsPlayCard() {
     // by the ordinary game tick before controller restoration becomes available.
     if (action.kind === 'resume') {
       const simulation = useGameSimulationStore.getState();
-      if (simulation.gameSpeed === 0) simulation.setGameSpeed(30);
+      if (simulation.gameSpeed === 0) simulation.setGameSpeed(STANDARD_GAME_SPEED);
     }
     if (action.kind === 'resolve') state.finishChallengeRecovery();
     if (action.kind === 'programme' && !linkedReviewPending(useWorkplaceStore.getState().workplace))
@@ -723,7 +725,7 @@ export function OperationsPlayCard() {
               const result = useWorkplaceStore.getState().startMission(profile);
               setMissionFeedback(result.reason ?? null);
               if (result.changed) {
-                useGameSimulationStore.getState().setGameSpeed(30);
+                useGameSimulationStore.getState().setGameSpeed(STANDARD_GAME_SPEED);
                 window.dispatchEvent(
                   new CustomEvent('millos:open-operations-workspace', { detail: 'autonomy' })
                 );
