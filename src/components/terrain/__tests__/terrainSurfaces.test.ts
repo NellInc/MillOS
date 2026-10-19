@@ -96,13 +96,18 @@ describe('weathered yard albedo', () => {
     expect(TERRAIN_TINTS.road).toBe('#e2e4e6');
   });
 
-  it('shares the terrain gain with both yards and dock grooves, leaving them non-emissive', () => {
-    const source = readFileSync('src/components/TruckBay.tsx', 'utf8');
-    const surface = source.split('const YARD_TARMAC_SURFACE = {')[1]?.split('} as const;')[0];
+  it('shares the terrain gain with both yards, leaving them non-emissive', () => {
+    const module = readFileSync('src/components/truckbay/yardSurfaces.ts', 'utf8');
+    const surface = module
+      .split('export const YARD_TARMAC_SURFACE = {')[1]
+      ?.split('} as const;')[0];
     expect(surface).toContain('color: YARD_PAVING_TINT');
     expect(surface).toContain('map: YARD_TARMAC_MAP');
     expect(surface).not.toMatch(/emissive/);
-    expect(source.match(/\.\.\.YARD_TARMAC_SURFACE/g)).toHaveLength(4);
+    // One yard plane per dock. The two sunken groove floors that also spread
+    // it were buried under the channel slab and are gone.
+    const source = readFileSync('src/components/TruckBay.tsx', 'utf8');
+    expect(source.match(/\.\.\.YARD_TARMAC_SURFACE/g)).toHaveLength(2);
   });
 });
 

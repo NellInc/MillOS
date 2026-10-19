@@ -632,7 +632,12 @@ export const SITE_LAYOUT = {
     // parked truck, and (2, 13, -44) put the dock's steel column and its
     // glazing straight down the middle of the frame. This one sits off the
     // dock centreline. At ~22 m a 0.4 m glyph is roughly 15 px tall.
-    markings: { position: [-9, 12, -42], target: [-7, 0.1, -60] },
+    // 2026-10-20: the dock paint was moved outboard of the platforms and
+    // channel slab (`truckbay/dockApronLayout.ts`). KEEP CLEAR now sits at
+    // (0, -0.01, -65.6) and reads from the yard, glyph tops toward the dock, so
+    // the camera moved to the yard side at a similar ~24 m. Re-aimed from the
+    // layout, not yet from a capture.
+    markings: { position: [-9, 12, -86], target: [-4, 0.1, -63] },
     // Gas station forecourt at (-85, 0, 140): the Dead Dino pylon sign, the
     // pumps, and the three CuteCars parked at x -75..-65, z 125.
     forecourt: { position: [-64, 9, 116], target: [-84, 4, 136] },
