@@ -33,6 +33,9 @@ export const statusHudMessages = defineMessages({
     agreementPacingTitle:
       'The cooperative season runs to its agreed plan, which sets the line pace. The Bilateral Autonomy System (BAS) panel shows the plan and who chose it.',
     agreementPacingText: 'Agreement pacing {value}%',
+    agreementBetweenLabel:
+      'The cooperative agreement is between shifts, so it is not pacing the line',
+    agreementBetweenText: 'Agreement between shifts',
     dailyTargetLabel: 'Daily target {produced} of {target} bags',
     targetValue: 'Target {produced} / {target}',
     runWindowLabel: '{shift} run window, simulation time {time}',
@@ -83,6 +86,9 @@ export const statusHudMessages = defineMessages({
     agreementPacingTitle:
       'A temporada cooperativa segue o plano acordado, que define o ritmo da linha. O painel Sistema de Autonomia Bilateral (BAS) mostra o plano e quem o escolheu.',
     agreementPacingText: 'Ritmo do acordo {value}%',
+    agreementBetweenLabel:
+      'O acordo da cooperativa está entre turnos, então não define o ritmo da linha',
+    agreementBetweenText: 'Acordo entre turnos',
     dailyTargetLabel: 'Meta diária: {produced} de {target} sacos',
     targetValue: 'Meta {produced} / {target}',
     runWindowLabel: 'Janela de operação da {shift}, horário da simulação {time}',

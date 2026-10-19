@@ -9,6 +9,8 @@ import { computeSafetyScore, useSafetyStore } from '../../../stores/safetyStore'
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
 import { createWorkplace } from '../../../simulation/bilateralWorkplace';
+import { autoplayWorkplaceStep } from '../../../simulation/workplaceAutoplay';
+import { withAutomaticWorkplaceStep } from '../../../simulation/workplaceParticipation';
 
 const viewport = { width: window.innerWidth, height: window.innerHeight };
 
@@ -145,6 +147,63 @@ describe('StatusHUD operational controls', () => {
       expect(screen.getByText('Agreement pacing 78%')).toBeVisible();
       act(() => useWorkplaceStore.setState({ workplace: createWorkplace() }));
       expect(screen.queryByText(/Agreement pacing/)).not.toBeInTheDocument();
+    } finally {
+      useWorkplaceStore.setState({ workplace: createWorkplace() });
+    }
+  });
+
+  it('keeps the agreement chip through a running season instead of blinking out between shifts', () => {
+    // The runtime trace read 78%, absent, 98%, 78%: the cover plan after its
+    // cover expires, the gap between two shifts, then the next shift's cover.
+    // Drive the real season the autonomous demo runs through those moments.
+    try {
+      useWorkplaceStore.setState({
+        workplace: createWorkplace(),
+        participationMode: 'solo',
+        turn: null,
+      });
+      render(<StatusHUD />);
+      const reading = () =>
+        screen.queryByText(/^Agreement (pacing \d+%|between shifts)$/)?.textContent ?? null;
+      const readings: (string | null)[] = [];
+      const step = () => {
+        let result = { changed: false, reason: null as string | null };
+        act(() => {
+          result = withAutomaticWorkplaceStep(() => autoplayWorkplaceStep('cooperative'));
+        });
+        // A review owing recovery waits on plant time, as in the running game.
+        if (!result.changed && !result.reason)
+          act(() => {
+            useWorkplaceStore.getState().tick(1, 0, false);
+          });
+        readings.push(reading());
+      };
+      act(() => {
+        expect(useWorkplaceStore.getState().startCampaign('cooperative').changed).toBe(true);
+      });
+      const until = (phase: string) => {
+        for (let i = 0; i < 300 && useWorkplaceStore.getState().workplace.phase !== phase; i++)
+          step();
+        expect(useWorkplaceStore.getState().workplace.phase).toBe(phase);
+      };
+      until('active');
+      expect(reading()).toBe('Agreement pacing 98%');
+      act(() => {
+        useWorkplaceStore.getState().tick(15, 0, false);
+      });
+      expect(reading()).toBe('Agreement pacing 78%');
+      act(() => {
+        useWorkplaceStore.getState().tick(75, 0, false);
+      });
+      expect(useWorkplaceStore.getState().workplace.phase).toBe('review');
+      expect(reading()).toBe('Agreement between shifts');
+      readings.length = 0;
+      until('active');
+      expect(useWorkplaceStore.getState().workplace.campaign?.shift).toBe(1);
+      expect(reading()).toBe('Agreement pacing 98%');
+      // Every sample between the two shifts kept the chip, saying why it reads as it does.
+      expect(readings.length).toBeGreaterThan(5);
+      expect(readings.every((text) => text !== null)).toBe(true);
     } finally {
       useWorkplaceStore.setState({ workplace: createWorkplace() });
     }

@@ -18,6 +18,7 @@ import { useGraphicsStore } from '../../../stores/graphicsStore';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
 import { workplaceCapacity } from '../../../simulation/bilateralWorkplace';
+import type { WorkplaceState } from '../../../types/workplace';
 import { useShallow } from 'zustand/react/shallow';
 import { formatFixed, formatGrouped, useLocale, useT } from '../../../i18n';
 import { statusHudMessages } from './StatusHUD.messages';
@@ -27,6 +28,24 @@ const SHIFT_KEYS = {
   afternoon: 'shiftAfternoon',
   night: 'shiftNight',
 } as const;
+
+/**
+ * The cooperative plan multiplies the plant rate (UnifiedGameTick), so the
+ * rate beside it says why it reads lower: its pacing while a shift runs,
+ * 'between' while a season or handoff experiment continues between shifts,
+ * null outside one. Presence follows the season, not the shift phase, so the
+ * chip does not blink out for the seconds the next shift takes to agree.
+ * Working if a 0.78 plan shows 78% while its shift runs, the gap reads as
+ * between shifts, and nothing shows once the season ends.
+ */
+function agreementPacingReading(s: WorkplaceState): number | 'between' | null {
+  if (s.mode !== 'game' || s.phase === 'idle') return null;
+  if (s.phase === 'active') return workplaceCapacity(s);
+  const continues = s.campaign
+    ? !(s.phase === 'review' && s.campaign.shift === 2)
+    : !!s.improvement && !(s.phase === 'review' && s.improvement.verdict);
+  return continues ? 'between' : null;
+}
 
 export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace: workspaceProp }) => {
   const t = useT(statusHudMessages);
@@ -74,14 +93,7 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace: workspa
   );
   const lineIdleAwaitingTruck = throughput <= 0 && orderPackedAwaitingTruck;
   const lineChangingOver = lineIdleAwaitingTruck && !!prestagingCustomer;
-  // The cooperative plan multiplies the plant rate (UnifiedGameTick), so the
-  // rate beside it says why it reads lower. Working if a 0.78 plan shows 78%
-  // while its shift runs and nothing shows outside one.
-  const agreementPacing = useWorkplaceStore((state) =>
-    state.workplace.mode === 'game' && state.workplace.phase === 'active'
-      ? workplaceCapacity(state.workplace)
-      : null
-  );
+  const agreementPacing = useWorkplaceStore((state) => agreementPacingReading(state.workplace));
 
   const [showNotifications, setShowNotifications] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -333,16 +345,20 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace: workspa
             <span>{t('throughputValue', { value: formatGrouped(throughput) })}</span>
           </div>
 
-          {agreementPacing !== null && Math.abs(agreementPacing - 1) > 1e-9 && (
+          {agreementPacing !== null && (
             <div
               className="flex shrink-0 items-center gap-1.5 text-[12px] text-amber-200"
-              aria-label={t('agreementPacingLabel', {
-                value: formatFixed(agreementPacing * 100, 0),
-              })}
+              aria-label={
+                agreementPacing === 'between'
+                  ? t('agreementBetweenLabel')
+                  : t('agreementPacingLabel', { value: formatFixed(agreementPacing * 100, 0) })
+              }
               title={t('agreementPacingTitle')}
             >
               <span>
-                {t('agreementPacingText', { value: formatFixed(agreementPacing * 100, 0) })}
+                {agreementPacing === 'between'
+                  ? t('agreementBetweenText')
+                  : t('agreementPacingText', { value: formatFixed(agreementPacing * 100, 0) })}
               </span>
             </div>
           )}
