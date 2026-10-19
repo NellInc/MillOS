@@ -6,6 +6,7 @@ import type {
 } from '../stores/operationsCampaignStore';
 import { translate } from '../i18n';
 import { incidentTitle } from '../stores/incidentText';
+import { dispatchBlockText } from '../stores/dispatchBlockText';
 import { operationsPlayMessages } from './operationsPlay.messages';
 
 /** Shared fulfilment tolerance; cosmetic consequences must agree with credit. */
@@ -179,7 +180,7 @@ export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
       targetId: activeOrder?.id ?? null,
       label: translate(operationsPlayMessages, 'qualityLabel'),
       consequence:
-        state.execution.dispatchLoad.blockReason ??
+        dispatchBlockText(state.execution.dispatchLoad) ??
         translate(operationsPlayMessages, 'qualityConsequence'),
     };
   } else if (

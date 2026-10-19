@@ -81,6 +81,7 @@ import { useOperationsCampaignStore } from '../stores/operationsCampaignStore';
 import { useHistoricalPlaybackStore } from '../stores/historicalPlaybackStore';
 import { capitalizeIn, formatFixed, translate, useLocale, useT } from '../i18n';
 import { incidentDescription, incidentTitle } from '../stores/incidentText';
+import { dispatchBlockText } from '../stores/dispatchBlockText';
 import { scadaPanelMessages } from './SCADAPanel.messages';
 
 interface SCADAPanelProps {
@@ -1531,7 +1532,7 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                     <div
                       className={`mt-1 truncate text-[10px] ${capitalizeIn(locale)} text-slate-400`}
                     >
-                      {campaign.execution.dispatchLoad.blockReason ??
+                      {dispatchBlockText(campaign.execution.dispatchLoad) ??
                         t('dispatchStatus', { value: campaign.execution.dispatchLoad.status })}
                     </div>
                   </div>

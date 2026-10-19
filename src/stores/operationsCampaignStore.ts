@@ -32,6 +32,7 @@ import {
 } from '../simulation/shiftReview';
 import { operationsCampaignMessages as messages } from './operationsCampaignStore.messages';
 import { incidentDescription, incidentTitle } from './incidentText';
+import { dispatchBlockText } from './dispatchBlockText';
 
 export type OrderStatus = 'planned' | 'active' | 'late' | 'fulfilled' | 'cancelled';
 export type IncidentKind =
@@ -191,13 +192,28 @@ export type FulfillmentStage =
 
 export type DispatchLoadStatus = 'away' | 'loading' | 'held' | 'ready' | 'departed';
 
+/** Why a load is held or left empty; dispatchBlockText() words it in the language active now. */
+export type DispatchQualityBlockCode =
+  | 'certificationExpired'
+  | 'unresolvedContamination'
+  | 'failedQualityTest'
+  | 'incidentDispatchIsolation'
+  | 'qualityInterlockNotReleased';
+export type DispatchBlockCode =
+  | DispatchQualityBlockCode
+  | 'departedWithoutLoad'
+  | 'waitingForMaterial';
+
 export interface DispatchLoadSnapshot {
   cycleId: string;
   status: DispatchLoadStatus;
   loadedKg: number;
   capacityKg: number;
   materialType: Extract<MaterialType, 'flour' | 'semolina'>;
+  /** Text in the language active when it was set; render dispatchBlockText() instead. */
   blockReason: string | null;
+  /** Absent on loads saved before codes existed; those keep blockReason. */
+  blockCode?: DispatchBlockCode | null;
   lastDispatchKg: number;
 }
 
@@ -465,6 +481,7 @@ const EMPTY_DISPATCH_LOAD: DispatchLoadSnapshot = {
   capacityKg: 5000,
   materialType: 'flour',
   blockReason: null,
+  blockCode: null,
   lastDispatchKg: 0,
 };
 
@@ -871,7 +888,7 @@ function executionMessage(execution: OrderExecutionState): string {
             : translate(messages, 'materialScheduledGrain'),
       });
     case 'quality_hold':
-      return execution.dispatchLoad.blockReason ?? translate(messages, 'execQualityHold');
+      return dispatchBlockText(execution.dispatchLoad) ?? translate(messages, 'execQualityHold');
     case 'ready_to_load':
       return translate(messages, 'execReadyToLoad');
     case 'loading':
