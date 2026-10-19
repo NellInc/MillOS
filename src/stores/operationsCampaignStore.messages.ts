@@ -38,6 +38,7 @@ export const operationsCampaignMessages = defineMessages({
     sourceDispatchController: 'Dispatch controller',
     sourceProductionExecution: 'Production execution',
     sourceControlLayer: 'Control layer',
+    sourceScada: 'SCADA',
 
     // Logbook messages
     logChallengeStarted: 'Started the recovery challenge: {label}.',
@@ -47,6 +48,7 @@ export const operationsCampaignMessages = defineMessages({
     logProgrammeInitialized: 'Production programme initialized from equipment and inventory state.',
     logOrderActivated: '{customer}: {recipe} is now the active commitment.',
     logIncidentAcknowledged: '{title} acknowledged.',
+    logSetpointWritten: '{tag} set to {reading}.',
     logIncidentMitigated: '{title} mitigated; residual effect halved.',
     logIncidentResolved: '{title} resolved and controls returned to normal.',
     logManifestAllocated:
@@ -136,6 +138,7 @@ export const operationsCampaignMessages = defineMessages({
     sourceDispatchController: 'Controlador de expedição',
     sourceProductionExecution: 'Execução da produção',
     sourceControlLayer: 'Camada de controle',
+    sourceScada: 'SCADA',
 
     logChallengeStarted: 'Desafio de recuperação iniciado: {label}.',
     logChallengeAbandoned: 'Desafio abandonado; os controles da ocorrência continuam ativos.',
@@ -145,6 +148,7 @@ export const operationsCampaignMessages = defineMessages({
       'Programa de produção inicializado a partir do estado dos equipamentos e do estoque.',
     logOrderActivated: '{customer}: {recipe} agora é o compromisso ativo.',
     logIncidentAcknowledged: 'Ocorrência reconhecida: {title}.',
+    logSetpointWritten: '{tag} ajustado para {reading}.',
     logIncidentMitigated: 'Ocorrência mitigada: {title}; efeito residual reduzido à metade.',
     logIncidentResolved: 'Ocorrência resolvida: {title}; controles de volta ao normal.',
     logManifestAllocated:

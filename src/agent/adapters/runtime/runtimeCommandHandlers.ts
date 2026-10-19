@@ -16,6 +16,7 @@ import type {
 import type { AgentJsonValue } from '../../contracts/queryContracts';
 import { parseSemanticUri } from '../../ontology/semanticUri.js';
 import type { AgentCommandHandler, AgentCommandInspection } from '../../command/commandKernel';
+import { HUMAN_OPERATOR_URI } from '../../command/authority';
 
 export function createMillOSRuntimeCommandHandlers(): AgentCommandHandler[] {
   return [
@@ -779,9 +780,12 @@ function writeSetpointHandler(): AgentCommandHandler {
     },
     execute: async (command) => {
       const tagId = localId(command.targetUri, 'tag');
+      // Only the agent driver holds this grant today; a command the human
+      // operator issues is still logged as the operator's decision.
       const changed = await getSCADAService().writeSetpoint(
         tagId,
-        Number(command.parameters.value)
+        Number(command.parameters.value),
+        command.actorUri === HUMAN_OPERATOR_URI ? 'operator' : 'agent'
       );
       const readback = getSCADAService().getValue(tagId)?.value ?? null;
       return { changed, readback: json(readback) };
