@@ -27,7 +27,10 @@ const beginTask = vi.hoisted(() =>
     };
   })
 );
-const flags = vi.hoisted(() => ({ KNOWLEDGE_LOADING_QUOTES_ENABLED: false }));
+const flags = vi.hoisted(() => ({
+  KNOWLEDGE_LOADING_QUOTES_ENABLED: false,
+  IN_APP_REDUCED_MOTION_ENABLED: false,
+}));
 const openPrepared = vi.hoisted(() =>
   vi.fn(() => {
     state.opened = true;
@@ -54,6 +57,7 @@ vi.mock('./knowledge/LoadingQuote', () => {
 });
 import { LoadingScreen } from './LoadingScreen';
 import { useGraphicsStore } from '../stores/graphicsStore';
+import { useMotionPreferenceStore } from '../stores/motionPreferenceStore';
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -79,6 +83,8 @@ afterEach(() => {
   cleanup();
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  flags.IN_APP_REDUCED_MOTION_ENABLED = false;
+  useMotionPreferenceStore.setState({ mode: 'system' });
   delete document.documentElement.dataset.sceneReady;
   delete document.documentElement.dataset.millosWorldReady;
 });
@@ -353,6 +359,39 @@ describe('LoadingScreen final readiness', () => {
     state.ready = true;
     view.rerender(<LoadingScreen />);
     await act(async () => vi.advanceTimersByTimeAsync(0));
+    expect(screen.queryByRole('progressbar')).toBeNull();
+  });
+
+  it('hands over immediately when the in-app Reduce motion is On and the OS is not', async () => {
+    vi.stubGlobal('matchMedia', () => ({
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    flags.IN_APP_REDUCED_MOTION_ENABLED = true;
+    useMotionPreferenceStore.setState({ mode: 'reduce' });
+    state.ready = true;
+    render(<LoadingScreen />);
+    await act(async () => vi.advanceTimersByTimeAsync(700));
+    await act(async () => vi.advanceTimersByTimeAsync(0));
+    expect(screen.queryByRole('progressbar')).toBeNull();
+  });
+
+  it('keeps the 220 ms fade for a saved On while the in-app control is gated off', async () => {
+    vi.stubGlobal('matchMedia', () => ({
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    flags.IN_APP_REDUCED_MOTION_ENABLED = false;
+    useMotionPreferenceStore.setState({ mode: 'reduce' });
+    state.ready = true;
+    render(<LoadingScreen />);
+    await act(async () => vi.advanceTimersByTimeAsync(700));
+    await act(async () => vi.advanceTimersByTimeAsync(0));
+    // Still mounted, fading out over 220 ms.
+    expect(screen.getByRole('progressbar')).toBeInTheDocument();
+    await act(async () => vi.advanceTimersByTimeAsync(250));
     expect(screen.queryByRole('progressbar')).toBeNull();
   });
 

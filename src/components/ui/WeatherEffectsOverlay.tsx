@@ -12,6 +12,10 @@ import { CloudRain, CloudLightning, Wind, Snowflake } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 
 import { useUIStore } from '../../stores';
+import {
+  selectInAppReducedMotion,
+  useMotionPreferenceStore,
+} from '../../stores/motionPreferenceStore';
 import { useT } from '../../i18n';
 import { weatherEffectsOverlayMessages } from './WeatherEffectsOverlay.messages';
 
@@ -66,7 +70,9 @@ export const WeatherEffectsOverlay: React.FC = () => {
     })
   );
 
-  const reduceMotion = useReducedMotion();
+  // framer's hook reads only the OS media query; the in-app setting is OR'd in.
+  const inAppReducedMotion = useMotionPreferenceStore(selectInAppReducedMotion);
+  const reduceMotion = useReducedMotion() || inAppReducedMotion;
   const t = useT(weatherEffectsOverlayMessages);
 
   if (!weatherAlert) return null;

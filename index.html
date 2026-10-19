@@ -220,6 +220,11 @@
           width: 35%;
         }
       }
+      html[data-motion='reduce'] .loading-bar::after {
+        animation: none;
+        transform: none;
+        width: 35%;
+      }
       @keyframes loading {
         0% {
           transform: translateX(-100%);
@@ -277,6 +282,20 @@
           if (text) text.textContent = 'AQUECENDO OS ROLOS';
           var sub = document.querySelector('#root .loading-sub');
           if (sub) sub.textContent = 'Ligando o moinho';
+        } catch (e) {}
+      })();
+    </script>
+    <!-- Mirrors src/stores/motionPreferenceStore.ts so the pre-React loading bar
+      holds still for someone who chose Reduce motion: On. The store re-applies
+      (or clears, while FEATURE_FLAGS.IN_APP_REDUCED_MOTION_ENABLED is off) the
+      attribute as soon as it loads. Working if a saved On never animates the bar. -->
+    <script>
+      (function () {
+        try {
+          var saved = JSON.parse(localStorage.getItem('millos-motion-preference') || 'null');
+          if (saved && saved.state && saved.state.mode === 'reduce') {
+            document.documentElement.setAttribute('data-motion', 'reduce');
+          }
         } catch (e) {}
       })();
     </script>
