@@ -298,7 +298,7 @@ export function KnowledgeEntryCard({ entry, onClose, onNavigate }: KnowledgeEntr
           <div className="mb-6 pl-4 border-l-2 border-amber-500/50">
             <Quote className="w-5 h-5 text-amber-500/50 mb-2" />
             <p className="text-lg text-slate-200 italic mb-1">"{entry.quote.text}"</p>
-            <p className="text-sm text-slate-500">— {entry.quote.author}</p>
+            <p className="text-sm text-slate-400">— {entry.quote.author}</p>
           </div>
         )}
 
