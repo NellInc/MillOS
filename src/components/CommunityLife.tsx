@@ -178,7 +178,7 @@ export function CommunityLife() {
   const bicycle = useRef(sampleCommunityCyclist(initialHour)).current;
   const delivery = sampleCommunityDelivery(initialHour);
   const cart = useRef({
-    visible: delivery.visible,
+    visible: delivery.cartVisible,
     position: [delivery.cartX, 0, delivery.cartZ] as [number, number, number],
     rotation: delivery.rotation,
     loaded: delivery.loaded,
@@ -409,7 +409,7 @@ export function CommunityLife() {
           ? 'Greeting a passing neighbour'
           : 'A moment outside the shop';
     }
-    cart.visible = drop.visible;
+    cart.visible = drop.cartVisible;
     cart.rotation = Math.PI;
     // Handles terminate at the courier's hands, with the cart trailing behind.
     cart.position[0] = drop.cartX;

@@ -28,6 +28,8 @@ import {
   COMMUNITY_SEAT_RAMP,
   STANDARD_HOURS_PER_REAL_SECOND,
   communityPassengerWalkHours,
+  COMMUNITY_COURIER_SCHEDULE,
+  COMMUNITY_STREET_END_Z,
 } from '../communityLife';
 import { STANDARD_GAME_SPEED } from '../pace';
 import { createWorkplace, transitionWorkplace } from '../bilateralWorkplace';
@@ -347,9 +349,61 @@ describe('inhabited world routines', () => {
       );
       expect(person.task).not.toMatch(/flour|delivering|unloading/i);
     }
-    expect(sampleCommunityDelivery(9.5).visible).toBe(true);
-    expect(sampleCommunityDelivery(9.85).moving).toBe(false);
-    expect(sampleCommunityDelivery(10.5).moving).toBe(true);
+    const s = COMMUNITY_COURIER_SCHEDULE;
+    const inspecting = (s.inspect + s.returning) / 2;
+    expect(sampleCommunityDelivery(inspecting).visible).toBe(true);
+    expect(sampleCommunityDelivery(inspecting).moving).toBe(false);
+    expect(sampleCommunityDelivery((s.pull + s.gone) / 2).moving).toBe(true);
+  });
+  it('walks the courier forwards at walking pace and turns before taking the cart', () => {
+    const s = COMMUNITY_COURIER_SCHEDULE;
+    expect(s.start).toBeGreaterThanOrEqual(9);
+    expect(s.gone).toBeLessThanOrEqual(11);
+    const step = 0.00005;
+    let previous = sampleCommunityDelivery(s.start - step);
+    let turnStart = NaN;
+    for (let h = s.start; h < s.gone + 0.01; h += step) {
+      const now = sampleCommunityDelivery(h),
+        ahead = sampleCommunityDelivery(h + 1e-7);
+      const dx = ahead.x - now.x,
+        dz = ahead.z - now.z,
+        moved = Math.hypot(dx, dz);
+      if (moved > 0 && ahead.rotation === now.rotation) {
+        // Every step goes the way the courier faces: no backing up, no crabbing.
+        const off = Math.atan2(dx, dz) - now.rotation;
+        expect(Math.abs(Math.atan2(Math.sin(off), Math.cos(off))), `heading at ${h}`).toBeLessThan(
+          0.6
+        );
+        expect(moved / 1e-7, `pace at ${h}`).toBeLessThanOrEqual(1 / WALK_HOURS_PER_METRE + 1e-3);
+      }
+      if (now.rotation !== previous.rotation) turnStart = h;
+      // A held grip couples the body to the cart, so the turn must already be done.
+      if (now.cartGrip && !previous.cartGrip) {
+        expect(now.rotation, `grip at ${h}`).toBe(previous.rotation);
+        expect(h - turnStart, `turn time before the grip at ${h}`).toBeGreaterThanOrEqual(
+          (0.6 * STANDARD_GAME_SPEED) / 3600
+        );
+      }
+      if (now.cartGrip && previous.cartGrip) expect(now.rotation).toBe(previous.rotation);
+      previous = now;
+    }
+  });
+  it('brings the courier and the cart in and out at the street end, never mid-street', () => {
+    for (let h = 0; h < 24; h += 0.0005) {
+      const a = sampleCommunityDelivery(h),
+        b = sampleCommunityDelivery(h + 0.0005);
+      // Half a step of walking either side of the street end at most.
+      const reach = 0.0005 / WALK_HOURS_PER_METRE;
+      if (a.visible !== b.visible)
+        expect(Math.abs(b.z - COMMUNITY_STREET_END_Z), `courier at ${h}`).toBeLessThanOrEqual(
+          reach
+        );
+      if (a.cartVisible !== b.cartVisible)
+        expect(Math.abs(b.cartZ - COMMUNITY_STREET_END_Z), `cart at ${h}`).toBeLessThanOrEqual(
+          reach
+        );
+    }
+    expect(sampleCommunityDelivery(12).cartVisible).toBe(false);
   });
   it('uses fulfilled local flour orders, bounded by real completion time', () => {
     const order = {

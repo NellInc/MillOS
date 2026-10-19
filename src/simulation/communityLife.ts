@@ -966,34 +966,118 @@ export function inspectCommunityPresence(scene: Pick<Object3D, 'traverse'>) {
  * a scheduled visit has no authority to create flour or claim a delivery.
  * Working if every clock sample keeps loaded and delivered false.
  */
+/** Where the west village street leaves the paved village to the north. The
+ * courier and the cyclist come and go here rather than appearing mid-street. */
+export const COMMUNITY_STREET_END_Z = 62;
+const COURIER_X = -202.8;
+/** The cart's handle trails its body by this much; the cart always points south. */
+const CART_HANDLE = 1.4;
+/** Handle positions: just outside the street end with the cart at it, and parked. */
+const COURIER_ENTRY_Z = COMMUNITY_STREET_END_Z + CART_HANDLE;
+const COURIER_PARK_Z = 33;
+const COURIER_HAUL_HOURS = (COURIER_ENTRY_Z - COURIER_PARK_Z) * WALK_HOURS_PER_METRE;
+/** The step around the cart's left side: 1 m west, then 1.4 m south beside it. */
+const COURIER_SIDE: Vec3Tuple = [COURIER_X - 1, 0, COURIER_PARK_Z];
+const COURIER_INSPECT: Vec3Tuple = [COURIER_X - 1, 0, COURIER_PARK_Z - CART_HANDLE];
+const COURIER_STEP_HOURS = (1 + CART_HANDLE) * WALK_HOURS_PER_METRE;
+/** The courier's morning, in game hours. Every leg walks forwards at walking pace;
+ * the cart is gripped only while the body already faces the way it will haul.
+ * Working if the courier never backs up or crabs and never turns while coupled. */
+export const COMMUNITY_COURIER_SCHEDULE = (() => {
+  const start = 9;
+  const parked = start + COURIER_HAUL_HOURS;
+  const stepAround = parked + standardSeconds(1);
+  const inspect = stepAround + COURIER_STEP_HOURS;
+  const returning = 10.4;
+  const turn = returning + COURIER_STEP_HOURS;
+  const pull = turn + standardSeconds(0.9);
+  return Object.freeze({
+    start,
+    parked,
+    stepAround,
+    inspect,
+    returning,
+    turn,
+    pull,
+    gone: pull + COURIER_HAUL_HOURS,
+  });
+})();
+
+/** Walk a two-leg path (corner at `via`) over `hours`; returns the heading too. */
+function walkCorner(from: Vec3Tuple, via: Vec3Tuple, to: Vec3Tuple, t: number) {
+  const first = distance(from, via),
+    total = first + distance(via, to);
+  const s = Math.max(0, Math.min(1, t)) * total;
+  const [a, b, u] = s < first ? [from, via, s / first] : [via, to, (s - first) / (total - first)];
+  return {
+    x: a[0] + (b[0] - a[0]) * u,
+    z: a[2] + (b[2] - a[2]) * u,
+    rotation: Math.atan2(b[0] - a[0], b[2] - a[2]),
+  };
+}
+
 export function sampleCommunityDelivery(hour: number) {
-  const h = communityHour(hour);
-  const returning = h >= 10.1;
-  const travel = returning
-    ? Math.max(0, Math.min(1, (h - 10.1) / 0.75))
-    : Math.max(0, Math.min(1, (h - 9) / 0.65));
-  const handleZ = returning ? 33 + 10 * travel : 43 - 10 * travel;
-  let x = -202.8,
-    z = handleZ,
-    rotation = returning ? 0 : Math.PI;
-  // Park the empty cart. The courier steps around its left side to inspect it.
-  if (h >= 9.65 && h < 10.1) {
-    const approach = h < 9.82 ? Math.min(1, (h - 9.65) / 0.17) : h < 10 ? 1 : 1 - (h - 10) / 0.1;
-    x -= Math.min(1, approach * 2);
-    z -= Math.max(0, approach * 2 - 1) * 1.4;
+  const h = communityHour(hour),
+    s = COMMUNITY_COURIER_SCHEDULE;
+  let handleZ = COURIER_PARK_Z,
+    x = COURIER_X,
+    z = COURIER_PARK_Z,
+    rotation = Math.PI,
+    moving = false,
+    cartGrip: 'push' | 'pull' | undefined;
+  if (h < s.start || h >= s.gone) {
+    // Out of the village: both held beyond the street end, as they left or will arrive.
+    handleZ = z = COURIER_ENTRY_Z;
+    rotation = h < s.start ? Math.PI : 0;
+    cartGrip = h < s.start ? 'push' : 'pull';
+  } else if (h < s.parked) {
+    handleZ = z = COURIER_ENTRY_Z - (h - s.start) / WALK_HOURS_PER_METRE;
+    moving = h > s.start;
+    cartGrip = 'push';
+  } else if (h < s.stepAround) {
+    cartGrip = 'push';
+  } else if (h < s.inspect) {
+    ({ x, z, rotation } = walkCorner(
+      [COURIER_X, 0, COURIER_PARK_Z],
+      COURIER_SIDE,
+      COURIER_INSPECT,
+      (h - s.stepAround) / COURIER_STEP_HOURS
+    ));
+    moving = true;
+  } else if (h < s.returning) {
+    [x, , z] = COURIER_INSPECT;
     rotation = Math.PI / 2;
+  } else if (h < s.turn) {
+    ({ x, z, rotation } = walkCorner(
+      COURIER_INSPECT,
+      COURIER_SIDE,
+      [COURIER_X, 0, COURIER_PARK_Z],
+      (h - s.returning) / COURIER_STEP_HOURS
+    ));
+    moving = true;
+  } else if (h < s.pull) {
+    // Turn on the spot to face the street end before taking the handle.
+    rotation = 0;
+  } else {
+    handleZ = z = COURIER_PARK_Z + (h - s.pull) / WALK_HOURS_PER_METRE;
+    rotation = 0;
+    moving = true;
+    cartGrip = 'pull';
   }
+  const cartZ = handleZ - CART_HANDLE;
+  const window = h >= s.start && h < s.gone;
   return {
     x,
     z,
     rotation,
-    cartX: -202.8,
-    cartZ: handleZ - 1.4,
-    visible: h >= 9 && h < 10.85,
-    moving: (h > 9 && h < 9.82) || (h > 10 && h < 10.85),
+    cartX: COURIER_X,
+    cartZ,
+    visible: window && z <= COMMUNITY_STREET_END_Z,
+    cartVisible: window && cartZ <= COMMUNITY_STREET_END_Z,
+    moving,
     delivered: false,
     loaded: false,
-    cartGrip: h < 9.65 ? ('push' as const) : h >= 10.1 ? ('pull' as const) : undefined,
+    cartGrip,
   };
 }
 
