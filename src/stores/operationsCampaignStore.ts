@@ -83,6 +83,18 @@ export interface CampaignEconomics {
   latePenalties: number;
 }
 
+/** Failure costs accruing right now, per game hour; written by the tick that books them. */
+export interface CampaignCostRates {
+  maintenance: number;
+  demurrage: number;
+  late: number;
+}
+/** Each open work order costs this per game hour while its machine is down. */
+export const MAINTENANCE_COST_PER_WORK_ORDER_HOUR = 90;
+/** A docked shipping truck held by quality or isolation costs this per game hour. */
+export const DEMURRAGE_COST_PER_HOUR = 120;
+const ZERO_COST_RATES: CampaignCostRates = { maintenance: 0, demurrage: 0, late: 0 };
+
 export interface ShiftCampaignMetrics extends CampaignEconomics {
   dispatchedKg: number;
   qualityFailureKg: number;
@@ -244,6 +256,8 @@ interface OperationsCampaignState {
   incidents: OperationalIncident[];
   economics: CampaignEconomics;
   shiftMetrics: ShiftCampaignMetrics;
+  /** Instantaneous; not persisted. Reference is kept while the rates are unchanged. */
+  costRates: CampaignCostRates;
   reports: ShiftCampaignReport[];
   logbook: CampaignLogEntry[];
   constraints: CampaignConstraint[];
@@ -704,6 +718,7 @@ function emptyState() {
     incidents: [] as OperationalIncident[],
     economics: { ...ZERO_ECONOMICS },
     shiftMetrics: { ...ZERO_SHIFT_METRICS },
+    costRates: ZERO_COST_RATES,
     reports: [] as ShiftCampaignReport[],
     logbook: [] as CampaignLogEntry[],
     constraints: [] as CampaignConstraint[],
@@ -1577,20 +1592,31 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
               ? context.wasteKg
               : context.wasteKg - state.lastWasteKg;
           const wasteCost = Math.max(0, newWasteKg) * 0.18;
-          const maintenanceCost = context.openWorkOrders * 90 * deltaHours;
-          const demurrageCost =
-            context.shippingDocked && (!context.dispatchReleased || incidentEffect.dispatchBlocked)
-              ? 120 * deltaHours
-              : 0;
-          const latePenalties = orders.reduce((sum, order) => {
-            if (order.status !== 'late') return sum;
-            return (
-              sum +
-              Math.max(0, order.requiredKg - order.shippedKg) *
-                order.latePenaltyPerKgHour *
-                deltaHours
-            );
-          }, 0);
+          // Rates first, so the cost the card shows per game hour and the cost
+          // booked here can never disagree.
+          const rates: CampaignCostRates = {
+            maintenance: context.openWorkOrders * MAINTENANCE_COST_PER_WORK_ORDER_HOUR,
+            demurrage:
+              context.shippingDocked &&
+              (!context.dispatchReleased || incidentEffect.dispatchBlocked)
+                ? DEMURRAGE_COST_PER_HOUR
+                : 0,
+            late: orders.reduce((sum, order) => {
+              if (order.status !== 'late') return sum;
+              return (
+                sum + Math.max(0, order.requiredKg - order.shippedKg) * order.latePenaltyPerKgHour
+              );
+            }, 0),
+          };
+          const costRates =
+            rates.maintenance === state.costRates?.maintenance &&
+            rates.demurrage === state.costRates?.demurrage &&
+            Math.abs(rates.late - (state.costRates?.late ?? Number.NaN)) < 1e-9
+              ? state.costRates
+              : rates;
+          const maintenanceCost = rates.maintenance * deltaHours;
+          const demurrageCost = rates.demurrage * deltaHours;
+          const latePenalties = rates.late * deltaHours;
           for (const [key, value] of Object.entries({
             energyCost,
             automationCost,
@@ -1739,6 +1765,7 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
             activeOrderId,
             economics,
             shiftMetrics,
+            costRates,
             reports,
             logbook,
             constraints,

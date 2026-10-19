@@ -31,6 +31,8 @@ import { useBreakdownStore, type BreakdownType } from '../stores/breakdownStore'
 import { useUIStore } from '../stores/uiStore';
 import { BAG_WEIGHT_KG, type MachineData } from '../types';
 import {
+  DEMURRAGE_COST_PER_HOUR,
+  MAINTENANCE_COST_PER_WORK_ORDER_HOUR,
   useOperationsCampaignStore,
   type DispatchLoadSnapshot,
   type OperationalIncident,
@@ -992,7 +994,10 @@ function unifiedGameTick(ctx: TickContext): void {
           ? translate(msg, 'dispatchQualityHoldTitle')
           : translate(msg, 'shippingAwaitingProductTitle'),
         message: qualityBlockReason
-          ? translate(msg, 'clearBeforeRelease', { reason: qualityBlockReason })
+          ? translate(msg, 'clearBeforeRelease', {
+              reason: qualityBlockReason,
+              rate: formatFixed(DEMURRAGE_COST_PER_HOUR, 2),
+            })
           : (_shippingLoad.blockReason ?? translate(msg, 'waitingForProduct')),
         timestamp: new Date(),
         acknowledged: false,
@@ -1093,6 +1098,7 @@ function unifiedGameTick(ctx: TickContext): void {
           name,
           machineType,
           workOrderId: breakdown.workOrderId,
+          rate: formatFixed(MAINTENANCE_COST_PER_WORK_ORDER_HOUR, 2),
         }),
         machineId: id,
         timestamp: new Date(),

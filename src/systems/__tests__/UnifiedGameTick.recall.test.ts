@@ -108,4 +108,17 @@ describe('a recalled batch is written off instead of wedging dispatch', () => {
       useMaterialFlowStore.getState().productionBatches.find((b) => b.id === batch.id)?.disposition
     ).toBe('recalled');
   });
+
+  it('names the dock cost when an open investigation holds a docked truck', () => {
+    const batch = useMaterialFlowStore
+      .getState()
+      .productionBatches.find((candidate) => candidate.availableKg > 0)!;
+    useQCLabStore.getState().triggerContaminationAlert({ batchIds: [batch.id] });
+    const trucks = useTruckScheduleStore.getState();
+    trucks.setTruckDocked('shipping', true);
+    trucks.setTruckTransferReady('shipping', true);
+    unifiedGameTick({ ...tickContext, tickCount: 2 });
+    const hold = useUIStore.getState().alerts.find((a) => a.id.startsWith('dispatch-quality-hold'));
+    expect(hold?.message).toContain('£120.00 per game hour');
+  });
 });

@@ -554,6 +554,14 @@ export function OperationsPlayCard() {
       challengeHistory: s.challengeHistory,
     }))
   );
+  // Rates keep their reference while unchanged, and the shift total is read in
+  // whole pounds, so the card does not re-render on every tick.
+  const costRates = useOperationsCampaignStore((s) => s.costRates);
+  const shiftFailureCost = useOperationsCampaignStore((s) =>
+    Math.round(
+      s.shiftMetrics.latePenalties + s.shiftMetrics.maintenanceCost + s.shiftMetrics.demurrageCost
+    )
+  );
   const focusId = useUIStore((s) => s.operationalFocusId);
   const nextActionRef = useRef<HTMLButtonElement>(null);
   // Consume navigation only after the real control mounts, including lazy and
@@ -682,6 +690,29 @@ export function OperationsPlayCard() {
           {hardBlock ? t('blocked') : t('attention')}: {leadConstraint.label}.{' '}
           {leadConstraint.detail}
         </p>
+      )}
+      {/* What each failure is costing now, from the rates the tick books.
+          Working if an overdue order, an open work order or a held truck shows
+          its price on the card before the shift report does. */}
+      {(costRates.late > 0 ||
+        costRates.maintenance > 0 ||
+        costRates.demurrage > 0 ||
+        shiftFailureCost > 0) && (
+        <div role="group" aria-label={t('failureCosts')} className="mt-2 text-xs leading-5">
+          <p className="font-semibold text-amber-100">{t('failureCosts')}</p>
+          {costRates.late > 0 && <p>{t('costLate', { rate: formatFixed(costRates.late, 2) })}</p>}
+          {costRates.maintenance > 0 && (
+            <p>{t('costMaintenance', { rate: formatFixed(costRates.maintenance, 2) })}</p>
+          )}
+          {costRates.demurrage > 0 && (
+            <p>{t('costDemurrage', { rate: formatFixed(costRates.demurrage, 2) })}</p>
+          )}
+          {shiftFailureCost > 0 && (
+            <p className="text-slate-300">
+              {t('costShiftTotal', { total: formatGrouped(shiftFailureCost) })}
+            </p>
+          )}
+        </div>
       )}
       {play.challengeProgress && (
         <div

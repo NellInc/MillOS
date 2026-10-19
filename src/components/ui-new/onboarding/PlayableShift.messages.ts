@@ -97,6 +97,12 @@ export const playableShiftMessages = defineMessages({
     programmeCompleteCurrent: 'Current programme complete',
     blocked: 'Blocked',
     attention: 'Attention',
+    failureCosts: 'Failure costs',
+    costLate: 'Late delivery: £{rate} per game hour',
+    costMaintenance: 'Open work orders: £{rate} per game hour',
+    costDemurrage: 'Truck held at the dock: £{rate} per game hour',
+    costShiftTotal:
+      'This shift so far: £{total} in late and quality penalties, repairs and dock waiting.',
     challengeProgress: 'Recovery challenge progress',
     challengeProgressLine:
       '{label}: {dispatchedKg} / {targetKg} kg, {minutes} simulation minutes left',
@@ -205,6 +211,12 @@ export const playableShiftMessages = defineMessages({
     programmeCompleteCurrent: 'Programa atual concluído',
     blocked: 'Bloqueado',
     attention: 'Atenção',
+    failureCosts: 'Custos das falhas',
+    costLate: 'Entrega atrasada: £{rate} por hora de jogo',
+    costMaintenance: 'Ordens de serviço abertas: £{rate} por hora de jogo',
+    costDemurrage: 'Caminhão retido na doca: £{rate} por hora de jogo',
+    costShiftTotal:
+      'Neste turno, até agora: £{total} em penalidades por atraso e por qualidade, reparos e espera na doca.',
     challengeProgress: 'Progresso do desafio de recuperação',
     challengeProgressLine:
       '{label}: {dispatchedKg} / {targetKg} kg, faltam {minutes} minutos de simulação',

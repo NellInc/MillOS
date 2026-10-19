@@ -34,12 +34,13 @@ export const unifiedGameTickMessages = defineMessages({
       `Waiting for released ${p.material} at the packers.`,
     dispatchQualityHoldTitle: 'Dispatch Quality Hold',
     shippingAwaitingProductTitle: 'Shipping Awaiting Product',
-    clearBeforeRelease: '{reason} Clear the condition before release.',
+    clearBeforeRelease:
+      '{reason} Clear the condition before release. While the truck waits at the dock it costs £{rate} per game hour.',
     waitingForProduct: 'Waiting for released product at the packers.',
     shiftLabel: (p: { shift: string }) => capitalise(p.shift),
     breakdownTitle: 'Machine Breakdown',
     breakdownMessage:
-      '{name} ({machineType}) has broken down due to excessive wear. Open Mill Overview, Maintenance: work order {workOrderId} needs service dispatched, the repair verified and a controlled restart.',
+      '{name} ({machineType}) has broken down due to excessive wear. Open Mill Overview, Maintenance: work order {workOrderId} needs service dispatched, the repair verified and a controlled restart. Each open work order costs £{rate} per game hour.',
   },
   'pt-BR': {
     supplierTraceabilityNote:
@@ -60,11 +61,12 @@ export const unifiedGameTickMessages = defineMessages({
       `Aguardando ${PT_MATERIALS[p.material] ?? p.material} nas ensacadeiras.`,
     dispatchQualityHoldTitle: 'Retenção de qualidade na expedição',
     shippingAwaitingProductTitle: 'Expedição aguardando produto',
-    clearBeforeRelease: '{reason} Resolva a condição antes da liberação.',
+    clearBeforeRelease:
+      '{reason} Resolva a condição antes da liberação. Enquanto o caminhão espera na doca, o custo é de £{rate} por hora de jogo.',
     waitingForProduct: 'Aguardando produto liberado nas ensacadeiras.',
     shiftLabel: (p: { shift: string }) => PT_SHIFT_LABELS[p.shift] ?? capitalise(p.shift),
     breakdownTitle: 'Pane de máquina',
     breakdownMessage:
-      '{name} ({machineType}) entrou em pane por desgaste excessivo. Abra Visão geral do moinho, Manutenção: a ordem de serviço {workOrderId} precisa do envio da equipe, da verificação do reparo e de um reinício controlado.',
+      '{name} ({machineType}) entrou em pane por desgaste excessivo. Abra Visão geral do moinho, Manutenção: a ordem de serviço {workOrderId} precisa do envio da equipe, da verificação do reparo e de um reinício controlado. Cada ordem de serviço aberta custa £{rate} por hora de jogo.',
   },
 });

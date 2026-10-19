@@ -879,3 +879,25 @@ it('routes a stopped machine to Mill Overview, Maintenance as Attention, not Blo
   expect(useUIStore.getState().maintenanceFocusRequested).toBe(true);
   window.removeEventListener('millos:open-operations-workspace', handler);
 });
+
+it('shows on the shift card what each failure is costing and what this shift has paid', () => {
+  render(<OperationsPlayCard />);
+  expect(screen.queryByRole('group', { name: 'Failure costs' })).not.toBeInTheDocument();
+  act(() => {
+    useOperationsCampaignStore.setState((state) => ({
+      costRates: { maintenance: 90, demurrage: 120, late: 15 },
+      shiftMetrics: {
+        ...state.shiftMetrics,
+        latePenalties: 40,
+        maintenanceCost: 30,
+        demurrageCost: 20,
+      },
+    }));
+  });
+  const costs = screen.getByRole('group', { name: 'Failure costs' });
+  expect(costs).toHaveTextContent('Late delivery: £15.00 per game hour');
+  expect(costs).toHaveTextContent('Open work orders: £90.00 per game hour');
+  expect(costs).toHaveTextContent('Truck held at the dock: £120.00 per game hour');
+  expect(costs).toHaveTextContent('This shift so far: £90 in');
+  expect(costs).toHaveTextContent(/late and quality penalties/);
+});

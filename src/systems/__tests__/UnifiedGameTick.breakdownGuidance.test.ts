@@ -61,6 +61,7 @@ describe('a wear breakdown is surfaced with a route to the repair', () => {
 
     const alert = useUIStore.getState().alerts.find((a) => a.id.startsWith('breakdown-'));
     expect(alert?.message).toContain('Mill Overview');
+    expect(alert?.message).toContain('£90.00 per game hour');
     expect(alert?.message).toContain('Maintenance');
   });
 
