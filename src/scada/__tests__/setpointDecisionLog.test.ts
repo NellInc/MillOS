@@ -43,6 +43,20 @@ describe('SCADA setpoint writes are decisions in the campaign log', () => {
     ]);
   });
 
+  it('previews an out-of-range agent setpoint as refused, as the service will refuse it', async () => {
+    const handler = createMillOSRuntimeCommandHandlers().find(
+      (candidate) => candidate.capabilityId === 'scada.write-setpoint'
+    )!;
+    const range = (value: number) =>
+      handler
+        .inspect({ targetUri: `millos://tag/${TAG}`, parameters: { value } } as never)
+        .preconditions.find((item) => item.id === 'PRE.TAG.RANGE');
+
+    expect(range(1500)?.satisfied).toBe(true);
+    expect(range(2500)?.satisfied).toBe(false);
+    expect(range(Number.NaN)?.satisfied).toBe(false);
+  });
+
   it('tags a write the human operator issued through the command path as the operator', async () => {
     const handler = createMillOSRuntimeCommandHandlers().find(
       (candidate) => candidate.capabilityId === 'scada.write-setpoint'
