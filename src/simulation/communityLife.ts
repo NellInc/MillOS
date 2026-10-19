@@ -5,7 +5,12 @@ import { CAMPAIGN_MASS_EPSILON_KG } from './operationsPlay';
 import type { MaintenanceWorkOrder } from '../stores/breakdownStore';
 import type { ProductionBatch } from '../stores/materialFlowStore';
 import type { MachineData } from '../types';
-import { COMMUNITY_ANCHORS as A, getCommunityHours } from '../constants/communityLayout';
+import {
+  COMMUNITY_ACTIVITY_HOURS,
+  COMMUNITY_ANCHORS as A,
+  COMMUNITY_OPENING_HOURS,
+  getCommunityHours,
+} from '../constants/communityLayout';
 import type { Vec3Tuple } from '../constants/siteLayout';
 import type { WorkplaceState } from '../types/workplace';
 import { improvementArrangement } from './workplaceImprovement';
@@ -29,6 +34,14 @@ export interface CommunityPerson {
   phase: number;
   machineId?: string;
   stops: readonly CommunityStop[];
+  /** A village day: out of `door` at `open`, along `approach` to stops[0], whole
+   * loops of the routine, then back in at `close`. Nobody appears mid-street. */
+  day?: {
+    readonly open: number;
+    readonly close: number;
+    readonly door: Vec3Tuple;
+    readonly approach: readonly Vec3Tuple[];
+  };
 }
 export interface CommunityPose {
   position: [number, number, number];
@@ -593,6 +606,11 @@ export const COMMUNITY_ROSTER: readonly CommunityPerson[] = [
       stop([-177, 0, 5], PI, 0.3, 'A moment outside', 'idle'),
       via([-175.1, 0, 5]),
     ],
+    day: {
+      ...COMMUNITY_OPENING_HOURS.shops,
+      door: A.bakeryDoor.position,
+      approach: [[-175.1, 0, 5]],
+    },
   },
   {
     id: 'village-shopkeeper',
@@ -602,9 +620,11 @@ export const COMMUNITY_ROSTER: readonly CommunityPerson[] = [
     stops: [
       stop(A.shopCustomer.position, -PI / 2, 1.4, 'Tending the village shop'),
       stop([-204.4, 0, 31.6], -PI / 2, 0.6, 'Checking the delivery crates'),
-      stop([-202.7, 0, 31.6], 0, 0.4, 'Greeting a neighbour', 'idle'),
+      // Clear of the courier's parked cart (body z 31.1 to 32.1), looking up the street.
+      stop([-202.7, 0, 30.4], 0, 0.4, 'Greeting a neighbour', 'idle'),
       via([-202.7, 0, 30]),
     ],
+    day: { ...COMMUNITY_OPENING_HOURS.shops, door: A.shopDoor.position, approach: [] },
   },
   {
     id: 'village-gardener',
@@ -619,6 +639,15 @@ export const COMMUNITY_ROSTER: readonly CommunityPerson[] = [
       via(A.allotmentGate.position),
       via([-215.35, 0, 9]),
     ],
+    // Out of the tool shed, between it and the beds, onto the central path.
+    day: {
+      ...COMMUNITY_ACTIVITY_HOURS.gardening,
+      door: A.allotmentShedDoor.position,
+      approach: [
+        [-217.5, 0, 9],
+        [-215.35, 0, 9],
+      ],
+    },
   },
   {
     id: 'village-neighbour',
@@ -631,6 +660,8 @@ export const COMMUNITY_ROSTER: readonly CommunityPerson[] = [
       stop([-203, 0, -12.15], -PI / 2, 0.7, 'A stroll through the square', 'idle'),
       via([-208.1, 0, -12.15]),
     ],
+    // Out of the pub door, between the two outdoor seats, to the south one.
+    day: { ...COMMUNITY_OPENING_HOURS.pub, door: A.pubDoor.position, approach: [[-208.1, 0, -15]] },
   },
   {
     id: 'village-courier',
@@ -942,8 +973,24 @@ export function sampleCommunityPerson(
     samplePassenger(person.id, hour, out, previousSeat);
     return out;
   }
-  const h = communityHour(hour),
-    hours = getCommunityHours(h);
+  const h = communityHour(hour);
+  if (person.day) {
+    const { open, close } = person.day;
+    out.visible = h >= open && h < close;
+    sampleRoute(
+      villageDay(person),
+      Math.max(0, Math.min(close - open, h - open)),
+      false,
+      out,
+      previousSeat
+    );
+    if (!out.visible) {
+      out.activity = 'idle';
+      out.task = 'At home';
+    }
+    return out;
+  }
+  const hours = getCommunityHours(h);
   out.visible =
     person.district === 'mill' ||
     (person.role === 'Resident'
@@ -954,11 +1001,52 @@ export function sampleCommunityPerson(
           ? hours.deliveryActive
           : hours.shopsOpen);
   const period = routineDuration(person);
-  let elapsed = ((((Number.isFinite(hour) ? hour : 12) + person.phase) % period) + period) % period;
-  for (let i = 0; i < person.stops.length; i++) {
-    const node = person.stops[i],
-      next = person.stops[(i + 1) % person.stops.length];
-    if (elapsed < node.hours) {
+  const elapsed =
+    ((((Number.isFinite(hour) ? hour : 12) + person.phase) % period) + period) % period;
+  sampleRoute(person.stops, elapsed, true, out, previousSeat);
+  return out;
+}
+
+const villageDays = new WeakMap<CommunityPerson, readonly CommunityStop[]>();
+/** Door, approach, as many whole loops of the routine as fit, the first stop
+ * stretched to fill the rest, and back along the approach to arrive at the door
+ * exactly at closing. Working if a resident only ever appears or leaves at a door. */
+function villageDay(person: CommunityPerson): readonly CommunityStop[] {
+  const cached = villageDays.get(person);
+  if (cached) return cached;
+  const { open, close, door, approach } = person.day!;
+  const first = person.stops[0];
+  const path = [door, ...approach, first.position];
+  let legs = 0;
+  for (let i = 1; i < path.length; i++) legs += distance(path[i - 1], path[i]);
+  legs *= WALK_HOURS_PER_METRE;
+  const period = routineDuration(person),
+    available = close - open - 2 * legs;
+  const loops = Math.max(0, Math.floor((available - first.hours) / period));
+  const day = [
+    stop(door, 0, 0, 'Heading out', 'walking'),
+    ...approach.map(via),
+    ...Array.from({ length: loops }, () => person.stops).flat(),
+    { ...first, hours: available - loops * period },
+    ...[...approach].reverse().map(via),
+    stop(door, 0, Infinity, 'Heading home', 'idle'),
+  ];
+  villageDays.set(person, day);
+  return day;
+}
+
+/** Walk `stops` at `elapsed` game hours in; `loop` routes wrap, others hold the last stop. */
+function sampleRoute(
+  stops: readonly CommunityStop[],
+  elapsed: number,
+  loop: boolean,
+  out: CommunityPose,
+  previousSeat: CommunityPose['seat']
+) {
+  for (let i = 0; i < stops.length; i++) {
+    const node = stops[i],
+      next = loop ? stops[(i + 1) % stops.length] : stops[i + 1];
+    if (elapsed < node.hours || !next) {
       out.position[0] = node.position[0];
       out.position[1] = node.position[1];
       out.position[2] = node.position[2];
@@ -1224,24 +1312,46 @@ export function advanceCommunityBusClock(
   return next;
 }
 
-/** A leisurely 8.6 km/h at standard pace, gentle enough for 1.2 m turns. */
-export const COMMUNITY_CYCLE_SPEED_MPS = 2.4;
-const CYCLIST_METRES_PER_HOUR = COMMUNITY_CYCLE_SPEED_MPS / STANDARD_HOURS_PER_REAL_SECOND;
+const CYCLE_RADIUS = 1.2,
+  CYCLE_STRAIGHT = 21;
+const CYCLE_LOOP = 2 * CYCLE_STRAIGHT + 2 * Math.PI * CYCLE_RADIUS;
+/** In along the southbound lane from the street end to the loop's top (z 55),
+ * joining where the southbound straight begins, and out the same way on the
+ * northbound lane; both legs run straight on, with no turn to make. */
+const CYCLE_LEG = COMMUNITY_STREET_END_Z - 55;
+const CYCLE_JOIN = CYCLE_STRAIGHT + Math.PI * CYCLE_RADIUS;
+const CYCLE_LEAVE = CYCLE_STRAIGHT;
+const CYCLE_LAPS = 40;
+const CYCLE_ROUTE = 2 * CYCLE_LEG + CYCLE_LAPS * CYCLE_LOOP - (CYCLE_JOIN - CYCLE_LEAVE);
+/** A leisurely ride of about 8.5 km/h at standard pace, gentle enough for 1.2 m
+ * turns, set so whole laps fill cycling hours exactly. */
+export const COMMUNITY_CYCLE_SPEED_MPS =
+  (CYCLE_ROUTE * STANDARD_HOURS_PER_REAL_SECOND) /
+  (COMMUNITY_ACTIVITY_HOURS.cycling.close - COMMUNITY_ACTIVITY_HOURS.cycling.open);
 
 /** Both lanes and both turn arcs fit the existing west village cobbled street.
- * The courier's morning cart stop ends before cycling hours begin.
+ * The courier's morning cart stop ends before cycling hours begin. The rider
+ * comes in from the street end at opening and leaves by it at closing.
  */
 export function sampleCommunityCyclist(hour: number) {
   const h = communityHour(hour),
-    radius = 1.2,
-    straight = 21;
-  const length = 2 * straight + 2 * Math.PI * radius;
-  const travelled = (Number.isFinite(hour) ? hour : 12) * CYCLIST_METRES_PER_HOUR;
-  let d = ((travelled % length) + length) % length;
+    radius = CYCLE_RADIUS,
+    straight = CYCLE_STRAIGHT,
+    { open, close } = COMMUNITY_ACTIVITY_HOURS.cycling;
+  const travelled =
+    (Math.max(0, Math.min(close - open, h - open)) * COMMUNITY_CYCLE_SPEED_MPS) /
+    STANDARD_HOURS_PER_REAL_SECOND;
+  let d = (CYCLE_JOIN + travelled - CYCLE_LEG) % CYCLE_LOOP;
   let x = -203.2,
     z = 34,
     rotation = 0;
-  if (d < straight) z += d;
+  if (travelled < CYCLE_LEG) {
+    x = -200.8;
+    z = COMMUNITY_STREET_END_Z - travelled;
+    rotation = Math.PI;
+  } else if (travelled > CYCLE_ROUTE - CYCLE_LEG) {
+    z = 55 + travelled - (CYCLE_ROUTE - CYCLE_LEG);
+  } else if (d < straight) z += d;
   else if ((d -= straight) < Math.PI * radius) {
     const angle = Math.PI - d / radius;
     x = -202 + radius * Math.cos(angle);
@@ -1262,7 +1372,7 @@ export function sampleCommunityCyclist(hour: number) {
     x,
     z,
     rotation,
-    visible: h >= 11 && h < 18,
+    visible: h >= open && h < close,
     pedalPhase: (travelled / 2.2) * Math.PI * 2,
   };
 }

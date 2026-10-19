@@ -67,6 +67,7 @@ import { useOperationsCampaignStore } from '../stores/operationsCampaignStore';
 import {
   COMMUNITY_ROSTER,
   COMMUNITY_WALK_SPEED_MPS,
+  sampleCommunityCyclist,
   sampleCommunityPerson,
 } from '../simulation/communityLife';
 import { TruckBay } from './TruckBay';
@@ -550,8 +551,18 @@ it('interpolates live personnel safely and restores the captured presentation cu
 });
 
 it('locks a turning rider to the actual bicycle heading, preserving pedal and hand contacts', () => {
+  // A moment the schedule puts the rider into one of the loop's turns.
+  let turnHour = 11.1;
+  while (
+    turnHour < 12 &&
+    Math.abs(
+      sampleCommunityCyclist(turnHour + 0.025).rotation - sampleCommunityCyclist(turnHour).rotation
+    ) < 0.5
+  )
+    turnHour += 0.001;
+  expect(turnHour).toBeLessThan(12);
   useGameSimulationStore.setState({
-    gameTime: 11.76,
+    gameTime: turnHour,
     gameDay: 0,
     gameSpeed: 180,
     isTabVisible: true,
@@ -572,7 +583,7 @@ it('locks a turning rider to the actual bicycle heading, preserving pedal and ha
   const scene = new THREE.Scene();
   roots.forEach((root: THREE.Group) => scene.add(root));
   const frame = harness.frames[0] as (state: any, delta: number) => void;
-  useGameSimulationStore.setState({ gameTime: 11.785 });
+  useGameSimulationStore.setState({ gameTime: turnHour + 0.025 });
   const initialHeading = harness.participants.get('personnel')!.capture().bicycle.rotation;
   let finalHeading = initialHeading;
   for (let i = 0; i < 30; i++) {
@@ -650,9 +661,19 @@ it('walks a time-lapsed resident with its real-time gait and uncapped ground spe
 });
 
 it('transports seat frames after root turning, freezes holds and clears old replay cues', () => {
+  // A moment the schedule has a mill resident fully seated on a rest.
+  let seatedHour = 0;
+  while (
+    seatedHour < 4 &&
+    !COMMUNITY_ROSTER.some(
+      (p) => p.district === 'mill' && sampleCommunityPerson(p, seatedHour).seat?.amount === 1
+    )
+  )
+    seatedHour += 0.005;
+  expect(seatedHour).toBeLessThan(4);
   useGameSimulationStore.setState({
     gameDay: 0,
-    gameTime: 0.015,
+    gameTime: seatedHour,
     gameSpeed: 180,
     isTabVisible: true,
     emergencyActive: false,

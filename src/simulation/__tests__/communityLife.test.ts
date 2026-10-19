@@ -740,6 +740,88 @@ describe('inhabited world routines', () => {
       task: pose.task,
     });
   });
+  it('brings village residents out of and back into their own doors, standing', () => {
+    const step = 0.0002;
+    const village = COMMUNITY_ROSTER.filter((p) => p.district === 'village' && p.stops.length);
+    expect(village.map((p) => p.id).sort()).toEqual([
+      'village-baker',
+      'village-gardener',
+      'village-neighbour',
+      'village-shopkeeper',
+    ]);
+    for (const person of village) {
+      const door = person.day!.door;
+      let transitions = 0;
+      for (let h = 0; h < 24; h += 0.01) {
+        let lo = h,
+          hi = h + 0.01;
+        const before = sampleCommunityPerson(person, lo).visible;
+        if (sampleCommunityPerson(person, hi).visible === before) continue;
+        // Find the moment of the change, then look at the visible side of it.
+        for (let i = 0; i < 40; i++) {
+          const mid = (lo + hi) / 2;
+          if (sampleCommunityPerson(person, mid).visible === before) lo = mid;
+          else hi = mid;
+        }
+        transitions++;
+        const shown = sampleCommunityPerson(person, before ? lo : hi);
+        expect(
+          Math.hypot(shown.position[0] - door[0], shown.position[2] - door[2]),
+          `${person.id} at its door at ${h}`
+        ).toBeLessThan(1e-6);
+        expect(shown.seated || !!shown.seat, `${person.id} standing at ${h}`).toBe(false);
+      }
+      expect(transitions, person.id).toBe(2);
+    }
+    // The pub seat ramps through the stretched last dwell; it never pops.
+    const neighbour = village.find((p) => p.id === 'village-neighbour')!;
+    const amount = (p: CommunityPose) => p.seat?.amount ?? (p.seated ? 1 : 0);
+    let previous = sampleCommunityPerson(neighbour, 11);
+    for (let h = 11 + step; h < 23; h += step) {
+      const now = sampleCommunityPerson(neighbour, h);
+      expect(Math.abs(amount(now) - amount(previous)), `seat at ${h}`).toBeLessThanOrEqual(
+        (1.5 * step) / COMMUNITY_SEAT_RAMP.down + 1e-9
+      );
+      previous = now;
+    }
+  });
+  it('keeps the shopkeeper clear of the courier and the parked handcart', () => {
+    const shopkeeper = COMMUNITY_ROSTER.find((p) => p.id === 'village-shopkeeper')!;
+    const courier = COMMUNITY_ROSTER.find((p) => p.id === 'village-courier')!;
+    for (let h = 8.5; h < 11.5; h += 0.0005) {
+      const cart = sampleCommunityDelivery(h),
+        person = sampleCommunityPerson(shopkeeper, h);
+      if (!person.visible) continue;
+      // Cart body x +-0.43 and from 0.47 ahead of its root to the handle ends
+      // 1.2 behind; a body needs another 0.3 m.
+      const [x, , z] = person.position;
+      if (cart.cartVisible)
+        expect(
+          Math.abs(x - cart.cartX) > 0.73 || z < cart.cartZ - 0.77 || z > cart.cartZ + 1.5,
+          `shopkeeper in the cart at ${h}`
+        ).toBe(true);
+      const walker = sampleCommunityPerson(courier, h);
+      if (walker.visible)
+        expect(
+          Math.hypot(x - walker.position[0], z - walker.position[2]),
+          `shopkeeper and courier at ${h}`
+        ).toBeGreaterThanOrEqual(0.6);
+    }
+  });
+  it('brings the cyclist in from and back out to the street end', () => {
+    let transitions = 0;
+    for (let h = 0; h < 24; h += 0.0002) {
+      const a = sampleCommunityCyclist(h),
+        b = sampleCommunityCyclist(h + 0.0002);
+      if (a.visible === b.visible) continue;
+      transitions++;
+      const shown = a.visible ? a : b;
+      expect(Math.abs(shown.z - COMMUNITY_STREET_END_Z), `cyclist at ${h}`).toBeLessThanOrEqual(
+        (0.0002 * COMMUNITY_CYCLE_SPEED_MPS) / STANDARD_HOURS_PER_REAL_SECOND + 1e-9
+      );
+    }
+    expect(transitions).toBe(2);
+  });
   it('uses shop and garden hours instead of residents working throughout the night', () => {
     for (const id of [
       'village-baker',
@@ -801,7 +883,8 @@ describe('village daily details', () => {
       expect(p.x).toBeGreaterThanOrEqual(-203.201);
       expect(p.x).toBeLessThanOrEqual(-200.799);
       expect(p.z).toBeGreaterThanOrEqual(32.799);
-      expect(p.z).toBeLessThanOrEqual(56.201);
+      // The loop, plus the ride in from and back out to the street end.
+      expect(p.z).toBeLessThanOrEqual(COMMUNITY_STREET_END_Z + 0.001);
       // One 0.00001 h step at riding speed, never a jump.
       expect(Math.hypot(p.x - next.x, p.z - next.z)).toBeLessThanOrEqual(
         (0.00001 * COMMUNITY_CYCLE_SPEED_MPS) / STANDARD_HOURS_PER_REAL_SECOND + 1e-9
@@ -1083,7 +1166,8 @@ it('holds a greeting through centimetre-scale nearest-neighbour jitter and relea
 
 describe('analytic seat arrival and departure support', () => {
   it('places, lowers, rises and releases on every unchanged authored seat route', () => {
-    for (const person of COMMUNITY_ROSTER) {
+    // Looping routines; a village day (door to door) is checked in its own test.
+    for (const person of COMMUNITY_ROSTER.filter((p) => !p.day)) {
       let start = -person.phase;
       for (let i = 0; i < person.stops.length; i++) {
         const node = person.stops[i],
