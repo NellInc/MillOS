@@ -667,10 +667,13 @@ function priorityRank(priority: CustomerOrder['priority']): number {
   return priority === 'critical' ? 0 : priority === 'high' ? 1 : 2;
 }
 
+/** The tour's guided order: the first commitment of a new campaign. */
+export const FIRST_ORDER_ID = 'order-001';
+
 function createInitialOrders(): CustomerOrder[] {
   return [
     {
-      id: 'order-001',
+      id: FIRST_ORDER_ID,
       customer: "Riverside Bakers' Cooperative",
       recipe: MILL_RECIPES.strong_white,
       requiredKg: 6000,
