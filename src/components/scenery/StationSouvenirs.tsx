@@ -8,13 +8,15 @@ import {
   createLinearDataTexture,
   hash,
 } from '../../utils/textureGenerator';
+import { STATION_SOUVENIR_ART } from '../../constants/worldAssetUrls';
 
 /** Static shop souvenirs, in station-local metres. The source counter/rack keep
  * their bodies. Seven material batches, one shared print atlas, no new light,
  * audio, update loop or purchase authority. Feet meet the actual GLB tops.
  * Working if all props remain in these three seats and the doorway stays clear. */
 type V3 = [number, number, number];
-export const STATION_SOUVENIR_ART = `${import.meta.env.BASE_URL}textures/signage/dead-dino-shop-kit-v1.webp`;
+// Defined in the leaf so the startup preload can name it without this module.
+export { STATION_SOUVENIR_ART };
 export const SOUVENIR_SEATS = {
   counter: { centre: [-8.97, 1.045, -0.04] as V3, size: [0.74, 0.029, 0.46] as V3 },
   rack: { centre: [-10.5, 1.2, 3] as V3, size: [0.78, 0.88, 0.39] as V3 },

@@ -6,6 +6,9 @@ type Point = [number, number, number];
 export const CIVIC_SHADOW_BAKE_READY = true;
 export const CIVIC_SHADOW_ASSET_VERSION =
   '220faa428b927d9a6a28649e16e97cfd3c8b04ffe6594e0321272a0c1b451e18';
+// One spelling for the loader hook and the startup preload, so both share a cache entry.
+export const CIVIC_SHADOW_DEPTH_URL = `${import.meta.env.BASE_URL}textures/civic-square-lamp-depth.png?v=${CIVIC_SHADOW_ASSET_VERSION}`;
+export const CIVIC_SHADOW_METADATA_URL = `${import.meta.env.BASE_URL}textures/civic-square-lamp-depth.json?v=${CIVIC_SHADOW_ASSET_VERSION}`;
 export type CivicLamp = {
   id: string;
   kind: 'post' | 'garden' | 'wall' | 'window' | 'sign';
