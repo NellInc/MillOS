@@ -20,10 +20,31 @@ const PT_CAUSE: Record<string, string> = {
   no_dispatch: 'a falta de entregas',
 };
 const PT_SHIFT: Record<string, string> = { morning: 'Manhã', afternoon: 'Tarde', night: 'Noite' };
+/* How far an incident still open at close was handled. */
+const EN_OPEN_PHASE: Record<string, string> = {
+  raised: 'not yet acknowledged',
+  acknowledged: 'acknowledged, not yet mitigated',
+  mitigated: 'mitigated, not yet resolved',
+};
+const PT_OPEN_PHASE: Record<string, string> = {
+  raised: 'sem reconhecimento',
+  acknowledged: 'reconhecida, ainda não mitigada',
+  mitigated: 'mitigada, ainda não resolvida',
+};
+interface OpenIncidentParams {
+  title: string;
+  detail: string;
+  phase: string;
+}
 
 export const shiftReviewMessages = defineMessages({
   en: {
     noCommitment: 'No customer commitments this shift.',
+    noCommitmentIncident:
+      'No customer commitments this shift, but an unresolved incident held it back.',
+    openIncidentReason: (p: OpenIncidentParams) =>
+      `Still open at close, ${EN_OPEN_PHASE[p.phase] ?? EN_OPEN_PHASE.raised}: ${p.title}. ${p.detail}`,
+    openIncidentTitleReason: 'Still open at close: {title}.',
     dispatchReason: '{kg} kg dispatched; net contribution {margin} after recorded costs.',
     riskReason: (p: { count: number; countText: string }) =>
       p.count === 1
@@ -77,6 +98,11 @@ export const shiftReviewMessages = defineMessages({
   },
   'pt-BR': {
     noCommitment: 'Nenhum compromisso com clientes neste turno.',
+    noCommitmentIncident:
+      'Nenhum compromisso com clientes neste turno, mas uma ocorrência não resolvida o prejudicou.',
+    openIncidentReason: (p: OpenIncidentParams) =>
+      `Ainda aberta no fechamento, ${PT_OPEN_PHASE[p.phase] ?? PT_OPEN_PHASE.raised}: ${p.title}. ${p.detail}`,
+    openIncidentTitleReason: 'Ainda aberta no fechamento: {title}.',
     dispatchReason:
       '{kg} kg expedidos; contribuição líquida de {margin} após os custos registrados.',
     riskReason: (p: { count: number; countText: string }) =>

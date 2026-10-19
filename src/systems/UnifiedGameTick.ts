@@ -235,9 +235,16 @@ function announceClosedShift(lastReportBefore: string | undefined): void {
   const report = useOperationsCampaignStore.getState().reports.at(-1);
   if (!report || report.id === lastReportBefore) return;
   const shift = /(morning|afternoon|night)$/.exec(report.shiftKey)?.[1] ?? report.shiftLabel;
+  // An ungraded shift is not a clean one while a serious incident is open.
   const title =
     report.grade === null
-      ? translate(msg, 'shiftClosedUngradedTitle', { shift })
+      ? translate(
+          msg,
+          report.gradeBasis?.unsafeTitles.length
+            ? 'shiftClosedUngradedIncidentTitle'
+            : 'shiftClosedUngradedTitle',
+          { shift }
+        )
       : translate(msg, 'shiftClosedTitle', { shift, grade: report.grade });
   const message = translate(msg, 'shiftClosedMessage');
   useUIStore.getState().addAlert({

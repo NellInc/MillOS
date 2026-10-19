@@ -31,6 +31,8 @@ export const unifiedGameTickMessages = defineMessages({
       `${capitalise(p.shift)} shift closed: grade ${p.grade}`,
     shiftClosedUngradedTitle: (p: { shift: string }) =>
       `${capitalise(p.shift)} shift closed: no customer commitments`,
+    shiftClosedUngradedIncidentTitle: (p: { shift: string }) =>
+      `${capitalise(p.shift)} shift closed: no customer commitments, an incident still open`,
     shiftClosedMessage:
       'Its review is in Overview, under Shift debrief: which orders were on time, what held the grade back and what to try next.',
     dailyTargetReached: 'Daily target reached: {target} bags!',
@@ -62,6 +64,8 @@ export const unifiedGameTickMessages = defineMessages({
       `Turno ${PT_SHIFT_OF[p.shift] ?? p.shift} encerrado: nota ${p.grade}`,
     shiftClosedUngradedTitle: (p: { shift: string }) =>
       `Turno ${PT_SHIFT_OF[p.shift] ?? p.shift} encerrado: sem compromissos com clientes`,
+    shiftClosedUngradedIncidentTitle: (p: { shift: string }) =>
+      `Turno ${PT_SHIFT_OF[p.shift] ?? p.shift} encerrado: sem compromissos com clientes, ocorrência ainda aberta`,
     shiftClosedMessage:
       'A revisão está na Visão geral, em Balanço do turno: quais pedidos chegaram no prazo, o que impediu uma nota melhor e o que tentar a seguir.',
     dailyTargetReached: 'Meta diária atingida: {target} sacos!',
