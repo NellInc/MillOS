@@ -270,3 +270,38 @@ Ranked by harm to a first-time visitor:
 
 What worked: at standard pace (30) every order was met (order 1 at minute ~142 of
 240, order 2 at ~223 of 360), no console or page errors in either run.
+
+### Audit (19 Oct, 86 agents, read-only on a frozen snapshot of `e68818ca`)
+
+40 findings: 27 accepted by both refuters, 5 split, 8 refuted by both. Full JSON
+kept outside the repo (scratchpad `audit-resolute.json`); fixes were assigned as:
+- lead (waves 1, 2, D): 0/35 guided card, 1/15/38 autoplay freeze and chip, 3 labels,
+  4 idle line, 5 Skip tour, 6 pace position, 13 pace writers, 28/37 bags/h, 29 line-rate
+  owner and AI decision, 30 replay hold, 31 truck clock, 32 old paces, 33 advice, 34 PA,
+  36 pace copy;
+- wave A (failure and recovery): 7, 8, 9, 10, 11, 12 and first-shift wear timing;
+- wave B (cooperative): 16, 18, 19 and an honest season exit (2/14/17 lighter design);
+- wave C (shift ending): 21, 22, 23, 24, 26.
+Not re-opened: 20, 25, 27, 39 (refuted by both, no new evidence).
+
+### Decisions taken (with reasons)
+
+- **Standard pace is 30.** Plant physics is authored for it (3 packers x 25 kg/s = 9 t
+  per game hour; trucks at road speed). Paces 0, 1/2x, 1x, 2x, 4x; 4x is the ceiling
+  the truck display bound can follow on an ordinary laptop.
+- **Auto-start of the autonomous season is kept** (Nell's 2026-10-04 direction, cited by
+  a refuter); it no longer freezes the plant, and Take over keeps the shift running.
+- **Lazy-loading pt-BR: not done.** pt-BR adds 297 KB raw / 92 KB gzip across 133
+  catalogs. Lazy-loading saves English visitors at most ~92 KB of a 618 KB initial
+  gzip and nothing of the dist budget (a lazy chunk still ships); it would make
+  `translate` asynchronous across 133 modules. Initial JS has 1.9 MiB of headroom.
+- **Hard-coded English re-sweep:** an AST scan (JSX text, title/aria-label/placeholder/
+  alt/label props, alert/announcement objects) over 461 live files plus the audit's
+  copy finder found no live player-facing English outside the deliberate set (signage,
+  proper names, model names, key names, agent protocol). FPSDisplay's English is in a
+  component nothing renders.
+- **Unexplained preview reload [Inference]:** the service-worker policy reloads once
+  "before the scene opens" (`startup.opened || startup.ready`). On the build with the
+  suspend loop, readiness never arrived, so a preview rebuild's new worker reloaded a
+  visible scene. The context-restore reload needs an empty GPU tracker, which App's
+  startup registration rules out. To confirm: log navigations in the runtime pass.
