@@ -6264,17 +6264,19 @@ const TunnelEntrance: React.FC<{
           />
         </mesh>
 
-        {/* Base Plinths (Stone) */}
-        <mesh position={[-tunnelWidth / 2 - 1, 1, 0.1]} castShadow>
-          <boxGeometry args={[3.2, 2, 1.4]} />
+        {/* Base Plinths (Stone). Their back faces stop 4 cm inside the 1.2 m
+            portal wall (z -0.56): at depth 1.4 from z 0.1 they ended exactly
+            on the wall's back face and the two were coplanar. */}
+        <mesh position={[-tunnelWidth / 2 - 1, 1, 0.12]} castShadow>
+          <boxGeometry args={[3.2, 2, 1.36]} />
           <meshStandardMaterial
             color={stoneColor}
             roughness={0.84}
             roughnessMap={OUTBUILDING_CONCRETE_ROUGHNESS}
           />
         </mesh>
-        <mesh position={[tunnelWidth / 2 + 1, 1, 0.1]} castShadow>
-          <boxGeometry args={[3.2, 2, 1.4]} />
+        <mesh position={[tunnelWidth / 2 + 1, 1, 0.12]} castShadow>
+          <boxGeometry args={[3.2, 2, 1.36]} />
           <meshStandardMaterial
             color={stoneColor}
             roughness={0.84}
@@ -6351,8 +6353,10 @@ const TunnelEntrance: React.FC<{
         <mesh geometry={VICTORIAN_PORTAL_EXIT} castShadow receiveShadow>
           <meshStandardMaterial {...brickSurface} />
         </mesh>
+        {/* Capping band, 2 cm proud of the 1 m exit wall on both faces: at the
+            wall's own depth its faces were coplanar with the wall's. */}
         <mesh position={[0, tunnelHeight + 1, 0]} castShadow>
-          <boxGeometry args={[tunnelWidth + 4, 1.5, 1]} />
+          <boxGeometry args={[tunnelWidth + 4, 1.5, 1.04]} />
           <meshStandardMaterial {...brickSurface} />
         </mesh>
         {[-tunnelWidth / 2 - 1.6, tunnelWidth / 2 + 1.6].map((x) => (
@@ -8737,9 +8741,13 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
 
       {/* ========== PATHS & WALKWAYS ========== */}
 
-      {/* Main path from factory front gate to canal towpath */}
-      <GravelPath start={[-95, 0, 85]} end={[-130, 0, 85]} width={3} type="paved" />
-      <GravelPath start={[-130, 0, 85]} end={[-130, 0, 50]} width={2.5} type="gravel" />
+      {/* Main path from factory front gate to canal towpath. The paved run
+          stops at the gravel leg's east edge (x -128.75) and the gravel leg
+          takes the whole corner (from z 86.5): both ran to the centreline
+          point (-130, 85), which overlapped 1.9 m^2 of two -2 surfaces and
+          left the outer corner bare. */}
+      <GravelPath start={[-95, 0, 85]} end={[-128.75, 0, 85]} width={3} type="paved" />
+      <GravelPath start={[-130, 0, 86.5]} end={[-130, 0, 50]} width={2.5} type="gravel" />
 
       {/* Path to the lake area */}
       <GravelPath start={[95, 0, 85]} end={[120, 0, 92]} width={2.5} type="paved" />

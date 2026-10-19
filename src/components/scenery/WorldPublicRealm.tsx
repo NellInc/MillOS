@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import * as THREE from 'three';
 import { PlotGeometry } from '../../utils/authoredPlotGeometry';
 import { addVillageFlower } from './VillageGardens';
-import { CANAL_BOAT_BERTH } from '../../constants/siteLayout';
+import { CANAL_BOAT_BERTH, SITE_LAYOUT, landmarkLocalToWorld } from '../../constants/siteLayout';
 import {
   WORLD_CRAFT_PALETTE as P,
   VILLAGE_REALM_PATHS,
@@ -398,12 +398,31 @@ export function canalMooringGeometry(line: (typeof CANAL_MOORING_LINES)[number])
   return geometry;
 }
 
+/**
+ * The village's own paths, as world rectangles. Its east paths run out to
+ * village-local x 36.8, across the west world path at x -155.3; the world path
+ * is cut around them like any court, so each junction has one paving surface
+ * instead of two at the same datum and bias.
+ */
+function villagePathsInWorld(): RealmPatch[] {
+  const [ox, , oz] = landmarkLocalToWorld(SITE_LAYOUT.landmarks.village, [0, 0, 0]);
+  return VILLAGE_REALM_PATHS.map((p) => {
+    const horizontal = p.start[1] === p.end[1];
+    return {
+      x: ox + (p.start[0] + p.end[0]) / 2,
+      z: oz + (p.start[1] + p.end[1]) / 2,
+      halfX: Math.abs(p.end[0] - p.start[0]) / 2 + (horizontal ? 0 : p.width / 2),
+      halfZ: Math.abs(p.end[1] - p.start[1]) / 2 + (horizontal ? p.width / 2 : 0),
+    };
+  });
+}
+
 export function createWorldRealm(segments: number) {
   const ground: Ground = (x, z) =>
     EXTERIOR_LAYERS.ground + sampleTerrainGroundHeight(x, z, segments);
   const paving = new PlotGeometry(),
     solid = new PlotGeometry();
-  const finished: RealmPatch[] = [...WORLD_REALM_PATCHES];
+  const finished: RealmPatch[] = [...WORLD_REALM_PATCHES, ...villagePathsInWorld()];
   for (const p of WORLD_REALM_PATHS) {
     route(paving, p, ground, false, finished);
     const horizontal = p.start[1] === p.end[1];
