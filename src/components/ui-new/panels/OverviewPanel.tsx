@@ -136,7 +136,7 @@ const ShiftDisplay: React.FC = React.memo(() => {
 
   return (
     <div>
-      <div className="text-[10px] text-slate-500 uppercase tracking-wider">{t('runWindow')}</div>
+      <div className="text-[10px] text-slate-400 uppercase tracking-wider">{t('runWindow')}</div>
       <div className="text-sm font-bold text-white capitalize">
         {t('runWindowValue', { value: currentShift })}
       </div>
@@ -174,16 +174,16 @@ const MaterialTraceabilitySection: React.FC = React.memo(() => {
       </h3>
       <dl className="grid grid-cols-2 gap-2 mb-3">
         <div className="rounded-lg bg-slate-900/45 p-2">
-          <dt className="text-[10px] uppercase tracking-wider text-slate-500">{t('received')}</dt>
+          <dt className="text-[10px] uppercase tracking-wider text-slate-400">{t('received')}</dt>
           <dd className="text-sm font-mono font-bold text-cyan-300">{formatKg(receivedKg)} kg</dd>
         </div>
         <div className="rounded-lg bg-slate-900/45 p-2">
-          <dt className="text-[10px] uppercase tracking-wider text-slate-500">{t('shipped')}</dt>
+          <dt className="text-[10px] uppercase tracking-wider text-slate-400">{t('shipped')}</dt>
           <dd className="text-sm font-mono font-bold text-emerald-300">{formatKg(shippedKg)} kg</dd>
         </div>
       </dl>
       {latestManifests.length === 0 ? (
-        <p className="text-xs text-slate-500 py-1">{t('awaitingFirstTransfer')}</p>
+        <p className="text-xs text-slate-400 py-1">{t('awaitingFirstTransfer')}</p>
       ) : (
         <ol className="space-y-2" aria-label={t('latestManifests')}>
           {latestManifests.map((manifest) => (
@@ -215,7 +215,7 @@ const MaterialTraceabilitySection: React.FC = React.memo(() => {
                   {formatKg(manifest.actualKg)} / {formatKg(manifest.requestedKg)} kg
                 </span>
               </div>
-              <time className="mt-1 block text-[9px] font-mono text-slate-500">
+              <time className="mt-1 block text-[9px] font-mono text-slate-400">
                 {formatManifestTime(manifest.simulationTime)}
               </time>
             </li>
@@ -359,7 +359,7 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
             <Link2 size={14} className="text-cyan-400" aria-hidden="true" />
             {t('batchGenealogy')}
           </h3>
-          <p className="mt-1 text-[10px] text-slate-500">
+          <p className="mt-1 text-[10px] text-slate-400">
             {t('lotSummary', {
               lots: formatFixed(sourceLotCount, 0),
               batches: formatFixed(productionBatches.length, 0),
@@ -381,7 +381,7 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
         </div>
       </div>
       {displayedBatches.length === 0 ? (
-        <p className="py-2 text-xs text-slate-500">{t('firstBatch')}</p>
+        <p className="py-2 text-xs text-slate-400">{t('firstBatch')}</p>
       ) : (
         <ol className="space-y-2" aria-label={t('batchListLabel')}>
           {displayedBatches.map((batch) => {
@@ -398,7 +398,7 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
                     <div className="font-mono text-[11px] font-semibold text-slate-200">
                       {batch.id.toUpperCase()}
                     </div>
-                    <div className="mt-0.5 text-[10px] text-slate-500">
+                    <div className="mt-0.5 text-[10px] text-slate-400">
                       {t('batchAvailable', {
                         material: t('material', { value: batch.materialType }),
                         kg: formatFixed(batch.availableKg, 1),
@@ -544,7 +544,7 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
                   <span className="font-mono text-cyan-200">{lot.id}</span>
                   <span>{formatFixed(amount, 1)} kg</span>
                 </div>
-                <div className="mt-0.5 text-slate-500">
+                <div className="mt-0.5 text-slate-400">
                   {lot.supplier}, {t('disposition', { value: lot.disposition })}.{' '}
                   {paths.map((path) => path.join(t('pathJoiner'))).join('; ')}
                 </div>
@@ -694,7 +694,7 @@ export const OverviewPanel: React.FC = React.memo(() => {
               style={{ width: `${targetProgress}%` }}
             />
           </div>
-          <div className="text-right text-[10px] text-slate-500 mt-1">
+          <div className="text-right text-[10px] text-slate-400 mt-1">
             {t('percentComplete', { value: formatFixed(targetProgress, 1) })}
           </div>
         </section>
@@ -726,7 +726,7 @@ export const OverviewPanel: React.FC = React.memo(() => {
       {/* Weather & Site Mode */}
       <section className="grid grid-cols-2 gap-2">
         <div className="bg-slate-800/50 border border-white/5 rounded-xl p-3">
-          <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">
+          <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">
             {t('weather')}
           </div>
           <div className="text-sm font-bold text-white capitalize">
@@ -734,7 +734,7 @@ export const OverviewPanel: React.FC = React.memo(() => {
           </div>
         </div>
         <div className="bg-slate-800/50 border border-white/5 rounded-xl p-3">
-          <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">
+          <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">
             {t('siteMode')}
           </div>
           <div className="text-sm font-bold text-white">{t('siteModeValue')}</div>
@@ -768,19 +768,19 @@ export const OverviewPanel: React.FC = React.memo(() => {
         <div className="grid grid-cols-3 gap-2 text-center">
           <div>
             <div className="text-lg font-bold text-slate-300">{safetyMetrics?.nearMisses ?? 0}</div>
-            <div className="text-[10px] text-slate-500">{t('nearMisses')}</div>
+            <div className="text-[10px] text-slate-400">{t('nearMisses')}</div>
           </div>
           <div>
             <div className="text-lg font-bold text-slate-300">
               {safetyMetrics?.safetyStops ?? 0}
             </div>
-            <div className="text-[10px] text-slate-500">{t('safetyStops')}</div>
+            <div className="text-[10px] text-slate-400">{t('safetyStops')}</div>
           </div>
           <div>
             <div className="text-lg font-bold text-slate-300">
               {safetyMetrics?.daysSinceIncident ?? 0}
             </div>
-            <div className="text-[10px] text-slate-500">{t('daysSafe')}</div>
+            <div className="text-[10px] text-slate-400">{t('daysSafe')}</div>
           </div>
         </div>
       </section>
@@ -820,7 +820,7 @@ export const OverviewPanel: React.FC = React.memo(() => {
 
       {/* Total Production */}
       <div className="text-center py-3 bg-gradient-to-r from-cyan-900/20 to-blue-900/20 rounded-xl border border-cyan-500/20">
-        <div className="text-[10px] text-slate-500 uppercase tracking-wider">
+        <div className="text-[10px] text-slate-400 uppercase tracking-wider">
           {t('totalBagsProduced')}
         </div>
         <div className="text-2xl font-bold font-mono text-cyan-400">
@@ -852,7 +852,7 @@ const StatCard: React.FC<{
 
   return (
     <div className={`bg-slate-800/30 border ${colorClasses[color]} rounded-lg p-3`}>
-      <div className="flex items-center gap-1.5 text-[10px] text-slate-500 uppercase tracking-wider mb-1">
+      <div className="flex items-center gap-1.5 text-[10px] text-slate-400 uppercase tracking-wider mb-1">
         <span className={colorClasses[color].split(' ')[0]}>{icon}</span>
         {label}
       </div>
@@ -860,7 +860,7 @@ const StatCard: React.FC<{
         <span className={`text-lg font-mono font-bold ${colorClasses[color].split(' ')[0]}`}>
           {value}
         </span>
-        <span className="text-[10px] text-slate-600">{unit}</span>
+        <span className="text-[10px] text-slate-400">{unit}</span>
       </div>
     </div>
   );
@@ -881,7 +881,8 @@ const MiniStat: React.FC<{ label: string; value: number; color: string }> = ({
   return (
     <div className={`${colorClasses[color]} rounded-lg p-2 text-center`}>
       <div className="text-lg font-bold">{value}</div>
-      <div className="text-[10px] uppercase tracking-wider opacity-70">{label}</div>
+      {/* Full strength: at opacity-70 the critical and idle labels fell to 3.5-3.8:1. */}
+      <div className="text-[10px] uppercase tracking-wider">{label}</div>
     </div>
   );
 };
@@ -904,17 +905,17 @@ const DockCard: React.FC<{ label: string; status: string; eta: number; receiving
 
   return (
     <div className={`${colors.bg} border border-white/5 rounded-lg p-3`}>
-      <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">{label}</div>
+      <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">{label}</div>
       <div className={`text-sm font-bold capitalize ${colors.text}`}>
         {receiving && status === 'loading' ? t('unloading') : t('dockState', { value: status })}
       </div>
       {status === 'clear' && eta > 0 && (
-        <div className="text-[10px] text-slate-500">
+        <div className="text-[10px] text-slate-400">
           {t('nextTruck', { minutes: formatFixed(eta, 0) })}
         </div>
       )}
       {status !== 'clear' && eta > 0 && (
-        <div className="text-[10px] text-slate-500">
+        <div className="text-[10px] text-slate-400">
           {t('eta', { minutes: formatFixed(eta, 0) })}
         </div>
       )}
