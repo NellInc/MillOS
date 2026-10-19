@@ -15,6 +15,7 @@ import {
   releaseEnvironmentMap,
   shouldAdoptEnvironmentMap,
   writeEnvironmentBands,
+  neutraliseNightFill,
 } from './SceneEnvironmentIBL';
 import { sampleAtmosphere, sampleCelestial } from '../../simulation/atmosphere';
 
@@ -406,5 +407,43 @@ describe('daylight hemisphere energy', () => {
     expect(
       (daylightHemisphereGain(1) - daylightHemisphereGain(1 - epsilon)) / epsilon
     ).toBeLessThan(0.002);
+  });
+});
+
+describe('night fill colour', () => {
+  const chroma = (c: THREE.Color) => Math.max(c.r, c.g, c.b) - Math.min(c.r, c.g, c.b);
+
+  it('leaves dawn, noon and dusk exactly unchanged', () => {
+    for (const hour of [6, 12, 18]) {
+      const colour = new THREE.Color('#e8a66d');
+      const before = colour.clone();
+      neutraliseNightFill(colour, sampleAtmosphere(0, hour, 'clear').daylight);
+      expect(colour.equals(before), String(hour)).toBe(true);
+    }
+  });
+
+  it('takes the saturated blue out of the 1.6 night lift while keeping its luminance', () => {
+    // The night hemisphere (#384a64 at 1.6) is unoccluded, so it lit the hall's
+    // steel deep blue under the work lights and drove the red channel of a blue
+    // box in the yard to zero.
+    const luminance = (c: THREE.Color) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+    const night = new THREE.Color('#384a64');
+    const before = night.clone();
+    neutraliseNightFill(night, sampleAtmosphere(0, 22, 'clear').daylight);
+    expect(chroma(night)).toBeLessThan(chroma(before) * 0.55);
+    expect(night.b).toBeGreaterThan(night.r);
+    expect(luminance(night)).toBeCloseTo(luminance(before), 6);
+  });
+});
+
+describe('sunrise shadow contrast', () => {
+  it('trims the twilight shoulder only while the sun is up', () => {
+    const daylight = sampleAtmosphere(0, 6, 'clear').daylight;
+    expect(hemisphereFillIntensity(daylight, 1)).toBeLessThan(
+      hemisphereFillIntensity(daylight) * 0.8
+    );
+    expect(hemisphereFillIntensity(daylight, 0)).toBe(hemisphereFillIntensity(daylight));
+    expect(hemisphereFillIntensity(1, 1)).toBe(HEMISPHERE_INTENSITY);
+    expect(hemisphereFillIntensity(0, 0)).toBeCloseTo(1.6);
   });
 });

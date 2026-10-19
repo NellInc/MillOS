@@ -7,6 +7,7 @@ import { RENDER_ORDER, SHADOW_CONFIG } from '../../constants/renderLayers';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
 import {
   createCelestialState,
+  getOvercastWeight,
   sampleAtmosphere,
   sampleCelestial,
 } from '../../simulation/atmosphere';
@@ -75,6 +76,13 @@ export function applySkyAmbientPalette(
   return target.copy(renderedHorizon);
 }
 
+/**
+ * Lowest the shadowed key may rake, as a direction Y (about 7 degrees).
+ * At the former 0.07 (4 degrees) the slab received 7% of the sunrise key against
+ * a 2.5 sky fill, so the hall and silos threw no readable shadow at 06:00.
+ */
+export const KEY_MIN_ELEVATION = 0.125;
+
 /** Reuse the one fitted shadow map after sunset; no duplicate moon energy.
  * Above-horizon endpoints retain their original direction. During crossover
  * the key passes continuously over the sky instead of snapping 180 degrees.
@@ -91,16 +99,62 @@ export function celestialKeyDirection(
   return target
     .set(
       THREE.MathUtils.lerp(sun[0], moon[0], weight),
-      THREE.MathUtils.lerp(Math.max(0.07, sun[1]), Math.max(0.07, moon[1]), weight),
+      THREE.MathUtils.lerp(
+        Math.max(KEY_MIN_ELEVATION, sun[1]),
+        Math.max(KEY_MIN_ELEVATION, moon[1]),
+        weight
+      ),
       THREE.MathUtils.lerp(sun[2], moon[2], weight)
     )
     .normalize();
 }
 
-/** Clear air reveals the rock; cloudier weather closes the depth layers. */
+/** Clear air reveals the rock; cloudier weather closes the depth layers.
+ * Weather extinction grows with each ring's own clear-air depth (far 0.32 is the
+ * reference), so rain thickens the air WITH distance. A flat increment put the
+ * village foothills at nearly the far range's value - one blue wall.
+ */
 export function getRidgeAerialWeight(clearAerial: number, cloudCoverage: number): number {
   const cloudiness = THREE.MathUtils.clamp((cloudCoverage - 0.2) / 0.7, 0, 1);
-  return clearAerial + (1 - clearAerial) * cloudiness * 0.68;
+  const depth = THREE.MathUtils.clamp(clearAerial / 0.32, 0, 1);
+  return clearAerial + (1 - clearAerial) * cloudiness * 0.85 * depth;
+}
+
+/** PCF penumbra radius in texels: three's default 1 in fair weather, 3 under a deck. */
+export function overcastShadowRadius(cloudCoverage: number): number {
+  return 1 + 2 * getOvercastWeight(cloudCoverage);
+}
+
+/** Overcast daytime palette (sRGB display hexes), one per sky band. */
+export const OVERCAST_SKY = {
+  top: new THREE.Color('#8d969e'),
+  horizon: new THREE.Color('#aeb4b8'),
+  ground: new THREE.Color('#7d8680'),
+  cloud: new THREE.Color('#b9bec2'),
+  cloudShadow: new THREE.Color('#6f7780'),
+} as const;
+const OVERCAST_NIGHT = new THREE.Color('#0d1014');
+const _overcastScratch = new THREE.Color();
+
+/**
+ * Pull one sky band toward a neutral overcast deck. Weather used to reach the
+ * palette only through `lightMultiplier`, which darkens the blue rather than
+ * greying it, so rain read as dusk. Exactly inert in fair weather (the overcast
+ * weight is 0 at clear's 0.2 cover); the deck darkens with the day. The ambient,
+ * hemisphere, IBL and fog all copy this palette, so they grey with it.
+ */
+export function blendSkyOvercast(
+  target: THREE.Color,
+  band: keyof typeof OVERCAST_SKY,
+  visualDaylight: number,
+  cloudCoverage: number
+): THREE.Color {
+  const weight = getOvercastWeight(cloudCoverage) * 0.9;
+  if (weight <= 0) return target;
+  _overcastScratch
+    .copy(OVERCAST_NIGHT)
+    .lerp(OVERCAST_SKY[band], THREE.MathUtils.clamp(visualDaylight, 0, 1));
+  return target.lerp(_overcastScratch, weight);
 }
 
 const optimizedSkyVertexShader = `
@@ -1316,6 +1370,12 @@ export function OptimizedSkySystem() {
       .copy(nightCloudShadow)
       .lerp(dayCloudShadow, visualDaylight)
       .lerp(blueHourCloudShadow, blueHour);
+    const cover = atmosphere.cloudCoverage;
+    blendSkyOvercast(targetTopScratch, 'top', visualDaylight, cover);
+    blendSkyOvercast(targetHorizonScratch, 'horizon', visualDaylight, cover);
+    blendSkyOvercast(targetGroundScratch, 'ground', visualDaylight, cover);
+    blendSkyOvercast(targetCloudScratch, 'cloud', visualDaylight, cover);
+    blendSkyOvercast(targetCloudShadowScratch, 'cloudShadow', visualDaylight, cover);
     const colourAlpha = 1 - Math.exp(-response * delta);
     skyMaterial.uniforms.topColor.value.lerp(targetTopScratch, colourAlpha);
     skyMaterial.uniforms.horizonColor.value.lerp(targetHorizonScratch, colourAlpha);
@@ -1413,6 +1473,9 @@ export function OptimizedSkySystem() {
       colorScratch.copy(lightDay).lerp(lightGolden, celestial.goldenHour);
       colorScratch.lerp(keyMoonColour, celestial.moonLightIntensity / Math.max(0.00001, totalKey));
       sunLightRef.current.color.copy(colorScratch);
+      // An overcast deck is a broad source: widen the penumbra with the same
+      // weight that moves the key into fill. A uniform, never a recompile.
+      sunLightRef.current.shadow.radius = overcastShadowRadius(atmosphere.cloudCoverage);
     }
     if (moonLightRef.current) {
       moonLightRef.current.position.set(

@@ -12,6 +12,9 @@ import {
   applySkyAmbientPalette,
   celestialKeyDirection,
   getRidgeAerialWeight,
+  blendSkyOvercast,
+  overcastShadowRadius,
+  OVERCAST_SKY,
   MOUNTAIN_RIDGE_GEOMETRIES,
   CELESTIAL_RADIUS,
   createRidgeMaterial,
@@ -350,6 +353,51 @@ describe('ridge weather extinction', () => {
     expect(getRidgeAerialWeight(0.32, 0.2)).toBe(0.32);
     expect(getRidgeAerialWeight(0.32, 0.9)).toBeGreaterThan(0.7);
   });
+
+  it('thickens the air with distance in rain instead of walling off the near hills', () => {
+    // Rain put 0.57 / 0.60 / 0.68 on near / mid / far: the foothills behind the
+    // village went to the same flat blue as the range, aerial perspective lost.
+    const [near, mid, far] = [0.1, 0.2, 0.32].map((aerial) => getRidgeAerialWeight(aerial, 0.74));
+    expect(near).toBeLessThan(0.35);
+    expect(mid - near).toBeGreaterThan(0.15);
+    expect(far - mid).toBeGreaterThan(0.15);
+  });
+});
+
+describe('overcast sky palette', () => {
+  const chroma = (colour: THREE.Color) =>
+    Math.max(colour.r, colour.g, colour.b) - Math.min(colour.r, colour.g, colour.b);
+
+  it('leaves fair weather exactly unchanged', () => {
+    const horizon = new THREE.Color('#a3cce2');
+    const before = horizon.clone();
+    blendSkyOvercast(horizon, 'horizon', 1, sampleAtmosphere(0, 12, 'clear').cloudCoverage);
+    expect(horizon.equals(before)).toBe(true);
+  });
+
+  it('greys a rain sky rather than only dimming it', () => {
+    const rain = sampleAtmosphere(0, 12, 'rain');
+    const daylight = rain.daylight * rain.lightMultiplier;
+    for (const band of Object.keys(OVERCAST_SKY) as (keyof typeof OVERCAST_SKY)[]) {
+      const colour = new THREE.Color('#70aed8');
+      const blue = chroma(colour);
+      blendSkyOvercast(colour, band, daylight, rain.cloudCoverage);
+      expect(chroma(colour), band).toBeLessThan(blue * 0.45);
+    }
+  });
+
+  it("softens the sun shadow under a deck and leaves fair weather on three's default", () => {
+    expect(overcastShadowRadius(sampleAtmosphere(0, 12, 'clear').cloudCoverage)).toBe(1);
+    expect(overcastShadowRadius(sampleAtmosphere(0, 12, 'rain').cloudCoverage)).toBeGreaterThan(
+      2.2
+    );
+  });
+
+  it('keeps an overcast night dark', () => {
+    const colour = new THREE.Color('#071426');
+    blendSkyOvercast(colour, 'top', 0, sampleAtmosphere(0, 0, 'storm').cloudCoverage);
+    expect(colour.r + colour.g + colour.b).toBeLessThan(0.05);
+  });
 });
 
 describe('solid fixed foothills', () => {
@@ -463,6 +511,21 @@ it('keeps every compact crown inside the actual neighboring-seed stencil with bo
 });
 
 describe('single sun/moon shadowed key', () => {
+  it('rakes the sunrise key at about 7 degrees so long shadows reach the ground', () => {
+    const dawn = sampleCelestial(sampleAtmosphere(0, 6, 'clear'));
+    const key = celestialKeyDirection(
+      new THREE.Vector3(),
+      dawn.sunDirection,
+      dawn.moonDirection,
+      dawn.sunLightIntensity,
+      dawn.moonLightIntensity
+    );
+    // At 4 degrees the slab took 7% of the key: no visible hall or silo shadow.
+    expect(key.y).toBeGreaterThan(0.115);
+    const noon = sampleCelestial(sampleAtmosphere(0, 12, 'clear'));
+    expect(noon.sunDirection[1]).toBeCloseTo(1, 8);
+  });
+
   it('retains noon sun and midnight moon directions with finite unit-length crossover', () => {
     for (let minute = 0; minute <= 1440; minute++) {
       const hour = minute / 60;

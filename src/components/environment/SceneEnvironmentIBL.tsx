@@ -126,11 +126,37 @@ export const HEMISPHERE_INTENSITY = 0.22;
  * A civil-twilight shoulder keeps shaded stone readable as the direct sun fades.
  * Working if dusk gains separation while noon and deep-night endpoints stay exact.
  */
-export function hemisphereFillIntensity(daylight: number): number {
+export function hemisphereFillIntensity(daylight: number, sunAboveHorizon = 0): number {
   const t = THREE.MathUtils.clamp(daylight, 0, 1);
   const night = 1 - t * t * (3 - 2 * t);
   const dusk = 16 * t * t * (1 - t) * (1 - t);
-  return HEMISPHERE_INTENSITY + 1.38 * night + 1.6 * dusk;
+  // The shoulder exists for the hour AFTER sunset, when there is no key at all.
+  // With the sun still on the horizon it swamped the low key 2.5 to 1 and took
+  // every long dawn shadow with it (base-med-06: hall and silo shadows absent).
+  const sunUp = Number.isFinite(sunAboveHorizon) ? THREE.MathUtils.clamp(sunAboveHorizon, 0, 1) : 0;
+  return HEMISPHERE_INTENSITY + 1.38 * night + 1.6 * dusk * (1 - 0.45 * sunUp);
+}
+
+/** How much of the night fill's colour is pulled to neutral at full dark. */
+export const NIGHT_FILL_NEUTRALISE = 0.55;
+
+/**
+ * Pull the night sky's blue toward its own luminance, by darkness.
+ *
+ * The 1.6 night lift is unoccluded: it reaches inside the hall as well, where
+ * it turned grey steel deep blue under warm work lights, and a blue-painted box
+ * in the yard rendered with its red channel at zero. A moonlit scene still
+ * reads cool (blue stays the largest channel); it just stops being monochrome.
+ * Dawn, day and dusk are exactly unchanged. Working if night captures keep
+ * their luminance while interior steel and painted objects regain their hue.
+ */
+export function neutraliseNightFill(target: THREE.Color, daylight: number): THREE.Color {
+  const d = Number.isFinite(daylight) ? daylight : 1;
+  const t = THREE.MathUtils.clamp(d / 0.35, 0, 1);
+  const weight = (1 - t * t * (3 - 2 * t)) * NIGHT_FILL_NEUTRALISE;
+  if (weight <= 0) return target;
+  const luminance = 0.2126 * target.r + 0.7152 * target.g + 0.0722 * target.b;
+  return target.lerp(_neutral.setRGB(luminance, luminance, luminance), weight);
 }
 
 /** Angular radius of the sun disc stamped into the environment, in radians. */
@@ -215,6 +241,7 @@ const _disc = new THREE.Color();
 const _sunDirection = new THREE.Vector3();
 const _sampleDirection = new THREE.Vector3();
 const _celestial = createCelestialState();
+const _neutral = new THREE.Color();
 
 const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
 
@@ -563,10 +590,12 @@ export function SceneEnvironmentIBL(): React.JSX.Element {
     if (hemisphere) {
       const referenceLighting =
         useGraphicsStore.getState().graphics.perfDebug.disableLightingPolish;
+      const sunAboveHorizon = THREE.MathUtils.smoothstep(atmosphere.solarElevation, -0.1, 0.04);
       hemisphere.intensity = referenceLighting
         ? HEMISPHERE_INTENSITY
-        : hemisphereFillIntensity(atmosphere.daylight);
+        : hemisphereFillIntensity(atmosphere.daylight, sunAboveHorizon);
       hemisphere.color.copy(_horizon);
+      if (!referenceLighting) neutraliseNightFill(hemisphere.color, atmosphere.daylight);
       if (referenceLighting) hemisphere.groundColor.copy(_ground);
       else {
         applyGroundBouncePalette(hemisphere.groundColor, _ground, atmosphere.daylight);
@@ -577,6 +606,14 @@ export function SceneEnvironmentIBL(): React.JSX.Element {
     }
 
     if (hdriEnvironmentActive) return;
+
+    // Same neutralisation as the hemisphere: metals indoors reflect these bands.
+    // Applied before the change test below, so a settled night does not read as
+    // a recolour and re-convolve every interval.
+    if (!useGraphicsStore.getState().graphics.perfDebug.disableLightingPolish) {
+      neutraliseNightFill(_top, atmosphere.daylight);
+      neutraliseNightFill(_horizon, atmosphere.daylight);
+    }
 
     const now = performance.now();
 
