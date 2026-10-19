@@ -53,6 +53,7 @@ import { restoreSessionScopedQuality } from './utils/adaptiveQuality';
 import { installAtmosphericFogChunks } from './shaders/atmosphericFog';
 import { installPunctualLightCulling } from './shaders/punctualLightCulling';
 import { CURRENT_RELEASE_VERSION } from './config/releaseVersions';
+import { applyFirstVisitQuality } from './utils/firstVisitQuality';
 import { useT } from './i18n';
 import { appMessages } from './App.messages';
 
@@ -68,6 +69,8 @@ installPunctualLightCulling();
 // session's tier. The graphics store has rehydrated by now and nothing has
 // rendered, so the restored choice is the first quality the scene sees.
 restoreSessionScopedQuality();
+// A first visit on a weak GPU opens on Low rather than waiting out the cover.
+applyFirstVisitQuality();
 
 // The Canvas fallback renders inside the z-0 <main>, under the loading cover,
 // so a crash before readiness must also reach the cover as a startup error.
