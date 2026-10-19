@@ -4,7 +4,9 @@ import type {
   OperationalIncident,
   OrderExecutionState,
 } from '../stores/operationsCampaignStore';
-import { translate } from '../i18n';
+import { formatFixed, formatGrouped, getLocale, translate } from '../i18n';
+import { formatShiftDuration } from './shiftReview';
+import { PROGRAMME_BULK, PROGRAMME_RUSH, PROGRAMME_STANDARD } from './programmes';
 import { operationsPlayMessages } from './operationsPlay.messages';
 
 /** Shared fulfilment tolerance; cosmetic consequences must agree with credit. */
@@ -170,7 +172,15 @@ export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
       kind: 'programme',
       targetId: null,
       label: translate(operationsPlayMessages, 'programmeLabel'),
-      consequence: translate(operationsPlayMessages, 'programmeConsequence'),
+      // What acceptNextProgramme creates (src/simulation/programmes.ts),
+      // from the same constants, so the offer cannot drift from the programme.
+      consequence: translate(operationsPlayMessages, 'programmeConsequence', {
+        dayKg: formatGrouped(PROGRAMME_RUSH.kg + PROGRAMME_STANDARD.kg + PROGRAMME_BULK.kg),
+        nightKg: formatGrouped(PROGRAMME_RUSH.kg + PROGRAMME_STANDARD.kg + PROGRAMME_BULK.nightKg),
+        premium: formatFixed(PROGRAMME_RUSH.premiumPercent, 0),
+        window: formatShiftDuration(PROGRAMME_RUSH.windowMinutes, getLocale()),
+        standardKg: formatGrouped(PROGRAMME_STANDARD.kg),
+      }),
     };
   } else if (!state.execution.qualityReleased || state.execution.stage === 'quality_hold') {
     nextAction = {

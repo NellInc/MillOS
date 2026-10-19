@@ -44,7 +44,7 @@ export const operationsCampaignMessages = defineMessages({
     logChallengeStarted: 'Started the recovery challenge: {label}.',
     logChallengeAbandoned: 'Challenge abandoned; its incident controls remain active.',
     logProgrammeAccepted:
-      'Accepted three 3,000 kg repeat commitments. Existing material and genealogy remain unchanged.',
+      'Accepted programme {number}: rush {customer} {rushKg} kg, {totalKg} kg in all. Existing material and genealogy remain unchanged.',
     logProgrammeInitialized: 'Production programme initialized from equipment and inventory state.',
     logOrderActivated: '{customer}: {recipe} is now the active commitment.',
     logIncidentAcknowledged: '{title} acknowledged.',
@@ -143,7 +143,7 @@ export const operationsCampaignMessages = defineMessages({
     logChallengeStarted: 'Desafio de recuperação iniciado: {label}.',
     logChallengeAbandoned: 'Desafio abandonado; os controles da ocorrência continuam ativos.',
     logProgrammeAccepted:
-      'Foram aceitos três compromissos recorrentes de 3.000 kg. O material e a genealogia existentes permanecem inalterados.',
+      'Programa {number} aceito: urgência {customer} {rushKg} kg, {totalKg} kg no total. O material e a genealogia existentes permanecem inalterados.',
     logProgrammeInitialized:
       'Programa de produção inicializado a partir do estado dos equipamentos e do estoque.',
     logOrderActivated: '{customer}: {recipe} agora é o compromisso ativo.',

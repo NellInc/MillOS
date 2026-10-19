@@ -25,6 +25,7 @@ import {
 import { displayEventDetail } from '../../../simulation/bilateralWorkplace';
 import type { WorkplaceProfile, WorkplaceState } from '../../../types/workplace';
 import {
+  FIRST_ORDER_ID,
   selectProvisionalShiftReport,
   useOperationsCampaignStore,
 } from '../../../stores/operationsCampaignStore';
@@ -35,6 +36,8 @@ import {
   RECOVERY_CHALLENGE_TARGET_KG,
   RECOVERY_CHALLENGE_WINDOW_MINUTES,
 } from '../../../simulation/operationsPlay';
+import { operationsPlayMessages } from '../../../simulation/operationsPlay.messages';
+import { openRush } from '../../../simulation/programmes';
 import { LearningNote } from '../../knowledge/LearningNote';
 import { CAMERA_PRESETS, useCameraStore } from '../../CameraController';
 import { deriveDeliveryDeadline, deriveDeliveryJourney } from './deliveryJourney';
@@ -271,10 +274,15 @@ export function FirstDeliveryJourney({
   // the live commitment. This projection never advances an order or a truck.
   // Working if a real fulfilment shows its receipt whether or not the
   // inspection step was done; inspection stays a separate milestone.
-  const completed = order?.status === 'fulfilled';
+  // The campaign keeps only its last 30 orders, so a guided order can be
+  // trimmed away after many programmes. A programme is accepted only once
+  // every order is in, so a guided order that is gone was fulfilled: the card
+  // reads the live order, never "Awaiting an order" while one is running.
+  const guidedOrderGone = ui.orderId !== null && order === null;
+  const completed = order?.status === 'fulfilled' || guidedOrderGone;
   const play = deriveOperationsPlay(campaign);
   const currentOrder =
-    completed && play.nextAction.kind !== 'programme' && play.activeOrder?.id !== order.id
+    completed && play.nextAction.kind !== 'programme' && play.activeOrder?.id !== order?.id
       ? play.activeOrder
       : null;
   const currentDeadline = deriveDeliveryDeadline(currentOrder, campaign.elapsedMinutes);
@@ -318,18 +326,20 @@ export function FirstDeliveryJourney({
             <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
-        <p className="mt-2 text-sm leading-6 text-slate-200">
-          {order.completedAtMinute !== null
-            ? describeOrderOutcome(
-                { ...order, completedAtMinute: order.completedAtMinute },
-                campaign.elapsedMinutes,
-                locale
-              )
-            : t('fulfilledDispatched', {
-                customer: order.customer,
-                kg: formatFixed(order.shippedKg, 0),
-              })}
-        </p>
+        {order && (
+          <p className="mt-2 text-sm leading-6 text-slate-200">
+            {order.completedAtMinute !== null
+              ? describeOrderOutcome(
+                  { ...order, completedAtMinute: order.completedAtMinute },
+                  campaign.elapsedMinutes,
+                  locale
+                )
+              : t('fulfilledDispatched', {
+                  customer: order.customer,
+                  kg: formatFixed(order.shippedKg, 0),
+                })}
+          </p>
+        )}
         {/* The receipt stays, but the order being made now is the goal on
             screen. Working if a later order reads its customer, shipped of
             required and due time until the programme completes. Not live:
@@ -344,6 +354,10 @@ export function FirstDeliveryJourney({
             })}
           </p>
         )}
+        {/* Pace stays with the goal it is read against for the rest of the
+            day, as on the first-delivery card, never behind the receipt.
+            Working if Shift pace is visible at 1366x768 and 1280x657. */}
+        <TeachingPace />
         <p className="mt-3 text-sm font-semibold text-cyan-100" aria-live="polite">
           {play.nextAction.kind === 'programme' ? t('programmeComplete') : play.nextAction.label}
         </p>
@@ -380,14 +394,15 @@ export function FirstDeliveryJourney({
                 : t('openScada')}
           </button>
         </div>
-        <details className="mt-2 text-xs text-slate-300">
-          <summary className="min-h-11 cursor-pointer py-3 text-cyan-200">
-            {t('receiptAndLearning')}
-          </summary>
-          <p className="leading-5">{guide.detail}</p>
-          <TeachingPace />
-          <LearningNote entryId={guide.entryId} />
-        </details>
+        {order && (
+          <details className="mt-2 text-xs text-slate-300">
+            <summary className="min-h-11 cursor-pointer py-3 text-cyan-200">
+              {t('receiptAndLearning')}
+            </summary>
+            <p className="leading-5">{guide.detail}</p>
+            <LearningNote entryId={guide.entryId} />
+          </details>
+        )}
       </section>
     );
   // Keep the live inspection effects mounted while making room for the scene.
@@ -403,7 +418,7 @@ export function FirstDeliveryJourney({
             aria-live="polite"
             className={`min-w-0 flex-1 font-semibold text-white ${HEADING_FOCUS}`}
           >
-            {guide.title}
+            {guidedOrderGone ? t('deliveryFulfilled') : guide.title}
           </h2>
           <button
             className={`${BUTTON} shrink-0`}
@@ -470,8 +485,12 @@ export function FirstDeliveryJourney({
   return (
     <section ref={cardRef} aria-label={t('guidedDelivery')} className={`${JOURNEY_FRAME} p-4`}>
       <div className="flex items-center justify-between gap-2">
+        {/* Replay guide points this card at the live order; only the tour's
+            own first order is "your first delivery". */}
         <h2 ref={headingRef} tabIndex={-1} className={`font-semibold text-white ${HEADING_FOCUS}`}>
-          {t('firstDelivery')}
+          {order && order.id !== FIRST_ORDER_ID
+            ? t('deliveryFor', { customer: order.customer })
+            : t('firstDelivery')}
         </h2>
         <button
           ref={collapseButton}
@@ -721,6 +740,7 @@ function WorkingAgreementSummary({
 
 export function OperationsPlayCard() {
   const t = useT(playableShiftMessages);
+  const playT = useT(operationsPlayMessages);
   // Project only changing campaign references; the panel host never subscribes to ticks.
   const snapshot = useOperationsCampaignStore(
     useShallow((s) => ({
@@ -772,6 +792,8 @@ export function OperationsPlayCard() {
   const gameSpeed = useGameSimulationStore((s) => s.gameSpeed);
   const play = deriveOperationsPlay(snapshot);
   const awaitingResponse = play.nextAction.kind === 'resume' && gameSpeed > 0;
+  const rush = openRush(snapshot.orders);
+  const rushDeadline = deriveDeliveryDeadline(rush?.order ?? null, snapshot.elapsedMinutes);
   // Only an isolated dispatch or an empty recipe feed stops work; due, overdue,
   // storage and maintenance constraints call for attention. Working if a
   // critical constraint leads a warning and only real stops read 'Blocked'.
@@ -855,6 +877,25 @@ export function OperationsPlayCard() {
                 : t('switchHint')}
           </span>
         </label>
+      )}
+      {/* The programme's one choice, beside the select that makes it: the
+          rush pays more and runs first; another commitment first risks it
+          late at double the penalty. Working if the card names the rush,
+          its premium and deadline, and a changeover when it needs one. */}
+      {rush && rushDeadline && (
+        <p className="mt-2 text-xs leading-5 text-cyan-100">
+          {t('rushChoice', {
+            customer: rush.order.customer,
+            premium: formatFixed(rush.order.rushPremiumPercent ?? 0, 0),
+            kg: formatGrouped(rush.order.requiredKg),
+            product: rush.order.recipe.label,
+            due: rushDeadline.label,
+          })}
+          {rush.onlyOnItsGrain &&
+            t('rushChangeover', {
+              grain: playT('sourceMaterial', { value: rush.order.recipe.sourceMaterial }),
+            })}
+        </p>
       )}
       <p className="mt-2">
         {play.activeOrder

@@ -629,7 +629,13 @@ export const MillScene: React.FC<MillSceneProps> = ({
           temperature: 42 + idx * 0.8, // Deterministic: 42-46°C
           vibration: 1.5 + idx * 0.08, // Deterministic: 1.5-1.9
           load: 70 + idx * 1.6, // Deterministic: 70-80%
-          wear: 0, // Start with no wear
+          // R.M. 101 starts part-worn, so a later programme meets a wear
+          // decision on the product path: its warning lands about 16:29, after
+          // the first shift's silo warning and its 14:00 handover, and left
+          // unserviced it breaks down about 06:22 on day 2. Working if
+          // UnifiedGameTick.firstShiftWear.test.ts still sees one first-shift
+          // warning and pins this mill's warning and breakdown times.
+          wear: anchor.id === 'rm-101' ? 46 : 0,
           efficiency: 100, // Start at full efficiency
         },
         lastMaintenance: '2024-02-01',

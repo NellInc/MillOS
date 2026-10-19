@@ -45,7 +45,7 @@ export const playableShiftMessages = defineMessages({
     currentOrder: 'Now: {customer}, {shipped} of {required} kg shipped. {due}.',
     programmeComplete: 'Programme complete, review your shift',
     programmeCompleteDetail:
-      'The shift debrief shows this shift so far: each delivery, whether it was on time, what held the grade back and what to try next. Then choose the next commitments.',
+      'The shift debrief shows this shift so far: each delivery, whether it was on time, what held the grade back and what to try next. Then choose the next commitments. Until you do, the line builds stock and the shipping truck waits at the dock, so the stock is there for the next programme.',
     reviewShiftProgramme: 'Review shift and next programme',
     receiptAndLearning: 'Delivery receipt and learning',
     expandGuide: 'Expand delivery guide',
@@ -62,6 +62,7 @@ export const playableShiftMessages = defineMessages({
     selectMachineHint: 'Select a machine to record your inspection.',
     inspectMill: 'Inspect a roller mill',
     firstDelivery: 'Your first delivery',
+    deliveryFor: 'Delivery for {customer}',
     orderLine: '{customer}: {kg} kg {product}',
     awaitingOrder: 'Awaiting an order',
     truckLoad: 'Shipping truck load',
@@ -105,6 +106,10 @@ export const playableShiftMessages = defineMessages({
       'Finish the linked working agreement season and owed recovery before switching customers. Review working agreement opens Autonomy, where you can finish the remaining shifts or let the fictional demo run them. Leave this season, below, ends it early and keeps what was earned.',
     switchHint:
       'Changing customer changes the scheduled recipe. Existing stock and shipping receipts remain unchanged.',
+    rushChoice:
+      'Rush: {customer} pays {premium}% more for {kg} kg {product}. {due}. The controller runs it first; choosing another commitment first may make it late, at double the usual late penalty.',
+    rushChangeover:
+      ' It is the only order on {grain}, so running it first changes the line over to it and back.',
     activeOrderProgress: '{customer}: {shippedKg} / {requiredKg} kg dispatched',
     programmeCompleteCurrent: 'Current programme complete',
     blocked: 'Blocked',
@@ -175,7 +180,7 @@ export const playableShiftMessages = defineMessages({
     currentOrder: 'Agora: {customer}, {shipped} de {required} kg expedidos. {due}.',
     programmeComplete: 'Programa concluído, revise seu turno',
     programmeCompleteDetail:
-      'O balanço do turno mostra este turno até agora: cada entrega, se chegou no prazo, o que impediu uma nota melhor e o que tentar a seguir. Depois escolha os próximos compromissos.',
+      'O balanço do turno mostra este turno até agora: cada entrega, se chegou no prazo, o que impediu uma nota melhor e o que tentar a seguir. Depois escolha os próximos compromissos. Até lá, a linha forma estoque e o caminhão de expedição espera na doca, então o estoque fica para o próximo programa.',
     reviewShiftProgramme: 'Revisar o turno e o próximo programa',
     receiptAndLearning: 'Comprovante da entrega e aprendizado',
     expandGuide: 'Expandir o guia de entrega',
@@ -192,6 +197,7 @@ export const playableShiftMessages = defineMessages({
     selectMachineHint: 'Selecione uma máquina para registrar sua inspeção.',
     inspectMill: 'Inspecionar um moinho de rolos',
     firstDelivery: 'Sua primeira entrega',
+    deliveryFor: 'Entrega para {customer}',
     orderLine: '{customer}: {kg} kg de {product}',
     awaitingOrder: 'Aguardando um pedido',
     truckLoad: 'Carga do caminhão de expedição',
@@ -236,6 +242,10 @@ export const playableShiftMessages = defineMessages({
       'Conclua a temporada do acordo de trabalho vinculado e a recuperação devida antes de trocar de cliente. O botão Revisar o acordo de trabalho abre Autonomia, onde você pode concluir os turnos restantes ou deixar a demonstração fictícia executá-los. Sair desta temporada, abaixo, a encerra antes do fim e mantém o que foi conquistado.',
     switchHint:
       'Trocar de cliente muda a receita programada. O estoque existente e os comprovantes de expedição permanecem inalterados.',
+    rushChoice:
+      'Urgente: {customer} paga {premium}% a mais por {kg} kg de {product}. {due}. O controlador o executa primeiro; escolher outro compromisso antes pode atrasá-lo, com o dobro da multa usual por atraso.',
+    rushChangeover:
+      ' É o único pedido de {grain}, então executá-lo primeiro troca a linha para ele e de volta.',
     activeOrderProgress: '{customer}: {shippedKg} / {requiredKg} kg expedidos',
     programmeCompleteCurrent: 'Programa atual concluído',
     blocked: 'Bloqueado',

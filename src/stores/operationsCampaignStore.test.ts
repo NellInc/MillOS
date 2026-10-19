@@ -272,12 +272,17 @@ describe('autonomous operations programme', () => {
     );
     expect(state.acceptNextProgramme()).toBe(true);
     expect(useOperationsCampaignStore.getState().orders).toHaveLength(6);
+    // A varied programme (src/simulation/programmes.ts), not three equal clones.
     expect(
       useOperationsCampaignStore
         .getState()
         .orders.slice(-3)
-        .every((order) => order.requiredKg === 3000 && order.shippedKg === 0)
-    ).toBe(true);
+        .map((order) => [order.requiredKg, order.shippedKg])
+    ).toEqual([
+      [2500, 0],
+      [3000, 0],
+      [6000, 0],
+    ]);
     expect(useOperationsCampaignStore.getState().acceptNextProgramme()).toBe(false);
   });
 
