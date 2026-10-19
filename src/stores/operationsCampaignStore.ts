@@ -18,7 +18,14 @@ import {
   type OperationsChallengeId,
   type OperationsChallengeRun,
 } from '../simulation/operationsPlay';
-import { formatFixed, translate } from '../i18n';
+import { formatFixed, getLocale, translate } from '../i18n';
+import {
+  gradeShift,
+  shiftGradeBasis,
+  shiftGradeReasons,
+  type ShiftGrade,
+  type ShiftGradeBasis,
+} from '../simulation/shiftReview';
 import { operationsCampaignMessages as messages } from './operationsCampaignStore.messages';
 
 export type OrderStatus = 'planned' | 'active' | 'late' | 'fulfilled' | 'cancelled';
@@ -88,6 +95,11 @@ export interface ShiftCampaignMetrics extends CampaignEconomics {
   qualityFailureKg: number;
   incidentsResolved: number;
   automaticActions: number;
+  /**
+   * Game minutes in the window during which a customer order was open. Held
+   * clock time is not counted: a held tick never reaches tickCampaign.
+   */
+  commitmentMinutes: number;
 }
 
 export interface ShiftCampaignReport {
@@ -99,8 +111,11 @@ export interface ShiftCampaignReport {
   metrics: ShiftCampaignMetrics;
   completedOrderIds: string[];
   openRisks: string[];
-  grade: 'A' | 'B' | 'C' | 'D' | 'F';
+  /** Null when no customer commitment was open and nothing shipped (store v3). */
+  grade: ShiftGrade | null;
   summary: string;
+  /** The evidence the grade was computed from (store v3; older reports lack it). */
+  gradeBasis?: ShiftGradeBasis;
   gradeReasons?: string[];
   decisions?: string[];
 }
@@ -392,6 +407,7 @@ const ZERO_SHIFT_METRICS: ShiftCampaignMetrics = {
   qualityFailureKg: 0,
   incidentsResolved: 0,
   automaticActions: 0,
+  commitmentMinutes: 0,
 };
 
 const EMPTY_DISPATCH_LOAD: DispatchLoadSnapshot = {
@@ -940,63 +956,6 @@ function makeConstraints(
     });
   }
   return constraints;
-}
-
-function gradePeriod(
-  metrics: ShiftCampaignMetrics,
-  risks: string[],
-  incidents: OperationalIncident[]
-) {
-  const margin =
-    metrics.revenue -
-    metrics.energyCost -
-    metrics.automationCost -
-    metrics.wasteCost -
-    metrics.maintenanceCost -
-    metrics.demurrageCost -
-    metrics.latePenalties;
-  let grade: ShiftCampaignReport['grade'] =
-    risks.length === 0 && margin >= 0 && metrics.dispatchedKg >= 4000
-      ? 'A'
-      : risks.length <= 1 && margin >= 0 && metrics.dispatchedKg >= 2500
-        ? 'B'
-        : risks.length <= 2 && metrics.dispatchedKg > 0
-          ? 'C'
-          : metrics.dispatchedKg > 0
-            ? 'D'
-            : 'F';
-  const gradeReasons = [
-    translate(messages, 'gradeDispatchReason', {
-      kg: formatFixed(metrics.dispatchedKg, 0),
-      margin: formatFixed(margin, 2),
-    }),
-    translate(messages, 'gradeRiskReason', {
-      count: risks.length,
-      countText: formatFixed(risks.length, 0),
-    }),
-  ];
-  if ((metrics.qualityFailureKg ?? 0) > 0) {
-    grade = 'F';
-    gradeReasons.push(
-      translate(messages, 'gradeQualityFailureReason', {
-        kg: formatFixed(metrics.qualityFailureKg, 0),
-      })
-    );
-  }
-  const unsafe = incidents.filter(
-    (incident) =>
-      incident.phase !== 'resolved' &&
-      (incident.severity === 'high' || incident.severity === 'critical')
-  );
-  if (unsafe.length) {
-    if (grade === 'A' || grade === 'B' || grade === 'C') grade = 'D';
-    gradeReasons.push(
-      translate(messages, 'gradeUnsafeReason', {
-        titles: unsafe.map((incident) => incident.title).join(', '),
-      })
-    );
-  }
-  return { grade, gradeReasons };
 }
 
 export const useOperationsCampaignStore = create<OperationsCampaignState>()(
@@ -1572,6 +1531,14 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
                 deltaHours
             );
           }, 0);
+          // Exposure is read at the start of the tick: an order fulfilled by
+          // this tick's manifest was still owed while the tick ran.
+          if (
+            state.orders.some(
+              (order) => order.status !== 'fulfilled' && order.status !== 'cancelled'
+            )
+          )
+            shiftMetrics.commitmentMinutes = (shiftMetrics.commitmentMinutes ?? 0) + deltaMinutes;
           for (const [key, value] of Object.entries({
             energyCost,
             automationCost,
@@ -1602,7 +1569,19 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
             const risks = makeConstraints(constraintInput, context, incidentEffect)
               .filter((constraint) => constraint.severity !== 'info')
               .map((constraint) => constraint.label);
-            const { grade, gradeReasons } = gradePeriod(shiftMetrics, risks, state.incidents);
+            const gradeBasis = shiftGradeBasis(
+              shiftMetrics,
+              risks,
+              state.incidents
+                .filter(
+                  (incident) =>
+                    incident.phase !== 'resolved' &&
+                    (incident.severity === 'high' || incident.severity === 'critical')
+                )
+                .map((incident) => incident.title)
+            );
+            const grade = gradeShift(gradeBasis);
+            const gradeReasons = shiftGradeReasons(gradeBasis, getLocale());
             sequence += 1;
             const report: ShiftCampaignReport = {
               id: `period-report-${String(sequence).padStart(4, '0')}`,
@@ -1621,6 +1600,7 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
                 .map((order) => order.id),
               openRisks: risks,
               grade,
+              gradeBasis,
               gradeReasons,
               decisions: logbook
                 .filter(
@@ -1630,11 +1610,13 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
                 .slice(-8)
                 .map((entry) => entry.message),
               summary:
-                grade === 'A' || grade === 'B'
-                  ? translate(messages, 'reportSummaryGood', {
-                      kg: formatFixed(shiftMetrics.dispatchedKg, 0),
-                    })
-                  : gradeReasons.join(' '),
+                grade === null
+                  ? gradeReasons[0]
+                  : grade === 'A' || grade === 'B'
+                    ? translate(messages, 'reportSummaryGood', {
+                        kg: formatFixed(shiftMetrics.dispatchedKg, 0),
+                      })
+                    : gradeReasons.join(' '),
             };
             reports = appendBounded(reports, report, MAX_REPORTS);
             currentShiftKey = context.shiftKey;
@@ -1814,7 +1796,15 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
     {
       name: 'millos-autonomous-operations',
       storage: safeJSONStorage,
-      version: 2,
+      // v3: shift reports may carry no letter (grade null) and optional review
+      // evidence; shift metrics gain commitmentMinutes. Every addition is
+      // optional or defaulted in merge, so a v2 save passes through unchanged
+      // and its reports still render from their saved summary and reasons.
+      // Zustand drops a save whose version differs when no migrate is given,
+      // which is why this pass-through exists. An older build reading a v3
+      // save has no migrate and starts fresh (a downgrade only).
+      version: 3,
+      migrate: (persisted) => persisted as Partial<OperationsCampaignState>,
       partialize: (state) => ({
         initialized: state.initialized,
         activeChallenge: state.activeChallenge,

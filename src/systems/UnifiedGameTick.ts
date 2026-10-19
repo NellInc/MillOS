@@ -13,7 +13,11 @@
 import { useEffect } from 'react';
 import { centralTick, TICK_PRIORITY } from './CentralTickSystem';
 import type { TickContext } from './CentralTickSystem';
-import { useGameSimulationStore, getShiftForHour } from '../stores/gameSimulationStore';
+import {
+  useGameSimulationStore,
+  getShiftForHour,
+  getShiftWindowKey,
+} from '../stores/gameSimulationStore';
 import {
   useProductionStore,
   DAILY_TARGET_BAGS,
@@ -1008,7 +1012,10 @@ function unifiedGameTick(ctx: TickContext): void {
   const executionMaterial = executionPlan?.finishedMaterial ?? _shippingLoad.materialType;
   const finishedAvailability = getFinishedGoodsAvailability(latestFlow, executionMaterial);
   useOperationsCampaignStore.getState().tickCampaign(deltaSeconds * safeGameSpeed, {
-    shiftKey: `day-${latestGame.gameDay}-${latestGame.currentShift}`,
+    // A save taken between 00:00 and 06:00 under the old per-day key closes
+    // one short Night report on its first tick after upgrading; the campaign
+    // store cannot re-key it without the clock.
+    shiftKey: getShiftWindowKey(latestGame.gameDay, latestGame.gameTime, latestGame.currentShift),
     shiftLabel: translate(msg, 'shiftLabel', { shift: latestGame.currentShift }),
     manifests: latestFlow.manifests,
     materialSessionId: latestFlow.sessionId,

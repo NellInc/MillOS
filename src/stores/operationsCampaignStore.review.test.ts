@@ -1,0 +1,146 @@
+import { beforeEach, describe, expect, it } from 'vitest';
+import type { MaterialManifest, ProductionBatch } from './materialFlowStore';
+import { useOperationsCampaignStore, type CampaignTickContext } from './operationsCampaignStore';
+
+// The shift review, built by the real tickCampaign from real tick contexts.
+
+const flourBatch: ProductionBatch = {
+  id: 'batch-0001',
+  packerId: 'packer-0',
+  materialType: 'flour',
+  producedKg: 14000,
+  availableKg: 0,
+  simulationTime: 10,
+  sourceContributions: [{ lotId: 'lot-0001', amount: 14000, path: ['silo-0', 'packer-0'] }],
+  disposition: 'shipped',
+  dispositionReason: 'Fully dispatched',
+  qcTestIds: ['qc-1'],
+  dispatchManifestIds: ['shipping-0001'],
+  sealed: true,
+};
+const semolinaBatch: ProductionBatch = {
+  ...flourBatch,
+  id: 'batch-0002',
+  materialType: 'semolina',
+  producedKg: 4000,
+  sourceContributions: [{ lotId: 'lot-0001', amount: 4000, path: ['silo-0', 'packer-0'] }],
+};
+/** Ships the whole first programme: 14,000 kg of flour and 4,000 kg of semolina. */
+const programmeManifest: MaterialManifest = {
+  id: 'shipping-0001',
+  kind: 'shipping',
+  dock: 'shipping',
+  requestedKg: 18000,
+  actualKg: 18000,
+  materials: [
+    { type: 'flour', amount: 14000 },
+    { type: 'semolina', amount: 4000 },
+  ],
+  sourceLots: [{ lotId: 'lot-0001', amount: 18000, path: ['silo-0', 'packer-0'] }],
+  productBatches: [
+    { batchId: 'batch-0001', amount: 14000 },
+    { batchId: 'batch-0002', amount: 4000 },
+  ],
+  simulationTime: 20,
+};
+
+function partialManifest(id: string, kg: number): [MaterialManifest, ProductionBatch] {
+  const batch: ProductionBatch = {
+    ...flourBatch,
+    id: `batch-${id}`,
+    producedKg: kg,
+    sourceContributions: [{ lotId: 'lot-0001', amount: kg, path: ['silo-0', 'packer-0'] }],
+    dispatchManifestIds: [id],
+  };
+  return [
+    {
+      id,
+      kind: 'shipping',
+      dock: 'shipping',
+      requestedKg: kg,
+      actualKg: kg,
+      materials: [{ type: 'flour', amount: kg }],
+      sourceLots: [{ lotId: 'lot-0001', amount: kg, path: ['silo-0', 'packer-0'] }],
+      productBatches: [{ batchId: batch.id, amount: kg }],
+      simulationTime: 20,
+    },
+    batch,
+  ];
+}
+
+function context(overrides: Partial<CampaignTickContext> = {}): CampaignTickContext {
+  return {
+    shiftKey: 'day-0-morning',
+    shiftLabel: 'Morning',
+    manifests: [],
+    productionBatches: [],
+    totalEnergyKw: 450,
+    averageQuality: 99,
+    wasteKg: 0,
+    storageUtilization: 0.5,
+    shippingDocked: false,
+    receivingDocked: false,
+    dispatchReleased: true,
+    sourceInventoryKg: 50000,
+    finishedAvailableKg: 0,
+    releasedFinishedKg: 0,
+    dispatchLoad: {
+      cycleId: 'shipping-0',
+      status: 'away',
+      loadedKg: 0,
+      capacityKg: 5000,
+      materialType: 'flour',
+      blockReason: null,
+      lastDispatchKg: 0,
+    },
+    openWorkOrders: 0,
+    ...overrides,
+  };
+}
+
+const tick = (minutes: number, overrides: Partial<CampaignTickContext> = {}) =>
+  useOperationsCampaignStore.getState().tickCampaign(minutes * 60, context(overrides));
+const lastReport = () => useOperationsCampaignStore.getState().reports.at(-1)!;
+
+beforeEach(() => useOperationsCampaignStore.getState().resetCampaign());
+
+describe('shift grades follow customer commitments (row 24)', () => {
+  it('gives no letter to a shift in which no customer asked for anything', () => {
+    tick(1, { manifests: [programmeManifest], productionBatches: [flourBatch, semolinaBatch] });
+    tick(239);
+    tick(1, { shiftKey: 'day-0-afternoon', shiftLabel: 'Afternoon' });
+    expect(lastReport().grade).toBe('A');
+    // The afternoon runs with every order fulfilled and none accepted.
+    tick(479, { shiftKey: 'day-0-afternoon', shiftLabel: 'Afternoon' });
+    tick(1, { shiftKey: 'day-0-night', shiftLabel: 'Night' });
+    const afternoon = lastReport();
+    expect(afternoon.shiftKey).toBe('day-0-afternoon');
+    expect(afternoon.grade).toBeNull();
+    expect(afternoon.metrics.commitmentMinutes).toBe(0);
+    expect(afternoon.gradeReasons).toContain('No customer commitments this shift.');
+  });
+
+  it('grades a short window against the time it held a commitment', () => {
+    // One hour on the first order and 1,000 kg shipped, no risks: the old
+    // absolute bar (4,000 kg per window) read this as a C.
+    const [manifest, batch] = partialManifest('shipping-0001', 1000);
+    tick(1, { manifests: [manifest], productionBatches: [batch] });
+    tick(59);
+    tick(1, { shiftKey: 'day-0-afternoon', shiftLabel: 'Afternoon' });
+    // The boundary tick belongs to the window it closes.
+    expect(lastReport().metrics.commitmentMinutes).toBeCloseTo(61, 5);
+    expect(lastReport().grade).toBe('A');
+  });
+
+  it('keeps the quality and unsafe-incident caps on a graded window', () => {
+    const [manifest, batch] = partialManifest('shipping-0001', 1000);
+    useOperationsCampaignStore.getState().triggerIncident('bearing_overheat');
+    tick(1, { manifests: [manifest], productionBatches: [batch] });
+    tick(1, { shiftKey: 'day-0-afternoon' });
+    expect(lastReport().grade).toBe('D');
+    useOperationsCampaignStore.getState().resetCampaign();
+    tick(1, { manifests: [manifest], productionBatches: [batch], averageQuality: 80 });
+    tick(1, { shiftKey: 'day-0-afternoon' });
+    expect(lastReport().grade).toBe('F');
+  });
+});

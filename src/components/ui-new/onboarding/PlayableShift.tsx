@@ -801,7 +801,9 @@ export function ShiftDebrief() {
             .map((report) => (
               <article key={report.id} className="mb-3 border-t border-slate-700 pt-3">
                 <h4 className="font-semibold">
-                  {t('reportHeading', { shift: report.shiftLabel, grade: report.grade })}
+                  {report.grade === null
+                    ? t('reportHeadingUngraded', { shift: report.shiftLabel })
+                    : t('reportHeading', { shift: report.shiftLabel, grade: report.grade })}
                 </h4>
                 <p className="mt-1 text-xs leading-5">{report.summary}</p>
                 <ul className="mt-2 list-inside list-disc text-xs leading-5">

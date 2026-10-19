@@ -128,6 +128,7 @@ export const playableShiftMessages = defineMessages({
     readReports: (p: { count: number; countText: string }) =>
       `Read ${p.countText} saved ${p.count === 1 ? 'report' : 'reports'}`,
     reportHeading: '{shift}: grade {grade}',
+    reportHeadingUngraded: '{shift}: no customer commitments, no grade',
     decisionsHeading: 'Decisions during this shift',
     noDecisions: 'No recorded operational choices in this saved window.',
     decisionsNotSaved: 'Decisions were not saved with this report.',
@@ -236,6 +237,7 @@ export const playableShiftMessages = defineMessages({
     readReports: (p: { count: number; countText: string }) =>
       `Ler ${p.countText} ${p.count === 1 ? 'relatório salvo' : 'relatórios salvos'}`,
     reportHeading: '{shift}: nota {grade}',
+    reportHeadingUngraded: '{shift}: sem compromissos com clientes, sem nota',
     decisionsHeading: 'Decisões durante este turno',
     noDecisions: 'Nenhuma escolha operacional registrada nesta janela salva.',
     decisionsNotSaved: 'As decisões não foram salvas com este relatório.',
