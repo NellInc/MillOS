@@ -166,7 +166,8 @@ const countParts = (
     return counts;
   }, {});
 
-const missingParts = (
+/** Parts the inventory cannot cover, counting a part listed twice as two. */
+export const missingParts = (
   inventory: PartsInventory,
   required: (keyof PartsInventory)[]
 ): (keyof PartsInventory)[] => {
@@ -222,7 +223,9 @@ export interface BreakdownStore {
   getPartsForBreakdown: (type: BreakdownType) => (keyof PartsInventory)[];
 
   scheduleMaintenanceTask: (task: Omit<MaintenanceScheduleItem, 'id' | 'completed'>) => void;
-  completeMaintenanceTask: (taskId: string) => void;
+  /** Consumes the task's parts and closes it; false when it cannot. Call only
+   * after the service itself has been performed. */
+  completeMaintenanceTask: (taskId: string) => boolean;
 
   getBreakdownForMachine: (machineId: string) => BreakdownEvent | undefined;
   getWorkOrderForBreakdown: (breakdownId: string) => MaintenanceWorkOrder | undefined;
@@ -682,7 +685,8 @@ export const useBreakdownStore = create<BreakdownStore>()(
         };
       }),
 
-    completeMaintenanceTask: (taskId) =>
+    completeMaintenanceTask: (taskId) => {
+      let completed = false;
       set((state) => {
         const task = state.maintenanceSchedule.find((candidate) => candidate.id === taskId);
         if (
@@ -692,6 +696,7 @@ export const useBreakdownStore = create<BreakdownStore>()(
         ) {
           return {};
         }
+        completed = true;
         const counts = countParts(task.partsNeeded);
         const partsInventory = { ...state.partsInventory };
         (Object.entries(counts) as [keyof PartsInventory, number][]).forEach(([part, count]) => {
@@ -703,7 +708,9 @@ export const useBreakdownStore = create<BreakdownStore>()(
             candidate.id === taskId ? { ...candidate, completed: true } : candidate
           ),
         };
-      }),
+      });
+      return completed;
+    },
 
     getBreakdownForMachine: (machineId) =>
       get().activeBreakdowns.find((breakdown) => breakdown.machineId === machineId),

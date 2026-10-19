@@ -91,8 +91,9 @@ export const predictiveMaintenancePanelMessages = defineMessages({
     underRepairHint: 'Machine is under repair: complete the work order first',
     completeHint: 'Complete maintenance and consume listed parts',
     partsUnavailableHint: 'Required parts are unavailable',
+    belowMinimumHint: 'Not needed yet: wear is below the {minimum}% service minimum',
     complete: 'Complete',
-    maintenanceNotNeeded: 'Maintenance Not Needed',
+    maintenanceNotPerformed: 'Maintenance Not Performed',
   },
   'pt-BR': {
     title: 'Manutenção preditiva',
@@ -144,7 +145,8 @@ export const predictiveMaintenancePanelMessages = defineMessages({
     underRepairHint: 'A máquina está em reparo: conclua primeiro a ordem de serviço',
     completeHint: 'Concluir a manutenção e consumir as peças listadas',
     partsUnavailableHint: 'As peças necessárias não estão disponíveis',
+    belowMinimumHint: 'Ainda não é necessária: o desgaste está abaixo do mínimo de {minimum}%',
     complete: 'Concluir',
-    maintenanceNotNeeded: 'Manutenção não necessária',
+    maintenanceNotPerformed: 'Manutenção não realizada',
   },
 });
