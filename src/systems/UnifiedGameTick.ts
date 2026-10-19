@@ -830,8 +830,6 @@ function unifiedGameTick(ctx: TickContext): void {
     certification_expired: translate(msg, 'certificationExpired'),
     unresolved_contamination: translate(msg, 'unresolvedContamination'),
     failed_quality_test: translate(msg, 'failedQualityTest'),
-    batch_quality_hold: translate(msg, 'batchQualityHold'),
-    batch_recalled: translate(msg, 'batchRecalled'),
   } as const;
   if (shippingSchedule.departureCount < _lastShippingDepartureCount) {
     _shippingLoad = {

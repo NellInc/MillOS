@@ -153,4 +153,43 @@ describe('Overview batch quality recovery', () => {
     }
     expect(useMaterialFlowStore.getState().productionBatches[0].disposition).toBe('recalled');
   });
+  it('asks before a recall, names the mass written off, and keeps the recalled batch listed', () => {
+    useMaterialFlowStore.setState({
+      productionBatches: [
+        batch('suspect', 'hold'),
+        ...[1, 2, 3, 4].map((i) => batch(`recent-${i}`)),
+      ],
+    });
+    useQCLabStore.setState((state) => ({
+      qcLab: { ...state.qcLab, contaminationAlerts: [alert('suspect')] },
+    }));
+    render(<BatchGenealogySection />);
+
+    fireEvent.click(row('suspect').getByRole('button', { name: 'Recall batch' }));
+    // The first click only asks; nothing is recalled yet.
+    expect(useMaterialFlowStore.getState().productionBatches[0].disposition).toBe('hold');
+    expect(row('suspect').getByRole('alert')).toHaveTextContent(/50\.0 kg/);
+    expect(row('suspect').getByRole('alert')).toHaveTextContent(/cannot be undone/i);
+    fireEvent.click(row('suspect').getByRole('button', { name: 'Confirm recall' }));
+    expect(useMaterialFlowStore.getState().productionBatches[0].disposition).toBe('recalled');
+
+    act(() => {
+      useMaterialFlowStore.setState((state) => ({
+        productionBatches: [
+          ...state.productionBatches,
+          ...[5, 6, 7, 8].map((index) => batch(`recent-${index}`)),
+        ],
+      }));
+    });
+    expect(screen.getByText('SUSPECT')).toBeInTheDocument();
+  });
+
+  it('lets a recall be cancelled', () => {
+    useMaterialFlowStore.setState({ productionBatches: [batch('suspect', 'hold')] });
+    render(<BatchGenealogySection />);
+    fireEvent.click(row('suspect').getByRole('button', { name: 'Recall batch' }));
+    fireEvent.click(row('suspect').getByRole('button', { name: 'Cancel' }));
+    expect(row('suspect').queryByRole('alert')).not.toBeInTheDocument();
+    expect(useMaterialFlowStore.getState().productionBatches[0].disposition).toBe('hold');
+  });
 });

@@ -69,6 +69,11 @@ export const overviewPanelMessages = defineMessages({
     placeHold: 'Place hold',
     retestAndRelease: 'Retest and release',
     recallBatch: 'Recall batch',
+    recallConfirm:
+      'A recall cannot be undone. {kg} kg of {material} in this batch is written off as waste and never ships. Other released batches keep shipping.',
+    confirmRecall: 'Confirm recall',
+    cancelRecall: 'Cancel',
+    writtenOff: '{kg} kg written off as waste',
     investigationActive: 'Investigation active',
     traceFor: 'Trace for {id}',
     upstreamProvenance: 'Upstream provenance',
@@ -154,6 +159,11 @@ export const overviewPanelMessages = defineMessages({
     placeHold: 'Reter lote',
     retestAndRelease: 'Retestar e liberar',
     recallBatch: 'Recolher lote',
+    recallConfirm:
+      'O recolhimento não pode ser desfeito. {kg} kg de {material} deste lote são baixados como perda e nunca serão expedidos. Os outros lotes liberados continuam sendo expedidos.',
+    confirmRecall: 'Confirmar recolhimento',
+    cancelRecall: 'Cancelar',
+    writtenOff: '{kg} kg baixados como perda',
     investigationActive: 'Investigação em andamento',
     traceFor: 'Rastreio de {id}',
     upstreamProvenance: 'Procedência a montante',

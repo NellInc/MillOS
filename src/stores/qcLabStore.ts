@@ -132,9 +132,7 @@ export interface QCLabStore {
 export type DispatchQualityHoldReason =
   | 'certification_expired'
   | 'unresolved_contamination'
-  | 'failed_quality_test'
-  | 'batch_quality_hold'
-  | 'batch_recalled';
+  | 'failed_quality_test';
 
 export interface DispatchQualityStatus {
   released: boolean;
@@ -144,7 +142,8 @@ export interface DispatchQualityStatus {
 /** Translate laboratory and optional batch state into the shipping interlock. */
 export function getDispatchQualityStatus(
   qcLab: QCLabState,
-  productionBatches: readonly ProductionBatch[] = []
+  // Kept for callers; see the note below on why batches no longer stop the plant.
+  _productionBatches: readonly ProductionBatch[] = []
 ): DispatchQualityStatus {
   if (qcLab.certificationStatus === 'expired') {
     return { released: false, reason: 'certification_expired' };
@@ -154,15 +153,9 @@ export function getDispatchQualityStatus(
     return { released: false, reason: 'unresolved_contamination' };
   }
 
-  if (
-    productionBatches.some((batch) => batch.availableKg > 0 && batch.disposition === 'recalled')
-  ) {
-    return { released: false, reason: 'batch_recalled' };
-  }
-
-  if (productionBatches.some((batch) => batch.availableKg > 0 && batch.disposition === 'hold')) {
-    return { released: false, reason: 'batch_quality_hold' };
-  }
+  // A held or recalled batch is isolated by mass, not by stopping the plant:
+  // shipFinishedGoods loads only released batches, and loading waits for
+  // released stock. A plant-wide stop here wedged every truck for the session.
 
   const latestTest = qcLab.testHistory[qcLab.testHistory.length - 1];
   if (latestTest && (!latestTest.passed || latestTest.grade === 'FAIL')) {

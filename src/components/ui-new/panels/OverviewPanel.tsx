@@ -229,6 +229,8 @@ const readGenealogyErrorKg = () =>
 
 export const BatchGenealogySection: React.FC = React.memo(() => {
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
+  // A recall is terminal and scraps the mass, so it is asked once before acting.
+  const [confirmRecallId, setConfirmRecallId] = useState<string | null>(null);
   const productionBatches = useMaterialFlowStore((state) => state.productionBatches);
   const sourceLotCount = useMaterialFlowStore((state) => state.sourceLots.size);
   // Read once up front so the first paint never shows a false +0.00 kg.
@@ -250,8 +252,11 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
         .flatMap((alert) => alert.batchIds)
     );
     const newestFirst = [...productionBatches].reverse();
+    // A recalled batch stays listed: it is the record of what was scrapped.
     const needsAttention = (batch: (typeof productionBatches)[number]) =>
-      batch.disposition === 'hold' || investigationBatchIds.has(batch.id);
+      batch.disposition === 'hold' ||
+      batch.disposition === 'recalled' ||
+      investigationBatchIds.has(batch.id);
     // Quality recovery stays reachable as newer production arrives. Final
     // dispositions keep their existing trace-only controls even during an alert.
     return [
@@ -400,6 +405,43 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
                 {batch.dispositionReason && (
                   <p className="mt-1 text-[10px] text-slate-400">{batch.dispositionReason}</p>
                 )}
+                {batch.disposition === 'recalled' && (batch.writtenOffKg ?? 0) > 0 && (
+                  <p className="mt-1 text-[10px] text-red-300">
+                    {t('writtenOff', { kg: formatFixed(batch.writtenOffKg ?? 0, 1) })}
+                  </p>
+                )}
+                {confirmRecallId === batch.id && batch.disposition === 'hold' && (
+                  <div
+                    role="alert"
+                    className="mt-2 rounded border border-red-500/40 bg-red-950/30 p-2 text-xs text-red-100"
+                  >
+                    <p>
+                      {t('recallConfirm', {
+                        kg: formatFixed(batch.availableKg, 1),
+                        material: t('material', { value: batch.materialType }),
+                      })}
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setConfirmRecallId(null);
+                          recallBatch(batch.id);
+                        }}
+                        className="min-h-11 rounded bg-red-700 px-3 text-xs font-semibold text-white hover:bg-red-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-300"
+                      >
+                        {t('confirmRecall')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmRecallId(null)}
+                        className="min-h-11 rounded bg-slate-700 px-3 text-xs font-semibold text-white hover:bg-slate-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+                      >
+                        {t('cancelRecall')}
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <div className="mt-2 flex flex-wrap gap-2">
                   <button
                     type="button"
@@ -449,7 +491,8 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
                       </button>
                       <button
                         type="button"
-                        onClick={() => recallBatch(batch.id)}
+                        aria-expanded={confirmRecallId === batch.id}
+                        onClick={() => setConfirmRecallId(batch.id)}
                         className="min-h-11 rounded bg-red-700 px-3 text-xs font-semibold text-white hover:bg-red-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-300"
                       >
                         {t('recallBatch')}
