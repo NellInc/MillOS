@@ -8,6 +8,13 @@ const PT_SHIFT_LABELS: Record<string, string> = {
   night: 'Noite',
 };
 
+/* "Turno da manhã encerrado": the shift as it reads after "Turno". */
+const PT_SHIFT_OF: Record<string, string> = {
+  morning: 'da manhã',
+  afternoon: 'da tarde',
+  night: 'da noite',
+};
+
 const PT_MATERIALS: Record<string, string> = {
   flour: 'farinha liberada',
   semolina: 'semolina liberada',
@@ -20,8 +27,12 @@ export const unifiedGameTickMessages = defineMessages({
       'Supplier notification requires traceability review before dispatch release.',
     incidentAlert:
       '{description} The operations workspace records the response and residual controls.',
-    dayCompleteTargetMet: 'Day complete: {bags} bags - target met!',
-    dayComplete: 'Day complete: {bags} of {target} bags',
+    shiftClosedTitle: (p: { shift: string; grade: string }) =>
+      `${capitalise(p.shift)} shift closed: grade ${p.grade}`,
+    shiftClosedUngradedTitle: (p: { shift: string }) =>
+      `${capitalise(p.shift)} shift closed: no customer commitments`,
+    shiftClosedMessage:
+      'Its review is in Overview, under Shift debrief: which orders were on time, what held the grade back and what to try next.',
     dailyTargetReached: 'Daily target reached: {target} bags!',
     dailyTargetMilestone: 'Daily target {threshold}% complete',
     certificationExpired: 'Quality certification is expired.',
@@ -48,8 +59,12 @@ export const unifiedGameTickMessages = defineMessages({
       'A notificação do fornecedor exige revisão de rastreabilidade antes da liberação para expedição.',
     incidentAlert:
       '{description} O espaço de trabalho de operações registra a resposta e os controles residuais.',
-    dayCompleteTargetMet: 'Dia concluído: {bags} sacos - meta atingida!',
-    dayComplete: 'Dia concluído: {bags} de {target} sacos',
+    shiftClosedTitle: (p: { shift: string; grade: string }) =>
+      `Turno ${PT_SHIFT_OF[p.shift] ?? p.shift} encerrado: nota ${p.grade}`,
+    shiftClosedUngradedTitle: (p: { shift: string }) =>
+      `Turno ${PT_SHIFT_OF[p.shift] ?? p.shift} encerrado: sem compromissos com clientes`,
+    shiftClosedMessage:
+      'A revisão está na Visão geral, em Balanço do turno: quais pedidos chegaram no prazo, o que impediu uma nota melhor e o que tentar a seguir.',
     dailyTargetReached: 'Meta diária atingida: {target} sacos!',
     dailyTargetMilestone: 'Meta diária: {threshold}% concluída',
     certificationExpired: 'A certificação de qualidade está vencida.',

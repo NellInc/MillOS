@@ -27,6 +27,11 @@ const PT_ROLE: Record<string, string> = {
   Maintenance: 'Manutenção',
   Coordinator: 'Coordenação',
 };
+const PT_SHIFT_OF: Record<string, string> = {
+  morning: 'da manhã',
+  afternoon: 'da tarde',
+  night: 'da noite',
+};
 
 export const playableShiftMessages = defineMessages({
   en: {
@@ -123,10 +128,10 @@ export const playableShiftMessages = defineMessages({
     abandonChallenge: 'Abandon challenge',
     savedReports: 'Saved shift reports',
     shiftDebrief: 'Shift debrief',
-    noReports:
-      'Your report is saved when the run window changes. Keep operating, or inspect freely at a slower pace.',
-    readReports: (p: { count: number; countText: string }) =>
-      `Read ${p.countText} saved ${p.count === 1 ? 'report' : 'reports'}`,
+    noReports: (p: { shift: string; time: string }) =>
+      `The ${p.shift.charAt(0).toUpperCase()}${p.shift.slice(1)} report is saved when the shift closes at ${p.time}. Keep operating, or inspect freely at a slower pace.`,
+    readEarlierReports: (p: { count: number; countText: string }) =>
+      `Read ${p.countText} earlier ${p.count === 1 ? 'report' : 'reports'}`,
     reportHeading: '{shift}: grade {grade}',
     reportHeadingUngraded: '{shift}: no customer commitments, no grade',
     reportHeadingProvisional: '{shift} so far: provisional grade {grade}',
@@ -241,10 +246,10 @@ export const playableShiftMessages = defineMessages({
     abandonChallenge: 'Abandonar desafio',
     savedReports: 'Relatórios de turno salvos',
     shiftDebrief: 'Balanço do turno',
-    noReports:
-      'Seu relatório é salvo quando a janela de execução muda. Continue operando ou inspecione à vontade em um ritmo mais lento.',
-    readReports: (p: { count: number; countText: string }) =>
-      `Ler ${p.countText} ${p.count === 1 ? 'relatório salvo' : 'relatórios salvos'}`,
+    noReports: (p: { shift: string; time: string }) =>
+      `O relatório do turno ${PT_SHIFT_OF[p.shift] ?? p.shift} é salvo quando o turno fecha às ${p.time}. Continue operando ou inspecione à vontade em um ritmo mais lento.`,
+    readEarlierReports: (p: { count: number; countText: string }) =>
+      `Ler ${p.countText} ${p.count === 1 ? 'relatório anterior' : 'relatórios anteriores'}`,
     reportHeading: '{shift}: nota {grade}',
     reportHeadingUngraded: '{shift}: sem compromissos com clientes, sem nota',
     reportHeadingProvisional: '{shift} até agora: nota provisória {grade}',

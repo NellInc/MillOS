@@ -426,7 +426,6 @@ describe('playable shift UI', () => {
       ],
     });
     render(<ShiftDebrief />);
-    fireEvent.click(screen.getByText('Read 1 saved report'));
     fireEvent.click(screen.getByText('Shift log'));
     expect(screen.getByText('Operator mitigated a power sag')).toBeVisible();
     expect(screen.getByRole('button', { name: 'Accept next delivery programme' })).toBeDisabled();

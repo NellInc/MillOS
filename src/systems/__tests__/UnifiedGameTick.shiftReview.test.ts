@@ -3,7 +3,9 @@ import { resetUnifiedTickState, unifiedGameTick } from '../UnifiedGameTick';
 import { getShiftWindowKey, useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useOperationsCampaignStore } from '../../stores/operationsCampaignStore';
 import { useMaterialFlowStore } from '../../stores/materialFlowStore';
-import { MAX_GAME_SPEED } from '../../simulation/pace';
+import { MAX_GAME_SPEED, STANDARD_GAME_SPEED } from '../../simulation/pace';
+import { useUIStore } from '../../stores/uiStore';
+import { setLocale } from '../../i18n';
 
 let tickCount = 0;
 function tickAt(gameSpeed: number, deltaSeconds = 1) {
@@ -43,5 +45,66 @@ describe('shift window keys', () => {
     expect(nights).toHaveLength(1);
     expect(nights[0].shiftKey).toBe('day-0-night');
     expect(nights[0].endedAtMinute - nights[0].startedAtMinute).toBeCloseTo(480, 5);
+  });
+});
+
+describe('a closed shift is announced (row 21)', () => {
+  const reviewAlerts = () =>
+    useUIStore.getState().alerts.filter((alert) => alert.id.startsWith('shift-review-'));
+
+  beforeEach(() => useUIStore.setState({ alerts: [] }));
+
+  it('raises one notice when the 14:00 boundary writes the Morning report', () => {
+    useGameSimulationStore.getState().setGameTime(13.9);
+    // Standard pace: 30 game seconds per tick of one second, across 14:00.
+    for (let i = 0; i < 20; i++) tickAt(STANDARD_GAME_SPEED);
+    const reports = useOperationsCampaignStore.getState().reports;
+    expect(reports).toHaveLength(1);
+    expect(reviewAlerts()).toEqual([
+      expect.objectContaining({
+        id: `shift-review-${reports[0].id}`,
+        type: 'info',
+        title: expect.stringMatching(/^Morning shift closed: /),
+        message: expect.stringContaining('Overview'),
+      }),
+    ]);
+    for (let i = 0; i < 20; i++) tickAt(STANDARD_GAME_SPEED);
+    expect(reviewAlerts()).toHaveLength(1);
+  });
+
+  it('announces in Brazilian Portuguese', () => {
+    setLocale('pt-BR');
+    try {
+      useGameSimulationStore.getState().setGameTime(13.9);
+      for (let i = 0; i < 20; i++) tickAt(STANDARD_GAME_SPEED);
+      expect(reviewAlerts()[0]?.title).toMatch(/^Turno da manhã encerrado: /);
+      expect(reviewAlerts()[0]?.message).toContain('Visão geral');
+    } finally {
+      setLocale('en');
+    }
+  });
+
+  it('does not announce reports restored from a save', () => {
+    useGameSimulationStore.getState().setGameTime(10);
+    tickAt(STANDARD_GAME_SPEED);
+    const saved = { ...useOperationsCampaignStore.getState() };
+    useOperationsCampaignStore.setState({
+      reports: [
+        {
+          id: 'period-report-0099',
+          shiftKey: 'day-0-night',
+          shiftLabel: 'Night',
+          startedAtMinute: 0,
+          endedAtMinute: 480,
+          metrics: saved.shiftMetrics,
+          completedOrderIds: [],
+          openRisks: [],
+          grade: 'C',
+          summary: 'Saved earlier.',
+        },
+      ],
+    });
+    tickAt(STANDARD_GAME_SPEED);
+    expect(reviewAlerts()).toHaveLength(0);
   });
 });

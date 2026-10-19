@@ -219,6 +219,31 @@ function applyCampaignIncidentConsequence(incident: OperationalIncident): void {
   useOperationsCampaignStore.getState().markIncidentEffectApplied(incident.id);
 }
 
+/**
+ * A shift report written by this tick is announced once, in the notification
+ * list, naming where the review is. Only a report this tick appended counts:
+ * comparing the last id, not the length, keeps a restored save and the
+ * bounded report list from announcing anything.
+ * Working if the 14:00 boundary on the ordinary path raises one notice and a
+ * reload raises none.
+ */
+function announceClosedShift(lastReportBefore: string | undefined): void {
+  const report = useOperationsCampaignStore.getState().reports.at(-1);
+  if (!report || report.id === lastReportBefore) return;
+  const shift = /(morning|afternoon|night)$/.exec(report.shiftKey)?.[1] ?? report.shiftLabel;
+  useUIStore.getState().addAlert({
+    id: `shift-review-${report.id}`,
+    type: 'info',
+    title:
+      report.grade === null
+        ? translate(msg, 'shiftClosedUngradedTitle', { shift })
+        : translate(msg, 'shiftClosedTitle', { shift, grade: report.grade }),
+    message: translate(msg, 'shiftClosedMessage'),
+    timestamp: new Date(),
+    acknowledged: false,
+  });
+}
+
 function getStorageUtilization(): number {
   let occupiedKg = 0;
   let capacityKg = 0;
@@ -485,22 +510,11 @@ function unifiedGameTick(ctx: TickContext): void {
   if (newGameTime < gameStore.gameTime && hoursElapsed > 0) {
     newGameDay = Math.min(Number.MAX_SAFE_INTEGER, newGameDay + 1);
 
-    // Close out the production day: celebrate the result, then reset the
-    // daily counter and milestone tracking so the target loop restarts fresh.
+    // Close out the production day: reset the daily counter and milestone
+    // tracking so the target loop restarts fresh. The end of a shift is
+    // announced by its review (announceClosedShift); the 'shift_complete'
+    // celebration once queued here had no renderer.
     const dayEndStore = useProductionStore.getState();
-    const dayBags = dayEndStore.dailyBagsProduced;
-    if (celebrateDay) {
-      gameStore.triggerCelebration('shift_complete', {
-        value: dayBags,
-        message:
-          dayBags >= DAILY_TARGET_BAGS
-            ? translate(msg, 'dayCompleteTargetMet', { bags: formatGrouped(Math.round(dayBags)) })
-            : translate(msg, 'dayComplete', {
-                bags: formatGrouped(Math.round(dayBags)),
-                target: formatGrouped(DAILY_TARGET_BAGS),
-              }),
-      });
-    }
     dayEndStore.resetDailyBagsProduced();
     _milestonesReachedMask = 0;
   }
@@ -1011,6 +1025,7 @@ function unifiedGameTick(ctx: TickContext): void {
   const executionPlan = useOperationsCampaignStore.getState().getActiveProductionPlan();
   const executionMaterial = executionPlan?.finishedMaterial ?? _shippingLoad.materialType;
   const finishedAvailability = getFinishedGoodsAvailability(latestFlow, executionMaterial);
+  const lastReportBefore = useOperationsCampaignStore.getState().reports.at(-1)?.id;
   useOperationsCampaignStore.getState().tickCampaign(deltaSeconds * safeGameSpeed, {
     // A save taken between 00:00 and 06:00 under the old per-day key closes
     // one short Night report on its first tick after upgrading; the campaign
@@ -1040,6 +1055,7 @@ function unifiedGameTick(ctx: TickContext): void {
     lineOrderId: linePlan?.orderId ?? null,
     lineCustomer: linePlan?.prestaged ? linePlan.customer : null,
   });
+  announceClosedShift(lastReportBefore);
   // Workshops advance only through facilitator inputs. They must not acquire a
   // clock, pay or apparent shipment evidence from unrelated plant activity.
   if (useWorkplaceStore.getState().workplace.mode === 'game') {

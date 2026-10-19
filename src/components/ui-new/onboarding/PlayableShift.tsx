@@ -3,7 +3,11 @@ import { useShallow } from 'zustand/react/shallow';
 import { Minimize2, X } from 'lucide-react';
 import { useUIStore } from '../../../stores/uiStore';
 import { useMobileControlStore } from '../../../stores/mobileControlStore';
-import { selectClockHolder, useGameSimulationStore } from '../../../stores/gameSimulationStore';
+import {
+  selectClockHolder,
+  SHIFT_CLOSING_TIME,
+  useGameSimulationStore,
+} from '../../../stores/gameSimulationStore';
 import { isPaceGameSpeed, PACE_GAME_SPEEDS } from '../../../simulation/pace';
 import { paceMessages } from '../../../simulation/pace.messages';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
@@ -932,24 +936,38 @@ export function ShiftDebrief() {
     }))
   );
   const provisional = selectProvisionalShiftReport(open);
+  // The shift label, not the clock: this re-renders three times a day, not every tick.
+  const currentShift = useGameSimulationStore((s) => s.currentShift);
   return (
     <section aria-label={t('savedReports')} className={CARD}>
       <h3 className="font-semibold text-white">{t('shiftDebrief')}</h3>
       {provisional && <ShiftReportArticle report={provisional} provisional />}
+      {/* The newest closed shift is in view; older ones stay one click away.
+          Working if a shift that just closed is readable without expanding. */}
       {reports.length === 0 ? (
-        <p className="mt-2 text-xs text-slate-300">{t('noReports')}</p>
+        <p className="mt-2 text-xs text-slate-300">
+          {t('noReports', { shift: currentShift, time: SHIFT_CLOSING_TIME[currentShift] })}
+        </p>
       ) : (
-        <details className="mt-2">
-          <summary className="min-h-11 cursor-pointer py-3 text-cyan-200">
-            {t('readReports', { count: reports.length, countText: formatFixed(reports.length, 0) })}
-          </summary>
-          {reports
-            .slice()
-            .reverse()
-            .map((report) => (
-              <ShiftReportArticle key={report.id} report={report} />
-            ))}
-        </details>
+        <>
+          <ShiftReportArticle report={reports[reports.length - 1]} />
+          {reports.length > 1 && (
+            <details className="mt-2">
+              <summary className="min-h-11 cursor-pointer py-3 text-cyan-200">
+                {t('readEarlierReports', {
+                  count: reports.length - 1,
+                  countText: formatFixed(reports.length - 1, 0),
+                })}
+              </summary>
+              {reports
+                .slice(0, -1)
+                .reverse()
+                .map((report) => (
+                  <ShiftReportArticle key={report.id} report={report} />
+                ))}
+            </details>
+          )}
+        </>
       )}
       <WorkingAgreementSummary state={workplace} />
       <button

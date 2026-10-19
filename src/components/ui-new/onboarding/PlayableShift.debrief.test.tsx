@@ -10,6 +10,7 @@ import { useWorkplaceStore } from '../../../stores/workplaceStore';
 import { createWorkplace } from '../../../simulation/bilateralWorkplace';
 import type { MaterialManifest, ProductionBatch } from '../../../stores/materialFlowStore';
 import { setLocale } from '../../../i18n';
+import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 vi.mock('../../knowledge/LearningNote', () => ({ LearningNote: () => null }));
 
 // The debrief rendered from reports the real tickCampaign wrote.
@@ -143,7 +144,7 @@ describe('decisions in the debrief', () => {
     expect(screen.getByRole('heading', { name: 'Your decisions this shift' })).toBeInTheDocument();
     expect(
       screen.getByText('Community Pasta Works: Fine corn semolina is now the active commitment.')
-    ).toBeInTheDocument();
+    ).toBeVisible();
     const narration = screen.getByText('What the mill did');
     expect(narration.closest('details')).not.toHaveAttribute('open');
     expect(screen.getAllByText('Shipping load is 0 of 5000 kg.')[0].closest('details')).toBe(
@@ -192,5 +193,33 @@ describe('this shift so far (row 22)', () => {
     expect(
       screen.getByText('County School Meals: 8,000 of 8,000 kg, delivered on time.')
     ).toBeVisible();
+  });
+});
+
+describe('the end of a shift is in view (row 21)', () => {
+  it('shows the newest saved report open and keeps older ones collapsed', () => {
+    lateMorning();
+    tick(480, { shiftKey: 'day-0-afternoon', shiftLabel: 'Afternoon' });
+    tick(1, { shiftKey: 'day-0-night', shiftLabel: 'Night' });
+    render(<ShiftDebrief />);
+    expect(screen.getByRole('heading', { name: /^Afternoon: / })).toBeVisible();
+    expect(screen.getByText('Read 1 earlier report')).toBeVisible();
+    expect(
+      screen.getByRole('heading', { name: 'Morning: grade B', hidden: true })
+    ).not.toBeVisible();
+    fireEvent.click(screen.getByText('Read 1 earlier report'));
+    expect(screen.getByRole('heading', { name: 'Morning: grade B' })).toBeVisible();
+  });
+
+  it('names the time the open shift closes before any report exists', () => {
+    useGameSimulationStore.getState().setGameTime(10);
+    render(<ShiftDebrief />);
+    expect(
+      screen.getByText(/Morning report is saved when the shift closes at 14:00/)
+    ).toBeVisible();
+    cleanup();
+    act(() => setLocale('pt-BR'));
+    render(<ShiftDebrief />);
+    expect(screen.getByText(/fecha às 14:00/)).toBeVisible();
   });
 });
