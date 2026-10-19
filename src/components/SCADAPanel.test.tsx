@@ -42,6 +42,7 @@ const testState = vi.hoisted(() => {
     getHistory: vi.fn(async (): Promise<TagHistoryPoint[]> => []),
     getAlarmHistory: vi.fn(async () => []),
     setConnectionConfig: vi.fn(async () => undefined),
+    writeSetpoint: vi.fn(async () => true),
   };
 });
 
@@ -59,6 +60,7 @@ vi.mock('../scada', () => ({
     exportToCSV: testState.exportToCSV,
     exportToJSON: testState.exportToJSON,
     getHistory: testState.getHistory,
+    writeSetpoint: testState.writeSetpoint,
   }),
   useSCADAAlarms: () => ({
     alarms: [],
@@ -159,6 +161,45 @@ describe('SCADAPanel', () => {
     const connectionsTab = screen.getByRole('tab', { name: 'Connections' });
     await waitFor(() => expect(connectionsTab).toHaveFocus());
     expect(connectionsTab).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('offers an operator setpoint control on a writable tag in the Tags tab', async () => {
+    const setpoint: TagDefinition = {
+      id: 'RM101.ST001.SP',
+      name: 'RM-101 Speed Setpoint',
+      description: 'Test speed setpoint',
+      dataType: 'FLOAT32',
+      accessMode: 'READ_WRITE',
+      engUnit: 'RPM',
+      engLow: 0,
+      engHigh: 2000,
+      machineId: 'rm-101',
+      group: 'SETPOINT',
+    };
+    testState.tags.push(setpoint);
+    testState.values.set(setpoint.id, {
+      tagId: setpoint.id,
+      value: 1200,
+      quality: 'GOOD',
+      timestamp: Date.now(),
+    });
+    try {
+      render(<SCADAPanel isOpen onClose={vi.fn()} />);
+      fireEvent.click(screen.getByRole('tab', { name: 'Tags' }));
+      fireEvent.click(screen.getByRole('button', { name: /^rm-101/ }));
+
+      // Read-only tags get no control; the writable one does.
+      expect(screen.getAllByRole('button', { name: 'Apply' })).toHaveLength(1);
+      const input = screen.getByLabelText('New setpoint for RM-101 Speed Setpoint (RPM)');
+      fireEvent.change(input, { target: { value: '1500' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+      await waitFor(() =>
+        expect(testState.writeSetpoint).toHaveBeenCalledWith('RM101.ST001.SP', 1500)
+      );
+    } finally {
+      testState.tags.pop();
+      testState.values.delete(setpoint.id);
+    }
   });
 
   it('caps trend selection at six tags', () => {

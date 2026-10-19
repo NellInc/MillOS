@@ -81,6 +81,7 @@ import { useOperationsCampaignStore } from '../stores/operationsCampaignStore';
 import { useHistoricalPlaybackStore } from '../stores/historicalPlaybackStore';
 import { formatFixed, translate, useLocale, useT } from '../i18n';
 import { scadaPanelMessages } from './SCADAPanel.messages';
+import { SCADASetpointControl } from './SCADASetpointControl';
 
 interface SCADAPanelProps {
   isOpen: boolean;
@@ -257,8 +258,10 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
     }))
   );
   const {
+    isConnected,
     linkUp,
     mode,
+    writeSetpoint,
     tagCount,
     values,
     tags,
@@ -1782,8 +1785,14 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                           {filteredMachineTags.map((tag) => {
                             const value = values.get(tag.id);
                             const alarmState = value ? isInAlarm(tag, value) : null;
+                            const writable = tag.accessMode === 'READ_WRITE';
+                            const follower = writable
+                              ? tags.find(
+                                  (candidate) => candidate.simulation?.setpointTagId === tag.id
+                                )
+                              : undefined;
 
-                            return (
+                            const row = (
                               <div
                                 key={tag.id}
                                 className={`px-2 py-1.5 rounded text-xs flex items-center justify-between ${
@@ -1817,6 +1826,22 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                                     </>
                                   )}
                                 </div>
+                              </div>
+                            );
+
+                            if (!writable) return row;
+                            return (
+                              <div key={tag.id}>
+                                {row}
+                                <SCADASetpointControl
+                                  tag={tag}
+                                  setpoint={value}
+                                  readingTag={follower}
+                                  reading={follower ? values.get(follower.id) : undefined}
+                                  mode={mode}
+                                  isConnected={isConnected}
+                                  writeSetpoint={writeSetpoint}
+                                />
                               </div>
                             );
                           })}

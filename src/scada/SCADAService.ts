@@ -492,6 +492,12 @@ export class SCADAService {
       return false;
     }
 
+    // A value the transmitter range cannot hold would be clamped on the next
+    // sample, so the immediate readback would report a setpoint never held.
+    if (!Number.isFinite(value) || value < tag.engLow || value > tag.engHigh) {
+      return false;
+    }
+
     if (!this.adapter) {
       return false;
     }

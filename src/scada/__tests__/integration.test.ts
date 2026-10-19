@@ -109,6 +109,15 @@ describe('SCADA integration', () => {
     expect(service.getValue('RM101.TT001.PV')).toEqual(readOnlyBefore);
   });
 
+  it('refuses a setpoint outside the tag engineering range, so its readback cannot lie', async () => {
+    const before = service.getValue('RM101.ST001.SP');
+    await expect(service.writeSetpoint('RM101.ST001.SP', 2500)).resolves.toBe(false);
+    await expect(service.writeSetpoint('RM101.ST001.SP', -1)).resolves.toBe(false);
+    await expect(service.writeSetpoint('RM101.ST001.SP', Number.NaN)).resolves.toBe(false);
+    expect(service.getValue('RM101.ST001.SP')).toEqual(before);
+    await expect(service.writeSetpoint('RM101.ST001.SP', 2000)).resolves.toBe(true);
+  });
+
   it('publishes updated machine state on the next simulation sample', async () => {
     service.updateMachineStates([
       {

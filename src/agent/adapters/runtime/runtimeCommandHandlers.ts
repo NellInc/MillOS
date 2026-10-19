@@ -763,6 +763,16 @@ function writeSetpointHandler(): AgentCommandHandler {
             Boolean(tag && tag.accessMode !== 'READ'),
             'Tag must exist and be writable.'
           ),
+          check(
+            'PRE.TAG.RANGE',
+            Boolean(
+              tag &&
+              Number.isFinite(Number(command.parameters.value)) &&
+              Number(command.parameters.value) >= tag.engLow &&
+              Number(command.parameters.value) <= tag.engHigh
+            ),
+            'Value must lie within the tag engineering range.'
+          ),
         ],
         [
           check(
