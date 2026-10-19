@@ -15,6 +15,9 @@ export interface WorkerSeatCue {
 export interface WorkerMotionState {
   activity: 'working' | 'break' | 'idle' | 'walking';
   groundSpeed: number;
+  /** How many times faster than real time the root's clock runs (pace / standard
+   * pace). Picks the gait from real-time speed; absent in older saves, read as 1. */
+  gaitScale?: number;
   seated: boolean;
   phase: number;
   enabled: boolean;

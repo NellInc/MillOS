@@ -34,10 +34,12 @@ import {
   communityAgreementCue,
   communityAgreementResponse,
   advanceCommunityAgreementClock,
+  COMMUNITY_WALK_SPEED_MPS,
   type CommunityOperationsSnapshot,
 } from '../simulation/communityLife';
 import { EXTERIOR_LAYERS, POLYGON_OFFSET } from '../constants/renderLayers';
 import { useT } from '../i18n';
+import { STANDARD_GAME_SPEED } from '../simulation/pace';
 import { communityLifeMessages } from './CommunityLife.messages';
 
 const COLOURS = ['#596e72', '#53637c', '#9a7654', '#6b8568', '#bdad82', '#6b5871'];
@@ -142,10 +144,13 @@ export function CommunityLife() {
       const agreement = communityAgreementCue(person.id, workplace);
       communityAgreementResponse(agreement, pose, response);
       const activity = emergency && !pose.seated ? 'idle' : response.activity;
+      const gaitScale = game.gameSpeed > 0 ? game.gameSpeed / STANDARD_GAME_SPEED : 1;
       const motion: WorkerMotionState = {
         activity,
         briefing: !emergency && agreement?.state === 'briefing',
-        groundSpeed: !emergency && pose.activity === 'walking' ? 1.1 : 0,
+        gaitScale,
+        groundSpeed:
+          !emergency && pose.activity === 'walking' ? COMMUNITY_WALK_SPEED_MPS * gaitScale : 0,
         seated: pose.seated,
         enabled: false,
         phase: i * 1.731,
@@ -243,6 +248,7 @@ export function CommunityLife() {
     const emergency = game.emergencyActive || game.emergencyDrillMode;
     const held = emergency || !game.isTabVisible;
     const moving = !held && game.gameSpeed > 0;
+    const gaitScale = moving ? game.gameSpeed / STANDARD_GAME_SPEED : 1;
     const previousPresentation = clocks.current.presentation;
     clocks.current.presentation = advanceCommunityPresentationClock(
       previousPresentation,
@@ -324,9 +330,15 @@ export function CommunityLife() {
       motion.cycling = actor.person.role === 'Cyclist';
       motion.cyclePhase = bicycle.pedalPhase;
       motion.cartGrip = actor.person.id === 'village-courier' ? drop.cartGrip : undefined;
+      // A faster pace is a time-lapse of the same walk: the gait stays a walk
+      // while its cadence follows the ground covered (WorkerModel.workerGaitRates).
+      motion.gaitScale = gaitScale;
       motion.groundSpeed =
         moving && !jump && delta > 0
-          ? Math.min(4, Math.hypot(pose.position[0] - oldX, pose.position[2] - oldZ) / delta)
+          ? Math.min(
+              4 * gaitScale,
+              Math.hypot(pose.position[0] - oldX, pose.position[2] - oldZ) / delta
+            )
           : 0;
       // Cosmetic motion is omitted far away. Semantic poses still
       // update in WorkerModel when enabled is false.

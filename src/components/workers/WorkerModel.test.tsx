@@ -52,6 +52,7 @@ import {
   setWorkerPupilBlink,
   setWorkerPupilPose,
   softenWorkerFaceNormals,
+  workerGaitRates,
 } from '../models/WorkerModel';
 
 afterEach(() => {
@@ -167,6 +168,37 @@ describe('animation scheduling and freezing', () => {
     const walk = action.mock.contexts.find((a) => a.getClip().name === 'worker-walk')!;
     expect(walk.timeScale).toBeLessThan(0.2);
     expect(walk.timeScale).toBeGreaterThan(0);
+  });
+
+  it('keeps a time-lapsed walker walking, with cadence matched to the ground it covers', () => {
+    // A 1.25 m/s walker on a clock running 4x standard covers 5 m per real second.
+    const fast = workerGaitRates(5, 1.352, 2.935, 4);
+    expect(fast.clip).toBe('worker-walk');
+    expect(fast.walk).toBeCloseTo(5 / 1.352, 9);
+    // The same ground speed at real time is a run.
+    expect(workerGaitRates(5, 1.352, 2.935, 1).clip).toBe('worker-run');
+    // Half pace plays the walk at half cadence, still feet-planted.
+    const slow = workerGaitRates(0.625, 1.352, 2.935, 0.5);
+    expect(slow.clip).toBe('worker-walk');
+    expect(slow.walk).toBeCloseTo(0.625 / 1.352, 9);
+    // The ordinary real-time ceilings still bound an untimed or invalid scale.
+    for (const scale of [undefined, 0, -2, Number.NaN, Infinity]) {
+      expect(workerGaitRates(9, 1.352, 2.935, scale).walk).toBe(1.9);
+      expect(workerGaitRates(9, 1.352, 2.935, scale).run).toBe(2.4);
+    }
+    expect(workerGaitRates(2.9, 1.352, 2.935, 1, 'worker-run').clip).toBe('worker-run');
+  });
+
+  it('plays the walk clip at time-lapse cadence instead of breaking into a run', () => {
+    const action = vi.spyOn(THREE.AnimationAction.prototype, 'play');
+    const { motion } = mountAnimatedWorker('walking', 0);
+    motion.groundSpeed = 5;
+    motion.gaitScale = 4;
+    harness.frame?.({}, 1 / 30);
+    const walk = action.mock.contexts.find((a) => a.getClip().name === 'worker-walk')!;
+    const run = action.mock.contexts.find((a) => a.getClip().name === 'worker-run')!;
+    expect(walk.timeScale).toBeGreaterThan(1.9);
+    expect(walk.getEffectiveWeight()).toBeGreaterThan(run.getEffectiveWeight());
   });
 
   it('samples distant skeletons at 30 Hz while preserving elapsed animation time', () => {

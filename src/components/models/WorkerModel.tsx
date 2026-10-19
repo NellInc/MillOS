@@ -333,6 +333,28 @@ export function selectWorkerLocomotion(speed: number, walkSpeed: number, previou
   return speed > walkSpeed * threshold ? 'worker-run' : 'worker-walk';
 }
 
+/** Gait for a root whose clock runs `gaitScale` times faster than real time.
+ * The gait is chosen from the speed the person would have at real time, so a
+ * time-lapsed walker keeps walking; cadence follows the ground actually covered
+ * so the feet stay planted, and the real-time ceilings scale with the clock.
+ * Working if pace 120 shows a fast-cadence walk, never a run, and gaitScale 1
+ * (or a missing value from an older save) is the previous behaviour exactly.
+ */
+export function workerGaitRates(
+  speed: number,
+  walkSpeed: number,
+  runSpeed: number,
+  gaitScale?: number,
+  previous?: string
+) {
+  const scale = Number.isFinite(gaitScale) && gaitScale! > 0 ? gaitScale! : 1;
+  return {
+    clip: selectWorkerLocomotion(speed / scale, walkSpeed, previous),
+    walk: THREE.MathUtils.clamp(speed / walkSpeed, 0, 1.9 * scale),
+    run: THREE.MathUtils.clamp(speed / runSpeed, 0, 2.4 * scale),
+  };
+}
+
 /** Empty-handed standing listeners use the authored neutral stance. Seat cues
  * keep precedence, including an interrupted approach, with no rest semantics.
  * Working if mount and admitted frames choose the same base while ordinary
@@ -1541,11 +1563,14 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     const speed = Number.isFinite(motion.groundSpeed) ? Math.max(0, motion.groundSpeed) : 0;
     const moving =
       (speed > 0.05 || motion.activity === 'walking') && !motion.seated && !motion.cycling;
+    const initialScale = prepared.rigScale * appearance.bodyScale;
     const initialClip: WorkerClipName = moving
-      ? selectWorkerLocomotion(
+      ? workerGaitRates(
           speed,
-          CLIP_GROUND_SPEED[appearance.bodyType].walk * prepared.rigScale * appearance.bodyScale
-        )
+          CLIP_GROUND_SPEED[appearance.bodyType].walk * initialScale,
+          CLIP_GROUND_SPEED[appearance.bodyType].run * initialScale,
+          motion.gaitScale
+        ).clip
       : motion.seated ||
           motion.cycling ||
           motion.activity === 'break' ||
@@ -1664,10 +1689,17 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
         ? lastPose.current.clip
         : undefined;
     const briefing = standingBriefing(motion, moving);
+    const gait = workerGaitRates(
+      speed,
+      clipSpeed.walk * scale,
+      clipSpeed.run * scale,
+      motion.gaitScale,
+      previousLocomotion
+    );
     const activeClip: WorkerClipName = moving
       ? !motion.enabled && previousLocomotion
         ? previousLocomotion
-        : selectWorkerLocomotion(speed, clipSpeed.walk * scale, previousLocomotion)
+        : gait.clip
       : motion.seated || motion.cycling || motion.activity === 'break' || briefing
         ? 'worker-break'
         : motion.activity === 'working'
@@ -1829,8 +1861,8 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     }
     const walk = actionsRef.current['worker-walk'];
     const run = actionsRef.current['worker-run'];
-    if (walk) walk.timeScale = THREE.MathUtils.clamp(speed / (clipSpeed.walk * scale), 0, 1.9);
-    if (run) run.timeScale = THREE.MathUtils.clamp(speed / (clipSpeed.run * scale), 0, 2.4);
+    if (walk) walk.timeScale = gait.walk;
+    if (run) run.timeScale = gait.run;
     mixer.update(safeDelta);
     const dutyTarget = ordinaryDuty && motion.activity === 'working' && !moving ? 1 : 0;
     dutyWeight.current = !ordinaryDuty

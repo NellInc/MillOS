@@ -592,6 +592,60 @@ it('locks a turning rider to the actual bicycle heading, preserving pedal and ha
   expect(Math.abs(finalHeading - initialHeading)).toBeGreaterThan(0.1);
 });
 
+function mountCommunity(state: Partial<ReturnType<typeof useGameSimulationStore.getState>>) {
+  useGameSimulationStore.setState({
+    gameDay: 0,
+    isTabVisible: true,
+    emergencyActive: false,
+    emergencyDrillMode: false,
+    ...state,
+  });
+  const nodes = CommunityLife().props.children[0].props.children;
+  const roots: THREE.Group[] = nodes.map((node: any) => {
+    const root = new THREE.Group();
+    root.name = node.props.name;
+    root.position.fromArray(node.props.position);
+    root.rotation.y = node.props.rotation[1];
+    node.props.ref(root);
+    return root;
+  });
+  flushEffects();
+  const scene = new THREE.Scene();
+  roots.forEach((root) => scene.add(root));
+  const frame = harness.frames[harness.frames.length - 1] as (state: any, delta: number) => void;
+  return {
+    roots,
+    step: (delta = 1 / 60) => frame({ camera, scene }, delta),
+    capture: () => harness.participants.get('personnel')!.capture(),
+  };
+}
+/** A mill resident walking a straight segment from `hour` for `span` game hours. */
+function millWalkerAt(hour: number, span: number) {
+  const index = COMMUNITY_ROSTER.findIndex((person) => {
+    if (person.district !== 'mill') return false;
+    const a = sampleCommunityPerson(person, hour),
+      b = sampleCommunityPerson(person, hour + span);
+    return a.activity === 'walking' && b.activity === 'walking' && a.rotation === b.rotation;
+  });
+  expect(index).toBeGreaterThanOrEqual(0);
+  return index;
+}
+
+it('walks a time-lapsed resident with its real-time gait and uncapped ground speed', () => {
+  const pace = 120;
+  const community = mountCommunity({ gameTime: 10, gameSpeed: pace });
+  const index = millWalkerAt(10, 0.02);
+  useGameSimulationStore.setState({ gameTime: 10.02 });
+  community.step();
+  community.step();
+  const motion = community.capture().residents[index].motion;
+  expect(motion.gaitScale).toBe(pace / STANDARD_GAME_SPEED);
+  expect(motion.groundSpeed).toBeCloseTo(
+    (COMMUNITY_WALK_SPEED_MPS * pace) / STANDARD_GAME_SPEED,
+    6
+  );
+});
+
 it('transports seat frames after root turning, freezes holds and clears old replay cues', () => {
   useGameSimulationStore.setState({
     gameDay: 0,
