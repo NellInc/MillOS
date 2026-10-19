@@ -3,12 +3,11 @@ import { persist } from 'zustand/middleware';
 import { safeJSONStorage } from '../stores/storage';
 import {
   registerAutomaticWorkplaceInterrupt,
-  isAutomaticWorkplaceStep,
   withAutomaticWorkplaceStep,
 } from './workplaceParticipation';
 import { peekSCADAService } from '../scada/SCADAService';
 import { useWorkplaceStore } from '../stores/workplaceStore';
-import { useGameSimulationStore } from '../stores/gameSimulationStore';
+import { selectClockHolder, useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useUIStore } from '../stores/uiStore';
 import { isWorkplaceReplayActive } from './workplaceReplayRuntime';
 import { CAMPAIGN_PRESSURES, WORKPLACE_CHECKS, requiredChecks } from './workplaceCampaign';
@@ -127,6 +126,13 @@ export const useWorkplaceAutoplay = create<{
           message: translate(msg, 'running'),
         });
         demonstrationInterval = setInterval(() => {
+          // A pace is only a speed (src/simulation/pace.ts), so choosing one
+          // never ends the season. An explicit player pause defers its steps:
+          // the fictional roles wait with the plant and continue on resume.
+          // Working if Take over stays offered at every pace and a P pause
+          // changes no workplace state until the clock runs again.
+          const holder = selectClockHolder(useGameSimulationStore.getState());
+          if (holder === 'player' || holder === 'shortcut') return;
           const result = withAutomaticWorkplaceStep(() => autoplayWorkplaceStep(profile));
           if (result.reason && !result.changed) {
             // Stopping by itself (season complete, a boundary, an objection)
@@ -176,15 +182,4 @@ export const useWorkplaceAutoplay = create<{
 
 registerAutomaticWorkplaceInterrupt(() => {
   if (useWorkplaceAutoplay.getState().running) useWorkplaceAutoplay.getState().pause();
-});
-useGameSimulationStore.subscribe((current, previous) => {
-  if (
-    current.gameSpeed !== previous.gameSpeed &&
-    useWorkplaceAutoplay.getState().running &&
-    !isAutomaticWorkplaceStep()
-  )
-    // The human has already chosen the new pace. Stop automatic decisions
-    // without replacing that choice, including the onboarding clock release.
-    // Working if manual pace changes stop the runner and retain their speed.
-    useWorkplaceAutoplay.getState().pause(true);
 });

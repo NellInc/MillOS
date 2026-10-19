@@ -91,18 +91,39 @@ it('rechecks emergency and drill before any automated work or clock resume', () 
     useGameSimulationStore.setState({ [field]: false });
   }
 });
-it.each([0, 30, 120])(
-  'manual pace %s takes over without losing the chosen clock speed',
+it.each([15, 30, 120])(
+  'a chosen pace %s keeps the autonomous season running at that speed',
   (speed) => {
     vi.useFakeTimers();
-    useGameSimulationStore.getState().setGameSpeed(1);
+    useGameSimulationStore.getState().setGameSpeed(30);
     useWorkplaceAutoplay.getState().start('team');
     const before = useWorkplaceStore.getState().workplace;
     useGameSimulationStore.getState().setGameSpeed(speed);
-    expect(useWorkplaceAutoplay.getState().running).toBe(false);
+    expect(useWorkplaceAutoplay.getState().running).toBe(true);
     expect(useGameSimulationStore.getState().gameSpeed).toBe(speed);
     vi.advanceTimersByTime(2000);
+    expect(useWorkplaceStore.getState().workplace).not.toBe(before);
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(speed);
+    vi.useRealTimers();
+  }
+);
+it.each(['player', 'shortcut'] as const)(
+  'a %s pause defers the season without ending it, and it continues on resume',
+  (holder) => {
+    vi.useFakeTimers();
+    useGameSimulationStore.getState().setGameSpeed(30);
+    useWorkplaceAutoplay.getState().start('team');
+    if (holder === 'player') useGameSimulationStore.getState().setGameSpeed(0);
+    else useGameSimulationStore.getState().holdClock('shortcut');
+    const before = useWorkplaceStore.getState().workplace;
+    vi.advanceTimersByTime(2000);
+    expect(useWorkplaceAutoplay.getState().running).toBe(true);
     expect(useWorkplaceStore.getState().workplace).toBe(before);
+    if (holder === 'player') useGameSimulationStore.getState().setGameSpeed(30);
+    else useGameSimulationStore.getState().releaseClock('shortcut');
+    vi.advanceTimersByTime(2000);
+    expect(useWorkplaceStore.getState().workplace).not.toBe(before);
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(30);
     vi.useRealTimers();
   }
 );
