@@ -364,3 +364,58 @@ typecheck 0, agent:typecheck 0, lint 0, format 0, agent:manifest:check 0 (after
 regenerating the gitignored inventory). vitest 3,702 pass, 28 skipped, 5 fail: the same
 five `assets/source` ENOENT tests as the baseline, nothing new. `VERSION=v0.40` build 0,
 dist 171M; validate:bundle/reachability/community/depth/shaders 0. dist deleted.
+
+### Round 2 (20 Oct): the found-not-fixed list, closed
+
+The waves' own "found, not fixed" items went to four Opus 5.5 agents in sparse worktrees
+(D maintenance and recall, E cooperative and handoff, F shift and review, G plumbing),
+each failing-test-first. D, F and G stalled together on one API request at 02:26 and were
+resumed from their transcripts after 172 min; every committed item survived.
+
+- **D (8/8):** recalled-lot batches written off as they form; SCADA recalled tag HI only
+  while recalled stock is in the plant; recall review cue fires on it; scheduled service
+  consumes parts only when performed; minimum wear for Maintain = half the warning
+  threshold (where efficiency starts to fall); repairs take their estimated game time
+  (paused with the clock, scaled by pace); bell Open repair; uncalled
+  `triggerRandomBreakdown` deleted.
+- **E (5/5):** Overview/mobile pace buttons show the pace a handoff resumes at; leaving
+  from the debrief says so; any decided handoff shift can close without another;
+  P under handoff pinned by test (no change needed); agreement chip steady between shifts.
+- **F (6/6):** bad-evidence follow-on replaced; "from the next shift" only when true;
+  open serious incident named in an ungraded shift; shift-close notice read once,
+  politely; current order on the fulfilled card; achievements no longer unread.
+- **G (4/4):** operator/agent SCADA setpoint writes logged as decisions; idle orbit kept
+  outside the hall and stops at its first collision (the "camera moves by itself" cause:
+  a per-frame orbit about a point 51.6 m out, ratcheting inward on collision pushes);
+  `exact` removed from getByRole; e2e waits for startup ready before its first audit.
+
+Lead fixes after merging (each failing-test-first, pixels checked at 1280×657 EN and pt-BR):
+autonomous season defers under every non-own hold (tour, restore, layout), not only P;
+compacted card keeps the current order; identical shift-close notices re-read; Open repair
+tested for wear; **wear warnings now reach the bell** (they were only a spoken PA line, so
+Open repair never appeared); top bar stays one row (it wrapped at 1280 px with both amber
+chips and put the clock under the open panel), only the line-idle chip truncates; the
+fulfilled card's action pinned; an incomplete agreement says why (e.g. reload safety),
+translated, in the debrief, the BAS panel and the archive.
+
+Runtime confirmed on the final build: "Now: County School Meals, 0 of 8,000 kg…" on the
+card; bell "1 unread" = the wear warning, achievements listed but not unread; Open repair
+lands on Maintenance and repairs; bar 49 px, clock unobstructed with the panel open (EN,
+pt-BR); pt-BR reload keeps the review and says "Motivo: …"; 0 console errors.
+
+**Final gate (vs baseline):** typecheck/agent:typecheck/lint/format/manifest 0; vitest
+3,754 pass, 28 skipped, the same 5 `assets/source` ENOENT fails, nothing new; build and
+the five validators 0; dist deleted. **e2e 2/2** (AI Partner failed once at load 25 on its
+60 s boot wait, passed alone at 49.5 s).
+
+### What remains (3 need Nell, 4 recorded)
+
+Need Nell: (1) idle orbit stays on by default as an exterior showcase (G kept it; off by
+default is a one-line change); (2) a reload during a live cooperative shift settles it by
+design ("reload safety"), so that season can no longer be honoured: now explained, rule
+unchanged; (3) a native Brazilian reader for the cooperative vocabulary and the new strings
+("Ver a expedição", "Acordo entre turnos", wear warning, reload reason).
+Recorded: no SCADA setpoint control exists in the UI, so only agent writes reach the log
+today; no axe scan of the loading overlay (not deterministic without request stalling);
+time to ready 35–57 s on this machine under load 5–25 (no frame-rate claims); pt-BR not
+lazy-loaded (decision above).
