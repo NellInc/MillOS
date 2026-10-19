@@ -189,16 +189,14 @@ export interface BreakdownStore {
   predictiveAlerts: PredictiveAlert[];
   partsInventory: PartsInventory;
   maintenanceSchedule: MaintenanceScheduleItem[];
-  lastBreakdownTime: number;
   idSequence: number;
 
+  // Faults come from wear crossing its breakdown threshold (UnifiedGameTick)
+  // and from campaign incidents; there are no random breakdowns on top.
   triggerBreakdown: (
     machineId: string,
     machineName: string,
     type?: BreakdownType
-  ) => BreakdownEvent | null;
-  triggerRandomBreakdown: (
-    machines: Array<{ id: string; name: string; status: string }>
   ) => BreakdownEvent | null;
   startRepair: (breakdownId: string) => StartRepairResult;
   updateRepairProgress: (breakdownId: string, progressDelta: number) => void;
@@ -240,7 +238,6 @@ const initialState = () => ({
   predictiveAlerts: [] as PredictiveAlert[],
   partsInventory: { ...DEFAULT_PARTS_INVENTORY },
   maintenanceSchedule: [] as MaintenanceScheduleItem[],
-  lastBreakdownTime: 0,
   idSequence: 0,
 });
 
@@ -315,25 +312,10 @@ export const useBreakdownStore = create<BreakdownStore>()(
           idSequence: nextSequence,
           activeBreakdowns: [...state.activeBreakdowns, breakdown],
           workOrders: [...state.workOrders, workOrder],
-          lastBreakdownTime: now,
         };
       });
 
       return createdBreakdown;
-    },
-
-    triggerRandomBreakdown: (machines) => {
-      const state = get();
-      if (workplaceSimulationNow() - state.lastBreakdownTime < 120000) return null;
-      const eligibleMachines = machines.filter(
-        (machine) =>
-          machine.status === 'running' &&
-          !state.activeBreakdowns.some((breakdown) => breakdown.machineId === machine.id)
-      );
-      if (eligibleMachines.length === 0 || workplaceSimulationRandom() > 0.003) return null;
-      const machine =
-        eligibleMachines[Math.floor(workplaceSimulationRandom() * eligibleMachines.length)];
-      return get().triggerBreakdown(machine.id, machine.name);
     },
 
     startRepair: (breakdownId) => {

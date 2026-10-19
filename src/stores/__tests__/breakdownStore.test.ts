@@ -26,7 +26,6 @@ describe('BreakdownStore', () => {
       predictiveAlerts: [],
       partsInventory: { ...DEFAULT_INVENTORY },
       maintenanceSchedule: [],
-      lastBreakdownTime: 0,
       idSequence: 0,
     });
   });
@@ -213,41 +212,6 @@ describe('BreakdownStore', () => {
       expect(state.getBreakdownForMachine('packer-0')?.id).toBe(breakdown.id);
       expect(state.getBreakdownForMachine('packer-1')).toBeUndefined();
       expect(state.getWorkOrderForBreakdown(breakdown.id)?.id).toBe(breakdown.workOrderId);
-    });
-  });
-
-  describe('triggerRandomBreakdown', () => {
-    const machines = [
-      { id: 'rm-101', name: 'Roller Mill 101', status: 'running' },
-      { id: 'rm-102', name: 'Roller Mill 102', status: 'idle' },
-    ];
-
-    it('should rate-limit breakdowns to one per 2 real minutes', () => {
-      useBreakdownStore.setState({ lastBreakdownTime: Date.now() });
-      vi.spyOn(Math, 'random').mockReturnValue(0);
-
-      const result = useBreakdownStore.getState().triggerRandomBreakdown(machines);
-      expect(result).toBeNull();
-      expect(useBreakdownStore.getState().activeBreakdowns).toHaveLength(0);
-    });
-
-    it('should only ever pick running machines', () => {
-      vi.spyOn(Math, 'random').mockReturnValue(0); // Forces the 0.3% chance to hit
-
-      const result = useBreakdownStore.getState().triggerRandomBreakdown(machines);
-      expect(result).not.toBeNull();
-      expect(result!.machineId).toBe('rm-101'); // The only running machine
-
-      const idleOnly = useBreakdownStore
-        .getState()
-        .triggerRandomBreakdown([{ id: 'rm-102', name: 'RM 102', status: 'idle' }]);
-      expect(idleOnly).toBeNull();
-    });
-
-    it('should usually skip (random chance gate)', () => {
-      vi.spyOn(Math, 'random').mockReturnValue(0.5); // Above the 0.003 threshold
-      const result = useBreakdownStore.getState().triggerRandomBreakdown(machines);
-      expect(result).toBeNull();
     });
   });
 
