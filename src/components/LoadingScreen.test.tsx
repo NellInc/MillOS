@@ -106,6 +106,72 @@ describe('LoadingScreen final readiness', () => {
     expect(screen.getByRole('progressbar')).toBeVisible();
   });
 
+  it('never moves the progress bar backwards when later assets are queued', () => {
+    const bar = () => Number(screen.getByRole('progressbar').getAttribute('aria-valuenow'));
+    Object.assign(state, { pendingAssets: 8, loadedAssets: 2, totalAssets: 10 });
+    const view = render(<LoadingScreen />);
+    expect(bar()).toBe(19);
+    // The held-asset run read 94, 92, 53, 94, 84, 95: each wave of newly
+    // queued assets grew the total and pulled the bar back.
+    for (const [next, shown] of [
+      [{ pendingAssets: 5, loadedAssets: 5, totalAssets: 10 }, 48],
+      [{ pendingAssets: 15, loadedAssets: 5, totalAssets: 20 }, 48],
+      [{ pendingAssets: 5, loadedAssets: 15, totalAssets: 20 }, 71],
+      [{ pendingAssets: 0, loadedAssets: 20, totalAssets: 20 }, 95],
+      [{ pendingAssets: 30, loadedAssets: 20, totalAssets: 50 }, 95],
+    ] as const) {
+      Object.assign(state, next);
+      view.rerender(<LoadingScreen />);
+      expect(bar()).toBe(shown);
+    }
+    state.ready = true;
+    view.rerender(<LoadingScreen />);
+    expect(bar()).toBe(100);
+  });
+
+  it('offers low graphics within seconds once a complete world is confirmed slow', async () => {
+    useGraphicsStore.getState().setGraphicsQuality('medium');
+    state.prepared = true;
+    const view = render(<LoadingScreen />);
+    await act(async () => vi.advanceTimersByTimeAsync(4999));
+    expect(screen.queryByRole('button', { name: 'Use low graphics' })).toBeNull();
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(
+      screen.getByText('The scene is loaded, but animation is still slow on this device.')
+    ).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Use low graphics' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Open loaded scene (slow)' })).toBeVisible();
+    // A frame window that resets is no longer a confirmed slow world.
+    state.prepared = false;
+    view.rerender(<LoadingScreen />);
+    expect(screen.queryByRole('button', { name: 'Use low graphics' })).toBeNull();
+  });
+
+  it('does not offer low graphics for a brief slow window that clears', async () => {
+    useGraphicsStore.getState().setGraphicsQuality('medium');
+    state.prepared = true;
+    const view = render(<LoadingScreen />);
+    await act(async () => vi.advanceTimersByTimeAsync(3000));
+    state.prepared = false;
+    view.rerender(<LoadingScreen />);
+    await act(async () => vi.advanceTimersByTimeAsync(10000));
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
+  });
+
+  it('says why low graphics is offered after a long load', async () => {
+    useGraphicsStore.getState().setGraphicsQuality('medium');
+    render(<LoadingScreen />);
+    await act(async () => vi.advanceTimersByTimeAsync(29999));
+    expect(screen.queryByText(/taking longer than usual/)).toBeNull();
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(
+      screen.getByText(
+        'Loading is taking longer than usual. Low graphics can help on a slower device.'
+      )
+    ).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Use low graphics' })).toBeVisible();
+  });
+
   it('never lets optional quote failure invalidate scene startup', async () => {
     flags.KNOWLEDGE_LOADING_QUOTES_ENABLED = true;
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
