@@ -174,6 +174,15 @@ export const POLYGON_OFFSET = {
 
   /** Exterior overlay (markings, lines - always on top) */
   exteriorOverlay: { factor: -4, units: -4 },
+
+  /**
+   * Markings on a carriageway or path that is itself at `moderate` (-2): the
+   * connecting road's edge and centre lines, the tunnel-approach stop lines,
+   * the footpath edging. One step in front of the surface they are painted on,
+   * and one step BEHIND `exteriorOverlay`, so yard paint still wins where the
+   * two cross.
+   */
+  carriagewayMarking: { factor: -3, units: -3 },
 } as const;
 
 /**

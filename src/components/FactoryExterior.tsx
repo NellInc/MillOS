@@ -390,8 +390,8 @@ const getGroundBlobMaterial = (): THREE.MeshBasicMaterial => {
       opacity: 0.55,
       depthWrite: false,
       polygonOffset: true,
-      polygonOffsetFactor: -4,
-      polygonOffsetUnits: -4,
+      polygonOffsetFactor: POLYGON_OFFSET.strong.factor,
+      polygonOffsetUnits: POLYGON_OFFSET.strong.units,
     });
   }
   return groundBlobMaterial;
@@ -2700,8 +2700,8 @@ const Pond: React.FC<{
           roughness={0.85}
           depthWrite
           polygonOffset
-          polygonOffsetFactor={-2}
-          polygonOffsetUnits={-2}
+          polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
         />
       </mesh>
       {/* Water surface. KEPT AT 0.15, and independently justified rather than
@@ -3747,8 +3747,8 @@ export const GravelPath: React.FC<{
           roughnessMap={TARMAC_PATH_ROUGHNESS}
           depthWrite
           polygonOffset
-          polygonOffsetFactor={-2}
-          polygonOffsetUnits={-2}
+          polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
         />
       </mesh>
       {/* Edging shares the ground datum, separated only by polygon offset. */}
@@ -3770,8 +3770,8 @@ export const GravelPath: React.FC<{
             roughness={0.9}
             depthWrite
             polygonOffset
-            polygonOffsetFactor={-3}
-            polygonOffsetUnits={-3}
+            polygonOffsetFactor={POLYGON_OFFSET.carriagewayMarking.factor}
+            polygonOffsetUnits={POLYGON_OFFSET.carriagewayMarking.units}
           />
         </mesh>
       ))}
@@ -3842,8 +3842,8 @@ const CurvedPath: React.FC<{
                 roughnessMap={TARMAC_PATH_ROUGHNESS}
                 depthWrite
                 polygonOffset
-                polygonOffsetFactor={-2}
-                polygonOffsetUnits={-2}
+                polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
+                polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
               />
             </mesh>
           </group>
@@ -5884,8 +5884,8 @@ export const CuteCar: React.FC<{
           opacity={0.85}
           depthWrite={false}
           polygonOffset
-          polygonOffsetFactor={-4}
-          polygonOffsetUnits={-4}
+          polygonOffsetFactor={POLYGON_OFFSET.strong.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.strong.units}
         />
       </mesh>
     </group>
@@ -6011,8 +6011,8 @@ const ParkingLot: React.FC<{
           map={TARMAC_LOT_MAP}
           roughnessMap={TARMAC_LOT_ROUGHNESS}
           polygonOffset
-          polygonOffsetFactor={-2}
-          polygonOffsetUnits={-2}
+          polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
         />
       </mesh>
 
@@ -6178,8 +6178,8 @@ const TunnelEntrance: React.FC<{
           map={TARMAC_ROAD_MAP}
           roughnessMap={TARMAC_ROAD_ROUGHNESS}
           polygonOffset
-          polygonOffsetFactor={-2}
-          polygonOffsetUnits={-2}
+          polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
         />
       </mesh>
 
@@ -6424,8 +6424,8 @@ const ConnectingRoad: React.FC<{
           roughnessMap={TARMAC_ROAD_ROUGHNESS}
           depthWrite={false}
           polygonOffset
-          polygonOffsetFactor={-2}
-          polygonOffsetUnits={-2}
+          polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
         />
       </mesh>
 
@@ -6443,8 +6443,8 @@ const ConnectingRoad: React.FC<{
         <meshStandardMaterial
           {...ROAD_PAINT_WHITE}
           polygonOffset
-          polygonOffsetFactor={-3}
-          polygonOffsetUnits={-3}
+          polygonOffsetFactor={POLYGON_OFFSET.carriagewayMarking.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.carriagewayMarking.units}
         />
       </mesh>
       <mesh
@@ -6460,8 +6460,8 @@ const ConnectingRoad: React.FC<{
         <meshStandardMaterial
           {...ROAD_PAINT_WHITE}
           polygonOffset
-          polygonOffsetFactor={-3}
-          polygonOffsetUnits={-3}
+          polygonOffsetFactor={POLYGON_OFFSET.carriagewayMarking.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.carriagewayMarking.units}
         />
       </mesh>
 
@@ -6482,8 +6482,8 @@ const ConnectingRoad: React.FC<{
               {...ROAD_PAINT_YELLOW}
               depthWrite={false}
               polygonOffset
-              polygonOffsetFactor={-3}
-              polygonOffsetUnits={-3}
+              polygonOffsetFactor={POLYGON_OFFSET.carriagewayMarking.factor}
+              polygonOffsetUnits={POLYGON_OFFSET.carriagewayMarking.units}
             />
           </mesh>
         );
@@ -6828,8 +6828,8 @@ const CheckpointBarrier: React.FC<{
         <meshStandardMaterial
           {...ROAD_PAINT_WHITE}
           polygonOffset
-          polygonOffsetFactor={-3}
-          polygonOffsetUnits={-3}
+          polygonOffsetFactor={POLYGON_OFFSET.carriagewayMarking.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.carriagewayMarking.units}
         />
       </mesh>
       <mesh
@@ -6842,8 +6842,8 @@ const CheckpointBarrier: React.FC<{
         <meshStandardMaterial
           {...ROAD_PAINT_WHITE}
           polygonOffset
-          polygonOffsetFactor={-3}
-          polygonOffsetUnits={-3}
+          polygonOffsetFactor={POLYGON_OFFSET.carriagewayMarking.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.carriagewayMarking.units}
         />
       </mesh>
 

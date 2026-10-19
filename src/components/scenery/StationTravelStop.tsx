@@ -6,7 +6,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { STATION_POSTER_PALETTE } from './AuthoredPropTrim';
 import { createDeadDinoPlushGeometry } from './StationSouvenirs';
 import { createRetailPacketGeometry, STATION_RETAIL_ART } from './StationRetailDetails';
-import { EXTERIOR_LAYERS } from '../../constants/renderLayers';
+import { EXTERIOR_LAYERS, POLYGON_OFFSET } from '../../constants/renderLayers';
 
 /** A village-scale travel stop, retaining Dead Dino's identity and source site.
  * Four opaque, static batches; no new lights, audio, game actions or frame work.
@@ -256,8 +256,8 @@ export const StationTravelStop = React.memo(() => {
         vertexColors: true,
         roughness: 0.73,
         polygonOffset: true,
-        polygonOffsetFactor: -1,
-        polygonOffsetUnits: -1,
+        polygonOffsetFactor: POLYGON_OFFSET.standard.factor,
+        polygonOffsetUnits: POLYGON_OFFSET.standard.units,
       }),
     [texture]
   );

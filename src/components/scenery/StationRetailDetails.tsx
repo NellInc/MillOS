@@ -1,3 +1,4 @@
+import { POLYGON_OFFSET } from '../../constants/renderLayers';
 import React, { useEffect, useLayoutEffect, useMemo } from 'react';
 import { useTexture } from '@react-three/drei';
 import * as THREE from 'three';
@@ -134,8 +135,8 @@ const DISPLAY_MATERIAL = new THREE.MeshBasicMaterial({
   map: atlas,
   vertexColors: true,
   polygonOffset: true,
-  polygonOffsetFactor: -1,
-  polygonOffsetUnits: -1,
+  polygonOffsetFactor: POLYGON_OFFSET.standard.factor,
+  polygonOffsetUnits: POLYGON_OFFSET.standard.units,
 });
 
 type V3 = [number, number, number];

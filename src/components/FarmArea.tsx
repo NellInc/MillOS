@@ -45,7 +45,7 @@ import { composeWorldSurface } from '../utils/worldSurface';
 import { PlotGeometry } from '../utils/authoredPlotGeometry';
 import { DrainageCulvert } from './scenery/Tunnel';
 import { PROCEDURAL_TEXTURES } from '../utils/sharedMaterials';
-import { EXTERIOR_LAYERS, RENDER_ORDER } from '../constants/renderLayers';
+import { EXTERIOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../constants/renderLayers';
 import { SITE_LAYOUT } from '../constants/siteLayout';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { createAtmosphereState, sampleAtmosphere } from '../simulation/atmosphere';
@@ -2859,8 +2859,8 @@ export const FarmArea: React.FC = () => {
           roughnessMap={farmBarnyardCobbleRoughness}
           roughness={1.0}
           polygonOffset
-          polygonOffsetFactor={-2}
-          polygonOffsetUnits={-2}
+          polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
         />
       </mesh>
       <FarmPublicRealm />
@@ -2909,8 +2909,8 @@ export const FarmArea: React.FC = () => {
             opacity={0.95}
             depthWrite={false}
             polygonOffset
-            polygonOffsetFactor={-2}
-            polygonOffsetUnits={-2}
+            polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
+            polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
           />
         </mesh>
         {/* The pigs render at FarmArea level, not in this pen group, so they
