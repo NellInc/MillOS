@@ -106,6 +106,12 @@ export interface WorkplaceCampaign {
   repairs: number;
   agreementProved: boolean;
   mission?: WorkplaceMission;
+  /**
+   * The mill's next order, linked at a shift boundary once the commitment's
+   * order is fulfilled. Its fresh receipts credit the cooperative's books;
+   * the season's delivery outcome stays the commitment's.
+   */
+  followOn?: WorkplaceMission;
 }
 
 export interface WorkplaceMember {
@@ -294,7 +300,7 @@ export interface WorkplaceActions {
     seed?: number,
     mission?: WorkplaceMission
   ) => WorkplaceTransitionResult;
-  nextCampaignShift: () => WorkplaceTransitionResult;
+  nextCampaignShift: (followOn?: WorkplaceMission) => WorkplaceTransitionResult;
   /**
    * End an unfinished season with nothing owed. The season is kept as left
    * early, never as a completed review, and the workplace returns to idle.
@@ -332,7 +338,8 @@ export interface WorkplaceActions {
     deltaMinutes: number,
     shippedKg: number,
     emergency: boolean,
-    missionObservation?: WorkplaceMissionObservation
+    missionObservation?: WorkplaceMissionObservation,
+    followOnObservation?: WorkplaceMissionObservation
   ) => void;
   elect: (voterId: string, candidateId: string) => WorkplaceTransitionResult;
   voteSurplus: (voterId: string, destination: SurplusDestination) => WorkplaceTransitionResult;

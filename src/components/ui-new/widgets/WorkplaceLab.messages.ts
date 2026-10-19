@@ -357,7 +357,14 @@ export const workplaceLabMessages = defineMessages({
     allocateSurplus:
       "Allocate {amount} credits to the community. That cash leaves the next shift's budget.",
     ballotsRequired: 'Three member ballots are required. Earned obligations must be settled first.',
-    surplusCharter: 'Shared surplus is part of the Member governance charter.',
+    surplusCharter:
+      'Shared surplus is part of the Coordinator-led and Member governance charters. Under this one, any surplus stays in the cooperative cash.',
+    noSurplusReason:
+      'No surplus this shift: revenue {revenue} did not cover material costs {cost}, wages {wages}, cover {cover} and purchases {purchases}.',
+    followOnCredit:
+      'Commitment order fulfilled. This season now works {customer}: {credited} kg of its dispatch credited to the cooperative.',
+    followOnPending:
+      'Commitment order fulfilled. Dispatch to the mill’s next customer is credited to the cooperative from the next shift.',
     recordSurplusBallot: 'Record member surplus ballot',
     noSurplusBallots: 'No surplus ballots.',
     executeAllocation: 'Execute agreed allocation',
@@ -681,7 +688,13 @@ export const workplaceLabMessages = defineMessages({
     ballotsRequired:
       'São necessários três votos dos cooperados. As obrigações já acumuladas precisam ser quitadas antes.',
     surplusCharter:
-      'As sobras compartilhadas fazem parte do estatuto de Governança dos cooperados.',
+      'As sobras compartilhadas fazem parte dos estatutos Liderado pela coordenação e Governança dos cooperados. Neste estatuto, qualquer sobra fica no caixa da cooperativa.',
+    noSurplusReason:
+      'Sem sobras neste turno: a receita de {revenue} não cobriu os custos de material de {cost}, a remuneração de {wages}, a cobertura de {cover} e as compras de {purchases}.',
+    followOnCredit:
+      'Pedido do compromisso cumprido. Esta temporada agora atende {customer}: {credited} kg da expedição creditados à cooperativa.',
+    followOnPending:
+      'Pedido do compromisso cumprido. A expedição para o próximo cliente do moinho é creditada à cooperativa a partir do próximo turno.',
     recordSurplusBallot: 'Registrar voto do cooperado sobre as sobras',
     noSurplusBallots: 'Nenhum voto sobre as sobras.',
     executeAllocation: 'Executar a destinação acordada',

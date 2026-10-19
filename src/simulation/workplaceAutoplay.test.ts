@@ -166,3 +166,41 @@ it('manual archiving pauses an active runner before it can start another campaig
   expect(useWorkplaceStore.getState().workplace).toBe(before);
   vi.useRealTimers();
 });
+
+it('demonstrates sharing the sobras by member vote in the default season before opening the next shift', () => {
+  for (let i = 0; i < 200 && useWorkplaceStore.getState().workplace.phase !== 'review'; i++) {
+    autoplayWorkplaceStep('toe-dip');
+    if (useWorkplaceStore.getState().workplace.phase === 'active')
+      useWorkplaceStore.getState().tick(5, 0, false);
+  }
+  const reviewed = useWorkplaceStore.getState().workplace;
+  expect(reviewed.campaign?.shift).toBe(0);
+  expect(reviewed.practices).toContain('gainsharing');
+  // Fresh real dispatch earned this shift: 1,200 kg at 0.30 net per kg.
+  useWorkplaceStore.setState({
+    workplace: {
+      ...reviewed,
+      shippedKg: reviewed.shippedKg + 1200,
+      finance: {
+        ...reviewed.finance,
+        operatingRevenue: reviewed.finance.operatingRevenue + 600,
+        operatingCost: reviewed.finance.operatingCost + 240,
+        cash: reviewed.finance.cash + 360,
+      },
+    },
+  });
+  const f = useWorkplaceStore.getState().workplace.finance;
+  const surplus =
+    f.operatingRevenue - f.operatingCost - f.wagesPaid - f.compensationPaid - f.improvementSpend;
+  expect(surplus).toBeGreaterThan(0);
+  const pay = reviewed.members.map((m) => m.earnedPay);
+  for (let i = 0; i < 10 && !useWorkplaceStore.getState().workplace.distributionComplete; i++)
+    expect(autoplayWorkplaceStep('toe-dip').changed).toBe(true);
+  const shared = useWorkplaceStore.getState().workplace;
+  expect(shared.distributionComplete).toBe(true);
+  expect(shared.finance.distributed).toBeCloseTo(surplus, 6);
+  shared.members.forEach((m, i) => expect(m.earnedPay - pay[i]).toBeCloseTo(surplus / 4, 6));
+  expect(shared.events.some((e) => e.kind === 'surplus-decided')).toBe(true);
+  expect(autoplayWorkplaceStep('toe-dip').changed).toBe(true);
+  expect(useWorkplaceStore.getState().workplace.campaign?.shift).toBe(1);
+});

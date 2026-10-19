@@ -73,6 +73,8 @@ export const playableShiftMessages = defineMessages({
     agreedDeferral: 'Agreed deferral: {kg} kg.',
     remainingCommitment: 'Remaining full customer commitment: {kg} kg.',
     fullCommitmentDispatched: ' Full customer commitment dispatched.',
+    followOnCredit:
+      'The season now works {customer}: {kg} kg of its dispatch credited to the cooperative.',
     agreementOutcome: 'Working agreement: {status}. Combined outcome: {combined}.',
     agreementStatus: (p: { status: string }) => p.status,
     outcomeComplete: 'complete',
@@ -181,6 +183,8 @@ export const playableShiftMessages = defineMessages({
     agreedDeferral: 'Adiamento acordado: {kg} kg.',
     remainingCommitment: 'Restante do compromisso total com o cliente: {kg} kg.',
     fullCommitmentDispatched: ' Compromisso total com o cliente expedido.',
+    followOnCredit:
+      'A temporada agora atende {customer}: {kg} kg da expedição creditados à cooperativa.',
     agreementOutcome: 'Acordo de trabalho: {status}. Resultado combinado: {combined}.',
     agreementStatus: (p: { status: string }) => pick(PT_AGREEMENT_STATUS, p.status),
     outcomeComplete: 'concluído',

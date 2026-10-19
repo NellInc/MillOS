@@ -618,6 +618,19 @@ export const WorkplaceLab: React.FC = () => {
               {mission.creditedKg >= mission.originalTargetKg && t('fullDispatchedSuffix')}
             </p>
           )}
+          {campaign?.followOn ? (
+            <p className="tabular-nums">
+              {t('followOnCredit', {
+                customer: campaign.followOn.customer,
+                credited: formatFixed(campaign.followOn.creditedKg, 1),
+              })}
+            </p>
+          ) : (
+            campaign?.mission &&
+            campaign.mission.creditedKg + 1e-6 >= campaign.mission.originalTargetKg && (
+              <p>{t('followOnPending')}</p>
+            )
+          )}
           <div>
             <h4 className="font-semibold text-white">{t('chooseResponse')}</h4>
             <p className="mt-1">
@@ -1485,6 +1498,17 @@ export const WorkplaceLab: React.FC = () => {
               {t('ballotsRequired')}
             </p>
             {!sharedSurplus && <p className="text-amber-100">{t('surplusCharter')}</p>}
+            {sharedSurplus && surplus <= 1e-8 && !state.distributionComplete && (
+              <p className="tabular-nums text-amber-100">
+                {t('noSurplusReason', {
+                  revenue: formatFixed(state.finance.operatingRevenue, 2),
+                  cost: formatFixed(state.finance.operatingCost, 2),
+                  wages: formatFixed(state.finance.wagesPaid, 2),
+                  cover: formatFixed(state.finance.compensationPaid, 2),
+                  purchases: formatFixed(state.finance.improvementSpend, 2),
+                })}
+              </p>
+            )}
             <button
               className={buttonClass}
               disabled={

@@ -469,6 +469,14 @@ function WorkingAgreementSummary({
         {t('remainingCommitment', { kg: formatFixed(outcome.delivery.remainingKg, 0) })}
         {outcome.delivery.remainingKg === 0 && t('fullCommitmentDispatched')}
       </p>
+      {state.campaign.followOn && (
+        <p>
+          {t('followOnCredit', {
+            customer: state.campaign.followOn.customer,
+            kg: formatFixed(state.campaign.followOn.creditedKg, 0),
+          })}
+        </p>
+      )}
       <p>
         {t('agreementOutcome', {
           status: t('agreementStatus', { status: outcome.agreement.status }),

@@ -9,6 +9,7 @@ import type {
   WorkplaceReadiness,
   WorkplaceState,
   WorkplaceTransitionResult,
+  WorkplaceMission,
   WorkplaceMissionObservation,
 } from '../types/workplace';
 import {
@@ -774,7 +775,12 @@ function settle(s: WorkplaceState, reason: string) {
 
 /** Working if unrelated orders, duplicate receipts and a reset material session earn no mission credit. */
 function observeMission(s: WorkplaceState, observation?: WorkplaceMissionObservation): number {
-  const m = workplaceMission(s);
+  return observeLink(workplaceMission(s), observation);
+}
+function observeLink(
+  m: WorkplaceMission | undefined,
+  observation?: WorkplaceMissionObservation
+): number {
   if (!m) return 0;
   if (!observation || observation.orderId !== m.orderId || observation.cancelled) {
     m.evidence = 'missing';
@@ -1178,12 +1184,27 @@ export function transitionWorkplace(
       return { state: fresh, changed: true, reason: null };
     }
     case 'nextCampaignShift': {
+      const [followOn] = command.args;
+      // The next order is linked only once the current link is met, so a
+      // commitment is never swapped for easier credit. Working if the season's
+      // delivery stays the commitment's and later receipts still earn.
+      const link = s.campaign?.followOn ?? s.campaign?.mission;
       if (
         !s.campaign ||
         s.campaign.shift >= 2 ||
         s.phase !== 'review' ||
         s.members.some((m) => m.recoveryOwedMinutes > 0) ||
-        s.objections.some((o) => o.status === 'open')
+        s.objections.some((o) => o.status === 'open') ||
+        (followOn !== undefined &&
+          (!s.campaign.mission ||
+            s.campaign.mission.evidence !== 'current' ||
+            s.campaign.mission.creditedKg + 1e-6 < s.campaign.mission.targetKg ||
+            !link ||
+            (link.evidence === 'current' && link.creditedKg + 1e-6 < link.targetKg) ||
+            !validWorkplaceMission(followOn) ||
+            followOn.creditedKg !== 0 ||
+            followOn.evidence !== 'current' ||
+            followOn.orderId === s.campaign.mission.orderId))
       )
         return reject(translate(wm, 'rejNextShift'));
       const history = [...s.campaign.history, campaignRecord(s)];
@@ -1210,6 +1231,8 @@ export function transitionWorkplace(
         agreementProved: false,
         ...(s.campaign.mission ? { mission: structuredClone(s.campaign.mission) } : {}),
       };
+      const nextLink = followOn ?? s.campaign.followOn;
+      if (nextLink) fresh.campaign.followOn = structuredClone(nextLink);
       record(fresh, 'system', 'campaign-shift-opened', translate(wm, 'evShiftOpened'));
       return { state: fresh, changed: true, reason: null };
     }
@@ -1680,7 +1703,7 @@ export function transitionWorkplace(
       break;
     }
     case 'tick': {
-      const [delta, shipped, emergency, observation] = command.args;
+      const [delta, shipped, emergency, observation, followOnObservation] = command.args;
       if (
         (!['active', 'review'].includes(s.phase) &&
           !(s.phase === 'deliberating' && workplaceMission(s))) ||
@@ -1694,14 +1717,18 @@ export function transitionWorkplace(
         typeof emergency !== 'boolean'
       )
         return reject(translate(wm, 'rejNoTick'));
-      const beforeMission = JSON.stringify(workplaceMission(s));
-      const missionDelivered =
-        s.phase === 'review' && (s.campaign?.shift === 2 || s.improvement)
-          ? 0
-          : observeMission(s, observation);
+      const links = () => JSON.stringify([workplaceMission(s), s.campaign?.followOn]);
+      const beforeMission = links();
+      const observing = !(s.phase === 'review' && (s.campaign?.shift === 2 || s.improvement));
+      const missionDelivered = observing ? observeMission(s, observation) : 0;
+      // The follow-on order earns only from fresh receipts in active work; bad
+      // evidence there stops its credit but never settles the commitment.
+      const followOnDelivered =
+        observing && s.campaign?.followOn && followOnObservation
+          ? observeLink(s.campaign.followOn, followOnObservation)
+          : 0;
       if (s.phase === 'deliberating') {
-        if (JSON.stringify(workplaceMission(s)) === beforeMission)
-          return reject(translate(wm, 'rejNoMissionReceipt'));
+        if (links() === beforeMission) return reject(translate(wm, 'rejNoMissionReceipt'));
         break;
       }
       if (
@@ -1714,7 +1741,7 @@ export function transitionWorkplace(
       }
       if (s.phase === 'review') {
         if (emergency || !s.members.some((m) => m.recoveryOwedMinutes > 0)) {
-          if (JSON.stringify(workplaceMission(s)) !== beforeMission) break;
+          if (links() !== beforeMission) break;
           return reject(translate(wm, 'rejNoRecovery'));
         }
         deliverRecovery(s, delta);
@@ -1727,7 +1754,8 @@ export function transitionWorkplace(
       const elapsed = Math.min(delta, s.durationMinutes - s.minute);
       const delivered =
         s.mode === 'game'
-          ? (workplaceMission(s) ? missionDelivered : shipped) * (elapsed / delta)
+          ? (workplaceMission(s) ? missionDelivered + followOnDelivered : shipped) *
+            (elapsed / delta)
           : 0;
       const ordinaryRest = Math.max(0, Math.min(s.minute + elapsed, 90) - Math.max(s.minute, 75));
       for (const m of s.members) m.restMinutes += ordinaryRest;
@@ -2123,7 +2151,12 @@ function restoreWorkplaceSnapshot(
     if (!r.campaign || typeof r.campaign !== 'object' || Array.isArray(r.campaign)) return fallback;
     const c = r.campaign as WorkplaceState['campaign'] & Record<string, unknown>;
     if (c.mission !== undefined && !validWorkplaceMission(c.mission)) return fallback;
-    const { mission: _mission, ...campaignShape } = c;
+    if (
+      c.followOn !== undefined &&
+      (!c.mission || !validWorkplaceMission(c.followOn) || c.followOn.orderId === c.mission.orderId)
+    )
+      return fallback;
+    const { mission: _mission, followOn: _followOn, ...campaignShape } = c;
     if (
       !validShape(
         {

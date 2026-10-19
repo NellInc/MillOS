@@ -6,7 +6,12 @@ import { join } from 'node:path';
 import * as ts from 'typescript';
 import { unifiedGameTick, resetUnifiedTickState } from '../UnifiedGameTick';
 import { useWorkplaceStore } from '../../stores/workplaceStore';
-import { createWorkplace, workplaceCapacity } from '../../simulation/bilateralWorkplace';
+import {
+  createWorkplace,
+  restoreWorkplace,
+  saveWorkplace,
+  workplaceCapacity,
+} from '../../simulation/bilateralWorkplace';
 import { useProductionStore } from '../../stores/productionStore';
 import { useMaterialFlowStore } from '../../stores/materialFlowStore';
 import { useOperationsCampaignStore } from '../../stores/operationsCampaignStore';
@@ -574,6 +579,7 @@ it('binds the three-shift game to actual selected-order dispatch without double-
   expect(useOperationsCampaignStore.getState().economics.revenue).toBe(revenueBefore);
   const binding = structuredClone(useWorkplaceStore.getState().workplace.campaign!.mission!);
   const reviews = [];
+  const earned: { revenue: number; followOn: string | null; followOnCreditedKg: number }[] = [];
   for (let shift = 0; shift < 3; shift++) {
     if (shift !== 1)
       expect(
@@ -595,6 +601,14 @@ it('binds the three-shift game to actual selected-order dispatch without double-
     );
     expect(workplace.campaign!.mission!.manifestIds).toEqual(actualOrder.manifestIds);
     expect(workplace.campaign!.mission!.evidence).toBe('current');
+    // Later shifts work the mill's next order once the commitment's order is
+    // fulfilled, so the cooperative's books keep earning from real dispatch.
+    expect(workplace.finance.operatingRevenue).toBeCloseTo(workplace.shippedKg * 0.5, 6);
+    earned.push({
+      revenue: workplace.finance.operatingRevenue,
+      followOn: workplace.campaign!.followOn?.orderId ?? null,
+      followOnCreditedKg: workplace.campaign!.followOn?.creditedKg ?? 0,
+    });
     reviews.push({
       workplace: structuredClone(workplace),
       physical: replayResult(),
@@ -603,6 +617,19 @@ it('binds the three-shift game to actual selected-order dispatch without double-
     if (shift < 2) expect(s.nextCampaignShift().changed).toBe(true);
   }
   const outcome = campaignOutcomes(useWorkplaceStore.getState().workplace);
+  const orders = useOperationsCampaignStore.getState().orders;
+  expect(orders.find((o) => o.id === binding.orderId)!.status).toBe('fulfilled');
+  expect(earned[0].followOn).toBeNull();
+  for (const shift of [1, 2]) {
+    expect(earned[shift].followOn).not.toBeNull();
+    expect(earned[shift].followOn).not.toBe(binding.orderId);
+    expect(earned[shift].followOnCreditedKg).toBeGreaterThan(0);
+    expect(earned[shift].revenue).toBeCloseTo(earned[shift].followOnCreditedKg * 0.5, 6);
+  }
+  const final = useWorkplaceStore.getState().workplace;
+  expect(restoreWorkplace(saveWorkplace(final)).campaign?.followOn).toEqual(
+    final.campaign?.followOn
+  );
   expect(useMaterialFlowStore.getState().shippedKg).toBeGreaterThan(0);
   expect(outcome.agreement.status).toBe('honoured');
   expect(outcome.accounts.wages).toBeCloseTo(324);

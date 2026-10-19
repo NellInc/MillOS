@@ -31,7 +31,9 @@ export const MANAGEMENT_APPROACHES: {
       return translate(msg, 'toeDipDetail');
     },
     settings: {
-      practices: ['information', 'rest', 'remedy'],
+      // Sobras are shared on the default path too: members vote on any
+      // positive surplus once obligations are met.
+      practices: ['information', 'rest', 'remedy', 'gainsharing'],
       workerAutonomy: 'directed',
       governance: 'consultative',
       aiAuthority: 'bounded',

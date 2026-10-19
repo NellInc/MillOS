@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type {
+  WorkplaceMission,
   WorkplaceActions,
   WorkplaceState,
   WorkplaceProfile,
@@ -298,6 +299,33 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
                 : ('current' as const),
         };
       };
+      /** A fresh link to the mill's active order, when it is open and quality-qualified. */
+      const openActiveOrderMission = (exceptOrderId?: string): WorkplaceMission | undefined => {
+        const operations = useOperationsCampaignStore.getState();
+        const order = operations.orders.find((o) => o.id === operations.activeOrderId);
+        if (
+          !order ||
+          order.id === exceptOrderId ||
+          order.status === 'fulfilled' ||
+          order.status === 'cancelled' ||
+          operations.activeChallenge ||
+          order.qualityFailureKg !== 0 ||
+          order.requiredKg <= order.shippedKg
+        )
+          return undefined;
+        return {
+          orderId: order.id,
+          customer: order.customer,
+          materialSessionId: useMaterialFlowStore.getState().sessionId,
+          startingShippedKg: order.shippedKg,
+          originalTargetKg: order.requiredKg - order.shippedKg,
+          targetKg: order.requiredKg - order.shippedKg,
+          observedShippedKg: order.shippedKg,
+          creditedKg: 0,
+          manifestIds: [...order.manifestIds],
+          evidence: 'current',
+        };
+      };
       const presentAdvice = (token?: string) => {
         const current = get().workplace;
         const advice =
@@ -506,42 +534,30 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
           return { changed: true, reason: null };
         },
         startMission: (profile, seed = 1) => {
-          const operations = useOperationsCampaignStore.getState();
-          const order = operations.orders.find((o) => o.id === operations.activeOrderId);
-          if (
-            !order ||
-            order.status === 'fulfilled' ||
-            order.status === 'cancelled' ||
-            operations.activeChallenge ||
-            order.qualityFailureKg !== 0 ||
-            order.requiredKg <= order.shippedKg
-          )
+          const mission = openActiveOrderMission();
+          if (!mission)
             return {
               changed: false,
               reason: translate(msg, 'openCommitmentRequired'),
             };
-          return apply({
-            type: 'startCampaign',
-            args: [
-              profile,
-              seed,
-              {
-                orderId: order.id,
-                customer: order.customer,
-                materialSessionId: useMaterialFlowStore.getState().sessionId,
-                startingShippedKg: order.shippedKg,
-                originalTargetKg: order.requiredKg - order.shippedKg,
-                targetKg: order.requiredKg - order.shippedKg,
-                observedShippedKg: order.shippedKg,
-                creditedKg: 0,
-                manifestIds: [...order.manifestIds],
-                evidence: 'current',
-              },
-            ],
-          });
+          return apply({ type: 'startCampaign', args: [profile, seed, mission] });
         },
         startCampaign: (...args) => apply({ type: 'startCampaign', args }),
-        nextCampaignShift: (...args) => apply({ type: 'nextCampaignShift', args }),
+        // Once the order being worked is fulfilled, the next shift works the
+        // mill's active order, so later dispatch still earns the cooperative.
+        // Working if a fulfilled commitment is never relinked to itself.
+        nextCampaignShift: () => {
+          const campaign = get().workplace.campaign;
+          const link = campaign?.followOn ?? campaign?.mission;
+          const operations = useOperationsCampaignStore.getState();
+          const linkedOrder = link && operations.orders.find((o) => o.id === link.orderId);
+          const next =
+            linkedOrder?.status === 'fulfilled' ? openActiveOrderMission(link!.orderId) : undefined;
+          return apply({
+            type: 'nextCampaignShift',
+            args: next && next.orderId !== campaign?.mission?.orderId ? [next] : [],
+          });
+        },
         answerCheck: (...args) => apply({ type: 'answerCheck', args }),
         campaignDecision: (...args) => apply({ type: 'campaignDecision', args }),
         respondToPressure: (...args) => apply({ type: 'respondToPressure', args }),
@@ -604,27 +620,32 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
         stop: (...args) => apply({ type: 'stop', args }),
         tick: (...args) => {
           const mission = workplaceMission(get().workplace);
-          if (mission) {
+          const followOn = get().workplace.campaign?.followOn;
+          const observe = (orderId: string) => {
             const order = useOperationsCampaignStore
               .getState()
-              .orders.find((o) => o.id === mission.orderId);
+              .orders.find((o) => o.id === orderId);
+            return {
+              orderId: order?.id ?? null,
+              materialSessionId: useMaterialFlowStore.getState().sessionId,
+              shippedKg: order?.shippedKg ?? 0,
+              qualityFailureKg: order?.qualityFailureKg ?? 0,
+              manifestIds: [...(order?.manifestIds ?? [])],
+              cancelled: order?.status === 'cancelled',
+            };
+          };
+          if (mission)
             apply({
               type: 'tick',
               args: [
                 args[0],
                 args[1],
                 args[2],
-                {
-                  orderId: order?.id ?? null,
-                  materialSessionId: useMaterialFlowStore.getState().sessionId,
-                  shippedKg: order?.shippedKg ?? 0,
-                  qualityFailureKg: order?.qualityFailureKg ?? 0,
-                  manifestIds: [...(order?.manifestIds ?? [])],
-                  cancelled: order?.status === 'cancelled',
-                },
+                observe(mission.orderId),
+                followOn ? observe(followOn.orderId) : undefined,
               ],
             });
-          } else apply({ type: 'tick', args });
+          else apply({ type: 'tick', args });
         },
         elect: (...args) => apply({ type: 'elect', args }),
         voteSurplus: (...args) => apply({ type: 'voteSurplus', args }),
