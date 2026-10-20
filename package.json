@@ -26,7 +26,7 @@
     "capture:operations": "node scripts/capture-operational-review.mjs",
     "review:stage-ab": "node scripts/stage-blind-ab.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
-    "lint": "eslint src",
+    "lint": "eslint src scripts e2e",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,css}\" \"scripts/**/*.{mjs,cjs,js}\" \"*.{js,cjs,mjs,ts,json}\" public/sw.js",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,css}\" \"scripts/**/*.{mjs,cjs,js}\" \"*.{js,cjs,mjs,ts,json}\" public/sw.js",
     "test:e2e": "playwright test",

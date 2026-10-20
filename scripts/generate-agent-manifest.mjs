@@ -8,7 +8,6 @@ import {
   canonicalStringify,
   validateSystemRegistry,
 } from '../src/agent/contracts/registryValidation.js';
-import { parseSemanticUri } from '../src/agent/ontology/semanticUri.js';
 import { SYSTEM_REGISTRY_SOURCE } from '../src/agent/registry/systemRegistrySource.js';
 import { buildDirectStoreCallInventory } from './lib/agent-mutation-inventory.mjs';
 

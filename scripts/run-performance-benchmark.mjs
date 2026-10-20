@@ -341,7 +341,8 @@ async function startPreview() {
     const cause = error instanceof Error ? error.message : String(error);
     throw new Error(
       `${cause}\nPreview stdout: ${previewStdout.trim() || 'none'}\n` +
-        `Preview stderr: ${previewStderr.trim() || 'none'}`
+        `Preview stderr: ${previewStderr.trim() || 'none'}`,
+      { cause: error }
     );
   }
   return url;
@@ -483,7 +484,8 @@ async function waitForRuntimeStage(page, label, predicate, timeoutMs, diagnostic
         { ...diagnostics, pageState },
         null,
         2
-      )}`
+      )}`,
+      { cause: error }
     );
   }
 }
