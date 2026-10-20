@@ -726,3 +726,27 @@ it('carves broad peak-rooted basins inside the original envelope with exact skyl
     original.dispose();
   }
 });
+
+describe('procedural moon at display size', () => {
+  it('keeps the maria and craters soft enough not to read as blotches', async () => {
+    // At 18:30 the 70 px disc read as a face: dark maria at 0.72 of the way to
+    // a lowland 0.44x the highland, and four craters weighted 0.28.
+    const { readFileSync } = await import('node:fs');
+    const source = readFileSync('src/components/environment/OptimizedSkySystem.tsx', 'utf8');
+    const shader = source.slice(source.indexOf('const moonFragmentShader'));
+    const vec = (name: string) =>
+      shader
+        .match(new RegExp(`vec3 ${name} = vec3\\(([^)]*)\\)`))![1]
+        .split(',')
+        .map(Number);
+    const luminance = ([r, g, b]: number[]) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    const mariaMix = Number(shader.match(/mix\(highland, lowland, maria \* ([0-9.]+)\)/)![1]);
+    const craterWeight = Number(shader.match(/craters \* ([0-9.]+);/)![1]);
+    const darkest =
+      luminance(vec('highland')) +
+      (luminance(vec('lowland')) - luminance(vec('highland'))) * mariaMix;
+    expect(darkest / luminance(vec('highland'))).toBeGreaterThan(0.72);
+    expect(craterWeight).toBeLessThanOrEqual(0.14);
+    expect(source).toContain("'millos-procedural-moon-v2'");
+  });
+});
