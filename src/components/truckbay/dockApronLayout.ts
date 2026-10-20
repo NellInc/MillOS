@@ -22,6 +22,33 @@
 export const DOCK_SLAB_OUTBOARD_U = 4.1;
 
 /**
+ * One of the two 2 m dock platform sections either side of the forklift
+ * channel (the other is mirrored in x). Inner face at x 2.0 on the channel
+ * edge; outer face at x 4.52. The closed roll-up door (9 m wide, 0.15 m deep,
+ * reaching down to the ground) passes 7.5 cm into the platforms' wall end, and
+ * at 4.5 its end faces lay exactly on the platform's outer faces: two colours
+ * at 0 mm. The 2 cm overhang buries those door ends inside the platform.
+ */
+export const DOCK_PLATFORM_SECTION = {
+  x: 3.26,
+  width: 2.52,
+  height: 2,
+  u: 1.2,
+  depth: 5.8,
+} as const;
+
+/** The five rubber bumper blocks across the dock face. */
+export const DOCK_BUMPER_BLOCK = { y: 0.8, height: 1.2 } as const;
+
+/**
+ * The two wear-indicator bumpers (x +/-2), whose 0.4 m rubber sits on the
+ * blocks at x +/-1.75. At y 1.2 the rubber's top lay exactly on the blocks'
+ * top at 1.4. Lowered 2 cm, its top is buried inside the block where they
+ * overlap and its wear strip still straddles the block top.
+ */
+export const DOCK_WEAR_BUMPER = { x: 2, y: 1.18 } as const;
+
+/**
  * The red stop bar across the apron. 4.2-4.6: clear of the slab at 4.1 and of
  * the yard cones (0.4 m bases at u 5, x +/-6 and +/-8) and dock bollards
  * (0.25 m radius at u 5, x +/-5.5) by 15 cm or more.

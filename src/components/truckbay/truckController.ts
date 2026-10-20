@@ -507,7 +507,16 @@ const serviceProgress = (state: TruckControllerState): number =>
     Math.min(1, state.serviceElapsed / Math.max(0.001, SERVICE_DURATION[state.servicePhase]))
   );
 
-const poseFromState = (state: TruckControllerState, safetyHold: boolean): TruckAnimState => {
+/**
+ * `safetyHold` is a real hold (e-stop, drill): the truck is brought to a stop
+ * and held on its service brake. `frozen` is a paused clock, which freezes the
+ * picture and is not a brake application.
+ */
+const poseFromState = (
+  state: TruckControllerState,
+  safetyHold: boolean,
+  frozen: boolean = false
+): TruckAnimState => {
   const serviceT = serviceProgress(state);
   const serviceIndex = SERVICE_ORDER.indexOf(state.servicePhase);
   const atOrAfter = (phase: TruckServicePhase): boolean =>
@@ -534,8 +543,12 @@ const poseFromState = (state: TruckControllerState, safetyHold: boolean): TruckA
   // trailer's world yaw relative to the tractor's world yaw.
   const articulation = shortestVehicleAngle(state.tractorYaw, state.trailerYaw);
   const reverse = speed < -0.01;
+  // Lit only while actually braking: decelerating, the held stop before
+  // reversing, or a safety hold bringing the truck to rest. Never on the parking
+  // brake (docked, engine off, or starting up to leave).
   const braking =
-    safetyHold || state.motion.acceleration < -0.35 || state.phase === 'stopping_to_back';
+    !parkingBrake &&
+    (safetyHold || state.motion.acceleration < -0.35 || state.phase === 'stopping_to_back');
   const turningLeft = state.steeringAngle < -0.08;
   const turningRight = state.steeringAngle > 0.08;
   const signalBlink = Math.floor(state.phaseElapsed * 4) % 2 === 0;
@@ -554,9 +567,10 @@ const poseFromState = (state: TruckControllerState, safetyHold: boolean): TruckA
     trailerAngle: articulation,
     cabRoll: Math.max(-0.06, Math.min(0.06, state.steeringAngle * 0.11)),
     cabPitch: Math.max(-0.055, Math.min(0.055, -state.motion.acceleration * 0.025)),
-    throttle: safetyHold
-      ? 0
-      : Math.min(1, Math.abs(speed) / 18 + Math.max(0, state.motion.acceleration) * 0.08),
+    throttle:
+      safetyHold || frozen
+        ? 0
+        : Math.min(1, Math.abs(speed) / 18 + Math.max(0, state.motion.acceleration) * 0.08),
     doorsOpen: doorOpenAmount > 0.02,
     doorOpenAmount,
     landingGearAmount,
@@ -583,9 +597,10 @@ const poseFromState = (state: TruckControllerState, safetyHold: boolean): TruckA
 
 export function getTruckControllerPose(
   state: TruckControllerState,
-  safetyHold: boolean = false
+  safetyHold: boolean = false,
+  frozen: boolean = false
 ): TruckAnimState {
-  return poseFromState(state, safetyHold);
+  return poseFromState(state, safetyHold, frozen);
 }
 
 const interpolateScalar = (from: number, to: number, alpha: number): number =>

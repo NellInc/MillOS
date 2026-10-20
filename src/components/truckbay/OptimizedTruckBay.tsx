@@ -495,6 +495,27 @@ export const TRAILER_REAR_LAMPS: readonly (DetailInstance & {
   { lamp: 'right-signal', position: [1.08, 1.05, -11.45], scale: [0.22, 0.24, 0.08] },
 ];
 
+/** Emissive colours of the rear lamp lenses (display sRGB). */
+export const TRUCK_REAR_LAMP_EMISSIVE = { brake: '#ff1f26', signal: '#ff9b19' } as const;
+
+/** Rear lamp emissive intensities for one frame. Brake lamps double as tail
+ * lamps, which is how a real rear cluster works. Each lit value keeps the lens's
+ * peak near the Neutral tone curve's shoulder: at 4.5 the curve blended a lit
+ * brake lamp a third of the way to white, and it read pink; signals at 4.2 read
+ * pale yellow. Braking stays clearly brighter than the tail lamp.
+ */
+export function truckRearLampIntensities(
+  state: Pick<TruckAnimState, 'brakeLights' | 'reverseLights' | 'leftSignal' | 'rightSignal'>,
+  lightsOn: boolean
+) {
+  return {
+    brake: state.brakeLights ? 1.2 : lightsOn ? 0.55 : 0.15,
+    reverse: state.reverseLights ? 4.5 : 0.1,
+    leftSignal: state.leftSignal ? 1.2 : 0.12,
+    rightSignal: state.rightSignal ? 1.2 : 0.12,
+  };
+}
+
 // Hang from the underframe down to just above the road, aligned with the tyre
 // they trail: x 1.165-1.585 against a tyre at 1.19-1.57.
 const TRAILER_MUDFLAPS: readonly DetailInstance[] = [
@@ -620,7 +641,7 @@ export function OptimizedTruckVisual({
     () =>
       new THREE.MeshStandardMaterial({
         color: '#3d1112',
-        emissive: '#ff1f26',
+        emissive: TRUCK_REAR_LAMP_EMISSIVE.brake,
         emissiveIntensity: 0.15,
         roughness: 0.22,
         metalness: 0,
@@ -644,7 +665,7 @@ export function OptimizedTruckVisual({
     () =>
       new THREE.MeshStandardMaterial({
         color: '#6b4409',
-        emissive: '#ff9b19',
+        emissive: TRUCK_REAR_LAMP_EMISSIVE.signal,
         emissiveIntensity: 0.12,
         roughness: 0.22,
         metalness: 0,
@@ -656,7 +677,7 @@ export function OptimizedTruckVisual({
     () =>
       new THREE.MeshStandardMaterial({
         color: '#6b4409',
-        emissive: '#ff9b19',
+        emissive: TRUCK_REAR_LAMP_EMISSIVE.signal,
         emissiveIntensity: 0.12,
         roughness: 0.22,
         metalness: 0,
@@ -1058,11 +1079,11 @@ export function OptimizedTruckVisual({
     // until the next day/night boundary - potentially a whole game day away.
     if (beamRef.current) beamRef.current.visible = lightsOn;
 
-    // Brake lamps double as tail lamps, which is how a real rear cluster works.
-    brakeMaterial.emissiveIntensity = state.brakeLights ? 4.5 : lightsOn ? 1.1 : 0.15;
-    reverseMaterial.emissiveIntensity = state.reverseLights ? 4.5 : 0.1;
-    leftSignalMaterial.emissiveIntensity = state.leftSignal ? 4.2 : 0.12;
-    rightSignalMaterial.emissiveIntensity = state.rightSignal ? 4.2 : 0.12;
+    const lamps = truckRearLampIntensities(state, lightsOn);
+    brakeMaterial.emissiveIntensity = lamps.brake;
+    reverseMaterial.emissiveIntensity = lamps.reverse;
+    leftSignalMaterial.emissiveIntensity = lamps.leftSignal;
+    rightSignalMaterial.emissiveIntensity = lamps.rightSignal;
 
     const doorAngle = state.doorOpenAmount * 1.32;
     if (leftDoorRef.current) leftDoorRef.current.rotation.y = doorAngle;

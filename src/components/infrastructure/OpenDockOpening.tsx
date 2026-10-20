@@ -349,6 +349,28 @@ const DockMechanism: React.FC<DockMechanismProps> = ({
   );
 };
 
+/** I-beam section of the dock frame posts and header. */
+export const DOCK_FRAME_SECTION = { width: 0.8, depth: 0.6 } as const;
+
+/**
+ * Vertical spans (opening-local y) of the post flanges and the outer header
+ * flange. The header flange hangs 0.1 m below the header, so the outer post
+ * flanges stop where it begins: run to full height, the two plates shared both
+ * faces over that 0.1 m band at the top of every post.
+ */
+export function dockFrameFlangeSpans(height: number) {
+  const { width } = DOCK_FRAME_SECTION;
+  const headerFlange = {
+    y0: height + width / 2 - (width + 0.2) / 2,
+    y1: height + width / 2 + (width + 0.2) / 2,
+  };
+  return {
+    outerPostFlange: { y0: 0, y1: headerFlange.y0 },
+    innerPostFlange: { y0: 0, y1: height },
+    headerFlange,
+  };
+}
+
 /**
  * Open-air dock opening with steel frame structure.
  * Creates a walkthrough/see-through loading dock entrance
@@ -364,8 +386,10 @@ export const OpenDockOpening: React.FC<OpenDockOpeningProps> = ({
   dock,
 }) => {
   const halfWidth = width / 2;
-  const frameWidth = 0.8; // I-beam width
-  const frameDepth = 0.6;
+  const frameWidth = DOCK_FRAME_SECTION.width; // I-beam width
+  const frameDepth = DOCK_FRAME_SECTION.depth;
+  const flanges = dockFrameFlangeSpans(height);
+  const outerFlangeHeight = flanges.outerPostFlange.y1 - flanges.outerPostFlange.y0;
   // One diagonal every 4 m across the full `width + 2` threshold band.
   const stripeCount = Math.floor((width + 2) / 4);
 
@@ -383,8 +407,12 @@ export const OpenDockOpening: React.FC<OpenDockOpeningProps> = ({
           <mesh
             geometry={UNIT_BOX}
             material={MATERIALS.flange}
-            scale={[frameWidth + 0.3, height, 0.15]}
-            position={[0, 0, frameDepth / 2 + 0.1]}
+            scale={[frameWidth + 0.3, outerFlangeHeight, 0.15]}
+            position={[
+              0,
+              (flanges.outerPostFlange.y0 + flanges.outerPostFlange.y1) / 2 - height / 2,
+              frameDepth / 2 + 0.1,
+            ]}
             castShadow
           />
           <mesh
