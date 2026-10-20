@@ -39,6 +39,20 @@ export const YARD_GROUND_DEPTH = {
   },
 } as const;
 
+/**
+ * Tyre tracks and oil stains (`YardWearMarks.tsx`) are paint-class: they cross
+ * yard, apron and the paint already there, so they take the paint's bias and
+ * never write depth, which lets them blend over a guide line rather than tie
+ * with it.
+ */
+export const YARD_WEAR_DEPTH = {
+  polygonOffset: true,
+  polygonOffsetFactor: POLYGON_OFFSET.exteriorOverlay.factor,
+  polygonOffsetUnits: POLYGON_OFFSET.exteriorOverlay.units,
+  depthWrite: false,
+  transparent: true,
+} as const;
+
 const cloneYardTexture = (
   source: THREE.Texture,
   repeatX: number,

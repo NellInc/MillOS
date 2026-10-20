@@ -56,10 +56,10 @@ import {
 } from './exterior/riverGeometry';
 import { UTILITY_ASSET_DEFINITIONS } from '../constants/utilityAssets';
 import {
-  containmentLayoutForVessels,
   generateContainmentPad,
   generateContainmentPadRoughness,
 } from '../textures/containmentPad';
+import { TANK_FARM_PAD_LAYOUT, TANK_FARM_PAD_SIZE } from '../textures/tankFarmPad';
 import { ServiceBuildingCraft, SERVICE_BUILDING_ENVELOPES } from './exterior/serviceBuildingCraft';
 import { ServiceEntranceLighting } from './exterior/ServiceEntranceLighting';
 import {
@@ -190,18 +190,9 @@ const UTILITY_CONCRETE_MATERIAL = new THREE.MeshStandardMaterial({
  * drip stains sit under the real saddles and the drip lines under the real
  * flanks - see `textures/containmentPad.ts`. The albedo is sRGB, so the tint is
  * white. The propane pad keeps the plain material: this layout is not its own.
+ * Size and layout live in `textures/tankFarmPad.ts`, where the startup bake
+ * worker builds these two maps from the same layout.
  */
-const TANK_FARM_PAD_SIZE = { width: 22, height: 0.18, depth: 42 } as const;
-const TANK_FARM_PAD_LAYOUT = containmentLayoutForVessels(
-  TANK_FARM_PAD_SIZE.width,
-  TANK_FARM_PAD_SIZE.depth,
-  UTILITY_ASSET_DEFINITIONS.filter((asset) => asset.compound === 'tank_farm').map((asset) => ({
-    x: asset.relativePosition[0],
-    z: asset.relativePosition[2],
-    length: asset.length ?? 8,
-    radius: asset.radius,
-  }))
-);
 const TANK_FARM_PAD_MATERIAL = new THREE.MeshStandardMaterial({
   color: '#ffffff',
   map: generateContainmentPad(TANK_FARM_PAD_LAYOUT),

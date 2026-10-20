@@ -179,7 +179,7 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     qualityVariants: ['low', 'medium', 'high', 'ultra'],
     uniformOwner: 'module-level moonMaterial, single `opacity` uniform driven by the day cycle',
     timeSource: 'simulation',
-    cacheKey: 'millos-procedural-moon-v1',
+    cacheKey: 'millos-procedural-moon-v2',
     disposalOwner: 'module lifetime',
     fallbackMaterial: 'opacity 0, the disc simply does not draw',
   },

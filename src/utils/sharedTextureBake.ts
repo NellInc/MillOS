@@ -6,7 +6,9 @@
  * chunk, which froze the loading cover and stalled loader parsing. This runs
  * the same recipes (`sharedTextureRecipes.ts`) in a small worker pool, rebuilds
  * each result with `textureBakeCodec.ts` and seeds the `getTexture` cache, so
- * when the scene chunk evaluates every generator call is a cache hit.
+ * when the scene chunk evaluates every generator call is a cache hit. The
+ * scene chunk's own module-level textures (`sceneTextureRecipes.ts`, ~1.1 s
+ * more) ride the same pool; `startupTextureRecipes.ts` combines the two.
  *
  * Nothing here can change what renders: a recipe that is not baked in time
  * (no Worker support, a worker error, the timeout) is simply generated on the
@@ -17,7 +19,7 @@
  */
 import { seedGeneratedTexture } from './textureGenerator';
 import { isBakedTexture, restoreGeneratedTexture } from './textureBakeCodec';
-import { SHARED_TEXTURE_BAKE_ORDER, type SharedTextureRecipeName } from './sharedTextureRecipes';
+import { STARTUP_TEXTURE_BAKE_ORDER, type StartupTextureRecipeName } from './startupTextureRecipes';
 
 /**
  * Upper bound on how long the scene chunk waits for the bake. A hung or
@@ -63,7 +65,7 @@ const bakeWorkerCount = (): number => {
 
 const runBake = (): Promise<SharedTextureBakeResult> => {
   const started = now();
-  const total = SHARED_TEXTURE_BAKE_ORDER.length;
+  const total = STARTUP_TEXTURE_BAKE_ORDER.length;
   if (typeof Worker === 'undefined') {
     return Promise.resolve({
       baked: 0,
@@ -78,9 +80,9 @@ const runBake = (): Promise<SharedTextureBakeResult> => {
 
   mark('millos:texture-bake-start');
   return new Promise((resolve) => {
-    const queue: SharedTextureRecipeName[] = [...SHARED_TEXTURE_BAKE_ORDER];
+    const queue: StartupTextureRecipeName[] = [...STARTUP_TEXTURE_BAKE_ORDER];
     const live = new Set<Worker>();
-    const busy = new Map<Worker, SharedTextureRecipeName>();
+    const busy = new Map<Worker, StartupTextureRecipeName>();
     let baked = 0;
     let seeded = 0;
     let failed = 0;

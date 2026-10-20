@@ -16,7 +16,7 @@ import { TerrainMaterial } from './TerrainMaterial';
 import {
   generateSplatMap,
   getRiverHeightfield,
-  sampleValleyRelief,
+  sampleValleyReliefAtGridVertex,
   MILLOS_TERRAIN_REGIONS,
   MILLOS_RIVER_CONFIG,
   type RiverChannelConfig,
@@ -109,9 +109,19 @@ export function createDisplacedGeometry(
     // - 0 = canyon floor (carve DOWN by displacementDepth)
     // - 1 = terrain (no displacement)
     // The plane will be rotated -PI/2 around X, so local Z becomes world Y
+    // PlaneGeometry writes vertex (ix, iy) at index iy * (segments + 1) + ix.
+    // The relief is shared with `sampleTerrainGroundHeight`'s grid wherever
+    // this vertex's coordinates are exactly that grid vertex; otherwise it is
+    // computed here as before (see `sampleValleyReliefAtGridVertex`).
     const displacement =
       (heightValue - 1) * displacementDepth +
-      sampleValleyRelief(positions.getX(i), -positions.getY(i));
+      sampleValleyReliefAtGridVertex(
+        positions.getX(i),
+        -positions.getY(i),
+        i % (segments + 1),
+        Math.floor(i / (segments + 1)),
+        segments
+      );
 
     // Modify the Z coordinate (which becomes world Y after rotation)
     const currentZ = positions.getZ(i);

@@ -159,6 +159,37 @@ export function neutraliseNightFill(target: THREE.Color, daylight: number): THRE
   return target.lerp(_neutral.setRGB(luminance, luminance, luminance), weight);
 }
 
+/** How much of the twilight fill's colour is pulled to a warm neutral. */
+export const TWILIGHT_FILL_NEUTRALISE = 0.75;
+/** Warm-neutral grey the twilight fill is pulled toward, at unit luminance. */
+const TWILIGHT_GREY = new THREE.Color(1.03, 1.0, 0.95);
+TWILIGHT_GREY.multiplyScalar(
+  1 / (0.2126 * TWILIGHT_GREY.r + 0.7152 * TWILIGHT_GREY.g + 0.0722 * TWILIGHT_GREY.b)
+);
+
+/**
+ * Pull the twilight horizon fill toward a warm neutral grey.
+ *
+ * Around sunset the horizon the hemisphere copies is the blue-hour violet
+ * mixed with the warm band, a mauve (#a5908f at 18:30), and the dusk shoulder
+ * lifts it to 2.2: it carried 56% of the yard's light and turned the beige
+ * tarmac violet. Skylight on the ground at civil twilight is mostly the
+ * overhead dome, close to neutral; the sky itself keeps its colour. Bell over
+ * the twilight band of solar elevation, exactly inert at noon and deep night
+ * (the night fill has its own neutralisation).
+ * Working if dusk tarmac reads neutral-warm grey while the sky stays mauve.
+ */
+export function neutraliseTwilightFill(target: THREE.Color, solarElevation: number): THREE.Color {
+  if (!Number.isFinite(solarElevation)) return target;
+  const weight =
+    THREE.MathUtils.smoothstep(solarElevation, -0.42, -0.22) *
+    (1 - THREE.MathUtils.smoothstep(solarElevation, -0.02, 0.1)) *
+    TWILIGHT_FILL_NEUTRALISE;
+  if (weight <= 0) return target;
+  const luminance = 0.2126 * target.r + 0.7152 * target.g + 0.0722 * target.b;
+  return target.lerp(_neutral.copy(TWILIGHT_GREY).multiplyScalar(luminance), weight);
+}
+
 /** Angular radius of the sun disc stamped into the environment, in radians. */
 export const SUN_DISC_RADIANS = (6 * Math.PI) / 180;
 
@@ -596,6 +627,7 @@ export function SceneEnvironmentIBL(): React.JSX.Element {
         : hemisphereFillIntensity(atmosphere.daylight, sunAboveHorizon);
       hemisphere.color.copy(_horizon);
       if (!referenceLighting) neutraliseNightFill(hemisphere.color, atmosphere.daylight);
+      if (!referenceLighting) neutraliseTwilightFill(hemisphere.color, atmosphere.solarElevation);
       if (referenceLighting) hemisphere.groundColor.copy(_ground);
       else {
         applyGroundBouncePalette(hemisphere.groundColor, _ground, atmosphere.daylight);
