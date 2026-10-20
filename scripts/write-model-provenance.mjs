@@ -19,10 +19,11 @@
  *
  *   npm run provenance:models
  *
- * It reads only, apart from the two JSON files it writes, so it never touches a
- * GLB and cannot introduce the 4-byte forklift drift that re-running
- * normalization does.
+ * It reads only, apart from the PROVENANCE.json files it writes, so it never
+ * touches a GLB. Its JSON.stringify layout is the format of record for those
+ * files, which is why `.prettierignore` excludes them.
  */
+import console from 'node:console';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';

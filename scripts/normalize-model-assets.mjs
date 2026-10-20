@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import console from 'node:console';
 import { copyFile, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { constants as fsConstants } from 'node:fs';
@@ -3434,6 +3435,19 @@ export const GENERATED_ASSETS = [
   },
 ];
 
+/**
+ * The glTF `asset` fields every generated derivative ships with. Exported so a
+ * test can hold the committed GLBs to it: twenty world files once shipped with
+ * a bare generator, one of them without the CC BY 4.0 credit its spec declares,
+ * because they were committed before the spec changed and never regenerated.
+ */
+export function generatedAssetHeader(spec) {
+  return {
+    generator: `MillOS generated-asset pipeline, glTF-Transform ${GLTF_TRANSFORM_VERSION}`,
+    copyright: spec.runtimeAttribution ?? spec.attribution ?? GENERATED_ASSET_ATTRIBUTION,
+  };
+}
+
 function generatedAssetPaths(spec) {
   return {
     source: path.join(SOURCE_ROOT, spec.area, `${spec.slug}-tripo-original.glb`),
@@ -3650,10 +3664,7 @@ export async function normalizeGeneratedAsset(io, spec) {
   );
 
   scene.setName(`MillOS_${titleCase(spec.area)}_${titleCase(spec.slug)}`);
-  Object.assign(root.getAsset(), {
-    generator: `MillOS generated-asset pipeline, glTF-Transform ${GLTF_TRANSFORM_VERSION}`,
-    copyright: spec.runtimeAttribution ?? spec.attribution ?? GENERATED_ASSET_ATTRIBUTION,
-  });
+  Object.assign(root.getAsset(), generatedAssetHeader(spec));
 
   indexGeneratedGeometry(document);
   let geometryRefinement;
@@ -4101,8 +4112,12 @@ async function main() {
 
 // Only normalize when run as a command. This module also exports
 // GENERATED_ASSETS for the provenance writer, and an import that rewrote every
-// GLB as a side effect would be a trap - not least because a normalization pass
-// rewrites `public/models/forklift/forklift.glb` by 4 bytes of unrelated drift.
+// GLB as a side effect would be a trap. The normalizer is byte-deterministic:
+// two consecutive full runs (2026-10-20) wrote all 151 files identically, and
+// the report differed only in `generatedAt`. The "4 bytes of drift" once noted
+// here was the shipped forklift still naming its seat `operator-seat` after
+// a2662a8a renamed it `control-seat` here and in ForkliftModel; the
+// ForkliftModel test now holds the shipped names to the runtime table.
 if (isCommand) {
   if (unknownArguments.length)
     throw new Error(`Unsupported arguments: ${unknownArguments.join(', ')}`);
