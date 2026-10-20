@@ -22,13 +22,7 @@ import {
   type RiverChannelConfig,
 } from './splatMapGenerator';
 import { TERRAIN_BOUNDS, SPLAT_BOUNDS, TERRAIN_TINTS, type TerrainBounds } from './terrainTypes';
-import {
-  generateGrassSurface,
-  generateTarmacSurface,
-  generateDirtSurface,
-  generateDirtGravel,
-  generateTerrainMacro,
-} from './terrainTextures';
+import { getTerrainDirtTexture, getTerrainSurfaceMaps } from './terrainTextures';
 import { PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { useGraphicsStore } from '../../stores/graphicsStore';
@@ -216,20 +210,10 @@ export const TerrainGround = React.memo(function TerrainGround({
 
   // Terrain surface data. Generated lazily on first mount and memoised in the
   // shared texture cache, so a quality toggle never regenerates them.
-  const dirtTexture = useMemo(() => generateDirtGravel(256), []);
+  // Both are also baked off the main thread at startup (sceneTextureRecipes).
+  const dirtTexture = useMemo(() => getTerrainDirtTexture(), []);
   const surfaceMaps = useMemo(
-    () =>
-      surfaceDetail
-        ? {
-            grass: generateGrassSurface(256),
-            tarmac: generateTarmacSurface(256),
-            dirt: generateDirtSurface(256),
-            // 256, not 128: the alpha channel now carries the grass tile break
-            // that used to cost its own texture tap, and that channel needs the
-            // resolution. See generateTerrainMacro.
-            macro: generateTerrainMacro(256),
-          }
-        : null,
+    () => (surfaceDetail ? getTerrainSurfaceMaps() : null),
     [surfaceDetail]
   );
 

@@ -490,3 +490,20 @@ export const generateTerrainMacro = (size: number = 256): THREE.DataTexture =>
 
     return createLinearDataTexture(data, size, size);
   });
+
+/**
+ * The maps `TerrainGround` samples, at the sizes it samples them. The startup
+ * bake recipes call these same two functions, so the worker lands on exactly
+ * the keys the terrain asks for at mount (~0.18 s of main thread otherwise).
+ */
+export const getTerrainDirtTexture = (): THREE.DataTexture => generateDirtGravel(256);
+
+export const getTerrainSurfaceMaps = () => ({
+  grass: generateGrassSurface(256),
+  tarmac: generateTarmacSurface(256),
+  dirt: generateDirtSurface(256),
+  // 256, not 128: the alpha channel now carries the grass tile break
+  // that used to cost its own texture tap, and that channel needs the
+  // resolution. See generateTerrainMacro.
+  macro: generateTerrainMacro(256),
+});

@@ -52,6 +52,19 @@ const GOLDEN_4DD77779: Record<string, string> = {
   flourSackPrint: '128x128:srgb:6cc90ec4656bf16d',
 };
 
+/** The mount-time terrain, sack cloth and spout maps, by direct generator call on 0dbb4ed6. */
+const GOLDEN_0DBB4ED6: Record<string, string> = {
+  'terrainSurfaceMaps.grass': '256x256::510e29156b68de2a',
+  'terrainSurfaceMaps.tarmac': '256x256::d47e0b6cebee615f',
+  'terrainSurfaceMaps.dirt': '256x256::c1eaab213a2bd7e7',
+  'terrainSurfaceMaps.macro': '256x256::0b30e730098c7b3e',
+  terrainDirt: '256x256:srgb:678f35f8c71e0485',
+  'flourSackCloth.map': '256x256:srgb:37ea388885e8abd3',
+  'flourSackCloth.normal': '256x256::021ee147dbc6c92c',
+  'flourSackCloth.roughness': '256x256::062a86015853c761',
+  spoutDetailNormal: '256x256::df4517730e743a02',
+};
+
 const fingerprint = (texture: THREE.Texture): string => {
   const image = texture.image as { data: Uint8Array; width: number; height: number };
   const digest = createHash('sha256').update(image.data).digest('hex').slice(0, 16);
@@ -120,6 +133,7 @@ describe('scene texture startup bake', () => {
     expect(Object.fromEntries([...cold].map(([key, t]) => [key, fingerprint(t)]))).toEqual({
       ...GOLDEN_0B899E77,
       ...GOLDEN_4DD77779,
+      ...GOLDEN_0DBB4ED6,
     });
     // The bake order runs every startup recipe exactly once.
     expect(new Set(a.startup.STARTUP_TEXTURE_BAKE_ORDER)).toEqual(
@@ -161,6 +175,13 @@ describe('scene texture startup bake', () => {
     await import('./flourSacks');
     // machineSurfaces builds its instrument screen (~15 ms) at evaluation; it
     // lives in a React-side module and is deliberately not baked.
+    expect(generatedOnMainThread).toEqual(['v2-srgb:machine-instrument-screen-v1']);
+    // Built at mount: the terrain's own map functions and the idle preloader.
+    const terrain = await import('../components/terrain/terrainTextures');
+    terrain.getTerrainSurfaceMaps();
+    terrain.getTerrainDirtTexture();
+    const { preloadGenerativeTextures } = await import('./texturePreloader');
+    await preloadGenerativeTextures();
     expect(generatedOnMainThread).toEqual(['v2-srgb:machine-instrument-screen-v1']);
 
     for (const name of names)
