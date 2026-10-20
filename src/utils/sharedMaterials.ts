@@ -8,33 +8,12 @@
  */
 import * as THREE from 'three';
 import { markSurfaceSubstrate } from './worldSurface';
-import { generateBrushedMetal, generateMachineORM } from '../textures/brushedMetal';
-import {
-  generateMachinePanelNormal,
-  generatePanelNormal,
-  generateProceduralNormal,
-} from '../textures/normalGenerator';
-import { generateRustPattern } from '../textures/rust';
-import { generateSafetyStripe } from '../textures/safetyStripe';
-import { generateBrick, generateBrickNormal } from '../textures/brick';
-import { generateBark, generateBarkNormal, generateBarkRoughness } from '../textures/bark';
-import {
-  generateCobblestone,
-  generateCobblestoneNormal,
-  generateCobblestoneRoughness,
-} from '../textures/cobblestone';
-import { generateMud, generateMudRoughness } from '../textures/mud';
-import {
-  generateClayTiles,
-  generateClayTilesNormal,
-  generateSlate,
-  generateSlateNormal,
-  generateThatch,
-  generateThatchNormal,
-} from '../textures/roofTiles';
-import { generateStucco, generateStuccoNormal, generateStuccoRoughness } from '../textures/stucco';
+import { SHARED_TEXTURE_RECIPES as RECIPES } from './sharedTextureRecipes';
 
-// Generate procedural textures for metal materials (cached on first call)
+// Procedural textures come from `sharedTextureRecipes.ts` (cached by key). The
+// startup bake (`sharedTextureBake.ts`) generates the same recipes in workers
+// before the scene chunk evaluates, so in the browser these calls are cache
+// hits; anywhere the bake has not run they generate here, as they always did.
 //
 // RETAINED FOR COMPATIBILITY ONLY - do not bind either of these to a material
 // in this file. Both are exported through `PROCEDURAL_TEXTURES` and are still
@@ -53,8 +32,8 @@ import { generateStucco, generateStuccoNormal, generateStuccoRoughness } from '.
 //   mip chain erases it and the map is inert. See the doc comment on
 //   `generateMachinePanelNormal`, which specifies its bevel in PIXELS for
 //   exactly this reason.
-const brushedMetalTexture = generateBrushedMetal(256, 0.4, 'horizontal');
-const panelNormalTexture = generatePanelNormal(256, 8, 0.02);
+const brushedMetalTexture = RECIPES.brushedMetal();
+const panelNormalTexture = RECIPES.panelNormal();
 
 /**
  * Shared metal ORM map in glTF channel order: R = AO, G = roughness,
@@ -84,7 +63,7 @@ const panelNormalTexture = generatePanelNormal(256, 8, 0.02);
  * number that is right for both, and (1, 1) is the only value that changes
  * nothing except the fact that roughness now actually varies.
  */
-const metalOrmTexture = generateMachineORM(512, 'horizontal', 128).clone();
+const metalOrmTexture = RECIPES.machineORM().clone();
 metalOrmTexture.needsUpdate = true;
 
 /**
@@ -103,7 +82,7 @@ const ORM_AO_INTENSITY = 0.7;
  * mip chain. Key `(512, 4, 7)` is shared with `machineSurfaces.ts` and
  * `OptimizedFactoryInfrastructure.tsx`, so it is a free cache hit.
  */
-const machinePanelNormalTexture = generateMachinePanelNormal(512, 4, 7).clone();
+const machinePanelNormalTexture = RECIPES.machinePanelNormal().clone();
 machinePanelNormalTexture.needsUpdate = true;
 
 /**
@@ -112,45 +91,37 @@ machinePanelNormalTexture.needsUpdate = true;
  * broken one it replaces.
  */
 const PANEL_NORMAL_SCALE = new THREE.Vector2(0.6, 0.6);
-const rustTexture = generateRustPattern(256, 0.3, 'down');
-const safetyStripeTexture = generateSafetyStripe(256, 32, {
-  primary: '#fbbf24',
-  secondary: '#1f2937',
-});
-const brickColorTexture = generateBrick(512, {
-  baseColor: '#8b4513',
-  brickWidth: 32,
-  brickHeight: 16,
-});
-const brickNormalTexture = generateBrickNormal(512, 32, 16, 2);
-const barkOakTexture = generateBark(256, 'oak');
-const barkBirchTexture = generateBark(256, 'birch');
-const barkOakRoughnessTexture = generateBarkRoughness(256, 'oak');
-const barkNormalTexture = generateBarkNormal(256);
+const rustTexture = RECIPES.rust();
+const safetyStripeTexture = RECIPES.safetyStripe();
+const brickColorTexture = RECIPES.brickColor();
+const brickNormalTexture = RECIPES.brickNormal();
+const barkOakTexture = RECIPES.barkOak();
+const barkBirchTexture = RECIPES.barkBirch();
+const barkOakRoughnessTexture = RECIPES.barkOakRoughness();
+const barkNormalTexture = RECIPES.barkNormal();
 // One64-cell laid family, registered across the existing512/512/256px maps.
-const cobblestoneColorTexture = generateCobblestone(512, { stoneSize: 8 });
-const cobblestoneNormalTexture = generateCobblestoneNormal(512, 8);
-const cobblestoneRoughnessTexture = generateCobblestoneRoughness(256, 4);
+const cobblestoneColorTexture = RECIPES.cobblestoneColor();
+const cobblestoneNormalTexture = RECIPES.cobblestoneNormal();
+const cobblestoneRoughnessTexture = RECIPES.cobblestoneRoughness();
 
 // Enable wrapping for cobblestone textures (repeat set per-geometry for consistent world-scale)
 cobblestoneColorTexture.wrapS = cobblestoneColorTexture.wrapT = THREE.RepeatWrapping;
 cobblestoneNormalTexture.wrapS = cobblestoneNormalTexture.wrapT = THREE.RepeatWrapping;
-const mudColorTexture = generateMud(512, { wetness: 0.5 });
-const mudRoughnessTexture = generateMudRoughness(512, 0.5);
+const mudColorTexture = RECIPES.mudColor();
+const mudRoughnessTexture = RECIPES.mudRoughness();
 
 // Village roof textures - using larger tiles for visible detail
-const clayTilesColorTexture = generateClayTiles(512, { tileWidth: 40, tileHeight: 56 });
-const clayTilesNormalTexture = generateClayTilesNormal(512, 40, 56);
-const slateColorTexture = generateSlate(512, { tileWidth: 44, tileHeight: 32 });
-const slateNormalTexture = generateSlateNormal(512, 44, 32);
-const thatchSurfaceOptions = { bundleWidth: 40, density: 0.8 };
-const thatchColorTexture = generateThatch(512, thatchSurfaceOptions);
-const thatchNormalTexture = generateThatchNormal(512, thatchSurfaceOptions);
+const clayTilesColorTexture = RECIPES.clayTilesColor();
+const clayTilesNormalTexture = RECIPES.clayTilesNormal();
+const slateColorTexture = RECIPES.slateColor();
+const slateNormalTexture = RECIPES.slateNormal();
+const thatchColorTexture = RECIPES.thatchColor();
+const thatchNormalTexture = RECIPES.thatchNormal();
 
 // Village wall textures - neutral gray for proper tinting
-const stuccoColorTexture = generateStucco(512, { weathering: 0.12, contrast: 0.1 });
-const stuccoNormalTexture = generateStuccoNormal(512, 0.35);
-const stuccoRoughnessTexture = generateStuccoRoughness(512, 0.75);
+const stuccoColorTexture = RECIPES.stuccoColor();
+const stuccoNormalTexture = RECIPES.stuccoNormal();
+const stuccoRoughnessTexture = RECIPES.stuccoRoughness();
 
 // === METAL MATERIALS ===
 //
@@ -297,10 +268,10 @@ export const METAL_MATERIALS = {
 // shading - the real belts are shaded in `ConveyorSystem.tsx`), so the group is
 // gone. The texture itself stays: three files bind it through
 // `PROCEDURAL_TEXTURES.rubberNormal`.
-const rubberNormalTexture = generateProceduralNormal(256, 0.3, 25);
+const rubberNormalTexture = RECIPES.rubberNormal();
 
 // Generate painted metal texture for safety equipment
-const paintedMetalNormal = generateProceduralNormal(256, 0.4, 12);
+const paintedMetalNormal = RECIPES.paintedMetalNormal();
 
 // === SAFETY/ACCENT MATERIALS ===
 // Powder-coated safety equipment: DIELECTRIC. These were at metalness 0.5, dead
@@ -512,14 +483,13 @@ export const BASIC_MATERIALS = {
 } as const;
 
 // Generate concrete/wall textures
-import { generateConcrete, generateConcreteRoughness } from '../textures/concrete';
-const concreteColorTexture = generateConcrete(512, 64, true);
+const concreteColorTexture = RECIPES.concreteColor();
 // Rule 7: this map is tiled 6 x 5 on the dock aprons and up to 110 x 1 on the
 // canal walls, and it cannot vary above its own tile. The flag rides the
 // texture into every `.clone()` tiling, so those surfaces take the `paving`
 // world-space macro from the batcher. Set before any module clones it.
 markSurfaceSubstrate(concreteColorTexture, 'paving');
-const concreteRoughnessTexture = generateConcreteRoughness(512);
+const concreteRoughnessTexture = RECIPES.concreteRoughness();
 
 // === WALL/SURFACE MATERIALS ===
 export const WALL_MATERIALS = {
@@ -583,8 +553,6 @@ export const WALL_MATERIALS = {
 } as const;
 
 // Generate outdoor textures (grass and tarmac)
-import { generateGrass, generateGrassRoughness } from '../textures/grass';
-import { generateTarmac, generateTarmacRoughness } from '../textures/tarmac';
 
 // Configure texture for optimal quality with anisotropic filtering
 const configureTexture = (texture: THREE.DataTexture, anisotropy: number = 16): void => {
@@ -599,19 +567,19 @@ const configureTexture = (texture: THREE.DataTexture, anisotropy: number = 16): 
 
 // Generate grass textures with proper filtering
 // Using 1024 for better mipmap chain at grazing angles (reduces shimmering from high up)
-const grassColorTexture = generateGrass(1024);
-const grassRoughnessTexture = generateGrassRoughness(1024);
+const grassColorTexture = RECIPES.grassColor();
+const grassRoughnessTexture = RECIPES.grassRoughness();
 
 // Apply anisotropic filtering and mipmapping to grass textures
 configureTexture(grassColorTexture, 16);
 configureTexture(grassRoughnessTexture, 16);
 
 // Generate tarmac textures with proper filtering
-const tarmacColorTexture = generateTarmac(512);
+const tarmacColorTexture = RECIPES.tarmacColor();
 // Rule 7 again: the truck yard tiles this 18 x 18 over 60 m (luma std 7.3 across
 // the lower frame of `shipping`), the car parks 25 x 25. See the concrete note.
 markSurfaceSubstrate(tarmacColorTexture, 'paving');
-const tarmacRoughnessTexture = generateTarmacRoughness(512);
+const tarmacRoughnessTexture = RECIPES.tarmacRoughness();
 configureTexture(tarmacColorTexture, 16);
 configureTexture(tarmacRoughnessTexture, 16);
 

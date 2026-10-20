@@ -1,0 +1,45 @@
+/// <reference lib="webworker" />
+/**
+ * Startup bake worker: runs one `SHARED_TEXTURE_RECIPES` recipe per request
+ * and posts back every texture that recipe generated, texel buffers
+ * transferred. See `sharedTextureBake.ts` for the main-thread side.
+ */
+import { SHARED_TEXTURE_RECIPES, type SharedTextureRecipeName } from './sharedTextureRecipes';
+import { setTextureGenerationRecorder } from './textureGenerator';
+import { snapshotGeneratedTexture, type BakedTexture } from './textureBakeCodec';
+
+const workerScope = self as DedicatedWorkerGlobalScope;
+
+let generated: BakedTexture[] = [];
+setTextureGenerationRecorder((key, texture) => {
+  generated.push(snapshotGeneratedTexture(key, texture));
+});
+
+workerScope.onmessage = (event: MessageEvent<unknown>) => {
+  const request = event.data as { type?: unknown; recipe?: unknown } | null;
+  if (request?.type !== 'bake' || typeof request.recipe !== 'string') return;
+  const recipe = request.recipe as SharedTextureRecipeName;
+  generated = [];
+  try {
+    if (!Object.prototype.hasOwnProperty.call(SHARED_TEXTURE_RECIPES, recipe)) {
+      throw new Error(`unknown recipe ${recipe}`);
+    }
+    SHARED_TEXTURE_RECIPES[recipe]();
+    const textures = generated;
+    generated = [];
+    workerScope.postMessage(
+      { type: 'baked', recipe, textures },
+      // Deduplicated: listing one buffer twice makes postMessage throw.
+      [...new Set(textures.map((texture) => texture.data.buffer as ArrayBuffer))]
+    );
+  } catch (error) {
+    generated = [];
+    workerScope.postMessage({
+      type: 'failed',
+      recipe,
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+};
+
+export {};
