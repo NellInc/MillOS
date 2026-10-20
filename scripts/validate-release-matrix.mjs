@@ -141,18 +141,24 @@ if (stagingDirectory) {
     }
   }
 
-  for (const directory of [stagingDirectory, path.join(stagingDirectory, releaseMatrix.currentVersion)]) {
+  for (const directory of [
+    stagingDirectory,
+    path.join(stagingDirectory, releaseMatrix.currentVersion),
+  ]) {
     const robotsPath = path.join(directory, 'robots.txt');
     if (!fs.existsSync(robotsPath) || fs.readFileSync(robotsPath, 'utf8') !== expectedRobots) {
-      failures.push('Staged robots must allow the current release and exclude only archived releases.');
+      failures.push(
+        'Staged robots must allow the current release and exclude only archived releases.'
+      );
     }
     const sitemapPath = path.join(directory, 'sitemap.xml');
     if (!fs.existsSync(sitemapPath)) {
       failures.push(`Staging is missing ${path.relative(stagingDirectory, sitemapPath)}.`);
       continue;
     }
-    const locations = [...fs.readFileSync(sitemapPath, 'utf8').matchAll(/<loc>([^<]+)<\/loc>/g)]
-      .map((match) => match[1]);
+    const locations = [
+      ...fs.readFileSync(sitemapPath, 'utf8').matchAll(/<loc>([^<]+)<\/loc>/g),
+    ].map((match) => match[1]);
     if (locations.length !== 1 || locations[0] !== currentCanonicalUrl) {
       failures.push('Staged sitemap must identify only the indexable current release.');
     }

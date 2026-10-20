@@ -10,7 +10,7 @@ const WARMUP_TIME = 15000; // 15 seconds to let app stabilize
 const SAMPLE_TIME = 10000; // 10 seconds per measurement
 
 async function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function main() {
@@ -27,12 +27,12 @@ async function main() {
       // Enable WebGL
       '--enable-webgl',
       '--use-gl=desktop',
-      '--enable-accelerated-2d-canvas'
+      '--enable-accelerated-2d-canvas',
     ],
     defaultViewport: {
       width: 1920,
-      height: 1080
-    }
+      height: 1080,
+    },
   });
 
   const page = await browser.newPage();
@@ -41,7 +41,7 @@ async function main() {
   const consoleErrors = [];
   const consoleWarnings = [];
 
-  page.on('console', msg => {
+  page.on('console', (msg) => {
     const type = msg.type();
     const text = msg.text();
 
@@ -60,7 +60,7 @@ async function main() {
   try {
     await page.goto(APP_URL, {
       waitUntil: 'domcontentloaded', // Changed from networkidle2 for faster load
-      timeout: 60000 // Increased timeout to 60s
+      timeout: 60000, // Increased timeout to 60s
     });
     console.log('✅ Page loaded (DOM ready)');
   } catch (error) {
@@ -70,7 +70,7 @@ async function main() {
   }
 
   // Wait for app to load and stabilize
-  console.log(`⏳ Waiting ${WARMUP_TIME/1000}s for app to stabilize...`);
+  console.log(`⏳ Waiting ${WARMUP_TIME / 1000}s for app to stabilize...`);
   await sleep(WARMUP_TIME);
 
   console.log('\n' + '='.repeat(60));
@@ -78,7 +78,7 @@ async function main() {
   console.log('='.repeat(60));
 
   // Sample FPS data over 10 seconds
-  console.log(`\n⏱️  Sampling performance for ${SAMPLE_TIME/1000} seconds...`);
+  console.log(`\n⏱️  Sampling performance for ${SAMPLE_TIME / 1000} seconds...`);
 
   const performanceData = await page.evaluate((sampleTime) => {
     return new Promise((resolve) => {
@@ -97,7 +97,7 @@ async function main() {
           samples.push({
             time: Date.now() - startTime,
             fps: currentFPS,
-            memory: (performance.memory?.usedJSHeapSize || 0) / (1024 * 1024) // MB
+            memory: (performance.memory?.usedJSHeapSize || 0) / (1024 * 1024), // MB
           });
         }
 
@@ -108,14 +108,13 @@ async function main() {
           requestAnimationFrame(measureFrame);
         } else {
           // Calculate statistics
-          const fpsSamples = samples.map(s => s.fps).filter(f => f > 0 && f <= 120);
+          const fpsSamples = samples.map((s) => s.fps).filter((f) => f > 0 && f <= 120);
           const avgFPS = fpsSamples.reduce((a, b) => a + b, 0) / fpsSamples.length;
           const minFPS = Math.min(...fpsSamples);
           const maxFPS = Math.max(...fpsSamples);
-          const memSamples = samples.map(s => s.memory).filter(m => m > 0);
-          const avgMemory = memSamples.length > 0
-            ? memSamples.reduce((a, b) => a + b, 0) / memSamples.length
-            : 0;
+          const memSamples = samples.map((s) => s.memory).filter((m) => m > 0);
+          const avgMemory =
+            memSamples.length > 0 ? memSamples.reduce((a, b) => a + b, 0) / memSamples.length : 0;
 
           resolve({
             avgFPS: Math.round(avgFPS),
@@ -123,7 +122,7 @@ async function main() {
             maxFPS,
             avgMemory: Math.round(avgMemory),
             sampleCount: fpsSamples.length,
-            totalFrames: frameCount
+            totalFrames: frameCount,
           });
         }
       }
@@ -154,7 +153,7 @@ async function main() {
           vendor: debugInfo ? gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL) : 'Unknown',
           renderer: debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : 'Unknown',
           version: gl.getParameter(gl.VERSION),
-          canvasCount: canvases.length
+          canvasCount: canvases.length,
         };
       }
     }
@@ -175,7 +174,9 @@ async function main() {
   console.log(`   Warnings:  ${consoleWarnings.length}`);
 
   if (consoleErrors.length > 3) {
-    console.log(`\n   First 3 errors shown above. ${consoleErrors.length - 3} more errors in console.`);
+    console.log(
+      `\n   First 3 errors shown above. ${consoleErrors.length - 3} more errors in console.`
+    );
   }
 
   // Performance analysis
@@ -193,7 +194,9 @@ async function main() {
     recommendations.push('URGENT: FPS below 30 - major performance issues detected');
     recommendations.push('- Check for render storms (components re-rendering >60 times/sec)');
     recommendations.push('- Verify useFrame hooks are optimized and using React.memo()');
-    recommendations.push('- Consider disabling heavy effects (particles, shadows, post-processing)');
+    recommendations.push(
+      '- Consider disabling heavy effects (particles, shadows, post-processing)'
+    );
     recommendations.push('- Review console errors - ' + consoleErrors.length + ' errors detected');
   } else if (performanceData.avgFPS < 45) {
     performanceGrade = 'POOR';
@@ -212,13 +215,19 @@ async function main() {
 
   const fpsVariance = performanceData.maxFPS - performanceData.minFPS;
   if (fpsVariance > 20) {
-    recommendations.push(`⚠️  High FPS variance (${fpsVariance}) - indicates inconsistent performance`);
-    recommendations.push('- Look for periodic heavy operations (garbage collection, large updates)');
+    recommendations.push(
+      `⚠️  High FPS variance (${fpsVariance}) - indicates inconsistent performance`
+    );
+    recommendations.push(
+      '- Look for periodic heavy operations (garbage collection, large updates)'
+    );
     recommendations.push('- Check for components that re-render on every frame');
   }
 
   if (consoleErrors.length > 0) {
-    recommendations.push(`❌ ${consoleErrors.length} console errors detected - fix errors first before optimizing`);
+    recommendations.push(
+      `❌ ${consoleErrors.length} console errors detected - fix errors first before optimizing`
+    );
   }
 
   console.log(`\n${performanceColor} Performance Grade: ${performanceGrade}`);
@@ -233,7 +242,7 @@ async function main() {
 
   if (recommendations.length > 0) {
     console.log('\n💡 RECOMMENDATIONS:\n');
-    recommendations.forEach(rec => {
+    recommendations.forEach((rec) => {
       console.log(`   ${rec}`);
     });
   }
@@ -299,7 +308,7 @@ To identify the specific bottleneck, you need to use the browser DevTools:
   // await browser.close();
 }
 
-main().catch(err => {
+main().catch((err) => {
   console.error('❌ Error running performance test:', err);
   process.exit(1);
 });

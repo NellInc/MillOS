@@ -407,15 +407,16 @@ export async function main() {
         source,
         sourceSha256: hash(sourceBytes),
         disposition: 'retained',
-        reason: spec.slug === 'hedge-unit'
-          ? 'Opaque green rough box retains its authored hedge silhouette and material. No resolved visual defect justifies new surface grain; leaf-card, alpha-test and species-map reasoning does not apply to this asset.'
-          : /dock-shelter-(side|top)/.test(spec.slug)
-            ? 'Retained after paired material review: atlas-resolved weave reads as coarse ribbing. Existing opaque rough coated-shelter materials and compression animation are preserved without adding false corrugation.'
-            : /flour-sack/.test(spec.slug)
-              ? 'Retained after paired material review: atlas-resolved weave reads as coarse ribbing. Existing live cloth treatment preserves the intended fabric identity without adding false corrugation.'
-              : /canopy/.test(spec.slug)
-                ? 'Alpha-tested foliage retains existing species-specific leaf maps, reverse-face restoration and wind. Adding surface grain to thin cards risks false thickness.'
-                : 'Authored figurative surface retained; generalized industrial grain would alter the creature or statue identity.',
+        reason:
+          spec.slug === 'hedge-unit'
+            ? 'Opaque green rough box retains its authored hedge silhouette and material. No resolved visual defect justifies new surface grain; leaf-card, alpha-test and species-map reasoning does not apply to this asset.'
+            : /dock-shelter-(side|top)/.test(spec.slug)
+              ? 'Retained after paired material review: atlas-resolved weave reads as coarse ribbing. Existing opaque rough coated-shelter materials and compression animation are preserved without adding false corrugation.'
+              : /flour-sack/.test(spec.slug)
+                ? 'Retained after paired material review: atlas-resolved weave reads as coarse ribbing. Existing live cloth treatment preserves the intended fabric identity without adding false corrugation.'
+                : /canopy/.test(spec.slug)
+                  ? 'Alpha-tested foliage retains existing species-specific leaf maps, reverse-face restoration and wind. Adding surface grain to thin cards risks false thickness.'
+                  : 'Authored figurative surface retained; generalized industrial grain would alter the creature or statue identity.',
       });
       continue;
     }
