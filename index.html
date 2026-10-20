@@ -265,13 +265,25 @@
       (function () {
         try {
           var pick = function (v) {
-            v = String(v || '').toLowerCase().replace('_', '-');
-            return v === 'pt' || v.indexOf('pt-') === 0 ? 'pt-BR' : v === 'en' || v.indexOf('en-') === 0 ? 'en' : null;
+            v = String(v || '')
+              .toLowerCase()
+              .replace('_', '-');
+            return v === 'pt' || v.indexOf('pt-') === 0
+              ? 'pt-BR'
+              : v === 'en' || v.indexOf('en-') === 0
+                ? 'en'
+                : null;
           };
           var saved = null;
-          try { saved = localStorage.getItem('millos-locale'); } catch (e) {}
-          var langs = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language];
-          var locale = pick(new URLSearchParams(location.search).get('lang')) ||
+          try {
+            saved = localStorage.getItem('millos-locale');
+          } catch (e) {}
+          var langs =
+            navigator.languages && navigator.languages.length
+              ? navigator.languages
+              : [navigator.language];
+          var locale =
+            pick(new URLSearchParams(location.search).get('lang')) ||
             (saved === 'en' || saved === 'pt-BR' ? saved : null);
           for (var i = 0; !locale && i < langs.length; i++) locale = pick(langs[i]);
           if (locale !== 'pt-BR') return;
