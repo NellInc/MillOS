@@ -158,7 +158,7 @@ const runBake = (): Promise<SharedTextureBakeResult> => {
     for (let i = 0; i < count; i += 1) {
       let worker: Worker | null = null;
       try {
-        worker = new Worker(new URL('./sharedTextureBake.worker.ts', import.meta.url), {
+        worker = new Worker(new URL('./sharedTextureBakeWorker.ts', import.meta.url), {
           type: 'module',
           name: `millos-texture-bake-${i}`,
         });

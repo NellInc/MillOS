@@ -89,6 +89,21 @@ describe('inhabited-world and autonomous-vehicle contract', () => {
     expect(forbiddenPersonnelPath('models/farm/duck.glb')).toBe(false);
   });
 
+  it('names every web worker module so its delivered chunk is not read as personnel', () => {
+    // Vite emits `assets/<module>-<hash>.js`; a `name.worker.ts` module would ship as
+    // `name.worker-<hash>.js`, which the personnel token rejects.
+    const sources = readdirSync(resolve(__dirname, '..'), { recursive: true, encoding: 'utf8' })
+      .filter((file) => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file))
+      .map((file) => readFileSync(resolve(__dirname, '..', file), 'utf8'));
+    const workers = sources.flatMap((text) =>
+      [...text.matchAll(/new Worker\(\s*new URL\(\s*'\.\/([^']+)\.ts'/g)].map((match) => match[1])
+    );
+    expect(workers.length).toBeGreaterThanOrEqual(3);
+    for (const worker of workers) {
+      expect(forbiddenPersonnelPath(`assets/${worker}-DPDcTMSM.js`), worker).toBe(false);
+    }
+  });
+
   it('fails positive source requirements when personnel are disabled, unmounted or missing their scene root', () => {
     const valid = {
       policy:

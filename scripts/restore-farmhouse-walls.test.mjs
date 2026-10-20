@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { beforeAll, afterAll, expect, test } from 'vitest';
-import { readFile, writeFile, mkdtemp, rm, symlink } from 'node:fs/promises';
+import { readFile, writeFile, mkdtemp, rm, symlink, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { NodeIO } from '@gltf-transform/core';
@@ -144,7 +144,8 @@ beforeAll(async () => {
   report = refine(d, source, hash(inputBytes), hash(sourceBytes));
   outputBytes = Buffer.from(await io.writeBinary(d));
   after = await io.readBinary(outputBytes);
-  temp = await mkdtemp(path.join(tmpdir(), 'farmhouse-wall-test-'));
+  // safeOutput returns real paths; macOS tmpdir() is /var/..., a symlink to /private/var/...
+  temp = await realpath(await mkdtemp(path.join(tmpdir(), 'farmhouse-wall-test-')));
   b = mesh(before);
   a = mesh(after);
   s = mesh(source);

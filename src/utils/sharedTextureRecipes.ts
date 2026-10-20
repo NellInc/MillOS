@@ -1,7 +1,7 @@
 /**
  * The procedural textures `sharedMaterials.ts` builds at import, one recipe
  * each. `sharedMaterials.ts` calls these and nothing else to get its maps, and
- * the startup bake worker (`sharedTextureBake.worker.ts`) runs the same
+ * the startup bake worker (`sharedTextureBakeWorker.ts`) runs the same
  * recipes off the main thread first, so the two cannot drift apart: a recipe
  * changed here changes both, and every one lands on the same `getTexture` key.
  *

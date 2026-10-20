@@ -197,7 +197,7 @@ const TEXTURE_CACHE_VERSION = 'v2-srgb';
 /**
  * Called with every texture this module GENERATES (never on a cache hit), at
  * the moment the generator returns and before any caller can mutate it. The
- * startup bake worker (`sharedTextureBake.worker.ts`) installs one to capture
+ * startup bake worker (`sharedTextureBakeWorker.ts`) installs one to capture
  * exactly what each generator produced; the main thread leaves it null.
  */
 type TextureGenerationRecorder = (key: string, texture: THREE.DataTexture) => void;
