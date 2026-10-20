@@ -1,5 +1,7 @@
 // @vitest-environment node
 import { beforeAll, afterAll, expect, test } from 'vitest';
+import { Buffer } from 'node:buffer';
+import process from 'node:process';
 import { readFile, writeFile, mkdir, mkdtemp, rm, copyFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
@@ -21,6 +23,13 @@ import {
 import { applyFarmWindows } from '../src/components/models/GeneratedOfficeModel.tsx';
 
 const repo = process.cwd();
+// The three real-pipeline tests spawn the normalizer and provenance writer
+// (up to five child processes each). At ~61 runnable per core (2026-10-20,
+// --maxWorkers=1) they took 149 s and 301 s, and one child alone passed 120 s,
+// where the lead's gate at ~30-44 per core passed them inside 120 s. The budget
+// is a hang guard, so it sits well above the worst loaded run.
+const REAL_PIPELINE_CHILD_MS = 600_000;
+const REAL_PIPELINE_TEST_MS = 1_200_000;
 const io = new NodeIO();
 const rows = new Map();
 const clone = (value) => JSON.parse(JSON.stringify(value));
@@ -218,7 +227,7 @@ function runNormalizer(root, ids = Object.keys(RECONCILED_FARM_MODELS), change) 
   execFileSync(process.execPath, ['--input-type=module', '-e', normalizerScript(ids, change)], {
     cwd: root,
     stdio: 'pipe',
-    timeout: 120000,
+    timeout: REAL_PIPELINE_CHILD_MS,
   });
 }
 function runWriter(root) {
@@ -228,158 +237,172 @@ function runWriter(root) {
     {
       cwd: root,
       stdio: 'pipe',
-      timeout: 120000,
+      timeout: REAL_PIPELINE_CHILD_MS,
     }
   );
 }
 
-test('actual current normalizer and writer rebuild both outputs exactly in an isolated root', async () => {
-  const root = await isolatedRoot('real-normalizer-writer');
-  // Start from exact current-main asset bytes, then rerun over the final candidate to prove idempotence.
-  for (const { spec, baseline } of rows.values())
-    await writeFile(path.join(root, runtimeFile(spec.slug)), baseline);
-  for (let pass = 0; pass < 2; pass++) {
-    execFileSync(
-      process.execPath,
-      [
-        path.join(repo, 'scripts/normalize-model-assets.mjs'),
-        '--only=' + Object.keys(RECONCILED_FARM_MODELS).join(','),
-      ],
-      {
-        cwd: root,
-        stdio: 'pipe',
-        timeout: 120000,
-      }
-    );
-    runWriter(root);
-    const report = JSON.parse(
-      await readFile(path.join(root, 'test-results/assets/normalization.json'), 'utf8')
-    );
-    const provenance = JSON.parse(
-      await readFile(path.join(root, 'assets/source/models/farm/PROVENANCE.json'), 'utf8')
-    );
-    for (const [id, { spec, baseline, runtime, source, prepared, result }] of rows) {
-      expect((await readFile(path.join(root, runtimeFile(spec.slug)))).equals(runtime)).toBe(true);
-      expect((await readFile(runtimeFile(spec.slug))).equals(runtime)).toBe(true);
-      expect((await readFile(path.join(root, provider(spec.slug)))).equals(source)).toBe(true);
-      expect((await readFile(path.join(root, preparedFile(spec.slug)))).equals(prepared)).toBe(
-        true
+test(
+  'actual current normalizer and writer rebuild both outputs exactly in an isolated root',
+  async () => {
+    const root = await isolatedRoot('real-normalizer-writer');
+    // Start from exact current-main asset bytes, then rerun over the final candidate to prove idempotence.
+    for (const { spec, baseline } of rows.values())
+      await writeFile(path.join(root, runtimeFile(spec.slug)), baseline);
+    for (let pass = 0; pass < 2; pass++) {
+      execFileSync(
+        process.execPath,
+        [
+          path.join(repo, 'scripts/normalize-model-assets.mjs'),
+          '--only=' + Object.keys(RECONCILED_FARM_MODELS).join(','),
+        ],
+        {
+          cwd: root,
+          stdio: 'pipe',
+          timeout: REAL_PIPELINE_CHILD_MS,
+        }
       );
-      const row = report.generated.find((value) => value.id === id);
-      await expect(
-        assertFarmNormalization(id, row, runtime, baseline, source, prepared, author, manifest)
-      ).resolves.toBeUndefined();
-      expect(row.geometryRefinement).toEqual(clone(result.receipt));
-      expect(provenance.sourcePacks.find((pack) => pack.id === id)).toEqual(
-        farmProvenance.sourcePacks.find((pack) => pack.id === id)
+      runWriter(root);
+      const report = JSON.parse(
+        await readFile(path.join(root, 'test-results/assets/normalization.json'), 'utf8')
+      );
+      const provenance = JSON.parse(
+        await readFile(path.join(root, 'assets/source/models/farm/PROVENANCE.json'), 'utf8')
+      );
+      for (const [id, { spec, baseline, runtime, source, prepared, result }] of rows) {
+        expect((await readFile(path.join(root, runtimeFile(spec.slug)))).equals(runtime)).toBe(
+          true
+        );
+        expect((await readFile(runtimeFile(spec.slug))).equals(runtime)).toBe(true);
+        expect((await readFile(path.join(root, provider(spec.slug)))).equals(source)).toBe(true);
+        expect((await readFile(path.join(root, preparedFile(spec.slug)))).equals(prepared)).toBe(
+          true
+        );
+        const row = report.generated.find((value) => value.id === id);
+        await expect(
+          assertFarmNormalization(id, row, runtime, baseline, source, prepared, author, manifest)
+        ).resolves.toBeUndefined();
+        expect(row.geometryRefinement).toEqual(clone(result.receipt));
+        expect(provenance.sourcePacks.find((pack) => pack.id === id)).toEqual(
+          farmProvenance.sourcePacks.find((pack) => pack.id === id)
+        );
+      }
+      // Every unrelated farm record, including animals and windmill, remains exactly the same.
+      const unrelated = (p) => ({
+        ...p,
+        sourcePacks: p.sourcePacks.filter((pack) => !RECONCILED_FARM_MODELS[pack.id]),
+      });
+      expect(unrelated(provenance)).toEqual(unrelated(farmProvenance));
+      expect(report.generated.filter((row) => !RECONCILED_FARM_MODELS[row.id])).toEqual(
+        generated.filter((row) => !RECONCILED_FARM_MODELS[row.id])
       );
     }
-    // Every unrelated farm record, including animals and windmill, remains exactly the same.
-    const unrelated = (p) => ({
-      ...p,
-      sourcePacks: p.sourcePacks.filter((pack) => !RECONCILED_FARM_MODELS[pack.id]),
-    });
-    expect(unrelated(provenance)).toEqual(unrelated(farmProvenance));
-    expect(report.generated.filter((row) => !RECONCILED_FARM_MODELS[row.id])).toEqual(
-      generated.filter((row) => !RECONCILED_FARM_MODELS[row.id])
-    );
-  }
-}, 120000);
+  },
+  REAL_PIPELINE_TEST_MS
+);
 
-test('actual normalizer fails before writing on changed dependencies, manifest, current bytes or producer output', async () => {
-  const root = await isolatedRoot('normalizer-fail-closed');
-  for (const file of [
-    provider('coop'),
-    preparedFile('coop'),
-    AUTHORING_SCRIPT,
-    'public/models/asset-manifest.json',
-    runtimeFile('coop'),
-  ]) {
-    const target = path.join(root, file),
-      original = await readFile(target);
-    const changed = file.endsWith('.json')
-      ? Buffer.from(JSON.stringify({ ...manifest, units: 'feet' }))
-      : Buffer.from('changed');
-    await writeFile(target, changed);
+test(
+  'actual normalizer fails before writing on changed dependencies, manifest, current bytes or producer output',
+  async () => {
+    const root = await isolatedRoot('normalizer-fail-closed');
+    for (const file of [
+      provider('coop'),
+      preparedFile('coop'),
+      AUTHORING_SCRIPT,
+      'public/models/asset-manifest.json',
+      runtimeFile('coop'),
+    ]) {
+      const target = path.join(root, file),
+        original = await readFile(target);
+      const changed = file.endsWith('.json')
+        ? Buffer.from(JSON.stringify({ ...manifest, units: 'feet' }))
+        : Buffer.from('changed');
+      await writeFile(target, changed);
+      const before = await readFile(path.join(root, runtimeFile('coop')));
+      const report = await readFile(path.join(root, 'test-results/assets/normalization.json'));
+      expect(() => runNormalizer(root, ['farm-coop'])).toThrow();
+      expect(await readFile(path.join(root, runtimeFile('coop')))).toEqual(before);
+      expect(await readFile(path.join(root, 'test-results/assets/normalization.json'))).toEqual(
+        report
+      );
+      await writeFile(target, original);
+    }
     const before = await readFile(path.join(root, runtimeFile('coop')));
-    const report = await readFile(path.join(root, 'test-results/assets/normalization.json'));
-    expect(() => runNormalizer(root, ['farm-coop'])).toThrow();
+    expect(() => runNormalizer(root, ['farm-coop'], 'spec.target = 9;')).toThrow(
+      'exact accepted normalized input'
+    );
     expect(await readFile(path.join(root, runtimeFile('coop')))).toEqual(before);
-    expect(await readFile(path.join(root, 'test-results/assets/normalization.json'))).toEqual(
-      report
-    );
-    await writeFile(target, original);
-  }
-  const before = await readFile(path.join(root, runtimeFile('coop')));
-  expect(() => runNormalizer(root, ['farm-coop'], 'spec.target = 9;')).toThrow(
-    'exact accepted normalized input'
-  );
-  expect(await readFile(path.join(root, runtimeFile('coop')))).toEqual(before);
-}, 120000);
+  },
+  REAL_PIPELINE_TEST_MS
+);
 
-test('actual provenance writer fails before any write on stale hashes, paths, metrics, chain, missing or duplicate rows', async () => {
-  const root = await isolatedRoot('writer-fail-closed');
-  const before = await readFile(path.join(root, 'assets/source/models/farm/PROVENANCE.json'));
-  for (const mutate of [
-    (row) => {
-      row.outputSha256 = 'stale';
-    },
-    (row) => {
-      row.sourceSha256 = 'stale';
-    },
-    (row) => {
-      row.outputBytes += 4;
-    },
-    (row) => {
-      row.file = 'farm/farmhouse.glb';
-    },
-    (row) => {
-      row.blenderPreparation.sha256 = 'stale';
-    },
-    (row) => {
-      row.blenderPreparation.file = 'wrong';
-    },
-    (row) => {
-      row.blenderPreparation.script = 'wrong';
-    },
-    (row) => {
-      row.renderVertices += 3;
-    },
-    (row) => {
-      row.bounds.height += 1;
-    },
-    (row) => {
-      row.geometryRefinement.steps.push(clone(row.geometryRefinement.steps[0]));
-    },
-    (row) => {
-      row.geometryRefinement.baselineCommit = 'wrong';
-    },
-  ]) {
-    const changed = clone(generated);
-    mutate(changed.find((row) => row.id === 'farm-coop'));
-    await writeFile(
-      path.join(root, 'test-results/assets/normalization.json'),
-      JSON.stringify({ generated: changed })
-    );
-    expect(() => runWriter(root)).toThrow();
-    expect(await readFile(path.join(root, 'assets/source/models/farm/PROVENANCE.json'))).toEqual(
-      before
-    );
-  }
-  for (const changed of [
-    generated.filter((row) => row.id !== 'farm-coop'),
-    [...generated, generated.find((row) => row.id === 'farm-coop')],
-  ]) {
-    await writeFile(
-      path.join(root, 'test-results/assets/normalization.json'),
-      JSON.stringify({ generated: changed })
-    );
-    expect(() => runWriter(root)).toThrow();
-    expect(await readFile(path.join(root, 'assets/source/models/farm/PROVENANCE.json'))).toEqual(
-      before
-    );
-  }
-}, 120000);
+test(
+  'actual provenance writer fails before any write on stale hashes, paths, metrics, chain, missing or duplicate rows',
+  async () => {
+    const root = await isolatedRoot('writer-fail-closed');
+    const before = await readFile(path.join(root, 'assets/source/models/farm/PROVENANCE.json'));
+    for (const mutate of [
+      (row) => {
+        row.outputSha256 = 'stale';
+      },
+      (row) => {
+        row.sourceSha256 = 'stale';
+      },
+      (row) => {
+        row.outputBytes += 4;
+      },
+      (row) => {
+        row.file = 'farm/farmhouse.glb';
+      },
+      (row) => {
+        row.blenderPreparation.sha256 = 'stale';
+      },
+      (row) => {
+        row.blenderPreparation.file = 'wrong';
+      },
+      (row) => {
+        row.blenderPreparation.script = 'wrong';
+      },
+      (row) => {
+        row.renderVertices += 3;
+      },
+      (row) => {
+        row.bounds.height += 1;
+      },
+      (row) => {
+        row.geometryRefinement.steps.push(clone(row.geometryRefinement.steps[0]));
+      },
+      (row) => {
+        row.geometryRefinement.baselineCommit = 'wrong';
+      },
+    ]) {
+      const changed = clone(generated);
+      mutate(changed.find((row) => row.id === 'farm-coop'));
+      await writeFile(
+        path.join(root, 'test-results/assets/normalization.json'),
+        JSON.stringify({ generated: changed })
+      );
+      expect(() => runWriter(root)).toThrow();
+      expect(await readFile(path.join(root, 'assets/source/models/farm/PROVENANCE.json'))).toEqual(
+        before
+      );
+    }
+    for (const changed of [
+      generated.filter((row) => row.id !== 'farm-coop'),
+      [...generated, generated.find((row) => row.id === 'farm-coop')],
+    ]) {
+      await writeFile(
+        path.join(root, 'test-results/assets/normalization.json'),
+        JSON.stringify({ generated: changed })
+      );
+      expect(() => runWriter(root)).toThrow();
+      expect(await readFile(path.join(root, 'assets/source/models/farm/PROVENANCE.json'))).toEqual(
+        before
+      );
+    }
+  },
+  REAL_PIPELINE_TEST_MS
+);
 
 test('farmhouse source-face changes and all normal donors stay above the current runtime window aperture', async () => {
   const { baseline, source, runtime, result } = rows.get('farm-farmhouse');

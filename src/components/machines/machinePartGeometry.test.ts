@@ -468,6 +468,16 @@ it('closes the packer sack neck onto its rolled seam and seats its foot within t
 it('keeps the complete moving bag clear of the actual QC and packing observation posts without changing their anchors', () => {
   const geometry = MACHINE_PART_GEOMETRY.packerSack,
     p = geometry.attributes.position;
+  // The bag translates rigidly with a positive z scale, so its nearest and
+  // farthest vertex at every step are the same two vertices. Two expects per
+  // step instead of two per vertex per step (~17 s of matcher calls at load).
+  expect(PACKER_SACK_LAYOUT.scale[2]).toBeGreaterThan(0);
+  let minZ = Infinity,
+    maxZ = -Infinity;
+  for (let i = 0; i < p.count; i++) {
+    minZ = Math.min(minZ, p.getZ(i));
+    maxZ = Math.max(maxZ, p.getZ(i));
+  }
   for (const [id, anchor] of [
     ['packer-0', COMMUNITY_ANCHORS.millPacking],
     ['packer-2', COMMUNITY_ANCHORS.millInspection],
@@ -476,15 +486,14 @@ it('keeps the complete moving bag clear of the actual QC and packing observation
     expect(machine.position[0]).toBe(anchor.position[0]);
     for (let step = 0; step <= 100; step++) {
       const position = getPackerSackPosition(machine.position, step / 100);
-      for (let i = 0; i < p.count; i++) {
-        const z = position[2] + p.getZ(i) * PACKER_SACK_LAYOUT.scale[2];
-        expect(z, 'whole bag beyond original cabinet base').toBeGreaterThan(
-          machine.position[2] + 4.25 / 2 + 0.04
-        );
-        expect(z, 'whole sweep outside observation/approach envelope').toBeLessThan(
-          anchor.position[2] - 0.45
-        );
-      }
+      expect(
+        position[2] + minZ * PACKER_SACK_LAYOUT.scale[2],
+        'whole bag beyond original cabinet base'
+      ).toBeGreaterThan(machine.position[2] + 4.25 / 2 + 0.04);
+      expect(
+        position[2] + maxZ * PACKER_SACK_LAYOUT.scale[2],
+        'whole sweep outside observation/approach envelope'
+      ).toBeLessThan(anchor.position[2] - 0.45);
     }
   }
   expect(PACKER_SACK_LAYOUT.scale).toEqual([0.54, 0.84, 0.26]);

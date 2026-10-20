@@ -1,5 +1,7 @@
 // @vitest-environment node
 import { beforeAll, afterAll, expect, test } from 'vitest';
+import { Buffer } from 'node:buffer';
+import process from 'node:process';
 import { readFile, writeFile, mkdtemp, rm, symlink, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -184,7 +186,10 @@ beforeAll(async () => {
       JSON.stringify(summary, null, 2) + '\n'
     );
   }
-});
+  // Runs the real refinement, a GLB write and the edge/fan audits once for the
+  // file: about 10 s of a 25.9 s run at ~35 runnable per core, and over the
+  // 10 s default hook timeout at ~57 per core (2026-10-20).
+}, 120_000);
 afterAll(async () => {
   if (temp) await rm(temp, { recursive: true, force: true });
 });
@@ -199,7 +204,12 @@ test('pins accepted and source bytes; deterministic433424-byte candidate', async
   expect(outputBytes.length).toBe(433424);
   const d = await io.readBinary(inputBytes);
   refine(d, source, INPUT_SHA256, SOURCE_SHA256);
-  expect(Buffer.from(await io.writeBinary(d))).toEqual(outputBytes);
+  // `toEqual` walks 433,424 bytes through generic equality: 10.9 s for two
+  // equal buffers this size at ~58 runnable per core (2026-10-20), against
+  // 0.22 ms for `Buffer.equals`, which decides the same thing. Only a mismatch
+  // goes to the matcher, for its diff.
+  const repeat = Buffer.from(await io.writeBinary(d));
+  if (!repeat.equals(outputBytes)) expect(repeat).toEqual(outputBytes);
 });
 test('adds exactly14 source triangles with original winding and UVs; every retained index and position/UV is exact', () => {
   expect(a.F.length).toBe(5609);
@@ -225,7 +235,7 @@ test('preserves all14 current roof faces and excludes roof/chimney and generated
     expect(b.faces.has(signature(face(s.p, f)))).toBe(true);
     expect(a.faces.has(signature(face(s.p, f)))).toBe(true);
   }
-  for (const [f, vs] of b.F.entries()) {
+  for (const vs of b.F.values()) {
     const sf = s.faces.get(signature(vs.map(b.pos))) ?? [];
     if (sf.length !== 1) for (const v of vs) expect(a.n(v)).toEqual(b.n(v));
   }

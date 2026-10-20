@@ -12,6 +12,20 @@ const holder = vi.hoisted(() => ({ scene: null as THREE.Group | null }));
 vi.mock('../../utils/dracoLoader', () => ({ useDracoGLTF: () => ({ scene: holder.scene }) }));
 afterEach(cleanup);
 
+/**
+ * Per-vertex assertions over delivered GLBs, without a matcher call per
+ * component. `holds` restates the matcher's own pass rule (`Object.is` for
+ * `toBe`, `|a - b| < 10^-d / 2` for `toBeCloseTo`); only where it is false does
+ * `assert` run the original matcher, which then decides and reports. A passing
+ * sweep is a plain loop. The barn and shop sweeps made ~10^5 matcher calls
+ * (29.8 s and 11.2 s at ~450 runnable per core, 2026-10-20).
+ */
+function sweep(count: number, holds: (i: number) => boolean, assert: (i: number) => void): void {
+  for (let i = 0; i < count; i++) if (!holds(i)) assert(i);
+}
+const closeTo = (actual: number, expected: number, digits: number) =>
+  Math.abs(expected - actual) < 10 ** -digits / 2;
+
 it('retains shadow defaults while allowing authored no-reception meshes', () => {
   const source = new THREE.Group();
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial());
@@ -218,19 +232,32 @@ it('volumes the delivered five goods while preserving the building, anchors and 
       expect(q.count).toBe(p.count);
       expect(variant.index!.count).toBe(10380);
     }
-    for (let i = 0; i < p.count; i++) {
-      if (!selected.has(i)) {
-        for (let axis = 0; axis < 3; axis++) {
-          expect(q.getComponent(i, axis)).toBe(p.getComponent(i, axis));
-          expect(n.getComponent(i, axis)).toBe(source.getAttribute('normal').getComponent(i, axis));
+    const sourceNormal = source.getAttribute('normal');
+    const band = (x: number) =>
+      Math.floor((x + SHOP_DISPLAY_ITEM_GRID[0]) * SHOP_DISPLAY_ITEM_GRID[1]);
+    sweep(
+      p.count,
+      (i) =>
+        selected.has(i)
+          ? closeTo(Math.hypot(n.getX(i), n.getY(i), n.getZ(i)), 1, 5) &&
+            Object.is(band(q.getX(i)), band(p.getX(i)))
+          : [0, 1, 2].every(
+              (axis) =>
+                Object.is(q.getComponent(i, axis), p.getComponent(i, axis)) &&
+                Object.is(n.getComponent(i, axis), sourceNormal.getComponent(i, axis))
+            ),
+      (i) => {
+        if (!selected.has(i)) {
+          for (let axis = 0; axis < 3; axis++) {
+            expect(q.getComponent(i, axis)).toBe(p.getComponent(i, axis));
+            expect(n.getComponent(i, axis)).toBe(sourceNormal.getComponent(i, axis));
+          }
+        } else {
+          expect(Math.hypot(n.getX(i), n.getY(i), n.getZ(i))).toBeCloseTo(1, 5);
+          expect(band(q.getX(i))).toBe(band(p.getX(i)));
         }
-      } else {
-        expect(Math.hypot(n.getX(i), n.getY(i), n.getZ(i))).toBeCloseTo(1, 5);
-        expect(
-          Math.floor((q.getX(i) + SHOP_DISPLAY_ITEM_GRID[0]) * SHOP_DISPLAY_ITEM_GRID[1])
-        ).toBe(Math.floor((p.getX(i) + SHOP_DISPLAY_ITEM_GRID[0]) * SHOP_DISPLAY_ITEM_GRID[1]));
       }
-    }
+    );
     for (const [band, vertices] of goods) {
       const scale =
         trade === 'general'
@@ -535,47 +562,69 @@ it('builds the real barn within its original cost/envelope with retained roof/fl
   expect(p.count / 3).toBeLessThanOrEqual(source.index!.count / 3);
   const kept = variant.userData.barnJoinery.retainedSourceFaces as number[];
   for (const face of [5307, 6071, 6081]) expect(kept).not.toContain(face);
+  const keptFaces = new Set(kept);
   let roof = 0,
     floor = 0;
   for (let face = 0; face < source.index!.count / 3; face++) {
     const ids = [0, 1, 2].map((i) => source.index!.getX(face * 3 + i));
     const ys = ids.map((i) => source.getAttribute('position').getY(i));
     if (Math.min(...ys) > 0.32) {
-      expect(kept).toContain(face);
+      if (!keptFaces.has(face)) expect(kept).toContain(face);
       roof++;
     }
     if (Math.max(...ys) < -0.49) {
-      expect(kept).toContain(face);
+      if (!keptFaces.has(face)) expect(kept).toContain(face);
       floor++;
     }
   }
   expect(roof).toBeGreaterThan(200);
   expect(floor).toBeGreaterThan(100);
-  for (let i = 0; i < kept.length; i++)
-    for (let corner = 0; corner < 3; corner++) {
-      const original = source.index!.getX(kept[i] * 3 + corner),
-        target = i * 3 + corner;
+  const corner = (k: number) => source.index!.getX(kept[Math.floor(k / 3)] * 3 + (k % 3));
+  sweep(
+    kept.length * 3,
+    (target) =>
+      ['position', 'normal', 'uv'].every((name) => {
+        const from = source.getAttribute(name),
+          to = variant.getAttribute(name);
+        for (let axis = 0; axis < from.itemSize; axis++)
+          if (!Object.is(to.getComponent(target, axis), from.getComponent(corner(target), axis)))
+            return false;
+        return true;
+      }) &&
+      c.getX(target) === 1 &&
+      c.getY(target) === 1 &&
+      c.getZ(target) === 1,
+    (target) => {
       for (const name of ['position', 'normal', 'uv'])
         for (let axis = 0; axis < source.getAttribute(name).itemSize; axis++)
           expect(variant.getAttribute(name).getComponent(target, axis)).toBe(
-            source.getAttribute(name).getComponent(original, axis)
+            source.getAttribute(name).getComponent(corner(target), axis)
           );
       expect([c.getX(target), c.getY(target), c.getZ(target)]).toEqual([1, 1, 1]);
     }
-  for (let i = 0; i < p.count; i++) {
-    expect([p.getX(i), p.getY(i), p.getZ(i), uv.getX(i), uv.getY(i)].every(Number.isFinite)).toBe(
-      true
-    );
-    expect(Math.hypot(n.getX(i), n.getY(i), n.getZ(i))).toBeCloseTo(1, 4);
-    for (let axis = 0; axis < 3; axis++) {
-      expect(p.getComponent(i, axis)).toBeGreaterThanOrEqual(
-        source.boundingBox!.min.getComponent(axis) - 1e-6
+  );
+  const { min, max } = source.boundingBox!;
+  sweep(
+    p.count,
+    (i) =>
+      [p.getX(i), p.getY(i), p.getZ(i), uv.getX(i), uv.getY(i)].every(Number.isFinite) &&
+      closeTo(Math.hypot(n.getX(i), n.getY(i), n.getZ(i)), 1, 4) &&
+      [0, 1, 2].every(
+        (axis) =>
+          p.getComponent(i, axis) >= min.getComponent(axis) - 1e-6 &&
+          p.getComponent(i, axis) <= max.getComponent(axis) + 1e-6
+      ),
+    (i) => {
+      expect([p.getX(i), p.getY(i), p.getZ(i), uv.getX(i), uv.getY(i)].every(Number.isFinite)).toBe(
+        true
       );
-      expect(p.getComponent(i, axis)).toBeLessThanOrEqual(
-        source.boundingBox!.max.getComponent(axis) + 1e-6
-      );
+      expect(Math.hypot(n.getX(i), n.getY(i), n.getZ(i))).toBeCloseTo(1, 4);
+      for (let axis = 0; axis < 3; axis++) {
+        expect(p.getComponent(i, axis)).toBeGreaterThanOrEqual(min.getComponent(axis) - 1e-6);
+        expect(p.getComponent(i, axis)).toBeLessThanOrEqual(max.getComponent(axis) + 1e-6);
+      }
     }
-  }
+  );
   const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }),
     mesh = new THREE.Mesh(variant, material),
     old = new THREE.Mesh(source, material);
