@@ -168,6 +168,53 @@ export function softenWorkerFaceNormals(
   return geometry;
 }
 
+/**
+ * Every worker clone of one body borrows the same skinned geometry, and its arm
+ * joints come from the same bone names, so each softened the identical input
+ * to the identical normals: ~1 s of main-thread startup across the crowd. The
+ * first result is kept as a template (never handed out) per source geometry
+ * and joint list, and each worker receives its own copy, which it owns and
+ * disposes as before. The template is rebuilt if any attribute it read has
+ * been replaced or re-uploaded since.
+ * Working if a second worker's softening reads none of the source normals.
+ */
+const softenedWorkerTemplates = new WeakMap<
+  THREE.BufferGeometry,
+  Map<string, { inputs: unknown[]; template: THREE.BufferGeometry | null }>
+>();
+
+const softenInputs = (source: THREE.BufferGeometry): unknown[] =>
+  [
+    source.index,
+    ...['position', 'normal', 'skinIndex', 'skinWeight'].map((name) => source.getAttribute(name)),
+  ].flatMap((attribute) => [
+    attribute,
+    (attribute as THREE.InterleavedBufferAttribute | undefined)?.isInterleavedBufferAttribute
+      ? (attribute as THREE.InterleavedBufferAttribute).data.version
+      : (attribute as THREE.BufferAttribute | null | undefined)?.version,
+  ]);
+
+export function softenSharedWorkerGeometry(
+  source: THREE.BufferGeometry,
+  armJoints: readonly number[] = []
+): THREE.BufferGeometry | null {
+  let byJoints = softenedWorkerTemplates.get(source);
+  if (!byJoints) softenedWorkerTemplates.set(source, (byJoints = new Map()));
+  const key = armJoints.join(',');
+  const inputs = softenInputs(source);
+  let entry = byJoints.get(key);
+  if (
+    !entry ||
+    entry.inputs.length !== inputs.length ||
+    !entry.inputs.every((value, i) => Object.is(value, inputs[i]))
+  ) {
+    entry?.template?.dispose();
+    entry = { inputs, template: softenWorkerFaceNormals(source, armJoints) };
+    byJoints.set(key, entry);
+  }
+  return entry.template ? entry.template.clone() : null;
+}
+
 /** Subtle lit skin undertones in Head bind space, never a baked light/shadow.
  * Working if cheeks/ears warm on both bodies without changing vertices, skinning,
  * cached assets, mesh count or the existing per-person skin colour.
@@ -1398,7 +1445,7 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
           (mesh as THREE.SkinnedMesh).skeleton.bones.forEach((bone, index) => {
             if (/^(UpperArm|LowerArm)[LR]$/.test(bone.name)) armJoints.push(index);
           });
-        const softened = softenWorkerFaceNormals(mesh.geometry, armJoints);
+        const softened = softenSharedWorkerGeometry(mesh.geometry, armJoints);
         if (softened) {
           mesh.geometry = softened;
           ownedGeometry.push(softened);

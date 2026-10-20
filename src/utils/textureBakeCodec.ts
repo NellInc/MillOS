@@ -38,6 +38,17 @@ export interface BakedTexture {
   unpackAlignment: number;
   colorSpace: string;
   userData: Record<string, unknown>;
+  /**
+   * Hand-built mip levels (the leaf atlases filter their own coverage). Level 0
+   * is normally the very `data` array; a structured clone keeps that sharing.
+   */
+  mipmaps: BakedMipLevel[];
+}
+
+export interface BakedMipLevel {
+  data: Uint8Array;
+  width: number;
+  height: number;
 }
 
 export const snapshotGeneratedTexture = (key: string, texture: THREE.DataTexture): BakedTexture => {
@@ -69,6 +80,11 @@ export const snapshotGeneratedTexture = (key: string, texture: THREE.DataTexture
     unpackAlignment: texture.unpackAlignment,
     colorSpace: texture.colorSpace,
     userData: { ...texture.userData },
+    mipmaps: ((texture.mipmaps ?? []) as BakedMipLevel[]).map((level) => ({
+      data: level.data,
+      width: level.width,
+      height: level.height,
+    })),
   };
 };
 
@@ -88,9 +104,27 @@ export const isBakedTexture = (value: unknown): value is BakedTexture => {
     v.width > 0 &&
     v.height > 0 &&
     (v.data as Uint8Array).length === v.width * v.height * 4 &&
-    typeof v.colorSpace === 'string'
+    typeof v.colorSpace === 'string' &&
+    Array.isArray(v.mipmaps) &&
+    v.mipmaps.every(
+      (level) =>
+        Object.prototype.toString.call(level?.data) === '[object Uint8Array]' &&
+        isFiniteNumber(level.width) &&
+        isFiniteNumber(level.height) &&
+        level.data.length === level.width * level.height * 4
+    )
   );
 };
+
+/** Every buffer a snapshot owns, once each: what the worker transfers. */
+export const bakedTextureBuffers = (textures: readonly BakedTexture[]): ArrayBuffer[] => [
+  ...new Set(
+    textures.flatMap((texture) => [
+      texture.data.buffer as ArrayBuffer,
+      ...texture.mipmaps.map((level) => level.data.buffer as ArrayBuffer),
+    ])
+  ),
+];
 
 export const restoreGeneratedTexture = (baked: BakedTexture): THREE.DataTexture => {
   const texture = new THREE.DataTexture(baked.data, baked.width, baked.height);
@@ -116,6 +150,11 @@ export const restoreGeneratedTexture = (baked: BakedTexture): THREE.DataTexture 
   texture.unpackAlignment = baked.unpackAlignment;
   texture.colorSpace = baked.colorSpace as THREE.ColorSpace;
   texture.userData = { ...baked.userData };
+  texture.mipmaps = baked.mipmaps.map((level) => ({
+    data: level.data,
+    width: level.width,
+    height: level.height,
+  }));
   // `createDataTexture` sets this once on the original; match its version.
   texture.needsUpdate = true;
   return texture;

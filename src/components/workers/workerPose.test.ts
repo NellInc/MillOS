@@ -42,6 +42,42 @@ import {
   setWorkerPupilBlink,
 } from '../models/WorkerModel';
 
+/**
+ * `expect(actual).toEqual(expected)` for whole vertex/index buffers, with the
+ * same verdict. The matcher walks a typed array element by element through
+ * its generic equality, which was a third of this file's CPU time; a plain
+ * loop proves the common case (same type, same length, every element
+ * `Object.is`-equal) in microseconds, and anything else still goes to
+ * `toEqual` for its own decision and diff.
+ */
+function expectSameArray(
+  actual: ArrayLike<number> | undefined,
+  expected: ArrayLike<number> | undefined
+): void {
+  if (
+    actual &&
+    expected &&
+    actual.constructor === expected.constructor &&
+    actual.length === expected.length
+  ) {
+    let same = true;
+    for (let i = 0; i < actual.length && same; i++) same = Object.is(actual[i], expected[i]);
+    if (same) return;
+  }
+  expect(actual).toEqual(expected);
+}
+
+/**
+ * The actual-rig tests skin, pose and ray-test the real bodies through many
+ * clip frames; that work is the assertion, not overhead. Measured alone with
+ * `--maxWorkers=1` (2026-10-20, after `expectSameArray`): the slowest, baker
+ * linen masculine/0.95, took 15.4 s at ~5-8 runnable per core and the arm and
+ * workwear finishes 4-5 s; before `expectSameArray` the same tests took up to
+ * 33.7 s at ~10 per core. The 10 s default fails them under the ~16 per core
+ * this machine reaches, so the file allows 60 s per test.
+ */
+vi.setConfig({ testTimeout: 60_000 });
+
 const bodies = new Map<string, GLTF>();
 beforeAll(async () => {
   const io = new NodeIO()
@@ -620,9 +656,10 @@ describe('declared gloves on the original skinned hands', () => {
         glove = new THREE.Color('#435365');
       const dressed = dressWorkerHands(original, source!.skeleton, skin, glove)!;
       expect(dressed).not.toBeNull();
-      expect(Array.from(dressed.index!.array)).toEqual(Array.from(original.index!.array));
+      expectSameArray(Array.from(dressed.index!.array), Array.from(original.index!.array));
       for (const name of Object.keys(original.attributes)) {
-        expect(Array.from(dressed.getAttribute(name).array)).toEqual(
+        expectSameArray(
+          Array.from(dressed.getAttribute(name).array),
           Array.from(original.getAttribute(name).array)
         );
         expect(dressed.getAttribute(name)).not.toBe(original.getAttribute(name));
@@ -782,10 +819,10 @@ describe('actual private eye closure and task attention', () => {
       }
       const closed = Array.from(eye.geometry.attributes.position.array);
       blink.apply(1);
-      expect(Array.from(eye.geometry.attributes.position.array)).toEqual(closed);
+      expectSameArray(Array.from(eye.geometry.attributes.position.array), closed);
       blink.apply(0);
-      expect(Array.from(eye.geometry.attributes.position.array)).toEqual(borrowedPositions);
-      expect(Array.from(source.attributes.position.array)).toEqual(borrowedArray);
+      expectSameArray(Array.from(eye.geometry.attributes.position.array), borrowedPositions);
+      expectSameArray(Array.from(source.attributes.position.array), borrowedArray);
       let neighbourEye: THREE.Mesh | undefined;
       neighbour.traverse((o) => {
         if ((o as THREE.Mesh).isMesh && (o as THREE.Mesh).geometry === source)
@@ -863,9 +900,9 @@ it.each(['masculine', 'feminine'])(
       normal = source.getAttribute('normal');
     const finished = softenWorkerFaceNormals(source)!;
     expect(finished).not.toBe(source);
-    expect(finished.index!.array).toEqual(source.index!.array);
+    expectSameArray(finished.index!.array, source.index!.array);
     for (const name of Object.keys(source.attributes).filter((name) => name !== 'normal'))
-      expect(finished.getAttribute(name).array).toEqual(source.getAttribute(name).array);
+      expectSameArray(finished.getAttribute(name).array, source.getAttribute(name).array);
     const a = new THREE.Vector3(),
       b = new THREE.Vector3();
     let changed = 0;
@@ -892,7 +929,7 @@ it.each(['masculine', 'feminine'])(
         expect(a.distanceTo(b)).toBe(0);
       }
     }
-    expect(normal.array).toEqual(before);
+    expectSameArray(normal.array, before);
     finished.dispose();
   }
 );
@@ -1066,7 +1103,7 @@ for (const body of ['masculine', 'feminine'] as const) {
     for (let i = 0; i < colours.array.length; i++)
       expect(moved.array[i]).toBeCloseTo(colours.array[i], 6);
     expect(geometry.getAttribute('color')).toBeUndefined();
-    expect(geometry.getAttribute('position').array).toEqual(originalPositions);
+    expectSameArray(geometry.getAttribute('position').array, originalPositions);
   });
   it(`${body} workwear finish keeps original topology, creases and cached normals`, () => {
     const scene = clone(bodies.get(body)!.scene);
@@ -1094,9 +1131,9 @@ for (const body of ['masculine', 'feminine'] as const) {
         before = source.getAttribute('normal').array.slice();
       const finish = softenWorkerFaceNormals(source)!;
       regions++;
-      expect(finish.index!.array).toEqual(source.index!.array);
+      expectSameArray(finish.index!.array, source.index!.array);
       for (const key of Object.keys(source.attributes).filter((k) => k !== 'normal'))
-        expect(finish.getAttribute(key).array).toEqual(source.getAttribute(key).array);
+        expectSameArray(finish.getAttribute(key).array, source.getAttribute(key).array);
       const n = finish.getAttribute('normal'),
         old = source.getAttribute('normal');
       const a = new THREE.Vector3(),
@@ -1108,7 +1145,7 @@ for (const body of ['masculine', 'feminine'] as const) {
         expect(a.angleTo(b)).toBeLessThan(Math.PI / 4);
         if (a.distanceTo(b) > 0.001) changed++;
       }
-      expect(source.getAttribute('normal').array).toEqual(before);
+      expectSameArray(source.getAttribute('normal').array, before);
       finish.dispose();
     });
     expect(regions).toBeGreaterThan(3);
@@ -1285,9 +1322,9 @@ for (const body of ['masculine', 'feminine']) {
         (source.index?.count ?? source.attributes.position.count) / 2
       );
       for (const name of ['position', 'normal', 'skinIndex', 'skinWeight']) {
-        expect(brows.getAttribute(name).array).toEqual(source.getAttribute(name).array);
+        expectSameArray(brows.getAttribute(name).array, source.getAttribute(name).array);
       }
-      expect(source.index?.array).toEqual(oldIndex);
+      expectSameArray(source.index?.array, oldIndex);
       const inverse = head.matrixWorld.clone().invert(),
         p = new THREE.Vector3();
       const ids = new Set(Array.from(brows.index!.array));
@@ -1742,7 +1779,7 @@ describe('actual-rig baker linen skinning and distant preservation', () => {
         expect(maxFarError).toBeLessThan(1e-6);
         expect(movement).toBeGreaterThan(0.05);
         expect(apron.skeleton.boneInverses.map((x) => x.elements)).toEqual(inverses);
-        for (const [g, p] of original) expect(Array.from(g.attributes.position.array)).toEqual(p);
+        for (const [g, p] of original) expectSameArray(Array.from(g.attributes.position.array), p);
         const camera = new THREE.PerspectiveCamera();
         camera.position.set(4, 0.4, 110);
         lod.update(camera);
@@ -2470,14 +2507,14 @@ describe('fitted pupil contact and quiet directional attention', () => {
       const looking = Array.from(pair.instanceMatrix.array);
       setWorkerPupilBlink(pair, 0.35);
       setWorkerPupilBlink(pair, 0);
-      expect(Array.from(pair.instanceMatrix.array)).toEqual(looking);
+      expectSameArray(Array.from(pair.instanceMatrix.array), looking);
       setWorkerPupilPose(pair, 0, 0, 0);
-      expect(Array.from(pair.instanceMatrix.array)).toEqual(original);
-      expect(Array.from(neighbour.instanceMatrix.array)).toEqual(other);
+      expectSameArray(Array.from(pair.instanceMatrix.array), original);
+      expectSameArray(Array.from(neighbour.instanceMatrix.array), other);
       const version = pair.instanceMatrix.version;
       setWorkerPupilPose(pair, NaN, NaN, Infinity);
       expect(pair.instanceMatrix.version).toBe(version);
-      expect(Array.from(source.attributes.position.array)).toEqual(borrowed);
+      expectSameArray(Array.from(source.attributes.position.array), borrowed);
       blink.dispose();
       expect(eye!.geometry).toBe(source);
       pair.dispose();
@@ -2566,7 +2603,7 @@ describe('authored closed mouth and greeting brow contact', () => {
         const islands = fitted.userData.workerBrowIslands as number[][];
         expect(islands).toHaveLength(2);
         if (preserveScalp)
-          expect(Array.from(fitted.index!.array)).toEqual(Array.from(cached.index!.array));
+          expectSameArray(Array.from(fitted.index!.array), Array.from(cached.index!.array));
         const selected = new Set(islands.flat());
         const skinSource = skin!.geometry,
           skinPositions = Array.from(skinSource.attributes.position.array);
@@ -2581,9 +2618,10 @@ describe('authored closed mouth and greeting brow contact', () => {
         expect(neighbour.mouth!.geometry).not.toBe(helper.mouth!.geometry);
         expect(neighbour.mouth!.material).not.toBe(helper.mouth!.material);
         expect(brow!.geometry).not.toBe(fitted);
-        expect(Array.from(brow!.geometry.index!.array)).toEqual(sourceIndices);
+        expectSameArray(Array.from(brow!.geometry.index!.array), sourceIndices);
         for (const name of ['normal', 'uv', 'skinIndex', 'skinWeight'])
-          expect(Array.from(brow!.geometry.attributes[name].array)).toEqual(
+          expectSameArray(
+            Array.from(brow!.geometry.attributes[name].array),
             Array.from(fitted.attributes[name].array)
           );
         const mouth = new THREE.Mesh(helper.mouth!.geometry, helper.mouth!.material);
@@ -2767,25 +2805,26 @@ describe('authored closed mouth and greeting brow contact', () => {
         scene.getObjectByName('Neck')!.quaternion.copy(neckRotation);
         parent.updateMatrixWorld(true);
         helper.apply(0);
-        expect(Array.from(mouth.geometry.attributes.position.array)).toEqual(originalMouth);
-        expect(Array.from(brow!.geometry.attributes.position.array)).toEqual(source);
+        expectSameArray(Array.from(mouth.geometry.attributes.position.array), originalMouth);
+        expectSameArray(Array.from(brow!.geometry.attributes.position.array), source);
         const version = mouth.geometry.attributes.position.version;
         helper.apply(NaN);
         helper.apply(-1);
         expect(mouth.geometry.attributes.position.version).toBe(version);
-        expect(Array.from(cached.attributes.position.array)).toEqual(cachedPositions);
-        expect(Array.from(skinSource.attributes.position.array)).toEqual(skinPositions);
+        expectSameArray(Array.from(cached.attributes.position.array), cachedPositions);
+        expectSameArray(Array.from(skinSource.attributes.position.array), skinPositions);
         expect(skin!.geometry).toBe(skinSource);
         let disposals = 0;
         mouth.geometry.addEventListener('dispose', () => disposals++);
         helper.dispose();
-        expect(Array.from(neighbour.mouth!.geometry.attributes.position.array)).toEqual(
+        expectSameArray(
+          Array.from(neighbour.mouth!.geometry.attributes.position.array),
           neighbourPositions
         );
         neighbour.dispose();
         expect(disposals).toBe(1);
         expect(brow!.geometry).toBe(fitted);
-        expect(Array.from(fitted.attributes.position.array)).toEqual(sourceStorage);
+        expectSameArray(Array.from(fitted.attributes.position.array), sourceStorage);
         fitted.dispose();
         mixer.stopAllAction();
         mixer.uncacheRoot(scene);
@@ -2912,7 +2951,7 @@ it.each(['masculine', 'feminine'])(
       expect(d.addedTriangles).toBeLessThan(400);
       expect(d.maxDiscardedWeight).toBe(0);
       expect(d.attachment).toBe('source-vertex');
-      expect(g.index!.array.slice(0, source.index!.count)).toEqual(source.index!.array);
+      expectSameArray(g.index!.array.slice(0, source.index!.count), source.index!.array);
       for (const [name, attribute] of Object.entries(source.attributes)) {
         const actual = g.attributes[name];
         expect(actual.array.constructor).toBe(attribute.array.constructor);
@@ -3130,7 +3169,7 @@ it.each([undefined, THREE.FloatType, THREE.IntType])(
     expect(lod!.meshes).toHaveLength(1);
     const result = lod!.meshes[0].geometry.attributes.skinIndex as THREE.BufferAttribute;
     expect(result.gpuType).toBe(gpuType ?? THREE.FloatType);
-    expect(Array.from(result.array)).toEqual(values);
+    expectSameArray(Array.from(result.array), values);
     sources.forEach((m, i) => {
       expect(m.geometry.attributes.skinIndex).toBe(before[i]);
       expect((before[i] as THREE.BufferAttribute).gpuType).toBe(gpuType);
@@ -3198,8 +3237,8 @@ it.each(['masculine', 'feminine'])(
       finished = softenWorkerFaceNormals(source, armJoints)!;
     expect(armJoints).toHaveLength(4);
     for (const name of Object.keys(source.attributes).filter((n) => n !== 'normal'))
-      expect(finished.attributes[name].array).toEqual(source.attributes[name].array);
-    expect(finished.index!.array).toEqual(source.index!.array);
+      expectSameArray(finished.attributes[name].array, source.attributes[name].array);
+    expectSameArray(finished.index!.array, source.index!.array);
     const armWeight = (i: number) =>
         [0, 1, 2, 3].reduce(
           (sum, c) =>
@@ -3337,7 +3376,7 @@ it.each(['masculine', 'feminine'])(
     expect(movement).toBeGreaterThan(0.01);
     expect(mesh.geometry).toBe(finished);
     expect(source.attributes.normal).not.toBe(finished.attributes.normal);
-    expect(source.attributes.normal.array).toEqual(sourceNormals);
+    expectSameArray(source.attributes.normal.array, sourceNormals);
     pose.restore();
     mixer.stopAllAction();
     mixer.uncacheRoot(scene);
@@ -3384,8 +3423,8 @@ for (const body of ['masculine', 'feminine'])
       )!;
       const coat = createWorkerLabCoat(scene)!;
       expect(coat).not.toBeNull();
-      expect(coat.geometry.attributes.position.array).toEqual(traced.attributes.position.array);
-      expect(coat.geometry.index!.array).toEqual(traced.index!.array);
+      expectSameArray(coat.geometry.attributes.position.array, traced.attributes.position.array);
+      expectSameArray(coat.geometry.index!.array, traced.index!.array);
       coat.geometry.dispose();
       coat.geometry = traced;
       expect(lineage).toHaveLength(traced.userData.labCoatFit.bridgeStart);
@@ -3594,7 +3633,7 @@ for (const body of ['masculine', 'feminine'])
       expect(skeletons[0].boneInverses.map((m) => m.elements)).toEqual(inverses);
       sources.forEach((m, i) => {
         for (const [k, values] of Object.entries(sourceBytes[i]))
-          expect(Array.from(m.geometry.attributes[k].array)).toEqual(values);
+          expectSameArray(Array.from(m.geometry.attributes[k].array), values);
       });
       const camera = new THREE.PerspectiveCamera();
       camera.position.set(4, 2, 140);
