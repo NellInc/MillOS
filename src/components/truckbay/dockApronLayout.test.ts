@@ -92,3 +92,20 @@ describe('yard mast pools', () => {
     expect(source.match(/<cylinderGeometry args=\{\[0\.12, 0\.15, 14, 8\]\} \/>/g)).toHaveLength(2);
   });
 });
+
+describe('KEEP CLEAR against the docked truck', () => {
+  it('lies beyond the docked tractor, on its pull-out path, with no guide line through it', async () => {
+    // It sat at u 14.6-16.6, under the docked tractor's engine (u ~15.5): a
+    // keep-clear box under a parking position protects nothing. It now keeps
+    // the pull-out path in front of the docked tractor's nose clear.
+    const { DOCK_BUMPER_FACE_Z, TRAILER_REAR_OVERHANG, TRACTOR_FRONT_OVERHANG } =
+      await import('./truckController');
+    const dockedNoseU =
+      DOCK_BUMPER_FACE_Z + TRAILER_REAR_OVERHANG + 0.02 + TRACTOR_FRONT_OVERHANG - 50;
+    expect(DOCK_KEEP_CLEAR.u0).toBeGreaterThan(dockedNoseU);
+    expect(DOCK_KEEP_CLEAR.u0 - dockedNoseU).toBeLessThan(1.5);
+    for (const run of [DOCK_GUIDE_LINES, DOCK_GROOVE_STRIPES, DOCK_LASER_GUIDES]) {
+      expect(run.u1).toBeLessThan(DOCK_KEEP_CLEAR.u0);
+    }
+  });
+});
