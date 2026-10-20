@@ -36,6 +36,7 @@ import {
   type CommunityPose,
 } from '../communityLife';
 import { STANDARD_GAME_SPEED } from '../pace';
+import { COMMUNITY_ANCHORS } from '../../constants/communityLayout';
 import { createWorkplace, transitionWorkplace } from '../bilateralWorkplace';
 import {
   createMachineObstacles,
@@ -856,6 +857,22 @@ describe('inhabited world routines', () => {
         (1.5 * step) / COMMUNITY_SEAT_RAMP.down + 1e-9
       );
       previous = now;
+    }
+  });
+  it('walks the baker and shopkeeper around their opening boards, never through them', () => {
+    for (const [id, board] of [
+      ['village-baker', COMMUNITY_ANCHORS.bakeryBoard],
+      ['village-shopkeeper', COMMUNITY_ANCHORS.shopBoard],
+    ] as const) {
+      const person = COMMUNITY_ROSTER.find((p) => p.id === id)!;
+      // Board footprint 0.71 x 0.075 m, turned a quarter: long along world z.
+      for (let h = 6.9; h < 18.1; h += 0.0005) {
+        const shown = sampleCommunityPerson(person, h);
+        if (!shown.visible) continue;
+        const dx = Math.max(0, Math.abs(shown.position[0] - board.position[0]) - 0.0375);
+        const dz = Math.max(0, Math.abs(shown.position[2] - board.position[2]) - 0.355);
+        expect(Math.hypot(dx, dz), `${id} at its board at ${h}`).toBeGreaterThan(0.35);
+      }
     }
   });
   it('keeps the shopkeeper clear of the courier and the parked handcart', () => {

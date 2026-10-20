@@ -369,14 +369,14 @@
       "sha256": "8f2f28a013d740f6539805d2f8af2f8c31d2fff3b95dad7d1ae8f8e7e8e8d379",
       "blenderPreparation": {
         "file": "assets/source/models/village/wishingwell-crafted.glb",
-        "sha256": "50252b80e5651bf6fa716da5de653c8327a5df2b9b64496e8631bcbc434c3056",
+        "sha256": "0c7299f84fdbbe004c2b6c331ce34f34c0a0c43c5f2aedd0ec0db5aaf9140e14",
         "script": "scripts/blender/refine_civic_props.py",
         "method": "Reference-concept refinement: jointed coping, continuous coiled rope and tied hollow stave bucket, post bearing straps, half-round ridge caps and verge battens. Single mesh and existing atlas; bore, roof envelope and provider source preserved."
       },
       "runtimeDerivative": {
         "file": "public/models/village/wishingwell.glb",
-        "sha256": "48bdb3d98540ce1171cbec3e2f29982c36326dadc1914fbe8c90e347ea827e3b",
-        "bytes": 435840
+        "sha256": "59bc379b747d495c670b0193ae304d589ad8aa1817ae203236ff40b733d1ced1",
+        "bytes": 435820
       },
       "normalization": {
         "sizedBy": "longest axis",
@@ -418,8 +418,8 @@
       },
       "runtimeDerivative": {
         "file": "public/models/village/marketstall.glb",
-        "sha256": "615a3d042e18837d768ea2de2a27ac5269bbb7647c62a2c07fc656ea9fa530f1",
-        "bytes": 192208
+        "sha256": "e72406669751c2dcbaf5f33a48d7b31b89fa567a561d1bb35703364fa95d041b",
+        "bytes": 192192
       },
       "normalization": {
         "sizedBy": "longest axis",
@@ -461,8 +461,8 @@
       },
       "runtimeDerivative": {
         "file": "public/models/village/postbox.glb",
-        "sha256": "937f13ea3d9d7a4c51fb626de0cf0ca8156ff86ab7c3feed4aedd31052636094",
-        "bytes": 300880
+        "sha256": "7f4048aa353bf6dc1569e98effa8e71b0ecad960f8689344f6dbbc234c84dc87",
+        "bytes": 300860
       },
       "normalization": {
         "sizedBy": "height",

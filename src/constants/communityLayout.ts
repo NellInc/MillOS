@@ -47,6 +47,10 @@ export const COMMUNITY_ANCHORS = Object.freeze({
    * (not a mirror of it: the door is off-centre, so a mirror lands on the
    * window). communityLayout.test.ts derives both from the model. */
   shopDoor: village([-17.09, 0, 31.54], Math.PI / 2),
+  /** Opening-hours boards, each standing out in line with its shop door. The
+   * store's sits 1.1 m out, between the door and the delivery crate. */
+  bakeryBoard: village([15.1, 0, 3.2], -Math.PI / 2),
+  shopBoard: village([-16, 0, 31.5], Math.PI / 2),
   /** In front of the allotment tool shed's door (shed-local [-3.3, -2.5]). */
   allotmentShedDoor: village([-27.5, 0, 12.3], Math.PI / 2),
   busSeat: anchor([29.55, 0, 140], -Math.PI / 2, 0.522),

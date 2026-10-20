@@ -640,7 +640,12 @@ export const COMMUNITY_ROSTER: readonly CommunityPerson[] = [
       stop([-202.7, 0, 30.4], 0, 0.4, 'Greeting a neighbour', 'idle'),
       via([-202.7, 0, 30]),
     ],
-    day: { ...COMMUNITY_OPENING_HOURS.shops, door: A.shopDoor.position, approach: [] },
+    // Off the step, south of the opening board that stands in line with the door.
+    day: {
+      ...COMMUNITY_OPENING_HOURS.shops,
+      door: A.shopDoor.position,
+      approach: [[-206.6, 0, 30.75]],
+    },
   },
   {
     id: 'village-gardener',

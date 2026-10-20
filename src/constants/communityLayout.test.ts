@@ -120,9 +120,9 @@ describe('community hours and shared placement contract', () => {
       placements.set(m[3], { position, rotation: (m[2] ? -1 : 1) * (Math.PI / 2) });
     }
     const village = SITE_LAYOUT.landmarks.village;
-    for (const [sign, anchor] of [
-      ['BAKER', A.bakeryDoor],
-      ['GENERAL STORE', A.shopDoor],
+    for (const [sign, anchor, board] of [
+      ['BAKER', A.bakeryDoor, A.bakeryBoard],
+      ['GENERAL STORE', A.shopDoor, A.shopBoard],
     ] as const) {
       const placement = placements.get(sign);
       expect(placement, sign).toBeDefined();
@@ -141,7 +141,22 @@ describe('community hours and shared placement contract', () => {
       // Facing out of the door, along the model's +z.
       const facing = Math.atan2(Math.sin(anchor.rotation - yaw), Math.cos(anchor.rotation - yaw));
       expect(Math.abs(facing), `${sign} anchor faces out of the door`).toBeLessThan(0.07);
+      // The opening board stands out in line with that door, facing the street.
+      const bx = board.position[0] - anchor.position[0];
+      const bz = board.position[2] - anchor.position[2];
+      const along = bx * Math.sin(yaw) + bz * Math.cos(yaw);
+      const across = bx * Math.cos(yaw) - bz * Math.sin(yaw);
+      expect(Math.abs(across), `${sign} board in line with the door`).toBeLessThan(0.1);
+      expect(along, `${sign} board out from the door`).toBeGreaterThan(0.8);
+      expect(along, `${sign} board out from the door`).toBeLessThan(2.5);
+      expect(Math.abs(board.rotation - anchor.rotation), `${sign} board faces the street`).toBe(0);
     }
+    // The store's board stays clear of the delivery crate in front of the door
+    // (0.64 x 0.46 m, turned with its anchor; the board is 0.71 x 0.075 m).
+    const crate = A.shopDelivery.position;
+    const gapX = Math.abs(A.shopBoard.position[0] - crate[0]) - (0.23 + 0.0375);
+    const gapZ = Math.abs(A.shopBoard.position[2] - crate[2]) - (0.32 + 0.355);
+    expect(Math.max(gapX, gapZ), 'board clear of the delivery crate').toBeGreaterThan(0.3);
   });
   it('keeps the mill break seats west of the transfer belt and the painted west walkway clear', () => {
     for (const seat of [A.millRestNorth, A.millRestSouth]) {

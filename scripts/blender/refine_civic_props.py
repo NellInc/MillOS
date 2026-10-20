@@ -684,7 +684,9 @@ def well():
   for side in [-1,1]:beam('Gable verge batten',(x,0,2.863),(x,side*1.12,2.355),.045,'oak-light')
  for side in [-1,1]:
   for row in range(5):
-   y=side*(.115+row*.23);z=2.87-abs(y)*.46
+   # Each course rides 6.5 mm above the one below it (eave row unchanged), so
+   # the overlap strip is a real lap rather than two tile faces 0.29 mm apart.
+   y=side*(.115+row*.23);z=2.87-abs(y)*.46+(4-row)*.0065
    for col in range(7):
     x=-.93+col*.31
     # Only the visible upper arris is rounded; lower tile edges overlap and
