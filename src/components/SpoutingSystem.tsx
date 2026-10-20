@@ -204,6 +204,56 @@ interface PipeRouteMesh {
   readonly geometry: THREE.BufferGeometry;
 }
 
+/** Whether two straight runs lie on one centreline and overlap along it. */
+function sharesRun(a: THREE.LineCurve3, b: THREE.LineCurve3) {
+  const along = a.v2.clone().sub(a.v1);
+  const length = along.length();
+  if (length < 1e-6) return false;
+  along.divideScalar(length);
+  const other = b.v2.clone().sub(b.v1);
+  if (other.lengthSq() < 1e-12 || other.normalize().cross(along).length() > 1e-6) return false;
+  const offset = b.v1.clone().sub(a.v1);
+  if (offset.clone().addScaledVector(along, -offset.dot(along)).length() > 1e-4) return false;
+  const t1 = offset.dot(along),
+    t2 = b.v2.clone().sub(a.v1).dot(along);
+  return Math.min(length, Math.max(t1, t2)) - Math.max(0, Math.min(t1, t2)) > 1e-3;
+}
+
+/**
+ * Tube radius per route. Routes of one family can run down one centreline:
+ * the silo intakes share the silo-side gallery run, and two lift lines land
+ * on the same sifter inlet (four mills, three sifters). Equal tubes there lie
+ * face on face in one merged draw, with the roughness and AO texels of two UV
+ * runs fighting for depth. Each route that shares a run with earlier ones
+ * takes the first radius none of them uses, in 4 mm steps, so a shared run
+ * shows one sleeve over the others.
+ * Working if no two routes of one family share a tube face.
+ */
+export function spoutRouteRadii(
+  routes: readonly {
+    readonly family: PipeRouteFamily;
+    readonly curve: THREE.CurvePath<THREE.Vector3>;
+  }[]
+): number[] {
+  const runs = routes.map(({ curve }) =>
+    curve.curves.filter((c): c is THREE.LineCurve3 => c instanceof THREE.LineCurve3)
+  );
+  const steps: number[] = [];
+  routes.forEach((route, i) => {
+    const taken = new Set(
+      steps.filter(
+        (_, j) =>
+          routes[j].family === route.family &&
+          runs[i].some((a) => runs[j].some((b) => sharesRun(a, b)))
+      )
+    );
+    let step = 0;
+    while (taken.has(step)) step++;
+    steps.push(step);
+  });
+  return steps.map((step) => SPOUT_PIPE_RADIUS + step * 0.004);
+}
+
 /**
  * Family-specific route materials.
  *
@@ -403,8 +453,10 @@ export const SpoutingSystem = React.memo<{
 
     // Curves come from the shared route builder so GrainFlow puts product
     // inside these exact pipes.
-    buildSpoutRoutes(machines).forEach(({ family, curve, length }) => {
-      routeGeometries[family].push(createSpoutTubeGeometry(curve, radialSegments));
+    const spoutRoutes = buildSpoutRoutes(machines);
+    const radii = spoutRouteRadii(spoutRoutes);
+    spoutRoutes.forEach(({ family, curve, length }, index) => {
+      routeGeometries[family].push(createSpoutTubeGeometry(curve, radialSegments, radii[index]));
 
       // Real spouting is bolted up roughly every 3-4 m. Flanges are instanced
       // into one draw call, so density here is nearly free and it is what makes

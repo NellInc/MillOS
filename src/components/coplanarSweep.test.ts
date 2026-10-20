@@ -1,12 +1,17 @@
 import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { RIVER_FOOTBRIDGE_DECK } from '../constants/siteLayout';
+import { CANAL_OUTLET_STONES } from './FactoryExterior';
 import {
   createRiverFootbridgeAccessGeometry,
   createRiverFootbridgeFrameGeometry,
+  createRoadRiverBridgeFrameGeometry,
 } from './exterior/riverGeometry';
+import { createMaintenanceJoinery } from './exterior/serviceBuildingCraft';
 import { WORKER_TOOL_GEOMETRIES } from './workers/WorkerTools';
+
+vi.mock('../utils/critterAudio', () => ({ playCritterSound: vi.fn() }));
 
 /**
  * Coplanar faces of different colour found by the colour-aware triangle sweep
@@ -14,7 +19,7 @@ import { WORKER_TOOL_GEOMETRIES } from './workers/WorkerTools';
  * fix established, on the real geometry or the real source.
  */
 
-type Tri = { p: THREE.Vector3[]; colour: string };
+type Tri = { p: THREE.Vector3[]; colour: string; facing: number };
 
 /** Axis-aligned triangles of a geometry whose normal lies along `axis` (0, 1, 2). */
 function axisFaces(geometry: THREE.BufferGeometry, axis: number, offset = new THREE.Vector3()) {
@@ -34,6 +39,7 @@ function axisFaces(geometry: THREE.BufferGeometry, axis: number, offset = new TH
     if (Math.abs(n.getComponent(axis)) < 0.9999) continue;
     out.push({
       p,
+      facing: Math.sign(n.getComponent(axis)),
       colour: colour
         ? new THREE.Color().fromBufferAttribute(colour as THREE.BufferAttribute, i).getHexString()
         : '',
@@ -75,13 +81,15 @@ function clipArea(a: number[][], b: number[][]) {
   return out.length >= 3 ? Math.abs(area2(out)) : 0;
 }
 
-/** Overlapping area of same-plane faces of different colour, along `axis`. */
-function conflictArea(a: Tri[], b: Tri[], axis: number, tolerance = 1e-5) {
+/** Overlapping area of same-plane faces of different colour, along `axis`.
+ * `sameFacing` ignores back-to-back pairs, which never share a pixel. */
+function conflictArea(a: Tri[], b: Tri[], axis: number, tolerance = 1e-5, sameFacing = false) {
   const [u, v] = [0, 1, 2].filter((k) => k !== axis);
   let total = 0;
   for (const s of a)
     for (const t of b) {
       if (s.colour === t.colour && s.colour !== '') continue;
+      if (sameFacing && s.facing !== t.facing) continue;
       const ds = s.p.map((q) => q.getComponent(axis));
       const dt = t.p.map((q) => q.getComponent(axis));
       if (Math.max(...ds, ...dt) - Math.min(...ds, ...dt) > tolerance) continue;
@@ -110,6 +118,58 @@ describe('colour-aware coplanar sweep fixes', () => {
     expect(conflictArea(accessFaces, accessFaces, 1)).toBe(0);
     access.dispose();
     frame.dispose();
+  });
+
+  it.each([
+    ['road bridge frame', createRoadRiverBridgeFrameGeometry],
+    ['footbridge open ironwork', createRiverFootbridgeFrameGeometry],
+  ] as const)(
+    'keeps no two colours in one face plane of the %s',
+    (name, create) => {
+      // Road: post tops and sides lay on the trim rail's top and sides, girder
+      // webs ended on the top-flange ends. Foot: pier faces ran through the cap
+      // ends, girder webs ended on the trim-flange ends. One mesh, so 0 mm.
+      const geometry = create();
+      for (const axis of [0, 1, 2]) {
+        const faces = axisFaces(geometry, axis);
+        // Faces within 1 mm count as one plane; the overlap budget is 1 cm2.
+        expect(conflictArea(faces, faces, axis, 1e-3, true), `${name} axis ${axis}`).toBeLessThan(
+          1e-4
+        );
+      }
+      geometry.dispose();
+    },
+    60_000
+  );
+
+  it('gives no two canal overflow stones a shared face plane', () => {
+    // Each stone's UVs are centred on that box, so overlapping corners of two
+    // walls or copings sample different texels in one plane.
+    const faces = [0, 1, 2].map((axis) =>
+      CANAL_OUTLET_STONES.flatMap(({ position, size }, i) => {
+        const box = new THREE.BoxGeometry(...size).translate(...position);
+        const out = axisFaces(box, axis);
+        out.forEach((face) => (face.colour = `stone-${i}`));
+        box.dispose();
+        return out;
+      })
+    );
+    for (const axis of [0, 1, 2])
+      expect(conflictArea(faces[axis], faces[axis], axis, 1e-3, true), `axis ${axis}`).toBeLessThan(
+        1e-4
+      );
+  });
+
+  it('ends the maintenance shed plinth strips inside its corner trims', () => {
+    // The front and rear concrete strips ran to x +/-5, the corner trims' outer
+    // face: concrete and trim colour in one plane, 2.5 cm of it clear of the
+    // side plinths at each corner.
+    const joinery = createMaintenanceJoinery();
+    const sides = axisFaces(joinery, 0).filter((face) =>
+      face.p.every((q) => Math.abs(Math.abs(q.x) - 5) < 1e-3)
+    );
+    expect(conflictArea(sides, sides, 0, 1e-3, true)).toBeLessThan(1e-4);
+    joinery.dispose();
   });
 
   it('stands the clipboard hinge proud of the board top', () => {

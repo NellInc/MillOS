@@ -872,10 +872,10 @@ it('flours only bread crowns while retaining exact market geometry and other tra
     },
     {
       attributes: {
-        position: '36438102c685c62607031e413e0a1976ef866ec47d6d27109ad6672a0391ad08',
-        uv: '707216b57570e3996a595c4e7fa6f5e54a4e58a12d6206b6fe0f973e92100cff',
-        normal: '20e8282621eb3d9fd9cd03795593929bd0f37f691d4a13ac9ba7f3fe2e41e24b',
-        color: '65de8dab09b88be56537224d6ee133136810e2b43b5d0b4a904278f3ec5ee82e',
+        position: '4b428a0dc87e59bc48f351e21229ae21f2ff20e4aaf7d4e13597cf54cd9058a8',
+        uv: '776f6beb2d95be9fad77b11c420a982c67bae39553edd97a324fc5ad965943d3',
+        normal: '3d0089ae72d4cc0604b752b9ff53b24a6687d08361bc2be5eeb723395dfe9f69',
+        color: '531fbb49908abeb9064420a59908a1b42f4090d2cf685a5eb67a94890002ef54',
       },
       index: null,
     },
