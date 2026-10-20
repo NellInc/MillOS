@@ -209,8 +209,10 @@ describe('instanced station finish', () => {
       if (detail.part.startsWith('door-hood') || detail.part === 'door-rain-hood') {
         expect(instanceBounds(mesh, index).intersectsBox(leaf)).toBe(false);
       }
+      // Seated through the double-sided leaf by 5 mm rather than flush on it,
+      // where the mount's back face and the leaf shared a plane.
       if (detail.part === 'door-pull-mount')
-        expect(instanceBounds(mesh, index).min.z).toBeCloseTo(5, 5);
+        expect(instanceBounds(mesh, index).min.z).toBeCloseTo(4.995, 5);
     });
     const ray = new THREE.Raycaster(
       new THREE.Vector3(-11.58, 1.13, 6),
@@ -677,6 +679,49 @@ describe('station retail contents and sightlines', () => {
     );
     const counter = await placed('station-counter', [3, 0, -1]);
     expect(gap(slush, counter)).toBeGreaterThanOrEqual(0.01);
+  });
+
+  it('shares no same-facing face between station detail boxes of different colour', () => {
+    // The sweep's instance colours exposed 7.5 m2 of roof-cap joint backing
+    // flush with the cap panels' inner faces, the rain hood ends on its edge
+    // strips, gutter lips on the cap ends and the fridge side tops on the liner.
+    const boxes = STATION_DETAIL_LAYOUT.opaque.map((part) => ({ part, box: partBox(part) }));
+    const hits: string[] = [];
+    for (let i = 0; i < boxes.length; i++)
+      for (let j = i + 1; j < boxes.length; j++) {
+        const a = boxes[i];
+        const b = boxes[j];
+        if (a.part.color === b.part.color) continue;
+        for (const axis of [0, 1, 2]) {
+          const [u, v] = [0, 1, 2].filter((k) => k !== axis);
+          for (const end of ['min', 'max'] as const) {
+            if (Math.abs(a.box[end].getComponent(axis) - b.box[end].getComponent(axis)) > 1e-6)
+              continue;
+            const overlap = (k: number) =>
+              Math.min(a.box.max.getComponent(k), b.box.max.getComponent(k)) -
+              Math.max(a.box.min.getComponent(k), b.box.min.getComponent(k));
+            if (overlap(u) > 1e-6 && overlap(v) > 1e-6)
+              hits.push(`${a.part.part} / ${b.part.part} axis ${axis} ${end}`);
+          }
+        }
+      }
+    expect(hits).toEqual([]);
+  });
+
+  it('keeps the drinks-cabinet frame sides above the liner top too', async () => {
+    const liner = await placed(
+      'station-drinks-cabinet',
+      [STATION_RETAIL.cabinetLiner.position[0], 0, -4 + STATION_RETAIL.cabinetLiner.position[2]],
+      STATION_RETAIL.cabinetLiner.scale
+    );
+    for (const side of STATION_DETAIL_LAYOUT.opaque.filter((p) => p.part === 'retail-fridge-side'))
+      expect(partBox(side).max.y - liner.max.y).toBeGreaterThan(0.0099);
+  });
+
+  it('passes the door pull mounts through the door leaf plane', () => {
+    // The leaf is a double-sided plane at z 5; the mounts' backs lay on it.
+    for (const mount of STATION_DETAIL_LAYOUT.opaque.filter((p) => p.part === 'door-pull-mount'))
+      expect(5 - partBox(mount).min.z).toBeGreaterThanOrEqual(0.004);
   });
 
   it('ends the door threshold and head inside the jambs', () => {

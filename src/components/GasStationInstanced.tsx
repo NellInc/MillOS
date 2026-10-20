@@ -403,8 +403,10 @@ export function createStationDetailLayout() {
       add(part, position, size, color);
     }
     const position: [number, number, number] = [...centre];
-    position[across] -= outward * 0.008;
-    const size: [number, number, number] = [depth - 0.016, height - 0.008, depth - 0.016];
+    // Inner face 2 mm behind the panels' inner faces: at 0.008 it lay exactly
+    // on them, terracotta against the backing colour along every cap.
+    position[across] -= outward * 0.007;
+    const size: [number, number, number] = [depth - 0.018, height - 0.008, depth - 0.018];
     size[along] = length - 0.02;
     add(`${part}-joint-backing`, position, size, backing);
   };
@@ -439,13 +441,15 @@ export function createStationDetailLayout() {
   // edge. Square section pipes sit at the rear corners, away from the side
   // door, glass frontage and fuel lanes. All pieces use the existing cube batch.
   // Working if the trough stays open and each outlet meets a grounded grate.
+  // The channel ends 1 cm inside the cap ends, and its end plates sit between
+  // the lips: at 9 m and 0.24 m their faces lay on the cap's.
   for (const side of [-1, 1]) {
-    add('roof-gutter-bottom', [-12, 5.23, side * 5.56], [9, 0.02, 0.24], charcoal);
+    add('roof-gutter-bottom', [-12, 5.23, side * 5.56], [8.96, 0.02, 0.24], charcoal);
     for (const z of [5.445, 5.675]) {
-      add('roof-gutter-lip', [-12, 5.285, side * z], [9, 0.13, 0.02], charcoal);
+      add('roof-gutter-lip', [-12, 5.285, side * z], [8.96, 0.13, 0.02], charcoal);
     }
-    for (const x of [-16.49, -7.51]) {
-      add('roof-gutter-end', [x, 5.285, side * 5.56], [0.02, 0.13, 0.24], charcoal);
+    for (const x of [-16.47, -7.53]) {
+      add('roof-gutter-end', [x, 5.285, side * 5.56], [0.02, 0.13, 0.22], charcoal);
     }
     add('roof-downpipe', [-15.86, 2.7, side * 5.61], [0.11, 5.08, 0.11], charcoal);
     for (const y of [0.5, 1.95, 3.4, 4.85]) {
@@ -477,7 +481,7 @@ export function createStationDetailLayout() {
   // The closed side door retains its original size and collision contract.
   // Its small folded hood clears the existing head; supports sit outside the
   // 1.20 m leaf, and a seated pull gives the dark panel a recognisable scale.
-  add('door-rain-hood', [-12, 2.68, 5.285], [1.8, 0.08, 0.65], '#a6382b');
+  add('door-rain-hood', [-12, 2.68, 5.285], [1.78, 0.08, 0.65], '#a6382b');
   add('door-hood-edge', [-12, 2.625, 5.6], [1.8, 0.09, 0.035], charcoal);
   for (const side of [-1, 1]) {
     add('door-hood-edge', [-12 + side * 0.8825, 2.625, 5.285], [0.035, 0.09, 0.63], charcoal);
@@ -489,7 +493,7 @@ export function createStationDetailLayout() {
     add('door-leaf-rail', [-12, y, 5.018], [1.01, 0.055, 0.03], '#63716f');
   }
   for (const y of [1.0, 1.26]) {
-    add('door-pull-mount', [-11.58, y, 5.055], [0.07, 0.045, 0.11], '#bca36f');
+    add('door-pull-mount', [-11.58, y, 5.05], [0.07, 0.045, 0.11], '#bca36f');
   }
   add('door-pull', [-11.58, 1.13, 5.11], [0.035, 0.31, 0.035], '#bca36f');
   add('door-lamp-housing', [-12, 2.605, 5.31], [0.46, 0.07, 0.18], charcoal);
@@ -593,7 +597,7 @@ export function createStationDetailLayout() {
   // -14/-10/3.0, liner and frame shared those faces. The door head and
   // threshold end 1 cm inside the jambs' outer faces for the same reason.
   for (const side of [-1, 1]) {
-    add('retail-fridge-side', [-12 + side * 1.96, 1.5, -4], [0.12, 3, 0.8], '#37474f');
+    add('retail-fridge-side', [-12 + side * 1.96, 1.505, -4], [0.12, 3.01, 0.8], '#37474f');
     // Only the top cap rises; the floor cap keeps its seat on the slab.
     add(
       'retail-fridge-cap',
