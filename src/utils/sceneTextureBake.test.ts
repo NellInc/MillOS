@@ -35,10 +35,32 @@ const GOLDEN_0B899E77: Record<string, string> = {
   millSkinNormal: '256x256::0afcbdc50e191a2e',
 };
 
+/**
+ * The exterior chunks' textures, by direct generator call on 4dd77779. The leaf
+ * atlases carry hand-built mip levels: `:mips<count>:<sha256 of all levels>`.
+ */
+const GOLDEN_4DD77779: Record<string, string> = {
+  tankFarmPadColor: '512x1024:srgb:888cd9ca3d8fb526',
+  broadleafAtlas: '384x384:srgb:4014bda28d6a8ba8:mips9:33e2fe97d9ea8b2d',
+  tankFarmPadRoughness: '256x512::d05cf09a78a3af06',
+  broadleafNormal: '384x384::27125166e3b2812f',
+  needleAtlas: '256x256:srgb:b8ebdfbce4e10fef:mips9:35ad66e7f3d75cb2',
+  needleNormal: '256x256::8c079fc272f8d3b6',
+  leafRoughness: '256x256::6cf70185b7ea8482',
+  grassBlades: '256x256:srgb:96b6c508ee86a2e0',
+  mulch: '128x128:srgb:4b1b74ed6c008f1f',
+  flourSackPrint: '128x128:srgb:6cc90ec4656bf16d',
+};
+
 const fingerprint = (texture: THREE.Texture): string => {
   const image = texture.image as { data: Uint8Array; width: number; height: number };
   const digest = createHash('sha256').update(image.data).digest('hex').slice(0, 16);
-  return `${image.width}x${image.height}:${texture.colorSpace}:${digest}`;
+  const base = `${image.width}x${image.height}:${texture.colorSpace}:${digest}`;
+  const mips = texture.mipmaps as Array<{ data: Uint8Array }>;
+  if (!mips.length) return base;
+  const all = createHash('sha256');
+  for (const level of mips) all.update(level.data);
+  return `${base}:mips${mips.length}:${all.digest('hex').slice(0, 16)}`;
 };
 
 /** Every own field of a texture except its identity, with math types flattened. */
@@ -48,7 +70,20 @@ const fieldsOf = (texture: THREE.Texture): Record<string, unknown> => {
     if (key === 'uuid' || key === 'id' || key === 'source') continue;
     if (value instanceof THREE.Vector2) out[key] = [value.x, value.y];
     else if (value instanceof THREE.Matrix3) out[key] = Array.from(value.elements);
-    else out[key] = value;
+    else if (key === 'mipmaps') {
+      // By content (a structured clone's arrays belong to another realm here,
+      // which `toEqual` treats as a different type), plus whether level 0 is
+      // still the very texel array the texture uploads.
+      const image = texture.image as { data: Uint8Array };
+      out[key] = (value as Array<{ data: Uint8Array; width: number; height: number }>).map(
+        (level) => ({
+          width: level.width,
+          height: level.height,
+          bytes: createHash('sha256').update(level.data).digest('hex'),
+          isImage: level.data === image.data,
+        })
+      );
+    } else out[key] = value;
   }
   return out;
 };
@@ -82,9 +117,10 @@ describe('scene texture startup bake', () => {
     for (const name of names)
       for (const [key, texture] of texturesOf(name, a.scene.SCENE_TEXTURE_RECIPES[name]()))
         cold.set(key, texture);
-    expect(Object.fromEntries([...cold].map(([key, t]) => [key, fingerprint(t)]))).toEqual(
-      GOLDEN_0B899E77
-    );
+    expect(Object.fromEntries([...cold].map(([key, t]) => [key, fingerprint(t)]))).toEqual({
+      ...GOLDEN_0B899E77,
+      ...GOLDEN_4DD77779,
+    });
     // The bake order runs every startup recipe exactly once.
     expect(new Set(a.startup.STARTUP_TEXTURE_BAKE_ORDER)).toEqual(
       new Set(Object.keys(a.startup.STARTUP_TEXTURE_RECIPES))
@@ -102,7 +138,7 @@ describe('scene texture startup bake', () => {
     for (const name of b.startup.STARTUP_TEXTURE_BAKE_ORDER)
       b.startup.STARTUP_TEXTURE_RECIPES[name]();
     const posted = structuredClone(baked, {
-      transfer: [...new Set(baked.map((entry) => entry.data.buffer as ArrayBuffer))],
+      transfer: b.codec.bakedTextureBuffers(baked),
     });
 
     // C: the main thread after the bake.
@@ -120,6 +156,9 @@ describe('scene texture startup bake', () => {
     await import('../components/infrastructure/OpenDockOpening');
     await import('../components/machines/machineDecals');
     await import('../components/machines/machineSurfaces');
+    // The exterior chunks: the tank farm pad and, through InstancedFoliage, the foliage.
+    await import('../components/FactoryExterior');
+    await import('./flourSacks');
     // machineSurfaces builds its instrument screen (~15 ms) at evaluation; it
     // lives in a React-side module and is deliberately not baked.
     expect(generatedOnMainThread).toEqual(['v2-srgb:machine-instrument-screen-v1']);

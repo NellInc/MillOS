@@ -6,7 +6,11 @@
  */
 import { STARTUP_TEXTURE_RECIPES, type StartupTextureRecipeName } from './startupTextureRecipes';
 import { setTextureGenerationRecorder } from './textureGenerator';
-import { snapshotGeneratedTexture, type BakedTexture } from './textureBakeCodec';
+import {
+  bakedTextureBuffers,
+  snapshotGeneratedTexture,
+  type BakedTexture,
+} from './textureBakeCodec';
 
 const workerScope = self as DedicatedWorkerGlobalScope;
 
@@ -29,8 +33,8 @@ workerScope.onmessage = (event: MessageEvent<unknown>) => {
     generated = [];
     workerScope.postMessage(
       { type: 'baked', recipe, textures },
-      // Deduplicated: listing one buffer twice makes postMessage throw.
-      [...new Set(textures.map((texture) => texture.data.buffer as ArrayBuffer))]
+      // Deduplicated (listing one buffer twice makes postMessage throw), mip levels included.
+      bakedTextureBuffers(textures)
     );
   } catch (error) {
     generated = [];

@@ -17,6 +17,13 @@
  *   enamelOrm, galvanized*, millSkinNormal   machineSurfaces
  *   floorAggregateNormal OptimizedFactoryInfrastructure `FLOOR_AGGREGATE_NORMAL`
  *
+ * The lazily loaded exterior chunks (FactoryExterior with its foliage, TruckBay)
+ * evaluate after the bake too, and generated another ~0.4 s at evaluation:
+ *
+ *   tankFarmPad*         FactoryExterior `TANK_FARM_PAD_MATERIAL`
+ *   broadleaf*, needle*, leafRoughness, grassBlades, mulch   InstancedFoliage
+ *   flourSackPrint       flourSacks `FLOUR_STRIPE_MATERIAL` (TruckBay, conveyors)
+ *
  * A recipe whose consumer changes its arguments simply stops matching: the
  * consumer generates on the main thread as before, and nothing renders
  * differently. Keep this module free of React, materials and DOM access: the
@@ -32,6 +39,20 @@ import { getFloorMacroMaps } from '../textures/factoryFloorMacro';
 import { generateProceduralNormal } from '../textures/normalGenerator';
 import { generateEnamelORM } from '../textures/paintedMetal';
 import { getMachineDecalAtlas } from '../components/machines/machineDecalAtlas';
+import {
+  generateContainmentPad,
+  generateContainmentPadRoughness,
+} from '../textures/containmentPad';
+import { TANK_FARM_PAD_LAYOUT } from '../textures/tankFarmPad';
+import {
+  FOLIAGE_ATLAS_SIZE,
+  generateGrassBladeAtlas,
+  generateLeafAtlas,
+  generateLeafNormal,
+  generateLeafRoughness,
+  generateMulchDecal,
+} from '../textures/foliage';
+import { getFlourSackPrint } from '../textures/grain';
 
 /** Listed slowest first (startup profile, main thread under load). */
 export const SCENE_TEXTURE_RECIPES = {
@@ -45,6 +66,17 @@ export const SCENE_TEXTURE_RECIPES = {
   galvanizedNormalCorrugated: () => generateGalvanizedNormal(true),
   galvanizedNormalFlat: () => generateGalvanizedNormal(false),
   millSkinNormal: () => generateProceduralNormal(256, 0.18, 24),
+  // Exterior chunks, slowest first.
+  tankFarmPadColor: () => generateContainmentPad(TANK_FARM_PAD_LAYOUT),
+  broadleafAtlas: () => generateLeafAtlas(FOLIAGE_ATLAS_SIZE.broadleaf, 'broadleaf'),
+  tankFarmPadRoughness: () => generateContainmentPadRoughness(TANK_FARM_PAD_LAYOUT),
+  broadleafNormal: () => generateLeafNormal(FOLIAGE_ATLAS_SIZE.broadleaf, 'broadleaf'),
+  needleAtlas: () => generateLeafAtlas(FOLIAGE_ATLAS_SIZE.needle, 'needle'),
+  needleNormal: () => generateLeafNormal(FOLIAGE_ATLAS_SIZE.needle, 'needle'),
+  leafRoughness: () => generateLeafRoughness(256),
+  grassBlades: () => generateGrassBladeAtlas(256),
+  mulch: () => generateMulchDecal(128),
+  flourSackPrint: () => getFlourSackPrint(),
 } as const;
 
 export type SceneTextureRecipeName = keyof typeof SCENE_TEXTURE_RECIPES;
