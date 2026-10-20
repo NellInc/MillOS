@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { test, expect } from 'vitest';
+import { test, expect, vi } from 'vitest';
 import process from 'node:process';
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
@@ -12,6 +12,10 @@ import {
   generatedAssetHeader,
 } from './normalize-model-assets.mjs';
 import { RECONCILED_FARM_MODELS } from './reconcile-farm-models.mjs';
+
+// Two tests spawn node on the real module: 7.9-8.7 s passing and 12.4 s
+// failing against the 10 s default at ~50 runnable per core (2026-10-20).
+vi.setConfig({ testTimeout: 60_000 });
 
 test('every committed generated GLB carries the header and credit its spec declares', () => {
   // A GLB committed before its spec changed, and never regenerated, is
