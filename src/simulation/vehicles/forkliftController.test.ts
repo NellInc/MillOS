@@ -386,6 +386,44 @@ describe('forklift driven laps on the default layout', () => {
   );
 });
 
+// Waiting at a dropoff for its truck, the forklift crept the last centimetres
+// onto the pivot vertex and turned to its departure heading, so it unloaded
+// facing away from the trailer (seen at the shipping dock door). Working if a
+// forklift held at its marker keeps its arrival heading until it has worked.
+describe('forklift waiting at an action marker', () => {
+  it('keeps facing the trailer while the logistics interlock holds it at the dropoff', () => {
+    const { plan } = drivenLogisticsRoute('shipping', SITE_LAYOUT.routes.forklifts.shipping.points);
+    const dropoff = plan.markers.find(({ action }) => action.type === 'dropoff')!;
+    let state = createInitialForkliftMotion(plan, SITE_LAYOUT.routes.forklifts.shipping.points[0]);
+    // Drive in as ForkliftSystem does, braking to the marker.
+    for (let i = 0; i < 6000; i++) {
+      const toMarker = distanceAheadOnClosedPath(plan.path, state.routeDistance, dropoff.distance);
+      if (toMarker <= 0.06) break;
+      state = stepForkliftMotion(state, plan, {
+        targetSpeed: Math.min(1.2, Math.sqrt(Math.max(0, 3 * (toMarker - 0.03)))),
+        stopReason: 'none',
+        loaded: true,
+        deltaSeconds: 1 / 60,
+        maximumTravelDistance: toMarker,
+      });
+    }
+    expect(Math.abs(state.heading)).toBeLessThan(0.01);
+    // The truck is not ready: ten seconds at the marker under the interlock.
+    for (let i = 0; i < 600; i++) {
+      const toMarker = distanceAheadOnClosedPath(plan.path, state.routeDistance, dropoff.distance);
+      state = stepForkliftMotion(state, plan, {
+        targetSpeed: 1.2,
+        stopReason: 'logistics-interlock',
+        loaded: true,
+        deltaSeconds: 1 / 60,
+        maximumTravelDistance: toMarker,
+        holdHeading: true,
+      });
+    }
+    expect(Math.abs(state.heading)).toBeLessThan(0.01);
+  });
+});
+
 describe('forklift fleet-priority safety arbitration', () => {
   const stoppedHigherPeer = { id: 'forklift-2', isStopped: true };
   const peerWait = {

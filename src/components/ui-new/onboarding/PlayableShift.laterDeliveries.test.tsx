@@ -118,11 +118,11 @@ it('reads the live order when the guided order has been trimmed from the list', 
 it.each([
   [
     'en',
-    'Rush: Community Pasta Works pays 30% more for 2,500 kg Fine corn semolina. Due in 2h 30m (simulated). The controller runs it first; choosing another commitment first may make it late, at double the usual late penalty. It is the only order on corn grain, so running it first changes the line over to it and back.',
+    'Rush: Community Pasta Works pays 30% more for 2,500 kg Fine corn semolina. Due in 2h 5m (simulated). The controller runs it first, so it leaves on the first truck. Put a commitment for another product first and it waits for a later truck, past its due time, at double the usual late penalty. It is the only order on corn grain, so running it first changes the line over to it and back.',
   ],
   [
     'pt-BR',
-    'Urgente: Community Pasta Works paga 30% a mais por 2.500 kg de Semolina fina de milho. Vence em 2h 30min (tempo simulado). O controlador o executa primeiro; escolher outro compromisso antes pode atrasá-lo, com o dobro da multa usual por atraso. É o único pedido de grão de milho, então executá-lo primeiro troca a linha para ele e de volta.',
+    'Urgente: Community Pasta Works paga 30% a mais por 2.500 kg de Semolina fina de milho. Vence em 2h 5min (tempo simulado). O controlador o executa primeiro, então ele sai no primeiro caminhão. Se um compromisso de outro produto vier antes, ele espera um caminhão seguinte e passa do prazo, com o dobro da multa usual por atraso. É o único pedido de grão de milho, então executá-lo primeiro troca a linha para ele e de volta.',
   ],
 ] as const)("names the programme's choice on the shift card (%s)", (locale, copy) => {
   setLocale(locale);

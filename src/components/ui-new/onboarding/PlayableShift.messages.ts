@@ -107,7 +107,9 @@ export const playableShiftMessages = defineMessages({
     switchHint:
       'Changing customer changes the scheduled recipe. Existing stock and shipping receipts remain unchanged.',
     rushChoice:
-      'Rush: {customer} pays {premium}% more for {kg} kg {product}. {due}. The controller runs it first; choosing another commitment first may make it late, at double the usual late penalty.',
+      'Rush: {customer} pays {premium}% more for {kg} kg {product}. {due}. The controller runs it first, so it leaves on the first truck.',
+    rushDeferRisk:
+      ' Put a commitment for another product first and it waits for a later truck, past its due time, at double the usual late penalty.',
     rushChangeover:
       ' It is the only order on {grain}, so running it first changes the line over to it and back.',
     activeOrderProgress: '{customer}: {shippedKg} / {requiredKg} kg dispatched',
@@ -243,7 +245,9 @@ export const playableShiftMessages = defineMessages({
     switchHint:
       'Trocar de cliente muda a receita programada. O estoque existente e os comprovantes de expedição permanecem inalterados.',
     rushChoice:
-      'Urgente: {customer} paga {premium}% a mais por {kg} kg de {product}. {due}. O controlador o executa primeiro; escolher outro compromisso antes pode atrasá-lo, com o dobro da multa usual por atraso.',
+      'Urgente: {customer} paga {premium}% a mais por {kg} kg de {product}. {due}. O controlador o executa primeiro, então ele sai no primeiro caminhão.',
+    rushDeferRisk:
+      ' Se um compromisso de outro produto vier antes, ele espera um caminhão seguinte e passa do prazo, com o dobro da multa usual por atraso.',
     rushChangeover:
       ' É o único pedido de {grain}, então executá-lo primeiro troca a linha para ele e de volta.',
     activeOrderProgress: '{customer}: {shippedKg} / {requiredKg} kg expedidos',

@@ -419,18 +419,22 @@ export const SITE_LAYOUT = {
       shipping: {
         id: 'forklift-shipping',
         vehicle: 'forklift',
-        // The east end is three right-angle corners. It used to run on to
-        // x 25 and double back to (22.5, 43): a 158-degree reversal on a
-        // 0.1 m arc, which spun the forklift about 140 degrees in 0.1 s.
-        // Saves holding the old points are migrated in logisticsLayoutStore.
+        // Out to the dock door and back. The dropoff (index 4) stands on the
+        // bay centreline facing the docked trailer, so the pallet goes down at
+        // its tail: the authored model sets it 2.2 m from the bumper face, the
+        // compact one 1.4 m. It used to be (22.5, 48), 22.5 m east of the
+        // trailer, beside a dock-platform envelope that covered the door. 47.25
+        // keeps the compact mast short of the leveler plate (z 48.5); the
+        // forklift pivots in place there and returns down the same lane.
+        // Saves holding older points are migrated in logisticsLayoutStore.
         points: [
           [-16, 0, 42],
-          [12, 0, 42],
-          [16, 0, 42],
-          [22.5, 0, 42],
-          [22.5, 0, 48],
-          [28.5, 0, 48],
-          [28.5, 0, 42],
+          [-10, 0, 42],
+          [-5, 0, 42],
+          [0, 0, 42],
+          [0, 0, 47.25],
+          [0, 0, 42],
+          [-8, 0, 42],
           [-16, 0, 42],
         ],
         halfWidth: 1.35,

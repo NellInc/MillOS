@@ -561,3 +561,60 @@ it('delivers programmes 2 to 4 and a night programme on time through real truck 
   for (const programme of delivered)
     for (const slack of programme.slack) expect(slack).toBeGreaterThanOrEqual(20);
 });
+
+// The rush's one choice, through the same real yard at standard pace. Shipped
+// product is credited to the rush first, so only a commitment for ANOTHER
+// product can hold it back; that one makes it wait for a later truck. Working
+// if the rush run first leaves on the first truck with 20 game minutes to
+// spare, and deferring it behind another product makes it at least 20 game
+// minutes late - a risk the card can state, not a rounding error.
+it.each([
+  // Programme 2: semolina rush; the 3,000 kg flour order first.
+  { programme: 2, deferTo: 1, deferred: true },
+  // Programme 3: flour rush; the night-or-day bulk order is semolina.
+  { programme: 3, deferTo: 2, deferred: true },
+  // Programme 3: the 3,000 kg order is flour too, so the rush still ships first.
+  { programme: 3, deferTo: 1, deferred: false },
+])(
+  'times the rush by the truck it leaves on: programme $programme, order $deferTo first',
+  ({ programme, deferTo, deferred }) => {
+    const run = realTruckYard(STANDARD_GAME_SPEED);
+    const programmeDone = () =>
+      useOperationsCampaignStore
+        .getState()
+        .orders.slice(-3)
+        .every((o) => o.status === 'fulfilled');
+    run(600, programmeDone);
+    const rushOutcome = (deferToIndex: number | null) => {
+      expect(useOperationsCampaignStore.getState().acceptNextProgramme()).toBe(true);
+      const accepted = useOperationsCampaignStore.getState().orders.slice(-3);
+      if (deferToIndex !== null)
+        useOperationsCampaignStore.getState().activateOrder(accepted[deferToIndex].id, 'operator');
+      run(600, programmeDone);
+      const rush = useOperationsCampaignStore.getState().orders.slice(-3)[0];
+      expect(rush.rushPremiumPercent).toBeGreaterThan(0);
+      return rush.dueAtMinute - rush.completedAtMinute!;
+    };
+    // Earlier programmes run as the controller plans them.
+    for (let n = 2; n < programme; n++) rushOutcome(null);
+    const slack = rushOutcome(deferTo);
+    if (deferred) expect(slack).toBeLessThanOrEqual(-20);
+    else expect(slack).toBeGreaterThanOrEqual(20);
+  }
+);
+
+it('ships the rush on time when it runs first, in every programme 2 to 4', () => {
+  const run = realTruckYard(STANDARD_GAME_SPEED);
+  const programmeDone = () =>
+    useOperationsCampaignStore
+      .getState()
+      .orders.slice(-3)
+      .every((o) => o.status === 'fulfilled');
+  run(600, programmeDone);
+  for (let n = 2; n <= 4; n++) {
+    expect(useOperationsCampaignStore.getState().acceptNextProgramme()).toBe(true);
+    run(600, programmeDone);
+    const rush = useOperationsCampaignStore.getState().orders.slice(-3)[0];
+    expect(rush.dueAtMinute - rush.completedAtMinute!).toBeGreaterThanOrEqual(20);
+  }
+});

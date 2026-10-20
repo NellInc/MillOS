@@ -54,8 +54,8 @@ describe('later delivery programmes', () => {
     const night = buildProgramme(templates(), 2, 'night', 600);
     expect(day.map((o) => o.requiredKg)).toEqual([2500, 3000, 6000]);
     expect(night.map((o) => o.requiredKg)).toEqual([2500, 3000, 8000]);
-    expect(day.map((o) => o.dueAtMinute - 600)).toEqual([150, 300, 420]);
-    expect(night.map((o) => o.dueAtMinute - 600)).toEqual([150, 300, 540]);
+    expect(day.map((o) => o.dueAtMinute - 600)).toEqual([125, 300, 420]);
+    expect(night.map((o) => o.dueAtMinute - 600)).toEqual([125, 300, 540]);
     // Deterministic: the same inputs give the same programme.
     expect(buildProgramme(templates(), 7, 'night', 90)).toEqual(
       buildProgramme(templates(), 7, 'night', 90)
@@ -90,6 +90,15 @@ describe('later delivery programmes', () => {
       onlyOnItsGrain: true,
     });
     expect(openRush(buildProgramme(templates(), 3, 'morning', 0))?.onlyOnItsGrain).toBe(false);
+    // Shipped product goes to the rush first, so only another product can
+    // hold it back: programme 3's flour rush is deferrable by the semolina
+    // bulk order, and by nothing once that is shipped.
+    const third = buildProgramme(templates(), 3, 'morning', 0);
+    expect(openRush(third)?.deferrable).toBe(true);
+    expect(
+      openRush(third.map((o, i) => (i === 2 ? { ...o, status: 'fulfilled' as const } : o)))
+        ?.deferrable
+    ).toBe(false);
   });
 
   it('never asks more of any deadline than the guided first programme, for every programme and shift', () => {
@@ -152,7 +161,7 @@ describe('accepting the next programme', () => {
     expect(state.programmeCount).toBe(1);
     const second = state.orders.slice(-3);
     expect(second.map((o) => [o.customer, o.requiredKg, o.dueAtMinute])).toEqual([
-      ['Community Pasta Works', 2500, 630],
+      ['Community Pasta Works', 2500, 605],
       ['County School Meals', 3000, 780],
       ["Riverside Bakers' Cooperative", 6000, 900],
     ]);
@@ -187,11 +196,11 @@ describe('the programme offer', () => {
   it.each([
     [
       'en',
-      'Creates three customer commitments, 11,500 kg in all (13,500 kg on the night shift): a one-truck rush that pays 30% more but is due within 2h 30m and costs double the usual late penalty, a 3,000 kg order and a two-truck bulk order. The rush customer changes with each programme. Existing stock remains available; no goods or revenue are created.',
+      'Creates three customer commitments, 11,500 kg in all (13,500 kg on the night shift): a one-truck rush that pays 30% more but is due within 2h 5m and costs double the usual late penalty, a 3,000 kg order and a two-truck bulk order. The rush customer changes with each programme. Existing stock remains available; no goods or revenue are created.',
     ],
     [
       'pt-BR',
-      'Cria três compromissos com clientes, 11.500 kg no total (13.500 kg no turno da noite): um pedido urgente de um caminhão, que paga 30% a mais, mas vence em 2h 30min e custa o dobro da multa usual por atraso, um pedido de 3.000 kg e um pedido a granel de dois caminhões. O cliente urgente muda a cada programa. O estoque existente continua disponível; nenhum produto ou faturamento é criado.',
+      'Cria três compromissos com clientes, 11.500 kg no total (13.500 kg no turno da noite): um pedido urgente de um caminhão, que paga 30% a mais, mas vence em 2h 5min e custa o dobro da multa usual por atraso, um pedido de 3.000 kg e um pedido a granel de dois caminhões. O cliente urgente muda a cada programa. O estoque existente continua disponível; nenhum produto ou faturamento é criado.',
     ],
   ] as const)('describes the programme it creates (%s)', (locale, copy) => {
     setLocale(locale);

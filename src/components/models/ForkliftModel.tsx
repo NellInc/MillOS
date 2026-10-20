@@ -394,6 +394,18 @@ export const COMPACT_FORK_LOAD: {
   z: 0.65,
   palletPosition: [0, 0.315, 0.66],
 };
+/** The compact (low tier) mast's distance ahead of the forklift origin. */
+export const COMPACT_MAST_Z = 1.14;
+/** The authored (medium and above) model's carried pallet, in model space. */
+export const AUTHORED_PALLET_POSITION: [number, number, number] = [0, 0.34, 1.02];
+/**
+ * How far ahead of the forklift origin each tier draws the pallet centre: where
+ * a dropoff sets it down. The far billboard draws it at the compact reach.
+ */
+export const FORKLIFT_PALLET_REACH_METRES = {
+  authored: AUTHORED_PALLET_POSITION[2],
+  compact: COMPACT_MAST_Z + COMPACT_FORK_LOAD.palletPosition[2],
+} as const;
 
 // Low quality retains a deliberately small shared visual. Medium and above use
 // the authored derivative, which remains inside the measured draw-call budget.
@@ -781,7 +793,11 @@ const CompactForklift: React.FC<ForkliftModelProps> = ({
         castShadow
         receiveShadow
       />
-      <group ref={mastAssemblyTiltRef} name="compact-forklift-mast" position={[0, 0, 1.14]}>
+      <group
+        ref={mastAssemblyTiltRef}
+        name="compact-forklift-mast"
+        position={[0, 0, COMPACT_MAST_Z]}
+      >
         <instancedMesh
           ref={mastRef}
           args={[compactForkliftGeometry.mast, compactForkliftMaterial.steel, 2]}
@@ -1091,7 +1107,7 @@ const GLTFForklift: React.FC<ForkliftModelProps> = ({
     // The cargo rides the forks, so it tracks the CLAMPED travel. Using the
     // raw request here is how the pallet floats off the tines.
     if (cargoRef.current && forkHeightRef) {
-      cargoRef.current.position.y = 0.34 + carriageLift;
+      cargoRef.current.position.y = AUTHORED_PALLET_POSITION[1] + carriageLift;
     }
 
     // Work lamps follow the vehicle, not the clock: a forklift running inside
@@ -1151,7 +1167,7 @@ const GLTFForklift: React.FC<ForkliftModelProps> = ({
       <group ref={cargoMastRef} name="authored-forklift-cargo-mast">
         <group
           ref={cargoRef}
-          position={[0, 0.34, 1.02]}
+          position={AUTHORED_PALLET_POSITION}
           visible={(cargoPresenceRef?.current ?? 0) > 0.01}
         >
           <FlourPallet opacity={cargoPresenceRef?.current ?? 0} materialRefs={cargoMaterialsRef} />
