@@ -407,7 +407,13 @@ def postbox():
  torus('Plinth casting bead',(0,0,.195),.311,.007,'black',40,minor=4)
  box('Dark letter throat',(0,-.222,1.230),(.325,.018,.054),'black',0)
  box('Throat sill',(0,-.274,1.202),(.325,.11,.008),'red',.002)
- for x in [-.169,.169]:box('Aperture side return',(x,-.300,1.236),(.017,.094,.082),'red',.004)
+ # The returns line the aperture's actual sides: the shell is cut from 240 to
+ # 300 degrees, so its cut ends stand at |x| .1475-.1535, y -.2555 to -.266.
+ # Inner faces at |x| .146, running back to the throat face (y -.231), bury
+ # those ends past the bevel; left exposed they show as a lit sliver beside
+ # the slot once back faces are culled. Outer faces at |x| .169 stay clear of
+ # the sill's ends (.1625), which they would otherwise graze 0.5 mm apart.
+ for x in [-.1575,.1575]:box('Aperture side return',(x,-.289,1.236),(.023,.116,.082),'red',.004)
  # Closed shallow curved hood; its outer lip remains inside the old crown.
  verts=[]
  for x in [-.185,.185]:

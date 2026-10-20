@@ -354,6 +354,37 @@ test('postbox letter aperture has real recess depth beneath the rain hood', asyn
   }
 });
 
+test('postbox aperture returns bury the cut ends of the pillar shell', async () => {
+  // The shell is cut from 240 to 300 degrees; its cut ends face (+-.866, 0, .5).
+  // Single-sided, any ray that reaches one shows a lit sliver beside the slot.
+  const { meshes } = await assembly('village-postbox');
+  try {
+    for (const mesh of meshes) mesh.material.side = THREE.FrontSide;
+    const ray = new THREE.Raycaster();
+    let exposed = 0;
+    for (let vx = -1.2; vx <= 1.2; vx += 0.2) {
+      for (const vy of [1.0, 1.23, 1.6]) {
+        const eye = new THREE.Vector3(vx, vy, 1.6);
+        for (let x = 0.138; x <= 0.162; x += 0.002) {
+          for (let y = 1.208; y <= 1.252; y += 0.004) {
+            for (const side of [-1, 1]) {
+              const target = new THREE.Vector3(side * x, y, 0.258);
+              ray.set(eye, target.clone().sub(eye).normalize());
+              const hit = ray.intersectObjects(meshes, false)[0];
+              const n = hit?.face?.normal;
+              if (n && Math.abs(Math.abs(n.x) - 0.866) < 0.02 && Math.abs(n.z - 0.5) < 0.02)
+                exposed++;
+            }
+          }
+        }
+      }
+    }
+    expect(exposed).toBe(0);
+  } finally {
+    dispose(meshes);
+  }
+}, 60000);
+
 test('four fountain scuppers have open channels between their floors and hoods', async () => {
   const { meshes } = await assembly('village-fountain');
   try {
