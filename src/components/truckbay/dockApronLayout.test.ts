@@ -9,6 +9,9 @@ import {
   DOCK_PAINT_START_U,
   DOCK_SLAB_OUTBOARD_U,
   DOCK_STOP_BAR,
+  DOCK_BUMPER_BLOCK,
+  DOCK_PLATFORM_SECTION,
+  DOCK_WEAR_BUMPER,
 } from './dockApronLayout';
 
 /**
@@ -23,11 +26,16 @@ describe('dock apron paint layout', () => {
     const source = readFileSync('src/components/TruckBay.tsx', 'utf8');
     // Both docks: two platform sections and one channel slab, all centred at
     // u 1.2 and 5.8 m long.
-    expect(source.match(/<boxGeometry args=\{\[2\.5, 2, 5\.8\]\} \/>/g)).toHaveLength(4);
+    expect(source.match(/<DockPlatformSection side=\{-?1\}( castShadow)? \/>/g)).toHaveLength(4);
     expect(source.match(/<boxGeometry args=\{\[4, 0\.02, 5\.8\]\} \/>/g)).toHaveLength(2);
-    expect(source.match(/position=\{\[-?3\.25, 1, 1\.2\]\}/g)).toHaveLength(4);
     expect(source.match(/position=\{\[0, 0\.01, 1\.2\]\}/g)).toHaveLength(2);
+    expect(DOCK_PLATFORM_SECTION.u + DOCK_PLATFORM_SECTION.depth / 2).toBeCloseTo(
+      DOCK_SLAB_OUTBOARD_U,
+      6
+    );
     expect(DOCK_SLAB_OUTBOARD_U).toBeCloseTo(1.2 + 5.8 / 2, 6);
+    // The platform's inner face stays on the forklift channel's edge.
+    expect(DOCK_PLATFORM_SECTION.x - DOCK_PLATFORM_SECTION.width / 2).toBeCloseTo(2, 6);
   });
 
   it('puts the stop bar wholly beyond the slab and every other mark beyond the bar', () => {
@@ -50,5 +58,30 @@ describe('dock apron paint layout', () => {
 
   it('widens the guide lines past the aliasing width at review distance', () => {
     expect(DOCK_GUIDE_LINES.width).toBeGreaterThanOrEqual(0.25);
+  });
+
+  it('shares no face between the platforms and the roll-up door or the bumpers', () => {
+    const source = readFileSync('src/components/TruckBay.tsx', 'utf8');
+    const box = (name: string) =>
+      new RegExp(`${name}: new THREE\\.BoxGeometry\\(([^)]*)\\)`)
+        .exec(source)![1]
+        .split(',')
+        .map(Number);
+    // The closed door reaches the ground and passes into the platforms' wall
+    // end, so its end faces must lie inside the platform, not on its face.
+    const [doorWidth] = box('door');
+    const platformOuter = DOCK_PLATFORM_SECTION.x + DOCK_PLATFORM_SECTION.width / 2;
+    expect(platformOuter - doorWidth / 2).toBeGreaterThanOrEqual(0.01);
+    // The wear bumpers' rubber overlaps the blocks at x +/-1.75: their tops
+    // must not coincide.
+    const [, rubberHeight] = box('bumper');
+    const blockTop = DOCK_BUMPER_BLOCK.y + DOCK_BUMPER_BLOCK.height / 2;
+    const rubberTop = DOCK_WEAR_BUMPER.y + rubberHeight / 2;
+    expect(Math.abs(rubberTop - blockTop)).toBeGreaterThanOrEqual(0.01);
+    expect(
+      source.match(
+        /<DockBumperWithWear\s+position=\{\[-?DOCK_WEAR_BUMPER\.x, DOCK_WEAR_BUMPER\.y, 0\]\}/g
+      )
+    ).toHaveLength(4);
   });
 });

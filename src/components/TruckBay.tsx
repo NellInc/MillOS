@@ -19,6 +19,7 @@ import {
   FLOOR_LAYERS,
   POLYGON_OFFSET,
   RENDER_ORDER,
+  SURFACE_LAYERS,
 } from '../constants/renderLayers';
 import { SITE_LAYOUT } from '../constants/siteLayout';
 import {
@@ -64,6 +65,9 @@ import {
   DOCK_KEEP_CLEAR,
   DOCK_LASER_GUIDES,
   DOCK_STOP_BAR,
+  DOCK_BUMPER_BLOCK,
+  DOCK_PLATFORM_SECTION,
+  DOCK_WEAR_BUMPER,
   spanOf,
   type DockMarking,
 } from './truckbay/dockApronLayout';
@@ -1642,8 +1646,10 @@ const DockPlate: React.FC<{ position: [number, number, number]; isDeployed: bool
           <GeneratedModel asset="yardDockPlateBody" />
         </group>
       </GeneratedBoundary>
+      {/* 2 cm narrower than the generated body's 3 m lip, whose end faces lay
+          on this plate's sides (orange against grey at 0 mm). */}
       <mesh ref={plateRef} position={[0, 0, 1.5]} userData={{ noStaticBatch: true }}>
-        <boxGeometry args={[3, 0.08, 3]} />
+        <boxGeometry args={[2.98, 0.08, 3]} />
         <meshStandardMaterial color="#64748b" metalness={0.7} roughness={0.3} />
       </mesh>
     </group>
@@ -2385,8 +2391,10 @@ const NoIdlingSign: React.FC<{ position: [number, number, number]; rotation?: nu
       <boxGeometry args={[0.4, 0.04, 0.01]} />
       <meshStandardMaterial color="#dc2626" />
     </mesh>
+    {/* A label 1 cm off the board face (0.055), so 5 mm in front of the
+        ring: at the ring's depth its glyph quads lay on the ring's bottom. */}
     <Text
-      position={[0, 1.95, 0.06]}
+      position={[0, 1.95, 0.055 + SURFACE_LAYERS.label]}
       fontSize={0.08}
       color="#1f2937"
       anchorX="center"
@@ -3104,10 +3112,8 @@ export const TruckBay: React.FC = () => {
           ? clock.alpha
           : Math.min(1, accumulatorRef.current / TRUCK_CONTROLLER_STEP_SECONDS)
       );
-      const truckState = getTruckControllerPose(
-        displayController,
-        safetyHoldActive || !allowAdvance
-      );
+      // A paused clock freezes the picture; only a real hold applies the brakes.
+      const truckState = getTruckControllerPose(displayController, safetyHoldActive, !allowAdvance);
       if (!allowAdvance) truckState.speed = 0;
       truckStateRef.current = truckState;
       wheelRotationRef.current = displayController.wheelTravel / TRUCK_WHEEL_RADIUS;
@@ -3318,16 +3324,8 @@ export const TruckBay: React.FC = () => {
       {/* Wall is at z=48, so dock elements must be at z>=48 to not clip */}
       <group position={[0, 0, 50]}>
         {/* Dock platform - split into two sections with forklift channel in center */}
-        {/* Left platform section */}
-        <mesh position={[-3.25, 1, 1.2]} receiveShadow castShadow>
-          <boxGeometry args={[2.5, 2, 5.8]} />
-          <meshStandardMaterial color="#475569" roughness={0.8} />
-        </mesh>
-        {/* Right platform section */}
-        <mesh position={[3.25, 1, 1.2]} receiveShadow castShadow>
-          <boxGeometry args={[2.5, 2, 5.8]} />
-          <meshStandardMaterial color="#475569" roughness={0.8} />
-        </mesh>
+        <DockPlatformSection side={-1} castShadow />
+        <DockPlatformSection side={1} castShadow />
         {/* Forklift channel floor. A thin slab: the docked trailer's rear tandem
             stands on this strip, and a 0.3 m block swallowed the tyres. */}
         <mesh position={[0, 0.01, 1.2]} receiveShadow>
@@ -3346,8 +3344,8 @@ export const TruckBay: React.FC = () => {
 
         {/* Dock bumpers - centered for single bay (narrower to fit platform) */}
         {[-3.5, -1.75, 0, 1.75, 3.5].map((x, i) => (
-          <mesh key={i} position={[x, 0.8, 0.2]}>
-            <boxGeometry args={[0.8, 1.2, 0.6]} />
+          <mesh key={i} position={[x, DOCK_BUMPER_BLOCK.y, 0.2]}>
+            <boxGeometry args={[0.8, DOCK_BUMPER_BLOCK.height, 0.6]} />
             <meshStandardMaterial color="#1f2937" />
           </mesh>
         ))}
@@ -3760,8 +3758,14 @@ export const TruckBay: React.FC = () => {
         <DockPlate position={[0, 2, 1]} isDeployed={shippingDockVisual.levelerDeployed} />
 
         {/* Dock bumpers with wear indicators - moved forward to avoid wall */}
-        <DockBumperWithWear position={[-2, 1.2, 0]} wearLevel={0.3} />
-        <DockBumperWithWear position={[2, 1.2, 0]} wearLevel={0.4} />
+        <DockBumperWithWear
+          position={[-DOCK_WEAR_BUMPER.x, DOCK_WEAR_BUMPER.y, 0]}
+          wearLevel={0.3}
+        />
+        <DockBumperWithWear
+          position={[DOCK_WEAR_BUMPER.x, DOCK_WEAR_BUMPER.y, 0]}
+          wearLevel={0.4}
+        />
 
         {/* Floor markings - centered */}
         <DockFloorMarkings />
@@ -3812,16 +3816,8 @@ export const TruckBay: React.FC = () => {
       {/* Wall is at z=-48, dock rotated 180deg so local -z = world +z */}
       <group position={[0, 0, -50]} rotation={[0, Math.PI, 0]}>
         {/* Dock platform - split into two sections with forklift channel in center */}
-        {/* Left platform section */}
-        <mesh position={[-3.25, 1, 1.2]} receiveShadow>
-          <boxGeometry args={[2.5, 2, 5.8]} />
-          <meshStandardMaterial color="#475569" roughness={0.8} />
-        </mesh>
-        {/* Right platform section */}
-        <mesh position={[3.25, 1, 1.2]} receiveShadow>
-          <boxGeometry args={[2.5, 2, 5.8]} />
-          <meshStandardMaterial color="#475569" roughness={0.8} />
-        </mesh>
+        <DockPlatformSection side={-1} />
+        <DockPlatformSection side={1} />
         {/* Forklift channel floor. A thin slab: the docked trailer's rear tandem
             stands on this strip, and a 0.3 m block swallowed the tyres. */}
         <mesh position={[0, 0.01, 1.2]} receiveShadow>
@@ -3840,8 +3836,8 @@ export const TruckBay: React.FC = () => {
 
         {/* Dock bumpers - centered for single bay (narrower to fit platform) */}
         {[-3.5, -1.75, 0, 1.75, 3.5].map((x, i) => (
-          <mesh key={i} position={[x, 0.8, 0.2]}>
-            <boxGeometry args={[0.8, 1.2, 0.6]} />
+          <mesh key={i} position={[x, DOCK_BUMPER_BLOCK.y, 0.2]}>
+            <boxGeometry args={[0.8, DOCK_BUMPER_BLOCK.height, 0.6]} />
             <meshStandardMaterial color="#1f2937" />
           </mesh>
         ))}
@@ -4231,8 +4227,14 @@ export const TruckBay: React.FC = () => {
         <DockPlate position={[0, 2, -1]} isDeployed={receivingDockVisual.levelerDeployed} />
 
         {/* Dock bumpers with wear indicators - moved forward to avoid wall */}
-        <DockBumperWithWear position={[-2, 1.2, 0]} wearLevel={0.5} />
-        <DockBumperWithWear position={[2, 1.2, 0]} wearLevel={0.2} />
+        <DockBumperWithWear
+          position={[-DOCK_WEAR_BUMPER.x, DOCK_WEAR_BUMPER.y, 0]}
+          wearLevel={0.5}
+        />
+        <DockBumperWithWear
+          position={[DOCK_WEAR_BUMPER.x, DOCK_WEAR_BUMPER.y, 0]}
+          wearLevel={0.2}
+        />
 
         {/* Floor markings - centered */}
         <group rotation={[0, Math.PI, 0]}>
@@ -5592,6 +5594,31 @@ const StretchWrapMachine: React.FC<{
 };
 
 // Dock bumpers with wear indicators
+/** One 2 m dock platform section beside the forklift channel (see DOCK_PLATFORM_SECTION). */
+const DockPlatformSection: React.FC<{ side: -1 | 1; castShadow?: boolean }> = ({
+  side,
+  castShadow = false,
+}) => (
+  <mesh
+    position={[
+      side * DOCK_PLATFORM_SECTION.x,
+      DOCK_PLATFORM_SECTION.height / 2,
+      DOCK_PLATFORM_SECTION.u,
+    ]}
+    receiveShadow
+    castShadow={castShadow}
+  >
+    <boxGeometry
+      args={[
+        DOCK_PLATFORM_SECTION.width,
+        DOCK_PLATFORM_SECTION.height,
+        DOCK_PLATFORM_SECTION.depth,
+      ]}
+    />
+    <meshStandardMaterial color="#475569" roughness={0.8} />
+  </mesh>
+);
+
 const DockBumperWithWear: React.FC<{ position: [number, number, number]; wearLevel: number }> = ({
   position,
   wearLevel,
@@ -5726,7 +5753,14 @@ const SafetyMirror: React.FC<{ position: [number, number, number]; rotation?: nu
       <circleGeometry args={[0.4, 32]} />
       <meshStandardMaterial color="#94a3b8" metalness={0.95} roughness={0.05} />
     </mesh>
-    <Text position={[0, -0.35, 0.05]} fontSize={0.05} color="#1f2937" anchorX="center">
+    {/* A label, 1 cm off the mirror disc: at the disc's own depth its glyph
+        quads lay on the disc. */}
+    <Text
+      position={[0, -0.35, 0.05 + SURFACE_LAYERS.label]}
+      fontSize={0.05}
+      color="#1f2937"
+      anchorX="center"
+    >
       CHECK FOR FORKLIFTS
     </Text>
   </group>

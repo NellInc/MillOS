@@ -1444,38 +1444,68 @@ export function buildFactoryShellColumns(): BoxInstance[] {
   return result;
 }
 
-function FactoryShell() {
-  const lowerWallSegments = useMemo<readonly BoxInstance[]>(() => {
-    const result: BoxInstance[] = [];
-    const height = FACTORY_ENVELOPE_SPEC.baseHeight;
-    for (const portal of Object.values(SITE_LAYOUT.portals)) {
-      const front = portal.normal[2] !== 0;
-      const extent = (front ? FLOOR_WIDTH : FLOOR_DEPTH) / 2;
-      const centre = front ? portal.centre[0] : portal.centre[2];
-      for (const [from, to] of [
-        [-extent, centre - portal.halfWidth],
-        [centre + portal.halfWidth, extent],
-      ]) {
-        const along = (from + to) / 2;
-        result.push(
-          front
-            ? { position: [along, height / 2, portal.centre[2]], scale: [to - from, height, 0.55] }
-            : { position: [portal.centre[0], height / 2, along], scale: [0.55, height, to - from] }
-        );
-      }
+/** Lower wall plinth segments, either side of every portal. */
+export function buildFactoryLowerWallSegments(): BoxInstance[] {
+  const result: BoxInstance[] = [];
+  const height = FACTORY_ENVELOPE_SPEC.baseHeight;
+  for (const portal of Object.values(SITE_LAYOUT.portals)) {
+    const front = portal.normal[2] !== 0;
+    const extent = (front ? FLOOR_WIDTH : FLOOR_DEPTH) / 2;
+    const centre = front ? portal.centre[0] : portal.centre[2];
+    for (const [from, to] of [
+      [-extent, centre - portal.halfWidth],
+      [centre + portal.halfWidth, extent],
+    ]) {
+      const along = (from + to) / 2;
+      result.push(
+        front
+          ? { position: [along, height / 2, portal.centre[2]], scale: [to - from, height, 0.55] }
+          : { position: [portal.centre[0], height / 2, along], scale: [0.55, height, to - from] }
+      );
     }
-    return result;
-  }, []);
-  const parapetSegments = useMemo<readonly BoxInstance[]>(() => {
-    const height = FACTORY_ENVELOPE_SPEC.topBandTop - FACTORY_ENVELOPE_SPEC.topBandBottom;
-    const y = FACTORY_ENVELOPE_SPEC.topBandBottom + height / 2;
-    return [
-      { position: [0, y, 50], scale: [FLOOR_WIDTH, height, 0.55] },
-      { position: [0, y, -50], scale: [FLOOR_WIDTH, height, 0.55] },
-      { position: [-FLOOR_WIDTH / 2, y, 0], scale: [0.55, height, 100] },
-      { position: [FLOOR_WIDTH / 2, y, 0], scale: [0.55, height, 100] },
-    ];
-  }, []);
+  }
+  return result;
+}
+
+/** The top band around the four walls. */
+export function buildFactoryParapetSegments(): BoxInstance[] {
+  const height = FACTORY_ENVELOPE_SPEC.topBandTop - FACTORY_ENVELOPE_SPEC.topBandBottom;
+  const y = FACTORY_ENVELOPE_SPEC.topBandBottom + height / 2;
+  return [
+    { position: [0, y, 50], scale: [FLOOR_WIDTH, height, 0.55] },
+    { position: [0, y, -50], scale: [FLOOR_WIDTH, height, 0.55] },
+    { position: [-FLOOR_WIDTH / 2, y, 0], scale: [0.55, height, 100] },
+    { position: [FLOOR_WIDTH / 2, y, 0], scale: [0.55, height, 100] },
+  ];
+}
+
+/**
+ * Chamfer the parapet cope. This is the roofline silhouette against the sky
+ * from every exterior camera. The side chamfers stop 1 cm short of each end:
+ * at the full 100 m their end faces lay on the side parapets' end faces in the
+ * building-corner notch.
+ */
+export function buildFactoryParapetCopeChamfers(): BoxInstance[] {
+  const height = SITE_LAYOUT.factory.bounds.maxY;
+  return [
+    chamferStrip([0, height - 0.04, 49.78], [FLOOR_WIDTH, 0.42, 0.42], [Math.PI / 4, 0, 0]),
+    chamferStrip([0, height - 0.04, -49.78], [FLOOR_WIDTH, 0.42, 0.42], [Math.PI / 4, 0, 0]),
+    chamferStrip(
+      [-FLOOR_WIDTH / 2 + 0.22, height - 0.04, 0],
+      [0.42, 0.42, 99.98],
+      [0, 0, Math.PI / 4]
+    ),
+    chamferStrip(
+      [FLOOR_WIDTH / 2 - 0.22, height - 0.04, 0],
+      [0.42, 0.42, 99.98],
+      [0, 0, Math.PI / 4]
+    ),
+  ];
+}
+
+function FactoryShell() {
+  const lowerWallSegments = useMemo(buildFactoryLowerWallSegments, []);
+  const parapetSegments = useMemo(buildFactoryParapetSegments, []);
 
   const columns = useMemo(buildFactoryShellColumns, []);
 
@@ -1542,22 +1572,7 @@ function FactoryShell() {
 
     result.push(...roofEnvelope.kerbs, ...roofStructure.glazingBars);
 
-    // Chamfer the parapet cope. This is the roofline silhouette against the
-    // sky from every exterior camera.
-    result.push(
-      chamferStrip([0, height - 0.04, 49.78], [FLOOR_WIDTH, 0.42, 0.42], [Math.PI / 4, 0, 0]),
-      chamferStrip([0, height - 0.04, -49.78], [FLOOR_WIDTH, 0.42, 0.42], [Math.PI / 4, 0, 0]),
-      chamferStrip(
-        [-FLOOR_WIDTH / 2 + 0.22, height - 0.04, 0],
-        [0.42, 0.42, 100],
-        [0, 0, Math.PI / 4]
-      ),
-      chamferStrip(
-        [FLOOR_WIDTH / 2 - 0.22, height - 0.04, 0],
-        [0.42, 0.42, 100],
-        [0, 0, Math.PI / 4]
-      )
-    );
+    result.push(...buildFactoryParapetCopeChamfers());
 
     return result;
   }, [roofEnvelope, roofStructure]);
@@ -1879,43 +1894,50 @@ function ZoneWayfindingSigns() {
   );
 }
 
+/**
+ * Steel frames round the dock and service portals. Every jamb stands 2 cm into
+ * its opening (0.72 m, inner face at halfWidth - 0.02): flush at the opening
+ * edge, its inner face lay exactly on the wall plinth's end face - structural
+ * steel against concrete at 0 mm, beside every forklift that passes.
+ */
+export function buildFactoryPortalFrames(): BoxInstance[] {
+  return [
+    // Shipping portal.
+    { position: [-15.34, 7, 49.36], scale: [0.72, 14, 0.9] },
+    { position: [15.34, 7, 49.36], scale: [0.72, 14, 0.9] },
+    { position: [0, 14.35, 49.36], scale: [31.4, 0.7, 0.9] },
+    // Receiving portal.
+    { position: [-9.34, 7, -49.36], scale: [0.72, 14, 0.9] },
+    { position: [9.34, 7, -49.36], scale: [0.72, 14, 0.9] },
+    { position: [0, 14.35, -49.36], scale: [19.4, 0.7, 0.9] },
+    // Service portal frames, derived from the portals so they follow the
+    // wall openings: 0.64 m inboard of the wall line, like the dock frames.
+    ...[SITE_LAYOUT.portals.westService, SITE_LAYOUT.portals.eastService].flatMap(
+      (portal): BoxInstance[] => {
+        const x = portal.centre[0] - portal.normal[0] * 0.64;
+        const z = portal.centre[2];
+        const jambOffset = portal.halfWidth + 0.34;
+        return [
+          { position: [x, portal.height / 2, z - jambOffset], scale: [0.9, portal.height, 0.72] },
+          { position: [x, portal.height / 2, z + jambOffset], scale: [0.9, portal.height, 0.72] },
+          {
+            position: [x, portal.height + 0.35, z],
+            scale: [0.9, 0.7, 2 * portal.halfWidth + 1.4],
+          },
+        ];
+      }
+    ),
+    // Chamfer the two dock jambs. These are the shell's most-approached
+    // edges - every truck and every forklift passes within a metre.
+    chamferStrip([-15.05, 7, 49.0], [0.34, 14, 0.34], [0, Math.PI / 4, 0]),
+    chamferStrip([15.05, 7, 49.0], [0.34, 14, 0.34], [0, Math.PI / 4, 0]),
+    chamferStrip([-9.05, 7, -49.0], [0.34, 14, 0.34], [0, Math.PI / 4, 0]),
+    chamferStrip([9.05, 7, -49.0], [0.34, 14, 0.34], [0, Math.PI / 4, 0]),
+  ];
+}
+
 function PortalFrames() {
-  const frames = useMemo<readonly BoxInstance[]>(
-    () => [
-      // Shipping portal.
-      { position: [-15.35, 7, 49.36], scale: [0.7, 14, 0.9] },
-      { position: [15.35, 7, 49.36], scale: [0.7, 14, 0.9] },
-      { position: [0, 14.35, 49.36], scale: [31.4, 0.7, 0.9] },
-      // Receiving portal.
-      { position: [-9.35, 7, -49.36], scale: [0.7, 14, 0.9] },
-      { position: [9.35, 7, -49.36], scale: [0.7, 14, 0.9] },
-      { position: [0, 14.35, -49.36], scale: [19.4, 0.7, 0.9] },
-      // Service portal frames, derived from the portals so they follow the
-      // wall openings: 0.64 m inboard of the wall line, like the dock frames.
-      ...[SITE_LAYOUT.portals.westService, SITE_LAYOUT.portals.eastService].flatMap(
-        (portal): BoxInstance[] => {
-          const x = portal.centre[0] - portal.normal[0] * 0.64;
-          const z = portal.centre[2];
-          const jambOffset = portal.halfWidth + 0.35;
-          return [
-            { position: [x, portal.height / 2, z - jambOffset], scale: [0.9, portal.height, 0.7] },
-            { position: [x, portal.height / 2, z + jambOffset], scale: [0.9, portal.height, 0.7] },
-            {
-              position: [x, portal.height + 0.35, z],
-              scale: [0.9, 0.7, 2 * portal.halfWidth + 1.4],
-            },
-          ];
-        }
-      ),
-      // Chamfer the two dock jambs. These are the shell's most-approached
-      // edges - every truck and every forklift passes within a metre.
-      chamferStrip([-15.05, 7, 49.0], [0.34, 14, 0.34], [0, Math.PI / 4, 0]),
-      chamferStrip([15.05, 7, 49.0], [0.34, 14, 0.34], [0, Math.PI / 4, 0]),
-      chamferStrip([-9.05, 7, -49.0], [0.34, 14, 0.34], [0, Math.PI / 4, 0]),
-      chamferStrip([9.05, 7, -49.0], [0.34, 14, 0.34], [0, Math.PI / 4, 0]),
-    ],
-    []
-  );
+  const frames = useMemo(buildFactoryPortalFrames, []);
   const bollards = useMemo(
     () =>
       [

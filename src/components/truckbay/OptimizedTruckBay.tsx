@@ -473,6 +473,49 @@ const TRAILER_FRAME_DETAILS: readonly DetailInstance[] = [
   { position: [0.85, 0.9, -11.58], scale: [0.12, 0.74, 0.1] },
 ];
 
+/** Closed rear door leaves (one each side of the centre line), 0.1 m thick. */
+export const TRAILER_REAR_DOOR = { z: -11.38, depth: 0.1 } as const;
+
+/** Rear lamp cluster, mounted on the closed doors' outer face (z -11.43). Each
+ * 0.08 m housing is seated 2 cm into the door leaf, so its lens stands 6 cm
+ * proud. At z -11.38/-11.39 the reverse and signal lenses lay exactly on the
+ * door face (a 0 mm coplanar pair that flickered against the door paint) and
+ * the brake lamps sat 1 cm inside the doors, where they never showed.
+ */
+export const TRAILER_REAR_LAMPS: readonly (DetailInstance & {
+  readonly lamp: 'brake' | 'reverse' | 'left-signal' | 'right-signal';
+})[] = [
+  { lamp: 'brake', position: [-0.72, 1.05, -11.45], scale: [0.42, 0.28, 0.08] },
+  { lamp: 'brake', position: [0.72, 1.05, -11.45], scale: [0.42, 0.28, 0.08] },
+  // Reverse lamps are a PAIR. The old cluster had exactly one, offset to the
+  // left, which reads as a modelling slip from any rear angle.
+  { lamp: 'reverse', position: [-0.25, 1.05, -11.45], scale: [0.26, 0.24, 0.08] },
+  { lamp: 'reverse', position: [0.25, 1.05, -11.45], scale: [0.26, 0.24, 0.08] },
+  { lamp: 'left-signal', position: [-1.08, 1.05, -11.45], scale: [0.22, 0.24, 0.08] },
+  { lamp: 'right-signal', position: [1.08, 1.05, -11.45], scale: [0.22, 0.24, 0.08] },
+];
+
+/** Emissive colours of the rear lamp lenses (display sRGB). */
+export const TRUCK_REAR_LAMP_EMISSIVE = { brake: '#ff1f26', signal: '#ff9b19' } as const;
+
+/** Rear lamp emissive intensities for one frame. Brake lamps double as tail
+ * lamps, which is how a real rear cluster works. Each lit value keeps the lens's
+ * peak near the Neutral tone curve's shoulder: at 4.5 the curve blended a lit
+ * brake lamp a third of the way to white, and it read pink; signals at 4.2 read
+ * pale yellow. Braking stays clearly brighter than the tail lamp.
+ */
+export function truckRearLampIntensities(
+  state: Pick<TruckAnimState, 'brakeLights' | 'reverseLights' | 'leftSignal' | 'rightSignal'>,
+  lightsOn: boolean
+) {
+  return {
+    brake: state.brakeLights ? 1.2 : lightsOn ? 0.55 : 0.15,
+    reverse: state.reverseLights ? 4.5 : 0.1,
+    leftSignal: state.leftSignal ? 1.2 : 0.12,
+    rightSignal: state.rightSignal ? 1.2 : 0.12,
+  };
+}
+
 // Hang from the underframe down to just above the road, aligned with the tyre
 // they trail: x 1.165-1.585 against a tyre at 1.19-1.57.
 const TRAILER_MUDFLAPS: readonly DetailInstance[] = [
@@ -598,7 +641,7 @@ export function OptimizedTruckVisual({
     () =>
       new THREE.MeshStandardMaterial({
         color: '#3d1112',
-        emissive: '#ff1f26',
+        emissive: TRUCK_REAR_LAMP_EMISSIVE.brake,
         emissiveIntensity: 0.15,
         roughness: 0.22,
         metalness: 0,
@@ -622,7 +665,7 @@ export function OptimizedTruckVisual({
     () =>
       new THREE.MeshStandardMaterial({
         color: '#6b4409',
-        emissive: '#ff9b19',
+        emissive: TRUCK_REAR_LAMP_EMISSIVE.signal,
         emissiveIntensity: 0.12,
         roughness: 0.22,
         metalness: 0,
@@ -634,7 +677,7 @@ export function OptimizedTruckVisual({
     () =>
       new THREE.MeshStandardMaterial({
         color: '#6b4409',
-        emissive: '#ff9b19',
+        emissive: TRUCK_REAR_LAMP_EMISSIVE.signal,
         emissiveIntensity: 0.12,
         roughness: 0.22,
         metalness: 0,
@@ -1036,11 +1079,11 @@ export function OptimizedTruckVisual({
     // until the next day/night boundary - potentially a whole game day away.
     if (beamRef.current) beamRef.current.visible = lightsOn;
 
-    // Brake lamps double as tail lamps, which is how a real rear cluster works.
-    brakeMaterial.emissiveIntensity = state.brakeLights ? 4.5 : lightsOn ? 1.1 : 0.15;
-    reverseMaterial.emissiveIntensity = state.reverseLights ? 4.5 : 0.1;
-    leftSignalMaterial.emissiveIntensity = state.leftSignal ? 4.2 : 0.12;
-    rightSignalMaterial.emissiveIntensity = state.rightSignal ? 4.2 : 0.12;
+    const lamps = truckRearLampIntensities(state, lightsOn);
+    brakeMaterial.emissiveIntensity = lamps.brake;
+    reverseMaterial.emissiveIntensity = lamps.reverse;
+    leftSignalMaterial.emissiveIntensity = lamps.leftSignal;
+    rightSignalMaterial.emissiveIntensity = lamps.rightSignal;
 
     const doorAngle = state.doorOpenAmount * 1.32;
     if (leftDoorRef.current) leftDoorRef.current.rotation.y = doorAngle;
@@ -1362,22 +1405,22 @@ export function OptimizedTruckVisual({
           scale={[2.62, 0.12, 11.3]}
           receiveShadow
         />
-        <group ref={leftDoorRef} position={[-1.28, 2.45, -11.38]}>
+        <group ref={leftDoorRef} position={[-1.28, 2.45, TRAILER_REAR_DOOR.z]}>
           <mesh
             geometry={UNIT_BOX}
             material={trailerMaterial}
             position={[0.64, 0, 0]}
-            scale={[1.24, 3.78, 0.1]}
+            scale={[1.24, 3.78, TRAILER_REAR_DOOR.depth]}
             castShadow
             receiveShadow
           />
         </group>
-        <group ref={rightDoorRef} position={[1.28, 2.45, -11.38]}>
+        <group ref={rightDoorRef} position={[1.28, 2.45, TRAILER_REAR_DOOR.z]}>
           <mesh
             geometry={UNIT_BOX}
             material={trailerMaterial}
             position={[-0.64, 0, 0]}
-            scale={[1.24, 3.78, 0.1]}
+            scale={[1.24, 3.78, TRAILER_REAR_DOOR.depth]}
             castShadow
             receiveShadow
           />
@@ -1387,50 +1430,24 @@ export function OptimizedTruckVisual({
             `trailerAngle`. The trailer yaws up to 0.176 rad and the cluster is
             11.4 m behind the pivot, which threw the lamps up to 2 m clear of
             the trailer every time the combination turned in. */}
-        <mesh
-          geometry={UNIT_BOX}
-          material={brakeMaterial}
-          position={[-0.72, 1.05, -11.38]}
-          scale={[0.42, 0.28, 0.08]}
-          receiveShadow
-        />
-        <mesh
-          geometry={UNIT_BOX}
-          material={brakeMaterial}
-          position={[0.72, 1.05, -11.38]}
-          scale={[0.42, 0.28, 0.08]}
-          receiveShadow
-        />
-        {/* Reverse lamps are a PAIR. The old cluster had exactly one, offset to
-            the left, which reads as a modelling slip from any rear angle. */}
-        <mesh
-          geometry={UNIT_BOX}
-          material={reverseMaterial}
-          position={[-0.25, 1.05, -11.39]}
-          scale={[0.26, 0.24, 0.08]}
-          receiveShadow
-        />
-        <mesh
-          geometry={UNIT_BOX}
-          material={reverseMaterial}
-          position={[0.25, 1.05, -11.39]}
-          scale={[0.26, 0.24, 0.08]}
-          receiveShadow
-        />
-        <mesh
-          geometry={UNIT_BOX}
-          material={leftSignalMaterial}
-          position={[-1.08, 1.05, -11.39]}
-          scale={[0.22, 0.24, 0.08]}
-          receiveShadow
-        />
-        <mesh
-          geometry={UNIT_BOX}
-          material={rightSignalMaterial}
-          position={[1.08, 1.05, -11.39]}
-          scale={[0.22, 0.24, 0.08]}
-          receiveShadow
-        />
+        {TRAILER_REAR_LAMPS.map(({ lamp, position, scale }, index) => (
+          <mesh
+            key={index}
+            geometry={UNIT_BOX}
+            material={
+              lamp === 'brake'
+                ? brakeMaterial
+                : lamp === 'reverse'
+                  ? reverseMaterial
+                  : lamp === 'left-signal'
+                    ? leftSignalMaterial
+                    : rightSignalMaterial
+            }
+            position={position}
+            scale={scale}
+            receiveShadow
+          />
+        ))}
         <TruckIdentityDecals company={company} plateNumber={plateNumber} colour={colour} />
       </group>
 

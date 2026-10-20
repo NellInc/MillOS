@@ -407,6 +407,35 @@ describe('schedule-owned articulated truck controller', () => {
     expect(pose.reverseLights).toBe(false);
   });
 
+  it('lights the brake lamps only while the truck is actually braking', () => {
+    // Un-burying the rear lamps exposed brake lamps glowing on a parked truck:
+    // a paused clock reached the pose as a safety hold, and a hold lit the
+    // brakes even with the truck docked on its parking brake.
+    const steps = simulateVisit('shipping');
+    const docked = steps.find(({ state }) => state.phase === 'docked')!.state;
+    const leaving = steps.find(({ state }) => state.phase === 'preparing_to_leave')!.state;
+    const cruising = steps.find(
+      ({ state }) => Math.abs(state.motion.speed) > 2 && Math.abs(state.motion.acceleration) < 0.05
+    )!.state;
+    const decelerating = steps.find(({ state }) => state.motion.acceleration < -0.5)!.state;
+
+    // Docked or starting up on the parking brake: engine off or idling, no brake lamps.
+    expect(getTruckControllerPose(docked).brakeLights).toBe(false);
+    expect(getTruckControllerPose(leaving).brakeLights).toBe(false);
+    expect(getTruckControllerPose(docked, true).brakeLights).toBe(false);
+    // A paused clock freezes the picture; it is not a brake application.
+    expect(getTruckControllerPose(cruising, false, true).brakeLights).toBe(false);
+    expect(getTruckControllerPose(cruising, false, true).throttle).toBe(0);
+    expect(getTruckControllerPose(decelerating, false, true).brakeLights).toBe(true);
+    // Real braking: decelerating, or the held stop before reversing.
+    expect(getTruckControllerPose(decelerating).brakeLights).toBe(true);
+    expect(
+      steps.some(
+        ({ state, pose }) => state.phase === 'stopping_to_back' && pose.brakeLights === true
+      )
+    ).toBe(true);
+  });
+
   it('rotates receiving motion half a turn without mirroring vehicle-relative steering', () => {
     let shipping = createTruckController('shipping');
     let receiving = createTruckController('receiving');

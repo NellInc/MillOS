@@ -904,10 +904,12 @@ export const TownHallClock: React.FC<{ position: [number, number, number]; face?
             <primitive object={SM.clockHands} attach="material" />
           </mesh>
         </group>
-        {/* Minute hand - arrow shaped, longer */}
+        {/* Minute hand - arrow shaped, longer. Its bar sits wholly in front of
+            the hour bar (0.062-0.082 vs 0.04-0.06): at 0.06 the two bars'
+            tail end faces were coplanar whenever the hands aligned. */}
         <group
           name="town-hall-clock-minute"
-          position={[0, 0, 0.06]}
+          position={[0, 0, 0.072]}
           rotation={[0, 0, -minuteAngle + Math.PI / 2]}
         >
           <mesh position={[0.3, 0, 0]}>
