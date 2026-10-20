@@ -554,7 +554,7 @@ it('migrates old shift records and restores layout before owner motion, with com
   expect(() => decodePhysicalSession(encodePhysicalSession(saved))).toThrow('invalid clearance');
 });
 
-it('migrates a save holding the shipping route from before its east-end hairpin was re-authored', () => {
+it('migrates a save holding an earlier default shipping route', () => {
   heldShift();
   // The default shipping route until 2026-10-20: [25, 42] -> [22.5, 43] was a
   // 158-degree reversal. Its fixed poses no longer match the default, which
@@ -577,14 +577,26 @@ it('migrates a save holding the shipping route from before its east-end hairpin 
   expect(restored.previous?.routes.shipping).toEqual(currentLogisticsLayout().routes.shipping);
   expect(restored.layout.routes.receiving).toEqual(saved.logistics.layout.routes.receiving);
 
-  // A corner the player moved against the old ends is kept when it still
-  // fits the new ones, and returned to the default when it does not.
+  // A corner the player moved on the old east-end approach is not carried
+  // across the hall to the new dock-door route: it returns to the default.
   saved.logistics.layout.routes.shipping[2] = [16, 0, 41.5];
   saved.logistics.previous = null;
   expect(
-    decodePhysicalSession(encodePhysicalSession(saved)).logistics.layout.routes.shipping[2]
-  ).toEqual([16, 0, 41.5]);
-  saved.logistics.layout.routes.shipping[2] = [24, 0, 42.5];
+    decodePhysicalSession(encodePhysicalSession(saved)).logistics.layout.routes.shipping
+  ).toEqual(currentLogisticsLayout().routes.shipping);
+
+  // The squared-off route that followed, whose dropoff stood 22.5 m from the
+  // trailer, migrates the same way.
+  saved.logistics.layout.routes.shipping = [
+    [-16, 0, 42],
+    [12, 0, 42],
+    [16, 0, 42],
+    [22.5, 0, 42],
+    [22.5, 0, 48],
+    [28.5, 0, 48],
+    [28.5, 0, 42],
+    [-16, 0, 42],
+  ];
   expect(
     decodePhysicalSession(encodePhysicalSession(saved)).logistics.layout.routes.shipping
   ).toEqual(currentLogisticsLayout().routes.shipping);

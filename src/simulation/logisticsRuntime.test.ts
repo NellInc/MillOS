@@ -82,10 +82,14 @@ describe('live logistics contract', () => {
         0.995
       );
     }
-    const corner = old.path.samples.find((s) => s.x > 23 && s.z > 42.05 && s.z < 43)!;
+    // A sample on the loaded leg's rounded corner at the foot of the dock-door
+    // spur (the return leg rounds the same corner, so filter by distance).
+    const corner = old.path.samples.find(
+      (s) => s.distance < old.markers[1].distance && s.x > -1.5 && s.x < -0.05 && s.z > 42.05
+    )!;
     expect(corner).toBeDefined();
     const changed = structuredClone(current);
-    changed.routes.shipping[2] = [27, 0, 42];
+    changed.routes.shipping[2] = [-5, 0, 40];
     expect(
       reconcileLogisticsMotion(
         old,

@@ -60,58 +60,64 @@ export const defaultSavedLogisticsLayout = (): SavedLogisticsLayout => ({
 });
 
 /**
- * The default shipping route until 2026-10-20, whose east end doubled back
- * from (25, 42) to (22.5, 43) and spun the forklift. Its fixed poses differ
- * from today's, so a save holding it would fail the fixed-pose check and halt
- * the restore. Working if such a save restores onto the current route.
+ * Earlier default shipping routes. Their fixed poses differ from today's, so a
+ * save holding one would fail the fixed-pose check and halt the restore.
+ * Working if such a save restores onto the current route.
  */
-const LEGACY_SHIPPING_ROUTE: readonly Vec3Tuple[] = [
-  [-16, 0, 42],
-  [12, 0, 42],
-  [25, 0, 42],
-  [22.5, 0, 43],
-  [22.5, 0, 48],
-  [26, 0, 48],
-  [26, 0, 42],
-  [-16, 0, 42],
+const LEGACY_SHIPPING_ROUTES: readonly (readonly Vec3Tuple[])[] = [
+  // Until 2026-10-20: the east end doubled back from (25, 42) to (22.5, 43)
+  // and spun the forklift.
+  [
+    [-16, 0, 42],
+    [12, 0, 42],
+    [25, 0, 42],
+    [22.5, 0, 43],
+    [22.5, 0, 48],
+    [26, 0, 48],
+    [26, 0, 42],
+    [-16, 0, 42],
+  ],
+  // Until 2026-10-21: squared off, but the dropoff at (22.5, 48) was 22.5 m
+  // from the trailer it loads.
+  [
+    [-16, 0, 42],
+    [12, 0, 42],
+    [16, 0, 42],
+    [22.5, 0, 42],
+    [22.5, 0, 48],
+    [28.5, 0, 48],
+    [28.5, 0, 42],
+    [-16, 0, 42],
+  ],
 ];
 
 const samePoint = (a: unknown, b: Vec3Tuple): boolean =>
   Array.isArray(a) && a.length === 3 && a.every((value, axis) => value === b[axis]);
 
 /**
- * Moves a layout drawn on the legacy shipping route onto the current one. A
- * corner the player moved is kept when the result still passes `feasible`,
- * and returned to the default otherwise; any other layout is left untouched.
+ * Moves a layout drawn on a legacy shipping route onto the current one. Every
+ * legacy route has the same single editable corner (index 2), and it sat on
+ * the east-end approach the current route no longer drives, so a corner the
+ * player moved there is returned to the default rather than carried across
+ * the hall. Any other layout is left untouched.
  */
-function migrateLegacyShippingRoute(
-  layout: LogisticsProposal | null,
-  feasible: (layout: LogisticsProposal) => boolean
-): LogisticsProposal | null {
+function migrateLegacyShippingRoute(layout: LogisticsProposal | null): LogisticsProposal | null {
   const route = layout?.routes?.shipping;
-  if (!layout || !Array.isArray(route) || route.length !== LEGACY_SHIPPING_ROUTE.length)
-    return layout;
+  if (!layout || !Array.isArray(route)) return layout;
   const editable = (index: number) => isEditableRoutePoint('shipping', index);
-  if (
-    !LEGACY_SHIPPING_ROUTE.every(
-      (point, index) => editable(index) || samePoint(route[index], point)
-    )
-  )
-    return layout;
-  const current = SITE_LAYOUT.routes.forklifts.shipping.points;
-  const withRoute = (keepEdits: boolean): LogisticsProposal => ({
+  const legacy = LEGACY_SHIPPING_ROUTES.some(
+    (old) =>
+      route.length === old.length &&
+      old.every((point, index) => editable(index) || samePoint(route[index], point))
+  );
+  if (!legacy) return layout;
+  return {
     ...layout,
     routes: {
       ...layout.routes,
-      shipping: current.map((point, index) =>
-        keepEdits && editable(index) && !samePoint(route[index], LEGACY_SHIPPING_ROUTE[index])
-          ? [...(route[index] as Vec3Tuple)]
-          : [...point]
-      ),
+      shipping: SITE_LAYOUT.routes.forklifts.shipping.points.map((point) => [...point]),
     },
-  });
-  const kept = withRoute(true);
-  return feasible(kept) ? kept : withRoute(false);
+  };
 }
 
 export function validateSavedLogisticsLayout(
@@ -130,8 +136,8 @@ export function validateSavedLogisticsLayout(
       DEFAULT_PLANNING_ASSUMPTIONS,
       capturedPlanningObstacles(machines, [])
     ).feasible;
-  const layout = migrateLegacyShippingRoute(saved.layout, feasible);
-  const previous = migrateLegacyShippingRoute(saved.previous, feasible);
+  const layout = migrateLegacyShippingRoute(saved.layout);
+  const previous = migrateLegacyShippingRoute(saved.previous);
   for (const candidate of [layout, previous]) {
     if (candidate === null && candidate === previous) continue;
     if (!candidate || !feasible(candidate))

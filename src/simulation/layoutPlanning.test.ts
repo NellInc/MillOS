@@ -15,8 +15,34 @@ import {
   type LayoutSnapshot,
 } from './layoutPlanning';
 import { layoutPlanDxf, layoutPlanSvg, layoutProposalJson } from './layoutPlanningExport';
+import { drivenLogisticsRoute } from './logisticsRuntime';
+import { sampleArcLengthPath } from './vehicles/vehicleKinematics';
+import { DOCK_BUMPER_FACE_Z } from '../components/truckbay/truckController';
+import { COMPACT_MAST_Z, FORKLIFT_PALLET_REACH_METRES } from '../components/models/ForkliftModel';
 
 describe('isolated logistics planning', () => {
+  // Loading reads as loading only if the pallet goes down at the trailer it
+  // loads. The docked trailer's tail is on the dock bumpers at the bay's
+  // centreline; the forklift may not pass under the dock leveler, whose near
+  // edge is TruckBay's leveler group (z 50 - 1.5) less half its 4 m plate.
+  // Working if every render tier sets the pallet within about 2 m of the
+  // tail, square to it, with the low tier's mast short of the leveler.
+  it('sets the shipping pallet down at the docked trailer, not across the hall', () => {
+    const { plan } = drivenLogisticsRoute('shipping', SITE_LAYOUT.routes.forklifts.shipping.points);
+    const dropoff = plan.markers.find(({ action }) => action.type === 'dropoff')!;
+    const stand = sampleArcLengthPath(plan.path, dropoff.distance);
+    const tail = { x: SITE_LAYOUT.docks.shipping.bayCentre[0], z: DOCK_BUMPER_FACE_Z };
+    // The body arrives facing the trailer (a dropoff vertex keeps its arrival tangent).
+    expect(stand.tangentZ).toBeGreaterThan(0.999);
+    for (const reach of Object.values(FORKLIFT_PALLET_REACH_METRES)) {
+      const pallet = { x: stand.x + stand.tangentX * reach, z: stand.z + stand.tangentZ * reach };
+      expect(Math.hypot(pallet.x - tail.x, pallet.z - tail.z)).toBeLessThanOrEqual(2.25);
+    }
+    const levelerNearEdgeZ = 50 - 1.5 + 2 - 2;
+    expect(stand.z + COMPACT_MAST_Z + 0.065).toBeLessThanOrEqual(levelerNearEdgeZ);
+    expect(scoreLogisticsLayout(currentLogisticsLayout(), assumptions).violations).toEqual([]);
+  });
+
   it('accepts the authored layout and improves its cost without changing fixed anchors', () => {
     const current = currentLogisticsLayout();
     const before = structuredClone(current);
