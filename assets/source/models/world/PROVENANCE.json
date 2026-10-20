@@ -4539,13 +4539,13 @@
       "sha256": "9b0457e4e89f566ae16cb5bef8b4d93d35f8349643ebda0b59b4751e1dd0010c",
       "blenderPreparation": {
         "file": "assets/source/models/world/info-sign-crafted.glb",
-        "sha256": "917af662f2046a28326176d87fabb734661a295173bfe819f03d2156128d034d",
+        "sha256": "7e6c236ba7638989e414479df9b78531d4a45a15620d73f3cd5678c4316f3e85",
         "script": "scripts/blender/refine_civic_props.py",
         "method": "Hand-authored component rebuild in the retained runtime metre envelope, with separated construction details and one sRGB colour/linear roughness atlas; original provider source preserved."
       },
       "runtimeDerivative": {
         "file": "public/models/world/info-sign.glb",
-        "sha256": "fcbe8284b38d921abe3a559df73929c1ccdf325b12869e84d2ef772ac6f6ebb6",
+        "sha256": "fca53f890aaf168c2e931b368a3cdb4a0e492449d7ee7eaa3674d833a607fb99",
         "bytes": 37244
       },
       "normalization": {

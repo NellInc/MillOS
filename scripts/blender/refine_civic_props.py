@@ -466,10 +466,13 @@ def lamp(modern):
   cylinder('Finial',(0,0,4.421),.025,.058,'iron',10,radius2=.012)
 
 def sign():
- box('Oak upright',(0,.029,.775),(.114,.114,1.55),'oak-dark',.008)
+ # The folded iron edges cap the enamel face: it stops 8 mm inside their top
+ # and bottom, the upright 1 cm under them, and the side edges sit 3 mm in, so
+ # no face or bevel of one part lies in the plane of another's (they were flush).
+ box('Oak upright',(0,.029,.77),(.114,.114,1.54),'oak-dark',.008)
  box('Back mounting batten',(0,.024,1.28),(.51,.115,.095),'oak-dark',.006)
- box('Enamel notice face',(0,-.055,1.295),(.7674,.048,.51),'slate',.01)
- for x in [-.367,.367]:box('Folded side edge',(x,-.048,1.295),(.022,.06,.51),'iron',.004)
+ box('Enamel notice face',(0,-.055,1.295),(.7674,.048,.494),'slate',.01)
+ for x in [-.364,.364]:box('Folded side edge',(x,-.048,1.295),(.022,.06,.51),'iron',.004)
  for z in [1.052,1.538]:box('Folded horizontal edge',(0,-.048,z),(.747,.06,.024),'iron',.004)
  for x in [-.327,.327]:
   for z in [1.09,1.50]:cylinder('Brass fastener',(x,-.083,z),.011,.008,'brass',8,rot=(math.pi/2,0,0))
