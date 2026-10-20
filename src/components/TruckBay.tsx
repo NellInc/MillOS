@@ -1,4 +1,5 @@
 import { PalletStaging } from './truckbay/PalletStaging';
+import { YardWearMarks } from './truckbay/YardWearMarks';
 import { GeneratedGeometrySurface } from './models/GeneratedGeometrySurface';
 import { GeneratedBoundary, GeneratedModel } from './models/GeneratedModel';
 import { applyVillageWindows } from './models/GeneratedOfficeModel';
@@ -3314,6 +3315,8 @@ export const TruckBay: React.FC = () => {
       <TruckAnimationManager />
       <PalletStaging dock="shipping" />
       <PalletStaging dock="receiving" />
+      {/* Tyre tracks and oil on both yards, from the trucks' real paths. */}
+      <YardWearMarks />
       {/* ========== SHIPPING DOCK (Front of building, z=50) ========== */}
       {/* Wall is at z=48, so dock elements must be at z>=48 to not clip */}
       <group position={[0, 0, 50]}>

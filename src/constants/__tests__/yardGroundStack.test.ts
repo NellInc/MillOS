@@ -18,7 +18,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { POLYGON_OFFSET } from '../renderLayers';
-import { YARD_GROUND_DEPTH } from '../../components/truckbay/yardSurfaces';
+import { YARD_GROUND_DEPTH, YARD_WEAR_DEPTH } from '../../components/truckbay/yardSurfaces';
 
 type Depth = {
   readonly polygonOffset: boolean;
@@ -72,6 +72,18 @@ describe('truck-yard ground stack', () => {
       expect(depth.polygonOffsetFactor).toBe(POLYGON_OFFSET.exteriorTop.factor);
       expect(depth.polygonOffsetUnits).toBe(POLYGON_OFFSET.exteriorTop.units);
     }
+  });
+
+  it('lays tyre tracks and oil as paint: in front of apron and road, never writing depth', () => {
+    // They cross the yard, the apron and the paint already there, so they
+    // take the paint's bias and stay out of the depth buffer, which lets them
+    // blend over a guide line instead of tying with it.
+    expect(YARD_WEAR_DEPTH.polygonOffset).toBe(true);
+    expect(YARD_WEAR_DEPTH.polygonOffsetFactor).toBe(paint);
+    expect(YARD_WEAR_DEPTH.polygonOffsetUnits).toBe(POLYGON_OFFSET.exteriorOverlay.units);
+    expect(YARD_WEAR_DEPTH.polygonOffsetFactor).toBeLessThan(apron);
+    expect(YARD_WEAR_DEPTH.depthWrite).toBe(false);
+    expect(YARD_WEAR_DEPTH.transparent).toBe(true);
   });
 
   it('paints the labels that sit on the apron with a bias in front of the apron', () => {
