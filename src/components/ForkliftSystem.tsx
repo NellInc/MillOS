@@ -49,6 +49,8 @@ import {
   forkliftRouteHeading,
   sampleForkliftLoadPose,
   resolveForkliftActionStop,
+  forkliftActionPermitted,
+  nextForkliftActionCommitment,
   resolveForkliftStopReason,
   stepForkliftMotion,
   type ForkliftLoadPhase,
@@ -747,6 +749,7 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
   const motionStateRef = useRef(createInitialForkliftMotion(initialRoutePlan, data.position));
   const dock = data.id === 'forklift-1' ? 'shipping' : 'receiving';
   const actionMarkerIndexRef = useRef(0);
+  const actionCommittedRef = useRef(false);
   const [isStopped, setIsStopped] = useState(false);
   const [distanceTier, setDistanceTier] = useState<'close' | 'far'>('close'); // LOD tier for rendering
   const [hasCargo, setHasCargo] = useState(data.cargo === 'pallet');
@@ -1006,6 +1009,8 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
         restore: (snapshot) => {
           motionStateRef.current = snapshot.motionStateRef;
           actionMarkerIndexRef.current = snapshot.actionMarkerIndexRef;
+          // Not in the snapshot: re-earned on the restored leg.
+          actionCommittedRef.current = false;
           hasCargoRef.current = snapshot.hasCargoRef;
           operationRef.current = snapshot.operationRef;
           loadPhaseRef.current = snapshot.loadPhaseRef;
@@ -1305,14 +1310,26 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
 
     // Not yet permitted, the forklift waits at the marker's hold point: short of
     // the dock door's pedestrian approach for a dock-side action.
-    const actionPermitted = markerAction ? canPerformWaypointAction(markerAction) : false;
+    // Once it has left the hold point with permission it finishes the action
+    // while its truck is still docked, rather than stopping in the doorway.
+    const holdLeg = markerHoldLegs(routePlan)[actionMarkerIndexRef.current] ?? 0;
+    const ownPermission = markerAction ? canPerformWaypointAction(markerAction) : false;
+    actionCommittedRef.current =
+      markerRelevant &&
+      nextForkliftActionCommitment({
+        committed: actionCommittedRef.current,
+        permitted: ownPermission,
+        distanceToMarker,
+        holdLeg,
+      });
+    const actionPermitted = forkliftActionPermitted({
+      permitted: ownPermission,
+      committed: actionCommittedRef.current,
+      truckAtDock: truckTransferReady[dock],
+    });
     const actionStop =
       marker && markerRelevant && markerAction
-        ? resolveForkliftActionStop({
-            distanceToMarker,
-            holdLeg: markerHoldLegs(routePlan)[actionMarkerIndexRef.current] ?? 0,
-            permitted: actionPermitted,
-          })
+        ? resolveForkliftActionStop({ distanceToMarker, holdLeg, permitted: actionPermitted })
         : null;
     const logisticsInterlock = !emergencyStopped && (actionStop?.interlocked ?? false);
     if (marker && markerRelevant && distanceToMarker <= 0.06 && markerAction && !emergencyStopped) {

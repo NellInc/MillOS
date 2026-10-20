@@ -429,6 +429,40 @@ export function resolveForkliftActionStop({
   return { stopDistance, interlocked: stopDistance <= 0.06 };
 }
 
+/**
+ * A forklift that left its hold point with permission is committed to the
+ * action for as long as it is between the hold point and the marker. Committed,
+ * it still works while its truck is at the dock even if the permission lapses
+ * on the way in (the shipping load can complete while it carries one more
+ * pallet), instead of standing in the doorway until the next truck.
+ * Working if a forklift never stops between its hold point and its marker
+ * while its truck is still docked.
+ */
+export function nextForkliftActionCommitment({
+  committed,
+  permitted,
+  distanceToMarker,
+  holdLeg,
+}: {
+  committed: boolean;
+  permitted: boolean;
+  distanceToMarker: number;
+  holdLeg: number;
+}): boolean {
+  return (committed || permitted) && holdLeg > 0 && distanceToMarker < holdLeg - 0.06;
+}
+
+/** The permission a forklift acts on: its own, or its commitment while the truck is docked. */
+export const forkliftActionPermitted = ({
+  permitted,
+  committed,
+  truckAtDock,
+}: {
+  permitted: boolean;
+  committed: boolean;
+  truckAtDock: boolean;
+}): boolean => permitted || (committed && truckAtDock);
+
 /** The heading the body should hold at a route distance: the departure heading inside a pivot span. */
 export const forkliftRouteHeading = (plan: ForkliftRoutePlan, distance: number): number => {
   const total = plan.path.totalLength;

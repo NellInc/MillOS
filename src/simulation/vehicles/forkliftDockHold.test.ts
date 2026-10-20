@@ -8,6 +8,8 @@ import {
   createInitialForkliftMotion,
   distanceAheadOnClosedPath,
   forkliftActionHoldDistance,
+  forkliftActionPermitted,
+  nextForkliftActionCommitment,
   forkliftRouteHeading,
   resolveForkliftActionStop,
   sampleForkliftLoadPose,
@@ -116,6 +118,78 @@ describe('forklift waits for its truck outside the dock pedestrian approach', ()
       expect(Math.cos(state.heading) * outward).toBeGreaterThan(0.999);
     });
   }
+
+  // Seen in the running app: the forklift left its hold point for the dock,
+  // the shipping load completed while it drove in with one more pallet, and it
+  // stood at the dock door, in the pedestrian approach, until the next truck.
+  for (const latch of [false, true])
+    it(`${latch ? 'finishes' : 'without the commitment, stops'} when the permission lapses on the way in`, () => {
+      const { plan } = drivenLogisticsRoute(
+        'shipping',
+        SITE_LAYOUT.routes.forklifts.shipping.points
+      );
+      const marker = plan.markers.find(({ action }) => action.type === 'dropoff')!;
+      const hold = forkliftActionHoldDistance(
+        plan,
+        marker.distance,
+        corridors,
+        FORKLIFT_HOLD_CLEARANCE_METRES
+      );
+      const holdLeg = distanceAheadOnClosedPath(plan.path, hold, marker.distance);
+      let state = createInitialForkliftMotion(
+        plan,
+        SITE_LAYOUT.routes.forklifts.shipping.points[0]
+      );
+      state = { ...state, routeDistance: hold };
+      let committed = false;
+      let reached = false;
+      for (let i = 0; i < 60 * 60; i++) {
+        const toMarker = distanceAheadOnClosedPath(plan.path, state.routeDistance, marker.distance);
+        // Permitted until it is a metre inside; the truck stays docked.
+        const ownPermission = toMarker > holdLeg - 1;
+        committed = latch
+          ? nextForkliftActionCommitment({
+              committed,
+              permitted: ownPermission,
+              distanceToMarker: toMarker,
+              holdLeg,
+            })
+          : false;
+        const permitted = forkliftActionPermitted({
+          permitted: ownPermission,
+          committed,
+          truckAtDock: true,
+        });
+        if (permitted && toMarker <= 0.06) {
+          reached = true;
+          break;
+        }
+        const stop = resolveForkliftActionStop({ distanceToMarker: toMarker, holdLeg, permitted });
+        state = stepForkliftMotion(state, plan, {
+          targetSpeed: Math.min(1.2, Math.sqrt(Math.max(0, 3 * (stop.stopDistance - 0.03)))),
+          stopReason: stop.interlocked ? 'logistics-interlock' : 'none',
+          loaded: true,
+          deltaSeconds: 1 / 60,
+          maximumTravelDistance: stop.stopDistance,
+          holdHeading: stop.interlocked,
+        });
+      }
+      expect(reached).toBe(latch);
+    });
+
+  it('drops the commitment once the truck has gone', () => {
+    expect(forkliftActionPermitted({ permitted: false, committed: true, truckAtDock: false })).toBe(
+      false
+    );
+    expect(
+      nextForkliftActionCommitment({
+        committed: true,
+        permitted: false,
+        distanceToMarker: 9,
+        holdLeg: 7,
+      })
+    ).toBe(false);
+  });
 
   it('waits at the marker as before when the marker is outside every approach', () => {
     expect(
