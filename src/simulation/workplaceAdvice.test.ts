@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   cloneMaterialFlowData,
   createMaterialFlowStore,
@@ -14,6 +14,13 @@ import {
   validPackingAdvice,
   type PackingContext,
 } from './workplaceAdvice';
+
+// These rehearsals tick the real material engine for whole plant spans, so
+// their duration tracks machine load. Measured 2026-10-19 at 3.2-4.6 runnable
+// per core: the slowest test ("matches first-output observations") took
+// 3.5-9.6 s, against the 10 s default whose expiry vitest reports as
+// STACK_TRACE_ERROR. 60 s is about 6x the worst loaded run.
+vi.setConfig({ testTimeout: 60_000 });
 
 function fixture(gameSpeed = 30) {
   const store = createMaterialFlowStore();

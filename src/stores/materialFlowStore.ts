@@ -926,19 +926,37 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
         // loss. Silos are uncommitted stock; every other buffer and belt is WIP.
         // Working if waiting for a physical truck cannot fill the packers with
         // surplus old product and block the following recipe.
-        const yieldCache = new Map<string, number>();
-        const visiting = new Set<string>();
+        // Keyed by the existing id strings: committedFor asks once per held
+        // material per packer, and building a composite string key for every
+        // call was most of this tick's cost in the long replay tests. Yields
+        // are never negative, so -1 marks a key whose resolution is under way.
+        type YieldCache = Map<string, Map<MaterialType, number>>;
+        const VISITING = -1;
+        const yieldCache = new Map<string, { input: YieldCache; output: YieldCache }>();
+        // Outgoing segments per machine, in network order, built on first use.
+        let segmentsFrom: Map<string, ConveyorSegment[]> | null = null;
         const finishedYield = (
           machineId: string,
           type: MaterialType,
           input: boolean,
           packerId?: string
         ): number => {
-          const key = `${machineId}:${type}:${input}:${packerId ?? ''}`;
-          const cached = yieldCache.get(key);
+          let packerCache = yieldCache.get(packerId ?? '');
+          if (!packerCache) {
+            packerCache = { input: new Map(), output: new Map() };
+            yieldCache.set(packerId ?? '', packerCache);
+          }
+          const scopeCache = input ? packerCache.input : packerCache.output;
+          let machineCache = scopeCache.get(machineId);
+          if (!machineCache) {
+            machineCache = new Map();
+            scopeCache.set(machineId, machineCache);
+          }
+          const cached = machineCache.get(type);
+          // A cycle back to a key still being resolved contributes nothing.
+          if (cached === VISITING) return 0;
           if (cached !== undefined) return cached;
-          if (visiting.has(key)) return 0;
-          visiting.add(key);
+          machineCache.set(type, VISITING);
           const buffer = state.machineBuffers.get(machineId);
           let yieldKg = 0;
           if (input) {
@@ -958,8 +976,16 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
           } else {
             // A split routes each kg once. The highest yield conservatively
             // reserves it; actual losses reopen demand on the following tick.
-            for (const segment of state.network.segments) {
-              if (segment.fromMachineId === machineId && segment.fromOutputType === type) {
+            if (!segmentsFrom) {
+              segmentsFrom = new Map();
+              for (const segment of state.network.segments) {
+                const from = segmentsFrom.get(segment.fromMachineId);
+                if (from) from.push(segment);
+                else segmentsFrom.set(segment.fromMachineId, [segment]);
+              }
+            }
+            for (const segment of segmentsFrom.get(machineId) ?? []) {
+              if (segment.fromOutputType === type) {
                 yieldKg = Math.max(
                   yieldKg,
                   finishedYield(segment.toMachineId, type, true, packerId)
@@ -967,8 +993,7 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
               }
             }
           }
-          visiting.delete(key);
-          yieldCache.set(key, yieldKg);
+          machineCache.set(type, yieldKg);
           return yieldKg;
         };
         let feedBudgetKg = Infinity;
