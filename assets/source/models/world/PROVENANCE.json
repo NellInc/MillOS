@@ -78,8 +78,8 @@
       },
       "runtimeDerivative": {
         "file": "public/models/world/park-canopy-zero-unit.glb",
-        "sha256": "2556897317d133490bb7692620921291a9e1f9547a90455a219d803623f73de3",
-        "bytes": 20724
+        "sha256": "47240c17eb83743aa452b9292c7bc8d1c13708e7880eec394b34047532bec7d9",
+        "bytes": 20760
       },
       "normalization": {
         "sizedBy": "height",
@@ -124,8 +124,8 @@
       },
       "runtimeDerivative": {
         "file": "public/models/world/park-canopy-one-unit.glb",
-        "sha256": "a477524c165806527e4387d238f2ba3c8fd177cbb54fe36f1e1b9b140602e17d",
-        "bytes": 19052
+        "sha256": "f236d94029190d002c2d468cc7d2bf5345a8054f6eaff9ce3c58da787f2f1e45",
+        "bytes": 19084
       },
       "normalization": {
         "sizedBy": "height",
@@ -170,8 +170,8 @@
       },
       "runtimeDerivative": {
         "file": "public/models/world/park-canopy-two-unit.glb",
-        "sha256": "f7743cfd354dc9371753db58fe67920cb6c92306ce115d98150f44eb204c32aa",
-        "bytes": 19544
+        "sha256": "e0a7d346a4aa1c3020ac49c2a6e0e7b367bbd0507b21d19446f761295ef2d797",
+        "bytes": 19576
       },
       "normalization": {
         "sizedBy": "height",
@@ -262,8 +262,8 @@
       },
       "runtimeDerivative": {
         "file": "public/models/world/oak-canopy-unit.glb",
-        "sha256": "3c003c9afda9085b79684863263aad6b7897a63a08b7cb3d5615913138191037",
-        "bytes": 19032
+        "sha256": "64497b590100c82e422ae33febe6428bcd1cefdc099eadd99037cc04f0913cf6",
+        "bytes": 19068
       },
       "normalization": {
         "sizedBy": "height",
@@ -354,8 +354,8 @@
       },
       "runtimeDerivative": {
         "file": "public/models/world/birch-canopy-unit.glb",
-        "sha256": "dd35b93d8ac2a477950d667b9c14326cecf6dbc529a47b74ab2c7925f865ffbe",
-        "bytes": 21020
+        "sha256": "aac90259cc5cd4e1861c997eccdd75139a24b9a0f7afad24301a10790dfaa965",
+        "bytes": 21052
       },
       "normalization": {
         "sizedBy": "height",
@@ -446,8 +446,8 @@
       },
       "runtimeDerivative": {
         "file": "public/models/world/pine-canopy-unit.glb",
-        "sha256": "17ba9fda2175d20fe2201eeccedbd33a7fac8e04f7a58bfe285ec8537e334497",
-        "bytes": 21296
+        "sha256": "d4b29f84477478527624adfa05f44abfd00fe6a21c2f53fb96929cff5827f1f0",
+        "bytes": 21328
       },
       "normalization": {
         "sizedBy": "height",
@@ -678,8 +678,8 @@
       },
       "runtimeDerivative": {
         "file": "public/models/world/forklift-chassis-unit.glb",
-        "sha256": "05736425535a734f9695d50ba94ad3a47556eb49ced8617d96a1ee160ea82403",
-        "bytes": 111140
+        "sha256": "7997b418492889542e9bad68af6a2f0f794008ae3b7fe12e877223805784dbd1",
+        "bytes": 111168
       },
       "normalization": {
         "sizedBy": "height",
@@ -1092,8 +1092,8 @@
       },
       "runtimeDerivative": {
         "file": "public/models/world/hedge-unit.glb",
-        "sha256": "a33661b548e9f8dde29979c68c787cb129204764e8f0fc973c85f732aaf7e567",
-        "bytes": 13544
+        "sha256": "808a45bf2a900a731887ef2605cec8a8de691b6c15e8440a3f82d64b0d8cf81b",
+        "bytes": 13576
       },
       "normalization": {
         "sizedBy": "height",
@@ -1276,8 +1276,8 @@
       },
       "runtimeDerivative": {
         "file": "public/models/world/factory-concrete-unit.glb",
-        "sha256": "02e449aa81def84e2beb95fe92c1576296881bd66cf8086cc80bcf05cb5f5c12",
-        "bytes": 13568
+        "sha256": "f3107117f072a52995392e9ca1e35c89e8c6bd7f6eefae6e87a8294c9343c70b",
+        "bytes": 13600
       },
       "normalization": {
         "sizedBy": "height",
@@ -1322,8 +1322,8 @@
       },
       "runtimeDerivative": {
         "file": "public/models/world/city-masonry-unit.glb",
-        "sha256": "bf50d37f53181dab891decf393f8f9f1ee29fd9ec56877809e7113846c910e7e",
-        "bytes": 14792
+        "sha256": "7c0746194210c21a970b7a18133546b0f263fcb5747c38d3cc7f945fb47415f2",
+        "bytes": 14824
       },
       "normalization": {
         "sizedBy": "height",
@@ -1460,8 +1460,8 @@
       },
       "runtimeDerivative": {
         "file": "public/models/world/station-wall-unit.glb",
-        "sha256": "642560d978317317766ac7d83749c766769656f041422def426d179776474c80",
-        "bytes": 14980
+        "sha256": "787436d1ef8403eaed85a0e46479668dc174e7bc9b655b228f85ced92e0b7e01",
+        "bytes": 15012
       },
       "normalization": {
         "sizedBy": "height",
@@ -1830,8 +1830,8 @@
       },
       "runtimeDerivative": {
         "file": "public/models/world/dock-door-panel.glb",
-        "sha256": "0de83d54a3a8517d0aae559f9fcce3e71e9b1dcdd311cc62fda87095727ac37e",
-        "bytes": 15656
+        "sha256": "332e0c50dee5d7b523fcc796183513aeb01f452d6b438ce6db86c1ffd4df10b8",
+        "bytes": 15688
       },
       "normalization": {
         "sizedBy": "height",
@@ -1922,8 +1922,8 @@
       },
       "runtimeDerivative": {
         "file": "public/models/world/dock-shelter-side.glb",
-        "sha256": "0722108995fb2aa0e88fdc428cc28de153e04d0000c9b91fb658646e055123c1",
-        "bytes": 14520
+        "sha256": "2bad715431b28ea6d82ce6c7688a0ce9c43859b7fe09cf6bf5b21dac6533665e",
+        "bytes": 14556
       },
       "normalization": {
         "sizedBy": "height",
@@ -1968,8 +1968,8 @@
       },
       "runtimeDerivative": {
         "file": "public/models/world/dock-shelter-top.glb",
-        "sha256": "82257b018aa771c628c2e638020737f612c86e61af3b5a25ae4407601732297a",
-        "bytes": 14568
+        "sha256": "baf0da1eaedc0c0d1c01264df1c7d6784525a68b71e19e16f6c3c359966eab8d",
+        "bytes": 14604
       },
       "normalization": {
         "sizedBy": "height",
@@ -2198,8 +2198,8 @@
       },
       "runtimeDerivative": {
         "file": "public/models/world/cupid-authored-body.glb",
-        "sha256": "aa4f24a81c8ee4965765fee4c59d42c6c7e4a8db92265e5d486d22012f67ab45",
-        "bytes": 93384
+        "sha256": "48d7475f4ce74b57381274b7b8b16023d8580a95a047705589796c2c98332eb9",
+        "bytes": 93420
       },
       "normalization": {
         "sizedBy": "height",
@@ -2244,8 +2244,8 @@
       },
       "runtimeDerivative": {
         "file": "public/models/world/frog-authored-body.glb",
-        "sha256": "cdf78e93064274ea14b029d9be43838549b64f4169f764f447ad1e96362ca3f6",
-        "bytes": 56676
+        "sha256": "bae8a901a47e0b4ddcdf0c5785ac3778737e716897d44a498cb3198713867ffd",
+        "bytes": 56708
       },
       "normalization": {
         "sizedBy": "height",
@@ -3624,8 +3624,8 @@
       },
       "runtimeDerivative": {
         "file": "public/models/world/wooden-bollard.glb",
-        "sha256": "b5ff99019b3facfc4583ed74c95ef71b023654a434ac530590f83ca04b53336d",
-        "bytes": 14796
+        "sha256": "1df6ca6ac04de79dc820067d5d6cdb95707ff2749b2ebf7433b35a97ea0966f4",
+        "bytes": 14832
       },
       "normalization": {
         "sizedBy": "height",
@@ -3762,8 +3762,8 @@
       },
       "runtimeDerivative": {
         "file": "public/models/world/lock-gate-structure.glb",
-        "sha256": "d60bc4899b1f29d6cc26cf3866e310d442d29289851952044e5ad1059d686a20",
-        "bytes": 24924
+        "sha256": "02b64cc74e538efb68f32548256b6839e182ca1079cf0e934bb3b70a6aa147ab",
+        "bytes": 24956
       },
       "normalization": {
         "sizedBy": "height",
@@ -3992,8 +3992,8 @@
       },
       "runtimeDerivative": {
         "file": "public/models/world/station-shelving.glb",
-        "sha256": "a8406c34899af22283142f1babe99559313000189b348886321d4af7ee02faae",
-        "bytes": 16884
+        "sha256": "cfc8ad5ae2c56ae5d20b3b72bf5731a9170accc8b1f4a2c5e19cb7d361c13c0f",
+        "bytes": 16916
       },
       "normalization": {
         "sizedBy": "height",
@@ -4314,8 +4314,8 @@
       },
       "runtimeDerivative": {
         "file": "public/models/world/station-canopy.glb",
-        "sha256": "9d0a930d9c9196413a879aaf6409c50da4fb5aaa7e883f98d89915c138a5798e",
-        "bytes": 245144
+        "sha256": "d0ac57e0a8f4687e2fff468dd0a57482dbbfda2e6ba1294577e923a637fb1da5",
+        "bytes": 245176
       },
       "normalization": {
         "sizedBy": "width",
