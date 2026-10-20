@@ -250,7 +250,9 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
                     {t('useLowGraphics')}
                   </button>
                 )}
-                {startup.prepared && startup.errors === 0 && (
+                {/* Latched like the text above: a hitch must not pull this from
+                  under the cursor. `openPreparedStartup` re-checks the world. */}
+                {(startup.prepared || slowWorldConfirmed) && startup.errors === 0 && (
                   <button
                     type="button"
                     onClick={openPreparedStartup}

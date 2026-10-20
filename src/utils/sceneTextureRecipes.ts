@@ -52,7 +52,11 @@ import {
   generateLeafRoughness,
   generateMulchDecal,
 } from '../textures/foliage';
-import { getFlourSackPrint } from '../textures/grain';
+import { getFlourSackMaps, getFlourSackPrint } from '../textures/grain';
+import {
+  getTerrainDirtTexture,
+  getTerrainSurfaceMaps,
+} from '../components/terrain/terrainTextures';
 
 /** Listed slowest first (startup profile, main thread under load). */
 export const SCENE_TEXTURE_RECIPES = {
@@ -77,6 +81,13 @@ export const SCENE_TEXTURE_RECIPES = {
   grassBlades: () => generateGrassBladeAtlas(256),
   mulch: () => generateMulchDecal(128),
   flourSackPrint: () => getFlourSackPrint(),
+  // Built at mount rather than at evaluation, but on the same startup path:
+  // the terrain's maps (TerrainGround) and the conveyor sack cloth and spout
+  // relief (texturePreloader, ConveyorSystem, SpoutingSystem).
+  terrainSurfaceMaps: () => getTerrainSurfaceMaps(),
+  terrainDirt: () => getTerrainDirtTexture(),
+  flourSackCloth: () => getFlourSackMaps(),
+  spoutDetailNormal: () => generateProceduralNormal(256, 0.12, 16),
 } as const;
 
 export type SceneTextureRecipeName = keyof typeof SCENE_TEXTURE_RECIPES;

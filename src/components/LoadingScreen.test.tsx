@@ -152,7 +152,7 @@ describe('LoadingScreen final readiness', () => {
     state.prepared = false;
     view.rerender(<LoadingScreen />);
     expect(screen.getByRole('button', { name: 'Use low graphics' })).toBeVisible();
-    expect(screen.queryByRole('button', { name: 'Open loaded scene (slow)' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Open loaded scene (slow)' })).toBeVisible();
     expect(
       screen.getByText('The scene is loaded, but animation is still slow on this device.')
     ).toBeVisible();
@@ -161,6 +161,25 @@ describe('LoadingScreen final readiness', () => {
     state.revision++;
     view.rerender(<LoadingScreen />);
     expect(screen.queryByRole('button', { name: 'Use low graphics' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Open loaded scene (slow)' })).toBeNull();
+  });
+
+  it('keeps "Open loaded scene" through a hitch in the same revision, and it still opens', async () => {
+    useGraphicsStore.getState().setGraphicsQuality('medium');
+    state.prepared = true;
+    const view = render(<LoadingScreen minimumLoadTimeMs={0} />);
+    await act(async () => vi.advanceTimersByTimeAsync(5000));
+    const open = screen.getByRole('button', { name: 'Open loaded scene (slow)' });
+    // The hitch: the frame window restarts, nothing else changes.
+    state.prepared = false;
+    view.rerender(<LoadingScreen minimumLoadTimeMs={0} />);
+    expect(screen.getByRole('button', { name: 'Open loaded scene (slow)' })).toBe(open);
+    fireEvent.click(open);
+    expect(openPrepared).toHaveBeenCalledTimes(1);
+    expect(state.ready).toBe(false);
+    view.rerender(<LoadingScreen minimumLoadTimeMs={0} />);
+    await act(async () => vi.advanceTimersByTimeAsync(250));
+    expect(screen.queryByRole('progressbar')).toBeNull();
   });
 
   it('does not offer low graphics for a brief slow window that clears', async () => {

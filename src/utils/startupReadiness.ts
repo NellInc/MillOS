@@ -64,9 +64,21 @@ export function drawStartupFrame(
 const listeners = new Set<() => void>();
 let notificationQueued = false;
 let preparationGuard: (() => boolean) | null = null;
+/**
+ * The guard of the last prepared window, kept for its resource revision. A
+ * >1 s hitch restarts the frame window (`prepared` false) without changing any
+ * resource, and the loading cover keeps offering "Open loaded scene" through
+ * it; opening then re-checks this guard (every prerequisite, the same frame
+ * revision, the same graphics) instead of refusing outright. Any resource
+ * change, or a failed open, releases it.
+ */
+let latchedPreparation: { revision: number; guard: () => boolean } | null = null;
 
 function update(changes: Partial<StartupSnapshot>, resourceChanged = true): void {
-  if (resourceChanged) preparationGuard = null;
+  if (resourceChanged) {
+    preparationGuard = null;
+    latchedPreparation = null;
+  }
   snapshot = {
     ...snapshot,
     ...(resourceChanged ? { prepared: false } : {}),
@@ -136,6 +148,8 @@ export function markStartupReady(): void {
 /** Preparation never grants access or changes the resource revision. */
 export function markStartupPrepared(prepared: boolean, guard?: () => boolean): void {
   preparationGuard = prepared ? (guard ?? null) : null;
+  if (preparationGuard)
+    latchedPreparation = { revision: snapshot.revision, guard: preparationGuard };
   if (snapshot.prepared !== prepared) update({ prepared }, false);
 }
 
@@ -146,13 +160,20 @@ export function resetStartupPreparation(): void {
 /** Explicit access to a complete slow world never certifies smooth readiness. */
 export function openPreparedStartup(): boolean {
   if (snapshot.opened) return true;
+  // Prepared now, or prepared earlier in this same resource revision and reset
+  // only by a hitch: either way the guard re-checks the complete world now.
+  const guard = snapshot.prepared
+    ? preparationGuard
+    : latchedPreparation?.revision === snapshot.revision
+      ? latchedPreparation.guard
+      : null;
   if (
-    !snapshot.prepared ||
     snapshot.pendingAssets !== 0 ||
     snapshot.pendingTasks !== 0 ||
     snapshot.errors !== 0 ||
-    !preparationGuard?.()
+    !guard?.()
   ) {
+    latchedPreparation = null;
     markStartupPrepared(false);
     return false;
   }

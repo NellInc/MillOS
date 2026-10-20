@@ -137,6 +137,67 @@ describe('explicit prepared-world admission', () => {
     }
   });
 
+  it('opens a world prepared earlier in this revision after a hitch reset the frame window', async () => {
+    const manager = THREE.DefaultLoadingManager;
+    const original = {
+      itemStart: manager.itemStart,
+      itemEnd: manager.itemEnd,
+      itemError: manager.itemError,
+    };
+    vi.resetModules();
+    const startup = await import('../startupReadiness');
+    try {
+      let worldComplete = true;
+      const guard = vi.fn(() => worldComplete);
+      // Prepared, then a >1 s hitch: StartupReadiness reports the restarted
+      // window as not prepared, with no resource change.
+      startup.markStartupPrepared(true, guard);
+      const revision = startup.getStartupSnapshot().revision;
+      startup.markStartupPrepared(false, () => true);
+      expect(startup.getStartupSnapshot()).toMatchObject({ prepared: false, revision });
+      // The prepared world's own guard decides, re-checked now.
+      worldComplete = false;
+      expect(startup.openPreparedStartup()).toBe(false);
+      expect(guard).toHaveBeenCalledTimes(1);
+      // A failed open releases the latch: the next open needs a new prepared window.
+      worldComplete = true;
+      expect(startup.openPreparedStartup()).toBe(false);
+      startup.markStartupPrepared(true, guard);
+      startup.markStartupPrepared(false, () => true);
+      expect(startup.openPreparedStartup()).toBe(true);
+      expect(startup.getStartupSnapshot()).toMatchObject({ opened: true, ready: false, revision });
+    } finally {
+      Object.assign(manager, original);
+      delete document.documentElement.dataset.millosStartupDegraded;
+    }
+  });
+
+  it('never opens across a resource change after a hitch', async () => {
+    const manager = THREE.DefaultLoadingManager;
+    const original = {
+      itemStart: manager.itemStart,
+      itemEnd: manager.itemEnd,
+      itemError: manager.itemError,
+    };
+    vi.resetModules();
+    const startup = await import('../startupReadiness');
+    try {
+      startup.markStartupPrepared(true, () => true);
+      startup.markStartupPrepared(false, () => true);
+      // New work started and finished: a different world, never judged.
+      startup.beginStartupTask()();
+      expect(startup.openPreparedStartup()).toBe(false);
+      expect(startup.getStartupSnapshot().opened).toBe(false);
+      startup.markStartupPrepared(true, () => true);
+      startup.markStartupPrepared(false, () => true);
+      const finish = startup.beginStartupTask();
+      expect(startup.openPreparedStartup()).toBe(false);
+      finish();
+    } finally {
+      Object.assign(manager, original);
+    }
+  });
+
   it('does not admit a world with unresolved loading errors', async () => {
     const manager = THREE.DefaultLoadingManager;
     const original = {
