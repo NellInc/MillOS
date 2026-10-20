@@ -48,6 +48,14 @@ import {
   beginReplayClock,
 } from '../../simulation/workplaceReplayRuntime';
 
+// The replays tick the whole game 720 times per 90-minute shift, up to five
+// shifts per test, so their duration tracks machine load. Measured 2026-10-19
+// at 3.2-4.6 runnable per core: the slowest test took 1.3-4.2 s, and 8.2 s
+// before the material tick's yield cache stopped building a string key per
+// call. The 10 s default expired under the full gate (vitest reports it as
+// STACK_TRACE_ERROR); 60 s is about 7x the worst loaded run.
+vi.setConfig({ testTimeout: 60_000 });
+
 // Load the shipped machine assembly, following the existing playable-journey
 // test. A copied machine table could make a disconnected capacity term pass.
 const scene = ts.createSourceFile(
