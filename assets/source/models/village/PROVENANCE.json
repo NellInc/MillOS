@@ -369,14 +369,14 @@
       "sha256": "8f2f28a013d740f6539805d2f8af2f8c31d2fff3b95dad7d1ae8f8e7e8e8d379",
       "blenderPreparation": {
         "file": "assets/source/models/village/wishingwell-crafted.glb",
-        "sha256": "50252b80e5651bf6fa716da5de653c8327a5df2b9b64496e8631bcbc434c3056",
+        "sha256": "0c7299f84fdbbe004c2b6c331ce34f34c0a0c43c5f2aedd0ec0db5aaf9140e14",
         "script": "scripts/blender/refine_civic_props.py",
         "method": "Reference-concept refinement: jointed coping, continuous coiled rope and tied hollow stave bucket, post bearing straps, half-round ridge caps and verge battens. Single mesh and existing atlas; bore, roof envelope and provider source preserved."
       },
       "runtimeDerivative": {
         "file": "public/models/village/wishingwell.glb",
-        "sha256": "48bdb3d98540ce1171cbec3e2f29982c36326dadc1914fbe8c90e347ea827e3b",
-        "bytes": 435840
+        "sha256": "59bc379b747d495c670b0193ae304d589ad8aa1817ae203236ff40b733d1ced1",
+        "bytes": 435820
       },
       "normalization": {
         "sizedBy": "longest axis",
@@ -418,8 +418,8 @@
       },
       "runtimeDerivative": {
         "file": "public/models/village/marketstall.glb",
-        "sha256": "615a3d042e18837d768ea2de2a27ac5269bbb7647c62a2c07fc656ea9fa530f1",
-        "bytes": 192208
+        "sha256": "e72406669751c2dcbaf5f33a48d7b31b89fa567a561d1bb35703364fa95d041b",
+        "bytes": 192192
       },
       "normalization": {
         "sizedBy": "longest axis",
@@ -455,14 +455,14 @@
       "sha256": "85356cfa9c1e0eb0cd9cd62caf649f25aef9f07c5bd224439ca6832f4db3b884",
       "blenderPreparation": {
         "file": "assets/source/models/village/postbox-crafted.glb",
-        "sha256": "496749ee5a3b7b88ea6e2713c1257cc952f9b5a51b44763d27d2700a09a88955",
+        "sha256": "f415ba8b1f48fb89c276be9f968187dc1efdd54c03ff74e41aebdfa44c005510",
         "script": "scripts/blender/refine_civic_props.py",
         "method": "Reference-concept refinement: real recessed letter throat and returned hood, curved door/reveal, knuckle hinges, card screws, lock escutcheon, cast envelope emblem and restrained moulding beads. Single atlas/material and original envelope preserved."
       },
       "runtimeDerivative": {
         "file": "public/models/village/postbox.glb",
-        "sha256": "937f13ea3d9d7a4c51fb626de0cf0ca8156ff86ab7c3feed4aedd31052636094",
-        "bytes": 300880
+        "sha256": "a9d444ddb857dab168a66fc14d8e09b35b0eeac0d5526846e1d1e503a7e38f95",
+        "bytes": 301116
       },
       "normalization": {
         "sizedBy": "height",

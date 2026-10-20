@@ -3336,6 +3336,10 @@ export const GENERATED_ASSETS = [
       'Reference-concept refinement: jointed coping, continuous coiled rope and tied hollow stave bucket, post bearing straps, half-round ridge caps and verge battens. Single mesh and existing atlas; bore, roof envelope and provider source preserved.',
     preparationScript: 'scripts/blender/refine_civic_props.py',
     preparedSource: 'wishingwell-crafted.glb',
+    // Single-sided: every visible face of this prop has its own front face (no
+    // back face is visible from outside), so DoubleSide only made coincident
+    // opposite faces draw through each other. Same for the stall and postbox.
+    surface: { doubleSided: false },
     id: 'village-wishingwell',
     slug: 'wishingwell',
     area: 'village',
@@ -3348,6 +3352,7 @@ export const GENERATED_ASSETS = [
       'Hand-authored component rebuild in the retained runtime metre envelope, with separated construction details and one sRGB colour/linear roughness atlas; original provider source preserved.',
     preparationScript: 'scripts/blender/refine_civic_props.py',
     preparedSource: 'marketstall-crafted.glb',
+    surface: { doubleSided: false },
     id: 'village-marketstall',
     slug: 'marketstall',
     area: 'village',
@@ -3361,6 +3366,7 @@ export const GENERATED_ASSETS = [
       'Reference-concept refinement: real recessed letter throat and returned hood, curved door/reveal, knuckle hinges, card screws, lock escutcheon, cast envelope emblem and restrained moulding beads. Single atlas/material and original envelope preserved.',
     preparationScript: 'scripts/blender/refine_civic_props.py',
     preparedSource: 'postbox-crafted.glb',
+    surface: { doubleSided: false },
     id: 'village-postbox',
     slug: 'postbox',
     area: 'village',

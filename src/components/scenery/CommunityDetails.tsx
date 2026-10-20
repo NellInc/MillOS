@@ -279,8 +279,8 @@ function buildVillageDetails() {
       addCommunityCup(g, 0.12, 1.17, CREAM);
     });
   }
-  at(b, { position: villagePosition([15.1, 0, 3.2]), rotation: -Math.PI / 2 }, board);
-  at(b, { position: villagePosition([-16.2, 0, 28.2]), rotation: Math.PI / 2 }, board);
+  at(b, A.bakeryBoard, board);
+  at(b, A.shopBoard, board);
   at(b, { position: villagePosition([-18.8, 0, -12]), rotation: Math.PI / 2 }, board);
   // Watering can on the allotment's central aisle beside its existing beds.
   const can = villagePosition([-24.65, 0, 9.7]);
@@ -479,15 +479,15 @@ export const CommunityDetails = React.memo(
             receiveShadow
           />
           <OpeningBoard
-            position={villagePosition([15.1, 0, 3.2])}
-            rotation={-Math.PI / 2}
+            position={A.bakeryBoard.position}
+            rotation={A.bakeryBoard.rotation}
             open={shopsOpen}
             label="BAKER"
             detail={getBakeryBoardDetail(shopsOpen, bakeryStocked)}
           />
           <OpeningBoard
-            position={villagePosition([-16.2, 0, 28.2])}
-            rotation={Math.PI / 2}
+            position={A.shopBoard.position}
+            rotation={A.shopBoard.rotation}
             open={shopsOpen}
             label="GROCER"
             detail={getCommunityReopeningDetail('shops', shopsOpen)}
