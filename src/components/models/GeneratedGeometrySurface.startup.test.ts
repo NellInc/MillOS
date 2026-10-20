@@ -374,6 +374,49 @@ describe('generated atlas UV restore at startup', () => {
     expect(lookups).toBeLessThan(triangles * 2);
   }, 120_000);
 
+  it('copies a box fitting rebuilt as a separate BoxGeometry of the same size', async () => {
+    // GeneratedBoxSurface builds one BoxGeometry per instance, so identity
+    // never repeats; equal parameters plus equal arrays do.
+    for (const id of ['stationWallUnit', 'bridgeHousingUnit', 'factorySteelUnit'] as const) {
+      const mesh = (await delivered(fileOf(id)))!;
+      const size = [2.5, 3.25, 0.2] as const;
+      const legacy = outcome(() =>
+        legacyRestoreGeometryOrigin(mesh, new THREE.BoxGeometry(...size), true)
+      );
+      expect(legacy.ok, id).toBe(true);
+      const toNonIndexed = vi.spyOn(THREE.BufferGeometry.prototype, 'toNonIndexed');
+      expect(
+        outcome(() => restoreGeometryOrigin(mesh, new THREE.BoxGeometry(...size), true))
+      ).toEqual(legacy);
+      const firstCalls = toNonIndexed.mock.calls.length;
+      expect(firstCalls, id).toBeGreaterThan(0);
+      expect(
+        outcome(() => restoreGeometryOrigin(mesh, new THREE.BoxGeometry(...size), true))
+      ).toEqual(legacy);
+      expect(toNonIndexed.mock.calls.length, `${id} repeat`).toBe(firstCalls);
+
+      // Same parameters, different arrays: an in-place edit, even one that never
+      // bumps a version, is matched afresh and agrees with the old code.
+      const edited = () => {
+        const box = new THREE.BoxGeometry(...size);
+        (box.getAttribute('uv').array as Float32Array)[0] = 0.25;
+        return box;
+      };
+      const editedLegacy = outcome(() => legacyRestoreGeometryOrigin(mesh, edited(), true));
+      expect(outcome(() => restoreGeometryOrigin(mesh, edited(), true))).toEqual(editedLegacy);
+      expect(toNonIndexed.mock.calls.length).toBeGreaterThan(firstCalls);
+      expect(editedLegacy).not.toEqual(legacy);
+      // A different size is a different fitting.
+      const other = outcome(() =>
+        restoreGeometryOrigin(mesh, new THREE.BoxGeometry(1, 2, 3), true)
+      );
+      expect(other).toEqual(
+        outcome(() => legacyRestoreGeometryOrigin(mesh, new THREE.BoxGeometry(1, 2, 3), true))
+      );
+      toNonIndexed.mockRestore();
+    }
+  }, 120_000);
+
   it('copies a repeated attachment instead of matching its topology again', async () => {
     const mesh = (await delivered(fileOf('flourSackUnit')))!;
     const original = getFlourSackGeometry().clone();
@@ -394,12 +437,18 @@ describe('generated atlas UV restore at startup', () => {
       );
     expect(second.geometry.userData).not.toBe(first.geometry.userData);
     first.geometry.dispose();
-    // Re-uploading an input the restore read invalidates the copy.
-    original.getAttribute('uv').needsUpdate = true;
+    // An edited, re-uploaded input the restore reads invalidates the copy.
+    const uv = original.getAttribute('uv') as THREE.BufferAttribute;
+    uv.setX(0, uv.getX(0) + 0.125);
+    uv.needsUpdate = true;
+    const edited = original.clone();
     const third = restoreGeometryOrigin(mesh, original);
     expect(toNonIndexed.mock.calls.length).toBeGreaterThan(firstCalls);
-    expect(bytesOf(third.geometry)).toEqual(bytesOf(second.geometry));
+    const reference = legacyRestoreGeometryOrigin(mesh, edited);
+    expect(bytesOf(third.geometry)).toEqual(bytesOf(reference.geometry));
+    expect(bytesOf(third.geometry)).not.toEqual(bytesOf(second.geometry));
     second.geometry.dispose();
     third.geometry.dispose();
+    reference.geometry.dispose();
   }, 120_000);
 });

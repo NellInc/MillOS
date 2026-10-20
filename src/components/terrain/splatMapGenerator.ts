@@ -888,6 +888,32 @@ function gridVertexRelief(
 }
 
 /**
+ * `sampleValleyRelief(x, z)` for a terrain mesh vertex that claims to be grid
+ * vertex (column, row) at this segment count. The remembered grid value is
+ * used only when (x, z) are `Object.is`-equal to the doubles the grid itself
+ * evaluates, so the result is the same call either way; any other point (a
+ * mesh not laid over `TERRAIN_BOUNDS`, a rounded coordinate) is computed
+ * directly. The 1200 m terrain meshes at 64 and 128 segments land exactly:
+ * their float32 vertex coordinates are multiples of 18.75 or 9.375 m.
+ */
+export function sampleValleyReliefAtGridVertex(
+  x: number,
+  z: number,
+  column: number,
+  row: number,
+  segments: number
+): number {
+  const stepX = (TERRAIN_BOUNDS.maxX - TERRAIN_BOUNDS.minX) / segments;
+  const stepZ = (TERRAIN_BOUNDS.maxZ - TERRAIN_BOUNDS.minZ) / segments;
+  if (
+    Object.is(x, TERRAIN_BOUNDS.minX + column * stepX) &&
+    Object.is(z, TERRAIN_BOUNDS.minZ + row * stepZ)
+  )
+    return gridVertexRelief(column, row, segments, stepX, stepZ);
+  return sampleValleyRelief(x, z);
+}
+
+/**
  * Height of the terrain mesh itself: the river canyon AND the meadow relief,
  * over the same triangles. `createDisplacedGeometry` carves the canyon from
  * `getRiverHeightfield` with a 25 m bank, which `sampleValleyGroundHeight`

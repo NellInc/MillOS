@@ -174,10 +174,109 @@ export function restoreGeometryOrigin(
   const templates = restoredTemplates.get(original) ?? [];
   const cached = templates.find((entry) => sameInputs(entry.inputs, inputs));
   if (cached) return { geometry: copyRestored(cached.geometry, delivered), material };
-  const template = buildRestoredGeometry(meshes[0], material, original, fitEnvelope);
+  // A built-in geometry rebuilt per instance (every `GeneratedBoxSurface`
+  // makes its own BoxGeometry) misses by identity; its parameters name the
+  // content, and a copy of what the restore reads proves it.
+  const contentKey = parametersKey(original);
+  const deliveredInputs = inputs.slice(0, inputs.length - geometryInputs(original).length);
+  const sameContent = contentKey
+    ? restoredByContent
+        .get(contentKey)
+        ?.find(
+          (entry) =>
+            sameInputs(entry.deliveredInputs, deliveredInputs) &&
+            sameRestoreSource(entry.source, original)
+        )
+    : undefined;
+  const template =
+    sameContent?.geometry ?? buildRestoredGeometry(meshes[0], material, original, fitEnvelope);
   templates.push({ inputs, geometry: template });
   restoredTemplates.set(original, templates);
+  if (contentKey && !sameContent) {
+    const source = snapshotRestoreSource(original);
+    if (source) {
+      const entries = restoredByContent.get(contentKey) ?? [];
+      entries.push({ deliveredInputs, source, geometry: template });
+      restoredByContent.set(contentKey, entries);
+    }
+  }
   return { geometry: copyRestored(template, delivered), material };
+}
+
+/**
+ * Everything of an authored geometry that a restore reads: its index and its
+ * position and UV values (`retainAuthoredUVs` matches on positions and copies
+ * UVs; the envelope is their bounding box).
+ */
+type Values = THREE.BufferAttribute['array'];
+
+interface RestoreSource {
+  index: Values | null;
+  attributes: { name: string; itemSize: number; normalized: boolean; array: Values }[];
+}
+
+const restoredByContent = new Map<
+  string,
+  { deliveredInputs: unknown[]; source: RestoreSource; geometry: THREE.BufferGeometry }[]
+>();
+
+/** `BoxGeometry:{"width":1,...}` for three's parametric geometries, else null. */
+function parametersKey(geometry: THREE.BufferGeometry): string | null {
+  const parameters = (geometry as THREE.BufferGeometry & { parameters?: unknown }).parameters;
+  if (!parameters || typeof parameters !== 'object') return null;
+  if (Object.keys(geometry.morphAttributes).length > 0) return null;
+  return `${geometry.type}:${JSON.stringify(parameters)}`;
+}
+
+const RESTORE_READS = ['position', 'uv'] as const;
+
+/** The live arrays a restore would read, or null if any is interleaved. */
+function restoreSourceView(geometry: THREE.BufferGeometry): RestoreSource | null {
+  const attributes: RestoreSource['attributes'] = [];
+  for (const name of RESTORE_READS) {
+    const attribute = geometry.getAttribute(name);
+    if (!attribute) continue;
+    if ((attribute as THREE.InterleavedBufferAttribute).isInterleavedBufferAttribute) return null;
+    const { itemSize, normalized, array } = attribute as THREE.BufferAttribute;
+    attributes.push({ name, itemSize, normalized, array });
+  }
+  return { index: geometry.index?.array ?? null, attributes };
+}
+
+/** A private copy of those arrays, so later edits to the geometry cannot alter it. */
+function snapshotRestoreSource(geometry: THREE.BufferGeometry): RestoreSource | null {
+  const view = restoreSourceView(geometry);
+  return (
+    view && {
+      index: view.index?.slice() ?? null,
+      attributes: view.attributes.map((entry) => ({ ...entry, array: entry.array.slice() })),
+    }
+  );
+}
+
+const sameValues = (a: Values | null, b: Values | null) => {
+  if (a === null || b === null) return a === b;
+  if (a.length !== b.length || a.constructor !== b.constructor) return false;
+  for (let i = 0; i < a.length; i++) if (!Object.is(a[i], b[i])) return false;
+  return true;
+};
+
+function sameRestoreSource(source: RestoreSource, geometry: THREE.BufferGeometry): boolean {
+  const current = restoreSourceView(geometry);
+  return (
+    current !== null &&
+    sameValues(source.index, current.index) &&
+    source.attributes.length === current.attributes.length &&
+    source.attributes.every((entry, i) => {
+      const other = current.attributes[i];
+      return (
+        entry.name === other.name &&
+        entry.itemSize === other.itemSize &&
+        entry.normalized === other.normalized &&
+        sameValues(entry.array, other.array)
+      );
+    })
+  );
 }
 
 function buildRestoredGeometry(
