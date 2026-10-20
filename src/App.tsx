@@ -521,7 +521,11 @@ const App: React.FC = () => {
       started = true;
       // Same bounded retry as the scene's lazy chunks, so one dropped request
       // is retried and a stalled one ends as an error the cover can recover.
-      importWithBoundedRetry(() => import('./utils/texturePreloader'))
+      // After the texture bake, which also builds everything this preloads:
+      // started at first frame, it generated them on the main thread instead.
+      afterSharedTextureBake(() =>
+        importWithBoundedRetry(() => import('./utils/texturePreloader'))
+      )()
         .then(({ preloadGenerativeTexturesOnce }) => {
           if (!cancelled) return preloadGenerativeTexturesOnce();
         })
