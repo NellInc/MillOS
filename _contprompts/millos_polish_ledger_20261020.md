@@ -120,8 +120,12 @@ partly); their builds failed only on the `public/` symlink in sparse worktrees.
    flag flip): `scratchpad/mp/in-app-reduced-motion.patch` (session scratchpad), `git apply
    --check` clean on `95de49b4`. Against copies outside `src/hooks`: patched 5/5, original 3/5
    (the two in-app cases fail).
+   **Resolved:** Nell approved through the consent gate; applied as `2df1d4a9` (20 reduced-motion
+   test files, 167 tests pass; typecheck clean).
 3. 19:00 is astronomical night in the sim (sunset 18:00); the contprompt checks 19:00 as dusk.
-   Shift the sun model, or check dusk at 18:30? Not changed.
+   **Resolved (Nell took the recommendation): keep the sun model and check dusk at 18:30.** An
+   18:00 sunset is an equinox day at any latitude, and the sun drives lamp levels, shift lighting and every earlier time-of-day capture; moving it would
+   re-tune all of them for a checklist wording.
 
 ## Final runtime confirmation
 
