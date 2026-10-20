@@ -102,7 +102,10 @@ function ReportStartupCrash(): null {
   return null;
 }
 
-const PhysicsScene = recoverableLazy(() => import('./components/PhysicsScene'));
+// Both scene chunks evaluate `sharedMaterials.ts`; see `startSharedTextureBake` above.
+const PhysicsScene = recoverableLazy(
+  afterSharedTextureBake(() => import('./components/PhysicsScene'))
+);
 const DeferredOrbitControls = recoverableLazy(() => import('./components/SceneOrbitControls'));
 const AuthoredMillScene = recoverableLazy(
   afterSharedTextureBake(() =>
@@ -489,7 +492,8 @@ const App: React.FC = () => {
 
     let active = true;
     let cleanup: (() => void) | undefined;
-    import('./utils/gpuTrackedResources')
+    // Evaluates `sharedMaterials.ts`, so it waits for the startup texture bake.
+    afterSharedTextureBake(() => import('./utils/gpuTrackedResources'))()
       .then(({ initializeGPUTracking, cleanupGPUTracking }) => {
         if (!active) return;
         initializeGPUTracking();
