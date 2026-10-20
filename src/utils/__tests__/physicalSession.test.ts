@@ -600,6 +600,31 @@ it('migrates a save holding an earlier default shipping route', () => {
   expect(
     decodePhysicalSession(encodePhysicalSession(saved)).logistics.layout.routes.shipping
   ).toEqual(currentLogisticsLayout().routes.shipping);
+
+  // The dock-door route whose dropoff set the pallet on the channel floor
+  // below a 2 m deck, and the receiving route whose pickup stood 28 m from its
+  // trailer, migrate too.
+  saved.logistics.layout.routes.shipping = [
+    [-16, 0, 42],
+    [-10, 0, 42],
+    [-5, 0, 42],
+    [0, 0, 42],
+    [0, 0, 47.25],
+    [0, 0, 42],
+    [-8, 0, 42],
+    [-16, 0, 42],
+  ];
+  saved.logistics.layout.routes.receiving = [
+    [-28, 0, -43],
+    [-28, 0, -38],
+    [-28, 0, -30],
+    [-28, 0, -22],
+    [-35, 0, -22],
+    [-35, 0, -38],
+  ];
+  const both = decodePhysicalSession(encodePhysicalSession(saved)).logistics.layout.routes;
+  expect(both.shipping).toEqual(currentLogisticsLayout().routes.shipping);
+  expect(both.receiving).toEqual(currentLogisticsLayout().routes.receiving);
 });
 
 describe('save size and scene-owner visibility', () => {

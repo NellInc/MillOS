@@ -18,15 +18,19 @@ import { layoutPlanDxf, layoutPlanSvg, layoutProposalJson } from './layoutPlanni
 import { drivenLogisticsRoute } from './logisticsRuntime';
 import { sampleArcLengthPath } from './vehicles/vehicleKinematics';
 import { DOCK_BUMPER_FACE_Z } from '../components/truckbay/truckController';
-import { COMPACT_MAST_Z, FORKLIFT_PALLET_REACH_METRES } from '../components/models/ForkliftModel';
+import {
+  FORKLIFT_PALLET_REACH_METRES,
+  FORKLIFT_TIER_FOOTPRINTS,
+} from '../components/models/ForkliftModel';
+import { DOCK_DECK } from '../constants/dockLoading';
 
 describe('isolated logistics planning', () => {
   // Loading reads as loading only if the pallet goes down at the trailer it
   // loads. The docked trailer's tail is on the dock bumpers at the bay's
-  // centreline; the forklift may not pass under the dock leveler, whose near
-  // edge is TruckBay's leveler group (z 50 - 1.5) less half its 4 m plate.
+  // centreline; the forklift's mast stays short of the dock deck's hall edge
+  // (constants/dockLoading; dockLoading.test.ts checks the rest).
   // Working if every render tier sets the pallet within about 2 m of the
-  // tail, square to it, with the low tier's mast short of the leveler.
+  // tail, square to it, with every tier's mast short of the deck.
   it('sets the shipping pallet down at the docked trailer, not across the hall', () => {
     const { plan } = drivenLogisticsRoute('shipping', SITE_LAYOUT.routes.forklifts.shipping.points);
     const dropoff = plan.markers.find(({ action }) => action.type === 'dropoff')!;
@@ -38,8 +42,8 @@ describe('isolated logistics planning', () => {
       const pallet = { x: stand.x + stand.tangentX * reach, z: stand.z + stand.tangentZ * reach };
       expect(Math.hypot(pallet.x - tail.x, pallet.z - tail.z)).toBeLessThanOrEqual(2.25);
     }
-    const levelerNearEdgeZ = 50 - 1.5 + 2 - 2;
-    expect(stand.z + COMPACT_MAST_Z + 0.065).toBeLessThanOrEqual(levelerNearEdgeZ);
+    for (const { mastFaceZ } of Object.values(FORKLIFT_TIER_FOOTPRINTS))
+      expect(stand.z + mastFaceZ).toBeLessThanOrEqual(50 + DOCK_DECK.nearU);
     expect(scoreLogisticsLayout(currentLogisticsLayout(), assumptions).violations).toEqual([]);
   });
 

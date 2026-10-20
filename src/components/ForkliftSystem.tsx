@@ -18,7 +18,7 @@ import { useOperationsCampaignStore } from '../stores/operationsCampaignStore';
 import { useShallow } from 'zustand/react/shallow';
 import { getForkliftWarningColor } from '../utils/statusColors';
 import { ForkliftModel } from './models';
-import { applyCargoPresence } from './models/ForkliftModel';
+import { applyCargoPresence, FORKLIFT_PALLET_REACH_METRES } from './models/ForkliftModel';
 import { shouldRunThisFrame } from '../utils/frameThrottle';
 import { ForkliftData } from '../types';
 import { POLYGON_OFFSET } from '../constants/renderLayers';
@@ -29,7 +29,8 @@ import {
   reconcileLogisticsMotion,
   registerLogisticsVehicle,
 } from '../simulation/logisticsRuntime';
-import { planningRouteActions } from '../simulation/layoutPlanning';
+import { planningRouteActions, protectedEgressApproaches } from '../simulation/layoutPlanning';
+import { FORKLIFT_PALLET_CLEARANCE } from '../constants/dockLoading';
 import { plantTimeScale } from '../simulation/pace';
 import {
   canPerformForkliftLogisticsAction,
@@ -43,8 +44,11 @@ import {
   createForkliftRoutePlan,
   createInitialForkliftMotion,
   distanceAheadOnClosedPath,
+  FORKLIFT_HOLD_CLEARANCE_METRES,
+  forkliftActionHoldDistance,
   forkliftRouteHeading,
   sampleForkliftLoadPose,
+  resolveForkliftActionStop,
   resolveForkliftStopReason,
   stepForkliftMotion,
   type ForkliftLoadPhase,
@@ -61,6 +65,43 @@ import { sampleArcLengthPath } from '../simulation/vehicles/vehicleKinematics';
 const routeDirection = (plan: ForkliftRoutePlan, distance: number): [number, number] => {
   const heading = forkliftRouteHeading(plan, distance);
   return [Math.sin(heading), Math.cos(heading)];
+};
+
+/**
+ * Per marker, how far short of it the forklift waits while the action is not
+ * yet permitted: outside the protected pedestrian approaches, so a forklift
+ * waiting for its truck never stands in the dock doorway. One entry per plan.
+ */
+const holdLegsByPlan = new WeakMap<ForkliftRoutePlan, number[]>();
+const markerHoldLegs = (plan: ForkliftRoutePlan): number[] => {
+  const cached = holdLegsByPlan.get(plan);
+  if (cached) return cached;
+  const corridors = protectedEgressApproaches();
+  const legs = plan.markers.map((marker) =>
+    distanceAheadOnClosedPath(
+      plan.path,
+      forkliftActionHoldDistance(plan, marker.distance, corridors, FORKLIFT_HOLD_CLEARANCE_METRES),
+      marker.distance
+    )
+  );
+  holdLegsByPlan.set(plan, legs);
+  return legs;
+};
+
+/** Distance along the route to approach or leave a raised work surface with forks at its height. */
+const SURFACE_APPROACH_METRES = 3;
+/** Fork height to travel at here: at least a raised surface's height near its marker. */
+const travelForkHeight = (plan: ForkliftRoutePlan, routeDistance: number, loaded: boolean) => {
+  let surface = 0;
+  for (const marker of plan.markers) {
+    const height = marker.action.surfaceForkHeight ?? 0;
+    if (height <= 0) continue;
+    const ahead = distanceAheadOnClosedPath(plan.path, routeDistance, marker.distance);
+    const behind = distanceAheadOnClosedPath(plan.path, marker.distance, routeDistance);
+    if (Math.min(ahead, behind) <= SURFACE_APPROACH_METRES) surface = Math.max(surface, height);
+  }
+  if (surface <= 0) return loaded ? 0.32 : 0;
+  return loaded ? Math.max(0.32, surface + FORKLIFT_PALLET_CLEARANCE) : surface;
 };
 import {
   vehicleTelemetryRegistry,
@@ -358,8 +399,8 @@ const ForkliftBillboard: React.FC<{ cargoPresenceRef: React.MutableRefObject<num
           `painted-safety-amber` (0.694, 0.323, 0.024). The old `#f59e0b` was a
           different hue, so the LOD swap popped in colour as well as
           silhouette; matching it leaves only the silhouette delta. */}
-      <mesh position={[0, 0.7, 0]} castShadow receiveShadow>
-        <boxGeometry args={[1.5, 1.2, 2.5]} />
+      <mesh position={[0, 0.7, -0.35]} castShadow receiveShadow>
+        <boxGeometry args={[1.5, 1.2, 1.8]} />
         <primitive object={BILLBOARD_MATERIALS.body} attach="material" />
       </mesh>
       {/* Cabin */}
@@ -393,14 +434,14 @@ const ForkliftBillboard: React.FC<{ cargoPresenceRef: React.MutableRefObject<num
         />
       </mesh>
       {/* Mast */}
-      <mesh position={[0, 1.2, 1.3]} castShadow receiveShadow>
+      <mesh position={[0, 1.2, 0.66]} castShadow receiveShadow>
         <boxGeometry args={[0.8, 2, 0.15]} />
         <primitive object={BILLBOARD_MATERIALS.mast} attach="material" />
       </mesh>
       {/* Cargo - always mounted, opacity from the shared presence */}
       <mesh
         ref={cargoMeshRef}
-        position={[0, 1.4, 1.8]}
+        position={[0, 1.4, FORKLIFT_PALLET_REACH_METRES.compact]}
         castShadow
         receiveShadow
         visible={cargoPresenceRef.current > 0.01}
@@ -1206,7 +1247,8 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       const loadPose = sampleForkliftLoadPose(
         action,
         operationTimerRef.current / duration,
-        FORK_LIFT_HEIGHT
+        FORK_LIFT_HEIGHT,
+        marker?.action.surfaceForkHeight ?? 0
       );
       loadPhaseRef.current = loadPose.phase;
       forkHeightRef.current = loadPose.forkHeight;
@@ -1249,16 +1291,32 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
           routePlan.markers.length > 0
             ? (actionMarkerIndexRef.current + 1) % routePlan.markers.length
             : 0;
-        forkHeightRef.current = hasCargoRef.current ? 0.32 : 0;
+        // A raised surface keeps the forks at its height until the vehicle has backed off.
+        forkHeightRef.current = travelForkHeight(
+          routePlan,
+          motionBefore.routeDistance,
+          hasCargoRef.current
+        );
         mastTiltRef.current = resolveForkliftMastTilt('traveling', hasCargoRef.current);
       }
       publishMotionTelemetry();
       return;
     }
 
-    let logisticsInterlock = false;
+    // Not yet permitted, the forklift waits at the marker's hold point: short of
+    // the dock door's pedestrian approach for a dock-side action.
+    const actionPermitted = markerAction ? canPerformWaypointAction(markerAction) : false;
+    const actionStop =
+      marker && markerRelevant && markerAction
+        ? resolveForkliftActionStop({
+            distanceToMarker,
+            holdLeg: markerHoldLegs(routePlan)[actionMarkerIndexRef.current] ?? 0,
+            permitted: actionPermitted,
+          })
+        : null;
+    const logisticsInterlock = !emergencyStopped && (actionStop?.interlocked ?? false);
     if (marker && markerRelevant && distanceToMarker <= 0.06 && markerAction && !emergencyStopped) {
-      if (canPerformWaypointAction(markerAction)) {
+      if (actionPermitted) {
         const markerSample = sampleArcLengthPath(routePlan.path, marker.distance);
         motionStateRef.current = {
           ...motionBefore,
@@ -1280,7 +1338,6 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
         publishMotionTelemetry();
         return;
       }
-      logisticsInterlock = true;
     }
 
     const stopReason = resolveForkliftStopReason({
@@ -1323,8 +1380,8 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
 
     let targetSpeed = data.speed * vehicleSpeedMultiplier;
     targetSpeed = Math.min(targetSpeed, crossingSpeedLimit);
-    if (marker && markerRelevant && distanceToMarker < 5) {
-      const brakingSpeed = Math.sqrt(Math.max(0, 2 * 1.5 * (distanceToMarker - 0.03)));
+    if (actionStop && actionStop.stopDistance < 5) {
+      const brakingSpeed = Math.sqrt(Math.max(0, 2 * 1.5 * (actionStop.stopDistance - 0.03)));
       targetSpeed = Math.min(targetSpeed, brakingSpeed);
     }
 
@@ -1333,8 +1390,9 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       stopReason,
       loaded: hasCargoRef.current,
       deltaSeconds: simulationDelta,
-      maximumTravelDistance: marker && markerRelevant ? distanceToMarker : undefined,
-      // Held at a pickup or dropoff it has not worked: face the bay or trailer.
+      maximumTravelDistance: actionStop?.stopDistance,
+      // Held short of a pickup or dropoff it has not worked: keep facing along
+      // the lane, or the bay or trailer at the marker itself.
       holdHeading: logisticsInterlock,
     });
     useLogisticsLayoutStore
@@ -1360,7 +1418,9 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
     vehicle.rotation.z += (targetRoll - vehicle.rotation.z) * poseResponse;
     vehicle.rotation.x += (targetPitch - vehicle.rotation.x) * poseResponse;
     forkHeightRef.current +=
-      ((hasCargoRef.current ? 0.32 : 0) - forkHeightRef.current) * poseResponse;
+      (travelForkHeight(routePlan, nextMotion.routeDistance, hasCargoRef.current) -
+        forkHeightRef.current) *
+      poseResponse;
     mastTiltRef.current +=
       (resolveForkliftMastTilt('traveling', hasCargoRef.current) - mastTiltRef.current) *
       poseResponse;
