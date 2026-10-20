@@ -119,12 +119,22 @@ export function createConveyorObstacles(): FactoryObstacle[] {
 
 /** Conservative dock-platform envelopes shared by every navigation mode. */
 export const DOCK_PLATFORM_OBSTACLES: readonly FactoryObstacle[] = [
-  // The shipping dock is two platform sections either side of a 4 m forklift
-  // channel at floor level (TruckBay). The channel stays open on the hall side
-  // so the forklift can set a pallet at the trailer; from just short of the
-  // door outward it is the leveler and the docked trailer's bay.
+  // Each dock is two platform sections either side of a 4 m forklift channel
+  // (TruckBay). The channel stays open on the hall side so the forklift can
+  // reach the dock deck at the trailer's tail; beyond the pallet it carries
+  // over the deck's hall end (to z 49.1) is the deck and the trailer's bay.
   { id: 'shipping-dock-platform', minX: -18, maxX: -2, minZ: 44, maxZ: 54, minY: 0, maxY: 1.5 },
   { id: 'shipping-dock-platform-east', minX: 2, maxX: 18, minZ: 44, maxZ: 54, minY: 0, maxY: 1.5 },
-  { id: 'shipping-dock-bay', minX: -2, maxX: 2, minZ: 48.8, maxZ: 54, minY: 0, maxY: 1.5 },
-  { id: 'receiving-dock-platform', minX: -10, maxX: 10, minZ: -54, maxZ: -44, minY: 0, maxY: 1.5 },
+  { id: 'shipping-dock-bay', minX: -2, maxX: 2, minZ: 49.2, maxZ: 54, minY: 0, maxY: 1.5 },
+  { id: 'receiving-dock-platform', minX: -10, maxX: -2, minZ: -54, maxZ: -44, minY: 0, maxY: 1.5 },
+  {
+    id: 'receiving-dock-platform-east',
+    minX: 2,
+    maxX: 10,
+    minZ: -54,
+    maxZ: -44,
+    minY: 0,
+    maxY: 1.5,
+  },
+  { id: 'receiving-dock-bay', minX: -2, maxX: 2, minZ: -54, maxZ: -49.2, minY: 0, maxY: 1.5 },
 ];

@@ -7,6 +7,12 @@ export type ForkliftOperationPhase = 'traveling' | 'loading' | 'unloading' | 'wa
 export interface ForkliftWaypointAction {
   readonly type: ForkliftWaypointActionType;
   readonly duration: number;
+  /**
+   * Fork height at which the pallet rests on the work surface (the dock deck);
+   * absent on the floor. The forks hold at least this high while the vehicle
+   * stands at, approaches or backs off the surface.
+   */
+  readonly surfaceForkHeight?: number;
 }
 
 export interface RoundedForkliftRoute {

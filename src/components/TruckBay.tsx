@@ -69,13 +69,15 @@ import {
   DOCK_KEEP_CLEAR,
   DOCK_LASER_GUIDES,
   DOCK_STOP_BAR,
-  DOCK_BUMPER_BLOCK,
+  DOCK_BUMPER_BLOCKS,
+  DOCK_LEVELER_LIP,
   DOCK_PLATFORM_SECTION,
   DOCK_WEAR_BUMPER,
   spanOf,
   type DockMarking,
   YARD_MAST,
 } from './truckbay/dockApronLayout';
+import { DOCK_DECK, DOCK_FORKLIFT_ID, dockForkliftHoldsTruck } from '../constants/dockLoading';
 import {
   EXTERIOR_LAMP_LENS_MATERIAL,
   ExteriorLampPool,
@@ -1599,68 +1601,6 @@ const YardAccessNode: React.FC<{ position: [number, number, number]; rotation?: 
   );
 };
 
-// Dock plate/bridge board at dock door
-const DockPlate: React.FC<{ position: [number, number, number]; isDeployed: boolean }> = ({
-  position,
-  isDeployed,
-}) => {
-  const plateRef = useRef<THREE.Mesh>(null);
-  const plateId = useId();
-
-  useEffect(() => {
-    if (!plateRef.current) return;
-    const animationId = `dockplate-${plateId}`;
-
-    registerAnimation(animationId, 'lerp', plateRef.current, {
-      target: isDeployed ? -0.15 : 0,
-      speed: 0.05,
-      property: 'rotation',
-      axis: 'x',
-    });
-
-    return () => {
-      unregisterAnimation(animationId);
-    };
-  }, [isDeployed, plateId]);
-
-  return (
-    <group position={position}>
-      <GeneratedBoundary
-        fallback={
-          <>
-            {[-1, 0, 1].map((x, i) => (
-              <mesh key={i} position={[x, 0.05, 1.5]} rotation={[-Math.PI / 2, 0, 0]}>
-                <planeGeometry args={[0.8, 2.8]} />
-                <meshStandardMaterial color="#4b5563" metalness={0.6} roughness={0.4} />
-              </mesh>
-            ))}
-            <mesh position={[0, 0.08, 3]}>
-              <boxGeometry args={[3, 0.15, 0.15]} />
-              <meshStandardMaterial color="#fbbf24" roughness={0.6} />
-            </mesh>
-            {[-1.2, -0.4, 0.4, 1.2].map((x, i) => (
-              <mesh key={i} position={[x, 0.1, 3.08]}>
-                <boxGeometry args={[0.3, 0.1, 0.02]} />
-                <meshStandardMaterial color="#1f2937" />
-              </mesh>
-            ))}
-          </>
-        }
-      >
-        <group position={[0, 0.004999997, 1.594999969]}>
-          <GeneratedModel asset="yardDockPlateBody" />
-        </group>
-      </GeneratedBoundary>
-      {/* 2 cm narrower than the generated body's 3 m lip, whose end faces lay
-          on this plate's sides (orange against grey at 0 mm). */}
-      <mesh ref={plateRef} position={[0, 0, 1.5]} userData={{ noStaticBatch: true }}>
-        <boxGeometry args={[2.98, 0.08, 3]} />
-        <meshStandardMaterial color="#64748b" metalness={0.7} roughness={0.3} />
-      </mesh>
-    </group>
-  );
-};
-
 // Fuel tanks on cab sides
 const FuelTank: React.FC<{ position: [number, number, number]; side: 'left' | 'right' }> = ({
   position,
@@ -2717,20 +2657,22 @@ const DockStatusLight: React.FC<{
   );
 };
 
-// Dock leveler component with animation
-const DockLeveler: React.FC<{
-  position: [number, number, number];
-  isDeployed: boolean;
-}> = ({ position, isDeployed }) => {
+/**
+ * The dock deck: the leveler plate at trailer-bed height from the door to the
+ * bumper face, and its lip (constants/dockLoading). A forklift on the hall
+ * floor lifts the pallet onto it at the trailer's tail. The 8 x 4 m generated
+ * plate and lip are scaled to the deck; the lip swings out when deployed.
+ */
+const DOCK_DECK_LENGTH = DOCK_DECK.farU - DOCK_DECK.nearU;
+const DockLeveler: React.FC<{ isDeployed: boolean }> = ({ isDeployed }) => {
   const levelerRef = useRef<THREE.Mesh>(null);
+  const lipRef = useRef<THREE.Group>(null);
 
   useEffect(() => {
-    if (!levelerRef.current) return;
-    const id = `leveler-${Math.random()}`;
-    const targetRotation = isDeployed ? -0.15 : 0;
-
-    registerAnimation(id, 'lerp', levelerRef.current, {
-      target: targetRotation,
+    if (!lipRef.current) return;
+    const id = `leveler-lip-${Math.random()}`;
+    registerAnimation(id, 'lerp', lipRef.current, {
+      target: isDeployed ? DOCK_LEVELER_LIP.deployedAngle : DOCK_LEVELER_LIP.stowedAngle,
       property: 'rotation',
       axis: 'x',
       speed: 0.05,
@@ -2740,27 +2682,43 @@ const DockLeveler: React.FC<{
   }, [isDeployed]);
 
   return (
-    <group position={position}>
-      <GeneratedBoundary
-        fallback={
-          <>
-            <mesh position={[0, -0.1, 4]}>
-              <boxGeometry args={[8, 0.1, 0.3]} />
+    <group>
+      <group
+        ref={lipRef}
+        position={[0, DOCK_DECK.topY - DOCK_DECK.thickness, DOCK_DECK.farU]}
+        rotation={[DOCK_LEVELER_LIP.stowedAngle, 0, 0]}
+      >
+        <GeneratedBoundary
+          fallback={
+            <mesh position={[0, DOCK_LEVELER_LIP.thickness / 2, DOCK_LEVELER_LIP.depth / 2]}>
+              <boxGeometry
+                args={[DOCK_LEVELER_LIP.width, DOCK_LEVELER_LIP.thickness, DOCK_LEVELER_LIP.depth]}
+              />
               <meshStandardMaterial color="#374151" metalness={0.6} roughness={0.4} />
             </mesh>
-          </>
-        }
-      >
-        <group position={[0, -0.15000001, 4]}>
-          <GeneratedModel asset="dockLevelerLip" />
-        </group>
-      </GeneratedBoundary>
-      {/* 2 cm narrower than the generated lip: both are 8 m wide, and the
-          plate's ends lay on the lip's ends (x +/-4). */}
+          }
+        >
+          {/* The generated lip is 8 x 0.1 x 0.3 m, its underside at its origin. */}
+          <group
+            position={[0, 0, DOCK_LEVELER_LIP.depth / 2]}
+            scale={[
+              DOCK_LEVELER_LIP.width / 8,
+              DOCK_LEVELER_LIP.thickness / 0.1,
+              DOCK_LEVELER_LIP.depth / 0.3,
+            ]}
+          >
+            <GeneratedModel asset="dockLevelerLip" />
+          </group>
+        </GeneratedBoundary>
+      </group>
       <mesh
         ref={levelerRef}
-        position={[0, 0, 2]}
-        scale={[0.9975, 1, 1]}
+        position={[
+          0,
+          DOCK_DECK.topY - DOCK_DECK.thickness / 2,
+          DOCK_DECK.nearU + DOCK_DECK_LENGTH / 2,
+        ]}
+        scale={[DOCK_DECK.width / 8, DOCK_DECK.thickness / 0.15, DOCK_DECK_LENGTH / 4]}
         userData={{ noStaticBatch: true }}
       >
         <GeneratedBoundary fallback={<boxGeometry args={[8, 0.15, 4]} />}>
@@ -3071,6 +3029,11 @@ export const TruckBay: React.FC = () => {
     });
     const shippingServiceComplete =
       useOperationsCampaignStore.getState().execution.dispatchLoad.status === 'ready';
+    const dockForkliftInLane = (dock: 'shipping' | 'receiving') =>
+      dockForkliftHoldsTruck(
+        positionRegistry.get(DOCK_FORKLIFT_ID[dock]),
+        vehicleTelemetryRegistry.get(DOCK_FORKLIFT_ID[dock])?.stopReason
+      );
 
     const advanceTruck = (
       dock: 'shipping' | 'receiving',
@@ -3102,7 +3065,9 @@ export const TruckBay: React.FC = () => {
           deltaSeconds: TRUCK_CONTROLLER_STEP_SECONDS,
           arrivalReady: scheduleBefore.arrivalReady,
           safetyHold: safetyHoldActive,
-          serviceComplete: dock === 'receiving' || shippingServiceComplete,
+          // The doors stay open while the dock's forklift is in its lane.
+          serviceComplete:
+            (dock === 'receiving' || shippingServiceComplete) && !dockForkliftInLane(dock),
           speedMultiplier: vehicleSpeedMultiplier,
         });
         controller = result.state;
@@ -3359,9 +3324,9 @@ export const TruckBay: React.FC = () => {
         </mesh>
 
         {/* Dock bumpers - centered for single bay (narrower to fit platform) */}
-        {[-3.5, -1.75, 0, 1.75, 3.5].map((x, i) => (
-          <mesh key={i} position={[x, DOCK_BUMPER_BLOCK.y, 0.2]}>
-            <boxGeometry args={[0.8, DOCK_BUMPER_BLOCK.height, 0.6]} />
+        {DOCK_BUMPER_BLOCKS.map((block) => (
+          <mesh key={block.x} position={[block.x, block.y, block.u]}>
+            <boxGeometry args={[block.width, block.height, block.depth]} />
             <meshStandardMaterial color="#1f2937" />
           </mesh>
         ))}
@@ -3383,8 +3348,8 @@ export const TruckBay: React.FC = () => {
           />
         ))}
 
-        {/* Single dock leveler - centered (at wall opening) */}
-        <DockLeveler position={[0, 2, -1.5]} isDeployed={shippingDockVisual.levelerDeployed} />
+        {/* Dock deck at trailer-bed height, door to bumper face */}
+        <DockLeveler isDeployed={shippingDockVisual.levelerDeployed} />
 
         {/* Roll-up dock door - at wall opening */}
         <RollUpDoor position={[0, 0, -1.8]} isOpen={shippingDockVisual.doorsOpen} />
@@ -3738,9 +3703,6 @@ export const TruckBay: React.FC = () => {
         {/* Manifest holder at dock - centered */}
         <ManifestHolder position={[5.5, 3, -1]} rotation={0} />
 
-        {/* Dock plate - centered */}
-        <DockPlate position={[0, 2, 1]} isDeployed={shippingDockVisual.levelerDeployed} />
-
         {/* Dock bumpers with wear indicators - moved forward to avoid wall */}
         <DockBumperWithWear
           position={[-DOCK_WEAR_BUMPER.x, DOCK_WEAR_BUMPER.y, 0]}
@@ -3819,9 +3781,9 @@ export const TruckBay: React.FC = () => {
         </mesh>
 
         {/* Dock bumpers - centered for single bay (narrower to fit platform) */}
-        {[-3.5, -1.75, 0, 1.75, 3.5].map((x, i) => (
-          <mesh key={i} position={[x, DOCK_BUMPER_BLOCK.y, 0.2]}>
-            <boxGeometry args={[0.8, DOCK_BUMPER_BLOCK.height, 0.6]} />
+        {DOCK_BUMPER_BLOCKS.map((block) => (
+          <mesh key={block.x} position={[block.x, block.y, block.u]}>
+            <boxGeometry args={[block.width, block.height, block.depth]} />
             <meshStandardMaterial color="#1f2937" />
           </mesh>
         ))}
@@ -3843,7 +3805,7 @@ export const TruckBay: React.FC = () => {
           />
         ))}
 
-        <DockLeveler position={[0, 2, -1.5]} isDeployed={receivingDockVisual.levelerDeployed} />
+        <DockLeveler isDeployed={receivingDockVisual.levelerDeployed} />
 
         {/* Roll-up dock door - at wall opening */}
         <RollUpDoor position={[0, 0, -1.8]} isOpen={receivingDockVisual.doorsOpen} />
@@ -4174,9 +4136,6 @@ export const TruckBay: React.FC = () => {
 
         {/* Manifest holder at dock - centered */}
         <ManifestHolder position={[5.5, 3, 1]} rotation={0} />
-
-        {/* Dock plate - centered */}
-        <DockPlate position={[0, 2, -1]} isDeployed={receivingDockVisual.levelerDeployed} />
 
         {/* Dock bumpers with wear indicators - moved forward to avoid wall */}
         <DockBumperWithWear

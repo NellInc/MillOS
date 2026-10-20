@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { createRoundedForkliftRoute, type ForkliftWaypointAction } from '../forkliftRoute';
 import { drivenLogisticsRoute } from '../logisticsRuntime';
+import { planningRouteActions } from '../layoutPlanning';
 import { sampleArcLengthPath } from './vehicleKinematics';
 import {
   FORKLIFT_MAXIMUM_STEERING_RADIANS,
@@ -109,16 +110,10 @@ describe('forklift controller', () => {
   });
 
   it.each([
-    ['shipping', SITE_LAYOUT.routes.forklifts.shipping.points, 4],
-    ['receiving', SITE_LAYOUT.routes.forklifts.receiving.points, 3],
-  ] as const)('points the %s forklift along travel on every straight leg', (_, route, dropoff) => {
-    const routeActions: ForkliftWaypointAction[] = route.map((__, index) =>
-      index === 0
-        ? { type: 'pickup', duration: 7 }
-        : index === dropoff
-          ? { type: 'dropoff', duration: 6 }
-          : { type: 'none', duration: 0 }
-    );
+    ['shipping', SITE_LAYOUT.routes.forklifts.shipping.points],
+    ['receiving', SITE_LAYOUT.routes.forklifts.receiving.points],
+  ] as const)('points the %s forklift along travel on every straight leg', (dock, route) => {
+    const routeActions: ForkliftWaypointAction[] = planningRouteActions(dock);
     const rounded = createRoundedForkliftRoute(route, routeActions, 2, 8);
     const plan = createForkliftRoutePlan(rounded.path, rounded.actions);
     const headingOf = (x: number, z: number) => Math.atan2(x, z);
@@ -147,17 +142,24 @@ describe('forklift controller', () => {
     expect(measuredLength / plan.path.totalLength).toBeGreaterThan(0.7);
     expect((worstLegDeviation * 180) / Math.PI).toBeLessThan(3);
 
-    // The closed route's seam is the pickup, where the route turns back on
-    // itself. That turn is a standing pivot: the path arrives on its incoming
-    // leg and leaves on its outgoing one, and the plan marks the span between
-    // them so the body turns in place (the driven-lap test bounds its rate).
+    // Both routes turn back on themselves at their pickup and their dropoff
+    // (shipping's pickup is the closed route's seam). Those turns are standing
+    // pivots: the path arrives on its incoming leg and leaves on its outgoing
+    // one, and the plan marks the span between them so the body turns in
+    // place (the driven-lap test bounds its rate).
     const beforeSeam = sampleArcLengthPath(plan.path, plan.path.totalLength - 0.01);
     const lastLeg = plan.path.samples.at(-2)!;
     expect(headingOf(beforeSeam.tangentX, beforeSeam.tangentZ)).toBeCloseTo(
       headingOf(route[0][0] - lastLeg.x, route[0][2] - lastLeg.z),
       6
     );
-    expect(plan.pivots?.some(({ start }) => start === 0)).toBe(true);
+    expect(plan.markers).toHaveLength(2);
+    for (const marker of plan.markers)
+      expect(
+        plan.pivots?.some(({ start }) => Math.abs(start - marker.distance) < 1e-6),
+        marker.action.type
+      ).toBe(true);
+    if (dock === 'shipping') expect(plan.pivots?.some(({ start }) => start === 0)).toBe(true);
   });
 
   it.each(['pickup', 'dropoff'] as const)(

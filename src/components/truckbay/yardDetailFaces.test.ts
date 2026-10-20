@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { SURFACE_LAYERS } from '../../constants/renderLayers';
+import { DOCK_DECK } from '../../constants/dockLoading';
+import { DOCK_LEVELER_LIP } from './dockApronLayout';
 
 /**
  * Three yard details whose faces lay exactly on another surface of a different
@@ -39,13 +41,6 @@ describe('truck yard detail faces', () => {
     expect(depthOf(title[1]) - depthOf(ring[1])).toBeGreaterThanOrEqual(SURFACE_LAYERS.decal);
   });
 
-  it('keeps the animated dock plate inside the generated plate body ends', () => {
-    // The body's 3 m orange lip ends lay on the plate box's side faces.
-    const plate = block('DockPlate');
-    const box = /<mesh ref=\{plateRef\}[\s\S]*?<boxGeometry args=\{\[([^,]+),/.exec(plate)!;
-    expect(3 - Number(box[1])).toBeGreaterThanOrEqual(0.02);
-  });
-
   it('stands the dock status lights off the door frame line', () => {
     // Housings 0.2 m deep centred on the door line (z -1.8) shared both
     // faces with the generated 0.2 m door frame beside them.
@@ -58,11 +53,12 @@ describe('truck yard detail faces', () => {
         expect(Math.abs(Number(light[1]) - Number(door[1]))).toBeGreaterThanOrEqual(0.01);
   });
 
-  it('keeps the dock leveler plate inside its generated lip ends', () => {
-    // Both are 8 m wide; the plate's ends lay on the lip's (x +/-4).
+  it('keeps the dock leveler lip inside the deck plate ends', () => {
+    // Both generated parts are 8 m wide; the plate's ends lay on the lip's
+    // (x +/-4). Both are now scaled to the deck, the lip 2 cm narrower.
     const leveler = block('DockLeveler');
-    const scale = /<mesh\s+ref=\{levelerRef\}[^>]*scale=\{\[([\d.]+), 1, 1\]\}/.exec(leveler);
-    expect(scale, 'leveler plate scale').not.toBeNull();
-    expect(8 - 8 * Number(scale![1])).toBeGreaterThanOrEqual(0.019);
+    expect(leveler).toMatch(/scale=\{\[DOCK_DECK\.width \/ 8,/);
+    expect(leveler).toMatch(/DOCK_LEVELER_LIP\.width \/ 8,/);
+    expect(DOCK_DECK.width - DOCK_LEVELER_LIP.width).toBeGreaterThanOrEqual(0.019);
   });
 });

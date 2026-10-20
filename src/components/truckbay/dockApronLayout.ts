@@ -1,3 +1,4 @@
+import { DOCK_DECK } from '../../constants/dockLoading';
 import {
   DOCK_BUMPER_FACE_Z,
   TRACTOR_FRONT_OVERHANG,
@@ -45,6 +46,39 @@ export const DOCK_PLATFORM_SECTION = {
 
 /** The five rubber bumper blocks across the dock face. */
 export const DOCK_BUMPER_BLOCK = { y: 0.8, height: 1.2 } as const;
+
+/**
+ * Every bumper block across the dock face, with its box. The centre block is
+ * under the dock deck, so it stops below the deck's hanging lip (0.46); at 1.4
+ * it stood 0.7 m up through the deck.
+ */
+export const DOCK_BUMPER_BLOCKS: readonly {
+  readonly x: number;
+  readonly y: number;
+  readonly height: number;
+  readonly u: number;
+  readonly width: number;
+  readonly depth: number;
+}[] = [-3.5, -1.75, 0, 1.75, 3.5].map((x) => ({
+  x,
+  ...(x === 0 ? { y: 0.32, height: 0.24 } : DOCK_BUMPER_BLOCK),
+  u: 0.2,
+  width: 0.8,
+  depth: 0.6,
+}));
+
+/**
+ * The deck's lip, hinged under its far edge (the bumper face). Stowed it hangs
+ * in front of the deck end; deployed it swings 0.3 rad out, its far corner
+ * stopping short of the docked trailer's underride guard 0.1 m beyond.
+ */
+export const DOCK_LEVELER_LIP = {
+  width: DOCK_DECK.width - 0.02,
+  thickness: 0.05,
+  depth: 0.15,
+  stowedAngle: Math.PI / 2,
+  deployedAngle: Math.PI / 2 - 0.3,
+} as const;
 
 /**
  * The two wear-indicator bumpers (x +/-2), whose 0.4 m rubber sits on the

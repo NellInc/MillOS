@@ -78,7 +78,6 @@ const STARTUP_GENERATED_MODELS: readonly GeneratedAssetId[] = [
   'dockShelterTop',
   'wheelChockBody',
   'yardManifestBody',
-  'yardDockPlateBody',
   'yardBumperBody',
   'dockBumperRubber',
   'yardSafetyMirrorBody',

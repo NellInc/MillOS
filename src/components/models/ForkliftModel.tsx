@@ -389,15 +389,25 @@ export const COMPACT_FORK_LOAD: {
   palletPosition: [number, number, number];
 } = {
   centres: [-0.17, 0.17],
-  size: [0.13, 0.04, 1.35],
+  // 0.7 m tines from the carriage face (mast-local z 0.125).
+  size: [0.13, 0.04, 0.7],
   y: 0.32,
-  z: 0.65,
-  palletPosition: [0, 0.315, 0.66],
+  z: 0.475,
+  palletPosition: [0, 0.315, 0.53],
 };
-/** The compact (low tier) mast's distance ahead of the forklift origin. */
-export const COMPACT_MAST_Z = 1.14;
-/** The authored (medium and above) model's carried pallet, in model space. */
-export const AUTHORED_PALLET_POSITION: [number, number, number] = [0, 0.34, 1.02];
+/**
+ * The compact (low tier) mast's distance ahead of the forklift origin. Its
+ * carriage face (+0.125) stands where the authored model's mast face does
+ * (0.733), so one dock stand serves both tiers: at 1.14 the low-tier mast
+ * stood 0.4 m further out, inside the dock deck the authored pallet reaches.
+ */
+export const COMPACT_MAST_Z = 0.61;
+/**
+ * The authored (medium and above) model's carried pallet, in model space. Its
+ * back edge (z 0.74) sits just ahead of the mast face (0.733); at z 1.02 it
+ * ran 0.11 m back through the mast poles.
+ */
+export const AUTHORED_PALLET_POSITION: [number, number, number] = [0, 0.34, 1.14];
 /**
  * How far ahead of the forklift origin each tier draws the pallet centre: where
  * a dropoff sets it down. The far billboard draws it at the compact reach.
@@ -406,11 +416,42 @@ export const FORKLIFT_PALLET_REACH_METRES = {
   authored: AUTHORED_PALLET_POSITION[2],
   compact: COMPACT_MAST_Z + COMPACT_FORK_LOAD.palletPosition[2],
 } as const;
+/**
+ * Low-tier front wheel centre (x mirrored), y and z ahead of the origin, under
+ * the body's front (z 0.535) and clear of the mast uprights (x 0.425-0.535).
+ */
+export const COMPACT_FRONT_WHEEL = { x: 0.74, y: 0.33, z: 0.55 } as const;
+/** Low-tier body box: 1.45 x 0.85 x 1.69 m, front face at z 0.535 behind the mast. */
+export const COMPACT_BODY = { y: 0.72, z: -0.31, depth: 1.69 } as const;
+
+/**
+ * What each tier puts ahead of the forklift origin, for checks against the
+ * dock deck: the foremost face of the mast or carriage, the front tyre, the
+ * carried pallet's centre and its origin height at fork height 0. The authored
+ * numbers are measured from forklift.glb (mast poles and carriage to z 0.733,
+ * front tyres z 0.232-0.865 and y 0-0.633).
+ */
+export const FORKLIFT_TIER_FOOTPRINTS = {
+  authored: {
+    mastFaceZ: 0.733,
+    frontTyre: { z: 0.5485, y: 0.3165, radius: 0.3165 },
+    palletReach: FORKLIFT_PALLET_REACH_METRES.authored,
+    palletRestY: AUTHORED_PALLET_POSITION[1],
+    halfWidth: 0.469,
+  },
+  compact: {
+    mastFaceZ: COMPACT_MAST_Z + 0.125,
+    frontTyre: { z: COMPACT_FRONT_WHEEL.z, y: COMPACT_FRONT_WHEEL.y, radius: 0.32 },
+    palletReach: FORKLIFT_PALLET_REACH_METRES.compact,
+    palletRestY: COMPACT_FORK_LOAD.palletPosition[1],
+    halfWidth: COMPACT_FRONT_WHEEL.x + 0.19,
+  },
+} as const;
 
 // Low quality retains a deliberately small shared visual. Medium and above use
 // the authored derivative, which remains inside the measured draw-call budget.
 const compactForkliftGeometry = {
-  body: new RoundedBoxGeometry(1.45, 0.85, 2.15, 2, 0.1),
+  body: new RoundedBoxGeometry(1.45, 0.85, COMPACT_BODY.depth, 2, 0.1),
   counterweight: new RoundedBoxGeometry(1.35, 0.72, 0.55, 2, 0.12),
   glass: new THREE.BoxGeometry(1.02, 0.72, 0.035),
   sideGlass: new THREE.BoxGeometry(0.035, 0.72, 0.78),
@@ -537,8 +578,8 @@ const compactForkliftMaterial = {
 };
 
 const compactWheelPositions: ReadonlyArray<readonly [number, number, number]> = [
-  [-0.72, 0.33, 0.7],
-  [0.72, 0.33, 0.7],
+  [-COMPACT_FRONT_WHEEL.x, COMPACT_FRONT_WHEEL.y, COMPACT_FRONT_WHEEL.z],
+  [COMPACT_FRONT_WHEEL.x, COMPACT_FRONT_WHEEL.y, COMPACT_FRONT_WHEEL.z],
   [-0.72, 0.3, -0.83],
   [0.72, 0.3, -0.83],
 ];
@@ -631,8 +672,8 @@ const CompactForklift: React.FC<ForkliftModelProps> = ({
       { position: [0.61, 1.56, -0.34], scale: [1, 1, 1] },
     ]);
     setCompactInstances(headlightRef.current, [
-      { position: [-0.44, 0.82, 1.015], scale: [0.28, 0.2, 0.04] },
-      { position: [0.44, 0.82, 1.015], scale: [0.28, 0.2, 0.04] },
+      { position: [-0.28, 0.82, 0.555], scale: [0.28, 0.2, 0.04] },
+      { position: [0.28, 0.82, 0.555], scale: [0.28, 0.2, 0.04] },
     ]);
     setCompactInstances(tailLightRef.current, [
       { position: [-0.46, 0.75, -1.445], scale: [0.25, 0.18, 0.04] },
@@ -746,7 +787,7 @@ const CompactForklift: React.FC<ForkliftModelProps> = ({
       <mesh
         geometry={compactForkliftGeometry.body}
         material={compactForkliftMaterial.yellow}
-        position={[0, 0.72, -0.08]}
+        position={[0, COMPACT_BODY.y, COMPACT_BODY.z]}
         castShadow
         receiveShadow
       />

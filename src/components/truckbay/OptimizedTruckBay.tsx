@@ -21,6 +21,7 @@ import {
   RENDER_ORDER,
 } from '../../constants/renderLayers';
 import { toSimulationMinutes } from '../../simulation/simulationClock';
+import { TRAILER_BED_Y } from '../../constants/dockLoading';
 import { getRuntimeMode } from '../../runtime/runtimeMode';
 import { createLinearDataTexture } from '../../utils/textureGenerator';
 import { applyVehicleSurface } from '../../utils/vehicleSurface';
@@ -431,7 +432,7 @@ function TruckIdentityDecals({
 }
 
 /** One entry of a static instanced detail batch: position + scale on a unit box. */
-interface DetailInstance {
+export interface DetailInstance {
   readonly position: readonly [number, number, number];
   readonly scale: readonly [number, number, number];
 }
@@ -466,8 +467,8 @@ const applyDetailInstances = (
 // tyre is buried in the bodywork with a hard intersection line. Real trailers
 // explain that line with a fender and an aero skirt; without them, adding wheel
 // detail only makes the intersection more obvious. Raising the trailer floor to
-// clear the wheels is NOT an option - the dock platform top is at y = 2.0 and
-// that relationship belongs to the dock, not to the truck.
+// clear the wheels is NOT an option - the chassis rail top is the cargo bed the
+// dock deck is built to (TRAILER_BED_Y, constants/dockLoading).
 // ---------------------------------------------------------------------------
 
 const TRAILER_SKIN_DETAILS: readonly DetailInstance[] = [
@@ -485,12 +486,18 @@ const TRAILER_SKIN_DETAILS: readonly DetailInstance[] = [
   { position: [1.29, 0.79, -6.7], scale: [0.05, 0.9, 2.8] },
 ];
 
+/** The underride guard bar across the trailer's tail; the dock leveler lip stops short of it. */
+export const TRAILER_UNDERRIDE_GUARD: DetailInstance = {
+  position: [0, 0.52, -11.62],
+  scale: [2.4, 0.18, 0.12],
+};
+
 const TRAILER_FRAME_DETAILS: readonly DetailInstance[] = [
   // Sliding tandem slide rails.
   { position: [-1.05, 0.42, -6.7], scale: [0.14, 0.2, 5.6] },
   { position: [1.05, 0.42, -6.7], scale: [0.14, 0.2, 5.6] },
   // ICC rear underride guard.
-  { position: [0, 0.52, -11.62], scale: [2.4, 0.18, 0.12] },
+  TRAILER_UNDERRIDE_GUARD,
   { position: [-0.85, 0.9, -11.58], scale: [0.12, 0.74, 0.1] },
   { position: [0.85, 0.9, -11.58], scale: [0.12, 0.74, 0.1] },
 ];
@@ -1340,7 +1347,7 @@ export function OptimizedTruckVisual({
         <mesh
           geometry={UNIT_BOX}
           material={frameMaterial}
-          position={[0, 0.62, -5.75]}
+          position={[0, TRAILER_BED_Y - 0.09, -5.75]}
           scale={[2.68, 0.18, 11.4]}
           castShadow
           receiveShadow

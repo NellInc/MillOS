@@ -1,4 +1,5 @@
 import type { ForkliftWaypointAction } from '../forkliftRoute';
+import { FORKLIFT_PALLET_CLEARANCE } from '../../constants/dockLoading';
 import {
   advanceLongitudinalMotion,
   createArcLengthPath,
@@ -352,6 +353,116 @@ export function distanceAheadOnClosedPath(
   return direct >= 0 ? direct : path.totalLength + direct;
 }
 
+/**
+ * Radius about the forklift origin that covers the vehicle and its load: the
+ * pallet's leading edge (1.14 m reach plus half its 0.8 m depth) and the
+ * 1.26 m body ends, with 5 cm to spare.
+ */
+export const FORKLIFT_HOLD_CLEARANCE_METRES = 1.6;
+
+interface PlanarBounds {
+  readonly minX: number;
+  readonly maxX: number;
+  readonly minZ: number;
+  readonly maxZ: number;
+}
+
+const circleMeetsBounds = (x: number, z: number, radius: number, bounds: PlanarBounds) =>
+  Math.hypot(
+    x - Math.max(bounds.minX, Math.min(x, bounds.maxX)),
+    z - Math.max(bounds.minZ, Math.min(z, bounds.maxZ))
+  ) < radius;
+
+/**
+ * Where a forklift waits for a pickup or dropoff it may not work yet: the last
+ * route distance before the marker at which a circle of `clearance` about the
+ * origin is clear of every one of `corridors` (the protected pedestrian
+ * approaches). A marker whose own circle is clear of them all is its own hold.
+ * Working if a forklift waiting for its truck never stands in a dock doorway.
+ */
+export function forkliftActionHoldDistance(
+  plan: ForkliftRoutePlan,
+  markerDistance: number,
+  corridors: readonly PlanarBounds[],
+  clearance: number
+): number {
+  const total = plan.path.totalLength;
+  const blocked = (distance: number) => {
+    const sample = sampleArcLengthPath(plan.path, ((distance % total) + total) % total);
+    return corridors.some((bounds) => circleMeetsBounds(sample.x, sample.z, clearance, bounds));
+  };
+  if (!blocked(markerDistance)) return markerDistance;
+  const step = 0.05;
+  // Never back past the previous action marker: that leg is not this one's approach.
+  const previous = plan.markers
+    .map(({ distance }) => distance)
+    .filter((distance) => Math.abs(distance - markerDistance) > 1e-6)
+    .reduce(
+      (furthest, distance) =>
+        Math.min(furthest, distanceAheadOnClosedPath(plan.path, distance, markerDistance)),
+      total
+    );
+  for (let back = step; back < previous; back += step) {
+    if (!blocked(markerDistance - back)) return (((markerDistance - back) % total) + total) % total;
+  }
+  return markerDistance;
+}
+
+/**
+ * How far a forklift heading for an action marker may travel, and whether it
+ * is held under the logistics interlock. Not permitted, it stops at the hold
+ * point `holdLeg` short of the marker; one already past the hold point (the
+ * truck left while it drove in) finishes at the marker and waits there.
+ */
+export function resolveForkliftActionStop({
+  distanceToMarker,
+  holdLeg,
+  permitted,
+}: {
+  distanceToMarker: number;
+  holdLeg: number;
+  permitted: boolean;
+}): { stopDistance: number; interlocked: boolean } {
+  if (permitted) return { stopDistance: distanceToMarker, interlocked: false };
+  const stopDistance =
+    distanceToMarker >= holdLeg - 0.06 ? Math.max(0, distanceToMarker - holdLeg) : distanceToMarker;
+  return { stopDistance, interlocked: stopDistance <= 0.06 };
+}
+
+/**
+ * A forklift that left its hold point with permission is committed to the
+ * action for as long as it is between the hold point and the marker. Committed,
+ * it still works while its truck is at the dock even if the permission lapses
+ * on the way in (the shipping load can complete while it carries one more
+ * pallet), instead of standing in the doorway until the next truck.
+ * Working if a forklift never stops between its hold point and its marker
+ * while its truck is still docked.
+ */
+export function nextForkliftActionCommitment({
+  committed,
+  permitted,
+  distanceToMarker,
+  holdLeg,
+}: {
+  committed: boolean;
+  permitted: boolean;
+  distanceToMarker: number;
+  holdLeg: number;
+}): boolean {
+  return (committed || permitted) && holdLeg > 0 && distanceToMarker < holdLeg - 0.06;
+}
+
+/** The permission a forklift acts on: its own, or its commitment while the truck is docked. */
+export const forkliftActionPermitted = ({
+  permitted,
+  committed,
+  truckAtDock,
+}: {
+  permitted: boolean;
+  committed: boolean;
+  truckAtDock: boolean;
+}): boolean => permitted || (committed && truckAtDock);
+
 /** The heading the body should hold at a route distance: the departure heading inside a pivot span. */
 export const forkliftRouteHeading = (plan: ForkliftRoutePlan, distance: number): number => {
   const total = plan.path.totalLength;
@@ -531,12 +642,21 @@ export function stepForkliftMotion(
  * A complete autonomous load cycle. The visible mast and cargo attachment are
  * driven by explicit phases, so no pallet appears halfway through an unrelated
  * triangular lift.
+ *
+ * `surfaceHeight` is the fork height at which the pallet rests on the work
+ * surface (0 on the floor). At a raised surface (the dock deck) the forks
+ * engage and release there instead of at the floor, arrive and leave loaded
+ * that much plus `FORKLIFT_PALLET_CLEARANCE` above it, and stay at it after a
+ * dropoff, so the tines never pass down through the surface.
  */
 export function sampleForkliftLoadPose(
   action: 'pickup' | 'dropoff',
   progress: number,
-  maximumHeight: number
+  maximumHeight: number,
+  surfaceHeight = 0
 ): ForkliftLoadPose {
+  const surface = Math.max(0, surfaceHeight);
+  const raised = surface > 0;
   const t = clamp01(progress);
   const segments =
     action === 'pickup'
@@ -551,23 +671,28 @@ export function sampleForkliftLoadPose(
           'carrying',
         ] as const)
       : (['aligning', 'levelling', 'placing', 'disengaging', 'withdrawing', 'resetting'] as const);
-  const scaled = Math.min(segments.length - Number.EPSILON, t * segments.length);
-  const segmentIndex = Math.floor(scaled);
+  // `length - Number.EPSILON` rounds back to `length` (EPSILON is relative to
+  // 1), so t = 1 used to index past the last phase and report none.
+  const scaled = t * segments.length;
+  const segmentIndex = Math.min(segments.length - 1, Math.floor(scaled));
   const segmentProgress = smootherstep(scaled - segmentIndex);
   const phase = segments[segmentIndex];
 
   if (action === 'pickup') {
-    const carryHeight = Math.min(0.32, maximumHeight);
+    const carryHeight = raised
+      ? Math.max(Math.min(0.32, maximumHeight), surface + FORKLIFT_PALLET_CLEARANCE)
+      : Math.min(0.32, maximumHeight);
+    const top = Math.max(maximumHeight, carryHeight);
     const forkHeight =
       phase === 'lifting'
-        ? maximumHeight * segmentProgress
+        ? surface + (top - surface) * segmentProgress
         : phase === 'retracting'
-          ? maximumHeight + (carryHeight - maximumHeight) * segmentProgress
+          ? top + (carryHeight - top) * segmentProgress
           : phase === 'carrying'
             ? carryHeight
             : phase === 'tilting'
-              ? maximumHeight
-              : 0;
+              ? top
+              : surface;
     const mastTilt =
       phase === 'tilting'
         ? -0.055 * segmentProgress
@@ -585,12 +710,14 @@ export function sampleForkliftLoadPose(
     };
   }
 
-  const initialHeight = Math.min(0.32, maximumHeight);
+  const initialHeight = raised
+    ? Math.max(Math.min(0.32, maximumHeight), surface + FORKLIFT_PALLET_CLEARANCE)
+    : Math.min(0.32, maximumHeight);
   const forkHeight =
     phase === 'placing'
-      ? initialHeight * (1 - segmentProgress)
+      ? initialHeight + (surface - initialHeight) * segmentProgress
       : ['disengaging', 'withdrawing', 'resetting'].includes(phase)
-        ? 0
+        ? surface
         : initialHeight;
   // Aligning holds the loaded-travel tilt, so the dropoff starts from the pose
   // the mast arrived in instead of popping level and back.

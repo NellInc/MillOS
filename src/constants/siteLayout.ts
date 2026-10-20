@@ -420,19 +420,19 @@ export const SITE_LAYOUT = {
         id: 'forklift-shipping',
         vehicle: 'forklift',
         // Out to the dock door and back. The dropoff (index 4) stands on the
-        // bay centreline facing the docked trailer, so the pallet goes down at
-        // its tail: the authored model sets it 2.2 m from the bumper face, the
-        // compact one 1.4 m. It used to be (22.5, 48), 22.5 m east of the
-        // trailer, beside a dock-platform envelope that covered the door. 47.25
-        // keeps the compact mast short of the leveler plate (z 48.5); the
-        // forklift pivots in place there and returns down the same lane.
+        // bay centreline facing the docked trailer, its mast at the dock deck's
+        // hall edge (z 48.3), and lifts the pallet onto the deck at the
+        // trailer's tail (constants/dockLoading). It used to be (22.5, 48),
+        // 22.5 m east of the trailer. The forklift pivots in place there and
+        // returns down the same lane; waiting for the truck it holds short of
+        // the door's pedestrian approach (x +/-1.5).
         // Saves holding older points are migrated in logisticsLayoutStore.
         points: [
           [-16, 0, 42],
           [-10, 0, 42],
           [-5, 0, 42],
           [0, 0, 42],
-          [0, 0, 47.25],
+          [0, 0, 47.56],
           [0, 0, 42],
           [-8, 0, 42],
           [-16, 0, 42],
@@ -443,13 +443,26 @@ export const SITE_LAYOUT = {
       receiving: {
         id: 'forklift-receiving',
         vehicle: 'forklift',
+        // Out to the receiving dock door to unload the docked trailer, and
+        // back to the dropoff at (-28, -22). The pickup (index 4) mirrors the
+        // shipping dropoff: on the bay centreline facing the trailer, taking
+        // the pallet off the dock deck at its tail. It used to be (-28, -43),
+        // 28 m west of the trailer it unloads. The lane is z -42, the mirror of
+        // shipping's 42 (at -43 it swept the dock platforms). The start (index
+        // 0) is on the x -35 return lane, which no other leg shares, so a
+        // layout change can always find which leg the vehicle is on. Saves
+        // holding the old points are migrated in logisticsLayoutStore.
         points: [
-          [-28, 0, -43],
-          [-28, 0, -38],
-          [-28, 0, -30],
+          [-35, 0, -30],
+          [-35, 0, -42],
+          [-14, 0, -42],
+          [0, 0, -42],
+          [0, 0, -47.56],
+          [0, 0, -42],
+          [-14, 0, -42],
+          [-28, 0, -42],
           [-28, 0, -22],
           [-35, 0, -22],
-          [-35, 0, -38],
         ],
         halfWidth: 1.35,
         closed: true,
