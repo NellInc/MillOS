@@ -378,7 +378,8 @@ export function createRiverFootbridgeFrameGeometry(): THREE.BufferGeometry {
     }
   }
   for (const x of [-2, 0, 2]) {
-    g.box([0.12, 1, length - 2], [x, 1.15, 0], steel);
+    // Web ends 1 cm inside the trim flange ends, which shared its end faces.
+    g.box([0.12, 1, length - 2.02], [x, 1.15, 0], steel);
     g.box([0.48, 0.15, length - 2], [x, 1.625, 0], trim);
     g.box([0.48, 0.12, length - 2], [x, 0.65, 0], steel);
   }
@@ -386,7 +387,9 @@ export function createRiverFootbridgeFrameGeometry(): THREE.BufferGeometry {
   for (let i = 0; i < 5; i++) {
     const z = -28 + i * 14;
     for (const x of [-2.2, 2.2]) g.box([0.8, 12, 0.8], [x, -4, z], steel);
-    g.box([5.4, 0.35, 0.8], [0, 1.45, z], trim);
+    // Cap 2 cm deeper than the 0.8 m piers it crowns: equal depths put the
+    // steel pier faces in the trim cap's end planes.
+    g.box([5.4, 0.35, 0.84], [0, 1.45, z], trim);
     g.box([4, 0.4, 0.4], [0, -2, z], steel);
     g.beam([-2.2, -7, z], [2.2, -3, z], 0.2, steel);
     g.beam([2.2, -7, z], [-2.2, -3, z], 0.2, steel);
@@ -427,10 +430,12 @@ export function createRoadRiverBridgeFrameGeometry(): THREE.BufferGeometry {
       ),
       trim
     );
-    g.box([0.12, 0.1, 70], [x, 1.66, 0], trim);
+    // Rail 1 cm proud of each post side and post tops 1 cm under the rail top:
+    // at equal widths and heights steel and trim shared both faces on all 42.
+    g.box([0.14, 0.1, 70], [x, 1.66, 0], trim);
     for (let i = 0; i <= 20; i++) {
       const z = -35 + i * 3.5;
-      g.box([0.12, 1.16, 0.14], [x, 1.13, z], steel);
+      g.box([0.12, 1.15, 0.14], [x, 1.125, z], steel);
       const plateZ = Math.max(-34.85, Math.min(34.85, z));
       g.box([0.28, 0.06, 0.3], [x, 0.62, plateZ], trim);
     }
@@ -438,7 +443,8 @@ export function createRoadRiverBridgeFrameGeometry(): THREE.BufferGeometry {
   for (const x of [-6, 0, 6]) {
     // Web top stops 1 cm inside the top flange (y 0.04): at 0.55 tall it
     // ended on the flange's top face and the two were coplanar along 68 m.
-    g.box([0.16, 0.54, 68], [x, -0.23, 0], steel);
+    // It also ends 1 cm inside the flange ends, which shared its end faces.
+    g.box([0.16, 0.54, 67.98], [x, -0.23, 0], steel);
     g.box([0.6, 0.12, 68], [x, -0.01, 0], trim);
     g.box([0.6, 0.12, 68], [x, -0.51, 0], steel);
   }

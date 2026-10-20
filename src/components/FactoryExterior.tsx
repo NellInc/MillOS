@@ -1776,14 +1776,12 @@ function OutletStone({
   );
 }
 
-/** A supported stone overflow keeps the canal level while joining the lower
- * river. No reflection render, particles, light or additional animation clock.
+/** Every stone box of the canal overflow, walls with their copings, then the
+ * invert. Each box carries its own centred UVs, so two boxes may never share a
+ * same-facing face in one plane (`coplanarSweep.test.ts`).
  */
-function CanalRiverOutlet() {
-  const { west, east, north, south, width, upperLevel, lowerLevel, foundation, wallTop } =
-    CANAL_OUTLET;
-  const surface = useMemo(createCanalOutletSurface, []);
-  useEffect(() => () => surface.dispose(), [surface]);
+export const CANAL_OUTLET_STONES = (() => {
+  const { west, east, north, south, width, foundation, wallTop } = CANAL_OUTLET;
   const height = wallTop - foundation;
   const walls = [
     {
@@ -1794,39 +1792,61 @@ function CanalRiverOutlet() {
       position: [(west + east - width) / 2, (wallTop + foundation) / 2, south - width - 0.4],
       size: [east - width - west, height, 0.8],
     },
+    // The two north-running walls butt into the south walls rather than
+    // overlapping them, and their copings stop at the south copings' faces:
+    // overlapping corners put two stones' tops and sides in one plane.
     {
       position: [east + 0.4, (wallTop + foundation) / 2, (north + south) / 2],
       size: [0.8, height, south - north],
+      butts: true,
     },
     {
-      position: [east - width - 0.4, (wallTop + foundation) / 2, (north + south - width) / 2],
-      size: [0.8, height, south - width - north],
+      position: [east - width - 0.4, (wallTop + foundation) / 2, (north + south - width - 0.8) / 2],
+      size: [0.8, height, south - width - 0.8 - north],
+      butts: true,
     },
   ];
+  type Stone = {
+    position: [number, number, number];
+    size: [number, number, number];
+    coping?: boolean;
+  };
+  return [
+    ...walls.flatMap(({ position, size, butts }): Stone[] => [
+      {
+        position: position as Stone['position'],
+        size: size as Stone['size'],
+      },
+      {
+        position: [position[0], wallTop + 0.09, position[2] - (butts ? 0.06 : 0)],
+        size: [size[0] + 0.12, 0.18, size[2] + (butts ? 0 : 0.12)],
+        coping: true,
+      },
+    ]),
+    // A stone invert supports the raised channel all the way to the lip.
+    {
+      position: [(west + east) / 2, -0.05, south - width / 2],
+      size: [east - west, 0.3, width],
+    },
+    {
+      position: [east - width / 2, (foundation + 0.1) / 2, (north + south - width) / 2],
+      size: [width, 0.1 - foundation, south - width - north],
+    },
+  ] satisfies Stone[];
+})();
+
+/** A supported stone overflow keeps the canal level while joining the lower
+ * river. No reflection render, particles, light or additional animation clock.
+ */
+function CanalRiverOutlet() {
+  const { east, north, width, upperLevel, lowerLevel } = CANAL_OUTLET;
+  const surface = useMemo(createCanalOutletSurface, []);
+  useEffect(() => () => surface.dispose(), [surface]);
   return (
     <group name="canal-river-overflow">
-      {walls.map(({ position, size }, i) => (
-        <React.Fragment key={i}>
-          <OutletStone
-            position={position as [number, number, number]}
-            size={size as [number, number, number]}
-          />
-          <OutletStone
-            position={[position[0], wallTop + 0.09, position[2]]}
-            size={[size[0] + 0.12, 0.18, size[2] + 0.12]}
-            coping
-          />
-        </React.Fragment>
+      {CANAL_OUTLET_STONES.map((stone, i) => (
+        <OutletStone key={i} {...stone} />
       ))}
-      {/* A stone invert supports the raised channel all the way to the lip. */}
-      <OutletStone
-        position={[(west + east) / 2, -0.05, south - width / 2]}
-        size={[east - west, 0.3, width]}
-      />
-      <OutletStone
-        position={[east - width / 2, (foundation + 0.1) / 2, (north + south - width) / 2]}
-        size={[width, 0.1 - foundation, south - width - north]}
-      />
       <mesh
         name="canal-overflow-water"
         position={[0, upperLevel, 0]}
@@ -5086,7 +5106,8 @@ export const ConveyorBridge: React.FC<{
           position={[0, -0.64, -length / 2 + i * bayLength]}
           castShadow
         >
-          <boxGeometry args={[2.4, 0.16, 0.14]} />
+          {/* 2 cm short of each walkway side plane, which its ends touched. */}
+          <boxGeometry args={[2.36, 0.16, 0.14]} />
           <primitive object={BRIDGE_SUPPORT_MATERIAL} attach="material" />
         </mesh>
       ))}
