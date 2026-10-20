@@ -2,7 +2,11 @@ import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
-import { EXTERIOR_LAMP_LENS_MATERIAL, EXTERIOR_LAMP_LEVEL } from './ExteriorLighting';
+import {
+  EXTERIOR_LAMP_LENS_MATERIAL,
+  EXTERIOR_LAMP_LEVEL,
+  ExteriorLampPool,
+} from './ExteriorLighting';
 
 /**
  * Ground floods on the silo battery.
@@ -34,6 +38,13 @@ export const SILO_FLOOD = {
   /** Peak additive strength at full night, linear. */
   peak: 0.3,
   color: '#ffd59a',
+  /**
+   * The lane pool behind each head: the lit drum's foot throws light back
+   * onto the paving the head stands beside. Centred this far behind the head,
+   * off the pad, so it lies on the lane rather than under the 16 cm slab.
+   */
+  poolSetback: 3,
+  poolRadius: 5.5,
 } as const;
 
 const SILO_RADIUS = SITE_LAYOUT.machineDimensions.silo[0] / 2;
@@ -51,6 +62,22 @@ export function siloFloodFixtures(): SiloFloodFixture[] {
       aim: [-side, 0, 0] as const,
     }))
   );
+}
+
+/**
+ * One ground pool per flood, on the lane behind it. Without these the yard
+ * camera's lane beside the battery was flat navy at 22:00: the floods lit the
+ * drums and nothing returned to the paving.
+ */
+export function siloFloodPools(): { position: [number, number, number]; radius: number }[] {
+  return siloFloodFixtures().map((fixture) => ({
+    position: [
+      fixture.position[0] - fixture.aim[0] * SILO_FLOOD.poolSetback,
+      0,
+      fixture.position[2],
+    ],
+    radius: SILO_FLOOD.poolRadius,
+  }));
 }
 
 const smoothstep = (edge0: number, edge1: number, value: number): number => {
@@ -122,6 +149,7 @@ const _axisX = new THREE.Vector3(1, 0, 0);
 
 export function SiloFloodlights() {
   const fixtures = useMemo(() => siloFloodFixtures(), []);
+  const pools = useMemo(() => siloFloodPools(), []);
   const headsRef = useRef<THREE.InstancedMesh>(null);
   const lensesRef = useRef<THREE.InstancedMesh>(null);
   const washRef = useRef<THREE.InstancedMesh>(null);
@@ -223,6 +251,11 @@ export function SiloFloodlights() {
         args={[washGeometry, washMaterial, SITE_LAYOUT.machines.silos.length]}
         renderOrder={2}
       />
+      {pools.map((pool) => (
+        <group key={pool.position.join(':')} position={pool.position}>
+          <ExteriorLampPool radius={pool.radius} />
+        </group>
+      ))}
     </group>
   );
 }
