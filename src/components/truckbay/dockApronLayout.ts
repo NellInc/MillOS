@@ -162,3 +162,10 @@ export const DOCK_FLOOD_POOLS = [
   { x: -2.6, u: 9.5, radius: 8.5 },
   { x: 2.6, u: 9.5, radius: 8.5 },
 ] as const;
+
+/**
+ * The yard's four perimeter masts (TruckBay.tsx, 14 m poles at x +/-30). Their
+ * pool was 10 m, a street post's throw, so at 22:00 the middle of the 60 m
+ * yard was untouched navy. A mast flood throws about 1.3x its height.
+ */
+export const YARD_MAST = { height: 14, poolRadius: 18 } as const;

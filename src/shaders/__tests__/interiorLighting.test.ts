@@ -113,16 +113,36 @@ describe('interior fluorescent rows as line sources', () => {
     // beneath it, scaled by the slab's bounce.
     const down = new THREE.Vector3(0, -1, 0);
     const deckY = SITE_LAYOUT.factory.bounds.maxY - 0.4;
-    for (const [x, z] of [
-      [-10, 44],
-      [12, 3],
-      [0, 22],
-    ]) {
-      const floor = total(new THREE.Vector3(x, 0, z), up);
-      const deck = total(new THREE.Vector3(x, deckY, z), down);
-      expect(deck).toBeGreaterThan(floor * BANK_LINE.floorBounce * 0.95);
-      expect(deck).toBeLessThan(floor * 1.2);
-    }
+    const [, , rowZ] = REDUCED_ZONE_LIGHT_POSITIONS[1];
+    const underRow = total(new THREE.Vector3(0, 0, rowZ), up);
+    const deckAt = (x: number, z: number) => total(new THREE.Vector3(x, deckY, z), down);
+    const directAt = (x: number, z: number) =>
+      REDUCED_ZONE_LIGHT_POSITIONS.reduce(
+        (sum, light) =>
+          sum +
+          bankLineIrradiance(
+            new THREE.Vector3(...light),
+            ZONE_LIGHT_INTENSITY,
+            new THREE.Vector3(x, deckY, z),
+            down,
+            44,
+            false
+          ),
+        0
+      );
+    // Over the row the bounce is a share of the slab's light, not all of it.
+    const bounceOverRow = deckAt(0, rowZ) - directAt(0, rowZ);
+    expect(bounceOverRow).toBeGreaterThan(underRow * BANK_LINE.floorBounce * 0.5);
+    expect(bounceOverRow).toBeLessThan(underRow * BANK_LINE.floorBounce);
+    // At the dock end, 22 m from the nearest row, it is no longer black.
+    expect(deckAt(-10, 44)).toBeGreaterThan(underRow * 0.06);
+    // A deck sees the whole slab, so its bounce varies less along the hall
+    // than the slab's own light does.
+    const zs = [-44, -30, -16, 0, 10, 22, 35, 44];
+    const spread = (values: number[]) => Math.max(...values) / Math.min(...values);
+    const deck = zs.map((z) => deckAt(0, z) - directAt(0, z));
+    const slab = zs.map((z) => total(new THREE.Vector3(0, 0, z), up));
+    expect(spread(deck)).toBeLessThan(spread(slab) * 0.6);
   });
 
   it('adds no bounce to up-facing or side-facing surfaces, or to the slab itself', () => {

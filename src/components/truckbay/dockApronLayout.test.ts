@@ -11,6 +11,7 @@ import {
   DOCK_PAINT_START_U,
   DOCK_SLAB_OUTBOARD_U,
   DOCK_STOP_BAR,
+  YARD_MAST,
 } from './dockApronLayout';
 
 /**
@@ -78,5 +79,16 @@ describe('dock apron night floods', () => {
   it('is mounted at both docks', () => {
     const source = readFileSync('src/components/TruckBay.tsx', 'utf8');
     expect(source.match(/<DockApronFloods \/>/g)).toHaveLength(2);
+  });
+});
+
+describe('yard mast pools', () => {
+  it('throw as far as a 14 m mast does, not as far as a 4 m post', () => {
+    // The four masts stand on the yard perimeter; with a 10 m pool the middle
+    // of the 60 m yard got nothing at 22:00 and read as flat navy.
+    expect(YARD_MAST.poolRadius).toBeGreaterThanOrEqual(YARD_MAST.height * 1.25);
+    const source = readFileSync('src/components/TruckBay.tsx', 'utf8');
+    expect(source.match(/<ExteriorLampPool radius=\{YARD_MAST\.poolRadius\} \/>/g)).toHaveLength(2);
+    expect(source.match(/<cylinderGeometry args=\{\[0\.12, 0\.15, 14, 8\]\} \/>/g)).toHaveLength(2);
   });
 });

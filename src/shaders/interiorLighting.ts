@@ -52,6 +52,14 @@ export const BANK_LINE = {
   floorBounce: 0.3,
   /** Receivers lower than this above the slab take no bounce, metres. */
   bounceMinHeight: 0.5,
+  /**
+   * A deck sees the whole slab, not the patch under it: the slab is sampled
+   * under the receiver and this many receiver-heights either side, across the
+   * rows, weighted 1:2:1 (a 3-tap fit to the Lambertian view kernel). Under a
+   * row that softens the bounce; at the hall's ends, far from any row, it
+   * roughly doubles it.
+   */
+  bounceSpread: 0.7,
 } as const;
 
 const ROOF = {
@@ -115,26 +123,36 @@ export function bankLineIrradiance(
   const endWindow = Math.max(0, 1 - (overshoot / BANK_LINE.endRange) ** 4) ** 2;
   const window = (p2: number) => Math.max(0, 1 - (Math.sqrt(p2) / cutoff) ** 4) ** 2;
 
-  // Floor bounce: the slab directly beneath, lit by this row, returned to a
-  // down-facing receiver. The slab's normal is up, so its line integral has
-  // no clipping and nd = 0.
+  // Floor bounce: the slab under and around the receiver, lit by this row,
+  // returned to a down-facing receiver. The slab's normal is up, so its line
+  // integral has no clipping and nd = 0.
+  const slab = (wx: number, wy: number, wz: number): number => {
+    const cf = wx * wx + wy * wy + wz * wz;
+    const perpF = Math.max(cf - wx * wx, 0);
+    const DF = Math.max(perpF, BANK_LINE.minDistance ** 2);
+    const rf1 = Math.sqrt(Math.max(L * L + 2 * wx * L + cf, 1e-4));
+    const rf0 = Math.sqrt(Math.max(L * L - 2 * wx * L + cf, 1e-4));
+    const floorE = (height * ((L + wx) / rf1 + (L - wx) / rf0)) / DF;
+    const tsF = Math.min(L, Math.max(-L, -wx));
+    const toF = Math.hypot(wx + tsF, wy, wz);
+    const emitF =
+      BANK_LINE.uplight + (1 - BANK_LINE.uplight) * Math.max(wy / Math.max(toF, 1e-4), 0);
+    const overshootF = Math.max(Math.abs(wx) - L, 0);
+    const endF = Math.max(0, 1 - (overshootF / BANK_LINE.endRange) ** 4) ** 2;
+    return floorE * lambda * emitF * endF * window(perpF);
+  };
   let bounce = 0;
   const facingDown = Math.max(-normal.y, 0);
   const above = point.y;
   if (includeBounce && facingDown > 0 && above > BANK_LINE.bounceMinHeight) {
     const wy = w.y + above;
-    const cf = b * b + wy * wy + w.z * w.z;
-    const perpF = Math.max(cf - b * b, 0);
-    const DF = Math.max(perpF, BANK_LINE.minDistance ** 2);
-    const rf1 = Math.sqrt(Math.max(L * L + 2 * b * L + cf, 1e-4));
-    const rf0 = Math.sqrt(Math.max(L * L - 2 * b * L + cf, 1e-4));
-    const floorE = (height * ((L + b) / rf1 + (L - b) / rf0)) / DF;
-    const tsF = Math.min(L, Math.max(-L, -b));
-    const toF = Math.hypot(b + tsF, wy, w.z);
-    const emitF =
-      BANK_LINE.uplight + (1 - BANK_LINE.uplight) * Math.max(wy / Math.max(toF, 1e-4), 0);
+    const spread = BANK_LINE.bounceSpread * above;
     bounce =
-      BANK_LINE.floorBounce * floorE * lambda * emitF * endWindow * window(perpF) * facingDown;
+      BANK_LINE.floorBounce *
+      facingDown *
+      (0.25 * slab(b, wy, w.z - spread) +
+        0.5 * slab(b, wy, w.z) +
+        0.25 * slab(b, wy, w.z + spread));
   }
 
   let t0: number = -L;
@@ -168,6 +186,24 @@ float millosRoofOcclusion( const in vec3 viewPosition ) {
   return 1.0 - ${f(1 - ROOF.residual)} * inX * inZ * under;
 }
 #if NUM_POINT_LIGHTS > 0
+// The slab's irradiance from one row at a floor point, given light - point.
+float millosBankSlab( const in PointLight light, const in vec3 wf, const in vec3 d, const in vec3 up, const in float height, const in float lambda ) {
+  float b = dot( wf, d );
+  float cf = dot( wf, wf );
+  float perpF = max( cf - b * b, 0.0 );
+  float DF = max( perpF, ${f(BANK_LINE.minDistance ** 2)} );
+  float rf1 = sqrt( max( ${f(BANK_LINE.halfLength ** 2)} + ${f(2 * BANK_LINE.halfLength)} * b + cf, 1e-4 ) );
+  float rf0 = sqrt( max( ${f(BANK_LINE.halfLength ** 2)} - ${f(2 * BANK_LINE.halfLength)} * b + cf, 1e-4 ) );
+  float floorE = height * ( ( ${f(BANK_LINE.halfLength)} + b ) / rf1 + ( ${f(BANK_LINE.halfLength)} - b ) / rf0 ) / DF;
+  vec3 toF = wf + clamp( -b, -${f(BANK_LINE.halfLength)}, ${f(BANK_LINE.halfLength)} ) * d;
+  float emitF = ${f(BANK_LINE.uplight)} + ${f(1 - BANK_LINE.uplight)} * max( dot( toF, up ) / max( length( toF ), 1e-4 ), 0.0 );
+  float overshootF = max( abs( b ) - ${f(BANK_LINE.halfLength)}, 0.0 );
+  float endF = pow2( saturate( 1.0 - pow4( overshootF / ${f(BANK_LINE.endRange)} ) ) );
+  float perpWindowF = light.distance > 0.0
+    ? pow2( saturate( 1.0 - pow4( sqrt( perpF ) / light.distance ) ) )
+    : 1.0;
+  return floorE * lambda * emitF * endF * perpWindowF;
+}
 void millosBankIncident( const in PointLight light, const in vec3 x, const in vec3 n, inout IncidentLight incident ) {
   if ( light.decay > 0.0 ) return;
   vec3 d = viewMatrix[ 0 ].xyz;
@@ -184,25 +220,19 @@ void millosBankIncident( const in PointLight light, const in vec3 x, const in ve
   float lambda = height * sqrt( ${f(BANK_LINE.halfLength ** 2)} + height * height ) / ${f(2 * BANK_LINE.halfLength)};
   float overshoot = max( abs( b ) - ${f(BANK_LINE.halfLength)}, 0.0 );
   float endWindow = pow2( saturate( 1.0 - pow4( overshoot / ${f(BANK_LINE.endRange)} ) ) );
-  // Floor bounce: the slab directly beneath, lit by this row, returned to a
-  // down-facing receiver (the roof deck, gantry and platform undersides).
+  // Floor bounce: the slab under and around the receiver, lit by this row,
+  // returned to a down-facing receiver (the roof deck, gantry and platform
+  // undersides). Three slab taps across the rows, weighted 1:2:1.
   float facingDown = max( -dot( n, up ), 0.0 );
   float above = dot( x - viewMatrix[ 3 ].xyz, up );
   float bounce = 0.0;
   if ( facingDown > 0.0 && above > ${f(BANK_LINE.bounceMinHeight)} ) {
+    vec3 across = viewMatrix[ 2 ].xyz * ( ${f(BANK_LINE.bounceSpread)} * above );
     vec3 wf = w + above * up;
-    float cf = dot( wf, wf );
-    float perpF = max( cf - b * b, 0.0 );
-    float DF = max( perpF, ${f(BANK_LINE.minDistance ** 2)} );
-    float rf1 = sqrt( max( ${f(BANK_LINE.halfLength ** 2)} + ${f(2 * BANK_LINE.halfLength)} * b + cf, 1e-4 ) );
-    float rf0 = sqrt( max( ${f(BANK_LINE.halfLength ** 2)} - ${f(2 * BANK_LINE.halfLength)} * b + cf, 1e-4 ) );
-    float floorE = height * ( ( ${f(BANK_LINE.halfLength)} + b ) / rf1 + ( ${f(BANK_LINE.halfLength)} - b ) / rf0 ) / DF;
-    vec3 toFloorLight = wf + clamp( -b, -${f(BANK_LINE.halfLength)}, ${f(BANK_LINE.halfLength)} ) * d;
-    float emitF = ${f(BANK_LINE.uplight)} + ${f(1 - BANK_LINE.uplight)} * max( dot( toFloorLight, up ) / max( length( toFloorLight ), 1e-4 ), 0.0 );
-    float perpWindowF = light.distance > 0.0
-      ? pow2( saturate( 1.0 - pow4( sqrt( perpF ) / light.distance ) ) )
-      : 1.0;
-    bounce = ${f(BANK_LINE.floorBounce)} * floorE * lambda * emitF * endWindow * perpWindowF * facingDown;
+    bounce = ${f(BANK_LINE.floorBounce)} * facingDown * (
+      0.25 * millosBankSlab( light, wf - across, d, up, height, lambda ) +
+      0.5 * millosBankSlab( light, wf, d, up, height, lambda ) +
+      0.25 * millosBankSlab( light, wf + across, d, up, height, lambda ) );
   }
   float t0 = -${f(BANK_LINE.halfLength)};
   float t1 = ${f(BANK_LINE.halfLength)};

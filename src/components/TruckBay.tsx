@@ -70,6 +70,7 @@ import {
   DOCK_STOP_BAR,
   spanOf,
   type DockMarking,
+  YARD_MAST,
 } from './truckbay/dockApronLayout';
 import {
   EXTERIOR_LAMP_LENS_MATERIAL,
@@ -3570,7 +3571,7 @@ export const TruckBay: React.FC = () => {
           [30, 55],
         ].map(([x, z], i) => (
           <group key={i} position={[x, 0, z]}>
-            <ExteriorLampPool radius={10} />
+            <ExteriorLampPool radius={YARD_MAST.poolRadius} />
             {/* Light pole - 14 units tall, centered at y=7, so top is at y=14 */}
             <mesh position={[0, 7, 0]}>
               <cylinderGeometry args={[0.12, 0.15, 14, 8]} />
@@ -4027,7 +4028,7 @@ export const TruckBay: React.FC = () => {
           [30, -55],
         ].map(([x, z], i) => (
           <group key={i} position={[x, 0, z]}>
-            <ExteriorLampPool radius={10} />
+            <ExteriorLampPool radius={YARD_MAST.poolRadius} />
             {/* Light pole - 14 units tall, centered at y=7, so top is at y=14 */}
             <mesh position={[0, 7, 0]}>
               <cylinderGeometry args={[0.12, 0.15, 14, 8]} />
