@@ -226,6 +226,8 @@ function parseWorktrees(output, root) {
 }
 
 function sanitizePath(value) {
+  // Control characters are exactly what this strips from untrusted paths.
+  // eslint-disable-next-line no-control-regex
   return value.replace(/[\u0000-\u001f\u007f]/g, '?').slice(0, MAX_PATH_LENGTH);
 }
 

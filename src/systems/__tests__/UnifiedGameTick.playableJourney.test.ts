@@ -1,6 +1,16 @@
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import * as ts from 'typescript';
+
+// These tick the real engine (and, for the truck tests, the real yard at 60
+// render frames per tick) through whole programmes; that work is the
+// assertion. Measured with --maxWorkers=1 at ~57 runnable per core
+// (2026-10-20): the slowest, programmes 2-4 plus a night programme, took
+// 57.9 s, the pace-15 guided programme 42.3 s and the rush cases 12-22 s; the
+// lead's gate at ~30-44 per core saw 12.4-12.5 s against the 10 s default.
+// Snapshotting programme 1 to share it would have to capture module state in
+// UnifiedGameTick and the truck controllers, so each test still runs it.
+vi.setConfig({ testTimeout: 180_000 });
 import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { MachineType, type MachineData } from '../../types';
 import { centralTick } from '../../systems/CentralTickSystem';

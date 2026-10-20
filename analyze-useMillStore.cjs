@@ -9,47 +9,113 @@ const path = require('path');
 // Store domain definitions based on state properties
 const STORE_DOMAINS = {
   graphics: [
-    'graphics', 'quality', 'enableSSAO', 'enableBloom', 'enableVignette',
-    'enableChromaticAberration', 'enableFilmGrain', 'enableDepthOfField',
-    'enableContactShadows', 'enableHighResShadows', 'shadowMapSize',
-    'setGraphicsQuality', 'setGraphicsSetting', 'enableLightShafts',
-    'enableAtmosphericHaze', 'dustParticleCount', 'enableDustParticles',
-    'enableGrainFlow'
+    'graphics',
+    'quality',
+    'enableSSAO',
+    'enableBloom',
+    'enableVignette',
+    'enableChromaticAberration',
+    'enableFilmGrain',
+    'enableDepthOfField',
+    'enableContactShadows',
+    'enableHighResShadows',
+    'shadowMapSize',
+    'setGraphicsQuality',
+    'setGraphicsSetting',
+    'enableLightShafts',
+    'enableAtmosphericHaze',
+    'dustParticleCount',
+    'enableDustParticles',
+    'enableGrainFlow',
   ],
 
   gameSimulation: [
-    'gameTime', 'tickGameTime', 'weather', 'setWeather', 'currentShift',
-    'triggerShiftChange', 'shiftChangeActive', 'gameSpeed', 'setGameSpeed',
-    'time', 'shift'
+    'gameTime',
+    'tickGameTime',
+    'weather',
+    'setWeather',
+    'currentShift',
+    'triggerShiftChange',
+    'shiftChangeActive',
+    'gameSpeed',
+    'setGameSpeed',
+    'time',
+    'shift',
   ],
 
   production: [
-    'machines', 'workers', 'metrics', 'totalBagsProduced', 'productionSpeed',
-    'setMachines', 'updateMachineMetrics', 'updateMachineStatus',
-    'incrementBagsProduced', 'dockStatus', 'updateDockStatus', 'scadaLive',
-    'productionEfficiency', 'productionTarget', 'workerLeaderboard',
-    'updateWorkerScore', 'workerSatisfaction'
+    'machines',
+    'workers',
+    'metrics',
+    'totalBagsProduced',
+    'productionSpeed',
+    'setMachines',
+    'updateMachineMetrics',
+    'updateMachineStatus',
+    'incrementBagsProduced',
+    'dockStatus',
+    'updateDockStatus',
+    'scadaLive',
+    'productionEfficiency',
+    'productionTarget',
+    'workerLeaderboard',
+    'updateWorkerScore',
+    'workerSatisfaction',
   ],
 
   safety: [
-    'safetyMetrics', 'safetyIncidents', 'clearSafetyIncidents', 'addSafetyIncident',
-    'forkliftMetrics', 'resetForkliftMetrics', 'recordSafetyStop', 'recordWorkerEvasion',
-    'incidentHeatMap', 'showIncidentHeatMap', 'setShowIncidentHeatMap',
-    'clearIncidentHeatMap', 'forkliftEmergencyStop', 'setForkliftEmergencyStop',
-    'safetyConfig', 'setSafetyConfig', 'speedZones', 'addSpeedZone', 'removeSpeedZone',
-    'daysSinceIncident', 'emergencyActive', 'emergencyDrillMode',
-    'startEmergencyDrill', 'endEmergencyDrill'
+    'safetyMetrics',
+    'safetyIncidents',
+    'clearSafetyIncidents',
+    'addSafetyIncident',
+    'forkliftMetrics',
+    'resetForkliftMetrics',
+    'recordSafetyStop',
+    'recordWorkerEvasion',
+    'incidentHeatMap',
+    'showIncidentHeatMap',
+    'setShowIncidentHeatMap',
+    'clearIncidentHeatMap',
+    'forkliftEmergencyStop',
+    'setForkliftEmergencyStop',
+    'safetyConfig',
+    'setSafetyConfig',
+    'speedZones',
+    'addSpeedZone',
+    'removeSpeedZone',
+    'daysSinceIncident',
+    'emergencyActive',
+    'emergencyDrillMode',
+    'startEmergencyDrill',
+    'endEmergencyDrill',
   ],
 
   ui: [
-    'alerts', 'addAIDecision', 'aiDecisions', 'theme', 'showHeatMap',
-    'setShowHeatMap', 'clearHeatMap', 'heatMapData', 'announcements',
-    'addAnnouncement', 'dismissAnnouncement', 'clearOldAnnouncements',
-    'achievements', 'showMiniMap', 'legendPosition', 'setLegendPosition',
-    'showGamificationBar', 'setShowGamificationBar', 'panelMinimized',
-    'setPanelMinimized', 'showShortcuts', 'setShowShortcuts', 'fpsMode',
-    'setFpsMode'
-  ]
+    'alerts',
+    'addAIDecision',
+    'aiDecisions',
+    'theme',
+    'showHeatMap',
+    'setShowHeatMap',
+    'clearHeatMap',
+    'heatMapData',
+    'announcements',
+    'addAnnouncement',
+    'dismissAnnouncement',
+    'clearOldAnnouncements',
+    'achievements',
+    'showMiniMap',
+    'legendPosition',
+    'setLegendPosition',
+    'showGamificationBar',
+    'setShowGamificationBar',
+    'panelMinimized',
+    'setPanelMinimized',
+    'showShortcuts',
+    'setShowShortcuts',
+    'fpsMode',
+    'setFpsMode',
+  ],
 };
 
 function categorizeProperty(prop) {
@@ -86,13 +152,13 @@ function analyzeFile(filePath) {
   // Analyze what properties are accessed
   const storeAccesses = new Set();
 
-  usages.forEach(usage => {
+  usages.forEach((usage) => {
     const expr = usage.expression;
 
     // Extract property accesses: state.XXX or state.graphics.XXX
     const stateProps = expr.match(/state\.(\w+)/g);
     if (stateProps) {
-      stateProps.forEach(prop => {
+      stateProps.forEach((prop) => {
         const propName = prop.replace('state.', '');
         storeAccesses.add(propName);
       });
@@ -101,7 +167,7 @@ function analyzeFile(filePath) {
     // Also check for nested properties like state.graphics.quality
     const nestedProps = expr.match(/state\.\w+\.(\w+)/g);
     if (nestedProps) {
-      nestedProps.forEach(prop => {
+      nestedProps.forEach((prop) => {
         const parts = prop.split('.');
         if (parts.length >= 3) {
           storeAccesses.add(parts[2]);
@@ -112,7 +178,7 @@ function analyzeFile(filePath) {
 
   // Categorize by store
   const storeCounts = {};
-  storeAccesses.forEach(prop => {
+  storeAccesses.forEach((prop) => {
     const store = categorizeProperty(prop);
     storeCounts[store] = (storeCounts[store] || 0) + 1;
   });
@@ -122,11 +188,15 @@ function analyzeFile(filePath) {
     usageCount: usages.length,
     properties: Array.from(storeAccesses),
     storeCounts,
-    usages
+    usages,
   };
 }
 
-function findAllFiles(dir, pattern = /\.(ts|tsx)$/, excludePatterns = [/node_modules/, /0\.10 Archive/]) {
+function findAllFiles(
+  dir,
+  pattern = /\.(ts|tsx)$/,
+  excludePatterns = [/node_modules/, /0\.10 Archive/]
+) {
   const files = [];
 
   function walk(currentDir) {
@@ -136,7 +206,7 @@ function findAllFiles(dir, pattern = /\.(ts|tsx)$/, excludePatterns = [/node_mod
       const fullPath = path.join(currentDir, entry.name);
 
       // Skip excluded patterns
-      if (excludePatterns.some(p => p.test(fullPath))) {
+      if (excludePatterns.some((p) => p.test(fullPath))) {
         continue;
       }
 
@@ -158,7 +228,7 @@ const files = findAllFiles(srcDir);
 
 const results = files
   .map(analyzeFile)
-  .filter(r => r.usageCount > 0)
+  .filter((r) => r.usageCount > 0)
   .sort((a, b) => b.usageCount - a.usageCount);
 
 // Generate report
@@ -167,7 +237,7 @@ console.log(`Total files using useMillStore: ${results.length}\n`);
 
 // Summary by store
 const storeTotals = {};
-results.forEach(r => {
+results.forEach((r) => {
   Object.entries(r.storeCounts).forEach(([store, count]) => {
     storeTotals[store] = (storeTotals[store] || 0) + count;
   });
@@ -189,10 +259,10 @@ const filesByStore = {
   production: [],
   safety: [],
   ui: [],
-  mixed: []
+  mixed: [],
 };
 
-results.forEach(r => {
+results.forEach((r) => {
   const stores = Object.keys(r.storeCounts);
 
   if (stores.length === 1) {
@@ -210,11 +280,13 @@ console.log('### Single-Store Files (Easy Migration)\n');
 Object.entries(filesByStore).forEach(([store, files]) => {
   if (store !== 'mixed' && files.length > 0) {
     console.log(`#### ${store} (${files.length} files)\n`);
-    files.forEach(f => {
+    files.forEach((f) => {
       const relPath = f.path.replace(srcDir + '/', '');
       console.log(`- \`${relPath}\` (${f.usageCount} usages)`);
       console.log(`  - Properties: ${f.properties.join(', ')}`);
-      console.log(`  - Migration: Replace \`useMillStore\` with \`use${store.charAt(0).toUpperCase() + store.slice(1)}Store\``);
+      console.log(
+        `  - Migration: Replace \`useMillStore\` with \`use${store.charAt(0).toUpperCase() + store.slice(1)}Store\``
+      );
       console.log('');
     });
   }
@@ -222,7 +294,7 @@ Object.entries(filesByStore).forEach(([store, files]) => {
 
 // Multi-store files (complex migrations)
 console.log('### Multi-Store Files (Complex Migration)\n');
-filesByStore.mixed.forEach(f => {
+filesByStore.mixed.forEach((f) => {
   const relPath = f.path.replace(srcDir + '/', '');
   console.log(`#### ${relPath} (${f.usageCount} usages)\n`);
   console.log('Accesses multiple stores:');
@@ -230,7 +302,7 @@ filesByStore.mixed.forEach(f => {
     console.log(`- **${store}**: ${count} properties`);
   });
   console.log('\nProperties by store:');
-  f.properties.forEach(prop => {
+  f.properties.forEach((prop) => {
     const store = categorizeProperty(prop);
     console.log(`- \`${prop}\` → ${store}`);
   });
@@ -253,12 +325,12 @@ console.log('### Phase 2: Multi-Store Files (Higher Risk)\n');
 console.log(`Total Phase 2: **${filesByStore.mixed.length} files**\n`);
 
 console.log('### Phase 3: Test Files\n');
-const testFiles = results.filter(r => r.path.includes('__tests__'));
+const testFiles = results.filter((r) => r.path.includes('__tests__'));
 console.log(`Total Phase 3: **${testFiles.length} files**\n`);
 
 // Detailed file list
 console.log('\n## Detailed File Analysis\n');
-results.forEach(r => {
+results.forEach((r) => {
   const relPath = r.path.replace(srcDir + '/', '');
   console.log(`### ${relPath}\n`);
   console.log(`- Total usages: ${r.usageCount}`);

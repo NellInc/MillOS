@@ -201,26 +201,30 @@ test('a model switch discards an in-flight answer from the prior model', async (
   const db = {
     hostId: 'urn:uuid:00000000-0000-4000-8000-000000000001',
     activeId: 'a',
-    accounts: [{
-      clientId: 'a',
-      subject: 'a',
-      email: 'a@example.test',
-      model: 'old-model',
-      accessToken: 'token-a',
-      refreshToken: 'refresh-a',
-      scopes: ['chatgpt.tokens.use.direct'],
-      expiresAt: Date.now() + 3_600_000,
-    }],
+    accounts: [
+      {
+        clientId: 'a',
+        subject: 'a',
+        email: 'a@example.test',
+        model: 'old-model',
+        accessToken: 'token-a',
+        refreshToken: 'refresh-a',
+        scopes: ['chatgpt.tokens.use.direct'],
+        expiresAt: Date.now() + 3_600_000,
+      },
+    ],
   };
   const app = createChatGPTLocalServer({
     port,
     credentialStore: { load: async () => db, save: async () => {} },
     fetcher: async (url, init) => {
       if (url.endsWith('/models')) {
-        return Response.json({ models: [
-          { slug: 'old-model', visibility: 'list' },
-          { slug: 'new-model', visibility: 'list' },
-        ] });
+        return Response.json({
+          models: [
+            { slug: 'old-model', visibility: 'list' },
+            { slug: 'new-model', visibility: 'list' },
+          ],
+        });
       }
       if (!url.endsWith('/responses')) throw new Error(`Unexpected upstream ${url}`);
       assert.equal(JSON.parse(init.body).model, 'old-model');

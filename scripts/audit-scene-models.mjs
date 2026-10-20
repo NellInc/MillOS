@@ -50,7 +50,8 @@ async function readSceneNames() {
     );
   }
   const names = [...block[1].matchAll(/'([a-z-]+)'/g)].map((m) => m[1]);
-  if (names.length < 5) throw new Error(`Parsed only ${names.length} scenes; the pattern has drifted.`);
+  if (names.length < 5)
+    throw new Error(`Parsed only ${names.length} scenes; the pattern has drifted.`);
   return names;
 }
 
@@ -234,9 +235,7 @@ const stopPreview = () => {
 };
 
 async function main() {
-  const scenes = arg('scenes', '')
-    ? arg('scenes', '').split(',')
-    : await readSceneNames();
+  const scenes = arg('scenes', '') ? arg('scenes', '').split(',') : await readSceneNames();
 
   lock = await acquireCaptureLock('audit-scene-models', { root: ROOT });
   const baseUrl = await startPreview();
@@ -320,7 +319,8 @@ async function main() {
             entry.count += 1;
             entry.instances += mesh.instanceCount;
             entry.scenes.add(scene);
-            if (entry.examples.length < 3) entry.examples.push(mesh.path.split('/').slice(-3).join('/'));
+            if (entry.examples.length < 3)
+              entry.examples.push(mesh.path.split('/').slice(-3).join('/'));
             findings.set(key, entry);
           }
         }
@@ -480,8 +480,8 @@ async function main() {
       }
     }
 
-    const rows = [...findings.values()].sort(
-      (a, b) => (a.severity === b.severity ? b.count - a.count : a.severity === 'blocker' ? -1 : 1)
+    const rows = [...findings.values()].sort((a, b) =>
+      a.severity === b.severity ? b.count - a.count : a.severity === 'blocker' ? -1 : 1
     );
     console.log(`\n${rows.length} distinct findings across ${perScene.length} scenes\n`);
     for (const row of rows) {

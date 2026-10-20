@@ -80,7 +80,8 @@ interface AuthoredForkliftMaterials {
   readonly all: readonly THREE.Material[];
 }
 
-const createAuthoredForkliftMaterials = (grime: number): AuthoredForkliftMaterials => {
+/** Exported for the test that holds the shipped GLB's material names to `byName`. */
+export const createAuthoredForkliftMaterials = (grime: number): AuthoredForkliftMaterials => {
   const paint = applyVehicleSurface(
     new THREE.MeshPhysicalMaterial({
       name: 'painted-safety-amber',

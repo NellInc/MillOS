@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useBreakdownStore } from '../../stores/breakdownStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useMaterialFlowStore } from '../../stores/materialFlowStore';
@@ -13,6 +13,12 @@ import { MachineType, type MachineData } from '../../types';
 import { STANDARD_GAME_SPEED } from '../../simulation/pace';
 import type { TickContext } from '../CentralTickSystem';
 import { resetUnifiedTickState, unifiedGameTick } from '../UnifiedGameTick';
+
+// Six and up to twenty-two game hours of real ticks: the run is the assertion,
+// and the two tests need different horizons from the same fresh start.
+// Measured with --maxWorkers=1 at ~57 runnable per core (2026-10-20): 11.6 s
+// and 18.1 s; the lead's gate saw 19.0 s against the 10 s default.
+vi.setConfig({ testTimeout: 120_000 });
 
 // Execute the scene's own roster factory (the useMemo body in MillScene), as
 // UnifiedGameTick.playableJourney.test.ts does, so the seeded wear under test

@@ -1,14 +1,42 @@
 // @vitest-environment node
-import { test, expect } from 'vitest';
+import { test, expect, vi } from 'vitest';
 import process from 'node:process';
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { Document, NodeIO } from '@gltf-transform/core';
+import { readFileSync } from 'node:fs';
 import {
   multiplyScale,
   indexGeneratedGeometry,
   GENERATED_ASSETS,
+  generatedAssetHeader,
 } from './normalize-model-assets.mjs';
+import { RECONCILED_FARM_MODELS } from './reconcile-farm-models.mjs';
+
+// Two tests spawn node on the real module: 7.9-8.7 s passing and 12.4 s
+// failing against the 10 s default at ~50 runnable per core (2026-10-20).
+vi.setConfig({ testTimeout: 60_000 });
+
+test('every committed generated GLB carries the header and credit its spec declares', () => {
+  // A GLB committed before its spec changed, and never regenerated, is
+  // indistinguishable from a nondeterministic normalizer on a re-run. Reads the
+  // JSON chunk only. Working if a stale attribution fails here, not on re-run.
+  const stale = [];
+  for (const spec of GENERATED_ASSETS) {
+    const bytes = readFileSync(`public/models/${spec.area}/${spec.slug}.glb`);
+    const asset = JSON.parse(bytes.subarray(20, 20 + bytes.readUInt32LE(12)).toString()).asset;
+    const expected = generatedAssetHeader(spec);
+    // The reconciled farm models are rebuilt last by deriveFarmModel, which
+    // writes a fresh document (bare generator) and is pinned by its own hash.
+    const generatorOwned = !RECONCILED_FARM_MODELS[spec.id];
+    if (
+      (generatorOwned && asset.generator !== expected.generator) ||
+      asset.copyright !== expected.copyright
+    )
+      stale.push(spec.id);
+  }
+  expect(stale).toEqual([]);
+});
 
 test('uniform normalization scales translated root nodes as well as their geometry', () => {
   const node = new Document().createNode().setTranslation([2, -3, 4]).setScale([1, 2, 3]);

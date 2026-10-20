@@ -14,6 +14,12 @@ import {
 import { registerLogisticsVehicle } from '../../../simulation/logisticsRuntime';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 
+// The workspace scores both plans with the real logistics model on every edit,
+// undo and redo (and searches alternatives), under StrictMode's double render.
+// Measured with --maxWorkers=1 at ~57 runnable per core (2026-10-20): 53.6 s,
+// 51.2 s and 28.1 s; the lead's gate saw 10.8 s against the 10 s default.
+vi.setConfig({ testTimeout: 180_000 });
+
 const priorProduction = useProductionStore.getState();
 beforeEach(() => {
   useLogisticsLayoutStore.getState().restoreSaved(defaultSavedLogisticsLayout());

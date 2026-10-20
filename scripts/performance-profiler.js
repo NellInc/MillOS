@@ -5,9 +5,12 @@
  * Usage: Copy entire file, paste in Console, watch for reports
  */
 
-(function() {
+(function () {
   console.clear();
-  console.log('%c🔍 MillOS Performance Profiler Started', 'color: #22c55e; font-size: 16px; font-weight: bold');
+  console.log(
+    '%c🔍 MillOS Performance Profiler Started',
+    'color: #22c55e; font-size: 16px; font-weight: bold'
+  );
   console.log('Monitoring for 10 seconds...\n');
 
   // === Frame Time Monitor ===
@@ -41,7 +44,7 @@
     if (!canvas) return null;
 
     // Access Three.js internals via React fiber
-    const fiberKey = Object.keys(canvas).find(k => k.startsWith('__reactFiber'));
+    const fiberKey = Object.keys(canvas).find((k) => k.startsWith('__reactFiber'));
     if (!fiberKey) return null;
 
     let fiber = canvas[fiberKey];
@@ -80,7 +83,7 @@
       return {
         usedHeap: (performance.memory.usedJSHeapSize / 1024 / 1024).toFixed(1),
         totalHeap: (performance.memory.totalJSHeapSize / 1024 / 1024).toFixed(1),
-        limit: (performance.memory.jsHeapSizeLimit / 1024 / 1024).toFixed(1)
+        limit: (performance.memory.jsHeapSizeLimit / 1024 / 1024).toFixed(1),
       };
     }
     return null;
@@ -131,7 +134,7 @@
       console.log(`  Total Heap: ${mem.totalHeap} MB`);
       console.log(`  Heap Limit: ${mem.limit} MB`);
 
-      const usedPct = (parseFloat(mem.usedHeap) / parseFloat(mem.limit) * 100).toFixed(1);
+      const usedPct = ((parseFloat(mem.usedHeap) / parseFloat(mem.limit)) * 100).toFixed(1);
       if (parseFloat(usedPct) > 80) {
         console.log(`%c  ⚠️ High memory usage: ${usedPct}%`, 'color: #ef4444');
       }
@@ -183,7 +186,7 @@
     report: generateReport,
     frameTimes,
     getMemory: getMemoryStats,
-    getRenderer: getRendererStats
+    getRenderer: getRendererStats,
   };
 
   console.log('Profiler will auto-report in 10 seconds.');

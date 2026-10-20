@@ -83,7 +83,6 @@ const archiveReleases = releaseMatrix.releases.filter(
 );
 const staticReleases = archiveReleases.filter((release) => release.type === 'static');
 const sourceBuildReleases = archiveReleases.filter((release) => release.type === 'source-build');
-const staticArchives = staticReleases.map((release) => release.version);
 const archiveBuilds = new Map(
   readFlagValues('--archive-build').map((value) => parseVersionValue(value, '--archive-build'))
 );

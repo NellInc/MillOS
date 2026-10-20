@@ -13,13 +13,9 @@ const CACHE_VERSION = GENERATED_CACHE_VERSION.startsWith('__')
   ? 'development'
   : GENERATED_CACHE_VERSION;
 const SCOPE_URL = new URL(self.registration.scope);
-const SCOPE_PATH = SCOPE_URL.pathname.endsWith('/')
-  ? SCOPE_URL.pathname
-  : `${SCOPE_URL.pathname}/`;
+const SCOPE_PATH = SCOPE_URL.pathname.endsWith('/') ? SCOPE_URL.pathname : `${SCOPE_URL.pathname}/`;
 const SCOPE_KEY =
-  SCOPE_PATH === '/'
-    ? 'root'
-    : SCOPE_PATH.replace(/^\/|\/$/g, '').replace(/[^a-zA-Z0-9._-]/g, '_');
+  SCOPE_PATH === '/' ? 'root' : SCOPE_PATH.replace(/^\/|\/$/g, '').replace(/[^a-zA-Z0-9._-]/g, '_');
 const CACHE_PREFIX = `millos-${SCOPE_KEY}-`;
 const CACHE_NAMES = {
   shell: `${CACHE_PREFIX}shell-${CACHE_VERSION}`,
@@ -28,15 +24,8 @@ const CACHE_NAMES = {
   archive: `${CACHE_PREFIX}archive-${CACHE_VERSION}`,
 };
 const CURRENT_CACHES = new Set(Object.values(CACHE_NAMES));
-const LEGACY_ROOT_CACHES = new Set([
-  'millos-static-v4',
-  'millos-audio-v4',
-  'millos-models-v4',
-]);
-const PRECACHE_URLS = [
-  new URL('./', SCOPE_URL).href,
-  new URL('index.html', SCOPE_URL).href,
-];
+const LEGACY_ROOT_CACHES = new Set(['millos-static-v4', 'millos-audio-v4', 'millos-models-v4']);
+const PRECACHE_URLS = [new URL('./', SCOPE_URL).href, new URL('index.html', SCOPE_URL).href];
 const WORLD_EXTENSIONS = new Set(['.glb', '.gltf', '.bin', '.hdr', '.ktx2']);
 const OPTIONAL_EXTENSIONS = new Set(['.mp3', '.ogg', '.wav', '.m4a']);
 const OPTIONAL_CHUNK_PATTERN =

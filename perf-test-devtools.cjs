@@ -26,13 +26,13 @@ async function runDevToolsTest() {
 
   // Capture console errors
   const consoleErrors = [];
-  page.on('console', msg => {
+  page.on('console', (msg) => {
     if (msg.type() === 'error') {
       consoleErrors.push(msg.text());
       console.log('[BROWSER ERROR]', msg.text());
     }
   });
-  page.on('pageerror', err => {
+  page.on('pageerror', (err) => {
     consoleErrors.push(err.message);
     console.log('[PAGE ERROR]', err.message);
   });
@@ -49,7 +49,7 @@ async function runDevToolsTest() {
   await page.goto(`http://localhost:${port}`, { waitUntil: 'load', timeout: 30000 });
 
   console.log('Waiting 5s for scene to stabilize...\n');
-  await new Promise(r => setTimeout(r, 5000));
+  await new Promise((r) => setTimeout(r, 5000));
 
   // Get initial stats
   const initialStats = await page.evaluate(() => {
@@ -59,7 +59,7 @@ async function runDevToolsTest() {
       fps: state.fps || 0,
       drawCalls: state.drawCalls || 0,
       triangles: state.triangles || 0,
-      quality: gfx.quality || 'unknown'
+      quality: gfx.quality || 'unknown',
     };
   });
 
@@ -69,7 +69,7 @@ async function runDevToolsTest() {
   console.log(`Quality: ${initialStats.quality.toUpperCase()}`);
   console.log(`FPS: ${initialStats.fps}`);
   console.log(`Draw Calls: ${initialStats.drawCalls}`);
-  console.log(`Triangles: ${(initialStats.triangles/1000).toFixed(1)}k\n`);
+  console.log(`Triangles: ${(initialStats.triangles / 1000).toFixed(1)}k\n`);
 
   // Start Performance tracing
   console.log('============================================================');
@@ -84,10 +84,10 @@ async function runDevToolsTest() {
       'disabled-by-default-devtools.timeline',
       'disabled-by-default-devtools.timeline.frame',
     ].join(','),
-    options: 'sampling-frequency=10000'
+    options: 'sampling-frequency=10000',
   });
 
-  await new Promise(r => setTimeout(r, 5000));
+  await new Promise((r) => setTimeout(r, 5000));
 
   const traceData = [];
   client.on('Tracing.dataCollected', (data) => {
@@ -95,7 +95,7 @@ async function runDevToolsTest() {
   });
 
   await client.send('Tracing.end');
-  await new Promise(r => setTimeout(r, 1000)); // Wait for data collection
+  await new Promise((r) => setTimeout(r, 1000)); // Wait for data collection
 
   // Analyze trace data
   const functionCalls = {};
@@ -106,7 +106,7 @@ async function runDevToolsTest() {
   for (const event of traceData) {
     if (event.name === 'FunctionCall' && event.dur) {
       const funcName = event.args?.data?.functionName || 'anonymous';
-      functionCalls[funcName] = (functionCalls[funcName] || 0) + (event.dur / 1000);
+      functionCalls[funcName] = (functionCalls[funcName] || 0) + event.dur / 1000;
     }
 
     if (event.name === 'RunTask' && event.dur) {
@@ -116,9 +116,17 @@ async function runDevToolsTest() {
 
     if (event.cat?.includes('devtools.timeline')) {
       const durMs = (event.dur || 0) / 1000;
-      if (event.name?.includes('Script') || event.name?.includes('Function') || event.name?.includes('Evaluate')) {
+      if (
+        event.name?.includes('Script') ||
+        event.name?.includes('Function') ||
+        event.name?.includes('Evaluate')
+      ) {
         categories.scripting += durMs;
-      } else if (event.name?.includes('Layout') || event.name?.includes('Recalculate') || event.name?.includes('Update')) {
+      } else if (
+        event.name?.includes('Layout') ||
+        event.name?.includes('Recalculate') ||
+        event.name?.includes('Update')
+      ) {
         categories.rendering += durMs;
       } else if (event.name?.includes('Paint') || event.name?.includes('Composite')) {
         categories.painting += durMs;
@@ -164,7 +172,7 @@ async function runDevToolsTest() {
   ];
 
   // Get baseline
-  await new Promise(r => setTimeout(r, 2000));
+  await new Promise((r) => setTimeout(r, 2000));
   const baselineFps = await measureFps(page);
   console.log(`BASELINE: ${baselineFps} FPS\n`);
 
@@ -176,7 +184,7 @@ async function runDevToolsTest() {
       window.useGraphicsStore.getState().setPerfDebug(key, true);
     }, toggle.key);
 
-    await new Promise(r => setTimeout(r, 3000));
+    await new Promise((r) => setTimeout(r, 3000));
     const fps = await measureFps(page);
     const delta = fps - baselineFps;
 
@@ -188,7 +196,7 @@ async function runDevToolsTest() {
       window.useGraphicsStore.getState().setPerfDebug(key, false);
     }, toggle.key);
 
-    await new Promise(r => setTimeout(r, 1000));
+    await new Promise((r) => setTimeout(r, 1000));
   }
 
   // Sort by impact
@@ -213,14 +221,16 @@ async function runDevToolsTest() {
       window.useGraphicsStore.getState().setGraphicsQuality(q);
     }, quality);
 
-    await new Promise(r => setTimeout(r, 3000));
+    await new Promise((r) => setTimeout(r, 3000));
     const fps = await measureFps(page);
     const stats = await page.evaluate(() => {
       const s = window.useFPSStore?.getState() || {};
       return { drawCalls: s.drawCalls || 0, triangles: s.triangles || 0 };
     });
 
-    console.log(`${quality.toUpperCase().padEnd(6)}: ${fps} FPS | ${stats.drawCalls} draws | ${(stats.triangles/1000).toFixed(1)}k tris`);
+    console.log(
+      `${quality.toUpperCase().padEnd(6)}: ${fps} FPS | ${stats.drawCalls} draws | ${(stats.triangles / 1000).toFixed(1)}k tris`
+    );
   }
 
   console.log('\n============================================================');

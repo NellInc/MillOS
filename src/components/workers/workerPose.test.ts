@@ -74,9 +74,11 @@ function expectSameArray(
  * linen masculine/0.95, took 15.4 s at ~5-8 runnable per core and the arm and
  * workwear finishes 4-5 s; before `expectSameArray` the same tests took up to
  * 33.7 s at ~10 per core. The 10 s default fails them under the ~16 per core
- * this machine reaches, so the file allows 60 s per test.
+ * this machine reaches. Later the same day baker linen masculine/0.95 took
+ * 41.2 s at ~50 runnable per core beside a render, 1.5x short of 60 s, so the
+ * file allows 120 s per test.
  */
-vi.setConfig({ testTimeout: 60_000 });
+vi.setConfig({ testTimeout: 120_000 });
 
 const bodies = new Map<string, GLTF>();
 beforeAll(async () => {

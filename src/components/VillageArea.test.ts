@@ -59,6 +59,27 @@ import { CIVIC_LAMPS, CIVIC_LIGHT_COLOR } from '../constants/civicSquareLighting
 
 vi.mock('../utils/critterAudio', () => ({ playCritterSound: vi.fn() }));
 
+/**
+ * Whole-buffer and per-vertex checks without a matcher call per element. The
+ * plain loop restates the matcher's pass rule (`Object.is` per element for
+ * `toEqual` on same-typed arrays, `|a - b| < 10^-d / 2` for `toBeCloseTo`);
+ * anything it does not pass goes to the original matcher, which decides and
+ * reports. Per-element matcher calls made the red-cloth, fruit-texel and
+ * fountain-map sweeps 8-23 s each at ~45-57 runnable per core (2026-10-20).
+ */
+function expectSameArray(actual: ArrayLike<number>, expected: ArrayLike<number>): void {
+  if (actual.constructor === expected.constructor && actual.length === expected.length) {
+    let same = true;
+    for (let i = 0; i < actual.length && same; i++) same = Object.is(actual[i], expected[i]);
+    if (same) return;
+  }
+  expect(actual).toEqual(expected);
+}
+function expectCloseTo(actual: number, expected: number, digits: number): void {
+  if (!(Math.abs(expected - actual) < 10 ** -digits / 2))
+    expect(actual).toBeCloseTo(expected, digits);
+}
+
 describe('bounded civic doorway lanterns', () => {
   it('keeps both fittings in two finite shared geometries outside the door and below the cornice', () => {
     for (const geometry of [TOWN_HALL_LANTERN_GEOMETRY, TOWN_HALL_LENS_GEOMETRY]) {
@@ -718,10 +739,21 @@ it('maps actual fruit and food finishes in sRGB with neutral furnishings and lin
       if (uv.getX(i) === 0.03125 && uv.getY(i) === 0.03125) neutral++;
       else {
         food++;
-        expect(uv.getX(i)).toBeGreaterThanOrEqual((left + 0.5) / 256);
-        expect(uv.getX(i)).toBeLessThanOrEqual((right - 0.5) / 256);
-        expect(uv.getY(i)).toBeGreaterThanOrEqual(4.5 / 256);
-        expect(uv.getY(i)).toBeLessThanOrEqual(27.5 / 256);
+        const u = uv.getX(i),
+          v = uv.getY(i);
+        if (
+          !(
+            u >= (left + 0.5) / 256 &&
+            u <= (right - 0.5) / 256 &&
+            v >= 4.5 / 256 &&
+            v <= 27.5 / 256
+          )
+        ) {
+          expect(u).toBeGreaterThanOrEqual((left + 0.5) / 256);
+          expect(u).toBeLessThanOrEqual((right - 0.5) / 256);
+          expect(v).toBeGreaterThanOrEqual(4.5 / 256);
+          expect(v).toBeLessThanOrEqual(27.5 / 256);
+        }
       }
       finishes.add(
         [colour.getX(i), colour.getY(i), colour.getZ(i)].map((v) => v.toFixed(4)).join(',')
@@ -751,9 +783,9 @@ it('retains exact old fruit texels while food islands have broad finish and safe
       for (let y = 4; y < 28; y++)
         for (let x = left; x < right; x++) {
           const i = (y * 256 + x) * 4;
-          expect(data[i + 3]).toBe(255);
+          if (data[i + 3] !== 255) expect(data[i + 3]).toBe(255);
           values.add(data[i]);
-          if (kind === 'finish') {
+          if (kind === 'finish' && !(data[i + 1] === data[i + 2] && data[i + 1] > 170)) {
             expect(data[i + 1]).toBe(data[i + 2]);
             expect(data[i + 1]).toBeGreaterThan(170);
           }
@@ -786,8 +818,8 @@ it('varies only the real market red-cloth tile and its matching scallops, retain
   for (let trade = 0; trade < 4; trade++) {
     const variant = createMarketCanopyGeometry(source, trade);
     for (const name of ['position', 'normal', 'uv'])
-      expect(variant.getAttribute(name).array).toEqual(source.getAttribute(name).array);
-    expect(variant.index!.array).toEqual(source.index!.array);
+      expectSameArray(variant.getAttribute(name).array, source.getAttribute(name).array);
+    expectSameArray(variant.index!.array, source.index!.array);
     const colour = variant.getAttribute('color'),
       target = new THREE.Color(MARKET_CANVAS_COLOURS[trade]),
       targetChannels = target.toArray();
@@ -796,7 +828,8 @@ it('varies only the real market red-cloth tile and its matching scallops, retain
       const selected = Math.floor(uv.getX(i) * 6) === 4 && Math.floor(uv.getY(i) * 6) === 2;
       if (selected) cloth++;
       for (let channel = 0; channel < 3; channel++)
-        expect(colour.getComponent(i, channel)).toBeCloseTo(
+        expectCloseTo(
+          colour.getComponent(i, channel),
           selected ? targetChannels[channel] / baseChannels[channel] : 1,
           5
         );
@@ -804,8 +837,8 @@ it('varies only the real market red-cloth tile and its matching scallops, retain
     expect(cloth).toBe(900);
     const trim = AUTHORED_MARKET_TRIM_VARIANTS[trade],
       original = AUTHORED_PROP_TRIM.market;
-    expect(trim.getAttribute('position').array).toEqual(original.getAttribute('position').array);
-    expect(trim.getAttribute('normal').array).toEqual(original.getAttribute('normal').array);
+    expectSameArray(trim.getAttribute('position').array, original.getAttribute('position').array);
+    expectSameArray(trim.getAttribute('normal').array, original.getAttribute('normal').array);
     // Both scallop assemblies are deliberately non-indexed premerged draws.
     expect(trim.index).toBeNull();
     expect(original.index).toBeNull();
@@ -814,7 +847,8 @@ it('varies only the real market red-cloth tile and its matching scallops, retain
     for (let i = 0; i < trimColour.count; i++) {
       const selected = Math.abs(originalColour.getX(i) - base.r) < 1e-6;
       for (let channel = 0; channel < 3; channel++)
-        expect(trimColour.getComponent(i, channel)).toBeCloseTo(
+        expectCloseTo(
+          trimColour.getComponent(i, channel),
           selected ? targetChannels[channel] : originalColour.getComponent(i, channel),
           6
         );
@@ -962,15 +996,18 @@ describe('seamless lit fountain water detail', () => {
         data = a.image.data;
       expect(a.image.width).toBe(128);
       expect(a.image.height).toBe(128);
-      expect(data).toEqual(b.image.data);
+      expectSameArray(data, b.image.data);
       expect(a.colorSpace).toBe(key === 'normal' ? THREE.NoColorSpace : THREE.SRGBColorSpace);
       expect(a.wrapS).toBe(THREE.RepeatWrapping);
       expect(a.wrapT).toBe(THREE.RepeatWrapping);
       for (let y = 0; y < 128; y++)
         for (let c = 0; c < 4; c++)
-          expect(data[(y * 128 + 127) * 4 + c]).toBe(data[y * 128 * 4 + c]);
+          if (!Object.is(data[(y * 128 + 127) * 4 + c], data[y * 128 * 4 + c]))
+            expect(data[(y * 128 + 127) * 4 + c]).toBe(data[y * 128 * 4 + c]);
       for (let x = 0; x < 128; x++)
-        for (let c = 0; c < 4; c++) expect(data[(127 * 128 + x) * 4 + c]).toBe(data[x * 4 + c]);
+        for (let c = 0; c < 4; c++)
+          if (!Object.is(data[(127 * 128 + x) * 4 + c], data[x * 4 + c]))
+            expect(data[(127 * 128 + x) * 4 + c]).toBe(data[x * 4 + c]);
       b.dispose();
     }
   });
@@ -984,11 +1021,11 @@ describe('seamless lit fountain water detail', () => {
       const x = (n[i] / 255) * 2 - 1,
         y = (n[i + 1] / 255) * 2 - 1,
         z = (n[i + 2] / 255) * 2 - 1;
-      expect(Math.hypot(x, y)).toBeLessThan(0.15);
-      expect(Math.hypot(x, y, z)).toBeCloseTo(1, 2);
+      if (!(Math.hypot(x, y) < 0.15)) expect(Math.hypot(x, y)).toBeLessThan(0.15);
+      expectCloseTo(Math.hypot(x, y, z), 1, 2);
       low = Math.min(low, n[i], n[i + 1]);
       high = Math.max(high, n[i], n[i + 1]);
-      expect(n[i + 3]).toBe(255);
+      if (n[i + 3] !== 255) expect(n[i + 3]).toBe(255);
       alpha = Math.max(alpha, r[i + 3]);
     }
     expect(low).toBeLessThan(125);

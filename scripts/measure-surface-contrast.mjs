@@ -203,10 +203,7 @@ const stopPreview = () => {
 async function lumaPlane(buffer) {
   let pipeline = sharp(buffer);
   if (options.crop) pipeline = pipeline.extract(options.crop);
-  const { data, info } = await pipeline
-    .removeAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
+  const { data, info } = await pipeline.removeAlpha().raw().toBuffer({ resolveWithObject: true });
   const { width, height, channels } = info;
   const luma = new Float32Array(width * height);
   for (let index = 0, pixel = 0; index < data.length; index += channels, pixel += 1) {
