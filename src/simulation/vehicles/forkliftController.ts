@@ -111,6 +111,13 @@ export interface ForkliftMotionRequest {
   readonly loaded: boolean;
   readonly deltaSeconds: number;
   readonly maximumTravelDistance?: number;
+  /**
+   * Keep the body's heading this step. Set while the vehicle waits at a pickup
+   * or dropoff it has not worked yet: the movement authority lets it creep
+   * onto the action vertex, where the route heading is the departure one, and
+   * it otherwise pivoted away from the trailer or bay before it worked.
+   */
+  readonly holdHeading?: boolean;
 }
 
 export interface ForkliftLoadPose {
@@ -411,6 +418,7 @@ const stepForkliftMotionOnce = (
   // Starting from rest facing away from the path (after a standing turn at a
   // pickup or dropoff), pivot first and drive once lined up.
   const mustPivot =
+    !request.holdHeading &&
     state.speed <= 0.01 &&
     Math.abs(shortestVehicleAngle(state.heading, forkliftRouteHeading(plan, state.routeDistance))) >
       FORKLIFT_PIVOT_TOLERANCE;
@@ -455,9 +463,11 @@ const stepForkliftMotionOnce = (
     forkliftRouteHeading(plan, routeDistance)
   );
   const maximumYawChange = FORKLIFT_MAXIMUM_YAW_RATE * request.deltaSeconds;
-  const heading = normalizeVehicleAngle(
-    state.heading + Math.max(-maximumYawChange, Math.min(maximumYawChange, headingError))
-  );
+  const heading = request.holdHeading
+    ? state.heading
+    : normalizeVehicleAngle(
+        state.heading + Math.max(-maximumYawChange, Math.min(maximumYawChange, headingError))
+      );
 
   return {
     routeDistance,

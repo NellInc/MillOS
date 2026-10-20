@@ -1334,6 +1334,8 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       loaded: hasCargoRef.current,
       deltaSeconds: simulationDelta,
       maximumTravelDistance: marker && markerRelevant ? distanceToMarker : undefined,
+      // Held at a pickup or dropoff it has not worked: face the bay or trailer.
+      holdHeading: logisticsInterlock,
     });
     useLogisticsLayoutStore
       .getState()
