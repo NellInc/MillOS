@@ -113,14 +113,16 @@ const PAINTED_TEXT_MATERIAL = new THREE.MeshStandardMaterial({
  * `EXTERIOR_LAYERS.groundOverlay` is only 1 cm above the ground datum, and with
  * no bias of its own it loses to a biased surface such as the dock apron
  * (`exteriorTop` -1) beyond about 5.5 m on medium. troika derives its text
- * material with `Object.create(base)`, so the offset is inherited.
+ * material with `Object.create(base)`, but rewrites the offset from its own
+ * `depthOffset` before every draw, so the bias must also travel as
+ * `depthOffset` (`sceneTextDepthOffset`); on the material alone it never ran.
  */
 const PAINTED_GROUND_TEXT_MATERIAL = PAINTED_TEXT_MATERIAL.clone();
 PAINTED_GROUND_TEXT_MATERIAL.polygonOffset = true;
 PAINTED_GROUND_TEXT_MATERIAL.polygonOffsetFactor = POLYGON_OFFSET.exteriorOverlay.factor;
 PAINTED_GROUND_TEXT_MATERIAL.polygonOffsetUnits = POLYGON_OFFSET.exteriorOverlay.units;
 
-const SURFACE_MATERIALS: Record<SceneTextSurface, THREE.Material | undefined> = {
+export const SCENE_TEXT_MATERIALS: Record<SceneTextSurface, THREE.Material | undefined> = {
   unlit: undefined,
   painted: PAINTED_TEXT_MATERIAL,
   'painted-ground': PAINTED_GROUND_TEXT_MATERIAL,
@@ -134,6 +136,20 @@ const SURFACE_MATERIALS: Record<SceneTextSurface, THREE.Material | undefined> = 
  * apron, the approach road): painted, plus the overlay bias.
  */
 export type SceneTextSurface = 'unlit' | 'painted' | 'painted-ground';
+
+/**
+ * The bias a surface's labels are drawn with, as troika's `depthOffset`.
+ *
+ * troika's `_prepareForRender` writes `polygonOffset = !!depthOffset` and both
+ * offsets from `depthOffset` onto the derived material before every draw, so
+ * the bias on `PAINTED_GROUND_TEXT_MATERIAL` never reached the GPU: the KEEP
+ * CLEAR label, 1 cm over an apron biased -1, lost "KEEP" to the apron in the
+ * oblique dock view. The bias has to travel as `depthOffset`, which troika
+ * applies to factor and units alike (the overlay preset's are equal).
+ */
+export function sceneTextDepthOffset(surface: SceneTextSurface): number | undefined {
+  return surface === 'painted-ground' ? POLYGON_OFFSET.exteriorOverlay.factor : undefined;
+}
 
 type SceneTextProps = ComponentProps<typeof Text> & {
   surface?: SceneTextSurface;
@@ -156,7 +172,8 @@ export const SceneText = forwardRef<ComponentRef<typeof Text>, SceneTextProps>(f
     <Text
       ref={attachRef}
       {...props}
-      material={material ?? SURFACE_MATERIALS[surface]}
+      material={material ?? SCENE_TEXT_MATERIALS[surface]}
+      depthOffset={props.depthOffset ?? sceneTextDepthOffset(surface)}
       font={font ?? DEFAULT_3D_FONT}
     />
   );
