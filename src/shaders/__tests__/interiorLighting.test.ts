@@ -91,11 +91,80 @@ describe('interior fluorescent rows as line sources', () => {
     const [x, y, z] = REDUCED_ZONE_LIGHT_POSITIONS[1];
     const deck = new THREE.Vector3(x, SITE_LAYOUT.factory.bounds.maxY - 0.2, z);
     const down = new THREE.Vector3(0, -1, 0);
-    const value = bankLineIrradiance(new THREE.Vector3(x, y, z), ZONE_LIGHT_INTENSITY, deck, down);
+    // Direct light only; the floor bounce is pinned separately below.
+    const value = bankLineIrradiance(
+      new THREE.Vector3(x, y, z),
+      ZONE_LIGHT_INTENSITY,
+      deck,
+      down,
+      44,
+      false
+    );
     expect(value).toBeGreaterThan(0);
     // A ceiling 4 m from a bare isotropic line would take several times the
     // floor's light; the down-facing optic keeps it to a modest glow.
     expect(value).toBeLessThan(ZONE_LIGHT_INTENSITY * BANK_LINE.uplight * 4.1);
+  });
+
+  it('lights the roof deck between and beyond the rows with the floor bounce', () => {
+    // The 22:00 interior capture read the deck as black (luma 0.9 over the
+    // dock end): the rows send it only their uplight, and nothing returned the
+    // light the lit slab throws back up. A deck panel now receives the slab
+    // beneath it, scaled by the slab's bounce.
+    const down = new THREE.Vector3(0, -1, 0);
+    const deckY = SITE_LAYOUT.factory.bounds.maxY - 0.4;
+    const [, , rowZ] = REDUCED_ZONE_LIGHT_POSITIONS[1];
+    const underRow = total(new THREE.Vector3(0, 0, rowZ), up);
+    const deckAt = (x: number, z: number) => total(new THREE.Vector3(x, deckY, z), down);
+    const directAt = (x: number, z: number) =>
+      REDUCED_ZONE_LIGHT_POSITIONS.reduce(
+        (sum, light) =>
+          sum +
+          bankLineIrradiance(
+            new THREE.Vector3(...light),
+            ZONE_LIGHT_INTENSITY,
+            new THREE.Vector3(x, deckY, z),
+            down,
+            44,
+            false
+          ),
+        0
+      );
+    // Over the row the bounce is a share of the slab's light, not all of it.
+    const bounceOverRow = deckAt(0, rowZ) - directAt(0, rowZ);
+    expect(bounceOverRow).toBeGreaterThan(underRow * BANK_LINE.floorBounce * 0.5);
+    expect(bounceOverRow).toBeLessThan(underRow * BANK_LINE.floorBounce);
+    // At the dock end, 22 m from the nearest row, it is no longer black.
+    expect(deckAt(-10, 44)).toBeGreaterThan(underRow * 0.06);
+    // A deck sees the whole slab, so its bounce varies less along the hall
+    // than the slab's own light does.
+    const zs = [-44, -30, -16, 0, 10, 22, 35, 44];
+    const spread = (values: number[]) => Math.max(...values) / Math.min(...values);
+    const deck = zs.map((z) => deckAt(0, z) - directAt(0, z));
+    const slab = zs.map((z) => total(new THREE.Vector3(0, 0, z), up));
+    expect(spread(deck)).toBeLessThan(spread(slab) * 0.6);
+  });
+
+  it('adds no bounce to up-facing or side-facing surfaces, or to the slab itself', () => {
+    const [x, y, z] = REDUCED_ZONE_LIGHT_POSITIONS[1];
+    const light = new THREE.Vector3(x, y, z);
+    const direct = (point: THREE.Vector3, normal: THREE.Vector3) =>
+      bankLineIrradiance(light, ZONE_LIGHT_INTENSITY, point, normal, 44, false);
+    for (const [point, normal] of [
+      [new THREE.Vector3(5, 0, z + 3), up],
+      [new THREE.Vector3(-6, 4, z + 2), new THREE.Vector3(0, 0, -1)],
+      [new THREE.Vector3(3, 0.2, z), new THREE.Vector3(0, -1, 0)],
+    ] as const) {
+      expect(bankLineIrradiance(light, ZONE_LIGHT_INTENSITY, point, normal)).toBe(
+        direct(point, normal)
+      );
+    }
+  });
+
+  it('carries the bounce in the shader as well as in its mirror', () => {
+    const pars = patchInteriorLightingPars(originalPars);
+    expect(pars).toContain(BANK_LINE.floorBounce.toFixed(4));
+    expect(pars).toMatch(/float bounce = /);
   });
 
   it('is zero behind the receiving surface', () => {

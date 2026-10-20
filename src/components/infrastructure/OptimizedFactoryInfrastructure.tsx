@@ -435,6 +435,20 @@ const MATERIALS = {
     roughness: 0.52,
     metalness: 0,
   }),
+  /**
+   * The deck's interior face. A steel roof deck is a dark exterior coat over a
+   * light liner sheet; carrying the exterior coat inside left the hall's
+   * ceiling at ~0.08 albedo, black at night wherever the rows' uplight and the
+   * slab's bounce were all it had (luma 2.8 over the dock end at 22:00).
+   */
+  roofLiner: new THREE.MeshStandardMaterial({
+    name: 'factory-roof-liner',
+    color: '#8e928f',
+    normalMap: band(CLADDING_PANEL_NORMAL, 30, 50, { anisotropy: 4 }),
+    normalScale: new THREE.Vector2(0.35, 0.35),
+    roughness: 0.6,
+    metalness: 0,
+  }),
   roofTrim: new THREE.MeshStandardMaterial({
     name: 'factory-roof-trim',
     color: '#505452',
@@ -640,6 +654,7 @@ const SHELL_SURFACES: readonly [
   [MATERIALS.steel, 'painted'],
   [MATERIALS.steelTrim, 'painted'],
   [MATERIALS.roof, 'painted'],
+  [MATERIALS.roofLiner, 'painted'],
   [MATERIALS.roofTrim, 'painted'],
   [MATERIALS.accent, 'painted'],
   [MATERIALS.plinth, 'masonry'],
@@ -657,6 +672,20 @@ const SHELL_SURFACES: readonly [
 SHELL_SURFACES.forEach(([material, profile, overrides]) => {
   applyWorldSurface(material, profile, overrides);
 });
+
+/**
+ * Roof panels: BoxGeometry face order is +x, -x, +y, -y, +z, -z, so slot 3 is
+ * the underside the hall looks up at. The panels pitch 0.05 rad, so -y stays
+ * the interior face.
+ */
+export const ROOF_PANEL_MATERIALS: readonly THREE.Material[] = [
+  MATERIALS.roof,
+  MATERIALS.roof,
+  MATERIALS.roof,
+  MATERIALS.roofLiner,
+  MATERIALS.roof,
+  MATERIALS.roof,
+];
 
 export const FACTORY_ENVELOPE_SPEC = {
   baseHeight: 0.6,
@@ -688,7 +717,7 @@ function InstancedBoxes({
   renderOrder,
 }: {
   readonly instances: readonly BoxInstance[];
-  readonly material: THREE.Material;
+  readonly material: THREE.Material | readonly THREE.Material[];
   readonly castShadow?: boolean;
   readonly receiveShadow?: boolean;
   readonly renderOrder?: number;
@@ -727,7 +756,7 @@ function InstancedBoxes({
   return (
     <instancedMesh
       ref={ref}
-      args={[UNIT_BOX, material, instances.length]}
+      args={[UNIT_BOX, material as THREE.Material | THREE.Material[], instances.length]}
       // Placement lives in instance matrices; parent/world updates stay live.
       matrixAutoUpdate={false}
       castShadow={castShadow}
@@ -1304,7 +1333,12 @@ function FactoryShell() {
         castShadow
         receiveShadow
       />
-      <InstancedBoxes instances={roofPanels} material={MATERIALS.roof} castShadow receiveShadow />
+      <InstancedBoxes
+        instances={roofPanels}
+        material={ROOF_PANEL_MATERIALS}
+        castShadow
+        receiveShadow
+      />
       <InstancedBoxes
         instances={roofDetails}
         material={MATERIALS.roofTrim}

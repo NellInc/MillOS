@@ -590,7 +590,10 @@ float crater(vec3 position, vec3 centre, float radius) {
 
 void main() {
   vec3 position = normalize(vObjectPosition);
-  float maria = smoothstep(0.42, 0.68, noise(position * 2.1) + noise(position * 5.4) * 0.22);
+  // Soft, low-contrast maria and shallow craters: at its ~70 px display size
+  // a high-contrast disc read as blotches (two crater 'eyes' over a dark
+  // mare 'mouth' at 18:30). The full moon's maria are ~0.8 of the highlands.
+  float maria = smoothstep(0.36, 0.74, noise(position * 2.1) + noise(position * 5.4) * 0.22);
   float surface = noise(position * 18.0) * 0.13 + noise(position * 37.0) * 0.06;
   float craters =
       crater(position, normalize(vec3(0.32, 0.18, 0.93)), 0.2) +
@@ -598,9 +601,9 @@ void main() {
       crater(position, normalize(vec3(0.62, -0.34, 0.7)), 0.12) +
       crater(position, normalize(vec3(-0.2, -0.58, 0.79)), 0.1);
   vec3 highland = vec3(0.78, 0.8, 0.79);
-  vec3 lowland = vec3(0.34, 0.39, 0.43);
-  vec3 colour = mix(highland, lowland, maria * 0.72);
-  colour *= 0.86 + surface - craters * 0.28;
+  vec3 lowland = vec3(0.5, 0.54, 0.56);
+  vec3 colour = mix(highland, lowland, maria * 0.6);
+  colour *= 0.86 + surface * 0.6 - craters * 0.12;
   float facing = clamp(vViewNormal.z, 0.0, 1.0);
   colour *= 0.58 + pow(facing, 0.32) * 0.46;
   colour += vec3(0.2, 0.28, 0.38) * pow(1.0 - facing, 3.0) * 0.16;
@@ -697,7 +700,7 @@ const moonMaterial = new THREE.ShaderMaterial({
   fog: false,
   toneMapped: false,
 });
-moonMaterial.customProgramCacheKey = () => 'millos-procedural-moon-v1';
+moonMaterial.customProgramCacheKey = () => 'millos-procedural-moon-v2';
 const moonHaloMaterial = new THREE.SpriteMaterial({
   map: radialGlowTexture,
   color: '#9fc8f2',

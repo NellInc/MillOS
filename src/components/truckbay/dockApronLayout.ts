@@ -1,3 +1,9 @@
+import {
+  DOCK_BUMPER_FACE_Z,
+  TRACTOR_FRONT_OVERHANG,
+  TRAILER_REAR_OVERHANG,
+} from './truckController';
+
 /**
  * DOCK APRON PAINT, in outward coordinates.
  *
@@ -139,23 +145,34 @@ export const DOCK_FLOOR_MARKINGS: readonly DockMarking[] = [
   },
 ];
 
-/** The red KEEP CLEAR zone and its label, at the outboard end of the bay. */
+/**
+ * Where the docked tractor's front plate stands, in u: the trailer's rear on
+ * the bumper face, the tractor ahead of it (truckController's dock pose).
+ */
+export const DOCKED_TRACTOR_NOSE_U =
+  DOCK_BUMPER_FACE_Z + TRAILER_REAR_OVERHANG + 0.02 + TRACTOR_FRONT_OVERHANG - 50;
+
+/**
+ * The red KEEP CLEAR zone and its label: the docked tractor's pull-out path,
+ * just beyond its nose. It sat at u 14.6-16.6, under the docked tractor's
+ * engine, where it protected nothing and hid the truck's oil stain.
+ */
 export const DOCK_KEEP_CLEAR = {
   id: 'keep-clear',
   x: 0,
   width: 5,
-  u0: BAY_U1,
-  u1: BAY_U1 + 2,
+  u0: Math.round((DOCKED_TRACTOR_NOSE_U + 0.6) * 10) / 10,
+  u1: Math.round((DOCKED_TRACTOR_NOSE_U + 2.6) * 10) / 10,
   color: '#ef4444',
   opacity: 0.25,
 } as const satisfies DockMarking;
 
-/** Blue truck guide lines at x 0 and +/-4. */
+/** Blue truck guide lines at x 0 and +/-4, stopping short of KEEP CLEAR. */
 export const DOCK_GUIDE_LINES = {
   xs: [0, -4, 4],
   width: DOCK_LINE_WIDTH,
   u0: DOCK_PAINT_START_U,
-  u1: 20,
+  u1: DOCK_KEEP_CLEAR.u0 - 0.3,
 } as const;
 
 /** Yellow warning stripes at x +/-2.1 where the old sunken groove ran. */
@@ -174,3 +191,26 @@ export const spanOf = (run: { readonly u0: number; readonly u1: number }) => ({
   centre: (run.u0 + run.u1) / 2,
   length: run.u1 - run.u0,
 });
+
+/**
+ * Night light on the apron, where the trucks and forklifts work. The yard's
+ * four poles stand on its perimeter (x +/-30), so at 22:00 the dock front was
+ * the darkest working ground on the site. Two wall-pack floods either side of
+ * the door, above the status lamps and clear of the 9.7 m door frame, throw
+ * one pool each across the truck lane, from the stop bar to KEEP CLEAR
+ * beyond the docked tractor (a 5.6 m head throws about twice its height).
+ * No light source: lenses and additive pools on the shared lamp level, as the
+ * yard poles are drawn on medium (see `useYardLampsEnabled` in TruckBay.tsx).
+ */
+export const DOCK_FLOOD_HEADS = { xs: [-6.2, 6.2], y: 5.6, u: -1.55 } as const;
+export const DOCK_FLOOD_POOLS = [
+  { x: -2.6, u: 10.5, radius: 11 },
+  { x: 2.6, u: 10.5, radius: 11 },
+] as const;
+
+/**
+ * The yard's four perimeter masts (TruckBay.tsx, 14 m poles at x +/-30). Their
+ * pool was 10 m, a street post's throw, so at 22:00 the middle of the 60 m
+ * yard was untouched navy. A mast flood throws about 1.3x its height.
+ */
+export const YARD_MAST = { height: 14, poolRadius: 18 } as const;

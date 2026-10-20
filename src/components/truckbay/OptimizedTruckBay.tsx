@@ -42,7 +42,29 @@ const ROUNDED_BOX = new RoundedBoxGeometry(1, 1, 1, 3, 0.08);
 // 24 radial segments, not 12: at 1.04 m diameter the old cylinder faceted
 // visibly at dock range. The cost is ~340 triangles across one InstancedMesh
 // draw call, and triangles are not this scene's constraint.
-const WHEEL = new THREE.CylinderGeometry(0.52, 0.52, 0.38, 24);
+export const TRUCK_TYRE_WIDTH = 0.38;
+const WHEEL = new THREE.CylinderGeometry(0.52, 0.52, TRUCK_TYRE_WIDTH, 24);
+// Steering is flagged explicitly rather than inferred from array position:
+// the old `index < 2` test silently steers the wrong wheels the moment the
+// layout grows or is reordered, and it typechecks either way. The yard's tyre
+// tracks (`yardWear.ts`) are laid from this same table.
+export const TRUCK_WHEEL_LAYOUT = [
+  // [x, y, z, isTrailer, isSteer, hasHub]
+  [-1.38, 0.58, 3.7, false, true, true],
+  [1.38, 0.58, 3.7, false, true, true],
+  [-1.38, 0.58, 0.4, false, false, true],
+  [1.38, 0.58, 0.4, false, false, true],
+  [-1.0, 0.58, 0.4, false, false, false],
+  [1.0, 0.58, 0.4, false, false, false],
+  [-1.38, 0.58, -4.5, true, false, true],
+  [1.38, 0.58, -4.5, true, false, true],
+  [-1.0, 0.58, -4.5, true, false, false],
+  [1.0, 0.58, -4.5, true, false, false],
+  [-1.38, 0.58, -8.9, true, false, true],
+  [1.38, 0.58, -8.9, true, false, true],
+  [-1.0, 0.58, -8.9, true, false, false],
+  [1.0, 0.58, -8.9, true, false, false],
+] as const;
 const HUB = new THREE.CylinderGeometry(0.25, 0.25, 0.42, 16);
 const STEERING_WHEEL = new THREE.TorusGeometry(0.22, 0.025, 8, 18);
 const FUEL_TANK = new THREE.CylinderGeometry(0.38, 0.38, 1.65, 16);
@@ -886,30 +908,7 @@ export function OptimizedTruckVisual({
     ]
   );
 
-  // Steering is flagged explicitly rather than inferred from array position:
-  // the old `index < 2` test silently steers the wrong wheels the moment the
-  // layout grows or is reordered, and it typechecks either way.
-  const wheelLayout = useMemo(
-    () =>
-      [
-        // [x, y, z, isTrailer, isSteer, hasHub]
-        [-1.38, 0.58, 3.7, false, true, true],
-        [1.38, 0.58, 3.7, false, true, true],
-        [-1.38, 0.58, 0.4, false, false, true],
-        [1.38, 0.58, 0.4, false, false, true],
-        [-1.0, 0.58, 0.4, false, false, false],
-        [1.0, 0.58, 0.4, false, false, false],
-        [-1.38, 0.58, -4.5, true, false, true],
-        [1.38, 0.58, -4.5, true, false, true],
-        [-1.0, 0.58, -4.5, true, false, false],
-        [1.0, 0.58, -4.5, true, false, false],
-        [-1.38, 0.58, -8.9, true, false, true],
-        [1.38, 0.58, -8.9, true, false, true],
-        [-1.0, 0.58, -8.9, true, false, false],
-        [1.0, 0.58, -8.9, true, false, false],
-      ] as const,
-    []
-  );
+  const wheelLayout = TRUCK_WHEEL_LAYOUT;
 
   // Hubs only exist on the OUTER tyre of a dual. The inner tyre of a real dual
   // shows a bare rim face, so duplicating the hub there is the tell that the

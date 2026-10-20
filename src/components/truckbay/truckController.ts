@@ -168,6 +168,8 @@ const SHIPPING_DOCK = SITE_LAYOUT.docks.shipping.bayCentre;
  */
 export const DOCK_BUMPER_FACE_Z = 50.5;
 export const TRAILER_REAR_OVERHANG = 11.76;
+/** The compact tractor's front plate, ahead of its origin (OptimizedTruckBay, z 4.99 + 0.06). */
+export const TRACTOR_FRONT_OVERHANG = 5.05;
 const DOCK_POSE: PosePoint = {
   x: SHIPPING_DOCK[0],
   z: DOCK_BUMPER_FACE_Z + TRAILER_REAR_OVERHANG + 0.02,

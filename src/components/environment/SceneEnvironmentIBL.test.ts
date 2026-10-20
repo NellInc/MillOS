@@ -447,3 +447,39 @@ describe('sunrise shadow contrast', () => {
     expect(hemisphereFillIntensity(0, 0)).toBeCloseTo(1.6);
   });
 });
+
+describe('twilight fill colour', () => {
+  const chroma = (c: THREE.Color) => Math.max(c.r, c.g, c.b) - Math.min(c.r, c.g, c.b);
+  const luminance = (c: THREE.Color) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+
+  it('greys the mauve horizon fill at 18:30 toward a warm neutral, keeping its luminance', async () => {
+    // Measured live at 18:30: hemisphere sky #a5908f at 2.23 carried 56% of
+    // the yard tarmac's light and tinted it violet (78.7, 59.7, 52.7).
+    const { neutraliseTwilightFill } = await import('./SceneEnvironmentIBL');
+    const fill = new THREE.Color('#a5908f');
+    const before = fill.clone();
+    neutraliseTwilightFill(fill, sampleAtmosphere(0, 18.5, 'clear').solarElevation);
+    expect(chroma(fill)).toBeLessThan(chroma(before) * 0.5);
+    expect(luminance(fill)).toBeCloseTo(luminance(before), 6);
+    // Warm neutral: red at least green, green above blue.
+    expect(fill.r).toBeGreaterThanOrEqual(fill.g);
+    expect(fill.g).toBeGreaterThan(fill.b);
+  });
+
+  it('leaves noon and deep night exactly as they were', async () => {
+    const { neutraliseTwilightFill } = await import('./SceneEnvironmentIBL');
+    for (const hour of [12, 22]) {
+      const fill = new THREE.Color('#a5908f');
+      neutraliseTwilightFill(fill, sampleAtmosphere(0, hour, 'clear').solarElevation);
+      expect(fill.getHexString()).toBe('a5908f');
+    }
+  });
+
+  it('is applied to the hemisphere fill in the frame update', async () => {
+    const { readFileSync } = await import('node:fs');
+    const source = readFileSync('src/components/environment/SceneEnvironmentIBL.tsx', 'utf8');
+    expect(source).toMatch(
+      /neutraliseTwilightFill\(hemisphere\.color, atmosphere\.solarElevation\)/
+    );
+  });
+});
