@@ -45,4 +45,24 @@ describe('truck yard detail faces', () => {
     const box = /<mesh ref=\{plateRef\}[\s\S]*?<boxGeometry args=\{\[([^,]+),/.exec(plate)!;
     expect(3 - Number(box[1])).toBeGreaterThanOrEqual(0.02);
   });
+
+  it('stands the dock status lights off the door frame line', () => {
+    // Housings 0.2 m deep centred on the door line (z -1.8) shared both
+    // faces with the generated 0.2 m door frame beside them.
+    const doors = [...source.matchAll(/<RollUpDoor position=\{\[0, 0, ([-\d.]+)\]\}/g)];
+    const lights = [...source.matchAll(/<DockStatusLight position=\{\[-?5, 4, ([-\d.]+)\]\}/g)];
+    expect(doors).toHaveLength(2);
+    expect(lights).toHaveLength(4);
+    for (const light of lights)
+      for (const door of doors)
+        expect(Math.abs(Number(light[1]) - Number(door[1]))).toBeGreaterThanOrEqual(0.01);
+  });
+
+  it('keeps the dock leveler plate inside its generated lip ends', () => {
+    // Both are 8 m wide; the plate's ends lay on the lip's (x +/-4).
+    const leveler = block('DockLeveler');
+    const scale = /<mesh\s+ref=\{levelerRef\}[^>]*scale=\{\[([\d.]+), 1, 1\]\}/.exec(leveler);
+    expect(scale, 'leveler plate scale').not.toBeNull();
+    expect(8 - 8 * Number(scale![1])).toBeGreaterThanOrEqual(0.019);
+  });
 });

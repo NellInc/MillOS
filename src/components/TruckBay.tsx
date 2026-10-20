@@ -2687,6 +2687,8 @@ const LicensePlate: React.FC<{
 // Dock status light. This is the yard-facing exterior lamp (lens toward the
 // truck): red means stay, the trailer is restrained; green means the bay is
 // clear to move.
+// Mounted 2 cm proud of the door line (z -1.78, door at -1.8): centred on it,
+// the 0.2 m housing shared both faces with the generated 0.2 m door frame.
 const DockStatusLight: React.FC<{
   position: [number, number, number];
   isRestrained: boolean;
@@ -2748,7 +2750,14 @@ const DockLeveler: React.FC<{
           <GeneratedModel asset="dockLevelerLip" />
         </group>
       </GeneratedBoundary>
-      <mesh ref={levelerRef} position={[0, 0, 2]} userData={{ noStaticBatch: true }}>
+      {/* 2 cm narrower than the generated lip: both are 8 m wide, and the
+          plate's ends lay on the lip's ends (x +/-4). */}
+      <mesh
+        ref={levelerRef}
+        position={[0, 0, 2]}
+        scale={[0.9975, 1, 1]}
+        userData={{ noStaticBatch: true }}
+      >
         <GeneratedBoundary fallback={<boxGeometry args={[8, 0.15, 4]} />}>
           <GeneratedGeometrySurface
             asset="dockLevelerPlate"
@@ -3384,8 +3393,8 @@ export const TruckBay: React.FC = () => {
         <DockShelter position={[0, 0, 1]} isCompressed={shippingDockVisual.dockLocked} />
 
         {/* Status lights for single bay */}
-        <DockStatusLight position={[-5, 4, -1.8]} isRestrained={shippingDockVisual.dockLocked} />
-        <DockStatusLight position={[5, 4, -1.8]} isRestrained={shippingDockVisual.dockLocked} />
+        <DockStatusLight position={[-5, 4, -1.78]} isRestrained={shippingDockVisual.dockLocked} />
+        <DockStatusLight position={[5, 4, -1.78]} isRestrained={shippingDockVisual.dockLocked} />
 
         {/* Concrete bollards around dock - single bay */}
         <OptimizedBollardInstances
@@ -3874,8 +3883,8 @@ export const TruckBay: React.FC = () => {
         {/* Dock shelter */}
         <DockShelter position={[0, 0, 1]} isCompressed={receivingDockVisual.dockLocked} />
 
-        <DockStatusLight position={[-5, 4, -1.8]} isRestrained={receivingDockVisual.dockLocked} />
-        <DockStatusLight position={[5, 4, -1.8]} isRestrained={receivingDockVisual.dockLocked} />
+        <DockStatusLight position={[-5, 4, -1.78]} isRestrained={receivingDockVisual.dockLocked} />
+        <DockStatusLight position={[5, 4, -1.78]} isRestrained={receivingDockVisual.dockLocked} />
 
         {/* Concrete bollards around dock */}
         <OptimizedBollardInstances

@@ -14,6 +14,7 @@ import {
   buildFactoryShellColumns,
   buildSafetyStations,
   buildProcessGallery,
+  FACTORY_COLUMN_TOP_DROP,
   FACTORY_ENVELOPE_SPEC,
   FLOOR_JOINT_PITCH,
   sampleFloorMacro,
@@ -82,7 +83,9 @@ describe('optimized factory envelope', () => {
       }
       // The rest of the gable grid is still there: x = -40, -20, 20, 40.
       const shafts = inWall.filter(
-        (c) => c.scale[0] === 0.42 && c.scale[1] === SITE_LAYOUT.factory.bounds.maxY
+        (c) =>
+          c.scale[0] === 0.42 &&
+          c.scale[1] === SITE_LAYOUT.factory.bounds.maxY - FACTORY_COLUMN_TOP_DROP
       );
       expect(shafts.map((c) => c.position[0]).sort((a, b) => a - b)).toEqual([-40, -20, 20, 40]);
     }

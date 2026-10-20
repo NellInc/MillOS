@@ -1393,10 +1393,15 @@ export function buildFactoryGlazing(): BoxInstance[] {
   return panes;
 }
 
+/** How far the wall columns stop below the parapet top they stand under. */
+export const FACTORY_COLUMN_TOP_DROP = 0.02;
+
 /** Wall columns, their base plates and the chamfered building corners. */
 export function buildFactoryShellColumns(): BoxInstance[] {
   const result: BoxInstance[] = [];
-  const height = SITE_LAYOUT.factory.bounds.maxY;
+  // Two centimetres under the parapet top: full height, each column's top lay
+  // exactly on the parapet's top face where the two overlap at the wall line.
+  const height = SITE_LAYOUT.factory.bounds.maxY - FACTORY_COLUMN_TOP_DROP;
   // A gable column never stands inside a dock opening. The 20 m grid put one at
   // x = 0 in the middle of both docks: on the shipping forklift channel's line,
   // and in front of the SHIPPING board and facade lettering from every exterior
@@ -1481,15 +1486,15 @@ export function buildFactoryParapetSegments(): BoxInstance[] {
 
 /**
  * Chamfer the parapet cope. This is the roofline silhouette against the sky
- * from every exterior camera. The side chamfers stop 1 cm short of each end:
- * at the full 100 m their end faces lay on the side parapets' end faces in the
+ * from every exterior camera. Every chamfer stops 1 cm short of each end: at
+ * full length their end faces lay on the parapets' end faces in the
  * building-corner notch.
  */
 export function buildFactoryParapetCopeChamfers(): BoxInstance[] {
   const height = SITE_LAYOUT.factory.bounds.maxY;
   return [
-    chamferStrip([0, height - 0.04, 49.78], [FLOOR_WIDTH, 0.42, 0.42], [Math.PI / 4, 0, 0]),
-    chamferStrip([0, height - 0.04, -49.78], [FLOOR_WIDTH, 0.42, 0.42], [Math.PI / 4, 0, 0]),
+    chamferStrip([0, height - 0.04, 49.78], [FLOOR_WIDTH - 0.02, 0.42, 0.42], [Math.PI / 4, 0, 0]),
+    chamferStrip([0, height - 0.04, -49.78], [FLOOR_WIDTH - 0.02, 0.42, 0.42], [Math.PI / 4, 0, 0]),
     chamferStrip(
       [-FLOOR_WIDTH / 2 + 0.22, height - 0.04, 0],
       [0.42, 0.42, 99.98],

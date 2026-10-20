@@ -14,7 +14,11 @@ import React, { useRef, useMemo, useLayoutEffect } from 'react';
 import { PROCEDURAL_TEXTURES } from '../utils/sharedMaterials';
 import { GeneratedBoundary, GeneratedModel } from './models/GeneratedModel';
 import { GeneratedBoxSurface, GeneratedSurfaceMesh } from './models/GeneratedGeometrySurface';
-import { StationRetailDetails, SHOP_FLOOR_MATERIAL } from './scenery/StationRetailDetails';
+import {
+  StationRetailDetails,
+  SHOP_FLOOR_MATERIAL,
+  STATION_APPLIANCE_SHIFT,
+} from './scenery/StationRetailDetails';
 import { StationSouvenirs } from './scenery/StationSouvenirs';
 import { StationTravelStop } from './scenery/StationTravelStop';
 
@@ -580,13 +584,23 @@ export function createStationDetailLayout() {
   for (const x of [-12.66, -11.34]) {
     add('door-jamb', [x, 1.23, 5.015], [0.1, 2.46, 0.13], charcoal);
   }
-  add('door-head', [-12, 2.45, 5.015], [1.42, 0.14, 0.13], charcoal);
-  add('door-threshold', [-12, 0.075, 5.025], [1.42, 0.1, 0.35], cream);
+  add('door-head', [-12, 2.45, 5.015], [1.4, 0.14, 0.13], charcoal);
+  add('door-threshold', [-12, 0.075, 5.025], [1.4, 0.1, 0.35], cream);
   // Shop-local parts, expressed in the same station-local coordinate system
   // as the forecourt. Working if all contents clear their opaque enclosures.
+  // The cabinet frame stands 2 cm proud of the delivered liner at the sides
+  // and 1 cm at the top (outer faces x -14.02/-9.98, y 3.01): flush at
+  // -14/-10/3.0, liner and frame shared those faces. The door head and
+  // threshold end 1 cm inside the jambs' outer faces for the same reason.
   for (const side of [-1, 1]) {
-    add('retail-fridge-side', [-12 + side * 1.95, 1.5, -4], [0.1, 3, 0.8], '#37474f');
-    add('retail-fridge-cap', [-12, 1.5 + side * 1.45, -4], [3.8, 0.1, 0.8], '#37474f');
+    add('retail-fridge-side', [-12 + side * 1.96, 1.5, -4], [0.12, 3, 0.8], '#37474f');
+    // Only the top cap rises; the floor cap keeps its seat on the slab.
+    add(
+      'retail-fridge-cap',
+      [-12, side > 0 ? 2.955 : 0.05, -4],
+      [3.8, side > 0 ? 0.11 : 0.1, 0.8],
+      '#37474f'
+    );
     add('retail-fridge-handle', [-12 + side * 0.08, 1.5, -3.55], [0.025, 0.35, 0.06], cream);
     add(
       'retail-register-bezel',
@@ -600,7 +614,12 @@ export function createStationDetailLayout() {
     add('retail-fridge-shelf', [-12, y, -3.98], [3.8, 0.05, 0.66], '#9aa7a8');
   }
   add('retail-fridge-stile', [-12, 1.5, -3.6], [0.055, 2.8, 0.04], '#37474f');
-  add('retail-slush-ledge', [-10, 0.95, -2], [0.7, 0.1, 0.5], '#e65100');
+  add(
+    'retail-slush-ledge',
+    [-10 + STATION_APPLIANCE_SHIFT.slush, 0.95, -2],
+    [0.7, 0.1, 0.5],
+    '#e65100'
+  );
   return { opaque, emitters };
 }
 
@@ -1031,7 +1050,7 @@ export const GasStation = React.memo<GasStationProps>(
           </group>
 
           {/* Coffee machine */}
-          <group position={[2, 0, -3.5]}>
+          <group position={[2 + STATION_APPLIANCE_SHIFT.coffee, 0, -3.5]}>
             <GeneratedBoundary
               fallback={
                 <>
@@ -1049,7 +1068,7 @@ export const GasStation = React.memo<GasStationProps>(
           </group>
 
           {/* Slushie machine - Dead Dino branded! */}
-          <group position={[2, 0, -2]}>
+          <group position={[2 + STATION_APPLIANCE_SHIFT.slush, 0, -2]}>
             <group name="station-slush-base" scale={STATION_RETAIL.slushBaseScale}>
               <GeneratedBoundary
                 fallback={

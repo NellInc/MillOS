@@ -312,7 +312,8 @@ export function createRiverFootbridgeAccessGeometry(): THREE.BufferGeometry {
         const t = i / 4;
         const y = top * t;
         const z = outer + (deckEdge - outer) * t;
-        g.box([0.12, 1.15, 0.12], [x, y + 0.525, z], '#394a49');
+        // Tops 1 cm under the handrail top (y + 1.1), not on it.
+        g.box([0.12, 1.14, 0.12], [x, y + 0.52, z], '#394a49');
       }
     }
   }
@@ -362,7 +363,9 @@ export function createRiverFootbridgeFrameGeometry(): THREE.BufferGeometry {
     g.box([0.1, 0.08, length], [x, top + 0.13, 0], steel);
     for (let i = 0; i <= bays; i++) {
       const z = -length / 2 + i * pitch;
-      g.box([0.12, 1.12, 0.12], [x, top + 0.54, z], steel);
+      // Post tops 1 cm under the trim rail's top (top + 1.1): flush, steel and
+      // trim shared a face on every post and at both stair junctions.
+      g.box([0.12, 1.11, 0.12], [x, top + 0.535, z], steel);
       // End plates terminate at the span boundary, joining the existing stair posts.
       const plateZ = Math.max(-length / 2 + 0.13, Math.min(length / 2 - 0.13, z));
       g.box([0.26, 0.05, 0.26], [x, top + 0.01, plateZ], trim);

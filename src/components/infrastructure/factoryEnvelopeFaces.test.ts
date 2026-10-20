@@ -4,6 +4,7 @@ import {
   buildFactoryParapetCopeChamfers,
   buildFactoryParapetSegments,
   buildFactoryPortalFrames,
+  buildFactoryShellColumns,
 } from './OptimizedFactoryInfrastructure';
 
 type Box = {
@@ -65,5 +66,18 @@ describe('factory envelope coincident faces', () => {
     expect(
       sharedFaces(buildFactoryParapetCopeChamfers(), buildFactoryParapetSegments(), [2])
     ).toEqual([]);
+  });
+
+  it('ends the gable cope chamfers short of the gable parapet ends', () => {
+    // Same corner as above, on the north and south copes (x = +/-40).
+    expect(
+      sharedFaces(buildFactoryParapetCopeChamfers(), buildFactoryParapetSegments(), [0])
+    ).toEqual([]);
+  });
+
+  it('keeps every wall column top below the parapet top it stands under', () => {
+    // Full-height columns ended exactly on the parapet's top face: structural
+    // steel against the parapet cladding at 0 mm, seen from every aerial camera.
+    expect(sharedFaces(buildFactoryShellColumns(), buildFactoryParapetSegments(), [1])).toEqual([]);
   });
 });
