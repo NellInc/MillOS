@@ -1217,7 +1217,12 @@ it.each(['cow', 'pig'] as const)(
     expect(model.getObjectByName('quadruped-stride')).toBeUndefined();
     dispose.mockRestore();
     sharedDispose.mockRestore();
-  }
+  },
+  // Loads and re-skins the real cow/pig GLBs, so the duration tracks machine
+  // load. Measured 2026-10-20, ten isolated runs at 30-152 load (10 cores):
+  // 3.1-23.7 s per species. The 10 s default timed out in two of those ten
+  // runs and once in the broad affected set; 120 s is about 5x the worst run.
+  120_000
 );
 
 it.each(['cow', 'pig'] as const)(
