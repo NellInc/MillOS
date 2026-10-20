@@ -615,6 +615,44 @@ test('the prepared castle atlas restores white stone and blue slate without emis
   expect(material.getEmissiveFactor()).toEqual([0, 0, 0]);
 });
 
+// A front face and a back face on the same three points both draw under a
+// doubleSided material and z-fight from either side. Single-sided materials are
+// exempt: there each face is only seen from its own side, so a coincident pair
+// is a legitimate two-sided sheet (cottage, forge and shop carry one interior
+// quad that way). Measured 2026-10-19 on the castle and square cameras: no
+// depth-flip pixels on the castle or the square's civic props.
+test('no doubleSided village delivery has coincident front and back triangles', async () => {
+  const key = (p, i) =>
+    `${Math.round(p[i * 3] * 1e4)},${Math.round(p[i * 3 + 1] * 1e4)},${Math.round(p[i * 3 + 2] * 1e4)}`;
+  const village = GENERATED_ASSETS.filter((spec) => spec.area === 'village');
+  expect(village.map((spec) => spec.slug)).toContain('castle');
+  for (const spec of village) {
+    const doc = await io.read(`public/models/village/${spec.slug}.glb`);
+    let pairs = 0;
+    for (const mesh of doc.getRoot().listMeshes()) {
+      for (const primitive of mesh.listPrimitives()) {
+        if (!primitive.getMaterial()?.getDoubleSided()) continue;
+        const position = primitive.getAttribute('POSITION').getArray();
+        const index = primitive.getIndices().getArray();
+        const wound = new Map();
+        for (let t = 0; t < index.length; t += 3) {
+          const k = [0, 1, 2].map((c) => key(position, index[t + c]));
+          if (new Set(k).size < 3) continue;
+          // Rotate to start at the least key; the order after it is the winding.
+          const r = k.indexOf([...k].sort()[0]);
+          const sign = k[(r + 1) % 3] < k[(r + 2) % 3] ? 'p' : 'n';
+          const id = [...k].sort().join('|');
+          const seen = wound.get(id) ?? { p: 0, n: 0 };
+          seen[sign]++;
+          wound.set(id, seen);
+        }
+        for (const { p, n } of wound.values()) pairs += Math.min(p, n);
+      }
+    }
+    expect(pairs, spec.slug).toBe(0);
+  }
+}, 60000);
+
 // These village deliveries are completely new planar assemblies; farm probes
 // above still address their retained source-coordinate roof replacements.
 const villageRoofProbes = {
