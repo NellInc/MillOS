@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
+  DOCK_FLOOD_HEADS,
+  DOCK_FLOOD_POOLS,
   DOCK_FLOOR_MARKINGS,
   DOCK_GROOVE_STRIPES,
   DOCK_GUIDE_LINES,
@@ -50,5 +52,31 @@ describe('dock apron paint layout', () => {
 
   it('widens the guide lines past the aliasing width at review distance', () => {
     expect(DOCK_GUIDE_LINES.width).toBeGreaterThanOrEqual(0.25);
+  });
+});
+
+describe('dock apron night floods', () => {
+  it('mounts the heads beside the door frame and above the status lamps', () => {
+    for (const x of DOCK_FLOOD_HEADS.xs) expect(Math.abs(x)).toBeGreaterThan(4.85 + 0.3);
+    expect(DOCK_FLOOD_HEADS.y).toBeGreaterThan(4.3);
+    expect(DOCK_FLOOD_HEADS.u).toBeGreaterThan(-1.8);
+  });
+
+  it('lights the truck lane from the stop bar to the end of KEEP CLEAR', () => {
+    for (const u of [
+      DOCK_STOP_BAR.u,
+      (DOCK_STOP_BAR.u + DOCK_KEEP_CLEAR.u1) / 2,
+      DOCK_KEEP_CLEAR.u1,
+    ]) {
+      const reach = Math.max(
+        ...DOCK_FLOOD_POOLS.map((pool) => 1 - Math.hypot(pool.x, pool.u - u) / pool.radius)
+      );
+      expect(reach, `u ${u}`).toBeGreaterThan(0.1);
+    }
+  });
+
+  it('is mounted at both docks', () => {
+    const source = readFileSync('src/components/TruckBay.tsx', 'utf8');
+    expect(source.match(/<DockApronFloods \/>/g)).toHaveLength(2);
   });
 });

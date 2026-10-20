@@ -1,5 +1,6 @@
 import { PalletStaging } from './truckbay/PalletStaging';
 import { YardWearMarks } from './truckbay/YardWearMarks';
+import { paintLineMask, paintLineQuad, THIN_PAINT_LIMIT } from './truckbay/paintLine';
 import { GeneratedGeometrySurface } from './models/GeneratedGeometrySurface';
 import { GeneratedBoundary, GeneratedModel } from './models/GeneratedModel';
 import { applyVillageWindows } from './models/GeneratedOfficeModel';
@@ -59,6 +60,8 @@ import {
   YARD_TARMAC_SURFACE,
 } from './truckbay/yardSurfaces';
 import {
+  DOCK_FLOOD_HEADS,
+  DOCK_FLOOD_POOLS,
   DOCK_FLOOR_MARKINGS,
   DOCK_GROOVE_STRIPES,
   DOCK_GUIDE_LINES,
@@ -3362,21 +3365,14 @@ export const TruckBay: React.FC = () => {
             apron. The stripes now start past the stop bar with the rest of the
             dock paint (`truckbay/dockApronLayout.ts`). */}
         {DOCK_GROOVE_STRIPES.xs.map((x) => (
-          <mesh
+          <DockPaintLine
             key={`groove-stripe-${x}`}
             position={[x, EXTERIOR_LAYERS.groundOverlay, spanOf(DOCK_GROOVE_STRIPES).centre]}
-            rotation={[-Math.PI / 2, 0, 0]}
-          >
-            <planeGeometry args={[DOCK_GROOVE_STRIPES.width, spanOf(DOCK_GROOVE_STRIPES).length]} />
-            <meshStandardMaterial
-              color="#fbbf24"
-              depthWrite={false}
-              polygonOffset
-              polygonOffsetFactor={POLYGON_OFFSET.exteriorOverlay.factor}
-              polygonOffsetUnits={POLYGON_OFFSET.exteriorOverlay.units}
-              roughness={0.85}
-            />
-          </mesh>
+            width={DOCK_GROOVE_STRIPES.width}
+            length={spanOf(DOCK_GROOVE_STRIPES).length}
+            along="z"
+            color="#fbbf24"
+          />
         ))}
 
         {/* Single dock leveler - centered (at wall opening) */}
@@ -3391,6 +3387,7 @@ export const TruckBay: React.FC = () => {
         {/* Status lights for single bay */}
         <DockStatusLight position={[-5, 4, -1.8]} isRestrained={shippingDockVisual.dockLocked} />
         <DockStatusLight position={[5, 4, -1.8]} isRestrained={shippingDockVisual.dockLocked} />
+        <DockApronFloods />
 
         {/* Concrete bollards around dock - single bay */}
         <OptimizedBollardInstances
@@ -3497,71 +3494,45 @@ export const TruckBay: React.FC = () => {
             `truckbay/dockApronLayout.ts`. Both used to start at the dock line,
             under the platforms and channel slab; the 0.10-0.15 m lines also
             broke into dashes at review distance. */}
-        <mesh
+        <DockPaintLine
           position={[0, EXTERIOR_LAYERS.groundOverlay, spanOf(DOCK_GUIDE_LINES).centre]}
-          rotation={[-Math.PI / 2, 0, 0]}
+          width={DOCK_GUIDE_LINES.width}
+          length={spanOf(DOCK_GUIDE_LINES).length}
+          along="z"
+          color="#3b82f6"
+          bias="moderate"
           renderOrder={10}
-        >
-          <planeGeometry args={[DOCK_GUIDE_LINES.width, spanOf(DOCK_GUIDE_LINES).length]} />
-          <meshStandardMaterial
-            color="#3b82f6"
-            polygonOffset
-            polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
-            polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
-            depthWrite={false}
-            roughness={0.85}
-          />
-        </mesh>
-        <mesh
+        />
+        <DockPaintLine
           position={[-4, EXTERIOR_LAYERS.groundOverlay, spanOf(DOCK_GUIDE_LINES).centre]}
-          rotation={[-Math.PI / 2, 0, 0]}
+          width={DOCK_GUIDE_LINES.width}
+          length={spanOf(DOCK_GUIDE_LINES).length}
+          along="z"
+          color="#3b82f6"
+          opacity={0.5}
+          bias="moderate"
           renderOrder={10}
-        >
-          <planeGeometry args={[DOCK_GUIDE_LINES.width, spanOf(DOCK_GUIDE_LINES).length]} />
-          <meshStandardMaterial
-            color="#3b82f6"
-            transparent
-            opacity={0.5}
-            polygonOffset
-            polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
-            polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
-            depthWrite={false}
-            roughness={0.85}
-          />
-        </mesh>
-        <mesh
+        />
+        <DockPaintLine
           position={[4, EXTERIOR_LAYERS.groundOverlay, spanOf(DOCK_GUIDE_LINES).centre]}
-          rotation={[-Math.PI / 2, 0, 0]}
+          width={DOCK_GUIDE_LINES.width}
+          length={spanOf(DOCK_GUIDE_LINES).length}
+          along="z"
+          color="#3b82f6"
+          opacity={0.5}
+          bias="moderate"
           renderOrder={10}
-        >
-          <planeGeometry args={[DOCK_GUIDE_LINES.width, spanOf(DOCK_GUIDE_LINES).length]} />
-          <meshStandardMaterial
-            color="#3b82f6"
-            transparent
-            opacity={0.5}
-            polygonOffset
-            polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
-            polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
-            depthWrite={false}
-            roughness={0.85}
-          />
-        </mesh>
+        />
 
-        <mesh
+        <DockPaintLine
           position={[0, EXTERIOR_LAYERS.groundOverlay, DOCK_STOP_BAR.u]}
-          rotation={[-Math.PI / 2, 0, 0]}
+          width={DOCK_STOP_BAR.depth}
+          length={DOCK_STOP_BAR.width}
+          along="x"
+          color="#ef4444"
+          bias="moderate"
           renderOrder={10}
-        >
-          <planeGeometry args={[DOCK_STOP_BAR.width, DOCK_STOP_BAR.depth]} />
-          <meshStandardMaterial
-            color="#ef4444"
-            polygonOffset
-            polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
-            polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
-            depthWrite={false}
-            roughness={0.85}
-          />
-        </mesh>
+        />
 
         {/* Speed bumps relocated to service lanes on yard edges */}
         <OptimizedSpeedBumpInstances
@@ -3856,21 +3827,14 @@ export const TruckBay: React.FC = () => {
             apron. The stripes now start past the stop bar with the rest of the
             dock paint (`truckbay/dockApronLayout.ts`). */}
         {DOCK_GROOVE_STRIPES.xs.map((x) => (
-          <mesh
+          <DockPaintLine
             key={`groove-stripe-${x}`}
             position={[x, EXTERIOR_LAYERS.groundOverlay, spanOf(DOCK_GROOVE_STRIPES).centre]}
-            rotation={[-Math.PI / 2, 0, 0]}
-          >
-            <planeGeometry args={[DOCK_GROOVE_STRIPES.width, spanOf(DOCK_GROOVE_STRIPES).length]} />
-            <meshStandardMaterial
-              color="#fbbf24"
-              depthWrite={false}
-              polygonOffset
-              polygonOffsetFactor={POLYGON_OFFSET.exteriorOverlay.factor}
-              polygonOffsetUnits={POLYGON_OFFSET.exteriorOverlay.units}
-              roughness={0.85}
-            />
-          </mesh>
+            width={DOCK_GROOVE_STRIPES.width}
+            length={spanOf(DOCK_GROOVE_STRIPES).length}
+            along="z"
+            color="#fbbf24"
+          />
         ))}
 
         <DockLeveler position={[0, 2, -1.5]} isDeployed={receivingDockVisual.levelerDeployed} />
@@ -3883,6 +3847,7 @@ export const TruckBay: React.FC = () => {
 
         <DockStatusLight position={[-5, 4, -1.8]} isRestrained={receivingDockVisual.dockLocked} />
         <DockStatusLight position={[5, 4, -1.8]} isRestrained={receivingDockVisual.dockLocked} />
+        <DockApronFloods />
 
         {/* Concrete bollards around dock */}
         <OptimizedBollardInstances
@@ -3986,71 +3951,45 @@ export const TruckBay: React.FC = () => {
 
         {/* Blue guide lines and the red stop bar, mirrored into this yard's
             outward -z from `truckbay/dockApronLayout.ts`. */}
-        <mesh
+        <DockPaintLine
           position={[0, EXTERIOR_LAYERS.groundOverlay, -spanOf(DOCK_GUIDE_LINES).centre]}
-          rotation={[-Math.PI / 2, 0, 0]}
+          width={DOCK_GUIDE_LINES.width}
+          length={spanOf(DOCK_GUIDE_LINES).length}
+          along="z"
+          color="#3b82f6"
+          bias="moderate"
           renderOrder={10}
-        >
-          <planeGeometry args={[DOCK_GUIDE_LINES.width, spanOf(DOCK_GUIDE_LINES).length]} />
-          <meshStandardMaterial
-            color="#3b82f6"
-            polygonOffset
-            polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
-            polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
-            depthWrite={false}
-            roughness={0.85}
-          />
-        </mesh>
-        <mesh
+        />
+        <DockPaintLine
           position={[-4, EXTERIOR_LAYERS.groundOverlay, -spanOf(DOCK_GUIDE_LINES).centre]}
-          rotation={[-Math.PI / 2, 0, 0]}
+          width={DOCK_GUIDE_LINES.width}
+          length={spanOf(DOCK_GUIDE_LINES).length}
+          along="z"
+          color="#3b82f6"
+          opacity={0.5}
+          bias="moderate"
           renderOrder={10}
-        >
-          <planeGeometry args={[DOCK_GUIDE_LINES.width, spanOf(DOCK_GUIDE_LINES).length]} />
-          <meshStandardMaterial
-            color="#3b82f6"
-            transparent
-            opacity={0.5}
-            polygonOffset
-            polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
-            polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
-            depthWrite={false}
-            roughness={0.85}
-          />
-        </mesh>
-        <mesh
+        />
+        <DockPaintLine
           position={[4, EXTERIOR_LAYERS.groundOverlay, -spanOf(DOCK_GUIDE_LINES).centre]}
-          rotation={[-Math.PI / 2, 0, 0]}
+          width={DOCK_GUIDE_LINES.width}
+          length={spanOf(DOCK_GUIDE_LINES).length}
+          along="z"
+          color="#3b82f6"
+          opacity={0.5}
+          bias="moderate"
           renderOrder={10}
-        >
-          <planeGeometry args={[DOCK_GUIDE_LINES.width, spanOf(DOCK_GUIDE_LINES).length]} />
-          <meshStandardMaterial
-            color="#3b82f6"
-            transparent
-            opacity={0.5}
-            polygonOffset
-            polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
-            polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
-            depthWrite={false}
-            roughness={0.85}
-          />
-        </mesh>
+        />
 
-        <mesh
+        <DockPaintLine
           position={[0, EXTERIOR_LAYERS.groundOverlay, -DOCK_STOP_BAR.u]}
-          rotation={[-Math.PI / 2, 0, 0]}
+          width={DOCK_STOP_BAR.depth}
+          length={DOCK_STOP_BAR.width}
+          along="x"
+          color="#ef4444"
+          bias="moderate"
           renderOrder={10}
-        >
-          <planeGeometry args={[DOCK_STOP_BAR.width, DOCK_STOP_BAR.depth]} />
-          <meshStandardMaterial
-            color="#ef4444"
-            polygonOffset
-            polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
-            polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
-            depthWrite={false}
-            roughness={0.85}
-          />
-        </mesh>
+        />
 
         {/* Speed bumps relocated to service lanes on yard edges */}
         <OptimizedSpeedBumpInstances
@@ -5646,8 +5585,103 @@ const DockBumperWithWear: React.FC<{ position: [number, number, number]; wearLev
   );
 };
 
+/**
+ * Wall-pack floods beside the dock door and the pools they throw on the apron
+ * (`DOCK_FLOOD_HEADS`, `DOCK_FLOOD_POOLS` in `truckbay/dockApronLayout.ts`).
+ * Lenses and pools ride the shared exterior lamp level, so they are dark by
+ * day and add no light source at any tier.
+ */
+const DockApronFloods: React.FC = () => (
+  <group name="dock-apron-floods">
+    {DOCK_FLOOD_HEADS.xs.map((x) => (
+      <group key={x} position={[x, DOCK_FLOOD_HEADS.y, DOCK_FLOOD_HEADS.u]}>
+        <mesh>
+          <boxGeometry args={[0.62, 0.3, 0.42]} />
+          <meshStandardMaterial color="#374151" roughness={0.45} metalness={0.5} />
+        </mesh>
+        <mesh position={[0, -0.16, 0.04]} material={EXTERIOR_LAMP_LENS_MATERIAL}>
+          <boxGeometry args={[0.5, 0.03, 0.3]} />
+        </mesh>
+      </group>
+    ))}
+    {DOCK_FLOOD_POOLS.map((pool) => (
+      <group key={pool.x} position={[pool.x, 0, pool.u]}>
+        <ExteriorLampPool radius={pool.radius} />
+      </group>
+    ))}
+  </group>
+);
+
+/**
+ * One thin painted (or laser) line on the ground, drawn on a widened quad with
+ * the paint in a mipmapped mask so it cannot break into dashes at distance
+ * (`truckbay/paintLine.ts`). `along` is the ground axis the line runs on.
+ */
+const DockPaintLine: React.FC<{
+  position: [number, number, number];
+  width: number;
+  length: number;
+  along: 'z' | 'x';
+  color: string;
+  opacity?: number;
+  emissiveIntensity?: number;
+  bias?: 'moderate' | 'exteriorOverlay';
+  renderOrder?: number;
+  meshRef?: React.Ref<THREE.Mesh>;
+}> = ({
+  position,
+  width,
+  length,
+  along,
+  color,
+  opacity = 1,
+  emissiveIntensity,
+  bias = 'exteriorOverlay',
+  renderOrder,
+  meshRef,
+}) => {
+  const { quadWidth, core } = paintLineQuad(width);
+  const mask = paintLineMask(core, along === 'z' ? 'u' : 'v');
+  return (
+    <mesh
+      ref={meshRef}
+      position={position}
+      rotation={[-Math.PI / 2, 0, 0]}
+      renderOrder={renderOrder}
+    >
+      <planeGeometry args={along === 'z' ? [quadWidth, length] : [length, quadWidth]} />
+      <meshStandardMaterial
+        color={color}
+        alphaMap={mask}
+        transparent
+        opacity={opacity}
+        emissive={emissiveIntensity === undefined ? '#000000' : color}
+        emissiveIntensity={emissiveIntensity ?? 1}
+        polygonOffset
+        polygonOffsetFactor={POLYGON_OFFSET[bias].factor}
+        polygonOffsetUnits={POLYGON_OFFSET[bias].units}
+        depthWrite={false}
+        roughness={0.85}
+      />
+    </mesh>
+  );
+};
+
 const DockMarkingPlane: React.FC<{ mark: DockMarking }> = ({ mark }) => {
   const { centre, length } = spanOf(mark);
+  if (mark.width < THIN_PAINT_LIMIT) {
+    return (
+      <DockPaintLine
+        position={[mark.x, EXTERIOR_LAYERS.groundOverlay, centre]}
+        width={mark.width}
+        length={length}
+        along="z"
+        color={mark.color}
+        opacity={mark.opacity}
+        renderOrder={RENDER_ORDER.floorMarkings}
+      />
+    );
+  }
   return (
     <mesh
       position={[mark.x, EXTERIOR_LAYERS.groundOverlay, centre]}
@@ -5820,87 +5854,56 @@ const TruckAlignmentGuides: React.FC<{ position: [number, number, number] }> = (
   return (
     <group position={position}>
       {/* Center guide line */}
-      <mesh
-        ref={laserRef1}
+      <DockPaintLine
+        meshRef={laserRef1}
         position={[0, EXTERIOR_LAYERS.groundOverlay, spanOf(DOCK_LASER_GUIDES).centre]}
-        rotation={[-Math.PI / 2, 0, 0]}
+        width={0.05}
+        length={spanOf(DOCK_LASER_GUIDES).length}
+        along="z"
+        color="#22c55e"
+        emissiveIntensity={0.5}
+        opacity={0.8}
         renderOrder={10}
-      >
-        <planeGeometry args={[0.05, spanOf(DOCK_LASER_GUIDES).length]} />
-        <meshStandardMaterial
-          color="#22c55e"
-          emissive="#22c55e"
-          emissiveIntensity={0.5}
-          transparent
-          opacity={0.8}
-          polygonOffset
-          polygonOffsetFactor={POLYGON_OFFSET.exteriorOverlay.factor}
-          polygonOffsetUnits={POLYGON_OFFSET.exteriorOverlay.units}
-          depthWrite={false}
-        />
-      </mesh>
+      />
 
       {/* Left wheel guide */}
-      <mesh
-        ref={laserRef2}
+      <DockPaintLine
+        meshRef={laserRef2}
         position={[-1.2, EXTERIOR_LAYERS.groundOverlay, spanOf(DOCK_LASER_GUIDES).centre]}
-        rotation={[-Math.PI / 2, 0, 0]}
+        width={0.03}
+        length={spanOf(DOCK_LASER_GUIDES).length}
+        along="z"
+        color="#22c55e"
+        emissiveIntensity={0.5}
+        opacity={0.6}
         renderOrder={10}
-      >
-        <planeGeometry args={[0.03, spanOf(DOCK_LASER_GUIDES).length]} />
-        <meshStandardMaterial
-          color="#22c55e"
-          emissive="#22c55e"
-          emissiveIntensity={0.5}
-          transparent
-          opacity={0.6}
-          polygonOffset
-          polygonOffsetFactor={POLYGON_OFFSET.exteriorOverlay.factor}
-          polygonOffsetUnits={POLYGON_OFFSET.exteriorOverlay.units}
-          depthWrite={false}
-        />
-      </mesh>
+      />
 
       {/* Right wheel guide */}
-      <mesh
+      <DockPaintLine
         position={[1.2, EXTERIOR_LAYERS.groundOverlay, spanOf(DOCK_LASER_GUIDES).centre]}
-        rotation={[-Math.PI / 2, 0, 0]}
+        width={0.03}
+        length={spanOf(DOCK_LASER_GUIDES).length}
+        along="z"
+        color="#22c55e"
+        emissiveIntensity={0.5}
+        opacity={0.6}
         renderOrder={10}
-      >
-        <planeGeometry args={[0.03, spanOf(DOCK_LASER_GUIDES).length]} />
-        <meshStandardMaterial
-          color="#22c55e"
-          emissive="#22c55e"
-          emissiveIntensity={0.5}
-          transparent
-          opacity={0.6}
-          polygonOffset
-          polygonOffsetFactor={POLYGON_OFFSET.exteriorOverlay.factor}
-          polygonOffsetUnits={POLYGON_OFFSET.exteriorOverlay.units}
-          depthWrite={false}
-        />
-      </mesh>
+      />
 
       {/* Stop line, lit, laid over the centre of the yard's painted stop bar.
           It sat at u 3, inside the channel slab. renderOrder 11 keeps it
           drawn after the bar it overlaps, rather than swapping with the bar
           as the camera's distance sort changes. */}
-      <mesh
+      <DockPaintLine
         position={[0, EXTERIOR_LAYERS.groundOverlay, DOCK_STOP_BAR.u]}
-        rotation={[-Math.PI / 2, 0, 0]}
+        width={0.15}
+        length={4}
+        along="x"
+        color="#ef4444"
+        emissiveIntensity={0.4}
         renderOrder={11}
-      >
-        <planeGeometry args={[4, 0.15]} />
-        <meshStandardMaterial
-          color="#ef4444"
-          emissive="#ef4444"
-          emissiveIntensity={0.4}
-          polygonOffset
-          polygonOffsetFactor={POLYGON_OFFSET.exteriorOverlay.factor}
-          polygonOffsetUnits={POLYGON_OFFSET.exteriorOverlay.units}
-          depthWrite={false}
-        />
-      </mesh>
+      />
 
       {/* Laser projector units */}
       {[-2.5, 2.5].map((x, i) => (

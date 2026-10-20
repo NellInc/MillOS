@@ -147,3 +147,18 @@ export const spanOf = (run: { readonly u0: number; readonly u1: number }) => ({
   centre: (run.u0 + run.u1) / 2,
   length: run.u1 - run.u0,
 });
+
+/**
+ * Night light on the apron, where the trucks and forklifts work. The yard's
+ * four poles stand on its perimeter (x +/-30), so at 22:00 the dock front was
+ * the darkest working ground on the site. Two wall-pack floods either side of
+ * the door, above the status lamps and clear of the 9.7 m door frame, throw
+ * one pool each across the truck lane, from the stop bar to KEEP CLEAR.
+ * No light source: lenses and additive pools on the shared lamp level, as the
+ * yard poles are drawn on medium (see `useYardLampsEnabled` in TruckBay.tsx).
+ */
+export const DOCK_FLOOD_HEADS = { xs: [-6.2, 6.2], y: 5.6, u: -1.55 } as const;
+export const DOCK_FLOOD_POOLS = [
+  { x: -2.6, u: 9.5, radius: 8.5 },
+  { x: 2.6, u: 9.5, radius: 8.5 },
+] as const;
