@@ -406,7 +406,7 @@ function createKitGeometry() {
   for (const x of [-10.87, -10.13])
     add('timber', [0.025, 0.843, 0.025], [x, 1.6515, 2.823], '#aa7a4a');
   add('timber', [0.78, 0.024, 0.39], [-10.5, 1.638, 3], '#b78c61');
-  add('timber', [0.78, 0.035, 0.014], [-10.5, 1.656, 3.188], '#aa7a4a');
+  add('timber', [0.78, 0.035, 0.014], [-10.5, 1.656, 3.192], '#aa7a4a');
   for (const x of [-10.75, -10.51]) {
     p.ceramic.push(createSouvenirMugGeometry([x, 1.65, 3.035]));
     p.prints.push(
@@ -441,15 +441,18 @@ function createKitGeometry() {
   add('timber', [0.89, 0.135, 0.016], [-11.1, 0.9, -2.518], '#aa7a4a');
   add('metal', [0.16, 0.015, 0.018], [-11.1, 0.906, -2.506], '#c5b695');
   // A folded linen cloth with a narrow green woven edge beneath the service kit.
+  // The edge is a hem beside the folds, the full cloth height, rather than a
+  // strip laid 0.3 mm over them: stacked, green and cream shared a depth in
+  // this one draw. Working if no green face lies over or under a cream one.
   for (let i = 0; i < 3; i++)
     add(
       'paper',
-      [0.91 - i * 0.004, 0.0007, 0.5 - i * 0.004],
-      [-11.1, 1.01535 + i * 0.0007, -2.8],
+      [0.91 - i * 0.004, 0.0007, 0.4785 - i * 0.002],
+      [-11.1, 1.01535 + i * 0.0007, -2.81075 + i * 0.001],
       CREAM,
       0.00015
     );
-  add('paper', [0.9, 0.0003, 0.013], [-11.1, 1.01725, -2.565], JADE, 0.00007);
+  add('paper', [0.91, 0.0021, 0.013], [-11.1, 1.01605, -2.565], JADE, 0.0003);
   // Fitted serving tray, two scored pastries, six biscuits and serving tongs.
   for (const x of [-11.48, -11.18])
     for (const z of [-2.9, -2.68]) add('paper', [0.02, 0.002, 0.02], [x, 1.0184, z], INK, 0.0004);
@@ -527,7 +530,7 @@ function createKitGeometry() {
         INK
       )
     );
-    add('paper', [0.014, 0.001, 0.005], [-10.82, 1.167, z + 0.024], '#061e18', 0.0003);
+    add('paper', [0.014, 0.004, 0.005], [-10.82, 1.1674, z + 0.024], '#061e18', 0.0003);
   }
   p.ceramic.push(
     lathe(

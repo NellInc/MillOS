@@ -856,7 +856,9 @@ function marketGoods(trade: number) {
     ]);
     put(body, '#c49a48', x, z, lift);
     foodFinish(body, '#ac7d39', '#dfc78a', 'rind');
-    const band = new THREE.CylinderGeometry(r * 1.005, r * 1.005, 0.044, 16, 1, true);
+    // The wax band stands 4 mm proud of the rind facets; at 0.5% of the radius
+    // (0.75-1 mm) the two shared each facet's depth in this one draw.
+    const band = new THREE.CylinderGeometry(r + 0.004, r + 0.004, 0.044, 16, 1, true);
     band.translate(x, MARKET_TRAY_FLOOR + lift + 0.056, z);
     parts.push(colored(band, '#debf77'));
     band.userData.marketFood = 'rind';
@@ -914,7 +916,7 @@ function marketGoods(trade: number) {
       [0.16, 0.06],
     ]) {
       const wedge = new THREE.ExtrudeGeometry(shape, {
-        depth: 0.11,
+        depth: 0.105,
         bevelEnabled: true,
         bevelSize: 0.003,
         bevelThickness: 0.003,
@@ -925,10 +927,15 @@ function marketGoods(trade: number) {
       wedge.rotateX(-Math.PI / 2);
       put(wedge, '#dfbd69', x, z);
       foodFinish(wedge, '#c6a054', '#ead197', 'rind');
+      // Wedge tops sit 4 mm under the 0.115 m wheel top the first wedge cuts
+      // into; the eyes are studs 3 mm proud of the cut face, not discs in it.
       for (let j = 0; j < 3; j++) {
-        const dot = new THREE.CircleGeometry(0.009 + j * 0.002, 8)
-          .rotateX(-Math.PI / 2)
-          .translate(x + 0.06 + j * 0.049, MARKET_TRAY_FLOOR + 0.116, z - 0.032 - j * 0.02);
+        const radius = 0.009 + j * 0.002;
+        const dot = new THREE.CylinderGeometry(radius, radius, 0.006, 8).translate(
+          x + 0.06 + j * 0.049,
+          MARKET_TRAY_FLOOR + 0.111,
+          z - 0.032 - j * 0.02
+        );
         parts.push(colored(dot, '#b99246'));
       }
     }

@@ -176,7 +176,9 @@ export const CASTLE_COURT_SETTING = (() => {
     b.box([0.58, 0.45, 0.28], [3.05, floor + 0.225, z], STONE);
     b.box([0.12, 0.55, 0.1], [2.83, floor + 0.74, z], '#394a49');
   }
-  for (const x of [2.85, 3.05, 3.25]) b.box([0.16, 0.1, 2.25], [x, floor + 0.49, 0], '#70533a');
+  // The front slat stops 5 mm behind the iron uprights' face; flush, oak and
+  // iron shared that plane in this one draw.
+  for (const x of [2.85, 3.05, 3.25]) b.box([0.15, 0.1, 2.25], [x, floor + 0.49, 0], '#70533a');
   for (const y of [0.7, 0.9]) b.box([0.1, 0.14, 2.25], [2.83, floor + y, 0], '#70533a');
   // Flush drainage follows the palas frontage, behind the seating/planting.
   b.box([0.16, 0.018, 15.2], [2.05, floor + 0.01, 0], '#394a49');

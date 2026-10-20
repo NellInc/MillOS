@@ -381,7 +381,7 @@ function house(index: number) {
   );
   for (const side of [-1, 1]) {
     b.box([d.width + 0.09, 0.22, 0.12], [0, d.height, side * front], CREAM);
-    b.box([0.12, 0.22, d.depth], [side * hw, d.height, 0], CREAM);
+    b.box([0.12, 0.22, d.depth - 0.02], [side * hw, d.height, 0], CREAM);
   }
   const step = d.kind === 'step';
   roof(
@@ -430,9 +430,10 @@ function house(index: number) {
   for (const y of [0.53, 1.45]) b.box([0.72, 0.68, 0.034], [0, y, front + 0.223], d.door);
   b.add(new THREE.SphereGeometry(0.046, 4, 2).translate(0.33, 1.01, front + 0.28), '#c0a260');
   // Smooth-normal eight-face brass knobs fund the closed letterplates inside
-  // the original body budget. The dark slot is paint, supported by the metal.
+  // the original body budget. The dark slot is paint, held 4 mm proud of the
+  // plate: at 1 mm the two shared a depth inside this one draw and flickered.
   b.box([0.22, 0.043, 0.027], [0, 0.97, front + 0.222], '#b59a60');
-  b.add(new THREE.PlaneGeometry(0.164, 0.008).translate(0, 0.97, front + 0.2365), IRON);
+  b.add(new THREE.PlaneGeometry(0.164, 0.008).translate(0, 0.97, front + 0.2395), IRON);
   b.box([1.28, 0.09, 0.5], [0, 0.045, front + 0.22], '#b2aaa0');
   const window = (
     x: number,
@@ -458,7 +459,7 @@ function house(index: number) {
     const x = side * d.width * 0.29,
       y = step ? 1.65 : 1.98;
     const bay = index === 4 && side === 1 ? 0.33 : 0;
-    if (bay) b.box([1.48, 1.65, 0.43], [x, y - 0.1, front + 0.2], d.wall);
+    if (bay) b.box([1.48, 1.66, 0.43], [x, y - 0.095, front + 0.2], d.wall);
     window(x, y, front + 0.07 + bay, 0.92, 1.25, index !== 3);
     windowBox(b, x, y - 0.9, front + 0.27 + bay, d.flowers);
     if (step) window(x, 3.35, front + 0.075, 0.82, 1.04, false);
@@ -520,19 +521,21 @@ function house(index: number) {
     for (let i = 0; i < 15; i++) {
       const y = 0.35 + i * 0.28;
       for (const side of [-1, 1])
-        b.box([0.055, 0.018, d.depth - 0.2], [side * (hw + 0.018), y, 0], '#c29b7f');
+        b.box([0.05, 0.018, d.depth - 0.2], [side * (hw + 0.018), y, 0], '#c29b7f');
       // Recessed joints sit behind all door/window frames, never across them.
       b.box([d.width - 0.06, 0.016, 0.012], [0, y, front + 0.021], '#c29b7f');
       for (let col = 0; col < 8; col++) {
         const x = -hw + 0.2 + col * 0.55 + (i % 2) * 0.22;
-        if (x < hw - 0.05) b.box([0.017, 0.25, 0.012], [x, y + 0.135, front + 0.021], '#c29b7f');
+        if (x < hw - 0.05) b.box([0.017, 0.245, 0.012], [x, y + 0.1325, front + 0.021], '#c29b7f');
       }
     }
   }
   if (index === 0) {
+    // Corner boards stand 1 cm proud of the side walls and stop 1 cm under the
+    // wall head: flush, they shared both planes with the plaster in one draw.
     b.box([d.width + 0.07, 0.15, 0.12], [0, d.height - 0.08, front + 0.04], WOOD);
-    for (const x of [-hw + 0.08, hw - 0.08])
-      b.box([0.16, d.height, 0.12], [x, d.height / 2, front + 0.04], WOOD);
+    for (const x of [-hw + 0.07, hw - 0.07])
+      b.box([0.16, d.height - 0.01, 0.12], [x, (d.height - 0.01) / 2, front + 0.04], WOOD);
   }
   const chimney = [hw - 0.7, d.height + d.rise - 0.2, -0.65] as const;
   b.box(
@@ -597,7 +600,7 @@ function garden(index: number) {
   // A worn gravel seat pad grounds the existing rear bench, with open ends
   // instead of another enclosure. No route or collision contract changes.
   b.box([2.3, 0.05, 1.2], [-3.7, 0, -2.25], '#b5a78d');
-  for (const z of [-2.86, -1.64]) b.box([2.3, 0.075, 0.065], [-3.7, 0.005, z], '#9d8e76');
+  for (const z of [-2.86, -1.64]) b.box([2.28, 0.075, 0.065], [-3.7, 0.005, z], '#9d8e76');
   // Walking lane remains 1.7 m wide, including between the gate pillars.
   for (let i = 0; i < 9; i++)
     b.box(
@@ -691,7 +694,7 @@ function garden(index: number) {
   }
   for (const y of [0.3, 0.7]) b.box([0.07, 0.07, 1.04], [0.99, y, 6.52], CREAM);
   if (index === 0 || index === 4) {
-    for (const side of [-1, 1]) b.box([0.08, 2.25, 0.08], [side * 1.14, 1.125, 6.95], '#739075');
+    for (const side of [-1, 1]) b.box([0.08, 2.25, 0.08], [side * 1.14, 1.125, 6.965], '#739075');
     const arch = new THREE.TorusGeometry(1.14, 0.055, 4, 16, Math.PI).translate(0, 2.25, 6.95);
     b.add(arch, '#739075');
     for (let i = 0; i < 7; i++) {

@@ -112,26 +112,28 @@ function busBody() {
   );
   b.box([1.95, 0.1, 7.6], [0, 2.75, 0], GREEN);
   // The nearside wall has a real 1.2m entrance gap. No solid box behind the doors.
+  // The green panel meets the cream rail edge-on and sits 3 mm inside its face:
+  // overlapping, the two shared 25 mm of both side planes in this one draw.
   for (const [side, centre, length] of [
     [1, 0, 7.98],
-    [-1, -1.1, 5.8],
+    [-1, -1.095, 5.79],
     [-1, 3.5, 0.98],
   ]) {
-    b.box([0.08, 0.8, length], [side * 1.06, 1.02, centre], GREEN);
+    b.box([0.077, 0.775, length], [side * 1.0585, 1.0075, centre], GREEN);
     b.box([0.08, 0.13, length], [side * 1.06, 1.46, centre], CREAM);
   }
   for (const side of [-1, 1]) {
     for (const z of [-3.9, -2.7, -1.5, -0.3, 0.9, 1.78, 3.02, 3.9])
       b.box([0.09, 1.18, 0.065], [side * 1.055, 2.13, z], CREAM);
     b.box([0.09, 0.09, 7.98], [side * 1.055, 2.69, 0], CREAM);
-    for (const z of [-3.99, 3.99]) b.box([0.16, 2.16, 0.02], [side * 1.02, 1.61, z], GREEN);
+    for (const z of [-3.99, 3.99]) b.box([0.157, 2.16, 0.02], [side * 1.0185, 1.61, z], GREEN);
   }
   for (const z of [-3.96, 3.96]) {
     b.box([2.08, 0.83, 0.08], [0, 1.035, z], GREEN);
-    b.box([2.12, 0.14, 0.08], [0, 1.48, z], CREAM);
+    b.box([2.12, 0.14, 0.09], [0, 1.48, z], CREAM);
     b.box([2.1, 0.13, 0.07], [0, 0.59, z], IRON);
   }
-  b.box([1.84, 0.37, 0.07], [0, 2.63, 3.955], '#203831');
+  b.box([1.84, 0.355, 0.07], [0, 2.6225, 3.955], '#203831');
   b.box([0.07, 0.8, 0.07], [0, 2, 3.965], CREAM);
   // Shallow boarding step under the opening and contrasting threshold.
   b.box([0.34, 0.12, 1.16], [-0.93, 0.26, 2.4], IRON);
@@ -166,12 +168,13 @@ function busBody() {
     b.beam([side * 0.62, 1.65, 3.976], [side * 0.4, 2.05, 3.976], 0.018, IRON);
     b.box([0.022, 0.4, 0.018], [side * 0.4, 2.13, 3.978], IRON);
   }
-  // Rear grille and panel joints sit within the unchanged end/side envelope.
+  // Rear grille and panel joints sit within the unchanged end/side envelope;
+  // the joints stand 3 mm proud of the recessed green panel.
   b.box([0.88, 0.31, 0.008], [0, 1.04, -4.004], IRON);
   for (let i = 0; i < 5; i++) b.box([0.82, 0.016, 0.006], [0, 0.93 + i * 0.055, -4.011], '#788176');
   for (const side of [-1, 1])
     for (const z of [-3.2, -1.9, -0.6, 0.7])
-      b.box([0.002, 0.61, 0.009], [side * 1.099, 1.02, z], '#2b493f');
+      b.box([0.006, 0.61, 0.009], [side * 1.097, 1.02, z], '#2b493f');
   return b.finish();
 }
 function busWindows() {
@@ -192,7 +195,7 @@ function door() {
   b.box([0.065, 0.92, 0.6], [0, 1.02, 0], GREEN);
   for (const z of [-0.265, 0.265]) b.box([0.065, 1.21, 0.07], [0, 2.085, z], GREEN);
   b.box([0.065, 0.09, 0.6], [0, 2.645, 0], GREEN);
-  b.box([0.082, 0.12, 0.6], [0, 1.42, 0], CREAM);
+  b.box([0.082, 0.125, 0.59], [0, 1.4225, 0], CREAM);
   b.box([0.085, 0.24, 0.022], [-0.015, 1.25, 0.2], CREAM);
   return b.finish();
 }
