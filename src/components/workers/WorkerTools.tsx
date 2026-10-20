@@ -107,7 +107,9 @@ export function createWorkerLoafGeometry() {
  */
 export function createWorkerClipboardClip() {
   const parts = [
-    new RoundedBoxGeometry(0.04, 0.006, 0.02, 1, 0.002).translate(0, 0.007, 0),
+    // Hinge bar 1 mm proud of the board top (the clip mounts at y 0.07); at
+    // 0.007 its top lay on the board's top face.
+    new RoundedBoxGeometry(0.04, 0.006, 0.02, 1, 0.002).translate(0, 0.008, 0),
     new RoundedBoxGeometry(0.036, 0.026, 0.004, 1, 0.001).translate(0, -0.011, 0.0015),
     new RoundedBoxGeometry(0.036, 0.01, 0.004, 1, 0.001).translate(0, 0.003, -0.006),
   ];

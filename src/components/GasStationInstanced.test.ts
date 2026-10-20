@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import * as THREE from 'three';
 import { NodeIO } from '@gltf-transform/core';
 import { describe, expect, it } from 'vitest';
+import { RETAIL_GEOMETRY, STATION_APPLIANCE_SHIFT } from './scenery/StationRetailDetails';
 import {
   createPosterStationGeometry,
   STATION_POSTER_PALETTE,
@@ -208,8 +209,10 @@ describe('instanced station finish', () => {
       if (detail.part.startsWith('door-hood') || detail.part === 'door-rain-hood') {
         expect(instanceBounds(mesh, index).intersectsBox(leaf)).toBe(false);
       }
+      // Seated through the double-sided leaf by 5 mm rather than flush on it,
+      // where the mount's back face and the leaf shared a plane.
       if (detail.part === 'door-pull-mount')
-        expect(instanceBounds(mesh, index).min.z).toBeCloseTo(5, 5);
+        expect(instanceBounds(mesh, index).min.z).toBeCloseTo(4.995, 5);
     });
     const ray = new THREE.Raycaster(
       new THREE.Vector3(-11.58, 1.13, 6),
@@ -604,6 +607,154 @@ describe('station retail contents and sightlines', () => {
       expect.closeTo(0.8, 4),
     ]);
     dispose(body);
+  });
+
+  // Colour-aware coplanar sweep (2026-10-20). Shop-interior groups sit at
+  // station x -12; these are their placements in station coordinates.
+  const SHOP_X = -12;
+  const partBox = (part: StationDetailBox) =>
+    new THREE.Box3().setFromCenterAndSize(
+      new THREE.Vector3(...part.position),
+      new THREE.Vector3(...part.size)
+    );
+  const placed = async (slug: string, position: number[], scale = [1, 1, 1]) => {
+    const body = await deliveredBody(slug);
+    body.scale.fromArray(scale);
+    body.position.set(SHOP_X + position[0], position[1], position[2]);
+    body.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(body);
+    dispose(body);
+    return box;
+  };
+  /** Largest separating gap between two boxes along any axis (negative = overlap). */
+  const gap = (a: THREE.Box3, b: THREE.Box3) =>
+    Math.max(
+      ...[0, 1, 2].map((k) =>
+        Math.max(
+          b.min.getComponent(k) - a.max.getComponent(k),
+          a.min.getComponent(k) - b.max.getComponent(k)
+        )
+      )
+    );
+
+  it('stands the drinks-cabinet frame proud of the delivered liner it encloses', async () => {
+    // Liner sides and top lay on the frame's outer faces (x -14/-10, y 3).
+    const liner = await placed(
+      'station-drinks-cabinet',
+      [
+        0 + STATION_RETAIL.cabinetLiner.position[0],
+        0,
+        -4 + STATION_RETAIL.cabinetLiner.position[2],
+      ],
+      STATION_RETAIL.cabinetLiner.scale
+    );
+    const frame = STATION_DETAIL_LAYOUT.opaque.filter(
+      (part) => part.part === 'retail-fridge-side' || part.part === 'retail-fridge-cap'
+    );
+    const outer = frame.map(partBox).reduce((all, box) => all.union(box), new THREE.Box3());
+    expect(liner.min.x - outer.min.x).toBeGreaterThanOrEqual(0.01);
+    expect(outer.max.x - liner.max.x).toBeGreaterThanOrEqual(0.01);
+    expect(outer.max.y - liner.max.y).toBeGreaterThanOrEqual(0.01);
+  });
+
+  it('keeps the coffee machine out of the drinks cabinet beside it', async () => {
+    // The machine's back corner stood 40 x 30 cm inside the cabinet; the top
+    // shelf's end met its top at 2.2 m.
+    const coffee = await placed('station-coffee-machine', [
+      2 + STATION_APPLIANCE_SHIFT.coffee,
+      0,
+      -3.5,
+    ]);
+    for (const part of STATION_DETAIL_LAYOUT.opaque.filter((p) =>
+      p.part.startsWith('retail-fridge')
+    ))
+      expect(gap(coffee, partBox(part)), part.part).toBeGreaterThanOrEqual(0.01);
+  });
+
+  it('keeps the slush machine out of the counter end beside it', async () => {
+    const slush = await placed(
+      'station-slushie-machine',
+      [2 + STATION_APPLIANCE_SHIFT.slush, 0, -2],
+      STATION_RETAIL.slushBaseScale
+    );
+    const counter = await placed('station-counter', [3, 0, -1]);
+    expect(gap(slush, counter)).toBeGreaterThanOrEqual(0.01);
+  });
+
+  it('shares no same-facing face between station detail boxes of different colour', () => {
+    // The sweep's instance colours exposed 7.5 m2 of roof-cap joint backing
+    // flush with the cap panels' inner faces, the rain hood ends on its edge
+    // strips, gutter lips on the cap ends and the fridge side tops on the liner.
+    const boxes = STATION_DETAIL_LAYOUT.opaque.map((part) => ({ part, box: partBox(part) }));
+    const hits: string[] = [];
+    for (let i = 0; i < boxes.length; i++)
+      for (let j = i + 1; j < boxes.length; j++) {
+        const a = boxes[i];
+        const b = boxes[j];
+        if (a.part.color === b.part.color) continue;
+        for (const axis of [0, 1, 2]) {
+          const [u, v] = [0, 1, 2].filter((k) => k !== axis);
+          for (const end of ['min', 'max'] as const) {
+            if (Math.abs(a.box[end].getComponent(axis) - b.box[end].getComponent(axis)) > 1e-6)
+              continue;
+            const overlap = (k: number) =>
+              Math.min(a.box.max.getComponent(k), b.box.max.getComponent(k)) -
+              Math.max(a.box.min.getComponent(k), b.box.min.getComponent(k));
+            if (overlap(u) > 1e-6 && overlap(v) > 1e-6)
+              hits.push(`${a.part.part} / ${b.part.part} axis ${axis} ${end}`);
+          }
+        }
+      }
+    expect(hits).toEqual([]);
+  });
+
+  it('keeps the drinks-cabinet frame sides above the liner top too', async () => {
+    const liner = await placed(
+      'station-drinks-cabinet',
+      [STATION_RETAIL.cabinetLiner.position[0], 0, -4 + STATION_RETAIL.cabinetLiner.position[2]],
+      STATION_RETAIL.cabinetLiner.scale
+    );
+    for (const side of STATION_DETAIL_LAYOUT.opaque.filter((p) => p.part === 'retail-fridge-side'))
+      expect(partBox(side).max.y - liner.max.y).toBeGreaterThan(0.0099);
+  });
+
+  it('passes the door pull mounts through the door leaf plane', () => {
+    // The leaf is a double-sided plane at z 5; the mounts' backs lay on it.
+    for (const mount of STATION_DETAIL_LAYOUT.opaque.filter((p) => p.part === 'door-pull-mount'))
+      expect(5 - partBox(mount).min.z).toBeGreaterThanOrEqual(0.004);
+  });
+
+  it('ends the door threshold and head inside the jambs', () => {
+    const jambs = STATION_DETAIL_LAYOUT.opaque.filter((p) => p.part === 'door-jamb').map(partBox);
+    const outerMin = Math.min(...jambs.map((box) => box.min.x));
+    const outerMax = Math.max(...jambs.map((box) => box.max.x));
+    for (const part of STATION_DETAIL_LAYOUT.opaque.filter(
+      (p) => p.part === 'door-threshold' || p.part === 'door-head'
+    )) {
+      const box = partBox(part);
+      expect(box.min.x - outerMin, part.part).toBeGreaterThanOrEqual(0.005);
+      expect(outerMax - box.max.x, part.part).toBeGreaterThanOrEqual(0.005);
+    }
+  });
+
+  it('stands the counter working edge proud of the delivered counter top', async () => {
+    const counter = await placed('station-counter', [3, 0, -1]);
+    const g = RETAIL_GEOMETRY.hardware.index
+      ? RETAIL_GEOMETRY.hardware.toNonIndexed()
+      : RETAIL_GEOMETRY.hardware;
+    const position = g.getAttribute('position');
+    const flush: number[][] = [];
+    for (let i = 0; i < position.count; i += 3) {
+      const ys = [0, 1, 2].map((k) => position.getY(i + k));
+      const xs = [0, 1, 2].map((k) => position.getX(i + k));
+      const zs = [0, 1, 2].map((k) => position.getZ(i + k));
+      if (Math.max(...ys) - Math.min(...ys) > 1e-6) continue;
+      if (Math.abs(ys[0] - counter.max.y) > 1e-4) continue;
+      if (Math.max(...xs) < counter.min.x || Math.min(...xs) > counter.max.x) continue;
+      if (Math.max(...zs) < counter.min.z || Math.min(...zs) > counter.max.z) continue;
+      flush.push([xs[0], ys[0], zs[0]]);
+    }
+    expect(flush).toEqual([]);
   });
 });
 

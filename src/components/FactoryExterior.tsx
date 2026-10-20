@@ -2811,8 +2811,9 @@ const Pond: React.FC<{
           />
         </group>
       ))}
-      {/* Cupid/Eros statue in center - raised to stand on pond bottom */}
-      <CupidStatue position={[0, 0.15, 0]} />
+      {/* Cupid/Eros statue in center, its foot 2 cm under the water surface
+          (0.15). At 0.15 the base's underside lay on the water plane. */}
+      <CupidStatue position={[0, 0.13, 0]} />
       {/* Bench nearby */}
       <ParkBench position={[radius + 2, 0, 0]} rotation={-Math.PI / 2} />
     </group>

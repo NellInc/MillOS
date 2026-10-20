@@ -1394,13 +1394,14 @@ export const RollerConveyor: React.FC<{
 
       {/* Side rails - main structure gets shadows. At z +/-1.2 their outer
           faces sat exactly on the frame's (+/-1.25) where the two overlap in
-          height; at +/-1.21 they stand 1 cm proud. */}
+          height; at +/-1.21 they stand 1 cm proud. They also stop 1 cm short of
+          each frame end: at 30 m their end faces lay on the frame's. */}
       <mesh position={[0, 0.2, -1.21]} castShadow>
-        <boxGeometry args={[30, 0.35, 0.1]} />
+        <boxGeometry args={[29.98, 0.35, 0.1]} />
         <primitive object={CONVEYOR_MATERIALS.paintedSlate} attach="material" />
       </mesh>
       <mesh position={[0, 0.2, 1.21]} castShadow>
-        <boxGeometry args={[30, 0.35, 0.1]} />
+        <boxGeometry args={[29.98, 0.35, 0.1]} />
         <primitive object={CONVEYOR_MATERIALS.paintedSlate} attach="material" />
       </mesh>
 
