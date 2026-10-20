@@ -60,6 +60,7 @@ import { installInteriorLighting } from './shaders/interiorLighting';
 import { CURRENT_RELEASE_VERSION } from './config/releaseVersions';
 import { applyFirstVisitQuality } from './utils/firstVisitQuality';
 import { preloadStartupWorldAssets } from './utils/startupAssetPreload';
+import { afterSharedTextureBake, startSharedTextureBake } from './utils/sharedTextureBake';
 import { useT } from './i18n';
 import { appMessages } from './App.messages';
 
@@ -84,6 +85,12 @@ applyFirstVisitQuality();
 // requests ride out that block instead of being discovered one world re-render
 // at a time afterwards. Readiness is unchanged: each still counts as an asset.
 preloadStartupWorldAssets(useGraphicsStore.getState().graphics.quality);
+// Bake the shared procedural textures in workers alongside those downloads.
+// `sharedMaterials.ts` generated them at module evaluation of the scene chunk,
+// ~5.8 s of main-thread work; the chunks that evaluate it now wait for this
+// bake and find every texture already cached. Never rejects; anything not
+// baked in time is generated on the main thread as before.
+void startSharedTextureBake();
 
 // The Canvas fallback renders inside the z-0 <main>, under the loading cover,
 // so a crash before readiness must also reach the cover as a startup error.
@@ -95,10 +102,15 @@ function ReportStartupCrash(): null {
   return null;
 }
 
-const PhysicsScene = recoverableLazy(() => import('./components/PhysicsScene'));
+// Both scene chunks evaluate `sharedMaterials.ts`; see `startSharedTextureBake` above.
+const PhysicsScene = recoverableLazy(
+  afterSharedTextureBake(() => import('./components/PhysicsScene'))
+);
 const DeferredOrbitControls = recoverableLazy(() => import('./components/SceneOrbitControls'));
-const AuthoredMillScene = recoverableLazy(() =>
-  import('./components/MillScene').then((module) => ({ default: module.MillScene }))
+const AuthoredMillScene = recoverableLazy(
+  afterSharedTextureBake(() =>
+    import('./components/MillScene').then((module) => ({ default: module.MillScene }))
+  )
 );
 const DeferredOperationalUI = recoverableLazy(() =>
   import('./components/DeferredOperationalUI').then((module) => ({
@@ -480,7 +492,8 @@ const App: React.FC = () => {
 
     let active = true;
     let cleanup: (() => void) | undefined;
-    import('./utils/gpuTrackedResources')
+    // Evaluates `sharedMaterials.ts`, so it waits for the startup texture bake.
+    afterSharedTextureBake(() => import('./utils/gpuTrackedResources'))()
       .then(({ initializeGPUTracking, cleanupGPUTracking }) => {
         if (!active) return;
         initializeGPUTracking();

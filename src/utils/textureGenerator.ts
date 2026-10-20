@@ -195,6 +195,19 @@ export const createLinearDataTexture = (
 const TEXTURE_CACHE_VERSION = 'v2-srgb';
 
 /**
+ * Called with every texture this module GENERATES (never on a cache hit), at
+ * the moment the generator returns and before any caller can mutate it. The
+ * startup bake worker (`sharedTextureBake.worker.ts`) installs one to capture
+ * exactly what each generator produced; the main thread leaves it null.
+ */
+type TextureGenerationRecorder = (key: string, texture: THREE.DataTexture) => void;
+let generationRecorder: TextureGenerationRecorder | null = null;
+
+export const setTextureGenerationRecorder = (recorder: TextureGenerationRecorder | null): void => {
+  generationRecorder = recorder;
+};
+
+/**
  * Get or generate a cached texture.
  * Uses cache-or-generate pattern to avoid regenerating textures.
  */
@@ -206,7 +219,21 @@ export const getTexture = (name: string, generator: () => THREE.DataTexture): TH
 
   const texture = generator();
   textureCache.set(key, texture);
+  generationRecorder?.(key, texture);
   return texture;
+};
+
+/**
+ * Place a texture generated elsewhere (the startup bake worker) under its full
+ * cache key, so the next `getTexture` for that key is a hit and its generator
+ * never runs on this thread. A key that is already cached is left alone: some
+ * module may already hold that object, and swapping it would split identity.
+ * Returns whether the texture was taken.
+ */
+export const seedGeneratedTexture = (key: string, texture: THREE.DataTexture): boolean => {
+  if (textureCache.has(key)) return false;
+  textureCache.set(key, texture);
+  return true;
 };
 
 /**
