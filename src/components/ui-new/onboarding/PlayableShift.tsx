@@ -879,9 +879,10 @@ export function OperationsPlayCard() {
         </label>
       )}
       {/* The programme's one choice, beside the select that makes it: the
-          rush pays more and runs first; another commitment first risks it
-          late at double the penalty. Working if the card names the rush,
-          its premium and deadline, and a changeover when it needs one. */}
+          rush pays more and runs first; a commitment for another product
+          first holds it back a truck, past due, at double the penalty.
+          Working if the card names the rush, its premium and deadline, that
+          risk when another product is open, and a changeover when needed. */}
       {rush && rushDeadline && (
         <p className="mt-2 text-xs leading-5 text-cyan-100">
           {t('rushChoice', {
@@ -891,6 +892,7 @@ export function OperationsPlayCard() {
             product: rush.order.recipe.label,
             due: rushDeadline.label,
           })}
+          {rush.deferrable && t('rushDeferRisk')}
           {rush.onlyOnItsGrain &&
             t('rushChangeover', {
               grain: playT('sourceMaterial', { value: rush.order.recipe.sourceMaterial }),

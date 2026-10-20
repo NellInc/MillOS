@@ -9,11 +9,11 @@ import type { CustomerOrder } from '../stores/operationsCampaignStore';
  * not the same day: which customer is the rush rotates with the programme
  * number, a night programme carries a larger bulk order with more time, and
  * each programme has one choice the card names. The rush pays more but is due
- * soon and costs double the usual late penalty; the controller runs it first.
- * When the rush is the only order on its grain, running it first means
- * changing the line over to that grain and back, and choosing another
- * commitment first keeps the line on its grain at the risk of the rush
- * running late.
+ * soon and costs double the usual late penalty; the controller runs it first,
+ * and it leaves on the first truck. Choosing a commitment for another product
+ * first keeps the line on its grain but holds the rush back a truck, past its
+ * due time. When the rush is the only order on its grain, running it first
+ * means changing the line over to that grain and back.
  *
  * Feasibility: every deadline asks for no more kilograms per minute than the
  * first programme's guided delivery (6,000 kg in 240 min from a cold start,
@@ -25,10 +25,23 @@ import type { CustomerOrder } from '../stores/operationsCampaignStore';
 
 export type ProgrammeShift = 'morning' | 'afternoon' | 'night';
 
-/** A one-truck rush: due soon, paid more, late at twice the usual rate. */
+/**
+ * A one-truck rush: due soon, paid more, late at twice the usual rate.
+ *
+ * The window is one truck wide. At standard pace the yard, not the line, sets
+ * the pace: a shipping truck leaves about every 77 game minutes, and the
+ * changeover to the rush's grain hides inside that wait. Run first, the rush
+ * leaves on the first truck (about 83 min after acceptance); deferred behind
+ * a commitment for another product it waits for the next (about 160 min).
+ * At 150 min the deferred rush was 10 min late, a rounding error; at 125 it
+ * is about 35 min late. 125 is also the floor the feasibility margin allows
+ * (2,500 kg at 80% of the guided 25 kg/min).
+ * Working if UnifiedGameTick.playableJourney.test.ts ships the rush run first
+ * with at least 20 min to spare and the deferred rush at least 20 min late.
+ */
 export const PROGRAMME_RUSH = {
   kg: 2500,
-  windowMinutes: 150,
+  windowMinutes: 125,
   premiumPercent: 30,
   latePenaltyFactor: 2,
 } as const;
@@ -112,8 +125,10 @@ export function buildProgramme(
 }
 
 /**
- * The open rush order of the running programme, and whether it is the only
- * open order on its grain (so running it first means a changeover each way).
+ * The open rush order of the running programme, whether another open order is
+ * for a different product (so putting that one first holds the rush back a
+ * truck), and whether it is the only open order on its grain (so running it
+ * first means a changeover each way).
  */
 export function openRush(orders: readonly CustomerOrder[]) {
   const open = orders.filter(
@@ -124,6 +139,11 @@ export function openRush(orders: readonly CustomerOrder[]) {
   const others = open.filter((order) => order.id !== rush.id);
   return {
     order: rush,
+    // Shipped product is credited to the rush before any other order of it,
+    // so only a commitment for another product can make it wait for a truck.
+    deferrable: others.some(
+      (order) => order.recipe.finishedMaterial !== rush.recipe.finishedMaterial
+    ),
     onlyOnItsGrain:
       others.length > 0 &&
       others.every((order) => order.recipe.sourceMaterial !== rush.recipe.sourceMaterial),
