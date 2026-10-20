@@ -77,7 +77,7 @@ import {
   type DockMarking,
   YARD_MAST,
 } from './truckbay/dockApronLayout';
-import { DOCK_DECK } from '../constants/dockLoading';
+import { DOCK_DECK, DOCK_FORKLIFT_ID, dockForkliftHoldsTruck } from '../constants/dockLoading';
 import {
   EXTERIOR_LAMP_LENS_MATERIAL,
   ExteriorLampPool,
@@ -3029,6 +3029,11 @@ export const TruckBay: React.FC = () => {
     });
     const shippingServiceComplete =
       useOperationsCampaignStore.getState().execution.dispatchLoad.status === 'ready';
+    const dockForkliftInLane = (dock: 'shipping' | 'receiving') =>
+      dockForkliftHoldsTruck(
+        positionRegistry.get(DOCK_FORKLIFT_ID[dock]),
+        vehicleTelemetryRegistry.get(DOCK_FORKLIFT_ID[dock])?.stopReason
+      );
 
     const advanceTruck = (
       dock: 'shipping' | 'receiving',
@@ -3060,7 +3065,9 @@ export const TruckBay: React.FC = () => {
           deltaSeconds: TRUCK_CONTROLLER_STEP_SECONDS,
           arrivalReady: scheduleBefore.arrivalReady,
           safetyHold: safetyHoldActive,
-          serviceComplete: dock === 'receiving' || shippingServiceComplete,
+          // The doors stay open while the dock's forklift is in its lane.
+          serviceComplete:
+            (dock === 'receiving' || shippingServiceComplete) && !dockForkliftInLane(dock),
           speedMultiplier: vehicleSpeedMultiplier,
         });
         controller = result.state;

@@ -1,9 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
-import { DOCK_DECK, TRAILER_BED_Y } from '../../constants/dockLoading';
+import {
+  DOCK_DECK,
+  TRAILER_BED_Y,
+  dockForkliftHoldsTruck,
+  forkliftInDockLane,
+} from '../../constants/dockLoading';
 import { drivenLogisticsRoute } from '../../simulation/logisticsRuntime';
+import { protectedEgressApproaches } from '../../simulation/layoutPlanning';
 import { sampleArcLengthPath } from '../../simulation/vehicles/vehicleKinematics';
-import { sampleForkliftLoadPose } from '../../simulation/vehicles/forkliftController';
+import {
+  FORKLIFT_HOLD_CLEARANCE_METRES,
+  distanceAheadOnClosedPath,
+  forkliftActionHoldDistance,
+  sampleForkliftLoadPose,
+} from '../../simulation/vehicles/forkliftController';
 import { FORKLIFT_TIER_FOOTPRINTS } from '../models/ForkliftModel';
 import { getFlourPalletGeometry } from '../../utils/flourSacks';
 import { DOCK_BUMPER_FACE_Z, TRAILER_REAR_OVERHANG } from './truckController';
@@ -90,6 +101,39 @@ describe('dock loading geometry', () => {
   });
 
   for (const dock of ['shipping', 'receiving'] as const) {
+    it(`${dock}: the truck's doors stay open while its forklift drives in, works and backs off`, () => {
+      const spec = DOCKS[dock];
+      const { plan } = drivenLogisticsRoute(dock, SITE_LAYOUT.routes.forklifts[dock].points);
+      const marker = plan.markers.find(({ action }) => action.type === spec.action)!;
+      const hold = forkliftActionHoldDistance(
+        plan,
+        marker.distance,
+        protectedEgressApproaches(),
+        FORKLIFT_HOLD_CLEARANCE_METRES
+      );
+      const at = (distance: number) => {
+        const total = plan.path.totalLength;
+        const s = sampleArcLengthPath(plan.path, ((distance % total) + total) % total);
+        return forkliftInDockLane(s.x, s.z);
+      };
+      // Waiting at the hold point it is outside the lane, so it never holds a truck.
+      expect(at(hold)).toBe(false);
+      // From just past the hold point, through the stand and back out the same way.
+      const leg = distanceAheadOnClosedPath(plan.path, hold, marker.distance);
+      for (let along = 0.3; along <= leg; along += 0.1) expect(at(hold + along)).toBe(true);
+      for (let back = 0; back <= leg - 0.3; back += 0.1)
+        expect(at(marker.distance + back), `${back} m back`).toBe(true);
+      // The rest of the lap is not.
+      expect(at(marker.distance + plan.path.totalLength / 2)).toBe(false);
+      // Working or backing off it holds the truck; stuck on its own interlock
+      // (permission lost after it drove in) it must not, or neither moves again.
+      const stand = sampleArcLengthPath(plan.path, marker.distance);
+      expect(dockForkliftHoldsTruck(stand, 'load-operation')).toBe(true);
+      expect(dockForkliftHoldsTruck(stand, 'none')).toBe(true);
+      expect(dockForkliftHoldsTruck(stand, 'logistics-interlock')).toBe(false);
+      expect(dockForkliftHoldsTruck(undefined, 'none')).toBe(false);
+    });
+
     it(`${dock}: the forklift sets the pallet on the deck at the trailer tail`, () => {
       const spec = DOCKS[dock];
       const { plan } = drivenLogisticsRoute(dock, SITE_LAYOUT.routes.forklifts[dock].points);

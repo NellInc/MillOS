@@ -45,3 +45,36 @@ export const DOCK_DECK_FORK_HEIGHT = DOCK_DECK.topY - FORKLIFT_PALLET_REST_ABOVE
 
 /** How far a loaded fork clears a raised work surface while it moves over it. */
 export const FORKLIFT_PALLET_CLEARANCE = 0.05;
+
+/** The forklift serving each dock. */
+export const DOCK_FORKLIFT_ID = { shipping: 'forklift-1', receiving: 'forklift-2' } as const;
+
+/**
+ * Whether a forklift origin is in a dock's lane: on the bay centreline between
+ * its hall-side lane (|z| 40) and the deck, driving in, working or backing off.
+ * The forklift waits for its truck at x -3.1 (short of the door's pedestrian
+ * approach), outside the lane. The truck keeps its doors open and its leveler
+ * deployed while its forklift is in the lane, so a door never closes on one
+ * that set off to load or unload it.
+ */
+export function forkliftInDockLane(x: number, z: number): boolean {
+  return Math.abs(x) < 2.9 && Math.abs(z) > 40 && Math.abs(z) < 50;
+}
+
+/**
+ * Whether the dock's forklift keeps the truck's transfer open: it is in the
+ * lane and not itself waiting on the logistics interlock. A forklift that
+ * drove in and then lost its permission (the shipping load completed while it
+ * carried one more pallet) waits for the next truck; holding this one for it
+ * would hold both for ever.
+ */
+export function dockForkliftHoldsTruck(
+  position: { readonly x: number; readonly z: number } | undefined,
+  stopReason: string | undefined
+): boolean {
+  return (
+    position !== undefined &&
+    forkliftInDockLane(position.x, position.z) &&
+    stopReason !== 'logistics-interlock'
+  );
+}
