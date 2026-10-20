@@ -8,7 +8,12 @@ import { SHOP_KIT_GEOMETRY } from './StationSouvenirs';
 import { createSleepingCatGeometry } from './SleepingCatCraft';
 import { createCastleSetting } from './FairytaleCastle';
 import { createWorldRealm, VILLAGE_REALM_GEOMETRY } from './WorldPublicRealm';
-import { AUTHORED_MARKET_GOODS, MARKET_TRAY_FLOOR } from './AuthoredPropTrim';
+import {
+  AUTHORED_MARKET_GOODS,
+  MARKET_TRAY_FLOOR,
+  createBarnJoineryGeometry,
+} from './AuthoredPropTrim';
+import { NodeIO } from '@gltf-transform/core';
 import { createSpoutTubeGeometry, spoutRouteRadii } from '../SpoutingSystem';
 import { buildSpoutRoutes, SPOUT_PIPE_RADIUS } from '../flow/spoutRoutes';
 import { buildCeilingFixtures } from '../infrastructure/OptimizedFactoryInfrastructure';
@@ -335,6 +340,45 @@ describe('small props', () => {
       )
     ).toEqual([]);
   });
+});
+
+describe('barn joinery', () => {
+  it('keeps the rebuilt barn joinery out of the delivered barn faces it retains', async () => {
+    // The runtime joinery is painted by vertex colour onto the delivered barn
+    // (GeneratedModel), so only the composed geometry shows the fight.
+    const doc = await new NodeIO().read('public/models/farm/barn.glb');
+    const node = doc
+      .getRoot()
+      .listNodes()
+      .find((candidate) => candidate.getMesh());
+    const primitive = node!.getMesh()!.listPrimitives()[0];
+    const source = new THREE.BufferGeometry();
+    for (const [semantic, name] of [
+      ['POSITION', 'position'],
+      ['NORMAL', 'normal'],
+      ['TEXCOORD_0', 'uv'],
+    ] as const) {
+      const accessor = primitive.getAttribute(semantic)!;
+      source.setAttribute(
+        name,
+        new THREE.BufferAttribute(accessor.getArray()!.slice(), accessor.getElementSize())
+      );
+    }
+    source.setIndex(Array.from(primitive.getIndices()!.getArray()!));
+    const barn = createBarnJoineryGeometry(source);
+    expect(barn).not.toBe(source);
+    barn.applyMatrix4(new THREE.Matrix4().fromArray(node!.getWorldMatrix()));
+    const floor = new THREE.Box3().setFromBufferAttribute(
+      barn.getAttribute('position') as THREE.BufferAttribute
+    ).min.y;
+    expect(
+      report(
+        selfCoplanarPieces(barn).filter(
+          (p) => !(p.normal[1] < -0.999 && Math.abs(p.centre[1] - floor) < 0.005)
+        )
+      )
+    ).toEqual([]);
+  }, 120_000);
 });
 
 describe('process spouting', () => {

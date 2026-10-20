@@ -1402,11 +1402,16 @@ export function createBarnJoineryGeometry(source: THREE.BufferGeometry) {
     paint(g, shade);
   };
   // Continuous dark backers close the construction joints without filling the loft.
+  // In source units (x10 m): the gable backers end 2 mm inside the side boards'
+  // outer face and 2 mm above their feet; the side backers stand 2.3 mm off the
+  // delivered wall, 2 mm above the board feet and 2 mm under the eaves soffit,
+  // and the side boards stop 2 mm under it too. Each had shared a plane with a
+  // differently coloured face.
   for (const side of [-1, 1]) {
     const outline = new THREE.Shape();
-    outline.moveTo(-0.438, -0.482);
-    outline.lineTo(0.438, -0.482);
-    for (const x of [0.438, 0.338, 0.213, 0, -0.213, -0.338, -0.438])
+    outline.moveTo(-0.436, -0.48);
+    outline.lineTo(0.436, -0.48);
+    for (const x of [0.436, 0.338, 0.213, 0, -0.213, -0.338, -0.436])
       outline.lineTo(x, barnRoofHeight(x) - 0.012);
     outline.closePath();
     if (side > 0) {
@@ -1429,8 +1434,8 @@ export function createBarnJoineryGeometry(source: THREE.BufferGeometry) {
     paint(backing, '#70272c');
     const top = barnRoofHeight(0.438) - 0.008;
     paint(
-      new THREE.BoxGeometry(0.003, top + 0.482, 0.832).translate(
-        side * 0.419,
+      new THREE.BoxGeometry(0.003, top + 0.478, 0.832).translate(
+        side * 0.4215,
         (top - 0.482) / 2,
         0
       ),
@@ -1457,9 +1462,9 @@ export function createBarnJoineryGeometry(source: THREE.BufferGeometry) {
     for (let i = 0; i < 24; i++) {
       const z = -0.416 + ((i + 0.5) * 0.832) / 24;
       paint(
-        new THREE.BoxGeometry(0.014, top + 0.482, 0.832 / 24 - 0.001).translate(
+        new THREE.BoxGeometry(0.014, top + 0.48, 0.832 / 24 - 0.001).translate(
           side * 0.431,
-          (top - 0.482) / 2,
+          (top - 0.484) / 2,
           z
         ),
         reds[(i + 1) % 4]

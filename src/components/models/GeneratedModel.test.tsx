@@ -601,7 +601,8 @@ it('builds the real barn within its original cost/envelope with retained roof/fl
     for (const x of [-0.3, -0.15, 0.15, 0.3])
       expect(hit(mesh, [x, 1, z], [0, -1, 0]).y).toBeCloseTo(hit(old, [x, 1, z], [0, -1, 0]).y, 6);
   expect(hit(mesh, [0, 0.16, 1], [0, 0, -1]).z).toBeCloseTo(0.405, 4);
-  expect(hit(mesh, [1, -0.3, 0], [-1, 0, 0]).x).toBeCloseTo(0.4205, 4);
+  // The side backer stands 2.3 mm off the delivered wall plane it used to share.
+  expect(hit(mesh, [1, -0.3, 0], [-1, 0, 0]).x).toBeCloseTo(0.423, 4);
   expect(hit(mesh, [0.3, -0.3, 1], [0, 0, -1]).z).toBeCloseTo(0.419, 3);
   expect(hit(mesh, [1, -0.3, 0.2], [-1, 0, 0]).x).toBeCloseTo(0.438, 3);
   for (const [name, values] of Object.entries(before))
