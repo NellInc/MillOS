@@ -1,7 +1,12 @@
 // @vitest-environment node
-import { beforeAll, afterAll, expect, test } from 'vitest';
+import { beforeAll, afterAll, expect, test, vi } from 'vitest';
 import { Buffer } from 'node:buffer';
 import process from 'node:process';
+
+// Edge, fan and seam audits over the real farmhouse: at ~50 runnable per core
+// beside a render (2026-10-20) single tests took 3.0-7.8 s and the transform
+// comparison 18.9 s before its byte fast path, against the 10 s default.
+vi.setConfig({ testTimeout: 60_000 });
 import { readFile, writeFile, mkdtemp, rm, symlink, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -328,7 +333,17 @@ test('all images, materials, scene/node transforms and mesh contracts remain exa
     at = after.getRoot().listTextures();
   expect(at).toHaveLength(3);
   for (let i = 0; i < bt.length; i++) {
-    expect(at[i].getImage()).toEqual(bt[i].getImage());
+    // Same fast path as the candidate bytes above: each image is a whole
+    // encoded byte array, and this test timed out at 18.9 s (~50 per core).
+    const [afterImage, beforeImage] = [at[i].getImage(), bt[i].getImage()];
+    const same =
+      afterImage &&
+      beforeImage &&
+      afterImage.constructor === beforeImage.constructor &&
+      Buffer.from(afterImage.buffer, afterImage.byteOffset, afterImage.byteLength).equals(
+        Buffer.from(beforeImage.buffer, beforeImage.byteOffset, beforeImage.byteLength)
+      );
+    if (!same) expect(afterImage).toEqual(beforeImage);
     expect(at[i].getMimeType()).toBe(bt[i].getMimeType());
   }
   expect(a.p.listSemantics()).toEqual(b.p.listSemantics());

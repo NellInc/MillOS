@@ -11,6 +11,10 @@ import { hasWorldSurface } from '../../utils/worldSurface';
 const holder = vi.hoisted(() => ({ scene: null as THREE.Group | null }));
 vi.mock('../../utils/dracoLoader', () => ({ useDracoGLTF: () => ({ scene: holder.scene }) }));
 afterEach(cleanup);
+// Real GLB decodes and whole-geometry sweeps. After the fast paths below, the
+// slowest (the five delivered goods) still took 16.0-17.6 s at ~50 runnable per core
+// beside a render (2026-10-20), against the 10 s default.
+vi.setConfig({ testTimeout: 60_000 });
 
 /**
  * Per-vertex assertions over delivered GLBs, without a matcher call per
@@ -25,6 +29,16 @@ function sweep(count: number, holds: (i: number) => boolean, assert: (i: number)
 }
 const closeTo = (actual: number, expected: number, digits: number) =>
   Math.abs(expected - actual) < 10 ** -digits / 2;
+/** `toEqual` for whole buffers, as in workerPose.test.ts: a plain loop decides
+ * the common case and anything else goes to the matcher for its verdict. */
+function expectSameArray(actual: ArrayLike<number>, expected: ArrayLike<number>): void {
+  if (actual.constructor === expected.constructor && actual.length === expected.length) {
+    let same = true;
+    for (let i = 0; i < actual.length && same; i++) same = Object.is(actual[i], expected[i]);
+    if (same) return;
+  }
+  expect(actual).toEqual(expected);
+}
 
 it('retains shadow defaults while allowing authored no-reception meshes', () => {
   const source = new THREE.Group();
@@ -222,10 +236,12 @@ it('volumes the delivered five goods while preserving the building, anchors and 
     expect(variant).not.toBe(source);
     expect(q.array).not.toBe(p.array);
     expect(variant.index!.array).not.toBe(source.index!.array);
-    expect(Array.from(variant.index!.array).slice(0, source.index!.count)).toEqual(
+    expectSameArray(
+      Array.from(variant.index!.array).slice(0, source.index!.count),
       Array.from(source.index!.array)
     );
-    expect(Array.from(variant.getAttribute('uv').array).slice(0, uv.array.length)).toEqual(
+    expectSameArray(
+      Array.from(variant.getAttribute('uv').array).slice(0, uv.array.length),
       Array.from(uv.array)
     );
     if (trade !== 'general') {
@@ -335,8 +351,8 @@ it('volumes the delivered five goods while preserving the building, anchors and 
     expect(Number.isFinite(variant.boundingSphere!.radius)).toBe(true);
     variant.dispose();
   }
-  expect(Array.from(p.array)).toEqual(originalPositions);
-  expect(Array.from(source.getAttribute('normal').array)).toEqual(originalNormals);
+  expectSameArray(Array.from(p.array), originalPositions);
+  expectSameArray(Array.from(source.getAttribute('normal').array), originalNormals);
   source.dispose();
 });
 
@@ -654,7 +670,7 @@ it('builds the real barn within its original cost/envelope with retained roof/fl
   expect(hit(mesh, [0.3, -0.3, 1], [0, 0, -1]).z).toBeCloseTo(0.419, 3);
   expect(hit(mesh, [1, -0.3, 0.2], [-1, 0, 0]).x).toBeCloseTo(0.438, 3);
   for (const [name, values] of Object.entries(before))
-    expect(Array.from(source.getAttribute(name).array)).toEqual(values);
+    expectSameArray(Array.from(source.getAttribute(name).array), values);
   console.log(
     'BARN_JOINERY_COST',
     JSON.stringify({

@@ -24,12 +24,13 @@ import { applyFarmWindows } from '../src/components/models/GeneratedOfficeModel.
 
 const repo = process.cwd();
 // The three real-pipeline tests spawn the normalizer and provenance writer
-// (up to five child processes each). At ~61 runnable per core (2026-10-20,
-// --maxWorkers=1) they took 149 s and 301 s, and one child alone passed 120 s,
-// where the lead's gate at ~30-44 per core passed them inside 120 s. The budget
-// is a hang guard, so it sits well above the worst loaded run.
-const REAL_PIPELINE_CHILD_MS = 600_000;
-const REAL_PIPELINE_TEST_MS = 1_200_000;
+// (up to five child processes each). With --maxWorkers=1 (2026-10-20) they
+// took 149-301 s at ~61 runnable per core with one child past 120 s, and
+// 361-790 s at ~50 per core while a render held the GPU; the lead's gate at
+// ~30-44 per core passed them inside 120 s. The budget is a hang guard, so it
+// sits well above the worst loaded run.
+const REAL_PIPELINE_CHILD_MS = 900_000;
+const REAL_PIPELINE_TEST_MS = 2_400_000;
 const io = new NodeIO();
 const rows = new Map();
 const clone = (value) => JSON.parse(JSON.stringify(value));
