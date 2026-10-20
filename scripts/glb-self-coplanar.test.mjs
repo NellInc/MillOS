@@ -31,11 +31,6 @@ const PROVIDER_POSITIONS =
 const PROVIDER_FOLD =
   'fold inside the provider (Tripo) mesh, not an authored part; it stays double-sided because some of its faces are seen from behind, and separating the fold needs a new geometry stage';
 const KNOWN_SELF_COPLANAR = Object.freeze({
-  'farm/coop.glb': {
-    maxVisibleCm2: 520,
-    reason:
-      "roof() in refine_architecture_assets.py lays the dark eave fascia on the roof slab's edge face; the coop chain pins that script, its prepared and normalized inputs, its output and face indices as a reviewed candidate, so the one-line offset needs that review",
-  },
   'world/caravan.glb': { maxVisibleCm2: 7, reason: PROVIDER_FOLD },
   'world/cute-car-hatchback.glb': { maxVisibleCm2: 6, reason: PROVIDER_FOLD },
   'world/cute-car-pickup.glb': { maxVisibleCm2: 8, reason: PROVIDER_FOLD },
