@@ -672,3 +672,29 @@ it('keeps ceiling fixtures clear of every actual pneumatic and finished-product 
       ).toBe(false);
   }
 });
+
+describe('roof deck liner', () => {
+  it('lines the deck underside in a light liner and keeps the exterior coat on top', async () => {
+    // At 22:00 the dock end of the hall read black (luma 2.8): the underside
+    // carried the exterior coat (#505452, ~0.08 albedo), so the uplight and
+    // the slab's bounce had almost nothing to reflect. A steel deck's interior
+    // face is a light liner sheet; the exterior keeps its dark coat.
+    const { ROOF_PANEL_MATERIALS } = await import('./OptimizedFactoryInfrastructure');
+    const box = new THREE.BoxGeometry(1, 1, 1);
+    const normals = box.getAttribute('normal');
+    const index = box.getIndex()!;
+    box.groups.forEach((group) => {
+      const normalY = normals.getY(index.getX(group.start));
+      const material = ROOF_PANEL_MATERIALS[group.materialIndex ?? 0] as THREE.MeshStandardMaterial;
+      if (normalY < -0.5) expect(material.name).toBe('factory-roof-liner');
+      else expect(material.name).toBe('factory-roof-deck');
+    });
+    const luminance = (material: THREE.Material) => {
+      const { r, g, b } = (material as THREE.MeshStandardMaterial).color;
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    expect(luminance(ROOF_PANEL_MATERIALS[3])).toBeGreaterThan(
+      luminance(ROOF_PANEL_MATERIALS[2]) * 2.5
+    );
+  });
+});
