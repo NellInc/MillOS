@@ -789,4 +789,96 @@ describe('compact batch credit keys', () => {
     );
     expect(shipped()).toBe(100);
   });
+
+  // The credit record keeps the newest 1,000 batch keys. A 90-minute shift
+  // packs about 15 batches (UnifiedGameTick.workplace replay evidence), so a
+  // campaign passes the cap after roughly four to five game days: about an
+  // hour of play at 4x. Eviction is safe because the record is only ever the
+  // second guard: a manifest is counted once by its id (the receipt window
+  // spans the whole manifest window), and a dispatch only removes mass that
+  // is still available, so a resident batch's later credit is bounded by its
+  // own manifest line rather than by the evicted total.
+  it('neither double-credits nor drops credit after the record passes 1,000 batches and reloads', () => {
+    const sessionId = 'long-campaign-session';
+    const path = ['silo-0', 'packer-0'];
+    const line = (id: string, batches: { batchId: string; amount: number }[]): MaterialManifest => {
+      const kg = batches.reduce((sum, batch) => sum + batch.amount, 0);
+      return {
+        ...shippingManifest,
+        id,
+        requestedKg: kg,
+        actualKg: kg,
+        materials: [{ type: 'flour', amount: kg }],
+        sourceLots: [{ lotId: 'lot-0001', amount: kg, path }],
+        productBatches: batches,
+      };
+    };
+    // A batch that stays in stock after its first 100 kg ships.
+    const resident: ProductionBatch = {
+      ...flourBatch,
+      id: 'batch-resident',
+      producedKg: 1000,
+      availableKg: 900,
+      sourceContributions: [{ lotId: 'lot-0001', amount: 1000, path }],
+      disposition: 'released',
+      dispositionReason: null,
+      dispatchManifestIds: ['shipping-resident-1'],
+    };
+    const store = useOperationsCampaignStore.getState();
+    const manifests: MaterialManifest[] = [
+      line('shipping-resident-1', [{ batchId: resident.id, amount: 100 }]),
+    ];
+    const shippedBatches: ProductionBatch[] = [];
+    const live = () =>
+      context({
+        materialSessionId: sessionId,
+        manifests: manifests.slice(-MAX_MATERIAL_MANIFESTS),
+        productionBatches: [resident, ...shippedBatches.slice(-32)],
+      });
+    store.tickCampaign(60, live());
+    // 40 later trucks of 25 one-kilogram batches: 1,000 newer credit keys.
+    for (let truck = 0; truck < 40; truck++) {
+      const id = `shipping-fill-${truck}`;
+      const batches = Array.from({ length: 25 }, (_, index) => ({
+        ...flourBatch,
+        id: `batch-fill-${truck}-${index}`,
+        producedKg: 1,
+        sourceContributions: [{ lotId: 'lot-0001', amount: 1, path }],
+        dispatchManifestIds: [id],
+      }));
+      shippedBatches.push(...batches);
+      manifests.push(
+        line(
+          id,
+          batches.map((batch) => ({ batchId: batch.id, amount: 1 }))
+        )
+      );
+      store.tickCampaign(60, live());
+    }
+    const credited = useOperationsCampaignStore.getState().creditedBatchKg;
+    expect(Object.keys(credited)).toHaveLength(1000);
+    expect(Object.keys(credited).some((key) => key.includes(resident.id))).toBe(false);
+    expect(shipped()).toBe(1100);
+
+    // Reload the saved campaign against the same physical window.
+    const options = useOperationsCampaignStore.persist.getOptions();
+    const saved = JSON.parse(
+      JSON.stringify(options.partialize!(useOperationsCampaignStore.getState()))
+    );
+    store.resetCampaign();
+    useOperationsCampaignStore.setState(
+      options.merge!(saved, useOperationsCampaignStore.getState())
+    );
+    store.tickCampaign(60, live());
+    expect(shipped()).toBe(1100);
+
+    // The resident batch ships its remaining 900 kg: credited once, in full.
+    resident.availableKg = 0;
+    resident.disposition = 'shipped';
+    resident.dispatchManifestIds.push('shipping-resident-2');
+    manifests.push(line('shipping-resident-2', [{ batchId: resident.id, amount: 900 }]));
+    store.tickCampaign(60, live());
+    store.tickCampaign(60, live());
+    expect(shipped()).toBe(2000);
+  });
 });
