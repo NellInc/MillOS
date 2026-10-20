@@ -473,6 +473,28 @@ const TRAILER_FRAME_DETAILS: readonly DetailInstance[] = [
   { position: [0.85, 0.9, -11.58], scale: [0.12, 0.74, 0.1] },
 ];
 
+/** Closed rear door leaves (one each side of the centre line), 0.1 m thick. */
+export const TRAILER_REAR_DOOR = { z: -11.38, depth: 0.1 } as const;
+
+/** Rear lamp cluster, mounted on the closed doors' outer face (z -11.43). Each
+ * 0.08 m housing is seated 2 cm into the door leaf, so its lens stands 6 cm
+ * proud. At z -11.38/-11.39 the reverse and signal lenses lay exactly on the
+ * door face (a 0 mm coplanar pair that flickered against the door paint) and
+ * the brake lamps sat 1 cm inside the doors, where they never showed.
+ */
+export const TRAILER_REAR_LAMPS: readonly (DetailInstance & {
+  readonly lamp: 'brake' | 'reverse' | 'left-signal' | 'right-signal';
+})[] = [
+  { lamp: 'brake', position: [-0.72, 1.05, -11.45], scale: [0.42, 0.28, 0.08] },
+  { lamp: 'brake', position: [0.72, 1.05, -11.45], scale: [0.42, 0.28, 0.08] },
+  // Reverse lamps are a PAIR. The old cluster had exactly one, offset to the
+  // left, which reads as a modelling slip from any rear angle.
+  { lamp: 'reverse', position: [-0.25, 1.05, -11.45], scale: [0.26, 0.24, 0.08] },
+  { lamp: 'reverse', position: [0.25, 1.05, -11.45], scale: [0.26, 0.24, 0.08] },
+  { lamp: 'left-signal', position: [-1.08, 1.05, -11.45], scale: [0.22, 0.24, 0.08] },
+  { lamp: 'right-signal', position: [1.08, 1.05, -11.45], scale: [0.22, 0.24, 0.08] },
+];
+
 // Hang from the underframe down to just above the road, aligned with the tyre
 // they trail: x 1.165-1.585 against a tyre at 1.19-1.57.
 const TRAILER_MUDFLAPS: readonly DetailInstance[] = [
@@ -1362,22 +1384,22 @@ export function OptimizedTruckVisual({
           scale={[2.62, 0.12, 11.3]}
           receiveShadow
         />
-        <group ref={leftDoorRef} position={[-1.28, 2.45, -11.38]}>
+        <group ref={leftDoorRef} position={[-1.28, 2.45, TRAILER_REAR_DOOR.z]}>
           <mesh
             geometry={UNIT_BOX}
             material={trailerMaterial}
             position={[0.64, 0, 0]}
-            scale={[1.24, 3.78, 0.1]}
+            scale={[1.24, 3.78, TRAILER_REAR_DOOR.depth]}
             castShadow
             receiveShadow
           />
         </group>
-        <group ref={rightDoorRef} position={[1.28, 2.45, -11.38]}>
+        <group ref={rightDoorRef} position={[1.28, 2.45, TRAILER_REAR_DOOR.z]}>
           <mesh
             geometry={UNIT_BOX}
             material={trailerMaterial}
             position={[-0.64, 0, 0]}
-            scale={[1.24, 3.78, 0.1]}
+            scale={[1.24, 3.78, TRAILER_REAR_DOOR.depth]}
             castShadow
             receiveShadow
           />
@@ -1387,50 +1409,24 @@ export function OptimizedTruckVisual({
             `trailerAngle`. The trailer yaws up to 0.176 rad and the cluster is
             11.4 m behind the pivot, which threw the lamps up to 2 m clear of
             the trailer every time the combination turned in. */}
-        <mesh
-          geometry={UNIT_BOX}
-          material={brakeMaterial}
-          position={[-0.72, 1.05, -11.38]}
-          scale={[0.42, 0.28, 0.08]}
-          receiveShadow
-        />
-        <mesh
-          geometry={UNIT_BOX}
-          material={brakeMaterial}
-          position={[0.72, 1.05, -11.38]}
-          scale={[0.42, 0.28, 0.08]}
-          receiveShadow
-        />
-        {/* Reverse lamps are a PAIR. The old cluster had exactly one, offset to
-            the left, which reads as a modelling slip from any rear angle. */}
-        <mesh
-          geometry={UNIT_BOX}
-          material={reverseMaterial}
-          position={[-0.25, 1.05, -11.39]}
-          scale={[0.26, 0.24, 0.08]}
-          receiveShadow
-        />
-        <mesh
-          geometry={UNIT_BOX}
-          material={reverseMaterial}
-          position={[0.25, 1.05, -11.39]}
-          scale={[0.26, 0.24, 0.08]}
-          receiveShadow
-        />
-        <mesh
-          geometry={UNIT_BOX}
-          material={leftSignalMaterial}
-          position={[-1.08, 1.05, -11.39]}
-          scale={[0.22, 0.24, 0.08]}
-          receiveShadow
-        />
-        <mesh
-          geometry={UNIT_BOX}
-          material={rightSignalMaterial}
-          position={[1.08, 1.05, -11.39]}
-          scale={[0.22, 0.24, 0.08]}
-          receiveShadow
-        />
+        {TRAILER_REAR_LAMPS.map(({ lamp, position, scale }, index) => (
+          <mesh
+            key={index}
+            geometry={UNIT_BOX}
+            material={
+              lamp === 'brake'
+                ? brakeMaterial
+                : lamp === 'reverse'
+                  ? reverseMaterial
+                  : lamp === 'left-signal'
+                    ? leftSignalMaterial
+                    : rightSignalMaterial
+            }
+            position={position}
+            scale={scale}
+            receiveShadow
+          />
+        ))}
         <TruckIdentityDecals company={company} plateNumber={plateNumber} colour={colour} />
       </group>
 

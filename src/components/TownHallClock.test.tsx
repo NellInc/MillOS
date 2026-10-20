@@ -31,6 +31,22 @@ it('updates the hour and minute hands from game time, including fractional hours
     expect(angle('minute')).toBeCloseTo(Math.PI / 2 - (time % 1) * 2 * Math.PI, 8);
   }
 });
+it('keeps the minute hand wholly in front of the hour hand, so no face is shared', () => {
+  // Both hand bars start 0.05 m behind the hub. With the minute bar's back
+  // inside the hour bar's depth, their tail end faces were coplanar whenever
+  // the hands aligned (noon, about 1:05, ...): a probe pair at 0 mm.
+  const view = render(<TownHallClock position={[0, 12.08, 2.17]} face={false} />);
+  const bar = (hand: string) => {
+    const group = view.container.querySelector(`[name="town-hall-clock-${hand}"]`)!;
+    const mesh = group.querySelector('mesh')!;
+    const z = (element: Element) => Number(element.getAttribute('position')!.split(',')[2]);
+    const depth = Number(mesh.querySelector('boxgeometry')!.getAttribute('args')!.split(',')[2]);
+    return [z(group) + z(mesh) - depth / 2, z(group) + z(mesh) + depth / 2];
+  };
+  const hour = bar('hour');
+  const minute = bar('minute');
+  expect(minute[0] - hour[1]).toBeGreaterThan(0.001);
+});
 it('mounts four live clocks alongside the delivered town hall, outside its static body', () => {
   const view = render(<TownHall position={[0, 0, 0]} />);
   expect(view.container.querySelectorAll('[name="town-hall-clock-hour"]')).toHaveLength(4);
