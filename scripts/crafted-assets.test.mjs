@@ -383,7 +383,11 @@ test('postbox aperture returns bury the cut ends of the pillar shell', async () 
   } finally {
     dispose(meshes);
   }
-}, 60000);
+  // 11,232 unaccelerated raycasts against the whole postbox, so the run time
+  // tracks machine load. Measured alone 2026-10-20 (--maxWorkers=1, -t on this
+  // test) at 66-75 runnable per core: 183, 202, 216, 225 and 284 s, against the
+  // old fixed 60 s. 900 s is a hang guard about 3x the worst loaded run.
+}, 900_000);
 
 test('four fountain scuppers have open channels between their floors and hoods', async () => {
   const { meshes } = await assembly('village-fountain');

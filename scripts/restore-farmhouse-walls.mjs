@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { NodeIO } from '@gltf-transform/core';
 export const INPUT = 'public/models/farm/farmhouse.glb';
 export const SOURCE = 'assets/source/models/farm/farmhouse-tripo-original.glb';
-export const INPUT_SHA256 = '03080debdd7dcadf2807ba93f4456c66d9b339415caee2d686ffe88c6d1f57d1';
+export const INPUT_SHA256 = '3915c901a1cbcfadb6b2997b89d622c38c4b2745dd265c4ff410d66bea615c6a';
 export const SOURCE_SHA256 = 'ebc862d40b2bc9df64c56e362be259f680a9241e4f1fa7893b8df56931306ba7';
 export const RESTORED = Object.freeze([
   3067, 3342, 3347, 3375, 3472, 7329, 7336, 7337, 7362, 7712, 7862, 7865, 7867, 7899,

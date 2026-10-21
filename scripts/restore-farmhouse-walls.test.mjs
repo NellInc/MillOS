@@ -204,7 +204,7 @@ test('pins accepted and source bytes; deterministic433424-byte candidate', async
   expect(() => refine(before, source, 'wrong', SOURCE_SHA256)).toThrow('Pinned accepted');
   expect(() => refine(before, source, INPUT_SHA256, 'wrong')).toThrow('Pinned immutable');
   expect(hash(outputBytes)).toBe(
-    '479f3dfc58e220edfa6bcd7962dd12ac00b8ba84f8559e5706e13840a75a9a1a'
+    '0a579e5c32dc08033d34a8c086dd99e5869eb43ce2639fc8c4203f59b8b6e599'
   );
   expect(outputBytes.length).toBe(433424);
   const d = await io.readBinary(inputBytes);

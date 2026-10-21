@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { afterAll, beforeAll, expect, test } from 'vitest';
+import { afterAll, beforeAll, expect, test, vi } from 'vitest';
 import { readFile, writeFile, mkdir, mkdtemp, rm, symlink } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
@@ -22,6 +22,13 @@ import {
   refine,
   safeOutput,
 } from './refine-coop-gable-candidate.mjs';
+// Whole-attribute comparisons over the 7,123-vertex coop, so run time tracks
+// machine load. Measured alone 2026-10-20 (--maxWorkers=1) at 66-78 runnable
+// per core: "every existing attribute and index is byte-identical" took 17.0,
+// 20.2, 25.9 and 29.2 s, and "maps, material properties ..." 3.9-4.2 s when it
+// passed; both failed the 10 s default in a run beside another vitest file.
+// 180 s is about 6x the worst loaded run.
+vi.setConfig({ testTimeout: 180_000 });
 const io = new NodeIO();
 let originalBytes, sourceBytes, before, provider, candidate, candidateBytes, report, temporary;
 const glbJSON = (bytes) =>
