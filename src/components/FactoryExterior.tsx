@@ -5000,8 +5000,12 @@ export const GrainElevator: React.FC<{
       />
       {/* Contact darkening round the plinth, as the silos and tanks have: the
           opaque foundation rejects the blob's middle, leaving the soft annulus
-          on the yard. Without it the 1 m plinth read as lifted. */}
-      <GroundBlob position={[0, 0]} scale={17} scaleZ={14} />
+          on the yard. Without it the 1 m plinth read as lifted. Sized so the
+          plinth's faces sit at ~0.55 of the blob radius, where the gradient
+          is still ~0.18 dark; the silos' 3.1R put this 11 x 9 m block's
+          faces in the falloff and the near edge barely darkened (measured
+          2% in yard). */}
+      <GroundBlob position={[0, 0]} scale={20} scaleZ={17} />
       <GeneratedBoxSurface
         asset="bridgeHousingUnit"
         position={[0, 2.1, 0]}

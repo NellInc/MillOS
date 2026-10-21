@@ -501,7 +501,7 @@ const fragmentShaderPreamble = `
     float slabTone = slab.y * 0.08 + slab.w * 0.11;
     float slabDark = max(slab.x * 0.5, slab.z * 0.08);
     albedo *= 1.0 + (slabTone - slabDark) * weights.g * clamp(uSurfStrength, 0.0, 1.0);
-    float grassGrit = grassGritTone * 0.16 * weights.r * clamp(uSurfStrength, 0.0, 1.0);
+    float grassGrit = grassGritTone * 0.22 * weights.r * clamp(uSurfStrength, 0.0, 1.0);
     albedo *= 1.0 + grassGrit;
 
     float blendedHeight = dot(

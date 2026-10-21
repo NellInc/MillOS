@@ -286,7 +286,7 @@ ${SURFACE_GRIT_GLSL}`
     vMapUv * uFloorDetailRepeat * ${FLOOR_JOINT_PITCH.toFixed(1)},
     ${FLOOR_GRIT_CELL.toFixed(3)}
   );
-  diffuseColor.rgb *= 1.0 + millosGritTone * 0.12;
+  diffuseColor.rgb *= 1.0 + millosGritTone * 0.28;
 }`
       )
       // EXPANSION-JOINT RELIEF.
@@ -586,7 +586,10 @@ const MATERIALS = {
    */
   plinth: new THREE.MeshStandardMaterial({
     name: 'factory-machine-plinth',
-    color: '#a6a8a4',
+    // ~0.27 linear: a shade above the yard's 0.24 poured concrete. '#a6a8a4'
+    // (0.38) rendered near white in the noon key once the tile's darkening
+    // map was gone.
+    color: '#8f918d',
     roughness: 0.92,
     metalness: 0,
   }),
@@ -699,12 +702,19 @@ const SHELL_SURFACES: readonly [
   [MATERIALS.roofTrim, 'painted'],
   [MATERIALS.accent, 'painted'],
   // 4 m from each pad's centre lands on the silo pad's 16 m width.
-  [MATERIALS.plinth, 'masonry', { objectSpace: 1, slabPitch: 4, slabJoint: 0.45, slabTone: 0.06 }],
+  [MATERIALS.plinth, 'masonry', { objectSpace: 1, slabPitch: 4, slabJoint: 0.5, slabTone: 0.09 }],
   // Hi-viz on real geometry. `signage` is the lightest profile in the set: a
   // safety yellow weathered into the background has been broken, not finished.
   [MATERIALS.safetyLit, 'signage'],
   [MATERIALS.danger, 'signage'],
-  [MATERIALS.safetyBarrier, 'masonry', { grime: 0.42, edge: 0.3, bareColor: '#9d9a92' }],
+  // Scuffed paint (a strong meso and macro over the coat), chipped arrises and
+  // a dirty foot. At `masonry`'s own 0.2 meso the face beside the milling
+  // camera still read as one flat yellow.
+  [
+    MATERIALS.safetyBarrier,
+    'masonry',
+    { grime: 0.5, edge: 0.35, meso: 0.32, macro: 0.22, bareColor: '#9d9a92' },
+  ],
   [MATERIALS.gallery, 'metal', { datum: GALLERY_DECK_TOP }],
   [MATERIALS.galleryRail, 'signage', { datum: GALLERY_DECK_TOP }],
   // Anodised aluminium housings, mounted at ceiling height. Grime inert by
