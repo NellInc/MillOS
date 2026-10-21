@@ -85,7 +85,7 @@ const STEEL_DARK = applyWorldSurface(
 const RUBBER = new THREE.MeshStandardMaterial({ color: '#1d1f21', roughness: 0.92 });
 const CHOCK_PAINT = new THREE.MeshStandardMaterial({ color: '#c99a1f', roughness: 0.7 });
 const ALUMINIUM = applyWorldSurface(
-  new THREE.MeshStandardMaterial({ color: '#a9b0b4', roughness: 0.38, metalness: 0.8 }),
+  new THREE.MeshStandardMaterial({ color: '#8f979b', roughness: 0.48, metalness: 0.8 }),
   'metal'
 );
 const BIN_PAINT = applyWorldSurface(
@@ -137,6 +137,8 @@ const CHOCK = (() => {
   return geometry;
 })();
 const BIN = new THREE.CylinderGeometry(0.36, 0.32, 0.9, 18);
+/** The bin's lid: a shallow disc with a 2 cm overhang, not a square plate. */
+const BIN_LID_DISC = new THREE.CylinderGeometry(0.38, 0.38, 0.06, 18);
 
 interface PropProps {
   position: [number, number, number];
@@ -314,13 +316,7 @@ export const DockBoard: React.FC<PropProps & { lean?: number }> = ({
 export const SpillKit: React.FC<PropProps> = ({ position, rotation = 0 }) => (
   <group position={position} rotation={[0, rotation, 0]}>
     <mesh geometry={BIN} material={BIN_PAINT} position={[0, 0.47, 0]} castShadow receiveShadow />
-    <mesh
-      geometry={UNIT_BOX}
-      material={BIN_LID}
-      position={[0, 0.94, 0]}
-      scale={[0.76, 0.05, 0.76]}
-      castShadow
-    />
+    <mesh geometry={BIN_LID_DISC} material={BIN_LID} position={[0, 0.945, 0]} castShadow />
     {[-0.2, 0.2].map((x) => (
       <mesh key={x} geometry={WHEEL} material={RUBBER} position={[x, 0.06, -0.3]} scale={0.7} />
     ))}
