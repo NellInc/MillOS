@@ -105,6 +105,11 @@ export const DOCK_PAINT_START_U = DOCK_STOP_BAR.u + DOCK_STOP_BAR.depth / 2;
  */
 export const DOCK_LINE_WIDTH = 0.25;
 
+/**
+ * One painted rectangle on the apron, in plan: centre `x`, `width` across, and
+ * `u0`-`u1` outward. Every mark is a line - narrow in x (it runs outward) or
+ * narrow in u (it runs across) - and every one is opaque paint.
+ */
 export interface DockMarking {
   readonly id: string;
   /** Centre x, dock-local. */
@@ -113,9 +118,19 @@ export interface DockMarking {
   readonly u0: number;
   readonly u1: number;
   readonly color: string;
-  /** Omitted for opaque paint. */
-  readonly opacity?: number;
 }
+
+/**
+ * Weathered thermoplastic, authored as display sRGB. The saturated UI hues
+ * these replaced (#22c55e, #3b82f6, #fbbf24, #ef4444) read as screen colours
+ * laid over the concrete.
+ */
+export const DOCK_PAINT = {
+  green: '#3f9a5c',
+  blue: '#3f6fae',
+  yellow: '#d9ad3c',
+  red: '#b8392f',
+} as const;
 
 const BAY_U1 = DOCK_PAINT_START_U + 10;
 /**
@@ -124,16 +139,30 @@ const BAY_U1 = DOCK_PAINT_START_U + 10;
  */
 const STAGING_U0 = DOCK_PAINT_START_U + 1;
 const STAGING_U1 = STAGING_U0 + 5;
+/** Box ends run between the two side lines, so no corner is painted twice. */
+const STAGING_END_WIDTH = 4 - DOCK_LINE_WIDTH;
 
+/**
+ * THE DOCK APRON PAINT, AS PAINT.
+ *
+ * The truck bay, the walkway and the staging box used to be translucent
+ * colour fills (opacity 0.2-0.3) with their edge lines, two half-opacity blue
+ * guides at x +/-4 running through the staging box, yellow "groove" stripes at
+ * x +/-2.1 left from a sunken groove long since removed, and (on ultra) three
+ * pulsing green "laser" lines over the bay centre. Seen across the apron they
+ * overlapped into a see-through rainbow that every review read as an AR
+ * overlay. Real dock paint is opaque lines on concrete: each area is now its
+ * outline, no mark lies on another (`dockApronLayout.test.ts`), and the paint
+ * is lit and worn (`DockPaintLine` in TruckBay.tsx).
+ */
 export const DOCK_FLOOR_MARKINGS: readonly DockMarking[] = [
-  { id: 'bay', x: 0, width: 3, u0: DOCK_PAINT_START_U, u1: BAY_U1, color: '#22c55e', opacity: 0.3 },
   {
     id: 'bay-edge-west',
     x: -1.5,
     width: DOCK_LINE_WIDTH,
     u0: DOCK_PAINT_START_U,
     u1: BAY_U1,
-    color: '#22c55e',
+    color: DOCK_PAINT.green,
   },
   {
     id: 'bay-edge-east',
@@ -141,25 +170,23 @@ export const DOCK_FLOOR_MARKINGS: readonly DockMarking[] = [
     width: DOCK_LINE_WIDTH,
     u0: DOCK_PAINT_START_U,
     u1: BAY_U1,
-    color: '#22c55e',
+    color: DOCK_PAINT.green,
   },
   {
-    id: 'forklift-lane',
-    x: 3,
-    width: 1.5,
+    id: 'walkway-edge-inner',
+    x: 2.25,
+    width: DOCK_LINE_WIDTH,
     u0: DOCK_PAINT_START_U,
     u1: BAY_U1,
-    color: '#3b82f6',
-    opacity: 0.3,
+    color: DOCK_PAINT.blue,
   },
   {
-    id: 'staging',
-    x: -4,
-    width: 4,
-    u0: STAGING_U0,
-    u1: STAGING_U1,
-    color: '#fbbf24',
-    opacity: 0.2,
+    id: 'walkway-edge-outer',
+    x: 3.75,
+    width: DOCK_LINE_WIDTH,
+    u0: DOCK_PAINT_START_U,
+    u1: BAY_U1,
+    color: DOCK_PAINT.blue,
   },
   {
     id: 'staging-edge-west',
@@ -167,7 +194,7 @@ export const DOCK_FLOOR_MARKINGS: readonly DockMarking[] = [
     width: DOCK_LINE_WIDTH,
     u0: STAGING_U0,
     u1: STAGING_U1,
-    color: '#fbbf24',
+    color: DOCK_PAINT.yellow,
   },
   {
     id: 'staging-edge-east',
@@ -175,7 +202,23 @@ export const DOCK_FLOOR_MARKINGS: readonly DockMarking[] = [
     width: DOCK_LINE_WIDTH,
     u0: STAGING_U0,
     u1: STAGING_U1,
-    color: '#fbbf24',
+    color: DOCK_PAINT.yellow,
+  },
+  {
+    id: 'staging-edge-near',
+    x: -4,
+    width: STAGING_END_WIDTH,
+    u0: STAGING_U0,
+    u1: STAGING_U0 + DOCK_LINE_WIDTH,
+    color: DOCK_PAINT.yellow,
+  },
+  {
+    id: 'staging-edge-far',
+    x: -4,
+    width: STAGING_END_WIDTH,
+    u0: STAGING_U1 - DOCK_LINE_WIDTH,
+    u1: STAGING_U1,
+    color: DOCK_PAINT.yellow,
   },
 ];
 
@@ -197,28 +240,40 @@ export const DOCK_KEEP_CLEAR = {
   width: 5,
   u0: Math.round((DOCKED_TRACTOR_NOSE_U + 0.6) * 10) / 10,
   u1: Math.round((DOCKED_TRACTOR_NOSE_U + 2.6) * 10) / 10,
-  color: '#ef4444',
-  opacity: 0.25,
+  color: DOCK_PAINT.red,
 } as const satisfies DockMarking;
 
-/** Blue truck guide lines at x 0 and +/-4, stopping short of KEEP CLEAR. */
+/** KEEP CLEAR is a painted box with its words inside, not a tinted rectangle. */
+export const DOCK_KEEP_CLEAR_OUTLINE: readonly DockMarking[] = (() => {
+  const { x, width, u0, u1, color } = DOCK_KEEP_CLEAR;
+  const line = DOCK_LINE_WIDTH;
+  return [
+    { id: 'keep-clear-near', x, width, u0, u1: u0 + line, color },
+    { id: 'keep-clear-far', x, width, u0: u1 - line, u1, color },
+    ...[-1, 1].map((side) => ({
+      id: `keep-clear-side-${side < 0 ? 'west' : 'east'}`,
+      x: x + side * (width / 2 - line / 2),
+      width: line,
+      u0: u0 + line,
+      u1: u1 - line,
+      color,
+    })),
+  ];
+})();
+
+/**
+ * The blue truck guide line down the bay centre, stopping short of KEEP CLEAR.
+ * The two at x +/-4 ran through the staging box and beside the walkway.
+ */
 export const DOCK_GUIDE_LINES = {
-  xs: [0, -4, 4],
+  xs: [0],
   width: DOCK_LINE_WIDTH,
   u0: DOCK_PAINT_START_U,
   u1: DOCK_KEEP_CLEAR.u0 - 0.3,
 } as const;
 
-/** Yellow warning stripes at x +/-2.1 where the old sunken groove ran. */
-export const DOCK_GROOVE_STRIPES = {
-  xs: [-2.1, 2.1],
-  width: 0.3,
-  u0: DOCK_PAINT_START_U,
-  u1: 17,
-} as const;
-
-/** The green laser alignment lines; their projectors stand at u 16. */
-export const DOCK_LASER_GUIDES = { u0: DOCK_PAINT_START_U, u1: 16.5 } as const;
+/** Where the (decorative, ultra-only) laser projectors stand, in u. */
+export const DOCK_LASER_PROJECTOR_U = 16;
 
 /** Centre and length of a run in u. */
 export const spanOf = (run: { readonly u0: number; readonly u1: number }) => ({
@@ -248,3 +303,30 @@ export const DOCK_FLOOD_POOLS = [
  * yard was untouched navy. A mast flood throws about 1.3x its height.
  */
 export const YARD_MAST = { height: 14, poolRadius: 18 } as const;
+
+/**
+ * The dock door frame (`dockDoorFrame` GLB, measured): 9.7 m wide, top at
+ * y 5.25, 0.286 m deep, its centre plane at dock-local z -1.8 + 0.0425.
+ */
+export const DOCK_DOOR_FRAME = { halfWidth: 4.85, top: 5.25, z: -1.7575, depth: 0.286 } as const;
+
+/**
+ * The dock's name and its dock number, painted on a board standing on the door
+ * frame's head. Both lines used to float in the open bay over the door at y 6
+ * and 4.5 with nothing behind them ("SHIPPING" and "DOCK 1 - OUTBOUND" read as
+ * HUD text in shipping and logistics-close), and the lower line lay across the
+ * rolled-up door (4.1-4.9 m when open).
+ */
+export const DOCK_FACADE_BOARD = {
+  width: 6.8,
+  bottom: DOCK_DOOR_FRAME.top - 0.02,
+  top: DOCK_DOOR_FRAME.top + 2.08,
+  z: DOCK_DOOR_FRAME.z,
+  depth: 0.12,
+} as const;
+
+export const DOCK_FACADE_LINES = {
+  title: { y: 6.62, fontSize: 0.95 },
+  subtitle: { y: 5.72, fontSize: 0.42 },
+  z: DOCK_FACADE_BOARD.z + DOCK_FACADE_BOARD.depth / 2 + 0.012,
+} as const;

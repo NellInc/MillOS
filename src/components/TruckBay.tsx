@@ -1,4 +1,6 @@
 import { PalletStaging } from './truckbay/PalletStaging';
+import { DockYardDressing } from './truckbay/DockYardDressing';
+import { PARKED_TRAILER_HALF, TRAILER_DROP_YARD } from './truckbay/dockYardDressingLayout';
 import { YardWearMarks } from './truckbay/YardWearMarks';
 import { paintLineMask, paintLineQuad, THIN_PAINT_LIMIT } from './truckbay/paintLine';
 import { GeneratedGeometrySurface } from './models/GeneratedGeometrySurface';
@@ -9,6 +11,7 @@ import { useFrame } from '@react-three/fiber';
 import { SceneText } from './shared/SceneText';
 import * as THREE from 'three';
 import { audioManager } from '../utils/audioManager';
+import { applyWorldSurface } from '../utils/worldSurface';
 import { shouldRunThisFrame } from '../utils/frameThrottle';
 import { useAudioInitialized } from '../hooks/useAudioState';
 import { useProductionStore } from '../stores/productionStore';
@@ -48,7 +51,12 @@ import {
   type VehicleTelemetrySnapshot,
 } from '../simulation/vehicles/vehicleTelemetryRegistry';
 import { positionRegistry } from '../utils/positionRegistry';
-import { OptimizedTruckVisual, TRUCK_WHEEL_RADIUS } from './truckbay/OptimizedTruckBay';
+import {
+  OptimizedTruckVisual,
+  ParkedTrailers,
+  TRUCK_WHEEL_RADIUS,
+  type ParkedTrailerPlacement,
+} from './truckbay/OptimizedTruckBay';
 import { getRuntimeMode } from '../runtime/runtimeMode';
 import {
   registerReplayParticipant,
@@ -61,13 +69,16 @@ import {
   YARD_TARMAC_SURFACE,
 } from './truckbay/yardSurfaces';
 import {
+  DOCK_FACADE_BOARD,
+  DOCK_FACADE_LINES,
   DOCK_FLOOD_HEADS,
   DOCK_FLOOD_POOLS,
   DOCK_FLOOR_MARKINGS,
-  DOCK_GROOVE_STRIPES,
   DOCK_GUIDE_LINES,
   DOCK_KEEP_CLEAR,
-  DOCK_LASER_GUIDES,
+  DOCK_KEEP_CLEAR_OUTLINE,
+  DOCK_LASER_PROJECTOR_U,
+  DOCK_PAINT,
   DOCK_STOP_BAR,
   DOCK_BUMPER_BLOCKS,
   DOCK_LEVELER_LIP,
@@ -142,6 +153,74 @@ export const DOCK_FACADE_TEXT_MATERIAL = new THREE.MeshStandardMaterial({
   transparent: true,
   depthWrite: false,
 });
+
+const DOCK_FACADE_BOARD_MATERIAL = new THREE.MeshStandardMaterial({
+  color: '#1f2a37',
+  roughness: 0.62,
+  metalness: 0.15,
+});
+const DOCK_FACADE_TRIM_MATERIAL = new THREE.MeshStandardMaterial({
+  color: '#8a949e',
+  roughness: 0.45,
+  metalness: 0.6,
+});
+
+/**
+ * The dock's name board: painted steel standing on the door frame's head, with
+ * a brushed edge trim behind it (`DOCK_FACADE_BOARD`). The lettering is lit
+ * paint on its face, readable from outside only.
+ */
+const DockFacadeSign: React.FC<{
+  dock: 'shipping' | 'receiving';
+  title: string;
+  subtitle: string;
+  subtitleColor: string;
+}> = ({ dock, title, subtitle, subtitleColor }) => {
+  const board = DOCK_FACADE_BOARD;
+  const height = board.top - board.bottom;
+  return (
+    <group name={`dock-facade-sign-${dock}`}>
+      <mesh
+        position={[0, board.bottom + height / 2, board.z]}
+        material={DOCK_FACADE_BOARD_MATERIAL}
+        castShadow
+        receiveShadow
+      >
+        <boxGeometry args={[board.width, height, board.depth]} />
+      </mesh>
+      {/* Edge trim: 4 cm proud of the board all round, 2 cm shallower, so no
+          face of it is coplanar with the board's. */}
+      <mesh
+        position={[0, board.bottom + height / 2, board.z - 0.01]}
+        material={DOCK_FACADE_TRIM_MATERIAL}
+      >
+        <boxGeometry args={[board.width + 0.08, height + 0.08, board.depth - 0.02]} />
+      </mesh>
+      <Text
+        name={`dock-facade-${dock}`}
+        material={DOCK_FACADE_TEXT_MATERIAL}
+        position={[0, DOCK_FACADE_LINES.title.y, DOCK_FACADE_LINES.z]}
+        fontSize={DOCK_FACADE_LINES.title.fontSize}
+        color="#ffffff"
+        anchorX="center"
+        anchorY="middle"
+      >
+        {title}
+      </Text>
+      <Text
+        name={`dock-facade-${dock === 'shipping' ? 'outbound' : 'inbound'}`}
+        material={DOCK_FACADE_TEXT_MATERIAL}
+        position={[0, DOCK_FACADE_LINES.subtitle.y, DOCK_FACADE_LINES.z]}
+        fontSize={DOCK_FACADE_LINES.subtitle.fontSize}
+        color={subtitleColor}
+        anchorX="center"
+        anchorY="middle"
+      >
+        {subtitle}
+      </Text>
+    </group>
+  );
+};
 
 const SHIPPING_YARD_ORIGIN_Z = 50;
 // Yard-space position of each guard shack's porch light: the shack's local
@@ -3299,6 +3378,8 @@ export const TruckBay: React.FC = () => {
       <TruckAnimationManager />
       <PalletStaging dock="shipping" />
       <PalletStaging dock="receiving" />
+      {/* The working dock's pallet island and waiting loads, off every truck path. */}
+      <DockYardDressing />
       {/* Tyre tracks and oil on both yards, from the trucks' real paths. */}
       <YardWearMarks />
       {/* ========== SHIPPING DOCK (Front of building, z=50) ========== */}
@@ -3331,23 +3412,6 @@ export const TruckBay: React.FC = () => {
           </mesh>
         ))}
 
-        {/* Warning stripes either side of the truck lane, on the apron's overlay
-            datum. A sunken groove floor and two 0.5 m side walls used to sit
-            here from u -1 to u 17; the floor was buried under the channel slab
-            and the yard, and the walls read as two dark rails through the
-            apron. The stripes now start past the stop bar with the rest of the
-            dock paint (`truckbay/dockApronLayout.ts`). */}
-        {DOCK_GROOVE_STRIPES.xs.map((x) => (
-          <DockPaintLine
-            key={`groove-stripe-${x}`}
-            position={[x, EXTERIOR_LAYERS.groundOverlay, spanOf(DOCK_GROOVE_STRIPES).centre]}
-            width={DOCK_GROOVE_STRIPES.width}
-            length={spanOf(DOCK_GROOVE_STRIPES).length}
-            along="z"
-            color="#fbbf24"
-          />
-        ))}
-
         {/* Dock deck at trailer-bed height, door to bumper face */}
         <DockLeveler isDeployed={shippingDockVisual.levelerDeployed} />
 
@@ -3372,31 +3436,12 @@ export const TruckBay: React.FC = () => {
           ]}
         />
 
-        <Text
-          name="dock-facade-shipping"
-          material={DOCK_FACADE_TEXT_MATERIAL}
-          position={[0, 6, -1.5]}
-          fontSize={1.2}
-          color="#ffffff"
-          anchorX="center"
-          anchorY="middle"
-          outlineWidth={0.05}
-          outlineColor="#000"
-        >
-          SHIPPING
-        </Text>
-
-        <Text
-          name="dock-facade-outbound"
-          material={DOCK_FACADE_TEXT_MATERIAL}
-          position={[0, 4.5, -1.5]}
-          fontSize={0.5}
-          color="#22c55e"
-          anchorX="center"
-          anchorY="middle"
-        >
-          DOCK 1 - OUTBOUND
-        </Text>
+        <DockFacadeSign
+          dock="shipping"
+          title="SHIPPING"
+          subtitle="DOCK 1 - OUTBOUND"
+          subtitleColor="#22c55e"
+        />
 
         {/* Wheel chocks - deployed when truck is docked (centered bay) */}
         <WheelChock
@@ -3463,7 +3508,7 @@ export const TruckBay: React.FC = () => {
 
         <OptimizedStripeInstances positions={SHIPPING_WEST_LANE_STRIPES} />
 
-        {/* Blue guide lines and the red stop bar, in outward metres from
+        {/* The blue guide line and the red stop bar, in outward metres from
             `truckbay/dockApronLayout.ts`. Both used to start at the dock line,
             under the platforms and channel slab; the 0.10-0.15 m lines also
             broke into dashes at review distance. */}
@@ -3472,27 +3517,7 @@ export const TruckBay: React.FC = () => {
           width={DOCK_GUIDE_LINES.width}
           length={spanOf(DOCK_GUIDE_LINES).length}
           along="z"
-          color="#3b82f6"
-          bias="moderate"
-          renderOrder={10}
-        />
-        <DockPaintLine
-          position={[-4, EXTERIOR_LAYERS.groundOverlay, spanOf(DOCK_GUIDE_LINES).centre]}
-          width={DOCK_GUIDE_LINES.width}
-          length={spanOf(DOCK_GUIDE_LINES).length}
-          along="z"
-          color="#3b82f6"
-          opacity={0.5}
-          bias="moderate"
-          renderOrder={10}
-        />
-        <DockPaintLine
-          position={[4, EXTERIOR_LAYERS.groundOverlay, spanOf(DOCK_GUIDE_LINES).centre]}
-          width={DOCK_GUIDE_LINES.width}
-          length={spanOf(DOCK_GUIDE_LINES).length}
-          along="z"
-          color="#3b82f6"
-          opacity={0.5}
+          color={DOCK_PAINT.blue}
           bias="moderate"
           renderOrder={10}
         />
@@ -3502,7 +3527,7 @@ export const TruckBay: React.FC = () => {
           width={DOCK_STOP_BAR.depth}
           length={DOCK_STOP_BAR.width}
           along="x"
-          color="#ef4444"
+          color={DOCK_PAINT.red}
           bias="moderate"
           renderOrder={10}
         />
@@ -3788,23 +3813,6 @@ export const TruckBay: React.FC = () => {
           </mesh>
         ))}
 
-        {/* Warning stripes either side of the truck lane, on the apron's overlay
-            datum. A sunken groove floor and two 0.5 m side walls used to sit
-            here from u -1 to u 17; the floor was buried under the channel slab
-            and the yard, and the walls read as two dark rails through the
-            apron. The stripes now start past the stop bar with the rest of the
-            dock paint (`truckbay/dockApronLayout.ts`). */}
-        {DOCK_GROOVE_STRIPES.xs.map((x) => (
-          <DockPaintLine
-            key={`groove-stripe-${x}`}
-            position={[x, EXTERIOR_LAYERS.groundOverlay, spanOf(DOCK_GROOVE_STRIPES).centre]}
-            width={DOCK_GROOVE_STRIPES.width}
-            length={spanOf(DOCK_GROOVE_STRIPES).length}
-            along="z"
-            color="#fbbf24"
-          />
-        ))}
-
         <DockLeveler isDeployed={receivingDockVisual.levelerDeployed} />
 
         {/* Roll-up dock door - at wall opening */}
@@ -3827,31 +3835,12 @@ export const TruckBay: React.FC = () => {
           ]}
         />
 
-        <Text
-          name="dock-facade-receiving"
-          material={DOCK_FACADE_TEXT_MATERIAL}
-          position={[0, 6, -1.5]}
-          fontSize={1.2}
-          color="#ffffff"
-          anchorX="center"
-          anchorY="middle"
-          outlineWidth={0.05}
-          outlineColor="#000"
-        >
-          RECEIVING
-        </Text>
-
-        <Text
-          name="dock-facade-inbound"
-          material={DOCK_FACADE_TEXT_MATERIAL}
-          position={[0, 4.5, -1.5]}
-          fontSize={0.5}
-          color="#f97316"
-          anchorX="center"
-          anchorY="middle"
-        >
-          DOCK 2 - INBOUND
-        </Text>
+        <DockFacadeSign
+          dock="receiving"
+          title="RECEIVING"
+          subtitle="DOCK 2 - INBOUND"
+          subtitleColor="#f97316"
+        />
 
         {/* Wheel chocks - deployed when truck is docked */}
         <WheelChock
@@ -3917,34 +3906,14 @@ export const TruckBay: React.FC = () => {
 
         <OptimizedStripeInstances positions={RECEIVING_EAST_LANE_STRIPES} />
 
-        {/* Blue guide lines and the red stop bar, mirrored into this yard's
+        {/* The blue guide line and the red stop bar, mirrored into this yard's
             outward -z from `truckbay/dockApronLayout.ts`. */}
         <DockPaintLine
           position={[0, EXTERIOR_LAYERS.groundOverlay, -spanOf(DOCK_GUIDE_LINES).centre]}
           width={DOCK_GUIDE_LINES.width}
           length={spanOf(DOCK_GUIDE_LINES).length}
           along="z"
-          color="#3b82f6"
-          bias="moderate"
-          renderOrder={10}
-        />
-        <DockPaintLine
-          position={[-4, EXTERIOR_LAYERS.groundOverlay, -spanOf(DOCK_GUIDE_LINES).centre]}
-          width={DOCK_GUIDE_LINES.width}
-          length={spanOf(DOCK_GUIDE_LINES).length}
-          along="z"
-          color="#3b82f6"
-          opacity={0.5}
-          bias="moderate"
-          renderOrder={10}
-        />
-        <DockPaintLine
-          position={[4, EXTERIOR_LAYERS.groundOverlay, -spanOf(DOCK_GUIDE_LINES).centre]}
-          width={DOCK_GUIDE_LINES.width}
-          length={spanOf(DOCK_GUIDE_LINES).length}
-          along="z"
-          color="#3b82f6"
-          opacity={0.5}
+          color={DOCK_PAINT.blue}
           bias="moderate"
           renderOrder={10}
         />
@@ -3954,7 +3923,7 @@ export const TruckBay: React.FC = () => {
           width={DOCK_STOP_BAR.depth}
           length={DOCK_STOP_BAR.width}
           along="x"
-          color="#ef4444"
+          color={DOCK_PAINT.red}
           bias="moderate"
           renderOrder={10}
         />
@@ -5169,6 +5138,15 @@ const ScaleTicketKiosk: React.FC<{
 };
 
 // Trailer drop yard with empty trailers
+/** The drop yard's trailers, centred in their bays: the coupling point sits half a trailer ahead. */
+const DROP_YARD_TRAILERS: readonly ParkedTrailerPlacement[] = TRAILER_DROP_YARD.trailers.map(
+  ({ x, z, accent }) => ({
+    position: [x, 0, z + PARKED_TRAILER_HALF.length] as const,
+    rotation: 0,
+    accent,
+  })
+);
+
 const TrailerDropYard: React.FC<{ position: [number, number, number]; rotation?: number }> = ({
   position,
   rotation = 0,
@@ -5178,56 +5156,24 @@ const TrailerDropYard: React.FC<{ position: [number, number, number]; rotation?:
       <planeGeometry args={[20, 30]} />
       <meshStandardMaterial color="#57534e" roughness={0.95} />
     </mesh>
-    {[-6, 0, 6].map((x, i) => (
-      <mesh
-        key={i}
-        position={[x, FLOOR_LAYERS.truckMarkings, 0]}
-        rotation={[-Math.PI / 2, 0, 0]}
+    {/* Bay lines between the trailers, not under them. */}
+    {TRAILER_DROP_YARD.bayLines.xs.map((x) => (
+      <DockPaintLine
+        key={x}
+        position={[
+          x,
+          FLOOR_LAYERS.truckMarkings,
+          (TRAILER_DROP_YARD.bayLines.z0 + TRAILER_DROP_YARD.bayLines.z1) / 2,
+        ]}
+        width={TRAILER_DROP_YARD.bayLines.width}
+        length={TRAILER_DROP_YARD.bayLines.z1 - TRAILER_DROP_YARD.bayLines.z0}
+        along="z"
+        color="#ddd5bd"
+        bias="moderate"
         renderOrder={RENDER_ORDER.floorMarkings}
-      >
-        <planeGeometry args={[0.1, 16]} />
-        <meshStandardMaterial
-          color="#fef3c7"
-          polygonOffset
-          polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
-          polygonOffsetUnits={POLYGON_OFFSET.standard.units}
-          roughness={0.85}
-        />
-      </mesh>
+      />
     ))}
-    {[
-      [-6, -5],
-      [0, 2],
-      [6, -8],
-    ].map(([x, z], i) => (
-      <group key={i} position={[x, 0, z]}>
-        <mesh position={[0, 2.3, 0]}>
-          <boxGeometry args={[3, 4, 12]} />
-          <meshStandardMaterial color={['#e2e8f0', '#d4d4d4', '#94a3b8'][i]} roughness={0.7} />
-        </mesh>
-        <mesh position={[-0.8, 0.8, 5]}>
-          <boxGeometry args={[0.15, 1.6, 0.15]} />
-          <meshStandardMaterial color="#374151" metalness={0.6} roughness={0.4} />
-        </mesh>
-        <mesh position={[0.8, 0.8, 5]}>
-          <boxGeometry args={[0.15, 1.6, 0.15]} />
-          <meshStandardMaterial color="#374151" metalness={0.6} roughness={0.4} />
-        </mesh>
-        <group position={[0, 0.5, -3]}>
-          {[
-            [-1.2, 0],
-            [-1.2, 0.8],
-            [1.2, 0],
-            [1.2, 0.8],
-          ].map(([lx, lz], j) => (
-            <mesh key={j} position={[lx, 0, lz]} rotation={[0, 0, Math.PI / 2]}>
-              <cylinderGeometry args={[0.5, 0.5, 0.3, 16]} />
-              <meshStandardMaterial color="#1f2937" roughness={0.8} />
-            </mesh>
-          ))}
-        </group>
-      </group>
-    ))}
+    <ParkedTrailers placements={DROP_YARD_TRAILERS} />
     <group position={[-10, 0, 0]}>
       <mesh position={[0, 2, 0]}>
         <cylinderGeometry args={[0.08, 0.1, 4, 8]} />
@@ -5609,8 +5555,50 @@ const DockApronFloods: React.FC = () => (
 );
 
 /**
- * One thin painted (or laser) line on the ground, drawn on a widened quad with
- * the paint in a mipmapped mask so it cannot break into dashes at distance
+ * Wear on the dock paint: tonal drift and scuffing from the shared world
+ * surface, with no grime or dust (those are wall and ledge terms) and a
+ * relief of 3 mm over a 0.3 m period. Thermoplastic on a working apron is
+ * never one flat colour.
+ */
+const DOCK_PAINT_WEAR = {
+  macroPeriod: 4,
+  macro: 0.2,
+  mesoPeriod: 0.3,
+  meso: 0.3,
+  reliefMetres: 0.003,
+  mesoFadeMetres: 45,
+  grime: 0,
+  dust: 0,
+  edge: 0,
+  bareColor: '#a49d92',
+} as const;
+
+/** Lit, worn dock paint. The alpha mask is line coverage, not translucency. */
+export function createDockPaintMaterial(
+  color: string,
+  mask: THREE.Texture | null,
+  bias: 'moderate' | 'exteriorOverlay'
+): THREE.MeshStandardMaterial {
+  return applyWorldSurface(
+    new THREE.MeshStandardMaterial({
+      color,
+      roughness: 0.85,
+      metalness: 0,
+      alphaMap: mask,
+      transparent: mask !== null,
+      polygonOffset: true,
+      polygonOffsetFactor: POLYGON_OFFSET[bias].factor,
+      polygonOffsetUnits: POLYGON_OFFSET[bias].units,
+      depthWrite: false,
+    }),
+    'painted',
+    DOCK_PAINT_WEAR
+  );
+}
+
+/**
+ * One thin painted line on the ground, drawn on a widened quad with the paint
+ * in a mipmapped mask so it cannot break into dashes at distance
  * (`truckbay/paintLine.ts`). `along` is the ground axis the line runs on.
  */
 const DockPaintLine: React.FC<{
@@ -5619,89 +5607,44 @@ const DockPaintLine: React.FC<{
   length: number;
   along: 'z' | 'x';
   color: string;
-  opacity?: number;
-  emissiveIntensity?: number;
   bias?: 'moderate' | 'exteriorOverlay';
   renderOrder?: number;
-  meshRef?: React.Ref<THREE.Mesh>;
-}> = ({
-  position,
-  width,
-  length,
-  along,
-  color,
-  opacity = 1,
-  emissiveIntensity,
-  bias = 'exteriorOverlay',
-  renderOrder,
-  meshRef,
-}) => {
+}> = ({ position, width, length, along, color, bias = 'exteriorOverlay', renderOrder }) => {
   const { quadWidth, core } = paintLineQuad(width);
   const mask = paintLineMask(core, along === 'z' ? 'u' : 'v');
+  const material = useMemo(() => createDockPaintMaterial(color, mask, bias), [color, mask, bias]);
+  useEffect(() => () => material.dispose(), [material]);
   return (
     <mesh
-      ref={meshRef}
       position={position}
       rotation={[-Math.PI / 2, 0, 0]}
       renderOrder={renderOrder}
+      material={material}
     >
       <planeGeometry args={along === 'z' ? [quadWidth, length] : [length, quadWidth]} />
-      <meshStandardMaterial
-        color={color}
-        alphaMap={mask}
-        transparent
-        opacity={opacity}
-        emissive={emissiveIntensity === undefined ? '#000000' : color}
-        emissiveIntensity={emissiveIntensity ?? 1}
-        polygonOffset
-        polygonOffsetFactor={POLYGON_OFFSET[bias].factor}
-        polygonOffsetUnits={POLYGON_OFFSET[bias].units}
-        depthWrite={false}
-        roughness={0.85}
-      />
     </mesh>
   );
 };
 
+/** A dock marking: a line running outward (narrow in x) or across (narrow in u). */
 const DockMarkingPlane: React.FC<{ mark: DockMarking }> = ({ mark }) => {
   const { centre, length } = spanOf(mark);
-  if (mark.width < THIN_PAINT_LIMIT) {
-    return (
-      <DockPaintLine
-        position={[mark.x, EXTERIOR_LAYERS.groundOverlay, centre]}
-        width={mark.width}
-        length={length}
-        along="z"
-        color={mark.color}
-        opacity={mark.opacity}
-        renderOrder={RENDER_ORDER.floorMarkings}
-      />
-    );
-  }
+  const runsAcross = length < THIN_PAINT_LIMIT && mark.width >= THIN_PAINT_LIMIT;
   return (
-    <mesh
+    <DockPaintLine
       position={[mark.x, EXTERIOR_LAYERS.groundOverlay, centre]}
-      rotation={[-Math.PI / 2, 0, 0]}
+      width={runsAcross ? length : mark.width}
+      length={runsAcross ? mark.width : length}
+      along={runsAcross ? 'x' : 'z'}
+      color={mark.color}
       renderOrder={RENDER_ORDER.floorMarkings}
-    >
-      <planeGeometry args={[mark.width, length]} />
-      <meshStandardMaterial
-        color={mark.color}
-        transparent={mark.opacity !== undefined}
-        opacity={mark.opacity ?? 1}
-        polygonOffset
-        polygonOffsetFactor={POLYGON_OFFSET.exteriorOverlay.factor}
-        polygonOffsetUnits={POLYGON_OFFSET.exteriorOverlay.units}
-        depthWrite={false}
-        roughness={0.85}
-      />
-    </mesh>
+    />
   );
 };
 
 /**
- * Dock floor paint: the green truck bay, the blue forklift lane, the yellow
- * staging box and the KEEP CLEAR zone, laid out in outward metres from the dock
+ * Dock floor paint: the green truck bay, the blue walkway, the yellow staging
+ * box and the KEEP CLEAR box, laid out in outward metres from the dock
  * line (`truckbay/dockApronLayout.ts`). Mount it at the dock origin; the
  * receiving dock mounts it under a pi turn about Y so that "outward" points into
  * its own yard.
@@ -5712,17 +5655,16 @@ const DockMarkingPlane: React.FC<{ mark: DockMarking }> = ({ mark }) => {
  */
 const DockFloorMarkings: React.FC = () => (
   <group>
-    {DOCK_FLOOR_MARKINGS.map((mark) => (
+    {[...DOCK_FLOOR_MARKINGS, ...DOCK_KEEP_CLEAR_OUTLINE].map((mark) => (
       <DockMarkingPlane key={mark.id} mark={mark} />
     ))}
-    <DockMarkingPlane mark={DOCK_KEEP_CLEAR} />
     {/* Reads from the yard: the glyph tops face the dock. */}
     <Text
       surface="painted-ground"
       position={[DOCK_KEEP_CLEAR.x, EXTERIOR_LAYERS.groundOverlay, spanOf(DOCK_KEEP_CLEAR).centre]}
       rotation={[-Math.PI / 2, 0, 0]}
       fontSize={0.4}
-      color="#ef4444"
+      color={DOCK_PAINT.red}
       anchorX="center"
       renderOrder={RENDER_ORDER.floorText}
     >
@@ -5832,85 +5774,16 @@ const FireExtinguisherStation: React.FC<{
   </group>
 );
 
-// Truck alignment guides - laser lines on dock floor for precise backing.
-// Outward metres from the dock line; mount at the dock origin. The lines
-// used to run from u 1.5, under the channel slab.
+// Truck alignment laser projectors, either side of the bay. Their lines are
+// not drawn: a laser line on concrete in daylight is all but invisible, and
+// the three pulsing green ground lines this drew over the bay centre were one
+// more see-through colour in the overlay the apron paint used to read as.
 const TruckAlignmentGuides: React.FC<{ position: [number, number, number] }> = ({ position }) => {
-  const laserRef1 = useRef<THREE.Mesh>(null);
-  const laserRef2 = useRef<THREE.Mesh>(null);
-  const animId = useRef(`laser-${Math.random().toString(36).substr(2, 9)}`);
-
-  useEffect(() => {
-    const id = animId.current;
-    registerAnimation(id, 'custom', null, {}, (time) => {
-      const intensity = 0.5 + Math.sin(time * 4) * 0.3;
-      if (laserRef1.current) {
-        (laserRef1.current.material as THREE.MeshStandardMaterial).emissiveIntensity = intensity;
-      }
-      if (laserRef2.current) {
-        (laserRef2.current.material as THREE.MeshStandardMaterial).emissiveIntensity = intensity;
-      }
-    });
-    return () => unregisterAnimation(id);
-  }, []);
-
   return (
     <group position={position}>
-      {/* Center guide line */}
-      <DockPaintLine
-        meshRef={laserRef1}
-        position={[0, EXTERIOR_LAYERS.groundOverlay, spanOf(DOCK_LASER_GUIDES).centre]}
-        width={0.05}
-        length={spanOf(DOCK_LASER_GUIDES).length}
-        along="z"
-        color="#22c55e"
-        emissiveIntensity={0.5}
-        opacity={0.8}
-        renderOrder={10}
-      />
-
-      {/* Left wheel guide */}
-      <DockPaintLine
-        meshRef={laserRef2}
-        position={[-1.2, EXTERIOR_LAYERS.groundOverlay, spanOf(DOCK_LASER_GUIDES).centre]}
-        width={0.03}
-        length={spanOf(DOCK_LASER_GUIDES).length}
-        along="z"
-        color="#22c55e"
-        emissiveIntensity={0.5}
-        opacity={0.6}
-        renderOrder={10}
-      />
-
-      {/* Right wheel guide */}
-      <DockPaintLine
-        position={[1.2, EXTERIOR_LAYERS.groundOverlay, spanOf(DOCK_LASER_GUIDES).centre]}
-        width={0.03}
-        length={spanOf(DOCK_LASER_GUIDES).length}
-        along="z"
-        color="#22c55e"
-        emissiveIntensity={0.5}
-        opacity={0.6}
-        renderOrder={10}
-      />
-
-      {/* Stop line, lit, laid over the centre of the yard's painted stop bar.
-          It sat at u 3, inside the channel slab. renderOrder 11 keeps it
-          drawn after the bar it overlaps, rather than swapping with the bar
-          as the camera's distance sort changes. */}
-      <DockPaintLine
-        position={[0, EXTERIOR_LAYERS.groundOverlay, DOCK_STOP_BAR.u]}
-        width={0.15}
-        length={4}
-        along="x"
-        color="#ef4444"
-        emissiveIntensity={0.4}
-        renderOrder={11}
-      />
-
       {/* Laser projector units */}
       {[-2.5, 2.5].map((x, i) => (
-        <group key={i} position={[x, 0.3, 16]}>
+        <group key={i} position={[x, 0.3, DOCK_LASER_PROJECTOR_U]}>
           <mesh>
             <boxGeometry args={[0.2, 0.15, 0.2]} />
             <meshStandardMaterial color="#1f2937" metalness={0.6} roughness={0.4} />

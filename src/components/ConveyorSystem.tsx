@@ -4,6 +4,7 @@ import { GeneratedBoxSurface, GeneratedGeometrySurface } from './models/Generate
 import React, { useRef, useMemo, useEffect, useLayoutEffect, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
+import { EndOfLineCell } from './conveyors/EndOfLineCell';
 import * as THREE from 'three';
 import { useShallow } from 'zustand/react/shallow';
 import { audioManager } from '../utils/audioManager';
@@ -640,6 +641,8 @@ export const ConveyorSystem = React.memo<ConveyorSystemProps>(({ productionSpeed
         drive={drive}
         running={lineRunning}
       />
+      {/* Where the roller line ends: accumulation, palletiser, wrapper, outfeed. */}
+      <EndOfLineCell />
 
       {/* The transfer runs down the right wall; its return delivers sacks along
           the mill row to the collection aisle. Cargo keeps two instanced draws. */}

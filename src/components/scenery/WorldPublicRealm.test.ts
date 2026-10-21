@@ -673,9 +673,9 @@ it('grounds every actual retained crop matrix in one soil sheet clear of the hea
   // Nearest resting sheep home is z5; the transverse yard bank begins at6.44.
   expect(8 - CULVERT_BANK.boundingBox!.max.z * 0.6 - 5).toBeGreaterThan(1.4);
   const source = readFileSync('src/components/FarmArea.tsx', 'utf8');
-  expect(source).toContain(
-    '<DrainageCulvert position={[0, -0.3, -28.5]} length={6} radius={0.6} />'
-  );
+  // The headland culvert drained nothing (no ditch or track at either mouth)
+  // and read as a bare primitive in the farm frame; only the road culvert stays.
+  expect(source.match(/<DrainageCulvert /g)).toHaveLength(1);
   expect(source).toContain('<DrainageCulvert position={[8, -0.3, 8]} length={6} radius={0.6} />');
   material.dispose();
 });

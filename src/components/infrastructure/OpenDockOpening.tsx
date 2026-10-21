@@ -371,6 +371,40 @@ export function dockFrameFlangeSpans(height: number) {
   };
 }
 
+/** The interior hood over the dock header, in opening-local metres (-Z is indoors). */
+export function dockHoodSlab(width: number, height: number) {
+  return { centre: [0, height + 1.5, -4] as const, size: [width + 4, 0.2, 8] as const };
+}
+
+/** Section of the hood's diagonal braces. */
+export const DOCK_HOOD_BRACE_SECTION = 0.15;
+
+/**
+ * The hood's two diagonal knee braces, as end points in opening-local metres.
+ *
+ * They used to be 4 m struts hung 1 m outboard of the posts: the top end
+ * poked up through the hood and the bottom stopped 1.7 m short of anything,
+ * so from the interior camera two rods ended in mid-air. Each brace now runs
+ * in its post's plane at 45 degrees, from the post's indoor flange up to the
+ * hood underside 5 m into the hall, and each end is sunk 5 cm into the steel
+ * it is bolted to.
+ */
+export function dockHoodBraces(width: number, height: number) {
+  const hood = dockHoodSlab(width, height);
+  const underside = hood.centre[1] - hood.size[1] / 2;
+  const { width: frameWidth, depth: frameDepth } = DOCK_FRAME_SECTION;
+  const flangeFace = -frameDepth / 2 - 0.1 - 0.075;
+  const reach = 5;
+  const sink = 0.05 / Math.SQRT2;
+  return [-1, 1].map((side) => {
+    const x = side * (width / 2 + frameWidth / 2);
+    return {
+      start: [x, underside - reach - sink, flangeFace + sink] as const,
+      end: [x, underside + sink, flangeFace - reach - sink] as const,
+    };
+  });
+}
+
 /**
  * Open-air dock opening with steel frame structure.
  * Creates a walkthrough/see-through loading dock entrance
@@ -476,25 +510,35 @@ export const OpenDockOpening: React.FC<OpenDockOpeningProps> = ({
           the truck yard, and the wall glazing above the opening rules out a
           slab running outward at this height. */}
       {hasCanopy && (
-        <group position={[0, height + 1.5, -4]}>
+        <group position={[...dockHoodSlab(width, height).centre]}>
           <mesh
             geometry={UNIT_BOX}
             material={MATERIALS.canopy}
-            scale={[width + 4, 0.2, 8]}
+            scale={[...dockHoodSlab(width, height).size]}
             castShadow
             receiveShadow
           />
-          {[-halfWidth - 1, halfWidth + 1].map((x, i) => (
-            <mesh
-              key={`strut-${i}`}
-              geometry={UNIT_BOX}
-              material={MATERIALS.strut}
-              scale={[0.15, 4, 0.15]}
-              position={[x, -1.5, -2]}
-              rotation={[Math.PI / 6, 0, 0]}
-              castShadow
-            />
-          ))}
+          {dockHoodBraces(width, height).map(({ start, end }, i) => {
+            const hood = dockHoodSlab(width, height).centre;
+            const dy = end[1] - start[1];
+            const dz = end[2] - start[2];
+            return (
+              <mesh
+                key={`strut-${i}`}
+                geometry={UNIT_BOX}
+                material={MATERIALS.strut}
+                scale={[DOCK_HOOD_BRACE_SECTION, Math.hypot(dy, dz), DOCK_HOOD_BRACE_SECTION]}
+                position={[
+                  start[0],
+                  (start[1] + end[1]) / 2 - hood[1],
+                  (start[2] + end[2]) / 2 - hood[2],
+                ]}
+                // The box's long axis is +Y; Rx(a) takes it to (0, cos a, sin a).
+                rotation={[Math.atan2(dz, dy), 0, 0]}
+                castShadow
+              />
+            );
+          })}
           {/* Fascia along the hood's inboard edge. It stands 1 cm above and
               2 cm beyond the hood slab: at (0, -0.05, -3.9) its top and its
               -z face were flush with the slab's, two coplanar pairs the full

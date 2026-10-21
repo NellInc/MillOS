@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { stagingBounds } from '../../simulation/layoutPlanning';
 import { STAGING_LAYOUT } from './palletStagingLayout';
+import { dockDressingFootprints } from './dockYardDressingLayout';
 import {
   createTruckController,
   getTruckControllerPose,
@@ -160,6 +161,15 @@ const SHIPPING_YARD_SOLIDS: readonly Rect[] = [
   { id: 'scale-kiosk', minX: -19.5, maxX: -18.5, minZ: 99.4, maxZ: 100.6 },
   // YardAccessNode at (18, 100), turned a quarter: a card-reader post beside the road.
   { id: 'shipping-access-node', minX: 17.9, maxX: 18.2, minZ: 99.3, maxZ: 100.7 },
+  // The pallet island and the loads east of the inbound lane, with 0.5 m of
+  // clearance: a truck that brushes a pallet stack is as wrong as one through it.
+  ...dockDressingFootprints().map((rect) => ({
+    ...rect,
+    minX: rect.minX - 0.5,
+    maxX: rect.maxX + 0.5,
+    minZ: rect.minZ - 0.5,
+    maxZ: rect.maxZ + 0.5,
+  })),
 ];
 const RECEIVING_YARD_SOLIDS: readonly Rect[] = [
   // The shipping weigh scale and kiosk turned half a revolution: (16, -100).

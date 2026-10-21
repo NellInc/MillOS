@@ -101,7 +101,7 @@ describe('normalBiasForTexel', () => {
 
 describe('isInsideFactoryFootprint', () => {
   it('classifies every benchmark camera the way the shadow fit needs', () => {
-    // The forklift camera looks east down the shipping aisle from inside the hall.
+    // The forklift camera looks west up the shipping aisle from inside the hall.
     const inside = ['interior', 'milling', 'packing', 'processFloor', 'forklift'];
     const outside = [
       'silos',

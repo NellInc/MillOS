@@ -18,6 +18,7 @@ import {
   EAST_POND_APPROACH,
   GravelPath,
   HedgeRow,
+  LAKE_APPROACH_PATH,
   setFenceRailInstances,
 } from '../FactoryExterior';
 import {
@@ -203,7 +204,9 @@ it.each([64, 128])(
 
 it('joins the lake approach to the actual curved section entrance', () => {
   const exterior = readFileSync('src/components/FactoryExterior.tsx', 'utf8');
-  expect(exterior).toContain('start={[95, 0, 85]} end={[120, 0, 92]}');
+  expect(exterior).toContain('<GravelPath {...LAKE_APPROACH_PATH} type="paved" />');
+  expect(LAKE_APPROACH_PATH.start).toEqual([95, 0, 85]);
+  expect(LAKE_APPROACH_PATH.end).toEqual([120, 0, 92]);
   // The existing turn is centred at (120,100), radius8, beginning at -pi/2.
   expect(120 + Math.cos(-Math.PI / 2) * 8).toBeCloseTo(120);
   expect(100 + Math.sin(-Math.PI / 2) * 8).toBe(92);
