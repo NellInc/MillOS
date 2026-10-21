@@ -138,6 +138,7 @@ import {
 import { createTreeMatrix } from './scenery/treeForms';
 import { HedgeFoliage } from './exterior/HedgeFoliage';
 import { LandscapeDressing } from './exterior/LandscapeDressing';
+import { PerimeterKerb } from './exterior/PerimeterKerb';
 import {
   LockGateJoinery,
   LockGateLighting,
@@ -5104,6 +5105,14 @@ export const GrainElevator: React.FC<{
         castShadow
         receiveShadow
       />
+      {/* Contact darkening round the plinth, as the silos and tanks have: the
+          opaque foundation rejects the blob's middle, leaving the soft annulus
+          on the yard. Without it the 1 m plinth read as lifted. Sized so the
+          plinth's faces sit at ~0.55 of the blob radius, where the gradient
+          is still ~0.18 dark; the silos' 3.1R put this 11 x 9 m block's
+          faces in the falloff and the near edge barely darkened (measured
+          2% in yard). */}
+      <GroundBlob position={[0, 0]} scale={20} scaleZ={17} />
       <GeneratedBoxSurface
         asset="bridgeHousingUnit"
         position={[0, 2.1, 0]}
@@ -8145,6 +8154,9 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
 
       {/* CORNER COLUMNS REMOVED - were causing visual protrusion issues */}
 
+      {/* Kerb and edge channel where the site hardstanding meets the grass. */}
+      <PerimeterKerb />
+
       {/* ========== PERIMETER FENCE ========== */}
       {/* Fence around property - with gate openings for truck access */}
       {/* Shipping road at x=20 (width 16, spans x=12-28), Receiving road at x=-20 (spans x=-28 to -12) */}
@@ -8510,7 +8522,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
       <ConnectingRoad start={[120, 0, 60.5]} end={[120, 0, 70]} width={5} />
 
       {/* Road connecting parking area to front entrance gate */}
-      <ConnectingRoad start={[105, 0, 85]} end={[120, 0, 70]} width={5} />
+      <ConnectingRoad start={[101, 0, 89]} end={[120, 0, 70]} width={5} />
 
       {/* A few extra parked cars near the gas station for variety, on a layby
           rather than in the field they were standing in. */}

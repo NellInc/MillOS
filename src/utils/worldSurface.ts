@@ -140,9 +140,13 @@
  */
 
 import * as THREE from 'three';
+import { CONCRETE_SLAB_GLSL, SLAB_JOINT_PITCH, SLAB_JOINT_WIDTH } from './concreteSlab';
 
 /** Bump BY HAND whenever the injected GLSL below changes. Never derive this. */
-const WORLD_SURFACE_PROGRAM_VERSION = 'v5';
+const WORLD_SURFACE_PROGRAM_VERSION = 'v6';
+
+/** Where a rib's crown sits within its pitch, 0-1 (the trapezoid in FRAGMENT_BODY). */
+export const RIB_CROWN_PHASE = 0.4;
 
 /** The program cache key every profile shares. Exported for the invariant test. */
 export const WORLD_SURFACE_CACHE_KEY = `millos_world_surface_${WORLD_SURFACE_PROGRAM_VERSION}`;
@@ -221,6 +225,35 @@ export interface WorldSurfaceProfile {
   readonly dustColor: string;
   /** Substrate showing through on worn edges. */
   readonly bareColor: string;
+  /**
+   * Metres between saw-cut slab joints in world X and Z (`concreteSlab.ts`).
+   * Omitted or 0 leaves the slab term off; only poured hardstanding sets it.
+   */
+  readonly slabPitch?: number;
+  /** 0-1. How dark a fully covered joint is. */
+  readonly slabJoint?: number;
+  /** 0-1. Slab-to-slab tone spread, as a fraction of albedo. */
+  readonly slabTone?: number;
+  /**
+   * Metres between the ridges of a periodic ridge-and-trough relief, measured
+   * along `ribAxis`: the ribs of a profiled steel deck, the furrows of a
+   * ploughed field. Omitted or 0 leaves the term off. The crowns sit at 0.4 of
+   * each pitch (`RIB_CROWN_PHASE`). Relief and trough shading are in WORLD
+   * space, because a deck panel is an instance of one unit box whose UV repeat
+   * stretches with every panel's length, and a field has no UVs at all.
+   */
+  readonly ribPeriod?: number;
+  /** Metres from rib crown to trough. */
+  readonly ribDepth?: number;
+  /** The world axis the rib profile varies along: 0 = X, 1 = Z. */
+  readonly ribAxis?: 0 | 1;
+  /**
+   * 0-1. How far the INDIRECT diffuse is pulled to its own luminance. For an
+   * indoor surface facing the hall floor: the sky rig's lower band is the
+   * grass and masonry outside, so a downward face indoors was being lit green
+   * and khaki by ground it cannot see. Luminance is kept exactly.
+   */
+  readonly indoorBounce?: number;
 }
 
 const GRIME_BROWN = '#5d5342';
@@ -386,6 +419,39 @@ export const WORLD_SURFACE_PROFILES = {
     grimeColor: GRIME_BROWN,
     dustColor: DUST_PALE,
     bareColor: BARE_STEEL,
+  },
+  /**
+   * Poured concrete hardstanding: `paving` plus the slab grid.
+   *
+   * The truck yards and dock aprons are concrete laid in slabs, and the slabs
+   * are what make 3,600 m^2 of flat ground read as concrete rather than sand:
+   * sawn joints every `SLAB_JOINT_PITCH` and a slightly different tone per pour.
+   * The terrain's hardstanding channel draws the same grid from the same chunk,
+   * so the joints run straight across the seam where a yard plane meets it.
+   *
+   * Opted in on the yard and apron TILINGS in `yardSurfaces.ts`, not on the
+   * shared tarmac and concrete sources: those also tile the roads and dozens of
+   * plinths, and a road with 5 m square joints is a different road.
+   */
+  slab: {
+    macroPeriod: 11,
+    macro: 0.2,
+    mesoPeriod: 0.6,
+    meso: 0.04,
+    reliefMetres: 0.004,
+    mesoFadeMetres: 40,
+    grime: 0,
+    grimeHeight: 1,
+    datum: 0,
+    dust: 0,
+    edge: 0,
+    objectSpace: 0,
+    grimeColor: GRIME_BROWN,
+    dustColor: DUST_PALE,
+    bareColor: BARE_CONCRETE,
+    slabPitch: SLAB_JOINT_PITCH,
+    slabJoint: 0.5,
+    slabTone: 0.08,
   },
   /**
    * Bare, galvanised and plated metal. Metalness 1 means diffuse is ZERO, so a
@@ -593,6 +659,10 @@ interface WorldSurfaceUniforms {
   readonly uSurfGrime: { value: THREE.Color };
   readonly uSurfDust: { value: THREE.Color };
   readonly uSurfBare: { value: THREE.Color };
+  /** x slab pitch (0 = off), y joint darkness, z slab tone, w joint width. */
+  readonly uSurfSlab: { value: THREE.Vector4 };
+  /** x rib period (0 = off), y rib depth, z axis (0 X, 1 Z), w indoor bounce. */
+  readonly uSurfDeck: { value: THREE.Vector4 };
 }
 
 /** Materials publish their live uniforms so a caller can retune at runtime. */
@@ -663,9 +733,12 @@ uniform vec4 uSurfSpan;
 uniform vec3 uSurfGrime;
 uniform vec3 uSurfDust;
 uniform vec3 uSurfBare;
+uniform vec4 uSurfSlab;
+uniform vec4 uSurfDeck;
 varying vec3 vSurfWorld;
 varying vec3 vSurfObject;
 varying vec3 vSurfNormalW;
+${CONCRETE_SLAB_GLSL}
 
 float surfHash( vec3 p ) {
   p = fract( p * 0.3183099 + vec3( 0.71, 0.113, 0.419 ) );
@@ -793,6 +866,33 @@ const FRAGMENT_BODY = /* glsl */ `
   diffuseColor.rgb = mix( diffuseColor.rgb, uSurfDust, surfDust );
   diffuseColor.rgb = mix( diffuseColor.rgb, uSurfBare, surfEdge );
 
+  // Poured hardstanding only (concreteSlab.ts). A UNIFORM branch, so the
+  // derivatives inside it are defined; every other profile skips it whole.
+  if ( uSurfSlab.x > 0.0 ) {
+    // World XZ for the yards (their joints meet the terrain's), object rest
+    // space for a profile that asks for it (a pad's joints from its centre).
+    vec4 surfSlab = millosConcreteSlab(
+      mix( vSurfWorld, vSurfObject, uSurfSpan.w ).xz, uSurfSlab.x, uSurfSlab.w );
+    float surfSlabTone = surfSlab.y * uSurfSlab.z + surfSlab.w * uSurfSlab.z * 1.4;
+    float surfSlabDark = max( surfSlab.x * uSurfSlab.y, surfSlab.z * 0.08 );
+    diffuseColor.rgb *= 1.0 + ( surfSlabTone - surfSlabDark * surfUp ) * surfKill;
+  }
+
+  // Ribs: deck profile or plough furrows (uniform branch, as above). A trapezoid: crown
+  // over the middle of each pitch, steep webs, flat trough. The relief joins
+  // the meso bump below; the trough also takes a cavity tone, because under
+  // the hall's soft fill a normal alone barely shades. Faded by the pixel
+  // footprint before the pitch can alias.
+  float surfRibHeight = 0.0;
+  if ( uSurfDeck.x > 0.0 ) {
+    float surfRibCoord = mix( vSurfWorld.x, vSurfWorld.z, uSurfDeck.z );
+    float surfRibT = fract( surfRibCoord / uSurfDeck.x );
+    float surfRib = smoothstep( 0.1, 0.24, surfRibT ) - smoothstep( 0.56, 0.7, surfRibT );
+    float surfRibFade = 1.0 - smoothstep( uSurfDeck.x * 0.12, uSurfDeck.x * 0.35, fwidth( surfRibCoord ) );
+    surfRibHeight = surfRib * uSurfDeck.y * surfRibFade * surfKill;
+    diffuseColor.rgb *= 1.0 - ( 1.0 - surfRib ) * 0.14 * surfRibFade * surfKill;
+  }
+
   // Capped below 1. Whatever the profile asks for, a surface never loses ALL of
   // its authored albedo and roughness to dirt: at 1.0 the material stops being
   // the material and the tonal design of the scene goes with it.
@@ -811,11 +911,28 @@ const FRAGMENT_BODY = /* glsl */ `
   // view-space metres. See WorldSurfaceProfile.reliefMetres for the frame that
   // proved it.
   vec2 surfDh = vec2( dFdx( surfMesoRaw ), dFdy( surfMesoRaw ) )
-    * ( uSurfDetail.z * surfNear * surfKill );
+    * ( uSurfDetail.z * surfNear * surfKill )
+    + vec2( dFdx( surfRibHeight ), dFdy( surfRibHeight ) );
   normal = surfPerturbNormal( -vViewPosition, normal, surfDh );
 `;
 
 const FRAGMENT_ANCHOR = '#include <normal_fragment_maps>';
+
+/**
+ * Indoor bounce (`indoorBounce`), after `<lights_fragment_end>`, where the
+ * indirect diffuse is complete and still separate from the direct light.
+ */
+const BOUNCE_ANCHOR = '#include <lights_fragment_end>';
+const BOUNCE_BODY = /* glsl */ `
+  if ( uSurfDeck.w > 0.0 ) {
+    float surfBounceLuma = dot( reflectedLight.indirectDiffuse, vec3( 0.2126, 0.7152, 0.0722 ) );
+    reflectedLight.indirectDiffuse = mix(
+      reflectedLight.indirectDiffuse,
+      vec3( surfBounceLuma ),
+      uSurfDeck.w * clamp( uSurfStrength, 0.0, 1.0 )
+    );
+  }
+`;
 
 /**
  * Dirt has to kill the coat, or it is invisible.
@@ -889,6 +1006,22 @@ function buildWorldSurfaceUniforms(
     uSurfGrime: { value: new THREE.Color(settings.grimeColor) },
     uSurfDust: { value: new THREE.Color(settings.dustColor) },
     uSurfBare: { value: new THREE.Color(settings.bareColor) },
+    uSurfSlab: {
+      value: new THREE.Vector4(
+        settings.slabPitch ?? 0,
+        settings.slabJoint ?? 0,
+        settings.slabTone ?? 0,
+        SLAB_JOINT_WIDTH
+      ),
+    },
+    uSurfDeck: {
+      value: new THREE.Vector4(
+        settings.ribPeriod ?? 0,
+        settings.ribDepth ?? 0,
+        settings.ribAxis ?? 0,
+        settings.indoorBounce ?? 0
+      ),
+    },
   };
 }
 
@@ -906,7 +1039,8 @@ function injectWorldSurface(
   shader.fragmentShader = shader.fragmentShader
     .replace('#include <common>', `#include <common>\n${FRAGMENT_PARS}`)
     .replace(FRAGMENT_ANCHOR, `${FRAGMENT_ANCHOR}\n${FRAGMENT_BODY}`)
-    .replace(CLEARCOAT_ANCHOR, `${CLEARCOAT_ANCHOR}\n${CLEARCOAT_BODY}`);
+    .replace(CLEARCOAT_ANCHOR, `${CLEARCOAT_ANCHOR}\n${CLEARCOAT_BODY}`)
+    .replace(BOUNCE_ANCHOR, `${BOUNCE_ANCHOR}\n${BOUNCE_BODY}`);
 }
 
 /**

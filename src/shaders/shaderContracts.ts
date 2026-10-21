@@ -249,7 +249,11 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
   {
     id: 'terrain-splat-and-displacement',
     owner: 'TerrainMaterial',
-    sources: ['src/components/terrain/TerrainMaterial.tsx'],
+    sources: [
+      'src/components/terrain/TerrainMaterial.tsx',
+      'src/utils/concreteSlab.ts',
+      'src/utils/surfaceGrit.ts',
+    ],
     coordinateSpaces: ['object position', 'world position', 'splat UV'],
     colorSpace: 'MeshStandardMaterial pipeline',
     toneMapping: 'material-pipeline',
@@ -259,7 +263,7 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     qualityVariants: ['high', 'ultra'],
     uniformOwner: 'TerrainMaterial stable uniform refs',
     timeSource: 'none',
-    cacheKey: 'terrain_v13_{disp|nodisp}',
+    cacheKey: 'terrain_v14_{disp|nodisp}',
     disposalOwner: 'TerrainMaterial cleanup effect',
     fallbackMaterial: 'calibrated grass MeshStandardMaterial',
   },
@@ -284,8 +288,15 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     // Registered in the DEFECT 2 sweep, specified by the infrastructure author.
     id: 'factory-slab-detail',
     owner: 'OptimizedFactoryInfrastructure',
-    sources: ['src/components/infrastructure/OptimizedFactoryInfrastructure.tsx'],
-    coordinateSpaces: ['slab UV', 'view-space normal from a constant world tangent frame'],
+    sources: [
+      'src/components/infrastructure/OptimizedFactoryInfrastructure.tsx',
+      'src/utils/surfaceGrit.ts',
+    ],
+    coordinateSpaces: [
+      'slab UV',
+      'slab metres (UV x tile repeat x joint pitch) for the grit',
+      'view-space normal from a constant world tangent frame',
+    ],
     colorSpace: 'sRGB detail sampler decoded by the GPU, ratio blend in linear',
     toneMapping: 'three-chunk',
     fog: 'three-chunk',
@@ -294,7 +305,7 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     qualityVariants: ['low', 'medium', 'high', 'ultra'],
     uniformOwner: 'module-level FLOOR_DETAIL_UNIFORMS',
     timeSource: 'none',
-    cacheKey: 'millos-floor-detail-v2',
+    cacheKey: 'millos-floor-detail-v3',
     disposalOwner: 'module lifetime',
     fallbackMaterial: 'macro map only',
   },
@@ -406,7 +417,7 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
   {
     id: 'world-surface-treatment',
     owner: 'utils/worldSurface',
-    sources: ['src/utils/worldSurface.ts'],
+    sources: ['src/utils/worldSurface.ts', 'src/utils/concreteSlab.ts'],
     coordinateSpaces: [
       'world position recomputed through modelMatrix and instanceMatrix, never <worldpos_vertex> (guarded, and a compile error on low)',
       'object rest-space metres from the `position` attribute scaled by the object matrix basis lengths, for anything that moves or deforms',

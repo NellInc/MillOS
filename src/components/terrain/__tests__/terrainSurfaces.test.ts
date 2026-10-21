@@ -122,12 +122,39 @@ describe('asphalt tile lattice', () => {
     const [jxx, jyx, jxy, jyy] = normal!.slice(1).map(Number);
     expect([jxx, jyx, jxy, -jyy]).toEqual([c1x, c2x, c1y, c2y]);
     // A changed program needs a changed, stable cache key.
-    expect(source).toContain('terrain_v13_');
+    expect(source).toContain('terrain_v14_');
   });
 });
 
 describe('weathered yard albedo', () => {
-  it('lifts the real tarmac into warm aggregate without exceeding diffuse reflectance', () => {
+  /**
+   * The hardstanding is CONCRETE, and concrete is a neutral grey. The old gain
+   * (2.1, 1.7, 1.5) lifted the dark binder into a warm tan that the art judge
+   * measured at sRGB (142, 129, 116) on screen and read as sand or clay over
+   * 30-55% of every exterior frame. The warm key light and the sky add their
+   * own colour; the albedo must not add more. Chroma here is the spread of the
+   * mean linear albedo's channels over their mean.
+   */
+  it('lifts the real tarmac to a neutral concrete grey, not a warm tan', () => {
+    const texture = generateTarmac(128);
+    const data = texture.image.data as Uint8Array;
+    const pixel = new THREE.Color();
+    const sum = new THREE.Color(0, 0, 0);
+    for (let i = 0; i < data.length; i += 4) {
+      pixel.setRGB(data[i] / 255, data[i + 1] / 255, data[i + 2] / 255, THREE.SRGBColorSpace);
+      sum.add(pixel.multiply(YARD_PAVING_TINT));
+    }
+    sum.multiplyScalar(4 / data.length);
+    const mean = (sum.r + sum.g + sum.b) / 3;
+    const chroma = (Math.max(sum.r, sum.g, sum.b) - Math.min(sum.r, sum.g, sum.b)) / mean;
+    expect(chroma).toBeLessThan(0.05);
+    // Weathered concrete albedo is ~0.2-0.3 linear; fresh is brighter, but a
+    // brighter yard would bloom against the noon key.
+    expect(mean).toBeGreaterThan(0.2);
+    expect(mean).toBeLessThan(0.3);
+  });
+
+  it('lifts the real tarmac without exceeding diffuse reflectance', () => {
     const texture = generateTarmac(128);
     const data = texture.image.data as Uint8Array;
     const pixel = new THREE.Color();
@@ -144,10 +171,8 @@ describe('weathered yard albedo', () => {
     sum.multiplyScalar(4 / data.length);
     expect(minimum).toBeGreaterThan(0);
     expect(maximum).toBeLessThan(1);
-    expect(sum.r).toBeGreaterThan(0.22);
+    expect(sum.r).toBeGreaterThan(0.2);
     expect(sum.r).toBeLessThan(0.4);
-    expect(sum.r).toBeGreaterThan(sum.g);
-    expect(sum.g).toBeGreaterThan(sum.b);
     expect(maximum - minimum).toBeGreaterThan(0.1);
     expect(TERRAIN_TINTS.asphalt).toBe(YARD_PAVING_TINT);
     expect(TERRAIN_TINTS.road).toBe('#e2e4e6');

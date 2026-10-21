@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { POLYGON_OFFSET } from '../../constants/renderLayers';
 import { PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
+import { markSurfaceSubstrate } from '../../utils/worldSurface';
 import { YARD_PAVING_TINT } from '../terrain/terrainTypes';
 
 /**
@@ -65,11 +66,20 @@ const cloneYardTexture = (
   return texture;
 };
 
-const YARD_TARMAC_MAP = cloneYardTexture(PROCEDURAL_TEXTURES.tarmacColor, 18, 18);
+// The yard and the dock apron are poured slabs: their TILINGS opt into the
+// `slab` world-surface profile (joints and per-pour tone, `concreteSlab.ts`).
+// The shared sources stay `paving`, because they also tile the roads.
+const YARD_TARMAC_MAP = markSurfaceSubstrate(
+  cloneYardTexture(PROCEDURAL_TEXTURES.tarmacColor, 18, 18),
+  'slab'
+);
 const YARD_TARMAC_ROUGHNESS = cloneYardTexture(PROCEDURAL_TEXTURES.tarmacRoughness, 18, 18);
 const ROAD_TARMAC_MAP = cloneYardTexture(PROCEDURAL_TEXTURES.tarmacColor, 4, 28);
 const ROAD_TARMAC_ROUGHNESS = cloneYardTexture(PROCEDURAL_TEXTURES.tarmacRoughness, 4, 28);
-const APRON_CONCRETE_MAP = cloneYardTexture(PROCEDURAL_TEXTURES.concreteColor, 6, 5);
+const APRON_CONCRETE_MAP = markSurfaceSubstrate(
+  cloneYardTexture(PROCEDURAL_TEXTURES.concreteColor, 6, 5),
+  'slab'
+);
 const APRON_CONCRETE_ROUGHNESS = cloneYardTexture(PROCEDURAL_TEXTURES.concreteRoughness, 6, 5);
 
 // The shared linear gain keeps the authored yard and its terrain perimeter

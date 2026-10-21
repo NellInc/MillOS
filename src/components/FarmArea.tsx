@@ -1,4 +1,4 @@
-import { FARM_REALM_PATHS, inRealmPath } from '../constants/publicRealmLayout';
+import { FARM_FURROW_PITCH, FARM_REALM_PATHS, inRealmPath } from '../constants/publicRealmLayout';
 import { FarmPublicRealm } from './scenery/WorldPublicRealm';
 import { ScarecrowCraft } from './scenery/ScarecrowCraft';
 import { ServiceEntranceLighting } from './exterior/ServiceEntranceLighting';
@@ -41,7 +41,7 @@ import {
   type ClutterSpec,
 } from './scenery/InstancedFoliage';
 import { WindDriver, applyWindShader } from './scenery/WindDriver';
-import { composeWorldSurface } from '../utils/worldSurface';
+import { composeWorldSurface, RIB_CROWN_PHASE } from '../utils/worldSurface';
 import { PlotGeometry } from '../utils/authoredPlotGeometry';
 import { DrainageCulvert } from './scenery/Tunnel';
 import { PROCEDURAL_TEXTURES } from '../utils/sharedMaterials';
@@ -2073,11 +2073,56 @@ Scarecrow.displayName = 'Scarecrow';
 
 export const GRAIN_FIELD_MATERIAL = SM.cornGreen;
 export const GRAIN_FIELD_DEPTH_MATERIAL = cornDepthMaterial;
-export const GRAIN_FIELD_COUNT = 15 * 20;
+/** Field-local planting envelope: the original 1.5 m grid's extent. */
+const GRAIN_FIELD_X = [-15, 13.5] as const;
+const GRAIN_FIELD_Z = [-10.5, 10.5] as const;
+/** Metres between stools along a drill row. */
+const GRAIN_ROW_STEP = 1.2;
+/** The scarecrow stands at the field origin; nothing is drilled through it. */
+const GRAIN_SCARECROW_CLEAR = 0.7;
+
+/**
+ * DRILLED ROWS ON THE FURROW RIDGES. The crop stood on a jittered 1.5 m square
+ * grid, 300 stools at ~0.44 a square metre with no row direction, and the
+ * judge read the field as sparse planting on flat brown. Rows now run along
+ * the drills one furrow pitch apart, every stool on a ridge crown: the farm's
+ * half turn maps field-local x to world X reversed, and the soil's furrows are
+ * world-space (`FARM_SOIL_MATERIAL`), so each row's local x is solved from the
+ * world crown position. Twice and a bit the stools of the old grid, which is
+ * what the medium budget allows at 468 triangles a stool (three draws).
+ */
+function grainFieldRoots(): readonly { x: number; z: number; seed: number }[] {
+  const farm = SITE_LAYOUT.landmarks.farm;
+  const cosine = Math.cos(farm.rotation[1]);
+  if (Math.abs(Math.sin(farm.rotation[1])) > 1e-9 || farm.scale !== 1) {
+    throw new Error('grain field rows assume the farm turned a multiple of a half turn');
+  }
+  const roots: { x: number; z: number; seed: number }[] = [];
+  const worldX = (local: number) => farm.position[0] + local * cosine;
+  const crowns = [worldX(GRAIN_FIELD_X[0]), worldX(GRAIN_FIELD_X[1])].sort((a, b) => a - b);
+  const first = Math.ceil(crowns[0] / FARM_FURROW_PITCH - RIB_CROWN_PHASE);
+  const last = Math.floor(crowns[1] / FARM_FURROW_PITCH - RIB_CROWN_PHASE);
+  for (let row = first; row <= last; row++) {
+    const x = ((row + RIB_CROWN_PHASE) * FARM_FURROW_PITCH - farm.position[0]) / cosine;
+    // Stagger alternate rows by half a step, as a drill does across passes.
+    const offset = (Math.abs(row) % 2) * GRAIN_ROW_STEP * 0.5;
+    for (let z = GRAIN_FIELD_Z[0] + offset; z <= GRAIN_FIELD_Z[1] + 1e-6; z += GRAIN_ROW_STEP) {
+      const seed = Math.sin(row * 37.1 + z * 11.3) * 1000;
+      const jitterZ = Math.cos(seed) * 0.25;
+      if (Math.hypot(x, z + jitterZ) < GRAIN_SCARECROW_CLEAR) continue;
+      roots.push({ x, z: z + jitterZ, seed });
+    }
+  }
+  return roots;
+}
+const GRAIN_FIELD_ROOTS = grainFieldRoots();
+
+export const GRAIN_FIELD_COUNT = GRAIN_FIELD_ROOTS.length;
 export const GRAIN_WIND_PADDING = 0.5; // maximum world sway < .16*(.7+1.5)*1.4
 
-/** Original planting roots, yaw and uniform scale, shared by every plant part.
- * Working if all three matrix/colour buffers agree and bounds cover storm sway.
+/** Planting roots on the furrow crowns, yaw and uniform scale, shared by every
+ * plant part. Working if all three matrix/colour buffers agree and bounds
+ * cover storm sway.
  */
 export function populateGrainField(
   meshes: readonly [THREE.InstancedMesh, THREE.InstancedMesh, THREE.InstancedMesh]
@@ -2087,31 +2132,30 @@ export function populateGrainField(
   const young = new THREE.Color('#edf0d8'),
     mature = new THREE.Color('#fff1d1');
   let index = 0;
-  for (let r = 0; r < 15; r++)
-    for (let c = 0; c < 20; c++) {
-      const rnd = Math.sin(r * 20 + c) * 1000,
-        scale = 0.8 + (Math.abs(rnd) % 0.4);
-      const x = (c - 10) * 1.5 + Math.sin(rnd) * 0.5,
-        z = (r - 7) * 1.5 + Math.cos(rnd) * 0.5;
-      parent.position.set(x, 0, z);
-      parent.rotation.set(0, Math.abs(rnd) % Math.PI, 0);
-      parent.scale.setScalar(scale);
-      parent.updateMatrix();
-      const ripeness = THREE.MathUtils.clamp(
-        0.5 +
-          Math.sin(x * 0.14 + z * 0.11) * 0.25 +
-          Math.sin(z * 0.28 - x * 0.06) * 0.15 +
-          Math.sin(rnd) * 0.1,
-        0,
-        1
-      );
-      tint.copy(young).lerp(mature, ripeness);
-      for (const mesh of meshes) {
-        mesh.setMatrixAt(index, parent.matrix);
-        mesh.setColorAt(index, tint);
-      }
-      index++;
+  for (const root of GRAIN_FIELD_ROOTS) {
+    const rnd = root.seed,
+      scale = 0.8 + (Math.abs(rnd) % 0.4);
+    const x = root.x,
+      z = root.z;
+    parent.position.set(x, 0, z);
+    parent.rotation.set(0, Math.abs(rnd) % Math.PI, 0);
+    parent.scale.setScalar(scale);
+    parent.updateMatrix();
+    const ripeness = THREE.MathUtils.clamp(
+      0.5 +
+        Math.sin(x * 0.14 + z * 0.11) * 0.25 +
+        Math.sin(z * 0.28 - x * 0.06) * 0.15 +
+        Math.sin(rnd) * 0.1,
+      0,
+      1
+    );
+    tint.copy(young).lerp(mature, ripeness);
+    for (const mesh of meshes) {
+      mesh.setMatrixAt(index, parent.matrix);
+      mesh.setColorAt(index, tint);
     }
+    index++;
+  }
   for (const mesh of meshes) {
     mesh.customDepthMaterial = GRAIN_FIELD_DEPTH_MATERIAL;
     mesh.instanceMatrix.needsUpdate = true;

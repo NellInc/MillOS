@@ -120,6 +120,10 @@ function pixelToWorld(
   return { worldX, worldZ };
 }
 
+/** Keep-out margin beyond a region's shape for relief and dressing, metres. */
+export const regionClearance = (region: TerrainRegion): number =>
+  region.clearance ?? region.edgeSoftness ?? 0;
+
 /**
  * MillOS terrain regions - defines what material goes where
  *
@@ -133,11 +137,18 @@ export const MILLOS_TERRAIN_REGIONS: TerrainRegion[] = [
   // ============================================
   // FACTORY PERIMETER - Central asphalt area
   // ============================================
+  // HARD-EDGED and kerbed (`exterior/perimeterKerbLayout.ts`). It was 3.5 m soft,
+  // which the height blend could only interlock, never cut: the art judge read
+  // a ~150 px airbrushed band where the yard met the grass. The splat now
+  // steps at the edge, the bilinear filter leaves about a texel of ramp, and
+  // the kerb strip is laid over that ramp. The meadow, trees and rocks keep
+  // the old 3.5 m margin through `clearance`, so nothing else moves.
   {
     channel: TerrainChannel.ASPHALT,
     shape: { type: 'rect', x: 0, z: 0, width: 200, height: 180 },
     intensity: 1,
-    edgeSoftness: 3.5,
+    edgeSoftness: 0,
+    clearance: 3.5,
     priority: 10,
   },
 
@@ -799,7 +810,7 @@ export function sampleValleyRelief(x: number, z: number): number {
     if (region.channel !== TerrainChannel.GRASS) {
       clearance = Math.min(
         clearance,
-        signedDistanceToShape(x, z, region.shape) - (region.edgeSoftness ?? 0)
+        signedDistanceToShape(x, z, region.shape) - regionClearance(region)
       );
     }
   }
