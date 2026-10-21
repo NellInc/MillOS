@@ -537,7 +537,9 @@ void main() {
     // metres with an 80 m field plus the veins. Working if the snow line and
     // substrate edge wander across the overview range instead of ruling it.
     float snowAltitude = clamp((p.y - uSnowDatum) / 12.0 + 0.5, -3.0, 4.0);
-    float snowBreak = ((ridgeFbm(p.xz * 0.012 + vec2(3.3, 8.1)) - 0.5) * 1.6 + (veins - 0.5) * 0.6)
+    // The fbm's working range is about 0.3-0.7, so 3.2 and 1.0 normalise the
+    // two fields to roughly +/-1 snow unit before the metre scale.
+    float snowBreak = ((ridgeFbm(p.xz * 0.012 + vec2(3.3, 8.1)) - 0.5) * 3.2 + (veins - 0.5) * 1.0)
       * ${(RIDGE_ALPINE_PROFILE.snowBreakMetres / 12).toFixed(3)};
     vec3 vegetation = mix(${glslVec3(RIDGE_ALPINE_PROFILE.lowland[0])},
       ${glslVec3(RIDGE_ALPINE_PROFILE.lowland[1])}, smoothstep(0.32, 0.74, scrub))
@@ -623,9 +625,12 @@ void main() {
   // Valley haze. Air pools in the valleys, so they sit further back than the
   // peaks that rise out of it - the cue that turns a silhouette into a range.
   // Leave the snow shoulders clear while a cool veil settles between massifs.
+  // The far range's 0.28 veil sat on top of its 0.32 aerial term and pressed
+  // the lower band to one blue-grey slab (overview, final-med-12); 0.2 keeps
+  // the valley veil and lets the lowland geology through.
   // Fixed wooded hills keep more contrast than the remote range.
   float valleyAir = (1.0 - smoothstep(0.18, 0.82, vRidgeHeight)) *
-    uAerial * mix(0.28, 0.16, uWorldAnchored);
+    uAerial * mix(0.2, 0.16, uWorldAnchored);
   lit = mix(lit, uInscatter, valleyAir);
   // Solid land always writes depth. A height-based alpha feather exposed sky
   // through overlapping foothills below 15 m, creating floating ribbons.
