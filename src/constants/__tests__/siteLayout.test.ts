@@ -488,6 +488,16 @@ describe('canonical site layout', () => {
       frustum.containsPoint(new THREE.Vector3(point[0], 1, point[2]));
     expect(visible(route[0])).toBe(true);
     expect(route.filter(visible).length / route.length).toBeGreaterThanOrEqual(0.6);
+    // The graded still is taken after the motion sample, with the forklift about
+    // 11 m along its run (x ~ -5). A 2.2 m forklift-with-load must stand at least
+    // a fifth of the frame tall there, and still read at its route start.
+    const frameShare = (x: number) => {
+      const distance = camera.position.distanceTo(new THREE.Vector3(x, 1.1, 42));
+      return 2.2 / (2 * distance * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
+    };
+    expect(visible([-5, 0, 42])).toBe(true);
+    expect(frameShare(-5)).toBeGreaterThanOrEqual(0.2);
+    expect(frameShare(route[0][0])).toBeGreaterThanOrEqual(0.1);
     // Inside the hall, and not standing in a machine, belt or dock platform.
     expect(containsPoint(FACTORY_BOUNDS, ...pose.position)).toBe(true);
     for (const obstacle of [
