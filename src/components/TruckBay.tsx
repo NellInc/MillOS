@@ -1,4 +1,5 @@
 import { PalletStaging } from './truckbay/PalletStaging';
+import { DockYardDressing } from './truckbay/DockYardDressing';
 import { YardWearMarks } from './truckbay/YardWearMarks';
 import { paintLineMask, paintLineQuad, THIN_PAINT_LIMIT } from './truckbay/paintLine';
 import { GeneratedGeometrySurface } from './models/GeneratedGeometrySurface';
@@ -3371,6 +3372,8 @@ export const TruckBay: React.FC = () => {
       <TruckAnimationManager />
       <PalletStaging dock="shipping" />
       <PalletStaging dock="receiving" />
+      {/* The working dock's pallet island and waiting loads, off every truck path. */}
+      <DockYardDressing />
       {/* Tyre tracks and oil on both yards, from the trucks' real paths. */}
       <YardWearMarks />
       {/* ========== SHIPPING DOCK (Front of building, z=50) ========== */}
