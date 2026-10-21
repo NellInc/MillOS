@@ -1,3 +1,5 @@
+import { MachineType } from '../types';
+
 export type Vec3Tuple = readonly [number, number, number];
 
 /** Existing station and its at-grade connection to the southern approach road. */
@@ -215,10 +217,52 @@ export const PACKER_HOPPER_LAYOUT = {
   scale: [1.7, 1.5, 1.7] as const,
 } as const;
 
+/** Mill ports in the mill's AUTHORED metres; `getMachineAssemblyScale` installs them.
+ * The pneumatic take-off leaves the rear shoulder, not the crown under the feeder,
+ * so the intake drop and the product lift never share a vertical line.
+ */
 export const MILL_PROCESS_PORTS = {
   intake: [0, MILL_FEEDER_LAYOUT.height + MILL_FEEDER_LAYOUT.scale[1] / 2, 0],
-  pneumatic: [0, 5, 0],
+  pneumatic: [0, 4.7, -1.7],
 } as const;
+
+/**
+ * Authored size of each process machine, in the local metres its geometry,
+ * trim, placards and ports are drawn in.
+ *
+ * These assemblies were drawn at two to three times real size: the mill stood
+ * 6.59 m to its feed inlet with its HMI at 4.3 m, the bagger 6.47 m to its
+ * hopper, the plansifter 7.56 m above its deck - against a 1.72 m worker. They
+ * are now INSTALLED about their floor anchor by `PROCESS_MACHINE_INSTALL_SCALE`,
+ * the way the silos are installed from `SILO_ASSEMBLY_SIZE`, so every part,
+ * placard and port keeps its place on the machine while the whole machine
+ * comes down to real size. Anchors, conveyors, spout racks and platforms do not
+ * move.
+ */
+export const PROCESS_MACHINE_AUTHORED_SIZE = {
+  rollerMill: [7.8, 6.7, 5.7],
+  sifter: [7, SIFTER_LAYOUT.inletCentreY + SIFTER_LAYOUT.inletHeight / 2, 7],
+  packer: [4, 6, 4],
+} as const satisfies Record<string, Vec3Tuple>;
+
+/**
+ * Uniform installation scale, authored -> real metres. Chosen against the
+ * reference equipment, not to fit the frame:
+ *   mill 0.4    feed inlet 2.64 m, HMI centre 1.72 m, load dial 1.58 m
+ *   sifter 0.5  casing and lid 3.17 m, inlet 3.78 m above the deck
+ *   packer 0.6  cabinet 3.02 m, surge hopper 3.88 m
+ * The packer's fill spout, sack, bag guides and guards were already drawn at
+ * real size and are NOT scaled; they move back onto the installed cabinet face
+ * (`PACKER_STATION_SHIFT_Z` in machineFinishGeometry.ts).
+ */
+export const PROCESS_MACHINE_INSTALL_SCALE = {
+  rollerMill: 0.4,
+  sifter: 0.5,
+  packer: 0.6,
+} as const;
+
+const installedSize = (size: Vec3Tuple, scale: number): Vec3Tuple =>
+  size.map((dimension) => dimension * scale) as unknown as Vec3Tuple;
 
 /** Shared belt placement, including the return run along the milling aisle. */
 export const CONVEYOR_LAYOUT = {
@@ -586,9 +630,18 @@ export const SITE_LAYOUT = {
   } satisfies Record<string, readonly MachineAnchor[]>,
   machineDimensions: {
     silo: [12, 32, 12],
-    rollerMill: [7.8, 6.7, 5.7],
-    sifter: [7, SIFTER_LAYOUT.inletCentreY + SIFTER_LAYOUT.inletHeight / 2, 7],
-    packer: [4, 6, 4],
+    rollerMill: installedSize(
+      PROCESS_MACHINE_AUTHORED_SIZE.rollerMill,
+      PROCESS_MACHINE_INSTALL_SCALE.rollerMill
+    ),
+    sifter: installedSize(
+      PROCESS_MACHINE_AUTHORED_SIZE.sifter,
+      PROCESS_MACHINE_INSTALL_SCALE.sifter
+    ),
+    packer: installedSize(
+      PROCESS_MACHINE_AUTHORED_SIZE.packer,
+      PROCESS_MACHINE_INSTALL_SCALE.packer
+    ),
   } satisfies Record<string, Vec3Tuple>,
   cameras: {
     overview: { position: [-61, 32, 132], target: [14, 5, 0], fov: 45 },
@@ -799,6 +852,44 @@ export function getSiloAssemblyScale(size: Vec3Tuple): [number, number, number] 
   return size.map((dimension, axis) =>
     Number.isFinite(dimension) && dimension > 0 ? dimension / SILO_ASSEMBLY_SIZE[axis] : 1
   ) as [number, number, number];
+}
+
+/**
+ * Authored -> installed scale of any machine assembly, about its floor anchor.
+ * Silos follow their configured size; the process machines use the fixed
+ * `PROCESS_MACHINE_INSTALL_SCALE`, so a session saved with the old authored
+ * `size` still renders, seats its spouts and places its placards at real size.
+ */
+export function getMachineAssemblyScale(machine: {
+  readonly type: MachineType;
+  readonly size: Vec3Tuple;
+}): [number, number, number] {
+  const uniform = (scale: number): [number, number, number] => [scale, scale, scale];
+  switch (machine.type) {
+    case MachineType.SILO:
+      return getSiloAssemblyScale(machine.size);
+    case MachineType.ROLLER_MILL:
+      return uniform(PROCESS_MACHINE_INSTALL_SCALE.rollerMill);
+    case MachineType.PLANSIFTER:
+      return uniform(PROCESS_MACHINE_INSTALL_SCALE.sifter);
+    case MachineType.PACKER:
+      return uniform(PROCESS_MACHINE_INSTALL_SCALE.packer);
+    default:
+      return [1, 1, 1];
+  }
+}
+
+/** A point in a machine's authored metres, installed in world metres. */
+export function installMachinePoint(
+  machine: { readonly type: MachineType; readonly size: Vec3Tuple; readonly position: Vec3Tuple },
+  local: Vec3Tuple
+): [number, number, number] {
+  const scale = getMachineAssemblyScale(machine);
+  return [
+    machine.position[0] + local[0] * scale[0],
+    machine.position[1] + local[1] * scale[1],
+    machine.position[2] + local[2] * scale[2],
+  ];
 }
 
 export const FACTORY_BOUNDS = SITE_LAYOUT.factory.bounds;

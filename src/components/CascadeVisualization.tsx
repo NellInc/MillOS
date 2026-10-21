@@ -7,7 +7,7 @@
 
 import React, { useMemo } from 'react';
 import { Line } from '@react-three/drei';
-import { SIFTER_LAYOUT, SITE_LAYOUT } from '../constants/siteLayout';
+import { PROCESS_MACHINE_INSTALL_SCALE, SIFTER_LAYOUT, SITE_LAYOUT } from '../constants/siteLayout';
 import { useProductionStore } from '../stores/productionStore';
 import { useShallow } from 'zustand/react/shallow';
 import { MachineData } from '../types';
@@ -45,7 +45,11 @@ const MACHINE_POSITIONS: Record<string, [number, number, number]> = {
   ...Object.fromEntries(
     SITE_LAYOUT.machines.sifters.map(({ id, position }) => [
       id,
-      [position[0], position[1] + SIFTER_LAYOUT.bodyCentreY, position[2]],
+      [
+        position[0],
+        position[1] + SIFTER_LAYOUT.bodyCentreY * PROCESS_MACHINE_INSTALL_SCALE.sifter,
+        position[2],
+      ],
     ])
   ),
   ...Object.fromEntries(

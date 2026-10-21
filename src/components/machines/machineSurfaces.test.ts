@@ -14,7 +14,11 @@
 
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { SITE_LAYOUT, SILO_ACCESS_LAYOUT } from '../../constants/siteLayout';
+import {
+  SITE_LAYOUT,
+  SILO_ACCESS_LAYOUT,
+  getMachineAssemblyScale,
+} from '../../constants/siteLayout';
 import { generateGalvanizedORM, generateGalvanizedNormal } from '../../textures/brushedMetal';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import {
@@ -675,7 +679,10 @@ describe('machine decals', () => {
       );
       expect(host, `no host for decal at ${placement.position.join(',')}`).toBeDefined();
       if (placement.rotationY === -Math.PI / 2)
-        expect(placement.position[0] - host!.position[0]).toBeLessThan(-2.4);
+        // The authored side face at x -2.4, installed with its mill.
+        expect(placement.position[0] - host!.position[0]).toBeLessThan(
+          -2.4 * getMachineAssemblyScale(host!)[0]
+        );
       else expect(placement.position[2] - host!.position[2]).toBeGreaterThan(0);
       expect(placement.size[0]).toBeGreaterThan(0);
       expect(placement.size[1]).toBeGreaterThan(0);

@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { applyWorldSurface } from '../utils/worldSurface';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { MachineData, MachineType } from '../types';
-import { SITE_LAYOUT, MILL_PROCESS_PORTS, PROCESS_GALLERY_POST_X } from '../constants/siteLayout';
+import { SITE_LAYOUT, PROCESS_GALLERY_POST_X } from '../constants/siteLayout';
 import { audioManager } from '../utils/audioManager';
 import { useAudioInitialized } from '../hooks/useAudioState';
 import { ORM_MEAN_ROUGHNESS, PIPE_MATERIALS } from '../utils/sharedMaterials';
@@ -533,7 +533,7 @@ export const PIPE_SUPPORT_SEGMENTS: { beams: SupportSegment[]; braces: SupportSe
   const beams: SupportSegment[] = [];
   const braces: SupportSegment[] = [];
   const galleryZ = SITE_LAYOUT.factory.zones.sifting;
-  const intakeY = MILL_PROCESS_PORTS.intake[1] + SPOUT_SERVICE_LAYOUT.intakeRise;
+  const intakeY = SPOUT_SERVICE_LAYOUT.intakeRackY;
   const beamY = intakeY - SPOUT_PIPE_RADIUS - 0.08;
   const endZ =
     SITE_LAYOUT.machines.rollerMills[0].position[2] -
