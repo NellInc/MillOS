@@ -20,6 +20,7 @@ import {
   createRidgeMaterial,
   RIDGE_CANOPY_PROFILE,
   RIDGE_ALPINE_PROFILE,
+  RIDGE_FIELD_PROFILE,
 } from './OptimizedSkySystem';
 import { LANDSCAPE_GROVE_TREES } from '../exterior/ExteriorVegetation';
 import { sampleValleyGroundHeight } from '../terrain/splatMapGenerator';
@@ -440,7 +441,7 @@ describe('solid fixed foothills', () => {
       expect(material.fragmentShader).toContain('gl_FragColor = vec4(lit, 1.0)');
       expect(material.fragmentShader).not.toContain('groundBlend');
       expect(material.fragmentShader).not.toContain('sampler');
-      expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v14');
+      expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v16');
       material.dispose();
     }
   });
@@ -647,7 +648,7 @@ it('gives actual steep snowy faces a mineral substrate while retaining snow pote
     .split('} else if (uWorldAnchored < 0.5')[1]
     .split('} else {')[0];
   expect(branch).toContain('vec3 mineral = vRidgeColor * mix(');
-  expect(branch).toContain('max(rock, smoothstep(0.05, 0.30, vRidgeSnow))');
+  expect(branch).toContain('max(max(rock, outcrop), smoothstep(');
   expect(branch).toContain('smoothstep(0.35, 0.72, max(0.0, normal.y))');
   expect(branch).toContain('snowPotential * max(accumulation, summit)');
   expect(branch).toContain('max(length(dFdx(p)), length(dFdy(p)))');
@@ -749,4 +750,64 @@ describe('procedural moon at display size', () => {
     expect(craterWeight).toBeLessThanOrEqual(0.14);
     expect(source).toContain("'millos-procedural-moon-v2'");
   });
+});
+
+// village (0,130)-(2560,640), final-med-12: the backdrop hill is one dark-green
+// gradient. The woodland albedo spans 0.047-0.067 linear red, a 1.3x range that
+// aerial haze flattens to nothing at 150-300 m. Gentle slopes are farmed in a
+// mill's hinterland: hedged parcels of pasture and hay with field trees.
+const linearLuminance = ([r, g, b]: readonly number[]) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
+it('parcels the gentle foothill slopes into hedged fields brighter than the woodland', () => {
+  const { cell, hedgeMetres, pasture, hay, woodland, treeCell, treeRadius } = RIDGE_FIELD_PROFILE;
+  expect(cell[0]).toBeGreaterThanOrEqual(30);
+  expect(cell[1]).toBeLessThanOrEqual(90);
+  expect(hedgeMetres).toBeLessThan(Math.min(...cell) * 0.06);
+  expect(treeRadius * 2).toBeLessThan(treeCell * 0.5);
+  expect(linearLuminance(pasture)).toBeGreaterThan(linearLuminance(woodland) * 1.5);
+  expect(linearLuminance(hay)).toBeGreaterThan(linearLuminance(pasture) * 1.1);
+  const near = createRidgeMaterial(0.1, 'near', true);
+  const branch = near.fragmentShader.slice(
+    near.fragmentShader.indexOf('if (uWorldAnchored > 0.5 && uWoodlandStrength > 0.5)'),
+    near.fragmentShader.indexOf('} else if (uWorldAnchored < 0.5 && uAlpineStrength > 0.5)')
+  );
+  expect(branch).toContain(`vec2(${cell[0].toFixed(1)}, ${cell[1].toFixed(1)})`);
+  expect(branch).toContain('hedge');
+  expect(branch).toContain('fwidth(edge)');
+  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v16');
+  near.dispose();
+});
+
+// overview (0,290)-(780,450), final-med-12: the far range carried lit geology
+// down to a dead-straight line at world y 56-59 and one flat blue-grey slab
+// below it. The substrate switched from vegetation to mineral on vRidgeSnow's
+// 0.05-0.30 ramp - 3 m of altitude at 12 m per unit - a fixed-height cut seen
+// at constant distance on a camera-locked ring, with near-uniform vegetation
+// albedo under it. The switch must be broken across many metres and the lower
+// band must carry its own variation.
+it('breaks the far range substrate across a wide noisy altitude band with varied lower slopes', () => {
+  const { substrateRamp, substrateBreak, lowland, outcrop } = RIDGE_ALPINE_PROFILE;
+  const metresPerSnowUnit = 12;
+  const band = (substrateRamp[1] - substrateRamp[0] + substrateBreak) * metresPerSnowUnit;
+  expect(band).toBeGreaterThanOrEqual(12);
+  expect(substrateBreak / 2).toBeGreaterThan(substrateRamp[0]);
+  expect(linearLuminance(lowland[1])).toBeGreaterThan(linearLuminance(lowland[0]) * 1.6);
+  expect(outcrop[0]).toBeLessThan(outcrop[1]);
+  const material = createRidgeMaterial(0.32, 'alpine-lowland');
+  const branch = material.fragmentShader
+    .split('} else if (uWorldAnchored < 0.5')[1]
+    .split('} else {')[0];
+  expect(branch).not.toContain('smoothstep(0.05, 0.30, vRidgeSnow)');
+  // The visible line in the after-capture was the SNOW edge: a 3.6 m ramp on
+  // the clamped vertex attribute at y 65-69. It needs the unclamped altitude
+  // and a break of tens of metres, like a real snow line.
+  expect(RIDGE_ALPINE_PROFILE.snowBreakMetres).toBeGreaterThanOrEqual(10);
+  expect(material.uniforms.uSnowDatum.value).toBeCloseTo(
+    FAR_MOUNTAIN_SPEC.baseY + FAR_MOUNTAIN_SPEC.maxHeight * FAR_MOUNTAIN_SPEC.snowLine,
+    6
+  );
+  expect(branch).toContain('(p.y - uSnowDatum) / 12.0 + 0.5');
+  expect(branch).toContain('snowAltitude + snowBreak');
+  expect(branch).toContain('float outcrop =');
+  expect(branch).toContain('float scrub =');
+  material.dispose();
 });

@@ -338,6 +338,19 @@ uniform float uFloorJointRelief;`
  * fill, so the surfaces the interior camera sees - slab, lower wall, deck -
  * are lifted to compensate.
  */
+/**
+ * Hall glazing finish. At roughness 0.08 / 0.12 the GGX sun lobe peaked at
+ * 8-30x white even through 13-18% opacity, so the sun's image on a pane bevel
+ * landed as a single bright pixel that read as a star in the sky behind the
+ * glass (logistics-close, milling, final-med-12). 0.24 spreads it into a sheen
+ * that peaks below white; the panes keep their sky tint and opacity.
+ * Working if no pinpoint glints remain on the hall glass at noon.
+ */
+export const FACTORY_GLAZING_SURFACES = {
+  glass: { roughness: 0.24, opacity: 0.13 },
+  skylight: { roughness: 0.24, opacity: 0.18 },
+} as const;
+
 const MATERIALS = {
   floor: new THREE.MeshStandardMaterial({
     name: 'factory-slab',
@@ -469,19 +482,19 @@ const MATERIALS = {
   skylight: new THREE.MeshStandardMaterial({
     name: 'factory-skylight',
     color: '#a9d8e4',
-    roughness: 0.12,
+    roughness: FACTORY_GLAZING_SURFACES.skylight.roughness,
     metalness: 0,
     transparent: true,
-    opacity: 0.18,
+    opacity: FACTORY_GLAZING_SURFACES.skylight.opacity,
     depthWrite: false,
   }),
   glass: new THREE.MeshStandardMaterial({
     name: 'factory-glazing',
     color: '#c6e2e8',
-    roughness: 0.08,
+    roughness: FACTORY_GLAZING_SURFACES.glass.roughness,
     metalness: 0,
     transparent: true,
-    opacity: 0.13,
+    opacity: FACTORY_GLAZING_SURFACES.glass.opacity,
     depthWrite: false,
   }),
   /** Floor paint receives the same daylight and night ambient as the slab. */

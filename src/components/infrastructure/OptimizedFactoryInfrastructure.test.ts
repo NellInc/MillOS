@@ -16,6 +16,7 @@ import {
   buildProcessGallery,
   FACTORY_COLUMN_TOP_DROP,
   FACTORY_ENVELOPE_SPEC,
+  FACTORY_GLAZING_SURFACES,
   FLOOR_JOINT_PITCH,
   sampleFloorMacro,
 } from './OptimizedFactoryInfrastructure';
@@ -700,4 +701,22 @@ describe('roof deck liner', () => {
       luminance(ROOF_PANEL_MATERIALS[2]) * 2.5
     );
   });
+});
+
+// logistics-close (370,190)-(410,220) and milling (1490,500)-(1525,535),
+// final-med-12: single-pixel sun glints that read as stars. Hiding the one
+// `factory-glazing` instanced mesh removed the logistics-close dot (box max
+// 714 -> 560 summed sRGB, every other candidate under the pixel unchanged).
+// At roughness 0.08 the GGX lobe peaks near 7,800, so even at 13% opacity the
+// sun's image is ~30x white, compressed into a pixel. A soft sheen is the brief.
+it('keeps the hall glazing sun lobe below white at its peak', () => {
+  const sunIntensity = 3.1;
+  const f0 = 0.04;
+  for (const [name, surface] of Object.entries(FACTORY_GLAZING_SURFACES)) {
+    const alpha = surface.roughness * surface.roughness;
+    const ggxPeak = 1 / (Math.PI * alpha * alpha);
+    const peak = (ggxPeak * f0 * sunIntensity * surface.opacity) / 4;
+    expect(peak, name).toBeLessThan(1);
+    expect(surface.roughness, name).toBeLessThanOrEqual(0.35);
+  }
 });

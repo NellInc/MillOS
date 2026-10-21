@@ -9,6 +9,8 @@ import {
   buildNearCitySpecs,
   buildNearCityWindows,
   createNearCityPitchedRoof,
+  nearCityBodyColour,
+  nearCityRoofColour,
   nearCityRoofRise,
 } from './NearHorizonCity';
 
@@ -47,6 +49,34 @@ describe('near horizon city layout', () => {
     expect(nearCityRoofRise({ ...buildings[0], width: 8, roofStyle: 0 })).toBeGreaterThan(
       nearCityRoofRise({ ...buildings[0], width: 8, roofStyle: 1 })
     );
+  });
+
+  // packing (940,120)-(1960,300), final-med-12: one tall tower with a gable end
+  // to camera, repeated 27 of 42 times in near-identical greys. A town skyline
+  // mixes towers, slabs and terraces, ridges both ways and a real palette.
+  // Working if no single silhouette class dominates and the palette is varied.
+  it('mixes towers, slabs and terraces rather than repeating one tower', () => {
+    const buildings = buildNearCitySpecs();
+    const tower = buildings.filter((b) => b.height / b.width > 1.6).length;
+    const wide = buildings.filter((b) => b.width >= 12).length;
+    expect(tower).toBeLessThanOrEqual(buildings.length * 0.4);
+    expect(wide).toBeGreaterThanOrEqual(buildings.length * 0.3);
+    const pitched = buildings.filter((b) => b.roofStyle !== 2);
+    const alongFacade = pitched.filter((b) => b.ridgeAxis === 1).length;
+    expect(alongFacade).toBeGreaterThanOrEqual(pitched.length * 0.4);
+    expect(alongFacade).toBeLessThan(pitched.length);
+    const bodies = new Set(buildings.map((b) => nearCityBodyColour(b).getHexString()));
+    const roofs = new Set(pitched.map((b) => nearCityRoofColour(b).getHexString()));
+    expect(bodies.size).toBeGreaterThanOrEqual(6);
+    expect(roofs.size).toBeGreaterThanOrEqual(3);
+  });
+
+  it('spans a ridge-parallel roof across the depth it actually covers', () => {
+    const [building] = buildNearCitySpecs();
+    const across = { ...building, roofStyle: 0, width: 16, depth: 7, ridgeAxis: 1 };
+    const gable = { ...across, ridgeAxis: 0 };
+    expect(nearCityRoofRise(across)).toBeCloseTo(7 * 0.32, 6);
+    expect(nearCityRoofRise(gable)).toBe(3.6);
   });
 
   it('seats larger town panes on the actual front and side faces', () => {
