@@ -4,16 +4,20 @@ import * as THREE from 'three';
 import {
   UnifiedWaterSurfaceMaterial,
   WaterAnimationManager,
+  WATER_RIPPLE_DETAIL,
   WATER_SKY_RADIANCE,
 } from '../FactoryExterior';
 import {
+  WATER_FRESNEL_EXPONENT,
   WATER_PROFILES,
   WATER_VISUAL_TIME,
+  waterFresnel,
   WATER_WIND,
   applyWaterRipples,
   applyFountainFoam,
 } from '../../utils/waterAppearance';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
+import { useGraphicsStore } from '../../stores/graphicsStore';
 
 const driver = vi.hoisted(() => ({
   frame: null as (() => void) | null,
@@ -83,7 +87,7 @@ describe('authored exterior water material and atmosphere driver', () => {
     );
     expect(water.fragmentShader).toContain('gl_FragColor = vec4(colour, 1.0)');
     expect(water.fragmentShader).toContain('#include <fog_fragment>');
-    expect(water.customProgramCacheKey()).toBe('millos-unified-water-v21');
+    expect(water.customProgramCacheKey()).toBe('millos-unified-water-v22');
     const dispose = vi.spyOn(water, 'dispose');
     for (const cleanup of driver.cleanups.splice(0)) cleanup();
     expect(dispose).toHaveBeenCalledOnce();
@@ -343,4 +347,42 @@ it('compiles shore foam only for water that actually carries it, preserving the 
       water.fragmentShader.indexOf('vec2 waterCoord')
     );
   }
+});
+
+// water (700,590)-(1930,1070) and the village canal (1950,560)-(2560,1440),
+// final-med-12: flat dark-centre gradients. Schlick's fifth power leaves 12% sky
+// at a 20 degree view, the zenith-weighted sky made that sky the water's own
+// blue, and a 0.009 slope moved neither. The mix toward the sky must be read
+// at the angles a site camera actually sees water from.
+it('weights the sky by a Fresnel that still reads at site-camera grazing angles', () => {
+  expect(waterFresnel(1)).toBeCloseTo(0.02, 3);
+  const steep = waterFresnel(Math.sin(THREE.MathUtils.degToRad(40)));
+  const grazing = waterFresnel(Math.sin(THREE.MathUtils.degToRad(20)));
+  expect(grazing).toBeGreaterThanOrEqual(0.25);
+  expect(grazing).toBeGreaterThan(steep * 1.6);
+  expect(waterFresnel(0)).toBeLessThanOrEqual(0.95);
+  const water = material();
+  expect(water.fragmentShader).toContain(
+    `pow(1.0 - max(dot(normal, viewDirection), 0.0), ${WATER_FRESNEL_EXPONENT.toFixed(1)})`
+  );
+  expect(water.fragmentShader).toContain(
+    'mix(uSkyHorizon, uSkyZenith, clamp(reflected.y, 0.0, 1.0))'
+  );
+});
+
+it('adds a faint metre-scale ripple normal that freezes with the water clock and drops on Low', () => {
+  const water = material();
+  expect(water.uniforms.uRippleDetail).toBe(WATER_RIPPLE_DETAIL);
+  expect(water.fragmentShader).toContain('if (uRippleDetail > 0.0)');
+  expect(water.fragmentShader).toContain('uTime * uFlowSpeed');
+  const previous = useGraphicsStore.getState().graphics.quality;
+  WaterAnimationManager({});
+  useGraphicsStore.setState((state) => ({ graphics: { ...state.graphics, quality: 'low' } }));
+  driver.frame!();
+  expect(WATER_RIPPLE_DETAIL.value).toBe(0);
+  useGraphicsStore.setState((state) => ({ graphics: { ...state.graphics, quality: 'medium' } }));
+  driver.frame!();
+  expect(WATER_RIPPLE_DETAIL.value).toBe(1);
+  useGraphicsStore.setState((state) => ({ graphics: { ...state.graphics, quality: previous } }));
+  expect(water.customProgramCacheKey()).toBe(water.customProgramCacheKey());
 });

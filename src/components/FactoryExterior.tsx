@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import { applyWorldSurface, pinSurfaceProfile } from '../utils/worldSurface';
 import { ApartmentFacade } from './exterior/ApartmentFacade';
 import {
+  WATER_FRESNEL_EXPONENT,
   WATER_PROFILES,
   WATER_VISUAL_TIME,
   WATER_WIND,
@@ -1092,6 +1093,8 @@ const WATER_COLORS = {
 const waterMaterials = new Set<THREE.ShaderMaterial>();
 /** One paired control for the real sky palette and single-count reflection radiance. */
 export const WATER_SKY_RADIANCE = { value: 1 };
+/** Metre-scale ripple normal: 1 everywhere but Low, where the term compiles in but never runs. */
+export const WATER_RIPPLE_DETAIL = { value: 1 };
 const DEFAULT_WATER_FLOW = [0.25, 1] as const;
 
 // Sky palette for the water's analytic reflection. Two stops plus a twilight
@@ -1145,6 +1148,7 @@ export const WaterAnimationManager: React.FC = () => {
   useFrame(() => {
     const { gameDay, gameTime, weather, isTabVisible } = useGameSimulationStore.getState();
     if (!isTabVisible) return;
+    WATER_RIPPLE_DETAIL.value = useGraphicsStore.getState().graphics.quality === 'low' ? 0 : 1;
     if (waterMaterials.size === 0) return;
     const atmosphere = sampleAtmosphere(gameDay, gameTime, weather, _waterAtmosphere);
     const celestial = sampleCelestial(atmosphere, _waterCelestial);
@@ -1290,6 +1294,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
         uRippleB: { value: rippleB },
         uRippleC: { value: rippleC },
         uSkyRadiance: WATER_SKY_RADIANCE,
+        uRippleDetail: WATER_RIPPLE_DETAIL,
         uFlowSpeed: { value: speed },
         uWaveHeight: { value: profile.waveHeight },
         uRippleStrength: { value: profile.rippleStrength },
@@ -1366,6 +1371,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
         uniform float uRoughness;
         uniform float uShoreFoam;
         uniform float uSkyRadiance;
+        uniform float uRippleDetail;
         uniform float uTime;
         uniform float uFlowSpeed;
         uniform float uOpacity;
@@ -1495,18 +1501,44 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
             + gradientB * rippleFilter.y * 0.0015
             + gradientC * rippleFilter.z * 0.0028;
           slope *= uRippleStrength;
+          // Metre-scale ripple normal. The trains above are 0.5-1.3 m with a
+          // 0.009 peak slope, which moves neither the Fresnel nor the reflected
+          // sky, so at site-camera range the water read as a still gradient.
+          // Two 1.9-3 m counter-crossed trains at ~0.03 slope bend the sky band
+          // faintly. They scroll on uTime, which reduced motion freezes, and
+          // fade where unresolved. Low skips them on a uniform branch.
+          // Working if the pond and canal carry a faint broken sky sheen.
+          // Long-wave bends and a calm/rough envelope keep the two trains from
+          // printing as parallel stripes (the first pass read as corrugation).
+          if (uRippleDetail > 0.0) {
+            float macroBend = sin(dot(waterCoord, uRippleA) * 0.37) * 1.8;
+            float macroA = dot(waterCoord, axisB) * 2.1 + uTime * uFlowSpeed * 0.9 + macroBend;
+            float macroB = dot(waterCoord, axisC) * 3.3 - uTime * uFlowSpeed * 0.7
+              + sin(macroA) * 0.6 + cos(dot(waterCoord, uRippleA) * 0.53) * 1.4;
+            float macroGust = 0.5 + 0.5 * sin(dot(waterCoord, vec2(0.31, -0.95)) * 0.41
+              + sin(dot(waterCoord, axisB) * 0.23) * 2.0);
+            vec2 macroFilter = 1.0 - smoothstep(vec2(0.70), vec2(2.40),
+              vec2(fwidth(macroA), fwidth(macroB)));
+            vec2 macroSlope = cos(macroA) * 2.1 * axisB * 0.007 * macroFilter.x
+              + cos(macroB) * 3.3 * axisC * 0.0045 * macroFilter.y;
+            slope += macroSlope * (0.25 + 0.75 * macroGust) * (0.5 + uRippleStrength)
+              * uRippleDetail;
+          }
           float rainSlope = rainRipple * (0.003 + uRippleStrength * 0.015);
           vec3 normal = normalize(vWorldNormal + vec3(slope.x + rainSlope, 0.0, slope.y - rainSlope));
 
           vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
-          float fresnel = pow(1.0 - max(dot(normal, viewDirection), 0.0), 5.0);
+          // Cubic, not Schlick's fifth power: see WATER_FRESNEL_EXPONENT.
+          float fresnel = pow(1.0 - max(dot(normal, viewDirection), 0.0), ${WATER_FRESNEL_EXPONENT.toFixed(1)});
 
           // Reflection without a render target: bounce the view ray off the
           // perturbed normal and read a two-stop analytic sky whose colours are
           // pushed every frame from the same atmosphere sample that drives the
           // real sky, sun and fog.
           vec3 reflected = reflect(-viewDirection, normal);
-          vec3 skyColour = mix(uSkyHorizon, uSkyZenith, sqrt(clamp(reflected.y, 0.0, 1.0)));
+          // Linear in elevation: the square root reached 60% zenith blue by a
+          // 20 degree bounce, so the reflection took the body's own hue.
+          vec3 skyColour = mix(uSkyHorizon, uSkyZenith, clamp(reflected.y, 0.0, 1.0));
           // The same localized afterglow as the actual sky, reflected only
           // toward the setting sun. No offscreen camera or render target.
           // Working if the opposite bank stays cool and noon/night are unchanged.
@@ -1593,7 +1625,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
     // MANUALLY VERSIONED, never derived from time or randomness - see the
     // documented `Date.now()` cache-key bug. Bump this whenever the shader
     // source above changes or a stale cached program will be reused.
-    value.customProgramCacheKey = () => 'millos-unified-water-v21';
+    value.customProgramCacheKey = () => 'millos-unified-water-v22';
     return value;
   }, [
     crossOnly,

@@ -17,6 +17,10 @@ export interface NearCityBuildingSpec {
   readonly tone: number;
   readonly roofStyle: number;
   readonly districtBand: number;
+  /** 0 tower, 1 mid-rise slab, 2 terrace row. */
+  readonly massing: number;
+  /** Pitched roofs: 0 gable end to the site, 1 ridge along the facade. */
+  readonly ridgeAxis: number;
 }
 
 const deterministicNoise = (index: number, channel: number): number => {
@@ -40,20 +44,41 @@ export const buildNearCitySpecs = (count = 42): NearCityBuildingSpec[] =>
     // Working if rays through both terrain grids find level ground under every foot.
     const radius = 226 + districtBand * 12 + deterministicNoise(index, 0) * 6;
     const landmark = deterministicNoise(index, 1) > 0.93;
-    const height =
-      6.5 + deterministicNoise(index, 2) * 13 + districtBand * 1.25 + (landmark ? 6 : 0);
+    // A town is towers, mid-rise slabs and terraces. One tall gable-ended
+    // tower repeated 27 of 42 times read as a single asset stamped along the
+    // skyline (packing, final-med-12). The bands keep their order; only the
+    // massing within each lot varies.
+    // Working if the packing skyline mixes long eaves, gable ends and flat tops.
+    const massingRoll = deterministicNoise(index, 18);
+    const massing = massingRoll < 0.34 ? 0 : massingRoll < 0.68 ? 1 : 2;
+    const shape = deterministicNoise(index, 3);
+    const rise = deterministicNoise(index, 2);
+    const [width, depth, height] =
+      massing === 0
+        ? [5.5 + shape * 3, 5.5 + deterministicNoise(index, 4) * 3, 12 + rise * 9]
+        : massing === 1
+          ? [12 + shape * 4, 7 + deterministicNoise(index, 4) * 3, 8.5 + rise * 5]
+          : [13 + shape * 5, 6 + deterministicNoise(index, 4) * 2, 6.5 + rise * 3];
+    const roofStyle =
+      massing === 2
+        ? Math.floor(deterministicNoise(index, 7) * 2)
+        : Math.floor(deterministicNoise(index, 7) * 3);
     const x = Math.cos(angle) * radius;
     const z = Math.sin(angle) * radius;
     return {
       x,
       z,
-      width: 5.5 + deterministicNoise(index, 3) * 5.5,
-      depth: 5 + deterministicNoise(index, 4) * 5.5,
-      height,
+      width,
+      depth,
+      height: height + districtBand * 1.25 + (landmark ? 6 : 0),
       yaw: Math.atan2(-x, -z),
       tone: deterministicNoise(index, 5),
-      roofStyle: Math.floor(deterministicNoise(index, 7) * 3),
+      roofStyle,
       districtBand,
+      massing,
+      // Terraces and slabs carry their ridge along the street; towers mostly
+      // turn a gable or hip to the site.
+      ridgeAxis: deterministicNoise(index, 19) < (massing === 0 ? 0.3 : 0.85) ? 1 : 0,
     };
   });
 
@@ -77,8 +102,14 @@ export function createNearCityPitchedRoof(): THREE.BufferGeometry {
   flat.computeBoundingSphere();
   return flat;
 }
+/** Rise scales with the span the rafters actually cross. */
 export const nearCityRoofRise = (building: NearCityBuildingSpec): number =>
-  THREE.MathUtils.clamp(building.width * (building.roofStyle === 0 ? 0.32 : 0.2), 1.5, 3.6);
+  THREE.MathUtils.clamp(
+    (building.ridgeAxis === 1 ? building.depth : building.width) *
+      (building.roofStyle === 0 ? 0.32 : 0.2),
+    1.5,
+    3.6
+  );
 
 const UNIT_BOX = new THREE.BoxGeometry(1, 1, 1);
 const UNIT_PITCHED_ROOF = createNearCityPitchedRoof();
@@ -102,7 +133,13 @@ const CITY_PITCHED_ROOF_MATERIAL = new THREE.MeshStandardMaterial({
   roughness: 0.9,
   metalness: 0.03,
 });
-const CITY_PITCHED_ROOF_COLOURS = [new THREE.Color('#566875'), new THREE.Color('#796251')] as const;
+// Slate, terracotta, brown tile and dark slate. Two greys read as one roof.
+const CITY_PITCHED_ROOF_COLOURS = [
+  new THREE.Color('#566875'),
+  new THREE.Color('#8a5a43'),
+  new THREE.Color('#796251'),
+  new THREE.Color('#4b5258'),
+] as const;
 const CITY_WINDOW_MATERIAL = new THREE.MeshStandardMaterial({
   color: '#647d88',
   emissive: '#ffca72',
@@ -120,13 +157,27 @@ const CITY_STACK_MATERIAL = new THREE.MeshStandardMaterial({
   roughness: 0.58,
   metalness: 0.28,
 });
+// Render greys plus brick, ochre and pale limewash, so neighbouring lots part.
 const CITY_BODY_COLOURS = [
   new THREE.Color('#9ba39e'),
   new THREE.Color('#aa9f91'),
   new THREE.Color('#8fa1a6'),
   new THREE.Color('#9e9690'),
   new THREE.Color('#a5aaa2'),
+  new THREE.Color('#a47c66'),
+  new THREE.Color('#bba98a'),
+  new THREE.Color('#c0bdb4'),
 ] as const;
+
+export const nearCityBodyColour = (building: NearCityBuildingSpec): THREE.Color =>
+  CITY_BODY_COLOURS[
+    Math.floor(building.tone * CITY_BODY_COLOURS.length) % CITY_BODY_COLOURS.length
+  ];
+
+export const nearCityRoofColour = (building: NearCityBuildingSpec): THREE.Color =>
+  CITY_PITCHED_ROOF_COLOURS[
+    Math.floor(((building.tone * 7.31 + building.roofStyle * 0.37) % 1) * 4) % 4
+  ];
 
 interface WindowSpec {
   readonly x: number;
@@ -153,15 +204,24 @@ interface RooftopSpec {
 export function buildNearCityWindows(buildings: readonly NearCityBuildingSpec[]): WindowSpec[] {
   const result: WindowSpec[] = [];
   buildings.forEach((building, buildingIndex) => {
-    const floors = Math.max(2, Math.floor((building.height - 3) / 3.5));
+    // Every pane top stays 0.8 m under the eaves, which terraces now reach.
+    const floors = Math.max(1, Math.floor((building.height - 3.56) / 3.5) + 1);
     const addFace = (yaw: number, span: number, reach: number, face: number) => {
       const normalX = Math.sin(yaw),
         normalZ = Math.cos(yaw);
       const columns =
-        face === 0 ? (building.width > 7 ? 4 : 3) : Math.max(2, Math.floor((span - 1) / 2.5));
+        face === 0
+          ? Math.max(3, Math.min(6, Math.floor(span / 2.7)))
+          : Math.max(2, Math.floor((span - 1) / 2.5));
+      const firstOnFace = result.length;
       for (let floor = 0; floor < floors; floor++) {
         for (let column = 0; column < columns; column++) {
-          if (deterministicNoise(buildingIndex * 31 + floor * 5 + column, 8 + face) < 0.18)
+          // A single-storey terrace end has two panes; never blank a whole face.
+          const lastPane = floor === floors - 1 && column === columns - 1;
+          if (
+            deterministicNoise(buildingIndex * 31 + floor * 5 + column, 8 + face) < 0.18 &&
+            !(lastPane && result.length === firstOnFace)
+          )
             continue;
           const across = (column + 0.5) / columns - 0.5;
           result.push({
@@ -260,12 +320,7 @@ export const NearHorizonCity: React.FC = () => {
       rotation.setFromEuler(euler.set(0, building.yaw, 0));
       scale.set(building.width, building.height, building.depth);
       bodies.setMatrixAt(index, matrix.compose(position, rotation, scale));
-      bodies.setColorAt(
-        index,
-        CITY_BODY_COLOURS[
-          Math.floor(building.tone * CITY_BODY_COLOURS.length) % CITY_BODY_COLOURS.length
-        ]
-      );
+      bodies.setColorAt(index, nearCityBodyColour(building));
     });
     flatBuildings.forEach((building, index) => {
       position.set(building.x, building.height - 0.35, building.z);
@@ -275,10 +330,17 @@ export const NearHorizonCity: React.FC = () => {
     });
     pitchedBuildings.forEach((building, index) => {
       position.set(building.x, building.height - 0.85, building.z);
-      rotation.setFromEuler(euler.set(0, building.yaw, 0));
-      scale.set(building.width + 0.32, nearCityRoofRise(building), building.depth + 0.3);
+      // The unit roof's ridge runs along local Z. A quarter turn lays it along
+      // the facade, with the overhangs swapped to match.
+      const along = building.ridgeAxis === 1;
+      rotation.setFromEuler(euler.set(0, building.yaw + (along ? Math.PI / 2 : 0), 0));
+      scale.set(
+        (along ? building.depth : building.width) + 0.32,
+        nearCityRoofRise(building),
+        (along ? building.width : building.depth) + 0.3
+      );
       pitchedRoofs.setMatrixAt(index, matrix.compose(position, rotation, scale));
-      pitchedRoofs.setColorAt(index, CITY_PITCHED_ROOF_COLOURS[building.roofStyle]);
+      pitchedRoofs.setColorAt(index, nearCityRoofColour(building));
     });
     windows.forEach((window, index) => {
       position.set(window.x, window.y, window.z);

@@ -316,6 +316,27 @@ void main() {
 
 export const RIDGE_SNOW_STRENGTH = { value: 1 };
 
+/**
+ * Hedged fields on the fixed foothills' gentle slopes.
+ *
+ * The woodland finish alone spans 0.047-0.067 linear red, and aerial haze at
+ * 150-300 m flattened that to one dark-green gradient over a third of the
+ * village frame (final-med-12). A mill's hinterland is farmed: rotated parcels
+ * of pasture and hay on the gentle ground, hedgerows on every boundary, a few
+ * field trees, with the existing woodland kept on steep banks and crests.
+ * Linear albedo; `cell` and `hedgeMetres` are metres on the rest mesh.
+ */
+export const RIDGE_FIELD_PROFILE = {
+  cell: [58, 41],
+  hedgeMetres: 0.9,
+  pasture: [0.08, 0.122, 0.048],
+  hay: [0.122, 0.128, 0.058],
+  woodland: [0.052, 0.078, 0.047],
+  treeCell: 15,
+  treeRadius: 1.9,
+} as const;
+const glslVec3 = (value: readonly number[]) => `vec3(${value.map((v) => v.toFixed(3)).join(', ')})`;
+
 /** Linear mineral albedo and metre-scale relief, independent of baked snow.
  * Working if sheer faces reveal stone while upper shoulders retain white caps.
  */
@@ -325,6 +346,24 @@ export const RIDGE_ALPINE_PROFILE = {
   shoulderSnow: 0.84,
   gullySnow: 0.28,
   reliefMetres: 0.38,
+  /**
+   * Mineral substrate under and below the snow. It used to switch from
+   * vegetation on vRidgeSnow's 0.05-0.30 ramp: 3 m of altitude (12 m per snow
+   * unit) at world y 56-59, which on a camera-locked ring is a dead-straight
+   * line, with a flat haze-blue slab of near-uniform vegetation below it
+   * (overview, final-med-12). The ramp is now wide and broken by the vein and
+   * scrub fields, steep low faces show outcrops, and the lowland vegetation
+   * carries stands of scrub. Linear albedo.
+   */
+  /** Half-range of the snow line's altitude break, metres (12 m per snow unit). */
+  snowBreakMetres: 13,
+  substrateRamp: [0.0, 0.55],
+  substrateBreak: 0.6,
+  outcrop: [0.5, 0.74],
+  lowland: [
+    [0.046, 0.072, 0.044],
+    [0.104, 0.116, 0.07],
+  ],
 } as const;
 
 const ridgeFragmentShader = `
@@ -340,6 +379,7 @@ uniform float uSnowStrength;
 uniform float uWorldAnchored;
 uniform float uWoodlandStrength;
 uniform float uAlpineStrength;
+uniform float uSnowDatum;
 varying vec3 vRidgeColor;
 varying vec3 vRidgeNormal;
 varying vec3 vRidgePosition;
@@ -433,6 +473,41 @@ void main() {
     // Sub-metre canopy relief across roughly 3.7m crowns, below the existing
     // crest undulation. Sub-pixel relief fades out with the same field.
     relief = crown * 0.24 * crownVisibility * uDetailStrength;
+    // Hedged parcels on gentle ground (RIDGE_FIELD_PROFILE). A rotated grid
+    // wobbled by the existing drift field, so boundaries are not ruled lines.
+    // Each parcel is pasture, hay or left wooded; steep banks stay woodland.
+    // Working if the village hill reads as fields, hedges and trees.
+    vec2 fieldQ = vec2(dot(p.xz, vec2(0.82, 0.57)), dot(p.xz, vec2(-0.57, 0.82))) + drift * 16.0;
+    vec2 fieldSize = vec2(${RIDGE_FIELD_PROFILE.cell[0].toFixed(1)}, ${RIDGE_FIELD_PROFILE.cell[1].toFixed(1)});
+    vec2 fieldId = floor(fieldQ / fieldSize);
+    vec2 fieldEdge = min(fract(fieldQ / fieldSize), 1.0 - fract(fieldQ / fieldSize)) * fieldSize;
+    float edge = min(fieldEdge.x, fieldEdge.y);
+    float edgeAa = max(fwidth(edge), 0.05);
+    // Coverage-weighted: once a hedge is under a pixel wide it thins in tone
+    // rather than widening into a dark road across the hill.
+    float hedge = (1.0 - smoothstep(${RIDGE_FIELD_PROFILE.hedgeMetres.toFixed(2)} - edgeAa,
+      ${RIDGE_FIELD_PROFILE.hedgeMetres.toFixed(2)} + edgeAa, edge))
+      * min(1.0, ${RIDGE_FIELD_PROFILE.hedgeMetres.toFixed(2)} / edgeAa);
+    float parcelUse = ridgeHash(fieldId + vec2(3.7, 11.1));
+    float farmed = smoothstep(0.82, 0.93, abs(normal.y)) * step(0.4, parcelUse);
+    vec3 crop = mix(${glslVec3(RIDGE_FIELD_PROFILE.pasture)}, ${glslVec3(RIDGE_FIELD_PROFILE.hay)},
+      step(0.8, parcelUse) * (0.6 + 0.4 * ridgeHash(fieldId + vec2(9.2, 1.4))));
+    crop *= 0.9 + stand * 0.14 + (ridgeHash(fieldId + vec2(5.5, 2.2)) - 0.5) * 0.16;
+    // Field trees: one candidate per cell, a dark crown where it is drawn.
+    vec2 treeQ = fieldQ / ${RIDGE_FIELD_PROFILE.treeCell.toFixed(1)};
+    vec2 treeId = floor(treeQ);
+    vec2 treeOffset = (vec2(ridgeHash(treeId + vec2(1.3, 7.9)),
+      ridgeHash(treeId + vec2(8.9, 2.1))) - 0.5) * 0.5;
+    float treeDistance = length(fract(treeQ) - 0.5 - treeOffset) * ${RIDGE_FIELD_PROFILE.treeCell.toFixed(1)};
+    float treeAa = max(fwidth(treeDistance), 0.05);
+    float fieldTree = step(0.86, ridgeHash(treeId + vec2(4.4, 6.6))) * (1.0 - smoothstep(
+      ${RIDGE_FIELD_PROFILE.treeRadius.toFixed(2)} - treeAa, ${RIDGE_FIELD_PROFILE.treeRadius.toFixed(2)} + treeAa, treeDistance))
+      * min(1.0, ${RIDGE_FIELD_PROFILE.treeRadius.toFixed(2)} / treeAa);
+    float openField = farmed * (1.0 - hedge) * (1.0 - fieldTree);
+    vec3 hedgerow = ${glslVec3(RIDGE_FIELD_PROFILE.woodland)} * (0.85 + needles * 0.2);
+    detailedAlbedo = mix(detailedAlbedo, hedgerow, farmed * max(hedge, fieldTree * 0.8));
+    detailedAlbedo = mix(detailedAlbedo, crop, openField);
+    relief = mix(relief, 0.0, openField) + farmed * max(hedge, fieldTree) * 0.35 * uDetailStrength;
   } else if (uWorldAnchored < 0.5 && uAlpineStrength > 0.5) {
     // Retain the true mineral vertex palette under deposited snow.
     // Subordinate isotropic mineral variation leaves the real peak-rooted
@@ -451,15 +526,37 @@ void main() {
     float scree = mix(0.5, ridgeNoise(p.xz * 0.22 + p.y * 0.06), fineVisibility);
     float rock = smoothstep(0.38, 0.74,
       vRidgeHeight + (ridgeNoise(p.xz * 0.055) - 0.5) * 0.18);
-    vec3 vegetation = mix(vec3(0.054, 0.084, 0.050), vec3(0.072, 0.100, 0.060),
-      ridgeNoise(p.xz * 0.07));
+    // Lower slopes: stands of scrub in the forest and rock outcrops on the
+    // steeper faces, and a substrate edge broken across the whole snow band
+    // (RIDGE_ALPINE_PROFILE.substrateRamp) instead of a fixed-height cut.
+    // Working if the overview range carries geology from crest to foothills.
+    float scrub = ridgeFbm(p.xz * 0.021 + vec2(p.y * 0.013, 4.1));
+    // The vertex snow attribute saturates 6 m either side of the datum, so any
+    // ramp on it is a fixed-altitude cut: a ruled line on a camera-locked ring.
+    // Read the unclamped altitude in the same units and break it by tens of
+    // metres with an 80 m field plus the veins. Working if the snow line and
+    // substrate edge wander across the overview range instead of ruling it.
+    float snowAltitude = clamp((p.y - uSnowDatum) / 12.0 + 0.5, -3.0, 4.0);
+    // The fbm's working range is about 0.3-0.7, so 3.2 and 1.0 normalise the
+    // two fields to roughly +/-1 snow unit before the metre scale.
+    float snowBreak = ((ridgeFbm(p.xz * 0.012 + vec2(3.3, 8.1)) - 0.5) * 3.2 + (veins - 0.5) * 1.0)
+      * ${(RIDGE_ALPINE_PROFILE.snowBreakMetres / 12).toFixed(3)};
+    vec3 vegetation = mix(${glslVec3(RIDGE_ALPINE_PROFILE.lowland[0])},
+      ${glslVec3(RIDGE_ALPINE_PROFILE.lowland[1])}, smoothstep(0.32, 0.74, scrub))
+      * (0.9 + ridgeNoise(p.xz * 0.07) * 0.2);
     vec3 mineral = vRidgeColor * mix(${RIDGE_ALPINE_PROFILE.mineralShade[0].toFixed(2)},
       ${RIDGE_ALPINE_PROFILE.mineralShade[1].toFixed(2)}, 0.42 + veins * 0.28 + strata * 0.18)
       * (0.93 + scree * 0.12);
+    float outcrop = smoothstep(${RIDGE_ALPINE_PROFILE.outcrop[0].toFixed(2)},
+      ${RIDGE_ALPINE_PROFILE.outcrop[1].toFixed(2)}, veins + (scree - 0.5) * 0.3)
+      * (1.0 - smoothstep(0.78, 0.95, normal.y)) * 0.85;
     detailedAlbedo = mix(vegetation, mineral,
-      max(rock, smoothstep(0.05, 0.30, vRidgeSnow)));
+      max(max(rock, outcrop), smoothstep(${RIDGE_ALPINE_PROFILE.substrateRamp[0].toFixed(2)},
+        ${RIDGE_ALPINE_PROFILE.substrateRamp[1].toFixed(2)},
+        snowAltitude + snowBreak + (veins - 0.5) * ${RIDGE_ALPINE_PROFILE.substrateBreak.toFixed(2)}
+        + (scrub - 0.5) * 0.3)));
     float snowPotential = smoothstep(0.35, 0.65,
-      vRidgeSnow + (veins - 0.5) * 0.18) * uSnowStrength;
+      snowAltitude + snowBreak) * uSnowStrength;
     float shoulder = smoothstep(0.35, 0.72, max(0.0, normal.y));
     float pocket = smoothstep(0.48, 0.76, veins) * smoothstep(0.04, 0.32, normal.y);
     float accumulation = clamp(${RIDGE_ALPINE_PROFILE.steepSnow.toFixed(2)}
@@ -528,9 +625,12 @@ void main() {
   // Valley haze. Air pools in the valleys, so they sit further back than the
   // peaks that rise out of it - the cue that turns a silhouette into a range.
   // Leave the snow shoulders clear while a cool veil settles between massifs.
+  // The far range's 0.28 veil sat on top of its 0.32 aerial term and pressed
+  // the lower band to one blue-grey slab (overview, final-med-12); 0.2 keeps
+  // the valley veil and lets the lowland geology through.
   // Fixed wooded hills keep more contrast than the remote range.
   float valleyAir = (1.0 - smoothstep(0.18, 0.82, vRidgeHeight)) *
-    uAerial * mix(0.28, 0.16, uWorldAnchored);
+    uAerial * mix(0.2, 0.16, uWorldAnchored);
   lit = mix(lit, uInscatter, valleyAir);
   // Solid land always writes depth. A height-based alpha feather exposed sky
   // through overlapping foothills below 15 m, creating floating ribbons.
@@ -1152,10 +1252,14 @@ export function createRidgeMaterial(
       // Far-only and private: comparison cannot retint the finished woodland.
       // Working if on/off/on leaves every other control and buffer unchanged.
       uAlpineStrength: { value: worldAnchored ? 0 : 1 },
+      // World altitude where the far range's ridgeSnow attribute is 0.5.
+      uSnowDatum: {
+        value: FAR_MOUNTAIN_SPEC.baseY + FAR_MOUNTAIN_SPEC.maxHeight * FAR_MOUNTAIN_SPEC.snowLine,
+      },
     },
   });
   material.userData.clearAerial = aerial;
-  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v14';
+  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v16';
   return material;
 }
 

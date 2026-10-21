@@ -11,6 +11,21 @@ export const WATER_PROFILES = {
 
 export type WaterKind = keyof typeof WATER_PROFILES;
 
+/**
+ * Sky weight of the analytic water reflection, as a function of N.V.
+ *
+ * Schlick's fifth power is the physical curve, and at the 18-25 degree views
+ * every site camera has of the pond and canal it leaves 8-15% sky: the water
+ * read as a flat dark-centre gel (water/village, final-med-12). A cubic keeps
+ * water's 2% head-on floor and lets the far bank take the sky first.
+ * Working if water lightens toward the far bank at noon and stays dark overhead.
+ */
+export const WATER_FRESNEL_EXPONENT = 3;
+export function waterFresnel(normalDotView: number): number {
+  const facing = Math.min(1, Math.max(0, normalDotView));
+  return Math.min(0.95, Math.max(0.02, 0.02 + 0.98 * (1 - facing) ** WATER_FRESNEL_EXPONENT));
+}
+
 /** Owned by WaterAnimationManager; small retained PBR surfaces share the same weather and pause. */
 export const WATER_VISUAL_TIME = { value: 0 };
 export const WATER_WIND = { value: 0.2 };
