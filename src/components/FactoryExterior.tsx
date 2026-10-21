@@ -5296,10 +5296,15 @@ const VESSEL_SEGMENTS = 24;
  * bands and hardware keep their seats; the weld bead alone stands proud of
  * `radius`, by 1.2% of it.
  */
+/** Axial distance of each head-to-shell seam from the vessel's centre. */
+export function vesselSeamOffset(radius: number, length: number): number {
+  return length / 2 + radius - VESSEL_HEAD_DEPTH * radius - VESSEL_FLANGE * radius;
+}
+
 export function vesselProfile(radius: number, length: number): THREE.Vector2[] {
   const half = length / 2 + radius;
   const depth = VESSEL_HEAD_DEPTH * radius;
-  const seam = half - depth - VESSEL_FLANGE * radius;
+  const seam = vesselSeamOffset(radius, length);
   const bead = VESSEL_BEAD.width * radius;
   const proud = radius * (1 + VESSEL_BEAD.height);
   const points: THREE.Vector2[] = [];
@@ -5356,6 +5361,52 @@ function vesselGeometry(radius: number, length: number): THREE.LatheGeometry {
  * satin rather than gloss, with the `painted` world-surface finish - the same
  * finish GeneratedModel gave the generated shells this lathe replaces.
  */
+/**
+ * The seam band over each weld bead: a 0.07 R strip of bare, darker steel,
+ * 1.8% proud of the shell. The bead alone is shell-white and 1.2% proud, and
+ * the dressing-r2 tank-farm frame showed it inert - same paint, no line. The
+ * band is what makes the head's start read from the yard.
+ */
+export const VESSEL_SEAM_BAND = { width: 0.07, height: 0.018 } as const;
+const VESSEL_SEAM_MATERIAL = applyWorldSurface(
+  new THREE.MeshStandardMaterial({ color: '#7c868a', roughness: 0.45, metalness: 0.35 }),
+  'metal'
+);
+const VESSEL_SEAM_CACHE = new Map<number, THREE.LatheGeometry>();
+function vesselSeamBand(radius: number): THREE.LatheGeometry {
+  let geometry = VESSEL_SEAM_CACHE.get(radius);
+  if (!geometry) {
+    const w = (VESSEL_SEAM_BAND.width * radius) / 2;
+    const outer = radius * (1 + VESSEL_SEAM_BAND.height);
+    geometry = new THREE.LatheGeometry(
+      [
+        new THREE.Vector2(radius * 0.995, -w),
+        new THREE.Vector2(outer, -w * 0.7),
+        new THREE.Vector2(outer, w * 0.7),
+        new THREE.Vector2(radius * 0.995, w),
+      ],
+      VESSEL_SEGMENTS
+    );
+    VESSEL_SEAM_CACHE.set(radius, geometry);
+  }
+  return geometry;
+}
+
+/** Both seam bands of a vessel lathe, in the lathe's own frame (axis +y). */
+const VesselSeams: React.FC<{ radius: number; length: number }> = ({ radius, length }) => (
+  <>
+    {[-1, 1].map((side) => (
+      <mesh
+        key={side}
+        geometry={vesselSeamBand(radius)}
+        material={VESSEL_SEAM_MATERIAL}
+        position={[0, side * vesselSeamOffset(radius, length), 0]}
+        receiveShadow
+      />
+    ))}
+  </>
+);
+
 const VESSEL_SHELL_MATERIALS = new Map<string, THREE.MeshStandardMaterial>();
 export function vesselShellMaterial(color: string): THREE.MeshStandardMaterial {
   let material = VESSEL_SHELL_MATERIALS.get(color);
@@ -5440,6 +5491,9 @@ export const StorageTank: React.FC<{
         castShadow
         receiveShadow
       />
+      <group position={[0, centreY, 0]} rotation={[0, 0, Math.PI / 2]}>
+        <VesselSeams radius={radius} length={length} />
+      </group>
       {/* Identification bands make the vessel orientation readable even in
           overcast and night lighting without adding a light or emissive hack. */}
       {[-length / 3, length / 3].map((x) => (
@@ -5529,6 +5583,9 @@ export const PropaneTank: React.FC<{
       castShadow
       receiveShadow
     />
+    <group position={[0, height / 2 + 0.5, 0]}>
+      <VesselSeams radius={radius} length={height} />
+    </group>
     {/* Support legs - 3 legs */}
     {[0, (Math.PI * 2) / 3, (Math.PI * 4) / 3].map((angle, i) => (
       <mesh

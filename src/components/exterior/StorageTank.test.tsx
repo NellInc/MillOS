@@ -5,7 +5,9 @@ import {
   StorageTank,
   VESSEL_BEAD,
   VESSEL_FLANGE,
+  VESSEL_SEAM_BAND,
   vesselProfile,
+  vesselSeamOffset,
 } from '../FactoryExterior';
 import {
   utilityLadderLayout,
@@ -130,6 +132,12 @@ describe('pressure-vessel heads', () => {
       }
       expect(proud.some((p) => p.y > 0)).toBe(true);
       expect(proud.some((p) => p.y < 0)).toBe(true);
+      // The darker seam band sits on each bead and stands proud of it.
+      const seam = vesselSeamOffset(radius, length);
+      for (const p of proud)
+        expect(Math.abs(Math.abs(p.y) - seam)).toBeLessThan(VESSEL_BEAD.width * radius);
+      expect(VESSEL_SEAM_BAND.height).toBeGreaterThan(VESSEL_BEAD.height);
+      expect(VESSEL_SEAM_BAND.width * radius).toBeGreaterThan(VESSEL_BEAD.width * radius);
     }
   );
 
