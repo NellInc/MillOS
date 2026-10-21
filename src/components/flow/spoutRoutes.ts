@@ -23,6 +23,7 @@ import {
   MILL_PROCESS_PORTS,
   PACKER_HOPPER_LAYOUT,
   PROCESS_GALLERY_POST_X,
+  installMachinePoint,
 } from '../../constants/siteLayout';
 import { MachineData, MachineType } from '../../types';
 
@@ -93,6 +94,16 @@ export type PipeRouteFamily = 'intake' | 'pneumatic' | 'finished';
 
 /** Service lanes fit below the gallery and behind its sifter housings. */
 export const SPOUT_SERVICE_LAYOUT = {
+  /**
+   * Overhead racks, in world metres. The intake rack is where the gallery
+   * braces carry the silo runs (`PIPE_SUPPORT_SEGMENTS`); the lift rack is
+   * the height the product lifts cross the milling aisle at. Both were set by
+   * the mills when those stood 6.59 m tall. Real-size mills sit well below
+   * them, so a spout drops vertically onto each mill instead of the racks
+   * coming down to head height across the aisle.
+   */
+  intakeRackY: MILL_PROCESS_PORTS.intake[1] + 0.9,
+  liftRackY: 5,
   intakeRise: 0.9,
   intakeSetback: 3.8,
   intakeLanePitch: 0.5,
@@ -183,7 +194,10 @@ const createRoute = (
 ): Omit<SpoutRoute, 'fromMachineId' | 'toMachineId'> => {
   let points: THREE.Vector3[];
   if (family === 'intake') {
-    const y = Math.max(start.y, end.y) + SPOUT_SERVICE_LAYOUT.intakeRise;
+    const y = Math.max(
+      Math.max(start.y, end.y) + SPOUT_SERVICE_LAYOUT.intakeRise,
+      SPOUT_SERVICE_LAYOUT.intakeRackY
+    );
     const z =
       end.z - SPOUT_SERVICE_LAYOUT.intakeSetback + lane * SPOUT_SERVICE_LAYOUT.intakeLanePitch;
     points = [
@@ -198,10 +212,13 @@ const createRoute = (
     const x = getSpoutRiserX(start.x);
     const z = end.z - SPOUT_SERVICE_LAYOUT.rearSetback + lane * SPOUT_SERVICE_LAYOUT.rearLanePitch;
     const y = end.y + SPOUT_SERVICE_LAYOUT.topRise + lane * SPOUT_SERVICE_LAYOUT.topLanePitch;
+    // Lift straight off the mill to the aisle rack before turning for the riser.
+    const rack = Math.max(start.y, SPOUT_SERVICE_LAYOUT.liftRackY);
     points = [
       start,
-      new THREE.Vector3(x, start.y, start.z),
-      new THREE.Vector3(x, start.y, z),
+      new THREE.Vector3(start.x, rack, start.z),
+      new THREE.Vector3(x, rack, start.z),
+      new THREE.Vector3(x, rack, z),
       new THREE.Vector3(x, y, z),
       new THREE.Vector3(end.x, y, z),
       new THREE.Vector3(end.x, y, end.z),
@@ -239,25 +256,19 @@ export function createMachineSpoutRoute(
   if (from.type === MachineType.SILO && to.type === MachineType.ROLLER_MILL) {
     route = createRoute(
       new THREE.Vector3(from.position[0], from.position[1] + 3, from.position[2]),
-      new THREE.Vector3(
-        to.position[0],
-        to.position[1] + MILL_PROCESS_PORTS.intake[1],
-        to.position[2]
-      ),
+      new THREE.Vector3(...installMachinePoint(to, MILL_PROCESS_PORTS.intake)),
       'intake',
       lane
     );
   } else if (from.type === MachineType.ROLLER_MILL && to.type === MachineType.PLANSIFTER) {
     route = createRoute(
+      new THREE.Vector3(...installMachinePoint(from, MILL_PROCESS_PORTS.pneumatic)),
       new THREE.Vector3(
-        from.position[0],
-        from.position[1] + MILL_PROCESS_PORTS.pneumatic[1],
-        from.position[2]
-      ),
-      new THREE.Vector3(
-        to.position[0],
-        to.position[1] + SIFTER_LAYOUT.inletCentreY + SIFTER_LAYOUT.inletHeight / 2,
-        to.position[2]
+        ...installMachinePoint(to, [
+          0,
+          SIFTER_LAYOUT.inletCentreY + SIFTER_LAYOUT.inletHeight / 2,
+          0,
+        ])
       ),
       'pneumatic',
       lane
@@ -266,9 +277,11 @@ export function createMachineSpoutRoute(
     route = createRoute(
       new THREE.Vector3(from.position[0], from.position[1] - 2, from.position[2]),
       new THREE.Vector3(
-        to.position[0],
-        to.position[1] + PACKER_HOPPER_LAYOUT.centreY + PACKER_HOPPER_LAYOUT.scale[1] / 2,
-        to.position[2]
+        ...installMachinePoint(to, [
+          0,
+          PACKER_HOPPER_LAYOUT.centreY + PACKER_HOPPER_LAYOUT.scale[1] / 2,
+          0,
+        ])
       ),
       'finished',
       lane

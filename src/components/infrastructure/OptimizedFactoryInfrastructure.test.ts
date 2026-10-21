@@ -656,12 +656,20 @@ it('keeps ceiling fixtures clear of every actual pneumatic and finished-product 
   // CurvePath.getPoints samples only LineCurve3 endpoints, regardless of the
   // division count. Spaced samples exercise the actual straight pipe spans.
   const samples = routes.flatMap((route) => route.curve.getSpacedPoints(3200));
+  // The z 18 row was rejected while 7.56 m plansifters lifted the product
+  // rack into the fixture plane. Installed at real size the rack runs metres
+  // below it, so the positive control drops that row to the rack's own
+  // height at z 18 to prove these envelopes still see a pipe.
+  const rackY = Math.max(
+    ...samples.filter((point) => Math.abs(point.z - 18) < 0.25).map((point) => point.y)
+  );
+  expect(rackY).toBeLessThan(SITE_LAYOUT.factory.bounds.maxY - 3.8 - 2);
   const rejectedRow = fixtures.housings
     .filter((part) => part.position[2] === 22)
     .map((part) =>
       new THREE.Box3()
         .setFromCenterAndSize(
-          new THREE.Vector3(part.position[0], part.position[1], 18),
+          new THREE.Vector3(part.position[0], rackY, 18),
           new THREE.Vector3(...part.scale)
         )
         .expandByScalar(SPOUT_PIPE_RADIUS)

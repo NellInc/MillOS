@@ -143,9 +143,50 @@ partly); their builds failed only on the `public/` symlink in sparse worktrees.
    18:00 sunset is an equinox day at any latitude, and the sun drives lamp levels, shift lighting and every earlier time-of-day capture; moving it would
    re-tune all of them for a checklist wording.
 
-## Final runtime confirmation
+## Final runtime confirmation (partial; stopped at the usage limit, 21 Oct)
 
-_pending_
+- Whole gate on `82fc1c00` at load 300–440/10 cores: typecheck, agent:typecheck, lint, format,
+  build, bundle, reachability, depth, shaders, assets pass; vitest 4,159 pass / 6 fail: 4 load
+  timeouts (fixed in hygiene2) and 2 real (validate:community rejected `sharedTextureBake.worker-*.js`
+  — renamed to `sharedTextureBakeWorker.ts` with a guard test; farmhouse test compared the macOS
+  /var alias with a real path). Both fixed in `6a18f835`. No whole gate has run since the later merges.
+- Bundle budget raised to 200 MiB at Nell's request (`68669c35`).
+- Final art captures on `6051c2d1`: `final-med-12` and `final-med-06` captured; `final-low-12`
+  timed out (load ~520); others not run. A same-load control showed baseline and final builds both
+  timing out at load ~740, so those failures are environmental.
+- Blind A/B med-12 (key held outside the judge's folder; `scratchpad/ab-keys/med-12.json`): final
+  wins forklift, logistics-close, silos, tank-farm, yard; baseline wins interior, milling, packing;
+  5 ties. **Regressions in the final tree:** packer cabinets carry a tile/brick grid; plansifter
+  bodies read as a grid of glinting patches; tank shells read as cotton (lumpy, no highlight).
+- Rubric judge med-12: FAIL (verdict at `test-results/art-review/final-med-12/verdict.md`).
+  Blockers: overview mountain backdrop turns into a flat slab below a hard line at y≈305; a
+  pixelated white smear on the roller-mill side panels (milling/interior/forklift). Long backlog,
+  mostly pre-existing: tan apron, flat water, machine scale vs workers, dressing, floating labels.
+
+## What remains
+
+- **Art regressions** (branch `claude/polish-fix-artregress`, worktree
+  `/private/tmp/millos-fix-artregress-20261021`, agent stopped at start): bisect and fix the three
+  regressions above plus the roller-mill smear, the forklift-scene door-column tile grid and the
+  repeating roof dot grid.
+- **Coop wave** (branch `claude/polish-fix-coop`, agent stopped mid civic rebake): the fascia
+  fix and two timeouts are merged (`6051c2d1`); the civic lamp shadow rebake and the coop/farmhouse
+  eave pixel checks are not done; check the branch for uncommitted work before resuming.
+- **Judge backlog**, planned as four waves (empty worktrees created on `6051c2d1`:
+  `/private/tmp/millos-fix-{env,ground,dressing,scale}-20261021`): env (mountain seam, water
+  Fresnel/ripple, village backdrop hill, repeated city backdrop, sun glints); ground (apron to
+  neutral concrete with joints and lanes, kerb at the grass edge, silo pad, village square, farm
+  furrows, yellow slab, forklift-near floor, plinth contact, ceiling deck); dressing (dock lane
+  stripes as worn paint, labels on boards, mid-air tie-rods, placeholder box, farm primitive, stray
+  hedge, logistics-close and packing-line dressing, truck cab, apartment block, tank heads,
+  forklift camera framing); scale (roller mills ~3x and packers ~5x a worker's height: investigate
+  which is the outlier before changing anything).
+- Then: whole gate, all seven final art conditions (+ blind A/B, regions.py, rubric judge), and
+  the runtime batch (`scratchpad/tools/run-final.sh`: z-fight, axe, trace, EN/pt-BR play-tests,
+  extras incl. in-app reduced motion, e2e). Tools are in the session scratchpad.
+- Machine: load stayed 300–900/10 cores from other software, free disk fell 466 → ~78 GB; and the
+  surface tripwire repeatedly saw hook/rule files (`hooks/bash-protection.cjs`, `policy-gate.*`,
+  `.claude/rules/*`, `creed_guardian/guardian.py`) changed by another process — not by this work.
 
 ## What remains
 

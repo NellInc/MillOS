@@ -45,7 +45,14 @@ import {
   useLogisticsLayoutStore,
   defaultSavedLogisticsLayout,
 } from '../../stores/logisticsLayoutStore';
-import { currentLogisticsLayout } from '../../simulation/layoutPlanning';
+import {
+  currentLogisticsLayout,
+  planningObstacles,
+  type LayoutSnapshot,
+} from '../../simulation/layoutPlanning';
+import { layoutPlanDxf } from '../../simulation/layoutPlanningExport';
+import { SITE_LAYOUT } from '../../constants/siteLayout';
+import { createMachineObstacles } from '../../constants/factoryObstacles';
 import { registerLogisticsVehicle } from '../../simulation/logisticsRuntime';
 
 let dispose: (() => void) | undefined;
@@ -625,6 +632,66 @@ it('migrates a save holding an earlier default shipping route', () => {
   const both = decodePhysicalSession(encodePhysicalSession(saved)).logistics.layout.routes;
   expect(both.shipping).toEqual(currentLogisticsLayout().routes.shipping);
   expect(both.receiving).toEqual(currentLogisticsLayout().routes.receiving);
+});
+
+it('restores a save from before real-size machines with the installed machine sizes', () => {
+  heldShift();
+  // Saves written before the process machines were installed at real size
+  // carry their authored sizes. Rendering ignores `size`, but collision,
+  // selection and the layout-plan export read it.
+  const authored = {
+    [MachineType.ROLLER_MILL]: [7.8, 6.7, 5.7],
+    [MachineType.PLANSIFTER]: [7, 7.56, 7],
+    [MachineType.PACKER]: [4, 6, 4],
+  } as const;
+  const saved = capturePhysicalSession();
+  const [template] = saved.production.machines;
+  saved.production.machines = [
+    [SITE_LAYOUT.machines.rollerMills[0], MachineType.ROLLER_MILL],
+    [SITE_LAYOUT.machines.sifters[0], MachineType.PLANSIFTER],
+    [SITE_LAYOUT.machines.packers[0], MachineType.PACKER],
+  ].map(([anchor, type]) => {
+    const { id, position } = anchor as { id: string; position: readonly number[] };
+    const kind = type as keyof typeof authored;
+    return {
+      ...template,
+      id,
+      type: kind,
+      position: [...position] as [number, number, number],
+      size: [...authored[kind]] as [number, number, number],
+    };
+  });
+  const installed = {
+    [MachineType.ROLLER_MILL]: SITE_LAYOUT.machineDimensions.rollerMill,
+    [MachineType.PLANSIFTER]: SITE_LAYOUT.machineDimensions.sifter,
+    [MachineType.PACKER]: SITE_LAYOUT.machineDimensions.packer,
+  } as const;
+  const restored = decodePhysicalSession(encodePhysicalSession(saved)).production.machines;
+  for (const machine of restored)
+    expect(machine.size, machine.id).toEqual([
+      ...installed[machine.type as keyof typeof installed],
+    ]);
+
+  // Collision and selection envelopes, and the exported plan footprint, are
+  // exactly those of the installed machines.
+  const canonical = restored.map((machine) => ({
+    ...machine,
+    size: [...installed[machine.type as keyof typeof installed]] as [number, number, number],
+  }));
+  expect(createMachineObstacles(1, restored)).toEqual(createMachineObstacles(1, canonical));
+  const snapshot = (machines: typeof restored): LayoutSnapshot => ({
+    capturedAt: '2026-10-21',
+    simulationTime: 0,
+    machines,
+    segments: [],
+    buffers: [],
+    obstacles: planningObstacles(),
+    packerKgPerSecond: 0,
+  });
+  const plan = currentLogisticsLayout();
+  expect(layoutPlanDxf(snapshot(restored), plan)).toEqual(layoutPlanDxf(snapshot(canonical), plan));
+  const mill = restored.find((machine) => machine.type === MachineType.ROLLER_MILL)!;
+  expect(mill.size[0]).toBeLessThan(4);
 });
 
 describe('save size and scene-owner visibility', () => {
