@@ -377,15 +377,17 @@ const MATERIALS = {
     roughness: 0.58,
     metalness: 0,
   }),
-  /** Painted structural steel: a dielectric, despite the name. */
+  /**
+   * Painted structural steel: a dielectric, despite the name. Roughness from
+   * the brushed ORM only. A rolled I-section has no panels, and on a unit box
+   * scaled to a ~0.6 x 14 m column the panel normal (4 per tile at 1 x 10)
+   * and the ORM's AO seams drew a 0.15 x 0.35 m tile grid on every column
+   * (the forklift scene's door columns, final-med-12).
+   */
   steel: new THREE.MeshStandardMaterial({
     name: 'factory-structure',
     color: '#344a52',
     roughnessMap: band(STRUCTURAL_ORM, 1, 10),
-    aoMap: band(STRUCTURAL_ORM, 1, 10),
-    aoMapIntensity: 0.6,
-    normalMap: band(CLADDING_PANEL_NORMAL, 1, 10),
-    normalScale: new THREE.Vector2(0.5, 0.5),
     roughness: 1,
     metalness: 0,
   }),
@@ -427,16 +429,11 @@ const MATERIALS = {
     roughness: 0.5,
     metalness: 0,
   }),
-  /**
-   * The deck's exterior coat. No panel normal: the deck is a unit box scaled
-   * per panel, so `band(CLADDING_PANEL_NORMAL, 30, 50)` put a bevelled 0.5 m
-   * square on every 0.5 m of a 60 m half, 2-3 px each from the overview camera,
-   * and the roof read as a regular dot grid. The standing seams (4.4 m, real
-   * geometry) and the `painted` world-space macro carry it instead.
-   */
   roof: new THREE.MeshStandardMaterial({
     name: 'factory-roof-deck',
     color: '#505452',
+    normalMap: band(CLADDING_PANEL_NORMAL, 30, 50, { anisotropy: 4 }),
+    normalScale: new THREE.Vector2(0.45, 0.45),
     roughness: 0.52,
     metalness: 0,
   }),
@@ -683,6 +680,9 @@ SHELL_SURFACES.forEach(([material, profile, overrides]) => {
  * the underside the hall looks up at. The panels pitch 0.05 rad, so -y stays
  * the interior face.
  */
+/** The columns' and frames' painted steel, exported for its finish test. */
+export const FACTORY_STRUCTURE_MATERIAL = MATERIALS.steel;
+
 export const ROOF_PANEL_MATERIALS: readonly THREE.Material[] = [
   MATERIALS.roof,
   MATERIALS.roof,
@@ -858,6 +858,66 @@ export function buildFactoryRoofBatten(
     scale: [localTo - localFrom, ROOF_BATTEN_HEIGHT, ROOF_BATTEN_WIDTH],
     rotation: [0, 0, roofSlope(side)],
   };
+}
+
+/**
+ * Projected height, in drawing-buffer pixels, below which a batten stops
+ * rasterising as a line. The overview camera stands ~84 m from the nearest
+ * roof corner and ~180 m from the far one; there the 0.085 m upstand covers
+ * 0.5-1.8 px, so each seam was sampled on some pixels and missed on the next
+ * and the roof read as a regular grid of dark dashes (base and final med-12
+ * alike; gone in the same load with the battens hidden, unchanged with their
+ * shadows off).
+ */
+export const ROOF_BATTEN_MIN_PIXELS = 2.5;
+
+/** Pixels a batten's upstand spans at `distance` metres. */
+export function roofBattenPixels(
+  distance: number,
+  bufferHeightPx: number,
+  fovDegrees: number
+): number {
+  const halfHeight = Math.max(distance, 1e-3) * Math.tan((fovDegrees * Math.PI) / 360);
+  return (ROOF_BATTEN_PROUD * bufferHeightPx) / (2 * halfHeight);
+}
+
+/** Box around both deck halves, for the camera's distance to the nearest seam. */
+const ROOF_SEAM_BOUNDS = new THREE.Box3(
+  new THREE.Vector3(-FLOOR_WIDTH / 2 - 0.5, ROOF_DECK_TOP - 2, -50.2),
+  new THREE.Vector3(FLOOR_WIDTH / 2 + 0.5, ROOF_DECK_TOP + 0.3, 50.2)
+);
+
+/**
+ * The standing seams, drawn only while they can still resolve: hidden once
+ * even the nearest seam would project under ROOF_BATTEN_MIN_PIXELS (with 15%
+ * hysteresis so a camera at the threshold cannot flicker them). Past that the
+ * deck carries its world-space macro and the seams' absence is not visible;
+ * their aliasing was.
+ */
+function RoofBattens({ instances }: { readonly instances: readonly BoxInstance[] }) {
+  const groupRef = useRef<THREE.Group>(null);
+  useFrame(({ camera, size, viewport }) => {
+    const group = groupRef.current;
+    if (!group) return;
+    const fov = (camera as THREE.PerspectiveCamera).fov ?? 50;
+    const pixels = roofBattenPixels(
+      ROOF_SEAM_BOUNDS.distanceToPoint(camera.position),
+      size.height * viewport.dpr,
+      fov
+    );
+    const threshold = group.visible ? ROOF_BATTEN_MIN_PIXELS * 0.85 : ROOF_BATTEN_MIN_PIXELS;
+    group.visible = pixels >= threshold;
+  });
+  return (
+    <group ref={groupRef}>
+      <InstancedBoxes
+        instances={instances}
+        material={MATERIALS.roofTrim}
+        castShadow
+        receiveShadow
+      />
+    </group>
+  );
 }
 
 /** The actual opaque deck and upstands, also used by aperture ray tests. */
@@ -1235,6 +1295,18 @@ function FactoryShell() {
       { position: [FLOOR_WIDTH * 0.3, height + 0.45, -18], scale: [5, 1, 3] },
     ];
 
+    // Upstand kerbs. A roof light sits on a raised frame; without one the
+    // glazing is a blue rectangle lying flat on the deck, and from inside
+    // there is nothing to read as a light well.
+    result.push(...roofEnvelope.kerbs, ...roofStructure.glazingBars);
+
+    result.push(...buildFactoryParapetCopeChamfers());
+
+    return result;
+  }, [roofEnvelope, roofStructure]);
+
+  const roofBattens = useMemo<readonly BoxInstance[]>(() => {
+    const result: BoxInstance[] = [];
     // Standing seams. A coated-steel deck is not a smooth plane: the battens
     // run down the slope (X here, since the deck tilts about Z) and repeat
     // across it. From the overview camera the roof is one of the largest
@@ -1271,17 +1343,9 @@ function FactoryShell() {
           result.push(buildFactoryRoofBatten(side, -ROOF_BATTEN_REACH, ROOF_BATTEN_REACH, z));
         }
       }
-      // Upstand kerbs. A roof light sits on a raised frame; without one the
-      // glazing is a blue rectangle lying flat on the deck, and from inside
-      // there is nothing to read as a light well.
     }
-
-    result.push(...roofEnvelope.kerbs, ...roofStructure.glazingBars);
-
-    result.push(...buildFactoryParapetCopeChamfers());
-
     return result;
-  }, [roofEnvelope, roofStructure]);
+  }, []);
 
   const roofSkylights = useMemo(buildFactoryRoofGlazing, []);
 
@@ -1355,6 +1419,7 @@ function FactoryShell() {
         castShadow
         receiveShadow
       />
+      <RoofBattens instances={roofBattens} />
       <InstancedBoxes instances={roofSkylights} material={MATERIALS.skylight} />
       <InstancedBoxes
         instances={facadeAccents}

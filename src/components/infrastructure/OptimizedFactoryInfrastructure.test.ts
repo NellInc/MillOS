@@ -676,6 +676,40 @@ it('keeps ceiling fixtures clear of every actual pneumatic and finished-product 
   }
 });
 
+describe('roof standing seams', () => {
+  it('stop drawing where they can only alias, and stay for the close views', async () => {
+    const { ROOF_BATTEN_MIN_PIXELS, roofBattenPixels } =
+      await import('./OptimizedFactoryInfrastructure');
+    // Art captures render 1280 x 720 at DPR 2: a 1440 px drawing buffer.
+    const buffer = 1440;
+    const { overview } = SITE_LAYOUT.cameras;
+    // The overview camera to the nearest roof corner (~84 m): the seams covered
+    // under two pixels and read as a dot grid across the whole roof.
+    const nearestCorner = new THREE.Vector3(-60.5, SITE_LAYOUT.factory.bounds.maxY, 50.2);
+    const overviewDistance = new THREE.Vector3(...overview.position).distanceTo(nearestCorner);
+    expect(roofBattenPixels(overviewDistance, buffer, overview.fov)).toBeLessThan(
+      ROOF_BATTEN_MIN_PIXELS * 0.85
+    );
+    // A camera 20 m off the deck still sees ribs several pixels tall.
+    expect(roofBattenPixels(20, buffer, 50)).toBeGreaterThan(ROOF_BATTEN_MIN_PIXELS * 2);
+  });
+});
+
+describe('structural steel finish', () => {
+  it('draws no panel or seam grid on rolled sections', async () => {
+    // The forklift scene's door columns read as ceramic tile (final-med-12):
+    // a column is a unit box scaled to ~0.6 x 14 m, so the 4-panel normal at
+    // repeat 1 x 10 drew 0.15 x 0.35 m bevelled squares and the ORM's AO seams
+    // (5.3 per tile) a grid finer still. A rolled I-section has no panels.
+    const { FACTORY_STRUCTURE_MATERIAL } = await import('./OptimizedFactoryInfrastructure');
+    expect(FACTORY_STRUCTURE_MATERIAL.name).toBe('factory-structure');
+    expect(FACTORY_STRUCTURE_MATERIAL.normalMap).toBeNull();
+    expect(FACTORY_STRUCTURE_MATERIAL.aoMap).toBeNull();
+    // Roughness still varies along the member: the brushed G channel stays.
+    expect(FACTORY_STRUCTURE_MATERIAL.roughnessMap).not.toBeNull();
+  });
+});
+
 describe('roof deck liner', () => {
   it('lines the deck underside in a light liner and keeps the exterior coat on top', async () => {
     // At 22:00 the dock end of the hall read black (luma 2.8): the underside
@@ -699,18 +733,5 @@ describe('roof deck liner', () => {
     expect(luminance(ROOF_PANEL_MATERIALS[3])).toBeGreaterThan(
       luminance(ROOF_PANEL_MATERIALS[2]) * 2.5
     );
-  });
-
-  it('carries no square panel grid on the exterior coat', async () => {
-    // The overview roof read as a regular dot grid repeating across the frame
-    // (base and final med-12 alike). The deck is a unit box scaled per panel,
-    // so the 4-panel normal at repeat 30 x 50 put a bevelled 0.5 m square on
-    // every 0.5 m of a 60 m half: 2-3 px per square at the overview camera,
-    // each one a dark dash. A coated deck reads through the standing seams
-    // (4.4 m geometry) and its world-space macro, not a sub-metre tile.
-    const { ROOF_PANEL_MATERIALS } = await import('./OptimizedFactoryInfrastructure');
-    const deck = ROOF_PANEL_MATERIALS[2] as THREE.MeshStandardMaterial;
-    expect(deck.name).toBe('factory-roof-deck');
-    expect(deck.normalMap).toBeNull();
   });
 });

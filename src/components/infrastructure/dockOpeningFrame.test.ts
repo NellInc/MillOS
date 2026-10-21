@@ -1,5 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { dockFrameFlangeSpans } from './OpenDockOpening';
+import { DOCK_PANEL_BANDS, dockFrameFlangeSpans } from './OpenDockOpening';
+
+describe('dock steel panel pitch', () => {
+  it('draws panels about 1.2 m across, not a 0.3 m tile grid', () => {
+    // The forklift scene's dock posts carried "the same small tile grid as the
+    // packers" (final-med-12). Each band was cut for ~1.2 m per TILE, but
+    // `generateMachinePanelNormal(512, 4, 7)` draws 4 x 4 panels per tile, so
+    // every member carried 0.29-0.3 m bevelled squares.
+    const PANELS_PER_TILE = 4;
+    for (const [name, { member, normal }] of Object.entries(DOCK_PANEL_BANDS)) {
+      const pitchX = member[0] / (normal.repeat.x * PANELS_PER_TILE);
+      const pitchY = member[1] / (normal.repeat.y * PANELS_PER_TILE);
+      expect(pitchX, `${name} across`).toBeGreaterThan(1);
+      expect(pitchY, `${name} along`).toBeGreaterThan(1);
+      expect(Math.min(pitchX, pitchY), name).toBeLessThan(1.5);
+    }
+  });
+});
 
 describe('dock opening frame flanges', () => {
   it('stops the outer post flanges where the header flange begins', () => {

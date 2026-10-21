@@ -97,20 +97,53 @@ function repaint(hex: string, previousMetalness: number): THREE.Color {
 // is part of the `StaticMeshBatch` merge key, so per-call-site clones would
 // split this branch into twice as many draws.
 
-/** Vertical I-beam webs: 0.8 x 14 m. ~1 m ORM tile, ~1.2 m panel pitch. */
+/** `generateMachinePanelNormal(512, 4, 7)` draws 4 x 4 panels per tile. */
+const DOCK_PANELS_PER_TILE = 4;
+/** Sheet pitch on the dock steel, metres. */
+const DOCK_PANEL_PITCH = 1.2;
+
+/**
+ * The panel normal tiled so a `width` x `height` m face shows panels
+ * DOCK_PANEL_PITCH across. The bands used to be cut at ~1.2 m per TILE, which
+ * is four 0.3 m panels: a small bevelled grid on every post, header, canopy and
+ * leveler plate (the forklift scene's dock posts, final-med-12).
+ */
+const panelBand = (width: number, height: number): THREE.Texture =>
+  band(
+    DOCK_PANEL_NORMAL,
+    width / (DOCK_PANEL_PITCH * DOCK_PANELS_PER_TILE),
+    height / (DOCK_PANEL_PITCH * DOCK_PANELS_PER_TILE)
+  );
+
+/**
+ * The panel normal on each member, with the member's face size in metres, so
+ * the pitch can be checked: metres / (repeat x 4 panels per tile).
+ */
+export const DOCK_PANEL_BANDS = {
+  /** Vertical I-beam webs: 0.8 x 14 m. */
+  post: { member: [0.8, 14], normal: panelBand(0.8, 14) },
+  /** Header beam: 31 x 0.8 m. */
+  header: { member: [31, 0.8], normal: panelBand(31, 0.8) },
+  /** Canopy deck: 34 x 8 m. */
+  canopy: { member: [34, 8], normal: panelBand(34, 8) },
+  /** Dock leveler plate: 29 x 2 m. */
+  plate: { member: [29, 2], normal: panelBand(29, 2) },
+} as const;
+
+/** Vertical I-beam webs: 0.8 x 14 m. ~1 m ORM tile. */
 const POST_ORM = band(DOCK_ORM, 1, 14);
-const POST_NORMAL = band(DOCK_PANEL_NORMAL, 0.7, 12);
+const POST_NORMAL = DOCK_PANEL_BANDS.post.normal;
 /** I-beam flanges: 1.1 x 14 m strips. No panel grid - a strip has no panels. */
 const FLANGE_ORM = band(DOCK_ORM, 1, 14);
 /** Header beam: 31 x 0.8 m. Tile ~1 m along its length. */
 const HEADER_ORM = band(DOCK_ORM, 31, 1);
-const HEADER_NORMAL = band(DOCK_PANEL_NORMAL, 26, 0.7);
-/** Canopy deck: 34 x 8 m. ~1.4 m tile; panel pitch ~1.2 m. */
+const HEADER_NORMAL = DOCK_PANEL_BANDS.header.normal;
+/** Canopy deck: 34 x 8 m. ~1.4 m tile. */
 const CANOPY_ORM = band(DOCK_ORM, 24, 6);
-const CANOPY_NORMAL = band(DOCK_PANEL_NORMAL, 28, 7);
+const CANOPY_NORMAL = DOCK_PANEL_BANDS.canopy.normal;
 /** Dock leveler plate: 29 x 2 m. ~1 m tile. */
 const PLATE_ORM = band(DOCK_ORM, 29, 2);
-const PLATE_NORMAL = band(DOCK_PANEL_NORMAL, 24, 1.7);
+const PLATE_NORMAL = DOCK_PANEL_BANDS.plate.normal;
 
 const NORMAL_SCALE = new THREE.Vector2(0.55, 0.55);
 
