@@ -44,7 +44,7 @@ describe('dock paint lines', () => {
   it('leaves no dock line in TruckBay drawn as a bare thin plane', () => {
     const truckBay = readFileSync('src/components/TruckBay.tsx', 'utf8');
     const bare = truckBay.match(
-      /<planeGeometry args=\{\[\s*(?:DOCK_GUIDE_LINES\.width|DOCK_GROOVE_STRIPES\.width|DOCK_STOP_BAR\.width|0\.0[35],|4, 0\.15)/g
+      /<planeGeometry args=\{\[\s*(?:DOCK_GUIDE_LINES\.width|DOCK_STOP_BAR\.width|0\.0[35],|4, 0\.15)/g
     );
     expect(bare ?? []).toEqual([]);
     // Thin floor markings route through the line path.

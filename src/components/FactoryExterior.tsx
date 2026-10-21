@@ -6,6 +6,8 @@ import { useShallow } from 'zustand/react/shallow';
 import { SceneText as Text } from './shared/SceneText';
 import { useFrame, useThree, ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
+import { applyWorldSurface, pinSurfaceProfile } from '../utils/worldSurface';
+import { ApartmentFacade } from './exterior/ApartmentFacade';
 import {
   WATER_PROFILES,
   WATER_VISUAL_TIME,
@@ -956,6 +958,8 @@ const OfficeApartment: React.FC<{
           primitiveBuilding
         )}
       </GeneratedBoundary>
+      {/* Galleries and a stair tower on the face the site sees. */}
+      {floors === 4 && <ApartmentFacade />}
     </group>
   );
 };
@@ -3766,6 +3770,77 @@ export const RIVER_FOOTBRIDGE_APPROACH = {
   width: 3,
 };
 
+/** The gravel walk down the west side of the canal-side parkland. */
+export const CANAL_WEST_PATH = {
+  start: [-130, 0, 86.5] as [number, number, number],
+  end: [-130, 0, 50] as [number, number, number],
+  width: 2.5,
+};
+
+/** The paved walk out to the lake; it continues as a curve into the lakeside loop. */
+export const LAKE_APPROACH_PATH = {
+  start: [95, 0, 85] as [number, number, number],
+  end: [120, 0, 92] as [number, number, number],
+  width: 2.5,
+};
+
+/**
+ * A clipped hedge laid along one side of a path: same direction, `side` metres
+ * of verge (+1 left of travel, -1 right) between the path edge and the hedge
+ * face, and trimmed `inset` metres short of each path end.
+ */
+export function hedgeAlongPath(
+  path: { start: [number, number, number]; end: [number, number, number]; width: number },
+  side: 1 | -1,
+  {
+    height,
+    width,
+    verge = 0.6,
+    inset = 1,
+  }: { height: number; width: number; verge?: number; inset?: number }
+) {
+  const dx = path.end[0] - path.start[0];
+  const dz = path.end[2] - path.start[2];
+  const length = Math.hypot(dx, dz);
+  const ux = dx / length;
+  const uz = dz / length;
+  // Left of travel in plan (x right, z toward the viewer): (-uz, ux) rotated.
+  const offset = side * (path.width / 2 + verge + width / 2);
+  const nx = -uz * offset;
+  const nz = ux * offset;
+  return {
+    start: [path.start[0] + ux * inset + nx, 0, path.start[2] + uz * inset + nz] as [
+      number,
+      number,
+      number,
+    ],
+    end: [path.end[0] - ux * inset + nx, 0, path.end[2] - uz * inset + nz] as [
+      number,
+      number,
+      number,
+    ],
+    height,
+    width,
+  };
+}
+
+/**
+ * Hedges that border a path. The lake hedge used to run (95, 90) -> (110, 100),
+ * a diagonal across open grass that began and ended nowhere and crossed no
+ * line of the path it was meant to border; the canal-side one stood on the
+ * gravel walk's centreline. Both now follow their walk, one verge off its edge:
+ * the canal walk on its west side (its east side meets the paved walk's corner),
+ * the lake walk on its north side, so the hedge screens the service yard from it
+ * rather than the water (`pathHedges.test.ts`).
+ */
+export const PATH_HEDGES = [
+  { ...hedgeAlongPath(CANAL_WEST_PATH, -1, { height: 0.6, width: 0.5 }), path: CANAL_WEST_PATH },
+  {
+    ...hedgeAlongPath(LAKE_APPROACH_PATH, -1, { height: 0.5, width: 0.4 }),
+    path: LAKE_APPROACH_PATH,
+  },
+] as const;
+
 // Gravel/paved path component
 export const GravelPath: React.FC<{
   start: [number, number, number];
@@ -5184,37 +5259,22 @@ export const LoadingDockCanopy: React.FC<{
 );
 
 /**
- * Torispherical ("dished") pressure-vessel head, normalised to the shell radius.
+ * 2:1 semi-elliptical pressure-vessel head, the commonest head on a horizontal
+ * storage tank: a half ellipse whose depth is a quarter of the diameter.
  *
- * A cylinder capped with two hemispheres is a pill, and that is what both tanks
- * on this site used to be. A real vessel head is not a hemisphere: it is a
- * shallow spherical crown blended into the shell through a tight knuckle, and
- * the knuckle is the feature - it puts a shoulder on the silhouette where the
- * barrel stops being a barrel. These are ASME "2:1 ellipsoidal equivalent"
- * proportions: crown radius 0.90 D (1.8 R), knuckle radius 0.17 D (0.34 R). The
- * knuckle sweeps 63.124 degrees off the shell tangent onto the crown, which
- * makes the head 0.497694 R deep.
- *
- * Points are (radius, depth back from the pole), both x the shell radius,
- * running pole -> flange. Designed and previewed in Blender at the tanks' real
- * viewing distances - scripts/blender/specs/tanks-exterior.json, rendered with
- * scripts/blender/machine_part_preview.py. These are those numbers verbatim.
- *
- * The flatter ASME flanged-and-dished proportions (crown 1.0 D, knuckle 0.06 D,
- * depth 0.339 R) were rendered alongside and lost: at 30 m the end just faded
- * off and the tank read as a drum with lids.
+ * Both tank families on this site were drawn by GLB shells with dished heads
+ * whose head-to-shell weld groove sat 0.5 R inboard of the head, on the shell,
+ * where it read as a paint band; with nothing marking where the head began,
+ * the ends read as the rounded ends of a pill (tank-farm review). The vessel
+ * is now one lathe: a true 2:1 ellipse, a short straight flange, and a proud
+ * weld bead at the head-to-shell seam, so the end of the barrel is a line.
  */
-const VESSEL_HEAD: ReadonlyArray<readonly [number, number]> = [
-  [0.0, 0.0], // pole
-  [0.210597, 0.012362],
-  [0.418301, 0.049279],
-  [0.62026, 0.110243],
-  [0.813699, 0.194418], // crown/knuckle tangent
-  [0.890385, 0.247649],
-  [0.949705, 0.31973],
-  [0.987185, 0.405227],
-  [1.0, 0.497694], // knuckle meets the straight flange
-];
+export const VESSEL_HEAD_DEPTH = 0.5;
+/** Straight flange between the head's tangent line and the seam, x radius. */
+export const VESSEL_FLANGE = 0.04;
+/** Head-to-shell weld bead: width and height proud of the shell, x radius. */
+export const VESSEL_BEAD = { width: 0.035, height: 0.012 } as const;
+const VESSEL_HEAD_STEPS = 12;
 
 /**
  * 24 earned on its own terms, not inherited: the largest barrel is 6 m across
@@ -5230,61 +5290,47 @@ const VESSEL_HEAD: ReadonlyArray<readonly [number, number]> = [
  * shell's vertices and the stripe gets swallowed.
  */
 const VESSEL_SEGMENTS = 24;
-/** Weld groove: floor inset, floor half-width, mouth half-width - all x radius. */
-const VESSEL_SEAM_DEPTH = 0.02;
-const VESSEL_SEAM_FLAT = 0.013;
-const VESSEL_SEAM_LIP = 0.02;
-
 /**
- * A whole pressure vessel - both dished heads, the shell and the two
- * head-to-shell weld seams - as one lathe.
- *
- * Envelope is preserved exactly: max radius `radius`, axis range
- * +-(length / 2 + radius), the same box the cylinder-plus-two-hemispheres
- * occupied. That is not free. A dished head tangent to the shell whose depth
- * equals R is provably the hemisphere (solve Rc - (Rc - rk) sin b = R with
- * cos b = (R - rk)/(Rc - rk) and Rc = R falls out for every knuckle radius), so
- * a torispherical head cannot fill the old extent on its own. It does not have
- * to: real heads have a STRAIGHT FLANGE before the knuckle, and here that
- * flange is exactly R - depth = 0.502306 R long, which absorbs the difference
- * and simply reads as more cylinder. The tank stops being a pill and becomes a
- * bullet - long barrel, quick dish - which is the correct silhouette anyway.
- *
- * The flange length falls out so that the weld seams land exactly on
- * +-length/2, where the old barrel ended.
- *
- * The seams are grooves, not proud beads. A bead is what a real weld looks like
- * but it would push past `radius` and break the envelope; the groove reads as
- * the same dark ring at distance and its widest point IS the shell radius. A
- * third seam at mid-shell was tried and cut: at 30 m one central ring read as
- * two drums bolted together, and halving its depth did not rescue it.
+ * The lathe profile, pole to pole along +y, as (radius, y). The envelope's
+ * axial extent is unchanged: +-(length / 2 + radius), so saddles, ladders,
+ * bands and hardware keep their seats; the weld bead alone stands proud of
+ * `radius`, by 1.2% of it.
  */
-function createVesselGeometry(radius: number, length: number): THREE.LatheGeometry {
+/** Axial distance of each head-to-shell seam from the vessel's centre. */
+export function vesselSeamOffset(radius: number, length: number): number {
+  return length / 2 + radius - VESSEL_HEAD_DEPTH * radius - VESSEL_FLANGE * radius;
+}
+
+export function vesselProfile(radius: number, length: number): THREE.Vector2[] {
   const half = length / 2 + radius;
+  const depth = VESSEL_HEAD_DEPTH * radius;
+  const seam = vesselSeamOffset(radius, length);
+  const bead = VESSEL_BEAD.width * radius;
+  const proud = radius * (1 + VESSEL_BEAD.height);
   const points: THREE.Vector2[] = [];
-
-  // Bottom head, pole first, so the profile runs strictly bottom-to-top and
+  // Bottom head, pole first: the profile runs strictly bottom-to-top so
   // LatheGeometry's normals face outward.
-  for (const [r, depth] of VESSEL_HEAD) {
-    points.push(new THREE.Vector2(r * radius, -(half - depth * radius)));
+  for (let i = 0; i <= VESSEL_HEAD_STEPS; i += 1) {
+    const t = (i / VESSEL_HEAD_STEPS) * (Math.PI / 2);
+    points.push(new THREE.Vector2(radius * Math.sin(t), -half + depth * (1 - Math.cos(t))));
   }
-  const floor = radius * (1 - VESSEL_SEAM_DEPTH);
-  const flat = VESSEL_SEAM_FLAT * radius;
-  const lip = VESSEL_SEAM_LIP * radius;
-  const seam = (y: number) => {
-    points.push(new THREE.Vector2(radius, y - lip));
-    points.push(new THREE.Vector2(floor, y - flat));
-    points.push(new THREE.Vector2(floor, y + flat));
-    points.push(new THREE.Vector2(radius, y + lip));
+  const beadAt = (y: number) => {
+    points.push(new THREE.Vector2(radius, y - bead / 2));
+    points.push(new THREE.Vector2(proud, y - bead / 4));
+    points.push(new THREE.Vector2(proud, y + bead / 4));
+    points.push(new THREE.Vector2(radius, y + bead / 2));
   };
-  seam(-length / 2);
-  seam(length / 2);
-  for (let i = VESSEL_HEAD.length - 1; i >= 0; i -= 1) {
-    const [r, depth] = VESSEL_HEAD[i];
-    points.push(new THREE.Vector2(r * radius, half - depth * radius));
+  beadAt(-seam);
+  beadAt(seam);
+  for (let i = VESSEL_HEAD_STEPS; i >= 0; i -= 1) {
+    const t = (i / VESSEL_HEAD_STEPS) * (Math.PI / 2);
+    points.push(new THREE.Vector2(radius * Math.sin(t), half - depth * (1 - Math.cos(t))));
   }
+  return points;
+}
 
-  return new THREE.LatheGeometry(points, VESSEL_SEGMENTS);
+function createVesselGeometry(radius: number, length: number): THREE.LatheGeometry {
+  return new THREE.LatheGeometry(vesselProfile(radius, length), VESSEL_SEGMENTS);
 }
 
 /**
@@ -5308,6 +5354,82 @@ function vesselGeometry(radius: number, length: number): THREE.LatheGeometry {
     VESSEL_GEOMETRY_CACHE.set(key, geometry);
   }
   return geometry;
+}
+
+/**
+ * The seam band over each weld bead: a 0.07 R strip of bare, darker steel,
+ * 1.8% proud of the shell. The bead alone is shell-white and 1.2% proud, and
+ * the dressing-r2 tank-farm frame showed it inert - same paint, no line. The
+ * band is what makes the head's start read from the yard.
+ */
+export const VESSEL_SEAM_BAND = { width: 0.07, height: 0.018 } as const;
+const VESSEL_SEAM_MATERIAL = applyWorldSurface(
+  new THREE.MeshStandardMaterial({ color: '#7c868a', roughness: 0.45, metalness: 0.35 }),
+  'metal'
+);
+const VESSEL_SEAM_CACHE = new Map<number, THREE.LatheGeometry>();
+function vesselSeamBand(radius: number): THREE.LatheGeometry {
+  let geometry = VESSEL_SEAM_CACHE.get(radius);
+  if (!geometry) {
+    const w = (VESSEL_SEAM_BAND.width * radius) / 2;
+    const outer = radius * (1 + VESSEL_SEAM_BAND.height);
+    geometry = new THREE.LatheGeometry(
+      [
+        new THREE.Vector2(radius * 0.995, -w),
+        new THREE.Vector2(outer, -w * 0.7),
+        new THREE.Vector2(outer, w * 0.7),
+        new THREE.Vector2(radius * 0.995, w),
+      ],
+      VESSEL_SEGMENTS
+    );
+    VESSEL_SEAM_CACHE.set(radius, geometry);
+  }
+  return geometry;
+}
+
+/** Both seam bands of a vessel lathe, in the lathe's own frame (axis +y). */
+const VesselSeams: React.FC<{ radius: number; length: number }> = ({ radius, length }) => (
+  <>
+    {[-1, 1].map((side) => (
+      <mesh
+        key={side}
+        geometry={vesselSeamBand(radius)}
+        material={VESSEL_SEAM_MATERIAL}
+        position={[0, side * vesselSeamOffset(radius, length), 0]}
+        receiveShadow
+      />
+    ))}
+  </>
+);
+
+/**
+ * Vessel paint, one shared material per colour: two-pack on steel, satin
+ * rather than gloss. Roughness 0.4 so one clean highlight runs along the
+ * shell, and the PINNED `vessel` world-surface finish (a faint long-period
+ * drift and nothing else): `painted`'s meso, splash grime and crown dust read
+ * as cotton on a white cylinder (final-med-12 tank-farm), and the static
+ * batcher re-finishes the merged clone from the source's pin, where it would
+ * otherwise choose `painted` from the roughness.
+ */
+const VESSEL_SHELL_MATERIALS = new Map<string, THREE.MeshStandardMaterial>();
+export function vesselShellMaterial(color: string): THREE.MeshStandardMaterial {
+  let material = VESSEL_SHELL_MATERIALS.get(color);
+  if (!material) {
+    material = applyWorldSurface(
+      pinSurfaceProfile(
+        new THREE.MeshStandardMaterial({
+          color,
+          roughness: 0.4,
+          metalness: 0.03,
+          envMapIntensity: 0.72,
+        }),
+        'vessel'
+      ),
+      'vessel'
+    );
+    VESSEL_SHELL_MATERIALS.set(color, material);
+  }
+  return material;
 }
 
 /**
@@ -5364,41 +5486,21 @@ export const StorageTank: React.FC<{
       name={assetId}
       userData={{ assetId, equipmentType: 'utility-tank' }}
     >
-      <GeneratedBoundary
-        enabled={
-          (radius === 3 && length === 10 && color === '#dce4e5') ||
-          (radius === 2.5 && length === 8 && color === '#eef1ed')
-        }
-        fallback={
-          <>
-            {/* Dished pressure-vessel heads, straight flanges, and recessed weld
-          seams form one cached watertight geometry. This preserves the
-          operational asset identity and calibrated paint from the campaign
-          pass while replacing the pill-like capsule silhouette. */}
-            <mesh
-              geometry={vesselGeometry(radius, length)}
-              position={[0, centreY, 0]}
-              rotation={[0, 0, Math.PI / 2]}
-              castShadow
-              receiveShadow
-            >
-              <meshStandardMaterial
-                color={color}
-                roughness={0.64}
-                metalness={0.03}
-                envMapIntensity={0.72}
-              />
-            </mesh>
-          </>
-        }
-      >
-        <group position={[0, 1.5, 0]}>
-          <GeneratedModel
-            asset={radius === 3 ? 'utilityFuelShell' : 'utilityProcessShell'}
-            receiveShadow={true}
-          />
-        </group>
-      </GeneratedBoundary>
+      {/* One lathe: 2:1 elliptical heads, straight flanges and proud weld
+          beads at both head-to-shell seams (vesselProfile). It replaces the
+          generated shells, whose seam sat on the barrel and whose ends read
+          as a pill. */}
+      <mesh
+        geometry={vesselGeometry(radius, length)}
+        material={vesselShellMaterial(color)}
+        position={[0, centreY, 0]}
+        rotation={[0, 0, Math.PI / 2]}
+        castShadow
+        receiveShadow
+      />
+      <group position={[0, centreY, 0]} rotation={[0, 0, Math.PI / 2]}>
+        <VesselSeams radius={radius} length={length} />
+      </group>
       {/* Identification bands make the vessel orientation readable even in
           overcast and night lighting without adding a light or emissive hack. */}
       {[-length / 3, length / 3].map((x) => (
@@ -5479,39 +5581,18 @@ export const PropaneTank: React.FC<{
   accentColor = '#b83a32',
 }) => (
   <group position={position} name={assetId} userData={{ assetId, equipmentType: 'lpg-vessel' }}>
-    <GeneratedBoundary
-      enabled={
-        color === '#f1f3ef' &&
-        ((radius === 1.5 && height === 5) || (radius === 1.2 && height === 4))
-      }
-      fallback={
-        <>
-          {/* The same cached dished-head vessel family as the horizontal utility
-        tanks. The lower head is deliberately buried while the upper knuckle
-        and weld line remain readable above the containment pad. */}
-          <mesh
-            geometry={vesselGeometry(radius, height)}
-            position={[0, height / 2 + 0.5, 0]}
-            castShadow
-            receiveShadow
-          >
-            <meshStandardMaterial
-              color={color}
-              roughness={0.64}
-              metalness={0.03}
-              envMapIntensity={0.72}
-            />
-          </mesh>
-        </>
-      }
-    >
-      <group position={[0, radius === 1.5 ? -1 : -0.7, 0]}>
-        <GeneratedModel
-          asset={radius === 1.5 ? 'propaneLargeShell' : 'propaneSmallShell'}
-          receiveShadow={true}
-        />
-      </group>
-    </GeneratedBoundary>
+    {/* The same vessel lathe as the horizontal tanks, its lower head buried
+        in the plinth and the upper head and weld bead above it. */}
+    <mesh
+      geometry={vesselGeometry(radius, height)}
+      material={vesselShellMaterial(color)}
+      position={[0, height / 2 + 0.5, 0]}
+      castShadow
+      receiveShadow
+    />
+    <group position={[0, height / 2 + 0.5, 0]}>
+      <VesselSeams radius={radius} length={height} />
+    </group>
     {/* Support legs - 3 legs */}
     {[0, (Math.PI * 2) / 3, (Math.PI * 4) / 3].map((angle, i) => (
       <mesh
@@ -8826,10 +8907,10 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
           point (-130, 85), which overlapped 1.9 m^2 of two -2 surfaces and
           left the outer corner bare. */}
       <GravelPath start={[-95, 0, 85]} end={[-128.75, 0, 85]} width={3} type="paved" />
-      <GravelPath start={[-130, 0, 86.5]} end={[-130, 0, 50]} width={2.5} type="gravel" />
+      <GravelPath {...CANAL_WEST_PATH} type="gravel" />
 
       {/* Path to the lake area */}
-      <GravelPath start={[95, 0, 85]} end={[120, 0, 92]} width={2.5} type="paved" />
+      <GravelPath {...LAKE_APPROACH_PATH} type="paved" />
       <CurvedPath
         position={[120, 0, 100]}
         radius={8}
@@ -8964,8 +9045,15 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
       <LandscapeDressing />
       <WorldPublicRealm />
       {/* Hedges bordering paths */}
-      <HedgeRow start={[-130, 0, 90]} end={[-130, 0, 60]} height={0.6} width={0.5} />
-      <HedgeRow start={[95, 0, 90]} end={[110, 0, 100]} height={0.5} width={0.4} />
+      {PATH_HEDGES.map((hedge) => (
+        <HedgeRow
+          key={`${hedge.start[0]}-${hedge.start[2]}`}
+          start={hedge.start}
+          end={hedge.end}
+          height={hedge.height}
+          width={hedge.width}
+        />
+      ))}
       <HedgeRow start={[-10, 0, -128]} end={[10, 0, -128]} height={0.5} width={0.4} />
 
       {/* Trees along waterways, by river, and by lake - now rendered via instanced components above */}

@@ -87,7 +87,6 @@ const STARTUP_GENERATED_MODELS: readonly GeneratedAssetId[] = [
   'truckCabUnit',
   'truckTrailerUnit',
   'forkliftChassisUnit',
-  'truckTyreUnit',
   // Perimeter, park, travel stop and roadside.
   'fencePostUnit',
   'fenceRailUnit',
@@ -138,10 +137,6 @@ const STARTUP_GENERATED_MODELS: readonly GeneratedAssetId[] = [
   'dockCanopyStructure',
   'bridgeHousingUnit',
   'bridgeSupportUnit',
-  'utilityFuelShell',
-  'utilityProcessShell',
-  'propaneLargeShell',
-  'propaneSmallShell',
   'pathLampModern',
   'woodenBollard',
   'metalBollard',

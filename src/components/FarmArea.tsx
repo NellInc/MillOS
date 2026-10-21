@@ -3032,9 +3032,10 @@ export const FarmArea: React.FC = () => {
       {/* Shared wind clock (idempotent - the village mounts one too) */}
       <WindDriver />
 
-      {/* Across the clear headland: the earth bank must not bury the first
-          cereal rows or cross the retained windmill track at x 8. */}
-      <DrainageCulvert position={[0, -0.3, -28.5]} length={6} radius={0.6} />
+      {/* No culvert on the headland. One stood here, banked over with earth,
+          but no ditch, track or watercourse came to either mouth: from the farm
+          camera it read as a bare green half-cylinder lying in the grass. The
+          culvert under the farm road (above) keeps its road and its purpose. */}
 
       {/* Grain Field Background */}
       <group position={[0, 0, -42]}>

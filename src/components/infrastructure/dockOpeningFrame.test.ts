@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { DOCK_PANEL_BANDS, dockFrameFlangeSpans } from './OpenDockOpening';
+import {
+  DOCK_FRAME_SECTION,
+  DOCK_PANEL_BANDS,
+  dockFrameFlangeSpans,
+  dockHoodBraces,
+  dockHoodSlab,
+} from './OpenDockOpening';
 
 describe('dock steel panel pitch', () => {
   it('draws panels about 1.2 m across, not a 0.3 m tile grid', () => {
@@ -14,6 +20,40 @@ describe('dock steel panel pitch', () => {
       expect(pitchX, `${name} across`).toBeGreaterThan(1);
       expect(pitchY, `${name} along`).toBeGreaterThan(1);
       expect(Math.min(pitchX, pitchY), name).toBeLessThan(1.5);
+    }
+  });
+});
+
+describe('dock hood braces', () => {
+  // Both openings in MillScene: shipping 30 x 14, receiving 18 x 14.
+  it.each([
+    [30, 14],
+    [18, 14],
+  ])('runs each %s m hood brace from a post flange up to the hood underside', (width, height) => {
+    const hood = dockHoodSlab(width, height);
+    const underside = hood.centre[1] - hood.size[1] / 2;
+    const { width: frameWidth, depth: frameDepth } = DOCK_FRAME_SECTION;
+    // The post's indoor flange: 0.15 m plate centred 0.1 m behind the post.
+    const flangeFace = -frameDepth / 2 - 0.1 - 0.075;
+    const postX = width / 2 + frameWidth / 2;
+    const braces = dockHoodBraces(width, height);
+    expect(braces).toHaveLength(2);
+    for (const { start, end } of braces) {
+      const [low, high] = start[1] < end[1] ? [start, end] : [end, start];
+      // Low end: on the flange's indoor face, within the plate, below the post top.
+      expect(Math.abs(Math.abs(low[0]) - postX)).toBeLessThan((frameWidth + 0.3) / 2);
+      expect(low[2]).toBeGreaterThan(flangeFace - 0.02);
+      expect(low[2]).toBeLessThan(flangeFace + 0.15);
+      expect(low[1]).toBeGreaterThan(0);
+      expect(low[1]).toBeLessThan(height);
+      // High end: into the hood slab's underside, inside its plan.
+      expect(high[1]).toBeGreaterThanOrEqual(underside);
+      expect(high[1]).toBeLessThan(underside + hood.size[1]);
+      expect(Math.abs(high[0])).toBeLessThan(hood.size[0] / 2);
+      expect(high[2]).toBeLessThan(hood.centre[2] + hood.size[2] / 2);
+      expect(high[2]).toBeGreaterThan(hood.centre[2] - hood.size[2] / 2);
+      // A brace, not a hanger: it climbs as it reaches out over the hall.
+      expect(high[2]).toBeLessThan(low[2]);
     }
   });
 });
