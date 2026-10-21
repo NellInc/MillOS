@@ -7,6 +7,7 @@ import { SceneText as Text } from './shared/SceneText';
 import { useFrame, useThree, ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 import { applyWorldSurface } from '../utils/worldSurface';
+import { ApartmentFacade } from './exterior/ApartmentFacade';
 import {
   WATER_PROFILES,
   WATER_VISUAL_TIME,
@@ -957,6 +958,8 @@ const OfficeApartment: React.FC<{
           primitiveBuilding
         )}
       </GeneratedBoundary>
+      {/* Galleries and a stair tower on the face the site sees. */}
+      {floors === 4 && <ApartmentFacade />}
     </group>
   );
 };
