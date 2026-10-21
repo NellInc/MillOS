@@ -709,11 +709,20 @@ const SHELL_SURFACES: readonly [
   [MATERIALS.danger, 'signage'],
   // Scuffed paint (a strong meso and macro over the coat), chipped arrises and
   // a dirty foot. At `masonry`'s own 0.2 meso the face beside the milling
-  // camera still read as one flat yellow.
+  // camera still read as one flat yellow. Its shaded face is lit by bounce,
+  // and indoors that bounce is the slab, not the grass the sky rig's lower
+  // band carries: without `indoorBounce` the yellow read olive (sRGB 48, 60, 40).
   [
     MATERIALS.safetyBarrier,
     'masonry',
-    { grime: 0.5, edge: 0.35, meso: 0.32, macro: 0.22, bareColor: '#9d9a92' },
+    {
+      grime: 0.5,
+      edge: 0.35,
+      meso: 0.32,
+      macro: 0.22,
+      bareColor: '#9d9a92',
+      indoorBounce: 0.85,
+    },
   ],
   [MATERIALS.gallery, 'metal', { datum: GALLERY_DECK_TOP }],
   [MATERIALS.galleryRail, 'signage', { datum: GALLERY_DECK_TOP }],

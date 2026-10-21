@@ -730,6 +730,10 @@ describe('aisle safety barriers', () => {
       .uSurfMask.value;
     expect(mask.x).toBeGreaterThanOrEqual(0.3); // grime at the foot
     expect(mask.z).toBeGreaterThanOrEqual(0.2); // chipped arrises
+    // Indoors its shaded face sees the slab, not the grass outside.
+    const deck = (barrier.userData.millosWorldSurface as { uSurfDeck: { value: THREE.Vector4 } })
+      .uSurfDeck.value;
+    expect(deck.w).toBeGreaterThanOrEqual(0.8);
     const source = readFileSync(
       'src/components/infrastructure/OptimizedFactoryInfrastructure.tsx',
       'utf8'
