@@ -495,6 +495,9 @@ it('retains verified home and updated allotment positions and UVs for the civic 
     })
   );
   expect(actual).toEqual(expected);
+  // These casters feed the civic lamp shadow bake; moving them without a rebake stales it.
+  const bake = JSON.parse(readFileSync('public/textures/civic-square-lamp-depth.json', 'utf8'));
+  expect(bake.casterPins?.villageGardenPositions).toEqual(actual.map(([position]) => position));
 });
 
 it('softens petal normals and varies tone while retaining the closed sixty-triangle flower', () => {

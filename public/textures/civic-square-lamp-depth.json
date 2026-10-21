@@ -651,7 +651,7 @@
     },
     {
       "name": "PostboxBody",
-      "vertices": 7639,
+      "vertices": 7647,
       "instances": 1
     },
     {
@@ -701,7 +701,7 @@
     },
     {
       "name": "static-merge:authored-village:0:15",
-      "vertices": 95988,
+      "vertices": 96636,
       "instances": 1
     }
   ],
@@ -709,12 +709,12 @@
     "alphaOrMoving": 42
   },
   "dynamicLocalShadows": false,
-  "inputSha256": "04d1165f3d4ffd01aa9efd3eaed25629631a079a483ffff3a2cf9ac6a10df86b",
-  "atlasSha256": "73522288d1e81c027678509906e115fba48e4bdff72c56a3d29a58d6008eed5a",
+  "inputSha256": "920b4aa9af1f383d88aad78e2b447fb59ba6e28124378f71384507b7b9689327",
+  "atlasSha256": "0c6c4dd5bafce1dbdf82ec67cedc9da661ce5f0fe18ee1e51d90b250cb045457",
   "bakerSha256": "e4a1187f642e15650def16479000b54b52c562a1e7af3e1894d40db3aabe7973",
-  "vertices": 420554,
-  "triangles": 180364,
-  "elapsedSeconds": 13.71,
+  "vertices": 421210,
+  "triangles": 180580,
+  "elapsedSeconds": 158.44,
   "sourceReceipts": [
     {
       "id": "hall-west",
@@ -733,22 +733,22 @@
     },
     {
       "id": "post-left",
-      "blockedRays": 62295,
+      "blockedRays": 62297,
       "rays": 98304
     },
     {
       "id": "post-fountain",
-      "blockedRays": 75555,
+      "blockedRays": 75553,
       "rays": 98304
     },
     {
       "id": "post-garden",
-      "blockedRays": 55091,
+      "blockedRays": 55075,
       "rays": 98304
     },
     {
       "id": "post-right",
-      "blockedRays": 56826,
+      "blockedRays": 56827,
       "rays": 98304
     },
     {
@@ -773,7 +773,7 @@
     },
     {
       "id": "hall-side-near",
-      "blockedRays": 68540,
+      "blockedRays": 68542,
       "rays": 98304
     },
     {
@@ -828,17 +828,17 @@
     },
     {
       "id": "hall-front-window--4.3",
-      "blockedRays": 49581,
+      "blockedRays": 49583,
       "rays": 98304
     },
     {
       "id": "hall-front-window-4.3",
-      "blockedRays": 49175,
+      "blockedRays": 49177,
       "rays": 98304
     },
     {
       "id": "hall-side-window-16.8",
-      "blockedRays": 46004,
+      "blockedRays": 46006,
       "rays": 98304
     },
     {
@@ -848,14 +848,43 @@
     },
     {
       "id": "hall-side-window-23.2",
-      "blockedRays": 46065,
+      "blockedRays": 46067,
       "rays": 98304
     }
   ],
   "deliveryCompression": {
     "method": "Lossless PNG zlib9 adaptive filtering, identical decoded RGBA bytes and color-management chunks",
-    "originalEncodedSha256": "1ef4a785881d55158f89c5dba824ab5db36aacfd137b6d7a99af1821dd52494e",
-    "rawRgbaSha256": "19f3befe0ab8ea23af5e24805ae2a8034a84b813868bd183189d012da5111fdb",
-    "bytesSaved": 938130
+    "originalEncodedSha256": "ae89500b7dfa591649287226e7fda8890e8990af3a789f9cb9dca09d6b024dbe",
+    "rawRgbaSha256": "45d7f50371cc31c290742a467210ac9a60f52aa9970a5c5e04b32161e921ab85",
+    "bytesSaved": 938180
+  },
+  "casterPins": {
+    "glb": {
+      "public/models/village/townhall.glb": "985538194282d623c972e10c5b271d34b771a75f95206089c6ef41419f8d1e8a",
+      "public/models/village/pub.glb": "8315e9a61ad10f59ec83df60ac86426fe964a3a6c7907722ec8165cf29e21c97",
+      "public/models/village/school.glb": "29ca695121450a5595922af645756acb3669616705a6e63dd9c538632e7bfc6b",
+      "public/models/village/shop.glb": "74075f9e5f710fa6d897af30aa880b1b0f8f9cb170fad5069d78a4e4982e9e1e",
+      "public/models/village/wishingwell.glb": "59bc379b747d495c670b0193ae304d589ad8aa1817ae203236ff40b733d1ced1",
+      "public/models/village/fountain.glb": "55ba5ba5db6d1d015b1430e95d166fb4283bff57299d927d68848ed73a7f05a4",
+      "public/models/village/postbox.glb": "a9d444ddb857dab168a66fc14d8e09b35b0eeac0d5526846e1d1e503a7e38f95"
+    },
+    "villageGardenPositions": [
+      "1e7ed40129f7edf5970fb2b0cca67361b0f20d7cd6b1429975cb83ec75a40f17",
+      "58878f3dbe581bc21eefe9f8176f21b6352b7abcb3d35fde50c083fc48c318f6",
+      "089f393c4fdbf35b1698af95a4dde2e493932d8a31933109d127a619d1248886",
+      "38239e88b513e4c1c01fe9d89a3267361055c226d26b39eb7c0a5b7fb0fa2f72",
+      "32c990fd18097bb1d80eb7c4306ae2e14aaf7f387c8178fe686298adcf132870",
+      "18d4e1ab1a5af506dee461f176fc6fcb7d92c7693847c97e9c8d496f743e207b",
+      "de94b24a9a7c43368bd8affc017f34a18f5bae81c9564dcf2cbd4d623af7bb2d",
+      "0e3b36611bb21694e2937379c8e732e2e66e39e141ab598c3c38a966b7f95464",
+      "ff9e17b2861e0d6d0aa59578f1085508c979ae1dfd7a65992fdf8f6fa85892af",
+      "210b446a4bcb30ba6aea0147d9bfaeaed79ba8bdb4235f32aeaf852bf9601792",
+      "3a3cda642438e77b89ba59ef0987d54b2a38addcd790cedeaea68540459954c7",
+      "ad2c03709c629ee3f98f0ef364f6a373d90782bb63de7016fbc8b0f8c857c6ae",
+      "b94a7599a6c4e8a7c2408fae8b0255dedc53f150c41e619ce188d9ce2d189ea4",
+      "5ade559333214fe102d81f90fe82dfef11824c3545aea0765960062ff1911664",
+      "f27f534d08effb9da12bff0a1ce847eca88f980310e03d80afe6b81266183102",
+      "0029ad5595c87ed4fe829f51d130ac6152acd35d2db55a412b16839ccfb4dd54"
+    ]
   }
 }

@@ -392,7 +392,7 @@ export function CommunityBus({ pose }: { pose: CommunityBusPose }) {
       ref={root}
       name="community-autonomous-village-bus"
       visible={false}
-      userData={{ noStaticBatch: true }}
+      userData={{ noStaticBatch: true, dynamic: true }}
       dispose={null}
     >
       <mesh geometry={COMMUNITY_TRANSIT_GEOMETRY.bus} material={PAINT} castShadow receiveShadow />
@@ -474,7 +474,7 @@ export function DeliveryHandcart({ pose }: { pose: DeliveryHandcartPose }) {
       ref={root}
       name="community-flour-handcart"
       visible={false}
-      userData={{ noStaticBatch: true }}
+      userData={{ noStaticBatch: true, dynamic: true }}
       dispose={null}
     >
       <mesh geometry={COMMUNITY_TRANSIT_GEOMETRY.cart} material={PAINT} castShadow receiveShadow />
@@ -656,7 +656,7 @@ export function CommunityBicycle({ pose }: { pose: CommunityBicyclePose }) {
       ref={root}
       name="community-upright-bicycle"
       visible={false}
-      userData={{ noStaticBatch: true }}
+      userData={{ noStaticBatch: true, dynamic: true }}
       dispose={null}
     >
       <mesh geometry={COMMUNITY_BICYCLE_GEOMETRY.frame} material={PAINT} castShadow receiveShadow />

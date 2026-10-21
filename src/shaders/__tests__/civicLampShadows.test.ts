@@ -103,6 +103,25 @@ describe('located concept lighting', () => {
     ).toBe(true);
     validateCivicShadowBake(meta);
   });
+  it('was baked from the caster GLBs that ship now', () => {
+    if (!CIVIC_SHADOW_BAKE_READY) return;
+    // The atlas is exported from a running page, so no unit test can re-derive it. Its
+    // metadata pins the caster bytes the export saw; a later GLB edit stales the shadows
+    // without failing anything else. Rebake (docs/VISUAL_FIDELITY_LOOP.md), then re-pin.
+    const meta = JSON.parse(readFileSync('public/textures/civic-square-lamp-depth.json', 'utf8'));
+    const pins: Record<string, string> = meta.casterPins?.glb ?? {};
+    const bodies = (meta.objects as { name: string }[])
+      .map((o) => /^([A-Z][a-z]+)Body$/.exec(o.name)?.[1])
+      .filter((name): name is string => Boolean(name))
+      .map((name) => `public/models/village/${name.toLowerCase()}.glb`);
+    expect(Object.keys(pins).sort()).toEqual([...new Set(bodies)].sort());
+    const stale = Object.entries(pins)
+      .filter(
+        ([path, sha]) => createHash('sha256').update(readFileSync(path)).digest('hex') !== sha
+      )
+      .map(([path]) => path);
+    expect(stale).toEqual([]);
+  });
   it('uses a unique bounded lookup without a nested source scan, including float camera reconstruction', () => {
     const slots = CIVIC_WORLD_LIGHTS.map((source) => civicSourceSlot(source.position));
     expect(new Set(slots).size).toBe(CIVIC_WORLD_LIGHTS.length);
