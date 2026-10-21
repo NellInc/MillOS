@@ -600,15 +600,17 @@ export const SITE_LAYOUT = {
     processFloor: { position: [-36, 4.5, 42], target: [12, 5.5, 23], fov: 50 },
     tankFarm: { position: [69, 8.5, -97], target: [69, 3.5, -70], fov: 55 },
     logisticsClose: { position: [18, 3.8, 96], target: [14, 1.8, 82], fov: 45 },
-    // Inside the hall near the dock door, looking WEST along the z = 42
+    // Inside the hall east of the dock channel, looking WEST along the z = 42
     // forklift lane at the shipping forklift as it drives toward the camera.
-    // The capture's motion-start frame has it at its route start (-16, 42); the
-    // graded still is taken after the motion sample, by which time it has run
-    // ~11 m east to about x -5. From the west end (-27, 4.2, 46.5) that put it
-    // 22 m away and ~100 px tall: the scene named for the forklift did not show
-    // its subject. From here it is ~10 m away, mast and load toward the lens,
-    // and still ~19 m at its route start.
-    forklift: { position: [4.5, 3, 45], target: [-12, 1, 41.8], fov: 42 },
+    // The capture's motion-start frame has it loading at its route start
+    // (-16, 42); the graded still is taken after the motion sample, by which
+    // time it has run east to somewhere between x -12 and x -5 depending on the
+    // settle time. From the west end (-27, 4.2, 46.5) that put it ~22 m away
+    // and ~100 px tall: the scene named for the forklift did not show its
+    // subject. This pose was searched for the largest forklift that stays whole
+    // in frame anywhere from x -16 to x -5 (a quarter to over half the frame
+    // height), 2.5 m clear of the lane's turn to the dock.
+    forklift: { position: [2.5, 2.6, 44.2], target: [-10, 1, 41.8], fov: 28 },
     shipping: { position: [34, 9, 104], target: [5, 2.5, 82] },
     receiving: { position: [-34, 9, -104], target: [-5, 2.5, -82] },
     yard: { position: [110, 36, 58], target: [72, 1.5, 12] },
