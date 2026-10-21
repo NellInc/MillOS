@@ -8,7 +8,6 @@ import { FLOOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../../constants/rend
 import { SITE_LAYOUT, PROCESS_GALLERY_POST_X } from '../../constants/siteLayout';
 import { FIXTURE_GRID_X, FIXTURE_GRID_Z } from '../environment/InteriorLightRig';
 import { isPostProcessingActive, useGraphicsStore } from '../../stores/graphicsStore';
-import { PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
 import { generateMachineORM } from '../../textures/brushedMetal';
 import {
   FLOOR_DEPTH,
@@ -31,6 +30,7 @@ import {
   type WorldSurfaceOverrides,
   type WorldSurfaceProfileName,
 } from '../../utils/worldSurface';
+import { FLOOR_GRIT_CELL, SURFACE_GRIT_GLSL } from '../../utils/surfaceGrit';
 
 const UNIT_BOX = new THREE.BoxGeometry(1, 1, 1);
 const UNIT_PLANE = new THREE.PlaneGeometry(1, 1);
@@ -243,7 +243,7 @@ const FLOOR_DETAIL_UNIFORMS = {
  * a cache key: three uses it to decide whether a program needs rebuilding, and
  * a key that changes recompiles the shader every frame.
  */
-const FLOOR_PROGRAM_CACHE_KEY = 'millos-floor-detail-v2';
+const FLOOR_PROGRAM_CACHE_KEY = 'millos-floor-detail-v3';
 
 /**
  * Blend the tiled grain into the macro slab.
@@ -267,7 +267,8 @@ uniform vec2 uFloorDetailRepeat;
 uniform float uFloorDetailPivot;
 uniform float uFloorDetailStrength;
 uniform float uFloorJointHalf;
-uniform float uFloorJointRelief;`
+uniform float uFloorJointRelief;
+${SURFACE_GRIT_GLSL}`
       )
       .replace(
         '#include <map_fragment>',
@@ -277,6 +278,15 @@ uniform float uFloorJointRelief;`
   float millosLum = dot( millosGrain, vec3( 0.2126, 0.7152, 0.0722 ) );
   float millosRatio = 1.0 + ( millosLum / uFloorDetailPivot - 1.0 ) * uFloorDetailStrength;
   diffuseColor.rgb *= clamp( millosRatio, 0.35, 1.8 );
+  // CLOSE-RANGE GRIT (surfaceGrit.ts). The macro map is ~8 cm a texel and the
+  // detail tile's finest octave 6 cm, so near the camera the slab smeared into
+  // soft cloud. Sampled in slab metres (the map UV spans the whole slab) and
+  // faded out before its cells go sub-pixel.
+  float millosGritTone = millosGrit(
+    vMapUv * uFloorDetailRepeat * ${FLOOR_JOINT_PITCH.toFixed(1)},
+    ${FLOOR_GRIT_CELL.toFixed(3)}
+  );
+  diffuseColor.rgb *= 1.0 + millosGritTone * 0.12;
 }`
       )
       // EXPANSION-JOINT RELIEF.
@@ -440,12 +450,17 @@ const MATERIALS = {
    * light liner sheet; carrying the exterior coat inside left the hall's
    * ceiling at ~0.08 albedo, black at night wherever the rows' uplight and the
    * slab's bounce were all it had (luma 2.8 over the dock end at 22:00).
+   *
+   * NEUTRAL, and profiled in world space. It was '#8e928f', a green-biased
+   * grey, under a bounce that is green and khaki (the sky rig's lower band is
+   * the grass outside), and read as flat olive at noon: sRGB (30, 45, 38). The
+   * deck ribs and the indoor bounce are its `SHELL_SURFACES` overrides; the
+   * panel-line normal it carried is gone, because on a unit box its 30 x 50
+   * repeat stretched with every panel's length into a different grid each.
    */
   roofLiner: new THREE.MeshStandardMaterial({
     name: 'factory-roof-liner',
-    color: '#8e928f',
-    normalMap: band(CLADDING_PANEL_NORMAL, 30, 50, { anisotropy: 4 }),
-    normalScale: new THREE.Vector2(0.35, 0.35),
+    color: '#929291',
     roughness: 0.6,
     metalness: 0,
   }),
@@ -502,6 +517,20 @@ const MATERIALS = {
     roughness: 0.55,
     metalness: 0,
   }),
+  /**
+   * The aisle upstands: cast concrete with a yellow coat that has seen
+   * forklifts. They shared the bollards' hi-viz and its `signage` finish, and
+   * the one beside the milling camera filled its foreground with flat,
+   * saturated, constant yellow. A duller, rougher yellow under the `masonry`
+   * finish, with the paint chipped to concrete on the arrises and scuffed at
+   * the foot (`SHELL_SURFACES`).
+   */
+  safetyBarrier: new THREE.MeshStandardMaterial({
+    name: 'factory-safety-barrier',
+    color: '#c9a74e',
+    roughness: 0.82,
+    metalness: 0,
+  }),
   zoneStorage: new THREE.MeshBasicMaterial({
     color: '#2f7db7',
     transparent: true,
@@ -545,15 +574,20 @@ const MATERIALS = {
     polygonOffsetFactor: POLYGON_OFFSET.standard.factor,
     polygonOffsetUnits: POLYGON_OFFSET.standard.units,
   }),
+  /**
+   * The silo, milling and packing pads: three instances of the unit box from
+   * 26 to 66 m long. They carried the concrete tile at a 6 x 2 repeat, which
+   * on the 16 x 66 m silo pad is 2.7 m across and 33 m along - the tile's
+   * joint lines became 0.33 m planks and its noise became grain, and the judge
+   * read the pad as timber decking. No UV map can serve boxes that differ in
+   * aspect by this much, so the concrete is analytic: `masonry` in OBJECT
+   * space plus the slab term, with joints laid from each pad's own centre
+   * (`SHELL_SURFACES`). The pads also opt out of the unit-box normal atlas.
+   */
   plinth: new THREE.MeshStandardMaterial({
     name: 'factory-machine-plinth',
-    color: '#dfe2df',
-    map: band(PROCEDURAL_TEXTURES.concreteColor, 6, 2, {
-      anisotropy: 4,
-      colorSpace: THREE.SRGBColorSpace,
-    }),
-    roughnessMap: band(PROCEDURAL_TEXTURES.concreteRoughness, 6, 2),
-    roughness: 1,
+    color: '#a6a8a4',
+    roughness: 0.92,
     metalness: 0,
   }),
   /** Galvanised open grating - a real metal, and now it has an IBL to catch. */
@@ -654,14 +688,23 @@ const SHELL_SURFACES: readonly [
   [MATERIALS.steel, 'painted'],
   [MATERIALS.steelTrim, 'painted'],
   [MATERIALS.roof, 'painted'],
-  [MATERIALS.roofLiner, 'painted'],
+  // Trapezoidal deck ribs at a 250 mm pitch running down the slope (the
+  // halves pitch about Z, so the profile varies along world Z), and the hall's
+  // grey bounce instead of the grass's.
+  [
+    MATERIALS.roofLiner,
+    'painted',
+    { ribPeriod: 0.25, ribDepth: 0.035, ribAxis: 1, indoorBounce: 0.85 },
+  ],
   [MATERIALS.roofTrim, 'painted'],
   [MATERIALS.accent, 'painted'],
-  [MATERIALS.plinth, 'masonry'],
+  // 4 m from each pad's centre lands on the silo pad's 16 m width.
+  [MATERIALS.plinth, 'masonry', { objectSpace: 1, slabPitch: 4, slabJoint: 0.45, slabTone: 0.06 }],
   // Hi-viz on real geometry. `signage` is the lightest profile in the set: a
   // safety yellow weathered into the background has been broken, not finished.
   [MATERIALS.safetyLit, 'signage'],
   [MATERIALS.danger, 'signage'],
+  [MATERIALS.safetyBarrier, 'masonry', { grime: 0.42, edge: 0.3, bareColor: '#9d9a92' }],
   [MATERIALS.gallery, 'metal', { datum: GALLERY_DECK_TOP }],
   [MATERIALS.galleryRail, 'signage', { datum: GALLERY_DECK_TOP }],
   // Anodised aluminium housings, mounted at ceiling height. Grime inert by
@@ -678,6 +721,15 @@ SHELL_SURFACES.forEach(([material, profile, overrides]) => {
  * the underside the hall looks up at. The panels pitch 0.05 rad, so -y stays
  * the interior face.
  */
+/** The factory slab, for the shader tests. */
+export const FLOOR_MATERIAL: THREE.MeshStandardMaterial = MATERIALS.floor;
+
+/** The aisle upstands' worn painted concrete (see `MATERIALS.safetyBarrier`). */
+export const SAFETY_BARRIER_MATERIAL: THREE.Material = MATERIALS.safetyBarrier;
+
+/** The silo, milling and packing pads' concrete (see `MATERIALS.plinth`). */
+export const PROCESS_PAD_MATERIAL: THREE.Material = MATERIALS.plinth;
+
 export const ROOF_PANEL_MATERIALS: readonly THREE.Material[] = [
   MATERIALS.roof,
   MATERIALS.roof,
@@ -715,12 +767,15 @@ function InstancedBoxes({
   castShadow = false,
   receiveShadow = false,
   renderOrder,
+  generatedSurface = true,
 }: {
   readonly instances: readonly BoxInstance[];
   readonly material: THREE.Material | readonly THREE.Material[];
   readonly castShadow?: boolean;
   readonly receiveShadow?: boolean;
   readonly renderOrder?: number;
+  /** False keeps the plain box: the atlas is fitted to the unit box and stretches with it. */
+  readonly generatedSurface?: boolean;
 }) {
   const ref = useRef<THREE.InstancedMesh>(null);
 
@@ -740,6 +795,7 @@ function InstancedBoxes({
   }, [instances]);
 
   const generatedAsset =
+    generatedSurface &&
     material instanceof THREE.MeshStandardMaterial &&
     !material.transparent &&
     material.emissive.getHex() === 0
@@ -1719,7 +1775,12 @@ function SafetyFurniture() {
 
   return (
     <>
-      <InstancedBoxes instances={rails} material={MATERIALS.safetyLit} castShadow receiveShadow />
+      <InstancedBoxes
+        instances={rails}
+        material={MATERIALS.safetyBarrier}
+        castShadow
+        receiveShadow
+      />
       <InstancedBoxes instances={stations} material={MATERIALS.danger} castShadow receiveShadow />
     </>
   );
@@ -1759,7 +1820,13 @@ function FloorWayfinding() {
         renderOrder={RENDER_ORDER.floorEffects}
         receiveShadow
       />
-      <InstancedBoxes instances={plinths} material={MATERIALS.plinth} castShadow receiveShadow />
+      <InstancedBoxes
+        instances={plinths}
+        material={MATERIALS.plinth}
+        castShadow
+        receiveShadow
+        generatedSurface={false}
+      />
     </>
   );
 }

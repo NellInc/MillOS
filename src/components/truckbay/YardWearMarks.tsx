@@ -22,6 +22,16 @@ import { YARD_WEAR_DEPTH } from './yardSurfaces';
 /** Metres of track per repeat of the tread texture. */
 const TRACK_TEXTURE_PERIOD = 6;
 const TRACK_OPACITY = 0.14;
+/**
+ * TYRE LANES: the broad darkening a yard's traffic leaves around its tread
+ * marks - rubber dust, diesel film and the grit tyres pack into the surface.
+ * Laid on the same traced paths as the tracks, a metre wider than each wheel
+ * line, so the lanes are darkest where the most wheel lines overlap: the
+ * back-in line to the dock. Per ribbon it is faint, for the same stacking
+ * reason as TRACK_OPACITY.
+ */
+const LANE_OPACITY = 0.07;
+const LANE_EXTRA_WIDTH = 1.1;
 const OIL_OPACITY = 0.55;
 /** The stain mask's edge sits at this fraction of the quad's half-extent. */
 const OIL_MASK_EDGE = 0.8;
@@ -77,6 +87,24 @@ const generateTreadMask = (): THREE.DataTexture => {
   return createLinearDataTexture(data, width, height);
 };
 
+/** Lane cross-profile: soft-shouldered, densest under the wheels, no tread. */
+const generateLaneMask = (): THREE.DataTexture => {
+  const width = 64;
+  const height = 64;
+  const data = new Uint8Array(width * height * 4);
+  for (let y = 0; y < height; y += 1) {
+    const v = y / height;
+    for (let x = 0; x < width; x += 1) {
+      const u = (x + 0.5) / width;
+      const across = 1 - Math.abs(u * 2 - 1);
+      const profile = smoothstep(0, 0.65, across);
+      const patch = wrappedNoise(v * 8, 8, 61) * 0.45 + 0.55;
+      writeMask(data, (y * width + x) * 4, profile * patch);
+    }
+  }
+  return createLinearDataTexture(data, width, height);
+};
+
 /** One irregular drip: a darker core, a faint tide-mark rim, a ragged edge. */
 const generateOilMask = (): THREE.DataTexture => {
   const size = 128;
@@ -103,7 +131,10 @@ const generateOilMask = (): THREE.DataTexture => {
   return texture;
 };
 
-const buildTrackGeometry = (tracks: readonly YardTyreTrack[]): THREE.BufferGeometry => {
+const buildTrackGeometry = (
+  tracks: readonly YardTyreTrack[],
+  extraWidth = 0
+): THREE.BufferGeometry => {
   const positions: number[] = [];
   const uvs: number[] = [];
   const colors: number[] = [];
@@ -111,7 +142,8 @@ const buildTrackGeometry = (tracks: readonly YardTyreTrack[]): THREE.BufferGeome
   for (const track of tracks) {
     const { samples } = track;
     const base = positions.length / 3;
-    const uMax = track.single ? 0.5 : 1;
+    // A lane band has no second tyre to drop: its mask spans the whole width.
+    const uMax = track.single && extraWidth === 0 ? 0.5 : 1;
     let travelled = 0;
     samples.forEach((sample, index) => {
       if (index > 0) {
@@ -124,7 +156,7 @@ const buildTrackGeometry = (tracks: readonly YardTyreTrack[]): THREE.BufferGeome
       // Left of the direction of travel, in the ground plane.
       const nx = (after.z - before.z) / length;
       const nz = -(after.x - before.x) / length;
-      const half = track.width / 2;
+      const half = (track.width + extraWidth) / 2;
       positions.push(sample.x + nx * half, 0, sample.z + nz * half);
       positions.push(sample.x - nx * half, 0, sample.z - nz * half);
       const v = travelled / TRACK_TEXTURE_PERIOD;
@@ -191,27 +223,42 @@ const finishGeometry = (
 };
 
 export const YardWearMarks: React.FC = () => {
-  const { trackGeometry, stainGeometry } = useMemo(() => {
+  const { trackGeometry, laneGeometry, stainGeometry } = useMemo(() => {
     const shipping = buildYardWearLayout('shipping');
     const receiving = buildYardWearLayout('receiving');
+    const tracks = [...shipping.tracks, ...receiving.tracks];
     return {
-      trackGeometry: buildTrackGeometry([...shipping.tracks, ...receiving.tracks]),
+      trackGeometry: buildTrackGeometry(tracks),
+      laneGeometry: buildTrackGeometry(tracks, LANE_EXTRA_WIDTH),
       stainGeometry: buildStainGeometry([...shipping.stains, ...receiving.stains]),
     };
   }, []);
   const treadMask = useMemo(() => getTexture('yard-tyre-tread-mask', generateTreadMask), []);
   const oilMask = useMemo(() => getTexture('yard-oil-drip-mask', generateOilMask), []);
+  const laneMask = useMemo(() => getTexture('yard-tyre-lane-mask', generateLaneMask), []);
 
   useEffect(
     () => () => {
       trackGeometry.dispose();
+      laneGeometry.dispose();
       stainGeometry.dispose();
     },
-    [trackGeometry, stainGeometry]
+    [trackGeometry, laneGeometry, stainGeometry]
   );
 
   return (
     <group name="yard-wear-marks" position={[0, EXTERIOR_LAYERS.groundOverlay, 0]}>
+      <mesh name="yard-tyre-lanes" geometry={laneGeometry} receiveShadow>
+        <meshStandardMaterial
+          color="#2b2723"
+          alphaMap={laneMask}
+          opacity={LANE_OPACITY}
+          vertexColors
+          roughness={0.9}
+          metalness={0}
+          {...YARD_WEAR_DEPTH}
+        />
+      </mesh>
       <mesh geometry={trackGeometry} receiveShadow>
         <meshStandardMaterial
           color="#24211e"

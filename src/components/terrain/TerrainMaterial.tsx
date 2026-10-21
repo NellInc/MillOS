@@ -47,6 +47,9 @@
  */
 
 import { SURFACE_WETNESS, WET_GROUND_GLSL } from '../../shaders/surfaceWetness';
+import { CONCRETE_SLAB_GLSL, SLAB_JOINT_PITCH, SLAB_JOINT_WIDTH } from '../../utils/concreteSlab';
+import { WORLD_SURFACE_STRENGTH } from '../../utils/worldSurface';
+import { GRASS_GRIT_CELL, SURFACE_GRIT_GLSL } from '../../utils/surfaceGrit';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import {
@@ -188,6 +191,9 @@ function createTerrainUniforms(props: TerrainMaterialProps) {
     uBlendSharpness: { value: props.blendSharpness ?? 0.18 },
     // Shared by reference: the sky's frame loop drives it, nothing recompiles.
     uSurfaceWetness: SURFACE_WETNESS,
+    // The world-surface A/B switch, BY REFERENCE: measure:surfaces turns the
+    // hardstanding slab grid off here and on the yard planes in the same frame.
+    uSurfStrength: WORLD_SURFACE_STRENGTH,
     uTerrainBoundsMin: {
       value: new THREE.Vector2(
         props.bounds?.minX ?? TERRAIN_BOUNDS.minX,
@@ -245,6 +251,9 @@ const vertexShaderWorldPos = `
  */
 const fragmentShaderPreamble = `
   ${WET_GROUND_GLSL}
+  ${CONCRETE_SLAB_GLSL}
+  ${SURFACE_GRIT_GLSL}
+  uniform float uSurfStrength;
   uniform sampler2D uSplatMap;
   uniform vec3 uGrassColor;
   uniform vec3 uAsphaltColor;
@@ -295,6 +304,12 @@ const fragmentShaderPreamble = `
   const float TERRAIN_GRASS_SIN = 0.573576;
 
   void computeTerrain(vec2 worldXZ) {
+    // Slab joints and per-pour tone for the hardstanding channel. Evaluated
+    // here, before any branch, because fwidth needs uniform control flow; and
+    // on the raw world XZ, never the warped asphalt UV, or the joints bend.
+    vec4 slab = millosConcreteSlab(worldXZ, ${SLAB_JOINT_PITCH.toFixed(1)}, ${SLAB_JOINT_WIDTH.toFixed(3)});
+    // Blade-clump break-up for the near grass (surfaceGrit.ts), zero at range.
+    float grassGritTone = millosGrit(worldXZ, ${GRASS_GRIT_CELL.toFixed(3)});
     vec2 splatUV = (worldXZ - uTerrainBoundsMin) / (uTerrainBoundsMax - uTerrainBoundsMin);
     vec4 splat = texture2D(uSplatMap, splatUV);
 
@@ -478,6 +493,16 @@ const fragmentShaderPreamble = `
       // stays the value it was calibrated at when this cost its own tap.
       albedo *= 1.0 + (macroFar.a - 0.5) * 0.55 * weights.r * uMacroAmount;
     }
+
+    // Poured hardstanding: per-slab tone, the odd paler replaced slab, the
+    // sawn joint and the grit either side of it. Weighted by the hardstanding
+    // channel alone, so roads, verges and grass never take the grid. The same
+    // numbers as the yard planes slab world-surface profile.
+    float slabTone = slab.y * 0.08 + slab.w * 0.11;
+    float slabDark = max(slab.x * 0.5, slab.z * 0.08);
+    albedo *= 1.0 + (slabTone - slabDark) * weights.g * clamp(uSurfStrength, 0.0, 1.0);
+    float grassGrit = grassGritTone * 0.16 * weights.r * clamp(uSurfStrength, 0.0, 1.0);
+    albedo *= 1.0 + grassGrit;
 
     float blendedHeight = dot(
       vec4(surfGrass.a, surfAsphalt.a, surfRoad.a, surfDirt.a),
@@ -763,7 +788,7 @@ export function TerrainMaterial(props: TerrainMaterialProps) {
     // v13: wet-ground response. v12: continuous grass UV warp and matching relief Jacobian. three uses this key
     // INSTEAD of hashing the injected source, so it has to be bumped whenever
     // that source changes or a warm program cache could serve the old one.
-    mat.customProgramCacheKey = () => `terrain_v13_${hasDisplacementKey}`;
+    mat.customProgramCacheKey = () => `terrain_v14_${hasDisplacementKey}`;
 
     // Inject custom shader code
     mat.onBeforeCompile = (shader) => {

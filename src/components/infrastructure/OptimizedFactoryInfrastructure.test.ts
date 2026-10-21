@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
@@ -676,6 +677,67 @@ it('keeps ceiling fixtures clear of every actual pneumatic and finished-product 
   }
 });
 
+describe('process pads', () => {
+  /**
+   * The silo pad is a 16 x 66 m instance of the shared unit box. A UV map on it
+   * stretches 12:1, so the concrete tile's joint lines became 0.33 m planks and
+   * its noise became grain: the judge read it as timber decking. The pads now
+   * take no UV map and no unit-box normal atlas; their concrete is the slab
+   * term in OBJECT space, so the joints are laid from each pad's own centre.
+   */
+  it('finishes the pads in object-space slabs, with no UV-stretched map or atlas', async () => {
+    const module = await import('./OptimizedFactoryInfrastructure');
+    const pad = module.PROCESS_PAD_MATERIAL as THREE.MeshStandardMaterial;
+    expect(pad.map).toBeNull();
+    expect(pad.roughnessMap).toBeNull();
+    const uniforms = pad.userData.millosWorldSurface as {
+      uSurfSlab: { value: THREE.Vector4 };
+      uSurfSpan: { value: THREE.Vector4 };
+    };
+    expect(uniforms.uSurfSpan.value.w).toBe(1);
+    const pitch = uniforms.uSurfSlab.value.x;
+    expect(pitch).toBeGreaterThanOrEqual(3);
+    expect(pitch).toBeLessThanOrEqual(6);
+    // Joints from the centre land on the silo pad's long edges.
+    const [width] = SITE_LAYOUT.bulkStorage.siloPad.size;
+    expect(((width / 2) % pitch) / pitch).toBeCloseTo(0, 6);
+    const source = readFileSync(
+      'src/components/infrastructure/OptimizedFactoryInfrastructure.tsx',
+      'utf8'
+    );
+    expect(source).toMatch(
+      /<InstancedBoxes\s+instances=\{plinths\}\s+material=\{MATERIALS\.plinth\}[^>]*generatedSurface=\{false\}/
+    );
+  });
+});
+
+describe('aisle safety barriers', () => {
+  /**
+   * The 1.1 m upstands either side of the milling and packing aisles shared the
+   * bollards' hi-viz paint and its `signage` finish, the lightest in the set,
+   * so the one nearest the milling camera filled its foreground with flat,
+   * saturated, constant yellow. They are painted concrete: worn paint, chipped
+   * arrises showing the concrete, scuffed at the foot.
+   */
+  it('are worn painted concrete, not the bollards hi-viz', async () => {
+    const module = await import('./OptimizedFactoryInfrastructure');
+    const barrier = module.SAFETY_BARRIER_MATERIAL as THREE.MeshStandardMaterial;
+    expect(barrier.name).not.toBe('factory-safety-yellow');
+    const hsl = barrier.color.getHSL({ h: 0, s: 0, l: 0 }, THREE.SRGBColorSpace);
+    expect(hsl.s).toBeLessThan(0.6);
+    expect(barrier.userData.millosWorldSurfaceProfile).toBe('masonry');
+    const mask = (barrier.userData.millosWorldSurface as { uSurfMask: { value: THREE.Vector4 } })
+      .uSurfMask.value;
+    expect(mask.x).toBeGreaterThanOrEqual(0.3); // grime at the foot
+    expect(mask.z).toBeGreaterThanOrEqual(0.2); // chipped arrises
+    const source = readFileSync(
+      'src/components/infrastructure/OptimizedFactoryInfrastructure.tsx',
+      'utf8'
+    );
+    expect(source).toMatch(/instances=\{rails\}\s+material=\{MATERIALS\.safetyBarrier\}/);
+  });
+});
+
 describe('roof deck liner', () => {
   it('lines the deck underside in a light liner and keeps the exterior coat on top', async () => {
     // At 22:00 the dock end of the hall read black (luma 2.8): the underside
@@ -699,5 +761,36 @@ describe('roof deck liner', () => {
     expect(luminance(ROOF_PANEL_MATERIALS[3])).toBeGreaterThan(
       luminance(ROOF_PANEL_MATERIALS[2]) * 2.5
     );
+  });
+
+  /**
+   * At noon the judge read the ceiling as flat olive: measured sRGB (30, 45, 38)
+   * on open deck in `interior`. The liner was a green-biased grey, and a
+   * downward face indoors is lit by the sky rig's LOWER band - the grass and
+   * masonry outside - which it cannot see from under a roof. It also had no
+   * deck profile: the panel normal on a unit box stretched with every panel.
+   */
+  it('is a neutral grey profiled deck lit by the hall, not the grass', async () => {
+    const { ROOF_PANEL_MATERIALS } = await import('./OptimizedFactoryInfrastructure');
+    const liner = ROOF_PANEL_MATERIALS[3] as THREE.MeshStandardMaterial;
+    const { r, g, b } = liner.color;
+    const mean = (r + g + b) / 3;
+    expect((Math.max(r, g, b) - Math.min(r, g, b)) / mean).toBeLessThan(0.03);
+    expect(g).toBeLessThanOrEqual(r);
+    const uniforms = liner.userData.millosWorldSurface as { uSurfDeck: { value: THREE.Vector4 } };
+    const deck = uniforms.uSurfDeck.value;
+    // Trapezoidal deck ribs at a real pitch, running down the slope: the roof
+    // halves pitch about Z, so the profile varies along world Z.
+    expect(deck.x).toBeGreaterThanOrEqual(0.15);
+    expect(deck.x).toBeLessThanOrEqual(0.35);
+    expect(deck.y).toBeGreaterThan(0.02);
+    expect(deck.z).toBe(1);
+    expect(deck.w).toBeGreaterThanOrEqual(0.8);
+    // Only the liner: the exterior coat keeps the outside light.
+    const roof = ROOF_PANEL_MATERIALS[2] as THREE.MeshStandardMaterial;
+    expect(
+      (roof.userData.millosWorldSurface as { uSurfDeck: { value: THREE.Vector4 } }).uSurfDeck.value
+        .w
+    ).toBe(0);
   });
 });

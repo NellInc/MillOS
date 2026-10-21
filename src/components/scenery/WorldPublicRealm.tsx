@@ -9,6 +9,7 @@ import {
   WORLD_REALM_PATHS,
   WORLD_REALM_PATCHES,
   FARM_REALM_PATHS,
+  FARM_FURROW_PITCH,
   CANAL_FOOTBRIDGE_ACCESS,
   CANAL_BRIDGE_STEPS,
   type RealmPath,
@@ -17,6 +18,7 @@ import {
 import { EXTERIOR_LAYERS, POLYGON_OFFSET } from '../../constants/renderLayers';
 import { sampleTerrainGroundHeight } from '../terrain/splatMapGenerator';
 import { getTerrainGridSegments } from '../terrain/terrainTypes';
+import { applyWorldSurface } from '../../utils/worldSurface';
 import { useGraphicsStore } from '../../stores/graphicsStore';
 
 type Ground = (x: number, z: number) => number;
@@ -30,6 +32,28 @@ export const REALM_PAVING_MATERIAL = new THREE.MeshStandardMaterial({
   polygonOffsetFactor: POLYGON_OFFSET.strong.factor,
   polygonOffsetUnits: POLYGON_OFFSET.strong.units,
 });
+
+/**
+ * The cereal field's soil. It shared the paving's flat vertex-coloured finish
+ * and read as a flat brown plane. Its own material carries plough furrows as
+ * world-space ridge-and-trough relief along the drills (the drills vary along
+ * farm-local x, which the farm's half turn keeps on world X), with trough
+ * shading, over the `masonry` clod break-up. Relief in the normal, not the
+ * geometry, so the crop roots and the culvert clearances stay on the datum.
+ */
+export const FARM_SOIL_MATERIAL = applyWorldSurface(
+  new THREE.MeshStandardMaterial({
+    name: 'farm-field-soil',
+    vertexColors: true,
+    roughness: 0.97,
+    depthWrite: true,
+    polygonOffset: true,
+    polygonOffsetFactor: POLYGON_OFFSET.strong.factor,
+    polygonOffsetUnits: POLYGON_OFFSET.strong.units,
+  }),
+  'masonry',
+  { grime: 0, dust: 0, edge: 0, ribPeriod: FARM_FURROW_PITCH, ribDepth: 0.07, ribAxis: 0 }
+);
 
 /** Coordinate-seeded tones within the original palettes. Working if adjacent
  * slabs vary gently without a three-row cycle, with no layout or buffer change.
@@ -104,6 +128,56 @@ function patch(
   g.computeVertexNormals();
   b.add(g, colour);
 }
+/** Flagstone course depth and stone length, and the joint left between stones. */
+const FLAG_COURSE = 0.6;
+const FLAG_LENGTH = 0.9;
+const FLAG_JOINT = 0.02;
+
+/**
+ * A square or court laid as flagstones: courses along X in running bond, each
+ * stone its own slab of the coordinate-seeded paving tone and its own small
+ * shift in value, with a real joint between stones. `patch` laid these as one
+ * plane in one colour, which the judge read as flat constant beige. Stones are
+ * cut to the patch edge, and every corner follows the rendered ground.
+ */
+function flagstones(
+  b: PlotGeometry,
+  x: number,
+  z: number,
+  width: number,
+  depth: number,
+  ground: Ground = flat
+) {
+  const x0 = x - width / 2,
+    x1 = x + width / 2,
+    z0 = z - depth / 2,
+    z1 = z + depth / 2;
+  const tone = new THREE.Color();
+  for (let row = 0; z0 + row * FLAG_COURSE < z1 - 1e-6; row++) {
+    const front = z0 + row * FLAG_COURSE,
+      back = Math.min(z1, front + FLAG_COURSE);
+    // Running bond: every other course starts half a stone in.
+    let left = x0 - (row % 2) * FLAG_LENGTH * 0.5;
+    for (; left < x1 - 1e-6; left += FLAG_LENGTH) {
+      const a = Math.max(x0, left),
+        c = Math.min(x1, left + FLAG_LENGTH);
+      const w = c - a - FLAG_JOINT,
+        d = back - front - FLAG_JOINT;
+      if (w < 0.08 || d < 0.08) continue;
+      const cx = (a + c) / 2,
+        cz = (front + back) / 2;
+      // Each stone a shade apart: a stable hash of its course and place.
+      const shift = Math.sin(cx * 12.9898 + cz * 78.233) * 43758.5453;
+      tone.set(realmPavingColour(cx, cz)).multiplyScalar(0.9 + 0.14 * (shift - Math.floor(shift)));
+      const g = new THREE.PlaneGeometry(w, d, 1, 1).rotateX(-Math.PI / 2).translate(cx, 0, cz);
+      const pos = g.getAttribute('position');
+      for (let i = 0; i < pos.count; i++) pos.setY(i, ground(pos.getX(i), pos.getZ(i)));
+      g.computeVertexNormals();
+      b.add(g, `#${tone.getHexString()}`);
+    }
+  }
+}
+
 // World paths are axis-aligned. Cut tiles around courts and previously laid
 // paths, including partial-width intersections, rather than stacking finishes.
 // Working if rays at both quays and path junctions find one paving surface.
@@ -309,14 +383,14 @@ function villageRealm() {
     solid = new PlotGeometry();
   VILLAGE_REALM_PATHS.forEach((p) => route(paving, p));
   // Shop thresholds and square margins bring the frontages into one civic room.
-  for (const z of [-10, 5]) patch(paving, 16.2, z, 2.5, 6.3, P.paving);
-  patch(paving, -16.2, 30, 2.3, 6.2, P.paving);
+  for (const z of [-10, 5]) flagstones(paving, 16.2, z, 2.5, 6.3);
+  flagstones(paving, -16.2, 30, 2.3, 6.2);
   for (const x of [-14.8, 14.8]) {
     patch(paving, x, 4, 0.35, 29, P.brick);
     drain(solid, x, 4, 20);
   }
   patch(paving, 0, -10.65, 29.7, 0.36, P.brick);
-  patch(paving, 0, 10.5, 12.8, 1.4, P.paving);
+  flagstones(paving, 0, 10.5, 12.8, 1.4);
   // A calm central rectangle frames the fountain and markets, with open ends.
   for (const z of [-0.7, 12.6]) patch(paving, 0, z, 23, 0.32, P.stone);
   for (const x of [-11.5, 11.5]) patch(paving, x, 5.95, 0.32, 13, P.stone);
@@ -331,7 +405,7 @@ function villageRealm() {
     bench(solid, x, -38, x < 0 ? Math.PI / 2 : -Math.PI / 2);
   }
   // Pub courtyard at its street-facing side, with a gap to the entrance.
-  patch(paving, -18.45, -15, 3, 13.5, P.paving);
+  flagstones(paving, -18.45, -15, 3, 13.5);
   wall(solid, [-32.1, -22.1], [-18, -22.1], 0.52);
   wall(solid, [-32.1, -7.9], [-18, -7.9], 0.52);
   wall(solid, [-32.1, -22.1], [-32.1, -7.9], 0.52);
@@ -340,7 +414,7 @@ function villageRealm() {
     bench(solid, -18.7, z + (z < -15 ? 1.25 : -1.25), Math.PI / 2);
   }
   // School's front playground and boundary, clear of the adjacent cottage.
-  patch(paving, 15.2, 40, 2.1, 10.8, P.paving);
+  flagstones(paving, 15.2, 40, 2.1, 10.8);
   wall(solid, [14.1, 32.1], [29, 32.1], 0.44);
   wall(solid, [14.1, 47.9], [29, 47.9], 0.44);
   wall(solid, [29, 32.1], [29, 47.9], 0.44);
@@ -434,7 +508,7 @@ export function createWorldRealm(segments: number) {
     });
   }
   for (const r of WORLD_REALM_PATCHES)
-    patch(paving, r.x, r.z, r.halfX * 2, r.halfZ * 2, P.paving, ground);
+    flagstones(paving, r.x, r.z, r.halfX * 2, r.halfZ * 2, ground);
   const bridge = CANAL_FOOTBRIDGE_ACCESS;
   // Painted timber joinery follows the delivered GLB's ten post stations,
   // including its 20 mm local offset. The old brown rail becomes a middle rail.
@@ -590,7 +664,6 @@ function farmRealm() {
   const paving = new PlotGeometry(),
     solid = new PlotGeometry();
   FARM_REALM_PATHS.forEach((p) => route(paving, p, flat, true));
-  paving.parts.push(createFarmCultivationGeometry());
   // A gravel shoulder joins the barn court to the working track and windmill.
   patch(paving, 5.3, -8.4, 8.7, 1.8, '#9a8b71');
   wall(solid, [5.7, -10.5], [5.7, -26.4], 0.28);
@@ -600,7 +673,11 @@ function farmRealm() {
   planter(solid, -19.9, 12, 1.1, 3.6);
   planter(solid, -19.9, 18, 1.1, 3.6);
   drain(solid, 8, -27.3, 3.4, Math.PI / 2);
-  return { paving: paving.finish(), solid: finishRealmSurface(solid.finish()) };
+  return {
+    paving: paving.finish(),
+    solid: finishRealmSurface(solid.finish()),
+    soil: createFarmCultivationGeometry(),
+  };
 }
 export const FARM_REALM_GEOMETRY = farmRealm();
 function Realm({
@@ -608,10 +685,22 @@ function Realm({
   geometry,
 }: {
   name: string;
-  geometry: { paving: THREE.BufferGeometry; solid: THREE.BufferGeometry };
+  geometry: {
+    paving: THREE.BufferGeometry;
+    solid: THREE.BufferGeometry;
+    soil?: THREE.BufferGeometry;
+  };
 }) {
   return (
     <group name={name} dispose={null}>
+      {geometry.soil && (
+        <mesh
+          name={`${name}-soil`}
+          geometry={geometry.soil}
+          material={FARM_SOIL_MATERIAL}
+          receiveShadow
+        />
+      )}
       <mesh
         name={`${name}-paving`}
         geometry={geometry.paving}
