@@ -8,7 +8,9 @@ import {
   VESSEL_SEAM_BAND,
   vesselProfile,
   vesselSeamOffset,
+  vesselShellMaterial,
 } from '../FactoryExterior';
+import { applyBatchWorldSurface } from '../../utils/worldSurface';
 import {
   utilityLadderLayout,
   createUtilityTankHardware,
@@ -164,5 +166,22 @@ describe('pressure-vessel heads', () => {
       'propaneSmallShell',
     ])
       expect(assets).not.toContain(shell);
+  });
+});
+
+describe('vessel paint', () => {
+  it('keeps the lathe shells near-constant white with one satin highlight, through the batch', () => {
+    // final-med-12 tank-farm: the shells read as cotton under `painted` (meso,
+    // splash grime, crown dust) at roughness 0.5, with no highlight. The shells
+    // are static-batched, and the batcher re-finishes the merged clone from
+    // the source, so the finish has to be pinned to survive it.
+    for (const color of ['#dce4e5', '#eef1ed']) {
+      const material = vesselShellMaterial(color);
+      expect(material.roughness).toBeCloseTo(0.4, 5);
+      expect(material.userData.millosWorldSurfaceProfile).toBe('vessel');
+      const merged = material.clone();
+      expect(applyBatchWorldSurface(merged, material)).toBe('vessel');
+      merged.dispose();
+    }
   });
 });

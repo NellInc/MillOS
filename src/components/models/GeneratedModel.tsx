@@ -21,7 +21,7 @@ import * as THREE from 'three';
 import { useDracoGLTF } from '../../utils/dracoLoader';
 import { GENERATED_ASSET_PATHS, type GeneratedAssetId } from '../../utils/modelLoader';
 import ErrorBoundary from '../ErrorBoundary';
-import { applyWorldSurface } from '../../utils/worldSurface';
+import { applyWorldSurface, pinSurfaceProfile } from '../../utils/worldSurface';
 import { CLOSED_DOUBLE_FACED_ASSETS } from './closedDoubleFacedAssets';
 import {
   createMarketCanopyGeometry,
@@ -46,10 +46,13 @@ import {
  * plastic, which is what the art review named on every tank in tank-farm,
  * packing and silos. The packed normal map is flat (std 0.6/255) and inert.
  * The owned clone drops both, takes a painted-steel roughness, and wears the
- * `painted` world-surface finish: metre-scale tonal drift and roughness
- * break-up sampled in world space, so no UV unwrap is needed. No profile
- * overrides on purpose - a batched clone is re-finished from its profile alone
- * (`applyBatchWorldSurface`), so an override here would be lost there.
+ * `vessel` world-surface finish: a faint long-period drift and nothing else,
+ * so the shell keeps a near-constant white and one clean highlight runs its
+ * length. (`painted` here read as cotton: its meso, grime and dust are the
+ * right wear for cladding and the wrong one for a white cylinder.) The profile
+ * is PINNED, not just applied: the batcher re-finishes the clone it merges into
+ * from the source's pin, where it would otherwise choose `painted` from the
+ * roughness. No overrides, which a batched clone would not carry.
  */
 const VESSEL_SHELLS = new Set<GeneratedAssetId>([
   'utilityFuelShell',
@@ -57,8 +60,11 @@ const VESSEL_SHELLS = new Set<GeneratedAssetId>([
   'propaneLargeShell',
   'propaneSmallShell',
 ]);
-/** Weathered two-pack paint on steel: satin, not gloss. */
-const VESSEL_SHELL_ROUGHNESS = 0.5;
+/**
+ * Two-pack paint on steel: satin, not gloss. 0.4 keeps one coherent highlight
+ * along the shell; at 0.5 it spread into the albedo and the tanks had none.
+ */
+const VESSEL_SHELL_ROUGHNESS = 0.4;
 
 const VILLAGE_GLAZING = new Set<GeneratedAssetId>([
   'cottage',
@@ -225,7 +231,7 @@ export const GeneratedModel: React.FC<GeneratedModelProps> = ({
         material.metalnessMap = null;
         material.normalMap = null;
         material.roughness = VESSEL_SHELL_ROUGHNESS;
-        applyWorldSurface(material, 'painted');
+        applyWorldSurface(pinSurfaceProfile(material, 'vessel'), 'vessel');
         mesh.material = material;
         materials.push(material);
       }

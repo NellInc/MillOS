@@ -56,6 +56,7 @@ import {
   writeDecalDialReadings,
   DECAL_CELL,
 } from './machineDecals';
+import { MILL_LOUVRE_FACE_X, MILL_LOUVRE_THICKNESS } from '../flow/ventPlume';
 
 const UNIT_BOX = new THREE.BoxGeometry(1, 1, 1);
 /**
@@ -1177,8 +1178,8 @@ function CompactMachineSet({
           millVentRef.current,
           index * 4 + ventIndex,
           object,
-          [x - 2.412, y + 2.25 + ventIndex * 0.38, z - 0.5],
-          [0.018, 0.18, 1.35],
+          [x + MILL_LOUVRE_FACE_X, y + 2.25 + ventIndex * 0.38, z - 0.5],
+          [MILL_LOUVRE_THICKNESS, 0.18, 1.35],
           undefined,
           frame
         );
@@ -1681,8 +1682,8 @@ function CompactMachineSet({
           millVentRef.current,
           index * 4 + ventIndex,
           object,
-          [x - 2.412, y + vibration + 2.25 + ventIndex * 0.38, z - 0.5],
-          [0.018, 0.18, 1.35],
+          [x + MILL_LOUVRE_FACE_X, y + vibration + 2.25 + ventIndex * 0.38, z - 0.5],
+          [MILL_LOUVRE_THICKNESS, 0.18, 1.35],
           undefined,
           frame
         );

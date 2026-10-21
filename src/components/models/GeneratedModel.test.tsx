@@ -6,7 +6,7 @@ import { NodeIO } from '@gltf-transform/core';
 import { createShopDisplayGeometry, SHOP_DISPLAY_ITEM_GRID } from './GeneratedOfficeModel';
 import { createBarnJoineryGeometry } from '../scenery/AuthoredPropTrim';
 import { GeneratedBody, GeneratedBoundary, GeneratedModel } from './GeneratedModel';
-import { hasWorldSurface } from '../../utils/worldSurface';
+import { applyBatchWorldSurface, hasWorldSurface } from '../../utils/worldSurface';
 
 const holder = vi.hoisted(() => ({ scene: null as THREE.Group | null }));
 vi.mock('../../utils/dracoLoader', () => ({ useDracoGLTF: () => ({ scene: holder.scene }) }));
@@ -725,7 +725,7 @@ it('cleans up real barn replacement geometry and paint while leaving cached asse
   material.dispose();
 });
 
-it('takes the vessel shells off their near-mirror roughness map and gives them the painted finish', () => {
+it('takes the vessel shells off their near-mirror roughness map and gives them a clean painted finish', () => {
   // The four tank GLBs ship a metallicRoughness map whose green channel is a
   // near-constant 60/255: 0.64 x 0.24 = 0.15 effective roughness, i.e. the
   // "uniform plastic gloss" the art review named on every tank. Their normal
@@ -759,10 +759,20 @@ it('takes the vessel shells off their near-mirror roughness map and gives them t
     expect(finished.roughnessMap).toBeNull();
     expect(finished.metalnessMap).toBeNull();
     expect(finished.normalMap).toBeNull();
-    expect(finished.roughness).toBeGreaterThanOrEqual(0.45);
+    // One clean highlight along the shell: satin, not the 0.15 gloss and not
+    // the 0.5 that left no highlight at all (final-med-12 tank-farm).
+    expect(finished.roughness).toBeCloseTo(0.4, 5);
     expect(finished.vertexColors).toBe(true);
     expect(hasWorldSurface(finished)).toBe(true);
-    expect(finished.userData.millosWorldSurfaceProfile).toBe('painted');
+    // Near-constant factory paint: the `painted` profile's meso, grime and dust
+    // read as cotton on a white shell.
+    expect(finished.userData.millosWorldSurfaceProfile).toBe('vessel');
+    // The static batcher re-finishes the clone it merges into from the source;
+    // the shells must keep their finish through it, not fall back to `painted`.
+    const merged = finished.clone();
+    expect(applyBatchWorldSurface(merged, finished)).toBe('vessel');
+    expect(merged.userData.millosWorldSurfaceProfile).toBe('vessel');
+    merged.dispose();
     // The cached loader material is untouched.
     expect(material.roughnessMap).toBe(orm);
     expect(hasWorldSurface(material)).toBe(false);

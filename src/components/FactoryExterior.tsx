@@ -6,7 +6,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { SceneText as Text } from './shared/SceneText';
 import { useFrame, useThree, ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
-import { applyWorldSurface } from '../utils/worldSurface';
+import { applyWorldSurface, pinSurfaceProfile } from '../utils/worldSurface';
 import { ApartmentFacade } from './exterior/ApartmentFacade';
 import {
   WATER_PROFILES,
@@ -5357,11 +5357,6 @@ function vesselGeometry(radius: number, length: number): THREE.LatheGeometry {
 }
 
 /**
- * Vessel paint, one shared material per colour: weathered two-pack on steel,
- * satin rather than gloss, with the `painted` world-surface finish - the same
- * finish GeneratedModel gave the generated shells this lathe replaces.
- */
-/**
  * The seam band over each weld bead: a 0.07 R strip of bare, darker steel,
  * 1.8% proud of the shell. The bead alone is shell-white and 1.2% proud, and
  * the dressing-r2 tank-farm frame showed it inert - same paint, no line. The
@@ -5407,18 +5402,30 @@ const VesselSeams: React.FC<{ radius: number; length: number }> = ({ radius, len
   </>
 );
 
+/**
+ * Vessel paint, one shared material per colour: two-pack on steel, satin
+ * rather than gloss. Roughness 0.4 so one clean highlight runs along the
+ * shell, and the PINNED `vessel` world-surface finish (a faint long-period
+ * drift and nothing else): `painted`'s meso, splash grime and crown dust read
+ * as cotton on a white cylinder (final-med-12 tank-farm), and the static
+ * batcher re-finishes the merged clone from the source's pin, where it would
+ * otherwise choose `painted` from the roughness.
+ */
 const VESSEL_SHELL_MATERIALS = new Map<string, THREE.MeshStandardMaterial>();
 export function vesselShellMaterial(color: string): THREE.MeshStandardMaterial {
   let material = VESSEL_SHELL_MATERIALS.get(color);
   if (!material) {
     material = applyWorldSurface(
-      new THREE.MeshStandardMaterial({
-        color,
-        roughness: 0.5,
-        metalness: 0.03,
-        envMapIntensity: 0.72,
-      }),
-      'painted'
+      pinSurfaceProfile(
+        new THREE.MeshStandardMaterial({
+          color,
+          roughness: 0.4,
+          metalness: 0.03,
+          envMapIntensity: 0.72,
+        }),
+        'vessel'
+      ),
+      'vessel'
     );
     VESSEL_SHELL_MATERIALS.set(color, material);
   }

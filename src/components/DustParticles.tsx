@@ -13,6 +13,7 @@ import {
   FACTORY_BOUNDS,
   SIFTER_LAYOUT,
   SITE_LAYOUT,
+  getMachineAssemblyScale,
   installMachinePoint,
 } from '../constants/siteLayout';
 import { MachineType } from '../types';
@@ -41,6 +42,7 @@ import {
   type SpoutRoute,
 } from './flow/spoutRoutes';
 import { buildVapourSpriteAlpha, STEAM_PUFF, VAPOUR_SPRITE_SIZE } from './flow/vapourSprite';
+import { MILL_VENT_OFFSET, seedVentPuff } from './flow/ventPlume';
 
 // ============================================================
 // Shared particle sprite
@@ -383,14 +385,9 @@ function animateMachineSteam(entry: MachineSteamEntry, delta: number) {
 
     if (entry.lifetimes[i] > 1) {
       entry.lifetimes[i] = 0;
-      pos[i * 3] = (Math.random() - 0.5) * 0.5;
-      pos[i * 3 + 1] = Math.random() * 0.3;
-      pos[i * 3 + 2] = (Math.random() - 0.5) * 0.5;
-
-      entry.velocities[i * 3] = (Math.random() - 0.5) * 0.3;
-      entry.velocities[i * 3 + 1] =
-        entry.steamType === 'steam' ? 0.8 + Math.random() * 0.5 : 0.3 + Math.random() * 0.3;
-      entry.velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.3;
+      const { position, velocity } = seedVentPuff(entry.steamType, false);
+      pos.set(position, i * 3);
+      entry.velocities.set(velocity, i * 3);
     }
 
     pos[i * 3] += entry.velocities[i * 3] * delta;
@@ -1133,11 +1130,18 @@ const createMachineSteamMaterial = (
 // Machine steam/dust effect for industrial atmosphere
 interface MachineSteamProps {
   position: [number, number, number];
+  /** Install scale of the vent's machine: positions, drift and puff size. */
+  scale?: number;
   type: 'steam' | 'dust' | 'exhaust';
   intensity?: number;
 }
 
-const MachineSteamParticle: React.FC<MachineSteamProps> = ({ position, type, intensity = 1 }) => {
+const MachineSteamParticle: React.FC<MachineSteamProps> = ({
+  position,
+  scale = 1,
+  type,
+  intensity = 1,
+}) => {
   const particlesRef = useRef<THREE.Points>(null);
   const lifeAttrRef = useRef<THREE.BufferAttribute>(null);
   const idRef = useRef(`machineSteam-${Math.random().toString(36).slice(2, 9)}`);
@@ -1153,17 +1157,16 @@ const MachineSteamParticle: React.FC<MachineSteamProps> = ({ position, type, int
     const life = new Float32Array(count);
 
     for (let i = 0; i < count; i++) {
-      // Start at machine position with small random offset
-      pos[i * 3] = (Math.random() - 0.5) * 0.5;
-      pos[i * 3 + 1] = Math.random() * 0.5;
-      pos[i * 3 + 2] = (Math.random() - 0.5) * 0.5;
-
-      // Upward velocity with drift
-      vel[i * 3] = (Math.random() - 0.5) * 0.3;
-      vel[i * 3 + 1] = type === 'steam' ? 0.8 + Math.random() * 0.5 : 0.3 + Math.random() * 0.3;
-      vel[i * 3 + 2] = (Math.random() - 0.5) * 0.3;
-
+      const { position, velocity } = seedVentPuff(type, true);
       life[i] = Math.random(); // Random starting lifetime
+      // Already that far along its path, so a held clock (the plant paused,
+      // or an art capture) shows a formed plume rather than every puff
+      // stacked at the vent mouth at its mature size.
+      const travelled = type === 'dust' ? 0 : life[i] / (type === 'steam' ? 1.5 : 1);
+      for (let axis = 0; axis < 3; axis++) {
+        pos[i * 3 + axis] = position[axis] + velocity[axis] * travelled;
+        vel[i * 3 + axis] = velocity[axis];
+      }
     }
 
     return { positions: pos, velocities: vel, lifetimes: life };
@@ -1177,12 +1180,12 @@ const MachineSteamParticle: React.FC<MachineSteamProps> = ({ position, type, int
     () =>
       createMachineSteamMaterial(
         color,
-        baseSize * intensity,
+        baseSize * intensity * scale,
         baseOpacity * intensity,
         isSteam ? getVapourSprite() : getParticleSprite(),
         isSteam ? STEAM_PUFF.maxPointPixels : VENT_MAX_POINT_PIXELS
       ),
-    [color, baseSize, baseOpacity, intensity, isSteam]
+    [color, baseSize, baseOpacity, intensity, isSteam, scale]
   );
   useEffect(() => () => material.dispose(), [material]);
 
@@ -1223,6 +1226,7 @@ const MachineSteamParticle: React.FC<MachineSteamProps> = ({ position, type, int
     <points
       ref={particlesRef}
       position={position}
+      scale={scale}
       material={material}
       key={`steam-${count}-${type}`}
     >
@@ -1257,6 +1261,8 @@ type SteamSource = {
   /** The machine this vent belongs to; it vents only while that machine works. */
   machineId: string;
   position: [number, number, number];
+  /** The machine's install scale, which the plume shares. */
+  scale: number;
   type: 'steam' | 'dust' | 'exhaust';
   intensity: number;
 };
@@ -1271,7 +1277,6 @@ const MILL_VENTS: readonly Pick<SteamSource, 'type' | 'intensity'>[] = [
 const SIFTER_DUST_INTENSITY = [1, 0.9, 0.8] as const;
 const PACKER_DUST_INTENSITY = [0.7, 0.8, 0.6] as const;
 
-const MILL_VENT_OFFSET: [number, number, number] = [-2.85, 2.3, -0.5];
 const SIFTER_VENT_OFFSET: [number, number, number] = [
   -2.2,
   SIFTER_LAYOUT.capCentreY + SIFTER_LAYOUT.capHeight / 2 + 0.1,
@@ -1279,18 +1284,28 @@ const SIFTER_VENT_OFFSET: [number, number, number] = [
 ];
 const PACKER_VENT_OFFSET: [number, number, number] = [0.45, 5.72 + 1.5 / 2 + 0.1, 0.45];
 
-/** Vent offsets are in each machine's authored metres; install them with it. */
+/**
+ * Vent offsets are in each machine's authored metres; install them with it.
+ * The plume is installed with it too: its puffs, their drift and their sprite
+ * size are authored against the authored casing (ventPlume.test.ts pins the
+ * mill plume's clearance from the louvres in those metres), so a mill
+ * installed at 0.4 vents a 0.4 plume rather than an authored-size one that
+ * would stand 0.17 m off its louvres and dwarf the machine.
+ */
 const ventOn = (
   type: MachineType,
   size: readonly [number, number, number],
   position: readonly [number, number, number],
   offset: readonly [number, number, number]
-): [number, number, number] => installMachinePoint({ type, size, position }, offset);
+): { position: [number, number, number]; scale: number } => ({
+  position: installMachinePoint({ type, size, position }, offset),
+  scale: getMachineAssemblyScale({ type, size })[0],
+});
 
-const STEAM_SOURCES: readonly SteamSource[] = [
+export const STEAM_SOURCES: readonly SteamSource[] = [
   ...SITE_LAYOUT.machines.rollerMills.map(({ id, position }, i) => ({
     machineId: id,
-    position: ventOn(
+    ...ventOn(
       MachineType.ROLLER_MILL,
       SITE_LAYOUT.machineDimensions.rollerMill,
       position,
@@ -1300,7 +1315,7 @@ const STEAM_SOURCES: readonly SteamSource[] = [
   })),
   ...SITE_LAYOUT.machines.sifters.map(({ id, position }, i) => ({
     machineId: id,
-    position: ventOn(
+    ...ventOn(
       MachineType.PLANSIFTER,
       SITE_LAYOUT.machineDimensions.sifter,
       position,
@@ -1311,7 +1326,7 @@ const STEAM_SOURCES: readonly SteamSource[] = [
   })),
   ...SITE_LAYOUT.machines.packers.map(({ id, position }, i) => ({
     machineId: id,
-    position: ventOn(
+    ...ventOn(
       MachineType.PACKER,
       SITE_LAYOUT.machineDimensions.packer,
       position,
@@ -1384,6 +1399,7 @@ export const MachineSteamVents: React.FC = () => {
         <MachineSteamParticle
           key={`steam-${source.position[0]}-${source.position[2]}`}
           position={source.position}
+          scale={source.scale}
           type={source.type}
           intensity={source.intensity}
         />
