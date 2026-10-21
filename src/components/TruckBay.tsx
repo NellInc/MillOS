@@ -1,5 +1,6 @@
 import { PalletStaging } from './truckbay/PalletStaging';
 import { DockYardDressing } from './truckbay/DockYardDressing';
+import { PARKED_TRAILER_HALF, TRAILER_DROP_YARD } from './truckbay/dockYardDressingLayout';
 import { YardWearMarks } from './truckbay/YardWearMarks';
 import { paintLineMask, paintLineQuad, THIN_PAINT_LIMIT } from './truckbay/paintLine';
 import { GeneratedGeometrySurface } from './models/GeneratedGeometrySurface';
@@ -50,7 +51,12 @@ import {
   type VehicleTelemetrySnapshot,
 } from '../simulation/vehicles/vehicleTelemetryRegistry';
 import { positionRegistry } from '../utils/positionRegistry';
-import { OptimizedTruckVisual, TRUCK_WHEEL_RADIUS } from './truckbay/OptimizedTruckBay';
+import {
+  OptimizedTruckVisual,
+  ParkedTrailers,
+  TRUCK_WHEEL_RADIUS,
+  type ParkedTrailerPlacement,
+} from './truckbay/OptimizedTruckBay';
 import { getRuntimeMode } from '../runtime/runtimeMode';
 import {
   registerReplayParticipant,
@@ -5132,6 +5138,15 @@ const ScaleTicketKiosk: React.FC<{
 };
 
 // Trailer drop yard with empty trailers
+/** The drop yard's trailers, centred in their bays: the coupling point sits half a trailer ahead. */
+const DROP_YARD_TRAILERS: readonly ParkedTrailerPlacement[] = TRAILER_DROP_YARD.trailers.map(
+  ({ x, z, accent }) => ({
+    position: [x, 0, z + PARKED_TRAILER_HALF.length] as const,
+    rotation: 0,
+    accent,
+  })
+);
+
 const TrailerDropYard: React.FC<{ position: [number, number, number]; rotation?: number }> = ({
   position,
   rotation = 0,
@@ -5141,56 +5156,24 @@ const TrailerDropYard: React.FC<{ position: [number, number, number]; rotation?:
       <planeGeometry args={[20, 30]} />
       <meshStandardMaterial color="#57534e" roughness={0.95} />
     </mesh>
-    {[-6, 0, 6].map((x, i) => (
-      <mesh
-        key={i}
-        position={[x, FLOOR_LAYERS.truckMarkings, 0]}
-        rotation={[-Math.PI / 2, 0, 0]}
+    {/* Bay lines between the trailers, not under them. */}
+    {TRAILER_DROP_YARD.bayLines.xs.map((x) => (
+      <DockPaintLine
+        key={x}
+        position={[
+          x,
+          FLOOR_LAYERS.truckMarkings,
+          (TRAILER_DROP_YARD.bayLines.z0 + TRAILER_DROP_YARD.bayLines.z1) / 2,
+        ]}
+        width={TRAILER_DROP_YARD.bayLines.width}
+        length={TRAILER_DROP_YARD.bayLines.z1 - TRAILER_DROP_YARD.bayLines.z0}
+        along="z"
+        color="#ddd5bd"
+        bias="moderate"
         renderOrder={RENDER_ORDER.floorMarkings}
-      >
-        <planeGeometry args={[0.1, 16]} />
-        <meshStandardMaterial
-          color="#fef3c7"
-          polygonOffset
-          polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
-          polygonOffsetUnits={POLYGON_OFFSET.standard.units}
-          roughness={0.85}
-        />
-      </mesh>
+      />
     ))}
-    {[
-      [-6, -5],
-      [0, 2],
-      [6, -8],
-    ].map(([x, z], i) => (
-      <group key={i} position={[x, 0, z]}>
-        <mesh position={[0, 2.3, 0]}>
-          <boxGeometry args={[3, 4, 12]} />
-          <meshStandardMaterial color={['#e2e8f0', '#d4d4d4', '#94a3b8'][i]} roughness={0.7} />
-        </mesh>
-        <mesh position={[-0.8, 0.8, 5]}>
-          <boxGeometry args={[0.15, 1.6, 0.15]} />
-          <meshStandardMaterial color="#374151" metalness={0.6} roughness={0.4} />
-        </mesh>
-        <mesh position={[0.8, 0.8, 5]}>
-          <boxGeometry args={[0.15, 1.6, 0.15]} />
-          <meshStandardMaterial color="#374151" metalness={0.6} roughness={0.4} />
-        </mesh>
-        <group position={[0, 0.5, -3]}>
-          {[
-            [-1.2, 0],
-            [-1.2, 0.8],
-            [1.2, 0],
-            [1.2, 0.8],
-          ].map(([lx, lz], j) => (
-            <mesh key={j} position={[lx, 0, lz]} rotation={[0, 0, Math.PI / 2]}>
-              <cylinderGeometry args={[0.5, 0.5, 0.3, 16]} />
-              <meshStandardMaterial color="#1f2937" roughness={0.8} />
-            </mesh>
-          ))}
-        </group>
-      </group>
-    ))}
+    <ParkedTrailers placements={DROP_YARD_TRAILERS} />
     <group position={[-10, 0, 0]}>
       <mesh position={[0, 2, 0]}>
         <cylinderGeometry args={[0.08, 0.1, 4, 8]} />

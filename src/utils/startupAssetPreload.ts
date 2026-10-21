@@ -87,7 +87,6 @@ const STARTUP_GENERATED_MODELS: readonly GeneratedAssetId[] = [
   'truckCabUnit',
   'truckTrailerUnit',
   'forkliftChassisUnit',
-  'truckTyreUnit',
   // Perimeter, park, travel stop and roadside.
   'fencePostUnit',
   'fenceRailUnit',

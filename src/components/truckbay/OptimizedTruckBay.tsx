@@ -1,5 +1,4 @@
-import { GeneratedBoundary } from '../models/GeneratedModel';
-import { GeneratedSurfaceMesh, GeneratedGeometrySurface } from '../models/GeneratedGeometrySurface';
+import { GeneratedSurfaceMesh } from '../models/GeneratedGeometrySurface';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useTexture } from '@react-three/drei';
@@ -44,7 +43,55 @@ const ROUNDED_BOX = new RoundedBoxGeometry(1, 1, 1, 3, 0.08);
 // visibly at dock range. The cost is ~340 triangles across one InstancedMesh
 // draw call, and triangles are not this scene's constraint.
 export const TRUCK_TYRE_WIDTH = 0.38;
-const WHEEL = new THREE.CylinderGeometry(0.52, 0.52, TRUCK_TYRE_WIDTH, 24);
+/**
+ * TYRE AND RIM, AS SECTIONS.
+ *
+ * The wheel was a closed 0.52 m cylinder with a 0.25 m disc pushed through it,
+ * so from the side every wheel read as a flat black coin with a flat white
+ * centre (shipping review: "flat disc wheels"). The tyre is now an open ring
+ * with rounded shoulders and bulged sidewalls; the rim is a dished steel wheel
+ * whose lip covers the tyre bead, set 4 cm into the wheel with a raised hub
+ * boss. Points are (radius, axial), bottom face to top, so the lathe's normals
+ * face out; the axle runs along the lathe axis.
+ */
+export const TRUCK_TYRE_PROFILE: readonly (readonly [number, number])[] = [
+  [0.355, -0.165],
+  [0.4, -0.188],
+  [0.46, -0.19],
+  [0.495, -0.182],
+  [0.513, -0.162],
+  [0.52, -0.13],
+  [0.52, 0.13],
+  [0.513, 0.162],
+  [0.495, 0.182],
+  [0.46, 0.19],
+  [0.4, 0.188],
+  [0.355, 0.165],
+];
+export const TRUCK_RIM_PROFILE: readonly (readonly [number, number])[] = [
+  [0, -0.2],
+  [0.09, -0.2],
+  [0.11, -0.185],
+  [0.125, -0.15],
+  [0.29, -0.15],
+  [0.33, -0.17],
+  [0.36, -0.19],
+  [0.372, -0.185],
+  [0.372, 0.185],
+  [0.36, 0.19],
+  [0.33, 0.17],
+  [0.29, 0.15],
+  [0.125, 0.15],
+  [0.11, 0.185],
+  [0.09, 0.2],
+  [0, 0.2],
+];
+const lathe = (profile: readonly (readonly [number, number])[], segments: number) =>
+  new THREE.LatheGeometry(
+    profile.map(([r, y]) => new THREE.Vector2(r, y)),
+    segments
+  );
+const WHEEL = lathe(TRUCK_TYRE_PROFILE, 24);
 // Steering is flagged explicitly rather than inferred from array position:
 // the old `index < 2` test silently steers the wrong wheels the moment the
 // layout grows or is reordered, and it typechecks either way. The yard's tyre
@@ -66,7 +113,7 @@ export const TRUCK_WHEEL_LAYOUT = [
   [-1.0, 0.58, -8.9, true, false, false],
   [1.0, 0.58, -8.9, true, false, false],
 ] as const;
-const HUB = new THREE.CylinderGeometry(0.25, 0.25, 0.42, 16);
+const HUB = lathe(TRUCK_RIM_PROFILE, 24);
 const STEERING_WHEEL = new THREE.TorusGeometry(0.22, 0.025, 8, 18);
 const FUEL_TANK = new THREE.CylinderGeometry(0.38, 0.38, 1.65, 16);
 const EXHAUST_STACK = new THREE.CylinderGeometry(0.09, 0.11, 2.3, 10);
@@ -554,12 +601,17 @@ const TRAILER_MUDFLAPS: readonly DetailInstance[] = [
   { position: [1.375, 0.21, -0.42], scale: [0.4, 0.4, 0.03] },
 ];
 
-const CAB_DETAILS: readonly DetailInstance[] = [
-  // Steer and drive axle fenders, mirroring the trailer arches.
+/** The cab shell box: x +/-1.275, y 0.475-2.025, z 1.4-4.9. */
+export const TRUCK_CAB_SHELL = { position: [0, 1.25, 3.15], scale: [2.55, 1.55, 3.5] } as const;
+
+export const CAB_DETAILS: readonly DetailInstance[] = [
+  // Steer axle fenders. The drive axle had a matching pair: flat 1.55 m slabs
+  // 0.3 m outboard of the cab, running from behind the cab back to under the
+  // trailer nose with nothing holding them, which read as a chassis rail
+  // sticking out behind the cab (shipping review). The drive tyres' own
+  // mudflaps (TRAILER_MUDFLAPS at z -0.42) are what a tractor carries there.
   { position: [-1.42, 1.25, 3.7], scale: [0.35, 0.16, 1.55] },
   { position: [1.42, 1.25, 3.7], scale: [0.35, 0.16, 1.55] },
-  { position: [-1.42, 1.25, 0.4], scale: [0.35, 0.16, 1.55] },
-  { position: [1.42, 1.25, 0.4], scale: [0.35, 0.16, 1.55] },
   // Mirror arms, which the floating mirror heads never had.
   { position: [-1.42, 2.9, 4.32], scale: [0.24, 0.05, 0.05] },
   { position: [1.42, 2.9, 4.32], scale: [0.24, 0.05, 0.05] },
@@ -574,6 +626,19 @@ const CAB_DETAILS: readonly DetailInstance[] = [
   { position: [-1.33, 3.0, 1.95], scale: [0.08, 1.4, 1.0] },
   { position: [1.33, 3.0, 1.95], scale: [0.08, 1.4, 1.0] },
 ];
+
+/** Grille bar heights over the 0.62 m grille plate (y 0.89-1.51). */
+const TRUCK_GRILLE_BARS = [0.98, 1.1, 1.22, 1.34, 1.46] as const;
+
+/**
+ * The two corner deflectors: 0.62 m chamfers from the cab side (x 1.29,
+ * z 4.42) round to the front face (x 0.98, z 4.95), 0.1 m thick.
+ */
+export const TRUCK_CORNER_DEFLECTORS = [-1, 1].map((side) => ({
+  x: side * 1.09,
+  z: 4.67,
+  yaw: side * -0.555,
+}));
 
 /** Amber DOT side markers plus the two front upper clearance lamps. */
 const AMBER_MARKERS: readonly DetailInstance[] = [
@@ -917,13 +982,9 @@ export function OptimizedTruckVisual({
 
   const wheelLayout = TRUCK_WHEEL_LAYOUT;
 
-  // Hubs only exist on the OUTER tyre of a dual. The inner tyre of a real dual
-  // shows a bare rim face, so duplicating the hub there is the tell that the
-  // pair is one mesh drawn twice.
-  const hubLayout = useMemo(
-    () => wheelLayout.filter(([, , , , , hasHub]) => hasHub),
-    [wheelLayout]
-  );
+  // Every tyre is an open ring now, so every wheel carries its rim; an inner
+  // dual's rim face is the bare steel a real inner dual shows.
+  const hubLayout = wheelLayout;
 
   const updateWheelMatrices = (state: TruckAnimState, wheelRotation: number): void => {
     const wheels = wheelsRef.current;
@@ -932,8 +993,7 @@ export function OptimizedTruckVisual({
     const object = wheelDummyRef.current;
     const trailerCos = Math.cos(state.trailerAngle);
     const trailerSin = Math.sin(state.trailerAngle);
-    let hubIndex = 0;
-    wheelLayout.forEach(([baseX, y, baseZ, isTrailer, isSteer, hasHub], index) => {
+    wheelLayout.forEach(([baseX, y, baseZ, isTrailer, isSteer], index) => {
       const x = isTrailer ? baseX * trailerCos + baseZ * trailerSin : baseX;
       const z = isTrailer ? -baseX * trailerSin + baseZ * trailerCos : baseZ;
       const steer = isSteer ? state.steeringAngle : 0;
@@ -949,10 +1009,7 @@ export function OptimizedTruckVisual({
       );
       object.updateMatrix();
       wheels.setMatrixAt(index, object.matrix);
-      if (hasHub) {
-        hubs.setMatrixAt(hubIndex, object.matrix);
-        hubIndex += 1;
-      }
+      hubs.setMatrixAt(index, object.matrix);
     });
     wheels.instanceMatrix.needsUpdate = true;
     hubs.instanceMatrix.needsUpdate = true;
@@ -1106,8 +1163,8 @@ export function OptimizedTruckVisual({
           asset="truckCabUnit"
           geometry={ROUNDED_BOX}
           material={cabMaterial}
-          position={[0, 1.25, 3.15]}
-          scale={[2.55, 1.55, 3.5]}
+          position={[...TRUCK_CAB_SHELL.position]}
+          scale={[...TRUCK_CAB_SHELL.scale]}
           castShadow
           receiveShadow
         />
@@ -1215,6 +1272,43 @@ export function OptimizedTruckVisual({
           castShadow
           receiveShadow
         />
+        {/* Grille bars and surround, standing 3-5 cm proud of the dark grille
+            plate, so the front reads as a grille rather than a painted panel. */}
+        {TRUCK_GRILLE_BARS.map((y) => (
+          <mesh
+            key={`grille-bar-${y}`}
+            geometry={UNIT_BOX}
+            material={MATERIALS.chrome}
+            position={[0, y, 5.0]}
+            scale={[1.62, 0.045, 0.05]}
+            receiveShadow
+          />
+        ))}
+        {[-0.875, 0.875].map((x) => (
+          <mesh
+            key={`grille-post-${x}`}
+            geometry={UNIT_BOX}
+            material={cabMaterial}
+            position={[x, 1.2, 4.99]}
+            scale={[0.07, 0.7, 0.06]}
+            receiveShadow
+          />
+        ))}
+        {/* Corner deflectors: the cab's front corners chamfered back to its
+            sides, as a cab-over's wind deflectors are. Without them the cab was
+            a box with a flat front (shipping review). */}
+        {TRUCK_CORNER_DEFLECTORS.map(({ x, z, yaw }) => (
+          <mesh
+            key={`deflector-${x}`}
+            geometry={ROUNDED_BOX}
+            material={cabMaterial}
+            position={[x, 1.27, z]}
+            rotation={[0, yaw, 0]}
+            scale={[0.1, 1.45, 0.62]}
+            castShadow
+            receiveShadow
+          />
+        ))}
         <mesh
           geometry={ROUNDED_BOX}
           material={MATERIALS.chrome}
@@ -1226,14 +1320,14 @@ export function OptimizedTruckVisual({
         <mesh
           geometry={UNIT_BOX}
           material={headlightMaterial}
-          position={[-0.85, 0.96, 4.99]}
+          position={[-0.74, 0.96, 4.99]}
           scale={[0.48, 0.28, 0.06]}
           receiveShadow
         />
         <mesh
           geometry={UNIT_BOX}
           material={headlightMaterial}
-          position={[0.85, 0.96, 4.99]}
+          position={[0.74, 0.96, 4.99]}
           scale={[0.48, 0.28, 0.06]}
           receiveShadow
         />
@@ -1278,14 +1372,39 @@ export function OptimizedTruckVisual({
           castShadow
           receiveShadow
         />
+        {/* Two chassis rails with a crossmember, not a 2.35 m slab: the gap
+            between the cab back and the trailer nose shows a frame. */}
+        {[-0.45, 0.45].map((x) => (
+          <mesh
+            key={`rail-${x}`}
+            geometry={UNIT_BOX}
+            material={frameMaterial}
+            position={[x, 0.82, 2.05]}
+            scale={[0.2, 0.3, 4.3]}
+            castShadow
+            receiveShadow
+          />
+        ))}
         <mesh
           geometry={UNIT_BOX}
           material={frameMaterial}
-          position={[0, 0.8, 1.2]}
-          scale={[2.35, 0.5, 2.6]}
-          castShadow
+          position={[0, 0.82, 0.05]}
+          scale={[1.1, 0.22, 0.16]}
           receiveShadow
         />
+        {/* Fuel tank straps, from the rails out to the tanks. */}
+        {[-1, 1].flatMap((side) =>
+          [1.05, 2.15].map((z) => (
+            <mesh
+              key={`strap-${side}-${z}`}
+              geometry={UNIT_BOX}
+              material={frameMaterial}
+              position={[side * 0.92, 0.72, z]}
+              scale={[0.8, 0.05, 0.08]}
+              receiveShadow
+            />
+          ))
+        )}
         {/* Fuel tanks run FORE-AFT along the frame rails. The old
             `rotation={[0, 0, Math.PI / 2]}` laid the 1.65 m cylinder across the
             truck, so each tank stuck a metre out past the cab skin. */}
@@ -1462,15 +1581,246 @@ export function OptimizedTruckVisual({
         args={[WHEEL, MATERIALS.tyre, wheelLayout.length]}
         castShadow
         receiveShadow
-      >
-        <GeneratedBoundary fallback={null}>
-          <GeneratedGeometrySurface asset={'truckTyreUnit'} original={WHEEL} meshRef={wheelsRef} />
-        </GeneratedBoundary>
-      </instancedMesh>
-      {/* Hubs are 0.5 m discs recessed inside 1.04 m tyres that already cast:
-          their shadow is a strict subset of the wheel's, at 8 extra instances
-          resubmitted on every shadow refit. */}
+      />
+      {/* Rims sit inside tyres that already cast: their shadow is a strict
+          subset of the wheel's, so they do not cast. */}
       <instancedMesh ref={hubsRef} args={[HUB, MATERIALS.hub, hubLayout.length]} receiveShadow />
+    </group>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// PARKED TRAILERS
+//
+// The trailer drop yard held three bare 3 x 4 x 12 m boxes on a dark pad, each
+// with two posts and four black discs: the overview frame read the nearest one
+// as an untextured placeholder. A dropped trailer is the trailer the trucks
+// tow, standing on its landing gear with its tractor gone, so this draws the
+// same trailer - skin, ribs and grime, skirts and arches, under-frame, rear
+// doors and lamps, conspicuity tape, tandem wheels - with nothing animated.
+// Every repeated part across every parked trailer is one instanced draw.
+// ---------------------------------------------------------------------------
+
+export interface ParkedTrailerPlacement {
+  /** Coupling point (the trailer-local origin), world metres. */
+  readonly position: readonly [number, number, number];
+  /** Yaw; the nose faces local +z. */
+  readonly rotation: number;
+  /** Accent stripe colour (display sRGB). */
+  readonly accent: string;
+}
+
+/** Trailer-local parts, each a scaled unit box. */
+interface TrailerPart {
+  readonly position: readonly [number, number, number];
+  readonly scale: readonly [number, number, number];
+}
+
+/** Landing gear standing on its sand shoes, cranked fully down. */
+const PARKED_LANDING_GEAR: readonly TrailerPart[] = [-0.92, 0.92].flatMap((x) => [
+  { position: [x, 0.37, -1.85] as const, scale: [0.12, 0.5, 0.12] as const },
+  { position: [x, 0.07, -1.85] as const, scale: [0.44, 0.1, 0.38] as const },
+]);
+const PARKED_FRAME_PARTS: readonly TrailerPart[] = [
+  ...TRAILER_FRAME_DETAILS,
+  ...PARKED_LANDING_GEAR,
+  // Gear crank on the kerb side and the cross-shaft between the legs.
+  { position: [1.1, 0.62, -1.85], scale: [0.3, 0.04, 0.04] },
+  { position: [0, 0.62, -1.85], scale: [1.84, 0.06, 0.06] },
+  // Under-frame and roof cap, as on the towed trailer.
+  { position: [0, TRAILER_BED_Y - 0.09, -5.75], scale: [2.68, 0.18, 11.4] },
+  { position: [0, 4.62, -5.75], scale: [2.62, 0.12, 11.3] },
+];
+const PARKED_ACCENTS: readonly TrailerPart[] = [-1.3, 1.3].map((x) => ({
+  position: [x, 2.45, -5.35] as const,
+  scale: [0.06, 0.56, 9.6] as const,
+}));
+const PARKED_DOORS: readonly TrailerPart[] = [-0.64, 0.64].map((x) => ({
+  position: [x, 2.45, TRAILER_REAR_DOOR.z] as const,
+  scale: [1.24, 3.78, TRAILER_REAR_DOOR.depth] as const,
+}));
+/** Only the trailer's own flaps: the pair at z -0.42 trail the tractor's drive axle. */
+const PARKED_MUDFLAPS = TRAILER_MUDFLAPS.filter(({ position }) => position[2] < -1);
+const PARKED_WHEELS = TRUCK_WHEEL_LAYOUT.filter(([, , , isTrailer]) => isTrailer);
+
+const PARKED_SKIN = applyVehicleSurface(
+  new THREE.MeshPhysicalMaterial({
+    color: '#e3e2dc',
+    roughness: 0.46,
+    metalness: 0,
+    clearcoat: 0.4,
+    clearcoatRoughness: 0.22,
+  }),
+  { grime: 0.85, grimeCeiling: 1.75, ribPitch: 0.62, ribDepth: 0.1 }
+);
+const PARKED_FRAME = applyVehicleSurface(
+  new THREE.MeshStandardMaterial({ color: '#8a959c', roughness: 0.5, metalness: 0.85 }),
+  { grime: 1, grimeCeiling: 1.5 }
+);
+const PARKED_ACCENT = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.4 });
+/** Unlit lamps on a parked trailer: coloured lenses, no emission. */
+const PARKED_RED_LENS = new THREE.MeshStandardMaterial({ color: '#5a1416', roughness: 0.25 });
+const PARKED_AMBER_LENS = new THREE.MeshStandardMaterial({ color: '#7a5214', roughness: 0.25 });
+
+function writeParkedInstances(
+  mesh: THREE.InstancedMesh | null,
+  placements: readonly ParkedTrailerPlacement[],
+  parts: readonly TrailerPart[],
+  colour?: (placement: ParkedTrailerPlacement, part: number) => THREE.Color
+): void {
+  if (!mesh) return;
+  const placement = new THREE.Matrix4();
+  const part = new THREE.Matrix4();
+  const quaternion = new THREE.Quaternion();
+  const up = new THREE.Vector3(0, 1, 0);
+  const position = new THREE.Vector3();
+  const scale = new THREE.Vector3();
+  let index = 0;
+  for (const trailer of placements) {
+    placement.compose(
+      position.set(...trailer.position),
+      quaternion.setFromAxisAngle(up, trailer.rotation),
+      scale.set(1, 1, 1)
+    );
+    parts.forEach((item, partIndex) => {
+      part.compose(position.set(...item.position), quaternion.identity(), scale.set(...item.scale));
+      mesh.setMatrixAt(index, part.premultiply(placement));
+      if (colour) mesh.setColorAt(index, colour(trailer, partIndex));
+      index += 1;
+    });
+  }
+  mesh.instanceMatrix.needsUpdate = true;
+  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  mesh.computeBoundingBox();
+  mesh.computeBoundingSphere();
+}
+
+function writeParkedWheels(
+  mesh: THREE.InstancedMesh | null,
+  placements: readonly ParkedTrailerPlacement[]
+): void {
+  if (!mesh) return;
+  const placement = new THREE.Matrix4();
+  const object = new THREE.Object3D();
+  let index = 0;
+  for (const trailer of placements) {
+    placement.makeRotationY(trailer.rotation).setPosition(...trailer.position);
+    for (const [x, y, z] of PARKED_WHEELS) {
+      object.position.set(x, y, z);
+      object.rotation.set(0, 0, Math.PI / 2, 'YXZ');
+      object.scale.set(1, 1, 1);
+      object.updateMatrix();
+      mesh.setMatrixAt(index, object.matrix.clone().premultiply(placement));
+      index += 1;
+    }
+  }
+  mesh.instanceMatrix.needsUpdate = true;
+  mesh.computeBoundingBox();
+  mesh.computeBoundingSphere();
+}
+
+/** Dropped trailers standing on their landing gear, all parts instanced. */
+export function ParkedTrailers({
+  placements,
+}: {
+  readonly placements: readonly ParkedTrailerPlacement[];
+}) {
+  const skin = useRef<THREE.InstancedMesh>(null);
+  const frame = useRef<THREE.InstancedMesh>(null);
+  const accents = useRef<THREE.InstancedMesh>(null);
+  const doors = useRef<THREE.InstancedMesh>(null);
+  const flaps = useRef<THREE.InstancedMesh>(null);
+  const tape = useRef<THREE.InstancedMesh>(null);
+  const red = useRef<THREE.InstancedMesh>(null);
+  const amber = useRef<THREE.InstancedMesh>(null);
+  const lamps = useRef<THREE.InstancedMesh>(null);
+  const wheels = useRef<THREE.InstancedMesh>(null);
+  const rims = useRef<THREE.InstancedMesh>(null);
+  const n = placements.length;
+  useLayoutEffect(() => {
+    writeParkedInstances(skin.current, placements, TRAILER_SKIN_DETAILS);
+    writeParkedInstances(frame.current, placements, PARKED_FRAME_PARTS);
+    writeParkedInstances(
+      accents.current,
+      placements,
+      PARKED_ACCENTS,
+      (trailer) => new THREE.Color(trailer.accent)
+    );
+    writeParkedInstances(doors.current, placements, PARKED_DOORS);
+    writeParkedInstances(flaps.current, placements, PARKED_MUDFLAPS);
+    writeParkedInstances(
+      tape.current,
+      placements,
+      CONSPICUITY_TAPE.map((strip) => strip.instance),
+      (_trailer, index) => (CONSPICUITY_TAPE[index].red ? TAPE_RED : TAPE_WHITE)
+    );
+    writeParkedInstances(red.current, placements, RED_MARKERS);
+    writeParkedInstances(amber.current, placements, AMBER_MARKERS);
+    writeParkedInstances(lamps.current, placements, TRAILER_REAR_LAMPS);
+    writeParkedWheels(wheels.current, placements);
+    writeParkedWheels(rims.current, placements);
+  }, [placements]);
+  return (
+    <group name="parked-trailers">
+      {placements.map((trailer, index) => (
+        <group key={index} position={[...trailer.position]} rotation={[0, trailer.rotation, 0]}>
+          <GeneratedSurfaceMesh
+            asset="truckTrailerUnit"
+            geometry={ROUNDED_BOX}
+            material={PARKED_SKIN}
+            position={[0, 2.45, -5.75]}
+            scale={[2.55, 4.25, 11.2]}
+            castShadow
+            receiveShadow
+          />
+        </group>
+      ))}
+      <instancedMesh
+        ref={skin}
+        args={[UNIT_BOX, PARKED_SKIN, n * TRAILER_SKIN_DETAILS.length]}
+        castShadow
+        receiveShadow
+      />
+      <instancedMesh
+        ref={frame}
+        args={[UNIT_BOX, PARKED_FRAME, n * PARKED_FRAME_PARTS.length]}
+        castShadow
+        receiveShadow
+      />
+      <instancedMesh
+        ref={accents}
+        args={[UNIT_BOX, PARKED_ACCENT, n * PARKED_ACCENTS.length]}
+        receiveShadow
+      />
+      <instancedMesh
+        ref={doors}
+        args={[UNIT_BOX, PARKED_SKIN, n * PARKED_DOORS.length]}
+        castShadow
+        receiveShadow
+      />
+      <instancedMesh ref={flaps} args={[UNIT_BOX, MATERIALS.rubber, n * PARKED_MUDFLAPS.length]} />
+      <instancedMesh
+        ref={tape}
+        args={[UNIT_BOX, MATERIALS.conspicuityTape, n * CONSPICUITY_TAPE.length]}
+        receiveShadow
+      />
+      <instancedMesh ref={red} args={[UNIT_BOX, PARKED_RED_LENS, n * RED_MARKERS.length]} />
+      <instancedMesh ref={amber} args={[UNIT_BOX, PARKED_AMBER_LENS, n * AMBER_MARKERS.length]} />
+      <instancedMesh
+        ref={lamps}
+        args={[UNIT_BOX, PARKED_RED_LENS, n * TRAILER_REAR_LAMPS.length]}
+      />
+      <instancedMesh
+        ref={wheels}
+        args={[WHEEL, MATERIALS.tyre, n * PARKED_WHEELS.length]}
+        castShadow
+        receiveShadow
+      />
+      <instancedMesh
+        ref={rims}
+        args={[HUB, MATERIALS.hub, n * PARKED_WHEELS.length]}
+        receiveShadow
+      />
     </group>
   );
 }

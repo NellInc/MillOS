@@ -125,3 +125,22 @@ export function dockDressingFootprints(): PlanRect[] {
     ...DOCK_APRON_ITEMS.map(dockDressingBounds),
   ];
 }
+
+/**
+ * THE TRAILER DROP YARD (SITE_LAYOUT.serviceYard.trailerDropYard, a 20 x 30 m
+ * pad), in pad-local metres: three dropped trailers, noses toward +z, each in
+ * its own bay. The old 0.1 m bay lines ran straight down the middle of each
+ * trailer (they stood at x -6, 0 and 6, the trailers' own centrelines) and
+ * read as a white stick under the nearest box in overview.
+ */
+export const TRAILER_DROP_YARD = {
+  pad: { width: 20, depth: 30 },
+  trailers: [
+    { x: -6, z: -5, accent: '#2f6f8f' },
+    { x: 0, z: 2, accent: '#9a3b2f' },
+    { x: 6, z: -8, accent: '#3d7a4f' },
+  ],
+  bayLines: { xs: [-9, -3, 3, 9], width: 0.15, z0: -14.5, z1: 9.5 },
+} as const;
+/** A parked trailer's half width over its tyres, and its half length. */
+export const PARKED_TRAILER_HALF = { width: 1.6, length: 5.75 } as const;

@@ -6,6 +6,8 @@ import {
   DOCK_ISLAND_BOLLARDS,
   DOCK_ISLAND_ITEMS,
   DOCK_PALLET_ISLAND,
+  PARKED_TRAILER_HALF,
+  TRAILER_DROP_YARD,
   dockDressingBounds,
   dockDressingFootprints,
   type PlanRect,
@@ -59,5 +61,32 @@ describe('shipping dock yard dressing', () => {
       for (const approach of approaches)
         expect(meets(rect, approach), `${rect.id} on ${approach.id}`).toBe(false);
     }
+  });
+});
+
+describe('trailer drop yard', () => {
+  const underATrailer = (x: number) =>
+    TRAILER_DROP_YARD.trailers.some(
+      (trailer) =>
+        Math.abs(x - trailer.x) <
+        PARKED_TRAILER_HALF.width + TRAILER_DROP_YARD.bayLines.width / 2 + 0.3
+    );
+
+  it('stands every trailer on the pad, in a bay of its own', () => {
+    const { pad, trailers, bayLines } = TRAILER_DROP_YARD;
+    for (const trailer of trailers) {
+      expect(Math.abs(trailer.x) + PARKED_TRAILER_HALF.width).toBeLessThan(pad.width / 2);
+      expect(Math.abs(trailer.z) + PARKED_TRAILER_HALF.length).toBeLessThan(pad.depth / 2);
+      // Bay lines either side of it, and none under it.
+      expect(bayLines.xs.some((x) => x < trailer.x - PARKED_TRAILER_HALF.width)).toBe(true);
+      expect(bayLines.xs.some((x) => x > trailer.x + PARKED_TRAILER_HALF.width)).toBe(true);
+      expect(trailer.z - PARKED_TRAILER_HALF.length).toBeGreaterThan(bayLines.z0);
+      expect(trailer.z + PARKED_TRAILER_HALF.length).toBeLessThan(bayLines.z1);
+    }
+    for (const x of bayLines.xs) expect(underATrailer(x), `line at ${x}`).toBe(false);
+  });
+
+  it('rejects the old lines, which ran down each trailer centreline', () => {
+    for (const x of [-6, 0, 6]) expect(underATrailer(x)).toBe(true);
   });
 });
