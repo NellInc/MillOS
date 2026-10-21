@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { stagingBounds } from '../../simulation/layoutPlanning';
 import { STAGING_LAYOUT } from './palletStagingLayout';
-import { dockDressingFootprints } from './dockYardDressing';
+import { dockDressingFootprints } from './dockYardDressingLayout';
 import {
   createTruckController,
   getTruckControllerPose,

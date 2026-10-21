@@ -9,7 +9,7 @@ import {
   dockDressingBounds,
   dockDressingFootprints,
   type PlanRect,
-} from './dockYardDressing';
+} from './dockYardDressingLayout';
 
 const meets = (a: Omit<PlanRect, 'id'>, b: Omit<PlanRect, 'id'>) =>
   a.minX < b.maxX && b.minX < a.maxX && a.minZ < b.maxZ && b.minZ < a.maxZ;

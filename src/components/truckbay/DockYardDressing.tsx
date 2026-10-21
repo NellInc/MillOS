@@ -16,7 +16,7 @@ import {
   DOCK_ISLAND_ITEMS,
   DOCK_PALLET_ISLAND,
   type DockDressingItem,
-} from './dockYardDressing';
+} from './dockYardDressingLayout';
 
 const KERB = applyWorldSurface(
   new THREE.MeshStandardMaterial({ color: '#c9a43a', roughness: 0.8, metalness: 0 }),
@@ -61,7 +61,7 @@ const DressingItem: React.FC<{ item: DockDressingItem; y: number }> = ({ item, y
 };
 
 /**
- * The shipping yard's working dressing (`dockYardDressing.ts`): a kerbed pallet
+ * The shipping yard's working dressing (`dockYardDressingLayout.ts`): a kerbed pallet
  * island in the middle of the trucks' turning loop, and loads waiting east of
  * the inbound lane. World coordinates; mount at the TruckBay root.
  */
