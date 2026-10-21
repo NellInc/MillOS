@@ -16,13 +16,16 @@ const RAIL = applyWorldSurface(
   new THREE.MeshStandardMaterial({ color: '#2b3236', roughness: 0.5, metalness: 0.5 }),
   'painted'
 );
+const PANEL = applyWorldSurface(
+  new THREE.MeshStandardMaterial({ color: '#56616a', roughness: 0.55, metalness: 0.4 }),
+  'painted'
+);
 const GLAZING = new THREE.MeshStandardMaterial({
   color: '#1c2830',
   roughness: 0.12,
   metalness: 0.2,
 });
 const BOX = new THREE.BoxGeometry(1, 1, 1);
-const BALUSTER_PITCH = 0.12;
 
 const Block: React.FC<{
   min: [number, number, number];
@@ -39,34 +42,6 @@ const Block: React.FC<{
     receiveShadow
   />
 );
-
-/** Steel balusters along one gallery, one instanced draw. */
-const Balusters: React.FC<{ x: number; y: number; minZ: number; maxZ: number }> = ({
-  x,
-  y,
-  minZ,
-  maxZ,
-}) => {
-  const ref = React.useRef<THREE.InstancedMesh>(null);
-  const count = Math.floor((maxZ - minZ) / BALUSTER_PITCH);
-  React.useLayoutEffect(() => {
-    const mesh = ref.current;
-    if (!mesh) return;
-    const matrix = new THREE.Matrix4();
-    for (let i = 0; i < count; i += 1) {
-      matrix.makeScale(0.025, APARTMENT_GALLERY.railHeight - 0.06, 0.025);
-      matrix.setPosition(
-        x,
-        y + (APARTMENT_GALLERY.railHeight - 0.06) / 2,
-        minZ + (i + 0.5) * BALUSTER_PITCH
-      );
-      mesh.setMatrixAt(i, matrix);
-    }
-    mesh.instanceMatrix.needsUpdate = true;
-    mesh.computeBoundingSphere();
-  }, [count, minZ, x, y]);
-  return <instancedMesh ref={ref} args={[BOX, RAIL, count]} />;
-};
 
 /**
  * Access galleries, a stair tower and its coping on the four-storey apartment's
@@ -93,7 +68,14 @@ export const ApartmentFacade: React.FC = () => {
             material={COPING}
             cast={false}
           />
-          <Balusters x={outer - 0.08} y={top + 0.08} minZ={g.minZ + 0.1} maxZ={g.maxZ - 0.05} />
+          {/* A solid pressed-steel balustrade, not balusters: 25 mm bars at
+              0.12 m pitch fall under a pixel from the shipping camera and
+              aliased into a stippled band (dressing-r2). */}
+          <Block
+            min={[outer - 0.1, top + 0.08, g.minZ]}
+            max={[outer - 0.07, top + g.railHeight - 0.05, g.maxZ - 0.04]}
+            material={PANEL}
+          />
           <Block
             min={[outer - 0.13, top + g.railHeight - 0.05, g.minZ]}
             max={[outer - 0.03, top + g.railHeight, g.maxZ]}
