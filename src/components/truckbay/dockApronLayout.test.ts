@@ -7,10 +7,9 @@ import {
   DOCK_FLOOD_HEADS,
   DOCK_FLOOD_POOLS,
   DOCK_FLOOR_MARKINGS,
-  DOCK_GROOVE_STRIPES,
   DOCK_GUIDE_LINES,
   DOCK_KEEP_CLEAR,
-  DOCK_LASER_GUIDES,
+  DOCK_KEEP_CLEAR_OUTLINE,
   DOCK_PAINT_START_U,
   DOCK_SLAB_OUTBOARD_U,
   DOCK_STOP_BAR,
@@ -47,11 +46,11 @@ describe('dock apron paint layout', () => {
   it('puts the stop bar wholly beyond the slab and every other mark beyond the bar', () => {
     expect(DOCK_STOP_BAR.u - DOCK_STOP_BAR.depth / 2).toBeGreaterThan(DOCK_SLAB_OUTBOARD_U);
     expect(DOCK_PAINT_START_U).toBeCloseTo(DOCK_STOP_BAR.u + DOCK_STOP_BAR.depth / 2, 6);
-    for (const mark of [...DOCK_FLOOR_MARKINGS, DOCK_KEEP_CLEAR]) {
+    for (const mark of [...DOCK_FLOOR_MARKINGS, ...DOCK_KEEP_CLEAR_OUTLINE, DOCK_KEEP_CLEAR]) {
       expect(mark.u0, mark.id).toBeGreaterThanOrEqual(DOCK_PAINT_START_U);
       expect(mark.u1, mark.id).toBeGreaterThan(mark.u0);
     }
-    for (const run of [DOCK_GUIDE_LINES, DOCK_GROOVE_STRIPES, DOCK_LASER_GUIDES]) {
+    for (const run of [DOCK_GUIDE_LINES]) {
       expect(run.u0).toBeGreaterThanOrEqual(DOCK_PAINT_START_U);
       expect(run.u1).toBeGreaterThan(run.u0);
     }
@@ -140,7 +139,7 @@ describe('KEEP CLEAR against the docked truck', () => {
       DOCK_BUMPER_FACE_Z + TRAILER_REAR_OVERHANG + 0.02 + TRACTOR_FRONT_OVERHANG - 50;
     expect(DOCK_KEEP_CLEAR.u0).toBeGreaterThan(dockedNoseU);
     expect(DOCK_KEEP_CLEAR.u0 - dockedNoseU).toBeLessThan(1.5);
-    for (const run of [DOCK_GUIDE_LINES, DOCK_GROOVE_STRIPES, DOCK_LASER_GUIDES]) {
+    for (const run of [DOCK_GUIDE_LINES]) {
       expect(run.u1).toBeLessThan(DOCK_KEEP_CLEAR.u0);
     }
   });
@@ -166,5 +165,58 @@ describe('dock facade sign', () => {
     expect(DOCK_FACADE_LINES.subtitle.y - DOCK_FACADE_LINES.subtitle.fontSize / 2).toBeGreaterThan(
       4.9
     );
+  });
+});
+
+describe('dock apron paint is paint', () => {
+  // Every mark on the apron in plan: x across, u outward, as [minX, maxX, minU, maxU].
+  const rects = () => {
+    const out: { id: string; r: [number, number, number, number]; mark: object }[] = [];
+    for (const m of [...DOCK_FLOOR_MARKINGS, ...DOCK_KEEP_CLEAR_OUTLINE])
+      out.push({ id: m.id, r: [m.x - m.width / 2, m.x + m.width / 2, m.u0, m.u1], mark: m });
+    for (const x of DOCK_GUIDE_LINES.xs)
+      out.push({
+        id: `guide${x}`,
+        r: [
+          x - DOCK_GUIDE_LINES.width / 2,
+          x + DOCK_GUIDE_LINES.width / 2,
+          DOCK_GUIDE_LINES.u0,
+          DOCK_GUIDE_LINES.u1,
+        ],
+        mark: DOCK_GUIDE_LINES,
+      });
+    out.push({
+      id: 'stop-bar',
+      r: [
+        -DOCK_STOP_BAR.width / 2,
+        DOCK_STOP_BAR.width / 2,
+        DOCK_STOP_BAR.u - DOCK_STOP_BAR.depth / 2,
+        DOCK_STOP_BAR.u + DOCK_STOP_BAR.depth / 2,
+      ],
+      mark: DOCK_STOP_BAR,
+    });
+    return out;
+  };
+
+  it('is opaque: no tinted see-through fills', () => {
+    // The 0.2-0.3 opacity bay, lane, staging and KEEP CLEAR fills overlapped
+    // into a translucent rainbow that read as an AR overlay on the apron.
+    for (const { id, mark } of rects()) expect('opacity' in mark, id).toBe(false);
+    // Every mark is a line: narrow across its run, never a filled area.
+    for (const { id, r } of rects())
+      expect(Math.min(r[1] - r[0], r[3] - r[2]), id).toBeLessThanOrEqual(0.4 + 1e-9);
+    const source = readFileSync('src/components/TruckBay.tsx', 'utf8');
+    const paint = source.slice(source.indexOf('const DockPaintLine'));
+    expect(paint.slice(0, 1600)).not.toMatch(/opacity|emissive/);
+  });
+
+  it('never lays one mark over another', () => {
+    const all = rects();
+    for (let i = 0; i < all.length; i += 1)
+      for (let j = i + 1; j < all.length; j += 1) {
+        const [a, b] = [all[i].r, all[j].r];
+        const overlap = a[0] < b[1] && b[0] < a[1] && a[2] < b[3] && b[2] < a[3];
+        expect(overlap, all[i].id + ' over ' + all[j].id).toBe(false);
+      }
   });
 });
