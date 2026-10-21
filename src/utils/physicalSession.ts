@@ -34,6 +34,7 @@ import {
 } from '../simulation/workplaceReplayRuntime';
 import { getStartupSnapshot, subscribeStartup } from './startupReadiness';
 import { MachineType } from '../types';
+import { SITE_LAYOUT, type Vec3Tuple } from '../constants/siteLayout';
 import {
   captureSavedLogisticsLayout,
   useLogisticsLayoutStore,
@@ -41,6 +42,12 @@ import {
 } from '../stores/logisticsLayoutStore';
 import { translate } from '../i18n';
 import { physicalSessionMessages as messages } from './physicalSession.messages';
+
+const INSTALLED_PROCESS_SIZE: Partial<Record<MachineType, Vec3Tuple>> = {
+  [MachineType.ROLLER_MILL]: SITE_LAYOUT.machineDimensions.rollerMill,
+  [MachineType.PLANSIFTER]: SITE_LAYOUT.machineDimensions.sifter,
+  [MachineType.PACKER]: SITE_LAYOUT.machineDimensions.packer,
+};
 
 export const PHYSICAL_SESSION_KEY = 'millos-physical-session';
 export const MAX_SAVE_BYTES = 3_000_000;
@@ -303,6 +310,12 @@ export function decodePhysicalSession(raw: string): PhysicalSession {
     )
       throw new Error('Invalid saved machine');
     machineIds.add(machine.id);
+    // Process machines are drawn at their installed size whatever `size`
+    // says. A save from before they were installed at real size carries the
+    // authored size, which collision, selection and the layout-plan export
+    // would otherwise keep, so `size` is restored as the installed size.
+    const installed = INSTALLED_PROCESS_SIZE[machine.type];
+    if (installed) machine.size = [installed[0], installed[1], installed[2]];
   }
   const orderIds = new Set<string>();
   for (const order of value.operations.orders) {

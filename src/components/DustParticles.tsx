@@ -9,7 +9,13 @@ import React, {
 } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { FACTORY_BOUNDS, SIFTER_LAYOUT, SITE_LAYOUT } from '../constants/siteLayout';
+import {
+  FACTORY_BOUNDS,
+  SIFTER_LAYOUT,
+  SITE_LAYOUT,
+  installMachinePoint,
+} from '../constants/siteLayout';
+import { MachineType } from '../types';
 import { buildFactoryRoofGlazing } from './infrastructure/OptimizedFactoryInfrastructure';
 import { useGraphicsStore } from '../stores/graphicsStore';
 import { selectSafetyHoldActive, useGameSimulationStore } from '../stores/gameSimulationStore';
@@ -1273,26 +1279,44 @@ const SIFTER_VENT_OFFSET: [number, number, number] = [
 ];
 const PACKER_VENT_OFFSET: [number, number, number] = [0.45, 5.72 + 1.5 / 2 + 0.1, 0.45];
 
-const offsetFrom = (
-  [x, y, z]: readonly [number, number, number],
-  [dx, dy, dz]: readonly [number, number, number]
-): [number, number, number] => [x + dx, y + dy, z + dz];
+/** Vent offsets are in each machine's authored metres; install them with it. */
+const ventOn = (
+  type: MachineType,
+  size: readonly [number, number, number],
+  position: readonly [number, number, number],
+  offset: readonly [number, number, number]
+): [number, number, number] => installMachinePoint({ type, size, position }, offset);
 
 const STEAM_SOURCES: readonly SteamSource[] = [
   ...SITE_LAYOUT.machines.rollerMills.map(({ id, position }, i) => ({
     machineId: id,
-    position: offsetFrom(position, MILL_VENT_OFFSET),
+    position: ventOn(
+      MachineType.ROLLER_MILL,
+      SITE_LAYOUT.machineDimensions.rollerMill,
+      position,
+      MILL_VENT_OFFSET
+    ),
     ...MILL_VENTS[i % MILL_VENTS.length],
   })),
   ...SITE_LAYOUT.machines.sifters.map(({ id, position }, i) => ({
     machineId: id,
-    position: offsetFrom(position, SIFTER_VENT_OFFSET),
+    position: ventOn(
+      MachineType.PLANSIFTER,
+      SITE_LAYOUT.machineDimensions.sifter,
+      position,
+      SIFTER_VENT_OFFSET
+    ),
     type: 'dust' as const,
     intensity: SIFTER_DUST_INTENSITY[i % SIFTER_DUST_INTENSITY.length],
   })),
   ...SITE_LAYOUT.machines.packers.map(({ id, position }, i) => ({
     machineId: id,
-    position: offsetFrom(position, PACKER_VENT_OFFSET),
+    position: ventOn(
+      MachineType.PACKER,
+      SITE_LAYOUT.machineDimensions.packer,
+      position,
+      PACKER_VENT_OFFSET
+    ),
     type: 'dust' as const,
     intensity: PACKER_DUST_INTENSITY[i % PACKER_DUST_INTENSITY.length],
   })),

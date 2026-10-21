@@ -6,6 +6,7 @@ import {
   SIFTER_LAYOUT,
   SITE_LAYOUT,
   SILO_ACCESS_LAYOUT,
+  PROCESS_MACHINE_INSTALL_SCALE,
   getSiloAssemblyScale,
 } from '../../constants/siteLayout';
 import { MachineType } from '../../types';
@@ -16,6 +17,7 @@ import {
   PACKER_SACK_LAYOUT,
   PACKER_FILL_HEAD_GEOMETRY,
   PACKER_SACK_PRINT_GEOMETRY,
+  PACKER_STATION_SHIFT_Z,
   getPackerSackPosition,
   getPackerHeadPosition,
 } from './machineFinishGeometry';
@@ -584,5 +586,57 @@ it('gives the formed output a real open mouth and seats its moving flange in the
     expect(hit.point.z).toBeLessThan(1.55);
   }
   expect(getPackerHeadPosition([3, 0.2, -5], 1)).toEqual([3, 0.34, -5]);
+  material.dispose();
+});
+
+it('keeps the real-size fill station seated on the installed cabinet and clear of people', () => {
+  // The cabinet installs at PROCESS_MACHINE_INSTALL_SCALE.packer about its
+  // anchor; spout, sack, guides and guards stay real size and move back by
+  // PACKER_STATION_SHIFT_Z. Raycast the installed body, not a copied number.
+  const k = PROCESS_MACHINE_INSTALL_SCALE.packer;
+  const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }),
+    body = new THREE.Mesh(MACHINE_PART_GEOMETRY.packerBody, material);
+  body.position.set(0, 2.65 * k, 0);
+  body.scale.set(3.7 * k, 4.75 * k, 3.45 * k);
+  body.updateMatrixWorld(true);
+  expect(PACKER_STATION_SHIFT_Z).toBeLessThan(0);
+  for (const cycle of [0, 0.25, 0.5, 1]) {
+    const head = getPackerHeadPosition([0, 0, 0], cycle, PACKER_STATION_SHIFT_Z);
+    const face = new THREE.Raycaster(
+      new THREE.Vector3(0, 1.72 + head[1], 3),
+      new THREE.Vector3(0, 0, -1)
+    ).intersectObject(body)[0];
+    // Same seating as the authored cabinet: the 0.12 m root flange
+    // (z 1.43-1.55 in the head's frame) straddles the face it leaves.
+    expect(face.point.z).toBeGreaterThan(1.43 + head[2]);
+    expect(face.point.z).toBeLessThan(1.55 + head[2]);
+  }
+  // The spout lip still clears the real-size sack it fills.
+  expect(0.88).toBeGreaterThan(PACKER_SACK_LAYOUT.centreY + PACKER_SACK_LAYOUT.scale[1] / 2);
+  const geometry = MACHINE_PART_GEOMETRY.packerSack,
+    p = geometry.attributes.position;
+  let minZ = Infinity,
+    maxZ = -Infinity;
+  for (let i = 0; i < p.count; i++) {
+    minZ = Math.min(minZ, p.getZ(i));
+    maxZ = Math.max(maxZ, p.getZ(i));
+  }
+  for (const [id, anchor] of [
+    ['packer-0', COMMUNITY_ANCHORS.millPacking],
+    ['packer-2', COMMUNITY_ANCHORS.millInspection],
+  ] as const) {
+    const machine = SITE_LAYOUT.machines.packers.find((m) => m.id === id)!;
+    for (let step = 0; step <= 100; step++) {
+      const position = getPackerSackPosition(machine.position, step / 100, PACKER_STATION_SHIFT_Z);
+      expect(
+        position[2] + minZ * PACKER_SACK_LAYOUT.scale[2],
+        'whole bag beyond the installed base plate'
+      ).toBeGreaterThan(machine.position[2] + (4.25 * k) / 2 + 0.04);
+      expect(
+        position[2] + maxZ * PACKER_SACK_LAYOUT.scale[2],
+        'whole sweep outside observation/approach envelope'
+      ).toBeLessThan(anchor.position[2] - 0.45);
+    }
+  }
   material.dispose();
 });

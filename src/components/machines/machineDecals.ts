@@ -37,8 +37,8 @@
  */
 
 import * as THREE from 'three';
-import { MachineData, MachineType } from '../../types';
-import { getSiloAssemblyScale, SILO_ACCESS_LAYOUT } from '../../constants/siteLayout';
+import { MachineData } from '../../types';
+import { getMachineAssemblyScale, SILO_ACCESS_LAYOUT } from '../../constants/siteLayout';
 import { POLYGON_OFFSET, SURFACE_LAYERS } from '../../constants/renderLayers';
 import { MILL_LOAD_DIAL } from './machineFinishGeometry';
 import {
@@ -218,8 +218,8 @@ export function planMachineDecals(subsets: MachineDecalSubsets): MachineDecalPla
     rotationY = 0
   ) => {
     const [x, y, z] = machine.position;
-    const scale =
-      machine.type === MachineType.SILO ? getSiloAssemblyScale(machine.size) : [1, 1, 1];
+    // Placards are installed with their machine, exactly as its trim is.
+    const scale = getMachineAssemblyScale(machine);
     placements.push({
       machineId: machine.id,
       position: [x + dx * scale[0], y + dy * scale[1], z + dz * scale[2]],
