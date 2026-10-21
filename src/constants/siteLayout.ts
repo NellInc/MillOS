@@ -647,10 +647,11 @@ export const SITE_LAYOUT = {
     overview: { position: [-61, 32, 132], target: [14, 5, 0], fov: 45 },
     interior: { position: [-36, 14, 48], target: [0, 7, 25], fov: 55 },
     silos: { position: [95, 26, 74], target: [65, 13, 33], fov: 55 },
-    milling: { position: [-36, 4.5, 42], target: [12, 5.5, 23], fov: 50 },
+    // Aimed at the real-size mills (inlet 2.64 m), not the mezzanine soffit.
+    milling: { position: [-36, 4.5, 42], target: [12, 1.8, 23], fov: 50 },
     sifting: { position: [30, 17, 36], target: [0, 13, 20], fov: 55 },
     packing: { position: [-34, 14, 0], target: [0, 3, -12] },
-    processFloor: { position: [-36, 4.5, 42], target: [12, 5.5, 23], fov: 50 },
+    processFloor: { position: [-36, 4.5, 42], target: [12, 1.8, 23], fov: 50 },
     tankFarm: { position: [69, 8.5, -97], target: [69, 3.5, -70], fov: 55 },
     logisticsClose: { position: [18, 3.8, 96], target: [14, 1.8, 82], fov: 45 },
     // Inside the hall at the west end of the shipping aisle, looking east along

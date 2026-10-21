@@ -143,6 +143,16 @@ describe('process machine installed scale', () => {
     }
   });
 
+  it('aims the milling camera at the installed mills, not the gallery above them', () => {
+    // The 5.5 m aim was the middle of a 6.59 m mill; at real size it looks at
+    // the mezzanine soffit. The process-floor view shares this pose.
+    const { milling, processFloor } = SITE_LAYOUT.cameras;
+    expect(processFloor).toEqual(milling);
+    expect(milling.target[1]).toBeGreaterThanOrEqual(1.5);
+    expect(milling.target[1]).toBeLessThanOrEqual(2);
+    expect(milling.target[1]).toBeLessThan(SITE_LAYOUT.machineDimensions.rollerMill[1]);
+  });
+
   it('keeps the intake drop and the pneumatic lift on each mill apart', () => {
     const routes = buildSpoutRoutes(canonicalMachines());
     for (const { id } of SITE_LAYOUT.machines.rollerMills) {
