@@ -427,11 +427,16 @@ const MATERIALS = {
     roughness: 0.5,
     metalness: 0,
   }),
+  /**
+   * The deck's exterior coat. No panel normal: the deck is a unit box scaled
+   * per panel, so `band(CLADDING_PANEL_NORMAL, 30, 50)` put a bevelled 0.5 m
+   * square on every 0.5 m of a 60 m half, 2-3 px each from the overview camera,
+   * and the roof read as a regular dot grid. The standing seams (4.4 m, real
+   * geometry) and the `painted` world-space macro carry it instead.
+   */
   roof: new THREE.MeshStandardMaterial({
     name: 'factory-roof-deck',
     color: '#505452',
-    normalMap: band(CLADDING_PANEL_NORMAL, 30, 50, { anisotropy: 4 }),
-    normalScale: new THREE.Vector2(0.45, 0.45),
     roughness: 0.52,
     metalness: 0,
   }),

@@ -12,6 +12,8 @@ import {
   hasWorldSurface,
   markSurfaceSubstrate,
   ownsOnlyWorldSurface,
+  pinSurfaceProfile,
+  pinnedSurfaceProfile,
   resolveBatchSurfaceProfile,
   resolveSurfaceProfile,
   type WorldSurfaceProfileName,
@@ -421,6 +423,29 @@ describe('profile resolution', () => {
     expect(paving.macro).toBeGreaterThanOrEqual(0.18);
     // The tile already carries the aggregate; the meso term must not double it.
     expect(paving.meso).toBeLessThanOrEqual(0.05);
+  });
+
+  it('keeps a vessel shell near-constant: no dirt, no dust, a whisper of drift', () => {
+    const vessel = WORLD_SURFACE_PROFILES.vessel;
+    expect(vessel.grime).toBe(0);
+    expect(vessel.dust).toBe(0);
+    // `painted` (meso 0.13, x2 in the tone term) read as cotton on white tanks.
+    expect(vessel.meso).toBeLessThanOrEqual(0.03);
+    expect(vessel.macro).toBeLessThanOrEqual(0.05);
+  });
+
+  it('lets a pinned profile speak through the colour-blind batch resolver', () => {
+    const material = pinSurfaceProfile(
+      new THREE.MeshStandardMaterial({ color: '#f4f4f2', roughness: 0.4 }),
+      'vessel'
+    );
+    expect(resolveBatchSurfaceProfile(material)).toBe('vessel');
+    expect(resolveSurfaceProfile(material)).toBe('vessel');
+    // The pin rides userData, which Material.copy() deep-copies to every clone.
+    expect(pinnedSurfaceProfile(material.clone())).toBe('vessel');
+    // It never overrides the scope exclusions.
+    material.transparent = true;
+    expect(resolveBatchSurfaceProfile(material)).toBeNull();
   });
 
   it('declines transparent, sub-unit-opacity and emissive surfaces', () => {

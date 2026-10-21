@@ -6,6 +6,7 @@ import { applyLampLens, lampLensStyle, type LampStyle } from '../models/Generate
 import {
   applyDeclinedWorldSurface,
   ownsOnlyWorldSurface,
+  pinnedSurfaceProfile,
   resolveSurfaceProfile,
 } from '../../utils/worldSurface';
 import {
@@ -302,6 +303,9 @@ const materialSignature = (
   [
     material.type,
     `lamp-lens:${lampLensStyle(material) ?? 'none'}`,
+    // `userData` is skipped below, but a pinned surface profile decides the
+    // finish of the whole merged group, so it has to split groups.
+    `surface-pin:${pinnedSurfaceProfile(material) ?? 'none'}`,
     ...Object.entries(material)
       .filter(([key, value]) => !MATERIAL_IDENTITY_KEYS.has(key) && typeof value !== 'function')
       .sort(([left], [right]) => left.localeCompare(right))

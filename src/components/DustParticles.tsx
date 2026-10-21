@@ -35,6 +35,7 @@ import {
   type SpoutRoute,
 } from './flow/spoutRoutes';
 import { buildVapourSpriteAlpha, STEAM_PUFF, VAPOUR_SPRITE_SIZE } from './flow/vapourSprite';
+import { MILL_VENT_OFFSET, seedVentPuff } from './flow/ventPlume';
 
 // ============================================================
 // Shared particle sprite
@@ -377,14 +378,9 @@ function animateMachineSteam(entry: MachineSteamEntry, delta: number) {
 
     if (entry.lifetimes[i] > 1) {
       entry.lifetimes[i] = 0;
-      pos[i * 3] = (Math.random() - 0.5) * 0.5;
-      pos[i * 3 + 1] = Math.random() * 0.3;
-      pos[i * 3 + 2] = (Math.random() - 0.5) * 0.5;
-
-      entry.velocities[i * 3] = (Math.random() - 0.5) * 0.3;
-      entry.velocities[i * 3 + 1] =
-        entry.steamType === 'steam' ? 0.8 + Math.random() * 0.5 : 0.3 + Math.random() * 0.3;
-      entry.velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.3;
+      const { position, velocity } = seedVentPuff(entry.steamType, false);
+      pos.set(position, i * 3);
+      entry.velocities.set(velocity, i * 3);
     }
 
     pos[i * 3] += entry.velocities[i * 3] * delta;
@@ -1147,17 +1143,16 @@ const MachineSteamParticle: React.FC<MachineSteamProps> = ({ position, type, int
     const life = new Float32Array(count);
 
     for (let i = 0; i < count; i++) {
-      // Start at machine position with small random offset
-      pos[i * 3] = (Math.random() - 0.5) * 0.5;
-      pos[i * 3 + 1] = Math.random() * 0.5;
-      pos[i * 3 + 2] = (Math.random() - 0.5) * 0.5;
-
-      // Upward velocity with drift
-      vel[i * 3] = (Math.random() - 0.5) * 0.3;
-      vel[i * 3 + 1] = type === 'steam' ? 0.8 + Math.random() * 0.5 : 0.3 + Math.random() * 0.3;
-      vel[i * 3 + 2] = (Math.random() - 0.5) * 0.3;
-
+      const { position, velocity } = seedVentPuff(type, true);
       life[i] = Math.random(); // Random starting lifetime
+      // Already that far along its path, so a held clock (the plant paused,
+      // or an art capture) shows a formed plume rather than every puff
+      // stacked at the vent mouth at its mature size.
+      const travelled = type === 'dust' ? 0 : life[i] / (type === 'steam' ? 1.5 : 1);
+      for (let axis = 0; axis < 3; axis++) {
+        pos[i * 3 + axis] = position[axis] + velocity[axis] * travelled;
+        vel[i * 3 + axis] = velocity[axis];
+      }
     }
 
     return { positions: pos, velocities: vel, lifetimes: life };
@@ -1265,7 +1260,6 @@ const MILL_VENTS: readonly Pick<SteamSource, 'type' | 'intensity'>[] = [
 const SIFTER_DUST_INTENSITY = [1, 0.9, 0.8] as const;
 const PACKER_DUST_INTENSITY = [0.7, 0.8, 0.6] as const;
 
-const MILL_VENT_OFFSET: [number, number, number] = [-2.85, 2.3, -0.5];
 const SIFTER_VENT_OFFSET: [number, number, number] = [
   -2.2,
   SIFTER_LAYOUT.capCentreY + SIFTER_LAYOUT.capHeight / 2 + 0.1,

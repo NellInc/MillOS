@@ -700,4 +700,17 @@ describe('roof deck liner', () => {
       luminance(ROOF_PANEL_MATERIALS[2]) * 2.5
     );
   });
+
+  it('carries no square panel grid on the exterior coat', async () => {
+    // The overview roof read as a regular dot grid repeating across the frame
+    // (base and final med-12 alike). The deck is a unit box scaled per panel,
+    // so the 4-panel normal at repeat 30 x 50 put a bevelled 0.5 m square on
+    // every 0.5 m of a 60 m half: 2-3 px per square at the overview camera,
+    // each one a dark dash. A coated deck reads through the standing seams
+    // (4.4 m geometry) and its world-space macro, not a sub-metre tile.
+    const { ROOF_PANEL_MATERIALS } = await import('./OptimizedFactoryInfrastructure');
+    const deck = ROOF_PANEL_MATERIALS[2] as THREE.MeshStandardMaterial;
+    expect(deck.name).toBe('factory-roof-deck');
+    expect(deck.normalMap).toBeNull();
+  });
 });

@@ -359,6 +359,35 @@ export const WORLD_SURFACE_PROFILES = {
     bareColor: BARE_CONCRETE,
   },
   /**
+   * Factory-painted pressure vessels: the utility and LPG tank shells. ALMOST
+   * NOTHING, on purpose. A white cylinder is the one surface where every term
+   * `painted` carries shows as a defect: its 0.55 m meso at +-26% albedo, the
+   * splash grime climbing the lower shell and the dust on the crown turned the
+   * tanks into cotton with no highlight (final-med-12 tank-farm, judged "cotton
+   * or marshmallow, not painted steel"). The shell reads as steel through ONE
+   * clean highlight running its length, which needs a near-constant albedo and
+   * roughness; a faint long-period drift keeps it from looking like plastic.
+   * Pinned at the material (`pinSurfaceProfile`), because the batcher's
+   * colour-blind resolver would otherwise hand the merged shells `painted`.
+   */
+  vessel: {
+    macroPeriod: 9,
+    macro: 0.04,
+    mesoPeriod: 0.9,
+    meso: 0.025,
+    reliefMetres: 0.002,
+    mesoFadeMetres: 40,
+    grime: 0,
+    grimeHeight: 1,
+    datum: 0,
+    dust: 0,
+    edge: 0.05,
+    objectSpace: 0,
+    grimeColor: GRIME_BROWN,
+    dustColor: DUST_PALE,
+    bareColor: BARE_STEEL,
+  },
+  /**
    * Bare, galvanised and plated metal. Metalness 1 means diffuse is ZERO, so a
    * diffuse-side grime tint barely reads and the work has to be done by
    * roughness and by the edge term - which is also what makes a metal silhouette
@@ -1058,6 +1087,38 @@ export function markSurfaceSubstrate<T extends THREE.Texture>(
   return texture;
 }
 
+/** `Material.userData` key a material uses to pin its own profile. */
+const PINNED_PROFILE_KEY = 'millosWorldSurfacePinned';
+
+/**
+ * Pin `profile` to this material through every automatic path.
+ *
+ * `resolveBatchSurfaceProfile` is colour-blind by construction and answers
+ * from roughness alone, so a surface the owning branch finished with a
+ * dedicated profile came back from the batcher as `painted`: the per-mesh
+ * profile channel the batch path did not have. The pin lives in `userData`,
+ * which `Material.copy()` deep-copies, so every clone the batcher merges into
+ * carries it; `StaticMeshBatch` also keys merge groups on it, so a pinned
+ * surface never shares a group, and therefore a profile, with an unpinned one.
+ */
+export function pinSurfaceProfile<T extends THREE.Material>(
+  material: T,
+  profile: WorldSurfaceProfileName
+): T {
+  material.userData[PINNED_PROFILE_KEY] = profile;
+  return material;
+}
+
+/** The profile pinned to a material, if any. */
+export function pinnedSurfaceProfile(
+  material: THREE.Material | null | undefined
+): WorldSurfaceProfileName | null {
+  const value = material?.userData?.[PINNED_PROFILE_KEY];
+  return typeof value === 'string' && Object.hasOwn(WORLD_SURFACE_PROFILES, value)
+    ? (value as WorldSurfaceProfileName)
+    : null;
+}
+
 /** The profile a material's albedo map opted it into, if any. */
 function substrateOptIn(
   material: THREE.Material | null | undefined
@@ -1136,6 +1197,8 @@ export function resolveSurfaceProfile(
   allowMapped = false
 ): WorldSurfaceProfileName | null {
   if (isOutOfSurfaceScope(material, allowMapped)) return null;
+  const pinned = pinnedSurfaceProfile(material);
+  if (pinned) return pinned;
   // An explicit treatment, or an explicit `allowMapped` request, keeps deciding
   // for itself exactly as it did before opt-ins existed.
   const optIn = hasWorldSurface(material) || allowMapped ? null : substrateOptIn(material);
@@ -1189,6 +1252,10 @@ export function resolveBatchSurfaceProfile(
   material: THREE.Material | null | undefined
 ): WorldSurfaceProfileName | null {
   if (isOutOfSurfaceScope(material)) return null;
+  // The pin is part of the merge key too (StaticMeshBatch), so it speaks for
+  // the whole group.
+  const pinned = pinnedSurfaceProfile(material);
+  if (pinned) return pinned;
   // The map is part of the merge key, so unlike the colour it DOES speak for
   // every member of the group. An explicitly treated source keeps the
   // roughness-based answer it got before opt-ins existed.

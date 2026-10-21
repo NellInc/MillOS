@@ -97,18 +97,14 @@ function lambdaScale(height: number): number {
 const _w = new THREE.Vector3();
 const _toLight = new THREE.Vector3();
 
-/**
- * World-space mirror of `millosBankIncident`, for tests and design numbers.
- * `light` is the row centre, the line runs along world X.
- */
-export function bankLineIrradiance(
+function bankLineTerms(
   light: THREE.Vector3,
   intensity: number,
   point: THREE.Vector3,
   normal: THREE.Vector3,
-  cutoff = 44,
-  includeBounce = true
-): number {
+  cutoff: number,
+  includeBounce: boolean
+): BankTerms {
   const L = BANK_LINE.halfLength;
   const w = _w.copy(light).sub(point);
   const b = w.x;
@@ -162,15 +158,104 @@ export function bankLineIrradiance(
     if (nd > 0) t0 = Math.max(t0, tz);
     else t1 = Math.min(t1, tz);
   } else if (nw <= 0) t1 = t0;
-  if (t1 <= t0) return intensity * bounce;
-  const bracket = (t: number) =>
-    (nw * (t + b) - nd * (b * t + c)) / (D * Math.sqrt(Math.max(t * t + 2 * b * t + c, 1e-4)));
-  const E = Math.max(bracket(t1) - bracket(t0), 0) * lambda;
+  const facing = { facingDown, bounce: intensity * bounce };
+  if (t1 <= t0) return { ...facing, received: intensity * bounce, line: null };
+  // The clipped segment's VECTOR irradiance, w * A - d * B: its dot with the
+  // normal is the scalar integral, and its direction is where the light
+  // arrives from on average.
+  const r = (t: number) => Math.sqrt(Math.max(t * t + 2 * b * t + c, 1e-4));
+  const A = (t1 + b) / (D * r(t1)) - (t0 + b) / (D * r(t0));
+  const B = (b * t1 + c) / (D * r(t1)) - (b * t0 + c) / (D * r(t0));
+  // d is world X here.
+  const vector = new THREE.Vector3(w.x * A - B, w.y * A, w.z * A).multiplyScalar(lambda);
+  const E = Math.max(nw * A - nd * B, 0) * lambda;
   const ts = Math.min(t1, Math.max(t0, -b));
   _toLight.set(w.x + ts, w.y, w.z);
   const distance = Math.max(_toLight.length(), 1e-4);
   const emit = BANK_LINE.uplight + (1 - BANK_LINE.uplight) * Math.max(_toLight.y / distance, 0);
-  return intensity * (E * emit * endWindow * window(perp2) + bounce);
+  const scale = intensity * emit * endWindow * window(perp2);
+  return {
+    ...facing,
+    received: E * scale + intensity * bounce,
+    line: { vector, scale },
+  };
+}
+
+interface BankTerms {
+  facingDown: number;
+  /** Floor bounce reaching the receiver, already times intensity. */
+  bounce: number;
+  /** Total irradiance on a surface with exactly this normal. */
+  received: number;
+  /** The direct row: vector irradiance and the scalar it is weighted by. */
+  line: { vector: THREE.Vector3; scale: number } | null;
+}
+
+/**
+ * World-space mirror of `millosBankIncident`'s irradiance, for tests and
+ * design numbers. `light` is the row centre, the line runs along world X.
+ */
+export function bankLineIrradiance(
+  light: THREE.Vector3,
+  intensity: number,
+  point: THREE.Vector3,
+  normal: THREE.Vector3,
+  cutoff = 44,
+  includeBounce = true
+): number {
+  return bankLineTerms(light, intensity, point, normal, cutoff, includeBounce).received;
+}
+
+/** What `millosBankIncident` hands three's `RE_Direct`: one direction and its radiance. */
+export interface BankIncident {
+  direction: THREE.Vector3;
+  /** Scalar on `light.color`; RE_Direct multiplies it by saturate(N.L). */
+  radiance: number;
+}
+
+/**
+ * World-space mirror of the incident the shader builds for a receiver whose
+ * INTERPOLATED (not normal-mapped) normal is `normal`.
+ *
+ * The row and the floor bounce are each turned into an equivalent directional
+ * light - the row along its clipped segment's vector irradiance, the bounce
+ * straight up from the slab - and the two are summed as vectors. On the
+ * geometric normal that reproduces `bankLineIrradiance` exactly; a normal map
+ * then shades by N.L against that one direction, as it does under a point
+ * light, instead of re-clipping the row on every bevel.
+ */
+export function bankLineIncident(
+  light: THREE.Vector3,
+  intensity: number,
+  point: THREE.Vector3,
+  normal: THREE.Vector3,
+  cutoff = 44
+): BankIncident {
+  const terms = bankLineTerms(light, intensity, point, normal, cutoff, true);
+  const total = new THREE.Vector3(0, -terms.bounce / Math.max(terms.facingDown, 0.05), 0);
+  if (terms.line) total.addScaledVector(terms.line.vector, terms.line.scale);
+  const radiance = total.length();
+  return {
+    direction: radiance > 1e-8 ? total.divideScalar(radiance) : new THREE.Vector3(0, 1, 0),
+    radiance,
+  };
+}
+
+/**
+ * Diffuse irradiance three actually delivers from one row to a fragment whose
+ * interpolated normal is `geometricNormal` and whose normal-mapped shading
+ * normal is `shadingNormal`: the incident's radiance times saturate(N.L).
+ */
+export function bankLineDelivered(
+  light: THREE.Vector3,
+  intensity: number,
+  point: THREE.Vector3,
+  geometricNormal: THREE.Vector3,
+  shadingNormal: THREE.Vector3,
+  cutoff = 44
+): number {
+  const incident = bankLineIncident(light, intensity, point, geometricNormal, cutoff);
+  return incident.radiance * Math.min(1, Math.max(0, shadingNormal.dot(incident.direction)));
 }
 
 const f = (value: number) => value.toFixed(4);
@@ -251,27 +336,33 @@ void millosBankIncident( const in PointLight light, const in vec3 x, const in ve
   }
   float r0 = sqrt( max( t0 * t0 + 2.0 * b * t0 + c, 1e-4 ) );
   float r1 = sqrt( max( t1 * t1 + 2.0 * b * t1 + c, 1e-4 ) );
-  float e1 = ( nw * ( t1 + b ) - nd * ( b * t1 + c ) ) / ( D * r1 );
-  float e0 = ( nw * ( t0 + b ) - nd * ( b * t0 + c ) ) / ( D * r0 );
-  float irradiance = max( e1 - e0, 0.0 ) * lambda;
+  // Vector irradiance of the clipped segment, w * A - d * B. Its dot with n is
+  // the exact scalar integral; its direction is where the light arrives from
+  // on average, so RE_Direct's N.L against the NORMAL-MAPPED normal shades a
+  // bevel as it would under a point light.
+  float lineA = ( t1 + b ) / ( D * r1 ) - ( t0 + b ) / ( D * r0 );
+  float lineB = ( b * t1 + c ) / ( D * r1 ) - ( b * t0 + c ) / ( D * r0 );
+  vec3 lineVector = ( w * lineA - d * lineB ) * lambda;
   float ts = clamp( -b, t0, t1 );
   vec3 toLight = w + ts * d;
-  vec3 direction = toLight / max( length( toLight ), 1e-4 );
-  float emit = ${f(BANK_LINE.uplight)} + ${f(1 - BANK_LINE.uplight)} * max( dot( direction, up ), 0.0 );
+  float emit = ${f(BANK_LINE.uplight)} + ${f(1 - BANK_LINE.uplight)} * max( dot( toLight, up ) / max( length( toLight ), 1e-4 ), 0.0 );
   float perpWindow = light.distance > 0.0
     ? pow2( saturate( 1.0 - pow4( sqrt( perp2 ) / light.distance ) ) )
     : 1.0;
-  float received = irradiance * emit * endWindow * perpWindow + bounce;
-  incident.direction = direction;
-  incident.color = light.color * ( received / max( dot( n, direction ), 0.05 ) );
-  incident.visible = received > 0.0;
+  // The row and the floor bounce as two directional equivalents, summed.
+  vec3 arriving = lineVector * ( emit * endWindow * perpWindow )
+    - up * ( bounce / max( facingDown, 0.05 ) );
+  float radiance = length( arriving );
+  incident.direction = radiance > 1e-8 ? arriving / radiance : up;
+  incident.color = light.color * radiance;
+  incident.visible = radiance > 0.0;
 }
 #endif
 `;
 
 const POINT_INCIDENT = 'getPointLightInfo( pointLight, geometryPosition, directLight );';
 const BANK_CALL =
-  ' millosBankIncident( pointLight, geometryPosition, geometryNormal, directLight );';
+  ' millosBankIncident( pointLight, geometryPosition, nonPerturbedNormal, directLight );';
 const DIRECTIONAL_INCIDENT = 'getDirectionalLightInfo( directionalLight, directLight );';
 const ROOF_TERM = `
 		#ifndef USE_SHADOWMAP

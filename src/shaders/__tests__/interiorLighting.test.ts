@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import {
   BANK_LINE,
+  bankLineDelivered,
+  bankLineIncident,
   bankLineIrradiance,
   installInteriorLighting,
   patchInteriorLightingBegin,
@@ -167,6 +169,109 @@ describe('interior fluorescent rows as line sources', () => {
     expect(pars).toMatch(/float bounce = /);
   });
 
+  it('lets a panel bevel shade a face by N.L, never by clipping the row', () => {
+    // The packers' painted steel read as ceramic tile and the plansifters as a
+    // grid of glinting patches (final-med-12; gone with the banks switched to
+    // the reference point lights in the same page load). The normal map's
+    // bevels tilt the shading normal by ~0.3 across each panel edge. Integrated
+    // against that normal, the row was clipped at a different place on every
+    // bevel and the closest-point direction lay in the face's own plane, so a
+    // flat west face took nothing and its upper bevels took everything.
+    const delivered = (
+      point: THREE.Vector3,
+      geometric: THREE.Vector3,
+      shading: THREE.Vector3
+    ): number =>
+      REDUCED_ZONE_LIGHT_POSITIONS.reduce(
+        (sum, light) =>
+          sum +
+          bankLineDelivered(
+            new THREE.Vector3(...light),
+            ZONE_LIGHT_INTENSITY,
+            point,
+            geometric,
+            shading
+          ),
+        0
+      );
+    const tilt = 0.3;
+    const faces: Array<[THREE.Vector3, THREE.Vector3, THREE.Vector3[]]> = [];
+    for (const { position } of SITE_LAYOUT.machines.sifters) {
+      const point = new THREE.Vector3(
+        position[0] - 3.25,
+        position[1] + SIFTER_LAYOUT.bodyCentreY,
+        position[2] + 1
+      );
+      faces.push([
+        point,
+        new THREE.Vector3(-1, 0, 0),
+        [new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)],
+      ]);
+    }
+    for (const { position } of SITE_LAYOUT.machines.packers) {
+      const [x, , z] = position;
+      faces.push([
+        new THREE.Vector3(x - 1.4, 2.5, z),
+        new THREE.Vector3(-1, 0, 0),
+        [new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)],
+      ]);
+      faces.push([
+        new THREE.Vector3(x, 2.5, z - 1.4),
+        new THREE.Vector3(0, 0, -1),
+        [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0)],
+      ]);
+    }
+    for (const [point, geometric, axes] of faces) {
+      const received = total(point, geometric);
+      expect(received).toBeGreaterThan(0);
+      // A flat panel takes exactly the row's irradiance.
+      expect(delivered(point, geometric, geometric)).toBeCloseTo(received, 3);
+      // Sum of the rows' radiance: the most any change of shading normal can
+      // move the delivered light per unit of normal change, under N.L.
+      const radiance = REDUCED_ZONE_LIGHT_POSITIONS.reduce(
+        (sum, light) =>
+          sum +
+          bankLineIncident(new THREE.Vector3(...light), ZONE_LIGHT_INTENSITY, point, geometric)
+            .radiance,
+        0
+      );
+      for (const axis of axes) {
+        const plusNormal = geometric.clone().addScaledVector(axis, tilt).normalize();
+        const minusNormal = geometric.clone().addScaledVector(axis, -tilt).normalize();
+        const plus = delivered(point, geometric, plusNormal);
+        const minus = delivered(point, geometric, minusNormal);
+        // No step at a bevel: the light moves no faster than N.L allows...
+        const step = plusNormal.distanceTo(geometric);
+        expect(Math.abs(plus - received)).toBeLessThanOrEqual(radiance * step + 1e-6);
+        expect(Math.abs(minus - received)).toBeLessThanOrEqual(radiance * step + 1e-6);
+        // ...and a seam never averages darker than the panel either side of it
+        // (N.L is linear until a facet turns past the light, where it clamps).
+        expect((plus + minus) / 2 / received).toBeGreaterThan(0.95);
+      }
+    }
+  });
+
+  it('hands RE_Direct an incident that reproduces the irradiance on the geometric normal', () => {
+    const deckY = SITE_LAYOUT.factory.bounds.maxY - 0.4;
+    const cases: Array<[THREE.Vector3, THREE.Vector3]> = [
+      [new THREE.Vector3(3, 0, 4), up],
+      [new THREE.Vector3(-9, 3, -12), new THREE.Vector3(-1, 0, 0)],
+      [new THREE.Vector3(12, 2, -20), new THREE.Vector3(0, 0, 1)],
+      [new THREE.Vector3(0, deckY, 10), new THREE.Vector3(0, -1, 0)],
+      [new THREE.Vector3(-20, 9, 6), new THREE.Vector3(0.6, -0.8, 0)],
+    ];
+    for (const light of REDUCED_ZONE_LIGHT_POSITIONS) {
+      const source = new THREE.Vector3(...light);
+      for (const [point, normal] of cases) {
+        const incident = bankLineIncident(source, ZONE_LIGHT_INTENSITY, point, normal);
+        expect(incident.radiance * Math.max(normal.dot(incident.direction), 0)).toBeCloseTo(
+          bankLineIrradiance(source, ZONE_LIGHT_INTENSITY, point, normal),
+          6
+        );
+      }
+    }
+  });
+
   it('is zero behind the receiving surface', () => {
     const [x, y, z] = REDUCED_ZONE_LIGHT_POSITIONS[0];
     const floor = new THREE.Vector3(x, 0, z);
@@ -207,7 +312,7 @@ describe('chunk installation', () => {
       .split('\n')
       .find((line) => line.trim().startsWith('#define MILLOS_POINT_INCIDENT()'));
     expect(macro).toContain(
-      'millosBankIncident( pointLight, geometryPosition, geometryNormal, directLight );'
+      'millosBankIncident( pointLight, geometryPosition, nonPerturbedNormal, directLight );'
     );
     // Civic shadows re-split on the canonical call; it must still occur once.
     expect(
