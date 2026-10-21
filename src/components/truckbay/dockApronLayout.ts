@@ -248,3 +248,30 @@ export const DOCK_FLOOD_POOLS = [
  * yard was untouched navy. A mast flood throws about 1.3x its height.
  */
 export const YARD_MAST = { height: 14, poolRadius: 18 } as const;
+
+/**
+ * The dock door frame (`dockDoorFrame` GLB, measured): 9.7 m wide, top at
+ * y 5.25, 0.286 m deep, its centre plane at dock-local z -1.8 + 0.0425.
+ */
+export const DOCK_DOOR_FRAME = { halfWidth: 4.85, top: 5.25, z: -1.7575, depth: 0.286 } as const;
+
+/**
+ * The dock's name and its dock number, painted on a board standing on the door
+ * frame's head. Both lines used to float in the open bay over the door at y 6
+ * and 4.5 with nothing behind them ("SHIPPING" and "DOCK 1 - OUTBOUND" read as
+ * HUD text in shipping and logistics-close), and the lower line lay across the
+ * rolled-up door (4.1-4.9 m when open).
+ */
+export const DOCK_FACADE_BOARD = {
+  width: 6.8,
+  bottom: DOCK_DOOR_FRAME.top - 0.02,
+  top: DOCK_DOOR_FRAME.top + 2.08,
+  z: DOCK_DOOR_FRAME.z,
+  depth: 0.12,
+} as const;
+
+export const DOCK_FACADE_LINES = {
+  title: { y: 6.62, fontSize: 0.95 },
+  subtitle: { y: 5.72, fontSize: 0.42 },
+  z: DOCK_FACADE_BOARD.z + DOCK_FACADE_BOARD.depth / 2 + 0.012,
+} as const;

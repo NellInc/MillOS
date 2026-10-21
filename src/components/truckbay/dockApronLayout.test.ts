@@ -1,6 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
+  DOCK_DOOR_FRAME,
+  DOCK_FACADE_BOARD,
+  DOCK_FACADE_LINES,
   DOCK_FLOOD_HEADS,
   DOCK_FLOOD_POOLS,
   DOCK_FLOOR_MARKINGS,
@@ -140,5 +143,28 @@ describe('KEEP CLEAR against the docked truck', () => {
     for (const run of [DOCK_GUIDE_LINES, DOCK_GROOVE_STRIPES, DOCK_LASER_GUIDES]) {
       expect(run.u1).toBeLessThan(DOCK_KEEP_CLEAR.u0);
     }
+  });
+});
+
+describe('dock facade sign', () => {
+  it('paints both lines on a board standing on the door frame', () => {
+    const board = DOCK_FACADE_BOARD;
+    // Seated on the frame head (sunk no more than 3 cm), within its width and depth.
+    expect(board.bottom).toBeLessThanOrEqual(DOCK_DOOR_FRAME.top);
+    expect(board.bottom).toBeGreaterThan(DOCK_DOOR_FRAME.top - 0.03);
+    expect(board.width / 2).toBeLessThan(DOCK_DOOR_FRAME.halfWidth);
+    expect(Math.abs(board.z - DOCK_DOOR_FRAME.z)).toBeLessThan(DOCK_DOOR_FRAME.depth / 2);
+    // Every line sits on the board, a centimetre or two proud of its face.
+    const face = board.z + board.depth / 2;
+    expect(DOCK_FACADE_LINES.z).toBeGreaterThan(face);
+    expect(DOCK_FACADE_LINES.z - face).toBeLessThan(0.03);
+    for (const line of [DOCK_FACADE_LINES.title, DOCK_FACADE_LINES.subtitle]) {
+      expect(line.y - line.fontSize / 2).toBeGreaterThan(board.bottom + 0.1);
+      expect(line.y + line.fontSize / 2).toBeLessThan(board.top - 0.1);
+    }
+    // The open door rolls up to 4.1-4.9 m: no lettering may lie across it.
+    expect(DOCK_FACADE_LINES.subtitle.y - DOCK_FACADE_LINES.subtitle.fontSize / 2).toBeGreaterThan(
+      4.9
+    );
   });
 });

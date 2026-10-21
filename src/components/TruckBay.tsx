@@ -61,6 +61,8 @@ import {
   YARD_TARMAC_SURFACE,
 } from './truckbay/yardSurfaces';
 import {
+  DOCK_FACADE_BOARD,
+  DOCK_FACADE_LINES,
   DOCK_FLOOD_HEADS,
   DOCK_FLOOD_POOLS,
   DOCK_FLOOR_MARKINGS,
@@ -142,6 +144,74 @@ export const DOCK_FACADE_TEXT_MATERIAL = new THREE.MeshStandardMaterial({
   transparent: true,
   depthWrite: false,
 });
+
+const DOCK_FACADE_BOARD_MATERIAL = new THREE.MeshStandardMaterial({
+  color: '#1f2a37',
+  roughness: 0.62,
+  metalness: 0.15,
+});
+const DOCK_FACADE_TRIM_MATERIAL = new THREE.MeshStandardMaterial({
+  color: '#8a949e',
+  roughness: 0.45,
+  metalness: 0.6,
+});
+
+/**
+ * The dock's name board: painted steel standing on the door frame's head, with
+ * a brushed edge trim behind it (`DOCK_FACADE_BOARD`). The lettering is lit
+ * paint on its face, readable from outside only.
+ */
+const DockFacadeSign: React.FC<{
+  dock: 'shipping' | 'receiving';
+  title: string;
+  subtitle: string;
+  subtitleColor: string;
+}> = ({ dock, title, subtitle, subtitleColor }) => {
+  const board = DOCK_FACADE_BOARD;
+  const height = board.top - board.bottom;
+  return (
+    <group name={`dock-facade-sign-${dock}`}>
+      <mesh
+        position={[0, board.bottom + height / 2, board.z]}
+        material={DOCK_FACADE_BOARD_MATERIAL}
+        castShadow
+        receiveShadow
+      >
+        <boxGeometry args={[board.width, height, board.depth]} />
+      </mesh>
+      {/* Edge trim: 4 cm proud of the board all round, 2 cm shallower, so no
+          face of it is coplanar with the board's. */}
+      <mesh
+        position={[0, board.bottom + height / 2, board.z - 0.01]}
+        material={DOCK_FACADE_TRIM_MATERIAL}
+      >
+        <boxGeometry args={[board.width + 0.08, height + 0.08, board.depth - 0.02]} />
+      </mesh>
+      <Text
+        name={`dock-facade-${dock}`}
+        material={DOCK_FACADE_TEXT_MATERIAL}
+        position={[0, DOCK_FACADE_LINES.title.y, DOCK_FACADE_LINES.z]}
+        fontSize={DOCK_FACADE_LINES.title.fontSize}
+        color="#ffffff"
+        anchorX="center"
+        anchorY="middle"
+      >
+        {title}
+      </Text>
+      <Text
+        name={`dock-facade-${dock === 'shipping' ? 'outbound' : 'inbound'}`}
+        material={DOCK_FACADE_TEXT_MATERIAL}
+        position={[0, DOCK_FACADE_LINES.subtitle.y, DOCK_FACADE_LINES.z]}
+        fontSize={DOCK_FACADE_LINES.subtitle.fontSize}
+        color={subtitleColor}
+        anchorX="center"
+        anchorY="middle"
+      >
+        {subtitle}
+      </Text>
+    </group>
+  );
+};
 
 const SHIPPING_YARD_ORIGIN_Z = 50;
 // Yard-space position of each guard shack's porch light: the shack's local
@@ -3372,31 +3442,12 @@ export const TruckBay: React.FC = () => {
           ]}
         />
 
-        <Text
-          name="dock-facade-shipping"
-          material={DOCK_FACADE_TEXT_MATERIAL}
-          position={[0, 6, -1.5]}
-          fontSize={1.2}
-          color="#ffffff"
-          anchorX="center"
-          anchorY="middle"
-          outlineWidth={0.05}
-          outlineColor="#000"
-        >
-          SHIPPING
-        </Text>
-
-        <Text
-          name="dock-facade-outbound"
-          material={DOCK_FACADE_TEXT_MATERIAL}
-          position={[0, 4.5, -1.5]}
-          fontSize={0.5}
-          color="#22c55e"
-          anchorX="center"
-          anchorY="middle"
-        >
-          DOCK 1 - OUTBOUND
-        </Text>
+        <DockFacadeSign
+          dock="shipping"
+          title="SHIPPING"
+          subtitle="DOCK 1 - OUTBOUND"
+          subtitleColor="#22c55e"
+        />
 
         {/* Wheel chocks - deployed when truck is docked (centered bay) */}
         <WheelChock
@@ -3827,31 +3878,12 @@ export const TruckBay: React.FC = () => {
           ]}
         />
 
-        <Text
-          name="dock-facade-receiving"
-          material={DOCK_FACADE_TEXT_MATERIAL}
-          position={[0, 6, -1.5]}
-          fontSize={1.2}
-          color="#ffffff"
-          anchorX="center"
-          anchorY="middle"
-          outlineWidth={0.05}
-          outlineColor="#000"
-        >
-          RECEIVING
-        </Text>
-
-        <Text
-          name="dock-facade-inbound"
-          material={DOCK_FACADE_TEXT_MATERIAL}
-          position={[0, 4.5, -1.5]}
-          fontSize={0.5}
-          color="#f97316"
-          anchorX="center"
-          anchorY="middle"
-        >
-          DOCK 2 - INBOUND
-        </Text>
+        <DockFacadeSign
+          dock="receiving"
+          title="RECEIVING"
+          subtitle="DOCK 2 - INBOUND"
+          subtitleColor="#f97316"
+        />
 
         {/* Wheel chocks - deployed when truck is docked */}
         <WheelChock
