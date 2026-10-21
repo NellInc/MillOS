@@ -3766,6 +3766,77 @@ export const RIVER_FOOTBRIDGE_APPROACH = {
   width: 3,
 };
 
+/** The gravel walk down the west side of the canal-side parkland. */
+export const CANAL_WEST_PATH = {
+  start: [-130, 0, 86.5] as [number, number, number],
+  end: [-130, 0, 50] as [number, number, number],
+  width: 2.5,
+};
+
+/** The paved walk out to the lake; it continues as a curve into the lakeside loop. */
+export const LAKE_APPROACH_PATH = {
+  start: [95, 0, 85] as [number, number, number],
+  end: [120, 0, 92] as [number, number, number],
+  width: 2.5,
+};
+
+/**
+ * A clipped hedge laid along one side of a path: same direction, `side` metres
+ * of verge (+1 left of travel, -1 right) between the path edge and the hedge
+ * face, and trimmed `inset` metres short of each path end.
+ */
+export function hedgeAlongPath(
+  path: { start: [number, number, number]; end: [number, number, number]; width: number },
+  side: 1 | -1,
+  {
+    height,
+    width,
+    verge = 0.6,
+    inset = 1,
+  }: { height: number; width: number; verge?: number; inset?: number }
+) {
+  const dx = path.end[0] - path.start[0];
+  const dz = path.end[2] - path.start[2];
+  const length = Math.hypot(dx, dz);
+  const ux = dx / length;
+  const uz = dz / length;
+  // Left of travel in plan (x right, z toward the viewer): (-uz, ux) rotated.
+  const offset = side * (path.width / 2 + verge + width / 2);
+  const nx = -uz * offset;
+  const nz = ux * offset;
+  return {
+    start: [path.start[0] + ux * inset + nx, 0, path.start[2] + uz * inset + nz] as [
+      number,
+      number,
+      number,
+    ],
+    end: [path.end[0] - ux * inset + nx, 0, path.end[2] - uz * inset + nz] as [
+      number,
+      number,
+      number,
+    ],
+    height,
+    width,
+  };
+}
+
+/**
+ * Hedges that border a path. The lake hedge used to run (95, 90) -> (110, 100),
+ * a diagonal across open grass that began and ended nowhere and crossed no
+ * line of the path it was meant to border; the canal-side one stood on the
+ * gravel walk's centreline. Both now follow their walk, one verge off its edge:
+ * the canal walk on its west side (its east side meets the paved walk's corner),
+ * the lake walk on its north side, so the hedge screens the service yard from it
+ * rather than the water (`pathHedges.test.ts`).
+ */
+export const PATH_HEDGES = [
+  { ...hedgeAlongPath(CANAL_WEST_PATH, -1, { height: 0.6, width: 0.5 }), path: CANAL_WEST_PATH },
+  {
+    ...hedgeAlongPath(LAKE_APPROACH_PATH, -1, { height: 0.5, width: 0.4 }),
+    path: LAKE_APPROACH_PATH,
+  },
+] as const;
+
 // Gravel/paved path component
 export const GravelPath: React.FC<{
   start: [number, number, number];
@@ -8826,10 +8897,10 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
           point (-130, 85), which overlapped 1.9 m^2 of two -2 surfaces and
           left the outer corner bare. */}
       <GravelPath start={[-95, 0, 85]} end={[-128.75, 0, 85]} width={3} type="paved" />
-      <GravelPath start={[-130, 0, 86.5]} end={[-130, 0, 50]} width={2.5} type="gravel" />
+      <GravelPath {...CANAL_WEST_PATH} type="gravel" />
 
       {/* Path to the lake area */}
-      <GravelPath start={[95, 0, 85]} end={[120, 0, 92]} width={2.5} type="paved" />
+      <GravelPath {...LAKE_APPROACH_PATH} type="paved" />
       <CurvedPath
         position={[120, 0, 100]}
         radius={8}
@@ -8964,8 +9035,15 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
       <LandscapeDressing />
       <WorldPublicRealm />
       {/* Hedges bordering paths */}
-      <HedgeRow start={[-130, 0, 90]} end={[-130, 0, 60]} height={0.6} width={0.5} />
-      <HedgeRow start={[95, 0, 90]} end={[110, 0, 100]} height={0.5} width={0.4} />
+      {PATH_HEDGES.map((hedge) => (
+        <HedgeRow
+          key={`${hedge.start[0]}-${hedge.start[2]}`}
+          start={hedge.start}
+          end={hedge.end}
+          height={hedge.height}
+          width={hedge.width}
+        />
+      ))}
       <HedgeRow start={[-10, 0, -128]} end={[10, 0, -128]} height={0.5} width={0.4} />
 
       {/* Trees along waterways, by river, and by lake - now rendered via instanced components above */}
