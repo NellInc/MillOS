@@ -27,6 +27,8 @@ const PERF_SYSTEMS = {
   surfaces: 'disableSurfaceTreatment',
   ao: 'disableAmbientOcclusion',
   bloom: 'disableBloom',
+  smaa: 'disableSMAA',
+  msaa: 'disableComposerMsaa',
 };
 const NETWORK_PROFILES = {
   native: null,

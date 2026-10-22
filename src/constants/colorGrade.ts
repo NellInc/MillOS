@@ -186,13 +186,15 @@ export function aoQualityLevel(index: number): AOQualityLevel {
 /**
  * MSAA sample count for the composer's HalfFloat render target.
  *
- * The R3F `EffectComposer` defaults this to 8, which nothing overrode - roughly
- * 132 MB of MSAA storage at 1920x1080 plus a per-frame resolve, paid the moment
- * any effect switched on. Anti-aliasing is handled by SMAA instead, which runs
- * last and therefore operates on the tone-mapped image.
+ * The R3F `EffectComposer` defaults this to 8 - roughly 132 MB of MSAA storage
+ * at 1920x1080. Four samples at Medium's render size (0.6 x DPR) is about a
+ * quarter of that.
  *
- * This is the A side of the benchmark comparison the phase report requests:
- *   (A) multisampling 0 + SMAA   <- shipped here
- *   (B) multisampling 4, no SMAA
+ * It was 0, with SMAA alone. SMAA cannot recover a member narrower than a pixel
+ * (truss bracing, rails, lane paint at distance) and, before its edge input was
+ * encoded, missed every dark edge outright. MSAA resolves geometric edges from
+ * coverage, whatever their brightness; SMAA stays on for shading edges.
+ * `perfDebug.disableComposerMsaa` / `disableSMAA` isolate each term on one page
+ * (`--disable-systems=msaa|smaa` in the benchmark).
  */
-export const COMPOSER_MULTISAMPLING = 0;
+export const COMPOSER_MULTISAMPLING = 4;
