@@ -643,6 +643,69 @@ const MATERIALS = {
 applyFloorDetailBlend(MATERIALS.floor);
 
 // ===========================================================================
+// GLAZING FRESNEL
+// ===========================================================================
+//
+// A transparent standard material scales its WHOLE output by its opacity, the
+// reflection included, so a hall pane at 0.13 showed 13% of a sky reflection
+// that at grazing incidence should be most of what the eye sees. From outside
+// the hall read as an open steel frame (final-med-12, overview and farm).
+//
+// The pane is composited here as what it is: a faint tinted film (the lit
+// colour at the authored opacity) under a Fresnel reflection of the
+// environment. With F the Schlick reflectance and a the authored opacity,
+// light from behind passes (1 - F)(1 - a), so with normal blending
+//   coverage = 1 - (1 - F)(1 - a)
+//   colour   = ((1 - F) a C + F sky) / coverage.
+// Face-on that is the old pane (F0 = 0.04); at grazing it is the sky. The sky
+// sample is the same PMREM every metal reads, divided back out of the scene's
+// diffuse-fill dampener, and capped so the sun disc cannot print a star.
+
+/** Constant. Bump by hand when the GLSL below changes. */
+export const GLAZING_FRESNEL_CACHE_KEY = 'millos-glazing-fresnel-v1';
+
+/** Paired rendered control (0 = the old flat pane), mirrored on userData. */
+export const GLAZING_FRESNEL_STRENGTH = { value: 1 };
+
+/** TS mirror of the composite's coverage, for tests and design numbers. */
+export function glazingCoverage(opacity: number, cosTheta: number, strength = 1): number {
+  const c = THREE.MathUtils.clamp(Math.abs(cosTheta), 0, 1);
+  const fresnel = (0.04 + 0.96 * (1 - c) ** 5) * THREE.MathUtils.clamp(strength, 0, 1);
+  return 1 - (1 - fresnel) * (1 - opacity);
+}
+
+const GLAZING_FRESNEL_BODY = /* glsl */ `
+{
+  float glazeCos = saturate( abs( dot( geometryViewDir, geometryNormal ) ) );
+  float glazeF = ( 0.04 + 0.96 * pow( 1.0 - glazeCos, 5.0 ) ) * uGlazeFresnel;
+  #ifdef USE_ENVMAP
+    vec3 glazeSky = min(
+      getIBLRadiance( geometryViewDir, geometryNormal, material.roughness ) / max( envMapIntensity, 1e-3 ),
+      vec3( 1.5 )
+    );
+  #else
+    vec3 glazeSky = gl_FragColor.rgb;
+  #endif
+  float glazeCoverage = 1.0 - ( 1.0 - glazeF ) * ( 1.0 - gl_FragColor.a );
+  gl_FragColor.rgb = ( ( 1.0 - glazeF ) * gl_FragColor.a * gl_FragColor.rgb + glazeF * glazeSky )
+    / max( glazeCoverage, 1e-4 );
+  gl_FragColor.a = glazeCoverage;
+}
+`;
+
+MATERIALS.glass.userData.glazingFresnel = GLAZING_FRESNEL_STRENGTH;
+MATERIALS.glass.onBeforeCompile = (shader) => {
+  shader.uniforms.uGlazeFresnel = GLAZING_FRESNEL_STRENGTH;
+  shader.fragmentShader = shader.fragmentShader
+    .replace('#include <common>', '#include <common>\nuniform float uGlazeFresnel;')
+    .replace('#include <opaque_fragment>', `#include <opaque_fragment>\n${GLAZING_FRESNEL_BODY}`);
+};
+MATERIALS.glass.customProgramCacheKey = () => GLAZING_FRESNEL_CACHE_KEY;
+
+/** The hall's wall glazing, for its Fresnel test. */
+export const FACTORY_GLASS_MATERIAL: THREE.Material = MATERIALS.glass;
+
+// ===========================================================================
 // SURFACE FINISH
 // ===========================================================================
 //
