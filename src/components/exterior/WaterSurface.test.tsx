@@ -16,7 +16,12 @@ import {
   WATER_WIND,
   applyWaterRipples,
   applyFountainFoam,
+  WATER_CLOUD_COVER,
+  WATER_CLOUD_TONE,
+  WATER_SKY_DETAIL,
+  WATER_SKY_DETAIL_PROFILE,
 } from '../../utils/waterAppearance';
+import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useGraphicsStore } from '../../stores/graphicsStore';
 
@@ -88,7 +93,7 @@ describe('authored exterior water material and atmosphere driver', () => {
     );
     expect(water.fragmentShader).toContain('gl_FragColor = vec4(colour, 1.0)');
     expect(water.fragmentShader).toContain('#include <fog_fragment>');
-    expect(water.customProgramCacheKey()).toBe('millos-unified-water-v23');
+    expect(water.customProgramCacheKey()).toBe('millos-unified-water-v24');
     const dispose = vi.spyOn(water, 'dispose');
     for (const cleanup of driver.cleanups.splice(0)) cleanup();
     expect(dispose).toHaveBeenCalledOnce();
@@ -386,7 +391,7 @@ it('keeps a deep-water read on Low, where no metre-scale ripple breaks the refle
   expect(water.fragmentShader).toContain(
     `mix(${WATER_FRESNEL_EXPONENT_FLAT.toFixed(1)}, ${WATER_FRESNEL_EXPONENT.toFixed(1)}, uRippleDetail)`
   );
-  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v23');
+  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v24');
 });
 
 it('adds a faint metre-scale ripple normal that freezes with the water clock and drops on Low', () => {
@@ -404,4 +409,73 @@ it('adds a faint metre-scale ripple normal that freezes with the water clock and
   expect(WATER_RIPPLE_DETAIL.value).toBe(1);
   useGraphicsStore.setState((state) => ({ graphics: { ...state.graphics, quality: previous } }));
   expect(water.customProgramCacheKey()).toBe(water.customProgramCacheKey());
+});
+
+// water, final3-med-12: the lake read as a plain gradient. From the water
+// camera the sky weight is already ~23% (cubic Fresnel at a 23 degree view),
+// but the only sky structure was a band keyed to the reflected DIRECTION,
+// which turns through about half a period across the whole lake, and the
+// metre ripple moved it by a few percent of that: one uniform sky over the
+// body gradient. A reflected ray projected onto a cloud deck sweeps several
+// noise cells across the same lake, so mirrored cloud and its ripple wobble
+// resolve; gust patches add the lighter cat's-paw streaks.
+it('mirrors a cloud deck and gust patches across the lake on Medium, exact on Low and when off', () => {
+  const water = material(true);
+  expect(water.uniforms.uSkyDetail).toBe(WATER_SKY_DETAIL);
+  expect(water.uniforms.uCloudCover).toBe(WATER_CLOUD_COVER);
+  expect(water.uniforms.uCloudTone).toBe(WATER_CLOUD_TONE);
+  const shader = water.fragmentShader;
+  expect(shader).toContain('if (uRippleDetail > 0.0 && uSkyDetail > 0.0)');
+  expect(shader).toContain('reflected.xz / max(reflected.y, 0.12)');
+  expect(shader).toContain('fresnel * 0.98 + pawSky');
+  // Deck cells swept between the lake's near and far shore on the camera's line.
+  const camera = new THREE.Vector3(...SITE_LAYOUT.cameras.water.position);
+  const lake = SITE_LAYOUT.exteriorFeatures.lake;
+  const towardLake = new THREE.Vector2(lake.position[0] - camera.x, lake.position[2] - camera.z);
+  const along = towardLake.clone().normalize();
+  const deckCell = (offset: number) => {
+    const point = new THREE.Vector2(lake.position[0], lake.position[2]).addScaledVector(
+      along,
+      offset
+    );
+    const reach = point.distanceTo(new THREE.Vector2(camera.x, camera.z));
+    return (reach / (camera.y - 0.15)) * WATER_SKY_DETAIL_PROFILE.deckScale;
+  };
+  const halfDepth = lake.size[1] / 2;
+  expect(deckCell(halfDepth) - deckCell(-halfDepth)).toBeGreaterThan(3);
+  // The direction-only band's phase changes by under one period on the same line.
+  const reflectedX = (offset: number) => {
+    const point = new THREE.Vector2(lake.position[0], lake.position[2]).addScaledVector(
+      along,
+      offset
+    );
+    const ray = new THREE.Vector3(
+      point.x - camera.x,
+      camera.y - 0.15,
+      point.y - camera.z
+    ).normalize();
+    return ray.x * 8 + ray.z * 5;
+  };
+  expect(Math.abs(reflectedX(halfDepth) - reflectedX(-halfDepth))).toBeLessThan(Math.PI * 2);
+  // The frame driver hands the deck the displayed sky's cover and cloud colour.
+  const sky = new THREE.ShaderMaterial({
+    uniforms: {
+      topColor: { value: new THREE.Color('#2f5ea0') },
+      horizonColor: { value: new THREE.Color('#7186ad') },
+      cloudAmount: { value: 0.61 },
+      uCloudLit: { value: new THREE.Color('#d0d4d8') },
+    },
+  });
+  const dome = new THREE.Mesh(new THREE.BufferGeometry(), sky);
+  dome.name = 'analytic-sky-dome';
+  driver.scene!.add(dome);
+  WaterAnimationManager({});
+  driver.frame!();
+  expect(WATER_CLOUD_COVER.value).toBeCloseTo(0.61, 6);
+  expect(WATER_CLOUD_TONE.value.getHexString()).toBe('d0d4d8');
+  driver.scene!.remove(dome);
+  sky.dispose();
+  dome.geometry.dispose();
+  expect(WATER_SKY_DETAIL.value).toBe(1);
+  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v24');
 });
