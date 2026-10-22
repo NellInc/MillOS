@@ -527,8 +527,15 @@ void main() {
       * ${(RIDGE_FIELD_PROFILE.edgeBreak * 2.5).toFixed(3)};
     float copse = smoothstep(${RIDGE_FIELD_PROFILE.copse[0].toFixed(2)}, ${RIDGE_FIELD_PROFILE.copse[1].toFixed(2)},
       ridgeFbm(p.xz * 0.026 + vec2(12.3, 4.9)));
+    // A wooded parcel's stand draws back from its boundary into ragged woods,
+    // leaving a hedged margin of pasture. Wooded whole, it was an unhedged block
+    // whose grid edge lay near-horizontal on screen: a ruled band across the
+    // village hill (art3land-after-med12, village (0,300)-(1060,425)).
+    float margin = 1.0 - smoothstep(0.0, 14.0, edge);
+    float woods = (1.0 - step(0.4, parcelUse)) * smoothstep(0.46, 0.54,
+      ridgeFbm(p.xz * 0.022 + vec2(2.2, 8.4)) + 0.12 - margin * 0.3);
     float farmed = smoothstep(${RIDGE_FIELD_PROFILE.slopeGate[0].toFixed(2)}, ${RIDGE_FIELD_PROFILE.slopeGate[1].toFixed(2)},
-      abs(normal.y) + woodEdge) * (1.0 - copse) * step(0.4, parcelUse);
+      abs(normal.y) + woodEdge) * (1.0 - copse) * (1.0 - woods);
     vec3 crop = mix(${glslVec3(RIDGE_FIELD_PROFILE.pasture)}, ${glslVec3(RIDGE_FIELD_PROFILE.hay)},
       step(0.8, parcelUse) * (0.6 + 0.4 * ridgeHash(fieldId + vec2(9.2, 1.4))));
     crop *= 0.9 + stand * 0.14 + (ridgeHash(fieldId + vec2(5.5, 2.2)) - 0.5) * 0.16;
@@ -1298,7 +1305,7 @@ export function createRidgeMaterial(
     },
   });
   material.userData.clearAerial = aerial;
-  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v18';
+  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v19';
   return material;
 }
 

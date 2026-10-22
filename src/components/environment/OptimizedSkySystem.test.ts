@@ -441,7 +441,7 @@ describe('solid fixed foothills', () => {
       expect(material.fragmentShader).toContain('gl_FragColor = vec4(lit, 1.0)');
       expect(material.fragmentShader).not.toContain('groundBlend');
       expect(material.fragmentShader).not.toContain('sampler');
-      expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v18');
+      expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v19');
       material.dispose();
     }
   });
@@ -772,7 +772,7 @@ it('parcels the gentle foothill slopes into hedged fields brighter than the wood
   expect(branch).toContain(`vec2(${cell[0].toFixed(1)}, ${cell[1].toFixed(1)})`);
   expect(branch).toContain('hedge');
   expect(branch).toContain('fwidth(edge)');
-  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v18');
+  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v19');
   near.dispose();
 });
 
@@ -832,6 +832,14 @@ it('breaks the farmed/wooded edge across terrace rows and draws no isolated fiel
   expect(branch).toContain('abs(normal.y) + woodEdge');
   expect(branch).toContain('float copse =');
   expect(branch).not.toContain('treeDistance');
+  // After the first pass (art3land-after-med12, village (0,300)-(1060,425)) the
+  // ruled band was still there: every terrace row is gentler than normal.y
+  // 0.88, so it was never the slope gate but a wholly wooded parcel, unhedged,
+  // whose rotated grid edge lies near-horizontal on screen. Woods in a wooded
+  // parcel now draw back from its boundary into ragged stands.
+  expect(branch).not.toContain('* step(0.4, parcelUse)');
+  expect(branch).toContain('float woods =');
+  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v19');
   near.dispose();
 });
 
