@@ -861,6 +861,25 @@ describe('roof deck liner', () => {
         .w
     ).toBe(0);
   });
+
+  /**
+   * Still "flat olive-brown with fine dot noise" in final-med-12 after the
+   * grey liner and ribs landed: the probe measured the open deck at sRGB
+   * (27, 35, 33), and with the daylight fill neutralised it was still only
+   * (29, 34, 31). A down-facing face indoors gets fill alone, so at 0.29 albedo
+   * it sat near black whatever its hue, and the painted profile's meso relief
+   * (18 mm at a 0.55 m period, alive to 55 m) shimmered into dots at the
+   * ceiling's grazing angle. A liner sheet is a light, smooth coil coating.
+   */
+  it('is a light, smooth liner between its ribs', async () => {
+    const { ROOF_PANEL_MATERIALS } = await import('./OptimizedFactoryInfrastructure');
+    const liner = ROOF_PANEL_MATERIALS[3] as THREE.MeshStandardMaterial;
+    const { r, g, b } = liner.color;
+    expect(0.2126 * r + 0.7152 * g + 0.0722 * b).toBeGreaterThanOrEqual(0.42);
+    const detail = (liner.userData.millosWorldSurface as { uSurfDetail: { value: THREE.Vector4 } })
+      .uSurfDetail.value;
+    expect(detail.z).toBeLessThanOrEqual(0.005);
+  });
 });
 
 // logistics-close (370,190)-(410,220) and milling (1490,500)-(1525,535),

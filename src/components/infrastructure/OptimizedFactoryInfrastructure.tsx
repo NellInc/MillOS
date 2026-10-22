@@ -477,7 +477,10 @@ const MATERIALS = {
    */
   roofLiner: new THREE.MeshStandardMaterial({
     name: 'factory-roof-liner',
-    color: '#929291',
+    // '#929291' (0.29) sat near black under fill alone (sRGB 27, 35, 33 at noon,
+    // final-med-12). A coil-coated liner is a light grey-white; 0.45 is still
+    // well under a white liner's ~0.65.
+    color: '#b4b4b2',
     roughness: 0.6,
     metalness: 0,
   }),
@@ -777,7 +780,16 @@ const SHELL_SURFACES: readonly [
   [
     MATERIALS.roofLiner,
     'painted',
-    { ribPeriod: 0.25, ribDepth: 0.035, ribAxis: 1, indoorBounce: 0.85 },
+    {
+      ribPeriod: 0.25,
+      ribDepth: 0.035,
+      ribAxis: 1,
+      indoorBounce: 0.85,
+      // A smooth coil coating between the ribs: the painted profile's 18 mm
+      // meso relief shimmered into dot noise at the ceiling's grazing angle.
+      meso: 0.04,
+      reliefMetres: 0.003,
+    },
   ],
   [MATERIALS.roofTrim, 'painted'],
   [MATERIALS.accent, 'painted'],
