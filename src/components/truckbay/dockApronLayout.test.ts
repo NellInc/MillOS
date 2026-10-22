@@ -4,6 +4,7 @@ import {
   DOCK_DOOR_FRAME,
   DOCK_FACADE_BOARD,
   DOCK_FACADE_LINES,
+  DOCK_FACADE_TRIM,
   DOCK_FLOOD_HEADS,
   DOCK_FLOOD_POOLS,
   DOCK_FLOOR_MARKINGS,
@@ -161,6 +162,18 @@ describe('dock facade sign', () => {
       expect(line.y - line.fontSize / 2).toBeGreaterThan(board.bottom + 0.1);
       expect(line.y + line.fontSize / 2).toBeLessThan(board.top - 0.1);
     }
+    // The edge trim stands proud of the board's rim but is inset behind BOTH of
+    // its faces. It was offset 1 cm toward the hall and made 2 cm shallower,
+    // which left its hall-side face exactly on the board's: a dark and a
+    // metal face z-fighting into a jagged fringe seen from inside the hall
+    // (final-med-12 milling (2180,470)-(2290,580), packing (0,430)-(210,540)).
+    const trim = DOCK_FACADE_TRIM;
+    const boardFaces = [board.z - board.depth / 2, board.z + board.depth / 2];
+    const trimFaces = [trim.z - trim.depth / 2, trim.z + trim.depth / 2];
+    expect(trimFaces[0] - boardFaces[0]).toBeGreaterThanOrEqual(0.005);
+    expect(boardFaces[1] - trimFaces[1]).toBeGreaterThanOrEqual(0.005);
+    expect(trim.width).toBeGreaterThan(board.width);
+    expect(trim.height).toBeGreaterThan(board.top - board.bottom);
     // The open door rolls up to 4.1-4.9 m: no lettering may lie across it.
     expect(DOCK_FACADE_LINES.subtitle.y - DOCK_FACADE_LINES.subtitle.fontSize / 2).toBeGreaterThan(
       4.9

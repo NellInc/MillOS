@@ -325,6 +325,19 @@ export const DOCK_FACADE_BOARD = {
   depth: 0.12,
 } as const;
 
+/**
+ * The board's edge trim: 4 cm proud of the rim, inset 1 cm behind BOTH faces.
+ * It used to sit 1 cm toward the hall at 2 cm less depth, which put its
+ * hall-side face exactly on the board's and z-fought into a jagged dark fringe
+ * seen through the glazing from inside (milling, packing).
+ */
+export const DOCK_FACADE_TRIM = {
+  width: DOCK_FACADE_BOARD.width + 0.08,
+  height: DOCK_FACADE_BOARD.top - DOCK_FACADE_BOARD.bottom + 0.08,
+  z: DOCK_FACADE_BOARD.z,
+  depth: DOCK_FACADE_BOARD.depth - 0.02,
+} as const;
+
 export const DOCK_FACADE_LINES = {
   title: { y: 6.62, fontSize: 0.95 },
   subtitle: { y: 5.72, fontSize: 0.42 },

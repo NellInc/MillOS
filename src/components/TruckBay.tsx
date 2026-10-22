@@ -71,6 +71,7 @@ import {
 import {
   DOCK_FACADE_BOARD,
   DOCK_FACADE_LINES,
+  DOCK_FACADE_TRIM,
   DOCK_FLOOD_HEADS,
   DOCK_FLOOD_POOLS,
   DOCK_FLOOR_MARKINGS,
@@ -188,13 +189,15 @@ const DockFacadeSign: React.FC<{
       >
         <boxGeometry args={[board.width, height, board.depth]} />
       </mesh>
-      {/* Edge trim: 4 cm proud of the board all round, 2 cm shallower, so no
-          face of it is coplanar with the board's. */}
+      {/* Edge trim: 4 cm proud of the board all round, inset 1 cm behind both
+          of its faces (`DOCK_FACADE_TRIM`), so no face is coplanar. */}
       <mesh
-        position={[0, board.bottom + height / 2, board.z - 0.01]}
+        position={[0, board.bottom + height / 2, DOCK_FACADE_TRIM.z]}
         material={DOCK_FACADE_TRIM_MATERIAL}
       >
-        <boxGeometry args={[board.width + 0.08, height + 0.08, board.depth - 0.02]} />
+        <boxGeometry
+          args={[DOCK_FACADE_TRIM.width, DOCK_FACADE_TRIM.height, DOCK_FACADE_TRIM.depth]}
+        />
       </mesh>
       <Text
         name={`dock-facade-${dock}`}
