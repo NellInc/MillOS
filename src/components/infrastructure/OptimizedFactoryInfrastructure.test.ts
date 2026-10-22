@@ -888,6 +888,14 @@ describe('facade window frames', () => {
       const top = rail!.position[1] + rail!.scale[1] / 2;
       expect(bottom).toBeLessThanOrEqual(baseHeight);
       expect(top).toBeGreaterThanOrEqual(sideWindowSill);
+      // With the slot closed the after-capture still showed fainter dashes
+      // along the rail's top edge (thin bright pixels 284 -> 49): the 4 cm of
+      // sunlit rail top left either side of the 8 cm pane. A sill rail as deep
+      // as its pane has no exposed top.
+      const front = pane.scale[0] > pane.scale[2];
+      const railDepth = front ? rail!.scale[2] : rail!.scale[0];
+      const paneDepth = front ? pane.scale[2] : pane.scale[0];
+      expect(railDepth).toBeLessThanOrEqual(paneDepth + 1e-9);
     }
   });
 });

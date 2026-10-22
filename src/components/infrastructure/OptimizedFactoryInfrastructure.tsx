@@ -1277,10 +1277,14 @@ export function buildFactoryFacadeFrames(panes: readonly BoxInstance[]): BoxInst
       const railTop = onSill ? sideWindowSill : railBottom + 0.14;
       const railY = (railBottom + railTop) / 2;
       const railHeight = railTop - railBottom;
+      // The sill rail is as deep as its pane. At 0.16 m it left 4 cm of sunlit
+      // top either side of the 8 cm glass, a sub-pixel line that still broke
+      // into dashes once the slot under it was closed.
+      const railDepth = onSill ? (front ? depth : width) : 0.16;
       frames.push(
         front
-          ? { position: [x, railY, z], scale: [width, railHeight, 0.16] }
-          : { position: [x, railY, z], scale: [0.16, railHeight, depth] }
+          ? { position: [x, railY, z], scale: [width, railHeight, railDepth] }
+          : { position: [x, railY, z], scale: [railDepth, railHeight, depth] }
       );
     }
   }
