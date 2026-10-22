@@ -525,10 +525,13 @@ describe('MaterialFlowStore', () => {
       [...useMaterialFlowStore.getState().machineBuffers.values()]
         .filter((b) => b.machineType === 'silo')
         .reduce((sum, b) => sum + b.outputBuffer.reduce((s, m) => s + m.amount, 0), 0);
-    const packedKg = () =>
-      useMaterialFlowStore
-        .getState()
-        .productionBatches.reduce((sum, batch) => sum + batch.producedKg, 0);
+    // Everything ever packed: shipped batches leave the retained window.
+    const packedKg = () => {
+      const state = useMaterialFlowStore.getState();
+      return (
+        state.shippedKg + state.productionBatches.reduce((sum, batch) => sum + batch.availableKg, 0)
+      );
+    };
 
     /** Ticks an order to its end, shipping product as it is packed. */
     const runOrder = (orderKg: number, ticks: number) => {
@@ -578,7 +581,8 @@ describe('MaterialFlowStore', () => {
     it('counts a repaired mill hopper toward the order again, without loss', () => {
       fillMillHopper('rm-101');
       useMaterialFlowStore.getState().syncMachineProcessing([{ id: 'rm-101', status: 'critical' }]);
-      runOrder(HEALTHY_OPENING_WIP_KG + 331, 600);
+      const firstOrder = runOrder(HEALTHY_OPENING_WIP_KG + 331, 600);
+      expect(firstOrder.shippedOverTime.at(-1)).toBeCloseTo(HEALTHY_OPENING_WIP_KG + 331, 3);
       const packedBefore = packedKg();
       const siloBefore = siloKg();
 
@@ -643,8 +647,10 @@ describe('MaterialFlowStore', () => {
       expect(restored.getState().shippedKg).toBeCloseTo(orderKg, 3);
 
       restored.getState().syncMachineProcessing([{ id: 'rm-101', status: 'running' }]);
-      for (let tick = 0; tick < 600; tick++) restored.getState().tickMaterialFlow(0.5, 1);
-      expect(restored.getState().getTotalInputBuffer('rm-101')).toBeLessThan(2000);
+      // With the order covered no new grain is admitted, so the hopper drains.
+      for (let tick = 0; tick < 600; tick++)
+        restored.getState().tickMaterialFlow(0.5, 1, { ...wheatOrder, remainingFinishedKg: 0 });
+      expect(restored.getState().getTotalInputBuffer('rm-101')).toBeLessThan(0.001);
       expect(Math.abs(restored.getState().getMaterialBalance().errorKg)).toBeLessThan(0.001);
       expect(Math.abs(restored.getState().getGenealogyBalance().errorKg)).toBeLessThan(0.001);
     });

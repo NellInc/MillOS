@@ -959,7 +959,15 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
           machineCache.set(type, VISITING);
           const buffer = state.machineBuffers.get(machineId);
           let yieldKg = 0;
-          if (input) {
+          // A machine that is not processing (broken, stopped) converts
+          // nothing, so its hopper and the belts into it commit nothing to the
+          // order. Counting them starved every lane: a broken mill's full
+          // hopper covered the remainder and closed the silos to the healthy
+          // mills. Once it runs again the hopper counts on the next tick.
+          // Its output buffer still leaves on the belts, so it still counts.
+          if (input && buffer?.isProcessing === false) {
+            yieldKg = 0;
+          } else if (input) {
             const conversion = buffer?.conversionRatios.find((c) => c.inputType === type);
             const total =
               conversion?.outputs.reduce((sum, o) => sum + Math.max(0, o.ratio), 0) ?? 0;
@@ -1024,8 +1032,22 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
           // an aggregate-only cap leaves it overfilled while other lines idle.
           // Departed stock still reduces the overall cap, so rebalancing cannot
           // admit surplus merely because dispatch withdrew from one line first.
+          // Only lines a silo lane can still reach take a share: rm-102 alone
+          // feeds sifter-b, and while it is down packer-1's share could never
+          // be admitted, capping the live lines at a third each per truck.
+          const sourceLanes = state.network.segments.filter(
+            (segment) =>
+              state.machineBuffers.get(segment.fromMachineId)?.machineType === 'silo' &&
+              (!productionPlan?.sourceMaterial ||
+                segment.fromOutputType === productionPlan.sourceMaterial)
+          );
           const packers = [...state.machineBuffers.values()].filter(
-            (b) => b.machineType === 'packer'
+            (b) =>
+              b.machineType === 'packer' &&
+              sourceLanes.some(
+                (segment) =>
+                  finishedYield(segment.toMachineId, segment.fromOutputType, true, b.machineId) > 0
+              )
           );
           const rate = packers.reduce((sum, b) => sum + Math.max(0, b.processingRate), 0);
           for (const packer of packers)
@@ -1444,6 +1466,9 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
           const routedMaterial =
             fromBuffer.machineType === 'silo' ? productionPlan?.sourceMaterial : undefined;
           if (routedMaterial && segment.fromOutputType !== routedMaterial) return;
+          // A silo valve stays shut to a machine that is not processing, with
+          // or without an order: grain admitted there would sit in its hopper.
+          if (fromBuffer.machineType === 'silo' && !toBuffer.isProcessing) return;
           if (
             segment.routeProvenance === 'unresolved' ||
             !Number.isFinite(segment.transitTime) ||
