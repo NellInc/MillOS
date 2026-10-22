@@ -691,7 +691,7 @@ export const MACHINE_MATERIALS = {
   siloRoof: withWear(
     new THREE.MeshStandardMaterial({
       name: 'machine-silo-trim',
-      color: '#c2c9c7',
+      color: '#c4c4c3',
       roughnessMap: SILO_TRIM_ORM,
       aoMap: SILO_TRIM_ORM,
       aoMapIntensity: 0.8,
@@ -700,7 +700,15 @@ export const MACHINE_MATERIALS = {
       roughness: 1,
       metalness: 1,
     }),
-    { grime: 0.05, dust: 0.24, edge: 0.16, grimeHeight: 2.2 }
+    {
+      grime: 0.05,
+      dust: 0.24,
+      edge: 0.16,
+      grimeHeight: 2.2,
+      // Same neutral silver and grass-free reflection as the skin: the rings
+      // mirrored the grass band as teal stripes. Bare metal, no patina or streaks.
+      galvanised: { patina: 0, spangleRoughness: 1, aureole: 0.1, drips: 0 },
+    }
   ),
 
   /** Painted structural legs. Final 0.35-0.85. */

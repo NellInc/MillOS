@@ -42,7 +42,7 @@ describe('galvanised silo skin (final-med-12: matte pale-cyan paint, no form sha
 
   it('keeps every other worn material on its own byte-identical, define-free program', () => {
     for (const [name, material] of Object.entries(MACHINE_MATERIALS)) {
-      if (name === 'silo') continue;
+      if (name === 'silo' || name === 'siloRoof') continue;
       const defines = (material as THREE.Material & { defines?: Record<string, unknown> }).defines;
       expect(defines?.MACHINE_GALVANISED, name).toBeUndefined();
     }
@@ -82,6 +82,23 @@ describe('galvanised silo skin (final-med-12: matte pale-cyan paint, no form sha
     expect(shader.uniforms.uMachineGalvGround).toBe(
       MACHINE_MATERIALS.silo.userData.machineGalvanisedGround
     );
+  });
+
+  it('gives the rings, roof and skirt the same neutral, grass-free reflection', () => {
+    // Final silos frame at 12:00: with the skin neutral, the stiffener rings
+    // (siloRoof, a full conductor at '#c2c9c7') still mirrored the grass band
+    // as teal stripes.
+    const trim = MACHINE_MATERIALS.siloRoof;
+    const c = trim.color;
+    expect(
+      (Math.max(c.r, c.g, c.b) - Math.min(c.r, c.g, c.b)) / Math.max(c.r, c.g, c.b)
+    ).toBeLessThan(0.02);
+    expect(trim.defines?.MACHINE_GALVANISED).toBe('');
+    const galv = trim.userData.machineGalvanised as { value: THREE.Vector4 };
+    // Trim stays bare metal: no patina, no streaks of its own.
+    expect(galv.value.x).toBe(0);
+    expect(galv.value.w).toBe(0);
+    expect(trim.userData.machineGalvanisedGround.value).toBe(1);
   });
 
   it('keeps the run-off sparse and irregular, not a smeared stripe texture', () => {
