@@ -1,4 +1,8 @@
-import { LOADING_PROP_FOOTPRINT } from '../props/LoadingProps';
+import {
+  LOADING_PROP_FOOTPRINT,
+  LOADING_PROP_HEIGHT,
+  palletStackHeight,
+} from '../props/LoadingProps';
 
 /**
  * WHAT A WORKING SHIPPING DOCK KEEPS ON ITS APRON, AND WHERE.
@@ -55,19 +59,29 @@ const ISLAND_X = (DOCK_PALLET_ISLAND.minX + DOCK_PALLET_ISLAND.maxX) / 2;
 const ISLAND_Z = (DOCK_PALLET_ISLAND.minZ + DOCK_PALLET_ISLAND.maxZ) / 2;
 const on = (dx: number, dz: number): readonly [number, number] => [ISLAND_X + dx, ISLAND_Z + dz];
 
-/** Props standing on the island slab (their y is the slab top). */
+/**
+ * Props standing on the island slab (their y is the slab top).
+ *
+ * Laid out against the graded cameras, not only in plan
+ * (`dockYardDressingLayout.test.ts`): the corner bollard, the spill bin and
+ * the jack used to stand on one line of sight from logistics-close, 0.1-0.5 m
+ * apart, and read as one prop clipping another. The pallet rows now keep a
+ * metre off the corner bollards, the jack stands square in the middle with its
+ * forks toward the loads it serves, and the bin sits at the front edge between
+ * the chocks and the jack's handle.
+ */
 export const DOCK_ISLAND_ITEMS: readonly DockDressingItem[] = [
-  { id: 'empties-tall', kind: 'palletStack', at: on(-2.2, -2.2), rotation: 0.04, count: 11 },
-  { id: 'empties-mid', kind: 'palletStack', at: on(-2.2, -0.6), rotation: -0.06, count: 7 },
-  { id: 'empties-short', kind: 'palletStack', at: on(-0.6, -2.2), rotation: 0.1, count: 4 },
-  { id: 'load-waiting-a', kind: 'load', at: on(1.1, -2.1), rotation: 0 },
-  { id: 'load-waiting-b', kind: 'load', at: on(2.5, -2.1), rotation: 0.03 },
-  { id: 'load-waiting-c', kind: 'load', at: on(2.5, -0.5), rotation: -0.02 },
-  { id: 'jack', kind: 'palletJack', at: on(0.9, 0.9), rotation: 0.55 },
+  { id: 'empties-tall', kind: 'palletStack', at: on(-1.8, -1.7), rotation: 0.04, count: 11 },
+  { id: 'empties-mid', kind: 'palletStack', at: on(-2.2, -0.4), rotation: -0.06, count: 7 },
+  { id: 'empties-short', kind: 'palletStack', at: on(-0.3, -2.2), rotation: 0.1, count: 4 },
+  { id: 'load-waiting-a', kind: 'load', at: on(1.2, -2.1), rotation: 0 },
+  { id: 'load-waiting-b', kind: 'load', at: on(2.5, -0.8), rotation: 0.03 },
+  { id: 'load-waiting-c', kind: 'load', at: on(2.5, 0.5), rotation: -0.02 },
+  { id: 'jack', kind: 'palletJack', at: on(0.5, 0.9), rotation: 0 },
   // Leaned on the 7-high stack: its foot 0.3 m out, its top against the stack.
-  { id: 'spare-board', kind: 'dockBoard', at: on(-2.2, 0.29), rotation: Math.PI },
+  { id: 'spare-board', kind: 'dockBoard', at: on(-2.2, 0.49), rotation: Math.PI },
   { id: 'spare-chocks', kind: 'wheelChocks', at: on(-2.4, 2.5), rotation: 0.2 },
-  { id: 'spill-kit', kind: 'spillKit', at: on(2.6, 2.5), rotation: -0.3 },
+  { id: 'spill-kit', kind: 'spillKit', at: on(-0.4, 2.6), rotation: -0.3 },
 ];
 
 /** Bollards at the island's four corners, on the kerb. */
@@ -159,6 +173,50 @@ export function dockDressingBounds(item: DockDressingItem): PlanRect {
     minZ: item.at[1] - ez,
     maxZ: item.at[1] + ez,
   };
+}
+
+/** A plan rect with the height band it occupies, world metres. */
+export interface DressingBox extends PlanRect {
+  readonly minY: number;
+  readonly maxY: number;
+}
+
+/** The island's corner bollards: post radius and top above the kerb. */
+export const DOCK_ISLAND_BOLLARD = { radius: 0.115, height: 1.16 } as const;
+
+/** Height of one dressing item's top above the surface it stands on. */
+export function dockDressingHeight(item: DockDressingItem): number {
+  return item.kind === 'palletStack'
+    ? palletStackHeight(item.count ?? 6)
+    : LOADING_PROP_HEIGHT[item.kind];
+}
+
+/**
+ * Every solid on the island as a world box: the props on the slab and the four
+ * corner bollards on the kerb. This is what the staging-bay no-overlap test
+ * projects through the graded cameras.
+ */
+export function dockIslandBoxes(
+  items: readonly DockDressingItem[] = DOCK_ISLAND_ITEMS
+): DressingBox[] {
+  const island = DOCK_PALLET_ISLAND;
+  const r = DOCK_ISLAND_BOLLARD.radius;
+  return [
+    ...items.map((item) => ({
+      ...dockDressingBounds(item),
+      minY: island.slabTop,
+      maxY: island.slabTop + dockDressingHeight(item),
+    })),
+    ...DOCK_ISLAND_BOLLARDS.map(([x, z], index) => ({
+      id: `bollard-${index}`,
+      minX: x - r,
+      maxX: x + r,
+      minZ: z - r,
+      maxZ: z + r,
+      minY: island.kerbHeight,
+      maxY: island.kerbHeight + DOCK_ISLAND_BOLLARD.height,
+    })),
+  ];
 }
 
 /** Everything solid this dressing puts on the yard, for vehicle-path checks. */
