@@ -5235,6 +5235,20 @@ export const ConveyorBridge: React.FC<{
   );
 };
 
+/**
+ * The two yard canopies over the dock approaches. Exported so the rain field
+ * can keep the ground under them dry (`Precipitation.tsx` RAIN_SHELTERS).
+ */
+export const LOADING_DOCK_CANOPIES = [
+  { position: [0, 0, 58], width: 20, depth: 5, rotation: 0 },
+  { position: [0, 0, -58], width: 20, depth: 5, rotation: Math.PI },
+] as const satisfies readonly {
+  position: readonly [number, number, number];
+  width: number;
+  depth: number;
+  rotation: number;
+}[];
+
 // Loading dock canopy for trucks
 export const LoadingDockCanopy: React.FC<{
   position: [number, number, number];
@@ -8932,11 +8946,16 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
 
       {/* ========== INDUSTRIAL STRUCTURES ========== */}
 
-      {/* Loading dock canopy - FRONT (shipping) */}
-      <LoadingDockCanopy position={[0, 0, 58]} width={20} depth={5} rotation={0} />
-
-      {/* Loading dock canopy - BACK (receiving) */}
-      <LoadingDockCanopy position={[0, 0, -58]} width={20} depth={5} rotation={Math.PI} />
+      {/* Loading dock canopies - FRONT (shipping) and BACK (receiving) */}
+      {LOADING_DOCK_CANOPIES.map((canopy) => (
+        <LoadingDockCanopy
+          key={canopy.position[2]}
+          position={[...canopy.position]}
+          width={canopy.width}
+          depth={canopy.depth}
+          rotation={canopy.rotation}
+        />
+      ))}
 
       {/* The elevator feeds the same five bins used by the production model. */}
       <GrainElevator position={[...SITE_LAYOUT.bulkStorage.elevator.position]} />

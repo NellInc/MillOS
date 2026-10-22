@@ -2064,6 +2064,15 @@ function DockLabel({ receiving }: { readonly receiving: boolean }) {
   );
 }
 
+/**
+ * The dock-face canopy roof, in the dock's local frame (+z outdoors). Exported
+ * so the rain field keeps the bay under it dry (`Precipitation.tsx`).
+ */
+export const DOCK_CANOPY_ROOF = {
+  position: [0, 7.65, 5.1],
+  scale: [12.2, 0.38, 9.8],
+} as const;
+
 function DockInfrastructure({
   z,
   receiving,
@@ -2125,8 +2134,8 @@ function DockInfrastructure({
       <mesh
         geometry={ROUNDED_BOX}
         material={MATERIALS.canopy}
-        position={[0, 7.65, 5.1]}
-        scale={[12.2, 0.38, 9.8]}
+        position={[...DOCK_CANOPY_ROOF.position]}
+        scale={[...DOCK_CANOPY_ROOF.scale]}
         castShadow
       />
       <mesh
