@@ -323,7 +323,7 @@ export const RIDGE_SNOW_STRENGTH = { value: 1 };
  * 150-300 m flattened that to one dark-green gradient over a third of the
  * village frame (final-med-12). A mill's hinterland is farmed: rotated parcels
  * of pasture and hay on the gentle ground, hedgerows on every boundary, a few
- * field trees, with the existing woodland kept on steep banks and crests.
+ * copses, with the existing woodland kept on steep banks and crests.
  * Linear albedo; `cell` and `hedgeMetres` are metres on the rest mesh.
  */
 export const RIDGE_FIELD_PROFILE = {
@@ -332,8 +332,22 @@ export const RIDGE_FIELD_PROFILE = {
   pasture: [0.08, 0.122, 0.048],
   hay: [0.122, 0.128, 0.058],
   woodland: [0.052, 0.078, 0.047],
-  treeCell: 15,
-  treeRadius: 1.9,
+  /**
+   * Farmed where the ground is gentle, by normal.y. Each of the 17 terrace rows
+   * carries a near-constant slope, so the former 0.82-0.93 gate flipped along
+   * whole rows: hard horizontal seams between the patchwork and plain wooded
+   * bands (village, final-med-12). A wide ramp broken by +/-`edgeBreak` of a
+   * 50 m field lets the wood edge wander across rows and fade into the fields.
+   */
+  slopeGate: [0.76, 0.95],
+  edgeBreak: 0.08,
+  /**
+   * Copses: irregular 15-40 m woods inside the farmland, in place of isolated
+   * 3.8 m field-tree discs. A flat dark disc on a slope seen at a grazing angle
+   * foreshortens into an ellipse that reads as a hole, about 12 of them per
+   * village frame. Thresholds on a 0-1 fbm.
+   */
+  copse: [0.66, 0.71],
 } as const;
 const glslVec3 = (value: readonly number[]) => `vec3(${value.map((v) => v.toFixed(3)).join(', ')})`;
 
@@ -489,25 +503,22 @@ void main() {
       ${RIDGE_FIELD_PROFILE.hedgeMetres.toFixed(2)} + edgeAa, edge))
       * min(1.0, ${RIDGE_FIELD_PROFILE.hedgeMetres.toFixed(2)} / edgeAa);
     float parcelUse = ridgeHash(fieldId + vec2(3.7, 11.1));
-    float farmed = smoothstep(0.82, 0.93, abs(normal.y)) * step(0.4, parcelUse);
+    // Farmed/wooded edge across the terrace rows (RIDGE_FIELD_PROFILE.slopeGate).
+    // The fbm's working range is about 0.3-0.7, so 2.5 normalises it to +/-1.
+    float woodEdge = (ridgeFbm(p.xz * 0.02 + vec2(6.1, 2.7)) - 0.5)
+      * ${(RIDGE_FIELD_PROFILE.edgeBreak * 2.5).toFixed(3)};
+    float copse = smoothstep(${RIDGE_FIELD_PROFILE.copse[0].toFixed(2)}, ${RIDGE_FIELD_PROFILE.copse[1].toFixed(2)},
+      ridgeFbm(p.xz * 0.026 + vec2(12.3, 4.9)));
+    float farmed = smoothstep(${RIDGE_FIELD_PROFILE.slopeGate[0].toFixed(2)}, ${RIDGE_FIELD_PROFILE.slopeGate[1].toFixed(2)},
+      abs(normal.y) + woodEdge) * (1.0 - copse) * step(0.4, parcelUse);
     vec3 crop = mix(${glslVec3(RIDGE_FIELD_PROFILE.pasture)}, ${glslVec3(RIDGE_FIELD_PROFILE.hay)},
       step(0.8, parcelUse) * (0.6 + 0.4 * ridgeHash(fieldId + vec2(9.2, 1.4))));
     crop *= 0.9 + stand * 0.14 + (ridgeHash(fieldId + vec2(5.5, 2.2)) - 0.5) * 0.16;
-    // Field trees: one candidate per cell, a dark crown where it is drawn.
-    vec2 treeQ = fieldQ / ${RIDGE_FIELD_PROFILE.treeCell.toFixed(1)};
-    vec2 treeId = floor(treeQ);
-    vec2 treeOffset = (vec2(ridgeHash(treeId + vec2(1.3, 7.9)),
-      ridgeHash(treeId + vec2(8.9, 2.1))) - 0.5) * 0.5;
-    float treeDistance = length(fract(treeQ) - 0.5 - treeOffset) * ${RIDGE_FIELD_PROFILE.treeCell.toFixed(1)};
-    float treeAa = max(fwidth(treeDistance), 0.05);
-    float fieldTree = step(0.86, ridgeHash(treeId + vec2(4.4, 6.6))) * (1.0 - smoothstep(
-      ${RIDGE_FIELD_PROFILE.treeRadius.toFixed(2)} - treeAa, ${RIDGE_FIELD_PROFILE.treeRadius.toFixed(2)} + treeAa, treeDistance))
-      * min(1.0, ${RIDGE_FIELD_PROFILE.treeRadius.toFixed(2)} / treeAa);
-    float openField = farmed * (1.0 - hedge) * (1.0 - fieldTree);
+    float openField = farmed * (1.0 - hedge);
     vec3 hedgerow = ${glslVec3(RIDGE_FIELD_PROFILE.woodland)} * (0.85 + needles * 0.2);
-    detailedAlbedo = mix(detailedAlbedo, hedgerow, farmed * max(hedge, fieldTree * 0.8));
+    detailedAlbedo = mix(detailedAlbedo, hedgerow, farmed * hedge);
     detailedAlbedo = mix(detailedAlbedo, crop, openField);
-    relief = mix(relief, 0.0, openField) + farmed * max(hedge, fieldTree) * 0.35 * uDetailStrength;
+    relief = mix(relief, 0.0, openField) + farmed * hedge * 0.35 * uDetailStrength;
   } else if (uWorldAnchored < 0.5 && uAlpineStrength > 0.5) {
     // Retain the true mineral vertex palette under deposited snow.
     // Subordinate isotropic mineral variation leaves the real peak-rooted
@@ -1259,7 +1270,7 @@ export function createRidgeMaterial(
     },
   });
   material.userData.clearAerial = aerial;
-  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v16';
+  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v17';
   return material;
 }
 

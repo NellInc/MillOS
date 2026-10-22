@@ -441,7 +441,7 @@ describe('solid fixed foothills', () => {
       expect(material.fragmentShader).toContain('gl_FragColor = vec4(lit, 1.0)');
       expect(material.fragmentShader).not.toContain('groundBlend');
       expect(material.fragmentShader).not.toContain('sampler');
-      expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v16');
+      expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v17');
       material.dispose();
     }
   });
@@ -758,11 +758,10 @@ describe('procedural moon at display size', () => {
 // mill's hinterland: hedged parcels of pasture and hay with field trees.
 const linearLuminance = ([r, g, b]: readonly number[]) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
 it('parcels the gentle foothill slopes into hedged fields brighter than the woodland', () => {
-  const { cell, hedgeMetres, pasture, hay, woodland, treeCell, treeRadius } = RIDGE_FIELD_PROFILE;
+  const { cell, hedgeMetres, pasture, hay, woodland } = RIDGE_FIELD_PROFILE;
   expect(cell[0]).toBeGreaterThanOrEqual(30);
   expect(cell[1]).toBeLessThanOrEqual(90);
   expect(hedgeMetres).toBeLessThan(Math.min(...cell) * 0.06);
-  expect(treeRadius * 2).toBeLessThan(treeCell * 0.5);
   expect(linearLuminance(pasture)).toBeGreaterThan(linearLuminance(woodland) * 1.5);
   expect(linearLuminance(hay)).toBeGreaterThan(linearLuminance(pasture) * 1.1);
   const near = createRidgeMaterial(0.1, 'near', true);
@@ -773,7 +772,7 @@ it('parcels the gentle foothill slopes into hedged fields brighter than the wood
   expect(branch).toContain(`vec2(${cell[0].toFixed(1)}, ${cell[1].toFixed(1)})`);
   expect(branch).toContain('hedge');
   expect(branch).toContain('fwidth(edge)');
-  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v16');
+  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v17');
   near.dispose();
 });
 
@@ -810,4 +809,28 @@ it('breaks the far range substrate across a wide noisy altitude band with varied
   expect(branch).toContain('float outcrop =');
   expect(branch).toContain('float scrub =');
   material.dispose();
+});
+
+// village (0,120)-(2560,640), final-med-12: the patchwork stopped at hard
+// horizontal seams against plain hill bands, and about 12 dark 40x15 px
+// ellipses sat inside the fields. Each of the 17 terrace rows carries a
+// near-constant slope, so a narrow normal.y gate (0.82-0.93) flipped along
+// whole rows. The ellipses were the field trees: a flat 3.8 m disc of hedge
+// tone on a slope seen at a grazing angle is a foreshortened hole, not a tree.
+it('breaks the farmed/wooded edge across terrace rows and draws no isolated field discs', () => {
+  const { slopeGate, edgeBreak, copse } = RIDGE_FIELD_PROFILE;
+  expect(slopeGate[1] - slopeGate[0]).toBeGreaterThanOrEqual(0.15);
+  expect(edgeBreak).toBeGreaterThanOrEqual(0.06);
+  expect(copse[0]).toBeLessThan(copse[1]);
+  expect('treeRadius' in RIDGE_FIELD_PROFILE).toBe(false);
+  const near = createRidgeMaterial(0.1, 'near-fields', true);
+  const branch = near.fragmentShader.slice(
+    near.fragmentShader.indexOf('if (uWorldAnchored > 0.5 && uWoodlandStrength > 0.5)'),
+    near.fragmentShader.indexOf('} else if (uWorldAnchored < 0.5 && uAlpineStrength > 0.5)')
+  );
+  expect(branch).not.toContain('smoothstep(0.82, 0.93, abs(normal.y))');
+  expect(branch).toContain('abs(normal.y) + woodEdge');
+  expect(branch).toContain('float copse =');
+  expect(branch).not.toContain('treeDistance');
+  near.dispose();
 });
