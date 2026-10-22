@@ -1,7 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { SILO_FLOOD, siloFloodFixtures, siloFloodPools, siloWashStrength } from './SiloFloodlights';
+import * as THREE from 'three';
+import {
+  SILO_FLOOD,
+  siloFloodFixtures,
+  siloFloodPools,
+  writeSiloFloodLight,
+} from './SiloFloodlights';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { getExteriorLampLevel } from './ExteriorLighting';
+import {
+  MACHINE_MATERIALS,
+  SILO_FLOOD_COLOR,
+  SILO_FLOOD_LIGHT,
+  siloFloodHeadIrradiance,
+  siloFloodIrradiance,
+} from '../machines/machineSurfaces';
 
 describe('silo battery floodlights', () => {
   it('stands two ground floods per bin on its open east and west sides', () => {
@@ -24,16 +37,125 @@ describe('silo battery floodlights', () => {
     }
   });
 
-  it('washes the shell only at night, strongest low and facing the flood', () => {
-    const night = getExteriorLampLevel(22, 'clear');
-    expect(siloWashStrength(getExteriorLampLevel(12, 'clear'), 12, 1)).toBe(0);
-    const low = siloWashStrength(night, SILO_FLOOD.washBase + 2, 1);
-    const high = siloWashStrength(night, SILO_FLOOD.washTop, 1);
-    const away = siloWashStrength(night, SILO_FLOOD.washBase + 2, -0.2);
-    expect(low).toBeGreaterThan(0.2);
-    expect(high).toBe(0);
-    expect(away).toBe(0);
-    expect(low).toBeLessThanOrEqual(SILO_FLOOD.peak);
+  it('publishes the lens positions the heads are built at, and only at night', () => {
+    const flood = writeSiloFloodLight(getExteriorLampLevel(22, 'clear')).clone();
+    const radius = SITE_LAYOUT.machineDimensions.silo[0] / 2;
+    const [x, , z] = SITE_LAYOUT.machines.silos[0].position;
+    for (const fixture of siloFloodFixtures().filter((f) => f.position[2] === z)) {
+      const lensX = fixture.position[0] + fixture.aim[0] * SILO_FLOOD.lensInset;
+      expect(Math.abs(lensX - x)).toBeCloseTo(flood.y, 6);
+    }
+    expect(flood.z).toBe(SILO_FLOOD.headY);
+    expect(flood.w).toBeCloseTo(flood.y - radius, 6);
+    expect(flood.x).toBeGreaterThan(0.5);
+    expect(writeSiloFloodLight(getExteriorLampLevel(12, 'clear')).x).toBe(0);
+    expect(SILO_FLOOD_LIGHT.value.x).toBe(0);
+  });
+});
+
+/** Run a material's injection over three's real standard shader source. */
+function compile(material: THREE.Material) {
+  const shader = {
+    uniforms: THREE.UniformsUtils.clone(THREE.ShaderLib.standard.uniforms),
+    vertexShader: THREE.ShaderLib.standard.vertexShader,
+    fragmentShader: THREE.ShaderLib.physical.fragmentShader,
+  };
+  material.onBeforeCompile(
+    shader as unknown as THREE.WebGLProgramParametersWithUniforms,
+    null as unknown as THREE.WebGLRenderer
+  );
+  return shader;
+}
+
+describe('silo floods on the drum (final3-med-1830/22: hard line at the seam, black skirt)', () => {
+  const radius = SITE_LAYOUT.machineDimensions.silo[0] / 2;
+  const [binX, , binZ] = SITE_LAYOUT.machines.silos[2].position;
+  const axis = [binX, binZ] as const;
+  const night = () => writeSiloFloodLight(getExteriorLampLevel(22, 'clear')).clone();
+  /** Up the line of wall facing the +X head. */
+  const facing = (flood: THREE.Vector4, y: number) =>
+    siloFloodIrradiance([binX + radius, y, binZ], [1, 0, 0], axis, flood);
+
+  it('lights the skirt and the shaft continuously from the fixture to the eave', () => {
+    const flood = night();
+    const samples: number[] = [];
+    for (let y = 0.4; y <= 30; y += 0.01) samples.push(facing(flood, y));
+    const peak = Math.max(...samples);
+    expect(peak).toBeGreaterThan(0);
+    // The skirt (0-5 m) stood black under its own floods: now it carries them.
+    expect(facing(flood, 2)).toBeGreaterThan(0.6 * peak);
+    expect(facing(flood, 4.5)).toBeGreaterThan(0.5 * peak);
+    // No step anywhere, including the skirt seam at 5 m and the old wash's
+    // hard top: at most 2% of the peak between 1 cm samples.
+    let step = 0;
+    for (let i = 1; i < samples.length; i++)
+      step = Math.max(step, Math.abs(samples[i] - samples[i - 1]));
+    expect(step).toBeLessThan(0.02 * peak);
+    // Falls away up the drum once past the head's rise, yet still reaches the eave.
+    const top = samples.indexOf(peak);
+    for (let i = top + 1; i < samples.length; i++)
+      expect(samples[i]).toBeLessThanOrEqual(samples[i - 1] + 1e-9);
+    expect(facing(flood, 29.5)).toBeGreaterThan(0.1 * peak);
+    expect(facing(flood, 29.5)).toBeLessThan(0.4 * peak);
+  });
+
+  it('is a point source: inverse-square along a ray, cosine at the surface', () => {
+    const flood = night();
+    const head = [binX + flood.y, flood.z, binZ];
+    const lit = (point: number[], normal: number[]) =>
+      siloFloodHeadIrradiance(
+        point as [number, number, number],
+        normal as [number, number, number],
+        axis,
+        1,
+        flood
+      );
+    const toward = (point: number[]) => {
+      const d = head.map((h, i) => h - point[i]);
+      const l = Math.hypot(...d);
+      return d.map((v) => v / l);
+    };
+    const near = [binX + radius, 9, binZ + 1];
+    const far = head.map((h, i) => h + 2 * (near[i] - h));
+    const r2 = (p: number[]) => p.reduce((sum, v, i) => sum + (v - head[i]) ** 2, 0);
+    expect(lit(far, toward(far)) * r2(far)).toBeCloseTo(lit(near, toward(near)) * r2(near), 6);
+    // Tilting the receiving surface 60 degrees off the light halves it.
+    const n = toward(near);
+    const side = [n[2], 0, -n[0]].map((v) => v / Math.hypot(n[2], n[0]));
+    const tilted = n.map((v, i) => v * 0.5 + side[i] * Math.sqrt(0.75));
+    expect(lit(near, tilted)).toBeCloseTo(lit(near, n) * 0.5, 6);
+  });
+
+  it('wraps round the drum only onto the faces a head can see', () => {
+    const flood = night();
+    const around = (degrees: number, y = 10) => {
+      const a = THREE.MathUtils.degToRad(degrees);
+      const normal = [Math.cos(a), 0, Math.sin(a)] as const;
+      return siloFloodIrradiance(
+        [binX + radius * normal[0], y, binZ + radius * normal[2]],
+        normal,
+        axis,
+        flood
+      );
+    };
+    expect(around(0)).toBeGreaterThan(around(30));
+    expect(around(30)).toBeGreaterThan(around(60));
+    // Facing the neighbouring bin, 1 m away: no head stands there.
+    expect(around(90)).toBe(0);
+    // The far side takes the other head, symmetrically.
+    expect(around(180)).toBeCloseTo(around(0), 6);
+  });
+
+  it('lights every galvanised part of the battery through its own BRDF', () => {
+    for (const name of ['silo', 'siloSkirt', 'siloRoof'] as const) {
+      const shader = compile(MACHINE_MATERIALS[name]);
+      expect(shader.uniforms.uMachineFlood, name).toBe(SILO_FLOOD_LIGHT);
+      expect(shader.uniforms.uMachineFloodColor, name).toBe(SILO_FLOOD_COLOR);
+      const fragment = shader.fragmentShader;
+      expect(fragment.indexOf('RE_Direct( galvFlood'), name).toBeGreaterThan(
+        fragment.indexOf('#include <lights_fragment_end>')
+      );
+    }
   });
 });
 

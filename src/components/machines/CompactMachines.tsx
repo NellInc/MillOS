@@ -97,6 +97,9 @@ const SILO_BODY = new THREE.CylinderGeometry(1, 1, 1, 16);
  * shell, so its silhouette is never seen.
  */
 function createSiloShellGeometry(): THREE.LatheGeometry {
+  // Mirrored by SILO_SHELL_PROFILE (machineSurfaces), which shades these waves
+  // analytically; kept literal because refine-silo-geometry.mjs evaluates this
+  // function on its own.
   const RIDGES = 40;
   const STEPS_PER_RIDGE = 4;
   const RIDGE_DEPTH = 0.004;
@@ -1947,7 +1950,7 @@ function CompactMachineSet({
       <InteractiveInstances
         meshRef={siloOutletRef}
         geometry={SILO_OUTLET}
-        material={MATERIALS.siloRoof}
+        material={MATERIALS.siloSkirt}
         count={subsets.silos.length}
         machines={subsets.silos}
         onSelect={onSelect}
