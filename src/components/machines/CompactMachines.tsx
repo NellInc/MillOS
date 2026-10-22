@@ -47,6 +47,8 @@ import {
   machineInstanceTint,
   setMachineScreenGlow,
   createPackerPrintMaterial,
+  SILO_RING_HEIGHTS,
+  SILO_SHELL_SPAN,
 } from './machineSurfaces';
 import {
   MACHINE_DECAL_GEOMETRY,
@@ -957,8 +959,8 @@ function CompactMachineSet({
         siloBodyRef.current,
         index,
         object,
-        [x, y + 8.75, z],
-        [2.25, 12.5, 2.25],
+        [x, y + SILO_SHELL_SPAN.centreY, z],
+        [2.25, SILO_SHELL_SPAN.height, 2.25],
         undefined,
         siloFrame
       );
@@ -984,7 +986,8 @@ function CompactMachineSet({
         undefined,
         siloFrame
       );
-      [5.25, 9.1, 12.95].forEach((ringY, ringIndex) => {
+      // The galvanised skin's run-off streaks start under these (machineSurfaces).
+      SILO_RING_HEIGHTS.forEach((ringY, ringIndex) => {
         setInstanceMatrix(
           siloRingRef.current,
           index * 3 + ringIndex,
