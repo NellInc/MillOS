@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { HALL_DUST_MATERIAL, buildHallSackMatrices, createDustMask } from './HallDressing';
+import {
+  HALL_DUST_MATERIAL,
+  HALL_DUST_RENDER_ORDER,
+  buildHallSackMatrices,
+  createDustMask,
+} from './HallDressing';
+import { RENDER_ORDER } from '../../constants/renderLayers';
 import { HALL_PALLET_PILES, HALL_SACK_STACKS, hallDressingSolids } from './hallDressingLayout';
 import { LOADED_PALLET_HEIGHT, LOADING_PROP_FOOTPRINT } from '../props/LoadingProps';
 import { getFlourSackGeometry } from '../../utils/flourSacks';
@@ -64,5 +70,42 @@ describe('hall dressing render', () => {
         [31, k],
       ])
         expect(mask[(y * 32 + x) * 4 + 1], `${x},${y}`).toBeLessThan(40);
+  });
+
+  it('breaks the dust edge into drift and streaks, not an oval falloff', () => {
+    const size = 128;
+    const mask = createDustMask(size);
+    // Walk the band where an oval falloff would be a smooth grey ring.
+    const ring: number[] = [];
+    for (let y = 0; y < size; y += 1)
+      for (let x = 0; x < size; x += 1) {
+        const r = Math.hypot((x + 0.5) / size - 0.5, (y + 0.5) / size - 0.5) * 2;
+        if (r > 0.55 && r < 0.8) ring.push(mask[(y * size + x) * 4 + 1]);
+      }
+    const bare = ring.filter((v) => v < 10).length / ring.length;
+    const dense = ring.filter((v) => v > 140).length / ring.length;
+    // Both bare floor and dense drift in the same band: ragged, not graded.
+    expect(bare).toBeGreaterThan(0.2);
+    expect(dense).toBeGreaterThan(0.12);
+    // And the transition is short: few pixels sit in the soft middle.
+    const soft = ring.filter((v) => v >= 40 && v <= 110).length / ring.length;
+    expect(soft).toBeLessThan(0.3);
+  });
+
+  it('shades the dust as matter under the hall lights, never as light', () => {
+    const material = HALL_DUST_MATERIAL;
+    expect(material.emissive.getHex()).toBe(0);
+    expect(material.toneMapped).toBe(true);
+    expect(material.blending).toBe(THREE.NormalBlending);
+    expect(material.map).toBeNull();
+    // Flour on concrete: at full cover it may lift the slab's albedo, never
+    // approach white (linear luminance of the blend at full coverage).
+    const c = material.color;
+    const luminance = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+    expect(luminance).toBeLessThan(0.5);
+    expect(luminance * material.opacity).toBeLessThan(0.33);
+    // Drawn before the additive floor light pools, so a pool lights dust and
+    // slab alike instead of being hidden under one and stacked on the other.
+    expect(HALL_DUST_RENDER_ORDER).toBeLessThan(RENDER_ORDER.floorEffects);
   });
 });

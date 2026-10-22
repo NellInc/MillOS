@@ -673,25 +673,41 @@ const fbm = (x: number, y: number) => {
   return value / 0.96875;
 };
 
+const smoothstep = (edge0: number, edge1: number, x: number) => {
+  const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+};
+
 /**
- * The dust's coverage mask: a ragged, thickening-toward-the-middle drift with
- * streaks. Written to R, G and B because three reads `alphaMap.g`; a mask in R
- * alone would multiply the decal's alpha by zero.
+ * The dust's coverage mask: settled flour, not a glow. A domain-warped core is
+ * cut by drift streaks (stretched noise along one direction, the way air
+ * carries flour off a machine) and by cloudy break-up, then thresholded over a
+ * short span, so the edge is ragged drift and bare floor rather than an oval
+ * that fades. Fine grain inside keeps the cover from reading as a flat sheet.
+ * Written to R, G and B because three reads `alphaMap.g`; a mask in R alone
+ * would multiply the decal's alpha by zero.
  */
 export function createDustMask(size = DUST_TEXTURE_SIZE): Uint8Array {
   const data = new Uint8Array(size * size * 4);
+  const driftX = 0.8;
+  const driftZ = 0.6;
   for (let y = 0; y < size; y += 1) {
     for (let x = 0; x < size; x += 1) {
       const u = (x + 0.5) / size - 0.5;
       const v = (y + 0.5) / size - 0.5;
-      const ragged = Math.hypot(u, v) * 2 * (0.8 + 0.5 * (fbm(u * 4 + 7, v * 4 + 3) - 0.5));
-      const edge = 1 - Math.min(1, Math.max(0, (ragged - 0.5) / 0.45));
-      const falloff = edge * edge * (3 - 2 * edge);
-      const body = 0.6 + 0.4 * fbm(u * 9 + 1.3, v * 9 + 8.1);
-      const streak = 0.85 + 0.15 * Math.sin((u * 0.6 + v) * 40 + fbm(u * 6, v * 6) * 6);
+      const wu = u + 0.16 * (fbm(u * 3 + 5.2, v * 3 + 1.7) - 0.5);
+      const wv = v + 0.16 * (fbm(u * 3 + 9.4, v * 3 + 3.3) - 0.5);
+      const core = 1 - smoothstep(0.2, 1, Math.hypot(wu, wv) * 2);
+      const along = wu * driftX + wv * driftZ;
+      const across = -wu * driftZ + wv * driftX;
+      const streak = fbm(along * 2.5 + 3.1, across * 16 + 7.7);
+      const cloud = fbm(wu * 7 + 2.2, wv * 7 + 4.4);
+      const field = core * 0.9 + (streak - 0.5) * 0.9 + (cloud - 0.5) * 0.6;
+      const cover = smoothstep(0.32, 0.46, field);
+      const grain = 0.6 + 0.4 * fbm(u * 24 + 0.7, v * 24 + 6.1);
       // Whatever the noise does, the quad's own edge is never drawn.
       const border = Math.min(1, (0.5 - Math.max(Math.abs(u), Math.abs(v))) / 0.12);
-      const value = Math.round(255 * Math.min(1, falloff * body * streak * 1.25 * border));
+      const value = Math.round(255 * Math.min(1, cover * grain * border));
       const i = (y * size + x) * 4;
       data[i] = value;
       data[i + 1] = value;
@@ -709,20 +725,32 @@ const DUST_MASK = (() => {
   return texture;
 })();
 
-/** Settled flour: lit (it darkens with the slab at night), never written to depth. */
+/**
+ * Settled flour: lit matter (it darkens with the slab at night), never written
+ * to depth. A film of flour on concrete, not flour in a sack: at full cover it
+ * lifts the pad's ~0.27 linear albedo by about a third, so a patch in shade
+ * stays darker than the sunlit slab beside it and never reads as a light pool.
+ */
 export const HALL_DUST_MATERIAL = new THREE.MeshStandardMaterial({
   name: 'hall-flour-dust',
-  color: '#f1ece0',
+  color: '#b3ad9f',
   roughness: 0.95,
   metalness: 0,
   alphaMap: DUST_MASK,
   transparent: true,
-  opacity: 0.8,
+  opacity: 0.62,
   depthWrite: false,
   polygonOffset: true,
   polygonOffsetFactor: POLYGON_OFFSET.standard.factor,
   polygonOffsetUnits: POLYGON_OFFSET.standard.units,
 });
+
+/**
+ * Before the interior rig's additive floor light pools (`floorEffects`), which
+ * share the decal's height: a pool then adds its light over dust and slab
+ * alike, instead of the sort order deciding per frame which one it brightens.
+ */
+export const HALL_DUST_RENDER_ORDER = RENDER_ORDER.floorDeposits;
 
 const FLAT_PLANE = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
 
@@ -752,7 +780,7 @@ const HallDust: React.FC = () => {
       name="hall-flour-dust"
       args={[FLAT_PLANE, HALL_DUST_MATERIAL, matrices.length]}
       matrixAutoUpdate={false}
-      renderOrder={RENDER_ORDER.floorEffects}
+      renderOrder={HALL_DUST_RENDER_ORDER}
       receiveShadow
     />
   );

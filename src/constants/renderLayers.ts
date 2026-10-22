@@ -243,6 +243,9 @@ export const RENDER_ORDER = {
    */
   vehicleGlass: 3,
 
+  /** Lit deposits on the floor (settled flour), drawn under the additive light pools */
+  floorDeposits: 4,
+
   /** Floor transient effects (puddles, tracks, ripples) */
   floorEffects: 5,
 
