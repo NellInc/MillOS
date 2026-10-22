@@ -214,6 +214,7 @@ describe('hall dressing: a working flour-mill floor', () => {
   });
 
   it('keeps off every walking circuit in the mill', () => {
+    const hits: string[] = [];
     for (const person of COMMUNITY_ROSTER.filter(({ district }) => district === 'mill')) {
       const points = person.stops.map((stop) => stop.position);
       for (let i = 0; i < points.length; i += 1) {
@@ -224,13 +225,12 @@ describe('hall dressing: a working flour-mill floor', () => {
           const x = a[0] + ((b[0] - a[0]) * s) / steps;
           const z = a[2] + ((b[2] - a[2]) * s) / steps;
           for (const item of footprints)
-            expect(
-              meetsXZ(item, { minX: x, maxX: x, minZ: z, maxZ: z }, 0.6),
-              `${person.id} at (${x.toFixed(1)}, ${z.toFixed(1)}) / ${item.id}`
-            ).toBe(false);
+            if (meetsXZ(item, { minX: x, maxX: x, minZ: z, maxZ: z }, 0.6))
+              hits.push(`${person.id} at (${x.toFixed(1)}, ${z.toFixed(1)}) / ${item.id}`);
         }
       }
     }
+    expect(hits).toEqual([]);
   });
 
   it('clears the machines, belts, docks, packing cell, gallery steel, rails and each other', () => {
@@ -256,16 +256,15 @@ describe('hall dressing: a working flour-mill floor', () => {
   });
 
   it('keeps clear of the spouting and its pipe supports', () => {
+    const hits = new Set<string>();
     const pipes = buildSpoutRoutes(canonicalMachines());
     for (const route of pipes) {
       const steps = Math.ceil(route.length / 0.1);
       for (let s = 0; s <= steps; s += 1) {
         const p = route.curve.getPointAt(s / steps);
         for (const item of solids)
-          expect(
-            pointToBox(p, item),
-            `${route.fromMachineId}->${route.toMachineId} / ${item.id}`
-          ).toBeGreaterThan(SPOUT_PIPE_RADIUS + 0.05);
+          if (pointToBox(p, item) <= SPOUT_PIPE_RADIUS + 0.05)
+            hits.add(`${route.fromMachineId}->${route.toMachineId} / ${item.id}`);
       }
     }
     const segments = [...PIPE_SUPPORT_SEGMENTS.beams, ...PIPE_SUPPORT_SEGMENTS.braces];
@@ -273,7 +272,8 @@ describe('hall dressing: a working flour-mill floor', () => {
       for (let s = 0; s <= 40; s += 1) {
         const p = new THREE.Vector3(...start).lerp(new THREE.Vector3(...end), s / 40);
         for (const item of solids)
-          expect(pointToBox(p, item), `pipe support / ${item.id}`).toBeGreaterThan(0.12);
+          if (pointToBox(p, item) <= 0.12) hits.add(`pipe support / ${item.id}`);
       }
+    expect([...hits]).toEqual([]);
   });
 });

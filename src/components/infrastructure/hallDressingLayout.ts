@@ -1,4 +1,4 @@
-import type { Vec3Tuple } from '../../constants/siteLayout';
+import { PROCESS_GALLERY_POST_X, SITE_LAYOUT, type Vec3Tuple } from '../../constants/siteLayout';
 
 /**
  * THE WORKING FLOOR OF THE HALL.
@@ -107,13 +107,185 @@ export interface HallDustPatch {
   readonly rotation: number;
 }
 
-export const HALL_SACK_STACKS: readonly HallSackStack[] = [];
-export const HALL_PALLET_PILES: readonly HallPalletPile[] = [];
-export const HALL_PROPS: readonly HallProp[] = [];
-export const HALL_HOSES: readonly HallHose[] = [];
-export const HALL_CABLE_TRAYS: readonly HallCableTray[] = [];
-export const HALL_CONDUIT_DROPS: readonly HallConduitDrop[] = [];
-export const HALL_DUST: readonly HallDustPatch[] = [];
+const PT = PROCESS_PAD_TOP;
+const HOSE_RADIUS = 0.022;
+
+/**
+ * Bagged stock staged in the open band between the packing line and the sifter
+ * gallery (z -4.6 to 14.4 is clear of the packing circuits at z -5.2/-6.4 and
+ * of the gallery's posts and sifter hangers at z 15.2/16.8): a west bay of six
+ * pallets in two rows, some still being built, and three more east, both well
+ * inside the painted forklift aisles at x +/-31.
+ */
+export const HALL_SACK_STACKS: readonly HallSackStack[] = [
+  { id: 'sacks-west-1', x: -19, z: 9.4, rotation: 0, baseY: 0, courses: 6 },
+  { id: 'sacks-west-2', x: -17.5, z: 9.4, rotation: 0, baseY: 0, courses: 6 },
+  { id: 'sacks-west-3', x: -16, z: 9.4, rotation: 0, baseY: 0, courses: 5 },
+  { id: 'sacks-west-4', x: -19, z: 10.8, rotation: 0, baseY: 0, courses: 6 },
+  { id: 'sacks-west-5', x: -17.5, z: 10.8, rotation: 0, baseY: 0, courses: 4 },
+  { id: 'sacks-west-6', x: -16, z: 10.8, rotation: 0, baseY: 0, courses: 2 },
+  { id: 'sacks-east-1', x: 21.5, z: 9.4, rotation: 0, baseY: 0, courses: 6 },
+  { id: 'sacks-east-2', x: 23, z: 9.4, rotation: 0, baseY: 0, courses: 6 },
+  { id: 'sacks-east-3', x: 21.5, z: 10.8, rotation: 0, baseY: 0, courses: 3 },
+];
+
+/** Empty pallets waiting beside each bay. */
+export const HALL_PALLET_PILES: readonly HallPalletPile[] = [
+  { id: 'pallets-west', x: -14.4, z: 9.4, rotation: 0, baseY: 0, count: 6 },
+  { id: 'pallets-east', x: 24.6, z: 9.4, rotation: 0, baseY: 0, count: 4 },
+];
+
+/**
+ * Carts, reels, the spill kit and the spare-roll cradle stand on the milling
+ * pad in the gaps between the mills (south of the operators' stops at z 33.5);
+ * the parts rack and one cart stand under the sifter gallery between the
+ * hangers of sifters A and B, facing the mills.
+ */
+export const HALL_PROPS: readonly HallProp[] = [
+  { id: 'pallet-jack-west', kind: 'palletJack', x: -14.4, z: 11.3, rotation: 0, baseY: 0 },
+  { id: 'cart-rm101', kind: 'cart', x: -19.6, z: 27.45, rotation: 0, baseY: PT },
+  { id: 'cart-rm102', kind: 'cart', x: -5, z: 27.45, rotation: 0, baseY: PT },
+  { id: 'cart-rm104', kind: 'cart', x: 21.2, z: 27.7, rotation: Math.PI / 2, baseY: PT },
+  { id: 'cart-gallery', kind: 'cart', x: -6.4, z: 21.9, rotation: Math.PI, baseY: 0 },
+  { id: 'parts-rack', kind: 'partsRack', x: -7, z: 23.55, rotation: 0, baseY: 0 },
+  { id: 'roll-cradle', kind: 'rollCradle', x: 11, z: 31.8, rotation: 0, baseY: PT },
+  { id: 'hose-reel-rm101', kind: 'hoseReel', x: -21.2, z: 32.3, rotation: 0, baseY: PT },
+  { id: 'hose-reel-rm103', kind: 'hoseReel', x: 7.4, z: 27.3, rotation: Math.PI, baseY: PT },
+  { id: 'spill-kit-milling', kind: 'spillKit', x: -1.2, z: 32.2, rotation: 0, baseY: PT },
+];
+
+const onPad = (points: readonly (readonly [number, number])[]): Vec3Tuple[] =>
+  points.map(([x, z]) => [x, PT + HOSE_RADIUS, z]);
+
+/** Air hoses paid out across the pad toward the mill they were last used on. */
+export const HALL_HOSES: readonly HallHose[] = [
+  {
+    id: 'hose-rm101',
+    reel: 'hose-reel-rm101',
+    radius: HOSE_RADIUS,
+    points: onPad([
+      [-21.2, 32.06],
+      [-19.8, 31.3],
+      [-18.2, 32.1],
+      [-16.4, 31.4],
+      [-14.6, 30.5],
+      [-13, 30.3],
+      [-12.25, 30.6],
+    ]),
+  },
+  {
+    id: 'hose-rm103',
+    reel: 'hose-reel-rm103',
+    radius: HOSE_RADIUS,
+    points: onPad([
+      [7.4, 27.54],
+      [8.3, 28.1],
+      [9.6, 27.7],
+      [10.6, 28.4],
+      [9.4, 29.3],
+      [7.6, 29.6],
+      [6.3, 29.9],
+    ]),
+  },
+];
+
+/** North face of the gallery's north post row (shafts 0.36 m deep about z 24.8). */
+const GALLERY_NORTH_POST_FACE = SITE_LAYOUT.factory.zones.sifting + 4.8 + 0.18;
+
+/**
+ * Power to the milling floor: a ladder tray bracketed off the gallery's north
+ * posts at 4.2 m, below the pipe-support beams (7.2 m) and the lift rack (5 m),
+ * and a conduit down each post to a local isolator at hand height.
+ */
+export const HALL_CABLE_TRAYS: readonly HallCableTray[] = [
+  {
+    id: 'cable-tray-milling',
+    fromX: -21,
+    toX: 21,
+    z: GALLERY_NORTH_POST_FACE + 0.42,
+    y: 4.2,
+    width: 0.45,
+    railHeight: 0.1,
+    bracketX: PROCESS_GALLERY_POST_X,
+    postFaceZ: GALLERY_NORTH_POST_FACE,
+  },
+];
+
+export const HALL_CONDUIT_DROPS: readonly HallConduitDrop[] = PROCESS_GALLERY_POST_X.map((x) => ({
+  id: `conduit-post-${x}`,
+  x,
+  z: GALLERY_NORTH_POST_FACE + 0.025,
+  radius: 0.025,
+  bottomY: 1.75,
+  topY: 4.1,
+  isolator: { width: 0.3, height: 0.4, depth: 0.16 },
+}));
+
+const millDust = SITE_LAYOUT.machines.rollerMills.map(
+  ({ id, position: [x, , z] }, i): HallDustPatch => ({
+    id: `dust-${id}`,
+    source: id,
+    x,
+    z,
+    baseY: PT,
+    width: 5,
+    depth: 4.2,
+    rotation: i % 2 ? Math.PI : 0,
+  })
+);
+/** Under each plansifter, where its sieve-frame seals weep onto the floor. */
+const sifterDust = SITE_LAYOUT.machines.sifters.map(
+  ({ id, position: [x, , z] }, i): HallDustPatch => ({
+    id: `dust-${id}`,
+    source: id,
+    x,
+    z,
+    baseY: 0,
+    width: 4.6,
+    depth: 4.6,
+    rotation: i % 2 ? Math.PI / 2 : 0,
+  })
+);
+/** In front of each packer's spout, short of the quality and packer stops at z -8.8. */
+const packerDust = SITE_LAYOUT.machines.packers.map(
+  ({ id, position: [x, , z] }, i): HallDustPatch => ({
+    id: `dust-${id}`,
+    source: id,
+    x,
+    z: z + 0.1,
+    baseY: PT,
+    width: 4,
+    depth: 4.2,
+    rotation: i % 2 ? Math.PI : 0,
+  })
+);
+
+export const HALL_DUST: readonly HallDustPatch[] = [
+  ...millDust,
+  ...sifterDust,
+  ...packerDust,
+  // Spill where sacks are handled.
+  {
+    id: 'spill-sacks-west',
+    source: 'sacks-west-4',
+    x: -17.6,
+    z: 12,
+    baseY: 0,
+    width: 1.6,
+    depth: 1,
+    rotation: 0.3,
+  },
+  {
+    id: 'spill-sacks-east',
+    source: 'sacks-east-3',
+    x: 22.3,
+    z: 12,
+    baseY: 0,
+    width: 1.2,
+    depth: 0.9,
+    rotation: -0.4,
+  },
+];
 
 /** World-space box of one solid piece of dressing. */
 export interface HallSolid {
