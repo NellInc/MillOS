@@ -81,8 +81,20 @@ function band(source: THREE.Texture, repeatX: number, repeatY: number): THREE.Te
  * the linear working space, so this multiply is exactly a linear-space scale
  * and there is no hand-converted hex in this file to get wrong.
  */
+/**
+ * Lowest linear luminance a painted dock member may compensate down to. The
+ * (1 - m)^0.75 rebalance took '#475569' at m 0.8 to 0.026 - coal - and the
+ * posts' hall-side faces, lit by fill alone, crushed to black beside the
+ * forklift and milling cameras (final-med-12). Dark painted steel is ~0.07.
+ */
+export const DOCK_PAINT_MIN_LUMINANCE = 0.07;
+
 function repaint(hex: string, previousMetalness: number): THREE.Color {
-  return new THREE.Color(hex).multiplyScalar(Math.pow(1 - previousMetalness, 0.75));
+  const color = new THREE.Color(hex).multiplyScalar(Math.pow(1 - previousMetalness, 0.75));
+  const luminance = 0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b;
+  return luminance < DOCK_PAINT_MIN_LUMINANCE
+    ? color.multiplyScalar(DOCK_PAINT_MIN_LUMINANCE / luminance)
+    : color;
 }
 
 // TEXEL DENSITY BANDS. Each states the member it is cut for, in metres, so the
@@ -194,6 +206,9 @@ const MATERIALS = {
     'signage'
   ),
 } as const;
+
+/** The frame's painted members, for the albedo floor test. */
+export const DOCK_FRAME_MATERIALS: Readonly<Record<string, THREE.Material>> = MATERIALS;
 
 /**
  * Where the dock label board sits, in the opening's local +Z (outdoors).

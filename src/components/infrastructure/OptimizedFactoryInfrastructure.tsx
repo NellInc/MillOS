@@ -409,7 +409,9 @@ const MATERIALS = {
    */
   steel: new THREE.MeshStandardMaterial({
     name: 'factory-structure',
-    color: '#344a52',
+    // '#344a52' (linear luminance 0.062) crushed the near columns to black
+    // under fill alone (interior, final-med-12). Half a stop up, same hue.
+    color: '#3e5763',
     roughnessMap: band(STRUCTURAL_ORM, 1, 10),
     roughness: 1,
     metalness: 0,
