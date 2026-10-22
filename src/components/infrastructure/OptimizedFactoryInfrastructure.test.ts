@@ -783,6 +783,27 @@ describe('aisle safety barriers', () => {
     );
     expect(source).toMatch(/instances=\{rails\}\s+material=\{MATERIALS\.safetyBarrier\}/);
   });
+
+  it('keep their scuffing at the narrow forklift camera and break into precast sections', async () => {
+    // final-med-12 still read them as flat constant planks: milling's 900 px
+    // foreground run, and forklift's 650 px board at 34 m, where the 28-degree
+    // camera resolves the 0.35 m scuffing at 30 px but the masonry meso had
+    // faded by distance (gone at 45 m, 70% gone at 34 m). Nor did one long box
+    // per run carry any section-to-section variation.
+    const module = await import('./OptimizedFactoryInfrastructure');
+    const uniforms = (module.SAFETY_BARRIER_MATERIAL as THREE.MeshStandardMaterial).userData
+      .millosWorldSurface as {
+      uSurfDetail: { value: THREE.Vector4 };
+      uSurfSlab: { value: THREE.Vector4 };
+      uSurfSpan: { value: THREE.Vector4 };
+    };
+    expect(uniforms.uSurfDetail.value.w).toBeGreaterThanOrEqual(80);
+    expect(uniforms.uSurfSlab.value.x).toBeGreaterThanOrEqual(1.5);
+    expect(uniforms.uSurfSlab.value.x).toBeLessThanOrEqual(3.5);
+    expect(uniforms.uSurfSlab.value.z).toBeGreaterThanOrEqual(0.1);
+    // Sections count from each run's own centre.
+    expect(uniforms.uSurfSpan.value.w).toBe(1);
+  });
 });
 
 describe('roof deck liner', () => {

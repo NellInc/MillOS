@@ -796,10 +796,20 @@ const SHELL_SURFACES: readonly [
     {
       grime: 0.5,
       edge: 0.35,
-      meso: 0.32,
       macro: 0.22,
       bareColor: '#9d9a92',
       indoorBounce: 0.85,
+      // Still a flat plank in final-med-12: the forklift camera (28 degrees)
+      // sees the run at 34 m, where the masonry meso had faded by distance
+      // although its 0.35 m period spans 30 px. Fade it out past 90 m instead,
+      // and break each run into 2.4 m precast sections, each with its own
+      // paint tone and a joint across the top, counted from the run's centre.
+      meso: 0.38,
+      mesoFadeMetres: 90,
+      objectSpace: 1,
+      slabPitch: 2.4,
+      slabJoint: 0.6,
+      slabTone: 0.12,
     },
   ],
   [MATERIALS.gallery, 'metal', { datum: GALLERY_DECK_TOP }],
