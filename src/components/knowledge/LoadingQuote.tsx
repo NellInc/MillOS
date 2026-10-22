@@ -50,8 +50,12 @@ export function LoadingQuote({
     return null;
   }
 
+  // initial={false}: the first quote mounts with the slow-load recovery
+  // controls, so a fade-in would be what that state is read and scanned at
+  // (0.46 opacity measured 3.57:1). It appears at its resting colours; only
+  // rotations crossfade.
   return (
-    <AnimatePresence mode="wait">
+    <AnimatePresence mode="wait" initial={false}>
       <motion.div
         key={quote.text}
         initial={{ opacity: 0, y: 10 }}
