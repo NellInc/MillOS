@@ -374,10 +374,28 @@ export const RIDGE_ALPINE_PROFILE = {
   substrateRamp: [0.0, 0.55],
   substrateBreak: 0.6,
   outcrop: [0.5, 0.74],
+  /**
+   * Shaded conifer gully to lit meadow spur. The former 0.046-0.104 pair (1.6x
+   * luminance) came through the far ring's 0.32 aerial mix as about 1.1x, so
+   * the lower band read as one blue-grey slab (overview, final-med-12); this
+   * span keeps about 1.27x after the haze.
+   */
   lowland: [
-    [0.046, 0.072, 0.044],
-    [0.104, 0.116, 0.07],
+    [0.028, 0.046, 0.03],
+    [0.13, 0.145, 0.085],
   ],
+  /**
+   * Weathered outcrop rock. The outcrops used to take `vRidgeColor`, whose
+   * low-row value is the '#42574c' forest green, so they were a no-op exactly
+   * on the band that needed them.
+   */
+  outcropAlbedo: [0.16, 0.165, 0.15],
+  /**
+   * Fall-line spurs and gullies on the lower band, metres of relief across a
+   * ~25 m cell: enough for faces to turn to and from the sun at 400 m, where
+   * the metre-scale vein relief is unresolved.
+   */
+  spurMetres: 3.5,
 } as const;
 
 const ridgeFragmentShader = `
@@ -552,8 +570,15 @@ void main() {
     // two fields to roughly +/-1 snow unit before the metre scale.
     float snowBreak = ((ridgeFbm(p.xz * 0.012 + vec2(3.3, 8.1)) - 0.5) * 3.2 + (veins - 0.5) * 1.0)
       * ${(RIDGE_ALPINE_PROFILE.snowBreakMetres / 12).toFixed(3)};
+    // Fall-line spurs and gullies: stretched five to one down the slope, on
+    // the same two vertical projections as the veins. Conifers keep to the
+    // gullies, meadow and scrub to the spurs. Working if the overview's lower
+    // band shows lit ribs and dark runnels under the haze instead of a slab.
+    float spur = mix(ridgeNoise(vec2((p.x + drift) * 0.04, p.y * 0.008)),
+      ridgeNoise(vec2((p.z + drift) * 0.04, p.y * 0.008)), faceWeight);
     vec3 vegetation = mix(${glslVec3(RIDGE_ALPINE_PROFILE.lowland[0])},
-      ${glslVec3(RIDGE_ALPINE_PROFILE.lowland[1])}, smoothstep(0.32, 0.74, scrub))
+      ${glslVec3(RIDGE_ALPINE_PROFILE.lowland[1])},
+      smoothstep(0.3, 0.74, scrub * 0.55 + spur * 0.45))
       * (0.9 + ridgeNoise(p.xz * 0.07) * 0.2);
     vec3 mineral = vRidgeColor * mix(${RIDGE_ALPINE_PROFILE.mineralShade[0].toFixed(2)},
       ${RIDGE_ALPINE_PROFILE.mineralShade[1].toFixed(2)}, 0.42 + veins * 0.28 + strata * 0.18)
@@ -561,11 +586,13 @@ void main() {
     float outcrop = smoothstep(${RIDGE_ALPINE_PROFILE.outcrop[0].toFixed(2)},
       ${RIDGE_ALPINE_PROFILE.outcrop[1].toFixed(2)}, veins + (scree - 0.5) * 0.3)
       * (1.0 - smoothstep(0.78, 0.95, normal.y)) * 0.85;
-    detailedAlbedo = mix(vegetation, mineral,
-      max(max(rock, outcrop), smoothstep(${RIDGE_ALPINE_PROFILE.substrateRamp[0].toFixed(2)},
-        ${RIDGE_ALPINE_PROFILE.substrateRamp[1].toFixed(2)},
-        snowAltitude + snowBreak + (veins - 0.5) * ${RIDGE_ALPINE_PROFILE.substrateBreak.toFixed(2)}
-        + (scrub - 0.5) * 0.3)));
+    float substrate = smoothstep(${RIDGE_ALPINE_PROFILE.substrateRamp[0].toFixed(2)},
+      ${RIDGE_ALPINE_PROFILE.substrateRamp[1].toFixed(2)},
+      snowAltitude + snowBreak + (veins - 0.5) * ${RIDGE_ALPINE_PROFILE.substrateBreak.toFixed(2)}
+      + (scrub - 0.5) * 0.3);
+    vec3 lowSlope = mix(vegetation, ${glslVec3(RIDGE_ALPINE_PROFILE.outcropAlbedo)}
+      * (0.88 + scree * 0.24), outcrop);
+    detailedAlbedo = mix(lowSlope, mineral, max(rock, substrate));
     float snowPotential = smoothstep(0.35, 0.65,
       snowAltitude + snowBreak) * uSnowStrength;
     float shoulder = smoothstep(0.35, 0.72, max(0.0, normal.y));
@@ -581,7 +608,8 @@ void main() {
       0.55 + veins * 0.22);
     detailedAlbedo = mix(detailedAlbedo, settledSnow, snow);
     relief = (veins * ${RIDGE_ALPINE_PROFILE.reliefMetres.toFixed(2)}
-      + strata * 0.08 + scree * 0.025 * fineVisibility)
+      + strata * 0.08 + scree * 0.025 * fineVisibility
+      + (spur - 0.5) * ${RIDGE_ALPINE_PROFILE.spurMetres.toFixed(2)} * (1.0 - max(rock, substrate)))
       * uDetailStrength * (1.0 - snow * 0.85);
   } else {
     // Retain the far range's geology/snow exactly. The private woodland control
@@ -1270,7 +1298,7 @@ export function createRidgeMaterial(
     },
   });
   material.userData.clearAerial = aerial;
-  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v17';
+  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v18';
   return material;
 }
 

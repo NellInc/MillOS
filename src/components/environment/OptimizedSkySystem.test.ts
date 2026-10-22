@@ -441,7 +441,7 @@ describe('solid fixed foothills', () => {
       expect(material.fragmentShader).toContain('gl_FragColor = vec4(lit, 1.0)');
       expect(material.fragmentShader).not.toContain('groundBlend');
       expect(material.fragmentShader).not.toContain('sampler');
-      expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v17');
+      expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v18');
       material.dispose();
     }
   });
@@ -648,7 +648,7 @@ it('gives actual steep snowy faces a mineral substrate while retaining snow pote
     .split('} else if (uWorldAnchored < 0.5')[1]
     .split('} else {')[0];
   expect(branch).toContain('vec3 mineral = vRidgeColor * mix(');
-  expect(branch).toContain('max(max(rock, outcrop), smoothstep(');
+  expect(branch).toContain('mix(lowSlope, mineral, max(rock, substrate))');
   expect(branch).toContain('smoothstep(0.35, 0.72, max(0.0, normal.y))');
   expect(branch).toContain('snowPotential * max(accumulation, summit)');
   expect(branch).toContain('max(length(dFdx(p)), length(dFdy(p)))');
@@ -772,7 +772,7 @@ it('parcels the gentle foothill slopes into hedged fields brighter than the wood
   expect(branch).toContain(`vec2(${cell[0].toFixed(1)}, ${cell[1].toFixed(1)})`);
   expect(branch).toContain('hedge');
   expect(branch).toContain('fwidth(edge)');
-  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v17');
+  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v18');
   near.dispose();
 });
 
@@ -834,3 +834,36 @@ it('breaks the farmed/wooded edge across terrace rows and draws no isolated fiel
   expect(branch).not.toContain('treeDistance');
   near.dispose();
 });
+
+// overview (0,320)-(720,445), final-med-12: the far range's lower slopes stay
+// one hazy blue-grey band. Two inputs were inert at that range: the lowland
+// pair (1.6x luminance) survives the far ring's 0.32 aerial mix as about 1.1x,
+// and the outcrops took `vRidgeColor`, whose low-row value ('#42574c' times the
+// facet tint) is the vegetation's own green. The band needs albedo contrast
+// that survives the haze and relief that turns faces to and from the sun.
+it('gives the far lower slopes contrast that survives the aerial mix and real outcrop rock', () => {
+  const { lowland, outcropAlbedo, spurMetres } = RIDGE_ALPINE_PROFILE;
+  const inscatter = new THREE.Color('#b9dce7');
+  const hazed = (albedo: readonly number[]) =>
+    linearLuminance(albedo) * 0.68 +
+    linearLuminance([inscatter.r, inscatter.g, inscatter.b]) * 0.32;
+  expect(hazed(lowland[1]) / hazed(lowland[0])).toBeGreaterThan(1.22);
+  const lowRow = new THREE.Color(FAR_MOUNTAIN_SPEC.colors[0]);
+  expect(linearLuminance(outcropAlbedo)).toBeGreaterThan(
+    linearLuminance([lowRow.r, lowRow.g, lowRow.b]) * 1.6
+  );
+  expect(spurMetres).toBeGreaterThanOrEqual(2);
+  expect(spurMetres).toBeLessThanOrEqual(6);
+  const material = createRidgeMaterial(0.32, 'alpine-spurs');
+  const branch = material.fragmentShader
+    .split('} else if (uWorldAnchored < 0.5')[1]
+    .split('} else {')[0];
+  expect(branch).toContain('float spur =');
+  expect(branch).toContain(`mix(vegetation, ${glslVec3Literal(outcropAlbedo)}`);
+  expect(branch).toContain('(spur - 0.5) *');
+  material.dispose();
+});
+
+function glslVec3Literal(value: readonly number[]): string {
+  return `vec3(${value.map((v) => v.toFixed(3)).join(', ')})`;
+}
