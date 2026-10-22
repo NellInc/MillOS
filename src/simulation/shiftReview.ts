@@ -263,7 +263,8 @@ export function describeShiftGap(
   const gap = shiftGradeGap(basis, grade);
   if (!gap) return null;
   const t = createTranslator(shiftReviewMessages, locale);
-  // A bare letter reads as a word ("C needs ..."); name it as the grade.
+  // A bare letter reads as a word ("C needs ..."); name it as the grade. The
+  // label is copy only: bars and allowances are looked up by `gap.next`.
   const next = t('gradeLabel', { grade: gap.next });
   switch (gap.binding) {
     case 'quality':
@@ -277,7 +278,8 @@ export function describeShiftGap(
         countText: formatFixed(basis.lateDeliveries, 0, locale),
       });
     case 'risks': {
-      const allowed = ISSUES_ALLOWED[next as 'A' | 'B' | 'C'];
+      // failsFor returns 'risks' only for an A, B or C target.
+      const allowed = ISSUES_ALLOWED[gap.next as 'A' | 'B' | 'C'];
       return t('gapRisks', {
         next,
         allowed,
@@ -292,7 +294,7 @@ export function describeShiftGap(
     case 'kg':
       return t('gapKg', {
         next,
-        target: kgText(next === 'A' ? basis.kgForA : basis.kgForB, locale),
+        target: kgText(gap.next === 'A' ? basis.kgForA : basis.kgForB, locale),
         duration: formatShiftDuration(basis.commitmentMinutes, locale),
         short: kgText(gap.shortKg, locale),
       });

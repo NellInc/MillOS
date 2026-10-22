@@ -263,6 +263,43 @@ describe('the review says why and what to try next (row 23)', () => {
     );
   });
 
+  it('states the open-risk allowance and kilogram bar of the next grade, not of its label', () => {
+    const [manifest, batch] = partialManifest('shipping-0001', 1000);
+    tick(1, { manifests: [manifest], productionBatches: [batch] });
+    tick(1, { shiftKey: 'day-0-afternoon' });
+    const basis = {
+      ...lastReport().gradeBasis!,
+      risks: ['Wheat low', 'Order due', 'Packer jam'],
+      lateDeliveries: 0,
+      unsafeTitles: [],
+      qualityFailureKg: 0,
+      margin: 100,
+    };
+    // Three open risks hold the shift at D; C allows two. This threw in the
+    // play-test once the grade letter became a translated label.
+    expect(describeShiftGap(basis, 'D', 'en')).toBe(
+      'Grade C needs at most 2 open risks when the shift closes; you carried 3: Wheat low; Order due; Packer jam.'
+    );
+    expect(describeShiftGap(basis, 'D', 'pt-BR')).toBe(
+      'Nota C exige no máximo 2 riscos abertos quando o turno fecha; você levou 3: Wheat low; Order due; Packer jam.'
+    );
+    expect(describeShiftGap({ ...basis, risks: ['Wheat low'] }, 'B', 'en')).toBe(
+      'Grade A needs no open risks when the shift closes; you carried 1: Wheat low.'
+    );
+    // A B short of the A bar names the A bar.
+    const shortOfA = {
+      ...basis,
+      risks: [],
+      kgForA: 2000,
+      kgForB: 900,
+      dispatchedKg: 1000,
+      commitmentMinutes: 120,
+    };
+    expect(describeShiftGap(shortOfA, 'B', 'en')).toBe(
+      'Grade A needs 2,000 kg for 2h 0m on commitments; you were 1,000 kg short.'
+    );
+  });
+
   it('groups money in the review in both languages', () => {
     const [manifest, batch] = partialManifest('shipping-0001', 1000);
     tick(1, { manifests: [manifest], productionBatches: [batch] });

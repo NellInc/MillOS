@@ -58,7 +58,7 @@ export function OnboardingGuide({
   return (
     <section
       aria-label={t('regionLabel', { step: stepIndex + 1, count: stepCount })}
-      className="pointer-events-auto fixed bottom-[11.5rem] left-3 right-3 z-40 max-h-[calc(100dvh-20rem)] overflow-y-auto overscroll-contain rounded-xl border border-cyan-400/40 bg-slate-950/95 p-4 shadow-2xl shadow-black/40 backdrop-blur-md sm:left-5 sm:right-auto sm:w-[360px]"
+      className="pointer-events-auto fixed bottom-[11.5rem] left-3 right-3 z-40 max-h-[calc(100dvh-20rem)] overflow-y-auto overscroll-contain rounded-xl border border-cyan-400/40 bg-slate-950/95 p-4 shadow-2xl shadow-black/40 backdrop-blur-md sm:left-5 sm:right-auto sm:w-[360px] [@media(min-width:640px)_and_(max-height:500px)]:left-auto [@media(min-width:640px)_and_(max-height:500px)]:right-5 [@media(min-width:640px)_and_(max-height:500px)]:bottom-28 [@media(min-width:640px)_and_(max-height:500px)]:max-h-[calc(100dvh-11rem)]"
     >
       {/* First thing a visitor reads, so the language choice sits above the fold. */}
       <div className="mb-2 flex justify-end">

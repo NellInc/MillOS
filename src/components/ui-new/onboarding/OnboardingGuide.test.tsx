@@ -29,6 +29,15 @@ describe('OnboardingGuide', () => {
       'overflow-y-auto',
       'overscroll-contain'
     );
+    // A landscape phone (844x390) left 100dvh-20rem = 70 px: the step text and
+    // language buttons sat under the card's own sticky footer. Short, wide
+    // screens use the guided-delivery card's placement (PlayableShift JOURNEY_FRAME).
+    expect(guide).toHaveClass(
+      '[@media(min-width:640px)_and_(max-height:500px)]:left-auto',
+      '[@media(min-width:640px)_and_(max-height:500px)]:right-5',
+      '[@media(min-width:640px)_and_(max-height:500px)]:bottom-28',
+      '[@media(min-width:640px)_and_(max-height:500px)]:max-h-[calc(100dvh-11rem)]'
+    );
     expect(screen.getByRole('button', { name: 'Back' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled();
     const cameraHelp = screen.getByText('Camera controls').closest('details');
