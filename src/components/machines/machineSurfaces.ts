@@ -623,7 +623,10 @@ export const MACHINE_MATERIALS = {
       dust: 0.05,
       edge: 0.1,
       grimeHeight: 3.2,
-      galvanised: { patina: 0.6, spangleRoughness: 0.68, aureole: 0.07, drips: 1 },
+      // Tuned on one page load (silos-tune): patina 0.6 -> 0.8 and aureole 0.07 -> 0.1
+      // took the near drum from 9 to 10.5 sRGB levels sun side to shade side;
+      // streaks at 0.55 read as faint run-off rather than rain stripes.
+      galvanised: { patina: 0.8, spangleRoughness: 0.68, aureole: 0.1, drips: 0.55 },
     }
   ),
 
