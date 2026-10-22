@@ -1,6 +1,10 @@
 import { PalletStaging } from './truckbay/PalletStaging';
 import { DockYardDressing } from './truckbay/DockYardDressing';
-import { PARKED_TRAILER_HALF, TRAILER_DROP_YARD } from './truckbay/dockYardDressingLayout';
+import {
+  PARKED_TRAILER_HALF,
+  TRAILER_DROP_YARD,
+  TRUCK_STAGING_LETTERING,
+} from './truckbay/dockYardDressingLayout';
 import { YardWearMarks } from './truckbay/YardWearMarks';
 import { paintLineMask, paintLineQuad, THIN_PAINT_LIMIT } from './truckbay/paintLine';
 import { GeneratedGeometrySurface } from './models/GeneratedGeometrySurface';
@@ -3600,16 +3604,22 @@ export const TruckBay: React.FC = () => {
         {/* Painted on the yard, so it takes the yard's overlay datum. At the
             literal 0.05 it was UNDER the tarmac slab at 0.08 and had never
             been visible in any capture; it is 1 cm of clean separation now. */}
+        {/* Down the strip west of the trucks' loop, clear of every wheel
+            line and the pallet island (TRUCK_STAGING_LETTERING). */}
         <Text
           surface="painted"
-          position={[0, EXTERIOR_LAYERS.groundOverlay, 40]}
-          rotation={[-Math.PI / 2, 0, 0]}
-          fontSize={2}
+          position={[
+            TRUCK_STAGING_LETTERING.x,
+            EXTERIOR_LAYERS.groundOverlay,
+            TRUCK_STAGING_LETTERING.z - SHIPPING_YARD_ORIGIN_Z,
+          ]}
+          rotation={[-Math.PI / 2, 0, Math.PI / 2]}
+          fontSize={TRUCK_STAGING_LETTERING.fontSize}
           color="#475569"
           anchorX="center"
           anchorY="middle"
         >
-          TRUCK STAGING
+          {TRUCK_STAGING_LETTERING.text}
         </Text>
 
         {/* The road tunnel the trucks disappear into is SITE_LAYOUT.roadTunnels.south,
@@ -3995,16 +4005,21 @@ export const TruckBay: React.FC = () => {
         {/* Painted on the yard, so it takes the yard's overlay datum. At the
             literal 0.05 it was UNDER the tarmac slab at 0.08 and had never
             been visible in any capture; it is 1 cm of clean separation now. */}
+        {/* The shipping legend turned half a revolution about the site origin. */}
         <Text
           surface="painted"
-          position={[0, EXTERIOR_LAYERS.groundOverlay, -40]}
-          rotation={[-Math.PI / 2, 0, Math.PI]}
-          fontSize={2}
+          position={[
+            -TRUCK_STAGING_LETTERING.x,
+            EXTERIOR_LAYERS.groundOverlay,
+            -(TRUCK_STAGING_LETTERING.z - SHIPPING_YARD_ORIGIN_Z),
+          ]}
+          rotation={[-Math.PI / 2, 0, -Math.PI / 2]}
+          fontSize={TRUCK_STAGING_LETTERING.fontSize}
           color="#475569"
           anchorX="center"
           anchorY="middle"
         >
-          TRUCK STAGING
+          {TRUCK_STAGING_LETTERING.text}
         </Text>
 
         {/* Road tunnel: SITE_LAYOUT.roadTunnels.north, mounted in FactoryExterior. */}

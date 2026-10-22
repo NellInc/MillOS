@@ -78,6 +78,49 @@ export const DOCK_ISLAND_BOLLARDS: readonly (readonly [number, number])[] = [
   [DOCK_PALLET_ISLAND.maxX - 0.3, DOCK_PALLET_ISLAND.maxZ - 0.3],
 ];
 
+/**
+ * The painted TRUCK STAGING legend on the shipping yard, world metres (the
+ * receiving yard's is this turned half a revolution about the site origin).
+ *
+ * It lay across the yard at (0, 90), 2 m letters reading along x: under the
+ * back-in lane's heaviest tyre tracks (`yardWear.ts`) and its east end on the
+ * pallet island's corner (shipping med-06, med-rain). The strip west of the
+ * trucks' loop, between it and the x -18 lane line, carries no wheel and no
+ * dressing, so the legend now reads down that strip toward the dock.
+ * `along` is the axis the words run along.
+ */
+export const TRUCK_STAGING_LETTERING = {
+  text: 'TRUCK STAGING',
+  x: -14,
+  z: 84,
+  fontSize: 1.6,
+  along: 'z',
+} as const;
+
+/**
+ * A conservative plan box for a single line of capitals: 0.7 em per character
+ * (Roboto's widest capital here, N, is 0.71 em; the line averages 0.59) and
+ * one em across the line.
+ */
+export function paintedLegendBounds(legend: {
+  readonly text: string;
+  readonly x: number;
+  readonly z: number;
+  readonly fontSize: number;
+  readonly along: 'x' | 'z';
+}): Omit<PlanRect, 'id'> {
+  const half = (legend.text.length * 0.7 * legend.fontSize) / 2;
+  const across = legend.fontSize / 2;
+  const hx = legend.along === 'x' ? half : across;
+  const hz = legend.along === 'x' ? across : half;
+  return {
+    minX: legend.x - hx,
+    maxX: legend.x + hx,
+    minZ: legend.z - hz,
+    maxZ: legend.z + hz,
+  };
+}
+
 /** Props standing on the apron itself, east of the inbound lane. */
 export const DOCK_APRON_ITEMS: readonly DockDressingItem[] = [
   { id: 'lane-load-a', kind: 'load', at: [24.2, 81.4], rotation: Math.PI / 2 },

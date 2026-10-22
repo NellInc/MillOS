@@ -1,6 +1,8 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { protectedEgressApproaches, stagingBounds } from '../../simulation/layoutPlanning';
 import { STAGING_LAYOUT } from './palletStagingLayout';
+import { buildYardWearLayout, YARD_WEAR_PAVING } from './yardWear';
 import {
   DOCK_APRON_ITEMS,
   DOCK_ISLAND_BOLLARDS,
@@ -8,8 +10,10 @@ import {
   DOCK_PALLET_ISLAND,
   PARKED_TRAILER_HALF,
   TRAILER_DROP_YARD,
+  TRUCK_STAGING_LETTERING,
   dockDressingBounds,
   dockDressingFootprints,
+  paintedLegendBounds,
   type PlanRect,
 } from './dockYardDressingLayout';
 
@@ -61,6 +65,67 @@ describe('shipping dock yard dressing', () => {
       for (const approach of approaches)
         expect(meets(rect, approach), `${rect.id} on ${approach.id}`).toBe(false);
     }
+  });
+});
+
+describe('TRUCK STAGING legend', () => {
+  const legend = paintedLegendBounds(TRUCK_STAGING_LETTERING);
+  const wear = buildYardWearLayout('shipping');
+
+  it('stands on the yard paving, clear of the lane lines and the yard perimeter kit', () => {
+    expect(legend.minX).toBeGreaterThan(YARD_WEAR_PAVING.minX + 2);
+    expect(legend.maxX).toBeLessThan(YARD_WEAR_PAVING.maxX - 2);
+    expect(legend.minZ).toBeGreaterThan(YARD_WEAR_PAVING.minZ + 2);
+    expect(legend.maxZ).toBeLessThan(YARD_WEAR_PAVING.maxZ - 2);
+    // Lane stripes (0.15 x 4 m) at x +/-18, every 10 m from the dock line.
+    for (const x of [-18, 18])
+      for (let z = 50; z <= 90; z += 10)
+        expect(
+          meets(legend, { minX: x - 0.6, maxX: x + 0.6, minZ: z - 2.5, maxZ: z + 2.5 }),
+          `lane stripe ${x}, ${z}`
+        ).toBe(false);
+  });
+
+  it('keeps clear of the pallet island and every piece of yard dressing', () => {
+    for (const rect of dockDressingFootprints())
+      expect(
+        meets(legend, {
+          minX: rect.minX - 1,
+          maxX: rect.maxX + 1,
+          minZ: rect.minZ - 1,
+          maxZ: rect.maxZ + 1,
+        }),
+        rect.id
+      ).toBe(false);
+  });
+
+  it('lies where no tyre track or oil stain is laid', () => {
+    for (const track of wear.tracks)
+      for (const sample of track.samples) {
+        if (sample.weight < 0.01) continue;
+        const r = track.width / 2 + 0.5;
+        const inside =
+          sample.x > legend.minX - r &&
+          sample.x < legend.maxX + r &&
+          sample.z > legend.minZ - r &&
+          sample.z < legend.maxZ + r;
+        expect(inside, `${track.id} at (${sample.x}, ${sample.z})`).toBe(false);
+      }
+    for (const stain of wear.stains) {
+      const r = stain.radius * stain.stretch + 0.5;
+      const inside =
+        stain.x > legend.minX - r &&
+        stain.x < legend.maxX + r &&
+        stain.z > legend.minZ - r &&
+        stain.z < legend.maxZ + r;
+      expect(inside, `oil at (${stain.x}, ${stain.z})`).toBe(false);
+    }
+  });
+
+  it('is what TruckBay paints, at both yards', () => {
+    const source = readFileSync('src/components/TruckBay.tsx', 'utf8');
+    expect(source.match(/TRUCK_STAGING_LETTERING\.text/g)).toHaveLength(2);
+    expect(source).not.toMatch(/>\s*TRUCK STAGING\s*</);
   });
 });
 
