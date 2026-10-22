@@ -221,9 +221,38 @@ at load 12-44 per core and pass 182/182 re-run with long timeouts (cacheIdentity
 perimeterKerbLayout, workerPose). The hall merge then passed tsc, eslint, prettier, depth, shaders
 and its affected tests.
 
+## Final confirmation on `8da16e0d` (labels `final3-*`)
+
+- Build, reachability pass; seven art conditions captured; baseline retries all captured.
+- **Runtime batch:** axe 0 violations (both loading-cover states); startup world-ready 4.1 s,
+  startup-ready 8.3 s, 2 request waves, progress monotonic, no console/page errors; z-fight probe
+  0.02-0.06% depth-flip pixels per scene; phone (844x390 and 390x844, EN and pt), footer, focus,
+  reduced motion, arrival, repair, SCADA, in-app motion and e2e all pass.
+- **Found, a real bug (pre-existing, surfaced by the R.M. 101 wear seed):** in both 46-hour
+  unattended play-tests R.M. 101 goes critical at hour 5.8 and shipping stops for 24 game hours on
+  all four lanes. Grain stranded in the broken mill's input buffer counts as committed to the order
+  (`committedFor`/`finishedYield` in `materialFlowStore.ts` ignore `isProcessing`), and silos keep
+  feeding the dead mill, so `feedBudgetKg` reaches 0 for every silo lane. Fix wave `fix-feed`.
+- **Blind A/B vs `d0a188f0`** (keys in `scratch/ab-keys-final3/`): final wins 86 of 87 comparable
+  scenes: med-12 10/10, low-12 13/13, med-06 13/13, med-19 12/13 (baseline won village: faceted
+  tinted triangles on the dark hillside), med-22 13/13, med-rain 12/12 (the baseline did not render
+  rain at all), med-1830 13/13.
+- **Rubric judge med-12:** FAIL, no blockers, 7/6/7/6/6/7 (was 6/6/7/6/6/7). Fixed or improved:
+  nameplates, silos as galvanised, truck, cyan fill, hall dressing. Unchanged: glazing, roof deck,
+  beacon cone, edge aliasing, field ovals and hill seam.
+
+## Round 4 (six waves on `a35d5b7e`, brief `scratch/r4-brief.md`)
+
+silo (smeared corrugation, floodlight cut-off at the skirt, flat skirt ring); shell (glazing from
+outside, roof deck and purlins, door thresholds, cyan band, dock door leaf, rain inside the hall);
+floor (flour at dusk and night, flat barrier and partition, packing dead zone and panels, beacon
+cone, pipe scale); yardtank (beam across signs, staging-bay clipping, dressing on painted lettering,
+translucent wrap and blank panel, tank steel and saddles, dark stair core); land (village faceting
+at 19:00, blotches and hill seam, fog edges in rain, hedge across the pond path, flat pond, Low
+windmill sails); aa (Medium AA, Low aliasing at source). Plus `fix-feed`.
+
 ## What remains
 
-Final pipeline on `8da16e0d` under the lock: build, reachability, seven art conditions
-(`final3-*`), runtime batch, then the baseline retries (low-12, med-19, med-22, 18:30). Then both
-judges. Not done: a performance benchmark on a quiet machine (the ground wave's crop adds
+Merge round 4 and the feed fix; whole gate; recapture all conditions; blind A/B and rubric again;
+runtime batch with the long play-test. Not done: a performance benchmark on a quiet machine (the ground wave's crop adds
 ~319k triangles; the hall dressing will add more); the castle (a dressing call left to Nell).
