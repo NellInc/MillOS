@@ -792,7 +792,7 @@ export const FACTORY_ENVELOPE_SPEC = {
 
 const FACTORY_SIDE_COLUMN_Z = [-30, -10, 10, 30] as const;
 
-interface BoxInstance {
+export interface BoxInstance {
   readonly position: readonly [number, number, number];
   readonly scale: readonly [number, number, number];
   readonly rotation?: readonly [number, number, number];
@@ -1911,16 +1911,18 @@ export function buildSafetyStations(): BoxInstance[] {
   ];
 }
 
+/** The four aisle upstands flanking the milling and packing pads. */
+export function buildSafetyRails(): BoxInstance[] {
+  return [
+    { position: [-28, 0.55, SITE_LAYOUT.factory.zones.packing], scale: [0.18, 1.1, 9] },
+    { position: [24, 0.55, SITE_LAYOUT.factory.zones.packing], scale: [0.18, 1.1, 9] },
+    { position: [-30, 0.55, SITE_LAYOUT.factory.zones.milling + 1], scale: [0.18, 1.1, 11] },
+    { position: [23, 0.55, SITE_LAYOUT.factory.zones.milling + 1], scale: [0.18, 1.1, 11] },
+  ];
+}
+
 function SafetyFurniture() {
-  const rails = useMemo<readonly BoxInstance[]>(
-    () => [
-      { position: [-28, 0.55, SITE_LAYOUT.factory.zones.packing], scale: [0.18, 1.1, 9] },
-      { position: [24, 0.55, SITE_LAYOUT.factory.zones.packing], scale: [0.18, 1.1, 9] },
-      { position: [-30, 0.55, SITE_LAYOUT.factory.zones.milling + 1], scale: [0.18, 1.1, 11] },
-      { position: [23, 0.55, SITE_LAYOUT.factory.zones.milling + 1], scale: [0.18, 1.1, 11] },
-    ],
-    []
-  );
+  const rails = useMemo(buildSafetyRails, []);
   const stations = useMemo(buildSafetyStations, []);
 
   return (
@@ -1936,6 +1938,22 @@ function SafetyFurniture() {
   );
 }
 
+/** The silo, milling and packing pads: raised concrete the process machines stand on. */
+export function buildProcessPads(): BoxInstance[] {
+  return [
+    {
+      position: [
+        SITE_LAYOUT.bulkStorage.siloPad.position[0],
+        0.08,
+        SITE_LAYOUT.factory.zones.silos,
+      ],
+      scale: SITE_LAYOUT.bulkStorage.siloPad.size,
+    },
+    { position: [-3, 0.08, SITE_LAYOUT.factory.zones.milling], scale: [53, 0.16, 7] },
+    { position: [0, 0.08, SITE_LAYOUT.factory.zones.packing], scale: [26, 0.16, 9] },
+  ];
+}
+
 function FloorWayfinding() {
   const walkways = useMemo<readonly BoxInstance[]>(
     () => [
@@ -1946,21 +1964,7 @@ function FloorWayfinding() {
     ],
     []
   );
-  const plinths = useMemo<readonly BoxInstance[]>(
-    () => [
-      {
-        position: [
-          SITE_LAYOUT.bulkStorage.siloPad.position[0],
-          0.08,
-          SITE_LAYOUT.factory.zones.silos,
-        ],
-        scale: SITE_LAYOUT.bulkStorage.siloPad.size,
-      },
-      { position: [-3, 0.08, SITE_LAYOUT.factory.zones.milling], scale: [53, 0.16, 7] },
-      { position: [0, 0.08, SITE_LAYOUT.factory.zones.packing], scale: [26, 0.16, 9] },
-    ],
-    []
-  );
+  const plinths = useMemo(buildProcessPads, []);
 
   return (
     <>
