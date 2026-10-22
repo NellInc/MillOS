@@ -295,6 +295,13 @@ float machineGalvNoise( vec3 p ) {
     f.z
   );
 }
+// One ring's run-off in one column: live in ~38% of columns, a random length.
+float machineGalvRun( float datum, float ring, float column, float y ) {
+  float below = datum - y;
+  float seed = machineGalvHash( vec3( column, ring * 7.0, 3.0 ) );
+  float runLength = mix( 0.025, 0.11, fract( seed * 13.7 ) );
+  return step( 0.62, seed ) * smoothstep( 0.0, 0.006, below ) * exp( - max( below, 0.0 ) / runLength );
+}
 #endif
 `;
 
@@ -332,14 +339,17 @@ float galvColumns = ( atan( vMachineObject.z, vMachineObject.x ) / 6.28318530718
 float galvColumn = floor( galvColumns );
 float galvAcross = fract( galvColumns );
 float galvStreak = smoothstep( 0.0, 0.4, galvAcross ) * ( 1.0 - smoothstep( 0.6, 1.0, galvAcross ) );
-float galvDrip = 0.0;
-for ( int galvRing = 0; galvRing < 4; galvRing ++ ) {
-  float galvBelow = uMachineRings[ galvRing ] - vMachineObject.y;
-  float galvSeed = machineGalvHash( vec3( galvColumn, float( galvRing ) * 7.0, 3.0 ) );
-  float galvLength = mix( 0.025, 0.11, fract( galvSeed * 13.7 ) );
-  float galvRun = smoothstep( 0.0, 0.006, galvBelow ) * exp( - max( galvBelow, 0.0 ) / galvLength );
-  galvDrip = max( galvDrip, step( 0.62, galvSeed ) * galvRun );
-}
+// Written out, not looped: no dynamic vector indexing for the ANGLE backends.
+float galvDrip = max(
+  max(
+    machineGalvRun( uMachineRings.x, 0.0, galvColumn, vMachineObject.y ),
+    machineGalvRun( uMachineRings.y, 1.0, galvColumn, vMachineObject.y )
+  ),
+  max(
+    machineGalvRun( uMachineRings.z, 2.0, galvColumn, vMachineObject.y ),
+    machineGalvRun( uMachineRings.w, 3.0, galvColumn, vMachineObject.y )
+  )
+);
 galvDrip *= galvStreak * ( 1.0 - smoothstep( 0.25, 0.6, fwidth( galvColumns ) ) ) * uMachineGalv.w;
 metalnessFactor *= 1.0 - galvPatina;
 roughnessFactor = mix( roughnessFactor * uMachineGalv.y, 0.82, galvPatina );
@@ -362,10 +372,12 @@ const GALVANISED_LIGHT_BODY = /* glsl */ `
 {
   vec3 galvReflect = reflect( - geometryViewDir, normal );
   vec3 galvAureole = vec3( 0.0 );
-  for ( int galvLight = 0; galvLight < NUM_DIR_LIGHTS; galvLight ++ ) {
-    float galvAlign = max( dot( galvReflect, directionalLights[ galvLight ].direction ), 0.0 );
-    galvAureole += directionalLights[ galvLight ].color * pow( galvAlign, 6.0 );
+  // three's own unroll (its pattern needs the index named i), as for its lights.
+  #pragma unroll_loop_start
+  for ( int i = 0; i < NUM_DIR_LIGHTS; i ++ ) {
+    galvAureole += directionalLights[ i ].color * pow( max( dot( galvReflect, directionalLights[ i ].direction ), 0.0 ), 6.0 );
   }
+  #pragma unroll_loop_end
   reflectedLight.indirectSpecular += galvAureole * uMachineGalv.z * material.specularColorBlended;
 }
 #endif
