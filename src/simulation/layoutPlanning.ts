@@ -13,6 +13,7 @@ import {
   DOCK_PLATFORM_OBSTACLES,
 } from '../constants/factoryObstacles';
 import { STAGING_LAYOUT } from '../components/truckbay/palletStagingLayout';
+import { hallDressingSolids } from '../components/infrastructure/hallDressingLayout';
 import { DOCK_DECK_FORK_HEIGHT } from '../constants/dockLoading';
 import {
   createRoundedForkliftRoute,
@@ -90,6 +91,25 @@ export function planningObstacles(
       id: asset.id,
       ...getServiceAssetBounds(asset),
     })),
+    // The hall's floor dressing (sack bays, racks, carts, reels, hoses). A route
+    // corner dragged through a sack bay must be refused like one through a
+    // machine. Overhead steel and flat dust are not in a forklift's way.
+    // Saved layouts are re-scored on load (`validateSavedLogisticsLayout`), so a
+    // save that crossed the dressing would no longer restore; none can exist:
+    // every editable corner (receiving 2 and 6, shipping 2) was swept over the
+    // whole floor at 1 m and no layout feasible without the dressing meets it,
+    // because each corner's legs must cross a belt to reach it.
+    ...hallDressingSolids()
+      .filter((solid) => solid.onFloor)
+      .map(({ id, minX, maxX, minY, maxY, minZ, maxZ }) => ({
+        id,
+        minX,
+        maxX,
+        minY,
+        maxY,
+        minZ,
+        maxZ,
+      })),
   ];
 }
 

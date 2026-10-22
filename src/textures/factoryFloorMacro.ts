@@ -122,7 +122,7 @@ function fieldNoise(u: number, v: number, scale: number, seed: number): number {
 }
 
 /** Pedestrian lanes: narrow, lightly polished, matching `FloorWayfinding`. */
-const WALKWAY_LANES = [
+export const WALKWAY_LANES = [
   { axis: 'x' as const, centre: -(FLOOR_WIDTH / 2 - 3), halfWidth: 1.5, from: -43, to: 43 },
   { axis: 'x' as const, centre: FLOOR_WIDTH / 2 - 3, halfWidth: 1.5, from: -43, to: 43 },
   { axis: 'z' as const, centre: -39, halfWidth: 1.75, from: -36, to: 36 },
@@ -130,7 +130,7 @@ const WALKWAY_LANES = [
 ];
 
 /** Forklift routes: wide, hard-polished, on the painted aisle centre lines. */
-const FORKLIFT_ROUTES = [
+export const FORKLIFT_ROUTES = [
   { axis: 'x' as const, centre: -31, halfWidth: 3.1, from: -44, to: 44 },
   { axis: 'x' as const, centre: 31, halfWidth: 3.1, from: -44, to: 44 },
   { axis: 'z' as const, centre: -43, halfWidth: 2.6, from: -32, to: 32 },
