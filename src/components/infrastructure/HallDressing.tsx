@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { FLOOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../../constants/renderLayers';
 import {
@@ -24,6 +24,7 @@ import {
   HALL_SACK_STACKS,
   type HallCableTray,
   type HallConduitDrop,
+  type HallDustPatch,
   type HallHose,
   type HallProp,
 } from './hallDressingLayout';
@@ -679,36 +680,61 @@ const smoothstep = (edge0: number, edge1: number, x: number) => {
 };
 
 /**
- * The dust's coverage mask: settled flour, not a glow. A domain-warped core is
- * cut by drift streaks (stretched noise along one direction, the way air
- * carries flour off a machine) and by cloudy break-up, then thresholded over a
- * short span, so the edge is ragged drift and bare floor rather than an oval
- * that fades. Fine grain inside keeps the cover from reading as a flat sheet.
+ * The dust's coverage mask: settled flour, not a glow. Drift streaks
+ * (stretched noise along one direction, the way air carries flour off a
+ * machine) and cloudy break-up cut a thickness field, which is then
+ * thresholded over a short span, so the edge is ragged drift and bare floor
+ * rather than an oval that fades. Fine grain inside keeps the cover from
+ * reading as a flat sheet.
+ *
+ * The thickness field depends on the patch. An open patch (under a sifter, a
+ * spill) is thickest at its centre. A patch with a `hole` is a machine's ring:
+ * thickest at the foot of the base plate and thinning outward over the ring,
+ * which is where flour actually lies round a machine; the hole itself is
+ * empty (and has no geometry, `buildDustPatchGeometry`).
+ *
  * Written to R, G and B because three reads `alphaMap.g`; a mask in R alone
  * would multiply the decal's alpha by zero.
  */
-export function createDustMask(size = DUST_TEXTURE_SIZE): Uint8Array {
+export function createDustMask(size = DUST_TEXTURE_SIZE, shape?: HallDustPatch): Uint8Array {
   const data = new Uint8Array(size * size * 4);
   const driftX = 0.8;
   const driftZ = 0.6;
+  const hole = shape?.hole;
+  const reach = hole ? Math.min(shape.width / 2 - hole.halfX, shape.depth / 2 - hole.halfZ) : 0;
   for (let y = 0; y < size; y += 1) {
     for (let x = 0; x < size; x += 1) {
       const u = (x + 0.5) / size - 0.5;
       const v = (y + 0.5) / size - 0.5;
-      const wu = u + 0.16 * (fbm(u * 3 + 5.2, v * 3 + 1.7) - 0.5);
-      const wv = v + 0.16 * (fbm(u * 3 + 9.4, v * 3 + 3.3) - 0.5);
-      const core = 1 - smoothstep(0.35, 1.05, Math.hypot(wu, wv) * 2);
-      const along = wu * driftX + wv * driftZ;
-      const across = -wu * driftZ + wv * driftX;
+      const i = (y * size + x) * 4;
+      let thickness: number;
+      if (hole && shape) {
+        const px = u * shape.width;
+        const pz = v * shape.depth;
+        const dx = Math.max(Math.abs(px) - hole.halfX, 0);
+        const dz = Math.max(Math.abs(pz) - hole.halfZ, 0);
+        if (dx === 0 && dz === 0) {
+          data[i + 3] = 255;
+          continue;
+        }
+        // Metres out from the plate, warped so the ring's outline wanders.
+        const out = Math.hypot(dx, dz) + 0.3 * reach * (fbm(u * 4 + 5.2, v * 4 + 1.7) - 0.5);
+        thickness = 1 - smoothstep(0.05 * reach, 0.95 * reach, out);
+      } else {
+        const wu = u + 0.16 * (fbm(u * 3 + 5.2, v * 3 + 1.7) - 0.5);
+        const wv = v + 0.16 * (fbm(u * 3 + 9.4, v * 3 + 3.3) - 0.5);
+        thickness = 1 - smoothstep(0.35, 1.05, Math.hypot(wu, wv) * 2);
+      }
+      const along = u * driftX + v * driftZ;
+      const across = -u * driftZ + v * driftX;
       const streak = fbm(along * 2.5 + 3.1, across * 16 + 7.7);
-      const cloud = fbm(wu * 7 + 2.2, wv * 7 + 4.4);
-      const field = core * 0.9 + (streak - 0.5) * 0.9 + (cloud - 0.5) * 0.6;
+      const cloud = fbm(u * 7 + 2.2, v * 7 + 4.4);
+      const field = thickness * 0.9 + (streak - 0.5) * 0.9 + (cloud - 0.5) * 0.6;
       const cover = smoothstep(0.32, 0.46, field);
       const grain = 0.6 + 0.4 * fbm(u * 24 + 0.7, v * 24 + 6.1);
       // Whatever the noise does, the quad's own edge is never drawn.
       const border = Math.min(1, (0.5 - Math.max(Math.abs(u), Math.abs(v))) / 0.12);
       const value = Math.round(255 * Math.min(1, cover * grain * border));
-      const i = (y * size + x) * 4;
       data[i] = value;
       data[i + 1] = value;
       data[i + 2] = value;
@@ -718,27 +744,35 @@ export function createDustMask(size = DUST_TEXTURE_SIZE): Uint8Array {
   return data;
 }
 
-const DUST_MASK = (() => {
-  const texture = createLinearDataTexture(createDustMask(), DUST_TEXTURE_SIZE, DUST_TEXTURE_SIZE);
+const dustMaskTexture = (shape?: HallDustPatch) => {
+  const texture = createLinearDataTexture(
+    createDustMask(DUST_TEXTURE_SIZE, shape),
+    DUST_TEXTURE_SIZE,
+    DUST_TEXTURE_SIZE
+  );
   texture.wrapS = THREE.ClampToEdgeWrapping;
   texture.wrapT = THREE.ClampToEdgeWrapping;
   return texture;
-})();
+};
 
 /**
  * Settled flour: lit matter (it darkens with the slab at night), never written
- * to depth. A film of flour on concrete, not flour in a sack: at full cover it
- * lifts the pad's ~0.27 linear albedo by about a half, so a patch in shade
- * stays darker than the sunlit slab beside it and never reads as a light pool.
+ * to depth. A FILM of flour on concrete, not flour in a sack: at full cover it
+ * lifts the pad's ~0.27 linear albedo by under a fifth.
+ *
+ * It used to lift it by half (0.66 x '#c0b9aa'). Measured on a35d5b7e with the
+ * decal toggled in one page load, the patches raised the pad 1.47x at noon and
+ * 1.51x at 22:00. Noon hid that under its sun patches and shadows; the even
+ * night fill showed every patch as a pale blotch.
  */
 export const HALL_DUST_MATERIAL = new THREE.MeshStandardMaterial({
   name: 'hall-flour-dust',
-  color: '#c0b9aa',
+  color: '#b8b4aa',
   roughness: 0.95,
   metalness: 0,
-  alphaMap: DUST_MASK,
+  alphaMap: dustMaskTexture(),
   transparent: true,
-  opacity: 0.66,
+  opacity: 0.26,
   depthWrite: false,
   polygonOffset: true,
   polygonOffsetFactor: POLYGON_OFFSET.standard.factor,
@@ -754,17 +788,83 @@ export const HALL_DUST_RENDER_ORDER = RENDER_ORDER.floorDeposits;
 
 const FLAT_PLANE = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
 
-const HallDust: React.FC = () => {
-  const matrices = useMemo(
-    () =>
-      HALL_DUST.map((patch) =>
+/**
+ * One patch's decal in its own frame (metres, y = 0, centred on the patch).
+ * An open patch is the unit plane; a machine's is a rectangle with the base
+ * plate cut out of it, so no fragment of the decal lies under the plate for
+ * the polygon offset to pull through its foot. UVs span the whole patch either
+ * way, so the mask reads the same.
+ */
+export function buildDustPatchGeometry(patch: HallDustPatch): THREE.BufferGeometry {
+  const hole = patch.hole;
+  if (!hole) return FLAT_PLANE.clone().scale(patch.width, 1, patch.depth);
+  const w = patch.width / 2;
+  const d = patch.depth / 2;
+  const outline = new THREE.Shape([
+    new THREE.Vector2(-w, -d),
+    new THREE.Vector2(w, -d),
+    new THREE.Vector2(w, d),
+    new THREE.Vector2(-w, d),
+  ]);
+  outline.holes.push(
+    new THREE.Path([
+      new THREE.Vector2(-hole.halfX, -hole.halfZ),
+      new THREE.Vector2(-hole.halfX, hole.halfZ),
+      new THREE.Vector2(hole.halfX, hole.halfZ),
+      new THREE.Vector2(hole.halfX, -hole.halfZ),
+    ])
+  );
+  const geometry = new THREE.ShapeGeometry(outline);
+  const position = geometry.getAttribute('position');
+  const uv = geometry.getAttribute('uv');
+  for (let i = 0; i < position.count; i += 1)
+    uv.setXY(i, position.getX(i) / patch.width + 0.5, position.getY(i) / patch.depth + 0.5);
+  // Shape space (x, y) -> floor (x, -z): faces up, like the rotated plane.
+  return geometry.rotateX(-Math.PI / 2);
+}
+
+/** Patches that can share one decal: open patches, and one set per machine ring. */
+function dustSets(): { key: string; patches: HallDustPatch[] }[] {
+  const sets = new Map<string, HallDustPatch[]>();
+  for (const patch of HALL_DUST) {
+    const key = patch.hole
+      ? `ring:${patch.width}:${patch.depth}:${patch.hole.halfX}:${patch.hole.halfZ}`
+      : 'open';
+    sets.set(key, [...(sets.get(key) ?? []), patch]);
+  }
+  return [...sets].map(([key, patches]) => ({ key, patches }));
+}
+
+const DustSet: React.FC<{ setKey: string; patches: readonly HallDustPatch[] }> = ({
+  setKey,
+  patches,
+}) => {
+  const { geometry, material, matrices } = useMemo(() => {
+    const ring = patches[0].hole ? patches[0] : null;
+    const setMaterial = ring ? HALL_DUST_MATERIAL.clone() : HALL_DUST_MATERIAL;
+    if (ring) setMaterial.alphaMap = dustMaskTexture(ring);
+    return {
+      // A ring is built at its own size; open patches scale the unit plane.
+      geometry: ring ? buildDustPatchGeometry(ring) : FLAT_PLANE,
+      material: setMaterial,
+      matrices: patches.map((patch) =>
         new THREE.Matrix4().compose(
           new THREE.Vector3(patch.x, patch.baseY + FLOOR_LAYERS.puddle, patch.z),
           new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), patch.rotation),
-          new THREE.Vector3(patch.width, 1, patch.depth)
+          ring ? new THREE.Vector3(1, 1, 1) : new THREE.Vector3(patch.width, 1, patch.depth)
         )
       ),
-    []
+    };
+  }, [patches]);
+  useEffect(
+    () => () => {
+      if (geometry !== FLAT_PLANE) geometry.dispose();
+      if (material !== HALL_DUST_MATERIAL) {
+        material.alphaMap?.dispose();
+        material.dispose();
+      }
+    },
+    [geometry, material]
   );
   const ref = useRef<THREE.InstancedMesh>(null);
   useLayoutEffect(() => {
@@ -777,12 +877,24 @@ const HallDust: React.FC = () => {
   return (
     <instancedMesh
       ref={ref}
-      name="hall-flour-dust"
-      args={[FLAT_PLANE, HALL_DUST_MATERIAL, matrices.length]}
+      name={setKey === 'open' ? 'hall-flour-dust' : 'hall-flour-dust-ring'}
+      args={[geometry, material, matrices.length]}
       matrixAutoUpdate={false}
       renderOrder={HALL_DUST_RENDER_ORDER}
       receiveShadow
     />
+  );
+};
+
+/** One decal draw for the open patches and one per machine ring size (mills, packers). */
+const HallDust: React.FC = () => {
+  const sets = useMemo(dustSets, []);
+  return (
+    <group name="hall-flour-dust-sets">
+      {sets.map(({ key, patches }) => (
+        <DustSet key={key} setKey={key} patches={patches} />
+      ))}
+    </group>
   );
 };
 

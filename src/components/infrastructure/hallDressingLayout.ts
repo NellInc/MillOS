@@ -1,4 +1,11 @@
-import { PROCESS_GALLERY_POST_X, SITE_LAYOUT, type Vec3Tuple } from '../../constants/siteLayout';
+import {
+  MILL_BASE_PLATE_SCALE,
+  PACKER_BASE_PLATE_SCALE,
+  PROCESS_GALLERY_POST_X,
+  PROCESS_MACHINE_INSTALL_SCALE,
+  SITE_LAYOUT,
+  type Vec3Tuple,
+} from '../../constants/siteLayout';
 
 /**
  * THE WORKING FLOOR OF THE HALL.
@@ -107,6 +114,11 @@ export interface HallDustPatch {
   readonly width: number;
   readonly depth: number;
   readonly rotation: number;
+  /**
+   * The machine's base plate, grown a hair, in the patch's own frame: the
+   * decal is a ring around it rather than a sheet under it.
+   */
+  readonly hole?: { readonly halfX: number; readonly halfZ: number };
 }
 
 const PT = PROCESS_PAD_TOP;
@@ -237,6 +249,21 @@ export const HALL_CONDUIT_DROPS: readonly HallConduitDrop[] = PROCESS_GALLERY_PO
   isolator: { width: 0.3, height: 0.4, depth: 0.2 },
 }));
 
+/**
+ * The bare footprint each machine's dust ring keeps off: its installed base
+ * plate grown 6 cm. A decal laid under the plate drew a ragged pale fringe up
+ * the plate's foot (polygon offset over a 1 cm lift), and flour does not
+ * settle under a machine that stands on it anyway.
+ */
+const DUST_HOLE_MARGIN = 0.06;
+const plateHole = (scale: readonly number[], install: number) => ({
+  halfX: (scale[0] * install) / 2 + DUST_HOLE_MARGIN,
+  halfZ: (scale[2] * install) / 2 + DUST_HOLE_MARGIN,
+});
+const MILL_DUST_HOLE = plateHole(MILL_BASE_PLATE_SCALE, PROCESS_MACHINE_INSTALL_SCALE.rollerMill);
+const PACKER_DUST_HOLE = plateHole(PACKER_BASE_PLATE_SCALE, PROCESS_MACHINE_INSTALL_SCALE.packer);
+
+/** A ring about a metre wide round each mill's plate, thickest at its foot. */
 const millDust = SITE_LAYOUT.machines.rollerMills.map(
   ({ id, position: [x, , z] }, i): HallDustPatch => ({
     id: `dust-${id}`,
@@ -244,9 +271,10 @@ const millDust = SITE_LAYOUT.machines.rollerMills.map(
     x,
     z,
     baseY: PT,
-    width: 7,
-    depth: 5,
+    width: 2 * (MILL_DUST_HOLE.halfX + 1),
+    depth: 2 * (MILL_DUST_HOLE.halfZ + 0.9),
     rotation: i % 2 ? Math.PI : 0,
+    hole: MILL_DUST_HOLE,
   })
 );
 /** Under each plansifter, where its sieve-frame seals weep onto the floor. */
@@ -262,17 +290,18 @@ const sifterDust = SITE_LAYOUT.machines.sifters.map(
     rotation: i % 2 ? Math.PI / 2 : 0,
   })
 );
-/** In front of each packer's spout, short of the quality and packer stops at z -8.8. */
+/** Round each packer's plate, short of the quality and packer stops at z -8.8. */
 const packerDust = SITE_LAYOUT.machines.packers.map(
   ({ id, position: [x, , z] }, i): HallDustPatch => ({
     id: `dust-${id}`,
     source: id,
     x,
-    z: z + 0.1,
+    z,
     baseY: PT,
-    width: 4,
-    depth: 4.8,
+    width: 2 * (PACKER_DUST_HOLE.halfX + 0.8),
+    depth: 2 * (PACKER_DUST_HOLE.halfZ + 0.9),
     rotation: i % 2 ? Math.PI : 0,
+    hole: PACKER_DUST_HOLE,
   })
 );
 
