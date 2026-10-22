@@ -385,6 +385,18 @@ const DockMechanism: React.FC<DockMechanismProps> = ({
 /** I-beam section of the dock frame posts and header. */
 export const DOCK_FRAME_SECTION = { width: 0.8, depth: 0.6 } as const;
 
+/** The 0.15 m flange plates, centred `standoff` off the section's faces. */
+export const DOCK_FLANGE = { standoff: 0.1, thickness: 0.15 } as const;
+
+/**
+ * Depth of the post and header web: the section depth carried into both flange
+ * plates, sunk 1 cm. At the 0.6 m section depth it stopped 2.5 cm short of each
+ * plate, and the hall showed through a 14 m slot that read as a dashed white
+ * line down the shipping dock's post (interior, final-med-12).
+ */
+export const DOCK_WEB_DEPTH =
+  DOCK_FRAME_SECTION.depth + 2 * (DOCK_FLANGE.standoff - DOCK_FLANGE.thickness / 2) + 0.02;
+
 /**
  * Vertical spans (opening-local y) of the post flanges and the outer header
  * flange. The header flange hangs 0.1 m below the header, so the outer post
@@ -468,7 +480,7 @@ export const OpenDockOpening: React.FC<OpenDockOpeningProps> = ({
           <mesh
             geometry={UNIT_BOX}
             material={MATERIALS.post}
-            scale={[frameWidth, height, frameDepth]}
+            scale={[frameWidth, height, DOCK_WEB_DEPTH]}
             castShadow
           />
           <mesh
@@ -497,7 +509,7 @@ export const OpenDockOpening: React.FC<OpenDockOpeningProps> = ({
         <mesh
           geometry={UNIT_BOX}
           material={MATERIALS.header}
-          scale={[width + frameWidth * 2 + 0.6, frameWidth, frameDepth]}
+          scale={[width + frameWidth * 2 + 0.6, frameWidth, DOCK_WEB_DEPTH]}
           castShadow
         />
         <mesh

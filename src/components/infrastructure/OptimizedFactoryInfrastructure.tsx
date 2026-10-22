@@ -1242,6 +1242,51 @@ export function buildFactoryGlazing(): BoxInstance[] {
   return panes;
 }
 
+/** The 0.14 m steel frame members around every facade pane. */
+export function buildFactoryFacadeFrames(panes: readonly BoxInstance[]): BoxInstance[] {
+  const { baseHeight, sideWindowSill } = FACTORY_ENVELOPE_SPEC;
+  const frames: BoxInstance[] = [];
+  for (const pane of panes) {
+    const [x, y, z] = pane.position;
+    const [width, height, depth] = pane.scale;
+    const front = width > depth;
+    const sillPane = Math.abs(y - height / 2 - sideWindowSill) < 1e-6;
+    // Mullions of a sill pane reach the plinth with its rail (see below).
+    const mullionTop = y + height / 2 + 0.14;
+    const mullionBottom = sillPane ? baseHeight - 0.02 : y - height / 2 - 0.14;
+    const mullionY = (mullionTop + mullionBottom) / 2;
+    const mullionHeight = mullionTop - mullionBottom;
+    for (const edge of [-1, 1]) {
+      frames.push(
+        front
+          ? {
+              position: [x + edge * (width / 2 + 0.07), mullionY, z],
+              scale: [0.14, mullionHeight, 0.16],
+            }
+          : {
+              position: [x, mullionY, z + edge * (depth / 2 + 0.07)],
+              scale: [0.16, mullionHeight, 0.14],
+            }
+      );
+      // A rail under a sill pane runs down onto the plinth. Stopped 0.14 m under
+      // the pane it left an 11 cm slot over the 0.6 m plinth, and its sunlit
+      // top read as a dashed white line along the hall (overview, final-med-12).
+      // Sunk 2 cm into the plinth so no hairline survives at any distance.
+      const onSill = edge < 0 && sillPane;
+      const railBottom = onSill ? baseHeight - 0.02 : y + edge * (height / 2 + 0.07) - 0.07;
+      const railTop = onSill ? sideWindowSill : railBottom + 0.14;
+      const railY = (railBottom + railTop) / 2;
+      const railHeight = railTop - railBottom;
+      frames.push(
+        front
+          ? { position: [x, railY, z], scale: [width, railHeight, 0.16] }
+          : { position: [x, railY, z], scale: [0.16, railHeight, depth] }
+      );
+    }
+  }
+  return frames;
+}
+
 /** How far the wall columns stop below the parapet top they stand under. */
 export const FACTORY_COLUMN_TOP_DROP = 0.02;
 
@@ -1438,33 +1483,7 @@ function FactoryShell() {
   const roofSkylights = useMemo(buildFactoryRoofGlazing, []);
 
   const windows = useMemo(buildFactoryGlazing, []);
-  const facadeAccents = useMemo<readonly BoxInstance[]>(() => {
-    const frames: BoxInstance[] = [];
-    for (const pane of windows) {
-      const [x, y, z] = pane.position;
-      const [width, height, depth] = pane.scale;
-      const front = width > depth;
-      for (const edge of [-1, 1]) {
-        frames.push(
-          front
-            ? {
-                position: [x + edge * (width / 2 + 0.07), y, z],
-                scale: [0.14, height + 0.28, 0.16],
-              }
-            : {
-                position: [x, y, z + edge * (depth / 2 + 0.07)],
-                scale: [0.16, height + 0.28, 0.14],
-              }
-        );
-        frames.push(
-          front
-            ? { position: [x, y + edge * (height / 2 + 0.07), z], scale: [width, 0.14, 0.16] }
-            : { position: [x, y + edge * (height / 2 + 0.07), z], scale: [0.16, 0.14, depth] }
-        );
-      }
-    }
-    return frames;
-  }, [windows]);
+  const facadeAccents = useMemo(() => buildFactoryFacadeFrames(windows), [windows]);
 
   return (
     // SHADOW FLAGS ARE SET HERE, AT SOURCE.

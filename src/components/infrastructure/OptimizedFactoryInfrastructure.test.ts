@@ -12,6 +12,7 @@ import {
   buildFactoryRoofGlazing,
   buildFactoryRoofStructure,
   buildFactoryGlazing,
+  buildFactoryFacadeFrames,
   buildFactoryShellColumns,
   buildSafetyStations,
   buildProcessGallery,
@@ -858,4 +859,35 @@ it('keeps the hall glazing sun lobe below white at its peak', () => {
     expect(peak, name).toBeLessThan(1);
     expect(surface.roughness, name).toBeLessThanOrEqual(0.35);
   }
+});
+
+// overview hall sill (840,990)-(1240,1060), final-med-12: "a dashed-white
+// aliasing line on thin edges". The probe put those pixels on the bottom
+// window rail (y 0.71-0.85) and, behind it, the plinth top at y 0.60: the
+// rail stopped 0.11 m above the 0.6 m plinth, so an 11 cm slot showed the
+// sunlit plinth top as a 1-2 px line that broke into dashes at 90 m.
+describe('facade window frames', () => {
+  it('closes the sill rail down onto the plinth, leaving no lit slot', () => {
+    const { baseHeight, sideWindowSill } = FACTORY_ENVELOPE_SPEC;
+    const panes = buildFactoryGlazing();
+    const frames = buildFactoryFacadeFrames(panes);
+    const sillPanes = panes.filter(
+      (pane) => Math.abs(pane.position[1] - pane.scale[1] / 2 - sideWindowSill) < 1e-6
+    );
+    expect(sillPanes.length).toBeGreaterThan(4);
+    for (const pane of sillPanes) {
+      const [x, , z] = pane.position;
+      const rail = frames.find(
+        (frame) =>
+          Math.abs(frame.position[0] - x) < 1e-6 &&
+          Math.abs(frame.position[2] - z) < 1e-6 &&
+          frame.position[1] < sideWindowSill
+      );
+      expect(rail).toBeDefined();
+      const bottom = rail!.position[1] - rail!.scale[1] / 2;
+      const top = rail!.position[1] + rail!.scale[1] / 2;
+      expect(bottom).toBeLessThanOrEqual(baseHeight);
+      expect(top).toBeGreaterThanOrEqual(sideWindowSill);
+    }
+  });
 });
