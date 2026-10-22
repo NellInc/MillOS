@@ -11,6 +11,7 @@ import { CompactMachinesContainer as MachinesContainer } from './machines/Compac
 import { MachineSimulationController } from './machines/MachineSimulationController';
 import { DustParticles, GrainFlow, MachineSteamVents, DustAnimationManager } from './DustParticles';
 import { OptimizedFactoryInfrastructure } from './infrastructure/OptimizedFactoryInfrastructure';
+import { HallDressing } from './infrastructure/HallDressing';
 import type { ForkliftData } from './ForkliftSystem';
 import { OptimizedFactoryEnvironment } from './environment/OptimizedFactoryEnvironment';
 import { getTerrainGridSegments } from './terrain/terrainTypes';
@@ -885,6 +886,7 @@ export const MillScene: React.FC<MillSceneProps> = ({
       </group>
       <group name="world-factory-infrastructure">
         <OptimizedFactoryInfrastructure showZones={showZones} />
+        <HallDressing revision={staticBatchRevision} />
       </group>
 
       {/* Dynamic Elements - Respect perfDebug toggles */}

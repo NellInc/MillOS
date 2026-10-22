@@ -20,11 +20,11 @@ export const PROCESS_PAD_TOP = 0.16;
 /** Plan half-extents (x, z) of each prop in its own frame, and its height. */
 export const HALL_PROP_SIZE = {
   /** A loaded pallet: the staged-pallet footprint (`LOAD_SCALE` 1.4). */
-  pallet: { halfX: 0.63, halfZ: 0.56, height: 1.35 },
+  pallet: { halfX: 0.63, halfZ: 0.56, height: 1.7 },
   cart: { halfX: 0.6, halfZ: 0.3, height: 1.18 },
-  partsRack: { halfX: 1.85, halfZ: 0.33, height: 2.25 },
-  rollCradle: { halfX: 0.72, halfZ: 0.42, height: 0.7 },
-  hoseReel: { halfX: 0.3, halfZ: 0.26, height: 0.78 },
+  partsRack: { halfX: 1.92, halfZ: 0.33, height: 2.25 },
+  rollCradle: { halfX: 0.8, halfZ: 0.42, height: 0.7 },
+  hoseReel: { halfX: 0.3, halfZ: 0.3, height: 0.78 },
   spillKit: { halfX: 0.4, halfZ: 0.4, height: 0.98 },
   palletJack: { halfX: 0.36, halfZ: 0.96, height: 1.4 },
 } as const;
@@ -84,6 +84,8 @@ export interface HallCableTray {
 /** A conduit dropped from the tray down a post to a local isolator. */
 export interface HallConduitDrop {
   readonly id: string;
+  /** The tray it leaves; the two meet by design. */
+  readonly tray: string;
   readonly x: number;
   readonly z: number;
   readonly radius: number;
@@ -154,8 +156,9 @@ export const HALL_PROPS: readonly HallProp[] = [
   { id: 'spill-kit-milling', kind: 'spillKit', x: -1.2, z: 32.2, rotation: 0, baseY: PT },
 ];
 
-const onPad = (points: readonly (readonly [number, number])[]): Vec3Tuple[] =>
-  points.map(([x, z]) => [x, PT + HOSE_RADIUS, z]);
+/** Points on the pad as (x, z), or (x, z, lift) where the hose leaves its drum. */
+const onPad = (points: readonly (readonly [number, number, number?])[]): Vec3Tuple[] =>
+  points.map(([x, z, lift = 0]) => [x, PT + HOSE_RADIUS + lift, z]);
 
 /** Air hoses paid out across the pad toward the mill they were last used on. */
 export const HALL_HOSES: readonly HallHose[] = [
@@ -164,7 +167,8 @@ export const HALL_HOSES: readonly HallHose[] = [
     reel: 'hose-reel-rm101',
     radius: HOSE_RADIUS,
     points: onPad([
-      [-21.2, 32.06],
+      [-21.2, 32.25, 0.15],
+      [-21.05, 31.85],
       [-19.8, 31.3],
       [-18.2, 32.1],
       [-16.4, 31.4],
@@ -178,7 +182,8 @@ export const HALL_HOSES: readonly HallHose[] = [
     reel: 'hose-reel-rm103',
     radius: HOSE_RADIUS,
     points: onPad([
-      [7.4, 27.54],
+      [7.4, 27.35, 0.15],
+      [7.55, 27.75],
       [8.3, 28.1],
       [9.6, 27.7],
       [10.6, 28.4],
@@ -213,12 +218,13 @@ export const HALL_CABLE_TRAYS: readonly HallCableTray[] = [
 
 export const HALL_CONDUIT_DROPS: readonly HallConduitDrop[] = PROCESS_GALLERY_POST_X.map((x) => ({
   id: `conduit-post-${x}`,
+  tray: 'cable-tray-milling',
   x,
   z: GALLERY_NORTH_POST_FACE + 0.025,
   radius: 0.025,
   bottomY: 1.75,
-  topY: 4.1,
-  isolator: { width: 0.3, height: 0.4, depth: 0.16 },
+  topY: 4.2,
+  isolator: { width: 0.3, height: 0.4, depth: 0.2 },
 }));
 
 const millDust = SITE_LAYOUT.machines.rollerMills.map(
@@ -376,7 +382,7 @@ export function hallDressingSolids(): HallSolid[] {
     const box = drop.isolator;
     solids.push({
       id: drop.id,
-      group: drop.id,
+      group: drop.tray,
       onFloor: false,
       baseY: drop.bottomY - box.height,
       minX: Math.min(drop.x - drop.radius, drop.x - box.width / 2),
