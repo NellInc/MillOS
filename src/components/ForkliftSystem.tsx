@@ -19,6 +19,11 @@ import { useShallow } from 'zustand/react/shallow';
 import { getForkliftWarningColor } from '../utils/statusColors';
 import { ForkliftModel } from './models';
 import { applyCargoPresence, FORKLIFT_PALLET_REACH_METRES } from './models/ForkliftModel';
+import {
+  FORKLIFT_BEACON,
+  FORKLIFT_LOADED_TRAVEL_FORK_HEIGHT,
+  forkliftBeaconLabelHeight,
+} from './models/forkliftBeacon';
 import { shouldRunThisFrame } from '../utils/frameThrottle';
 import { ForkliftData } from '../types';
 import { POLYGON_OFFSET } from '../constants/renderLayers';
@@ -102,8 +107,10 @@ const travelForkHeight = (plan: ForkliftRoutePlan, routeDistance: number, loaded
     const behind = distanceAheadOnClosedPath(plan.path, marker.distance, routeDistance);
     if (Math.min(ahead, behind) <= SURFACE_APPROACH_METRES) surface = Math.max(surface, height);
   }
-  if (surface <= 0) return loaded ? 0.32 : 0;
-  return loaded ? Math.max(0.32, surface + FORKLIFT_PALLET_CLEARANCE) : surface;
+  if (surface <= 0) return loaded ? FORKLIFT_LOADED_TRAVEL_FORK_HEIGHT : 0;
+  return loaded
+    ? Math.max(FORKLIFT_LOADED_TRAVEL_FORK_HEIGHT, surface + FORKLIFT_PALLET_CLEARANCE)
+    : surface;
 };
 import {
   vehicleTelemetryRegistry,
@@ -274,10 +281,17 @@ const WarningLight = React.memo<{
   const color = getForkliftWarningColor(isStopped, isInCrossing);
 
   return (
-    <group position={[0, height, -0.3]}>
+    <group position={[0, height, FORKLIFT_BEACON.mountZ]}>
       {/* Light housing */}
       <mesh visible={showGeometry}>
-        <cylinderGeometry args={[0.1, 0.1, 0.15, 10]} />
+        <cylinderGeometry
+          args={[
+            FORKLIFT_BEACON.housing.radius,
+            FORKLIFT_BEACON.housing.radius,
+            FORKLIFT_BEACON.housing.height,
+            10,
+          ]}
+        />
         <meshStandardMaterial
           ref={materialRef}
           color={color}
@@ -298,10 +312,17 @@ const WarningLight = React.memo<{
           reads as a faceted cone rather than as light. The rotation is not paid
           for by the facets - the radial wobble 8 of them buy is 42 mm on a
           550 mm radius at 0.16 opacity - so smoothing costs the sweep nothing.
-          16 stays divisible by 4, so the 0.55 m base radius is unchanged. */}
+          16 stays divisible by 4. The cone rises FROM the lamp
+          (`FORKLIFT_BEACON.wedge`): hung below it, its base ring came out of
+          the top of a carried load. */}
       <group ref={sweepRef} visible={showGeometry}>
-        <mesh position={[0, 0.02, 0]} renderOrder={8}>
-          <coneGeometry args={[0.55, 0.9, 16, 1, true]} />
+        <mesh
+          position={[0, FORKLIFT_BEACON.wedge.baseOffset + FORKLIFT_BEACON.wedge.height / 2, 0]}
+          renderOrder={8}
+        >
+          <coneGeometry
+            args={[FORKLIFT_BEACON.wedge.radius, FORKLIFT_BEACON.wedge.height, 16, 1, true]}
+          />
           <meshBasicMaterial
             color={color}
             transparent
@@ -1509,13 +1530,20 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
         isStopped={effectiveStopped}
         isInCrossing={isInCrossing}
         simulationPaused={simulationPaused}
-        height={authoredVehicleVisual ? 1.86 : 2.205}
+        height={FORKLIFT_BEACON.mountHeight[authoredVehicleVisual ? 'authored' : 'compact']}
         showGeometry={distanceTier === 'close'}
       />
 
       {/* Fleet identity and operation status, rendered only when close */}
       {distanceTier === 'close' && (
-        <Billboard position={[0, authoredVehicleVisual ? 2.18 : 2.48, 0]} follow>
+        <Billboard
+          position={[
+            0,
+            forkliftBeaconLabelHeight(authoredVehicleVisual ? 'authored' : 'compact'),
+            0,
+          ]}
+          follow
+        >
           <Text
             fontSize={0.17}
             color="white"
