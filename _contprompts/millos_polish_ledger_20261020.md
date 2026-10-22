@@ -197,13 +197,26 @@ kerb test resolves spread path constants (`8af133f1`, the only gate failure afte
   `TypeError ... reading 'toFixed'` in the operational UI at ~460 s in both play-tests; the phone
   check could not find the tour at 390 px (tool or app); the axe tool hung after finishing.
 
+## Third fix round (on `8af133f1`, worktrees now under `~/Documents/GitHub/MillOS-polish-work/wt/`)
+
+A reboot wiped `/private/tmp` mid-round; worktrees and tools moved to persistent paths. Agents were
+also cut repeatedly by network drops (ECONNRESET, a self-signed-certificate interception, one DNS
+failure) and resumed from their last commit each time.
+
+| Merge | Wave | What landed |
+|---|---|---|
+| `38ffa9c6`, `0e2a464b` | runtime | shift-review gap looked up its bars by the translated label, so `formatFixed(undefined)` threw at ~460 s; loading quote mounted mid-fade (the axe contrast hit was the fade, not the palette); tour card collapsed to 70 px on a landscape phone; co-op take-over notice covered the open Overview sheet at 390 px. Tool fixes: axe hang (an uncleared 899 s timer), phone check follows the rotate screen, `day.mjs` import |
+| `11ede0a4`, `a8fe3686` | art3land | village field-tree discs (the dark ellipses) replaced by copses, wooded parcels pulled behind a hedged margin (the ruled band); far lower slopes get rock, scree ribs and gullies, and the far ring's haze thins to 0.55 below the snow line (band contrast 1.20 to 2.02 at 12:00, 0.66 to 1.40 at 06:00; snow, upper rock and silhouette pixel-identical); hall sill and dock post slots closed (the dashed white lines); Low water uses fifth-power Fresnel |
+| `f8de2a3e` | art3geo | 48-sided tank heads; forklift beacon cone off the load; 03 SIFTING hung clear of the spout; R.M. plates legible; plansifters hung from gantries; truck edges, lamps, flaps, cab bevel; both apartment street faces framed |
+| `e1e53ced` | art3mat | daytime sky fill 55% toward neutral (the cyan shade); galvanised silos (neutral silver, patina, sparse run-off, sun aureole, grass-free reflection, rings matched; a cloned material had been dropping its `defines`); glazing Fresnel; roof liner albedo 0.29 to 0.45; door columns off coal black; aisle barrier detail to 90 m; dock sign trim inset (the doorway fringe was a z-fight) |
+
+After the overlapping merges: tsc, shaders (38 families), depth clean; 362/362 tests in the 40
+overlapping files.
+
 ## What remains
 
-Four waves running on `8af133f1` (sparse worktrees `/private/tmp/millos-fix-{runtime,art3mat,
-art3geo,art3land}-20261022`): the runtime findings above; materials and light (silos, cyan fill,
-roof underside, door columns, planks, glazing, doorway fringe, Low packing exposure); geometry and
-dressing (hall dressing instead of a re-layout, hanging plansifters, nameplates, truck body, tank
-facets, sign behind a pipe, beacon cone, apartment blocks); landscape (field seams and ellipses,
-mountain lower slopes, edge aliasing, Low water). Then the gate, the affected art conditions and
-judges, and the runtime batch again. Not done: a performance benchmark on a quiet machine (the
-ground wave's crop adds ~319k triangles); the castle (a dressing call left to Nell).
+Hall floor dressing (the sparse hall) running on `claude/polish-fix-hall` off `f8de2a3e`, after the
+geometry agent stalled twice on its oversized context. Baseline retries (low-12, med-19, med-22,
+18:30) under the lock. Then the whole gate, all art conditions and both judges, and the runtime
+batch again. Not done: a performance benchmark on a quiet machine (the ground wave's crop adds
+~319k triangles; the hall dressing will add more); the castle (a dressing call left to Nell).
