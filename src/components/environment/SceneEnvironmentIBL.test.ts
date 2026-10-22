@@ -16,6 +16,8 @@ import {
   shouldAdoptEnvironmentMap,
   writeEnvironmentBands,
   neutraliseNightFill,
+  neutraliseDaylightFill,
+  DAYLIGHT_FILL_NEUTRALISE_STRENGTH,
 } from './SceneEnvironmentIBL';
 import { sampleAtmosphere, sampleCelestial } from '../../simulation/atmosphere';
 
@@ -433,6 +435,54 @@ describe('night fill colour', () => {
     expect(chroma(night)).toBeLessThan(chroma(before) * 0.55);
     expect(night.b).toBeGreaterThan(night.r);
     expect(luminance(night)).toBeCloseTo(luminance(before), 6);
+  });
+});
+
+describe('daylight fill colour', () => {
+  const chroma = (c: THREE.Color) => Math.max(c.r, c.g, c.b) - Math.min(c.r, c.g, c.b);
+  const noon = sampleAtmosphere(0, 12, 'clear').daylight;
+
+  it('pulls the noon sky fill toward neutral, keeping it cool and its luminance exact', () => {
+    // final-med-12: the shaded hall aisle read sRGB (60, 87, 98) beside a
+    // neutral (93, 99, 96), tree shadows on grass went teal, and a fifth of the
+    // interior frames had a red channel at or below 5. The ambient, the
+    // hemisphere sky and the IBL horizon all carried the raw #a3cce2 horizon.
+    const fill = new THREE.Color('#a3cce2');
+    const before = fill.clone();
+    neutraliseDaylightFill(fill, noon);
+    expect(chroma(fill)).toBeLessThan(chroma(before) * 0.5);
+    expect(fill.b).toBeGreaterThan(fill.r * 1.2);
+    expect(luminance(fill)).toBeCloseTo(luminance(before), 6);
+  });
+
+  it('is exactly inert at night, where the night neutralisation owns the colour', () => {
+    const night = new THREE.Color('#384a64');
+    const before = night.clone();
+    neutraliseDaylightFill(night, sampleAtmosphere(0, 22, 'clear').daylight);
+    expect(night.equals(before)).toBe(true);
+  });
+
+  it('hands over from the night term without a step', () => {
+    let previous: THREE.Color | null = null;
+    for (let daylight = 0; daylight <= 1.0001; daylight += 0.01) {
+      const colour = new THREE.Color('#7186ad');
+      neutraliseDaylightFill(neutraliseNightFill(colour, daylight), daylight);
+      if (previous) {
+        expect(colorDistanceSquared(colour, previous), daylight.toFixed(2)).toBeLessThan(0.0004);
+      }
+      previous = colour;
+    }
+  });
+
+  it('switches off as one paired control', () => {
+    const fill = new THREE.Color('#a3cce2');
+    DAYLIGHT_FILL_NEUTRALISE_STRENGTH.value = 0;
+    try {
+      neutraliseDaylightFill(fill, noon);
+    } finally {
+      DAYLIGHT_FILL_NEUTRALISE_STRENGTH.value = 1;
+    }
+    expect(fill.equals(new THREE.Color('#a3cce2'))).toBe(true);
   });
 });
 

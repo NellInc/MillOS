@@ -159,6 +159,49 @@ export function neutraliseNightFill(target: THREE.Color, daylight: number): THRE
   return target.lerp(_neutral.setRGB(luminance, luminance, luminance), weight);
 }
 
+/** How much of the daylight fill's colour is pulled to neutral at full day. */
+export const DAYLIGHT_FILL_NEUTRALISE = 0.55;
+
+/**
+ * Paired rendered control for `neutraliseDaylightFill`, never a cache key.
+ * Mirrored on the hemisphere's `userData.daylightFillNeutralise` so a probe on
+ * one page load can switch the term off between two frames.
+ */
+export const DAYLIGHT_FILL_NEUTRALISE_STRENGTH = { value: 1 };
+
+/**
+ * Pull the DAYTIME sky fill toward its own luminance.
+ *
+ * The ambient, the hemisphere sky and the IBL bands all carried the raw clear
+ * horizon (#a3cce2: linear red 0.37 against blue 0.76), so everything lit by
+ * fill alone went cyan: the shaded hall aisle read sRGB (60, 87, 98) beside a
+ * neutral (93, 99, 96), tree shadows on grass turned teal, and the near door
+ * columns lost their red channel entirely (final-med-12: a fifth of the
+ * interior frame at red <= 5). Skylight is bluer than the sun, not cyan-tinted
+ * paint: after this the fill keeps blue as its largest channel at about half
+ * the chroma, with its luminance exact, so shadows stay cool and lit.
+ *
+ * Takes over from `neutraliseNightFill` where that one ends (daylight 0.35) so
+ * the two together never step; exactly inert below it.
+ * Working if shaded floors and shadowed grass lose the teal cast at noon while
+ * night captures are unchanged.
+ */
+export function neutraliseDaylightFill(target: THREE.Color, daylight: number): THREE.Color {
+  const d = Number.isFinite(daylight) ? daylight : 1;
+  const t = THREE.MathUtils.clamp((d - 0.35) / 0.45, 0, 1);
+  const weight =
+    t *
+    t *
+    (3 - 2 * t) *
+    DAYLIGHT_FILL_NEUTRALISE *
+    THREE.MathUtils.clamp(DAYLIGHT_FILL_NEUTRALISE_STRENGTH.value, 0, 1);
+  if (weight <= 0) return target;
+  const luminance = 0.2126 * target.r + 0.7152 * target.g + 0.0722 * target.b;
+  return target.lerp(_neutral.setRGB(luminance, luminance, luminance), weight);
+}
+
+const HEMISPHERE_USER_DATA = { daylightFillNeutralise: DAYLIGHT_FILL_NEUTRALISE_STRENGTH };
+
 /** How much of the twilight fill's colour is pulled to a warm neutral. */
 export const TWILIGHT_FILL_NEUTRALISE = 0.75;
 /** Warm-neutral grey the twilight fill is pulled toward, at unit luminance. */
@@ -645,6 +688,9 @@ export function SceneEnvironmentIBL(): React.JSX.Element {
     if (!useGraphicsStore.getState().graphics.perfDebug.disableLightingPolish) {
       neutraliseNightFill(_top, atmosphere.daylight);
       neutraliseNightFill(_horizon, atmosphere.daylight);
+      // The horizon arrives already day-neutralised from the ambient
+      // (`applySkyAmbientPalette`); the zenith band is the raw sky top.
+      neutraliseDaylightFill(_top, atmosphere.daylight);
     }
 
     const now = performance.now();
@@ -728,6 +774,7 @@ export function SceneEnvironmentIBL(): React.JSX.Element {
     <hemisphereLight
       ref={hemisphereRef}
       name={HEMISPHERE_LIGHT_NAME}
+      userData={HEMISPHERE_USER_DATA}
       args={['#e3f1f2', '#6f806c', HEMISPHERE_INTENSITY]}
     />
   );
