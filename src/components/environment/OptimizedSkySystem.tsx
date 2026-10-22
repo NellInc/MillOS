@@ -398,6 +398,24 @@ export const RIDGE_ALPINE_PROFILE = {
    * the metre-scale vein relief is unresolved.
    */
   spurMetres: 4.5,
+  /**
+   * Far-ring aerial weight below the snow line, as a fraction of the full
+   * term. The band sits at 540 m under a 0.32 aerial mix over 0.03-0.05 lit
+   * radiance, so the haze was ~90% of every pixel and the ribs, runnels and
+   * spurs above moved about one level (overview, art3land-after4-med12).
+   */
+  lowBandAerial: 0.55,
+  /**
+   * Snow units (12 m each) on the broken snow altitude over which the haze
+   * thins: full at -0.4 and above, so the snow (which starts at +0.35) and the
+   * upper rock under it keep exactly their pixels; a 24 m ramp draws no line.
+   */
+  lowBandRamp: [-2.4, -0.4],
+  /**
+   * Run out from the ring's foot, as a fraction of its slope depth, over which
+   * the crest rows keep their full haze: they are the horizon silhouette.
+   */
+  crestGuard: [0.72, 0.92],
 } as const;
 
 const ridgeFragmentShader = `
@@ -414,6 +432,9 @@ uniform float uWorldAnchored;
 uniform float uWoodlandStrength;
 uniform float uAlpineStrength;
 uniform float uSnowDatum;
+uniform float uRingRadius;
+uniform float uSlopeDepth;
+uniform float uLowAerialStrength;
 varying vec3 vRidgeColor;
 varying vec3 vRidgeNormal;
 varying vec3 vRidgePosition;
@@ -480,6 +501,8 @@ void main() {
   float faceWeight = abs(normal.x) / max(0.001, abs(normal.x) + abs(normal.z));
   vec3 detailedAlbedo;
   float relief;
+  // Scales the aerial term; only the far range's lower band sets it below 1.
+  float aerialScale = 1.0;
   if (uWorldAnchored > 0.5 && uWoodlandStrength > 0.5) {
     // Continuous stands carry quieter variation than the former thresholded
     // meadow/forest product. Bounded noise fields and nine crown candidates
@@ -607,6 +630,17 @@ void main() {
     // only term left the overview band unchanged. The whole band below the
     // snow line takes lit ribs and darker runnels.
     float lowBand = 1.0 - smoothstep(-0.2, 0.6, snowAltitude + snowBreak);
+    // Thinner haze below the snow line (RIDGE_ALPINE_PROFILE.lowBandAerial),
+    // so that relief reaches the screen. Full at the snow, the upper rock and
+    // the crest rows (radial run from the ring's foot), which keep the
+    // horizon's air; the ramp rides the broken snow altitude, so no line.
+    // Working if on/off/on (uLowAerialStrength) moves only the lower band.
+    float ringRun = clamp((length(p.xz) - uRingRadius) / max(uSlopeDepth, 1.0), 0.0, 1.0);
+    float belowSnow = 1.0 - smoothstep(${RIDGE_ALPINE_PROFILE.lowBandRamp[0].toFixed(2)},
+      ${RIDGE_ALPINE_PROFILE.lowBandRamp[1].toFixed(2)}, snowAltitude + snowBreak);
+    aerialScale = mix(1.0, ${RIDGE_ALPINE_PROFILE.lowBandAerial.toFixed(2)}, belowSnow
+      * (1.0 - smoothstep(${RIDGE_ALPINE_PROFILE.crestGuard[0].toFixed(2)},
+        ${RIDGE_ALPINE_PROFILE.crestGuard[1].toFixed(2)}, ringRun)) * uLowAerialStrength);
     // At 540 m the band's lit radiance is ~0.03 linear under a ~0.23
     // inscatter, so only an albedo span survives the haze: pale scree on the
     // ribs (RIDGE_ALPINE_PROFILE.ribAlbedo), dark forest down the runnels.
@@ -682,9 +716,9 @@ void main() {
   }
   vec3 lit = albedo * mix(uShadowTint, uSunColor, pow(ndl, 0.9));
 
-  lit.r = mix(lit.r, uInscatter.r, clamp(uAerial * 0.80, 0.0, 1.0));
-  lit.g = mix(lit.g, uInscatter.g, clamp(uAerial * 1.00, 0.0, 1.0));
-  lit.b = mix(lit.b, uInscatter.b, clamp(uAerial * 1.20, 0.0, 1.0));
+  lit.r = mix(lit.r, uInscatter.r, clamp(uAerial * aerialScale * 0.80, 0.0, 1.0));
+  lit.g = mix(lit.g, uInscatter.g, clamp(uAerial * aerialScale * 1.00, 0.0, 1.0));
+  lit.b = mix(lit.b, uInscatter.b, clamp(uAerial * aerialScale * 1.20, 0.0, 1.0));
 
   // Valley haze. Air pools in the valleys, so they sit further back than the
   // peaks that rise out of it - the cue that turns a silhouette into a range.
@@ -1320,10 +1354,16 @@ export function createRidgeMaterial(
       uSnowDatum: {
         value: FAR_MOUNTAIN_SPEC.baseY + FAR_MOUNTAIN_SPEC.maxHeight * FAR_MOUNTAIN_SPEC.snowLine,
       },
+      // The far ring's foot radius and slope depth, for its crest-row guard.
+      uRingRadius: { value: FAR_MOUNTAIN_SPEC.radius },
+      uSlopeDepth: { value: FAR_MOUNTAIN_SPEC.slopeDepth },
+      // Private paired control for the lower-band haze. Working if 0 restores
+      // the full aerial term pixel for pixel.
+      uLowAerialStrength: { value: 1 },
     },
   });
   material.userData.clearAerial = aerial;
-  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v22';
+  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v23';
   return material;
 }
 

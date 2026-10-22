@@ -441,7 +441,7 @@ describe('solid fixed foothills', () => {
       expect(material.fragmentShader).toContain('gl_FragColor = vec4(lit, 1.0)');
       expect(material.fragmentShader).not.toContain('groundBlend');
       expect(material.fragmentShader).not.toContain('sampler');
-      expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v22');
+      expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v23');
       material.dispose();
     }
   });
@@ -772,7 +772,7 @@ it('parcels the gentle foothill slopes into hedged fields brighter than the wood
   expect(branch).toContain(`vec2(${cell[0].toFixed(1)}, ${cell[1].toFixed(1)})`);
   expect(branch).toContain('hedge');
   expect(branch).toContain('fwidth(edge)');
-  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v22');
+  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v23');
   near.dispose();
 });
 
@@ -839,7 +839,7 @@ it('breaks the farmed/wooded edge across terrace rows and draws no isolated fiel
   // parcel now draw back from its boundary into ragged stands.
   expect(branch).not.toContain('* step(0.4, parcelUse)');
   expect(branch).toContain('float woods =');
-  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v22');
+  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v23');
   near.dispose();
 });
 
@@ -889,10 +889,41 @@ it('gives the far lower slopes contrast that survives the aerial mix and real ou
     linearLuminance(lowland[0]) * 4
   );
   expect(branch).not.toContain('(1.0 - max(rock, substrate)))');
-  expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v22');
+  expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v23');
   material.dispose();
 });
 
 function glslVec3Literal(value: readonly number[]): string {
   return `vec3(${value.map((v) => v.toFixed(3)).join(', ')})`;
 }
+
+// overview (0,320)-(720,440), art3land-after4-med12: the ribs, runnels and
+// spurs reached the albedo but not the screen (column swing 1.20 -> 1.54). A
+// probe put the band on the far ring at 540 m with uAerial 0.32 over a
+// 0.03-0.05 lit radiance: the haze is ~90% of every pixel there. The far
+// ring's aerial weight drops below the snow line only, on a wide ramp broken
+// by the snow-line field, and stays full at the snow, the upper rock and the
+// crest rows that make the horizon silhouette.
+it('thins the far ring haze below the snow line only, keeping snow, upper rock and crest', () => {
+  const { lowBandAerial, lowBandRamp, crestGuard } = RIDGE_ALPINE_PROFILE;
+  expect(lowBandAerial).toBeGreaterThanOrEqual(0.4);
+  expect(lowBandAerial).toBeLessThanOrEqual(0.75);
+  // A ramp of at least 18 m (12 m per snow unit): no visible line.
+  expect((lowBandRamp[1] - lowBandRamp[0]) * 12).toBeGreaterThanOrEqual(18);
+  // Full haze before the snow even begins (its ramp starts at 0.35 units).
+  expect(lowBandRamp[1]).toBeLessThanOrEqual(0);
+  expect(crestGuard[0]).toBeLessThan(crestGuard[1]);
+  const far = createRidgeMaterial(0.32, 'far-low-aerial');
+  expect(far.uniforms.uRingRadius.value).toBeCloseTo(FAR_MOUNTAIN_SPEC.radius, 6);
+  expect(far.uniforms.uSlopeDepth.value).toBeCloseTo(FAR_MOUNTAIN_SPEC.slopeDepth, 6);
+  expect(far.uniforms.uLowAerialStrength.value).toBe(1);
+  const shader = far.fragmentShader;
+  expect(shader).toContain('float aerialScale = 1.0;');
+  expect(shader).toContain('clamp(uAerial * aerialScale * 0.80, 0.0, 1.0)');
+  expect(shader).toContain('clamp(uAerial * aerialScale * 1.20, 0.0, 1.0)');
+  // Only the far (alpine) branch sets it: the foothills keep their haze.
+  const alpine = shader.split('} else if (uWorldAnchored < 0.5')[1].split('} else {')[0];
+  expect(alpine).toContain('aerialScale = mix(1.0,');
+  expect(far.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v23');
+  far.dispose();
+});
