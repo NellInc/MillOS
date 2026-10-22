@@ -1693,10 +1693,34 @@ const ZONE_SIGN_DATA: ReadonlyArray<{
     accent: '#4f9ac8',
     side: 'east',
   },
-  { label: '02  MILLING', z: SITE_LAYOUT.factory.zones.milling, accent: '#d79a4b' },
-  { label: '03  SIFTING', z: SITE_LAYOUT.factory.zones.sifting, accent: '#9b82ca' },
+  // SIFTING hangs over the gallery's milling-side end (z 25; the gallery runs
+  // 14.65-25.35), not over its centre: at z 20 the vertical intake drop to
+  // R.M. 101 stood in front of its lettering from the forklift view
+  // (final-med-12), and every west-wall z from 13 to 24 is crossed by a spout
+  // from there (zoneWayfindingSigns.test.ts). MILLING moves 3.5 m north, past
+  // the mills' backs, to keep 1.3 m between the two boards. The east wall is
+  // worse: four views see it through the mill spouts.
+  { label: '02  MILLING', z: SITE_LAYOUT.factory.zones.milling + 3.5, accent: '#d79a4b' },
+  { label: '03  SIFTING', z: SITE_LAYOUT.factory.zones.sifting + 5, accent: '#9b82ca' },
   { label: '04  PACKING', z: SITE_LAYOUT.factory.zones.packing, accent: '#55ad7b' },
 ];
+
+/** Each zone sign's board: centre, the yaw that faces it into the hall, and its size. */
+export function buildZoneSignPlacements(): {
+  readonly label: string;
+  readonly position: [number, number, number];
+  readonly rotationY: number;
+  readonly width: number;
+  readonly height: number;
+}[] {
+  return ZONE_SIGN_DATA.map(({ label, z, side }) => ({
+    label,
+    position: [side === 'east' ? FLOOR_WIDTH / 2 - 1.1 : -FLOOR_WIDTH / 2 + 1.1, 6.2, z],
+    rotationY: side === 'east' ? -Math.PI / 2 : Math.PI / 2,
+    width: 7.2,
+    height: 1.8,
+  }));
+}
 
 function ZoneWayfindingSigns() {
   const resources = useMemo(
@@ -1741,16 +1765,17 @@ function ZoneWayfindingSigns() {
     [resources]
   );
 
+  const placements = useMemo(buildZoneSignPlacements, []);
   return (
     <group name="factory-zone-wayfinding">
-      {resources.map(({ label, z, side, material }) => (
+      {resources.map(({ label, material }, index) => (
         <mesh
           key={label}
           geometry={UNIT_PLANE}
           material={material}
-          position={[side === 'east' ? FLOOR_WIDTH / 2 - 1.1 : -FLOOR_WIDTH / 2 + 1.1, 6.2, z]}
-          rotation={[0, side === 'east' ? -Math.PI / 2 : Math.PI / 2, 0]}
-          scale={[7.2, 1.8, 1]}
+          position={placements[index].position}
+          rotation={[0, placements[index].rotationY, 0]}
+          scale={[placements[index].width, placements[index].height, 1]}
           renderOrder={RENDER_ORDER.default + 1}
         />
       ))}
