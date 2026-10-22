@@ -129,12 +129,19 @@ export const HALL_SACK_STACKS: readonly HallSackStack[] = [
   { id: 'sacks-east-1', x: 21.5, z: 9.4, rotation: 0, baseY: 0, courses: 6 },
   { id: 'sacks-east-2', x: 23, z: 9.4, rotation: 0, baseY: 0, courses: 6 },
   { id: 'sacks-east-3', x: 21.5, z: 10.8, rotation: 0, baseY: 0, courses: 3 },
+  // West of the gallery, between it and the x -31 aisle: a short bay of bran sacks.
+  { id: 'sacks-gallery-west-1', x: -24.8, z: 23.6, rotation: 0, baseY: 0, courses: 6 },
+  { id: 'sacks-gallery-west-2', x: -24.8, z: 25, rotation: 0, baseY: 0, courses: 3 },
+  // Mid-floor, a pair waiting for the packing line under the finished-product spouts.
+  { id: 'sacks-mid-1', x: 4.6, z: 4.4, rotation: Math.PI / 2, baseY: 0, courses: 5 },
+  { id: 'sacks-mid-2', x: 6, z: 4.4, rotation: Math.PI / 2, baseY: 0, courses: 6 },
 ];
 
 /** Empty pallets waiting beside each bay. */
 export const HALL_PALLET_PILES: readonly HallPalletPile[] = [
   { id: 'pallets-west', x: -14.4, z: 9.4, rotation: 0, baseY: 0, count: 6 },
   { id: 'pallets-east', x: 24.6, z: 9.4, rotation: 0, baseY: 0, count: 4 },
+  { id: 'pallets-mid', x: 7.6, z: 4.4, rotation: Math.PI / 2, baseY: 0, count: 7 },
 ];
 
 /**
@@ -150,6 +157,9 @@ export const HALL_PROPS: readonly HallProp[] = [
   { id: 'cart-rm104', kind: 'cart', x: 21.2, z: 27.7, rotation: Math.PI / 2, baseY: PT },
   { id: 'cart-gallery', kind: 'cart', x: -6.4, z: 21.9, rotation: Math.PI, baseY: 0 },
   { id: 'parts-rack', kind: 'partsRack', x: -7, z: 23.55, rotation: 0, baseY: 0 },
+  { id: 'parts-rack-west', kind: 'partsRack', x: -25.4, z: 18.6, rotation: Math.PI / 2, baseY: 0 },
+  { id: 'cart-west', kind: 'cart', x: -23.6, z: 16.4, rotation: 0.35, baseY: 0 },
+  { id: 'cart-mid', kind: 'cart', x: 2.6, z: 3.2, rotation: -0.25, baseY: 0 },
   { id: 'roll-cradle', kind: 'rollCradle', x: 11, z: 31.8, rotation: 0, baseY: PT },
   { id: 'hose-reel-rm101', kind: 'hoseReel', x: -21.2, z: 32.3, rotation: 0, baseY: PT },
   { id: 'hose-reel-rm103', kind: 'hoseReel', x: 7.4, z: 27.3, rotation: Math.PI, baseY: PT },
@@ -234,8 +244,8 @@ const millDust = SITE_LAYOUT.machines.rollerMills.map(
     x,
     z,
     baseY: PT,
-    width: 5,
-    depth: 4.2,
+    width: 6,
+    depth: 4.8,
     rotation: i % 2 ? Math.PI : 0,
   })
 );
@@ -261,13 +271,28 @@ const packerDust = SITE_LAYOUT.machines.packers.map(
     z: z + 0.1,
     baseY: PT,
     width: 4,
-    depth: 4.2,
+    depth: 4.8,
     rotation: i % 2 ? Math.PI : 0,
+  })
+);
+
+/** A drift off each mill's gallery-side corner, where the air hoses blow it. */
+const millDrift = SITE_LAYOUT.machines.rollerMills.map(
+  ({ id, position: [x, , z] }, i): HallDustPatch => ({
+    id: `drift-${id}`,
+    source: id,
+    x: x + (i % 2 ? -1.9 : 1.9),
+    z: z - 1.9,
+    baseY: PT,
+    width: 2.6,
+    depth: 1.6,
+    rotation: i % 2 ? 0.2 : -0.2,
   })
 );
 
 export const HALL_DUST: readonly HallDustPatch[] = [
   ...millDust,
+  ...millDrift,
   ...sifterDust,
   ...packerDust,
   // Spill where sacks are handled.

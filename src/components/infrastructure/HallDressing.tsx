@@ -685,11 +685,13 @@ export function createDustMask(size = DUST_TEXTURE_SIZE): Uint8Array {
       const u = (x + 0.5) / size - 0.5;
       const v = (y + 0.5) / size - 0.5;
       const ragged = Math.hypot(u, v) * 2 * (0.8 + 0.5 * (fbm(u * 4 + 7, v * 4 + 3) - 0.5));
-      const edge = 1 - Math.min(1, Math.max(0, (ragged - 0.35) / 0.6));
+      const edge = 1 - Math.min(1, Math.max(0, (ragged - 0.5) / 0.45));
       const falloff = edge * edge * (3 - 2 * edge);
-      const body = 0.45 + 0.55 * fbm(u * 9 + 1.3, v * 9 + 8.1);
+      const body = 0.6 + 0.4 * fbm(u * 9 + 1.3, v * 9 + 8.1);
       const streak = 0.85 + 0.15 * Math.sin((u * 0.6 + v) * 40 + fbm(u * 6, v * 6) * 6);
-      const value = Math.round(255 * Math.min(1, falloff * body * streak * 1.25));
+      // Whatever the noise does, the quad's own edge is never drawn.
+      const border = Math.min(1, (0.5 - Math.max(Math.abs(u), Math.abs(v))) / 0.12);
+      const value = Math.round(255 * Math.min(1, falloff * body * streak * 1.25 * border));
       const i = (y * size + x) * 4;
       data[i] = value;
       data[i + 1] = value;
@@ -710,12 +712,12 @@ const DUST_MASK = (() => {
 /** Settled flour: lit (it darkens with the slab at night), never written to depth. */
 export const HALL_DUST_MATERIAL = new THREE.MeshStandardMaterial({
   name: 'hall-flour-dust',
-  color: '#ece6d6',
+  color: '#f1ece0',
   roughness: 0.95,
   metalness: 0,
   alphaMap: DUST_MASK,
   transparent: true,
-  opacity: 0.62,
+  opacity: 0.8,
   depthWrite: false,
   polygonOffset: true,
   polygonOffsetFactor: POLYGON_OFFSET.standard.factor,

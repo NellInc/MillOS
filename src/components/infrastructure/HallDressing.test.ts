@@ -55,6 +55,14 @@ describe('hall dressing render', () => {
     centre = mask[(16 * 32 + 16) * 4 + 1];
     expect(green).toBeGreaterThan(0);
     expect(centre).toBeGreaterThan(mask[1]); // thicker in the middle than at the corner
-    expect(mask[1]).toBe(0);
+    // No straight quad edge: the whole border ring is empty.
+    for (let k = 0; k < 32; k += 1)
+      for (const [x, y] of [
+        [k, 0],
+        [k, 31],
+        [0, k],
+        [31, k],
+      ])
+        expect(mask[(y * 32 + x) * 4 + 1], `${x},${y}`).toBeLessThan(40);
   });
 });
