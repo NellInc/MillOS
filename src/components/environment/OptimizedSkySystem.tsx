@@ -610,8 +610,11 @@ void main() {
     // At 540 m the band's lit radiance is ~0.03 linear under a ~0.23
     // inscatter, so only an albedo span survives the haze: pale scree on the
     // ribs (RIDGE_ALPINE_PROFILE.ribAlbedo), dark forest down the runnels.
-    float rib = smoothstep(0.52, 0.72, spur) * lowBand;
-    float runnel = (1.0 - smoothstep(0.3, 0.48, spur)) * lowBand;
+    // The 15 m veins break the 25 m spurs, so ribs end in scree fans instead
+    // of running as soft vertical curtains that read as rain.
+    float gully = spur * 0.6 + veins * 0.4;
+    float rib = smoothstep(0.55, 0.66, gully) * lowBand;
+    float runnel = (1.0 - smoothstep(0.34, 0.45, gully)) * lowBand;
     detailedAlbedo = mix(detailedAlbedo, ${glslVec3(RIDGE_ALPINE_PROFILE.ribAlbedo)}
       * (0.88 + scree * 0.24), rib * 0.8);
     detailedAlbedo = mix(detailedAlbedo, ${glslVec3(RIDGE_ALPINE_PROFILE.lowland[0])}, runnel * 0.7);
@@ -1320,7 +1323,7 @@ export function createRidgeMaterial(
     },
   });
   material.userData.clearAerial = aerial;
-  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v21';
+  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v22';
   return material;
 }
 
