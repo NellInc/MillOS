@@ -5329,8 +5329,14 @@ const VESSEL_HEAD_STEPS = 12;
  * The propane warning band takes 24 for the same reason and must not go below
  * 20: it is only 0.02 m proud, so at 12 its flats fall 0.03 m inside a 24-gon
  * shell's vertices and the stripe gets swallowed.
+ *
+ * 48, not 24, since final-med-12: the chord was right for the shading, but a
+ * head seen END-ON is all silhouette, and a 24-gon's flats sit 23 mm inside
+ * the 3 m circle - the polygon read on the right tank's head from the
+ * tank-farm camera. 48 is 6.5 mm, under a pixel there, and still a multiple of
+ * the 15 degree grid the saddles and the warning band share.
  */
-const VESSEL_SEGMENTS = 24;
+const VESSEL_SEGMENTS = 48;
 /**
  * The lathe profile, pole to pole along +y, as (radius, y). The envelope's
  * axial extent is unchanged: +-(length / 2 + radius), so saddles, ladders,
@@ -5551,7 +5557,8 @@ export const StorageTank: React.FC<{
           rotation={[0, Math.PI / 2, 0]}
           castShadow
         >
-          <torusGeometry args={[radius + 0.035, 0.085, 8, 24]} />
+          {/* As many sides as the shell, or the band's flats cut its silhouette. */}
+          <torusGeometry args={[radius + 0.035, 0.085, 8, VESSEL_SEGMENTS]} />
           <meshStandardMaterial
             color={accentColor}
             roughness={0.64}

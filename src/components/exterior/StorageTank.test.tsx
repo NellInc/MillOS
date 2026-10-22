@@ -1,4 +1,5 @@
 import { Children, isValidElement, type ReactNode } from 'react';
+import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import {
   PropaneTank,
@@ -166,6 +167,73 @@ describe('pressure-vessel heads', () => {
       'propaneSmallShell',
     ])
       expect(assets).not.toContain(shell);
+  });
+});
+
+describe('vessel silhouette', () => {
+  /**
+   * final-med-12 tank-farm: the 3 m heads, seen end-on from the yard, showed
+   * polygon facets on their silhouette (right tank (2440,560)-(2500,930)).
+   * A revolved silhouette is an N-gon; its flats fall r(1 - cos(pi / N))
+   * inside the true circle. At 24 segments that is 23 mm on a 3 m head, two
+   * to three pixels at the tank-farm camera, which is exactly what read.
+   */
+  const MAX_SAGITTA_M = 0.008;
+  const sagitta = (radius: number, segments: number) => radius * (1 - Math.cos(Math.PI / segments));
+
+  it.each([
+    [3, 10],
+    [2.5, 8],
+  ])('keeps a %s m storage tank round on its silhouette', (radius, length) => {
+    const revolved: { radius: number; segments: number; what: string }[] = [];
+    const visit = (node: ReactNode) =>
+      Children.forEach(node, (child) => {
+        if (!isValidElement<Record<string, unknown>>(child)) return;
+        const geometry = child.props.geometry;
+        if (geometry instanceof THREE.LatheGeometry) {
+          const points = geometry.parameters.points as THREE.Vector2[];
+          revolved.push({
+            radius: Math.max(...points.map((p) => p.x)),
+            segments: geometry.parameters.segments,
+            what: 'lathe',
+          });
+        }
+        if (child.type === 'torusGeometry') {
+          const [ringRadius, , , tubularSegments] = child.props.args as number[];
+          revolved.push({ radius: ringRadius, segments: tubularSegments, what: 'band' });
+        }
+        // The seam bands are a plain function component without hooks.
+        if (typeof child.type === 'function' && child.type.name === 'VesselSeams')
+          visit((child.type as (props: unknown) => ReactNode)(child.props));
+        visit(child.props.children as ReactNode);
+      });
+    visit(StorageTank({ position: [0, 0, 0], radius, length }) as ReactNode);
+    // Shell, two seam bands and two identification bands.
+    expect(revolved.length).toBeGreaterThanOrEqual(5);
+    for (const part of revolved)
+      expect(sagitta(part.radius, part.segments), `${part.what} r=${part.radius}`).toBeLessThan(
+        MAX_SAGITTA_M
+      );
+  });
+
+  it('keeps every vertical LPG vessel round too', () => {
+    for (const [radius, height] of [
+      [1.5, 5],
+      [1.2, 4],
+    ]) {
+      const shells: THREE.LatheGeometry[] = [];
+      const visit = (node: ReactNode) =>
+        Children.forEach(node, (child) => {
+          if (!isValidElement<Record<string, unknown>>(child)) return;
+          if (child.props.geometry instanceof THREE.LatheGeometry)
+            shells.push(child.props.geometry);
+          visit(child.props.children as ReactNode);
+        });
+      visit(PropaneTank({ position: [0, 0, 0], radius, height }) as ReactNode);
+      expect(shells.length).toBeGreaterThan(0);
+      for (const shell of shells)
+        expect(sagitta(radius, shell.parameters.segments)).toBeLessThan(MAX_SAGITTA_M);
+    }
   });
 });
 
