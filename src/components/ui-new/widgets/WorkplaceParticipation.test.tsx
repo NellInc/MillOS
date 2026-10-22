@@ -15,6 +15,7 @@ import { useWorkplaceAutoplay } from '../../../simulation/workplaceAutoplay';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
 import { useUIStore } from '../../../stores/uiStore';
 import { useAnnouncementsStore } from '../../../stores/announcementsStore';
+import { useMobileControlStore } from '../../../stores/mobileControlStore';
 import { setLocale } from '../../../i18n';
 
 beforeEach(() => {
@@ -331,6 +332,45 @@ it('keeps the desktop takeover control clear of the guide card column', () => {
     expect(takeover.textContent).toBe('Take over cooperative season');
   } finally {
     act(() => {
+      useWorkplaceAutoplay.getState().pause(true);
+    });
+    view.unmount();
+    resize(width, height);
+    delete document.documentElement.dataset.millosStartupReady;
+  }
+});
+
+it('yields to an open compact-layout sheet instead of covering it', () => {
+  // A 390-wide window without touch: the dock opens the modal mobile sheet,
+  // and the notice at bottom-[8rem] sat over its throughput and efficiency
+  // values. The sheet inerts its own siblings, but this notice is outside them.
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  const resize = (w: number, h: number) => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: w });
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: h });
+    fireEvent(window, new Event('resize'));
+  };
+  resize(390, 844);
+  useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
+  useOperationsCampaignStore.getState().initializeCampaign();
+  document.documentElement.dataset.millosStartupReady = 'true';
+  const view = render(<WorkplaceAutoplayStatus />);
+  try {
+    expect(screen.getByRole('complementary', { name: 'Fictional demo running' })).toBeTruthy();
+    act(() => {
+      useMobileControlStore.getState().openMobilePanel('overview');
+    });
+    expect(screen.queryByRole('complementary', { name: 'Fictional demo running' })).toBeNull();
+    act(() => {
+      useMobileControlStore.getState().closeMobilePanel();
+    });
+    // Back once the sheet closes, with the season still running.
+    const status = screen.getByRole('complementary', { name: 'Fictional demo running' });
+    expect(status.querySelector('button')).toBeTruthy();
+  } finally {
+    act(() => {
+      useMobileControlStore.getState().closeMobilePanel();
       useWorkplaceAutoplay.getState().pause(true);
     });
     view.unmount();

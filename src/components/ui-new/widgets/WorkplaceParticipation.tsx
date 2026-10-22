@@ -6,6 +6,7 @@ import { isBenchmarkRuntime } from '../../../runtime/runtimeMode';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
 import { useUIStore } from '../../../stores/uiStore';
 import { useAnnouncementsStore } from '../../../stores/announcementsStore';
+import { useMobileControlStore } from '../../../stores/mobileControlStore';
 import { turnChecks } from '../../../simulation/workplaceParticipation';
 import {
   demonstrationBeats,
@@ -437,6 +438,11 @@ export function WorkplaceAutoplayStatus() {
   const tourShowing = useAnnouncementsStore((s) => s.context.onboarding);
   const journeyVisible = useUIStore((s) => s.journeyVisible);
   const guideCardShowing = tourShowing || journeyVisible;
+  // The compact-layout sheet is modal and inerts its own siblings, but this
+  // notice is rendered outside them: at 390 px wide it sat over the sheet's
+  // throughput and efficiency values. It yields while a sheet is open.
+  // Working if the sheet's metrics are uncovered and the notice returns on close.
+  const mobileSheetOpen = useMobileControlStore((s) => s.mobilePanelVisible);
   // Closing the tour with X leaves hasSeenIntro unset, so remember that this
   // mount has seen the tour rather than waiting for the persisted flag.
   const tourSeen = useRef(false);
@@ -483,7 +489,7 @@ export function WorkplaceAutoplayStatus() {
     store.workplace.mode,
     store.workplace.phase,
   ]);
-  if (!automatic.running) return null;
+  if (!automatic.running || mobileSheetOpen) return null;
   // The tour and first-delivery cards sit from bottom-[11.5rem] in the same
   // bottom-left column. Beside them the notice collapses to its one 44px
   // takeover control, which ends below the card instead of under it.
