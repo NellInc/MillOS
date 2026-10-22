@@ -210,13 +210,20 @@ failure) and resumed from their last commit each time.
 | `f8de2a3e` | art3geo | 48-sided tank heads; forklift beacon cone off the load; 03 SIFTING hung clear of the spout; R.M. plates legible; plansifters hung from gantries; truck edges, lamps, flaps, cab bevel; both apartment street faces framed |
 | `e1e53ced` | art3mat | daytime sky fill 55% toward neutral (the cyan shade); galvanised silos (neutral silver, patina, sparse run-off, sun aureole, grass-free reflection, rings matched; a cloned material had been dropping its `defines`); glazing Fresnel; roof liner albedo 0.29 to 0.45; door columns off coal black; aisle barrier detail to 90 m; dock sign trim inset (the doorway fringe was a z-fight) |
 
+| `8da16e0d` | hall | working-floor dressing (sack bays, pallet piles, parts racks, carts, hose reels and hoses, spill kit, roll cradle, pallet jack, 42 m cable tray, post conduits) placed off every forklift route, painted aisle and worker circuit, proven against the real lane and route data; settled flour at every mill, sifter and packer as a lit decal drawn before the additive light pools (`RENDER_ORDER.floorDeposits`), dark at 22:00; planner `planningObstacles()` includes the dressing (no default route, optimiser search or replay fixture touches it). Cost about +19 to +32 draw calls and +32k to +44k triangles per frame |
+
 After the overlapping merges: tsc, shaders (38 families), depth clean; 362/362 tests in the 40
 overlapping files.
 
+**Whole gate on `d8d49fdf`** (before the hall merge): typecheck, agent:typecheck, lint, format,
+build, bundle, reachability, community, depth, shaders, assets pass; vitest 4,511 pass, 4 timed out
+at load 12-44 per core and pass 182/182 re-run with long timeouts (cacheIdentity, systemRegistry,
+perimeterKerbLayout, workerPose). The hall merge then passed tsc, eslint, prettier, depth, shaders
+and its affected tests.
+
 ## What remains
 
-Hall floor dressing (the sparse hall) running on `claude/polish-fix-hall` off `f8de2a3e`, after the
-geometry agent stalled twice on its oversized context. Baseline retries (low-12, med-19, med-22,
-18:30) under the lock. Then the whole gate, all art conditions and both judges, and the runtime
-batch again. Not done: a performance benchmark on a quiet machine (the ground wave's crop adds
+Final pipeline on `8da16e0d` under the lock: build, reachability, seven art conditions
+(`final3-*`), runtime batch, then the baseline retries (low-12, med-19, med-22, 18:30). Then both
+judges. Not done: a performance benchmark on a quiet machine (the ground wave's crop adds
 ~319k triangles; the hall dressing will add more); the castle (a dressing call left to Nell).
