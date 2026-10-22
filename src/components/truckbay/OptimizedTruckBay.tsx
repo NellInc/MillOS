@@ -567,8 +567,10 @@ export const TRAILER_REAR_LAMPS: readonly (DetailInstance & {
   // left, which reads as a modelling slip from any rear angle.
   { lamp: 'reverse', position: [-0.25, 1.05, -11.45], scale: [0.26, 0.24, 0.08] },
   { lamp: 'reverse', position: [0.25, 1.05, -11.45], scale: [0.26, 0.24, 0.08] },
-  { lamp: 'left-signal', position: [-1.08, 1.05, -11.45], scale: [0.22, 0.24, 0.08] },
-  { lamp: 'right-signal', position: [1.08, 1.05, -11.45], scale: [0.22, 0.24, 0.08] },
+  // Signals at 1.1, not 1.08: 6 cm from the brake lamps leaves room for both housings.
+  // Signals at 1.1, not 1.08: 6 cm to the brake lamps leaves room for both housings.
+  { lamp: 'left-signal', position: [-1.1, 1.05, -11.45], scale: [0.22, 0.24, 0.08] },
+  { lamp: 'right-signal', position: [1.1, 1.05, -11.45], scale: [0.22, 0.24, 0.08] },
 ];
 
 /** Emissive colours of the rear lamp lenses (display sRGB). */
@@ -594,11 +596,89 @@ export function truckRearLampIntensities(
 
 // Hang from the underframe down to just above the road, aligned with the tyre
 // they trail: x 1.165-1.585 against a tyre at 1.19-1.57.
-const TRAILER_MUDFLAPS: readonly DetailInstance[] = [
+export const TRAILER_MUDFLAPS: readonly DetailInstance[] = [
   { position: [-1.375, 0.21, -9.74], scale: [0.42, 0.42, 0.03] },
   { position: [1.375, 0.21, -9.74], scale: [0.42, 0.42, 0.03] },
   { position: [-1.375, 0.21, -0.42], scale: [0.4, 0.4, 0.03] },
   { position: [1.375, 0.21, -0.42], scale: [0.4, 0.4, 0.03] },
+];
+
+// ---------------------------------------------------------------------------
+// EDGES, HOUSINGS, HANGERS AND BEVELS
+//
+// final-med-12 logistics-close read the trailer as a stack of untreated boxes:
+// cube lamps standing on the doors, a pure black box for each mud flap, a box
+// body with nothing on its edges, and a box cab. A box van is in fact a box;
+// what makes one read as built is its extruded aluminium edge framing, lamps
+// sunk in housings, and flaps hung from a bar. All of it is lit matter.
+// ---------------------------------------------------------------------------
+
+/**
+ * Aluminium corner posts on all four vertical edges, outboard of the skin
+ * (x 1.28-1.36) so the rear door hinges at x 1.28 still swing clear. The rear
+ * pair runs 2 cm past the door face; the front pair stops short of the first
+ * conspicuity strip.
+ */
+export const TRAILER_CORNER_POSTS: readonly DetailInstance[] = [-1, 1].flatMap((side) => [
+  { position: [side * 1.32, 2.45, -11.35] as const, scale: [0.08, 4.25, 0.2] as const },
+  { position: [side * 1.32, 2.45, -0.18] as const, scale: [0.08, 4.25, 0.14] as const },
+]);
+
+/** Top side rails along both roof edges, above the clearance lamps (y 4.52). */
+export const TRAILER_TOP_RAILS: readonly DetailInstance[] = [-1, 1].map((side) => ({
+  position: [side * 1.3, 4.575, -5.75] as const,
+  scale: [0.06, 0.09, 11.2] as const,
+}));
+
+/** Posts and rails share one aluminium batch. */
+const TRAILER_EDGE_TRIM: readonly DetailInstance[] = [
+  ...TRAILER_CORNER_POSTS,
+  ...TRAILER_TOP_RAILS,
+];
+
+/** Lamp housing wall thickness and its z span: from 1 cm inside the door to 4 cm past the lens. */
+const LAMP_BEZEL = { wall: 0.03, front: -11.53, back: -11.42 } as const;
+
+/** Four walls round each rear lamp lens, their face 4 cm proud of the lens. */
+export const TRAILER_LAMP_BEZELS: readonly DetailInstance[] = TRAILER_REAR_LAMPS.flatMap(
+  ({ position: [x, y], scale: [w, h] }) => {
+    const t = LAMP_BEZEL.wall;
+    const z = (LAMP_BEZEL.front + LAMP_BEZEL.back) / 2;
+    const d = LAMP_BEZEL.back - LAMP_BEZEL.front;
+    return [
+      { position: [x, y + h / 2 + t / 2, z] as const, scale: [w + 2 * t, t, d] as const },
+      { position: [x, y - h / 2 - t / 2, z] as const, scale: [w + 2 * t, t, d] as const },
+      { position: [x - w / 2 - t / 2, y, z] as const, scale: [t, h, d] as const },
+      { position: [x + w / 2 + t / 2, y, z] as const, scale: [t, h, d] as const },
+    ];
+  }
+);
+
+/** A steel hanger bar across the top of each flap: the flap's one lit edge. */
+export const TRAILER_MUDFLAP_HANGERS: readonly DetailInstance[] = TRAILER_MUDFLAPS.map(
+  ({ position: [x, y, z], scale: [w, h] }) => ({
+    position: [x, y + h / 2 + 0.015, z] as const,
+    scale: [w + 0.04, 0.07, 0.07] as const,
+  })
+);
+
+/**
+ * The cab-over's front, bevelled: a hood lip sloping back from the grille to
+ * the windscreen, a chamfered sill under the grille, and a sloped nose on the
+ * roof fairing. Each is a plate tipped about x (`rotationX`, radians).
+ */
+export const TRUCK_CAB_BEVELS: readonly (DetailInstance & {
+  readonly part: 'hood' | 'grille-surround' | 'fairing-nose';
+  readonly rotationX: number;
+})[] = [
+  { part: 'hood', position: [0, 1.72, 4.98], scale: [2.3, 0.42, 0.1], rotationX: -0.55 },
+  {
+    part: 'grille-surround',
+    position: [0, 0.84, 4.97],
+    scale: [1.84, 0.14, 0.08],
+    rotationX: 0.6,
+  },
+  { part: 'fairing-nose', position: [0, 3.68, 4.58], scale: [2.62, 0.48, 0.08], rotationX: -0.9 },
 ];
 
 /** The cab shell box: x +/-1.275, y 0.475-2.025, z 1.4-4.9. */
@@ -704,6 +784,10 @@ export function OptimizedTruckVisual({
   const amberMarkerRef = useRef<THREE.InstancedMesh>(null);
   const redMarkerRef = useRef<THREE.InstancedMesh>(null);
   const cabDetailRef = useRef<THREE.InstancedMesh>(null);
+  const cabBevelRef = useRef<THREE.InstancedMesh>(null);
+  const trailerEdgeRef = useRef<THREE.InstancedMesh>(null);
+  const lampBezelRef = useRef<THREE.InstancedMesh>(null);
+  const mudflapHangerRef = useRef<THREE.InstancedMesh>(null);
   const beamRef = useRef<THREE.Group>(null);
   const wheelDummyRef = useRef(new THREE.Object3D());
   const landingGearDummyRef = useRef(new THREE.Object3D());
@@ -1052,6 +1136,22 @@ export function OptimizedTruckVisual({
     applyDetailInstances(trailerFrameDetailRef.current, TRAILER_FRAME_DETAILS, scratch);
     applyDetailInstances(mudflapRef.current, TRAILER_MUDFLAPS, scratch);
     applyDetailInstances(cabDetailRef.current, CAB_DETAILS, scratch);
+    applyDetailInstances(trailerEdgeRef.current, TRAILER_EDGE_TRIM, scratch);
+    applyDetailInstances(lampBezelRef.current, TRAILER_LAMP_BEZELS, scratch);
+    applyDetailInstances(mudflapHangerRef.current, TRAILER_MUDFLAP_HANGERS, scratch);
+    const bevels = cabBevelRef.current;
+    if (bevels) {
+      TRUCK_CAB_BEVELS.forEach(({ position, scale, rotationX }, index) => {
+        scratch.position.set(...position);
+        scratch.rotation.set(rotationX, 0, 0);
+        scratch.scale.set(...scale);
+        scratch.updateMatrix();
+        bevels.setMatrixAt(index, scratch.matrix);
+      });
+      scratch.rotation.set(0, 0, 0);
+      bevels.instanceMatrix.needsUpdate = true;
+      bevels.computeBoundingSphere();
+    }
     applyDetailInstances(amberMarkerRef.current, AMBER_MARKERS, scratch);
     applyDetailInstances(redMarkerRef.current, RED_MARKERS, scratch);
     applyDetailInstances(
@@ -1067,7 +1167,7 @@ export function OptimizedTruckVisual({
       if (tape.instanceColor) tape.instanceColor.needsUpdate = true;
     }
     scratch.scale.set(1, 1, 1);
-  }, [amberMarkerMaterial, frameMaterial, redMarkerMaterial, trailerMaterial]);
+  }, [amberMarkerMaterial, cabMaterial, frameMaterial, redMarkerMaterial, trailerMaterial]);
 
   useLayoutEffect(() => {
     wheelsRef.current?.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -1372,6 +1472,14 @@ export function OptimizedTruckVisual({
           castShadow
           receiveShadow
         />
+        {/* Hood lip, grille sill and fairing nose, in the cab paint. */}
+        <instancedMesh
+          ref={cabBevelRef}
+          name="tractor-bevels"
+          args={[ROUNDED_BOX, cabMaterial, TRUCK_CAB_BEVELS.length]}
+          castShadow
+          receiveShadow
+        />
         {/* Two chassis rails with a crossmember, not a 2.35 m slab: the gap
             between the cab back and the trailer nose shows a frame. */}
         {[-0.45, 0.45].map((x) => (
@@ -1498,13 +1606,35 @@ export function OptimizedTruckVisual({
         />
         {/* 0.03 m flaps trailing 0.4 m tyres that already cast. */}
         <group ref={registerNearDetail}>
+          {/* Rounded, so their edges catch the light a black box never did. */}
           <instancedMesh
             ref={mudflapRef}
             name="trailer-mudflaps"
-            args={[UNIT_BOX, MATERIALS.rubber, TRAILER_MUDFLAPS.length]}
+            args={[ROUNDED_BOX, MATERIALS.rubber, TRAILER_MUDFLAPS.length]}
+            receiveShadow
+          />
+          <instancedMesh
+            ref={mudflapHangerRef}
+            name="trailer-mudflap-hangers"
+            args={[UNIT_BOX, MATERIALS.chrome, TRAILER_MUDFLAP_HANGERS.length]}
             receiveShadow
           />
         </group>
+        {/* Aluminium corner posts and roof rails: the box's edges, framed. */}
+        <instancedMesh
+          ref={trailerEdgeRef}
+          name="trailer-edge-trim"
+          args={[UNIT_BOX, MATERIALS.trailerTrim, TRAILER_EDGE_TRIM.length]}
+          castShadow
+          receiveShadow
+        />
+        {/* Rear lamp housings: each lens sits 4 cm inside its own walls. */}
+        <instancedMesh
+          ref={lampBezelRef}
+          name="trailer-lamp-housings"
+          args={[UNIT_BOX, frameMaterial, TRAILER_LAMP_BEZELS.length]}
+          receiveShadow
+        />
         <instancedMesh
           ref={tapeRef}
           name="trailer-conspicuity-tape"
