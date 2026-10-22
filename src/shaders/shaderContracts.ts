@@ -380,7 +380,7 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     uniformOwner:
       'per-material closure captured by applyMachineWear, mirrored on userData.machineWear',
     timeSource: 'none',
-    cacheKey: 'machineWear_v3',
+    cacheKey: 'machineWear_v4',
     disposalOwner: 'module lifetime (MACHINE_MATERIALS library)',
     fallbackMaterial: 'the same MeshStandardMaterial with no wear injection',
   },

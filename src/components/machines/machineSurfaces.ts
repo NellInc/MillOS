@@ -230,7 +230,32 @@ const PLATE_ORM = band(HOUSING_ORM, 4, 2);
  * the program key alongside this string (`WebGLPrograms.getProgramCacheKey`),
  * so permutations still split properly.
  */
-export const MACHINE_WEAR_CACHE_KEY = 'machineWear_v3';
+export const MACHINE_WEAR_CACHE_KEY = 'machineWear_v4';
+
+/** Share of the silo drum's 180 streak columns that carry run-off, per ring. */
+export const SILO_STREAK_LIVE_FRACTION = 0.16;
+
+/**
+ * World-space reflection Y over which the silo's reflected environment goes
+ * from the sky band (untouched) to the ground band (neutralised).
+ */
+export const SILO_GROUND_HORIZON = [0.05, -0.25] as const;
+
+/** How far the silo patina's diffuse bounce is pulled to its own luminance. */
+export const SILO_GROUND_BOUNCE = 0.7;
+
+/** TS mirror of the shader's ground weight for a world reflection Y. */
+export function siloGroundWeight(reflectY: number, strength = 1): number {
+  const [edge0, edge1] = SILO_GROUND_HORIZON;
+  const t = THREE.MathUtils.clamp((reflectY - edge0) / (edge1 - edge0), 0, 1);
+  return t * t * (3 - 2 * t) * THREE.MathUtils.clamp(strength, 0, 1);
+}
+
+/** TS mirror of the shader's neutralisation: lerp to luminance by `weight`. */
+export function neutraliseSiloGround(target: THREE.Color, weight: number): THREE.Color {
+  const luminance = 0.2126 * target.r + 0.7152 * target.g + 0.0722 * target.b;
+  return target.lerp(new THREE.Color(luminance, luminance, luminance), weight);
+}
 
 const WEAR_VERTEX_PARS = /* glsl */ `
 varying vec3 vMachineWorldPos;
@@ -277,6 +302,7 @@ varying vec3 vMachineWorldNormal;
 #ifdef MACHINE_GALVANISED
 uniform vec4 uMachineGalv;
 uniform vec4 uMachineRings;
+uniform float uMachineGalvGround;
 varying vec3 vMachineObject;
 float machineGalvHash( vec3 p ) {
   p = fract( p * 0.3183099 + vec3( 0.71, 0.113, 0.419 ) );
@@ -295,12 +321,22 @@ float machineGalvNoise( vec3 p ) {
     f.z
   );
 }
-// One ring's run-off in one column: live in ~38% of columns, a random length.
-float machineGalvRun( float datum, float ring, float column, float y ) {
+// One ring's run-off in one column. Live in SILO_STREAK_LIVE_FRACTION of
+// columns; each live streak takes its own centre, width, strength and length
+// (most short, a few long), broken along its run so it is not a ruled line.
+float machineGalvRun( float datum, float ring, float column, float across, float y ) {
   float below = datum - y;
   float seed = machineGalvHash( vec3( column, ring * 7.0, 3.0 ) );
-  float runLength = mix( 0.025, 0.11, fract( seed * 13.7 ) );
-  return step( 0.62, seed ) * smoothstep( 0.0, 0.006, below ) * exp( - max( below, 0.0 ) / runLength );
+  float shape = machineGalvHash( vec3( column, ring * 7.0, 11.0 ) );
+  float streakCentre = 0.25 + 0.5 * shape;
+  float streakWidth = 0.08 + 0.22 * fract( shape * 7.3 );
+  float profile = 1.0 - smoothstep( 0.0, streakWidth, abs( across - streakCentre ) );
+  float lengthSeed = fract( seed * 13.7 );
+  float runLength = mix( 0.008, 0.12, lengthSeed * lengthSeed );
+  float broken = 0.45 + 0.55 * machineGalvNoise( vec3( column * 3.1, y * 90.0, ring ) );
+  float strength = 0.45 + 0.55 * fract( seed * 5.1 );
+  return step( ${(1 - SILO_STREAK_LIVE_FRACTION).toFixed(3)}, seed ) * profile * strength * broken *
+    smoothstep( 0.0, 0.006, below ) * exp( - max( below, 0.0 ) / runLength );
 }
 #endif
 `;
@@ -338,19 +374,18 @@ float galvPatina = smoothstep( 0.2, 0.8, galvPatinaField ) * uMachineGalv.x;
 float galvColumns = ( atan( vMachineObject.z, vMachineObject.x ) / 6.28318530718 + 0.5 ) * 180.0;
 float galvColumn = floor( galvColumns );
 float galvAcross = fract( galvColumns );
-float galvStreak = smoothstep( 0.0, 0.4, galvAcross ) * ( 1.0 - smoothstep( 0.6, 1.0, galvAcross ) );
 // Written out, not looped: no dynamic vector indexing for the ANGLE backends.
 float galvDrip = max(
   max(
-    machineGalvRun( uMachineRings.x, 0.0, galvColumn, vMachineObject.y ),
-    machineGalvRun( uMachineRings.y, 1.0, galvColumn, vMachineObject.y )
+    machineGalvRun( uMachineRings.x, 0.0, galvColumn, galvAcross, vMachineObject.y ),
+    machineGalvRun( uMachineRings.y, 1.0, galvColumn, galvAcross, vMachineObject.y )
   ),
   max(
-    machineGalvRun( uMachineRings.z, 2.0, galvColumn, vMachineObject.y ),
-    machineGalvRun( uMachineRings.w, 3.0, galvColumn, vMachineObject.y )
+    machineGalvRun( uMachineRings.z, 2.0, galvColumn, galvAcross, vMachineObject.y ),
+    machineGalvRun( uMachineRings.w, 3.0, galvColumn, galvAcross, vMachineObject.y )
   )
 );
-galvDrip *= galvStreak * ( 1.0 - smoothstep( 0.25, 0.6, fwidth( galvColumns ) ) ) * uMachineGalv.w;
+galvDrip *= ( 1.0 - smoothstep( 0.25, 0.6, fwidth( galvColumns ) ) ) * uMachineGalv.w;
 metalnessFactor *= 1.0 - galvPatina;
 roughnessFactor = mix( roughnessFactor * uMachineGalv.y, 0.82, galvPatina );
 diffuseColor.rgb *= 1.0 - 0.07 * galvPatina - 0.22 * galvDrip;
@@ -379,6 +414,24 @@ const GALVANISED_LIGHT_BODY = /* glsl */ `
   }
   #pragma unroll_loop_end
   reflectedLight.indirectSpecular += galvAureole * uMachineGalv.z * material.specularColorBlended;
+}
+#endif
+#ifdef MACHINE_GALVANISED
+{
+  // The environment's lower band is the grass albedo, but the battery stands
+  // on a concrete pad: a drum seen from above mirrored a green-brown blotch
+  // onto its lower third. Pull what it reflects BELOW the horizon, and the
+  // diffuse bounce on the patina, to their own luminance.
+  vec3 galvReflectWorld = inverseTransformDirection( reflect( - geometryViewDir, normal ), viewMatrix );
+  float galvGround = smoothstep( ${SILO_GROUND_HORIZON[0].toFixed(3)}, ${SILO_GROUND_HORIZON[1].toFixed(3)}, galvReflectWorld.y ) * uMachineGalvGround;
+  float galvSpecLuma = dot( reflectedLight.indirectSpecular, vec3( 0.2126, 0.7152, 0.0722 ) );
+  reflectedLight.indirectSpecular = mix( reflectedLight.indirectSpecular, vec3( galvSpecLuma ), galvGround );
+  float galvDiffLuma = dot( reflectedLight.indirectDiffuse, vec3( 0.2126, 0.7152, 0.0722 ) );
+  reflectedLight.indirectDiffuse = mix(
+    reflectedLight.indirectDiffuse,
+    vec3( galvDiffLuma ),
+    ${SILO_GROUND_BOUNCE.toFixed(3)} * uMachineGalvGround
+  );
 }
 #endif
 `;
@@ -514,12 +567,16 @@ function withWear<T extends THREE.MeshStandardMaterial>(
         galvanised.drips
       ),
     };
+    // 1 = the grass outside is neutralised in what the drum reflects (paired control).
+    const galvGround = { value: 1 };
     Object.assign(uniforms, {
       uMachineGalv: galv,
       uMachineRings: { value: new THREE.Vector4(...SILO_DRIP_DATUMS_UNIT) },
+      uMachineGalvGround: galvGround,
     });
     material.defines = { ...material.defines, MACHINE_GALVANISED: '' };
     material.userData.machineGalvanised = galv;
+    material.userData.machineGalvanisedGround = galvGround;
   }
 
   material.onBeforeCompile = (shader) => {
@@ -625,8 +682,8 @@ export const MACHINE_MATERIALS = {
       grimeHeight: 3.2,
       // Tuned on one page load (silos-tune): patina 0.6 -> 0.8 and aureole 0.07 -> 0.1
       // took the near drum from 9 to 10.5 sRGB levels sun side to shade side;
-      // streaks at 0.55 read as faint run-off rather than rain stripes.
-      galvanised: { patina: 0.8, spangleRoughness: 0.68, aureole: 0.1, drips: 0.55 },
+      // sparse irregular streaks (SILO_STREAK_LIVE_FRACTION) at 0.8 read as faint run-off.
+      galvanised: { patina: 0.8, spangleRoughness: 0.68, aureole: 0.1, drips: 0.8 },
     }
   ),
 

@@ -62,6 +62,39 @@ describe('galvanised silo skin (final-med-12: matte pale-cyan paint, no form sha
     expect(shader.uniforms.uMachineGalv).toBe(MACHINE_MATERIALS.silo.userData.machineGalvanised);
   });
 
+  it('does not mirror the grass outside onto the lower drum', () => {
+    // crops/silos-base-vs-t2.png: a green-brown blotch on the bottom third. A
+    // vertical drum seen from above reflects the environment's LOWER band,
+    // which is the grass albedo; the battery stands on a concrete pad.
+    const { neutraliseSiloGround, siloGroundWeight, SILO_GROUND_BOUNCE } = surfaces;
+    const chroma = (c: THREE.Color) => Math.max(c.r, c.g, c.b) - Math.min(c.r, c.g, c.b);
+    const lum = (c: THREE.Color) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+    const grass = new THREE.Color('#6f806c');
+    const reflected = neutraliseSiloGround(grass.clone(), siloGroundWeight(-0.4));
+    expect(chroma(reflected)).toBeLessThan(chroma(grass) * 0.3);
+    expect(lum(reflected)).toBeCloseTo(lum(grass), 6);
+    // A reflection of the sky above the horizon keeps its colour.
+    expect(siloGroundWeight(0.3)).toBe(0);
+    // The diffuse bounce on the patina is pulled most of the way as well.
+    expect(SILO_GROUND_BOUNCE).toBeGreaterThanOrEqual(0.6);
+    const shader = compile(MACHINE_MATERIALS.silo);
+    expect(shader.fragmentShader).toContain('reflectedLight.indirectSpecular = mix(');
+    expect(shader.uniforms.uMachineGalvGround).toBe(
+      MACHINE_MATERIALS.silo.userData.machineGalvanisedGround
+    );
+  });
+
+  it('keeps the run-off sparse and irregular, not a smeared stripe texture', () => {
+    // At 38% of 180 columns, each with the same width and centre, the streaks
+    // read as a regular smear across the upper drum.
+    expect(surfaces.SILO_STREAK_LIVE_FRACTION).toBeLessThanOrEqual(0.2);
+    expect(surfaces.SILO_STREAK_LIVE_FRACTION).toBeGreaterThan(0.05);
+    const fragment = compile(MACHINE_MATERIALS.silo).fragmentShader;
+    // Each live streak takes its own centre, width and length.
+    expect(fragment).toContain('streakCentre');
+    expect(fragment).toContain('streakWidth');
+  });
+
   it('starts the run-off streaks under each stiffener ring and at the eave', () => {
     const { SILO_DRIP_DATUMS_UNIT, SILO_RING_HEIGHTS, SILO_SHELL_SPAN } = surfaces;
     expect(SILO_DRIP_DATUMS_UNIT).toHaveLength(4);
