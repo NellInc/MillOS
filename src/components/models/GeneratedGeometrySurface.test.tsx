@@ -8,6 +8,7 @@ import {
   createGeneratedSurfaceMaterial,
 } from './GeneratedGeometrySurface';
 import { hasWorldSurface, ownsOnlyWorldSurface } from '../../utils/worldSurface';
+import { MACHINE_MATERIALS } from '../machines/machineSurfaces';
 
 const holder = vi.hoisted(() => ({ scene: null as THREE.Group | null }));
 vi.mock('../../utils/dracoLoader', () => ({ useDracoGLTF: () => ({ scene: holder.scene }) }));
@@ -60,6 +61,19 @@ function fixture() {
   scene.add(mesh);
   return { original, generated, material, scene };
 }
+
+it('keeps the host material defines and live uniform objects on the layered clone', () => {
+  // MeshStandardMaterial.copy resets `defines` to { STANDARD } and JSON-copies
+  // userData, so the silo skin's MACHINE_GALVANISED block compiled out of the
+  // live clone (the battery stayed flat) and its uniform mirror became a ghost.
+  const original = MACHINE_MATERIALS.silo;
+  const live = createGeneratedSurfaceMaterial(original, new THREE.Texture());
+  expect(live.defines?.MACHINE_GALVANISED).toBe('');
+  expect(live.defines?.STANDARD).toBe('');
+  expect(live.userData.machineGalvanised).toBe(original.userData.machineGalvanised);
+  live.normalMap?.dispose();
+  live.dispose();
+});
 
 it('uses the reviewed asset normal strength without changing the authored tread strength', () => {
   const f = fixture();
