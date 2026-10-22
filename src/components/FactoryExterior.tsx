@@ -960,8 +960,9 @@ const OfficeApartment: React.FC<{
           primitiveBuilding
         )}
       </GeneratedBoundary>
-      {/* Galleries and a stair tower on the face the site sees. */}
-      {floors === 4 && <ApartmentFacade />}
+      {/* Galleries, their columns and a stair tower on the face the site sees,
+          on both generated blocks. */}
+      {(floors === 3 || floors === 4) && <ApartmentFacade floors={floors} />}
     </group>
   );
 };
