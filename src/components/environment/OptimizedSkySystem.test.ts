@@ -441,7 +441,7 @@ describe('solid fixed foothills', () => {
       expect(material.fragmentShader).toContain('gl_FragColor = vec4(lit, 1.0)');
       expect(material.fragmentShader).not.toContain('groundBlend');
       expect(material.fragmentShader).not.toContain('sampler');
-      expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v20');
+      expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v21');
       material.dispose();
     }
   });
@@ -772,7 +772,7 @@ it('parcels the gentle foothill slopes into hedged fields brighter than the wood
   expect(branch).toContain(`vec2(${cell[0].toFixed(1)}, ${cell[1].toFixed(1)})`);
   expect(branch).toContain('hedge');
   expect(branch).toContain('fwidth(edge)');
-  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v20');
+  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v21');
   near.dispose();
 });
 
@@ -839,7 +839,7 @@ it('breaks the farmed/wooded edge across terrace rows and draws no isolated fiel
   // parcel now draw back from its boundary into ragged stands.
   expect(branch).not.toContain('* step(0.4, parcelUse)');
   expect(branch).toContain('float woods =');
-  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v20');
+  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v21');
   near.dispose();
 });
 
@@ -875,8 +875,17 @@ it('gives the far lower slopes contrast that survives the aerial mix and real ou
   // big peaks) and the spurs were gated to vegetation. Spurs and couloirs cut
   // rock too: they must cover the whole band below the snow line.
   expect(branch).toContain('float lowBand =');
+  // Second pass (art3land-after2-med12): 5.80 band-pass, still nothing. A probe
+  // put the band at 540 m with lit radiance ~0.02-0.04 linear under a ~0.23
+  // inscatter: a +/-28% multiply on a 0.05 albedo is ~1 level after the haze.
+  // Only an albedo SPAN survives: pale scree ribs against dark forest runnels.
+  expect(branch).toContain('float rib =');
+  expect(branch).toContain('float runnel =');
+  expect(linearLuminance(RIDGE_ALPINE_PROFILE.ribAlbedo)).toBeGreaterThan(
+    linearLuminance(lowland[0]) * 4
+  );
   expect(branch).not.toContain('(1.0 - max(rock, substrate)))');
-  expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v20');
+  expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v21');
   material.dispose();
 });
 

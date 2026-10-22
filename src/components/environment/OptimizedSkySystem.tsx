@@ -390,6 +390,8 @@ export const RIDGE_ALPINE_PROFILE = {
    * on the band that needed them.
    */
   outcropAlbedo: [0.16, 0.165, 0.15],
+  /** Pale scree and bare rock on the fall-line ribs of the lower band. */
+  ribAlbedo: [0.21, 0.215, 0.2],
   /**
    * Fall-line spurs and gullies on the lower band, metres of relief across a
    * ~25 m cell: enough for faces to turn to and from the sun at 400 m, where
@@ -605,7 +607,14 @@ void main() {
     // only term left the overview band unchanged. The whole band below the
     // snow line takes lit ribs and darker runnels.
     float lowBand = 1.0 - smoothstep(-0.2, 0.6, snowAltitude + snowBreak);
-    detailedAlbedo *= mix(1.0, 0.72 + spur * 0.56, lowBand);
+    // At 540 m the band's lit radiance is ~0.03 linear under a ~0.23
+    // inscatter, so only an albedo span survives the haze: pale scree on the
+    // ribs (RIDGE_ALPINE_PROFILE.ribAlbedo), dark forest down the runnels.
+    float rib = smoothstep(0.52, 0.72, spur) * lowBand;
+    float runnel = (1.0 - smoothstep(0.3, 0.48, spur)) * lowBand;
+    detailedAlbedo = mix(detailedAlbedo, ${glslVec3(RIDGE_ALPINE_PROFILE.ribAlbedo)}
+      * (0.88 + scree * 0.24), rib * 0.8);
+    detailedAlbedo = mix(detailedAlbedo, ${glslVec3(RIDGE_ALPINE_PROFILE.lowland[0])}, runnel * 0.7);
     float snowPotential = smoothstep(0.35, 0.65,
       snowAltitude + snowBreak) * uSnowStrength;
     float shoulder = smoothstep(0.35, 0.72, max(0.0, normal.y));
@@ -1311,7 +1320,7 @@ export function createRidgeMaterial(
     },
   });
   material.userData.clearAerial = aerial;
-  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v20';
+  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v21';
   return material;
 }
 
