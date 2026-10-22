@@ -21,18 +21,43 @@ const perimeter = MILLOS_TERRAIN_REGIONS[0];
 const eastPond = SITE_LAYOUT.exteriorFeatures.ponds[1];
 const EAST_POND_APPROACH = [eastPond.position[0] - eastPond.radius - 0.8, 0, eastPond.position[2]];
 
-/** Paths and roads FactoryExterior lays as literals, in world X/Z. */
-function factoryExteriorPaths() {
+/**
+ * Paths and roads FactoryExterior lays, in world X/Z: literal props, plus
+ * `{...NAME}` spreads of an exported `{ start, end, width }` constant (the lake
+ * approach became `LAKE_APPROACH_PATH` when its hedge was laid along it). The
+ * spreads resolve through the module's own exports, since some ends are computed.
+ */
+async function factoryExteriorPaths() {
   const source = readFileSync('src/components/FactoryExterior.tsx', 'utf8');
   const pattern =
     /<(?:GravelPath|ConnectingRoad)\s+start=\{\[(-?[\d.]+), [-\d.]+, (-?[\d.]+)\]\}\s+end=\{(?:\[(-?[\d.]+), [-\d.]+, (-?[\d.]+)\]|(EAST_POND_APPROACH))\}\s+width=\{([\d.]+)\}/g;
-  return [...source.matchAll(pattern)].map((m) => ({
+  const literal = [...source.matchAll(pattern)].map((m) => ({
     start: [Number(m[1]), Number(m[2])] as const,
     end: (m[5]
       ? [EAST_POND_APPROACH[0], EAST_POND_APPROACH[2]]
       : [Number(m[3]), Number(m[4])]) as readonly [number, number],
     width: Number(m[6]),
   }));
+  // FactoryExterior's own path constants, plus those it imports from the lighting module.
+  const exterior = {
+    ...((await import('./ExteriorLighting')) as unknown as Record<string, unknown>),
+    ...((await import('../FactoryExterior')) as unknown as Record<string, unknown>),
+  };
+  const spread = [...source.matchAll(/<(?:GravelPath|ConnectingRoad)\s+\{\.\.\.([A-Z_]+)\}/g)].map(
+    ([, name]) => {
+      const path = exterior[name] as
+        | { start: readonly number[]; end: readonly number[]; width: number }
+        | undefined;
+      expect(path, `${name} is spread into a path but not exported`).toBeDefined();
+      const { start, end, width } = path as NonNullable<typeof path>;
+      return {
+        start: [start[0], start[2]] as const,
+        end: [end[0], end[2]] as readonly [number, number],
+        width,
+      };
+    }
+  );
+  return [...literal, ...spread];
 }
 
 /** Where a segment crosses (or touches within its half-width) a kerb run's line. */
@@ -88,9 +113,9 @@ describe('perimeter hardstanding edge', () => {
     expect(east.some((run) => run.from <= -60 && run.to >= 60)).toBe(true);
   });
 
-  it('never runs a kerb across a road or footpath', () => {
+  it('never runs a kerb across a road or footpath', async () => {
     const runs = buildPerimeterKerbRuns();
-    const fromSource = factoryExteriorPaths();
+    const fromSource = await factoryExteriorPaths();
     expect(fromSource.length).toBeGreaterThan(8);
     for (const path of fromSource) {
       for (const run of runs) {
