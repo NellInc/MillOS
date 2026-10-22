@@ -395,7 +395,7 @@ export const RIDGE_ALPINE_PROFILE = {
    * ~25 m cell: enough for faces to turn to and from the sun at 400 m, where
    * the metre-scale vein relief is unresolved.
    */
-  spurMetres: 3.5,
+  spurMetres: 4.5,
 } as const;
 
 const ridgeFragmentShader = `
@@ -600,6 +600,12 @@ void main() {
     vec3 lowSlope = mix(vegetation, ${glslVec3(RIDGE_ALPINE_PROFILE.outcropAlbedo)}
       * (0.88 + scree * 0.24), outcrop);
     detailedAlbedo = mix(lowSlope, mineral, max(rock, substrate));
+    // Spurs and couloirs cut the rock as well as the forest: under the big
+    // massifs vRidgeHeight puts rock at ~1 down to the foot, so a vegetation-
+    // only term left the overview band unchanged. The whole band below the
+    // snow line takes lit ribs and darker runnels.
+    float lowBand = 1.0 - smoothstep(-0.2, 0.6, snowAltitude + snowBreak);
+    detailedAlbedo *= mix(1.0, 0.72 + spur * 0.56, lowBand);
     float snowPotential = smoothstep(0.35, 0.65,
       snowAltitude + snowBreak) * uSnowStrength;
     float shoulder = smoothstep(0.35, 0.72, max(0.0, normal.y));
@@ -616,7 +622,7 @@ void main() {
     detailedAlbedo = mix(detailedAlbedo, settledSnow, snow);
     relief = (veins * ${RIDGE_ALPINE_PROFILE.reliefMetres.toFixed(2)}
       + strata * 0.08 + scree * 0.025 * fineVisibility
-      + (spur - 0.5) * ${RIDGE_ALPINE_PROFILE.spurMetres.toFixed(2)} * (1.0 - max(rock, substrate)))
+      + (spur - 0.5) * ${RIDGE_ALPINE_PROFILE.spurMetres.toFixed(2)} * lowBand)
       * uDetailStrength * (1.0 - snow * 0.85);
   } else {
     // Retain the far range's geology/snow exactly. The private woodland control
@@ -1305,7 +1311,7 @@ export function createRidgeMaterial(
     },
   });
   material.userData.clearAerial = aerial;
-  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v19';
+  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v20';
   return material;
 }
 

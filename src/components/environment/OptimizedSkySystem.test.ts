@@ -441,7 +441,7 @@ describe('solid fixed foothills', () => {
       expect(material.fragmentShader).toContain('gl_FragColor = vec4(lit, 1.0)');
       expect(material.fragmentShader).not.toContain('groundBlend');
       expect(material.fragmentShader).not.toContain('sampler');
-      expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v19');
+      expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v20');
       material.dispose();
     }
   });
@@ -772,7 +772,7 @@ it('parcels the gentle foothill slopes into hedged fields brighter than the wood
   expect(branch).toContain(`vec2(${cell[0].toFixed(1)}, ${cell[1].toFixed(1)})`);
   expect(branch).toContain('hedge');
   expect(branch).toContain('fwidth(edge)');
-  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v19');
+  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v20');
   near.dispose();
 });
 
@@ -839,7 +839,7 @@ it('breaks the farmed/wooded edge across terrace rows and draws no isolated fiel
   // parcel now draw back from its boundary into ragged stands.
   expect(branch).not.toContain('* step(0.4, parcelUse)');
   expect(branch).toContain('float woods =');
-  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v19');
+  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v20');
   near.dispose();
 });
 
@@ -869,6 +869,14 @@ it('gives the far lower slopes contrast that survives the aerial mix and real ou
   expect(branch).toContain('float spur =');
   expect(branch).toContain(`mix(vegetation, ${glslVec3Literal(outcropAlbedo)}`);
   expect(branch).toContain('(spur - 0.5) *');
+  // First pass (art3land-after-med12): the band's 25 px band-pass contrast
+  // went 5.81 -> 5.87, i.e. nothing. The massifs' lower band is ROCK there
+  // (vRidgeHeight carries 0.45 of the column profile, so rock is ~1 under the
+  // big peaks) and the spurs were gated to vegetation. Spurs and couloirs cut
+  // rock too: they must cover the whole band below the snow line.
+  expect(branch).toContain('float lowBand =');
+  expect(branch).not.toContain('(1.0 - max(rock, substrate)))');
+  expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v20');
   material.dispose();
 });
 
