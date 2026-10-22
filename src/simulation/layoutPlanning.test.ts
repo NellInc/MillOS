@@ -23,6 +23,7 @@ import {
   FORKLIFT_TIER_FOOTPRINTS,
 } from '../components/models/ForkliftModel';
 import { DOCK_DECK } from '../constants/dockLoading';
+import { HALL_DUST, hallDressingSolids } from '../components/infrastructure/hallDressingLayout';
 
 describe('isolated logistics planning', () => {
   // Loading reads as loading only if the pallet goes down at the trailer it
@@ -123,6 +124,23 @@ describe('isolated logistics planning', () => {
     expect(scoreLogisticsLayout(plan, assumptions, [seam]).violations).toContain(
       'receiving: swept route meets seam-block.'
     );
+  });
+
+  it('refuses a route corner dragged through the hall dressing', () => {
+    const plan = currentLogisticsLayout();
+    const editable = plan.routes.receiving.findIndex((_, index) =>
+      isEditableRoutePoint('receiving', index)
+    );
+    expect(editable).toBeGreaterThanOrEqual(0);
+    // Drag the corner onto the west sack bay between the packing line and the gallery.
+    plan.routes.receiving[editable] = [-17.5, 0, 10.1];
+    const violations = scoreLogisticsLayout(plan, assumptions).violations;
+    expect(violations).toContain('receiving: swept route meets sacks-west-2.');
+    // Every floor-standing piece is an obstacle; overhead steel and flat dust are not.
+    const ids = new Set(planningObstacles().map((obstacle) => obstacle.id));
+    for (const solid of hallDressingSolids())
+      expect(ids.has(solid.id), solid.id).toBe(solid.onFloor);
+    for (const patch of HALL_DUST) expect(ids.has(patch.id), patch.id).toBe(false);
   });
 
   it('rejects changed service poses, tight turns, nonfinite input and invalid assumptions', () => {
