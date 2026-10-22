@@ -244,8 +244,8 @@ const millDust = SITE_LAYOUT.machines.rollerMills.map(
     x,
     z,
     baseY: PT,
-    width: 6,
-    depth: 4.8,
+    width: 7,
+    depth: 5,
     rotation: i % 2 ? Math.PI : 0,
   })
 );

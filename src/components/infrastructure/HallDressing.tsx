@@ -697,7 +697,7 @@ export function createDustMask(size = DUST_TEXTURE_SIZE): Uint8Array {
       const v = (y + 0.5) / size - 0.5;
       const wu = u + 0.16 * (fbm(u * 3 + 5.2, v * 3 + 1.7) - 0.5);
       const wv = v + 0.16 * (fbm(u * 3 + 9.4, v * 3 + 3.3) - 0.5);
-      const core = 1 - smoothstep(0.2, 1, Math.hypot(wu, wv) * 2);
+      const core = 1 - smoothstep(0.35, 1.05, Math.hypot(wu, wv) * 2);
       const along = wu * driftX + wv * driftZ;
       const across = -wu * driftZ + wv * driftX;
       const streak = fbm(along * 2.5 + 3.1, across * 16 + 7.7);
@@ -728,17 +728,17 @@ const DUST_MASK = (() => {
 /**
  * Settled flour: lit matter (it darkens with the slab at night), never written
  * to depth. A film of flour on concrete, not flour in a sack: at full cover it
- * lifts the pad's ~0.27 linear albedo by about a third, so a patch in shade
+ * lifts the pad's ~0.27 linear albedo by about a half, so a patch in shade
  * stays darker than the sunlit slab beside it and never reads as a light pool.
  */
 export const HALL_DUST_MATERIAL = new THREE.MeshStandardMaterial({
   name: 'hall-flour-dust',
-  color: '#b3ad9f',
+  color: '#c0b9aa',
   roughness: 0.95,
   metalness: 0,
   alphaMap: DUST_MASK,
   transparent: true,
-  opacity: 0.62,
+  opacity: 0.66,
   depthWrite: false,
   polygonOffset: true,
   polygonOffsetFactor: POLYGON_OFFSET.standard.factor,
