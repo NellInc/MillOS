@@ -10,6 +10,7 @@ import { applyWorldSurface, pinSurfaceProfile } from '../utils/worldSurface';
 import { ApartmentFacade } from './exterior/ApartmentFacade';
 import {
   WATER_FRESNEL_EXPONENT,
+  WATER_FRESNEL_EXPONENT_FLAT,
   WATER_PROFILES,
   WATER_VISUAL_TIME,
   WATER_WIND,
@@ -1529,8 +1530,10 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
           vec3 normal = normalize(vWorldNormal + vec3(slope.x + rainSlope, 0.0, slope.y - rainSlope));
 
           vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
-          // Cubic, not Schlick's fifth power: see WATER_FRESNEL_EXPONENT.
-          float fresnel = pow(1.0 - max(dot(normal, viewDirection), 0.0), ${WATER_FRESNEL_EXPONENT.toFixed(1)});
+          // Cubic where the metre-scale ripple is drawn, Schlick's fifth power
+          // on Low's unbroken mirror: see WATER_FRESNEL_EXPONENT(_FLAT).
+          float fresnel = pow(1.0 - max(dot(normal, viewDirection), 0.0),
+            mix(${WATER_FRESNEL_EXPONENT_FLAT.toFixed(1)}, ${WATER_FRESNEL_EXPONENT.toFixed(1)}, uRippleDetail));
 
           // Reflection without a render target: bounce the view ray off the
           // perturbed normal and read a two-stop analytic sky whose colours are
@@ -1626,7 +1629,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
     // MANUALLY VERSIONED, never derived from time or randomness - see the
     // documented `Date.now()` cache-key bug. Bump this whenever the shader
     // source above changes or a stale cached program will be reused.
-    value.customProgramCacheKey = () => 'millos-unified-water-v22';
+    value.customProgramCacheKey = () => 'millos-unified-water-v23';
     return value;
   }, [
     crossOnly,

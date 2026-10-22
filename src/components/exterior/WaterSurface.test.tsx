@@ -9,6 +9,7 @@ import {
 } from '../FactoryExterior';
 import {
   WATER_FRESNEL_EXPONENT,
+  WATER_FRESNEL_EXPONENT_FLAT,
   WATER_PROFILES,
   WATER_VISUAL_TIME,
   waterFresnel,
@@ -87,7 +88,7 @@ describe('authored exterior water material and atmosphere driver', () => {
     );
     expect(water.fragmentShader).toContain('gl_FragColor = vec4(colour, 1.0)');
     expect(water.fragmentShader).toContain('#include <fog_fragment>');
-    expect(water.customProgramCacheKey()).toBe('millos-unified-water-v22');
+    expect(water.customProgramCacheKey()).toBe('millos-unified-water-v23');
     const dispose = vi.spyOn(water, 'dispose');
     for (const cleanup of driver.cleanups.splice(0)) cleanup();
     expect(dispose).toHaveBeenCalledOnce();
@@ -363,11 +364,29 @@ it('weights the sky by a Fresnel that still reads at site-camera grazing angles'
   expect(waterFresnel(0)).toBeLessThanOrEqual(0.95);
   const water = material();
   expect(water.fragmentShader).toContain(
-    `pow(1.0 - max(dot(normal, viewDirection), 0.0), ${WATER_FRESNEL_EXPONENT.toFixed(1)})`
+    `mix(${WATER_FRESNEL_EXPONENT_FLAT.toFixed(1)}, ${WATER_FRESNEL_EXPONENT.toFixed(1)}, uRippleDetail)`
   );
   expect(water.fragmentShader).toContain(
     'mix(uSkyHorizon, uSkyZenith, clamp(reflected.y, 0.0, 1.0))'
   );
+});
+
+// water, final-low-12 against base-low-12 (blind A/B): the Low pond lost its
+// deep centre and read as a pale sheet. The cubic stands in for the metre-scale
+// ripple's tilted normals; Low never draws that ripple, so at the water camera's
+// ~23 degree view the unbroken cubic still put 23% sky over the whole body,
+// against 8% before. A flat mirror keeps the physical fifth power.
+it('keeps a deep-water read on Low, where no metre-scale ripple breaks the reflection', () => {
+  const view = Math.sin(THREE.MathUtils.degToRad(23));
+  expect(waterFresnel(view, 0)).toBeLessThanOrEqual(0.12);
+  expect(waterFresnel(view, 1)).toBeCloseTo(waterFresnel(view), 6);
+  expect(waterFresnel(view, 1)).toBeGreaterThan(waterFresnel(view, 0) * 2);
+  expect(WATER_FRESNEL_EXPONENT_FLAT).toBe(5);
+  const water = material();
+  expect(water.fragmentShader).toContain(
+    `mix(${WATER_FRESNEL_EXPONENT_FLAT.toFixed(1)}, ${WATER_FRESNEL_EXPONENT.toFixed(1)}, uRippleDetail)`
+  );
+  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v23');
 });
 
 it('adds a faint metre-scale ripple normal that freezes with the water clock and drops on Low', () => {

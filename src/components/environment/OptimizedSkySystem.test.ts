@@ -441,7 +441,7 @@ describe('solid fixed foothills', () => {
       expect(material.fragmentShader).toContain('gl_FragColor = vec4(lit, 1.0)');
       expect(material.fragmentShader).not.toContain('groundBlend');
       expect(material.fragmentShader).not.toContain('sampler');
-      expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v16');
+      expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v22');
       material.dispose();
     }
   });
@@ -648,7 +648,7 @@ it('gives actual steep snowy faces a mineral substrate while retaining snow pote
     .split('} else if (uWorldAnchored < 0.5')[1]
     .split('} else {')[0];
   expect(branch).toContain('vec3 mineral = vRidgeColor * mix(');
-  expect(branch).toContain('max(max(rock, outcrop), smoothstep(');
+  expect(branch).toContain('mix(lowSlope, mineral, max(rock, substrate))');
   expect(branch).toContain('smoothstep(0.35, 0.72, max(0.0, normal.y))');
   expect(branch).toContain('snowPotential * max(accumulation, summit)');
   expect(branch).toContain('max(length(dFdx(p)), length(dFdy(p)))');
@@ -758,11 +758,10 @@ describe('procedural moon at display size', () => {
 // mill's hinterland: hedged parcels of pasture and hay with field trees.
 const linearLuminance = ([r, g, b]: readonly number[]) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
 it('parcels the gentle foothill slopes into hedged fields brighter than the woodland', () => {
-  const { cell, hedgeMetres, pasture, hay, woodland, treeCell, treeRadius } = RIDGE_FIELD_PROFILE;
+  const { cell, hedgeMetres, pasture, hay, woodland } = RIDGE_FIELD_PROFILE;
   expect(cell[0]).toBeGreaterThanOrEqual(30);
   expect(cell[1]).toBeLessThanOrEqual(90);
   expect(hedgeMetres).toBeLessThan(Math.min(...cell) * 0.06);
-  expect(treeRadius * 2).toBeLessThan(treeCell * 0.5);
   expect(linearLuminance(pasture)).toBeGreaterThan(linearLuminance(woodland) * 1.5);
   expect(linearLuminance(hay)).toBeGreaterThan(linearLuminance(pasture) * 1.1);
   const near = createRidgeMaterial(0.1, 'near', true);
@@ -773,7 +772,7 @@ it('parcels the gentle foothill slopes into hedged fields brighter than the wood
   expect(branch).toContain(`vec2(${cell[0].toFixed(1)}, ${cell[1].toFixed(1)})`);
   expect(branch).toContain('hedge');
   expect(branch).toContain('fwidth(edge)');
-  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v16');
+  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v22');
   near.dispose();
 });
 
@@ -811,3 +810,89 @@ it('breaks the far range substrate across a wide noisy altitude band with varied
   expect(branch).toContain('float scrub =');
   material.dispose();
 });
+
+// village (0,120)-(2560,640), final-med-12: the patchwork stopped at hard
+// horizontal seams against plain hill bands, and about 12 dark 40x15 px
+// ellipses sat inside the fields. Each of the 17 terrace rows carries a
+// near-constant slope, so a narrow normal.y gate (0.82-0.93) flipped along
+// whole rows. The ellipses were the field trees: a flat 3.8 m disc of hedge
+// tone on a slope seen at a grazing angle is a foreshortened hole, not a tree.
+it('breaks the farmed/wooded edge across terrace rows and draws no isolated field discs', () => {
+  const { slopeGate, edgeBreak, copse } = RIDGE_FIELD_PROFILE;
+  expect(slopeGate[1] - slopeGate[0]).toBeGreaterThanOrEqual(0.15);
+  expect(edgeBreak).toBeGreaterThanOrEqual(0.06);
+  expect(copse[0]).toBeLessThan(copse[1]);
+  expect('treeRadius' in RIDGE_FIELD_PROFILE).toBe(false);
+  const near = createRidgeMaterial(0.1, 'near-fields', true);
+  const branch = near.fragmentShader.slice(
+    near.fragmentShader.indexOf('if (uWorldAnchored > 0.5 && uWoodlandStrength > 0.5)'),
+    near.fragmentShader.indexOf('} else if (uWorldAnchored < 0.5 && uAlpineStrength > 0.5)')
+  );
+  expect(branch).not.toContain('smoothstep(0.82, 0.93, abs(normal.y))');
+  expect(branch).toContain('abs(normal.y) + woodEdge');
+  expect(branch).toContain('float copse =');
+  expect(branch).not.toContain('treeDistance');
+  // After the first pass (art3land-after-med12, village (0,300)-(1060,425)) the
+  // ruled band was still there: every terrace row is gentler than normal.y
+  // 0.88, so it was never the slope gate but a wholly wooded parcel, unhedged,
+  // whose rotated grid edge lies near-horizontal on screen. Woods in a wooded
+  // parcel now draw back from its boundary into ragged stands.
+  expect(branch).not.toContain('* step(0.4, parcelUse)');
+  expect(branch).toContain('float woods =');
+  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v22');
+  near.dispose();
+});
+
+// overview (0,320)-(720,445), final-med-12: the far range's lower slopes stay
+// one hazy blue-grey band. Two inputs were inert at that range: the lowland
+// pair (1.6x luminance) survives the far ring's 0.32 aerial mix as about 1.1x,
+// and the outcrops took `vRidgeColor`, whose low-row value ('#42574c' times the
+// facet tint) is the vegetation's own green. The band needs albedo contrast
+// that survives the haze and relief that turns faces to and from the sun.
+it('gives the far lower slopes contrast that survives the aerial mix and real outcrop rock', () => {
+  const { lowland, outcropAlbedo, spurMetres } = RIDGE_ALPINE_PROFILE;
+  const inscatter = new THREE.Color('#b9dce7');
+  const hazed = (albedo: readonly number[]) =>
+    linearLuminance(albedo) * 0.68 +
+    linearLuminance([inscatter.r, inscatter.g, inscatter.b]) * 0.32;
+  expect(hazed(lowland[1]) / hazed(lowland[0])).toBeGreaterThan(1.22);
+  const lowRow = new THREE.Color(FAR_MOUNTAIN_SPEC.colors[0]);
+  expect(linearLuminance(outcropAlbedo)).toBeGreaterThan(
+    linearLuminance([lowRow.r, lowRow.g, lowRow.b]) * 1.6
+  );
+  expect(spurMetres).toBeGreaterThanOrEqual(2);
+  expect(spurMetres).toBeLessThanOrEqual(6);
+  const material = createRidgeMaterial(0.32, 'alpine-spurs');
+  const branch = material.fragmentShader
+    .split('} else if (uWorldAnchored < 0.5')[1]
+    .split('} else {')[0];
+  expect(branch).toContain('float spur =');
+  expect(branch).toContain(`mix(vegetation, ${glslVec3Literal(outcropAlbedo)}`);
+  expect(branch).toContain('(spur - 0.5) *');
+  // First pass (art3land-after-med12): the band's 25 px band-pass contrast
+  // went 5.81 -> 5.87, i.e. nothing. The massifs' lower band is ROCK there
+  // (vRidgeHeight carries 0.45 of the column profile, so rock is ~1 under the
+  // big peaks) and the spurs were gated to vegetation. Spurs and couloirs cut
+  // rock too: they must cover the whole band below the snow line.
+  expect(branch).toContain('float lowBand =');
+  // Second pass (art3land-after2-med12): 5.80 band-pass, still nothing. A probe
+  // put the band at 540 m with lit radiance ~0.02-0.04 linear under a ~0.23
+  // inscatter: a +/-28% multiply on a 0.05 albedo is ~1 level after the haze.
+  // Only an albedo SPAN survives: pale scree ribs against dark forest runnels.
+  expect(branch).toContain('float rib =');
+  expect(branch).toContain('float runnel =');
+  // Third pass (art3land-after3-med12): streaks arrived (column swing
+  // 1.20 -> 1.73) but as soft vertical curtains that read as rain, not rock.
+  // The 15 m veins break the 25 m spurs into crisper ribs and scree fans.
+  expect(branch).toContain('float gully = spur * 0.6 + veins * 0.4;');
+  expect(linearLuminance(RIDGE_ALPINE_PROFILE.ribAlbedo)).toBeGreaterThan(
+    linearLuminance(lowland[0]) * 4
+  );
+  expect(branch).not.toContain('(1.0 - max(rock, substrate)))');
+  expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v22');
+  material.dispose();
+});
+
+function glslVec3Literal(value: readonly number[]): string {
+  return `vec3(${value.map((v) => v.toFixed(3)).join(', ')})`;
+}

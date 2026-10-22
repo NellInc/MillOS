@@ -21,9 +21,20 @@ export type WaterKind = keyof typeof WATER_PROFILES;
  * Working if water lightens toward the far bank at noon and stays dark overhead.
  */
 export const WATER_FRESNEL_EXPONENT = 3;
-export function waterFresnel(normalDotView: number): number {
+/**
+ * The physical curve, kept where no metre-scale ripple is drawn (Low). The
+ * cubic stands in for the tilted normals of that ripple; on an unbroken
+ * mirror it laid 23% sky over the whole pond at the water camera's ~23 degree
+ * view and erased the deep centre (final-low-12 against base-low-12).
+ * Working if the Low pond keeps a dark centre and Medium is unchanged.
+ */
+export const WATER_FRESNEL_EXPONENT_FLAT = 5;
+export function waterFresnel(normalDotView: number, rippleDetail = 1): number {
   const facing = Math.min(1, Math.max(0, normalDotView));
-  return Math.min(0.95, Math.max(0.02, 0.02 + 0.98 * (1 - facing) ** WATER_FRESNEL_EXPONENT));
+  const detail = Math.min(1, Math.max(0, rippleDetail));
+  const exponent =
+    WATER_FRESNEL_EXPONENT_FLAT + (WATER_FRESNEL_EXPONENT - WATER_FRESNEL_EXPONENT_FLAT) * detail;
+  return Math.min(0.95, Math.max(0.02, 0.02 + 0.98 * (1 - facing) ** exponent));
 }
 
 /** Owned by WaterAnimationManager; small retained PBR surfaces share the same weather and pause. */

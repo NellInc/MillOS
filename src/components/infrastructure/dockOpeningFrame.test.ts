@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  DOCK_FLANGE,
   DOCK_FRAME_SECTION,
   DOCK_PANEL_BANDS,
+  DOCK_WEB_DEPTH,
   dockFrameFlangeSpans,
   dockHoodBraces,
   dockHoodSlab,
@@ -72,5 +74,20 @@ describe('dock opening frame flanges', () => {
       // The inner flange has no header flange to meet and keeps full height.
       expect(spans.innerPostFlange.y1).toBe(height);
     }
+  });
+});
+
+// interior column edges (2110,420)-(2130,1100), final-med-12: a dashed-white
+// line down the shipping dock's left post. The probe put it at the junction
+// of the post's side face (z 47.72) and its indoor flange: the 0.6 m web stops
+// 2.5 cm short of each 0.15 m flange plate, centred 0.1 m off the web face, so
+// the hall behind showed through a 2.5 cm slot the full 14 m height.
+describe('dock opening I-beam', () => {
+  it('runs the web into both flange plates with no slot', () => {
+    const flangeInnerFace =
+      DOCK_FRAME_SECTION.depth / 2 + DOCK_FLANGE.standoff - DOCK_FLANGE.thickness / 2;
+    expect(DOCK_WEB_DEPTH / 2).toBeGreaterThan(flangeInnerFace);
+    // Sunk into the plate, not through it.
+    expect(DOCK_WEB_DEPTH / 2).toBeLessThan(flangeInnerFace + DOCK_FLANGE.thickness / 2);
   });
 });
