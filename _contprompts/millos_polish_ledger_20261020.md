@@ -163,31 +163,47 @@ partly); their builds failed only on the `public/` symlink in sparse worktrees.
   pixelated white smear on the roller-mill side panels (milling/interior/forklift). Long backlog,
   mostly pre-existing: tan apron, flat water, machine scale vs workers, dressing, floating labels.
 
+## Second fix round (21 Oct) and final confirmation on `2282aeb1`
+
+Waves, all merged: art regressions (light rows computed on unbumped normals — the tile/glint grid;
+structural steel grid; a `vessel` finish pinned from the batcher — the cotton tanks; steam puffs off
+the casing — the mill smear, pre-existing; sub-pixel roof seams); coop (civic lamp shadow rebake
+with caster pins); env (mountain snow line and lower slopes, water Fresnel and ripple, village
+fields, varied skyline, glass glint); ground (concrete apron slabs, joints and tyre lanes, kerb,
+silo pad, village flags, furrows, barrier, grit, plinth contact, roof liner); dressing (dock paint
+as opaque worn outlines, sign board, braces, trailer drop yard, hedges, pallet island, palletising
+cell, truck chassis/grille, apartment balconies, 2:1 tank heads, forklift camera); scale (mills,
+sifters and packers were drawn 2–3x real size; scaled about their anchors, workers unchanged, old
+saves normalised, milling camera re-aimed). Lead: build plugins honour `--outDir` (`5587e965`);
+kerb test resolves spread path constants (`8af133f1`, the only gate failure after the merges).
+
+- **Whole gate on `2282aeb1`**: typecheck, agent:typecheck, lint (now src, scripts, e2e), format,
+  build, bundle, reachability, community, depth, shaders, assets pass; vitest 4,456 pass / 1 fail
+  (the kerb test, fixed in `8af133f1`).
+- **All seven art conditions captured** (`test-results/art-review/final-*`).
+- **Blind A/B vs `d0a188f0`** (keys in `scratchpad/ab-keys/`): med-12 — final wins all 12
+  comparable scenes (forklift not comparable: the old camera framed no forklift); low-12 — final 9,
+  baseline 1 (milling, slight: the real-size hall reads sparse), 3 ties.
+- **Rubric judge med-12**: FAIL with no blockers (axes 6/6/7/6/6/7; was 5/5/7/4/5/6 with two
+  blockers). Both earlier blockers fixed or demoted; 20-item backlog (silos read as matte paint,
+  truck still a box stack, cyan fill, roof underside still flat, sparse hall, field seams/ellipses,
+  doorway fringe, flat planks, glazing, nameplates, beacon cone, pipe over a sign, edge aliasing).
+- **Runtime batch**: startup trace world-ready 5.7 s (baseline 46.4 s), startup-ready 10.4 s (52.6),
+  3 request waves (26), progress monotonic; EN and pt-BR play-tests — all three orders on time,
+  no autosave failure (the "Physical save is too large" defect is gone), reload restored orders,
+  money grouped per locale; SCADA EN/pt, 1280x657 footer, focus, OS and in-app reduced motion
+  (people held), truck arrival, repair countdown EN/pt all pass; z-fight and e2e pass.
+  **Found:** loading-cover recovery state has 1 axe violation (contrast 3.57 and 2.44:1); a runtime
+  `TypeError ... reading 'toFixed'` in the operational UI at ~460 s in both play-tests; the phone
+  check could not find the tour at 390 px (tool or app); the axe tool hung after finishing.
+
 ## What remains
 
-- **Art regressions** (branch `claude/polish-fix-artregress`, worktree
-  `/private/tmp/millos-fix-artregress-20261021`, agent stopped at start): bisect and fix the three
-  regressions above plus the roller-mill smear, the forklift-scene door-column tile grid and the
-  repeating roof dot grid.
-- **Coop wave** (branch `claude/polish-fix-coop`, agent stopped mid civic rebake): the fascia
-  fix and two timeouts are merged (`6051c2d1`); the civic lamp shadow rebake and the coop/farmhouse
-  eave pixel checks are not done; check the branch for uncommitted work before resuming.
-- **Judge backlog**, planned as four waves (empty worktrees created on `6051c2d1`:
-  `/private/tmp/millos-fix-{env,ground,dressing,scale}-20261021`): env (mountain seam, water
-  Fresnel/ripple, village backdrop hill, repeated city backdrop, sun glints); ground (apron to
-  neutral concrete with joints and lanes, kerb at the grass edge, silo pad, village square, farm
-  furrows, yellow slab, forklift-near floor, plinth contact, ceiling deck); dressing (dock lane
-  stripes as worn paint, labels on boards, mid-air tie-rods, placeholder box, farm primitive, stray
-  hedge, logistics-close and packing-line dressing, truck cab, apartment block, tank heads,
-  forklift camera framing); scale (roller mills ~3x and packers ~5x a worker's height: investigate
-  which is the outlier before changing anything).
-- Then: whole gate, all seven final art conditions (+ blind A/B, regions.py, rubric judge), and
-  the runtime batch (`scratchpad/tools/run-final.sh`: z-fight, axe, trace, EN/pt-BR play-tests,
-  extras incl. in-app reduced motion, e2e). Tools are in the session scratchpad.
-- Machine: load stayed 300–900/10 cores from other software, free disk fell 466 → ~78 GB; and the
-  surface tripwire repeatedly saw hook/rule files (`hooks/bash-protection.cjs`, `policy-gate.*`,
-  `.claude/rules/*`, `creed_guardian/guardian.py`) changed by another process — not by this work.
-
-## What remains
-
-_pending_
+Four waves running on `8af133f1` (sparse worktrees `/private/tmp/millos-fix-{runtime,art3mat,
+art3geo,art3land}-20261022`): the runtime findings above; materials and light (silos, cyan fill,
+roof underside, door columns, planks, glazing, doorway fringe, Low packing exposure); geometry and
+dressing (hall dressing instead of a re-layout, hanging plansifters, nameplates, truck body, tank
+facets, sign behind a pipe, beacon cone, apartment blocks); landscape (field seams and ellipses,
+mountain lower slopes, edge aliasing, Low water). Then the gate, the affected art conditions and
+judges, and the runtime batch again. Not done: a performance benchmark on a quiet machine (the
+ground wave's crop adds ~319k triangles); the castle (a dressing call left to Nell).
