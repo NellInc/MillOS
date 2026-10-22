@@ -204,6 +204,20 @@ const SILO_SKIN_RADIUS = 2.25;
  *   silo   shared SILO_ACCESS_LAYOUT keeps the lower hatch and placards beside
  *          the ladder, tangent to the discharge enclosure.
  */
+/**
+ * A roller mill's identity plates, authored metres: [dx, dy, dz, width, height].
+ * Both carry `MILL_IDENTITY_TEXT` (an "R.M." caption over the number), drawn
+ * for a plate about 0.64 as wide as it is tall.
+ *
+ * The side plate is the one the milling camera reads, so it takes the whole
+ * forward access cover it is bolted to: z 0.175-1.52 and y 1.69-3.61 of cover,
+ * inside the bolts at z 1.35 and under the y 3.37 limit the cover test keeps.
+ * The front one sits between the base front (z 2.20, up to y 0.64) and the
+ * service door frame (from y 1.275), so it stays small.
+ */
+export const MILL_SIDE_IDENTITY_PLATE = [-2.481, 2.55, 0.745, 1.02, 1.6] as const;
+export const MILL_FRONT_IDENTITY_PLATE = [0, 0.965, 2.056, 0.38, 0.59] as const;
+
 export function planMachineDecals(subsets: MachineDecalSubsets): MachineDecalPlacement[] {
   const placements: MachineDecalPlacement[] = [];
 
@@ -264,21 +278,13 @@ export function planMachineDecals(subsets: MachineDecalSubsets): MachineDecalPla
   subsets.mills.forEach((machine) => {
     // The flat lower service strip keeps both placards off the cast shoulder.
     const identity = MACHINE_ID_CELLS[machine.id];
-    push(
-      machine,
-      0,
-      1.08,
-      2.056,
-      identity === undefined ? 0.9 : 1.25,
-      0.3,
-      identity ?? DECAL_CELL.namePlate
-    );
+    if (identity === undefined) push(machine, 0, 1.08, 2.056, 0.9, 0.3, DECAL_CELL.namePlate);
+    else push(machine, ...MILL_FRONT_IDENTITY_PLATE, identity);
     push(machine, 0, 0.3, 2.215, 2.8, 0.3, DECAL_CELL.hazardChevron);
     push(machine, 1.4, 1.08, 2.056, 0.25, 0.25, DECAL_CELL.electricalWarning);
     // Clear of the vents and cover bolts, on the real flat side inspection lid.
     // Working if the ray test finds a 16 mm plate-to-cover gap across its face.
-    if (identity !== undefined)
-      push(machine, -2.481, 3.0, 0.84, 1.12, 0.43, identity, -Math.PI / 2);
+    if (identity !== undefined) push(machine, ...MILL_SIDE_IDENTITY_PLATE, identity, -Math.PI / 2);
     push(
       machine,
       ...MILL_LOAD_DIAL.position,

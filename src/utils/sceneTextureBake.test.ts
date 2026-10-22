@@ -26,7 +26,9 @@ const GOLDEN_0B899E77: Record<string, string> = {
   'factoryFloorMacro.surface': '1024x1024::2db4b3dda4a8b9f4',
   floorDetailConcrete: '512x512:srgb:fedb570768491409',
   machineOrmVertical: '512x512::f0278619a49da4fa',
-  machineDecalAtlas: '512x768:srgb:9aaa19ccb1096bc9',
+  // Re-pinned for the mill identity plates (millNameplates.test.ts); the
+  // painter refactor alone reproduced 9aaa19ccb1096bc9.
+  machineDecalAtlas: '512x768:srgb:128ff9fd08130b9a',
   floorAggregateNormal: '512x512::02537e068e618de5',
   enamelOrm: '256x256::f5b02b1fe4d5e43c',
   galvanizedOrm: '256x256::6aab236387c53478',

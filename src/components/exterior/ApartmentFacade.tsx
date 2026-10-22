@@ -1,7 +1,7 @@
 import React from 'react';
 import * as THREE from 'three';
 import { applyWorldSurface } from '../../utils/worldSurface';
-import { APARTMENT_GALLERY, APARTMENT_SHELL, APARTMENT_STAIR_TOWER } from './apartmentFacadeLayout';
+import { apartmentFacadeLayout, type ApartmentFloors } from './apartmentFacadeLayout';
 
 const SLAB = applyWorldSurface(
   new THREE.MeshStandardMaterial({ color: '#a29d93', roughness: 0.9, metalness: 0 }),
@@ -16,8 +16,10 @@ const RAIL = applyWorldSurface(
   new THREE.MeshStandardMaterial({ color: '#2b3236', roughness: 0.5, metalness: 0.5 }),
   'painted'
 );
+// Galvanised, not the facade's dark navy: in the shipping frame the dark panels
+// merged with the shaded wall into three solid bands (final-med-12).
 const PANEL = applyWorldSurface(
-  new THREE.MeshStandardMaterial({ color: '#56616a', roughness: 0.55, metalness: 0.4 }),
+  new THREE.MeshStandardMaterial({ color: '#8a9397', roughness: 0.55, metalness: 0.4 }),
   'painted'
 );
 const GLAZING = new THREE.MeshStandardMaterial({
@@ -44,16 +46,28 @@ const Block: React.FC<{
 );
 
 /**
- * Access galleries, a stair tower and its coping on the four-storey apartment's
- * +x face (`apartmentFacade.ts`). Apartment-local metres.
+ * Access galleries, the columns that carry them, a stair tower and its coping
+ * on an apartment block's +x face (`apartmentFacadeLayout.ts`), for either
+ * block. Apartment-local metres.
  */
-export const ApartmentFacade: React.FC = () => {
-  const face = APARTMENT_SHELL.halfX;
-  const g = APARTMENT_GALLERY;
-  const t = APARTMENT_STAIR_TOWER;
+export const ApartmentFacade: React.FC<{ floors: ApartmentFloors }> = ({ floors }) => {
+  const layout = apartmentFacadeLayout(floors);
+  const face = layout.shell.halfX;
+  const g = layout.gallery;
+  const t = layout.stairTower;
   const outer = face + g.depth;
   return (
     <group name="apartment-facade-form">
+      {/* Gallery columns, ground to top rail, on the piers between windows:
+          the verticals that turn stacked bands into a framed facade. */}
+      {layout.columns.map((column) => (
+        <Block
+          key={column.z}
+          min={[column.x - column.size / 2, column.bottom, column.z - column.size / 2]}
+          max={[column.x + column.size / 2, column.top, column.z + column.size / 2]}
+          material={SLAB}
+        />
+      ))}
       {g.tops.map((top) => (
         <group key={top}>
           <Block
@@ -61,11 +75,12 @@ export const ApartmentFacade: React.FC = () => {
             max={[outer, top, g.maxZ]}
             material={SLAB}
           />
-          {/* Edge upstand, a darker drip line under the rail. */}
+          {/* Edge upstand: the slab's own concrete, so each deck edge reads as
+              a light line across the facade, not as one more dark band. */}
           <Block
             min={[outer - 0.02, top - g.thickness - 0.06, g.minZ]}
             max={[outer + 0.04, top + 0.08, g.maxZ + 0.02]}
-            material={COPING}
+            material={SLAB}
             cast={false}
           />
           {/* A solid pressed-steel balustrade, not balusters: 25 mm bars at

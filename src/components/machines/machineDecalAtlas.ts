@@ -204,17 +204,69 @@ const letteringRows = (text: string): string[] =>
     [...text].map((letter) => MACHINE_GLYPHS[letter][row]).join('0')
   );
 
+/** Where an identity plate's lettering sits in its cell (v = 0 is the bottom). */
+interface IdentityText {
+  readonly mainTop: number;
+  readonly mainHeight: number;
+  /** Fraction of the cell width the main line spans; omitted, it is sized by its length. */
+  readonly mainWidth?: number;
+  readonly headingTop: number;
+  readonly headingHeight: number;
+}
+
+const IDENTITY_TEXT: IdentityText = {
+  mainTop: 0.81,
+  mainHeight: 0.62,
+  headingTop: 0.86,
+  headingHeight: 0.2,
+};
+const HEADED_IDENTITY_TEXT: IdentityText = {
+  mainTop: 0.53,
+  mainHeight: 0.4,
+  headingTop: 0.86,
+  headingHeight: 0.2,
+};
+
+/**
+ * The roller mills' plates, read by `millNameplates.test.ts`: "R.M." as a
+ * caption over a large machine number. At real size (x0.4) the old one-line
+ * 'R.M.101' was 10 px tall from the milling camera; the number alone, on a
+ * plate the size of the side access cover, is 25 px on R.M. 101 and 15 px on
+ * R.M. 102. Drawn for a plate about 0.64 as wide as it is tall, which keeps
+ * the digits' pixels within 1.5:1 of square.
+ */
+export const MILL_IDENTITY_TEXT = {
+  mainTop: 0.68,
+  mainHeight: 0.42,
+  mainWidth: 0.86,
+  headingTop: 0.9,
+  headingHeight: 0.14,
+  /** Glyph columns in a three-digit machine number, spacing included. */
+  mainColumns: letteringRows('101')[0].length,
+} as const;
+
 /** Painted, non-emissive identities at the retained physical plate positions.
  * Working if all standard roster tags read distinctly without adding a draw.
  */
-function machineIdentityPlate(identity: string, heading?: string): CellPainter {
+function machineIdentityPlate(
+  identity: string,
+  heading?: string,
+  layout: IdentityText = heading ? HEADED_IDENTITY_TEXT : IDENTITY_TEXT
+): CellPainter {
   const rows = letteringRows(identity);
   const headingRows = heading ? letteringRows(heading) : null;
   const rim = opaque('#bda573');
   const ink = opaque('#f3e7ce');
   const background = opaque('#1d3031');
-  const letterAt = (text: readonly string[], u: number, v: number, top: number, height: number) => {
-    const width = Math.min(0.8, text[0].length * 0.028);
+  const letterAt = (
+    text: readonly string[],
+    u: number,
+    v: number,
+    top: number,
+    height: number,
+    span?: number
+  ) => {
+    const width = span ?? Math.min(0.8, text[0].length * 0.028);
     const col = Math.floor(((u - (1 - width) / 2) / width) * text[0].length);
     const row = Math.floor(((top - v) / height) * 7);
     return text[row]?.[col] === '1';
@@ -224,8 +276,9 @@ function machineIdentityPlate(identity: string, heading?: string): CellPainter {
     if (edge > 0) return CLEAR;
     if (edge > -0.035) return rim;
     if ((u < 0.065 || u > 0.935) && (v < 0.16 || v > 0.84)) return PLATE_SCREW;
-    const main = letterAt(rows, u, v, heading ? 0.53 : 0.81, heading ? 0.4 : 0.62);
-    const caption = headingRows && letterAt(headingRows, u, v, 0.86, 0.2);
+    const main = letterAt(rows, u, v, layout.mainTop, layout.mainHeight, layout.mainWidth);
+    const caption =
+      headingRows && letterAt(headingRows, u, v, layout.headingTop, layout.headingHeight);
     return main || caption ? ink : background;
   };
 }
@@ -340,10 +393,10 @@ const PAINTERS: readonly CellPainter[] = [
 
   // 7 - electricalWarning: lightning bolt.
   (u, v) => warningTriangle(u, v, (gu, gv) => pointInPolygon(gu, gv, BOLT)),
-  machineIdentityPlate('R.M.101'),
-  machineIdentityPlate('R.M.102'),
-  machineIdentityPlate('R.M.103'),
-  machineIdentityPlate('R.M.104'),
+  machineIdentityPlate('101', 'R.M.', MILL_IDENTITY_TEXT),
+  machineIdentityPlate('102', 'R.M.', MILL_IDENTITY_TEXT),
+  machineIdentityPlate('103', 'R.M.', MILL_IDENTITY_TEXT),
+  machineIdentityPlate('104', 'R.M.', MILL_IDENTITY_TEXT),
   machineIdentityPlate('ALPHA', 'SILO'),
   machineIdentityPlate('BETA', 'SILO'),
   machineIdentityPlate('GAMMA', 'SILO'),
