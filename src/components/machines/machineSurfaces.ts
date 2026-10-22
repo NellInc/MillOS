@@ -230,11 +230,39 @@ const PLATE_ORM = band(HOUSING_ORM, 4, 2);
  * the program key alongside this string (`WebGLPrograms.getProgramCacheKey`),
  * so permutations still split properly.
  */
-export const MACHINE_WEAR_CACHE_KEY = 'machineWear_v2';
+export const MACHINE_WEAR_CACHE_KEY = 'machineWear_v4';
+
+/** Share of the silo drum's 180 streak columns that carry run-off, per ring. */
+export const SILO_STREAK_LIVE_FRACTION = 0.16;
+
+/**
+ * World-space reflection Y over which the silo's reflected environment goes
+ * from the sky band (untouched) to the ground band (neutralised).
+ */
+export const SILO_GROUND_HORIZON = [0.05, -0.25] as const;
+
+/** How far the silo patina's diffuse bounce is pulled to its own luminance. */
+export const SILO_GROUND_BOUNCE = 0.7;
+
+/** TS mirror of the shader's ground weight for a world reflection Y. */
+export function siloGroundWeight(reflectY: number, strength = 1): number {
+  const [edge0, edge1] = SILO_GROUND_HORIZON;
+  const t = THREE.MathUtils.clamp((reflectY - edge0) / (edge1 - edge0), 0, 1);
+  return t * t * (3 - 2 * t) * THREE.MathUtils.clamp(strength, 0, 1);
+}
+
+/** TS mirror of the shader's neutralisation: lerp to luminance by `weight`. */
+export function neutraliseSiloGround(target: THREE.Color, weight: number): THREE.Color {
+  const luminance = 0.2126 * target.r + 0.7152 * target.g + 0.0722 * target.b;
+  return target.lerp(new THREE.Color(luminance, luminance, luminance), weight);
+}
 
 const WEAR_VERTEX_PARS = /* glsl */ `
 varying vec3 vMachineWorldPos;
 varying vec3 vMachineWorldNormal;
+#ifdef MACHINE_GALVANISED
+varying vec3 vMachineObject;
+#endif
 `;
 
 /**
@@ -258,6 +286,9 @@ vec4 machineWorld = vec4( transformed, 1.0 );
 #endif
 vMachineWorldPos = ( modelMatrix * machineWorld ).xyz;
 vMachineWorldNormal = normalize( transformedNormal * mat3( viewMatrix ) );
+#ifdef MACHINE_GALVANISED
+vMachineObject = transformed;
+#endif
 `;
 
 const WEAR_FRAGMENT_PARS = /* glsl */ `
@@ -268,6 +299,141 @@ uniform vec4 uMachineWear;
 uniform float uMachineDeck;
 varying vec3 vMachineWorldPos;
 varying vec3 vMachineWorldNormal;
+#ifdef MACHINE_GALVANISED
+uniform vec4 uMachineGalv;
+uniform vec4 uMachineRings;
+uniform float uMachineGalvGround;
+varying vec3 vMachineObject;
+float machineGalvHash( vec3 p ) {
+  p = fract( p * 0.3183099 + vec3( 0.71, 0.113, 0.419 ) );
+  p *= 17.0;
+  return fract( p.x * p.y * p.z * ( p.x + p.y + p.z ) );
+}
+float machineGalvNoise( vec3 p ) {
+  vec3 i = floor( p );
+  vec3 f = fract( p );
+  f = f * f * ( 3.0 - 2.0 * f );
+  return mix(
+    mix( mix( machineGalvHash( i ), machineGalvHash( i + vec3( 1, 0, 0 ) ), f.x ),
+      mix( machineGalvHash( i + vec3( 0, 1, 0 ) ), machineGalvHash( i + vec3( 1, 1, 0 ) ), f.x ), f.y ),
+    mix( mix( machineGalvHash( i + vec3( 0, 0, 1 ) ), machineGalvHash( i + vec3( 1, 0, 1 ) ), f.x ),
+      mix( machineGalvHash( i + vec3( 0, 1, 1 ) ), machineGalvHash( i + vec3( 1, 1, 1 ) ), f.x ), f.y ),
+    f.z
+  );
+}
+// One ring's run-off in one column. Live in SILO_STREAK_LIVE_FRACTION of
+// columns; each live streak takes its own centre, width, strength and length
+// (most short, a few long), broken along its run so it is not a ruled line.
+float machineGalvRun( float datum, float ring, float column, float across, float y ) {
+  float below = datum - y;
+  float seed = machineGalvHash( vec3( column, ring * 7.0, 3.0 ) );
+  float shape = machineGalvHash( vec3( column, ring * 7.0, 11.0 ) );
+  float streakCentre = 0.25 + 0.5 * shape;
+  float streakWidth = 0.08 + 0.22 * fract( shape * 7.3 );
+  float profile = 1.0 - smoothstep( 0.0, streakWidth, abs( across - streakCentre ) );
+  float lengthSeed = fract( seed * 13.7 );
+  float runLength = mix( 0.008, 0.12, lengthSeed * lengthSeed );
+  float broken = 0.45 + 0.55 * machineGalvNoise( vec3( column * 3.1, y * 90.0, ring ) );
+  float strength = 0.45 + 0.55 * fract( seed * 5.1 );
+  return step( ${(1 - SILO_STREAK_LIVE_FRACTION).toFixed(3)}, seed ) * profile * strength * broken *
+    smoothstep( 0.0, 0.006, below ) * exp( - max( below, 0.0 ) / runLength );
+}
+#endif
+`;
+
+/**
+ * Galvanised drum finish (`MACHINE_GALVANISED`, the silo skin only).
+ *
+ * WHY. A metalness-1 skin has no diffuse term, so the battery's sunlit and
+ * shaded faces differed by under 3 sRGB levels (final-med-12: (74,116,126)
+ * against (77,119,129)) and the whole drum was a mirror of the cyan sky fill.
+ * Weathered galvanising is not one surface: bright zinc spangle (a conductor)
+ * among a dull white-grey zinc-carbonate patina (a dielectric), both far below
+ * a pixel. The aggregate is what this models - per FRAGMENT it is a coverage
+ * fraction, not a half-metal paint, so the hard-binary rule above (which is
+ * about coatings) does not apply. Three terms, all analytic:
+ *
+ *   patina  world-space mottling (2-4 m, stretched down the drum by run-off)
+ *           trading metalness for a diffuse grey, which is what gives the
+ *           cylinder Lambert form shading under the key light;
+ *   spangle the remaining metal at roughness ~0.4 instead of ~0.6;
+ *   drips   faint run-off streaks under each stiffener ring and the eave, in
+ *           ~0.2 m columns around the drum (an integer count, so the angle
+ *           seam is exact), smoothstepped at both ends and faded by the pixel
+ *           footprint before the columns can alias.
+ *
+ * Gated by a define rather than a branch, so every other worn material keeps
+ * byte-identical source and its own program.
+ */
+const GALVANISED_FRAGMENT_BODY = /* glsl */ `
+#ifdef MACHINE_GALVANISED
+float galvPatinaField =
+  machineGalvNoise( vMachineWorldPos * vec3( 0.32, 0.11, 0.32 ) ) * 0.65 +
+  machineGalvNoise( vMachineWorldPos * vec3( 0.83, 0.3, 0.83 ) + vec3( 7.1, 3.3, 1.7 ) ) * 0.35;
+float galvPatina = smoothstep( 0.2, 0.8, galvPatinaField ) * uMachineGalv.x;
+float galvColumns = ( atan( vMachineObject.z, vMachineObject.x ) / 6.28318530718 + 0.5 ) * 180.0;
+float galvColumn = floor( galvColumns );
+float galvAcross = fract( galvColumns );
+// Written out, not looped: no dynamic vector indexing for the ANGLE backends.
+float galvDrip = max(
+  max(
+    machineGalvRun( uMachineRings.x, 0.0, galvColumn, galvAcross, vMachineObject.y ),
+    machineGalvRun( uMachineRings.y, 1.0, galvColumn, galvAcross, vMachineObject.y )
+  ),
+  max(
+    machineGalvRun( uMachineRings.z, 2.0, galvColumn, galvAcross, vMachineObject.y ),
+    machineGalvRun( uMachineRings.w, 3.0, galvColumn, galvAcross, vMachineObject.y )
+  )
+);
+galvDrip *= ( 1.0 - smoothstep( 0.25, 0.6, fwidth( galvColumns ) ) ) * uMachineGalv.w;
+metalnessFactor *= 1.0 - galvPatina;
+roughnessFactor = mix( roughnessFactor * uMachineGalv.y, 0.82, galvPatina );
+diffuseColor.rgb *= 1.0 - 0.07 * galvPatina - 0.22 * galvDrip;
+roughnessFactor = clamp( roughnessFactor + 0.18 * galvDrip, 0.04, 1.0 );
+#endif
+`;
+
+/**
+ * The sky's aureole, reflected. The environment carries the sun as a 6 degree
+ * disc and nothing around it, but the clear sky is several times brighter
+ * within a few tens of degrees of the sun, and that brightness is what a
+ * weathered metal drum reflects as a soft vertical highlight on its sun side.
+ * A broad lobe (cos^6, ~35 degrees) on the reflection vector, scaled by the
+ * key light's own colour and the blended F0, so it fades with the sun and
+ * carries no highlight on the patina. Unshadowed on purpose: it is sky light.
+ */
+const GALVANISED_LIGHT_BODY = /* glsl */ `
+#if defined( MACHINE_GALVANISED ) && NUM_DIR_LIGHTS > 0
+{
+  vec3 galvReflect = reflect( - geometryViewDir, normal );
+  vec3 galvAureole = vec3( 0.0 );
+  // three's own unroll (its pattern needs the index named i), as for its lights.
+  #pragma unroll_loop_start
+  for ( int i = 0; i < NUM_DIR_LIGHTS; i ++ ) {
+    galvAureole += directionalLights[ i ].color * pow( max( dot( galvReflect, directionalLights[ i ].direction ), 0.0 ), 6.0 );
+  }
+  #pragma unroll_loop_end
+  reflectedLight.indirectSpecular += galvAureole * uMachineGalv.z * material.specularColorBlended;
+}
+#endif
+#ifdef MACHINE_GALVANISED
+{
+  // The environment's lower band is the grass albedo, but the battery stands
+  // on a concrete pad: a drum seen from above mirrored a green-brown blotch
+  // onto its lower third. Pull what it reflects BELOW the horizon, and the
+  // diffuse bounce on the patina, to their own luminance.
+  vec3 galvReflectWorld = inverseTransformDirection( reflect( - geometryViewDir, normal ), viewMatrix );
+  float galvGround = smoothstep( ${SILO_GROUND_HORIZON[0].toFixed(3)}, ${SILO_GROUND_HORIZON[1].toFixed(3)}, galvReflectWorld.y ) * uMachineGalvGround;
+  float galvSpecLuma = dot( reflectedLight.indirectSpecular, vec3( 0.2126, 0.7152, 0.0722 ) );
+  reflectedLight.indirectSpecular = mix( reflectedLight.indirectSpecular, vec3( galvSpecLuma ), galvGround );
+  float galvDiffLuma = dot( reflectedLight.indirectDiffuse, vec3( 0.2126, 0.7152, 0.0722 ) );
+  reflectedLight.indirectDiffuse = mix(
+    reflectedLight.indirectDiffuse,
+    vec3( galvDiffLuma ),
+    ${SILO_GROUND_BOUNCE.toFixed(3)} * uMachineGalvGround
+  );
+}
+#endif
 `;
 
 /**
@@ -329,7 +495,32 @@ export interface MachineWearOptions {
    * minor contribution to small parts (inlet, service panel, accent strips).
    */
   readonly deck?: number;
+  /** The galvanised drum terms (`GALVANISED_FRAGMENT_BODY`); the silo skin only. */
+  readonly galvanised?: {
+    /** 0-1. Share of the mottled patina that turns dielectric. */
+    readonly patina: number;
+    /** Multiplier on the ORM roughness for the bare spangle. */
+    readonly spangleRoughness: number;
+    /** Aureole reflection, as a fraction of the key light's colour. */
+    readonly aureole: number;
+    /** 0-1. Strength of the run-off streaks under the rings and eave. */
+    readonly drips: number;
+  };
 }
+
+/** The silo drum's shell instance, in the assembly frame (`CompactMachines`). */
+export const SILO_SHELL_SPAN = { centreY: 8.75, height: 12.5 } as const;
+/** Stiffener ring centres in the same frame. */
+export const SILO_RING_HEIGHTS = [5.25, 9.1, 12.95] as const;
+/**
+ * Where run-off starts, in the shell's unit space: under each ring band
+ * (0.08 x 1.25 = 0.1 m tall in the assembly frame) and at the eave, the
+ * shell's top.
+ */
+export const SILO_DRIP_DATUMS_UNIT: readonly [number, number, number, number] = [
+  ...SILO_RING_HEIGHTS.map((y) => (y - 0.05 - SILO_SHELL_SPAN.centreY) / SILO_SHELL_SPAN.height),
+  0.5,
+] as [number, number, number, number];
 
 /** Elevated plansifter deck, MillScene zone 3. */
 export const SIFTER_DECK_Y = 9;
@@ -365,6 +556,28 @@ function withWear<T extends THREE.MeshStandardMaterial>(
     },
     uMachineDeck: { value: resolved.deck },
   };
+  const galvanised = options.galvanised;
+  if (galvanised) {
+    // Mirrored on userData so a probe can switch the terms off on one page load.
+    const galv = {
+      value: new THREE.Vector4(
+        galvanised.patina,
+        galvanised.spangleRoughness,
+        galvanised.aureole,
+        galvanised.drips
+      ),
+    };
+    // 1 = the grass outside is neutralised in what the drum reflects (paired control).
+    const galvGround = { value: 1 };
+    Object.assign(uniforms, {
+      uMachineGalv: galv,
+      uMachineRings: { value: new THREE.Vector4(...SILO_DRIP_DATUMS_UNIT) },
+      uMachineGalvGround: galvGround,
+    });
+    material.defines = { ...material.defines, MACHINE_GALVANISED: '' };
+    material.userData.machineGalvanised = galv;
+    material.userData.machineGalvanisedGround = galvGround;
+  }
 
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
@@ -375,7 +588,11 @@ function withWear<T extends THREE.MeshStandardMaterial>(
       .replace('#include <common>', `#include <common>\n${WEAR_FRAGMENT_PARS}`)
       .replace(
         '#include <normal_fragment_maps>',
-        `#include <normal_fragment_maps>\n${WEAR_FRAGMENT_BODY}`
+        `#include <normal_fragment_maps>\n${GALVANISED_FRAGMENT_BODY}\n${WEAR_FRAGMENT_BODY}`
+      )
+      .replace(
+        '#include <lights_fragment_end>',
+        `#include <lights_fragment_end>\n${GALVANISED_LIGHT_BODY}`
       );
   };
   material.customProgramCacheKey = () => MACHINE_WEAR_CACHE_KEY;
@@ -440,11 +657,16 @@ export function getMachineScreenTexture(): THREE.DataTexture {
 }
 
 export const MACHINE_MATERIALS = {
-  /** Galvanised silo skin. CONDUCTOR. Zinc spangle at roughness 0.56-0.66. */
+  /**
+   * Galvanised silo skin. A CONDUCTOR with a dielectric patina: spangle at
+   * roughness ~0.4, patina at 0.82 (`GALVANISED_FRAGMENT_BODY`). Neutral
+   * silver: the old '#c2c9c7' was blue-green-biased, and as the F0 of a full
+   * conductor that bias multiplied straight into the cyan sky it mirrored.
+   */
   silo: withWear(
     new THREE.MeshStandardMaterial({
       name: 'machine-silo-skin',
-      color: '#c2c9c7',
+      color: '#c4c4c3',
       roughnessMap: SILO_SKIN_ORM,
       aoMap: SILO_SKIN_ORM,
       aoMapIntensity: 0.85,
@@ -453,14 +675,23 @@ export const MACHINE_MATERIALS = {
       roughness: 1,
       metalness: 1,
     }),
-    { grime: 0.3, dust: 0.05, edge: 0.1, grimeHeight: 3.2 }
+    {
+      grime: 0.3,
+      dust: 0.05,
+      edge: 0.1,
+      grimeHeight: 3.2,
+      // Tuned on one page load (silos-tune): patina 0.6 -> 0.8 and aureole 0.07 -> 0.1
+      // took the near drum from 9 to 10.5 sRGB levels sun side to shade side;
+      // sparse irregular streaks (SILO_STREAK_LIVE_FRACTION) at 0.8 read as faint run-off.
+      galvanised: { patina: 0.8, spangleRoughness: 0.68, aureole: 0.1, drips: 0.8 },
+    }
   ),
 
   /** Galvanised roof, grounded discharge enclosure and stiffener rings. */
   siloRoof: withWear(
     new THREE.MeshStandardMaterial({
       name: 'machine-silo-trim',
-      color: '#c2c9c7',
+      color: '#c4c4c3',
       roughnessMap: SILO_TRIM_ORM,
       aoMap: SILO_TRIM_ORM,
       aoMapIntensity: 0.8,
@@ -469,7 +700,15 @@ export const MACHINE_MATERIALS = {
       roughness: 1,
       metalness: 1,
     }),
-    { grime: 0.05, dust: 0.24, edge: 0.16, grimeHeight: 2.2 }
+    {
+      grime: 0.05,
+      dust: 0.24,
+      edge: 0.16,
+      grimeHeight: 2.2,
+      // Same neutral silver and grass-free reflection as the skin: the rings
+      // mirrored the grass band as teal stripes. Bare metal, no patina or streaks.
+      galvanised: { patina: 0, spangleRoughness: 1, aureole: 0.1, drips: 0 },
+    }
   ),
 
   /** Painted structural legs. Final 0.35-0.85. */

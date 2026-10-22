@@ -21,6 +21,7 @@ import {
 import { WORLD_SURFACE_STRENGTH } from '../../utils/worldSurface';
 import { SURFACE_WETNESS, dampSurfaceWetness } from '../../shaders/surfaceWetness';
 import { FOG_HORIZON_START, FOG_HORIZON_END } from '../../shaders/atmosphericFog';
+import { neutraliseDaylightFill } from './SceneEnvironmentIBL';
 
 /** Shared sunset tint for the sky and its mountain/terrain inscatter. */
 export function getSkyTwilightWeight(solarElevation: number, twilight: number): number {
@@ -69,12 +70,17 @@ export function getSkyAfterglowWeight(solarElevation: number, twilight: number):
 /** Ambient and IBL reuse the rendered horizon, including its dusk shoulders.
  * Working if shaded stone follows the visible sky without another light,
  * changed fill intensity or a separate day/night palette erasing twilight.
+ * With a `daylight`, the copy takes the daytime fill neutralisation; the
+ * hemisphere sky and the IBL horizon band read this colour, so it reaches all
+ * three fill terms while the rendered sky keeps its own blue.
  */
 export function applySkyAmbientPalette(
   target: THREE.Color,
-  renderedHorizon: THREE.Color
+  renderedHorizon: THREE.Color,
+  daylight?: number
 ): THREE.Color {
-  return target.copy(renderedHorizon);
+  target.copy(renderedHorizon);
+  return daylight === undefined ? target : neutraliseDaylightFill(target, daylight);
 }
 
 /**
@@ -1668,7 +1674,10 @@ export function OptimizedSkySystem() {
       );
       applySkyAmbientPalette(
         ambientLightRef.current.color,
-        skyMaterial.uniforms.horizonColor.value
+        skyMaterial.uniforms.horizonColor.value,
+        useGraphicsStore.getState().graphics.perfDebug.disableLightingPolish
+          ? undefined
+          : atmosphere.daylight
       );
     }
     if (starsMaterialRef.current) {

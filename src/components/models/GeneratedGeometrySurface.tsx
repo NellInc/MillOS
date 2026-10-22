@@ -350,6 +350,15 @@ export function createGeneratedSurfaceMaterial(
     if (profile) applyWorldSurface(original, profile);
   }
   const live = original.clone();
+  // MeshStandardMaterial.copy resets `defines` to { STANDARD } and JSON-copies
+  // userData. The host shader reads both: the silo skin's MACHINE_GALVANISED
+  // block compiled out of this clone, and a uniform mirrored on userData came
+  // back as a detached ghost. Keep the host's defines, and its uniform-shaped
+  // userData entries by reference.
+  if (original.defines) live.defines = { ...original.defines };
+  for (const [key, entry] of Object.entries(original.userData)) {
+    if (entry !== null && typeof entry === 'object' && 'value' in entry) live.userData[key] = entry;
+  }
   if (Object.hasOwn(original, 'onBeforeCompile')) live.onBeforeCompile = original.onBeforeCompile;
   if (Object.hasOwn(original, 'customProgramCacheKey'))
     live.customProgramCacheKey = original.customProgramCacheKey;

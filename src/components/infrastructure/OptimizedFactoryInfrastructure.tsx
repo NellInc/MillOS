@@ -409,7 +409,9 @@ const MATERIALS = {
    */
   steel: new THREE.MeshStandardMaterial({
     name: 'factory-structure',
-    color: '#344a52',
+    // '#344a52' (linear luminance 0.062) crushed the near columns to black
+    // under fill alone (interior, final-med-12). Half a stop up, same hue.
+    color: '#3e5763',
     roughnessMap: band(STRUCTURAL_ORM, 1, 10),
     roughness: 1,
     metalness: 0,
@@ -475,7 +477,10 @@ const MATERIALS = {
    */
   roofLiner: new THREE.MeshStandardMaterial({
     name: 'factory-roof-liner',
-    color: '#929291',
+    // '#929291' (0.29) sat near black under fill alone (sRGB 27, 35, 33 at noon,
+    // final-med-12). A coil-coated liner is a light grey-white; 0.45 is still
+    // well under a white liner's ~0.65.
+    color: '#b4b4b2',
     roughness: 0.6,
     metalness: 0,
   }),
@@ -643,6 +648,69 @@ const MATERIALS = {
 applyFloorDetailBlend(MATERIALS.floor);
 
 // ===========================================================================
+// GLAZING FRESNEL
+// ===========================================================================
+//
+// A transparent standard material scales its WHOLE output by its opacity, the
+// reflection included, so a hall pane at 0.13 showed 13% of a sky reflection
+// that at grazing incidence should be most of what the eye sees. From outside
+// the hall read as an open steel frame (final-med-12, overview and farm).
+//
+// The pane is composited here as what it is: a faint tinted film (the lit
+// colour at the authored opacity) under a Fresnel reflection of the
+// environment. With F the Schlick reflectance and a the authored opacity,
+// light from behind passes (1 - F)(1 - a), so with normal blending
+//   coverage = 1 - (1 - F)(1 - a)
+//   colour   = ((1 - F) a C + F sky) / coverage.
+// Face-on that is the old pane (F0 = 0.04); at grazing it is the sky. The sky
+// sample is the same PMREM every metal reads, divided back out of the scene's
+// diffuse-fill dampener, and capped so the sun disc cannot print a star.
+
+/** Constant. Bump by hand when the GLSL below changes. */
+export const GLAZING_FRESNEL_CACHE_KEY = 'millos-glazing-fresnel-v1';
+
+/** Paired rendered control (0 = the old flat pane), mirrored on userData. */
+export const GLAZING_FRESNEL_STRENGTH = { value: 1 };
+
+/** TS mirror of the composite's coverage, for tests and design numbers. */
+export function glazingCoverage(opacity: number, cosTheta: number, strength = 1): number {
+  const c = THREE.MathUtils.clamp(Math.abs(cosTheta), 0, 1);
+  const fresnel = (0.04 + 0.96 * (1 - c) ** 5) * THREE.MathUtils.clamp(strength, 0, 1);
+  return 1 - (1 - fresnel) * (1 - opacity);
+}
+
+const GLAZING_FRESNEL_BODY = /* glsl */ `
+{
+  float glazeCos = saturate( abs( dot( geometryViewDir, geometryNormal ) ) );
+  float glazeF = ( 0.04 + 0.96 * pow( 1.0 - glazeCos, 5.0 ) ) * uGlazeFresnel;
+  #ifdef USE_ENVMAP
+    vec3 glazeSky = min(
+      getIBLRadiance( geometryViewDir, geometryNormal, material.roughness ) / max( envMapIntensity, 1e-3 ),
+      vec3( 1.5 )
+    );
+  #else
+    vec3 glazeSky = gl_FragColor.rgb;
+  #endif
+  float glazeCoverage = 1.0 - ( 1.0 - glazeF ) * ( 1.0 - gl_FragColor.a );
+  gl_FragColor.rgb = ( ( 1.0 - glazeF ) * gl_FragColor.a * gl_FragColor.rgb + glazeF * glazeSky )
+    / max( glazeCoverage, 1e-4 );
+  gl_FragColor.a = glazeCoverage;
+}
+`;
+
+MATERIALS.glass.userData.glazingFresnel = GLAZING_FRESNEL_STRENGTH;
+MATERIALS.glass.onBeforeCompile = (shader) => {
+  shader.uniforms.uGlazeFresnel = GLAZING_FRESNEL_STRENGTH;
+  shader.fragmentShader = shader.fragmentShader
+    .replace('#include <common>', '#include <common>\nuniform float uGlazeFresnel;')
+    .replace('#include <opaque_fragment>', `#include <opaque_fragment>\n${GLAZING_FRESNEL_BODY}`);
+};
+MATERIALS.glass.customProgramCacheKey = () => GLAZING_FRESNEL_CACHE_KEY;
+
+/** The hall's wall glazing, for its Fresnel test. */
+export const FACTORY_GLASS_MATERIAL: THREE.Material = MATERIALS.glass;
+
+// ===========================================================================
 // SURFACE FINISH
 // ===========================================================================
 //
@@ -712,7 +780,16 @@ const SHELL_SURFACES: readonly [
   [
     MATERIALS.roofLiner,
     'painted',
-    { ribPeriod: 0.25, ribDepth: 0.035, ribAxis: 1, indoorBounce: 0.85 },
+    {
+      ribPeriod: 0.25,
+      ribDepth: 0.035,
+      ribAxis: 1,
+      indoorBounce: 0.85,
+      // A smooth coil coating between the ribs: the painted profile's 18 mm
+      // meso relief shimmered into dot noise at the ceiling's grazing angle.
+      meso: 0.04,
+      reliefMetres: 0.003,
+    },
   ],
   [MATERIALS.roofTrim, 'painted'],
   [MATERIALS.accent, 'painted'],
@@ -733,10 +810,20 @@ const SHELL_SURFACES: readonly [
     {
       grime: 0.5,
       edge: 0.35,
-      meso: 0.32,
       macro: 0.22,
       bareColor: '#9d9a92',
       indoorBounce: 0.85,
+      // Still a flat plank in final-med-12: the forklift camera (28 degrees)
+      // sees the run at 34 m, where the masonry meso had faded by distance
+      // although its 0.35 m period spans 30 px. Fade it out past 90 m instead,
+      // and break each run into 2.4 m precast sections, each with its own
+      // paint tone and a joint across the top, counted from the run's centre.
+      meso: 0.38,
+      mesoFadeMetres: 90,
+      objectSpace: 1,
+      slabPitch: 2.4,
+      slabJoint: 0.6,
+      slabTone: 0.12,
     },
   ],
   [MATERIALS.gallery, 'metal', { datum: GALLERY_DECK_TOP }],

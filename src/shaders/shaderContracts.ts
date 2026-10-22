@@ -310,6 +310,23 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     fallbackMaterial: 'macro map only',
   },
   {
+    id: 'factory-glazing-fresnel',
+    owner: 'OptimizedFactoryInfrastructure',
+    sources: ['src/components/infrastructure/OptimizedFactoryInfrastructure.tsx'],
+    coordinateSpaces: ['view-space geometry normal and view direction'],
+    colorSpace: 'linear PMREM radiance composited before tone mapping',
+    toneMapping: 'three-chunk',
+    fog: 'three-chunk',
+    transparency: 'alpha',
+    depthBehavior: 'transparent panes, depth test on, depth write off',
+    qualityVariants: ['low', 'medium', 'high', 'ultra'],
+    uniformOwner: 'module-level GLAZING_FRESNEL_STRENGTH, mirrored on userData.glazingFresnel',
+    timeSource: 'none',
+    cacheKey: 'millos-glazing-fresnel-v1',
+    disposalOwner: 'module lifetime',
+    fallbackMaterial: 'the flat 0.13-opacity pane (strength 0)',
+  },
+  {
     // Registered in the DEFECT 2 sweep. One injection, many cache keys: every
     // caller passes its own CONSTANT literal so each species compiles once, and
     // the shadow variant is a separate MeshDepthMaterial with a `_depth` suffix
@@ -363,7 +380,7 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     uniformOwner:
       'per-material closure captured by applyMachineWear, mirrored on userData.machineWear',
     timeSource: 'none',
-    cacheKey: 'machineWear_v2',
+    cacheKey: 'machineWear_v4',
     disposalOwner: 'module lifetime (MACHINE_MATERIALS library)',
     fallbackMaterial: 'the same MeshStandardMaterial with no wear injection',
   },

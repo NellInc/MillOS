@@ -58,6 +58,17 @@ describe('rendered horizon ambient handoff', () => {
     }
   });
 
+  it('gives the ambient a daylight fill neutralised like the hemisphere, sky untouched', () => {
+    // The ambient colour is also what the hemisphere sky and the IBL horizon
+    // band read, so this one call decides the fill colour indoors and out.
+    const horizon = new THREE.Color('#a3cce2');
+    const noon = sampleAtmosphere(1, 12, 'clear').daylight;
+    const ambient = applySkyAmbientPalette(new THREE.Color(), horizon, noon);
+    expect(horizon.equals(new THREE.Color('#a3cce2'))).toBe(true);
+    expect(ambient.b / ambient.r).toBeLessThan((horizon.b / horizon.r) * 0.75);
+    expect(ambient.b).toBeGreaterThan(ambient.r);
+  });
+
   it('retains twilight colour that a second day/night blend would erase', () => {
     const oldBlend = new THREE.Color('#384a64').lerp(new THREE.Color('#a3cce2'), 0.23);
     const renderedHorizon = new THREE.Color('#c09984');
