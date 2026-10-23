@@ -33,26 +33,47 @@ describe('stretch film on a flour load', () => {
     }
   });
 
-  it('wraps the load to its pallet and over its top course, not the whole face', () => {
+  /**
+   * Round 4 cut it to two bands with the middle courses bare, and shipping
+   * med-12 then read the loads as unwrapped. It is one sleeve from the pallet
+   * deck to over the top course, denser where the wrap doubles.
+   */
+  it('wraps the whole load from its pallet to over its top course, one sleeve', () => {
     expect(Math.min(...ys)).toBeLessThanOrEqual(PALLET_HEIGHT);
     expect(Math.max(...ys)).toBeGreaterThanOrEqual(LOADED_PALLET_HEIGHT - 0.02);
-    // Banded: the middle courses show through bare.
-    const middle = (PALLET_HEIGHT + LOADED_PALLET_HEIGHT) / 2;
-    const geometry = STRETCH_FILM_GEOMETRY;
-    let covered = 0;
-    const index = geometry.index;
-    const count = index ? index.count : positions.count;
-    for (let i = 0; i < count; i += 3) {
-      const v = [0, 1, 2].map((k) => ys[index ? index.getX(i + k) : i + k]);
-      if (Math.min(...v) < middle && Math.max(...v) > middle) covered += 1;
+    const alpha = STRETCH_FILM_GEOMETRY.getAttribute('color');
+    expect(alpha?.itemSize).toBe(4);
+    // Every height up the load has film on it.
+    for (let y = PALLET_HEIGHT; y <= LOADED_PALLET_HEIGHT; y += 0.05) {
+      let covered = 0;
+      for (let i = 0; i < positions.count; i += 3) {
+        const v = [0, 1, 2].map((k) => ys[i + k]);
+        if (Math.min(...v) <= y && Math.max(...v) >= y) covered += 1;
+      }
+      expect(covered, `film at y ${y.toFixed(2)}`).toBeGreaterThan(8);
     }
-    expect(covered).toBe(0);
+    // Denser at the bands than up the middle, and never thin enough to vanish.
+    const middle = (PALLET_HEIGHT + LOADED_PALLET_HEIGHT) / 2;
+    const alphaAt = (y: number) => {
+      let best = { d: Infinity, a: 0 };
+      for (let i = 0; i < positions.count; i += 1) {
+        const d = Math.abs(ys[i] - y);
+        if (d < best.d) best = { d, a: alpha.getW(i) };
+      }
+      return best.a;
+    };
+    expect(alphaAt(middle)).toBeGreaterThanOrEqual(0.2);
+    expect(alphaAt(PALLET_HEIGHT)).toBeGreaterThan(alphaAt(middle));
+    expect(alphaAt(LOADED_PALLET_HEIGHT)).toBeGreaterThan(alphaAt(middle));
+    expect(alphaAt(LOADED_PALLET_HEIGHT)).toBeLessThanOrEqual(0.42);
   });
 
-  it('is a thin glossy sheen, not a milky shell', () => {
-    expect(STRETCH_FILM_MATERIAL.opacity).toBeLessThanOrEqual(0.4);
+  it('is a thin glossy sheen, not a milky shell, with no doubled edge', () => {
+    expect(STRETCH_FILM_MATERIAL.vertexColors).toBe(true);
+    expect(STRETCH_FILM_MATERIAL.opacity).toBe(1);
     expect(STRETCH_FILM_MATERIAL.roughness).toBeLessThanOrEqual(0.25);
     expect(STRETCH_FILM_MATERIAL.depthWrite).toBe(false);
+    expect(STRETCH_FILM_MATERIAL.side).toBe(THREE.FrontSide);
   });
 });
 
