@@ -19,10 +19,12 @@ import {
   HALL_CONDUIT_DROPS,
   HALL_DUST,
   HALL_HOSES,
+  HALL_MCC_CONDUITS,
   HALL_PALLET_PILES,
   HALL_PROPS,
   HALL_SACK_STACKS,
   type HallCableTray,
+  type HallConduitBank,
   type HallConduitDrop,
   type HallDustPatch,
   type HallHose,
@@ -148,6 +150,47 @@ const CABLE = new THREE.MeshStandardMaterial({
   name: 'hall-cable-bundle',
   color: '#202326',
   roughness: 0.75,
+});
+/** RAL 7035 light grey: the usual switchgear enclosure. */
+const MCC_CABINET = new THREE.MeshStandardMaterial({
+  name: 'hall-mcc-cabinet',
+  color: '#c3c6c2',
+  roughness: 0.5,
+  metalness: 0.2,
+});
+const MCC_DOOR = new THREE.MeshStandardMaterial({
+  name: 'hall-mcc-door',
+  color: '#b4b8b4',
+  roughness: 0.45,
+  metalness: 0.2,
+});
+const PILOT_GREEN = new THREE.MeshStandardMaterial({
+  name: 'hall-pilot-green',
+  color: '#2f9e4f',
+  roughness: 0.3,
+});
+const WARNING_YELLOW = new THREE.MeshStandardMaterial({
+  name: 'hall-warning-label',
+  color: '#e2b52c',
+  roughness: 0.6,
+});
+const WRAPPER_BLUE = new THREE.MeshStandardMaterial({
+  name: 'hall-wrapper-frame',
+  color: '#2c5d8f',
+  roughness: 0.5,
+  metalness: 0.2,
+});
+/** Stretch film over a load: pale, a little glossy, opaque at this distance. */
+const STRETCH_FILM = new THREE.MeshStandardMaterial({
+  name: 'hall-stretch-film',
+  color: '#d6dadc',
+  roughness: 0.3,
+  metalness: 0,
+});
+const BIN_GREEN = new THREE.MeshStandardMaterial({
+  name: 'hall-wheelie-bin-green',
+  color: '#2f6b3d',
+  roughness: 0.6,
 });
 
 // Sack stacks: the same pallet, sack and print geometry as every other load.
@@ -395,6 +438,136 @@ const HoseReel: React.FC = () => (
   </>
 );
 
+const MCC_SECTION = 0.8;
+const MCC_SECTIONS = 5;
+const MCC_BUCKETS = [0.27, 0.71, 1.15, 1.59] as const;
+
+/**
+ * Motor-control centre: five 0.8 m sections on a channel plinth, each with
+ * four withdrawable starter buckets behind their own doors (a rotary isolator
+ * and a pilot lamp on each), a gland box on top where the feeders enter, and
+ * a warning label on each end door. Fronts toward +z; 2.3 m to the top.
+ */
+const MotorControlCentre: React.FC = () => {
+  const length = MCC_SECTION * MCC_SECTIONS;
+  return (
+    <>
+      <Part material={DARK_STEEL} position={[0, 0.05, 0]} scale={[length, 0.1, 0.56]} />
+      {Array.from({ length: MCC_SECTIONS }, (_, i) => {
+        const x = -length / 2 + MCC_SECTION * (i + 0.5);
+        return (
+          <group key={i}>
+            <Part
+              material={MCC_CABINET}
+              position={[x, 1.15, 0]}
+              scale={[MCC_SECTION - 0.008, 2.1, 0.6]}
+            />
+            {MCC_BUCKETS.map((y) => (
+              <group key={y}>
+                <Part
+                  material={MCC_DOOR}
+                  position={[x, y + 0.2, 0.306]}
+                  scale={[0.72, 0.4, 0.012]}
+                />
+                <Part
+                  material={ISOLATOR_HANDLE}
+                  position={[x + 0.24, y + 0.22, 0.322]}
+                  scale={[0.05, 0.12, 0.03]}
+                />
+                <Part
+                  material={PILOT_GREEN}
+                  position={[x - 0.24, y + 0.32, 0.316]}
+                  scale={[0.03, 0.03, 0.012]}
+                />
+              </group>
+            ))}
+            {/* Louvred vent across the top of each section. */}
+            <Part material={DARK_STEEL} position={[x, 2.12, 0.304]} scale={[0.5, 0.08, 0.008]} />
+          </group>
+        );
+      })}
+      {[-1, 1].map((side) => (
+        <Part
+          key={side}
+          material={WARNING_YELLOW}
+          position={[side * (length / 2 - MCC_SECTION / 2), 1.93, 0.316]}
+          scale={[0.14, 0.12, 0.008]}
+        />
+      ))}
+      <Part material={DARK_STEEL} position={[0, 2.25, -0.02]} scale={[length - 0.1, 0.1, 0.46]} />
+    </>
+  );
+};
+
+/**
+ * Turntable stretch wrapper with a wrapped load on its pallet: the film
+ * carriage rides a blue mast at -z, with the operator's panel and stop on the
+ * mast's side.
+ */
+const PalletWrapper: React.FC = () => (
+  <>
+    <mesh position={[0, 0.04, 0]} material={DARK_STEEL} castShadow receiveShadow>
+      <cylinderGeometry args={[0.9, 0.9, 0.08, 40]} />
+    </mesh>
+    <mesh position={[0, 0.082, 0]} material={WARNING_YELLOW} receiveShadow>
+      <cylinderGeometry args={[0.9, 0.9, 0.004, 40, 1, true]} />
+    </mesh>
+    <Part material={WRAPPER_BLUE} position={[0, 0.04, -1.0]} scale={[0.7, 0.08, 0.5]} />
+    <Part material={WRAPPER_BLUE} position={[0, 1.3, -1.15]} scale={[0.35, 2.6, 0.35]} />
+    <Part material={WARNING_YELLOW} position={[0, 1.15, -0.86]} scale={[0.36, 0.42, 0.22]} />
+    <Part
+      geometry={ROD_Y}
+      material={STRETCH_FILM}
+      position={[0, 1.15, -0.7]}
+      scale={[0.06, 0.5, 0.06]}
+    />
+    <Part material={MCC_CABINET} position={[0.33, 1.3, -1.15]} scale={[0.3, 0.42, 0.22]} />
+    <Part
+      geometry={ROD_X}
+      material={ISOLATOR_HANDLE}
+      position={[0.5, 1.42, -1.15]}
+      scale={[0.03, 0.035, 0.035]}
+    />
+    <Part material={PALLET_TIMBER} position={[0, 0.15, 0]} scale={[1.2, 0.14, 1.0]} />
+    <Part material={STRETCH_FILM} position={[0, 0.97, 0]} scale={[1.12, 1.5, 0.96]} />
+  </>
+);
+
+/** Two 240 L wheelie bins, lids shut, handles and wheels at -z. */
+const WasteBins: React.FC = () => (
+  <>
+    {[
+      [-0.32, BIN_GREEN],
+      [0.32, BIN_BLUE],
+    ].map(([x, material]) => (
+      <group key={x as number} position={[x as number, 0, 0]}>
+        <Part
+          material={material as THREE.Material}
+          position={[0, 0.53, 0]}
+          scale={[0.56, 0.94, 0.7]}
+        />
+        <Part
+          material={material as THREE.Material}
+          position={[0, 1.03, 0.01]}
+          scale={[0.6, 0.06, 0.76]}
+        />
+        <Part material={DARK_STEEL} position={[0, 0.98, -0.39]} scale={[0.5, 0.04, 0.04]} />
+        {[-0.22, 0.22].map((wx) => (
+          <mesh
+            key={wx}
+            geometry={CASTER}
+            material={RUBBER}
+            position={[wx, 0.1, -0.3]}
+            rotation={[0, Math.PI / 2, 0]}
+            scale={[1.6, 1.6, 1.2]}
+            castShadow
+          />
+        ))}
+      </group>
+    ))}
+  </>
+);
+
 const PlacedProp: React.FC<{ prop: HallProp }> = ({ prop }) => {
   const position: [number, number, number] = [prop.x, prop.baseY, prop.z];
   switch (prop.kind) {
@@ -409,6 +582,9 @@ const PlacedProp: React.FC<{ prop: HallProp }> = ({ prop }) => {
           {prop.kind === 'partsRack' && <PartsRack />}
           {prop.kind === 'rollCradle' && <RollCradle />}
           {prop.kind === 'hoseReel' && <HoseReel />}
+          {prop.kind === 'mcc' && <MotorControlCentre />}
+          {prop.kind === 'palletWrapper' && <PalletWrapper />}
+          {prop.kind === 'wasteBins' && <WasteBins />}
         </group>
       );
   }
@@ -526,6 +702,21 @@ const ConduitDrop: React.FC<{ drop: HallConduitDrop }> = ({ drop }) => {
     </>
   );
 };
+
+/** An MCC's feeders: conduits from its gland box straight up into the tray. */
+const ConduitBank: React.FC<{ bank: HallConduitBank }> = ({ bank }) => (
+  <>
+    {bank.xs.map((x) => (
+      <Part
+        key={x}
+        geometry={ROD_Y}
+        material={GALVANISED}
+        position={[x, (bank.bottomY + bank.topY) / 2, bank.z]}
+        scale={[bank.radius, bank.topY - bank.bottomY, bank.radius]}
+      />
+    ))}
+  </>
+);
 
 // ---------------------------------------------------------------------------
 // Instanced sack stacks
@@ -915,6 +1106,9 @@ export const HallDressing: React.FC<{ revision: string | number | boolean }> = (
         ))}
         {HALL_CONDUIT_DROPS.map((drop) => (
           <ConduitDrop key={drop.id} drop={drop} />
+        ))}
+        {HALL_MCC_CONDUITS.map((bank) => (
+          <ConduitBank key={bank.id} bank={bank} />
         ))}
       </group>
     </StaticMeshBatch>
