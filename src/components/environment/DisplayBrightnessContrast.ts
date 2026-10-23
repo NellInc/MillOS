@@ -10,9 +10,12 @@ const STOCK_OUTPUT = 'outputColor=vec4(color+vec3(0.5),inputColor.a);';
  * Brightness/contrast whose black does not clip. See `DISPLAY_TOE` in
  * `colorGrade.ts` for why, and `gradeContrast` there for the TypeScript mirror
  * of the expression below. Above the knee this is the stock line exactly; below
- * it, at `toeStrength` 1, the quadratic through 0 that meets the line with the
- * same value and slope at the knee. Only engaged when the line's own black
- * (`lift`) is below zero, which is the only case where it clips.
+ * it, the cubic that leaves black at slope 1 and meets the line with the same
+ * value and slope at the knee, faded out by the pixel's brightest encoded
+ * channel between knee/2 and knee (a saturated colour's deep channels keep the
+ * line) and scaled by `toeStrength` (`nightToeStrength`, 0 by day). Only
+ * engaged when the line's own black (`lift`) is below zero, the only case
+ * where it clips.
  * Working if night fill-only faces read above 0 while midday is unchanged.
  */
 export class DisplayBrightnessContrastEffect extends BrightnessContrastEffect {
@@ -32,11 +35,20 @@ export class DisplayBrightnessContrastEffect extends BrightnessContrastEffect {
           'vec3 graded=color+vec3(0.5);' +
             'float gain=contrast>0.0?1.0/(1.0-contrast):1.0+contrast;' +
             'float lift=(brightness-0.5)*gain+0.5;' +
-            'if(lift<0.0){' +
+            'float toeWeight=clamp(toeStrength,0.0,1.0);' +
+            'if(lift<0.0&&toeWeight>0.0){' +
             'vec3 c=max(inputColor.rgb,vec3(0.0));' +
-            'vec3 toe=c*(gain+2.0*lift/toeKnee)-c*c*(lift/(toeKnee*toeKnee));' +
-            'vec3 below=vec3(lessThan(inputColor.rgb,vec3(toeKnee)));' +
-            'graded=mix(graded,toe,below*clamp(toeStrength,0.0,1.0));' +
+            'float k=toeKnee;' +
+            'float delta=k*gain+lift-k;' +
+            'float slope=gain-1.0;' +
+            'float b=(3.0*delta-slope*k)/(k*k);' +
+            'float d=(slope*k-2.0*delta)/(k*k*k);' +
+            'vec3 toe=c+b*c*c+d*c*c*c;' +
+            'float peak=max(inputColor.r,max(inputColor.g,inputColor.b));' +
+            'float t=clamp((peak-0.5*k)/(0.5*k),0.0,1.0);' +
+            'toeWeight*=1.0-t*t*(3.0-2.0*t);' +
+            'vec3 below=vec3(lessThan(inputColor.rgb,vec3(k)));' +
+            'graded=mix(graded,toe,below*toeWeight);' +
             '}' +
             'outputColor=vec4(graded,inputColor.a);'
         )

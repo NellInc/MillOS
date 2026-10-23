@@ -1006,9 +1006,10 @@ const FRAGMENT_ANCHOR = '#include <normal_fragment_maps>';
  * fill irradiance TIMES the albedo. The first version mixed that product toward
  * its own luma, which greyed the surface's own colour as well as the grass in
  * the fill: a yellow upstand lit only by fill turned to a dim neutral grey. At
- * 22:00 that grey sat under the display toe (AgX and the grade's +0.06
- * contrast) and the milling camera's aisle barrier rendered (0.3, 0, 0) beside
- * a plain-material band lit at (36, 26, 3) on the same face (r4floor2-med-22).
+ * 22:00 that grey sat under the display toe (Khronos PBR Neutral, not AgX, and
+ * the grade's +0.06 contrast) and the milling camera's aisle barrier rendered
+ * (0.3, 0, 0) beside a plain-material band lit at (36, 26, 3) on the same
+ * face (r4floor2-med-22).
  * Patched at runtime to the form below, the face read (19.5, 12.2, 0).
  *
  * So the albedo is divided out, the fill alone is pulled toward its

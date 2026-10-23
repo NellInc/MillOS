@@ -20,7 +20,9 @@ describe('display brightness/contrast toe', () => {
           )
       )
     ).toBe(true);
-    expect(source).toContain('graded=mix(graded,toe,below*clamp(toeStrength,0.0,1.0));');
+    expect(source).toContain('float toeWeight=clamp(toeStrength,0.0,1.0);');
+    expect(source).toContain('if(lift<0.0&&toeWeight>0.0){');
+    expect(source).toContain('graded=mix(graded,toe,below*toeWeight);');
     expect(source).not.toContain('outputColor=vec4(color+vec3(0.5),inputColor.a);');
     stock.dispose();
     toe.dispose();

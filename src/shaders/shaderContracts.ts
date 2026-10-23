@@ -202,6 +202,28 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     fallbackMaterial: 'stock three fog chunks',
   },
   {
+    id: 'display-toe-tone-mapping-chunk',
+    owner: 'shaders/displayToeToneMapping',
+    sources: [
+      'src/shaders/displayToeToneMapping.ts',
+      'src/components/environment/DisplayToneMapping.ts',
+    ],
+    coordinateSpaces: ['scene-referred linear colour after exposure'],
+    colorSpace: 'linear in, linear out (before the sRGB output transfer)',
+    toneMapping: 'three-chunk',
+    fog: 'none',
+    transparency: 'opaque',
+    depthBehavior:
+      'no depth state; a global ShaderChunk override installed in App.tsx module scope',
+    qualityVariants: ['low', 'medium', 'high', 'ultra'],
+    uniformOwner:
+      'none on low (strength 1); DISPLAY_TOE_STRENGTH on the composer, written by PostProcessing',
+    timeSource: 'none',
+    cacheKey: 'three-source-default',
+    disposalOwner: 'process lifetime',
+    fallbackMaterial: 'stock three NeutralToneMapping',
+  },
+  {
     id: 'water-family',
     owner: 'OptimizedExterior.WaterNetwork',
     sources: ['src/components/exterior/OptimizedExterior.tsx'],
