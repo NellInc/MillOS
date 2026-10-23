@@ -147,7 +147,12 @@ export interface HallColumnRiser {
   /** Conduits from the box's underside to the slab, offsets across the face. */
   readonly conduits: readonly number[];
   readonly conduitRadius: number;
+  /** Heights of the couplers joining the trunking's sections. */
+  readonly couplers: readonly number[];
 }
+
+/** Longest trunking section between couplers (a 3 m length, as sold). */
+const RISER_SECTION = 3;
 
 /** A shell column is 0.42 m square (`buildFactoryShellColumns`). */
 const SHELL_COLUMN_HALF = 0.21;
@@ -167,14 +172,24 @@ const riser = (
   columnZ,
   normal,
   faceOffset: SHELL_COLUMN_HALF,
+  // 0.15 m deep (final5): the near riser shows the interior camera its side,
+  // and at 0.1 m that read as a 13 px light leak, not as trunking.
   width: 0.3,
-  depth: 0.1,
+  depth: 0.15,
   bottomY: 2.2,
   topY: RISER_TOP,
-  box: { width: 0.42, height: 0.5, depth: 0.18 },
+  box: { width: 0.42, height: 0.5, depth: 0.2 },
   conduits: [-0.09, 0.09],
   conduitRadius: 0.025,
+  couplers: riserCouplers(2.2, RISER_TOP),
 });
+
+/** Coupler heights splitting a run into equal sections no longer than RISER_SECTION. */
+function riserCouplers(bottomY: number, topY: number): number[] {
+  const sections = Math.ceil((topY - bottomY) / RISER_SECTION);
+  const length = (topY - bottomY) / sections;
+  return Array.from({ length: sections - 1 }, (_, i) => bottomY + (i + 1) * length);
+}
 
 /**
  * Power up the shell: trunking on the hall face of the columns the interior

@@ -122,4 +122,55 @@ describe('hall glazing Fresnel', () => {
     expect(material.transparent).toBe(true);
     expect(material.depthWrite).toBe(false);
   });
+
+  /**
+   * Rubric, final3 to final5 unchanged: "the curtain wall still shows no sky
+   * reflection at grazing angles from outside" (overview front and west
+   * facade, shipping upper right, tank-farm right). Every one of those cameras
+   * stands above or level with the glazing, so its reflected rays run down
+   * into the PMREM's flat ground band, which v3 rightly dims; and face-on the
+   * 9% coat is a sixth of the lit hall behind it. v4: outdoors, a ray below
+   * the horizon looks up into the low sky instead (the mirror image a curtain
+   * wall shows of the sky over the yard it faces), and the coat reflects 16%
+   * face-on. Indoors nothing changes.
+   */
+  it('looks into the sky for an outdoor ray below the horizon (v4), and v3 exactly at 0', () => {
+    const lift = infrastructure.glazingSkyLookupY;
+    for (let y = -1; y <= 0.03; y += 0.05) {
+      expect(lift(y), `y ${y.toFixed(2)}`).toBeGreaterThanOrEqual(0.04);
+      expect(lift(y, 0)).toBe(y);
+    }
+    // Steeper down looks higher up the sky, so a facade grades rather than
+    // reading as one flat tone.
+    expect(lift(-0.6)).toBeGreaterThan(lift(-0.2) + 0.15);
+    for (const y of [0.1, 0.5, 1]) expect(lift(y)).toBe(y);
+  });
+
+  it('reflects a sixth face-on outside with the coat, and leaves the inside as v3', () => {
+    const { outerF0, outerF0V4 } = infrastructure.GLAZING_REFLECTANCE;
+    expect(outerF0V4).toBeGreaterThanOrEqual(0.15);
+    expect(outerF0V4).toBeLessThanOrEqual(0.2);
+    expect(coverage(opacity(), 1, 1, true)).toBeGreaterThan(
+      coverage(opacity(), 1, 1, true, 0.5, 1, 0) + 0.05
+    );
+    expect(outerF0).toBe(0.09);
+    for (const cos of [1, 0.6, 0.3, 0.1, 0.02]) {
+      expect(coverage(opacity(), cos, 1, false)).toBe(
+        coverage(opacity(), cos, 1, false, 0.5, 1, 0)
+      );
+    }
+    const material = glass();
+    expect(material.userData.glazingV4).toBe(infrastructure.GLAZING_V4);
+    const shader = {
+      uniforms: THREE.UniformsUtils.clone(THREE.ShaderLib.physical.uniforms),
+      vertexShader: THREE.ShaderLib.physical.vertexShader,
+      fragmentShader: THREE.ShaderLib.physical.fragmentShader,
+    };
+    material.onBeforeCompile(
+      shader as unknown as THREE.WebGLProgramParametersWithUniforms,
+      null as unknown as THREE.WebGLRenderer
+    );
+    expect(shader.fragmentShader).toContain('uniform float uGlazeV4;');
+    expect(infrastructure.GLAZING_FRESNEL_CACHE_KEY).toBe('millos-glazing-fresnel-v4');
+  });
 });

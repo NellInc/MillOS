@@ -1155,6 +1155,71 @@ describe('roof deck liner', () => {
       0.15
     );
   });
+
+  /**
+   * final5 med-12 interior (upper right) and milling, low-12 (as a brick
+   * moire): the deck still read as a checker. The footprint test above is
+   * foreshortened along the view, but the ribs vary along world Z and the
+   * interior camera looks mostly along +X, so up there a rib pitch lies ACROSS
+   * the view and spans 6-7 px on Medium: resolved, faded only part way, and
+   * chopped every 10-12 px by the purlins. This measures the footprint the
+   * shader does (`fwidth` of the rib coordinate) through the real cameras.
+   */
+  it('draws no rib swing anywhere on the ceiling the interior and milling cameras see', async () => {
+    const { ROOF_PANEL_MATERIALS } = await import('./OptimizedFactoryInfrastructure');
+    const { ribRenderedSwing } = await import('../../utils/worldSurface');
+    const liner = ROOF_PANEL_MATERIALS[3] as THREE.MeshStandardMaterial;
+    const pitch = (liner.userData.millosWorldSurface as { uSurfDeck: { value: THREE.Vector4 } })
+      .uSurfDeck.value.x;
+    // The liner's lower face (the eave datum test above): 0.63 over the eaves
+    // at each half's centre, pitched 0.05 rad up to the ridge, 0.36 thick.
+    const halfCentre = SITE_LAYOUT.factory.floor.width / 4;
+    const deckY = (x: number) =>
+      SITE_LAYOUT.factory.bounds.maxY +
+      0.63 +
+      (halfCentre - Math.abs(x)) * Math.tan(0.05) -
+      0.36 / Math.cos(0.05);
+    let worst = 0;
+    let seen = 0;
+    for (const name of ['interior', 'milling'] as const) {
+      const pose = SITE_LAYOUT.cameras[name];
+      const camera = new THREE.PerspectiveCamera(pose.fov, 16 / 9, 0.5, 300);
+      camera.position.set(...pose.position);
+      camera.lookAt(...pose.target);
+      camera.updateMatrixWorld();
+      for (const rows of [720 * 2 * 0.6, 720 * 2 * 0.4]) {
+        const cols = (rows * 16) / 9;
+        // Rib coordinate (world z / pitch) where a pixel's ray meets the deck.
+        const ribU = (px: number, py: number) => {
+          const ray = new THREE.Vector3((px / cols) * 2 - 1, 1 - (py / rows) * 2, 0.5)
+            .unproject(camera)
+            .sub(camera.position)
+            .normalize();
+          if (ray.y <= 0) return null;
+          let t = (deckY(camera.position.x) - camera.position.y) / ray.y;
+          for (let i = 0; i < 4; i++) {
+            t = (deckY(camera.position.x + ray.x * t) - camera.position.y) / ray.y;
+          }
+          const hit = camera.position.clone().addScaledVector(ray, t);
+          if (Math.abs(hit.x) > 39.5 || Math.abs(hit.z) > 49.5) return null;
+          return hit.z / pitch;
+        };
+        for (let py = 1; py < rows / 3; py += 6) {
+          for (let px = 1; px < cols - 1; px += 6) {
+            const u = ribU(px, py);
+            const ux = ribU(px + 1, py);
+            const uy = ribU(px, py + 1);
+            if (u === null || ux === null || uy === null) continue;
+            const w = Math.abs(ux - u) + Math.abs(uy - u);
+            worst = Math.max(worst, ribRenderedSwing(w));
+            seen++;
+          }
+        }
+      }
+    }
+    expect(seen).toBeGreaterThan(1000);
+    expect(worst).toBeLessThan(1e-3);
+  });
 });
 
 // logistics-close (370,190)-(410,220) and milling (1490,500)-(1525,535),

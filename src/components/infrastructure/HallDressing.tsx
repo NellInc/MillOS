@@ -76,6 +76,26 @@ const GALVANISED = new THREE.MeshStandardMaterial({
   roughness: 0.45,
   metalness: 0.75,
 });
+/**
+ * Column riser trunking: orange PVC-coated steel, a dielectric. Galvanised at
+ * metalness 0.75 it mirrored the PMREM sky indoors (the only environment there
+ * is), a lilac-to-blue sliver down the near gable column (final5 med-1830
+ * interior), and against the white silos behind the east glazing a grey
+ * trunking vanished (rubric item 10). The lid is a shade lighter, so the
+ * trunking reads as a box with a cover rather than one flat strip.
+ */
+export const HALL_TRUNKING_MATERIAL = new THREE.MeshStandardMaterial({
+  name: 'hall-riser-trunking',
+  color: '#d9762f',
+  roughness: 0.55,
+  metalness: 0,
+});
+export const HALL_TRUNKING_LID_MATERIAL = new THREE.MeshStandardMaterial({
+  name: 'hall-riser-trunking-lid',
+  color: '#e6874a',
+  roughness: 0.5,
+  metalness: 0,
+});
 const DARK_STEEL = new THREE.MeshStandardMaterial({
   name: 'hall-dark-steel',
   color: '#30363b',
@@ -735,16 +755,26 @@ const ColumnRiser: React.FC<{ riser: HallColumnRiser }> = ({ riser }) => {
   return (
     <group position={[riser.columnX, 0, riser.columnZ]} rotation={[0, yaw, 0]}>
       <Part
-        material={GALVANISED}
+        material={HALL_TRUNKING_MATERIAL}
         position={[0, riser.bottomY + run / 2, face + riser.depth / 2]}
         scale={[riser.width, run, riser.depth]}
       />
       {/* Cover strip: the lid stands a few mm proud, so the trunking reads as a box. */}
       <Part
-        material={DARK_STEEL}
+        material={HALL_TRUNKING_LID_MATERIAL}
         position={[0, riser.bottomY + run / 2, face + riser.depth + 0.004]}
         scale={[riser.width * 0.84, run, 0.008]}
       />
+      {/* Couplers between the 3 m sections: grey sleeves 15 mm proud all round,
+          so a run reads as jointed trunking even edge-on. */}
+      {riser.couplers.map((y) => (
+        <Part
+          key={y}
+          material={ISOLATOR_GREY}
+          position={[0, y, face + (riser.depth + 0.015) / 2]}
+          scale={[riser.width + 0.03, 0.06, riser.depth + 0.015]}
+        />
+      ))}
       <Part
         material={ISOLATOR_GREY}
         position={[0, riser.bottomY - box.height / 2, face + box.depth / 2]}

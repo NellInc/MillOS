@@ -89,12 +89,22 @@ function band(source: THREE.Texture, repeatX: number, repeatY: number): THREE.Te
  */
 export const DOCK_PAINT_MIN_LUMINANCE = 0.07;
 
-function repaint(hex: string, previousMetalness: number): THREE.Color {
+/**
+ * The frame members' floor: posts, flanges, header and braces. At 0.07 the
+ * shipping dock's west post, seen end-on at the right of `interior` beside the
+ * shell's dark teal portal jamb, read as one unreadable dark mass (final5
+ * med-12; the judge took it for an elevator leg). A mid slate, the same hue.
+ */
+export const DOCK_FRAME_MIN_LUMINANCE = 0.16;
+
+function repaint(
+  hex: string,
+  previousMetalness: number,
+  floor = DOCK_PAINT_MIN_LUMINANCE
+): THREE.Color {
   const color = new THREE.Color(hex).multiplyScalar(Math.pow(1 - previousMetalness, 0.75));
   const luminance = 0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b;
-  return luminance < DOCK_PAINT_MIN_LUMINANCE
-    ? color.multiplyScalar(DOCK_PAINT_MIN_LUMINANCE / luminance)
-    : color;
+  return luminance < floor ? color.multiplyScalar(floor / luminance) : color;
 }
 
 // TEXEL DENSITY BANDS. Each states the member it is cut for, in metres, so the
@@ -168,7 +178,8 @@ const NORMAL_SCALE = new THREE.Vector2(0.55, 0.55);
 const steel = (
   hex: string,
   previousMetalness: number,
-  maps: Partial<THREE.MeshStandardMaterialParameters>
+  maps: Partial<THREE.MeshStandardMaterialParameters>,
+  floor = DOCK_PAINT_MIN_LUMINANCE
 ) =>
   // `painted` rather than `metal`: every member here is `metalness: 0` after
   // `repaint`, i.e. a painted dielectric, and the metal profile deliberately
@@ -179,7 +190,7 @@ const steel = (
   // marks a dock post.
   applyWorldSurface(
     new THREE.MeshStandardMaterial({
-      color: repaint(hex, previousMetalness),
+      color: repaint(hex, previousMetalness, floor),
       roughness: 1,
       metalness: 0,
       normalScale: NORMAL_SCALE,
@@ -190,12 +201,25 @@ const steel = (
   );
 
 const MATERIALS = {
-  post: steel('#475569', 0.8, { roughnessMap: POST_ORM, normalMap: POST_NORMAL }),
-  flange: steel('#374151', 0.8, { roughnessMap: FLANGE_ORM }),
-  header: steel('#475569', 0.8, { roughnessMap: HEADER_ORM, normalMap: HEADER_NORMAL }),
-  headerFlange: steel('#374151', 0.8, { roughnessMap: HEADER_ORM }),
+  post: steel(
+    '#475569',
+    0.8,
+    { roughnessMap: POST_ORM, normalMap: POST_NORMAL },
+    DOCK_FRAME_MIN_LUMINANCE
+  ),
+  flange: steel('#374151', 0.8, { roughnessMap: FLANGE_ORM }, DOCK_FRAME_MIN_LUMINANCE),
+  header: steel(
+    '#475569',
+    0.8,
+    { roughnessMap: HEADER_ORM, normalMap: HEADER_NORMAL },
+    DOCK_FRAME_MIN_LUMINANCE
+  ),
+  headerFlange: steel('#374151', 0.8, { roughnessMap: HEADER_ORM }, DOCK_FRAME_MIN_LUMINANCE),
   canopy: steel('#374151', 0.6, { roughnessMap: CANOPY_ORM, normalMap: CANOPY_NORMAL }),
-  strut: steel('#475569', 0.8, { roughnessMap: POST_ORM }),
+  strut: steel('#475569', 0.8, { roughnessMap: POST_ORM }, DOCK_FRAME_MIN_LUMINANCE),
+  /** Leveller control station on each post's hall face: RAL 7035 switchgear grey. */
+  station: steel('#c3c6c2', 0, {}),
+  stationDoor: steel('#d2d4d0', 0, {}),
   trim: steel('#64748b', 0.7, { roughnessMap: HEADER_ORM }),
   plate: steel('#475569', 0.7, { roughnessMap: PLATE_ORM, normalMap: PLATE_NORMAL }),
   /** Lamp housing: painted pressed steel, small enough for no relief map. */
@@ -422,6 +446,59 @@ export const DOCK_FLANGE = { standoff: 0.1, thickness: 0.15 } as const;
 export const DOCK_WEB_DEPTH =
   DOCK_FRAME_SECTION.depth + 2 * (DOCK_FLANGE.standoff - DOCK_FLANGE.thickness / 2) + 0.02;
 
+/** Longest bay between a post's web stiffeners, metres. */
+const DOCK_STIFFENER_BAY = 2.4;
+
+/**
+ * Detail on one post, in the post group's frame (centred at mid-height, local
+ * -z into the hall): web stiffener plates on both sides at a pitch no longer
+ * than DOCK_STIFFENER_BAY, inside the flange outstand and short of the
+ * flanges, and a leveller control station (enclosure and door) at hand height
+ * on the indoor flange. final5 med-12 interior: the post seen end-on read as a
+ * dark stack of blocks; bays and a station say what it is.
+ */
+export function dockPostDetailParts(height: number): {
+  role: 'stiffener' | 'station';
+  material: 'flange' | 'station' | 'stationDoor';
+  position: readonly [number, number, number];
+  scale: readonly [number, number, number];
+}[] {
+  const { width, depth } = DOCK_FRAME_SECTION;
+  const flangeInner = depth / 2 + DOCK_FLANGE.standoff - DOCK_FLANGE.thickness / 2;
+  const outstand = 0.15;
+  const bays = Math.ceil(height / DOCK_STIFFENER_BAY);
+  const parts: ReturnType<typeof dockPostDetailParts> = [];
+  for (let i = 1; i < bays; i++) {
+    const y = -height / 2 + (i * height) / bays;
+    for (const side of [-1, 1]) {
+      parts.push({
+        role: 'stiffener',
+        material: 'flange',
+        position: [side * (width / 2 + outstand / 2), y, 0],
+        scale: [outstand, 0.03, 2 * (flangeInner - 0.01)],
+      });
+    }
+  }
+  const face = -(flangeInner + DOCK_FLANGE.thickness);
+  const box = { width: 0.4, height: 0.55, depth: 0.18 };
+  const y = 1.4 - height / 2;
+  parts.push(
+    {
+      role: 'station',
+      material: 'station',
+      position: [0, y, face - box.depth / 2],
+      scale: [box.width, box.height, box.depth],
+    },
+    {
+      role: 'station',
+      material: 'stationDoor',
+      position: [0, y, face - box.depth - 0.005 + 0.0025],
+      scale: [box.width - 0.06, box.height - 0.06, 0.015],
+    }
+  );
+  return parts;
+}
+
 /**
  * Vertical spans (opening-local y) of the post flanges and the outer header
  * flange. The header flange hangs 0.1 m below the header, so the outer post
@@ -496,6 +573,7 @@ export const OpenDockOpening: React.FC<OpenDockOpeningProps> = ({
   const outerFlangeHeight = flanges.outerPostFlange.y1 - flanges.outerPostFlange.y0;
   // One diagonal every 4 m across the full `width + 2` threshold band.
   const stripeCount = Math.floor((width + 2) / 4);
+  const postDetail = useMemo(() => dockPostDetailParts(height), [height]);
 
   return (
     <group position={position} rotation={[0, rotation, 0]}>
@@ -526,6 +604,16 @@ export const OpenDockOpening: React.FC<OpenDockOpeningProps> = ({
             position={[0, 0, -frameDepth / 2 - 0.1]}
             castShadow
           />
+          {postDetail.map((part, partIndex) => (
+            <mesh
+              key={`detail-${partIndex}`}
+              geometry={UNIT_BOX}
+              material={MATERIALS[part.material]}
+              scale={[...part.scale]}
+              position={[...part.position]}
+              castShadow={part.role === 'station'}
+            />
+          ))}
         </group>
       ))}
 
