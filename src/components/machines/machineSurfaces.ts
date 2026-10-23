@@ -265,6 +265,16 @@ export function neutraliseSiloGround(target: THREE.Color, weight: number): THREE
  * The corrugated shell lathe (`createSiloShellGeometry` in CompactMachines):
  * `ridges` waves over the unit height, `depth` of the unit radius. Installed at
  * 6 m x 25 m that is a 0.625 m wave 24 mm deep.
+ *
+ * That wave keeps the silhouette and is NOT shaded. Its vertex normals carry a
+ * 0.12 slope (6.9 degrees), which swung the reflected ray 14 degrees either
+ * way: from a camera above the battery that is across the horizon, so every
+ * wave flipped between sky and the brown hills and read as smeared horizontal
+ * brown bands (final3-med-12 silos; gone with the vertex normals smoothed, one
+ * page load). Shaded at a third of that (0.04) the bands were as strong as
+ * ever, since the reflection sits on the horizon edge, and under the night
+ * floods the same wave striped every grazing scallop (r4 tune probes). The
+ * crisp corrugation is the fine one in the normal map, 15.6 cm.
  */
 export const SILO_SHELL_PROFILE = { ridges: 40, depth: 0.004 } as const;
 /** Installed drum radius and shell height, metres (`SITE_LAYOUT` silo 12 x 32). */
@@ -272,17 +282,6 @@ export const SILO_DRUM_RADIUS = 6;
 export const SILO_DRUM_SHELL_HEIGHT = 25;
 /** Fine corrugation in the skin normal map: 20 ridges per tile, 8 tiles up the drum. */
 export const SILO_FINE_RIDGES = 160;
-
-/**
- * Peak WORLD slope the shaded 0.625 m wave is allowed (dr/dy, so 0.04 is 2.3
- * degrees). The lathe's own vertex normals carry its full slope, 0.12 (6.9
- * degrees), which swung the reflected ray 14 degrees either way: from a camera
- * above the battery that is across the horizon, so every wave flipped between
- * sky and the brown hills and read as smeared horizontal brown bands
- * (final3-med-12 silos; gone with the vertex normals smoothed on one page load).
- * The silhouette keeps the full geometry; only the shading is eased.
- */
-export const SILO_COARSE_SHADING_SLOPE = 0.04;
 
 /**
  * Cycles per pixel over which a corrugation term fades to its mean (the plain
@@ -327,7 +326,7 @@ export const SILO_FLOOD_COLOR = { value: new THREE.Color('#ffd59a') };
  * a bare bulb would light the bottom 3 m and nothing else.
  */
 export const SILO_FLOOD_PROFILE = {
-  peak: 3,
+  peak: 5,
   floor: 0.14,
   decay: 9,
   rise: [-0.3, 1] as const,
@@ -458,7 +457,7 @@ varying vec3 vMachineWorldNormal;
 uniform vec4 uMachineGalv;
 uniform vec4 uMachineRings;
 uniform float uMachineGalvGround;
-uniform vec4 uMachineCorrugation;
+uniform vec2 uMachineCorrugation;
 uniform vec4 uMachineFlood;
 uniform vec3 uMachineFloodColor;
 varying vec3 vMachineObject;
@@ -543,22 +542,16 @@ float machineGalvRun( float datum, float ring, float column, float across, float
  */
 const GALVANISED_FRAGMENT_BODY = /* glsl */ `
 #ifdef MACHINE_GALVANISED
-// Corrugated drum (uMachineCorrugation.w = 1, the skin only): rebuild the wall
-// normal from the bin axis instead of trusting the lathe's vertex normals, add
-// the 0.625 m wave back at SILO_COARSE_SHADING_SLOPE, and keep what the maps
-// added (the fine corrugation). Each term fades to its mean as its ridges
-// approach a pixel (SILO_CORRUGATION_FADE), so neither can alias into bands.
-if ( uMachineCorrugation.w > 0.5 ) {
+// Corrugated drum (uMachineCorrugation.y = 1, the skin only): the wall normal
+// comes from the bin axis, not the lathe's wave (SILO_SHELL_PROFILE), and what
+// the maps added on top (the fine corrugation) is kept, faded to its mean as
+// its ridges approach a pixel (SILO_CORRUGATION_FADE) so it cannot alias.
+if ( uMachineCorrugation.y > 0.5 ) {
   vec3 galvRadial = vec3( vMachineWorldPos.x - vMachineAxis.x, 0.0, vMachineWorldPos.z - vMachineAxis.y );
   galvRadial = normalize( ( viewMatrix * vec4( galvRadial, 0.0 ) ).xyz );
-  float galvT = vMachineObject.y + 0.5;
-  float galvCoarsePhase = galvT * uMachineCorrugation.x;
-  float galvFinePhase = galvT * uMachineCorrugation.z;
-  float galvCoarseFade = 1.0 - smoothstep( ${SILO_CORRUGATION_FADE[0].toFixed(3)}, ${SILO_CORRUGATION_FADE[1].toFixed(3)}, fwidth( galvCoarsePhase ) );
+  float galvFinePhase = ( vMachineObject.y + 0.5 ) * uMachineCorrugation.x;
   float galvFineFade = 1.0 - smoothstep( ${SILO_CORRUGATION_FADE[0].toFixed(3)}, ${SILO_CORRUGATION_FADE[1].toFixed(3)}, fwidth( galvFinePhase ) );
-  float galvSlope = uMachineCorrugation.y * sin( 6.28318530718 * galvCoarsePhase ) * galvCoarseFade;
-  vec3 galvWall = normalize( galvRadial + galvSlope * viewMatrix[ 1 ].xyz );
-  vec3 galvCorrugated = normalize( galvWall + ( normal - nonPerturbedNormal ) * galvFineFade );
+  vec3 galvCorrugated = normalize( galvRadial + ( normal - nonPerturbedNormal ) * galvFineFade );
   // Wall only: the lathe's end caps sit under the roof and on the skirt.
   normal = mix( normal, galvCorrugated, 1.0 - step( 0.7, abs( vMachineWorldNormal.y ) ) );
 }
@@ -789,16 +782,11 @@ function withWear<T extends THREE.MeshStandardMaterial>(
     };
     // 1 = the grass outside is neutralised in what the drum reflects (paired control).
     const galvGround = { value: 1 };
-    // Wave count, shaded wave slope, fine ridge count, enabled.
+    // Fine ridge count, enabled.
     const corrugation = {
       value: galvanised.corrugated
-        ? new THREE.Vector4(
-            SILO_SHELL_PROFILE.ridges,
-            SILO_COARSE_SHADING_SLOPE,
-            SILO_FINE_RIDGES,
-            1
-          )
-        : new THREE.Vector4(0, 0, 0, 0),
+        ? new THREE.Vector2(SILO_FINE_RIDGES, 1)
+        : new THREE.Vector2(0, 0),
     };
     Object.assign(uniforms, {
       uMachineGalv: galv,

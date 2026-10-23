@@ -130,14 +130,15 @@ describe('galvanised silo skin (final-med-12: matte pale-cyan paint, no form sha
 });
 
 const corrugationOf = (material: THREE.Material) =>
-  (material.userData.machineCorrugation as { value: THREE.Vector4 } | undefined)?.value;
+  (material.userData.machineCorrugation as { value: THREE.Vector2 } | undefined)?.value;
 
 describe('silo corrugation (final3: smeared horizontal brown bands, wavy at mid distance)', () => {
-  it('shades the 0.625 m shell wave well below its geometric slope', () => {
+  it('shades the wall from the bin axis, not from the 0.625 m shell wave', () => {
     // One page load (r4 silo probe): with the lathe's vertex normals smoothed,
-    // the bands were gone. Their full 0.12 slope swung the reflected ray 14
-    // degrees either way, across the horizon from a camera above the battery,
-    // so each wave flipped between sky and the brown hills.
+    // the bands were gone. Their 0.12 slope swung the reflected ray 14 degrees
+    // either way, across the horizon from a camera above the battery, so each
+    // wave flipped between sky and the brown hills. A third of that slope
+    // banded just as hard, so the wave keeps the silhouette and nothing else.
     const source = readFileSync('src/components/machines/CompactMachines.tsx', 'utf8');
     const ridges = Number(/const RIDGES = (\d+);/.exec(source)?.[1]);
     const depth = Number(/const RIDGE_DEPTH = ([\d.]+);/.exec(source)?.[1]);
@@ -145,23 +146,20 @@ describe('silo corrugation (final3: smeared horizontal brown bands, wavy at mid 
     expect(depth).toBe(surfaces.SILO_SHELL_PROFILE.depth);
     const geometricSlope =
       (surfaces.SILO_DRUM_RADIUS * depth * Math.PI * ridges) / surfaces.SILO_DRUM_SHELL_HEIGHT;
-    expect(geometricSlope).toBeCloseTo(0.12, 2);
+    expect(2 * THREE.MathUtils.radToDeg(Math.atan(geometricSlope))).toBeGreaterThan(13);
 
-    const corrugation = corrugationOf(MACHINE_MATERIALS.silo);
-    expect(corrugation?.toArray()).toEqual([
-      ridges,
-      surfaces.SILO_COARSE_SHADING_SLOPE,
+    expect(corrugationOf(MACHINE_MATERIALS.silo)?.toArray()).toEqual([
       surfaces.SILO_FINE_RIDGES,
       1,
     ]);
-    const shaded = corrugation!.y;
-    expect(shaded).toBeGreaterThan(0);
-    expect(shaded).toBeLessThan(geometricSlope / 2);
-    // The reflected ray turns by twice the normal's tilt: keep it under 5 degrees.
-    expect(2 * THREE.MathUtils.radToDeg(Math.atan(shaded))).toBeLessThan(5);
+    const fragment = compile(MACHINE_MATERIALS.silo).fragmentShader;
+    // The plain cylinder normal, plus only what the maps added to the vertex normal.
+    expect(fragment).toContain(
+      'normalize( galvRadial + ( normal - nonPerturbedNormal ) * galvFineFade )'
+    );
   });
 
-  it('fades both corrugation terms to their mean as the ridges near a pixel', () => {
+  it('fades the fine corrugation to its mean as the ridges near a pixel', () => {
     const { siloCorrugationFade } = surfaces;
     expect(siloCorrugationFade(1 / 8)).toBe(1); // an 8 px ridge is drawn in full
     expect(siloCorrugationFade(1 / 2)).toBe(0); // 2 px: it could only alias
@@ -173,7 +171,6 @@ describe('silo corrugation (final3: smeared horizontal brown bands, wavy at mid 
     }
     const silo = MACHINE_MATERIALS.silo;
     const shader = compile(silo);
-    expect(shader.fragmentShader).toContain('fwidth( galvCoarsePhase )');
     expect(shader.fragmentShader).toContain('fwidth( galvFinePhase )');
     // The maps' perturbation (the fine corrugation) is faded, not dropped.
     expect(shader.fragmentShader).toContain('( normal - nonPerturbedNormal ) * galvFineFade');
@@ -185,8 +182,8 @@ describe('silo corrugation (final3: smeared horizontal brown bands, wavy at mid 
   });
 
   it('corrugates the drum only: roof, rings and skirt keep their own normals', () => {
-    expect(corrugationOf(MACHINE_MATERIALS.siloRoof)?.w).toBe(0);
-    expect(corrugationOf(MACHINE_MATERIALS.siloSkirt)?.w).toBe(0);
+    expect(corrugationOf(MACHINE_MATERIALS.siloRoof)?.y).toBe(0);
+    expect(corrugationOf(MACHINE_MATERIALS.siloSkirt)?.y).toBe(0);
   });
 
   it('runs the patina down the drum, the way weathering runs, not round it', () => {
