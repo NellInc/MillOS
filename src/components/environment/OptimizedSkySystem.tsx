@@ -1724,8 +1724,10 @@ export function OptimizedSkySystem() {
       horizonGroupRef.current.position.z = state.camera.position.z;
     }
     if (!useGameSimulationStore.getState().isTabVisible) return;
-    const { gameDay, gameTime, gameSpeed, weather } = useGameSimulationStore.getState();
-    const smoothedGameTime = getSmoothedGameTime(gameTime, delta, gameSpeed);
+    const { gameDay, gameTime, gameSpeed, weather, timeOfDayHeld } =
+      useGameSimulationStore.getState();
+    // A held clock (capture mode) is not extrapolated ahead of the store.
+    const smoothedGameTime = getSmoothedGameTime(gameTime, delta, timeOfDayHeld ? 0 : gameSpeed);
     const atmosphere = sampleAtmosphere(gameDay, smoothedGameTime, weather);
     const celestial = sampleCelestial(atmosphere, celestialStateRef.current);
     const visualDaylight = atmosphere.daylight * atmosphere.lightMultiplier;

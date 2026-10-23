@@ -1636,6 +1636,7 @@ export const RuntimeController: React.FC<RuntimeControllerProps> = ({
       gameTime: previousGame.gameTime,
       gameSpeed: previousGame.gameSpeed,
       weather: previousGame.weather,
+      timeOfDayHeld: previousGame.timeOfDayHeld,
     };
     useGraphicsStore.getState().setGraphicsQuality(mode.quality);
     useGraphicsStore.getState().setSCADAEnabled(mode.scadaEnabled);
@@ -1643,6 +1644,10 @@ export const RuntimeController: React.FC<RuntimeControllerProps> = ({
     const game = useGameSimulationStore.getState();
     game.setGameTime(mode.gameTime);
     game.setGameSpeed(mode.motionCapture ? STANDARD_GAME_SPEED : 0);
+    // A capture labelled with an hour shows that hour: under --motion the
+    // simulation runs at pace, but the sun, sky and lights hold still (two
+    // packing shots 14 s apart had moved their skylight patches about 40 px).
+    game.setTimeOfDayHeld(true);
     game.setWeather(mode.weather);
 
     const benchmarkCamera = resolveBenchmarkCamera(
@@ -1677,6 +1682,7 @@ export const RuntimeController: React.FC<RuntimeControllerProps> = ({
       const currentGame = useGameSimulationStore.getState();
       currentGame.setGameTime(previousGameInputs.gameTime);
       currentGame.setGameSpeed(previousGameInputs.gameSpeed);
+      currentGame.setTimeOfDayHeld(previousGameInputs.timeOfDayHeld);
       currentGame.setWeather(previousGameInputs.weather);
       useGraphicsStore.persist.setOptions({ storage: previousGraphicsStorage });
       useAnnouncementsStore.persist.setOptions({ storage: previousPAStorage });
