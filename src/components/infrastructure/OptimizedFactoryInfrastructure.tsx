@@ -699,9 +699,30 @@ applyFloorDetailBlend(MATERIALS.floor);
 //
 //   coverage = 1 - (1 - F)(1 - a) T
 //   colour   = (F R + (1 - F) a C) / coverage,  R = sky outside, k C inside.
+//
+// v3 (final4 med-06: the raw-storage silos veiled milky from inside, and a grey
+// sheen over the whole glass hall from the farm at dawn):
+//
+// - INSIDE, the hall is dim. At grazing the v2 pane became its own SUNLIT film
+//   colour at 0.4 over ~95% coverage: a milky sheet. The hall it stands for is
+//   a neutral grey at 0.15 of the lit colour, and the inner Fresnel is capped at
+//   0.45, so a grazing pane indoors still shows what is behind it.
+// - OUTSIDE, a camera above the glazing looks DOWN at a vertical pane, and a
+//   downward ray reflected off a vertical face goes on down: it sees the
+//   GROUND. The PMREM's ground band is one flat colour, so that reflection was
+//   a uniform veil where the eye expects the dark, broken yard. It is weighted
+//   0.35 (glazingReflectionWeight); the sky above the horizon keeps all of its
+//   reflection, sampled sharper (roughness 0.12, the sun disc still capped), so
+//   the grazing panes the low cameras see read as mirrors of the sky.
+// - The lit film drops to 60% of the authored opacity: 3.6%.
+//
+// GLAZING_V3 is the paired control (0 = exactly v2), shared by reference.
 
 /** Constant. Bump by hand when the GLSL below changes. */
-export const GLAZING_FRESNEL_CACHE_KEY = 'millos-glazing-fresnel-v2';
+export const GLAZING_FRESNEL_CACHE_KEY = 'millos-glazing-fresnel-v3';
+
+/** Paired rendered control for the v3 composite (0 = v2 exactly), mirrored on userData. */
+export const GLAZING_V3 = { value: 1 };
 
 /** Paired rendered control (0 = the old flat pane), mirrored on userData. */
 export const GLAZING_FRESNEL_STRENGTH = { value: 1 };
@@ -723,7 +744,55 @@ export const GLAZING_REFLECTANCE = {
   bow: 0.008,
   /** Row height for the per-light seed: matches the transoms' 4.5 m limit. */
   rowHeight: 4.5,
+  /** v3: the hall's reflection indoors (neutral, 0.15 of the pane's lit colour). */
+  interiorReflectV3: 0.15,
+  /** v3: the inner face's Fresnel ceiling at grazing. */
+  innerFresnelCap: 0.45,
+  /** v3: the outdoor reflection of anything below the horizon. */
+  groundReflect: 0.35,
+  /** v3: the lit film, as a fraction of the authored opacity. */
+  filmScale: 0.6,
+  /** v3: roughness of the sky lookup (the material keeps 0.24 for the sun lobe). */
+  skyRoughness: 0.12,
 } as const;
+
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+const smooth = (edge0: number, edge1: number, x: number) => {
+  const t = THREE.MathUtils.clamp((x - edge0) / (edge1 - edge0), 0, 1);
+  return t * t * (3 - 2 * t);
+};
+
+/** The horizon band the outdoor reflection weight crosses, as world reflect.y. */
+const GLAZING_HORIZON = { from: -0.12, to: 0.08 } as const;
+
+/**
+ * Weight on the outdoor reflection of a ray whose world y is `reflectY`: the
+ * sky keeps it, the flat ground band takes `groundReflect`. TS mirror of the
+ * shader; `v3` 0 is the v2 composite (no weighting).
+ */
+export function glazingReflectionWeight(reflectY: number, v3 = 1): number {
+  const { from, to } = GLAZING_HORIZON;
+  return lerp(1, lerp(GLAZING_REFLECTANCE.groundReflect, 1, smooth(from, to, reflectY)), v3);
+}
+
+/** The inner face's Fresnel at `cosTheta`, v3 capped. */
+function innerFresnel(cosTheta: number, v3: number): number {
+  const c = THREE.MathUtils.clamp(Math.abs(cosTheta), 0, 1);
+  const { innerF0, innerFresnelCap } = GLAZING_REFLECTANCE;
+  const f = innerF0 + (1 - innerF0) * (1 - c) ** 5;
+  return Math.min(f, lerp(1, innerFresnelCap, v3));
+}
+
+/**
+ * Light the pane ADDS to the view through it from inside, in units of its own
+ * lit colour: the hall reflected at the inner Fresnel plus the film.
+ */
+export function glazingInnerHaze(opacity: number, cosTheta: number, v3 = 1): number {
+  const { interiorReflect, interiorReflectV3, filmScale } = GLAZING_REFLECTANCE;
+  const f = innerFresnel(cosTheta, v3);
+  const film = opacity * lerp(1, filmScale, v3);
+  return f * lerp(interiorReflect, interiorReflectV3, v3) + (1 - f) * film;
+}
 
 /**
  * TS mirror of the composite's coverage, for tests and design numbers.
@@ -734,15 +803,17 @@ export function glazingCoverage(
   cosTheta: number,
   strength = 1,
   outward = true,
-  seed = 0.5
+  seed = 0.5,
+  v3 = 1
 ): number {
   const s = THREE.MathUtils.clamp(strength, 0, 1);
   const c = THREE.MathUtils.clamp(Math.abs(cosTheta), 0, 1);
-  const { outerF0, innerF0, f0Spread, transmission } = GLAZING_REFLECTANCE;
-  const f0 = outward ? outerF0 * (1 + f0Spread * (seed - 0.5) * 2) : innerF0;
-  const fresnel = (f0 + (1 - f0) * (1 - c) ** 5) * s;
+  const { outerF0, f0Spread, transmission, filmScale } = GLAZING_REFLECTANCE;
+  const f0 = outerF0 * (1 + f0Spread * (seed - 0.5) * 2);
+  const fresnel = (outward ? f0 + (1 - f0) * (1 - c) ** 5 : innerFresnel(c, v3)) * s;
   const t = 1 - (1 - transmission) * s;
-  return 1 - (1 - fresnel) * (1 - opacity) * t;
+  const film = opacity * lerp(1, filmScale, v3 * s);
+  return 1 - (1 - fresnel) * (1 - film) * t;
 }
 
 const glsl = (value: number) => value.toFixed(4);
@@ -790,34 +861,52 @@ const GLAZING_FRESNEL_BODY = /* glsl */ `
     ${glsl(GLAZING_REFLECTANCE.outerF0)} * ( 1.0 + ${glsl(GLAZING_REFLECTANCE.f0Spread)} * ( vGlazeSeed - 0.5 ) * 2.0 ),
     glazeOut
   );
-  float glazeF = ( glazeF0 + ( 1.0 - glazeF0 ) * pow( 1.0 - glazeCos, 5.0 ) ) * glazeS;
+  float glazeV3 = clamp( uGlazeV3, 0.0, 1.0 );
+  float glazeF = glazeF0 + ( 1.0 - glazeF0 ) * pow( 1.0 - glazeCos, 5.0 );
+  // v3: indoors, the Fresnel stops short of a mirror (the hall is dim).
+  glazeF = min( glazeF, mix( 1.0, mix( 1.0, ${glsl(GLAZING_REFLECTANCE.innerFresnelCap)}, glazeV3 ), 1.0 - glazeOut ) );
+  glazeF *= glazeS;
   #ifdef USE_ENVMAP
     vec3 glazeSky = min(
-      getIBLRadiance( geometryViewDir, glazeN, material.roughness ) / max( envMapIntensity, 1e-3 ),
+      getIBLRadiance( geometryViewDir, glazeN,
+        mix( material.roughness, ${glsl(GLAZING_REFLECTANCE.skyRoughness)}, glazeV3 ) )
+        / max( envMapIntensity, 1e-3 ),
       vec3( 1.5 )
     );
   #else
     vec3 glazeSky = gl_FragColor.rgb;
   #endif
-  vec3 glazeReflection = mix( gl_FragColor.rgb * ${glsl(GLAZING_REFLECTANCE.interiorReflect)}, glazeSky, glazeOut );
+  // v3: outdoors, a ray reflected below the horizon sees the flat ground band.
+  vec3 glazeReflectW = ( vec4( reflect( -geometryViewDir, glazeN ), 0.0 ) * viewMatrix ).xyz;
+  glazeSky *= mix( 1.0, mix( ${glsl(GLAZING_REFLECTANCE.groundReflect)}, 1.0,
+    smoothstep( ${glsl(GLAZING_HORIZON.from)}, ${glsl(GLAZING_HORIZON.to)}, glazeReflectW.y ) ), glazeV3 );
+  vec3 glazeHall = mix(
+    gl_FragColor.rgb * ${glsl(GLAZING_REFLECTANCE.interiorReflect)},
+    vec3( dot( gl_FragColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) ) * ${glsl(GLAZING_REFLECTANCE.interiorReflectV3)},
+    glazeV3
+  );
+  vec3 glazeReflection = mix( glazeHall, glazeSky, glazeOut );
+  float glazeFilm = gl_FragColor.a * mix( 1.0, ${glsl(GLAZING_REFLECTANCE.filmScale)}, glazeV3 * glazeS );
   float glazeT = 1.0 - ${glsl(1 - GLAZING_REFLECTANCE.transmission)} * glazeS;
-  float glazeCoverage = 1.0 - ( 1.0 - glazeF ) * ( 1.0 - gl_FragColor.a ) * glazeT;
-  gl_FragColor.rgb = ( ( 1.0 - glazeF ) * gl_FragColor.a * gl_FragColor.rgb + glazeF * glazeReflection )
+  float glazeCoverage = 1.0 - ( 1.0 - glazeF ) * ( 1.0 - glazeFilm ) * glazeT;
+  gl_FragColor.rgb = ( ( 1.0 - glazeF ) * glazeFilm * gl_FragColor.rgb + glazeF * glazeReflection )
     / max( glazeCoverage, 1e-4 );
   gl_FragColor.a = glazeCoverage;
 }
 `;
 
 MATERIALS.glass.userData.glazingFresnel = GLAZING_FRESNEL_STRENGTH;
+MATERIALS.glass.userData.glazingV3 = GLAZING_V3;
 MATERIALS.glass.onBeforeCompile = (shader) => {
   shader.uniforms.uGlazeFresnel = GLAZING_FRESNEL_STRENGTH;
+  shader.uniforms.uGlazeV3 = GLAZING_V3;
   shader.vertexShader = shader.vertexShader
     .replace('#include <common>', `#include <common>\n${GLAZING_VERTEX_PARS}`)
     .replace('#include <begin_vertex>', `#include <begin_vertex>\n${GLAZING_VERTEX_BODY}`);
   shader.fragmentShader = shader.fragmentShader
     .replace(
       '#include <common>',
-      `#include <common>\nuniform float uGlazeFresnel;\n${GLAZING_VERTEX_PARS}`
+      `#include <common>\nuniform float uGlazeFresnel;\nuniform float uGlazeV3;\n${GLAZING_VERTEX_PARS}`
     )
     .replace('#include <opaque_fragment>', `#include <opaque_fragment>\n${GLAZING_FRESNEL_BODY}`);
 };

@@ -31,9 +31,9 @@ describe('hall glazing Fresnel', () => {
     expect(coverage(0.13, 0.78, 1, true)).toBeGreaterThan(0.165 + 0.05);
   });
 
-  it('becomes mostly reflection at grazing incidence, monotonically, from either side', () => {
+  it('becomes mostly reflection at grazing incidence outside, monotonically from either side', () => {
+    expect(coverage(opacity(), 0.08, 1, true)).toBeGreaterThan(0.5);
     for (const outward of [true, false]) {
-      expect(coverage(opacity(), 0.08, 1, outward)).toBeGreaterThan(0.5);
       let previous = coverage(opacity(), 1, 1, outward);
       for (let cos = 0.95; cos >= 0; cos -= 0.05) {
         const value = coverage(opacity(), cos, 1, outward);
@@ -46,10 +46,33 @@ describe('hall glazing Fresnel', () => {
   it('is clear from inside face-on: under 60% of the old film haze, still a window', () => {
     // Light the pane ADDS to the view through it, in units of its own lit
     // colour: the film plus, indoors, the hall reflected at the face-on F0.
-    const { innerF0, interiorReflect } = infrastructure.GLAZING_REFLECTANCE;
-    const haze = (1 - innerF0) * opacity() + innerF0 * interiorReflect;
-    expect(haze).toBeLessThan(0.13 * 0.6);
+    expect(infrastructure.glazingInnerHaze(opacity(), 1)).toBeLessThan(0.13 * 0.6);
     expect(coverage(opacity(), 1, 1, false)).toBeLessThan(0.25);
+  });
+
+  /**
+   * final4 med-06: from inside, the raw-storage silos behind the glazing were
+   * veiled milky and lost their uplight; from the farm the whole glass hall
+   * wore a grey sheen. Indoors the v2 pane at grazing became its own sunlit
+   * film colour at 0.4 over ~95% coverage. Outdoors, every camera above the
+   * glazing looks DOWN at a vertical pane, and the reflection of a downward
+   * ray off a vertical face is the GROUND: the PMREM's flat ground band, a
+   * uniform veil, where the eye expects the dark, broken yard.
+   */
+  it('lifts the indoor grazing veil to under half of v2 and stays a window', () => {
+    for (const cos of [0.3, 0.1, 0.02]) {
+      expect(infrastructure.glazingInnerHaze(opacity(), cos)).toBeLessThan(
+        0.5 * infrastructure.glazingInnerHaze(opacity(), cos, 0)
+      );
+    }
+    expect(coverage(opacity(), 0.02, 1, false)).toBeLessThan(0.62);
+  });
+
+  it('weights a ground reflection outdoors well under the sky, and v2 not at all', () => {
+    const weight = infrastructure.glazingReflectionWeight;
+    for (const y of [-0.9, -0.3, -0.15]) expect(weight(y)).toBeLessThanOrEqual(0.4);
+    for (const y of [0.1, 0.5, 1]) expect(weight(y)).toBe(1);
+    for (const y of [-0.9, -0.1, 0.4]) expect(weight(y, 0)).toBe(1);
   });
 
   it('varies its reflectance light to light, about the design value', () => {
@@ -91,6 +114,11 @@ describe('hall glazing Fresnel', () => {
     expect(material.customProgramCacheKey()).toBe(material.customProgramCacheKey());
     expect(material.customProgramCacheKey()).toBe(infrastructure.GLAZING_FRESNEL_CACHE_KEY);
     expect(infrastructure.GLAZING_FRESNEL_CACHE_KEY).not.toBe('millos-glazing-fresnel-v1');
+    expect(infrastructure.GLAZING_FRESNEL_CACHE_KEY).not.toBe('millos-glazing-fresnel-v2');
+    // v3's paired control and its world-space reflected ray.
+    expect(fragment).toContain('uniform float uGlazeV3;');
+    expect(fragment).toContain('glazeReflectW.y');
+    expect(material.userData.glazingV3).toBe(infrastructure.GLAZING_V3);
     expect(material.transparent).toBe(true);
     expect(material.depthWrite).toBe(false);
   });
