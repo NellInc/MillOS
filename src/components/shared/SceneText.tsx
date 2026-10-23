@@ -151,6 +151,39 @@ export function sceneTextDepthOffset(surface: SceneTextSurface): number | undefi
   return surface === 'painted-ground' ? POLYGON_OFFSET.exteriorOverlay.factor : undefined;
 }
 
+/**
+ * Drawing-buffer rows an em needs before troika's SDF glyphs hold together.
+ * The shipping forklift's 0.17 m tag at ~50 m from `milling` was three rows an
+ * em on Medium and read "F.T01 SHIPP NS" (final4 med-12): strokes thinner than
+ * a texel's footprint drop in and out instead of shrinking.
+ */
+export const SCENE_TEXT_MIN_EM_PIXELS = 10;
+/** Hysteresis on that threshold, so a label at the edge cannot flicker. */
+const SCENE_TEXT_HYSTERESIS = 0.85;
+
+/** An em of `fontSize` metres at `distance`, in drawing-buffer rows. */
+export function sceneTextEmPixels(
+  fontSize: number,
+  distance: number,
+  bufferRows: number,
+  fovDegrees: number
+): number {
+  const halfHeight = Math.max(distance, 1e-3) * Math.tan((fovDegrees * Math.PI) / 360);
+  return (fontSize * bufferRows) / (2 * halfHeight);
+}
+
+/** Whether a label can be read at this size; `wasVisible` applies the hysteresis. */
+export function sceneTextLegible(
+  fontSize: number,
+  distance: number,
+  bufferRows: number,
+  fovDegrees: number,
+  wasVisible: boolean
+): boolean {
+  const threshold = SCENE_TEXT_MIN_EM_PIXELS * (wasVisible ? SCENE_TEXT_HYSTERESIS : 1);
+  return sceneTextEmPixels(fontSize, distance, bufferRows, fovDegrees) >= threshold;
+}
+
 type SceneTextProps = ComponentProps<typeof Text> & {
   surface?: SceneTextSurface;
 };

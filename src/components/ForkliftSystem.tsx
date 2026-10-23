@@ -5,7 +5,7 @@ import {
 } from '../simulation/workplaceReplayRuntime';
 import { useFrame } from '@react-three/fiber';
 import { Billboard, Line } from '@react-three/drei';
-import { SceneText as Text } from './shared/SceneText';
+import { SceneText as Text, sceneTextLegible } from './shared/SceneText';
 import { positionRegistry, EntityPosition } from '../utils/positionRegistry';
 import { audioManager } from '../utils/audioManager';
 import { useAudioInitialized } from '../hooks/useAudioState';
@@ -405,6 +405,8 @@ const BILLBOARD_AMBER = '#d99a2b';
  * narrow band makes `setDistanceTier` thrash and re-render every frame.
  */
 const FORKLIFT_LOD_FAR_METRES = 62;
+/** The fleet tag's em, metres; the status line under it is smaller and hides with it. */
+const FORKLIFT_LABEL_FONT_SIZE = 0.17;
 const FORKLIFT_LOD_CLOSE_METRES = 50;
 
 // Simplified forklift billboard for distant rendering (50+ units away)
@@ -822,6 +824,9 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
   const actionCommittedRef = useRef(false);
   const [isStopped, setIsStopped] = useState(false);
   const [distanceTier, setDistanceTier] = useState<'close' | 'far'>('close'); // LOD tier for rendering
+  // The fleet tag hides once its em is too few rows to hold together (see
+  // SCENE_TEXT_MIN_EM_PIXELS): a group flag, written from useFrame, no render.
+  const labelGroupRef = useRef<THREE.Group>(null);
   const [hasCargo, setHasCargo] = useState(data.cargo === 'pallet');
   const [currentOperation, setCurrentOperation] = useState<ForkliftOperation>('traveling');
   const forkHeightRef = useRef(0); // Ref for fork animation - avoids re-renders
@@ -1168,6 +1173,16 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
     }
 
     cameraDistanceRef.current = state.camera.position.distanceTo(vehicle.position);
+    const labelGroup = labelGroupRef.current;
+    if (labelGroup) {
+      labelGroup.visible = sceneTextLegible(
+        FORKLIFT_LABEL_FONT_SIZE,
+        cameraDistanceRef.current,
+        state.size.height * state.viewport.dpr,
+        (state.camera as THREE.PerspectiveCamera).fov ?? 50,
+        labelGroup.visible
+      );
+    }
     if (distanceTier === 'close' && cameraDistanceRef.current > FORKLIFT_LOD_FAR_METRES) {
       setDistanceTier('far');
     } else if (distanceTier === 'far' && cameraDistanceRef.current < FORKLIFT_LOD_CLOSE_METRES) {
@@ -1586,6 +1601,7 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       {/* Fleet identity and operation status, rendered only when close */}
       {distanceTier === 'close' && (
         <Billboard
+          ref={labelGroupRef}
           position={[
             0,
             forkliftBeaconLabelHeight(authoredVehicleVisual ? 'authored' : 'compact'),
@@ -1594,7 +1610,7 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
           follow
         >
           <Text
-            fontSize={0.17}
+            fontSize={FORKLIFT_LABEL_FONT_SIZE}
             color="white"
             anchorX="center"
             anchorY="middle"
