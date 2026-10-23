@@ -10,6 +10,7 @@ import {
   canApplyWorldSurface,
   composeWorldSurface,
   hasWorldSurface,
+  indoorBounceDiffuse,
   markSurfaceSubstrate,
   ownsOnlyWorldSurface,
   pinSurfaceProfile,
@@ -549,5 +550,46 @@ describe('box-filtered ribs', () => {
     const fragment = compileInjection(filtered).fragmentShader;
     expect(fragment).toContain('surfRibIntegral');
     expect(fragment).toContain('uniform vec4 uSurfRib;');
+  });
+});
+
+describe('indoor bounce', () => {
+  /**
+   * r4floor2-med-22 milling: the aisle barrier's west face rendered (0.3, 0, 0)
+   * while a plain-material band on the same face was lit. The bounce mixed
+   * `reflectedLight.indirectDiffuse` toward its own luma, but that term is
+   * irradiance TIMES the albedo, so it greyed the yellow paint itself. Lit only
+   * by fill at night, the greyed face sat under the display toe (AgX and the
+   * +0.06 contrast) and crushed to black; patched at runtime to neutralise the
+   * light instead, the same face read (19.5, 12.2, 0).
+   */
+  const luma = (c: readonly number[]) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+
+  it('neutralises the fill light and keeps the paint its own colour', () => {
+    const paint = [0.6, 0.4, 0.03] as const;
+    const neutral = [0.1, 0.1, 0.1] as const;
+    const reflected = paint.map((a, i) => a * neutral[i]);
+    // Neutral light needs no neutralising: the reflected colour is unchanged.
+    const out = indoorBounceDiffuse(reflected, paint, 0.85);
+    out.forEach((v, i) => expect(v, `channel ${i}`).toBeCloseTo(reflected[i], 9));
+    // A green-tinted fill on the same paint comes out as the paint under a grey
+    // light of the fill's luminance.
+    const green = [0.06, 0.12, 0.05] as const;
+    const tinted = indoorBounceDiffuse(
+      paint.map((a, i) => a * green[i]),
+      paint,
+      1
+    );
+    tinted.forEach((v, i) => expect(v / paint[i]).toBeCloseTo(luma(green), 9));
+  });
+
+  it('injects the light-neutralising form into the shader', () => {
+    const material = new THREE.MeshStandardMaterial();
+    applyWorldSurface(material, 'masonry', { indoorBounce: 0.85 });
+    const fragment = compileInjection(material).fragmentShader;
+    const bounce = fragment.slice(fragment.indexOf('uSurfDeck.w > 0.0'));
+    expect(bounce).toContain('material.diffuseContribution');
+    expect(bounce).toContain('reflectedLight.indirectDiffuse / surfAlbedo');
+    expect(bounce).not.toContain('dot( reflectedLight.indirectDiffuse');
   });
 });
