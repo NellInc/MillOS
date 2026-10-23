@@ -286,6 +286,94 @@ describe('autonomous operations programme', () => {
     expect(useOperationsCampaignStore.getState().acceptNextProgramme()).toBe(false);
   });
 
+  // The pt-BR play-test on 9115ad52 appeared to orphan an order at 5,000 of
+  // 6,000 kg when the next programme arrived. The store refuses a programme
+  // while any order is open, keeps the line on that order, ships the 1,000 kg
+  // remainder on the next truck and only then takes the programme. (The
+  // play-test's view was a Level 1 agent read cut to the five oldest orders.)
+  const partShipped = () => {
+    const [first, ...rest] = useOperationsCampaignStore.getState().orders;
+    useOperationsCampaignStore.setState({
+      orders: [
+        { ...first, status: 'active', shippedKg: 5000 },
+        ...rest.map((order) => ({
+          ...order,
+          status: 'fulfilled' as const,
+          shippedKg: order.requiredKg,
+          completedAtMinute: 100,
+        })),
+      ],
+      activeOrderId: first.id,
+    });
+    return first;
+  };
+  const remainderBatch: ProductionBatch = {
+    ...flourBatch,
+    id: 'batch-0002',
+    producedKg: 1000,
+    dispatchManifestIds: ['shipping-0002'],
+  };
+  const remainderManifest: MaterialManifest = {
+    ...shippingManifest,
+    id: 'shipping-0002',
+    requestedKg: 1000,
+    actualKg: 1000,
+    materials: [{ type: 'flour', amount: 1000 }],
+    sourceLots: [{ lotId: 'lot-0001', amount: 1000, path: ['silo-0', 'packer-0'] }],
+    productBatches: [{ batchId: 'batch-0002', amount: 1000 }],
+  };
+
+  it('keeps serving a part-shipped order instead of letting the next programme orphan it', () => {
+    const store = useOperationsCampaignStore.getState();
+    const first = partShipped();
+    expect(store.acceptNextProgramme()).toBe(false);
+    store.tickCampaign(60, context());
+    let state = useOperationsCampaignStore.getState();
+    expect(state.orders).toHaveLength(3);
+    expect(state.activeOrderId).toBe(first.id);
+    expect(state.getLineProductionPlan({})).toMatchObject({ orderId: first.id });
+
+    store.tickCampaign(
+      60,
+      context({ manifests: [remainderManifest], productionBatches: [remainderBatch] })
+    );
+    state = useOperationsCampaignStore.getState();
+    expect(state.orders[0]).toMatchObject({ id: first.id, status: 'fulfilled', shippedKg: 6000 });
+    expect(state.acceptNextProgramme()).toBe(true);
+    state = useOperationsCampaignStore.getState();
+    expect(state.orders[0]).toMatchObject({ id: first.id, status: 'fulfilled' });
+    expect(state.activeOrderId).toMatch(/^programme-/);
+  });
+
+  it('marks a part-shipped order late once its due minute passes and still finishes it', () => {
+    const store = useOperationsCampaignStore.getState();
+    const first = partShipped();
+    store.tickCampaign((first.dueAtMinute + 1) * 60, context());
+    let state = useOperationsCampaignStore.getState();
+    expect(state.orders[0]).toMatchObject({ id: first.id, status: 'late', shippedKg: 5000 });
+    expect(state.activeOrderId).toBe(first.id);
+    expect(state.getLineProductionPlan({})).toMatchObject({ orderId: first.id });
+    expect(state.acceptNextProgramme()).toBe(false);
+
+    store.tickCampaign(
+      60,
+      context({ manifests: [remainderManifest], productionBatches: [remainderBatch] })
+    );
+    state = useOperationsCampaignStore.getState();
+    expect(state.orders[0]).toMatchObject({ status: 'fulfilled', shippedKg: 6000 });
+    expect(state.orders[0].completedAtMinute).toBeGreaterThan(first.dueAtMinute);
+  });
+
+  it('recovers a save whose active order id no longer names an open order', () => {
+    const store = useOperationsCampaignStore.getState();
+    const first = partShipped();
+    useOperationsCampaignStore.setState({ activeOrderId: 'programme-118-order-1' });
+    store.tickCampaign(60, context());
+    const state = useOperationsCampaignStore.getState();
+    expect(state.activeOrderId).toBe(first.id);
+    expect(state.getLineProductionPlan({})).toMatchObject({ orderId: first.id });
+  });
+
   it('never credits a product batch beyond its own mass', () => {
     const secondFlourBatch: ProductionBatch = { ...flourBatch, id: 'batch-0002', producedKg: 500 };
     const manifest: MaterialManifest = {
