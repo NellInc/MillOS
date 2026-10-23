@@ -95,12 +95,14 @@ import {
   DOCK_SHELTER_HEAD_PLEATS,
   DOCK_SHELTER_SIDE_PLEATS,
   DOCK_WEAR_BUMPER,
+  dockPlatformDressingParts,
   spanOf,
   type DockMarking,
   type ShelterPart,
   YARD_MAST,
 } from './truckbay/dockApronLayout';
 import { DOCK_DECK, DOCK_FORKLIFT_ID, dockForkliftHoldsTruck } from '../constants/dockLoading';
+import { maintenanceBayDressing, type BayPartKind } from './truckbay/maintenanceBayDressing';
 import {
   EXTERIOR_LAMP_LENS_MATERIAL,
   ExteriorLampPool,
@@ -5301,6 +5303,74 @@ const TrailerDropYard: React.FC<{ position: [number, number, number]; rotation?:
 );
 
 // Maintenance bay/garage
+/** Materials for `maintenanceBayDressing()`, by part kind. */
+const BAY_DRESSING_MATERIALS: Record<BayPartKind, THREE.Material> = {
+  roof: new THREE.MeshStandardMaterial({ color: '#2d3d43', roughness: 0.6, metalness: 0.42 }),
+  trim: applyWorldSurface(
+    new THREE.MeshStandardMaterial({ color: '#9aa3a6', roughness: 0.55, metalness: 0.1 }),
+    'painted'
+  ),
+  steel: applyWorldSurface(
+    new THREE.MeshStandardMaterial({ color: '#8f979b', roughness: 0.45, metalness: 0.5 }),
+    'metal'
+  ),
+  dark: new THREE.MeshStandardMaterial({ color: '#1b2124', roughness: 0.85, metalness: 0 }),
+  concrete: new THREE.MeshStandardMaterial({ color: '#9c988f', roughness: 0.9, metalness: 0 }),
+};
+const BAY_DRESSING_BOX = new THREE.BoxGeometry(1, 1, 1);
+const BAY_DRESSING_PIPE = new THREE.CylinderGeometry(1, 1, 1, 10);
+/** The dressing laid out once: boxes as given, pipes as a unit cylinder between their ends. */
+const BAY_DRESSING = (() => {
+  const { boxes, pipes } = maintenanceBayDressing();
+  const up = new THREE.Vector3(0, 1, 0);
+  return {
+    boxes,
+    pipes: pipes.map(({ from, to, radius }) => {
+      const a = new THREE.Vector3(...from);
+      const b = new THREE.Vector3(...to);
+      const quaternion = new THREE.Quaternion().setFromUnitVectors(
+        up,
+        b.clone().sub(a).normalize()
+      );
+      return {
+        position: a.clone().add(b).multiplyScalar(0.5),
+        quaternion,
+        scale: [radius, a.distanceTo(b), radius] as [number, number, number],
+      };
+    }),
+  };
+})();
+
+/** Eave overhang, gutters, a louvred vent and a cable entry (`maintenanceBayDressing.ts`). */
+const MaintenanceBayDressing: React.FC = () => (
+  <group name="maintenance-bay-dressing">
+    {BAY_DRESSING.boxes.map((part, index) => (
+      <mesh
+        key={`box-${index}`}
+        geometry={BAY_DRESSING_BOX}
+        material={BAY_DRESSING_MATERIALS[part.kind]}
+        position={[...part.position]}
+        rotation={part.rotation ? [...part.rotation] : undefined}
+        scale={[...part.scale]}
+        castShadow
+        receiveShadow
+      />
+    ))}
+    {BAY_DRESSING.pipes.map((pipe, index) => (
+      <mesh
+        key={`pipe-${index}`}
+        geometry={BAY_DRESSING_PIPE}
+        material={BAY_DRESSING_MATERIALS.steel}
+        position={pipe.position}
+        quaternion={pipe.quaternion}
+        scale={pipe.scale}
+        castShadow
+        receiveShadow
+      />
+    ))}
+  </group>
+);
+
 const MaintenanceBay: React.FC<{ position: [number, number, number]; rotation?: number }> = ({
   position,
   rotation = 0,
@@ -5396,6 +5466,7 @@ const MaintenanceBay: React.FC<{ position: [number, number, number]; rotation?: 
         <GeneratedModel asset="yardMaintenanceBody" />
       </group>
     </GeneratedBoundary>
+    <MaintenanceBayDressing />
     {[-3, 3].map((x, i) => (
       <group key={i} position={[x, 2.5, 5.01]}>
         {[0, 1, 2].map((row) =>
@@ -5561,29 +5632,57 @@ const StretchWrapMachine: React.FC<{
 };
 
 // Dock bumpers with wear indicators
-/** One 2 m dock platform section beside the forklift channel (see DOCK_PLATFORM_SECTION). */
+/** Laminated dock-bumper rubber and the steel that armours a platform's yard face. */
+const DOCK_PAD_RUBBER = new THREE.MeshStandardMaterial({
+  name: 'dock-pad-rubber',
+  color: '#1d1d1f',
+  roughness: 0.9,
+  metalness: 0,
+});
+const DOCK_FACE_STEEL = applyWorldSurface(
+  new THREE.MeshStandardMaterial({
+    name: 'dock-face-steel',
+    color: '#8a8e91',
+    roughness: 0.5,
+    metalness: 0.55,
+  }),
+  'metal'
+);
+const DOCK_DRESSING_BOX = new THREE.BoxGeometry(1, 1, 1);
+const DOCK_PLATFORM_DRESSING_PARTS = dockPlatformDressingParts();
+
+/**
+ * One 2 m dock platform section beside the forklift channel (see
+ * DOCK_PLATFORM_SECTION), its yard face armoured with bumper pads, a nosing
+ * lip and corner angles (`dockPlatformDressingParts()`).
+ */
 const DockPlatformSection: React.FC<{ side: -1 | 1; castShadow?: boolean }> = ({
   side,
   castShadow = false,
 }) => (
-  <mesh
-    position={[
-      side * DOCK_PLATFORM_SECTION.x,
-      DOCK_PLATFORM_SECTION.height / 2,
-      DOCK_PLATFORM_SECTION.u,
-    ]}
-    receiveShadow
-    castShadow={castShadow}
-  >
-    <boxGeometry
-      args={[
-        DOCK_PLATFORM_SECTION.width,
-        DOCK_PLATFORM_SECTION.height,
-        DOCK_PLATFORM_SECTION.depth,
-      ]}
-    />
-    <meshStandardMaterial color="#475569" roughness={0.8} />
-  </mesh>
+  <group position={[side * DOCK_PLATFORM_SECTION.x, 0, DOCK_PLATFORM_SECTION.u]}>
+    <mesh position={[0, DOCK_PLATFORM_SECTION.height / 2, 0]} receiveShadow castShadow={castShadow}>
+      <boxGeometry
+        args={[
+          DOCK_PLATFORM_SECTION.width,
+          DOCK_PLATFORM_SECTION.height,
+          DOCK_PLATFORM_SECTION.depth,
+        ]}
+      />
+      <meshStandardMaterial color="#475569" roughness={0.8} />
+    </mesh>
+    {DOCK_PLATFORM_DRESSING_PARTS.map((part, index) => (
+      <mesh
+        key={index}
+        geometry={DOCK_DRESSING_BOX}
+        material={part.kind === 'rubber' ? DOCK_PAD_RUBBER : DOCK_FACE_STEEL}
+        position={[...part.position]}
+        scale={[...part.scale]}
+        receiveShadow
+        castShadow={castShadow}
+      />
+    ))}
+  </group>
 );
 
 const DockBumperWithWear: React.FC<{ position: [number, number, number]; wearLevel: number }> = ({

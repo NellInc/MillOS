@@ -171,6 +171,65 @@ describe.each([
     expect(luma(knuckle.tint)).toBeLessThan(luma(pole.tint) * 0.93);
   });
 
+  /**
+   * Rubric, rounds 4 and 5: the tank shells still read as one even sheen from
+   * the tank-farm camera (high-pass SD 1.01, then 0.99). That camera sees the
+   * heads face on and the ladder flank, where round 5's run-off was hidden
+   * under the ladder and the heads carried nothing but a knuckle shade.
+   */
+  const headRow = (sign: number, hz: number): number[] => {
+    const row: number[] = [];
+    for (let hx = -0.7 * radius; hx <= 0.7 * radius; hx += 0.02) {
+      const u = (Math.atan2(hz, hx) / (2 * Math.PI) + 1) % 1;
+      const s = sampleVesselShell(
+        layout,
+        seams,
+        u,
+        sign * (layout.seamOffset + 0.5),
+        Math.hypot(hx, hz)
+      );
+      row.push(luma(s.tint));
+    }
+    return row;
+  };
+  const median = (values: number[]) => [...values].sort((a, b) => a - b)[values.length >> 1];
+
+  it('streaks each head face down from its crown rim, softly, without creasing', () => {
+    for (const sign of [1, -1]) {
+      const row = headRow(sign, 0.35 * radius);
+      const max = Math.max(...row);
+      expect(Math.min(...row)).toBeLessThan(max * 0.85);
+      let step = 0;
+      for (let i = 1; i < row.length; i += 1) step = Math.max(step, Math.abs(row[i] - row[i - 1]));
+      expect(step).toBeLessThan(0.025 * max);
+    }
+  });
+
+  it('dulls the lower dish of each head with splash film', () => {
+    for (const sign of [1, -1])
+      expect(median(headRow(sign, -0.7 * radius))).toBeLessThan(
+        median(headRow(sign, 0.1 * radius)) * 0.92
+      );
+  });
+
+  it('runs the ladder-bracket streaks out beside the ladder, where the camera sees them', () => {
+    for (const fitting of layout.flankFittings ?? []) {
+      const away = fitting.u > VESSEL_CROWN_U && fitting.u < VESSEL_CROWN_U + 0.5 ? 1 : -1;
+      const u = (fitting.u + away * (0.3 / (2 * Math.PI * radius)) + 1) % 1;
+      const clean = luma(sampleVesselShell(layout, seams, u, layout.seamOffset - 0.6, radius).tint);
+      // The rails stand at +-0.28 m; look from 0.4 m out to 0.9 m.
+      for (const side of [-1, 1]) {
+        let darkest = 1;
+        for (let d = 0.4; d <= 0.9; d += 0.01)
+          darkest = Math.min(
+            darkest,
+            luma(sampleVesselShell(layout, seams, u, fitting.y + side * d, radius).tint)
+          );
+        expect(darkest).toBeLessThan(clean * 0.85);
+      }
+    }
+  });
+
   it('closes round the axis: the lathe u 0/1 column matches', () => {
     for (const y of [plainY, seams[0] + 0.4, -layout.seamOffset + 0.2]) {
       const a = sampleVesselShell(layout, seams, 0.00001, y, radius);

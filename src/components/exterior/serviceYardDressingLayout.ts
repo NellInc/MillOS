@@ -75,7 +75,19 @@ export interface SlotDrain {
   readonly to: readonly [number, number];
 }
 
-export const YARD_DRAIN = { width: 0.3, plate: 0.5, gap: 0.06, height: 0.02 } as const;
+/**
+ * A slot drain's channel, its cover plates, and the concrete kerb cast either
+ * side of it (`kerb` wide, `kerbHeight` proud). Without the kerbs the 0.3 m
+ * cover alone read from the yard camera as a stray thin line (judge-r5-1830).
+ */
+export const YARD_DRAIN = {
+  width: 0.3,
+  plate: 0.5,
+  gap: 0.06,
+  height: 0.02,
+  kerb: 0.14,
+  kerbHeight: 0.012,
+} as const;
 
 export const YARD_DRAINS: readonly SlotDrain[] = [
   // Along the silo pad's east edge (x 73), where wash-down runs off the pad.
@@ -84,9 +96,9 @@ export const YARD_DRAINS: readonly SlotDrain[] = [
   { id: 'apron-cross', from: [76, 42], to: [92.5, 42] },
 ];
 
-/** Plan rect of a drain, including its width. */
+/** Plan rect of a drain, including its width and both kerbs. */
 export function slotDrainBounds(drain: SlotDrain) {
-  const half = YARD_DRAIN.width / 2;
+  const half = YARD_DRAIN.width / 2 + YARD_DRAIN.kerb;
   return {
     minX: Math.min(drain.from[0], drain.to[0]) - half,
     maxX: Math.max(drain.from[0], drain.to[0]) + half,
@@ -107,6 +119,24 @@ export function slotDrainPlates(drain: SlotDrain): { x: number; z: number; along
     const t = (start + i * step) / length;
     return { x: drain.from[0] + dx * t, z: drain.from[1] + dz * t, alongX: Math.abs(dx) > 0 };
   });
+}
+
+/** The two kerb strips along a drain, flush with the channel's edges: plan centre and size. */
+export function slotDrainKerbs(
+  drain: SlotDrain
+): { x: number; z: number; size: [number, number] }[] {
+  const dx = drain.to[0] - drain.from[0];
+  const dz = drain.to[1] - drain.from[1];
+  const length = Math.hypot(dx, dz);
+  const alongX = Math.abs(dx) > 0;
+  const mx = (drain.from[0] + drain.to[0]) / 2;
+  const mz = (drain.from[1] + drain.to[1]) / 2;
+  const offset = YARD_DRAIN.width / 2 + YARD_DRAIN.kerb / 2;
+  return [-1, 1].map((side) =>
+    alongX
+      ? { x: mx, z: mz + side * offset, size: [length, YARD_DRAIN.kerb] }
+      : { x: mx + side * offset, z: mz, size: [YARD_DRAIN.kerb, length] }
+  );
 }
 
 /** The grate's plan rect with its painted border. */

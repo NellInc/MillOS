@@ -21,7 +21,9 @@ import {
   DOCK_SLAB_OUTBOARD_U,
   DOCK_STOP_BAR,
   DOCK_BUMPER_BLOCK,
+  DOCK_PLATFORM_DRESSING,
   DOCK_PLATFORM_SECTION,
+  dockPlatformDressingParts,
   DOCK_WEAR_BUMPER,
   YARD_MAST,
 } from './dockApronLayout';
@@ -97,6 +99,56 @@ describe('dock apron paint layout', () => {
         /<DockBumperWithWear\s+position=\{\[-?DOCK_WEAR_BUMPER\.x, DOCK_WEAR_BUMPER\.y, 0\]\}/g
       )
     ).toHaveLength(4);
+  });
+});
+
+/** final5 logistics-close (rubric backlog 8): two plain dark blocks at the foot of the dock door. */
+describe('dock platform yard faces', () => {
+  const parts = dockPlatformDressingParts();
+  const { width, height, depth } = DOCK_PLATFORM_SECTION;
+  const face = depth / 2;
+  const lo = (p: (typeof parts)[number], axis: number) => p.position[axis] - p.scale[axis] / 2;
+  const hi = (p: (typeof parts)[number], axis: number) => p.position[axis] + p.scale[axis] / 2;
+
+  it('carries laminated rubber bumper pads on steel backing plates', () => {
+    const rubber = parts.filter((p) => p.kind === 'rubber');
+    const { pad } = DOCK_PLATFORM_DRESSING;
+    expect(rubber).toHaveLength(pad.xs.length * pad.laminations);
+    for (const x of pad.xs) {
+      const stack = rubber.filter((p) => p.position[0] === x).sort((a, b) => lo(a, 1) - lo(b, 1));
+      // Grooves between the laminations, each a visible gap.
+      for (let i = 1; i < stack.length; i += 1)
+        expect(lo(stack[i], 1) - hi(stack[i - 1], 1)).toBeCloseTo(pad.groove, 6);
+      // Standing off the face on the backing plate, at trailer-bed height.
+      for (const p of stack) {
+        expect(lo(p, 2)).toBeGreaterThan(face);
+        expect(hi(p, 2) - face).toBeGreaterThanOrEqual(0.1);
+      }
+      expect(lo(stack[0], 1)).toBeGreaterThan(0.9);
+      expect(hi(stack[stack.length - 1], 1)).toBeLessThan(height - 0.2);
+      // Wholly on the face.
+      expect(Math.abs(x) + pad.width / 2).toBeLessThan(width / 2 - 0.1);
+    }
+  });
+
+  it('runs a steel nosing lip the full width of the top edge, proud of face and deck', () => {
+    const lip = parts.find((p) => p.kind === 'steel' && p.scale[0] >= width)!;
+    expect(lip).toBeDefined();
+    expect(hi(lip, 1)).toBeGreaterThan(height);
+    expect(hi(lip, 2)).toBeGreaterThan(face);
+    expect(lo(lip, 2)).toBeLessThan(face);
+    // No part shares a plane with the platform's own faces.
+    for (const p of parts) {
+      expect(Math.abs(hi(p, 2) - face)).toBeGreaterThan(0.005);
+      expect(Math.abs(hi(p, 1) - height)).toBeGreaterThan(0.004);
+    }
+  });
+
+  it('is mounted on every platform section at both docks', () => {
+    const source = readFileSync('src/components/TruckBay.tsx', 'utf8');
+    const section = source.slice(source.indexOf('const DockPlatformSection'));
+    expect(source).toMatch(/const DOCK_PLATFORM_DRESSING_PARTS = dockPlatformDressingParts\(\);/);
+    expect(section.slice(0, 1600)).toMatch(/\{DOCK_PLATFORM_DRESSING_PARTS\.map\(/);
   });
 });
 

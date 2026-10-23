@@ -226,12 +226,13 @@ export function sampleVesselShell(
   let macro: number;
   let mottle: number;
   let canning: number;
+  // On a head: flat coordinates across the dish, `headZ` up (the crown is u 0.25).
+  const headX = r * Math.cos(u * 2 * Math.PI);
+  const headZ = r * Math.sin(u * 2 * Math.PI);
   if (onHead) {
-    const angle = u * 2 * Math.PI;
-    const hx = r * Math.cos(angle) + (y > 0 ? 101 : 0);
-    const hz = r * Math.sin(angle);
-    macro = fbmFlat(hx / 3.2, hz / 3.2, 2, 1);
-    mottle = fbmFlat(hx / 0.6, hz / 0.6, 2, 2);
+    const hx = headX + (y > 0 ? 101 : 0);
+    macro = fbmFlat(hx / 3.2, headZ / 3.2, 2, 1);
+    mottle = fbmFlat(hx / 0.6, headZ / 0.6, 2, 2);
     canning = 0;
   } else {
     macro = fbmRound(u, y, circumference, 3.2, 2, 1);
@@ -239,8 +240,11 @@ export function sampleVesselShell(
     // Plate distortion between the welds ("oil canning"): a few mm over a metre.
     canning = fbmRound(u, y, circumference, 1.3, 2, 3);
   }
-  tone += macro * 0.06 + mottle * 0.03;
-  roughness += macro * 0.36 + mottle * 0.14;
+  // Round 6: the mottle's share of the sheen nearly doubled. Its period is
+  // 0.6 m (33 px at the tank-farm camera), so it breaks the highlight where
+  // the 3.2 m drift alone left one even satin.
+  tone += macro * 0.08 + mottle * 0.03;
+  roughness += macro * 0.36 + mottle * 0.26;
   height += canning * 0.004;
 
   // Distance round the shell from the crown, metres (wraps through u 0/1).
@@ -284,29 +288,34 @@ export function sampleVesselShell(
   // brackets down theirs. Round 4 laid six narrow wandering rivulets per
   // fitting and a 0.15 m rain field over every flank; from the tank-farm
   // camera those aliased into vertical creases and a soft diagonal smear
-  // (final4 med-22, med-1830, med-06, med-19).
-  const sources: { y: number; turn: number; span: number; seed: number }[] = [];
+  // (final4 med-22, med-1830, med-06, med-19). Round 5's three streaks per
+  // fitting sat inside the bracket's own span, so under the ladder they were
+  // hidden by its rails (0.28 m either side): five now, spread past the rails
+  // for a flank fitting, broader and longer, so they read at the tank-farm
+  // camera (rubric, rounds 4 and 5: "no run-off under the ladder head").
+  const sources: { y: number; turn: number; spread: number; seed: number }[] = [];
   nozzles.forEach((nozzle, n) => {
     const start = (nozzle.radius * 0.7) / circumference;
-    sources.push({ y: nozzle.y, turn: -start, span: nozzle.radius, seed: n * 2 });
-    sources.push({ y: nozzle.y, turn: start, span: nozzle.radius, seed: n * 2 + 1 });
+    const spread = nozzle.radius + 0.15;
+    sources.push({ y: nozzle.y, turn: -start, spread, seed: n * 2 });
+    sources.push({ y: nozzle.y, turn: start, spread, seed: n * 2 + 1 });
   });
   (layout.flankFittings ?? []).forEach((fitting, n) => {
     const t = ((((fitting.u - VESSEL_CROWN_U + 0.5) % 1) + 1) % 1) - 0.5;
-    sources.push({ y: fitting.y, turn: t, span: fitting.span, seed: 40 + n });
+    sources.push({ y: fitting.y, turn: t, spread: fitting.span + 0.45, seed: 40 + n });
   });
   let streak = 0;
   if (!onHead) {
     for (const source of sources) {
       if (Math.sign(source.turn) !== flank) continue;
       const fall = (Math.abs(turn) - Math.abs(source.turn)) * circumference;
-      if (fall < 0 || Math.abs(y - source.y) > source.span + 0.5) continue;
-      for (let k = 0; k < 3; k += 1) {
+      if (fall < 0 || Math.abs(y - source.y) > source.spread + 0.6) continue;
+      for (let k = 0; k < 5; k += 1) {
         const centre =
-          source.y + (k - 1) * source.span * 0.75 + (intHash(source.seed, k) - 0.5) * 0.1;
-        const width = 0.1 + 0.12 * intHash(source.seed + 7, k);
-        const length = radius * (0.45 + 0.45 * intHash(source.seed + 13, k));
-        const strength = 0.55 + 0.35 * intHash(source.seed + 19, k);
+          source.y + ((k - 2) / 2) * source.spread + (intHash(source.seed, k) - 0.5) * 0.1;
+        const width = 0.16 + 0.16 * intHash(source.seed + 7, k);
+        const length = radius * (0.6 + 0.6 * intHash(source.seed + 13, k));
+        const strength = 0.5 + 0.35 * intHash(source.seed + 19, k);
         streak = Math.max(
           streak,
           (1 - smoothstep(width * 0.35, width, Math.abs(y - centre))) *
@@ -316,6 +325,34 @@ export function sampleVesselShell(
         );
       }
     }
+  }
+
+  // Run-off down each head's face: rain that gathers on the crown spills over
+  // the knuckle and runs down the dish. The tank-farm camera sees the heads
+  // face on, and round 5 left them one even sheen. Broad and soft-edged (0.4-
+  // 0.65 m, a 30 px ramp at that camera), so they never alias into creases.
+  let headStreak = 0;
+  if (onHead) {
+    const side = y > 0 ? 1 : 0;
+    for (let k = 0; k < 4; k += 1) {
+      const across = (intHash(70 + side, k) - 0.5) * 1.3 * radius;
+      const width = 0.4 + 0.25 * intHash(74 + side, k);
+      const rim = Math.sqrt(Math.max(0, radius * radius - across * across));
+      const fall = rim - headZ;
+      const length = radius * (0.7 + 0.6 * intHash(78 + side, k));
+      const strength = 0.5 + 0.25 * intHash(82 + side, k);
+      headStreak = Math.max(
+        headStreak,
+        (1 - smoothstep(0, width, Math.abs(headX - across))) *
+          smoothstep(0, 0.25, fall) *
+          (1 - smoothstep(length * 0.4, length, fall)) *
+          strength
+      );
+    }
+    // Splash and road film on the lower dish, as on the barrel's underside.
+    const lowerDish = smoothstep(0, -0.75 * radius, headZ);
+    tone -= lowerDish * 0.12;
+    roughness += lowerDish * 0.1;
   }
 
   // Where the shell beds in a saddle: darker and rougher over the cradle's
@@ -336,8 +373,8 @@ export function sampleVesselShell(
   // Splash and road film on the lower shell, faint: below the equator the
   // paint dulls and greys a little.
   const lower = onHead ? 0 : smoothstep(0.3, 0.46, Math.abs(turn));
-  tone -= lower * 0.08;
-  roughness += lower * 0.08;
+  tone -= lower * 0.13;
+  roughness += lower * 0.1;
 
   // The head: grime settles toward the knuckle and the crown of the dish
   // keeps its gloss, and the relief carries the dish's fall-off a little
@@ -363,9 +400,9 @@ export function sampleVesselShell(
     const band = smoothstep(0.02, 0.06, fall) * (1 - smoothstep(0.18, 0.3, fall));
     roughness += weather * band * 0.2;
   }
-  roughness += streak * 0.18 + cradle * 0.22;
+  roughness += streak * 0.18 + headStreak * 0.16 + cradle * 0.22;
   tone -= cradle * 0.2;
-  const dirt = streak * 0.8 + cradle * 0.12;
+  const dirt = streak * 0.8 + headStreak * 0.5 + cradle * 0.12;
   return {
     tint: [
       clamp01(tone * (1 - dirt * 0.85)),
@@ -396,7 +433,7 @@ export function generateVesselShellMaps(
     .map((n) => `${n.y}:${n.radius}`)
     .join(',')}-${JSON.stringify(layout.saddles ?? null)}-${(layout.flankFittings ?? [])
     .map((f) => `${f.y}:${f.u.toFixed(4)}:${f.span}`)
-    .join(',')}-v2-${width}x${height}`;
+    .join(',')}-v3-${width}x${height}`;
   let baked: { color: Uint8Array; rough: Uint8Array; normal: Uint8Array } | null = null;
   const bake = () => {
     if (baked) return baked;

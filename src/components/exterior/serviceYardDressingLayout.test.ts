@@ -5,13 +5,16 @@ import { UTILITY_ASSET_DEFINITIONS } from '../../constants/utilityAssets';
 import { TANK_FARM_PAD_SIZE } from '../../textures/tankFarmPad';
 import { vesselSeamOffset } from '../FactoryExterior';
 import { VESSEL_SADDLE } from './utilityVesselDetails';
+import { YARD_GRATING_STEEL, YARD_KERB_CONCRETE } from './ServiceYardDressing';
 import {
   TANK_FARM_MANIFOLD,
   TANK_FARM_PAD_TOP,
   YARD_DRAINS,
   YARD_INTAKE,
   manifoldDropX,
+  YARD_DRAIN,
   slotDrainBounds,
+  slotDrainKerbs,
   slotDrainPlates,
   tankUndersideY,
   yardIntakeBounds,
@@ -141,5 +144,49 @@ describe('yard intake and drains', () => {
     expect(p.y).toBeLessThan(1440);
     expect(p.x).toBeGreaterThan(0);
     expect(p.x).toBeLessThan(2560);
+  });
+});
+
+/**
+ * judge-r5-1830 silos-ground / yard-ground: the silo-edge drain read as a stray
+ * thin blue line and the grate bars as blue. Both were the galvanised finish at
+ * metalness 0.6, mirroring the dusk sky on an upward-facing surface, and the
+ * drain was 0.3 m of that and nothing else.
+ */
+describe('yard drain and grate finish', () => {
+  it('paints grating and drain covers in neutral, low-metal steel that cannot mirror the sky', () => {
+    expect(YARD_GRATING_STEEL.metalness).toBeLessThanOrEqual(0.3);
+    expect(YARD_GRATING_STEEL.roughness).toBeGreaterThanOrEqual(0.6);
+    const { r, g, b } = YARD_GRATING_STEEL.color;
+    expect(Math.max(r, g, b) - Math.min(r, g, b)).toBeLessThan(0.012);
+  });
+
+  it('edges each drain with concrete kerbs either side, so it reads as a channel', () => {
+    for (const drain of YARD_DRAINS) {
+      const kerbs = slotDrainKerbs(drain);
+      expect(kerbs).toHaveLength(2);
+      const along = Math.abs(drain.to[0] - drain.from[0]) > 0;
+      for (const kerb of kerbs) {
+        const across = along ? kerb.size[1] : kerb.size[0];
+        expect(across).toBeGreaterThanOrEqual(0.1);
+        // Flush with the channel's edge, either side.
+        const offset = along ? Math.abs(kerb.z - drain.from[1]) : Math.abs(kerb.x - drain.from[0]);
+        expect(offset).toBeCloseTo(YARD_DRAIN.width / 2 + across / 2, 6);
+      }
+      // The bounds every placement test above uses include the kerbs.
+      const bounds = slotDrainBounds(drain);
+      const half = YARD_DRAIN.width / 2 + YARD_DRAIN.kerb;
+      if (along) expect(bounds.maxZ - bounds.minZ).toBeCloseTo(2 * half, 6);
+      else expect(bounds.maxX - bounds.minX).toBeCloseTo(2 * half, 6);
+      // Light concrete either side of a dark steel cover.
+      const luma = (c: THREE.Color) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+      expect(luma(YARD_KERB_CONCRETE.color)).toBeGreaterThan(1.5 * luma(YARD_GRATING_STEEL.color));
+      // Six pixels or more across at the yard camera, mid-run.
+      const mx = (drain.from[0] + drain.to[0]) / 2;
+      const mz = (drain.from[1] + drain.to[1]) / 2;
+      const a = project('yard', along ? [mx, 0, mz - half] : [mx - half, 0, mz]);
+      const b = project('yard', along ? [mx, 0, mz + half] : [mx + half, 0, mz]);
+      expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeGreaterThanOrEqual(6);
+    }
   });
 });
