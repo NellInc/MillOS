@@ -156,7 +156,7 @@ describe('fill-only faces at night read as dark, legible, hue-kept surfaces', ()
     const grey = (x: number) => neutralToneMap([x, x, x], 1, 1)[0];
     for (let x = 0.002; x < DISPLAY_TOE.liftCeiling; x += 0.0005) {
       const h = x * 1e-3;
-      const elasticity = (Math.log(grey(x + h)) - Math.log(grey(x - h))) / (2 * h / x);
+      const elasticity = (Math.log(grey(x + h)) - Math.log(grey(x - h))) / ((2 * h) / x);
       expect(elasticity, `x ${x.toFixed(4)}`).toBeGreaterThanOrEqual(0.5);
     }
   });
