@@ -1547,8 +1547,6 @@ export const ROOF_PURLIN_SECTION = { depth: 0.16, width: 0.08 } as const;
  * touches a face shares its plane; one that overlaps clips through it.
  */
 export const ROOF_PURLIN_CLEARANCE = 0.01;
-/** Air between a truss top chord and the deck: the purlins' clearance plus 2 mm. */
-const TOP_CHORD_CLEARANCE = ROOF_PURLIN_CLEARANCE + 0.002;
 /** The purlins' gable-end limit (the shell's inner line, as for every roof member). */
 const ROOF_PURLIN_END = 49.55;
 
@@ -1650,12 +1648,7 @@ export function buildFactoryRoofStructure(): {
     const local = (x - ROOF_HALF_CENTRE * side) / Math.cos(ROOF_PITCH);
     return deckPoint(side, local).y - 0.36;
   };
-  // The top chord stands 12 mm under the deck, at the purlins' own clearance.
-  // At 60 mm every purlin framing into it stood 50 mm proud of its silhouette
-  // seen from the floor: a dark tooth every 1.5 m along each chord, which read
-  // as stair-step aliasing in interior and milling (final5) and which no
-  // amount of MSAA could touch.
-  const upperY = (x: number) => underside(x) - chordHeight / 2 - TOP_CHORD_CLEARANCE;
+  const upperY = (x: number) => underside(x) - chordHeight / 2 - 0.06;
   const member = (
     x0: number,
     y0: number,

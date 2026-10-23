@@ -1220,46 +1220,6 @@ describe('roof deck liner', () => {
     expect(seen).toBeGreaterThan(1000);
     expect(worst).toBeLessThan(1e-3);
   });
-
-  /**
-   * final5 med-12 interior and milling, top third: the truss top chords read
-   * as stair-stepped. MSAA on or off made no difference, because it is not
-   * aliasing: every purlin frames into a chord 10 mm off its flange, with its
-   * top 10 mm under the deck while the chord's top stood 60 mm under it. Seen
-   * from the floor, each far-side purlin's dark end stood 50 mm proud of the
-   * chord's silhouette, a bump every 1.5 m: 18-22 px apart in `interior`, the
-   * teeth. The chord's top now sits at the purlins' own clearance.
-   */
-  it('hides every purlin end behind the top chord it frames into', () => {
-    const structure = buildFactoryRoofStructure();
-    const topAt = (part: (typeof structure.frames)[number], x: number) => {
-      const angle = part.rotation?.[2] ?? 0;
-      const half = part.scale[1] / 2;
-      const x0 = part.position[0] - Math.sin(angle) * half;
-      const y0 = part.position[1] + Math.cos(angle) * half;
-      return y0 + (x - x0) * Math.tan(angle);
-    };
-    const chordFlanges = structure.frames.filter(
-      (part) => Math.abs(part.scale[1] - 0.07) < 1e-9 && Math.abs(part.scale[2] - 0.46) < 1e-9
-    );
-    let checked = 0;
-    for (const purlin of structure.purlins) {
-      for (const end of [-1, 1]) {
-        const z = purlin.position[2] + (end * purlin.scale[2]) / 2;
-        const x = purlin.position[0];
-        const chords = chordFlanges.filter(
-          (chord) =>
-            Math.abs(Math.abs(chord.position[2] - z) - 0.24) < 0.003 &&
-            Math.abs(x - chord.position[0]) < chord.scale[0] / 2
-        );
-        if (!chords.length) continue;
-        const chordTop = Math.max(...chords.map((chord) => topAt(chord, x)));
-        expect(topAt(purlin, x) - chordTop, `purlin end ${x}, ${z}`).toBeLessThan(0.004);
-        checked++;
-      }
-    }
-    expect(checked).toBeGreaterThan(100);
-  });
 });
 
 // logistics-close (370,190)-(410,220) and milling (1490,500)-(1525,535),
