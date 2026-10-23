@@ -494,7 +494,7 @@ const MATERIALS = {
    */
   purlin: new THREE.MeshStandardMaterial({
     name: 'factory-roof-purlin',
-    color: '#8d9496',
+    color: '#a9afb0',
     roughness: 0.48,
     metalness: 0,
   }),
@@ -911,8 +911,9 @@ const SHELL_SURFACES: readonly [
   ],
   [MATERIALS.roofTrim, 'painted'],
   // Under the deck at 21-23 m: grime and dust are inert up there by position,
-  // and the edge term is what makes a slender section read.
-  [MATERIALS.purlin, 'metal'],
+  // and the edge term is what makes a slender section read. Lit by the hall
+  // floor, not the grass: final med-12 read them as dark teal slats.
+  [MATERIALS.purlin, 'metal', { indoorBounce: 0.85 }],
   [MATERIALS.accent, 'painted'],
   // 4 m from each pad's centre lands on the silo pad's 16 m width.
   [MATERIALS.plinth, 'masonry', { objectSpace: 1, slabPitch: 4, slabJoint: 0.5, slabTone: 0.09 }],
@@ -1284,9 +1285,9 @@ export function buildFactoryRoofTrim(): BoxInstance[] {
 }
 
 /** Purlin centres across each roof half, from the ridge out to the eaves. */
-export const ROOF_PURLIN_PITCH = 1.25;
-/** A 200 mm cold-rolled purlin: depth across the deck, flange width. */
-export const ROOF_PURLIN_SECTION = { depth: 0.2, width: 0.08 } as const;
+export const ROOF_PURLIN_PITCH = 1.5;
+/** A 160 mm cold-rolled purlin: depth across the deck, flange width. */
+export const ROOF_PURLIN_SECTION = { depth: 0.16, width: 0.08 } as const;
 /**
  * Air between a purlin and everything it frames into: the deck above it, the
  * truss chords it runs between, the well kerbs it trims around. A purlin that
@@ -1323,10 +1324,11 @@ function buildFactoryRoofPurlins(
   const { depth, width } = ROOF_PURLIN_SECTION;
   const gap = ROOF_PURLIN_CLEARANCE;
   const purlins: BoxInstance[] = [];
-  const count = Math.floor((halfSpan - 0.5) / ROOF_PURLIN_PITCH);
-  for (let i = 1; i <= count; i++) {
+  // Half a pitch either side of the ridge, so the ridge gap is one pitch too.
+  const count = Math.floor((halfSpan - 0.5) / ROOF_PURLIN_PITCH + 0.5);
+  for (let i = 0; i < count; i++) {
     for (const side of [-1, 1] as const) {
-      const x = side * i * ROOF_PURLIN_PITCH;
+      const x = side * (i + 0.5) * ROOF_PURLIN_PITCH;
       const slope = roofSlope(side);
       // Top face parallel to the deck, `gap` under it measured across the slope.
       const y = underside(x) - (gap + depth / 2) / Math.cos(slope);
