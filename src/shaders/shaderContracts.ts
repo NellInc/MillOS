@@ -129,7 +129,7 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     qualityVariants: ['low', 'medium'],
     uniformOwner: 'OptimizedSkySystem memoized material',
     timeSource: 'simulation',
-    cacheKey: 'millos-optimized-sky-v13',
+    cacheKey: 'millos-optimized-sky-v14',
     disposalOwner: 'React scene lifetime',
     fallbackMaterial: 'scene background and fog color',
   },
