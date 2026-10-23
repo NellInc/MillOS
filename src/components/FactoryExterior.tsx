@@ -1656,39 +1656,6 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
             * smoothstep(0.04, 0.24, reflected.y) * (1.0 - smoothstep(0.58, 0.95, reflected.y));
           skyColour = mix(skyColour, uSkyHorizon * 0.85 + uSkyZenith * 0.15,
             cloudReflection * 0.2 * (0.3 + 0.7 * uDaylight));
-          // Mirrored cloud and wind-roughened patches (WATER_SKY_DETAIL). The
-          // band above is a function of the reflected DIRECTION alone, which
-          // turns through about half a period across the whole lake from the
-          // water camera, and the ripple moves it by a few percent of that: the
-          // pond took one uniform sky over its depth gradient (final3-med-12
-          // water). Projecting the reflected ray onto a cloud deck sweeps a few
-          // hundred metres of deck across the same pond, so mirrored clouds
-          // resolve and the ripple wobbles them. Cat's paws, the gust-roughened
-          // patches that read as lighter streaks from above, raise the sky
-          // weight where they pass. Low skips both on the same uniform branch.
-          float pawSky = 0.0;
-          if (uRippleDetail > 0.0 && uSkyDetail > 0.0) {
-            // The deck sits deckHeightMetres up, so it also moves with the
-            // reflection point: on direction alone the canal mirrored one patch.
-            vec2 deck = reflected.xz / (reflected.y + ${WATER_SKY_DETAIL_PROFILE.deckLift.toFixed(2)})
-              * ${WATER_SKY_DETAIL_PROFILE.deckScale.toFixed(2)}
-              + waterCoord * ${(WATER_SKY_DETAIL_PROFILE.deckScale / WATER_SKY_DETAIL_PROFILE.deckHeightMetres).toFixed(4)}
-              + uFlowDirection * uTime * 0.004;
-            float deckCloud = millosWaterNoise(deck) * 0.62 + millosWaterNoise(deck * 2.31 + 4.7) * 0.38;
-            float mirrored = smoothstep(${WATER_SKY_DETAIL_PROFILE.cloud[0].toFixed(2)},
-              ${WATER_SKY_DETAIL_PROFILE.cloud[1].toFixed(2)}, deckCloud + uCloudCover * 0.25)
-              * smoothstep(0.06, 0.22, reflected.y);
-            skyColour = mix(skyColour, uCloudTone, mirrored * ${WATER_SKY_DETAIL_PROFILE.cloudWeight.toFixed(2)}
-              * uSkyDetail);
-            vec2 gustCoord = waterCoord * ${WATER_SKY_DETAIL_PROFILE.pawScale.toFixed(3)}
-              + uFlowDirection * uTime * 0.012;
-            float gust = millosWaterNoise(gustCoord) * 0.65
-              + millosWaterNoise(gustCoord * 2.7 + vec2(3.1, 8.3)) * 0.35;
-            pawSky = smoothstep(${WATER_SKY_DETAIL_PROFILE.paw[0].toFixed(2)},
-              ${WATER_SKY_DETAIL_PROFILE.paw[1].toFixed(2)}, gust)
-              * ${WATER_SKY_DETAIL_PROFILE.pawReflectance.toFixed(3)} * (0.5 + uWind) * uSkyDetail;
-            skyColour = mix(skyColour, uSkyHorizon, pawSky * 3.0);
-          }
           // Far-bank reflection (WATER_BANK_PROFILE). Walk the reflected ray's
           // heading to the shore (an ellipse, or straight walls across U on a
           // crossOnly canal); if it has risen less than the bank by then, it
@@ -1724,6 +1691,43 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
             float rise = reflected.y / runLength * toShore;
             bankHit = (1.0 - smoothstep(bankHeight * ${WATER_BANK_PROFILE.ramp[0].toFixed(2)},
               bankHeight * ${WATER_BANK_PROFILE.ramp[1].toFixed(2)}, rise)) * uBankDetail;
+          }
+          // Mirrored cloud and wind-roughened patches (WATER_SKY_DETAIL). The
+          // band above is a function of the reflected DIRECTION alone, which
+          // turns through about half a period across the whole lake from the
+          // water camera, and the ripple moves it by a few percent of that: the
+          // pond took one uniform sky over its depth gradient (final3-med-12
+          // water). Projecting the reflected ray onto a cloud deck sweeps a few
+          // hundred metres of deck across the same pond, so mirrored clouds
+          // resolve and the ripple wobbles them. Cat's paws, the gust-roughened
+          // patches that read as lighter streaks from above, raise the sky
+          // weight where they pass. Low skips both on the same uniform branch.
+          float pawSky = 0.0;
+          if (uRippleDetail > 0.0 && uSkyDetail > 0.0) {
+            // The deck sits deckHeightMetres up, so it also moves with the
+            // reflection point: on direction alone the canal mirrored one patch.
+            vec2 deck = reflected.xz / (reflected.y + ${WATER_SKY_DETAIL_PROFILE.deckLift.toFixed(2)})
+              * ${WATER_SKY_DETAIL_PROFILE.deckScale.toFixed(2)}
+              + waterCoord * ${(WATER_SKY_DETAIL_PROFILE.deckScale / WATER_SKY_DETAIL_PROFILE.deckHeightMetres).toFixed(4)}
+              + uFlowDirection * uTime * 0.004;
+            float deckCloud = millosWaterNoise(deck) * 0.62 + millosWaterNoise(deck * 2.31 + 4.7) * 0.38;
+            float mirrored = smoothstep(${WATER_SKY_DETAIL_PROFILE.cloud[0].toFixed(2)},
+              ${WATER_SKY_DETAIL_PROFILE.cloud[1].toFixed(2)}, deckCloud + uCloudCover * 0.25)
+              * smoothstep(0.06, 0.22, reflected.y);
+            // The bank hides the mirrored cloud with the sky, and a lake's deck
+            // is half as strong (waterMirroredCloudWeight): a cloud-free cell
+            // read as a dark smudge and the far shore as a white glare band.
+            skyColour = mix(skyColour, uCloudTone, mirrored
+              * mix(${WATER_SKY_DETAIL_PROFILE.cloudWeight.toFixed(2)}, ${WATER_SKY_DETAIL_PROFILE.radialCloudWeight.toFixed(2)}, uRadial)
+              * (1.0 - bankHit) * uSkyDetail);
+            vec2 gustCoord = waterCoord * ${WATER_SKY_DETAIL_PROFILE.pawScale.toFixed(3)}
+              + uFlowDirection * uTime * 0.012;
+            float gust = millosWaterNoise(gustCoord) * 0.65
+              + millosWaterNoise(gustCoord * 2.7 + vec2(3.1, 8.3)) * 0.35;
+            pawSky = smoothstep(${WATER_SKY_DETAIL_PROFILE.paw[0].toFixed(2)},
+              ${WATER_SKY_DETAIL_PROFILE.paw[1].toFixed(2)}, gust)
+              * ${WATER_SKY_DETAIL_PROFILE.pawReflectance.toFixed(3)} * (0.5 + uWind) * uSkyDetail;
+            skyColour = mix(skyColour, uSkyHorizon, pawSky * 3.0);
           }
           float bankShade = mix(1.0, ${WATER_BANK_PROFILE.shade.toFixed(2)}, bankHit);
           vec3 reflectionColour = mix(uReflection * mix(0.08, 1.0, uDaylight), skyColour, 0.75);
@@ -1806,7 +1810,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
     // MANUALLY VERSIONED, never derived from time or randomness - see the
     // documented `Date.now()` cache-key bug. Bump this whenever the shader
     // source above changes or a stale cached program will be reused.
-    value.customProgramCacheKey = () => 'millos-unified-water-v26';
+    value.customProgramCacheKey = () => 'millos-unified-water-v27';
     return value;
   }, [
     bankX,
