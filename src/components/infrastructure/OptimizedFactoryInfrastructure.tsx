@@ -459,7 +459,9 @@ const MATERIALS = {
   }),
   roof: new THREE.MeshStandardMaterial({
     name: 'factory-roof-deck',
-    color: '#505452',
+    // A cool mid-grey membrane. '#505452' under the warm sun and the grass's
+    // green fill rendered sRGB (110, 111, 95) from the overview: olive.
+    color: '#5e6369',
     normalMap: band(CLADDING_PANEL_NORMAL, 30, 50, { anisotropy: 4 }),
     normalScale: new THREE.Vector2(0.45, 0.45),
     roughness: 0.52,
@@ -720,7 +722,8 @@ applyFloorDetailBlend(MATERIALS.floor);
 //   downward ray reflected off a vertical face goes on down: it sees the
 //   GROUND. The PMREM's ground band is one flat colour, so that reflection was
 //   a uniform veil where the eye expects the dark, broken yard. It is weighted
-//   0.35 (glazingReflectionWeight); the sky above the horizon keeps all of its
+//   0.6 (glazingReflectionWeight; 0.35 took the overview's grazing west facade
+//   from a glass sheen to dark, open steel at noon); the sky keeps all of its
 //   reflection, sampled sharper (roughness 0.12, the sun disc still capped), so
 //   the grazing panes the low cameras see read as mirrors of the sky.
 // - The lit film drops to 60% of the authored opacity: 3.6%.
@@ -758,7 +761,7 @@ export const GLAZING_REFLECTANCE = {
   /** v3: the inner face's Fresnel ceiling at grazing. */
   innerFresnelCap: 0.45,
   /** v3: the outdoor reflection of anything below the horizon. */
-  groundReflect: 0.35,
+  groundReflect: 0.6,
   /** v3: the lit film, as a fraction of the authored opacity. */
   filmScale: 0.6,
   /** v3: roughness of the sky lookup (the material keeps 0.24 for the sun lobe). */
@@ -976,7 +979,7 @@ const GALLERY_DECK_TOP = 8.85;
  *                  shader. `canApplyWorldSurface` refuses them.
  */
 /** Membrane lap seams on the roof's top face: pitch and seam width (m), darkening. */
-export const ROOF_MEMBRANE_SEAM = { pitch: 1.8, width: 0.07, tone: 0.32 } as const;
+export const ROOF_MEMBRANE_SEAM = { pitch: 1.8, width: 0.07, tone: 0.45 } as const;
 
 const SHELL_SURFACES: readonly [
   THREE.MeshStandardMaterial,
@@ -1006,7 +1009,7 @@ const SHELL_SURFACES: readonly [
       ribFilteredTone: ROOF_MEMBRANE_SEAM.tone,
       ribSeamWidth: ROOF_MEMBRANE_SEAM.width / ROOF_MEMBRANE_SEAM.pitch,
       macroPeriod: 15,
-      macro: 0.26,
+      macro: 0.32,
       dust: 0.06,
     },
   ],

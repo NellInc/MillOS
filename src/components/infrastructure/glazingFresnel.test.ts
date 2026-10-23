@@ -70,7 +70,7 @@ describe('hall glazing Fresnel', () => {
 
   it('weights a ground reflection outdoors well under the sky, and v2 not at all', () => {
     const weight = infrastructure.glazingReflectionWeight;
-    for (const y of [-0.9, -0.3, -0.15]) expect(weight(y)).toBeLessThanOrEqual(0.4);
+    for (const y of [-0.9, -0.3, -0.15]) expect(weight(y)).toBeLessThanOrEqual(0.65);
     for (const y of [0.1, 0.5, 1]) expect(weight(y)).toBe(1);
     for (const y of [-0.9, -0.1, 0.4]) expect(weight(y, 0)).toBe(1);
   });
