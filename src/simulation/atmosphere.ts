@@ -289,7 +289,8 @@ export function sampleCelestial(
   // OVERCAST MOVES LIGHT FROM THE KEY INTO THE FILL. A cloud deck scatters the
   // sun, it does not just dim it: rain keeps about a quarter of its key and
   // returns the rest as sky fill (`overcastKeyScatter`), so its shadows are
-  // faint and soft and the skylights cast no hard patches.
+  // faint and soft and the skylights cast no hard patches. The fill takes
+  // 0.9 of the scattered daylight (0.5 dimmed a rain slab by a third).
   const scattered = overcastKeyScatter(atmosphere.cloudCoverage);
   target.sunLightIntensity = sunVisibility * (0.15 + visualDaylight * 2.95) * (1 - scattered);
   // A low moon shines through several air masses and through the hall's side
@@ -305,7 +306,7 @@ export function sampleCelestial(
   target.ambientLightIntensity =
     0.1 +
     visualDaylight * 0.12 +
-    scattered * visualDaylight * 0.5 +
+    scattered * visualDaylight * 0.9 +
     moonVisibility * (1 - atmosphere.daylight) * 0.06;
   return target;
 }

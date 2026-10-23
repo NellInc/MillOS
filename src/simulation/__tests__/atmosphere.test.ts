@@ -187,6 +187,15 @@ describe('overcast weather', () => {
     expect(rain.sunLightIntensity).toBeCloseTo(unscattered * (1 - scatter), 10);
     // The scattered light comes back as fill: the deck is brighter than the key.
     expect(rain.ambientLightIntensity).toBeGreaterThan(rain.sunLightIntensity * 0.75);
+    // Diffused, not merely dimmed: on a level floor under the noon key (cos
+    // about 0.9) the lit-to-shadowed irradiance ratio of the key plus the
+    // omnidirectional fill stays under 2, and the lit floor keeps at least 75%
+    // of what rain gave it at the old 0.6 x overcast scatter (key 1.20, fill
+    // 0.32). The first cut (fill return 0.5) dimmed the tank-farm slab from
+    // 92 to 63 luma while its tank shadows still read at 1.9:1.
+    const lit = rain.sunLightIntensity * 0.9 + rain.ambientLightIntensity;
+    expect(lit / rain.ambientLightIntensity).toBeLessThan(2);
+    expect(lit).toBeGreaterThan(0.75 * (1.2 * 0.9 + 0.32));
     // A storm deck diffuses more than rain.
     expect(overcastKeyScatter(sampleAtmosphere(0, 12, 'storm').cloudCoverage)).toBeGreaterThan(
       scatter
