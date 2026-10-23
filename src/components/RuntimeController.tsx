@@ -4,7 +4,11 @@ import * as THREE from 'three';
 import type { PersistStorage } from 'zustand/middleware';
 import { useAdaptiveQuality } from '../hooks/useAdaptiveQuality';
 import { useFPSStore } from './FPSMonitor';
-import { useGraphicsStore, type PerfDebugSettings } from '../stores/graphicsStore';
+import {
+  useGraphicsStore,
+  type GraphicsSettings,
+  type PerfDebugSettings,
+} from '../stores/graphicsStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useMaterialFlowStore } from '../stores/materialFlowStore';
 import { useProductionStore } from '../stores/productionStore';
@@ -252,6 +256,16 @@ export interface MillOSRuntimeTelemetry {
   namedObjectsSnapshot: (names: string[]) => RuntimeNamedObjectPose[];
   setCameraPose: (position: [number, number, number], target: [number, number, number]) => void;
   setPerfDebug: (patch: Partial<PerfDebugSettings>) => void;
+  /**
+   * Diagnostic: patch display settings (tone mapping mode, grade, vignette) on
+   * the live page, so a probe can read the same frame scene-referred. Never a
+   * quality setting; `perfDebug` stays owned by `setPerfDebug`.
+   */
+  setDisplayDiagnostics: (
+    patch: Partial<
+      Pick<GraphicsSettings, 'toneMappingMode' | 'enableColorGrade' | 'enableVignette'>
+    >
+  ) => void;
   /**
    * Group every material instance in the graph by how it would actually draw.
    *
@@ -2062,6 +2076,11 @@ export const RuntimeController: React.FC<RuntimeControllerProps> = ({
         const orbitControls = orbitControlsRef?.current ?? (controls as OrbitLikeControls | null);
         orbitControls?.target?.set(...target);
         orbitControls?.update?.();
+      },
+      setDisplayDiagnostics: (patch) => {
+        useGraphicsStore.setState((state) => ({
+          graphics: { ...state.graphics, ...patch },
+        }));
       },
       setPerfDebug: (patch) => {
         useGraphicsStore.setState((state) => ({

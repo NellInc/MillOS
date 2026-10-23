@@ -111,6 +111,109 @@ export const COLOR_GRADE = {
   hue: 0,
 } as const;
 
+// === DISPLAY TOE ===
+
+/**
+ * The contrast must not clip black.
+ *
+ * Stock `BrightnessContrastEffect` is a straight line through the encoded mid
+ * pivot: `(c - 0.5) / (1 - contrast) + 0.5`. At +0.06 that line crosses zero at
+ * c = 0.03, so every encoded value below about 8/255 lands on exactly 0, and
+ * Neutral's quadratic toe puts a NEUTRAL scene value of about 0.019 there. At
+ * night that is every surface lit only by the fill: the mill base plates, the
+ * silo skirts, the conveyor's shaded side, the barrier's foot rendered as void
+ * (0, 0, 0) instead of very dark paint. Coloured fill escaped because Neutral's
+ * black offset is keyed on the MIN channel; once the night fill was pulled
+ * toward neutral (`NIGHT_FILL_NEUTRALISE`) it no longer did.
+ *
+ * Below `knee` (encoded) the line is replaced by the quadratic that meets it
+ * with the same value and slope at the knee and passes through 0 at 0, so it
+ * still darkens the toe but cannot clip it. Above the knee the grade is the
+ * stock formula exactly, which keeps midday and every lit pool unchanged.
+ *
+ * `knee` must stay at or above `-2 * lift / gain` (0.06 at +0.06 contrast), or
+ * the quadratic's slope at black goes negative.
+ */
+export const DISPLAY_TOE = {
+  knee: 0.12,
+} as const;
+
+/**
+ * Paired rendered control for the toe, never a cache key. Shared by every
+ * `DisplayBrightnessContrastEffect`; `perfDebug.disableDisplayToe` writes it so
+ * one page load can switch the toe off between two frames. 1 = toe, 0 = stock.
+ */
+export const DISPLAY_TOE_STRENGTH = new THREE.Uniform(1);
+
+/** sRGB transfer (OETF), linear 0-1 to encoded 0-1. Mirrors three's `sRGBTransferOETF`. */
+export function srgbEncode(linear: number): number {
+  const v = Math.max(0, linear);
+  return v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055;
+}
+
+/**
+ * TypeScript mirror of three's `NeutralToneMapping` (Khronos PBR Neutral),
+ * exposure included. `colorGrade.test.ts` locks it to the shader source.
+ */
+export function neutralToneMap(
+  rgb: readonly number[],
+  exposure: number = TONE_EXPOSURE
+): [number, number, number] {
+  const startCompression = 0.8 - 0.04;
+  const desaturation = 0.15;
+  let c = rgb.map((v) => v * exposure);
+  const x = Math.min(c[0], c[1], c[2]);
+  const offset = x < 0.08 ? x - 6.25 * x * x : 0.04;
+  c = c.map((v) => v - offset);
+  const peak = Math.max(c[0], c[1], c[2]);
+  if (peak < startCompression) return [c[0], c[1], c[2]];
+  const d = 1 - startCompression;
+  const newPeak = 1 - (d * d) / (peak + d - startCompression);
+  c = c.map((v) => (v * newPeak) / peak);
+  const g = 1 - 1 / (desaturation * (peak - newPeak) + 1);
+  return [c[0] + (newPeak - c[0]) * g, c[1] + (newPeak - c[1]) * g, c[2] + (newPeak - c[2]) * g];
+}
+
+/**
+ * One encoded channel through the grade's brightness/contrast, as
+ * `DisplayBrightnessContrastEffect` computes it. `toeStrength` 0 is the stock
+ * postprocessing line; 1 is the toe above.
+ */
+export function gradeContrast(
+  encoded: number,
+  toeStrength: number = DISPLAY_TOE_STRENGTH.value as number,
+  brightness: number = COLOR_GRADE.brightness,
+  contrast: number = COLOR_GRADE.contrast,
+  knee: number = DISPLAY_TOE.knee
+): number {
+  const gain = contrast > 0 ? 1 / (1 - contrast) : 1 + contrast;
+  const lift = (brightness - 0.5) * gain + 0.5;
+  const line = encoded * gain + lift;
+  if (lift >= 0 || encoded >= knee) return line;
+  const c = Math.max(encoded, 0);
+  const toe = c * (gain + (2 * lift) / knee) - (c * c * lift) / (knee * knee);
+  return line + (toe - line) * toeStrength;
+}
+
+/**
+ * 8-bit display level of a scene-linear colour on the composer tiers: Neutral,
+ * then the encoded contrast, ignoring saturation (identity on a neutral input)
+ * and the vignette (frame position).
+ */
+export function composerDisplayLevels(
+  linear: readonly number[],
+  toeStrength: number = DISPLAY_TOE_STRENGTH.value as number
+): number[] {
+  return neutralToneMap(linear).map((v) =>
+    Math.round(255 * Math.min(1, Math.max(0, gradeContrast(srgbEncode(v), toeStrength))))
+  );
+}
+
+/** 8-bit display level on the no-composer (`low`) path: Neutral, then sRGB. */
+export function rendererDisplayLevels(linear: readonly number[]): number[] {
+  return neutralToneMap(linear).map((v) => Math.round(255 * Math.min(1, srgbEncode(v))));
+}
+
 // === VIGNETTE ===
 
 export const VIGNETTE = {
