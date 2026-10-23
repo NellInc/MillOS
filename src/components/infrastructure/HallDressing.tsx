@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { FLOOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../../constants/renderLayers';
 import {
@@ -19,11 +19,14 @@ import {
   HALL_CONDUIT_DROPS,
   HALL_DUST,
   HALL_HOSES,
+  HALL_MCC_CONDUITS,
   HALL_PALLET_PILES,
   HALL_PROPS,
   HALL_SACK_STACKS,
   type HallCableTray,
+  type HallConduitBank,
   type HallConduitDrop,
+  type HallDustPatch,
   type HallHose,
   type HallProp,
 } from './hallDressingLayout';
@@ -147,6 +150,47 @@ const CABLE = new THREE.MeshStandardMaterial({
   name: 'hall-cable-bundle',
   color: '#202326',
   roughness: 0.75,
+});
+/** RAL 7035 light grey: the usual switchgear enclosure. */
+const MCC_CABINET = new THREE.MeshStandardMaterial({
+  name: 'hall-mcc-cabinet',
+  color: '#c3c6c2',
+  roughness: 0.5,
+  metalness: 0.2,
+});
+const MCC_DOOR = new THREE.MeshStandardMaterial({
+  name: 'hall-mcc-door',
+  color: '#b4b8b4',
+  roughness: 0.45,
+  metalness: 0.2,
+});
+const PILOT_GREEN = new THREE.MeshStandardMaterial({
+  name: 'hall-pilot-green',
+  color: '#2f9e4f',
+  roughness: 0.3,
+});
+const WARNING_YELLOW = new THREE.MeshStandardMaterial({
+  name: 'hall-warning-label',
+  color: '#e2b52c',
+  roughness: 0.6,
+});
+const WRAPPER_BLUE = new THREE.MeshStandardMaterial({
+  name: 'hall-wrapper-frame',
+  color: '#2c5d8f',
+  roughness: 0.5,
+  metalness: 0.2,
+});
+/** Stretch film over a load: pale, a little glossy, opaque at this distance. */
+const STRETCH_FILM = new THREE.MeshStandardMaterial({
+  name: 'hall-stretch-film',
+  color: '#d6dadc',
+  roughness: 0.3,
+  metalness: 0,
+});
+const BIN_GREEN = new THREE.MeshStandardMaterial({
+  name: 'hall-wheelie-bin-green',
+  color: '#2f6b3d',
+  roughness: 0.6,
 });
 
 // Sack stacks: the same pallet, sack and print geometry as every other load.
@@ -394,6 +438,136 @@ const HoseReel: React.FC = () => (
   </>
 );
 
+const MCC_SECTION = 0.8;
+const MCC_SECTIONS = 5;
+const MCC_BUCKETS = [0.27, 0.71, 1.15, 1.59] as const;
+
+/**
+ * Motor-control centre: five 0.8 m sections on a channel plinth, each with
+ * four withdrawable starter buckets behind their own doors (a rotary isolator
+ * and a pilot lamp on each), a gland box on top where the feeders enter, and
+ * a warning label on each end door. Fronts toward +z; 2.3 m to the top.
+ */
+const MotorControlCentre: React.FC = () => {
+  const length = MCC_SECTION * MCC_SECTIONS;
+  return (
+    <>
+      <Part material={DARK_STEEL} position={[0, 0.05, 0]} scale={[length, 0.1, 0.56]} />
+      {Array.from({ length: MCC_SECTIONS }, (_, i) => {
+        const x = -length / 2 + MCC_SECTION * (i + 0.5);
+        return (
+          <group key={i}>
+            <Part
+              material={MCC_CABINET}
+              position={[x, 1.15, 0]}
+              scale={[MCC_SECTION - 0.008, 2.1, 0.6]}
+            />
+            {MCC_BUCKETS.map((y) => (
+              <group key={y}>
+                <Part
+                  material={MCC_DOOR}
+                  position={[x, y + 0.2, 0.306]}
+                  scale={[0.72, 0.4, 0.012]}
+                />
+                <Part
+                  material={ISOLATOR_HANDLE}
+                  position={[x + 0.24, y + 0.22, 0.322]}
+                  scale={[0.05, 0.12, 0.03]}
+                />
+                <Part
+                  material={PILOT_GREEN}
+                  position={[x - 0.24, y + 0.32, 0.316]}
+                  scale={[0.03, 0.03, 0.012]}
+                />
+              </group>
+            ))}
+            {/* Louvred vent across the top of each section. */}
+            <Part material={DARK_STEEL} position={[x, 2.12, 0.304]} scale={[0.5, 0.08, 0.008]} />
+          </group>
+        );
+      })}
+      {[-1, 1].map((side) => (
+        <Part
+          key={side}
+          material={WARNING_YELLOW}
+          position={[side * (length / 2 - MCC_SECTION / 2), 1.93, 0.316]}
+          scale={[0.14, 0.12, 0.008]}
+        />
+      ))}
+      <Part material={DARK_STEEL} position={[0, 2.25, -0.02]} scale={[length - 0.1, 0.1, 0.46]} />
+    </>
+  );
+};
+
+/**
+ * Turntable stretch wrapper with a wrapped load on its pallet: the film
+ * carriage rides a blue mast at -z, with the operator's panel and stop on the
+ * mast's side.
+ */
+const PalletWrapper: React.FC = () => (
+  <>
+    <mesh position={[0, 0.04, 0]} material={DARK_STEEL} castShadow receiveShadow>
+      <cylinderGeometry args={[0.9, 0.9, 0.08, 40]} />
+    </mesh>
+    <mesh position={[0, 0.082, 0]} material={WARNING_YELLOW} receiveShadow>
+      <cylinderGeometry args={[0.9, 0.9, 0.004, 40, 1, true]} />
+    </mesh>
+    <Part material={WRAPPER_BLUE} position={[0, 0.04, -1.0]} scale={[0.7, 0.08, 0.5]} />
+    <Part material={WRAPPER_BLUE} position={[0, 1.3, -1.15]} scale={[0.35, 2.6, 0.35]} />
+    <Part material={WARNING_YELLOW} position={[0, 1.15, -0.86]} scale={[0.36, 0.42, 0.22]} />
+    <Part
+      geometry={ROD_Y}
+      material={STRETCH_FILM}
+      position={[0, 1.15, -0.7]}
+      scale={[0.06, 0.5, 0.06]}
+    />
+    <Part material={MCC_CABINET} position={[0.33, 1.3, -1.15]} scale={[0.3, 0.42, 0.22]} />
+    <Part
+      geometry={ROD_X}
+      material={ISOLATOR_HANDLE}
+      position={[0.5, 1.42, -1.15]}
+      scale={[0.03, 0.035, 0.035]}
+    />
+    <Part material={PALLET_TIMBER} position={[0, 0.15, 0]} scale={[1.2, 0.14, 1.0]} />
+    <Part material={STRETCH_FILM} position={[0, 0.97, 0]} scale={[1.12, 1.5, 0.96]} />
+  </>
+);
+
+/** Two 240 L wheelie bins, lids shut, handles and wheels at -z. */
+const WasteBins: React.FC = () => (
+  <>
+    {[
+      [-0.32, BIN_GREEN],
+      [0.32, BIN_BLUE],
+    ].map(([x, material]) => (
+      <group key={x as number} position={[x as number, 0, 0]}>
+        <Part
+          material={material as THREE.Material}
+          position={[0, 0.53, 0]}
+          scale={[0.56, 0.94, 0.7]}
+        />
+        <Part
+          material={material as THREE.Material}
+          position={[0, 1.03, 0.01]}
+          scale={[0.6, 0.06, 0.76]}
+        />
+        <Part material={DARK_STEEL} position={[0, 0.98, -0.39]} scale={[0.5, 0.04, 0.04]} />
+        {[-0.22, 0.22].map((wx) => (
+          <mesh
+            key={wx}
+            geometry={CASTER}
+            material={RUBBER}
+            position={[wx, 0.1, -0.3]}
+            rotation={[0, Math.PI / 2, 0]}
+            scale={[1.6, 1.6, 1.2]}
+            castShadow
+          />
+        ))}
+      </group>
+    ))}
+  </>
+);
+
 const PlacedProp: React.FC<{ prop: HallProp }> = ({ prop }) => {
   const position: [number, number, number] = [prop.x, prop.baseY, prop.z];
   switch (prop.kind) {
@@ -408,6 +582,9 @@ const PlacedProp: React.FC<{ prop: HallProp }> = ({ prop }) => {
           {prop.kind === 'partsRack' && <PartsRack />}
           {prop.kind === 'rollCradle' && <RollCradle />}
           {prop.kind === 'hoseReel' && <HoseReel />}
+          {prop.kind === 'mcc' && <MotorControlCentre />}
+          {prop.kind === 'palletWrapper' && <PalletWrapper />}
+          {prop.kind === 'wasteBins' && <WasteBins />}
         </group>
       );
   }
@@ -525,6 +702,21 @@ const ConduitDrop: React.FC<{ drop: HallConduitDrop }> = ({ drop }) => {
     </>
   );
 };
+
+/** An MCC's feeders: conduits from its gland box straight up into the tray. */
+const ConduitBank: React.FC<{ bank: HallConduitBank }> = ({ bank }) => (
+  <>
+    {bank.xs.map((x) => (
+      <Part
+        key={x}
+        geometry={ROD_Y}
+        material={GALVANISED}
+        position={[x, (bank.bottomY + bank.topY) / 2, bank.z]}
+        scale={[bank.radius, bank.topY - bank.bottomY, bank.radius]}
+      />
+    ))}
+  </>
+);
 
 // ---------------------------------------------------------------------------
 // Instanced sack stacks
@@ -679,36 +871,61 @@ const smoothstep = (edge0: number, edge1: number, x: number) => {
 };
 
 /**
- * The dust's coverage mask: settled flour, not a glow. A domain-warped core is
- * cut by drift streaks (stretched noise along one direction, the way air
- * carries flour off a machine) and by cloudy break-up, then thresholded over a
- * short span, so the edge is ragged drift and bare floor rather than an oval
- * that fades. Fine grain inside keeps the cover from reading as a flat sheet.
+ * The dust's coverage mask: settled flour, not a glow. Drift streaks
+ * (stretched noise along one direction, the way air carries flour off a
+ * machine) and cloudy break-up cut a thickness field, which is then
+ * thresholded over a short span, so the edge is ragged drift and bare floor
+ * rather than an oval that fades. Fine grain inside keeps the cover from
+ * reading as a flat sheet.
+ *
+ * The thickness field depends on the patch. An open patch (under a sifter, a
+ * spill) is thickest at its centre. A patch with a `hole` is a machine's ring:
+ * thickest at the foot of the base plate and thinning outward over the ring,
+ * which is where flour actually lies round a machine; the hole itself is
+ * empty (and has no geometry, `buildDustPatchGeometry`).
+ *
  * Written to R, G and B because three reads `alphaMap.g`; a mask in R alone
  * would multiply the decal's alpha by zero.
  */
-export function createDustMask(size = DUST_TEXTURE_SIZE): Uint8Array {
+export function createDustMask(size = DUST_TEXTURE_SIZE, shape?: HallDustPatch): Uint8Array {
   const data = new Uint8Array(size * size * 4);
   const driftX = 0.8;
   const driftZ = 0.6;
+  const hole = shape?.hole;
+  const reach = hole ? Math.min(shape.width / 2 - hole.halfX, shape.depth / 2 - hole.halfZ) : 0;
   for (let y = 0; y < size; y += 1) {
     for (let x = 0; x < size; x += 1) {
       const u = (x + 0.5) / size - 0.5;
       const v = (y + 0.5) / size - 0.5;
-      const wu = u + 0.16 * (fbm(u * 3 + 5.2, v * 3 + 1.7) - 0.5);
-      const wv = v + 0.16 * (fbm(u * 3 + 9.4, v * 3 + 3.3) - 0.5);
-      const core = 1 - smoothstep(0.35, 1.05, Math.hypot(wu, wv) * 2);
-      const along = wu * driftX + wv * driftZ;
-      const across = -wu * driftZ + wv * driftX;
+      const i = (y * size + x) * 4;
+      let thickness: number;
+      if (hole && shape) {
+        const px = u * shape.width;
+        const pz = v * shape.depth;
+        const dx = Math.max(Math.abs(px) - hole.halfX, 0);
+        const dz = Math.max(Math.abs(pz) - hole.halfZ, 0);
+        if (dx === 0 && dz === 0) {
+          data[i + 3] = 255;
+          continue;
+        }
+        // Metres out from the plate, warped so the ring's outline wanders.
+        const out = Math.hypot(dx, dz) + 0.3 * reach * (fbm(u * 4 + 5.2, v * 4 + 1.7) - 0.5);
+        thickness = 1 - smoothstep(0.05 * reach, 0.95 * reach, out);
+      } else {
+        const wu = u + 0.16 * (fbm(u * 3 + 5.2, v * 3 + 1.7) - 0.5);
+        const wv = v + 0.16 * (fbm(u * 3 + 9.4, v * 3 + 3.3) - 0.5);
+        thickness = 1 - smoothstep(0.35, 1.05, Math.hypot(wu, wv) * 2);
+      }
+      const along = u * driftX + v * driftZ;
+      const across = -u * driftZ + v * driftX;
       const streak = fbm(along * 2.5 + 3.1, across * 16 + 7.7);
-      const cloud = fbm(wu * 7 + 2.2, wv * 7 + 4.4);
-      const field = core * 0.9 + (streak - 0.5) * 0.9 + (cloud - 0.5) * 0.6;
+      const cloud = fbm(u * 7 + 2.2, v * 7 + 4.4);
+      const field = thickness * 0.9 + (streak - 0.5) * 0.9 + (cloud - 0.5) * 0.6;
       const cover = smoothstep(0.32, 0.46, field);
       const grain = 0.6 + 0.4 * fbm(u * 24 + 0.7, v * 24 + 6.1);
       // Whatever the noise does, the quad's own edge is never drawn.
       const border = Math.min(1, (0.5 - Math.max(Math.abs(u), Math.abs(v))) / 0.12);
       const value = Math.round(255 * Math.min(1, cover * grain * border));
-      const i = (y * size + x) * 4;
       data[i] = value;
       data[i + 1] = value;
       data[i + 2] = value;
@@ -718,27 +935,35 @@ export function createDustMask(size = DUST_TEXTURE_SIZE): Uint8Array {
   return data;
 }
 
-const DUST_MASK = (() => {
-  const texture = createLinearDataTexture(createDustMask(), DUST_TEXTURE_SIZE, DUST_TEXTURE_SIZE);
+const dustMaskTexture = (shape?: HallDustPatch) => {
+  const texture = createLinearDataTexture(
+    createDustMask(DUST_TEXTURE_SIZE, shape),
+    DUST_TEXTURE_SIZE,
+    DUST_TEXTURE_SIZE
+  );
   texture.wrapS = THREE.ClampToEdgeWrapping;
   texture.wrapT = THREE.ClampToEdgeWrapping;
   return texture;
-})();
+};
 
 /**
  * Settled flour: lit matter (it darkens with the slab at night), never written
- * to depth. A film of flour on concrete, not flour in a sack: at full cover it
- * lifts the pad's ~0.27 linear albedo by about a half, so a patch in shade
- * stays darker than the sunlit slab beside it and never reads as a light pool.
+ * to depth. A FILM of flour on concrete, not flour in a sack: at full cover it
+ * lifts the pad's ~0.27 linear albedo by under a fifth.
+ *
+ * It used to lift it by half (0.66 x '#c0b9aa'). Measured on a35d5b7e with the
+ * decal toggled in one page load, the patches raised the pad 1.47x at noon and
+ * 1.51x at 22:00. Noon hid that under its sun patches and shadows; the even
+ * night fill showed every patch as a pale blotch.
  */
 export const HALL_DUST_MATERIAL = new THREE.MeshStandardMaterial({
   name: 'hall-flour-dust',
-  color: '#c0b9aa',
+  color: '#b8b4aa',
   roughness: 0.95,
   metalness: 0,
-  alphaMap: DUST_MASK,
+  alphaMap: dustMaskTexture(),
   transparent: true,
-  opacity: 0.66,
+  opacity: 0.26,
   depthWrite: false,
   polygonOffset: true,
   polygonOffsetFactor: POLYGON_OFFSET.standard.factor,
@@ -754,17 +979,83 @@ export const HALL_DUST_RENDER_ORDER = RENDER_ORDER.floorDeposits;
 
 const FLAT_PLANE = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
 
-const HallDust: React.FC = () => {
-  const matrices = useMemo(
-    () =>
-      HALL_DUST.map((patch) =>
+/**
+ * One patch's decal in its own frame (metres, y = 0, centred on the patch).
+ * An open patch is the unit plane; a machine's is a rectangle with the base
+ * plate cut out of it, so no fragment of the decal lies under the plate for
+ * the polygon offset to pull through its foot. UVs span the whole patch either
+ * way, so the mask reads the same.
+ */
+export function buildDustPatchGeometry(patch: HallDustPatch): THREE.BufferGeometry {
+  const hole = patch.hole;
+  if (!hole) return FLAT_PLANE.clone().scale(patch.width, 1, patch.depth);
+  const w = patch.width / 2;
+  const d = patch.depth / 2;
+  const outline = new THREE.Shape([
+    new THREE.Vector2(-w, -d),
+    new THREE.Vector2(w, -d),
+    new THREE.Vector2(w, d),
+    new THREE.Vector2(-w, d),
+  ]);
+  outline.holes.push(
+    new THREE.Path([
+      new THREE.Vector2(-hole.halfX, -hole.halfZ),
+      new THREE.Vector2(-hole.halfX, hole.halfZ),
+      new THREE.Vector2(hole.halfX, hole.halfZ),
+      new THREE.Vector2(hole.halfX, -hole.halfZ),
+    ])
+  );
+  const geometry = new THREE.ShapeGeometry(outline);
+  const position = geometry.getAttribute('position');
+  const uv = geometry.getAttribute('uv');
+  for (let i = 0; i < position.count; i += 1)
+    uv.setXY(i, position.getX(i) / patch.width + 0.5, position.getY(i) / patch.depth + 0.5);
+  // Shape space (x, y) -> floor (x, -z): faces up, like the rotated plane.
+  return geometry.rotateX(-Math.PI / 2);
+}
+
+/** Patches that can share one decal: open patches, and one set per machine ring. */
+function dustSets(): { key: string; patches: HallDustPatch[] }[] {
+  const sets = new Map<string, HallDustPatch[]>();
+  for (const patch of HALL_DUST) {
+    const key = patch.hole
+      ? `ring:${patch.width}:${patch.depth}:${patch.hole.halfX}:${patch.hole.halfZ}`
+      : 'open';
+    sets.set(key, [...(sets.get(key) ?? []), patch]);
+  }
+  return [...sets].map(([key, patches]) => ({ key, patches }));
+}
+
+const DustSet: React.FC<{ setKey: string; patches: readonly HallDustPatch[] }> = ({
+  setKey,
+  patches,
+}) => {
+  const { geometry, material, matrices } = useMemo(() => {
+    const ring = patches[0].hole ? patches[0] : null;
+    const setMaterial = ring ? HALL_DUST_MATERIAL.clone() : HALL_DUST_MATERIAL;
+    if (ring) setMaterial.alphaMap = dustMaskTexture(ring);
+    return {
+      // A ring is built at its own size; open patches scale the unit plane.
+      geometry: ring ? buildDustPatchGeometry(ring) : FLAT_PLANE,
+      material: setMaterial,
+      matrices: patches.map((patch) =>
         new THREE.Matrix4().compose(
           new THREE.Vector3(patch.x, patch.baseY + FLOOR_LAYERS.puddle, patch.z),
           new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), patch.rotation),
-          new THREE.Vector3(patch.width, 1, patch.depth)
+          ring ? new THREE.Vector3(1, 1, 1) : new THREE.Vector3(patch.width, 1, patch.depth)
         )
       ),
-    []
+    };
+  }, [patches]);
+  useEffect(
+    () => () => {
+      if (geometry !== FLAT_PLANE) geometry.dispose();
+      if (material !== HALL_DUST_MATERIAL) {
+        material.alphaMap?.dispose();
+        material.dispose();
+      }
+    },
+    [geometry, material]
   );
   const ref = useRef<THREE.InstancedMesh>(null);
   useLayoutEffect(() => {
@@ -777,12 +1068,24 @@ const HallDust: React.FC = () => {
   return (
     <instancedMesh
       ref={ref}
-      name="hall-flour-dust"
-      args={[FLAT_PLANE, HALL_DUST_MATERIAL, matrices.length]}
+      name={setKey === 'open' ? 'hall-flour-dust' : 'hall-flour-dust-ring'}
+      args={[geometry, material, matrices.length]}
       matrixAutoUpdate={false}
       renderOrder={HALL_DUST_RENDER_ORDER}
       receiveShadow
     />
+  );
+};
+
+/** One decal draw for the open patches and one per machine ring size (mills, packers). */
+const HallDust: React.FC = () => {
+  const sets = useMemo(dustSets, []);
+  return (
+    <group name="hall-flour-dust-sets">
+      {sets.map(({ key, patches }) => (
+        <DustSet key={key} setKey={key} patches={patches} />
+      ))}
+    </group>
   );
 };
 
@@ -803,6 +1106,9 @@ export const HallDressing: React.FC<{ revision: string | number | boolean }> = (
         ))}
         {HALL_CONDUIT_DROPS.map((drop) => (
           <ConduitDrop key={drop.id} drop={drop} />
+        ))}
+        {HALL_MCC_CONDUITS.map((bank) => (
+          <ConduitBank key={bank.id} bank={bank} />
         ))}
       </group>
     </StaticMeshBatch>

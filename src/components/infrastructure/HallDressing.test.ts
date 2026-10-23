@@ -3,11 +3,19 @@ import * as THREE from 'three';
 import {
   HALL_DUST_MATERIAL,
   HALL_DUST_RENDER_ORDER,
+  buildDustPatchGeometry,
   buildHallSackMatrices,
   createDustMask,
 } from './HallDressing';
 import { RENDER_ORDER } from '../../constants/renderLayers';
-import { HALL_PALLET_PILES, HALL_SACK_STACKS, hallDressingSolids } from './hallDressingLayout';
+import { PROCESS_MACHINE_INSTALL_SCALE, SITE_LAYOUT } from '../../constants/siteLayout';
+import { MILL_BASE_PLATE_SCALE, PACKER_BASE_PLATE_SCALE } from '../machines/CompactMachines';
+import {
+  HALL_DUST,
+  HALL_PALLET_PILES,
+  HALL_SACK_STACKS,
+  hallDressingSolids,
+} from './hallDressingLayout';
 import { LOADED_PALLET_HEIGHT, LOADING_PROP_FOOTPRINT } from '../props/LoadingProps';
 import { getFlourSackGeometry } from '../../utils/flourSacks';
 
@@ -103,9 +111,100 @@ describe('hall dressing render', () => {
     const c = material.color;
     const luminance = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
     expect(luminance).toBeLessThan(0.5);
-    expect(luminance * material.opacity).toBeLessThan(0.33);
+    // A faint film, not a light patch. Measured on a35d5b7e (one page load,
+    // decal on/off): the old 0.66 x #c0b9aa lifted the pad 1.47x at noon and
+    // 1.51x at 22:00, which the even night fill shows as pale blotches. Over
+    // the pad's ~0.27 linear concrete, full cover may lift it a fifth at most.
+    const pad = 0.27;
+    const blend = pad * (1 - material.opacity) + luminance * material.opacity;
+    expect(blend / pad).toBeLessThanOrEqual(1.2);
     // Drawn before the additive floor light pools, so a pool lights dust and
     // slab alike instead of being hidden under one and stacked on the other.
     expect(HALL_DUST_RENDER_ORDER).toBeLessThan(RENDER_ORDER.floorEffects);
+  });
+
+  it('lays no dust under a machine base, so the decal never climbs its plate', () => {
+    // The decal sits 1 cm over the pad with a polygon offset; centred under a
+    // mill it drew a ragged pale fringe over the foot of the base plate
+    // (a35d5b7e milling 22:00: 3,612 px lifted more than 2x).
+    const plates: Record<string, { halfX: number; halfZ: number }> = {};
+    for (const mill of SITE_LAYOUT.machines.rollerMills)
+      plates[mill.id] = {
+        halfX: (MILL_BASE_PLATE_SCALE[0] * PROCESS_MACHINE_INSTALL_SCALE.rollerMill) / 2,
+        halfZ: (MILL_BASE_PLATE_SCALE[2] * PROCESS_MACHINE_INSTALL_SCALE.rollerMill) / 2,
+      };
+    for (const packer of SITE_LAYOUT.machines.packers)
+      plates[packer.id] = {
+        halfX: (PACKER_BASE_PLATE_SCALE[0] * PROCESS_MACHINE_INSTALL_SCALE.packer) / 2,
+        halfZ: (PACKER_BASE_PLATE_SCALE[2] * PROCESS_MACHINE_INSTALL_SCALE.packer) / 2,
+      };
+    const machines = [...SITE_LAYOUT.machines.rollerMills, ...SITE_LAYOUT.machines.packers];
+    let checked = 0;
+    for (const patch of HALL_DUST) {
+      const geometry = buildDustPatchGeometry(patch);
+      const position = geometry.getAttribute('position');
+      const index = geometry.getIndex();
+      const triangles: THREE.Triangle[] = [];
+      const count = index ? index.count : position.count;
+      const at = (i: number) => (index ? index.getX(i) : i);
+      const world = new THREE.Matrix4().compose(
+        new THREE.Vector3(patch.x, 0, patch.z),
+        new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), patch.rotation),
+        new THREE.Vector3(1, 1, 1)
+      );
+      const vertex = (i: number) =>
+        new THREE.Vector3().fromBufferAttribute(position, at(i)).applyMatrix4(world).setY(0);
+      for (let i = 0; i < count; i += 3)
+        triangles.push(new THREE.Triangle(vertex(i), vertex(i + 1), vertex(i + 2)));
+      for (const machine of machines) {
+        const plate = plates[machine.id];
+        const [mx, , mz] = machine.position;
+        // Sample the plate grown by 5 cm on every side.
+        for (let sx = -1; sx <= 1; sx += 0.1)
+          for (let sz = -1; sz <= 1; sz += 0.1) {
+            const p = new THREE.Vector3(
+              mx + sx * (plate.halfX + 0.05),
+              0,
+              mz + sz * (plate.halfZ + 0.05)
+            );
+            checked += 1;
+            expect(
+              triangles.some((t) => t.containsPoint(p)),
+              `${patch.id} covers ${machine.id} at ${p.x.toFixed(2)}, ${p.z.toFixed(2)}`
+            ).toBe(false);
+          }
+      }
+    }
+    expect(checked).toBeGreaterThan(0);
+  });
+
+  it('settles a machine dust ring thickest at the foot of the machine', () => {
+    const mill = HALL_DUST.find((patch) => patch.source === 'rm-101' && patch.hole)!;
+    expect(mill).toBeDefined();
+    const size = 128;
+    const mask = createDustMask(size, mill);
+    // Mean cover in bands by distance from the hole edge, in metres.
+    const bands = [0, 0, 0];
+    const counts = [0, 0, 0];
+    for (let y = 0; y < size; y += 1)
+      for (let x = 0; x < size; x += 1) {
+        const px = ((x + 0.5) / size - 0.5) * mill.width;
+        const pz = ((y + 0.5) / size - 0.5) * mill.depth;
+        const dx = Math.max(Math.abs(px) - mill.hole!.halfX, 0);
+        const dz = Math.max(Math.abs(pz) - mill.hole!.halfZ, 0);
+        const d = Math.hypot(dx, dz);
+        if (dx === 0 && dz === 0) {
+          expect(mask[(y * size + x) * 4 + 1], 'inside the hole').toBe(0);
+          continue;
+        }
+        const band = d < 0.3 ? 0 : d < 0.6 ? 1 : d < 0.9 ? 2 : -1;
+        if (band < 0) continue;
+        bands[band] += mask[(y * size + x) * 4 + 1];
+        counts[band] += 1;
+      }
+    const mean = bands.map((sum, i) => sum / counts[i]);
+    expect(mean[0]).toBeGreaterThan(mean[1]);
+    expect(mean[1]).toBeGreaterThan(mean[2]);
+    expect(mean[0]).toBeGreaterThan(90);
   });
 });

@@ -1,4 +1,11 @@
-import { PROCESS_GALLERY_POST_X, SITE_LAYOUT, type Vec3Tuple } from '../../constants/siteLayout';
+import {
+  MILL_BASE_PLATE_SCALE,
+  PACKER_BASE_PLATE_SCALE,
+  PROCESS_GALLERY_POST_X,
+  PROCESS_MACHINE_INSTALL_SCALE,
+  SITE_LAYOUT,
+  type Vec3Tuple,
+} from '../../constants/siteLayout';
 
 /**
  * THE WORKING FLOOR OF THE HALL.
@@ -27,6 +34,12 @@ export const HALL_PROP_SIZE = {
   hoseReel: { halfX: 0.3, halfZ: 0.3, height: 0.78 },
   spillKit: { halfX: 0.4, halfZ: 0.4, height: 0.98 },
   palletJack: { halfX: 0.36, halfZ: 0.96, height: 1.4 },
+  /** Five 0.8 m motor-control-centre sections, fronts toward +z, handles proud. */
+  mcc: { halfX: 2.02, halfZ: 0.34, height: 2.3 },
+  /** Turntable stretch wrapper with a load on it; the mast stands at -z. */
+  palletWrapper: { halfX: 0.95, halfZ: 1.35, height: 2.6 },
+  /** Two 240 L wheelie bins side by side. */
+  wasteBins: { halfX: 0.64, halfZ: 0.42, height: 1.1 },
 } as const;
 
 export type HallPropKind = keyof typeof HALL_PROP_SIZE;
@@ -95,6 +108,22 @@ export interface HallConduitDrop {
   readonly isolator: { readonly width: number; readonly height: number; readonly depth: number };
 }
 
+/** Conduits rising from an MCC's top into the tray overhead. */
+export interface HallConduitBank {
+  readonly id: string;
+  /** The MCC they leave. */
+  readonly panel: string;
+  /** The tray they enter; the bank belongs to the tray's group. */
+  readonly tray: string;
+  readonly xs: readonly number[];
+  readonly z: number;
+  readonly radius: number;
+  /** Top of the MCC. */
+  readonly bottomY: number;
+  /** Underside of the tray. */
+  readonly topY: number;
+}
+
 /** A lit floor decal of settled flour and spill. */
 export interface HallDustPatch {
   readonly id: string;
@@ -107,6 +136,11 @@ export interface HallDustPatch {
   readonly width: number;
   readonly depth: number;
   readonly rotation: number;
+  /**
+   * The machine's base plate, grown a hair, in the patch's own frame: the
+   * decal is a ring around it rather than a sheet under it.
+   */
+  readonly hole?: { readonly halfX: number; readonly halfZ: number };
 }
 
 const PT = PROCESS_PAD_TOP;
@@ -135,6 +169,23 @@ export const HALL_SACK_STACKS: readonly HallSackStack[] = [
   // Mid-floor, a pair waiting for the packing line under the finished-product spouts.
   { id: 'sacks-mid-1', x: 4.6, z: 4.4, rotation: Math.PI / 2, baseY: 0, courses: 5 },
   { id: 'sacks-mid-2', x: 6, z: 4.4, rotation: Math.PI / 2, baseY: 0, courses: 6 },
+  // Finished goods staged for the shipping forklift, two rows off the
+  // wrapper, in the right half of the packing camera's frame.
+  { id: 'sacks-staged-1', x: 10.4, z: -1.6, rotation: 0, baseY: 0, courses: 6 },
+  { id: 'sacks-staged-2', x: 11.9, z: -1.6, rotation: 0, baseY: 0, courses: 6 },
+  { id: 'sacks-staged-3', x: 13.4, z: -1.6, rotation: 0, baseY: 0, courses: 5 },
+  { id: 'sacks-staged-4', x: 10.4, z: -0.2, rotation: 0, baseY: 0, courses: 6 },
+  { id: 'sacks-staged-5', x: 11.9, z: -0.2, rotation: 0, baseY: 0, courses: 4 },
+  // Held for the lab's release, between the packing line's walkway and the
+  // mid-floor, and a part-built pallet next to it.
+  { id: 'sacks-hold-1', x: -7.6, z: -2.4, rotation: 0, baseY: 0, courses: 6 },
+  { id: 'sacks-hold-2', x: -6.1, z: -2.4, rotation: 0, baseY: 0, courses: 5 },
+  { id: 'sacks-hold-3', x: -7.6, z: -1, rotation: 0, baseY: 0, courses: 6 },
+  { id: 'sacks-hold-4', x: -6.1, z: -1, rotation: 0, baseY: 0, courses: 2 },
+  { id: 'sacks-part-built', x: 1.8, z: -1.6, rotation: 0.12, baseY: 0, courses: 3 },
+  // Bran and offal sacks waiting by the gallery's south side.
+  { id: 'sacks-bran-1', x: 7.2, z: 10.6, rotation: 0, baseY: 0, courses: 5 },
+  { id: 'sacks-bran-2', x: 8.7, z: 10.6, rotation: 0, baseY: 0, courses: 3 },
 ];
 
 /** Empty pallets waiting beside each bay. */
@@ -142,6 +193,10 @@ export const HALL_PALLET_PILES: readonly HallPalletPile[] = [
   { id: 'pallets-west', x: -14.4, z: 9.4, rotation: 0, baseY: 0, count: 6 },
   { id: 'pallets-east', x: 24.6, z: 9.4, rotation: 0, baseY: 0, count: 4 },
   { id: 'pallets-mid', x: 7.6, z: 4.4, rotation: Math.PI / 2, baseY: 0, count: 7 },
+  { id: 'pallets-staged', x: 8.8, z: 0.4, rotation: 0.08, baseY: 0, count: 5 },
+  { id: 'pallets-wrapper', x: 13.6, z: -3.9, rotation: -0.05, baseY: 0, count: 8 },
+  { id: 'pallets-hold', x: -3.8, z: -2.6, rotation: 0.04, baseY: 0, count: 6 },
+  { id: 'pallets-line', x: -1.2, z: 1.2, rotation: -0.1, baseY: 0, count: 3 },
 ];
 
 /**
@@ -164,6 +219,30 @@ export const HALL_PROPS: readonly HallProp[] = [
   { id: 'hose-reel-rm101', kind: 'hoseReel', x: -21.2, z: 32.3, rotation: 0, baseY: PT },
   { id: 'hose-reel-rm103', kind: 'hoseReel', x: 7.4, z: 27.3, rotation: Math.PI, baseY: PT },
   { id: 'spill-kit-milling', kind: 'spillKit', x: -1.2, z: 32.2, rotation: 0, baseY: PT },
+  // Packing floor: the wrapper the staged pallets come off, a jack, bins and a
+  // spill kit by the bagging line's feed.
+  { id: 'pallet-wrapper', kind: 'palletWrapper', x: 15.9, z: -0.8, rotation: 0, baseY: 0 },
+  {
+    id: 'pallet-jack-packing',
+    kind: 'palletJack',
+    x: 13.4,
+    z: 1.9,
+    rotation: Math.PI / 2,
+    baseY: 0,
+  },
+  { id: 'waste-bins-packing', kind: 'wasteBins', x: -2.6, z: 6.6, rotation: 0, baseY: 0 },
+  { id: 'spill-kit-packing', kind: 'spillKit', x: -6, z: 6.8, rotation: 0, baseY: 0 },
+  { id: 'cart-packing', kind: 'cart', x: -9.4, z: 8.4, rotation: 0.3, baseY: 0 },
+  { id: 'pallet-jack-hold', kind: 'palletJack', x: -10.4, z: -1.6, rotation: 0.2, baseY: 0 },
+  /**
+   * Motor-control centres. The milling floor's stands against the gallery's
+   * north post row (post faces at z 24.98) between the posts at x -20 and
+   * -10, under the cable tray, which its conduits rise into
+   * (`HALL_MCC_CONDUITS`); the packing line's stands in the open band east of
+   * the wrapper, its doors toward the packing camera.
+   */
+  { id: 'mcc-milling', kind: 'mcc', x: -15, z: 25.34, rotation: 0, baseY: 0 },
+  { id: 'mcc-packing', kind: 'mcc', x: 19.6, z: 2.6, rotation: -Math.PI / 2, baseY: 0 },
 ];
 
 /** Points on the pad as (x, z), or (x, z, lift) where the hose leaves its drum. */
@@ -237,6 +316,35 @@ export const HALL_CONDUIT_DROPS: readonly HallConduitDrop[] = PROCESS_GALLERY_PO
   isolator: { width: 0.3, height: 0.4, depth: 0.2 },
 }));
 
+/** The milling MCC's feeders: four conduits from its gland plate up into the tray. */
+export const HALL_MCC_CONDUITS: readonly HallConduitBank[] = [
+  {
+    id: 'mcc-milling-conduits',
+    panel: 'mcc-milling',
+    tray: 'cable-tray-milling',
+    xs: [-16.2, -15.6, -15, -14.4],
+    z: GALLERY_NORTH_POST_FACE + 0.42,
+    radius: 0.025,
+    bottomY: HALL_PROP_SIZE.mcc.height,
+    topY: 4.2,
+  },
+];
+
+/**
+ * The bare footprint each machine's dust ring keeps off: its installed base
+ * plate grown 6 cm. A decal laid under the plate drew a ragged pale fringe up
+ * the plate's foot (polygon offset over a 1 cm lift), and flour does not
+ * settle under a machine that stands on it anyway.
+ */
+const DUST_HOLE_MARGIN = 0.06;
+const plateHole = (scale: readonly number[], install: number) => ({
+  halfX: (scale[0] * install) / 2 + DUST_HOLE_MARGIN,
+  halfZ: (scale[2] * install) / 2 + DUST_HOLE_MARGIN,
+});
+const MILL_DUST_HOLE = plateHole(MILL_BASE_PLATE_SCALE, PROCESS_MACHINE_INSTALL_SCALE.rollerMill);
+const PACKER_DUST_HOLE = plateHole(PACKER_BASE_PLATE_SCALE, PROCESS_MACHINE_INSTALL_SCALE.packer);
+
+/** A ring about a metre wide round each mill's plate, thickest at its foot. */
 const millDust = SITE_LAYOUT.machines.rollerMills.map(
   ({ id, position: [x, , z] }, i): HallDustPatch => ({
     id: `dust-${id}`,
@@ -244,9 +352,10 @@ const millDust = SITE_LAYOUT.machines.rollerMills.map(
     x,
     z,
     baseY: PT,
-    width: 7,
-    depth: 5,
+    width: 2 * (MILL_DUST_HOLE.halfX + 1),
+    depth: 2 * (MILL_DUST_HOLE.halfZ + 0.9),
     rotation: i % 2 ? Math.PI : 0,
+    hole: MILL_DUST_HOLE,
   })
 );
 /** Under each plansifter, where its sieve-frame seals weep onto the floor. */
@@ -262,17 +371,18 @@ const sifterDust = SITE_LAYOUT.machines.sifters.map(
     rotation: i % 2 ? Math.PI / 2 : 0,
   })
 );
-/** In front of each packer's spout, short of the quality and packer stops at z -8.8. */
+/** Round each packer's plate, short of the quality and packer stops at z -8.8. */
 const packerDust = SITE_LAYOUT.machines.packers.map(
   ({ id, position: [x, , z] }, i): HallDustPatch => ({
     id: `dust-${id}`,
     source: id,
     x,
-    z: z + 0.1,
+    z,
     baseY: PT,
-    width: 4,
-    depth: 4.8,
+    width: 2 * (PACKER_DUST_HOLE.halfX + 0.8),
+    depth: 2 * (PACKER_DUST_HOLE.halfZ + 0.9),
     rotation: i % 2 ? Math.PI : 0,
+    hole: PACKER_DUST_HOLE,
   })
 );
 
@@ -401,6 +511,20 @@ export function hallDressingSolids(): HallSolid[] {
       maxY: tray.y + tray.railHeight + 0.02,
       minZ: tray.postFaceZ,
       maxZ: tray.z + tray.width / 2 + 0.03,
+    });
+  }
+  for (const bank of HALL_MCC_CONDUITS) {
+    solids.push({
+      id: bank.id,
+      group: bank.tray,
+      onFloor: false,
+      baseY: bank.bottomY,
+      minX: Math.min(...bank.xs) - bank.radius,
+      maxX: Math.max(...bank.xs) + bank.radius,
+      minY: bank.bottomY,
+      maxY: bank.topY,
+      minZ: bank.z - bank.radius,
+      maxZ: bank.z + bank.radius,
     });
   }
   for (const drop of HALL_CONDUIT_DROPS) {

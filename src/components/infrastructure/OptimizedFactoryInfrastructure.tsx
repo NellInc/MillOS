@@ -31,6 +31,7 @@ import {
   type WorldSurfaceProfileName,
 } from '../../utils/worldSurface';
 import { FLOOR_GRIT_CELL, SURFACE_GRIT_GLSL } from '../../utils/surfaceGrit';
+import { createColorDataTexture } from '../../utils/textureGenerator';
 
 const UNIT_BOX = new THREE.BoxGeometry(1, 1, 1);
 const UNIT_PLANE = new THREE.PlaneGeometry(1, 1);
@@ -930,9 +931,13 @@ const SHELL_SURFACES: readonly [
     MATERIALS.safetyBarrier,
     'masonry',
     {
-      grime: 0.5,
+      // 0.5 grime and 0.22 macro over the whole face turned the yellow coat
+      // brown (final3-med-12: "smeared brown"). The sections, chamfers and
+      // bare cast foot (`buildSafetyRailParts`) now carry the structure, so
+      // the coat can read as worn yellow paint again.
+      grime: 0.35,
       edge: 0.35,
-      macro: 0.22,
+      macro: 0.15,
       bareColor: '#9d9a92',
       indoorBounce: 0.85,
       // Still a flat plank in final-med-12: the forklift camera (28 degrees)
@@ -2314,8 +2319,130 @@ export function buildSafetyRails(): BoxInstance[] {
   ];
 }
 
+/** Precast section of an aisle upstand: nominal length, open joint, cast foot height. */
+const RAIL_SECTION_PITCH = 2.4;
+const RAIL_JOINT = 0.04;
+const RAIL_FOOT_HEIGHT = 0.14;
+/** Painted body: 18 mm in from each face of the foot, its top under the chamfers. */
+const RAIL_BODY_INSET = 0.018;
+/** Square chamfer strip laid along each top arris (its diagonal is the bevel). */
+const RAIL_CHAMFER = 0.025;
+const RAIL_SOCKET = { size: 0.07, height: 0.012 } as const;
+/** Hazard band: below the chamfers, laid on the body's face 4 mm thick, 45-degree stripes. */
+const RAIL_BAND = { height: 0.16, below: 0.03, thickness: 0.004 } as const;
+/** Length one band's texture spans (a section is 2.16-2.21 m) and its stripe pitch. */
+const RAIL_BAND_LENGTH = 2.2;
+const RAIL_BAND_PITCH = 0.2;
+
+/**
+ * Yellow and black at 45 degrees, authored in metres over one band (u along
+ * the section, v up it). An sRGB albedo: the band is paint, so it is lit.
+ * 512 px over 2.2 m puts a stripe period at ~46 px, well clear of aliasing.
+ */
+function createHazardBandTexture(): THREE.DataTexture {
+  const width = 512;
+  const height = 40;
+  const data = new Uint8Array(width * height * 4);
+  for (let y = 0; y < height; y += 1)
+    for (let x = 0; x < width; x += 1) {
+      const along = ((x + 0.5) / width) * RAIL_BAND_LENGTH;
+      const up = ((y + 0.5) / height) * RAIL_BAND.height;
+      const yellow = ((along + up) / RAIL_BAND_PITCH) % 1 < 0.5;
+      const i = (y * width + x) * 4;
+      data[i] = yellow ? 214 : 34;
+      data[i + 1] = yellow ? 168 : 33;
+      data[i + 2] = yellow ? 44 : 31;
+      data[i + 3] = 255;
+    }
+  const texture = createColorDataTexture(data, width, height);
+  texture.anisotropy = 4;
+  texture.generateMipmaps = true;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  return texture;
+}
+
+const RAIL_BAND_MATERIAL = new THREE.MeshStandardMaterial({
+  name: 'factory-barrier-hazard-band',
+  map: createHazardBandTexture(),
+  roughness: 0.75,
+  metalness: 0,
+});
+
+/**
+ * The aisle upstands as what they are: precast concrete sections stood end to
+ * end, each on a bare cast foot with a painted body, both top arrises chamfered
+ * and a pair of lifting sockets cast into the top.
+ *
+ * One long box per run read as a smeared brown slab at both distances that see
+ * it (milling's foreground run at 6 m, forklift's board behind the belt at
+ * 34 m). The masonry finish's slab term (`SHELL_SURFACES`) already tried to
+ * draw the sections in the shader and did not show. Real gaps between the
+ * sections show the floor and shadow through; the chamfers catch their own
+ * light line along the top edge, which also softens the stair-stepped arris
+ * med-06 picked up. Every part stays inside its run's `buildSafetyRails` box,
+ * so nothing that clears those boxes (hall dressing, planner) moves.
+ */
+export function buildSafetyRailParts(): {
+  sections: BoxInstance[];
+  feet: BoxInstance[];
+  chamfers: BoxInstance[];
+  sockets: BoxInstance[];
+  bands: BoxInstance[];
+} {
+  const sections: BoxInstance[] = [];
+  const feet: BoxInstance[] = [];
+  const chamfers: BoxInstance[] = [];
+  const sockets: BoxInstance[] = [];
+  const bands: BoxInstance[] = [];
+  const bevel = (RAIL_CHAMFER * Math.SQRT2) / 2;
+  for (const { position, scale } of buildSafetyRails()) {
+    const [x, y, z] = position;
+    const [thickness, height, length] = scale;
+    const base = y - height / 2;
+    const count = Math.max(3, Math.round(length / RAIL_SECTION_PITCH));
+    const pitch = length / count;
+    const piece = pitch - RAIL_JOINT;
+    const halfBody = thickness / 2 - RAIL_BODY_INSET;
+    const bodyTop = base + height - bevel;
+    for (let i = 0; i < count; i += 1) {
+      const cz = z - length / 2 + pitch * (i + 0.5);
+      feet.push({
+        position: [x, base + RAIL_FOOT_HEIGHT / 2, cz],
+        scale: [thickness, RAIL_FOOT_HEIGHT, piece],
+      });
+      sections.push({
+        position: [x, (base + RAIL_FOOT_HEIGHT + bodyTop) / 2, cz],
+        scale: [2 * halfBody, bodyTop - base - RAIL_FOOT_HEIGHT, piece],
+      });
+      for (const side of [-1, 1]) {
+        chamfers.push(
+          chamferStrip(
+            [x + side * halfBody, bodyTop, cz],
+            [RAIL_CHAMFER, RAIL_CHAMFER, piece - 0.02],
+            [0, 0, Math.PI / 4]
+          )
+        );
+        sockets.push({
+          position: [x, bodyTop + RAIL_SOCKET.height / 2, cz + (side * piece) / 4],
+          scale: [RAIL_SOCKET.size, RAIL_SOCKET.height, RAIL_SOCKET.size],
+        });
+        bands.push({
+          position: [
+            x + side * (halfBody + RAIL_BAND.thickness / 2),
+            bodyTop - RAIL_BAND.below - RAIL_BAND.height / 2,
+            cz,
+          ],
+          scale: [RAIL_BAND.thickness, RAIL_BAND.height, piece - 0.01],
+        });
+      }
+    }
+  }
+  return { sections, feet, chamfers, sockets, bands };
+}
+
 function SafetyFurniture() {
-  const rails = useMemo(buildSafetyRails, []);
+  const { sections: rails, feet, chamfers, sockets, bands } = useMemo(buildSafetyRailParts, []);
   const stations = useMemo(buildSafetyStations, []);
 
   return (
@@ -2325,6 +2452,32 @@ function SafetyFurniture() {
         material={MATERIALS.safetyBarrier}
         castShadow
         receiveShadow
+      />
+      <InstancedBoxes
+        instances={chamfers}
+        material={MATERIALS.safetyBarrier}
+        castShadow
+        receiveShadow
+        generatedSurface={false}
+      />
+      <InstancedBoxes
+        instances={feet}
+        material={MATERIALS.plinth}
+        castShadow
+        receiveShadow
+        generatedSurface={false}
+      />
+      <InstancedBoxes
+        instances={sockets}
+        material={MATERIALS.steel}
+        receiveShadow
+        generatedSurface={false}
+      />
+      <InstancedBoxes
+        instances={bands}
+        material={RAIL_BAND_MATERIAL}
+        receiveShadow
+        generatedSurface={false}
       />
       <InstancedBoxes instances={stations} material={MATERIALS.danger} castShadow receiveShadow />
     </>

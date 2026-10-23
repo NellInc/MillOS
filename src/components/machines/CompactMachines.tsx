@@ -13,6 +13,8 @@ import {
   SILO_ACCESS_LAYOUT,
   SIFTER_LAYOUT,
   MILL_FEEDER_LAYOUT,
+  MILL_BASE_PLATE_SCALE,
+  PACKER_BASE_PLATE_SCALE,
   PACKER_HOPPER_LAYOUT,
   type Vec3Tuple,
 } from '../../constants/siteLayout';
@@ -217,6 +219,7 @@ const BEACON = new THREE.LatheGeometry(
 );
 export const MACHINE_BEACON_SCALE = [0.095, 0.14, 0.095] as const;
 export const MACHINE_BEACON_BASE_SCALE = [0.135, 0.1, 0.135] as const;
+export { MILL_BASE_PLATE_SCALE, PACKER_BASE_PLATE_SCALE } from '../../constants/siteLayout';
 /** Housing seats in local metres, clear of feed mouths and lifting eyes. */
 export const MACHINE_BEACON_MOUNTS: Partial<
   Record<MachineType, readonly [number, number, number]>
@@ -1134,8 +1137,8 @@ function CompactMachineSet({
         millBaseRef.current,
         index,
         object,
-        [x, y + 0.32, z],
-        [5.2, 0.64, 4.4],
+        [x, y + MILL_BASE_PLATE_SCALE[1] / 2, z],
+        [...MILL_BASE_PLATE_SCALE],
         undefined,
         frame
       );
@@ -1413,8 +1416,8 @@ function CompactMachineSet({
         packerBaseRef.current,
         index,
         object,
-        [x, y + 0.28, z],
-        [4.5, 0.56, 4.25],
+        [x, y + PACKER_BASE_PLATE_SCALE[1] / 2, z],
+        [...PACKER_BASE_PLATE_SCALE],
         undefined,
         frame
       );

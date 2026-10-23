@@ -24,7 +24,9 @@ import {
   HALL_CONDUIT_DROPS,
   HALL_DUST,
   HALL_HOSES,
+  HALL_MCC_CONDUITS,
   HALL_PALLET_PILES,
+  HALL_PROP_SIZE,
   HALL_PROPS,
   HALL_SACK_STACKS,
   PROCESS_PAD_TOP,
@@ -122,10 +124,21 @@ const canonicalMachines = (): MachineData[] =>
     anchors.map((anchor) => ({ ...anchor, position: [...anchor.position], type, size: [...size] }))
   ) as unknown as MachineData[];
 
-/** How many floor props a benchmark camera actually frames (16:9 capture). */
-function framedBy(name: 'interior' | 'milling'): HallSolid[] {
-  const view = SITE_LAYOUT.cameras[name];
-  const camera = new THREE.PerspectiveCamera(view.fov, 2560 / 1440, 0.5, 300);
+/**
+ * The floor props a benchmark camera actually frames (16:9 capture), with the
+ * NDC x of each one's centre (-1 left edge, +1 right edge). `packing` carries
+ * no fov of its own and renders at the canvas camera's 45 degrees.
+ */
+function framedWith(
+  name: 'interior' | 'milling' | 'packing',
+  pieces: readonly HallSolid[] = floorSolids
+): { solid: HallSolid; ndcX: number; ndcY: number }[] {
+  const view = SITE_LAYOUT.cameras[name] as {
+    position: readonly [number, number, number];
+    target: readonly [number, number, number];
+    fov?: number;
+  };
+  const camera = new THREE.PerspectiveCamera(view.fov ?? 45, 2560 / 1440, 0.5, 300);
   camera.position.set(...view.position);
   camera.lookAt(...view.target);
   camera.updateMatrixWorld();
@@ -133,12 +146,19 @@ function framedBy(name: 'interior' | 'milling'): HallSolid[] {
   const frustum = new THREE.Frustum().setFromProjectionMatrix(
     new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)
   );
-  return floorSolids.filter((s) =>
-    frustum.containsPoint(
-      new THREE.Vector3((s.minX + s.maxX) / 2, (s.minY + s.maxY) / 2, (s.minZ + s.maxZ) / 2)
-    )
-  );
+  return pieces.flatMap((solid) => {
+    const centre = new THREE.Vector3(
+      (solid.minX + solid.maxX) / 2,
+      (solid.minY + solid.maxY) / 2,
+      (solid.minZ + solid.maxZ) / 2
+    );
+    if (!frustum.containsPoint(centre)) return [];
+    const ndc = centre.clone().project(camera);
+    return [{ solid, ndcX: ndc.x, ndcY: ndc.y }];
+  });
 }
+const framedBy = (name: 'interior' | 'milling'): HallSolid[] =>
+  framedWith(name).map(({ solid }) => solid);
 
 describe('hall dressing: a working flour-mill floor', () => {
   it('settles flour dust at every mill, sifter and packer', () => {
@@ -184,6 +204,54 @@ describe('hall dressing: a working flour-mill floor', () => {
   it('puts the dressing where the review cameras look', () => {
     expect(framedBy('interior').length).toBeGreaterThanOrEqual(6);
     expect(framedBy('milling').length).toBeGreaterThanOrEqual(5);
+  });
+
+  it('dresses the empty right half of the packing frame', () => {
+    // final3-med-12 packing: the right half was bare slab (rubric axis 5),
+    // with 8 pieces in it, most of them small or at its far edge.
+    const right = framedWith('packing').filter(({ ndcX }) => ndcX > 0);
+    expect(right.length).toBeGreaterThanOrEqual(16);
+    // Not one heap: spread across the half, not all in one corner of it.
+    const xs = right.map(({ ndcX }) => ndcX);
+    expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(0.45);
+    // The near floor right of the packing pad (r4floor-med-12: frame x
+    // 1536-2432, y 832-1408, world x -12..5, z -6..8) stayed bare slab.
+    const near = right.filter(
+      ({ ndcX, ndcY }) => ndcX > 0.2 && ndcX < 0.9 && ndcY < -0.16 && ndcY > -0.96
+    );
+    expect(near.length).toBeGreaterThanOrEqual(8);
+  });
+
+  it('shows electrical gear (MCC cabinets and their conduit) to the hall cameras', () => {
+    // Rubric: no cable tray, conduit or electrical panel visible anywhere in
+    // the hall. The 42 m tray is at the milling camera's eye height (4.2 m
+    // against 4.5 m), so that camera sees it edge-on.
+    const panels = HALL_PROPS.filter((prop) => prop.kind === 'mcc').map(
+      (prop) => solids.find((solid) => solid.id === prop.id)!
+    );
+    for (const camera of ['milling', 'interior', 'packing'] as const)
+      expect(framedWith(camera, panels).length, camera).toBeGreaterThanOrEqual(1);
+    // Every MCC under a tray is wired into it: conduits rise from its top to
+    // the tray's underside, inside both footprints.
+    for (const bank of HALL_MCC_CONDUITS) {
+      const mcc = HALL_PROPS.find((prop) => prop.id === bank.panel)!;
+      const tray = HALL_CABLE_TRAYS.find((t) => t.id === bank.tray)!;
+      expect(mcc.kind).toBe('mcc');
+      expect(bank.bottomY).toBeCloseTo(mcc.baseY + HALL_PROP_SIZE.mcc.height, 6);
+      expect(bank.topY).toBeCloseTo(tray.y, 6);
+      const box = solids.find((s) => s.id === mcc.id)!;
+      for (const x of bank.xs) {
+        expect(x - bank.radius, bank.id).toBeGreaterThanOrEqual(box.minX);
+        expect(x + bank.radius, bank.id).toBeLessThanOrEqual(box.maxX);
+        expect(x - bank.radius).toBeGreaterThanOrEqual(Math.min(tray.fromX, tray.toX));
+        expect(x + bank.radius).toBeLessThanOrEqual(Math.max(tray.fromX, tray.toX));
+      }
+      expect(bank.z - bank.radius).toBeGreaterThanOrEqual(
+        Math.max(box.minZ, tray.z - tray.width / 2)
+      );
+      expect(bank.z + bank.radius).toBeLessThanOrEqual(Math.min(box.maxZ, tray.z + tray.width / 2));
+    }
+    expect(HALL_MCC_CONDUITS.length).toBeGreaterThanOrEqual(1);
   });
 
   it('stands everything in the hall, on the floor or wholly on one pad', () => {

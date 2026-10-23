@@ -211,6 +211,13 @@ export const MILL_FEEDER_LAYOUT = {
   height: 5.78,
   scale: [2.7, 1.62, 2.45] as const,
 } as const;
+/**
+ * Machine base plates, in the machine's AUTHORED metres (installed about the
+ * floor anchor with the rest of the assembly). The hall's settled flour is laid
+ * as a ring around them, never under them (`hallDressingLayout`).
+ */
+export const MILL_BASE_PLATE_SCALE = [5.2, 0.64, 4.4] as const;
+export const PACKER_BASE_PLATE_SCALE = [4.5, 0.56, 4.25] as const;
 /** The finished-product pipe seats on the physical hopper, not its selection bounds. */
 export const PACKER_HOPPER_LAYOUT = {
   centreY: 5.72,

@@ -1,9 +1,18 @@
 /**
  * The forklift's rotating safety beacon, in vehicle metres (forks toward +z).
  *
- * The lamp is on the overhead guard's roof, behind the mast. Its light wedge is
- * an additive cone around the lamp; `forkliftBeaconLabelHeight` puts the fleet
- * label above the wedge's apex.
+ * The lamp is on the overhead guard's roof, behind the mast: a dark base, a
+ * coloured lens with a domed top, and a reflector that turns round inside the
+ * lens face, so the hot spot sweeps round the lamp the way a real beacon's
+ * does. Its light reaches the world as a small camera-facing glow (and, on
+ * high and ultra, a point light); `forkliftBeaconLabelHeight` puts the fleet
+ * label above that glow.
+ *
+ * NO LIGHT CONE. The beacon used to throw an additive open cone, 1 m across,
+ * spun about its own axis. A cone of revolution looks the same at every angle
+ * of that spin, so on screen it was a static translucent 16-sided pyramid over
+ * the truck, which the art review read as an editor gizmo (final3-med-12
+ * forklift and interior). A sprite has no coverage edge to read as geometry.
  */
 
 /** Fork height a loaded forklift travels at away from raised work surfaces. */
@@ -15,26 +24,35 @@ export const FORKLIFT_BEACON = {
   /** Lamp housing centre: the authored guard roof, and the compact model's at 2.13 m. */
   mountHeight: { authored: 1.86, compact: 2.205 },
   mountZ: -0.3,
+  /** The lamp's whole envelope, centred on `mountHeight`. */
   housing: { radius: 0.1, height: 0.15 },
+  /** Parts stacked inside the housing; `bottom` and `top` are about the lamp centre. */
+  base: { radius: 0.1, bottom: -0.075, top: -0.047 },
+  lens: { radius: 0.082, bottom: -0.047, top: 0.035 },
+  dome: { radius: 0.082, bottom: 0.035, top: 0.075 },
   /**
-   * Wedge cone: base radius, height, and its base's offset from the lamp centre.
-   *
-   * The base sits at the lamp, not below it. It used to hang 0.43 m under the
-   * lamp and widen downward to a 0.55 m ring at 1.43 m, while a load carried at
-   * travel height tops out at 1.80 m: from ahead, the cone came out of the top
-   * bag layer (final-med-12 forklift). From the lamp up it clears the load on
-   * both tiers.
+   * The turning reflector's hot spot: a small bright plate on the lens face,
+   * `radius` out from the axis (centre of its depth at `radius + depth / 2`).
    */
-  wedge: { radius: 0.5, height: 0.42, baseOffset: 0 },
+  reflector: { radius: 0.082, width: 0.05, height: 0.07, depth: 0.012, y: -0.006 },
+  /** The light spill: a camera-facing glow centred on the lens. */
+  glow: { diameter: 0.34 },
 } as const;
 
-/** Lowest and highest point of the light wedge above the floor. */
-export function forkliftBeaconWedgeSpan(tier: ForkliftBeaconTier): [number, number] {
-  const bottom = FORKLIFT_BEACON.mountHeight[tier] + FORKLIFT_BEACON.wedge.baseOffset;
-  return [bottom, bottom + FORKLIFT_BEACON.wedge.height];
+/** Lowest and highest point of the beacon (lamp and glow) above the floor. */
+export function forkliftBeaconSpan(tier: ForkliftBeaconTier): [number, number] {
+  const lamp = FORKLIFT_BEACON.mountHeight[tier];
+  const lensCentre = lamp + (FORKLIFT_BEACON.lens.bottom + FORKLIFT_BEACON.lens.top) / 2;
+  return [
+    lamp - FORKLIFT_BEACON.housing.height / 2,
+    Math.max(
+      lamp + FORKLIFT_BEACON.housing.height / 2,
+      lensCentre + FORKLIFT_BEACON.glow.diameter / 2
+    ),
+  ];
 }
 
-/** Fleet identity label centre height: its 0.17 m text clears the wedge's apex. */
+/** Fleet identity label centre height: its 0.17 m text clears the glow. */
 export function forkliftBeaconLabelHeight(tier: ForkliftBeaconTier): number {
-  return forkliftBeaconWedgeSpan(tier)[1] + 0.14;
+  return forkliftBeaconSpan(tier)[1] + 0.14;
 }
