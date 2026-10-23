@@ -9,7 +9,6 @@ import React, {
 import {
   EffectComposer,
   Bloom,
-  BrightnessContrast,
   ChromaticAberration,
   DepthOfField,
   N8AO,
@@ -20,6 +19,7 @@ import {
 } from '@react-three/postprocessing';
 import { BlendFunction, SMAAPreset } from 'postprocessing';
 import { DisplayHueSaturation } from './environment/DisplayHueSaturation';
+import { DisplayBrightnessContrast } from './environment/DisplayBrightnessContrast';
 // `n8ao` ships no type declarations, so hold its ref through the base class.
 // The guarded transparency adapter handles the additional runtime contract.
 import type { EffectComposer as Composer, Pass, SMAAEffect, VignetteEffect } from 'postprocessing';
@@ -38,6 +38,7 @@ import {
   BLOOM,
   COLOR_GRADE,
   COMPOSER_MULTISAMPLING,
+  DISPLAY_TOE_STRENGTH,
   VIGNETTE,
   aoQualityLevel,
   vignetteDarknessFor,
@@ -129,6 +130,7 @@ export const PostProcessing: React.FC = () => {
       enableColorGrade: state.graphics.enableColorGrade,
       enableSMAA: state.graphics.enableSMAA && !state.graphics.perfDebug.disableSMAA,
       composerMsaa: !state.graphics.perfDebug.disableComposerMsaa,
+      displayToe: !state.graphics.perfDebug.disableDisplayToe,
       toneMappingMode: state.graphics.toneMappingMode,
       aoQuality: state.graphics.aoQuality,
       enableAudioReactive: state.graphics.enableAudioReactive,
@@ -189,6 +191,18 @@ export const PostProcessing: React.FC = () => {
   useEffect(() => {
     if (n8aoRef.current) n8aoRef.current.enabled = graphics.enableAmbientOcclusion;
   }, [graphics.enableAmbientOcclusion, aoMounted]);
+
+  // --- Display toe -------------------------------------------------------
+  // A shared uniform, written rather than passed as a prop, so the paired
+  // control flips it between two frames without rebuilding any pass. Restored
+  // on unmount: the uniform outlives this component.
+  const { displayToe } = graphics;
+  useEffect(() => {
+    DISPLAY_TOE_STRENGTH.value = displayToe ? 1 : 0;
+    return () => {
+      DISPLAY_TOE_STRENGTH.value = 1;
+    };
+  }, [displayToe]);
 
   // --- Anti-aliasing ------------------------------------------------------
   // MSAA resolves geometric edges whatever their brightness, including thin
@@ -273,7 +287,10 @@ export const PostProcessing: React.FC = () => {
         {/* Both non-convolution, so the composer merges them into the same
             EffectPass as the tone mapping - effectively free. */}
         {graphics.enableColorGrade && (
-          <BrightnessContrast brightness={COLOR_GRADE.brightness} contrast={COLOR_GRADE.contrast} />
+          <DisplayBrightnessContrast
+            brightness={COLOR_GRADE.brightness}
+            contrast={COLOR_GRADE.contrast}
+          />
         )}
         {graphics.enableColorGrade && (
           <DisplayHueSaturation hue={COLOR_GRADE.hue} saturation={COLOR_GRADE.saturation} />

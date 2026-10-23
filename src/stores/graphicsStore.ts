@@ -54,6 +54,8 @@ export interface PerfDebugSettings {
   /** Same-page AA controls: the composer's SMAA pass and its MSAA samples. */
   disableSMAA: boolean;
   disableComposerMsaa: boolean;
+  /** Same-page control for the grade's black toe (`DISPLAY_TOE`): stock contrast when true. */
+  disableDisplayToe: boolean;
   disableAllAnimations: boolean; // Master toggle - disable all useFrame hooks
   showPerfOverlay: boolean; // Show performance metrics overlay
 }
@@ -207,6 +209,7 @@ const DEFAULT_PERF_DEBUG: PerfDebugSettings = {
   disableBloom: false,
   disableSMAA: false,
   disableComposerMsaa: false,
+  disableDisplayToe: false,
   disableAllAnimations: false,
   showPerfOverlay: false,
 };

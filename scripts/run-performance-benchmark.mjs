@@ -29,6 +29,7 @@ const PERF_SYSTEMS = {
   bloom: 'disableBloom',
   smaa: 'disableSMAA',
   msaa: 'disableComposerMsaa',
+  'display-toe': 'disableDisplayToe',
 };
 const NETWORK_PROFILES = {
   native: null,
