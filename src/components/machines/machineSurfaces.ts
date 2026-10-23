@@ -940,7 +940,10 @@ export const MACHINE_MATERIALS = {
       aoMap: SILO_SKIN_ORM,
       aoMapIntensity: 0.85,
       normalMap: SILO_SKIN_NORMAL,
-      normalScale: new THREE.Vector2(0.7, 0.7),
+      // The fine corrugation is now the only shaded corrugation, faded by its own
+      // fwidth, so it can carry more relief: 0.7 -> 1.5 on one page load (r4
+      // tune t3) read as crisp ridges near and stayed band-free at mid distance.
+      normalScale: new THREE.Vector2(1.5, 1.5),
       roughness: 1,
       metalness: 1,
     }),
