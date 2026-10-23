@@ -102,6 +102,7 @@ import {
   YARD_MAST,
 } from './truckbay/dockApronLayout';
 import { DOCK_DECK, DOCK_FORKLIFT_ID, dockForkliftHoldsTruck } from '../constants/dockLoading';
+import { maintenanceBayDressing, type BayPartKind } from './truckbay/maintenanceBayDressing';
 import {
   EXTERIOR_LAMP_LENS_MATERIAL,
   ExteriorLampPool,
@@ -5302,6 +5303,74 @@ const TrailerDropYard: React.FC<{ position: [number, number, number]; rotation?:
 );
 
 // Maintenance bay/garage
+/** Materials for `maintenanceBayDressing()`, by part kind. */
+const BAY_DRESSING_MATERIALS: Record<BayPartKind, THREE.Material> = {
+  roof: new THREE.MeshStandardMaterial({ color: '#2d3d43', roughness: 0.6, metalness: 0.42 }),
+  trim: applyWorldSurface(
+    new THREE.MeshStandardMaterial({ color: '#9aa3a6', roughness: 0.55, metalness: 0.1 }),
+    'painted'
+  ),
+  steel: applyWorldSurface(
+    new THREE.MeshStandardMaterial({ color: '#8f979b', roughness: 0.45, metalness: 0.5 }),
+    'metal'
+  ),
+  dark: new THREE.MeshStandardMaterial({ color: '#1b2124', roughness: 0.85, metalness: 0 }),
+  concrete: new THREE.MeshStandardMaterial({ color: '#9c988f', roughness: 0.9, metalness: 0 }),
+};
+const BAY_DRESSING_BOX = new THREE.BoxGeometry(1, 1, 1);
+const BAY_DRESSING_PIPE = new THREE.CylinderGeometry(1, 1, 1, 10);
+/** The dressing laid out once: boxes as given, pipes as a unit cylinder between their ends. */
+const BAY_DRESSING = (() => {
+  const { boxes, pipes } = maintenanceBayDressing();
+  const up = new THREE.Vector3(0, 1, 0);
+  return {
+    boxes,
+    pipes: pipes.map(({ from, to, radius }) => {
+      const a = new THREE.Vector3(...from);
+      const b = new THREE.Vector3(...to);
+      const quaternion = new THREE.Quaternion().setFromUnitVectors(
+        up,
+        b.clone().sub(a).normalize()
+      );
+      return {
+        position: a.clone().add(b).multiplyScalar(0.5),
+        quaternion,
+        scale: [radius, a.distanceTo(b), radius] as [number, number, number],
+      };
+    }),
+  };
+})();
+
+/** Eave overhang, gutters, a louvred vent and a cable entry (`maintenanceBayDressing.ts`). */
+const MaintenanceBayDressing: React.FC = () => (
+  <group name="maintenance-bay-dressing">
+    {BAY_DRESSING.boxes.map((part, index) => (
+      <mesh
+        key={`box-${index}`}
+        geometry={BAY_DRESSING_BOX}
+        material={BAY_DRESSING_MATERIALS[part.kind]}
+        position={[...part.position]}
+        rotation={part.rotation ? [...part.rotation] : undefined}
+        scale={[...part.scale]}
+        castShadow
+        receiveShadow
+      />
+    ))}
+    {BAY_DRESSING.pipes.map((pipe, index) => (
+      <mesh
+        key={`pipe-${index}`}
+        geometry={BAY_DRESSING_PIPE}
+        material={BAY_DRESSING_MATERIALS.steel}
+        position={pipe.position}
+        quaternion={pipe.quaternion}
+        scale={pipe.scale}
+        castShadow
+        receiveShadow
+      />
+    ))}
+  </group>
+);
+
 const MaintenanceBay: React.FC<{ position: [number, number, number]; rotation?: number }> = ({
   position,
   rotation = 0,
@@ -5397,6 +5466,7 @@ const MaintenanceBay: React.FC<{ position: [number, number, number]; rotation?: 
         <GeneratedModel asset="yardMaintenanceBody" />
       </group>
     </GeneratedBoundary>
+    <MaintenanceBayDressing />
     {[-3, 3].map((x, i) => (
       <group key={i} position={[x, 2.5, 5.01]}>
         {[0, 1, 2].map((row) =>
