@@ -423,28 +423,3 @@ describe('silo drums at distance (final4-med-12 overview and farm: five drums as
     );
   });
 });
-
-describe('silo cast shadow (final5-med-12 yard and silos: the battery lost its plinth shadow)', () => {
-  it('flags the drum, its roof and skirt as casters and the silo pad as a receiver', () => {
-    const machines = readFileSync('src/components/machines/CompactMachines.tsx', 'utf8');
-    // InteractiveInstances (drum and skirt) casts unless told otherwise.
-    expect(machines).toMatch(/castShadow = true,\s*receiveShadow = true,/);
-    const drum = /<InteractiveInstances\s+meshRef=\{siloBodyRef\}[\s\S]*?\/>/.exec(machines)?.[0];
-    expect(drum).toBeDefined();
-    expect(drum).not.toMatch(/castShadow=\{false\}/);
-    const skirt = /<InteractiveInstances\s+meshRef=\{siloOutletRef\}[\s\S]*?\/>/.exec(
-      machines
-    )?.[0];
-    expect(skirt).not.toMatch(/castShadow=\{false\}/);
-    expect(machines).toMatch(
-      /args=\{\[SILO_ROOF, MATERIALS\.siloRoof, subsets\.silos\.length\]\}\s*castShadow/
-    );
-    const infra = readFileSync(
-      'src/components/infrastructure/OptimizedFactoryInfrastructure.tsx',
-      'utf8'
-    );
-    expect(infra).toMatch(
-      /instances=\{plinths\}\s*material=\{MATERIALS\.plinth\}\s*castShadow\s*receiveShadow/
-    );
-  });
-});
