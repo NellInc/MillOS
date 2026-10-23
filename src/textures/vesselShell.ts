@@ -255,17 +255,17 @@ export function sampleVesselShell(
       if (Math.abs(y - nozzle.y) > span + 0.2) continue;
       const fall = fromCrown - nozzle.radius * 0.6;
       if (fall < 0) continue;
-      const fade = Math.exp(-fall / (radius * 0.9)) * smoothstep(0, 0.08, fall);
+      const fade = Math.exp(-fall / (radius * 1.4)) * smoothstep(0, 0.08, fall);
       for (let k = 0; k < 6; k += 1) {
         const side = u > VESSEL_CROWN_U && u < VESSEL_CROWN_U + 0.5 ? 1 : 0;
         const h = intHash(n * 31 + k, side + 7);
         const centre = nozzle.y + (h - 0.5) * 2 * span;
         // Rivulets wander as they run: a slow sideways drift with distance.
         const wander = (periodicNoise(fall * 1.7 + k * 5.3, n + side * 3, 64) - 0.5) * 0.12;
-        const width = 0.03 + intHash(n * 17 + k, side + 3) * 0.05;
+        const width = 0.04 + intHash(n * 17 + k, side + 3) * 0.07;
         const along = Math.abs(y - centre - wander);
-        const strength = 0.45 + 0.55 * intHash(n * 5 + k, side + 11);
-        const length = radius * (0.5 + 1.1 * intHash(n * 13 + k, side + 19));
+        const strength = Math.min(1, 0.7 + 0.7 * intHash(n * 5 + k, side + 11));
+        const length = radius * (0.8 + 1.2 * intHash(n * 13 + k, side + 19));
         streak = Math.max(
           streak,
           (1 - smoothstep(width * 0.4, width, along)) *
@@ -299,10 +299,10 @@ export function sampleVesselShell(
     // fbmRound's lattice runs 1/3 per metre along at a 3 m period; x20 makes it 0.15 m.
     const weather = fbmRound(u, y * 20, circumference, 3, 2, 4);
     const band = smoothstep(0.02, 0.06, fall) * (1 - smoothstep(0.16, 0.26, fall));
-    streak = Math.max(streak, Math.max(0, weather) * band * 0.6);
+    streak = Math.max(streak, Math.max(0, weather) * band * 0.8);
   }
   roughness += streak * 0.16;
-  const dirt = streak * 0.5;
+  const dirt = streak * 0.6;
   return {
     tint: [
       clamp01(tone * (1 - dirt * 0.85)),
