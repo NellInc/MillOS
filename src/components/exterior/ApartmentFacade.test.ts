@@ -11,11 +11,13 @@ import { apartmentFacadeLayout } from './apartmentFacadeLayout';
 describe('apartment stair core at night', () => {
   it('lights the stair glazing from the exterior lamp level, off by day', () => {
     expect(stairLightIntensity(0)).toBeLessThan(0.02);
-    expect(stairLightIntensity(1)).toBeGreaterThan(0.5);
+    // Lit like the flats' windows, not a strip light: 0.75 read near-white (med-22).
+    expect(stairLightIntensity(1)).toBeGreaterThan(0.2);
+    expect(stairLightIntensity(1)).toBeLessThanOrEqual(0.4);
     for (let level = 0; level < 1; level += 0.1)
       expect(stairLightIntensity(level + 0.1)).toBeGreaterThanOrEqual(stairLightIntensity(level));
     const { r, g, b } = STAIR_LIGHT_GLAZING.emissive;
-    expect(Math.min(r, g, b)).toBeGreaterThan(0.4);
+    expect(Math.min(r, g, b)).toBeGreaterThan(0.25);
   });
 
   it('keeps the lit glazing out of the static batch, which clones materials', () => {

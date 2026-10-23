@@ -84,7 +84,7 @@ describe.each([
     }
     const mean = values.reduce((a, b) => a + b, 0) / values.length;
     const sd = Math.sqrt(values.reduce((a, b) => a + (b - mean) ** 2, 0) / values.length);
-    expect(mean).toBeGreaterThan(0.45);
+    expect(mean).toBeGreaterThan(0.38);
     expect(mean).toBeLessThan(0.7);
     expect(sd).toBeGreaterThan(0.03);
   });

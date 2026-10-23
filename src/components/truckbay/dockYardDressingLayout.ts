@@ -106,8 +106,8 @@ export const DOCK_ISLAND_BOLLARDS: readonly (readonly [number, number])[] = [
 export const TRUCK_STAGING_LETTERING = {
   text: 'TRUCK STAGING',
   x: -14,
-  z: 84,
-  fontSize: 1.6,
+  z: 83,
+  fontSize: 2,
   along: 'z',
 } as const;
 

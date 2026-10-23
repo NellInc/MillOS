@@ -188,7 +188,7 @@ export function sampleVesselShell(
   const circumference = 2 * Math.PI * radius;
   const onHead = Math.abs(y) > seamOffset;
   let tone = 1;
-  let roughness = 0.52;
+  let roughness = 0.44;
   let height = 0;
 
   // Paint drift and mottle: the two-pack has been touched up and has weathered
@@ -214,7 +214,7 @@ export function sampleVesselShell(
     canning = fbmRound(u, y, circumference, 1.3, 2, 3);
   }
   tone += macro * 0.06 + mottle * 0.03;
-  roughness += macro * 0.16 + mottle * 0.08;
+  roughness += macro * 0.22 + mottle * 0.1;
   height += canning * 0.004;
 
   // Distance round the shell from the crown, metres (wraps through u 0/1).
@@ -241,7 +241,7 @@ export function sampleVesselShell(
     const dSeam = Math.min(Math.abs(u - seamU), 1 - Math.abs(u - seamU)) * circumference;
     weld = Math.max(weld, 1 - smoothstep(VESSEL_WELD.core, VESSEL_WELD.shoulder, dSeam));
   }
-  tone -= weld * 0.2;
+  tone -= weld * 0.3;
   roughness += weld * 0.14;
   height += weld * weld * 0.003;
 
@@ -277,14 +277,17 @@ export function sampleVesselShell(
     }
   }
 
-  // The head: grime settles toward the knuckle, so the dish reads as a dome
-  // in flat light (18:30) rather than a disc.
-  let knuckle = 0;
+  // The head: grime settles toward the knuckle and the crown of the dish
+  // keeps its gloss, and the relief carries the dish's fall-off a little
+  // further than the 2:1 profile alone, so in flat light (18:30) it reads as
+  // a dome rather than a disc. The height is zero at the rim, so the head
+  // meets the barrel's field without a step.
   if (onHead) {
     const t = r / radius;
-    knuckle = smoothstep(0.55, 0.98, t);
-    tone -= knuckle * 0.1;
-    roughness += knuckle * 0.06 - (1 - t) * 0.06;
+    const knuckle = smoothstep(0.25, 1, t);
+    tone -= knuckle * 0.24;
+    roughness += knuckle * 0.08 - (1 - t) * 0.1;
+    height += 0.1 * radius * (1 - t * t);
   }
 
   // Rain has run down both flanks everywhere: fine streaks that follow the
@@ -296,10 +299,10 @@ export function sampleVesselShell(
     // fbmRound's lattice runs 1/3 per metre along at a 3 m period; x20 makes it 0.15 m.
     const weather = fbmRound(u, y * 20, circumference, 3, 2, 4);
     const band = smoothstep(0.02, 0.06, fall) * (1 - smoothstep(0.16, 0.26, fall));
-    streak = Math.max(streak, Math.max(0, weather) * band * 0.35);
+    streak = Math.max(streak, Math.max(0, weather) * band * 0.6);
   }
   roughness += streak * 0.16;
-  const dirt = streak * 0.42;
+  const dirt = streak * 0.5;
   return {
     tint: [
       clamp01(tone * (1 - dirt * 0.85)),

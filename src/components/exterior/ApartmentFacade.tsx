@@ -37,12 +37,12 @@ export const STAIR_LIGHT_GLAZING = new THREE.MeshStandardMaterial({
   color: '#1c2830',
   roughness: 0.12,
   metalness: 0.2,
-  emissive: '#ffe4bf',
+  emissive: '#ffd29a',
   emissiveIntensity: 0,
 });
 /** Emissive intensity of the stair glazing at an exterior lamp level (0 day, 1 night). */
 export const stairLightIntensity = (level: number) =>
-  0.75 * THREE.MathUtils.clamp(level, 0, 1) ** 1.5;
+  0.3 * THREE.MathUtils.clamp(level, 0, 1) ** 1.5;
 const UNBATCHED = { noStaticBatch: true } as const;
 const BOX = new THREE.BoxGeometry(1, 1, 1);
 
