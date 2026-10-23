@@ -40,8 +40,17 @@ import * as THREE from 'three';
  * AgX (`TONE_MAPPING_MODES.AGX` / `THREE.AgXToneMapping`) is the intended
  * endpoint once the sky and celestial materials are re-authored scene-referred.
  * At that point it should land as an explicit `ultra` opt-in, not a default.
+ *
+ * DISPLAY TOE ON `low`: the value is `CustomToneMapping`, which
+ * `installDisplayToeToneMapping` (shaders/displayToeToneMapping.ts, App.tsx
+ * module scope) defines as Neutral plus the dark-pixel lift (`DISPLAY_TOE`) at
+ * full strength. The renderer's curve has no per-frame uniform, so on `low`
+ * the lift applies at all hours; it moves only pixels dark in every channel.
+ * `perfDebug.disableDisplayToe` puts stock `NeutralToneMapping` back for a
+ * paired control (RuntimeController). The composer tiers keep stock Neutral
+ * here and lift in their own pass, scaled by `nightToeStrength`.
  */
-export const RENDERER_TONE_MAPPING = THREE.NeutralToneMapping;
+export const RENDERER_TONE_MAPPING = THREE.CustomToneMapping;
 
 /**
  * Numeric mirror of `postprocessing`'s `ToneMappingMode` enum.
@@ -156,7 +165,8 @@ export const DISPLAY_TOE = {
 /**
  * Runtime strength of the composer toe, never a cache key: the night factor
  * times the paired-control switch (`perfDebug.disableDisplayToe`). Written each
- * frame by `PostProcessing`; shared by every `DisplayBrightnessContrastEffect`.
+ * frame by `PostProcessing`; shared by every `DisplayToneMappingEffect` (the
+ * lift) and `DisplayBrightnessContrastEffect` (the knee).
  */
 export const DISPLAY_TOE_STRENGTH = new THREE.Uniform(1);
 

@@ -57,6 +57,7 @@ import { restoreSessionScopedQuality } from './utils/adaptiveQuality';
 import { installAtmosphericFogChunks } from './shaders/atmosphericFog';
 import { installPunctualLightCulling } from './shaders/punctualLightCulling';
 import { installInteriorLighting } from './shaders/interiorLighting';
+import { installDisplayToeToneMapping } from './shaders/displayToeToneMapping';
 import { CURRENT_RELEASE_VERSION } from './config/releaseVersions';
 import { applyFirstVisitQuality } from './utils/firstVisitQuality';
 import { preloadStartupWorldAssets } from './utils/startupAssetPreload';
@@ -74,6 +75,9 @@ installAtmosphericFogChunks();
 installPunctualLightCulling();
 // After punctual compaction: extends its single-line point incident macro.
 installInteriorLighting();
+// Defines the `low` tier's tone curve (`RENDERER_TONE_MAPPING`) and the lifted
+// operator the composer's tone mapping calls; see `DISPLAY_TOE`.
+installDisplayToeToneMapping();
 // A previous session's automatic or recovery downgrade must not become this
 // session's tier. The graphics store has rehydrated by now and nothing has
 // rendered, so the restored choice is the first quality the scene sees.

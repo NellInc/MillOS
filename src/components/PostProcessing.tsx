@@ -14,18 +14,20 @@ import {
   N8AO,
   Noise,
   SMAA,
-  ToneMapping,
   Vignette,
 } from '@react-three/postprocessing';
 import { BlendFunction, SMAAPreset } from 'postprocessing';
 import { DisplayHueSaturation } from './environment/DisplayHueSaturation';
 import { DisplayBrightnessContrast } from './environment/DisplayBrightnessContrast';
+import { DisplayToneMapping } from './environment/DisplayToneMapping';
 // `n8ao` ships no type declarations, so hold its ref through the base class.
 // The guarded transparency adapter handles the additional runtime contract.
 import type { EffectComposer as Composer, Pass, SMAAEffect, VignetteEffect } from 'postprocessing';
 import { useFrame } from '@react-three/fiber';
 import { useShallow } from 'zustand/react/shallow';
 import { useGraphicsStore, isPostProcessingActive } from '../stores/graphicsStore';
+import { useGameSimulationStore } from '../stores/gameSimulationStore';
+import { createAtmosphereState, sampleAtmosphere } from '../simulation/atmosphere';
 import { useAudioAnalyzerStore } from '../stores/audioAnalyzerStore';
 import { SSAO_PALETTE_COLOR } from '../utils/digitalTwinPalette';
 import { fulfilComposerCapture, setComposerCaptureAvailable } from '../utils/sceneCapture';
@@ -41,8 +43,12 @@ import {
   DISPLAY_TOE_STRENGTH,
   VIGNETTE,
   aoQualityLevel,
+  nightToeStrength,
   vignetteDarknessFor,
 } from '../constants/colorGrade';
+
+/** Scratch atmosphere for the per-frame toe strength; never allocated in `useFrame`. */
+const _toeAtmosphere = createAtmosphereState();
 
 /**
  * Reads screenshot requests back from the composer's finished frame (see
@@ -193,16 +199,28 @@ export const PostProcessing: React.FC = () => {
   }, [graphics.enableAmbientOcclusion, aoMounted]);
 
   // --- Display toe -------------------------------------------------------
-  // A shared uniform, written rather than passed as a prop, so the paired
-  // control flips it between two frames without rebuilding any pass. Restored
-  // on unmount: the uniform outlives this component.
+  // A shared uniform, written rather than passed as a prop, so neither the
+  // hour nor the paired control rebuilds a pass. Priority 0 runs before the
+  // composer's priority-1 render in the same frame. `nightToeStrength` is
+  // exactly 0 from dawn to dusk, so the day image is the stock image.
+  // Restored on unmount: the uniform outlives this component.
   const { displayToe } = graphics;
-  useEffect(() => {
-    DISPLAY_TOE_STRENGTH.value = displayToe ? 1 : 0;
-    return () => {
+  useFrame(() => {
+    if (!displayToe) {
+      DISPLAY_TOE_STRENGTH.value = 0;
+      return;
+    }
+    const { gameDay, gameTime, weather } = useGameSimulationStore.getState();
+    DISPLAY_TOE_STRENGTH.value = nightToeStrength(
+      sampleAtmosphere(gameDay, gameTime, weather, _toeAtmosphere).daylight
+    );
+  });
+  useEffect(
+    () => () => {
       DISPLAY_TOE_STRENGTH.value = 1;
-    };
-  }, [displayToe]);
+    },
+    []
+  );
 
   // --- Anti-aliasing ------------------------------------------------------
   // MSAA resolves geometric edges whatever their brightness, including thin
@@ -282,7 +300,7 @@ export const PostProcessing: React.FC = () => {
             composer tier so an adaptive quality change never moves the curve.
             While the composer is mounted it forces `gl.toneMapping` to
             NoToneMapping, so this pass is the only tone curve in the frame. */}
-        <ToneMapping mode={graphics.toneMappingMode} />
+        <DisplayToneMapping mode={graphics.toneMappingMode} />
 
         {/* Both non-convolution, so the composer merges them into the same
             EffectPass as the tone mapping - effectively free. */}

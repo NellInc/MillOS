@@ -10,6 +10,7 @@ import {
   type PerfDebugSettings,
 } from '../stores/graphicsStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
+import { RENDERER_TONE_MAPPING } from '../constants/colorGrade';
 import { useMaterialFlowStore } from '../stores/materialFlowStore';
 import { useProductionStore } from '../stores/productionStore';
 import { useUIStore } from '../stores/uiStore';
@@ -2102,6 +2103,18 @@ export const RuntimeController: React.FC<RuntimeControllerProps> = ({
       delete window.__MILLOS_RUNTIME__;
     };
   }, [camera, controls, gl, mode, orbitControlsRef, scene]);
+
+  // Low-tier half of the display-toe paired control: `low` lifts through the
+  // renderer's own curve (`RENDERER_TONE_MAPPING`), so the switch swaps in
+  // stock Neutral. Skipped while the composer (or a capture) holds the
+  // renderer at NoToneMapping; the composer lifts in its own pass.
+  useFrame(({ gl: renderer }) => {
+    if (renderer.toneMapping === THREE.NoToneMapping) return;
+    const wanted = useGraphicsStore.getState().graphics.perfDebug.disableDisplayToe
+      ? THREE.NeutralToneMapping
+      : RENDERER_TONE_MAPPING;
+    if (renderer.toneMapping !== wanted) renderer.toneMapping = wanted;
+  });
 
   useFrame((_state, delta) => {
     renderedFramesRef.current += 1;

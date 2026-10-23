@@ -11,6 +11,7 @@ import {
   rendererDisplayLevels,
   srgbEncode,
 } from '../colorGrade';
+import { sampleAtmosphere } from '../../simulation/atmosphere';
 
 /**
  * A neutral surface lit only by the night fill, scene-linear, before exposure.
@@ -179,6 +180,13 @@ describe('noon is exactly the stock image', () => {
     expect(nightToeStrength(0.5)).toBe(0);
     expect(nightToeStrength(0)).toBe(1);
     expect(nightToeStrength(Number.NaN)).toBe(0);
+  });
+
+  it('the simulated clock gives strength 0 from dawn to dusk and 1 at 22:00', () => {
+    for (const hour of [6.5, 9, 12, 15, 17.5]) {
+      expect(nightToeStrength(sampleAtmosphere(1, hour, 'clear').daylight)).toBe(0);
+    }
+    expect(nightToeStrength(sampleAtmosphere(1, 22, 'clear').daylight)).toBe(1);
   });
 
   it('at strength 0 every composer level equals the stock pipeline', () => {
