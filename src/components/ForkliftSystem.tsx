@@ -1174,11 +1174,14 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
 
     cameraDistanceRef.current = state.camera.position.distanceTo(vehicle.position);
     const labelGroup = labelGroupRef.current;
-    if (labelGroup) {
+    // Replay and headless frames can pass a state without size or viewport;
+    // leave the tag as it is rather than reading through undefined.
+    const renderRows = (state.size?.height ?? 0) * (state.viewport?.dpr ?? 1);
+    if (labelGroup && renderRows > 0) {
       labelGroup.visible = sceneTextLegible(
         FORKLIFT_LABEL_FONT_SIZE,
         cameraDistanceRef.current,
-        state.size.height * state.viewport.dpr,
+        renderRows,
         (state.camera as THREE.PerspectiveCamera).fov ?? 50,
         labelGroup.visible
       );
