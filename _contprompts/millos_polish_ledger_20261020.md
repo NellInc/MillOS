@@ -327,8 +327,25 @@ held at 12:00 shows no silo shadow on the plinth (Nell kept the sun model). An o
 editing `.github/workflows`, `package*.json` and `scada-proxy/` (Node 22.23.4, sharp 0.35.5) in MillOS
 working trees; never committed here.
 
-## What remains
+**Blind A/B release candidate vs round 6** (keys `scratch/ab-keys-r7/`): 43 wins, 0 losses, 48 ties
+(med-12 7-0-6, low-12 4-0-9, med-06 7-0-6, med-19 6-0-7, med-22 8-0-5, rain 5-0-8, 18:30 6-0-7).
+**Rubric final7-med-12:** PROVISIONAL PASS, 7/7/7/7/7/7, no blockers.
 
-Blind A/B round 7 vs round 6 and rubric; then PR, merge to main, and verify GitHub Pages
-(www.millos.net) serves the new build (Nell approved: PR, merge, go live). Not done: a performance benchmark on a quiet machine (the ground wave's crop adds
+**Pre-existing, recorded for follow-up (on both sides of every pair, or present in round 5):**
+- a hard gantry shadow in rain;
+- lamps lit at noon in rain (weather lamp floor);
+- the far peak drawn translucent over the nearer ridge in overview;
+- a small stepped notch in the far hill behind the shed roof in the silos camera, the same as round 5;
+- pipe flow bands that read as stripes in stills;
+- truss stair-steps in interior and milling;
+- rubric backlog items: tank grime, silo sheen, sky in the curtain wall, dark roof-bay underside,
+  box bevels, mountain backdrop at noon.
+
+Not done: a performance benchmark on a quiet machine, the castle (a dressing call), and a HUD
+rubric capture.
+
+## Release
+
+PR from `claude/resolute-fix-20261018` to `main`, merged; GitHub Pages deploy verified in the
+served bytes at www.millos.net (Nell approved: PR, merge, go live). Not done: a performance benchmark on a quiet machine (the ground wave's crop adds
 ~319k triangles; the hall dressing will add more); the castle (a dressing call left to Nell).
