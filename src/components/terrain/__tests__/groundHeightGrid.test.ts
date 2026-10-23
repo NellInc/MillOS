@@ -33,8 +33,19 @@ function goldenPoints(): Array<[number, number]> {
 const heights = (generator: Generator, points: Array<[number, number]>, segments: number) =>
   new Float64Array(points.map(([x, z]) => generator.sampleTerrainGroundHeight(x, z, segments)));
 
-const hash = (values: Float64Array) =>
-  createHash('sha256').update(new Uint8Array(values.buffer)).digest('hex').slice(0, 16);
+/**
+ * NaN is hashed as one canonical pattern. An arithmetic NaN carries the sign
+ * bit on x64 (0xFFF8...) but not on arm64 (0x7FF8...), so the `[NaN, 0]` point
+ * alone moved the raw hash between a Mac and the Linux CI runner while every
+ * height matched to the bit.
+ */
+const hash = (values: Float64Array) => {
+  const bits = new DataView(values.buffer);
+  values.forEach((value, i) => {
+    if (Number.isNaN(value)) bits.setBigUint64(i * 8, 0x7ff8000000000000n, true);
+  });
+  return createHash('sha256').update(new Uint8Array(values.buffer)).digest('hex').slice(0, 16);
+};
 
 const fresh = async (): Promise<Generator> => {
   vi.resetModules();

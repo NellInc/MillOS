@@ -134,7 +134,8 @@ describe('perimeter hardstanding edge', () => {
         JSON.stringify(crossing)
       ).toBe(true);
     }
-  });
+    // Importing FactoryExterior transforms the whole exterior graph cold: 10.4 s on CI.
+  }, 60_000);
 
   /**
    * The kerb only reads as a hard edge if it covers the ramp the splat's
