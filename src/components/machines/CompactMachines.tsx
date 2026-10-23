@@ -820,6 +820,7 @@ function InteractiveInstances({
   onSelect,
   castShadow = true,
   receiveShadow = true,
+  frustumCulled = true,
   raycast,
 }: {
   readonly generatedAsset?: GeneratedAssetId;
@@ -831,6 +832,12 @@ function InteractiveInstances({
   readonly onSelect: (machine: MachineData) => void;
   readonly castShadow?: boolean;
   readonly receiveShadow?: boolean;
+  /**
+   * False keeps the mesh in every pass, the sun's shadow pass included,
+   * whatever its bounding sphere says (final5-med-12: the drums lost their
+   * plinth shadow; see the silo shell below).
+   */
+  readonly frustumCulled?: boolean;
   /** Cheaper stand-in for hit testing when the drawn geometry is dense. */
   readonly raycast?: THREE.Object3D['raycast'];
 }) {
@@ -853,6 +860,7 @@ function InteractiveInstances({
       args={[geometry, material, count]}
       castShadow={castShadow}
       receiveShadow={receiveShadow}
+      frustumCulled={frustumCulled}
       {...(raycast ? { raycast } : {})}
       onClick={selectInstance}
       onPointerOver={(event) => {
@@ -1934,6 +1942,7 @@ function CompactMachineSet({
         geometry={SILO_SHELL}
         generatedAsset="machineSiloUnit"
         raycast={raycastSiloShell}
+        frustumCulled={false}
         material={MATERIALS.silo}
         count={subsets.silos.length}
         machines={subsets.silos}
