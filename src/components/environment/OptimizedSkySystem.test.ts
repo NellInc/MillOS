@@ -974,7 +974,12 @@ it('draws the hill fields at one hue and a compressed tone toward night', () => 
   expect(at(18.5)).toBeGreaterThan(0.7);
   expect(toneAt(18.5)).toBe(1);
   expect(at(19)).toBe(0);
-  expect(toneAt(19)).toBeGreaterThan(0.3);
+  // final5-med-19 village: half the tonal step kept at 19:00 brought the
+  // hedgerow lines and parcel facets back as diagonal creases on the dark
+  // hill. The step is gone by 19:00 (daylight 0.046), with margin both sides.
+  expect(toneAt(19)).toBe(0);
+  expect(RIDGE_FIELD_PROFILE.fieldTone[0]).toBeGreaterThan(daylightAt(19) + 0.01);
+  expect(RIDGE_FIELD_PROFILE.fieldTone[1]).toBeLessThan(daylightAt(18.5) - 0.02);
   expect(at(22)).toBe(0);
   expect(toneAt(22)).toBe(0);
   // Compression keeps the palette's mean luminance: a darker night tone pulled

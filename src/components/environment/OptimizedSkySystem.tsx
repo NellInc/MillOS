@@ -406,7 +406,9 @@ export const RIDGE_FIELD_PROFILE = {
    * (`getRidgeFieldDaylight`: full by 0.3 daylight, so 18:30 keeps about 80% of
    * its hue; none by 0.05, 19:00), and keep `nightVariation` of their luminance
    * step about it once `uFieldTone` reaches 0 (`getRidgeFieldTone`: full by
-   * 0.12, about half at 19:00, none at 22:00). One shared ramp at [0.08, 0.5]
+   * 0.2, so 18:30 at 0.23 keeps its patchwork, none by 0.06, so 19:00 at 0.046
+   * has none). Half the step kept at 19:00 brought the hedgerows and parcel
+   * facets back as diagonal creases on the dark hill (final5-med-19). One shared ramp at [0.08, 0.5]
    * took 70% of the hue and half the patchwork by 18:30, and a night tone 25%
    * below the fields darkened them: one near-black mass at dusk
    * (final4-med-1830 village). `nightTone` sits near the hill's area mean.
@@ -414,7 +416,7 @@ export const RIDGE_FIELD_PROFILE = {
   nightTone: [0.078, 0.111, 0.059],
   nightVariation: 0.3,
   fieldDaylight: [0.05, 0.3],
-  fieldTone: [0.0, 0.12],
+  fieldTone: [0.06, 0.2],
 } as const;
 
 /**
