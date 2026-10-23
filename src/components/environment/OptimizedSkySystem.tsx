@@ -127,6 +127,20 @@ export function getRidgeAerialWeight(clearAerial: number, cloudCoverage: number)
   return clearAerial + (1 - clearAerial) * cloudiness * 0.85 * depth;
 }
 
+/**
+ * Fair-weather share of the far ring's thinned lower-band haze
+ * (RIDGE_ALPINE_PROFILE.lowBandAerial). That thinning is a clear-air contrast
+ * choice; under rain cloud it left the far lower slopes at 0.42 behind a mid
+ * foothill ring at 0.53, so the nearer hills hazed over the mountains behind
+ * them and read as a fog band with a hard arced top (final3-med-rain farm).
+ * On `getRidgeAerialWeight`'s cloudiness ramp, gone by 0.4 of it (cover 0.48),
+ * before the foothills' distance haze can rise past the far lower band.
+ */
+export function getRidgeClearAir(cloudCoverage: number): number {
+  const cloudiness = THREE.MathUtils.clamp((cloudCoverage - 0.2) / 0.7, 0, 1);
+  return 1 - THREE.MathUtils.smoothstep(cloudiness, 0, 0.4);
+}
+
 /** PCF penumbra radius in texels: three's default 1 in fair weather, 3 under a deck. */
 export function overcastShadowRadius(cloudCoverage: number): number {
   return 1 + 2 * getOvercastWeight(cloudCoverage);
@@ -499,6 +513,7 @@ uniform float uLowAerialStrength;
 uniform float uFieldDaylight;
 uniform vec2 uAnchoredAerial;
 uniform float uDistanceAerialStrength;
+uniform float uClearAir;
 varying vec3 vRidgeColor;
 varying vec3 vRidgeNormal;
 varying vec3 vRidgePosition;
@@ -740,7 +755,7 @@ void main() {
       ${RIDGE_ALPINE_PROFILE.lowBandRamp[1].toFixed(2)}, snowAltitude + snowBreak);
     aerialScale = mix(1.0, ${RIDGE_ALPINE_PROFILE.lowBandAerial.toFixed(2)}, belowSnow
       * (1.0 - smoothstep(${RIDGE_ALPINE_PROFILE.crestGuard[0].toFixed(2)},
-        ${RIDGE_ALPINE_PROFILE.crestGuard[1].toFixed(2)}, ringRun)) * uLowAerialStrength);
+        ${RIDGE_ALPINE_PROFILE.crestGuard[1].toFixed(2)}, ringRun)) * uLowAerialStrength * uClearAir);
     // At 540 m the band's lit radiance is ~0.03 linear under a ~0.23
     // inscatter, so only an albedo span survives the haze: pale scree on the
     // ribs (RIDGE_ALPINE_PROFILE.ribAlbedo), dark forest down the runnels.
@@ -1479,6 +1494,8 @@ export function createRidgeMaterial(
       // private paired control: 0 restores the per-ring constant exactly.
       uAnchoredAerial: RIDGE_ANCHORED_AERIAL_SPAN,
       uDistanceAerialStrength: { value: 1 },
+      // 1 in fair weather, toward 0 under rain cloud (getRidgeClearAir).
+      uClearAir: { value: 1 },
     },
   });
   material.userData.clearAerial = aerial;
@@ -1869,8 +1886,10 @@ export function OptimizedSkySystem() {
       .lerp(ridgeSunGolden, mountainTwilight);
     ridgeShadowScratch.copy(ridgeShadowNight).lerp(ridgeShadowDay, visualDaylight);
     const fieldDaylight = getRidgeFieldDaylight(atmosphere.daylight);
+    const clearAir = getRidgeClearAir(atmosphere.cloudCoverage);
     for (const ridgeMaterial of ridgeMaterials.all) {
       ridgeMaterial.uniforms.uFieldDaylight.value = fieldDaylight;
+      ridgeMaterial.uniforms.uClearAir.value = clearAir;
       ridgeMaterial.uniforms.uSunDirection.value.copy(sunDirectionScratch);
       ridgeMaterial.uniforms.uSunColor.value.lerp(ridgeSunScratch, colourAlpha);
       ridgeMaterial.uniforms.uShadowTint.value.lerp(ridgeShadowScratch, colourAlpha);

@@ -22,6 +22,10 @@ import {
   RIDGE_ALPINE_PROFILE,
   RIDGE_FIELD_PROFILE,
   getRidgeFieldDaylight,
+  getRidgeClearAir,
+  getAnchoredRidgeAerial,
+  RIDGE_ANCHORED_AERIAL,
+  RIDGE_ANCHORED_AERIAL_SPAN,
 } from './OptimizedSkySystem';
 import { LANDSCAPE_GROVE_TREES } from '../exterior/ExteriorVegetation';
 import { sampleValleyGroundHeight } from '../terrain/splatMapGenerator';
@@ -1011,5 +1015,47 @@ it('draws woods with canopy texture, a ragged outline and a lighter fringe', () 
   expect(branch).toContain('float strays =');
   expect(branch).toContain(glslVec3Literal(scrub));
   expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v24');
+  near.dispose();
+});
+
+// farm and village, final3-med-rain: a hard-edged pale arc cut across the
+// mountains, which read translucent above it, with a dark ellipse floating at
+// their base. Under rain cloud the far ring's lower band kept its clear-air
+// thinning (0.766 x 0.55 = 0.42) while the mid foothills in front of it went
+// to 0.53: nearer hills hazier than the range behind them - a fog band with an
+// arced top - and near-ring hilltops at 0.28 standing dark on it. The far
+// thinning now fades with the same cloudiness ramp, and the foothills take
+// their haze from distance, so neither inversion can occur.
+it('keeps rain haze ordered by distance from the near crest to the far lower slopes', () => {
+  expect(getRidgeClearAir(0.2)).toBe(1);
+  expect(getRidgeClearAir(0.9)).toBe(0);
+  for (const cloudCoverage of [0.2, 0.52, 0.74, 0.9]) {
+    const near = getRidgeAerialWeight(0.1, cloudCoverage);
+    const mid = getRidgeAerialWeight(0.2, cloudCoverage);
+    const far = getRidgeAerialWeight(0.32, cloudCoverage);
+    const farLowBand =
+      far * (1 + (RIDGE_ALPINE_PROFILE.lowBandAerial - 1) * getRidgeClearAir(cloudCoverage));
+    // The most distant foothill fragment, at the clamp, stays under the range.
+    const ceiling = getAnchoredRidgeAerial(1e6, near, mid);
+    if (cloudCoverage > 0.5) expect(farLowBand).toBeGreaterThan(ceiling);
+    // The function is continuous and rises with distance.
+    const [d0, d1] = RIDGE_ANCHORED_AERIAL.distances;
+    expect(getAnchoredRidgeAerial(d0, near, mid)).toBeCloseTo(near, 9);
+    expect(getAnchoredRidgeAerial(d1, near, mid)).toBeCloseTo(mid, 9);
+    expect(getAnchoredRidgeAerial(d0 + 1, near, mid)).toBeGreaterThan(
+      getAnchoredRidgeAerial(d0, near, mid)
+    );
+  }
+  const far = createRidgeMaterial(0.32, 'far-rain');
+  const near = createRidgeMaterial(0.1, 'near-rain', true);
+  expect(far.uniforms.uClearAir.value).toBe(1);
+  expect(near.uniforms.uAnchoredAerial).toBe(RIDGE_ANCHORED_AERIAL_SPAN);
+  expect(near.uniforms.uDistanceAerialStrength.value).toBe(1);
+  const alpine = far.fragmentShader
+    .split('} else if (uWorldAnchored < 0.5')[1]
+    .split('} else {')[0];
+  expect(alpine).toContain('uLowAerialStrength * uClearAir');
+  expect(far.fragmentShader).toContain('mix(uAnchoredAerial.x, uAnchoredAerial.y, aerialRun)');
+  far.dispose();
   near.dispose();
 });
