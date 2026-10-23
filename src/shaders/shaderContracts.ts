@@ -378,9 +378,9 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     depthBehavior: 'opaque machine bodies, depth test and write on',
     qualityVariants: ['low', 'medium', 'high', 'ultra'],
     uniformOwner:
-      'per-material closure captured by applyMachineWear, mirrored on userData.machineWear',
+      'per-material closure captured by applyMachineWear, mirrored on userData.machineWear; the galvanised silo materials also share the module-level SILO_FLOOD_LIGHT / SILO_FLOOD_COLOR, written each frame by SiloFloodlights',
     timeSource: 'none',
-    cacheKey: 'machineWear_v4',
+    cacheKey: 'machineWear_v5',
     disposalOwner: 'module lifetime (MACHINE_MATERIALS library)',
     fallbackMaterial: 'the same MeshStandardMaterial with no wear injection',
   },
