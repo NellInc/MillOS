@@ -11,7 +11,11 @@ import { ApartmentFacade } from './exterior/ApartmentFacade';
 import {
   WATER_FRESNEL_EXPONENT,
   WATER_FRESNEL_EXPONENT_FLAT,
+  WATER_CLOUD_COVER,
+  WATER_CLOUD_TONE,
   WATER_PROFILES,
+  WATER_SKY_DETAIL,
+  WATER_SKY_DETAIL_PROFILE,
   WATER_VISUAL_TIME,
   WATER_WIND,
   type WaterKind,
@@ -1192,6 +1196,14 @@ export const WaterAnimationManager: React.FC = () => {
       if (top instanceof THREE.Color) _waterZenith.lerp(top, WATER_SKY_RADIANCE.value);
       if (horizon instanceof THREE.Color) _waterHorizon.lerp(horizon, WATER_SKY_RADIANCE.value);
     }
+    // The mirrored deck takes the displayed sky's cover and lit cloud colour.
+    const cloudAmount =
+      sky instanceof THREE.ShaderMaterial ? sky.uniforms.cloudAmount?.value : null;
+    WATER_CLOUD_COVER.value =
+      typeof cloudAmount === 'number' ? cloudAmount : atmosphere.cloudCoverage;
+    const cloudLit = sky instanceof THREE.ShaderMaterial ? sky.uniforms.uCloudLit?.value : null;
+    if (cloudLit instanceof THREE.Color) WATER_CLOUD_TONE.value.copy(cloudLit);
+    else WATER_CLOUD_TONE.value.copy(_waterHorizon);
 
     WATER_VISUAL_TIME.value = phase.current.time;
     WATER_WIND.value = atmosphere.wind;
@@ -1298,6 +1310,9 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
         uRippleC: { value: rippleC },
         uSkyRadiance: WATER_SKY_RADIANCE,
         uRippleDetail: WATER_RIPPLE_DETAIL,
+        uSkyDetail: WATER_SKY_DETAIL,
+        uCloudCover: WATER_CLOUD_COVER,
+        uCloudTone: WATER_CLOUD_TONE,
         uFlowSpeed: { value: speed },
         uWaveHeight: { value: profile.waveHeight },
         uRippleStrength: { value: profile.rippleStrength },
@@ -1390,10 +1405,27 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
         uniform float uAfterglow;
         uniform vec3 uAfterglowColour;
         uniform vec3 uSunDirection;
+        uniform float uSkyDetail;
+        uniform float uCloudCover;
+        uniform vec3 uCloudTone;
+        uniform vec2 uFlowDirection;
+        uniform float uWind;
         varying vec2 vUv;
         varying float vWave;
         varying vec3 vWorldPosition;
         varying vec3 vWorldNormal;
+        float millosWaterHash(vec2 p) {
+          vec3 q = fract(vec3(p.xyx) * 0.1031);
+          q += dot(q, q.yzx + 33.33);
+          return fract((q.x + q.y) * q.z);
+        }
+        float millosWaterNoise(vec2 p) {
+          vec2 cell = floor(p);
+          vec2 f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(millosWaterHash(cell), millosWaterHash(cell + vec2(1.0, 0.0)), f.x),
+            mix(millosWaterHash(cell + vec2(0.0, 1.0)), millosWaterHash(cell + vec2(1.0)), f.x), f.y);
+        }
         void main() {
           // Shade the water body once, before adding incident sky radiance.
           // Previously a final daylight multiplier also darkened the already
@@ -1565,8 +1597,37 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
             * smoothstep(0.04, 0.24, reflected.y) * (1.0 - smoothstep(0.58, 0.95, reflected.y));
           skyColour = mix(skyColour, uSkyHorizon * 0.85 + uSkyZenith * 0.15,
             cloudReflection * 0.2 * (0.3 + 0.7 * uDaylight));
+          // Mirrored cloud and wind-roughened patches (WATER_SKY_DETAIL). The
+          // band above is a function of the reflected DIRECTION alone, which
+          // turns through about half a period across the whole lake from the
+          // water camera, and the ripple moves it by a few percent of that: the
+          // pond took one uniform sky over its depth gradient (final3-med-12
+          // water). Projecting the reflected ray onto a cloud deck sweeps a few
+          // hundred metres of deck across the same pond, so mirrored clouds
+          // resolve and the ripple wobbles them. Cat's paws, the gust-roughened
+          // patches that read as lighter streaks from above, raise the sky
+          // weight where they pass. Low skips both on the same uniform branch.
+          float pawSky = 0.0;
+          if (uRippleDetail > 0.0 && uSkyDetail > 0.0) {
+            vec2 deck = reflected.xz / max(reflected.y, 0.12) * ${WATER_SKY_DETAIL_PROFILE.deckScale.toFixed(2)}
+              + uFlowDirection * uTime * 0.004;
+            float deckCloud = millosWaterNoise(deck) * 0.62 + millosWaterNoise(deck * 2.31 + 4.7) * 0.38;
+            float mirrored = smoothstep(${WATER_SKY_DETAIL_PROFILE.cloud[0].toFixed(2)},
+              ${WATER_SKY_DETAIL_PROFILE.cloud[1].toFixed(2)}, deckCloud + uCloudCover * 0.25)
+              * smoothstep(0.06, 0.22, reflected.y);
+            skyColour = mix(skyColour, uCloudTone, mirrored * ${WATER_SKY_DETAIL_PROFILE.cloudWeight.toFixed(2)}
+              * uSkyDetail);
+            vec2 gustCoord = waterCoord * ${WATER_SKY_DETAIL_PROFILE.pawScale.toFixed(3)}
+              + uFlowDirection * uTime * 0.012;
+            float gust = millosWaterNoise(gustCoord) * 0.65
+              + millosWaterNoise(gustCoord * 2.7 + vec2(3.1, 8.3)) * 0.35;
+            pawSky = smoothstep(${WATER_SKY_DETAIL_PROFILE.paw[0].toFixed(2)},
+              ${WATER_SKY_DETAIL_PROFILE.paw[1].toFixed(2)}, gust)
+              * ${WATER_SKY_DETAIL_PROFILE.pawReflectance.toFixed(3)} * (0.5 + uWind) * uSkyDetail;
+            skyColour = mix(skyColour, uSkyHorizon, pawSky * 3.0);
+          }
           vec3 reflectionColour = mix(uReflection * mix(0.08, 1.0, uDaylight), skyColour, 0.75);
-          float reflectance = clamp(0.02 + fresnel * 0.98, 0.02, 0.95);
+          float reflectance = clamp(0.02 + fresnel * 0.98 + pawSky, 0.02, 0.95);
           colour = mix(colour, reflectionColour, reflectance);
 
           // Specular sun: a tight glitter lobe plus a broad sheen. Both are
@@ -1630,7 +1691,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
     // MANUALLY VERSIONED, never derived from time or randomness - see the
     // documented `Date.now()` cache-key bug. Bump this whenever the shader
     // source above changes or a stale cached program will be reused.
-    value.customProgramCacheKey = () => 'millos-unified-water-v23';
+    value.customProgramCacheKey = () => 'millos-unified-water-v24';
     return value;
   }, [
     crossOnly,
@@ -3821,6 +3882,13 @@ export const LAKE_APPROACH_PATH = {
   width: 2.5,
 };
 
+/** The carriageway from the front gate to the car park's south stub; it leaves the lake walk's start. */
+export const GATE_CAR_PARK_ROAD = {
+  start: [101, 0, 89] as [number, number, number],
+  end: [120, 0, 70] as [number, number, number],
+  width: 5,
+};
+
 /**
  * A clipped hedge laid along one side of a path: same direction, `side` metres
  * of verge (+1 left of travel, -1 right) between the path edge and the hedge
@@ -3834,7 +3902,8 @@ export function hedgeAlongPath(
     width,
     verge = 0.6,
     inset = 1,
-  }: { height: number; width: number; verge?: number; inset?: number }
+    startInset = inset,
+  }: { height: number; width: number; verge?: number; inset?: number; startInset?: number }
 ) {
   const dx = path.end[0] - path.start[0];
   const dz = path.end[2] - path.start[2];
@@ -3846,7 +3915,7 @@ export function hedgeAlongPath(
   const nx = -uz * offset;
   const nz = ux * offset;
   return {
-    start: [path.start[0] + ux * inset + nx, 0, path.start[2] + uz * inset + nz] as [
+    start: [path.start[0] + ux * startInset + nx, 0, path.start[2] + uz * startInset + nz] as [
       number,
       number,
       number,
@@ -3868,12 +3937,18 @@ export function hedgeAlongPath(
  * gravel walk's centreline. Both now follow their walk, one verge off its edge:
  * the canal walk on its west side (its east side meets the paved walk's corner),
  * the lake walk on its north side, so the hedge screens the service yard from it
- * rather than the water (`pathHedges.test.ts`).
+ * rather than the water, and opens where the car-park road leaves that walk
+ * (`pathHedges.test.ts`).
  */
 export const PATH_HEDGES = [
   { ...hedgeAlongPath(CANAL_WEST_PATH, -1, { height: 0.6, width: 0.5 }), path: CANAL_WEST_PATH },
   {
-    ...hedgeAlongPath(LAKE_APPROACH_PATH, -1, { height: 0.5, width: 0.4 }),
+    // The car-park road leaves the walk's start heading north-east, across this
+    // side: the hedge laid from 1 m in ran straight over the 5 m carriageway
+    // (water/farm, final3). Clear of the road's far edge from 13.4 m along the
+    // walk; it starts at 16.5 m so that, from the farm camera, it does not
+    // emerge from behind the trunk at (110, 95) standing on the same bearing.
+    ...hedgeAlongPath(LAKE_APPROACH_PATH, -1, { height: 0.5, width: 0.4, startInset: 16.5 }),
     path: LAKE_APPROACH_PATH,
   },
 ] as const;
@@ -8547,7 +8622,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
       <ConnectingRoad start={[120, 0, 60.5]} end={[120, 0, 70]} width={5} />
 
       {/* Road connecting parking area to front entrance gate */}
-      <ConnectingRoad start={[101, 0, 89]} end={[120, 0, 70]} width={5} />
+      <ConnectingRoad {...GATE_CAR_PARK_ROAD} />
 
       {/* A few extra parked cars near the gas station for variety, on a layby
           rather than in the field they were standing in. */}

@@ -37,6 +37,28 @@ export function waterFresnel(normalDotView: number, rippleDetail = 1): number {
   return Math.min(0.95, Math.max(0.02, 0.02 + 0.98 * (1 - facing) ** exponent));
 }
 
+/**
+ * Mirrored cloud deck and cat's paws on Medium and up (`WATER_SKY_DETAIL`).
+ * `deckScale` maps the reflected ray's deck offset (x/y, z/y) to noise cells,
+ * `cloud` thresholds the deck noise (cover shifts it), `cloudWeight` is the
+ * mirrored cloud's share of the sky colour; `pawScale` is gust cells per metre
+ * (about 14 m patches), `paw` thresholds them and `pawReflectance` is the sky
+ * weight a full patch adds at 0.5 wind.
+ */
+export const WATER_SKY_DETAIL_PROFILE = {
+  deckScale: 2.4,
+  cloud: [0.5, 0.78],
+  cloudWeight: 0.55,
+  pawScale: 0.07,
+  paw: [0.5, 0.78],
+  pawReflectance: 0.07,
+} as const;
+/** Paired control for the deck and paws: 0 restores the earlier sky exactly. */
+export const WATER_SKY_DETAIL = { value: 1 };
+/** The displayed sky's cloud amount and lit cloud colour, written each frame. */
+export const WATER_CLOUD_COVER = { value: 0.2 };
+export const WATER_CLOUD_TONE = { value: new THREE.Color('#f4f6f2') };
+
 /** Owned by WaterAnimationManager; small retained PBR surfaces share the same weather and pause. */
 export const WATER_VISUAL_TIME = { value: 0 };
 export const WATER_WIND = { value: 0.2 };

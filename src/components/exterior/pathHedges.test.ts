@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { CANAL_WEST_PATH, LAKE_APPROACH_PATH, PATH_HEDGES } from '../FactoryExterior';
+import {
+  CANAL_WEST_PATH,
+  GATE_CAR_PARK_ROAD,
+  LAKE_APPROACH_PATH,
+  PATH_HEDGES,
+  RIVER_FOOTBRIDGE_APPROACH,
+} from '../FactoryExterior';
+import { FRONT_PARKLAND_TREES, MAIN_EXTERIOR_TREES, PARKLAND_TREES } from './ExteriorVegetation';
 
 type Point = readonly [number, number, number];
 interface Path {
@@ -53,4 +60,47 @@ describe('path hedges', () => {
       bordersPath({ start: [-130, 0, 90], end: [-130, 0, 60], width: 0.5 }, CANAL_WEST_PATH)
     ).toBe(false);
   });
+});
+
+/** Shortest plan distance between two segments (no crossing gives > 0). */
+function segmentDistance(a0: Point, a1: Point, b0: Point, b1: Point): number {
+  const point = (p: Point, q0: Point, q1: Point) => {
+    const dx = q1[0] - q0[0];
+    const dz = q1[2] - q0[2];
+    const lengthSq = dx * dx + dz * dz;
+    const t =
+      lengthSq === 0
+        ? 0
+        : Math.max(0, Math.min(1, ((p[0] - q0[0]) * dx + (p[2] - q0[2]) * dz) / lengthSq));
+    return Math.hypot(p[0] - (q0[0] + dx * t), p[2] - (q0[2] + dz * t));
+  };
+  const cross = (o: Point, p: Point, q: Point) =>
+    (p[0] - o[0]) * (q[2] - o[2]) - (p[2] - o[2]) * (q[0] - o[0]);
+  const straddles =
+    Math.sign(cross(a0, a1, b0)) !== Math.sign(cross(a0, a1, b1)) &&
+    Math.sign(cross(b0, b1, a0)) !== Math.sign(cross(b0, b1, a1));
+  if (straddles) return 0;
+  return Math.min(point(a0, b0, b1), point(a1, b0, b1), point(b0, a0, a1), point(b1, a0, a1));
+}
+
+// water and farm, final3 (every condition): a hedge strip lay diagonally over
+// the paved way by the lake, with the road's yellow centre dashes flecking it
+// on Low. The lake walk's north hedge was laid along the walk correctly, but
+// the 5 m car-park road leaves that walk at (101, 89) heading north-east, so
+// the hedge ran straight across the carriageway (probe: hedge foliage hit at
+// (103.5, 85.2), road surface either side of it).
+it('crosses no path, road or tree trunk on the site', () => {
+  const ways = [CANAL_WEST_PATH, LAKE_APPROACH_PATH, RIVER_FOOTBRIDGE_APPROACH, GATE_CAR_PARK_ROAD];
+  const trunks = [...MAIN_EXTERIOR_TREES, ...PARKLAND_TREES, ...FRONT_PARKLAND_TREES];
+  for (const hedge of PATH_HEDGES) {
+    for (const way of ways) {
+      const gap = segmentDistance(hedge.start, hedge.end, way.start, way.end);
+      // Edge to edge, with at least a 0.3 m verge.
+      expect(gap - way.width / 2 - hedge.width / 2).toBeGreaterThanOrEqual(0.3);
+    }
+    for (const tree of trunks) {
+      const gap = segmentDistance(hedge.start, hedge.end, tree.position, tree.position);
+      expect(gap - hedge.width / 2).toBeGreaterThanOrEqual(0.6);
+    }
+  }
 });
