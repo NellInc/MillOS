@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { SECTIONAL_DOOR } from './sectionalDoor';
 import {
   DOCK_DOOR_FRAME,
   DOCK_FACADE_BOARD,
@@ -75,7 +76,9 @@ describe('dock apron paint layout', () => {
         .map(Number);
     // The closed door reaches the ground and passes into the platforms' wall
     // end, so its end faces must lie inside the platform, not on its face.
-    const [doorWidth] = box('door');
+    // (The leaf is the sectional door now; its width is the module's.)
+    const doorWidth = SECTIONAL_DOOR.width;
+    expect(source).toMatch(/geometry=\{SECTIONAL_DOOR_GEOMETRY\}/);
     const platformOuter = DOCK_PLATFORM_SECTION.x + DOCK_PLATFORM_SECTION.width / 2;
     expect(platformOuter - doorWidth / 2).toBeGreaterThanOrEqual(0.01);
     // The wear bumpers' rubber overlaps the blocks at x +/-1.75: their tops
