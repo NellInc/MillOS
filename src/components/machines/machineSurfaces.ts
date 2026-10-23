@@ -231,7 +231,7 @@ const PLATE_ORM = band(HOUSING_ORM, 4, 2);
  * the program key alongside this string (`WebGLPrograms.getProgramCacheKey`),
  * so permutations still split properly.
  */
-export const MACHINE_WEAR_CACHE_KEY = 'machineWear_v6';
+export const MACHINE_WEAR_CACHE_KEY = 'machineWear_v7';
 
 /** Share of the silo drum's 180 streak columns that carry run-off, per ring. */
 export const SILO_STREAK_LIVE_FRACTION = 0.16;
@@ -331,9 +331,17 @@ export function siloPatinaCoverage(field: number, share: number): number {
  *   albedo     crest-to-trough swing on the diffuse colour (and the metal F0)
  *   roughness  the same band on roughness, glossier on the up-facing flank
  */
-export const SILO_RIB_TONE = { albedo: 0.12, roughness: 0.14 } as const;
-/** Coarse-wave cycles per pixel over which the tone band itself fades out (3.3 px to 2 px). */
-export const SILO_RIB_TONE_FADE = [0.3, 0.5] as const;
+export const SILO_RIB_TONE = { albedo: 0.04, roughness: 0.047 } as const;
+/**
+ * Coarse-wave cycles per pixel over which the tone band itself fades out (4 px
+ * to 2.2 px a period), so it is the mean before Nyquist. Round 6: the band was
+ * 0.12 / 0.14, three times the fine ribs it replaces (SILO_FINE_RIB_TONE_EQUIV),
+ * so the drums got MORE striped with distance: final5-med-12 silos 2-5 read
+ * bold 12.5-25 px stripes at hp 4.9-8.7 against final4's 1.1-1.6, and beat
+ * against the half-faded ribs at 18:30 and 19:00. At the ribs' own strength the
+ * handover is a crossfade (`siloRibContrast` never rises with distance).
+ */
+export const SILO_RIB_TONE_FADE = [0.25, 0.45] as const;
 
 /**
  * TS mirror of the shader's coarse rib band, -1..1 before its amplitudes: the
@@ -350,6 +358,27 @@ export function siloRibBand(phase: number, cyclesPerPixel: number, fineFade: num
 }
 
 /**
+ * The ceiling on the band, as a lower bound on the fine ribs' contrast in its
+ * units, so the handover never adds stripes. Measured narrow-band on the silos
+ * camera (final4/final5-med-12): the band at 0.12 read rms 4.0-4.7 sRGB levels
+ * on bins 3-5, where final4 (no band) read 0.9-1.7 and no judge saw stripes;
+ * 0.12 x 1.5 / 4.5 = 0.04. The near bin's drawn ribs read 3.5-4.7, well above.
+ */
+export const SILO_FINE_RIB_TONE_EQUIV = 0.04;
+
+/**
+ * Total ribbed contrast at a coarse-wave footprint of `w` cycles a pixel: the
+ * fine ribs while they are drawn, the band as they fade. TS mirror of the
+ * shader's crossfade, for the never-strengthens-with-distance contract.
+ */
+export function siloRibContrast(w: number): number {
+  const fine = siloCorrugationFade(w * (SILO_FINE_RIDGES / SILO_SHELL_PROFILE.ridges));
+  return (
+    SILO_FINE_RIB_TONE_EQUIV * fine + SILO_RIB_TONE.albedo * Math.abs(siloRibBand(0.25, w, fine))
+  );
+}
+
+/**
  * Run-off stains that survive distance. The ring run-off (`machineGalvRun`)
  * lives in 0.2 m columns and fades with them, so from the overview the drums
  * carried no weathering at all. These sit in 48 columns (0.79 m), a share of
@@ -357,6 +386,45 @@ export function siloRibBand(phase: number, cyclesPerPixel: number, fineFade: num
  * eave: darker zinc, duller.
  */
 export const SILO_STAIN = { columns: 48, liveFraction: 0.45, strength: 0.16 } as const;
+
+/**
+ * Per-bin offset on the run-off and stain column hashes, from the bin's world
+ * XZ axis (rounded, so the interpolated varying cannot flip it). Without it
+ * every drum carried the same streaks in the same columns: the double dark
+ * streak under the first ring sat in one place on silos 2-5 (final5-med-12).
+ */
+export function siloWeatherSeed(axisX: number, axisZ: number): number {
+  return Math.floor(axisX * 3 + axisZ * 7 + 0.5);
+}
+
+const fract = (value: number) => value - Math.floor(value);
+
+/** TS mirror of the shader's `machineGalvHash`. */
+export function siloGalvHash(x: number, y: number, z: number): number {
+  const px = fract(x * 0.3183099 + 0.71) * 17;
+  const py = fract(y * 0.3183099 + 0.113) * 17;
+  const pz = fract(z * 0.3183099 + 0.419) * 17;
+  return fract(px * py * pz * (px + py + pz));
+}
+
+/**
+ * Live columns of one ring's run-off (`salt` 3, ring step 7) or stains (`salt`
+ * 23, ring step 5) on the bin with weather seed `seed`. TS mirror, for tests.
+ */
+export function siloLiveColumns(
+  seed: number,
+  columns: number,
+  liveFraction: number,
+  ring: number,
+  salt: number
+): number[] {
+  const ringStep = salt === 3 ? 7 : 5;
+  const live: number[] = [];
+  for (let column = 0; column < columns; column++) {
+    if (siloGalvHash(column + seed, ring * ringStep, salt) >= 1 - liveFraction) live.push(column);
+  }
+  return live;
+}
 
 /**
  * The 1 m valley between neighbouring bins. Each drum's face toward its
@@ -470,6 +538,16 @@ export const SILO_FLOOD_PROFILE = {
  * (final4-med-22 yard). A ground uplight's beam ends at the eave.
  */
 export const SILO_FLOOD_LEDGE = [-0.6, -0.3] as const;
+
+/**
+ * The floods' response on the galvanised film, rebalanced for patina 0.5.
+ * They land mostly on the patina's diffuse share (a ground uplight's mirror
+ * direction runs up past every camera), and round 5 cut that share from 0.56
+ * to 0.35 of each fragment: final5-med-22 silos read 0.895 of final4 in sRGB
+ * on every bin (0.856-0.919), about 0.78 in linear light. Scaling the flood
+ * term alone puts the night drum back without touching the day film.
+ */
+export const SILO_FLOOD_PATINA_GAIN = 1.28;
 
 const smoothstep = (edge0: number, edge1: number, value: number): number => {
   const t = THREE.MathUtils.clamp((value - edge0) / (edge1 - edge0), 0, 1);
@@ -732,17 +810,19 @@ float galvPatinaField =
 // A film of near-even coverage (SILO_PATINA_FILM), not metal and matte patches.
 float galvPatina = clamp( uMachinePatina.x + uMachinePatina.y * ( galvPatinaField - 0.5 ), 0.0, 1.0 ) * uMachineGalv.x;
 float galvColumns = ( atan( vMachineObject.z, vMachineObject.x ) / 6.28318530718 + 0.5 ) * 180.0;
+// Per-bin hash offset (siloWeatherSeed): each drum its own live columns.
+float galvSiloSeed = floor( vMachineAxis.x * 3.0 + vMachineAxis.y * 7.0 + 0.5 );
 float galvColumn = floor( galvColumns );
 float galvAcross = fract( galvColumns );
 // Written out, not looped: no dynamic vector indexing for the ANGLE backends.
 float galvDrip = max(
   max(
-    machineGalvRun( uMachineRings.x, 0.0, galvColumn, galvAcross, vMachineObject.y ),
-    machineGalvRun( uMachineRings.y, 1.0, galvColumn, galvAcross, vMachineObject.y )
+    machineGalvRun( uMachineRings.x, 0.0, galvColumn + galvSiloSeed, galvAcross, vMachineObject.y ),
+    machineGalvRun( uMachineRings.y, 1.0, galvColumn + galvSiloSeed, galvAcross, vMachineObject.y )
   ),
   max(
-    machineGalvRun( uMachineRings.z, 2.0, galvColumn, galvAcross, vMachineObject.y ),
-    machineGalvRun( uMachineRings.w, 3.0, galvColumn, galvAcross, vMachineObject.y )
+    machineGalvRun( uMachineRings.z, 2.0, galvColumn + galvSiloSeed, galvAcross, vMachineObject.y ),
+    machineGalvRun( uMachineRings.w, 3.0, galvColumn + galvSiloSeed, galvAcross, vMachineObject.y )
   )
 );
 galvDrip *= ( 1.0 - smoothstep( 0.25, 0.6, fwidth( galvColumns ) ) ) * uMachineGalv.w;
@@ -753,12 +833,12 @@ if ( uMachineRib.z > 0.0 ) {
   float galvStainAcross = fract( galvStainColumns );
   galvStain = max(
     max(
-      machineGalvStain( uMachineRings.x, 0.0, galvStainColumn, galvStainAcross, vMachineObject.y ),
-      machineGalvStain( uMachineRings.y, 1.0, galvStainColumn, galvStainAcross, vMachineObject.y )
+      machineGalvStain( uMachineRings.x, 0.0, galvStainColumn + galvSiloSeed, galvStainAcross, vMachineObject.y ),
+      machineGalvStain( uMachineRings.y, 1.0, galvStainColumn + galvSiloSeed, galvStainAcross, vMachineObject.y )
     ),
     max(
-      machineGalvStain( uMachineRings.z, 2.0, galvStainColumn, galvStainAcross, vMachineObject.y ),
-      machineGalvStain( uMachineRings.w, 3.0, galvStainColumn, galvStainAcross, vMachineObject.y )
+      machineGalvStain( uMachineRings.z, 2.0, galvStainColumn + galvSiloSeed, galvStainAcross, vMachineObject.y ),
+      machineGalvStain( uMachineRings.w, 3.0, galvStainColumn + galvSiloSeed, galvStainAcross, vMachineObject.y )
     )
   ) * ( 1.0 - smoothstep( 0.35, 0.7, fwidth( galvStainColumns ) ) ) * uMachineRib.z;
 }
@@ -843,7 +923,7 @@ if ( uMachineFlood.x > 0.0 && galvFloodLedge > 0.0 ) {
       machineFloodCandela( toFlood, headDir ) * galvFloodNdl / r2,
       ${(SILO_FLOOD_PROFILE.cap * SILO_FLOOD_PROFILE.peak).toFixed(3)}
     );
-    galvFlood.color = uMachineFloodColor * ( uMachineFlood.x * galvFloodLedge * galvFloodE / galvFloodNdl );
+    galvFlood.color = uMachineFloodColor * ( uMachineFlood.x * galvFloodLedge * galvFloodE / galvFloodNdl ) * ${SILO_FLOOD_PATINA_GAIN.toFixed(3)};
     RE_Direct( galvFlood, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight );
   }
 }
