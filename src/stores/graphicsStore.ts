@@ -51,6 +51,9 @@ export interface PerfDebugSettings {
   /** Same-page optical cost controls, never lower a preset to obtain a pass. */
   disableAmbientOcclusion: boolean;
   disableBloom: boolean;
+  /** Same-page AA controls: the composer's SMAA pass and its MSAA samples. */
+  disableSMAA: boolean;
+  disableComposerMsaa: boolean;
   disableAllAnimations: boolean; // Master toggle - disable all useFrame hooks
   showPerfOverlay: boolean; // Show performance metrics overlay
 }
@@ -202,6 +205,8 @@ const DEFAULT_PERF_DEBUG: PerfDebugSettings = {
   disableSurfaceTreatment: false,
   disableAmbientOcclusion: false,
   disableBloom: false,
+  disableSMAA: false,
+  disableComposerMsaa: false,
   disableAllAnimations: false,
   showPerfOverlay: false,
 };

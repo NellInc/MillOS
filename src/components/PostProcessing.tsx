@@ -18,11 +18,11 @@ import {
   ToneMapping,
   Vignette,
 } from '@react-three/postprocessing';
-import { BlendFunction } from 'postprocessing';
+import { BlendFunction, SMAAPreset } from 'postprocessing';
 import { DisplayHueSaturation } from './environment/DisplayHueSaturation';
 // `n8ao` ships no type declarations, so hold its ref through the base class.
 // The guarded transparency adapter handles the additional runtime contract.
-import type { EffectComposer as Composer, Pass, VignetteEffect } from 'postprocessing';
+import type { EffectComposer as Composer, Pass, SMAAEffect, VignetteEffect } from 'postprocessing';
 import { useFrame } from '@react-three/fiber';
 import { useShallow } from 'zustand/react/shallow';
 import { useGraphicsStore, isPostProcessingActive } from '../stores/graphicsStore';
@@ -30,6 +30,7 @@ import { useAudioAnalyzerStore } from '../stores/audioAnalyzerStore';
 import { SSAO_PALETTE_COLOR } from '../utils/digitalTwinPalette';
 import { fulfilComposerCapture, setComposerCaptureAvailable } from '../utils/sceneCapture';
 import { reuseBeautyTransforms } from './performance/transparencyTransforms';
+import { encodeSmaaEdgeInput } from '../utils/smaaPerceptualEdges';
 import { drawStartupFrame, getStartupSnapshot, subscribeStartup } from '../utils/startupReadiness';
 import {
   AMBIENT_OCCLUSION,
@@ -126,7 +127,8 @@ export const PostProcessing: React.FC = () => {
       enableFilmGrain: state.graphics.enableFilmGrain,
       enableDepthOfField: state.graphics.enableDepthOfField,
       enableColorGrade: state.graphics.enableColorGrade,
-      enableSMAA: state.graphics.enableSMAA,
+      enableSMAA: state.graphics.enableSMAA && !state.graphics.perfDebug.disableSMAA,
+      composerMsaa: !state.graphics.perfDebug.disableComposerMsaa,
       toneMappingMode: state.graphics.toneMappingMode,
       aoQuality: state.graphics.aoQuality,
       enableAudioReactive: state.graphics.enableAudioReactive,
@@ -187,6 +189,24 @@ export const PostProcessing: React.FC = () => {
   useEffect(() => {
     if (n8aoRef.current) n8aoRef.current.enabled = graphics.enableAmbientOcclusion;
   }, [graphics.enableAmbientOcclusion, aoMounted]);
+
+  // --- Anti-aliasing ------------------------------------------------------
+  // MSAA resolves geometric edges whatever their brightness, including thin
+  // members narrower than a pixel; SMAA then cleans the shading edges MSAA
+  // cannot see. The perf-debug switch writes the composer's own setter rather
+  // than the prop: the R3F wrapper lists `multisampling` in the memo that
+  // CONSTRUCTS the composer, so a prop change would build a second composer
+  // and leak the first one's targets.
+  const msaaSamples = graphics.composerMsaa ? COMPOSER_MULTISAMPLING : 0;
+  useEffect(() => {
+    const composer = composerRef.current;
+    if (composer && composer.multisampling !== msaaSamples) composer.multisampling = msaaSamples;
+  }, [msaaSamples]);
+  const setSmaaRef = useCallback((effect: SMAAEffect | null) => {
+    if (effect && !encodeSmaaEdgeInput(effect.edgeDetectionMaterial)) {
+      console.warn('[PostProcessing] SMAA edge shader changed shape; edges compared in linear');
+    }
+  }, []);
 
   const aoQuality = aoQualityLevel(graphics.aoQuality);
   // Half resolution below the top AO step. Derived from the numeric knob rather
@@ -282,9 +302,13 @@ export const PostProcessing: React.FC = () => {
 
         {/* Last, so it operates on the tone-mapped image. The composer renders
             to its own HalfFloat target, which makes the canvas `antialias`
-            context attribute inert - without this the composer tiers would ship
-            with no anti-aliasing at all. */}
-        {graphics.enableSMAA && <SMAA />}
+            context attribute inert for the scene.
+            That target holds LINEAR values, and SMAA's 0.1 threshold assumes
+            encoded ones: as shipped it found no edge darker than mid-grey, so
+            the truss and every night silhouette stair-stepped untouched.
+            `setSmaaRef` moves edge detection to encoded values. HIGH adds the
+            diagonal and corner search that truss bracing needs. */}
+        {graphics.enableSMAA && <SMAA ref={setSmaaRef} preset={SMAAPreset.HIGH} />}
       </>
     ),
     [
@@ -299,6 +323,7 @@ export const PostProcessing: React.FC = () => {
       graphics.enableChromaticAberration,
       graphics.enableFilmGrain,
       graphics.enableSMAA,
+      setSmaaRef,
       setVignetteRef,
       setN8aoRef,
     ]
@@ -316,7 +341,9 @@ export const PostProcessing: React.FC = () => {
     // the whole scene with a normal material - a second full draw-call
     // submission. N8AO needs only depth.
     // `multisampling` is set explicitly: the R3F default of 8 costs roughly
-    // 132 MB of MSAA storage at 1920x1080 plus a per-frame resolve.
+    // 132 MB of MSAA storage at 1920x1080 plus a per-frame resolve. It is the
+    // construction value only; the perf-debug switch above goes through the
+    // composer's setter.
     <>
       <EffectComposer
         ref={composerRef}

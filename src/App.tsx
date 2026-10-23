@@ -724,11 +724,16 @@ const App: React.FC = () => {
               far: CAMERA_DEPTH.far,
             }}
             gl={{
-              // Context MSAA is immutable. A fresh Medium context retained its
-              // four samples after a Low downgrade, unlike a saved-Low start.
-              // Composer tiers use SMAA; Low deliberately has no AA. Working
-              // if every context stays at zero samples across quality changes.
-              antialias: false,
+              // Context MSAA is immutable, so it must not depend on the tier
+              // that created the context: every context gets the same samples.
+              // Low has no composer, so these are its only AA - without them
+              // rails, kerbs, roof battens and lane paint broke into dashes.
+              // Composer tiers draw one full-screen pass into this buffer and
+              // carry their own MSAA + SMAA; for them the cost is the canvas
+              // resolve. Low measured +0.2 ms (9.4 -> 9.6 ms interior, 9.8 ->
+              // 10.1 ms overview, vsync off, inside the spread). Working if a Low frame
+              // shows blended silhouettes after a Medium-to-Low downgrade too.
+              antialias: true,
               alpha: false,
               // Tone mapping and exposure are NOT set here. R3F re-runs
               // `applyProps(gl, glConfig)` whenever a Canvas prop changes,
