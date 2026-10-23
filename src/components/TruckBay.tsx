@@ -91,9 +91,13 @@ import {
   DOCK_BUMPER_BLOCKS,
   DOCK_LEVELER_LIP,
   DOCK_PLATFORM_SECTION,
+  DOCK_SHELTER_GUIDE_STRIPE,
+  DOCK_SHELTER_HEAD_PLEATS,
+  DOCK_SHELTER_SIDE_PLEATS,
   DOCK_WEAR_BUMPER,
   spanOf,
   type DockMarking,
+  type ShelterPart,
   YARD_MAST,
 } from './truckbay/dockApronLayout';
 import { DOCK_DECK, DOCK_FORKLIFT_ID, dockForkliftHoldsTruck } from '../constants/dockLoading';
@@ -2559,6 +2563,60 @@ export const RollUpDoor: React.FC<{
   );
 };
 
+/** Shelter fabric folds: a shade lighter than the pad, so each fold catches light. */
+const SHELTER_PLEAT_MATERIAL = new THREE.MeshStandardMaterial({
+  name: 'dock-shelter-pleat',
+  color: '#323b46',
+  roughness: 0.95,
+  metalness: 0,
+});
+const SHELTER_STRIPE_MATERIAL = new THREE.MeshStandardMaterial({
+  name: 'dock-shelter-guide-stripe',
+  color: '#d9b021',
+  roughness: 0.8,
+  metalness: 0,
+});
+const SHELTER_UNIT_BOX = new THREE.BoxGeometry(1, 1, 1);
+
+/**
+ * The folds on one shelter pad, as one instanced draw. A child of the pad, so
+ * it compresses with it; kept out of the static batch for the same reason.
+ */
+const ShelterFolds: React.FC<{ parts: readonly ShelterPart[] }> = ({ parts }) => {
+  const ref = useRef<THREE.InstancedMesh>(null);
+  useLayoutEffect(() => {
+    const mesh = ref.current;
+    if (!mesh) return;
+    const dummy = new THREE.Object3D();
+    parts.forEach(({ position, scale }, index) => {
+      dummy.position.set(...position);
+      dummy.scale.set(...scale);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(index, dummy.matrix);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.computeBoundingSphere();
+  }, [parts]);
+  return (
+    <instancedMesh
+      ref={ref}
+      args={[SHELTER_UNIT_BOX, SHELTER_PLEAT_MATERIAL, parts.length]}
+      receiveShadow
+      userData={{ noStaticBatch: true }}
+    />
+  );
+};
+
+const ShelterGuideStripe: React.FC = () => (
+  <mesh
+    geometry={SHELTER_UNIT_BOX}
+    material={SHELTER_STRIPE_MATERIAL}
+    position={[...DOCK_SHELTER_GUIDE_STRIPE.position]}
+    scale={[...DOCK_SHELTER_GUIDE_STRIPE.scale]}
+    userData={{ noStaticBatch: true }}
+  />
+);
+
 // Dock shelter (compresses against trailer)
 export const DockShelter: React.FC<{
   position: [number, number, number];
@@ -2640,6 +2698,8 @@ export const DockShelter: React.FC<{
           />
         </GeneratedBoundary>
         <meshStandardMaterial color="#1f2937" roughness={0.95} />
+        <ShelterFolds parts={DOCK_SHELTER_SIDE_PLEATS} />
+        <ShelterGuideStripe />
       </mesh>
       <mesh ref={rightRef} position={[2.2, 2, 1.5]} userData={{ noStaticBatch: true }}>
         <GeneratedBoundary fallback={<boxGeometry args={[0.3, 3.5, 3]} />}>
@@ -2650,6 +2710,8 @@ export const DockShelter: React.FC<{
           />
         </GeneratedBoundary>
         <meshStandardMaterial color="#1f2937" roughness={0.95} />
+        <ShelterFolds parts={DOCK_SHELTER_SIDE_PLEATS} />
+        <ShelterGuideStripe />
       </mesh>
       <mesh ref={topRef} position={[0, 3.8, 1.5]} userData={{ noStaticBatch: true }}>
         <GeneratedBoundary fallback={<boxGeometry args={[4.1, 0.3, 3]} />}>
@@ -2660,6 +2722,7 @@ export const DockShelter: React.FC<{
           />
         </GeneratedBoundary>
         <meshStandardMaterial color="#1f2937" roughness={0.95} />
+        <ShelterFolds parts={DOCK_SHELTER_HEAD_PLEATS} />
       </mesh>
     </group>
   );
@@ -3632,18 +3695,19 @@ export const TruckBay: React.FC = () => {
         {/* Painted on the yard, so it takes the yard's overlay datum. At the
             literal 0.05 it was UNDER the tarmac slab at 0.08 and had never
             been visible in any capture; it is 1 cm of clean separation now. */}
-        {/* Down the strip west of the trucks' loop, clear of every wheel
-            line and the pallet island (TRUCK_STAGING_LETTERING). */}
+        {/* Across the open apron west of the trucks' loop, reading upright
+            from the overview camera, clear of every wheel line and the
+            pallet island (TRUCK_STAGING_LETTERING). */}
         <Text
-          surface="painted"
+          surface="painted-ground"
           position={[
             TRUCK_STAGING_LETTERING.x,
             EXTERIOR_LAYERS.groundOverlay,
             TRUCK_STAGING_LETTERING.z - SHIPPING_YARD_ORIGIN_Z,
           ]}
-          rotation={[-Math.PI / 2, 0, Math.PI / 2]}
+          rotation={[-Math.PI / 2, 0, TRUCK_STAGING_LETTERING.yaw]}
           fontSize={TRUCK_STAGING_LETTERING.fontSize}
-          color="#475569"
+          color={TRUCK_STAGING_LETTERING.color}
           anchorX="center"
           anchorY="middle"
         >
@@ -4035,15 +4099,15 @@ export const TruckBay: React.FC = () => {
             been visible in any capture; it is 1 cm of clean separation now. */}
         {/* The shipping legend turned half a revolution about the site origin. */}
         <Text
-          surface="painted"
+          surface="painted-ground"
           position={[
             -TRUCK_STAGING_LETTERING.x,
             EXTERIOR_LAYERS.groundOverlay,
             -(TRUCK_STAGING_LETTERING.z - SHIPPING_YARD_ORIGIN_Z),
           ]}
-          rotation={[-Math.PI / 2, 0, -Math.PI / 2]}
+          rotation={[-Math.PI / 2, 0, TRUCK_STAGING_LETTERING.yaw + Math.PI]}
           fontSize={TRUCK_STAGING_LETTERING.fontSize}
-          color="#475569"
+          color={TRUCK_STAGING_LETTERING.color}
           anchorX="center"
           anchorY="middle"
         >

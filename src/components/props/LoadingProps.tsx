@@ -82,15 +82,19 @@ INK.transparent = true;
  * Stretch film. It is a real translucent material - film is - but thin and
  * glossy: a sheen over the sacks rather than a milky layer. At 0.42 opacity
  * and 0.32 roughness, over a closed shell, the loads read as sacks in a
- * ghosted glass box (logistics-close med-06).
+ * ghosted glass box (logistics-close med-06). Its density is per vertex
+ * (`STRETCH_FILM_ROWS`); a faint cool tint and a low roughness are what read
+ * as film over cream sacks.
  */
 export const STRETCH_FILM_MATERIAL = new THREE.MeshStandardMaterial({
   name: 'loading-prop-stretch-film',
-  color: '#e8eef0',
-  roughness: 0.18,
+  color: '#dbe5ea',
+  roughness: 0.14,
   metalness: 0,
   transparent: true,
-  opacity: 0.36,
+  opacity: 1,
+  vertexColors: true,
+  side: THREE.FrontSide,
   depthWrite: false,
 });
 const JACK_PAINT = applyWorldSurface(
@@ -116,11 +120,26 @@ const BIN_LID = new THREE.MeshStandardMaterial({ color: '#2f3a40', roughness: 0.
 const UNIT_BOX = new THREE.BoxGeometry(1, 1, 1);
 const WHEEL = new THREE.CylinderGeometry(0.085, 0.085, 0.07, 14).rotateZ(Math.PI / 2);
 /**
- * The film: two bands round the load's outline (corners rounded off), one
- * binding the bottom course to the pallet deck and one over the top course,
- * with the middle courses bare. No lid and no floor: a flat translucent lid
- * across the top course and a full-height sleeve with a hard outline down each
- * corner is what read as a ghosted glass box.
+ * The film's rows up the load, (height, alpha): a full-height sleeve, denser
+ * where the wrap is doubled - binding the bottom course to the pallet deck
+ * and over the top course - and thinner up the middle. Round 4's two bands
+ * with the middle bare read as no wrap at all (shipping med-12); round 3's
+ * closed 42% shell with a lid read as a ghosted glass box.
+ */
+export const STRETCH_FILM_ROWS: readonly (readonly [number, number])[] = [
+  [PALLET_HEIGHT - 0.01, 0.4],
+  [PALLET_HEIGHT + 0.3, 0.4],
+  [PALLET_HEIGHT + 0.42, 0.24],
+  [LOADED_PALLET_HEIGHT - 0.36, 0.24],
+  [LOADED_PALLET_HEIGHT - 0.24, 0.4],
+  [LOADED_PALLET_HEIGHT + 0.01, 0.4],
+];
+/**
+ * The film: one sleeve round the load's outline (corners rounded off), from
+ * the pallet deck to over the top course (`STRETCH_FILM_ROWS`). No lid and no
+ * floor, and front faces only, so no edge shows two layers: a flat
+ * translucent lid across the top course and a doubled outline down each
+ * corner are what read as a ghosted glass box.
  */
 export const STRETCH_FILM_GEOMETRY = (() => {
   // The sack courses reach x +/-0.447 and z +/-0.392 of the unit pallet.
@@ -138,14 +157,14 @@ export const STRETCH_FILM_GEOMETRY = (() => {
   shape.lineTo(-halfX, -halfZ + r);
   shape.quadraticCurveTo(-halfX, -halfZ, -halfX + r, -halfZ);
   const outline = shape.getPoints(3);
-  const bands: (readonly [number, number])[] = [
-    [PALLET_HEIGHT - 0.01, PALLET_HEIGHT + 0.36],
-    [LOADED_PALLET_HEIGHT - 0.3, LOADED_PALLET_HEIGHT + 0.01],
-  ];
+  const rows = STRETCH_FILM_ROWS;
   const position: number[] = [];
   const normal: number[] = [];
-  for (const [y0, y1] of bands)
+  const colour: number[] = [];
+  for (let row = 0; row < rows.length - 1; row += 1)
     for (let i = 0; i < outline.length - 1; i += 1) {
+      const [y0, alpha0] = rows[row];
+      const [y1, alpha1] = rows[row + 1];
       const a = outline[i];
       const b = outline[i + 1];
       if (a.distanceTo(b) < 1e-6) continue;
@@ -171,11 +190,14 @@ export const STRETCH_FILM_GEOMETRY = (() => {
       for (const k of order) {
         position.push(...quad[k]);
         normal.push(nx / length, 0, nz / length);
+        // Film density rides the vertex alpha (three reads a 4-wide colour).
+        colour.push(1, 1, 1, quad[k][1] === y0 ? alpha0 : alpha1);
       }
     }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(position, 3));
   geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normal, 3));
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colour, 4));
   geometry.computeBoundingBox();
   geometry.computeBoundingSphere();
   return geometry;

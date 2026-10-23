@@ -31,18 +31,31 @@ const PANEL = applyWorldSurface(
  * ground-floor door glow from the exterior lamp level. These meshes stay out
  * of the static batch: the batcher clones materials, and a merged clone would
  * never see the per-frame intensity.
+ *
+ * On the flats' schedule since final4: it glowed full height from the lamp
+ * level while the block beside it is lit on alternate storeys, so at 18:30
+ * one cream strip stood beside a half-lit block (farm, shipping). Only the
+ * storeys whose flats are lit glow (`stairStoreys`), linearly with the lamp
+ * level and in the windows' glow colour (`applyApartmentWindows`, #ffdcb0),
+ * and the glass is satin rather than a mirror for the dusk sky.
  */
 export const STAIR_LIGHT_GLAZING = new THREE.MeshStandardMaterial({
   name: 'apartment-stair-light-glazing',
   color: '#1c2830',
-  roughness: 0.12,
-  metalness: 0.2,
-  emissive: '#ffd29a',
+  roughness: 0.4,
+  metalness: 0.05,
+  emissive: '#ffdcb0',
   emissiveIntensity: 0,
 });
+/** The slot on the storeys whose flats are dark: the same glass, never lit. */
+const STAIR_GLAZING = new THREE.MeshStandardMaterial({
+  name: 'apartment-stair-glazing',
+  color: '#1c2830',
+  roughness: 0.4,
+  metalness: 0.05,
+});
 /** Emissive intensity of the stair glazing at an exterior lamp level (0 day, 1 night). */
-export const stairLightIntensity = (level: number) =>
-  0.3 * THREE.MathUtils.clamp(level, 0, 1) ** 1.5;
+export const stairLightIntensity = (level: number) => 0.3 * THREE.MathUtils.clamp(level, 0, 1);
 const UNBATCHED = { noStaticBatch: true } as const;
 const BOX = new THREE.BoxGeometry(1, 1, 1);
 
@@ -150,13 +163,18 @@ export const ApartmentFacade: React.FC<{ floors: ApartmentFloors }> = ({ floors 
         material={COPING}
       />
       <StairLightDriver />
-      <Block
-        min={[t.maxX - 0.03, 1.2, (t.minZ + t.maxZ) / 2 - 0.45]}
-        max={[t.maxX + 0.03, t.top - 1.4, (t.minZ + t.maxZ) / 2 + 0.45]}
-        material={STAIR_LIGHT_GLAZING}
-        cast={false}
-        userData={UNBATCHED}
-      />
+      {/* The slot storey by storey, lit where the flats are (stairStoreys);
+          each pane meets the landings, which stand over its ends. */}
+      {layout.stairStoreys.map(({ storey, bottom, top, lit }) => (
+        <Block
+          key={storey}
+          min={[t.maxX - 0.03, bottom, (t.minZ + t.maxZ) / 2 - 0.45]}
+          max={[t.maxX + 0.03, top, (t.minZ + t.maxZ) / 2 + 0.45]}
+          material={lit ? STAIR_LIGHT_GLAZING : STAIR_GLAZING}
+          cast={false}
+          userData={lit ? UNBATCHED : undefined}
+        />
+      ))}
       {/* A landing slab across the slot at every upper floor, so the lit slot
           reads as a stair rather than one strip light. */}
       {layout.stairLandings.map((y) => (

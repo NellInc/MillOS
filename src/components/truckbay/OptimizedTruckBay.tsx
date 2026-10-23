@@ -96,6 +96,11 @@ const WHEEL = lathe(TRUCK_TYRE_PROFILE, 24);
 // the old `index < 2` test silently steers the wrong wheels the moment the
 // layout grows or is reordered, and it typechecks either way. The yard's tyre
 // tracks (`yardWear.ts`) are laid from this same table.
+//
+// The trailer runs a rear tandem, 1.3 m apart on the slide rails, in its rear
+// third; its centre (z -8.35) sits near the trailer pivot the yard kinematics use
+// (`TRAILER_AXLE_DISTANCE` 8.2 behind the fifth wheel). The front axle stood
+// at z -4.5, mid-length, which a semi-trailer never does (final4 shipping).
 export const TRUCK_WHEEL_LAYOUT = [
   // [x, y, z, isTrailer, isSteer, hasHub]
   [-1.38, 0.58, 3.7, false, true, true],
@@ -104,14 +109,14 @@ export const TRUCK_WHEEL_LAYOUT = [
   [1.38, 0.58, 0.4, false, false, true],
   [-1.0, 0.58, 0.4, false, false, false],
   [1.0, 0.58, 0.4, false, false, false],
-  [-1.38, 0.58, -4.5, true, false, true],
-  [1.38, 0.58, -4.5, true, false, true],
-  [-1.0, 0.58, -4.5, true, false, false],
-  [1.0, 0.58, -4.5, true, false, false],
-  [-1.38, 0.58, -8.9, true, false, true],
-  [1.38, 0.58, -8.9, true, false, true],
-  [-1.0, 0.58, -8.9, true, false, false],
-  [1.0, 0.58, -8.9, true, false, false],
+  [-1.38, 0.58, -7.7, true, false, true],
+  [1.38, 0.58, -7.7, true, false, true],
+  [-1.0, 0.58, -7.7, true, false, false],
+  [1.0, 0.58, -7.7, true, false, false],
+  [-1.38, 0.58, -9.0, true, false, true],
+  [1.38, 0.58, -9.0, true, false, true],
+  [-1.0, 0.58, -9.0, true, false, false],
+  [1.0, 0.58, -9.0, true, false, false],
 ] as const;
 const HUB = lathe(TRUCK_RIM_PROFILE, 24);
 const STEERING_WHEEL = new THREE.TorusGeometry(0.22, 0.025, 8, 18);
@@ -522,15 +527,12 @@ const TRAILER_SKIN_DETAILS: readonly DetailInstance[] = [
   // Wheel arches over each tandem axle. Width spans x 1.245-1.595, which
   // reaches past the outer tyre face at 1.57 - a fender narrower than its tyre
   // is worse than none, because it draws the eye to the overhang.
-  { position: [-1.42, 1.25, -4.5], scale: [0.35, 0.16, 1.6] },
-  { position: [1.42, 1.25, -4.5], scale: [0.35, 0.16, 1.6] },
-  { position: [-1.42, 1.25, -8.9], scale: [0.35, 0.16, 1.6] },
-  { position: [1.42, 1.25, -8.9], scale: [0.35, 0.16, 1.6] },
-  // Aero side skirts, forward and between the tandems.
-  { position: [-1.29, 0.79, -2.6], scale: [0.05, 0.9, 2.2] },
-  { position: [1.29, 0.79, -2.6], scale: [0.05, 0.9, 2.2] },
-  { position: [-1.29, 0.79, -6.7], scale: [0.05, 0.9, 2.8] },
-  { position: [1.29, 0.79, -6.7], scale: [0.05, 0.9, 2.8] },
+  // One fender spans both tandem axles (z -7.7 and -9.0).
+  { position: [-1.42, 1.25, -8.35], scale: [0.35, 0.16, 2.9] },
+  { position: [1.42, 1.25, -8.35], scale: [0.35, 0.16, 2.9] },
+  // Aero side skirts, from behind the landing gear to ahead of the tandem.
+  { position: [-1.29, 0.79, -4.1], scale: [0.05, 0.9, 5.2] },
+  { position: [1.29, 0.79, -4.1], scale: [0.05, 0.9, 5.2] },
 ];
 
 /** The underride guard bar across the trailer's tail; the dock leveler lip stops short of it. */
@@ -683,6 +685,31 @@ export const TRUCK_CAB_BEVELS: readonly (DetailInstance & {
 
 /** The cab shell box: x +/-1.275, y 0.475-2.025, z 1.4-4.9. */
 export const TRUCK_CAB_SHELL = { position: [0, 1.25, 3.15], scale: [2.55, 1.55, 3.5] } as const;
+
+/** Each side window pane: its plane (|x|) and its y and z spans. */
+export const TRUCK_CAB_SIDE_GLASS = { x: 1.29, y: [1.95, 3.15], z: [2.2, 4.4] } as const;
+
+/**
+ * The cab's upper sides, in its paint: above the window up into the roof,
+ * the rear quarter behind it, and the strip ahead of it to the A pillar.
+ * final4 med-12 shipping read the cab as a hollow wire frame under a floating
+ * roof: above the shell its sides were open but for one 0.55-opacity pane,
+ * with the far window, the sky and the gap under the roof showing through.
+ */
+export const TRUCK_CAB_SIDE_PANELS: readonly DetailInstance[] = [-1, 1].flatMap((side) => [
+  { position: [side * 1.255, 3.37, 3.11] as const, scale: [0.05, 0.46, 3.26] as const },
+  { position: [side * 1.255, 2.575, 1.84] as const, scale: [0.05, 1.15, 0.73] as const },
+  { position: [side * 1.255, 2.575, 4.57] as const, scale: [0.05, 1.15, 0.35] as const },
+]);
+
+/**
+ * A dark trim liner 9 cm behind each side pane, so the pane reads as tinted
+ * glass on a closed cab rather than a hole through it.
+ */
+export const TRUCK_CAB_WINDOW_LINERS: readonly DetailInstance[] = [-1, 1].map((side) => ({
+  position: [side * 1.2, 2.55, 3.3] as const,
+  scale: [0.04, 1.2, 2.2] as const,
+}));
 
 export const CAB_DETAILS: readonly DetailInstance[] = [
   // Steer axle fenders. The drive axle had a matching pair: flat 1.55 m slabs
@@ -1317,20 +1344,47 @@ export function OptimizedTruckVisual({
           scale={[2.18, 1.25, 0.06]}
           renderOrder={VEHICLE_GLASS_RENDER_ORDER}
         />
-        <mesh
-          geometry={UNIT_BOX}
-          material={MATERIALS.glass}
-          position={[-1.29, 2.55, 3.3]}
-          scale={[0.06, 1.2, 2.2]}
-          renderOrder={VEHICLE_GLASS_RENDER_ORDER}
-        />
-        <mesh
-          geometry={UNIT_BOX}
-          material={MATERIALS.glass}
-          position={[1.29, 2.55, 3.3]}
-          scale={[0.06, 1.2, 2.2]}
-          renderOrder={VEHICLE_GLASS_RENDER_ORDER}
-        />
+        {[-1, 1].map((side) => (
+          <mesh
+            key={`side-glass-${side}`}
+            geometry={UNIT_BOX}
+            material={MATERIALS.glass}
+            position={[
+              side * TRUCK_CAB_SIDE_GLASS.x,
+              (TRUCK_CAB_SIDE_GLASS.y[0] + TRUCK_CAB_SIDE_GLASS.y[1]) / 2,
+              (TRUCK_CAB_SIDE_GLASS.z[0] + TRUCK_CAB_SIDE_GLASS.z[1]) / 2,
+            ]}
+            scale={[
+              0.06,
+              TRUCK_CAB_SIDE_GLASS.y[1] - TRUCK_CAB_SIDE_GLASS.y[0],
+              TRUCK_CAB_SIDE_GLASS.z[1] - TRUCK_CAB_SIDE_GLASS.z[0],
+            ]}
+            renderOrder={VEHICLE_GLASS_RENDER_ORDER}
+          />
+        ))}
+        {/* The upper sides closed in paint, and a liner behind each pane: a
+            silhouette part, so never gated. */}
+        {TRUCK_CAB_SIDE_PANELS.map(({ position, scale }) => (
+          <mesh
+            key={`side-panel-${position.join(',')}`}
+            geometry={UNIT_BOX}
+            material={cabMaterial}
+            position={[...position]}
+            scale={[...scale]}
+            castShadow
+            receiveShadow
+          />
+        ))}
+        {TRUCK_CAB_WINDOW_LINERS.map(({ position, scale }) => (
+          <mesh
+            key={`window-liner-${position[0]}`}
+            geometry={UNIT_BOX}
+            material={MATERIALS.interior}
+            position={[...position]}
+            scale={[...scale]}
+            receiveShadow
+          />
+        ))}
         {/* Windscreen centre bar and the whole cab interior. The interior sits
             behind 0.55-opacity glazing that is NOT gated, so at range the cab
             reads exactly as it did: a dark greenhouse. */}

@@ -90,7 +90,27 @@ export function apartmentFacadeLayout(floors: ApartmentFloors) {
    * glazing slot at night. The galleries' slab tops are those floors.
    */
   const stairLandings = gallery.tops.map((top) => top - gallery.thickness / 2);
-  return { shell, windowBands, stairTower, gallery, columns, panes, stairLandings };
+  /**
+   * The stair's glazing slot, storey by storey between the landings, and
+   * which storeys are lit at night: the same ones as the flats' windows.
+   * `applyApartmentWindows` lights a storey when `mod(storey, 2) == 1`, so
+   * at 18:30 one continuous cream strip stood beside a block lit on alternate
+   * floors (final4 med-1830 farm and shipping).
+   */
+  const slot = { bottom: 1.2, top: stairTower.top - 1.4 } as const;
+  const bounds = [slot.bottom, ...stairLandings, slot.top];
+  const stairStoreys = bounds.slice(0, -1).map((bottom, storey) => ({
+    storey,
+    bottom,
+    top: bounds[storey + 1],
+    lit: apartmentStoreyLit(storey),
+  }));
+  return { shell, windowBands, stairTower, gallery, columns, panes, stairLandings, stairStoreys };
+}
+
+/** Whether a storey's flats are lit at night (`occupiedFloor` in the window shader). */
+export function apartmentStoreyLit(storey: number): boolean {
+  return storey % 2 === 1;
 }
 
 const FOUR = apartmentFacadeLayout(4);
