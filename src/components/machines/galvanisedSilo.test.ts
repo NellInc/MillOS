@@ -245,3 +245,74 @@ describe('silo skirt (final3-med-12: a flat grey band under a warm drum)', () =>
     expect(source).toMatch(/geometry=\{SILO_OUTLET\}\s*material=\{MATERIALS\.siloSkirt\}/);
   });
 });
+
+const vec4Of = (material: THREE.Material, key: string) =>
+  (material.userData[key] as { value: THREE.Vector4 } | undefined)?.value;
+
+describe('silo drums at distance (final4-med-12 overview and farm: five drums as flat white plaster)', () => {
+  it('hands the fine ribs over to a filtered tone band at the lathe wave as they fade', () => {
+    const { siloRibBand, siloCorrugationFade } = surfaces;
+    // Overview distance: the fine 15.6 cm ribs at ~2 px are gone; the 0.625 m
+    // wave is four times as long, ~8 px, and must still read.
+    const coarse = 0.12;
+    const fine = coarse * (surfaces.SILO_FINE_RIDGES / surfaces.SILO_SHELL_PROFILE.ridges);
+    expect(siloCorrugationFade(fine)).toBe(0);
+    expect(Math.abs(siloRibBand(0.25, coarse, siloCorrugationFade(fine)))).toBeGreaterThan(0.9);
+    // Close up, where the fine ribs are drawn, the band is off (no close-range smear).
+    expect(siloRibBand(0.25, 0.02, siloCorrugationFade(0.08))).toBe(0);
+    // Below ~2 px a period it is gone rather than aliasing.
+    expect(siloRibBand(0.25, 0.5, 0)).toBe(0);
+    // Mean-preserving at every footprint: no tone shift, only the band.
+    for (const w of [0.02, 0.1, 0.2, 0.3, 0.4]) {
+      let sum = 0;
+      for (let i = 0; i < 400; i++) sum += siloRibBand(i / 400, w, 0);
+      expect(Math.abs(sum / 400), `w ${w}`).toBeLessThan(1e-9);
+    }
+    // The up-facing flank (radius falling with height) is the bright one.
+    expect(siloRibBand(0.25, 0.05, 0)).toBeGreaterThan(0);
+  });
+
+  it('carries the band on the drum only, as tone and roughness, never as a normal', () => {
+    const skin = vec4Of(MACHINE_MATERIALS.silo, 'machineRib');
+    expect(skin?.x).toBeGreaterThan(0.05);
+    expect(skin?.y).toBeGreaterThan(0.05);
+    expect(vec4Of(MACHINE_MATERIALS.siloSkirt, 'machineRib')?.x).toBe(0);
+    expect(vec4Of(MACHINE_MATERIALS.siloRoof, 'machineRib')?.x).toBe(0);
+    const shader = compile(MACHINE_MATERIALS.silo);
+    expect(shader.uniforms.uMachineRib).toBe(MACHINE_MATERIALS.silo.userData.machineRib);
+    const fragment = shader.fragmentShader;
+    expect(fragment).toContain('fwidth( galvCoarsePhase )');
+    expect(fragment).toContain('diffuseColor.rgb *= 1.0 + uMachineRib.x * galvRibBand;');
+    expect(fragment).not.toMatch(/normal\s*=[^;]*galvRibBand/);
+  });
+
+  it('weathers the drum with run-off broad enough to survive distance', () => {
+    const { SILO_STAIN } = surfaces;
+    const columnWidth = (2 * Math.PI * surfaces.SILO_DRUM_RADIUS) / SILO_STAIN.columns;
+    expect(columnWidth).toBeGreaterThan(0.6);
+    expect(vec4Of(MACHINE_MATERIALS.silo, 'machineRib')?.z).toBeGreaterThan(0);
+    expect(vec4Of(MACHINE_MATERIALS.siloSkirt, 'machineRib')?.z).toBe(0);
+    expect(compile(MACHINE_MATERIALS.silo).fragmentShader).toContain('fwidth( galvStainColumns )');
+  });
+
+  it('darkens the valley between neighbouring bins, and only there', () => {
+    const { siloValleyOcclusion, siloBatteryExtent } = surfaces;
+    const [zMin, zMax, pitch] = siloBatteryExtent();
+    expect(pitch).toBeGreaterThan(12);
+    const middle = (zMin + zMax) / 2;
+    expect(siloValleyOcclusion([0, 1], middle)).toBeLessThanOrEqual(0.6);
+    expect(siloValleyOcclusion([0, -1], middle)).toBeLessThanOrEqual(0.6);
+    expect(siloValleyOcclusion([1, 0], middle)).toBe(1);
+    expect(siloValleyOcclusion([-1, 0], middle)).toBe(1);
+    // The end bins' outer faces look at open yard.
+    expect(siloValleyOcclusion([0, -1], zMin)).toBe(1);
+    expect(siloValleyOcclusion([0, 1], zMax)).toBe(1);
+    expect(siloValleyOcclusion([0, 1], zMin)).toBeLessThanOrEqual(0.6);
+    for (const name of ['silo', 'siloSkirt'] as const) {
+      expect(vec4Of(MACHINE_MATERIALS[name], 'machineBattery')?.w, name).toBeGreaterThan(0);
+    }
+    expect(compile(MACHINE_MATERIALS.silo).fragmentShader).toContain(
+      'reflectedLight.indirectDiffuse *= galvValley;'
+    );
+  });
+});
