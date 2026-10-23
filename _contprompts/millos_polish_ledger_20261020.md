@@ -278,8 +278,35 @@ reflection, roof top, tank-farm pipework and yard grate, tractor cab and axles, 
 conveyor roller pitch, capture clock holding sky time). The night-toe finish (hue-preserving lift on
 fill-only pixels, noon exactly unchanged) runs on `claude/polish-r4-toe`.
 
+## Round 5 merged (`84b6ae7b`, then `3442b541`)
+
+Toe finish `cb3f8cd9` (hue-preserving night lift on fill-only pixels, both tiers; noon pixel-identical
+on medium; ≤3 crush at 22:00 down to 0.00-0.16%). r5-orders `5eb9da0d`: the "orphaned order" was a
+harness artefact (Level 1 query truncation cut `orders` to five entries); the store never orphans
+an order; 4 tests pin it and `scratch/tools/day.mjs` now pages the orders collection and audits
+past-due orders. silo5, land5, shell5, yard5 merged `55ce41e4`..`84b6ae7b`. Gate fix `3442b541`
+(forklift tag legibility read `state.size` through undefined in replay frames).
+
+**Gate on `84b6ae7b`:** all pass; vitest 4,707 + the 5 fixed/timeout = all green after `3442b541`.
+**Runtime batch:** axe 0; world-ready 5.3 s, startup-ready 10.4 s, 3 waves; z-fight 0.007-0.047%;
+EN and pt-BR 24/24 orders seen, 22 fulfilled, 2 open not yet due, 0 late, 0 past-due-unmarked;
+extras 11/11; e2e pass.
+**Blind A/B round 5 vs round 4** (keys `scratch/ab-keys-r5/`): 73 wins, 8 losses, 10 ties
+(med-12 11-0-2, low-12 10-0-3, med-06 10-1-2, med-19 10-2-1, med-22 9-3-1, rain 10-2-1, 18:30 13-0).
+**Rubric final5-med-12: PROVISIONAL PASS, 7/7/7/7/7/7** (material response 6 → 7; axis 7 n/a).
+
+## Round 6 (final; brief `scratch/r6-brief.md`)
+
+rain (rain missing, cut off or under cover in round-5 captures; hard sun in rain), cyan (the line is
+the stiffener rings' bare-trim mirror, fix `8791bc49` awaiting pixels), silo6 (lost silo base shadow,
+rib band strengthening with distance, repeated streaks), land6 (pond teal shoreline band, 19:00
+creases, dark lens over the farm ridge at night, canal reflection), hall6 (column sliver, residual
+deck checker, truss jaggies, glass from outside, conduit visibility, elevator shaft), yard6 (night
+pallet slats flattened by the toe lift, blue drain line, tank sheen, dock foot, pump house).
+
 ## What remains
 
-Merge round 5 and the toe finish; whole gate; recapture; blind A/B round 5 vs round 4 and rubric;
-runtime batch with the long play-test. Not done: a performance benchmark on a quiet machine (the ground wave's crop adds
+Merge round 6; gate; recapture; blind A/B round 6 vs round 5 and rubric; runtime batch; then PR,
+merge to main and verify the GitHub Pages deploy serves the new build (Nell approved: PR, merge,
+go live). Not done: a performance benchmark on a quiet machine (the ground wave's crop adds
 ~319k triangles; the hall dressing will add more); the castle (a dressing call left to Nell).
