@@ -2167,16 +2167,82 @@ export function buildProcessPads(): BoxInstance[] {
   ];
 }
 
+/** The pedestrian lanes: one down each side wall, one across each dock end. */
+export function buildWalkwayLanes(): BoxInstance[] {
+  return [
+    { position: [-FLOOR_WIDTH / 2 + 3, FLOOR_LAYERS.wornPrimary, 0], scale: [3, 0.012, 86] },
+    { position: [FLOOR_WIDTH / 2 - 3, FLOOR_LAYERS.wornPrimary, 0], scale: [3, 0.012, 86] },
+    { position: [0, FLOOR_LAYERS.wornPrimary, 39], scale: [72, 0.012, 3.5] },
+    { position: [0, FLOOR_LAYERS.wornPrimary, -39], scale: [72, 0.012, 3.5] },
+  ];
+}
+
+/** Painted lane-edge line width, metres. Two px or more from every hall camera. */
+export const WALKWAY_EDGE_WIDTH = 0.2;
+/** How far each edge line sits inside its lane's side, so no two side faces share a plane. */
+const WALKWAY_EDGE_INSET = 0.02;
+
+/**
+ * The lanes' painted edges.
+ *
+ * final3 med-12 packing: the dock-end lane read as "a translucent cyan band
+ * on the floor ... a tint, not paint", because it was a 50% teal film with
+ * nothing to say where it stops. A walkway is a painted lane between two
+ * lines. Each long side gets one, broken where another lane joins it so a
+ * line never runs across the lane it meets. The lines stand 4 mm proud of the
+ * film (0.024-0.036 against its 0.014-0.026), so no face is shared with it.
+ */
+export function buildWalkwayEdges(lanes = buildWalkwayLanes()): BoxInstance[] {
+  const edges: BoxInstance[] = [];
+  const y = FLOOR_LAYERS.wornSecondary;
+  for (const [index, lane] of lanes.entries()) {
+    const along = lane.scale[0] > lane.scale[2] ? 0 : 2;
+    const across = along === 0 ? 2 : 0;
+    for (const side of [-1, 1]) {
+      const offset =
+        lane.position[across] +
+        side * (lane.scale[across] / 2 - WALKWAY_EDGE_INSET - WALKWAY_EDGE_WIDTH / 2);
+      const crossings = lanes
+        .filter((_, otherIndex) => otherIndex !== index)
+        .filter(
+          (other) =>
+            Math.abs(other.position[across] - offset) <
+            other.scale[across] / 2 + WALKWAY_EDGE_WIDTH / 2
+        )
+        .map(
+          (other) =>
+            [
+              other.position[along] - other.scale[along] / 2,
+              other.position[along] + other.scale[along] / 2,
+            ] as const
+        )
+        .sort((a, b) => a[0] - b[0]);
+      let from = lane.position[along] - lane.scale[along] / 2;
+      const end = lane.position[along] + lane.scale[along] / 2;
+      const runs: [number, number][] = [];
+      for (const [a, b] of crossings) {
+        if (a > from) runs.push([from, Math.min(a, end)]);
+        from = Math.max(from, b);
+      }
+      if (end > from) runs.push([from, end]);
+      for (const [a, b] of runs) {
+        if (b - a < 0.5) continue;
+        const position: [number, number, number] = [0, y, 0];
+        const scale: [number, number, number] = [0, 0.012, 0];
+        position[along] = (a + b) / 2;
+        position[across] = offset;
+        scale[along] = b - a;
+        scale[across] = WALKWAY_EDGE_WIDTH;
+        edges.push({ position, scale });
+      }
+    }
+  }
+  return edges;
+}
+
 function FloorWayfinding() {
-  const walkways = useMemo<readonly BoxInstance[]>(
-    () => [
-      { position: [-FLOOR_WIDTH / 2 + 3, FLOOR_LAYERS.wornPrimary, 0], scale: [3, 0.012, 86] },
-      { position: [FLOOR_WIDTH / 2 - 3, FLOOR_LAYERS.wornPrimary, 0], scale: [3, 0.012, 86] },
-      { position: [0, FLOOR_LAYERS.wornPrimary, 39], scale: [72, 0.012, 3.5] },
-      { position: [0, FLOOR_LAYERS.wornPrimary, -39], scale: [72, 0.012, 3.5] },
-    ],
-    []
-  );
+  const walkways = useMemo(buildWalkwayLanes, []);
+  const walkwayEdges = useMemo(() => buildWalkwayEdges(walkways), [walkways]);
   const plinths = useMemo(buildProcessPads, []);
 
   return (
@@ -2185,6 +2251,12 @@ function FloorWayfinding() {
         instances={walkways}
         material={MATERIALS.walkway}
         renderOrder={RENDER_ORDER.floorEffects}
+        receiveShadow
+      />
+      <InstancedBoxes
+        instances={walkwayEdges}
+        material={MATERIALS.safetyPaint}
+        renderOrder={RENDER_ORDER.floorMarkings}
         receiveShadow
       />
       <InstancedBoxes

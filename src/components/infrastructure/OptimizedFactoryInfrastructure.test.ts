@@ -13,6 +13,9 @@ import {
   buildFactoryRoofGlazing,
   buildFactoryRoofStructure,
   buildFactoryRoofTrim,
+  buildWalkwayEdges,
+  buildWalkwayLanes,
+  WALKWAY_EDGE_WIDTH,
   buildFactoryGlazing,
   buildFactoryFacadeFrames,
   buildFactoryShellColumns,
@@ -155,6 +158,63 @@ describe('optimized factory envelope', () => {
  * a megapixel back: the point of the macro layer is that the surface differs
  * from place to place, and every claim below is a place-to-place comparison.
  */
+// final3 med-12 packing, upper left: "a translucent cyan band on the floor
+// parallel to the glass wall reads as tint, not paint, because it has no edge
+// line". The probe's transparent-off diff put it on the z = -39 walkway film.
+describe('pedestrian walkway lanes', () => {
+  it('paint an edge line down both long sides of every lane, broken only where lanes meet', () => {
+    const lanes = buildWalkwayLanes();
+    const edges = buildWalkwayEdges(lanes);
+    for (const lane of lanes) {
+      const along = lane.scale[0] > lane.scale[2] ? 0 : 2;
+      const across = along === 0 ? 2 : 0;
+      for (const side of [-1, 1]) {
+        const laneSide = lane.position[across] + (side * lane.scale[across]) / 2;
+        const lines = edges.filter(
+          (edge) =>
+            edge.scale[along] > edge.scale[across] &&
+            Math.abs(edge.position[across] - laneSide) < WALKWAY_EDGE_WIDTH &&
+            Math.abs(edge.position[along] - lane.position[along]) < lane.scale[along] / 2
+        );
+        const painted = lines.reduce((sum, edge) => sum + edge.scale[along], 0);
+        // Most of the side is lined; a joining lane may take at most 3.5 m from it.
+        expect(painted, `lane at ${lane.position} side ${side}`).toBeGreaterThan(
+          lane.scale[along] - 2 * 3.5 - 0.1
+        );
+        for (const edge of lines) {
+          // Inside the lane, never on its side face, and proud of the film.
+          const outer = edge.position[across] + (side * edge.scale[across]) / 2;
+          expect(side * (laneSide - outer)).toBeGreaterThanOrEqual(0.01);
+          expect(edge.position[1] + edge.scale[1] / 2).toBeGreaterThan(
+            lane.position[1] + lane.scale[1] / 2 + 0.002
+          );
+          expect(edge.position[1] - edge.scale[1] / 2).not.toBeCloseTo(
+            lane.position[1] - lane.scale[1] / 2,
+            3
+          );
+        }
+      }
+    }
+    // A line never runs across another lane's film.
+    for (const edge of edges) {
+      for (const lane of lanes) {
+        const along = lane.scale[0] > lane.scale[2] ? 0 : 2;
+        const edgeAlong = edge.scale[0] > edge.scale[2] ? 0 : 2;
+        if (along === edgeAlong) continue;
+        const overlapX =
+          Math.abs(edge.position[0] - lane.position[0]) < (edge.scale[0] + lane.scale[0]) / 2;
+        const overlapZ =
+          Math.abs(edge.position[2] - lane.position[2]) < (edge.scale[2] + lane.scale[2]) / 2;
+        const across = edgeAlong === 0 ? 2 : 0;
+        const inside =
+          Math.abs(edge.position[across] - lane.position[across]) < lane.scale[across] / 2;
+        if (overlapX && overlapZ) expect(inside, `edge at ${edge.position}`).toBe(true);
+      }
+    }
+    expect(WALKWAY_EDGE_WIDTH).toBeGreaterThanOrEqual(0.15);
+  });
+});
+
 describe('interior slab macro surface', () => {
   /**
    * Open floor: clear of every lane, dock apron, machine, joint and wall.
