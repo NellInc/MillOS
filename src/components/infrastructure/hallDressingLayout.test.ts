@@ -412,6 +412,28 @@ describe('column risers', () => {
     }
   });
 
+  /**
+   * final5 med-12 rubric (item 10): no trunking visible from interior, milling
+   * or packing. The interior camera sees the near front-gable riser almost
+   * edge-on, so what it shows is the trunking's SIDE: 0.1 m deep, a 13 px
+   * sliver (final5 med-1830, x 2290-2380) that read as a light leak. Both
+   * faces are now at least 0.15 m, and couplers every 3 m or less break the
+   * run into the sections a real trunking is sold in.
+   */
+  it('gives every riser at least 0.15 m on each face, in coupled sections', () => {
+    for (const r of HALL_COLUMN_RISERS) {
+      expect(r.width, r.id).toBeGreaterThanOrEqual(0.15);
+      expect(r.depth, r.id).toBeGreaterThanOrEqual(0.15);
+      expect(r.box.depth, r.id).toBeGreaterThan(r.depth);
+      const stops = [r.bottomY, ...r.couplers, r.topY];
+      expect(r.couplers.length, r.id).toBeGreaterThanOrEqual(4);
+      for (let i = 1; i < stops.length; i++) {
+        expect(stops[i] - stops[i - 1], `${r.id} section ${i}`).toBeGreaterThan(1);
+        expect(stops[i] - stops[i - 1], `${r.id} section ${i}`).toBeLessThanOrEqual(3);
+      }
+    }
+  });
+
   it('shows risers to the interior and milling cameras', () => {
     const solids = HALL_COLUMN_RISERS.map(solidOf);
     expect(framedWith('interior', solids).length).toBeGreaterThanOrEqual(2);

@@ -3,11 +3,14 @@ import * as THREE from 'three';
 import {
   HALL_DUST_MATERIAL,
   HALL_DUST_RENDER_ORDER,
+  HALL_TRUNKING_LID_MATERIAL,
+  HALL_TRUNKING_MATERIAL,
   buildDustPatchGeometry,
   buildHallSackMatrices,
   createDustMask,
 } from './HallDressing';
 import { RENDER_ORDER } from '../../constants/renderLayers';
+import { FACTORY_STRUCTURE_MATERIAL } from './OptimizedFactoryInfrastructure';
 import { PROCESS_MACHINE_INSTALL_SCALE, SITE_LAYOUT } from '../../constants/siteLayout';
 import { MILL_BASE_PLATE_SCALE, PACKER_BASE_PLATE_SCALE } from '../machines/CompactMachines';
 import {
@@ -18,6 +21,30 @@ import {
 } from './hallDressingLayout';
 import { LOADED_PALLET_HEIGHT, LOADING_PROP_FOOTPRINT } from '../props/LoadingProps';
 import { getFlourSackGeometry } from '../../utils/flourSacks';
+
+describe('column riser finish', () => {
+  const luminance = (c: THREE.Color) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+
+  /**
+   * final5 med-1830 interior: a bright vertical sliver at the right-wall column
+   * edge, lilac at dusk and pale blue at noon. A probe-by-projection put it on
+   * the front-gable riser at x -20 (x 2286-2299 at row 919, the trunking's side
+   * face). Galvanised at metalness 0.75, indoors it mirrored the PMREM SKY - the
+   * only environment there is. And against the white silos behind the east
+   * glazing a grey trunking vanished (rubric item 10). An orange PVC-coated
+   * trunking is a dielectric that reads against both.
+   */
+  it('is a dielectric orange that stands off the column paint', () => {
+    for (const material of [HALL_TRUNKING_MATERIAL, HALL_TRUNKING_LID_MATERIAL]) {
+      const m = material as THREE.MeshStandardMaterial;
+      expect(m.metalness).toBeLessThanOrEqual(0.05);
+      expect(m.color.r).toBeGreaterThan(2 * m.color.g);
+      expect(m.color.g).toBeGreaterThan(2 * m.color.b);
+      const column = (FACTORY_STRUCTURE_MATERIAL as THREE.MeshStandardMaterial).color;
+      expect(luminance(m.color) / luminance(column)).toBeGreaterThan(2.5);
+    }
+  });
+});
 
 describe('hall dressing render', () => {
   it('declares footprints that cover the shared load props', () => {
