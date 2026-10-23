@@ -25,6 +25,7 @@ import {
   WATER_NATURAL_PROFILE,
   WATER_NIGHT_PROFILE,
   naturalWaterBody,
+  stillWaterDeepBody,
   waterBankReflection,
   waterDeckCoord,
   waterMirroredCloudWeight,
@@ -102,7 +103,7 @@ describe('authored exterior water material and atmosphere driver', () => {
     );
     expect(water.fragmentShader).toContain('gl_FragColor = vec4(colour, 1.0)');
     expect(water.fragmentShader).toContain('#include <fog_fragment>');
-    expect(water.customProgramCacheKey()).toBe('millos-unified-water-v27');
+    expect(water.customProgramCacheKey()).toBe('millos-unified-water-v28');
     const dispose = vi.spyOn(water, 'dispose');
     for (const cleanup of driver.cleanups.splice(0)) cleanup();
     expect(dispose).toHaveBeenCalledOnce();
@@ -400,7 +401,7 @@ it('keeps a deep-water read on Low, where no metre-scale ripple breaks the refle
   expect(water.fragmentShader).toContain(
     `mix(${WATER_FRESNEL_EXPONENT_FLAT.toFixed(1)}, ${WATER_FRESNEL_EXPONENT.toFixed(1)}, uRippleDetail)`
   );
-  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v27');
+  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v28');
 });
 
 // final4-med-12 rubric: the pond is a saturated cyan and reflects nothing of
@@ -474,7 +475,7 @@ it('gives still water a natural body and a soft far-bank darkening on Medium onl
   const rise = (camera.y - target.y) / Math.hypot(camera.x - target.x, camera.z - target.z);
   expect(WATER_BANK_PROFILE.bankMetres / rise).toBeGreaterThan(1.5);
   expect(WATER_BANK_DETAIL.value).toBe(1);
-  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v27');
+  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v28');
 });
 
 // final5-med-22 water: a near-black centre. Steep views reflect the zenith,
@@ -625,7 +626,7 @@ it('mirrors a cloud deck and gust patches across the lake on Medium, exact on Lo
   sky.dispose();
   dome.geometry.dispose();
   expect(WATER_SKY_DETAIL.value).toBe(1);
-  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v27');
+  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v28');
 });
 
 // final6-med-12 water: a white glare band along the lake's far bank and a dark
@@ -670,5 +671,56 @@ it('keeps mirrored cloud off the far bank and soft across a lake, the canal unch
     make({ kind: 'canal', crossOnly: true, bankRadii: [5.5, 110] }).uniforms.uRadial.value
   ).toBe(0);
   expect(lake.uniforms.uRadial.value).toBe(1);
-  expect(lake.customProgramCacheKey()).toBe('millos-unified-water-v27');
+  expect(lake.customProgramCacheKey()).toBe('millos-unified-water-v28');
+});
+
+// land7-med-12 water: with the glare softened, the lake centre still reads as a
+// dark smudge, sRGB luma 74 against 88 beside it (round 5: 82 against 83). The
+// deep body is #143b48, a sixth of the shallows' luminance, so the fully deep
+// core sits apart from everything on the depth ramp around it. On Medium the
+// still-water deep end is lifted toward the shallows by `deepLift`, at the
+// body's own blue-green; Low and the river keep the authored deep exactly.
+it('lifts the still-water deep body toward the shallows on Medium, keeping its hue', () => {
+  const lake = (
+    UnifiedWaterSurfaceMaterial({
+      kind: 'lake',
+      radial: true,
+      bankRadii: [19, 14],
+    }) as ReactElement<{
+      object: THREE.ShaderMaterial;
+    }>
+  ).props.object;
+  const shader = lake.fragmentShader;
+  const { deepLift } = WATER_NATURAL_PROFILE;
+  expect(shader).toContain(`deepBody = mix(uDeep, uShallow, ${deepLift.toFixed(2)})`);
+  expect(shader).toContain('mix(uShallow, deepBody, depth) * bodyLight');
+  // Gated on the Medium still-water branch, so Low and the river are unchanged.
+  const gate = shader.lastIndexOf(
+    'if (uRippleDetail > 0.0 && uNaturalBody > 0.0)',
+    shader.indexOf('deepBody = mix(')
+  );
+  expect(gate).toBeGreaterThan(shader.indexOf('vec3 deepBody = uDeep;'));
+  // CPU mirror on the lake's authored pair.
+  const deep = new THREE.Color('#143b48');
+  const shallow = new THREE.Color('#4a8790');
+  const luma = (c: THREE.Color) => c.r * 0.2126 + c.g * 0.7152 + c.b * 0.0722;
+  const hue = (c: THREE.Color) => c.getHSL({ h: 0, s: 0, l: 0 }).h * 360;
+  const before = naturalWaterBody(deep.clone(), WATER_NATURAL_PROFILE.weight);
+  const after = naturalWaterBody(
+    stillWaterDeepBody(deep.clone(), shallow),
+    WATER_NATURAL_PROFILE.weight
+  );
+  // A real lift (at least 1.8x the core's luminance), still well below the shallows.
+  expect(luma(after)).toBeGreaterThan(luma(before) * 1.8);
+  expect(luma(after)).toBeLessThan(luma(shallow) * 0.5);
+  // Still blue-green: the hue stays inside the natural body's band.
+  expect(hue(after)).toBeGreaterThan(172);
+  expect(hue(after)).toBeLessThan(200);
+  // It moves only toward the shallows' own hue, which the rim already shows.
+  const rim = naturalWaterBody(shallow.clone(), WATER_NATURAL_PROFILE.weight);
+  expect(hue(after)).toBeLessThan(hue(before));
+  expect(hue(after)).toBeGreaterThan(hue(rim));
+  expect(deepLift).toBeGreaterThan(0);
+  expect(deepLift).toBeLessThanOrEqual(0.3);
+  expect(lake.customProgramCacheKey()).toBe('millos-unified-water-v28');
 });

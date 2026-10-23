@@ -87,7 +87,19 @@ export const WATER_SKY_DETAIL_PROFILE = {
 export const WATER_NATURAL_PROFILE = {
   weight: 0.55,
   tint: [0.74, 1.07, 0.8],
+  /**
+   * Still water's deep end moves this far toward the shallows (Medium and
+   * up). The lake's #143b48 deep is a sixth of its shallows' luminance, so the
+   * fully deep core read as a dark smudge at noon beside water still on the
+   * depth ramp (land7-med-12: sRGB luma 74 against 88; round 5 82 against 83).
+   */
+  deepLift: 0.25,
 } as const;
+
+/** CPU mirror of the still-water deep end on Medium, before the natural shift. */
+export function stillWaterDeepBody(deep: THREE.Color, shallow: THREE.Color): THREE.Color {
+  return deep.lerp(shallow, WATER_NATURAL_PROFILE.deepLift);
+}
 
 /** CPU mirror of the shader's natural-body shift, on a linear colour. */
 export function naturalWaterBody(colour: THREE.Color, weight: number): THREE.Color {

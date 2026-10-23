@@ -1575,7 +1575,14 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
           float radialEdge = 1.0 - length(centred);
           float edge = max(mix(linearEdge, radialEdge, uRadial), 0.0);
           float depth = clamp(smoothstep(0.0, 0.34, edge) + ripples * 0.012 * uRippleStrength, 0.0, 1.0);
-          colour = mix(uShallow, uDeep, depth) * bodyLight * uBodyTint;
+          // Still water's deep end lifts toward the shallows on Medium
+          // (WATER_NATURAL_PROFILE.deepLift): the fully deep core read as a
+          // dark smudge at noon. Low and the river keep the authored deep.
+          vec3 deepBody = uDeep;
+          if (uRippleDetail > 0.0 && uNaturalBody > 0.0) {
+            deepBody = mix(uDeep, uShallow, ${WATER_NATURAL_PROFILE.deepLift.toFixed(2)});
+          }
+          colour = mix(uShallow, deepBody, depth) * bodyLight * uBodyTint;
           // Natural body on still water, Medium and up (millosNaturalWater).
           if (uRippleDetail > 0.0 && uNaturalBody > 0.0) {
             colour = millosNaturalWater(colour);
@@ -1810,7 +1817,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
     // MANUALLY VERSIONED, never derived from time or randomness - see the
     // documented `Date.now()` cache-key bug. Bump this whenever the shader
     // source above changes or a stale cached program will be reused.
-    value.customProgramCacheKey = () => 'millos-unified-water-v27';
+    value.customProgramCacheKey = () => 'millos-unified-water-v28';
     return value;
   }, [
     bankX,
