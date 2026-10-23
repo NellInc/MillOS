@@ -3,6 +3,9 @@ import { unifiedGameTick } from '../UnifiedGameTick';
 import type { TickContext } from '../CentralTickSystem';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { MAX_GAME_SPEED, PACE_GAME_SPEEDS, STANDARD_GAME_SPEED } from '../../simulation/pace';
+import { useMaterialFlowStore } from '../../stores/materialFlowStore';
+import { getSmoothedGameTime } from '../DisplaySmoothing';
+import { readFileSync } from 'node:fs';
 
 const ctx = (over: Partial<TickContext> = {}): TickContext => ({
   deltaSeconds: 1.0,
@@ -91,5 +94,47 @@ describe('setGameTime run-window reconciliation', () => {
     store.setGameTime(23); // night
     const s = useGameSimulationStore.getState();
     expect(s.currentShift).toBe('night');
+  });
+});
+
+// Art and benchmark captures labelled 12:00 ran the clock at STANDARD_GAME_SPEED
+// under --motion: two packing shots 14 s apart were 7 game-minutes apart and
+// the skylight sun patches moved about 40 px (final4-med-12 rubric). A capture
+// holds the time of day while vehicles, machines and material keep moving.
+describe('held time of day (capture mode)', () => {
+  beforeEach(() => {
+    useGameSimulationStore.getState().resetGameState();
+    useGameSimulationStore.getState().setTimeOfDayHeld(false);
+  });
+
+  it('keeps the clock and sky still while the simulation runs at pace', () => {
+    const store = useGameSimulationStore.getState();
+    store.setGameTime(12);
+    store.setGameSpeed(STANDARD_GAME_SPEED);
+    store.setTimeOfDayHeld(true);
+    const materialBefore = useMaterialFlowStore.getState().simulationTime;
+    for (let i = 0; i < 14; i += 1) unifiedGameTick(ctx({ gameSpeed: STANDARD_GAME_SPEED }));
+    useGameSimulationStore.getState().tickGameTime(1);
+    const held = useGameSimulationStore.getState();
+    expect(held.gameTime).toBe(12);
+    expect(held.gameSpeed).toBe(STANDARD_GAME_SPEED);
+    expect(useMaterialFlowStore.getState().simulationTime).toBeGreaterThan(materialBefore);
+    // Released, the same tick advances the clock again.
+    held.setTimeOfDayHeld(false);
+    unifiedGameTick(ctx({ gameSpeed: STANDARD_GAME_SPEED }));
+    expect(useGameSimulationStore.getState().gameTime).toBeCloseTo(12 + STANDARD_GAME_SPEED / 3600);
+  });
+
+  it('is never persisted, and the benchmark route holds and restores it', () => {
+    useGameSimulationStore.getState().setTimeOfDayHeld(true);
+    const persist = useGameSimulationStore.persist.getOptions().partialize!;
+    expect(persist(useGameSimulationStore.getState())).not.toHaveProperty('timeOfDayHeld');
+    const controller = readFileSync('src/components/RuntimeController.tsx', 'utf8');
+    expect(controller).toContain('game.setTimeOfDayHeld(true);');
+    expect(controller).toContain('currentGame.setTimeOfDayHeld(previousGameInputs.timeOfDayHeld);');
+    const sky = readFileSync('src/components/environment/OptimizedSkySystem.tsx', 'utf8');
+    expect(sky).toContain('timeOfDayHeld ? 0 : gameSpeed');
+    // The display extrapolation does not lead a held clock.
+    expect(getSmoothedGameTime(12, 0.4, 0)).toBe(12);
   });
 });

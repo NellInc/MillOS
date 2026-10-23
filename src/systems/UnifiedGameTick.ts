@@ -573,7 +573,8 @@ function unifiedGameTick(ctx: TickContext): void {
 
   // 1. Calculate new game time (pure math, no allocation)
   const gameStore = useGameSimulationStore.getState();
-  const hoursElapsed = (deltaSeconds * safeGameSpeed) / 3600;
+  // Capture mode holds the time of day; production and motion keep the pace.
+  const hoursElapsed = gameStore.timeOfDayHeld ? 0 : (deltaSeconds * safeGameSpeed) / 3600;
   const newGameTime = (((gameStore.gameTime + hoursElapsed) % 24) + 24) % 24;
 
   // Handle day rollover

@@ -367,7 +367,7 @@ export const RIDGE_FIELD_PROFILE = {
    * foreshortens into an ellipse that reads as a hole, about 12 of them per
    * village frame. Thresholds on a 0-1 fbm.
    */
-  copse: [0.66, 0.71],
+  copse: [0.64, 0.73],
   /**
    * The wooded masks read as flat dark ovals from the village (final3-med-12,
    * the rubric's "blotches"): at 150-450 m the 3.7 m crowns carried +/-11%
@@ -377,23 +377,44 @@ export const RIDGE_FIELD_PROFILE = {
    * `rag` on a ~9 m field, and a `fringe` of lighter `scrub` with scattered
    * trees runs outside each stand line. Linear albedo.
    */
-  crownTone: [0.74, 0.5],
+  /**
+   * Round 4's values (crowns 0.74-1.24, clumps +/-16% on 6 m and 2.4 m cells
+   * to 2 m/px, a 9 m rag, 0.08-wide stand edges on a 45 m fbm, strays to
+   * 6 m/px) read as hard camouflage mottling at the village's 0.5-1.5 m/px
+   * (final4-med-06, low-12 and med-12). Now: crowns +/-11% about a slightly
+   * lighter mean (less contrast against the fields), faint broad clumps
+   * (`clumpScale` cycles per metre) that fade from 1 m/px, a slow rag
+   * (`ragScale`), wide stand edges (`woodsEdge`, `copse`) on lower-frequency
+   * fields (`standScale`: woods, copses) for larger coherent stands, and
+   * strays only where single trees resolve (`strayFootprint`).
+   */
+  crownTone: [0.98, 0.24],
   crownReliefMetres: 0.55,
-  clump: 0.16,
-  clumpReliefMetres: 1.1,
-  clumpFootprint: [2.0, 6.0],
-  rag: 0.09,
+  clump: 0.07,
+  clumpScale: [0.07, 0.15],
+  clumpReliefMetres: 0.8,
+  clumpFootprint: [1.0, 4.0],
+  rag: 0.05,
+  ragScale: 0.05,
+  standScale: [0.015, 0.018],
+  woodsEdge: [0.43, 0.57],
+  strayFootprint: [0.6, 1.2],
   fringe: 0.1,
   scrub: [0.09, 0.122, 0.054],
   /**
-   * Night: parcels keep `nightVariation` of their luminance step about
-   * `nightTone`, at its hue, once `uFieldDaylight` reaches 0. The weight is
-   * `getRidgeFieldDaylight`: full by 0.5 daylight (06:00, rain at noon), none
-   * by 0.08 (19:00).
+   * Night: parcels take `nightTone`'s hue once `uFieldDaylight` reaches 0
+   * (`getRidgeFieldDaylight`: full by 0.3 daylight, so 18:30 keeps about 80% of
+   * its hue; none by 0.05, 19:00), and keep `nightVariation` of their luminance
+   * step about it once `uFieldTone` reaches 0 (`getRidgeFieldTone`: full by
+   * 0.12, about half at 19:00, none at 22:00). One shared ramp at [0.08, 0.5]
+   * took 70% of the hue and half the patchwork by 18:30, and a night tone 25%
+   * below the fields darkened them: one near-black mass at dusk
+   * (final4-med-1830 village). `nightTone` sits near the hill's area mean.
    */
-  nightTone: [0.066, 0.094, 0.05],
+  nightTone: [0.078, 0.111, 0.059],
   nightVariation: 0.3,
-  fieldDaylight: [0.08, 0.5],
+  fieldDaylight: [0.05, 0.3],
+  fieldTone: [0.0, 0.12],
 } as const;
 
 /**
@@ -413,24 +434,39 @@ export const RIDGE_ANCHORED_AERIAL = {
   run: [-0.5, 2.2],
 } as const;
 
-/** CPU mirror of the anchored rings' distance haze, for tests and calibration. */
+/**
+ * CPU mirror of the anchored rings' distance haze, for tests and calibration.
+ * The ceiling is the far range's LOWER BAND, which in clear air carries only
+ * `lowBandAerial` of the far weight (getRidgeClearAir). Capped at the full far
+ * weight instead, every foothill beyond about 560 m (farm, overview, water,
+ * shipping and tank-farm cameras) hazed past the mountains behind it and read
+ * as a flat blue-grey backdrop band (final4-med-12).
+ */
 export function getAnchoredRidgeAerial(
   distance: number,
   near: number,
   mid: number,
-  far = Infinity
+  far = Infinity,
+  clearAir = 0
 ): number {
   const [d0, d1] = RIDGE_ANCHORED_AERIAL.distances;
   const run = THREE.MathUtils.clamp((distance - d0) / (d1 - d0), ...RIDGE_ANCHORED_AERIAL.run);
-  return Math.min(far, Math.max(0, THREE.MathUtils.lerp(near, mid, run)));
+  const ceiling = far * THREE.MathUtils.lerp(RIDGE_ALPINE_PROFILE.lowBandAerial, 1, 1 - clearAir);
+  return Math.min(ceiling, Math.max(0, THREE.MathUtils.lerp(near, mid, run)));
 }
 
 /** Shared by both anchored materials; the frame loop writes each ring's damped weight. */
 export const RIDGE_ANCHORED_AERIAL_SPAN = { value: new THREE.Vector3(0.1, 0.2, 0.32) };
 
-/** Day weight of the hill fields' hue and full tonal range (RIDGE_FIELD_PROFILE.night*). */
+/** Day weight of the hill fields' hue (RIDGE_FIELD_PROFILE.night*). */
 export function getRidgeFieldDaylight(daylight: number): number {
   const [start, end] = RIDGE_FIELD_PROFILE.fieldDaylight;
+  return THREE.MathUtils.smoothstep(daylight, start, end);
+}
+
+/** Day weight of the hill fields' full tonal range: patchwork and hedgerows. */
+export function getRidgeFieldTone(daylight: number): number {
+  const [start, end] = RIDGE_FIELD_PROFILE.fieldTone;
   return THREE.MathUtils.smoothstep(daylight, start, end);
 }
 const glslVec3 = (value: readonly number[]) => `vec3(${value.map((v) => v.toFixed(3)).join(', ')})`;
@@ -520,6 +556,7 @@ uniform float uRingRadius;
 uniform float uSlopeDepth;
 uniform float uLowAerialStrength;
 uniform float uFieldDaylight;
+uniform float uFieldTone;
 uniform vec3 uAnchoredAerial;
 uniform float uDistanceAerialStrength;
 uniform float uClearAir;
@@ -615,8 +652,8 @@ void main() {
     // texture rather than reading as one flat dark oval.
     float clumpVisibility = 1.0 - smoothstep(${RIDGE_FIELD_PROFILE.clumpFootprint[0].toFixed(2)},
       ${RIDGE_FIELD_PROFILE.clumpFootprint[1].toFixed(2)}, footprint);
-    float clump = mix(0.5, ridgeNoise(grove * 0.17 + vec2(4.1, 7.3)) * 0.6
-      + ridgeNoise(grove * 0.41 + vec2(1.3, 2.9)) * 0.4, clumpVisibility);
+    float clump = mix(0.5, ridgeNoise(grove * ${RIDGE_FIELD_PROFILE.clumpScale[0].toFixed(3)} + vec2(4.1, 7.3)) * 0.6
+      + ridgeNoise(grove * ${RIDGE_FIELD_PROFILE.clumpScale[1].toFixed(3)} + vec2(1.3, 2.9)) * 0.4, clumpVisibility);
     detailedAlbedo = woodland * (${RIDGE_FIELD_PROFILE.crownTone[0].toFixed(2)}
       + crown * ${RIDGE_FIELD_PROFILE.crownTone[1].toFixed(2)}) * speciesTone
       * (${(1 - RIDGE_FIELD_PROFILE.clump).toFixed(2)} + clump * ${(RIDGE_FIELD_PROFILE.clump * 2).toFixed(2)});
@@ -648,10 +685,12 @@ void main() {
     // The fbm's working range is about 0.3-0.7, so 2.5 normalises it to +/-1.
     float woodEdge = (ridgeFbm(p.xz * 0.02 + vec2(6.1, 2.7)) - 0.5)
       * ${(RIDGE_FIELD_PROFILE.edgeBreak * 2.5).toFixed(3)};
-    // Both wood outlines wander by about 9 m (RIDGE_FIELD_PROFILE.rag): on the
-    // 40-50 m fbm alone a copse was a smooth oval, which read as a hole.
-    float rag = (ridgeNoise(p.xz * 0.11 + vec2(5.1, 1.7)) - 0.5) * ${RIDGE_FIELD_PROFILE.rag.toFixed(2)};
-    float copseField = ridgeFbm(p.xz * 0.026 + vec2(12.3, 4.9)) + rag * 0.7;
+    // Both wood outlines wander slowly (RIDGE_FIELD_PROFILE.rag, ragScale): on
+    // the fbm alone a copse was a smooth oval, which read as a hole; a 9 m rag
+    // turned every outline into camouflage.
+    float rag = (ridgeNoise(p.xz * ${RIDGE_FIELD_PROFILE.ragScale.toFixed(3)} + vec2(5.1, 1.7)) - 0.5)
+      * ${RIDGE_FIELD_PROFILE.rag.toFixed(2)};
+    float copseField = ridgeFbm(p.xz * ${RIDGE_FIELD_PROFILE.standScale[1].toFixed(3)} + vec2(12.3, 4.9)) + rag * 0.7;
     float copse = smoothstep(${RIDGE_FIELD_PROFILE.copse[0].toFixed(2)}, ${RIDGE_FIELD_PROFILE.copse[1].toFixed(2)},
       copseField);
     // A wooded parcel's stand draws back from its boundary into ragged woods,
@@ -660,16 +699,20 @@ void main() {
     // village hill (art3land-after-med12, village (0,300)-(1060,425)).
     float margin = 1.0 - smoothstep(0.0, 14.0, edge);
     float woodParcel = 1.0 - step(0.4, parcelUse);
-    float woodsField = ridgeFbm(p.xz * 0.022 + vec2(2.2, 8.4)) + 0.12 - margin * 0.3 + rag;
-    float woods = woodParcel * smoothstep(0.46, 0.54, woodsField);
+    float woodsField = ridgeFbm(p.xz * ${RIDGE_FIELD_PROFILE.standScale[0].toFixed(3)} + vec2(2.2, 8.4))
+      + 0.12 - margin * 0.3 + rag;
+    float woods = woodParcel * smoothstep(${RIDGE_FIELD_PROFILE.woodsEdge[0].toFixed(2)},
+      ${RIDGE_FIELD_PROFILE.woodsEdge[1].toFixed(2)}, woodsField);
     // Outside each stand line a lighter fringe of scrub with scattered trees
     // thins out into the field, instead of the canopy stopping on a dark rim.
-    float fringe = max(woodParcel * smoothstep(${(0.46 - RIDGE_FIELD_PROFILE.fringe).toFixed(3)}, 0.47, woodsField),
+    float fringe = max(woodParcel * smoothstep(${(RIDGE_FIELD_PROFILE.woodsEdge[0] - RIDGE_FIELD_PROFILE.fringe).toFixed(3)},
+      ${(RIDGE_FIELD_PROFILE.woodsEdge[0] + 0.01).toFixed(3)}, woodsField),
       smoothstep(${(RIDGE_FIELD_PROFILE.copse[0] - RIDGE_FIELD_PROFILE.fringe).toFixed(3)},
         ${(RIDGE_FIELD_PROFILE.copse[0] + 0.01).toFixed(3)}, copseField))
       * (1.0 - max(copse, woods));
     float strays = fringe * smoothstep(0.58, 0.74, ridgeNoise(grove * 0.2 + vec2(8.8, 3.1)))
-      * clumpVisibility;
+      * (1.0 - smoothstep(${RIDGE_FIELD_PROFILE.strayFootprint[0].toFixed(2)},
+        ${RIDGE_FIELD_PROFILE.strayFootprint[1].toFixed(2)}, footprint));
     float farmed = smoothstep(${RIDGE_FIELD_PROFILE.slopeGate[0].toFixed(2)}, ${RIDGE_FIELD_PROFILE.slopeGate[1].toFixed(2)},
       abs(normal.y) + woodEdge) * (1.0 - copse) * (1.0 - woods) * (1.0 - strays);
     vec3 crop = mix(${glslVec3(RIDGE_FIELD_PROFILE.pasture)}, ${glslVec3(RIDGE_FIELD_PROFILE.hay)},
@@ -685,12 +728,13 @@ void main() {
     // and pasture differ mostly in red, which a dim blue key under a warm
     // twilight inscatter turns into purple and red parcels: large straight-
     // edged facets across the village hill at 18:30-22:00 (final3-med-19).
-    // Toward night each parcel keeps its luminance step, compressed, at one
-    // shared hue, and the canopy relief settles with it.
+    // Toward night each parcel takes one shared hue, then (later, so dusk
+    // keeps its patchwork and hedgerows) a compressed luminance step, and the
+    // canopy relief settles with it.
     vec3 fieldMean = ${glslVec3(RIDGE_FIELD_PROFILE.nightTone)};
     float fieldTone = dot(detailedAlbedo, vec3(0.2126, 0.7152, 0.0722))
       / dot(fieldMean, vec3(0.2126, 0.7152, 0.0722));
-    float fieldKeep = mix(${RIDGE_FIELD_PROFILE.nightVariation.toFixed(2)}, 1.0, uFieldDaylight);
+    float fieldKeep = mix(${RIDGE_FIELD_PROFILE.nightVariation.toFixed(2)}, 1.0, uFieldTone);
     detailedAlbedo = mix(fieldMean, mix(fieldMean * fieldTone, detailedAlbedo, uFieldDaylight), fieldKeep);
     relief *= fieldKeep;
   } else if (uWorldAnchored < 0.5 && uAlpineStrength > 0.5) {
@@ -850,7 +894,9 @@ void main() {
     float aerialRun = clamp((vRidgeDistance - ${RIDGE_ANCHORED_AERIAL.distances[0].toFixed(1)})
       / ${(RIDGE_ANCHORED_AERIAL.distances[1] - RIDGE_ANCHORED_AERIAL.distances[0]).toFixed(1)},
       ${RIDGE_ANCHORED_AERIAL.run[0].toFixed(2)}, ${RIDGE_ANCHORED_AERIAL.run[1].toFixed(2)});
-    aerial = mix(uAerial, min(uAnchoredAerial.z,
+    // Never hazier than the far range's lower band behind it, which clear air
+    // thins to lowBandAerial (getAnchoredRidgeAerial).
+    aerial = mix(uAerial, min(uAnchoredAerial.z * mix(${RIDGE_ALPINE_PROFILE.lowBandAerial.toFixed(2)}, 1.0, 1.0 - uClearAir),
       max(0.0, mix(uAnchoredAerial.x, uAnchoredAerial.y, aerialRun))),
       uDistanceAerialStrength);
   }
@@ -1500,6 +1546,7 @@ export function createRidgeMaterial(
       uLowAerialStrength: { value: 1 },
       // Night compression of the hill fields (RIDGE_FIELD_PROFILE.night*).
       uFieldDaylight: { value: 1 },
+      uFieldTone: { value: 1 },
       // Distance haze on the fixed foothills (RIDGE_ANCHORED_AERIAL), with a
       // private paired control: 0 restores the per-ring constant exactly.
       uAnchoredAerial: RIDGE_ANCHORED_AERIAL_SPAN,
@@ -1509,7 +1556,7 @@ export function createRidgeMaterial(
     },
   });
   material.userData.clearAerial = aerial;
-  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v24';
+  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v25';
   return material;
 }
 
@@ -1677,8 +1724,10 @@ export function OptimizedSkySystem() {
       horizonGroupRef.current.position.z = state.camera.position.z;
     }
     if (!useGameSimulationStore.getState().isTabVisible) return;
-    const { gameDay, gameTime, gameSpeed, weather } = useGameSimulationStore.getState();
-    const smoothedGameTime = getSmoothedGameTime(gameTime, delta, gameSpeed);
+    const { gameDay, gameTime, gameSpeed, weather, timeOfDayHeld } =
+      useGameSimulationStore.getState();
+    // A held clock (capture mode) is not extrapolated ahead of the store.
+    const smoothedGameTime = getSmoothedGameTime(gameTime, delta, timeOfDayHeld ? 0 : gameSpeed);
     const atmosphere = sampleAtmosphere(gameDay, smoothedGameTime, weather);
     const celestial = sampleCelestial(atmosphere, celestialStateRef.current);
     const visualDaylight = atmosphere.daylight * atmosphere.lightMultiplier;
@@ -1896,9 +1945,11 @@ export function OptimizedSkySystem() {
       .lerp(ridgeSunGolden, mountainTwilight);
     ridgeShadowScratch.copy(ridgeShadowNight).lerp(ridgeShadowDay, visualDaylight);
     const fieldDaylight = getRidgeFieldDaylight(atmosphere.daylight);
+    const fieldTone = getRidgeFieldTone(atmosphere.daylight);
     const clearAir = getRidgeClearAir(atmosphere.cloudCoverage);
     for (const ridgeMaterial of ridgeMaterials.all) {
       ridgeMaterial.uniforms.uFieldDaylight.value = fieldDaylight;
+      ridgeMaterial.uniforms.uFieldTone.value = fieldTone;
       ridgeMaterial.uniforms.uClearAir.value = clearAir;
       ridgeMaterial.uniforms.uSunDirection.value.copy(sunDirectionScratch);
       ridgeMaterial.uniforms.uSunColor.value.lerp(ridgeSunScratch, colourAlpha);

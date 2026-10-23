@@ -153,6 +153,13 @@ export interface GameSimulationStore {
    * clock is still stopped underneath, start it at standard pace.
    */
   resumeClockFrom: (holder: Exclude<ClockHolder, 'player'>) => void;
+  /**
+   * Capture mode: the time of day (and so the sun, sky and lighting) stands
+   * still while the simulation keeps its pace. Set by the benchmark route; a
+   * page flag, never persisted.
+   */
+  timeOfDayHeld: boolean;
+  setTimeOfDayHeld: (held: boolean) => void;
   tickGameTime: (deltaSeconds: number) => void;
   resetGameState: () => void;
   clearPersistedState: () => void;
@@ -416,6 +423,8 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
         });
       },
       clockHolds: [],
+      timeOfDayHeld: false,
+      setTimeOfDayHeld: (held) => set({ timeOfDayHeld: held }),
       holdClock: (holder) => {
         const { gameSpeed: current, clockHolds } = get();
         if (current === 0 && clockHolds.at(-1)?.holder === holder) return;
@@ -455,6 +464,7 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
       tickGameTime: (deltaSeconds) =>
         set((state) => {
           if (!Number.isFinite(deltaSeconds) || deltaSeconds <= 0) return {};
+          if (state.timeOfDayHeld) return {};
           const gameSpeed = sanitizeGameSpeed(state.gameSpeed);
           if (gameSpeed === 0) return {};
           const safeDeltaSeconds = Math.min(deltaSeconds, MAX_DIRECT_TICK_DELTA_SECONDS);
