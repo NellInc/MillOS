@@ -231,7 +231,7 @@ describe('silo floods on the drum (final3-med-1830/22: hard line at the seam, bl
   });
 
   it('lights every galvanised part of the battery through its own BRDF', () => {
-    for (const name of ['silo', 'siloSkirt', 'siloRoof'] as const) {
+    for (const name of ['silo', 'siloSkirt', 'siloRoof', 'siloRing'] as const) {
       const shader = compile(MACHINE_MATERIALS[name]);
       expect(shader.uniforms.uMachineFlood, name).toBe(SILO_FLOOD_LIGHT);
       expect(shader.uniforms.uMachineFloodColor, name).toBe(SILO_FLOOD_COLOR);
