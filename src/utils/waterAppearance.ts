@@ -54,6 +54,14 @@ export const WATER_SKY_DETAIL_PROFILE = {
    */
   deckLift: 0.25,
   deckScale: 3.2,
+  /**
+   * The deck is a finite height above the water, so the mirrored point moves
+   * with the reflection point as well as the reflected direction: a world term
+   * of deckScale / deckHeightMetres cells per metre. On direction alone a 12 m
+   * canal seen from 70-150 m mirrored one uniform patch of deck along its whole
+   * 220 m (final5-med-12 village).
+   */
+  deckHeightMetres: 200,
   cloud: [0.42, 0.86],
   cloudWeight: 0.38,
   pawScale: 0.07,
@@ -62,13 +70,15 @@ export const WATER_SKY_DETAIL_PROFILE = {
 } as const;
 
 /**
- * Natural body for the lake and pond on Medium and up: `weight` of the way
- * from the authored cyan toward `tint` (an olive pond hue, normalised to unit
- * luminance) at the same luminance. final4-med-12 rubric: "saturated cyan".
+ * Natural body for the lake, pond and canal on Medium and up: `weight` of the
+ * way from the authored cyan toward `tint` (normalised to unit luminance) at
+ * the same luminance. final4-med-12 rubric: "saturated cyan"; round 5's olive
+ * at 0.7 read muddy at dawn and dusk (final5-med-06, 18:30), so the tint is a
+ * muted blue-green between the two.
  */
 export const WATER_NATURAL_PROFILE = {
-  weight: 0.7,
-  tint: [0.76, 1.08, 0.7],
+  weight: 0.55,
+  tint: [0.74, 1.07, 0.8],
 } as const;
 
 /** CPU mirror of the shader's natural-body shift, on a linear colour. */
@@ -81,15 +91,69 @@ export function naturalWaterBody(colour: THREE.Color, weight: number): THREE.Col
 
 /**
  * Far-bank reflection on bounded water (Medium and up). The reflected ray is
- * walked to the shore ellipse (`bankRadii`, metres); where it has risen less
- * than the bank (`bankMetres`, varied by `bankVariation` along the shore) it
- * sees grass, reeds and kerb (`tone`, linear) rather than sky.
+ * walked to the shore (`bankRadii`, metres: an ellipse, or straight walls
+ * across U on a `crossOnly` canal); where it has risen less than the bank it
+ * sees bank rather than sky, and the reflected sky darkens to `shade` at the
+ * same hue. The bank's height is `bankMetres`, wandering by `bankVariation`
+ * along the shore and broken by a finer reed and shrub term (`reedVariation`
+ * at `reedScale`); the darkening ramps over `ramp` x that height. Round 5 put
+ * a constant olive-green there over a 0.8 m ramp: a flat teal band along the
+ * far shore (final5-med-06, 18:30, 22:00 water).
  */
 export const WATER_BANK_PROFILE = {
   bankMetres: 1.0,
-  bankVariation: 0.5,
-  tone: [0.05, 0.085, 0.032],
+  bankVariation: 0.4,
+  reedVariation: 0.35,
+  reedScale: 9,
+  ramp: [0.3, 1.7],
+  shade: 0.45,
 } as const;
+
+/** CPU mirror of the bank term on the reflected colour: darker, same hue. */
+export function waterBankReflection(reflected: THREE.Color, bankHit: number): THREE.Color {
+  const hit = Math.min(1, Math.max(0, bankHit));
+  return reflected.multiplyScalar(1 + (WATER_BANK_PROFILE.shade - 1) * hit);
+}
+
+/**
+ * CPU mirror of the mirrored-cloud deck coordinate (time term omitted): the
+ * reflected direction projected onto the deck plus the reflection point's own
+ * offset under it.
+ */
+export function waterDeckCoord(
+  reflected: THREE.Vector3,
+  worldX: number,
+  worldZ: number
+): THREE.Vector2 {
+  const { deckLift, deckScale, deckHeightMetres } = WATER_SKY_DETAIL_PROFILE;
+  const perMetre = Number((deckScale / deckHeightMetres).toFixed(4));
+  const lift = reflected.y + deckLift;
+  return new THREE.Vector2(
+    (reflected.x / lift) * deckScale + worldX * perMetre,
+    (reflected.z / lift) * deckScale + worldZ * perMetre
+  );
+}
+
+/**
+ * Night sheen on still water (lake, pond, canal; Medium and up). Steep views
+ * reflect the zenith, nearly black at night, over a body lit at 14%: the lake
+ * centre went near-black at 22:00 (final5-med-22 water). After dark the
+ * reflectance keeps `floor` and the reflection leans `horizon` of the way to
+ * the night horizon's glow. Full below daylight[0], none above daylight[1]
+ * (18:30 is 0.23, 19:00 is 0.046).
+ */
+export const WATER_NIGHT_PROFILE = {
+  floor: 0.16,
+  horizon: 0.5,
+  daylight: [0.0, 0.3],
+} as const;
+
+/** Reflectance floor of the night sheen at a daylight value. */
+export function waterNightSheen(daylight: number): number {
+  const [start, end] = WATER_NIGHT_PROFILE.daylight;
+  return WATER_NIGHT_PROFILE.floor * (1 - THREE.MathUtils.smoothstep(daylight, start, end));
+}
+
 /** Paired control for the bank reflection: 0 restores the sky exactly. */
 export const WATER_BANK_DETAIL = { value: 1 };
 /** Paired control for the deck and paws: 0 restores the earlier sky exactly. */

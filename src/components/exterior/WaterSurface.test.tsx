@@ -23,7 +23,11 @@ import {
   WATER_BANK_DETAIL,
   WATER_BANK_PROFILE,
   WATER_NATURAL_PROFILE,
+  WATER_NIGHT_PROFILE,
   naturalWaterBody,
+  waterBankReflection,
+  waterDeckCoord,
+  waterNightSheen,
 } from '../../utils/waterAppearance';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
@@ -97,7 +101,7 @@ describe('authored exterior water material and atmosphere driver', () => {
     );
     expect(water.fragmentShader).toContain('gl_FragColor = vec4(colour, 1.0)');
     expect(water.fragmentShader).toContain('#include <fog_fragment>');
-    expect(water.customProgramCacheKey()).toBe('millos-unified-water-v25');
+    expect(water.customProgramCacheKey()).toBe('millos-unified-water-v26');
     const dispose = vi.spyOn(water, 'dispose');
     for (const cleanup of driver.cleanups.splice(0)) cleanup();
     expect(dispose).toHaveBeenCalledOnce();
@@ -240,7 +244,7 @@ it('reuses the actual displayed sky colours while retaining the staged-load fall
 it('lights the body before reflection, with no second night attenuation in the finish arm', () => {
   const water = material();
   expect(water.fragmentShader.indexOf('depth) * bodyLight')).toBeLessThan(
-    water.fragmentShader.indexOf('colour = mix(colour, reflectionColour, reflectance)')
+    water.fragmentShader.indexOf('colour = mix(colour, reflectionColour * bankShade, reflectance)')
   );
   expect(water.fragmentShader).toContain('mix(illumination, 1.0, uSkyRadiance)');
   expect(water.fragmentShader).toContain('uReflection * bodyLight');
@@ -395,16 +399,18 @@ it('keeps a deep-water read on Low, where no metre-scale ripple breaks the refle
   expect(water.fragmentShader).toContain(
     `mix(${WATER_FRESNEL_EXPONENT_FLAT.toFixed(1)}, ${WATER_FRESNEL_EXPONENT.toFixed(1)}, uRippleDetail)`
   );
-  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v25');
+  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v26');
 });
 
 // final4-med-12 rubric: the pond is a saturated cyan and reflects nothing of
-// its bank. On Medium and up the lake and pond bodies move toward a muted
-// olive water at the same luminance, and the reflected ray that meets the far
-// bank before it clears the bank's height takes the bank's tone instead of the
-// sky. Low keeps its body and sky exactly (uRippleDetail branch), and each term
-// has a zero control.
-it('gives the lake and pond a natural body and a far-bank reflection on Medium only', () => {
+// its bank. Round 5 moved the body to olive and painted the far bank as a flat
+// olive-green tone; final5-med-06, 18:30 and 22:00 water read a flat teal band
+// along the far shore over a darker, muddier body. The body is now a muted
+// blue-green (not cyan, not olive) and the bank is a soft darkening of the
+// reflected sky that keeps its hue and clouds, with a ragged silhouette. Low
+// keeps its body and sky exactly (uRippleDetail branch); each term has a zero
+// control.
+it('gives still water a natural body and a soft far-bank darkening on Medium only', () => {
   const lake = UnifiedWaterSurfaceMaterial({
     kind: 'lake',
     radial: true,
@@ -418,7 +424,13 @@ it('gives the lake and pond a natural body and a far-bank reflection on Medium o
   expect(shader).toContain('if (uRippleDetail > 0.0 && uNaturalBody > 0.0)');
   expect(shader).toContain('if (uRippleDetail > 0.0 && uBankDetail > 0.0 && uBankRadii.x > 0.0)');
   expect(shader).toContain('float bankHit');
-  // Rivers and canals keep their authored body; an unbounded plane has no bank.
+  // No constant bank colour replaces the sky: the band printed flat teal.
+  expect(shader).not.toContain('mix(skyColour, bankTone');
+  expect(shader).not.toContain('bankTone');
+  expect(shader).toContain(`mix(1.0, ${WATER_BANK_PROFILE.shade.toFixed(2)}, bankHit)`);
+  // The fixed damp margin takes the same natural shift as the body.
+  expect(shader).toContain('margin = millosNaturalWater(margin)');
+  // Rivers keep their authored body; an unbounded plane has no bank.
   const river = (
     UnifiedWaterSurfaceMaterial({ kind: 'river' }) as ReactElement<{
       object: THREE.ShaderMaterial;
@@ -426,18 +438,34 @@ it('gives the lake and pond a natural body and a far-bank reflection on Medium o
   ).props.object;
   expect(river.uniforms.uNaturalBody.value).toBe(0);
   expect(river.uniforms.uBankRadii.value.x).toBe(0);
-  // CPU mirror of the body shift: same luminance, much less saturation, and
-  // green above blue (olive, not cyan).
-  const linear = (hex: string) => new THREE.Color(hex);
+  // CPU mirror of the body shift: same luminance, much less saturation, and a
+  // blue-green hue between round 5's olive (about 160) and the authored cyan
+  // (about 200).
   const luma = (c: THREE.Color) => c.r * 0.2126 + c.g * 0.7152 + c.b * 0.0722;
   const spread = (c: THREE.Color) => Math.max(c.r, c.g, c.b) - Math.min(c.r, c.g, c.b);
-  for (const hex of ['#143b48', '#4a8790']) {
-    const before = linear(hex);
+  const hue = (c: THREE.Color) => c.getHSL({ h: 0, s: 0, l: 0 }).h * 360;
+  for (const hex of ['#153747', '#3f7f8c', '#173f4a', '#2d6670']) {
+    const before = new THREE.Color(hex);
     const after = naturalWaterBody(before.clone(), WATER_NATURAL_PROFILE.weight);
     expect(luma(after)).toBeCloseTo(luma(before), 6);
-    expect(spread(after)).toBeLessThan(spread(before) * 0.7);
-    expect(after.g).toBeGreaterThan(after.b);
+    expect(spread(after)).toBeLessThan(spread(before) * 0.75);
+    expect(hue(after)).toBeGreaterThan(172);
+    expect(hue(after)).toBeLessThan(hue(before) - 5);
   }
+  // The bank darkens the reflected sky without changing its hue.
+  for (const sky of [new THREE.Color(0.4, 0.55, 0.8), new THREE.Color(0.6, 0.35, 0.3)]) {
+    const banked = waterBankReflection(sky.clone(), 1);
+    expect(banked.r / banked.b).toBeCloseTo(sky.r / sky.b, 6);
+    expect(banked.g / banked.b).toBeCloseTo(sky.g / sky.b, 6);
+    expect(luma(banked)).toBeCloseTo(luma(sky) * WATER_BANK_PROFILE.shade, 6);
+    expect(waterBankReflection(sky.clone(), 0).equals(sky)).toBe(true);
+  }
+  // Soft and ragged: the ramp spans more than the bank's own height, and a
+  // finer reed term breaks the line.
+  const [rampStart, rampEnd] = WATER_BANK_PROFILE.ramp;
+  expect(rampEnd - rampStart).toBeGreaterThan(1.2);
+  expect(WATER_BANK_PROFILE.reedVariation).toBeGreaterThan(0.2);
+  expect(shader).toContain(`shorePoint * ${WATER_BANK_PROFILE.reedScale.toFixed(1)}`);
   // From the water camera the reflected ray rises about 0.45 m per metre, so a
   // bank of bankMetres shows as a band of a couple of metres along the far shore.
   const camera = new THREE.Vector3(...SITE_LAYOUT.cameras.water.position);
@@ -445,7 +473,60 @@ it('gives the lake and pond a natural body and a far-bank reflection on Medium o
   const rise = (camera.y - target.y) / Math.hypot(camera.x - target.x, camera.z - target.z);
   expect(WATER_BANK_PROFILE.bankMetres / rise).toBeGreaterThan(1.5);
   expect(WATER_BANK_DETAIL.value).toBe(1);
-  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v25');
+  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v26');
+});
+
+// final5-med-22 water: a near-black centre. Steep views reflect the zenith,
+// which at night is nearly black, over a body lit at 14%. Still water now
+// keeps a floor of the night horizon's glow, Medium only, from 19:00 on.
+it('keeps a faint night-sky sheen on still water after dark', () => {
+  const at = (daylight: number) => waterNightSheen(daylight);
+  expect(at(1)).toBe(0);
+  expect(at(0.5)).toBe(0);
+  expect(at(0.233)).toBeLessThan(WATER_NIGHT_PROFILE.floor * 0.2);
+  expect(at(0.046)).toBeGreaterThan(WATER_NIGHT_PROFILE.floor * 0.8);
+  expect(at(0)).toBe(WATER_NIGHT_PROFILE.floor);
+  expect(WATER_NIGHT_PROFILE.floor).toBeGreaterThan(0.08);
+  expect(WATER_NIGHT_PROFILE.floor).toBeLessThan(0.3);
+  const lake = (
+    UnifiedWaterSurfaceMaterial({ kind: 'lake', radial: true }) as ReactElement<{
+      object: THREE.ShaderMaterial;
+    }>
+  ).props.object;
+  expect(lake.fragmentShader).toContain('float nightSheen');
+  expect(lake.fragmentShader).toContain('reflectance = max(reflectance, nightSheen)');
+});
+
+// final5-med-12 village: the canal is a flat deep-blue gradient. Its body kept
+// the authored teal-blue, it had no bank, and the mirrored cloud deck was a
+// function of the reflected DIRECTION alone, which barely turns along a 12 m
+// canal seen from 70-150 m: one uniform patch of deck. A finite-height deck
+// also moves with the reflection point, so clouds pass along its 220 m. The
+// canal takes the natural body and reflects its walls as straight banks.
+it('gives the canal the natural body, wall reflection and a cloud deck that moves along it', () => {
+  const canal = (
+    UnifiedWaterSurfaceMaterial({
+      kind: 'canal',
+      crossOnly: true,
+      bankRadii: [5.5, 110],
+    }) as ReactElement<{ object: THREE.ShaderMaterial }>
+  ).props.object;
+  expect(canal.uniforms.uNaturalBody.value).toBe(WATER_NATURAL_PROFILE.weight);
+  expect(canal.uniforms.uBankRadii.value.toArray()).toEqual([5.5, 110]);
+  // Straight walls: a slab across U, not the inscribed ellipse.
+  expect(canal.fragmentShader).toContain('if (uCrossOnly > 0.5)');
+  const deckK = WATER_SKY_DETAIL_PROFILE.deckScale / WATER_SKY_DETAIL_PROFILE.deckHeightMetres;
+  expect(canal.fragmentShader).toContain(`waterCoord * ${deckK.toFixed(4)}`);
+  const ray = new THREE.Vector3(0.3, 0.45, -0.84).normalize();
+  const near = waterDeckCoord(ray, -145, 40);
+  const far = waterDeckCoord(ray, -145, -60);
+  // 100 m along the canal crosses more than one deck cell...
+  expect(near.distanceTo(far)).toBeGreaterThan(1.2);
+  // ...while across the 40 m lake the pattern shifts by well under one.
+  expect(waterDeckCoord(ray, 100, 120).distanceTo(waterDeckCoord(ray, 140, 120))).toBeLessThan(0.8);
+  // A cloud deck a few hundred metres up.
+  expect(WATER_SKY_DETAIL_PROFILE.deckHeightMetres).toBeGreaterThanOrEqual(150);
+  expect(WATER_SKY_DETAIL_PROFILE.deckHeightMetres).toBeLessThanOrEqual(400);
 });
 
 it('adds a faint metre-scale ripple normal that freezes with the water clock and drops on Low', () => {
@@ -543,55 +624,5 @@ it('mirrors a cloud deck and gust patches across the lake on Medium, exact on Lo
   sky.dispose();
   dome.geometry.dispose();
   expect(WATER_SKY_DETAIL.value).toBe(1);
-  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v25');
-});
-
-// final4-med-12 rubric: the pond is a saturated cyan and reflects nothing of
-// its bank. On Medium and up the lake and pond bodies move toward a muted
-// olive water at the same luminance, and the reflected ray that meets the far
-// bank before it clears the bank's height takes the bank's tone instead of the
-// sky. Low keeps its body and sky exactly (uRippleDetail branch), and each term
-// has a zero control.
-it('gives the lake and pond a natural body and a far-bank reflection on Medium only', () => {
-  const lake = UnifiedWaterSurfaceMaterial({
-    kind: 'lake',
-    radial: true,
-    bankRadii: [19, 14],
-  }) as ReactElement<{ object: THREE.ShaderMaterial }>;
-  const water = lake.props.object;
-  expect(water.uniforms.uNaturalBody.value).toBe(WATER_NATURAL_PROFILE.weight);
-  expect(water.uniforms.uBankDetail).toBe(WATER_BANK_DETAIL);
-  expect(water.uniforms.uBankRadii.value.toArray()).toEqual([19, 14]);
-  const shader = water.fragmentShader;
-  expect(shader).toContain('if (uRippleDetail > 0.0 && uNaturalBody > 0.0)');
-  expect(shader).toContain('if (uRippleDetail > 0.0 && uBankDetail > 0.0 && uBankRadii.x > 0.0)');
-  expect(shader).toContain('float bankHit');
-  // Rivers and canals keep their authored body; an unbounded plane has no bank.
-  const river = (
-    UnifiedWaterSurfaceMaterial({ kind: 'river' }) as ReactElement<{
-      object: THREE.ShaderMaterial;
-    }>
-  ).props.object;
-  expect(river.uniforms.uNaturalBody.value).toBe(0);
-  expect(river.uniforms.uBankRadii.value.x).toBe(0);
-  // CPU mirror of the body shift: same luminance, much less saturation, and
-  // green above blue (olive, not cyan).
-  const linear = (hex: string) => new THREE.Color(hex);
-  const luma = (c: THREE.Color) => c.r * 0.2126 + c.g * 0.7152 + c.b * 0.0722;
-  const spread = (c: THREE.Color) => Math.max(c.r, c.g, c.b) - Math.min(c.r, c.g, c.b);
-  for (const hex of ['#143b48', '#4a8790']) {
-    const before = linear(hex);
-    const after = naturalWaterBody(before.clone(), WATER_NATURAL_PROFILE.weight);
-    expect(luma(after)).toBeCloseTo(luma(before), 6);
-    expect(spread(after)).toBeLessThan(spread(before) * 0.7);
-    expect(after.g).toBeGreaterThan(after.b);
-  }
-  // From the water camera the reflected ray rises about 0.45 m per metre, so a
-  // bank of bankMetres shows as a band of a couple of metres along the far shore.
-  const camera = new THREE.Vector3(...SITE_LAYOUT.cameras.water.position);
-  const target = new THREE.Vector3(...SITE_LAYOUT.cameras.water.target);
-  const rise = (camera.y - target.y) / Math.hypot(camera.x - target.x, camera.z - target.z);
-  expect(WATER_BANK_PROFILE.bankMetres / rise).toBeGreaterThan(1.5);
-  expect(WATER_BANK_DETAIL.value).toBe(1);
-  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v25');
+  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v26');
 });

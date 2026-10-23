@@ -19,6 +19,7 @@ import {
   WATER_BANK_DETAIL,
   WATER_BANK_PROFILE,
   WATER_NATURAL_PROFILE,
+  WATER_NIGHT_PROFILE,
   WATER_VISUAL_TIME,
   WATER_WIND,
   type WaterKind,
@@ -1344,10 +1345,14 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
         uSkyDetail: WATER_SKY_DETAIL,
         uCloudCover: WATER_CLOUD_COVER,
         uCloudTone: WATER_CLOUD_TONE,
-        // Lake and pond only: the authored cyan moves toward natural water on
-        // Medium and up (WATER_NATURAL_PROFILE); Low keeps it exactly.
+        // Still water only (lake, pond, canal): the authored cyan moves toward
+        // natural water on Medium and up (WATER_NATURAL_PROFILE); Low keeps it
+        // exactly. The canal read as a flat deep blue (final5-med-12 village).
         uNaturalBody: {
-          value: kind === 'lake' || kind === 'pond' ? WATER_NATURAL_PROFILE.weight : 0,
+          value:
+            kind === 'lake' || kind === 'pond' || kind === 'canal'
+              ? WATER_NATURAL_PROFILE.weight
+              : 0,
         },
         uBankDetail: WATER_BANK_DETAIL,
         uBankRadii: { value: new THREE.Vector2(bankX, bankZ) },
@@ -1467,6 +1472,15 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
           return mix(mix(millosWaterHash(cell), millosWaterHash(cell + vec2(1.0, 0.0)), f.x),
             mix(millosWaterHash(cell + vec2(0.0, 1.0)), millosWaterHash(cell + vec2(1.0)), f.x), f.y);
         }
+        // Natural body (WATER_NATURAL_PROFILE): the authored cyan read as a
+        // saturated swimming-pool tone (final4-med-12 rubric). Same luminance,
+        // toward a muted blue-green.
+        vec3 millosNaturalWater(vec3 c) {
+          vec3 pondTint = vec3(${WATER_NATURAL_PROFILE.tint.map((v) => v.toFixed(3)).join(', ')});
+          float bodyLuma = dot(c, vec3(0.2126, 0.7152, 0.0722));
+          return mix(c, pondTint * (bodyLuma / dot(pondTint, vec3(0.2126, 0.7152, 0.0722))),
+            uNaturalBody);
+        }
         void main() {
           // Shade the water body once, before adding incident sky radiance.
           // Previously a final daylight multiplier also darkened the already
@@ -1562,14 +1576,9 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
           float edge = max(mix(linearEdge, radialEdge, uRadial), 0.0);
           float depth = clamp(smoothstep(0.0, 0.34, edge) + ripples * 0.012 * uRippleStrength, 0.0, 1.0);
           colour = mix(uShallow, uDeep, depth) * bodyLight * uBodyTint;
-          // Natural body (WATER_NATURAL_PROFILE): the authored lake and pond
-          // cyan read as a saturated swimming-pool tone (final4-med-12
-          // rubric). Same luminance, toward a muted olive pond hue.
+          // Natural body on still water, Medium and up (millosNaturalWater).
           if (uRippleDetail > 0.0 && uNaturalBody > 0.0) {
-            vec3 pondTint = vec3(${WATER_NATURAL_PROFILE.tint.map((v) => v.toFixed(3)).join(', ')});
-            float bodyLuma = dot(colour, vec3(0.2126, 0.7152, 0.0722));
-            colour = mix(colour, pondTint * (bodyLuma / dot(pondTint, vec3(0.2126, 0.7152, 0.0722))),
-              uNaturalBody);
+            colour = millosNaturalWater(colour);
           }
 
           // Micro-relief from the analytic derivatives of the same three wave
@@ -1659,8 +1668,11 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
           // weight where they pass. Low skips both on the same uniform branch.
           float pawSky = 0.0;
           if (uRippleDetail > 0.0 && uSkyDetail > 0.0) {
+            // The deck sits deckHeightMetres up, so it also moves with the
+            // reflection point: on direction alone the canal mirrored one patch.
             vec2 deck = reflected.xz / (reflected.y + ${WATER_SKY_DETAIL_PROFILE.deckLift.toFixed(2)})
               * ${WATER_SKY_DETAIL_PROFILE.deckScale.toFixed(2)}
+              + waterCoord * ${(WATER_SKY_DETAIL_PROFILE.deckScale / WATER_SKY_DETAIL_PROFILE.deckHeightMetres).toFixed(4)}
               + uFlowDirection * uTime * 0.004;
             float deckCloud = millosWaterNoise(deck) * 0.62 + millosWaterNoise(deck * 2.31 + 4.7) * 0.38;
             float mirrored = smoothstep(${WATER_SKY_DETAIL_PROFILE.cloud[0].toFixed(2)},
@@ -1678,34 +1690,56 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
             skyColour = mix(skyColour, uSkyHorizon, pawSky * 3.0);
           }
           // Far-bank reflection (WATER_BANK_PROFILE). Walk the reflected ray's
-          // heading to the shore ellipse; if it has risen less than the bank
-          // by then, it sees grass, reeds and kerb rather than sky. The bank
-          // height wanders along the shore and the ripple-perturbed ray
-          // breaks the band's edge.
+          // heading to the shore (an ellipse, or straight walls across U on a
+          // crossOnly canal); if it has risen less than the bank by then, it
+          // sees bank rather than sky, and the reflected sky darkens at its
+          // own hue. Round 5 painted a constant olive there: a flat teal band
+          // (final5-med-06, 18:30, 22:00 water). The bank wanders along the
+          // shore, a finer reed term breaks its line, and the ramp is wide.
           float bankHit = 0.0;
           if (uRippleDetail > 0.0 && uBankDetail > 0.0 && uBankRadii.x > 0.0) {
             float runLength = max(length(reflected.xz), 0.0001);
             vec2 heading = reflected.xz / runLength;
-            // centred is the ellipse-normalised position; mesh V runs to -z.
+            // centred is the shore-normalised position; mesh V runs to -z.
             vec2 shoreStep = vec2(heading.x, -heading.y) / uBankRadii;
-            float stepA = max(dot(shoreStep, shoreStep), 1e-6);
-            float stepB = dot(centred, shoreStep);
-            float stepC = dot(centred, centred) - 1.0;
-            float toShore = max((-stepB + sqrt(max(stepB * stepB - stepA * stepC, 0.0))) / stepA, 0.0);
+            float toShore;
+            if (uCrossOnly > 0.5) {
+              toShore = abs(shoreStep.x) > 1e-5
+                ? max((sign(shoreStep.x) - centred.x) / shoreStep.x, 0.0)
+                : 10000.0;
+            } else {
+              float stepA = max(dot(shoreStep, shoreStep), 1e-6);
+              float stepB = dot(centred, shoreStep);
+              float stepC = dot(centred, centred) - 1.0;
+              toShore = max((-stepB + sqrt(max(stepB * stepB - stepA * stepC, 0.0))) / stepA, 0.0);
+            }
             vec2 shorePoint = centred + shoreStep * toShore;
+            // A masonry wall keeps a near-level top; a natural bank wanders.
+            float bankWander = mix(1.0, 0.25, uCrossOnly);
             float bankHeight = ${WATER_BANK_PROFILE.bankMetres.toFixed(2)}
-              * (1.0 + (millosWaterNoise(shorePoint * 4.0 + vec2(2.3, 7.1)) - 0.5)
-                * ${(WATER_BANK_PROFILE.bankVariation * 2).toFixed(2)});
+              * (1.0 + ((millosWaterNoise(shorePoint * 4.0 + vec2(2.3, 7.1)) - 0.5)
+                * ${(WATER_BANK_PROFILE.bankVariation * 2).toFixed(2)}
+                + (millosWaterNoise(shorePoint * ${WATER_BANK_PROFILE.reedScale.toFixed(1)} + vec2(5.9, 1.3)) - 0.5)
+                * ${(WATER_BANK_PROFILE.reedVariation * 2).toFixed(2)}) * bankWander);
             float rise = reflected.y / runLength * toShore;
-            bankHit = (1.0 - smoothstep(bankHeight * 0.55, bankHeight * 1.35, rise)) * uBankDetail;
-            vec3 bankTone = vec3(${WATER_BANK_PROFILE.tone.map((v) => v.toFixed(3)).join(', ')})
-              * mix(0.12, 1.0, uDaylight);
-            skyColour = mix(skyColour, bankTone, bankHit);
+            bankHit = (1.0 - smoothstep(bankHeight * ${WATER_BANK_PROFILE.ramp[0].toFixed(2)},
+              bankHeight * ${WATER_BANK_PROFILE.ramp[1].toFixed(2)}, rise)) * uBankDetail;
           }
-          vec3 reflectionColour = mix(mix(uReflection * mix(0.08, 1.0, uDaylight), skyColour, 0.75),
-            skyColour, bankHit);
+          float bankShade = mix(1.0, ${WATER_BANK_PROFILE.shade.toFixed(2)}, bankHit);
+          vec3 reflectionColour = mix(uReflection * mix(0.08, 1.0, uDaylight), skyColour, 0.75);
           float reflectance = clamp(0.02 + fresnel * 0.98 + pawSky, 0.02, 0.95);
-          colour = mix(colour, reflectionColour, reflectance);
+          // Night sheen on still water (WATER_NIGHT_PROFILE): steep views
+          // reflected a near-black zenith over a 14% body, and the lake centre
+          // went near-black at 22:00 (final5-med-22). After dark the
+          // reflection leans toward the horizon glow and keeps a floor.
+          if (uRippleDetail > 0.0 && uNaturalBody > 0.0) {
+            float nightSheen = ${WATER_NIGHT_PROFILE.floor.toFixed(2)} * (1.0 - smoothstep(
+              ${WATER_NIGHT_PROFILE.daylight[0].toFixed(2)}, ${WATER_NIGHT_PROFILE.daylight[1].toFixed(2)}, uDaylight));
+            reflectionColour = mix(reflectionColour, uSkyHorizon,
+              nightSheen / ${WATER_NIGHT_PROFILE.floor.toFixed(2)} * ${WATER_NIGHT_PROFILE.horizon.toFixed(2)});
+            reflectance = max(reflectance, nightSheen);
+          }
+          colour = mix(colour, reflectionColour * bankShade, reflectance);
 
           // Specular sun: a tight glitter lobe plus a broad sheen. Both are
           // tone-mapped with the rest of the frame (this shader runs
@@ -1739,7 +1773,11 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
           // Damp margin so the bank mesh and the water meet on a wet
           // transition rather than a cut edge.
           float shore = smoothstep(0.0, 0.012, edge);
-          colour = mix(vec3(0.16, 0.26, 0.26) * bodyLight, colour, shore);
+          vec3 margin = vec3(0.16, 0.26, 0.26) * bodyLight;
+          if (uRippleDetail > 0.0 && uNaturalBody > 0.0) {
+            margin = millosNaturalWater(margin);
+          }
+          colour = mix(margin, colour, shore);
 
           #endif
           colour = mix(uDeep * 0.92 * bodyLight * uBodyTint, colour, clamp(uOpacity, 0.0, 1.0));
@@ -1768,7 +1806,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
     // MANUALLY VERSIONED, never derived from time or randomness - see the
     // documented `Date.now()` cache-key bug. Bump this whenever the shader
     // source above changes or a stale cached program will be reused.
-    value.customProgramCacheKey = () => 'millos-unified-water-v25';
+    value.customProgramCacheKey = () => 'millos-unified-water-v26';
     return value;
   }, [
     bankX,
@@ -1833,6 +1871,7 @@ const StillCanalWater: React.FC<{
           kind="canal"
           opacity={0.9}
           crossOnly
+          bankRadii={[safeWidth / 2, safeLength / 2]}
         />
       </mesh>
     </group>
