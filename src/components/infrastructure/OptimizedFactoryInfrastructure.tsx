@@ -499,6 +499,13 @@ const MATERIALS = {
     roughness: 0.48,
     metalness: 0,
   }),
+  /** Galvanised casings of the rooftop plant: light against the dark deck from above. */
+  rooftopPlant: new THREE.MeshStandardMaterial({
+    name: 'factory-rooftop-plant',
+    color: '#a2a7a6',
+    roughness: 0.5,
+    metalness: 0,
+  }),
   roofTrim: new THREE.MeshStandardMaterial({
     name: 'factory-roof-trim',
     color: '#505452',
@@ -966,6 +973,9 @@ const GALLERY_DECK_TOP = 8.85;
  *                  in `meshbasic_frag` at all, so the injection would be half a
  *                  shader. `canApplyWorldSurface` refuses them.
  */
+/** Membrane lap seams on the roof's top face: pitch and seam width (m), darkening. */
+export const ROOF_MEMBRANE_SEAM = { pitch: 1.8, width: 0.07, tone: 0.32 } as const;
+
 const SHELL_SURFACES: readonly [
   THREE.MeshStandardMaterial,
   WorldSurfaceProfileName,
@@ -978,7 +988,27 @@ const SHELL_SURFACES: readonly [
   [MATERIALS.wallParapet, 'painted'],
   [MATERIALS.steel, 'painted'],
   [MATERIALS.steelTrim, 'painted'],
-  [MATERIALS.roof, 'painted'],
+  // A membrane roof from above (overview, farm): one flat olive plane in
+  // final4, the largest surface in the overview frame. Lap seams every 1.8 m
+  // parallel to the ridge (they recede from the overview camera, so they keep
+  // their contrast; box-filtered and Nyquist-faded like the liner's ribs),
+  // large-scale staining from a slower, stronger macro, and less of the khaki
+  // dust that turned the grey membrane olive.
+  [
+    MATERIALS.roof,
+    'painted',
+    {
+      ribPeriod: ROOF_MEMBRANE_SEAM.pitch,
+      ribDepth: 0,
+      ribAxis: 0,
+      ribFilteredTone: ROOF_MEMBRANE_SEAM.tone,
+      ribSeamWidth: ROOF_MEMBRANE_SEAM.width / ROOF_MEMBRANE_SEAM.pitch,
+      macroPeriod: 15,
+      macro: 0.26,
+      dust: 0.06,
+    },
+  ],
+  [MATERIALS.rooftopPlant, 'painted'],
   // Trapezoidal deck ribs at a 250 mm pitch running down the slope (the
   // halves pitch about Z, so the profile varies along world Z), and the hall's
   // grey bounce instead of the grass's.
@@ -1252,6 +1282,73 @@ export function buildFactoryRoofBatten(
     rotation: [0, 0, roofSlope(side)],
   };
 }
+
+/** Deck-local Z centres of the gaps between battens, where a unit's curb sits clear of them. */
+const ROOF_BATTEN_GAP_Z = (k: number): number => -47.2 + ROOF_BATTEN_PITCH * (k + 0.5);
+
+/**
+ * Plant on the deck: air-handling units, exhaust fans and vent stacks. Three
+ * 5 x 1 x 3 boxes stood at a fixed height, not on the pitched deck: the one at
+ * the ridge was buried 1.7 m under it and the two outer ones were half sunk.
+ * Each piece now sits on its half's top face (tilted with it, 2 cm into it),
+ * between two battens and clear of the roof lights.
+ * [side, deck-local X, batten gap index, size (along slope, up, along Z)]
+ */
+export const ROOFTOP_PLANT: readonly (readonly [
+  -1 | 1,
+  number,
+  number,
+  readonly [number, number, number],
+])[] = [
+  // Air-handling units.
+  [1, 6, 6, [5, 1.5, 3]],
+  [-1, -6, 6, [5, 1.5, 3]],
+  [1, -15, 13, [4, 1.3, 2.6]],
+  [-1, 13, 18, [3.6, 1.2, 2.4]],
+  // Exhaust fans.
+  [1, 12, 11, [1.3, 0.85, 1.3]],
+  [-1, -12, 11, [1.3, 0.85, 1.3]],
+  [1, 14, 19, [1.3, 0.85, 1.3]],
+  [-1, -14, 2, [1.3, 0.85, 1.3]],
+  [1, -12, 1, [1.3, 0.85, 1.3]],
+  // Vent stacks.
+  [1, 2, 4, [0.35, 1.2, 0.35]],
+  [-1, -2, 15, [0.35, 1.2, 0.35]],
+  [1, 17, 9, [0.35, 1.2, 0.35]],
+  [-1, 16, 8, [0.35, 1.2, 0.35]],
+];
+
+/** How far a plant item's base is let into the deck, so no sliver of air shows under it. */
+export const ROOFTOP_PLANT_EMBED = 0.02;
+
+export function buildFactoryRooftopPlant(): BoxInstance[] {
+  return ROOFTOP_PLANT.map(([side, local, gap, size]) => {
+    const seat = deckPoint(side, local);
+    const slope = roofSlope(side);
+    const lift = size[1] / 2 - ROOFTOP_PLANT_EMBED;
+    return {
+      position: [
+        seat.x - Math.sin(slope) * lift,
+        seat.y + Math.cos(slope) * lift,
+        ROOF_BATTEN_GAP_Z(gap),
+      ],
+      scale: [size[0], size[1], size[2]],
+      rotation: [0, 0, slope],
+    };
+  });
+}
+
+/** The roof lights' kerb footprints in each half's deck-local frame, for the plant test. */
+export const ROOF_SKYLIGHT_LAYOUT = {
+  z: SKYLIGHT_Z,
+  size: SKYLIGHT_SIZE,
+  localX: skylightLocalX,
+  battenPitch: ROOF_BATTEN_PITCH,
+  battenWidth: ROOF_BATTEN_WIDTH,
+  battenReach: ROOF_BATTEN_REACH,
+  deckPoint,
+  roofSlope,
+} as const;
 
 /**
  * Projected height, in drawing-buffer pixels, below which a batten stops
@@ -1906,13 +2003,7 @@ function FactoryShell() {
   const roofPanels = roofEnvelope.panels;
 
   const roofDetails = useMemo<readonly BoxInstance[]>(() => {
-    const height = SITE_LAYOUT.factory.bounds.maxY;
-    const result: BoxInstance[] = [
-      ...buildFactoryRoofTrim(),
-      { position: [-FLOOR_WIDTH * 0.3, height + 0.45, -18], scale: [5, 1, 3] },
-      { position: [0, height + 0.45, -18], scale: [5, 1, 3] },
-      { position: [FLOOR_WIDTH * 0.3, height + 0.45, -18], scale: [5, 1, 3] },
-    ];
+    const result: BoxInstance[] = [...buildFactoryRoofTrim()];
 
     // Upstand kerbs. A roof light sits on a raised frame; without one the
     // glazing is a blue rectangle lying flat on the deck, and from inside
@@ -1967,6 +2058,7 @@ function FactoryShell() {
   }, []);
 
   const roofSkylights = useMemo(buildFactoryRoofGlazing, []);
+  const rooftopPlant = useMemo(buildFactoryRooftopPlant, []);
 
   const windows = useMemo(buildFactoryGlazing, []);
   const windowLights = useMemo(() => buildFactoryGlazingLights(windows), [windows]);
@@ -2020,6 +2112,12 @@ function FactoryShell() {
         receiveShadow
       />
       <RoofBattens instances={roofBattens} />
+      <InstancedBoxes
+        instances={rooftopPlant}
+        material={MATERIALS.rooftopPlant}
+        castShadow
+        receiveShadow
+      />
       <InstancedBoxes instances={roofSkylights} material={MATERIALS.skylight} />
       <InstancedBoxes
         instances={facadeAccents}

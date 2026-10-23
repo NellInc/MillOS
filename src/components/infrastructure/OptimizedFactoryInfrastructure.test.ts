@@ -1293,3 +1293,74 @@ describe('facade window frames', () => {
     }
   });
 });
+
+/**
+ * final4 med-12 overview and farm: the hall roof seen from above was "one flat
+ * olive plane", the largest surface in the overview frame. And the three roof
+ * units it did carry stood at a fixed height, not on the pitched deck: the one
+ * at the ridge was buried 1.7 m under it.
+ */
+describe('rooftop plant and membrane', () => {
+  it('seats every unit on its half of the deck, between battens and clear of the roof lights', async () => {
+    const { buildFactoryRooftopPlant, ROOFTOP_PLANT, ROOFTOP_PLANT_EMBED, ROOF_SKYLIGHT_LAYOUT } =
+      await import('./OptimizedFactoryInfrastructure');
+    const plant = buildFactoryRooftopPlant();
+    expect(plant.length).toBeGreaterThanOrEqual(10);
+    const L = ROOF_SKYLIGHT_LAYOUT;
+    plant.forEach((unit, i) => {
+      const [side, local] = ROOFTOP_PLANT[i];
+      const slope = L.roofSlope(side);
+      const normal = new THREE.Vector3(-Math.sin(slope), Math.cos(slope), 0);
+      const seat = L.deckPoint(side, local);
+      const centre = new THREE.Vector3(...unit.position);
+      // Base face sits ROOFTOP_PLANT_EMBED into the deck's top face.
+      const baseHeight =
+        centre
+          .clone()
+          .sub(new THREE.Vector3(seat.x, seat.y, centre.z))
+          .dot(normal) -
+        unit.scale[1] / 2;
+      expect(baseHeight, `unit ${i}`).toBeCloseTo(-ROOFTOP_PLANT_EMBED, 6);
+      expect(unit.rotation?.[2]).toBeCloseTo(slope, 9);
+      // Within its own half, inside the trim.
+      expect(Math.abs(local) + unit.scale[0] / 2, `unit ${i}`).toBeLessThan(L.battenReach);
+      // Between two battens.
+      const zMin = centre.z - unit.scale[2] / 2;
+      const zMax = centre.z + unit.scale[2] / 2;
+      for (let z = -47.2; z <= 47.2; z += L.battenPitch) {
+        const clear = zMax < z - L.battenWidth / 2 - 0.05 || zMin > z + L.battenWidth / 2 + 0.05;
+        expect(clear, `unit ${i} over batten ${z.toFixed(1)}`).toBe(true);
+      }
+      // Clear of every roof light and its kerb.
+      const lightX = L.localX(side);
+      for (const lightZ of L.z) {
+        const overlapX = Math.abs(local - lightX) < unit.scale[0] / 2 + L.size.x / 2 + 0.5;
+        const overlapZ = Math.abs(centre.z - lightZ) < unit.scale[2] / 2 + L.size.z / 2 + 0.5;
+        expect(overlapX && overlapZ, `unit ${i} in roof light ${lightZ}`).toBe(false);
+      }
+    });
+  });
+
+  it('draws lap seams on the membrane that stay resolvable from the overview', async () => {
+    const { ROOF_PANEL_MATERIALS, ROOF_MEMBRANE_SEAM } =
+      await import('./OptimizedFactoryInfrastructure');
+    const { ribRenderedSwing } = await import('../../utils/worldSurface');
+    const top = ROOF_PANEL_MATERIALS[2] as THREE.MeshStandardMaterial;
+    const u = top.userData.millosWorldSurface as {
+      uSurfDeck: { value: THREE.Vector4 };
+      uSurfRib: { value: THREE.Vector4 };
+    };
+    expect(u.uSurfDeck.value.x).toBe(ROOF_MEMBRANE_SEAM.pitch);
+    expect(u.uSurfDeck.value.z).toBe(0);
+    expect(u.uSurfRib.value.y).toBe(1);
+    expect(u.uSurfRib.value.z).toBeCloseTo(ROOF_MEMBRANE_SEAM.width / ROOF_MEMBRANE_SEAM.pitch, 9);
+    // Seams parallel to the ridge recede from the overview camera, so the
+    // footprint across them is the lateral one: ~0.12 m a pixel at 130 m on
+    // Medium (864 rows, fov 45), plus some foreshortening.
+    const across = (130 * 2 * Math.tan((45 * Math.PI) / 360)) / 864;
+    const seam = ROOF_MEMBRANE_SEAM.width / ROOF_MEMBRANE_SEAM.pitch;
+    expect(ribRenderedSwing((2 * across) / ROOF_MEMBRANE_SEAM.pitch, seam)).toBeGreaterThan(0.03);
+    expect(ROOF_MEMBRANE_SEAM.pitch).toBeGreaterThanOrEqual(1);
+    expect(ROOF_MEMBRANE_SEAM.pitch).toBeLessThanOrEqual(2);
+  });
+});
