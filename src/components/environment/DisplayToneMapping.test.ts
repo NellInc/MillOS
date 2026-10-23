@@ -89,6 +89,8 @@ describe('display toe tone curve', () => {
     const uniform = String(define?.[1]).match(/texel,(\w+)\)/)?.[1];
     expect(uniform).toBeDefined();
     expect(material.uniforms[uniform as string]).toBe(DISPLAY_TOE_STRENGTH);
+    // postprocessing prefixes the name but never declares it: the effect must.
+    expect(material.fragmentShader).toContain(`uniform float ${uniform};`);
     pass.dispose();
   });
 });

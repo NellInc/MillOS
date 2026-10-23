@@ -21,6 +21,8 @@ export const LIFTED_NEUTRAL = 'LiftedNeutralToneMapping(texel,toeStrength)';
 export class DisplayToneMappingEffect extends ToneMappingEffect {
   constructor(options?: ConstructorParameters<typeof ToneMappingEffect>[0]) {
     super(options);
+    // postprocessing prefixes uniform names but never declares them.
+    this.setFragmentShader(`uniform float toeStrength;\n${this.getFragmentShader()}`);
     this.uniforms.set('toeStrength', DISPLAY_TOE_STRENGTH);
     this.liftNeutral();
   }
