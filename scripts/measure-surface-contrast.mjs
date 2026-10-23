@@ -68,11 +68,26 @@
  *   --scenes=<list>     Comma-separated benchmark scenes. Default: the surface set.
  *   --quality=<tier>    low | medium | high | ultra. Default medium.
  *   --port=<number>     Preview port. Default 4198.
- *   --settle=<seconds>  Seconds after worldReady before the first shot. Default 9.
+ *   --settle=<seconds>  Seconds after the startup reveal before the first shot. Default 9.
+ *   --ready-timeout=<s> Per readiness stage. Default 180, because the reveal
+ *                       waits on shader compiles and static batching and this
+ *                       machine runs at high load from other software.
  *   --crop=x,y,w,h      Restrict every measurement to this pixel rectangle of
  *                       the 1280x720 frame. See CROPS below.
  *   --no-toggle         Baseline mode: one shot per scene, no A/B. Used before
  *                       the treatment exists, to record the "before" frames.
+ *   --control           Null control: the treatment is switched OFF for all
+ *                       three shots, so the "on" and "off" arms are the same
+ *                       arm and the only variable left is the instrument.
+ *                       Every scene must read exactly 0 and INERT; anything
+ *                       else is noise the instrument would credit to a real
+ *                       treatment.
+ *
+ * Serving and readiness follow run-performance-benchmark.mjs, which is the
+ * harness that has kept working: the preview gets the build's own VERSION and
+ * the browser goes to its base, the page waits for the startup reveal rather
+ * than the earlier world marker, and a stage that times out reports the
+ * failed requests and page errors that explain it instead of a bare timeout.
  *
  * ---------------------------------------------------------------------------
  * CROPS: A SCENE AGGREGATE ANSWERS THE WRONG QUESTION
@@ -92,14 +107,20 @@
  */
 import { spawn } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import { chromium } from '@playwright/test';
 import sharp from 'sharp';
 import { acquireCaptureLock } from './lib/capture-lock.mjs';
 import {
+  assertPreviewBuildIdentity,
+  assertPreviewPortAvailable,
+} from './lib/preview-build-identity.mjs';
+import {
   DEFAULT_SURFACE_SCENES,
   READINESS_STAGES,
+  parseBenchmarkScenes,
   previewPlan,
 } from './lib/surface-measure-contract.mjs';
 
@@ -137,8 +158,10 @@ const options = {
   quality: arg('quality', 'medium'),
   port: Number(arg('port', '4198')),
   settle: Number(arg('settle', '9')),
+  readyTimeoutMs: Number(arg('ready-timeout', '180')) * 1000,
   crop: parseCrop(arg('crop', '')),
   toggle: !flag('no-toggle'),
+  control: flag('control'),
 };
 
 if (!options.label) {
@@ -155,9 +178,13 @@ async function startPreview() {
     throw new Error('dist/index.html is missing. Run npm run build first.');
   });
   const plan = previewPlan(indexHtml);
+  // The build decides the base, not the caller's shell: a stray VERSION in the
+  // environment would otherwise re-base the preview away from the bundle.
   const env = { ...process.env, BROWSER: 'none' };
   if (plan.version) env.VERSION = plan.version;
+  else delete env.VERSION;
   const url = `http://127.0.0.1:${options.port}${plan.basePath}`;
+  await assertPreviewPortAvailable(options.port);
   preview = spawn(
     process.execPath,
     [
@@ -174,7 +201,12 @@ async function startPreview() {
   const deadline = Date.now() + 30000;
   for (;;) {
     try {
-      if ((await fetch(url)).ok) return url;
+      if ((await fetch(`${url}/`)).ok) {
+        // A stale or foreign dist/ would measure a different tree than the
+        // label claims; the benchmark refuses that, and so does this.
+        await assertPreviewBuildIdentity(url, path.join(ROOT, 'dist'));
+        return url;
+      }
     } catch {
       /* not up yet */
     }
@@ -320,25 +352,92 @@ async function main() {
     console.log(`Measuring inside crop ${width}x${height} at (${left}, ${top}) of 1280x720.`);
   }
 
+  // The runtime coerces an unknown scene to `overview` without a word, so a
+  // stale name would be measured, and reported, as a scene it is not.
+  const validScenes = parseBenchmarkScenes(
+    await readFile(path.join(ROOT, 'src', 'runtime', 'runtimeMode.ts'), 'utf8')
+  );
+  const unknownScenes = options.scenes.filter((scene) => !validScenes.includes(scene));
+  if (unknownScenes.length > 0) {
+    throw new Error(
+      `Unknown benchmark scene(s): ${unknownScenes.join(', ')}. The runtime would silently ` +
+        `measure "overview" under that name.\nValid scenes: ${validScenes.join(', ')}`
+    );
+  }
+
   lock = await acquireCaptureLock('measure-surface-contrast', { root: ROOT });
   const baseUrl = await startPreview();
-  const browser = await chromium.launch({ headless: true, channel: 'chrome' });
+  // Launched the way run-performance-benchmark.mjs launches: Metal through
+  // ANGLE with the GPU sandbox intact, rather than whatever headless picks.
+  const browser = await chromium.launch({
+    headless: true,
+    channel: 'chrome',
+    chromiumSandbox: true,
+    ignoreDefaultArgs: ['--enable-unsafe-swiftshader'],
+    args: [
+      '--mute-audio',
+      '--enable-automation',
+      ...(process.platform === 'darwin' ? ['--use-gl=angle', '--use-angle=metal'] : []),
+    ],
+  });
   const results = [];
 
   try {
     for (const scene of options.scenes) {
-      const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+      // A fresh context per scene, with service workers blocked so a cached
+      // bundle from an earlier build can never answer for this one.
+      const context = await browser.newContext({
+        viewport: { width: 1280, height: 720 },
+        serviceWorkers: 'block',
+      });
+      const page = await context.newPage();
+      const failedRequests = [];
+      const pageErrors = [];
+      const consoleErrors = [];
+      page.on('requestfailed', (request) =>
+        failedRequests.push(`${request.url()} ${request.failure()?.errorText ?? ''}`)
+      );
+      page.on('response', (response) => {
+        if (response.status() >= 400)
+          failedRequests.push(`${response.url()} HTTP ${response.status()}`);
+      });
+      page.on('pageerror', (error) => pageErrors.push(error.message));
+      page.on('console', (message) => {
+        if (message.type() === 'error') consoleErrors.push(message.text());
+      });
       try {
         await page.goto(
           `${baseUrl}/?benchmark=${scene}&quality=${options.quality}&duration=300&art=1`,
           { waitUntil: 'domcontentloaded', timeout: 90000 }
         );
         for (const stage of READINESS_STAGES) {
-          await page.waitForFunction(stage.predicate, null, { timeout: 90000 });
+          const startedAt = Date.now();
+          try {
+            await page.waitForFunction(stage.predicate, null, { timeout: options.readyTimeoutMs });
+          } catch (error) {
+            // A bundle that 404s is visible in the first second. Say so,
+            // rather than letting it surface as a bare timeout minutes later.
+            const evidence = [
+              ...failedRequests.slice(0, 8).map((line) => `  failed request: ${line}`),
+              ...pageErrors.slice(0, 5).map((line) => `  page error: ${line}`),
+              ...consoleErrors.slice(0, 5).map((line) => `  console error: ${line}`),
+            ];
+            throw new Error(
+              `${scene}: "${stage.name}" not reached in ${Math.round(
+                (Date.now() - startedAt) / 1000
+              )} s (${stage.emitter} never emitted it).\n` +
+                (evidence.length ? evidence.join('\n') : '  no failed requests or page errors'),
+              { cause: error }
+            );
+          }
         }
-        // Lazily mounted branches and the static batcher both land seconds
-        // after "ready". Measuring before the batches exist measures the
-        // unbatched originals, which are a different set of materials.
+        // Lazily mounted branches land seconds after the reveal; the settle
+        // keeps the first shot clear of them.
+        if (options.control) {
+          await page.evaluate(() =>
+            window.__MILLOS_RUNTIME__?.setPerfDebug({ disableSurfaceTreatment: true })
+          );
+        }
         await page.waitForTimeout(options.settle * 1000);
 
         const onPath = path.join(outputDir, `${scene}-on.png`);
@@ -365,8 +464,11 @@ async function main() {
         await page.waitForTimeout(400);
         const offPath = path.join(outputDir, `${scene}-off.png`);
         await page.screenshot({ path: offPath, timeout: 30000 });
-        await page.evaluate(() =>
-          window.__MILLOS_RUNTIME__.setPerfDebug({ disableSurfaceTreatment: false })
+        // In --control the "on" arm stays off, so every shot is the same arm.
+        await page.evaluate(
+          (disabled) =>
+            window.__MILLOS_RUNTIME__.setPerfDebug({ disableSurfaceTreatment: disabled }),
+          options.control
         );
         // The third shot brackets the off arm at the same 400 ms spacing, so the
         // self-motion it measures is the motion the on-off pair also contains.
@@ -406,7 +508,7 @@ async function main() {
             `  (x${ratio.toFixed(3)})${change.changedPixels === 0 ? '   *** INERT ***' : ''}`
         );
       } finally {
-        await page.close();
+        await context.close();
       }
     }
 
@@ -421,6 +523,10 @@ async function main() {
           settleSeconds: options.settle,
           crop: options.crop,
           toggle: options.toggle,
+          control: options.control,
+          baseUrl,
+          // Pixel fractions do not depend on load, but readiness timing does.
+          loadPerCore: Number((os.loadavg()[0] / os.cpus().length).toFixed(2)),
           results,
         },
         null,
