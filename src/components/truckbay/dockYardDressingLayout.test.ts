@@ -203,6 +203,52 @@ describe('TRUCK STAGING legend', () => {
     }
   });
 
+  /**
+   * Round 4 ran it along z, which read upside down from the overview camera
+   * (the hero view) and sideways at a grazing angle from shipping. Both
+   * cameras must see the words run left to right with the letter tops up the
+   * screen, the whole legend inside the overview frame, and letters tall
+   * enough on screen in shipping to survive the grazing angle.
+   */
+  it('reads upright, left to right, from the overview and shipping cameras', () => {
+    const { yaw, x, z, fontSize } = TRUCK_STAGING_LETTERING;
+    const reading = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+    const up = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+    const half = (TRUCK_STAGING_LETTERING.text.length * 0.59 * fontSize) / 2;
+    const centre = new THREE.Vector3(x, 0, z);
+    for (const name of ['overview', 'shipping'] as const) {
+      const view = SITE_LAYOUT.cameras[name] as {
+        position: readonly number[];
+        target: readonly number[];
+        fov?: number;
+      };
+      const camera = new THREE.PerspectiveCamera(view.fov ?? 45, 16 / 9, 0.5, 300);
+      camera.position.set(view.position[0], view.position[1], view.position[2]);
+      camera.lookAt(view.target[0], view.target[1], view.target[2]);
+      camera.updateMatrixWorld();
+      const px = (p: THREE.Vector3) => {
+        const v = p.clone().project(camera);
+        return { x: ((v.x + 1) / 2) * 2560, y: ((1 - v.y) / 2) * 1440 };
+      };
+      const start = px(centre.clone().addScaledVector(reading, -half));
+      const end = px(centre.clone().addScaledVector(reading, half));
+      const base = px(centre.clone().addScaledVector(up, -fontSize / 2));
+      const top = px(centre.clone().addScaledVector(up, fontSize / 2));
+      expect(end.x - start.x, `${name}: left to right`).toBeGreaterThan(Math.abs(end.y - start.y));
+      expect(base.y - top.y, `${name}: letter tops up the screen`).toBeGreaterThan(0);
+      if (name === 'overview')
+        for (const p of [start, end])
+          expect(p.x > 0 && p.x < 2560 && p.y > 0 && p.y < 1440, `${name}: in frame`).toBe(true);
+      // From shipping the letters lie across the view: their height shows as
+      // a slant, so its whole screen length is what keeps them readable.
+      else
+        expect(
+          Math.hypot(base.x - top.x, base.y - top.y),
+          `${name}: letter size on screen`
+        ).toBeGreaterThan(40);
+    }
+  });
+
   it('is what TruckBay paints, at both yards', () => {
     const source = readFileSync('src/components/TruckBay.tsx', 'utf8');
     expect(source.match(/TRUCK_STAGING_LETTERING\.text/g)).toHaveLength(2);

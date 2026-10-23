@@ -100,15 +100,29 @@ export const DOCK_ISLAND_BOLLARDS: readonly (readonly [number, number])[] = [
  * back-in lane's heaviest tyre tracks (`yardWear.ts`) and its east end on the
  * pallet island's corner (shipping med-06, med-rain). The strip west of the
  * trucks' loop, between it and the x -18 lane line, carries no wheel and no
- * dressing, so the legend now reads down that strip toward the dock.
+ * dressing, so round 4 ran the legend down that strip toward the dock.
+ *
+ * Reading along z it was upside down from the overview camera, the hero view
+ * (final4 med-12, med-rain), and its slate paint on grey concrete washed out
+ * at the shipping camera's grazing angle (low-12, med-06). It now reads along
+ * +x again, letter tops toward the dock (`yaw` 0: upright from overview and
+ * from shipping, the test projects both), across the open apron west of the
+ * loop at z 75: between the x -18 lane line's dashes at z 70 and 80, clear of
+ * the loop's tracks east of x -6. Painted in the lane stripes' cream, and on
+ * the biased ground-paint text material (`surface="painted-ground"`): with no
+ * bias of its own a 1 cm label loses depth to the yard beyond ~5.5 m, which
+ * is what broke the letters up at the grazing angle.
  * `along` is the axis the words run along.
  */
 export const TRUCK_STAGING_LETTERING = {
   text: 'TRUCK STAGING',
-  x: -14,
-  z: 83,
-  fontSize: 2,
-  along: 'z',
+  x: -17.6,
+  z: 75,
+  fontSize: 2.2,
+  along: 'x',
+  /** Yaw of the reading direction about +y; 0 reads along +x. */
+  yaw: 0,
+  color: '#e4dcc4',
 } as const;
 
 /**

@@ -3632,18 +3632,19 @@ export const TruckBay: React.FC = () => {
         {/* Painted on the yard, so it takes the yard's overlay datum. At the
             literal 0.05 it was UNDER the tarmac slab at 0.08 and had never
             been visible in any capture; it is 1 cm of clean separation now. */}
-        {/* Down the strip west of the trucks' loop, clear of every wheel
-            line and the pallet island (TRUCK_STAGING_LETTERING). */}
+        {/* Across the open apron west of the trucks' loop, reading upright
+            from the overview camera, clear of every wheel line and the
+            pallet island (TRUCK_STAGING_LETTERING). */}
         <Text
-          surface="painted"
+          surface="painted-ground"
           position={[
             TRUCK_STAGING_LETTERING.x,
             EXTERIOR_LAYERS.groundOverlay,
             TRUCK_STAGING_LETTERING.z - SHIPPING_YARD_ORIGIN_Z,
           ]}
-          rotation={[-Math.PI / 2, 0, Math.PI / 2]}
+          rotation={[-Math.PI / 2, 0, TRUCK_STAGING_LETTERING.yaw]}
           fontSize={TRUCK_STAGING_LETTERING.fontSize}
-          color="#475569"
+          color={TRUCK_STAGING_LETTERING.color}
           anchorX="center"
           anchorY="middle"
         >
@@ -4035,15 +4036,15 @@ export const TruckBay: React.FC = () => {
             been visible in any capture; it is 1 cm of clean separation now. */}
         {/* The shipping legend turned half a revolution about the site origin. */}
         <Text
-          surface="painted"
+          surface="painted-ground"
           position={[
             -TRUCK_STAGING_LETTERING.x,
             EXTERIOR_LAYERS.groundOverlay,
             -(TRUCK_STAGING_LETTERING.z - SHIPPING_YARD_ORIGIN_Z),
           ]}
-          rotation={[-Math.PI / 2, 0, -Math.PI / 2]}
+          rotation={[-Math.PI / 2, 0, TRUCK_STAGING_LETTERING.yaw + Math.PI]}
           fontSize={TRUCK_STAGING_LETTERING.fontSize}
-          color="#475569"
+          color={TRUCK_STAGING_LETTERING.color}
           anchorX="center"
           anchorY="middle"
         >
