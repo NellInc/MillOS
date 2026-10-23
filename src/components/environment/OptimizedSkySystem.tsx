@@ -402,7 +402,7 @@ export const RIDGE_FIELD_PROFILE = {
    * foreshortens into an ellipse that reads as a hole, about 12 of them per
    * village frame. Thresholds on a 0-1 fbm.
    */
-  copse: [0.64, 0.73],
+  copse: [0.63, 0.74],
   /**
    * The wooded masks read as flat dark ovals from the village (final3-med-12,
    * the rubric's "blotches"): at 150-450 m the 3.7 m crowns carried +/-11%
@@ -421,18 +421,20 @@ export const RIDGE_FIELD_PROFILE = {
    * (`clumpScale` cycles per metre) that fade from 1 m/px, a slow rag
    * (`ragScale`), wide stand edges (`woodsEdge`, `copse`) on lower-frequency
    * fields (`standScale`: woods, copses) for larger coherent stands, and
-   * strays only where single trees resolve (`strayFootprint`).
+   * strays only where single trees resolve (`strayFootprint`). final5 low-12
+   * and med-12 still read faintly as camouflage: crowns +/-9%, clumps +/-5%,
+   * and stand edges (0.2) and copse outlines (0.11) ramp wider again.
    */
-  crownTone: [0.98, 0.24],
+  crownTone: [1.0, 0.19],
   crownReliefMetres: 0.55,
-  clump: 0.07,
+  clump: 0.05,
   clumpScale: [0.07, 0.15],
   clumpReliefMetres: 0.8,
   clumpFootprint: [1.0, 4.0],
   rag: 0.05,
   ragScale: 0.05,
   standScale: [0.015, 0.018],
-  woodsEdge: [0.43, 0.57],
+  woodsEdge: [0.4, 0.6],
   strayFootprint: [0.6, 1.2],
   fringe: 0.1,
   scrub: [0.09, 0.122, 0.054],

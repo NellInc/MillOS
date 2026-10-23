@@ -1044,17 +1044,19 @@ it('draws woods as soft, coherent stands with a lighter fringe', () => {
   // resolved at +/-16%, the crowns swung 0.74-1.24, a 9 m rag wobbled every
   // outline and stray trees speckled the fringe. Clumps are now broad and
   // faint, crowns +/-12%, outlines wander slowly on wide ramps, stands are
-  // larger, and strays only exist where single trees resolve.
-  expect(crownTone[1] / 2 / (crownTone[0] + crownTone[1] / 2)).toBeLessThanOrEqual(0.12);
+  // larger, and strays only exist where single trees resolve. final5 low-12
+  // and med-12 still read faintly as camouflage: crowns +/-9%, clumps +/-5%,
+  // and stand edges and copse outlines ramp wider.
+  expect(crownTone[1] / 2 / (crownTone[0] + crownTone[1] / 2)).toBeLessThanOrEqual(0.09);
   expect(crownReliefMetres).toBeGreaterThan(0.24);
-  expect(clump).toBeLessThanOrEqual(0.08);
+  expect(clump).toBeLessThanOrEqual(0.05);
   expect(Math.max(...clumpScale)).toBeLessThanOrEqual(0.16);
   expect(clumpFootprint[0]).toBeLessThanOrEqual(1.0);
   expect(rag).toBeLessThanOrEqual(0.06);
   expect(ragScale).toBeLessThanOrEqual(0.06);
   expect(Math.max(...standScale)).toBeLessThanOrEqual(0.02);
-  expect(woodsEdge[1] - woodsEdge[0]).toBeGreaterThanOrEqual(0.12);
-  expect(copse[1] - copse[0]).toBeGreaterThanOrEqual(0.08);
+  expect(woodsEdge[1] - woodsEdge[0]).toBeGreaterThanOrEqual(0.18);
+  expect(copse[1] - copse[0]).toBeGreaterThanOrEqual(0.1);
   expect(strayFootprint[1]).toBeLessThanOrEqual(1.2);
   expect(fringe).toBeGreaterThan(0.03);
   expect(linearLuminance(scrub)).toBeGreaterThan(linearLuminance(woodland) * 1.3);
