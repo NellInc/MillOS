@@ -405,19 +405,28 @@ export const RIDGE_FIELD_PROFILE = {
  * the mid ring the two meet at nearly one value instead of a 0.1 step.
  */
 export const RIDGE_ANCHORED_AERIAL = {
-  distances: [180, 420],
-  run: [-0.5, 1.6],
+  // Village camera probe (r4-land, base-village-19): the near ring's visible
+  // slope spans 206-351 m, the mid ring's 329-453 m.
+  distances: [250, 390],
+  // Out to the far ring's own distance (about 545 m), where the farthest
+  // foothill fragments meet its weight; never hazier than it (the `z` cap).
+  run: [-0.5, 2.2],
 } as const;
 
 /** CPU mirror of the anchored rings' distance haze, for tests and calibration. */
-export function getAnchoredRidgeAerial(distance: number, near: number, mid: number): number {
+export function getAnchoredRidgeAerial(
+  distance: number,
+  near: number,
+  mid: number,
+  far = Infinity
+): number {
   const [d0, d1] = RIDGE_ANCHORED_AERIAL.distances;
   const run = THREE.MathUtils.clamp((distance - d0) / (d1 - d0), ...RIDGE_ANCHORED_AERIAL.run);
-  return Math.max(0, THREE.MathUtils.lerp(near, mid, run));
+  return Math.min(far, Math.max(0, THREE.MathUtils.lerp(near, mid, run)));
 }
 
 /** Shared by both anchored materials; the frame loop writes each ring's damped weight. */
-export const RIDGE_ANCHORED_AERIAL_SPAN = { value: new THREE.Vector2(0.1, 0.2) };
+export const RIDGE_ANCHORED_AERIAL_SPAN = { value: new THREE.Vector3(0.1, 0.2, 0.32) };
 
 /** Day weight of the hill fields' hue and full tonal range (RIDGE_FIELD_PROFILE.night*). */
 export function getRidgeFieldDaylight(daylight: number): number {
@@ -511,7 +520,7 @@ uniform float uRingRadius;
 uniform float uSlopeDepth;
 uniform float uLowAerialStrength;
 uniform float uFieldDaylight;
-uniform vec2 uAnchoredAerial;
+uniform vec3 uAnchoredAerial;
 uniform float uDistanceAerialStrength;
 uniform float uClearAir;
 varying vec3 vRidgeColor;
@@ -841,7 +850,8 @@ void main() {
     float aerialRun = clamp((vRidgeDistance - ${RIDGE_ANCHORED_AERIAL.distances[0].toFixed(1)})
       / ${(RIDGE_ANCHORED_AERIAL.distances[1] - RIDGE_ANCHORED_AERIAL.distances[0]).toFixed(1)},
       ${RIDGE_ANCHORED_AERIAL.run[0].toFixed(2)}, ${RIDGE_ANCHORED_AERIAL.run[1].toFixed(2)});
-    aerial = mix(uAerial, max(0.0, mix(uAnchoredAerial.x, uAnchoredAerial.y, aerialRun)),
+    aerial = mix(uAerial, min(uAnchoredAerial.z,
+      max(0.0, mix(uAnchoredAerial.x, uAnchoredAerial.y, aerialRun))),
       uDistanceAerialStrength);
   }
   lit.r = mix(lit.r, uInscatter.r, clamp(aerial * aerialScale * 0.80, 0.0, 1.0));
@@ -1903,7 +1913,8 @@ export function OptimizedSkySystem() {
     }
     RIDGE_ANCHORED_AERIAL_SPAN.value.set(
       ridgeMaterials.near.uniforms.uAerial.value,
-      ridgeMaterials.mid.uniforms.uAerial.value
+      ridgeMaterials.mid.uniforms.uAerial.value,
+      ridgeMaterials.far.uniforms.uAerial.value
     );
 
     const fog = state.scene.fog;

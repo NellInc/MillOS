@@ -1035,9 +1035,13 @@ it('keeps rain haze ordered by distance from the near crest to the far lower slo
     const far = getRidgeAerialWeight(0.32, cloudCoverage);
     const farLowBand =
       far * (1 + (RIDGE_ALPINE_PROFILE.lowBandAerial - 1) * getRidgeClearAir(cloudCoverage));
-    // The most distant foothill fragment, at the clamp, stays under the range.
-    const ceiling = getAnchoredRidgeAerial(1e6, near, mid);
-    if (cloudCoverage > 0.5) expect(farLowBand).toBeGreaterThan(ceiling);
+    // No foothill fragment, however far, is hazier than the range's lower
+    // band under cloud; in clear air the farthest meet the range's own weight
+    // at its distance (farm camera: a mid-ring crest at 631 m stood dark
+    // above a far-ring valley at 572 m).
+    const ceiling = getAnchoredRidgeAerial(1e6, near, mid, far);
+    if (cloudCoverage > 0.5) expect(farLowBand).toBeGreaterThanOrEqual(ceiling - 1e-9);
+    expect(getAnchoredRidgeAerial(545, near, mid, far)).toBeGreaterThan(far * 0.9);
     // The function is continuous and rises with distance.
     const [d0, d1] = RIDGE_ANCHORED_AERIAL.distances;
     expect(getAnchoredRidgeAerial(d0, near, mid)).toBeCloseTo(near, 9);
@@ -1045,6 +1049,16 @@ it('keeps rain haze ordered by distance from the near crest to the far lower slo
     expect(getAnchoredRidgeAerial(d0 + 1, near, mid)).toBeGreaterThan(
       getAnchoredRidgeAerial(d0, near, mid)
     );
+  }
+  // Measured from the village camera (r4-land probe, columns x 600 and 1800):
+  // the near crest at 265 / 351 m stands in front of the mid ring at 329 / 404 m.
+  for (const [crest, behind] of [
+    [265, 329],
+    [351, 404],
+  ]) {
+    const step = getAnchoredRidgeAerial(behind, 0.1, 0.2) - getAnchoredRidgeAerial(crest, 0.1, 0.2);
+    expect(step).toBeGreaterThan(0);
+    expect(step).toBeLessThan(0.05);
   }
   const far = createRidgeMaterial(0.32, 'far-rain');
   const near = createRidgeMaterial(0.1, 'near-rain', true);
@@ -1055,7 +1069,7 @@ it('keeps rain haze ordered by distance from the near crest to the far lower slo
     .split('} else if (uWorldAnchored < 0.5')[1]
     .split('} else {')[0];
   expect(alpine).toContain('uLowAerialStrength * uClearAir');
-  expect(far.fragmentShader).toContain('mix(uAnchoredAerial.x, uAnchoredAerial.y, aerialRun)');
+  expect(far.fragmentShader).toContain('min(uAnchoredAerial.z,');
   far.dispose();
   near.dispose();
 });
