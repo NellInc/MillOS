@@ -1015,14 +1015,40 @@ it('draws the hill fields at one hue and a compressed tone toward night', () => 
 // terrain: they are the woods). At 150-450 m the 3.7 m crowns carried +/-11%
 // albedo and 0.24 m of relief under the aerial mix, the outlines were a 40-50 m
 // fbm threshold, and the canopy stopped on the field at full darkness.
-it('draws woods with canopy texture, a ragged outline and a lighter fringe', () => {
-  const { crownTone, crownReliefMetres, clump, clumpReliefMetres, rag, fringe, scrub, woodland } =
-    RIDGE_FIELD_PROFILE;
-  expect(crownTone[1]).toBeGreaterThanOrEqual(0.4);
+it('draws woods as soft, coherent stands with a lighter fringe', () => {
+  const {
+    crownTone,
+    crownReliefMetres,
+    clump,
+    clumpScale,
+    clumpFootprint,
+    rag,
+    ragScale,
+    standScale,
+    woodsEdge,
+    copse,
+    strayFootprint,
+    fringe,
+    scrub,
+    woodland,
+  } = RIDGE_FIELD_PROFILE;
+  // final4-med-06, low-12 and med-12 village ("noisy, blotchy", "hard
+  // camouflage mottling"): at 0.5-1.5 m/px the 6 m and 2.4 m clump noise
+  // resolved at +/-16%, the crowns swung 0.74-1.24, a 9 m rag wobbled every
+  // outline and stray trees speckled the fringe. Clumps are now broad and
+  // faint, crowns +/-12%, outlines wander slowly on wide ramps, stands are
+  // larger, and strays only exist where single trees resolve.
+  expect(crownTone[1] / 2 / (crownTone[0] + crownTone[1] / 2)).toBeLessThanOrEqual(0.12);
   expect(crownReliefMetres).toBeGreaterThan(0.24);
-  expect(clump).toBeGreaterThan(0.1);
-  expect(clumpReliefMetres).toBeGreaterThan(0.5);
-  expect(rag).toBeGreaterThan(0.05);
+  expect(clump).toBeLessThanOrEqual(0.08);
+  expect(Math.max(...clumpScale)).toBeLessThanOrEqual(0.16);
+  expect(clumpFootprint[0]).toBeLessThanOrEqual(1.0);
+  expect(rag).toBeLessThanOrEqual(0.06);
+  expect(ragScale).toBeLessThanOrEqual(0.06);
+  expect(Math.max(...standScale)).toBeLessThanOrEqual(0.02);
+  expect(woodsEdge[1] - woodsEdge[0]).toBeGreaterThanOrEqual(0.12);
+  expect(copse[1] - copse[0]).toBeGreaterThanOrEqual(0.08);
+  expect(strayFootprint[1]).toBeLessThanOrEqual(1.2);
   expect(fringe).toBeGreaterThan(0.03);
   expect(linearLuminance(scrub)).toBeGreaterThan(linearLuminance(woodland) * 1.3);
   const near = createRidgeMaterial(0.1, 'near-woods', true);
@@ -1034,6 +1060,9 @@ it('draws woods with canopy texture, a ragged outline and a lighter fringe', () 
   expect(branch).toContain('float rag =');
   expect(branch).toContain('float fringe =');
   expect(branch).toContain('float strays =');
+  expect(branch).toContain(`p.xz * ${ragScale.toFixed(3)}`);
+  expect(branch).toContain(`p.xz * ${standScale[0].toFixed(3)}`);
+  expect(branch).toContain(`p.xz * ${standScale[1].toFixed(3)}`);
   expect(branch).toContain(glslVec3Literal(scrub));
   expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v25');
   near.dispose();

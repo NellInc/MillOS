@@ -367,7 +367,7 @@ export const RIDGE_FIELD_PROFILE = {
    * foreshortens into an ellipse that reads as a hole, about 12 of them per
    * village frame. Thresholds on a 0-1 fbm.
    */
-  copse: [0.66, 0.71],
+  copse: [0.64, 0.73],
   /**
    * The wooded masks read as flat dark ovals from the village (final3-med-12,
    * the rubric's "blotches"): at 150-450 m the 3.7 m crowns carried +/-11%
@@ -377,12 +377,28 @@ export const RIDGE_FIELD_PROFILE = {
    * `rag` on a ~9 m field, and a `fringe` of lighter `scrub` with scattered
    * trees runs outside each stand line. Linear albedo.
    */
-  crownTone: [0.74, 0.5],
+  /**
+   * Round 4's values (crowns 0.74-1.24, clumps +/-16% on 6 m and 2.4 m cells
+   * to 2 m/px, a 9 m rag, 0.08-wide stand edges on a 45 m fbm, strays to
+   * 6 m/px) read as hard camouflage mottling at the village's 0.5-1.5 m/px
+   * (final4-med-06, low-12 and med-12). Now: crowns +/-11% about a slightly
+   * lighter mean (less contrast against the fields), faint broad clumps
+   * (`clumpScale` cycles per metre) that fade from 1 m/px, a slow rag
+   * (`ragScale`), wide stand edges (`woodsEdge`, `copse`) on lower-frequency
+   * fields (`standScale`: woods, copses) for larger coherent stands, and
+   * strays only where single trees resolve (`strayFootprint`).
+   */
+  crownTone: [0.98, 0.24],
   crownReliefMetres: 0.55,
-  clump: 0.16,
-  clumpReliefMetres: 1.1,
-  clumpFootprint: [2.0, 6.0],
-  rag: 0.09,
+  clump: 0.07,
+  clumpScale: [0.07, 0.15],
+  clumpReliefMetres: 0.8,
+  clumpFootprint: [1.0, 4.0],
+  rag: 0.05,
+  ragScale: 0.05,
+  standScale: [0.015, 0.018],
+  woodsEdge: [0.43, 0.57],
+  strayFootprint: [0.6, 1.2],
   fringe: 0.1,
   scrub: [0.09, 0.122, 0.054],
   /**
@@ -636,8 +652,8 @@ void main() {
     // texture rather than reading as one flat dark oval.
     float clumpVisibility = 1.0 - smoothstep(${RIDGE_FIELD_PROFILE.clumpFootprint[0].toFixed(2)},
       ${RIDGE_FIELD_PROFILE.clumpFootprint[1].toFixed(2)}, footprint);
-    float clump = mix(0.5, ridgeNoise(grove * 0.17 + vec2(4.1, 7.3)) * 0.6
-      + ridgeNoise(grove * 0.41 + vec2(1.3, 2.9)) * 0.4, clumpVisibility);
+    float clump = mix(0.5, ridgeNoise(grove * ${RIDGE_FIELD_PROFILE.clumpScale[0].toFixed(3)} + vec2(4.1, 7.3)) * 0.6
+      + ridgeNoise(grove * ${RIDGE_FIELD_PROFILE.clumpScale[1].toFixed(3)} + vec2(1.3, 2.9)) * 0.4, clumpVisibility);
     detailedAlbedo = woodland * (${RIDGE_FIELD_PROFILE.crownTone[0].toFixed(2)}
       + crown * ${RIDGE_FIELD_PROFILE.crownTone[1].toFixed(2)}) * speciesTone
       * (${(1 - RIDGE_FIELD_PROFILE.clump).toFixed(2)} + clump * ${(RIDGE_FIELD_PROFILE.clump * 2).toFixed(2)});
@@ -669,10 +685,12 @@ void main() {
     // The fbm's working range is about 0.3-0.7, so 2.5 normalises it to +/-1.
     float woodEdge = (ridgeFbm(p.xz * 0.02 + vec2(6.1, 2.7)) - 0.5)
       * ${(RIDGE_FIELD_PROFILE.edgeBreak * 2.5).toFixed(3)};
-    // Both wood outlines wander by about 9 m (RIDGE_FIELD_PROFILE.rag): on the
-    // 40-50 m fbm alone a copse was a smooth oval, which read as a hole.
-    float rag = (ridgeNoise(p.xz * 0.11 + vec2(5.1, 1.7)) - 0.5) * ${RIDGE_FIELD_PROFILE.rag.toFixed(2)};
-    float copseField = ridgeFbm(p.xz * 0.026 + vec2(12.3, 4.9)) + rag * 0.7;
+    // Both wood outlines wander slowly (RIDGE_FIELD_PROFILE.rag, ragScale): on
+    // the fbm alone a copse was a smooth oval, which read as a hole; a 9 m rag
+    // turned every outline into camouflage.
+    float rag = (ridgeNoise(p.xz * ${RIDGE_FIELD_PROFILE.ragScale.toFixed(3)} + vec2(5.1, 1.7)) - 0.5)
+      * ${RIDGE_FIELD_PROFILE.rag.toFixed(2)};
+    float copseField = ridgeFbm(p.xz * ${RIDGE_FIELD_PROFILE.standScale[1].toFixed(3)} + vec2(12.3, 4.9)) + rag * 0.7;
     float copse = smoothstep(${RIDGE_FIELD_PROFILE.copse[0].toFixed(2)}, ${RIDGE_FIELD_PROFILE.copse[1].toFixed(2)},
       copseField);
     // A wooded parcel's stand draws back from its boundary into ragged woods,
@@ -681,16 +699,20 @@ void main() {
     // village hill (art3land-after-med12, village (0,300)-(1060,425)).
     float margin = 1.0 - smoothstep(0.0, 14.0, edge);
     float woodParcel = 1.0 - step(0.4, parcelUse);
-    float woodsField = ridgeFbm(p.xz * 0.022 + vec2(2.2, 8.4)) + 0.12 - margin * 0.3 + rag;
-    float woods = woodParcel * smoothstep(0.46, 0.54, woodsField);
+    float woodsField = ridgeFbm(p.xz * ${RIDGE_FIELD_PROFILE.standScale[0].toFixed(3)} + vec2(2.2, 8.4))
+      + 0.12 - margin * 0.3 + rag;
+    float woods = woodParcel * smoothstep(${RIDGE_FIELD_PROFILE.woodsEdge[0].toFixed(2)},
+      ${RIDGE_FIELD_PROFILE.woodsEdge[1].toFixed(2)}, woodsField);
     // Outside each stand line a lighter fringe of scrub with scattered trees
     // thins out into the field, instead of the canopy stopping on a dark rim.
-    float fringe = max(woodParcel * smoothstep(${(0.46 - RIDGE_FIELD_PROFILE.fringe).toFixed(3)}, 0.47, woodsField),
+    float fringe = max(woodParcel * smoothstep(${(RIDGE_FIELD_PROFILE.woodsEdge[0] - RIDGE_FIELD_PROFILE.fringe).toFixed(3)},
+      ${(RIDGE_FIELD_PROFILE.woodsEdge[0] + 0.01).toFixed(3)}, woodsField),
       smoothstep(${(RIDGE_FIELD_PROFILE.copse[0] - RIDGE_FIELD_PROFILE.fringe).toFixed(3)},
         ${(RIDGE_FIELD_PROFILE.copse[0] + 0.01).toFixed(3)}, copseField))
       * (1.0 - max(copse, woods));
     float strays = fringe * smoothstep(0.58, 0.74, ridgeNoise(grove * 0.2 + vec2(8.8, 3.1)))
-      * clumpVisibility;
+      * (1.0 - smoothstep(${RIDGE_FIELD_PROFILE.strayFootprint[0].toFixed(2)},
+        ${RIDGE_FIELD_PROFILE.strayFootprint[1].toFixed(2)}, footprint));
     float farmed = smoothstep(${RIDGE_FIELD_PROFILE.slopeGate[0].toFixed(2)}, ${RIDGE_FIELD_PROFILE.slopeGate[1].toFixed(2)},
       abs(normal.y) + woodEdge) * (1.0 - copse) * (1.0 - woods) * (1.0 - strays);
     vec3 crop = mix(${glslVec3(RIDGE_FIELD_PROFILE.pasture)}, ${glslVec3(RIDGE_FIELD_PROFILE.hay)},
