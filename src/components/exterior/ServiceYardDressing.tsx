@@ -9,6 +9,7 @@ import {
   YARD_DRAINS,
   YARD_INTAKE,
   manifoldDropX,
+  slotDrainKerbs,
   slotDrainPlates,
   tankUndersideY,
   type ManifoldTank,
@@ -32,6 +33,22 @@ const GALVANISED = applyWorldSurface(
   new THREE.MeshStandardMaterial({ color: '#8a9396', roughness: 0.5, metalness: 0.6 }),
   'metal'
 );
+/**
+ * The intake grating and the drain covers: weathered neutral steel. They lie
+ * face-up, so at the galvanised finish's metalness 0.6 they mirrored the sky,
+ * and at 18:30 the bars turned blue and the silo-edge drain read as a stray
+ * thin blue line (judge-r5-1830). Mostly diffuse now, with a dull sheen.
+ */
+export const YARD_GRATING_STEEL = applyWorldSurface(
+  new THREE.MeshStandardMaterial({ color: '#7e7e7c', roughness: 0.68, metalness: 0.25 }),
+  'metal'
+);
+/** Fresh concrete kerb cast either side of each drain channel, a shade paler than the apron. */
+export const YARD_KERB_CONCRETE = new THREE.MeshStandardMaterial({
+  color: '#b8b4ab',
+  roughness: 0.92,
+  metalness: 0,
+});
 const HANDWHEEL = new THREE.MeshStandardMaterial({
   color: '#a3322a',
   roughness: 0.5,
@@ -310,6 +327,14 @@ const DRAIN_PLATES = YARD_DRAINS.flatMap((drain) =>
   }))
 );
 
+/** Concrete kerbs either side of every drain run (`slotDrainKerbs`). */
+const DRAIN_KERBS = YARD_DRAINS.flatMap((drain) =>
+  slotDrainKerbs(drain).map(({ x, z, size }) => ({
+    position: [x, GROUND + YARD_DRAIN.kerbHeight / 2, z] as [number, number, number],
+    scale: [size[0], YARD_DRAIN.kerbHeight, size[1]] as [number, number, number],
+  }))
+);
+
 /** World metres; mounted with the continuous exterior. */
 export const YardIntake: React.FC = () => {
   const { border } = YARD_INTAKE;
@@ -354,7 +379,7 @@ export const YardIntake: React.FC = () => {
           </mesh>
         </React.Fragment>
       ))}
-      <BoxSet parts={GRATE_STEEL} material={GALVANISED} />
+      <BoxSet parts={GRATE_STEEL} material={YARD_GRATING_STEEL} />
       {/* Slot drains: the dark channel, its slotted cover on top. */}
       {YARD_DRAINS.map((drain) => {
         const dx = drain.to[0] - drain.from[0];
@@ -379,7 +404,8 @@ export const YardIntake: React.FC = () => {
           </mesh>
         );
       })}
-      <BoxSet parts={DRAIN_PLATES} material={GALVANISED} />
+      <BoxSet parts={DRAIN_PLATES} material={YARD_GRATING_STEEL} />
+      <BoxSet parts={DRAIN_KERBS} material={YARD_KERB_CONCRETE} />
     </group>
   );
 };
