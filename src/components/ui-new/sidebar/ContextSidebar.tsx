@@ -18,8 +18,9 @@ import { AboutModal } from '../../AboutModal';
 import { RecoverableFeatureBoundary } from '../../ErrorBoundary';
 import { recoverableLazy } from '../../../utils/recoverableLazy';
 import { CURRENT_RELEASE_VERSION, SELECTABLE_RELEASES } from '../../../config/releaseVersions';
-import { useT } from '../../../i18n';
+import { capitalizeIn, useLocale, useT } from '../../../i18n';
 import { contextSidebarMessages } from './ContextSidebar.messages';
+import { useUIStore } from '../../../stores/uiStore';
 
 // Lazy load the heavy panels
 const AICommandCenter = recoverableLazy(() =>
@@ -62,6 +63,7 @@ export const ContextSidebar: React.FC<ContextSidebarProps> = ({
   onFocusMachine,
 }) => {
   const t = useT(contextSidebarMessages);
+  const locale = useLocale();
   React.useEffect(() => {
     if (!isVisible) return;
     const handleEscape = (event: KeyboardEvent) => {
@@ -73,6 +75,21 @@ export const ContextSidebar: React.FC<ContextSidebarProps> = ({
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
   }, [isVisible, onClose]);
+
+  // The control that opened the panel (Take over, a companion's Open, the
+  // guide's keyboard inspection) unmounts as it opens, so it asks for focus
+  // here instead. Working if focus lands on this heading, not <body>.
+  const headingRef = React.useRef<HTMLHeadingElement>(null);
+  const panelFocusRequested = useUIStore((state) => state.panelFocusRequested);
+  React.useEffect(() => {
+    if (!panelFocusRequested || !isVisible) return;
+    const frame = requestAnimationFrame(() => {
+      if (!useUIStore.getState().panelFocusRequested) return;
+      useUIStore.getState().clearPanelFocus();
+      headingRef.current?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [panelFocusRequested, isVisible]);
 
   // Preload panels related to current mode when it changes
   React.useEffect(() => {
@@ -179,14 +196,16 @@ export const ContextSidebar: React.FC<ContextSidebarProps> = ({
                 )}
                 <div className="min-w-0">
                   <h2
-                    className={`leading-tight text-slate-100 break-words ${
+                    ref={headingRef}
+                    tabIndex={-1}
+                    className={`leading-tight text-slate-100 break-words rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 ${
                       isMachineInspector ? 'text-4xl font-normal' : 'text-xl font-semibold'
                     }`}
                   >
                     {headerTitle}
                   </h2>
                   {selectedMachine && mode !== 'scada' && (
-                    <p className="mt-3 text-lg capitalize text-slate-300">
+                    <p className={`mt-3 text-lg ${capitalizeIn(locale)} text-slate-300`}>
                       {t('machineType', { type: selectedMachine.type })}
                     </p>
                   )}

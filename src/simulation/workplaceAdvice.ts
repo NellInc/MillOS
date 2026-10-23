@@ -4,6 +4,7 @@ import {
   type MaterialFlowState,
   type SourceContribution,
 } from '../stores/materialFlowStore';
+import { PLANT_SECONDS_PER_GAME_SECOND, plantSecondsForGameSeconds } from './pace';
 import type {
   PackingAdvice,
   PackingArrangement,
@@ -267,8 +268,10 @@ function simulate(capture: PackingCapture, arrangement: PackingArrangement, step
       )
       .reduce((n, b) => n + b.availableKg, 0);
   const before = packed(store.getState());
-  const seconds = 5400 / capture.context.gameSpeed;
-  const boundary = (ARRANGEMENTS[arrangement].briefing * 60) / capture.context.gameSpeed;
+  // Plant time is a fixed fraction of game time (src/simulation/pace.ts), so a
+  // 90-minute workplace shift is the same plant span at every pace.
+  const seconds = plantSecondsForGameSeconds(5400);
+  const boundary = plantSecondsForGameSeconds(ARRANGEMENTS[arrangement].briefing * 60);
   let elapsed = 0;
   let firstPackedMinute: number | null = null;
   while (elapsed < seconds - 1e-10) {
@@ -287,7 +290,7 @@ function simulate(capture: PackingCapture, arrangement: PackingArrangement, step
       );
     elapsed += delta;
     if (firstPackedMinute === null && packed(store.getState()) > before)
-      firstPackedMinute = (elapsed * capture.context.gameSpeed) / 60;
+      firstPackedMinute = elapsed / PLANT_SECONDS_PER_GAME_SECOND / 60;
   }
   const state = store.getState();
   return {
@@ -311,7 +314,7 @@ function modelPackingAdvice(
     reasonToAbstain: capture.reasonToAbstain,
     workplaceMinutes: 90,
     physicalSeconds:
-      finite(evidence.gameSpeed) && evidence.gameSpeed >= 9 ? 5400 / evidence.gameSpeed : 0,
+      finite(evidence.gameSpeed) && evidence.gameSpeed >= 9 ? plantSecondsForGameSeconds(5400) : 0,
     stepSeconds: 0.5,
     briefingMinutes: params.briefing,
     linePacing: params.pacing,
@@ -630,7 +633,10 @@ export function validPackingAdvice(value: unknown): PackingAdvice | undefined {
     (a.reasonToAbstain !== null && (a.packedLowKg !== 0 || a.packedHighKg !== 0)) ||
     (a.reasonToAbstain === null &&
       (e.gameSpeed < 9 ||
-        Math.abs(a.physicalSeconds - 5400 / e.gameSpeed) > 1e-9 ||
+        // A 90-minute shift is one fixed plant span at every pace; advice
+        // saved under the old real-second model no longer matches and is
+        // re-derived rather than trusted.
+        Math.abs(a.physicalSeconds - plantSecondsForGameSeconds(5400)) > 1e-9 ||
         a.genealogyErrorKg === null ||
         a.genealogyErrorKg > 0.01 ||
         e.orderId === null ||

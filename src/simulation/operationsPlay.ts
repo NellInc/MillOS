@@ -4,7 +4,11 @@ import type {
   OperationalIncident,
   OrderExecutionState,
 } from '../stores/operationsCampaignStore';
-import { translate } from '../i18n';
+import { formatFixed, formatGrouped, getLocale, translate } from '../i18n';
+import { formatShiftDuration } from './shiftReview';
+import { PROGRAMME_BULK, PROGRAMME_RUSH, PROGRAMME_STANDARD } from './programmes';
+import { incidentTitle } from '../stores/incidentText';
+import { dispatchBlockText } from '../stores/dispatchBlockText';
 import { operationsPlayMessages } from './operationsPlay.messages';
 
 /** Shared fulfilment tolerance; cosmetic consequences must agree with credit. */
@@ -32,7 +36,7 @@ const CHALLENGE_LABEL_KEYS = {
   packaging_recovery: 'challengePackagingRecovery',
   network_recovery: 'challengeNetworkRecovery',
 } as const satisfies Record<OperationsChallengeId, string>;
-const challengeLabel = (id: OperationsChallengeId) =>
+export const challengeLabel = (id: OperationsChallengeId) =>
   translate(operationsPlayMessages, CHALLENGE_LABEL_KEYS[id]);
 export interface OperationsChallengeRun {
   id: string;
@@ -63,6 +67,7 @@ export interface OperationsNextAction {
     | 'mitigate'
     | 'resume'
     | 'resolve'
+    | 'repair'
     | 'quality'
     | 'receiving'
     | 'dispatch'
@@ -115,6 +120,11 @@ export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
   const incident = state.incidents.find((candidate) => candidate.phase !== 'resolved');
   const run = state.activeChallenge;
   const recovery = getChallengeRecoveryIncident(state);
+  // A stopped machine outranks the delivery steps: its line cannot run until
+  // the work order is repaired, verified and restarted in Mill Overview.
+  const machineDown = state.constraints.find(
+    (constraint) => constraint.id === 'maintenance-queue' && constraint.severity !== 'info'
+  );
   const canAcceptNextProgramme =
     !run &&
     state.orders.length > 0 &&
@@ -126,7 +136,7 @@ export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
       targetId: incident.id,
       label: translate(operationsPlayMessages, 'acknowledgeLabel'),
       consequence: translate(operationsPlayMessages, 'acknowledgeConsequence', {
-        title: incident.title,
+        title: incidentTitle(incident),
       }),
     };
   } else if (incident?.phase === 'acknowledged') {
@@ -152,12 +162,27 @@ export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
         ? translate(operationsPlayMessages, 'resolveConsequenceActive')
         : translate(operationsPlayMessages, 'resolveConsequenceEnded'),
     };
+  } else if (machineDown) {
+    nextAction = {
+      kind: 'repair',
+      targetId: machineDown.relatedId,
+      label: translate(operationsPlayMessages, 'repairLabel'),
+      consequence: machineDown.detail,
+    };
   } else if (canAcceptNextProgramme && !incident) {
     nextAction = {
       kind: 'programme',
       targetId: null,
       label: translate(operationsPlayMessages, 'programmeLabel'),
-      consequence: translate(operationsPlayMessages, 'programmeConsequence'),
+      // What acceptNextProgramme creates (src/simulation/programmes.ts),
+      // from the same constants, so the offer cannot drift from the programme.
+      consequence: translate(operationsPlayMessages, 'programmeConsequence', {
+        dayKg: formatGrouped(PROGRAMME_RUSH.kg + PROGRAMME_STANDARD.kg + PROGRAMME_BULK.kg),
+        nightKg: formatGrouped(PROGRAMME_RUSH.kg + PROGRAMME_STANDARD.kg + PROGRAMME_BULK.nightKg),
+        premium: formatFixed(PROGRAMME_RUSH.premiumPercent, 0),
+        window: formatShiftDuration(PROGRAMME_RUSH.windowMinutes, getLocale()),
+        standardKg: formatGrouped(PROGRAMME_STANDARD.kg),
+      }),
     };
   } else if (!state.execution.qualityReleased || state.execution.stage === 'quality_hold') {
     nextAction = {
@@ -165,7 +190,7 @@ export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
       targetId: activeOrder?.id ?? null,
       label: translate(operationsPlayMessages, 'qualityLabel'),
       consequence:
-        state.execution.dispatchLoad.blockReason ??
+        dispatchBlockText(state.execution.dispatchLoad) ??
         translate(operationsPlayMessages, 'qualityConsequence'),
     };
   } else if (
@@ -201,7 +226,9 @@ export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
         ? translate(operationsPlayMessages, 'residualLabel')
         : translate(operationsPlayMessages, 'productionLabel'),
       consequence: incident
-        ? translate(operationsPlayMessages, 'residualConsequence', { title: incident.title })
+        ? translate(operationsPlayMessages, 'residualConsequence', {
+            title: incidentTitle(incident),
+          })
         : translate(operationsPlayMessages, 'productionConsequence'),
     };
   }

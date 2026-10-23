@@ -188,6 +188,18 @@ export function createSleepingCatGeometry(colour: string) {
     shape.lineTo(0.025, 0);
     shape.lineTo(side * 0.011, 0.056);
     shape.closePath();
+    // The pink inset fills a hole cut through the shell, rather than lying
+    // 0.1 mm over its face: overlapping, the two shared a depth in this one
+    // draw. A coat-coloured plug closes the hole at the back cap.
+    const insetAt = (mirror: number) => {
+      const s = new THREE.Shape();
+      s.moveTo(-0.014 * mirror, 0.007);
+      s.lineTo(0.015 * mirror, 0.007);
+      s.lineTo(side * 0.009 * mirror, 0.043);
+      s.closePath();
+      return s;
+    };
+    shape.holes.push(insetAt(1));
     const shell = new THREE.ExtrudeGeometry(shape, {
       depth: 0.011,
       bevelEnabled: true,
@@ -198,14 +210,12 @@ export function createSleepingCatGeometry(colour: string) {
     });
     shell.deleteAttribute('uv');
     e.add(shell, colour);
-    const inset = new THREE.Shape();
-    inset.moveTo(-0.014, 0.007);
-    inset.lineTo(0.015, 0.007);
-    inset.lineTo(side * 0.009, 0.043);
-    inset.closePath();
-    const inner = new THREE.ShapeGeometry(inset).translate(0, 0, 0.0141);
+    const inner = new THREE.ShapeGeometry(insetAt(1)).translate(0, 0, 0.0141);
     inner.deleteAttribute('uv');
     e.add(inner, '#c18c7c');
+    const plug = new THREE.ShapeGeometry(insetAt(-1)).rotateY(Math.PI).translate(0, 0, -0.003);
+    plug.deleteAttribute('uv');
+    e.add(plug, colour);
     return e.finish();
   };
   const details = b.finish(),

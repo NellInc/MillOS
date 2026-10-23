@@ -126,6 +126,7 @@ leaders (WCM'26). Brazilian Portuguese only, never European Portuguese.
 | Getting started                                      | Primeiros passos                                               |
 | Overview / Production / Autonomy / Safety / Settings | Visão geral / Produção / Autonomia / Segurança / Configurações |
 | Now playing / playlist                               | Tocando agora / lista de reprodução                            |
+| replay (decision, diagnostic, workplace)             | reprodução (never "replay")                                    |
 | Notifications                                        | Notificações                                                   |
 | graphics quality low / medium / high / ultra         | qualidade gráfica baixa / média / alta / ultra                 |
 | Reset Simulation                                     | Reiniciar simulação                                            |

@@ -27,7 +27,10 @@ const beginTask = vi.hoisted(() =>
     };
   })
 );
-const flags = vi.hoisted(() => ({ KNOWLEDGE_LOADING_QUOTES_ENABLED: false }));
+const flags = vi.hoisted(() => ({
+  KNOWLEDGE_LOADING_QUOTES_ENABLED: false,
+  IN_APP_REDUCED_MOTION_ENABLED: false,
+}));
 const openPrepared = vi.hoisted(() =>
   vi.fn(() => {
     state.opened = true;
@@ -54,6 +57,7 @@ vi.mock('./knowledge/LoadingQuote', () => {
 });
 import { LoadingScreen } from './LoadingScreen';
 import { useGraphicsStore } from '../stores/graphicsStore';
+import { useMotionPreferenceStore } from '../stores/motionPreferenceStore';
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -79,6 +83,8 @@ afterEach(() => {
   cleanup();
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  flags.IN_APP_REDUCED_MOTION_ENABLED = false;
+  useMotionPreferenceStore.setState({ mode: 'system' });
   delete document.documentElement.dataset.sceneReady;
   delete document.documentElement.dataset.millosWorldReady;
 });
@@ -104,6 +110,101 @@ describe('LoadingScreen final readiness', () => {
     expect(screen.queryByRole('button', { name: 'Reload' })).toBeNull();
     expect(screen.queryByText(/keep waiting or reload/)).toBeNull();
     expect(screen.getByRole('progressbar')).toBeVisible();
+  });
+
+  it('never moves the progress bar backwards when later assets are queued', () => {
+    const bar = () => Number(screen.getByRole('progressbar').getAttribute('aria-valuenow'));
+    Object.assign(state, { pendingAssets: 8, loadedAssets: 2, totalAssets: 10 });
+    const view = render(<LoadingScreen />);
+    expect(bar()).toBe(19);
+    // The held-asset run read 94, 92, 53, 94, 84, 95: each wave of newly
+    // queued assets grew the total and pulled the bar back.
+    for (const [next, shown] of [
+      [{ pendingAssets: 5, loadedAssets: 5, totalAssets: 10 }, 48],
+      [{ pendingAssets: 15, loadedAssets: 5, totalAssets: 20 }, 48],
+      [{ pendingAssets: 5, loadedAssets: 15, totalAssets: 20 }, 71],
+      [{ pendingAssets: 0, loadedAssets: 20, totalAssets: 20 }, 95],
+      [{ pendingAssets: 30, loadedAssets: 20, totalAssets: 50 }, 95],
+    ] as const) {
+      Object.assign(state, next);
+      view.rerender(<LoadingScreen />);
+      expect(bar()).toBe(shown);
+    }
+    state.ready = true;
+    view.rerender(<LoadingScreen />);
+    expect(bar()).toBe(100);
+  });
+
+  it('offers low graphics within seconds once a complete world is confirmed slow', async () => {
+    useGraphicsStore.getState().setGraphicsQuality('medium');
+    state.prepared = true;
+    const view = render(<LoadingScreen />);
+    await act(async () => vi.advanceTimersByTimeAsync(4999));
+    expect(screen.queryByRole('button', { name: 'Use low graphics' })).toBeNull();
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(
+      screen.getByText('The scene is loaded, but animation is still slow on this device.')
+    ).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Use low graphics' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Open loaded scene (slow)' })).toBeVisible();
+    // A >1 s hitch restarts the frame window without any resource change. The
+    // way out must not flicker away on the device it was offered to.
+    state.prepared = false;
+    view.rerender(<LoadingScreen />);
+    expect(screen.getByRole('button', { name: 'Use low graphics' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Open loaded scene (slow)' })).toBeVisible();
+    expect(
+      screen.getByText('The scene is loaded, but animation is still slow on this device.')
+    ).toBeVisible();
+    expect(screen.queryByText(/taking longer than usual/)).toBeNull();
+    // A real resource change is a new world to judge.
+    state.revision++;
+    view.rerender(<LoadingScreen />);
+    expect(screen.queryByRole('button', { name: 'Use low graphics' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Open loaded scene (slow)' })).toBeNull();
+  });
+
+  it('keeps "Open loaded scene" through a hitch in the same revision, and it still opens', async () => {
+    useGraphicsStore.getState().setGraphicsQuality('medium');
+    state.prepared = true;
+    const view = render(<LoadingScreen minimumLoadTimeMs={0} />);
+    await act(async () => vi.advanceTimersByTimeAsync(5000));
+    const open = screen.getByRole('button', { name: 'Open loaded scene (slow)' });
+    // The hitch: the frame window restarts, nothing else changes.
+    state.prepared = false;
+    view.rerender(<LoadingScreen minimumLoadTimeMs={0} />);
+    expect(screen.getByRole('button', { name: 'Open loaded scene (slow)' })).toBe(open);
+    fireEvent.click(open);
+    expect(openPrepared).toHaveBeenCalledTimes(1);
+    expect(state.ready).toBe(false);
+    view.rerender(<LoadingScreen minimumLoadTimeMs={0} />);
+    await act(async () => vi.advanceTimersByTimeAsync(250));
+    expect(screen.queryByRole('progressbar')).toBeNull();
+  });
+
+  it('does not offer low graphics for a brief slow window that clears', async () => {
+    useGraphicsStore.getState().setGraphicsQuality('medium');
+    state.prepared = true;
+    const view = render(<LoadingScreen />);
+    await act(async () => vi.advanceTimersByTimeAsync(3000));
+    state.prepared = false;
+    view.rerender(<LoadingScreen />);
+    await act(async () => vi.advanceTimersByTimeAsync(10000));
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
+  });
+
+  it('says why low graphics is offered after a long load', async () => {
+    useGraphicsStore.getState().setGraphicsQuality('medium');
+    render(<LoadingScreen />);
+    await act(async () => vi.advanceTimersByTimeAsync(29999));
+    expect(screen.queryByText(/taking longer than usual/)).toBeNull();
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(
+      screen.getByText(
+        'Loading is taking longer than usual. Low graphics can help on a slower device.'
+      )
+    ).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Use low graphics' })).toBeVisible();
   });
 
   it('never lets optional quote failure invalidate scene startup', async () => {
@@ -277,6 +378,39 @@ describe('LoadingScreen final readiness', () => {
     state.ready = true;
     view.rerender(<LoadingScreen />);
     await act(async () => vi.advanceTimersByTimeAsync(0));
+    expect(screen.queryByRole('progressbar')).toBeNull();
+  });
+
+  it('hands over immediately when the in-app Reduce motion is On and the OS is not', async () => {
+    vi.stubGlobal('matchMedia', () => ({
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    flags.IN_APP_REDUCED_MOTION_ENABLED = true;
+    useMotionPreferenceStore.setState({ mode: 'reduce' });
+    state.ready = true;
+    render(<LoadingScreen />);
+    await act(async () => vi.advanceTimersByTimeAsync(700));
+    await act(async () => vi.advanceTimersByTimeAsync(0));
+    expect(screen.queryByRole('progressbar')).toBeNull();
+  });
+
+  it('keeps the 220 ms fade for a saved On while the in-app control is gated off', async () => {
+    vi.stubGlobal('matchMedia', () => ({
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    flags.IN_APP_REDUCED_MOTION_ENABLED = false;
+    useMotionPreferenceStore.setState({ mode: 'reduce' });
+    state.ready = true;
+    render(<LoadingScreen />);
+    await act(async () => vi.advanceTimersByTimeAsync(700));
+    await act(async () => vi.advanceTimersByTimeAsync(0));
+    // Still mounted, fading out over 220 ms.
+    expect(screen.getByRole('progressbar')).toBeInTheDocument();
+    await act(async () => vi.advanceTimersByTimeAsync(250));
     expect(screen.queryByRole('progressbar')).toBeNull();
   });
 

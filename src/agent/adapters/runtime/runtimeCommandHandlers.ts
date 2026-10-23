@@ -16,6 +16,7 @@ import type {
 import type { AgentJsonValue } from '../../contracts/queryContracts';
 import { parseSemanticUri } from '../../ontology/semanticUri.js';
 import type { AgentCommandHandler, AgentCommandInspection } from '../../command/commandKernel';
+import { HUMAN_OPERATOR_URI } from '../../command/authority';
 
 export function createMillOSRuntimeCommandHandlers(): AgentCommandHandler[] {
   return [
@@ -144,7 +145,7 @@ function activateOrderHandler(): AgentCommandHandler {
     execute: (command) => {
       const orderId = localId(command.targetUri, 'order');
       const before = useOperationsCampaignStore.getState();
-      before.activateOrder(orderId);
+      before.activateOrder(orderId, 'agent');
       const after = useOperationsCampaignStore.getState();
       return {
         changed: before.activeOrderId !== after.activeOrderId,
@@ -181,13 +182,13 @@ function activateOrderHandler(): AgentCommandHandler {
 
 function acknowledgeIncidentHandler(): AgentCommandHandler {
   return incidentHandler('incident.acknowledge', 'raised', (id) =>
-    useOperationsCampaignStore.getState().acknowledgeIncident(id)
+    useOperationsCampaignStore.getState().acknowledgeIncident(id, 'agent')
   );
 }
 
 function mitigateIncidentHandler(): AgentCommandHandler {
   return incidentHandler('incident.mitigate', 'unresolved', (id) =>
-    useOperationsCampaignStore.getState().mitigateIncident(id)
+    useOperationsCampaignStore.getState().mitigateIncident(id, 'agent')
   );
 }
 
@@ -762,6 +763,16 @@ function writeSetpointHandler(): AgentCommandHandler {
             Boolean(tag && tag.accessMode !== 'READ'),
             'Tag must exist and be writable.'
           ),
+          check(
+            'PRE.TAG.RANGE',
+            Boolean(
+              tag &&
+              Number.isFinite(Number(command.parameters.value)) &&
+              Number(command.parameters.value) >= tag.engLow &&
+              Number(command.parameters.value) <= tag.engHigh
+            ),
+            'Value must lie within the tag engineering range.'
+          ),
         ],
         [
           check(
@@ -779,9 +790,12 @@ function writeSetpointHandler(): AgentCommandHandler {
     },
     execute: async (command) => {
       const tagId = localId(command.targetUri, 'tag');
+      // Only the agent driver holds this grant today; a command the human
+      // operator issues is still logged as the operator's decision.
       const changed = await getSCADAService().writeSetpoint(
         tagId,
-        Number(command.parameters.value)
+        Number(command.parameters.value),
+        command.actorUri === HUMAN_OPERATOR_URI ? 'operator' : 'agent'
       );
       const readback = getSCADAService().getValue(tagId)?.value ?? null;
       return { changed, readback: json(readback) };

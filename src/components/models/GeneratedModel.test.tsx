@@ -6,10 +6,39 @@ import { NodeIO } from '@gltf-transform/core';
 import { createShopDisplayGeometry, SHOP_DISPLAY_ITEM_GRID } from './GeneratedOfficeModel';
 import { createBarnJoineryGeometry } from '../scenery/AuthoredPropTrim';
 import { GeneratedBody, GeneratedBoundary, GeneratedModel } from './GeneratedModel';
+import { applyBatchWorldSurface, hasWorldSurface } from '../../utils/worldSurface';
 
 const holder = vi.hoisted(() => ({ scene: null as THREE.Group | null }));
 vi.mock('../../utils/dracoLoader', () => ({ useDracoGLTF: () => ({ scene: holder.scene }) }));
 afterEach(cleanup);
+// Real GLB decodes and whole-geometry sweeps. After the fast paths below, the
+// slowest (the five delivered goods) still took 16.0-17.6 s at ~50 runnable per core
+// beside a render (2026-10-20), against the 10 s default.
+vi.setConfig({ testTimeout: 60_000 });
+
+/**
+ * Per-vertex assertions over delivered GLBs, without a matcher call per
+ * component. `holds` restates the matcher's own pass rule (`Object.is` for
+ * `toBe`, `|a - b| < 10^-d / 2` for `toBeCloseTo`); only where it is false does
+ * `assert` run the original matcher, which then decides and reports. A passing
+ * sweep is a plain loop. The barn and shop sweeps made ~10^5 matcher calls
+ * (29.8 s and 11.2 s at ~450 runnable per core, 2026-10-20).
+ */
+function sweep(count: number, holds: (i: number) => boolean, assert: (i: number) => void): void {
+  for (let i = 0; i < count; i++) if (!holds(i)) assert(i);
+}
+const closeTo = (actual: number, expected: number, digits: number) =>
+  Math.abs(expected - actual) < 10 ** -digits / 2;
+/** `toEqual` for whole buffers, as in workerPose.test.ts: a plain loop decides
+ * the common case and anything else goes to the matcher for its verdict. */
+function expectSameArray(actual: ArrayLike<number>, expected: ArrayLike<number>): void {
+  if (actual.constructor === expected.constructor && actual.length === expected.length) {
+    let same = true;
+    for (let i = 0; i < actual.length && same; i++) same = Object.is(actual[i], expected[i]);
+    if (same) return;
+  }
+  expect(actual).toEqual(expected);
+}
 
 it('retains shadow defaults while allowing authored no-reception meshes', () => {
   const source = new THREE.Group();
@@ -75,6 +104,33 @@ it('preserves mixed authored shadow flags and explicit per-instance overrides', 
   expect(mesh.receiveShadow).toBe(false);
   mesh.geometry.dispose();
   (mesh.material as THREE.Material).dispose();
+});
+
+it('draws closed double-faced assets front-side only, on an owned material it disposes', () => {
+  const source = new THREE.Group();
+  const shared = new THREE.MeshStandardMaterial({ side: THREE.DoubleSide });
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(), shared);
+  source.add(mesh);
+  holder.scene = source;
+  let clone: THREE.Group;
+  const original = source.clone.bind(source);
+  vi.spyOn(source, 'clone').mockImplementation((recursive) => (clone = original(recursive)));
+  const view = render(<GeneratedModel asset="dockCanopyStructure" />);
+  const owned = (clone!.children[0] as THREE.Mesh).material as THREE.Material;
+  expect(owned).not.toBe(shared);
+  expect(owned.side).toBe(THREE.FrontSide);
+  expect(shared.side).toBe(THREE.DoubleSide);
+  const dispose = vi.spyOn(owned, 'dispose');
+  view.unmount();
+  expect(dispose).toHaveBeenCalled();
+
+  // An asset with genuinely single-sheet parts keeps its authored DoubleSide.
+  render(<GeneratedModel asset="brickCarport" />);
+  expect(((clone!.children[0] as THREE.Mesh).material as THREE.Material).side).toBe(
+    THREE.DoubleSide
+  );
+  mesh.geometry.dispose();
+  shared.dispose();
 });
 
 it('keeps an empty 3D fallback empty when an optional model fails', () => {
@@ -180,29 +236,44 @@ it('volumes the delivered five goods while preserving the building, anchors and 
     expect(variant).not.toBe(source);
     expect(q.array).not.toBe(p.array);
     expect(variant.index!.array).not.toBe(source.index!.array);
-    expect(Array.from(variant.index!.array).slice(0, source.index!.count)).toEqual(
+    expectSameArray(
+      Array.from(variant.index!.array).slice(0, source.index!.count),
       Array.from(source.index!.array)
     );
-    expect(Array.from(variant.getAttribute('uv').array).slice(0, uv.array.length)).toEqual(
+    expectSameArray(
+      Array.from(variant.getAttribute('uv').array).slice(0, uv.array.length),
       Array.from(uv.array)
     );
     if (trade !== 'general') {
       expect(q.count).toBe(p.count);
       expect(variant.index!.count).toBe(10380);
     }
-    for (let i = 0; i < p.count; i++) {
-      if (!selected.has(i)) {
-        for (let axis = 0; axis < 3; axis++) {
-          expect(q.getComponent(i, axis)).toBe(p.getComponent(i, axis));
-          expect(n.getComponent(i, axis)).toBe(source.getAttribute('normal').getComponent(i, axis));
+    const sourceNormal = source.getAttribute('normal');
+    const band = (x: number) =>
+      Math.floor((x + SHOP_DISPLAY_ITEM_GRID[0]) * SHOP_DISPLAY_ITEM_GRID[1]);
+    sweep(
+      p.count,
+      (i) =>
+        selected.has(i)
+          ? closeTo(Math.hypot(n.getX(i), n.getY(i), n.getZ(i)), 1, 5) &&
+            Object.is(band(q.getX(i)), band(p.getX(i)))
+          : [0, 1, 2].every(
+              (axis) =>
+                Object.is(q.getComponent(i, axis), p.getComponent(i, axis)) &&
+                Object.is(n.getComponent(i, axis), sourceNormal.getComponent(i, axis))
+            ),
+      (i) => {
+        if (!selected.has(i)) {
+          for (let axis = 0; axis < 3; axis++) {
+            expect(q.getComponent(i, axis)).toBe(p.getComponent(i, axis));
+            expect(n.getComponent(i, axis)).toBe(sourceNormal.getComponent(i, axis));
+          }
+        } else {
+          expect(Math.hypot(n.getX(i), n.getY(i), n.getZ(i))).toBeCloseTo(1, 5);
+          expect(band(q.getX(i))).toBe(band(p.getX(i)));
         }
-      } else {
-        expect(Math.hypot(n.getX(i), n.getY(i), n.getZ(i))).toBeCloseTo(1, 5);
-        expect(
-          Math.floor((q.getX(i) + SHOP_DISPLAY_ITEM_GRID[0]) * SHOP_DISPLAY_ITEM_GRID[1])
-        ).toBe(Math.floor((p.getX(i) + SHOP_DISPLAY_ITEM_GRID[0]) * SHOP_DISPLAY_ITEM_GRID[1]));
       }
-    }
+    );
     for (const [band, vertices] of goods) {
       const scale =
         trade === 'general'
@@ -280,8 +351,8 @@ it('volumes the delivered five goods while preserving the building, anchors and 
     expect(Number.isFinite(variant.boundingSphere!.radius)).toBe(true);
     variant.dispose();
   }
-  expect(Array.from(p.array)).toEqual(originalPositions);
-  expect(Array.from(source.getAttribute('normal').array)).toEqual(originalNormals);
+  expectSameArray(Array.from(p.array), originalPositions);
+  expectSameArray(Array.from(source.getAttribute('normal').array), originalNormals);
   source.dispose();
 });
 
@@ -507,47 +578,69 @@ it('builds the real barn within its original cost/envelope with retained roof/fl
   expect(p.count / 3).toBeLessThanOrEqual(source.index!.count / 3);
   const kept = variant.userData.barnJoinery.retainedSourceFaces as number[];
   for (const face of [5307, 6071, 6081]) expect(kept).not.toContain(face);
+  const keptFaces = new Set(kept);
   let roof = 0,
     floor = 0;
   for (let face = 0; face < source.index!.count / 3; face++) {
     const ids = [0, 1, 2].map((i) => source.index!.getX(face * 3 + i));
     const ys = ids.map((i) => source.getAttribute('position').getY(i));
     if (Math.min(...ys) > 0.32) {
-      expect(kept).toContain(face);
+      if (!keptFaces.has(face)) expect(kept).toContain(face);
       roof++;
     }
     if (Math.max(...ys) < -0.49) {
-      expect(kept).toContain(face);
+      if (!keptFaces.has(face)) expect(kept).toContain(face);
       floor++;
     }
   }
   expect(roof).toBeGreaterThan(200);
   expect(floor).toBeGreaterThan(100);
-  for (let i = 0; i < kept.length; i++)
-    for (let corner = 0; corner < 3; corner++) {
-      const original = source.index!.getX(kept[i] * 3 + corner),
-        target = i * 3 + corner;
+  const corner = (k: number) => source.index!.getX(kept[Math.floor(k / 3)] * 3 + (k % 3));
+  sweep(
+    kept.length * 3,
+    (target) =>
+      ['position', 'normal', 'uv'].every((name) => {
+        const from = source.getAttribute(name),
+          to = variant.getAttribute(name);
+        for (let axis = 0; axis < from.itemSize; axis++)
+          if (!Object.is(to.getComponent(target, axis), from.getComponent(corner(target), axis)))
+            return false;
+        return true;
+      }) &&
+      c.getX(target) === 1 &&
+      c.getY(target) === 1 &&
+      c.getZ(target) === 1,
+    (target) => {
       for (const name of ['position', 'normal', 'uv'])
         for (let axis = 0; axis < source.getAttribute(name).itemSize; axis++)
           expect(variant.getAttribute(name).getComponent(target, axis)).toBe(
-            source.getAttribute(name).getComponent(original, axis)
+            source.getAttribute(name).getComponent(corner(target), axis)
           );
       expect([c.getX(target), c.getY(target), c.getZ(target)]).toEqual([1, 1, 1]);
     }
-  for (let i = 0; i < p.count; i++) {
-    expect([p.getX(i), p.getY(i), p.getZ(i), uv.getX(i), uv.getY(i)].every(Number.isFinite)).toBe(
-      true
-    );
-    expect(Math.hypot(n.getX(i), n.getY(i), n.getZ(i))).toBeCloseTo(1, 4);
-    for (let axis = 0; axis < 3; axis++) {
-      expect(p.getComponent(i, axis)).toBeGreaterThanOrEqual(
-        source.boundingBox!.min.getComponent(axis) - 1e-6
+  );
+  const { min, max } = source.boundingBox!;
+  sweep(
+    p.count,
+    (i) =>
+      [p.getX(i), p.getY(i), p.getZ(i), uv.getX(i), uv.getY(i)].every(Number.isFinite) &&
+      closeTo(Math.hypot(n.getX(i), n.getY(i), n.getZ(i)), 1, 4) &&
+      [0, 1, 2].every(
+        (axis) =>
+          p.getComponent(i, axis) >= min.getComponent(axis) - 1e-6 &&
+          p.getComponent(i, axis) <= max.getComponent(axis) + 1e-6
+      ),
+    (i) => {
+      expect([p.getX(i), p.getY(i), p.getZ(i), uv.getX(i), uv.getY(i)].every(Number.isFinite)).toBe(
+        true
       );
-      expect(p.getComponent(i, axis)).toBeLessThanOrEqual(
-        source.boundingBox!.max.getComponent(axis) + 1e-6
-      );
+      expect(Math.hypot(n.getX(i), n.getY(i), n.getZ(i))).toBeCloseTo(1, 4);
+      for (let axis = 0; axis < 3; axis++) {
+        expect(p.getComponent(i, axis)).toBeGreaterThanOrEqual(min.getComponent(axis) - 1e-6);
+        expect(p.getComponent(i, axis)).toBeLessThanOrEqual(max.getComponent(axis) + 1e-6);
+      }
     }
-  }
+  );
   const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }),
     mesh = new THREE.Mesh(variant, material),
     old = new THREE.Mesh(source, material);
@@ -573,11 +666,12 @@ it('builds the real barn within its original cost/envelope with retained roof/fl
     for (const x of [-0.3, -0.15, 0.15, 0.3])
       expect(hit(mesh, [x, 1, z], [0, -1, 0]).y).toBeCloseTo(hit(old, [x, 1, z], [0, -1, 0]).y, 6);
   expect(hit(mesh, [0, 0.16, 1], [0, 0, -1]).z).toBeCloseTo(0.405, 4);
-  expect(hit(mesh, [1, -0.3, 0], [-1, 0, 0]).x).toBeCloseTo(0.4205, 4);
+  // The side backer stands 2.3 mm off the delivered wall plane it used to share.
+  expect(hit(mesh, [1, -0.3, 0], [-1, 0, 0]).x).toBeCloseTo(0.423, 4);
   expect(hit(mesh, [0.3, -0.3, 1], [0, 0, -1]).z).toBeCloseTo(0.419, 3);
   expect(hit(mesh, [1, -0.3, 0.2], [-1, 0, 0]).x).toBeCloseTo(0.438, 3);
   for (const [name, values] of Object.entries(before))
-    expect(Array.from(source.getAttribute(name).array)).toEqual(values);
+    expectSameArray(Array.from(source.getAttribute(name).array), values);
   console.log(
     'BARN_JOINERY_COST',
     JSON.stringify({
@@ -629,4 +723,65 @@ it('cleans up real barn replacement geometry and paint while leaving cached asse
   geometry.dispose();
   material.map!.dispose();
   material.dispose();
+});
+
+it('takes the vessel shells off their near-mirror roughness map and gives them a clean painted finish', () => {
+  // The four tank GLBs ship a metallicRoughness map whose green channel is a
+  // near-constant 60/255: 0.64 x 0.24 = 0.15 effective roughness, i.e. the
+  // "uniform plastic gloss" the art review named on every tank. Their normal
+  // map is flat (std 0.6/255) and does nothing.
+  const flat = new THREE.DataTexture(new Uint8Array([128, 128, 255, 255]), 1, 1);
+  const orm = new THREE.DataTexture(new Uint8Array([255, 60, 8, 255]), 1, 1);
+  for (const asset of [
+    'utilityFuelShell',
+    'utilityProcessShell',
+    'propaneLargeShell',
+    'propaneSmallShell',
+  ] as const) {
+    const source = new THREE.Group();
+    const material = new THREE.MeshStandardMaterial({
+      roughness: 0.64,
+      metalness: 0.03,
+      roughnessMap: orm,
+      metalnessMap: orm,
+      normalMap: flat,
+      vertexColors: true,
+    });
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(), material);
+    source.add(mesh);
+    holder.scene = source;
+    let clone: THREE.Group;
+    const original = source.clone.bind(source);
+    vi.spyOn(source, 'clone').mockImplementation((recursive) => (clone = original(recursive)));
+    const view = render(<GeneratedModel asset={asset} />);
+    const finished = (clone!.children[0] as THREE.Mesh).material as THREE.MeshStandardMaterial;
+    expect(finished).not.toBe(material);
+    expect(finished.roughnessMap).toBeNull();
+    expect(finished.metalnessMap).toBeNull();
+    expect(finished.normalMap).toBeNull();
+    // One clean highlight along the shell: satin, not the 0.15 gloss and not
+    // the 0.5 that left no highlight at all (final-med-12 tank-farm).
+    expect(finished.roughness).toBeCloseTo(0.4, 5);
+    expect(finished.vertexColors).toBe(true);
+    expect(hasWorldSurface(finished)).toBe(true);
+    // Near-constant factory paint: the `painted` profile's meso, grime and dust
+    // read as cotton on a white shell.
+    expect(finished.userData.millosWorldSurfaceProfile).toBe('vessel');
+    // The static batcher re-finishes the clone it merges into from the source;
+    // the shells must keep their finish through it, not fall back to `painted`.
+    const merged = finished.clone();
+    expect(applyBatchWorldSurface(merged, finished)).toBe('vessel');
+    expect(merged.userData.millosWorldSurfaceProfile).toBe('vessel');
+    merged.dispose();
+    // The cached loader material is untouched.
+    expect(material.roughnessMap).toBe(orm);
+    expect(hasWorldSurface(material)).toBe(false);
+    const dispose = vi.spyOn(finished, 'dispose');
+    view.unmount();
+    expect(dispose).toHaveBeenCalled();
+    mesh.geometry.dispose();
+    material.dispose();
+  }
+  flat.dispose();
+  orm.dispose();
 });

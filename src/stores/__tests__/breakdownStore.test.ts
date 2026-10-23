@@ -6,7 +6,8 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { useBreakdownStore } from '../breakdownStore';
+import { setLocale } from '../../i18n';
+import { breakdownDescription, useBreakdownStore } from '../breakdownStore';
 import type { PartsInventory } from '../breakdownStore';
 
 const DEFAULT_INVENTORY: PartsInventory = {
@@ -26,7 +27,6 @@ describe('BreakdownStore', () => {
       predictiveAlerts: [],
       partsInventory: { ...DEFAULT_INVENTORY },
       maintenanceSchedule: [],
-      lastBreakdownTime: 0,
       idSequence: 0,
     });
   });
@@ -124,6 +124,20 @@ describe('BreakdownStore', () => {
       expect(useBreakdownStore.getState().partsInventory.sensors).toBe(12);
     });
 
+    it('still finishes a repair restored without a finite time estimate', () => {
+      const breakdown = createRepair();
+      useBreakdownStore.setState((state) => ({
+        activeBreakdowns: state.activeBreakdowns.map((b) => ({
+          ...b,
+          estimatedRepairTime: undefined as unknown as number,
+        })),
+      }));
+      expect(useBreakdownStore.getState().startRepair(breakdown.id).started).toBe(true);
+      useBreakdownStore.getState().tickDowntime(30 * 60);
+      expect(useBreakdownStore.getState().activeBreakdowns[0].repairProgress).toBe(100);
+      expect(useBreakdownStore.getState().workOrders[0].phase).toBe('verification');
+    });
+
     it('requires repair completion, verification, and explicit restart in order', () => {
       const breakdown = createRepair();
       const state = useBreakdownStore.getState();
@@ -213,41 +227,6 @@ describe('BreakdownStore', () => {
       expect(state.getBreakdownForMachine('packer-0')?.id).toBe(breakdown.id);
       expect(state.getBreakdownForMachine('packer-1')).toBeUndefined();
       expect(state.getWorkOrderForBreakdown(breakdown.id)?.id).toBe(breakdown.workOrderId);
-    });
-  });
-
-  describe('triggerRandomBreakdown', () => {
-    const machines = [
-      { id: 'rm-101', name: 'Roller Mill 101', status: 'running' },
-      { id: 'rm-102', name: 'Roller Mill 102', status: 'idle' },
-    ];
-
-    it('should rate-limit breakdowns to one per 2 real minutes', () => {
-      useBreakdownStore.setState({ lastBreakdownTime: Date.now() });
-      vi.spyOn(Math, 'random').mockReturnValue(0);
-
-      const result = useBreakdownStore.getState().triggerRandomBreakdown(machines);
-      expect(result).toBeNull();
-      expect(useBreakdownStore.getState().activeBreakdowns).toHaveLength(0);
-    });
-
-    it('should only ever pick running machines', () => {
-      vi.spyOn(Math, 'random').mockReturnValue(0); // Forces the 0.3% chance to hit
-
-      const result = useBreakdownStore.getState().triggerRandomBreakdown(machines);
-      expect(result).not.toBeNull();
-      expect(result!.machineId).toBe('rm-101'); // The only running machine
-
-      const idleOnly = useBreakdownStore
-        .getState()
-        .triggerRandomBreakdown([{ id: 'rm-102', name: 'RM 102', status: 'idle' }]);
-      expect(idleOnly).toBeNull();
-    });
-
-    it('should usually skip (random chance gate)', () => {
-      vi.spyOn(Math, 'random').mockReturnValue(0.5); // Above the 0.003 threshold
-      const result = useBreakdownStore.getState().triggerRandomBreakdown(machines);
-      expect(result).toBeNull();
     });
   });
 
@@ -422,5 +401,22 @@ describe('BreakdownStore', () => {
       schedule({ ...task, scheduledTime: 17 });
       expect(useBreakdownStore.getState().maintenanceSchedule).toHaveLength(1);
     });
+  });
+});
+
+describe('breakdown description language', () => {
+  afterEach(() => setLocale('en'));
+
+  it('renders in the language active now, not the one active when it fired', () => {
+    setLocale('en');
+    const breakdown = useBreakdownStore
+      .getState()
+      .triggerBreakdown('rm-locale', 'R.M. 103', 'mechanical')!;
+    const english = breakdownDescription(breakdown);
+    expect(english).toBe(breakdown.description);
+
+    setLocale('pt-BR');
+    expect(breakdownDescription(breakdown)).not.toBe(english);
+    expect(breakdownDescription({ ...breakdown, descriptionKey: undefined })).toBe(english);
   });
 });

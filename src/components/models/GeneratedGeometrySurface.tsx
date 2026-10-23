@@ -21,15 +21,16 @@ function retainAuthoredUVs(geometry: THREE.BufferGeometry, original: THREE.Buffe
   const b = target.getAttribute('position');
   const uv = source.getAttribute('uv');
   const uvValues = new Float32Array(b.count * 2);
+  // Template strings, not `[...].map().join(',')`: the same text (ToString of
+  // each integer, so -0 still reads "0") without three arrays per vertex.
   const key = (p: THREE.BufferAttribute | THREE.InterleavedBufferAttribute, i: number) =>
-    [p.getX(i), p.getY(i), p.getZ(i)].map((v) => Math.round(v * 100000)).join(',');
+    `${Math.round(p.getX(i) * 100000)},${Math.round(p.getY(i) * 100000)},${Math.round(p.getZ(i) * 100000)}`;
   const triangleKey = (p: THREE.BufferAttribute | THREE.InterleavedBufferAttribute, i: number) =>
     [key(p, i), key(p, i + 1), key(p, i + 2)].sort().join(';');
   // Float32 atlas round-trips can cross a decimal hash boundary. Search adjacent
   // spatial cells, then verify actual distances and winding rather than rounding.
   source.computeBoundingBox();
   const tolerance = Math.max(1, source.boundingBox!.getSize(new THREE.Vector3()).length()) * 1e-6;
-  const cells = new Map<string, Set<number>>();
   const cell = (p: THREE.BufferAttribute | THREE.InterleavedBufferAttribute, i: number) =>
     [p.getX(i), p.getY(i), p.getZ(i)].map((v) => Math.floor(v / tolerance));
   const close = (i: number, j: number) =>
@@ -37,36 +38,65 @@ function retainAuthoredUVs(geometry: THREE.BufferGeometry, original: THREE.Buffe
   const triangles = new Map<string, number[]>();
   for (let i = 0; i < a.count; i += 3) {
     const k = triangleKey(a, i);
-    const matches = triangles.get(k) ?? [];
-    matches.push(i);
-    triangles.set(k, matches);
-    for (let corner = 0; corner < 3; corner++) {
-      const c = cell(a, i + corner).join(',');
-      const bucket = cells.get(c) ?? new Set<number>();
-      bucket.add(i);
-      cells.set(c, bucket);
-    }
+    const matches = triangles.get(k);
+    if (matches) matches.push(i);
+    else triangles.set(k, [i]);
   }
+  // The spatial cells only serve a triangle whose rounded key found no match,
+  // so they are built on the first such triangle. Bucket order is ascending
+  // source triangle either way, which is all the search below depends on.
+  let cells: Map<string, Set<number>> | null = null;
+  const spatialCells = () => {
+    if (cells) return cells;
+    cells = new Map<string, Set<number>>();
+    for (let i = 0; i < a.count; i += 3)
+      for (let corner = 0; corner < 3; corner++) {
+        const c = cell(a, i + corner).join(',');
+        const bucket = cells.get(c) ?? new Set<number>();
+        bucket.add(i);
+        cells.set(c, bucket);
+      }
+    return cells;
+  };
+  // First winding shift of source triangle `j` that lands on target triangle `i`.
+  const assign = (i: number, j: number) => {
+    for (let shift = 0; shift < 3; shift++) {
+      if (
+        !close(i, j + (shift % 3)) ||
+        !close(i + 1, j + ((1 + shift) % 3)) ||
+        !close(i + 2, j + ((2 + shift) % 3))
+      )
+        continue;
+      for (let k = 0; k < 3; k++) {
+        const index = j + ((k + shift) % 3);
+        uvValues[(i + k) * 2] = uv?.getX(index) ?? 0;
+        uvValues[(i + k) * 2 + 1] = uv?.getY(index) ?? 0;
+      }
+      return true;
+    }
+    return false;
+  };
   try {
     for (let i = 0; i < b.count; i += 3) {
-      let matched = false;
-      const candidates = new Set(triangles.get(triangleKey(b, i)) ?? []);
-      const [x, y, z] = cell(b, i);
-      for (let dx = -1; dx <= 1; dx++)
-        for (let dy = -1; dy <= 1; dy++)
-          for (let dz = -1; dz <= 1; dz++)
-            for (const j of cells.get([x + dx, y + dy, z + dz].join(',')) ?? []) candidates.add(j);
-      for (const j of candidates) {
-        for (let shift = 0; shift < 3 && !matched; shift++) {
-          if (![0, 1, 2].every((k) => close(i + k, j + ((k + shift) % 3)))) continue;
-          for (let k = 0; k < 3; k++) {
-            const index = j + ((k + shift) % 3);
-            uvValues[(i + k) * 2] = uv?.getX(index) ?? 0;
-            uvValues[(i + k) * 2 + 1] = uv?.getY(index) ?? 0;
-          }
-          matched = true;
-        }
-        if (matched) break;
+      // Candidates are visited in one fixed order and the first that matches
+      // wins: rounded-key matches in source order, then any further triangle
+      // from the 27 cells around the first corner. The key matches come first,
+      // so when one of them matches, the cells cannot change the answer and
+      // are not searched. That is the common case and most of the old cost.
+      const exact = triangles.get(triangleKey(b, i)) ?? [];
+      let matched = exact.some((j) => assign(i, j));
+      if (!matched) {
+        const near = spatialCells();
+        const candidates = new Set(exact);
+        const [x, y, z] = cell(b, i);
+        for (let dx = -1; dx <= 1; dx++)
+          for (let dy = -1; dy <= 1; dy++)
+            for (let dz = -1; dz <= 1; dz++)
+              for (const j of near.get([x + dx, y + dy, z + dz].join(',')) ?? []) candidates.add(j);
+        // The key matches were tried above and failed; skipping them leaves
+        // the remaining order unchanged.
+        for (const j of exact) candidates.delete(j);
+        for (const j of candidates) if ((matched = assign(i, j))) break;
       }
       if (!matched) throw new Error('Generated triangle no longer matches authored UV topology');
     }
@@ -79,6 +109,44 @@ function retainAuthoredUVs(geometry: THREE.BufferGeometry, original: THREE.Buffe
   } finally {
     if (source !== original) source.dispose();
   }
+}
+
+/**
+ * Restored geometry, kept per authored geometry so that a repeat of the same
+ * attachment (every dock bay's shelter sides, the city's steel boxes, one per
+ * forklift rig) copies the first result instead of re-running the topology
+ * match. The result is a pure function of the inputs fingerprinted below, so
+ * a copy is exactly what a fresh restore would build. Templates are never
+ * handed out: each caller receives, and disposes, its own copy.
+ */
+const restoredTemplates = new WeakMap<
+  THREE.BufferGeometry,
+  { inputs: unknown[]; geometry: THREE.BufferGeometry }[]
+>();
+
+/** Identity and upload version of everything a restore reads from a geometry. */
+function geometryInputs(geometry: THREE.BufferGeometry): unknown[] {
+  const version = (attribute: THREE.BufferAttribute | THREE.InterleavedBufferAttribute) =>
+    (attribute as THREE.InterleavedBufferAttribute).isInterleavedBufferAttribute
+      ? (attribute as THREE.InterleavedBufferAttribute).data.version
+      : (attribute as THREE.BufferAttribute).version;
+  const inputs: unknown[] = [geometry, geometry.index, geometry.index?.version];
+  for (const [name, attribute] of Object.entries(geometry.attributes))
+    inputs.push(name, attribute, version(attribute));
+  for (const [name, targets] of Object.entries(geometry.morphAttributes))
+    inputs.push(name, ...targets.flatMap((target) => [target, version(target)]));
+  inputs.push(geometry.groups.length);
+  return inputs;
+}
+
+const sameInputs = (a: unknown[], b: unknown[]) =>
+  a.length === b.length && a.every((value, i) => Object.is(value, b[i]));
+
+/** A caller-owned copy; `userData` is shared exactly where a fresh restore shares it. */
+function copyRestored(template: THREE.BufferGeometry, delivered: THREE.BufferGeometry) {
+  const copy = template.clone();
+  if (template.userData !== delivered.userData) copy.userData = { ...template.userData };
+  return copy;
 }
 
 export function restoreGeometryOrigin(
@@ -96,7 +164,128 @@ export function restoreGeometryOrigin(
   const material = meshes[0].material as THREE.MeshStandardMaterial;
   if (!material.isMeshStandardMaterial || material.transparent || !material.normalMap)
     throw new Error('Expected an opaque standard surface with a normal map');
-  const geometry = meshes[0].geometry.clone().applyMatrix4(meshes[0].matrixWorld);
+  const delivered = meshes[0].geometry;
+  const inputs = [
+    fitEnvelope,
+    ...meshes[0].matrixWorld.elements,
+    ...geometryInputs(delivered),
+    ...geometryInputs(original),
+  ];
+  const templates = restoredTemplates.get(original) ?? [];
+  const cached = templates.find((entry) => sameInputs(entry.inputs, inputs));
+  if (cached) return { geometry: copyRestored(cached.geometry, delivered), material };
+  // A built-in geometry rebuilt per instance (every `GeneratedBoxSurface`
+  // makes its own BoxGeometry) misses by identity; its parameters name the
+  // content, and a copy of what the restore reads proves it.
+  const contentKey = parametersKey(original);
+  const deliveredInputs = inputs.slice(0, inputs.length - geometryInputs(original).length);
+  const sameContent = contentKey
+    ? restoredByContent
+        .get(contentKey)
+        ?.find(
+          (entry) =>
+            sameInputs(entry.deliveredInputs, deliveredInputs) &&
+            sameRestoreSource(entry.source, original)
+        )
+    : undefined;
+  const template =
+    sameContent?.geometry ?? buildRestoredGeometry(meshes[0], material, original, fitEnvelope);
+  templates.push({ inputs, geometry: template });
+  restoredTemplates.set(original, templates);
+  if (contentKey && !sameContent) {
+    const source = snapshotRestoreSource(original);
+    if (source) {
+      const entries = restoredByContent.get(contentKey) ?? [];
+      entries.push({ deliveredInputs, source, geometry: template });
+      restoredByContent.set(contentKey, entries);
+    }
+  }
+  return { geometry: copyRestored(template, delivered), material };
+}
+
+/**
+ * Everything of an authored geometry that a restore reads: its index and its
+ * position and UV values (`retainAuthoredUVs` matches on positions and copies
+ * UVs; the envelope is their bounding box).
+ */
+type Values = THREE.BufferAttribute['array'];
+
+interface RestoreSource {
+  index: Values | null;
+  attributes: { name: string; itemSize: number; normalized: boolean; array: Values }[];
+}
+
+const restoredByContent = new Map<
+  string,
+  { deliveredInputs: unknown[]; source: RestoreSource; geometry: THREE.BufferGeometry }[]
+>();
+
+/** `BoxGeometry:{"width":1,...}` for three's parametric geometries, else null. */
+function parametersKey(geometry: THREE.BufferGeometry): string | null {
+  const parameters = (geometry as THREE.BufferGeometry & { parameters?: unknown }).parameters;
+  if (!parameters || typeof parameters !== 'object') return null;
+  if (Object.keys(geometry.morphAttributes).length > 0) return null;
+  return `${geometry.type}:${JSON.stringify(parameters)}`;
+}
+
+const RESTORE_READS = ['position', 'uv'] as const;
+
+/** The live arrays a restore would read, or null if any is interleaved. */
+function restoreSourceView(geometry: THREE.BufferGeometry): RestoreSource | null {
+  const attributes: RestoreSource['attributes'] = [];
+  for (const name of RESTORE_READS) {
+    const attribute = geometry.getAttribute(name);
+    if (!attribute) continue;
+    if ((attribute as THREE.InterleavedBufferAttribute).isInterleavedBufferAttribute) return null;
+    const { itemSize, normalized, array } = attribute as THREE.BufferAttribute;
+    attributes.push({ name, itemSize, normalized, array });
+  }
+  return { index: geometry.index?.array ?? null, attributes };
+}
+
+/** A private copy of those arrays, so later edits to the geometry cannot alter it. */
+function snapshotRestoreSource(geometry: THREE.BufferGeometry): RestoreSource | null {
+  const view = restoreSourceView(geometry);
+  return (
+    view && {
+      index: view.index?.slice() ?? null,
+      attributes: view.attributes.map((entry) => ({ ...entry, array: entry.array.slice() })),
+    }
+  );
+}
+
+const sameValues = (a: Values | null, b: Values | null) => {
+  if (a === null || b === null) return a === b;
+  if (a.length !== b.length || a.constructor !== b.constructor) return false;
+  for (let i = 0; i < a.length; i++) if (!Object.is(a[i], b[i])) return false;
+  return true;
+};
+
+function sameRestoreSource(source: RestoreSource, geometry: THREE.BufferGeometry): boolean {
+  const current = restoreSourceView(geometry);
+  return (
+    current !== null &&
+    sameValues(source.index, current.index) &&
+    source.attributes.length === current.attributes.length &&
+    source.attributes.every((entry, i) => {
+      const other = current.attributes[i];
+      return (
+        entry.name === other.name &&
+        entry.itemSize === other.itemSize &&
+        entry.normalized === other.normalized &&
+        sameValues(entry.array, other.array)
+      );
+    })
+  );
+}
+
+function buildRestoredGeometry(
+  mesh: THREE.Mesh,
+  material: THREE.MeshStandardMaterial,
+  original: THREE.BufferGeometry,
+  fitEnvelope: boolean
+): THREE.BufferGeometry {
+  const geometry = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);
   geometry.computeBoundingBox();
   original.computeBoundingBox();
   const generatedBounds = geometry.boundingBox!;
@@ -133,7 +322,7 @@ export function restoreGeometryOrigin(
     const restored = retainAuthoredUVs(geometry, original);
     if (restored !== geometry) geometry.dispose();
     restored.computeBoundingBox();
-    return { geometry: restored, material };
+    return restored;
   } catch (error) {
     geometry.dispose();
     throw new Error(`${material.name}: ${error instanceof Error ? error.message : String(error)}`, {
@@ -161,6 +350,15 @@ export function createGeneratedSurfaceMaterial(
     if (profile) applyWorldSurface(original, profile);
   }
   const live = original.clone();
+  // MeshStandardMaterial.copy resets `defines` to { STANDARD } and JSON-copies
+  // userData. The host shader reads both: the silo skin's MACHINE_GALVANISED
+  // block compiled out of this clone, and a uniform mirrored on userData came
+  // back as a detached ghost. Keep the host's defines, and its uniform-shaped
+  // userData entries by reference.
+  if (original.defines) live.defines = { ...original.defines };
+  for (const [key, entry] of Object.entries(original.userData)) {
+    if (entry !== null && typeof entry === 'object' && 'value' in entry) live.userData[key] = entry;
+  }
   if (Object.hasOwn(original, 'onBeforeCompile')) live.onBeforeCompile = original.onBeforeCompile;
   if (Object.hasOwn(original, 'customProgramCacheKey'))
     live.customProgramCacheKey = original.customProgramCacheKey;

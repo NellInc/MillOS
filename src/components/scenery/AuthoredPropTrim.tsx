@@ -856,7 +856,9 @@ function marketGoods(trade: number) {
     ]);
     put(body, '#c49a48', x, z, lift);
     foodFinish(body, '#ac7d39', '#dfc78a', 'rind');
-    const band = new THREE.CylinderGeometry(r * 1.005, r * 1.005, 0.044, 16, 1, true);
+    // The wax band stands 4 mm proud of the rind facets; at 0.5% of the radius
+    // (0.75-1 mm) the two shared each facet's depth in this one draw.
+    const band = new THREE.CylinderGeometry(r + 0.004, r + 0.004, 0.044, 16, 1, true);
     band.translate(x, MARKET_TRAY_FLOOR + lift + 0.056, z);
     parts.push(colored(band, '#debf77'));
     band.userData.marketFood = 'rind';
@@ -914,7 +916,7 @@ function marketGoods(trade: number) {
       [0.16, 0.06],
     ]) {
       const wedge = new THREE.ExtrudeGeometry(shape, {
-        depth: 0.11,
+        depth: 0.105,
         bevelEnabled: true,
         bevelSize: 0.003,
         bevelThickness: 0.003,
@@ -925,10 +927,15 @@ function marketGoods(trade: number) {
       wedge.rotateX(-Math.PI / 2);
       put(wedge, '#dfbd69', x, z);
       foodFinish(wedge, '#c6a054', '#ead197', 'rind');
+      // Wedge tops sit 4 mm under the 0.115 m wheel top the first wedge cuts
+      // into; the eyes are studs 3 mm proud of the cut face, not discs in it.
       for (let j = 0; j < 3; j++) {
-        const dot = new THREE.CircleGeometry(0.009 + j * 0.002, 8)
-          .rotateX(-Math.PI / 2)
-          .translate(x + 0.06 + j * 0.049, MARKET_TRAY_FLOOR + 0.116, z - 0.032 - j * 0.02);
+        const radius = 0.009 + j * 0.002;
+        const dot = new THREE.CylinderGeometry(radius, radius, 0.006, 8).translate(
+          x + 0.06 + j * 0.049,
+          MARKET_TRAY_FLOOR + 0.111,
+          z - 0.032 - j * 0.02
+        );
         parts.push(colored(dot, '#b99246'));
       }
     }
@@ -1395,11 +1402,16 @@ export function createBarnJoineryGeometry(source: THREE.BufferGeometry) {
     paint(g, shade);
   };
   // Continuous dark backers close the construction joints without filling the loft.
+  // In source units (x10 m): the gable backers end 2 mm inside the side boards'
+  // outer face and 2 mm above their feet; the side backers stand 2.3 mm off the
+  // delivered wall, 2 mm above the board feet and 2 mm under the eaves soffit,
+  // and the side boards stop 2 mm under it too. Each had shared a plane with a
+  // differently coloured face.
   for (const side of [-1, 1]) {
     const outline = new THREE.Shape();
-    outline.moveTo(-0.438, -0.482);
-    outline.lineTo(0.438, -0.482);
-    for (const x of [0.438, 0.338, 0.213, 0, -0.213, -0.338, -0.438])
+    outline.moveTo(-0.436, -0.48);
+    outline.lineTo(0.436, -0.48);
+    for (const x of [0.436, 0.338, 0.213, 0, -0.213, -0.338, -0.436])
       outline.lineTo(x, barnRoofHeight(x) - 0.012);
     outline.closePath();
     if (side > 0) {
@@ -1422,8 +1434,8 @@ export function createBarnJoineryGeometry(source: THREE.BufferGeometry) {
     paint(backing, '#70272c');
     const top = barnRoofHeight(0.438) - 0.008;
     paint(
-      new THREE.BoxGeometry(0.003, top + 0.482, 0.832).translate(
-        side * 0.419,
+      new THREE.BoxGeometry(0.003, top + 0.478, 0.832).translate(
+        side * 0.4215,
         (top - 0.482) / 2,
         0
       ),
@@ -1450,9 +1462,9 @@ export function createBarnJoineryGeometry(source: THREE.BufferGeometry) {
     for (let i = 0; i < 24; i++) {
       const z = -0.416 + ((i + 0.5) * 0.832) / 24;
       paint(
-        new THREE.BoxGeometry(0.014, top + 0.482, 0.832 / 24 - 0.001).translate(
+        new THREE.BoxGeometry(0.014, top + 0.48, 0.832 / 24 - 0.001).translate(
           side * 0.431,
-          (top - 0.482) / 2,
+          (top - 0.484) / 2,
           z
         ),
         reds[(i + 1) % 4]

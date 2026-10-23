@@ -4,8 +4,13 @@ import * as THREE from 'three';
 import type { PersistStorage } from 'zustand/middleware';
 import { useAdaptiveQuality } from '../hooks/useAdaptiveQuality';
 import { useFPSStore } from './FPSMonitor';
-import { useGraphicsStore, type PerfDebugSettings } from '../stores/graphicsStore';
+import {
+  useGraphicsStore,
+  type GraphicsSettings,
+  type PerfDebugSettings,
+} from '../stores/graphicsStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
+import { RENDERER_TONE_MAPPING } from '../constants/colorGrade';
 import { useMaterialFlowStore } from '../stores/materialFlowStore';
 import { useProductionStore } from '../stores/productionStore';
 import { useUIStore } from '../stores/uiStore';
@@ -17,6 +22,7 @@ import { SITE_LAYOUT, type Vec3Tuple } from '../constants/siteLayout';
 import { inspectWorldIntegrity, type WorldIntegrityReport } from '../constants/worldContract';
 import { inspectCommunityPresence } from '../simulation/communityLife';
 import { sampleAtmosphere, sampleCelestial } from '../simulation/atmosphere';
+import { STANDARD_GAME_SPEED } from '../simulation/pace';
 import { audioManager } from '../utils/audioManager';
 import { installMillOSAgentRuntime } from '../agent/adapters/runtime/installAgentRuntime';
 import { registerSceneCapture } from '../utils/sceneCapture';
@@ -251,6 +257,16 @@ export interface MillOSRuntimeTelemetry {
   namedObjectsSnapshot: (names: string[]) => RuntimeNamedObjectPose[];
   setCameraPose: (position: [number, number, number], target: [number, number, number]) => void;
   setPerfDebug: (patch: Partial<PerfDebugSettings>) => void;
+  /**
+   * Diagnostic: patch display settings (tone mapping mode, grade, vignette) on
+   * the live page, so a probe can read the same frame scene-referred. Never a
+   * quality setting; `perfDebug` stays owned by `setPerfDebug`.
+   */
+  setDisplayDiagnostics: (
+    patch: Partial<
+      Pick<GraphicsSettings, 'toneMappingMode' | 'enableColorGrade' | 'enableVignette'>
+    >
+  ) => void;
   /**
    * Group every material instance in the graph by how it would actually draw.
    *
@@ -1621,13 +1637,18 @@ export const RuntimeController: React.FC<RuntimeControllerProps> = ({
       gameTime: previousGame.gameTime,
       gameSpeed: previousGame.gameSpeed,
       weather: previousGame.weather,
+      timeOfDayHeld: previousGame.timeOfDayHeld,
     };
     useGraphicsStore.getState().setGraphicsQuality(mode.quality);
     useGraphicsStore.getState().setSCADAEnabled(mode.scadaEnabled);
     useAnnouncementsStore.getState().setMode(mode.paMode);
     const game = useGameSimulationStore.getState();
     game.setGameTime(mode.gameTime);
-    game.setGameSpeed(mode.motionCapture ? 180 : 0);
+    game.setGameSpeed(mode.motionCapture ? STANDARD_GAME_SPEED : 0);
+    // A capture labelled with an hour shows that hour: under --motion the
+    // simulation runs at pace, but the sun, sky and lights hold still (two
+    // packing shots 14 s apart had moved their skylight patches about 40 px).
+    game.setTimeOfDayHeld(true);
     game.setWeather(mode.weather);
 
     const benchmarkCamera = resolveBenchmarkCamera(
@@ -1662,6 +1683,7 @@ export const RuntimeController: React.FC<RuntimeControllerProps> = ({
       const currentGame = useGameSimulationStore.getState();
       currentGame.setGameTime(previousGameInputs.gameTime);
       currentGame.setGameSpeed(previousGameInputs.gameSpeed);
+      currentGame.setTimeOfDayHeld(previousGameInputs.timeOfDayHeld);
       currentGame.setWeather(previousGameInputs.weather);
       useGraphicsStore.persist.setOptions({ storage: previousGraphicsStorage });
       useAnnouncementsStore.persist.setOptions({ storage: previousPAStorage });
@@ -2062,6 +2084,11 @@ export const RuntimeController: React.FC<RuntimeControllerProps> = ({
         orbitControls?.target?.set(...target);
         orbitControls?.update?.();
       },
+      setDisplayDiagnostics: (patch) => {
+        useGraphicsStore.setState((state) => ({
+          graphics: { ...state.graphics, ...patch },
+        }));
+      },
       setPerfDebug: (patch) => {
         useGraphicsStore.setState((state) => ({
           graphics: {
@@ -2082,6 +2109,18 @@ export const RuntimeController: React.FC<RuntimeControllerProps> = ({
       delete window.__MILLOS_RUNTIME__;
     };
   }, [camera, controls, gl, mode, orbitControlsRef, scene]);
+
+  // Low-tier half of the display-toe paired control: `low` lifts through the
+  // renderer's own curve (`RENDERER_TONE_MAPPING`), so the switch swaps in
+  // stock Neutral. Skipped while the composer (or a capture) holds the
+  // renderer at NoToneMapping; the composer lifts in its own pass.
+  useFrame(({ gl: renderer }) => {
+    if (renderer.toneMapping === THREE.NoToneMapping) return;
+    const wanted = useGraphicsStore.getState().graphics.perfDebug.disableDisplayToe
+      ? THREE.NeutralToneMapping
+      : RENDERER_TONE_MAPPING;
+    if (renderer.toneMapping !== wanted) renderer.toneMapping = wanted;
+  });
 
   useFrame((_state, delta) => {
     renderedFramesRef.current += 1;

@@ -27,6 +27,7 @@ import { suspendResourcePersistence } from '../../../utils/resourcePersistence';
 import { AUDIO_SETTINGS_KEY } from '../../../utils/audioManager';
 import { LOCALE_STORAGE_KEY, formatFixed, useT } from '../../../i18n';
 import { LanguageSwitcher } from '../../../i18n/LanguageSwitcher';
+import { formatTime } from '../../../utils/timeFormatting';
 import { useShallow } from 'zustand/react/shallow';
 // Import optimized audio hook (uses useSyncExternalStore instead of forceUpdate)
 import { useAudioStateWithControls as useAudioState } from '../../../hooks/useAudioState';
@@ -35,6 +36,11 @@ import { useAINarrationStore } from '../../../stores/aiNarrationStore';
 import { FEATURE_FLAGS } from '../../../config/featureFlags';
 import { ConfirmDialog } from '../../ui/ConfirmDialog';
 import { useUIStore } from '../../../stores/uiStore';
+import {
+  MOTION_PREFERENCE_STORAGE_KEY,
+  useMotionPreferenceStore,
+  type MotionPreferenceMode,
+} from '../../../stores/motionPreferenceStore';
 import { useAnnouncementsStore, type PAMode } from '../../../stores/announcementsStore';
 import { BuildCacheDiagnostics } from './BuildCacheDiagnostics';
 import { useIncidentReplayStore } from '../../../stores/incidentReplayStore';
@@ -60,6 +66,8 @@ export const SettingsPanel: React.FC<{
   const replayGettingStarted = useUIStore((state) => state.setHasSeenIntro);
   const uiScale = useUIStore((state) => state.uiScale);
   const setUIScale = useUIStore((state) => state.setUIScale);
+  const motionMode = useMotionPreferenceStore((state) => state.mode);
+  const setMotionMode = useMotionPreferenceStore((state) => state.setMode);
   const audio = useAudioState();
   const paMode = useAnnouncementsStore((state) => state.mode);
   const setPAMode = useAnnouncementsStore((state) => state.setMode);
@@ -352,10 +360,7 @@ export const SettingsPanel: React.FC<{
                       <div className="mb-1 flex items-center justify-between gap-2 text-[9px] uppercase tracking-wider text-slate-500">
                         <span>{t('paChannel', { channel: announcement.channel })}</span>
                         <time dateTime={announcement.timestamp.toISOString()}>
-                          {announcement.timestamp.toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
+                          {formatTime(announcement.timestamp)}
                         </time>
                       </div>
                       <p className="text-[11px] leading-4 text-slate-300">{announcement.message}</p>
@@ -671,6 +676,42 @@ export const SettingsPanel: React.FC<{
           <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
             {t('interfaceScaleHelp')}
           </p>
+          {FEATURE_FLAGS.IN_APP_REDUCED_MOTION_ENABLED && (
+            <fieldset className="mt-3 space-y-2 border-t border-white/5 pt-3">
+              <legend className="text-xs font-medium text-slate-200">{t('reduceMotion')}</legend>
+              <div
+                className="grid grid-cols-2 gap-1"
+                role="radiogroup"
+                aria-label={t('reduceMotion')}
+                aria-describedby="reduce-motion-help"
+              >
+                {(
+                  [
+                    ['system', t('reduceMotionSystem')],
+                    ['reduce', t('reduceMotionOn')],
+                  ] as const satisfies ReadonlyArray<readonly [MotionPreferenceMode, string]>
+                ).map(([mode, label]) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    role="radio"
+                    aria-checked={motionMode === mode}
+                    onClick={() => setMotionMode(mode)}
+                    className={`min-h-10 rounded-lg px-2 text-[10px] font-semibold transition-colors ${
+                      motionMode === mode
+                        ? 'bg-cyan-500/20 text-cyan-200 ring-1 ring-cyan-400/50'
+                        : 'bg-slate-900/60 text-slate-300 hover:bg-slate-700'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p id="reduce-motion-help" className="text-[11px] leading-relaxed text-slate-400">
+                {t('reduceMotionHelp')}
+              </p>
+            </fieldset>
+          )}
         </div>
       </section>
 
@@ -787,7 +828,11 @@ export const SettingsPanel: React.FC<{
         title={t('resetSimulation')}
         tone="red"
         confirmLabel={t('resetEverything')}
-        message={t('resetFullMessage')}
+        message={
+          FEATURE_FLAGS.IN_APP_REDUCED_MOTION_ENABLED
+            ? t('resetFullMessageWithMotion')
+            : t('resetFullMessage')
+        }
         onCancel={() => setResetConfirm(null)}
         onConfirm={() => {
           // Clear every persisted MillOS store (keys are namespaced "millos-*").
@@ -796,13 +841,18 @@ export const SettingsPanel: React.FC<{
           // Pause first, then suspend persistence: the tick keeps running until
           // the reload commits, and its writes would restore the old orders and
           // clock. The GPU resource cache writes outside the shared store
-          // storage, so it is suspended separately. Sound (mute, volume, music)
-          // and language are the listener's preferences, not simulation state.
-          // Working if: no millos-* key survives the reload except those two.
+          // storage, so it is suspended separately. Sound (mute, volume, music),
+          // language and reduced motion are the person's preferences, not
+          // simulation state.
+          // Working if: no millos-* key survives the reload except those three.
           useGameSimulationStore.getState().setGameSpeed(0);
           suspendPersistence();
           suspendResourcePersistence();
-          const keptKeys = new Set([LOCALE_STORAGE_KEY, AUDIO_SETTINGS_KEY]);
+          const keptKeys = new Set([
+            LOCALE_STORAGE_KEY,
+            AUDIO_SETTINGS_KEY,
+            MOTION_PREFERENCE_STORAGE_KEY,
+          ]);
           Object.keys(localStorage)
             .filter((key) => key.startsWith('millos-') && !keptKeys.has(key))
             .forEach((key) => localStorage.removeItem(key));

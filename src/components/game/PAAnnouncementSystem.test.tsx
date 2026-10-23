@@ -212,6 +212,27 @@ describe('PAAnnouncementSystem caption lifecycle', () => {
     expect(container?.className).toContain('[[data-sidebar-visible=true]_&]:');
   });
 
+  it('shows a caption-only notice without reading it a second time', async () => {
+    useAnnouncementsStore.getState().addAnnouncement({
+      type: 'info',
+      message: 'Morning shift closed: grade B. Its review is in Overview.',
+      priority: 3,
+      source: 'Shift review',
+      channel: 'operational',
+      cooldownMs: 0,
+      captionOnly: true,
+    });
+    render(<PAAnnouncementSystem />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    // The bell notice it accompanies is what a screen reader hears.
+    expect(screen.getByRole('status')).toHaveTextContent('');
+    expect(
+      screen.getByText('Morning shift closed: grade B. Its review is in Overview.')
+    ).toBeVisible();
+  });
+
   it('lets compact safety guidance own the visual hierarchy while retaining the live region', async () => {
     layoutState.compact = true;
     useGameSimulationStore.setState({ emergencyActive: true });

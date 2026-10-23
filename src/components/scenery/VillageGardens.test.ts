@@ -419,7 +419,7 @@ it('softens foliage normals and leaf-age tones while retaining exact civic-baked
 it('retains verified home and updated allotment positions and UVs for the civic bake', () => {
   const expected = [
     [
-      '604178057aa960d09ac3d99235742abae3e7f37841f77fef3ce7b7d07bf27759',
+      '1e7ed40129f7edf5970fb2b0cca67361b0f20d7cd6b1429975cb83ec75a40f17',
       '63c5c2da6ac3bcd00794cb9652f1a8791dd4a5edb9bc27b840e299cc9b618c1c',
     ],
     [
@@ -427,11 +427,11 @@ it('retains verified home and updated allotment positions and UVs for the civic 
       'd46b61cfe0e50a2d4039e9c7f9b2bd75def0a0955e52a758f8a95d137545d9cf',
     ],
     [
-      '7f26c10b8ea447596985d6929a27f3d2b288ec84e4fee68b3eb4ef8e3b988452',
+      '089f393c4fdbf35b1698af95a4dde2e493932d8a31933109d127a619d1248886',
       '972555e5069ac18ea49efe1c030111a161058b8bf5d754b7f1bb24b73a9062d2',
     ],
     [
-      '4b6c7742e504c977a01b3901332ed1b2e6d3d044d599700024a98ad2f394743c',
+      '38239e88b513e4c1c01fe9d89a3267361055c226d26b39eb7c0a5b7fb0fa2f72',
       '6c11d8c67c40a491f1a5cd31200399ef9f5ee061f8bd6a6045acfbaf3858c5b2',
     ],
     [
@@ -439,11 +439,11 @@ it('retains verified home and updated allotment positions and UVs for the civic 
       '6455719f5952f307a0a0d7a1692d99413267045e76e00bfe6aa5dd8375379d67',
     ],
     [
-      '75de2857d9a07959e9b13f5703f9896088fb646d8658f39fb04fbb142d5387fe',
+      '18d4e1ab1a5af506dee461f176fc6fcb7d92c7693847c97e9c8d496f743e207b',
       '472e41218a61a6accdecfbf3e85d7b0e9d5e9c73126592557d1697cf54f667ed',
     ],
     [
-      '5508c7565b869648c968fc5c0aa398c375d1ac4fbb814ddf3ed0e545e39acae4',
+      'de94b24a9a7c43368bd8affc017f34a18f5bae81c9564dcf2cbd4d623af7bb2d',
       '1b9f06929a62a34610c3a8ab4ce14c732fcadca86b49054feb887db6352b5784',
     ],
     [
@@ -451,11 +451,11 @@ it('retains verified home and updated allotment positions and UVs for the civic 
       'd46b61cfe0e50a2d4039e9c7f9b2bd75def0a0955e52a758f8a95d137545d9cf',
     ],
     [
-      'd4f61a5728db394977dcd372f72c70a575c56a80ef52cc3186d02895908838e3',
+      'ff9e17b2861e0d6d0aa59578f1085508c979ae1dfd7a65992fdf8f6fa85892af',
       '4e5d08838f809aab4a508e427d54526c6470743040cfb501317711794f35b433',
     ],
     [
-      'd9eded83198e2a058aa5f9c35bcc0b3987dc1f37c8c193623b8ed747fbcbf040',
+      '210b446a4bcb30ba6aea0147d9bfaeaed79ba8bdb4235f32aeaf852bf9601792',
       '48bc407053b849ac99ea1bad4cdce062a2ffb9972314f37025ef58074b4b6453',
     ],
     [
@@ -463,11 +463,11 @@ it('retains verified home and updated allotment positions and UVs for the civic 
       '6455719f5952f307a0a0d7a1692d99413267045e76e00bfe6aa5dd8375379d67',
     ],
     [
-      'b4722921d446482973fb0bde550045802f64705082997fe7de1d6c7b926dbf96',
+      'ad2c03709c629ee3f98f0ef364f6a373d90782bb63de7016fbc8b0f8c857c6ae',
       '81ba8a9a1451c7dbf9a154feecad9c377c5b0065f0fe983eeb39191eda28b194',
     ],
     [
-      '24ceabf9c095f14616ba17baaecc6be6f34984c24b54b4a7457716627924d842',
+      'b94a7599a6c4e8a7c2408fae8b0255dedc53f150c41e619ce188d9ce2d189ea4',
       '64320250e380394f1b6af18d08609e9c33b8adc97cb0b225eb226d7a76bec07b',
     ],
     [
@@ -475,7 +475,7 @@ it('retains verified home and updated allotment positions and UVs for the civic 
       'fd07c976a3b0b02d8768c6fba203cf1c2f4d1eb3e350eac0a5043b7e3116ebb6',
     ],
     [
-      '1a3aeca4ea534d9436aef11c753d2ea6040aa3350195f461ae80eb92dec8ea7a',
+      'f27f534d08effb9da12bff0a1ce847eca88f980310e03d80afe6b81266183102',
       'c686f6d3c5e336699244c247c9fdeeeafd1e3e912567a275424229246df61d93',
     ],
     [
@@ -495,6 +495,9 @@ it('retains verified home and updated allotment positions and UVs for the civic 
     })
   );
   expect(actual).toEqual(expected);
+  // These casters feed the civic lamp shadow bake; moving them without a rebake stales it.
+  const bake = JSON.parse(readFileSync('public/textures/civic-square-lamp-depth.json', 'utf8'));
+  expect(bake.casterPins?.villageGardenPositions).toEqual(actual.map(([position]) => position));
 });
 
 it('softens petal normals and varies tone while retaining the closed sixty-triangle flower', () => {

@@ -317,6 +317,47 @@ describe('SimulationAdapter', () => {
     });
   });
 
+  describe('Speed follows its setpoint', () => {
+    const SP = 'RM101.ST001.SP';
+    const PV = 'RM101.ST001.PV';
+    const millTags = () => MILL_TAGS.filter((tag) => tag.machineId === 'rm-101');
+    const speed = async (plant: SimulationAdapter) => (await plant.readTag(PV)).value as number;
+
+    it('approaches a written setpoint over a few seconds rather than jumping or ignoring it', async () => {
+      const plant = new SimulationAdapter(millTags());
+      await plant.connect();
+      const before = await speed(plant);
+      expect(Math.abs(before - 1200)).toBeLessThanOrEqual(5);
+
+      await plant.writeTag(SP, 1500);
+      vi.advanceTimersByTime(1_000);
+      const afterOneSecond = await speed(plant);
+      // First-order: it has moved toward 1500 but not arrived.
+      expect(afterOneSecond).toBeGreaterThan(before + 20);
+      expect(afterOneSecond).toBeLessThan(1450);
+
+      vi.advanceTimersByTime(30_000);
+      // Settled within the transmitter noise (amplitude 5 RPM).
+      expect(Math.abs((await speed(plant)) - 1500)).toBeLessThanOrEqual(6);
+
+      await plant.writeTag(SP, 900);
+      vi.advanceTimersByTime(30_000);
+      expect(Math.abs((await speed(plant)) - 900)).toBeLessThanOrEqual(6);
+      await plant.disconnect();
+    });
+
+    it('still reads zero speed while the mill is stopped, whatever the setpoint', async () => {
+      const plant = new SimulationAdapter(millTags());
+      await plant.connect();
+      plant.updateMachineStates([{ id: 'rm-101', status: 'idle', metrics: { load: 0, rpm: 0 } }]);
+      await plant.writeTag(SP, 1500);
+      vi.advanceTimersByTime(5_000);
+
+      expect(await plant.readTag(PV)).toMatchObject({ value: 0, quality: 'UNCERTAIN' });
+      await plant.disconnect();
+    });
+  });
+
   describe('Diagnostics', () => {
     it('reports exact read rate and errors over elapsed uptime', async () => {
       await adapter.connect();

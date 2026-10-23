@@ -1,4 +1,4 @@
-import { defineMessages } from '../../i18n';
+import { defineMessages, upperFirst } from '../../i18n';
 
 /**
  * Store enums render as their raw value in English (underscores spaced, and the
@@ -19,7 +19,7 @@ const PT_FAILURE: Record<string, string> = {
   vibration_failure: 'falha por vibração',
 };
 
-const PT_PHASE: Record<string, string> = {
+export const PT_PHASE: Record<string, string> = {
   diagnosed: 'diagnosticada',
   awaiting_parts: 'aguardando peças',
   repairing: 'em reparo',
@@ -77,7 +77,7 @@ export const predictiveMaintenancePanelMessages = defineMessages({
     awaitingStock: 'Awaiting stock: {parts}',
     repairProgress: 'Repair progress',
     dispatchServiceUnit: 'Dispatch service unit',
-    completeRepair: 'Complete repair',
+    repairRemaining: 'Service unit at work: {minutes} min of game time left',
     verifyRepair: 'Verify repair',
     restartMachine: 'Restart machine',
     restartQueued: 'Controlled restart queued',
@@ -91,8 +91,9 @@ export const predictiveMaintenancePanelMessages = defineMessages({
     underRepairHint: 'Machine is under repair: complete the work order first',
     completeHint: 'Complete maintenance and consume listed parts',
     partsUnavailableHint: 'Required parts are unavailable',
+    belowMinimumHint: 'Not needed yet: wear is below the {minimum}% service minimum',
     complete: 'Complete',
-    maintenanceNotNeeded: 'Maintenance Not Needed',
+    maintenanceNotPerformed: 'Maintenance Not Performed',
   },
   'pt-BR': {
     title: 'Manutenção preditiva',
@@ -121,7 +122,7 @@ export const predictiveMaintenancePanelMessages = defineMessages({
     acknowledge: 'Reconhecer',
 
     activeFaults: 'Falhas ativas',
-    phase: (p: { phase: string }) => PT_PHASE[p.phase] ?? p.phase.replaceAll('_', ' '),
+    phase: (p: { phase: string }) => upperFirst(PT_PHASE[p.phase] ?? p.phase.replaceAll('_', ' ')),
     service: 'Atendimento:',
     serviceUnit: 'Unidade de serviço autônoma',
     downtime: 'Tempo de parada:',
@@ -129,7 +130,7 @@ export const predictiveMaintenancePanelMessages = defineMessages({
     awaitingStock: 'Aguardando estoque: {parts}',
     repairProgress: 'Progresso do reparo',
     dispatchServiceUnit: 'Enviar unidade de serviço',
-    completeRepair: 'Concluir reparo',
+    repairRemaining: 'Unidade de serviço em ação: faltam {minutes} min no tempo de jogo',
     verifyRepair: 'Verificar reparo',
     restartMachine: 'Reiniciar máquina',
     restartQueued: 'Reinício controlado na fila',
@@ -144,7 +145,8 @@ export const predictiveMaintenancePanelMessages = defineMessages({
     underRepairHint: 'A máquina está em reparo: conclua primeiro a ordem de serviço',
     completeHint: 'Concluir a manutenção e consumir as peças listadas',
     partsUnavailableHint: 'As peças necessárias não estão disponíveis',
+    belowMinimumHint: 'Ainda não é necessária: o desgaste está abaixo do mínimo de {minimum}%',
     complete: 'Concluir',
-    maintenanceNotNeeded: 'Manutenção não necessária',
+    maintenanceNotPerformed: 'Manutenção não realizada',
   },
 });

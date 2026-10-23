@@ -224,7 +224,8 @@ def roof(name, x, z, width, depth, eave, ridge, key='slate', rows=6):
         for end in (-1, 1):
             beam(name + ' verge', (x, ridge + .03, z + end * depth / 2),
                  (x + side * width / 2, eave + .03, z + end * depth / 2), .1, 'timber')
-        box(name + ' eaves', (x + side * (width / 2 - .045), eave - .04, z), (.1, .16, depth), 'timber')
+        # Eaves end 5 mm inside the verge face rather than in the courses' end plane.
+        box(name + ' eaves', (x + side * (width / 2 - .045), eave - .04, z), (.1, .16, depth + .09), 'timber')
     beam(name + ' ridge cap', (x, ridge + .035, z - depth / 2),
          (x, ridge + .035, z + depth / 2), .13, key)
     for end in (-1, 1):
@@ -345,12 +346,15 @@ def cottage():
         for z in (-1.25, 1.25):
             frame('Side window', side * 2.06, 1.36, z, .85, 1.02, side * math.pi / 2, 'timber')
         for z in (-2.23, 2.23):
-            box('Corner oak', (side * 2.025, 1.28, z), (.16, 2.38, .17), 'timber')
+            # Seated on the plinth: from the ground its outer face lay flush on the
+            # plinth's, oak and stone fighting in one plane.
+            box('Corner oak', (side * 2.025, 1.395, z), (.16, 2.15, .17), 'timber')
         for shutter in (-1, 1):
             box('Cottage painted shutter', (side * 1.3 + shutter * .47, 1.36, 2.33), (.21, .94, .08), 'green')
-        box('Window herb box', (side * 1.3, .73, 2.40), (.9, .19, .23), 'oak')
+        # 2 cm proud of the stone sill, whose front face it used to share.
+        box('Window herb box', (side * 1.3, .73, 2.42), (.9, .19, .23), 'oak')
         for i in (-1, 0, 1):
-            lathe('Window herb planting', side * 1.3 + i * .24, 2.4, [(.09, .81), (.115, .98), (0, 1.05)], 'green', 8)
+            lathe('Window herb planting', side * 1.3 + i * .24, 2.42, [(.09, .81), (.115, .98), (0, 1.05)], 'green', 8)
     frame('Gable casement', 0, 3.08, 2.325, .56, .57, trim='timber')
     box('Threshold', (0, .08, 2.4), (1.12, .16, .4), 'stone')
 
@@ -389,7 +393,9 @@ def hip_roof(name, width, depth, eave, peak, key='slate', rows=7):
             beam(name + ' lapped edge', lower[side], lower[nxt], .035, key)
     for side in (-1, 1):
         box(name + ' eaves fascia', (0, eave - .085, side * depth / 2), (width, .17, .14), 'timber')
-        box(name + ' eaves fascia', (side * width / 2, eave - .085, 0), (.14, .17, depth), 'timber')
+        # Side fascias run on to 5 mm inside the front fascia's face, so neither
+        # fascia ends in the plane of a course face (timber over slate).
+        box(name + ' eaves fascia', (side * width / 2, eave - .085, 0), (.14, .17, depth + .13), 'timber')
         for end in (-1, 1):
             if key != 'thatch':
                 beam(name + ' diagonal hip capping', (side * width / 2, eave + .02, end * depth / 2), (0, peak + .02, 0), .075, key)
@@ -443,8 +449,10 @@ def church():
     hip_roof('Nave blue slate', 11.1, 13.4, 8.09, 11.9, rows=8)
     quoins('Nave', 10.02, 12.02, 7.8)
     shell('Rear bell tower', 4, 4.2, 13.05, 'stone', z=-4.7)
-    for y, width in [(8.3, 4.2), (10.1, 4.25), (13.02, 4.5)]:
-        box('Tower ashlar stringcourse', (0, y, -4.7), (width, .18, width), 'cream')
+    # The lowest course was exactly as deep as the 4.2 m tower, so its front and
+    # back faces lay in the walls' planes. It now stands 5 cm proud like its sides.
+    for y, width, depth in [(8.3, 4.2, 4.3), (10.1, 4.25, 4.25), (13.02, 4.5, 4.5)]:
+        box('Tower ashlar stringcourse', (0, y, -4.7), (width, .18, depth), 'cream')
     # Eight-sided broach base and a slender point rather than a toy cone.
     lathe('Church octagonal spire', 0, -4.7, [(2.55, 13.12), (2.15, 13.48), (1.35, 15.65), (.62, 17.61), (.14, 18.86), (0, 19.05)], 'slate', 16)
     for i in range(8):
@@ -556,13 +564,16 @@ def pub():
             box('Pub pegged upright',(x,2.6,side*3.04),(.20,4.75,.18),'timber')
         for y in (.49,3.1,4.87):
             if y < 1:
-                for x in (-2.45,2.45): box('Pub sill rail clear of door',(x,y,side*3.05),(3.1,.20,.20),'timber')
+                # Rails run 2 cm past the corner: ending flush, their end faces
+                # lay in the side walls' plane.
+                for x in (-2.47,2.47): box('Pub sill rail clear of door',(x,y,side*3.05),(3.14,.20,.20),'timber')
             else:
-                box('Pub oak rail',(0,y,side*3.05),(8,.20,.20),'timber')
+                box('Pub oak rail',(0,y,side*3.05),(8.04,.20,.20),'timber')
         for x in (-2.5,2.5):
             frame('Pub leaded window',x,1.97,side*3.06,1.48,1.64,0 if side==1 else math.pi,'timber','amber')
             frame('Pub upper casement',x,3.91,side*3.06,1.1,1.05,0 if side==1 else math.pi,'timber','amber')
-            beam('Pub upper wind brace',(x-.85,3.26,side*3.07),(x-.3,4.7,side*3.07),.12)
+            # 1 cm proud of the casement's reveal shadow, which shared its face.
+            beam('Pub upper wind brace',(x-.85,3.26,side*3.08),(x-.3,4.7,side*3.08),.12)
         for z in (-1.7,1.7):
             frame('Pub side casement',side*4.04,2.03,z,1.16,1.7,side*math.pi/2,'timber','amber')
         frame('Pub oak entry',0,1.32,side*3.07,1.48,2.43,0 if side==1 else math.pi,'timber',door=True)

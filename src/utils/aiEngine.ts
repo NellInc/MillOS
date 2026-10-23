@@ -16,7 +16,7 @@ import { chatgptClient } from './chatgptClient';
 import { SpendCapError } from './spendBudget';
 import { webgpuClient } from './webgpuClient';
 import { logger } from './logger';
-import { formatFixed, translate } from '../i18n';
+import { formatFixed, getLocale, translate } from '../i18n';
 import { aiEngineMessages as msg } from './aiEngine.messages';
 
 export const AI_ENGINE_TIMING = {
@@ -409,8 +409,12 @@ export function applyDecisionEffects(
   } else if (decision.machineId && decision.type === 'maintenance') {
     const machine = store.machines.find((item) => item.id === decision.machineId);
     if (machine?.status === 'critical') store.updateMachineStatus?.(decision.machineId, 'warning');
-  } else if (decision.type === 'optimization') {
-    store.setProductionSpeed?.(clamp(finite(store.productionSpeed, 1) * 0.98, 0.55, 1.35));
+  } else if (decision.type === 'optimization' && !decision.id.startsWith('strategic-')) {
+    // A load-balancing decision trims the line rate by 2%, as its impact text
+    // says. Strategic guidance only records priorities, and a stopped line
+    // stays stopped. Working if no accepted decision silently changes pace.
+    const current = finite(store.productionSpeed, 1);
+    if (current > 0) store.setProductionSpeed?.(clamp(current * 0.98, 0.55, 1.35));
   }
 
   store.updateDecisionStatus?.(
@@ -667,6 +671,12 @@ function strategicPrompt(machines: MachineData[]): string {
     'You are the strategic controller for a staffed grain mill digital twin with autonomous logistics.',
     'Return one JSON object only: {"priorities": 1-3 short imperative strings (under 80 characters each), "reasoning": 1-2 sentences, "insight"?: string, "tradeoff"?: string, "focusMachine"?: one equipment id from the telemetry, "actionPlan"?: [immediate, short-term, preparation] as 3 strings}.',
     'Prioritize safety interlocks, stable material flow, quality, energy, condition maintenance, and autonomous logistics.',
+    // Model text lands verbatim in the player's decision cards, so ask for their language.
+    ...(getLocale() === 'pt-BR'
+      ? [
+          'Write every string value in Brazilian Portuguese (pt-BR), using 24-hour times; keep the JSON keys and equipment ids unchanged.',
+        ]
+      : []),
     `Plant period: ${simulation.currentShift}. Weather: ${simulation.weather}.`,
     `Production: ${JSON.stringify(production.metrics)}.`,
     `Equipment telemetry: ${JSON.stringify(telemetry)}.`,
@@ -864,10 +874,13 @@ let loopInterval: ReturnType<typeof setInterval> | null = null;
 let lastTactical = 0;
 let lastStrategic = 0;
 let lastMetrics = 0;
+let lastLoopAt = 0;
 let engineUsers = 0;
 
 function aiLoop(): void {
   const now = Date.now();
+  const sinceLastLoop = lastLoopAt > 0 ? Math.max(0, now - lastLoopAt) : 0;
+  lastLoopAt = now;
   const config = useAIConfigStore.getState();
   const production = useProductionStore.getState();
   const alerts = useUIStore.getState().alerts;
@@ -888,6 +901,21 @@ function aiLoop(): void {
       memory: clamp(28 + production.aiDecisions.length * 0.45 + alerts.length, 20, 78),
       decisions: production.aiDecisions.length,
     });
+  }
+
+  // While the shift clock is held (P, Paused, tour, handoff, any holder) the
+  // plant is frozen: no card about it and no request on the player's LLM key.
+  // Held time does not count toward either cadence, so resuming continues the
+  // interval where it stopped rather than firing at once.
+  //
+  // The cadence itself stays on wall time that elapses with the clock
+  // running, not game time. It is a reading rate for a person: on game time
+  // 4x would file a pending card every 1.5 real seconds (and spend 4x the
+  // LLM budget), and 1/2x would leave the panel silent for 12 s.
+  if (useGameSimulationStore.getState().gameSpeed === 0) {
+    lastTactical += sinceLastLoop;
+    lastStrategic += sinceLastLoop;
+    return;
   }
 
   if (isTacticalLayerActive() && now - lastTactical >= AI_ENGINE_TIMING.tacticalDecisionInterval) {
@@ -916,6 +944,7 @@ export function initializeAIEngine(): () => void {
   if (!loopInterval) {
     lastTactical = Date.now();
     lastStrategic = Date.now();
+    lastLoopAt = Date.now();
     lastMetrics = 0;
     loopInterval = setInterval(aiLoop, AI_ENGINE_TIMING.loopInterval);
     logger.ai.info('Autonomous plant decision engine started');

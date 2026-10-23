@@ -21,6 +21,8 @@ import * as THREE from 'three';
 import { useDracoGLTF } from '../../utils/dracoLoader';
 import { GENERATED_ASSET_PATHS, type GeneratedAssetId } from '../../utils/modelLoader';
 import ErrorBoundary from '../ErrorBoundary';
+import { applyWorldSurface, pinSurfaceProfile } from '../../utils/worldSurface';
+import { CLOSED_DOUBLE_FACED_ASSETS } from './closedDoubleFacedAssets';
 import {
   createMarketCanopyGeometry,
   createBarnJoineryGeometry,
@@ -35,6 +37,34 @@ import {
   applyForgeWindows,
   type VillageShopTrade,
 } from './GeneratedOfficeModel';
+
+/**
+ * The utility and LPG vessel shells.
+ *
+ * Their GLBs carry a metallicRoughness map whose green channel is a near
+ * constant 60/255, so the effective roughness is 0.64 x 0.24 = 0.15 - glossy
+ * plastic, which is what the art review named on every tank in tank-farm,
+ * packing and silos. The packed normal map is flat (std 0.6/255) and inert.
+ * The owned clone drops both, takes a painted-steel roughness, and wears the
+ * `vessel` world-surface finish: a faint long-period drift and nothing else,
+ * so the shell keeps a near-constant white and one clean highlight runs its
+ * length. (`painted` here read as cotton: its meso, grime and dust are the
+ * right wear for cladding and the wrong one for a white cylinder.) The profile
+ * is PINNED, not just applied: the batcher re-finishes the clone it merges into
+ * from the source's pin, where it would otherwise choose `painted` from the
+ * roughness. No overrides, which a batched clone would not carry.
+ */
+const VESSEL_SHELLS = new Set<GeneratedAssetId>([
+  'utilityFuelShell',
+  'utilityProcessShell',
+  'propaneLargeShell',
+  'propaneSmallShell',
+]);
+/**
+ * Two-pack paint on steel: satin, not gloss. 0.4 keeps one coherent highlight
+ * along the shell; at 0.5 it spread into the albedo and the tanks had none.
+ */
+const VESSEL_SHELL_ROUGHNESS = 0.4;
 
 const VILLAGE_GLAZING = new Set<GeneratedAssetId>([
   'cottage',
@@ -195,6 +225,16 @@ export const GeneratedModel: React.FC<GeneratedModelProps> = ({
           materials.push(material);
         }
       }
+      if (VESSEL_SHELLS.has(asset) && mesh.material instanceof THREE.MeshStandardMaterial) {
+        const material = mesh.material.clone();
+        material.roughnessMap = null;
+        material.metalnessMap = null;
+        material.normalMap = null;
+        material.roughness = VESSEL_SHELL_ROUGHNESS;
+        applyWorldSurface(pinSurfaceProfile(material, 'vessel'), 'vessel');
+        mesh.material = material;
+        materials.push(material);
+      }
       if (
         (VILLAGE_GLAZING.has(asset) || asset === 'farmhouse' || asset === 'barn') &&
         mesh.material instanceof THREE.MeshStandardMaterial
@@ -239,6 +279,21 @@ export const GeneratedModel: React.FC<GeneratedModelProps> = ({
         }
         mesh.material = material;
         materials.push(material);
+      }
+      // Both faces of every thin part are modelled, so the authored
+      // DoubleSide only makes each sheet's back face fight its partner's
+      // front. See `closedDoubleFacedAssets.ts` for the geometry contract.
+      if (
+        CLOSED_DOUBLE_FACED_ASSETS.has(asset) &&
+        mesh.material instanceof THREE.Material &&
+        mesh.material.side !== THREE.FrontSide
+      ) {
+        const owned = materials.includes(mesh.material) ? mesh.material : mesh.material.clone();
+        owned.side = THREE.FrontSide;
+        if (owned !== mesh.material) {
+          mesh.material = owned;
+          materials.push(owned);
+        }
       }
       const authoredCast = mesh.userData.authoredCastShadow;
       const authoredReceive = mesh.userData.authoredReceiveShadow;

@@ -37,12 +37,16 @@ const CURRENT_AUDIO_FILES = new Set([
  * filtered copy instead.
  */
 function copyCurrentPublicFiles(): Plugin {
+  // The resolved build.outDir, so `vite build --outDir <dir>` gets its public files.
+  let outputDirectory = path.resolve(__dirname, 'dist');
   return {
     name: 'copy-current-public-files',
     apply: 'build',
+    configResolved(config) {
+      outputDirectory = path.resolve(config.root, config.build.outDir);
+    },
     writeBundle() {
       const sourceDirectory = path.resolve(__dirname, 'public');
-      const outputDirectory = path.resolve(__dirname, 'dist');
       fs.cpSync(sourceDirectory, outputDirectory, {
         recursive: true,
         filter(source) {
@@ -73,11 +77,16 @@ function finalizeCurrentBuild({
   buildId: string;
   cacheVersion: string;
 }): Plugin {
+  // The resolved build.outDir: finalizing a fixed `dist` would stamp and prune a
+  // different build than the one just written.
+  let outputDirectory = path.resolve(__dirname, 'dist');
   return {
     name: 'finalize-current-build',
     apply: 'build',
+    configResolved(config) {
+      outputDirectory = path.resolve(config.root, config.build.outDir);
+    },
     closeBundle() {
-      const outputDirectory = path.resolve(__dirname, 'dist');
       if (!fs.existsSync(outputDirectory)) return;
 
       const serviceWorkerPath = path.join(outputDirectory, 'sw.js');

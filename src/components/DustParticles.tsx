@@ -9,11 +9,28 @@ import React, {
 } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { FACTORY_BOUNDS, SIFTER_LAYOUT, SITE_LAYOUT } from '../constants/siteLayout';
+import {
+  FACTORY_BOUNDS,
+  SIFTER_LAYOUT,
+  SITE_LAYOUT,
+  getMachineAssemblyScale,
+  installMachinePoint,
+} from '../constants/siteLayout';
+import { MachineType } from '../types';
 import { buildFactoryRoofGlazing } from './infrastructure/OptimizedFactoryInfrastructure';
 import { useGraphicsStore } from '../stores/graphicsStore';
 import { selectSafetyHoldActive, useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useProductionStore } from '../stores/productionStore';
+import { useMaterialFlowStore } from '../stores/materialFlowStore';
+import { plantTimeScale } from '../simulation/pace';
+import {
+  clampFrameDelta,
+  easeToward,
+  isMachineDischarging,
+  lineMotionRate,
+  machineFlowState,
+  spoutRouteTargets,
+} from '../simulation/lineFlow';
 import { shouldRunThisFrame, getThrottleLevel } from '../utils/frameThrottle';
 import { useShallow } from 'zustand/react/shallow';
 import { useReducedMotion } from '../hooks/useReducedMotion';
@@ -24,6 +41,8 @@ import {
   SPOUT_PIPE_RADIUS,
   type SpoutRoute,
 } from './flow/spoutRoutes';
+import { buildVapourSpriteAlpha, STEAM_PUFF, VAPOUR_SPRITE_SIZE } from './flow/vapourSprite';
+import { MILL_VENT_OFFSET, seedVentPuff } from './flow/ventPlume';
 
 // ============================================================
 // Shared particle sprite
@@ -70,6 +89,23 @@ const getParticleSprite = (): THREE.DataTexture => {
   return texture;
 };
 
+/** The steam vents' Gaussian vapour sprite (flow/vapourSprite.ts), shared. */
+let vapourSpriteCache: THREE.DataTexture | null = null;
+
+const getVapourSprite = (): THREE.DataTexture => {
+  if (vapourSpriteCache) return vapourSpriteCache;
+  const texture = createColorDataTexture(
+    buildVapourSpriteAlpha(),
+    VAPOUR_SPRITE_SIZE,
+    VAPOUR_SPRITE_SIZE
+  );
+  texture.wrapS = THREE.ClampToEdgeWrapping;
+  texture.wrapT = THREE.ClampToEdgeWrapping;
+  texture.needsUpdate = true;
+  vapourSpriteCache = texture;
+  return texture;
+};
+
 // ============================================================
 // Dust Animation Manager - Centralized useFrame for all particle systems
 // ============================================================
@@ -100,7 +136,15 @@ interface GrainFlowEntry {
   jitter: Float32Array;
   count: number;
   throttleLevel: number;
-  speedMultiplier: number; // Production speed multiplier
+  /** Line setpoint; the pace term is read from the clock each frame. */
+  productionSpeed: number;
+  safetyHold: boolean;
+  /** Eased 0..1 per route: product stops in a pipe whose machines stop. */
+  routeActivity: Float32Array;
+  /** 1 where the route's machines are passing product now (spoutRouteTargets). */
+  routeTargets: Uint8Array;
+  /** Frames until the route targets are re-read from the machine state. */
+  refreshCountdown: number;
 }
 
 interface MachineSteamEntry {
@@ -144,6 +188,11 @@ export const DustAnimationManager: React.FC<{ children: React.ReactNode }> = ({ 
     // buffer, which is why it never appeared at all.
     if (prefersReducedMotion) return;
 
+    // Grain and machine exhaust are plant motion: they hold with the shift
+    // clock and run at the pace. Dust motes are air and stay on wall time.
+    const gameSpeed = useGameSimulationStore.getState().gameSpeed;
+    const plantScale = plantTimeScale(gameSpeed);
+
     entriesRef.current.forEach((entry) => {
       switch (entry.type) {
         case 'dustParticles':
@@ -152,11 +201,12 @@ export const DustAnimationManager: React.FC<{ children: React.ReactNode }> = ({ 
           break;
         case 'grainFlow':
           if (!shouldRunThisFrame(entry.throttleLevel)) return;
-          animateGrainFlow(entry, delta);
+          animateGrainFlow(entry, delta, gameSpeed);
           break;
         case 'machineSteam':
-          if (!shouldRunThisFrame(3)) return;
-          animateMachineSteam(entry, Math.min(delta * 3, 0.1));
+          if (plantScale <= 0 || !shouldRunThisFrame(3)) return;
+          // Capped so a 4x step stays a stable integration step for the puffs.
+          animateMachineSteam(entry, Math.min(delta * 3 * plantScale, 0.2));
           break;
       }
     });
@@ -257,21 +307,59 @@ const GRAIN_FLOW_SPEED = 6.0;
 // Module-level scratch - no allocation inside the frame loop.
 const _grainPoint = new THREE.Vector3();
 
-function animateGrainFlow(entry: GrainFlowEntry, delta: number) {
+/** Plant seconds for product in a pipe to stop, or to come back up to speed. */
+const GRAIN_ROUTE_EASE_SECONDS = 0.8;
+/** Machine state ticks at 2 Hz; route targets are re-read every this many updates. */
+const GRAIN_ROUTE_REFRESH_UPDATES = 8;
+
+function animateGrainFlow(entry: GrainFlowEntry, delta: number, gameSpeed: number) {
   const points = entry.particlesRef.current;
   if (!points || entry.routes.length === 0) return;
+
+  // Product in the spouts is plant motion: still while the clock or a safety
+  // hold stops the plant, 4x at 4x pace. A held frame writes nothing, so the
+  // grain freezes where it is.
+  const rate = lineMotionRate(entry.productionSpeed, gameSpeed, entry.safetyHold);
+  if (rate <= 0) return;
+
   const posAttr = points.geometry.attributes.position as THREE.BufferAttribute;
   const posArray = posAttr.array as Float32Array;
 
   // The old integrator added a raw per-frame velocity with no `delta`, so grain
   // fell at a rate proportional to framerate AND inversely proportional to the
   // quality throttle - 4x slower on low than on ultra.
-  const cappedDelta = Math.min(delta * entry.throttleLevel, 0.1);
-  const step = cappedDelta * entry.speedMultiplier * GRAIN_FLOW_SPEED;
+  const cappedDelta = clampFrameDelta(delta * entry.throttleLevel);
+  const step = cappedDelta * rate * GRAIN_FLOW_SPEED;
+
+  // Each route follows the machines at its two ends, from the same state the
+  // machines animate from: grain stops in the pipes into and out of a critical
+  // mill or a broken packer, and in a run whose source is starved.
+  if (entry.refreshCountdown <= 0) {
+    spoutRouteTargets(
+      entry.routes,
+      useProductionStore.getState().machines,
+      useMaterialFlowStore.getState().machineBuffers,
+      entry.routeTargets
+    );
+    entry.refreshCountdown = GRAIN_ROUTE_REFRESH_UPDATES;
+  }
+  entry.refreshCountdown -= 1;
+  const plantDelta = cappedDelta * plantTimeScale(gameSpeed);
+  for (let r = 0; r < entry.routes.length; r++) {
+    entry.routeActivity[r] = easeToward(
+      entry.routeActivity[r],
+      entry.routeTargets[r],
+      plantDelta,
+      GRAIN_ROUTE_EASE_SECONDS
+    );
+  }
 
   for (let i = 0; i < entry.count; i++) {
-    const route = entry.routes[entry.routeIndex[i] % entry.routes.length];
-    let t = entry.progress[i] + (step * entry.rates[i]) / Math.max(1, route.length);
+    const routeSlot = entry.routeIndex[i] % entry.routes.length;
+    const route = entry.routes[routeSlot];
+    const activity = entry.routeActivity[routeSlot];
+    if (activity <= 0) continue;
+    let t = entry.progress[i] + (step * activity * entry.rates[i]) / Math.max(1, route.length);
     if (t >= 1) t -= Math.floor(t);
     entry.progress[i] = t;
 
@@ -297,14 +385,9 @@ function animateMachineSteam(entry: MachineSteamEntry, delta: number) {
 
     if (entry.lifetimes[i] > 1) {
       entry.lifetimes[i] = 0;
-      pos[i * 3] = (Math.random() - 0.5) * 0.5;
-      pos[i * 3 + 1] = Math.random() * 0.3;
-      pos[i * 3 + 2] = (Math.random() - 0.5) * 0.5;
-
-      entry.velocities[i * 3] = (Math.random() - 0.5) * 0.3;
-      entry.velocities[i * 3 + 1] =
-        entry.steamType === 'steam' ? 0.8 + Math.random() * 0.5 : 0.3 + Math.random() * 0.3;
-      entry.velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.3;
+      const { position, velocity } = seedVentPuff(entry.steamType, false);
+      pos.set(position, i * 3);
+      entry.velocities.set(velocity, i * 3);
     }
 
     pos[i * 3] += entry.velocities[i * 3] * delta;
@@ -822,9 +905,19 @@ export const GrainFlow: React.FC = () => {
   const throttleLevel = getThrottleLevel(quality);
 
   // Get production speed for velocity scaling. A fire drill or emergency stop
-  // halts product in the spouts along with the machines feeding them.
+  // halts product in the spouts along with the machines feeding them; the
+  // clock hold and pace are read per frame (lineMotionRate).
   const productionSpeed = useProductionStore((state) => state.productionSpeed);
   const safetyHold = useGameSimulationStore(selectSafetyHoldActive);
+
+  // Per-route flow state survives a setpoint change; only a new layout resets it.
+  const routeFlow = useMemo(
+    () => ({
+      activity: new Float32Array(routes.length).fill(1),
+      targets: new Uint8Array(routes.length).fill(1),
+    }),
+    [routes]
+  );
 
   const entry = useMemo<GrainFlowEntry>(
     () => ({
@@ -837,9 +930,13 @@ export const GrainFlow: React.FC = () => {
       jitter: buffers.jitter,
       count,
       throttleLevel,
-      speedMultiplier: safetyHold ? 0 : productionSpeed,
+      productionSpeed,
+      safetyHold,
+      routeActivity: routeFlow.activity,
+      routeTargets: routeFlow.targets,
+      refreshCountdown: 0,
     }),
-    [routes, buffers, count, throttleLevel, productionSpeed, safetyHold]
+    [routes, buffers, count, throttleLevel, productionSpeed, safetyHold, routeFlow]
   );
 
   // Register with manager if available. Machines load asynchronously, so on the
@@ -857,7 +954,7 @@ export const GrainFlow: React.FC = () => {
     if (context) return; // Manager handles animation
     if (!particlesRef.current || !isEnabled || !isTabVisible) return;
     if (!shouldRunThisFrame(throttleLevel)) return;
-    animateGrainFlow(entry, delta);
+    animateGrainFlow(entry, delta, useGameSimulationStore.getState().gameSpeed);
   });
 
   // Return null if disabled (after all hooks have been called).
@@ -964,7 +1061,8 @@ export const AtmosphericHaze: React.FC = () => {
 // Machine steam / dust vents
 // ============================================================
 
-const MACHINE_STEAM_CACHE_KEY = 'millos-machine-steam-v1';
+/** Device-pixel cap on a dust or exhaust puff; steam uses STEAM_PUFF's. */
+const VENT_MAX_POINT_PIXELS = 64;
 
 /**
  * Steam material with per-point life response.
@@ -977,13 +1075,16 @@ const MACHINE_STEAM_CACHE_KEY = 'millos-machine-steam-v1';
 const createMachineSteamMaterial = (
   color: string,
   size: number,
-  opacity: number
+  opacity: number,
+  sprite: THREE.Texture,
+  maxPointPixels: number
 ): THREE.PointsMaterial => {
+  const maxPoint = Math.max(1, Math.round(maxPointPixels)).toFixed(1);
   const material = new THREE.PointsMaterial({
     color,
     size,
     opacity,
-    map: getParticleSprite(),
+    map: sprite,
     transparent: true,
     depthWrite: false,
     sizeAttenuation: true,
@@ -1003,7 +1104,7 @@ const createMachineSteamMaterial = (
         // vapour rather than dots. Clamped because gl_PointSize above the
         // driver's ALIASED_POINT_SIZE_RANGE is silently clamped anyway.
         gl_PointSize *= 1.0 + 1.6 * aLife;
-        gl_PointSize = clamp( gl_PointSize, 1.0, 64.0 );
+        gl_PointSize = clamp( gl_PointSize, 1.0, ${maxPoint} );
         vLifeAlpha = smoothstep( 0.0, 0.12, aLife ) * ( 1.0 - smoothstep( 0.55, 1.0, aLife ) );
         #include <logdepthbuf_vertex>`
       );
@@ -1021,25 +1122,34 @@ const createMachineSteamMaterial = (
       );
   };
 
-  material.customProgramCacheKey = () => MACHINE_STEAM_CACHE_KEY;
+  // Stable per configuration: the cap is the only thing that changes the source.
+  material.customProgramCacheKey = () => `millos-machine-steam-v2-${maxPoint}`;
   return material;
 };
 
 // Machine steam/dust effect for industrial atmosphere
 interface MachineSteamProps {
   position: [number, number, number];
+  /** Install scale of the vent's machine: positions, drift and puff size. */
+  scale?: number;
   type: 'steam' | 'dust' | 'exhaust';
   intensity?: number;
 }
 
-const MachineSteamParticle: React.FC<MachineSteamProps> = ({ position, type, intensity = 1 }) => {
+const MachineSteamParticle: React.FC<MachineSteamProps> = ({
+  position,
+  scale = 1,
+  type,
+  intensity = 1,
+}) => {
   const particlesRef = useRef<THREE.Points>(null);
   const lifeAttrRef = useRef<THREE.BufferAttribute>(null);
   const idRef = useRef(`machineSteam-${Math.random().toString(36).slice(2, 9)}`);
   const context = useDustAnimation();
   const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
   const prefersReducedMotion = useReducedMotion();
-  const count = type === 'dust' ? 30 : 20;
+  const isSteam = type === 'steam';
+  const count = isSteam ? STEAM_PUFF.count : type === 'dust' ? 30 : 20;
 
   const { positions, velocities, lifetimes } = useMemo(() => {
     const pos = new Float32Array(count * 3);
@@ -1047,29 +1157,35 @@ const MachineSteamParticle: React.FC<MachineSteamProps> = ({ position, type, int
     const life = new Float32Array(count);
 
     for (let i = 0; i < count; i++) {
-      // Start at machine position with small random offset
-      pos[i * 3] = (Math.random() - 0.5) * 0.5;
-      pos[i * 3 + 1] = Math.random() * 0.5;
-      pos[i * 3 + 2] = (Math.random() - 0.5) * 0.5;
-
-      // Upward velocity with drift
-      vel[i * 3] = (Math.random() - 0.5) * 0.3;
-      vel[i * 3 + 1] = type === 'steam' ? 0.8 + Math.random() * 0.5 : 0.3 + Math.random() * 0.3;
-      vel[i * 3 + 2] = (Math.random() - 0.5) * 0.3;
-
+      const { position, velocity } = seedVentPuff(type, true);
       life[i] = Math.random(); // Random starting lifetime
+      // Already that far along its path, so a held clock (the plant paused,
+      // or an art capture) shows a formed plume rather than every puff
+      // stacked at the vent mouth at its mature size.
+      const travelled = type === 'dust' ? 0 : life[i] / (type === 'steam' ? 1.5 : 1);
+      for (let axis = 0; axis < 3; axis++) {
+        pos[i * 3 + axis] = position[axis] + velocity[axis] * travelled;
+        vel[i * 3 + axis] = velocity[axis];
+      }
     }
 
     return { positions: pos, velocities: vel, lifetimes: life };
   }, [count, type]);
 
   const color = type === 'steam' ? '#e2e8f0' : type === 'dust' ? '#d4a574' : '#9ca3af';
-  const baseOpacity = type === 'steam' ? 0.34 : 0.44;
-  const baseSize = type === 'steam' ? 0.34 : 0.2;
+  const baseOpacity = isSteam ? STEAM_PUFF.opacity : 0.44;
+  const baseSize = isSteam ? STEAM_PUFF.size : 0.2;
 
   const material = useMemo(
-    () => createMachineSteamMaterial(color, baseSize * intensity, baseOpacity * intensity),
-    [color, baseSize, baseOpacity, intensity]
+    () =>
+      createMachineSteamMaterial(
+        color,
+        baseSize * intensity * scale,
+        baseOpacity * intensity,
+        isSteam ? getVapourSprite() : getParticleSprite(),
+        isSteam ? STEAM_PUFF.maxPointPixels : VENT_MAX_POINT_PIXELS
+      ),
+    [color, baseSize, baseOpacity, intensity, isSteam, scale]
   );
   useEffect(() => () => material.dispose(), [material]);
 
@@ -1099,7 +1215,10 @@ const MachineSteamParticle: React.FC<MachineSteamProps> = ({ position, type, int
     if (context) return; // Manager handles animation
     if (!particlesRef.current || !isTabVisible || prefersReducedMotion) return;
     if (!shouldRunThisFrame(3)) return;
-    animateMachineSteam(entry, Math.min(delta * 3, 0.1));
+    // Plant motion, as in the manager: held with the clock, scaled by pace.
+    const plantScale = plantTimeScale(useGameSimulationStore.getState().gameSpeed);
+    if (plantScale <= 0) return;
+    animateMachineSteam(entry, Math.min(delta * 3 * plantScale, 0.2));
   });
 
   // Use key to force remount when count changes, preventing buffer resize error
@@ -1107,6 +1226,7 @@ const MachineSteamParticle: React.FC<MachineSteamProps> = ({ position, type, int
     <points
       ref={particlesRef}
       position={position}
+      scale={scale}
       material={material}
       key={`steam-${count}-${type}`}
     >
@@ -1138,7 +1258,11 @@ const MachineSteamParticle: React.FC<MachineSteamProps> = ({ position, type, int
 //   beacon (MACHINE_BEACON_MOUNTS), clear of the central inlet,
 // - packers: on the hopper lid (HOPPER is 1.5 m tall at y 5.72), off its centre.
 type SteamSource = {
+  /** The machine this vent belongs to; it vents only while that machine works. */
+  machineId: string;
   position: [number, number, number];
+  /** The machine's install scale, which the plume shares. */
+  scale: number;
   type: 'steam' | 'dust' | 'exhaust';
   intensity: number;
 };
@@ -1153,7 +1277,6 @@ const MILL_VENTS: readonly Pick<SteamSource, 'type' | 'intensity'>[] = [
 const SIFTER_DUST_INTENSITY = [1, 0.9, 0.8] as const;
 const PACKER_DUST_INTENSITY = [0.7, 0.8, 0.6] as const;
 
-const MILL_VENT_OFFSET: [number, number, number] = [-2.85, 2.3, -0.5];
 const SIFTER_VENT_OFFSET: [number, number, number] = [
   -2.2,
   SIFTER_LAYOUT.capCentreY + SIFTER_LAYOUT.capHeight / 2 + 0.1,
@@ -1161,23 +1284,54 @@ const SIFTER_VENT_OFFSET: [number, number, number] = [
 ];
 const PACKER_VENT_OFFSET: [number, number, number] = [0.45, 5.72 + 1.5 / 2 + 0.1, 0.45];
 
-const offsetFrom = (
-  [x, y, z]: readonly [number, number, number],
-  [dx, dy, dz]: readonly [number, number, number]
-): [number, number, number] => [x + dx, y + dy, z + dz];
+/**
+ * Vent offsets are in each machine's authored metres; install them with it.
+ * The plume is installed with it too: its puffs, their drift and their sprite
+ * size are authored against the authored casing (ventPlume.test.ts pins the
+ * mill plume's clearance from the louvres in those metres), so a mill
+ * installed at 0.4 vents a 0.4 plume rather than an authored-size one that
+ * would stand 0.17 m off its louvres and dwarf the machine.
+ */
+const ventOn = (
+  type: MachineType,
+  size: readonly [number, number, number],
+  position: readonly [number, number, number],
+  offset: readonly [number, number, number]
+): { position: [number, number, number]; scale: number } => ({
+  position: installMachinePoint({ type, size, position }, offset),
+  scale: getMachineAssemblyScale({ type, size })[0],
+});
 
-const STEAM_SOURCES: readonly SteamSource[] = [
-  ...SITE_LAYOUT.machines.rollerMills.map(({ position }, i) => ({
-    position: offsetFrom(position, MILL_VENT_OFFSET),
+export const STEAM_SOURCES: readonly SteamSource[] = [
+  ...SITE_LAYOUT.machines.rollerMills.map(({ id, position }, i) => ({
+    machineId: id,
+    ...ventOn(
+      MachineType.ROLLER_MILL,
+      SITE_LAYOUT.machineDimensions.rollerMill,
+      position,
+      MILL_VENT_OFFSET
+    ),
     ...MILL_VENTS[i % MILL_VENTS.length],
   })),
-  ...SITE_LAYOUT.machines.sifters.map(({ position }, i) => ({
-    position: offsetFrom(position, SIFTER_VENT_OFFSET),
+  ...SITE_LAYOUT.machines.sifters.map(({ id, position }, i) => ({
+    machineId: id,
+    ...ventOn(
+      MachineType.PLANSIFTER,
+      SITE_LAYOUT.machineDimensions.sifter,
+      position,
+      SIFTER_VENT_OFFSET
+    ),
     type: 'dust' as const,
     intensity: SIFTER_DUST_INTENSITY[i % SIFTER_DUST_INTENSITY.length],
   })),
-  ...SITE_LAYOUT.machines.packers.map(({ position }, i) => ({
-    position: offsetFrom(position, PACKER_VENT_OFFSET),
+  ...SITE_LAYOUT.machines.packers.map(({ id, position }, i) => ({
+    machineId: id,
+    ...ventOn(
+      MachineType.PACKER,
+      SITE_LAYOUT.machineDimensions.packer,
+      position,
+      PACKER_VENT_OFFSET
+    ),
     type: 'dust' as const,
     intensity: PACKER_DUST_INTENSITY[i % PACKER_DUST_INTENSITY.length],
   })),
@@ -1217,12 +1371,20 @@ export const MachineSteamVents: React.FC = () => {
     group.visible = !safetyHold;
     if (safetyHold) return;
 
+    // A vent breathes only while its own machine is working, read from the
+    // state the machine animates from: a critical, idle or starved mill stops
+    // venting along with its rollers.
+    const machines = useProductionStore.getState().machines;
+    const buffers = useMaterialFlowStore.getState().machineBuffers;
     const cullDistSq = cullDistance * cullDistance;
     for (let i = 0; i < group.children.length; i++) {
       const child = group.children[i];
+      const source = activeSources[i];
       const dx = child.position.x - camera.position.x;
       const dz = child.position.z - camera.position.z;
-      child.visible = dx * dx + dz * dz < cullDistSq;
+      child.visible =
+        dx * dx + dz * dz < cullDistSq &&
+        (!source || isMachineDischarging(machineFlowState(source.machineId, machines, buffers)));
     }
   });
 
@@ -1237,6 +1399,7 @@ export const MachineSteamVents: React.FC = () => {
         <MachineSteamParticle
           key={`steam-${source.position[0]}-${source.position[2]}`}
           position={source.position}
+          scale={source.scale}
           type={source.type}
           intensity={source.intensity}
         />

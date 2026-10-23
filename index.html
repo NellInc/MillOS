@@ -220,6 +220,11 @@
           width: 35%;
         }
       }
+      html[data-motion='reduce'] .loading-bar::after {
+        animation: none;
+        transform: none;
+        width: 35%;
+      }
       @keyframes loading {
         0% {
           transform: translateX(-100%);
@@ -260,13 +265,25 @@
       (function () {
         try {
           var pick = function (v) {
-            v = String(v || '').toLowerCase().replace('_', '-');
-            return v === 'pt' || v.indexOf('pt-') === 0 ? 'pt-BR' : v === 'en' || v.indexOf('en-') === 0 ? 'en' : null;
+            v = String(v || '')
+              .toLowerCase()
+              .replace('_', '-');
+            return v === 'pt' || v.indexOf('pt-') === 0
+              ? 'pt-BR'
+              : v === 'en' || v.indexOf('en-') === 0
+                ? 'en'
+                : null;
           };
           var saved = null;
-          try { saved = localStorage.getItem('millos-locale'); } catch (e) {}
-          var langs = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language];
-          var locale = pick(new URLSearchParams(location.search).get('lang')) ||
+          try {
+            saved = localStorage.getItem('millos-locale');
+          } catch (e) {}
+          var langs =
+            navigator.languages && navigator.languages.length
+              ? navigator.languages
+              : [navigator.language];
+          var locale =
+            pick(new URLSearchParams(location.search).get('lang')) ||
             (saved === 'en' || saved === 'pt-BR' ? saved : null);
           for (var i = 0; !locale && i < langs.length; i++) locale = pick(langs[i]);
           if (locale !== 'pt-BR') return;
@@ -277,6 +294,20 @@
           if (text) text.textContent = 'AQUECENDO OS ROLOS';
           var sub = document.querySelector('#root .loading-sub');
           if (sub) sub.textContent = 'Ligando o moinho';
+        } catch (e) {}
+      })();
+    </script>
+    <!-- Mirrors src/stores/motionPreferenceStore.ts so the pre-React loading bar
+      holds still for someone who chose Reduce motion: On. The store re-applies
+      (or clears, while FEATURE_FLAGS.IN_APP_REDUCED_MOTION_ENABLED is off) the
+      attribute as soon as it loads. Working if a saved On never animates the bar. -->
+    <script>
+      (function () {
+        try {
+          var saved = JSON.parse(localStorage.getItem('millos-motion-preference') || 'null');
+          if (saved && saved.state && saved.state.mode === 'reduce') {
+            document.documentElement.setAttribute('data-motion', 'reduce');
+          }
         } catch (e) {}
       })();
     </script>

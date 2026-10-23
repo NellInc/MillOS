@@ -2,7 +2,7 @@ import { fireEvent, render, renderHook, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useKeyboardShortcuts } from '../useKeyboardShortcuts';
 import { useSafetyStore } from '../../stores/safetyStore';
-import { useGameSimulationStore } from '../../stores/gameSimulationStore';
+import { selectClockHolder, useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useUIStore } from '../../stores/uiStore';
 import { audioManager } from '../../utils/audioManager';
 
@@ -103,7 +103,8 @@ describe('keyboard control ownership', () => {
   it('retains scene shortcuts and all seven camera presets', () => {
     renderHook(() => useKeyboardShortcuts(config));
     fireEvent.keyDown(window, { key: 'p' });
-    expect(config.setProductionSpeed).toHaveBeenCalledWith(0);
+    // P pauses the shift clock; the line rate is not a pause.
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
     fireEvent.keyDown(window, { key: '7' });
     expect(camera.setPreset).toHaveBeenCalledWith(6);
   });
@@ -152,40 +153,33 @@ describe('keyboard control ownership', () => {
     expect(speed).toBe(0);
   });
 
-  it('P holds the shift clock with the line and releases only its own hold', () => {
-    useGameSimulationStore.setState({ gameSpeed: 180 });
-    const { rerender } = renderHook(
-      ({ speed }) => useKeyboardShortcuts({ ...config, productionSpeed: speed }),
-      { initialProps: { speed: 1 } }
-    );
+  it('P holds the shift clock, leaves the line rate alone, and releases only its own hold', () => {
+    useGameSimulationStore.setState({ gameSpeed: 60, clockHolds: [] });
+    renderHook(() => useKeyboardShortcuts({ ...config, productionSpeed: 1 }));
     fireEvent.keyDown(window, { key: 'p' });
-    expect(config.setProductionSpeed).toHaveBeenLastCalledWith(0);
     expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
-    rerender({ speed: 0 });
+    expect(selectClockHolder(useGameSimulationStore.getState())).toBe('shortcut');
     fireEvent.keyDown(window, { key: 'p' });
-    expect(config.setProductionSpeed).toHaveBeenLastCalledWith(1);
-    expect(useGameSimulationStore.getState().gameSpeed).toBe(180);
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(60);
+    expect(config.setProductionSpeed).not.toHaveBeenCalled();
   });
 
   it('P leaves a clock hold or pace choice made by another control alone', () => {
-    // A tour or save-failure hold already owns gameSpeed 0.
-    useGameSimulationStore.setState({ gameSpeed: 0 });
-    const { rerender } = renderHook(
-      ({ speed }) => useKeyboardShortcuts({ ...config, productionSpeed: speed }),
-      { initialProps: { speed: 1 } }
-    );
-    fireEvent.keyDown(window, { key: 'p' });
-    rerender({ speed: 0 });
+    // The tour owns the clock: P names it instead of resuming.
+    useGameSimulationStore.setState({ gameSpeed: 30, clockHolds: [] });
+    useGameSimulationStore.getState().holdClock('tour');
+    renderHook(() => useKeyboardShortcuts({ ...config, productionSpeed: 1 }));
     fireEvent.keyDown(window, { key: 'p' });
     expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+    expect(selectClockHolder(useGameSimulationStore.getState())).toBe('tour');
     // A pace picked while P holds the clock wins over P's remembered pace.
-    useGameSimulationStore.setState({ gameSpeed: 180 });
-    rerender({ speed: 1 });
+    useGameSimulationStore.getState().setGameSpeed(30);
     fireEvent.keyDown(window, { key: 'p' });
-    useGameSimulationStore.setState({ gameSpeed: 30 });
-    rerender({ speed: 0 });
+    useGameSimulationStore.getState().setGameSpeed(120);
     fireEvent.keyDown(window, { key: 'p' });
-    expect(useGameSimulationStore.getState().gameSpeed).toBe(30);
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+    expect(selectClockHolder(useGameSimulationStore.getState())).toBe('shortcut');
+    expect(config.setProductionSpeed).not.toHaveBeenCalled();
   });
 
   it('leaves first-person before flying to a camera preset', () => {

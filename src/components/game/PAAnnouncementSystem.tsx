@@ -17,6 +17,7 @@ import { audioManager } from '../../utils/audioManager';
 import { logger } from '../../utils/logger';
 import { formatFixed, useT } from '../../i18n';
 import { paAnnouncementSystemMessages } from './PAAnnouncementSystem.messages';
+import { LiveRegionPortal } from '../ui/LiveRegionPortal';
 
 // Retain captions long enough to read before advancing the queue.
 const FALLBACK_TIMEOUT_MS = 10000;
@@ -194,15 +195,18 @@ export const PAAnnouncementSystem: React.FC = () => {
   // Empty text in every suppressed/muted/idle state preserves the documented
   // no-visual-flash behavior (the visible container is still gated below).
   // The visible containers are aria-hidden to avoid double announcement.
+  // Portaled out of the HUD root, which a compact sheet makes aria-hidden and inert.
   const liveRegion = (
-    <div
-      className="sr-only"
-      role={isUrgent ? 'alert' : 'status'}
-      aria-live={isUrgent ? 'assertive' : 'polite'}
-      aria-atomic="true"
-    >
-      {isShowing ? currentAnnouncement.message : ''}
-    </div>
+    <LiveRegionPortal>
+      <div
+        className="sr-only"
+        role={isUrgent ? 'alert' : 'status'}
+        aria-live={isUrgent ? 'assertive' : 'polite'}
+        aria-atomic="true"
+      >
+        {isShowing && !currentAnnouncement.captionOnly ? currentAnnouncement.message : ''}
+      </div>
+    </LiveRegionPortal>
   );
 
   // Non-visible paths still return a Fragment with the live region at position 0,

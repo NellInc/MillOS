@@ -20,6 +20,7 @@ import {
   getDistanceToRiver,
   MILLOS_RIVER_CONFIG,
   MILLOS_TERRAIN_REGIONS,
+  regionClearance,
   sampleTerrainGroundHeight,
   signedDistanceToShape,
 } from '../terrain/splatMapGenerator';
@@ -162,7 +163,7 @@ export function meadowSiteClear(x: number, z: number, radius: number) {
     MILLOS_TERRAIN_REGIONS.every(
       (region) =>
         region.channel === TerrainChannel.GRASS ||
-        signedDistanceToShape(x, z, region.shape) > (region.edgeSoftness ?? 0) + radius + 1
+        signedDistanceToShape(x, z, region.shape) > regionClearance(region) + radius + 1
     )
   );
 }

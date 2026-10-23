@@ -21,9 +21,12 @@ function dot(left: Vec3Tuple, right: Vec3Tuple): number {
 }
 
 describe('immutable renderer allocation', () => {
-  it('leaves antialiasing to SMAA instead of retaining hidden MSAA after a Low downgrade', () => {
+  // Low has no composer, so the context's own samples are its only AA. Context
+  // MSAA cannot change after creation, so it must not depend on the tier that
+  // happened to create the context: every context gets the same samples.
+  it('gives every context the same MSAA so Low keeps its AA across quality changes', () => {
     const source = readFileSync('src/App.tsx', 'utf8');
-    expect(source).toMatch(/gl=\{\{[\s\S]*?antialias: false,/);
+    expect(source).toMatch(/gl=\{\{[\s\S]*?antialias: true,/);
     expect(source).not.toContain("antialias: canvasQuality !== 'low'");
   });
 });

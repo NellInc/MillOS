@@ -3,6 +3,7 @@ import {
   createRoundedForkliftRoute,
   canPerformForkliftLogisticsAction,
   dampAngle,
+  hydraulicSoundSeconds,
   isForkliftSimulationPaused,
   moveTowards,
   resolveForkliftMastTilt,
@@ -78,12 +79,12 @@ describe('forklift route motion', () => {
     expect(smoothOperationHeight(0.25, 1.2)).toBeCloseTo(smoothOperationHeight(0.75, 1.2));
   });
 
-  it('stops vehicle motion when either canonical simulation control is paused', () => {
-    expect(isForkliftSimulationPaused(0.8, 180)).toBe(false);
-    expect(isForkliftSimulationPaused(0, 180)).toBe(true);
-    expect(isForkliftSimulationPaused(0.8, 0)).toBe(true);
-    expect(isForkliftSimulationPaused(Number.NaN, 180)).toBe(true);
-    expect(isForkliftSimulationPaused(0.8, Number.NaN)).toBe(true);
+  it('stops vehicle motion only when the shift clock is paused, never for a line setpoint', () => {
+    expect(isForkliftSimulationPaused(30)).toBe(false);
+    expect(isForkliftSimulationPaused(120)).toBe(false);
+    expect(isForkliftSimulationPaused(0)).toBe(true);
+    expect(isForkliftSimulationPaused(-1)).toBe(true);
+    expect(isForkliftSimulationPaused(Number.NaN)).toBe(true);
   });
 
   it('gates dock actions against released stock and truck presence', () => {
@@ -113,5 +114,23 @@ describe('forklift route motion', () => {
         receivingDocked: false,
       })
     ).toBe(false);
+  });
+});
+
+describe('hydraulic sound length on plant time', () => {
+  it('lasts as long as the lift does in real seconds at every pace', () => {
+    expect(hydraulicSoundSeconds(1.5, 30)).toBeCloseTo(1.5, 9);
+    expect(hydraulicSoundSeconds(1.5, 15)).toBeCloseTo(3, 9);
+    expect(hydraulicSoundSeconds(1.5, 120)).toBeCloseTo(0.375, 9);
+  });
+
+  it('never schedules an envelope shorter than its own attack and release', () => {
+    expect(hydraulicSoundSeconds(0.6, 120)).toBe(0.3);
+  });
+
+  it('plays nothing while the clock is held or once the lift is done', () => {
+    expect(hydraulicSoundSeconds(1.5, 0)).toBe(0);
+    expect(hydraulicSoundSeconds(0, 30)).toBe(0);
+    expect(hydraulicSoundSeconds(Number.NaN, 30)).toBe(0);
   });
 });

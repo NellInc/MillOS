@@ -13,7 +13,11 @@
 import { useEffect } from 'react';
 import { centralTick, TICK_PRIORITY } from './CentralTickSystem';
 import type { TickContext } from './CentralTickSystem';
-import { useGameSimulationStore, getShiftForHour } from '../stores/gameSimulationStore';
+import {
+  useGameSimulationStore,
+  getShiftForHour,
+  getShiftWindowKey,
+} from '../stores/gameSimulationStore';
 import {
   useProductionStore,
   DAILY_TARGET_BAGS,
@@ -29,16 +33,22 @@ import {
 import { useTruckScheduleStore } from '../stores/truckScheduleStore';
 import { useBreakdownStore, type BreakdownType } from '../stores/breakdownStore';
 import { useUIStore } from '../stores/uiStore';
+import { useAnnouncementsStore } from '../stores/announcementsStore';
 import { BAG_WEIGHT_KG, type MachineData } from '../types';
 import {
+  DEMURRAGE_COST_PER_HOUR,
+  MAINTENANCE_COST_PER_WORK_ORDER_HOUR,
   useOperationsCampaignStore,
+  type DispatchQualityBlockCode,
   type DispatchLoadSnapshot,
   type OperationalIncident,
 } from '../stores/operationsCampaignStore';
 import { getSiteDemandKw } from '../utils/energyCalculations';
 import { sanitizeGameSpeed } from '../stores/persistenceMigrations';
+import { bagsPerGameHour, plantSecondsForGameSeconds } from '../simulation/pace';
 import { useWorkplaceStore } from '../stores/workplaceStore';
 import { workplaceTickCapacity } from '../simulation/bilateralWorkplace';
+import { handoffHoldsClock } from '../simulation/workplaceImprovement';
 import {
   advanceReplayClock,
   endReplayClock,
@@ -61,6 +71,7 @@ let _shippingLoad: DispatchLoadSnapshot = {
   capacityKg: 5000,
   materialType: 'flour',
   blockReason: null,
+  blockCode: null,
   lastDispatchKg: 0,
 };
 
@@ -95,13 +106,11 @@ export const calculateBagsProducedForTick = (
   return (Math.max(0, deltaSeconds) * Math.max(0, packerFlowKgPerSecond)) / bagWeightKg;
 };
 
+/** Bags per game hour; see bagsPerGameHour in src/simulation/pace.ts. */
 export const calculatePackerThroughputBagsPerHour = (
   packerFlowKgPerSecond: number,
   bagWeightKg: number = BAG_WEIGHT_KG
-): number =>
-  Number.isFinite(packerFlowKgPerSecond) && Number.isFinite(bagWeightKg) && bagWeightKg > 0
-    ? Math.round((Math.max(0, packerFlowKgPerSecond) / bagWeightKg) * 3600)
-    : 0;
+): number => bagsPerGameHour(packerFlowKgPerSecond, bagWeightKg);
 
 function sumMaterialInventory(flow: MaterialFlowState, materialType: MaterialType): number {
   let total = 0;
@@ -212,8 +221,56 @@ function applyCampaignIncidentConsequence(incident: OperationalIncident): void {
     machineId: incident.affectedMachineId ?? undefined,
     timestamp: new Date(),
     acknowledged: false,
+    // Read from the bell, so a muted PA does not hide it from a screen reader.
+    announce: incident.severity === 'critical' ? 'assertive' : 'polite',
   });
   useOperationsCampaignStore.getState().markIncidentEffectApplied(incident.id);
+}
+
+/**
+ * A shift report written by this tick is announced once, in the notification
+ * list, naming where the review is. Only a report this tick appended counts:
+ * comparing the last id, not the length, keeps a restored save and the
+ * bounded report list from announcing anything.
+ * Working if the 14:00 boundary on the ordinary path raises one notice and a
+ * reload raises none.
+ */
+function announceClosedShift(lastReportBefore: string | undefined): void {
+  const report = useOperationsCampaignStore.getState().reports.at(-1);
+  if (!report || report.id === lastReportBefore) return;
+  const shift = /(morning|afternoon|night)$/.exec(report.shiftKey)?.[1] ?? report.shiftLabel;
+  // An ungraded shift is not a clean one while a serious incident is open.
+  const title =
+    report.grade === null
+      ? translate(
+          msg,
+          report.gradeBasis?.unsafeTitles.length
+            ? 'shiftClosedUngradedIncidentTitle'
+            : 'shiftClosedUngradedTitle',
+          { shift }
+        )
+      : translate(msg, 'shiftClosedTitle', { shift, grade: report.grade });
+  const message = translate(msg, 'shiftClosedMessage');
+  useUIStore.getState().addAlert({
+    id: `shift-review-${report.id}`,
+    type: 'info',
+    title,
+    message,
+    timestamp: new Date(),
+    acknowledged: false,
+    announce: 'polite',
+  });
+  // The bell files it and reads it once to screen readers, whatever the PA
+  // mode or mute; the PA caption is what a sighted player sees at the moment
+  // the shift ends, so it is caption-only rather than read a second time.
+  useAnnouncementsStore.getState().addAnnouncement({
+    type: report.grade === 'A' || report.grade === 'B' ? 'success' : 'info',
+    message: `${title}. ${message}`,
+    priority: 3,
+    source: 'Shift review',
+    channel: 'operational',
+    captionOnly: true,
+  });
 }
 
 function getStorageUtilization(): number {
@@ -230,8 +287,33 @@ function getStorageUtilization(): number {
 // Machine status type (matches MachineData.status)
 type MachineStatus = 'running' | 'idle' | 'warning' | 'critical';
 
-// QC grade -> quality score mapping (mirrors deprecated productionStore.tickMetrics)
-const QC_GRADE_SCORES: Record<string, number> = { A: 100, B: 85, C: 70, FAIL: 0 };
+/**
+ * Product quality from the machines actually making product: running or
+ * warning mills, sifters and packers. Silos store grain, and a stopped unit
+ * makes nothing, so neither can lower the quality of flour the others make.
+ * Each point of average efficiency lost costs 0.2 quality points, so a line
+ * whose units sit just short of their warnings (~80% efficiency) still makes
+ * Strong White (95) and only a line run well past its warnings drops below it.
+ * Working if one breakdown leaves shipped quality unchanged and a fully worn
+ * line still fails.
+ */
+const PRODUCT_PATH_TYPES: ReadonlySet<string> = new Set(['ROLLER_MILL', 'PLANSIFTER', 'PACKER']);
+const QUALITY_PER_EFFICIENCY_POINT = 0.2;
+const PRISTINE_QUALITY = 99.5;
+export function productPathQuality(machines: readonly MachineData[]): number {
+  let sum = 0;
+  let count = 0;
+  for (const machine of machines) {
+    if (!PRODUCT_PATH_TYPES.has(machine.type)) continue;
+    if (machine.status !== 'running' && machine.status !== 'warning') continue;
+    const efficiency = machine.metrics.efficiency;
+    sum += Number.isFinite(efficiency) ? Math.max(0, Math.min(100, efficiency)) : 100;
+    count += 1;
+  }
+  if (count === 0) return PRISTINE_QUALITY;
+  const quality = PRISTINE_QUALITY - (100 - sum / count) * QUALITY_PER_EFFICIENCY_POINT;
+  return Math.round(Math.max(0, Math.min(PRISTINE_QUALITY, quality)) * 10) / 10;
+}
 
 // Daily-target milestone tracking (percent thresholds, fired once each per day,
 // reset on day rollover). Bitmask index matches _MILESTONE_THRESHOLDS.
@@ -308,6 +390,20 @@ function gameMinutesToWearBreakdown(
     (0.5 + (Number.isFinite(load) ? load : 0) / 100);
   if (!(ratePerGameSecond > 0)) return Number.POSITIVE_INFINITY;
   return Math.max(0, wearConfig.breakdownThreshold - wear) / ratePerGameSecond / 60;
+}
+
+/** Open work orders for the campaign context, naming the oldest one. */
+function openWorkOrderSummary() {
+  const open = useBreakdownStore
+    .getState()
+    .workOrders.filter((workOrder) => workOrder.phase !== 'returned_to_service');
+  const oldest = open[0];
+  return {
+    openWorkOrders: open.length,
+    openWorkOrder: oldest
+      ? { id: oldest.id, machineId: oldest.machineId, machineName: oldest.machineName }
+      : null,
+  };
 }
 
 function inferBreakdownType(machine: MachineData): BreakdownType {
@@ -434,7 +530,7 @@ function unifiedGameTick(ctx: TickContext): void {
     replayActive || improvementActive ? peekSCADAService()?.getState().mode : undefined;
   if (controlMode !== undefined && controlMode !== 'simulation') {
     useWorkplaceStore.getState().stop();
-    useGameSimulationStore.getState().setGameSpeed(0);
+    useGameSimulationStore.getState().holdClock('scada');
     endReplayClock();
     return;
   }
@@ -451,7 +547,10 @@ function unifiedGameTick(ctx: TickContext): void {
           ? Math.max(0, ...agreement.members.map((member) => member.recoveryOwedMinutes))
           : 0;
     if (game.gameSpeed === 0 || remainingMinutes === 0) {
-      if (game.gameSpeed !== 0) game.setGameSpeed(0);
+      // A handoff decision holds through its derived hold (workplaceStore), which
+      // keeps a pace chosen meanwhile as its resume pace; this is the backstop.
+      if (game.gameSpeed !== 0)
+        game.holdClock(!replayActive && handoffHoldsClock(agreement) ? 'handoff' : 'workplace');
       return;
     }
     // This one admitted delta drives all plant clocks, material, costs, wear
@@ -459,6 +558,12 @@ function unifiedGameTick(ctx: TickContext): void {
     deltaSeconds = Math.min(deltaSeconds, (remainingMinutes * 60) / safeGameSpeed);
   }
   advanceReplayClock(deltaSeconds * safeGameSpeed * 1000);
+  // One time model (src/simulation/pace.ts): the clock and campaign advance by
+  // game seconds, everything physical by plant seconds, a fixed fraction of
+  // them. Working if a pace change scales material, loading, bags, downtime and
+  // the yard together with the deadlines it is measured against.
+  const gameSeconds = deltaSeconds * safeGameSpeed;
+  const plantSeconds = plantSecondsForGameSeconds(gameSeconds);
   const workplaceShippedBefore = useMaterialFlowStore.getState().shippedKg;
   const materialTimeBefore = useMaterialFlowStore.getState().simulationTime;
   const celebrateDay = 86400 / safeGameSpeed >= MIN_CELEBRATED_DAY_REAL_SECONDS;
@@ -468,7 +573,8 @@ function unifiedGameTick(ctx: TickContext): void {
 
   // 1. Calculate new game time (pure math, no allocation)
   const gameStore = useGameSimulationStore.getState();
-  const hoursElapsed = (deltaSeconds * safeGameSpeed) / 3600;
+  // Capture mode holds the time of day; production and motion keep the pace.
+  const hoursElapsed = gameStore.timeOfDayHeld ? 0 : (deltaSeconds * safeGameSpeed) / 3600;
   const newGameTime = (((gameStore.gameTime + hoursElapsed) % 24) + 24) % 24;
 
   // Handle day rollover
@@ -476,22 +582,11 @@ function unifiedGameTick(ctx: TickContext): void {
   if (newGameTime < gameStore.gameTime && hoursElapsed > 0) {
     newGameDay = Math.min(Number.MAX_SAFE_INTEGER, newGameDay + 1);
 
-    // Close out the production day: celebrate the result, then reset the
-    // daily counter and milestone tracking so the target loop restarts fresh.
+    // Close out the production day: reset the daily counter and milestone
+    // tracking so the target loop restarts fresh. The end of a shift is
+    // announced by its review (announceClosedShift); the 'shift_complete'
+    // celebration once queued here had no renderer.
     const dayEndStore = useProductionStore.getState();
-    const dayBags = dayEndStore.dailyBagsProduced;
-    if (celebrateDay) {
-      gameStore.triggerCelebration('shift_complete', {
-        value: dayBags,
-        message:
-          dayBags >= DAILY_TARGET_BAGS
-            ? translate(msg, 'dayCompleteTargetMet', { bags: formatGrouped(Math.round(dayBags)) })
-            : translate(msg, 'dayComplete', {
-                bags: formatGrouped(Math.round(dayBags)),
-                target: formatGrouped(DAILY_TARGET_BAGS),
-              }),
-      });
-    }
     dayEndStore.resetDailyBagsProduced();
     _milestonesReachedMask = 0;
   }
@@ -506,7 +601,8 @@ function unifiedGameTick(ctx: TickContext): void {
     .forEach(applyCampaignIncidentConsequence);
   prodStore = useProductionStore.getState();
   const maintenanceStore = useBreakdownStore.getState();
-  maintenanceStore.tickDowntime(deltaSeconds);
+  // Downtime is read against the shift clock, so it is counted in game seconds.
+  maintenanceStore.tickDowntime(gameSeconds);
 
   // A restart request is the final far-side contract in the maintenance loop.
   // The production store resets machine wear/status first; only then does the
@@ -531,7 +627,6 @@ function unifiedGameTick(ctx: TickContext): void {
   let anyMachineChanged = false;
   let runningCount = 0;
   let totalRunningDelta = 0;
-  let efficiencySum = 0;
 
   // Check each machine for truth changes
   // Use module-level reusable arrays (cleared here, never reallocated)
@@ -544,9 +639,8 @@ function unifiedGameTick(ctx: TickContext): void {
 
     if (isRunning) {
       runningCount++;
-      totalRunningDelta += deltaSeconds;
+      totalRunningDelta += plantSeconds;
     }
-    efficiencySum += machine.metrics.efficiency ?? 100;
 
     const result = updateMachineTruth(machine, deltaSeconds * safeGameSpeed);
 
@@ -585,7 +679,8 @@ function unifiedGameTick(ctx: TickContext): void {
   const campaignStore = useOperationsCampaignStore.getState();
   const campaignMultiplier = campaignStore.getProductionMultiplier();
   const activeProductionPlan = campaignStore.getActiveProductionPlan();
-  // Opt-in negotiated line pacing. It never creates product, releases quality
+  // Negotiated line pacing: the autonomous season applies it by default and
+  // StatusHUD names it beside the plant rate. It never creates product, releases quality
   // holds, changes machine safety status, or alters decorative pedestrian routes.
   const effectiveProductionSpeed =
     productionSpeed *
@@ -598,22 +693,13 @@ function unifiedGameTick(ctx: TickContext): void {
   // Efficiency: percentage of machines running
   _metricsUpdate.efficiency = Math.round((runningCount / totalMachines) * 100 * 10) / 10;
 
-  // Quality: latest QC Lab test grade (A=100, B=85, C=70, FAIL=0 - mirrors the
-  // deprecated productionStore.tickMetrics mapping). Before any test exists,
-  // derive an estimate from average machine health so the KPI isn't frozen at
-  // its 99.5 initial value: pristine machines read 99.5, worn ones drag it down.
-  const qcHistory = useQCLabStore.getState().qcLab.testHistory;
-  const latestTest = qcHistory[qcHistory.length - 1];
-  if (latestTest) {
-    _metricsUpdate.quality = QC_GRADE_SCORES[latestTest.grade] ?? 99.5;
-  } else {
-    const avgMachineEfficiency = efficiencySum / totalMachines; // 0-100
-    _metricsUpdate.quality =
-      Math.round(Math.max(0, Math.min(99.5, 99.5 * (avgMachineEfficiency / 100))) * 10) / 10;
-  }
+  // Quality of the product being made now, from the running product path (see
+  // productPathQuality). It is stamped on every batch packed this tick, and a
+  // shipment is judged by its batches' stamps. A lab test records a batch's
+  // grade; it no longer overrides the plant reading for the rest of the session.
   _metricsUpdate.quality = Math.max(
     0,
-    _metricsUpdate.quality -
+    productPathQuality(machines) -
       useOperationsCampaignStore.getState().getIncidentEffect().qualityPenalty
   );
 
@@ -621,7 +707,7 @@ function unifiedGameTick(ctx: TickContext): void {
   _metricTrackingUpdate.totalRunningSeconds =
     prodStore._metricTracking.totalRunningSeconds + totalRunningDelta;
   _metricTrackingUpdate.totalElapsedSeconds =
-    prodStore._metricTracking.totalElapsedSeconds + deltaSeconds;
+    prodStore._metricTracking.totalElapsedSeconds + plantSeconds;
 
   // Uptime: percentage of time machines have been running
   _metricsUpdate.uptime =
@@ -675,6 +761,20 @@ function unifiedGameTick(ctx: TickContext): void {
             oldMachine.metrics.load
           )
         );
+        // The PA line is spoken once; the bell keeps it, tied to the machine,
+        // so its Open repair action can take the player to the maintenance.
+        // Working if a wear warning is listed in the bell with Open repair.
+        useUIStore.getState().addAlert({
+          id: `wear-warning-${oldMachine.id}-${Date.now()}`,
+          type: 'warning',
+          title: translate(msg, 'wearWarningTitle'),
+          message: translate(msg, 'wearWarningMessage', { name: oldMachine.name }),
+          machineId: oldMachine.id,
+          timestamp: new Date(),
+          acknowledged: false,
+          // The bell reads it to screen readers; the PA line is caption-only.
+          announce: 'polite',
+        });
       }
     }
 
@@ -766,21 +866,24 @@ function unifiedGameTick(ctx: TickContext): void {
   flowStore.syncTransportGeometry(
     anyMachineChanged ? useProductionStore.getState().machines : machines
   );
-  const activeOrderForFeed = campaignStore.orders.find(
-    (order) => order.id === activeProductionPlan?.orderId
-  );
+  // The line works to its own plan: the dispatch order, or once that order's
+  // remainder is packed and waiting for a truck, the next commitment. Shipping
+  // below still loads the dispatch order's material.
+  const linePlan = campaignStore.getLineProductionPlan({
+    flour: getFinishedGoodsAvailability(flowStore, 'flour').availableKg,
+    semolina: getFinishedGoodsAvailability(flowStore, 'semolina').availableKg,
+  });
   flowStore.tickMaterialFlow(
-    deltaSeconds,
+    plantSeconds,
     effectiveProductionSpeed,
-    activeProductionPlan
+    linePlan
       ? {
-          sourceMaterial: activeProductionPlan.sourceMaterial,
-          finishedMaterial: activeProductionPlan.finishedMaterial,
-          remainingFinishedKg: activeOrderForFeed
-            ? Math.max(0, activeOrderForFeed.requiredKg - activeOrderForFeed.shippedKg)
-            : undefined,
+          sourceMaterial: linePlan.sourceMaterial,
+          finishedMaterial: linePlan.finishedMaterial,
+          remainingFinishedKg: linePlan.remainingFinishedKg,
         }
-      : undefined
+      : undefined,
+    _metricsUpdate.quality
   );
 
   // 4c. Convert the exact final-stage mass flow into completed 25 kg bags on
@@ -790,7 +893,7 @@ function unifiedGameTick(ctx: TickContext): void {
   if (runningPackerCount > 0) {
     const liveFlow = useMaterialFlowStore.getState();
     const flowRate = liveFlow.currentPackerFlowRate;
-    _bagProductionCarry += calculateBagsProducedForTick(deltaSeconds, flowRate);
+    _bagProductionCarry += calculateBagsProducedForTick(plantSeconds, flowRate);
     const completedBags = Math.floor(_bagProductionCarry);
     if (completedBags > 0) {
       _bagProductionCarry -= completedBags;
@@ -818,13 +921,21 @@ function unifiedGameTick(ctx: TickContext): void {
   const shippingSchedule = useTruckScheduleStore.getState().truckSchedule.shipping;
   const shippingTransferReady = shippingSchedule.transferReady;
   const dockFlow = useMaterialFlowStore.getState();
-  const reasonByCode = {
-    certification_expired: translate(msg, 'certificationExpired'),
-    unresolved_contamination: translate(msg, 'unresolvedContamination'),
-    failed_quality_test: translate(msg, 'failedQualityTest'),
-    batch_quality_hold: translate(msg, 'batchQualityHold'),
-    batch_recalled: translate(msg, 'batchRecalled'),
-  } as const;
+  const codeByQualityReason = {
+    certification_expired: 'certificationExpired',
+    unresolved_contamination: 'unresolvedContamination',
+    failed_quality_test: 'failedQualityTest',
+  } as const satisfies Record<string, DispatchQualityBlockCode>;
+  const qualityBlockCodeFor = (
+    quality: ReturnType<typeof getDispatchQualityStatus>
+  ): DispatchQualityBlockCode | null =>
+    useOperationsCampaignStore.getState().getIncidentEffect().dispatchBlocked
+      ? 'incidentDispatchIsolation'
+      : quality.reason
+        ? codeByQualityReason[quality.reason]
+        : !quality.released
+          ? 'qualityInterlockNotReleased'
+          : null;
   if (shippingSchedule.departureCount < _lastShippingDepartureCount) {
     _shippingLoad = {
       cycleId: 'shipping-0',
@@ -833,6 +944,7 @@ function unifiedGameTick(ctx: TickContext): void {
       capacityKg: FINISHED_GOODS_SHIPMENT_KG,
       materialType: 'flour',
       blockReason: null,
+      blockCode: null,
       lastDispatchKg: 0,
     };
   }
@@ -844,14 +956,8 @@ function unifiedGameTick(ctx: TickContext): void {
       useQCLabStore.getState().qcLab,
       dockFlow.productionBatches
     );
-    const departureBlockReason = useOperationsCampaignStore.getState().getIncidentEffect()
-      .dispatchBlocked
-      ? translate(msg, 'incidentDispatchIsolation')
-      : departureQuality.reason
-        ? reasonByCode[departureQuality.reason]
-        : !departureQuality.released
-          ? translate(msg, 'qualityInterlockNotReleased')
-          : null;
+    const departureBlockCode = qualityBlockCodeFor(departureQuality);
+    const departureBlockReason = departureBlockCode ? translate(msg, departureBlockCode) : null;
     const actualKg = departureBlockReason
       ? 0
       : dockFlow.shipFinishedGoods(_shippingLoad.loadedKg, _shippingLoad.materialType);
@@ -866,6 +972,14 @@ function unifiedGameTick(ctx: TickContext): void {
           : (departureBlockReason ??
             _shippingLoad.blockReason ??
             translate(msg, 'departedWithoutLoad')),
+      // A held reason from a load saved before codes existed keeps its stored text.
+      blockCode:
+        actualKg > 0
+          ? null
+          : (departureBlockCode ??
+            (_shippingLoad.blockReason
+              ? (_shippingLoad.blockCode ?? null)
+              : 'departedWithoutLoad')),
     };
   }
   const shippingCycleId = `shipping-${shippingSchedule.departureCount + 1}`;
@@ -877,25 +991,34 @@ function unifiedGameTick(ctx: TickContext): void {
       capacityKg: FINISHED_GOODS_SHIPMENT_KG,
       materialType: activeProductionPlan?.finishedMaterial ?? 'flour',
       blockReason: null,
+      blockCode: null,
       lastDispatchKg: 0,
     };
   }
+
+  // No open commitment (a programme is complete): a truck that loaded now
+  // would carry the line's stock-build output to no customer, with no order
+  // credit and no revenue, and the batches it took could never be credited to
+  // the next programme. It holds at the dock instead, never 'ready', so the
+  // yard keeps it docked until a programme opens a commitment. An empty cycle
+  // follows the live recipe, since it opened before there was one.
+  // Working if the stock built while waiting is still there to ship.
+  const commitmentHoldReason = activeProductionPlan ? null : translate(msg, 'noCommitmentToShip');
+  if (
+    shippingTransferReady &&
+    activeProductionPlan &&
+    _shippingLoad.loadedKg <= 1e-6 &&
+    _shippingLoad.materialType !== activeProductionPlan.finishedMaterial
+  )
+    _shippingLoad = { ..._shippingLoad, materialType: activeProductionPlan.finishedMaterial };
 
   if (shippingTransferReady) {
     const qualityStatus = getDispatchQualityStatus(
       useQCLabStore.getState().qcLab,
       dockFlow.productionBatches
     );
-    const incidentDispatchBlocked = useOperationsCampaignStore
-      .getState()
-      .getIncidentEffect().dispatchBlocked;
-    const qualityBlockReason = incidentDispatchBlocked
-      ? translate(msg, 'incidentDispatchIsolation')
-      : qualityStatus.reason
-        ? reasonByCode[qualityStatus.reason]
-        : !qualityStatus.released
-          ? translate(msg, 'qualityInterlockNotReleased')
-          : null;
+    const qualityBlockCode = qualityBlockCodeFor(qualityStatus);
+    const qualityBlockReason = qualityBlockCode ? translate(msg, qualityBlockCode) : null;
     const releasedKg = getFinishedGoodsAvailability(
       dockFlow,
       _shippingLoad.materialType
@@ -914,8 +1037,20 @@ function unifiedGameTick(ctx: TickContext): void {
     const previousStatus = _shippingLoad.status;
     const previousBlockReason = _shippingLoad.blockReason;
 
-    if (qualityBlockReason) {
-      _shippingLoad = { ..._shippingLoad, status: 'held', blockReason: qualityBlockReason };
+    if (commitmentHoldReason) {
+      _shippingLoad = {
+        ..._shippingLoad,
+        status: 'held',
+        blockReason: commitmentHoldReason,
+        blockCode: 'noCommitmentToShip',
+      };
+    } else if (qualityBlockReason) {
+      _shippingLoad = {
+        ..._shippingLoad,
+        status: 'held',
+        blockReason: qualityBlockReason,
+        blockCode: qualityBlockCode,
+      };
     } else if (releasedKg <= _shippingLoad.loadedKg + 1e-6) {
       _shippingLoad = {
         ..._shippingLoad,
@@ -924,6 +1059,7 @@ function unifiedGameTick(ctx: TickContext): void {
           _shippingLoad.loadedKg > 0
             ? null
             : translate(msg, 'waitingForMaterial', { material: _shippingLoad.materialType }),
+        blockCode: _shippingLoad.loadedKg > 0 ? null : 'waitingForMaterial',
       };
     } else {
       const loadedKg = Math.min(
@@ -933,7 +1069,7 @@ function unifiedGameTick(ctx: TickContext): void {
             useLogisticsLayoutStore.getState().layout,
             SHIPPING_LOAD_RATE_KG_PER_SECOND
           ) *
-            deltaSeconds
+            plantSeconds
       );
       _shippingLoad = {
         ..._shippingLoad,
@@ -943,6 +1079,7 @@ function unifiedGameTick(ctx: TickContext): void {
             ? 'ready'
             : 'loading',
         blockReason: null,
+        blockCode: null,
       };
     }
 
@@ -950,18 +1087,34 @@ function unifiedGameTick(ctx: TickContext): void {
       _shippingLoad.status === 'held' &&
       (previousStatus !== 'held' || previousBlockReason !== _shippingLoad.blockReason)
     ) {
-      useUIStore.getState().addAlert({
-        id: `${qualityBlockReason ? 'dispatch-quality-hold' : 'dispatch-supply-wait'}-${_shippingLoad.cycleId}`,
-        type: qualityBlockReason ? 'warning' : 'info',
-        title: qualityBlockReason
-          ? translate(msg, 'dispatchQualityHoldTitle')
-          : translate(msg, 'shippingAwaitingProductTitle'),
-        message: qualityBlockReason
-          ? translate(msg, 'clearBeforeRelease', { reason: qualityBlockReason })
-          : (_shippingLoad.blockReason ?? translate(msg, 'waitingForProduct')),
-        timestamp: new Date(),
-        acknowledged: false,
-      });
+      useUIStore.getState().addAlert(
+        commitmentHoldReason
+          ? {
+              id: `dispatch-commitment-wait-${_shippingLoad.cycleId}`,
+              type: 'info',
+              title: translate(msg, 'shippingAwaitingProgrammeTitle'),
+              message: commitmentHoldReason,
+              timestamp: new Date(),
+              acknowledged: false,
+            }
+          : {
+              id: `${qualityBlockReason ? 'dispatch-quality-hold' : 'dispatch-supply-wait'}-${_shippingLoad.cycleId}`,
+              type: qualityBlockReason ? 'warning' : 'info',
+              title: qualityBlockReason
+                ? translate(msg, 'dispatchQualityHoldTitle')
+                : translate(msg, 'shippingAwaitingProductTitle'),
+              message: qualityBlockReason
+                ? translate(msg, 'clearBeforeRelease', {
+                    reason: qualityBlockReason,
+                    rate: formatFixed(DEMURRAGE_COST_PER_HOUR, 2),
+                  })
+                : (_shippingLoad.blockReason ?? translate(msg, 'waitingForProduct')),
+              timestamp: new Date(),
+              acknowledged: false,
+              // A quality hold stops the truck: read it whatever the PA or mute.
+              ...(qualityBlockReason ? { announce: 'polite' as const } : {}),
+            }
+      );
     }
   }
   _lastShippingDepartureCount = shippingSchedule.departureCount;
@@ -975,9 +1128,9 @@ function unifiedGameTick(ctx: TickContext): void {
     .getState()
     .observe(
       latestFlow.sessionId,
-      deltaSeconds,
+      plantSeconds,
       materialSeconds,
-      latestFlow.currentPackerFlowRate * deltaSeconds,
+      latestFlow.currentPackerFlowRate * plantSeconds,
       Math.max(0, latestFlow.shippedKg - workplaceShippedBefore),
       JSON.stringify([
         latestProduction.productionSpeed,
@@ -999,8 +1152,12 @@ function unifiedGameTick(ctx: TickContext): void {
   const executionPlan = useOperationsCampaignStore.getState().getActiveProductionPlan();
   const executionMaterial = executionPlan?.finishedMaterial ?? _shippingLoad.materialType;
   const finishedAvailability = getFinishedGoodsAvailability(latestFlow, executionMaterial);
+  const lastReportBefore = useOperationsCampaignStore.getState().reports.at(-1)?.id;
   useOperationsCampaignStore.getState().tickCampaign(deltaSeconds * safeGameSpeed, {
-    shiftKey: `day-${latestGame.gameDay}-${latestGame.currentShift}`,
+    // A save taken between 00:00 and 06:00 under the old per-day key closes
+    // one short Night report on its first tick after upgrading; the campaign
+    // store cannot re-key it without the clock.
+    shiftKey: getShiftWindowKey(latestGame.gameDay, latestGame.gameTime, latestGame.currentShift),
     shiftLabel: translate(msg, 'shiftLabel', { shift: latestGame.currentShift }),
     manifests: latestFlow.manifests,
     materialSessionId: latestFlow.sessionId,
@@ -1018,11 +1175,12 @@ function unifiedGameTick(ctx: TickContext): void {
     finishedAvailableKg: finishedAvailability.availableKg,
     releasedFinishedKg: finishedAvailability.releasedKg,
     dispatchLoad: { ..._shippingLoad },
-    openWorkOrders: useBreakdownStore
-      .getState()
-      .workOrders.filter((workOrder) => workOrder.phase !== 'returned_to_service').length,
+    ...openWorkOrderSummary(),
     clockMinuteOfDay: latestGame.gameTime * 60,
+    lineOrderId: linePlan?.orderId ?? null,
+    lineCustomer: linePlan?.prestaged ? linePlan.customer : null,
   });
+  announceClosedShift(lastReportBefore);
   // Workshops advance only through facilitator inputs. They must not acquire a
   // clock, pay or apparent shipment evidence from unrelated plant activity.
   if (useWorkplaceStore.getState().workplace.mode === 'game') {
@@ -1034,13 +1192,16 @@ function unifiedGameTick(ctx: TickContext): void {
         latestGame.emergencyActive
       );
     const reviewed = useWorkplaceStore.getState().workplace;
+    // The derived handoff hold already covers a review with nothing owed; an
+    // ended trial that owes recovery waits here for an explicit resume.
     if (
       (replayActive || (reviewed.improvement && !reviewed.improvement.verdict)) &&
       reviewed.phase === 'review' &&
       (workplacePhaseBefore === 'active' ||
-        reviewed.members.every((member) => member.recoveryOwedMinutes === 0))
+        reviewed.members.every((member) => member.recoveryOwedMinutes === 0)) &&
+      (replayActive || !handoffHoldsClock(reviewed))
     )
-      useGameSimulationStore.getState().setGameSpeed(0);
+      useGameSimulationStore.getState().holdClock('workplace');
   }
 
   // 5. Handle breakdowns (async, outside main path)
@@ -1058,10 +1219,13 @@ function unifiedGameTick(ctx: TickContext): void {
           name,
           machineType,
           workOrderId: breakdown.workOrderId,
+          rate: formatFixed(MAINTENANCE_COST_PER_WORK_ORDER_HOUR, 2),
         }),
         machineId: id,
         timestamp: new Date(),
         acknowledged: false,
+        // The bell reads it to screen readers; the PA line is caption-only.
+        announce: 'assertive',
       });
     });
   }
@@ -1086,6 +1250,7 @@ export function resetUnifiedTickState(): void {
     capacityKg: 5000,
     materialType: 'flour',
     blockReason: null,
+    blockCode: null,
     lastDispatchKg: 0,
   };
   _bagProductionCarry = 0;

@@ -4,9 +4,12 @@ import type { Alarm } from './scada/types';
 import {
   buildOperationalTelemetry,
   formatAlarmMessage,
+  reconcileReturnedAlarmAlerts,
   selectSCADAAlarmsToAlert,
   storeOwnedLoad,
 } from './store';
+import type { AlertData } from './types';
+import { isStandingCriticalAlert } from './stores/uiStore';
 import { useBreakdownStore } from './stores/breakdownStore';
 import { useMaterialFlowStore } from './stores/materialFlowStore';
 import { useQCLabStore } from './stores/qcLabStore';
@@ -87,6 +90,44 @@ describe('selectSCADAAlarmsToAlert', () => {
     );
     expect(selectSCADAAlarmsToAlert([...ignored, ...burst], new Set(), announced)).toEqual(
       burst.slice(3)
+    );
+  });
+});
+
+describe('reconcileReturnedAlarmAlerts (ISA-18.2 RTN_UNACK)', () => {
+  const alert = (extra: Partial<AlertData> = {}): AlertData => ({
+    id: 'scada-a1',
+    type: 'critical',
+    title: 'SCADA: HIHI',
+    message: 'Truck articulation high.',
+    timestamp: new Date(0),
+    acknowledged: false,
+    ...extra,
+  });
+  it('releases the quiet UI when the condition returns to normal, keeping the alert listed', () => {
+    const [change] = reconcileReturnedAlarmAlerts(
+      [alert()],
+      [alarm({ id: 'a1', state: 'RTN_UNACK' })]
+    );
+    expect(change).toMatchObject({ id: 'scada-a1', returned: true });
+    expect(change.message).toContain('Returned to normal');
+    expect(isStandingCriticalAlert(alert({ returnedToNormal: true }))).toBe(false);
+    expect(isStandingCriticalAlert(alert())).toBe(true);
+  });
+  it('treats a cleared alarm as returned and stands again if the condition re-enters', () => {
+    expect(reconcileReturnedAlarmAlerts([alert()], [])[0]).toMatchObject({ returned: true });
+    expect(
+      reconcileReturnedAlarmAlerts(
+        [alert({ returnedToNormal: true })],
+        [alarm({ id: 'a1', state: 'UNACK' })]
+      )[0]
+    ).toMatchObject({ returned: false });
+  });
+  it('leaves acknowledged, non-SCADA and unchanged alerts alone', () => {
+    expect(reconcileReturnedAlarmAlerts([alert({ acknowledged: true })], [])).toEqual([]);
+    expect(reconcileReturnedAlarmAlerts([alert({ id: 'breakdown-x' })], [])).toEqual([]);
+    expect(reconcileReturnedAlarmAlerts([alert()], [alarm({ id: 'a1', state: 'ACKED' })])).toEqual(
+      []
     );
   });
 });

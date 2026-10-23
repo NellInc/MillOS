@@ -6,6 +6,7 @@ import { applyLampLens, lampLensStyle, type LampStyle } from '../models/Generate
 import {
   applyDeclinedWorldSurface,
   ownsOnlyWorldSurface,
+  pinnedSurfaceProfile,
   resolveSurfaceProfile,
 } from '../../utils/worldSurface';
 import {
@@ -302,6 +303,9 @@ const materialSignature = (
   [
     material.type,
     `lamp-lens:${lampLensStyle(material) ?? 'none'}`,
+    // `userData` is skipped below, but a pinned surface profile decides the
+    // finish of the whole merged group, so it has to split groups.
+    `surface-pin:${pinnedSurfaceProfile(material) ?? 'none'}`,
     ...Object.entries(material)
       .filter(([key, value]) => !MATERIAL_IDENTITY_KEYS.has(key) && typeof value !== 'function')
       .sort(([left], [right]) => left.localeCompare(right))
@@ -400,6 +404,11 @@ const geometryRenderDataFingerprint = (
   const cached = cache.get(geometry);
   if (cached !== undefined) return cached;
 
+  // Only a bucket key: `geometriesHaveEqualRenderData` decides every group, and
+  // `partitionByGeometryData` orders groups by first appearance, so the key can
+  // be any function of the header fields and the exact bytes. It folds the
+  // data in 32-bit words, inline: the former per-byte closure calls were
+  // ~1.2 s of startup main thread for the scene's instancing candidates.
   let first = 0x811c9dc5;
   let second = 0x9e3779b9;
   const updateByte = (value: number): void => {
@@ -414,6 +423,32 @@ const geometryRenderDataFingerprint = (
       updateByte(code >>> 8);
     }
     updateByte(0xff);
+  };
+  const updateBytes = (array: THREE.TypedArray): void => {
+    const { buffer, byteOffset, byteLength } = array;
+    const words = byteLength >>> 2;
+    let a = first;
+    let b = second;
+    if ((byteOffset & 3) === 0) {
+      const view = new Uint32Array(buffer, byteOffset, words);
+      for (let index = 0; index < words; index += 1) {
+        const word = view[index];
+        a = Math.imul(a ^ word, 0x01000193);
+        b = Math.imul(b ^ word, 0x85ebca6b);
+      }
+    } else {
+      const view = new DataView(buffer, byteOffset, byteLength);
+      for (let index = 0; index < words; index += 1) {
+        const word = view.getUint32(index * 4, true);
+        a = Math.imul(a ^ word, 0x01000193);
+        b = Math.imul(b ^ word, 0x85ebca6b);
+      }
+    }
+    first = a;
+    second = b;
+    const tail = new Uint8Array(buffer, byteOffset + words * 4, byteLength - words * 4);
+    for (const byte of tail) updateByte(byte);
+    updateText(byteLength);
   };
   const updateAttribute = (
     name: string,
@@ -432,8 +467,7 @@ const geometryRenderDataFingerprint = (
       updateText(attribute.offset);
       updateText(attribute.data.stride);
     }
-    const bytes = new Uint8Array(array.buffer, array.byteOffset, array.byteLength);
-    for (const byte of bytes) updateByte(byte);
+    updateBytes(array);
   };
 
   for (const [name, attribute] of Object.entries(geometry.attributes).sort(([left], [right]) =>
@@ -456,9 +490,17 @@ const geometryRenderDataFingerprint = (
   return fingerprint;
 };
 
-const partitionByGeometryData = (candidates: BatchCandidate[]): BatchCandidate[][] => {
+/**
+ * Candidates with equal render data, as groups in order of each group's first
+ * candidate. (The fingerprint only narrows the exact comparison; ordering by
+ * bucket instead would let a hash collision reorder groups.)
+ */
+export function partitionByGeometryData<T extends Pick<BatchCandidate, 'geometry'>>(
+  candidates: readonly T[]
+): T[][] {
   const fingerprintCache = new WeakMap<THREE.BufferGeometry, string>();
-  const buckets = new Map<string, BatchCandidate[][]>();
+  const buckets = new Map<string, T[][]>();
+  const ordered: T[][] = [];
   for (const candidate of candidates) {
     const fingerprint = geometryRenderDataFingerprint(candidate.geometry, fingerprintCache);
     const groups = buckets.get(fingerprint) ?? [];
@@ -466,11 +508,15 @@ const partitionByGeometryData = (candidates: BatchCandidate[]): BatchCandidate[]
       geometriesHaveEqualRenderData(group[0].geometry, candidate.geometry)
     );
     if (existing) existing.push(candidate);
-    else groups.push([candidate]);
+    else {
+      const group = [candidate];
+      groups.push(group);
+      ordered.push(group);
+    }
     if (!buckets.has(fingerprint)) buckets.set(fingerprint, groups);
   }
-  return [...buckets.values()].flat();
-};
+  return ordered;
+}
 
 const createMergedGeometry = (
   group: BatchCandidate[],

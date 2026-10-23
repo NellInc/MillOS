@@ -19,6 +19,7 @@ import {
   installPhysicalSession,
   isPhysicalSessionRestoring,
   PHYSICAL_SESSION_KEY,
+  MAX_SAVE_BYTES,
 } from '../physicalSession';
 import {
   registerReplayParticipant,
@@ -26,7 +27,12 @@ import {
   beginReplayClock,
   endReplayClock,
 } from '../../simulation/workplaceReplayRuntime';
-import { useMaterialFlowStore } from '../../stores/materialFlowStore';
+import {
+  MAX_MATERIAL_MANIFESTS,
+  MAX_PRODUCTION_BATCHES,
+  MAX_SOURCE_LOTS,
+  useMaterialFlowStore,
+} from '../../stores/materialFlowStore';
 import { useProductionStore, PRODUCTION_DELEGATED_KEYS } from '../../stores/productionStore';
 import { useOperationsCampaignStore } from '../../stores/operationsCampaignStore';
 import { useBreakdownStore } from '../../stores/breakdownStore';
@@ -39,7 +45,14 @@ import {
   useLogisticsLayoutStore,
   defaultSavedLogisticsLayout,
 } from '../../stores/logisticsLayoutStore';
-import { currentLogisticsLayout } from '../../simulation/layoutPlanning';
+import {
+  currentLogisticsLayout,
+  planningObstacles,
+  type LayoutSnapshot,
+} from '../../simulation/layoutPlanning';
+import { layoutPlanDxf } from '../../simulation/layoutPlanningExport';
+import { SITE_LAYOUT } from '../../constants/siteLayout';
+import { createMachineObstacles } from '../../constants/factoryObstacles';
 import { registerLogisticsVehicle } from '../../simulation/logisticsRuntime';
 
 let dispose: (() => void) | undefined;
@@ -343,6 +356,120 @@ describe('atomic local physical shift continuation', () => {
     }
   });
 
+  // A record written before the windows narrowed (up to the 1.5 M-char gate)
+  // must load, and must not carry its fat tails into the first autosave, which
+  // runs while the reload waits for consent and no tick trims anything.
+  it('loads a legacy record with long histories, trimmed to the current windows', () => {
+    const heldId = heldShift();
+    const record = capturePhysicalSession();
+    const held = record.material.productionBatches.find((b) => b.id === heldId)!;
+    record.material.processGenealogy = Array.from({ length: 500 }, (_, i) => ({
+      id: `process-${i}`,
+      machineId: 'rm-101',
+      inputType: 'wheat_grain' as const,
+      inputKg: 1,
+      outputs: [],
+      wasteKg: 0,
+      sourceContributions: [{ lotId: 'lot-opening-silo-0', amount: 1, path: ['silo-0'] }],
+      simulationTime: i,
+    }));
+    record.material.productionBatches = [
+      ...Array.from({ length: 200 }, (_, i) => ({
+        ...held,
+        id: `shipped-${i}`,
+        availableKg: 0,
+        disposition: 'shipped' as const,
+      })),
+      ...record.material.productionBatches,
+    ];
+    record.material.manifests = Array.from({ length: 200 }, (_, i) => ({
+      id: `receiving-${i}`,
+      kind: 'receiving' as const,
+      dock: 'receiving' as const,
+      requestedKg: 1,
+      actualKg: 1,
+      materials: [],
+      sourceLots: [],
+      productBatches: [],
+      simulationTime: i,
+    }));
+    const saved = decodePhysicalSession(encodePhysicalSession(record));
+    expect(saved.material.processGenealogy).toEqual([]);
+    expect(saved.material.manifests.map((m) => m.id)).toEqual(
+      record.material.manifests.slice(-MAX_MATERIAL_MANIFESTS).map((m) => m.id)
+    );
+    const shipped = saved.material.productionBatches.filter((b) => b.disposition === 'shipped');
+    expect(shipped.map((b) => b.id)).toEqual(
+      Array.from(
+        { length: MAX_PRODUCTION_BATCHES },
+        (_, i) => `shipped-${200 - MAX_PRODUCTION_BATCHES + i}`
+      )
+    );
+    // The held batch the quality alert binds is never history.
+    expect(saved.material.productionBatches.find((b) => b.id === heldId)?.disposition).toBe('hold');
+  });
+
+  // The lot window evicted oldest-first whatever a lot's state, so a held lot
+  // bound to an open alert could vanish, and the decode then rejected the whole
+  // record as 'Unbound source hold'. Working if filling past the window keeps
+  // the held lot, the record restores, and the hold is still bound.
+  it('never evicts a held lot from the lot window, so the record restores', () => {
+    const lots = () => useMaterialFlowStore.getState().sourceLots;
+    const heldLot = lots().keys().next().value as string;
+    useQCLabStore.getState().triggerContaminationAlert({
+      sourceLotIds: [heldLot],
+      severity: 'medium',
+      controlSource: 'test controller',
+    });
+    expect(lots().get(heldLot)?.disposition).toBe('hold');
+    for (let i = 0; i <= MAX_SOURCE_LOTS; i++)
+      expect(useMaterialFlowStore.getState().receiveGrainDelivery(1)).toBe(1);
+    expect(lots().size).toBeLessThanOrEqual(MAX_SOURCE_LOTS + 1);
+    expect(lots().get(heldLot)?.disposition).toBe('hold');
+    const saved = decodePhysicalSession(encodePhysicalSession(capturePhysicalSession()));
+    expect(saved.material.sourceLots.get(heldLot)?.disposition).toBe('hold');
+    expect(saved.quality.qcLab.contaminationAlerts.find((a) => !a.resolved)?.sourceLotIds).toEqual([
+      heldLot,
+    ]);
+  });
+
+  // The play-test console logged 'Physical save is too large' every 5 s with a
+  // notice that read like a one-off skip. Working if an oversized record raises
+  // one notice and one log per failure run, saying a reload returns to the last
+  // good save, and the shift keeps running.
+  it('names an oversized record once per failure run, without pausing the shift', () => {
+    heldShift();
+    const previous = encodePhysicalSession(capturePhysicalSession());
+    localStorage.setItem(PHYSICAL_SESSION_KEY, previous);
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    try {
+      dispose = installPhysicalSession();
+      ready();
+      useGameSimulationStore.getState().setGameSpeed(30);
+      const [machine] = useProductionStore.getState().machines;
+      useProductionStore.setState({
+        machines: [{ ...machine, name: 'x'.repeat(MAX_SAVE_BYTES / 2) }],
+      });
+      vi.advanceTimersByTime(5000);
+      vi.advanceTimersByTime(5000);
+      exit();
+      expect(localStorage.getItem(PHYSICAL_SESSION_KEY)).toBe(previous);
+      const notices = useUIStore
+        .getState()
+        .alerts.filter((a) => a.id === 'physical-autosave-skipped');
+      expect(notices).toHaveLength(1);
+      expect(notices[0]?.title).toBe('Autosave stopped');
+      expect(notices[0]?.message).toContain('a reload returns to the last good save');
+      expect(logged).toHaveBeenCalledTimes(1);
+      expect(String(logged.mock.calls[0]?.[1])).toContain('Physical save is too large');
+      expect(useGameSimulationStore.getState().gameSpeed).toBe(30);
+    } finally {
+      vi.useRealTimers();
+      logged.mockRestore();
+    }
+  });
+
   it('preserves a record created by another tab before this tab writes its first save', () => {
     dispose = installPhysicalSession();
     ready();
@@ -432,6 +559,139 @@ it('migrates old shift records and restores layout before owner motion, with com
   expect(useLogisticsLayoutStore.getState().observation.activeSeconds).toBe(0);
   saved.logistics.layout.staging.shipping = [0, 0, 73];
   expect(() => decodePhysicalSession(encodePhysicalSession(saved))).toThrow('invalid clearance');
+});
+
+it('migrates a save holding an earlier default shipping route', () => {
+  heldShift();
+  // The default shipping route until 2026-10-20: [25, 42] -> [22.5, 43] was a
+  // 158-degree reversal. Its fixed poses no longer match the default, which
+  // the clearance check would refuse, halting the restore.
+  const legacy: [number, number, number][] = [
+    [-16, 0, 42],
+    [12, 0, 42],
+    [25, 0, 42],
+    [22.5, 0, 43],
+    [22.5, 0, 48],
+    [26, 0, 48],
+    [26, 0, 42],
+    [-16, 0, 42],
+  ];
+  const saved = capturePhysicalSession();
+  saved.logistics.layout.routes.shipping = legacy.map((point) => [...point]);
+  saved.logistics.previous = structuredClone(saved.logistics.layout);
+  const restored = decodePhysicalSession(encodePhysicalSession(saved)).logistics;
+  expect(restored.layout.routes.shipping).toEqual(currentLogisticsLayout().routes.shipping);
+  expect(restored.previous?.routes.shipping).toEqual(currentLogisticsLayout().routes.shipping);
+  expect(restored.layout.routes.receiving).toEqual(saved.logistics.layout.routes.receiving);
+
+  // A corner the player moved on the old east-end approach is not carried
+  // across the hall to the new dock-door route: it returns to the default.
+  saved.logistics.layout.routes.shipping[2] = [16, 0, 41.5];
+  saved.logistics.previous = null;
+  expect(
+    decodePhysicalSession(encodePhysicalSession(saved)).logistics.layout.routes.shipping
+  ).toEqual(currentLogisticsLayout().routes.shipping);
+
+  // The squared-off route that followed, whose dropoff stood 22.5 m from the
+  // trailer, migrates the same way.
+  saved.logistics.layout.routes.shipping = [
+    [-16, 0, 42],
+    [12, 0, 42],
+    [16, 0, 42],
+    [22.5, 0, 42],
+    [22.5, 0, 48],
+    [28.5, 0, 48],
+    [28.5, 0, 42],
+    [-16, 0, 42],
+  ];
+  expect(
+    decodePhysicalSession(encodePhysicalSession(saved)).logistics.layout.routes.shipping
+  ).toEqual(currentLogisticsLayout().routes.shipping);
+
+  // The dock-door route whose dropoff set the pallet on the channel floor
+  // below a 2 m deck, and the receiving route whose pickup stood 28 m from its
+  // trailer, migrate too.
+  saved.logistics.layout.routes.shipping = [
+    [-16, 0, 42],
+    [-10, 0, 42],
+    [-5, 0, 42],
+    [0, 0, 42],
+    [0, 0, 47.25],
+    [0, 0, 42],
+    [-8, 0, 42],
+    [-16, 0, 42],
+  ];
+  saved.logistics.layout.routes.receiving = [
+    [-28, 0, -43],
+    [-28, 0, -38],
+    [-28, 0, -30],
+    [-28, 0, -22],
+    [-35, 0, -22],
+    [-35, 0, -38],
+  ];
+  const both = decodePhysicalSession(encodePhysicalSession(saved)).logistics.layout.routes;
+  expect(both.shipping).toEqual(currentLogisticsLayout().routes.shipping);
+  expect(both.receiving).toEqual(currentLogisticsLayout().routes.receiving);
+});
+
+it('restores a save from before real-size machines with the installed machine sizes', () => {
+  heldShift();
+  // Saves written before the process machines were installed at real size
+  // carry their authored sizes. Rendering ignores `size`, but collision,
+  // selection and the layout-plan export read it.
+  const authored = {
+    [MachineType.ROLLER_MILL]: [7.8, 6.7, 5.7],
+    [MachineType.PLANSIFTER]: [7, 7.56, 7],
+    [MachineType.PACKER]: [4, 6, 4],
+  } as const;
+  const saved = capturePhysicalSession();
+  const [template] = saved.production.machines;
+  saved.production.machines = [
+    [SITE_LAYOUT.machines.rollerMills[0], MachineType.ROLLER_MILL],
+    [SITE_LAYOUT.machines.sifters[0], MachineType.PLANSIFTER],
+    [SITE_LAYOUT.machines.packers[0], MachineType.PACKER],
+  ].map(([anchor, type]) => {
+    const { id, position } = anchor as { id: string; position: readonly number[] };
+    const kind = type as keyof typeof authored;
+    return {
+      ...template,
+      id,
+      type: kind,
+      position: [...position] as [number, number, number],
+      size: [...authored[kind]] as [number, number, number],
+    };
+  });
+  const installed = {
+    [MachineType.ROLLER_MILL]: SITE_LAYOUT.machineDimensions.rollerMill,
+    [MachineType.PLANSIFTER]: SITE_LAYOUT.machineDimensions.sifter,
+    [MachineType.PACKER]: SITE_LAYOUT.machineDimensions.packer,
+  } as const;
+  const restored = decodePhysicalSession(encodePhysicalSession(saved)).production.machines;
+  for (const machine of restored)
+    expect(machine.size, machine.id).toEqual([
+      ...installed[machine.type as keyof typeof installed],
+    ]);
+
+  // Collision and selection envelopes, and the exported plan footprint, are
+  // exactly those of the installed machines.
+  const canonical = restored.map((machine) => ({
+    ...machine,
+    size: [...installed[machine.type as keyof typeof installed]] as [number, number, number],
+  }));
+  expect(createMachineObstacles(1, restored)).toEqual(createMachineObstacles(1, canonical));
+  const snapshot = (machines: typeof restored): LayoutSnapshot => ({
+    capturedAt: '2026-10-21',
+    simulationTime: 0,
+    machines,
+    segments: [],
+    buffers: [],
+    obstacles: planningObstacles(),
+    packerKgPerSecond: 0,
+  });
+  const plan = currentLogisticsLayout();
+  expect(layoutPlanDxf(snapshot(restored), plan)).toEqual(layoutPlanDxf(snapshot(canonical), plan));
+  const mill = restored.find((machine) => machine.type === MachineType.ROLLER_MILL)!;
+  expect(mill.size[0]).toBeLessThan(4);
 });
 
 describe('save size and scene-owner visibility', () => {

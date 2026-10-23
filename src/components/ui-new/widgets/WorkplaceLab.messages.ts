@@ -58,7 +58,7 @@ const PT_DECISION: Record<string, string> = {
   'penalize-refusal': 'penalizar a recusa',
 };
 
-const PT_TASK: Record<string, string> = {
+export const PT_TASK: Record<string, string> = {
   Packing: 'Ensaque',
   'Pallet checks': 'Conferência de paletes',
   'Quality release': 'Liberação de qualidade',
@@ -140,12 +140,12 @@ export const workplaceLabMessages = defineMessages({
     profileCooperative: 'Member governance: cooperative and bounded execution',
     startCampaign: 'Start Living Cooperative campaign',
     campaignPaceNote:
-      'Local game only. Starting selects Relaxed pace, 1/6 of Standard (30× simulated time, compared with Standard 180×). Profiles introduce practices incrementally; every profile retains basic protections.',
-    startGame: 'Start playable shift at teaching pace (15×)',
+      'Local game only. Starting selects standard pace (1x), where the clock, production and vehicles run together. Profiles introduce practices incrementally; every profile retains basic protections.',
+    startGame: 'Start playable shift at teaching pace (1/2x)',
     startWorkshop: 'Start manual workshop',
     preparePilot: 'Prepare pilot charter',
     gameNote:
-      'Opt in to local simulation control. This standalone teaching pace runs at 1/12 of Standard (15× simulated time). Campaign Relaxed pace is 1/6 of Standard (30×).',
+      'Opt in to local simulation control. This standalone teaching pace runs at half of standard pace (1/2x); a campaign runs at standard pace (1x).',
     otherNote:
       'No live plant control. Workshop inputs remain manual; pilot preparation permits charter design and export only.',
     shiftHeading: 'Shift {number} of 3: {title}',
@@ -327,11 +327,14 @@ export const workplaceLabMessages = defineMessages({
     campaignIncomplete:
       'Campaign review: delivery or working agreement remains incomplete. Earned pay, recovery obligations and the shift history remain recorded.',
     continueCampaign: 'Continue to next campaign shift',
-    startNextGame: 'Start next playable shift at teaching pace (15×)',
+    startNextGame: 'Start next playable shift at teaching pace (1/2x)',
     startNextWorkshop: 'Start next manual workshop',
     prepareNextPilot: 'Prepare next pilot draft',
     shippedOf: 'Shipped {shipped} of {target} kg.',
     reviewOpens: 'Review opens after the shift finishes.',
+    resumeAfterReloadNote:
+      'A reload paused this shift at minute {minute} and expired every grant. It can carry on from there once everyone consents again; nothing runs before that.',
+    resumeShift: 'Resume the shift with fresh consent',
     relationshipEvidence: 'Relationship evidence',
     relationshipEvidenceLine:
       'Refusals respected: {refusals}. Promises kept: {promises}. Open objections: {open}. Current agreement confirmations: {confirmed}/{total}.',
@@ -357,7 +360,18 @@ export const workplaceLabMessages = defineMessages({
     allocateSurplus:
       "Allocate {amount} credits to the community. That cash leaves the next shift's budget.",
     ballotsRequired: 'Three member ballots are required. Earned obligations must be settled first.',
-    surplusCharter: 'Shared surplus is part of the Member governance charter.',
+    surplusCharter:
+      'Shared surplus is part of the Coordinator-led and Member governance charters. Under this one, any surplus stays in the cooperative cash.',
+    noSurplusReason:
+      'No surplus this shift: revenue {revenue} did not cover material costs {cost}, wages {wages}, cover {cover} and purchases {purchases}.',
+    followOnCredit:
+      'Commitment order fulfilled. This season now works {customer}: {credited} kg of its dispatch credited to the cooperative.',
+    followOnPending:
+      'Commitment order fulfilled. Dispatch to {customer} is credited to the cooperative from the next shift.',
+    followOnNone:
+      'Commitment order fulfilled. No other customer order is open, so further dispatch earns the cooperative nothing. The next shift links one if the mill has one open by then.',
+    followOnNoneLastShift:
+      'Commitment order fulfilled. This is the season’s last shift, so further dispatch earns the cooperative nothing.',
     recordSurplusBallot: 'Record member surplus ballot',
     noSurplusBallots: 'No surplus ballots.',
     executeAllocation: 'Execute agreed allocation',
@@ -460,12 +474,12 @@ export const workplaceLabMessages = defineMessages({
     profileCooperative: 'Governança dos cooperados: cooperativa e execução delimitada',
     startCampaign: 'Iniciar a campanha Cooperativa Viva',
     campaignPaceNote:
-      'Somente jogo local. Ao iniciar, o ritmo Tranquilo é selecionado: 1/6 do Padrão (tempo simulado a 30×, contra 180× no Padrão). Os perfis introduzem práticas aos poucos; todo perfil mantém as proteções básicas.',
-    startGame: 'Iniciar turno jogável em ritmo didático (15×)',
+      'Somente jogo local. Ao iniciar, o ritmo padrão (1x) é selecionado: relógio, produção e veículos avançam juntos. Os perfis introduzem práticas aos poucos; todo perfil mantém as proteções básicas.',
+    startGame: 'Iniciar turno jogável em ritmo didático (1/2x)',
     startWorkshop: 'Iniciar oficina manual',
     preparePilot: 'Preparar estatuto do piloto',
     gameNote:
-      'Adesão opcional ao controle da simulação local. Este ritmo didático avulso roda a 1/12 do Padrão (tempo simulado a 15×). O ritmo Tranquilo da campanha é 1/6 do Padrão (30×).',
+      'Adesão opcional ao controle da simulação local. Este ritmo didático avulso roda à metade do ritmo padrão (1/2x); uma campanha roda no ritmo padrão (1x).',
     otherNote:
       'Sem controle da planta real. As entradas da oficina continuam manuais; a preparação do piloto permite apenas desenhar e exportar o estatuto.',
     shiftHeading: 'Turno {number} de 3: {title}',
@@ -647,11 +661,14 @@ export const workplaceLabMessages = defineMessages({
     campaignIncomplete:
       'Revisão da campanha: a entrega ou o acordo de trabalho continua incompleto. A remuneração conquistada, as obrigações de recuperação e o histórico do turno continuam registrados.',
     continueCampaign: 'Continuar para o próximo turno da campanha',
-    startNextGame: 'Iniciar o próximo turno jogável em ritmo didático (15×)',
+    startNextGame: 'Iniciar o próximo turno jogável em ritmo didático (1/2x)',
     startNextWorkshop: 'Iniciar a próxima oficina manual',
     prepareNextPilot: 'Preparar o próximo rascunho do piloto',
     shippedOf: 'Expedidos {shipped} de {target} kg.',
     reviewOpens: 'A revisão abre quando o turno terminar.',
+    resumeAfterReloadNote:
+      'Uma recarga pausou este turno no minuto {minute} e expirou todas as autorizações. Ele pode continuar dali quando todos consentirem de novo; nada roda antes disso.',
+    resumeShift: 'Retomar o turno com novo consentimento',
     relationshipEvidence: 'Evidências da relação',
     relationshipEvidenceLine:
       'Recusas respeitadas: {refusals}. Promessas cumpridas: {promises}. Objeções abertas: {open}. Confirmações do acordo atual: {confirmed}/{total}.',
@@ -681,7 +698,17 @@ export const workplaceLabMessages = defineMessages({
     ballotsRequired:
       'São necessários três votos dos cooperados. As obrigações já acumuladas precisam ser quitadas antes.',
     surplusCharter:
-      'As sobras compartilhadas fazem parte do estatuto de Governança dos cooperados.',
+      'As sobras compartilhadas fazem parte dos estatutos Liderado pela coordenação e Governança dos cooperados. Neste estatuto, qualquer sobra fica no caixa da cooperativa.',
+    noSurplusReason:
+      'Sem sobras neste turno: a receita de {revenue} não cobriu os custos de material de {cost}, a remuneração de {wages}, a cobertura de {cover} e as compras de {purchases}.',
+    followOnCredit:
+      'Pedido do compromisso cumprido. Esta temporada agora atende {customer}: {credited} kg da expedição creditados à cooperativa.',
+    followOnPending:
+      'Pedido do compromisso cumprido. A expedição para {customer} é creditada à cooperativa a partir do próximo turno.',
+    followOnNone:
+      'Pedido do compromisso cumprido. Nenhum outro pedido de cliente está aberto, então a expedição adicional não rende nada à cooperativa. O próximo turno vincula um se o moinho tiver algum aberto até lá.',
+    followOnNoneLastShift:
+      'Pedido do compromisso cumprido. Este é o último turno da temporada, então a expedição adicional não rende nada à cooperativa.',
     recordSurplusBallot: 'Registrar voto do cooperado sobre as sobras',
     noSurplusBallots: 'Nenhum voto sobre as sobras.',
     executeAllocation: 'Executar a destinação acordada',

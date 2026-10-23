@@ -6,6 +6,7 @@ import { isBenchmarkRuntime } from '../../../runtime/runtimeMode';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
 import { useUIStore } from '../../../stores/uiStore';
 import { useAnnouncementsStore } from '../../../stores/announcementsStore';
+import { useMobileControlStore } from '../../../stores/mobileControlStore';
 import { turnChecks } from '../../../simulation/workplaceParticipation';
 import {
   demonstrationBeats,
@@ -254,7 +255,12 @@ export function WorkplaceFairness() {
           className="space-y-1 border-t border-slate-800 py-3"
         >
           <h5 className="font-semibold text-white">{r.role}</h5>
-          <p>{t('qualifiedTasks', { tasks: r.qualifiedTasks.join(', '), task: r.currentTask })}</p>
+          <p>
+            {t('qualifiedTasks', {
+              tasks: r.qualifiedTasks.map((task) => t('taskLabel', { task })).join(', '),
+              task: t('taskLabel', { task: r.currentTask }),
+            })}
+          </p>
           <p>
             {t('dutyLine', {
               duty:
@@ -432,6 +438,11 @@ export function WorkplaceAutoplayStatus() {
   const tourShowing = useAnnouncementsStore((s) => s.context.onboarding);
   const journeyVisible = useUIStore((s) => s.journeyVisible);
   const guideCardShowing = tourShowing || journeyVisible;
+  // The compact-layout sheet is modal and inerts its own siblings, but this
+  // notice is rendered outside them: at 390 px wide it sat over the sheet's
+  // throughput and efficiency values. It yields while a sheet is open.
+  // Working if the sheet's metrics are uncovered and the notice returns on close.
+  const mobileSheetOpen = useMobileControlStore((s) => s.mobilePanelVisible);
   // Closing the tour with X leaves hasSeenIntro unset, so remember that this
   // mount has seen the tour rather than waiting for the persisted flag.
   const tourSeen = useRef(false);
@@ -441,14 +452,16 @@ export function WorkplaceAutoplayStatus() {
       if (state.context.onboarding) tourSeen.current = true;
     });
   }, []);
+  // A season that was running when the page reloaded resumes with its own
+  // profile; otherwise admission starts a fresh default season once.
+  const resumeProfile = automatic.resumeProfile;
   useEffect(() => {
     if (
-      automatic.manual ||
       automatic.running ||
-      !orderId ||
       store.participationMode !== 'solo' ||
       store.workplace.mode !== 'game' ||
-      store.workplace.phase !== 'idle'
+      // A new season binds an active order; a resumed one outlives it.
+      (!resumeProfile && (!orderId || automatic.manual || store.workplace.phase !== 'idle'))
     )
       return;
     const admit = () => {
@@ -461,7 +474,7 @@ export function WorkplaceAutoplayStatus() {
       if (useAnnouncementsStore.getState().context.onboarding) return;
       if (!useUIStore.getState().hasSeenIntro && !tourSeen.current) return;
       if (document.documentElement.dataset.millosStartupReady === 'true')
-        automatic.start('toe-dip');
+        automatic.start(resumeProfile ?? 'toe-dip');
     };
     admit();
     const timer = window.setInterval(admit, 1000);
@@ -470,12 +483,13 @@ export function WorkplaceAutoplayStatus() {
     automatic.manual,
     automatic.running,
     automatic.start,
+    resumeProfile,
     orderId,
     store.participationMode,
     store.workplace.mode,
     store.workplace.phase,
   ]);
-  if (!automatic.running) return null;
+  if (!automatic.running || mobileSheetOpen) return null;
   // The tour and first-delivery cards sit from bottom-[11.5rem] in the same
   // bottom-left column. Beside them the notice collapses to its one 44px
   // takeover control, which ends below the card instead of under it.
@@ -495,10 +509,24 @@ export function WorkplaceAutoplayStatus() {
       }
     >
       <p className={compact ? 'sr-only' : undefined}>{t('autonomousSeason')}</p>
+      <p className={compact ? 'sr-only' : 'mt-1 max-w-xs text-slate-300'}>
+        {t('autonomousSeasonDetail')}
+      </p>
+      {/* Taking over hands the decisions to the player where they can make
+          them, and never freezes the plant: the shift keeps its pace. Running
+          the demo again from that panel reverses it. Working if Take over opens
+          the BAS season with the clock still running. */}
+      {/* No aria-label: the visible words are the name in both wordings, so a
+          voice-control user can say what they see (WCAG 2.5.3). */}
       <button
-        aria-label={t('takeOver')}
+        title={t('autonomousSeasonDetail')}
         className={`${button} ${compact ? 'max-w-full bg-slate-950 shadow-lg' : 'mt-2'}`}
-        onClick={() => automatic.pause()}
+        onClick={() => {
+          automatic.pause(true);
+          window.dispatchEvent(
+            new CustomEvent('millos:open-operations-workspace', { detail: 'autonomy' })
+          );
+        }}
       >
         {compact ? t('takeOverCompact') : t('takeOver')}
       </button>

@@ -13,6 +13,8 @@ import {
   DOCK_PLATFORM_OBSTACLES,
 } from '../constants/factoryObstacles';
 import { STAGING_LAYOUT } from '../components/truckbay/palletStagingLayout';
+import { hallDressingSolids } from '../components/infrastructure/hallDressingLayout';
+import { DOCK_DECK_FORK_HEIGHT } from '../constants/dockLoading';
 import {
   createRoundedForkliftRoute,
   FORKLIFT_CORNER_SETBACK,
@@ -89,6 +91,25 @@ export function planningObstacles(
       id: asset.id,
       ...getServiceAssetBounds(asset),
     })),
+    // The hall's floor dressing (sack bays, racks, carts, reels, hoses). A route
+    // corner dragged through a sack bay must be refused like one through a
+    // machine. Overhead steel and flat dust are not in a forklift's way.
+    // Saved layouts are re-scored on load (`validateSavedLogisticsLayout`), so a
+    // save that crossed the dressing would no longer restore; none can exist:
+    // every editable corner (receiving 2 and 6, shipping 2) was swept over the
+    // whole floor at 1 m and no layout feasible without the dressing meets it,
+    // because each corner's legs must cross a belt to reach it.
+    ...hallDressingSolids()
+      .filter((solid) => solid.onFloor)
+      .map(({ id, minX, maxX, minY, maxY, minZ, maxZ }) => ({
+        id,
+        minX,
+        maxX,
+        minY,
+        maxY,
+        minZ,
+        maxZ,
+      })),
   ];
 }
 
@@ -135,11 +156,31 @@ export function protectedEgressApproaches(): Array<PlanningBounds & { id: string
   });
 }
 
+/**
+ * Route vertices that are pickups and dropoffs, and which of them is worked
+ * at the dock deck (the trailer's tail) rather than on the floor. Shipping
+ * loads its trailer; receiving unloads its own.
+ */
+const ROUTE_ACTION_VERTICES: Record<
+  Dock,
+  { pickup: number; dropoff: number; atDock: 'pickup' | 'dropoff' }
+> = {
+  shipping: { pickup: 0, dropoff: 4, atDock: 'dropoff' },
+  receiving: { pickup: 4, dropoff: 8, atDock: 'pickup' },
+};
+
 export function planningRouteActions(dock: Dock): ForkliftWaypointAction[] {
-  return SITE_LAYOUT.routes.forklifts[dock].points.map((_, index) => ({
-    type: index === 0 ? 'pickup' : index === (dock === 'shipping' ? 4 : 3) ? 'dropoff' : 'none',
-    duration: index === 0 ? 7 : index === (dock === 'shipping' ? 4 : 3) ? 6 : 0,
-  }));
+  const vertices = ROUTE_ACTION_VERTICES[dock];
+  return SITE_LAYOUT.routes.forklifts[dock].points.map((_, index) => {
+    const type =
+      index === vertices.pickup ? 'pickup' : index === vertices.dropoff ? 'dropoff' : 'none';
+    if (type === 'none') return { type, duration: 0 };
+    return {
+      type,
+      duration: type === 'pickup' ? 7 : 6,
+      ...(type === vertices.atDock ? { surfaceForkHeight: DOCK_DECK_FORK_HEIGHT } : {}),
+    };
+  });
 }
 
 /** Freeze operational poses and both approach legs. Edits only affect travel corners. */
@@ -150,6 +191,9 @@ export function isEditableRoutePoint(dock: Dock, index: number): boolean {
   // remains the incoming pickup approach despite the repeat's empty action.
   if (index === points.length - 2 && distance(points[0], points[points.length - 1]) < 1e-6)
     return false;
+  // The first vertex is where the fleet starts its vehicle: it and the legs
+  // either side stay fixed, so an apply can always find the vehicle's leg.
+  if (index === 0 || index === 1) return false;
   return (
     [index, (index + 1) % actions.length, (index - 1 + actions.length) % actions.length].every(
       (i) => actions[i].type === 'none'
@@ -347,7 +391,7 @@ export function scoreLogisticsLayout(
     );
     const crossings = hazards.filter(({ bounds }) => routeIntersectsBoundsXZ(route, bounds)).length;
     const trips = assumptions.tripsPerHour[dock];
-    const actionIndex = dock === 'shipping' ? 4 : 0;
+    const actionIndex = ROUTE_ACTION_VERTICES[dock][ROUTE_ACTION_VERTICES[dock].atDock];
     const centre: Vec3Tuple = [(stage.minX + stage.maxX) / 2, 0, (stage.minZ + stage.maxZ) / 2];
     // Rectilinear handling distance, rather than a shortcut through a platform.
     const destination = points[actionIndex];

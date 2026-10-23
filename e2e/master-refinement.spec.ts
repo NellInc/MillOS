@@ -1,6 +1,5 @@
-import AxeBuilder from '@axe-core/playwright';
 import { expect, Page, test } from '@playwright/test';
-import type { TestInfo } from '@playwright/test';
+import { expectNoWcagViolations } from './support/wcag';
 
 interface RuntimeDiagnostics {
   consoleErrors: string[];
@@ -20,40 +19,6 @@ interface E2EInteraction {
 interface E2EDownload {
   filename: string;
   href: string;
-}
-
-async function expectNoWcagViolations(page: Page, testInfo: TestInfo, state: string) {
-  // A newly visible sidebar is still fading in. Sample its settled colours,
-  // rather than measuring white text halfway through the entrance animation.
-  await expect
-    .poll(() =>
-      page
-        .locator('aside:visible')
-        .evaluateAll((panels) =>
-          panels.every((panel) => Number(getComputedStyle(panel).opacity) >= 0.9999)
-        )
-    )
-    .toBe(true);
-  const results = await new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-    .analyze();
-  const violations = results.violations.map((violation) => ({
-    id: violation.id,
-    impact: violation.impact,
-    help: violation.help,
-    nodes: violation.nodes.map((node) => ({
-      target: node.target,
-      summary: node.failureSummary,
-    })),
-  }));
-
-  if (violations.length > 0) {
-    await testInfo.attach(`axe-${state}`, {
-      body: Buffer.from(JSON.stringify(violations, null, 2)),
-      contentType: 'application/json',
-    });
-  }
-  expect(violations, `${state} has WCAG A or AA violations`).toEqual([]);
 }
 
 function collectRuntimeDiagnostics(page: Page): RuntimeDiagnostics {
@@ -201,9 +166,6 @@ async function waitForCoreExperience(page: Page) {
     });
   });
   await page.goto('/');
-  await page
-    .waitForSelector('text=INITIALIZING DIGITAL TWIN', { state: 'detached', timeout: 60_000 })
-    .catch(() => {});
   await page.getByRole('button', { name: 'Mill Overview' }).waitFor({ timeout: 240_000 });
   await page.waitForFunction(
     () => document.documentElement.dataset.sceneReady === 'true',
@@ -216,6 +178,19 @@ async function waitForCoreExperience(page: Page) {
   // between steps, which made the final action intermittently unactionable.
   await page.waitForFunction(
     () => document.documentElement.dataset.millosWorldReady === 'true',
+    undefined,
+    { timeout: 240_000 }
+  );
+  // World readiness is not the end of loading: the 'Loading MillOS' cover
+  // stays over the scene until strict startup readiness, then fades for
+  // 220 ms before it unmounts. On a loaded machine the first axe scan ran
+  // over that cover, so wait for both, as capture-operational-review.mjs does.
+  // The cover's 'Open loaded scene' path sets millosStartupDegraded, never
+  // millosStartupReady; this suite never takes it.
+  await page.waitForFunction(
+    () =>
+      document.documentElement.dataset.millosStartupReady === 'true' &&
+      document.querySelector('[aria-label="Loading MillOS"]') === null,
     undefined,
     { timeout: 240_000 }
   );

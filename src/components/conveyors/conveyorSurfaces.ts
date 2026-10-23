@@ -39,14 +39,14 @@
  * COORDINATE SPACE: THE ROLLERS SPIN, SO THEY CANNOT USE THE WORLD FIELD
  * ===========================================================================
  *
- * `RollerConveyor` recomposes all 25 instance matrices every frame with a fresh
+ * `RollerConveyor` recomposes all of its instance matrices every frame with a fresh
  * `_tempEuler.set(Math.PI / 2, rotation, 0)`. A world-space detail field is
  * nailed to the world, so a rotating surface sliding through it makes the
  * detail SWIM across the roller - the same failure the worker bodies have, for
  * the same reason. The roller profile therefore overrides `objectSpace` to 1,
  * which welds the field to the geometry.
  *
- * The trade is that all 25 instances then sample IDENTICALLY, because object
+ * The trade is that all the instances then sample IDENTICALLY, because object
  * space is taken from the shared `position` attribute rather than from
  * `transformed`. For rollers cut from one drum that is correct - they are
  * identical parts. Do NOT copy the override onto the frames or the rails: those

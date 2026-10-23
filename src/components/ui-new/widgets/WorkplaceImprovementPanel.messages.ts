@@ -106,6 +106,15 @@ export const workplaceImprovementPanelMessages = defineMessages({
     profileTeam: 'Team agreement',
     profileCooperative: 'Member governance',
     openExperiment: 'Open the handoff experiment',
+    openHoldNote:
+      'Opening it holds the plant clock while the team decides, so the adviser forecast stays true. You can cancel it until the trial is funded.',
+    holdHeading: 'Plant clock held for this decision',
+    cancelExperiment: 'Cancel the handoff experiment',
+    cancelNote:
+      'Nothing is funded yet, so cancelling returns to the review you started from, with its pay, receipts and customer work unchanged, and the plant resumes at the pace above.',
+    endToReviewNote:
+      'This later shift keeps earlier trial pay, so it cannot be cancelled. Ending it moves to its member review; finalising that review releases the plant.',
+    finaliseToReleaseNote: 'Finalising the member review below releases the plant.',
     seasonOpened: 'Season opened. Use Shift and Agreement / Voices for current decisions.',
     pilotPlanningOnly:
       'Pilot preparation remains planning-only. Use Game or Workshop for a local experiment.',
@@ -199,9 +208,12 @@ export const workplaceImprovementPanelMessages = defineMessages({
     reviewRecorded: (p: VerdictParams) =>
       `Review recorded: ${p.verdict}. Every ending preserves the learning and earned obligations.`,
     completeGame:
-      'This handoff experiment is complete. The plant runs normally again: choose a shift pace to resume production. Another handoff shift is optional.',
+      'This handoff experiment is complete. The plant runs normally again at the shift pace below; change it there if you like. Another handoff shift is optional.',
     completeWorkshop: 'This handoff experiment is complete. Another handoff shift is optional.',
     openNextShift: 'Open next handoff shift',
+    closeExperiment: 'Close the handoff experiment',
+    closeNote:
+      'Closing ends the experiment without opening another shift. Pay was paid and nothing is owed, so the laboratory returns to idle for a fresh exercise or season. A season it began from, if any, is kept with your seasons; the shift receipts of this experiment are not kept after closing.',
     earlierDecisions: 'Earlier decisions and retained receipts',
     originNote:
       'Origin closing cash: {cash} credits. Earlier earned pay and any campaign review remain retained; old consent supplies no current permission.',
@@ -223,6 +235,15 @@ export const workplaceImprovementPanelMessages = defineMessages({
     profileTeam: 'Acordo da equipe',
     profileCooperative: 'Governança dos cooperados',
     openExperiment: 'Abrir o experimento de passagem de turno',
+    openHoldNote:
+      'Abrir o experimento para o relógio da planta enquanto a equipe decide, para que a previsão do conselheiro continue válida. Você pode cancelá-lo até o teste ser financiado.',
+    holdHeading: 'Relógio da planta parado para esta decisão',
+    cancelExperiment: 'Cancelar o experimento de passagem de turno',
+    cancelNote:
+      'Nada foi financiado ainda, então cancelar volta à revisão de onde você partiu, com a remuneração, os comprovantes e o trabalho para clientes inalterados, e a planta retoma no ritmo acima.',
+    endToReviewNote:
+      'Este turno posterior mantém a remuneração de testes anteriores, então não pode ser cancelado. Encerrá-lo leva à avaliação dos cooperados; concluir essa avaliação libera a planta.',
+    finaliseToReleaseNote: 'Concluir a avaliação dos cooperados abaixo libera a planta.',
     seasonOpened: 'Temporada aberta. Use Turno e Acordo / Vozes para as decisões atuais.',
     pilotPlanningOnly:
       'A preparação de piloto continua apenas como planejamento. Use Jogo ou Oficina para um experimento local.',
@@ -321,10 +342,13 @@ export const workplaceImprovementPanelMessages = defineMessages({
     reviewRecorded: (p: VerdictParams) =>
       `Revisão registrada: ${pt(PT_VERDICT, p.verdict)}. Todo desfecho preserva o aprendizado e as obrigações já devidas.`,
     completeGame:
-      'Este experimento de passagem de turno está concluído. A planta volta a funcionar normalmente: escolha um ritmo do turno para retomar a produção. Outro turno do experimento é opcional.',
+      'Este experimento de passagem de turno está concluído. A planta volta a funcionar normalmente no ritmo do turno abaixo; mude-o ali se quiser. Outro turno do experimento é opcional.',
     completeWorkshop:
       'Este experimento de passagem de turno está concluído. Outro turno do experimento é opcional.',
     openNextShift: 'Abrir o próximo turno do experimento',
+    closeExperiment: 'Encerrar o experimento de passagem de turno',
+    closeNote:
+      'Encerrar finaliza o experimento sem abrir outro turno. A remuneração foi paga e nada está devido, então o laboratório volta a ficar ocioso para um novo exercício ou temporada. A temporada de onde ele partiu, se houver, fica guardada com as suas temporadas; os comprovantes dos turnos deste experimento não são mantidos depois de encerrar.',
     earlierDecisions: 'Decisões anteriores e comprovantes mantidos',
     originNote:
       'Caixa de fechamento de origem: {cash} créditos. A remuneração conquistada anteriormente e qualquer revisão de campanha continuam mantidas; um consentimento antigo não concede permissão atual.',

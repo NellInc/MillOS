@@ -25,6 +25,17 @@ export const statusHudMessages = defineMessages({
     lineIdleTitle:
       'The rest of this order is already packed. Milling resumes once it is dispatched.',
     lineIdleText: 'Line idle: order packed, awaiting dispatch',
+    lineChangeoverLabel: 'Changing over: the line is starting the next order, for {customer}',
+    lineChangeoverTitle:
+      "The rest of this order is packed and waits for its truck. The line is filling with the next commitment's grain, so packing resumes shortly.",
+    lineChangeoverText: 'Changing over to the next order',
+    agreementPacingLabel: 'The cooperative agreement paces the line at {value}% of the plant rate',
+    agreementPacingTitle:
+      'The cooperative season runs to its agreed plan, which sets the line pace. The Bilateral Autonomy System (BAS) panel shows the plan and who chose it.',
+    agreementPacingText: 'Agreement pacing {value}%',
+    agreementBetweenLabel:
+      'The cooperative agreement is between shifts, so it is not pacing the line',
+    agreementBetweenText: 'Agreement between shifts',
     dailyTargetLabel: 'Daily target {produced} of {target} bags',
     targetValue: 'Target {produced} / {target}',
     runWindowLabel: '{shift} run window, simulation time {time}',
@@ -47,6 +58,8 @@ export const statusHudMessages = defineMessages({
     acknowledgeLabel: 'Acknowledge {title}',
     dismiss: 'Dismiss',
     dismissLabel: 'Dismiss {title}',
+    openRepair: 'Open repair',
+    openRepairLabel: 'Open repair for {title}',
     markAllRead: 'Mark all as read',
   },
   'pt-BR': {
@@ -65,6 +78,19 @@ export const statusHudMessages = defineMessages({
     lineIdleTitle:
       'O restante deste pedido já está ensacado. A moagem é retomada assim que ele for expedido.',
     lineIdleText: 'Linha ociosa: pedido ensacado, aguardando expedição',
+    lineChangeoverLabel:
+      'Troca de pedido: a linha está começando o próximo pedido, para {customer}',
+    lineChangeoverTitle:
+      'O restante deste pedido está ensacado e aguarda o caminhão. A linha está recebendo o grão do próximo compromisso, então o ensaque volta em breve.',
+    lineChangeoverText: 'Trocando para o próximo pedido',
+    agreementPacingLabel:
+      'O acordo da cooperativa define o ritmo da linha em {value}% da taxa da planta',
+    agreementPacingTitle:
+      'A temporada cooperativa segue o plano acordado, que define o ritmo da linha. O painel Sistema de Autonomia Bilateral (BAS) mostra o plano e quem o escolheu.',
+    agreementPacingText: 'Ritmo do acordo {value}%',
+    agreementBetweenLabel:
+      'O acordo da cooperativa está entre turnos, então não define o ritmo da linha',
+    agreementBetweenText: 'Acordo entre turnos',
     dailyTargetLabel: 'Meta diária: {produced} de {target} sacos',
     targetValue: 'Meta {produced} / {target}',
     runWindowLabel: 'Janela de operação da {shift}, horário da simulação {time}',
@@ -87,6 +113,8 @@ export const statusHudMessages = defineMessages({
     acknowledgeLabel: 'Reconhecer {title}',
     dismiss: 'Dispensar',
     dismissLabel: 'Dispensar {title}',
+    openRepair: 'Abrir reparo',
+    openRepairLabel: 'Abrir reparo de {title}',
     markAllRead: 'Marcar todas como lidas',
   },
 });

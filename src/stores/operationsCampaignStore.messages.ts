@@ -38,14 +38,17 @@ export const operationsCampaignMessages = defineMessages({
     sourceDispatchController: 'Dispatch controller',
     sourceProductionExecution: 'Production execution',
     sourceControlLayer: 'Control layer',
+    sourceScada: 'SCADA',
 
     // Logbook messages
+    logChallengeStarted: 'Started the recovery challenge: {label}.',
     logChallengeAbandoned: 'Challenge abandoned; its incident controls remain active.',
     logProgrammeAccepted:
-      'Accepted three 3,000 kg repeat commitments. Existing material and genealogy remain unchanged.',
+      'Accepted programme {number}: rush {customer} {rushKg} kg, {totalKg} kg in all. Existing material and genealogy remain unchanged.',
     logProgrammeInitialized: 'Production programme initialized from equipment and inventory state.',
     logOrderActivated: '{customer}: {recipe} is now the active commitment.',
     logIncidentAcknowledged: '{title} acknowledged.',
+    logSetpointWritten: '{tag} set to {reading}.',
     logIncidentMitigated: '{title} mitigated; residual effect halved.',
     logIncidentResolved: '{title} resolved and controls returned to normal.',
     logManifestAllocated:
@@ -55,6 +58,8 @@ export const operationsCampaignMessages = defineMessages({
     execPlanning: 'Production route planned.',
     execPackedResting:
       'The rest of this order is already packed; the line rests until shipping collects it.',
+    execPackedPrestaging:
+      'The rest of this order is packed and waits for its truck, so the line has started the next commitment for {customer}.',
     execProcessing: 'Processing {material} for the active recipe.',
     materialWheatGrain: 'wheat grain',
     materialCornGrain: 'corn grain',
@@ -83,19 +88,18 @@ export const operationsCampaignMessages = defineMessages({
     constraintDispatchLabel: 'Dispatch isolated',
     constraintDispatchDetail:
       'An active incident requires the shipping quality gate to remain closed.',
-    constraintMaintenanceLabel: 'Maintenance queue',
+    constraintMaintenanceLabel: 'Machine stopped for repair',
     constraintMaintenanceDetail: (p: { count: number; countText: string }) =>
-      `${p.countText} autonomous work order${p.count === 1 ? '' : 's'} open.`,
-
-    // Period grading
-    gradeDispatchReason: '{kg} kg dispatched; net contribution {margin} after recorded costs.',
-    gradeRiskReason: (p: { count: number; countText: string }) =>
-      `${p.countText} material or deadline risks carried into the next period.`,
-    gradeQualityFailureReason:
-      '{kg} kg failed the commitment quality threshold; quality failure caps the grade at F.',
-    gradeUnsafeReason: 'Unresolved high-severity controls cap the grade at D: {titles}.',
-    reportSummaryGood:
-      '{kg} kg shipped with nonnegative contribution and controlled carry-over risk.',
+      `${p.countText} work order${p.count === 1 ? '' : 's'} open. Open Mill Overview, Maintenance to dispatch service, verify the repair and restart.`,
+    constraintMachineDownDetail: (p: {
+      machine: string;
+      workOrderId: string;
+      others: number;
+      othersText: string;
+    }) =>
+      `${p.machine} is stopped on work order ${p.workOrderId}${
+        p.others > 0 ? `, with ${p.othersText} more open` : ''
+      }. Open Mill Overview, Maintenance to dispatch service, verify the repair and restart it.`,
   },
   'pt-BR': {
     recipeStrongWhite: 'Farinha de trigo forte para pão',
@@ -134,14 +138,17 @@ export const operationsCampaignMessages = defineMessages({
     sourceDispatchController: 'Controlador de expedição',
     sourceProductionExecution: 'Execução da produção',
     sourceControlLayer: 'Camada de controle',
+    sourceScada: 'SCADA',
 
+    logChallengeStarted: 'Desafio de recuperação iniciado: {label}.',
     logChallengeAbandoned: 'Desafio abandonado; os controles da ocorrência continuam ativos.',
     logProgrammeAccepted:
-      'Foram aceitos três compromissos recorrentes de 3.000 kg. O material e a genealogia existentes permanecem inalterados.',
+      'Programa {number} aceito: urgência {customer} {rushKg} kg, {totalKg} kg no total. O material e a genealogia existentes permanecem inalterados.',
     logProgrammeInitialized:
       'Programa de produção inicializado a partir do estado dos equipamentos e do estoque.',
     logOrderActivated: '{customer}: {recipe} agora é o compromisso ativo.',
     logIncidentAcknowledged: 'Ocorrência reconhecida: {title}.',
+    logSetpointWritten: '{tag} ajustado para {reading}.',
     logIncidentMitigated: 'Ocorrência mitigada: {title}; efeito residual reduzido à metade.',
     logIncidentResolved: 'Ocorrência resolvida: {title}; controles de volta ao normal.',
     logManifestAllocated:
@@ -150,6 +157,8 @@ export const operationsCampaignMessages = defineMessages({
     execPlanning: 'Rota de produção planejada.',
     execPackedResting:
       'O restante deste pedido já está ensacado; a linha aguarda até a expedição coletá-lo.',
+    execPackedPrestaging:
+      'O restante deste pedido está ensacado e aguarda o caminhão, então a linha já começou o próximo compromisso, para {customer}.',
     execProcessing: 'Processando {material} para a receita ativa.',
     materialWheatGrain: 'trigo em grão',
     materialCornGrain: 'milho em grão',
@@ -178,22 +187,21 @@ export const operationsCampaignMessages = defineMessages({
     constraintDispatchLabel: 'Expedição isolada',
     constraintDispatchDetail:
       'Uma ocorrência ativa exige que a barreira de qualidade da expedição permaneça fechada.',
-    constraintMaintenanceLabel: 'Fila de manutenção',
+    constraintMaintenanceLabel: 'Máquina parada para reparo',
     constraintMaintenanceDetail: (p: { count: number; countText: string }) =>
-      p.count === 1
-        ? `${p.countText} ordem de serviço autônoma aberta.`
-        : `${p.countText} ordens de serviço autônomas abertas.`,
-
-    gradeDispatchReason:
-      '{kg} kg expedidos; contribuição líquida de {margin} após os custos registrados.',
-    gradeRiskReason: (p: { count: number; countText: string }) =>
-      p.count === 1
-        ? `${p.countText} risco de material ou de prazo transferido para o próximo período.`
-        : `${p.countText} riscos de material ou de prazo transferidos para o próximo período.`,
-    gradeQualityFailureReason:
-      '{kg} kg não atingiram o limite de qualidade do compromisso; a falha de qualidade limita a nota a F.',
-    gradeUnsafeReason: 'Controles de alta severidade não resolvidos limitam a nota a D: {titles}.',
-    reportSummaryGood:
-      '{kg} kg expedidos com contribuição não negativa e risco transferido ao próximo período sob controle.',
+      `${
+        p.count === 1
+          ? `${p.countText} ordem de serviço aberta.`
+          : `${p.countText} ordens de serviço abertas.`
+      } Abra Visão geral do moinho, Manutenção para enviar a equipe, verificar o reparo e reiniciar.`,
+    constraintMachineDownDetail: (p: {
+      machine: string;
+      workOrderId: string;
+      others: number;
+      othersText: string;
+    }) =>
+      `A máquina ${p.machine} está parada na ordem de serviço ${p.workOrderId}${
+        p.others > 0 ? `, com mais ${p.othersText} em aberto` : ''
+      }. Abra Visão geral do moinho, Manutenção para enviar a equipe, verificar o reparo e reiniciá-la.`,
   },
 });

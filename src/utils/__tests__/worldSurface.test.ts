@@ -10,11 +10,23 @@ import {
   canApplyWorldSurface,
   composeWorldSurface,
   hasWorldSurface,
+  indoorBounceDiffuse,
+  markSurfaceSubstrate,
   ownsOnlyWorldSurface,
+  pinSurfaceProfile,
+  pinnedSurfaceProfile,
   resolveBatchSurfaceProfile,
   resolveSurfaceProfile,
+  RIB_PROFILE_MEAN,
+  ribFilteredSwing,
+  ribFilteredValue,
+  ribRenderedSwing,
+  ribSeamFilteredValue,
   type WorldSurfaceProfileName,
 } from '../worldSurface';
+
+/** A 70 mm seam lap on a 1.8 m membrane roll, in pitches. */
+const RIB_SEAM_TEST_WIDTH = 0.07 / 1.8;
 
 const profileNames = Object.keys(WORLD_SURFACE_PROFILES) as WorldSurfaceProfileName[];
 
@@ -377,6 +389,74 @@ describe('profile resolution', () => {
     expect(clone.userData.millosWorldSurface.uSurfStrength).toBe(WORLD_SURFACE_STRENGTH);
   });
 
+  /**
+   * CLAUDE.md procedural-texture rule 7: anything tiled more than ~10x needs a
+   * sub-tile-frequency macro term. The truck yard is the shared tarmac map at
+   * 18 x 18 over 60 m and measured luma std 7.3 across the lower frame of
+   * `shipping`, because the mapped-substrate exclusion kept every such surface
+   * out of the batcher's finish. A tiled substrate map may opt its surfaces in
+   * by flagging the TEXTURE, which `Texture.clone()` carries to every tiling.
+   */
+  it('lets a flagged tiled substrate opt its surfaces into the paving macro', () => {
+    const tile = markSurfaceSubstrate(new THREE.Texture(), 'paving');
+    const tiling = tile.clone();
+    tiling.repeat.set(18, 18);
+    for (const map of [tile, tiling]) {
+      const material = new THREE.MeshStandardMaterial({ map, roughness: 1 });
+      expect(resolveBatchSurfaceProfile(material)).toBe('paving');
+      expect(resolveSurfaceProfile(material)).toBe('paving');
+      const target = material.clone();
+      expect(applyBatchWorldSurface(target, material)).toBe('paving');
+      expect(hasWorldSurface(target)).toBe(true);
+      expect(target.map).toBe(map);
+    }
+    // An explicit allowMapped request keeps its roughness-based answer.
+    expect(
+      resolveSurfaceProfile(new THREE.MeshStandardMaterial({ map: tile, roughness: 1 }), true)
+    ).toBe('masonry');
+    // The opt-in is the map's, not any substrate's: an unflagged atlas stays out.
+    const atlas = new THREE.MeshStandardMaterial({ map: new THREE.Texture(), roughness: 1 });
+    expect(resolveBatchSurfaceProfile(atlas)).toBeNull();
+    // And it never overrides the transparent / emissive exclusions.
+    const markingPaint = new THREE.MeshStandardMaterial({ map: tile, transparent: true });
+    expect(resolveBatchSurfaceProfile(markingPaint)).toBeNull();
+  });
+
+  it('keeps paving to a macro term: no dirt, no dust, no edge wear on a road', () => {
+    const paving = WORLD_SURFACE_PROFILES.paving;
+    expect(paving.grime).toBe(0);
+    expect(paving.dust).toBe(0);
+    expect(paving.edge).toBe(0);
+    // Sub-tile: the period spans several 3.3 m yard tiles.
+    expect(paving.macroPeriod).toBeGreaterThan(3 * (60 / 18));
+    expect(paving.macro).toBeGreaterThanOrEqual(0.18);
+    // The tile already carries the aggregate; the meso term must not double it.
+    expect(paving.meso).toBeLessThanOrEqual(0.05);
+  });
+
+  it('keeps a vessel shell near-constant: no dirt, no dust, a whisper of drift', () => {
+    const vessel = WORLD_SURFACE_PROFILES.vessel;
+    expect(vessel.grime).toBe(0);
+    expect(vessel.dust).toBe(0);
+    // `painted` (meso 0.13, x2 in the tone term) read as cotton on white tanks.
+    expect(vessel.meso).toBeLessThanOrEqual(0.03);
+    expect(vessel.macro).toBeLessThanOrEqual(0.05);
+  });
+
+  it('lets a pinned profile speak through the colour-blind batch resolver', () => {
+    const material = pinSurfaceProfile(
+      new THREE.MeshStandardMaterial({ color: '#f4f4f2', roughness: 0.4 }),
+      'vessel'
+    );
+    expect(resolveBatchSurfaceProfile(material)).toBe('vessel');
+    expect(resolveSurfaceProfile(material)).toBe('vessel');
+    // The pin rides userData, which Material.copy() deep-copies to every clone.
+    expect(pinnedSurfaceProfile(material.clone())).toBe('vessel');
+    // It never overrides the scope exclusions.
+    material.transparent = true;
+    expect(resolveBatchSurfaceProfile(material)).toBeNull();
+  });
+
   it('declines transparent, sub-unit-opacity and emissive surfaces', () => {
     const glass = new THREE.MeshStandardMaterial({ transparent: true, opacity: 0.3 });
     const marking = new THREE.MeshStandardMaterial({ opacity: 0.6 });
@@ -431,5 +511,131 @@ describe('profile resolution', () => {
     expect(applyBatchWorldSurface(painted.clone(), painted)).toBe('painted');
     const glass = new THREE.MeshStandardMaterial({ transparent: true, opacity: 0.2 });
     expect(applyBatchWorldSurface(glass.clone(), glass)).toBeNull();
+  });
+});
+
+describe('box-filtered ribs', () => {
+  it('keep the full trapezoid at a fine footprint and average to its mean, never alias', () => {
+    // Fine footprint: crown 1, trough 0, as the unfiltered profile.
+    expect(ribFilteredValue(0.4, 1e-3)).toBeCloseTo(1, 3);
+    expect(ribFilteredValue(0.85, 1e-3)).toBeCloseTo(0, 3);
+    // One pitch or more under a pixel: exactly the mean, whatever the phase.
+    for (const u of [0, 0.13, 0.4, 0.77, 31.6]) {
+      expect(ribFilteredValue(u, 1)).toBeCloseTo(RIB_PROFILE_MEAN, 6);
+      expect(ribFilteredValue(u, 3)).toBeCloseTo(RIB_PROFILE_MEAN, 6);
+    }
+    // The swing falls monotonically with footprint, from 1 toward 0.
+    let previous = ribFilteredSwing(1e-3);
+    expect(previous).toBeCloseTo(1, 2);
+    for (let w = 0.05; w <= 1.0001; w += 0.05) {
+      const swing = ribFilteredSwing(w);
+      expect(swing).toBeLessThanOrEqual(previous + 1e-9);
+      previous = swing;
+    }
+    expect(ribFilteredSwing(1)).toBeLessThan(1e-6);
+  });
+
+  /**
+   * final4 med-12/06/1830, low-12: the roof liner read as a dot grid
+   * ("carbon-fibre look"). A box filter is not a low-pass: the 0.25 m deck
+   * profile kept 85% of its swing at 2 px a pitch (w 0.5, Nyquist) and 20-28%
+   * at w 1.25-1.5, and every bit of that aliases. What reaches the frame must
+   * be gone before Nyquist and stay gone.
+   */
+  /*
+   * final5 med-12 interior (upper right) and milling, low-12: still a checker.
+   * Faded at 0.1-0.25 the ribs kept up to 74% of their swing at the 6-7 px a
+   * pitch the interior camera's upper right resolves them at on Medium, and
+   * every 10-12 px a purlin crossed them. A rib that resolves still draws a
+   * grid against the purlins, so it is dropped well before Nyquist: gone by
+   * 10 px a pitch, full only from 20.
+   */
+  it('leave no swing from 10 px a pitch on, and keep it where a pitch spans 25 px', () => {
+    for (let w = 0.1; w <= 4; w += 0.025) {
+      expect(ribRenderedSwing(w), `w ${w.toFixed(3)}`).toBeLessThan(1e-6);
+    }
+    // A membrane lap is one thin line a pitch, not a grid: it keeps round 5's
+    // fade, gone by 4 px a pitch, so the overview still resolves the laps.
+    for (let w = 0.25; w <= 4; w += 0.025) {
+      expect(ribRenderedSwing(w, RIB_SEAM_TEST_WIDTH), `seam w ${w.toFixed(3)}`).toBeLessThan(1e-6);
+    }
+    expect(ribRenderedSwing(0.14, RIB_SEAM_TEST_WIDTH)).toBeGreaterThan(0.03);
+    expect(ribRenderedSwing(0.04)).toBeGreaterThan(0.95);
+    expect(ribRenderedSwing(0.06)).toBeGreaterThan(0.5);
+    // The paired control: with the fade off, the old box filter (and its alias).
+    expect(ribRenderedSwing(1.5, 0, 0)).toBeCloseTo(ribFilteredSwing(1.5), 9);
+  });
+
+  it('filter a thin seam to its exact coverage and keep its mean', () => {
+    const width = RIB_SEAM_TEST_WIDTH;
+    expect(ribSeamFilteredValue(0.5, 1e-3, width)).toBeCloseTo(1, 3);
+    expect(ribSeamFilteredValue(width / 2, 1e-3, width)).toBeCloseTo(0, 3);
+    for (let u = 0; u < 1; u += 0.1) {
+      expect(ribSeamFilteredValue(u, 1, width)).toBeCloseTo(1 - width, 6);
+      expect(ribSeamFilteredValue(u, 2, width)).toBeCloseTo(1 - width, 6);
+    }
+  });
+
+  it('is opt-in: furrows and every default profile keep the faded trapezoid', () => {
+    const plain = applyWorldSurface(new THREE.MeshStandardMaterial(), 'painted', {
+      ribPeriod: 0.8,
+      ribDepth: 0.07,
+    });
+    const rib = (plain.userData.millosWorldSurface as { uSurfRib: { value: THREE.Vector4 } })
+      .uSurfRib.value;
+    expect(rib.y).toBe(0);
+    const filtered = applyWorldSurface(new THREE.MeshStandardMaterial(), 'painted', {
+      ribPeriod: 0.25,
+      ribDepth: 0.035,
+      ribFilteredTone: 0.2,
+    });
+    const value = (filtered.userData.millosWorldSurface as { uSurfRib: { value: THREE.Vector4 } })
+      .uSurfRib.value;
+    expect(value.x).toBe(0.2);
+    expect(value.y).toBe(1);
+    const fragment = compileInjection(filtered).fragmentShader;
+    expect(fragment).toContain('surfRibIntegral');
+    expect(fragment).toContain('uniform vec4 uSurfRib;');
+  });
+});
+
+describe('indoor bounce', () => {
+  /**
+   * r4floor2-med-22 milling: the aisle barrier's west face rendered (0.3, 0, 0)
+   * while a plain-material band on the same face was lit. The bounce mixed
+   * `reflectedLight.indirectDiffuse` toward its own luma, but that term is
+   * irradiance TIMES the albedo, so it greyed the yellow paint itself. Lit only
+   * by fill at night, the greyed face sat under the display toe (Neutral and the
+   * +0.06 contrast) and crushed to black; patched at runtime to neutralise the
+   * light instead, the same face read (19.5, 12.2, 0).
+   */
+  const luma = (c: readonly number[]) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+
+  it('neutralises the fill light and keeps the paint its own colour', () => {
+    const paint = [0.6, 0.4, 0.03] as const;
+    const neutral = [0.1, 0.1, 0.1] as const;
+    const reflected = paint.map((a, i) => a * neutral[i]);
+    // Neutral light needs no neutralising: the reflected colour is unchanged.
+    const out = indoorBounceDiffuse(reflected, paint, 0.85);
+    out.forEach((v, i) => expect(v, `channel ${i}`).toBeCloseTo(reflected[i], 9));
+    // A green-tinted fill on the same paint comes out as the paint under a grey
+    // light of the fill's luminance.
+    const green = [0.06, 0.12, 0.05] as const;
+    const tinted = indoorBounceDiffuse(
+      paint.map((a, i) => a * green[i]),
+      paint,
+      1
+    );
+    tinted.forEach((v, i) => expect(v / paint[i]).toBeCloseTo(luma(green), 9));
+  });
+
+  it('injects the light-neutralising form into the shader', () => {
+    const material = new THREE.MeshStandardMaterial();
+    applyWorldSurface(material, 'masonry', { indoorBounce: 0.85 });
+    const fragment = compileInjection(material).fragmentShader;
+    const bounce = fragment.slice(fragment.indexOf('uSurfDeck.w > 0.0'));
+    expect(bounce).toContain('material.diffuseContribution');
+    expect(bounce).toContain('reflectedLight.indirectDiffuse / surfAlbedo');
+    expect(bounce).not.toContain('dot( reflectedLight.indirectDiffuse');
   });
 });

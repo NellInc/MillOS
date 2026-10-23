@@ -4,6 +4,7 @@ import { installMillOSAgentRuntime } from '../adapters/runtime/installAgentRunti
 import { AGENT_LEVEL0_MAXIMUM_BYTES, byteLength } from '../query/queryService.js';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useProductionStore } from '../../stores/productionStore';
+import { useOperationsCampaignStore } from '../../stores/operationsCampaignStore';
 
 describe('MillOS runtime agent projection', () => {
   it('reads canonical stores without publishing a store mutation', () => {
@@ -99,6 +100,82 @@ describe('MillOS runtime agent projection', () => {
       }
     } finally {
       remove();
+    }
+  });
+
+  // A day of play ends with 24 orders (programme 136 in the play-test), past the
+  // Level 1 byte budget; the live run crossed it at 21. A whole-domain read then
+  // keeps the FIRST five of every array - the five oldest orders - and says so.
+  // The 9115ad52 pt-BR play-test read that view and froze an order it could no
+  // longer see as "active 5,000/6,000". Paging the orders collection is the
+  // read that sees every order, the open one included.
+  it('pages every campaign order once a day of programmes outgrows the Level 1 read', () => {
+    const campaign = useOperationsCampaignStore.getState();
+    campaign.resetCampaign();
+    const fulfilAll = () =>
+      useOperationsCampaignStore.setState((state) => ({
+        orders: state.orders.map((order, index) => ({
+          ...order,
+          status: 'fulfilled' as const,
+          shippedKg: order.requiredKg,
+          completedAtMinute: 100 + index,
+          // A packed batch per tonne and a 5,000 kg truck per manifest.
+          batchIds: Array.from(
+            { length: Math.ceil(order.requiredKg / 1000) },
+            (_, batch) => `batch-${String(index * 10 + batch).padStart(5, '0')}`
+          ),
+          manifestIds: Array.from(
+            { length: Math.ceil(order.requiredKg / 5000) },
+            (_, truck) => `shipping-${String(index * 2 + truck).padStart(4, '0')}`
+          ),
+        })),
+      }));
+    for (let programme = 0; programme < 7; programme++) {
+      fulfilAll();
+      expect(useOperationsCampaignStore.getState().acceptNextProgramme()).toBe(true);
+    }
+    const orders = useOperationsCampaignStore.getState().orders;
+    expect(orders).toHaveLength(24);
+    const open = orders.filter((order) => order.status !== 'fulfilled').map((order) => order.id);
+    expect(open).toHaveLength(3);
+
+    const remove = installMillOSAgentRuntime(window);
+    try {
+      const agent = window.__MILLOS_AGENT__!;
+      const whole = agent.query({
+        view: 'domain',
+        domainId: 'campaign',
+        fields: ['elapsedMinutes', 'activeOrderId', 'orders', 'incidents', 'currentShiftLabel'],
+      });
+      expect(whole.warnings.map((warning) => warning.code)).toContain('LEVEL1_TRUNCATED');
+      const wholeOrders = (whole.data as { state: { orders: Array<{ id: string }> } }).state.orders;
+      expect(wholeOrders.map((order) => order.id)).toEqual(orders.slice(0, 5).map((o) => o.id));
+
+      const paged: Array<{ id: string; status: string }> = [];
+      let cursor: string | undefined;
+      for (let guard = 0; guard < 20; guard++) {
+        const page = agent.query({
+          view: 'domain',
+          domainId: 'campaign',
+          collection: 'orders',
+          limit: 4,
+          cursor,
+        });
+        expect(page.warnings.map((warning) => warning.code)).not.toContain('LEVEL1_TRUNCATED');
+        const data = page.data as {
+          items: Array<{ id: string; status: string }>;
+          page: { nextCursor: string | null; total: number };
+        };
+        paged.push(...data.items);
+        expect(data.page.total).toBe(24);
+        if (!data.page.nextCursor) break;
+        cursor = data.page.nextCursor;
+      }
+      expect(paged.map((order) => order.id)).toEqual(orders.map((order) => order.id));
+      expect(paged.filter((order) => order.status !== 'fulfilled').map((o) => o.id)).toEqual(open);
+    } finally {
+      remove();
+      useOperationsCampaignStore.getState().resetCampaign();
     }
   });
 

@@ -106,6 +106,12 @@ export interface WorkplaceCampaign {
   repairs: number;
   agreementProved: boolean;
   mission?: WorkplaceMission;
+  /**
+   * The mill's next order, linked at a shift boundary once the commitment's
+   * order is fulfilled. Its fresh receipts credit the cooperative's books;
+   * the season's delivery outcome stays the commitment's.
+   */
+  followOn?: WorkplaceMission;
 }
 
 export interface WorkplaceMember {
@@ -268,6 +274,8 @@ export interface WorkplaceActions {
     mission?: WorkplaceMission,
     mode?: WorkplaceMode
   ) => WorkplaceTransitionResult;
+  /** Before funding, the first handoff shift can be cancelled back to its origin. */
+  cancelImprovement: (expectedRevision: number) => WorkplaceTransitionResult;
   proposeImprovement: (id: ImprovementId, actorId: string) => WorkplaceTransitionResult;
   challengeImprovement: (actorId: string, kind: ImprovementChallenge) => WorkplaceTransitionResult;
   acknowledgeImprovement: (advice?: PackingAdvice) => WorkplaceTransitionResult;
@@ -287,12 +295,28 @@ export interface WorkplaceActions {
     expectedRevision: number,
     mission?: WorkplaceMission
   ) => WorkplaceTransitionResult;
+  /**
+   * After any shift's verdict, end the experiment without opening another
+   * shift. Nothing may be owed; the workplace returns to idle.
+   */
+  closeImprovement: (expectedRevision: number) => WorkplaceTransitionResult;
+  /**
+   * After a reload settled a campaign shift before its end (reload safety),
+   * return it to deliberation at the minute it reached. Every grant stays
+   * expired: it continues only after fresh checks, ballots and consent.
+   */
+  resumeShift: (expectedRevision: number) => WorkplaceTransitionResult;
   startCampaign: (
     profile: WorkplaceProfile,
     seed?: number,
     mission?: WorkplaceMission
   ) => WorkplaceTransitionResult;
-  nextCampaignShift: () => WorkplaceTransitionResult;
+  nextCampaignShift: (followOn?: WorkplaceMission) => WorkplaceTransitionResult;
+  /**
+   * End an unfinished season with nothing owed. The season is kept as left
+   * early, never as a completed review, and the workplace returns to idle.
+   */
+  leaveCampaign: (expectedRevision: number) => WorkplaceTransitionResult;
   answerCheck: (
     actorId: string,
     question: WorkplaceCheckId,
@@ -325,7 +349,8 @@ export interface WorkplaceActions {
     deltaMinutes: number,
     shippedKg: number,
     emergency: boolean,
-    missionObservation?: WorkplaceMissionObservation
+    missionObservation?: WorkplaceMissionObservation,
+    followOnObservation?: WorkplaceMissionObservation
   ) => void;
   elect: (voterId: string, candidateId: string) => WorkplaceTransitionResult;
   voteSurplus: (voterId: string, destination: SurplusDestination) => WorkplaceTransitionResult;

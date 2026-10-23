@@ -4,6 +4,7 @@ import type {
   OrderExecutionState,
 } from '../../../stores/operationsCampaignStore';
 import { formatFixed, translate } from '../../../i18n';
+import { dispatchBlockText } from '../../../stores/dispatchBlockText';
 import { deliveryJourneyMessages as m } from './deliveryJourney.messages';
 
 interface DeliveryJourney {
@@ -13,6 +14,16 @@ interface DeliveryJourney {
   entryId: string;
   view?: 'Milling' | 'Packing' | 'Shipping';
   loading?: Pick<DispatchLoadSnapshot, 'loadedKg' | 'capacityKg'>;
+  /** Overview should land on this section when the guide opens it. */
+  focus?: 'maintenance';
+  /** The opening lesson: the card offers a keyboard route to inspect a machine. */
+  inspect?: true;
+}
+
+/** The oldest open work order, as the guide reads it; read-only. */
+export interface MachineFaultView {
+  machineName: string;
+  workOrderId: string;
 }
 
 /** Read-only customer deadline, in the same minutes as the campaign clock.
@@ -44,10 +55,52 @@ export function deriveDeliveryDeadline(order: CustomerOrder | null, elapsedMinut
   };
 }
 
+/** The shipping dock as the guide reads it; read-only. */
+export interface ShippingTruckView {
+  active: boolean;
+  docked: boolean;
+  nextArrivalMinutes: number;
+}
+
+/**
+ * Which truck of how many this order needs, and where the next one is. A truck
+ * carries less than a large order, so the second trip is named before it is
+ * needed. Working if a 6,000 kg order reads "Truck 1 of 2" while loading and
+ * names the next truck's arrival once the first has left.
+ */
+function deriveTripStatus(
+  order: CustomerOrder,
+  load: OrderExecutionState['dispatchLoad'],
+  truck: ShippingTruckView | undefined
+): string {
+  const capacity = load.capacityKg > 0 ? load.capacityKg : 5000;
+  const total = Math.max(1, Math.ceil(order.requiredKg / capacity - 1e-6));
+  const leftKg = Math.max(0, order.requiredKg - order.shippedKg);
+  if (total <= 1 || leftKg <= 1) return '';
+  const done = Math.min(total - 1, Math.ceil(order.shippedKg / capacity - 1e-6));
+  const trip = translate(m, 'tripStatus', {
+    current: formatFixed(done + 1, 0),
+    total: formatFixed(total, 0),
+    capacity: formatFixed(capacity, 0),
+    left: formatFixed(leftKg, 0),
+  });
+  if (!truck || truck.docked) return trip;
+  return (
+    trip +
+    (truck.active
+      ? translate(m, 'nextTruckOnWay')
+      : translate(m, 'nextTruckDue', {
+          minutes: formatFixed(Math.max(1, Math.ceil(truck.nextArrivalMinutes)), 0),
+        }))
+  );
+}
+
 export function deriveDeliveryJourney(
   order: CustomerOrder | null,
   execution: OrderExecutionState,
-  inspected: boolean
+  inspected: boolean,
+  truck?: ShippingTruckView,
+  fault?: MachineFaultView | null
 ): DeliveryJourney {
   if (!order)
     return {
@@ -74,12 +127,31 @@ export function deriveDeliveryJourney(
       workspace: 'overview' as const,
       entryId: 'community-commitments',
     };
-  if (!inspected)
+  // A stopped machine stops its part of the line, so the guide turns to the
+  // repair before any delivery step. Working if a breakdown during the first
+  // delivery reads 'Repair <machine>' and opens Overview at Maintenance.
+  if (fault)
+    return {
+      title: translate(m, 'repairTitle', { machine: fault.machineName }),
+      detail: translate(m, 'repairDetail', {
+        machine: fault.machineName,
+        workOrderId: fault.workOrderId,
+      }),
+      workspace: 'overview' as const,
+      focus: 'maintenance' as const,
+      entryId: 'predictive-maintenance',
+    };
+  // Inspection is the opening lesson, never a gate on the delivery itself: once
+  // stock is moving toward a truck the guide narrates that instead. Working if
+  // an uninspected shift still reads loading, departure and the second trip.
+  const preTruck = execution.stage === 'planning' || execution.stage === 'milling';
+  if (!inspected && preTruck && order.shippedKg <= 0)
     return {
       title: translate(m, 'inspectTitle'),
       view: 'Milling',
       detail: translate(m, 'inspectDetail'),
       workspace: null,
+      inspect: true,
       entryId: 'bottlenecks-and-buffers',
     };
   if (execution.orderId !== order.id)
@@ -103,11 +175,14 @@ export function deriveDeliveryJourney(
   // header reads 0 bags/h. Working if that idle line is explained, not a freeze.
   const packedRest =
     execution.remainingKg > 0 && execution.finishedAvailableKg >= execution.remainingKg - 1
-      ? translate(m, 'packedRest')
+      ? execution.lineCustomer
+        ? translate(m, 'packedRestNext', { customer: execution.lineCustomer })
+        : translate(m, 'packedRest')
       : '';
+  const tripStatus = deriveTripStatus(order, load, truck);
   if (execution.stage === 'ready_to_load') {
     const waiting =
-      load.blockReason ??
+      dispatchBlockText(load) ??
       translate(m, 'releasedWaiting', {
         kg: formatFixed(execution.releasedFinishedKg, 0),
         product,
@@ -115,19 +190,19 @@ export function deriveDeliveryJourney(
     return {
       title: translate(m, 'readyToLoadTitle'),
       view: 'Shipping',
-      detail: `${waiting} ${qualityTarget} ${departureRule}`,
+      detail: `${waiting} ${qualityTarget} ${departureRule}${tripStatus}`,
       workspace: 'scada',
       entryId: 'autonomous-logistics',
     };
   }
   if (execution.stage === 'loading' || execution.stage === 'ready_to_dispatch') {
     const step =
-      load.blockReason ??
+      dispatchBlockText(load) ??
       translate(m, execution.stage === 'loading' ? 'loadingDetail' : 'readyToDepartDetail');
     return {
       title: translate(m, execution.stage === 'loading' ? 'loadingTitle' : 'readyToDepartTitle'),
       view: 'Shipping',
-      detail: `${step} ${qualityTarget} ${departureRule}${packedRest}`,
+      detail: `${step} ${qualityTarget} ${departureRule}${tripStatus}${packedRest}`,
       workspace: 'scada',
       entryId: 'autonomous-logistics',
       // Truck capacity is distinct from the customer's full commitment.
@@ -145,7 +220,7 @@ export function deriveDeliveryJourney(
     return {
       title: translate(m, 'departedTitle'),
       view: 'Shipping',
-      detail: `${receipt} ${qualityTarget} ${departureRule}${packedRest}`,
+      detail: `${receipt}${tripStatus}${packedRest} ${qualityTarget} ${departureRule}`,
       workspace: 'scada',
       entryId: 'autonomous-logistics',
     };

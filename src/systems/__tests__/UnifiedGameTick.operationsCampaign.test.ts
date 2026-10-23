@@ -75,9 +75,12 @@ describe('UnifiedGameTick operations campaign consequences', () => {
     const incident = useOperationsCampaignStore.getState().triggerIncident('delayed_truck')!;
     unifiedGameTick({ ...context, tickCount: 2 });
     expect(useTruckScheduleStore.getState().truckSchedule.shipping.nextArrivalMinutes).toBe(20);
-    expect(
-      useUIStore.getState().alerts.some((alert) => alert.id === `campaign-${incident.id}`)
-    ).toBe(true);
+    const incidentAlert = useUIStore
+      .getState()
+      .alerts.find((alert) => alert.id === `campaign-${incident.id}`);
+    expect(incidentAlert).toBeDefined();
+    // Critical incidents interrupt; the rest are read politely, from the bell.
+    expect(incidentAlert?.announce).toBe(incident.severity === 'critical' ? 'assertive' : 'polite');
 
     useTruckScheduleStore.getState().recordTruckDeparture('shipping', 30);
     const cadenceMinutes =
@@ -101,10 +104,10 @@ describe('UnifiedGameTick operations campaign consequences', () => {
     const minutesToArrival =
       useTruckScheduleStore.getState().truckSchedule.receiving.nextArrivalMinutes;
 
-    // At 180x one 0.5 s tick advances 1.5 game minutes.
-    const ticks = Math.ceil(minutesToArrival / 1.5);
+    // At the 4x pace (120) one 0.5 s tick advances 1 game minute.
+    const ticks = Math.ceil(minutesToArrival / 1);
     for (let tick = 0; tick < ticks; tick += 1) {
-      unifiedGameTick({ ...context, gameSpeed: 180, tickCount: 2 + tick });
+      unifiedGameTick({ ...context, gameSpeed: 120, tickCount: 2 + tick });
     }
 
     expect(useTruckScheduleStore.getState().truckSchedule.receiving).toMatchObject({

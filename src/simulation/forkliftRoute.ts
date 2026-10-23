@@ -1,4 +1,5 @@
 import type { Vec3Tuple } from '../constants/siteLayout';
+import { plantTimeScale } from './pace';
 
 export type ForkliftWaypointActionType = 'pickup' | 'dropoff' | 'none';
 export type ForkliftOperationPhase = 'traveling' | 'loading' | 'unloading' | 'waiting';
@@ -6,6 +7,12 @@ export type ForkliftOperationPhase = 'traveling' | 'loading' | 'unloading' | 'wa
 export interface ForkliftWaypointAction {
   readonly type: ForkliftWaypointActionType;
   readonly duration: number;
+  /**
+   * Fork height at which the pallet rests on the work surface (the dock deck);
+   * absent on the floor. The forks hold at least this high while the vehicle
+   * stands at, approaches or backs off the surface.
+   */
+  readonly surfaceForkHeight?: number;
 }
 
 export interface RoundedForkliftRoute {
@@ -169,13 +176,32 @@ export function smoothOperationHeight(progress: number, maximumHeight: number): 
   return maximumHeight * eased;
 }
 
-export function isForkliftSimulationPaused(productionSpeed: number, gameSpeed: number): boolean {
-  return (
-    !Number.isFinite(productionSpeed) ||
-    !Number.isFinite(gameSpeed) ||
-    productionSpeed <= 0 ||
-    gameSpeed <= 0
-  );
+/**
+ * Forklifts are logistics on plant time, like the trucks: only the shift clock
+ * pauses them, never the line setpoint. Working if a line stopped at 0% leaves
+ * the fleet moving while P or a paused pace holds it.
+ */
+export function isForkliftSimulationPaused(gameSpeed: number): boolean {
+  return !Number.isFinite(gameSpeed) || gameSpeed <= 0;
+}
+
+/**
+ * Shortest hydraulic sound worth scheduling: the lift envelope holds until
+ * 0.2 s before its end after a 0.1 s attack, so anything shorter inverts it.
+ */
+export const MIN_HYDRAULIC_SOUND_SECONDS = 0.3;
+
+/**
+ * Real seconds a lift or place sound lasts. The operation runs on plant time
+ * (operationTimer advances by plant seconds), Web Audio schedules in real
+ * seconds, so the sound follows pace: half as long at 2x, nothing while held.
+ */
+export function hydraulicSoundSeconds(plantSecondsRemaining: number, gameSpeed: number): number {
+  const scale = plantTimeScale(gameSpeed);
+  if (!(scale > 0) || !Number.isFinite(plantSecondsRemaining) || plantSecondsRemaining <= 0) {
+    return 0;
+  }
+  return Math.max(MIN_HYDRAULIC_SOUND_SECONDS, plantSecondsRemaining / scale);
 }
 
 export interface ForkliftLogisticsGate {

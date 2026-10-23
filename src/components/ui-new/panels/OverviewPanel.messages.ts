@@ -1,4 +1,4 @@
-import { defineMessages } from '../../../i18n';
+import { defineMessages, upperFirst } from '../../../i18n';
 
 /*
  * Store enums (run window, weather, manifest kind, disposition, dock status,
@@ -21,7 +21,7 @@ const PT_MANIFEST_KIND: Record<string, string> = {
   receiving: 'recebimento',
   shipping: 'expedição',
 };
-const PT_DISPOSITION: Record<string, string> = {
+export const PT_DISPOSITION: Record<string, string> = {
   released: 'liberado',
   hold: 'retido',
   recalled: 'recolhido',
@@ -33,7 +33,7 @@ const PT_DOCK_STATUS: Record<string, string> = {
   loading: 'carregando',
   departing: 'saindo',
 };
-const PT_MATERIAL: Record<string, string> = {
+export const PT_MATERIAL: Record<string, string> = {
   wheat_grain: 'grão de trigo',
   corn_grain: 'grão de milho',
   flour: 'farinha',
@@ -45,13 +45,6 @@ const PT_MATERIAL: Record<string, string> = {
 export const overviewPanelMessages = defineMessages({
   en: {
     paused: 'PAUSED',
-    pause: 'Pause',
-    fastClockTitle:
-      'Fast clock (1x: 24 h in 8 min). Customer deadlines run 6x faster than standard pace while trucks and packing do not, so orders run late. Use Standard pace in Shift pace for deliveries.',
-    veryFastClockTitle:
-      'Very fast clock (10x). Customer deadlines pass far faster than trucks and packing can keep up; orders will be late.',
-    ultraFastClockTitle:
-      'Ultra fast clock (60x). Customer deadlines pass far faster than trucks and packing can keep up; orders will be late.',
     runWindow: 'Run window',
     runWindowValue: (p: { value: string }) => p.value,
 
@@ -76,6 +69,11 @@ export const overviewPanelMessages = defineMessages({
     placeHold: 'Place hold',
     retestAndRelease: 'Retest and release',
     recallBatch: 'Recall batch',
+    recallConfirm:
+      'A recall cannot be undone. {kg} kg of {material} in this batch is written off as waste and never ships. Other released batches keep shipping.',
+    confirmRecall: 'Confirm recall',
+    cancelRecall: 'Cancel',
+    writtenOff: '{kg} kg written off as waste',
     investigationActive: 'Investigation active',
     traceFor: 'Trace for {id}',
     upstreamProvenance: 'Upstream provenance',
@@ -123,6 +121,7 @@ export const overviewPanelMessages = defineMessages({
 
     planLogistics: 'Plan logistics',
     predictiveMaintenance: 'Predictive maintenance',
+    maintenanceSection: 'Maintenance and repairs',
     loadingMaintenance: 'Loading maintenance panel...',
     totalBagsProduced: 'Total Bags Produced',
 
@@ -137,15 +136,8 @@ export const overviewPanelMessages = defineMessages({
   },
   'pt-BR': {
     paused: 'PAUSADO',
-    pause: 'Pausar',
-    fastClockTitle:
-      'Relógio rápido (1x: 24 h em 8 min). Os prazos dos clientes correm 6x mais rápido que no ritmo padrão, enquanto caminhões e ensaque não aceleram, então os pedidos atrasam. Para entregas, use Ritmo padrão em Ritmo do turno.',
-    veryFastClockTitle:
-      'Relógio muito rápido (10x). Os prazos dos clientes passam muito mais rápido do que caminhões e ensaque conseguem acompanhar; os pedidos vão atrasar.',
-    ultraFastClockTitle:
-      'Relógio ultrarrápido (60x). Os prazos dos clientes passam muito mais rápido do que caminhões e ensaque conseguem acompanhar; os pedidos vão atrasar.',
     runWindow: 'Janela de operação',
-    runWindowValue: (p: { value: string }) => PT_RUN_WINDOW[p.value] ?? p.value,
+    runWindowValue: (p: { value: string }) => upperFirst(PT_RUN_WINDOW[p.value] ?? p.value),
 
     materialTraceability: 'Rastreabilidade de materiais',
     received: 'Recebido',
@@ -168,6 +160,11 @@ export const overviewPanelMessages = defineMessages({
     placeHold: 'Reter lote',
     retestAndRelease: 'Retestar e liberar',
     recallBatch: 'Recolher lote',
+    recallConfirm:
+      'O recolhimento não pode ser desfeito. {kg} kg de {material} deste lote são baixados como perda e nunca serão expedidos. Os outros lotes liberados continuam sendo expedidos.',
+    confirmRecall: 'Confirmar recolhimento',
+    cancelRecall: 'Cancelar',
+    writtenOff: '{kg} kg baixados como perda',
     investigationActive: 'Investigação em andamento',
     traceFor: 'Rastreio de {id}',
     upstreamProvenance: 'Procedência a montante',
@@ -196,7 +193,7 @@ export const overviewPanelMessages = defineMessages({
     idle: 'Ociosas',
 
     weather: 'Clima',
-    weatherValue: (p: { value: string }) => PT_WEATHER[p.value] ?? p.value,
+    weatherValue: (p: { value: string }) => upperFirst(PT_WEATHER[p.value] ?? p.value),
     siteMode: 'Modo da unidade',
     siteModeValue: 'Com equipe · Logística autônoma',
 
@@ -208,13 +205,14 @@ export const overviewPanelMessages = defineMessages({
     dockStatus: 'Status das docas',
     receiving: 'Recebimento',
     shipping: 'Expedição',
-    dockState: (p: { value: string }) => PT_DOCK_STATUS[p.value] ?? p.value,
+    dockState: (p: { value: string }) => upperFirst(PT_DOCK_STATUS[p.value] ?? p.value),
     unloading: 'Descarregando',
     nextTruck: 'Próximo caminhão em {minutes} min',
     eta: 'Previsão: {minutes} min',
 
     planLogistics: 'Planejar logística',
     predictiveMaintenance: 'Manutenção preditiva',
+    maintenanceSection: 'Manutenção e reparos',
     loadingMaintenance: 'Carregando o painel de manutenção...',
     totalBagsProduced: 'Total de sacos produzidos',
 

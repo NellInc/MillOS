@@ -17,6 +17,27 @@ import { useGraphicsStore } from '../../stores/graphicsStore';
 const LETTERING_FONT = HERITAGE_LETTERING_FONT;
 const GOLD = '#e4c680';
 
+/** Timber board and gold frame bars of a nameboard, board-local. The side bars
+ * stop 5 mm inside the board's top and bottom faces: at full height their end
+ * faces lay exactly on the timber's, gold against brown at 0 mm. They still
+ * reach past the horizontal bars, so every corner stays closed.
+ */
+export function nameboardFrameBars(width: number, height: number) {
+  return {
+    board: [width, height, 0.14] as [number, number, number],
+    horizontal: {
+      args: [width + 0.045, 0.055, 0.085] as [number, number, number],
+      y: height / 2 - 0.035,
+      z: 0.09,
+    },
+    vertical: {
+      args: [0.055, height - 0.01, 0.085] as [number, number, number],
+      x: width / 2 - 0.035,
+      z: 0.09,
+    },
+  };
+}
+
 /** Measured joinery and print, shared by the village shopfronts and civic signs.
  * Working if the longest title and its caption stay inside the inner keyline.
  */
@@ -50,10 +71,11 @@ export function VillageNameboard({
   // Timber, coloured fascia and keylines remain physically lit. Working if
   // shop titles are readable at night and civic/pub paint keeps its old finish.
   const Lettering = illuminated ? IlluminatedSignText : SceneText;
+  const frame = nameboardFrameBars(width, height);
   return (
     <group name={`village-nameboard-${title.toLowerCase().replaceAll(' ', '-')}`}>
       <mesh castShadow>
-        <boxGeometry args={[width, height, 0.14]} />
+        <boxGeometry args={frame.board} />
         <meshStandardMaterial color="#4a3625" roughness={0.8} />
       </mesh>
       <mesh position={[0, 0, 0.084]}>
@@ -62,12 +84,12 @@ export function VillageNameboard({
       </mesh>
       {[-1, 1].map((side) => (
         <group key={side}>
-          <mesh position={[0, side * (height / 2 - 0.035), 0.09]}>
-            <boxGeometry args={[width + 0.045, 0.055, 0.085]} />
+          <mesh position={[0, side * frame.horizontal.y, frame.horizontal.z]}>
+            <boxGeometry args={frame.horizontal.args} />
             <meshStandardMaterial color={GOLD} roughness={0.5} metalness={0.05} />
           </mesh>
-          <mesh position={[side * (width / 2 - 0.035), 0, 0.09]}>
-            <boxGeometry args={[0.055, height, 0.085]} />
+          <mesh position={[side * frame.vertical.x, 0, frame.vertical.z]}>
+            <boxGeometry args={frame.vertical.args} />
             <meshStandardMaterial color={GOLD} roughness={0.5} metalness={0.05} />
           </mesh>
           {!brandFace && (

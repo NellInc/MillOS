@@ -16,11 +16,14 @@ export const deliveryJourneyMessages = defineMessages({
     chooseDetail: 'Choose an available customer in Your shift commitment in Overview.',
     qualityTarget: 'Recipe quality target: {minimum}/100.',
     fulfilledTitle: 'Delivery fulfilled',
+    repairTitle: 'Repair {machine}',
+    repairDetail:
+      '{machine} has broken down and its part of the line has stopped. Open Mill Overview, Maintenance: dispatch service on work order {workOrderId}, complete and verify the repair, then request a controlled restart.',
     fulfilledDetail:
       '{kg} kg of {product} dispatched for {customer} in recorded manifests. Departed manifests credit this customer. Inspection is a separate milestone.',
     inspectTitle: 'Inspect the line',
     inspectDetail:
-      'Select a silo, roller mill, plansifter or packer in the scene. Read its status and buffers before changing the line. Full output buffers can reveal a downstream bottleneck.',
+      'Select a silo, roller mill, plansifter or packer in the scene, or use Inspect a roller mill below. Read its status and buffers before changing the line. Full output buffers can reveal a downstream bottleneck.',
     returnTitle: 'Return to your commitment',
     returnDetail:
       'A different order is active. Choose this customer in Your shift commitment in Overview to continue its live route.',
@@ -31,6 +34,12 @@ export const deliveryJourneyMessages = defineMessages({
       'Only a departed manifest credits this customer; packed {product} alone does not.',
     packedRest:
       ' The rest of this order is already packed; the line rests until the next truck collects it.',
+    packedRestNext:
+      ' The rest of this order is already packed and waits for the next truck, so the line has moved on to the next commitment, for {customer}.',
+    tripStatus:
+      ' Truck {current} of {total} for this order (up to {capacity} kg each); {left} kg still to ship.',
+    nextTruckOnWay: ' The next truck is on its way to the dock.',
+    nextTruckDue: ' The next truck is due on site in {minutes} min (simulated).',
     readyToLoadTitle: 'Ready for the shipping truck',
     releasedWaiting: '{kg} kg of released {product} is waiting at shipping.',
     loadingTitle: 'Loading the shipping truck',
@@ -59,11 +68,14 @@ export const deliveryJourneyMessages = defineMessages({
     chooseDetail: 'Escolha um cliente disponível em Seu compromisso do turno, na Visão geral.',
     qualityTarget: 'Meta de qualidade da receita: {minimum}/100.',
     fulfilledTitle: 'Entrega concluída',
+    repairTitle: 'Reparar {machine}',
+    repairDetail:
+      'A máquina {machine} entrou em pane e a parte dela na linha parou. Abra Visão geral do moinho, Manutenção: envie a equipe na ordem de serviço {workOrderId}, conclua e verifique o reparo e, depois, solicite um reinício controlado.',
     fulfilledDetail:
       '{kg} kg de {product} expedidos para {customer} em romaneios registrados. Os romaneios com saída registrada são creditados a este cliente. A inspeção é uma etapa à parte.',
     inspectTitle: 'Inspecione a linha',
     inspectDetail:
-      'Selecione um silo, moinho de rolos, plansifter ou ensacadeira na cena. Leia o status e os estoques intermediários antes de alterar a linha. Estoques intermediários de saída cheios podem revelar um gargalo mais adiante no fluxo.',
+      'Selecione um silo, moinho de rolos, plansifter ou ensacadeira na cena, ou use Inspecionar um moinho de rolos abaixo. Leia o status e os estoques intermediários antes de alterar a linha. Estoques intermediários de saída cheios podem revelar um gargalo mais adiante no fluxo.',
     returnTitle: 'Volte ao seu compromisso',
     returnDetail:
       'Outro pedido está ativo. Escolha este cliente em Seu compromisso do turno, na Visão geral, para continuar a rota ao vivo dele.',
@@ -74,6 +86,12 @@ export const deliveryJourneyMessages = defineMessages({
       'Só um romaneio com saída registrada é creditado a este cliente; apenas ensacar {product} não basta.',
     packedRest:
       ' O restante deste pedido já está ensacado; a linha fica parada até o próximo caminhão buscá-lo.',
+    packedRestNext:
+      ' O restante deste pedido já está ensacado e aguarda o próximo caminhão, então a linha já passou ao próximo compromisso, para {customer}.',
+    tripStatus:
+      ' Caminhão {current} de {total} deste pedido (até {capacity} kg cada); faltam expedir {left} kg.',
+    nextTruckOnWay: ' O próximo caminhão está a caminho da doca.',
+    nextTruckDue: ' O próximo caminhão chega ao pátio em {minutes} min (tempo simulado).',
     readyToLoadTitle: 'Pronto para o caminhão de expedição',
     releasedWaiting: '{kg} kg liberados de {product} aguardam na expedição.',
     loadingTitle: 'Carregando o caminhão de expedição',

@@ -407,7 +407,13 @@ def postbox():
  torus('Plinth casting bead',(0,0,.195),.311,.007,'black',40,minor=4)
  box('Dark letter throat',(0,-.222,1.230),(.325,.018,.054),'black',0)
  box('Throat sill',(0,-.274,1.202),(.325,.11,.008),'red',.002)
- for x in [-.169,.169]:box('Aperture side return',(x,-.300,1.236),(.017,.094,.082),'red',.004)
+ # The returns line the aperture's actual sides: the shell is cut from 240 to
+ # 300 degrees, so its cut ends stand at |x| .1475-.1535, y -.2555 to -.266.
+ # Inner faces at |x| .146, running back to the throat face (y -.231), bury
+ # those ends past the bevel; left exposed they show as a lit sliver beside
+ # the slot once back faces are culled. Outer faces at |x| .169 stay clear of
+ # the sill's ends (.1625), which they would otherwise graze 0.5 mm apart.
+ for x in [-.1575,.1575]:box('Aperture side return',(x,-.289,1.236),(.023,.116,.082),'red',.004)
  # Closed shallow curved hood; its outer lip remains inside the old crown.
  verts=[]
  for x in [-.185,.185]:
@@ -460,10 +466,13 @@ def lamp(modern):
   cylinder('Finial',(0,0,4.421),.025,.058,'iron',10,radius2=.012)
 
 def sign():
- box('Oak upright',(0,.029,.775),(.114,.114,1.55),'oak-dark',.008)
+ # The folded iron edges cap the enamel face: it stops 8 mm inside their top
+ # and bottom, the upright 1 cm under them, and the side edges sit 3 mm in, so
+ # no face or bevel of one part lies in the plane of another's (they were flush).
+ box('Oak upright',(0,.029,.77),(.114,.114,1.54),'oak-dark',.008)
  box('Back mounting batten',(0,.024,1.28),(.51,.115,.095),'oak-dark',.006)
- box('Enamel notice face',(0,-.055,1.295),(.7674,.048,.51),'slate',.01)
- for x in [-.367,.367]:box('Folded side edge',(x,-.048,1.295),(.022,.06,.51),'iron',.004)
+ box('Enamel notice face',(0,-.055,1.295),(.7674,.048,.494),'slate',.01)
+ for x in [-.364,.364]:box('Folded side edge',(x,-.048,1.295),(.022,.06,.51),'iron',.004)
  for z in [1.052,1.538]:box('Folded horizontal edge',(0,-.048,z),(.747,.06,.024),'iron',.004)
  for x in [-.327,.327]:
   for z in [1.09,1.50]:cylinder('Brass fastener',(x,-.083,z),.011,.008,'brass',8,rot=(math.pi/2,0,0))
@@ -684,7 +693,9 @@ def well():
   for side in [-1,1]:beam('Gable verge batten',(x,0,2.863),(x,side*1.12,2.355),.045,'oak-light')
  for side in [-1,1]:
   for row in range(5):
-   y=side*(.115+row*.23);z=2.87-abs(y)*.46
+   # Each course rides 6.5 mm above the one below it (eave row unchanged), so
+   # the overlap strip is a real lap rather than two tile faces 0.29 mm apart.
+   y=side*(.115+row*.23);z=2.87-abs(y)*.46+(4-row)*.0065
    for col in range(7):
     x=-.93+col*.31
     # Only the visible upper arris is rounded; lower tile edges overlap and

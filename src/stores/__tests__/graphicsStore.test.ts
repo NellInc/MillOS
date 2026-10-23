@@ -432,7 +432,9 @@ describe('GraphicsStore', () => {
     });
 
     it('uses Khronos PBR Neutral on both the renderer and the composer path', () => {
-      expect(RENDERER_TONE_MAPPING).toBe(THREE.NeutralToneMapping);
+      // `low` runs Neutral through three's Custom slot, which carries the
+      // display toe's dark-pixel lift (shaders/displayToeToneMapping.ts).
+      expect(RENDERER_TONE_MAPPING).toBe(THREE.CustomToneMapping);
       expect(DEFAULT_TONE_MAPPING_MODE).toBe(ToneMappingMode.NEUTRAL);
     });
 

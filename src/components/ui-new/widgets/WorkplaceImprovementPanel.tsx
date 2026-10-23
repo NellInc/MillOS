@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import { TeachingPace } from '../onboarding/PlayableShift';
 import { useWorkplaceStore, useWorkplaceControls } from '../../../stores/workplaceStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
+import { STANDARD_GAME_SPEED } from '../../../simulation/pace';
 import { useCameraStore, CAMERA_PRESETS } from '../../CameraController';
 import {
   HANDOFF_ARRANGEMENTS,
@@ -11,6 +12,8 @@ import {
   improvementReviewWinner,
   improvementObligations,
   improvementLearningReview,
+  handoffHoldsClock,
+  MAX_IMPROVEMENT_CYCLES,
 } from '../../../simulation/workplaceImprovement';
 import { turnChecks } from '../../../simulation/workplaceParticipation';
 import { workplaceReadiness } from '../../../simulation/bilateralWorkplace';
@@ -75,10 +78,12 @@ export function WorkplaceImprovementPanel({
   const facilitator = !separateTurns || !store.turn;
   const mandateReady =
     !separateTurns || turnChecks(s).every((q) => store.turn?.answers[q.id] === q.correct);
-  const perform = (result: WorkplaceTransitionResult, pause = false) => {
+  // The handoff clock hold is derived from workplace state (workplaceStore),
+  // so no button here pushes or pops it. Working if opening, cancelling and
+  // finalising hold and release the plant without a control fighting a pace.
+  const perform = (result: WorkplaceTransitionResult, reveal = false) => {
     report(result);
-    if (result.changed && pause) {
-      if (s.mode === 'game') useGameSimulationStore.getState().setGameSpeed(0);
+    if (result.changed && reveal) {
       // Opening a shift replaces the entry form. Put its decision heading and
       // optional episode control together in view, beyond the lab navigation.
       if (s.phase === 'idle' || s.phase === 'review')
@@ -136,13 +141,15 @@ export function WorkplaceImprovementPanel({
         >
           {t('openExperiment')}
         </button>
+        {(mode ?? s.mode) === 'game' && <p className="text-slate-300">{t('openHoldNote')}</p>}
         {(mode ?? s.mode) === 'game' && setProfile && (
           <WorkplaceSeasonEntry
             profile={profile}
             setProfile={setProfile}
             report={report}
             onStart={() => {
-              useGameSimulationStore.getState().setGameSpeed(0);
+              // A live season runs at standard pace, as from the play card.
+              useGameSimulationStore.getState().setGameSpeed(STANDARD_GAME_SPEED);
               perform(
                 {
                   changed: true,
@@ -157,6 +164,11 @@ export function WorkplaceImprovementPanel({
         {s.mode === 'pilot' && <p>{t('pilotPlanningOnly')}</p>}
       </section>
     );
+  const cancellable =
+    !i.funded &&
+    i.history.length === 0 &&
+    obligations.length === 0 &&
+    (deliberating || s.phase === 'review');
   const arrangement = HANDOFF_ARRANGEMENTS.find((a) => a.id === i.proposalId);
   const advice = i.advice;
   const winner = improvementReviewWinner(s);
@@ -171,6 +183,37 @@ export function WorkplaceImprovementPanel({
         </p>
         <p className="text-xs text-slate-300">{t('rolePlayNote')}</p>
       </div>
+      {handoffHoldsClock(s) && (
+        <section
+          aria-label={t('holdHeading')}
+          className="space-y-2 rounded-md border border-amber-300/30 p-3"
+        >
+          <h5 className="font-semibold text-amber-100">{t('holdHeading')}</h5>
+          <TeachingPace />
+          {cancellable ? (
+            <>
+              <button
+                type="button"
+                className={button}
+                disabled={!facilitator}
+                onClick={() => perform(store.cancelImprovement(s.revision), true)}
+              >
+                {t('cancelExperiment')}
+              </button>
+              <p className="text-xs text-slate-300">{t('cancelNote')}</p>
+            </>
+          ) : deliberating ? (
+            <>
+              <button type="button" className={button} onClick={() => perform(store.stop())}>
+                {t('endShiftNow')}
+              </button>
+              <p className="text-xs text-slate-300">{t('endToReviewNote')}</p>
+            </>
+          ) : (
+            <p className="text-xs text-slate-300">{t('finaliseToReleaseNote')}</p>
+          )}
+        </section>
+      )}
       {openObjections.length > 0 && (
         <section
           aria-label={t('remediesLabel')}
@@ -398,7 +441,7 @@ export function WorkplaceImprovementPanel({
             onClick={async () => {
               await activate();
               if (useWorkplaceStore.getState().workplace.phase === 'active' && s.mode === 'game')
-                useGameSimulationStore.getState().setGameSpeed(30);
+                useGameSimulationStore.getState().resumeClockFrom('workplace');
             }}
           >
             {busy
@@ -452,7 +495,22 @@ export function WorkplaceImprovementPanel({
             >
               {t('stopArrangement')}
             </button>
-            <button type="button" className={button} onClick={() => perform(store.stop(), true)}>
+            <button
+              type="button"
+              className={button}
+              onClick={() => {
+                const result = store.stop();
+                perform(result, true);
+                // Owed recovery runs only on an explicit resume, so an early
+                // stop that owes it waits here instead of under the derived hold.
+                if (
+                  result.changed &&
+                  s.mode === 'game' &&
+                  !handoffHoldsClock(useWorkplaceStore.getState().workplace)
+                )
+                  useGameSimulationStore.getState().holdClock('workplace');
+              }}
+            >
               {t('endShiftNow')}
             </button>
             {s.mode === 'workshop' && (
@@ -620,11 +678,21 @@ export function WorkplaceImprovementPanel({
               <button
                 type="button"
                 className={button}
-                disabled={!facilitator}
+                disabled={!facilitator || i.history.length + 1 >= MAX_IMPROVEMENT_CYCLES}
                 onClick={() => perform(store.continueImprovement(s.revision), true)}
               >
                 {t('openNextShift')}
               </button>
+              {/* Every decided shift can end here, the eighth included. */}
+              <button
+                type="button"
+                className={button}
+                disabled={!facilitator || obligations.length > 0}
+                onClick={() => perform(store.closeImprovement(s.revision), true)}
+              >
+                {t('closeExperiment')}
+              </button>
+              <p className="text-xs text-slate-300">{t('closeNote')}</p>
             </>
           )}
         </div>

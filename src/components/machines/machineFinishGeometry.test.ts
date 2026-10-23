@@ -1,4 +1,8 @@
-import { SIFTER_LAYOUT, PACKER_HOPPER_LAYOUT } from '../../constants/siteLayout';
+import {
+  SIFTER_LAYOUT,
+  PACKER_HOPPER_LAYOUT,
+  getMachineAssemblyScale,
+} from '../../constants/siteLayout';
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import {
@@ -13,6 +17,27 @@ import {
 import { MACHINE_PART_GEOMETRY } from './CompactMachines';
 import { DECAL_CELL, planMachineDecals } from './machineDecals';
 import { MachineData, MachineType } from '../../types';
+
+/**
+ * Placards are planned INSTALLED, at the machine's real size. These checks
+ * raycast the authored part geometry, so read each placard back into its
+ * machine's authored metres first.
+ */
+function planAuthoredDecals(subsets: Parameters<typeof planMachineDecals>[0]) {
+  const hosts = [...subsets.silos, ...subsets.mills, ...subsets.sifters, ...subsets.packers];
+  return planMachineDecals(subsets).map((plate) => {
+    const host = hosts.find((machine) => machine.id === plate.machineId)!;
+    const scale = getMachineAssemblyScale(host);
+    const origin = host.position;
+    return {
+      ...plate,
+      position: plate.position.map(
+        (value, axis) => origin[axis] + (value - origin[axis]) / scale[axis]
+      ) as unknown as readonly [number, number, number],
+      size: [plate.size[0] / scale[0], plate.size[1] / scale[1]] as const,
+    };
+  });
+}
 
 describe('instanced machine finish geometry', () => {
   it('keeps the fittings finite with usable normals and a bounded triangle budget', () => {
@@ -468,7 +493,7 @@ describe('instanced machine finish geometry', () => {
       type: MachineType.PLANSIFTER,
       position: [0, 0, 0],
     } as MachineData;
-    const plates = planMachineDecals({ silos: [], mills: [], sifters: [machine], packers: [] });
+    const plates = planAuthoredDecals({ silos: [], mills: [], sifters: [machine], packers: [] });
     for (const plate of plates) {
       expect(plate.machineId).toBe(machine.id);
       if (plate.cell === DECAL_CELL.hazardChevron) continue;
@@ -518,9 +543,12 @@ describe('instanced machine finish geometry', () => {
       type: MachineType.ROLLER_MILL,
       position: [0, 0, 0],
     } as MachineData;
-    const plate = planMachineDecals({ silos: [], mills: [machine], sifters: [], packers: [] }).find(
-      (decal) => decal.cell === DECAL_CELL.namePlate
-    )!;
+    const plate = planAuthoredDecals({
+      silos: [],
+      mills: [machine],
+      sifters: [],
+      packers: [],
+    }).find((decal) => decal.cell === DECAL_CELL.namePlate)!;
     const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
     for (const geometry of [
       MACHINE_FINISH_GEOMETRY.millGuard,
@@ -553,9 +581,12 @@ describe('instanced machine finish geometry', () => {
       type: MachineType.ROLLER_MILL,
       position: [0, 0, 0],
     } as MachineData;
-    const plate = planMachineDecals({ silos: [], mills: [machine], sifters: [], packers: [] }).find(
-      (decal) => decal.rotationY === -Math.PI / 2
-    )!;
+    const plate = planAuthoredDecals({
+      silos: [],
+      mills: [machine],
+      sifters: [],
+      packers: [],
+    }).find((decal) => decal.rotationY === -Math.PI / 2)!;
     expect(plate.cell).toBe(DECAL_CELL.mill101);
     expect(plate.position[2] - plate.size[0] / 2).toBeGreaterThan(0.2);
     expect(plate.position[1] + plate.size[1] / 2).toBeLessThan(3.45 - 0.08);
@@ -748,4 +779,23 @@ it('keeps the full terminal gasket footprint housed beneath the clipped lid', ()
   } finally {
     material.dispose();
   }
+});
+
+it('keeps no up-facing mill guard face flush with the 0.16 m factory plinth', () => {
+  // The drive-motor base plate was 0.16 m tall, so its top lay exactly on the
+  // milling plinth's top: 2.3 m^2 of coplanar up-facing faces under each mill.
+  const geometry = MACHINE_FINISH_GEOMETRY.millGuard.toNonIndexed();
+  const position = geometry.getAttribute('position');
+  let flush = 0;
+  for (let i = 0; i < position.count; i += 3) {
+    const ys = [position.getY(i), position.getY(i + 1), position.getY(i + 2)];
+    if (!ys.every((y) => Math.abs(y - 0.16) < 0.005)) continue;
+    const a = new THREE.Vector3().fromBufferAttribute(position, i);
+    const b = new THREE.Vector3().fromBufferAttribute(position, i + 1);
+    const c = new THREE.Vector3().fromBufferAttribute(position, i + 2);
+    // Down-facing faces at this height are leg soles, hidden inside the plate.
+    if (b.sub(a).cross(c.sub(a)).y > 0) flush++;
+  }
+  geometry.dispose();
+  expect(flush).toBe(0);
 });

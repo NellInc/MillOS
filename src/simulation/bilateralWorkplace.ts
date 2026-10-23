@@ -9,6 +9,7 @@ import type {
   WorkplaceReadiness,
   WorkplaceState,
   WorkplaceTransitionResult,
+  WorkplaceMission,
   WorkplaceMissionObservation,
 } from '../types/workplace';
 import {
@@ -28,6 +29,7 @@ import {
   campaignRelationship,
   validRelationshipEvents,
   restoreRelationshipEvents,
+  shiftResumable,
 } from './workplaceCampaign';
 
 import {
@@ -251,6 +253,31 @@ const memberCopy = (t: WorkplaceTranslator) => [
     preference: t('preferenceCoordinator'),
   },
 ];
+
+const MEMBER_ORDER = ['packing', 'quality', 'maintenance', 'coordinator'];
+
+/**
+ * Members store their public copy as text in the language active when it was
+ * written. Rewrite it in the language active now, keeping everything else; the
+ * state is returned unchanged when there is nothing to rewrite.
+ */
+export function localizeWorkplaceMembers(s: WorkplaceState): WorkplaceState {
+  const copy = memberCopy(createTranslator(bilateralWorkplaceMessages, getLocale()));
+  let changed = false;
+  const members = s.members.map((m) => {
+    const next = copy[MEMBER_ORDER.indexOf(m.id)];
+    if (
+      !next ||
+      (m.role === next.role &&
+        m.publicBoundary === next.publicBoundary &&
+        m.preference === next.preference)
+    )
+      return m;
+    changed = true;
+    return { ...m, ...next };
+  });
+  return changed ? { ...s, members } : s;
+}
 
 /** All identities and preference explanations below are authored fiction. */
 export function createWorkplace(mode: WorkplaceMode = 'game', seed = 1): WorkplaceState {
@@ -774,7 +801,12 @@ function settle(s: WorkplaceState, reason: string) {
 
 /** Working if unrelated orders, duplicate receipts and a reset material session earn no mission credit. */
 function observeMission(s: WorkplaceState, observation?: WorkplaceMissionObservation): number {
-  const m = workplaceMission(s);
+  return observeLink(workplaceMission(s), observation);
+}
+function observeLink(
+  m: WorkplaceMission | undefined,
+  observation?: WorkplaceMissionObservation
+): number {
   if (!m) return 0;
   if (!observation || observation.orderId !== m.orderId || observation.cancelled) {
     m.evidence = 'missing';
@@ -868,6 +900,28 @@ export function transitionWorkplace(
       };
       record(fresh, 'packing', 'improvement-opened', translate(wm, 'evImprovementOpened'));
       return { state: fresh, changed: true, reason: null };
+    }
+    case 'cancelImprovement': {
+      // Before funding nothing has been bought or worked, so the honest exit
+      // is the origin review exactly as it was. Later cycles carry trial pay
+      // and are left through their review. Working if a cancelled first shift
+      // restores the origin with a newer revision and spends nothing.
+      const [revision] = command.args;
+      const i = s.improvement;
+      if (
+        !i ||
+        revision !== s.revision ||
+        !Number.isSafeInteger(revision) ||
+        i.funded ||
+        i.history.length > 0 ||
+        !['deliberating', 'review'].includes(s.phase) ||
+        improvementObligations(s).length
+      )
+        return reject(translate(wm, 'rejCancelImprovement'));
+      const origin = restoreWorkplace(i.origin);
+      origin.revision = s.revision + 1;
+      record(origin, 'members', 'improvement-cancelled', translate(wm, 'evImprovementCancelled'));
+      return { state: origin, changed: true, reason: null };
     }
     case 'proposeImprovement': {
       const [id, actor] = command.args;
@@ -1118,6 +1172,40 @@ export function transitionWorkplace(
       record(fresh, 'members', 'improvement-continued', translate(wm, 'evContinued'));
       return { state: fresh, changed: true, reason: null };
     }
+    case 'resumeShift': {
+      if (!Number.isSafeInteger(command.args[0]) || command.args[0] !== s.revision)
+        return reject(translate(wm, 'rejStaleRevision'));
+      if (!shiftResumable(s)) return reject(translate(wm, 'rejResumeShift'));
+      // Back to deliberation at the minute reached. invalidate() keeps every
+      // understanding, ballot and proof expired; checks and cover consent were
+      // cleared by the reload's settle, so nothing runs without fresh consent.
+      s.phase = 'deliberating';
+      s.reviewReason = null;
+      invalidate(s);
+      record(s, 'team', 'shift-resumed', translate(wm, 'evShiftResumed', { minute: s.minute }));
+      break;
+    }
+    case 'closeImprovement': {
+      // Every handoff shift's honest exit once decided, the first included:
+      // nothing owed is dropped and no new shift opens. Cancelling restores the
+      // origin only before funding; afterwards pay was paid, so the experiment
+      // ends at idle, as leaving a season does. Working if a verdict on any
+      // shift, the eighth too, can end the experiment without another shift.
+      const [revision] = command.args;
+      const i = s.improvement;
+      if (
+        !i ||
+        s.phase !== 'review' ||
+        !i.verdict ||
+        revision !== s.revision ||
+        !Number.isSafeInteger(revision) ||
+        improvementObligations(s).length
+      )
+        return reject(translate(wm, 'rejCloseImprovement'));
+      const fresh = createWorkplace(s.mode, s.seed === 0xffffffff ? 1 : s.seed + 1);
+      fresh.revision = s.revision + 1;
+      return { state: fresh, changed: true, reason: null };
+    }
     case 'startCampaign': {
       const [profile, seed = 1, mission] = command.args;
       if (
@@ -1156,12 +1244,27 @@ export function transitionWorkplace(
       return { state: fresh, changed: true, reason: null };
     }
     case 'nextCampaignShift': {
+      const [followOn] = command.args;
+      // The next order is linked only once the current link is met, so a
+      // commitment is never swapped for easier credit. Working if the season's
+      // delivery stays the commitment's and later receipts still earn.
+      const link = s.campaign?.followOn ?? s.campaign?.mission;
       if (
         !s.campaign ||
         s.campaign.shift >= 2 ||
         s.phase !== 'review' ||
         s.members.some((m) => m.recoveryOwedMinutes > 0) ||
-        s.objections.some((o) => o.status === 'open')
+        s.objections.some((o) => o.status === 'open') ||
+        (followOn !== undefined &&
+          (!s.campaign.mission ||
+            s.campaign.mission.evidence !== 'current' ||
+            s.campaign.mission.creditedKg + 1e-6 < s.campaign.mission.targetKg ||
+            !link ||
+            (link.evidence === 'current' && link.creditedKg + 1e-6 < link.targetKg) ||
+            !validWorkplaceMission(followOn) ||
+            followOn.creditedKg !== 0 ||
+            followOn.evidence !== 'current' ||
+            followOn.orderId === s.campaign.mission.orderId))
       )
         return reject(translate(wm, 'rejNextShift'));
       const history = [...s.campaign.history, campaignRecord(s)];
@@ -1188,7 +1291,31 @@ export function transitionWorkplace(
         agreementProved: false,
         ...(s.campaign.mission ? { mission: structuredClone(s.campaign.mission) } : {}),
       };
+      const nextLink = followOn ?? s.campaign.followOn;
+      if (nextLink) fresh.campaign.followOn = structuredClone(nextLink);
       record(fresh, 'system', 'campaign-shift-opened', translate(wm, 'evShiftOpened'));
+      return { state: fresh, changed: true, reason: null };
+    }
+    case 'leaveCampaign': {
+      // An honest exit: nothing owed is dropped and nothing is presented as a
+      // completed review. The store keeps the stopped season as left early.
+      // Working if leaving needs a settled, debt-free shift and ends at idle.
+      const [revision] = command.args;
+      const c = s.campaign;
+      if (
+        s.mode !== 'game' ||
+        !c ||
+        s.improvement ||
+        revision !== s.revision ||
+        !Number.isSafeInteger(revision) ||
+        !['deliberating', 'review'].includes(s.phase) ||
+        (s.phase === 'review' && c.shift === 2) ||
+        improvementObligations(s).length ||
+        c.history.some((h) => h.members.some((m) => m.recoveryOwedMinutes > 0))
+      )
+        return reject(translate(wm, 'rejLeaveCampaign'));
+      const fresh = createWorkplace('game', s.seed === 0xffffffff ? 1 : s.seed + 1);
+      fresh.revision = s.revision + 1;
       return { state: fresh, changed: true, reason: null };
     }
     case 'answerCheck': {
@@ -1581,29 +1708,47 @@ export function transitionWorkplace(
       const readiness = workplaceReadiness(s);
       if (!readiness.allowed) return reject(readiness.reasons.join(' '));
       const p = planOf(s);
-      s.finance.wageReserve = WAGE * s.durationMinutes * s.members.length;
-      s.finance.compensationReserve = p.optionalCoverMinutes * p.compensationPerMinute;
-      const improvementPurchase = improvementCost(s);
-      s.finance.cash -= p.budgetCost + improvementPurchase;
-      s.finance.improvementSpend += p.budgetCost + improvementPurchase;
+      // Every shift deliberates from minute 0, so deliberating later means a
+      // shift resumed after a reload: it was funded when it first activated.
+      // It reserves wages and cover only for what is left, and buys nothing again.
+      const resumed = s.minute > 0;
+      const coverDelivered = resumed ? s.members.reduce((n, m) => n + m.extraMinutes, 0) : 0;
+      const coverLeft = Math.max(0, p.optionalCoverMinutes - coverDelivered);
+      s.finance.wageReserve = WAGE * (s.durationMinutes - s.minute) * s.members.length;
+      s.finance.compensationReserve = coverLeft * p.compensationPerMinute;
+      if (!resumed) {
+        const improvementPurchase = improvementCost(s);
+        s.finance.cash -= p.budgetCost + improvementPurchase;
+        s.finance.improvementSpend += p.budgetCost + improvementPurchase;
+      }
       // A cancelled proposal authorizes paid steady work, without purchasing
       // the abandoned arrangement. Keep that distinction in its saved receipt.
       if (s.improvement && !s.improvement.stopped) s.improvement.funded = true;
-      if (p.optionalCoverMinutes) {
+      if (coverLeft > 0) {
         const totals = campaignTotals(s);
         const burden = (id: string) => totals.members.find((m) => m.id === id)!.extraMinutes;
-        const chosen = s.members
-          .filter((m) => m.coverConsent === true && eligibleCover(m))
-          .sort((a, b) => burden(a.id) - burden(b.id) || a.id.localeCompare(b.id))[0];
-        s.activeCoverMemberId = chosen.id;
-        s.coverRemainingMinutes = p.optionalCoverMinutes;
+        // One member covers a shift: a resumed shift continues with whoever
+        // already began, if they consent again; otherwise it has no cover.
+        const began = resumed ? s.members.find((m) => m.extraMinutes > 0) : undefined;
+        const chosen = began
+          ? began.coverConsent === true && eligibleCover(began)
+            ? began
+            : undefined
+          : s.members
+              .filter((m) => m.coverConsent === true && eligibleCover(m))
+              .sort((a, b) => burden(a.id) - burden(b.id) || a.id.localeCompare(b.id))[0];
+        if (chosen) {
+          s.activeCoverMemberId = chosen.id;
+          s.coverRemainingMinutes = coverLeft;
+        } else s.finance.compensationReserve = 0;
       }
       for (const m of s.members)
         if (m.coverConsent === false && !m.refusalRespected) {
           m.refusalRespected = true;
           s.refusalsRespected += 1;
         }
-      if (s.mode === 'game' && s.aiAuthority === 'bounded') s.aiActions += 1;
+      // One bounded AI action per shift; resuming is the same shift's action.
+      if (s.mode === 'game' && s.aiAuthority === 'bounded' && !resumed) s.aiActions += 1;
       s.phase = 'active';
       if (s.campaign) s.campaign.agreementProved = true;
       record(s, 'team', 'activated', translate(wm, 'evActivated'));
@@ -1636,7 +1781,7 @@ export function transitionWorkplace(
       break;
     }
     case 'tick': {
-      const [delta, shipped, emergency, observation] = command.args;
+      const [delta, shipped, emergency, observation, followOnObservation] = command.args;
       if (
         (!['active', 'review'].includes(s.phase) &&
           !(s.phase === 'deliberating' && workplaceMission(s))) ||
@@ -1650,14 +1795,18 @@ export function transitionWorkplace(
         typeof emergency !== 'boolean'
       )
         return reject(translate(wm, 'rejNoTick'));
-      const beforeMission = JSON.stringify(workplaceMission(s));
-      const missionDelivered =
-        s.phase === 'review' && (s.campaign?.shift === 2 || s.improvement)
-          ? 0
-          : observeMission(s, observation);
+      const links = () => JSON.stringify([workplaceMission(s), s.campaign?.followOn]);
+      const beforeMission = links();
+      const observing = !(s.phase === 'review' && (s.campaign?.shift === 2 || s.improvement));
+      const missionDelivered = observing ? observeMission(s, observation) : 0;
+      // The follow-on order earns only from fresh receipts in active work; bad
+      // evidence there stops its credit but never settles the commitment.
+      const followOnDelivered =
+        observing && s.campaign?.followOn && followOnObservation
+          ? observeLink(s.campaign.followOn, followOnObservation)
+          : 0;
       if (s.phase === 'deliberating') {
-        if (JSON.stringify(workplaceMission(s)) === beforeMission)
-          return reject(translate(wm, 'rejNoMissionReceipt'));
+        if (links() === beforeMission) return reject(translate(wm, 'rejNoMissionReceipt'));
         break;
       }
       if (
@@ -1670,7 +1819,7 @@ export function transitionWorkplace(
       }
       if (s.phase === 'review') {
         if (emergency || !s.members.some((m) => m.recoveryOwedMinutes > 0)) {
-          if (JSON.stringify(workplaceMission(s)) !== beforeMission) break;
+          if (links() !== beforeMission) break;
           return reject(translate(wm, 'rejNoRecovery'));
         }
         deliverRecovery(s, delta);
@@ -1683,7 +1832,8 @@ export function transitionWorkplace(
       const elapsed = Math.min(delta, s.durationMinutes - s.minute);
       const delivered =
         s.mode === 'game'
-          ? (workplaceMission(s) ? missionDelivered : shipped) * (elapsed / delta)
+          ? (workplaceMission(s) ? missionDelivered + followOnDelivered : shipped) *
+            (elapsed / delta)
           : 0;
       const ordinaryRest = Math.max(0, Math.min(s.minute + elapsed, 90) - Math.max(s.minute, 75));
       for (const m of s.members) m.restMinutes += ordinaryRest;
@@ -2079,7 +2229,12 @@ function restoreWorkplaceSnapshot(
     if (!r.campaign || typeof r.campaign !== 'object' || Array.isArray(r.campaign)) return fallback;
     const c = r.campaign as WorkplaceState['campaign'] & Record<string, unknown>;
     if (c.mission !== undefined && !validWorkplaceMission(c.mission)) return fallback;
-    const { mission: _mission, ...campaignShape } = c;
+    if (
+      c.followOn !== undefined &&
+      (!c.mission || !validWorkplaceMission(c.followOn) || c.followOn.orderId === c.mission.orderId)
+    )
+      return fallback;
+    const { mission: _mission, followOn: _followOn, ...campaignShape } = c;
     if (
       !validShape(
         {
@@ -2365,7 +2520,14 @@ function restoreWorkplaceSnapshot(
         o.status === 'resolved' ? translate(wm, 'restoredResolution', { actor: o.actorId }) : null,
     };
   });
-  s.reviewReason = s.phase === 'review' ? translate(wm, 'reasonReloaded') : null;
+  // Imported prose never survives a restore; only the exact reload-safety
+  // sentinel does, so a shift a reload paused stays resumable (shiftResumable).
+  s.reviewReason =
+    s.phase !== 'review'
+      ? null
+      : s.reviewReason === RELOAD_SAFETY_DETAIL
+        ? RELOAD_SAFETY_DETAIL
+        : translate(wm, 'reasonReloaded');
   s.revision += 1;
   return s;
 }

@@ -1,4 +1,4 @@
-import { defineMessages } from '../../../i18n';
+import { defineMessages, upperFirst } from '../../../i18n';
 
 const PT_STATUS: Record<string, string> = {
   running: 'em operação',
@@ -54,8 +54,16 @@ export const machineInspectorMessages = defineMessages({
     hideLogs: 'Hide Maintenance Logs',
     viewLogs: 'View Maintenance Logs',
     outOfParts: 'Out of spare parts — maintenance needs one to proceed.',
+    wearAndService: 'Wear and service',
+    wear: 'Wear',
+    wearThresholds:
+      'Warning at {warning}%, breakdown at {breakdown}%. Efficiency {efficiency}%. Maintenance lowers wear; a restart does not.',
+    maintenanceCost: (p: { part: string; count: string }) =>
+      `Uses 1 spare part: ${p.part} (${p.count} in stock).`,
     maintenanceTitle: (p: { part: string }) =>
       `Reduces machine wear (consumes 1 spare part: ${p.part})`,
+    maintenanceBelowMinimum:
+      'Not needed yet: wear {wear}% is below the {minimum}% service minimum, so the unit runs at full efficiency.',
     performingMaintenance: 'Performing Maintenance...',
     performMaintenance: 'Perform Maintenance',
     restarting: 'Restarting...',
@@ -74,6 +82,9 @@ export const machineInspectorMessages = defineMessages({
     machineRestartedTitle: 'Machine Restarted',
     machineRecoveredMessage: '{name} has been restarted and metrics reset to healthy values.',
     machineRestartedMessage: '{name} has been successfully restarted.',
+    machineRestartedWornTitle: 'Restarted, Still Worn',
+    machineRestartedWornMessage:
+      '{name} restarted, but wear is still {wear}% (it warns from {threshold}%). A restart does not reduce wear: use Perform Maintenance.',
 
     trendLabel: 'Recorded feed rate trend in {unit}',
     trendWaiting: 'Waiting for the historian to collect enough to draw a line.',
@@ -93,9 +104,9 @@ export const machineInspectorMessages = defineMessages({
     processingStopped: 'Processamento parado',
     materialReady: 'Material disponível',
 
-    status: (p: { status: string }) => PT_STATUS[p.status] ?? p.status,
+    status: (p: { status: string }) => upperFirst(PT_STATUS[p.status] ?? p.status),
     statusLabel: (p: { status: string }) => `Status da máquina: ${PT_STATUS[p.status] ?? p.status}`,
-    maintenanceType: (p: { type: string }) => PT_MAINTENANCE_TYPES[p.type] ?? p.type,
+    maintenanceType: (p: { type: string }) => upperFirst(PT_MAINTENANCE_TYPES[p.type] ?? p.type),
 
     feedRate: 'Vazão de alimentação',
     rpm: 'RPM',
@@ -110,8 +121,16 @@ export const machineInspectorMessages = defineMessages({
     hideLogs: 'Ocultar registros de manutenção',
     viewLogs: 'Ver registros de manutenção',
     outOfParts: 'Sem peças de reposição: a manutenção precisa de uma para continuar.',
+    wearAndService: 'Desgaste e manutenção',
+    wear: 'Desgaste',
+    wearThresholds:
+      'Alerta em {warning}%, pane em {breakdown}%. Eficiência de {efficiency}%. A manutenção reduz o desgaste; o reinício, não.',
+    maintenanceCost: (p: { part: string; count: string }) =>
+      `Usa 1 peça de reposição: ${PT_PARTS[p.part] ?? p.part} (${p.count} em estoque).`,
     maintenanceTitle: (p: { part: string }) =>
       `Reduz o desgaste da máquina (consome 1 peça de reposição: ${PT_PARTS[p.part] ?? p.part})`,
+    maintenanceBelowMinimum:
+      'Ainda não é necessária: o desgaste de {wear}% está abaixo do mínimo de {minimum}% para manutenção, e a unidade opera com eficiência total.',
     performingMaintenance: 'Fazendo manutenção...',
     performMaintenance: 'Fazer manutenção',
     restarting: 'Reiniciando...',
@@ -131,6 +150,9 @@ export const machineInspectorMessages = defineMessages({
     machineRecoveredMessage:
       '{name}: reinício concluído e métricas redefinidas para valores saudáveis.',
     machineRestartedMessage: '{name}: reinício concluído com sucesso.',
+    machineRestartedWornTitle: 'Reiniciada, ainda desgastada',
+    machineRestartedWornMessage:
+      '{name} reiniciou, mas o desgaste continua em {wear}% (o alerta começa em {threshold}%). Reiniciar não reduz o desgaste: use Fazer manutenção.',
 
     trendLabel: 'Tendência registrada da vazão de alimentação em {unit}',
     trendWaiting: 'Aguardando o histórico reunir dados suficientes para traçar uma linha.',

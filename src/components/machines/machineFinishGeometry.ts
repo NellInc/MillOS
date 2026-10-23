@@ -3,7 +3,11 @@ import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferG
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { DecalGeometry } from 'three/addons/geometries/DecalGeometry.js';
 
-import { SIFTER_LAYOUT, PACKER_HOPPER_LAYOUT } from '../../constants/siteLayout';
+import {
+  SIFTER_LAYOUT,
+  PACKER_HOPPER_LAYOUT,
+  PROCESS_MACHINE_INSTALL_SCALE,
+} from '../../constants/siteLayout';
 
 /**
  * Open motor-end cage, in the existing torus mount's unit coordinates.
@@ -300,7 +304,9 @@ function millGuard(): THREE.BufferGeometry {
   }
   castCover(parts, [2.425, 2.65, 0], [0.08, 1.92, 3.04]);
   castCover(parts, [2.4, 1.66, MILL_DRIVE_Z], [0.21, 1.63, 1.58]);
-  box(parts, [3.02, 0.08, MILL_DRIVE_Z], [1.5, 0.16, 1.55]);
+  // Motor base plate, 0.18 m: at 0.16 its top lay flush with the milling
+  // plinth's and the two z-fought over the plate's full 2.3 m^2.
+  box(parts, [3.02, 0.09, MILL_DRIVE_Z], [1.5, 0.18, 1.55]);
   for (const x of [2.65, 3.35]) box(parts, [x, 0.58, MILL_DRIVE_Z], [0.22, 0.84, 1.12]);
   for (const centre of MILL_INSPECTION_COVERS) cylinder(parts, centre, 0.31, 0.12, 'x', 16);
   // The terminal base overlaps the fixed motor by20mm at rest, retaining
@@ -690,12 +696,31 @@ export const PACKER_SACK_LAYOUT = {
   guideSize: [0.05, 1, 0.05] as const,
 } as const;
 
+/**
+ * The fill station - spout, sack, bag guides and guards - is drawn at real size
+ * and stays at real size when the cabinet is installed at
+ * `PROCESS_MACHINE_INSTALL_SCALE.packer`. It moves back by this much so the
+ * spout's root flange keeps the 32 mm stand-proud it had on the authored
+ * cabinet: the authored flange sat on the sack-bay face (sz 0.845); installed,
+ * the spout's 1.72-1.86 m travel lands on the full instrument face (sz 1.0).
+ * Working if the flange is seated and the whole sack sweep stays clear of the
+ * installed base and before the QC and packing posts.
+ */
+const PACKER_CABINET_HALF_DEPTH = 3.45 / 2;
+export const PACKER_STATION_SHIFT_Z =
+  PACKER_CABINET_HALF_DEPTH * PROCESS_MACHINE_INSTALL_SCALE.packer -
+  0.845 * PACKER_CABINET_HALF_DEPTH;
+
 /** Shared by initial layout and every moving frame, keeping the foot seated. */
-export function getPackerSackPosition(origin: Vec3, cycle = 0): [number, number, number] {
+export function getPackerSackPosition(
+  origin: Vec3,
+  cycle = 0,
+  shiftZ = 0
+): [number, number, number] {
   return [
     origin[0],
     origin[1] + PACKER_SACK_LAYOUT.centreY,
-    origin[2] + PACKER_SACK_LAYOUT.z + cycle * PACKER_SACK_LAYOUT.travel,
+    origin[2] + shiftZ + PACKER_SACK_LAYOUT.z + cycle * PACKER_SACK_LAYOUT.travel,
   ];
 }
 
@@ -771,6 +796,10 @@ export const PACKER_FILL_HEAD_GEOMETRY = (() => {
 })();
 
 /** Same layout and operating transform, driven only by the incumbent clock. */
-export function getPackerHeadPosition(origin: Vec3, cycle = 0): [number, number, number] {
-  return [origin[0], origin[1] + cycle * 0.14, origin[2]];
+export function getPackerHeadPosition(
+  origin: Vec3,
+  cycle = 0,
+  shiftZ = 0
+): [number, number, number] {
+  return [origin[0], origin[1] + cycle * 0.14, origin[2] + shiftZ];
 }

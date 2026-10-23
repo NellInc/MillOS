@@ -31,6 +31,63 @@ describe('guided delivery evidence', () => {
       ).title
     ).toBe('Delivery fulfilled');
   });
+  // The opening lesson can be done without a pointer: the card offers to
+  // inspect a machine, and only this stage is marked as the inspection.
+  it('marks only the opening lesson as the inspection, and names its keyboard route', () => {
+    const campaign = useOperationsCampaignStore.getState();
+    const order = campaign.orders[0];
+    const lesson = deriveDeliveryJourney(order, campaign.execution, false);
+    expect(lesson.inspect).toBe(true);
+    expect(lesson.detail).toContain('Inspect a roller mill');
+    expect(deriveDeliveryJourney(order, campaign.execution, true).inspect).toBeUndefined();
+  });
+  it('narrates the truck stages even when no machine was inspected', () => {
+    const campaign = useOperationsCampaignStore.getState();
+    const order = campaign.orders[0];
+    const execution = { ...campaign.execution, orderId: order.id };
+    for (const stage of ['ready_to_load', 'loading', 'ready_to_dispatch'] as const)
+      expect(deriveDeliveryJourney(order, { ...execution, stage }, false).title).not.toBe(
+        'Inspect the line'
+      );
+    expect(
+      deriveDeliveryJourney(
+        { ...order, shippedKg: 5000 },
+        {
+          ...execution,
+          stage: 'dispatched',
+          dispatchLoad: { ...execution.dispatchLoad, status: 'departed', lastDispatchKg: 5000 },
+        },
+        false
+      ).title
+    ).toBe('Truck departed');
+  });
+  it('names the second trip and the next truck for an order larger than one truck', () => {
+    const campaign = useOperationsCampaignStore.getState();
+    const order = campaign.orders[0];
+    const load = { ...campaign.execution.dispatchLoad, capacityKg: 5000 };
+    const loading = deriveDeliveryJourney(
+      order,
+      { ...campaign.execution, orderId: order.id, stage: 'loading', dispatchLoad: load },
+      true,
+      { active: true, docked: true, nextArrivalMinutes: 0 }
+    );
+    expect(loading.detail).toContain('Truck 1 of 2');
+    expect(loading.detail).toContain('6000 kg still to ship');
+    const departed = deriveDeliveryJourney(
+      { ...order, shippedKg: 5000 },
+      {
+        ...campaign.execution,
+        orderId: order.id,
+        stage: 'dispatched',
+        dispatchLoad: { ...load, status: 'departed', lastDispatchKg: 5000 },
+      },
+      true,
+      { active: false, docked: false, nextArrivalMinutes: 14 }
+    );
+    expect(departed.detail).toContain('Truck 2 of 2');
+    expect(departed.detail).toContain('1000 kg still to ship');
+    expect(departed.detail).toContain('due on site in 14 min');
+  });
   it('routes QC holds to real batch controls and loading to operations', () => {
     const campaign = useOperationsCampaignStore.getState();
     const order = campaign.orders[0];
@@ -220,4 +277,23 @@ it('names the workspace the follow-the-grain step actually opens', () => {
   expect(guide.workspace).toBe('scada');
   expect(guide.detail).toContain('Open SCADA');
   expect(guide.detail).not.toContain('Open operations to review the recipe');
+});
+
+it('turns the guide to the repair while a machine is stopped, and names where to go', () => {
+  const campaign = useOperationsCampaignStore.getState();
+  campaign.initializeCampaign();
+  const state = useOperationsCampaignStore.getState();
+  const order = state.orders[0];
+  const execution = { ...state.execution, orderId: order.id, stage: 'milling' as const };
+  const guide = deriveDeliveryJourney(order, execution, true, undefined, {
+    machineName: 'R.M. 101',
+    workOrderId: 'wo-00001',
+  });
+  expect(guide.title).toBe('Repair R.M. 101');
+  expect(guide.detail).toContain('wo-00001');
+  expect(guide.detail).toContain('Mill Overview');
+  expect(guide.workspace).toBe('overview');
+  expect(guide.focus).toBe('maintenance');
+  // Without a fault the same state still reads the ordinary lesson.
+  expect(deriveDeliveryJourney(order, execution, true).title).not.toBe('Repair R.M. 101');
 });

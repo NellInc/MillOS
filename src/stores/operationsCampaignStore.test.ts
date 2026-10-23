@@ -272,13 +272,106 @@ describe('autonomous operations programme', () => {
     );
     expect(state.acceptNextProgramme()).toBe(true);
     expect(useOperationsCampaignStore.getState().orders).toHaveLength(6);
+    // A varied programme (src/simulation/programmes.ts), not three equal clones.
     expect(
       useOperationsCampaignStore
         .getState()
         .orders.slice(-3)
-        .every((order) => order.requiredKg === 3000 && order.shippedKg === 0)
-    ).toBe(true);
+        .map((order) => [order.requiredKg, order.shippedKg])
+    ).toEqual([
+      [2500, 0],
+      [3000, 0],
+      [6000, 0],
+    ]);
     expect(useOperationsCampaignStore.getState().acceptNextProgramme()).toBe(false);
+  });
+
+  // The pt-BR play-test on 9115ad52 appeared to orphan an order at 5,000 of
+  // 6,000 kg when the next programme arrived. The store refuses a programme
+  // while any order is open, keeps the line on that order, ships the 1,000 kg
+  // remainder on the next truck and only then takes the programme. (The
+  // play-test's view was a Level 1 agent read cut to the five oldest orders.)
+  const partShipped = () => {
+    const [first, ...rest] = useOperationsCampaignStore.getState().orders;
+    useOperationsCampaignStore.setState({
+      orders: [
+        { ...first, status: 'active', shippedKg: 5000 },
+        ...rest.map((order) => ({
+          ...order,
+          status: 'fulfilled' as const,
+          shippedKg: order.requiredKg,
+          completedAtMinute: 100,
+        })),
+      ],
+      activeOrderId: first.id,
+    });
+    return first;
+  };
+  const remainderBatch: ProductionBatch = {
+    ...flourBatch,
+    id: 'batch-0002',
+    producedKg: 1000,
+    dispatchManifestIds: ['shipping-0002'],
+  };
+  const remainderManifest: MaterialManifest = {
+    ...shippingManifest,
+    id: 'shipping-0002',
+    requestedKg: 1000,
+    actualKg: 1000,
+    materials: [{ type: 'flour', amount: 1000 }],
+    sourceLots: [{ lotId: 'lot-0001', amount: 1000, path: ['silo-0', 'packer-0'] }],
+    productBatches: [{ batchId: 'batch-0002', amount: 1000 }],
+  };
+
+  it('keeps serving a part-shipped order instead of letting the next programme orphan it', () => {
+    const store = useOperationsCampaignStore.getState();
+    const first = partShipped();
+    expect(store.acceptNextProgramme()).toBe(false);
+    store.tickCampaign(60, context());
+    let state = useOperationsCampaignStore.getState();
+    expect(state.orders).toHaveLength(3);
+    expect(state.activeOrderId).toBe(first.id);
+    expect(state.getLineProductionPlan({})).toMatchObject({ orderId: first.id });
+
+    store.tickCampaign(
+      60,
+      context({ manifests: [remainderManifest], productionBatches: [remainderBatch] })
+    );
+    state = useOperationsCampaignStore.getState();
+    expect(state.orders[0]).toMatchObject({ id: first.id, status: 'fulfilled', shippedKg: 6000 });
+    expect(state.acceptNextProgramme()).toBe(true);
+    state = useOperationsCampaignStore.getState();
+    expect(state.orders[0]).toMatchObject({ id: first.id, status: 'fulfilled' });
+    expect(state.activeOrderId).toMatch(/^programme-/);
+  });
+
+  it('marks a part-shipped order late once its due minute passes and still finishes it', () => {
+    const store = useOperationsCampaignStore.getState();
+    const first = partShipped();
+    store.tickCampaign((first.dueAtMinute + 1) * 60, context());
+    let state = useOperationsCampaignStore.getState();
+    expect(state.orders[0]).toMatchObject({ id: first.id, status: 'late', shippedKg: 5000 });
+    expect(state.activeOrderId).toBe(first.id);
+    expect(state.getLineProductionPlan({})).toMatchObject({ orderId: first.id });
+    expect(state.acceptNextProgramme()).toBe(false);
+
+    store.tickCampaign(
+      60,
+      context({ manifests: [remainderManifest], productionBatches: [remainderBatch] })
+    );
+    state = useOperationsCampaignStore.getState();
+    expect(state.orders[0]).toMatchObject({ status: 'fulfilled', shippedKg: 6000 });
+    expect(state.orders[0].completedAtMinute).toBeGreaterThan(first.dueAtMinute);
+  });
+
+  it('recovers a save whose active order id no longer names an open order', () => {
+    const store = useOperationsCampaignStore.getState();
+    const first = partShipped();
+    useOperationsCampaignStore.setState({ activeOrderId: 'programme-118-order-1' });
+    store.tickCampaign(60, context());
+    const state = useOperationsCampaignStore.getState();
+    expect(state.activeOrderId).toBe(first.id);
+    expect(state.getLineProductionPlan({})).toMatchObject({ orderId: first.id });
   });
 
   it('never credits a product batch beyond its own mass', () => {
@@ -475,6 +568,59 @@ describe('autonomous operations programme', () => {
     store.tickCampaign(240 * 60, context());
     expect(useOperationsCampaignStore.getState().activeChallenge).toBeNull();
     expect(useOperationsCampaignStore.getState().challengeHistory.at(-1)?.status).toBe('failed');
+  });
+
+  it('publishes what each failure is costing per game hour, from the same formula it books', () => {
+    const store = useOperationsCampaignStore.getState();
+    const late = { ...store.orders[0], status: 'late' as const, shippedKg: 1000 };
+    useOperationsCampaignStore.setState({ orders: [late, ...store.orders.slice(1)] });
+    const before = useOperationsCampaignStore.getState().economics;
+    store.tickCampaign(
+      3600,
+      context({ openWorkOrders: 2, shippingDocked: true, dispatchReleased: false })
+    );
+    const after = useOperationsCampaignStore.getState();
+    const lateRate = (late.requiredKg - late.shippedKg) * late.latePenaltyPerKgHour;
+    expect(after.costRates).toEqual({ maintenance: 180, demurrage: 120, late: lateRate });
+    expect(after.economics.maintenanceCost - before.maintenanceCost).toBeCloseTo(180, 6);
+    expect(after.economics.demurrageCost - before.demurrageCost).toBeCloseTo(120, 6);
+    expect(after.economics.latePenalties - before.latePenalties).toBeCloseTo(lateRate, 6);
+    // An unchanged rate keeps its reference, so the card does not re-render each tick.
+    const rates = after.costRates;
+    store.tickCampaign(
+      1,
+      context({ openWorkOrders: 2, shippingDocked: true, dispatchReleased: false })
+    );
+    expect(useOperationsCampaignStore.getState().costRates).toBe(rates);
+    store.tickCampaign(1, context());
+    expect(useOperationsCampaignStore.getState().costRates).toMatchObject({
+      maintenance: 0,
+      demurrage: 0,
+    });
+  });
+
+  it('judges a shipped batch by the quality it was made at, not the plant reading at dispatch', () => {
+    const store = useOperationsCampaignStore.getState();
+    store.tickCampaign(
+      60,
+      context({
+        manifests: [shippingManifest],
+        productionBatches: [{ ...flourBatch, qualityScore: 99 }],
+        averageQuality: 90,
+      })
+    );
+    expect(useOperationsCampaignStore.getState().orders[0].qualityFailureKg).toBe(0);
+
+    store.resetCampaign();
+    store.tickCampaign(
+      60,
+      context({
+        manifests: [shippingManifest],
+        productionBatches: [{ ...flourBatch, qualityScore: 93 }],
+        averageQuality: 99,
+      })
+    );
+    expect(useOperationsCampaignStore.getState().orders[0].qualityFailureKg).toBeGreaterThan(0);
   });
 
   it('caps period grading for unsafe recovery and quality failures with causal reasons', () => {
@@ -730,5 +876,97 @@ describe('compact batch credit keys', () => {
       })
     );
     expect(shipped()).toBe(100);
+  });
+
+  // The credit record keeps the newest 1,000 batch keys. A 90-minute shift
+  // packs about 15 batches (UnifiedGameTick.workplace replay evidence), so a
+  // campaign passes the cap after roughly four to five game days: about an
+  // hour of play at 4x. Eviction is safe because the record is only ever the
+  // second guard: a manifest is counted once by its id (the receipt window
+  // spans the whole manifest window), and a dispatch only removes mass that
+  // is still available, so a resident batch's later credit is bounded by its
+  // own manifest line rather than by the evicted total.
+  it('neither double-credits nor drops credit after the record passes 1,000 batches and reloads', () => {
+    const sessionId = 'long-campaign-session';
+    const path = ['silo-0', 'packer-0'];
+    const line = (id: string, batches: { batchId: string; amount: number }[]): MaterialManifest => {
+      const kg = batches.reduce((sum, batch) => sum + batch.amount, 0);
+      return {
+        ...shippingManifest,
+        id,
+        requestedKg: kg,
+        actualKg: kg,
+        materials: [{ type: 'flour', amount: kg }],
+        sourceLots: [{ lotId: 'lot-0001', amount: kg, path }],
+        productBatches: batches,
+      };
+    };
+    // A batch that stays in stock after its first 100 kg ships.
+    const resident: ProductionBatch = {
+      ...flourBatch,
+      id: 'batch-resident',
+      producedKg: 1000,
+      availableKg: 900,
+      sourceContributions: [{ lotId: 'lot-0001', amount: 1000, path }],
+      disposition: 'released',
+      dispositionReason: null,
+      dispatchManifestIds: ['shipping-resident-1'],
+    };
+    const store = useOperationsCampaignStore.getState();
+    const manifests: MaterialManifest[] = [
+      line('shipping-resident-1', [{ batchId: resident.id, amount: 100 }]),
+    ];
+    const shippedBatches: ProductionBatch[] = [];
+    const live = () =>
+      context({
+        materialSessionId: sessionId,
+        manifests: manifests.slice(-MAX_MATERIAL_MANIFESTS),
+        productionBatches: [resident, ...shippedBatches.slice(-32)],
+      });
+    store.tickCampaign(60, live());
+    // 40 later trucks of 25 one-kilogram batches: 1,000 newer credit keys.
+    for (let truck = 0; truck < 40; truck++) {
+      const id = `shipping-fill-${truck}`;
+      const batches = Array.from({ length: 25 }, (_, index) => ({
+        ...flourBatch,
+        id: `batch-fill-${truck}-${index}`,
+        producedKg: 1,
+        sourceContributions: [{ lotId: 'lot-0001', amount: 1, path }],
+        dispatchManifestIds: [id],
+      }));
+      shippedBatches.push(...batches);
+      manifests.push(
+        line(
+          id,
+          batches.map((batch) => ({ batchId: batch.id, amount: 1 }))
+        )
+      );
+      store.tickCampaign(60, live());
+    }
+    const credited = useOperationsCampaignStore.getState().creditedBatchKg;
+    expect(Object.keys(credited)).toHaveLength(1000);
+    expect(Object.keys(credited).some((key) => key.includes(resident.id))).toBe(false);
+    expect(shipped()).toBe(1100);
+
+    // Reload the saved campaign against the same physical window.
+    const options = useOperationsCampaignStore.persist.getOptions();
+    const saved = JSON.parse(
+      JSON.stringify(options.partialize!(useOperationsCampaignStore.getState()))
+    );
+    store.resetCampaign();
+    useOperationsCampaignStore.setState(
+      options.merge!(saved, useOperationsCampaignStore.getState())
+    );
+    store.tickCampaign(60, live());
+    expect(shipped()).toBe(1100);
+
+    // The resident batch ships its remaining 900 kg: credited once, in full.
+    resident.availableKg = 0;
+    resident.disposition = 'shipped';
+    resident.dispatchManifestIds.push('shipping-resident-2');
+    manifests.push(line('shipping-resident-2', [{ batchId: resident.id, amount: 900 }]));
+    store.tickCampaign(60, live());
+    store.tickCampaign(60, live());
+    expect(shipped()).toBe(2000);
   });
 });

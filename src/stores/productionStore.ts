@@ -6,6 +6,7 @@ import {
   AIDecision,
   ProductionTarget,
   type AIDecisionDisposition,
+  type MaintenanceRecord,
 } from '../types';
 import { useHistoricalPlaybackStore } from './historicalPlaybackStore';
 import { useMaterialFlowStore } from './materialFlowStore';
@@ -16,8 +17,12 @@ import { useIncidentReplayStore, type IncidentReplayStore } from './incidentRepl
 import { useTruckScheduleStore, type TruckScheduleStore } from './truckScheduleStore';
 import { useUIStore } from './uiStore';
 import { useBreakdownStore } from './breakdownStore';
+// Read only inside performMaintenance (game-clock service dates), never at
+// module evaluation, so the import cycle with gameSimulationStore is inert.
+import { useGameSimulationStore } from './gameSimulationStore';
 import { formatFixed, translate } from '../i18n';
 import { productionStoreMessages } from './productionStore.messages';
+import { bagsPerGameHour } from '../simulation/pace';
 
 // Re-export from new focused stores for backward compatibility
 export { useQCLabStore } from './qcLabStore';
@@ -199,17 +204,46 @@ export function getWearConfig(machineType: string): WearConfig {
 }
 
 /**
+ * Least wear at which routine service is worth its parts and downtime: half the
+ * warning threshold, where efficiency starts to fall. Below it the machine runs
+ * as new, so Maintain would spend a part and buy nothing measurable. Working if
+ * every surface that offers Maintain and performMaintenance agree on it.
+ */
+export function minimumServiceWear(machineType: string): number {
+  return getWearConfig(machineType).warningThreshold * 0.5;
+}
+
+/**
  * Efficiency from wear: 100% until half the warning threshold, then a linear
  * fall to 60% at the breakdown threshold, and 0% once broken down.
  */
 export function calculateEfficiency(wear: number, machineType: string): number {
   const config = getWearConfig(machineType);
+  const knee = minimumServiceWear(machineType);
   if (wear >= config.breakdownThreshold) return 0;
-  if (wear < config.warningThreshold * 0.5) return 100;
-  const degradationRange = config.breakdownThreshold - config.warningThreshold * 0.5;
-  const wearInRange = wear - config.warningThreshold * 0.5;
+  if (wear < knee) return 100;
+  const degradationRange = config.breakdownThreshold - knee;
+  const wearInRange = wear - knee;
   const degradation = Math.min(1, wearInRange / degradationRange);
   return Math.round((1 - degradation * 0.4) * 100);
+}
+
+/** Service records kept per machine; machines are saved with the session. */
+const MAX_MAINTENANCE_RECORDS = 10;
+
+/**
+ * True while wear alone keeps a machine at or above its warning threshold.
+ * Restarting or cooling such a machine does not clear the warning; only
+ * maintenance does. Shared by every writer of the warning status so the wear
+ * tick and the offline metrics model never flip it back and forth.
+ */
+export function wearHoldsWarning(machine: Pick<MachineData, 'type' | 'metrics'>): boolean {
+  const wear = machine.metrics?.wear;
+  return (
+    typeof wear === 'number' &&
+    Number.isFinite(wear) &&
+    wear >= getWearConfig(machine.type).warningThreshold
+  );
 }
 
 function updateMachinesForTick(
@@ -916,11 +950,15 @@ export const useProductionStore = create<ProductionStore>()(
       // A broken-down machine is always serviceable: a campaign fault (e.g. a
       // bearing overheat) can trip a machine at any wear, and its controlled
       // restart must still return it to service.
-      if (currentWear <= 0 && machine.status !== 'critical') {
+      const minimumWear = minimumServiceWear(machine.type);
+      if (currentWear < minimumWear && machine.status !== 'critical') {
         return {
           success: false,
           wearReduced: 0,
-          message: translate(productionStoreMessages, 'maintenanceNoWear'),
+          message: translate(productionStoreMessages, 'maintenanceBelowMinimumWear', {
+            wear: formatFixed(currentWear, 1),
+            minimum: formatFixed(minimumWear, 1),
+          }),
         };
       }
 
@@ -942,6 +980,40 @@ export const useProductionStore = create<ProductionStore>()(
         newStatus = machine.status === 'idle' ? 'idle' : 'running';
       }
 
+      // Every service leaves a record on the game clock, newest first, so the
+      // inspector's log shows what was done. One write here covers the
+      // inspector, the maintenance schedule and the work-order restart.
+      const clock = useGameSimulationStore.getState();
+      const day = Number.isFinite(clock.gameDay) ? Math.max(1, Math.floor(clock.gameDay)) : 1;
+      const minuteOfDay = Number.isFinite(clock.gameTime)
+        ? Math.floor((((clock.gameTime % 24) + 24) % 24) * 60 + 1e-6)
+        : 0;
+      const history = machine.maintenanceHistory ?? [];
+      const baseId = `${machineId}-svc-${day}-${minuteOfDay}`;
+      let recordId = baseId;
+      for (let n = 2; history.some((entry) => entry.id === recordId); n += 1)
+        recordId = `${baseId}-${n}`;
+      const wearNote = translate(productionStoreMessages, 'maintenanceResultWearReduced', {
+        from: formatFixed(currentWear, 1),
+        to: formatFixed(newWear, 1),
+      });
+      const record: MaintenanceRecord = {
+        id: recordId,
+        date: translate(productionStoreMessages, 'maintenanceRecordDate', {
+          day: formatFixed(day, 0),
+          time: `${String(Math.floor(minuteOfDay / 60)).padStart(2, '0')}:${String(minuteOfDay % 60).padStart(2, '0')}`,
+        }),
+        type: authorizedRestart ? 'corrective' : 'preventive',
+        serviceUnit: authorizedRestart
+          ? (restartWorkOrderId ?? '')
+          : translate(productionStoreMessages, 'maintenanceRecordRoutineUnit'),
+        notes: authorizedRestart
+          ? translate(productionStoreMessages, 'maintenanceRecordRestartNote', { wear: wearNote })
+          : `${wearNote}.`,
+        duration: 0,
+      };
+      const maintenanceHistory = [record, ...history].slice(0, MAX_MAINTENANCE_RECORDS);
+
       // Update machine state
       set((state) => ({
         machines: state.machines.map((m) =>
@@ -950,6 +1022,7 @@ export const useProductionStore = create<ProductionStore>()(
                 ...m,
                 status: newStatus,
                 lastMaintenance: new Date().toISOString(),
+                maintenanceHistory,
                 metrics: {
                   ...m.metrics,
                   wear: Math.round(newWear * 100) / 100,
@@ -1064,7 +1137,7 @@ export const useProductionStore = create<ProductionStore>()(
 
         // Throughput: Use REAL material flow rate from materialFlowStore
         // This represents actual kg/sec flowing through the system
-        // Convert to bags/hour: (kg/sec) / 25 kg/bag * 3600 sec/hour
+        // Converted to bags per game hour by the shared pace model.
         const materialFlowState = useMaterialFlowStore.getState();
         // Final-stage (packer) rate only - the documented basis for throughput.
         // currentFlowRate sums every processing stage (mill + sifter + packer),
@@ -1075,8 +1148,8 @@ export const useProductionStore = create<ProductionStore>()(
         // If material flow is not initialized yet, fall back to RPM-based calculation
         let throughput: number;
         if (flowRateKgPerSec > 0) {
-          // Real throughput from material flow: bags per hour
-          throughput = Math.round((flowRateKgPerSec / BAG_WEIGHT_KG) * 3600);
+          // Real throughput from material flow: bags per game hour
+          throughput = bagsPerGameHour(flowRateKgPerSec, BAG_WEIGHT_KG);
         } else {
           // Fallback: estimate from packer RPM
           const BAGS_PER_RPM_PER_MIN = 0.2;
@@ -1152,7 +1225,7 @@ export const useProductionStore = create<ProductionStore>()(
 
         let throughput: number;
         if (flowRateKgPerSec > 0) {
-          throughput = Math.round((flowRateKgPerSec / BAG_WEIGHT_KG) * 3600);
+          throughput = bagsPerGameHour(flowRateKgPerSec, BAG_WEIGHT_KG);
         } else {
           const BAGS_PER_RPM_PER_MIN = 0.2;
           const packers = nextMachines.filter((m) => m.type.toString() === 'PACKER');
@@ -1201,6 +1274,7 @@ export const useProductionStore = create<ProductionStore>()(
             machineId: id,
             timestamp: new Date(),
             acknowledged: false,
+            announce: 'assertive',
           });
         });
       }
@@ -1232,6 +1306,7 @@ export const useProductionStore = create<ProductionStore>()(
             machineId: id,
             timestamp: new Date(),
             acknowledged: false,
+            announce: 'assertive',
           });
         });
       }

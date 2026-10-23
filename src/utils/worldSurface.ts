@@ -140,9 +140,152 @@
  */
 
 import * as THREE from 'three';
+import { CONCRETE_SLAB_GLSL, SLAB_JOINT_PITCH, SLAB_JOINT_WIDTH } from './concreteSlab';
 
 /** Bump BY HAND whenever the injected GLSL below changes. Never derive this. */
-const WORLD_SURFACE_PROGRAM_VERSION = 'v5';
+const WORLD_SURFACE_PROGRAM_VERSION = 'v10';
+
+/** Where a rib's crown sits within its pitch, 0-1 (the trapezoid in FRAGMENT_BODY). */
+export const RIB_CROWN_PHASE = 0.4;
+
+/**
+ * The filtered rib's trapezoid, in fractions of a pitch: 0 to 0.1 trough, a
+ * linear web up to the crown at 0.24, crown to 0.56, web down to 0.7, trough
+ * to the end. Centred on RIB_CROWN_PHASE like the default path's smoothstep
+ * edges, which it approximates with straight webs so it can be integrated.
+ */
+const RIB_EDGES = { riseStart: 0.1, riseEnd: 0.24, fallStart: 0.56, fallEnd: 0.7 } as const;
+/** The trapezoid's mean over one pitch: crown 0.32 plus two half-webs of 0.07. */
+export const RIB_PROFILE_MEAN = 0.46;
+
+/** Integral of the trapezoid from 0 to `u` pitches. Mirrors `surfRibIntegral`. */
+function ribIntegral(u: number): number {
+  const t = u - Math.floor(u);
+  const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+  const web = RIB_EDGES.riseEnd - RIB_EDGES.riseStart;
+  const r = clamp(t, RIB_EDGES.riseStart, RIB_EDGES.riseEnd) - RIB_EDGES.riseStart;
+  const f = clamp(t, RIB_EDGES.fallStart, RIB_EDGES.fallEnd) - RIB_EDGES.fallStart;
+  return (
+    Math.floor(u) * RIB_PROFILE_MEAN +
+    (r * r) / (2 * web) +
+    clamp(t, RIB_EDGES.riseEnd, RIB_EDGES.fallStart) -
+    RIB_EDGES.riseEnd +
+    f -
+    (f * f) / (2 * web)
+  );
+}
+
+/** The rib profile box-filtered over a footprint of `w` pitches at `u`. */
+export function ribFilteredValue(u: number, w: number): number {
+  const width = Math.max(w, 1e-4);
+  return (ribIntegral(u + width / 2) - ribIntegral(u - width / 2)) / width;
+}
+
+/** Crown-to-trough swing (0-1) left after filtering over `w` pitches. */
+export function ribFilteredSwing(w: number): number {
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (let i = 0; i < 200; i++) {
+    const value = ribFilteredValue(i / 200, w);
+    lo = Math.min(lo, value);
+    hi = Math.max(hi, value);
+  }
+  return hi - lo;
+}
+
+/**
+ * Footprint, in pitches a pixel, over which the filtered rib's swing fades out.
+ *
+ * A box filter is not a low-pass. Over a footprint of `w` pitches the
+ * trapezoid keeps 85% of its swing at w 0.5 (two pixels a pitch: Nyquist) and
+ * 20-28% at w 1.25-1.5, and all of that aliases: final4's roof liner read as a
+ * dot grid from interior, milling and every hall camera.
+ *
+ * Nor is a resolved pitch calm. Faded at 0.2-0.42 (r5shell5 probe, interior
+ * med-12), the liner's 0.25 m ribs still drew at 4 px a pitch across the top
+ * right of the frame, chopped every 11 px by the purlins into the same
+ * checkerboard.
+ *
+ * Nor at 6-7 px a pitch. Faded at 0.1-0.25 (final5 med-12 interior, upper
+ * right; milling; low-12 as a brick moire), the interior camera looks along
+ * +X while the ribs vary along Z, so up there a pitch lies ACROSS the view,
+ * unforeshortened: 0.106 pitches a pixel on Medium at the very top row, where
+ * the fade still kept 99% of the swing, against purlins every 10-12 px. A rib
+ * that resolves still draws a grid against the purlins. So the swing is full
+ * only below 0.04 (25 px a pitch, looking up at the deck from under it) and
+ * gone by 0.09 (11 px a pitch). `fwidth` sums |dFdx| and |dFdy|, so the
+ * measured footprint errs long, toward the calm side.
+ */
+export const RIB_NYQUIST_FADE = { from: 0.04, to: 0.09 } as const;
+
+/**
+ * The thin-seam profile's fade (a membrane lap, `ribSeamWidth`): round 5's
+ * 0.1-0.25. A seam is a single line a pitch, not a grid, and the overview
+ * resolves the roof's 1.8 m laps at ~0.14 pitches a pixel; the deck fade
+ * above would erase them.
+ */
+export const SEAM_NYQUIST_FADE = { from: 0.1, to: 0.25 } as const;
+
+/** Paired rendered control for that fade (0 = the box filter alone), shared by reference. */
+export const RIB_NYQUIST_STRENGTH: { value: number } = { value: 1 };
+
+/**
+ * Fraction of the filtered swing kept at footprint `w` pitches, fade at
+ * strength `fade`; `seam` takes the thin-seam profile's range.
+ */
+export function ribNyquistKeep(w: number, fade = 1, seam = false): number {
+  const { from, to } = seam ? SEAM_NYQUIST_FADE : RIB_NYQUIST_FADE;
+  const t = Math.min(1, Math.max(0, (w - from) / (to - from)));
+  return 1 - fade * t * t * (3 - 2 * t);
+}
+
+/** Integral from 0 to `u` pitches of a seam: 0 over its first `width` pitches, 1 after. */
+function seamIntegral(u: number, width: number): number {
+  const t = u - Math.floor(u);
+  return Math.floor(u) * (1 - width) + Math.max(0, t - width);
+}
+
+/** A seam of `width` pitches box-filtered over a footprint of `w` pitches at `u`. */
+export function ribSeamFilteredValue(u: number, w: number, width: number): number {
+  const span = Math.max(w, 1e-4);
+  return (seamIntegral(u + span / 2, width) - seamIntegral(u - span / 2, width)) / span;
+}
+
+function seamFilteredSwing(w: number, width: number): number {
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (let i = 0; i < 400; i++) {
+    const value = ribSeamFilteredValue(i / 400, w, width);
+    lo = Math.min(lo, value);
+    hi = Math.max(hi, value);
+  }
+  return hi - lo;
+}
+
+/**
+ * The swing that reaches the frame: the box-filtered profile (a trapezoid, or
+ * a seam of `seamWidth` pitches) times the Nyquist fade at strength `fade`.
+ * Mirrors the filtered branch of FRAGMENT_BODY.
+ */
+export function ribRenderedSwing(w: number, seamWidth = 0, fade = 1): number {
+  const swing = seamWidth > 0 ? seamFilteredSwing(w, seamWidth) : ribFilteredSwing(w);
+  return swing * ribNyquistKeep(w, fade, seamWidth > 0);
+}
+
+const RIB_INTEGRAL_GLSL = /* glsl */ `
+float surfRibIntegral( float u ) {
+  float t = fract( u );
+  float r = clamp( t, ${RIB_EDGES.riseStart.toFixed(2)}, ${RIB_EDGES.riseEnd.toFixed(2)} ) - ${RIB_EDGES.riseStart.toFixed(2)};
+  float f = clamp( t, ${RIB_EDGES.fallStart.toFixed(2)}, ${RIB_EDGES.fallEnd.toFixed(2)} ) - ${RIB_EDGES.fallStart.toFixed(2)};
+  return floor( u ) * ${RIB_PROFILE_MEAN.toFixed(2)} + r * r / ${(2 * (RIB_EDGES.riseEnd - RIB_EDGES.riseStart)).toFixed(2)}
+    + clamp( t, ${RIB_EDGES.riseEnd.toFixed(2)}, ${RIB_EDGES.fallStart.toFixed(2)} ) - ${RIB_EDGES.riseEnd.toFixed(2)}
+    + f - f * f / ${(2 * (RIB_EDGES.fallEnd - RIB_EDGES.fallStart)).toFixed(2)};
+}
+// A seam of width w pitches: 0 over the seam, 1 elsewhere. Mirrors seamIntegral.
+float surfSeamIntegral( float u, float w ) {
+  return floor( u ) * ( 1.0 - w ) + max( fract( u ) - w, 0.0 );
+}
+`;
 
 /** The program cache key every profile shares. Exported for the invariant test. */
 export const WORLD_SURFACE_CACHE_KEY = `millos_world_surface_${WORLD_SURFACE_PROGRAM_VERSION}`;
@@ -221,6 +364,50 @@ export interface WorldSurfaceProfile {
   readonly dustColor: string;
   /** Substrate showing through on worn edges. */
   readonly bareColor: string;
+  /**
+   * Metres between saw-cut slab joints in world X and Z (`concreteSlab.ts`).
+   * Omitted or 0 leaves the slab term off; only poured hardstanding sets it.
+   */
+  readonly slabPitch?: number;
+  /** 0-1. How dark a fully covered joint is. */
+  readonly slabJoint?: number;
+  /** 0-1. Slab-to-slab tone spread, as a fraction of albedo. */
+  readonly slabTone?: number;
+  /**
+   * Metres between the ridges of a periodic ridge-and-trough relief, measured
+   * along `ribAxis`: the ribs of a profiled steel deck, the furrows of a
+   * ploughed field. Omitted or 0 leaves the term off. The crowns sit at 0.4 of
+   * each pitch (`RIB_CROWN_PHASE`). Relief and trough shading are in WORLD
+   * space, because a deck panel is an instance of one unit box whose UV repeat
+   * stretches with every panel's length, and a field has no UVs at all.
+   */
+  readonly ribPeriod?: number;
+  /** Metres from rib crown to trough. */
+  readonly ribDepth?: number;
+  /** The world axis the rib profile varies along: 0 = X, 1 = Z. */
+  readonly ribAxis?: 0 | 1;
+  /**
+   * 0-1. Opt in to the BOX-FILTERED rib, with this crown-to-trough albedo
+   * swing about the profile's mean. Omitted, the rib keeps the default path:
+   * a fixed 0.14 trough darkening faded out by footprint, which is gone once a
+   * pixel covers 35% of the pitch. The filtered rib integrates the trapezoid
+   * over the footprint instead, so it holds to ~3 px a pitch and converges to
+   * the mean (no tone shift, no aliasing) below that. See `ribFilteredValue`.
+   */
+  readonly ribFilteredTone?: number;
+  /**
+   * 0-1, with `ribFilteredTone`: replace the trapezoid with a thin dark seam
+   * this many PITCHES wide (a membrane lap), box-filtered and Nyquist-faded the
+   * same way. Its swing is the seam's darkening against the field between.
+   */
+  readonly ribSeamWidth?: number;
+  /**
+   * 0-1. How far the INDIRECT diffuse is pulled to its own luminance. For an
+   * indoor surface facing the hall floor: the sky rig's lower band is the
+   * grass and masonry outside, so a downward face indoors was being lit green
+   * and khaki by ground it cannot see. Luminance is kept exactly.
+   */
+  readonly indoorBounce?: number;
 }
 
 const GRIME_BROWN = '#5d5342';
@@ -320,6 +507,105 @@ export const WORLD_SURFACE_PROFILES = {
     grimeColor: GRIME_BROWN,
     dustColor: DUST_PALE,
     bareColor: BARE_CONCRETE,
+  },
+  /**
+   * Tiled ground and wall substrates that already carry their own aggregate:
+   * the shared tarmac and concrete maps. A MACRO TERM AND ALMOST NOTHING ELSE.
+   *
+   * These surfaces are mapped, so the automatic paths decline them (see
+   * `isOutOfSurfaceScope`), and that left the truck yard - the tarmac tile at
+   * 18 x 18 over 60 m - with nothing varying above its 3.3 m tile: luma std 7.3
+   * across the lower 40% of `shipping`. CLAUDE.md rule 7 asks for exactly the
+   * term a tiling map cannot carry, a sub-tile-frequency macro. The map opts in
+   * through `markSurfaceSubstrate`, on the texture, so every tiling cloned from
+   * it inherits the flag without its call site changing.
+   *
+   * Meso and relief are token values, not zero: the map already draws the
+   * aggregate and a second fine field would double it, but the profile
+   * invariants require a datum-free term and a physical relief slope. No grime,
+   * dust or edge wear: on a road those read as a repainted surface, and the
+   * 60 m apron has already been turned into a sand beach once (see `masonry`).
+   * The 11 m macro period spans 3.3 yard tiles, so the drift cannot lock to the
+   * repeat; 0.2 is masonry's 0.17 raised by the share the meso term gave up.
+   */
+  paving: {
+    macroPeriod: 11,
+    macro: 0.2,
+    mesoPeriod: 0.6,
+    meso: 0.04,
+    reliefMetres: 0.004,
+    mesoFadeMetres: 40,
+    grime: 0,
+    grimeHeight: 1,
+    datum: 0,
+    dust: 0,
+    edge: 0,
+    objectSpace: 0,
+    grimeColor: GRIME_BROWN,
+    dustColor: DUST_PALE,
+    bareColor: BARE_CONCRETE,
+  },
+  /**
+   * Factory-painted pressure vessels: the utility and LPG tank shells. ALMOST
+   * NOTHING, on purpose. A white cylinder is the one surface where every term
+   * `painted` carries shows as a defect: its 0.55 m meso at +-26% albedo, the
+   * splash grime climbing the lower shell and the dust on the crown turned the
+   * tanks into cotton with no highlight (final-med-12 tank-farm, judged "cotton
+   * or marshmallow, not painted steel"). The shell reads as steel through ONE
+   * clean highlight running its length, which needs a near-constant albedo and
+   * roughness; a faint long-period drift keeps it from looking like plastic.
+   * Pinned at the material (`pinSurfaceProfile`), because the batcher's
+   * colour-blind resolver would otherwise hand the merged shells `painted`.
+   */
+  vessel: {
+    macroPeriod: 9,
+    macro: 0.04,
+    mesoPeriod: 0.9,
+    meso: 0.025,
+    reliefMetres: 0.002,
+    mesoFadeMetres: 40,
+    grime: 0,
+    grimeHeight: 1,
+    datum: 0,
+    dust: 0,
+    edge: 0.05,
+    objectSpace: 0,
+    grimeColor: GRIME_BROWN,
+    dustColor: DUST_PALE,
+    bareColor: BARE_STEEL,
+  },
+  /**
+   * Poured concrete hardstanding: `paving` plus the slab grid.
+   *
+   * The truck yards and dock aprons are concrete laid in slabs, and the slabs
+   * are what make 3,600 m^2 of flat ground read as concrete rather than sand:
+   * sawn joints every `SLAB_JOINT_PITCH` and a slightly different tone per pour.
+   * The terrain's hardstanding channel draws the same grid from the same chunk,
+   * so the joints run straight across the seam where a yard plane meets it.
+   *
+   * Opted in on the yard and apron TILINGS in `yardSurfaces.ts`, not on the
+   * shared tarmac and concrete sources: those also tile the roads and dozens of
+   * plinths, and a road with 5 m square joints is a different road.
+   */
+  slab: {
+    macroPeriod: 11,
+    macro: 0.2,
+    mesoPeriod: 0.6,
+    meso: 0.04,
+    reliefMetres: 0.004,
+    mesoFadeMetres: 40,
+    grime: 0,
+    grimeHeight: 1,
+    datum: 0,
+    dust: 0,
+    edge: 0,
+    objectSpace: 0,
+    grimeColor: GRIME_BROWN,
+    dustColor: DUST_PALE,
+    bareColor: BARE_CONCRETE,
+    slabPitch: SLAB_JOINT_PITCH,
+    slabJoint: 0.5,
+    slabTone: 0.08,
   },
   /**
    * Bare, galvanised and plated metal. Metalness 1 means diffuse is ZERO, so a
@@ -527,6 +813,14 @@ interface WorldSurfaceUniforms {
   readonly uSurfGrime: { value: THREE.Color };
   readonly uSurfDust: { value: THREE.Color };
   readonly uSurfBare: { value: THREE.Color };
+  /** x slab pitch (0 = off), y joint darkness, z slab tone, w joint width. */
+  readonly uSurfSlab: { value: THREE.Vector4 };
+  /** x rib period (0 = off), y rib depth, z axis (0 X, 1 Z), w indoor bounce. */
+  readonly uSurfDeck: { value: THREE.Vector4 };
+  /** x filtered-rib albedo swing, y 1 = box-filtered rib (0 = faded default), z seam width (pitches, 0 = trapezoid). */
+  readonly uSurfRib: { value: THREE.Vector4 };
+  /** The shared Nyquist-fade control, `RIB_NYQUIST_STRENGTH`. */
+  readonly uSurfRibNyquist: { value: number };
 }
 
 /** Materials publish their live uniforms so a caller can retune at runtime. */
@@ -597,9 +891,15 @@ uniform vec4 uSurfSpan;
 uniform vec3 uSurfGrime;
 uniform vec3 uSurfDust;
 uniform vec3 uSurfBare;
+uniform vec4 uSurfSlab;
+uniform vec4 uSurfDeck;
+uniform vec4 uSurfRib;
+uniform float uSurfRibNyquist;
 varying vec3 vSurfWorld;
 varying vec3 vSurfObject;
 varying vec3 vSurfNormalW;
+${CONCRETE_SLAB_GLSL}
+${RIB_INTEGRAL_GLSL}
 
 float surfHash( vec3 p ) {
   p = fract( p * 0.3183099 + vec3( 0.71, 0.113, 0.419 ) );
@@ -727,6 +1027,64 @@ const FRAGMENT_BODY = /* glsl */ `
   diffuseColor.rgb = mix( diffuseColor.rgb, uSurfDust, surfDust );
   diffuseColor.rgb = mix( diffuseColor.rgb, uSurfBare, surfEdge );
 
+  // Poured hardstanding only (concreteSlab.ts). A UNIFORM branch, so the
+  // derivatives inside it are defined; every other profile skips it whole.
+  if ( uSurfSlab.x > 0.0 ) {
+    // World XZ for the yards (their joints meet the terrain's), object rest
+    // space for a profile that asks for it (a pad's joints from its centre).
+    vec4 surfSlab = millosConcreteSlab(
+      mix( vSurfWorld, vSurfObject, uSurfSpan.w ).xz, uSurfSlab.x, uSurfSlab.w );
+    float surfSlabTone = surfSlab.y * uSurfSlab.z + surfSlab.w * uSurfSlab.z * 1.4;
+    float surfSlabDark = max( surfSlab.x * uSurfSlab.y, surfSlab.z * 0.08 );
+    diffuseColor.rgb *= 1.0 + ( surfSlabTone - surfSlabDark * surfUp ) * surfKill;
+  }
+
+  // Ribs: deck profile or plough furrows (uniform branch, as above). A trapezoid: crown
+  // over the middle of each pitch, steep webs, flat trough. The relief joins
+  // the meso bump below; the trough also takes a cavity tone, because under
+  // the hall's soft fill a normal alone barely shades. Faded by the pixel
+  // footprint before the pitch can alias.
+  float surfRibHeight = 0.0;
+  if ( uSurfDeck.x > 0.0 && uSurfRib.y > 0.5 ) {
+    // Box-filtered (opt-in, a uniform branch): the trapezoid's exact mean over
+    // the pixel footprint, in pitches. Full profile while a pitch spans pixels,
+    // its mean once it does not; the tone swings about that mean, so distance
+    // never shifts the surface's average albedo.
+    //
+    // A box filter is not a low-pass, though: past ~2.5 px a pitch what it
+    // leaves still aliases (RIB_NYQUIST_FADE), so the swing about the mean is
+    // faded out before Nyquist. uSurfRib.z > 0 swaps the trapezoid for a thin
+    // seam that many pitches wide (a membrane lap), filtered the same way.
+    float surfRibU = mix( vSurfWorld.x, vSurfWorld.z, uSurfDeck.z ) / uSurfDeck.x;
+    float surfRibW = max( fwidth( surfRibU ), 1e-4 );
+    float surfRib;
+    float surfRibMean;
+    float surfRibFrom = ${RIB_NYQUIST_FADE.from.toFixed(2)};
+    float surfRibTo = ${RIB_NYQUIST_FADE.to.toFixed(2)};
+    if ( uSurfRib.z > 0.0 ) {
+      surfRib = ( surfSeamIntegral( surfRibU + 0.5 * surfRibW, uSurfRib.z )
+        - surfSeamIntegral( surfRibU - 0.5 * surfRibW, uSurfRib.z ) ) / surfRibW;
+      surfRibMean = 1.0 - uSurfRib.z;
+      surfRibFrom = ${SEAM_NYQUIST_FADE.from.toFixed(2)};
+      surfRibTo = ${SEAM_NYQUIST_FADE.to.toFixed(2)};
+    } else {
+      surfRib = ( surfRibIntegral( surfRibU + 0.5 * surfRibW )
+        - surfRibIntegral( surfRibU - 0.5 * surfRibW ) ) / surfRibW;
+      surfRibMean = ${RIB_PROFILE_MEAN.toFixed(2)};
+    }
+    float surfRibKeep = 1.0 - smoothstep( surfRibFrom, surfRibTo, surfRibW ) * uSurfRibNyquist;
+    float surfRibDev = ( surfRib - surfRibMean ) * surfRibKeep;
+    surfRibHeight = ( surfRibMean + surfRibDev ) * uSurfDeck.y * surfKill;
+    diffuseColor.rgb *= 1.0 + surfRibDev * uSurfRib.x * surfKill;
+  } else if ( uSurfDeck.x > 0.0 ) {
+    float surfRibCoord = mix( vSurfWorld.x, vSurfWorld.z, uSurfDeck.z );
+    float surfRibT = fract( surfRibCoord / uSurfDeck.x );
+    float surfRib = smoothstep( 0.1, 0.24, surfRibT ) - smoothstep( 0.56, 0.7, surfRibT );
+    float surfRibFade = 1.0 - smoothstep( uSurfDeck.x * 0.12, uSurfDeck.x * 0.35, fwidth( surfRibCoord ) );
+    surfRibHeight = surfRib * uSurfDeck.y * surfRibFade * surfKill;
+    diffuseColor.rgb *= 1.0 - ( 1.0 - surfRib ) * 0.14 * surfRibFade * surfKill;
+  }
+
   // Capped below 1. Whatever the profile asks for, a surface never loses ALL of
   // its authored albedo and roughness to dirt: at 1.0 the material stops being
   // the material and the tonal design of the scene goes with it.
@@ -745,11 +1103,59 @@ const FRAGMENT_BODY = /* glsl */ `
   // view-space metres. See WorldSurfaceProfile.reliefMetres for the frame that
   // proved it.
   vec2 surfDh = vec2( dFdx( surfMesoRaw ), dFdy( surfMesoRaw ) )
-    * ( uSurfDetail.z * surfNear * surfKill );
+    * ( uSurfDetail.z * surfNear * surfKill )
+    + vec2( dFdx( surfRibHeight ), dFdy( surfRibHeight ) );
   normal = surfPerturbNormal( -vViewPosition, normal, surfDh );
 `;
 
 const FRAGMENT_ANCHOR = '#include <normal_fragment_maps>';
+
+/**
+ * Indoor bounce (`indoorBounce`), after `<lights_fragment_end>`, where the
+ * indirect diffuse is complete and still separate from the direct light.
+ *
+ * NEUTRALISE THE LIGHT, NOT THE PAINT. `reflectedLight.indirectDiffuse` is the
+ * fill irradiance TIMES the albedo. The first version mixed that product toward
+ * its own luma, which greyed the surface's own colour as well as the grass in
+ * the fill: a yellow upstand lit only by fill turned to a dim neutral grey. At
+ * 22:00 that grey sat under the display toe (Khronos PBR Neutral, not AgX, and
+ * the grade's +0.06 contrast) and the milling camera's aisle barrier rendered
+ * (0.3, 0, 0) beside a plain-material band lit at (36, 26, 3) on the same
+ * face (r4floor2-med-22).
+ * Patched at runtime to the form below, the face read (19.5, 12.2, 0).
+ *
+ * So the albedo is divided out, the fill alone is pulled toward its
+ * luminance, and the albedo goes back on. A neutral fill is left exactly as it
+ * was. Every term three adds to `indirectDiffuse` is linear in
+ * `material.diffuseContribution` (the Lambert irradiance term and the
+ * multiscatter compensation), so the division is exact; the floor on the
+ * divisor only guards a black channel, whose product is zero either way.
+ * `indoorBounceDiffuse` is the TypeScript mirror.
+ */
+export function indoorBounceDiffuse(
+  reflected: readonly number[],
+  albedo: readonly number[],
+  weight: number
+): number[] {
+  const safe = albedo.map((a) => Math.max(a, 1e-4));
+  const fill = reflected.map((v, i) => v / safe[i]);
+  const luma = 0.2126 * fill[0] + 0.7152 * fill[1] + 0.0722 * fill[2];
+  return fill.map((v, i) => (v + (luma - v) * weight) * safe[i]);
+}
+
+const BOUNCE_ANCHOR = '#include <lights_fragment_end>';
+const BOUNCE_BODY = /* glsl */ `
+  if ( uSurfDeck.w > 0.0 ) {
+    vec3 surfAlbedo = max( material.diffuseContribution, vec3( 1e-4 ) );
+    vec3 surfFill = reflectedLight.indirectDiffuse / surfAlbedo;
+    float surfFillLuma = dot( surfFill, vec3( 0.2126, 0.7152, 0.0722 ) );
+    reflectedLight.indirectDiffuse = mix(
+      surfFill,
+      vec3( surfFillLuma ),
+      uSurfDeck.w * clamp( uSurfStrength, 0.0, 1.0 )
+    ) * surfAlbedo;
+  }
+`;
 
 /**
  * Dirt has to kill the coat, or it is invisible.
@@ -823,6 +1229,31 @@ function buildWorldSurfaceUniforms(
     uSurfGrime: { value: new THREE.Color(settings.grimeColor) },
     uSurfDust: { value: new THREE.Color(settings.dustColor) },
     uSurfBare: { value: new THREE.Color(settings.bareColor) },
+    uSurfSlab: {
+      value: new THREE.Vector4(
+        settings.slabPitch ?? 0,
+        settings.slabJoint ?? 0,
+        settings.slabTone ?? 0,
+        SLAB_JOINT_WIDTH
+      ),
+    },
+    uSurfDeck: {
+      value: new THREE.Vector4(
+        settings.ribPeriod ?? 0,
+        settings.ribDepth ?? 0,
+        settings.ribAxis ?? 0,
+        settings.indoorBounce ?? 0
+      ),
+    },
+    uSurfRib: {
+      value: new THREE.Vector4(
+        settings.ribFilteredTone ?? 0.14,
+        settings.ribFilteredTone === undefined ? 0 : 1,
+        settings.ribSeamWidth ?? 0,
+        0
+      ),
+    },
+    uSurfRibNyquist: RIB_NYQUIST_STRENGTH,
   };
 }
 
@@ -840,7 +1271,8 @@ function injectWorldSurface(
   shader.fragmentShader = shader.fragmentShader
     .replace('#include <common>', `#include <common>\n${FRAGMENT_PARS}`)
     .replace(FRAGMENT_ANCHOR, `${FRAGMENT_ANCHOR}\n${FRAGMENT_BODY}`)
-    .replace(CLEARCOAT_ANCHOR, `${CLEARCOAT_ANCHOR}\n${CLEARCOAT_BODY}`);
+    .replace(CLEARCOAT_ANCHOR, `${CLEARCOAT_ANCHOR}\n${CLEARCOAT_BODY}`)
+    .replace(BOUNCE_ANCHOR, `${BOUNCE_ANCHOR}\n${BOUNCE_BODY}`);
 }
 
 /**
@@ -999,6 +1431,72 @@ export function ownsOnlyWorldSurface(material: THREE.Material | null | undefined
   return hasWorldSurface(material) && !surfaceMaterial?.userData?.millosWorldSurfaceComposed;
 }
 
+/** `Texture.userData` key a tiled substrate map uses to opt its surfaces in. */
+const SUBSTRATE_OPT_IN_KEY = 'millosWorldSurfaceSubstrate';
+
+/**
+ * Opt every surface that samples this map as its albedo into a profile.
+ *
+ * The automatic paths decline mapped materials, rightly for atlases (see
+ * `isOutOfSurfaceScope`), but a small TILED map is the opposite case: it is
+ * correct within its tile and cannot vary above it. Marking the texture rather
+ * than a material is what makes this reach the call sites: `Texture.copy()`
+ * deep-copies `userData`, so every `.clone()` tiling made after the mark
+ * inherits it, and the batcher's clones of the materials keep the same map.
+ * Mark the source before any clone is taken.
+ */
+export function markSurfaceSubstrate<T extends THREE.Texture>(
+  texture: T,
+  profile: WorldSurfaceProfileName
+): T {
+  texture.userData[SUBSTRATE_OPT_IN_KEY] = profile;
+  return texture;
+}
+
+/** `Material.userData` key a material uses to pin its own profile. */
+const PINNED_PROFILE_KEY = 'millosWorldSurfacePinned';
+
+/**
+ * Pin `profile` to this material through every automatic path.
+ *
+ * `resolveBatchSurfaceProfile` is colour-blind by construction and answers
+ * from roughness alone, so a surface the owning branch finished with a
+ * dedicated profile came back from the batcher as `painted`: the per-mesh
+ * profile channel the batch path did not have. The pin lives in `userData`,
+ * which `Material.copy()` deep-copies, so every clone the batcher merges into
+ * carries it; `StaticMeshBatch` also keys merge groups on it, so a pinned
+ * surface never shares a group, and therefore a profile, with an unpinned one.
+ */
+export function pinSurfaceProfile<T extends THREE.Material>(
+  material: T,
+  profile: WorldSurfaceProfileName
+): T {
+  material.userData[PINNED_PROFILE_KEY] = profile;
+  return material;
+}
+
+/** The profile pinned to a material, if any. */
+export function pinnedSurfaceProfile(
+  material: THREE.Material | null | undefined
+): WorldSurfaceProfileName | null {
+  const value = material?.userData?.[PINNED_PROFILE_KEY];
+  return typeof value === 'string' && Object.hasOwn(WORLD_SURFACE_PROFILES, value)
+    ? (value as WorldSurfaceProfileName)
+    : null;
+}
+
+/** The profile a material's albedo map opted it into, if any. */
+function substrateOptIn(
+  material: THREE.Material | null | undefined
+): WorldSurfaceProfileName | null {
+  const value = (material as THREE.MeshStandardMaterial | null | undefined)?.map?.userData?.[
+    SUBSTRATE_OPT_IN_KEY
+  ];
+  return typeof value === 'string' && Object.hasOwn(WORLD_SURFACE_PROFILES, value)
+    ? (value as WorldSurfaceProfileName)
+    : null;
+}
+
 /** Linear luminance of a colour, for the substrate heuristics below. */
 const luminanceOf = (color: THREE.Color): number =>
   0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b;
@@ -1040,7 +1538,14 @@ function isOutOfSurfaceScope(
     standard.metalnessMap ||
     standard.aoMap ||
     standard.displacementMap;
-  if (hasSubstrateMaps && !allowMapped && !hasWorldSurface(material)) return true;
+  if (
+    hasSubstrateMaps &&
+    !allowMapped &&
+    !hasWorldSurface(material) &&
+    substrateOptIn(material) === null
+  ) {
+    return true;
+  }
   return luminanceOf(standard.emissive) * standard.emissiveIntensity > 0.02;
 }
 
@@ -1058,6 +1563,12 @@ export function resolveSurfaceProfile(
   allowMapped = false
 ): WorldSurfaceProfileName | null {
   if (isOutOfSurfaceScope(material, allowMapped)) return null;
+  const pinned = pinnedSurfaceProfile(material);
+  if (pinned) return pinned;
+  // An explicit treatment, or an explicit `allowMapped` request, keeps deciding
+  // for itself exactly as it did before opt-ins existed.
+  const optIn = hasWorldSurface(material) || allowMapped ? null : substrateOptIn(material);
+  if (optIn) return optIn;
   const standard = material as THREE.MeshStandardMaterial;
   if ((standard.metalness ?? 0) >= 0.55) return 'metal';
 
@@ -1107,6 +1618,15 @@ export function resolveBatchSurfaceProfile(
   material: THREE.Material | null | undefined
 ): WorldSurfaceProfileName | null {
   if (isOutOfSurfaceScope(material)) return null;
+  // The pin is part of the merge key too (StaticMeshBatch), so it speaks for
+  // the whole group.
+  const pinned = pinnedSurfaceProfile(material);
+  if (pinned) return pinned;
+  // The map is part of the merge key, so unlike the colour it DOES speak for
+  // every member of the group. An explicitly treated source keeps the
+  // roughness-based answer it got before opt-ins existed.
+  const optIn = hasWorldSurface(material) ? null : substrateOptIn(material);
+  if (optIn) return optIn;
   const standard = material as THREE.MeshStandardMaterial;
   if ((standard.metalness ?? 0) >= 0.55) return 'metal';
   if ((standard.roughness ?? 1) >= 0.8) return 'masonry';

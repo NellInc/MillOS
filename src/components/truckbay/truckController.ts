@@ -58,7 +58,7 @@ const MAXIMUM_STEERING = 0.55;
 const MAXIMUM_ARTICULATION = 0.7;
 const FIXED_STEP_LIMIT = 1 / 20;
 
-const TRUCK_LIMITS = {
+export const TRUCK_LIMITS = {
   maximumForwardSpeed: 18,
   maximumReverseSpeed: 1.5,
   maximumAcceleration: 1.4,
@@ -66,69 +66,191 @@ const TRUCK_LIMITS = {
   maximumJerk: 1.6,
 } as const;
 
-const SHIPPING_DOCK = SITE_LAYOUT.docks.shipping.bayCentre;
-const POSES = {
-  tunnelIncoming: { x: 20, z: 238, rotation: Math.PI },
-  highway: { x: 20, z: 118, rotation: Math.PI },
-  approach: { x: 20, z: 94, rotation: Math.PI },
-  turnEnd: { x: -8, z: 78, rotation: 0 },
-  straightEnd: { x: 0, z: 84, rotation: 0 },
-  positioningEnd: { x: 0, z: 86, rotation: 0 },
-  backingEnd: { x: 0, z: 64, rotation: 0 },
-  dock: { x: SHIPPING_DOCK[0], z: SHIPPING_DOCK[2], rotation: 0 },
-  pullout: { x: 0, z: 80, rotation: 0 },
-  exitRoad: { x: 20, z: 108, rotation: 0 },
-  acceleratingEnd: { x: 20, z: 165, rotation: 0 },
-  tunnelOutgoing: { x: 20, z: 238, rotation: 0 },
-} as const satisfies Record<string, PosePoint>;
+/**
+ * Yard turns are authored as true circular arcs joined tangent to straights,
+ * so every phase starts on the heading the last one ended with and no point
+ * is tighter than its stated radius.
+ *
+ * TURN_RADIUS: a 3.8 m wheelbase at 0.55 rad of lock turns no tighter than
+ * 6.2 m, and an 8.2 m trailer on a circle of radius R settles at an
+ * articulation of asin(8.2 / R). 14 m keeps that at 0.62 rad, inside the
+ * 0.7 rad coupling limit, so the trailer is never dragged along its stop.
+ * Working if the slowest arc still clears the staging block and the yard props
+ * on both sides (see the footprint tests in truckController.test.ts).
+ */
+const TURN_RADIUS = 14;
+/** Comfortable lateral acceleration for a laden articulated truck, m/s^2. */
+const LATERAL_ACCELERATION_LIMIT = 2;
+/** Service braking the speed profile plans with; the hard limit is 2.4 m/s^2. */
+const PLANNED_DECELERATION = 1;
+/** Braking into a stop mark (the end of positioning, the dock bumper), m/s^2. */
+const STOPPING_DECELERATION = 0.5;
+const PATH_SAMPLE_SPACING = 0.5;
 
-const cubicPoint = (
-  start: VehiclePathPoint,
-  controlA: VehiclePathPoint,
-  controlB: VehiclePathPoint,
-  end: VehiclePathPoint,
-  t: number
-): VehiclePathPoint => {
-  const inverse = 1 - t;
+type PathSegment =
+  | { readonly kind: 'line'; readonly length: number }
+  /** `turn` is the signed heading change; positive turns towards +x when heading +z. */
+  | { readonly kind: 'arc'; readonly radius: number; readonly turn: number };
+
+interface ComposedPath {
+  readonly path: ArcLengthPath;
+  readonly end: PosePoint;
+}
+
+const composePath = (start: PosePoint, segments: readonly PathSegment[]): ComposedPath => {
+  const points: VehiclePathPoint[] = [{ x: start.x, z: start.z }];
+  let { x, z, rotation: heading } = start;
+  for (const segment of segments) {
+    const length =
+      segment.kind === 'line' ? segment.length : Math.abs(segment.turn) * segment.radius;
+    const steps = Math.max(1, Math.ceil(length / PATH_SAMPLE_SPACING));
+    const curvature =
+      segment.kind === 'arc' ? Math.sign(segment.turn) / Math.max(1e-6, segment.radius) : 0;
+    const startX = x;
+    const startZ = z;
+    const startHeading = heading;
+    for (let step = 1; step <= steps; step += 1) {
+      const s = (length * step) / steps;
+      if (curvature === 0) {
+        x = startX + Math.sin(startHeading) * s;
+        z = startZ + Math.cos(startHeading) * s;
+      } else {
+        heading = startHeading + curvature * s;
+        x = startX + (Math.cos(startHeading) - Math.cos(heading)) / curvature;
+        z = startZ + (Math.sin(heading) - Math.sin(startHeading)) / curvature;
+      }
+      points.push({ x, z });
+    }
+  }
+  const path = createArcLengthPath(points);
+  // createArcLengthPath gives the end samples one-sided chord tangents, half a
+  // chord's turn off the true heading. Joined phases then disagree by a full
+  // chord's turn at every boundary (0.02-0.04 rad in one step), so the ends
+  // carry the exact analytic headings instead.
+  const exactTangent = (
+    sample: (typeof path.samples)[number],
+    sampleHeading: number
+  ): (typeof path.samples)[number] => ({
+    ...sample,
+    tangentX: Math.sin(sampleHeading),
+    tangentZ: Math.cos(sampleHeading),
+  });
+  const last = path.samples.length - 1;
   return {
-    x:
-      inverse ** 3 * start.x +
-      3 * inverse * inverse * t * controlA.x +
-      3 * inverse * t * t * controlB.x +
-      t ** 3 * end.x,
-    z:
-      inverse ** 3 * start.z +
-      3 * inverse * inverse * t * controlA.z +
-      3 * inverse * t * t * controlB.z +
-      t ** 3 * end.z,
+    path: {
+      ...path,
+      samples: path.samples.map((sample, index) =>
+        index === 0
+          ? exactTangent(sample, start.rotation)
+          : index === last
+            ? exactTangent(sample, heading)
+            : sample
+      ),
+    },
+    end: { x, z, rotation: normalizeVehicleAngle(heading) },
   };
 };
 
 const linePath = (start: VehiclePathPoint, end: VehiclePathPoint): ArcLengthPath =>
   createArcLengthPath([start, end]);
 
-const cubicPath = (
-  start: VehiclePathPoint,
-  controlA: VehiclePathPoint,
-  controlB: VehiclePathPoint,
-  end: VehiclePathPoint
-): ArcLengthPath =>
-  createArcLengthPath(
-    Array.from({ length: 65 }, (_, index) => cubicPoint(start, controlA, controlB, end, index / 64))
-  );
+const SHIPPING_DOCK = SITE_LAYOUT.docks.shipping.bayCentre;
+/**
+ * The docked truck stops with its rearmost part on the dock bumpers, not at
+ * the bay centre: parked at bayCentre (z 61) the trailer's rear sill sat
+ * 0.85-1.2 m inside the centre bumper. The bumper face is TruckBay's dock
+ * group (z 50) plus the bumper's 0.2 m offset and 0.3 m half-depth; the rear
+ * overhang is the further of the two renderers' rearmost parts (the compact
+ * trailer's rear bar, 11.76 m behind the tractor origin; the detailed one's
+ * underride guard ends at 11.68 m). The receiving dock is the same group
+ * turned half a revolution, so one number serves both.
+ * Working if a docked trailer's rear sits on, not in, the bumper face.
+ */
+export const DOCK_BUMPER_FACE_Z = 50.5;
+export const TRAILER_REAR_OVERHANG = 11.76;
+/** The compact tractor's front plate, ahead of its origin (OptimizedTruckBay, z 4.99 + 0.06). */
+export const TRACTOR_FRONT_OVERHANG = 5.05;
+const DOCK_POSE: PosePoint = {
+  x: SHIPPING_DOCK[0],
+  z: DOCK_BUMPER_FACE_Z + TRAILER_REAR_OVERHANG + 0.02,
+  rotation: 0,
+};
+/** The yard road the trucks use in both directions. */
+const ROAD_X = 20;
+/**
+ * Where the arriving truck leaves the road and begins its U-turn. Low enough
+ * to keep the reverse short, high enough that the swept outside of the turn
+ * stays north of the staging block.
+ */
+const TURN_IN_Z = 86;
+/**
+ * The U-turn ends 2R west of the road, past the bay's centreline, and a
+ * reverse curve of the same radius brings the truck back onto it. Ending the
+ * U-turn on the centreline would need a 10 m radius, whose settled
+ * articulation (0.96 rad) is past the coupling limit.
+ */
+const U_TURN_END_X = ROAD_X - 2 * TURN_RADIUS;
+const S_BEND_TURN = Math.acos(1 - (DOCK_POSE.x - U_TURN_END_X) / (2 * TURN_RADIUS));
+/** Forward run on the centreline before stopping, which lets the trailer trail into line. */
+const POSITIONING_RUN = 4;
+const BACKING_END_Z = 64;
+/**
+ * The departure S-bend: two 45-degree arcs of the turn radius joined by a
+ * long diagonal, starting at PULLOUT_Z. It has to thread two yard props, both
+ * checked by the footprint test: the weigh-scale booth west of the lane at
+ * z 100.5-103.5 (any start past z 86 sweeps it) and the card-reader post
+ * 2 m west of the road at z 99-103 in both yards. The trailer runs inside a
+ * left turn, so the bend must still be on its diagonal, well west of the
+ * post, as it passes; a start before z 82 put the tractor or the trailer
+ * through the post. The old 60-degree bend from z 80 swept it on every exit.
+ */
+const PULLOUT_Z = 84;
+const EXIT_TURN = Math.PI / 4;
+
+const SLOWING = composePath({ x: ROAD_X, z: 118, rotation: Math.PI }, [
+  { kind: 'line', length: 118 - TURN_IN_Z },
+]);
+const TURNING_IN = composePath(SLOWING.end, [{ kind: 'arc', radius: TURN_RADIUS, turn: Math.PI }]);
+const STRAIGHTENING = composePath(TURNING_IN.end, [
+  { kind: 'arc', radius: TURN_RADIUS, turn: S_BEND_TURN },
+  { kind: 'arc', radius: TURN_RADIUS, turn: -S_BEND_TURN },
+]);
+const POSITIONING_END: PosePoint = {
+  x: DOCK_POSE.x,
+  z: STRAIGHTENING.end.z + POSITIONING_RUN,
+  rotation: 0,
+};
+const BACKING_END: PosePoint = { x: DOCK_POSE.x, z: BACKING_END_Z, rotation: 0 };
+const PULLOUT_END: PosePoint = { x: DOCK_POSE.x, z: PULLOUT_Z, rotation: 0 };
+const EXIT_STRAIGHT =
+  (ROAD_X - DOCK_POSE.x - 2 * TURN_RADIUS * (1 - Math.cos(EXIT_TURN))) / Math.sin(EXIT_TURN);
+const TURNING_OUT = composePath(PULLOUT_END, [
+  { kind: 'arc', radius: TURN_RADIUS, turn: EXIT_TURN },
+  { kind: 'line', length: EXIT_STRAIGHT },
+  { kind: 'arc', radius: TURN_RADIUS, turn: -EXIT_TURN },
+]);
+const ACCELERATING_END: PosePoint = { x: ROAD_X, z: 165, rotation: 0 };
+
+const POSES = {
+  tunnelIncoming: { x: ROAD_X, z: 238, rotation: Math.PI },
+  highway: { x: ROAD_X, z: 118, rotation: Math.PI },
+  positioningEnd: POSITIONING_END,
+  dock: DOCK_POSE,
+  tunnelOutgoing: { x: ROAD_X, z: 238, rotation: 0 },
+} as const satisfies Record<string, PosePoint>;
 
 const PHASE_PATHS: Partial<Record<TruckPhase, ArcLengthPath>> = {
   entering: linePath(POSES.tunnelIncoming, POSES.highway),
-  slowing: linePath(POSES.highway, POSES.approach),
-  turning_in: cubicPath(POSES.approach, { x: 20, z: 80 }, { x: -8, z: 66 }, POSES.turnEnd),
-  straightening: cubicPath(POSES.turnEnd, { x: -8, z: 83 }, { x: 0, z: 80 }, POSES.straightEnd),
-  positioning: linePath(POSES.straightEnd, POSES.positioningEnd),
-  backing: linePath(POSES.positioningEnd, POSES.backingEnd),
-  final_adjustment: linePath(POSES.backingEnd, POSES.dock),
-  pulling_out: linePath(POSES.dock, POSES.pullout),
-  turning_out: cubicPath(POSES.pullout, { x: 0, z: 97 }, { x: 20, z: 94 }, POSES.exitRoad),
-  accelerating: linePath(POSES.exitRoad, POSES.acceleratingEnd),
-  leaving: linePath(POSES.acceleratingEnd, POSES.tunnelOutgoing),
+  slowing: SLOWING.path,
+  turning_in: TURNING_IN.path,
+  straightening: STRAIGHTENING.path,
+  positioning: linePath(STRAIGHTENING.end, POSITIONING_END),
+  backing: linePath(POSITIONING_END, BACKING_END),
+  final_adjustment: linePath(BACKING_END, DOCK_POSE),
+  pulling_out: linePath(DOCK_POSE, PULLOUT_END),
+  turning_out: TURNING_OUT.path,
+  accelerating: linePath(TURNING_OUT.end, ACCELERATING_END),
+  leaving: linePath(ACCELERATING_END, POSES.tunnelOutgoing),
 };
 
 const MOVING_PHASE_TARGET_SPEED: Partial<Record<TruckPhase, number>> = {
@@ -191,6 +313,94 @@ const SERVICE_DURATION: Record<TruckServicePhase, number> = {
   'departure-ready': 0.6,
 };
 
+const isReversePhase = (phase: TruckPhase): boolean => (MOVING_PHASE_TARGET_SPEED[phase] ?? 0) < 0;
+
+interface SpeedProfile {
+  readonly distances: readonly number[];
+  /** Highest speed magnitude allowed at each path sample. */
+  readonly speeds: readonly number[];
+}
+
+/**
+ * A speed plan for each moving phase: no faster than the phase target, than
+ * the lateral-acceleration limit on that sample's curvature, or than a speed
+ * from which planned braking can still meet every later limit, including the
+ * next phase's when it continues in the same direction. This is what slows a
+ * truck off the road before the U-turn instead of carrying road speed into it.
+ * Phases that end at a stop keep their own stopping-distance rule below.
+ */
+const SPEED_PROFILES: Partial<Record<TruckPhase, SpeedProfile>> = {};
+const speedProfileFor = (phase: TruckPhase): SpeedProfile | undefined => {
+  const cached = SPEED_PROFILES[phase];
+  if (cached) return cached;
+  const path = PHASE_PATHS[phase];
+  const target = MOVING_PHASE_TARGET_SPEED[phase];
+  if (!path || target === undefined) return undefined;
+  const next = NEXT_PHASE[phase];
+  const continues =
+    phase !== 'leaving' &&
+    PHASE_PATHS[next] !== undefined &&
+    isReversePhase(next) === isReversePhase(phase);
+  const terminal = continues ? (speedProfileFor(next)?.speeds[0] ?? Infinity) : Infinity;
+  const distances = path.samples.map((sample) => sample.distance);
+  const speeds = path.samples.map((sample) =>
+    Math.min(
+      Math.abs(target),
+      Math.abs(sample.curvature) > 1e-6
+        ? Math.sqrt(LATERAL_ACCELERATION_LIMIT / Math.abs(sample.curvature))
+        : Infinity
+    )
+  );
+  speeds[speeds.length - 1] = Math.min(speeds[speeds.length - 1], terminal);
+  for (let index = speeds.length - 2; index >= 0; index -= 1) {
+    const run = distances[index + 1] - distances[index];
+    speeds[index] = Math.min(
+      speeds[index],
+      Math.sqrt(speeds[index + 1] ** 2 + 2 * PLANNED_DECELERATION * run)
+    );
+  }
+  const profile = { distances, speeds };
+  SPEED_PROFILES[phase] = profile;
+  return profile;
+};
+
+const profiledSpeedLimit = (phase: TruckPhase, distance: number): number => {
+  const profile = speedProfileFor(phase);
+  if (!profile) return Infinity;
+  const { distances, speeds } = profile;
+  if (distance <= distances[0]) return speeds[0];
+  const last = distances.length - 1;
+  if (distance >= distances[last]) return speeds[last];
+  let low = 0;
+  let high = last;
+  while (low + 1 < high) {
+    const middle = (low + high) >> 1;
+    if (distances[middle] <= distance) low = middle;
+    else high = middle;
+  }
+  // Rising limits are interpolated; a falling one follows the planned braking
+  // curve into the lower sample. A straight line between two far-apart samples
+  // (a 45 m back-in has only two) would start braking at its first metre.
+  if (speeds[high] >= speeds[low]) {
+    const t = (distance - distances[low]) / Math.max(1e-9, distances[high] - distances[low]);
+    return speeds[low] + (speeds[high] - speeds[low]) * t;
+  }
+  const braking =
+    Math.sqrt(speeds[high] ** 2 + 2 * PLANNED_DECELERATION * (distances[high] - distance)) -
+    jerkLag(PLANNED_DECELERATION);
+  return Math.min(speeds[low], Math.max(speeds[high], braking));
+};
+
+/**
+ * The speed a jerk-limited truck lags behind a braking curve of `deceleration`:
+ * the time it takes to build that deceleration, a / j, at half of it on average.
+ * Commanding the curve this far low makes the truck actually ride on it.
+ */
+const jerkLag = (deceleration: number): number =>
+  (deceleration * deceleration) / (2 * TRUCK_LIMITS.maximumJerk);
+/** The last centimetres to a stop mark are crept, so a lagged stop can never fall short of it. */
+const STOP_CREEP_SPEED = 0.05;
+
 const phaseStartPose = (phase: TruckPhase): PosePoint => {
   const path = PHASE_PATHS[phase];
   if (path) {
@@ -232,6 +442,20 @@ export function createTruckController(
   };
 }
 
+const limitArticulation = (trailerYaw: number, tractorYaw: number): number => {
+  const articulation = shortestVehicleAngle(tractorYaw, trailerYaw);
+  return Math.abs(articulation) > MAXIMUM_ARTICULATION
+    ? normalizeVehicleAngle(tractorYaw + Math.sign(articulation) * MAXIMUM_ARTICULATION)
+    : trailerYaw;
+};
+
+const MAXIMUM_STEERING_RATE = 0.52;
+
+const relaxSteering = (steeringAngle: number, deltaSeconds: number): number => {
+  const step = MAXIMUM_STEERING_RATE * deltaSeconds;
+  return Math.abs(steeringAngle) <= step ? 0 : steeringAngle - Math.sign(steeringAngle) * step;
+};
+
 const transitionPhase = (state: TruckControllerState, phase: TruckPhase): TruckControllerState => {
   const pose = phaseStartPose(phase);
   return {
@@ -249,10 +473,10 @@ const transitionPhase = (state: TruckControllerState, phase: TruckPhase): TruckC
     x: pose.x,
     z: pose.z,
     tractorYaw: pose.rotation,
-    trailerYaw:
-      Math.abs(shortestVehicleAngle(state.trailerYaw, pose.rotation)) > MAXIMUM_ARTICULATION
-        ? pose.rotation
-        : state.trailerYaw,
+    // The trailer is a physical body: a phase boundary never moves it. Phases
+    // join tangent, so the coupling limit can only bind here by rounding, and
+    // then the trailer is held at the limit rather than snapped straight.
+    trailerYaw: limitArticulation(state.trailerYaw, pose.rotation),
   };
 };
 
@@ -285,7 +509,16 @@ const serviceProgress = (state: TruckControllerState): number =>
     Math.min(1, state.serviceElapsed / Math.max(0.001, SERVICE_DURATION[state.servicePhase]))
   );
 
-const poseFromState = (state: TruckControllerState, safetyHold: boolean): TruckAnimState => {
+/**
+ * `safetyHold` is a real hold (e-stop, drill): the truck is brought to a stop
+ * and held on its service brake. `frozen` is a paused clock, which freezes the
+ * picture and is not a brake application.
+ */
+const poseFromState = (
+  state: TruckControllerState,
+  safetyHold: boolean,
+  frozen: boolean = false
+): TruckAnimState => {
   const serviceT = serviceProgress(state);
   const serviceIndex = SERVICE_ORDER.indexOf(state.servicePhase);
   const atOrAfter = (phase: TruckServicePhase): boolean =>
@@ -312,8 +545,12 @@ const poseFromState = (state: TruckControllerState, safetyHold: boolean): TruckA
   // trailer's world yaw relative to the tractor's world yaw.
   const articulation = shortestVehicleAngle(state.tractorYaw, state.trailerYaw);
   const reverse = speed < -0.01;
+  // Lit only while actually braking: decelerating, the held stop before
+  // reversing, or a safety hold bringing the truck to rest. Never on the parking
+  // brake (docked, engine off, or starting up to leave).
   const braking =
-    safetyHold || state.motion.acceleration < -0.35 || state.phase === 'stopping_to_back';
+    !parkingBrake &&
+    (safetyHold || state.motion.acceleration < -0.35 || state.phase === 'stopping_to_back');
   const turningLeft = state.steeringAngle < -0.08;
   const turningRight = state.steeringAngle > 0.08;
   const signalBlink = Math.floor(state.phaseElapsed * 4) % 2 === 0;
@@ -332,9 +569,10 @@ const poseFromState = (state: TruckControllerState, safetyHold: boolean): TruckA
     trailerAngle: articulation,
     cabRoll: Math.max(-0.06, Math.min(0.06, state.steeringAngle * 0.11)),
     cabPitch: Math.max(-0.055, Math.min(0.055, -state.motion.acceleration * 0.025)),
-    throttle: safetyHold
-      ? 0
-      : Math.min(1, Math.abs(speed) / 18 + Math.max(0, state.motion.acceleration) * 0.08),
+    throttle:
+      safetyHold || frozen
+        ? 0
+        : Math.min(1, Math.abs(speed) / 18 + Math.max(0, state.motion.acceleration) * 0.08),
     doorsOpen: doorOpenAmount > 0.02,
     doorOpenAmount,
     landingGearAmount,
@@ -361,9 +599,10 @@ const poseFromState = (state: TruckControllerState, safetyHold: boolean): TruckA
 
 export function getTruckControllerPose(
   state: TruckControllerState,
-  safetyHold: boolean = false
+  safetyHold: boolean = false,
+  frozen: boolean = false
 ): TruckAnimState {
-  return poseFromState(state, safetyHold);
+  return poseFromState(state, safetyHold, frozen);
 }
 
 const interpolateScalar = (from: number, to: number, alpha: number): number =>
@@ -449,7 +688,8 @@ export function stepTruckController(
     };
   } else if (state.phase === 'stopping_to_back' || state.phase === 'preparing_to_leave') {
     const motion = advanceLongitudinalMotion(state.motion, 0, deltaSeconds, TRUCK_LIMITS);
-    state = { ...state, motion, steeringAngle: 0 };
+    // The wheels come back to centre at the steering rate, not in one step.
+    state = { ...state, motion, steeringAngle: relaxSteering(state.steeringAngle, deltaSeconds) };
     const wait = state.phase === 'stopping_to_back' ? 1 : 2;
     if (!input.safetyHold && Math.abs(motion.speed) < 0.01 && state.phaseElapsed >= wait) {
       state = transitionPhase(state, NEXT_PHASE[state.phase]);
@@ -461,12 +701,24 @@ export function stepTruckController(
       (MOVING_PHASE_TARGET_SPEED[state.phase] ?? 0) * Math.max(0, input.speedMultiplier);
     const remaining = Math.max(0, path.totalLength - state.phaseDistance);
     const endsAtStop = state.phase === 'positioning' || state.phase === 'final_adjustment';
+    // Planned at a gentle rate: the jerk limit cannot follow a 2.4 m/s^2
+    // stopping curve, so the truck used to reach its stop mark still rolling
+    // at 0.8 m/s and halt in one step (and touch the dock bumper at 0.44).
     const brakingSpeed = endsAtStop
-      ? Math.sqrt(Math.max(0, 2 * TRUCK_LIMITS.maximumDeceleration * Math.max(0, remaining - 0.03)))
+      ? Math.max(
+          STOP_CREEP_SPEED,
+          Math.sqrt(2 * STOPPING_DECELERATION * Math.max(0, remaining - 0.03)) -
+            jerkLag(STOPPING_DECELERATION)
+        )
       : Infinity;
     const targetSpeed = input.safetyHold
       ? 0
-      : Math.sign(signedTarget) * Math.min(Math.abs(signedTarget), brakingSpeed);
+      : Math.sign(signedTarget) *
+        Math.min(
+          Math.abs(signedTarget),
+          brakingSpeed,
+          profiledSpeedLimit(state.phase, state.phaseDistance)
+        );
     const motion = advanceLongitudinalMotion(state.motion, targetSpeed, deltaSeconds, TRUCK_LIMITS);
     const travel = Math.min(remaining, Math.abs(motion.speed) * deltaSeconds);
     const phaseDistance = state.phaseDistance + travel;
@@ -481,16 +733,20 @@ export function stepTruckController(
       TRUCK_TRACK_WIDTH,
       MAXIMUM_STEERING
     );
-    const maximumSteeringChange = 0.52 * deltaSeconds;
+    const maximumSteeringChange = MAXIMUM_STEERING_RATE * deltaSeconds;
     const steeringDelta = Math.max(
       -maximumSteeringChange,
       Math.min(maximumSteeringChange, steering.centre - state.steeringAngle)
     );
     const steeringAngle = state.steeringAngle + steeringDelta;
+    // Reversing, a passive trailer is unstable: any articulation grows, and a
+    // 45 m back-in would fold it onto the coupling stop. A driver backing in
+    // steers the cab to keep the trailer on line, which this models as the
+    // trailer trailing back into line at the rate it would going forward.
     const trailerYaw = integrateTrailerYaw(
       state.trailerYaw,
       tractorYaw,
-      motion.speed,
+      reverse ? Math.abs(motion.speed) : motion.speed,
       TRAILER_AXLE_DISTANCE,
       MAXIMUM_ARTICULATION,
       deltaSeconds

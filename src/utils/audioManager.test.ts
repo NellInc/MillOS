@@ -289,6 +289,63 @@ describe('compressor resource lifecycle', () => {
   });
 });
 
+describe('forklift hydraulic lifecycle', () => {
+  let manager: typeof import('./audioManager').audioManager;
+  const STOP_AT = 0.08; // currentTime 0 plus the short fade in stopHydraulic
+
+  beforeEach(async () => {
+    vi.stubGlobal('AudioContext', MockAudioContext);
+    vi.stubGlobal('requestIdleCallback', vi.fn());
+    MockAudioContext.instances = [];
+    vi.resetModules();
+    manager = (await import('./audioManager')).audioManager;
+    manager.muted = false;
+    manager.volume = 0.5;
+    await manager.resume();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  const sources = () => MockAudioContext.instances[0].bufferSources;
+
+  it('stops the pump and the fluid layers a lift started', () => {
+    manager.playHydraulicLift('forklift-1', 2);
+    expect(sources()).toHaveLength(2);
+    manager.stopHydraulic('forklift-1');
+    for (const source of sources()) expect(source.stop).toHaveBeenLastCalledWith(STOP_AT);
+  });
+
+  it('stops a lowering sound and leaves the other forklifts playing', () => {
+    manager.playHydraulicLower('forklift-1', 2);
+    manager.playHydraulicLower('forklift-2', 2);
+    manager.stopHydraulic('forklift-1');
+    expect(sources()[0].stop).toHaveBeenLastCalledWith(STOP_AT);
+    expect(sources()[1].stop).not.toHaveBeenLastCalledWith(STOP_AT);
+  });
+
+  it('a new lift on the same forklift ends the one still sounding', () => {
+    manager.playHydraulicLift('forklift-1', 2);
+    manager.playHydraulicLower('forklift-1', 2);
+    const [pump, fluid, lower] = sources();
+    expect(pump.stop).toHaveBeenLastCalledWith(STOP_AT);
+    expect(fluid.stop).toHaveBeenLastCalledWith(STOP_AT);
+    expect(lower.stop).not.toHaveBeenLastCalledWith(STOP_AT);
+  });
+
+  it('stopAll ends every hydraulic sound', () => {
+    manager.playHydraulicLift('forklift-1', 2);
+    manager.stopAll();
+    for (const source of sources()) expect(source.stop).toHaveBeenLastCalledWith(STOP_AT);
+  });
+
+  it('stopping a forklift with no hydraulic sound is a no-op', () => {
+    expect(() => manager.stopHydraulic('forklift-9')).not.toThrow();
+  });
+});
+
 describe('ambient one-shot schedulers', () => {
   let manager: typeof import('./audioManager').audioManager;
 

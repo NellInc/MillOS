@@ -10,6 +10,10 @@ import { importWithBoundedRetry } from '../utils/recoverableLazy';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import ErrorBoundary from './ErrorBoundary';
 import { useGraphicsStore } from '../stores/graphicsStore';
+import {
+  selectInAppReducedMotion,
+  useMotionPreferenceStore,
+} from '../stores/motionPreferenceStore';
 import { useT } from '../i18n';
 import { loadingScreenMessages } from './LoadingScreen.messages';
 
@@ -24,11 +28,14 @@ const DeferredLoadingQuote = lazy(() =>
 interface LoadingScreenProps {
   minimumLoadTimeMs?: number;
   recoveryDelayMs?: number;
+  /** How long a complete world must stay slow before Low is offered early. */
+  slowWorldDelayMs?: number;
 }
 
 export const LoadingScreen: React.FC<LoadingScreenProps> = ({
   minimumLoadTimeMs = 700,
   recoveryDelayMs = 30000,
+  slowWorldDelayMs = 5000,
 }) => {
   const t = useT(loadingScreenMessages);
   const startup = useSyncExternalStore(subscribeStartup, getStartupSnapshot);
@@ -37,9 +44,11 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
   const [minimumTimePassed, setMinimumTimePassed] = useState(false);
   const [showRecovery, setShowRecovery] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
-  const [reducedMotion, setReducedMotion] = useState(
+  const [osReducedMotion, setReducedMotion] = useState(
     () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
   );
+  const inAppReducedMotion = useMotionPreferenceStore(selectInAppReducedMotion);
+  const reducedMotion = osReducedMotion || inAppReducedMotion;
   const loadingRef = useRef<HTMLDivElement>(null);
   // Loading owns keyboard focus until readiness; Escape cannot skip preparation.
   // Working if Tab stays on the cover until an explicit recovery control is available.
@@ -71,16 +80,40 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
     return () => window.clearTimeout(hideTimer);
   }, [startup.ready, startup.opened, minimumTimePassed, reducedMotion]);
 
-  const safeProgress = startup.ready
-    ? 100
-    : Math.min(95, startup.totalAssets > 0 ? (startup.loadedAssets / startup.totalAssets) * 95 : 0);
+  // The asset fraction falls whenever newly queued assets grow the total, so
+  // the bar shows the highest fraction reached this load and never runs back.
+  // Working if aria-valuenow never decreases before readiness sets 100.
+  const assetProgress = Math.min(
+    95,
+    startup.totalAssets > 0 ? (startup.loadedAssets / startup.totalAssets) * 95 : 0
+  );
+  const [progressFloor, setProgressFloor] = useState(0);
+  if (assetProgress > progressFloor) setProgressFloor(assetProgress);
+  const safeProgress = startup.ready ? 100 : Math.max(progressFloor, assetProgress);
+
+  // `prepared` means every asset and task is done and the frame window is full
+  // but still too slow: exactly what Low graphics fixes. Once that has held for
+  // a few seconds, offer the way out then rather than at the 30 s timer. A
+  // brief slow window that clears never starts the latch. Once set, it holds
+  // for that resource revision: a >1 s hitch restarts the frame window
+  // (`prepared` false) without a resource change, and the controls must not
+  // flicker away on the slow device they were offered to. A real resource
+  // change bumps the revision and releases it.
+  const [slowWorldRevision, setSlowWorldRevision] = useState<number | null>(null);
+  useEffect(() => {
+    if (!startup.prepared || startup.ready) return;
+    const revision = startup.revision;
+    const timer = window.setTimeout(() => setSlowWorldRevision(revision), slowWorldDelayMs);
+    return () => window.clearTimeout(timer);
+  }, [startup.prepared, startup.ready, startup.revision, slowWorldDelayMs]);
+  const slowWorldConfirmed = !startup.ready && slowWorldRevision === startup.revision;
   // The startup error count only rises, and strict readiness needs it at zero,
   // so a known error is final for this page load: say so and offer the way out
   // at once instead of after the slow-load delay.
   // Working if errors > 0 shows 'Loading could not finish' and Reload
   // immediately, while an error-free slow load keeps the original status.
   const hasStartupError = startup.errors > 0;
-  const recoveryVisible = showRecovery || hasStartupError;
+  const recoveryVisible = showRecovery || hasStartupError || slowWorldConfirmed;
   const progressText = startup.ready
     ? t('ready')
     : hasStartupError
@@ -181,9 +214,14 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
 
           {recoveryVisible &&
             !startup.ready &&
-            (startup.prepared || hasStartupError || quality !== 'low') && (
+            (startup.prepared || slowWorldConfirmed || hasStartupError || quality !== 'low') && (
               <div className="mt-6 flex max-w-md flex-col items-center gap-3 text-center text-sm text-slate-300">
-                {startup.prepared && <p>{t('slowAnimation')}</p>}
+                {(startup.prepared || slowWorldConfirmed) && <p>{t('slowAnimation')}</p>}
+                {/* Say why a bare quality switch appeared on a slow load. */}
+                {!startup.prepared &&
+                  !slowWorldConfirmed &&
+                  !hasStartupError &&
+                  quality !== 'low' && <p>{t('slowLoad')}</p>}
                 {hasStartupError && <p>{t('resourcesFailed')}</p>}
                 {/* Reload is the explicit recovery control the focus trap waits for.
                   The service worker serves what already arrived, so it retries
@@ -212,7 +250,9 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
                     {t('useLowGraphics')}
                   </button>
                 )}
-                {startup.prepared && startup.errors === 0 && (
+                {/* Latched like the text above: a hitch must not pull this from
+                  under the cursor. `openPreparedStartup` re-checks the world. */}
+                {(startup.prepared || slowWorldConfirmed) && startup.errors === 0 && (
                   <button
                     type="button"
                     onClick={openPreparedStartup}

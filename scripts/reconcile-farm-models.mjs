@@ -13,26 +13,26 @@ export const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
 export const RECONCILED_FARM_MODELS = Object.freeze({
   'farm-coop': Object.freeze({
     slug: 'coop',
-    inputSHA256: 'd418d9bebc5f63a54fd79d78fb19b2939010de704b4c334b5a04238573bdbe73',
+    inputSHA256: '59d70ebe84a1daacd63c8b9be15a07febbceb14f3c34685ec19eeab50b3aff05',
     sourceSHA256: 'c1c59659ffda9b0078b2f823289b0757abaf035e3df09526611af3fea55ee0b1',
-    preparedSHA256: 'a17e0f986a6a10ac215489c39e5e2c9b149d95bb0c20384dd5103bfd93404efb',
+    preparedSHA256: 'b6c1f13bbb3e2b0b06d503bd452a130902c5ce5fc3f09d9eaa3d270730fad5f5',
     scaleFactor: 2.99982,
     manifestSHA256: '180e97c7e0a505a23020cce278c54a3103f098b497b37c45248f8bbe6fb16a78',
-    outputSHA256: 'fe0bf9d3aeafb2d75fb0e2ea0184fab266ac9b8418fab2ad49e11949accb1443',
+    outputSHA256: 'e6e1f4ff7184cd865c77d3952bbadccde7c51189580dfb0aaee823d7007a63b7',
   }),
   'farm-farmhouse': Object.freeze({
     slug: 'farmhouse',
-    inputSHA256: '03080debdd7dcadf2807ba93f4456c66d9b339415caee2d686ffe88c6d1f57d1',
+    inputSHA256: '3915c901a1cbcfadb6b2997b89d622c38c4b2745dd265c4ff410d66bea615c6a',
     sourceSHA256: 'ebc862d40b2bc9df64c56e362be259f680a9241e4f1fa7893b8df56931306ba7',
-    preparedSHA256: 'ef0ea0a62446fad805028c9c5768e43a54f0027d77ee609df10c861da325ef29',
+    preparedSHA256: '38b423981f82f9591dc6fed298c828755300a5c0af5a6c00d62f8f96455074f3',
     scaleFactor: 6.00116,
     manifestSHA256: '5ad25e20050d2f410fd2a9554695083410af4ef08ca5dbf5d9a7360ba8ef215b',
-    outputSHA256: '479f3dfc58e220edfa6bcd7962dd12ac00b8ba84f8559e5706e13840a75a9a1a',
+    outputSHA256: '0a579e5c32dc08033d34a8c086dd99e5869eb43ce2639fc8c4203f59b8b6e599',
   }),
 });
 
 export const AUTHORING_SCRIPT = 'scripts/blender/refine_architecture_assets.py';
-export const AUTHORING_SHA256 = '1e994f84e16544ca5522914195c863df5633c4c48a0609b1f0b5592f2d721cd7';
+export const AUTHORING_SHA256 = 'ddd30879f2abb12b618a8e475c57ac2f7b708bf0f6958fbb0d626cfdedaeada2';
 export const BASELINE_DIRECTORY = 'src/test/fixtures/farm-model-reconciliation';
 
 export function assertFarmDependencies(id, sourceBytes, preparedBytes, authoringBytes, manifest) {

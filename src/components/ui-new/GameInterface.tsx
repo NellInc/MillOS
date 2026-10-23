@@ -22,7 +22,7 @@ import { useAINarrationStore } from '../../stores/aiNarrationStore';
 import type { NarrationEntry } from '../../stores/aiNarrationStore';
 import { useKnowledgeStore } from '../../stores/knowledgeStore';
 import { useKnowledgeIntegration } from '../../hooks/useKnowledgeIntegration';
-import { useUIStore } from '../../stores/uiStore';
+import { isStandingCriticalAlert, useUIStore } from '../../stores/uiStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useAnnouncementsStore } from '../../stores/announcementsStore';
 import { useMobileControlStore } from '../../stores/mobileControlStore';
@@ -36,18 +36,21 @@ import { MillOSMusicPlayer } from './MillOSMusicPlayer';
 import { WorkplaceAutoplayStatus } from './widgets/WorkplaceParticipation';
 import { WorkplaceCompanion } from './widgets/WorkplaceCompanion';
 import { useWorkplaceStore } from '../../stores/workplaceStore';
+import { workplaceOwnsGuidance } from '../../simulation/workplaceImprovement';
 import { useT } from '../../i18n';
 import { gameInterfaceMessages } from './GameInterface.messages';
+import { focusDockItem } from './dock/focusDockItem';
 
 const LayoutPlanner = recoverableLazy(() =>
   import('./widgets/LayoutPlanner').then((module) => ({ default: module.LayoutPlanner }))
 );
 
 // Keys only: the copy is resolved at render so a language switch reaches the tour.
+// Each step's copy matches TOUR_CAMERA_PRESETS: silos, milling, packing.
 const INTRO_STEPS = [
   { titleKey: 'introGrainTitle', contentKey: 'introGrainContent', icon: 'factory' },
-  { titleKey: 'introFlourTitle', contentKey: 'introFlourContent', icon: 'goal' },
   { titleKey: 'introLookTitle', contentKey: 'introLookContent', icon: 'controls' },
+  { titleKey: 'introFlourTitle', contentKey: 'introFlourContent', icon: 'goal' },
 ] as const;
 
 interface GameInterfaceProps {
@@ -105,9 +108,9 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   // critical alert holds the quiet/safety UI. Working if Acknowledge or Mark all
   // as read restores music controls, PA flavour and AI reflection, while real
   // safety stops (emergency, drill, crisis) still hold it via safetyStateActive.
-  const hasCriticalAlert = useUIStore((s) =>
-    s.alerts.some((alert) => alert.type === 'critical' && !alert.acknowledged)
-  );
+  // A SCADA alarm that returned to normal (ISA-18.2 RTN_UNACK) stays listed
+  // for acknowledgement but no longer holds this state.
+  const hasCriticalAlert = useUIStore((s) => s.alerts.some(isStandingCriticalAlert));
   const fpsMode = useUIStore((s) => s.fpsMode);
   const safetyStateActive = useGameSimulationStore(
     (state) => state.emergencyActive || state.emergencyDrillMode || state.crisisState.active
@@ -120,19 +123,17 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   const journeyVisible = useUIStore((s) => s.journeyVisible);
   const startDeliveryJourney = useUIStore((s) => s.startDeliveryJourney);
   const [introStep, setIntroStep] = useState<number | null>(null);
-  const introPaceRef = React.useRef<number | null>(null);
+  // The tour's buttons unmount with it, so its exits hand focus on: to the
+  // guided delivery's heading when that card opens, else to the dock.
+  // Working if focus never falls to <body> after Start operating, Skip or Close.
+  const [focusJourneyHeading, setFocusJourneyHeading] = useState(false);
+  const clearJourneyHeadingFocus = React.useCallback(() => setFocusJourneyHeading(false), []);
   const releaseTourClock = React.useCallback(() => {
-    const previousPace = introPaceRef.current;
-    introPaceRef.current = null;
-    const simulation = useGameSimulationStore.getState();
-    // Release only our own hold; preserve a newer clock choice from another control.
-    // The 180 fast clock runs customer deadlines 6x faster than trucks and packing,
-    // so a default 180 hold always releases to standard pace (30). Working if
-    // Start operating, Skip, Close and unmount all land on 30 from the default,
-    // and any other chosen pace is restored unchanged.
-    if (previousPace !== null && simulation.gameSpeed === 0) {
-      simulation.setGameSpeed(previousPace === 180 ? 30 : previousPace);
-    }
+    // The tour holds the clock through the shared authority and releases only
+    // its own hold, so a newer pace choice or another holder is preserved.
+    // Working if Start operating, Skip, Close and unmount all resume the pace
+    // the visitor had, and a pace chosen during the tour is kept.
+    useGameSimulationStore.getState().releaseClock('tour');
   }, []);
 
   useEffect(() => {
@@ -151,9 +152,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
     let timer: ReturnType<typeof setTimeout> | null = null;
     const showWhenReady = () => {
       timer = setTimeout(() => {
-        const simulation = useGameSimulationStore.getState();
-        introPaceRef.current = simulation.gameSpeed;
-        simulation.setGameSpeed(0);
+        useGameSimulationStore.getState().holdClock('tour');
         setIntroStep(0);
       }, 700);
     };
@@ -197,6 +196,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       setIntroStep(null);
       const campaign = useOperationsCampaignStore.getState();
       startDeliveryJourney(campaign.activeOrderId ?? campaign.orders[0]?.id ?? null);
+      setFocusJourneyHeading(true);
       setSidebarVisible(false);
       return;
     }
@@ -207,17 +207,28 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
     setIntroStep((step) => Math.max(0, (step ?? 0) - 1));
   };
 
+  // Skipping the tour skips the explanation, not the goal: a stranger who skips
+  // still gets the guided first delivery, which has its own close. Closing
+  // getting started for the session (X) is the way to dismiss both.
+  // Working if Skip leaves a named next action on screen within a second.
   const handleIntroSkip = () => {
     releaseTourClock();
     setHasSeenIntro(true);
     setIntroStep(null);
     useCameraStore.getState().cancelAnimation();
+    const campaign = useOperationsCampaignStore.getState();
+    startDeliveryJourney(campaign.activeOrderId ?? campaign.orders[0]?.id ?? null);
+    setFocusJourneyHeading(true);
   };
 
   const handleIntroClose = () => {
     releaseTourClock();
     setIntroStep(null);
     useCameraStore.getState().cancelAnimation();
+    // A guide already open from an earlier session takes focus as it shows;
+    // otherwise nothing replaces the tour, so focus goes to the dock.
+    if (useUIStore.getState().journeyVisible) setFocusJourneyHeading(true);
+    else focusDockItem('overview');
   };
 
   // AI Narration - get current narration to display
@@ -332,6 +343,11 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       const mode = requestedMode === 'autonomy' ? 'management' : requestedMode;
       if (isCompactLayout) useMobileControlStore.getState().openMobilePanel(mode);
       else {
+        // The control that sent this (Take over, the companion's Open) often
+        // unmounts as the panel opens; the panel heading takes focus instead.
+        // A repair route keeps its own target, the maintenance section.
+        if (!useUIStore.getState().maintenanceFocusRequested)
+          useUIStore.getState().requestPanelFocus();
         setActiveMode(mode);
         setSidebarVisible(true);
         onAIPanelChange?.(false);
@@ -384,9 +400,8 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
 
   // Determine if Sidebar should be visible
   const isSidebarVisible = sidebarVisible;
-  const hasWorkingAgreement = useWorkplaceStore(
-    (store) => store.workplace.mode === 'game' && store.workplace.phase !== 'idle'
-  );
+  // One slot predicate with ProductionTargetWidget, so the two never overlap.
+  const hasWorkingAgreement = useWorkplaceStore((store) => workplaceOwnsGuidance(store.workplace));
   const quietSlotAvailable =
     introStep === null &&
     !journeyVisible &&
@@ -556,6 +571,19 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
         (!isCompactLayout || !mobilePanelVisible) && (
           <FirstDeliveryJourney
             selectedMachine={selectedMachine}
+            focusHeadingOnMount={focusJourneyHeading}
+            onHeadingFocused={clearJourneyHeadingFocus}
+            // A keyboard route to the opening lesson: the same selection and
+            // camera flight as clicking the machine. On a desktop the inspector
+            // opens in the sidebar, whose heading takes focus.
+            onInspectMachine={
+              onFocusMachine
+                ? (machineId) => {
+                    if (!isCompactLayout) useUIStore.getState().requestPanelFocus();
+                    onFocusMachine(machineId);
+                  }
+                : undefined
+            }
             onOpenWorkspace={(mode) => {
               if (isCompactLayout) useMobileControlStore.getState().openMobilePanel(mode);
               else {

@@ -11,14 +11,15 @@ import { CompactMachinesContainer as MachinesContainer } from './machines/Compac
 import { MachineSimulationController } from './machines/MachineSimulationController';
 import { DustParticles, GrainFlow, MachineSteamVents, DustAnimationManager } from './DustParticles';
 import { OptimizedFactoryInfrastructure } from './infrastructure/OptimizedFactoryInfrastructure';
+import { HallDressing } from './infrastructure/HallDressing';
 import type { ForkliftData } from './ForkliftSystem';
 import { OptimizedFactoryEnvironment } from './environment/OptimizedFactoryEnvironment';
 import { getTerrainGridSegments } from './terrain/terrainTypes';
 import { ENVIRONMENT_INTENSITY } from './environment/SceneEnvironmentIBL';
 import { CentralTickProvider, useUnifiedGameTick } from '../systems';
+import { registerEgressDrillSequencer } from '../systems/egressDrillSequencer';
 import { ProductionFlowVisualization } from './ProductionFlowVisualization';
 import { useAIConfigStore } from '../stores/aiConfigStore';
-import { recoverableLazy } from '../utils/recoverableLazy';
 import ErrorBoundary from './ErrorBoundary';
 import { StaticMeshBatch } from './performance/StaticMeshBatch';
 import { PunctualLightIsolation } from './performance/PunctualLightIsolation';
@@ -28,69 +29,27 @@ import {
   DISTANT_FACTORY_INTERIOR_LOD,
   resolveFactoryInteriorDetailVisibility,
 } from './performance/distantFactoryInteriorLod';
-
-// Lazy load heavy optional layers while preserving the complete authored world.
-// Quality changes may reduce effects and geometry density, but never swap the
-// user into a different factory or remove the surrounding site.
-const TruckBay = recoverableLazy(() =>
-  import('./TruckBay').then((module) => ({ default: module.TruckBay }))
-);
-const AuthoredFactoryExterior = recoverableLazy(() =>
-  import('./FactoryExterior').then((module) => ({ default: module.FactoryExterior }))
-);
-const AuthoredCastle = recoverableLazy(() =>
-  import('./scenery/FairytaleCastle').then((module) => ({ default: module.FairytaleCastle }))
-);
-const AuthoredFarm = recoverableLazy(() =>
-  import('./FarmArea').then((module) => ({ default: module.FarmArea }))
-);
-const AuthoredVillage = recoverableLazy(() =>
-  import('./VillageArea').then((module) => ({ default: module.VillageArea }))
-);
-const CommunityLife = recoverableLazy(() =>
-  import('./CommunityLife').then((module) => ({ default: module.CommunityLife }))
-);
-const AuthoredTerrain = recoverableLazy(() =>
-  import('./terrain').then((module) => ({ default: module.TerrainGround }))
-);
-const AuthoredDockOpening = recoverableLazy(() =>
-  import('./infrastructure/OpenDockOpening').then((module) => ({
-    default: module.OpenDockOpening,
-  }))
-);
-const OperationalConveyors = recoverableLazy(() =>
-  import('./ConveyorSystem').then((module) => ({ default: module.ConveyorSystem }))
-);
-const OperationalForklifts = recoverableLazy(() =>
-  import('./ForkliftSystem').then((module) => ({ default: module.ForkliftSystem }))
-);
-const EnhancedHolographicDisplays = recoverableLazy(() =>
-  import('./HolographicDisplays').then((module) => ({
-    default: module.HolographicDisplays,
-  }))
-);
-const OptionalCascadeVisualization = recoverableLazy(() =>
-  import('./CascadeVisualization').then((module) => ({
-    default: module.CascadeVisualization,
-  }))
-);
-const OptionalStrategicOverlay = recoverableLazy(() =>
-  import('./StrategicOverlay3D').then((module) => ({ default: module.StrategicOverlay3D }))
-);
-const OptionalBlueprintMode = recoverableLazy(() =>
-  import('./blueprint').then((module) => ({ default: module.BlueprintMode }))
-);
-const HighDetailSpoutingSystem = recoverableLazy(() =>
-  import('./SpoutingSystem').then((module) => ({ default: module.SpoutingSystem }))
-);
-const PostProcessing = recoverableLazy(() =>
-  import('./PostProcessing').then((module) => ({ default: module.PostProcessing }))
-);
-const OperationalWorldSignals = recoverableLazy(() =>
-  import('./OperationalWorldSignals').then((module) => ({
-    default: module.OperationalWorldSignals,
-  }))
-);
+// Lazy layers live beside their preload (started by App when this chunk is
+// requested), so every chunk the first render reaches is already in flight.
+import {
+  AuthoredCastle,
+  AuthoredDockOpening,
+  AuthoredFactoryExterior,
+  AuthoredFarm,
+  AuthoredTerrain,
+  AuthoredVillage,
+  CommunityLife,
+  EnhancedHolographicDisplays,
+  HighDetailSpoutingSystem,
+  OperationalConveyors,
+  OperationalForklifts,
+  OperationalWorldSignals,
+  OptionalBlueprintMode,
+  OptionalCascadeVisualization,
+  OptionalStrategicOverlay,
+  PostProcessing,
+  TruckBay,
+} from './millSceneDeferredLayers';
 
 /**
  * Keep the unified factory mounted while omitting sub-pixel service detail
@@ -400,44 +359,9 @@ const ServiceEgressMarkers = React.memo(() => {
   );
 
   // The verification sequence itself. Nothing else calls markZoneVerified, so
-  // without this a started drill could never complete: each egress point is
-  // verified in turn, and the drill ends shortly after the last one.
-  useEffect(() => {
-    if (!emergencyDrillMode || !drillMetrics.active) return;
-    const ZONE_INTERVAL_MS = 4000;
-    const COMPLETION_HOLD_MS = 5000;
-    let completionTimer: number | undefined;
-    const store = () => useGameSimulationStore.getState();
-    const timer = window.setInterval(() => {
-      const current = store();
-      if (!current.emergencyDrillMode || !current.drillMetrics.active) return;
-      if (current.drillMetrics.verificationComplete) {
-        window.clearInterval(timer);
-        completionTimer = window.setTimeout(() => {
-          const latest = store();
-          if (latest.emergencyDrillMode && latest.drillMetrics.verificationComplete) {
-            latest.endEmergencyDrill();
-          }
-        }, COMPLETION_HOLD_MS);
-        return;
-      }
-      const zone = SERVICE_EGRESS_POINTS.slice(0, current.drillMetrics.totalZones).find(
-        (point) => !current.drillMetrics.verifiedZoneIds.includes(point.id)
-      );
-      // Defensive: every drill zone is verified without the drill completing
-      // (startEmergencyDrill clamps totalZones, so this should not happen).
-      // Stop ticking instead of spinning until END DRILL.
-      if (!zone) {
-        window.clearInterval(timer);
-        return;
-      }
-      current.markZoneVerified(zone.id);
-    }, ZONE_INTERVAL_MS);
-    return () => {
-      window.clearInterval(timer);
-      if (completionTimer !== undefined) window.clearTimeout(completionTimer);
-    };
-  }, [emergencyDrillMode, drillMetrics.active]);
+  // without this a started drill could never complete. It runs on the central
+  // tick in game seconds, so it holds with the shift clock and follows pace.
+  useEffect(() => registerEgressDrillSequencer(), []);
 
   // Pending markers pulse during the automated verification sequence. Verified
   // markers, and every marker under reduced motion, hold their resting glow.
@@ -593,8 +517,16 @@ export const MillScene: React.FC<MillSceneProps> = ({
           temperature: 20 + idx * 0.4, // Deterministic: 20-21.6°C
           vibration: 0.8 + idx * 0.04, // Deterministic: 0.8-0.96
           load: 60 + idx * 3, // Deterministic: 60-72%
-          wear: 0, // Start with no wear
-          efficiency: 100, // Start at full efficiency
+          // Silo Alpha starts part-worn, so a first standard-pace shift meets
+          // one wear warning (about 3.8 game hours in, before the 14:00
+          // handover) and with it Maintain. No unit wears faster and no line
+          // warns together (see WEAR_PACE in UnifiedGameTick). A silo's slow
+          // rate keeps this breakdown ~67 game hours out, after the first
+          // mill's, and it is off the product path, so first-shift flour is
+          // unaffected. The first tick derives its efficiency from this wear.
+          // Working if exactly one predictive alert arrives in the first shift.
+          wear: anchor.id === 'silo-0' ? 68.5 : 0,
+          efficiency: 100,
         },
         lastMaintenance: '2024-01-15',
         nextMaintenance: '2024-04-15',
@@ -621,7 +553,13 @@ export const MillScene: React.FC<MillSceneProps> = ({
           temperature: 42 + idx * 0.8, // Deterministic: 42-46°C
           vibration: 1.5 + idx * 0.08, // Deterministic: 1.5-1.9
           load: 70 + idx * 1.6, // Deterministic: 70-80%
-          wear: 0, // Start with no wear
+          // R.M. 101 starts part-worn, so a later programme meets a wear
+          // decision on the product path: its warning lands about 16:29, after
+          // the first shift's silo warning and its 14:00 handover, and left
+          // unserviced it breaks down about 06:22 on day 2. Working if
+          // UnifiedGameTick.firstShiftWear.test.ts still sees one first-shift
+          // warning and pins this mill's warning and breakdown times.
+          wear: anchor.id === 'rm-101' ? 46 : 0,
           efficiency: 100, // Start at full efficiency
         },
         lastMaintenance: '2024-02-01',
@@ -905,6 +843,7 @@ export const MillScene: React.FC<MillSceneProps> = ({
       </group>
       <group name="world-factory-infrastructure">
         <OptimizedFactoryInfrastructure showZones={showZones} />
+        <HallDressing revision={staticBatchRevision} />
       </group>
 
       {/* Dynamic Elements - Respect perfDebug toggles */}
@@ -933,7 +872,7 @@ export const MillScene: React.FC<MillSceneProps> = ({
           >
             <ErrorBoundary fallback={null} resetKeys={[graphicsQuality]}>
               <Suspense fallback={null}>
-                <TruckBay productionSpeed={productionSpeed} />
+                <TruckBay />
               </Suspense>
             </ErrorBoundary>
           </StaticMeshBatch>

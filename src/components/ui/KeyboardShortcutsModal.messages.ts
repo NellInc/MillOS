@@ -42,7 +42,7 @@ export const keyboardShortcutsModalMessages = defineMessages({
     minimizePanel: 'Minimize/Expand panel',
     toggleFullscreen: 'Toggle fullscreen',
     toggleMiniMap: 'Toggle GPS mini-map',
-    toggleAutoRotate: 'Toggle camera auto-rotation',
+    toggleAutoRotate: 'Slow showcase orbit, off by default (outdoor views with a clear path)',
     blueprint: 'Blueprint mode (see-through walls)',
     speed: 'Adjust production speed',
     closePanels: 'Close panels',
@@ -99,7 +99,8 @@ export const keyboardShortcutsModalMessages = defineMessages({
     minimizePanel: 'Minimizar/expandir o painel',
     toggleFullscreen: 'Ativar/desativar a tela cheia',
     toggleMiniMap: 'Mostrar/ocultar o minimapa GPS',
-    toggleAutoRotate: 'Ativar/desativar a rotação automática da câmera',
+    toggleAutoRotate:
+      'Volta lenta de exibição, desligada por padrão (vistas externas com caminho livre)',
     blueprint: 'Modo planta (paredes transparentes)',
     speed: 'Ajustar a velocidade de produção',
     closePanels: 'Fechar painéis',

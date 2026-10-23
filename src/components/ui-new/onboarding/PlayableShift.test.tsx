@@ -12,12 +12,15 @@ import { useOperationsCampaignStore } from '../../../stores/operationsCampaignSt
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
 import { useMaterialFlowStore } from '../../../stores/materialFlowStore';
+import { useProductionStore } from '../../../stores/productionStore';
 import { createWorkplace } from '../../../simulation/bilateralWorkplace';
+import { useWorkplaceAutoplay } from '../../../simulation/workplaceAutoplay';
 import {
   campaignRecord,
   requiredChecks,
   WORKPLACE_CHECKS,
 } from '../../../simulation/workplaceCampaign';
+import { setLocale } from '../../../i18n';
 import { MachineType } from '../../../types';
 import type { MachineData } from '../../../types';
 import type { OperationalIncident } from '../../../stores/operationsCampaignStore';
@@ -93,6 +96,61 @@ describe('playable shift UI', () => {
       screen.getByLabelText('Active customer commitment', { exact: false })
     ).not.toBeDisabled();
   });
+  it.each([
+    [
+      'en',
+      'Reload safety: future authority and consent revoked; earned pay retained.',
+      'Working agreement: pending',
+      'Paused by a reload at minute 76: the shift carries on once everyone consents again, in the Bilateral Autonomy System (BAS) panel.',
+    ],
+    [
+      'pt-BR',
+      'Reload safety: future authority and consent revoked; earned pay retained.',
+      'Acordo de trabalho: pendente',
+      'Pausado por uma recarga no minuto 76: o turno continua quando todos consentirem de novo, no painel Sistema de Autonomia Bilateral (BAS).',
+    ],
+    ['en', 'Stopped by the team.', 'Working agreement: incomplete', 'Why: Stopped by the team.'],
+    [
+      'pt-BR',
+      'Stopped by the team.',
+      'Acordo de trabalho: incompleto',
+      'Motivo: Stopped by the team.',
+    ],
+  ] as const)(
+    'debrief (%s) tells a reload pause (resumable) from an ending (%s)',
+    (locale, reason, status, line) => {
+      useWorkplaceStore.getState().startMission('team');
+      const state = useWorkplaceStore.getState().workplace;
+      const record = campaignRecord({ ...state, minute: 90 });
+      useWorkplaceStore.setState({
+        workplace: {
+          ...state,
+          // The third shift settled at minute 76, short of its 90.
+          phase: 'review',
+          minute: 76,
+          reviewReason: reason,
+          campaign: {
+            ...state.campaign!,
+            shift: 2,
+            decision: 'protect-refusal',
+            repairs: 1,
+            history: [
+              { ...record, shift: 0, agreementProved: true },
+              { ...record, shift: 1, agreementProved: true, inspectionComplete: true },
+            ],
+          },
+        },
+      });
+      setLocale(locale);
+      try {
+        render(<ShiftDebrief />);
+        expect(screen.getByText(new RegExp(status))).toBeInTheDocument();
+        expect(screen.getByText(line)).toBeInTheDocument();
+      } finally {
+        setLocale('en');
+      }
+    }
+  );
   it.each([0, 80, 100])(
     'debrief separates delivery, deferral and agreement outcomes at %s kg',
     (delivered) => {
@@ -239,15 +297,16 @@ describe('playable shift UI', () => {
     expect(footer).not.toBeNull();
     // Sticky resolves against the nearest scroll box, which must be the card itself.
     expect(footer?.parentElement).toBe(card);
-    expect(footer).toHaveClass('bottom-0', '-mx-4', 'px-4', 'bg-slate-950');
+    expect(footer).toHaveClass('bottom-[-1rem]', 'pb-7', '-mx-4', 'px-4', 'bg-slate-950');
     expect(footer).toContainElement(open);
     expect(show.compareDocumentPosition(open) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const pace = screen.getByRole('combobox', { name: 'Shift pace' });
     const skip = screen.getByRole('button', { name: 'Skip guided delivery' });
     expect(footer).not.toContainElement(pace);
     expect(footer).not.toContainElement(skip);
-    expect(footer!.compareDocumentPosition(pace) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(pace.compareDocumentPosition(skip) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Pace sits above the lesson, beside the deadline; Skip stays below.
+    expect(pace.compareDocumentPosition(footer!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(footer!.compareDocumentPosition(skip) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('shows the actual truck load separately from dispatched customer credit', () => {
@@ -309,6 +368,107 @@ describe('playable shift UI', () => {
     expect(onOpen).toHaveBeenCalledWith('overview');
     expect(useOperationsCampaignStore.getState()).toBe(before);
   });
+  it('keeps the first receipt but puts the current order and its next step in front', () => {
+    const state = useOperationsCampaignStore.getState();
+    const [first, second] = state.orders;
+    useUIStore.getState().startDeliveryJourney(first.id);
+    useUIStore.getState().recordMachineInspection('mill-1');
+    useOperationsCampaignStore.setState({
+      orders: state.orders.map((order) =>
+        order.id === first.id
+          ? {
+              ...order,
+              status: 'fulfilled' as const,
+              shippedKg: order.requiredKg,
+              completedAtMinute: 142,
+            }
+          : order.id === second.id
+            ? { ...order, status: 'active' as const, shippedKg: 1000 }
+            : order
+      ),
+      activeOrderId: second.id,
+      elapsedMinutes: second.dueAtMinute - 60,
+      execution: {
+        ...state.execution,
+        orderId: second.id,
+        stage: 'loading',
+        qualityReleased: true,
+        dispatchLoad: { ...state.execution.dispatchLoad, loadedKg: 2000 },
+      },
+    });
+    const before = useOperationsCampaignStore.getState();
+    render(<FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={vi.fn()} />);
+    expect(screen.getByRole('heading', { name: 'Delivery fulfilled' })).toBeInTheDocument();
+    expect(
+      screen.getByText(/^Riverside Bakers' Cooperative: 6,000 of 6,000 kg/)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Now: Community Pasta Works, 1,000 of 4,000 kg shipped. Due in 1h 0m (simulated).'
+      )
+    ).toBeInTheDocument();
+    expect(screen.getByText('Check shipping in SCADA')).toBeInTheDocument();
+    // The action stays pinned in the card's scroll box however long the lines.
+    expect(screen.getByRole('button', { name: 'Open SCADA' }).closest('.sticky')).toHaveClass(
+      'bottom-[-1rem]',
+      'pb-7'
+    );
+    // Compacted for the scene, the card keeps the current goal, not the first
+    // delivery's inspection status or deadline.
+    fireEvent.click(screen.getByRole('button', { name: 'Compact delivery guide' }));
+    expect(
+      screen.getByText(
+        'Now: Community Pasta Works, 1,000 of 4,000 kg shipped. Due in 1h 0m (simulated).'
+      )
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/^Inspection: /)).not.toBeInTheDocument();
+    expect(useOperationsCampaignStore.getState()).toBe(before);
+    cleanup();
+    // Once every order is in, the programme-complete state takes over.
+    useOperationsCampaignStore.setState({
+      orders: before.orders.map((order) => ({
+        ...order,
+        status: 'fulfilled' as const,
+        shippedKg: order.requiredKg,
+      })),
+      activeOrderId: null,
+    });
+    render(<FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={vi.fn()} />);
+    expect(screen.getByText('Programme complete, review your shift')).toBeInTheDocument();
+    expect(screen.queryByText(/^Now: /)).not.toBeInTheDocument();
+  });
+  it('names the current order in Brazilian Portuguese', () => {
+    const state = useOperationsCampaignStore.getState();
+    const [first, second] = state.orders;
+    useUIStore.getState().startDeliveryJourney(first.id);
+    useOperationsCampaignStore.setState({
+      orders: state.orders.map((order) =>
+        order.id === first.id
+          ? {
+              ...order,
+              status: 'fulfilled' as const,
+              shippedKg: order.requiredKg,
+              completedAtMinute: 142,
+            }
+          : order.id === second.id
+            ? { ...order, status: 'active' as const, shippedKg: 1000 }
+            : order
+      ),
+      activeOrderId: second.id,
+      elapsedMinutes: second.dueAtMinute - 60,
+    });
+    setLocale('pt-BR');
+    try {
+      render(<FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={vi.fn()} />);
+      expect(
+        screen.getByText(
+          'Agora: Community Pasta Works, 1.000 de 4.000 kg expedidos. Vence em 1h 0min (tempo simulado).'
+        )
+      ).toBeInTheDocument();
+    } finally {
+      setLocale('en');
+    }
+  });
   it('shows one read-only deadline on both guidance surfaces, pauses with the clock and drops completed countdowns', () => {
     const campaign = useOperationsCampaignStore.getState();
     const order = campaign.orders.find((item) => item.id === campaign.activeOrderId)!;
@@ -364,7 +524,7 @@ describe('playable shift UI', () => {
     const handler = vi.fn();
     window.addEventListener('millos:open-operations-workspace', handler);
     render(<OperationsPlayCard />);
-    fireEvent.click(screen.getByRole('button', { name: 'Review quality hold' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Review the quality hold in Overview' }));
     expect(handler.mock.calls[0][0].detail).toBe('overview');
     window.removeEventListener('millos:open-operations-workspace', handler);
   });
@@ -426,8 +586,7 @@ describe('playable shift UI', () => {
       ],
     });
     render(<ShiftDebrief />);
-    fireEvent.click(screen.getByText('Read 1 saved report'));
-    fireEvent.click(screen.getByText('Decisions during this shift'));
+    fireEvent.click(screen.getByText('Shift log'));
     expect(screen.getByText('Operator mitigated a power sag')).toBeVisible();
     expect(screen.getByRole('button', { name: 'Accept next delivery programme' })).toBeDisabled();
   });
@@ -532,9 +691,7 @@ it.each(['mounted', 'lazy-mount', 'resolved', 'fps'] as const)(
       await waitFor(() => expect(useUIStore.getState().operationalFocusId).toBeNull());
       if (mode === 'mounted' || mode === 'lazy-mount') {
         expect(scroll).toHaveBeenCalledWith({ block: 'center', behavior: 'instant' });
-        expect(
-          screen.getByRole('button', { name: 'Acknowledge incident', exact: true })
-        ).toHaveFocus();
+        expect(screen.getByRole('button', { name: 'Acknowledge incident' })).toHaveFocus();
       } else expect(scroll).not.toHaveBeenCalled();
       expect(useUIStore.getState().operationalFocusId).toBeNull();
       expect(useOperationsCampaignStore.getState()).toBe(before);
@@ -620,7 +777,7 @@ it.each([0, 30, 180])(
     expect(
       screen.getByText(
         speed === 0
-          ? /Resumes the whole shift at relaxed pace/
+          ? /Resumes the whole shift at standard pace/
           : /The shift is running at your chosen pace/
       )
     ).toBeInTheDocument();
@@ -691,7 +848,7 @@ it('routes completed-delivery response guidance to Overview without advancing th
     clock = useGameSimulationStore.getState(),
     onOpen = vi.fn();
   render(<FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={onOpen} />);
-  fireEvent.click(screen.getByRole('button', { name: 'Open current operations' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Open Overview' }));
   expect(onOpen).toHaveBeenCalledWith('overview');
   expect(useOperationsCampaignStore.getState()).toBe(before);
   expect(useGameSimulationStore.getState()).toBe(clock);
@@ -768,16 +925,25 @@ it.each([
   }
 );
 
-it('labels the pace options by what they do to customer deadlines without changing values', () => {
-  useGameSimulationStore.setState({ gameSpeed: 30 });
+it('offers the shared paces, each scaling the whole plant, with no deadline caveat', () => {
+  useGameSimulationStore.setState({ gameSpeed: 30, clockHolds: [] });
   render(<TeachingPace />);
   const pace = screen.getByRole('combobox', { name: 'Shift pace' });
   expect(pace).toHaveValue('30');
-  expect(screen.getByRole('option', { name: 'Standard pace' })).toHaveValue('30');
-  const fast = screen.getByRole('option', { name: /Fast clock, 6x/ });
-  expect(fast).toHaveValue('180');
-  expect(fast).toHaveTextContent('deadlines tighten');
-  expect(screen.queryByRole('option', { name: /1x/ })).not.toBeInTheDocument();
+  expect(screen.getByRole('option', { name: 'Standard, 1x' })).toHaveValue('30');
+  expect(screen.getByRole('option', { name: 'Fast, 2x' })).toHaveValue('60');
+  expect(screen.getByRole('option', { name: 'Fastest, 4x' })).toHaveValue('120');
+  expect(screen.getByRole('option', { name: 'Slow, 1/2x' })).toHaveValue('15');
+  expect(screen.queryByRole('option', { name: /deadlines/ })).not.toBeInTheDocument();
+});
+
+it('names who holds the clock when something other than the player paused it', () => {
+  useGameSimulationStore.setState({ gameSpeed: 30, clockHolds: [] });
+  useGameSimulationStore.getState().holdClock('tour');
+  render(<TeachingPace />);
+  expect(screen.getByText(/Paused for the tour/)).toBeInTheDocument();
+  act(() => useGameSimulationStore.getState().setGameSpeed(0));
+  expect(screen.queryByText(/Paused for the tour/)).not.toBeInTheDocument();
 });
 
 it('shows fulfilment even when no machine inspection was recorded', () => {
@@ -847,4 +1013,201 @@ it('points a linked campaign hold at the working agreement controls that can fin
   render(<OperationsPlayCard />);
   expect(screen.getByLabelText('Active customer commitment', { exact: false })).toBeDisabled();
   expect(screen.getByText(/Review working agreement opens Autonomy/)).toBeInTheDocument();
+});
+
+it('routes a stopped machine to Mill Overview, Maintenance as Attention, not Blocked', () => {
+  useOperationsCampaignStore.setState({
+    constraints: [
+      {
+        id: 'maintenance-queue',
+        severity: 'warning',
+        label: 'Machine stopped for repair',
+        detail: 'Pack Line 1 is down on work order wo-00001.',
+        relatedId: 'packer-0',
+      },
+    ],
+  });
+  const handler = vi.fn();
+  window.addEventListener('millos:open-operations-workspace', handler);
+  render(<OperationsPlayCard />);
+  expect(screen.getByText(/^Attention: Machine stopped for repair\./)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Repair the stopped machine in Overview' }));
+  expect(handler.mock.calls[0][0].detail).toBe('overview');
+  expect(useUIStore.getState().maintenanceFocusRequested).toBe(true);
+  window.removeEventListener('millos:open-operations-workspace', handler);
+});
+
+it('shows on the shift card what each failure is costing and what this shift has paid', () => {
+  render(<OperationsPlayCard />);
+  expect(screen.queryByRole('group', { name: 'Failure costs' })).not.toBeInTheDocument();
+  act(() => {
+    useOperationsCampaignStore.setState((state) => ({
+      costRates: { maintenance: 90, demurrage: 120, late: 15 },
+      shiftMetrics: {
+        ...state.shiftMetrics,
+        latePenalties: 40,
+        maintenanceCost: 30,
+        demurrageCost: 20,
+      },
+    }));
+  });
+  const costs = screen.getByRole('group', { name: 'Failure costs' });
+  expect(costs).toHaveTextContent('Late delivery: £15.00 per game hour');
+  expect(costs).toHaveTextContent('Open work orders: £90.00 per game hour');
+  expect(costs).toHaveTextContent('Truck held at the dock: £120.00 per game hour');
+  expect(costs).toHaveTextContent('This shift so far: £90 in');
+  expect(costs).toHaveTextContent(/late and quality penalties/);
+});
+
+it('leaves a linked season from the play card, keeping its receipts and reopening customer choice', () => {
+  useWorkplaceStore.setState({ leftCampaigns: [] });
+  useGameSimulationStore.getState().setGameSpeed(30);
+  expect(useWorkplaceStore.getState().startMission('toe-dip').changed).toBe(true);
+  useWorkplaceAutoplay.getState().start('toe-dip');
+  render(<OperationsPlayCard />);
+  const customer = screen.getByLabelText('Active customer commitment', { exact: false });
+  expect(customer).toBeDisabled();
+  expect(screen.getByText(/Leaving keeps what was earned: 0 kg delivered to/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Leave this season' }));
+  const after = useWorkplaceStore.getState();
+  expect(after.workplace.phase).toBe('idle');
+  expect(after.workplace.campaign).toBeNull();
+  expect(after.leftCampaigns).toHaveLength(1);
+  expect(after.completedCampaigns).toEqual([]);
+  expect(customer).not.toBeDisabled();
+  expect(screen.getByRole('status')).toHaveTextContent('Season left early at shift 1 of 3');
+  // Leaving stops the demo without freezing the plant, and it does not restart.
+  expect(useWorkplaceAutoplay.getState()).toMatchObject({ running: false, manual: true });
+  expect(useGameSimulationStore.getState().gameSpeed).toBe(30);
+});
+
+it.each([
+  ['en', 'Season left early at shift 1 of 3. Its pay, recovery and receipts are kept'],
+  ['pt-BR', 'Temporada encerrada antes do fim no turno 1 de 3. A remuneração'],
+] as const)(
+  'says in the shift debrief (%s) that the season was left and what it kept',
+  (locale, said) => {
+    try {
+      setLocale(locale);
+      useWorkplaceStore.setState({ leftCampaigns: [] });
+      expect(useWorkplaceStore.getState().startMission('toe-dip').changed).toBe(true);
+      render(<ShiftDebrief />);
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: locale === 'en' ? 'Leave this season' : 'Sair desta temporada',
+        })
+      );
+      expect(useWorkplaceStore.getState().workplace.campaign).toBeNull();
+      expect(screen.getByRole('status')).toHaveTextContent(said);
+      expect(
+        screen.queryByRole('button', { name: /Leave this season|Sair desta temporada/ })
+      ).not.toBeInTheDocument();
+    } finally {
+      setLocale('en');
+    }
+  }
+);
+
+describe('the guided delivery without a pointer', () => {
+  const mill = { id: 'rm-101', name: 'R.M. 101', type: MachineType.ROLLER_MILL } as MachineData;
+  let dock: HTMLButtonElement;
+  beforeEach(() => {
+    useProductionStore.setState({ machines: [mill] });
+    useUIStore.getState().startDeliveryJourney(useOperationsCampaignStore.getState().activeOrderId);
+    dock = document.createElement('button');
+    dock.dataset.dockMode = 'overview';
+    dock.textContent = 'Overview';
+    document.body.appendChild(dock);
+  });
+  afterEach(() => {
+    dock.remove();
+    useProductionStore.setState({ machines: [] });
+  });
+
+  // 'Inspect the line' asked for a click on a 3D machine and offered no other
+  // route. Working if Enter on the card inspects a real roller mill, exactly
+  // as selecting it in the scene does.
+  it('inspects a real roller mill from the card, in full and compact form', () => {
+    const onInspect = vi.fn();
+    const { rerender } = render(
+      <FirstDeliveryJourney
+        selectedMachine={null}
+        onOpenWorkspace={vi.fn()}
+        onInspectMachine={onInspect}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect a roller mill' }));
+    expect(onInspect).toHaveBeenCalledWith('rm-101');
+    // The phone-sized card keeps the same route beside its hint.
+    fireEvent.click(screen.getByRole('button', { name: 'Show milling line' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect a roller mill' }));
+    expect(onInspect).toHaveBeenCalledTimes(2);
+    // The host selects the machine; the receipt is the real one.
+    rerender(
+      <FirstDeliveryJourney
+        selectedMachine={mill}
+        onOpenWorkspace={vi.fn()}
+        onInspectMachine={onInspect}
+      />
+    );
+    expect(useUIStore.getState().inspectedMachineIds).toEqual(['rm-101']);
+    expect(screen.queryByRole('button', { name: 'Inspect a roller mill' })).not.toBeInTheDocument();
+  });
+
+  it('names the keyboard inspection in Brazilian Portuguese', () => {
+    setLocale('pt-BR');
+    try {
+      render(
+        <FirstDeliveryJourney
+          selectedMachine={null}
+          onOpenWorkspace={vi.fn()}
+          onInspectMachine={vi.fn()}
+        />
+      );
+      expect(screen.getByRole('button', { name: 'Inspecionar um moinho de rolos' })).toBeVisible();
+      expect(screen.getByText(/ou use Inspecionar um moinho de rolos/)).toBeInTheDocument();
+    } finally {
+      setLocale('en');
+    }
+  });
+
+  it('takes focus on its heading when the tour hands it over, once', () => {
+    const focused = vi.fn();
+    render(
+      <FirstDeliveryJourney
+        selectedMachine={null}
+        onOpenWorkspace={vi.fn()}
+        focusHeadingOnMount
+        onHeadingFocused={focused}
+      />
+    );
+    expect(screen.getByRole('heading', { name: 'Your first delivery' })).toHaveFocus();
+    expect(focused).toHaveBeenCalledOnce();
+  });
+
+  it.each(['Skip guided delivery', 'Close guided delivery'])(
+    'returns focus to the dock when %s removes the card',
+    (control) => {
+      render(<FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={vi.fn()} />);
+      const pressed = screen.getByRole('button', { name: control });
+      pressed.focus();
+      fireEvent.click(pressed);
+      expect(useUIStore.getState().journeyVisible).toBe(false);
+      expect(dock).toHaveFocus();
+    }
+  );
+
+  it('leaves focus where it was when Escape closes the card from elsewhere', () => {
+    render(<FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={vi.fn()} />);
+    const elsewhere = document.createElement('input');
+    document.body.appendChild(elsewhere);
+    try {
+      elsewhere.focus();
+      fireEvent.keyDown(document.body, { key: 'Escape' });
+      expect(useUIStore.getState().journeyVisible).toBe(false);
+      expect(elsewhere).toHaveFocus();
+    } finally {
+      elsewhere.remove();
+    }
+  });
 });

@@ -7,6 +7,7 @@ import { SettingsPanel } from './SettingsPanel';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { AUDIO_SETTINGS_KEY } from '../../../utils/audioManager';
 import { LOCALE_STORAGE_KEY } from '../../../i18n';
+import { overrideFlag } from '../../../config/featureFlags';
 
 const renderPanel = () =>
   render(<SettingsPanel productionSpeed={1} setProductionSpeed={() => {}} />);
@@ -38,6 +39,10 @@ describe('SettingsPanel simulation resets', () => {
     localStorage.setItem('millos-physical-session', '{}');
     localStorage.setItem('millos-gpu-settings', '{}');
     localStorage.setItem('unrelated-site-key', 'kept');
+    // The wording with the in-app motion setting is covered in
+    // SettingsPanel.reducedMotion.test.tsx; pin the gate so this stays the
+    // gate-off wording whichever way the flag ships.
+    const restoreGate = overrideFlag('IN_APP_REDUCED_MOTION_ENABLED', false);
     renderPanel();
     fireEvent.click(screen.getByRole('button', { name: 'Reset Simulation' }));
     const dialog = screen.getByRole('dialog');
@@ -49,5 +54,6 @@ describe('SettingsPanel simulation resets', () => {
     expect(localStorage.getItem('millos-physical-session')).toBeNull();
     expect(localStorage.getItem('millos-gpu-settings')).toBeNull();
     expect(localStorage.getItem('unrelated-site-key')).toBe('kept');
+    restoreGate();
   });
 });

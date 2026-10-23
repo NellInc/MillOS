@@ -12,6 +12,7 @@ import { createPortal, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { useDracoGLTF } from '../../utils/dracoLoader';
+import { WORKER_ASSET_PATHS } from '../../constants/worldAssetUrls';
 import type { WorkerAppearance, WorkerBodyType, WorkerWorkAction } from '../workers/workerTypes';
 import { ToolAccessory, createWorkerHandheldMount } from '../workers/WorkerTools';
 import {
@@ -46,11 +47,6 @@ import {
   type WorkerEyeSurface,
 } from '../workers/workerPose';
 export type { WorkerAppearance, WorkerMotionState } from '../workers/workerTypes';
-
-const WORKER_ASSET_PATHS = {
-  masculine: `${import.meta.env.BASE_URL}models/worker/worker-masculine.glb`,
-  feminine: `${import.meta.env.BASE_URL}models/worker/worker-feminine.glb`,
-};
 
 /**
  * SkeletonUtils clones one Skeleton for each glTF primitive, even when they
@@ -170,6 +166,53 @@ export function softenWorkerFaceNormals(
   const geometry = source.clone();
   geometry.setAttribute('normal', new THREE.Float32BufferAttribute(values, 3));
   return geometry;
+}
+
+/**
+ * Every worker clone of one body borrows the same skinned geometry, and its arm
+ * joints come from the same bone names, so each softened the identical input
+ * to the identical normals: ~1 s of main-thread startup across the crowd. The
+ * first result is kept as a template (never handed out) per source geometry
+ * and joint list, and each worker receives its own copy, which it owns and
+ * disposes as before. The template is rebuilt if any attribute it read has
+ * been replaced or re-uploaded since.
+ * Working if a second worker's softening reads none of the source normals.
+ */
+const softenedWorkerTemplates = new WeakMap<
+  THREE.BufferGeometry,
+  Map<string, { inputs: unknown[]; template: THREE.BufferGeometry | null }>
+>();
+
+const softenInputs = (source: THREE.BufferGeometry): unknown[] =>
+  [
+    source.index,
+    ...['position', 'normal', 'skinIndex', 'skinWeight'].map((name) => source.getAttribute(name)),
+  ].flatMap((attribute) => [
+    attribute,
+    (attribute as THREE.InterleavedBufferAttribute | undefined)?.isInterleavedBufferAttribute
+      ? (attribute as THREE.InterleavedBufferAttribute).data.version
+      : (attribute as THREE.BufferAttribute | null | undefined)?.version,
+  ]);
+
+export function softenSharedWorkerGeometry(
+  source: THREE.BufferGeometry,
+  armJoints: readonly number[] = []
+): THREE.BufferGeometry | null {
+  let byJoints = softenedWorkerTemplates.get(source);
+  if (!byJoints) softenedWorkerTemplates.set(source, (byJoints = new Map()));
+  const key = armJoints.join(',');
+  const inputs = softenInputs(source);
+  let entry = byJoints.get(key);
+  if (
+    !entry ||
+    entry.inputs.length !== inputs.length ||
+    !entry.inputs.every((value, i) => Object.is(value, inputs[i]))
+  ) {
+    entry?.template?.dispose();
+    entry = { inputs, template: softenWorkerFaceNormals(source, armJoints) };
+    byJoints.set(key, entry);
+  }
+  return entry.template ? entry.template.clone() : null;
 }
 
 /** Subtle lit skin undertones in Head bind space, never a baked light/shadow.
@@ -331,6 +374,28 @@ export function selectWorkerLocomotion(speed: number, walkSpeed: number, previou
   const threshold =
     RUN_CROSSOVER + (previous === 'worker-run' ? -0.08 : previous === 'worker-walk' ? 0.08 : 0);
   return speed > walkSpeed * threshold ? 'worker-run' : 'worker-walk';
+}
+
+/** Gait for a root whose clock runs `gaitScale` times faster than real time.
+ * The gait is chosen from the speed the person would have at real time, so a
+ * time-lapsed walker keeps walking; cadence follows the ground actually covered
+ * so the feet stay planted, and the real-time ceilings scale with the clock.
+ * Working if pace 120 shows a fast-cadence walk, never a run, and gaitScale 1
+ * (or a missing value from an older save) is the previous behaviour exactly.
+ */
+export function workerGaitRates(
+  speed: number,
+  walkSpeed: number,
+  runSpeed: number,
+  gaitScale?: number,
+  previous?: string
+): { clip: 'worker-walk' | 'worker-run'; walk: number; run: number } {
+  const scale = Number.isFinite(gaitScale) && gaitScale! > 0 ? gaitScale! : 1;
+  return {
+    clip: selectWorkerLocomotion(speed / scale, walkSpeed, previous),
+    walk: THREE.MathUtils.clamp(speed / walkSpeed, 0, 1.9 * scale),
+    run: THREE.MathUtils.clamp(speed / runSpeed, 0, 2.4 * scale),
+  };
 }
 
 /** Empty-handed standing listeners use the authored neutral stance. Seat cues
@@ -1380,7 +1445,7 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
           (mesh as THREE.SkinnedMesh).skeleton.bones.forEach((bone, index) => {
             if (/^(UpperArm|LowerArm)[LR]$/.test(bone.name)) armJoints.push(index);
           });
-        const softened = softenWorkerFaceNormals(mesh.geometry, armJoints);
+        const softened = softenSharedWorkerGeometry(mesh.geometry, armJoints);
         if (softened) {
           mesh.geometry = softened;
           ownedGeometry.push(softened);
@@ -1541,11 +1606,14 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     const speed = Number.isFinite(motion.groundSpeed) ? Math.max(0, motion.groundSpeed) : 0;
     const moving =
       (speed > 0.05 || motion.activity === 'walking') && !motion.seated && !motion.cycling;
+    const initialScale = prepared.rigScale * appearance.bodyScale;
     const initialClip: WorkerClipName = moving
-      ? selectWorkerLocomotion(
+      ? workerGaitRates(
           speed,
-          CLIP_GROUND_SPEED[appearance.bodyType].walk * prepared.rigScale * appearance.bodyScale
-        )
+          CLIP_GROUND_SPEED[appearance.bodyType].walk * initialScale,
+          CLIP_GROUND_SPEED[appearance.bodyType].run * initialScale,
+          motion.gaitScale
+        ).clip
       : motion.seated ||
           motion.cycling ||
           motion.activity === 'break' ||
@@ -1664,10 +1732,17 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
         ? lastPose.current.clip
         : undefined;
     const briefing = standingBriefing(motion, moving);
+    const gait = workerGaitRates(
+      speed,
+      clipSpeed.walk * scale,
+      clipSpeed.run * scale,
+      motion.gaitScale,
+      previousLocomotion
+    );
     const activeClip: WorkerClipName = moving
       ? !motion.enabled && previousLocomotion
         ? previousLocomotion
-        : selectWorkerLocomotion(speed, clipSpeed.walk * scale, previousLocomotion)
+        : gait.clip
       : motion.seated || motion.cycling || motion.activity === 'break' || briefing
         ? 'worker-break'
         : motion.activity === 'working'
@@ -1829,8 +1904,8 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     }
     const walk = actionsRef.current['worker-walk'];
     const run = actionsRef.current['worker-run'];
-    if (walk) walk.timeScale = THREE.MathUtils.clamp(speed / (clipSpeed.walk * scale), 0, 1.9);
-    if (run) run.timeScale = THREE.MathUtils.clamp(speed / (clipSpeed.run * scale), 0, 2.4);
+    if (walk) walk.timeScale = gait.walk;
+    if (run) run.timeScale = gait.run;
     mixer.update(safeDelta);
     const dutyTarget = ordinaryDuty && motion.activity === 'working' && !moving ? 1 : 0;
     dutyWeight.current = !ordinaryDuty

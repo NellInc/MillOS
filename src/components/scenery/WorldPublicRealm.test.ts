@@ -23,6 +23,7 @@ import {
   FARM_REALM_PATHS,
   WORLD_REALM_PATCHES,
   WORLD_CRAFT_PALETTE,
+  FARM_FURROW_PITCH,
   inRealmPatch,
 } from '../../constants/publicRealmLayout';
 import { VILLAGE_STREET_CORRIDORS, villageRealmClear } from '../VillageArea';
@@ -116,8 +117,10 @@ describe('world public realm', () => {
         expect(Math.hypot(n.getX(i), n.getY(i), n.getZ(i))).toBeCloseTo(1, 4);
     }
     // The authored bridge adds 1,232 triangles to the same six merged meshes.
+    // The squares and courts laid as flagstone courses, two triangles a stone
+    // in the same merged paving mesh, take the total to 17,166 (measured).
     // Keep the preceding realm allowance, plus only this measured static detail.
-    expect(triangles).toBeLessThan(15000 + 1232);
+    expect(triangles).toBeLessThan(15000 + 1232 + 1200);
     expect(REALM_PAVING_MATERIAL.depthWrite).toBe(true);
     expect(REALM_PAVING_MATERIAL.transparent).toBe(false);
     expect(REALM_PAVING_MATERIAL.polygonOffsetFactor).toBe(-4);
@@ -344,6 +347,38 @@ describe('world public realm', () => {
     expect(path.end).toEqual([-65, -50]);
     expect(path.width).toBeLessThan(3.6 - 0.4);
   });
+  /**
+   * The village square (`WORLD_REALM_PATCHES[1]`) was one plane in one colour:
+   * the judge measured it as flat constant beige. A square is laid in courses
+   * of flagstones, each a slightly different stone, with joints between.
+   */
+  it('lays the squares and courts as flagstone courses, not one flat plane', () => {
+    const world = createWorldRealm(128);
+    const square = WORLD_REALM_PATCHES[1];
+    const p = world.paving.getAttribute('position'),
+      c = world.paving.getAttribute('color');
+    const colours = new Set<string>();
+    const luma: number[] = [];
+    let triangles = 0;
+    for (let t = 0; t < p.count; t += 3) {
+      const cx = (p.getX(t) + p.getX(t + 1) + p.getX(t + 2)) / 3,
+        cz = (p.getZ(t) + p.getZ(t + 1) + p.getZ(t + 2)) / 3;
+      if (!inRealmPatch(cx, cz, square, -0.05)) continue;
+      triangles += 1;
+      colours.add(`${c.getX(t).toFixed(3)},${c.getY(t).toFixed(3)},${c.getZ(t).toFixed(3)}`);
+      luma.push(0.2126 * c.getX(t) + 0.7152 * c.getY(t) + 0.0722 * c.getZ(t));
+    }
+    // 7.6 x 9 m in ~0.9 x 0.6 m stones is well over a hundred courses' worth.
+    expect(triangles).toBeGreaterThan(160);
+    expect(colours.size).toBeGreaterThan(40);
+    expect(Math.max(...luma) - Math.min(...luma)).toBeGreaterThan(0.05);
+    // And a joint: a ray down a course line finds no stone.
+    const zJoint = square.z - square.halfZ + 0.6;
+    expect(ray(world.paving, [square.x + 0.3, 5, zJoint], [0, -1, 0])).toHaveLength(0);
+    world.paving.dispose();
+    world.solid.dispose();
+  });
+
   it('has one paving surface at the courts and intersecting world paths', () => {
     const world = createWorldRealm(128);
     for (const z of [15.3, 18.6, 21.7, 57.2, 60.3, 62.7])
@@ -356,6 +391,28 @@ describe('world public realm', () => {
       [-45.15, 120.75],
     ])
       expect(ray(world.paving, [x, 5, z], [0, -1, 0])).toHaveLength(1);
+    world.paving.dispose();
+    world.solid.dispose();
+  });
+  it('lets the village paths own their junctions with the west world path', () => {
+    // The village's east paths end at village-local x 36.8, across the world
+    // path at x -155.3; both pavings were laid there at the same datum and
+    // bias (-4), ~10 m^2 of coplanar overlap at z -59 and z 12.
+    const world = createWorldRealm(128);
+    const [vx, , vz] = landmarkLocalToWorld(SITE_LAYOUT.landmarks.village, [0, 0, 0]);
+    const village = VILLAGE_REALM_GEOMETRY.paving.clone().translate(vx, 0, vz);
+    for (const [x, z] of [
+      [-155.3, -59],
+      [-154.3, -58],
+      [-155.3, 12],
+      [-155.9, 13.2],
+    ]) {
+      const hits =
+        ray(world.paving, [x, 5, z], [0, -1, 0]).length +
+        ray(village, [x, 5, z], [0, -1, 0]).length;
+      expect(hits, `${x}, ${z}`).toBe(1);
+    }
+    village.dispose();
     world.paving.dispose();
     world.solid.dispose();
   });
@@ -622,7 +679,7 @@ it('changes only construction-family colours, preserving exact shadow/collision 
 });
 
 it('seats the cereal roots in cultivated soil at the unchanged ground datum', () => {
-  const hits = ray(FARM_REALM_GEOMETRY.paving, [0.173, 2, -42.123], [0, -1, 0]);
+  const hits = ray(FARM_REALM_GEOMETRY.soil, [0.173, 2, -42.123], [0, -1, 0]);
   expect(hits).toHaveLength(1);
   expect(hits[0].point.y).toBeCloseTo(-0.02, 6);
 });
@@ -641,7 +698,7 @@ it('grounds every actual retained crop matrix in one soil sheet clear of the hea
   for (let i = 0; i < GRAIN_FIELD_COUNT; i++) {
     meshes[0].getMatrixAt(i, matrix);
     root.setFromMatrixPosition(matrix).add(new THREE.Vector3(0, 0, -42));
-    const hits = ray(FARM_REALM_GEOMETRY.paving, [root.x, 2, root.z], [0, -1, 0]);
+    const hits = ray(FARM_REALM_GEOMETRY.soil, [root.x, 2, root.z], [0, -1, 0]);
     expect(hits.length).toBeGreaterThan(0);
     expect(hits.every((hit) => Math.abs(hit.point.y + 0.02) < 1e-6)).toBe(true);
     expect(bank.distanceToPoint(root)).toBeGreaterThan(0.95);
@@ -651,9 +708,9 @@ it('grounds every actual retained crop matrix in one soil sheet clear of the hea
   // Nearest resting sheep home is z5; the transverse yard bank begins at6.44.
   expect(8 - CULVERT_BANK.boundingBox!.max.z * 0.6 - 5).toBeGreaterThan(1.4);
   const source = readFileSync('src/components/FarmArea.tsx', 'utf8');
-  expect(source).toContain(
-    '<DrainageCulvert position={[0, -0.3, -28.5]} length={6} radius={0.6} />'
-  );
+  // The headland culvert drained nothing (no ditch or track at either mouth)
+  // and read as a bare primitive in the farm frame; only the road culvert stays.
+  expect(source.match(/<DrainageCulvert /g)).toHaveLength(1);
   expect(source).toContain('<DrainageCulvert position={[8, -0.3, 8]} length={6} radius={0.6} />');
   material.dispose();
 });
@@ -679,4 +736,46 @@ it('uses softened, metre-scale drill bands without new textures or raised crop r
   expect(p.getX(0)).toBeGreaterThan(-17);
   expect(p.getX(81)).toBeCloseTo(-17.5, 5);
   g.dispose();
+});
+
+/**
+ * The judge read the field as a flat brown plane with sparse stalks and no row
+ * direction. A drilled field is furrowed along its drills and planted on the
+ * ridges. The furrows are world-space ribs on the soil (no geometry relief, so
+ * the roots stay on the datum), and every plant stands on a ridge crown.
+ */
+it('furrows the field along its drills and plants the crop on the ridges', async () => {
+  const { FARM_SOIL_MATERIAL } = await import('./WorldPublicRealm');
+  const { RIB_CROWN_PHASE } = await import('../../utils/worldSurface');
+  const soil = FARM_SOIL_MATERIAL as THREE.MeshStandardMaterial;
+  const deck = (soil.userData.millosWorldSurface as { uSurfDeck: { value: THREE.Vector4 } })
+    .uSurfDeck.value;
+  expect(deck.x).toBe(FARM_FURROW_PITCH);
+  expect(FARM_FURROW_PITCH).toBeGreaterThanOrEqual(0.6);
+  expect(FARM_FURROW_PITCH).toBeLessThanOrEqual(0.9);
+  expect(deck.y).toBeGreaterThanOrEqual(0.05);
+  // The drills vary along farm-local x, which the farm's half turn keeps on world X.
+  expect(deck.z).toBe(0);
+  expect(FARM_REALM_GEOMETRY.soil).toBeDefined();
+
+  const material = new THREE.MeshBasicMaterial();
+  const meshes = Object.values(GRAIN_PLANT_GEOMETRY).map(
+    (g) => new THREE.InstancedMesh(g, material, GRAIN_FIELD_COUNT)
+  ) as [THREE.InstancedMesh, THREE.InstancedMesh, THREE.InstancedMesh];
+  populateGrainField(meshes);
+  // More than twice the old 300, in rows.
+  expect(GRAIN_FIELD_COUNT).toBeGreaterThan(600);
+  const matrix = new THREE.Matrix4();
+  const farm = SITE_LAYOUT.landmarks.farm;
+  const rows = new Set<number>();
+  for (let i = 0; i < GRAIN_FIELD_COUNT; i++) {
+    meshes[0].getMatrixAt(i, matrix);
+    const [wx] = landmarkLocalToWorld(farm, [matrix.elements[12], 0, matrix.elements[14] - 42]);
+    const phase = wx / FARM_FURROW_PITCH - Math.floor(wx / FARM_FURROW_PITCH);
+    expect(Math.abs(phase - RIB_CROWN_PHASE), `plant ${i}`).toBeLessThan(0.08);
+    rows.add(Math.round(wx / FARM_FURROW_PITCH));
+  }
+  expect(rows.size).toBeGreaterThan(30);
+  meshes.forEach((m) => m.dispose());
+  material.dispose();
 });

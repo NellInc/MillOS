@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef } from 'react';
 import { useProductionStore } from '../../stores/productionStore';
-import { useUIStore } from '../../stores/uiStore';
+import { isStandingCriticalAlert, useUIStore } from '../../stores/uiStore';
 import { useSafetyStore } from '../../stores/safetyStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useAnnouncementsStore, type AnnouncementInput } from '../../stores/announcementsStore';
@@ -366,9 +366,7 @@ const calculateOperationalStress = (): number => {
   const warning = machines.filter((machine) => machine.status === 'warning').length;
   const alerts = useUIStore.getState().alerts ?? [];
   // Acknowledged alerts are handled; they no longer raise PA stress.
-  const criticalAlerts = alerts.filter(
-    (alert) => alert.type === 'critical' && !alert.acknowledged
-  ).length;
+  const criticalAlerts = alerts.filter(isStandingCriticalAlert).length;
   const warningAlerts = alerts.filter((alert) => alert.type === 'warning').length;
   const incidents = useSafetyStore.getState().safetyIncidents ?? [];
   const recentIncidents = incidents.filter(
@@ -393,7 +391,7 @@ export const isCriticalConditionActive = (): boolean => {
   const machines = useProductionStore.getState().machines ?? [];
   if (machines.some((machine) => machine.status === 'critical')) return true;
   const alerts = useUIStore.getState().alerts ?? [];
-  if (alerts.some((alert) => alert.type === 'critical' && !alert.acknowledged)) return true;
+  if (alerts.some(isStandingCriticalAlert)) return true;
   // peek, not get: a query must not construct the SCADA service.
   return (peekSCADAService()?.getActiveAlarms() ?? []).some(isStandingCriticalAlarm);
 };
@@ -460,6 +458,27 @@ const announceDrillTransition = (
   });
 };
 
+// How long a filed bell alert counts as the screen-reader voice of a status change.
+const BELL_ALERT_PAIRING_MS = 60000;
+
+/**
+ * Whether the bell has just filed an announced alert for this machine (a
+ * breakdown, a wear warning, a campaign incident). AlertSystem reads those to
+ * screen readers whatever the PA mode or mute, so the PA status line for the
+ * same change is a caption only. A status change with no such alert (a live
+ * SCADA escalation) is still read by the PA.
+ * Working if an unmuted screen-reader player hears a breakdown once.
+ */
+const bellReadsMachineAlert = (machineId: string, now: number): boolean =>
+  useUIStore
+    .getState()
+    .alerts.some(
+      (alert) =>
+        alert.machineId === machineId &&
+        alert.announce !== undefined &&
+        now - new Date(alert.timestamp).getTime() < BELL_ALERT_PAIRING_MS
+    );
+
 const checkEventAnnouncements = (addAnnouncement: (input: AnnouncementInput) => void): void => {
   if (useAnnouncementsStore.getState().mode === 'off') return;
   const state = useProductionStore.getState();
@@ -517,6 +536,9 @@ const checkEventAnnouncements = (addAnnouncement: (input: AnnouncementInput) => 
           tone: 'literal',
           audience: 'control',
           cooldownMs: 90000,
+          ...(current !== 'running' && bellReadsMachineAlert(machine.id, now)
+            ? { captionOnly: true }
+            : {}),
         });
         lastMachineStatusAnnouncementTime[cooldownKey] = now;
       }
@@ -578,10 +600,12 @@ const usePAScheduler = () => {
       return setTimeout(
         () => {
           const mode = useAnnouncementsStore.getState().mode;
-          // Ambient notices such as 'The mill is calm' are false during a hold.
-          // Skip them, but keep the timer running.
+          // Ambient notices such as 'The mill is calm' are false during a hold,
+          // and narration over a paused shift (tour, P, a planner, a player
+          // pause) talks over a stopped plant. Skip them, but keep the timer.
           const game = useGameSimulationStore.getState();
           const safetyHold =
+            game.gameSpeed === 0 ||
             game.emergencyActive ||
             game.emergencyDrillMode ||
             game.crisisState.active ||

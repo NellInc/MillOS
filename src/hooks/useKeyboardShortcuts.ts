@@ -5,7 +5,8 @@ import { useProductionStore } from '../stores/productionStore';
 import { useSafetyStore } from '../stores/safetyStore';
 import { useUIStore } from '../stores/uiStore';
 import { useAIConfigStore } from '../stores/aiConfigStore';
-import { useGameSimulationStore } from '../stores/gameSimulationStore';
+import { selectClockHolder, useGameSimulationStore } from '../stores/gameSimulationStore';
+import { paceMessages } from '../simulation/pace.messages';
 import { audioManager } from '../utils/audioManager';
 import { useCameraStore, CAMERA_PRESETS } from '../components/CameraController';
 import type { ForkliftData, MachineData } from '../types';
@@ -66,10 +67,6 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
   const showSCAPanelRef = useRef(showSCADAPanel);
   const selectedMachineRef = useRef(selectedMachine);
   const selectedForkliftRef = useRef(selectedForklift);
-  // Speed P restores on resume, so pausing does not discard the chosen rate.
-  const resumeSpeedRef = useRef(0.8);
-  // Pace P stopped the clock from; null when P holds no clock hold of its own.
-  const resumeGameSpeedRef = useRef<number | null>(null);
   // One pending clear at a time: overlapping timers cleared a fresh
   // notification early, and none was cancelled on unmount.
   const notificationTimerRef = useRef<number | null>(null);
@@ -253,31 +250,26 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
       // step the speed and are meant to be held.
       if (e.repeat && key !== '+' && key !== '=' && key !== '-') return;
 
-      // P - Toggle pause: the line and the shift clock together.
+      // P - Toggle pause. The shift clock is the one pause: at 0 the plant,
+      // trucks and forklifts all stop, so the line setpoint is left alone.
       // Working if P never releases a clock hold it did not make (tour, save
-      // failure, the Shift pace select): it restores gameSpeed only when it set
-      // 0 itself and the clock still reads 0.
+      // failure, a workplace step, the Shift pace select): another holder's
+      // pause is named instead of overridden.
       if (key === 'p') {
         e.preventDefault();
         audioManager.playClick();
         const sim = useGameSimulationStore.getState();
-        if (productionSpeedRef.current > 0) {
-          resumeSpeedRef.current = productionSpeedRef.current;
-          setProductionSpeed(0);
-          if (sim.gameSpeed !== 0) {
-            resumeGameSpeedRef.current = sim.gameSpeed;
-            sim.setGameSpeed(0);
-          }
+        const holder = selectClockHolder(sim);
+        if (holder === null) {
+          sim.holdClock('shortcut');
           setQualityNotification(msg('paused'));
-        } else {
-          setProductionSpeed(resumeSpeedRef.current > 0 ? resumeSpeedRef.current : 0.8);
-          if (resumeGameSpeedRef.current !== null && sim.gameSpeed === 0) {
-            sim.setGameSpeed(resumeGameSpeedRef.current);
-          }
-          resumeGameSpeedRef.current = null;
+        } else if (holder === 'shortcut') {
+          sim.releaseClock('shortcut');
           setQualityNotification(msg('resumed'));
+        } else {
+          setQualityNotification(translate(paceMessages, `heldBy_${holder}`));
         }
-        scheduleNotificationClear(1500);
+        scheduleNotificationClear(holder !== null && holder !== 'shortcut' ? 4000 : 1500);
         return;
       }
 

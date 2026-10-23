@@ -175,6 +175,10 @@ export const bilateralWorkplaceMessages = defineMessages({
       'Read the current settled review, retain all obligations and choose a known profile before opening a trial.',
     evImprovementOpened:
       'The team opens a bounded handoff trial. Earlier cash, pay and customer obligations remain in the origin review.',
+    rejCancelImprovement:
+      'Cancel only an unfunded first handoff shift, with no owed recovery, open objection or reserve, from the current revision.',
+    evImprovementCancelled:
+      'The team cancels the handoff experiment before funding it. No trial ran and nothing was spent; the earlier review, pay and customer obligations are back as they were.',
     rejPropose:
       'The qualified proposing role may offer a different canonical arrangement before activation.',
     evProposed:
@@ -221,6 +225,8 @@ export const bilateralWorkplaceMessages = defineMessages({
       '{winner}: retain this review and all obligations; future work needs fresh agreement.',
     rejContinue:
       'Finalise this review and settle obligations before continuing. Eight shifts is the retained-record limit; no receipts are discarded.',
+    rejCloseImprovement:
+      'Close the handoff experiment only after the member review is finalised, with no owed recovery, open objection or reserve, from the current revision.',
     evContinued:
       'Opening cash equals the previous closing balance. History and customer work remain; prior consent is expired.',
     rejStartCampaign:
@@ -229,6 +235,8 @@ export const bilateralWorkplaceMessages = defineMessages({
       'Three fictional shifts. Fairness and closing cash carry forward; every shift needs fresh consent.',
     rejNextShift:
       'Review this shift, deliver owed recovery and resolve objections before the next of three shifts.',
+    rejLeaveCampaign:
+      'Leave a season from a stopped or reviewed shift with nothing owed: no running shift, owed recovery, open objection, reserve or active cover. Its final review is archived instead.',
     evShiftOpened:
       'Previous burden, pay, rest and closing cash retained. Private explanations and past consent are not reused.',
     rejAnswerCheck: 'Choose a known answer for a current role or adviser understanding check.',
@@ -287,6 +295,10 @@ export const bilateralWorkplaceMessages = defineMessages({
     // Display copy for two English record sentinels (see displayEventDetail).
     evBallotDeclined: 'Plan declined without penalty.',
     evReloadSafety: 'Reload safety: future authority and consent revoked; earned pay retained.',
+    evShiftResumed:
+      'Shift resumed at minute {minute} after a reload; it continues once everyone consents again.',
+    rejResumeShift:
+      'Only a campaign shift that a reload stopped before its end can resume; other endings stand.',
     rejCoverConsent:
       'Record distinct cover consent only after understanding the current cover plan.',
     rejNotQualified: 'This role is not qualified for cover.',
@@ -513,6 +525,10 @@ export const bilateralWorkplaceMessages = defineMessages({
       'Leia a revisão encerrada atual, mantenha todas as obrigações e escolha um perfil conhecido antes de abrir um teste.',
     evImprovementOpened:
       'A equipe abre um teste limitado de passagem de turno. O caixa, a remuneração e as obrigações com clientes anteriores permanecem na revisão de origem.',
+    rejCancelImprovement:
+      'Cancele apenas um primeiro turno de passagem de turno ainda não financiado, sem recuperação devida, objeção aberta ou reserva, a partir da revisão atual.',
+    evImprovementCancelled:
+      'A equipe cancela o experimento de passagem de turno antes de financiá-lo. Nenhum teste rodou e nada foi gasto; a revisão anterior, a remuneração e as obrigações com clientes voltam ao que eram.',
     rejPropose:
       'A função qualificada que propõe pode oferecer outro arranjo predefinido antes da ativação.',
     evProposed:
@@ -560,6 +576,8 @@ export const bilateralWorkplaceMessages = defineMessages({
       '{winner}: manter esta revisão e todas as obrigações; trabalho futuro precisa de novo acordo.',
     rejContinue:
       'Finalize esta revisão e quite as obrigações antes de continuar. Oito turnos é o limite de registros mantidos; nenhum comprovante é descartado.',
+    rejCloseImprovement:
+      'Encerre o experimento de passagem de turno só depois de concluir a avaliação dos cooperados, sem recuperação devida, objeção aberta ou reserva, a partir da revisão atual.',
     evContinued:
       'O caixa de abertura é igual ao saldo de fechamento anterior. O histórico e o trabalho para clientes permanecem; o consentimento anterior expirou.',
     rejStartCampaign:
@@ -568,6 +586,8 @@ export const bilateralWorkplaceMessages = defineMessages({
       'Três turnos fictícios. A equidade e o caixa de fechamento passam para o turno seguinte; cada turno precisa de novo consentimento.',
     rejNextShift:
       'Revise este turno, entregue a recuperação devida e resolva as objeções antes do próximo dos três turnos.',
+    rejLeaveCampaign:
+      'Saia de uma temporada a partir de um turno parado ou revisado, sem nada devido: nenhum turno em andamento, recuperação devida, objeção aberta, reserva ou cobertura ativa. A revisão final é arquivada em vez disso.',
     evShiftOpened:
       'Carga, remuneração, descanso e caixa de fechamento anteriores mantidos. Explicações privadas e consentimentos passados não são reutilizados.',
     rejAnswerCheck:
@@ -631,6 +651,10 @@ export const bilateralWorkplaceMessages = defineMessages({
     evBallotDeclined: 'Plano recusado sem penalidade.',
     evReloadSafety:
       'Proteção na recarga: autoridade e consentimento futuros revogados; remuneração adquirida mantida.',
+    evShiftResumed:
+      'Turno retomado no minuto {minute} após uma recarga; continua quando todos consentirem de novo.',
+    rejResumeShift:
+      'Só um turno da temporada interrompido por uma recarga antes do fim pode ser retomado; os outros encerramentos permanecem.',
     rejCoverConsent:
       'Registre um consentimento de cobertura distinto só depois de entender o plano de cobertura atual.',
     rejNotQualified: 'Esta função não é qualificada para cobertura.',

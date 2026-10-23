@@ -236,6 +236,13 @@ export const WORLD_REALM_PATCHES: readonly RealmPatch[] = [
   { x: -158.1, z: 60, halfX: 3.5, halfZ: 4.1 },
   { x: -45, z: 116.3, halfX: 7.4, halfZ: 1.2 },
 ];
+/**
+ * Metres between the cereal field's furrow ridges. The soil carries them as
+ * world-space relief (`FARM_SOIL_MATERIAL`) and the crop is drilled on their
+ * crowns (`populateGrainField`), so the two cannot drift apart.
+ */
+export const FARM_FURROW_PITCH = 0.75;
+
 export const FARM_REALM_PATHS: readonly RealmPath[] = [
   { start: [8, -7.5], end: [8, -28.2], width: 3.2 },
   { start: [9, -5], end: [10.5, -5], width: 1.3 },

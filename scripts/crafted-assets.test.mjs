@@ -354,6 +354,41 @@ test('postbox letter aperture has real recess depth beneath the rain hood', asyn
   }
 });
 
+test('postbox aperture returns bury the cut ends of the pillar shell', async () => {
+  // The shell is cut from 240 to 300 degrees; its cut ends face (+-.866, 0, .5).
+  // Single-sided, any ray that reaches one shows a lit sliver beside the slot.
+  const { meshes } = await assembly('village-postbox');
+  try {
+    for (const mesh of meshes) mesh.material.side = THREE.FrontSide;
+    const ray = new THREE.Raycaster();
+    let exposed = 0;
+    for (let vx = -1.2; vx <= 1.2; vx += 0.2) {
+      for (const vy of [1.0, 1.23, 1.6]) {
+        const eye = new THREE.Vector3(vx, vy, 1.6);
+        for (let x = 0.138; x <= 0.162; x += 0.002) {
+          for (let y = 1.208; y <= 1.252; y += 0.004) {
+            for (const side of [-1, 1]) {
+              const target = new THREE.Vector3(side * x, y, 0.258);
+              ray.set(eye, target.clone().sub(eye).normalize());
+              const hit = ray.intersectObjects(meshes, false)[0];
+              const n = hit?.face?.normal;
+              if (n && Math.abs(Math.abs(n.x) - 0.866) < 0.02 && Math.abs(n.z - 0.5) < 0.02)
+                exposed++;
+            }
+          }
+        }
+      }
+    }
+    expect(exposed).toBe(0);
+  } finally {
+    dispose(meshes);
+  }
+  // 11,232 unaccelerated raycasts against the whole postbox, so the run time
+  // tracks machine load. Measured alone 2026-10-20 (--maxWorkers=1, -t on this
+  // test) at 66-75 runnable per core: 183, 202, 216, 225 and 284 s, against the
+  // old fixed 60 s. 900 s is a hang guard about 3x the worst loaded run.
+}, 900_000);
+
 test('four fountain scuppers have open channels between their floors and hoods', async () => {
   const { meshes } = await assembly('village-fountain');
   try {
@@ -614,6 +649,208 @@ test('the prepared castle atlas restores white stone and blue slate without emis
   expect(material.getMetallicFactor()).toBe(0);
   expect(material.getEmissiveFactor()).toEqual([0, 0, 0]);
 });
+
+// A front face and a back face on the same three points both draw under a
+// doubleSided material and z-fight from either side. Single-sided materials are
+// exempt: there each face is only seen from its own side, so a coincident pair
+// is a legitimate two-sided sheet (cottage, forge and shop carry one interior
+// quad that way). Measured 2026-10-19 on the castle and square cameras: no
+// depth-flip pixels on the castle or the square's civic props.
+test('no doubleSided village delivery has coincident front and back triangles', async () => {
+  const key = (p, i) =>
+    `${Math.round(p[i * 3] * 1e4)},${Math.round(p[i * 3 + 1] * 1e4)},${Math.round(p[i * 3 + 2] * 1e4)}`;
+  const village = GENERATED_ASSETS.filter((spec) => spec.area === 'village');
+  expect(village.map((spec) => spec.slug)).toContain('castle');
+  for (const spec of village) {
+    const doc = await io.read(`public/models/village/${spec.slug}.glb`);
+    let pairs = 0;
+    for (const mesh of doc.getRoot().listMeshes()) {
+      for (const primitive of mesh.listPrimitives()) {
+        if (!primitive.getMaterial()?.getDoubleSided()) continue;
+        const position = primitive.getAttribute('POSITION').getArray();
+        const index = primitive.getIndices().getArray();
+        const wound = new Map();
+        for (let t = 0; t < index.length; t += 3) {
+          const k = [0, 1, 2].map((c) => key(position, index[t + c]));
+          if (new Set(k).size < 3) continue;
+          // Rotate to start at the least key; the order after it is the winding.
+          const r = k.indexOf([...k].sort()[0]);
+          const sign = k[(r + 1) % 3] < k[(r + 2) % 3] ? 'p' : 'n';
+          const id = [...k].sort().join('|');
+          const seen = wound.get(id) ?? { p: 0, n: 0 };
+          seen[sign]++;
+          wound.set(id, seen);
+        }
+        for (const { p, n } of wound.values()) pairs += Math.min(p, n);
+      }
+    }
+    expect(pairs, spec.slug).toBe(0);
+  }
+}, 60000);
+
+/**
+ * Visible area (m^2) of near-coplanar overlapping triangle pairs that both draw.
+ * Two classes fight in the depth buffer:
+ *  - same-facing faces 0.01-1 mm apart, on any material (a 0.29 mm step between
+ *    tile courses is not separable at any viewing distance);
+ *  - opposite-facing faces under 1 mm apart, including coincident ones, on a
+ *    doubleSided material (each draws its back face through the other).
+ * Deliberately NOT counted: same-facing faces under 0.01 mm apart. Those are the
+ * flush faces of abutting authored solids on the same atlas tile, present in
+ * every planar building and the castle; the castle and square depth-flip probe
+ * (2026-10-19) found no flips on them. A pair counts only where it can be seen:
+ * rays from its overlap must escape the asset (with the ground at its datum).
+ */
+function nearCoplanarArea(doc) {
+  const tris = [];
+  for (const node of doc.getRoot().listNodes()) {
+    const matrix = new THREE.Matrix4().fromArray(node.getWorldMatrix());
+    for (const primitive of node.getMesh()?.listPrimitives() ?? []) {
+      const doubleSided = primitive.getMaterial()?.getDoubleSided() ?? false;
+      const position = primitive.getAttribute('POSITION');
+      const index = primitive.getIndices();
+      const at = (k) =>
+        new THREE.Vector3(...position.getElement(index.getScalar(k), [])).applyMatrix4(matrix);
+      for (let t = 0; t < index.getCount(); t += 3) {
+        const triangle = new THREE.Triangle(at(t), at(t + 1), at(t + 2));
+        if (triangle.getArea() < 1e-10) continue;
+        const n = triangle.getNormal(new THREE.Vector3());
+        // Canonical orientation for bucketing; `sign` keeps the real facing.
+        const sign = Math.sign(n.x || n.y || n.z);
+        const cn = n.clone().multiplyScalar(sign);
+        tris.push({ triangle, n, cn, cd: cn.dot(triangle.a), sign, doubleSided });
+      }
+    }
+  }
+  const minY = Math.min(...tris.flatMap(({ triangle: { a, b, c } }) => [a.y, b.y, c.y]));
+  // Ray targets: the asset in 2 m cells (bounding-sphere culling stands in for a
+  // BVH) plus a ground plane at the datum.
+  const cells = new Map();
+  for (const { triangle } of tris) {
+    const m = triangle.getMidpoint(new THREE.Vector3());
+    const key = [m.x, m.y, m.z].map((v) => Math.floor(v / 2)).join(',');
+    if (!cells.has(key)) cells.set(key, []);
+    cells.get(key).push(...[triangle.a, triangle.b, triangle.c].flatMap((v) => v.toArray()));
+  }
+  const side = { side: THREE.DoubleSide };
+  const targets = [...cells.values()].map((positions) => {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.computeBoundingSphere();
+    return new THREE.Mesh(geometry, new THREE.MeshBasicMaterial(side));
+  });
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(1000, 1000).rotateX(-Math.PI / 2).translate(0, minY, 0),
+    new THREE.MeshBasicMaterial(side)
+  );
+  targets.push(ground);
+  const directions = Array.from({ length: 48 }, (_, i) => {
+    const y = 1 - (2 * (i + 0.5)) / 48;
+    const r = Math.sqrt(1 - y * y);
+    return new THREE.Vector3(Math.cos(i * 2.399963) * r, y, Math.sin(i * 2.399963) * r);
+  });
+  const ray = new THREE.Raycaster();
+  const escapes = (point, normal) => {
+    ray.ray.origin.copy(point).addScaledVector(normal, 0.0005);
+    ray.far = 1000;
+    return directions.some((d) => {
+      if (d.dot(normal) < 0.15) return false;
+      ray.ray.direction.copy(d);
+      return ray.intersectObjects(targets, false).length === 0;
+    });
+  };
+  const buckets = new Map();
+  const bucketKey = (cn, cd) =>
+    `${cn.toArray().map((v) => Math.round(v * 50))}|${Math.round(cd / 0.01)}`;
+  tris.forEach((t, id) => {
+    t.id = id;
+    const key = bucketKey(t.cn, t.cd);
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(t);
+  });
+  const area2 = (p) =>
+    p.reduce((s, a, i) => s + a.x * p[(i + 1) % p.length].y - p[(i + 1) % p.length].x * a.y, 0) / 2;
+  const clip = (subject, by) => {
+    let out = subject;
+    for (let i = 0; i < by.length && out.length; i++) {
+      const [a, b] = [by[i], by[(i + 1) % by.length]];
+      const inside = (p) => (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x) >= 0;
+      const cross = (p, q) => {
+        const d = new THREE.Vector2().subVectors(q, p);
+        const e = new THREE.Vector2().subVectors(b, a);
+        const s = ((a.x - p.x) * e.y - (a.y - p.y) * e.x) / (d.x * e.y - d.y * e.x);
+        return p.clone().addScaledVector(d, s);
+      };
+      const input = out;
+      out = [];
+      input.forEach((cur, j) => {
+        const prev = input[(j + input.length - 1) % input.length];
+        if (inside(cur)) {
+          if (!inside(prev)) out.push(cross(prev, cur));
+          out.push(cur);
+        } else if (inside(prev)) out.push(cross(prev, cur));
+      });
+    }
+    return out;
+  };
+  let visible = 0;
+  for (const t of tris) {
+    const candidates = [-1, 0, 1].flatMap(
+      (dd) => buckets.get(bucketKey(t.cn, t.cd + dd * 0.01)) ?? []
+    );
+    for (const u of candidates) {
+      if (u.id <= t.id || t.cn.dot(u.cn) < 0.99985 || Math.abs(t.cd - u.cd) > 0.01) continue;
+      const opposite = t.sign !== u.sign;
+      if (opposite && !t.doubleSided && !u.doubleSided) continue;
+      const uAxis = new THREE.Vector3()
+        .crossVectors(
+          t.cn,
+          Math.abs(t.cn.x) < 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0)
+        )
+        .normalize();
+      const vAxis = new THREE.Vector3().crossVectors(t.cn, uAxis);
+      const flat = ({ a, b, c }) => {
+        const p = [a, b, c].map((v) => new THREE.Vector2(v.dot(uAxis), v.dot(vAxis)));
+        return area2(p) < 0 ? p.reverse() : p;
+      };
+      const overlap = clip(flat(t.triangle), flat(u.triangle));
+      const area = overlap.length >= 3 ? Math.abs(area2(overlap)) : 0;
+      if (area < 1e-4) continue;
+      // The real gap is measured across the overlap, not between plane offsets:
+      // radial planes through a lathe's axis share an offset of zero.
+      const lift = (p) =>
+        t.cn.clone().multiplyScalar(t.cd).addScaledVector(uAxis, p.x).addScaledVector(vAxis, p.y);
+      const separation = Math.max(...overlap.map((p) => Math.abs(u.cn.dot(lift(p)) - u.cd)));
+      const fights = opposite ? separation < 0.001 : separation > 0.00001 && separation < 0.001;
+      if (!fights) continue;
+      const centre = overlap
+        .reduce((s, p) => s.add(p), new THREE.Vector2())
+        .divideScalar(overlap.length);
+      const point = lift(centre);
+      // A face lying on the datum and facing down is against the terrain.
+      if (Math.abs(t.n.y) > 0.99 && Math.abs(point.y - minY) < 0.01) continue;
+      const front = escapes(point, t.n);
+      const back = escapes(point, t.n.clone().negate());
+      const seen = opposite || t.doubleSided ? front || back : front;
+      if (seen) visible += area;
+    }
+  }
+  for (const target of targets) {
+    target.geometry.dispose();
+    target.material.dispose();
+  }
+  return visible;
+}
+
+test('no village delivery has visible near-coplanar faces fighting for depth', async () => {
+  const village = GENERATED_ASSETS.filter((spec) => spec.area === 'village');
+  const found = {};
+  for (const spec of village) {
+    const area = nearCoplanarArea(await io.read(`public/models/village/${spec.slug}.glb`));
+    if (area > 0) found[spec.slug] = Number(area.toFixed(4));
+  }
+  expect(found).toEqual({});
+}, 300000);
 
 // These village deliveries are completely new planar assemblies; farm probes
 // above still address their retained source-coordinate roof replacements.

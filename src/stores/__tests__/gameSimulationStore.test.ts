@@ -5,9 +5,12 @@ import { safeJSONStorage } from '../storage';
 import {
   SERVICE_EGRESS_POINTS,
   getShiftForHour,
+  persistedGameSpeed,
+  selectClockHolder,
   selectSafetyHoldActive,
   useGameSimulationStore,
 } from '../gameSimulationStore';
+import { MAX_GAME_SPEED, PACE_GAME_SPEEDS, STANDARD_GAME_SPEED } from '../../simulation/pace';
 
 describe('autonomous game simulation store', () => {
   beforeEach(() => {
@@ -40,34 +43,43 @@ describe('autonomous game simulation store', () => {
 
   it('advances time, day, and run window together', () => {
     const store = useGameSimulationStore.getState();
-    store.setGameTime(13.75);
-    store.setGameSpeed(3600);
-    store.tickGameTime(0.5);
+    store.setGameTime(13.99);
+    store.setGameSpeed(MAX_GAME_SPEED);
+    store.tickGameTime(1);
 
     const state = useGameSimulationStore.getState();
-    expect(state.gameTime).toBeCloseTo(14.25);
+    expect(state.gameTime).toBeCloseTo(13.99 + MAX_GAME_SPEED / 3600);
     expect(state.currentShift).toBe('afternoon');
 
-    store.setGameTime(23.75);
-    store.tickGameTime(0.5);
+    store.setGameTime(23.99);
+    store.tickGameTime(1);
     expect(useGameSimulationStore.getState()).toMatchObject({ gameDay: 1, currentShift: 'night' });
   });
 
-  it('supports every advertised clock speed and rejects non-finite time inputs', () => {
+  it('supports every advertised pace and rejects non-finite time inputs', () => {
     const store = useGameSimulationStore.getState();
 
+    for (const pace of PACE_GAME_SPEEDS) {
+      store.setGameSpeed(pace);
+      expect(useGameSimulationStore.getState().gameSpeed).toBe(pace);
+    }
     store.setGameSpeed(20_000);
-    expect(useGameSimulationStore.getState().gameSpeed).toBe(10800);
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(MAX_GAME_SPEED);
     store.setGameSpeed(-1);
     expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
 
-    store.setGameSpeed(10800);
+    store.setGameTime(12);
+    store.setGameSpeed(MAX_GAME_SPEED);
     store.tickGameTime(1);
-    expect(useGameSimulationStore.getState().gameTime).toBe(13);
+    const advanced = useGameSimulationStore.getState().gameTime;
+    expect(advanced).toBeCloseTo(12 + MAX_GAME_SPEED / 3600);
 
     store.setGameTime(Number.NaN);
     store.tickGameTime(Number.POSITIVE_INFINITY);
-    expect(useGameSimulationStore.getState()).toMatchObject({ gameTime: 13, gameSpeed: 10800 });
+    expect(useGameSimulationStore.getState()).toMatchObject({
+      gameTime: advanced,
+      gameSpeed: MAX_GAME_SPEED,
+    });
 
     store.setGameSpeed(Number.NaN);
     expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
@@ -75,18 +87,17 @@ describe('autonomous game simulation store', () => {
 
   it('bounds hostile finite deltas and saturates the day counter', () => {
     useGameSimulationStore.setState({
-      gameTime: 23.75,
+      gameTime: 23.99,
       gameDay: Number.MAX_SAFE_INTEGER,
       gameSpeed: 3600,
     });
 
     useGameSimulationStore.getState().tickGameTime(Number.MAX_VALUE);
 
-    expect(useGameSimulationStore.getState()).toMatchObject({
-      gameTime: 0.75,
-      gameDay: Number.MAX_SAFE_INTEGER,
-      currentShift: 'night',
-    });
+    // The pace is sanitised to the 4x ceiling and the delta to one second.
+    const state = useGameSimulationStore.getState();
+    expect(state.gameTime).toBeCloseTo(23.99 + MAX_GAME_SPEED / 3600 - 24);
+    expect(state).toMatchObject({ gameDay: Number.MAX_SAFE_INTEGER, currentShift: 'night' });
   });
 
   it('repairs corrupt clock and day authorities on the next valid tick', () => {
@@ -99,11 +110,9 @@ describe('autonomous game simulation store', () => {
 
     useGameSimulationStore.getState().tickGameTime(1);
 
-    expect(useGameSimulationStore.getState()).toMatchObject({
-      gameTime: 1,
-      gameDay: 0,
-      currentShift: 'night',
-    });
+    const state = useGameSimulationStore.getState();
+    expect(state.gameTime).toBeCloseTo(MAX_GAME_SPEED / 3600);
+    expect(state).toMatchObject({ gameDay: 0, currentShift: 'night' });
   });
 
   it('records and clears a facility stop with the mobile fleet interlock', () => {
@@ -244,10 +253,11 @@ describe('autonomous game simulation store', () => {
     await useGameSimulationStore.persist.rehydrate();
 
     const state = useGameSimulationStore.getState();
+    // A version-1 time-lapse pace (10800) maps to the fastest pace.
     expect(state).toMatchObject({
       gameTime: 1.5,
       gameDay: 3,
-      gameSpeed: 10800,
+      gameSpeed: MAX_GAME_SPEED,
       weather: 'storm',
       currentShift: 'night',
     });
@@ -296,10 +306,84 @@ describe('autonomous game simulation store', () => {
   });
 });
 
+describe('one time model: pace migration and clock holds', () => {
+  afterEach(() => useGameSimulationStore.getState().resetGameState());
+
+  it('starts at standard pace and maps a version-1 "Standard, 1x" (180) save to it', async () => {
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(STANDARD_GAME_SPEED);
+    await safeJSONStorage.setItem('millos-autonomous-simulation', {
+      version: 1,
+      state: { gameTime: 11, gameSpeed: 180 },
+    });
+    await useGameSimulationStore.persist.rehydrate();
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(STANDARD_GAME_SPEED);
+  });
+
+  it('releases only the hold each holder made, newest first', () => {
+    const store = useGameSimulationStore.getState();
+    store.setGameSpeed(60);
+    store.holdClock('tour');
+    store.holdClock('shortcut');
+    expect(selectClockHolder(useGameSimulationStore.getState())).toBe('shortcut');
+    // An older holder releasing does not restart the clock under a newer one.
+    expect(store.releaseClock('tour')).toBe(true);
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+    expect(store.releaseClock('layout')).toBe(false);
+    expect(store.releaseClock('shortcut')).toBe(true);
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(60);
+  });
+
+  it('lets an explicit pace choice override every hold, and keeps a player pause', () => {
+    const store = useGameSimulationStore.getState();
+    store.holdClock('workplace');
+    store.setGameSpeed(0);
+    expect(selectClockHolder(useGameSimulationStore.getState())).toBe('player');
+    store.setGameSpeed(120);
+    expect(useGameSimulationStore.getState()).toMatchObject({ gameSpeed: 120, clockHolds: [] });
+  });
+
+  it('keeps a derived handoff hold under any pace choice, and resumes at the pace chosen', () => {
+    const store = useGameSimulationStore.getState();
+    store.setGameSpeed(30);
+    store.holdClock('handoff');
+    store.setGameSpeed(0);
+    // A pace chosen while the handoff decision holds the plant waits as its
+    // resume pace: the clock stays held and the player's pause is replaced.
+    store.setGameSpeed(60);
+    expect(useGameSimulationStore.getState()).toMatchObject({
+      gameSpeed: 0,
+      clockHolds: [{ holder: 'handoff', resumeSpeed: 60 }],
+    });
+    expect(selectClockHolder(useGameSimulationStore.getState())).toBe('handoff');
+    expect(persistedGameSpeed(useGameSimulationStore.getState())).toBe(60);
+    expect(store.releaseClock('tour')).toBe(false);
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+    expect(store.releaseClock('handoff')).toBe(true);
+    expect(useGameSimulationStore.getState()).toMatchObject({ gameSpeed: 60, clockHolds: [] });
+  });
+
+  it('persists the pace under a session hold, never the hold itself', () => {
+    const store = useGameSimulationStore.getState();
+    store.setGameSpeed(60);
+    store.holdClock('tour');
+    expect(persistedGameSpeed(useGameSimulationStore.getState())).toBe(60);
+    store.setGameSpeed(0);
+    expect(persistedGameSpeed(useGameSimulationStore.getState())).toBe(0);
+  });
+
+  it('starts the clock from a holder control when it is still stopped underneath', () => {
+    const store = useGameSimulationStore.getState();
+    store.setGameSpeed(0);
+    store.holdClock('workplace');
+    store.resumeClockFrom('workplace');
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(STANDARD_GAME_SPEED);
+  });
+});
+
 describe('Reset to 10 AM', () => {
   afterEach(() => useGameSimulationStore.getState().resetGameState());
 
-  it.each([0, 30, 180, 900])(
+  it.each([0, 15, 30, 60, 120])(
     'rewinds the clock to 10:00 but keeps the pace the operator chose (%i)',
     (pace) => {
       const store = useGameSimulationStore.getState();

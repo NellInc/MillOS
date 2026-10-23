@@ -4,6 +4,7 @@ import { useBreakdownStore } from '../../stores/breakdownStore';
 import { useMaterialFlowStore } from '../../stores/materialFlowStore';
 import { useProductionStore } from '../../stores/productionStore';
 import { useUIStore } from '../../stores/uiStore';
+import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import type { TickContext } from '../CentralTickSystem';
 import { resetUnifiedTickState, unifiedGameTick } from '../UnifiedGameTick';
 
@@ -79,6 +80,35 @@ describe('UnifiedGameTick maintenance causality', () => {
     expect(maintenance.workOrders[0].consumedParts).toEqual(['bearings', 'belts']);
   });
 
+  it('takes the estimated game time to repair, holding while paused and scaling with pace', () => {
+    unifiedGameTick(context);
+    const fault = useBreakdownStore.getState().activeBreakdowns[0];
+    const minutes = fault.estimatedRepairTime;
+    expect(minutes).toBeGreaterThan(1);
+    expect(useBreakdownStore.getState().startRepair(fault.id).started).toBe(true);
+    const progress = () => useBreakdownStore.getState().activeBreakdowns[0]?.repairProgress;
+    const phase = () => useBreakdownStore.getState().workOrders[0].phase;
+
+    // A paused clock grants no game time, so the service unit makes no progress.
+    unifiedGameTick({ ...context, gameSpeed: 0, tickCount: 2 });
+    expect(progress()).toBe(0);
+    expect(phase()).toBe('repairing');
+
+    // At 4x pace a 0.5 s tick is 60 game seconds: one game minute per tick.
+    const fast = { ...context, gameSpeed: 120 };
+    for (let tick = 0; tick < minutes - 1; tick += 1)
+      unifiedGameTick({ ...fast, tickCount: 3 + tick });
+    expect(phase()).toBe('repairing');
+    expect(progress()).toBeCloseTo(((minutes - 1) / minutes) * 100, 6);
+    expect(useProductionStore.getState().machines[0].status).toBe('critical');
+
+    unifiedGameTick({ ...fast, tickCount: 3 + minutes });
+    expect(progress()).toBe(100);
+    expect(phase()).toBe('verification');
+    // Only the verified, requested restart returns the machine to service.
+    expect(useProductionStore.getState().machines[0].status).toBe('critical');
+  });
+
   it('returns a zero-wear machine tripped by a campaign fault to service', () => {
     useProductionStore.setState({
       machines: [
@@ -106,6 +136,44 @@ describe('UnifiedGameTick maintenance causality', () => {
     expect(
       useUIStore.getState().alerts.some((alert) => alert.message.includes('restored to service'))
     ).toBe(true);
+  });
+
+  it('records every service in the machine log, on the game clock, capped at ten', () => {
+    useGameSimulationStore.setState({ gameDay: 2, gameTime: 13.5 });
+    useProductionStore.setState({
+      machines: [{ ...failingPacker, metrics: { ...failingPacker.metrics, wear: 60 } }],
+    });
+    expect(useProductionStore.getState().performMaintenance('packer-0').success).toBe(true);
+    const [record] = useProductionStore.getState().machines[0].maintenanceHistory ?? [];
+    expect(record).toMatchObject({ type: 'preventive', date: 'Day 2, 13:30' });
+    expect(record.notes).toContain('60.0%');
+    expect(record.notes).toContain('12.0%');
+
+    // A controlled restart after a breakdown is recorded as corrective work
+    // under its work order.
+    useProductionStore.setState({
+      machines: [{ ...failingPacker, maintenanceHistory: [record] }],
+    });
+    unifiedGameTick(context);
+    const breakdownId = useBreakdownStore.getState().activeBreakdowns[0].id;
+    useBreakdownStore.getState().startRepair(breakdownId);
+    useBreakdownStore.getState().updateRepairProgress(breakdownId, 100);
+    useBreakdownStore.getState().verifyRepair(breakdownId);
+    useBreakdownStore.getState().requestMachineRestart(breakdownId);
+    unifiedGameTick({ ...context, tickCount: 2 });
+    const history = useProductionStore.getState().machines[0].maintenanceHistory ?? [];
+    expect(history[0]).toMatchObject({ type: 'corrective', serviceUnit: 'wo-00001' });
+    expect(history[1]).toEqual(record);
+
+    for (let index = 0; index < 12; index += 1) {
+      useProductionStore.setState((state) => ({
+        machines: state.machines.map((m) => ({ ...m, metrics: { ...m.metrics, wear: 40 } })),
+      }));
+      useProductionStore.getState().performMaintenance('packer-0');
+    }
+    const capped = useProductionStore.getState().machines[0].maintenanceHistory ?? [];
+    expect(capped).toHaveLength(10);
+    expect(new Set(capped.map((entry) => entry.id)).size).toBe(10);
   });
 
   it('accumulates sub-resolution wear across ticks instead of rounding it away', () => {
@@ -136,10 +204,10 @@ describe('UnifiedGameTick maintenance causality', () => {
         },
       ],
     });
-    // Same 200 real ticks as above, at the default 180x: 180 times the wear.
-    // Packer: 0.0004 x (0.5 s x 180) x 1.3 = 0.0468 wear per tick -> +9.36.
-    for (let tick = 0; tick < 200; tick += 1) {
-      unifiedGameTick({ ...context, gameSpeed: 180, tickCount: 2 + tick });
+    // The same 18,000 game seconds as 200 ticks at the old 180x, at the 4x pace.
+    // Packer: 0.0004 x (0.5 s x 120) x 1.3 = 0.0312 wear per tick x 300 -> +9.36.
+    for (let tick = 0; tick < 300; tick += 1) {
+      unifiedGameTick({ ...context, gameSpeed: 120, tickCount: 2 + tick });
     }
 
     const wear = useProductionStore.getState().machines[0].metrics.wear ?? 0;
@@ -154,8 +222,8 @@ describe('UnifiedGameTick maintenance causality', () => {
       metrics: { ...failingPacker.metrics, wear: 10, efficiency: 100 },
     }));
     useProductionStore.setState({ machines: line });
-    for (let tick = 0; tick < 200; tick += 1) {
-      unifiedGameTick({ ...context, gameSpeed: 180, tickCount: 2 + tick });
+    for (let tick = 0; tick < 300; tick += 1) {
+      unifiedGameTick({ ...context, gameSpeed: 120, tickCount: 2 + tick });
     }
 
     const wear = useProductionStore.getState().machines.map((m) => m.metrics.wear ?? 0);

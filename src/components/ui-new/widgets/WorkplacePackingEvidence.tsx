@@ -12,6 +12,7 @@ import {
   useWorkplaceStore,
   useWorkplaceControls,
 } from '../../../stores/workplaceStore';
+import { STANDARD_GAME_SPEED } from '../../../simulation/pace';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { useMaterialFlowStore } from '../../../stores/materialFlowStore';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
@@ -204,9 +205,7 @@ export function FrozenPackingAdvice({ advice }: { advice: PackingAdvice }) {
               <dt className="inline text-slate-300">{t('intendedPace')}</dt>
               <dd className="inline">
                 {t('paceValue', {
-                  speed: Number.isInteger(e.gameSpeed)
-                    ? formatFixed(e.gameSpeed, 0)
-                    : String(e.gameSpeed),
+                  speed: formatFixed(e.gameSpeed / STANDARD_GAME_SPEED, 1),
                   seconds: formatFixed(advice.physicalSeconds, 1),
                 })}
               </dd>

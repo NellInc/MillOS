@@ -169,6 +169,20 @@ describe('authored village transit geometry', () => {
     expect(source).not.toMatch(/<(?:pointLight|spotLight|directionalLight|WorkerModel)/);
     expect(source.match(/noStaticBatch: true/g)).toHaveLength(3);
   });
+  it('keeps the moving bus, handcart and bicycle out of the baked civic lamp shadows', () => {
+    // exportCivicOccluders bakes every castShadow mesh not under a `dynamic` ancestor. With
+    // reduced motion the bicycle waits at a stop inside the civic square, and was exported.
+    const source = readFileSync('src/components/scenery/CommunityTransit.tsx', 'utf8');
+    const roots = [
+      ...source.matchAll(/name="(community-[a-z-]+)"\s+[^>]*?userData=\{\{([^}]*)\}\}/g),
+    ];
+    expect(roots.map((m) => m[1])).toEqual([
+      'community-autonomous-village-bus',
+      'community-flour-handcart',
+      'community-upright-bicycle',
+    ]);
+    for (const [, , userData] of roots) expect(userData).toContain('dynamic: true');
+  });
 });
 
 describe('upright village bicycle', () => {

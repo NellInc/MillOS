@@ -8,7 +8,12 @@ import {
   createStaticMeshBatches,
   orderStaticBatchCandidatesForChunking,
 } from './StaticMeshBatch';
-import { applyBatchWorldSurface, hasWorldSurface } from '../../utils/worldSurface';
+import {
+  applyBatchWorldSurface,
+  applyWorldSurface,
+  hasWorldSurface,
+  pinSurfaceProfile,
+} from '../../utils/worldSurface';
 import { applyLampLens, lampLensStyle, LAMP_LENS_HEIGHTS } from '../models/GeneratedLampModel';
 import { EXTERIOR_LAMP_LENS_MATERIAL } from '../exterior/ExteriorLighting';
 import { applyCivicLampShadows, CIVIC_SHADOW_ATLAS } from '../../shaders/civicLampShadows';
@@ -342,6 +347,51 @@ describe('StaticMeshBatch', () => {
     ]);
     firstUV.dispose();
     secondUV.dispose();
+  });
+
+  it('keeps a pinned surface profile through the batch and out of unpinned groups', () => {
+    // The tank shells are pinned to `vessel`; a merge group's finish comes from
+    // its representative, so a pinned and an unpinned mesh must never share one.
+    const geometry = new THREE.BoxGeometry(1, 1, 1);
+    const shell = () => {
+      const material = new THREE.MeshStandardMaterial({ color: '#f2f4f3', roughness: 0.4 });
+      return applyWorldSurface(pinSurfaceProfile(material, 'vessel'), 'vessel');
+    };
+    const mixed = new THREE.Group();
+    const pinned = new THREE.Mesh(geometry, shell());
+    const plain = new THREE.Mesh(
+      geometry,
+      new THREE.MeshStandardMaterial({ color: '#f2f4f3', roughness: 0.4 })
+    );
+    plain.position.x = 2;
+    mixed.add(pinned, plain);
+    expect(
+      createStaticMeshBatches(
+        mixed,
+        collectStaticBatchCandidates(mixed),
+        'pin-mixed',
+        2,
+        applyBatchWorldSurface
+      )
+    ).toHaveLength(0);
+
+    const tanks = new THREE.Group();
+    for (let index = 0; index < 3; index += 1) {
+      const mesh = new THREE.Mesh(geometry, shell());
+      mesh.position.x = index * 2;
+      tanks.add(mesh);
+    }
+    const batches = createStaticMeshBatches(
+      tanks,
+      collectStaticBatchCandidates(tanks),
+      'pin-tanks',
+      2,
+      applyBatchWorldSurface
+    );
+    expect(batches).toHaveLength(1);
+    const output = batches[0].mesh.material as THREE.MeshStandardMaterial;
+    expect(hasWorldSurface(output)).toBe(true);
+    expect(output.userData.millosWorldSurfaceProfile).toBe('vessel');
   });
 
   it('does not instance materials with different rendered properties', () => {

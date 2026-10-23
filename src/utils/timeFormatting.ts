@@ -8,19 +8,31 @@
 import { getLocale } from '../i18n';
 
 /**
- * Format a Date object to a time string (e.g., "02:30 PM"; pt-BR "14:30")
+ * Format a Date object to a time string in the app language, never the
+ * browser's (e.g., "02:30 PM"; pt-BR "14:30"). With `seconds`, English keeps
+ * the browser-default en-US form ("2:30:15 PM"); pt-BR reads "14:30:15".
  * @param date - Date object or timestamp
  * @returns Formatted time string
  */
-export function formatTime(date: Date | number | string): string {
+export function formatTime(
+  date: Date | number | string,
+  options: { seconds?: boolean } = {}
+): string {
   const d = new Date(date);
   if (isNaN(d.getTime())) return '--:--';
   const locale = getLocale();
   if (locale === 'en') {
-    return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    return options.seconds
+      ? d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })
+      : d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   }
   // The glossary keeps clock times 24-hour outside English.
-  return d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  return d.toLocaleTimeString(locale, {
+    hour: '2-digit',
+    minute: '2-digit',
+    ...(options.seconds ? { second: '2-digit' } : {}),
+    hourCycle: 'h23',
+  });
 }
 
 /**

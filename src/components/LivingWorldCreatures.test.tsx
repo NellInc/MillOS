@@ -551,26 +551,27 @@ it('retains all planting roots with identical transforms and conservative wind b
   ) as [THREE.InstancedMesh, THREE.InstancedMesh, THREE.InstancedMesh];
   try {
     populateGrainField(meshes);
-    expect(GRAIN_FIELD_COUNT).toBe(300);
+    // Drilled rows on the furrow crowns (`WorldPublicRealm.test.ts` checks the
+    // crowns in world space); the count is whatever the rows hold.
+    expect(GRAIN_FIELD_COUNT).toBeGreaterThan(600);
     expect(meshes[0].instanceMatrix.array).toEqual(meshes[1].instanceMatrix.array);
     expect(meshes[0].instanceMatrix.array).toEqual(meshes[2].instanceMatrix.array);
     expect(meshes[0].instanceColor!.array).toEqual(meshes[1].instanceColor!.array);
     expect(meshes[0].instanceColor!.array).toEqual(meshes[2].instanceColor!.array);
     const matrix = new THREE.Matrix4();
-    for (let r = 0; r < 15; r++)
-      for (let c = 0; c < 20; c++) {
-        meshes[0].getMatrixAt(r * 20 + c, matrix);
-        const rnd = Math.sin(r * 20 + c) * 1000;
-        expect(matrix.elements[12]).toBeCloseTo((c - 10) * 1.5 + Math.sin(rnd) * 0.5, 5);
-        expect(matrix.elements[13]).toBe(0);
-        expect(matrix.elements[14]).toBeCloseTo((r - 7) * 1.5 + Math.cos(rnd) * 0.5, 5);
-        expect(
-          new THREE.Vector3()
-            .setFromMatrixScale(matrix)
-            .toArray()
-            .every((s) => s >= 0.79999 && s <= 1.20001)
-        ).toBe(true);
-      }
+    for (let i = 0; i < GRAIN_FIELD_COUNT; i++) {
+      meshes[0].getMatrixAt(i, matrix);
+      expect(matrix.elements[12]).toBeGreaterThanOrEqual(-15);
+      expect(matrix.elements[12]).toBeLessThanOrEqual(13.5);
+      expect(matrix.elements[13]).toBe(0);
+      expect(Math.abs(matrix.elements[14])).toBeLessThanOrEqual(10.75);
+      expect(
+        new THREE.Vector3()
+          .setFromMatrixScale(matrix)
+          .toArray()
+          .every((s) => s >= 0.79999 && s <= 1.20001)
+      ).toBe(true);
+    }
     const spheres = meshes.map((m) => m.boundingSphere!.radius);
     for (const m of meshes) {
       expect(m.customDepthMaterial).toBe(GRAIN_FIELD_DEPTH_MATERIAL);
@@ -1217,7 +1218,12 @@ it.each(['cow', 'pig'] as const)(
     expect(model.getObjectByName('quadruped-stride')).toBeUndefined();
     dispose.mockRestore();
     sharedDispose.mockRestore();
-  }
+  },
+  // Loads and re-skins the real cow/pig GLBs, so the duration tracks machine
+  // load. Measured 2026-10-20, ten isolated runs at 30-152 load (10 cores):
+  // 3.1-23.7 s per species. The 10 s default timed out in two of those ten
+  // runs and once in the broad affected set; 120 s is about 5x the worst run.
+  120_000
 );
 
 it.each(['cow', 'pig'] as const)(

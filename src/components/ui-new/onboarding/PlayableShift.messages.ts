@@ -27,25 +27,26 @@ const PT_ROLE: Record<string, string> = {
   Maintenance: 'Manutenção',
   Coordinator: 'Coordenação',
 };
+const PT_SHIFT_OF: Record<string, string> = {
+  morning: 'da manhã',
+  afternoon: 'da tarde',
+  night: 'da noite',
+};
 
 export const playableShiftMessages = defineMessages({
   en: {
     deliveryDeadline: 'Delivery deadline',
     shiftPace: 'Shift pace',
-    pacePaused: 'Paused, inspect freely',
-    paceStandard: 'Standard pace',
-    paceFast: 'Fast clock, 6x: deadlines tighten',
-    paceCustom: 'Current custom pace',
     guidedDelivery: 'Guided delivery',
     deliveryFulfilled: 'Delivery fulfilled',
     compactGuide: 'Compact delivery guide',
     closeGuide: 'Close guided delivery',
     fulfilledDispatched: '{customer}: {kg} kg dispatched.',
+    currentOrder: 'Now: {customer}, {shipped} of {required} kg shipped. {due}.',
     programmeComplete: 'Programme complete, review your shift',
     programmeCompleteDetail:
-      'Review delivery, quality and recovery before choosing the next commitments.',
+      'The shift debrief shows this shift so far: each delivery, whether it was on time, what held the grade back and what to try next. Then choose the next commitments. Until you do, the line builds stock and the shipping truck waits at the dock, so the stock is there for the next programme.',
     reviewShiftProgramme: 'Review shift and next programme',
-    openCurrentOperations: 'Open current operations',
     receiptAndLearning: 'Delivery receipt and learning',
     expandGuide: 'Expand delivery guide',
     guide: 'Guide',
@@ -54,12 +55,14 @@ export const playableShiftMessages = defineMessages({
     inspectionWaiting: 'waiting',
     kgDispatched: '{kg} kg dispatched',
     deliveryStatusFulfilled: 'fulfilled',
-    reviewCurrentOperations: 'Review current operations',
     reviewDeliveryQc: 'Review delivery and QC',
     openScada: 'Open SCADA',
+    openOverview: 'Open Overview',
     openOverviewQc: 'Open Overview and QC',
     selectMachineHint: 'Select a machine to record your inspection.',
+    inspectMill: 'Inspect a roller mill',
     firstDelivery: 'Your first delivery',
+    deliveryFor: 'Delivery for {customer}',
     orderLine: '{customer}: {kg} kg {product}',
     awaitingOrder: 'Awaiting an order',
     truckLoad: 'Shipping truck load',
@@ -78,7 +81,12 @@ export const playableShiftMessages = defineMessages({
     agreedDeferral: 'Agreed deferral: {kg} kg.',
     remainingCommitment: 'Remaining full customer commitment: {kg} kg.',
     fullCommitmentDispatched: ' Full customer commitment dispatched.',
+    followOnCredit:
+      'The season now works {customer}: {kg} kg of its dispatch credited to the cooperative.',
     agreementOutcome: 'Working agreement: {status}. Combined outcome: {combined}.',
+    agreementWhy: 'Why: {reason}',
+    agreementPausedByReload:
+      'Paused by a reload at minute {minute}: the shift carries on once everyone consents again, in the Bilateral Autonomy System (BAS) panel.',
     agreementStatus: (p: { status: string }) => p.status,
     outcomeComplete: 'complete',
     outcomeUnfinished: 'unfinished',
@@ -95,13 +103,25 @@ export const playableShiftMessages = defineMessages({
     chooseCustomer: 'Choose a customer',
     switchChallengeHint: 'Finish or abandon the challenge before switching customers.',
     switchReviewHint:
-      'Finish the linked working agreement season and owed recovery before switching customers. Review working agreement opens Autonomy, where you can finish the remaining shifts or let the fictional demo run them.',
+      'Finish the linked working agreement season and owed recovery before switching customers. Review working agreement opens Autonomy, where you can finish the remaining shifts or let the fictional demo run them. Leave this season, below, ends it early and keeps what was earned.',
     switchHint:
       'Changing customer changes the scheduled recipe. Existing stock and shipping receipts remain unchanged.',
+    rushChoice:
+      'Rush: {customer} pays {premium}% more for {kg} kg {product}. {due}. The controller runs it first, so it leaves on the first truck.',
+    rushDeferRisk:
+      ' Put a commitment for another product first and it waits for a later truck, past its due time, at double the usual late penalty.',
+    rushChangeover:
+      ' It is the only order on {grain}, so running it first changes the line over to it and back.',
     activeOrderProgress: '{customer}: {shippedKg} / {requiredKg} kg dispatched',
     programmeCompleteCurrent: 'Current programme complete',
     blocked: 'Blocked',
     attention: 'Attention',
+    failureCosts: 'Failure costs',
+    costLate: 'Late delivery: £{rate} per game hour',
+    costMaintenance: 'Open work orders: £{rate} per game hour',
+    costDemurrage: 'Truck held at the dock: £{rate} per game hour',
+    costShiftTotal:
+      'This shift so far: £{total} in late and quality penalties, repairs and dock waiting.',
     challengeProgress: 'Recovery challenge progress',
     challengeProgressLine:
       '{label}: {dispatchedKg} / {targetKg} kg, {minutes} simulation minutes left',
@@ -124,18 +144,28 @@ export const playableShiftMessages = defineMessages({
       'Opt in to three shifts with this customer delivery and a separate working agreement. Starting sets standard shift pace. Fictional roles only.',
     adjustChallenge: 'Adjust the challenge',
     challengeRules:
-      'New challenges allow {hours} simulated hours to recover and dispatch up to {kg} kg of fresh, quality-released goods. Standard pace gives you more real time than the fast clock. Abandoning a challenge leaves its incident to recover; customer deadlines still apply.',
+      'New challenges allow {hours} simulated hours to recover and dispatch up to {kg} kg of fresh, quality-released goods. Abandoning a challenge leaves its incident to recover; customer deadlines still apply.',
     abandonChallenge: 'Abandon challenge',
     savedReports: 'Saved shift reports',
     shiftDebrief: 'Shift debrief',
-    noReports:
-      'Your report is saved when the run window changes. Keep operating, or inspect freely at a slower pace.',
-    readReports: (p: { count: number; countText: string }) =>
-      `Read ${p.countText} saved ${p.count === 1 ? 'report' : 'reports'}`,
+    noReports: (p: { shift: string; time: string }) =>
+      `The ${p.shift.charAt(0).toUpperCase()}${p.shift.slice(1)} report is saved when the shift closes at ${p.time}. Keep operating, or inspect freely at a slower pace.`,
+    readEarlierReports: (p: { count: number; countText: string }) =>
+      `Read ${p.countText} earlier ${p.count === 1 ? 'report' : 'reports'}`,
     reportHeading: '{shift}: grade {grade}',
-    decisionsHeading: 'Decisions during this shift',
-    noDecisions: 'No recorded operational choices in this saved window.',
-    decisionsNotSaved: 'Decisions were not saved with this report.',
+    reportHeadingUngraded: '{shift}: no customer commitments, no grade',
+    reportHeadingProvisional: '{shift} so far: provisional grade {grade}',
+    reportHeadingProvisionalUngraded: '{shift} so far: no customer commitments yet',
+    provisionalNote:
+      'This shift is still open. Its report is saved, with this evidence, when the shift closes.',
+    ordersHeading: 'Orders this shift',
+    choicesHeading: 'Your decisions this shift',
+    agentChoice: 'AI agent: {message}',
+    noChoices: 'No choices were recorded this shift; the mill ran on its controllers.',
+    narrationHeading: 'What the mill did',
+    shiftLogHeading: 'Shift log',
+    noDecisions: 'Nothing was logged in this saved window.',
+    decisionsNotSaved: 'The log was not saved with this report.',
     carryForward: 'Carry forward: {risks}',
     acceptNextProgramme: 'Accept next delivery programme',
     acceptNextHint:
@@ -144,20 +174,16 @@ export const playableShiftMessages = defineMessages({
   'pt-BR': {
     deliveryDeadline: 'Prazo de entrega',
     shiftPace: 'Ritmo do turno',
-    pacePaused: 'Pausado, inspecione à vontade',
-    paceStandard: 'Ritmo padrão',
-    paceFast: 'Relógio rápido, 6x: os prazos apertam',
-    paceCustom: 'Ritmo personalizado atual',
     guidedDelivery: 'Entrega guiada',
     deliveryFulfilled: 'Entrega concluída',
     compactGuide: 'Compactar o guia de entrega',
     closeGuide: 'Fechar a entrega guiada',
     fulfilledDispatched: '{customer}: {kg} kg expedidos.',
+    currentOrder: 'Agora: {customer}, {shipped} de {required} kg expedidos. {due}.',
     programmeComplete: 'Programa concluído, revise seu turno',
     programmeCompleteDetail:
-      'Revise entrega, qualidade e recuperação antes de escolher os próximos compromissos.',
+      'O balanço do turno mostra este turno até agora: cada entrega, se chegou no prazo, o que impediu uma nota melhor e o que tentar a seguir. Depois escolha os próximos compromissos. Até lá, a linha forma estoque e o caminhão de expedição espera na doca, então o estoque fica para o próximo programa.',
     reviewShiftProgramme: 'Revisar o turno e o próximo programa',
-    openCurrentOperations: 'Abrir as operações atuais',
     receiptAndLearning: 'Comprovante da entrega e aprendizado',
     expandGuide: 'Expandir o guia de entrega',
     guide: 'Guia',
@@ -166,20 +192,22 @@ export const playableShiftMessages = defineMessages({
     inspectionWaiting: 'aguardando',
     kgDispatched: '{kg} kg expedidos',
     deliveryStatusFulfilled: 'concluída',
-    reviewCurrentOperations: 'Revisar as operações atuais',
     reviewDeliveryQc: 'Revisar entrega e CQ',
     openScada: 'Abrir SCADA',
+    openOverview: 'Abrir a Visão geral',
     openOverviewQc: 'Abrir Visão geral e CQ',
     selectMachineHint: 'Selecione uma máquina para registrar sua inspeção.',
+    inspectMill: 'Inspecionar um moinho de rolos',
     firstDelivery: 'Sua primeira entrega',
+    deliveryFor: 'Entrega para {customer}',
     orderLine: '{customer}: {kg} kg de {product}',
     awaitingOrder: 'Aguardando um pedido',
     truckLoad: 'Carga do caminhão de expedição',
     truckLoadValue: '{loaded} / {capacity} kg',
     truckLoadValueText: '{loaded} de {capacity} quilogramas no caminhão',
-    showMilling: 'Mostrar a linha de moagem',
-    showPacking: 'Mostrar a linha de ensaque',
-    showShipping: 'Mostrar a área de expedição',
+    showMilling: 'Ver a moagem',
+    showPacking: 'Ver o ensaque',
+    showShipping: 'Ver a expedição',
     skipGuide: 'Pular a entrega guiada',
     handoffAgreement: 'Acordo de trabalho da passagem de turno',
     trialReceipts:
@@ -191,7 +219,12 @@ export const playableShiftMessages = defineMessages({
     agreedDeferral: 'Adiamento acordado: {kg} kg.',
     remainingCommitment: 'Restante do compromisso total com o cliente: {kg} kg.',
     fullCommitmentDispatched: ' Compromisso total com o cliente expedido.',
+    followOnCredit:
+      'A temporada agora atende {customer}: {kg} kg da expedição creditados à cooperativa.',
     agreementOutcome: 'Acordo de trabalho: {status}. Resultado combinado: {combined}.',
+    agreementWhy: 'Motivo: {reason}',
+    agreementPausedByReload:
+      'Pausado por uma recarga no minuto {minute}: o turno continua quando todos consentirem de novo, no painel Sistema de Autonomia Bilateral (BAS).',
     agreementStatus: (p: { status: string }) => pick(PT_AGREEMENT_STATUS, p.status),
     outcomeComplete: 'concluído',
     outcomeUnfinished: 'não concluído',
@@ -208,13 +241,25 @@ export const playableShiftMessages = defineMessages({
     chooseCustomer: 'Escolha um cliente',
     switchChallengeHint: 'Conclua ou abandone o desafio antes de trocar de cliente.',
     switchReviewHint:
-      'Conclua a temporada do acordo de trabalho vinculado e a recuperação devida antes de trocar de cliente. O botão Revisar o acordo de trabalho abre Autonomia, onde você pode concluir os turnos restantes ou deixar a demonstração fictícia executá-los.',
+      'Conclua a temporada do acordo de trabalho vinculado e a recuperação devida antes de trocar de cliente. O botão Revisar o acordo de trabalho abre Autonomia, onde você pode concluir os turnos restantes ou deixar a demonstração fictícia executá-los. Sair desta temporada, abaixo, a encerra antes do fim e mantém o que foi conquistado.',
     switchHint:
       'Trocar de cliente muda a receita programada. O estoque existente e os comprovantes de expedição permanecem inalterados.',
+    rushChoice:
+      'Urgente: {customer} paga {premium}% a mais por {kg} kg de {product}. {due}. O controlador o executa primeiro, então ele sai no primeiro caminhão.',
+    rushDeferRisk:
+      ' Se um compromisso de outro produto vier antes, ele espera um caminhão seguinte e passa do prazo, com o dobro da multa usual por atraso.',
+    rushChangeover:
+      ' É o único pedido de {grain}, então executá-lo primeiro troca a linha para ele e de volta.',
     activeOrderProgress: '{customer}: {shippedKg} / {requiredKg} kg expedidos',
     programmeCompleteCurrent: 'Programa atual concluído',
     blocked: 'Bloqueado',
     attention: 'Atenção',
+    failureCosts: 'Custos das falhas',
+    costLate: 'Entrega atrasada: £{rate} por hora de jogo',
+    costMaintenance: 'Ordens de serviço abertas: £{rate} por hora de jogo',
+    costDemurrage: 'Caminhão retido na doca: £{rate} por hora de jogo',
+    costShiftTotal:
+      'Neste turno, até agora: £{total} em penalidades por atraso e por qualidade, reparos e espera na doca.',
     challengeProgress: 'Progresso do desafio de recuperação',
     challengeProgressLine:
       '{label}: {dispatchedKg} / {targetKg} kg, faltam {minutes} minutos de simulação',
@@ -237,18 +282,29 @@ export const playableShiftMessages = defineMessages({
       'Participe, por escolha própria, de três turnos com esta entrega ao cliente e um acordo de trabalho separado. Ao iniciar, o ritmo do turno passa a ser o padrão. Somente funções fictícias.',
     adjustChallenge: 'Ajustar o desafio',
     challengeRules:
-      'Novos desafios dão {hours} horas simuladas para recuperar e expedir até {kg} kg de produtos recém-produzidos e liberados pelo CQ. O ritmo padrão dá a você mais tempo real do que o relógio rápido. Abandonar um desafio deixa a ocorrência dele pendente de recuperação; os prazos dos clientes continuam valendo.',
+      'Novos desafios dão {hours} horas simuladas para recuperar e expedir até {kg} kg de produtos recém-produzidos e liberados pelo CQ. Abandonar um desafio deixa a ocorrência dele pendente de recuperação; os prazos dos clientes continuam valendo.',
     abandonChallenge: 'Abandonar desafio',
     savedReports: 'Relatórios de turno salvos',
     shiftDebrief: 'Balanço do turno',
-    noReports:
-      'Seu relatório é salvo quando a janela de execução muda. Continue operando ou inspecione à vontade em um ritmo mais lento.',
-    readReports: (p: { count: number; countText: string }) =>
-      `Ler ${p.countText} ${p.count === 1 ? 'relatório salvo' : 'relatórios salvos'}`,
+    noReports: (p: { shift: string; time: string }) =>
+      `O relatório do turno ${PT_SHIFT_OF[p.shift] ?? p.shift} é salvo quando o turno fecha às ${p.time}. Continue operando ou inspecione à vontade em um ritmo mais lento.`,
+    readEarlierReports: (p: { count: number; countText: string }) =>
+      `Ler ${p.countText} ${p.count === 1 ? 'relatório anterior' : 'relatórios anteriores'}`,
     reportHeading: '{shift}: nota {grade}',
-    decisionsHeading: 'Decisões durante este turno',
-    noDecisions: 'Nenhuma escolha operacional registrada nesta janela salva.',
-    decisionsNotSaved: 'As decisões não foram salvas com este relatório.',
+    reportHeadingUngraded: '{shift}: sem compromissos com clientes, sem nota',
+    reportHeadingProvisional: '{shift} até agora: nota provisória {grade}',
+    reportHeadingProvisionalUngraded: '{shift} até agora: ainda sem compromissos com clientes',
+    provisionalNote:
+      'Este turno ainda está aberto. O relatório é salvo, com estas evidências, quando o turno fecha.',
+    ordersHeading: 'Pedidos neste turno',
+    choicesHeading: 'Suas decisões neste turno',
+    agentChoice: 'Agente de IA: {message}',
+    noChoices:
+      'Nenhuma escolha foi registrada neste turno; o moinho funcionou com seus controladores.',
+    narrationHeading: 'O que o moinho fez',
+    shiftLogHeading: 'Registro do turno',
+    noDecisions: 'Nada foi registrado nesta janela salva.',
+    decisionsNotSaved: 'O registro não foi salvo com este relatório.',
     carryForward: 'Levar para o próximo turno: {risks}',
     acceptNextProgramme: 'Aceitar o próximo programa de entregas',
     acceptNextHint:

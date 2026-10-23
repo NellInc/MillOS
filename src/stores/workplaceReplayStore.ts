@@ -77,7 +77,13 @@ function restorePlant(raw: ReturnType<typeof capturePlant>) {
   useAnnouncementsStore.setState(saved.announcements);
   useUIStore.setState({ alerts: saved.alerts });
   useProductionStore.setState({ ...saved.production, scadaLive: false });
-  useGameSimulationStore.setState({ ...saved.game, gameSpeed: 0 });
+  // A replay restore holds the clock for the workplace step it replays, so the
+  // pace control names the hold and its own Resume releases it.
+  useGameSimulationStore.setState({
+    ...saved.game,
+    gameSpeed: 0,
+    clockHolds: [{ holder: 'workplace', resumeSpeed: 0 }],
+  });
   useLogisticsLayoutStore.getState().restoreSaved(saved.logistics);
   restoreUnifiedTickState(saved.tick);
   centralTick.restoreClock(saved.centralClock);

@@ -54,6 +54,67 @@ export const shouldResolveCameraCollisionForFrame = (
   manualMovementApplied: boolean
 ): boolean => !isAnimating || manualMovementApplied;
 
+/**
+ * The idle orbit is an opt-in showcase (C), off by default: an unattended
+ * camera never moves by itself. When on, it turns about the orbit target by
+ * time, not by frame, at the radius and height it started from, and only when
+ * that whole circle is clear of the hall and every collider, checked before
+ * the first step. A circle that is not clear does not turn at all, so the
+ * orbit never meets geometry and nothing ever shortens its radius. Working if
+ * the same angle passes at any frame rate and the camera never touches a
+ * machine or enters the hall.
+ */
+export const IDLE_ORBIT_DEFAULT = false;
+/** One full turn every 400 s: slow enough to read the site, quick enough to notice. */
+export const IDLE_ORBIT_RADIANS_PER_SECOND = (2 * Math.PI) / 400;
+const IDLE_ORBIT_SAMPLES = 144;
+
+export const shouldIdleOrbit = (
+  autoRotateEnabled: boolean,
+  hasManualInput: boolean,
+  cameraInsideFactory: boolean,
+  orbitBlocked: boolean
+): boolean => autoRotateEnabled && !hasManualInput && !cameraInsideFactory && !orbitBlocked;
+
+/** Whether a full circle about `target` through `position`, at its height, meets nothing. */
+export function idleOrbitPathClear(
+  position: { x: number; y: number; z: number },
+  target: { x: number; z: number }
+): boolean {
+  const dx = position.x - target.x;
+  const dz = position.z - target.z;
+  const radius = Math.hypot(dx, dz);
+  if (radius < 1e-3) return false;
+  const start = Math.atan2(dx, dz);
+  let previous: [number, number, number] = [position.x, position.y, position.z];
+  for (let i = 1; i <= IDLE_ORBIT_SAMPLES; i++) {
+    const angle = start + (i / IDLE_ORBIT_SAMPLES) * 2 * Math.PI;
+    const next: [number, number, number] = [
+      target.x + Math.sin(angle) * radius,
+      position.y,
+      target.z + Math.cos(angle) * radius,
+    ];
+    if (isPositionInsideFactory(next[0], next[1], next[2], 0)) return false;
+    if (resolveCameraCollision(previous, next).collidedWith) return false;
+    previous = next;
+  }
+  return true;
+}
+
+/** Turn `position` about `target` by `angle` radians, keeping its radius and height exactly. */
+export function stepIdleOrbit(
+  position: THREE.Vector3,
+  target: { x: number; z: number },
+  angle: number
+): void {
+  const dx = position.x - target.x;
+  const dz = position.z - target.z;
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  position.x = target.x + dx * cos + dz * sin;
+  position.z = target.z - dx * sin + dz * cos;
+}
+
 // Camera preset definitions based on MillOS factory zones
 export interface CameraPreset {
   name: string;
@@ -165,13 +226,14 @@ export const useCameraStore = create<CameraStore>((set) => ({
 interface CameraControllerProps {
   orbitControlsRef?: React.RefObject<OrbitControlsImpl | null>;
   autoRotateEnabled?: boolean;
+  /** Idle orbit speed in radians per second (time-based, not per frame). */
   targetSpeed?: number;
 }
 
 export const CameraController: React.FC<CameraControllerProps> = ({
   orbitControlsRef,
-  autoRotateEnabled = true,
-  targetSpeed = 0.15,
+  autoRotateEnabled = IDLE_ORBIT_DEFAULT,
+  targetSpeed = IDLE_ORBIT_RADIANS_PER_SECOND,
 }) => {
   const { camera } = useThree();
   const {
@@ -191,6 +253,8 @@ export const CameraController: React.FC<CameraControllerProps> = ({
   const previousCameraPosition = useRef(new THREE.Vector3());
   const cameraPositionInitialized = useRef(false);
   const currentSpeed = useRef(0);
+  const idleOrbitBlocked = useRef(false);
+  const orbitPath = useRef({ key: '', clear: false });
 
   // Vectors for movement calculations (reused to avoid allocations)
   const moveDirection = useRef(new THREE.Vector3());
@@ -360,15 +424,48 @@ export const CameraController: React.FC<CameraControllerProps> = ({
     }
     // Frame-rate independent exponential smoothing for perfectly smooth rotation
     if (orbitControlsRef?.current) {
-      const target = autoRotateEnabled && !hasManualInput ? targetSpeed : 0;
-      // Exponential decay smoothing - completely frame-rate independent
-      // smoothTime controls how quickly we reach target (lower = faster)
-      const smoothTime = 2.5; // seconds to reach ~63% of target
-      const alpha = 1 - Math.exp(-movementDelta / smoothTime);
-      currentSpeed.current = hasManualInput
-        ? 0
-        : currentSpeed.current + (target - currentSpeed.current) * alpha;
-      orbitControlsRef.current.autoRotateSpeed = currentSpeed.current;
+      const cameraInside = isPositionInsideFactory(
+        camera.position.x,
+        camera.position.y,
+        camera.position.z,
+        0
+      );
+      const orbitTarget = orbitControlsRef.current.target;
+      // The circle is fixed while turning, so it is checked only from rest,
+      // and again whenever the pose it starts from has changed.
+      if (currentSpeed.current === 0 && autoRotateEnabled && !hasManualInput && !cameraInside) {
+        const key = [
+          camera.position.x,
+          camera.position.y,
+          camera.position.z,
+          orbitTarget.x,
+          orbitTarget.z,
+        ]
+          .map((value) => value.toFixed(2))
+          .join(',');
+        if (orbitPath.current.key !== key)
+          orbitPath.current = { key, clear: idleOrbitPathClear(camera.position, orbitTarget) };
+      }
+      const target =
+        shouldIdleOrbit(
+          autoRotateEnabled,
+          hasManualInput,
+          cameraInside,
+          idleOrbitBlocked.current
+        ) && orbitPath.current.clear
+          ? targetSpeed
+          : 0;
+      // Exponential easing in and out, by time (2.5 s to ~63% of full speed).
+      const alpha = 1 - Math.exp(-movementDelta / 2.5);
+      // Input, the hall and a blocked orbit stop the turn at once.
+      currentSpeed.current =
+        hasManualInput || cameraInside || idleOrbitBlocked.current
+          ? 0
+          : currentSpeed.current + (target - currentSpeed.current) * alpha;
+      if (currentSpeed.current < 1e-6) currentSpeed.current = 0;
+      if (currentSpeed.current > 0)
+        stepIdleOrbit(camera.position, orbitTarget, currentSpeed.current * movementDelta);
+      orbitControlsRef.current.autoRotateSpeed = 0;
     }
 
     // Handle preset animation from a fixed starting pose. The prior recursive
@@ -424,6 +521,17 @@ export const CameraController: React.FC<CameraControllerProps> = ({
         );
       }
       camera.userData.lastCollision = collision.collidedWith;
+      // A backstop only: the circle was checked clear before the turn began.
+      // Should anything still meet it, keep the last clear pose and stop.
+      if (collision.collidedWith && !manualMovementApplied && currentSpeed.current > 0) {
+        idleOrbitBlocked.current = true;
+        currentSpeed.current = 0;
+        camera.position.copy(collisionStart);
+        if (orbitControlsRef?.current) {
+          orbitControlsRef.current.autoRotateSpeed = 0;
+          camera.lookAt(orbitControlsRef.current.target);
+        }
+      }
     } else {
       camera.userData.lastCollision = null;
     }
@@ -434,9 +542,16 @@ export const CameraController: React.FC<CameraControllerProps> = ({
     previousCameraPosition.current.copy(camera.position);
   });
 
+  // A toggle (C, or a selection ending) gives a blocked idle orbit a fresh try.
+  useEffect(() => {
+    idleOrbitBlocked.current = false;
+  }, [autoRotateEnabled]);
+
   // Reset animation progress when target changes
   useEffect(() => {
     if (isAnimating) {
+      // A new flight is a new view, which the idle orbit may try again.
+      idleOrbitBlocked.current = false;
       animationProgress.current = 0;
       animationStartPosition.current.copy(camera.position);
       if (camera instanceof THREE.PerspectiveCamera) animationStartFov.current = camera.fov;

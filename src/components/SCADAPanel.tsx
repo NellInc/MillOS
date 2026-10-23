@@ -70,6 +70,10 @@ import type {
   Alarm,
 } from '../scada/types';
 import { useGraphicsStore } from '../stores/graphicsStore';
+import {
+  selectInAppReducedMotion,
+  useMotionPreferenceStore,
+} from '../stores/motionPreferenceStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { processTrendHistory, TREND_QUALITY_SUFFIX, type TrendRow } from '../scada/trendProcessing';
 import { OPERATION_TAG_IDS, UTILITY_ASSET_TAG_IDS } from '../scada/tagDatabase';
@@ -79,8 +83,11 @@ import { useQCLabStore } from '../stores/qcLabStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useOperationsCampaignStore } from '../stores/operationsCampaignStore';
 import { useHistoricalPlaybackStore } from '../stores/historicalPlaybackStore';
-import { formatFixed, translate, useLocale, useT } from '../i18n';
+import { capitalizeIn, formatFixed, translate, useLocale, useT } from '../i18n';
+import { incidentDescription, incidentTitle } from '../stores/incidentText';
+import { dispatchBlockText } from '../stores/dispatchBlockText';
 import { scadaPanelMessages } from './SCADAPanel.messages';
+import { SCADASetpointControl } from './SCADASetpointControl';
 
 interface SCADAPanelProps {
   isOpen: boolean;
@@ -257,8 +264,10 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
     }))
   );
   const {
+    isConnected,
     linkUp,
     mode,
+    writeSetpoint,
     tagCount,
     values,
     tags,
@@ -284,7 +293,9 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
   } = useSCADAAlarms();
   const scadaEnabled = useGraphicsStore((state) => state.graphics.enableSCADA);
   const setSCADAEnabled = useGraphicsStore((state) => state.setSCADAEnabled);
-  const reduceMotion = useReducedMotion();
+  // framer's hook reads only the OS media query; the in-app setting is OR'd in.
+  const inAppReducedMotion = useMotionPreferenceStore(selectInAppReducedMotion);
+  const reduceMotion = useReducedMotion() || inAppReducedMotion;
   const t = useT(scadaPanelMessages);
   const locale = useLocale();
   // English keeps the browser default (unchanged output); pt-BR dates and times follow pt-BR.
@@ -351,6 +362,15 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
     return () => clearInterval(interval);
   }, [isOpen, scadaEnabled]);
 
+  // The docked panel passes a fresh inline onClose on every render (each live
+  // tag update). Read it through a ref so the effect below runs only when the
+  // dialog opens: re-running it moved focus to Close mid-typing, and an Enter
+  // meant for the setpoint form then closed the workspace.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
   useEffect(() => {
     if (!isOpen || embedded) return;
     const previouslyFocused = document.activeElement as HTMLElement | null;
@@ -359,7 +379,7 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
     const handleWorkspaceKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (event.key !== 'Tab' || !workspaceRef.current) return;
@@ -385,7 +405,7 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
       document.removeEventListener('keydown', handleWorkspaceKeyDown);
       previouslyFocused?.focus();
     };
-  }, [embedded, isOpen, onClose]);
+  }, [embedded, isOpen]);
 
   // Chart line colors
   const TREND_COLORS = ['#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
@@ -1244,8 +1264,10 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                   <div className="text-xs uppercase tracking-wide text-slate-400">
                     {t('source')}
                   </div>
-                  <div className="mt-1 text-base font-semibold capitalize text-cyan-300">
-                    {t('modeName', { value: mode })}
+                  <div
+                    className={`mt-1 text-base font-semibold ${capitalizeIn(locale)} text-cyan-300`}
+                  >
+                    {t('modeHeading', { value: mode })}
                   </div>
                   <div className="text-xs text-slate-300">
                     {mode === 'simulation'
@@ -1358,9 +1380,11 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                       {materialProvenance.latestBatch?.id ?? t('awaitingProduction')}
                     </div>
                     {materialProvenance.latestBatch && (
-                      <div className="mt-0.5 capitalize">
-                        {materialProvenance.latestBatch.disposition},{' '}
-                        {formatFixed(materialProvenance.latestBatch.availableKg, 1)} kg
+                      <div className={`mt-0.5 ${capitalizeIn(locale)}`}>
+                        {t('batchDisposition', {
+                          value: materialProvenance.latestBatch.disposition,
+                        })}
+                        , {formatFixed(materialProvenance.latestBatch.availableKg, 1)} kg
                       </div>
                     )}
                   </div>
@@ -1379,10 +1403,8 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                       {latestOpenWorkOrder?.id ?? t('noOpenWorkOrder')}
                     </div>
                     {latestOpenWorkOrder && (
-                      <div className="mt-0.5 capitalize">
-                        {t('workOrderPhase', {
-                          phase: latestOpenWorkOrder.phase.replaceAll('_', ' '),
-                        })}
+                      <div className={`mt-0.5 ${capitalizeIn(locale)}`}>
+                        {t('workOrderPhase', { phase: latestOpenWorkOrder.phase })}
                       </div>
                     )}
                   </div>
@@ -1392,8 +1414,9 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                       {latestQualityRecord?.id ?? t('noDispositionAction')}
                     </div>
                     {latestQualityRecord && (
-                      <div className="mt-0.5 capitalize">
-                        {latestQualityRecord.action}, {latestQualityRecord.referenceId}
+                      <div className={`mt-0.5 ${capitalizeIn(locale)}`}>
+                        {t('qualityAction', { value: latestQualityRecord.action })},{' '}
+                        {latestQualityRecord.referenceId}
                       </div>
                     )}
                   </div>
@@ -1453,8 +1476,10 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                               percent: formatFixed(campaign.execution.lineSetpointPercent, 0),
                             })}
                           </div>
-                          <div className="mt-1 text-[10px] capitalize text-slate-400">
-                            {campaign.execution.stage.replaceAll('_', ' ')}
+                          <div
+                            className={`mt-1 text-[10px] ${capitalizeIn(locale)} text-slate-400`}
+                          >
+                            {t('executionStage', { value: campaign.execution.stage })}
                           </div>
                         </div>
                         <div className="rounded border border-slate-700/60 bg-slate-950/35 p-2.5">
@@ -1467,7 +1492,9 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                             {activeIncidents.length}
                           </div>
                           <div className="mt-1 truncate text-[10px] text-slate-400">
-                            {activeIncidents[0]?.title ?? t('noCampaignIncident')}
+                            {activeIncidents[0]
+                              ? incidentTitle(activeIncidents[0])
+                              : t('noCampaignIncident')}
                           </div>
                         </div>
                         <div className="rounded border border-slate-700/60 bg-slate-950/35 p-2.5">
@@ -1489,13 +1516,15 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                   <div className="rounded border border-slate-700/60 bg-slate-950/35 p-2.5">
                     <div className="text-[10px] uppercase text-slate-400">{t('recipeRoute')}</div>
                     <div className="mt-1 text-xs font-semibold text-cyan-200">
-                      {campaign.execution.sourceMaterial?.replaceAll('_', ' ') ?? t('noSource')}
+                      {campaign.execution.sourceMaterial
+                        ? t('sourceMaterial', { value: campaign.execution.sourceMaterial })
+                        : t('noSource')}
                     </div>
                     <div className="text-[10px] text-slate-400">
                       {t('toProduct', {
-                        product:
-                          campaign.execution.finishedMaterial?.replaceAll('_', ' ') ??
-                          t('noProduct'),
+                        product: campaign.execution.finishedMaterial
+                          ? t('productName', { value: campaign.execution.finishedMaterial })
+                          : t('noProduct'),
                       })}
                     </div>
                   </div>
@@ -1518,9 +1547,11 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                       {formatFixed(campaign.execution.dispatchLoad.loadedKg, 0)} /{' '}
                       {formatFixed(campaign.execution.dispatchLoad.capacityKg, 0)} kg
                     </div>
-                    <div className="mt-1 truncate text-[10px] capitalize text-slate-400">
-                      {campaign.execution.dispatchLoad.blockReason ??
-                        campaign.execution.dispatchLoad.status}
+                    <div
+                      className={`mt-1 truncate text-[10px] ${capitalizeIn(locale)} text-slate-400`}
+                    >
+                      {dispatchBlockText(campaign.execution.dispatchLoad) ??
+                        t('dispatchStatus', { value: campaign.execution.dispatchLoad.status })}
                     </div>
                   </div>
                 </div>
@@ -1782,8 +1813,14 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                           {filteredMachineTags.map((tag) => {
                             const value = values.get(tag.id);
                             const alarmState = value ? isInAlarm(tag, value) : null;
+                            const writable = tag.accessMode === 'READ_WRITE';
+                            const follower = writable
+                              ? tags.find(
+                                  (candidate) => candidate.simulation?.setpointTagId === tag.id
+                                )
+                              : undefined;
 
-                            return (
+                            const row = (
                               <div
                                 key={tag.id}
                                 className={`px-2 py-1.5 rounded text-xs flex items-center justify-between ${
@@ -1817,6 +1854,22 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                                     </>
                                   )}
                                 </div>
+                              </div>
+                            );
+
+                            if (!writable) return row;
+                            return (
+                              <div key={tag.id}>
+                                {row}
+                                <SCADASetpointControl
+                                  tag={tag}
+                                  setpoint={value}
+                                  readingTag={follower}
+                                  reading={follower ? values.get(follower.id) : undefined}
+                                  mode={mode}
+                                  isConnected={isConnected}
+                                  writeSetpoint={writeSetpoint}
+                                />
                               </div>
                             );
                           })}
@@ -1962,7 +2015,7 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                           </span>
                           {alarm.disposition && alarm.disposition !== 'IN_SERVICE' && (
                             <span className="rounded bg-violet-500/20 px-1.5 py-0.5 text-[10px] text-violet-200">
-                              {alarm.disposition.replaceAll('_', ' ')}
+                              {t('alarmDisposition', { value: alarm.disposition })}
                             </span>
                           )}
                         </div>
@@ -2108,7 +2161,7 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                           <span>
                             {t('suppressedEntry', {
                               tag: entry.tagId,
-                              disposition: entry.disposition.replaceAll('_', ' '),
+                              disposition: t('alarmDisposition', { value: entry.disposition }),
                               who: entry.suppressedBy,
                               reason: entry.reason,
                             })}
@@ -2178,12 +2231,12 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                           className="min-h-8 rounded border border-amber-500/30 px-2 text-[10px] text-amber-100 hover:bg-amber-500/10"
                           title={t('incidentTitle', {
                             phase: incident.phase,
-                            description: incident.description,
+                            description: incidentDescription(incident),
                           })}
                         >
                           {t('incidentChip', {
                             minute: formatFixed(Math.round(incident.startedAtMinute), 0),
-                            title: incident.title,
+                            title: incidentTitle(incident),
                           })}
                         </button>
                       ))}
@@ -2233,7 +2286,7 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                           type="button"
                           onClick={() => setTrendView(view)}
                           aria-pressed={trendView === view}
-                          className={`min-h-8 rounded px-2 text-xs capitalize ${
+                          className={`min-h-8 rounded px-2 text-xs ${capitalizeIn(locale)} ${
                             trendView === view
                               ? 'bg-cyan-500/20 text-cyan-300'
                               : 'text-slate-300 hover:text-white'
@@ -2583,7 +2636,9 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                       campaign.addLogEntry(
                         controlIdentity.trim() || defaultControlIdentity(),
                         'operation',
-                        operationsLogMessage
+                        operationsLogMessage,
+                        null,
+                        'operator'
                       );
                       setOperationsLogMessage('');
                     }}
@@ -2704,7 +2759,7 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                     }
                     className="w-full px-4 py-3 bg-slate-800/50 hover:bg-slate-700/50 rounded-lg text-left"
                   >
-                    <div className="text-sm font-medium text-white capitalize">
+                    <div className={`text-sm font-medium text-white ${capitalizeIn(locale)}`}>
                       {t(FAULT_LABEL_KEYS[faultType].name)}
                     </div>
                     <div className="text-xs text-slate-400">

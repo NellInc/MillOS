@@ -352,7 +352,9 @@ describe('river crossing craft', () => {
             new THREE.Vector3(x, 5, -145 + z),
             new THREE.Vector3(0, -1, 0)
           ).intersectObject(access)[0];
-          expect(joint?.point.y).toBeCloseTo(top.point.y, 5);
+          // The junction post stops 1 cm under the rail top it meets, rather
+          // than sharing its top face (steel against trim at 0 mm).
+          expect(top.point.y - joint!.point.y).toBeCloseTo(0.01, 5);
         }
       }
       expect(g.boundingBox!.max.x).toBeLessThanOrEqual(3.3375);

@@ -4,12 +4,18 @@ import {
   resetThrottledBagState,
   PRODUCTION_DELEGATED_KEYS,
 } from '../stores/productionStore';
-import { useMaterialFlowStore } from '../stores/materialFlowStore';
+import {
+  MAX_MATERIAL_MANIFESTS,
+  retainShippedBatchWindow,
+  useMaterialFlowStore,
+  type MaterialFlowState,
+} from '../stores/materialFlowStore';
 import {
   compactBatchCreditKeys,
   useOperationsCampaignStore,
 } from '../stores/operationsCampaignStore';
-import { useGameSimulationStore } from '../stores/gameSimulationStore';
+import { persistedGameSpeed, useGameSimulationStore } from '../stores/gameSimulationStore';
+import { migrateLegacyGameSpeed } from '../simulation/pace';
 import { useBreakdownStore } from '../stores/breakdownStore';
 import { useTruckScheduleStore } from '../stores/truckScheduleStore';
 import { useQCLabStore } from '../stores/qcLabStore';
@@ -28,6 +34,7 @@ import {
 } from '../simulation/workplaceReplayRuntime';
 import { getStartupSnapshot, subscribeStartup } from './startupReadiness';
 import { MachineType } from '../types';
+import { SITE_LAYOUT, type Vec3Tuple } from '../constants/siteLayout';
 import {
   captureSavedLogisticsLayout,
   useLogisticsLayoutStore,
@@ -36,8 +43,14 @@ import {
 import { translate } from '../i18n';
 import { physicalSessionMessages as messages } from './physicalSession.messages';
 
+const INSTALLED_PROCESS_SIZE: Partial<Record<MachineType, Vec3Tuple>> = {
+  [MachineType.ROLLER_MILL]: SITE_LAYOUT.machineDimensions.rollerMill,
+  [MachineType.PLANSIFTER]: SITE_LAYOUT.machineDimensions.sifter,
+  [MachineType.PACKER]: SITE_LAYOUT.machineDimensions.packer,
+};
+
 export const PHYSICAL_SESSION_KEY = 'millos-physical-session';
-const MAX_SAVE_BYTES = 3_000_000;
+export const MAX_SAVE_BYTES = 3_000_000;
 type Data<S> = { [K in keyof S as S[K] extends (...args: never[]) => unknown ? never : K]: S[K] };
 function data<S extends object, K extends keyof Data<S> = never>(
   state: S,
@@ -67,7 +80,13 @@ export function capturePhysicalSession() {
     // The delegated keys are stale copies of the quality, achievement, PA, replay
     // and truck owners, which save their own domains below.
     production: data(useProductionStore.getState(), PRODUCTION_DELEGATED_KEYS),
-    material: data(useMaterialFlowStore.getState()),
+    // The process log is an in-memory diagnostic window of ~3 K-char records
+    // (1.5 M chars at its cap: the whole save gate). Reload honesty rides on
+    // stock, batch contributions and the ledger, so the save carries none of it.
+    material: {
+      ...data(useMaterialFlowStore.getState(), ['processGenealogy']),
+      processGenealogy: [] as MaterialFlowState['processGenealogy'],
+    },
     operations: data(useOperationsCampaignStore.getState()),
     game: data(useGameSimulationStore.getState()),
     maintenance: data(useBreakdownStore.getState()),
@@ -82,6 +101,13 @@ export function capturePhysicalSession() {
 }
 type PhysicalSession = ReturnType<typeof capturePhysicalSession>;
 const TAG = '__millosPhysicalType';
+/** The record would exceed the save gate. Deterministic: retrying cannot help. */
+export class PhysicalSaveTooLargeError extends Error {
+  constructor() {
+    super('Physical save is too large');
+    this.name = 'PhysicalSaveTooLargeError';
+  }
+}
 export function encodePhysicalSession(value: PhysicalSession): string {
   const encoded = JSON.stringify(value, function (this: Record<string, unknown>, key, v: unknown) {
     const original = this[key];
@@ -91,9 +117,44 @@ export function encodePhysicalSession(value: PhysicalSession): string {
       throw new Error(`Non-finite saved value at ${key}`);
     return v;
   });
-  if (encoded.length * 2 > MAX_SAVE_BYTES) throw new Error('Physical save is too large');
+  if (encoded.length * 2 > MAX_SAVE_BYTES) throw new PhysicalSaveTooLargeError();
   return encoded;
 }
+
+// Records written before the history windows narrowed carry the whole process
+// log and long batch and manifest tails. Trim them to today's windows before
+// validation: a reload pauses for consent, so no tick would trim them before the
+// first autosave, which would otherwise hit the gate again. Physical stock,
+// holds and the ledger are untouched; only settled history is dropped.
+function compactSavedHistories(value: unknown): void {
+  const material = (value as { material?: unknown } | null)?.material;
+  if (!material || typeof material !== 'object') return;
+  const m = material as Record<string, unknown>;
+  if (Array.isArray(m.processGenealogy)) m.processGenealogy = [];
+  if (Array.isArray(m.manifests)) m.manifests = m.manifests.slice(-MAX_MATERIAL_MANIFESTS);
+  if (
+    Array.isArray(m.productionBatches) &&
+    m.productionBatches.every((batch) => batch && typeof batch === 'object')
+  )
+    m.productionBatches = retainShippedBatchWindow(
+      m.productionBatches as {
+        disposition: MaterialFlowState['productionBatches'][number]['disposition'];
+      }[]
+    );
+}
+
+/**
+ * Saved fields whose type admits null. The field check compares a saved value
+ * with a fresh page's initial value, so a field that starts as a string and
+ * clears to null in play (activeOrderId once every order is fulfilled) rejected
+ * a genuine record. physicalSession.nullable.test.ts derives this list from the
+ * captured type, so a new nullable field cannot be forgotten.
+ */
+export const NULLABLE_PHYSICAL_FIELDS = {
+  production: ['selectedMachine', 'productionTarget'],
+  operations: ['activeChallenge', 'lastMaterialSessionId', 'activeOrderId', 'currentShiftKey'],
+  game: ['emergencyMachineId', 'activeSafetyEventId'],
+} as const;
 
 function validateTree(value: unknown, budget: { left: number }, depth = 0): void {
   if (--budget.left < 0 || depth > 50) throw new Error('Invalid save size');
@@ -120,7 +181,10 @@ function validateTree(value: unknown, budget: { left: number }, depth = 0): void
 }
 
 export function decodePhysicalSession(raw: string): PhysicalSession {
-  if (raw.length * 2 > MAX_SAVE_BYTES) throw new Error('Physical save is too large');
+  // encodePhysicalSession has gated every write since the record existed, so a
+  // record over the gate was not written by this app. It takes the ordinary
+  // restore-failure path: record retained, clock paused, Reset offered.
+  if (raw.length * 2 > MAX_SAVE_BYTES) throw new PhysicalSaveTooLargeError();
   const value = JSON.parse(raw, (_key, v: unknown) => {
     if (v && typeof v === 'object' && TAG in v) {
       const tagged = v as Record<string, unknown>;
@@ -136,6 +200,7 @@ export function decodePhysicalSession(raw: string): PhysicalSession {
     }
     return v;
   }) as PhysicalSession;
+  compactSavedHistories(value);
   validateTree(value, { left: 200_000 });
   if (!value || value.version !== 1) throw new Error('Unsupported physical save');
   // Records from before the delegated copies were dropped still carry them. Their
@@ -162,19 +227,26 @@ export function decodePhysicalSession(raw: string): PhysicalSession {
       throw new Error('Missing physical domain');
     for (const [key, entry] of Object.entries(saved)) {
       if (!(key in expected) || typeof (expected as Record<string, unknown>)[key] === 'function')
-        throw new Error('Unknown physical field');
+        throw new Error(`Unknown physical field ${domain}.${key}`);
       const before = (expected as Record<string, unknown>)[key];
       if (
-        before instanceof Map
-          ? !(entry instanceof Map)
-          : Array.isArray(before)
-            ? !Array.isArray(entry)
-            : before !== null && typeof before !== typeof entry
+        entry === null
+          ? before !== null &&
+            !(
+              NULLABLE_PHYSICAL_FIELDS[domain as keyof typeof NULLABLE_PHYSICAL_FIELDS] as
+                | readonly string[]
+                | undefined
+            )?.includes(key)
+          : before instanceof Map
+            ? !(entry instanceof Map)
+            : Array.isArray(before)
+              ? !Array.isArray(entry)
+              : before !== null && typeof before !== typeof entry
       )
-        throw new Error('Invalid physical field');
+        throw new Error(`Invalid physical field ${domain}.${key}`);
     }
     for (const key of Object.keys(expected))
-      if (!(key in saved)) throw new Error('Incomplete physical domain');
+      if (!(key in saved)) throw new Error(`Incomplete physical domain ${domain}.${key}`);
   }
   const m = value.material;
   const nonnegative = (n: unknown) => typeof n === 'number' && Number.isFinite(n) && n >= 0;
@@ -238,6 +310,12 @@ export function decodePhysicalSession(raw: string): PhysicalSession {
     )
       throw new Error('Invalid saved machine');
     machineIds.add(machine.id);
+    // Process machines are drawn at their installed size whatever `size`
+    // says. A save from before they were installed at real size carries the
+    // authored size, which collision, selection and the layout-plan export
+    // would otherwise keep, so `size` is restored as the installed size.
+    const installed = INSTALLED_PROCESS_SIZE[machine.type];
+    if (installed) machine.size = [installed[0], installed[1], installed[2]];
   }
   const orderIds = new Set<string>();
   for (const order of value.operations.orders) {
@@ -331,8 +409,19 @@ function restoreStores(saved: PhysicalSession) {
   useProductionStore.setState({ ...saved.production, scadaLive: false });
   useLogisticsLayoutStore.getState().restoreSaved(saved.logistics);
   // Frame-driven owners also observe gameSpeed; hold them through warm-up,
-  // then resume the saved speed together with the central clock.
-  useGameSimulationStore.setState({ ...saved.game, gameSpeed: 0, isTabVisible: !document.hidden });
+  // then resume the saved pace together with the central clock. A save taken
+  // under a tour or other session hold resumes the pace the player had chosen,
+  // and a save from before the single time model maps its 180 default to 30.
+  const savedHolds = Array.isArray(saved.game.clockHolds) ? saved.game.clockHolds : [];
+  useGameSimulationStore.setState({
+    ...saved.game,
+    gameSpeed: migrateLegacyGameSpeed(
+      persistedGameSpeed({ gameSpeed: saved.game.gameSpeed, clockHolds: savedHolds })
+    ),
+    clockHolds: [],
+    isTabVisible: !document.hidden,
+  });
+  useGameSimulationStore.getState().holdClock('restore');
 }
 
 function finishRestore() {
@@ -352,7 +441,7 @@ function finishRestore() {
   restoreUnifiedTickState(saved.tick);
   centralTick.restoreClock(saved.clock);
   useProductionStore.getState().setProductionSpeed(saved.production.productionSpeed);
-  useGameSimulationStore.getState().setGameSpeed(saved.game.gameSpeed);
+  useGameSimulationStore.getState().releaseClock('restore');
   pending = null;
 }
 
@@ -378,7 +467,7 @@ export function installPhysicalSession(
   const halt = (message: string, error?: unknown) => {
     if (error !== undefined) console.error('[physicalSession] restore failed:', error);
     disabled = true;
-    useGameSimulationStore.getState().setGameSpeed(0);
+    useGameSimulationStore.getState().holdClock('restoreFailed');
     notify(
       'physical-save-unavailable',
       'warning',
@@ -444,18 +533,24 @@ export function installPhysicalSession(
     } catch (error) {
       // Working if a failed cycle keeps the last good record, retries on the next
       // interval and alerts once per failure run; only a quota error blames storage.
-      console.error('[physicalSession] autosave failed:', error);
+      // An oversized record fails every cycle until it shrinks, so it is named
+      // as a stop, not a skip, and logged once per run rather than every 5 s.
       const name = (error as { name?: unknown } | null)?.name;
       const quota = name === 'QuotaExceededError' || name === 'NS_ERROR_DOM_QUOTA_REACHED';
-      if (!saveFailed)
+      const tooLarge = error instanceof PhysicalSaveTooLargeError;
+      if (!saveFailed) {
+        console.error('[physicalSession] autosave failed:', error);
         notify(
           'physical-autosave-skipped',
           'info',
-          translate(messages, 'autosaveSkippedTitle'),
-          quota
-            ? translate(messages, 'autosaveSkippedQuota')
-            : translate(messages, 'autosaveSkippedMessage')
+          translate(messages, tooLarge ? 'autosaveStoppedTitle' : 'autosaveSkippedTitle'),
+          tooLarge
+            ? translate(messages, 'autosaveTooLarge')
+            : quota
+              ? translate(messages, 'autosaveSkippedQuota')
+              : translate(messages, 'autosaveSkippedMessage')
         );
+      }
       saveFailed = true;
     } finally {
       writing = false;
@@ -487,10 +582,9 @@ export function installPhysicalSession(
       now.idSequence !== before.idSequence ||
       now.partsInventory !== before.partsInventory ||
       now.maintenanceSchedule !== before.maintenanceSchedule ||
-      now.workOrders.some((w, i) => w.phase !== before.workOrders[i]?.phase) ||
-      now.activeBreakdowns.some(
-        (b, i) => b.repairProgress !== before.activeBreakdowns[i]?.repairProgress
-      )
+      // Repair progress now advances every tick on the shift clock, so it rides
+      // the paced autosave; its start and finish are phase changes above.
+      now.workOrders.some((w, i) => w.phase !== before.workOrders[i]?.phase)
     )
       queue();
   });

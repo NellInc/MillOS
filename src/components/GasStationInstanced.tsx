@@ -8,13 +8,17 @@ import { useGraphicsStore } from '../stores/graphicsStore';
 import { DeadDinoPylonFace, BusinessBrandMark } from './scenery/HeritageSignage';
 import { ExteriorDownlight } from './exterior/ExteriorLighting';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
-import { EXTERIOR_LAYERS } from '../constants/renderLayers';
+import { EXTERIOR_LAYERS, POLYGON_OFFSET } from '../constants/renderLayers';
 import { GAS_STATION_SITE } from '../constants/siteLayout';
 import React, { useRef, useMemo, useLayoutEffect } from 'react';
 import { PROCEDURAL_TEXTURES } from '../utils/sharedMaterials';
 import { GeneratedBoundary, GeneratedModel } from './models/GeneratedModel';
 import { GeneratedBoxSurface, GeneratedSurfaceMesh } from './models/GeneratedGeometrySurface';
-import { StationRetailDetails, SHOP_FLOOR_MATERIAL } from './scenery/StationRetailDetails';
+import {
+  StationRetailDetails,
+  SHOP_FLOOR_MATERIAL,
+  STATION_APPLIANCE_SHIFT,
+} from './scenery/StationRetailDetails';
 import { StationSouvenirs } from './scenery/StationSouvenirs';
 import { StationTravelStop } from './scenery/StationTravelStop';
 
@@ -399,8 +403,10 @@ export function createStationDetailLayout() {
       add(part, position, size, color);
     }
     const position: [number, number, number] = [...centre];
-    position[across] -= outward * 0.008;
-    const size: [number, number, number] = [depth - 0.016, height - 0.008, depth - 0.016];
+    // Inner face 2 mm behind the panels' inner faces: at 0.008 it lay exactly
+    // on them, terracotta against the backing colour along every cap.
+    position[across] -= outward * 0.007;
+    const size: [number, number, number] = [depth - 0.018, height - 0.008, depth - 0.018];
     size[along] = length - 0.02;
     add(`${part}-joint-backing`, position, size, backing);
   };
@@ -435,13 +441,15 @@ export function createStationDetailLayout() {
   // edge. Square section pipes sit at the rear corners, away from the side
   // door, glass frontage and fuel lanes. All pieces use the existing cube batch.
   // Working if the trough stays open and each outlet meets a grounded grate.
+  // The channel ends 1 cm inside the cap ends, and its end plates sit between
+  // the lips: at 9 m and 0.24 m their faces lay on the cap's.
   for (const side of [-1, 1]) {
-    add('roof-gutter-bottom', [-12, 5.23, side * 5.56], [9, 0.02, 0.24], charcoal);
+    add('roof-gutter-bottom', [-12, 5.23, side * 5.56], [8.96, 0.02, 0.24], charcoal);
     for (const z of [5.445, 5.675]) {
-      add('roof-gutter-lip', [-12, 5.285, side * z], [9, 0.13, 0.02], charcoal);
+      add('roof-gutter-lip', [-12, 5.285, side * z], [8.96, 0.13, 0.02], charcoal);
     }
-    for (const x of [-16.49, -7.51]) {
-      add('roof-gutter-end', [x, 5.285, side * 5.56], [0.02, 0.13, 0.24], charcoal);
+    for (const x of [-16.47, -7.53]) {
+      add('roof-gutter-end', [x, 5.285, side * 5.56], [0.02, 0.13, 0.22], charcoal);
     }
     add('roof-downpipe', [-15.86, 2.7, side * 5.61], [0.11, 5.08, 0.11], charcoal);
     for (const y of [0.5, 1.95, 3.4, 4.85]) {
@@ -473,7 +481,7 @@ export function createStationDetailLayout() {
   // The closed side door retains its original size and collision contract.
   // Its small folded hood clears the existing head; supports sit outside the
   // 1.20 m leaf, and a seated pull gives the dark panel a recognisable scale.
-  add('door-rain-hood', [-12, 2.68, 5.285], [1.8, 0.08, 0.65], '#a6382b');
+  add('door-rain-hood', [-12, 2.68, 5.285], [1.78, 0.08, 0.65], '#a6382b');
   add('door-hood-edge', [-12, 2.625, 5.6], [1.8, 0.09, 0.035], charcoal);
   for (const side of [-1, 1]) {
     add('door-hood-edge', [-12 + side * 0.8825, 2.625, 5.285], [0.035, 0.09, 0.63], charcoal);
@@ -485,7 +493,7 @@ export function createStationDetailLayout() {
     add('door-leaf-rail', [-12, y, 5.018], [1.01, 0.055, 0.03], '#63716f');
   }
   for (const y of [1.0, 1.26]) {
-    add('door-pull-mount', [-11.58, y, 5.055], [0.07, 0.045, 0.11], '#bca36f');
+    add('door-pull-mount', [-11.58, y, 5.05], [0.07, 0.045, 0.11], '#bca36f');
   }
   add('door-pull', [-11.58, 1.13, 5.11], [0.035, 0.31, 0.035], '#bca36f');
   add('door-lamp-housing', [-12, 2.605, 5.31], [0.46, 0.07, 0.18], charcoal);
@@ -580,13 +588,23 @@ export function createStationDetailLayout() {
   for (const x of [-12.66, -11.34]) {
     add('door-jamb', [x, 1.23, 5.015], [0.1, 2.46, 0.13], charcoal);
   }
-  add('door-head', [-12, 2.45, 5.015], [1.42, 0.14, 0.13], charcoal);
-  add('door-threshold', [-12, 0.075, 5.025], [1.42, 0.1, 0.35], cream);
+  add('door-head', [-12, 2.45, 5.015], [1.4, 0.14, 0.13], charcoal);
+  add('door-threshold', [-12, 0.075, 5.025], [1.4, 0.1, 0.35], cream);
   // Shop-local parts, expressed in the same station-local coordinate system
   // as the forecourt. Working if all contents clear their opaque enclosures.
+  // The cabinet frame stands 2 cm proud of the delivered liner at the sides
+  // and 1 cm at the top (outer faces x -14.02/-9.98, y 3.01): flush at
+  // -14/-10/3.0, liner and frame shared those faces. The door head and
+  // threshold end 1 cm inside the jambs' outer faces for the same reason.
   for (const side of [-1, 1]) {
-    add('retail-fridge-side', [-12 + side * 1.95, 1.5, -4], [0.1, 3, 0.8], '#37474f');
-    add('retail-fridge-cap', [-12, 1.5 + side * 1.45, -4], [3.8, 0.1, 0.8], '#37474f');
+    add('retail-fridge-side', [-12 + side * 1.96, 1.505, -4], [0.12, 3.01, 0.8], '#37474f');
+    // Only the top cap rises; the floor cap keeps its seat on the slab.
+    add(
+      'retail-fridge-cap',
+      [-12, side > 0 ? 2.955 : 0.05, -4],
+      [3.8, side > 0 ? 0.11 : 0.1, 0.8],
+      '#37474f'
+    );
     add('retail-fridge-handle', [-12 + side * 0.08, 1.5, -3.55], [0.025, 0.35, 0.06], cream);
     add(
       'retail-register-bezel',
@@ -600,7 +618,12 @@ export function createStationDetailLayout() {
     add('retail-fridge-shelf', [-12, y, -3.98], [3.8, 0.05, 0.66], '#9aa7a8');
   }
   add('retail-fridge-stile', [-12, 1.5, -3.6], [0.055, 2.8, 0.04], '#37474f');
-  add('retail-slush-ledge', [-10, 0.95, -2], [0.7, 0.1, 0.5], '#e65100');
+  add(
+    'retail-slush-ledge',
+    [-10 + STATION_APPLIANCE_SHIFT.slush, 0.95, -2],
+    [0.7, 0.1, 0.5],
+    '#e65100'
+  );
   return { opaque, emitters };
 }
 
@@ -1031,7 +1054,7 @@ export const GasStation = React.memo<GasStationProps>(
           </group>
 
           {/* Coffee machine */}
-          <group position={[2, 0, -3.5]}>
+          <group position={[2 + STATION_APPLIANCE_SHIFT.coffee, 0, -3.5]}>
             <GeneratedBoundary
               fallback={
                 <>
@@ -1049,7 +1072,7 @@ export const GasStation = React.memo<GasStationProps>(
           </group>
 
           {/* Slushie machine - Dead Dino branded! */}
-          <group position={[2, 0, -2]}>
+          <group position={[2 + STATION_APPLIANCE_SHIFT.slush, 0, -2]}>
             <group name="station-slush-base" scale={STATION_RETAIL.slushBaseScale}>
               <GeneratedBoundary
                 fallback={
@@ -1290,8 +1313,8 @@ export const GasStation = React.memo<GasStationProps>(
             map={FORECOURT_MAP}
             roughnessMap={FORECOURT_ROUGHNESS}
             polygonOffset
-            polygonOffsetFactor={-2}
-            polygonOffsetUnits={-2}
+            polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
+            polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
           />
         </mesh>
 

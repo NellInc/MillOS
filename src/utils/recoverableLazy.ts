@@ -107,33 +107,75 @@ export async function importWithBoundedRetry<T>(
     : new Error(translate(recoverableLazyMessages, 'loadFailed'));
 }
 
+export type PreloadableComponent<P> = ComponentType<P> & {
+  /**
+   * Start the chunk's import now. Settles (never rejects) once it lands or
+   * fails; a failure is left for the render's own import to retry and report.
+   */
+  preload: () => Promise<void>;
+};
+
 // Match React.lazy's public generic contract. Component props are intentionally
 // heterogeneous across optional panels, and React itself uses `any` here.
 export function recoverableLazy<T extends ComponentType<any>>(
   importer: () => Promise<{ default: T }>,
   options?: RecoverableLazyOptions
-): ComponentType<ComponentProps<T>> {
+): PreloadableComponent<ComponentProps<T>> {
   const payloadsByGeneration = new WeakMap<object, LazyExoticComponent<T>>();
+  // One import shared by preload() and every recovery generation. A rejection
+  // clears it, so a boundary reset (a new generation) really imports again.
+  let loaded: { default: T } | null = null;
+  let inFlight: Promise<{ default: T }> | null = null;
+  const load = (): Promise<{ default: T }> => {
+    inFlight ??= importWithBoundedRetry(importer, options).then(
+      (module) => {
+        loaded = module;
+        return module;
+      },
+      (error: unknown) => {
+        inFlight = null;
+        throw error;
+      }
+    );
+    return inFlight;
+  };
 
   const RecoverableLazyComponent = (props: ComponentProps<T>) => {
     const recoveryGeneration = useContext(LazyRecoveryContext);
     let LazyComponent = payloadsByGeneration.get(recoveryGeneration);
     if (!LazyComponent) {
-      LazyComponent = lazy(async () => {
-        const finish = beginStartupTask();
-        try {
-          const module = await importWithBoundedRetry(importer, options);
-          finish();
-          return module;
-        } catch (error) {
-          finish(true);
-          throw error;
+      LazyComponent = lazy(() => {
+        // React.lazy subscribes with then() and reads the result before it
+        // suspends, so a thenable that resolves synchronously renders a
+        // preloaded module in this pass. A native promise would always
+        // suspend, and a render that pauses on each lazy child in turn
+        // fetched the authored site's chunks one after another.
+        const module = loaded;
+        if (module) {
+          return { then: (resolve: (value: { default: T }) => void) => resolve(module) } as never;
         }
+        const finish = beginStartupTask();
+        return load().then(
+          (value) => {
+            finish();
+            return value;
+          },
+          (error: unknown) => {
+            finish(true);
+            throw error;
+          }
+        );
       });
       payloadsByGeneration.set(recoveryGeneration, LazyComponent);
     }
     return createElement(LazyComponent, props);
   };
+
+  RecoverableLazyComponent.preload = (): Promise<void> =>
+    load().then(
+      () => undefined,
+      () => undefined
+    );
 
   return RecoverableLazyComponent;
 }

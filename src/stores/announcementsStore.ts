@@ -33,6 +33,11 @@ export interface Announcement {
   tone: PATone;
   audience: 'all' | 'control' | 'logistics' | 'maintenance';
   cooldownMs: number;
+  /**
+   * A caption for the eye only: the alert it accompanies is what screen
+   * readers hear, so the PA live region does not read it a second time.
+   */
+  captionOnly?: boolean;
 }
 
 export type AnnouncementInput = Omit<

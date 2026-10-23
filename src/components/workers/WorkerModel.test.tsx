@@ -51,7 +51,9 @@ import {
   createBakerApron,
   setWorkerPupilBlink,
   setWorkerPupilPose,
+  softenSharedWorkerGeometry,
   softenWorkerFaceNormals,
+  workerGaitRates,
 } from '../models/WorkerModel';
 
 afterEach(() => {
@@ -167,6 +169,37 @@ describe('animation scheduling and freezing', () => {
     const walk = action.mock.contexts.find((a) => a.getClip().name === 'worker-walk')!;
     expect(walk.timeScale).toBeLessThan(0.2);
     expect(walk.timeScale).toBeGreaterThan(0);
+  });
+
+  it('keeps a time-lapsed walker walking, with cadence matched to the ground it covers', () => {
+    // A 1.25 m/s walker on a clock running 4x standard covers 5 m per real second.
+    const fast = workerGaitRates(5, 1.352, 2.935, 4);
+    expect(fast.clip).toBe('worker-walk');
+    expect(fast.walk).toBeCloseTo(5 / 1.352, 9);
+    // The same ground speed at real time is a run.
+    expect(workerGaitRates(5, 1.352, 2.935, 1).clip).toBe('worker-run');
+    // Half pace plays the walk at half cadence, still feet-planted.
+    const slow = workerGaitRates(0.625, 1.352, 2.935, 0.5);
+    expect(slow.clip).toBe('worker-walk');
+    expect(slow.walk).toBeCloseTo(0.625 / 1.352, 9);
+    // The ordinary real-time ceilings still bound an untimed or invalid scale.
+    for (const scale of [undefined, 0, -2, Number.NaN, Infinity]) {
+      expect(workerGaitRates(9, 1.352, 2.935, scale).walk).toBe(1.9);
+      expect(workerGaitRates(9, 1.352, 2.935, scale).run).toBe(2.4);
+    }
+    expect(workerGaitRates(2.9, 1.352, 2.935, 1, 'worker-run').clip).toBe('worker-run');
+  });
+
+  it('plays the walk clip at time-lapse cadence instead of breaking into a run', () => {
+    const action = vi.spyOn(THREE.AnimationAction.prototype, 'play');
+    const { motion } = mountAnimatedWorker('walking', 0);
+    motion.groundSpeed = 5;
+    motion.gaitScale = 4;
+    harness.frame?.({}, 1 / 30);
+    const walk = action.mock.contexts.find((a) => a.getClip().name === 'worker-walk')!;
+    const run = action.mock.contexts.find((a) => a.getClip().name === 'worker-run')!;
+    expect(walk.timeScale).toBeGreaterThan(1.9);
+    expect(walk.getEffectiveWeight()).toBeGreaterThan(run.getEffectiveWeight());
   });
 
   it('samples distant skeletons at 30 Hz while preserving elapsed animation time', () => {
@@ -2687,3 +2720,193 @@ it.each(['masculine', 'feminine'] as const)(
   },
   30000
 );
+
+describe('startup softening of the borrowed worker bodies', () => {
+  /**
+   * Normals of `softenWorkerFaceNormals(geometry, [])` and `(geometry, armJoints)`
+   * per mesh, sha256 first 16 hex, taken on 3d2af742 before the shared copy.
+   */
+  const GOLDEN_3D2AF742: Record<string, string> = {
+    'masculine Worker_Body/Cube027': 'a849228b045644a2:f7778a43dd6fb9b5',
+    'masculine Worker_Body/Cube027_1': 'ce757321d8b43a23:07f3ffe365471a8c',
+    'masculine Worker_Body/Cube027_2': '7b6d676270b682b1:b2ddd717d8523de9',
+    'masculine Worker_Body/Cube027_3': 'e5e77fdc4ccd9872:348b5c71c9200f7d',
+    'masculine Worker_Feet/Cube028': '2fa49cbb348d98b8:2fa49cbb348d98b8',
+    'masculine Worker_Feet/Cube028_1': 'c9930b1b04945fd0:c9930b1b04945fd0',
+    'masculine Worker_Head/Cube031': '6c813997736f594d:6c813997736f594d',
+    'masculine Worker_Head/Cube031_1': '0c10dfb22c9e2f1c:0c10dfb22c9e2f1c',
+    'masculine Worker_Head/Cube031_2': '7246d24fed3b4e23:7246d24fed3b4e23',
+    'masculine Worker_Head/Cube031_3': '1fad107c809982a4:1fad107c809982a4',
+    'masculine Worker_Head/Cube031_4': 'c735b0ea88dfb534:c735b0ea88dfb534',
+    'masculine Worker_Legs/Cube029': 'f48f0d50d96efa47:f48f0d50d96efa47',
+    'masculine Worker_Legs/Cube029_1': '72c1e319f6458a43:72c1e319f6458a43',
+    'feminine Worker_Body/Cube009': 'dc7cd997c8d00453:a65fcd1ee5ca632e',
+    'feminine Worker_Body/Cube009_1': '676cf630581c38c3:a0d932d883038919',
+    'feminine Worker_Body/Cube009_2': '017cf401a189c196:45ea9d944d79404b',
+    'feminine Worker_Body/Cube009_3': '88132651e7a25157:06bb6cbd330c9989',
+    'feminine Worker_Feet/Cube055': '57a93d47d2e83dd6:57a93d47d2e83dd6',
+    'feminine Worker_Feet/Cube055_1': '3f810d8093a4210b:3f810d8093a4210b',
+    'feminine Worker_Head/Cube035': '9a1d9c901d4a0b90:9a1d9c901d4a0b90',
+    'feminine Worker_Head/Cube035_1': '463e8706dfe0a52d:463e8706dfe0a52d',
+    'feminine Worker_Head/Cube035_2': '9f2a72fc99624732:9f2a72fc99624732',
+    'feminine Worker_Head/Cube035_3': '0962d2e74b1952bc:0962d2e74b1952bc',
+    'feminine Worker_Legs/Cube056': 'ab8860098d4f10e2:ab8860098d4f10e2',
+    'feminine Worker_Legs/Cube056_1': '8548ae280242199d:8548ae280242199d',
+  };
+
+  const loadWorker = async (bodyType: 'masculine' | 'feminine') => {
+    const { readFileSync } = await import('node:fs'),
+      { NodeIO } = await import('@gltf-transform/core'),
+      { ALL_EXTENSIONS } = await import('@gltf-transform/extensions'),
+      { default: draco } = await import('draco3dgltf'),
+      { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+    const io = new NodeIO()
+      .registerExtensions(ALL_EXTENSIONS)
+      .registerDependencies({ 'draco3d.decoder': await draco.createDecoderModule() });
+    const doc = await io.readBinary(
+      new Uint8Array(readFileSync(`public/models/worker/worker-${bodyType}.glb`))
+    );
+    for (const e of doc.getRoot().listExtensionsUsed()) e.dispose();
+    const bytes = await io.writeBinary(doc);
+    return new GLTFLoader().parseAsync(bytes.buffer as ArrayBuffer, '');
+  };
+
+  const digest = async (array: ArrayBufferView) => {
+    const { createHash } = await import('node:crypto');
+    return createHash('sha256')
+      .update(new Uint8Array(array.buffer, array.byteOffset, array.byteLength))
+      .digest('hex')
+      .slice(0, 16);
+  };
+
+  /** Every attribute, index and field a renderer or later fitting step reads. */
+  const bytesOf = async (geometry: THREE.BufferGeometry) => ({
+    index: geometry.index ? await digest(geometry.index.array) : null,
+    attributes: await Promise.all(
+      Object.entries(geometry.attributes).map(async ([name, a]) => [
+        name,
+        a.itemSize,
+        a.normalized,
+        await digest((a as THREE.BufferAttribute).array),
+      ])
+    ),
+    morph: Object.keys(geometry.morphAttributes),
+    groups: geometry.groups,
+    box: geometry.boundingBox?.min.toArray().concat(geometry.boundingBox.max.toArray()) ?? null,
+    name: geometry.name,
+  });
+
+  it('hands each worker a private copy of one softening per borrowed geometry', async () => {
+    for (const bodyType of ['masculine', 'feminine'] as const) {
+      const asset = await loadWorker(bodyType);
+      const meshes: THREE.SkinnedMesh[] = [];
+      asset.scene.traverse((o) => {
+        if ((o as THREE.Mesh).isMesh) meshes.push(o as THREE.SkinnedMesh);
+      });
+      expect(meshes.length).toBeGreaterThan(10);
+      for (const mesh of meshes) {
+        const arms: number[] = [];
+        if (mesh.isSkinnedMesh)
+          mesh.skeleton.bones.forEach((bone, index) => {
+            if (/^(UpperArm|LowerArm)[LR]$/.test(bone.name)) arms.push(index);
+          });
+        const source = mesh.geometry,
+          normal = source.getAttribute('normal') as THREE.BufferAttribute,
+          label = `${bodyType} ${mesh.parent?.name}/${mesh.name}`;
+        const hashes: string[] = [];
+        for (const joints of [[], arms]) {
+          const direct = softenWorkerFaceNormals(source, joints)!;
+          const reads = vi.spyOn(normal, 'getX');
+          const first = softenSharedWorkerGeometry(source, joints)!;
+          const softened = reads.mock.calls.length;
+          expect(softened, label).toBeGreaterThan(0);
+          const second = softenSharedWorkerGeometry(source, joints)!;
+          expect(reads.mock.calls.length, `${label} repeat reads`).toBe(softened);
+          reads.mockRestore();
+          expect(await bytesOf(first), label).toEqual(await bytesOf(direct));
+          expect(await bytesOf(second), label).toEqual(await bytesOf(direct));
+          expect(second.userData).toBe(direct.userData);
+          expect(second).not.toBe(first);
+          for (const name of Object.keys(first.attributes))
+            expect(second.getAttribute(name).array).not.toBe(first.getAttribute(name).array);
+          hashes.push(await digest(first.getAttribute('normal').array));
+          first.dispose();
+          second.dispose();
+          direct.dispose();
+        }
+        expect(hashes.join(':'), label).toBe(GOLDEN_3D2AF742[label]);
+      }
+      // A re-uploaded source normal buffer is softened afresh, never served stale.
+      const body = meshes.find((m) => m.parent?.name === 'Worker_Body')!;
+      const before = softenSharedWorkerGeometry(body.geometry)!;
+      const normal = body.geometry.getAttribute('normal') as THREE.BufferAttribute;
+      normal.setX(0, -normal.getX(0));
+      normal.needsUpdate = true;
+      const after = softenSharedWorkerGeometry(body.geometry)!;
+      expect(await bytesOf(after)).toEqual(await bytesOf(softenWorkerFaceNormals(body.geometry)!));
+      expect(await bytesOf(after)).not.toEqual(await bytesOf(before));
+    }
+  }, 120_000);
+
+  it('builds a second identical worker without re-reading the borrowed normals', async () => {
+    const { clone } = await vi.importActual<typeof import('three/addons/utils/SkeletonUtils.js')>(
+      'three/addons/utils/SkeletonUtils.js'
+    );
+    for (const bodyType of ['masculine', 'feminine'] as const) {
+      const asset = await loadWorker(bodyType);
+      const clones: THREE.Group[] = [];
+      harness.asset = asset;
+      harness.clone = (s) => {
+        const copy = clone(s) as THREE.Group;
+        clones.push(copy);
+        return copy;
+      };
+      const reads: Array<ReturnType<typeof vi.spyOn>> = [];
+      asset.scene.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (m.isMesh) reads.push(vi.spyOn(m.geometry.getAttribute('normal'), 'getX'));
+      });
+      const readCount = () => reads.reduce((n, spy) => n + spy.mock.calls.length, 0);
+      const appearance = { ...getWorkerAppearance('Engineer', '#176557', 'crowd'), bodyType };
+      const motion: WorkerMotionState = {
+        activity: 'working',
+        groundSpeed: 0,
+        seated: false,
+        phase: 0,
+        enabled: false,
+      };
+      const first = render(<WorkerModel appearance={appearance} motion={motion} />);
+      const firstReads = readCount();
+      expect(firstReads).toBeGreaterThan(0);
+      const second = render(<WorkerModel appearance={appearance} motion={motion} />);
+      // Softening was ~41,700 of the first worker's reads (masculine); the few
+      // dozen left are other fittings that read the borrowed buffers directly.
+      // Before the shared copy the second worker repeated all of them.
+      expect(readCount() - firstReads, bodyType).toBeLessThan(firstReads / 100);
+      expect(clones).toHaveLength(2);
+      // The two workers carry the same geometry bytes, mesh for mesh, in private buffers.
+      const dump = async (model: THREE.Group) => {
+        const out: unknown[] = [];
+        const meshes: THREE.Mesh[] = [];
+        model.traverse((o) => {
+          if ((o as THREE.Mesh).isMesh) meshes.push(o as THREE.Mesh);
+        });
+        for (const m of meshes) out.push([m.name, await bytesOf(m.geometry)]);
+        return out;
+      };
+      expect(await dump(clones[1])).toEqual(await dump(clones[0]));
+      const owned: THREE.BufferGeometry[] = [];
+      clones[0].traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (m.isMesh && m.userData.workerSoftFace) owned.push(m.geometry);
+      });
+      expect(owned.length).toBeGreaterThan(0);
+      clones[1].traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (m.isMesh) expect(owned).not.toContain(m.geometry);
+      });
+      first.unmount();
+      second.unmount();
+    }
+  }, 120_000);
+});

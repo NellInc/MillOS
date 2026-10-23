@@ -6,6 +6,7 @@ import { useMaterialFlowStore } from '../../../stores/materialFlowStore';
 import { spoutMachineKey } from '../../flow/spoutRoutes';
 import { positionRegistry } from '../../../utils/positionRegistry';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
+import { STANDARD_GAME_SPEED } from '../../../simulation/pace';
 import {
   logisticsControlHold,
   useLogisticsLayoutStore,
@@ -31,7 +32,14 @@ import {
   layoutProposalJson,
 } from '../../../simulation/layoutPlanningExport';
 import { MATERIAL_TRANSPORT_SPEEDS } from '../../../simulation/materialTransport';
-import { formatFixed, formatGrouped, translate, useT } from '../../../i18n';
+import {
+  capitalizeIn,
+  formatFixed,
+  formatGrouped,
+  translate,
+  useLocale,
+  useT,
+} from '../../../i18n';
 import { layoutPlannerMessages } from './LayoutPlanner.messages';
 
 function captureLayout(): LayoutSnapshot {
@@ -135,14 +143,14 @@ function NumberField({
 
 export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const t = useT(layoutPlannerMessages);
+  const locale = useLocale();
   const dialog = useRef<HTMLDivElement>(null);
   useFocusTrap(dialog as React.RefObject<HTMLElement>, true, onClose);
   const [snapshot, setSnapshot] = useState(captureLayout);
   const applied = useLogisticsLayoutStore();
-  const productionSpeed = useProductionStore((s) => s.productionSpeed);
-  const gameSpeed = useGameSimulationStore((s) => s.gameSpeed);
-  const resumeSpeeds = useRef({ production: productionSpeed || 1, game: gameSpeed || 180 });
-  const paused = productionSpeed === 0 && gameSpeed === 0;
+  // The shift clock is the one pause: at 0 the tick, trucks and forklifts all
+  // stop, so the line setpoint is left as the operator set it.
+  const paused = useGameSimulationStore((s) => s.gameSpeed === 0);
   const hold = logisticsControlHold();
   const [baseline, setBaseline] = useState(() => structuredClone(applied.layout));
   const [history, setHistory] = useState<LogisticsProposal[]>(() => [
@@ -227,10 +235,7 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
   };
   const pause = () => {
     if (logisticsControlHold()) return;
-    if (productionSpeed > 0) resumeSpeeds.current.production = productionSpeed;
-    if (gameSpeed > 0) resumeSpeeds.current.game = gameSpeed;
-    useProductionStore.getState().setProductionSpeed(0);
-    useGameSimulationStore.getState().setGameSpeed(0);
+    useGameSimulationStore.getState().holdClock('layout');
     setMessage(translate(layoutPlannerMessages, 'millPausedMessage'));
   };
   const run = () => {
@@ -239,8 +244,12 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
       setMessage(reason);
       return;
     }
-    useProductionStore.getState().setProductionSpeed(resumeSpeeds.current.production);
-    useGameSimulationStore.getState().setGameSpeed(resumeSpeeds.current.game);
+    // Run is an explicit choice: release the planner's own hold, and if the
+    // clock is still paused underneath it, start it at standard pace.
+    const simulation = useGameSimulationStore.getState();
+    simulation.releaseClock('layout');
+    if (useGameSimulationStore.getState().gameSpeed === 0)
+      simulation.setGameSpeed(STANDARD_GAME_SPEED);
     onClose();
   };
   const install = (undo: boolean) => {
@@ -470,7 +479,7 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
             {(['current', 'proposed'] as const).map((name) => (
               <div key={name} className="min-w-0">
                 <div className="mb-2 flex items-center justify-between gap-2">
-                  <h3 className="text-base font-semibold capitalize">
+                  <h3 className={`text-base font-semibold ${capitalizeIn(locale)}`}>
                     {t('planHeading', { plan: name })}
                   </h3>
                   <button
@@ -565,7 +574,7 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                 {PLANNING_DOCKS.map((name) => (
                   <button
                     key={name}
-                    className={`${buttonClass} capitalize ${dock === name ? 'bg-slate-700 text-white' : ''}`}
+                    className={`${buttonClass} ${capitalizeIn(locale)} ${dock === name ? 'bg-slate-700 text-white' : ''}`}
                     aria-pressed={dock === name}
                     onClick={() => setDock(name)}
                   >

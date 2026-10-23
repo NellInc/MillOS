@@ -9,6 +9,7 @@ import { shouldRunThisFrame } from '../../utils/frameThrottle';
 import * as THREE from 'three';
 import { selectSafetyHoldActive, useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useGraphicsStore } from '../../stores/graphicsStore';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import type { TruckAnimState } from './useTruckPhysics';
 
 // --- Animation Registries ---
@@ -177,15 +178,49 @@ export const unregisterTruckComponents = (id: string) => {
   truckComponentsRegistry.delete(id);
 };
 
+/**
+ * Whether the yard machinery clock runs: the rotation, oscillation and custom
+ * channels (jockey tractor shuttle, crane trolley and hook, wash brush,
+ * wrapper, compactor, blinking displays). They are decorative loops, so a
+ * viewer who prefers reduced motion gets them held, as dust, wind, animals
+ * and holograms already are. The 'lerp' channel (dock levellers, doors) is
+ * process state and is never held here.
+ */
+export const isYardEquipmentRunning = ({
+  gameSpeed,
+  safetyHold,
+  reducedMotion,
+}: {
+  readonly gameSpeed: number;
+  readonly safetyHold: boolean;
+  readonly reducedMotion: boolean;
+}): boolean => !reducedMotion && gameSpeed > 0 && !safetyHold;
+
+/** A pulsing lamp's emissive intensity; under reduced motion it holds at its midpoint. */
+export const yardPulseIntensity = (
+  time: number,
+  { speed = 2, min = 0.5, max = 1.0, offset = 0 }: PulseAnimData,
+  reducedMotion: boolean
+): number =>
+  min + (reducedMotion ? 0.5 : Math.sin(time * speed + offset) * 0.5 + 0.5) * (max - min);
+
+/** Truck marker lamps breathe slightly while the engine runs; held still under reduced motion. */
+export const truckMarkerLightIntensity = (time: number, reducedMotion: boolean): number =>
+  reducedMotion ? 0.4 : 0.4 + Math.sin(time * 2) * 0.1;
+
 // Centralized Animation Manager Component
 export const TruckAnimationManager: React.FC = () => {
   const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
   const graphicsQuality = useGraphicsStore((state) => state.graphics.quality);
+  const reducedMotion = useReducedMotion();
+  const reducedMotionRef = React.useRef(reducedMotion);
+  reducedMotionRef.current = reducedMotion;
   // The rotation, oscillation and custom channels (yard machinery such as the
   // jockey tractor, crane, wash brush, wrapper and compactor, plus the small
   // displays registered as custom callbacks) run on their own clock, which holds
-  // while the game is paused and during a safety hold or drill. 'pulse' lamps
-  // and the state-driven lerps stay on the wall clock.
+  // while the game is paused, during a safety hold or drill, and when the viewer
+  // prefers reduced motion. 'pulse' lamps and the state-driven lerps stay on the
+  // wall clock; under reduced motion the lamps hold at their midpoint.
   const equipmentClockRef = React.useRef(0);
 
   useFrame((state, delta) => {
@@ -193,7 +228,12 @@ export const TruckAnimationManager: React.FC = () => {
 
     const time = state.clock.elapsedTime;
     const simulation = useGameSimulationStore.getState();
-    const equipmentRunning = simulation.gameSpeed > 0 && !selectSafetyHoldActive(simulation);
+    const reduced = reducedMotionRef.current;
+    const equipmentRunning = isYardEquipmentRunning({
+      gameSpeed: simulation.gameSpeed,
+      safetyHold: selectSafetyHoldActive(simulation),
+      reducedMotion: reduced,
+    });
     if (equipmentRunning) equipmentClockRef.current += delta;
     const equipmentTime = equipmentClockRef.current;
 
@@ -256,10 +296,8 @@ export const TruckAnimationManager: React.FC = () => {
         // 2. Pulse (Emissive) Animation
         else if (anim.type === 'pulse') {
           const mat = anim.mesh as THREE.MeshStandardMaterial;
-          const { speed = 2, min = 0.5, max = 1.0, offset = 0 } = anim.data as PulseAnimData;
           if (mat) {
-            mat.emissiveIntensity =
-              min + (Math.sin(time * (speed as number) + offset) * 0.5 + 0.5) * (max - min);
+            mat.emissiveIntensity = yardPulseIntensity(time, anim.data as PulseAnimData, reduced);
           }
         }
 
@@ -398,7 +436,7 @@ export const TruckAnimationManager: React.FC = () => {
       // Marker lights pulsing when engine running
       truck.markerLightsRef.current.forEach((mat) => {
         if (mat) {
-          mat.emissiveIntensity = 0.4 + Math.sin(time * 2) * 0.1;
+          mat.emissiveIntensity = truckMarkerLightIntensity(time, reduced);
         }
       });
 

@@ -32,6 +32,19 @@ describe('elevator conveyor alignment', () => {
         (box.props.args as number[]).every((value) => Number.isFinite(value) && value > 0)
       ).toBe(true);
     expect((boxes.length + 2) * 12).toBeLessThan(900);
+    // The cross-members hang under the generated walkway surface. Their ends
+    // lay in the walkway's side planes, touching it along y -0.56 (a sliver
+    // between two surfaces); they now stop clear of those planes.
+    const walkway = named('gallery-walkway')[0].props.size as number[];
+    const members = named('gallery-cross-member');
+    expect(members.length).toBeGreaterThan(0);
+    for (const member of members) {
+      const box = (member.props.children as ReactElement<{ args?: number[] }>[]).find(
+        (node) => node.type === 'boxGeometry'
+      );
+      const [width] = box!.props.args!;
+      expect(Math.abs(walkway[0] / 2 - width / 2)).toBeGreaterThan(0.001);
+    }
   });
 
   it('joins both actual endpoints for ascending, descending and level spans', () => {

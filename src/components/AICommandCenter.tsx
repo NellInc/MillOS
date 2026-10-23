@@ -34,7 +34,7 @@ import {
   getDecisionTypeColor,
   getDecisionPriorityBadge,
 } from '../utils/decisionIcons';
-import { formatFixed, useT } from '../i18n';
+import { capitalizeIn, formatFixed, useLocale, useT } from '../i18n';
 import { aiCommandCenterMessages } from './AICommandCenter.messages';
 
 interface AICommandCenterProps {
@@ -55,6 +55,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
   embedded = false,
 }) => {
   const t = useT(aiCommandCenterMessages);
+  const locale = useLocale();
   const [activeTab, setActiveTab] = useState<'decisions' | 'strategic' | 'advisory'>('decisions');
   const [selectedDecision, setSelectedDecision] = useState<AIDecision | null>(null);
 
@@ -310,7 +311,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
             )}
             {/* Context: Weather & Shift */}
             <div className="mt-2 flex items-center justify-between text-[9px] text-slate-400">
-              <span className="capitalize">
+              <span className={capitalizeIn(locale)}>
                 {t('weather', { value: weather })} | {t('runWindow', { value: currentShift })}
               </span>
               <span>{t('efficiency', { value: formatFixed(metrics.efficiency, 0) })}</span>
@@ -427,7 +428,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
                           <span>{decision.impact}</span>
                         </div>
                         {decision.response && (
-                          <p className="mt-1 text-[9px] capitalize text-slate-400">
+                          <p className={`mt-1 text-[9px] ${capitalizeIn(locale)} text-slate-400`}>
                             {t('response', { value: decision.response.disposition })}
                           </p>
                         )}

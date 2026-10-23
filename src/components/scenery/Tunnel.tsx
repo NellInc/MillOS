@@ -1,3 +1,4 @@
+import { POLYGON_OFFSET } from '../../constants/renderLayers';
 import { GeneratedSurfaceMesh } from '../models/GeneratedGeometrySurface';
 import { InstancedTreeField, type TreeInstance } from './InstancedFoliage';
 /**
@@ -738,8 +739,8 @@ const ROAD_TUNNEL_LINE_MATERIAL = new THREE.MeshStandardMaterial({
   emissiveIntensity: 0.2,
   depthWrite: false,
   polygonOffset: true,
-  polygonOffsetFactor: -2,
-  polygonOffsetUnits: -2,
+  polygonOffsetFactor: POLYGON_OFFSET.moderate.factor,
+  polygonOffsetUnits: POLYGON_OFFSET.moderate.units,
 });
 // Soot-darkened lining. Lit, because it is matter; only the far void is unlit.
 const ROAD_TUNNEL_LINING_MATERIAL = new THREE.MeshStandardMaterial({

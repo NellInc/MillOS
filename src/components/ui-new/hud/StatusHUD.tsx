@@ -8,14 +8,20 @@ import {
   X,
   CheckCircle,
   GripVertical,
+  Wrench,
 } from 'lucide-react';
 import { computeSafetyScore, useSafetyStore } from '../../../stores/safetyStore';
 import { useFPSStore } from '../../FPSMonitor';
 import { useUIStore } from '../../../stores/uiStore';
-import { useProductionStore } from '../../../stores/productionStore';
+import { useProductionStore, wearHoldsWarning } from '../../../stores/productionStore';
+import { useBreakdownStore } from '../../../stores/breakdownStore';
+import { openRepairWorkspace } from '../openRepairWorkspace';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { useGraphicsStore } from '../../../stores/graphicsStore';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
+import { useWorkplaceStore } from '../../../stores/workplaceStore';
+import { workplaceCapacity } from '../../../simulation/bilateralWorkplace';
+import type { WorkplaceState } from '../../../types/workplace';
 import { useShallow } from 'zustand/react/shallow';
 import { formatFixed, formatGrouped, useLocale, useT } from '../../../i18n';
 import { statusHudMessages } from './StatusHUD.messages';
@@ -25,6 +31,24 @@ const SHIFT_KEYS = {
   afternoon: 'shiftAfternoon',
   night: 'shiftNight',
 } as const;
+
+/**
+ * The cooperative plan multiplies the plant rate (UnifiedGameTick), so the
+ * rate beside it says why it reads lower: its pacing while a shift runs,
+ * 'between' while a season or handoff experiment continues between shifts,
+ * null outside one. Presence follows the season, not the shift phase, so the
+ * chip does not blink out for the seconds the next shift takes to agree.
+ * Working if a 0.78 plan shows 78% while its shift runs, the gap reads as
+ * between shifts, and nothing shows once the season ends.
+ */
+function agreementPacingReading(s: WorkplaceState): number | 'between' | null {
+  if (s.mode !== 'game' || s.phase === 'idle') return null;
+  if (s.phase === 'active') return workplaceCapacity(s);
+  const continues = s.campaign
+    ? !(s.phase === 'review' && s.campaign.shift === 2)
+    : !!s.improvement && !(s.phase === 'review' && s.improvement.verdict);
+  return continues ? 'between' : null;
+}
 
 export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace: workspaceProp }) => {
   const t = useT(statusHudMessages);
@@ -65,7 +89,14 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace: workspa
       execution.finishedAvailableKg >= execution.remainingKg - 1
     );
   });
+  // Once the remainder is packed the line pre-stages the next commitment, so
+  // a zero rate then means the line is filling with that order's grain.
+  const prestagingCustomer = useOperationsCampaignStore(
+    (state) => state.execution?.lineCustomer ?? null
+  );
   const lineIdleAwaitingTruck = throughput <= 0 && orderPackedAwaitingTruck;
+  const lineChangingOver = lineIdleAwaitingTruck && !!prestagingCustomer;
+  const agreementPacing = useWorkplaceStore((state) => agreementPacingReading(state.workplace));
 
   const [showNotifications, setShowNotifications] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -81,8 +112,28 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace: workspa
   const dragStartPos = useRef({ x: 0, y: 0 });
   const elementStartPos = useRef({ x: 0, y: 0 });
 
-  // Count unacknowledged alerts
-  const unacknowledgedCount = alerts.filter((a) => !a.acknowledged).length;
+  // Count unacknowledged alerts. A success (an achievement, a finished
+  // repair) is a record, not something to act on: it is listed but never
+  // unread, so the badge only counts what needs reading.
+  // Working if two achievement unlocks leave the badge at zero.
+  const unread = (alert: (typeof alerts)[number]) =>
+    !alert.acknowledged && alert.type !== 'success';
+  const unacknowledgedCount = alerts.filter(unread).length;
+
+  // Machines a notification can send the player to repair, read live so a
+  // notice about a machine already back in service offers nothing: an open
+  // fault, a breakdown, or wear holding a warning. Joined strings keep the
+  // selectors stable while wear creeps up every tick.
+  const faultedIds = useBreakdownStore((state) =>
+    state.activeBreakdowns.map((breakdown) => breakdown.machineId).join('|')
+  );
+  const wornIds = useProductionStore((state) =>
+    state.machines
+      .filter((machine) => machine.status === 'critical' || wearHoldsWarning(machine))
+      .map((machine) => machine.id)
+      .join('|')
+  );
+  const repairableIds = new Set(`${faultedIds}|${wornIds}`.split('|').filter(Boolean));
 
   // Handle mouse down on grip
   const handleMouseDown = useCallback(
@@ -285,8 +336,14 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace: workspa
         <span className="hidden shrink-0 items-center border-r border-white/10 px-6 text-sm text-cyan-200 min-[1200px]:flex">
           {workspace}
         </span>
+        {/* On desktop the bar stays one row: a wrapped row grew it into the
+            cards below and pushed the clock under the open panel. Only the long
+            line-idle chip gives way, truncating; its full text stays in
+            aria-label and title, and the agreement reading keeps its number.
+            Working if the bar is one row at 1280 px with both chips showing,
+            in English and pt-BR. */}
         <div
-          className="flex min-w-0 flex-1 flex-wrap items-center gap-x-5 gap-y-2 px-5 py-3"
+          className="flex min-w-0 flex-1 flex-wrap items-center gap-x-5 gap-y-2 px-5 py-3 lg:flex-nowrap"
           role="group"
           aria-label={t('metricsLabel')}
         >
@@ -317,13 +374,37 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace: workspa
             <span>{t('throughputValue', { value: formatGrouped(throughput) })}</span>
           </div>
 
-          {lineIdleAwaitingTruck && (
+          {agreementPacing !== null && (
             <div
               className="flex shrink-0 items-center gap-1.5 text-[12px] text-amber-200"
-              aria-label={t('lineIdleLabel')}
-              title={t('lineIdleTitle')}
+              aria-label={
+                agreementPacing === 'between'
+                  ? t('agreementBetweenLabel')
+                  : t('agreementPacingLabel', { value: formatFixed(agreementPacing * 100, 0) })
+              }
+              title={t('agreementPacingTitle')}
             >
-              <span>{t('lineIdleText')}</span>
+              <span>
+                {agreementPacing === 'between'
+                  ? t('agreementBetweenText')
+                  : t('agreementPacingText', { value: formatFixed(agreementPacing * 100, 0) })}
+              </span>
+            </div>
+          )}
+
+          {lineIdleAwaitingTruck && (
+            <div
+              className="flex min-w-0 shrink items-center gap-1.5 text-[12px] text-amber-200"
+              aria-label={
+                lineChangingOver
+                  ? t('lineChangeoverLabel', { customer: prestagingCustomer! })
+                  : t('lineIdleLabel')
+              }
+              title={lineChangingOver ? t('lineChangeoverTitle') : t('lineIdleTitle')}
+            >
+              <span className="truncate">
+                {lineChangingOver ? t('lineChangeoverText') : t('lineIdleText')}
+              </span>
             </div>
           )}
 
@@ -443,7 +524,7 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace: workspa
                   <div
                     key={alert.id}
                     className={`p-3 border-b border-white/5 last:border-0 ${
-                      !alert.acknowledged ? 'bg-white/5' : ''
+                      unread(alert) ? 'bg-white/5' : ''
                     }`}
                   >
                     <div className="flex items-start gap-2">
@@ -475,7 +556,20 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace: workspa
                         </div>
                       </div>
                       <div className="flex gap-1">
-                        {!alert.acknowledged && (
+                        {alert.machineId && repairableIds.has(alert.machineId) && (
+                          <button
+                            onClick={() => {
+                              setShowNotifications(false);
+                              openRepairWorkspace();
+                            }}
+                            className="p-2 text-slate-400 hover:text-amber-300 transition-colors"
+                            title={t('openRepair')}
+                            aria-label={t('openRepairLabel', { title: alert.title })}
+                          >
+                            <Wrench size={12} />
+                          </button>
+                        )}
+                        {unread(alert) && (
                           <button
                             onClick={() => acknowledgeAlert(alert.id)}
                             className="p-2 text-slate-400 hover:text-green-400 transition-colors"

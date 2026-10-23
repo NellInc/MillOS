@@ -138,8 +138,10 @@ export function createMaintenanceJoinery() {
   const p: THREE.BufferGeometry[] = [gable(-4.02), gable(3.94)];
   // Gables lap onto the retained wall box; front doors overlap its plane by 2cm.
   for (const x of [-4.94, 4.94])
-    for (const z of [-3.98, 3.98]) box(p, [0.12, 5, 0.09], [x, 2.5, z], C.trim);
-  for (const z of [-4.02, 4.02]) box(p, [10, 0.22, 0.09], [0, 0.11, z], C.concrete);
+    // Trims stop under the gable (y 4.98): above it their outer face shared x +/-5 with its ends.
+    for (const z of [-3.98, 3.98]) box(p, [0.12, 4.98, 0.09], [x, 2.49, z], C.trim);
+  // Strips end 2 cm inside the corner trims, not in the plane of their outer face.
+  for (const z of [-4.02, 4.02]) box(p, [9.96, 0.22, 0.09], [0, 0.11, z], C.concrete);
   for (const x of [-5.02, 5.02]) box(p, [0.09, 0.22, 8], [x, 0.11, 0], C.concrete);
   for (const x of [-3.08, 3.08]) box(p, [0.14, 3.14, 0.16], [x, 1.57, 4.04], C.trim);
   box(p, [6.3, 0.14, 0.16], [0, 3.12, 4.04], C.trim);

@@ -11,6 +11,7 @@ export const storeMessages = defineMessages({
     alarmThreshold: '{tag}: {value}{unit}, {direction} the {threshold}{unit} limit',
     scadaAlertTitle: 'SCADA: {type}',
     alarmTypeBadQuality: 'BAD QUALITY',
+    alarmReturnedToNormal: 'Returned to normal; acknowledge to clear.',
     alarmTypeRateOfChange: 'RATE OF CHANGE',
   },
   'pt-BR': {
@@ -23,6 +24,7 @@ export const storeMessages = defineMessages({
     alarmThreshold: '{tag}: {value}{unit}, {direction} limite de {threshold}{unit}',
     scadaAlertTitle: 'SCADA: {type}',
     alarmTypeBadQuality: 'QUALIDADE RUIM',
+    alarmReturnedToNormal: 'Voltou ao normal; reconheça para limpar.',
     alarmTypeRateOfChange: 'TAXA DE VARIAÇÃO',
   },
 });

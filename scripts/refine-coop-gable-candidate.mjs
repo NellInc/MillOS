@@ -9,7 +9,7 @@ import { NodeIO } from '@gltf-transform/core';
 
 export const INPUT = 'public/models/farm/coop.glb';
 export const SOURCE = 'assets/source/models/farm/coop-tripo-original.glb';
-export const INPUT_SHA256 = 'd418d9bebc5f63a54fd79d78fb19b2939010de704b4c334b5a04238573bdbe73';
+export const INPUT_SHA256 = '59d70ebe84a1daacd63c8b9be15a07febbceb14f3c34685ec19eeab50b3aff05';
 export const SOURCE_SHA256 = 'c1c59659ffda9b0078b2f823289b0757abaf035e3df09526611af3fea55ee0b1';
 export const GABLE_FACES = Object.freeze([
   1375, 1401, 1470, 1471, 1476, 1487, 1491, 1494, 1570, 1670, 1673, 2907, 3040, 3057, 3058, 5941,

@@ -16,6 +16,9 @@ export const physicalSessionMessages = defineMessages({
     autosaveSkippedQuota:
       'Autosave skipped: browser storage is full. The shift continues and the last good save is kept.',
     autosaveSkippedMessage: 'Autosave skipped; the shift continues and the last good save is kept.',
+    autosaveStoppedTitle: 'Autosave stopped',
+    autosaveTooLarge:
+      "This shift's record has outgrown the browser save, so autosave cannot write it. The shift continues, but a reload returns to the last good save.",
     continuationFailed:
       'Scene continuation could not be restored. The saved record is retained and the clock is paused.',
     sceneWaitingTitle: 'Saved shift is waiting',
@@ -40,6 +43,9 @@ export const physicalSessionMessages = defineMessages({
       'Salvamento automático não realizado: o armazenamento do navegador está cheio. O turno continua e o último salvamento válido é mantido.',
     autosaveSkippedMessage:
       'Salvamento automático não realizado; o turno continua e o último salvamento válido é mantido.',
+    autosaveStoppedTitle: 'Salvamento automático interrompido',
+    autosaveTooLarge:
+      'O registro deste turno ficou maior do que o salvamento do navegador permite, então o salvamento automático não consegue gravá-lo. O turno continua, mas recarregar a página volta ao último salvamento válido.',
     continuationFailed:
       'Não foi possível restaurar a continuação da cena. O registro salvo foi mantido e o relógio está pausado.',
     sceneWaitingTitle: 'O turno salvo está aguardando',

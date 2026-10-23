@@ -25,6 +25,7 @@ import {
   isTacticalLayerActive,
   initializeAIEngine,
   initializeDecisionOutcomeTracking,
+  applyDecisionEffects,
 } from '../aiEngine';
 import { useProductionStore } from '../../stores/productionStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
@@ -33,6 +34,7 @@ import { cloudAIClient, type CloudResult } from '../cloudAIClient';
 import { SpendCapError } from '../spendBudget';
 import { webgpuClient } from '../webgpuClient';
 import { MachineType, AIDecision } from '../../types';
+import { setLocale } from '../../i18n';
 
 // Mock the store
 vi.mock('../../stores/productionStore', () => ({
@@ -185,6 +187,25 @@ describe('aiEngine - Core Functions', () => {
   afterEach(() => {
     singletonCleanups.splice(0).forEach((cleanup) => cleanup());
     resetShiftStats();
+  });
+
+  describe('applyDecisionEffects line rate', () => {
+    const decision = (id: string): AIDecision =>
+      ({ id, type: 'optimization', status: 'pending', machineId: 'RM-101' }) as AIDecision;
+    it('trims the line rate only for a load-balancing decision and never restarts a stopped line', () => {
+      const store = vi.mocked(useProductionStore.getState)();
+      applyDecisionEffects(decision('ai-1'), 'accepted');
+      expect(store.setProductionSpeed).toHaveBeenCalledWith(0.98);
+      vi.mocked(store.setProductionSpeed).mockClear();
+      applyDecisionEffects(decision('strategic-1-abc'), 'accepted');
+      expect(store.setProductionSpeed).not.toHaveBeenCalled();
+      vi.mocked(useProductionStore.getState).mockReturnValue({
+        ...store,
+        productionSpeed: 0,
+      } as any);
+      applyDecisionEffects(decision('ai-2'), 'accepted');
+      expect(store.setProductionSpeed).not.toHaveBeenCalled();
+    });
   });
 
   describe('generateContextAwareDecision', () => {
@@ -755,6 +776,36 @@ describe('aiEngine - Core Functions', () => {
       expect(useAIConfigStore.getState().connectionError).toMatch(/cap reached/);
     });
 
+    it('asks for Brazilian Portuguese text when the player reads pt-BR, on every backend', async () => {
+      configureStrategicLayer();
+      vi.spyOn(cloudAIClient, 'hasKey').mockReturnValue(true);
+      const cloudGenerate = vi
+        .spyOn(cloudAIClient, 'generateContent')
+        .mockResolvedValue(cloud('{"priorities":["Proteger o moinho"],"reasoning":"Carga"}'));
+      try {
+        await generateStrategicDecision();
+        expect(cloudGenerate.mock.calls[0][1]).not.toMatch(/Portuguese/);
+
+        setLocale('pt-BR');
+        await generateStrategicDecision();
+        const portuguese = cloudGenerate.mock.calls[1][1];
+        expect(portuguese).toMatch(/Brazilian Portuguese/);
+        // The output contract is unchanged: same JSON keys, ids left as they are.
+        expect(portuguese).toContain('"priorities"');
+        expect(portuguese).toMatch(/JSON keys and equipment ids unchanged/);
+
+        useAIConfigStore.setState({ llmBackend: 'webgpu', webgpuModelReady: true });
+        vi.spyOn(webgpuClient, 'isConnected').mockReturnValue(true);
+        const localGenerate = vi
+          .spyOn(webgpuClient, 'generateContent')
+          .mockResolvedValue('{"priorities":["Proteger o moinho"],"reasoning":"Carga"}');
+        await generateStrategicDecision();
+        expect(localGenerate.mock.calls[0][0]).toMatch(/Brazilian Portuguese/);
+      } finally {
+        setLocale('en');
+      }
+    });
+
     it('invalidates an old backend response and starts the newly selected backend', async () => {
       configureStrategicLayer();
       vi.spyOn(cloudAIClient, 'hasKey').mockReturnValue(true);
@@ -933,6 +984,34 @@ describe('aiEngine - Core Functions', () => {
       expect(vi.getTimerCount()).toBe(1);
       cleanup3();
       expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it('files nothing while the shift clock is held and does not burst on resume', () => {
+      const production = vi.mocked(useProductionStore.getState)();
+      const game = {
+        currentShift: 'morning',
+        weather: 'clear',
+        emergencyDrillMode: false,
+        gameSpeed: 0,
+      };
+      vi.mocked(useGameSimulationStore.getState).mockImplementation(() => game as any);
+      const cleanup = initializeAIEngine();
+      cleanups.push(cleanup);
+      singletonCleanups.push(cleanup);
+
+      // A frozen plant gets no advice, however long the player stays paused.
+      vi.advanceTimersByTime(60_000);
+      expect(production.addAIDecision).not.toHaveBeenCalled();
+
+      // Held time does not count toward the cadence, so resuming does not
+      // fire the overdue decision at once.
+      game.gameSpeed = 30;
+      vi.advanceTimersByTime(2_000);
+      expect(production.addAIDecision).not.toHaveBeenCalled();
+
+      // The cadence picks up again once the plant has run for a full interval.
+      vi.advanceTimersByTime(6_000);
+      expect(production.addAIDecision).toHaveBeenCalled();
     });
   });
 });

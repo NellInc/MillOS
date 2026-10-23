@@ -1,9 +1,11 @@
+import { POLYGON_OFFSET } from '../../constants/renderLayers';
 import React, { useEffect, useLayoutEffect, useMemo } from 'react';
 import { useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { createColorDataTexture } from '../../utils/textureGenerator';
+import { STATION_RETAIL_ART } from '../../constants/worldAssetUrls';
 
 /** Authored, stationary shop dressing in station-local metres. Five merged draws,
  * including all printed goods; the retained GLBs still own the fixtures' bodies.
@@ -13,7 +15,17 @@ import { createColorDataTexture } from '../../utils/textureGenerator';
 const DRINK_COLORS = ['#a74336', '#538145', '#ca8638', '#437c94'];
 const PACK_COLORS = ['#b54b3a', '#b68b36', '#4f7850', '#466b83', '#8e625a'];
 const TILE_SIZE = 128;
-export const STATION_RETAIL_ART = `${import.meta.env.BASE_URL}textures/signage/station-retail-raster-v1.webp`;
+// Defined in the leaf so the startup preload can name it without this module.
+export { STATION_RETAIL_ART };
+/** Station-local x shifts applied to the coffee and slush appliances, their
+ * GLB groups (GasStationInstanced) and every fitting authored on them here.
+ * The coffee machine's back corner stood 40 x 30 cm inside the drinks cabinet
+ * (the top shelf end met its top at 2.2 m); the slush machine stood 15 cm into
+ * the counter end. Each now clears its neighbour by 2 cm.
+ */
+export const STATION_APPLIANCE_SHIFT = { coffee: 0.44, slush: -0.17 } as const;
+const shiftParts = (parts: THREE.BufferGeometry[], from: number, dx: number) =>
+  parts.slice(from).forEach((part) => part.translate(dx, 0, 0));
 export const RETAIL_LIGHT = {
   position: [-10.6, 4.15, -1.2] as [number, number, number],
   intensity: 48,
@@ -134,8 +146,8 @@ const DISPLAY_MATERIAL = new THREE.MeshBasicMaterial({
   map: atlas,
   vertexColors: true,
   polygonOffset: true,
-  polygonOffsetFactor: -1,
-  polygonOffsetUnits: -1,
+  polygonOffsetFactor: POLYGON_OFFSET.standard.factor,
+  polygonOffsetUnits: POLYGON_OFFSET.standard.units,
 });
 
 type V3 = [number, number, number];
@@ -352,12 +364,14 @@ function createPrintGeometry() {
         [0.048, 0.494],
       ],
       '#e8ddbf',
-      [-9.47, 0, -3.5]
+      [-9.47 + STATION_APPLIANCE_SHIFT.coffee, 0, -3.5]
     )
   );
   parts.push(
     styled(
-      new THREE.CircleGeometry(0.063, 16).rotateX(-Math.PI / 2).translate(-9.47, 0.615, -3.5),
+      new THREE.CircleGeometry(0.063, 16)
+        .rotateX(-Math.PI / 2)
+        .translate(-9.47 + STATION_APPLIANCE_SHIFT.coffee, 0.615, -3.5),
       '#493425'
     )
   );
@@ -407,9 +421,10 @@ function createHardwareGeometry() {
     b([0.035, 0.62, 0.024], [-8.237, 0.56, z], '#3e3830', 0.003);
     b([0.028, 0.026, 0.72], [-8.239, 0.86, z], '#8b7655', 0.003);
   }
-  b([0.025, 0.04, 2.53], [-8.208, 1.025, -1], metal);
+  b([0.025, 0.044, 2.53], [-8.208, 1.025, -1], metal);
   // Magazine display ledges support all three visible issues.
   for (let i = 0; i < 3; i++) b([0.66, 0.022, 0.078], [-10.5, 0.118 + i * 0.34, 3.24], '#aa9670');
+  const coffeeStart = p.length;
   // Coffee fascia, dosing head, drip grille and seated cup platform, facing +X.
   // The delivered housing owns the actual recessed bay; don't cover it with
   // a flat opaque fascia. Working if the spouts remain in front of that recess.
@@ -435,11 +450,13 @@ function createHardwareGeometry() {
     b([0.013, 0.018, 0.38], [-9.589, 0.125 + i * 0.035, -3.5], black, 0.001);
   for (const z of [-3.64, -3.36]) b([0.025, 0.045, 0.045], [-9.567, 1.23, z], '#d4cbb3');
   for (const z of [-3.84, -3.16]) b([0.025, 1.88, 0.018], [-9.597, 1.1, z], metal, 0.003);
+  shiftParts(p, coffeeStart, STATION_APPLIANCE_SHIFT.coffee);
   // Till drawer seam and side vents sit below the sloping operator deck.
   b([0.004, 0.011, 0.35], [-9.252, 1.095, -1], black, 0.001);
   b([0.008, 0.017, 0.1], [-9.257, 1.082, -1], metal, 0.002);
   for (let i = 0; i < 5; i++)
     b([0.13, 0.006, 0.003], [-9.01, 1.112 + i * 0.018, -1.202], black, 0.001);
+  const slushStart = p.length;
   // Twin cylindrical slush hoppers, domed lids, collars and tapered tap heads.
   for (const x of [-10.15, -9.85]) {
     p.push(
@@ -474,6 +491,7 @@ function createHardwareGeometry() {
   b([0.66, 0.075, 0.24], [-10, 0.684, -1.76], black, 0.012);
   for (let i = 0; i < 10; i++)
     b([0.027, 0.009, 0.21], [-10.28 + i * 0.062, 0.726, -1.76], metal, 0.002);
+  shiftParts(p, slushStart, STATION_APPLIANCE_SHIFT.slush);
   // The grill used to float at y=.7. This toe-recessed cupboard seats it on the floor.
   b([0.58, 0.57, 0.47], [-10, 0.395, -0.5], orange, 0.013);
   b([0.51, 0.1, 0.4], [-10, 0.13, -0.5], black);
@@ -513,7 +531,7 @@ function createHardwareGeometry() {
 }
 function createGlassGeometry() {
   const p: THREE.BufferGeometry[] = [];
-  for (const x of [-10.15, -9.85])
+  for (const x of [-10.15, -9.85].map((x) => x + STATION_APPLIANCE_SHIFT.slush))
     p.push(
       styled(
         new THREE.CylinderGeometry(0.121, 0.121, 0.55, 16, 1, true).translate(x, 1.312, -1.9),
@@ -541,20 +559,22 @@ function createGlassGeometry() {
 }
 function createSlushGeometry() {
   return joined(
-    [-10.15, -9.85].map((x, i) =>
-      lathe(
-        [
-          [0, 1.042],
-          [0.095, 1.042],
-          [0.107, 1.064],
-          [0.107, 1.465],
-          [0.084, 1.478],
-          [0, 1.493],
-        ],
-        i === 0 ? '#b94743' : '#407f9e',
-        [x, 0, -1.9]
+    [-10.15, -9.85]
+      .map((x) => x + STATION_APPLIANCE_SHIFT.slush)
+      .map((x, i) =>
+        lathe(
+          [
+            [0, 1.042],
+            [0.095, 1.042],
+            [0.107, 1.064],
+            [0.107, 1.465],
+            [0.084, 1.478],
+            [0, 1.493],
+          ],
+          i === 0 ? '#b94743' : '#407f9e',
+          [x, 0, -1.9]
+        )
       )
-    )
   );
 }
 export const RETAIL_GEOMETRY = {
@@ -564,7 +584,7 @@ export const RETAIL_GEOMETRY = {
   slush: createSlushGeometry(),
   displays: joined([
     label(0.3, 0.2, [-8.739, 1.235, -1], 14, Math.PI / 2),
-    label(0.36, 0.44, [-9.588, 1.5, -3.5], 15, Math.PI / 2),
+    label(0.36, 0.44, [-9.588 + STATION_APPLIANCE_SHIFT.coffee, 1.5, -3.5], 15, Math.PI / 2),
   ]),
 };
 

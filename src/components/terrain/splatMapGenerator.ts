@@ -120,6 +120,10 @@ function pixelToWorld(
   return { worldX, worldZ };
 }
 
+/** Keep-out margin beyond a region's shape for relief and dressing, metres. */
+export const regionClearance = (region: TerrainRegion): number =>
+  region.clearance ?? region.edgeSoftness ?? 0;
+
 /**
  * MillOS terrain regions - defines what material goes where
  *
@@ -133,11 +137,18 @@ export const MILLOS_TERRAIN_REGIONS: TerrainRegion[] = [
   // ============================================
   // FACTORY PERIMETER - Central asphalt area
   // ============================================
+  // HARD-EDGED and kerbed (`exterior/perimeterKerbLayout.ts`). It was 3.5 m soft,
+  // which the height blend could only interlock, never cut: the art judge read
+  // a ~150 px airbrushed band where the yard met the grass. The splat now
+  // steps at the edge, the bilinear filter leaves about a texel of ramp, and
+  // the kerb strip is laid over that ramp. The meadow, trees and rocks keep
+  // the old 3.5 m margin through `clearance`, so nothing else moves.
   {
     channel: TerrainChannel.ASPHALT,
     shape: { type: 'rect', x: 0, z: 0, width: 200, height: 180 },
     intensity: 1,
-    edgeSoftness: 3.5,
+    edgeSoftness: 0,
+    clearance: 3.5,
     priority: 10,
   },
 
@@ -799,7 +810,7 @@ export function sampleValleyRelief(x: number, z: number): number {
     if (region.channel !== TerrainChannel.GRASS) {
       clearance = Math.min(
         clearance,
-        signedDistanceToShape(x, z, region.shape) - (region.edgeSoftness ?? 0)
+        signedDistanceToShape(x, z, region.shape) - regionClearance(region)
       );
     }
   }
@@ -839,6 +850,81 @@ export function sampleValleyGroundHeight(x: number, z: number, segments: number)
 }
 
 /**
+ * `sampleValleyRelief` at terrain grid vertex (column, row), remembered per
+ * segment count. Every prop, path, tree and collider grounded at startup reads
+ * the four corners of its cell through `sampleTerrainGroundHeight`, and a
+ * relief evaluation is ~20 shape distances, so the same few thousand vertices
+ * were recomputed some hundreds of thousands of times on the main thread. The
+ * stored value is the very call it replaces (same arguments, same double,
+ * `-0` included), so a remembered vertex cannot differ from a fresh one.
+ * Anything off the grid, or a segment count that is not a sane integer, is
+ * computed directly.
+ * Working if a second pass over the same points evaluates no relief at all.
+ */
+const MAX_REMEMBERED_SEGMENTS = 1024;
+const gridReliefBySegments = new Map<number, Float64Array>();
+
+function gridVertexRelief(
+  column: number,
+  row: number,
+  segments: number,
+  stepX: number,
+  stepZ: number
+): number {
+  const relief = () =>
+    sampleValleyRelief(TERRAIN_BOUNDS.minX + column * stepX, TERRAIN_BOUNDS.minZ + row * stepZ);
+  // `ix + 1` reaches segments + 1 on the far edge, so the grid is one wider.
+  const span = segments + 2;
+  if (
+    !Number.isInteger(segments) ||
+    segments < 1 ||
+    segments > MAX_REMEMBERED_SEGMENTS ||
+    !Number.isInteger(column) ||
+    !Number.isInteger(row) ||
+    column < 0 ||
+    row < 0 ||
+    column >= span ||
+    row >= span
+  )
+    return relief();
+  let grid = gridReliefBySegments.get(segments);
+  if (!grid) {
+    grid = new Float64Array(span * span).fill(Number.NaN);
+    gridReliefBySegments.set(segments, grid);
+  }
+  const slot = row * span + column;
+  const remembered = grid[slot];
+  if (!Number.isNaN(remembered)) return remembered;
+  return (grid[slot] = relief());
+}
+
+/**
+ * `sampleValleyRelief(x, z)` for a terrain mesh vertex that claims to be grid
+ * vertex (column, row) at this segment count. The remembered grid value is
+ * used only when (x, z) are `Object.is`-equal to the doubles the grid itself
+ * evaluates, so the result is the same call either way; any other point (a
+ * mesh not laid over `TERRAIN_BOUNDS`, a rounded coordinate) is computed
+ * directly. The 1200 m terrain meshes at 64 and 128 segments land exactly:
+ * their float32 vertex coordinates are multiples of 18.75 or 9.375 m.
+ */
+export function sampleValleyReliefAtGridVertex(
+  x: number,
+  z: number,
+  column: number,
+  row: number,
+  segments: number
+): number {
+  const stepX = (TERRAIN_BOUNDS.maxX - TERRAIN_BOUNDS.minX) / segments;
+  const stepZ = (TERRAIN_BOUNDS.maxZ - TERRAIN_BOUNDS.minZ) / segments;
+  if (
+    Object.is(x, TERRAIN_BOUNDS.minX + column * stepX) &&
+    Object.is(z, TERRAIN_BOUNDS.minZ + row * stepZ)
+  )
+    return gridVertexRelief(column, row, segments, stepX, stepZ);
+  return sampleValleyRelief(x, z);
+}
+
+/**
  * Height of the terrain mesh itself: the river canyon AND the meadow relief,
  * over the same triangles. `createDisplacedGeometry` carves the canyon from
  * `getRiverHeightfield` with a 25 m bank, which `sampleValleyGroundHeight`
@@ -868,10 +954,7 @@ export function sampleTerrainGroundHeight(
     const px = Math.floor((column / segments) * (resolution - 1));
     const py = Math.floor((1 - row / segments) * (resolution - 1));
     const canyon = (data[(py * resolution + px) * 4] / 255 - 1) * config.depth;
-    return (
-      canyon +
-      sampleValleyRelief(TERRAIN_BOUNDS.minX + column * stepX, TERRAIN_BOUNDS.minZ + row * stepZ)
-    );
+    return canyon + gridVertexRelief(column, row, segments, stepX, stepZ);
   };
   const a = vertex(ix, iz);
   const b = vertex(ix, iz + 1);

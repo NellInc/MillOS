@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { STANDARD_GAME_SPEED } from '../../simulation/pace';
 import { resetUnifiedTickState, unifiedGameTick } from '../UnifiedGameTick';
 import type { TickContext } from '../CentralTickSystem';
 import { useMaterialFlowStore } from '../../stores/materialFlowStore';
@@ -12,11 +13,14 @@ import {
 } from '../../stores/logisticsLayoutStore';
 import { currentLogisticsLayout, logisticsLoadingRate } from '../../simulation/layoutPlanning';
 import { useProductionStore } from '../../stores/productionStore';
+import { dispatchBlockText } from '../../stores/dispatchBlockText';
+import { setLocale } from '../../i18n';
 
+// Standard pace: one real second is one plant second (src/simulation/pace.ts).
 const tickContext: TickContext = {
   deltaSeconds: 0.1,
   gameTime: 0,
-  gameSpeed: 1,
+  gameSpeed: STANDARD_GAME_SPEED,
   elapsedTime: 0,
   tickCount: 0,
 };
@@ -151,6 +155,37 @@ describe('UnifiedGameTick shipping quality interlock', () => {
     expect(Math.abs(useMaterialFlowStore.getState().getMaterialBalance().errorKg)).toBeLessThan(
       0.001
     );
+  });
+
+  it('shows the reason an empty truck left in the language active now', () => {
+    const trucks = useTruckScheduleStore.getState();
+    trucks.setTruckDocked('shipping', true);
+    trucks.setTruckTransferReady('shipping', true);
+    for (let index = 0; index < 20; index++)
+      unifiedGameTick({ ...tickContext, deltaSeconds: 0.5, tickCount: index + 1 });
+    useQCLabStore.getState().updateCertificationStatus('expired');
+    trucks.setTruckTransferReady('shipping', false);
+    unifiedGameTick({ ...tickContext, tickCount: 21 });
+    trucks.recordTruckDeparture('shipping', 30);
+    unifiedGameTick({ ...tickContext, tickCount: 22 });
+    try {
+      // The departed state is not recomputed until the next truck docks.
+      setLocale('pt-BR');
+      unifiedGameTick({ ...tickContext, tickCount: 23 });
+      const load = useOperationsCampaignStore.getState().execution.dispatchLoad;
+      expect(load.status).toBe('departed');
+      expect(dispatchBlockText(load)).toBe('A certificação de qualidade está vencida.');
+    } finally {
+      setLocale('en');
+    }
+    // A load saved before reason codes existed keeps its stored text.
+    expect(
+      dispatchBlockText({
+        ...useOperationsCampaignStore.getState().execution.dispatchLoad,
+        blockCode: undefined,
+        blockReason: 'Stored reason.',
+      })
+    ).toBe('Stored reason.');
   });
 
   it('describes unavailable recipe stock as a supply wait rather than a quality alarm', () => {

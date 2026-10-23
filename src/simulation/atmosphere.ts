@@ -34,7 +34,10 @@ export interface CelestialState {
   moonDirection: [number, number, number];
   sunOpacity: number;
   moonOpacity: number;
+  /** The bright stars and planets: out from civil twilight. */
   starOpacity: number;
+  /** The faint field: only once the sky is properly dark (below about -12 degrees). */
+  faintStarOpacity: number;
   goldenHour: number;
   sunLightIntensity: number;
   moonLightIntensity: number;
@@ -46,6 +49,45 @@ const smoothstep = (edge0: number, edge1: number, value: number): number => {
   const t = clamp01((value - edge0) / (edge1 - edge0));
   return t * t * (3 - 2 * t);
 };
+
+/**
+ * How overcast the sky is, 0 for fair weather to 1 for a closed storm deck.
+ *
+ * Clear (0.20) is exactly 0, so nothing downstream of this moves in clear
+ * weather. Rain (0.74) is 0.71 and storm (0.90) is 1. Before this, weather only
+ * DIMMED the scene through `lightMultiplier`: the rain capture kept a visible
+ * sun disc, a blue sky and crisp full-strength shadows - a darker clear noon.
+ */
+export function getOvercastWeight(cloudCoverage: number): number {
+  return Number.isFinite(cloudCoverage) ? smoothstep(0.45, 0.9, cloudCoverage) : 0;
+}
+
+/**
+ * How closed the cloud deck is: 0 up to cloudy's 0.52 cover, 1 from 0.72, so
+ * rain (0.74) and storm (0.90) are a closed grey deck with no blue and no
+ * solar disc, and clear and cloudy skies are exactly unchanged. Below it,
+ * `getOvercastWeight` still greys and diffuses partial cloud by degree.
+ */
+export function getOvercastDeck(cloudCoverage: number): number {
+  return Number.isFinite(cloudCoverage) ? smoothstep(0.55, 0.72, cloudCoverage) : 0;
+}
+
+/**
+ * Share of the direct sun a cloud deck scatters into sky fill: exactly 0 in
+ * fair weather (overcast weight 0 at clear's 0.20 cover), 0.75 under rain and
+ * 0.92 under a storm deck.
+ *
+ * Rain used to scatter 0.6 of the overcast weight (0.43), keeping 57% of its
+ * key: noon rain still threw hard-edged shadows under the tanks and hard
+ * sunlit skylight patches across the hall floor (final4/final5-med-rain
+ * tank-farm, packing, interior, milling). A rain deck is a broad, diffuse
+ * source. The roof shadows the hall through the shadow map, so the key is
+ * moved into the fill rather than the shadow faded: fading it would light the
+ * floor under the roof.
+ */
+export function overcastKeyScatter(cloudCoverage: number): number {
+  return Math.min(0.92, 1.05 * getOvercastWeight(cloudCoverage));
+}
 
 /**
  * The weather contribution, hoisted out of `sampleAtmosphere`.
@@ -188,6 +230,7 @@ export function createCelestialState(): CelestialState {
     sunOpacity: 1,
     moonOpacity: 0,
     starOpacity: 0,
+    faintStarOpacity: 0,
     goldenHour: 0,
     // Seeded at the clear-noon values `sampleCelestial` produces, so the very
     // first frame is already on the shipping key/fill ratio instead of easing
@@ -226,11 +269,22 @@ export function sampleCelestial(
   const goldenHour =
     sunVisibility * (1 - smoothstep(0.08, 0.52, Math.max(0, atmosphere.solarElevation)));
 
-  target.sunOpacity = sunVisibility * (1 - atmosphere.cloudCoverage * 0.42);
-  target.moonOpacity = moonVisibility * (0.94 - atmosphere.cloudCoverage * 0.34);
+  const overcast = getOvercastWeight(atmosphere.cloudCoverage);
+  // A closed deck (rain, storm) hides the disc, the moon and the stars outright;
+  // broken cloud only veils them. `getOvercastDeck` is exactly 0 in clear and
+  // cloudy weather, so those skies are unchanged.
+  const open = 1 - getOvercastDeck(atmosphere.cloudCoverage);
+  target.sunOpacity =
+    sunVisibility * (1 - atmosphere.cloudCoverage * 0.42) * (1 - overcast) * (1 - overcast) * open;
+  target.moonOpacity = moonVisibility * (0.94 - atmosphere.cloudCoverage * 0.34) * open;
   // Solar luminance, rather than weather-darkened world light, prevents
   // stars appearing at midday during a storm. Cloud cover still veils them.
-  target.starOpacity = Math.pow(1 - atmosphere.daylight, 1.65) * 0.9 * clearSkyFactor;
+  target.starOpacity = Math.pow(1 - atmosphere.daylight, 1.65) * 0.9 * clearSkyFactor * open;
+  // The sun model sets at 18:00 and is 15 degrees down at 19:00: nautical
+  // twilight, when the bright stars are out but the faint field is not. The
+  // single curve above had the whole field at 0.70 by then.
+  target.faintStarOpacity =
+    target.starOpacity * smoothstep(-0.21, -0.35, atmosphere.solarElevation);
   target.goldenHour = goldenHour;
   // KEY AND FILL ARE ONE DECISION, NOT TWO.
   //
@@ -244,9 +298,28 @@ export function sampleCelestial(
   // material). Anything that reads these numbers is reading a lighting ratio,
   // not an absolute brightness: `constants/colorGrade.ts` owns the exposure
   // that maps them to the display.
-  target.sunLightIntensity = sunVisibility * (0.15 + visualDaylight * 2.95);
-  target.moonLightIntensity = moonVisibility * (1 - atmosphere.daylight) * 0.48 * clearSkyFactor;
+  //
+  // OVERCAST MOVES LIGHT FROM THE KEY INTO THE FILL. A cloud deck scatters the
+  // sun, it does not just dim it: rain keeps about a quarter of its key and
+  // returns the rest as sky fill (`overcastKeyScatter`), so its shadows are
+  // faint and soft and the skylights cast no hard patches. The fill takes
+  // 0.9 of the scattered daylight (0.5 dimmed a rain slab by a third).
+  const scattered = overcastKeyScatter(atmosphere.cloudCoverage);
+  target.sunLightIntensity = sunVisibility * (0.15 + visualDaylight * 2.95) * (1 - scattered);
+  // A low moon shines through several air masses and through the hall's side
+  // glazing at a raking angle; at 19:00 (15 degrees up) it threw full-strength
+  // window shafts across the packing floor. Extinction ramps it in with height.
+  const moonElevation = -atmosphere.solarElevation;
+  target.moonLightIntensity =
+    moonVisibility *
+    (1 - atmosphere.daylight) *
+    0.48 *
+    clearSkyFactor *
+    smoothstep(0.08, 0.5, moonElevation);
   target.ambientLightIntensity =
-    0.1 + visualDaylight * 0.12 + moonVisibility * (1 - atmosphere.daylight) * 0.06;
+    0.1 +
+    visualDaylight * 0.12 +
+    scattered * visualDaylight * 0.9 +
+    moonVisibility * (1 - atmosphere.daylight) * 0.06;
   return target;
 }

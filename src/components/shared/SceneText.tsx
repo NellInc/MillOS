@@ -2,6 +2,7 @@ import { Text } from '@react-three/drei';
 import { forwardRef, useCallback } from 'react';
 import type { ComponentProps, ComponentRef } from 'react';
 import * as THREE from 'three';
+import { POLYGON_OFFSET } from '../../constants/renderLayers';
 
 /**
  * Drop-in replacement for drei's <Text> that defaults to a SELF-HOSTED font.
@@ -107,11 +108,81 @@ const PAINTED_TEXT_MATERIAL = new THREE.MeshStandardMaterial({
 });
 
 /**
+ * The same paint, biased like the yard markings it sits among
+ * (`POLYGON_OFFSET.exteriorOverlay`). A ground label at
+ * `EXTERIOR_LAYERS.groundOverlay` is only 1 cm above the ground datum, and with
+ * no bias of its own it loses to a biased surface such as the dock apron
+ * (`exteriorTop` -1) beyond about 5.5 m on medium. troika derives its text
+ * material with `Object.create(base)`, but rewrites the offset from its own
+ * `depthOffset` before every draw, so the bias must also travel as
+ * `depthOffset` (`sceneTextDepthOffset`); on the material alone it never ran.
+ */
+const PAINTED_GROUND_TEXT_MATERIAL = PAINTED_TEXT_MATERIAL.clone();
+PAINTED_GROUND_TEXT_MATERIAL.polygonOffset = true;
+PAINTED_GROUND_TEXT_MATERIAL.polygonOffsetFactor = POLYGON_OFFSET.exteriorOverlay.factor;
+PAINTED_GROUND_TEXT_MATERIAL.polygonOffsetUnits = POLYGON_OFFSET.exteriorOverlay.units;
+
+export const SCENE_TEXT_MATERIALS: Record<SceneTextSurface, THREE.Material | undefined> = {
+  unlit: undefined,
+  painted: PAINTED_TEXT_MATERIAL,
+  'painted-ground': PAINTED_GROUND_TEXT_MATERIAL,
+};
+
+/**
  * `unlit` (default) keeps troika's basic material - status readouts, signage
  * that is internally illuminated, anything that must stay legible after dark.
  * `painted` is for text that represents PAINT on a surface.
+ * `painted-ground` is paint on a biased exterior ground surface (the dock
+ * apron, the approach road): painted, plus the overlay bias.
  */
-export type SceneTextSurface = 'unlit' | 'painted';
+export type SceneTextSurface = 'unlit' | 'painted' | 'painted-ground';
+
+/**
+ * The bias a surface's labels are drawn with, as troika's `depthOffset`.
+ *
+ * troika's `_prepareForRender` writes `polygonOffset = !!depthOffset` and both
+ * offsets from `depthOffset` onto the derived material before every draw, so
+ * the bias on `PAINTED_GROUND_TEXT_MATERIAL` never reached the GPU: the KEEP
+ * CLEAR label, 1 cm over an apron biased -1, lost "KEEP" to the apron in the
+ * oblique dock view. The bias has to travel as `depthOffset`, which troika
+ * applies to factor and units alike (the overlay preset's are equal).
+ */
+export function sceneTextDepthOffset(surface: SceneTextSurface): number | undefined {
+  return surface === 'painted-ground' ? POLYGON_OFFSET.exteriorOverlay.factor : undefined;
+}
+
+/**
+ * Drawing-buffer rows an em needs before troika's SDF glyphs hold together.
+ * The shipping forklift's 0.17 m tag at ~50 m from `milling` was three rows an
+ * em on Medium and read "F.T01 SHIPP NS" (final4 med-12): strokes thinner than
+ * a texel's footprint drop in and out instead of shrinking.
+ */
+export const SCENE_TEXT_MIN_EM_PIXELS = 10;
+/** Hysteresis on that threshold, so a label at the edge cannot flicker. */
+const SCENE_TEXT_HYSTERESIS = 0.85;
+
+/** An em of `fontSize` metres at `distance`, in drawing-buffer rows. */
+export function sceneTextEmPixels(
+  fontSize: number,
+  distance: number,
+  bufferRows: number,
+  fovDegrees: number
+): number {
+  const halfHeight = Math.max(distance, 1e-3) * Math.tan((fovDegrees * Math.PI) / 360);
+  return (fontSize * bufferRows) / (2 * halfHeight);
+}
+
+/** Whether a label can be read at this size; `wasVisible` applies the hysteresis. */
+export function sceneTextLegible(
+  fontSize: number,
+  distance: number,
+  bufferRows: number,
+  fovDegrees: number,
+  wasVisible: boolean
+): boolean {
+  const threshold = SCENE_TEXT_MIN_EM_PIXELS * (wasVisible ? SCENE_TEXT_HYSTERESIS : 1);
+  return sceneTextEmPixels(fontSize, distance, bufferRows, fovDegrees) >= threshold;
+}
 
 type SceneTextProps = ComponentProps<typeof Text> & {
   surface?: SceneTextSurface;
@@ -134,7 +205,8 @@ export const SceneText = forwardRef<ComponentRef<typeof Text>, SceneTextProps>(f
     <Text
       ref={attachRef}
       {...props}
-      material={material ?? (surface === 'painted' ? PAINTED_TEXT_MATERIAL : undefined)}
+      material={material ?? SCENE_TEXT_MATERIALS[surface]}
+      depthOffset={props.depthOffset ?? sceneTextDepthOffset(surface)}
       font={font ?? DEFAULT_3D_FONT}
     />
   );

@@ -31,6 +31,18 @@ import {
 
 export type FoliageKind = 'broadleaf' | 'needle';
 
+/**
+ * Leaf atlas size per kind, shared by `InstancedFoliage` and the startup bake
+ * recipe that builds the same atlases off the main thread. A 384 px broadleaf
+ * atlas keeps 192 px per authored cell, well above the feature and mip floor,
+ * while avoiding 44% of the synchronous texel work and memory of the former
+ * 512 px map during first-world hydration.
+ */
+export const FOLIAGE_ATLAS_SIZE: Readonly<Record<FoliageKind, number>> = {
+  broadleaf: 384,
+  needle: 256,
+};
+
 /** One cutoff for visible leaves and their wind-synchronised shadows. */
 export const FOLIAGE_ALPHA_TEST = 0.4;
 const LEAF_ALPHA_BYTE = Math.ceil(FOLIAGE_ALPHA_TEST * 255);

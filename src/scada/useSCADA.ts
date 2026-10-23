@@ -457,13 +457,15 @@ export function useSCADA(): UseSCADAReturn {
     [state.isConnected]
   );
 
-  // Write setpoint
+  // Write setpoint: a write through the UI is the operator's decision. Only
+  // the local SimulationAdapter is writable from here, as on the agent path
+  // (scada.write-setpoint): live and hybrid external writes stay denied.
   const writeSetpoint = useCallback(
     async (tagId: string, value: number): Promise<boolean> => {
-      if (!state.isConnected) return false;
-      return getSCADAService().writeSetpoint(tagId, value);
+      if (!state.isConnected || state.mode !== 'simulation') return false;
+      return getSCADAService().writeSetpoint(tagId, value, 'operator');
     },
-    [state.isConnected]
+    [state.isConnected, state.mode]
   );
 
   // Fault injection

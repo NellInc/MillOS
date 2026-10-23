@@ -1,3 +1,4 @@
+import { POLYGON_OFFSET } from '../../constants/renderLayers';
 import React, { useEffect, useLayoutEffect, useMemo } from 'react';
 import { useTexture } from '@react-three/drei';
 import * as THREE from 'three';
@@ -8,13 +9,15 @@ import {
   createLinearDataTexture,
   hash,
 } from '../../utils/textureGenerator';
+import { STATION_SOUVENIR_ART } from '../../constants/worldAssetUrls';
 
 /** Static shop souvenirs, in station-local metres. The source counter/rack keep
  * their bodies. Seven material batches, one shared print atlas, no new light,
  * audio, update loop or purchase authority. Feet meet the actual GLB tops.
  * Working if all props remain in these three seats and the doorway stays clear. */
 type V3 = [number, number, number];
-export const STATION_SOUVENIR_ART = `${import.meta.env.BASE_URL}textures/signage/dead-dino-shop-kit-v1.webp`;
+// Defined in the leaf so the startup preload can name it without this module.
+export { STATION_SOUVENIR_ART };
 export const SOUVENIR_SEATS = {
   counter: { centre: [-8.97, 1.045, -0.04] as V3, size: [0.74, 0.029, 0.46] as V3 },
   rack: { centre: [-10.5, 1.2, 3] as V3, size: [0.78, 0.88, 0.39] as V3 },
@@ -403,7 +406,7 @@ function createKitGeometry() {
   for (const x of [-10.87, -10.13])
     add('timber', [0.025, 0.843, 0.025], [x, 1.6515, 2.823], '#aa7a4a');
   add('timber', [0.78, 0.024, 0.39], [-10.5, 1.638, 3], '#b78c61');
-  add('timber', [0.78, 0.035, 0.014], [-10.5, 1.656, 3.188], '#aa7a4a');
+  add('timber', [0.78, 0.035, 0.014], [-10.5, 1.656, 3.192], '#aa7a4a');
   for (const x of [-10.75, -10.51]) {
     p.ceramic.push(createSouvenirMugGeometry([x, 1.65, 3.035]));
     p.prints.push(
@@ -438,15 +441,18 @@ function createKitGeometry() {
   add('timber', [0.89, 0.135, 0.016], [-11.1, 0.9, -2.518], '#aa7a4a');
   add('metal', [0.16, 0.015, 0.018], [-11.1, 0.906, -2.506], '#c5b695');
   // A folded linen cloth with a narrow green woven edge beneath the service kit.
+  // The edge is a hem beside the folds, the full cloth height, rather than a
+  // strip laid 0.3 mm over them: stacked, green and cream shared a depth in
+  // this one draw. Working if no green face lies over or under a cream one.
   for (let i = 0; i < 3; i++)
     add(
       'paper',
-      [0.91 - i * 0.004, 0.0007, 0.5 - i * 0.004],
-      [-11.1, 1.01535 + i * 0.0007, -2.8],
+      [0.91 - i * 0.004, 0.0007, 0.4785 - i * 0.002],
+      [-11.1, 1.01535 + i * 0.0007, -2.81075 + i * 0.001],
       CREAM,
       0.00015
     );
-  add('paper', [0.9, 0.0003, 0.013], [-11.1, 1.01725, -2.565], JADE, 0.00007);
+  add('paper', [0.91, 0.0021, 0.013], [-11.1, 1.01605, -2.565], JADE, 0.0003);
   // Fitted serving tray, two scored pastries, six biscuits and serving tongs.
   for (const x of [-11.48, -11.18])
     for (const z of [-2.9, -2.68]) add('paper', [0.02, 0.002, 0.02], [x, 1.0184, z], INK, 0.0004);
@@ -524,7 +530,7 @@ function createKitGeometry() {
         INK
       )
     );
-    add('paper', [0.014, 0.001, 0.005], [-10.82, 1.167, z + 0.024], '#061e18', 0.0003);
+    add('paper', [0.014, 0.004, 0.005], [-10.82, 1.1674, z + 0.024], '#061e18', 0.0003);
   }
   p.ceramic.push(
     lathe(
@@ -586,8 +592,8 @@ export const StationSouvenirs = React.memo(() => {
         vertexColors: true,
         roughness: 0.72,
         polygonOffset: true,
-        polygonOffsetFactor: -1,
-        polygonOffsetUnits: -1,
+        polygonOffsetFactor: POLYGON_OFFSET.standard.factor,
+        polygonOffsetUnits: POLYGON_OFFSET.standard.units,
       }),
     [texture]
   );

@@ -51,6 +51,11 @@ export interface PerfDebugSettings {
   /** Same-page optical cost controls, never lower a preset to obtain a pass. */
   disableAmbientOcclusion: boolean;
   disableBloom: boolean;
+  /** Same-page AA controls: the composer's SMAA pass and its MSAA samples. */
+  disableSMAA: boolean;
+  disableComposerMsaa: boolean;
+  /** Same-page control for the grade's black toe (`DISPLAY_TOE`): stock contrast when true. */
+  disableDisplayToe: boolean;
   disableAllAnimations: boolean; // Master toggle - disable all useFrame hooks
   showPerfOverlay: boolean; // Show performance metrics overlay
 }
@@ -202,6 +207,9 @@ const DEFAULT_PERF_DEBUG: PerfDebugSettings = {
   disableSurfaceTreatment: false,
   disableAmbientOcclusion: false,
   disableBloom: false,
+  disableSMAA: false,
+  disableComposerMsaa: false,
+  disableDisplayToe: false,
   disableAllAnimations: false,
   showPerfOverlay: false,
 };
@@ -618,10 +626,33 @@ export function isPostProcessingActive(graphics: PostProcessingFlags): boolean {
   );
 }
 
+/**
+ * A tier applied automatically (adaptive) for one session, and the explicit
+ * choice it displaced. Persisted beside `graphics` so the next session can put
+ * that choice back; owned here so one store holds all graphics state.
+ */
+export interface SessionTierRecord {
+  applied: GraphicsQuality;
+  restoreTo: GraphicsQuality;
+}
+
+const isGraphicsQuality = (value: unknown): value is GraphicsQuality =>
+  value === 'low' || value === 'medium' || value === 'high' || value === 'ultra';
+
+export function sanitizeSessionTier(value: unknown): SessionTierRecord | null {
+  if (!value || typeof value !== 'object') return null;
+  const record = value as Partial<SessionTierRecord>;
+  return isGraphicsQuality(record.applied) && isGraphicsQuality(record.restoreTo)
+    ? { applied: record.applied, restoreTo: record.restoreTo }
+    : null;
+}
+
 interface GraphicsStore {
   graphics: GraphicsSettings;
   // Ephemeral explicit intent, including reselecting the current tier.
   qualityChoiceRevision: number;
+  sessionTier: SessionTierRecord | null;
+  setSessionTier: (record: SessionTierRecord | null) => void;
   setGraphicsQuality: (quality: GraphicsQuality, origin?: 'manual' | 'adaptive') => void;
   setGraphicsSetting: <K extends keyof GraphicsSettings>(
     key: K,
@@ -640,6 +671,8 @@ export const useGraphicsStore = create<GraphicsStore>()(
       // Graphics settings - default to medium for better visuals
       graphics: GRAPHICS_PRESETS.medium,
       qualityChoiceRevision: 0,
+      sessionTier: null,
+      setSessionTier: (record) => set({ sessionTier: sanitizeSessionTier(record) }),
 
       // SCADA sync and adaptive quality are preferences, not part of a visual
       // preset, so a quality swap (manual or adaptive) carries them across.
@@ -810,10 +843,16 @@ export const useGraphicsStore = create<GraphicsStore>()(
         return {
           ...current,
           graphics: sanitizeGraphicsSettings(source),
+          sessionTier: sanitizeSessionTier(
+            persisted && typeof persisted === 'object'
+              ? (persisted as { sessionTier?: unknown }).sessionTier
+              : undefined
+          ),
         };
       },
       partialize: (state) => ({
         graphics: state.graphics,
+        sessionTier: state.sessionTier,
       }),
       onRehydrateStorage: () => (state, error) => {
         if (error) {
