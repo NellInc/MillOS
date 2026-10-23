@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import * as surfaces from './machineSurfaces';
+import { SITE_LAYOUT } from '../../constants/siteLayout';
 
 const { MACHINE_MATERIALS } = surfaces;
 
@@ -318,10 +319,35 @@ describe('silo drums at distance (final4-med-12 overview and farm: five drums as
     expect(siloRibBand(0.25, 0.05, 0)).toBeGreaterThan(0);
   });
 
+  it('never strengthens the ribbed read with distance (final5-med-12 silos 2-5: 4.9 -> 8.7)', () => {
+    // The fine ribs' contrast falls as they fade, and the band takes over. If
+    // the band is stronger than the ribs it replaces, the drum gets MORE
+    // striped the farther it is: the silos camera measured hp 4.9-8.7 on bins
+    // 2-5 against 1.1-1.6 in final4, at a 12.5-25 px period.
+    const { siloRibContrast, siloRibBand, siloCorrugationFade, SILO_RIB_TONE } = surfaces;
+    const ratio = surfaces.SILO_FINE_RIDGES / surfaces.SILO_SHELL_PROFILE.ridges;
+    let previous = Infinity;
+    for (let w = 0.005; w <= 0.7; w += 0.001) {
+      const total = siloRibContrast(w);
+      expect(total, `w ${w.toFixed(3)}`).toBeLessThanOrEqual(previous + 1e-12);
+      previous = total;
+    }
+    // Once the fine ribs are gone the band alone must not grow either.
+    let band = Infinity;
+    for (let w = 0.12; w <= 0.7; w += 0.001) {
+      const amp =
+        SILO_RIB_TONE.albedo * Math.abs(siloRibBand(0.25, w, siloCorrugationFade(w * ratio)));
+      expect(amp, `w ${w.toFixed(3)}`).toBeLessThanOrEqual(band + 1e-12);
+      band = amp;
+    }
+    // And it is gone before Nyquist (2 px a period), not left to alias.
+    expect(siloRibBand(0.25, 0.45, 0)).toBe(0);
+  });
+
   it('carries the band on the drum only, as tone and roughness, never as a normal', () => {
     const skin = vec4Of(MACHINE_MATERIALS.silo, 'machineRib');
-    expect(skin?.x).toBeGreaterThan(0.05);
-    expect(skin?.y).toBeGreaterThan(0.05);
+    expect(skin?.x).toBeGreaterThan(0.02);
+    expect(skin?.y).toBeGreaterThan(0.02);
     expect(vec4Of(MACHINE_MATERIALS.siloSkirt, 'machineRib')?.x).toBe(0);
     expect(vec4Of(MACHINE_MATERIALS.siloRoof, 'machineRib')?.x).toBe(0);
     const shader = compile(MACHINE_MATERIALS.silo);
@@ -339,6 +365,41 @@ describe('silo drums at distance (final4-med-12 overview and farm: five drums as
     expect(vec4Of(MACHINE_MATERIALS.silo, 'machineRib')?.z).toBeGreaterThan(0);
     expect(vec4Of(MACHINE_MATERIALS.siloSkirt, 'machineRib')?.z).toBe(0);
     expect(compile(MACHINE_MATERIALS.silo).fragmentShader).toContain('fwidth( galvStainColumns )');
+  });
+
+  it('gives each bin its own run-off, not the same streaks on all five (final5-med-12 silos)', () => {
+    // The double dark streak under the first ring sat at the same place on
+    // silos 2-5: the column hash took no instance term.
+    const { siloWeatherSeed, siloLiveColumns, SILO_STAIN } = surfaces;
+    const silos = SITE_LAYOUT.machines.silos;
+    const seeds = silos.map(({ position: [x, , z] }) => siloWeatherSeed(x, z));
+    expect(new Set(seeds).size).toBe(silos.length);
+    for (const [columns, live, salt] of [
+      [180, surfaces.SILO_STREAK_LIVE_FRACTION, 3],
+      [SILO_STAIN.columns, SILO_STAIN.liveFraction, 23],
+    ] as const) {
+      const sets = seeds.map((seed) => siloLiveColumns(seed, columns, live, 0, salt).join(','));
+      expect(new Set(sets).size, `${columns} columns`).toBe(silos.length);
+    }
+    const fragment = compile(MACHINE_MATERIALS.silo).fragmentShader;
+    expect(fragment).toContain(
+      'float galvSiloSeed = floor( vMachineAxis.x * 3.0 + vMachineAxis.y * 7.0 + 0.5 );'
+    );
+    expect(fragment).toContain('galvColumn + galvSiloSeed');
+    expect(fragment).toContain('galvStainColumn + galvSiloSeed');
+  });
+
+  it('lights the thinner patina film as brightly under the floods as round 4 did', () => {
+    // Patina 0.8 -> 0.5 cut the drum's diffuse share, which is what the floods
+    // land on: final5-med-22 silos read ~0.895 of final4 in sRGB on every bin
+    // (about 0.78 in linear light). The flood term alone is rebalanced.
+    const gain = surfaces.SILO_FLOOD_PATINA_GAIN;
+    expect(gain * 0.78).toBeGreaterThan(0.95);
+    expect(gain * 0.78).toBeLessThan(1.08);
+    const fragment = compile(MACHINE_MATERIALS.silo).fragmentShader;
+    expect(fragment).toMatch(
+      new RegExp(`galvFlood\\.color = [^;]*\\* ${gain.toFixed(3).replace('.', '\\.')};`)
+    );
   });
 
   it('darkens the valley between neighbouring bins, and only there', () => {
