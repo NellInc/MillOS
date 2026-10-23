@@ -240,7 +240,7 @@ export function sampleVesselShell(
     canning = fbmRound(u, y, circumference, 1.3, 2, 3);
   }
   tone += macro * 0.06 + mottle * 0.03;
-  roughness += macro * 0.3 + mottle * 0.12;
+  roughness += macro * 0.36 + mottle * 0.14;
   height += canning * 0.004;
 
   // Distance round the shell from the crown, metres (wraps through u 0/1).
@@ -336,7 +336,7 @@ export function sampleVesselShell(
   // Splash and road film on the lower shell, faint: below the equator the
   // paint dulls and greys a little.
   const lower = onHead ? 0 : smoothstep(0.3, 0.46, Math.abs(turn));
-  tone -= lower * 0.05;
+  tone -= lower * 0.08;
   roughness += lower * 0.08;
 
   // The head: grime settles toward the knuckle and the crown of the dish
@@ -365,7 +365,7 @@ export function sampleVesselShell(
   }
   roughness += streak * 0.18 + cradle * 0.22;
   tone -= cradle * 0.2;
-  const dirt = streak * 0.42 + cradle * 0.12;
+  const dirt = streak * 0.8 + cradle * 0.12;
   return {
     tint: [
       clamp01(tone * (1 - dirt * 0.85)),
