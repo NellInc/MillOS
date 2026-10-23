@@ -3882,6 +3882,13 @@ export const LAKE_APPROACH_PATH = {
   width: 2.5,
 };
 
+/** The carriageway from the front gate to the car park's south stub; it leaves the lake walk's start. */
+export const GATE_CAR_PARK_ROAD = {
+  start: [101, 0, 89] as [number, number, number],
+  end: [120, 0, 70] as [number, number, number],
+  width: 5,
+};
+
 /**
  * A clipped hedge laid along one side of a path: same direction, `side` metres
  * of verge (+1 left of travel, -1 right) between the path edge and the hedge
@@ -3895,7 +3902,8 @@ export function hedgeAlongPath(
     width,
     verge = 0.6,
     inset = 1,
-  }: { height: number; width: number; verge?: number; inset?: number }
+    startInset = inset,
+  }: { height: number; width: number; verge?: number; inset?: number; startInset?: number }
 ) {
   const dx = path.end[0] - path.start[0];
   const dz = path.end[2] - path.start[2];
@@ -3907,7 +3915,7 @@ export function hedgeAlongPath(
   const nx = -uz * offset;
   const nz = ux * offset;
   return {
-    start: [path.start[0] + ux * inset + nx, 0, path.start[2] + uz * inset + nz] as [
+    start: [path.start[0] + ux * startInset + nx, 0, path.start[2] + uz * startInset + nz] as [
       number,
       number,
       number,
@@ -3929,12 +3937,17 @@ export function hedgeAlongPath(
  * gravel walk's centreline. Both now follow their walk, one verge off its edge:
  * the canal walk on its west side (its east side meets the paved walk's corner),
  * the lake walk on its north side, so the hedge screens the service yard from it
- * rather than the water (`pathHedges.test.ts`).
+ * rather than the water, and opens where the car-park road leaves that walk
+ * (`pathHedges.test.ts`).
  */
 export const PATH_HEDGES = [
   { ...hedgeAlongPath(CANAL_WEST_PATH, -1, { height: 0.6, width: 0.5 }), path: CANAL_WEST_PATH },
   {
-    ...hedgeAlongPath(LAKE_APPROACH_PATH, -1, { height: 0.5, width: 0.4 }),
+    // The car-park road leaves the walk's start heading north-east, across this
+    // side: the hedge laid from 1 m in ran straight over the 5 m carriageway
+    // (water/farm, final3). It now starts 0.8 m clear of the road's far edge,
+    // 13.4 m along the walk, leaving the junction open.
+    ...hedgeAlongPath(LAKE_APPROACH_PATH, -1, { height: 0.5, width: 0.4, startInset: 13.4 }),
     path: LAKE_APPROACH_PATH,
   },
 ] as const;
@@ -8594,7 +8607,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
       <ConnectingRoad start={[120, 0, 60.5]} end={[120, 0, 70]} width={5} />
 
       {/* Road connecting parking area to front entrance gate */}
-      <ConnectingRoad start={[101, 0, 89]} end={[120, 0, 70]} width={5} />
+      <ConnectingRoad {...GATE_CAR_PARK_ROAD} />
 
       {/* A few extra parked cars near the gas station for variety, on a layby
           rather than in the field they were standing in. */}
