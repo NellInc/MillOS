@@ -28,6 +28,31 @@ describe('apartment stair core at night', () => {
     expect(source).toMatch(/noStaticBatch: true/);
   });
 
+  /**
+   * final4 med-1830 (farm, shipping): one cream strip the height of the tower
+   * beside a block whose flats are lit on alternate storeys.
+   */
+  it.each([3, 4] as const)(
+    'lights the %s-storey stair only on the storeys whose flats are lit',
+    (floors) => {
+      const { stairStoreys, stairLandings, stairTower } = apartmentFacadeLayout(floors);
+      expect(stairStoreys).toHaveLength(floors);
+      expect(stairStoreys[0].bottom).toBe(1.2);
+      expect(stairStoreys.at(-1)!.top).toBe(stairTower.top - 1.4);
+      stairStoreys.slice(1).forEach((s, i) => expect(s.bottom).toBe(stairLandings[i]));
+      // The window shader's occupiedFloor: mod(storey, 2) == 1.
+      expect(stairStoreys.map((s) => s.lit)).toEqual(
+        Array.from({ length: floors }, (_, k) => k % 2 === 1)
+      );
+      const source = readFileSync('src/components/exterior/ApartmentFacade.tsx', 'utf8');
+      expect(source).toMatch(/material=\{lit \? STAIR_LIGHT_GLAZING : STAIR_GLAZING\}/);
+      // Glows like a lit pane, not a mirror of the dusk sky.
+      expect(STAIR_LIGHT_GLAZING.roughness).toBeGreaterThanOrEqual(0.35);
+      expect(STAIR_LIGHT_GLAZING.metalness).toBeLessThanOrEqual(0.1);
+      expect(stairLightIntensity(0.5)).toBeCloseTo(stairLightIntensity(1) / 2, 6);
+    }
+  );
+
   it.each([3, 4] as const)('marks every landing of the %s-storey stair', (floors) => {
     const { stairTower, gallery, stairLandings } = apartmentFacadeLayout(floors);
     expect(stairLandings).toHaveLength(gallery.tops.length);
