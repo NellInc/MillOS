@@ -406,9 +406,7 @@ describe('overcast sky palette', () => {
 
   it("softens the sun shadow under a deck and leaves fair weather on three's default", () => {
     expect(overcastShadowRadius(sampleAtmosphere(0, 12, 'clear').cloudCoverage)).toBe(1);
-    expect(overcastShadowRadius(sampleAtmosphere(0, 12, 'rain').cloudCoverage)).toBeGreaterThan(
-      2.2
-    );
+    expect(overcastShadowRadius(sampleAtmosphere(0, 12, 'rain').cloudCoverage)).toBeGreaterThan(3);
   });
 
   it('keeps an overcast night dark', () => {

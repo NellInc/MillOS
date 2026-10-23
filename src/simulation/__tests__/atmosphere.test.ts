@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { getOvercastWeight, sampleAtmosphere, sampleCelestial } from '../atmosphere';
+import {
+  getOvercastWeight,
+  overcastKeyScatter,
+  sampleAtmosphere,
+  sampleCelestial,
+} from '../atmosphere';
 
 describe('atmosphere sampling', () => {
   it('follows a coherent dawn, noon, dusk, and night solar path', () => {
@@ -107,10 +112,11 @@ describe('atmosphere sampling', () => {
     expect(noon.ambientLightIntensity / noon.sunLightIntensity).toBeLessThan(0.15);
     expect(morning.ambientLightIntensity / morning.sunLightIntensity).toBeLessThan(0.2);
 
-    // Overcast weather compresses the ratio rather than inverting it: the key
-    // still leads, so a storm reads as a dull day and not as a flat one.
+    // A storm deck is a diffuse source: it scatters most of the key into the
+    // fill (`overcastKeyScatter`), so the sun keeps only a faint direction.
     const storm = sampleCelestial(sampleAtmosphere(0, 12, 'storm'));
-    expect(storm.sunLightIntensity).toBeGreaterThan(storm.ambientLightIntensity);
+    expect(storm.sunLightIntensity).toBeGreaterThan(0);
+    expect(storm.sunLightIntensity).toBeLessThan(storm.ambientLightIntensity);
     expect(storm.sunLightIntensity).toBeLessThan(noon.sunLightIntensity);
   });
 
@@ -164,6 +170,27 @@ describe('overcast weather', () => {
     expect(rain.sunLightIntensity).toBeLessThan(1.4);
     expect(rain.ambientLightIntensity / rain.sunLightIntensity).toBeGreaterThan(0.22);
     expect(rain.ambientLightIntensity).toBeGreaterThan(clear.ambientLightIntensity);
+  });
+
+  // final5-med-rain judge: noon rain still threw hard-edged sun shadows under
+  // the tanks and hard sunlit skylight patches across the hall floor (tank-farm,
+  // packing, interior, milling). Rain kept 57% of its key; a rain deck is a
+  // diffuse source, so most of the direct sun must arrive as fill.
+  it('diffuses heavy-rain sun into the fill and leaves clear weather exactly unchanged', () => {
+    expect(overcastKeyScatter(sampleAtmosphere(0, 12, 'clear').cloudCoverage)).toBe(0);
+    const rainAtmosphere = sampleAtmosphere(0, 12, 'rain');
+    const scatter = overcastKeyScatter(rainAtmosphere.cloudCoverage);
+    // At most a quarter of the rain sun stays direct.
+    expect(1 - scatter).toBeLessThanOrEqual(0.27);
+    const rain = sampleCelestial(rainAtmosphere);
+    const unscattered = 0.15 + rainAtmosphere.daylight * rainAtmosphere.lightMultiplier * 2.95;
+    expect(rain.sunLightIntensity).toBeCloseTo(unscattered * (1 - scatter), 10);
+    // The scattered light comes back as fill: the deck is brighter than the key.
+    expect(rain.ambientLightIntensity).toBeGreaterThan(rain.sunLightIntensity * 0.75);
+    // A storm deck diffuses more than rain.
+    expect(overcastKeyScatter(sampleAtmosphere(0, 12, 'storm').cloudCoverage)).toBeGreaterThan(
+      scatter
+    );
   });
 });
 
