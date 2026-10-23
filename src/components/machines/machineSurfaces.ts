@@ -333,6 +333,14 @@ export const SILO_FLOOD_PROFILE = {
   rise: [-0.3, 1] as const,
   /** Metres above the head where the beam ends: the eave, not beyond it. */
   top: [30.5, 33] as const,
+  /**
+   * Most irradiance any surface takes from one head, as a multiple of `peak`.
+   * The beam that reaches the top of a grazed wall is near-vertical and very
+   * intense; a ring underside or the eave, square to it, would take ~35x the
+   * wall beside it. A real head's candela is finite, so the ledges get a
+   * bright edge, not a blaze. The wall itself never reaches the cap.
+   */
+  cap: 1.2,
 } as const;
 
 const smoothstep = (edge0: number, edge1: number, value: number): number => {
@@ -394,7 +402,7 @@ export function siloFloodHeadIrradiance(
     (normal[0] * toFlood[0] + normal[1] * toFlood[1] + normal[2] * toFlood[2]) / r,
     0
   );
-  return (level * candela * ndl) / r2;
+  return level * Math.min((candela * ndl) / r2, SILO_FLOOD_PROFILE.cap * SILO_FLOOD_PROFILE.peak);
 }
 
 const WEAR_VERTEX_PARS = /* glsl */ `
@@ -633,7 +641,13 @@ if ( uMachineFlood.x > 0.0 ) {
     vec3 toFlood = head - vMachineWorldPos;
     float r2 = max( dot( toFlood, toFlood ), 0.25 );
     galvFlood.direction = normalize( ( viewMatrix * vec4( toFlood, 0.0 ) ).xyz );
-    galvFlood.color = uMachineFloodColor * ( uMachineFlood.x * machineFloodCandela( toFlood, side ) / r2 );
+    // RE_Direct multiplies by n.l; cap the product (SILO_FLOOD_PROFILE.cap).
+    float galvFloodNdl = max( dot( geometryNormal, galvFlood.direction ), 1e-4 );
+    float galvFloodE = min(
+      machineFloodCandela( toFlood, side ) * galvFloodNdl / r2,
+      ${(SILO_FLOOD_PROFILE.cap * SILO_FLOOD_PROFILE.peak).toFixed(3)}
+    );
+    galvFlood.color = uMachineFloodColor * ( uMachineFlood.x * galvFloodE / galvFloodNdl );
     RE_Direct( galvFlood, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight );
   }
 }

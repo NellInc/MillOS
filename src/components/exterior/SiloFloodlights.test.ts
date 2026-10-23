@@ -126,6 +126,20 @@ describe('silo floods on the drum (final3-med-1830/22: hard line at the seam, bl
     expect(lit(near, tilted)).toBeCloseTo(lit(near, n) * 0.5, 6);
   });
 
+  it('does not blaze the down-facing ledges the near-vertical beam meets', () => {
+    // The candela that carries the beam up a grazed wall is far steeper than a
+    // real head's: a ring underside or the eave, square to it, took ~35x the
+    // wall beside it. Nothing may take more than 1.5x the brightest wall.
+    const flood = night();
+    let wall = 0;
+    for (let y = 0.4; y <= 30; y += 0.05) wall = Math.max(wall, facing(flood, y));
+    const ringRadius = 6.08;
+    for (const y of [10.4, 18.1, 25.8, 29.6]) {
+      const ledge = siloFloodIrradiance([binX + ringRadius, y, binZ], [0, -1, 0], axis, flood);
+      expect(ledge, `ledge at ${y} m`).toBeLessThanOrEqual(1.5 * wall);
+    }
+  });
+
   it('wraps round the drum only onto the faces a head can see', () => {
     const flood = night();
     const around = (degrees: number, y = 10) => {
