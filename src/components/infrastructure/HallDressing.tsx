@@ -16,6 +16,7 @@ import { StaticMeshBatch } from '../performance/StaticMeshBatch';
 import { LOAD_SCALE, PALLET_HEIGHT, PalletJack, SpillKit } from '../props/LoadingProps';
 import {
   HALL_CABLE_TRAYS,
+  HALL_COLUMN_RISERS,
   HALL_CONDUIT_DROPS,
   HALL_DUST,
   HALL_HOSES,
@@ -24,6 +25,7 @@ import {
   HALL_PROPS,
   HALL_SACK_STACKS,
   type HallCableTray,
+  type HallColumnRiser,
   type HallConduitBank,
   type HallConduitDrop,
   type HallDustPatch,
@@ -718,6 +720,49 @@ const ConduitBank: React.FC<{ bank: HallConduitBank }> = ({ bank }) => (
   </>
 );
 
+/**
+ * Trunking up a column's hall face, a junction box at its foot and conduits
+ * from the box to the slab. Built in the column's frame (local +z into the
+ * hall, +x across the face) and turned onto it.
+ */
+const ColumnRiser: React.FC<{ riser: HallColumnRiser }> = ({ riser }) => {
+  const [nx, nz] = riser.normal;
+  const yaw = Math.atan2(nx, nz);
+  const face = riser.faceOffset;
+  const run = riser.topY - riser.bottomY;
+  const { box } = riser;
+  const boxBottom = riser.bottomY - box.height;
+  return (
+    <group position={[riser.columnX, 0, riser.columnZ]} rotation={[0, yaw, 0]}>
+      <Part
+        material={GALVANISED}
+        position={[0, riser.bottomY + run / 2, face + riser.depth / 2]}
+        scale={[riser.width, run, riser.depth]}
+      />
+      {/* Cover strip: the lid stands a few mm proud, so the trunking reads as a box. */}
+      <Part
+        material={DARK_STEEL}
+        position={[0, riser.bottomY + run / 2, face + riser.depth + 0.004]}
+        scale={[riser.width * 0.84, run, 0.008]}
+      />
+      <Part
+        material={ISOLATOR_GREY}
+        position={[0, riser.bottomY - box.height / 2, face + box.depth / 2]}
+        scale={[box.width, box.height, box.depth]}
+      />
+      {riser.conduits.map((x) => (
+        <Part
+          key={x}
+          geometry={ROD_Y}
+          material={GALVANISED}
+          position={[x, boxBottom / 2, face + riser.conduitRadius + 0.01]}
+          scale={[riser.conduitRadius, boxBottom, riser.conduitRadius]}
+        />
+      ))}
+    </group>
+  );
+};
+
 // ---------------------------------------------------------------------------
 // Instanced sack stacks
 // ---------------------------------------------------------------------------
@@ -1109,6 +1154,9 @@ export const HallDressing: React.FC<{ revision: string | number | boolean }> = (
         ))}
         {HALL_MCC_CONDUITS.map((bank) => (
           <ConduitBank key={bank.id} bank={bank} />
+        ))}
+        {HALL_COLUMN_RISERS.map((riser) => (
+          <ColumnRiser key={riser.id} riser={riser} />
         ))}
       </group>
     </StaticMeshBatch>

@@ -17,10 +17,12 @@ import {
   buildProcessPads,
   buildSafetyRails,
   buildSafetyStations,
+  buildFactoryShellColumns,
   type BoxInstance,
 } from './OptimizedFactoryInfrastructure';
 import {
   HALL_CABLE_TRAYS,
+  HALL_COLUMN_RISERS,
   HALL_CONDUIT_DROPS,
   HALL_DUST,
   HALL_HOSES,
@@ -343,5 +345,76 @@ describe('hall dressing: a working flour-mill floor', () => {
           if (pointToBox(p, item) <= 0.12) hits.add(`pipe support / ${item.id}`);
       }
     expect([...hits]).toEqual([]);
+  });
+});
+
+/**
+ * final4 med-12 rubric: "add cable trays and conduit on walls and columns,
+ * visible from interior and milling, clear of routes". The milling tray hangs
+ * under the gallery at 4.2 m; the shell itself carried nothing.
+ */
+describe('column risers', () => {
+  const columns = buildFactoryShellColumns().filter((c) => Math.abs(c.scale[0] - 0.42) < 1e-6);
+  const solidOf = (r: (typeof HALL_COLUMN_RISERS)[number]): HallSolid => {
+    const [nx, nz] = r.normal;
+    const reach = r.faceOffset + Math.max(r.depth, r.box.depth);
+    const across = Math.max(r.width, r.box.width) / 2;
+    const xs = [r.columnX + nx * r.faceOffset, r.columnX + nx * reach];
+    const zs = [r.columnZ + nz * r.faceOffset, r.columnZ + nz * reach];
+    return {
+      id: r.id,
+      group: r.id,
+      onFloor: false,
+      baseY: 0,
+      minX: nx === 0 ? r.columnX - across : Math.min(...xs),
+      maxX: nx === 0 ? r.columnX + across : Math.max(...xs),
+      minY: 0,
+      maxY: r.topY,
+      minZ: nz === 0 ? r.columnZ - across : Math.min(...zs),
+      maxZ: nz === 0 ? r.columnZ + across : Math.max(...zs),
+    } as HallSolid;
+  };
+
+  it('fixes each riser to the hall face of a real shell column, under the truss bearing', () => {
+    expect(HALL_COLUMN_RISERS.length).toBeGreaterThanOrEqual(8);
+    for (const r of HALL_COLUMN_RISERS) {
+      const column = columns.find(
+        (c) =>
+          Math.abs(c.position[0] - r.columnX) < 1e-6 && Math.abs(c.position[2] - r.columnZ) < 1e-6
+      );
+      expect(column, r.id).toBeDefined();
+      expect(r.faceOffset).toBeCloseTo(column!.scale[0] / 2, 9);
+      // The face points into the hall.
+      const [nx, nz] = r.normal;
+      expect(Math.abs(r.columnX + nx * 5)).toBeLessThan(Math.abs(r.columnX) + 1e-9);
+      expect(Math.abs(r.columnZ + nz * 5)).toBeLessThan(Math.abs(r.columnZ) + 1e-9);
+      // Trunking runs from the box to under the truss bearing plates.
+      expect(r.topY).toBeLessThan(SITE_LAYOUT.factory.bounds.maxY - 3.25);
+      expect(r.bottomY - r.box.height).toBeGreaterThan(1.2);
+      expect(r.bottomY - r.box.height).toBeLessThan(2);
+    }
+  });
+
+  it('keeps clear of every portal and every forklift route', () => {
+    for (const r of HALL_COLUMN_RISERS) {
+      const solid = solidOf(r);
+      for (const portal of Object.values(SITE_LAYOUT.portals)) {
+        const front = portal.normal[2] !== 0;
+        if (front && Math.sign(portal.centre[2]) !== Math.sign(r.columnZ)) continue;
+        if (!front && (r.normal[1] !== 0 || Math.sign(portal.centre[0]) !== Math.sign(r.columnX)))
+          continue;
+        const along = front ? r.columnX : r.columnZ;
+        const centre = front ? portal.centre[0] : portal.centre[2];
+        expect(Math.abs(along - centre) - 0.3, r.id).toBeGreaterThan(portal.halfWidth + 1);
+      }
+      for (const route of Object.values(SITE_LAYOUT.routes.forklifts))
+        expect(routeIntersectsBoundsXZ(route, solid, 0.5), `${route.id} / ${r.id}`).toBe(false);
+    }
+  });
+
+  it('shows risers to the interior and milling cameras', () => {
+    const solids = HALL_COLUMN_RISERS.map(solidOf);
+    expect(framedWith('interior', solids).length).toBeGreaterThanOrEqual(2);
+    expect(framedWith('milling', solids).length).toBeGreaterThanOrEqual(2);
   });
 });
