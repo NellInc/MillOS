@@ -1,6 +1,8 @@
+import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import {
   DOCK_FLANGE,
+  DOCK_FRAME_MATERIALS,
   DOCK_FRAME_SECTION,
   DOCK_PANEL_BANDS,
   DOCK_WEB_DEPTH,
@@ -102,6 +104,28 @@ describe('dock post detail', () => {
         -(flangeInner + DOCK_FLANGE.thickness) + 1e-9
       );
     }
+  });
+});
+
+describe('dock post stiffener finish', () => {
+  /**
+   * final6 med-12 interior, the near right column: short white dashes at a
+   * 2.33 m pitch, e.g. (118,123,123) at (2170,684) on a post of (0,32,55). They
+   * are the stiffeners' 3 cm top faces, the only up-facing faces on the post:
+   * the painted profile's ledge dust and edge wear mix them toward pale
+   * neutral (still grey at 18:30), and with no shadow received they took the
+   * noon sun under the roof. A stiffener is the post's steel, not a ledge.
+   */
+  it('paints the stiffeners without ledge dust or edge wear', () => {
+    const parts = dockPostDetailParts(14).filter((p) => p.role === 'stiffener');
+    expect(parts.length).toBeGreaterThan(0);
+    for (const p of parts) expect(p.material).toBe('stiffener');
+    const material = DOCK_FRAME_MATERIALS.stiffener as THREE.Material & {
+      userData: { millosWorldSurface?: { uSurfMask: { value: THREE.Vector4 } } };
+    };
+    const mask = material.userData.millosWorldSurface?.uSurfMask.value;
+    expect(mask?.y).toBe(0);
+    expect(mask?.z).toBe(0);
   });
 });
 

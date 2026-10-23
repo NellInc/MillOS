@@ -41,6 +41,19 @@ describe('door column albedo', () => {
     }
   });
 
+  /**
+   * final6 med-19 forklift (0,0)-(400,1000) and med-1830 milling
+   * (2300,0)-(2560,1100): the nearest column in each is a dock post (its grey
+   * leveller station is in both crops), still a flat slab at dusk, mean 14.9
+   * and 22.1 of 255. Another third of a stop on the frame members.
+   */
+  it('holds the frame members a third of a stop over the round-6 slate', () => {
+    for (const name of ['post', 'flange', 'header', 'headerFlange', 'strut', 'stiffener']) {
+      const color = (dock.DOCK_FRAME_MATERIALS[name] as THREE.MeshStandardMaterial).color;
+      expect(luminance(color), name).toBeGreaterThanOrEqual(0.2);
+    }
+  });
+
   it('lifts the hall structural steel half a stop without losing its hue', () => {
     const color = (FACTORY_STRUCTURE_MATERIAL as THREE.MeshStandardMaterial).color;
     expect(luminance(color)).toBeGreaterThanOrEqual(0.08);

@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { FLOOR_LAYERS, POLYGON_OFFSET } from '../../constants/renderLayers';
 import { generateMachineORM, generateMachinePanelNormal } from '../../textures';
 import { useTruckScheduleStore } from '../../stores/truckScheduleStore';
-import { applyWorldSurface } from '../../utils/worldSurface';
+import { applyWorldSurface, type WorldSurfaceOverrides } from '../../utils/worldSurface';
 
 interface OpenDockOpeningProps {
   position: [number, number, number];
@@ -94,8 +94,10 @@ export const DOCK_PAINT_MIN_LUMINANCE = 0.07;
  * shipping dock's west post, seen end-on at the right of `interior` beside the
  * shell's dark teal portal jamb, read as one unreadable dark mass (final5
  * med-12; the judge took it for an elevator leg). A mid slate, the same hue.
+ * 0.16 in round 6; 0.21 since, because the same post is the nearest column in
+ * forklift (med-19) and milling (med-1830) and still read as a flat slab there.
  */
-export const DOCK_FRAME_MIN_LUMINANCE = 0.16;
+export const DOCK_FRAME_MIN_LUMINANCE = 0.21;
 
 function repaint(
   hex: string,
@@ -179,7 +181,8 @@ const steel = (
   hex: string,
   previousMetalness: number,
   maps: Partial<THREE.MeshStandardMaterialParameters>,
-  floor = DOCK_PAINT_MIN_LUMINANCE
+  floor = DOCK_PAINT_MIN_LUMINANCE,
+  surface: WorldSurfaceOverrides = {}
 ) =>
   // `painted` rather than `metal`: every member here is `metalness: 0` after
   // `repaint`, i.e. a painted dielectric, and the metal profile deliberately
@@ -197,7 +200,7 @@ const steel = (
       ...maps,
     }),
     'painted',
-    { grimeHeight: 1.2, grime: 0.34 }
+    { grimeHeight: 1.2, grime: 0.34, ...surface }
   );
 
 const MATERIALS = {
@@ -217,6 +220,15 @@ const MATERIALS = {
   headerFlange: steel('#374151', 0.8, { roughnessMap: HEADER_ORM }, DOCK_FRAME_MIN_LUMINANCE),
   canopy: steel('#374151', 0.6, { roughnessMap: CANOPY_ORM, normalMap: CANOPY_NORMAL }),
   strut: steel('#475569', 0.8, { roughnessMap: POST_ORM }, DOCK_FRAME_MIN_LUMINANCE),
+  /**
+   * Web stiffeners: the flange's steel without ledge dust or edge wear. Their
+   * 3 cm top faces are the only up-facing faces on a post, and the painted
+   * profile turned each into a pale neutral dash (final6 med-12 interior).
+   */
+  stiffener: steel('#374151', 0.8, { roughnessMap: FLANGE_ORM }, DOCK_FRAME_MIN_LUMINANCE, {
+    dust: 0,
+    edge: 0,
+  }),
   /** Leveller control station on each post's hall face: RAL 7035 switchgear grey. */
   station: steel('#c3c6c2', 0, {}),
   stationDoor: steel('#d2d4d0', 0, {}),
@@ -459,7 +471,7 @@ const DOCK_STIFFENER_BAY = 2.4;
  */
 export function dockPostDetailParts(height: number): {
   role: 'stiffener' | 'station';
-  material: 'flange' | 'station' | 'stationDoor';
+  material: 'stiffener' | 'station' | 'stationDoor';
   position: readonly [number, number, number];
   scale: readonly [number, number, number];
 }[] {
@@ -473,7 +485,7 @@ export function dockPostDetailParts(height: number): {
     for (const side of [-1, 1]) {
       parts.push({
         role: 'stiffener',
-        material: 'flange',
+        material: 'stiffener',
         position: [side * (width / 2 + outstand / 2), y, 0],
         scale: [outstand, 0.03, 2 * (flangeInner - 0.01)],
       });
@@ -612,6 +624,9 @@ export const OpenDockOpening: React.FC<OpenDockOpeningProps> = ({
               scale={[...part.scale]}
               position={[...part.position]}
               castShadow={part.role === 'station'}
+              // A stiffener's top face looks at the sky; under the roof it
+              // takes the roof's shadow rather than the noon sun.
+              receiveShadow={part.role === 'stiffener'}
             />
           ))}
         </group>
