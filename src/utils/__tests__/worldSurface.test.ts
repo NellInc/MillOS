@@ -559,7 +559,7 @@ describe('indoor bounce', () => {
    * while a plain-material band on the same face was lit. The bounce mixed
    * `reflectedLight.indirectDiffuse` toward its own luma, but that term is
    * irradiance TIMES the albedo, so it greyed the yellow paint itself. Lit only
-   * by fill at night, the greyed face sat under the display toe (AgX and the
+   * by fill at night, the greyed face sat under the display toe (Neutral and the
    * +0.06 contrast) and crushed to black; patched at runtime to neutralise the
    * light instead, the same face read (19.5, 12.2, 0).
    */
