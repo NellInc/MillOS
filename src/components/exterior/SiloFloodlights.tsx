@@ -2,6 +2,7 @@ import { useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
+import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import {
   SILO_FLOOD_HEAD_ANGLES,
   SILO_FLOOD_LIGHT,
@@ -92,6 +93,30 @@ export function siloFloodPools(): { position: [number, number, number]; radius: 
 }
 
 /**
+ * Solar elevation (sine) over which the floods fade in at dusk and out at dawn:
+ * fully on once the sun is this far below the horizon, off before it rises.
+ * The shared lamp clock (`getExteriorLampLevel`) is the wrong gate for them: it
+ * is max(darkness, weather floor), fully on at 06:00 when the sun is on the
+ * horizon and at 0.42 in daytime rain. That suits a lens or a window. A flood
+ * paints a bright vertical stripe up 30 m of drum, so on that clock the battery
+ * read as night at sunrise and at noon in the rain (final4-med-06 overview,
+ * final4-med-rain farm and overview).
+ */
+export const SILO_FLOOD_DUSK = [-0.12, -0.01] as const;
+
+/**
+ * 0-1 gate on the floods from the sun alone, by the same elevation the sky and
+ * the lamp clock use (`sampleAtmosphere`): 0 from sunrise to sunset whatever the
+ * weather, on through civil dusk (18:30 at 1), fully on at night.
+ */
+export function getSiloFloodLevel(gameTime: number): number {
+  if (!Number.isFinite(gameTime)) return 0;
+  const hour = ((gameTime % 24) + 24) % 24;
+  const solarElevation = Math.sin(((hour - 6) / 24) * Math.PI * 2);
+  return 1 - THREE.MathUtils.smoothstep(solarElevation, SILO_FLOOD_DUSK[0], SILO_FLOOD_DUSK[1]);
+}
+
+/**
  * Publish the floods to the galvanised materials: lamp level, the lenses'
  * distance from each bin axis (the heads stand at SILO_FLOOD_HEAD_ANGLES), their
  * height and their standoff from the wall. Level 0 switches the term off. The
@@ -166,8 +191,10 @@ export function SiloFloodlights() {
   );
 
   useFrame(() => {
+    // The lamp clock's damped level, gated by the sun (getSiloFloodLevel).
     // Below a visible level the shader skips the floods outright.
-    const level = EXTERIOR_LAMP_LEVEL.value;
+    const level =
+      EXTERIOR_LAMP_LEVEL.value * getSiloFloodLevel(useGameSimulationStore.getState().gameTime);
     writeSiloFloodLight(level > 0.002 ? level : 0);
   });
 

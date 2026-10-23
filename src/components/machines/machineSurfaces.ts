@@ -230,7 +230,7 @@ const PLATE_ORM = band(HOUSING_ORM, 4, 2);
  * the program key alongside this string (`WebGLPrograms.getProgramCacheKey`),
  * so permutations still split properly.
  */
-export const MACHINE_WEAR_CACHE_KEY = 'machineWear_v5';
+export const MACHINE_WEAR_CACHE_KEY = 'machineWear_v6';
 
 /** Share of the silo drum's 180 streak columns that carry run-off, per ring. */
 export const SILO_STREAK_LIVE_FRACTION = 0.16;
@@ -378,6 +378,17 @@ export const SILO_FLOOD_PROFILE = {
   cap: 1.2,
 } as const;
 
+/**
+ * World normal Y over which a down-facing face loses the floods: from -0.3
+ * (a wall tilted 17 degrees down still takes them) to nothing at -0.6. The
+ * only down faces round a head are the roof's eave overhang (the rings are
+ * open-ended). Square to the near-vertical beam it took the ledge cap between
+ * heads and a sixth of that over each one, where its ray left the beam: a
+ * sub-pixel ring 1.4x as bright as the wall, broken into six dashes a bin
+ * (final4-med-22 yard). A ground uplight's beam ends at the eave.
+ */
+export const SILO_FLOOD_LEDGE = [-0.6, -0.3] as const;
+
 const smoothstep = (edge0: number, edge1: number, value: number): number => {
   const t = THREE.MathUtils.clamp((value - edge0) / (edge1 - edge0), 0, 1);
   return t * t * (3 - 2 * t);
@@ -443,7 +454,11 @@ export function siloFloodHeadIrradiance(
     (normal[0] * toFlood[0] + normal[1] * toFlood[1] + normal[2] * toFlood[2]) / r,
     0
   );
-  return level * Math.min((candela * ndl) / r2, SILO_FLOOD_PROFILE.cap * SILO_FLOOD_PROFILE.peak);
+  return (
+    level *
+    smoothstep(SILO_FLOOD_LEDGE[0], SILO_FLOOD_LEDGE[1], normal[1]) *
+    Math.min((candela * ndl) / r2, SILO_FLOOD_PROFILE.cap * SILO_FLOOD_PROFILE.peak)
+  );
 }
 
 const WEAR_VERTEX_PARS = /* glsl */ `
@@ -676,7 +691,9 @@ const GALVANISED_LIGHT_BODY = /* glsl */ `
 // The ground floods round this bin (SILO_FLOOD_LIGHT), through the same BRDF
 // as the sun: diffuse on the patina, a specular lobe on the spangle, the
 // corrugation catching it. Skipped outright while the lamps are off.
-if ( uMachineFlood.x > 0.0 ) {
+// Down-facing faces (the eave overhang) take none (SILO_FLOOD_LEDGE).
+float galvFloodLedge = smoothstep( ${SILO_FLOOD_LEDGE[0].toFixed(3)}, ${SILO_FLOOD_LEDGE[1].toFixed(3)}, vMachineWorldNormal.y );
+if ( uMachineFlood.x > 0.0 && galvFloodLedge > 0.0 ) {
   IncidentLight galvFlood;
   galvFlood.visible = true;
   for ( int k = 0; k < ${SILO_FLOOD_HEAD_ANGLES.length}; k ++ ) {
@@ -691,7 +708,7 @@ if ( uMachineFlood.x > 0.0 ) {
       machineFloodCandela( toFlood, headDir ) * galvFloodNdl / r2,
       ${(SILO_FLOOD_PROFILE.cap * SILO_FLOOD_PROFILE.peak).toFixed(3)}
     );
-    galvFlood.color = uMachineFloodColor * ( uMachineFlood.x * galvFloodE / galvFloodNdl );
+    galvFlood.color = uMachineFloodColor * ( uMachineFlood.x * galvFloodLedge * galvFloodE / galvFloodNdl );
     RE_Direct( galvFlood, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight );
   }
 }
