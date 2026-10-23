@@ -9,10 +9,15 @@ import {
   VESSEL_SEAM_BAND,
   vesselProfile,
   vesselSeamOffset,
+  vesselSeamMaterial,
   vesselShellMaterial,
+  storageTankShellMaterial,
 } from '../FactoryExterior';
 import { applyBatchWorldSurface } from '../../utils/worldSurface';
 import {
+  VESSEL_SADDLE,
+  createVesselSaddleGeometry,
+  storageTankAxisHeight,
   utilityLadderLayout,
   createUtilityTankHardware,
   createLpgHardware,
@@ -251,5 +256,69 @@ describe('vessel paint', () => {
       expect(applyBatchWorldSurface(merged, material)).toBe('vessel');
       merged.dispose();
     }
+  });
+});
+
+/**
+ * final3 tank-farm: the saddles read as plain dark boxes, the shells as one
+ * plastic sheen, and at 18:30 every head carried a hard black rim - the bare
+ * steel seam band (#7c868a, metalness 0.35) with no sun left to reflect.
+ */
+describe('storage tank steelwork', () => {
+  const luminance = (c: THREE.Color) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+
+  it('paints the seam band with the shell, a shade darker, not as bare steel', () => {
+    for (const color of ['#dce4e5', '#eef1ed', '#f1f3ef']) {
+      const seam = vesselSeamMaterial(color);
+      const shell = new THREE.Color(color);
+      expect(seam.metalness).toBeLessThanOrEqual(0.1);
+      expect(luminance(seam.color) / luminance(shell)).toBeGreaterThan(0.6);
+      expect(luminance(seam.color) / luminance(shell)).toBeLessThan(0.9);
+    }
+  });
+
+  it('gives the storage shells mapped steel, pinned to the vessel finish through the batch', () => {
+    for (const [color, radius, length] of [
+      ['#dce4e5', 3, 10],
+      ['#eef1ed', 2.5, 8],
+    ] as const) {
+      const material = storageTankShellMaterial(color, radius, length);
+      expect(material.map).toBeTruthy();
+      expect(material.roughnessMap).toBeTruthy();
+      expect(material.normalMap).toBeTruthy();
+      expect(material.userData.millosWorldSurfaceProfile).toBe('vessel');
+      const merged = material.clone();
+      expect(applyBatchWorldSurface(merged, material)).toBe('vessel');
+      expect(merged.map).toBe(material.map);
+      merged.dispose();
+    }
+  });
+
+  it.each([3, 2.5])('cradles a %s m shell in a shaped saddle on the pad', (radius) => {
+    const geometry = createVesselSaddleGeometry(radius);
+    const box = geometry.boundingBox!;
+    const centreY = storageTankAxisHeight(radius);
+    // Base plate on the pad.
+    expect(box.min.y).toBeCloseTo(0, 6);
+    // The cradle's top reaches the 120 degree horns: well above the shell's
+    // bottom, which a box leg never did.
+    const horn = centreY - radius * Math.cos(VESSEL_SADDLE.contactHalfAngle);
+    expect(box.max.y).toBeGreaterThan(horn - 0.05);
+    // Nothing inside the shell: every vertex at or outside the shell radius
+    // where it stands above the shell's lowest point.
+    const p = geometry.getAttribute('position');
+    let onCradle = 0;
+    for (let i = 0; i < p.count; i += 1) {
+      const y = p.getY(i);
+      const z = p.getZ(i);
+      const fromAxis = Math.hypot(y - centreY, z);
+      expect(fromAxis).toBeGreaterThan(radius - 1e-6);
+      if (fromAxis < radius + VESSEL_SADDLE.wearPlate.clearance + 0.002) onCradle += 1;
+    }
+    // The wear plate's inner face follows the shell.
+    expect(onCradle).toBeGreaterThan(40);
+    // Wider than a leg: the web spans most of the diameter at the pad.
+    expect(box.max.z - box.min.z).toBeGreaterThan(1.5 * radius);
+    geometry.dispose();
   });
 });

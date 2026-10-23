@@ -115,6 +115,111 @@ function wheel(parts: THREE.BufferGeometry[], x: number, y: number, z: number, r
     parts.push(pipe([x, y, z], [x + Math.cos(a) * r, y, z + Math.sin(a) * r], 0.018, '#8f4035'));
   }
 }
+/**
+ * The fittings on a storage tank's crown, along its axis (tank-local x) with
+ * their flange radius: the manway and the valve stack. The shell maps lay the
+ * run-off streaks under these (`textures/vesselShell.ts`).
+ */
+export function utilityTankNozzles(length: number) {
+  return [
+    { id: 'manway', x: -1, radius: 0.39 },
+    { id: 'valve', x: length / 4, radius: 0.23 },
+  ] as const;
+}
+
+/**
+ * A storage tank's saddle, tank-local metres about its own station: a 120
+ * degree cradle (the wear plate under the shell), the web plate that carries
+ * it, five stiffener ribs and the base plate on the pad. It replaces two box
+ * legs, a box brace and an open half-pipe, which read as a plain dark box
+ * under every tank (final3 tank-farm).
+ */
+export const VESSEL_SADDLE = {
+  /** Half the contact angle, radians (a 120 degree saddle). */
+  contactHalfAngle: Math.PI / 3,
+  /** Wear plate: its inner face off the shell, thickness, extra arc past the web, axial width. */
+  wearPlate: { clearance: 0.004, thickness: 0.026, overArc: 0.1, width: 0.62 },
+  web: 0.03,
+  base: { thickness: 0.03, width: 0.5, overhang: 0.1 },
+  rib: { thickness: 0.025, halfWidth: 0.24 },
+  /** Half-width of the web at the pad, as a fraction of the radius. */
+  footHalfWidth: 0.8,
+} as const;
+
+/** Where the tank's axis stands above the pad (`StorageTank`). */
+export const storageTankAxisHeight = (radius: number) => radius + 1.5;
+
+export function createVesselSaddleGeometry(radius: number): THREE.BufferGeometry {
+  const s = VESSEL_SADDLE;
+  const centreY = storageTankAxisHeight(radius);
+  const inner = radius + s.wearPlate.clearance;
+  const outer = inner + s.wearPlate.thickness;
+  const down = -Math.PI / 2;
+  const foot = s.footHalfWidth * radius;
+  const baseTop = s.base.thickness;
+  // Shapes are drawn in (z, y) and extruded along tank-local x.
+  const alongAxis = (geometry: THREE.BufferGeometry, depth: number) =>
+    geometry.rotateY(Math.PI / 2).translate(-depth / 2, 0, 0);
+  const wearArc = s.contactHalfAngle + s.wearPlate.overArc;
+  const wear = new THREE.Shape();
+  wear.absarc(0, centreY, outer, down - wearArc, down + wearArc, false);
+  wear.absarc(0, centreY, inner, down + wearArc, down - wearArc, true);
+  wear.closePath();
+  const web = new THREE.Shape();
+  web.moveTo(-foot, baseTop);
+  // Its top edge runs 5 mm into the wear plate, so no face meets another flush.
+  web.absarc(
+    0,
+    centreY,
+    outer - 0.005,
+    down - s.contactHalfAngle,
+    down + s.contactHalfAngle,
+    false
+  );
+  web.lineTo(foot, baseTop);
+  web.closePath();
+  const extrude = (shape: THREE.Shape, depth: number) =>
+    alongAxis(
+      new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, curveSegments: 24 }),
+      depth
+    );
+  const parts: THREE.BufferGeometry[] = [
+    extrude(wear, s.wearPlate.width),
+    extrude(web, s.web),
+    new THREE.BoxGeometry(s.base.width, s.base.thickness, 2 * (foot + s.base.overhang)).translate(
+      0,
+      s.base.thickness / 2,
+      0
+    ),
+  ];
+  // Ribs either side of the web, from the base plate to 5 mm into the cradle.
+  for (const t of [-0.92, -0.46, 0, 0.46, 0.92]) {
+    const z = t * foot;
+    const topY = centreY - Math.sqrt(outer * outer - z * z) + 0.005;
+    const rise = topY - baseTop + 0.005;
+    parts.push(
+      new THREE.BoxGeometry(2 * s.rib.halfWidth, rise, s.rib.thickness).translate(
+        0,
+        baseTop - 0.005 + rise / 2,
+        z
+      )
+    );
+  }
+  const plain = parts.map((part) => {
+    const flat = part.index ? part.toNonIndexed() : part;
+    for (const name of Object.keys(flat.attributes))
+      if (!['position', 'normal', 'uv'].includes(name)) flat.deleteAttribute(name);
+    return flat;
+  });
+  const merged = mergeGeometries(plain);
+  new Set([...parts, ...plain]).forEach((part) => part.dispose());
+  if (!merged) throw new Error('Incompatible saddle parts');
+  merged.name = 'utility-tank-saddle';
+  merged.computeBoundingBox();
+  merged.computeBoundingSphere();
+  return merged;
+}
+
 export function createUtilityTankHardware(radius: number, length: number) {
   const layout = utilityLadderLayout(radius),
     parts: THREE.BufferGeometry[] = [];
@@ -143,12 +248,13 @@ export function createUtilityTankHardware(radius: number, length: number) {
   for (const p of layout.rungs)
     parts.push(pipe([-0.24, p[1], p[2]], [0.24, p[1], p[2]], 0.025, SAFETY));
   const top = radius * 2 + 1.5;
-  parts.push(pipe([-1, top - 0.04, 0], [-1, top + 0.34, 0], 0.27));
-  flange(parts, -1, top + 0.16, 0, 0.39);
-  parts.push(pipe([-1, top + 0.3, 0], [-1, top + 0.39, 0], 0.34));
-  const x = length / 4;
+  const [manway, valve] = utilityTankNozzles(length);
+  parts.push(pipe([manway.x, top - 0.04, 0], [manway.x, top + 0.34, 0], 0.27));
+  flange(parts, manway.x, top + 0.16, 0, manway.radius);
+  parts.push(pipe([manway.x, top + 0.3, 0], [manway.x, top + 0.39, 0], 0.34));
+  const x = valve.x;
   parts.push(pipe([x, top - 0.04, 0], [x, top + 0.45, 0], 0.12, BRASS));
-  flange(parts, x, top + 0.12, 0, 0.23);
+  flange(parts, x, top + 0.12, 0, valve.radius);
   parts.push(pipe([x, top + 0.45, 0], [x, top + 0.65, 0], 0.055, BRASS));
   wheel(parts, x, top + 0.65, 0, 0.22);
   return join(parts, 'utility-tank-connected-hardware');
