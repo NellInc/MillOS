@@ -91,12 +91,17 @@
  * the dilation reaching across the crop boundary and the denominator wrong.
  */
 import { spawn } from 'node:child_process';
-import { access, mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { chromium } from '@playwright/test';
 import sharp from 'sharp';
 import { acquireCaptureLock } from './lib/capture-lock.mjs';
+import {
+  DEFAULT_SURFACE_SCENES,
+  READINESS_STAGES,
+  previewPlan,
+} from './lib/surface-measure-contract.mjs';
 
 const ROOT = process.cwd();
 const OUTPUT_ROOT = path.join(ROOT, 'test-results', 'surface-contrast');
@@ -107,26 +112,10 @@ const arg = (name, fallback) => {
 };
 const flag = (name) => process.argv.includes(`--${name}`);
 
-/**
- * Scenes whose frames are mostly the surfaces this work touches.
- *
- * `yard`, `shipping` and `receiving` are the truck-yard and logistics merges;
- * `overview` and `village` carry the exterior shell and the village; `interior`
- * is the control that should barely move (its walls are the shell, its machines
- * are already surfaced); `personnel-close` and `forklift` are the two skinned /
- * moving branches, which take the rest-space profile rather than the world one.
- */
-const DEFAULT_SCENES = [
-  'overview',
-  'yard',
-  'shipping',
-  'receiving',
-  'village',
-  'farm',
-  'interior',
-  'personnel-close',
-  'forklift',
-];
+// The default scene set, the preview plan and the readiness stages are claims
+// about the app, so they live in lib/surface-measure-contract.mjs where a test
+// can hold them against the real source.
+const DEFAULT_SCENES = DEFAULT_SURFACE_SCENES;
 
 /** `x,y,w,h` in frame pixels, or null for the whole frame. */
 function parseCrop(value) {
@@ -162,10 +151,13 @@ let preview = null;
 let lock = null;
 
 async function startPreview() {
-  await access(path.join(ROOT, 'dist', 'index.html')).catch(() => {
+  const indexHtml = await readFile(path.join(ROOT, 'dist', 'index.html'), 'utf8').catch(() => {
     throw new Error('dist/index.html is missing. Run npm run build first.');
   });
-  const url = `http://127.0.0.1:${options.port}`;
+  const plan = previewPlan(indexHtml);
+  const env = { ...process.env, BROWSER: 'none' };
+  if (plan.version) env.VERSION = plan.version;
+  const url = `http://127.0.0.1:${options.port}${plan.basePath}`;
   preview = spawn(
     process.execPath,
     [
@@ -177,7 +169,7 @@ async function startPreview() {
       String(options.port),
       '--strictPort',
     ],
-    { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, BROWSER: 'none' } }
+    { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'], env }
   );
   const deadline = Date.now() + 30000;
   for (;;) {
@@ -341,14 +333,9 @@ async function main() {
           `${baseUrl}/?benchmark=${scene}&quality=${options.quality}&duration=300&art=1`,
           { waitUntil: 'domcontentloaded', timeout: 90000 }
         );
-        await page.waitForFunction(() => window.__MILLOS_RUNTIME__?.ready === true, null, {
-          timeout: 90000,
-        });
-        await page.waitForFunction(
-          () => document.documentElement.dataset.millosWorldReady === 'true',
-          null,
-          { timeout: 90000 }
-        );
+        for (const stage of READINESS_STAGES) {
+          await page.waitForFunction(stage.predicate, null, { timeout: 90000 });
+        }
         // Lazily mounted branches and the static batcher both land seconds
         // after "ready". Measuring before the batches exist measures the
         // unbatched originals, which are a different set of materials.
