@@ -383,8 +383,8 @@ export const RIDGE_FIELD_PROFILE = {
   clumpReliefMetres: 1.1,
   clumpFootprint: [2.0, 6.0],
   rag: 0.09,
-  fringe: 0.07,
-  scrub: [0.082, 0.112, 0.05],
+  fringe: 0.1,
+  scrub: [0.09, 0.122, 0.054],
   /**
    * Night: parcels keep `nightVariation` of their luminance step about
    * `nightTone`, at its hue, once `uFieldDaylight` reaches 0. The weight is

@@ -3945,9 +3945,10 @@ export const PATH_HEDGES = [
   {
     // The car-park road leaves the walk's start heading north-east, across this
     // side: the hedge laid from 1 m in ran straight over the 5 m carriageway
-    // (water/farm, final3). It now starts 0.8 m clear of the road's far edge,
-    // 13.4 m along the walk, leaving the junction open.
-    ...hedgeAlongPath(LAKE_APPROACH_PATH, -1, { height: 0.5, width: 0.4, startInset: 13.4 }),
+    // (water/farm, final3). Clear of the road's far edge from 13.4 m along the
+    // walk; it starts at 16.5 m so that, from the farm camera, it does not
+    // emerge from behind the trunk at (110, 95) standing on the same bearing.
+    ...hedgeAlongPath(LAKE_APPROACH_PATH, -1, { height: 0.5, width: 0.4, startInset: 16.5 }),
     path: LAKE_APPROACH_PATH,
   },
 ] as const;
