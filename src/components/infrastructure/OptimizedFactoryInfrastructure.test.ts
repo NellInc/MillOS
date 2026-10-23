@@ -21,6 +21,7 @@ import {
   FACTORY_GLAZING_SURFACES,
   FLOOR_JOINT_PITCH,
   sampleFloorMacro,
+  type BoxInstance,
 } from './OptimizedFactoryInfrastructure';
 
 describe('optimized factory envelope', () => {
@@ -804,6 +805,61 @@ describe('aisle safety barriers', () => {
     expect(uniforms.uSurfSlab.value.z).toBeGreaterThanOrEqual(0.1);
     // Sections count from each run's own centre.
     expect(uniforms.uSurfSpan.value.w).toBe(1);
+  });
+
+  it('are built as precast sections: open joints, a cast foot, chamfered arrises and lifting sockets', async () => {
+    // final3-med-12/-06/-19: the x -30 run (milling's foreground, forklift's
+    // board behind the belt) still read as one smeared brown slab; the
+    // shader-only sections above did not show. Structure in geometry instead,
+    // every part inside the run's envelope so nothing it clears moves.
+    const { buildSafetyRails, buildSafetyRailParts } =
+      await import('./OptimizedFactoryInfrastructure');
+    const envelopes = buildSafetyRails();
+    const parts = buildSafetyRailParts();
+    const aabb = ({ position, scale, rotation = [0, 0, 0] }: BoxInstance) => {
+      const box = new THREE.Box3(
+        new THREE.Vector3(-0.5, -0.5, -0.5),
+        new THREE.Vector3(0.5, 0.5, 0.5)
+      ).applyMatrix4(
+        new THREE.Matrix4().compose(
+          new THREE.Vector3(...position),
+          new THREE.Quaternion().setFromEuler(new THREE.Euler(...rotation)),
+          new THREE.Vector3(...scale)
+        )
+      );
+      return box;
+    };
+    const envelopeBox = (e: BoxInstance) => aabb(e).expandByScalar(1e-6);
+    const owner = (part: BoxInstance) =>
+      envelopes.findIndex((e) => envelopeBox(e).containsBox(aabb(part)));
+    for (const kind of ['sections', 'feet', 'chamfers', 'sockets'] as const)
+      for (const part of parts[kind])
+        expect(owner(part), `${kind} outside every run`).toBeGreaterThanOrEqual(0);
+    envelopes.forEach((envelope, run) => {
+      const length = envelope.scale[2];
+      const thickness = envelope.scale[0];
+      const sections = parts.sections
+        .filter((part) => owner(part) === run)
+        .map(aabb)
+        .sort((a, b) => a.min.z - b.min.z);
+      expect(sections.length, `run ${run}`).toBeGreaterThanOrEqual(
+        Math.max(3, Math.floor(length / 2.6))
+      );
+      for (let i = 1; i < sections.length; i += 1)
+        expect(
+          sections[i].min.z - sections[i - 1].max.z,
+          `joint ${run}:${i}`
+        ).toBeGreaterThanOrEqual(0.03);
+      // The cast foot is the run's full thickness; the painted body above it is thinner.
+      const feet = parts.feet.filter((part) => owner(part) === run);
+      expect(feet.length).toBe(sections.length);
+      for (const foot of feet) expect(foot.scale[0]).toBeCloseTo(thickness, 6);
+      for (const section of sections)
+        expect(section.max.x - section.min.x).toBeLessThan(thickness - 0.02);
+      // Both top arrises of every section are chamfered; two sockets on each top.
+      expect(parts.chamfers.filter((part) => owner(part) === run).length).toBe(2 * sections.length);
+      expect(parts.sockets.filter((part) => owner(part) === run).length).toBe(2 * sections.length);
+    });
   });
 });
 
