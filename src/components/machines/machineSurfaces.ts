@@ -358,10 +358,11 @@ export function siloRibBand(phase: number, cyclesPerPixel: number, fineFade: num
 }
 
 /**
- * The fine ribs' own contrast in the band's units: an albedo swing that reads
- * as strongly as the normal-mapped 15.6 cm ribs do where they are drawn.
- * Measured on final4/final5-med-12 silos: the near bin's fine ribs at rms ~1.6
- * sRGB levels, the band at 0.12 at rms ~5 on bins 3-5, so 0.12 x 1.6 / 5.
+ * The ceiling on the band, as a lower bound on the fine ribs' contrast in its
+ * units, so the handover never adds stripes. Measured narrow-band on the silos
+ * camera (final4/final5-med-12): the band at 0.12 read rms 4.0-4.7 sRGB levels
+ * on bins 3-5, where final4 (no band) read 0.9-1.7 and no judge saw stripes;
+ * 0.12 x 1.5 / 4.5 = 0.04. The near bin's drawn ribs read 3.5-4.7, well above.
  */
 export const SILO_FINE_RIB_TONE_EQUIV = 0.04;
 
