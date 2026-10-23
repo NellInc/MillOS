@@ -55,8 +55,17 @@ describe('sectional dock door leaf', () => {
     for (let i = 0; i < sections; i++) {
       const centre = -height / 2 + (i + 0.5) * pitch;
       const ribs = [centre - pitch / 4, centre + pitch / 4].map((y) => faceAt(0, y)!);
-      for (const rib of ribs) expect(rib - panelFace, `panel ${i}`).toBeGreaterThan(0.008);
+      for (const rib of ribs) expect(rib - panelFace, `panel ${i}`).toBeGreaterThan(0.004);
     }
+  });
+
+  // r4 first after-capture, milling: 35 mm ribs with lit tops broke into rows
+  // of dots across the leaf. Every horizontal feature is 2 px or more tall
+  // from the milling camera (34 m, fov 50, 1440 px).
+  it('draws no joint or rib thinner than 2 px from the milling camera', () => {
+    const twoPixels = 2 * 34 * ((2 * Math.tan((25 * Math.PI) / 180)) / 1440);
+    expect(SECTIONAL_DOOR.ribHeight).toBeGreaterThanOrEqual(twoPixels);
+    expect(SECTIONAL_DOOR.jointHeight).toBeGreaterThanOrEqual(twoPixels);
   });
 
   it('is a lit dielectric, not a mirror of the sky', () => {

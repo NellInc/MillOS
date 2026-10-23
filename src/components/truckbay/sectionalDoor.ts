@@ -20,12 +20,16 @@ export const SECTIONAL_DOOR = {
   depth: 0.15,
   /** Seven panels of 0.57 m: a 4 m dock door's usual stack. */
   sections: 7,
-  /** Joint groove: height across the joint and depth into each face. */
-  jointHeight: 0.04,
+  /**
+   * Joint groove: height across the joint and depth into each face. Every
+   * horizontal feature is 2 px or more tall from the milling camera: 35 mm
+   * ribs with lit tops broke into rows of dots across the leaf.
+   */
+  jointHeight: 0.06,
   jointDepth: 0.03,
-  /** Pressed ribs: two per panel, proud of each face. */
-  ribHeight: 0.035,
-  ribProud: 0.012,
+  /** Pressed bands: two per panel, broad and shallow, proud of each face. */
+  ribHeight: 0.11,
+  ribProud: 0.006,
   /** The ribs stop short of the stiles at each side. */
   ribInset: 0.15,
 } as const;
