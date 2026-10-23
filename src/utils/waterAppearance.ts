@@ -64,6 +64,14 @@ export const WATER_SKY_DETAIL_PROFILE = {
   deckHeightMetres: 200,
   cloud: [0.42, 0.86],
   cloudWeight: 0.38,
+  /**
+   * The deck's weight on a bounded radial surface (lake, ponds). Its cells are
+   * the lake's own size, so at 0.38 one cloud-free cell read as a dark smudge
+   * at the centre beside cloud-lit water (92 against 74 sRGB luma), and the
+   * high-Fresnel far side printed near-white clouds (final6-med-12 water). The
+   * canal crosses many cells along its 220 m and keeps `cloudWeight`.
+   */
+  radialCloudWeight: 0.19,
   pawScale: 0.07,
   paw: [0.45, 0.85],
   pawReflectance: 0.07,
@@ -152,6 +160,18 @@ export const WATER_NIGHT_PROFILE = {
 export function waterNightSheen(daylight: number): number {
   const [start, end] = WATER_NIGHT_PROFILE.daylight;
   return WATER_NIGHT_PROFILE.floor * (1 - THREE.MathUtils.smoothstep(daylight, start, end));
+}
+
+/**
+ * Weight of the mirrored cloud deck in the reflected sky. The far bank hides
+ * the sky, so it hides the mirrored cloud as well (`bankHit` 1 leaves none):
+ * darkened at its own hue, a cloud there still printed a white glare band along
+ * the lake's far shore (final6-med-12 water).
+ */
+export function waterMirroredCloudWeight(bankHit: number, radial: boolean): number {
+  const hit = Math.min(1, Math.max(0, bankHit));
+  const { cloudWeight, radialCloudWeight } = WATER_SKY_DETAIL_PROFILE;
+  return (radial ? radialCloudWeight : cloudWeight) * (1 - hit);
 }
 
 /** Paired control for the bank reflection: 0 restores the sky exactly. */

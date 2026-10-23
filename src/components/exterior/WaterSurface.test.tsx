@@ -27,6 +27,7 @@ import {
   naturalWaterBody,
   waterBankReflection,
   waterDeckCoord,
+  waterMirroredCloudWeight,
   waterNightSheen,
 } from '../../utils/waterAppearance';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
@@ -101,7 +102,7 @@ describe('authored exterior water material and atmosphere driver', () => {
     );
     expect(water.fragmentShader).toContain('gl_FragColor = vec4(colour, 1.0)');
     expect(water.fragmentShader).toContain('#include <fog_fragment>');
-    expect(water.customProgramCacheKey()).toBe('millos-unified-water-v26');
+    expect(water.customProgramCacheKey()).toBe('millos-unified-water-v27');
     const dispose = vi.spyOn(water, 'dispose');
     for (const cleanup of driver.cleanups.splice(0)) cleanup();
     expect(dispose).toHaveBeenCalledOnce();
@@ -399,7 +400,7 @@ it('keeps a deep-water read on Low, where no metre-scale ripple breaks the refle
   expect(water.fragmentShader).toContain(
     `mix(${WATER_FRESNEL_EXPONENT_FLAT.toFixed(1)}, ${WATER_FRESNEL_EXPONENT.toFixed(1)}, uRippleDetail)`
   );
-  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v26');
+  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v27');
 });
 
 // final4-med-12 rubric: the pond is a saturated cyan and reflects nothing of
@@ -473,7 +474,7 @@ it('gives still water a natural body and a soft far-bank darkening on Medium onl
   const rise = (camera.y - target.y) / Math.hypot(camera.x - target.x, camera.z - target.z);
   expect(WATER_BANK_PROFILE.bankMetres / rise).toBeGreaterThan(1.5);
   expect(WATER_BANK_DETAIL.value).toBe(1);
-  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v26');
+  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v27');
 });
 
 // final5-med-22 water: a near-black centre. Steep views reflect the zenith,
@@ -624,5 +625,50 @@ it('mirrors a cloud deck and gust patches across the lake on Medium, exact on Lo
   sky.dispose();
   dome.geometry.dispose();
   expect(WATER_SKY_DETAIL.value).toBe(1);
-  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v26');
+  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v27');
+});
+
+// final6-med-12 water: a white glare band along the lake's far bank and a dark
+// smudge at its centre. Both are the mirrored cloud deck at the lake's own
+// scale: at 0.38 of the sky colour, cloud-lit water beside the cloud-free
+// centre measured 92 against 74 sRGB luma (round 5: 84 against 81), and next
+// to the far shore, where Fresnel is highest, the deck printed near-white
+// clouds through the bank's reflection. The bank now occludes the mirrored
+// cloud as well as darkening the sky, and on a bounded radial surface (lake,
+// ponds) the deck is half as strong. The canal crosses many deck cells along
+// its 220 m and keeps its weight.
+it('keeps mirrored cloud off the far bank and soft across a lake, the canal unchanged', () => {
+  const make = (props: Parameters<typeof UnifiedWaterSurfaceMaterial>[0]) =>
+    (UnifiedWaterSurfaceMaterial(props) as ReactElement<{ object: THREE.ShaderMaterial }>).props
+      .object;
+  const lake = make({ kind: 'lake', radial: true, bankRadii: [19, 14] });
+  const shader = lake.fragmentShader;
+  // The bank is resolved before the deck, and the deck takes it.
+  expect(shader.indexOf('float bankHit')).toBeLessThan(shader.indexOf('float mirrored'));
+  expect(shader).toContain('* (1.0 - bankHit)');
+  const { cloudWeight, radialCloudWeight } = WATER_SKY_DETAIL_PROFILE;
+  expect(shader).toContain(
+    `mix(${cloudWeight.toFixed(2)}, ${radialCloudWeight.toFixed(2)}, uRadial)`
+  );
+  // CPU mirror: no cloud where the bank stands, half on a lake, full on the canal.
+  expect(waterMirroredCloudWeight(1, true)).toBe(0);
+  expect(waterMirroredCloudWeight(1, false)).toBe(0);
+  expect(waterMirroredCloudWeight(0, false)).toBe(cloudWeight);
+  expect(waterMirroredCloudWeight(0, true)).toBe(radialCloudWeight);
+  expect(radialCloudWeight).toBeLessThanOrEqual(cloudWeight * 0.55);
+  expect(radialCloudWeight).toBeGreaterThan(0.1);
+  // The swing a full mirrored cloud adds to the noon sky reflection, as a
+  // fraction of that reflection, stays small on the lake.
+  const luma = (c: THREE.Color) => c.r * 0.2126 + c.g * 0.7152 + c.b * 0.0722;
+  const sky = new THREE.Color('#a3cce2').lerp(new THREE.Color('#70aed8'), 0.45);
+  const cloud = new THREE.Color('#f4f6f2');
+  const swing = (weight: number) => (luma(sky.clone().lerp(cloud, weight)) - luma(sky)) / luma(sky);
+  expect(swing(cloudWeight)).toBeGreaterThan(0.25);
+  expect(swing(waterMirroredCloudWeight(0, true))).toBeLessThan(swing(cloudWeight) * 0.55);
+  // Canal and river keep the deck's full weight (uRadial 0).
+  expect(
+    make({ kind: 'canal', crossOnly: true, bankRadii: [5.5, 110] }).uniforms.uRadial.value
+  ).toBe(0);
+  expect(lake.uniforms.uRadial.value).toBe(1);
+  expect(lake.customProgramCacheKey()).toBe('millos-unified-water-v27');
 });
