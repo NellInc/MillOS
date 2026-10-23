@@ -143,7 +143,7 @@ import * as THREE from 'three';
 import { CONCRETE_SLAB_GLSL, SLAB_JOINT_PITCH, SLAB_JOINT_WIDTH } from './concreteSlab';
 
 /** Bump BY HAND whenever the injected GLSL below changes. Never derive this. */
-const WORLD_SURFACE_PROGRAM_VERSION = 'v8';
+const WORLD_SURFACE_PROGRAM_VERSION = 'v9';
 
 /** Where a rib's crown sits within its pitch, 0-1 (the trapezoid in FRAGMENT_BODY). */
 export const RIB_CROWN_PHASE = 0.4;
@@ -193,6 +193,68 @@ export function ribFilteredSwing(w: number): number {
   return hi - lo;
 }
 
+/**
+ * Footprint, in pitches a pixel, over which the filtered rib's swing fades out.
+ *
+ * A box filter is not a low-pass. Over a footprint of `w` pitches the
+ * trapezoid keeps 85% of its swing at w 0.5 (two pixels a pitch: Nyquist) and
+ * 20-28% at w 1.25-1.5, and all of that aliases: final4's roof liner read as a
+ * dot grid from interior, milling and every hall camera.
+ *
+ * Nor is a resolved pitch calm. Faded at 0.2-0.42 (r5shell5 probe, interior
+ * med-12), the liner's 0.25 m ribs still drew at 4 px a pitch across the top
+ * right of the frame, chopped every 11 px by the purlins into the same
+ * checkerboard. So the swing is full only below 0.1 (10 px a pitch) and gone
+ * by 0.25 (4 px a pitch), well before Nyquist. `fwidth` sums |dFdx| and
+ * |dFdy|, so the measured footprint errs long, toward the calm side.
+ */
+export const RIB_NYQUIST_FADE = { from: 0.1, to: 0.25 } as const;
+
+/** Paired rendered control for that fade (0 = the box filter alone), shared by reference. */
+export const RIB_NYQUIST_STRENGTH: { value: number } = { value: 1 };
+
+/** Fraction of the filtered swing kept at footprint `w` pitches, fade at strength `fade`. */
+export function ribNyquistKeep(w: number, fade = 1): number {
+  const t = Math.min(
+    1,
+    Math.max(0, (w - RIB_NYQUIST_FADE.from) / (RIB_NYQUIST_FADE.to - RIB_NYQUIST_FADE.from))
+  );
+  return 1 - fade * t * t * (3 - 2 * t);
+}
+
+/** Integral from 0 to `u` pitches of a seam: 0 over its first `width` pitches, 1 after. */
+function seamIntegral(u: number, width: number): number {
+  const t = u - Math.floor(u);
+  return Math.floor(u) * (1 - width) + Math.max(0, t - width);
+}
+
+/** A seam of `width` pitches box-filtered over a footprint of `w` pitches at `u`. */
+export function ribSeamFilteredValue(u: number, w: number, width: number): number {
+  const span = Math.max(w, 1e-4);
+  return (seamIntegral(u + span / 2, width) - seamIntegral(u - span / 2, width)) / span;
+}
+
+function seamFilteredSwing(w: number, width: number): number {
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (let i = 0; i < 400; i++) {
+    const value = ribSeamFilteredValue(i / 400, w, width);
+    lo = Math.min(lo, value);
+    hi = Math.max(hi, value);
+  }
+  return hi - lo;
+}
+
+/**
+ * The swing that reaches the frame: the box-filtered profile (a trapezoid, or
+ * a seam of `seamWidth` pitches) times the Nyquist fade at strength `fade`.
+ * Mirrors the filtered branch of FRAGMENT_BODY.
+ */
+export function ribRenderedSwing(w: number, seamWidth = 0, fade = 1): number {
+  const swing = seamWidth > 0 ? seamFilteredSwing(w, seamWidth) : ribFilteredSwing(w);
+  return swing * ribNyquistKeep(w, fade);
+}
+
 const RIB_INTEGRAL_GLSL = /* glsl */ `
 float surfRibIntegral( float u ) {
   float t = fract( u );
@@ -201,6 +263,10 @@ float surfRibIntegral( float u ) {
   return floor( u ) * ${RIB_PROFILE_MEAN.toFixed(2)} + r * r / ${(2 * (RIB_EDGES.riseEnd - RIB_EDGES.riseStart)).toFixed(2)}
     + clamp( t, ${RIB_EDGES.riseEnd.toFixed(2)}, ${RIB_EDGES.fallStart.toFixed(2)} ) - ${RIB_EDGES.riseEnd.toFixed(2)}
     + f - f * f / ${(2 * (RIB_EDGES.fallEnd - RIB_EDGES.fallStart)).toFixed(2)};
+}
+// A seam of width w pitches: 0 over the seam, 1 elsewhere. Mirrors seamIntegral.
+float surfSeamIntegral( float u, float w ) {
+  return floor( u ) * ( 1.0 - w ) + max( fract( u ) - w, 0.0 );
 }
 `;
 
@@ -312,6 +378,12 @@ export interface WorldSurfaceProfile {
    * the mean (no tone shift, no aliasing) below that. See `ribFilteredValue`.
    */
   readonly ribFilteredTone?: number;
+  /**
+   * 0-1, with `ribFilteredTone`: replace the trapezoid with a thin dark seam
+   * this many PITCHES wide (a membrane lap), box-filtered and Nyquist-faded the
+   * same way. Its swing is the seam's darkening against the field between.
+   */
+  readonly ribSeamWidth?: number;
   /**
    * 0-1. How far the INDIRECT diffuse is pulled to its own luminance. For an
    * indoor surface facing the hall floor: the sky rig's lower band is the
@@ -728,8 +800,10 @@ interface WorldSurfaceUniforms {
   readonly uSurfSlab: { value: THREE.Vector4 };
   /** x rib period (0 = off), y rib depth, z axis (0 X, 1 Z), w indoor bounce. */
   readonly uSurfDeck: { value: THREE.Vector4 };
-  /** x filtered-rib albedo swing, y 1 = box-filtered rib (0 = faded default). */
+  /** x filtered-rib albedo swing, y 1 = box-filtered rib (0 = faded default), z seam width (pitches, 0 = trapezoid). */
   readonly uSurfRib: { value: THREE.Vector4 };
+  /** The shared Nyquist-fade control, `RIB_NYQUIST_STRENGTH`. */
+  readonly uSurfRibNyquist: { value: number };
 }
 
 /** Materials publish their live uniforms so a caller can retune at runtime. */
@@ -803,6 +877,7 @@ uniform vec3 uSurfBare;
 uniform vec4 uSurfSlab;
 uniform vec4 uSurfDeck;
 uniform vec4 uSurfRib;
+uniform float uSurfRibNyquist;
 varying vec3 vSurfWorld;
 varying vec3 vSurfObject;
 varying vec3 vSurfNormalW;
@@ -958,12 +1033,29 @@ const FRAGMENT_BODY = /* glsl */ `
     // the pixel footprint, in pitches. Full profile while a pitch spans pixels,
     // its mean once it does not; the tone swings about that mean, so distance
     // never shifts the surface's average albedo.
+    //
+    // A box filter is not a low-pass, though: past ~2.5 px a pitch what it
+    // leaves still aliases (RIB_NYQUIST_FADE), so the swing about the mean is
+    // faded out before Nyquist. uSurfRib.z > 0 swaps the trapezoid for a thin
+    // seam that many pitches wide (a membrane lap), filtered the same way.
     float surfRibU = mix( vSurfWorld.x, vSurfWorld.z, uSurfDeck.z ) / uSurfDeck.x;
     float surfRibW = max( fwidth( surfRibU ), 1e-4 );
-    float surfRib = ( surfRibIntegral( surfRibU + 0.5 * surfRibW )
-      - surfRibIntegral( surfRibU - 0.5 * surfRibW ) ) / surfRibW;
-    surfRibHeight = surfRib * uSurfDeck.y * surfKill;
-    diffuseColor.rgb *= 1.0 + ( surfRib - ${RIB_PROFILE_MEAN.toFixed(2)} ) * uSurfRib.x * surfKill;
+    float surfRib;
+    float surfRibMean;
+    if ( uSurfRib.z > 0.0 ) {
+      surfRib = ( surfSeamIntegral( surfRibU + 0.5 * surfRibW, uSurfRib.z )
+        - surfSeamIntegral( surfRibU - 0.5 * surfRibW, uSurfRib.z ) ) / surfRibW;
+      surfRibMean = 1.0 - uSurfRib.z;
+    } else {
+      surfRib = ( surfRibIntegral( surfRibU + 0.5 * surfRibW )
+        - surfRibIntegral( surfRibU - 0.5 * surfRibW ) ) / surfRibW;
+      surfRibMean = ${RIB_PROFILE_MEAN.toFixed(2)};
+    }
+    float surfRibKeep = 1.0 - smoothstep(
+      ${RIB_NYQUIST_FADE.from.toFixed(2)}, ${RIB_NYQUIST_FADE.to.toFixed(2)}, surfRibW ) * uSurfRibNyquist;
+    float surfRibDev = ( surfRib - surfRibMean ) * surfRibKeep;
+    surfRibHeight = ( surfRibMean + surfRibDev ) * uSurfDeck.y * surfKill;
+    diffuseColor.rgb *= 1.0 + surfRibDev * uSurfRib.x * surfKill;
   } else if ( uSurfDeck.x > 0.0 ) {
     float surfRibCoord = mix( vSurfWorld.x, vSurfWorld.z, uSurfDeck.z );
     float surfRibT = fract( surfRibCoord / uSurfDeck.x );
@@ -1137,10 +1229,11 @@ function buildWorldSurfaceUniforms(
       value: new THREE.Vector4(
         settings.ribFilteredTone ?? 0.14,
         settings.ribFilteredTone === undefined ? 0 : 1,
-        0,
+        settings.ribSeamWidth ?? 0,
         0
       ),
     },
+    uSurfRibNyquist: RIB_NYQUIST_STRENGTH,
   };
 }
 

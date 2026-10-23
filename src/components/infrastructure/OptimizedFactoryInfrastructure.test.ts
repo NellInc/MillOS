@@ -1117,15 +1117,18 @@ describe('roof deck liner', () => {
 
   /**
    * final3 med-12 interior and milling: "between the trusses the deck is a
-   * single flat plane". The ribs were there and faded out by footprint: gone
-   * once a pixel covered 35% of the 0.25 m pitch, which in `interior` (deck 8 m
-   * overhead, fov 55, 1440 px) is ~0.06 m a pixel, every visible row of it.
-   * The liner box-filters its trapezoid over the footprint instead, so a rib
-   * 3-4 px apart still reads and only a sub-pixel pitch averages away.
+   * single flat plane", so round 4 box-filtered the liner's ribs to keep them
+   * at the interior cameras. final4 (med-12, med-06, med-1830, low-12): the
+   * deck read as a dot grid. The test that shipped measured the footprint on
+   * the 1440 px CAPTURE, but Medium renders 864 px (resolution 0.6 at DPR 2)
+   * and Low 576, where the top of `interior` is 0.42 and 0.63 pitches a pixel:
+   * past Nyquist, where the box filter still left 85% and 40% of the swing.
+   * The ribs now read only where a pitch spans pixels; the purlins carry the
+   * deck's rhythm beyond that.
    */
-  it('keeps its ribs at the distance the interior cameras see them', async () => {
+  it('keeps its ribs only where they resolve, and never past Nyquist', async () => {
     const { ROOF_PANEL_MATERIALS } = await import('./OptimizedFactoryInfrastructure');
-    const { ribFilteredSwing } = await import('../../utils/worldSurface');
+    const { ribRenderedSwing } = await import('../../utils/worldSurface');
     const liner = ROOF_PANEL_MATERIALS[3] as THREE.MeshStandardMaterial;
     const uniforms = liner.userData.millosWorldSurface as {
       uSurfDeck: { value: THREE.Vector4 };
@@ -1136,15 +1139,21 @@ describe('roof deck liner', () => {
     expect(uniforms.uSurfRib.value.y).toBe(1);
     // A pixel's footprint along a ceiling seen at `elevation` degrees from
     // `rise` metres under it: distance times the pixel angle, foreshortened.
-    const footprint = (rise: number, elevation: number, fov: number) => {
+    const footprint = (rise: number, elevation: number, fov: number, rows: number) => {
       const sin = Math.sin((elevation * Math.PI) / 180);
-      return ((rise / sin) * ((2 * Math.tan((fov * Math.PI) / 360)) / 1440)) / sin;
+      return ((rise / sin) * ((2 * Math.tan((fov * Math.PI) / 360)) / rows)) / sin;
     };
-    // `interior`, top of frame: deck 8.3 m up at 18 degrees. The old fade left
-    // a 0.05 swing there; the filtered rib must at least double it.
-    expect(tone * ribFilteredSwing(footprint(8.3, 18, 55) / pitch)).toBeGreaterThan(0.1);
-    // `milling`, top of frame: 18 m under the deck at 22 degrees (old: 0.003).
-    expect(tone * ribFilteredSwing(footprint(18, 22, 50) / pitch)).toBeGreaterThan(0.08);
+    const MEDIUM_ROWS = 720 * 2 * 0.6;
+    const LOW_ROWS = 720 * 2 * 0.4;
+    // `interior` and `milling`, top of frame, on Medium and Low: no swing left.
+    for (const rows of [MEDIUM_ROWS, LOW_ROWS]) {
+      expect(ribRenderedSwing(footprint(8.3, 18, 55, rows) / pitch)).toBeLessThan(1e-3);
+      expect(ribRenderedSwing(footprint(18, 22, 50, rows) / pitch)).toBeLessThan(1e-3);
+    }
+    // Looking up at the deck from under it (8.3 m, 60 degrees) the ribs read.
+    expect(tone * ribRenderedSwing(footprint(8.3, 60, 55, MEDIUM_ROWS) / pitch)).toBeGreaterThan(
+      0.15
+    );
   });
 });
 
@@ -1282,5 +1291,76 @@ describe('facade window frames', () => {
       const paneDepth = front ? pane.scale[2] : pane.scale[0];
       expect(railDepth).toBeLessThanOrEqual(paneDepth + 1e-9);
     }
+  });
+});
+
+/**
+ * final4 med-12 overview and farm: the hall roof seen from above was "one flat
+ * olive plane", the largest surface in the overview frame. And the three roof
+ * units it did carry stood at a fixed height, not on the pitched deck: the one
+ * at the ridge was buried 1.7 m under it.
+ */
+describe('rooftop plant and membrane', () => {
+  it('seats every unit on its half of the deck, between battens and clear of the roof lights', async () => {
+    const { buildFactoryRooftopPlant, ROOFTOP_PLANT, ROOFTOP_PLANT_EMBED, ROOF_SKYLIGHT_LAYOUT } =
+      await import('./OptimizedFactoryInfrastructure');
+    const plant = buildFactoryRooftopPlant();
+    expect(plant.length).toBeGreaterThanOrEqual(10);
+    const L = ROOF_SKYLIGHT_LAYOUT;
+    plant.forEach((unit, i) => {
+      const [side, local] = ROOFTOP_PLANT[i];
+      const slope = L.roofSlope(side);
+      const normal = new THREE.Vector3(-Math.sin(slope), Math.cos(slope), 0);
+      const seat = L.deckPoint(side, local);
+      const centre = new THREE.Vector3(...unit.position);
+      // Base face sits ROOFTOP_PLANT_EMBED into the deck's top face.
+      const baseHeight =
+        centre
+          .clone()
+          .sub(new THREE.Vector3(seat.x, seat.y, centre.z))
+          .dot(normal) -
+        unit.scale[1] / 2;
+      expect(baseHeight, `unit ${i}`).toBeCloseTo(-ROOFTOP_PLANT_EMBED, 6);
+      expect(unit.rotation?.[2]).toBeCloseTo(slope, 9);
+      // Within its own half, inside the trim.
+      expect(Math.abs(local) + unit.scale[0] / 2, `unit ${i}`).toBeLessThan(L.battenReach);
+      // Between two battens.
+      const zMin = centre.z - unit.scale[2] / 2;
+      const zMax = centre.z + unit.scale[2] / 2;
+      for (let z = -47.2; z <= 47.2; z += L.battenPitch) {
+        const clear = zMax < z - L.battenWidth / 2 - 0.05 || zMin > z + L.battenWidth / 2 + 0.05;
+        expect(clear, `unit ${i} over batten ${z.toFixed(1)}`).toBe(true);
+      }
+      // Clear of every roof light and its kerb.
+      const lightX = L.localX(side);
+      for (const lightZ of L.z) {
+        const overlapX = Math.abs(local - lightX) < unit.scale[0] / 2 + L.size.x / 2 + 0.5;
+        const overlapZ = Math.abs(centre.z - lightZ) < unit.scale[2] / 2 + L.size.z / 2 + 0.5;
+        expect(overlapX && overlapZ, `unit ${i} in roof light ${lightZ}`).toBe(false);
+      }
+    });
+  });
+
+  it('draws lap seams on the membrane that stay resolvable from the overview', async () => {
+    const { ROOF_PANEL_MATERIALS, ROOF_MEMBRANE_SEAM } =
+      await import('./OptimizedFactoryInfrastructure');
+    const { ribRenderedSwing } = await import('../../utils/worldSurface');
+    const top = ROOF_PANEL_MATERIALS[2] as THREE.MeshStandardMaterial;
+    const u = top.userData.millosWorldSurface as {
+      uSurfDeck: { value: THREE.Vector4 };
+      uSurfRib: { value: THREE.Vector4 };
+    };
+    expect(u.uSurfDeck.value.x).toBe(ROOF_MEMBRANE_SEAM.pitch);
+    expect(u.uSurfDeck.value.z).toBe(0);
+    expect(u.uSurfRib.value.y).toBe(1);
+    expect(u.uSurfRib.value.z).toBeCloseTo(ROOF_MEMBRANE_SEAM.width / ROOF_MEMBRANE_SEAM.pitch, 9);
+    // Seams parallel to the ridge recede from the overview camera, so the
+    // footprint across them is the lateral one: ~0.12 m a pixel at 130 m on
+    // Medium (864 rows, fov 45), plus some foreshortening.
+    const across = (130 * 2 * Math.tan((45 * Math.PI) / 360)) / 864;
+    const seam = ROOF_MEMBRANE_SEAM.width / ROOF_MEMBRANE_SEAM.pitch;
+    expect(ribRenderedSwing((2 * across) / ROOF_MEMBRANE_SEAM.pitch, seam)).toBeGreaterThan(0.03);
+    expect(ROOF_MEMBRANE_SEAM.pitch).toBeGreaterThanOrEqual(1);
+    expect(ROOF_MEMBRANE_SEAM.pitch).toBeLessThanOrEqual(2);
   });
 });

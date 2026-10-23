@@ -124,6 +124,71 @@ export interface HallConduitBank {
   readonly topY: number;
 }
 
+/**
+ * Cable trunking climbing a shell column's hall-side face, with a junction box
+ * at its foot and conduits from the box down the column to the slab.
+ */
+export interface HallColumnRiser {
+  readonly id: string;
+  /** The column's centre in plan. */
+  readonly columnX: number;
+  readonly columnZ: number;
+  /** Unit plan axis from the column into the hall: [nx, nz], one of them 0. */
+  readonly normal: readonly [number, number];
+  /** The column face the trunking is fixed to, along `normal` from the centre. */
+  readonly faceOffset: number;
+  /** Trunking: width across the face, depth proud of it, and its run. */
+  readonly width: number;
+  readonly depth: number;
+  readonly bottomY: number;
+  readonly topY: number;
+  /** Junction box at the trunking's foot (its top meets `bottomY`). */
+  readonly box: { readonly width: number; readonly height: number; readonly depth: number };
+  /** Conduits from the box's underside to the slab, offsets across the face. */
+  readonly conduits: readonly number[];
+  readonly conduitRadius: number;
+}
+
+/** A shell column is 0.42 m square (`buildFactoryShellColumns`). */
+const SHELL_COLUMN_HALF = 0.21;
+/** The truss bearing plates sit at maxY - 3.25; the trunking stops under them. */
+const RISER_TOP = SITE_LAYOUT.factory.bounds.maxY - 3.6;
+const SIDE_COLUMN_X = SITE_LAYOUT.factory.floor.width / 2 - 0.45;
+const GABLE_COLUMN_Z = 49.55;
+
+const riser = (
+  id: string,
+  columnX: number,
+  columnZ: number,
+  normal: readonly [number, number]
+): HallColumnRiser => ({
+  id,
+  columnX,
+  columnZ,
+  normal,
+  faceOffset: SHELL_COLUMN_HALF,
+  width: 0.3,
+  depth: 0.1,
+  bottomY: 2.2,
+  topY: RISER_TOP,
+  box: { width: 0.42, height: 0.5, depth: 0.18 },
+  conduits: [-0.09, 0.09],
+  conduitRadius: 0.025,
+});
+
+/**
+ * Power up the shell: trunking on the hall face of the columns the interior
+ * and milling cameras see (the east wall and the front gable either side of
+ * the shipping door), and on their opposite numbers. A column face is out of
+ * every route by construction; the test holds them clear of the portals too.
+ */
+export const HALL_COLUMN_RISERS: readonly HallColumnRiser[] = [
+  ...[-30, -10, 10, 30].map((z) => riser(`riser-east-${z}`, SIDE_COLUMN_X, z, [-1, 0])),
+  ...[-30, 10].map((z) => riser(`riser-west-${z}`, -SIDE_COLUMN_X, z, [1, 0])),
+  ...[-20, 20].map((x) => riser(`riser-front-${x}`, x, GABLE_COLUMN_Z, [0, -1])),
+  ...[-20, 20].map((x) => riser(`riser-back-${x}`, x, -GABLE_COLUMN_Z, [0, 1])),
+];
+
 /** A lit floor decal of settled flour and spill. */
 export interface HallDustPatch {
   readonly id: string;

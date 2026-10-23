@@ -18,6 +18,8 @@ import {
   BAG_MIN_SCALE,
   nextBagOccupied,
   scrollBeltOffset,
+  IDLER_ROLLER_COUNT,
+  idlerRollerX,
 } from './ConveyorSystem';
 import { FLOUR_SACK_PRINT_GEOMETRY, FLOUR_INK_STANDOFF } from '../utils/flourSacks';
 
@@ -228,6 +230,23 @@ describe('belt, roller and sack agree on direction', () => {
     const top = new THREE.Vector3(0, 0.12, 0);
     const moved = top.clone().applyEuler(new THREE.Euler(0, 0, advanceRollerAngle(0, 0.01)));
     expect(moved.x).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * final4 med-12 packing: "the gravity rollers are about 0.5 m apart; real ones
+ * are 0.1-0.15 m". They were 1 m apart: 0.3 m barrels with 0.7 m of air
+ * between, which reads as a rack, not a roller bed. A bed's pitch is 1.25-1.5
+ * barrel diameters.
+ */
+describe('idler roller bed', () => {
+  it('pitches the 0.3 m barrels at no more than 1.4 diameters over the same 24 m run', () => {
+    const pitch = idlerRollerX(1) - idlerRollerX(0);
+    expect(pitch).toBeLessThanOrEqual(0.3 * 1.4);
+    // Barrels never touch.
+    expect(pitch - 0.3).toBeGreaterThanOrEqual(0.05);
+    expect(idlerRollerX(0)).toBeCloseTo(-12, 9);
+    expect(idlerRollerX(IDLER_ROLLER_COUNT - 1)).toBeCloseTo(12, 9);
   });
 });
 

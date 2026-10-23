@@ -459,7 +459,9 @@ const MATERIALS = {
   }),
   roof: new THREE.MeshStandardMaterial({
     name: 'factory-roof-deck',
-    color: '#505452',
+    // A cool mid-grey membrane. '#505452' under the warm sun and the grass's
+    // green fill rendered sRGB (110, 111, 95) from the overview: olive.
+    color: '#5e6369',
     normalMap: band(CLADDING_PANEL_NORMAL, 30, 50, { anisotropy: 4 }),
     normalScale: new THREE.Vector2(0.45, 0.45),
     roughness: 0.52,
@@ -495,8 +497,17 @@ const MATERIALS = {
    */
   purlin: new THREE.MeshStandardMaterial({
     name: 'factory-roof-purlin',
-    color: '#a9afb0',
+    // Neutral, a shade under the liner (#b4b4b2): it was '#a9afb0', cooler
+    // than the warm liner, and the hue step striped the ceiling.
+    color: '#acadab',
     roughness: 0.48,
+    metalness: 0,
+  }),
+  /** Galvanised casings of the rooftop plant: light against the dark deck from above. */
+  rooftopPlant: new THREE.MeshStandardMaterial({
+    name: 'factory-rooftop-plant',
+    color: '#a2a7a6',
+    roughness: 0.5,
     metalness: 0,
   }),
   roofTrim: new THREE.MeshStandardMaterial({
@@ -699,9 +710,31 @@ applyFloorDetailBlend(MATERIALS.floor);
 //
 //   coverage = 1 - (1 - F)(1 - a) T
 //   colour   = (F R + (1 - F) a C) / coverage,  R = sky outside, k C inside.
+//
+// v3 (final4 med-06: the raw-storage silos veiled milky from inside, and a grey
+// sheen over the whole glass hall from the farm at dawn):
+//
+// - INSIDE, the hall is dim. At grazing the v2 pane became its own SUNLIT film
+//   colour at 0.4 over ~95% coverage: a milky sheet. The hall it stands for is
+//   a neutral grey at 0.15 of the lit colour, and the inner Fresnel is capped at
+//   0.45, so a grazing pane indoors still shows what is behind it.
+// - OUTSIDE, a camera above the glazing looks DOWN at a vertical pane, and a
+//   downward ray reflected off a vertical face goes on down: it sees the
+//   GROUND. The PMREM's ground band is one flat colour, so that reflection was
+//   a uniform veil where the eye expects the dark, broken yard. It is weighted
+//   0.6 (glazingReflectionWeight; 0.35 took the overview's grazing west facade
+//   from a glass sheen to dark, open steel at noon); the sky keeps all of its
+//   reflection, sampled sharper (roughness 0.12, the sun disc still capped), so
+//   the grazing panes the low cameras see read as mirrors of the sky.
+// - The lit film drops to 60% of the authored opacity: 3.6%.
+//
+// GLAZING_V3 is the paired control (0 = exactly v2), shared by reference.
 
 /** Constant. Bump by hand when the GLSL below changes. */
-export const GLAZING_FRESNEL_CACHE_KEY = 'millos-glazing-fresnel-v2';
+export const GLAZING_FRESNEL_CACHE_KEY = 'millos-glazing-fresnel-v3';
+
+/** Paired rendered control for the v3 composite (0 = v2 exactly), mirrored on userData. */
+export const GLAZING_V3 = { value: 1 };
 
 /** Paired rendered control (0 = the old flat pane), mirrored on userData. */
 export const GLAZING_FRESNEL_STRENGTH = { value: 1 };
@@ -723,7 +756,55 @@ export const GLAZING_REFLECTANCE = {
   bow: 0.008,
   /** Row height for the per-light seed: matches the transoms' 4.5 m limit. */
   rowHeight: 4.5,
+  /** v3: the hall's reflection indoors (neutral, 0.15 of the pane's lit colour). */
+  interiorReflectV3: 0.15,
+  /** v3: the inner face's Fresnel ceiling at grazing. */
+  innerFresnelCap: 0.45,
+  /** v3: the outdoor reflection of anything below the horizon. */
+  groundReflect: 0.6,
+  /** v3: the lit film, as a fraction of the authored opacity. */
+  filmScale: 0.6,
+  /** v3: roughness of the sky lookup (the material keeps 0.24 for the sun lobe). */
+  skyRoughness: 0.12,
 } as const;
+
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+const smooth = (edge0: number, edge1: number, x: number) => {
+  const t = THREE.MathUtils.clamp((x - edge0) / (edge1 - edge0), 0, 1);
+  return t * t * (3 - 2 * t);
+};
+
+/** The horizon band the outdoor reflection weight crosses, as world reflect.y. */
+const GLAZING_HORIZON = { from: -0.12, to: 0.08 } as const;
+
+/**
+ * Weight on the outdoor reflection of a ray whose world y is `reflectY`: the
+ * sky keeps it, the flat ground band takes `groundReflect`. TS mirror of the
+ * shader; `v3` 0 is the v2 composite (no weighting).
+ */
+export function glazingReflectionWeight(reflectY: number, v3 = 1): number {
+  const { from, to } = GLAZING_HORIZON;
+  return lerp(1, lerp(GLAZING_REFLECTANCE.groundReflect, 1, smooth(from, to, reflectY)), v3);
+}
+
+/** The inner face's Fresnel at `cosTheta`, v3 capped. */
+function innerFresnel(cosTheta: number, v3: number): number {
+  const c = THREE.MathUtils.clamp(Math.abs(cosTheta), 0, 1);
+  const { innerF0, innerFresnelCap } = GLAZING_REFLECTANCE;
+  const f = innerF0 + (1 - innerF0) * (1 - c) ** 5;
+  return Math.min(f, lerp(1, innerFresnelCap, v3));
+}
+
+/**
+ * Light the pane ADDS to the view through it from inside, in units of its own
+ * lit colour: the hall reflected at the inner Fresnel plus the film.
+ */
+export function glazingInnerHaze(opacity: number, cosTheta: number, v3 = 1): number {
+  const { interiorReflect, interiorReflectV3, filmScale } = GLAZING_REFLECTANCE;
+  const f = innerFresnel(cosTheta, v3);
+  const film = opacity * lerp(1, filmScale, v3);
+  return f * lerp(interiorReflect, interiorReflectV3, v3) + (1 - f) * film;
+}
 
 /**
  * TS mirror of the composite's coverage, for tests and design numbers.
@@ -734,15 +815,17 @@ export function glazingCoverage(
   cosTheta: number,
   strength = 1,
   outward = true,
-  seed = 0.5
+  seed = 0.5,
+  v3 = 1
 ): number {
   const s = THREE.MathUtils.clamp(strength, 0, 1);
   const c = THREE.MathUtils.clamp(Math.abs(cosTheta), 0, 1);
-  const { outerF0, innerF0, f0Spread, transmission } = GLAZING_REFLECTANCE;
-  const f0 = outward ? outerF0 * (1 + f0Spread * (seed - 0.5) * 2) : innerF0;
-  const fresnel = (f0 + (1 - f0) * (1 - c) ** 5) * s;
+  const { outerF0, f0Spread, transmission, filmScale } = GLAZING_REFLECTANCE;
+  const f0 = outerF0 * (1 + f0Spread * (seed - 0.5) * 2);
+  const fresnel = (outward ? f0 + (1 - f0) * (1 - c) ** 5 : innerFresnel(c, v3)) * s;
   const t = 1 - (1 - transmission) * s;
-  return 1 - (1 - fresnel) * (1 - opacity) * t;
+  const film = opacity * lerp(1, filmScale, v3 * s);
+  return 1 - (1 - fresnel) * (1 - film) * t;
 }
 
 const glsl = (value: number) => value.toFixed(4);
@@ -790,34 +873,52 @@ const GLAZING_FRESNEL_BODY = /* glsl */ `
     ${glsl(GLAZING_REFLECTANCE.outerF0)} * ( 1.0 + ${glsl(GLAZING_REFLECTANCE.f0Spread)} * ( vGlazeSeed - 0.5 ) * 2.0 ),
     glazeOut
   );
-  float glazeF = ( glazeF0 + ( 1.0 - glazeF0 ) * pow( 1.0 - glazeCos, 5.0 ) ) * glazeS;
+  float glazeV3 = clamp( uGlazeV3, 0.0, 1.0 );
+  float glazeF = glazeF0 + ( 1.0 - glazeF0 ) * pow( 1.0 - glazeCos, 5.0 );
+  // v3: indoors, the Fresnel stops short of a mirror (the hall is dim).
+  glazeF = min( glazeF, mix( 1.0, mix( 1.0, ${glsl(GLAZING_REFLECTANCE.innerFresnelCap)}, glazeV3 ), 1.0 - glazeOut ) );
+  glazeF *= glazeS;
   #ifdef USE_ENVMAP
     vec3 glazeSky = min(
-      getIBLRadiance( geometryViewDir, glazeN, material.roughness ) / max( envMapIntensity, 1e-3 ),
+      getIBLRadiance( geometryViewDir, glazeN,
+        mix( material.roughness, ${glsl(GLAZING_REFLECTANCE.skyRoughness)}, glazeV3 ) )
+        / max( envMapIntensity, 1e-3 ),
       vec3( 1.5 )
     );
   #else
     vec3 glazeSky = gl_FragColor.rgb;
   #endif
-  vec3 glazeReflection = mix( gl_FragColor.rgb * ${glsl(GLAZING_REFLECTANCE.interiorReflect)}, glazeSky, glazeOut );
+  // v3: outdoors, a ray reflected below the horizon sees the flat ground band.
+  vec3 glazeReflectW = ( vec4( reflect( -geometryViewDir, glazeN ), 0.0 ) * viewMatrix ).xyz;
+  glazeSky *= mix( 1.0, mix( ${glsl(GLAZING_REFLECTANCE.groundReflect)}, 1.0,
+    smoothstep( ${glsl(GLAZING_HORIZON.from)}, ${glsl(GLAZING_HORIZON.to)}, glazeReflectW.y ) ), glazeV3 );
+  vec3 glazeHall = mix(
+    gl_FragColor.rgb * ${glsl(GLAZING_REFLECTANCE.interiorReflect)},
+    vec3( dot( gl_FragColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) ) * ${glsl(GLAZING_REFLECTANCE.interiorReflectV3)},
+    glazeV3
+  );
+  vec3 glazeReflection = mix( glazeHall, glazeSky, glazeOut );
+  float glazeFilm = gl_FragColor.a * mix( 1.0, ${glsl(GLAZING_REFLECTANCE.filmScale)}, glazeV3 * glazeS );
   float glazeT = 1.0 - ${glsl(1 - GLAZING_REFLECTANCE.transmission)} * glazeS;
-  float glazeCoverage = 1.0 - ( 1.0 - glazeF ) * ( 1.0 - gl_FragColor.a ) * glazeT;
-  gl_FragColor.rgb = ( ( 1.0 - glazeF ) * gl_FragColor.a * gl_FragColor.rgb + glazeF * glazeReflection )
+  float glazeCoverage = 1.0 - ( 1.0 - glazeF ) * ( 1.0 - glazeFilm ) * glazeT;
+  gl_FragColor.rgb = ( ( 1.0 - glazeF ) * glazeFilm * gl_FragColor.rgb + glazeF * glazeReflection )
     / max( glazeCoverage, 1e-4 );
   gl_FragColor.a = glazeCoverage;
 }
 `;
 
 MATERIALS.glass.userData.glazingFresnel = GLAZING_FRESNEL_STRENGTH;
+MATERIALS.glass.userData.glazingV3 = GLAZING_V3;
 MATERIALS.glass.onBeforeCompile = (shader) => {
   shader.uniforms.uGlazeFresnel = GLAZING_FRESNEL_STRENGTH;
+  shader.uniforms.uGlazeV3 = GLAZING_V3;
   shader.vertexShader = shader.vertexShader
     .replace('#include <common>', `#include <common>\n${GLAZING_VERTEX_PARS}`)
     .replace('#include <begin_vertex>', `#include <begin_vertex>\n${GLAZING_VERTEX_BODY}`);
   shader.fragmentShader = shader.fragmentShader
     .replace(
       '#include <common>',
-      `#include <common>\nuniform float uGlazeFresnel;\n${GLAZING_VERTEX_PARS}`
+      `#include <common>\nuniform float uGlazeFresnel;\nuniform float uGlazeV3;\n${GLAZING_VERTEX_PARS}`
     )
     .replace('#include <opaque_fragment>', `#include <opaque_fragment>\n${GLAZING_FRESNEL_BODY}`);
 };
@@ -877,6 +978,9 @@ const GALLERY_DECK_TOP = 8.85;
  *                  in `meshbasic_frag` at all, so the injection would be half a
  *                  shader. `canApplyWorldSurface` refuses them.
  */
+/** Membrane lap seams on the roof's top face: pitch and seam width (m), darkening. */
+export const ROOF_MEMBRANE_SEAM = { pitch: 1.8, width: 0.07, tone: 0.45 } as const;
+
 const SHELL_SURFACES: readonly [
   THREE.MeshStandardMaterial,
   WorldSurfaceProfileName,
@@ -889,7 +993,27 @@ const SHELL_SURFACES: readonly [
   [MATERIALS.wallParapet, 'painted'],
   [MATERIALS.steel, 'painted'],
   [MATERIALS.steelTrim, 'painted'],
-  [MATERIALS.roof, 'painted'],
+  // A membrane roof from above (overview, farm): one flat olive plane in
+  // final4, the largest surface in the overview frame. Lap seams every 1.8 m
+  // parallel to the ridge (they recede from the overview camera, so they keep
+  // their contrast; box-filtered and Nyquist-faded like the liner's ribs),
+  // large-scale staining from a slower, stronger macro, and less of the khaki
+  // dust that turned the grey membrane olive.
+  [
+    MATERIALS.roof,
+    'painted',
+    {
+      ribPeriod: ROOF_MEMBRANE_SEAM.pitch,
+      ribDepth: 0,
+      ribAxis: 0,
+      ribFilteredTone: ROOF_MEMBRANE_SEAM.tone,
+      ribSeamWidth: ROOF_MEMBRANE_SEAM.width / ROOF_MEMBRANE_SEAM.pitch,
+      macroPeriod: 15,
+      macro: 0.32,
+      dust: 0.06,
+    },
+  ],
+  [MATERIALS.rooftopPlant, 'painted'],
   // Trapezoidal deck ribs at a 250 mm pitch running down the slope (the
   // halves pitch about Z, so the profile varies along world Z), and the hall's
   // grey bounce instead of the grass's.
@@ -900,8 +1024,10 @@ const SHELL_SURFACES: readonly [
       ribPeriod: 0.25,
       ribDepth: 0.035,
       ribAxis: 1,
-      // Box-filtered, so the ribs survive to the interior cameras' footprint
-      // (0.06-0.09 m a pixel up there) instead of fading out at 0.03 m.
+      // Box-filtered, and faded out from 10 px a pitch to 4 (RIB_NYQUIST_FADE):
+      // at the interior cameras' 0.06-0.1 m a pixel (Medium renders 864 rows)
+      // the 0.25 m pitch drew a dot grid against the purlins (final4). The
+      // purlins carry the rhythm out there.
       ribFilteredTone: 0.24,
       indoorBounce: 0.85,
       // A smooth coil coating between the ribs: the painted profile's 18 mm
@@ -914,7 +1040,11 @@ const SHELL_SURFACES: readonly [
   // Under the deck at 21-23 m: grime and dust are inert up there by position,
   // and the edge term is what makes a slender section read. Lit by the hall
   // floor, not the grass: final med-12 read them as dark teal slats.
-  [MATERIALS.purlin, 'metal', { indoorBounce: 0.85 }],
+  // r5: at the interior camera's grazing view most of a purlin's underside is
+  // "edge" to the Fresnel proxy, so the bluish bare-steel colour took it over
+  // and the runs read as teal stripes against the warm liner, a grid with
+  // the ribs. A galvanised section has no paint to wear through: edge 0.06.
+  [MATERIALS.purlin, 'metal', { indoorBounce: 0.85, edge: 0.06 }],
   [MATERIALS.accent, 'painted'],
   // 4 m from each pad's centre lands on the silo pad's 16 m width.
   [MATERIALS.plinth, 'masonry', { objectSpace: 1, slabPitch: 4, slabJoint: 0.5, slabTone: 0.09 }],
@@ -1161,6 +1291,73 @@ export function buildFactoryRoofBatten(
     rotation: [0, 0, roofSlope(side)],
   };
 }
+
+/** Deck-local Z centres of the gaps between battens, where a unit's curb sits clear of them. */
+const ROOF_BATTEN_GAP_Z = (k: number): number => -47.2 + ROOF_BATTEN_PITCH * (k + 0.5);
+
+/**
+ * Plant on the deck: air-handling units, exhaust fans and vent stacks. Three
+ * 5 x 1 x 3 boxes stood at a fixed height, not on the pitched deck: the one at
+ * the ridge was buried 1.7 m under it and the two outer ones were half sunk.
+ * Each piece now sits on its half's top face (tilted with it, 2 cm into it),
+ * between two battens and clear of the roof lights.
+ * [side, deck-local X, batten gap index, size (along slope, up, along Z)]
+ */
+export const ROOFTOP_PLANT: readonly (readonly [
+  -1 | 1,
+  number,
+  number,
+  readonly [number, number, number],
+])[] = [
+  // Air-handling units.
+  [1, 6, 6, [5, 1.5, 3]],
+  [-1, -6, 6, [5, 1.5, 3]],
+  [1, -15, 13, [4, 1.3, 2.6]],
+  [-1, 13, 18, [3.6, 1.2, 2.4]],
+  // Exhaust fans.
+  [1, 12, 11, [1.3, 0.85, 1.3]],
+  [-1, -12, 11, [1.3, 0.85, 1.3]],
+  [1, 14, 19, [1.3, 0.85, 1.3]],
+  [-1, -14, 2, [1.3, 0.85, 1.3]],
+  [1, -12, 1, [1.3, 0.85, 1.3]],
+  // Vent stacks.
+  [1, 2, 4, [0.35, 1.2, 0.35]],
+  [-1, -2, 15, [0.35, 1.2, 0.35]],
+  [1, 17, 9, [0.35, 1.2, 0.35]],
+  [-1, 16, 8, [0.35, 1.2, 0.35]],
+];
+
+/** How far a plant item's base is let into the deck, so no sliver of air shows under it. */
+export const ROOFTOP_PLANT_EMBED = 0.02;
+
+export function buildFactoryRooftopPlant(): BoxInstance[] {
+  return ROOFTOP_PLANT.map(([side, local, gap, size]) => {
+    const seat = deckPoint(side, local);
+    const slope = roofSlope(side);
+    const lift = size[1] / 2 - ROOFTOP_PLANT_EMBED;
+    return {
+      position: [
+        seat.x - Math.sin(slope) * lift,
+        seat.y + Math.cos(slope) * lift,
+        ROOF_BATTEN_GAP_Z(gap),
+      ],
+      scale: [size[0], size[1], size[2]],
+      rotation: [0, 0, slope],
+    };
+  });
+}
+
+/** The roof lights' kerb footprints in each half's deck-local frame, for the plant test. */
+export const ROOF_SKYLIGHT_LAYOUT = {
+  z: SKYLIGHT_Z,
+  size: SKYLIGHT_SIZE,
+  localX: skylightLocalX,
+  battenPitch: ROOF_BATTEN_PITCH,
+  battenWidth: ROOF_BATTEN_WIDTH,
+  battenReach: ROOF_BATTEN_REACH,
+  deckPoint,
+  roofSlope,
+} as const;
 
 /**
  * Projected height, in drawing-buffer pixels, below which a batten stops
@@ -1815,13 +2012,7 @@ function FactoryShell() {
   const roofPanels = roofEnvelope.panels;
 
   const roofDetails = useMemo<readonly BoxInstance[]>(() => {
-    const height = SITE_LAYOUT.factory.bounds.maxY;
-    const result: BoxInstance[] = [
-      ...buildFactoryRoofTrim(),
-      { position: [-FLOOR_WIDTH * 0.3, height + 0.45, -18], scale: [5, 1, 3] },
-      { position: [0, height + 0.45, -18], scale: [5, 1, 3] },
-      { position: [FLOOR_WIDTH * 0.3, height + 0.45, -18], scale: [5, 1, 3] },
-    ];
+    const result: BoxInstance[] = [...buildFactoryRoofTrim()];
 
     // Upstand kerbs. A roof light sits on a raised frame; without one the
     // glazing is a blue rectangle lying flat on the deck, and from inside
@@ -1876,6 +2067,7 @@ function FactoryShell() {
   }, []);
 
   const roofSkylights = useMemo(buildFactoryRoofGlazing, []);
+  const rooftopPlant = useMemo(buildFactoryRooftopPlant, []);
 
   const windows = useMemo(buildFactoryGlazing, []);
   const windowLights = useMemo(() => buildFactoryGlazingLights(windows), [windows]);
@@ -1929,6 +2121,12 @@ function FactoryShell() {
         receiveShadow
       />
       <RoofBattens instances={roofBattens} />
+      <InstancedBoxes
+        instances={rooftopPlant}
+        material={MATERIALS.rooftopPlant}
+        castShadow
+        receiveShadow
+      />
       <InstancedBoxes instances={roofSkylights} material={MATERIALS.skylight} />
       <InstancedBoxes
         instances={facadeAccents}
