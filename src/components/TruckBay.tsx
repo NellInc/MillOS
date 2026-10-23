@@ -95,6 +95,7 @@ import {
   DOCK_SHELTER_HEAD_PLEATS,
   DOCK_SHELTER_SIDE_PLEATS,
   DOCK_WEAR_BUMPER,
+  dockPlatformDressingParts,
   spanOf,
   type DockMarking,
   type ShelterPart,
@@ -5561,29 +5562,57 @@ const StretchWrapMachine: React.FC<{
 };
 
 // Dock bumpers with wear indicators
-/** One 2 m dock platform section beside the forklift channel (see DOCK_PLATFORM_SECTION). */
+/** Laminated dock-bumper rubber and the steel that armours a platform's yard face. */
+const DOCK_PAD_RUBBER = new THREE.MeshStandardMaterial({
+  name: 'dock-pad-rubber',
+  color: '#1d1d1f',
+  roughness: 0.9,
+  metalness: 0,
+});
+const DOCK_FACE_STEEL = applyWorldSurface(
+  new THREE.MeshStandardMaterial({
+    name: 'dock-face-steel',
+    color: '#8a8e91',
+    roughness: 0.5,
+    metalness: 0.55,
+  }),
+  'metal'
+);
+const DOCK_DRESSING_BOX = new THREE.BoxGeometry(1, 1, 1);
+const DOCK_PLATFORM_DRESSING_PARTS = dockPlatformDressingParts();
+
+/**
+ * One 2 m dock platform section beside the forklift channel (see
+ * DOCK_PLATFORM_SECTION), its yard face armoured with bumper pads, a nosing
+ * lip and corner angles (`dockPlatformDressingParts()`).
+ */
 const DockPlatformSection: React.FC<{ side: -1 | 1; castShadow?: boolean }> = ({
   side,
   castShadow = false,
 }) => (
-  <mesh
-    position={[
-      side * DOCK_PLATFORM_SECTION.x,
-      DOCK_PLATFORM_SECTION.height / 2,
-      DOCK_PLATFORM_SECTION.u,
-    ]}
-    receiveShadow
-    castShadow={castShadow}
-  >
-    <boxGeometry
-      args={[
-        DOCK_PLATFORM_SECTION.width,
-        DOCK_PLATFORM_SECTION.height,
-        DOCK_PLATFORM_SECTION.depth,
-      ]}
-    />
-    <meshStandardMaterial color="#475569" roughness={0.8} />
-  </mesh>
+  <group position={[side * DOCK_PLATFORM_SECTION.x, 0, DOCK_PLATFORM_SECTION.u]}>
+    <mesh position={[0, DOCK_PLATFORM_SECTION.height / 2, 0]} receiveShadow castShadow={castShadow}>
+      <boxGeometry
+        args={[
+          DOCK_PLATFORM_SECTION.width,
+          DOCK_PLATFORM_SECTION.height,
+          DOCK_PLATFORM_SECTION.depth,
+        ]}
+      />
+      <meshStandardMaterial color="#475569" roughness={0.8} />
+    </mesh>
+    {DOCK_PLATFORM_DRESSING_PARTS.map((part, index) => (
+      <mesh
+        key={index}
+        geometry={DOCK_DRESSING_BOX}
+        material={part.kind === 'rubber' ? DOCK_PAD_RUBBER : DOCK_FACE_STEEL}
+        position={[...part.position]}
+        scale={[...part.scale]}
+        receiveShadow
+        castShadow={castShadow}
+      />
+    ))}
+  </group>
 );
 
 const DockBumperWithWear: React.FC<{ position: [number, number, number]; wearLevel: number }> = ({
