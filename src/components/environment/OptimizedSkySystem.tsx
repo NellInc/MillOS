@@ -328,39 +328,54 @@ export const RIDGE_CANOPY_PROFILE = {
 } as const;
 
 /**
- * Fixed foothills behind the far range sink below its foot.
+ * Fixed foothills behind the far range take at least its haze.
  *
  * The far ring is centred on the camera; the mid and near rings are fixed to
- * the site. From any camera off the site centre the far side of the mid ring
- * stands 600-660 m out, behind the far range's crest (radius + slopeDepth,
- * 573 m). Where that crest is low its back rows rose over it, hidden below by
- * the far range, so they floated above it as a dark lens (final5-med-22 farm,
- * x 300-475 y 160-180; the round-3 rain judge saw the same). `ramp` is metres
- * past the far crest, measured horizontally from the camera; `floorY` is below
- * the far foot (baseY -8), where the far ring always hides it. Hills in front
- * of the crest do not move.
+ * the site. From the farm camera the far side of the mid ring stands 616-662 m
+ * out, behind the far range's crest (radius + slopeDepth, 573 m), and where
+ * that crest is low its rows rise over it. They took the foothill cap (the far
+ * lower band, 0.55 of the far weight in clear air) while the crest rows in
+ * front keep the full far weight, so the farther hill read darker than the
+ * range before it: a dark lens on the shoulder (final5-med-22 farm, x 300-475
+ * y 160-180). Past the crest, by `ramp` metres of horizontal camera distance,
+ * they now take at least the far weight. Round 6 sank those vertices instead,
+ * which also cut the overview's hill behind the silos (569-592 m, a
+ * continuation of the hill in front of the crest): a pale hole at 06:00 and a
+ * staircase at 19:00 (final6-med-06, final6-med-19). Nothing moves now, and
+ * the ramp starts past that hill line.
  */
-export const RIDGE_BEHIND_RANGE_SINK = { ramp: [-5, 10], floorY: -40 } as const;
+export const RIDGE_BEHIND_RANGE_HAZE = { ramp: [12, 45] } as const;
 
-/** CPU mirror of the anchored rings' sink weight at a horizontal camera distance. */
-export function getRidgeBehindRangeSink(cameraDistance: number): number {
+/** CPU mirror of the behind-the-range weight at a horizontal camera distance. */
+export function getRidgeBehindRangeHaze(groundDistance: number): number {
   const crest = FAR_MOUNTAIN_SPEC.radius + FAR_MOUNTAIN_SPEC.slopeDepth;
-  const [start, end] = RIDGE_BEHIND_RANGE_SINK.ramp;
-  return THREE.MathUtils.smoothstep(cameraDistance, crest + start, crest + end);
+  const [start, end] = RIDGE_BEHIND_RANGE_HAZE.ramp;
+  return THREE.MathUtils.smoothstep(groundDistance, crest + start, crest + end);
+}
+
+/** CPU mirror of an anchored fragment's haze once the behind-the-range floor applies. */
+export function getRidgeBehindRangeAerial(
+  groundDistance: number,
+  anchoredAerial: number,
+  far: number
+): number {
+  return THREE.MathUtils.lerp(
+    anchoredAerial,
+    Math.max(anchoredAerial, far),
+    getRidgeBehindRangeHaze(groundDistance)
+  );
 }
 
 const ridgeVertexShader = `
 #include <common>
 #include <logdepthbuf_pars_vertex>
-uniform float uWorldAnchored;
-uniform float uRingRadius;
-uniform float uSlopeDepth;
 varying vec3 vRidgeColor;
 varying vec3 vRidgeNormal;
 varying vec3 vRidgePosition;
 varying float vRidgeHeight;
 varying float vRidgeSnow;
 varying float vRidgeDistance;
+varying float vRidgeGroundDistance;
 attribute float ridgeHeight;
 attribute float ridgeSnow;
 
@@ -370,17 +385,9 @@ void main() {
   vRidgePosition = position;
   vRidgeHeight = ridgeHeight;
   vRidgeSnow = ridgeSnow;
-  vec3 placed = position;
-  // Fixed foothills behind the far range's crest sink below its foot
-  // (RIDGE_BEHIND_RANGE_SINK): otherwise they float over its low shoulders.
-  if (uWorldAnchored > 0.5) {
-    vec4 anchoredWorld = modelMatrix * vec4(position, 1.0);
-    float behindRange = smoothstep(uRingRadius + uSlopeDepth + (${RIDGE_BEHIND_RANGE_SINK.ramp[0].toFixed(1)}),
-      uRingRadius + uSlopeDepth + ${RIDGE_BEHIND_RANGE_SINK.ramp[1].toFixed(1)},
-      length(anchoredWorld.xz - cameraPosition.xz));
-    placed.y = mix(position.y, ${RIDGE_BEHIND_RANGE_SINK.floorY.toFixed(1)}, behindRange);
-  }
-  vec4 mvPosition = modelViewMatrix * vec4(placed, 1.0);
+  // Horizontal distance from the camera (RIDGE_BEHIND_RANGE_HAZE).
+  vRidgeGroundDistance = length((modelMatrix * vec4(position, 1.0)).xz - cameraPosition.xz);
+  vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
   vRidgeDistance = length(mvPosition.xyz);
   gl_Position = projectionMatrix * mvPosition;
   #include <logdepthbuf_vertex>
@@ -623,6 +630,7 @@ varying vec3 vRidgePosition;
 varying float vRidgeHeight;
 varying float vRidgeSnow;
 varying float vRidgeDistance;
+varying float vRidgeGroundDistance;
 
 float ridgeHash(vec2 p) {
   vec3 q = fract(vec3(p.xyx) * 0.1031);
@@ -953,9 +961,14 @@ void main() {
       ${RIDGE_ANCHORED_AERIAL.run[0].toFixed(2)}, ${RIDGE_ANCHORED_AERIAL.run[1].toFixed(2)});
     // Never hazier than the far range's lower band behind it, which clear air
     // thins to lowBandAerial (getAnchoredRidgeAerial).
-    aerial = mix(uAerial, min(uAnchoredAerial.z * mix(${RIDGE_ALPINE_PROFILE.lowBandAerial.toFixed(2)}, 1.0, 1.0 - uClearAir),
-      max(0.0, mix(uAnchoredAerial.x, uAnchoredAerial.y, aerialRun))),
-      uDistanceAerialStrength);
+    float anchoredAerial = min(uAnchoredAerial.z * mix(${RIDGE_ALPINE_PROFILE.lowBandAerial.toFixed(2)}, 1.0, 1.0 - uClearAir),
+      max(0.0, mix(uAnchoredAerial.x, uAnchoredAerial.y, aerialRun)));
+    // Behind the far crest, never clearer than the range in front of it,
+    // whose crest rows keep the full far weight (RIDGE_BEHIND_RANGE_HAZE).
+    float behindRange = smoothstep(uRingRadius + uSlopeDepth + ${RIDGE_BEHIND_RANGE_HAZE.ramp[0].toFixed(1)},
+      uRingRadius + uSlopeDepth + ${RIDGE_BEHIND_RANGE_HAZE.ramp[1].toFixed(1)}, vRidgeGroundDistance);
+    anchoredAerial = mix(anchoredAerial, max(anchoredAerial, uAnchoredAerial.z), behindRange);
+    aerial = mix(uAerial, anchoredAerial, uDistanceAerialStrength);
   }
   lit.r = mix(lit.r, uInscatter.r, clamp(aerial * aerialScale * 0.80, 0.0, 1.0));
   lit.g = mix(lit.g, uInscatter.g, clamp(aerial * aerialScale * 1.00, 0.0, 1.0));
@@ -1613,7 +1626,7 @@ export function createRidgeMaterial(
     },
   });
   material.userData.clearAerial = aerial;
-  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v26';
+  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v27';
   return material;
 }
 
