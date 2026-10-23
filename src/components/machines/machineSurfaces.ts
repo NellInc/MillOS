@@ -365,7 +365,7 @@ export const SILO_STAIN = { columns: 48, liveFraction: 0.45, strength: 0.16 } as
  * into one white slab at distance. `pitch` is the bin spacing along world Z;
  * the end bins have one neighbour.
  */
-export const SILO_VALLEY = { occlusion: 0.5, faceCos: [0.55, 1] as const } as const;
+export const SILO_VALLEY = { occlusion: 0.4, faceCos: [0.55, 1] as const } as const;
 
 /** The battery's bin axes along world Z (SITE_LAYOUT): first, last, spacing. */
 export function siloBatteryExtent(): [number, number, number] {
@@ -1114,10 +1114,13 @@ export function getMachineScreenTexture(): THREE.DataTexture {
  * The skin's galvanised terms. Tuned on one page load (silos-tune): patina
  * 0.6 -> 0.8 and aureole 0.07 -> 0.1 took the near drum from 9 to 10.5 sRGB
  * levels sun side to shade side; sparse irregular streaks
- * (SILO_STREAK_LIVE_FRACTION) at 0.8 read as faint run-off.
+ * (SILO_STREAK_LIVE_FRACTION) at 0.8 read as faint run-off. Round 5 (s5 probe,
+ * one page load per scene): at 0.8 the film left the drum about 0.44 metal at
+ * roughness ~0.64, matte plaster to every judge; 0.5 leaves ~0.65 metal at
+ * ~0.55 and keeps the Lambert form, with the rib tone carrying the rest.
  */
 const SILO_SKIN_GALVANISED = {
-  patina: 0.8,
+  patina: 0.5,
   spangleRoughness: 0.68,
   aureole: 0.1,
   drips: 0.8,
