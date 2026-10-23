@@ -13,6 +13,7 @@ import {
   celestialKeyDirection,
   getRidgeAerialWeight,
   blendSkyOvercast,
+  OPTIMIZED_SKY_FRAGMENT_SHADER,
   overcastShadowRadius,
   OVERCAST_SKY,
   MOUNTAIN_RIDGE_GEOMETRIES,
@@ -33,7 +34,7 @@ import { sampleValleyGroundHeight } from '../terrain/splatMapGenerator';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { CAMERA_DEPTH } from '../../constants/renderLayers';
 
-import { sampleAtmosphere, sampleCelestial } from '../../simulation/atmosphere';
+import { getOvercastDeck, sampleAtmosphere, sampleCelestial } from '../../simulation/atmosphere';
 
 describe('rendered horizon ambient handoff', () => {
   it('keeps cloud afterglow bounded, continuous and absent at noon and deep night', () => {
@@ -402,6 +403,43 @@ describe('overcast sky palette', () => {
       blendSkyOvercast(colour, band, daylight, rain.cloudCoverage);
       expect(chroma(colour), band).toBeLessThan(blue * 0.45);
     }
+  });
+
+  // final5/r6-med-rain tank-farm and a look straight up at logistics-close:
+  // under noon rain the sky was blue with white cumulus and a sun glow. The
+  // palette pull stopped at 0.64 (0.9 x overcast 0.71) and the cloud field
+  // kept its gaps. Rain and storm are a closed grey deck; clear and cloudy are
+  // untouched.
+  it('closes rain and storm into a grey deck, with no blue left in any band', () => {
+    for (const weather of ['clear', 'cloudy'] as const) {
+      expect(getOvercastDeck(sampleAtmosphere(0, 12, weather).cloudCoverage), weather).toBe(0);
+    }
+    for (const weather of ['rain', 'storm'] as const) {
+      const atmosphere = sampleAtmosphere(0, 12, weather);
+      expect(getOvercastDeck(atmosphere.cloudCoverage), weather).toBe(1);
+      const daylight = atmosphere.daylight * atmosphere.lightMultiplier;
+      for (const band of Object.keys(OVERCAST_SKY) as (keyof typeof OVERCAST_SKY)[]) {
+        const colour = blendSkyOvercast(
+          new THREE.Color('#70aed8'),
+          band,
+          daylight,
+          atmosphere.cloudCoverage
+        );
+        // Exactly the neutral deck: no residue of the clear-sky blue.
+        const deck = new THREE.Color('#0d1014').lerp(OVERCAST_SKY[band], daylight);
+        expect(colour.r, `${weather} ${band}`).toBeCloseTo(deck.r, 6);
+        expect(colour.b, `${weather} ${band}`).toBeCloseTo(deck.b, 6);
+      }
+    }
+    // The cloudy pull is still the old, partial one.
+    const cloudy = sampleAtmosphere(0, 12, 'cloudy');
+    const colour = blendSkyOvercast(new THREE.Color('#70aed8'), 'top', 1, cloudy.cloudCoverage);
+    expect(chroma(colour)).toBeGreaterThan(chroma(new THREE.Color('#70aed8')) * 0.8);
+  });
+
+  it('fills the cloud field into a deck in the sky shader, gated by the deck weight', () => {
+    expect(OPTIMIZED_SKY_FRAGMENT_SHADER).toMatch(/uniform float uOvercastDeck;/);
+    expect(OPTIMIZED_SKY_FRAGMENT_SHADER).toMatch(/mix\(\s*sky,\s*overcastDeck,\s*uOvercastDeck/);
   });
 
   it("softens the sun shadow under a deck and leaves fair weather on three's default", () => {

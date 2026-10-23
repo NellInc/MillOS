@@ -7,6 +7,7 @@ import { RENDER_ORDER, SHADOW_CONFIG } from '../../constants/renderLayers';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
 import {
   createCelestialState,
+  getOvercastDeck,
   getOvercastWeight,
   sampleAtmosphere,
   sampleCelestial,
@@ -174,7 +175,9 @@ export function blendSkyOvercast(
   visualDaylight: number,
   cloudCoverage: number
 ): THREE.Color {
-  const weight = getOvercastWeight(cloudCoverage) * 0.9;
+  // Rain and storm close the deck (`getOvercastDeck`): the full neutral palette,
+  // no blue left. Lighter cloud keeps the partial pull.
+  const weight = Math.max(getOvercastWeight(cloudCoverage) * 0.9, getOvercastDeck(cloudCoverage));
   if (weight <= 0) return target;
   _overcastScratch
     .copy(OVERCAST_NIGHT)
@@ -211,7 +214,7 @@ void main() {
  * CLOUDS COME LAST so the scattering lights the sky the clouds sit in front of,
  * rather than bleeding through them.
  */
-const optimizedSkyFragmentShader = `
+export const OPTIMIZED_SKY_FRAGMENT_SHADER = `
 uniform vec3 topColor;
 uniform vec3 horizonColor;
 uniform vec3 groundColor;
@@ -219,6 +222,7 @@ uniform vec3 uSunTint;
 uniform float cloudAmount;
 uniform float daylight;
 uniform float uSunOpacity;
+uniform float uOvercastDeck;
 uniform float uAfterglow;
 uniform float uSkyAfterglowStrength;
 uniform vec3 uAfterglowColor;
@@ -270,6 +274,16 @@ void main() {
   float bankRim = 4.0 * banks.a * (1.0 - banks.a);
   banks.rgb += uAfterglowColor * cloudAfterglow * (0.06 + bankRim * 0.62);
   sky = mix( sky, banks.rgb, banks.a );
+
+  // RAIN IS A CLOSED DECK. The cloud field above keeps its gaps at any cover,
+  // so rain read as blue sky and white cumulus. Under a closed deck the dome
+  // is the cloud base: shadowed grey overhead, the lit underside toward the
+  // horizon haze, the field's own structure kept as faint mottling. Exactly
+  // inert while uOvercastDeck is 0 (clear and cloudy).
+  float deckShade = 0.5 + 0.3 * clouds.a + 0.2 * banks.a;
+  vec3 overcastDeck = mix( uCloudShadow, uCloudLit, deckShade * ( 1.0 - 0.35 * upperBlend ) );
+  overcastDeck = mix( overcastDeck, horizonColor, 1.0 - smoothstep( 0.0, 0.22, height ) );
+  sky = mix( sky, overcastDeck, uOvercastDeck * smoothstep( -0.06, 0.0, height ) );
 
   gl_FragColor = vec4(sky, 1.0);
   #include <tonemapping_fragment>
@@ -1602,7 +1616,7 @@ export function OptimizedSkySystem() {
     const material = new THREE.ShaderMaterial({
       name: 'MillOS Optimized Analytic Sky',
       vertexShader: optimizedSkyVertexShader,
-      fragmentShader: optimizedSkyFragmentShader,
+      fragmentShader: OPTIMIZED_SKY_FRAGMENT_SHADER,
       side: THREE.BackSide,
       depthTest: false,
       depthWrite: false,
@@ -1631,6 +1645,7 @@ export function OptimizedSkySystem() {
         uCloudShadow: { value: dayCloudShadow.clone() },
         uSunTint: { value: sunHaloNoon.clone() },
         uSunOpacity: { value: 1 },
+        uOvercastDeck: { value: 0 },
         // Pre-wrapped to [0,1) on the CPU every frame. Scrolling the texture
         // from a raw simulation-minute count instead would lose texture-space
         // precision over a long session and the clouds would visibly step.
@@ -1647,7 +1662,7 @@ export function OptimizedSkySystem() {
         sunDirection: { value: new THREE.Vector3(0.5, 0.75, -0.4).normalize() },
       },
     });
-    material.customProgramCacheKey = () => 'millos-optimized-sky-v13';
+    material.customProgramCacheKey = () => 'millos-optimized-sky-v14';
     return material;
   }, []);
 
@@ -1756,6 +1771,12 @@ export function OptimizedSkySystem() {
     skyMaterial.uniforms.cloudAmount.value = THREE.MathUtils.damp(
       skyMaterial.uniforms.cloudAmount.value,
       atmosphere.cloudCoverage,
+      response,
+      delta
+    );
+    skyMaterial.uniforms.uOvercastDeck.value = THREE.MathUtils.damp(
+      skyMaterial.uniforms.uOvercastDeck.value,
+      getOvercastDeck(atmosphere.cloudCoverage),
       response,
       delta
     );
