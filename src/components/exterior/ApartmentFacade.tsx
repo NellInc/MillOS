@@ -1,6 +1,8 @@
 import React from 'react';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { applyWorldSurface } from '../../utils/worldSurface';
+import { EXTERIOR_LAMP_LEVEL } from './ExteriorLighting';
 import { apartmentFacadeLayout, type ApartmentFloors } from './apartmentFacadeLayout';
 
 const SLAB = applyWorldSurface(
@@ -22,11 +24,26 @@ const PANEL = applyWorldSurface(
   new THREE.MeshStandardMaterial({ color: '#8a9397', roughness: 0.55, metalness: 0.4 }),
   'painted'
 );
-const GLAZING = new THREE.MeshStandardMaterial({
+/**
+ * The stair core's glazing, lit at night. It was dark glass by day and
+ * by night, so at 22:00 the tower read as an unlit black monolith beside the
+ * block (shipping med-22). A stairwell is lit all night; the slot and the
+ * ground-floor door glow from the exterior lamp level. These meshes stay out
+ * of the static batch: the batcher clones materials, and a merged clone would
+ * never see the per-frame intensity.
+ */
+export const STAIR_LIGHT_GLAZING = new THREE.MeshStandardMaterial({
+  name: 'apartment-stair-light-glazing',
   color: '#1c2830',
   roughness: 0.12,
   metalness: 0.2,
+  emissive: '#ffe4bf',
+  emissiveIntensity: 0,
 });
+/** Emissive intensity of the stair glazing at an exterior lamp level (0 day, 1 night). */
+export const stairLightIntensity = (level: number) =>
+  0.75 * THREE.MathUtils.clamp(level, 0, 1) ** 1.5;
+const UNBATCHED = { noStaticBatch: true } as const;
 const BOX = new THREE.BoxGeometry(1, 1, 1);
 
 const Block: React.FC<{
@@ -34,7 +51,8 @@ const Block: React.FC<{
   max: [number, number, number];
   material: THREE.Material;
   cast?: boolean;
-}> = ({ min, max, material, cast = true }) => (
+  userData?: Record<string, unknown>;
+}> = ({ min, max, material, cast = true, userData }) => (
   <mesh
     geometry={BOX}
     material={material}
@@ -42,8 +60,17 @@ const Block: React.FC<{
     scale={[max[0] - min[0], max[1] - min[1], max[2] - min[2]]}
     castShadow={cast}
     receiveShadow
+    userData={userData}
   />
 );
+
+/** Drives the stair glazing from the shared lamp level (shared material: idempotent). */
+const StairLightDriver: React.FC = () => {
+  useFrame(() => {
+    STAIR_LIGHT_GLAZING.emissiveIntensity = stairLightIntensity(EXTERIOR_LAMP_LEVEL.value);
+  });
+  return null;
+};
 
 /**
  * Access galleries, the columns that carry them, a stair tower and its coping
@@ -122,18 +149,32 @@ export const ApartmentFacade: React.FC<{ floors: ApartmentFloors }> = ({ floors 
         max={[t.maxX + 0.06, t.top + 0.18, t.maxZ + 0.06]}
         material={COPING}
       />
+      <StairLightDriver />
       <Block
         min={[t.maxX - 0.03, 1.2, (t.minZ + t.maxZ) / 2 - 0.45]}
         max={[t.maxX + 0.03, t.top - 1.4, (t.minZ + t.maxZ) / 2 + 0.45]}
-        material={GLAZING}
+        material={STAIR_LIGHT_GLAZING}
         cast={false}
+        userData={UNBATCHED}
       />
+      {/* A landing slab across the slot at every upper floor, so the lit slot
+          reads as a stair rather than one strip light. */}
+      {layout.stairLandings.map((y) => (
+        <Block
+          key={y}
+          min={[t.maxX - 0.02, y - 0.1, (t.minZ + t.maxZ) / 2 - 0.47]}
+          max={[t.maxX + 0.06, y + 0.1, (t.minZ + t.maxZ) / 2 + 0.47]}
+          material={RAIL}
+          cast={false}
+        />
+      ))}
       {/* Ground-floor door into the stair, on the gallery side. */}
       <Block
         min={[t.minX + 0.35, 0, t.maxZ - 0.03]}
         max={[t.maxX - 0.25, 2.2, t.maxZ + 0.03]}
-        material={GLAZING}
+        material={STAIR_LIGHT_GLAZING}
         cast={false}
+        userData={UNBATCHED}
       />
     </group>
   );
