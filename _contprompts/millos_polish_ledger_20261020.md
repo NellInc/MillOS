@@ -304,9 +304,31 @@ creases, dark lens over the farm ridge at night, canal reflection), hall6 (colum
 deck checker, truss jaggies, glass from outside, conduit visibility, elevator shaft), yard6 (night
 pallet slats flattened by the toe lift, blue drain line, tank sheen, dock foot, pump house).
 
+## Rounds 6 and 7 merged (release candidate `1b8feb75`)
+
+Round 6: cyan `f01c8bfd` (top stiffener ring seen edge-on mirrored the sky horizon; rings now take
+the drum film), silo6 `1141a223`, land6 `645f6715`, rain `04f310e6` + overcast `00675bae` (each drop
+got its fall speed from its own height, so the field collapsed into one sheet every 12.6 s; rain
+scatters the sun into fill; closed grey deck), contract `923d6486`, yard6 `71427a20`, hall6
+`f5e242de` + truss `e9f23ad9` (purlins framed flush into the chords notched every junction; they now
+sit on the trusses). Round 6 vs round 5 blind: 59-13-19. Tank-head streaks lost every condition and
+were reverted (`0e1f892f`). Round 7: SCADA focus `6830ce37` (every live tag update moved focus to
+Close; intermittent, pre-existing), startup prefetch `570e196c` (React loaded the deferred chunks
+serially in most loads; world-ready median 8.5 s to 4.5 s, slow mode 9/10 to 0/10), polish7
+`0f95eacd`, land7 `3a9b7331` + `1b8feb75` (hills behind the far crest take the far haze instead of
+sinking; pond centre lifted).
+
+**Gate on `1b8feb75`:** all green, vitest 4,756/4,756. **Runtime batch:** axe 0; world-ready 4.7 s,
+startup-ready 9.7 s, 3 waves; z-fight ≤0.034%; EN and pt-BR 24/24 orders seen, 22 fulfilled, 0 late,
+0 past-due-unmarked, autosave clean; extras 11/11 including SCADA; e2e pass.
+
+**Known, recorded, not changed:** the noon sun is exactly overhead in this sun model, so a capture
+held at 12:00 shows no silo shadow on the plinth (Nell kept the sun model). An outside process is
+editing `.github/workflows`, `package*.json` and `scada-proxy/` (Node 22.23.4, sharp 0.35.5) in MillOS
+working trees; never committed here.
+
 ## What remains
 
-Merge round 6; gate; recapture; blind A/B round 6 vs round 5 and rubric; runtime batch; then PR,
-merge to main and verify the GitHub Pages deploy serves the new build (Nell approved: PR, merge,
-go live). Not done: a performance benchmark on a quiet machine (the ground wave's crop adds
+Blind A/B round 7 vs round 6 and rubric; then PR, merge to main, and verify GitHub Pages
+(www.millos.net) serves the new build (Nell approved: PR, merge, go live). Not done: a performance benchmark on a quiet machine (the ground wave's crop adds
 ~319k triangles; the hall dressing will add more); the castle (a dressing call left to Nell).
