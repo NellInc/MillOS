@@ -31,6 +31,7 @@ import {
   type WorldSurfaceProfileName,
 } from '../../utils/worldSurface';
 import { FLOOR_GRIT_CELL, SURFACE_GRIT_GLSL } from '../../utils/surfaceGrit';
+import { createColorDataTexture } from '../../utils/textureGenerator';
 
 const UNIT_BOX = new THREE.BoxGeometry(1, 1, 1);
 const UNIT_PLANE = new THREE.PlaneGeometry(1, 1);
@@ -2021,6 +2022,46 @@ const RAIL_BODY_INSET = 0.018;
 /** Square chamfer strip laid along each top arris (its diagonal is the bevel). */
 const RAIL_CHAMFER = 0.025;
 const RAIL_SOCKET = { size: 0.07, height: 0.012 } as const;
+/** Hazard band: below the chamfers, laid on the body's face 4 mm thick, 45-degree stripes. */
+const RAIL_BAND = { height: 0.16, below: 0.03, thickness: 0.004 } as const;
+/** Length one band's texture spans (a section is 2.16-2.21 m) and its stripe pitch. */
+const RAIL_BAND_LENGTH = 2.2;
+const RAIL_BAND_PITCH = 0.2;
+
+/**
+ * Yellow and black at 45 degrees, authored in metres over one band (u along
+ * the section, v up it). An sRGB albedo: the band is paint, so it is lit.
+ * 512 px over 2.2 m puts a stripe period at ~46 px, well clear of aliasing.
+ */
+function createHazardBandTexture(): THREE.DataTexture {
+  const width = 512;
+  const height = 40;
+  const data = new Uint8Array(width * height * 4);
+  for (let y = 0; y < height; y += 1)
+    for (let x = 0; x < width; x += 1) {
+      const along = ((x + 0.5) / width) * RAIL_BAND_LENGTH;
+      const up = ((y + 0.5) / height) * RAIL_BAND.height;
+      const yellow = ((along + up) / RAIL_BAND_PITCH) % 1 < 0.5;
+      const i = (y * width + x) * 4;
+      data[i] = yellow ? 214 : 34;
+      data[i + 1] = yellow ? 168 : 33;
+      data[i + 2] = yellow ? 44 : 31;
+      data[i + 3] = 255;
+    }
+  const texture = createColorDataTexture(data, width, height);
+  texture.anisotropy = 4;
+  texture.generateMipmaps = true;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  return texture;
+}
+
+const RAIL_BAND_MATERIAL = new THREE.MeshStandardMaterial({
+  name: 'factory-barrier-hazard-band',
+  map: createHazardBandTexture(),
+  roughness: 0.75,
+  metalness: 0,
+});
 
 /**
  * The aisle upstands as what they are: precast concrete sections stood end to
@@ -2041,11 +2082,13 @@ export function buildSafetyRailParts(): {
   feet: BoxInstance[];
   chamfers: BoxInstance[];
   sockets: BoxInstance[];
+  bands: BoxInstance[];
 } {
   const sections: BoxInstance[] = [];
   const feet: BoxInstance[] = [];
   const chamfers: BoxInstance[] = [];
   const sockets: BoxInstance[] = [];
+  const bands: BoxInstance[] = [];
   const bevel = (RAIL_CHAMFER * Math.SQRT2) / 2;
   for (const { position, scale } of buildSafetyRails()) {
     const [x, y, z] = position;
@@ -2078,14 +2121,22 @@ export function buildSafetyRailParts(): {
           position: [x, bodyTop + RAIL_SOCKET.height / 2, cz + (side * piece) / 4],
           scale: [RAIL_SOCKET.size, RAIL_SOCKET.height, RAIL_SOCKET.size],
         });
+        bands.push({
+          position: [
+            x + side * (halfBody + RAIL_BAND.thickness / 2),
+            bodyTop - RAIL_BAND.below - RAIL_BAND.height / 2,
+            cz,
+          ],
+          scale: [RAIL_BAND.thickness, RAIL_BAND.height, piece - 0.01],
+        });
       }
     }
   }
-  return { sections, feet, chamfers, sockets };
+  return { sections, feet, chamfers, sockets, bands };
 }
 
 function SafetyFurniture() {
-  const { sections: rails, feet, chamfers, sockets } = useMemo(buildSafetyRailParts, []);
+  const { sections: rails, feet, chamfers, sockets, bands } = useMemo(buildSafetyRailParts, []);
   const stations = useMemo(buildSafetyStations, []);
 
   return (
@@ -2113,6 +2164,12 @@ function SafetyFurniture() {
       <InstancedBoxes
         instances={sockets}
         material={MATERIALS.steel}
+        receiveShadow
+        generatedSurface={false}
+      />
+      <InstancedBoxes
+        instances={bands}
+        material={RAIL_BAND_MATERIAL}
         receiveShadow
         generatedSurface={false}
       />

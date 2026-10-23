@@ -832,7 +832,7 @@ describe('aisle safety barriers', () => {
     const envelopeBox = (e: BoxInstance) => aabb(e).expandByScalar(1e-6);
     const owner = (part: BoxInstance) =>
       envelopes.findIndex((e) => envelopeBox(e).containsBox(aabb(part)));
-    for (const kind of ['sections', 'feet', 'chamfers', 'sockets'] as const)
+    for (const kind of ['sections', 'feet', 'chamfers', 'sockets', 'bands'] as const)
       for (const part of parts[kind])
         expect(owner(part), `${kind} outside every run`).toBeGreaterThanOrEqual(0);
     envelopes.forEach((envelope, run) => {
@@ -859,6 +859,20 @@ describe('aisle safety barriers', () => {
       // Both top arrises of every section are chamfered; two sockets on each top.
       expect(parts.chamfers.filter((part) => owner(part) === run).length).toBe(2 * sections.length);
       expect(parts.sockets.filter((part) => owner(part) === run).length).toBe(2 * sections.length);
+      // A painted hazard band along the top of both faces of every section,
+      // just proud of the body (r4floor-med-12: with sections and joints the
+      // face still read as one brown smear in shade).
+      const bands = parts.bands.filter((part) => owner(part) === run).map(aabb);
+      expect(bands.length).toBe(2 * sections.length);
+      for (const band of bands) {
+        const body = sections.find((s) => s.min.z <= band.min.z && s.max.z >= band.max.z)!;
+        expect(body, 'band on a section').toBeDefined();
+        const proud = Math.max(body.min.x - band.min.x, band.max.x - body.max.x);
+        expect(proud).toBeGreaterThanOrEqual(0.001);
+        expect(proud).toBeLessThanOrEqual(0.006);
+        expect(band.max.y).toBeLessThan(body.max.y);
+        expect(band.max.y - band.min.y).toBeGreaterThanOrEqual(0.12);
+      }
     });
   });
 });
