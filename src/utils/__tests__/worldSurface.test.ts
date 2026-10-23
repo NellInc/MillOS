@@ -16,6 +16,9 @@ import {
   pinnedSurfaceProfile,
   resolveBatchSurfaceProfile,
   resolveSurfaceProfile,
+  RIB_PROFILE_MEAN,
+  ribFilteredSwing,
+  ribFilteredValue,
   type WorldSurfaceProfileName,
 } from '../worldSurface';
 
@@ -502,5 +505,49 @@ describe('profile resolution', () => {
     expect(applyBatchWorldSurface(painted.clone(), painted)).toBe('painted');
     const glass = new THREE.MeshStandardMaterial({ transparent: true, opacity: 0.2 });
     expect(applyBatchWorldSurface(glass.clone(), glass)).toBeNull();
+  });
+});
+
+describe('box-filtered ribs', () => {
+  it('keep the full trapezoid at a fine footprint and average to its mean, never alias', () => {
+    // Fine footprint: crown 1, trough 0, as the unfiltered profile.
+    expect(ribFilteredValue(0.4, 1e-3)).toBeCloseTo(1, 3);
+    expect(ribFilteredValue(0.85, 1e-3)).toBeCloseTo(0, 3);
+    // One pitch or more under a pixel: exactly the mean, whatever the phase.
+    for (const u of [0, 0.13, 0.4, 0.77, 31.6]) {
+      expect(ribFilteredValue(u, 1)).toBeCloseTo(RIB_PROFILE_MEAN, 6);
+      expect(ribFilteredValue(u, 3)).toBeCloseTo(RIB_PROFILE_MEAN, 6);
+    }
+    // The swing falls monotonically with footprint, from 1 toward 0.
+    let previous = ribFilteredSwing(1e-3);
+    expect(previous).toBeCloseTo(1, 2);
+    for (let w = 0.05; w <= 1.0001; w += 0.05) {
+      const swing = ribFilteredSwing(w);
+      expect(swing).toBeLessThanOrEqual(previous + 1e-9);
+      previous = swing;
+    }
+    expect(ribFilteredSwing(1)).toBeLessThan(1e-6);
+  });
+
+  it('is opt-in: furrows and every default profile keep the faded trapezoid', () => {
+    const plain = applyWorldSurface(new THREE.MeshStandardMaterial(), 'painted', {
+      ribPeriod: 0.8,
+      ribDepth: 0.07,
+    });
+    const rib = (plain.userData.millosWorldSurface as { uSurfRib: { value: THREE.Vector4 } })
+      .uSurfRib.value;
+    expect(rib.y).toBe(0);
+    const filtered = applyWorldSurface(new THREE.MeshStandardMaterial(), 'painted', {
+      ribPeriod: 0.25,
+      ribDepth: 0.035,
+      ribFilteredTone: 0.2,
+    });
+    const value = (filtered.userData.millosWorldSurface as { uSurfRib: { value: THREE.Vector4 } })
+      .uSurfRib.value;
+    expect(value.x).toBe(0.2);
+    expect(value.y).toBe(1);
+    const fragment = compileInjection(filtered).fragmentShader;
+    expect(fragment).toContain('surfRibIntegral');
+    expect(fragment).toContain('uniform vec4 uSurfRib;');
   });
 });

@@ -484,6 +484,18 @@ const MATERIALS = {
     roughness: 0.6,
     metalness: 0,
   }),
+  /**
+   * Galvanised purlins under the liner. A shade under the liner so the runs
+   * read as structure against it without striping the ceiling black, and
+   * dielectric: indoors the PMREM is the sky, and a metal purlin would carry a
+   * blue cast the hall never sees.
+   */
+  purlin: new THREE.MeshStandardMaterial({
+    name: 'factory-roof-purlin',
+    color: '#8d9496',
+    roughness: 0.48,
+    metalness: 0,
+  }),
   roofTrim: new THREE.MeshStandardMaterial({
     name: 'factory-roof-trim',
     color: '#505452',
@@ -784,6 +796,9 @@ const SHELL_SURFACES: readonly [
       ribPeriod: 0.25,
       ribDepth: 0.035,
       ribAxis: 1,
+      // Box-filtered, so the ribs survive to the interior cameras' footprint
+      // (0.06-0.09 m a pixel up there) instead of fading out at 0.03 m.
+      ribFilteredTone: 0.24,
       indoorBounce: 0.85,
       // A smooth coil coating between the ribs: the painted profile's 18 mm
       // meso relief shimmered into dot noise at the ceiling's grazing angle.
@@ -792,6 +807,9 @@ const SHELL_SURFACES: readonly [
     },
   ],
   [MATERIALS.roofTrim, 'painted'],
+  // Under the deck at 21-23 m: grime and dust are inert up there by position,
+  // and the edge term is what makes a slender section read.
+  [MATERIALS.purlin, 'metal'],
   [MATERIALS.accent, 'painted'],
   // 4 m from each pad's centre lands on the silo pad's 16 m width.
   [MATERIALS.plinth, 'masonry', { objectSpace: 1, slabPitch: 4, slabJoint: 0.5, slabTone: 0.09 }],
@@ -1147,6 +1165,107 @@ export function buildFactoryRoofEnvelope(): { panels: BoxInstance[]; kerbs: BoxI
 }
 
 /**
+ * Wall plates along both gable tops.
+ *
+ * There was a third member: 80 m across the hall at z = 0, y 21.86-22.04, a
+ * level tie from before the deck was pitched. Under the pitched deck it hung
+ * 0.23 m clear of the ridge and stood up through the roof past |x| 32,
+ * neither hung nor laid. Removed; the purlins carry the deck there now.
+ */
+export function buildFactoryRoofTrim(): BoxInstance[] {
+  const height = SITE_LAYOUT.factory.bounds.maxY;
+  return [
+    { position: [0, height - 0.15, -49.4], scale: [FLOOR_WIDTH, 0.18, 0.22] },
+    { position: [0, height - 0.15, 49.4], scale: [FLOOR_WIDTH, 0.18, 0.22] },
+  ];
+}
+
+/** Purlin centres across each roof half, from the ridge out to the eaves. */
+export const ROOF_PURLIN_PITCH = 1.25;
+/** A 200 mm cold-rolled purlin: depth across the deck, flange width. */
+export const ROOF_PURLIN_SECTION = { depth: 0.2, width: 0.08 } as const;
+/**
+ * Air between a purlin and everything it frames into: the deck above it, the
+ * truss chords it runs between, the well kerbs it trims around. A purlin that
+ * touches a face shares its plane; one that overlaps clips through it.
+ */
+export const ROOF_PURLIN_CLEARANCE = 0.01;
+/** The purlins' gable-end limit (the shell's inner line, as for every roof member). */
+const ROOF_PURLIN_END = 49.55;
+
+function instanceBounds(part: BoxInstance): THREE.Box3 {
+  const matrix = new THREE.Matrix4().compose(
+    new THREE.Vector3(...part.position),
+    new THREE.Quaternion().setFromEuler(new THREE.Euler(...(part.rotation ?? [0, 0, 0]))),
+    new THREE.Vector3(...part.scale)
+  );
+  return new THREE.Box3(
+    new THREE.Vector3(-0.5, -0.5, -0.5),
+    new THREE.Vector3(0.5, 0.5, 0.5)
+  ).applyMatrix4(matrix);
+}
+
+/**
+ * Purlin runs at ROOF_PURLIN_PITCH, hung from the deck with a clearance and
+ * cut wherever something else occupies their line: the truss chords (so each
+ * run frames between two trusses rather than passing through them), the well
+ * kerbs (the runs either side of a roof light are its trimmers) and the gable
+ * wall plates. `underside(x)` is the deck's lower face at `x`.
+ */
+function buildFactoryRoofPurlins(
+  underside: (x: number) => number,
+  blockers: readonly THREE.Box3[],
+  halfSpan: number
+): BoxInstance[] {
+  const { depth, width } = ROOF_PURLIN_SECTION;
+  const gap = ROOF_PURLIN_CLEARANCE;
+  const purlins: BoxInstance[] = [];
+  const count = Math.floor((halfSpan - 0.5) / ROOF_PURLIN_PITCH);
+  for (let i = 1; i <= count; i++) {
+    for (const side of [-1, 1] as const) {
+      const x = side * i * ROOF_PURLIN_PITCH;
+      const slope = roofSlope(side);
+      // Top face parallel to the deck, `gap` under it measured across the slope.
+      const y = underside(x) - (gap + depth / 2) / Math.cos(slope);
+      const section = instanceBounds({
+        position: [x, y, 0],
+        scale: [width, depth, 1],
+        rotation: [0, 0, slope],
+      });
+      const blocked = blockers
+        .filter(
+          (box) =>
+            box.max.x > section.min.x - gap &&
+            box.min.x < section.max.x + gap &&
+            box.max.y > section.min.y - gap &&
+            box.min.y < section.max.y + gap
+        )
+        .map((box) => [box.min.z - gap, box.max.z + gap] as const)
+        .sort((a, b) => a[0] - b[0]);
+      let from = -ROOF_PURLIN_END;
+      const runs: [number, number][] = [];
+      for (const [z0, z1] of blocked) {
+        if (z1 <= from) continue;
+        if (z0 >= ROOF_PURLIN_END) break;
+        if (z0 > from) runs.push([from, z0]);
+        from = Math.max(from, z1);
+      }
+      if (from < ROOF_PURLIN_END) runs.push([from, ROOF_PURLIN_END]);
+      for (const [z0, z1] of runs) {
+        // A stub shorter than a cleat is not a purlin.
+        if (z1 - z0 < 0.5) continue;
+        purlins.push({
+          position: [x, y, (z0 + z1) / 2],
+          scale: [width, depth, z1 - z0],
+          rotation: [0, 0, slope],
+        });
+      }
+    }
+  }
+  return purlins;
+}
+
+/**
  * Exposed pitched steelwork, seated on the existing side-wall columns. The
  * open webs leave the six roof lights useful; purlins stay beside their wells.
  * All members join the two existing steel-trim instance batches, with no new
@@ -1214,13 +1333,23 @@ export function buildFactoryRoofStructure(): {
       frames.push({ position: [x, lowerY - 0.35, z], scale: [0.75, 0.1, 0.75] });
     }
   }
-  for (const x of [-35, -25, -5, 5, 25, 35]) {
-    purlins.push({
-      position: [x, underside(x) - 0.17, 0],
-      scale: [0.22, 0.3, 99.1],
-      rotation: [0, 0, roofSlope(x < 0 ? -1 : 1)],
-    });
+  // `underside` above is the deck's top line less 0.36; the panel is 0.36 thick
+  // ACROSS the slope, so its true lower face is 0.36 / cos(pitch) down.
+  const deckUnderside = (x: number) => underside(x) + 0.36 - 0.36 / Math.cos(ROOF_PITCH);
+  // Each roof light's four kerbs bound its well; a purlin under the open well
+  // would be seen through the glazing, so the well is blocked down past the
+  // purlins' depth and the runs either side end on the kerbs as trimmers.
+  const wells = new Map<string, THREE.Box3>();
+  for (const kerb of buildFactoryRoofEnvelope().kerbs) {
+    const key = `${Math.sign(kerb.position[0])}:${Math.round(kerb.position[2] / 13)}`;
+    const bounds = instanceBounds(kerb);
+    wells.set(key, wells.get(key)?.union(bounds) ?? bounds);
   }
+  const blockers = [
+    ...[...frames, ...buildFactoryRoofTrim()].map(instanceBounds),
+    ...[...wells.values()].map((well) => well.clone().expandByVector(new THREE.Vector3(0, 1, 0))),
+  ];
+  purlins.push(...buildFactoryRoofPurlins(deckUnderside, blockers, halfSpan));
   for (const side of [-1, 1] as const) {
     const x = skylightLocalX(side);
     for (const z of SKYLIGHT_Z) {
@@ -1500,10 +1629,6 @@ function FactoryShell() {
   const columns = useMemo(buildFactoryShellColumns, []);
 
   const roofStructure = useMemo(buildFactoryRoofStructure, []);
-  const roofTrusses = useMemo(
-    () => [...roofStructure.frames, ...roofStructure.purlins],
-    [roofStructure]
-  );
 
   const roofEnvelope = useMemo(buildFactoryRoofEnvelope, []);
   const roofPanels = roofEnvelope.panels;
@@ -1511,9 +1636,7 @@ function FactoryShell() {
   const roofDetails = useMemo<readonly BoxInstance[]>(() => {
     const height = SITE_LAYOUT.factory.bounds.maxY;
     const result: BoxInstance[] = [
-      { position: [0, height - 0.15, -49.4], scale: [FLOOR_WIDTH, 0.18, 0.22] },
-      { position: [0, height - 0.15, 49.4], scale: [FLOOR_WIDTH, 0.18, 0.22] },
-      { position: [0, height - 0.05, 0], scale: [FLOOR_WIDTH, 0.18, 0.26] },
+      ...buildFactoryRoofTrim(),
       { position: [-FLOOR_WIDTH * 0.3, height + 0.45, -18], scale: [5, 1, 3] },
       { position: [0, height + 0.45, -18], scale: [5, 1, 3] },
       { position: [FLOOR_WIDTH * 0.3, height + 0.45, -18], scale: [5, 1, 3] },
@@ -1600,11 +1723,14 @@ function FactoryShell() {
       />
       <InstancedBoxes instances={columns} material={MATERIALS.steel} castShadow receiveShadow />
       <InstancedBoxes
-        instances={roofTrusses}
+        instances={roofStructure.frames}
         material={MATERIALS.steelTrim}
         castShadow
         receiveShadow
       />
+      {/* No shadow casting: under the opaque deck they could only shade the
+          deck's own underside, which the sun never reaches. */}
+      <InstancedBoxes instances={roofStructure.purlins} material={MATERIALS.purlin} receiveShadow />
       <InstancedBoxes
         instances={roofPanels}
         material={ROOF_PANEL_MATERIALS}
