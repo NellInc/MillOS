@@ -81,6 +81,8 @@ import {
   utilityLadderLayout,
   utilityTankNozzles,
 } from './exterior/utilityVesselDetails';
+import { TankFarmManifold, YardIntake } from './exterior/ServiceYardDressing';
+import type { ManifoldTank } from './exterior/serviceYardDressingLayout';
 import {
   generateVesselShellMaps,
   vesselShellUvs,
@@ -5873,6 +5875,20 @@ export const PropaneTank: React.FC<{
   </group>
 );
 
+/** The tank farm's vessels as the manifold sees them, farm-local. */
+const TANK_FARM_MANIFOLD_TANKS: readonly ManifoldTank[] = UTILITY_ASSET_DEFINITIONS.filter(
+  (asset) => asset.compound === 'tank_farm'
+).map((asset) => {
+  const radius = asset.radius ?? 2.5;
+  const length = asset.length ?? 8;
+  return {
+    z: asset.relativePosition[2],
+    radius,
+    length,
+    seamOffset: vesselSeamOffset(radius, length),
+  };
+});
+
 const UtilityTankFarm: React.FC = React.memo(() => (
   <group
     position={UTILITY_TANK_FARM_CENTRE}
@@ -5916,6 +5932,7 @@ const UtilityTankFarm: React.FC = React.memo(() => (
         label={asset.label}
       />
     ))}
+    <TankFarmManifold tanks={TANK_FARM_MANIFOLD_TANKS} />
   </group>
 ));
 UtilityTankFarm.displayName = 'UtilityTankFarm';
@@ -9157,6 +9174,9 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
           authority, including containment, access control and safety clearance. */}
       <UtilityTankFarm />
       <PropaneSafetyCompound />
+      {/* The grain intake grate and slot drains on the apron east of the silo
+          pad (serviceYardDressingLayout.ts). */}
+      <YardIntake />
 
       {/* ========== PATHS & WALKWAYS ========== */}
 
