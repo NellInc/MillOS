@@ -1,13 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
+  advancePrecipitationTime,
   createPrecipitationMaterial,
+  createRainGeometry,
   LOADING_DOCK_CANOPY_GLB_EXTENT,
   PRECIPITATION,
   precipitationDropCount,
   RAIN_SHELTERS,
+  rainDropHeights,
   rainReachesPoint,
 } from './Precipitation';
 import { sampleAtmosphere } from '../../simulation/atmosphere';
+import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { LOADING_DOCK_CANOPIES } from '../FactoryExterior';
 import { DOCK_CANOPY_ROOF } from '../truckbay/OptimizedTruckBay';
@@ -105,6 +109,60 @@ describe('world-space precipitation', () => {
       expect(
         covers(-width / 2, width / 2, Math.min(near, far), Math.max(near, far), y + height / 2)
       ).toBe(true);
+    }
+  });
+
+  // final5-med-rain: farm and water showed no rain at all, and village's rain
+  // stopped in a band partway down the sky. Each drop's fall speed was keyed
+  // to aSeed.y, the same random that places it vertically, so the height
+  // h = 36 s - 9.5 t (0.85 + 0.3 s) = s (36 - 2.85 t) - 8.1 t lost its spread
+  // as t grew: every 12.6 s the whole field fell as one thin sheet. Whether a
+  // capture showed rain depended on the render clock when it fired.
+  it('keeps the drops spread through the volume at every moment, not one falling sheet', () => {
+    const geometry = createRainGeometry();
+    try {
+      const bins = 6;
+      for (let time = 0; time <= 120; time += 0.37) {
+        const heights = rainDropHeights(geometry, time);
+        const counts = new Array<number>(bins).fill(0);
+        for (const h of heights)
+          counts[Math.min(bins - 1, Math.floor((h / PRECIPITATION.height) * bins))] += 1;
+        for (const count of counts) {
+          // A uniform field puts 1/6 (16.7%) in each sixth of the volume.
+          expect(count / heights.length, `t=${time.toFixed(2)}`).toBeGreaterThan(0.12);
+        }
+      }
+      // The mirror reads the same attribute the shader does.
+      const material = createPrecipitationMaterial();
+      expect(material.vertexShader).toMatch(/travel = velocity \* uTime \* aRate;/);
+      expect(material.vertexShader).not.toMatch(/uTime \*[^;]*aSeed/);
+      material.dispose();
+    } finally {
+      geometry.dispose();
+    }
+  });
+
+  it('falls on the render clock, so a held time of day never stops it', () => {
+    // Capture mode holds the time of day (timeOfDayHeld); the rain must keep
+    // falling and keep raining.
+    const store = useGameSimulationStore.getState();
+    const previous = { weather: store.weather, held: store.timeOfDayHeld };
+    try {
+      store.setWeather('rain');
+      store.setTimeOfDayHeld(true);
+      const { gameDay, gameTime, weather } = useGameSimulationStore.getState();
+      const rain = sampleAtmosphere(gameDay, gameTime, weather).precipitation;
+      expect(precipitationDropCount('medium', rain)).toBeGreaterThan(0);
+      let time = 0;
+      for (let frame = 0; frame < 60 * 15; frame += 1)
+        time = advancePrecipitationTime(time, 1 / 60, false);
+      expect(time).toBeCloseTo(15, 6);
+      expect(useGameSimulationStore.getState().gameTime).toBe(gameTime);
+      expect(advancePrecipitationTime(4, 1 / 60, true)).toBe(4);
+      expect(advancePrecipitationTime(4, 5, false)).toBeCloseTo(4.1, 9);
+    } finally {
+      store.setWeather(previous.weather);
+      store.setTimeOfDayHeld(previous.held);
     }
   });
 
