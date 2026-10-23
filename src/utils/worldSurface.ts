@@ -199,11 +199,16 @@ export function ribFilteredSwing(w: number): number {
  * A box filter is not a low-pass. Over a footprint of `w` pitches the
  * trapezoid keeps 85% of its swing at w 0.5 (two pixels a pitch: Nyquist) and
  * 20-28% at w 1.25-1.5, and all of that aliases: final4's roof liner read as a
- * dot grid from interior, milling and every hall camera. So the swing is gone
- * by 0.42 (2.4 px a pitch) and full below 0.2 (5 px a pitch). `fwidth` sums
- * |dFdx| and |dFdy|, so the measured footprint errs long, toward the safe side.
+ * dot grid from interior, milling and every hall camera.
+ *
+ * Nor is a resolved pitch calm. Faded at 0.2-0.42 (r5shell5 probe, interior
+ * med-12), the liner's 0.25 m ribs still drew at 4 px a pitch across the top
+ * right of the frame, chopped every 11 px by the purlins into the same
+ * checkerboard. So the swing is full only below 0.1 (10 px a pitch) and gone
+ * by 0.25 (4 px a pitch), well before Nyquist. `fwidth` sums |dFdx| and
+ * |dFdy|, so the measured footprint errs long, toward the calm side.
  */
-export const RIB_NYQUIST_FADE = { from: 0.2, to: 0.42 } as const;
+export const RIB_NYQUIST_FADE = { from: 0.1, to: 0.25 } as const;
 
 /** Paired rendered control for that fade (0 = the box filter alone), shared by reference. */
 export const RIB_NYQUIST_STRENGTH: { value: number } = { value: 1 };

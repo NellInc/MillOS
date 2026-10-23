@@ -542,13 +542,13 @@ describe('box-filtered ribs', () => {
    * at w 1.25-1.5, and every bit of that aliases. What reaches the frame must
    * be gone before Nyquist and stay gone.
    */
-  it('leave no swing at or past Nyquist, and keep it where a pitch spans 4 px', () => {
-    for (let w = 0.45; w <= 4; w += 0.05) {
+  it('leave no swing from 4 px a pitch on, and keep it where a pitch spans 12 px', () => {
+    for (let w = 0.25; w <= 4; w += 0.05) {
       expect(ribRenderedSwing(w), `w ${w.toFixed(2)}`).toBeLessThan(1e-6);
       expect(ribRenderedSwing(w, RIB_SEAM_TEST_WIDTH), `seam w ${w.toFixed(2)}`).toBeLessThan(1e-6);
     }
-    expect(ribRenderedSwing(0.1)).toBeGreaterThan(0.95);
-    expect(ribRenderedSwing(0.25)).toBeGreaterThan(0.6);
+    expect(ribRenderedSwing(0.08)).toBeGreaterThan(0.95);
+    expect(ribRenderedSwing(0.15)).toBeGreaterThan(0.4);
     // The paired control: with the fade off, the old box filter (and its alias).
     expect(ribRenderedSwing(1.5, 0, 0)).toBeCloseTo(ribFilteredSwing(1.5), 9);
   });

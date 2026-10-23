@@ -495,7 +495,9 @@ const MATERIALS = {
    */
   purlin: new THREE.MeshStandardMaterial({
     name: 'factory-roof-purlin',
-    color: '#a9afb0',
+    // Neutral, a shade under the liner (#b4b4b2): it was '#a9afb0', cooler
+    // than the warm liner, and the hue step striped the ceiling.
+    color: '#acadab',
     roughness: 0.48,
     metalness: 0,
   }),
@@ -1019,10 +1021,10 @@ const SHELL_SURFACES: readonly [
       ribPeriod: 0.25,
       ribDepth: 0.035,
       ribAxis: 1,
-      // Box-filtered, and faded out before Nyquist (RIB_NYQUIST_FADE): at the
-      // interior cameras' 0.1 m a pixel (Medium renders 864 rows) the 0.25 m
-      // pitch cannot resolve, and what the box filter alone left of it read
-      // as a dot grid (final4). The purlins carry the rhythm out there.
+      // Box-filtered, and faded out from 10 px a pitch to 4 (RIB_NYQUIST_FADE):
+      // at the interior cameras' 0.06-0.1 m a pixel (Medium renders 864 rows)
+      // the 0.25 m pitch drew a dot grid against the purlins (final4). The
+      // purlins carry the rhythm out there.
       ribFilteredTone: 0.24,
       indoorBounce: 0.85,
       // A smooth coil coating between the ribs: the painted profile's 18 mm
@@ -1035,7 +1037,11 @@ const SHELL_SURFACES: readonly [
   // Under the deck at 21-23 m: grime and dust are inert up there by position,
   // and the edge term is what makes a slender section read. Lit by the hall
   // floor, not the grass: final med-12 read them as dark teal slats.
-  [MATERIALS.purlin, 'metal', { indoorBounce: 0.85 }],
+  // r5: at the interior camera's grazing view most of a purlin's underside is
+  // "edge" to the Fresnel proxy, so the bluish bare-steel colour took it over
+  // and the runs read as teal stripes against the warm liner, a grid with
+  // the ribs. A galvanised section has no paint to wear through: edge 0.06.
+  [MATERIALS.purlin, 'metal', { indoorBounce: 0.85, edge: 0.06 }],
   [MATERIALS.accent, 'painted'],
   // 4 m from each pad's centre lands on the silo pad's 16 m width.
   [MATERIALS.plinth, 'masonry', { objectSpace: 1, slabPitch: 4, slabJoint: 0.5, slabTone: 0.09 }],
