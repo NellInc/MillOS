@@ -186,6 +186,28 @@ describe('silo corrugation (final3: smeared horizontal brown bands, wavy at mid 
     expect(corrugationOf(MACHINE_MATERIALS.siloSkirt)?.y).toBe(0);
   });
 
+  it('keeps the patina a low-contrast film, not metal and matte patches that read as folds', () => {
+    // r4 fold probe (tune-d4yard12, one page load): the drums at 12:00 read as
+    // crumpled foil; patina 0 alone left a rigid cylinder, while the maps,
+    // the axis shading, the aureole and the ground pull did not. The field
+    // switched each patch between a sky-mirroring conductor and a sunlit
+    // matte grey: smoothstep( 0.2, 0.8 ) ran the share from 0 to 0.8.
+    const { siloPatinaCoverage } = surfaces;
+    const galv = (MACHINE_MATERIALS.silo.userData.machineGalvanised as { value: THREE.Vector4 })
+      .value;
+    const swing = Math.abs(siloPatinaCoverage(0.8, galv.x) - siloPatinaCoverage(0.2, galv.x));
+    expect(swing).toBeLessThanOrEqual(0.15);
+    // Still mostly patina, so the drum keeps its Lambert form under the sun.
+    expect(siloPatinaCoverage(0.5, galv.x)).toBeGreaterThanOrEqual(0.4);
+    const shader = compile(MACHINE_MATERIALS.silo);
+    expect(shader.fragmentShader).not.toContain('smoothstep( 0.2, 0.8, galvPatinaField )');
+    expect(shader.uniforms.uMachinePatina).toBe(MACHINE_MATERIALS.silo.userData.machinePatina);
+    // The skirt carries the same film, so the seam stays invisible.
+    expect(MACHINE_MATERIALS.siloSkirt.userData.machinePatina.value.toArray()).toEqual(
+      MACHINE_MATERIALS.silo.userData.machinePatina.value.toArray()
+    );
+  });
+
   it('runs the patina down the drum, the way weathering runs, not round it', () => {
     const fragment = compile(MACHINE_MATERIALS.silo).fragmentShader;
     const octaves = [

@@ -297,6 +297,25 @@ export function siloCorrugationFade(cyclesPerPixel: number): number {
   return 1 - t * t * (3 - 2 * t);
 }
 
+/**
+ * The galvanised patina as a film: its share of each fragment is
+ * mean + spread * (field - 0.5), times the material's patina share. It was
+ * smoothstep( 0.2, 0.8, field ), which ran the share from none to all across
+ * a few metres, so the drum alternated between sky-mirroring conductor and
+ * sunlit matte grey. At 12:00 those patches read as dents and folds in the
+ * sheet (r4 fold probe, tune-d4yard12: patina 0 alone gave a rigid cylinder;
+ * the maps, axis shading, aureole and ground pull did not).
+ */
+export const SILO_PATINA_FILM = { mean: 0.7, spread: 0.2 } as const;
+
+/** TS mirror of the shader's patina share for a noise field value in 0-1. */
+export function siloPatinaCoverage(field: number, share: number): number {
+  return (
+    THREE.MathUtils.clamp(SILO_PATINA_FILM.mean + SILO_PATINA_FILM.spread * (field - 0.5), 0, 1) *
+    share
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Silo floods, lit through the galvanised BRDF
 // ---------------------------------------------------------------------------
@@ -481,6 +500,7 @@ uniform vec4 uMachineGalv;
 uniform vec4 uMachineRings;
 uniform float uMachineGalvGround;
 uniform vec2 uMachineCorrugation;
+uniform vec2 uMachinePatina;
 uniform vec4 uMachineFlood;
 uniform vec3 uMachineFloodColor;
 varying vec3 vMachineObject;
@@ -589,7 +609,8 @@ if ( uMachineCorrugation.y > 0.5 ) {
 float galvPatinaField =
   machineGalvNoise( vMachineWorldPos * vec3( 0.45, 0.07, 0.45 ) ) * 0.65 +
   machineGalvNoise( vMachineWorldPos * vec3( 1.1, 0.18, 1.1 ) + vec3( 7.1, 3.3, 1.7 ) ) * 0.35;
-float galvPatina = smoothstep( 0.2, 0.8, galvPatinaField ) * uMachineGalv.x;
+// A film of near-even coverage (SILO_PATINA_FILM), not metal and matte patches.
+float galvPatina = clamp( uMachinePatina.x + uMachinePatina.y * ( galvPatinaField - 0.5 ), 0.0, 1.0 ) * uMachineGalv.x;
 float galvColumns = ( atan( vMachineObject.z, vMachineObject.x ) / 6.28318530718 + 0.5 ) * 180.0;
 float galvColumn = floor( galvColumns );
 float galvAcross = fract( galvColumns );
@@ -812,6 +833,8 @@ function withWear<T extends THREE.MeshStandardMaterial>(
     };
     // 1 = the grass outside is neutralised in what the drum reflects (paired control).
     const galvGround = { value: 1 };
+    // Film coverage at the field's mean, and its swing (SILO_PATINA_FILM).
+    const patina = { value: new THREE.Vector2(SILO_PATINA_FILM.mean, SILO_PATINA_FILM.spread) };
     // Fine ridge count, enabled.
     const corrugation = {
       value: galvanised.corrugated
@@ -823,6 +846,7 @@ function withWear<T extends THREE.MeshStandardMaterial>(
       uMachineRings: { value: new THREE.Vector4(...SILO_DRIP_DATUMS_UNIT) },
       uMachineGalvGround: galvGround,
       uMachineCorrugation: corrugation,
+      uMachinePatina: patina,
       // Shared by every galvanised material: one write lights the whole battery.
       uMachineFlood: SILO_FLOOD_LIGHT,
       uMachineFloodColor: SILO_FLOOD_COLOR,
@@ -831,6 +855,7 @@ function withWear<T extends THREE.MeshStandardMaterial>(
     material.userData.machineGalvanised = galv;
     material.userData.machineGalvanisedGround = galvGround;
     material.userData.machineCorrugation = corrugation;
+    material.userData.machinePatina = patina;
     material.userData.machineFlood = SILO_FLOOD_LIGHT;
   }
 

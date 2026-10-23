@@ -201,7 +201,10 @@ const SILO_ROOF = createSiloRoofGeometry();
  */
 // Grounded discharge enclosure. The real outlet route terminates inside it.
 const SILO_OUTLET = new THREE.CylinderGeometry(1, 1, 1, 32);
-const SILO_RING = new THREE.CylinderGeometry(1.03, 1.03, 0.08, 32); // matches shell
+// Stiffener band, segments matching the shell. Open-ended: its caps were the 8 cm
+// ledge between ring and wall, under a pixel at Low and facing the bright
+// zenith, so they rasterised as white dashes along every ring.
+const SILO_RING = new THREE.CylinderGeometry(1.03, 1.03, 0.08, 32, 1, true);
 const HOPPER = new THREE.CylinderGeometry(0.45, 1, 1, 24); // 3.7 m across
 const ROLLER = new THREE.CylinderGeometry(1, 1, 1, 20);
 const INLET = new THREE.CylinderGeometry(1, 1, 1, 20);
