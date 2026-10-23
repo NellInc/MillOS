@@ -46,13 +46,52 @@ export function waterFresnel(normalDotView: number, rippleDetail = 1): number {
  * weight a full patch adds at 0.5 wind.
  */
 export const WATER_SKY_DETAIL_PROFILE = {
-  deckScale: 2.4,
-  cloud: [0.5, 0.78],
-  cloudWeight: 0.55,
+  /**
+   * The ray meets the deck at xz / (y + deckLift): smooth at every elevation.
+   * The former max(y, 0.12) floor kinked the mapping and, under a 0.28-wide
+   * cloud ramp at 0.55 weight, printed a hard diagonal edge across the pond
+   * (final4-med-12 water).
+   */
+  deckLift: 0.25,
+  deckScale: 3.2,
+  cloud: [0.42, 0.86],
+  cloudWeight: 0.38,
   pawScale: 0.07,
-  paw: [0.5, 0.78],
+  paw: [0.45, 0.85],
   pawReflectance: 0.07,
 } as const;
+
+/**
+ * Natural body for the lake and pond on Medium and up: `weight` of the way
+ * from the authored cyan toward `tint` (an olive pond hue, normalised to unit
+ * luminance) at the same luminance. final4-med-12 rubric: "saturated cyan".
+ */
+export const WATER_NATURAL_PROFILE = {
+  weight: 0.7,
+  tint: [0.76, 1.08, 0.7],
+} as const;
+
+/** CPU mirror of the shader's natural-body shift, on a linear colour. */
+export function naturalWaterBody(colour: THREE.Color, weight: number): THREE.Color {
+  const luma = colour.r * 0.2126 + colour.g * 0.7152 + colour.b * 0.0722;
+  const [r, g, b] = WATER_NATURAL_PROFILE.tint;
+  const tintLuma = r * 0.2126 + g * 0.7152 + b * 0.0722;
+  return colour.lerp(new THREE.Color(r, g, b).multiplyScalar(luma / tintLuma), weight);
+}
+
+/**
+ * Far-bank reflection on bounded water (Medium and up). The reflected ray is
+ * walked to the shore ellipse (`bankRadii`, metres); where it has risen less
+ * than the bank (`bankMetres`, varied by `bankVariation` along the shore) it
+ * sees grass, reeds and kerb (`tone`, linear) rather than sky.
+ */
+export const WATER_BANK_PROFILE = {
+  bankMetres: 1.0,
+  bankVariation: 0.5,
+  tone: [0.05, 0.085, 0.032],
+} as const;
+/** Paired control for the bank reflection: 0 restores the sky exactly. */
+export const WATER_BANK_DETAIL = { value: 1 };
 /** Paired control for the deck and paws: 0 restores the earlier sky exactly. */
 export const WATER_SKY_DETAIL = { value: 1 };
 /** The displayed sky's cloud amount and lit cloud colour, written each frame. */
