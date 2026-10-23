@@ -309,9 +309,34 @@ export const RIDGE_CANOPY_PROFILE = {
   amplitude: [0.55, 0.95],
 } as const;
 
+/**
+ * Fixed foothills behind the far range sink below its foot.
+ *
+ * The far ring is centred on the camera; the mid and near rings are fixed to
+ * the site. From any camera off the site centre the far side of the mid ring
+ * stands 600-660 m out, behind the far range's crest (radius + slopeDepth,
+ * 573 m). Where that crest is low its back rows rose over it, hidden below by
+ * the far range, so they floated above it as a dark lens (final5-med-22 farm,
+ * x 300-475 y 160-180; the round-3 rain judge saw the same). `ramp` is metres
+ * past the far crest, measured horizontally from the camera; `floorY` is below
+ * the far foot (baseY -8), where the far ring always hides it. Hills in front
+ * of the crest do not move.
+ */
+export const RIDGE_BEHIND_RANGE_SINK = { ramp: [-5, 10], floorY: -40 } as const;
+
+/** CPU mirror of the anchored rings' sink weight at a horizontal camera distance. */
+export function getRidgeBehindRangeSink(cameraDistance: number): number {
+  const crest = FAR_MOUNTAIN_SPEC.radius + FAR_MOUNTAIN_SPEC.slopeDepth;
+  const [start, end] = RIDGE_BEHIND_RANGE_SINK.ramp;
+  return THREE.MathUtils.smoothstep(cameraDistance, crest + start, crest + end);
+}
+
 const ridgeVertexShader = `
 #include <common>
 #include <logdepthbuf_pars_vertex>
+uniform float uWorldAnchored;
+uniform float uRingRadius;
+uniform float uSlopeDepth;
 varying vec3 vRidgeColor;
 varying vec3 vRidgeNormal;
 varying vec3 vRidgePosition;
@@ -327,7 +352,17 @@ void main() {
   vRidgePosition = position;
   vRidgeHeight = ridgeHeight;
   vRidgeSnow = ridgeSnow;
-  vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+  vec3 placed = position;
+  // Fixed foothills behind the far range's crest sink below its foot
+  // (RIDGE_BEHIND_RANGE_SINK): otherwise they float over its low shoulders.
+  if (uWorldAnchored > 0.5) {
+    vec4 anchoredWorld = modelMatrix * vec4(position, 1.0);
+    float behindRange = smoothstep(uRingRadius + uSlopeDepth + (${RIDGE_BEHIND_RANGE_SINK.ramp[0].toFixed(1)}),
+      uRingRadius + uSlopeDepth + ${RIDGE_BEHIND_RANGE_SINK.ramp[1].toFixed(1)},
+      length(anchoredWorld.xz - cameraPosition.xz));
+    placed.y = mix(position.y, ${RIDGE_BEHIND_RANGE_SINK.floorY.toFixed(1)}, behindRange);
+  }
+  vec4 mvPosition = modelViewMatrix * vec4(placed, 1.0);
   vRidgeDistance = length(mvPosition.xyz);
   gl_Position = projectionMatrix * mvPosition;
   #include <logdepthbuf_vertex>
@@ -367,7 +402,7 @@ export const RIDGE_FIELD_PROFILE = {
    * foreshortens into an ellipse that reads as a hole, about 12 of them per
    * village frame. Thresholds on a 0-1 fbm.
    */
-  copse: [0.64, 0.73],
+  copse: [0.63, 0.74],
   /**
    * The wooded masks read as flat dark ovals from the village (final3-med-12,
    * the rubric's "blotches"): at 150-450 m the 3.7 m crowns carried +/-11%
@@ -386,18 +421,20 @@ export const RIDGE_FIELD_PROFILE = {
    * (`clumpScale` cycles per metre) that fade from 1 m/px, a slow rag
    * (`ragScale`), wide stand edges (`woodsEdge`, `copse`) on lower-frequency
    * fields (`standScale`: woods, copses) for larger coherent stands, and
-   * strays only where single trees resolve (`strayFootprint`).
+   * strays only where single trees resolve (`strayFootprint`). final5 low-12
+   * and med-12 still read faintly as camouflage: crowns +/-9%, clumps +/-5%,
+   * and stand edges (0.2) and copse outlines (0.11) ramp wider again.
    */
-  crownTone: [0.98, 0.24],
+  crownTone: [1.0, 0.19],
   crownReliefMetres: 0.55,
-  clump: 0.07,
+  clump: 0.05,
   clumpScale: [0.07, 0.15],
   clumpReliefMetres: 0.8,
   clumpFootprint: [1.0, 4.0],
   rag: 0.05,
   ragScale: 0.05,
   standScale: [0.015, 0.018],
-  woodsEdge: [0.43, 0.57],
+  woodsEdge: [0.4, 0.6],
   strayFootprint: [0.6, 1.2],
   fringe: 0.1,
   scrub: [0.09, 0.122, 0.054],
@@ -406,7 +443,9 @@ export const RIDGE_FIELD_PROFILE = {
    * (`getRidgeFieldDaylight`: full by 0.3 daylight, so 18:30 keeps about 80% of
    * its hue; none by 0.05, 19:00), and keep `nightVariation` of their luminance
    * step about it once `uFieldTone` reaches 0 (`getRidgeFieldTone`: full by
-   * 0.12, about half at 19:00, none at 22:00). One shared ramp at [0.08, 0.5]
+   * 0.2, so 18:30 at 0.23 keeps its patchwork, none by 0.06, so 19:00 at 0.046
+   * has none). Half the step kept at 19:00 brought the hedgerows and parcel
+   * facets back as diagonal creases on the dark hill (final5-med-19). One shared ramp at [0.08, 0.5]
    * took 70% of the hue and half the patchwork by 18:30, and a night tone 25%
    * below the fields darkened them: one near-black mass at dusk
    * (final4-med-1830 village). `nightTone` sits near the hill's area mean.
@@ -414,7 +453,7 @@ export const RIDGE_FIELD_PROFILE = {
   nightTone: [0.078, 0.111, 0.059],
   nightVariation: 0.3,
   fieldDaylight: [0.05, 0.3],
-  fieldTone: [0.0, 0.12],
+  fieldTone: [0.06, 0.2],
 } as const;
 
 /**
@@ -1556,7 +1595,7 @@ export function createRidgeMaterial(
     },
   });
   material.userData.clearAerial = aerial;
-  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v25';
+  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v26';
   return material;
 }
 
