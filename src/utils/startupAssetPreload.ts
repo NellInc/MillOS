@@ -72,7 +72,6 @@ const STARTUP_GENERATED_MODELS: readonly GeneratedAssetId[] = [
   'dockLevelerLip',
   'dockLevelerPlate',
   'dockDoorFrame',
-  'dockDoorPanel',
   'dockShelterFrame',
   'dockShelterSide',
   'dockShelterTop',

@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
+import { OBB } from 'three/examples/jsm/math/OBB.js';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { MachineData, MachineType } from '../../types';
 import { buildSpoutRoutes, SPOUT_PIPE_RADIUS } from '../flow/spoutRoutes';
@@ -11,7 +12,13 @@ import {
   buildFactoryRoofBatten,
   buildFactoryRoofGlazing,
   buildFactoryRoofStructure,
+  buildFactoryRoofTrim,
+  buildWalkwayEdges,
+  buildWalkwayLanes,
+  WALKWAY_EDGE_WIDTH,
   buildFactoryGlazing,
+  buildFactoryGlazingBars,
+  buildFactoryGlazingLights,
   buildFactoryFacadeFrames,
   buildFactoryShellColumns,
   buildSafetyStations,
@@ -153,6 +160,63 @@ describe('optimized factory envelope', () => {
  * a megapixel back: the point of the macro layer is that the surface differs
  * from place to place, and every claim below is a place-to-place comparison.
  */
+// final3 med-12 packing, upper left: "a translucent cyan band on the floor
+// parallel to the glass wall reads as tint, not paint, because it has no edge
+// line". The probe's transparent-off diff put it on the z = -39 walkway film.
+describe('pedestrian walkway lanes', () => {
+  it('paint an edge line down both long sides of every lane, broken only where lanes meet', () => {
+    const lanes = buildWalkwayLanes();
+    const edges = buildWalkwayEdges(lanes);
+    for (const lane of lanes) {
+      const along = lane.scale[0] > lane.scale[2] ? 0 : 2;
+      const across = along === 0 ? 2 : 0;
+      for (const side of [-1, 1]) {
+        const laneSide = lane.position[across] + (side * lane.scale[across]) / 2;
+        const lines = edges.filter(
+          (edge) =>
+            edge.scale[along] > edge.scale[across] &&
+            Math.abs(edge.position[across] - laneSide) < WALKWAY_EDGE_WIDTH &&
+            Math.abs(edge.position[along] - lane.position[along]) < lane.scale[along] / 2
+        );
+        const painted = lines.reduce((sum, edge) => sum + edge.scale[along], 0);
+        // Most of the side is lined; a joining lane may take at most 3.5 m from it.
+        expect(painted, `lane at ${lane.position} side ${side}`).toBeGreaterThan(
+          lane.scale[along] - 2 * 3.5 - 0.1
+        );
+        for (const edge of lines) {
+          // Inside the lane, never on its side face, and proud of the film.
+          const outer = edge.position[across] + (side * edge.scale[across]) / 2;
+          expect(side * (laneSide - outer)).toBeGreaterThanOrEqual(0.01);
+          expect(edge.position[1] + edge.scale[1] / 2).toBeGreaterThan(
+            lane.position[1] + lane.scale[1] / 2 + 0.002
+          );
+          expect(edge.position[1] - edge.scale[1] / 2).not.toBeCloseTo(
+            lane.position[1] - lane.scale[1] / 2,
+            3
+          );
+        }
+      }
+    }
+    // A line never runs across another lane's film.
+    for (const edge of edges) {
+      for (const lane of lanes) {
+        const along = lane.scale[0] > lane.scale[2] ? 0 : 2;
+        const edgeAlong = edge.scale[0] > edge.scale[2] ? 0 : 2;
+        if (along === edgeAlong) continue;
+        const overlapX =
+          Math.abs(edge.position[0] - lane.position[0]) < (edge.scale[0] + lane.scale[0]) / 2;
+        const overlapZ =
+          Math.abs(edge.position[2] - lane.position[2]) < (edge.scale[2] + lane.scale[2]) / 2;
+        const across = edgeAlong === 0 ? 2 : 0;
+        const inside =
+          Math.abs(edge.position[across] - lane.position[across]) < lane.scale[across] / 2;
+        if (overlapX && overlapZ) expect(inside, `edge at ${edge.position}`).toBe(true);
+      }
+    }
+    expect(WALKWAY_EDGE_WIDTH).toBeGreaterThanOrEqual(0.15);
+  });
+});
+
 describe('interior slab macro surface', () => {
   /**
    * Open floor: clear of every lane, dock apron, machine, joint and wall.
@@ -509,8 +573,9 @@ describe('exposed factory roof steelwork', () => {
     );
 
   it('seats four connected frames on the existing wall columns within a bounded part budget', () => {
-    expect(parts.length).toBeLessThan(190);
-    expect(structure.purlins).toHaveLength(6);
+    // 144 frame members, 24 glazing bars and the purlin runs. Instanced: the
+    // count costs matrices, not draw calls.
+    expect(parts.length).toBeLessThan(600);
     expect(structure.glazingBars).toHaveLength(24);
     const seats = structure.frames.filter((part) => part.scale[1] === 0.1);
     expect(seats).toHaveLength(8);
@@ -536,6 +601,104 @@ describe('exposed factory roof steelwork', () => {
       // Shared datum keeps the real lamps below the structural lower chord.
       expect(bounds.min.y).toBeGreaterThan(SITE_LAYOUT.factory.bounds.maxY - 3.4);
       expect(bounds.max.y).toBeLessThan(SITE_LAYOUT.factory.bounds.maxY + 2.2);
+    }
+  });
+
+  // final3 med-12 interior and milling: between the trusses the deck read as
+  // one flat plane. Six purlins at 10 m centres gave it no rhythm at all.
+  it('carries the deck on purlins at no more than 1.5 m centres from eave to ridge', () => {
+    const lines = [...new Set(structure.purlins.map((part) => part.position[0]))].sort(
+      (a, b) => a - b
+    );
+    const halfWidth = SITE_LAYOUT.factory.floor.width / 2;
+    expect(lines[0]).toBeLessThan(-halfWidth + 2);
+    expect(lines[lines.length - 1]).toBeGreaterThan(halfWidth - 2);
+    for (let i = 1; i < lines.length; i++) {
+      const acrossRidge = lines[i - 1] < 0 && lines[i] > 0;
+      expect(
+        lines[i] - lines[i - 1],
+        `between ${lines[i - 1]} and ${lines[i]}`
+      ).toBeLessThanOrEqual(acrossRidge ? 2.6 : 1.5);
+    }
+    // Every line carries the deck over most of the hall's length.
+    for (const x of lines) {
+      const run = structure.purlins
+        .filter((part) => part.position[0] === x)
+        .reduce((sum, part) => sum + part.scale[2], 0);
+      expect(run, `line ${x}`).toBeGreaterThan(50);
+    }
+  });
+
+  it('frames every purlin between the trusses, kerbs and deck with air on all sides', () => {
+    // No purlin may overlap a chord, a web, a well kerb, the eave trim or the
+    // deck it carries, and none may share a plane with one: every purlin box,
+    // grown by 4 mm, still touches nothing.
+    const obb = (part: (typeof parts)[number], grow = 0) => {
+      const rotation = new THREE.Matrix3().setFromMatrix4(
+        new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(...(part.rotation ?? [0, 0, 0])))
+      );
+      return new OBB(
+        new THREE.Vector3(...part.position),
+        new THREE.Vector3(...part.scale).multiplyScalar(0.5).addScalar(grow),
+        rotation
+      );
+    };
+    const envelope = buildFactoryRoofEnvelope();
+    const neighbours = [
+      ...structure.frames,
+      ...structure.glazingBars,
+      ...envelope.panels,
+      ...envelope.kerbs,
+      ...buildFactoryRoofTrim(),
+    ].map((part) => obb(part));
+    for (const purlin of structure.purlins) {
+      const grown = obb(purlin, 0.004);
+      const clash = neighbours.findIndex((other) => grown.intersectsOBB(other));
+      expect(clash, `purlin at ${purlin.position.join(', ')}`).toBe(-1);
+    }
+    // Positive control: the same test does see a purlin laid on the deck.
+    const laid = structure.purlins[0];
+    const onDeck = {
+      ...laid,
+      position: [laid.position[0], laid.position[1] + 0.02, laid.position[2]] as const,
+    };
+    expect(neighbours.some((other) => obb(onDeck, 0.004).intersectsOBB(other))).toBe(true);
+  });
+
+  it('ends every purlin run on a truss, a well trimmer or the gable', () => {
+    const envelope = buildFactoryRoofEnvelope();
+    const faces = [...structure.frames, ...envelope.kerbs, ...buildFactoryRoofTrim()].flatMap(
+      (part) => [part.position[2] - part.scale[2] / 2, part.position[2] + part.scale[2] / 2]
+    );
+    for (const purlin of structure.purlins) {
+      for (const end of [-1, 1]) {
+        const z = purlin.position[2] + (end * purlin.scale[2]) / 2;
+        const bears =
+          Math.abs(Math.abs(z) - 49.55) < 1e-6 ||
+          faces.some((face) => Math.abs(Math.abs(face - z) - 0.01) < 0.002);
+        expect(bears, `purlin end at ${purlin.position[0]}, ${z}`).toBe(true);
+      }
+    }
+  });
+
+  it('hangs no trim member below the deck or through it', () => {
+    // A 80 m member at z = 0, y 21.86-22.04, was 0.23 m below the deck at the
+    // ridge and stood through the deck's top past |x| 32: neither hung nor laid.
+    // Deck top 0.63 over the eave datum at each half's centre, pitched 0.05 rad
+    // up toward the ridge; the panels are 0.36 thick across the slope.
+    const halfCentre = SITE_LAYOUT.factory.floor.width / 4;
+    const underside = (x: number) =>
+      SITE_LAYOUT.factory.bounds.maxY +
+      0.63 +
+      (halfCentre - Math.abs(x)) * Math.tan(0.05) -
+      0.36 / Math.cos(0.05);
+    for (const trim of buildFactoryRoofTrim()) {
+      const [x, y, z] = trim.position;
+      const [sx, sy] = trim.scale;
+      if (Math.abs(z) > 49) continue; // gable wall plates sit on the walls
+      for (const at of [x - sx / 2, x, x + sx / 2]) {
+        expect(y + sy / 2, `trim at ${at}, ${z}`).toBeLessThan(underside(at));
+      }
     }
   });
 
@@ -881,6 +1044,38 @@ describe('roof deck liner', () => {
       .uSurfDetail.value;
     expect(detail.z).toBeLessThanOrEqual(0.005);
   });
+
+  /**
+   * final3 med-12 interior and milling: "between the trusses the deck is a
+   * single flat plane". The ribs were there and faded out by footprint: gone
+   * once a pixel covered 35% of the 0.25 m pitch, which in `interior` (deck 8 m
+   * overhead, fov 55, 1440 px) is ~0.06 m a pixel, every visible row of it.
+   * The liner box-filters its trapezoid over the footprint instead, so a rib
+   * 3-4 px apart still reads and only a sub-pixel pitch averages away.
+   */
+  it('keeps its ribs at the distance the interior cameras see them', async () => {
+    const { ROOF_PANEL_MATERIALS } = await import('./OptimizedFactoryInfrastructure');
+    const { ribFilteredSwing } = await import('../../utils/worldSurface');
+    const liner = ROOF_PANEL_MATERIALS[3] as THREE.MeshStandardMaterial;
+    const uniforms = liner.userData.millosWorldSurface as {
+      uSurfDeck: { value: THREE.Vector4 };
+      uSurfRib: { value: THREE.Vector4 };
+    };
+    const pitch = uniforms.uSurfDeck.value.x;
+    const tone = uniforms.uSurfRib.value.x;
+    expect(uniforms.uSurfRib.value.y).toBe(1);
+    // A pixel's footprint along a ceiling seen at `elevation` degrees from
+    // `rise` metres under it: distance times the pixel angle, foreshortened.
+    const footprint = (rise: number, elevation: number, fov: number) => {
+      const sin = Math.sin((elevation * Math.PI) / 180);
+      return ((rise / sin) * ((2 * Math.tan((fov * Math.PI) / 360)) / 1440)) / sin;
+    };
+    // `interior`, top of frame: deck 8.3 m up at 18 degrees. The old fade left
+    // a 0.05 swing there; the filtered rib must at least double it.
+    expect(tone * ribFilteredSwing(footprint(8.3, 18, 55) / pitch)).toBeGreaterThan(0.1);
+    // `milling`, top of frame: 18 m under the deck at 22 degrees (old: 0.003).
+    expect(tone * ribFilteredSwing(footprint(18, 22, 50) / pitch)).toBeGreaterThan(0.08);
+  });
 });
 
 // logistics-close (370,190)-(410,220) and milling (1490,500)-(1525,535),
@@ -906,6 +1101,86 @@ it('keeps the hall glazing sun lobe below white at its peak', () => {
 // window rail (y 0.71-0.85) and, behind it, the plinth top at y 0.60: the
 // rail stopped 0.11 m above the 0.6 m plinth, so an 11 cm slot showed the
 // sunlit plinth top as a 1-2 px line that broke into dashes at 90 m.
+// final3 med-12 overview, shipping, tank-farm: from outside the hall read as an
+// open frame. Part of it is scale: a 9.4 x 11.2 m light is no glass anyone
+// makes, so nothing on the facade said "glazing" at the size real lights are.
+describe('curtain wall lights', () => {
+  const panes = buildFactoryGlazing();
+  const lights = buildFactoryGlazingLights(panes);
+  const bars = buildFactoryGlazingBars(panes);
+  const along = (box: { scale: readonly number[] }) => (box.scale[0] > box.scale[2] ? 0 : 2);
+
+  it('splits every pane into lights no wider than 3.3 m that tile it exactly', () => {
+    expect(lights.length).toBeGreaterThan(panes.length * 2);
+    for (const pane of panes) {
+      const axis = along(pane);
+      const own = lights.filter(
+        (light) =>
+          Math.abs(light.position[1] - pane.position[1]) < 1e-9 &&
+          Math.abs(light.position[2 - axis] - pane.position[2 - axis]) < 1e-9 &&
+          Math.abs(light.position[axis] - pane.position[axis]) < pane.scale[axis] / 2
+      );
+      expect(own.length).toBeGreaterThanOrEqual(1);
+      const total = own.reduce((sum, light) => sum + light.scale[axis], 0);
+      expect(total).toBeCloseTo(pane.scale[axis], 6);
+      for (const light of own) {
+        expect(light.scale[axis]).toBeLessThanOrEqual(3.3);
+        expect(light.scale[1]).toBe(pane.scale[1]);
+        expect(light.scale[2 - axis]).toBe(pane.scale[2 - axis]);
+      }
+    }
+  });
+
+  it('puts a mullion over every seam and a transom across every light taller than 4.5 m', () => {
+    for (const pane of panes) {
+      const axis = along(pane);
+      const depth = pane.scale[2 - axis];
+      const own = lights
+        .filter(
+          (light) =>
+            Math.abs(light.position[1] - pane.position[1]) < 1e-9 &&
+            Math.abs(light.position[2 - axis] - pane.position[2 - axis]) < 1e-9 &&
+            Math.abs(light.position[axis] - pane.position[axis]) < pane.scale[axis] / 2
+        )
+        .sort((a, b) => a.position[axis] - b.position[axis]);
+      for (let i = 1; i < own.length; i++) {
+        const seam = own[i].position[axis] - own[i].scale[axis] / 2;
+        const mullion = bars.find(
+          (bar) =>
+            bar.scale[1] > bar.scale[axis] &&
+            Math.abs(bar.position[axis] - seam) < 1e-6 &&
+            Math.abs(bar.position[1] - pane.position[1]) < 1e-6 &&
+            Math.abs(bar.position[2 - axis] - pane.position[2 - axis]) < 1e-6
+        );
+        expect(mullion, `seam at ${seam}`).toBeDefined();
+        // Deeper than the glass, so the glass's own seam faces are inside it.
+        expect(mullion!.scale[2 - axis]).toBeGreaterThan(depth + 0.02);
+        expect(mullion!.position[1] - mullion!.scale[1] / 2).toBeLessThan(
+          pane.position[1] - pane.scale[1] / 2
+        );
+        expect(mullion!.position[1] + mullion!.scale[1] / 2).toBeGreaterThan(
+          pane.position[1] + pane.scale[1] / 2
+        );
+      }
+      const transoms = bars.filter(
+        (bar) =>
+          bar.scale[axis] > bar.scale[1] &&
+          Math.abs(bar.position[axis] - pane.position[axis]) < 1e-6 &&
+          Math.abs(bar.position[2 - axis] - pane.position[2 - axis]) < 1e-6 &&
+          Math.abs(bar.position[1] - pane.position[1]) < pane.scale[1] / 2
+      );
+      const rows = transoms.length + 1;
+      expect(pane.scale[1] / rows, `pane at ${pane.position}`).toBeLessThanOrEqual(4.5);
+      for (const transom of transoms) {
+        // Inside the glass, so it has no sunlit top: the sill rail's 4 cm of
+        // exposed top read as a dashed white line at 90 m (overview).
+        expect(transom.scale[2 - axis]).toBeLessThan(depth);
+        expect(transom.scale[axis]).toBeGreaterThan(pane.scale[axis]);
+      }
+    }
+  });
+});
+
 describe('facade window frames', () => {
   it('closes the sill rail down onto the plinth, leaving no lit slot', () => {
     const { baseHeight, sideWindowSill } = FACTORY_ENVELOPE_SPEC;

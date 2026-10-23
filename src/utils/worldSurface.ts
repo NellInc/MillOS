@@ -143,10 +143,66 @@ import * as THREE from 'three';
 import { CONCRETE_SLAB_GLSL, SLAB_JOINT_PITCH, SLAB_JOINT_WIDTH } from './concreteSlab';
 
 /** Bump BY HAND whenever the injected GLSL below changes. Never derive this. */
-const WORLD_SURFACE_PROGRAM_VERSION = 'v6';
+const WORLD_SURFACE_PROGRAM_VERSION = 'v7';
 
 /** Where a rib's crown sits within its pitch, 0-1 (the trapezoid in FRAGMENT_BODY). */
 export const RIB_CROWN_PHASE = 0.4;
+
+/**
+ * The filtered rib's trapezoid, in fractions of a pitch: 0 to 0.1 trough, a
+ * linear web up to the crown at 0.24, crown to 0.56, web down to 0.7, trough
+ * to the end. Centred on RIB_CROWN_PHASE like the default path's smoothstep
+ * edges, which it approximates with straight webs so it can be integrated.
+ */
+const RIB_EDGES = { riseStart: 0.1, riseEnd: 0.24, fallStart: 0.56, fallEnd: 0.7 } as const;
+/** The trapezoid's mean over one pitch: crown 0.32 plus two half-webs of 0.07. */
+export const RIB_PROFILE_MEAN = 0.46;
+
+/** Integral of the trapezoid from 0 to `u` pitches. Mirrors `surfRibIntegral`. */
+function ribIntegral(u: number): number {
+  const t = u - Math.floor(u);
+  const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+  const web = RIB_EDGES.riseEnd - RIB_EDGES.riseStart;
+  const r = clamp(t, RIB_EDGES.riseStart, RIB_EDGES.riseEnd) - RIB_EDGES.riseStart;
+  const f = clamp(t, RIB_EDGES.fallStart, RIB_EDGES.fallEnd) - RIB_EDGES.fallStart;
+  return (
+    Math.floor(u) * RIB_PROFILE_MEAN +
+    (r * r) / (2 * web) +
+    clamp(t, RIB_EDGES.riseEnd, RIB_EDGES.fallStart) -
+    RIB_EDGES.riseEnd +
+    f -
+    (f * f) / (2 * web)
+  );
+}
+
+/** The rib profile box-filtered over a footprint of `w` pitches at `u`. */
+export function ribFilteredValue(u: number, w: number): number {
+  const width = Math.max(w, 1e-4);
+  return (ribIntegral(u + width / 2) - ribIntegral(u - width / 2)) / width;
+}
+
+/** Crown-to-trough swing (0-1) left after filtering over `w` pitches. */
+export function ribFilteredSwing(w: number): number {
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (let i = 0; i < 200; i++) {
+    const value = ribFilteredValue(i / 200, w);
+    lo = Math.min(lo, value);
+    hi = Math.max(hi, value);
+  }
+  return hi - lo;
+}
+
+const RIB_INTEGRAL_GLSL = /* glsl */ `
+float surfRibIntegral( float u ) {
+  float t = fract( u );
+  float r = clamp( t, ${RIB_EDGES.riseStart.toFixed(2)}, ${RIB_EDGES.riseEnd.toFixed(2)} ) - ${RIB_EDGES.riseStart.toFixed(2)};
+  float f = clamp( t, ${RIB_EDGES.fallStart.toFixed(2)}, ${RIB_EDGES.fallEnd.toFixed(2)} ) - ${RIB_EDGES.fallStart.toFixed(2)};
+  return floor( u ) * ${RIB_PROFILE_MEAN.toFixed(2)} + r * r / ${(2 * (RIB_EDGES.riseEnd - RIB_EDGES.riseStart)).toFixed(2)}
+    + clamp( t, ${RIB_EDGES.riseEnd.toFixed(2)}, ${RIB_EDGES.fallStart.toFixed(2)} ) - ${RIB_EDGES.riseEnd.toFixed(2)}
+    + f - f * f / ${(2 * (RIB_EDGES.fallEnd - RIB_EDGES.fallStart)).toFixed(2)};
+}
+`;
 
 /** The program cache key every profile shares. Exported for the invariant test. */
 export const WORLD_SURFACE_CACHE_KEY = `millos_world_surface_${WORLD_SURFACE_PROGRAM_VERSION}`;
@@ -247,6 +303,15 @@ export interface WorldSurfaceProfile {
   readonly ribDepth?: number;
   /** The world axis the rib profile varies along: 0 = X, 1 = Z. */
   readonly ribAxis?: 0 | 1;
+  /**
+   * 0-1. Opt in to the BOX-FILTERED rib, with this crown-to-trough albedo
+   * swing about the profile's mean. Omitted, the rib keeps the default path:
+   * a fixed 0.14 trough darkening faded out by footprint, which is gone once a
+   * pixel covers 35% of the pitch. The filtered rib integrates the trapezoid
+   * over the footprint instead, so it holds to ~3 px a pitch and converges to
+   * the mean (no tone shift, no aliasing) below that. See `ribFilteredValue`.
+   */
+  readonly ribFilteredTone?: number;
   /**
    * 0-1. How far the INDIRECT diffuse is pulled to its own luminance. For an
    * indoor surface facing the hall floor: the sky rig's lower band is the
@@ -663,6 +728,8 @@ interface WorldSurfaceUniforms {
   readonly uSurfSlab: { value: THREE.Vector4 };
   /** x rib period (0 = off), y rib depth, z axis (0 X, 1 Z), w indoor bounce. */
   readonly uSurfDeck: { value: THREE.Vector4 };
+  /** x filtered-rib albedo swing, y 1 = box-filtered rib (0 = faded default). */
+  readonly uSurfRib: { value: THREE.Vector4 };
 }
 
 /** Materials publish their live uniforms so a caller can retune at runtime. */
@@ -735,10 +802,12 @@ uniform vec3 uSurfDust;
 uniform vec3 uSurfBare;
 uniform vec4 uSurfSlab;
 uniform vec4 uSurfDeck;
+uniform vec4 uSurfRib;
 varying vec3 vSurfWorld;
 varying vec3 vSurfObject;
 varying vec3 vSurfNormalW;
 ${CONCRETE_SLAB_GLSL}
+${RIB_INTEGRAL_GLSL}
 
 float surfHash( vec3 p ) {
   p = fract( p * 0.3183099 + vec3( 0.71, 0.113, 0.419 ) );
@@ -884,7 +953,18 @@ const FRAGMENT_BODY = /* glsl */ `
   // the hall's soft fill a normal alone barely shades. Faded by the pixel
   // footprint before the pitch can alias.
   float surfRibHeight = 0.0;
-  if ( uSurfDeck.x > 0.0 ) {
+  if ( uSurfDeck.x > 0.0 && uSurfRib.y > 0.5 ) {
+    // Box-filtered (opt-in, a uniform branch): the trapezoid's exact mean over
+    // the pixel footprint, in pitches. Full profile while a pitch spans pixels,
+    // its mean once it does not; the tone swings about that mean, so distance
+    // never shifts the surface's average albedo.
+    float surfRibU = mix( vSurfWorld.x, vSurfWorld.z, uSurfDeck.z ) / uSurfDeck.x;
+    float surfRibW = max( fwidth( surfRibU ), 1e-4 );
+    float surfRib = ( surfRibIntegral( surfRibU + 0.5 * surfRibW )
+      - surfRibIntegral( surfRibU - 0.5 * surfRibW ) ) / surfRibW;
+    surfRibHeight = surfRib * uSurfDeck.y * surfKill;
+    diffuseColor.rgb *= 1.0 + ( surfRib - ${RIB_PROFILE_MEAN.toFixed(2)} ) * uSurfRib.x * surfKill;
+  } else if ( uSurfDeck.x > 0.0 ) {
     float surfRibCoord = mix( vSurfWorld.x, vSurfWorld.z, uSurfDeck.z );
     float surfRibT = fract( surfRibCoord / uSurfDeck.x );
     float surfRib = smoothstep( 0.1, 0.24, surfRibT ) - smoothstep( 0.56, 0.7, surfRibT );
@@ -1020,6 +1100,14 @@ function buildWorldSurfaceUniforms(
         settings.ribDepth ?? 0,
         settings.ribAxis ?? 0,
         settings.indoorBounce ?? 0
+      ),
+    },
+    uSurfRib: {
+      value: new THREE.Vector4(
+        settings.ribFilteredTone ?? 0.14,
+        settings.ribFilteredTone === undefined ? 0 : 1,
+        0,
+        0
       ),
     },
   };

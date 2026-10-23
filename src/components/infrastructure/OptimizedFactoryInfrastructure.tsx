@@ -357,7 +357,9 @@ ${SURFACE_GRIT_GLSL}`
  * Working if no pinpoint glints remain on the hall glass at noon.
  */
 export const FACTORY_GLAZING_SURFACES = {
-  glass: { roughness: 0.24, opacity: 0.13 },
+  // 0.13 until final3: a lit film that greyed the view through the pane. The
+  // glazing composite now darkens through transmission and reflects a coat.
+  glass: { roughness: 0.24, opacity: 0.06 },
   skylight: { roughness: 0.24, opacity: 0.18 },
 } as const;
 
@@ -482,6 +484,18 @@ const MATERIALS = {
     // well under a white liner's ~0.65.
     color: '#b4b4b2',
     roughness: 0.6,
+    metalness: 0,
+  }),
+  /**
+   * Galvanised purlins under the liner. A shade under the liner so the runs
+   * read as structure against it without striping the ceiling black, and
+   * dielectric: indoors the PMREM is the sky, and a metal purlin would carry a
+   * blue cast the hall never sees.
+   */
+  purlin: new THREE.MeshStandardMaterial({
+    name: 'factory-roof-purlin',
+    color: '#a9afb0',
+    roughness: 0.48,
     metalness: 0,
   }),
   roofTrim: new THREE.MeshStandardMaterial({
@@ -662,37 +676,132 @@ applyFloorDetailBlend(MATERIALS.floor);
 // light from behind passes (1 - F)(1 - a), so with normal blending
 //   coverage = 1 - (1 - F)(1 - a)
 //   colour   = ((1 - F) a C + F sky) / coverage.
-// Face-on that is the old pane (F0 = 0.04); at grazing it is the sky. The sky
-// sample is the same PMREM every metal reads, divided back out of the scene's
-// diffuse-fill dampener, and capped so the sun disc cannot print a star.
+// The sky sample is the same PMREM every metal reads, divided back out of the
+// scene's diffuse-fill dampener, and capped so the sun disc cannot print a star.
+//
+// v2 (final3 med-12: still "a faint tint with no visible reflection" from
+// overview, shipping and tank-farm; "milky" from inside in the rain):
+//
+// - COATED, FROM OUTSIDE. Face-on F0 0.04 over a 13% film hid a sixth of the
+//   lit hall behind it, and the hall is brighter than anything the facade
+//   reflects, so the reflection never showed. A curtain wall's solar-control
+//   coat reflects ~9% face-on, and the glass transmits ~88%: T darkens what is
+//   seen through the pane, as glass does, instead of the old lit film greying
+//   it. Light to light the coat and the pane's flatness vary (a seed per light
+//   and row: F0 +/-25%, a 0.7 degree tilt and a slight bow), so the facade
+//   reads as a mosaic of reflections rather than one tint.
+// - THE HALL, FROM INSIDE. The face the eye sees says which side it is on
+//   (its world normal against the hall centre). Indoors the reflection is the
+//   hall, approximated by the pane's own lit colour at an interior albedo, not
+//   the sky: at grazing the old pane mirrored a bright rain sky into the room.
+// - The lit film drops from 13% to 6%: it is haze, not glass.
+//
+//   coverage = 1 - (1 - F)(1 - a) T
+//   colour   = (F R + (1 - F) a C) / coverage,  R = sky outside, k C inside.
 
 /** Constant. Bump by hand when the GLSL below changes. */
-export const GLAZING_FRESNEL_CACHE_KEY = 'millos-glazing-fresnel-v1';
+export const GLAZING_FRESNEL_CACHE_KEY = 'millos-glazing-fresnel-v2';
 
 /** Paired rendered control (0 = the old flat pane), mirrored on userData. */
 export const GLAZING_FRESNEL_STRENGTH = { value: 1 };
 
-/** TS mirror of the composite's coverage, for tests and design numbers. */
-export function glazingCoverage(opacity: number, cosTheta: number, strength = 1): number {
+/** The glazing composite's design values (see the block comment above). */
+export const GLAZING_REFLECTANCE = {
+  /** Face-on reflectance of the coated outer face, and the plain inner face. */
+  outerF0: 0.09,
+  innerF0: 0.04,
+  /** Light to light, the outer F0 varies by this fraction either way. */
+  f0Spread: 0.25,
+  /** Glass transmission (what reaches the eye of what is behind the pane). */
+  transmission: 0.88,
+  /** The hall's mean albedo, scaling the pane's lit colour into its reflection indoors. */
+  interiorReflect: 0.4,
+  /** Per-light tilt of the reflection normal, radians either way. */
+  tilt: 0.012,
+  /** Bow across a light: normal tilt at its edge, radians. */
+  bow: 0.008,
+  /** Row height for the per-light seed: matches the transoms' 4.5 m limit. */
+  rowHeight: 4.5,
+} as const;
+
+/**
+ * TS mirror of the composite's coverage, for tests and design numbers.
+ * `outward`: the eye is outside the hall. `seed` 0-1: a light's variation.
+ */
+export function glazingCoverage(
+  opacity: number,
+  cosTheta: number,
+  strength = 1,
+  outward = true,
+  seed = 0.5
+): number {
+  const s = THREE.MathUtils.clamp(strength, 0, 1);
   const c = THREE.MathUtils.clamp(Math.abs(cosTheta), 0, 1);
-  const fresnel = (0.04 + 0.96 * (1 - c) ** 5) * THREE.MathUtils.clamp(strength, 0, 1);
-  return 1 - (1 - fresnel) * (1 - opacity);
+  const { outerF0, innerF0, f0Spread, transmission } = GLAZING_REFLECTANCE;
+  const f0 = outward ? outerF0 * (1 + f0Spread * (seed - 0.5) * 2) : innerF0;
+  const fresnel = (f0 + (1 - f0) * (1 - c) ** 5) * s;
+  const t = 1 - (1 - transmission) * s;
+  return 1 - (1 - fresnel) * (1 - opacity) * t;
 }
+
+const glsl = (value: number) => value.toFixed(4);
+
+const GLAZING_VERTEX_PARS = /* glsl */ `
+varying vec3 vGlazeTilt;
+varying float vGlazeSeed;
+`;
+
+// After <begin_vertex>: `position` is the unit box, `objectNormal` the face's.
+// Instances carry no rotation, so object axes are world axes.
+const GLAZING_VERTEX_BODY = /* glsl */ `
+{
+  #ifdef USE_INSTANCING
+    vec3 glazeOrigin = instanceMatrix[3].xyz;
+    float glazeRows = max( 1.0, ceil( length( instanceMatrix[1].xyz ) / ${glsl(GLAZING_REFLECTANCE.rowHeight)} - 1e-4 ) );
+  #else
+    vec3 glazeOrigin = vec3( 0.0 );
+    float glazeRows = 1.0;
+  #endif
+  float glazeRow = floor( clamp( position.y + 0.5, 0.0, 0.9999 ) * glazeRows );
+  vec3 glazeKey = glazeOrigin + vec3( 0.0, glazeRow * 7.31, 0.0 );
+  vGlazeSeed = fract( sin( dot( glazeKey, vec3( 12.9898, 78.233, 37.719 ) ) ) * 43758.5453 );
+  float glazeSeed2 = fract( vGlazeSeed * 91.7 + 0.37 );
+  vec3 glazeAcross = abs( objectNormal.z ) > 0.5 ? vec3( 1.0, 0.0, 0.0 ) : vec3( 0.0, 0.0, 1.0 );
+  float glazeU = dot( position, glazeAcross );
+  float glazeV = fract( ( position.y + 0.5 ) * glazeRows ) - 0.5;
+  vGlazeTilt = glazeAcross * ( ( vGlazeSeed - 0.5 ) * ${glsl(2 * GLAZING_REFLECTANCE.tilt)} + glazeU * ${glsl(GLAZING_REFLECTANCE.bow * 2)} )
+    + vec3( 0.0, 1.0, 0.0 ) * ( ( glazeSeed2 - 0.5 ) * ${glsl(2 * GLAZING_REFLECTANCE.tilt)} + glazeV * ${glsl(GLAZING_REFLECTANCE.bow * 2)} );
+}
+`;
 
 const GLAZING_FRESNEL_BODY = /* glsl */ `
 {
-  float glazeCos = saturate( abs( dot( geometryViewDir, geometryNormal ) ) );
-  float glazeF = ( 0.04 + 0.96 * pow( 1.0 - glazeCos, 5.0 ) ) * uGlazeFresnel;
+  float glazeS = clamp( uGlazeFresnel, 0.0, 1.0 );
+  vec3 glazeN = normalize( geometryNormal + ( viewMatrix * vec4( vGlazeTilt, 0.0 ) ).xyz * glazeS );
+  float glazeCos = saturate( abs( dot( geometryViewDir, glazeN ) ) );
+  // Which side the eye is on: the seen face's world normal against the hall
+  // centre (the panes ring the hall, so out of the hall is away from it).
+  vec3 glazeNormalW = ( vec4( geometryNormal, 0.0 ) * viewMatrix ).xyz;
+  vec3 glazeWorld = cameraPosition + ( vec4( -vViewPosition, 0.0 ) * viewMatrix ).xyz;
+  float glazeOut = step( 0.0, dot( glazeNormalW.xz, glazeWorld.xz ) );
+  float glazeF0 = mix(
+    ${glsl(GLAZING_REFLECTANCE.innerF0)},
+    ${glsl(GLAZING_REFLECTANCE.outerF0)} * ( 1.0 + ${glsl(GLAZING_REFLECTANCE.f0Spread)} * ( vGlazeSeed - 0.5 ) * 2.0 ),
+    glazeOut
+  );
+  float glazeF = ( glazeF0 + ( 1.0 - glazeF0 ) * pow( 1.0 - glazeCos, 5.0 ) ) * glazeS;
   #ifdef USE_ENVMAP
     vec3 glazeSky = min(
-      getIBLRadiance( geometryViewDir, geometryNormal, material.roughness ) / max( envMapIntensity, 1e-3 ),
+      getIBLRadiance( geometryViewDir, glazeN, material.roughness ) / max( envMapIntensity, 1e-3 ),
       vec3( 1.5 )
     );
   #else
     vec3 glazeSky = gl_FragColor.rgb;
   #endif
-  float glazeCoverage = 1.0 - ( 1.0 - glazeF ) * ( 1.0 - gl_FragColor.a );
-  gl_FragColor.rgb = ( ( 1.0 - glazeF ) * gl_FragColor.a * gl_FragColor.rgb + glazeF * glazeSky )
+  vec3 glazeReflection = mix( gl_FragColor.rgb * ${glsl(GLAZING_REFLECTANCE.interiorReflect)}, glazeSky, glazeOut );
+  float glazeT = 1.0 - ${glsl(1 - GLAZING_REFLECTANCE.transmission)} * glazeS;
+  float glazeCoverage = 1.0 - ( 1.0 - glazeF ) * ( 1.0 - gl_FragColor.a ) * glazeT;
+  gl_FragColor.rgb = ( ( 1.0 - glazeF ) * gl_FragColor.a * gl_FragColor.rgb + glazeF * glazeReflection )
     / max( glazeCoverage, 1e-4 );
   gl_FragColor.a = glazeCoverage;
 }
@@ -701,8 +810,14 @@ const GLAZING_FRESNEL_BODY = /* glsl */ `
 MATERIALS.glass.userData.glazingFresnel = GLAZING_FRESNEL_STRENGTH;
 MATERIALS.glass.onBeforeCompile = (shader) => {
   shader.uniforms.uGlazeFresnel = GLAZING_FRESNEL_STRENGTH;
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', `#include <common>\n${GLAZING_VERTEX_PARS}`)
+    .replace('#include <begin_vertex>', `#include <begin_vertex>\n${GLAZING_VERTEX_BODY}`);
   shader.fragmentShader = shader.fragmentShader
-    .replace('#include <common>', '#include <common>\nuniform float uGlazeFresnel;')
+    .replace(
+      '#include <common>',
+      `#include <common>\nuniform float uGlazeFresnel;\n${GLAZING_VERTEX_PARS}`
+    )
     .replace('#include <opaque_fragment>', `#include <opaque_fragment>\n${GLAZING_FRESNEL_BODY}`);
 };
 MATERIALS.glass.customProgramCacheKey = () => GLAZING_FRESNEL_CACHE_KEY;
@@ -784,6 +899,9 @@ const SHELL_SURFACES: readonly [
       ribPeriod: 0.25,
       ribDepth: 0.035,
       ribAxis: 1,
+      // Box-filtered, so the ribs survive to the interior cameras' footprint
+      // (0.06-0.09 m a pixel up there) instead of fading out at 0.03 m.
+      ribFilteredTone: 0.24,
       indoorBounce: 0.85,
       // A smooth coil coating between the ribs: the painted profile's 18 mm
       // meso relief shimmered into dot noise at the ceiling's grazing angle.
@@ -792,6 +910,10 @@ const SHELL_SURFACES: readonly [
     },
   ],
   [MATERIALS.roofTrim, 'painted'],
+  // Under the deck at 21-23 m: grime and dust are inert up there by position,
+  // and the edge term is what makes a slender section read. Lit by the hall
+  // floor, not the grass: final med-12 read them as dark teal slats.
+  [MATERIALS.purlin, 'metal', { indoorBounce: 0.85 }],
   [MATERIALS.accent, 'painted'],
   // 4 m from each pad's centre lands on the silo pad's 16 m width.
   [MATERIALS.plinth, 'masonry', { objectSpace: 1, slabPitch: 4, slabJoint: 0.5, slabTone: 0.09 }],
@@ -1147,6 +1269,108 @@ export function buildFactoryRoofEnvelope(): { panels: BoxInstance[]; kerbs: BoxI
 }
 
 /**
+ * Wall plates along both gable tops.
+ *
+ * There was a third member: 80 m across the hall at z = 0, y 21.86-22.04, a
+ * level tie from before the deck was pitched. Under the pitched deck it hung
+ * 0.23 m clear of the ridge and stood up through the roof past |x| 32,
+ * neither hung nor laid. Removed; the purlins carry the deck there now.
+ */
+export function buildFactoryRoofTrim(): BoxInstance[] {
+  const height = SITE_LAYOUT.factory.bounds.maxY;
+  return [
+    { position: [0, height - 0.15, -49.4], scale: [FLOOR_WIDTH, 0.18, 0.22] },
+    { position: [0, height - 0.15, 49.4], scale: [FLOOR_WIDTH, 0.18, 0.22] },
+  ];
+}
+
+/** Purlin centres across each roof half, from the ridge out to the eaves. */
+export const ROOF_PURLIN_PITCH = 1.5;
+/** A 160 mm cold-rolled purlin: depth across the deck, flange width. */
+export const ROOF_PURLIN_SECTION = { depth: 0.16, width: 0.08 } as const;
+/**
+ * Air between a purlin and everything it frames into: the deck above it, the
+ * truss chords it runs between, the well kerbs it trims around. A purlin that
+ * touches a face shares its plane; one that overlaps clips through it.
+ */
+export const ROOF_PURLIN_CLEARANCE = 0.01;
+/** The purlins' gable-end limit (the shell's inner line, as for every roof member). */
+const ROOF_PURLIN_END = 49.55;
+
+function instanceBounds(part: BoxInstance): THREE.Box3 {
+  const matrix = new THREE.Matrix4().compose(
+    new THREE.Vector3(...part.position),
+    new THREE.Quaternion().setFromEuler(new THREE.Euler(...(part.rotation ?? [0, 0, 0]))),
+    new THREE.Vector3(...part.scale)
+  );
+  return new THREE.Box3(
+    new THREE.Vector3(-0.5, -0.5, -0.5),
+    new THREE.Vector3(0.5, 0.5, 0.5)
+  ).applyMatrix4(matrix);
+}
+
+/**
+ * Purlin runs at ROOF_PURLIN_PITCH, hung from the deck with a clearance and
+ * cut wherever something else occupies their line: the truss chords (so each
+ * run frames between two trusses rather than passing through them), the well
+ * kerbs (the runs either side of a roof light are its trimmers) and the gable
+ * wall plates. `underside(x)` is the deck's lower face at `x`.
+ */
+function buildFactoryRoofPurlins(
+  underside: (x: number) => number,
+  blockers: readonly THREE.Box3[],
+  halfSpan: number
+): BoxInstance[] {
+  const { depth, width } = ROOF_PURLIN_SECTION;
+  const gap = ROOF_PURLIN_CLEARANCE;
+  const purlins: BoxInstance[] = [];
+  // Half a pitch either side of the ridge, so the ridge gap is one pitch too.
+  const count = Math.floor((halfSpan - 0.5) / ROOF_PURLIN_PITCH + 0.5);
+  for (let i = 0; i < count; i++) {
+    for (const side of [-1, 1] as const) {
+      const x = side * (i + 0.5) * ROOF_PURLIN_PITCH;
+      const slope = roofSlope(side);
+      // Top face parallel to the deck, `gap` under it measured across the slope.
+      const y = underside(x) - (gap + depth / 2) / Math.cos(slope);
+      const section = instanceBounds({
+        position: [x, y, 0],
+        scale: [width, depth, 1],
+        rotation: [0, 0, slope],
+      });
+      const blocked = blockers
+        .filter(
+          (box) =>
+            box.max.x > section.min.x - gap &&
+            box.min.x < section.max.x + gap &&
+            box.max.y > section.min.y - gap &&
+            box.min.y < section.max.y + gap
+        )
+        .map((box) => [box.min.z - gap, box.max.z + gap] as const)
+        .sort((a, b) => a[0] - b[0]);
+      let from = -ROOF_PURLIN_END;
+      const runs: [number, number][] = [];
+      for (const [z0, z1] of blocked) {
+        if (z1 <= from) continue;
+        if (z0 >= ROOF_PURLIN_END) break;
+        if (z0 > from) runs.push([from, z0]);
+        from = Math.max(from, z1);
+      }
+      if (from < ROOF_PURLIN_END) runs.push([from, ROOF_PURLIN_END]);
+      for (const [z0, z1] of runs) {
+        // A stub shorter than a cleat is not a purlin.
+        if (z1 - z0 < 0.5) continue;
+        purlins.push({
+          position: [x, y, (z0 + z1) / 2],
+          scale: [width, depth, z1 - z0],
+          rotation: [0, 0, slope],
+        });
+      }
+    }
+  }
+  return purlins;
+}
+
+/**
  * Exposed pitched steelwork, seated on the existing side-wall columns. The
  * open webs leave the six roof lights useful; purlins stay beside their wells.
  * All members join the two existing steel-trim instance batches, with no new
@@ -1214,13 +1438,23 @@ export function buildFactoryRoofStructure(): {
       frames.push({ position: [x, lowerY - 0.35, z], scale: [0.75, 0.1, 0.75] });
     }
   }
-  for (const x of [-35, -25, -5, 5, 25, 35]) {
-    purlins.push({
-      position: [x, underside(x) - 0.17, 0],
-      scale: [0.22, 0.3, 99.1],
-      rotation: [0, 0, roofSlope(x < 0 ? -1 : 1)],
-    });
+  // `underside` above is the deck's top line less 0.36; the panel is 0.36 thick
+  // ACROSS the slope, so its true lower face is 0.36 / cos(pitch) down.
+  const deckUnderside = (x: number) => underside(x) + 0.36 - 0.36 / Math.cos(ROOF_PITCH);
+  // Each roof light's four kerbs bound its well; a purlin under the open well
+  // would be seen through the glazing, so the well is blocked down past the
+  // purlins' depth and the runs either side end on the kerbs as trimmers.
+  const wells = new Map<string, THREE.Box3>();
+  for (const kerb of buildFactoryRoofEnvelope().kerbs) {
+    const key = `${Math.sign(kerb.position[0])}:${Math.round(kerb.position[2] / 13)}`;
+    const bounds = instanceBounds(kerb);
+    wells.set(key, wells.get(key)?.union(bounds) ?? bounds);
   }
+  const blockers = [
+    ...[...frames, ...buildFactoryRoofTrim()].map(instanceBounds),
+    ...[...wells.values()].map((well) => well.clone().expandByVector(new THREE.Vector3(0, 1, 0))),
+  ];
+  purlins.push(...buildFactoryRoofPurlins(deckUnderside, blockers, halfSpan));
   for (const side of [-1, 1] as const) {
     const x = skylightLocalX(side);
     for (const z of SKYLIGHT_Z) {
@@ -1378,6 +1612,77 @@ export function buildFactoryFacadeFrames(panes: readonly BoxInstance[]): BoxInst
   return frames;
 }
 
+/**
+ * Curtain-wall light sizes. A pane in `buildFactoryGlazing` is a whole bay
+ * opening, up to 9.4 x 11.2 m - no glass anyone makes - so the facade showed
+ * nothing at the scale real lights are and read as an open frame from outside
+ * (final3 med-12 overview, shipping, tank-farm). Each opening is divided into
+ * lights no wider than LIGHT_MAX_WIDTH and rows no taller than LIGHT_MAX_HEIGHT.
+ */
+const GLAZING_LIGHT_MAX_WIDTH = 3.3;
+const GLAZING_LIGHT_MAX_HEIGHT = 4.5;
+/** Intermediate mullion: narrower than the 0.14 m opening frame, 2 cm proud of each glass face. */
+const GLAZING_MULLION = { width: 0.08, depth: 0.12 } as const;
+/** Transom: inside the glass (no sunlit top to break into dashes at 90 m). */
+const GLAZING_TRANSOM = { height: 0.08, depth: 0.07 } as const;
+
+const glazingDivisions = (pane: BoxInstance) => {
+  const axis = pane.scale[0] > pane.scale[2] ? 0 : 2;
+  return {
+    axis,
+    columns: Math.max(1, Math.ceil(pane.scale[axis] / GLAZING_LIGHT_MAX_WIDTH - 1e-9)),
+    rows: Math.max(1, Math.ceil(pane.scale[1] / GLAZING_LIGHT_MAX_HEIGHT - 1e-9)),
+  };
+};
+
+/**
+ * Each opening's lights, side by side across it. Rows are not split here: a
+ * transom runs inside the glass, so the column of glass stays one box and the
+ * glazing shader varies its reflection per row instead.
+ */
+export function buildFactoryGlazingLights(panes: readonly BoxInstance[]): BoxInstance[] {
+  return panes.flatMap((pane) => {
+    const { axis, columns } = glazingDivisions(pane);
+    const width = pane.scale[axis] / columns;
+    return Array.from({ length: columns }, (_, i) => {
+      const position: [number, number, number] = [...pane.position];
+      const scale: [number, number, number] = [...pane.scale];
+      position[axis] = pane.position[axis] - pane.scale[axis] / 2 + (i + 0.5) * width;
+      scale[axis] = width;
+      return { position, scale };
+    });
+  });
+}
+
+/** The mullions over each opening's light seams and the transoms across its rows. */
+export function buildFactoryGlazingBars(panes: readonly BoxInstance[]): BoxInstance[] {
+  const bars: BoxInstance[] = [];
+  for (const pane of panes) {
+    const { axis, columns, rows } = glazingDivisions(pane);
+    const normal = 2 - axis;
+    const [width, height] = [pane.scale[axis], pane.scale[1]];
+    // Into the opening frame at each end (its members stand 0.14 m outside the
+    // glass edge), so no bar end lies on a frame face.
+    for (let i = 1; i < columns; i++) {
+      const position: [number, number, number] = [...pane.position];
+      const scale: [number, number, number] = [0, height + 0.1, 0];
+      position[axis] = pane.position[axis] - width / 2 + (i * width) / columns;
+      scale[axis] = GLAZING_MULLION.width;
+      scale[normal] = GLAZING_MULLION.depth;
+      bars.push({ position, scale });
+    }
+    for (let j = 1; j < rows; j++) {
+      const position: [number, number, number] = [...pane.position];
+      const scale: [number, number, number] = [0, GLAZING_TRANSOM.height, 0];
+      position[1] = pane.position[1] - height / 2 + (j * height) / rows;
+      scale[axis] = width + 0.1;
+      scale[normal] = GLAZING_TRANSOM.depth;
+      bars.push({ position, scale });
+    }
+  }
+  return bars;
+}
+
 /** How far the wall columns stop below the parapet top they stand under. */
 export const FACTORY_COLUMN_TOP_DROP = 0.02;
 
@@ -1500,10 +1805,6 @@ function FactoryShell() {
   const columns = useMemo(buildFactoryShellColumns, []);
 
   const roofStructure = useMemo(buildFactoryRoofStructure, []);
-  const roofTrusses = useMemo(
-    () => [...roofStructure.frames, ...roofStructure.purlins],
-    [roofStructure]
-  );
 
   const roofEnvelope = useMemo(buildFactoryRoofEnvelope, []);
   const roofPanels = roofEnvelope.panels;
@@ -1511,9 +1812,7 @@ function FactoryShell() {
   const roofDetails = useMemo<readonly BoxInstance[]>(() => {
     const height = SITE_LAYOUT.factory.bounds.maxY;
     const result: BoxInstance[] = [
-      { position: [0, height - 0.15, -49.4], scale: [FLOOR_WIDTH, 0.18, 0.22] },
-      { position: [0, height - 0.15, 49.4], scale: [FLOOR_WIDTH, 0.18, 0.22] },
-      { position: [0, height - 0.05, 0], scale: [FLOOR_WIDTH, 0.18, 0.26] },
+      ...buildFactoryRoofTrim(),
       { position: [-FLOOR_WIDTH * 0.3, height + 0.45, -18], scale: [5, 1, 3] },
       { position: [0, height + 0.45, -18], scale: [5, 1, 3] },
       { position: [FLOOR_WIDTH * 0.3, height + 0.45, -18], scale: [5, 1, 3] },
@@ -1574,7 +1873,11 @@ function FactoryShell() {
   const roofSkylights = useMemo(buildFactoryRoofGlazing, []);
 
   const windows = useMemo(buildFactoryGlazing, []);
-  const facadeAccents = useMemo(() => buildFactoryFacadeFrames(windows), [windows]);
+  const windowLights = useMemo(() => buildFactoryGlazingLights(windows), [windows]);
+  const facadeAccents = useMemo(
+    () => [...buildFactoryFacadeFrames(windows), ...buildFactoryGlazingBars(windows)],
+    [windows]
+  );
 
   return (
     // SHADOW FLAGS ARE SET HERE, AT SOURCE.
@@ -1600,11 +1903,14 @@ function FactoryShell() {
       />
       <InstancedBoxes instances={columns} material={MATERIALS.steel} castShadow receiveShadow />
       <InstancedBoxes
-        instances={roofTrusses}
+        instances={roofStructure.frames}
         material={MATERIALS.steelTrim}
         castShadow
         receiveShadow
       />
+      {/* No shadow casting: under the opaque deck they could only shade the
+          deck's own underside, which the sun never reaches. */}
+      <InstancedBoxes instances={roofStructure.purlins} material={MATERIALS.purlin} receiveShadow />
       <InstancedBoxes
         instances={roofPanels}
         material={ROOF_PANEL_MATERIALS}
@@ -1626,7 +1932,7 @@ function FactoryShell() {
         receiveShadow
       />
       <InstancedBoxes
-        instances={windows}
+        instances={windowLights}
         material={MATERIALS.glass}
         renderOrder={RENDER_ORDER.default}
       />
@@ -2041,16 +2347,82 @@ export function buildProcessPads(): BoxInstance[] {
   ];
 }
 
+/** The pedestrian lanes: one down each side wall, one across each dock end. */
+export function buildWalkwayLanes(): BoxInstance[] {
+  return [
+    { position: [-FLOOR_WIDTH / 2 + 3, FLOOR_LAYERS.wornPrimary, 0], scale: [3, 0.012, 86] },
+    { position: [FLOOR_WIDTH / 2 - 3, FLOOR_LAYERS.wornPrimary, 0], scale: [3, 0.012, 86] },
+    { position: [0, FLOOR_LAYERS.wornPrimary, 39], scale: [72, 0.012, 3.5] },
+    { position: [0, FLOOR_LAYERS.wornPrimary, -39], scale: [72, 0.012, 3.5] },
+  ];
+}
+
+/** Painted lane-edge line width, metres. Two px or more from every hall camera. */
+export const WALKWAY_EDGE_WIDTH = 0.2;
+/** How far each edge line sits inside its lane's side, so no two side faces share a plane. */
+const WALKWAY_EDGE_INSET = 0.02;
+
+/**
+ * The lanes' painted edges.
+ *
+ * final3 med-12 packing: the dock-end lane read as "a translucent cyan band
+ * on the floor ... a tint, not paint", because it was a 50% teal film with
+ * nothing to say where it stops. A walkway is a painted lane between two
+ * lines. Each long side gets one, broken where another lane joins it so a
+ * line never runs across the lane it meets. The lines stand 4 mm proud of the
+ * film (0.024-0.036 against its 0.014-0.026), so no face is shared with it.
+ */
+export function buildWalkwayEdges(lanes = buildWalkwayLanes()): BoxInstance[] {
+  const edges: BoxInstance[] = [];
+  const y = FLOOR_LAYERS.wornSecondary;
+  for (const [index, lane] of lanes.entries()) {
+    const along = lane.scale[0] > lane.scale[2] ? 0 : 2;
+    const across = along === 0 ? 2 : 0;
+    for (const side of [-1, 1]) {
+      const offset =
+        lane.position[across] +
+        side * (lane.scale[across] / 2 - WALKWAY_EDGE_INSET - WALKWAY_EDGE_WIDTH / 2);
+      const crossings = lanes
+        .filter((_, otherIndex) => otherIndex !== index)
+        .filter(
+          (other) =>
+            Math.abs(other.position[across] - offset) <
+            other.scale[across] / 2 + WALKWAY_EDGE_WIDTH / 2
+        )
+        .map(
+          (other) =>
+            [
+              other.position[along] - other.scale[along] / 2,
+              other.position[along] + other.scale[along] / 2,
+            ] as const
+        )
+        .sort((a, b) => a[0] - b[0]);
+      let from = lane.position[along] - lane.scale[along] / 2;
+      const end = lane.position[along] + lane.scale[along] / 2;
+      const runs: [number, number][] = [];
+      for (const [a, b] of crossings) {
+        if (a > from) runs.push([from, Math.min(a, end)]);
+        from = Math.max(from, b);
+      }
+      if (end > from) runs.push([from, end]);
+      for (const [a, b] of runs) {
+        if (b - a < 0.5) continue;
+        const position: [number, number, number] = [0, y, 0];
+        const scale: [number, number, number] = [0, 0.012, 0];
+        position[along] = (a + b) / 2;
+        position[across] = offset;
+        scale[along] = b - a;
+        scale[across] = WALKWAY_EDGE_WIDTH;
+        edges.push({ position, scale });
+      }
+    }
+  }
+  return edges;
+}
+
 function FloorWayfinding() {
-  const walkways = useMemo<readonly BoxInstance[]>(
-    () => [
-      { position: [-FLOOR_WIDTH / 2 + 3, FLOOR_LAYERS.wornPrimary, 0], scale: [3, 0.012, 86] },
-      { position: [FLOOR_WIDTH / 2 - 3, FLOOR_LAYERS.wornPrimary, 0], scale: [3, 0.012, 86] },
-      { position: [0, FLOOR_LAYERS.wornPrimary, 39], scale: [72, 0.012, 3.5] },
-      { position: [0, FLOOR_LAYERS.wornPrimary, -39], scale: [72, 0.012, 3.5] },
-    ],
-    []
-  );
+  const walkways = useMemo(buildWalkwayLanes, []);
+  const walkwayEdges = useMemo(() => buildWalkwayEdges(walkways), [walkways]);
   const plinths = useMemo(buildProcessPads, []);
 
   return (
@@ -2059,6 +2431,12 @@ function FloorWayfinding() {
         instances={walkways}
         material={MATERIALS.walkway}
         renderOrder={RENDER_ORDER.floorEffects}
+        receiveShadow
+      />
+      <InstancedBoxes
+        instances={walkwayEdges}
+        material={MATERIALS.safetyPaint}
+        renderOrder={RENDER_ORDER.floorMarkings}
         receiveShadow
       />
       <InstancedBoxes

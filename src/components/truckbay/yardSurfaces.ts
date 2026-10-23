@@ -108,3 +108,24 @@ export const APRON_CONCRETE_SURFACE = {
   metalness: 0,
   ...YARD_GROUND_DEPTH.apron,
 } as const;
+
+/** One yard lane dash: width across the lane, length along it (`OptimizedStripeInstances`). */
+export const YARD_LANE_STRIPE_SIZE = [0.15, 4] as const;
+
+/**
+ * The yard lanes' dashes, in yard space (each yard group sits on its dock's
+ * wall line, `originZ`, and its lanes run outward from it).
+ *
+ * Every lane used to start with a dash at yard z = 0: centred ON the wall
+ * line, so 2 m of it lay under the hall's plinth and slab, 1 cm below the slab
+ * and carrying the paint's -4 bias. At grazing angles it beat the slab and
+ * drew as bright dash fragments on the hall floor (final3 med-12 packing).
+ * The lanes start at their second dash now. The shipping east lane has no 10
+ * and 20 (the dispatch reservation in front of the flour-pallet bays).
+ */
+export const YARD_LANE_STRIPES = {
+  shippingEast: { x: 18, originZ: 50, zs: [30, 40] },
+  shippingWest: { x: -18, originZ: 50, zs: [10, 20, 30, 40] },
+  receivingWest: { x: -18, originZ: -50, zs: [-10, -20, -30, -40] },
+  receivingEast: { x: 18, originZ: -50, zs: [-10, -20, -30, -40] },
+} as const;

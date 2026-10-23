@@ -313,7 +313,11 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     id: 'factory-glazing-fresnel',
     owner: 'OptimizedFactoryInfrastructure',
     sources: ['src/components/infrastructure/OptimizedFactoryInfrastructure.tsx'],
-    coordinateSpaces: ['view-space geometry normal and view direction'],
+    coordinateSpaces: [
+      'view-space geometry normal and view direction',
+      'world-space face normal and fragment position (which side of the hall the eye is on)',
+      'instance translation and object-space unit box (per-light seed, tilt and bow)',
+    ],
     colorSpace: 'linear PMREM radiance composited before tone mapping',
     toneMapping: 'three-chunk',
     fog: 'three-chunk',
@@ -322,9 +326,9 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     qualityVariants: ['low', 'medium', 'high', 'ultra'],
     uniformOwner: 'module-level GLAZING_FRESNEL_STRENGTH, mirrored on userData.glazingFresnel',
     timeSource: 'none',
-    cacheKey: 'millos-glazing-fresnel-v1',
+    cacheKey: 'millos-glazing-fresnel-v2',
     disposalOwner: 'module lifetime',
-    fallbackMaterial: 'the flat 0.13-opacity pane (strength 0)',
+    fallbackMaterial: 'the flat film at the authored opacity (strength 0)',
   },
   {
     // Registered in the DEFECT 2 sweep. One injection, many cache keys: every

@@ -2,6 +2,7 @@ import { PalletStaging } from './truckbay/PalletStaging';
 import { DockYardDressing } from './truckbay/DockYardDressing';
 import { PARKED_TRAILER_HALF, TRAILER_DROP_YARD } from './truckbay/dockYardDressingLayout';
 import { YardWearMarks } from './truckbay/YardWearMarks';
+import { SECTIONAL_DOOR_MATERIAL, buildSectionalDoorGeometry } from './truckbay/sectionalDoor';
 import { paintLineMask, paintLineQuad, THIN_PAINT_LIMIT } from './truckbay/paintLine';
 import { GeneratedGeometrySurface } from './models/GeneratedGeometrySurface';
 import { GeneratedBoundary, GeneratedModel } from './models/GeneratedModel';
@@ -66,6 +67,7 @@ import { toSimulationMinutes } from '../simulation/simulationClock';
 import {
   APRON_CONCRETE_SURFACE,
   ROAD_TARMAC_SURFACE,
+  YARD_LANE_STRIPES,
   YARD_TARMAC_SURFACE,
 } from './truckbay/yardSurfaces';
 import {
@@ -233,12 +235,14 @@ const GUARD_SHACK_LAMP_SHIPPING: [number, number, number] = [43, 3, 60];
 const GUARD_SHACK_LAMP_RECEIVING: [number, number, number] = [-43, 3, -60];
 // Yard lane stripes, hoisted so OptimizedStripeInstances' memo holds across
 // TruckBay renders.
-const laneStripes = (x: number, zs: readonly number[]): [number, number, number][] =>
-  zs.map((z) => [x, EXTERIOR_LAYERS.groundOverlay, z]);
-const SHIPPING_EAST_LANE_STRIPES = laneStripes(18, [0, 30, 40]);
-const SHIPPING_WEST_LANE_STRIPES = laneStripes(-18, [0, 10, 20, 30, 40]);
-const RECEIVING_WEST_LANE_STRIPES = laneStripes(-18, [0, -10, -20, -30, -40]);
-const RECEIVING_EAST_LANE_STRIPES = laneStripes(18, [0, -10, -20, -30, -40]);
+const laneStripes = (lane: {
+  readonly x: number;
+  readonly zs: readonly number[];
+}): [number, number, number][] => lane.zs.map((z) => [lane.x, EXTERIOR_LAYERS.groundOverlay, z]);
+const SHIPPING_EAST_LANE_STRIPES = laneStripes(YARD_LANE_STRIPES.shippingEast);
+const SHIPPING_WEST_LANE_STRIPES = laneStripes(YARD_LANE_STRIPES.shippingWest);
+const RECEIVING_WEST_LANE_STRIPES = laneStripes(YARD_LANE_STRIPES.receivingWest);
+const RECEIVING_EAST_LANE_STRIPES = laneStripes(YARD_LANE_STRIPES.receivingEast);
 const MAINTENANCE_GARAGE_POSITION = [...SITE_LAYOUT.serviceYard.maintenanceGarage.position] as [
   number,
   number,
@@ -2441,9 +2445,10 @@ const NoIdlingSign: React.FC<{ position: [number, number, number]; rotation?: nu
   </group>
 );
 
+const SECTIONAL_DOOR_GEOMETRY = buildSectionalDoorGeometry();
+
 const DOCK_SURFACE_GEOMETRY = {
   bumper: new THREE.BoxGeometry(0.8, 0.4, 0.27),
-  door: new THREE.BoxGeometry(9, 4, 0.15),
   side: new THREE.BoxGeometry(0.3, 3.5, 3),
   top: new THREE.BoxGeometry(4.1, 0.3, 3),
   leveler: new THREE.BoxGeometry(8, 0.15, 4),
@@ -2513,16 +2518,16 @@ export const RollUpDoor: React.FC<{
           <GeneratedModel asset="dockDoorFrame" />
         </group>
       </GeneratedBoundary>
-      <mesh ref={doorRef} position={[0, 2, 0.1]} userData={{ noStaticBatch: true }}>
-        <GeneratedBoundary fallback={<boxGeometry args={[9, 4, 0.15]} />}>
-          <GeneratedGeometrySurface
-            asset="dockDoorPanel"
-            original={DOCK_SURFACE_GEOMETRY.door}
-            meshRef={doorRef}
-          />
-        </GeneratedBoundary>
-        <meshStandardMaterial color="#64748b" metalness={0.6} roughness={0.4} />
-      </mesh>
+      {/* A sectional leaf (panels, joints, pressed ribs) in painted steel. The
+          authored `dockDoorPanel` was a box with a faint normal map, and in a
+          0.6-metalness slate it read as a flat pale-blue mirror of the sky. */}
+      <mesh
+        ref={doorRef}
+        position={[0, 2, 0.1]}
+        geometry={SECTIONAL_DOOR_GEOMETRY}
+        material={SECTIONAL_DOOR_MATERIAL}
+        userData={{ noStaticBatch: true }}
+      />
     </group>
   );
 };
