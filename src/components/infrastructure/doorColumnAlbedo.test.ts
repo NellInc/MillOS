@@ -24,6 +24,23 @@ describe('door column albedo', () => {
     }
   });
 
+  /**
+   * final5 med-12 interior, right 20% of the frame: "an unreadable dark mass"
+   * (the judge took it for an elevator leg). Projected through the camera it is
+   * the shipping dock's west frame post at x -15.4, z 48, seen end-on, beside
+   * the shell's teal portal jamb: both near black, one stack of blocks. The
+   * frame members are a mid slate now, a stop over the floor that kept them
+   * from coal, and still blue-grey.
+   */
+  it('paints the dock frame a mid slate the hall-side posts read in', () => {
+    for (const name of ['post', 'flange', 'header', 'headerFlange', 'strut']) {
+      const color = (dock.DOCK_FRAME_MATERIALS[name] as THREE.MeshStandardMaterial).color;
+      expect(luminance(color), name).toBeGreaterThanOrEqual(0.14);
+      expect(luminance(color), name).toBeLessThan(0.25);
+      expect(color.b, name).toBeGreaterThan(color.r * 1.5);
+    }
+  });
+
   it('lifts the hall structural steel half a stop without losing its hue', () => {
     const color = (FACTORY_STRUCTURE_MATERIAL as THREE.MeshStandardMaterial).color;
     expect(luminance(color)).toBeGreaterThanOrEqual(0.08);

@@ -8,6 +8,7 @@ import {
   dockHoodBraces,
   dockHoodSlab,
   dockLevelerParts,
+  dockPostDetailParts,
 } from './OpenDockOpening';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
 
@@ -58,6 +59,48 @@ describe('dock hood braces', () => {
       expect(high[2]).toBeGreaterThan(hood.centre[2] - hood.size[2] / 2);
       // A brace, not a hanger: it climbs as it reaches out over the hall.
       expect(high[2]).toBeLessThan(low[2]);
+    }
+  });
+});
+
+describe('dock post detail', () => {
+  /**
+   * final5 med-12 interior: the shipping dock's west post, seen end-on at the
+   * right of the frame, read as a dark stack of blocks: a plain box whose only
+   * articulation was the 1.2 m panel normal. Web stiffeners every 2.4 m or
+   * less divide it into bays the eye can count, and a leveller control station
+   * at hand height on the hall face says what the post is for.
+   */
+  it('stiffens the post web at a counted pitch and hangs a control station on the hall face', () => {
+    const height = 14;
+    const parts = dockPostDetailParts(height);
+    const stiffeners = parts.filter((p) => p.role === 'stiffener');
+    const ys = [...new Set(stiffeners.map((p) => p.position[1]))].sort((a, b) => a - b);
+    expect(ys.length).toBeGreaterThanOrEqual(5);
+    const stops = [-height / 2, ...ys, height / 2];
+    for (let i = 1; i < stops.length; i++) expect(stops[i] - stops[i - 1]).toBeLessThanOrEqual(2.4);
+    const webHalf = DOCK_FRAME_SECTION.width / 2;
+    const flangeInner =
+      DOCK_FRAME_SECTION.depth / 2 + DOCK_FLANGE.standoff - DOCK_FLANGE.thickness / 2;
+    for (const p of stiffeners) {
+      // Both sides of the web, inside the flange outstand, short of the flanges.
+      const inner = Math.abs(p.position[0]) - p.scale[0] / 2;
+      const outer = Math.abs(p.position[0]) + p.scale[0] / 2;
+      expect(inner).toBeGreaterThanOrEqual(webHalf - 1e-9);
+      expect(outer).toBeLessThanOrEqual(webHalf + 0.15 + 1e-9);
+      expect(p.scale[2] / 2).toBeLessThan(flangeInner);
+    }
+    expect(new Set(stiffeners.map((p) => Math.sign(p.position[0])))).toEqual(new Set([-1, 1]));
+    const station = parts.filter((p) => p.role === 'station');
+    expect(station.length).toBeGreaterThanOrEqual(2);
+    for (const p of station) {
+      // Hand height, proud of the indoor flange (local -z is the hall).
+      expect(p.position[1] + height / 2).toBeGreaterThan(1);
+      expect(p.position[1] + height / 2).toBeLessThan(1.8);
+      expect(p.position[2] - p.scale[2] / 2).toBeLessThan(-(flangeInner + DOCK_FLANGE.thickness));
+      expect(p.position[2] + p.scale[2] / 2).toBeLessThanOrEqual(
+        -(flangeInner + DOCK_FLANGE.thickness) + 1e-9
+      );
     }
   });
 });
