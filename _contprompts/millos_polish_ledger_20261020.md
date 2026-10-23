@@ -251,8 +251,35 @@ translucent wrap and blank panel, tank steel and saddles, dark stair core); land
 at 19:00, blotches and hill seam, fog edges in rain, hedge across the pond path, flat pond, Low
 windmill sails); aa (Medium AA, Low aliasing at source). Plus `fix-feed`.
 
+## Round 4 merged (`9115ad52`)
+
+Feed fix `b0eb294c` (a broken mill no longer starves the plant: 18/18 orders on time with R.M. 101
+down, against 2 late and shipping flat for 23 h). Round 4: aa `6742cf47` (SMAA never fired on the
+linear buffer; edge detection on encoded values, HIGH preset, composer MSAA, canvas MSAA every tier;
+about +1.9 ms Medium, +0.2 ms Low), shell `bfaf02ab`, land `fae38430` + `35abb75a`, yardtank
+`ec476e24` (conflict resolved: the rain shelters derive from the shared `DOCK_CANOPY`), floor
+`438dabd4` + bounce fix `0380a3eb` (the indoor bounce greyed the paint and Neutral's toe made it
+void black), silo `5e30bd65`, toe `93f79984` (the grade's contrast clipped encoded <0.03 to black;
+the operator is Khronos PBR Neutral, not AgX), measure `9115ad52` (`measure:surfaces` ignored the
+`/v0.40/` base so every bundle 404'd; null control now 0.00-0.20%, not exactly 0, on foliage).
+
+**Blind A/B round 4 vs round 3** (`final4-*` vs `final3-*`, keys `scratch/ab-keys-r4/`): round 4
+wins 73, round 3 wins 14, 4 ties (med-12 12-1, low-12 8-5, med-06 9-4, med-19 13-0, med-22 12-0-1,
+rain 10-2-1, 18:30 9-2-2). Every loss traces to: silos flat/plaster at distance and on Low, floods on
+in daylight and rain, roof-deck moiré, flat haze band behind the village, village dusk too dark and
+woods mottled, tank shell creases, TRUCK STAGING upside-down from the overview camera.
+**Rubric final4-med-12:** 7/7/7/6/7/7 (was 7/6/7/6/6/7), no blockers; material response held at 6 by
+the silos.
+
+## Round 5 (four waves on `9115ad52`, brief `scratch/r5-brief.md`) plus the toe finish
+
+silo5, land5, shell5, yard5 cover the list above plus the rubric backlog (tank gloss, glass sky
+reflection, roof top, tank-farm pipework and yard grate, tractor cab and axles, dock shelters,
+conveyor roller pitch, capture clock holding sky time). The night-toe finish (hue-preserving lift on
+fill-only pixels, noon exactly unchanged) runs on `claude/polish-r4-toe`.
+
 ## What remains
 
-Merge round 4 and the feed fix; whole gate; recapture all conditions; blind A/B and rubric again;
+Merge round 5 and the toe finish; whole gate; recapture; blind A/B round 5 vs round 4 and rubric;
 runtime batch with the long play-test. Not done: a performance benchmark on a quiet machine (the ground wave's crop adds
 ~319k triangles; the hall dressing will add more); the castle (a dressing call left to Nell).
