@@ -497,9 +497,12 @@ const MATERIALS = {
    */
   purlin: new THREE.MeshStandardMaterial({
     name: 'factory-roof-purlin',
-    // Neutral, a shade under the liner (#b4b4b2): it was '#a9afb0', cooler
-    // than the warm liner, and the hue step striped the ceiling.
-    color: '#acadab',
+    // Neutral (it was '#a9afb0', cooler than the warm liner, and the hue step
+    // striped the ceiling), and a shade OVER the liner (#b4b4b2): a purlin's
+    // side faces see less of the hall than the liner's underside does, so at
+    // '#acadab' they read 74 against 96 luma at noon and 41 against 100 at
+    // 22:00 (final5).
+    color: '#c5c6c4',
     roughness: 0.48,
     metalness: 0,
   }),
@@ -1162,6 +1165,9 @@ export const SAFETY_BARRIER_MATERIAL: THREE.Material = MATERIALS.safetyBarrier;
 /** The silo, milling and packing pads' concrete (see `MATERIALS.plinth`). */
 export const PROCESS_PAD_MATERIAL: THREE.Material = MATERIALS.plinth;
 
+/** The purlins under the deck, for their tone test. */
+export const ROOF_PURLIN_MATERIAL: THREE.Material = MATERIALS.purlin;
+
 export const ROOF_PANEL_MATERIALS: readonly THREE.Material[] = [
   MATERIALS.roof,
   MATERIALS.roof,
@@ -1549,6 +1555,8 @@ export const ROOF_PURLIN_SECTION = { depth: 0.16, width: 0.08 } as const;
 export const ROOF_PURLIN_CLEARANCE = 0.01;
 /** The purlins' gable-end limit (the shell's inner line, as for every roof member). */
 const ROOF_PURLIN_END = 49.55;
+/** Air between a purlin's underside and the top chord it runs over. */
+const TOP_CHORD_AIR = 0.015;
 
 function instanceBounds(part: BoxInstance): THREE.Box3 {
   const matrix = new THREE.Matrix4().compose(
@@ -1648,7 +1656,15 @@ export function buildFactoryRoofStructure(): {
     const local = (x - ROOF_HALF_CENTRE * side) / Math.cos(ROOF_PITCH);
     return deckPoint(side, local).y - 0.36;
   };
-  const upperY = (x: number) => underside(x) - chordHeight / 2 - 0.06;
+  // The purlins sit ON the top chords (final5 and r6hall6, interior and
+  // milling: framed INTO them, flush with their top, every purlin put a light
+  // end over a chord's near face and a dark end face over its far edge, a step
+  // in the chord's silhouette every 1.5 m). The chord's top clears the purlins'
+  // underside by TOP_CHORD_AIR, and the purlins run on over every truss.
+  const upperY = (x: number) =>
+    underside(x) -
+    chordHeight / 2 -
+    (ROOF_PURLIN_CLEARANCE + ROOF_PURLIN_SECTION.depth + TOP_CHORD_AIR);
   const member = (
     x0: number,
     y0: number,
@@ -1703,8 +1719,11 @@ export function buildFactoryRoofStructure(): {
     const bounds = instanceBounds(kerb);
     wells.set(key, wells.get(key)?.union(bounds) ?? bounds);
   }
+  // The trusses block no run: every member of them stands under its top
+  // chord's top, which the purlins clear. (A long diagonal's axis-aligned box
+  // is not that member, and would cut runs the steel never touches.)
   const blockers = [
-    ...[...frames, ...buildFactoryRoofTrim()].map(instanceBounds),
+    ...buildFactoryRoofTrim().map(instanceBounds),
     ...[...wells.values()].map((well) => well.clone().expandByVector(new THREE.Vector3(0, 1, 0))),
   ];
   purlins.push(...buildFactoryRoofPurlins(deckUnderside, blockers, halfSpan));

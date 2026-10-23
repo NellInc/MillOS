@@ -682,6 +682,89 @@ describe('exposed factory roof steelwork', () => {
     }
   });
 
+  /**
+   * final5 and r6hall6 med-12 interior and milling, top third: the top chords'
+   * silhouette stepped every purlin, MSAA on or off. Traced on r6hall6 interior
+   * (x 1380-1560), the silhouette follows the chord's near top edge to within
+   * +/-3 px, flat for ~23 px and then dropping: the purlins framing INTO the
+   * chord, flush with its top, put a light end over its near face (a bite) and
+   * a dark end face above its far edge (a tooth) at every purlin. Raising the
+   * chord 48 mm moved neither; lengthening every purlin 0.2 m into the chords
+   * at runtime reshaped them. So the purlins now sit ON the top chords, as
+   * purlins do: continuous over every truss with 15 mm of air, so the chord's
+   * top edge has nothing in front of it or above it but the purlins' own
+   * running stripes.
+   */
+  it('runs every purlin over the top chords, with air, never into them', () => {
+    const flanges = structure.frames.filter(
+      (part) =>
+        Math.abs(part.scale[2] - 0.46) < 1e-9 &&
+        Math.abs(part.scale[1] - 0.07) < 1e-9 &&
+        Math.abs(part.position[1] - (SITE_LAYOUT.factory.bounds.maxY - 2.9)) > 0.5
+    );
+    // The top flange of each top chord: no flange of the same member above it.
+    const upperChords = flanges.filter(
+      (part) =>
+        !flanges.some(
+          (other) =>
+            other !== part &&
+            other.position[2] === part.position[2] &&
+            Math.abs(other.position[0] - part.position[0]) < 0.1 &&
+            other.position[1] > part.position[1]
+        )
+    );
+    expect(upperChords.length).toBeGreaterThan(0);
+    // Height of a sloped box's top or bottom face at plan x.
+    const faceAt = (part: (typeof parts)[number], x: number, side: 1 | -1) => {
+      const angle = part.rotation?.[2] ?? 0;
+      const half = (side * part.scale[1]) / 2;
+      const x0 = part.position[0] - Math.sin(angle) * half;
+      const y0 = part.position[1] + Math.cos(angle) * half;
+      return y0 + (x - x0) * Math.tan(angle);
+    };
+    let crossings = 0;
+    for (const chord of upperChords) {
+      const z0 = chord.position[2] - chord.scale[2] / 2;
+      const z1 = chord.position[2] + chord.scale[2] / 2;
+      for (const purlin of structure.purlins) {
+        const x = purlin.position[0];
+        if (Math.abs(x - chord.position[0]) > (chord.scale[0] / 2) * Math.cos(0.05) - 0.1) continue;
+        const p0 = purlin.position[2] - purlin.scale[2] / 2;
+        const p1 = purlin.position[2] + purlin.scale[2] / 2;
+        // No purlin ends at, or within a metre of, a top chord...
+        expect(Math.abs(p0 - z1) > 1 && Math.abs(p1 - z0) > 1, `purlin ${x} ends at chord`).toBe(
+          true
+        );
+        if (p0 > z0 || p1 < z1) continue;
+        // ...and every one that crosses it clears its top by 10-20 mm.
+        const air = faceAt(purlin, x, -1) - faceAt(chord, x, 1);
+        expect(air, `purlin ${x} over chord z ${chord.position[2]}`).toBeGreaterThan(0.01);
+        expect(air, `purlin ${x} over chord z ${chord.position[2]}`).toBeLessThan(0.02);
+        crossings++;
+      }
+    }
+    expect(crossings).toBeGreaterThan(150);
+  });
+
+  /**
+   * final5 (74 against 96 luma at noon, 41 against 100 at 22:00): the purlins'
+   * side faces see less of the hall's light than the liner they hang under, so
+   * at one albedo they read as dark stripes. A shade lighter than the liner,
+   * still a neutral grey.
+   */
+  it('paints the purlins a shade over the liner, neutral', async () => {
+    const { ROOF_PANEL_MATERIALS, ROOF_PURLIN_MATERIAL } =
+      await import('./OptimizedFactoryInfrastructure');
+    const lum = (c: THREE.Color) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+    const liner = (ROOF_PANEL_MATERIALS[3] as THREE.MeshStandardMaterial).color;
+    const purlin = (ROOF_PURLIN_MATERIAL as THREE.MeshStandardMaterial).color;
+    expect(lum(purlin) / lum(liner)).toBeGreaterThan(1.15);
+    expect(lum(purlin) / lum(liner)).toBeLessThan(1.4);
+    expect(
+      Math.max(purlin.r, purlin.g, purlin.b) - Math.min(purlin.r, purlin.g, purlin.b)
+    ).toBeLessThan(0.03);
+  });
+
   it('hangs no trim member below the deck or through it', () => {
     // A 80 m member at z = 0, y 21.86-22.04, was 0.23 m below the deck at the
     // ridge and stood through the deck's top past |x| 32: neither hung nor laid.
