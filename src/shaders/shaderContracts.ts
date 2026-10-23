@@ -347,9 +347,9 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     depthBehavior: 'transparent panes, depth test on, depth write off',
     qualityVariants: ['low', 'medium', 'high', 'ultra'],
     uniformOwner:
-      'module-level GLAZING_FRESNEL_STRENGTH and GLAZING_V3, mirrored on userData.glazingFresnel and userData.glazingV3',
+      'module-level GLAZING_FRESNEL_STRENGTH, GLAZING_V3 and GLAZING_V4, mirrored on userData.glazingFresnel, userData.glazingV3 and userData.glazingV4',
     timeSource: 'none',
-    cacheKey: 'millos-glazing-fresnel-v3',
+    cacheKey: 'millos-glazing-fresnel-v4',
     disposalOwner: 'module lifetime',
     fallbackMaterial: 'the flat film at the authored opacity (strength 0)',
   },
