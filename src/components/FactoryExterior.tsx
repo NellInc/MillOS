@@ -75,11 +75,17 @@ import {
   UtilityTankHardware,
   LpgValveHardware,
   UtilityPressureGauge,
+  VESSEL_SADDLE,
   createVesselSaddleGeometry,
   storageTankAxisHeight,
+  utilityLadderLayout,
   utilityTankNozzles,
 } from './exterior/utilityVesselDetails';
-import { generateVesselShellMaps, vesselShellUvs } from '../textures/vesselShell';
+import {
+  generateVesselShellMaps,
+  vesselShellUvs,
+  type VesselShellLayout,
+} from '../textures/vesselShell';
 import {
   createAtmosphereState,
   createCelestialState,
@@ -5528,16 +5534,19 @@ function vesselSaddleGeometry(radius: number): THREE.BufferGeometry {
  * The seam band over each weld bead: a 0.07 R strip of bare, darker steel,
  * 1.8% proud of the shell. The bead alone is shell-white and 1.2% proud, and
  * the dressing-r2 tank-farm frame showed it inert - same paint, no line. The
- * band is what makes the head's start read from the yard.
+ * band is what makes the head's start read from the yard. 0.045 R and 1.4%
+ * proud since final4: at 0.07 R and 0.8 shade it sat beside the shell map's
+ * own seam weld and the two read as a doubled, near-black ring (med-12).
  */
-export const VESSEL_SEAM_BAND = { width: 0.07, height: 0.018 } as const;
+export const VESSEL_SEAM_BAND = { width: 0.045, height: 0.014 } as const;
 /**
  * The band is painted with the shell, a shade darker where the weld stands
  * proud. It was bare steel (#7c868a, metalness 0.35): with no sun to reflect
  * at 18:30 that went black and drew a hard ink rim round every head
- * (final3-med-1830 tank-farm).
+ * (final3-med-1830 tank-farm). 0.88 since final4, near the shell map's weld
+ * shade: one line in the shell's own paint, not an ink rim.
  */
-export const VESSEL_SEAM_SHADE = 0.8;
+export const VESSEL_SEAM_SHADE = 0.88;
 const VESSEL_SEAM_MATERIALS = new Map<string, THREE.MeshStandardMaterial>();
 export function vesselSeamMaterial(color: string): THREE.MeshStandardMaterial {
   let material = VESSEL_SEAM_MATERIALS.get(color);
@@ -5635,6 +5644,33 @@ export function vesselShellMaterial(color: string): THREE.MeshStandardMaterial {
  * material per colour and size, because the maps are per size.
  */
 const STORAGE_SHELL_MATERIALS = new Map<string, THREE.MeshStandardMaterial>();
+/** What the shell maps know about one storage tank size, in lathe coordinates. */
+export function storageTankShellLayout(radius: number, length: number): VesselShellLayout {
+  return {
+    radius,
+    profile: vesselProfile(radius, length),
+    seamOffset: vesselSeamOffset(radius, length),
+    // Lathe y runs along tank-local -x (the lathe lies on its side, turned +pi/2 about z).
+    nozzles: utilityTankNozzles(length).map((nozzle) => ({
+      y: -nozzle.x,
+      radius: nozzle.radius,
+    })),
+    // Saddles stand at tank-local x = +-length / 3 (`StorageTank`).
+    saddles: {
+      ys: [-length / 3, length / 3],
+      width: VESSEL_SADDLE.wearPlate.width,
+      halfAngle: VESSEL_SADDLE.contactHalfAngle + VESSEL_SADDLE.wearPlate.overArc,
+    },
+    // The ladder's shell brackets, at tank-local x 0: lathe u from the
+    // bracket's height and side on the shell (tank y = r sin 2 pi u, tank
+    // z = r cos 2 pi u once the lathe lies on its side).
+    flankFittings: utilityLadderLayout(radius).mounts.map(({ shell }) => ({
+      y: 0,
+      u: (Math.atan2(shell[1] - storageTankAxisHeight(radius), shell[2]) / (2 * Math.PI) + 1) % 1,
+      span: 0.3,
+    })),
+  };
+}
 export function storageTankShellMaterial(
   color: string,
   radius: number,
@@ -5643,16 +5679,7 @@ export function storageTankShellMaterial(
   const key = `${color}:${radius}x${length}`;
   let material = STORAGE_SHELL_MATERIALS.get(key);
   if (!material) {
-    const maps = generateVesselShellMaps({
-      radius,
-      profile: vesselProfile(radius, length),
-      seamOffset: vesselSeamOffset(radius, length),
-      // Lathe y runs along tank-local -x (the lathe lies on its side, turned +pi/2 about z).
-      nozzles: utilityTankNozzles(length).map((nozzle) => ({
-        y: -nozzle.x,
-        radius: nozzle.radius,
-      })),
-    });
+    const maps = generateVesselShellMaps(storageTankShellLayout(radius, length));
     material = applyWorldSurface(
       pinSurfaceProfile(
         new THREE.MeshStandardMaterial({

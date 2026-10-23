@@ -11,15 +11,14 @@ import {
   vesselShellUvs,
   type VesselShellLayout,
 } from './vesselShell';
-import { vesselProfile, vesselSeamOffset } from '../components/FactoryExterior';
-import { utilityTankNozzles } from '../components/exterior/utilityVesselDetails';
+import {
+  storageTankShellLayout,
+  vesselProfile,
+  vesselSeamOffset,
+} from '../components/FactoryExterior';
 
-const layoutFor = (radius: number, length: number): VesselShellLayout => ({
-  radius,
-  profile: vesselProfile(radius, length),
-  seamOffset: vesselSeamOffset(radius, length),
-  nozzles: utilityTankNozzles(length).map((n) => ({ y: -n.x, radius: n.radius })),
-});
+const layoutFor = (radius: number, length: number): VesselShellLayout =>
+  storageTankShellLayout(radius, length);
 const luma = (tint: readonly number[]) => 0.2126 * tint[0] + 0.7152 * tint[1] + 0.0722 * tint[2];
 
 describe.each([
@@ -40,19 +39,89 @@ describe.each([
     }
   });
 
-  it('draws every weld as a darker, rougher line wide enough to survive the tank-farm camera', () => {
-    const plate = sampleVesselShell(layout, seams, plainU, plainY, radius);
-    for (const y of seams) {
-      const weld = sampleVesselShell(layout, seams, plainU, y, radius);
-      expect(luma(weld.tint)).toBeLessThan(luma(plate.tint) * 0.88);
-      expect(weld.roughness).toBeGreaterThan(plate.roughness + 0.05);
+  /**
+   * final4 med-12 read the welds as near-black rings and med-22 / med-1830 as
+   * doubled seam lines: a 0.3 darkening over a 6 cm shoulder, a map weld at
+   * each head seam beside the proud seam band, and longitudinal seams
+   * staggered either side of the crown.
+   */
+  it('draws each course weld as one crisp line in the shell paint, a shade darker, never black', () => {
+    // Clear of every run-off streak (they cross welds by design).
+    for (const u of [plainU, 0.98]) {
+      for (const y of seams) {
+        const weld = sampleVesselShell(layout, seams, u, y, radius);
+        const plate = sampleVesselShell(layout, seams, u, y + 0.08, radius);
+        const ratio = luma(weld.tint) / luma(plate.tint);
+        expect(ratio).toBeGreaterThan(0.86);
+        expect(ratio).toBeLessThan(0.96);
+        expect(weld.roughness).toBeGreaterThan(plate.roughness + 0.05);
+        // One line: 5 cm off the weld centre the plate is back.
+        const beside = sampleVesselShell(layout, seams, u, y + 0.05, radius);
+        expect(luma(beside.tint) / luma(plate.tint)).toBeGreaterThan(0.98);
+      }
+      // No map weld at the head seams: the seam band stands there.
+      for (const y of [-layout.seamOffset + 0.01, layout.seamOffset - 0.01]) {
+        const edge = sampleVesselShell(layout, seams, u, y, radius);
+        const inside = sampleVesselShell(layout, seams, u, y - Math.sign(y) * 0.1, radius);
+        expect(luma(edge.tint) / luma(inside.tint)).toBeGreaterThan(0.97);
+      }
     }
-    const u = vesselLongitudinalSeamU(1);
-    const longitudinal = sampleVesselShell(layout, seams, u, (seams[0] + seams[1]) / 2, radius);
-    expect(luma(longitudinal.tint)).toBeLessThan(luma(plate.tint) * 0.88);
-    // ~55 px/m from the tank-farm camera: the line is at least 3 px across.
-    expect(2 * VESSEL_WELD.core * 55).toBeGreaterThanOrEqual(2);
-    expect(2 * VESSEL_WELD.shoulder * 55).toBeGreaterThanOrEqual(6);
+    // Longitudinal seams lie on the underside, out of the upper-flank view.
+    for (let course = 0; course < seams.length + 1; course += 1) {
+      const turn = Math.abs(vesselLongitudinalSeamU(course) - VESSEL_CROWN_U);
+      expect(Math.min(turn, 1 - turn)).toBeGreaterThan(0.35);
+    }
+    // ~55 px/m from the tank-farm camera: the whole line is 3-4 px across.
+    expect(2 * VESSEL_WELD.shoulder * 55).toBeGreaterThanOrEqual(3);
+    expect(2 * VESSEL_WELD.shoulder * 55).toBeLessThan(5);
+  });
+
+  it('lays no fine streak field on the flanks: no creases along the axis away from fittings', () => {
+    // Round 4's 0.15 m rain field aliased into vertical creases (final4 med-22).
+    const from = seams[seams.length - 1] + 0.1;
+    const to = layout.seamOffset - 0.1;
+    for (const u of [0.12, 0.17, 0.33, 0.38]) {
+      let step = 0;
+      let previous = luma(sampleVesselShell(layout, seams, u, from, radius).tint);
+      for (let y = from + 0.02; y <= to; y += 0.02) {
+        const value = luma(sampleVesselShell(layout, seams, u, y, radius).tint);
+        step = Math.max(step, Math.abs(value - previous));
+        previous = value;
+      }
+      expect(step, `u ${u}`).toBeLessThan(0.004);
+    }
+  });
+
+  it('streaks the flank under each of the ladder brackets', () => {
+    expect(layout.flankFittings?.length).toBeGreaterThan(0);
+    for (const fitting of layout.flankFittings ?? []) {
+      // 0.3 m further round from the crown than the bracket, on its flank.
+      const away = fitting.u > VESSEL_CROWN_U && fitting.u < VESSEL_CROWN_U + 0.5 ? 1 : -1;
+      const u = (fitting.u + away * (0.3 / (2 * Math.PI * radius)) + 1) % 1;
+      let darkest = 1;
+      for (let dy = -fitting.span; dy <= fitting.span; dy += 0.01)
+        darkest = Math.min(
+          darkest,
+          luma(sampleVesselShell(layout, seams, u, fitting.y + dy, radius).tint)
+        );
+      const clean = luma(sampleVesselShell(layout, seams, u, layout.seamOffset - 0.6, radius).tint);
+      expect(darkest).toBeLessThan(clean * 0.9);
+    }
+  });
+
+  it('darkens and roughens the shell where it beds in each saddle', () => {
+    const saddles = layout.saddles!;
+    // A hand's width below the cradle's horn, on either flank.
+    const fromBottom = saddles.halfAngle * radius - 0.1;
+    for (const side of [-1, 1]) {
+      const u = (VESSEL_CROWN_U + 0.5 + (side * fromBottom) / (2 * Math.PI * radius) + 1) % 1;
+      for (const ys of saddles.ys) {
+        const bed = sampleVesselShell(layout, seams, u, ys, radius);
+        const clear = sampleVesselShell(layout, seams, u, ys + Math.sign(ys) * -1.2, radius);
+        expect(luma(bed.tint)).toBeLessThan(luma(clear.tint) * 0.88);
+        expect(bed.roughness).toBeGreaterThan(clear.roughness + 0.1);
+      }
+    }
   });
 
   it('streaks the flanks under each crown fitting and nowhere else on the crown', () => {
@@ -86,7 +155,7 @@ describe.each([
     const sd = Math.sqrt(values.reduce((a, b) => a + (b - mean) ** 2, 0) / values.length);
     expect(mean).toBeGreaterThan(0.38);
     expect(mean).toBeLessThan(0.7);
-    expect(sd).toBeGreaterThan(0.03);
+    expect(sd).toBeGreaterThan(0.05);
   });
 
   it('darkens each head toward its knuckle, so the dish reads as a dome in flat light', () => {

@@ -120,12 +120,36 @@ export interface VesselShellLayout {
   readonly seamOffset: number;
   /** Fittings on the crown. */
   readonly nozzles: readonly VesselNozzle[];
+  /**
+   * Saddle stations (lathe y) and the cradle: its wear plate's axial width and
+   * the half-angle from the underside it wraps. The shell is darker and rougher
+   * where it beds in the cradle.
+   */
+  readonly saddles?: {
+    readonly ys: readonly number[];
+    readonly width: number;
+    readonly halfAngle: number;
+  };
+  /**
+   * Fittings on a flank that shed run-off down the shell: the ladder's shell
+   * brackets. Lathe y, lathe u, and the axial half-span of the fitting.
+   */
+  readonly flankFittings?: readonly {
+    readonly y: number;
+    readonly u: number;
+    readonly span: number;
+  }[];
 }
 
 /** Target plate-course width; the barrel is split into whole courses near this. */
 export const VESSEL_COURSE_WIDTH = 2.4;
-/** Half-width of a weld line's dark core and of its shoulder, metres. */
-export const VESSEL_WELD = { core: 0.022, shoulder: 0.06 } as const;
+/**
+ * Half-width of a weld line's core and of its shoulder, metres, and how much
+ * darker than the plate it is painted. Round 4's 0.3 over a 6 cm shoulder read
+ * as a near-black ring at med-12; a weld under two-pack is the shell's own
+ * paint over a bead, a shade darker, one crisp line.
+ */
+export const VESSEL_WELD = { core: 0.012, shoulder: 0.032, shade: 0.075 } as const;
 /** The crown's u, once the lathe lies on its side (three's lathe: x = r sin(2 pi u)). */
 export const VESSEL_CROWN_U = 0.25;
 
@@ -162,10 +186,12 @@ export function vesselCourseSeams(seamOffset: number): number[] {
 
 /**
  * The u of each course's longitudinal weld, staggered either side of the
- * crown as plate courses are, high on the shell where the camera sees them.
+ * underside as plate courses are. Round 4 staggered them either side of the
+ * crown, where alternate courses' seams read from the tank-farm camera as a
+ * doubled line wandering along the barrel (final4 med-22, med-1830).
  */
 export function vesselLongitudinalSeamU(course: number): number {
-  return VESSEL_CROWN_U + (course % 2 === 0 ? -0.1 : 0.1);
+  return VESSEL_CROWN_U + 0.5 + (course % 2 === 0 ? -0.08 : 0.08);
 }
 
 export interface VesselShellSample {
@@ -188,7 +214,7 @@ export function sampleVesselShell(
   const circumference = 2 * Math.PI * radius;
   const onHead = Math.abs(y) > seamOffset;
   let tone = 1;
-  let roughness = 0.44;
+  let roughness = 0.42;
   let height = 0;
 
   // Paint drift and mottle: the two-pack has been touched up and has weathered
@@ -214,7 +240,7 @@ export function sampleVesselShell(
     canning = fbmRound(u, y, circumference, 1.3, 2, 3);
   }
   tone += macro * 0.06 + mottle * 0.03;
-  roughness += macro * 0.22 + mottle * 0.1;
+  roughness += macro * 0.3 + mottle * 0.12;
   height += canning * 0.004;
 
   // Distance round the shell from the crown, metres (wraps through u 0/1).
@@ -225,10 +251,18 @@ export function sampleVesselShell(
   roughness += crown * 0.08;
   tone -= crown * 0.015;
 
-  // Weld lines: a raised bead with a dirt line along its lower edge.
+  // Signed fraction of a turn from the crown, -0.5..0.5: its sign is the flank.
+  const turn = ((((u - VESSEL_CROWN_U + 0.5) % 1) + 1) % 1) - 0.5;
+  const flank = turn < 0 ? -1 : 1;
+
+  // Weld lines: each plate-course weld round the barrel and each course's
+  // longitudinal weld (on the underside), as ONE crisp line in the shell's own
+  // paint, a shade darker over a low bead. The head-to-shell seams are not
+  // painted here: the seam band (`VesselSeams`) stands over them, and a map
+  // line beside a proud band read as a doubled, near-black ring (final4).
   let weld = 0;
   if (!onHead) {
-    for (const s of [-seamOffset, ...courseSeams, seamOffset])
+    for (const s of courseSeams)
       weld = Math.max(
         weld,
         1 - smoothstep(VESSEL_WELD.core, VESSEL_WELD.shoulder, Math.abs(y - s))
@@ -241,41 +275,69 @@ export function sampleVesselShell(
     const dSeam = Math.min(Math.abs(u - seamU), 1 - Math.abs(u - seamU)) * circumference;
     weld = Math.max(weld, 1 - smoothstep(VESSEL_WELD.core, VESSEL_WELD.shoulder, dSeam));
   }
-  tone -= weld * 0.3;
-  roughness += weld * 0.14;
-  height += weld * weld * 0.003;
+  tone -= weld * VESSEL_WELD.shade;
+  roughness += weld * 0.12;
+  height += weld * 0.0015;
 
-  // Run-off from the crown fittings: rivulets down both flanks, strongest
-  // at the fitting and fading by the equator.
+  // Run-off: a few broad, straight streaks down the shell under each fitting
+  // that sheds water - the crown fittings down both flanks, the ladder's shell
+  // brackets down theirs. Round 4 laid six narrow wandering rivulets per
+  // fitting and a 0.15 m rain field over every flank; from the tank-farm
+  // camera those aliased into vertical creases and a soft diagonal smear
+  // (final4 med-22, med-1830, med-06, med-19).
+  const sources: { y: number; turn: number; span: number; seed: number }[] = [];
+  nozzles.forEach((nozzle, n) => {
+    const start = (nozzle.radius * 0.7) / circumference;
+    sources.push({ y: nozzle.y, turn: -start, span: nozzle.radius, seed: n * 2 });
+    sources.push({ y: nozzle.y, turn: start, span: nozzle.radius, seed: n * 2 + 1 });
+  });
+  (layout.flankFittings ?? []).forEach((fitting, n) => {
+    const t = ((((fitting.u - VESSEL_CROWN_U + 0.5) % 1) + 1) % 1) - 0.5;
+    sources.push({ y: fitting.y, turn: t, span: fitting.span, seed: 40 + n });
+  });
   let streak = 0;
-  if (!onHead || Math.abs(y) < seamOffset + 0.3) {
-    for (let n = 0; n < nozzles.length; n += 1) {
-      const nozzle = nozzles[n];
-      const span = nozzle.radius * 1.6;
-      if (Math.abs(y - nozzle.y) > span + 0.2) continue;
-      const fall = fromCrown - nozzle.radius * 0.6;
-      if (fall < 0) continue;
-      const fade = Math.exp(-fall / (radius * 1.4)) * smoothstep(0, 0.08, fall);
-      for (let k = 0; k < 6; k += 1) {
-        const side = u > VESSEL_CROWN_U && u < VESSEL_CROWN_U + 0.5 ? 1 : 0;
-        const h = intHash(n * 31 + k, side + 7);
-        const centre = nozzle.y + (h - 0.5) * 2 * span;
-        // Rivulets wander as they run: a slow sideways drift with distance.
-        const wander = (periodicNoise(fall * 1.7 + k * 5.3, n + side * 3, 64) - 0.5) * 0.12;
-        const width = 0.04 + intHash(n * 17 + k, side + 3) * 0.07;
-        const along = Math.abs(y - centre - wander);
-        const strength = Math.min(1, 0.7 + 0.7 * intHash(n * 5 + k, side + 11));
-        const length = radius * (0.8 + 1.2 * intHash(n * 13 + k, side + 19));
+  if (!onHead) {
+    for (const source of sources) {
+      if (Math.sign(source.turn) !== flank) continue;
+      const fall = (Math.abs(turn) - Math.abs(source.turn)) * circumference;
+      if (fall < 0 || Math.abs(y - source.y) > source.span + 0.5) continue;
+      for (let k = 0; k < 3; k += 1) {
+        const centre =
+          source.y + (k - 1) * source.span * 0.75 + (intHash(source.seed, k) - 0.5) * 0.1;
+        const width = 0.1 + 0.12 * intHash(source.seed + 7, k);
+        const length = radius * (0.45 + 0.45 * intHash(source.seed + 13, k));
+        const strength = 0.55 + 0.35 * intHash(source.seed + 19, k);
         streak = Math.max(
           streak,
-          (1 - smoothstep(width * 0.4, width, along)) *
-            fade *
-            strength *
-            (1 - smoothstep(length * 0.7, length, fall))
+          (1 - smoothstep(width * 0.35, width, Math.abs(y - centre))) *
+            smoothstep(0, 0.12, fall) *
+            (1 - smoothstep(length * 0.35, length, fall)) *
+            strength
         );
       }
     }
   }
+
+  // Where the shell beds in a saddle: darker and rougher over the cradle's
+  // wear plate and a hand's width above its horns, where water stands and
+  // grime collects against the plate (the rubric's "no darker band at the
+  // saddle contact").
+  let cradle = 0;
+  if (!onHead && layout.saddles) {
+    const fromBottom = (0.5 - Math.abs(turn)) * circumference;
+    const horn = layout.saddles.halfAngle * radius;
+    const bed = 1 - smoothstep(horn, horn + 0.3, fromBottom);
+    for (const ys of layout.saddles.ys) {
+      const axial = Math.abs(y - ys) - layout.saddles.width / 2;
+      cradle = Math.max(cradle, (1 - smoothstep(0.03, 0.25, axial)) * bed);
+    }
+  }
+
+  // Splash and road film on the lower shell, faint: below the equator the
+  // paint dulls and greys a little.
+  const lower = onHead ? 0 : smoothstep(0.3, 0.46, Math.abs(turn));
+  tone -= lower * 0.05;
+  roughness += lower * 0.08;
 
   // The head: grime settles toward the knuckle and the crown of the dish
   // keeps its gloss, and the relief carries the dish's fall-off a little
@@ -284,25 +346,26 @@ export function sampleVesselShell(
   // meets the barrel's field without a step.
   if (onHead) {
     const t = r / radius;
-    const knuckle = smoothstep(0.25, 1, t);
-    tone -= knuckle * 0.24;
+    const knuckle = smoothstep(0.35, 1, t);
+    tone -= knuckle * 0.16;
     roughness += knuckle * 0.08 - (1 - t) * 0.1;
     height += 0.1 * radius * (1 - t * t);
   }
 
-  // Rain has run down both flanks everywhere: fine streaks that follow the
-  // shell round from the crown (0.15 m apart along the axis, metres long
-  // round it), fading before the equator. Faint; they are what stops a long
-  // white barrel reading as moulded.
+  // Weathering in the sheen only: broad bands that follow the shell round
+  // from the crown, half a metre apart along the axis (23 texels, CLAUDE.md
+  // procedural rule 5), in roughness and not in albedo, so the long highlight
+  // breaks into a worn satin without drawing a line.
   if (!onHead) {
-    const fall = fromCrown / circumference;
-    // fbmRound's lattice runs 1/3 per metre along at a 3 m period; x20 makes it 0.15 m.
-    const weather = fbmRound(u, y * 20, circumference, 3, 2, 4);
-    const band = smoothstep(0.02, 0.06, fall) * (1 - smoothstep(0.16, 0.26, fall));
-    streak = Math.max(streak, Math.max(0, weather) * band * 0.8);
+    const fall = Math.abs(turn);
+    // fbmRound's lattice runs 1/3 per metre along at a 3 m period; x6 makes it 0.5 m.
+    const weather = fbmRound(u, y * 6, circumference, 3, 1, 4);
+    const band = smoothstep(0.02, 0.06, fall) * (1 - smoothstep(0.18, 0.3, fall));
+    roughness += weather * band * 0.2;
   }
-  roughness += streak * 0.16;
-  const dirt = streak * 0.6;
+  roughness += streak * 0.18 + cradle * 0.22;
+  tone -= cradle * 0.2;
+  const dirt = streak * 0.42 + cradle * 0.12;
   return {
     tint: [
       clamp01(tone * (1 - dirt * 0.85)),
@@ -321,6 +384,7 @@ export interface VesselShellMaps {
 }
 
 export const VESSEL_SHELL_SIZE = { width: 1024, height: 768 } as const;
+export const VESSEL_SHELL_ANISOTROPY = 8;
 
 /** Bake the three maps for one vessel size in one pass (cached by layout). */
 export function generateVesselShellMaps(
@@ -330,7 +394,9 @@ export function generateVesselShellMaps(
 ): VesselShellMaps {
   const key = `vessel-shell-${layout.radius}-${layout.seamOffset.toFixed(4)}-${layout.nozzles
     .map((n) => `${n.y}:${n.radius}`)
-    .join(',')}-${width}x${height}`;
+    .join(',')}-${JSON.stringify(layout.saddles ?? null)}-${(layout.flankFittings ?? [])
+    .map((f) => `${f.y}:${f.u.toFixed(4)}:${f.span}`)
+    .join(',')}-v2-${width}x${height}`;
   let baked: { color: Uint8Array; rough: Uint8Array; normal: Uint8Array } | null = null;
   const bake = () => {
     if (baked) return baked;
@@ -387,13 +453,22 @@ export function generateVesselShellMaps(
     baked = { color, rough, normal };
     return baked;
   };
+  // The tank-farm camera sees the barrels obliquely: anisotropic filtering
+  // keeps a course weld one line instead of a mip smear (three clamps the
+  // request to the renderer's maximum).
+  const filtered = (texture: THREE.DataTexture) => {
+    texture.anisotropy = VESSEL_SHELL_ANISOTROPY;
+    return texture;
+  };
   return {
-    map: getTexture(`${key}-color`, () => createColorDataTexture(bake().color, width, height)),
+    map: getTexture(`${key}-color`, () =>
+      filtered(createColorDataTexture(bake().color, width, height))
+    ),
     roughnessMap: getTexture(`${key}-roughness`, () =>
-      createLinearDataTexture(bake().rough, width, height)
+      filtered(createLinearDataTexture(bake().rough, width, height))
     ),
     normalMap: getTexture(`${key}-normal`, () =>
-      createLinearDataTexture(bake().normal, width, height)
+      filtered(createLinearDataTexture(bake().normal, width, height))
     ),
   };
 }
