@@ -1968,7 +1968,7 @@ function CompactMachineSet({
       */}
       <instancedMesh
         ref={siloRingRef}
-        args={[SILO_RING, MATERIALS.siloRoof, subsets.silos.length * 3]}
+        args={[SILO_RING, MATERIALS.siloRing, subsets.silos.length * 3]}
         castShadow
         receiveShadow
       />
