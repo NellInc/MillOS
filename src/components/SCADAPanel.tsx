@@ -362,6 +362,15 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
     return () => clearInterval(interval);
   }, [isOpen, scadaEnabled]);
 
+  // The docked panel passes a fresh inline onClose on every render (each live
+  // tag update). Read it through a ref so the effect below runs only when the
+  // dialog opens: re-running it moved focus to Close mid-typing, and an Enter
+  // meant for the setpoint form then closed the workspace.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
   useEffect(() => {
     if (!isOpen || embedded) return;
     const previouslyFocused = document.activeElement as HTMLElement | null;
@@ -370,7 +379,7 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
     const handleWorkspaceKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (event.key !== 'Tab' || !workspaceRef.current) return;
@@ -396,7 +405,7 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
       document.removeEventListener('keydown', handleWorkspaceKeyDown);
       previouslyFocused?.focus();
     };
-  }, [embedded, isOpen, onClose]);
+  }, [embedded, isOpen]);
 
   // Chart line colors
   const TREND_COLORS = ['#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];

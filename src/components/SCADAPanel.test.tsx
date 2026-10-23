@@ -129,6 +129,28 @@ describe('SCADAPanel', () => {
     expect(openWorkspace).toHaveFocus();
   });
 
+  it('keeps focus where the operator put it when the docked panel re-renders', async () => {
+    // The docked panel hands the workspace a fresh inline onClose on every
+    // render (each live tag update). That must not re-run the open-dialog
+    // focus effect: it moved focus to Close, so an Enter meant for the
+    // setpoint form closed the workspace instead.
+    const { rerender } = render(<SCADAPanel isOpen onClose={vi.fn()} embedded />);
+    fireEvent.click(screen.getByRole('button', { name: 'Open full SCADA workspace' }));
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Full simulated SCADA workspace',
+    });
+    const closeButton = within(dialog).getByRole('button', { name: 'Close SCADA panel' });
+    await waitFor(() => expect(closeButton).toHaveFocus());
+
+    fireEvent.click(within(dialog).getByRole('tab', { name: 'Tags' }));
+    const search = within(dialog).getByPlaceholderText('Search tags...');
+    search.focus();
+    expect(search).toHaveFocus();
+
+    rerender(<SCADAPanel isOpen onClose={vi.fn()} embedded />);
+    expect(search).toHaveFocus();
+  });
+
   it('exposes process, event, simulation, and connection workspaces with scene linking', () => {
     const onFocusMachine = vi.fn();
     render(
