@@ -1164,7 +1164,10 @@ export const MACHINE_MATERIALS = {
    * under its own floods: a full conductor has no diffuse term for them to
    * land on. Same stock, patina and grass-free reflection as the skin (the
    * patina is sampled in world space, so it runs on across the seam); no
-   * corrugation and no ring run-off of its own. Splash grime stays low.
+   * corrugation and no ring run-off of its own. Splash grime stays low but
+   * reads: rain splash off the pad climbs the bottom half-metre or so (0.12
+   * over 1.2 m was invisible in every final4 frame; the skin's own grime
+   * term starts at 0 m and the skin at 5 m, so it never reaches the drum).
    */
   siloSkirt: withWear(
     new THREE.MeshStandardMaterial({
@@ -1179,10 +1182,10 @@ export const MACHINE_MATERIALS = {
       metalness: 1,
     }),
     {
-      grime: 0.12,
+      grime: 0.32,
       dust: 0.05,
       edge: 0.1,
-      grimeHeight: 1.2,
+      grimeHeight: 0.75,
       galvanised: { ...SILO_SKIN_GALVANISED, drips: 0, corrugated: false, stains: 0 },
     }
   ),

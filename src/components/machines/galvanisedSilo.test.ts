@@ -240,6 +240,16 @@ describe('silo skirt (final3-med-12: a flat grey band under a warm drum)', () =>
     expect(skirt.userData.machineGalvanisedGround.value).toBe(1);
   });
 
+  it('carries visible splash grime in the bottom half-metre (final4-med-12 verdict: none)', () => {
+    const wear = MACHINE_MATERIALS.siloSkirt.userData.machineWear as {
+      grime: number;
+      grimeHeight: number;
+    };
+    expect(wear.grime).toBeGreaterThanOrEqual(0.25);
+    expect(wear.grimeHeight).toBeGreaterThanOrEqual(0.5);
+    expect(wear.grimeHeight).toBeLessThanOrEqual(1);
+  });
+
   it('is what the discharge enclosure renders with', () => {
     const source = readFileSync('src/components/machines/CompactMachines.tsx', 'utf8');
     expect(source).toMatch(/geometry=\{SILO_OUTLET\}\s*material=\{MATERIALS\.siloSkirt\}/);
