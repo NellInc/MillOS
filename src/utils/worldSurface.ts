@@ -143,7 +143,7 @@ import * as THREE from 'three';
 import { CONCRETE_SLAB_GLSL, SLAB_JOINT_PITCH, SLAB_JOINT_WIDTH } from './concreteSlab';
 
 /** Bump BY HAND whenever the injected GLSL below changes. Never derive this. */
-const WORLD_SURFACE_PROGRAM_VERSION = 'v7';
+const WORLD_SURFACE_PROGRAM_VERSION = 'v8';
 
 /** Where a rib's crown sits within its pitch, 0-1 (the trapezoid in FRAGMENT_BODY). */
 export const RIB_CROWN_PHASE = 0.4;
@@ -1001,16 +1001,46 @@ const FRAGMENT_ANCHOR = '#include <normal_fragment_maps>';
 /**
  * Indoor bounce (`indoorBounce`), after `<lights_fragment_end>`, where the
  * indirect diffuse is complete and still separate from the direct light.
+ *
+ * NEUTRALISE THE LIGHT, NOT THE PAINT. `reflectedLight.indirectDiffuse` is the
+ * fill irradiance TIMES the albedo. The first version mixed that product toward
+ * its own luma, which greyed the surface's own colour as well as the grass in
+ * the fill: a yellow upstand lit only by fill turned to a dim neutral grey. At
+ * 22:00 that grey sat under the display toe (AgX and the grade's +0.06
+ * contrast) and the milling camera's aisle barrier rendered (0.3, 0, 0) beside
+ * a plain-material band lit at (36, 26, 3) on the same face (r4floor2-med-22).
+ * Patched at runtime to the form below, the face read (19.5, 12.2, 0).
+ *
+ * So the albedo is divided out, the fill alone is pulled toward its
+ * luminance, and the albedo goes back on. A neutral fill is left exactly as it
+ * was. Every term three adds to `indirectDiffuse` is linear in
+ * `material.diffuseContribution` (the Lambert irradiance term and the
+ * multiscatter compensation), so the division is exact; the floor on the
+ * divisor only guards a black channel, whose product is zero either way.
+ * `indoorBounceDiffuse` is the TypeScript mirror.
  */
+export function indoorBounceDiffuse(
+  reflected: readonly number[],
+  albedo: readonly number[],
+  weight: number
+): number[] {
+  const safe = albedo.map((a) => Math.max(a, 1e-4));
+  const fill = reflected.map((v, i) => v / safe[i]);
+  const luma = 0.2126 * fill[0] + 0.7152 * fill[1] + 0.0722 * fill[2];
+  return fill.map((v, i) => (v + (luma - v) * weight) * safe[i]);
+}
+
 const BOUNCE_ANCHOR = '#include <lights_fragment_end>';
 const BOUNCE_BODY = /* glsl */ `
   if ( uSurfDeck.w > 0.0 ) {
-    float surfBounceLuma = dot( reflectedLight.indirectDiffuse, vec3( 0.2126, 0.7152, 0.0722 ) );
+    vec3 surfAlbedo = max( material.diffuseContribution, vec3( 1e-4 ) );
+    vec3 surfFill = reflectedLight.indirectDiffuse / surfAlbedo;
+    float surfFillLuma = dot( surfFill, vec3( 0.2126, 0.7152, 0.0722 ) );
     reflectedLight.indirectDiffuse = mix(
-      reflectedLight.indirectDiffuse,
-      vec3( surfBounceLuma ),
+      surfFill,
+      vec3( surfFillLuma ),
       uSurfDeck.w * clamp( uSurfStrength, 0.0, 1.0 )
-    );
+    ) * surfAlbedo;
   }
 `;
 
