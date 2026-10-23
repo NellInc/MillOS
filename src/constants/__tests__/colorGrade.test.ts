@@ -7,6 +7,7 @@ import {
   composerDisplayLevels,
   gradeContrast,
   neutralToneMap,
+  nightToeStrength,
   rendererDisplayLevels,
   srgbEncode,
 } from '../colorGrade';
@@ -97,5 +98,98 @@ describe('the grade does not clip night fill to void', () => {
     expect(
       rendererDisplayLevels([NIGHT_FILL_ONLY, NIGHT_FILL_ONLY, NIGHT_FILL_ONLY])[0]
     ).toBeGreaterThanOrEqual(3);
+  });
+});
+
+/**
+ * The conveyor's west side at 22:00, read scene-referred on the live page
+ * (LINEAR tone mapping, no grade): sRGB (13.4, 15.8, 19.9) at exposure 1.02.
+ * A face lit only by the night fill, faintly cool.
+ */
+const CONVEYOR_FILL_ONLY = [0.004, 0.0048, 0.0067];
+/** The same light on neutral paint, now that the night fill is neutralised. */
+const NEUTRAL_FILL_ONLY = [0.006, 0.006, 0.006];
+/** FLOUR EXPRESS maroon at noon: one bright channel, two deep ones. */
+const MAROON = [0.2, 0.012, 0.01];
+
+/** Stock display, independent of the toe code: Neutral, sRGB, the stock line. */
+function stockLevels(linear: readonly number[]): number[] {
+  const gain = 1 / (1 - COLOR_GRADE.contrast);
+  return neutralToneMap(linear, undefined, 0).map((v) =>
+    Math.round(255 * Math.min(1, Math.max(0, (srgbEncode(v) - 0.5) * gain + 0.5)))
+  );
+}
+
+describe('fill-only faces at night read as dark, legible, hue-kept surfaces', () => {
+  it('composer: the conveyor side lands at 8-15/255 on its brightest channel, still cool', () => {
+    const [r, g, b] = composerDisplayLevels(CONVEYOR_FILL_ONLY, 1);
+    expect(b).toBeGreaterThanOrEqual(8);
+    expect(b).toBeLessThanOrEqual(15);
+    expect(b).toBeGreaterThan(g);
+    expect(g).toBeGreaterThan(r);
+  });
+
+  it('composer and low agree on a neutral fill-only face, both legible', () => {
+    const composer = composerDisplayLevels(NEUTRAL_FILL_ONLY, 1);
+    const low = rendererDisplayLevels(NEUTRAL_FILL_ONLY);
+    expect(Math.max(...composer)).toBeGreaterThanOrEqual(8);
+    expect(Math.max(...low)).toBeGreaterThanOrEqual(8);
+    expect(Math.abs(composer[0] - low[0])).toBeLessThanOrEqual(3);
+  });
+
+  it('low: the conveyor side keeps its hue and reaches roughly 8-15/255', () => {
+    // Low has no contrast toe after the curve, so it sits a few levels above
+    // the composer on the same face.
+    const [r, g, b] = rendererDisplayLevels(CONVEYOR_FILL_ONLY);
+    expect(b).toBeGreaterThanOrEqual(8);
+    expect(b).toBeLessThanOrEqual(18);
+    expect(b).toBeGreaterThan(g);
+    expect(g).toBeGreaterThan(r);
+  });
+
+  it('the night stays dark: nothing above the lift ceiling moves on either tier', () => {
+    for (let x = 0.035; x <= 2; x += 0.005) {
+      expect(rendererDisplayLevels([x, x, x])[0]).toBe(
+        neutralToneMap([x, x, x], undefined, 0).map((v) => Math.round(255 * srgbEncode(v)))[0]
+      );
+    }
+  });
+
+  it('the lift stays inside its monotonic bound', () => {
+    // Grey output 6.25x^2 + a x (1 - x/c)^2 has a non-negative slope iff
+    // a <= 12.5 c / (4 - sqrt(12)).
+    expect(DISPLAY_TOE.liftAmount).toBeLessThanOrEqual(
+      (12.5 * DISPLAY_TOE.liftCeiling) / (4 - Math.sqrt(12))
+    );
+  });
+
+  it('the lifted grey toe is monotonic', () => {
+    let previous = -Infinity;
+    for (let x = 0; x <= 0.1; x += 0.0002) {
+      const [y] = neutralToneMap([x, x, x]);
+      expect(y).toBeGreaterThanOrEqual(previous);
+      previous = y;
+    }
+  });
+});
+
+describe('noon is exactly the stock image', () => {
+  it('the toe strength is zero in daylight and full at night', () => {
+    expect(nightToeStrength(1)).toBe(0);
+    expect(nightToeStrength(0.5)).toBe(0);
+    expect(nightToeStrength(0)).toBe(1);
+    expect(nightToeStrength(Number.NaN)).toBe(0);
+  });
+
+  it('at strength 0 every composer level equals the stock pipeline', () => {
+    for (const x of [0, 0.002, 0.006, 0.01, 0.02, 0.05, 0.2, 0.8]) {
+      for (const colour of [[x, x, x], [x, x * 0.1, x * 0.05], CONVEYOR_FILL_ONLY, MAROON]) {
+        expect(composerDisplayLevels(colour, 0)).toEqual(stockLevels(colour));
+      }
+    }
+  });
+
+  it('a saturated colour with one bright channel is untouched even at full strength', () => {
+    expect(composerDisplayLevels(MAROON, 1)).toEqual(stockLevels(MAROON));
   });
 });

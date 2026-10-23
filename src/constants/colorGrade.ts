@@ -114,36 +114,61 @@ export const COLOR_GRADE = {
 // === DISPLAY TOE ===
 
 /**
- * The contrast must not clip black.
+ * Night fill must read as very dark paint, not void.
  *
- * Stock `BrightnessContrastEffect` is a straight line through the encoded mid
- * pivot: `(c - 0.5) / (1 - contrast) + 0.5`. At +0.06 that line crosses zero at
- * c = 0.03, so every encoded value below about 8/255 lands on exactly 0, and
- * Neutral's quadratic toe puts a NEUTRAL scene value of about 0.019 there. At
- * night that is every surface lit only by the fill: the mill base plates, the
- * silo skirts, the conveyor's shaded side, the barrier's foot rendered as void
- * (0, 0, 0) instead of very dark paint. Coloured fill escaped because Neutral's
- * black offset is keyed on the MIN channel; once the night fill was pulled
- * toward neutral (`NIGHT_FILL_NEUTRALISE`) it no longer did.
+ * Two crushes stack on a face lit only by the night fill:
  *
- * Below `knee` (encoded) the line is replaced by the quadratic that meets it
- * with the same value and slope at the knee and passes through 0 at 0, so it
- * still darkens the toe but cannot clip it. Above the knee the grade is the
- * stock formula exactly, which keeps midday and every lit pool unchanged.
+ * 1. Khronos PBR Neutral (the operator on BOTH paths; AgX is not in use)
+ *    subtracts a black offset keyed on the MIN channel, `x - 6.25x^2`. At very
+ *    low values that leaves only the colour, so a neutral grey goes to almost
+ *    nothing: scene 0.006 displays at 1/255 on `low`. Coloured fill used to
+ *    escape; once `NIGHT_FILL_NEUTRALISE` pulled it toward grey, it no longer
+ *    did. The conveyor's shaded side at 22:00 is scene (0.004, 0.0048, 0.0067)
+ *    and displayed (0, 2, 6) at best.
+ * 2. The grade's contrast is a line through the encoded mid pivot that crosses
+ *    zero at encoded 0.03 (about 8/255), so everything below that clipped to
+ *    exactly 0 on the composer tiers.
  *
- * `knee` must stay at or above `-2 * lift / gain` (0.06 at +0.06 contrast), or
- * the quadratic's slope at black goes negative.
+ * The toe answers both, and only for pixels that are dark in EVERY channel:
+ *
+ * - `lift`: Neutral's output gains `amount * m * (1 - m/ceiling)^2` times the
+ *   pixel's own colour over its max channel `m` (scene-referred, after
+ *   exposure). It keeps the hue, vanishes with zero slope at `ceiling`, and is
+ *   monotonic on grey while `amount <= 12.5 * ceiling / (4 - sqrt(12))` (0.70). A pixel with any channel
+ *   above `ceiling` (a lamp, a lit pool, a saturated paint) is untouched.
+ * - `knee`: below it (encoded), contrast follows the cubic that leaves black
+ *   at slope 1 and meets the stock line with equal value and slope at the
+ *   knee, faded in by the pixel's max encoded channel between knee/2 and knee,
+ *   so a saturated colour's deep channels keep the stock line.
+ *
+ * Both scale with `nightToeStrength`, which is exactly 0 from dawn to dusk, so
+ * the day image is the stock image. `low` has no composer and no per-frame
+ * uniform on its tone curve, so it takes the lift at full strength at all
+ * hours (see `RENDERER_TONE_MAPPING`): at noon that touches only pixels dark in
+ * every channel.
  */
 export const DISPLAY_TOE = {
   knee: 0.12,
+  liftAmount: 0.65,
+  liftCeiling: 0.03,
 } as const;
 
 /**
- * Paired rendered control for the toe, never a cache key. Shared by every
- * `DisplayBrightnessContrastEffect`; `perfDebug.disableDisplayToe` writes it so
- * one page load can switch the toe off between two frames. 1 = toe, 0 = stock.
+ * Runtime strength of the composer toe, never a cache key: the night factor
+ * times the paired-control switch (`perfDebug.disableDisplayToe`). Written each
+ * frame by `PostProcessing`; shared by every `DisplayBrightnessContrastEffect`.
  */
 export const DISPLAY_TOE_STRENGTH = new THREE.Uniform(1);
+
+/**
+ * How much of the toe the current light wants: 0 from daylight 0.5 (sun on
+ * the horizon) up, rising to 1 at full dark. Noon is exactly 0.
+ */
+export function nightToeStrength(daylight: number): number {
+  if (!Number.isFinite(daylight)) return 0;
+  const t = Math.min(1, Math.max(0, daylight / 0.5));
+  return 1 - t * t * (3 - 2 * t);
+}
 
 /** sRGB transfer (OETF), linear 0-1 to encoded 0-1. Mirrors three's `sRGBTransferOETF`. */
 export function srgbEncode(linear: number): number {
@@ -151,20 +176,33 @@ export function srgbEncode(linear: number): number {
   return v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055;
 }
 
+/** The dark-pixel lift for an exposed scene colour, per channel. */
+export function darkPixelLift(exposed: readonly number[], strength: number): number[] {
+  const m = Math.max(exposed[0], exposed[1], exposed[2]);
+  if (!(m > 0) || m >= DISPLAY_TOE.liftCeiling || strength <= 0) return [0, 0, 0];
+  const u = 1 - m / DISPLAY_TOE.liftCeiling;
+  const amount = DISPLAY_TOE.liftAmount * m * u * u * Math.min(1, strength);
+  return exposed.map((v) => (amount * Math.max(v, 0)) / m);
+}
+
 /**
  * TypeScript mirror of three's `NeutralToneMapping` (Khronos PBR Neutral),
- * exposure included. `colorGrade.test.ts` locks it to the shader source.
+ * exposure included, plus the dark-pixel lift at `lift` strength (1 = the
+ * `low` path's curve, 0 = stock Neutral). `colorGrade.test.ts` locks the stock
+ * part to the shader source.
  */
 export function neutralToneMap(
   rgb: readonly number[],
-  exposure: number = TONE_EXPOSURE
+  exposure: number = TONE_EXPOSURE,
+  lift = 1
 ): [number, number, number] {
   const startCompression = 0.8 - 0.04;
   const desaturation = 0.15;
-  let c = rgb.map((v) => v * exposure);
-  const x = Math.min(c[0], c[1], c[2]);
+  const exposed = rgb.map((v) => v * exposure);
+  const x = Math.min(exposed[0], exposed[1], exposed[2]);
   const offset = x < 0.08 ? x - 6.25 * x * x : 0.04;
-  c = c.map((v) => v - offset);
+  const added = darkPixelLift(exposed, lift);
+  let c = exposed.map((v, i) => v - offset + added[i]);
   const peak = Math.max(c[0], c[1], c[2]);
   if (peak < startCompression) return [c[0], c[1], c[2]];
   const d = 1 - startCompression;
@@ -177,11 +215,14 @@ export function neutralToneMap(
 /**
  * One encoded channel through the grade's brightness/contrast, as
  * `DisplayBrightnessContrastEffect` computes it. `toeStrength` 0 is the stock
- * postprocessing line; 1 is the toe above.
+ * postprocessing line; at 1, a channel below the knee takes the cubic toe.
+ * `maxEncoded` is the pixel's brightest encoded channel, which fades the toe
+ * out between knee/2 and knee.
  */
 export function gradeContrast(
   encoded: number,
   toeStrength: number = DISPLAY_TOE_STRENGTH.value as number,
+  maxEncoded: number = encoded,
   brightness: number = COLOR_GRADE.brightness,
   contrast: number = COLOR_GRADE.contrast,
   knee: number = DISPLAY_TOE.knee
@@ -189,29 +230,40 @@ export function gradeContrast(
   const gain = contrast > 0 ? 1 / (1 - contrast) : 1 + contrast;
   const lift = (brightness - 0.5) * gain + 0.5;
   const line = encoded * gain + lift;
-  if (lift >= 0 || encoded >= knee) return line;
+  if (lift >= 0 || encoded >= knee || toeStrength <= 0) return line;
+  const t = Math.min(1, Math.max(0, (maxEncoded - knee / 2) / (knee / 2)));
+  const weight = (1 - t * t * (3 - 2 * t)) * Math.min(1, toeStrength);
+  if (weight <= 0) return line;
+  const delta = knee * gain + lift - knee;
+  const slope = gain - 1;
+  const b = (3 * delta - slope * knee) / (knee * knee);
+  const d = (slope * knee - 2 * delta) / (knee * knee * knee);
   const c = Math.max(encoded, 0);
-  const toe = c * (gain + (2 * lift) / knee) - (c * c * lift) / (knee * knee);
-  return line + (toe - line) * toeStrength;
+  const toe = c + b * c * c + d * c * c * c;
+  return line + (toe - line) * weight;
 }
 
 /**
- * 8-bit display level of a scene-linear colour on the composer tiers: Neutral,
- * then the encoded contrast, ignoring saturation (identity on a neutral input)
- * and the vignette (frame position).
+ * 8-bit display level of a scene-linear colour on the composer tiers: Neutral
+ * with the dark-pixel lift, then the encoded contrast, both at `toeStrength`.
+ * Ignores saturation (identity on a neutral input) and the vignette.
  */
 export function composerDisplayLevels(
   linear: readonly number[],
   toeStrength: number = DISPLAY_TOE_STRENGTH.value as number
 ): number[] {
-  return neutralToneMap(linear).map((v) =>
-    Math.round(255 * Math.min(1, Math.max(0, gradeContrast(srgbEncode(v), toeStrength))))
+  const encoded = neutralToneMap(linear, TONE_EXPOSURE, toeStrength).map(srgbEncode);
+  const max = Math.max(...encoded);
+  return encoded.map((v) =>
+    Math.round(255 * Math.min(1, Math.max(0, gradeContrast(v, toeStrength, max))))
   );
 }
 
-/** 8-bit display level on the no-composer (`low`) path: Neutral, then sRGB. */
+/** 8-bit display level on the no-composer (`low`) path: lifted Neutral, then sRGB. */
 export function rendererDisplayLevels(linear: readonly number[]): number[] {
-  return neutralToneMap(linear).map((v) => Math.round(255 * Math.min(1, srgbEncode(v))));
+  return neutralToneMap(linear, TONE_EXPOSURE, 1).map((v) =>
+    Math.round(255 * Math.min(1, srgbEncode(v)))
+  );
 }
 
 // === VIGNETTE ===
