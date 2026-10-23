@@ -198,7 +198,6 @@ const MATERIALS = {
   strut: steel('#475569', 0.8, { roughnessMap: POST_ORM }),
   trim: steel('#64748b', 0.7, { roughnessMap: HEADER_ORM }),
   plate: steel('#475569', 0.7, { roughnessMap: PLATE_ORM, normalMap: PLATE_NORMAL }),
-  plateRib: steel('#334155', 0.5, { roughnessMap: PLATE_ORM }),
   /** Lamp housing: painted pressed steel, small enough for no relief map. */
   housing: steel('#1e293b', 0.6, {}),
   sign: applyWorldSurface(
@@ -302,6 +301,23 @@ const LAMP_MATERIALS = {
  * mesh cannot move, and a merged material cannot change colour, so batching
  * this would silently restore the zero it exists to remove.
  */
+/**
+ * The leveler's parts, in its pivot group's frame (pivot 0.08 m up, at the
+ * inboard edge).
+ *
+ * There were five 0.1 x 0.02 m ribs along it as well. From the milling camera
+ * (31 m, 8 degrees) a rib projects to 1.7 px and broke into a dark stippled
+ * dash line across the threshold (final3 med-12). A leveler deck is a flat
+ * tread plate; its tread is the plate's own normal map.
+ */
+export function dockLevelerParts(width: number): {
+  role: 'plate' | 'relief';
+  position: readonly [number, number, number];
+  scale: readonly [number, number, number];
+}[] {
+  return [{ role: 'plate', position: [0, 0, 1], scale: [width - 1, 0.15, 2] }];
+}
+
 // ~7.5 degrees: the outboard lip lifts toward the trailer bed, which sits above the dock floor.
 const LEVELER_DEPLOYED_PITCH = -0.13;
 const LEVELER_SMOOTH_TIME = 0.55; // Seconds to converge; a hydraulic ram is slow.
@@ -354,20 +370,14 @@ const DockMechanism: React.FC<DockMechanismProps> = ({
       {/* Dock leveler platform. The pivot is at the inboard edge so the lip
           swings out over the trailer rather than the whole plate sinking. */}
       <group ref={levelerRef} position={[0, 0.08, 0]}>
-        <mesh
-          geometry={UNIT_BOX}
-          material={MATERIALS.plate}
-          scale={[width - 1, 0.15, 2]}
-          position={[0, 0, 1]}
-          castShadow
-        />
-        {[-6, -3, 0, 3, 6].map((x, index) => (
+        {dockLevelerParts(width).map((part, index) => (
           <mesh
-            key={`leveler-rib-${index}`}
+            key={`leveler-${part.role}-${index}`}
             geometry={UNIT_BOX}
-            material={MATERIALS.plateRib}
-            scale={[0.1, 0.02, 1.8]}
-            position={[x, 0.08, 1]}
+            material={MATERIALS.plate}
+            scale={[...part.scale]}
+            position={[...part.position]}
+            castShadow={part.role === 'plate'}
           />
         ))}
       </group>

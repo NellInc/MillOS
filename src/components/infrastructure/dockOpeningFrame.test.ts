@@ -7,7 +7,9 @@ import {
   dockFrameFlangeSpans,
   dockHoodBraces,
   dockHoodSlab,
+  dockLevelerParts,
 } from './OpenDockOpening';
+import { SITE_LAYOUT } from '../../constants/siteLayout';
 
 describe('dock steel panel pitch', () => {
   it('draws panels about 1.2 m across, not a 0.3 m tile grid', () => {
@@ -74,6 +76,42 @@ describe('dock opening frame flanges', () => {
       // The inner flange has no header flange to meet and keeps full height.
       expect(spans.innerPostFlange.y1).toBe(height);
     }
+  });
+});
+
+// final3 med-12 milling, dock threshold (x 2280-2400, y 890-910): "a dark
+// stippled dash line". The probe put every stipple pixel on the leveler plate
+// at x -6.2, z 48.2-49.6: the plate's x = -6 rib, a 20 mm strip running into
+// the hall, seen from 31 m at 8 degrees. Its face and top together project to
+// 1.7 px, so it broke into dashes along its length.
+describe('dock leveler plate', () => {
+  it('stands no relief on the plate that the milling camera sees under 2 px', () => {
+    const parts = dockLevelerParts(30);
+    const plate = parts.find((part) => part.role === 'plate');
+    expect(plate).toBeDefined();
+    expect(plate!.scale[0]).toBe(29);
+    const { position, target, fov } = SITE_LAYOUT.cameras.milling;
+    const pixelAngle = (2 * Math.tan((fov * Math.PI) / 360)) / 1440;
+    for (const part of parts.filter((p) => p.role === 'relief')) {
+      // The shipping opening stands at z 48 with the leveler's pivot 0.08 up.
+      const centre = [part.position[0], part.position[1] + 0.08, part.position[2] + 48];
+      const distance = Math.hypot(
+        centre[0] - position[0],
+        centre[1] - position[1],
+        centre[2] - position[2]
+      );
+      const elevation = Math.atan2(
+        position[1] - centre[1],
+        Math.hypot(centre[0] - position[0], centre[2] - position[2])
+      );
+      const projected =
+        part.scale[1] + Math.min(part.scale[0], part.scale[2]) * Math.sin(elevation);
+      expect(
+        projected / (distance * pixelAngle),
+        `relief at ${part.position}`
+      ).toBeGreaterThanOrEqual(2);
+    }
+    expect(target).toBeDefined();
   });
 });
 
