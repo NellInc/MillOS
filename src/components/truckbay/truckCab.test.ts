@@ -9,6 +9,10 @@ import {
   TRAILER_TOP_RAILS,
   TRUCK_CAB_BEVELS,
   TRUCK_CAB_SHELL,
+  TRUCK_CAB_SIDE_GLASS,
+  TRUCK_CAB_SIDE_PANELS,
+  TRUCK_CAB_WINDOW_LINERS,
+  TRUCK_WHEEL_LAYOUT,
   TRUCK_CORNER_DEFLECTORS,
   TRUCK_RIM_PROFILE,
   TRUCK_TYRE_PROFILE,
@@ -136,6 +140,53 @@ describe('tractor cab', () => {
       expect(z).toBeLessThan(cab.front);
       expect(z).toBeGreaterThan(cab.front - 0.6);
     }
+  });
+});
+
+/**
+ * final4 med-12 shipping (left) and overview: the cab read as a hollow wire
+ * frame under a floating roof. Above the shell (y 2.025) its sides were open
+ * but for one 0.55-opacity pane each, so the far window, the sky and the gap
+ * under the roof showed through. And the trailer's two axles sat at mid-length
+ * and at the tail, where a semi-trailer runs a rear tandem.
+ */
+describe('tractor cab sides', () => {
+  const inside = (d: DetailInstance, y: number, z: number) =>
+    y >= lo(d, 1) && y <= hi(d, 1) && z >= lo(d, 2) && z <= hi(d, 2);
+
+  it('closes each upper side in paint, with the glass backed by a solid liner', () => {
+    for (const side of [-1, 1]) {
+      const panels = TRUCK_CAB_SIDE_PANELS.filter((p) => Math.sign(p.position[0]) === side);
+      const liners = TRUCK_CAB_WINDOW_LINERS.filter((p) => Math.sign(p.position[0]) === side);
+      const glass = TRUCK_CAB_SIDE_GLASS;
+      expect(liners).toHaveLength(1);
+      // From the shell top to the roof, from the back wall to the A pillar.
+      for (let y = 2.05; y <= 3.55; y += 0.05)
+        for (let z = 1.6; z <= 4.7; z += 0.05) {
+          const glazed = y >= glass.y[0] && y <= glass.y[1] && z >= glass.z[0] && z <= glass.z[1];
+          const closed = glazed
+            ? liners.some((liner) => inside(liner, y, z))
+            : panels.some((panel) => inside(panel, y, z));
+          expect(closed, `side ${side} open at y ${y.toFixed(2)}, z ${z.toFixed(2)}`).toBe(true);
+        }
+      // Panels flush inside the glass plane, liners behind it.
+      for (const panel of panels) expect(Math.abs(hi(panel, 0) * side)).toBeLessThanOrEqual(1.3);
+      for (const liner of liners) expect(Math.abs(liner.position[0])).toBeLessThan(glass.x - 0.05);
+    }
+  });
+});
+
+describe('trailer axles', () => {
+  it('runs the trailer on a rear tandem, both axles in its rear third', () => {
+    const trailerAxles = [
+      ...new Set(TRUCK_WHEEL_LAYOUT.filter((w) => w[3]).map((w) => w[2] as number)),
+    ].sort((a, b) => a - b);
+    expect(trailerAxles).toHaveLength(2);
+    // Trailer body z -11.35 to -0.15.
+    for (const z of trailerAxles) expect(z).toBeLessThan(-0.15 - (2 / 3) * 11.2);
+    const spread = trailerAxles[1] - trailerAxles[0];
+    expect(spread).toBeGreaterThan(1.1);
+    expect(spread).toBeLessThan(1.6);
   });
 });
 
