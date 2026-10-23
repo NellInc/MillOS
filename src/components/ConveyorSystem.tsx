@@ -1255,12 +1255,22 @@ const ROLLER_GEOMETRY = createIdlerRollerGeometry();
  * this size is already inside the site's stylization budget.
  */
 const AXLE_GEOMETRY = new THREE.CylinderGeometry(0.05, 0.05, 0.1, 8);
-const ROLLER_COUNT = 25;
+/**
+ * Idler pitch. It was 1 m - 0.3 m barrels with 0.7 m of air between, a rack
+ * rather than a roller bed (final4 packing: "about 0.5 m apart; real ones are
+ * 0.1-0.15 m"). A bed pitches its rollers at 1.25-1.5 barrel diameters: 0.4 m
+ * over the same 24 m run, 61 instances in the same single draw.
+ */
+const IDLER_ROLLER_PITCH = 0.4;
+export const IDLER_ROLLER_COUNT = Math.round(24 / IDLER_ROLLER_PITCH) + 1;
+const ROLLER_COUNT = IDLER_ROLLER_COUNT;
+/** Local x of idler `i`, from -12 to 12. */
+export const idlerRollerX = (i: number): number => -12 + i * IDLER_ROLLER_PITCH;
 
 // Module-level temp objects to avoid GC pressure in useFrame
 const _tempEuler = new THREE.Euler();
 
-// Instanced roller conveyor - 25 rollers rendered in 1 draw call
+// Instanced roller conveyor - IDLER_ROLLER_COUNT rollers rendered in 1 draw call
 export const RollerConveyor: React.FC<{
   position: [number, number, number];
   drive: ConveyorDrive;
@@ -1301,7 +1311,7 @@ export const RollerConveyor: React.FC<{
     const baseRotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0));
 
     for (let i = 0; i < ROLLER_COUNT; i++) {
-      tempPosition.set(-12 + i * 1, 0.25, 0);
+      tempPosition.set(idlerRollerX(i), 0.25, 0);
       tempMatrix.compose(tempPosition, baseRotation, tempScale);
       rollersRef.current.setMatrixAt(i, tempMatrix);
     }
@@ -1316,12 +1326,12 @@ export const RollerConveyor: React.FC<{
 
     for (let i = 0; i < ROLLER_COUNT; i++) {
       // Front axle
-      tempPosition.set(-12 + i * 1, 0.25, -1.05);
+      tempPosition.set(idlerRollerX(i), 0.25, -1.05);
       tempMatrix.compose(tempPosition, baseRotation, tempScale);
       axlesRef.current.setMatrixAt(i * 2, tempMatrix);
 
       // Back axle
-      tempPosition.set(-12 + i * 1, 0.25, 1.05);
+      tempPosition.set(idlerRollerX(i), 0.25, 1.05);
       tempMatrix.compose(tempPosition, baseRotation, tempScale);
       axlesRef.current.setMatrixAt(i * 2 + 1, tempMatrix);
     }
@@ -1343,7 +1353,7 @@ export const RollerConveyor: React.FC<{
 
   useFrame((_, delta) => {
     // PERFORMANCE: Skip animations when tab hidden or the line is still.
-    // Runs on Low too: 25 instance matrices every third frame is trivial, and a
+    // Runs on Low too: 61 instance matrices every third frame is trivial, and a
     // stationary roller line beside moving belts read as broken.
     const rate = drive.rate;
     if (!isTabVisible || rate <= 0) return;
@@ -1371,7 +1381,7 @@ export const RollerConveyor: React.FC<{
       // directly - (0,1,0) through set(PI/2, 0, PI/2) lands at (-1, 0, 0),
       // through set(PI/2, theta, 0) it stays (0, 0, 1) for every theta.
       // A smooth tube half hid this; the designed roller ends do not.
-      tempPosition.set(-12 + i * 1, 0.25, 0);
+      tempPosition.set(idlerRollerX(i), 0.25, 0);
       _tempEuler.set(Math.PI / 2, rotationsRef.current[i], 0);
       tempQuaternion.setFromEuler(_tempEuler);
       tempMatrix.compose(tempPosition, tempQuaternion, tempScale);
@@ -1408,7 +1418,7 @@ export const RollerConveyor: React.FC<{
         <primitive object={CONVEYOR_MATERIALS.paintedSlate} attach="material" />
       </mesh>
 
-      {/* Instanced Rollers - 25 rollers in 1 draw call - NO SHADOW for rotating parts */}
+      {/* Instanced Rollers - one draw call - NO SHADOW for rotating parts */}
       <instancedMesh ref={rollersRef} args={[ROLLER_GEOMETRY, undefined, ROLLER_COUNT]}>
         {/* The branch's one flat row (25 m over 25 instances), now finished in
             OBJECT space because these spin - see `conveyorSurfaces.ts`. */}
