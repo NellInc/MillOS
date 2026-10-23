@@ -130,12 +130,46 @@ describe('fill-only faces at night read as dark, legible, hue-kept surfaces', ()
     expect(g).toBeGreaterThan(r);
   });
 
-  it('composer and low agree on a neutral fill-only face, both legible', () => {
+  it('composer and low agree on a neutral fill-only face, both off the void', () => {
+    // A hypothetical value ("the same light on neutral paint"), unlike the
+    // conveyor, which was read live. Round 5 pinned it at 8/255; that lift
+    // flattened the pallet stacks at med-22 (see the local-contrast tests
+    // below), so it is pinned to the same 3/255 floor as the base plates:
+    // stock clips it to 0.
     const composer = composerDisplayLevels(NEUTRAL_FILL_ONLY, 1);
     const low = rendererDisplayLevels(NEUTRAL_FILL_ONLY);
-    expect(Math.max(...composer)).toBeGreaterThanOrEqual(8);
-    expect(Math.max(...low)).toBeGreaterThanOrEqual(8);
+    expect(stockLevels(NEUTRAL_FILL_ONLY)).toEqual([0, 0, 0]);
+    expect(Math.max(...composer)).toBeGreaterThanOrEqual(3);
+    expect(Math.max(...low)).toBeGreaterThanOrEqual(3);
     expect(Math.abs(composer[0] - low[0])).toBeLessThanOrEqual(3);
+  });
+
+  /**
+   * Round 5's lift (amount 0.65) was nearly flat across scene 0.01-0.025: a
+   * slat at 0.012 and a face at 0.02 both displayed at 10/255, and the pallet
+   * stacks at med-22 read as flat brown blocks (lc-pallets2, sh-pallets). The
+   * lift may raise the dark end, but it must keep local contrast: the grey
+   * curve's elasticity d(log out)/d(log in) is 1 for a pure gain, and 0 is a
+   * plateau.
+   */
+  it('keeps local contrast through the lift: grey elasticity stays at or above 0.5', () => {
+    const grey = (x: number) => neutralToneMap([x, x, x], 1, 1)[0];
+    for (let x = 0.002; x < DISPLAY_TOE.liftCeiling; x += 0.0005) {
+      const h = x * 1e-3;
+      const elasticity = (Math.log(grey(x + h)) - Math.log(grey(x - h))) / (2 * h / x);
+      expect(elasticity, `x ${x.toFixed(4)}`).toBeGreaterThanOrEqual(0.5);
+    }
+  });
+
+  it('two fill-lit faces with 40% less light on one stay at least two levels apart', () => {
+    for (const [dim, lit] of [
+      [0.012, 0.02],
+      [0.006, 0.01],
+    ]) {
+      const a = composerDisplayLevels([dim, dim, dim], 1)[0];
+      const b = composerDisplayLevels([lit, lit, lit], 1)[0];
+      expect(b - a, `${dim} vs ${lit}`).toBeGreaterThanOrEqual(2);
+    }
   });
 
   it('low: the conveyor side keeps its hue and reaches roughly 8-15/255', () => {

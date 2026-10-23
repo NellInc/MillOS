@@ -150,6 +150,17 @@ export const COLOR_GRADE = {
  *   knee, faded in by the pixel's max encoded channel between knee/2 and knee,
  *   so a saturated colour's deep channels keep the stock line.
  *
+ * The lift's amount is bounded by local contrast as well as by monotonicity.
+ * Round 5's 0.65 sat near the monotonic bound, where the grey curve is almost
+ * flat across scene 0.01-0.025 (elasticity d(log out)/d(log in) down to 0.07):
+ * a slat at 0.012 and a face at 0.02 both displayed at 10/255, and the pallet
+ * stacks at med-22 read as flat brown blocks. At 0.3 the elasticity stays
+ * above 0.6, so those two faces sit 3 levels apart, while the conveyor's west
+ * side still reaches 11/255 on its blue channel and a 0.02 base plate 9/255.
+ * What it cannot restore is round 4's slat/gap step, which came from Neutral
+ * crushing near-neutral pixels harder than saturated ones at the same light:
+ * undoing that crush is the lift's purpose.
+ *
  * Both scale with `nightToeStrength`, which is exactly 0 from dawn to dusk, so
  * the day image is the stock image. `low` has no composer and no per-frame
  * uniform on its tone curve, so it takes the lift at full strength at all
@@ -158,7 +169,7 @@ export const COLOR_GRADE = {
  */
 export const DISPLAY_TOE = {
   knee: 0.12,
-  liftAmount: 0.65,
+  liftAmount: 0.3,
   liftCeiling: 0.03,
 } as const;
 
