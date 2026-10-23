@@ -78,6 +78,7 @@ import {
 } from '../../textures';
 import { applyWorldSurface } from '../../utils/worldSurface';
 import { POLYGON_OFFSET } from '../../constants/renderLayers';
+import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { generateGalvanizedORM, generateGalvanizedNormal } from '../../textures/brushedMetal';
 import { generateEnamelORM } from '../../textures/paintedMetal';
 import { createColorDataTexture, getTexture } from '../../utils/textureGenerator';
@@ -230,7 +231,7 @@ const PLATE_ORM = band(HOUSING_ORM, 4, 2);
  * the program key alongside this string (`WebGLPrograms.getProgramCacheKey`),
  * so permutations still split properly.
  */
-export const MACHINE_WEAR_CACHE_KEY = 'machineWear_v5';
+export const MACHINE_WEAR_CACHE_KEY = 'machineWear_v6';
 
 /** Share of the silo drum's 180 streak columns that carry run-off, per ring. */
 export const SILO_STREAK_LIVE_FRACTION = 0.16;
@@ -316,6 +317,87 @@ export function siloPatinaCoverage(field: number, share: number): number {
   );
 }
 
+/**
+ * The drum's ribbed read at distance (final4-med-12 overview and farm, low-12:
+ * five drums as one flat white plaster block). Once the fine 15.6 cm ribs fade
+ * to their mean (SILO_CORRUGATION_FADE) nothing was left to say "corrugated".
+ * Their place is taken by a TONE band at the lathe's own 0.625 m wave
+ * (SILO_SHELL_PROFILE): the up-facing flank of each wave lighter and glossier,
+ * the down-facing flank darker and duller, mean-preserving, box-filtered over
+ * the pixel footprint so it converges to the mean before it can alias. No
+ * normal is tilted, so the sky-to-horizon flip that smeared final3's bands
+ * cannot come back, and close up, where the fine ribs are drawn, it is off.
+ *
+ *   albedo     crest-to-trough swing on the diffuse colour (and the metal F0)
+ *   roughness  the same band on roughness, glossier on the up-facing flank
+ */
+export const SILO_RIB_TONE = { albedo: 0.12, roughness: 0.14 } as const;
+/** Coarse-wave cycles per pixel over which the tone band itself fades out (3.3 px to 2 px). */
+export const SILO_RIB_TONE_FADE = [0.3, 0.5] as const;
+
+/**
+ * TS mirror of the shader's coarse rib band, -1..1 before its amplitudes: the
+ * lathe wave's up-facing flank positive. `phase` in coarse cycles, `cyclesPerPixel`
+ * its footprint, `fineFade` the fine ribs' own fade (1 = drawn, 0 = gone).
+ */
+export function siloRibBand(phase: number, cyclesPerPixel: number, fineFade: number): number {
+  const w = Math.max(cyclesPerPixel, 1e-4);
+  const box = Math.sin(Math.PI * Math.min(w, 1)) / (Math.PI * w);
+  const [edge0, edge1] = SILO_RIB_TONE_FADE;
+  const t = THREE.MathUtils.clamp((w - edge0) / (edge1 - edge0), 0, 1);
+  const keep = box * (1 - t * t * (3 - 2 * t));
+  return Math.sin(2 * Math.PI * phase) * keep * (1 - THREE.MathUtils.clamp(fineFade, 0, 1));
+}
+
+/**
+ * Run-off stains that survive distance. The ring run-off (`machineGalvRun`)
+ * lives in 0.2 m columns and fades with them, so from the overview the drums
+ * carried no weathering at all. These sit in 48 columns (0.79 m), a share of
+ * them live, each a soft streak running 0.75-3.5 m down from a ring or the
+ * eave: darker zinc, duller.
+ */
+export const SILO_STAIN = { columns: 48, liveFraction: 0.45, strength: 0.16 } as const;
+
+/**
+ * The 1 m valley between neighbouring bins. Each drum's face toward its
+ * neighbour sees mostly the neighbour's wall, not sky, so its indirect light
+ * (sky diffuse and reflection) is occluded. Without it the five drums merged
+ * into one white slab at distance. `pitch` is the bin spacing along world Z;
+ * the end bins have one neighbour.
+ */
+export const SILO_VALLEY = { occlusion: 0.4, faceCos: [0.55, 1] as const } as const;
+
+/** The battery's bin axes along world Z (SITE_LAYOUT): first, last, spacing. */
+export function siloBatteryExtent(): [number, number, number] {
+  const zs = SITE_LAYOUT.machines.silos.map((silo) => silo.position[2]).sort((a, b) => a - b);
+  const pitch = zs.length > 1 ? zs[1] - zs[0] : 0;
+  return [zs[0] ?? 0, zs[zs.length - 1] ?? 0, pitch];
+}
+
+/**
+ * TS mirror of the shader's valley occlusion: the factor (1 = open) on the
+ * indirect light of a drum face whose outward XZ direction is `outward`, on
+ * the bin whose axis is at world Z `axisZ`.
+ */
+export function siloValleyOcclusion(
+  outward: readonly [number, number],
+  axisZ: number,
+  strength: number = SILO_VALLEY.occlusion
+): number {
+  const [zMin, zMax, pitch] = siloBatteryExtent();
+  if (!(pitch > 0)) return 1;
+  const length = Math.hypot(outward[0], outward[1]) || 1;
+  const z = outward[1] / length;
+  const plus = axisZ + pitch <= zMax + 0.5 ? smoothstepValue(...SILO_VALLEY.faceCos, z) : 0;
+  const minus = axisZ - pitch >= zMin - 0.5 ? smoothstepValue(...SILO_VALLEY.faceCos, -z) : 0;
+  return 1 - strength * Math.max(plus, minus);
+}
+
+function smoothstepValue(edge0: number, edge1: number, value: number): number {
+  const t = THREE.MathUtils.clamp((value - edge0) / (edge1 - edge0), 0, 1);
+  return t * t * (3 - 2 * t);
+}
+
 // ---------------------------------------------------------------------------
 // Silo floods, lit through the galvanised BRDF
 // ---------------------------------------------------------------------------
@@ -377,6 +459,17 @@ export const SILO_FLOOD_PROFILE = {
    */
   cap: 1.2,
 } as const;
+
+/**
+ * World normal Y over which a down-facing face loses the floods: from -0.3
+ * (a wall tilted 17 degrees down still takes them) to nothing at -0.6. The
+ * only down faces round a head are the roof's eave overhang (the rings are
+ * open-ended). Square to the near-vertical beam it took the ledge cap between
+ * heads and a sixth of that over each one, where its ray left the beam: a
+ * sub-pixel ring 1.4x as bright as the wall, broken into six dashes a bin
+ * (final4-med-22 yard). A ground uplight's beam ends at the eave.
+ */
+export const SILO_FLOOD_LEDGE = [-0.6, -0.3] as const;
 
 const smoothstep = (edge0: number, edge1: number, value: number): number => {
   const t = THREE.MathUtils.clamp((value - edge0) / (edge1 - edge0), 0, 1);
@@ -443,7 +536,11 @@ export function siloFloodHeadIrradiance(
     (normal[0] * toFlood[0] + normal[1] * toFlood[1] + normal[2] * toFlood[2]) / r,
     0
   );
-  return level * Math.min((candela * ndl) / r2, SILO_FLOOD_PROFILE.cap * SILO_FLOOD_PROFILE.peak);
+  return (
+    level *
+    smoothstep(SILO_FLOOD_LEDGE[0], SILO_FLOOD_LEDGE[1], normal[1]) *
+    Math.min((candela * ndl) / r2, SILO_FLOOD_PROFILE.cap * SILO_FLOOD_PROFILE.peak)
+  );
 }
 
 const WEAR_VERTEX_PARS = /* glsl */ `
@@ -503,6 +600,9 @@ uniform vec2 uMachineCorrugation;
 uniform vec2 uMachinePatina;
 uniform vec4 uMachineFlood;
 uniform vec3 uMachineFloodColor;
+uniform vec4 uMachineRib;
+uniform vec4 uMachineBattery;
+uniform vec2 uMachineGroundHorizon;
 varying vec3 vMachineObject;
 varying vec2 vMachineAxis;
 // SILO_FLOOD_PROFILE: irradiance up the wall line facing a flood, h above its head.
@@ -563,6 +663,17 @@ float machineGalvRun( float datum, float ring, float column, float across, float
   return step( ${(1 - SILO_STREAK_LIVE_FRACTION).toFixed(3)}, seed ) * profile * strength * broken *
     smoothstep( 0.0, 0.006, below ) * exp( - max( below, 0.0 ) / runLength );
 }
+// SILO_STAIN: broad run-off that survives distance, one ring or the eave per call.
+float machineGalvStain( float datum, float ring, float column, float across, float y ) {
+  float below = datum - y;
+  float seed = machineGalvHash( vec3( column, ring * 5.0, 23.0 ) );
+  float shape = machineGalvHash( vec3( column, ring * 5.0, 29.0 ) );
+  float profile = 1.0 - smoothstep( 0.0, 0.15 + 0.25 * fract( shape * 5.7 ), abs( across - ( 0.3 + 0.4 * shape ) ) );
+  float runLength = mix( 0.03, 0.14, fract( seed * 11.3 ) );
+  float strength = 0.4 + 0.6 * fract( seed * 3.7 );
+  return step( ${(1 - SILO_STAIN.liveFraction).toFixed(3)}, seed ) * profile * strength *
+    smoothstep( 0.0, 0.01, below ) * exp( - max( below, 0.0 ) / runLength );
+}
 #endif
 `;
 
@@ -596,6 +707,7 @@ const GALVANISED_FRAGMENT_BODY = /* glsl */ `
 // comes from the bin axis, not the lathe's wave (SILO_SHELL_PROFILE), and what
 // the maps added on top (the fine corrugation) is kept, faded to its mean as
 // its ridges approach a pixel (SILO_CORRUGATION_FADE) so it cannot alias.
+float galvRibBand = 0.0;
 if ( uMachineCorrugation.y > 0.5 ) {
   vec3 galvRadial = vec3( vMachineWorldPos.x - vMachineAxis.x, 0.0, vMachineWorldPos.z - vMachineAxis.y );
   galvRadial = normalize( ( viewMatrix * vec4( galvRadial, 0.0 ) ).xyz );
@@ -604,6 +716,14 @@ if ( uMachineCorrugation.y > 0.5 ) {
   vec3 galvCorrugated = normalize( galvRadial + ( normal - nonPerturbedNormal ) * galvFineFade );
   // Wall only: the lathe's end caps sit under the roof and on the skirt.
   normal = mix( normal, galvCorrugated, 1.0 - step( 0.7, abs( vMachineWorldNormal.y ) ) );
+  // SILO_RIB_TONE: the lathe wave as a box-filtered tone band, taking over as
+  // the fine ribs fade; positive on the up-facing flank (sin of the phase).
+  float galvCoarsePhase = ( vMachineObject.y + 0.5 ) * ${SILO_SHELL_PROFILE.ridges.toFixed(1)};
+  float galvCoarseW = max( fwidth( galvCoarsePhase ), 1e-4 );
+  float galvCoarseKeep = sin( PI * min( galvCoarseW, 1.0 ) ) / ( PI * galvCoarseW ) *
+    ( 1.0 - smoothstep( ${SILO_RIB_TONE_FADE[0].toFixed(3)}, ${SILO_RIB_TONE_FADE[1].toFixed(3)}, galvCoarseW ) );
+  galvRibBand = sin( 6.28318530718 * galvCoarsePhase ) * galvCoarseKeep * ( 1.0 - galvFineFade ) *
+    ( 1.0 - step( 0.7, abs( vMachineWorldNormal.y ) ) );
 }
 // Patina as weathering runs: long down the drum, narrow around it.
 float galvPatinaField =
@@ -626,10 +746,27 @@ float galvDrip = max(
   )
 );
 galvDrip *= ( 1.0 - smoothstep( 0.25, 0.6, fwidth( galvColumns ) ) ) * uMachineGalv.w;
+float galvStain = 0.0;
+if ( uMachineRib.z > 0.0 ) {
+  float galvStainColumns = ( atan( vMachineObject.z, vMachineObject.x ) / 6.28318530718 + 0.5 ) * ${SILO_STAIN.columns.toFixed(1)};
+  float galvStainColumn = floor( galvStainColumns );
+  float galvStainAcross = fract( galvStainColumns );
+  galvStain = max(
+    max(
+      machineGalvStain( uMachineRings.x, 0.0, galvStainColumn, galvStainAcross, vMachineObject.y ),
+      machineGalvStain( uMachineRings.y, 1.0, galvStainColumn, galvStainAcross, vMachineObject.y )
+    ),
+    max(
+      machineGalvStain( uMachineRings.z, 2.0, galvStainColumn, galvStainAcross, vMachineObject.y ),
+      machineGalvStain( uMachineRings.w, 3.0, galvStainColumn, galvStainAcross, vMachineObject.y )
+    )
+  ) * ( 1.0 - smoothstep( 0.35, 0.7, fwidth( galvStainColumns ) ) ) * uMachineRib.z;
+}
 metalnessFactor *= 1.0 - galvPatina;
 roughnessFactor = mix( roughnessFactor * uMachineGalv.y, 0.82, galvPatina );
-diffuseColor.rgb *= 1.0 - 0.07 * galvPatina - 0.22 * galvDrip;
-roughnessFactor = clamp( roughnessFactor + 0.18 * galvDrip, 0.04, 1.0 );
+diffuseColor.rgb *= 1.0 - 0.07 * galvPatina - 0.22 * galvDrip - galvStain;
+diffuseColor.rgb *= 1.0 + uMachineRib.x * galvRibBand;
+roughnessFactor = clamp( roughnessFactor + 0.18 * galvDrip + 0.6 * galvStain - uMachineRib.y * galvRibBand, 0.04, 1.0 );
 #endif
 `;
 
@@ -663,7 +800,7 @@ const GALVANISED_LIGHT_BODY = /* glsl */ `
   // onto its lower third. Pull what it reflects BELOW the horizon, and the
   // diffuse bounce on the patina, to their own luminance.
   vec3 galvReflectWorld = inverseTransformDirection( reflect( - geometryViewDir, normal ), viewMatrix );
-  float galvGround = smoothstep( ${SILO_GROUND_HORIZON[0].toFixed(3)}, ${SILO_GROUND_HORIZON[1].toFixed(3)}, galvReflectWorld.y ) * uMachineGalvGround;
+  float galvGround = smoothstep( uMachineGroundHorizon.x, uMachineGroundHorizon.y, galvReflectWorld.y ) * uMachineGalvGround;
   float galvSpecLuma = dot( reflectedLight.indirectSpecular, vec3( 0.2126, 0.7152, 0.0722 ) );
   reflectedLight.indirectSpecular = mix( reflectedLight.indirectSpecular, vec3( galvSpecLuma ), galvGround );
   float galvDiffLuma = dot( reflectedLight.indirectDiffuse, vec3( 0.2126, 0.7152, 0.0722 ) );
@@ -673,10 +810,25 @@ const GALVANISED_LIGHT_BODY = /* glsl */ `
     ${SILO_GROUND_BOUNCE.toFixed(3)} * uMachineGalvGround
   );
 }
+// SILO_VALLEY: the face toward a neighbouring bin 1 m away sees its wall, not
+// the sky. Occludes the indirect light only, as three's own aoMap does.
+if ( uMachineBattery.w > 0.0 && uMachineBattery.z > 0.0 ) {
+  vec2 galvOut = vMachineWorldPos.xz - vMachineAxis;
+  galvOut /= max( length( galvOut ), 1e-3 );
+  float galvPlus = step( vMachineAxis.y + uMachineBattery.z, uMachineBattery.y + 0.5 ) *
+    smoothstep( ${SILO_VALLEY.faceCos[0].toFixed(3)}, ${SILO_VALLEY.faceCos[1].toFixed(3)}, galvOut.y );
+  float galvMinus = step( uMachineBattery.x - 0.5, vMachineAxis.y - uMachineBattery.z ) *
+    smoothstep( ${SILO_VALLEY.faceCos[0].toFixed(3)}, ${SILO_VALLEY.faceCos[1].toFixed(3)}, - galvOut.y );
+  float galvValley = 1.0 - uMachineBattery.w * max( galvPlus, galvMinus );
+  reflectedLight.indirectDiffuse *= galvValley;
+  reflectedLight.indirectSpecular *= galvValley;
+}
 // The ground floods round this bin (SILO_FLOOD_LIGHT), through the same BRDF
 // as the sun: diffuse on the patina, a specular lobe on the spangle, the
 // corrugation catching it. Skipped outright while the lamps are off.
-if ( uMachineFlood.x > 0.0 ) {
+// Down-facing faces (the eave overhang) take none (SILO_FLOOD_LEDGE).
+float galvFloodLedge = smoothstep( ${SILO_FLOOD_LEDGE[0].toFixed(3)}, ${SILO_FLOOD_LEDGE[1].toFixed(3)}, vMachineWorldNormal.y );
+if ( uMachineFlood.x > 0.0 && galvFloodLedge > 0.0 ) {
   IncidentLight galvFlood;
   galvFlood.visible = true;
   for ( int k = 0; k < ${SILO_FLOOD_HEAD_ANGLES.length}; k ++ ) {
@@ -691,7 +843,7 @@ if ( uMachineFlood.x > 0.0 ) {
       machineFloodCandela( toFlood, headDir ) * galvFloodNdl / r2,
       ${(SILO_FLOOD_PROFILE.cap * SILO_FLOOD_PROFILE.peak).toFixed(3)}
     );
-    galvFlood.color = uMachineFloodColor * ( uMachineFlood.x * galvFloodE / galvFloodNdl );
+    galvFlood.color = uMachineFloodColor * ( uMachineFlood.x * galvFloodLedge * galvFloodE / galvFloodNdl );
     RE_Direct( galvFlood, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight );
   }
 }
@@ -769,6 +921,10 @@ export interface MachineWearOptions {
     readonly drips: number;
     /** The corrugated drum only: shade its waves analytically (`GALVANISED_FRAGMENT_BODY`). */
     readonly corrugated?: boolean;
+    /** 0-1. Broad run-off that survives distance (`SILO_STAIN`); the drum only. */
+    readonly stains?: number;
+    /** 0-1. Indirect occlusion on faces toward a neighbouring bin (`SILO_VALLEY`). */
+    readonly valley?: number;
   };
 }
 
@@ -841,7 +997,22 @@ function withWear<T extends THREE.MeshStandardMaterial>(
         ? new THREE.Vector2(SILO_FINE_RIDGES, 1)
         : new THREE.Vector2(0, 0),
     };
+    // Rib tone (albedo, roughness; the corrugated drum only), stains, unused.
+    const rib = {
+      value: new THREE.Vector4(
+        galvanised.corrugated ? SILO_RIB_TONE.albedo : 0,
+        galvanised.corrugated ? SILO_RIB_TONE.roughness : 0,
+        galvanised.stains ?? 0,
+        0
+      ),
+    };
+    // First and last bin axis along world Z, spacing, valley occlusion.
+    const battery = { value: new THREE.Vector4(...siloBatteryExtent(), galvanised.valley ?? 0) };
+    const groundHorizon = { value: new THREE.Vector2(...SILO_GROUND_HORIZON) };
     Object.assign(uniforms, {
+      uMachineRib: rib,
+      uMachineBattery: battery,
+      uMachineGroundHorizon: groundHorizon,
       uMachineGalv: galv,
       uMachineRings: { value: new THREE.Vector4(...SILO_DRIP_DATUMS_UNIT) },
       uMachineGalvGround: galvGround,
@@ -857,6 +1028,9 @@ function withWear<T extends THREE.MeshStandardMaterial>(
     material.userData.machineCorrugation = corrugation;
     material.userData.machinePatina = patina;
     material.userData.machineFlood = SILO_FLOOD_LIGHT;
+    material.userData.machineRib = rib;
+    material.userData.machineBattery = battery;
+    material.userData.machineGroundHorizon = groundHorizon;
   }
 
   material.onBeforeCompile = (shader) => {
@@ -940,14 +1114,19 @@ export function getMachineScreenTexture(): THREE.DataTexture {
  * The skin's galvanised terms. Tuned on one page load (silos-tune): patina
  * 0.6 -> 0.8 and aureole 0.07 -> 0.1 took the near drum from 9 to 10.5 sRGB
  * levels sun side to shade side; sparse irregular streaks
- * (SILO_STREAK_LIVE_FRACTION) at 0.8 read as faint run-off.
+ * (SILO_STREAK_LIVE_FRACTION) at 0.8 read as faint run-off. Round 5 (s5 probe,
+ * one page load per scene): at 0.8 the film left the drum about 0.44 metal at
+ * roughness ~0.64, matte plaster to every judge; 0.5 leaves ~0.65 metal at
+ * ~0.55 and keeps the Lambert form, with the rib tone carrying the rest.
  */
 const SILO_SKIN_GALVANISED = {
-  patina: 0.8,
+  patina: 0.5,
   spangleRoughness: 0.68,
   aureole: 0.1,
   drips: 0.8,
   corrugated: true,
+  stains: SILO_STAIN.strength,
+  valley: SILO_VALLEY.occlusion,
 } as const;
 
 export const MACHINE_MATERIALS = {
@@ -988,7 +1167,10 @@ export const MACHINE_MATERIALS = {
    * under its own floods: a full conductor has no diffuse term for them to
    * land on. Same stock, patina and grass-free reflection as the skin (the
    * patina is sampled in world space, so it runs on across the seam); no
-   * corrugation and no ring run-off of its own. Splash grime stays low.
+   * corrugation and no ring run-off of its own. Splash grime stays low but
+   * reads: rain splash off the pad climbs the bottom half-metre or so (0.12
+   * over 1.2 m was invisible in every final4 frame; the skin's own grime
+   * term starts at 0 m and the skin at 5 m, so it never reaches the drum).
    */
   siloSkirt: withWear(
     new THREE.MeshStandardMaterial({
@@ -1003,11 +1185,11 @@ export const MACHINE_MATERIALS = {
       metalness: 1,
     }),
     {
-      grime: 0.12,
+      grime: 0.32,
       dust: 0.05,
       edge: 0.1,
-      grimeHeight: 1.2,
-      galvanised: { ...SILO_SKIN_GALVANISED, drips: 0, corrugated: false },
+      grimeHeight: 0.75,
+      galvanised: { ...SILO_SKIN_GALVANISED, drips: 0, corrugated: false, stains: 0 },
     }
   ),
 

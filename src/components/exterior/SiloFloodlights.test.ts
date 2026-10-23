@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import {
   SILO_FLOOD,
+  getSiloFloodLevel,
   siloFloodFixtures,
   siloFloodPools,
   writeSiloFloodLight,
@@ -74,6 +75,37 @@ function compile(material: THREE.Material) {
   return shader;
 }
 
+describe('silo floods follow the dark, not the lamp clock (final4-med-06, final4-med-rain)', () => {
+  // The shared lamp clock is max(darkness, weather floor): fully on at 06:00
+  // (solar elevation 0) and at 0.42 in daytime rain. That suits a lens or a
+  // window; on the floods it painted night-time uplight stripes up every drum
+  // at sunrise and at noon in the rain.
+  it('is off at sunrise and in daylight rain or storm', () => {
+    expect(getSiloFloodLevel(6)).toBe(0);
+    expect(getSiloFloodLevel(12)).toBe(0);
+    expect(getSiloFloodLevel(17.9)).toBe(0);
+    expect(getSiloFloodLevel(6.5)).toBe(0);
+  });
+
+  it('is on through dusk and the night, and fades in rather than switching', () => {
+    expect(getSiloFloodLevel(18.5)).toBeGreaterThanOrEqual(0.9);
+    expect(getSiloFloodLevel(19)).toBe(1);
+    expect(getSiloFloodLevel(22)).toBe(1);
+    expect(getSiloFloodLevel(2)).toBe(1);
+    expect(getSiloFloodLevel(5.5)).toBeGreaterThanOrEqual(0.9);
+    let previous = 0;
+    let step = 0;
+    for (let hour = 18; hour <= 18.6; hour += 0.01) {
+      const level = getSiloFloodLevel(hour);
+      expect(level).toBeGreaterThanOrEqual(previous - 1e-9);
+      step = Math.max(step, level - previous);
+      previous = level;
+    }
+    expect(step).toBeLessThan(0.05);
+    expect(getSiloFloodLevel(Number.NaN)).toBe(0);
+  });
+});
+
 describe('silo floods on the drum (final3-med-1830/22: hard line at the seam, black skirt)', () => {
   const radius = SITE_LAYOUT.machineDimensions.silo[0] / 2;
   const [binX, , binZ] = SITE_LAYOUT.machines.silos[2].position;
@@ -122,7 +154,9 @@ describe('silo floods on the drum (final3-med-1830/22: hard line at the seam, bl
       const l = Math.hypot(...d);
       return d.map((v) => v / l);
     };
-    const near = [binX + radius, 9, binZ + 1];
+    // Low on the wall, so the face toward the head is not a down-facing ledge
+    // (SILO_FLOOD_LEDGE), which takes no flood at all.
+    const near = [binX + radius, 0.6, binZ + 1];
     const far = head.map((h, i) => h + 2 * (near[i] - h));
     const r2 = (p: number[]) => p.reduce((sum, v, i) => sum + (v - head[i]) ** 2, 0);
     expect(lit(far, toward(far)) * r2(far)).toBeCloseTo(lit(near, toward(near)) * r2(near), 6);
@@ -144,6 +178,28 @@ describe('silo floods on the drum (final3-med-1830/22: hard line at the seam, bl
     for (const y of [10.4, 18.1, 25.8, 29.6]) {
       const ledge = siloFloodIrradiance([binX + ringRadius, y, binZ], [0, -1, 0], axis, flood);
       expect(ledge, `ledge at ${y} m`).toBeLessThanOrEqual(1.5 * wall);
+    }
+  });
+
+  it('leaves the eave underside dark: the beam ends at the eave (final4-med-22 yard rim dashes)', () => {
+    // The roof's 0.27 m overhang faces straight down at the heads. Square to a
+    // near-vertical beam it took the ledge cap (6.8) between heads and 0.6
+    // over each one, where its steeper ray left the beam: from the yard camera
+    // a sub-pixel ring lit 1.4x the wall, broken into six dashes per bin.
+    const flood = night();
+    let wall = 0;
+    for (let y = 0.4; y <= 30; y += 0.05) wall = Math.max(wall, facing(flood, y));
+    for (let degrees = 0; degrees < 360; degrees += 1.5) {
+      const a = THREE.MathUtils.degToRad(degrees);
+      for (const r of [6.02, 6.15, 6.26]) {
+        const underside = siloFloodIrradiance(
+          [binX + r * Math.cos(a), 29.65, binZ + r * Math.sin(a)],
+          [0, -1, 0],
+          axis,
+          flood
+        );
+        expect(underside, `${degrees} deg at r ${r}`).toBeLessThanOrEqual(0.1 * wall);
+      }
     }
   });
 
