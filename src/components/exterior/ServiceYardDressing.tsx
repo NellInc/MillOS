@@ -34,7 +34,7 @@ const GALVANISED = applyWorldSurface(
   'metal'
 );
 /**
- * The intake grating and the drain covers: weathered neutral steel. They lie
+ * The intake grating (once also the drain covers): weathered neutral steel. They lie
  * face-up, so at the galvanised finish's metalness 0.6 they mirrored the sky,
  * and at 18:30 the bars turned blue and the silo-edge drain read as a stray
  * thin blue line (judge-r5-1830). Mostly diffuse now, with a dull sheen.
@@ -43,11 +43,26 @@ export const YARD_GRATING_STEEL = applyWorldSurface(
   new THREE.MeshStandardMaterial({ color: '#7e7e7c', roughness: 0.68, metalness: 0.25 }),
   'metal'
 );
-/** Fresh concrete kerb cast either side of each drain channel, a shade paler than the apron. */
+/**
+ * The drain covers: darker and duller than the grating, so the slot reads as a
+ * channel at noon by its dark cover rather than by pale kerbs.
+ */
+export const YARD_DRAIN_COVER_STEEL = applyWorldSurface(
+  new THREE.MeshStandardMaterial({ color: '#4f4f4e', roughness: 0.82, metalness: 0.12 }),
+  'metal'
+);
+/**
+ * Concrete kerb cast either side of each drain channel, at the apron's value.
+ * At '#b8b4ab' (0.46 linear) the kerbs were the drain's two pale lines: 1.45x
+ * the ground at noon and 2.1x at 18:30 (final6 yard), because the terrain's
+ * hardstanding takes cavity AO on its indirect light and this does not. The
+ * exterior's 0.72 environment response, and the apron's albedo.
+ */
 export const YARD_KERB_CONCRETE = new THREE.MeshStandardMaterial({
-  color: '#b8b4ab',
+  color: '#7f7c75',
   roughness: 0.92,
   metalness: 0,
+  envMapIntensity: 0.72,
 });
 const HANDWHEEL = new THREE.MeshStandardMaterial({
   color: '#a3322a',
@@ -404,7 +419,7 @@ export const YardIntake: React.FC = () => {
           </mesh>
         );
       })}
-      <BoxSet parts={DRAIN_PLATES} material={YARD_GRATING_STEEL} />
+      <BoxSet parts={DRAIN_PLATES} material={YARD_DRAIN_COVER_STEEL} />
       <BoxSet parts={DRAIN_KERBS} material={YARD_KERB_CONCRETE} />
     </group>
   );

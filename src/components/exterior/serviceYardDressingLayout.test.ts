@@ -5,7 +5,11 @@ import { UTILITY_ASSET_DEFINITIONS } from '../../constants/utilityAssets';
 import { TANK_FARM_PAD_SIZE } from '../../textures/tankFarmPad';
 import { vesselSeamOffset } from '../FactoryExterior';
 import { VESSEL_SADDLE } from './utilityVesselDetails';
-import { YARD_GRATING_STEEL, YARD_KERB_CONCRETE } from './ServiceYardDressing';
+import {
+  YARD_DRAIN_COVER_STEEL,
+  YARD_GRATING_STEEL,
+  YARD_KERB_CONCRETE,
+} from './ServiceYardDressing';
 import {
   TANK_FARM_MANIFOLD,
   TANK_FARM_PAD_TOP,
@@ -161,6 +165,28 @@ describe('yard drain and grate finish', () => {
     expect(Math.max(r, g, b) - Math.min(r, g, b)).toBeLessThan(0.012);
   });
 
+  /**
+   * final6 med-1830 silos and yard: the drain's two pale lines read ~2.1x the
+   * ground median (kerb 79 against 37 sRGB at x 750 of yard.png) and stayed pale
+   * outside the lamp pools; at noon the same pick is 1.45x (191 against 131).
+   * The lines are the kerbs: '#b8b4ab' is 0.46 linear, and the terrain's
+   * hardstanding takes cavity AO on its indirect light where a plain standard
+   * material does not, so the gap widens as the sky takes over. The kerbs come
+   * down to the apron's value with the exterior's 0.72 environment response,
+   * and the channel reads at noon through a dark, dull cover instead.
+   */
+  it('keeps the drain kerbs at the apron value and the covers dark and dull', () => {
+    const luma = (c: THREE.Color) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+    expect(luma(YARD_KERB_CONCRETE.color)).toBeLessThan(0.24);
+    expect(luma(YARD_KERB_CONCRETE.color)).toBeGreaterThan(0.15);
+    expect(YARD_KERB_CONCRETE.envMapIntensity).toBeLessThanOrEqual(0.72);
+    expect(luma(YARD_DRAIN_COVER_STEEL.color)).toBeLessThan(0.1);
+    expect(YARD_DRAIN_COVER_STEEL.metalness).toBeLessThanOrEqual(0.15);
+    expect(YARD_DRAIN_COVER_STEEL.roughness).toBeGreaterThanOrEqual(0.75);
+    const { r, g, b } = YARD_DRAIN_COVER_STEEL.color;
+    expect(Math.max(r, g, b) - Math.min(r, g, b)).toBeLessThan(0.012);
+  });
+
   it('edges each drain with concrete kerbs either side, so it reads as a channel', () => {
     for (const drain of YARD_DRAINS) {
       const kerbs = slotDrainKerbs(drain);
@@ -180,7 +206,9 @@ describe('yard drain and grate finish', () => {
       else expect(bounds.maxX - bounds.minX).toBeCloseTo(2 * half, 6);
       // Light concrete either side of a dark steel cover.
       const luma = (c: THREE.Color) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
-      expect(luma(YARD_KERB_CONCRETE.color)).toBeGreaterThan(1.5 * luma(YARD_GRATING_STEEL.color));
+      expect(luma(YARD_KERB_CONCRETE.color)).toBeGreaterThan(
+        1.5 * luma(YARD_DRAIN_COVER_STEEL.color)
+      );
       // Six pixels or more across at the yard camera, mid-run.
       const mx = (drain.from[0] + drain.to[0]) / 2;
       const mz = (drain.from[1] + drain.to[1]) / 2;
