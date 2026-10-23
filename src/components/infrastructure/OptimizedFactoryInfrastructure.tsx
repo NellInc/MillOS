@@ -357,7 +357,9 @@ ${SURFACE_GRIT_GLSL}`
  * Working if no pinpoint glints remain on the hall glass at noon.
  */
 export const FACTORY_GLAZING_SURFACES = {
-  glass: { roughness: 0.24, opacity: 0.13 },
+  // 0.13 until final3: a lit film that greyed the view through the pane. The
+  // glazing composite now darkens through transmission and reflects a coat.
+  glass: { roughness: 0.24, opacity: 0.06 },
   skylight: { roughness: 0.24, opacity: 0.18 },
 } as const;
 
@@ -674,37 +676,132 @@ applyFloorDetailBlend(MATERIALS.floor);
 // light from behind passes (1 - F)(1 - a), so with normal blending
 //   coverage = 1 - (1 - F)(1 - a)
 //   colour   = ((1 - F) a C + F sky) / coverage.
-// Face-on that is the old pane (F0 = 0.04); at grazing it is the sky. The sky
-// sample is the same PMREM every metal reads, divided back out of the scene's
-// diffuse-fill dampener, and capped so the sun disc cannot print a star.
+// The sky sample is the same PMREM every metal reads, divided back out of the
+// scene's diffuse-fill dampener, and capped so the sun disc cannot print a star.
+//
+// v2 (final3 med-12: still "a faint tint with no visible reflection" from
+// overview, shipping and tank-farm; "milky" from inside in the rain):
+//
+// - COATED, FROM OUTSIDE. Face-on F0 0.04 over a 13% film hid a sixth of the
+//   lit hall behind it, and the hall is brighter than anything the facade
+//   reflects, so the reflection never showed. A curtain wall's solar-control
+//   coat reflects ~9% face-on, and the glass transmits ~88%: T darkens what is
+//   seen through the pane, as glass does, instead of the old lit film greying
+//   it. Light to light the coat and the pane's flatness vary (a seed per light
+//   and row: F0 +/-25%, a 0.7 degree tilt and a slight bow), so the facade
+//   reads as a mosaic of reflections rather than one tint.
+// - THE HALL, FROM INSIDE. The face the eye sees says which side it is on
+//   (its world normal against the hall centre). Indoors the reflection is the
+//   hall, approximated by the pane's own lit colour at an interior albedo, not
+//   the sky: at grazing the old pane mirrored a bright rain sky into the room.
+// - The lit film drops from 13% to 6%: it is haze, not glass.
+//
+//   coverage = 1 - (1 - F)(1 - a) T
+//   colour   = (F R + (1 - F) a C) / coverage,  R = sky outside, k C inside.
 
 /** Constant. Bump by hand when the GLSL below changes. */
-export const GLAZING_FRESNEL_CACHE_KEY = 'millos-glazing-fresnel-v1';
+export const GLAZING_FRESNEL_CACHE_KEY = 'millos-glazing-fresnel-v2';
 
 /** Paired rendered control (0 = the old flat pane), mirrored on userData. */
 export const GLAZING_FRESNEL_STRENGTH = { value: 1 };
 
-/** TS mirror of the composite's coverage, for tests and design numbers. */
-export function glazingCoverage(opacity: number, cosTheta: number, strength = 1): number {
+/** The glazing composite's design values (see the block comment above). */
+export const GLAZING_REFLECTANCE = {
+  /** Face-on reflectance of the coated outer face, and the plain inner face. */
+  outerF0: 0.09,
+  innerF0: 0.04,
+  /** Light to light, the outer F0 varies by this fraction either way. */
+  f0Spread: 0.25,
+  /** Glass transmission (what reaches the eye of what is behind the pane). */
+  transmission: 0.88,
+  /** The hall's mean albedo, scaling the pane's lit colour into its reflection indoors. */
+  interiorReflect: 0.4,
+  /** Per-light tilt of the reflection normal, radians either way. */
+  tilt: 0.012,
+  /** Bow across a light: normal tilt at its edge, radians. */
+  bow: 0.008,
+  /** Row height for the per-light seed: matches the transoms' 4.5 m limit. */
+  rowHeight: 4.5,
+} as const;
+
+/**
+ * TS mirror of the composite's coverage, for tests and design numbers.
+ * `outward`: the eye is outside the hall. `seed` 0-1: a light's variation.
+ */
+export function glazingCoverage(
+  opacity: number,
+  cosTheta: number,
+  strength = 1,
+  outward = true,
+  seed = 0.5
+): number {
+  const s = THREE.MathUtils.clamp(strength, 0, 1);
   const c = THREE.MathUtils.clamp(Math.abs(cosTheta), 0, 1);
-  const fresnel = (0.04 + 0.96 * (1 - c) ** 5) * THREE.MathUtils.clamp(strength, 0, 1);
-  return 1 - (1 - fresnel) * (1 - opacity);
+  const { outerF0, innerF0, f0Spread, transmission } = GLAZING_REFLECTANCE;
+  const f0 = outward ? outerF0 * (1 + f0Spread * (seed - 0.5) * 2) : innerF0;
+  const fresnel = (f0 + (1 - f0) * (1 - c) ** 5) * s;
+  const t = 1 - (1 - transmission) * s;
+  return 1 - (1 - fresnel) * (1 - opacity) * t;
 }
+
+const glsl = (value: number) => value.toFixed(4);
+
+const GLAZING_VERTEX_PARS = /* glsl */ `
+varying vec3 vGlazeTilt;
+varying float vGlazeSeed;
+`;
+
+// After <begin_vertex>: `position` is the unit box, `objectNormal` the face's.
+// Instances carry no rotation, so object axes are world axes.
+const GLAZING_VERTEX_BODY = /* glsl */ `
+{
+  #ifdef USE_INSTANCING
+    vec3 glazeOrigin = instanceMatrix[3].xyz;
+    float glazeRows = max( 1.0, ceil( length( instanceMatrix[1].xyz ) / ${glsl(GLAZING_REFLECTANCE.rowHeight)} - 1e-4 ) );
+  #else
+    vec3 glazeOrigin = vec3( 0.0 );
+    float glazeRows = 1.0;
+  #endif
+  float glazeRow = floor( clamp( position.y + 0.5, 0.0, 0.9999 ) * glazeRows );
+  vec3 glazeKey = glazeOrigin + vec3( 0.0, glazeRow * 7.31, 0.0 );
+  vGlazeSeed = fract( sin( dot( glazeKey, vec3( 12.9898, 78.233, 37.719 ) ) ) * 43758.5453 );
+  float glazeSeed2 = fract( vGlazeSeed * 91.7 + 0.37 );
+  vec3 glazeAcross = abs( objectNormal.z ) > 0.5 ? vec3( 1.0, 0.0, 0.0 ) : vec3( 0.0, 0.0, 1.0 );
+  float glazeU = dot( position, glazeAcross );
+  float glazeV = fract( ( position.y + 0.5 ) * glazeRows ) - 0.5;
+  vGlazeTilt = glazeAcross * ( ( vGlazeSeed - 0.5 ) * ${glsl(2 * GLAZING_REFLECTANCE.tilt)} + glazeU * ${glsl(GLAZING_REFLECTANCE.bow * 2)} )
+    + vec3( 0.0, 1.0, 0.0 ) * ( ( glazeSeed2 - 0.5 ) * ${glsl(2 * GLAZING_REFLECTANCE.tilt)} + glazeV * ${glsl(GLAZING_REFLECTANCE.bow * 2)} );
+}
+`;
 
 const GLAZING_FRESNEL_BODY = /* glsl */ `
 {
-  float glazeCos = saturate( abs( dot( geometryViewDir, geometryNormal ) ) );
-  float glazeF = ( 0.04 + 0.96 * pow( 1.0 - glazeCos, 5.0 ) ) * uGlazeFresnel;
+  float glazeS = clamp( uGlazeFresnel, 0.0, 1.0 );
+  vec3 glazeN = normalize( geometryNormal + ( viewMatrix * vec4( vGlazeTilt, 0.0 ) ).xyz * glazeS );
+  float glazeCos = saturate( abs( dot( geometryViewDir, glazeN ) ) );
+  // Which side the eye is on: the seen face's world normal against the hall
+  // centre (the panes ring the hall, so out of the hall is away from it).
+  vec3 glazeNormalW = ( vec4( geometryNormal, 0.0 ) * viewMatrix ).xyz;
+  vec3 glazeWorld = cameraPosition + ( vec4( -vViewPosition, 0.0 ) * viewMatrix ).xyz;
+  float glazeOut = step( 0.0, dot( glazeNormalW.xz, glazeWorld.xz ) );
+  float glazeF0 = mix(
+    ${glsl(GLAZING_REFLECTANCE.innerF0)},
+    ${glsl(GLAZING_REFLECTANCE.outerF0)} * ( 1.0 + ${glsl(GLAZING_REFLECTANCE.f0Spread)} * ( vGlazeSeed - 0.5 ) * 2.0 ),
+    glazeOut
+  );
+  float glazeF = ( glazeF0 + ( 1.0 - glazeF0 ) * pow( 1.0 - glazeCos, 5.0 ) ) * glazeS;
   #ifdef USE_ENVMAP
     vec3 glazeSky = min(
-      getIBLRadiance( geometryViewDir, geometryNormal, material.roughness ) / max( envMapIntensity, 1e-3 ),
+      getIBLRadiance( geometryViewDir, glazeN, material.roughness ) / max( envMapIntensity, 1e-3 ),
       vec3( 1.5 )
     );
   #else
     vec3 glazeSky = gl_FragColor.rgb;
   #endif
-  float glazeCoverage = 1.0 - ( 1.0 - glazeF ) * ( 1.0 - gl_FragColor.a );
-  gl_FragColor.rgb = ( ( 1.0 - glazeF ) * gl_FragColor.a * gl_FragColor.rgb + glazeF * glazeSky )
+  vec3 glazeReflection = mix( gl_FragColor.rgb * ${glsl(GLAZING_REFLECTANCE.interiorReflect)}, glazeSky, glazeOut );
+  float glazeT = 1.0 - ${glsl(1 - GLAZING_REFLECTANCE.transmission)} * glazeS;
+  float glazeCoverage = 1.0 - ( 1.0 - glazeF ) * ( 1.0 - gl_FragColor.a ) * glazeT;
+  gl_FragColor.rgb = ( ( 1.0 - glazeF ) * gl_FragColor.a * gl_FragColor.rgb + glazeF * glazeReflection )
     / max( glazeCoverage, 1e-4 );
   gl_FragColor.a = glazeCoverage;
 }
@@ -713,8 +810,14 @@ const GLAZING_FRESNEL_BODY = /* glsl */ `
 MATERIALS.glass.userData.glazingFresnel = GLAZING_FRESNEL_STRENGTH;
 MATERIALS.glass.onBeforeCompile = (shader) => {
   shader.uniforms.uGlazeFresnel = GLAZING_FRESNEL_STRENGTH;
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', `#include <common>\n${GLAZING_VERTEX_PARS}`)
+    .replace('#include <begin_vertex>', `#include <begin_vertex>\n${GLAZING_VERTEX_BODY}`);
   shader.fragmentShader = shader.fragmentShader
-    .replace('#include <common>', '#include <common>\nuniform float uGlazeFresnel;')
+    .replace(
+      '#include <common>',
+      `#include <common>\nuniform float uGlazeFresnel;\n${GLAZING_VERTEX_PARS}`
+    )
     .replace('#include <opaque_fragment>', `#include <opaque_fragment>\n${GLAZING_FRESNEL_BODY}`);
 };
 MATERIALS.glass.customProgramCacheKey = () => GLAZING_FRESNEL_CACHE_KEY;
@@ -1507,6 +1610,77 @@ export function buildFactoryFacadeFrames(panes: readonly BoxInstance[]): BoxInst
   return frames;
 }
 
+/**
+ * Curtain-wall light sizes. A pane in `buildFactoryGlazing` is a whole bay
+ * opening, up to 9.4 x 11.2 m - no glass anyone makes - so the facade showed
+ * nothing at the scale real lights are and read as an open frame from outside
+ * (final3 med-12 overview, shipping, tank-farm). Each opening is divided into
+ * lights no wider than LIGHT_MAX_WIDTH and rows no taller than LIGHT_MAX_HEIGHT.
+ */
+const GLAZING_LIGHT_MAX_WIDTH = 3.3;
+const GLAZING_LIGHT_MAX_HEIGHT = 4.5;
+/** Intermediate mullion: narrower than the 0.14 m opening frame, 2 cm proud of each glass face. */
+const GLAZING_MULLION = { width: 0.08, depth: 0.12 } as const;
+/** Transom: inside the glass (no sunlit top to break into dashes at 90 m). */
+const GLAZING_TRANSOM = { height: 0.08, depth: 0.07 } as const;
+
+const glazingDivisions = (pane: BoxInstance) => {
+  const axis = pane.scale[0] > pane.scale[2] ? 0 : 2;
+  return {
+    axis,
+    columns: Math.max(1, Math.ceil(pane.scale[axis] / GLAZING_LIGHT_MAX_WIDTH - 1e-9)),
+    rows: Math.max(1, Math.ceil(pane.scale[1] / GLAZING_LIGHT_MAX_HEIGHT - 1e-9)),
+  };
+};
+
+/**
+ * Each opening's lights, side by side across it. Rows are not split here: a
+ * transom runs inside the glass, so the column of glass stays one box and the
+ * glazing shader varies its reflection per row instead.
+ */
+export function buildFactoryGlazingLights(panes: readonly BoxInstance[]): BoxInstance[] {
+  return panes.flatMap((pane) => {
+    const { axis, columns } = glazingDivisions(pane);
+    const width = pane.scale[axis] / columns;
+    return Array.from({ length: columns }, (_, i) => {
+      const position: [number, number, number] = [...pane.position];
+      const scale: [number, number, number] = [...pane.scale];
+      position[axis] = pane.position[axis] - pane.scale[axis] / 2 + (i + 0.5) * width;
+      scale[axis] = width;
+      return { position, scale };
+    });
+  });
+}
+
+/** The mullions over each opening's light seams and the transoms across its rows. */
+export function buildFactoryGlazingBars(panes: readonly BoxInstance[]): BoxInstance[] {
+  const bars: BoxInstance[] = [];
+  for (const pane of panes) {
+    const { axis, columns, rows } = glazingDivisions(pane);
+    const normal = 2 - axis;
+    const [width, height] = [pane.scale[axis], pane.scale[1]];
+    // Into the opening frame at each end (its members stand 0.14 m outside the
+    // glass edge), so no bar end lies on a frame face.
+    for (let i = 1; i < columns; i++) {
+      const position: [number, number, number] = [...pane.position];
+      const scale: [number, number, number] = [0, height + 0.1, 0];
+      position[axis] = pane.position[axis] - width / 2 + (i * width) / columns;
+      scale[axis] = GLAZING_MULLION.width;
+      scale[normal] = GLAZING_MULLION.depth;
+      bars.push({ position, scale });
+    }
+    for (let j = 1; j < rows; j++) {
+      const position: [number, number, number] = [...pane.position];
+      const scale: [number, number, number] = [0, GLAZING_TRANSOM.height, 0];
+      position[1] = pane.position[1] - height / 2 + (j * height) / rows;
+      scale[axis] = width + 0.1;
+      scale[normal] = GLAZING_TRANSOM.depth;
+      bars.push({ position, scale });
+    }
+  }
+  return bars;
+}
+
 /** How far the wall columns stop below the parapet top they stand under. */
 export const FACTORY_COLUMN_TOP_DROP = 0.02;
 
@@ -1697,7 +1871,11 @@ function FactoryShell() {
   const roofSkylights = useMemo(buildFactoryRoofGlazing, []);
 
   const windows = useMemo(buildFactoryGlazing, []);
-  const facadeAccents = useMemo(() => buildFactoryFacadeFrames(windows), [windows]);
+  const windowLights = useMemo(() => buildFactoryGlazingLights(windows), [windows]);
+  const facadeAccents = useMemo(
+    () => [...buildFactoryFacadeFrames(windows), ...buildFactoryGlazingBars(windows)],
+    [windows]
+  );
 
   return (
     // SHADOW FLAGS ARE SET HERE, AT SOURCE.
@@ -1752,7 +1930,7 @@ function FactoryShell() {
         receiveShadow
       />
       <InstancedBoxes
-        instances={windows}
+        instances={windowLights}
         material={MATERIALS.glass}
         renderOrder={RENDER_ORDER.default}
       />

@@ -17,6 +17,8 @@ import {
   buildWalkwayLanes,
   WALKWAY_EDGE_WIDTH,
   buildFactoryGlazing,
+  buildFactoryGlazingBars,
+  buildFactoryGlazingLights,
   buildFactoryFacadeFrames,
   buildFactoryShellColumns,
   buildSafetyStations,
@@ -1099,6 +1101,86 @@ it('keeps the hall glazing sun lobe below white at its peak', () => {
 // window rail (y 0.71-0.85) and, behind it, the plinth top at y 0.60: the
 // rail stopped 0.11 m above the 0.6 m plinth, so an 11 cm slot showed the
 // sunlit plinth top as a 1-2 px line that broke into dashes at 90 m.
+// final3 med-12 overview, shipping, tank-farm: from outside the hall read as an
+// open frame. Part of it is scale: a 9.4 x 11.2 m light is no glass anyone
+// makes, so nothing on the facade said "glazing" at the size real lights are.
+describe('curtain wall lights', () => {
+  const panes = buildFactoryGlazing();
+  const lights = buildFactoryGlazingLights(panes);
+  const bars = buildFactoryGlazingBars(panes);
+  const along = (box: { scale: readonly number[] }) => (box.scale[0] > box.scale[2] ? 0 : 2);
+
+  it('splits every pane into lights no wider than 3.3 m that tile it exactly', () => {
+    expect(lights.length).toBeGreaterThan(panes.length * 2);
+    for (const pane of panes) {
+      const axis = along(pane);
+      const own = lights.filter(
+        (light) =>
+          Math.abs(light.position[1] - pane.position[1]) < 1e-9 &&
+          Math.abs(light.position[2 - axis] - pane.position[2 - axis]) < 1e-9 &&
+          Math.abs(light.position[axis] - pane.position[axis]) < pane.scale[axis] / 2
+      );
+      expect(own.length).toBeGreaterThanOrEqual(1);
+      const total = own.reduce((sum, light) => sum + light.scale[axis], 0);
+      expect(total).toBeCloseTo(pane.scale[axis], 6);
+      for (const light of own) {
+        expect(light.scale[axis]).toBeLessThanOrEqual(3.3);
+        expect(light.scale[1]).toBe(pane.scale[1]);
+        expect(light.scale[2 - axis]).toBe(pane.scale[2 - axis]);
+      }
+    }
+  });
+
+  it('puts a mullion over every seam and a transom across every light taller than 4.5 m', () => {
+    for (const pane of panes) {
+      const axis = along(pane);
+      const depth = pane.scale[2 - axis];
+      const own = lights
+        .filter(
+          (light) =>
+            Math.abs(light.position[1] - pane.position[1]) < 1e-9 &&
+            Math.abs(light.position[2 - axis] - pane.position[2 - axis]) < 1e-9 &&
+            Math.abs(light.position[axis] - pane.position[axis]) < pane.scale[axis] / 2
+        )
+        .sort((a, b) => a.position[axis] - b.position[axis]);
+      for (let i = 1; i < own.length; i++) {
+        const seam = own[i].position[axis] - own[i].scale[axis] / 2;
+        const mullion = bars.find(
+          (bar) =>
+            bar.scale[1] > bar.scale[axis] &&
+            Math.abs(bar.position[axis] - seam) < 1e-6 &&
+            Math.abs(bar.position[1] - pane.position[1]) < 1e-6 &&
+            Math.abs(bar.position[2 - axis] - pane.position[2 - axis]) < 1e-6
+        );
+        expect(mullion, `seam at ${seam}`).toBeDefined();
+        // Deeper than the glass, so the glass's own seam faces are inside it.
+        expect(mullion!.scale[2 - axis]).toBeGreaterThan(depth + 0.02);
+        expect(mullion!.position[1] - mullion!.scale[1] / 2).toBeLessThan(
+          pane.position[1] - pane.scale[1] / 2
+        );
+        expect(mullion!.position[1] + mullion!.scale[1] / 2).toBeGreaterThan(
+          pane.position[1] + pane.scale[1] / 2
+        );
+      }
+      const transoms = bars.filter(
+        (bar) =>
+          bar.scale[axis] > bar.scale[1] &&
+          Math.abs(bar.position[axis] - pane.position[axis]) < 1e-6 &&
+          Math.abs(bar.position[2 - axis] - pane.position[2 - axis]) < 1e-6 &&
+          Math.abs(bar.position[1] - pane.position[1]) < pane.scale[1] / 2
+      );
+      const rows = transoms.length + 1;
+      expect(pane.scale[1] / rows, `pane at ${pane.position}`).toBeLessThanOrEqual(4.5);
+      for (const transom of transoms) {
+        // Inside the glass, so it has no sunlit top: the sill rail's 4 cm of
+        // exposed top read as a dashed white line at 90 m (overview).
+        expect(transom.scale[2 - axis]).toBeLessThan(depth);
+        expect(transom.scale[axis]).toBeGreaterThan(pane.scale[axis]);
+      }
+    }
+  });
+});
+
 describe('facade window frames', () => {
   it('closes the sill rail down onto the plinth, leaving no lit slot', () => {
     const { baseHeight, sideWindowSill } = FACTORY_ENVELOPE_SPEC;
