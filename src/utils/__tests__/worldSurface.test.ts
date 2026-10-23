@@ -20,8 +20,13 @@ import {
   RIB_PROFILE_MEAN,
   ribFilteredSwing,
   ribFilteredValue,
+  ribRenderedSwing,
+  ribSeamFilteredValue,
   type WorldSurfaceProfileName,
 } from '../worldSurface';
+
+/** A 70 mm seam lap on a 1.8 m membrane roll, in pitches. */
+const RIB_SEAM_TEST_WIDTH = 0.07 / 1.8;
 
 const profileNames = Object.keys(WORLD_SURFACE_PROFILES) as WorldSurfaceProfileName[];
 
@@ -528,6 +533,34 @@ describe('box-filtered ribs', () => {
       previous = swing;
     }
     expect(ribFilteredSwing(1)).toBeLessThan(1e-6);
+  });
+
+  /**
+   * final4 med-12/06/1830, low-12: the roof liner read as a dot grid
+   * ("carbon-fibre look"). A box filter is not a low-pass: the 0.25 m deck
+   * profile kept 85% of its swing at 2 px a pitch (w 0.5, Nyquist) and 20-28%
+   * at w 1.25-1.5, and every bit of that aliases. What reaches the frame must
+   * be gone before Nyquist and stay gone.
+   */
+  it('leave no swing at or past Nyquist, and keep it where a pitch spans 4 px', () => {
+    for (let w = 0.45; w <= 4; w += 0.05) {
+      expect(ribRenderedSwing(w), `w ${w.toFixed(2)}`).toBeLessThan(1e-6);
+      expect(ribRenderedSwing(w, RIB_SEAM_TEST_WIDTH), `seam w ${w.toFixed(2)}`).toBeLessThan(1e-6);
+    }
+    expect(ribRenderedSwing(0.1)).toBeGreaterThan(0.95);
+    expect(ribRenderedSwing(0.25)).toBeGreaterThan(0.6);
+    // The paired control: with the fade off, the old box filter (and its alias).
+    expect(ribRenderedSwing(1.5, 0, 0)).toBeCloseTo(ribFilteredSwing(1.5), 9);
+  });
+
+  it('filter a thin seam to its exact coverage and keep its mean', () => {
+    const width = RIB_SEAM_TEST_WIDTH;
+    expect(ribSeamFilteredValue(0.5, 1e-3, width)).toBeCloseTo(1, 3);
+    expect(ribSeamFilteredValue(width / 2, 1e-3, width)).toBeCloseTo(0, 3);
+    for (let u = 0; u < 1; u += 0.1) {
+      expect(ribSeamFilteredValue(u, 1, width)).toBeCloseTo(1 - width, 6);
+      expect(ribSeamFilteredValue(u, 2, width)).toBeCloseTo(1 - width, 6);
+    }
   });
 
   it('is opt-in: furrows and every default profile keep the faded trapezoid', () => {

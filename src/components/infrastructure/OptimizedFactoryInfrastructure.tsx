@@ -900,8 +900,10 @@ const SHELL_SURFACES: readonly [
       ribPeriod: 0.25,
       ribDepth: 0.035,
       ribAxis: 1,
-      // Box-filtered, so the ribs survive to the interior cameras' footprint
-      // (0.06-0.09 m a pixel up there) instead of fading out at 0.03 m.
+      // Box-filtered, and faded out before Nyquist (RIB_NYQUIST_FADE): at the
+      // interior cameras' 0.1 m a pixel (Medium renders 864 rows) the 0.25 m
+      // pitch cannot resolve, and what the box filter alone left of it read
+      // as a dot grid (final4). The purlins carry the rhythm out there.
       ribFilteredTone: 0.24,
       indoorBounce: 0.85,
       // A smooth coil coating between the ribs: the painted profile's 18 mm

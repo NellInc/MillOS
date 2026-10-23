@@ -1117,15 +1117,18 @@ describe('roof deck liner', () => {
 
   /**
    * final3 med-12 interior and milling: "between the trusses the deck is a
-   * single flat plane". The ribs were there and faded out by footprint: gone
-   * once a pixel covered 35% of the 0.25 m pitch, which in `interior` (deck 8 m
-   * overhead, fov 55, 1440 px) is ~0.06 m a pixel, every visible row of it.
-   * The liner box-filters its trapezoid over the footprint instead, so a rib
-   * 3-4 px apart still reads and only a sub-pixel pitch averages away.
+   * single flat plane", so round 4 box-filtered the liner's ribs to keep them
+   * at the interior cameras. final4 (med-12, med-06, med-1830, low-12): the
+   * deck read as a dot grid. The test that shipped measured the footprint on
+   * the 1440 px CAPTURE, but Medium renders 864 px (resolution 0.6 at DPR 2)
+   * and Low 576, where the top of `interior` is 0.42 and 0.63 pitches a pixel:
+   * past Nyquist, where the box filter still left 85% and 40% of the swing.
+   * The ribs now read only where a pitch spans pixels; the purlins carry the
+   * deck's rhythm beyond that.
    */
-  it('keeps its ribs at the distance the interior cameras see them', async () => {
+  it('keeps its ribs only where they resolve, and never past Nyquist', async () => {
     const { ROOF_PANEL_MATERIALS } = await import('./OptimizedFactoryInfrastructure');
-    const { ribFilteredSwing } = await import('../../utils/worldSurface');
+    const { ribRenderedSwing } = await import('../../utils/worldSurface');
     const liner = ROOF_PANEL_MATERIALS[3] as THREE.MeshStandardMaterial;
     const uniforms = liner.userData.millosWorldSurface as {
       uSurfDeck: { value: THREE.Vector4 };
@@ -1136,15 +1139,21 @@ describe('roof deck liner', () => {
     expect(uniforms.uSurfRib.value.y).toBe(1);
     // A pixel's footprint along a ceiling seen at `elevation` degrees from
     // `rise` metres under it: distance times the pixel angle, foreshortened.
-    const footprint = (rise: number, elevation: number, fov: number) => {
+    const footprint = (rise: number, elevation: number, fov: number, rows: number) => {
       const sin = Math.sin((elevation * Math.PI) / 180);
-      return ((rise / sin) * ((2 * Math.tan((fov * Math.PI) / 360)) / 1440)) / sin;
+      return ((rise / sin) * ((2 * Math.tan((fov * Math.PI) / 360)) / rows)) / sin;
     };
-    // `interior`, top of frame: deck 8.3 m up at 18 degrees. The old fade left
-    // a 0.05 swing there; the filtered rib must at least double it.
-    expect(tone * ribFilteredSwing(footprint(8.3, 18, 55) / pitch)).toBeGreaterThan(0.1);
-    // `milling`, top of frame: 18 m under the deck at 22 degrees (old: 0.003).
-    expect(tone * ribFilteredSwing(footprint(18, 22, 50) / pitch)).toBeGreaterThan(0.08);
+    const MEDIUM_ROWS = 720 * 2 * 0.6;
+    const LOW_ROWS = 720 * 2 * 0.4;
+    // `interior` and `milling`, top of frame, on Medium and Low: no swing left.
+    for (const rows of [MEDIUM_ROWS, LOW_ROWS]) {
+      expect(ribRenderedSwing(footprint(8.3, 18, 55, rows) / pitch)).toBeLessThan(1e-3);
+      expect(ribRenderedSwing(footprint(18, 22, 50, rows) / pitch)).toBeLessThan(1e-3);
+    }
+    // Looking up at the deck from under it (8.3 m, 60 degrees) the ribs read.
+    expect(tone * ribRenderedSwing(footprint(8.3, 60, 55, MEDIUM_ROWS) / pitch)).toBeGreaterThan(
+      0.15
+    );
   });
 });
 
