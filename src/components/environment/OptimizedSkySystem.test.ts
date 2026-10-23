@@ -457,7 +457,7 @@ describe('solid fixed foothills', () => {
       expect(material.fragmentShader).toContain('gl_FragColor = vec4(lit, 1.0)');
       expect(material.fragmentShader).not.toContain('groundBlend');
       expect(material.fragmentShader).not.toContain('sampler');
-      expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v24');
+      expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v25');
       material.dispose();
     }
   });
@@ -788,7 +788,7 @@ it('parcels the gentle foothill slopes into hedged fields brighter than the wood
   expect(branch).toContain(`vec2(${cell[0].toFixed(1)}, ${cell[1].toFixed(1)})`);
   expect(branch).toContain('hedge');
   expect(branch).toContain('fwidth(edge)');
-  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v24');
+  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v25');
   near.dispose();
 });
 
@@ -855,7 +855,7 @@ it('breaks the farmed/wooded edge across terrace rows and draws no isolated fiel
   // parcel now draw back from its boundary into ragged stands.
   expect(branch).not.toContain('* step(0.4, parcelUse)');
   expect(branch).toContain('float woods =');
-  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v24');
+  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v25');
   near.dispose();
 });
 
@@ -905,7 +905,7 @@ it('gives the far lower slopes contrast that survives the aerial mix and real ou
     linearLuminance(lowland[0]) * 4
   );
   expect(branch).not.toContain('(1.0 - max(rock, substrate)))');
-  expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v24');
+  expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v25');
   material.dispose();
 });
 
@@ -940,7 +940,7 @@ it('thins the far ring haze below the snow line only, keeping snow, upper rock a
   // Only the far (alpine) branch sets it: the foothills keep their haze.
   const alpine = shader.split('} else if (uWorldAnchored < 0.5')[1].split('} else {')[0];
   expect(alpine).toContain('aerialScale = mix(1.0,');
-  expect(far.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v24');
+  expect(far.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v25');
   far.dispose();
 });
 
@@ -1014,7 +1014,7 @@ it('draws woods with canopy texture, a ragged outline and a lighter fringe', () 
   expect(branch).toContain('float fringe =');
   expect(branch).toContain('float strays =');
   expect(branch).toContain(glslVec3Literal(scrub));
-  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v24');
+  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v25');
   near.dispose();
 });
 
@@ -1060,8 +1060,42 @@ it('keeps rain haze ordered by distance from the near crest to the far lower slo
     expect(step).toBeGreaterThan(0);
     expect(step).toBeLessThan(0.05);
   }
+  // final4-med-12 farm, overview, water, shipping, tank-farm: from every camera
+  // but the village the foothills stand 450-650 m off, where the run reached
+  // the far ring's FULL weight (0.32) while the range's own lower slopes behind
+  // them sit at 0.32 x lowBandAerial in clear air: the foothills hazed over the
+  // mountains and read as one flat blue-grey backdrop band. In clear air no
+  // foothill fragment is hazier than the far lower band; under cloud the band
+  // thickens back to the far weight and the rain ordering above still holds.
+  const clear = sampleAtmosphere(1, 12, 'clear').cloudCoverage;
+  const clearAir = getRidgeClearAir(clear);
+  expect(clearAir).toBe(1);
+  const [nearClear, midClear, farClear] = [0.1, 0.2, 0.32].map((weight) =>
+    getRidgeAerialWeight(weight, clear)
+  );
+  const farLowBandClear = farClear * RIDGE_ALPINE_PROFILE.lowBandAerial;
+  for (const distance of [450, 545, 631, 900]) {
+    expect(
+      getAnchoredRidgeAerial(distance, nearClear, midClear, farClear, clearAir)
+    ).toBeLessThanOrEqual(farLowBandClear + 1e-9);
+  }
+  // Under rain cloud the far lower band is the full far weight again.
+  const rainCover = sampleAtmosphere(1, 12, 'rain').cloudCoverage;
+  const rainFar = getRidgeAerialWeight(0.32, rainCover);
+  expect(
+    getAnchoredRidgeAerial(
+      1e6,
+      getRidgeAerialWeight(0.1, rainCover),
+      getRidgeAerialWeight(0.2, rainCover),
+      rainFar,
+      getRidgeClearAir(rainCover)
+    )
+  ).toBeCloseTo(rainFar, 9);
   const far = createRidgeMaterial(0.32, 'far-rain');
   const near = createRidgeMaterial(0.1, 'near-rain', true);
+  expect(near.fragmentShader).toContain(
+    `min(uAnchoredAerial.z * mix(${RIDGE_ALPINE_PROFILE.lowBandAerial.toFixed(2)}, 1.0, 1.0 - uClearAir),`
+  );
   expect(far.uniforms.uClearAir.value).toBe(1);
   expect(near.uniforms.uAnchoredAerial).toBe(RIDGE_ANCHORED_AERIAL_SPAN);
   expect(near.uniforms.uDistanceAerialStrength.value).toBe(1);
@@ -1069,7 +1103,6 @@ it('keeps rain haze ordered by distance from the near crest to the far lower slo
     .split('} else if (uWorldAnchored < 0.5')[1]
     .split('} else {')[0];
   expect(alpine).toContain('uLowAerialStrength * uClearAir');
-  expect(far.fragmentShader).toContain('min(uAnchoredAerial.z,');
   far.dispose();
   near.dispose();
 });

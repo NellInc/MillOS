@@ -413,16 +413,25 @@ export const RIDGE_ANCHORED_AERIAL = {
   run: [-0.5, 2.2],
 } as const;
 
-/** CPU mirror of the anchored rings' distance haze, for tests and calibration. */
+/**
+ * CPU mirror of the anchored rings' distance haze, for tests and calibration.
+ * The ceiling is the far range's LOWER BAND, which in clear air carries only
+ * `lowBandAerial` of the far weight (getRidgeClearAir). Capped at the full far
+ * weight instead, every foothill beyond about 560 m (farm, overview, water,
+ * shipping and tank-farm cameras) hazed past the mountains behind it and read
+ * as a flat blue-grey backdrop band (final4-med-12).
+ */
 export function getAnchoredRidgeAerial(
   distance: number,
   near: number,
   mid: number,
-  far = Infinity
+  far = Infinity,
+  clearAir = 0
 ): number {
   const [d0, d1] = RIDGE_ANCHORED_AERIAL.distances;
   const run = THREE.MathUtils.clamp((distance - d0) / (d1 - d0), ...RIDGE_ANCHORED_AERIAL.run);
-  return Math.min(far, Math.max(0, THREE.MathUtils.lerp(near, mid, run)));
+  const ceiling = far * THREE.MathUtils.lerp(RIDGE_ALPINE_PROFILE.lowBandAerial, 1, 1 - clearAir);
+  return Math.min(ceiling, Math.max(0, THREE.MathUtils.lerp(near, mid, run)));
 }
 
 /** Shared by both anchored materials; the frame loop writes each ring's damped weight. */
@@ -850,7 +859,9 @@ void main() {
     float aerialRun = clamp((vRidgeDistance - ${RIDGE_ANCHORED_AERIAL.distances[0].toFixed(1)})
       / ${(RIDGE_ANCHORED_AERIAL.distances[1] - RIDGE_ANCHORED_AERIAL.distances[0]).toFixed(1)},
       ${RIDGE_ANCHORED_AERIAL.run[0].toFixed(2)}, ${RIDGE_ANCHORED_AERIAL.run[1].toFixed(2)});
-    aerial = mix(uAerial, min(uAnchoredAerial.z,
+    // Never hazier than the far range's lower band behind it, which clear air
+    // thins to lowBandAerial (getAnchoredRidgeAerial).
+    aerial = mix(uAerial, min(uAnchoredAerial.z * mix(${RIDGE_ALPINE_PROFILE.lowBandAerial.toFixed(2)}, 1.0, 1.0 - uClearAir),
       max(0.0, mix(uAnchoredAerial.x, uAnchoredAerial.y, aerialRun))),
       uDistanceAerialStrength);
   }
@@ -1509,7 +1520,7 @@ export function createRidgeMaterial(
     },
   });
   material.userData.clearAerial = aerial;
-  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v24';
+  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v25';
   return material;
 }
 
