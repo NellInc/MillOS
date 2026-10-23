@@ -43,7 +43,8 @@ describe('galvanised silo skin (final-med-12: matte pale-cyan paint, no form sha
 
   it('keeps every other worn material on its own byte-identical, define-free program', () => {
     for (const [name, material] of Object.entries(MACHINE_MATERIALS)) {
-      if (name === 'silo' || name === 'siloRoof' || name === 'siloSkirt') continue;
+      if (name === 'silo' || name === 'siloRoof' || name === 'siloSkirt' || name === 'siloRing')
+        continue;
       const defines = (material as THREE.Material & { defines?: Record<string, unknown> }).defines;
       expect(defines?.MACHINE_GALVANISED, name).toBeUndefined();
     }
@@ -257,6 +258,37 @@ describe('silo skirt (final3-med-12: a flat grey band under a warm drum)', () =>
   it('is what the discharge enclosure renders with', () => {
     const source = readFileSync('src/components/machines/CompactMachines.tsx', 'utf8');
     expect(source).toMatch(/geometry=\{SILO_OUTLET\}\s*material=\{MATERIALS\.siloSkirt\}/);
+  });
+});
+
+describe('stiffener rings (final3/final4 silos med-12: a cyan line across all five drums)', () => {
+  // The top ring sits at 25.8-26.0 m and the silos camera at y 26, so every
+  // drum's ring lands on the horizon row, seen edge-on. As bare trim (patina 0,
+  // a full mirror) its outer face reflected nothing but the environment's
+  // horizon band: a flat cyan line. The drum around it at the same row, half
+  // patina, did not. Same stock, same exposure: the rings take the drum's film.
+  it('weather like the drum they are bolted to, not like bare trim', () => {
+    const skin = (MACHINE_MATERIALS.silo.userData.machineGalvanised as { value: THREE.Vector4 })
+      .value;
+    const ring = MACHINE_MATERIALS.siloRing;
+    expect(ring.defines?.MACHINE_GALVANISED).toBe('');
+    const galv = (ring.userData.machineGalvanised as { value: THREE.Vector4 }).value;
+    expect(galv.x).toBe(skin.x);
+    expect(galv.y).toBe(skin.y);
+    expect(galv.z).toBe(skin.z);
+    // No run-off or corrugation of their own; same grass-free reflection.
+    expect(galv.w).toBe(0);
+    expect(ring.userData.machineCorrugation.value.y).toBe(0);
+    expect(ring.userData.machineGalvanisedGround.value).toBe(1);
+    // The roof keeps the bare trim.
+    expect(
+      (MACHINE_MATERIALS.siloRoof.userData.machineGalvanised as { value: THREE.Vector4 }).value.x
+    ).toBe(0);
+  });
+
+  it('is what the stiffener rings render with', () => {
+    const source = readFileSync('src/components/machines/CompactMachines.tsx', 'utf8');
+    expect(source).toMatch(/args=\{\[SILO_RING, MATERIALS\.siloRing,/);
   });
 });
 

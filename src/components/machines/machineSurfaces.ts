@@ -1193,7 +1193,7 @@ export const MACHINE_MATERIALS = {
     }
   ),
 
-  /** Galvanised roof and stiffener rings. */
+  /** Galvanised roof (bare trim). The stiffener rings have their own `siloRing`. */
   siloRoof: withWear(
     new THREE.MeshStandardMaterial({
       name: 'machine-silo-trim',
@@ -1214,6 +1214,36 @@ export const MACHINE_MATERIALS = {
       // Same neutral silver and grass-free reflection as the skin: the rings
       // mirrored the grass band as teal stripes. Bare metal, no patina or streaks.
       galvanised: { patina: 0, spangleRoughness: 1, aureole: 0.1, drips: 0 },
+    }
+  ),
+
+  /**
+   * Stiffener rings: the trim's maps and wear, the drum's patina film. As bare
+   * trim (a full mirror) the top ring, at 25.8-26 m and seen edge-on from the
+   * silos camera at y 26, reflected only the environment's horizon band and
+   * drew a flat cyan line across all five drums on the horizon row, where the
+   * half-patina drum around it did not (final3/final4 silos, med-12). Same
+   * stock and exposure as the drum, so the same film; no run-off or
+   * corrugation of their own.
+   */
+  siloRing: withWear(
+    new THREE.MeshStandardMaterial({
+      name: 'machine-silo-ring',
+      color: '#c4c4c3',
+      roughnessMap: SILO_TRIM_ORM,
+      aoMap: SILO_TRIM_ORM,
+      aoMapIntensity: 0.8,
+      normalMap: SILO_TRIM_NORMAL,
+      normalScale: new THREE.Vector2(0.55, 0.55),
+      roughness: 1,
+      metalness: 1,
+    }),
+    {
+      grime: 0.05,
+      dust: 0.24,
+      edge: 0.16,
+      grimeHeight: 2.2,
+      galvanised: { ...SILO_SKIN_GALVANISED, drips: 0, corrugated: false, stains: 0 },
     }
   ),
 
