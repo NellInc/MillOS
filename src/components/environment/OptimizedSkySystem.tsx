@@ -386,14 +386,19 @@ export const RIDGE_FIELD_PROFILE = {
   fringe: 0.1,
   scrub: [0.09, 0.122, 0.054],
   /**
-   * Night: parcels keep `nightVariation` of their luminance step about
-   * `nightTone`, at its hue, once `uFieldDaylight` reaches 0. The weight is
-   * `getRidgeFieldDaylight`: full by 0.5 daylight (06:00, rain at noon), none
-   * by 0.08 (19:00).
+   * Night: parcels take `nightTone`'s hue once `uFieldDaylight` reaches 0
+   * (`getRidgeFieldDaylight`: full by 0.3 daylight, so 18:30 keeps about 80% of
+   * its hue; none by 0.05, 19:00), and keep `nightVariation` of their luminance
+   * step about it once `uFieldTone` reaches 0 (`getRidgeFieldTone`: full by
+   * 0.12, about half at 19:00, none at 22:00). One shared ramp at [0.08, 0.5]
+   * took 70% of the hue and half the patchwork by 18:30, and a night tone 25%
+   * below the fields darkened them: one near-black mass at dusk
+   * (final4-med-1830 village). `nightTone` sits near the hill's area mean.
    */
-  nightTone: [0.066, 0.094, 0.05],
+  nightTone: [0.078, 0.111, 0.059],
   nightVariation: 0.3,
-  fieldDaylight: [0.08, 0.5],
+  fieldDaylight: [0.05, 0.3],
+  fieldTone: [0.0, 0.12],
 } as const;
 
 /**
@@ -437,9 +442,15 @@ export function getAnchoredRidgeAerial(
 /** Shared by both anchored materials; the frame loop writes each ring's damped weight. */
 export const RIDGE_ANCHORED_AERIAL_SPAN = { value: new THREE.Vector3(0.1, 0.2, 0.32) };
 
-/** Day weight of the hill fields' hue and full tonal range (RIDGE_FIELD_PROFILE.night*). */
+/** Day weight of the hill fields' hue (RIDGE_FIELD_PROFILE.night*). */
 export function getRidgeFieldDaylight(daylight: number): number {
   const [start, end] = RIDGE_FIELD_PROFILE.fieldDaylight;
+  return THREE.MathUtils.smoothstep(daylight, start, end);
+}
+
+/** Day weight of the hill fields' full tonal range: patchwork and hedgerows. */
+export function getRidgeFieldTone(daylight: number): number {
+  const [start, end] = RIDGE_FIELD_PROFILE.fieldTone;
   return THREE.MathUtils.smoothstep(daylight, start, end);
 }
 const glslVec3 = (value: readonly number[]) => `vec3(${value.map((v) => v.toFixed(3)).join(', ')})`;
@@ -529,6 +540,7 @@ uniform float uRingRadius;
 uniform float uSlopeDepth;
 uniform float uLowAerialStrength;
 uniform float uFieldDaylight;
+uniform float uFieldTone;
 uniform vec3 uAnchoredAerial;
 uniform float uDistanceAerialStrength;
 uniform float uClearAir;
@@ -694,12 +706,13 @@ void main() {
     // and pasture differ mostly in red, which a dim blue key under a warm
     // twilight inscatter turns into purple and red parcels: large straight-
     // edged facets across the village hill at 18:30-22:00 (final3-med-19).
-    // Toward night each parcel keeps its luminance step, compressed, at one
-    // shared hue, and the canopy relief settles with it.
+    // Toward night each parcel takes one shared hue, then (later, so dusk
+    // keeps its patchwork and hedgerows) a compressed luminance step, and the
+    // canopy relief settles with it.
     vec3 fieldMean = ${glslVec3(RIDGE_FIELD_PROFILE.nightTone)};
     float fieldTone = dot(detailedAlbedo, vec3(0.2126, 0.7152, 0.0722))
       / dot(fieldMean, vec3(0.2126, 0.7152, 0.0722));
-    float fieldKeep = mix(${RIDGE_FIELD_PROFILE.nightVariation.toFixed(2)}, 1.0, uFieldDaylight);
+    float fieldKeep = mix(${RIDGE_FIELD_PROFILE.nightVariation.toFixed(2)}, 1.0, uFieldTone);
     detailedAlbedo = mix(fieldMean, mix(fieldMean * fieldTone, detailedAlbedo, uFieldDaylight), fieldKeep);
     relief *= fieldKeep;
   } else if (uWorldAnchored < 0.5 && uAlpineStrength > 0.5) {
@@ -1511,6 +1524,7 @@ export function createRidgeMaterial(
       uLowAerialStrength: { value: 1 },
       // Night compression of the hill fields (RIDGE_FIELD_PROFILE.night*).
       uFieldDaylight: { value: 1 },
+      uFieldTone: { value: 1 },
       // Distance haze on the fixed foothills (RIDGE_ANCHORED_AERIAL), with a
       // private paired control: 0 restores the per-ring constant exactly.
       uAnchoredAerial: RIDGE_ANCHORED_AERIAL_SPAN,
@@ -1907,9 +1921,11 @@ export function OptimizedSkySystem() {
       .lerp(ridgeSunGolden, mountainTwilight);
     ridgeShadowScratch.copy(ridgeShadowNight).lerp(ridgeShadowDay, visualDaylight);
     const fieldDaylight = getRidgeFieldDaylight(atmosphere.daylight);
+    const fieldTone = getRidgeFieldTone(atmosphere.daylight);
     const clearAir = getRidgeClearAir(atmosphere.cloudCoverage);
     for (const ridgeMaterial of ridgeMaterials.all) {
       ridgeMaterial.uniforms.uFieldDaylight.value = fieldDaylight;
+      ridgeMaterial.uniforms.uFieldTone.value = fieldTone;
       ridgeMaterial.uniforms.uClearAir.value = clearAir;
       ridgeMaterial.uniforms.uSunDirection.value.copy(sunDirectionScratch);
       ridgeMaterial.uniforms.uSunColor.value.lerp(ridgeSunScratch, colourAlpha);

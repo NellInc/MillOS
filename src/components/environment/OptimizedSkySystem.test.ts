@@ -22,6 +22,7 @@ import {
   RIDGE_ALPINE_PROFILE,
   RIDGE_FIELD_PROFILE,
   getRidgeFieldDaylight,
+  getRidgeFieldTone,
   getRidgeClearAir,
   getAnchoredRidgeAerial,
   RIDGE_ANCHORED_AERIAL,
@@ -952,25 +953,44 @@ it('thins the far ring haze below the snow line only, keeping snow, upper rock a
 // 18:30 shows the same, purple. Toward night the parcels keep one hue and a
 // compressed luminance step; dawn (0.5 daylight) and rain noon keep full day.
 it('draws the hill fields at one hue and a compressed tone toward night', () => {
-  const { nightVariation, nightTone, fieldDaylight } = RIDGE_FIELD_PROFILE;
+  const { nightVariation, nightTone, fieldDaylight, fieldTone } = RIDGE_FIELD_PROFILE;
   expect(nightVariation).toBeGreaterThan(0);
   expect(nightVariation).toBeLessThanOrEqual(0.4);
   expect(fieldDaylight[0]).toBeLessThan(fieldDaylight[1]);
+  expect(fieldTone[0]).toBeLessThan(fieldTone[1]);
+  const daylightAt = (hour: number, weather: 'clear' | 'rain' = 'clear') =>
+    sampleAtmosphere(1, hour, weather).daylight;
   const at = (hour: number, weather: 'clear' | 'rain' = 'clear') =>
-    getRidgeFieldDaylight(sampleAtmosphere(1, hour, weather).daylight);
+    getRidgeFieldDaylight(daylightAt(hour, weather));
+  const toneAt = (hour: number) => getRidgeFieldTone(daylightAt(hour));
   expect(at(12)).toBe(1);
   expect(at(6)).toBe(1);
   expect(at(12, 'rain')).toBe(1);
-  expect(at(18.5)).toBeLessThan(0.4);
+  // final4-med-1830 village lost to final3's patchwork: at 18:30 the hill had
+  // already given up 70% of its hue and half its tonal step and went to one
+  // near-black mass. Dusk keeps the fields' hue and full tone; the one-hue
+  // night (which fixed the 19:00 red and purple facets) still holds by 19:00,
+  // and the tonal step (patchwork and hedgerows) fades later than the hue.
+  expect(at(18.5)).toBeGreaterThan(0.7);
+  expect(toneAt(18.5)).toBe(1);
   expect(at(19)).toBe(0);
+  expect(toneAt(19)).toBeGreaterThan(0.3);
   expect(at(22)).toBe(0);
+  expect(toneAt(22)).toBe(0);
+  // Compression keeps the palette's mean luminance: a darker night tone pulled
+  // every parcel down 20-30% at dusk (final4 18:30 hill band 20% darker than
+  // final3's).
+  const lum = (c: readonly number[]) => c[0] * 0.2126 + c[1] * 0.7152 + c[2] * 0.0722;
+  const fieldMean = (lum(RIDGE_FIELD_PROFILE.hay) + lum(RIDGE_FIELD_PROFILE.pasture)) / 2;
+  // Between the woods and the open fields, near the hill's area mean.
+  expect(lum(nightTone)).toBeGreaterThan(fieldMean * 0.85);
+  expect(lum(nightTone)).toBeLessThan(fieldMean);
   // Mirror of the shader's compression at full night: every parcel lands on
   // the night tone's hue, and the hay/pasture luminance step shrinks to
   // nightVariation of what it was.
-  const lum = (c: readonly number[]) => c[0] * 0.2126 + c[1] * 0.7152 + c[2] * 0.0722;
   const night = (albedo: readonly number[]) => {
     const tone = lum(albedo) / lum(nightTone);
-    return nightTone.map((mean, i) => mean + (mean * tone - mean) * nightVariation);
+    return nightTone.map((mean) => mean + (mean * tone - mean) * nightVariation);
   };
   const [hay, pasture] = [night(RIDGE_FIELD_PROFILE.hay), night(RIDGE_FIELD_PROFILE.pasture)];
   expect(hay[0] / hay[1]).toBeCloseTo(pasture[0] / pasture[1], 6);
@@ -980,11 +1000,12 @@ it('draws the hill fields at one hue and a compressed tone toward night', () => 
   );
   const near = createRidgeMaterial(0.1, 'near-night', true);
   expect(near.uniforms.uFieldDaylight.value).toBe(1);
+  expect(near.uniforms.uFieldTone.value).toBe(1);
   const branch = near.fragmentShader.slice(
     near.fragmentShader.indexOf('if (uWorldAnchored > 0.5 && uWoodlandStrength > 0.5)'),
     near.fragmentShader.indexOf('} else if (uWorldAnchored < 0.5 && uAlpineStrength > 0.5)')
   );
-  expect(branch).toContain(`mix(${nightVariation.toFixed(2)}, 1.0, uFieldDaylight)`);
+  expect(branch).toContain(`mix(${nightVariation.toFixed(2)}, 1.0, uFieldTone)`);
   expect(branch).toContain('mix(fieldMean * fieldTone, detailedAlbedo, uFieldDaylight)');
   near.dispose();
 });
