@@ -4,6 +4,7 @@ import {
   SECTIONAL_DOOR,
   SECTIONAL_DOOR_MATERIAL,
   buildSectionalDoorGeometry,
+  sectionalDoorTone,
 } from './sectionalDoor';
 
 /**
@@ -11,61 +12,53 @@ import {
  * pale-blue panel". It was a 9 x 4 x 0.15 box (the authored GLB is a box too,
  * with a 0.2-scale normal map) in a 0.6-metalness slate that mirrored the sky.
  * A sectional door is horizontal panels with a joint between each and pressed
- * ribs across each panel.
+ * bands across each panel.
  */
 describe('sectional dock door leaf', () => {
   const { width, height, depth, sections } = SECTIONAL_DOOR;
-  const geometry = buildSectionalDoorGeometry();
-  const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
-  // Distance from a ray started 1 m in front of the leaf (+z) to its outer face.
-  const faceAt = (x: number, y: number) => {
-    const hit = new THREE.Raycaster(
-      new THREE.Vector3(x, y, 1),
-      new THREE.Vector3(0, 0, -1),
-      0,
-      3
-    ).intersectObject(mesh)[0];
-    return hit ? 1 - hit.distance : null;
-  };
+  const pitch = height / sections;
+  const v = (y: number) => y / height;
 
-  it('keeps the box it replaces: centred, the same width and height, closed through', () => {
+  it('keeps the box it replaces, with no modelled ledge to alias', () => {
+    // r4 round 1 modelled the joints and bands: from 34 m their 6-30 mm sunlit
+    // ledges broke into rows of dots across the leaf. No relief faces at all.
+    const geometry = buildSectionalDoorGeometry();
     geometry.computeBoundingBox();
     const box = geometry.boundingBox!;
-    expect(box.min.x).toBeCloseTo(-width / 2, 6);
-    expect(box.max.x).toBeCloseTo(width / 2, 6);
-    expect(box.min.y).toBeCloseTo(-height / 2, 6);
-    expect(box.max.y).toBeCloseTo(height / 2, 6);
-    expect(box.max.z - box.min.z).toBeLessThan(depth + 0.04);
-    // No slot anywhere up the leaf: every row stops a ray.
-    for (let y = -height / 2 + 0.01; y < height / 2; y += 0.01) {
-      expect(faceAt(0, y), `y ${y.toFixed(2)}`).not.toBeNull();
-    }
+    [-width / 2, -height / 2, -depth / 2].forEach((value, i) =>
+      expect(box.min.getComponent(i)).toBeCloseTo(value, 6)
+    );
+    [width / 2, height / 2, depth / 2].forEach((value, i) =>
+      expect(box.max.getComponent(i)).toBeCloseTo(value, 6)
+    );
+    expect(geometry.getAttribute('position').count).toBe(24);
   });
 
-  it('draws a recessed joint between every panel and pressed ribs across each one', () => {
-    const pitch = height / sections;
+  it('paints a dark joint between every panel and a band across each one', () => {
     expect(sections).toBeGreaterThanOrEqual(6);
     expect(pitch).toBeLessThan(0.7);
-    const panelFace = faceAt(0, -height / 2 + pitch * 0.5 + pitch * 0.1)!;
+    const panel = sectionalDoorTone(v(pitch * 0.6));
     for (let i = 1; i < sections; i++) {
-      const joint = faceAt(0, -height / 2 + i * pitch)!;
-      // A groove at least 2 cm deep: 2 px from the milling camera at 34 m.
-      expect(panelFace - joint, `joint ${i}`).toBeGreaterThanOrEqual(0.02);
+      expect(sectionalDoorTone(v(i * pitch)), `joint ${i}`).toBeLessThan(panel * 0.6);
     }
     for (let i = 0; i < sections; i++) {
-      const centre = -height / 2 + (i + 0.5) * pitch;
-      const ribs = [centre - pitch / 4, centre + pitch / 4].map((y) => faceAt(0, y)!);
-      for (const rib of ribs) expect(rib - panelFace, `panel ${i}`).toBeGreaterThan(0.004);
+      for (const at of [0.25, 0.75]) {
+        expect(sectionalDoorTone(v((i + at) * pitch)), `panel ${i}`).toBeGreaterThan(panel);
+      }
     }
+    // No joint line along the leaf's own bottom and top edges.
+    expect(sectionalDoorTone(0.001)).toBe(panel);
+    expect(sectionalDoorTone(0.999)).toBe(panel);
   });
 
-  // r4 first after-capture, milling: 35 mm ribs with lit tops broke into rows
-  // of dots across the leaf. Every horizontal feature is 2 px or more tall
-  // from the milling camera (34 m, fov 50, 1440 px).
-  it('draws no joint or rib thinner than 2 px from the milling camera', () => {
+  it('draws no joint or band under 2 px from the milling camera, and filters the rest', () => {
     const twoPixels = 2 * 34 * ((2 * Math.tan((25 * Math.PI) / 180)) / 1440);
     expect(SECTIONAL_DOOR.ribHeight).toBeGreaterThanOrEqual(twoPixels);
     expect(SECTIONAL_DOOR.jointHeight).toBeGreaterThanOrEqual(twoPixels);
+    const map = (SECTIONAL_DOOR_MATERIAL as THREE.MeshStandardMaterial).map!;
+    expect(map.generateMipmaps).toBe(true);
+    expect(map.minFilter).toBe(THREE.LinearMipmapLinearFilter);
+    expect(map.colorSpace).toBe(THREE.SRGBColorSpace);
   });
 
   it('is a lit dielectric, not a mirror of the sky', () => {
