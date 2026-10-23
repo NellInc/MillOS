@@ -27,14 +27,16 @@
  * switched off between two frames of the SAME render — same driver, same shader
  * cache, same clock, same warm GPU, same camera.
  *
- * THREE SHOTS, NOT TWO: on, off, on. The middle one is the treatment arm; the
- * two outer ones bracket it in time and measure how much of the frame moves
- * ON ITS OWN. Benchmark mode pauses the GAME clock (`setGameSpeed(0)`) but not
+ * FOUR SHOTS, NOT TWO: on, off, off, on (ABBA). The middle pair is the
+ * treatment arm; each arm's own pair measures how much of the frame moves ON
+ * ITS OWN. (It was three, on, off, on, until a null control showed swaying
+ * foliage that sat still across the two "on" shots and moved in the "off" one
+ * being credited to the treatment; see lib/surface-change-mask.mjs.) Benchmark mode pauses the GAME clock (`setGameSpeed(0)`) but not
  * the render clock, so conveyors, water, workers and vehicles keep animating,
  * and a plain two-shot diff credits all of that to the treatment. Measured: the
  * `interior` scene reported 3.12% of pixels changed at a mean delta of 23.8,
  * and the whole reading was four flour sacks travelling along a conveyor between
- * the two exposures. Every pixel that also differs between the two same-arm
+ * the two exposures. Every pixel that also differs between either arm's two
  * shots is therefore struck out of the mask before anything is computed — the
  * same intra-run-instability discriminator this repo used to separate "the
  * surface moved" from "the surface is now z-fighting".
@@ -68,11 +70,26 @@
  *   --scenes=<list>     Comma-separated benchmark scenes. Default: the surface set.
  *   --quality=<tier>    low | medium | high | ultra. Default medium.
  *   --port=<number>     Preview port. Default 4198.
- *   --settle=<seconds>  Seconds after worldReady before the first shot. Default 9.
+ *   --settle=<seconds>  Seconds after the startup reveal before the first shot. Default 9.
+ *   --ready-timeout=<s> Per readiness stage. Default 180, because the reveal
+ *                       waits on shader compiles and static batching and this
+ *                       machine runs at high load from other software.
  *   --crop=x,y,w,h      Restrict every measurement to this pixel rectangle of
  *                       the 1280x720 frame. See CROPS below.
  *   --no-toggle         Baseline mode: one shot per scene, no A/B. Used before
  *                       the treatment exists, to record the "before" frames.
+ *   --control           Null control: the treatment is switched OFF for all
+ *                       four shots, so the "on" and "off" arms are the same
+ *                       arm and the only variable left is the instrument.
+ *                       Every scene must read exactly 0 and INERT; anything
+ *                       else is noise the instrument would credit to a real
+ *                       treatment.
+ *
+ * Serving and readiness follow run-performance-benchmark.mjs, which is the
+ * harness that has kept working: the preview gets the build's own VERSION and
+ * the browser goes to its base, the page waits for the startup reveal rather
+ * than the earlier world marker, and a stage that times out reports the
+ * failed requests and page errors that explain it instead of a bare timeout.
  *
  * ---------------------------------------------------------------------------
  * CROPS: A SCENE AGGREGATE ANSWERS THE WRONG QUESTION
@@ -91,12 +108,24 @@
  * the dilation reaching across the crop boundary and the denominator wrong.
  */
 import { spawn } from 'node:child_process';
-import { access, mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import { chromium } from '@playwright/test';
 import sharp from 'sharp';
 import { acquireCaptureLock } from './lib/capture-lock.mjs';
+import { changeMask } from './lib/surface-change-mask.mjs';
+import {
+  assertPreviewBuildIdentity,
+  assertPreviewPortAvailable,
+} from './lib/preview-build-identity.mjs';
+import {
+  DEFAULT_SURFACE_SCENES,
+  READINESS_STAGES,
+  parseBenchmarkScenes,
+  previewPlan,
+} from './lib/surface-measure-contract.mjs';
 
 const ROOT = process.cwd();
 const OUTPUT_ROOT = path.join(ROOT, 'test-results', 'surface-contrast');
@@ -107,26 +136,10 @@ const arg = (name, fallback) => {
 };
 const flag = (name) => process.argv.includes(`--${name}`);
 
-/**
- * Scenes whose frames are mostly the surfaces this work touches.
- *
- * `yard`, `shipping` and `receiving` are the truck-yard and logistics merges;
- * `overview` and `village` carry the exterior shell and the village; `interior`
- * is the control that should barely move (its walls are the shell, its machines
- * are already surfaced); `personnel-close` and `forklift` are the two skinned /
- * moving branches, which take the rest-space profile rather than the world one.
- */
-const DEFAULT_SCENES = [
-  'overview',
-  'yard',
-  'shipping',
-  'receiving',
-  'village',
-  'farm',
-  'interior',
-  'personnel-close',
-  'forklift',
-];
+// The default scene set, the preview plan and the readiness stages are claims
+// about the app, so they live in lib/surface-measure-contract.mjs where a test
+// can hold them against the real source.
+const DEFAULT_SCENES = DEFAULT_SURFACE_SCENES;
 
 /** `x,y,w,h` in frame pixels, or null for the whole frame. */
 function parseCrop(value) {
@@ -148,8 +161,10 @@ const options = {
   quality: arg('quality', 'medium'),
   port: Number(arg('port', '4198')),
   settle: Number(arg('settle', '9')),
+  readyTimeoutMs: Number(arg('ready-timeout', '180')) * 1000,
   crop: parseCrop(arg('crop', '')),
   toggle: !flag('no-toggle'),
+  control: flag('control'),
 };
 
 if (!options.label) {
@@ -162,10 +177,17 @@ let preview = null;
 let lock = null;
 
 async function startPreview() {
-  await access(path.join(ROOT, 'dist', 'index.html')).catch(() => {
+  const indexHtml = await readFile(path.join(ROOT, 'dist', 'index.html'), 'utf8').catch(() => {
     throw new Error('dist/index.html is missing. Run npm run build first.');
   });
-  const url = `http://127.0.0.1:${options.port}`;
+  const plan = previewPlan(indexHtml);
+  // The build decides the base, not the caller's shell: a stray VERSION in the
+  // environment would otherwise re-base the preview away from the bundle.
+  const env = { ...process.env, BROWSER: 'none' };
+  if (plan.version) env.VERSION = plan.version;
+  else delete env.VERSION;
+  const url = `http://127.0.0.1:${options.port}${plan.basePath}`;
+  await assertPreviewPortAvailable(options.port);
   preview = spawn(
     process.execPath,
     [
@@ -177,12 +199,17 @@ async function startPreview() {
       String(options.port),
       '--strictPort',
     ],
-    { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, BROWSER: 'none' } }
+    { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'], env }
   );
   const deadline = Date.now() + 30000;
   for (;;) {
     try {
-      if ((await fetch(url)).ok) return url;
+      if ((await fetch(`${url}/`)).ok) {
+        // A stale or foreign dist/ would measure a different tree than the
+        // label claims; the benchmark refuses that, and so does this.
+        await assertPreviewBuildIdentity(url, path.join(ROOT, 'dist'));
+        return url;
+      }
     } catch {
       /* not up yet */
     }
@@ -244,82 +271,6 @@ function maskedLaplacian(plane, mask) {
   return { mean: counted ? total / counted : 0, counted };
 }
 
-/** One luma step. Strictly-greater-than so an inert term returns exactly zero. */
-const CHANGE_THRESHOLD = 1;
-
-/**
- * Pixels the TREATMENT changed: different between the arms, and NOT different
- * between two shots of the same arm.
- *
- * The self-motion exclusion is dilated by one before it is subtracted. A moving
- * edge lands on slightly different pixels in each of the three exposures, so an
- * undilated motion mask leaves a one-pixel fringe of the mover behind — and a
- * fringe of a high-contrast moving object is exactly the kind of thing that
- * would flatter the contrast ratio.
- *
- * The result is dilated too, so the Laplacian window over an attributable pixel
- * sees its real neighbourhood rather than a hard mask edge, which would itself
- * read as contrast and inflate both arms equally.
- */
-function changeMask(onPlane, offPlane, onPlaneLate) {
-  const { luma: on, width, height } = onPlane;
-  const { luma: off } = offPlane;
-  const late = onPlaneLate?.luma ?? null;
-
-  const moving = new Uint8Array(width * height);
-  let movingPixels = 0;
-  if (late) {
-    for (let index = 0; index < moving.length; index += 1) {
-      if (Math.abs(on[index] - late[index]) > CHANGE_THRESHOLD) {
-        moving[index] = 1;
-        movingPixels += 1;
-      }
-    }
-  }
-  const dilate = (source) => {
-    const out = new Uint8Array(source.length);
-    for (let y = 1; y < height - 1; y += 1) {
-      for (let x = 1; x < width - 1; x += 1) {
-        const index = y * width + x;
-        if (
-          source[index] ||
-          source[index - 1] ||
-          source[index + 1] ||
-          source[index - width] ||
-          source[index + width]
-        ) {
-          out[index] = 1;
-        }
-      }
-    }
-    return out;
-  };
-  const movingDilated = late ? dilate(moving) : moving;
-
-  const raw = new Uint8Array(width * height);
-  let changed = 0;
-  let deltaTotal = 0;
-  let deltaMax = 0;
-  for (let index = 0; index < raw.length; index += 1) {
-    if (movingDilated[index]) continue;
-    const delta = Math.abs(on[index] - off[index]);
-    if (delta > CHANGE_THRESHOLD) {
-      raw[index] = 1;
-      changed += 1;
-      deltaTotal += delta;
-      if (delta > deltaMax) deltaMax = delta;
-    }
-  }
-  return {
-    mask: dilate(raw),
-    changedFraction: changed / raw.length,
-    motionFraction: movingPixels / raw.length,
-    meanAbsDelta: changed ? deltaTotal / changed : 0,
-    maxAbsDelta: deltaMax,
-    changedPixels: changed,
-  };
-}
-
 async function main() {
   const outputDir = path.join(OUTPUT_ROOT, options.label);
   await mkdir(outputDir, { recursive: true });
@@ -328,30 +279,92 @@ async function main() {
     console.log(`Measuring inside crop ${width}x${height} at (${left}, ${top}) of 1280x720.`);
   }
 
+  // The runtime coerces an unknown scene to `overview` without a word, so a
+  // stale name would be measured, and reported, as a scene it is not.
+  const validScenes = parseBenchmarkScenes(
+    await readFile(path.join(ROOT, 'src', 'runtime', 'runtimeMode.ts'), 'utf8')
+  );
+  const unknownScenes = options.scenes.filter((scene) => !validScenes.includes(scene));
+  if (unknownScenes.length > 0) {
+    throw new Error(
+      `Unknown benchmark scene(s): ${unknownScenes.join(', ')}. The runtime would silently ` +
+        `measure "overview" under that name.\nValid scenes: ${validScenes.join(', ')}`
+    );
+  }
+
   lock = await acquireCaptureLock('measure-surface-contrast', { root: ROOT });
   const baseUrl = await startPreview();
-  const browser = await chromium.launch({ headless: true, channel: 'chrome' });
+  // Launched the way run-performance-benchmark.mjs launches: Metal through
+  // ANGLE with the GPU sandbox intact, rather than whatever headless picks.
+  const browser = await chromium.launch({
+    headless: true,
+    channel: 'chrome',
+    chromiumSandbox: true,
+    ignoreDefaultArgs: ['--enable-unsafe-swiftshader'],
+    args: [
+      '--mute-audio',
+      '--enable-automation',
+      ...(process.platform === 'darwin' ? ['--use-gl=angle', '--use-angle=metal'] : []),
+    ],
+  });
   const results = [];
 
   try {
     for (const scene of options.scenes) {
-      const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+      // A fresh context per scene, with service workers blocked so a cached
+      // bundle from an earlier build can never answer for this one.
+      const context = await browser.newContext({
+        viewport: { width: 1280, height: 720 },
+        serviceWorkers: 'block',
+      });
+      const page = await context.newPage();
+      const failedRequests = [];
+      const pageErrors = [];
+      const consoleErrors = [];
+      page.on('requestfailed', (request) =>
+        failedRequests.push(`${request.url()} ${request.failure()?.errorText ?? ''}`)
+      );
+      page.on('response', (response) => {
+        if (response.status() >= 400)
+          failedRequests.push(`${response.url()} HTTP ${response.status()}`);
+      });
+      page.on('pageerror', (error) => pageErrors.push(error.message));
+      page.on('console', (message) => {
+        if (message.type() === 'error') consoleErrors.push(message.text());
+      });
       try {
         await page.goto(
           `${baseUrl}/?benchmark=${scene}&quality=${options.quality}&duration=300&art=1`,
           { waitUntil: 'domcontentloaded', timeout: 90000 }
         );
-        await page.waitForFunction(() => window.__MILLOS_RUNTIME__?.ready === true, null, {
-          timeout: 90000,
-        });
-        await page.waitForFunction(
-          () => document.documentElement.dataset.millosWorldReady === 'true',
-          null,
-          { timeout: 90000 }
-        );
-        // Lazily mounted branches and the static batcher both land seconds
-        // after "ready". Measuring before the batches exist measures the
-        // unbatched originals, which are a different set of materials.
+        for (const stage of READINESS_STAGES) {
+          const startedAt = Date.now();
+          try {
+            await page.waitForFunction(stage.predicate, null, { timeout: options.readyTimeoutMs });
+          } catch (error) {
+            // A bundle that 404s is visible in the first second. Say so,
+            // rather than letting it surface as a bare timeout minutes later.
+            const evidence = [
+              ...failedRequests.slice(0, 8).map((line) => `  failed request: ${line}`),
+              ...pageErrors.slice(0, 5).map((line) => `  page error: ${line}`),
+              ...consoleErrors.slice(0, 5).map((line) => `  console error: ${line}`),
+            ];
+            throw new Error(
+              `${scene}: "${stage.name}" not reached in ${Math.round(
+                (Date.now() - startedAt) / 1000
+              )} s (${stage.emitter} never emitted it).\n` +
+                (evidence.length ? evidence.join('\n') : '  no failed requests or page errors'),
+              { cause: error }
+            );
+          }
+        }
+        // Lazily mounted branches land seconds after the reveal; the settle
+        // keeps the first shot clear of them.
+        if (options.control) {
+          await page.evaluate(() =>
+            window.__MILLOS_RUNTIME__?.setPerfDebug({ disableSurfaceTreatment: true })
+          );
+        }
         await page.waitForTimeout(options.settle * 1000);
 
         const onPath = path.join(outputDir, `${scene}-on.png`);
@@ -378,21 +391,31 @@ async function main() {
         await page.waitForTimeout(400);
         const offPath = path.join(outputDir, `${scene}-off.png`);
         await page.screenshot({ path: offPath, timeout: 30000 });
-        await page.evaluate(() =>
-          window.__MILLOS_RUNTIME__.setPerfDebug({ disableSurfaceTreatment: false })
+        // The off arm's own second shot, at the same 400 ms spacing: whatever
+        // moves between these two was a mover in the off arm, wherever the "on"
+        // shots happened to catch it (see changeMask on swaying foliage).
+        await page.waitForTimeout(400);
+        const offLatePath = path.join(outputDir, `${scene}-off-late.png`);
+        await page.screenshot({ path: offLatePath, timeout: 30000 });
+        // In --control the "on" arm stays off, so every shot is the same arm.
+        await page.evaluate(
+          (disabled) =>
+            window.__MILLOS_RUNTIME__.setPerfDebug({ disableSurfaceTreatment: disabled }),
+          options.control
         );
-        // The third shot brackets the off arm at the same 400 ms spacing, so the
+        // The last shot closes the ABBA bracket at the same spacing, so the
         // self-motion it measures is the motion the on-off pair also contains.
         await page.waitForTimeout(400);
         const latePath = path.join(outputDir, `${scene}-on-late.png`);
         await page.screenshot({ path: latePath, timeout: 30000 });
 
-        const [onPlane, offPlane, latePlane] = await Promise.all([
+        const [onPlane, offPlane, offLatePlane, latePlane] = await Promise.all([
           lumaPlane(await sharp(onPath).toBuffer()),
           lumaPlane(await sharp(offPath).toBuffer()),
+          lumaPlane(await sharp(offLatePath).toBuffer()),
           lumaPlane(await sharp(latePath).toBuffer()),
         ]);
-        const change = changeMask(onPlane, offPlane, latePlane);
+        const change = changeMask(onPlane, offPlane, latePlane, offLatePlane);
         const contrastOn = maskedLaplacian(onPlane, change.mask);
         const contrastOff = maskedLaplacian(offPlane, change.mask);
         const ratio = contrastOff.mean > 0 ? contrastOn.mean / contrastOff.mean : 0;
@@ -419,7 +442,7 @@ async function main() {
             `  (x${ratio.toFixed(3)})${change.changedPixels === 0 ? '   *** INERT ***' : ''}`
         );
       } finally {
-        await page.close();
+        await context.close();
       }
     }
 
@@ -434,6 +457,10 @@ async function main() {
           settleSeconds: options.settle,
           crop: options.crop,
           toggle: options.toggle,
+          control: options.control,
+          baseUrl,
+          // Pixel fractions do not depend on load, but readiness timing does.
+          loadPerCore: Number((os.loadavg()[0] / os.cpus().length).toFixed(2)),
           results,
         },
         null,
