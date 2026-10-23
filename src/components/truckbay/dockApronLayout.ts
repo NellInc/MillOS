@@ -311,16 +311,25 @@ export const YARD_MAST = { height: 14, poolRadius: 18 } as const;
 export const DOCK_DOOR_FRAME = { halfWidth: 4.85, top: 5.25, z: -1.7575, depth: 0.286 } as const;
 
 /**
- * The dock's name and its dock number, painted on a board standing on the door
- * frame's head. Both lines used to float in the open bay over the door at y 6
- * and 4.5 with nothing behind them ("SHIPPING" and "DOCK 1 - OUTBOUND" read as
- * HUD text in shipping and logistics-close), and the lower line lay across the
- * rolled-up door (4.1-4.9 m when open).
+ * The dock's name and its dock number, painted on a board carried on two
+ * posts off the door frame's head. Both lines used to float in the open bay
+ * over the door at y 6 and 4.5 with nothing behind them ("SHIPPING" and
+ * "DOCK 1 - OUTBOUND" read as HUD text in shipping and logistics-close), and
+ * the lower line lay across the rolled-up door (4.1-4.9 m when open).
+ *
+ * The board then stood ON the frame head, 5.23-7.31 m, and the truck canopy's
+ * front edge beam (`DOCK_CANOPY`, roof edge 6.2 m at u 10.7) crossed it from
+ * the yard: seen from logistics-close (eye 3.8 m) the beam covers the board
+ * plane up to about 6.9 m, which took the lower half of "SHIPPING" (worst at
+ * 18:30), and from the shipping camera (eye 9 m) the roof hid the subtitle.
+ * Every line clears from 6.55 m up (`dockApronLayout.test.ts` ray-casts the
+ * canopy model); the board starts at 7.0 for margin.
  */
+const DOCK_FACADE_BOARD_BOTTOM = 7.0;
 export const DOCK_FACADE_BOARD = {
   width: 6.8,
-  bottom: DOCK_DOOR_FRAME.top - 0.02,
-  top: DOCK_DOOR_FRAME.top + 2.08,
+  bottom: DOCK_FACADE_BOARD_BOTTOM,
+  top: DOCK_FACADE_BOARD_BOTTOM + 2.1,
   z: DOCK_DOOR_FRAME.z,
   depth: 0.12,
 } as const;
@@ -338,8 +347,22 @@ export const DOCK_FACADE_TRIM = {
   depth: DOCK_FACADE_BOARD.depth - 0.02,
 } as const;
 
+/**
+ * The board's two posts: steel standing on the door frame's head (sunk 2 cm),
+ * 6 cm up into the board, and shallower than the edge trim so no face of a
+ * post lies on a face of the board or trim.
+ */
+export const DOCK_FACADE_POSTS = {
+  xs: [-2.6, 2.6],
+  width: 0.14,
+  depth: 0.08,
+  bottom: DOCK_DOOR_FRAME.top - 0.02,
+  top: DOCK_FACADE_BOARD.bottom + 0.06,
+  z: DOCK_FACADE_BOARD.z,
+} as const;
+
 export const DOCK_FACADE_LINES = {
-  title: { y: 6.62, fontSize: 0.95 },
-  subtitle: { y: 5.72, fontSize: 0.42 },
+  title: { y: DOCK_FACADE_BOARD.bottom + 1.39, fontSize: 0.95 },
+  subtitle: { y: DOCK_FACADE_BOARD.bottom + 0.49, fontSize: 0.42 },
   z: DOCK_FACADE_BOARD.z + DOCK_FACADE_BOARD.depth / 2 + 0.012,
 } as const;

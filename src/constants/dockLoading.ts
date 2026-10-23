@@ -34,6 +34,15 @@ export const DOCK_DECK = {
 } as const;
 
 /**
+ * The truck canopy in front of each dock (`LoadingDockCanopy`, the
+ * `dockCanopyStructure` GLB: 20.5 m wide, 5.2 m deep, roof edge at 6.2 m),
+ * centred `u` metres out from the dock line, the model `modelOffsetU` further.
+ * Its front edge beam is the member the dock name board must clear from the
+ * yard cameras (`dockApronLayout.test.ts`).
+ */
+export const DOCK_CANOPY = { u: 8, modelOffsetU: 0.1, width: 20, depth: 5 } as const;
+
+/**
  * Where the carried pallet's underside stands above the fork datum: the
  * authored model's pallet origin (0.34) less the pallet's 0.06 m underside.
  * The compact model's stands 2.5 cm lower.

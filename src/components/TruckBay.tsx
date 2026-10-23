@@ -1,6 +1,10 @@
 import { PalletStaging } from './truckbay/PalletStaging';
 import { DockYardDressing } from './truckbay/DockYardDressing';
-import { PARKED_TRAILER_HALF, TRAILER_DROP_YARD } from './truckbay/dockYardDressingLayout';
+import {
+  PARKED_TRAILER_HALF,
+  TRAILER_DROP_YARD,
+  TRUCK_STAGING_LETTERING,
+} from './truckbay/dockYardDressingLayout';
 import { YardWearMarks } from './truckbay/YardWearMarks';
 import { SECTIONAL_DOOR_MATERIAL, buildSectionalDoorGeometry } from './truckbay/sectionalDoor';
 import { paintLineMask, paintLineQuad, THIN_PAINT_LIMIT } from './truckbay/paintLine';
@@ -73,6 +77,7 @@ import {
 import {
   DOCK_FACADE_BOARD,
   DOCK_FACADE_LINES,
+  DOCK_FACADE_POSTS,
   DOCK_FACADE_TRIM,
   DOCK_FLOOD_HEADS,
   DOCK_FLOOD_POOLS,
@@ -169,7 +174,7 @@ const DOCK_FACADE_TRIM_MATERIAL = new THREE.MeshStandardMaterial({
 });
 
 /**
- * The dock's name board: painted steel standing on the door frame's head, with
+ * The dock's name board: painted steel carried on two posts off the door frame's head, with
  * a brushed edge trim behind it (`DOCK_FACADE_BOARD`). The lettering is lit
  * paint on its face, readable from outside only.
  */
@@ -191,6 +196,28 @@ const DockFacadeSign: React.FC<{
       >
         <boxGeometry args={[board.width, height, board.depth]} />
       </mesh>
+      {/* Two posts off the door frame's head carry the board above the truck
+          canopy's sight line (`DOCK_FACADE_POSTS`). */}
+      {DOCK_FACADE_POSTS.xs.map((x) => (
+        <mesh
+          key={x}
+          position={[
+            x,
+            (DOCK_FACADE_POSTS.bottom + DOCK_FACADE_POSTS.top) / 2,
+            DOCK_FACADE_POSTS.z,
+          ]}
+          material={DOCK_FACADE_TRIM_MATERIAL}
+          castShadow
+        >
+          <boxGeometry
+            args={[
+              DOCK_FACADE_POSTS.width,
+              DOCK_FACADE_POSTS.top - DOCK_FACADE_POSTS.bottom,
+              DOCK_FACADE_POSTS.depth,
+            ]}
+          />
+        </mesh>
+      ))}
       {/* Edge trim: 4 cm proud of the board all round, inset 1 cm behind both
           of its faces (`DOCK_FACADE_TRIM`), so no face is coplanar. */}
       <mesh
@@ -3605,16 +3632,22 @@ export const TruckBay: React.FC = () => {
         {/* Painted on the yard, so it takes the yard's overlay datum. At the
             literal 0.05 it was UNDER the tarmac slab at 0.08 and had never
             been visible in any capture; it is 1 cm of clean separation now. */}
+        {/* Down the strip west of the trucks' loop, clear of every wheel
+            line and the pallet island (TRUCK_STAGING_LETTERING). */}
         <Text
           surface="painted"
-          position={[0, EXTERIOR_LAYERS.groundOverlay, 40]}
-          rotation={[-Math.PI / 2, 0, 0]}
-          fontSize={2}
+          position={[
+            TRUCK_STAGING_LETTERING.x,
+            EXTERIOR_LAYERS.groundOverlay,
+            TRUCK_STAGING_LETTERING.z - SHIPPING_YARD_ORIGIN_Z,
+          ]}
+          rotation={[-Math.PI / 2, 0, Math.PI / 2]}
+          fontSize={TRUCK_STAGING_LETTERING.fontSize}
           color="#475569"
           anchorX="center"
           anchorY="middle"
         >
-          TRUCK STAGING
+          {TRUCK_STAGING_LETTERING.text}
         </Text>
 
         {/* The road tunnel the trucks disappear into is SITE_LAYOUT.roadTunnels.south,
@@ -4000,16 +4033,21 @@ export const TruckBay: React.FC = () => {
         {/* Painted on the yard, so it takes the yard's overlay datum. At the
             literal 0.05 it was UNDER the tarmac slab at 0.08 and had never
             been visible in any capture; it is 1 cm of clean separation now. */}
+        {/* The shipping legend turned half a revolution about the site origin. */}
         <Text
           surface="painted"
-          position={[0, EXTERIOR_LAYERS.groundOverlay, -40]}
-          rotation={[-Math.PI / 2, 0, Math.PI]}
-          fontSize={2}
+          position={[
+            -TRUCK_STAGING_LETTERING.x,
+            EXTERIOR_LAYERS.groundOverlay,
+            -(TRUCK_STAGING_LETTERING.z - SHIPPING_YARD_ORIGIN_Z),
+          ]}
+          rotation={[-Math.PI / 2, 0, -Math.PI / 2]}
+          fontSize={TRUCK_STAGING_LETTERING.fontSize}
           color="#475569"
           anchorX="center"
           anchorY="middle"
         >
-          TRUCK STAGING
+          {TRUCK_STAGING_LETTERING.text}
         </Text>
 
         {/* Road tunnel: SITE_LAYOUT.roadTunnels.north, mounted in FactoryExterior. */}

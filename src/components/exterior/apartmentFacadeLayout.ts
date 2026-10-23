@@ -85,7 +85,12 @@ export function apartmentFacadeLayout(floors: ApartmentFloors) {
     }));
   /** Window pane centres and width on this face, for the clearance test. */
   const panes = { centres: [-3.96, -0.49, 2.99, 6.46], width: 2.14 } as const;
-  return { shell, windowBands, stairTower, gallery, columns, panes };
+  /**
+   * Where each upper floor meets the stair: a landing slab seen across the lit
+   * glazing slot at night. The galleries' slab tops are those floors.
+   */
+  const stairLandings = gallery.tops.map((top) => top - gallery.thickness / 2);
+  return { shell, windowBands, stairTower, gallery, columns, panes, stairLandings };
 }
 
 const FOUR = apartmentFacadeLayout(4);

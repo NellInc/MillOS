@@ -46,6 +46,23 @@ export const LOADING_PROP_FOOTPRINT = {
   spillKit: [0.4, 0.4],
 } as const;
 
+/**
+ * Height of each prop's top above its own floor, metres, so a layout can be
+ * checked as the camera sees it and not only in plan. The jack's is its tiller
+ * grip (0.44 + 1.05 cos 0.38); the dock board's is its leaned top edge; a
+ * stack's depends on its count (`palletStackHeight`).
+ */
+export const LOADING_PROP_HEIGHT = {
+  load: LOADED_PALLET_HEIGHT,
+  palletJack: 1.42,
+  wheelChocks: 0.16,
+  dockBoard: 1.0,
+  spillKit: 0.975,
+} as const;
+
+/** Top of an `EmptyPalletStack` of `count` pallets. */
+export const palletStackHeight = (count: number) => PALLET_LIFT + (count - 0.5) * PALLET_HEIGHT;
+
 const TIMBER = new THREE.MeshStandardMaterial({
   name: 'loading-prop-pallet-timber',
   color: '#8d6d48',
@@ -62,16 +79,18 @@ INK.color.set('#39352d');
 INK.alphaTest = PALLET_PRINT_ALPHA_TEST;
 INK.transparent = true;
 /**
- * Stretch film. It is a real translucent material - film is - but milky and
- * dull enough that the load reads through it as wrapped, not as a hologram.
+ * Stretch film. It is a real translucent material - film is - but thin and
+ * glossy: a sheen over the sacks rather than a milky layer. At 0.42 opacity
+ * and 0.32 roughness, over a closed shell, the loads read as sacks in a
+ * ghosted glass box (logistics-close med-06).
  */
-const STRETCH_FILM = new THREE.MeshStandardMaterial({
+export const STRETCH_FILM_MATERIAL = new THREE.MeshStandardMaterial({
   name: 'loading-prop-stretch-film',
-  color: '#dfe6e8',
-  roughness: 0.32,
+  color: '#e8eef0',
+  roughness: 0.18,
   metalness: 0,
   transparent: true,
-  opacity: 0.42,
+  opacity: 0.36,
   depthWrite: false,
 });
 const JACK_PAINT = applyWorldSurface(
@@ -96,8 +115,14 @@ const BIN_LID = new THREE.MeshStandardMaterial({ color: '#2f3a40', roughness: 0.
 
 const UNIT_BOX = new THREE.BoxGeometry(1, 1, 1);
 const WHEEL = new THREE.CylinderGeometry(0.085, 0.085, 0.07, 14).rotateZ(Math.PI / 2);
-/** The film shell: the load's outline with the corners rounded off. */
-const FILM = (() => {
+/**
+ * The film: two bands round the load's outline (corners rounded off), one
+ * binding the bottom course to the pallet deck and one over the top course,
+ * with the middle courses bare. No lid and no floor: a flat translucent lid
+ * across the top course and a full-height sleeve with a hard outline down each
+ * corner is what read as a ghosted glass box.
+ */
+export const STRETCH_FILM_GEOMETRY = (() => {
   // The sack courses reach x +/-0.447 and z +/-0.392 of the unit pallet.
   const halfX = 0.455 * LOAD_SCALE;
   const halfZ = 0.4 * LOAD_SCALE;
@@ -112,17 +137,63 @@ const FILM = (() => {
   shape.quadraticCurveTo(-halfX, halfZ, -halfX, halfZ - r);
   shape.lineTo(-halfX, -halfZ + r);
   shape.quadraticCurveTo(-halfX, -halfZ, -halfX + r, -halfZ);
-  const height = LOADED_PALLET_HEIGHT - PALLET_HEIGHT + 0.02;
-  const geometry = new THREE.ExtrudeGeometry(shape, {
-    depth: height,
-    bevelEnabled: false,
-    curveSegments: 3,
-  });
-  // Extruded along +Z; stand it up so it rises from the pallet deck.
-  geometry.rotateX(-Math.PI / 2);
-  geometry.translate(0, PALLET_HEIGHT - 0.01, 0);
+  const outline = shape.getPoints(3);
+  const bands: (readonly [number, number])[] = [
+    [PALLET_HEIGHT - 0.01, PALLET_HEIGHT + 0.36],
+    [LOADED_PALLET_HEIGHT - 0.3, LOADED_PALLET_HEIGHT + 0.01],
+  ];
+  const position: number[] = [];
+  const normal: number[] = [];
+  for (const [y0, y1] of bands)
+    for (let i = 0; i < outline.length - 1; i += 1) {
+      const a = outline[i];
+      const b = outline[i + 1];
+      if (a.distanceTo(b) < 1e-6) continue;
+      // Plan normal of this wall, turned to face away from the load's centre.
+      let nx = b.y - a.y;
+      let nz = -(b.x - a.x);
+      const flip = nx * (a.x + b.x) + nz * (a.y + b.y) < 0;
+      const [p, q] = flip ? [b, a] : [a, b];
+      if (flip) [nx, nz] = [-nx, -nz];
+      const length = Math.hypot(nx, nz);
+      const quad = [
+        [p.x, y0, p.y],
+        [q.x, y0, q.y],
+        [q.x, y1, q.y],
+        [p.x, y0, p.y],
+        [q.x, y1, q.y],
+        [p.x, y1, p.y],
+      ];
+      // Wound so the outward face is the front face.
+      const e = [q.x - p.x, q.y - p.y];
+      const outwardIsFront = -e[1] * nx + e[0] * nz > 0;
+      const order = outwardIsFront ? [0, 1, 2, 3, 4, 5] : [0, 2, 1, 3, 5, 4];
+      for (const k of order) {
+        position.push(...quad[k]);
+        normal.push(nx / length, 0, nz / length);
+      }
+    }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(position, 3));
+  geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normal, 3));
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
   return geometry;
 })();
+/**
+ * A portable aluminium dock board, metres in its own frame: the deck plate,
+ * raised traction cleats across it at `cleats` along its length, and a yellow
+ * curb up each long edge (inset 5 mm from the plate's side faces, so no face
+ * is shared).
+ */
+export const DOCK_BOARD = {
+  width: 1.5,
+  length: 1.0,
+  thickness: 0.03,
+  cleats: [0.16, 0.26, 0.36, 0.46, 0.56, 0.66, 0.76, 0.86],
+  cleat: { depth: 0.025, height: 0.012, embed: 0.002 },
+  curb: { x: 0.715, width: 0.06, height: 0.07 },
+} as const;
 /** Chock wedge: right-triangle prism, 0.26 m long, 0.16 m tall, 0.2 m wide. */
 const CHOCK = (() => {
   const shape = new THREE.Shape();
@@ -164,7 +235,9 @@ export const FlourLoad: React.FC<PropProps & { wrapped?: boolean }> = ({
         />
         <mesh geometry={geometry.ink} material={INK} receiveShadow />
       </group>
-      {wrapped && <mesh geometry={FILM} material={STRETCH_FILM} renderOrder={2} />}
+      {wrapped && (
+        <mesh geometry={STRETCH_FILM_GEOMETRY} material={STRETCH_FILM_MATERIAL} renderOrder={2} />
+      )}
     </group>
   );
 };
@@ -273,44 +346,72 @@ export const WheelChocks: React.FC<PropProps> = ({ position, rotation = 0 }) => 
 );
 
 /**
- * A portable aluminium dock board, leaned against whatever stands at its +z
- * side: 1.5 m wide, 1.0 m long, with two carry handles and a bent lip.
+ * A portable aluminium dock board (`DOCK_BOARD`), leaned against whatever
+ * stands at its +z side: 1.5 m wide, 1.0 m long, with traction cleats and
+ * yellow curbs on its deck, two carry handles behind and a bent lip.
  */
 export const DockBoard: React.FC<PropProps & { lean?: number }> = ({
   position,
   rotation = 0,
   lean = 0.32,
-}) => (
-  <group position={position} rotation={[0, rotation, 0]}>
-    <group rotation={[-(Math.PI / 2 - lean), 0, 0]}>
-      <mesh
-        geometry={UNIT_BOX}
-        material={ALUMINIUM}
-        position={[0, 0, 0.5]}
-        scale={[1.5, 0.03, 1.0]}
-        castShadow
-        receiveShadow
-      />
-      {[-0.45, 0.45].map((x) => (
+}) => {
+  const { width, length, thickness, cleats, cleat, curb } = DOCK_BOARD;
+  const deckTop = thickness / 2;
+  return (
+    <group position={position} rotation={[0, rotation, 0]}>
+      <group rotation={[-(Math.PI / 2 - lean), 0, 0]}>
         <mesh
-          key={x}
           geometry={UNIT_BOX}
-          material={STEEL_DARK}
-          position={[x, -0.05, 0.85]}
-          scale={[0.18, 0.06, 0.04]}
+          material={ALUMINIUM}
+          position={[0, 0, length / 2]}
+          scale={[width, thickness, length]}
           castShadow
+          receiveShadow
         />
-      ))}
-      <mesh
-        geometry={UNIT_BOX}
-        material={ALUMINIUM}
-        position={[0, -0.03, 0.04]}
-        rotation={[0.5, 0, 0]}
-        scale={[1.5, 0.02, 0.12]}
-      />
+        {/* Cleats across the deck, between the curbs, 2 mm into the plate. */}
+        {cleats.map((z) => (
+          <mesh
+            key={z}
+            geometry={UNIT_BOX}
+            material={ALUMINIUM}
+            position={[0, deckTop + cleat.height / 2 - cleat.embed, z]}
+            scale={[2 * (curb.x - curb.width / 2) - 0.04, cleat.height, cleat.depth]}
+            receiveShadow
+          />
+        ))}
+        {/* Curbs up both long edges, standing from inside the plate. */}
+        {[-curb.x, curb.x].map((x) => (
+          <mesh
+            key={x}
+            geometry={UNIT_BOX}
+            material={JACK_PAINT}
+            position={[x, curb.height / 2, length / 2]}
+            scale={[curb.width, curb.height, length - 0.04]}
+            castShadow
+            receiveShadow
+          />
+        ))}
+        {[-0.45, 0.45].map((x) => (
+          <mesh
+            key={x}
+            geometry={UNIT_BOX}
+            material={STEEL_DARK}
+            position={[x, -0.05, 0.85]}
+            scale={[0.18, 0.06, 0.04]}
+            castShadow
+          />
+        ))}
+        <mesh
+          geometry={UNIT_BOX}
+          material={ALUMINIUM}
+          position={[0, -0.03, 0.04]}
+          rotation={[0.5, 0, 0]}
+          scale={[1.5, 0.02, 0.12]}
+        />
+      </group>
     </group>
-  </group>
-);
+  );
+};
 
 /** A wheeled spill-kit bin with its dark lid. */
 export const SpillKit: React.FC<PropProps> = ({ position, rotation = 0 }) => (

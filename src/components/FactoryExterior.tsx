@@ -63,6 +63,7 @@ import {
   fitRiverCulvertBank,
 } from './exterior/riverGeometry';
 import { UTILITY_ASSET_DEFINITIONS } from '../constants/utilityAssets';
+import { DOCK_CANOPY } from '../constants/dockLoading';
 import {
   generateContainmentPad,
   generateContainmentPadRoughness,
@@ -74,7 +75,11 @@ import {
   UtilityTankHardware,
   LpgValveHardware,
   UtilityPressureGauge,
+  createVesselSaddleGeometry,
+  storageTankAxisHeight,
+  utilityTankNozzles,
 } from './exterior/utilityVesselDetails';
+import { generateVesselShellMaps, vesselShellUvs } from '../textures/vesselShell';
 import {
   createAtmosphereState,
   createCelestialState,
@@ -161,6 +166,9 @@ import {
   createOrganicLakeBankGeometry,
   createOrganicLakeSurfaceGeometry,
 } from './exterior/organicLakeGeometry';
+
+/** The shipping dock line (TruckBay's dock group); receiving is its half turn. */
+const SHIPPING_DOCK_Z = 50;
 interface FactoryExteriorProps {
   floorWidth?: number;
   floorDepth?: number;
@@ -181,11 +189,14 @@ export const EAST_POND_APPROACH: [number, number, number] = [
   SITE_LAYOUT.exteriorFeatures.ponds[1].position[2],
 ];
 
-const TANK_SUPPORT_MATERIAL = new THREE.MeshStandardMaterial({
-  color: '#64707a',
-  roughness: 0.68,
-  metalness: 0.08,
-});
+const TANK_SUPPORT_MATERIAL = applyWorldSurface(
+  new THREE.MeshStandardMaterial({
+    color: '#64707a',
+    roughness: 0.68,
+    metalness: 0.08,
+  }),
+  'painted'
+);
 const UTILITY_CONCRETE_MATERIAL = new THREE.MeshStandardMaterial({
   color: '#a9afb0',
   roughness: 0.92,
@@ -5310,8 +5321,18 @@ export const ConveyorBridge: React.FC<{
  * can keep the ground under them dry (`Precipitation.tsx` RAIN_SHELTERS).
  */
 export const LOADING_DOCK_CANOPIES = [
-  { position: [0, 0, 58], width: 20, depth: 5, rotation: 0 },
-  { position: [0, 0, -58], width: 20, depth: 5, rotation: Math.PI },
+  {
+    position: [0, 0, SHIPPING_DOCK_Z + DOCK_CANOPY.u],
+    width: DOCK_CANOPY.width,
+    depth: DOCK_CANOPY.depth,
+    rotation: 0,
+  },
+  {
+    position: [0, 0, -(SHIPPING_DOCK_Z + DOCK_CANOPY.u)],
+    width: DOCK_CANOPY.width,
+    depth: DOCK_CANOPY.depth,
+    rotation: Math.PI,
+  },
 ] as const satisfies readonly {
   position: readonly [number, number, number];
   width: number;
@@ -5375,7 +5396,7 @@ export const LoadingDockCanopy: React.FC<{
         </>
       }
     >
-      <group position={[0, 0, 0.1]}>
+      <group position={[0, 0, DOCK_CANOPY.modelOffsetU]}>
         <GeneratedModel asset="dockCanopyStructure" />
       </group>
       {[-width / 3, 0, width / 3].map((x, i) => (
@@ -5465,7 +5486,9 @@ export function vesselProfile(radius: number, length: number): THREE.Vector2[] {
 }
 
 function createVesselGeometry(radius: number, length: number): THREE.LatheGeometry {
-  return new THREE.LatheGeometry(vesselProfile(radius, length), VESSEL_SEGMENTS);
+  const profile = vesselProfile(radius, length);
+  // v by arc length, so the shell maps are laid out in metres (vesselShell.ts).
+  return vesselShellUvs(new THREE.LatheGeometry(profile, VESSEL_SEGMENTS), profile);
 }
 
 /**
@@ -5491,6 +5514,16 @@ function vesselGeometry(radius: number, length: number): THREE.LatheGeometry {
   return geometry;
 }
 
+const VESSEL_SADDLE_CACHE = new Map<number, THREE.BufferGeometry>();
+function vesselSaddleGeometry(radius: number): THREE.BufferGeometry {
+  let geometry = VESSEL_SADDLE_CACHE.get(radius);
+  if (!geometry) {
+    geometry = createVesselSaddleGeometry(radius);
+    VESSEL_SADDLE_CACHE.set(radius, geometry);
+  }
+  return geometry;
+}
+
 /**
  * The seam band over each weld bead: a 0.07 R strip of bare, darker steel,
  * 1.8% proud of the shell. The bead alone is shell-white and 1.2% proud, and
@@ -5498,10 +5531,33 @@ function vesselGeometry(radius: number, length: number): THREE.LatheGeometry {
  * band is what makes the head's start read from the yard.
  */
 export const VESSEL_SEAM_BAND = { width: 0.07, height: 0.018 } as const;
-const VESSEL_SEAM_MATERIAL = applyWorldSurface(
-  new THREE.MeshStandardMaterial({ color: '#7c868a', roughness: 0.45, metalness: 0.35 }),
-  'metal'
-);
+/**
+ * The band is painted with the shell, a shade darker where the weld stands
+ * proud. It was bare steel (#7c868a, metalness 0.35): with no sun to reflect
+ * at 18:30 that went black and drew a hard ink rim round every head
+ * (final3-med-1830 tank-farm).
+ */
+export const VESSEL_SEAM_SHADE = 0.8;
+const VESSEL_SEAM_MATERIALS = new Map<string, THREE.MeshStandardMaterial>();
+export function vesselSeamMaterial(color: string): THREE.MeshStandardMaterial {
+  let material = VESSEL_SEAM_MATERIALS.get(color);
+  if (!material) {
+    material = applyWorldSurface(
+      pinSurfaceProfile(
+        new THREE.MeshStandardMaterial({
+          color: new THREE.Color(color).multiplyScalar(VESSEL_SEAM_SHADE),
+          roughness: 0.62,
+          metalness: 0.05,
+          envMapIntensity: 0.72,
+        }),
+        'vessel'
+      ),
+      'vessel'
+    );
+    VESSEL_SEAM_MATERIALS.set(color, material);
+  }
+  return material;
+}
 const VESSEL_SEAM_CACHE = new Map<number, THREE.LatheGeometry>();
 function vesselSeamBand(radius: number): THREE.LatheGeometry {
   let geometry = VESSEL_SEAM_CACHE.get(radius);
@@ -5523,13 +5579,17 @@ function vesselSeamBand(radius: number): THREE.LatheGeometry {
 }
 
 /** Both seam bands of a vessel lathe, in the lathe's own frame (axis +y). */
-const VesselSeams: React.FC<{ radius: number; length: number }> = ({ radius, length }) => (
+const VesselSeams: React.FC<{ radius: number; length: number; color: string }> = ({
+  radius,
+  length,
+  color,
+}) => (
   <>
     {[-1, 1].map((side) => (
       <mesh
         key={side}
         geometry={vesselSeamBand(radius)}
-        material={VESSEL_SEAM_MATERIAL}
+        material={vesselSeamMaterial(color)}
         position={[0, side * vesselSeamOffset(radius, length), 0]}
         receiveShadow
       />
@@ -5563,6 +5623,51 @@ export function vesselShellMaterial(color: string): THREE.MeshStandardMaterial {
       'vessel'
     );
     VESSEL_SHELL_MATERIALS.set(color, material);
+  }
+  return material;
+}
+
+/**
+ * The storage tanks' shells: the same two-pack, with the steel in maps laid
+ * out on the lathe in metres (`textures/vesselShell.ts`): plate-course and
+ * longitudinal welds, run-off under the crown fittings, roughness that varies
+ * along and round the barrel, and grime toward each head's knuckle. One
+ * material per colour and size, because the maps are per size.
+ */
+const STORAGE_SHELL_MATERIALS = new Map<string, THREE.MeshStandardMaterial>();
+export function storageTankShellMaterial(
+  color: string,
+  radius: number,
+  length: number
+): THREE.MeshStandardMaterial {
+  const key = `${color}:${radius}x${length}`;
+  let material = STORAGE_SHELL_MATERIALS.get(key);
+  if (!material) {
+    const maps = generateVesselShellMaps({
+      radius,
+      profile: vesselProfile(radius, length),
+      seamOffset: vesselSeamOffset(radius, length),
+      // Lathe y runs along tank-local -x (the lathe lies on its side, turned +pi/2 about z).
+      nozzles: utilityTankNozzles(length).map((nozzle) => ({
+        y: -nozzle.x,
+        radius: nozzle.radius,
+      })),
+    });
+    material = applyWorldSurface(
+      pinSurfaceProfile(
+        new THREE.MeshStandardMaterial({
+          color,
+          ...maps,
+          roughness: 1,
+          metalness: 0.05,
+          envMapIntensity: 0.72,
+        }),
+        'vessel'
+      ),
+      'vessel'
+    );
+    material.name = `storage-tank-shell-${radius}x${length}`;
+    STORAGE_SHELL_MATERIALS.set(key, material);
   }
   return material;
 }
@@ -5612,7 +5717,7 @@ export const StorageTank: React.FC<{
   accentColor = '#2f6f8f',
   label = 'UTILITY',
 }) => {
-  const centreY = radius + 1.5;
+  const centreY = storageTankAxisHeight(radius);
 
   return (
     <group
@@ -5627,14 +5732,14 @@ export const StorageTank: React.FC<{
           as a pill. */}
       <mesh
         geometry={vesselGeometry(radius, length)}
-        material={vesselShellMaterial(color)}
+        material={storageTankShellMaterial(color, radius, length)}
         position={[0, centreY, 0]}
         rotation={[0, 0, Math.PI / 2]}
         castShadow
         receiveShadow
       />
       <group position={[0, centreY, 0]} rotation={[0, 0, Math.PI / 2]}>
-        <VesselSeams radius={radius} length={length} />
+        <VesselSeams radius={radius} length={length} color={color} />
       </group>
       {/* Identification bands make the vessel orientation readable even in
           overcast and night lighting without adding a light or emissive hack. */}
@@ -5655,33 +5760,16 @@ export const StorageTank: React.FC<{
           />
         </mesh>
       ))}
-      {/* Support legs - 4 saddle supports */}
-      {[-length / 3, length / 3].map((x, i) => (
-        <group key={`legs-${i}`} position={[x, 0, 0]}>
-          {/* Left leg */}
-          <mesh material={TANK_SUPPORT_MATERIAL} position={[0, 0.75, -radius * 0.7]} castShadow>
-            <boxGeometry args={[0.4, 1.5, 0.4]} />
-          </mesh>
-          {/* Right leg */}
-          <mesh material={TANK_SUPPORT_MATERIAL} position={[0, 0.75, radius * 0.7]} castShadow>
-            <boxGeometry args={[0.4, 1.5, 0.4]} />
-          </mesh>
-          {/* Cross brace */}
-          <mesh material={TANK_SUPPORT_MATERIAL} position={[0, 0.4, 0]} castShadow>
-            <boxGeometry args={[0.3, 0.3, radius * 1.4]} />
-          </mesh>
-          {/* Saddle */}
-          <mesh
-            material={TANK_SUPPORT_MATERIAL}
-            position={[0, 1.5, 0]}
-            rotation={[0, 0, Math.PI / 2]}
-            castShadow
-          >
-            <cylinderGeometry
-              args={[radius + 0.1, radius + 0.1, 0.6, 12, 1, false, Math.PI, Math.PI]}
-            />
-          </mesh>
-        </group>
+      {/* Two saddles: a 120 degree cradle, its web, ribs and base plate. */}
+      {[-length / 3, length / 3].map((x) => (
+        <mesh
+          key={`saddle-${x}`}
+          geometry={vesselSaddleGeometry(radius)}
+          material={TANK_SUPPORT_MATERIAL}
+          position={[x, 0, 0]}
+          castShadow
+          receiveShadow
+        />
       ))}
       <GroundBlob position={[0, 0]} scale={length + 3} scaleZ={radius * 3.4} />
       <UtilityTankHardware radius={radius} length={length} />
@@ -5727,7 +5815,7 @@ export const PropaneTank: React.FC<{
       receiveShadow
     />
     <group position={[0, height / 2 + 0.5, 0]}>
-      <VesselSeams radius={radius} length={height} />
+      <VesselSeams radius={radius} length={height} color={color} />
     </group>
     {/* Support legs - 3 legs */}
     {[0, (Math.PI * 2) / 3, (Math.PI * 4) / 3].map((angle, i) => (
