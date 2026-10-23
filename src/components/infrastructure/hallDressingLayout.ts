@@ -176,6 +176,13 @@ export const HALL_SACK_STACKS: readonly HallSackStack[] = [
   { id: 'sacks-staged-3', x: 13.4, z: -1.6, rotation: 0, baseY: 0, courses: 5 },
   { id: 'sacks-staged-4', x: 10.4, z: -0.2, rotation: 0, baseY: 0, courses: 6 },
   { id: 'sacks-staged-5', x: 11.9, z: -0.2, rotation: 0, baseY: 0, courses: 4 },
+  // Held for the lab's release, between the packing line's walkway and the
+  // mid-floor, and a part-built pallet next to it.
+  { id: 'sacks-hold-1', x: -7.6, z: -2.4, rotation: 0, baseY: 0, courses: 6 },
+  { id: 'sacks-hold-2', x: -6.1, z: -2.4, rotation: 0, baseY: 0, courses: 5 },
+  { id: 'sacks-hold-3', x: -7.6, z: -1, rotation: 0, baseY: 0, courses: 6 },
+  { id: 'sacks-hold-4', x: -6.1, z: -1, rotation: 0, baseY: 0, courses: 2 },
+  { id: 'sacks-part-built', x: 1.8, z: -1.6, rotation: 0.12, baseY: 0, courses: 3 },
   // Bran and offal sacks waiting by the gallery's south side.
   { id: 'sacks-bran-1', x: 7.2, z: 10.6, rotation: 0, baseY: 0, courses: 5 },
   { id: 'sacks-bran-2', x: 8.7, z: 10.6, rotation: 0, baseY: 0, courses: 3 },
@@ -188,6 +195,8 @@ export const HALL_PALLET_PILES: readonly HallPalletPile[] = [
   { id: 'pallets-mid', x: 7.6, z: 4.4, rotation: Math.PI / 2, baseY: 0, count: 7 },
   { id: 'pallets-staged', x: 8.8, z: 0.4, rotation: 0.08, baseY: 0, count: 5 },
   { id: 'pallets-wrapper', x: 13.6, z: -3.9, rotation: -0.05, baseY: 0, count: 8 },
+  { id: 'pallets-hold', x: -3.8, z: -2.6, rotation: 0.04, baseY: 0, count: 6 },
+  { id: 'pallets-line', x: -1.2, z: 1.2, rotation: -0.1, baseY: 0, count: 3 },
 ];
 
 /**
@@ -224,6 +233,7 @@ export const HALL_PROPS: readonly HallProp[] = [
   { id: 'waste-bins-packing', kind: 'wasteBins', x: -2.6, z: 6.6, rotation: 0, baseY: 0 },
   { id: 'spill-kit-packing', kind: 'spillKit', x: -6, z: 6.8, rotation: 0, baseY: 0 },
   { id: 'cart-packing', kind: 'cart', x: -9.4, z: 8.4, rotation: 0.3, baseY: 0 },
+  { id: 'pallet-jack-hold', kind: 'palletJack', x: -10.4, z: -1.6, rotation: 0.2, baseY: 0 },
   /**
    * Motor-control centres. The milling floor's stands against the gallery's
    * north post row (post faces at z 24.98) between the posts at x -20 and

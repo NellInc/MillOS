@@ -132,7 +132,7 @@ const canonicalMachines = (): MachineData[] =>
 function framedWith(
   name: 'interior' | 'milling' | 'packing',
   pieces: readonly HallSolid[] = floorSolids
-): { solid: HallSolid; ndcX: number }[] {
+): { solid: HallSolid; ndcX: number; ndcY: number }[] {
   const view = SITE_LAYOUT.cameras[name] as {
     position: readonly [number, number, number];
     target: readonly [number, number, number];
@@ -153,7 +153,8 @@ function framedWith(
       (solid.minZ + solid.maxZ) / 2
     );
     if (!frustum.containsPoint(centre)) return [];
-    return [{ solid, ndcX: centre.clone().project(camera).x }];
+    const ndc = centre.clone().project(camera);
+    return [{ solid, ndcX: ndc.x, ndcY: ndc.y }];
   });
 }
 const framedBy = (name: 'interior' | 'milling'): HallSolid[] =>
@@ -213,6 +214,12 @@ describe('hall dressing: a working flour-mill floor', () => {
     // Not one heap: spread across the half, not all in one corner of it.
     const xs = right.map(({ ndcX }) => ndcX);
     expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(0.45);
+    // The near floor right of the packing pad (r4floor-med-12: frame x
+    // 1536-2432, y 832-1408, world x -12..5, z -6..8) stayed bare slab.
+    const near = right.filter(
+      ({ ndcX, ndcY }) => ndcX > 0.2 && ndcX < 0.9 && ndcY < -0.16 && ndcY > -0.96
+    );
+    expect(near.length).toBeGreaterThanOrEqual(8);
   });
 
   it('shows electrical gear (MCC cabinets and their conduit) to the hall cameras', () => {
