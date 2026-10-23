@@ -62,6 +62,7 @@ import { CURRENT_RELEASE_VERSION } from './config/releaseVersions';
 import { applyFirstVisitQuality } from './utils/firstVisitQuality';
 import { preloadStartupWorldAssets } from './utils/startupAssetPreload';
 import { afterSharedTextureBake, startSharedTextureBake } from './utils/sharedTextureBake';
+import { preloadAuthoredSite } from './components/millSceneDeferredLayers';
 import { useT } from './i18n';
 import { appMessages } from './App.messages';
 
@@ -111,10 +112,14 @@ const PhysicsScene = recoverableLazy(
   afterSharedTextureBake(() => import('./components/PhysicsScene'))
 );
 const DeferredOrbitControls = recoverableLazy(() => import('./components/SceneOrbitControls'));
+// The scene's own lazy chunks start here too, in parallel with its chunk, so
+// its first render finds them landed or in flight rather than fetching them
+// one by one (see millSceneDeferredLayers.ts). Idempotent across retries.
 const AuthoredMillScene = recoverableLazy(
-  afterSharedTextureBake(() =>
-    import('./components/MillScene').then((module) => ({ default: module.MillScene }))
-  )
+  afterSharedTextureBake(() => {
+    void preloadAuthoredSite();
+    return import('./components/MillScene').then((module) => ({ default: module.MillScene }));
+  })
 );
 const DeferredOperationalUI = recoverableLazy(() =>
   import('./components/DeferredOperationalUI').then((module) => ({

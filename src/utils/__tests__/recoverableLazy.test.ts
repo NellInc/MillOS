@@ -78,6 +78,45 @@ describe('importWithBoundedRetry', () => {
   });
 });
 
+describe('recoverableLazy preload', () => {
+  afterEach(cleanup);
+
+  it('renders a preloaded module without suspending and without a second import', async () => {
+    const importer = vi.fn(async () => ({
+      default: () => createElement('span', null, 'ready'),
+    }));
+    const Deferred = recoverableLazy(importer);
+    await Deferred.preload();
+    expect(importer).toHaveBeenCalledTimes(1);
+
+    const { container } = render(
+      createElement(
+        Suspense,
+        { fallback: createElement('i', null, 'fallback') },
+        createElement(Deferred)
+      )
+    );
+    // Synchronous: a suspended render would show the fallback first.
+    expect(container.textContent).toBe('ready');
+    expect(importer).toHaveBeenCalledTimes(1);
+  });
+
+  it('a failed preload settles quietly and the render imports again', async () => {
+    const importer = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('dropped request'))
+      .mockResolvedValueOnce({ default: () => createElement('span', null, 'ready') });
+    const Deferred = recoverableLazy(importer, { attempts: 1, retryDelayMs: 0 });
+    await expect(Deferred.preload()).resolves.toBeUndefined();
+
+    const { findByText } = render(
+      createElement(Suspense, { fallback: null }, createElement(Deferred))
+    );
+    expect(await findByText('ready')).toBeTruthy();
+    expect(importer).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe('recoverableLazy startup accounting', () => {
   afterEach(cleanup);
 
