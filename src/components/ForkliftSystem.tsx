@@ -27,6 +27,7 @@ import {
 import { shouldRunThisFrame } from '../utils/frameThrottle';
 import { ForkliftData } from '../types';
 import { POLYGON_OFFSET } from '../constants/renderLayers';
+import { createLinearDataTexture } from '../utils/textureGenerator';
 import { SITE_LAYOUT } from '../constants/siteLayout';
 import { useLogisticsLayoutStore } from '../stores/logisticsLayoutStore';
 import {
@@ -211,11 +212,47 @@ const ForkliftPath: React.FC<{
   );
 };
 
-/** Sweep rate of the beacon's light wedge, in radians per second. */
+/** Turn rate of the beacon's reflector, in radians per second. */
 const BEACON_SWEEP_RATE = 4;
 
+/** Glow brightness (sprite opacity) with the lamp on and between flashes. */
+const BEACON_GLOW_ON = 0.85;
+const BEACON_GLOW_OFF = 0.2;
+
 /**
- * Rotating safety beacon.
+ * The glow's falloff: white, alpha from 1 at the centre to 0 at the rim with a
+ * soft square-law tail, so the sprite's quad never shows an edge. Shared by
+ * every forklift; each one's colour and flash ride its own material.
+ */
+const BEACON_GLOW_TEXTURE = (() => {
+  const size = 64;
+  const data = new Uint8Array(size * size * 4);
+  for (let y = 0; y < size; y += 1)
+    for (let x = 0; x < size; x += 1) {
+      const r = Math.hypot((x + 0.5) / size - 0.5, (y + 0.5) / size - 0.5) * 2;
+      const falloff = Math.max(0, 1 - r);
+      const i = (y * size + x) * 4;
+      data[i] = 255;
+      data[i + 1] = 255;
+      data[i + 2] = 255;
+      data[i + 3] = Math.round(255 * falloff * falloff);
+    }
+  const texture = createLinearDataTexture(data, size, size);
+  texture.wrapS = THREE.ClampToEdgeWrapping;
+  texture.wrapT = THREE.ClampToEdgeWrapping;
+  return texture;
+})();
+
+const BEACON_BASE_MATERIAL = new THREE.MeshStandardMaterial({
+  name: 'forklift-beacon-base',
+  color: '#1e2124',
+  roughness: 0.6,
+  metalness: 0.2,
+});
+
+/**
+ * Rotating safety beacon: base, lens, dome and a turning reflector
+ * (`FORKLIFT_BEACON`), plus a small camera-facing glow for its light.
  *
  * THE LIGHT IS MOUNTED UNCONDITIONALLY AND DRIVEN BY `intensity`. It used to be
  * conditionally rendered AND toggled with `visible`, and both are the same
@@ -227,14 +264,16 @@ const BEACON_SWEEP_RATE = 4;
  * tree at `intensity = 0` keeps the count constant, and gives the beacon real
  * illumination while it is moving rather than only when it stops.
  *
- * The wedge is additive geometry rather than a spotlight for the same reason:
+ * The glow is an additive sprite rather than a spotlight for the same reason:
  * a mesh's `visible` flag costs nothing, a light's changes every shader. The
  * real point light is reserved for high and ultra because each point light
- * adds a loop to every lit material in the complete scene. Medium retains the
- * emissive beacon and sweeping pool without that scene-wide shader cost.
+ * adds a loop to every lit material in the complete scene. Medium keeps the
+ * emissive lens, the turning hot spot and the glow without that cost. The
+ * glow replaced an open light cone that read as an editor gizmo
+ * (`forkliftBeacon.ts`).
  *
  * The same rule covers LOD: the beacon stays mounted in the far tier, where
- * `showGeometry` hides only the housing and wedge (the billboard has its own
+ * `showGeometry` hides only the lamp and glow (the billboard has its own
  * beacon mesh), so crossing the LOD distance never changes the light count.
  */
 const WarningLight = React.memo<{
@@ -246,12 +285,28 @@ const WarningLight = React.memo<{
 }>(({ isStopped, isInCrossing, simulationPaused, height, showGeometry }) => {
   // Use ref instead of useState to avoid triggering re-renders in useFrame
   const flashRef = useRef(false);
-  const materialRef = useRef<THREE.MeshStandardMaterial>(null);
+  const glowRef = useRef<THREE.SpriteMaterial>(null);
   const lightRef = useRef<THREE.PointLight>(null);
   const sweepRef = useRef<THREE.Group>(null);
   const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
   const graphicsQuality = useGraphicsStore((state) => state.graphics.quality);
   const realLightEnabled = graphicsQuality === 'high' || graphicsQuality === 'ultra';
+  // One emissive material for the lens and its dome, flashed in place.
+  const lensMaterial = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        name: 'forklift-beacon-lens',
+        emissiveIntensity: 0.5,
+        roughness: 0.3,
+        metalness: 0,
+        // TRUE, not false: this component renders at `low` as well, where
+        // there is no composer and `false` would clamp the lit emissive to a
+        // flat white blob instead of letting the Neutral curve roll it off.
+        toneMapped: true,
+      }),
+    []
+  );
+  useEffect(() => () => lensMaterial.dispose(), [lensMaterial]);
 
   useFrame((state, delta) => {
     // PERFORMANCE: Skip animations when tab hidden
@@ -268,8 +323,9 @@ const WarningLight = React.memo<{
     // Update material directly via ref instead of triggering re-render
     if (newFlash !== flashRef.current) {
       flashRef.current = newFlash;
-      if (materialRef.current) {
-        materialRef.current.emissiveIntensity = newFlash ? 3 : 0.5;
+      lensMaterial.emissiveIntensity = newFlash ? 3 : 0.5;
+      if (glowRef.current) {
+        glowRef.current.opacity = newFlash ? BEACON_GLOW_ON : BEACON_GLOW_OFF;
       }
       if (lightRef.current) {
         lightRef.current.intensity = newFlash ? 1.6 : 0;
@@ -279,59 +335,52 @@ const WarningLight = React.memo<{
 
   // Red when stopped, blue when in crossing zone, amber when normal
   const color = getForkliftWarningColor(isStopped, isInCrossing);
+  useEffect(() => {
+    lensMaterial.color.set(color);
+    lensMaterial.emissive.set(color);
+  }, [lensMaterial, color]);
+  const { base, lens, dome, reflector, glow } = FORKLIFT_BEACON;
+  const lensCentre = (lens.bottom + lens.top) / 2;
 
   return (
     <group position={[0, height, FORKLIFT_BEACON.mountZ]}>
-      {/* Light housing */}
-      <mesh visible={showGeometry}>
-        <cylinderGeometry
-          args={[
-            FORKLIFT_BEACON.housing.radius,
-            FORKLIFT_BEACON.housing.radius,
-            FORKLIFT_BEACON.housing.height,
-            10,
-          ]}
-        />
-        <meshStandardMaterial
-          ref={materialRef}
-          color={color}
-          emissive={color}
-          emissiveIntensity={0.5}
-          roughness={0.3}
-          metalness={0}
-          // TRUE, not false: this component renders at `low` as well, where
-          // there is no composer and `false` would clamp the lit emissive to a
-          // flat white blob instead of letting the Neutral curve roll it off.
-          toneMapped
-        />
-      </mesh>
-      {/* Sweeping light wedge - additive, so it only ever adds fill.
-          16 radial segments, not 8. The cone is 1.1 m across and its material is
-          unlit and constant-opacity, so what the eye gets is a hard coverage
-          edge: at 8 that edge is a visible octagon on a metre-wide glow, which
-          reads as a faceted cone rather than as light. The rotation is not paid
-          for by the facets - the radial wobble 8 of them buy is 42 mm on a
-          550 mm radius at 0.16 opacity - so smoothing costs the sweep nothing.
-          16 stays divisible by 4. The cone rises FROM the lamp
-          (`FORKLIFT_BEACON.wedge`): hung below it, its base ring came out of
-          the top of a carried load. */}
-      <group ref={sweepRef} visible={showGeometry}>
+      <group visible={showGeometry}>
+        <mesh position={[0, (base.bottom + base.top) / 2, 0]} material={BEACON_BASE_MATERIAL}>
+          <cylinderGeometry args={[base.radius, base.radius, base.top - base.bottom, 16]} />
+        </mesh>
+        {/* Lens and dome share the flashing emissive material. */}
+        <mesh position={[0, lensCentre, 0]} material={lensMaterial}>
+          <cylinderGeometry args={[lens.radius, lens.radius, lens.top - lens.bottom, 16]} />
+        </mesh>
         <mesh
-          position={[0, FORKLIFT_BEACON.wedge.baseOffset + FORKLIFT_BEACON.wedge.height / 2, 0]}
+          position={[0, dome.bottom, 0]}
+          scale={[1, (dome.top - dome.bottom) / dome.radius, 1]}
+          material={lensMaterial}
+        >
+          <sphereGeometry args={[dome.radius, 16, 6, 0, Math.PI * 2, 0, Math.PI / 2]} />
+        </mesh>
+        {/* The reflector's hot spot, turning round the lens face. */}
+        <group ref={sweepRef} position={[0, reflector.y, 0]}>
+          <mesh position={[0, 0, reflector.radius + reflector.depth / 2]}>
+            <boxGeometry args={[reflector.width, reflector.height, reflector.depth]} />
+            <meshBasicMaterial color={color} />
+          </mesh>
+        </group>
+        <sprite
+          position={[0, lensCentre, 0]}
+          scale={[glow.diameter, glow.diameter, 1]}
           renderOrder={8}
         >
-          <coneGeometry
-            args={[FORKLIFT_BEACON.wedge.radius, FORKLIFT_BEACON.wedge.height, 16, 1, true]}
-          />
-          <meshBasicMaterial
+          <spriteMaterial
+            ref={glowRef}
+            map={BEACON_GLOW_TEXTURE}
             color={color}
+            opacity={BEACON_GLOW_OFF}
             transparent
-            opacity={0.16}
             depthWrite={false}
             blending={THREE.AdditiveBlending}
-            side={THREE.DoubleSide}
           />
-        </mesh>
+        </sprite>
       </group>
       {realLightEnabled && (
         <pointLight ref={lightRef} color={color} intensity={0} distance={7} decay={2} />
