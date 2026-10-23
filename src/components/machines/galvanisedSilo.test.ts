@@ -86,10 +86,10 @@ describe('galvanised silo skin (final-med-12: matte pale-cyan paint, no form sha
     );
   });
 
-  it('gives the rings, roof and skirt the same neutral, grass-free reflection', () => {
+  it('gives the roof trim the same neutral, grass-free reflection', () => {
     // Final silos frame at 12:00: with the skin neutral, the stiffener rings
-    // (siloRoof, a full conductor at '#c2c9c7') still mirrored the grass band
-    // as teal stripes.
+    // (then siloRoof, a full conductor at '#c2c9c7') still mirrored the grass
+    // band as teal stripes. The rings now have their own siloRing (below).
     const trim = MACHINE_MATERIALS.siloRoof;
     const c = trim.color;
     expect(
