@@ -82,7 +82,10 @@ export function forbiddenPersonnelRuntime(content) {
     .map(([label]) => label);
 }
 
-export function validateCommunitySource({ policy, scene, community }) {
+// `sceneLayers` is src/components/millSceneDeferredLayers.ts, where MillScene's
+// lazy layers (CommunityLife among them) are declared beside their preload. The
+// import may sit there; the mount must still be in MillScene itself.
+export function validateCommunitySource({ policy, scene, community, sceneLayers = '' }) {
   const failures = [];
   if (!/personnelModels\s*:\s*true/.test(policy)) failures.push('personnelModels must be enabled');
   for (const flag of ['vehicleOperators', 'remoteAvatars', 'humanVoiceAudio']) {
@@ -95,7 +98,7 @@ export function validateCommunitySource({ policy, scene, community }) {
   }
   if (
     !/import\s+(?:[^;]*?from\s*)?['"][^'"]*CommunityLife['"]|import\(['"][^'"]*CommunityLife['"]\)/.test(
-      scene
+      `${scene}\n${sceneLayers}`
     ) ||
     !/<CommunityLife\b/.test(scene)
   )
@@ -132,15 +135,18 @@ export async function validateCommunityBuild(root = process.cwd()) {
   const dist = path.join(root, 'dist');
   if (!(await stat(dist).catch(() => null))?.isDirectory())
     throw new Error('dist is missing. Run npm run build before validate:community.');
-  const [files, publicFiles, sourceFiles, policy, scene, community] = await Promise.all([
-    collectFiles(dist),
-    collectFiles(path.join(root, 'public')),
-    collectFiles(path.join(root, 'src')),
-    source('src/config/featureFlags.ts'),
-    source('src/components/MillScene.tsx'),
-    source('src/components/CommunityLife.tsx'),
-  ]);
-  failures.push(...validateCommunitySource({ policy, scene, community }));
+  const [files, publicFiles, sourceFiles, policy, scene, community, sceneLayers] =
+    await Promise.all([
+      collectFiles(dist),
+      collectFiles(path.join(root, 'public')),
+      collectFiles(path.join(root, 'src')),
+      source('src/config/featureFlags.ts'),
+      source('src/components/MillScene.tsx'),
+      source('src/components/CommunityLife.tsx'),
+      // Optional: a scene that imports CommunityLife directly needs no layer module.
+      source('src/components/millSceneDeferredLayers.ts').catch(() => ''),
+    ]);
+  failures.push(...validateCommunitySource({ policy, scene, community, sceneLayers }));
   let deliveredJavaScript = '';
   for (const [label, entries] of [
     ['delivery', files],

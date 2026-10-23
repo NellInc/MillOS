@@ -37,6 +37,7 @@ describe('inhabited-world and autonomous-vehicle contract', () => {
         policy: source('src/config/featureFlags.ts'),
         scene: source('src/components/MillScene.tsx'),
         community: source('src/components/CommunityLife.tsx'),
+        sceneLayers: source('src/components/millSceneDeferredLayers.ts'),
       })
     ).toEqual([]);
   });

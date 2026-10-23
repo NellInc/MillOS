@@ -20,7 +20,6 @@ import { CentralTickProvider, useUnifiedGameTick } from '../systems';
 import { registerEgressDrillSequencer } from '../systems/egressDrillSequencer';
 import { ProductionFlowVisualization } from './ProductionFlowVisualization';
 import { useAIConfigStore } from '../stores/aiConfigStore';
-import { recoverableLazy } from '../utils/recoverableLazy';
 import ErrorBoundary from './ErrorBoundary';
 import { StaticMeshBatch } from './performance/StaticMeshBatch';
 import { PunctualLightIsolation } from './performance/PunctualLightIsolation';
@@ -30,69 +29,27 @@ import {
   DISTANT_FACTORY_INTERIOR_LOD,
   resolveFactoryInteriorDetailVisibility,
 } from './performance/distantFactoryInteriorLod';
-
-// Lazy load heavy optional layers while preserving the complete authored world.
-// Quality changes may reduce effects and geometry density, but never swap the
-// user into a different factory or remove the surrounding site.
-const TruckBay = recoverableLazy(() =>
-  import('./TruckBay').then((module) => ({ default: module.TruckBay }))
-);
-const AuthoredFactoryExterior = recoverableLazy(() =>
-  import('./FactoryExterior').then((module) => ({ default: module.FactoryExterior }))
-);
-const AuthoredCastle = recoverableLazy(() =>
-  import('./scenery/FairytaleCastle').then((module) => ({ default: module.FairytaleCastle }))
-);
-const AuthoredFarm = recoverableLazy(() =>
-  import('./FarmArea').then((module) => ({ default: module.FarmArea }))
-);
-const AuthoredVillage = recoverableLazy(() =>
-  import('./VillageArea').then((module) => ({ default: module.VillageArea }))
-);
-const CommunityLife = recoverableLazy(() =>
-  import('./CommunityLife').then((module) => ({ default: module.CommunityLife }))
-);
-const AuthoredTerrain = recoverableLazy(() =>
-  import('./terrain').then((module) => ({ default: module.TerrainGround }))
-);
-const AuthoredDockOpening = recoverableLazy(() =>
-  import('./infrastructure/OpenDockOpening').then((module) => ({
-    default: module.OpenDockOpening,
-  }))
-);
-const OperationalConveyors = recoverableLazy(() =>
-  import('./ConveyorSystem').then((module) => ({ default: module.ConveyorSystem }))
-);
-const OperationalForklifts = recoverableLazy(() =>
-  import('./ForkliftSystem').then((module) => ({ default: module.ForkliftSystem }))
-);
-const EnhancedHolographicDisplays = recoverableLazy(() =>
-  import('./HolographicDisplays').then((module) => ({
-    default: module.HolographicDisplays,
-  }))
-);
-const OptionalCascadeVisualization = recoverableLazy(() =>
-  import('./CascadeVisualization').then((module) => ({
-    default: module.CascadeVisualization,
-  }))
-);
-const OptionalStrategicOverlay = recoverableLazy(() =>
-  import('./StrategicOverlay3D').then((module) => ({ default: module.StrategicOverlay3D }))
-);
-const OptionalBlueprintMode = recoverableLazy(() =>
-  import('./blueprint').then((module) => ({ default: module.BlueprintMode }))
-);
-const HighDetailSpoutingSystem = recoverableLazy(() =>
-  import('./SpoutingSystem').then((module) => ({ default: module.SpoutingSystem }))
-);
-const PostProcessing = recoverableLazy(() =>
-  import('./PostProcessing').then((module) => ({ default: module.PostProcessing }))
-);
-const OperationalWorldSignals = recoverableLazy(() =>
-  import('./OperationalWorldSignals').then((module) => ({
-    default: module.OperationalWorldSignals,
-  }))
-);
+// Lazy layers live beside their preload (started by App when this chunk is
+// requested), so every chunk the first render reaches is already in flight.
+import {
+  AuthoredCastle,
+  AuthoredDockOpening,
+  AuthoredFactoryExterior,
+  AuthoredFarm,
+  AuthoredTerrain,
+  AuthoredVillage,
+  CommunityLife,
+  EnhancedHolographicDisplays,
+  HighDetailSpoutingSystem,
+  OperationalConveyors,
+  OperationalForklifts,
+  OperationalWorldSignals,
+  OptionalBlueprintMode,
+  OptionalCascadeVisualization,
+  OptionalStrategicOverlay,
+  PostProcessing,
+  TruckBay,
+} from './millSceneDeferredLayers';
 
 /**
  * Keep the unified factory mounted while omitting sub-pixel service detail
