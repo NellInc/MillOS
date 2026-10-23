@@ -67,6 +67,7 @@ import { toSimulationMinutes } from '../simulation/simulationClock';
 import {
   APRON_CONCRETE_SURFACE,
   ROAD_TARMAC_SURFACE,
+  YARD_LANE_STRIPES,
   YARD_TARMAC_SURFACE,
 } from './truckbay/yardSurfaces';
 import {
@@ -234,12 +235,14 @@ const GUARD_SHACK_LAMP_SHIPPING: [number, number, number] = [43, 3, 60];
 const GUARD_SHACK_LAMP_RECEIVING: [number, number, number] = [-43, 3, -60];
 // Yard lane stripes, hoisted so OptimizedStripeInstances' memo holds across
 // TruckBay renders.
-const laneStripes = (x: number, zs: readonly number[]): [number, number, number][] =>
-  zs.map((z) => [x, EXTERIOR_LAYERS.groundOverlay, z]);
-const SHIPPING_EAST_LANE_STRIPES = laneStripes(18, [0, 30, 40]);
-const SHIPPING_WEST_LANE_STRIPES = laneStripes(-18, [0, 10, 20, 30, 40]);
-const RECEIVING_WEST_LANE_STRIPES = laneStripes(-18, [0, -10, -20, -30, -40]);
-const RECEIVING_EAST_LANE_STRIPES = laneStripes(18, [0, -10, -20, -30, -40]);
+const laneStripes = (lane: {
+  readonly x: number;
+  readonly zs: readonly number[];
+}): [number, number, number][] => lane.zs.map((z) => [lane.x, EXTERIOR_LAYERS.groundOverlay, z]);
+const SHIPPING_EAST_LANE_STRIPES = laneStripes(YARD_LANE_STRIPES.shippingEast);
+const SHIPPING_WEST_LANE_STRIPES = laneStripes(YARD_LANE_STRIPES.shippingWest);
+const RECEIVING_WEST_LANE_STRIPES = laneStripes(YARD_LANE_STRIPES.receivingWest);
+const RECEIVING_EAST_LANE_STRIPES = laneStripes(YARD_LANE_STRIPES.receivingEast);
 const MAINTENANCE_GARAGE_POSITION = [...SITE_LAYOUT.serviceYard.maintenanceGarage.position] as [
   number,
   number,
