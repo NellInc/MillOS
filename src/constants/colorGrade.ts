@@ -196,5 +196,12 @@ export function aoQualityLevel(index: number): AOQualityLevel {
  * coverage, whatever their brightness; SMAA stays on for shading edges.
  * `perfDebug.disableComposerMsaa` / `disableSMAA` isolate each term on one page
  * (`--disable-systems=msaa|smaa` in the benchmark).
+ *
+ * Measured 2026-10-23, Medium, DSF 2, vsync off, same page, four rotated cycles,
+ * load 10-19 per core: MSAA adds 1.3 ms (interior, arm spread 0.8 ms) and 1.7 ms
+ * (overview, arm spread 1.6 ms) over SMAA alone; SMAA adds 0.3-0.6 ms over no
+ * AA. With vsync on, every arm held 60 FPS. Setting this to 0 keeps the encoded
+ * SMAA and gives the time back, at the cost of night silhouettes and sub-pixel
+ * rails.
  */
 export const COMPOSER_MULTISAMPLING = 4;

@@ -730,7 +730,8 @@ const App: React.FC = () => {
               // rails, kerbs, roof battens and lane paint broke into dashes.
               // Composer tiers draw one full-screen pass into this buffer and
               // carry their own MSAA + SMAA; for them the cost is the canvas
-              // resolve (measured in the AA wave report). Working if a Low frame
+              // resolve. Low measured +0.2 ms (9.4 -> 9.6 ms interior, 9.8 ->
+              // 10.1 ms overview, vsync off, inside the spread). Working if a Low frame
               // shows blended silhouettes after a Medium-to-Low downgrade too.
               antialias: true,
               alpha: false,
