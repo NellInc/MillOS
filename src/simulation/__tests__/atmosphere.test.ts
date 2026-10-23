@@ -157,7 +157,8 @@ describe('overcast weather', () => {
       sampleCelestial(sampleAtmosphere(0, 12, weather));
     expect(at('clear').sunOpacity).toBeCloseTo(1 - 0.2 * 0.42, 10);
     expect(at('cloudy').sunOpacity).toBeGreaterThan(0.45);
-    expect(at('rain').sunOpacity).toBeLessThan(0.1);
+    // Rain closes the deck (getOvercastDeck): no disc, no glare.
+    expect(at('rain').sunOpacity).toBe(0);
     expect(at('storm').sunOpacity).toBe(0);
   });
 

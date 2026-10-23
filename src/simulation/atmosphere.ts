@@ -63,6 +63,16 @@ export function getOvercastWeight(cloudCoverage: number): number {
 }
 
 /**
+ * How closed the cloud deck is: 0 up to cloudy's 0.52 cover, 1 from 0.72, so
+ * rain (0.74) and storm (0.90) are a closed grey deck with no blue and no
+ * solar disc, and clear and cloudy skies are exactly unchanged. Below it,
+ * `getOvercastWeight` still greys and diffuses partial cloud by degree.
+ */
+export function getOvercastDeck(cloudCoverage: number): number {
+  return Number.isFinite(cloudCoverage) ? smoothstep(0.55, 0.72, cloudCoverage) : 0;
+}
+
+/**
  * Share of the direct sun a cloud deck scatters into sky fill: exactly 0 in
  * fair weather (overcast weight 0 at clear's 0.20 cover), 0.75 under rain and
  * 0.92 under a storm deck.
@@ -260,13 +270,16 @@ export function sampleCelestial(
     sunVisibility * (1 - smoothstep(0.08, 0.52, Math.max(0, atmosphere.solarElevation)));
 
   const overcast = getOvercastWeight(atmosphere.cloudCoverage);
-  // A closed deck hides the disc outright; broken cloud only veils it.
+  // A closed deck (rain, storm) hides the disc, the moon and the stars outright;
+  // broken cloud only veils them. `getOvercastDeck` is exactly 0 in clear and
+  // cloudy weather, so those skies are unchanged.
+  const open = 1 - getOvercastDeck(atmosphere.cloudCoverage);
   target.sunOpacity =
-    sunVisibility * (1 - atmosphere.cloudCoverage * 0.42) * (1 - overcast) * (1 - overcast);
-  target.moonOpacity = moonVisibility * (0.94 - atmosphere.cloudCoverage * 0.34);
+    sunVisibility * (1 - atmosphere.cloudCoverage * 0.42) * (1 - overcast) * (1 - overcast) * open;
+  target.moonOpacity = moonVisibility * (0.94 - atmosphere.cloudCoverage * 0.34) * open;
   // Solar luminance, rather than weather-darkened world light, prevents
   // stars appearing at midday during a storm. Cloud cover still veils them.
-  target.starOpacity = Math.pow(1 - atmosphere.daylight, 1.65) * 0.9 * clearSkyFactor;
+  target.starOpacity = Math.pow(1 - atmosphere.daylight, 1.65) * 0.9 * clearSkyFactor * open;
   // The sun model sets at 18:00 and is 15 degrees down at 19:00: nautical
   // twilight, when the bright stars are out but the faint field is not. The
   // single curve above had the whole field at 0.70 by then.
