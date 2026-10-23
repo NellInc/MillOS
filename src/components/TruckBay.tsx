@@ -2,6 +2,7 @@ import { PalletStaging } from './truckbay/PalletStaging';
 import { DockYardDressing } from './truckbay/DockYardDressing';
 import { PARKED_TRAILER_HALF, TRAILER_DROP_YARD } from './truckbay/dockYardDressingLayout';
 import { YardWearMarks } from './truckbay/YardWearMarks';
+import { SECTIONAL_DOOR_MATERIAL, buildSectionalDoorGeometry } from './truckbay/sectionalDoor';
 import { paintLineMask, paintLineQuad, THIN_PAINT_LIMIT } from './truckbay/paintLine';
 import { GeneratedGeometrySurface } from './models/GeneratedGeometrySurface';
 import { GeneratedBoundary, GeneratedModel } from './models/GeneratedModel';
@@ -2441,9 +2442,10 @@ const NoIdlingSign: React.FC<{ position: [number, number, number]; rotation?: nu
   </group>
 );
 
+const SECTIONAL_DOOR_GEOMETRY = buildSectionalDoorGeometry();
+
 const DOCK_SURFACE_GEOMETRY = {
   bumper: new THREE.BoxGeometry(0.8, 0.4, 0.27),
-  door: new THREE.BoxGeometry(9, 4, 0.15),
   side: new THREE.BoxGeometry(0.3, 3.5, 3),
   top: new THREE.BoxGeometry(4.1, 0.3, 3),
   leveler: new THREE.BoxGeometry(8, 0.15, 4),
@@ -2513,16 +2515,16 @@ export const RollUpDoor: React.FC<{
           <GeneratedModel asset="dockDoorFrame" />
         </group>
       </GeneratedBoundary>
-      <mesh ref={doorRef} position={[0, 2, 0.1]} userData={{ noStaticBatch: true }}>
-        <GeneratedBoundary fallback={<boxGeometry args={[9, 4, 0.15]} />}>
-          <GeneratedGeometrySurface
-            asset="dockDoorPanel"
-            original={DOCK_SURFACE_GEOMETRY.door}
-            meshRef={doorRef}
-          />
-        </GeneratedBoundary>
-        <meshStandardMaterial color="#64748b" metalness={0.6} roughness={0.4} />
-      </mesh>
+      {/* A sectional leaf (panels, joints, pressed ribs) in painted steel. The
+          authored `dockDoorPanel` was a box with a faint normal map, and in a
+          0.6-metalness slate it read as a flat pale-blue mirror of the sky. */}
+      <mesh
+        ref={doorRef}
+        position={[0, 2, 0.1]}
+        geometry={SECTIONAL_DOOR_GEOMETRY}
+        material={SECTIONAL_DOOR_MATERIAL}
+        userData={{ noStaticBatch: true }}
+      />
     </group>
   );
 };
