@@ -397,6 +397,17 @@ describe('shared machine part geometry', () => {
     expect(ringX).toBeGreaterThan(shellX);
   });
 
+  it('draws the stiffener rings as an open band, with no up- or down-facing cap', () => {
+    // Low (probe/low12-near.png): each ring broke into white dashes. The cap
+    // is the 8 cm ledge between ring and wall, under a pixel at Low's review
+    // distance, and facing the bright zenith; hiding the caps alone (one page
+    // load, tune-d4low12) left a clean grey band.
+    const normal = MACHINE_PART_GEOMETRY.siloRing.getAttribute('normal');
+    for (let index = 0; index < normal.count; index += 1) {
+      expect(Math.abs(normal.getY(index)), `vertex ${index}`).toBeLessThan(0.5);
+    }
+  });
+
   it('gives the bin roof an eave lip and a peak collar', () => {
     // The silhouette features that make the roof read as a grain bin rather
     // than a cone: full radius at the rim, and a narrow collar still standing

@@ -1,7 +1,12 @@
-import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
+import {
+  SILO_FLOOD_HEAD_ANGLES,
+  SILO_FLOOD_LIGHT,
+  siloFloodHeadDirection,
+} from '../machines/machineSurfaces';
 import {
   EXTERIOR_LAMP_LENS_MATERIAL,
   EXTERIOR_LAMP_LEVEL,
@@ -17,27 +22,26 @@ import {
  * fragment of every material in frame, which is why the yard poles are real
  * lights only on High - and no shadow caster. Instead:
  *
- *   - each bin gets two ground floods on its open east and west sides (the bins
- *     stand 1 m apart in Z, so those are the only faces a flood can reach);
+ *   - each bin is ringed by ground floods on its pad (`SILO_FLOOD_HEAD_ANGLES`:
+ *     east, west and the four diagonals; north and south face the neighbouring
+ *     bin 1 m away); a lane pool lies behind the east and west heads;
  *   - the flood heads use the shared exterior lamp lens, so they ARE the light
  *     sources, unlit-by-design and on the shared lamp clock;
- *   - the shell carries an additive wash shaped by what a flood throws: strong
- *     at the foot, fading up the drum, and only on the faces looking at a flood.
+ *   - the drum, skirt and rings are lit by them through their own BRDF
+ *     (`SILO_FLOOD_LIGHT` in machineSurfaces): a point source per head,
+ *     inverse-square and cosine, from the foot of the skirt up to the eave.
  *
- * One draw for the heads, one for the lenses, one for the wash; all three
- * follow `EXTERIOR_LAMP_LEVEL` and the wash is skipped outright by day.
+ * This replaced an additive wash shell (y 5-25 m), which stopped dead at the
+ * skirt seam, left the skirt black over its own floods, and painted one flat
+ * cream over the corrugation: it read as a lit material, not as light.
  */
 export const SILO_FLOOD = {
   /** Ground offset of a flood head beyond the shell, metres. */
   standoff: 1.2,
-  /** Shell span the wash covers, world metres (the drum runs y 5 to 30). */
-  washBase: 5,
-  washTop: 25,
-  /** Wash radius as a multiple of the 6 m drum, just proud of the 1.03 rings. */
-  washRadiusScale: 1.045,
-  /** Peak additive strength at full night, linear. */
-  peak: 0.3,
-  color: '#ffd59a',
+  /** Height of the lens centre, metres: where the light leaves the head. */
+  headY: 0.36,
+  /** The lens sits this far in front of the head's centre, toward the bin. */
+  lensInset: 0.26,
   /**
    * The lane pool behind each head: the lit drum's foot throws light back
    * onto the paving the head stands beside. Centred this far behind the head,
@@ -56,79 +60,52 @@ export interface SiloFloodFixture {
 }
 
 export function siloFloodFixtures(): SiloFloodFixture[] {
+  const reach = SILO_RADIUS + SILO_FLOOD.standoff;
   return SITE_LAYOUT.machines.silos.flatMap(({ position: [x, , z] }) =>
-    [-1, 1].map((side) => ({
-      position: [x + side * (SILO_RADIUS + SILO_FLOOD.standoff), 0, z] as const,
-      aim: [-side, 0, 0] as const,
-    }))
+    SILO_FLOOD_HEAD_ANGLES.map((degrees) => {
+      const [dx, dz] = siloFloodHeadDirection(degrees);
+      return {
+        position: [x + dx * reach, 0, z + dz * reach] as const,
+        aim: [-dx, 0, -dz] as const,
+      };
+    })
   );
 }
 
 /**
- * One ground pool per flood, on the lane behind it. Without these the yard
- * camera's lane beside the battery was flat navy at 22:00: the floods lit the
- * drums and nothing returned to the paving.
+ * One ground pool per east or west flood, on the lane behind it. Without these
+ * the yard camera's lane beside the battery was flat navy at 22:00: the floods
+ * lit the drums and nothing returned to the paving. The diagonal heads stand on
+ * the pad between the bins, where a pool behind them would fall under a drum.
  */
 export function siloFloodPools(): { position: [number, number, number]; radius: number }[] {
-  return siloFloodFixtures().map((fixture) => ({
-    position: [
-      fixture.position[0] - fixture.aim[0] * SILO_FLOOD.poolSetback,
-      0,
-      fixture.position[2],
-    ],
-    radius: SILO_FLOOD.poolRadius,
-  }));
+  return siloFloodFixtures()
+    .filter((fixture) => fixture.aim[2] === 0)
+    .map((fixture) => ({
+      position: [
+        fixture.position[0] - fixture.aim[0] * SILO_FLOOD.poolSetback,
+        0,
+        fixture.position[2],
+      ],
+      radius: SILO_FLOOD.poolRadius,
+    }));
 }
-
-const smoothstep = (edge0: number, edge1: number, value: number): number => {
-  const t = Math.min(1, Math.max(0, (value - edge0) / (edge1 - edge0)));
-  return t * t * (3 - 2 * t);
-};
 
 /**
- * Wash strength on the shell. `facing` is the cosine between the shell normal
- * and the direction back toward the nearest flood. Mirrors the GLSL below.
+ * Publish the floods to the galvanised materials: lamp level, the lenses'
+ * distance from each bin axis (the heads stand at SILO_FLOOD_HEAD_ANGLES), their
+ * height and their standoff from the wall. Level 0 switches the term off. The
+ * colour is the lamp lenses' warm white, `SILO_FLOOD_COLOR`.
  */
-export function siloWashStrength(level: number, worldY: number, facing: number): number {
-  if (!Number.isFinite(level) || level <= 0) return 0;
-  const lobe = Math.pow(Math.max(facing, 0), 1.5);
-  const height =
-    smoothstep(SILO_FLOOD.washBase, SILO_FLOOD.washBase + 1.2, worldY) *
-    (1 - smoothstep(SILO_FLOOD.washBase + 3, SILO_FLOOD.washTop, worldY));
-  return Math.min(1, level) * SILO_FLOOD.peak * lobe * height;
+export function writeSiloFloodLight(level: number): THREE.Vector4 {
+  const standoff = SILO_FLOOD.standoff - SILO_FLOOD.lensInset;
+  return SILO_FLOOD_LIGHT.value.set(
+    Number.isFinite(level) ? THREE.MathUtils.clamp(level, 0, 1) : 0,
+    SILO_RADIUS + standoff,
+    SILO_FLOOD.headY,
+    standoff
+  );
 }
-
-const washVertex = /* glsl */ `
-varying vec3 vWorld;
-varying vec3 vNormalW;
-void main() {
-  mat4 world = modelMatrix;
-  #ifdef USE_INSTANCING
-    world = world * instanceMatrix;
-  #endif
-  vec4 position4 = world * vec4( position, 1.0 );
-  vWorld = position4.xyz;
-  vNormalW = normalize( mat3( world ) * normal );
-  gl_Position = projectionMatrix * viewMatrix * position4;
-}
-`;
-
-const washFragment = /* glsl */ `
-uniform float uLevel;
-uniform vec3 uColor;
-varying vec3 vWorld;
-varying vec3 vNormalW;
-void main() {
-  // Floods stand on the +-X sides, so the facing term is the normal's X.
-  float lobe = pow( abs( normalize( vNormalW.xz ).x ), 1.5 );
-  float height = smoothstep( ${SILO_FLOOD.washBase.toFixed(2)}, ${(SILO_FLOOD.washBase + 1.2).toFixed(2)}, vWorld.y )
-    * ( 1.0 - smoothstep( ${(SILO_FLOOD.washBase + 3).toFixed(2)}, ${SILO_FLOOD.washTop.toFixed(2)}, vWorld.y ) );
-  float strength = uLevel * ${SILO_FLOOD.peak.toFixed(3)} * lobe * height;
-  gl_FragColor = vec4( uColor * strength, 1.0 );
-  #include <tonemapping_fragment>
-  #include <colorspace_fragment>
-}
-`;
 
 const HEAD_GEOMETRY = new THREE.BoxGeometry(0.7, 0.42, 0.5);
 const LENS_GEOMETRY = new THREE.PlaneGeometry(0.58, 0.32);
@@ -152,39 +129,6 @@ export function SiloFloodlights() {
   const pools = useMemo(() => siloFloodPools(), []);
   const headsRef = useRef<THREE.InstancedMesh>(null);
   const lensesRef = useRef<THREE.InstancedMesh>(null);
-  const washRef = useRef<THREE.InstancedMesh>(null);
-  const washGeometry = useMemo(
-    // Open-ended, unit height centred on 0, radius 1: placed per bin below.
-    () => new THREE.CylinderGeometry(1, 1, 1, 48, 1, true),
-    []
-  );
-  const washMaterial = useMemo(
-    () =>
-      new THREE.ShaderMaterial({
-        name: 'silo-flood-wash',
-        vertexShader: washVertex,
-        fragmentShader: washFragment,
-        uniforms: {
-          uLevel: { value: 0 },
-          uColor: { value: new THREE.Color(SILO_FLOOD.color) },
-        },
-        transparent: true,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        side: THREE.FrontSide,
-        fog: false,
-        toneMapped: true,
-      }),
-    []
-  );
-
-  useEffect(
-    () => () => {
-      washGeometry.dispose();
-      washMaterial.dispose();
-    },
-    [washGeometry, washMaterial]
-  );
 
   useLayoutEffect(() => {
     const heads = headsRef.current;
@@ -200,9 +144,9 @@ export function SiloFloodlights() {
       heads?.setMatrixAt(index, _matrix);
       // The lens faces the bin, just proud of the housing's front.
       _position.set(
-        fixture.position[0] + fixture.aim[0] * 0.26,
-        0.36,
-        fixture.position[2] + fixture.aim[2] * 0.26
+        fixture.position[0] + fixture.aim[0] * SILO_FLOOD.lensInset,
+        SILO_FLOOD.headY,
+        fixture.position[2] + fixture.aim[2] * SILO_FLOOD.lensInset
       );
       _matrix.compose(_position, _quaternion, _scale);
       lenses?.setMatrixAt(index, _matrix);
@@ -211,27 +155,20 @@ export function SiloFloodlights() {
     if (lenses) lenses.instanceMatrix.needsUpdate = true;
     heads?.computeBoundingSphere();
     lenses?.computeBoundingSphere();
-
-    const wash = washRef.current;
-    if (!wash) return;
-    const height = SILO_FLOOD.washTop - SILO_FLOOD.washBase;
-    const radius = SILO_RADIUS * SILO_FLOOD.washRadiusScale;
-    SITE_LAYOUT.machines.silos.forEach(({ position: [x, , z] }, index) => {
-      _position.set(x, SILO_FLOOD.washBase + height / 2, z);
-      _matrix.compose(_position, _quaternion.identity(), _scale.set(radius, height, radius));
-      wash.setMatrixAt(index, _matrix);
-    });
-    _scale.set(1, 1, 1);
-    wash.instanceMatrix.needsUpdate = true;
-    wash.computeBoundingSphere();
   }, [fixtures]);
 
+  // Unmounted, the battery has no floods: switch the drum term off with them.
+  useLayoutEffect(
+    () => () => {
+      writeSiloFloodLight(0);
+    },
+    []
+  );
+
   useFrame(() => {
+    // Below a visible level the shader skips the floods outright.
     const level = EXTERIOR_LAMP_LEVEL.value;
-    washMaterial.uniforms.uLevel.value = level;
-    // Additive and inert by day: skip the draw rather than add zero.
-    const wash = washRef.current;
-    if (wash) wash.visible = level > 0.002;
+    writeSiloFloodLight(level > 0.002 ? level : 0);
   });
 
   return (
@@ -245,11 +182,6 @@ export function SiloFloodlights() {
       <instancedMesh
         ref={lensesRef}
         args={[LENS_GEOMETRY, EXTERIOR_LAMP_LENS_MATERIAL, fixtures.length]}
-      />
-      <instancedMesh
-        ref={washRef}
-        args={[washGeometry, washMaterial, SITE_LAYOUT.machines.silos.length]}
-        renderOrder={2}
       />
       {pools.map((pool) => (
         <group key={pool.position.join(':')} position={pool.position}>

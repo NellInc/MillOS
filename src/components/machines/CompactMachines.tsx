@@ -99,6 +99,9 @@ const SILO_BODY = new THREE.CylinderGeometry(1, 1, 1, 16);
  * shell, so its silhouette is never seen.
  */
 function createSiloShellGeometry(): THREE.LatheGeometry {
+  // Mirrored by SILO_SHELL_PROFILE (machineSurfaces), which shades these waves
+  // analytically; kept literal because refine-silo-geometry.mjs evaluates this
+  // function on its own.
   const RIDGES = 40;
   const STEPS_PER_RIDGE = 4;
   const RIDGE_DEPTH = 0.004;
@@ -200,7 +203,10 @@ const SILO_ROOF = createSiloRoofGeometry();
  */
 // Grounded discharge enclosure. The real outlet route terminates inside it.
 const SILO_OUTLET = new THREE.CylinderGeometry(1, 1, 1, 32);
-const SILO_RING = new THREE.CylinderGeometry(1.03, 1.03, 0.08, 32); // matches shell
+// Stiffener band, segments matching the shell. Open-ended: its caps were the 8 cm
+// ledge between ring and wall, under a pixel at Low and facing the bright
+// zenith, so they rasterised as white dashes along every ring.
+const SILO_RING = new THREE.CylinderGeometry(1.03, 1.03, 0.08, 32, 1, true);
 const HOPPER = new THREE.CylinderGeometry(0.45, 1, 1, 24); // 3.7 m across
 const ROLLER = new THREE.CylinderGeometry(1, 1, 1, 20);
 const INLET = new THREE.CylinderGeometry(1, 1, 1, 20);
@@ -1950,7 +1956,7 @@ function CompactMachineSet({
       <InteractiveInstances
         meshRef={siloOutletRef}
         geometry={SILO_OUTLET}
-        material={MATERIALS.siloRoof}
+        material={MATERIALS.siloSkirt}
         count={subsets.silos.length}
         machines={subsets.silos}
         onSelect={onSelect}

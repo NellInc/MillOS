@@ -230,7 +230,7 @@ const PLATE_ORM = band(HOUSING_ORM, 4, 2);
  * the program key alongside this string (`WebGLPrograms.getProgramCacheKey`),
  * so permutations still split properly.
  */
-export const MACHINE_WEAR_CACHE_KEY = 'machineWear_v4';
+export const MACHINE_WEAR_CACHE_KEY = 'machineWear_v5';
 
 /** Share of the silo drum's 180 streak columns that carry run-off, per ring. */
 export const SILO_STREAK_LIVE_FRACTION = 0.16;
@@ -257,11 +257,201 @@ export function neutraliseSiloGround(target: THREE.Color, weight: number): THREE
   return target.lerp(new THREE.Color(luminance, luminance, luminance), weight);
 }
 
+// ---------------------------------------------------------------------------
+// Silo drum corrugation, shaded analytically
+// ---------------------------------------------------------------------------
+
+/**
+ * The corrugated shell lathe (`createSiloShellGeometry` in CompactMachines):
+ * `ridges` waves over the unit height, `depth` of the unit radius. Installed at
+ * 6 m x 25 m that is a 0.625 m wave 24 mm deep.
+ *
+ * That wave keeps the silhouette and is NOT shaded. Its vertex normals carry a
+ * 0.12 slope (6.9 degrees), which swung the reflected ray 14 degrees either
+ * way: from a camera above the battery that is across the horizon, so every
+ * wave flipped between sky and the brown hills and read as smeared horizontal
+ * brown bands (final3-med-12 silos; gone with the vertex normals smoothed, one
+ * page load). Shaded at a third of that (0.04) the bands were as strong as
+ * ever, since the reflection sits on the horizon edge, and under the night
+ * floods the same wave striped every grazing scallop (r4 tune probes). The
+ * crisp corrugation is the fine one in the normal map, 15.6 cm.
+ */
+export const SILO_SHELL_PROFILE = { ridges: 40, depth: 0.004 } as const;
+/** Installed drum radius and shell height, metres (`SITE_LAYOUT` silo 12 x 32). */
+export const SILO_DRUM_RADIUS = 6;
+export const SILO_DRUM_SHELL_HEIGHT = 25;
+/** Fine corrugation in the skin normal map: 20 ridges per tile, 8 tiles up the drum. */
+export const SILO_FINE_RIDGES = 160;
+
+/**
+ * Cycles per pixel over which a corrugation term fades to its mean (the plain
+ * cylinder normal). Below 0.15 a ridge spans 6+ px and is drawn in full; by
+ * 0.45 it spans ~2 px, where it can only alias into moire bands.
+ */
+export const SILO_CORRUGATION_FADE = [0.15, 0.45] as const;
+
+/** TS mirror of the shader's derivative fade. */
+export function siloCorrugationFade(cyclesPerPixel: number): number {
+  const [edge0, edge1] = SILO_CORRUGATION_FADE;
+  const t = THREE.MathUtils.clamp((cyclesPerPixel - edge0) / (edge1 - edge0), 0, 1);
+  return 1 - t * t * (3 - 2 * t);
+}
+
+/**
+ * The galvanised patina as a film: its share of each fragment is
+ * mean + spread * (field - 0.5), times the material's patina share. It was
+ * smoothstep( 0.2, 0.8, field ), which ran the share from none to all across
+ * a few metres, so the drum alternated between sky-mirroring conductor and
+ * sunlit matte grey. At 12:00 those patches read as dents and folds in the
+ * sheet (r4 fold probe, tune-d4yard12: patina 0 alone gave a rigid cylinder;
+ * the maps, axis shading, aureole and ground pull did not).
+ */
+export const SILO_PATINA_FILM = { mean: 0.7, spread: 0.2 } as const;
+
+/** TS mirror of the shader's patina share for a noise field value in 0-1. */
+export function siloPatinaCoverage(field: number, share: number): number {
+  return (
+    THREE.MathUtils.clamp(SILO_PATINA_FILM.mean + SILO_PATINA_FILM.spread * (field - 0.5), 0, 1) *
+    share
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Silo floods, lit through the galvanised BRDF
+// ---------------------------------------------------------------------------
+
+/**
+ * The ground floods on the battery (`SiloFloodlights`) as a real light on the
+ * galvanised materials: a point source per flood head, inverse-square,
+ * Lambert-cosine, shaded by three's own `RE_Direct`, so it falls on the skirt,
+ * the corrugation and the rings as light on geometry. No scene light is added
+ * (a punctual light is a loop iteration on every lit fragment of every
+ * material); this runs only on the five drums' own materials, and not at all
+ * while the lamps are off.
+ *
+ * x = lamp level (0 by day), y = head distance from the bin axis, z = head
+ * height, w = head standoff from the 6 m wall. `SiloFloodlights` writes it.
+ */
+export const SILO_FLOOD_LIGHT = { value: new THREE.Vector4(0, 0, 0, 0) };
+/** Flood colour, linear. Same warm white as the lamp lenses. */
+export const SILO_FLOOD_COLOR = { value: new THREE.Color('#ffd59a') };
+
+/**
+ * Where the heads stand round each bin, degrees in XZ from +X toward +Z, each
+ * aimed at the axis. A head 0.94 m off a 6 m wall can only see the wall within
+ * 30 degrees of its own line (the tangent), so the first pair on +-X alone lit
+ * two thin stripes and left the drum the camera faces dark. The diagonals light
+ * the quadrants between; 90 and 270 face the neighbouring bin 1 m away.
+ */
+export const SILO_FLOOD_HEAD_ANGLES = [0, 45, 135, 180, 225, 315] as const;
+
+/** Unit XZ direction from a bin's axis to the head at `degrees`. */
+export function siloFloodHeadDirection(degrees: number): [number, number] {
+  const radians = THREE.MathUtils.degToRad(degrees);
+  // Rounded so the axial heads are exact (cos 90 is 6e-17, not 0).
+  const round = (value: number) => Math.round(value * 1e9) / 1e9;
+  return [round(Math.cos(radians)), round(Math.sin(radians))];
+}
+
+/**
+ * The flood's candela distribution, stated as the irradiance it delivers up
+ * the line of wall facing it (`h` metres above the head): a rise over the
+ * first metre (the head is aimed up, not along the paving), then an
+ * exponential decay to a floor, cut off just above the eave. A wall-grazing
+ * uplight 1.2 m off a 30 m drum is exactly this shape; pure inverse-square from
+ * a bare bulb would light the bottom 3 m and nothing else.
+ */
+export const SILO_FLOOD_PROFILE = {
+  peak: 5,
+  floor: 0.14,
+  decay: 9,
+  rise: [-0.3, 1] as const,
+  /** Metres above the head where the beam ends: the eave, not beyond it. */
+  top: [30.5, 33] as const,
+  /**
+   * Most irradiance any surface takes from one head, as a multiple of `peak`.
+   * The beam that reaches the top of a grazed wall is near-vertical and very
+   * intense; a ring underside or the eave, square to it, would take ~35x the
+   * wall beside it. A real head's candela is finite, so the ledges get a
+   * bright edge, not a blaze. The wall itself never reaches the cap.
+   */
+  cap: 1.2,
+} as const;
+
+const smoothstep = (edge0: number, edge1: number, value: number): number => {
+  const t = THREE.MathUtils.clamp((value - edge0) / (edge1 - edge0), 0, 1);
+  return t * t * (3 - 2 * t);
+};
+
+/** Irradiance up the wall line facing a flood, `h` metres above its head. Mirrors GLSL. */
+export function siloFloodFacing(h: number): number {
+  const p = SILO_FLOOD_PROFILE;
+  return (
+    p.peak *
+    smoothstep(p.rise[0], p.rise[1], h) *
+    (1 - smoothstep(p.top[0], p.top[1], h)) *
+    (p.floor + (1 - p.floor) * Math.exp(-Math.max(h, 0) / p.decay))
+  );
+}
+
+/**
+ * Flood irradiance (colour units) at a world point with world normal `normal`
+ * on the bin whose axis is at `axis` (x, z). Mirrors `machineFloodCandela` and
+ * the light body: candela(direction) * max(n.l, 0) / r^2, summed over the heads.
+ */
+export function siloFloodIrradiance(
+  point: readonly [number, number, number],
+  normal: readonly [number, number, number],
+  axis: readonly [number, number],
+  flood: THREE.Vector4 = SILO_FLOOD_LIGHT.value
+): number {
+  return SILO_FLOOD_HEAD_ANGLES.reduce<number>(
+    (sum, degrees) => sum + siloFloodHeadIrradiance(point, normal, axis, degrees, flood),
+    0
+  );
+}
+
+/** One head's share of `siloFloodIrradiance`: the head at `degrees` (SILO_FLOOD_HEAD_ANGLES). */
+export function siloFloodHeadIrradiance(
+  point: readonly [number, number, number],
+  normal: readonly [number, number, number],
+  axis: readonly [number, number],
+  degrees: number,
+  flood: THREE.Vector4 = SILO_FLOOD_LIGHT.value
+): number {
+  const [level, offset, headY, standoff] = flood.toArray();
+  if (!(level > 0)) return 0;
+  const [dx, dz] = siloFloodHeadDirection(degrees);
+  const toFlood = [
+    axis[0] + dx * offset - point[0],
+    headY - point[1],
+    axis[1] + dz * offset - point[2],
+  ];
+  const r2 = Math.max(toFlood[0] ** 2 + toFlood[1] ** 2 + toFlood[2] ** 2, 0.25);
+  const r = Math.sqrt(r2);
+  const q = Math.max(Math.hypot(toFlood[0], toFlood[2]), 1e-3);
+  const tanPhi = -toFlood[1] / q;
+  // The beam leaves the head toward the axis, -(dx, dz).
+  const aim = Math.max((toFlood[0] * dx + toFlood[2] * dz) / q, 0);
+  const candela =
+    siloFloodFacing(standoff * tanPhi) *
+    standoff *
+    standoff *
+    Math.pow(1 + tanPhi * tanPhi, 1.5) *
+    aim;
+  const ndl = Math.max(
+    (normal[0] * toFlood[0] + normal[1] * toFlood[1] + normal[2] * toFlood[2]) / r,
+    0
+  );
+  return level * Math.min((candela * ndl) / r2, SILO_FLOOD_PROFILE.cap * SILO_FLOOD_PROFILE.peak);
+}
+
 const WEAR_VERTEX_PARS = /* glsl */ `
 varying vec3 vMachineWorldPos;
 varying vec3 vMachineWorldNormal;
 #ifdef MACHINE_GALVANISED
 varying vec3 vMachineObject;
+varying vec2 vMachineAxis;
 #endif
 `;
 
@@ -288,6 +478,12 @@ vMachineWorldPos = ( modelMatrix * machineWorld ).xyz;
 vMachineWorldNormal = normalize( transformedNormal * mat3( viewMatrix ) );
 #ifdef MACHINE_GALVANISED
 vMachineObject = transformed;
+// The bin's axis in world XZ: every galvanised part is instanced centred on it.
+vec4 machineAxis = vec4( 0.0, 0.0, 0.0, 1.0 );
+#ifdef USE_INSTANCING
+  machineAxis = instanceMatrix * machineAxis;
+#endif
+vMachineAxis = ( modelMatrix * machineAxis ).xz;
 #endif
 `;
 
@@ -303,7 +499,36 @@ varying vec3 vMachineWorldNormal;
 uniform vec4 uMachineGalv;
 uniform vec4 uMachineRings;
 uniform float uMachineGalvGround;
+uniform vec2 uMachineCorrugation;
+uniform vec2 uMachinePatina;
+uniform vec4 uMachineFlood;
+uniform vec3 uMachineFloodColor;
 varying vec3 vMachineObject;
+varying vec2 vMachineAxis;
+// SILO_FLOOD_PROFILE: irradiance up the wall line facing a flood, h above its head.
+float machineFloodFacing( float h ) {
+  return ${SILO_FLOOD_PROFILE.peak.toFixed(3)} *
+    smoothstep( ${SILO_FLOOD_PROFILE.rise[0].toFixed(3)}, ${SILO_FLOOD_PROFILE.rise[1].toFixed(3)}, h ) *
+    ( 1.0 - smoothstep( ${SILO_FLOOD_PROFILE.top[0].toFixed(3)}, ${SILO_FLOOD_PROFILE.top[1].toFixed(3)}, h ) ) *
+    ( ${SILO_FLOOD_PROFILE.floor.toFixed(3)} + ${(1 - SILO_FLOOD_PROFILE.floor).toFixed(3)} * exp( - max( h, 0.0 ) / ${SILO_FLOOD_PROFILE.decay.toFixed(3)} ) );
+}
+// SILO_FLOOD_HEAD_ANGLES: unit XZ directions from a bin's axis to its heads.
+const vec2 MACHINE_FLOOD_HEADS[ ${SILO_FLOOD_HEAD_ANGLES.length} ] = vec2[ ${SILO_FLOOD_HEAD_ANGLES.length} ](
+  ${SILO_FLOOD_HEAD_ANGLES.map((degrees) => {
+    const [x, z] = siloFloodHeadDirection(degrees);
+    return `vec2( ${x.toFixed(6)}, ${z.toFixed(6)} )`;
+  }).join(',\n  ')}
+);
+// Candela of the head at heads[ k ] toward a fragment ( toFlood = head - fragment ).
+// The facing line receives exactly machineFloodFacing; every other point gets the
+// same beam through its own distance and cosine (siloFloodIrradiance mirrors this).
+float machineFloodCandela( vec3 toFlood, vec2 head ) {
+  float q = max( length( toFlood.xz ), 1e-3 );
+  float tanPhi = - toFlood.y / q;
+  float s = uMachineFlood.w;
+  float aim = max( dot( toFlood.xz, head ) / q, 0.0 );
+  return machineFloodFacing( s * tanPhi ) * s * s * pow( 1.0 + tanPhi * tanPhi, 1.5 ) * aim;
+}
 float machineGalvHash( vec3 p ) {
   p = fract( p * 0.3183099 + vec3( 0.71, 0.113, 0.419 ) );
   p *= 17.0;
@@ -367,10 +592,25 @@ float machineGalvRun( float datum, float ring, float column, float across, float
  */
 const GALVANISED_FRAGMENT_BODY = /* glsl */ `
 #ifdef MACHINE_GALVANISED
+// Corrugated drum (uMachineCorrugation.y = 1, the skin only): the wall normal
+// comes from the bin axis, not the lathe's wave (SILO_SHELL_PROFILE), and what
+// the maps added on top (the fine corrugation) is kept, faded to its mean as
+// its ridges approach a pixel (SILO_CORRUGATION_FADE) so it cannot alias.
+if ( uMachineCorrugation.y > 0.5 ) {
+  vec3 galvRadial = vec3( vMachineWorldPos.x - vMachineAxis.x, 0.0, vMachineWorldPos.z - vMachineAxis.y );
+  galvRadial = normalize( ( viewMatrix * vec4( galvRadial, 0.0 ) ).xyz );
+  float galvFinePhase = ( vMachineObject.y + 0.5 ) * uMachineCorrugation.x;
+  float galvFineFade = 1.0 - smoothstep( ${SILO_CORRUGATION_FADE[0].toFixed(3)}, ${SILO_CORRUGATION_FADE[1].toFixed(3)}, fwidth( galvFinePhase ) );
+  vec3 galvCorrugated = normalize( galvRadial + ( normal - nonPerturbedNormal ) * galvFineFade );
+  // Wall only: the lathe's end caps sit under the roof and on the skirt.
+  normal = mix( normal, galvCorrugated, 1.0 - step( 0.7, abs( vMachineWorldNormal.y ) ) );
+}
+// Patina as weathering runs: long down the drum, narrow around it.
 float galvPatinaField =
-  machineGalvNoise( vMachineWorldPos * vec3( 0.32, 0.11, 0.32 ) ) * 0.65 +
-  machineGalvNoise( vMachineWorldPos * vec3( 0.83, 0.3, 0.83 ) + vec3( 7.1, 3.3, 1.7 ) ) * 0.35;
-float galvPatina = smoothstep( 0.2, 0.8, galvPatinaField ) * uMachineGalv.x;
+  machineGalvNoise( vMachineWorldPos * vec3( 0.45, 0.07, 0.45 ) ) * 0.65 +
+  machineGalvNoise( vMachineWorldPos * vec3( 1.1, 0.18, 1.1 ) + vec3( 7.1, 3.3, 1.7 ) ) * 0.35;
+// A film of near-even coverage (SILO_PATINA_FILM), not metal and matte patches.
+float galvPatina = clamp( uMachinePatina.x + uMachinePatina.y * ( galvPatinaField - 0.5 ), 0.0, 1.0 ) * uMachineGalv.x;
 float galvColumns = ( atan( vMachineObject.z, vMachineObject.x ) / 6.28318530718 + 0.5 ) * 180.0;
 float galvColumn = floor( galvColumns );
 float galvAcross = fract( galvColumns );
@@ -432,6 +672,28 @@ const GALVANISED_LIGHT_BODY = /* glsl */ `
     vec3( galvDiffLuma ),
     ${SILO_GROUND_BOUNCE.toFixed(3)} * uMachineGalvGround
   );
+}
+// The ground floods round this bin (SILO_FLOOD_LIGHT), through the same BRDF
+// as the sun: diffuse on the patina, a specular lobe on the spangle, the
+// corrugation catching it. Skipped outright while the lamps are off.
+if ( uMachineFlood.x > 0.0 ) {
+  IncidentLight galvFlood;
+  galvFlood.visible = true;
+  for ( int k = 0; k < ${SILO_FLOOD_HEAD_ANGLES.length}; k ++ ) {
+    vec2 headDir = MACHINE_FLOOD_HEADS[ k ];
+    vec3 head = vec3( vMachineAxis.x + headDir.x * uMachineFlood.y, uMachineFlood.z, vMachineAxis.y + headDir.y * uMachineFlood.y );
+    vec3 toFlood = head - vMachineWorldPos;
+    float r2 = max( dot( toFlood, toFlood ), 0.25 );
+    galvFlood.direction = normalize( ( viewMatrix * vec4( toFlood, 0.0 ) ).xyz );
+    // RE_Direct multiplies by n.l; cap the product (SILO_FLOOD_PROFILE.cap).
+    float galvFloodNdl = max( dot( geometryNormal, galvFlood.direction ), 1e-4 );
+    float galvFloodE = min(
+      machineFloodCandela( toFlood, headDir ) * galvFloodNdl / r2,
+      ${(SILO_FLOOD_PROFILE.cap * SILO_FLOOD_PROFILE.peak).toFixed(3)}
+    );
+    galvFlood.color = uMachineFloodColor * ( uMachineFlood.x * galvFloodE / galvFloodNdl );
+    RE_Direct( galvFlood, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight );
+  }
 }
 #endif
 `;
@@ -505,6 +767,8 @@ export interface MachineWearOptions {
     readonly aureole: number;
     /** 0-1. Strength of the run-off streaks under the rings and eave. */
     readonly drips: number;
+    /** The corrugated drum only: shade its waves analytically (`GALVANISED_FRAGMENT_BODY`). */
+    readonly corrugated?: boolean;
   };
 }
 
@@ -569,14 +833,30 @@ function withWear<T extends THREE.MeshStandardMaterial>(
     };
     // 1 = the grass outside is neutralised in what the drum reflects (paired control).
     const galvGround = { value: 1 };
+    // Film coverage at the field's mean, and its swing (SILO_PATINA_FILM).
+    const patina = { value: new THREE.Vector2(SILO_PATINA_FILM.mean, SILO_PATINA_FILM.spread) };
+    // Fine ridge count, enabled.
+    const corrugation = {
+      value: galvanised.corrugated
+        ? new THREE.Vector2(SILO_FINE_RIDGES, 1)
+        : new THREE.Vector2(0, 0),
+    };
     Object.assign(uniforms, {
       uMachineGalv: galv,
       uMachineRings: { value: new THREE.Vector4(...SILO_DRIP_DATUMS_UNIT) },
       uMachineGalvGround: galvGround,
+      uMachineCorrugation: corrugation,
+      uMachinePatina: patina,
+      // Shared by every galvanised material: one write lights the whole battery.
+      uMachineFlood: SILO_FLOOD_LIGHT,
+      uMachineFloodColor: SILO_FLOOD_COLOR,
     });
     material.defines = { ...material.defines, MACHINE_GALVANISED: '' };
     material.userData.machineGalvanised = galv;
     material.userData.machineGalvanisedGround = galvGround;
+    material.userData.machineCorrugation = corrugation;
+    material.userData.machinePatina = patina;
+    material.userData.machineFlood = SILO_FLOOD_LIGHT;
   }
 
   material.onBeforeCompile = (shader) => {
@@ -656,6 +936,20 @@ export function getMachineScreenTexture(): THREE.DataTexture {
   });
 }
 
+/**
+ * The skin's galvanised terms. Tuned on one page load (silos-tune): patina
+ * 0.6 -> 0.8 and aureole 0.07 -> 0.1 took the near drum from 9 to 10.5 sRGB
+ * levels sun side to shade side; sparse irregular streaks
+ * (SILO_STREAK_LIVE_FRACTION) at 0.8 read as faint run-off.
+ */
+const SILO_SKIN_GALVANISED = {
+  patina: 0.8,
+  spangleRoughness: 0.68,
+  aureole: 0.1,
+  drips: 0.8,
+  corrugated: true,
+} as const;
+
 export const MACHINE_MATERIALS = {
   /**
    * Galvanised silo skin. A CONDUCTOR with a dielectric patina: spangle at
@@ -671,7 +965,10 @@ export const MACHINE_MATERIALS = {
       aoMap: SILO_SKIN_ORM,
       aoMapIntensity: 0.85,
       normalMap: SILO_SKIN_NORMAL,
-      normalScale: new THREE.Vector2(0.7, 0.7),
+      // The fine corrugation is now the only shaded corrugation, faded by its own
+      // fwidth, so it can carry more relief: 0.7 -> 1.5 on one page load (r4
+      // tune t3) read as crisp ridges near and stayed band-free at mid distance.
+      normalScale: new THREE.Vector2(1.5, 1.5),
       roughness: 1,
       metalness: 1,
     }),
@@ -680,14 +977,41 @@ export const MACHINE_MATERIALS = {
       dust: 0.05,
       edge: 0.1,
       grimeHeight: 3.2,
-      // Tuned on one page load (silos-tune): patina 0.6 -> 0.8 and aureole 0.07 -> 0.1
-      // took the near drum from 9 to 10.5 sRGB levels sun side to shade side;
-      // sparse irregular streaks (SILO_STREAK_LIVE_FRACTION) at 0.8 read as faint run-off.
-      galvanised: { patina: 0.8, spangleRoughness: 0.68, aureole: 0.1, drips: 0.8 },
+      galvanised: SILO_SKIN_GALVANISED,
     }
   ),
 
-  /** Galvanised roof, grounded discharge enclosure and stiffener rings. */
+  /**
+   * The skirt: the grounded discharge enclosure under the drum, 0-5 m. It was
+   * the bare-metal trim, so at noon it read as a flat grey band under a warm
+   * patinated drum with a hard step at the seam, and at night it stayed black
+   * under its own floods: a full conductor has no diffuse term for them to
+   * land on. Same stock, patina and grass-free reflection as the skin (the
+   * patina is sampled in world space, so it runs on across the seam); no
+   * corrugation and no ring run-off of its own. Splash grime stays low.
+   */
+  siloSkirt: withWear(
+    new THREE.MeshStandardMaterial({
+      name: 'machine-silo-skirt',
+      color: '#c4c4c3',
+      roughnessMap: SILO_TRIM_ORM,
+      aoMap: SILO_TRIM_ORM,
+      aoMapIntensity: 0.85,
+      normalMap: SILO_TRIM_NORMAL,
+      normalScale: new THREE.Vector2(0.55, 0.55),
+      roughness: 1,
+      metalness: 1,
+    }),
+    {
+      grime: 0.12,
+      dust: 0.05,
+      edge: 0.1,
+      grimeHeight: 1.2,
+      galvanised: { ...SILO_SKIN_GALVANISED, drips: 0, corrugated: false },
+    }
+  ),
+
+  /** Galvanised roof and stiffener rings. */
   siloRoof: withWear(
     new THREE.MeshStandardMaterial({
       name: 'machine-silo-trim',
