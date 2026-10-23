@@ -11,18 +11,24 @@ import { getExteriorLampLevel } from './ExteriorLighting';
 import {
   MACHINE_MATERIALS,
   SILO_FLOOD_COLOR,
+  SILO_FLOOD_HEAD_ANGLES,
   SILO_FLOOD_LIGHT,
   siloFloodHeadIrradiance,
   siloFloodIrradiance,
 } from '../machines/machineSurfaces';
 
 describe('silo battery floodlights', () => {
-  it('stands two ground floods per bin on its open east and west sides', () => {
+  it('rings each bin with heads on every face that is not 1 m from its neighbour', () => {
     const fixtures = siloFloodFixtures();
-    expect(fixtures).toHaveLength(SITE_LAYOUT.machines.silos.length * 2);
+    expect(fixtures).toHaveLength(
+      SITE_LAYOUT.machines.silos.length * SILO_FLOOD_HEAD_ANGLES.length
+    );
+    // Nothing at 90 or 270 degrees: those faces look at the next bin, 1 m away.
+    expect(SILO_FLOOD_HEAD_ANGLES.some((a) => a % 180 === 90)).toBe(false);
     const radius = SITE_LAYOUT.machineDimensions.silo[0] / 2;
     for (const fixture of fixtures) {
-      // Clear of every bin: the bins stand 1 m apart in Z, so only +-X is open.
+      expect(Math.hypot(fixture.aim[0], fixture.aim[2])).toBeCloseTo(1, 9);
+      // Clear of every bin, the neighbours included.
       for (const {
         position: [x, , z],
       } of SITE_LAYOUT.machines.silos) {
@@ -30,7 +36,6 @@ describe('silo battery floodlights', () => {
           radius + 0.4
         );
       }
-      expect(Math.abs(fixture.aim[2])).toBe(0);
       expect(fixture.position[1]).toBe(0);
       // Outdoors, never inside the hall.
       expect(fixture.position[0]).toBeGreaterThan(SITE_LAYOUT.factory.bounds.maxX + 5);
@@ -41,9 +46,11 @@ describe('silo battery floodlights', () => {
     const flood = writeSiloFloodLight(getExteriorLampLevel(22, 'clear')).clone();
     const radius = SITE_LAYOUT.machineDimensions.silo[0] / 2;
     const [x, , z] = SITE_LAYOUT.machines.silos[0].position;
-    for (const fixture of siloFloodFixtures().filter((f) => f.position[2] === z)) {
+    const own = siloFloodFixtures().slice(0, SILO_FLOOD_HEAD_ANGLES.length);
+    for (const fixture of own) {
       const lensX = fixture.position[0] + fixture.aim[0] * SILO_FLOOD.lensInset;
-      expect(Math.abs(lensX - x)).toBeCloseTo(flood.y, 6);
+      const lensZ = fixture.position[2] + fixture.aim[2] * SILO_FLOOD.lensInset;
+      expect(Math.hypot(lensX - x, lensZ - z)).toBeCloseTo(flood.y, 6);
     }
     expect(flood.z).toBe(SILO_FLOOD.headY);
     expect(flood.w).toBeCloseTo(flood.y - radius, 6);
@@ -107,7 +114,7 @@ describe('silo floods on the drum (final3-med-1830/22: hard line at the seam, bl
         point as [number, number, number],
         normal as [number, number, number],
         axis,
-        1,
+        0,
         flood
       );
     const toward = (point: number[]) => {
@@ -152,12 +159,19 @@ describe('silo floods on the drum (final3-med-1830/22: hard line at the seam, bl
         flood
       );
     };
-    expect(around(0)).toBeGreaterThan(around(30));
-    expect(around(30)).toBeGreaterThan(around(60));
-    // Facing the neighbouring bin, 1 m away: no head stands there.
+    // Two heads on +-X alone lit two thin stripes (a head 0.94 m off the wall
+    // sees 30 degrees either side of its line) and left the face the silos
+    // camera looks at dark. Every open face now takes light.
+    for (let degrees = -60; degrees <= 60; degrees += 5) {
+      expect(around(degrees), `${degrees} deg`).toBeGreaterThan(0.03 * around(0));
+      expect(around(180 + degrees), `${180 + degrees} deg`).toBeGreaterThan(0.03 * around(0));
+    }
+    // Facing the neighbouring bins, 1 m away: no head stands there.
     expect(around(90)).toBe(0);
-    // The far side takes the other head, symmetrically.
+    expect(around(270)).toBe(0);
+    // The ring is symmetric.
     expect(around(180)).toBeCloseTo(around(0), 6);
+    expect(around(135)).toBeCloseTo(around(45), 6);
   });
 
   it('lights every galvanised part of the battery through its own BRDF', () => {
@@ -177,9 +191,10 @@ describe('silo lane pools', () => {
   it('lights the paving either side of the battery, off the pad, behind each flood', () => {
     // The yard camera's lane beside the bins was flat navy at 22:00: the
     // floods lit the drums and nothing returned to the ground.
-    const fixtures = siloFloodFixtures();
+    // One per east or west head; the diagonals stand on the pad between bins.
+    const fixtures = siloFloodFixtures().filter((fixture) => fixture.aim[2] === 0);
     const pools = siloFloodPools();
-    expect(pools).toHaveLength(fixtures.length);
+    expect(pools).toHaveLength(SITE_LAYOUT.machines.silos.length * 2);
     const pad = SITE_LAYOUT.bulkStorage.siloPad;
     const padMinX = pad.position[0] - pad.size[0] / 2;
     const padMaxX = pad.position[0] + pad.size[0] / 2;

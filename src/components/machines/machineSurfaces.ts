@@ -318,6 +318,23 @@ export const SILO_FLOOD_LIGHT = { value: new THREE.Vector4(0, 0, 0, 0) };
 export const SILO_FLOOD_COLOR = { value: new THREE.Color('#ffd59a') };
 
 /**
+ * Where the heads stand round each bin, degrees in XZ from +X toward +Z, each
+ * aimed at the axis. A head 0.94 m off a 6 m wall can only see the wall within
+ * 30 degrees of its own line (the tangent), so the first pair on +-X alone lit
+ * two thin stripes and left the drum the camera faces dark. The diagonals light
+ * the quadrants between; 90 and 270 face the neighbouring bin 1 m away.
+ */
+export const SILO_FLOOD_HEAD_ANGLES = [0, 45, 135, 180, 225, 315] as const;
+
+/** Unit XZ direction from a bin's axis to the head at `degrees`. */
+export function siloFloodHeadDirection(degrees: number): [number, number] {
+  const radians = THREE.MathUtils.degToRad(degrees);
+  // Rounded so the axial heads are exact (cos 90 is 6e-17, not 0).
+  const round = (value: number) => Math.round(value * 1e9) / 1e9;
+  return [round(Math.cos(radians)), round(Math.sin(radians))];
+}
+
+/**
  * The flood's candela distribution, stated as the irradiance it delivers up
  * the line of wall facing it (`h` metres above the head): a rise over the
  * first metre (the head is aimed up, not along the paving), then an
@@ -361,7 +378,7 @@ export function siloFloodFacing(h: number): number {
 /**
  * Flood irradiance (colour units) at a world point with world normal `normal`
  * on the bin whose axis is at `axis` (x, z). Mirrors `machineFloodCandela` and
- * the light body: candela(direction) * max(n.l, 0) / r^2, summed over both heads.
+ * the light body: candela(direction) * max(n.l, 0) / r^2, summed over the heads.
  */
 export function siloFloodIrradiance(
   point: readonly [number, number, number],
@@ -369,28 +386,34 @@ export function siloFloodIrradiance(
   axis: readonly [number, number],
   flood: THREE.Vector4 = SILO_FLOOD_LIGHT.value
 ): number {
-  return (
-    siloFloodHeadIrradiance(point, normal, axis, -1, flood) +
-    siloFloodHeadIrradiance(point, normal, axis, 1, flood)
+  return SILO_FLOOD_HEAD_ANGLES.reduce(
+    (sum, degrees) => sum + siloFloodHeadIrradiance(point, normal, axis, degrees, flood),
+    0
   );
 }
 
-/** One head's share of `siloFloodIrradiance`: `side` -1 is west of the bin, +1 east. */
+/** One head's share of `siloFloodIrradiance`: the head at `degrees` (SILO_FLOOD_HEAD_ANGLES). */
 export function siloFloodHeadIrradiance(
   point: readonly [number, number, number],
   normal: readonly [number, number, number],
   axis: readonly [number, number],
-  side: -1 | 1,
+  degrees: number,
   flood: THREE.Vector4 = SILO_FLOOD_LIGHT.value
 ): number {
   const [level, offset, headY, standoff] = flood.toArray();
   if (!(level > 0)) return 0;
-  const toFlood = [axis[0] + side * offset - point[0], headY - point[1], axis[1] - point[2]];
+  const [dx, dz] = siloFloodHeadDirection(degrees);
+  const toFlood = [
+    axis[0] + dx * offset - point[0],
+    headY - point[1],
+    axis[1] + dz * offset - point[2],
+  ];
   const r2 = Math.max(toFlood[0] ** 2 + toFlood[1] ** 2 + toFlood[2] ** 2, 0.25);
   const r = Math.sqrt(r2);
   const q = Math.max(Math.hypot(toFlood[0], toFlood[2]), 1e-3);
   const tanPhi = -toFlood[1] / q;
-  const aim = Math.max((-toFlood[0] / q) * -side, 0);
+  // The beam leaves the head toward the axis, -(dx, dz).
+  const aim = Math.max((toFlood[0] * dx + toFlood[2] * dz) / q, 0);
   const candela =
     siloFloodFacing(standoff * tanPhi) *
     standoff *
@@ -469,14 +492,21 @@ float machineFloodFacing( float h ) {
     ( 1.0 - smoothstep( ${SILO_FLOOD_PROFILE.top[0].toFixed(3)}, ${SILO_FLOOD_PROFILE.top[1].toFixed(3)}, h ) ) *
     ( ${SILO_FLOOD_PROFILE.floor.toFixed(3)} + ${(1 - SILO_FLOOD_PROFILE.floor).toFixed(3)} * exp( - max( h, 0.0 ) / ${SILO_FLOOD_PROFILE.decay.toFixed(3)} ) );
 }
-// Candela of the head on one side toward a fragment ( toFlood = head - fragment ).
+// SILO_FLOOD_HEAD_ANGLES: unit XZ directions from a bin's axis to its heads.
+const vec2 MACHINE_FLOOD_HEADS[ ${SILO_FLOOD_HEAD_ANGLES.length} ] = vec2[ ${SILO_FLOOD_HEAD_ANGLES.length} ](
+  ${SILO_FLOOD_HEAD_ANGLES.map((degrees) => {
+    const [x, z] = siloFloodHeadDirection(degrees);
+    return `vec2( ${x.toFixed(6)}, ${z.toFixed(6)} )`;
+  }).join(',\n  ')}
+);
+// Candela of the head at heads[ k ] toward a fragment ( toFlood = head - fragment ).
 // The facing line receives exactly machineFloodFacing; every other point gets the
 // same beam through its own distance and cosine (siloFloodIrradiance mirrors this).
-float machineFloodCandela( vec3 toFlood, float side ) {
+float machineFloodCandela( vec3 toFlood, vec2 head ) {
   float q = max( length( toFlood.xz ), 1e-3 );
   float tanPhi = - toFlood.y / q;
   float s = uMachineFlood.w;
-  float aim = max( - toFlood.x / q * - side, 0.0 );
+  float aim = max( dot( toFlood.xz, head ) / q, 0.0 );
   return machineFloodFacing( s * tanPhi ) * s * s * pow( 1.0 + tanPhi * tanPhi, 1.5 ) * aim;
 }
 float machineGalvHash( vec3 p ) {
@@ -622,22 +652,22 @@ const GALVANISED_LIGHT_BODY = /* glsl */ `
     ${SILO_GROUND_BOUNCE.toFixed(3)} * uMachineGalvGround
   );
 }
-// The two ground floods beside this bin (SILO_FLOOD_LIGHT), through the same
-// BRDF as the sun: diffuse on the patina, a specular lobe on the spangle, the
+// The ground floods round this bin (SILO_FLOOD_LIGHT), through the same BRDF
+// as the sun: diffuse on the patina, a specular lobe on the spangle, the
 // corrugation catching it. Skipped outright while the lamps are off.
 if ( uMachineFlood.x > 0.0 ) {
   IncidentLight galvFlood;
   galvFlood.visible = true;
-  for ( int k = 0; k < 2; k ++ ) {
-    float side = k == 0 ? - 1.0 : 1.0;
-    vec3 head = vec3( vMachineAxis.x + side * uMachineFlood.y, uMachineFlood.z, vMachineAxis.y );
+  for ( int k = 0; k < ${SILO_FLOOD_HEAD_ANGLES.length}; k ++ ) {
+    vec2 headDir = MACHINE_FLOOD_HEADS[ k ];
+    vec3 head = vec3( vMachineAxis.x + headDir.x * uMachineFlood.y, uMachineFlood.z, vMachineAxis.y + headDir.y * uMachineFlood.y );
     vec3 toFlood = head - vMachineWorldPos;
     float r2 = max( dot( toFlood, toFlood ), 0.25 );
     galvFlood.direction = normalize( ( viewMatrix * vec4( toFlood, 0.0 ) ).xyz );
     // RE_Direct multiplies by n.l; cap the product (SILO_FLOOD_PROFILE.cap).
     float galvFloodNdl = max( dot( geometryNormal, galvFlood.direction ), 1e-4 );
     float galvFloodE = min(
-      machineFloodCandela( toFlood, side ) * galvFloodNdl / r2,
+      machineFloodCandela( toFlood, headDir ) * galvFloodNdl / r2,
       ${(SILO_FLOOD_PROFILE.cap * SILO_FLOOD_PROFILE.peak).toFixed(3)}
     );
     galvFlood.color = uMachineFloodColor * ( uMachineFlood.x * galvFloodE / galvFloodNdl );

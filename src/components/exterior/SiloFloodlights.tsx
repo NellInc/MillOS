@@ -2,7 +2,11 @@ import { useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
-import { SILO_FLOOD_LIGHT } from '../machines/machineSurfaces';
+import {
+  SILO_FLOOD_HEAD_ANGLES,
+  SILO_FLOOD_LIGHT,
+  siloFloodHeadDirection,
+} from '../machines/machineSurfaces';
 import {
   EXTERIOR_LAMP_LENS_MATERIAL,
   EXTERIOR_LAMP_LEVEL,
@@ -18,8 +22,9 @@ import {
  * fragment of every material in frame, which is why the yard poles are real
  * lights only on High - and no shadow caster. Instead:
  *
- *   - each bin gets two ground floods on its open east and west sides (the bins
- *     stand 1 m apart in Z, so those are the only faces a flood can reach);
+ *   - each bin is ringed by ground floods on its pad (`SILO_FLOOD_HEAD_ANGLES`:
+ *     east, west and the four diagonals; north and south face the neighbouring
+ *     bin 1 m away); a lane pool lies behind the east and west heads;
  *   - the flood heads use the shared exterior lamp lens, so they ARE the light
  *     sources, unlit-by-design and on the shared lamp clock;
  *   - the drum, skirt and rings are lit by them through their own BRDF
@@ -55,33 +60,40 @@ export interface SiloFloodFixture {
 }
 
 export function siloFloodFixtures(): SiloFloodFixture[] {
+  const reach = SILO_RADIUS + SILO_FLOOD.standoff;
   return SITE_LAYOUT.machines.silos.flatMap(({ position: [x, , z] }) =>
-    [-1, 1].map((side) => ({
-      position: [x + side * (SILO_RADIUS + SILO_FLOOD.standoff), 0, z] as const,
-      aim: [-side, 0, 0] as const,
-    }))
+    SILO_FLOOD_HEAD_ANGLES.map((degrees) => {
+      const [dx, dz] = siloFloodHeadDirection(degrees);
+      return {
+        position: [x + dx * reach, 0, z + dz * reach] as const,
+        aim: [-dx, 0, -dz] as const,
+      };
+    })
   );
 }
 
 /**
- * One ground pool per flood, on the lane behind it. Without these the yard
- * camera's lane beside the battery was flat navy at 22:00: the floods lit the
- * drums and nothing returned to the paving.
+ * One ground pool per east or west flood, on the lane behind it. Without these
+ * the yard camera's lane beside the battery was flat navy at 22:00: the floods
+ * lit the drums and nothing returned to the paving. The diagonal heads stand on
+ * the pad between the bins, where a pool behind them would fall under a drum.
  */
 export function siloFloodPools(): { position: [number, number, number]; radius: number }[] {
-  return siloFloodFixtures().map((fixture) => ({
-    position: [
-      fixture.position[0] - fixture.aim[0] * SILO_FLOOD.poolSetback,
-      0,
-      fixture.position[2],
-    ],
-    radius: SILO_FLOOD.poolRadius,
-  }));
+  return siloFloodFixtures()
+    .filter((fixture) => fixture.aim[2] === 0)
+    .map((fixture) => ({
+      position: [
+        fixture.position[0] - fixture.aim[0] * SILO_FLOOD.poolSetback,
+        0,
+        fixture.position[2],
+      ],
+      radius: SILO_FLOOD.poolRadius,
+    }));
 }
 
 /**
  * Publish the floods to the galvanised materials: lamp level, the lenses'
- * distance from each bin axis (every head stands on the bin's X line), their
+ * distance from each bin axis (the heads stand at SILO_FLOOD_HEAD_ANGLES), their
  * height and their standoff from the wall. Level 0 switches the term off. The
  * colour is the lamp lenses' warm white, `SILO_FLOOD_COLOR`.
  */
