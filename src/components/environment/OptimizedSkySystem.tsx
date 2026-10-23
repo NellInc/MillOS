@@ -309,9 +309,34 @@ export const RIDGE_CANOPY_PROFILE = {
   amplitude: [0.55, 0.95],
 } as const;
 
+/**
+ * Fixed foothills behind the far range sink below its foot.
+ *
+ * The far ring is centred on the camera; the mid and near rings are fixed to
+ * the site. From any camera off the site centre the far side of the mid ring
+ * stands 600-660 m out, behind the far range's crest (radius + slopeDepth,
+ * 573 m). Where that crest is low its back rows rose over it, hidden below by
+ * the far range, so they floated above it as a dark lens (final5-med-22 farm,
+ * x 300-475 y 160-180; the round-3 rain judge saw the same). `ramp` is metres
+ * past the far crest, measured horizontally from the camera; `floorY` is below
+ * the far foot (baseY -8), where the far ring always hides it. Hills in front
+ * of the crest do not move.
+ */
+export const RIDGE_BEHIND_RANGE_SINK = { ramp: [-5, 10], floorY: -40 } as const;
+
+/** CPU mirror of the anchored rings' sink weight at a horizontal camera distance. */
+export function getRidgeBehindRangeSink(cameraDistance: number): number {
+  const crest = FAR_MOUNTAIN_SPEC.radius + FAR_MOUNTAIN_SPEC.slopeDepth;
+  const [start, end] = RIDGE_BEHIND_RANGE_SINK.ramp;
+  return THREE.MathUtils.smoothstep(cameraDistance, crest + start, crest + end);
+}
+
 const ridgeVertexShader = `
 #include <common>
 #include <logdepthbuf_pars_vertex>
+uniform float uWorldAnchored;
+uniform float uRingRadius;
+uniform float uSlopeDepth;
 varying vec3 vRidgeColor;
 varying vec3 vRidgeNormal;
 varying vec3 vRidgePosition;
@@ -327,7 +352,17 @@ void main() {
   vRidgePosition = position;
   vRidgeHeight = ridgeHeight;
   vRidgeSnow = ridgeSnow;
-  vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+  vec3 placed = position;
+  // Fixed foothills behind the far range's crest sink below its foot
+  // (RIDGE_BEHIND_RANGE_SINK): otherwise they float over its low shoulders.
+  if (uWorldAnchored > 0.5) {
+    vec4 anchoredWorld = modelMatrix * vec4(position, 1.0);
+    float behindRange = smoothstep(uRingRadius + uSlopeDepth + (${RIDGE_BEHIND_RANGE_SINK.ramp[0].toFixed(1)}),
+      uRingRadius + uSlopeDepth + ${RIDGE_BEHIND_RANGE_SINK.ramp[1].toFixed(1)},
+      length(anchoredWorld.xz - cameraPosition.xz));
+    placed.y = mix(position.y, ${RIDGE_BEHIND_RANGE_SINK.floorY.toFixed(1)}, behindRange);
+  }
+  vec4 mvPosition = modelViewMatrix * vec4(placed, 1.0);
   vRidgeDistance = length(mvPosition.xyz);
   gl_Position = projectionMatrix * mvPosition;
   #include <logdepthbuf_vertex>
@@ -1558,7 +1593,7 @@ export function createRidgeMaterial(
     },
   });
   material.userData.clearAerial = aerial;
-  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v25';
+  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v26';
   return material;
 }
 

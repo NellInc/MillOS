@@ -27,6 +27,8 @@ import {
   getAnchoredRidgeAerial,
   RIDGE_ANCHORED_AERIAL,
   RIDGE_ANCHORED_AERIAL_SPAN,
+  RIDGE_BEHIND_RANGE_SINK,
+  getRidgeBehindRangeSink,
 } from './OptimizedSkySystem';
 import { LANDSCAPE_GROVE_TREES } from '../exterior/ExteriorVegetation';
 import { sampleValleyGroundHeight } from '../terrain/splatMapGenerator';
@@ -458,7 +460,7 @@ describe('solid fixed foothills', () => {
       expect(material.fragmentShader).toContain('gl_FragColor = vec4(lit, 1.0)');
       expect(material.fragmentShader).not.toContain('groundBlend');
       expect(material.fragmentShader).not.toContain('sampler');
-      expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v25');
+      expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v26');
       material.dispose();
     }
   });
@@ -789,7 +791,7 @@ it('parcels the gentle foothill slopes into hedged fields brighter than the wood
   expect(branch).toContain(`vec2(${cell[0].toFixed(1)}, ${cell[1].toFixed(1)})`);
   expect(branch).toContain('hedge');
   expect(branch).toContain('fwidth(edge)');
-  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v25');
+  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v26');
   near.dispose();
 });
 
@@ -856,7 +858,7 @@ it('breaks the farmed/wooded edge across terrace rows and draws no isolated fiel
   // parcel now draw back from its boundary into ragged stands.
   expect(branch).not.toContain('* step(0.4, parcelUse)');
   expect(branch).toContain('float woods =');
-  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v25');
+  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v26');
   near.dispose();
 });
 
@@ -906,7 +908,7 @@ it('gives the far lower slopes contrast that survives the aerial mix and real ou
     linearLuminance(lowland[0]) * 4
   );
   expect(branch).not.toContain('(1.0 - max(rock, substrate)))');
-  expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v25');
+  expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v26');
   material.dispose();
 });
 
@@ -941,7 +943,7 @@ it('thins the far ring haze below the snow line only, keeping snow, upper rock a
   // Only the far (alpine) branch sets it: the foothills keep their haze.
   const alpine = shader.split('} else if (uWorldAnchored < 0.5')[1].split('} else {')[0];
   expect(alpine).toContain('aerialScale = mix(1.0,');
-  expect(far.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v25');
+  expect(far.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v26');
   far.dispose();
 });
 
@@ -1069,7 +1071,7 @@ it('draws woods as soft, coherent stands with a lighter fringe', () => {
   expect(branch).toContain(`p.xz * ${standScale[0].toFixed(3)}`);
   expect(branch).toContain(`p.xz * ${standScale[1].toFixed(3)}`);
   expect(branch).toContain(glslVec3Literal(scrub));
-  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v25');
+  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v26');
   near.dispose();
 });
 
@@ -1160,4 +1162,71 @@ it('keeps rain haze ordered by distance from the near crest to the far lower slo
   expect(alpine).toContain('uLowAerialStrength * uClearAir');
   far.dispose();
   near.dispose();
+});
+
+// final5-med-22 farm, x 300-475 y 160-180: a dark lens floating on the far
+// range's low left shoulder (the round-3 rain judge saw the same). The far
+// ring is centred on the camera; the fixed foothill rings are not, so from any
+// camera off the site centre the far side of the mid ring stands 600-660 m out,
+// BEHIND the far range's 573 m crest. Where that crest is low, the mid ring's
+// back rows rose over it: hidden below by the far range, they floated above it
+// as a separate dark band once round 5 thinned the foothills' haze. Anchored
+// vertices behind the far crest now sink below the far foot.
+it('keeps the fixed foothills from floating above the far range behind it', () => {
+  const [far, mid, near] = MOUNTAIN_RIDGE_GEOMETRIES;
+  const radius = FAR_MOUNTAIN_SPEC.radius;
+  const crest = radius + FAR_MOUNTAIN_SPEC.slopeDepth;
+  const bins = MOUNTAIN_RIDGE_SEGMENTS;
+  const binOf = (x: number, z: number) =>
+    Math.round(((Math.atan2(z, x) / (Math.PI * 2) + 1) % 1) * bins) % bins;
+  const farPosition = far.getAttribute('position');
+  const farHeights: Array<Array<[number, number]>> = Array.from({ length: bins }, () => []);
+  for (let i = 0; i < farPosition.count; i++) {
+    const x = farPosition.getX(i);
+    const z = farPosition.getZ(i);
+    farHeights[binOf(x, z)].push([Math.hypot(x, z), farPosition.getY(i)]);
+  }
+  expect(farHeights.every((column) => column.length > 0)).toBe(true);
+  // Nothing in front of the far crest moves: those hills stand in front of
+  // the range and read correctly.
+  expect(getRidgeBehindRangeSink(crest + RIDGE_BEHIND_RANGE_SINK.ramp[0])).toBe(0);
+  expect(getRidgeBehindRangeSink(radius)).toBe(0);
+  expect(getRidgeBehindRangeSink(crest + RIDGE_BEHIND_RANGE_SINK.ramp[1])).toBe(1);
+  let floating = 0;
+  let unsunkFloating = 0;
+  for (const pose of Object.values(SITE_LAYOUT.cameras) as Array<{ position?: number[] }>) {
+    const camera = pose.position;
+    if (!camera) continue;
+    const skyline = farHeights.map((column) =>
+      Math.max(...column.map(([r, h]) => Math.atan2(h - camera[1], r)))
+    );
+    for (const ring of [mid, near]) {
+      const position = ring.getAttribute('position');
+      for (let i = 0; i < position.count; i++) {
+        const dx = position.getX(i) - camera[0];
+        const dz = position.getZ(i) - camera[2];
+        const distance = Math.hypot(dx, dz);
+        if (distance <= crest) continue;
+        const y = position.getY(i);
+        const sunk = THREE.MathUtils.lerp(
+          y,
+          RIDGE_BEHIND_RANGE_SINK.floorY,
+          getRidgeBehindRangeSink(distance)
+        );
+        const top = skyline[binOf(dx, dz)];
+        if (Math.atan2(y - camera[1], distance) > top) unsunkFloating++;
+        if (Math.atan2(sunk - camera[1], distance) > top) floating++;
+      }
+    }
+  }
+  // The geometry alone floats hundreds of vertices over the far range.
+  expect(unsunkFloating).toBeGreaterThan(100);
+  expect(floating).toBe(0);
+  // The floor sits below the far foot, so a sunk vertex is always behind it.
+  expect(RIDGE_BEHIND_RANGE_SINK.floorY).toBeLessThan(FAR_MOUNTAIN_SPEC.baseY);
+  const material = createRidgeMaterial(0.2, 'mid-sink', true);
+  expect(material.vertexShader).toContain('if (uWorldAnchored > 0.5)');
+  expect(material.vertexShader).toContain('length(anchoredWorld.xz - cameraPosition.xz)');
+  expect(material.vertexShader).toContain('uRingRadius + uSlopeDepth');
+  material.dispose();
 });
