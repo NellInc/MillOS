@@ -27,14 +27,16 @@
  * switched off between two frames of the SAME render — same driver, same shader
  * cache, same clock, same warm GPU, same camera.
  *
- * THREE SHOTS, NOT TWO: on, off, on. The middle one is the treatment arm; the
- * two outer ones bracket it in time and measure how much of the frame moves
- * ON ITS OWN. Benchmark mode pauses the GAME clock (`setGameSpeed(0)`) but not
+ * FOUR SHOTS, NOT TWO: on, off, off, on (ABBA). The middle pair is the
+ * treatment arm; each arm's own pair measures how much of the frame moves ON
+ * ITS OWN. (It was three, on, off, on, until a null control showed swaying
+ * foliage that sat still across the two "on" shots and moved in the "off" one
+ * being credited to the treatment; see lib/surface-change-mask.mjs.) Benchmark mode pauses the GAME clock (`setGameSpeed(0)`) but not
  * the render clock, so conveyors, water, workers and vehicles keep animating,
  * and a plain two-shot diff credits all of that to the treatment. Measured: the
  * `interior` scene reported 3.12% of pixels changed at a mean delta of 23.8,
  * and the whole reading was four flour sacks travelling along a conveyor between
- * the two exposures. Every pixel that also differs between the two same-arm
+ * the two exposures. Every pixel that also differs between either arm's two
  * shots is therefore struck out of the mask before anything is computed — the
  * same intra-run-instability discriminator this repo used to separate "the
  * surface moved" from "the surface is now z-fighting".
@@ -77,7 +79,7 @@
  *   --no-toggle         Baseline mode: one shot per scene, no A/B. Used before
  *                       the treatment exists, to record the "before" frames.
  *   --control           Null control: the treatment is switched OFF for all
- *                       three shots, so the "on" and "off" arms are the same
+ *                       four shots, so the "on" and "off" arms are the same
  *                       arm and the only variable left is the instrument.
  *                       Every scene must read exactly 0 and INERT; anything
  *                       else is noise the instrument would credit to a real
@@ -389,24 +391,31 @@ async function main() {
         await page.waitForTimeout(400);
         const offPath = path.join(outputDir, `${scene}-off.png`);
         await page.screenshot({ path: offPath, timeout: 30000 });
+        // The off arm's own second shot, at the same 400 ms spacing: whatever
+        // moves between these two was a mover in the off arm, wherever the "on"
+        // shots happened to catch it (see changeMask on swaying foliage).
+        await page.waitForTimeout(400);
+        const offLatePath = path.join(outputDir, `${scene}-off-late.png`);
+        await page.screenshot({ path: offLatePath, timeout: 30000 });
         // In --control the "on" arm stays off, so every shot is the same arm.
         await page.evaluate(
           (disabled) =>
             window.__MILLOS_RUNTIME__.setPerfDebug({ disableSurfaceTreatment: disabled }),
           options.control
         );
-        // The third shot brackets the off arm at the same 400 ms spacing, so the
+        // The last shot closes the ABBA bracket at the same spacing, so the
         // self-motion it measures is the motion the on-off pair also contains.
         await page.waitForTimeout(400);
         const latePath = path.join(outputDir, `${scene}-on-late.png`);
         await page.screenshot({ path: latePath, timeout: 30000 });
 
-        const [onPlane, offPlane, latePlane] = await Promise.all([
+        const [onPlane, offPlane, offLatePlane, latePlane] = await Promise.all([
           lumaPlane(await sharp(onPath).toBuffer()),
           lumaPlane(await sharp(offPath).toBuffer()),
+          lumaPlane(await sharp(offLatePath).toBuffer()),
           lumaPlane(await sharp(latePath).toBuffer()),
         ]);
-        const change = changeMask(onPlane, offPlane, latePlane);
+        const change = changeMask(onPlane, offPlane, latePlane, offLatePlane);
         const contrastOn = maskedLaplacian(onPlane, change.mask);
         const contrastOff = maskedLaplacian(offPlane, change.mask);
         const ratio = contrastOff.mean > 0 ? contrastOn.mean / contrastOff.mean : 0;
