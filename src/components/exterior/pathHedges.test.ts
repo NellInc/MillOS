@@ -46,7 +46,7 @@ function bordersPath(hedge: Hedge, path: Path): boolean {
 
 describe('path hedges', () => {
   it('borders the walk each hedge is laid along', () => {
-    expect(PATH_HEDGES.map((hedge) => hedge.path)).toEqual([CANAL_WEST_PATH, LAKE_APPROACH_PATH]);
+    expect(PATH_HEDGES.map((hedge) => hedge.path)).toEqual([CANAL_WEST_PATH]);
     for (const hedge of PATH_HEDGES) expect(bordersPath(hedge, hedge.path)).toBe(true);
   });
 
@@ -101,6 +101,39 @@ it('crosses no path, road or tree trunk on the site', () => {
     for (const tree of trunks) {
       const gap = segmentDistance(hedge.start, hedge.end, tree.position, tree.position);
       expect(gap - hedge.width / 2).toBeGreaterThanOrEqual(0.6);
+    }
+  }
+});
+
+// water, final3 after the road fix (r4-land final-water-hedge): the lake walk's
+// hedge, cut back to clear the road and a trunk, was left as an 8.5 m piece
+// starting mid-walk, read as an orphaned stub. A path hedge is a deliberate
+// run: long enough to read as a boundary, and each end stops at an anchor -
+// within a short verge of an end of the walk it borders, or at the edge of a
+// crossing road or path, where the opening reads as a gateway.
+const MIN_HEDGE_METRES = 12;
+const ANCHOR_REACH = 1.5;
+it('runs every path hedge between anchors, never as a short stub', () => {
+  const ways = [CANAL_WEST_PATH, LAKE_APPROACH_PATH, RIVER_FOOTBRIDGE_APPROACH, GATE_CAR_PARK_ROAD];
+  for (const hedge of PATH_HEDGES) {
+    const length = Math.hypot(hedge.end[0] - hedge.start[0], hedge.end[2] - hedge.start[2]);
+    expect(length).toBeGreaterThanOrEqual(MIN_HEDGE_METRES);
+    const { path } = hedge;
+    const px = path.end[0] - path.start[0];
+    const pz = path.end[2] - path.start[2];
+    const pathLength = Math.hypot(px, pz);
+    const along = (p: Point) =>
+      ((p[0] - path.start[0]) * px + (p[2] - path.start[2]) * pz) / pathLength;
+    for (const end of [hedge.start, hedge.end]) {
+      const atWalkEnd = along(end) <= ANCHOR_REACH || along(end) >= pathLength - ANCHOR_REACH;
+      const atCrossingEdge = ways
+        .filter((way) => way !== path)
+        .some(
+          (way) =>
+            segmentDistance(end, end, way.start, way.end) - way.width / 2 - hedge.width / 2 <=
+            ANCHOR_REACH
+        );
+      expect(atWalkEnd || atCrossingEdge, `hedge end ${end.join(',')} is not anchored`).toBe(true);
     }
   }
 });

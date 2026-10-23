@@ -3902,8 +3902,7 @@ export function hedgeAlongPath(
     width,
     verge = 0.6,
     inset = 1,
-    startInset = inset,
-  }: { height: number; width: number; verge?: number; inset?: number; startInset?: number }
+  }: { height: number; width: number; verge?: number; inset?: number }
 ) {
   const dx = path.end[0] - path.start[0];
   const dz = path.end[2] - path.start[2];
@@ -3915,7 +3914,7 @@ export function hedgeAlongPath(
   const nx = -uz * offset;
   const nz = ux * offset;
   return {
-    start: [path.start[0] + ux * startInset + nx, 0, path.start[2] + uz * startInset + nz] as [
+    start: [path.start[0] + ux * inset + nx, 0, path.start[2] + uz * inset + nz] as [
       number,
       number,
       number,
@@ -3931,26 +3930,22 @@ export function hedgeAlongPath(
 }
 
 /**
- * Hedges that border a path. The lake hedge used to run (95, 90) -> (110, 100),
- * a diagonal across open grass that began and ended nowhere and crossed no
- * line of the path it was meant to border; the canal-side one stood on the
- * gravel walk's centreline. Both now follow their walk, one verge off its edge:
- * the canal walk on its west side (its east side meets the paved walk's corner),
- * the lake walk on its north side, so the hedge screens the service yard from it
- * rather than the water, and opens where the car-park road leaves that walk
- * (`pathHedges.test.ts`).
+ * Hedges that border a path, each a run between anchors (`pathHedges.test.ts`).
+ * The canal-side one stood on the gravel walk's centreline; it now follows the
+ * walk's west side, one verge off its edge (its east side meets the paved
+ * walk's corner), end to end.
+ *
+ * The lake walk has none. Its hedge began as a diagonal across open grass,
+ * (95, 90) -> (110, 100); laid along the walk's north verge it ran straight
+ * over the 5 m car-park road, which leaves the walk at its start heading
+ * north-east (final3, every condition); cut back clear of the road and of a
+ * trunk on the farm camera's bearing it was an 8.5 m piece starting mid-walk,
+ * an orphaned stub (r4-land final-water-hedge). With the road taking the
+ * walk's start and the lakeside curve its end, there is no run on that side
+ * long enough to read as a boundary, so the walk stays open.
  */
 export const PATH_HEDGES = [
   { ...hedgeAlongPath(CANAL_WEST_PATH, -1, { height: 0.6, width: 0.5 }), path: CANAL_WEST_PATH },
-  {
-    // The car-park road leaves the walk's start heading north-east, across this
-    // side: the hedge laid from 1 m in ran straight over the 5 m carriageway
-    // (water/farm, final3). Clear of the road's far edge from 13.4 m along the
-    // walk; it starts at 16.5 m so that, from the farm camera, it does not
-    // emerge from behind the trunk at (110, 95) standing on the same bearing.
-    ...hedgeAlongPath(LAKE_APPROACH_PATH, -1, { height: 0.5, width: 0.4, startInset: 16.5 }),
-    path: LAKE_APPROACH_PATH,
-  },
 ] as const;
 
 // Gravel/paved path component
