@@ -34,6 +34,8 @@ export const PRECIPITATION = {
   height: 36,
   /** Terminal velocity of rain, metres per second. */
   fallSpeed: 9.5,
+  /** Per-drop speed factor: base and spread, so drops do not fall in step. */
+  rate: [0.85, 0.3],
   /** Streak length, metres: about 1/12 s of fall, a camera exposure's smear. */
   streak: 0.8,
   maxDrops: 7000,
@@ -108,6 +110,7 @@ const SHELTER_GLSL = RAIN_SHELTERS.map(
 
 const vertexShader = /* glsl */ `
 attribute vec3 aSeed;
+attribute float aRate;
 attribute float aEnd;
 uniform float uTime;
 uniform vec2 uWind;
@@ -118,7 +121,9 @@ void main() {
   // Fall and drift in a volume that wraps around the camera, so the field is
   // continuous as the camera moves and never runs out of drops.
   vec3 velocity = vec3( uWind.x, -${f(PRECIPITATION.fallSpeed)}, uWind.y );
-  vec3 travel = velocity * uTime * ( 0.85 + 0.3 * aSeed.y );
+  // Each drop's speed is its own random (aRate), never one of its position
+  // seeds: keyed to aSeed.y, the field collapsed to one sheet every 12.6 s.
+  vec3 travel = velocity * uTime * aRate;
   vec3 origin = cameraPosition - vec3( size.x * 0.5, size.y * 0.4, size.z * 0.5 );
   vec3 local = mod( aSeed * size + travel - origin, size );
   vec3 world = origin + local;
@@ -154,8 +159,42 @@ void main() {
 }
 `;
 
-function createRainGeometry(): THREE.BufferGeometry {
+/**
+ * The render-clock step: real seconds, capped, wrapped; frozen under reduced
+ * motion. It reads no game state, so a held time of day never stops the rain.
+ */
+export function advancePrecipitationTime(
+  current: number,
+  delta: number,
+  reducedMotion: boolean
+): number {
+  if (reducedMotion || !Number.isFinite(delta) || delta <= 0) return current;
+  // Wrapped well inside float precision; the field is periodic anyway.
+  return (current + Math.min(delta, 0.1)) % 3600;
+}
+
+/**
+ * CPU mirror of the vertex shader's vertical placement: each drop's height in
+ * the camera-local volume, metres above its floor, at `time`.
+ */
+export function rainDropHeights(geometry: THREE.BufferGeometry, time: number): Float32Array {
+  const seeds = geometry.getAttribute('aSeed');
+  const rates = geometry.getAttribute('aRate');
+  const drops = seeds.count / 2;
+  const heights = new Float32Array(drops);
+  const size = PRECIPITATION.height;
+  for (let drop = 0; drop < drops; drop += 1) {
+    const vertex = drop * 2;
+    const rate = rates.getX(vertex);
+    const y = seeds.getY(vertex) * size - PRECIPITATION.fallSpeed * time * rate;
+    heights[drop] = y - size * Math.floor(y / size);
+  }
+  return heights;
+}
+
+export function createRainGeometry(): THREE.BufferGeometry {
   const seeds = new Float32Array(PRECIPITATION.maxDrops * 2 * 3);
+  const rates = new Float32Array(PRECIPITATION.maxDrops * 2);
   const ends = new Float32Array(PRECIPITATION.maxDrops * 2);
   // Deterministic: the same field every load, so paired captures agree.
   let state = 0x9e3779b9;
@@ -169,9 +208,13 @@ function createRainGeometry(): THREE.BufferGeometry {
     const sx = random();
     const sy = random();
     const sz = random();
+    // Independent of every position seed, so the heights stay uniform as the
+    // drops fall at their different speeds (`rainDropHeights`).
+    const rate = PRECIPITATION.rate[0] + PRECIPITATION.rate[1] * random();
     for (let end = 0; end < 2; end += 1) {
       const vertex = drop * 2 + end;
       seeds.set([sx, sy, sz], vertex * 3);
+      rates[vertex] = rate;
       ends[vertex] = end;
     }
   }
@@ -179,6 +222,7 @@ function createRainGeometry(): THREE.BufferGeometry {
   // `position` is required by three; the shader places every vertex itself.
   geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(seeds.length), 3));
   geometry.setAttribute('aSeed', new THREE.BufferAttribute(seeds, 3));
+  geometry.setAttribute('aRate', new THREE.BufferAttribute(rates, 1));
   geometry.setAttribute('aEnd', new THREE.BufferAttribute(ends, 1));
   geometry.setDrawRange(0, 0);
   return geometry;
@@ -232,10 +276,11 @@ export function Precipitation() {
     lines.visible = drops > 0 && isTabVisible;
     if (!lines.visible) return;
     geometry.setDrawRange(0, drops * 2);
-    if (!reducedMotion) {
-      // Wrapped well inside float precision; the field is periodic anyway.
-      material.uniforms.uTime.value = (material.uniforms.uTime.value + Math.min(delta, 0.1)) % 3600;
-    }
+    material.uniforms.uTime.value = advancePrecipitationTime(
+      material.uniforms.uTime.value,
+      delta,
+      reducedMotion
+    );
     // Wind slants the fall; storm rain drives hard.
     const wind = sample.wind * 3.2;
     (material.uniforms.uWind.value as THREE.Vector2).set(wind * 0.8, wind * 0.6);

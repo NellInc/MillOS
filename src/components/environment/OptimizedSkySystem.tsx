@@ -141,9 +141,13 @@ export function getRidgeClearAir(cloudCoverage: number): number {
   return 1 - THREE.MathUtils.smoothstep(cloudiness, 0, 0.4);
 }
 
-/** PCF penumbra radius in texels: three's default 1 in fair weather, 3 under a deck. */
+/**
+ * PCF penumbra radius in texels: three's default 1 in fair weather, about 3.1
+ * under rain and 4 under a storm deck. The deck also scatters most of the key
+ * (`overcastKeyScatter`), so what shadow remains is faint as well as soft.
+ */
 export function overcastShadowRadius(cloudCoverage: number): number {
-  return 1 + 2 * getOvercastWeight(cloudCoverage);
+  return 1 + 3 * getOvercastWeight(cloudCoverage);
 }
 
 /** Overcast daytime palette (sRGB display hexes), one per sky band. */

@@ -63,6 +63,23 @@ export function getOvercastWeight(cloudCoverage: number): number {
 }
 
 /**
+ * Share of the direct sun a cloud deck scatters into sky fill: exactly 0 in
+ * fair weather (overcast weight 0 at clear's 0.20 cover), 0.75 under rain and
+ * 0.92 under a storm deck.
+ *
+ * Rain used to scatter 0.6 of the overcast weight (0.43), keeping 57% of its
+ * key: noon rain still threw hard-edged shadows under the tanks and hard
+ * sunlit skylight patches across the hall floor (final4/final5-med-rain
+ * tank-farm, packing, interior, milling). A rain deck is a broad, diffuse
+ * source. The roof shadows the hall through the shadow map, so the key is
+ * moved into the fill rather than the shadow faded: fading it would light the
+ * floor under the roof.
+ */
+export function overcastKeyScatter(cloudCoverage: number): number {
+  return Math.min(0.92, 1.05 * getOvercastWeight(cloudCoverage));
+}
+
+/**
  * The weather contribution, hoisted out of `sampleAtmosphere`.
  *
  * This table used to be an object literal *inside* the function, so every
@@ -270,10 +287,11 @@ export function sampleCelestial(
   // that maps them to the display.
   //
   // OVERCAST MOVES LIGHT FROM THE KEY INTO THE FILL. A cloud deck scatters the
-  // sun, it does not just dim it: rain keeps 57% of its key and returns the
-  // rest as sky fill, so shadows soften and lose contrast while the key still
-  // leads (a storm reads as a dull day, not as a flat one).
-  const scattered = 0.6 * overcast;
+  // sun, it does not just dim it: rain keeps about a quarter of its key and
+  // returns the rest as sky fill (`overcastKeyScatter`), so its shadows are
+  // faint and soft and the skylights cast no hard patches. The fill takes
+  // 0.9 of the scattered daylight (0.5 dimmed a rain slab by a third).
+  const scattered = overcastKeyScatter(atmosphere.cloudCoverage);
   target.sunLightIntensity = sunVisibility * (0.15 + visualDaylight * 2.95) * (1 - scattered);
   // A low moon shines through several air masses and through the hall's side
   // glazing at a raking angle; at 19:00 (15 degrees up) it threw full-strength
@@ -288,7 +306,7 @@ export function sampleCelestial(
   target.ambientLightIntensity =
     0.1 +
     visualDaylight * 0.12 +
-    scattered * visualDaylight * 0.5 +
+    scattered * visualDaylight * 0.9 +
     moonVisibility * (1 - atmosphere.daylight) * 0.06;
   return target;
 }
