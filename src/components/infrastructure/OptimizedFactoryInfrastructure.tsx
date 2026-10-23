@@ -1024,10 +1024,11 @@ const SHELL_SURFACES: readonly [
       ribPeriod: 0.25,
       ribDepth: 0.035,
       ribAxis: 1,
-      // Box-filtered, and faded out from 10 px a pitch to 4 (RIB_NYQUIST_FADE):
+      // Box-filtered, and faded out from 25 px a pitch to 11 (RIB_NYQUIST_FADE):
       // at the interior cameras' 0.06-0.1 m a pixel (Medium renders 864 rows)
-      // the 0.25 m pitch drew a dot grid against the purlins (final4). The
-      // purlins carry the rhythm out there.
+      // the 0.25 m pitch drew a dot grid against the purlins (final4), and at
+      // 6-7 px a pitch still a checker (final5). The purlins carry the rhythm
+      // out there; the ribs read looking up at the deck from under it.
       ribFilteredTone: 0.24,
       indoorBounce: 0.85,
       // A smooth coil coating between the ribs: the painted profile's 18 mm
@@ -1496,6 +1497,8 @@ export const ROOF_PURLIN_SECTION = { depth: 0.16, width: 0.08 } as const;
  * touches a face shares its plane; one that overlaps clips through it.
  */
 export const ROOF_PURLIN_CLEARANCE = 0.01;
+/** Air between a truss top chord and the deck: the purlins' clearance plus 2 mm. */
+const TOP_CHORD_CLEARANCE = ROOF_PURLIN_CLEARANCE + 0.002;
 /** The purlins' gable-end limit (the shell's inner line, as for every roof member). */
 const ROOF_PURLIN_END = 49.55;
 
@@ -1597,7 +1600,12 @@ export function buildFactoryRoofStructure(): {
     const local = (x - ROOF_HALF_CENTRE * side) / Math.cos(ROOF_PITCH);
     return deckPoint(side, local).y - 0.36;
   };
-  const upperY = (x: number) => underside(x) - chordHeight / 2 - 0.06;
+  // The top chord stands 12 mm under the deck, at the purlins' own clearance.
+  // At 60 mm every purlin framing into it stood 50 mm proud of its silhouette
+  // seen from the floor: a dark tooth every 1.5 m along each chord, which read
+  // as stair-step aliasing in interior and milling (final5) and which no
+  // amount of MSAA could touch.
+  const upperY = (x: number) => underside(x) - chordHeight / 2 - TOP_CHORD_CLEARANCE;
   const member = (
     x0: number,
     y0: number,

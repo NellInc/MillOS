@@ -143,7 +143,7 @@ import * as THREE from 'three';
 import { CONCRETE_SLAB_GLSL, SLAB_JOINT_PITCH, SLAB_JOINT_WIDTH } from './concreteSlab';
 
 /** Bump BY HAND whenever the injected GLSL below changes. Never derive this. */
-const WORLD_SURFACE_PROGRAM_VERSION = 'v9';
+const WORLD_SURFACE_PROGRAM_VERSION = 'v10';
 
 /** Where a rib's crown sits within its pitch, 0-1 (the trapezoid in FRAGMENT_BODY). */
 export const RIB_CROWN_PHASE = 0.4;
@@ -204,21 +204,38 @@ export function ribFilteredSwing(w: number): number {
  * Nor is a resolved pitch calm. Faded at 0.2-0.42 (r5shell5 probe, interior
  * med-12), the liner's 0.25 m ribs still drew at 4 px a pitch across the top
  * right of the frame, chopped every 11 px by the purlins into the same
- * checkerboard. So the swing is full only below 0.1 (10 px a pitch) and gone
- * by 0.25 (4 px a pitch), well before Nyquist. `fwidth` sums |dFdx| and
- * |dFdy|, so the measured footprint errs long, toward the calm side.
+ * checkerboard.
+ *
+ * Nor at 6-7 px a pitch. Faded at 0.1-0.25 (final5 med-12 interior, upper
+ * right; milling; low-12 as a brick moire), the interior camera looks along
+ * +X while the ribs vary along Z, so up there a pitch lies ACROSS the view,
+ * unforeshortened: 0.106 pitches a pixel on Medium at the very top row, where
+ * the fade still kept 99% of the swing, against purlins every 10-12 px. A rib
+ * that resolves still draws a grid against the purlins. So the swing is full
+ * only below 0.04 (25 px a pitch, looking up at the deck from under it) and
+ * gone by 0.09 (11 px a pitch). `fwidth` sums |dFdx| and |dFdy|, so the
+ * measured footprint errs long, toward the calm side.
  */
-export const RIB_NYQUIST_FADE = { from: 0.1, to: 0.25 } as const;
+export const RIB_NYQUIST_FADE = { from: 0.04, to: 0.09 } as const;
+
+/**
+ * The thin-seam profile's fade (a membrane lap, `ribSeamWidth`): round 5's
+ * 0.1-0.25. A seam is a single line a pitch, not a grid, and the overview
+ * resolves the roof's 1.8 m laps at ~0.14 pitches a pixel; the deck fade
+ * above would erase them.
+ */
+export const SEAM_NYQUIST_FADE = { from: 0.1, to: 0.25 } as const;
 
 /** Paired rendered control for that fade (0 = the box filter alone), shared by reference. */
 export const RIB_NYQUIST_STRENGTH: { value: number } = { value: 1 };
 
-/** Fraction of the filtered swing kept at footprint `w` pitches, fade at strength `fade`. */
-export function ribNyquistKeep(w: number, fade = 1): number {
-  const t = Math.min(
-    1,
-    Math.max(0, (w - RIB_NYQUIST_FADE.from) / (RIB_NYQUIST_FADE.to - RIB_NYQUIST_FADE.from))
-  );
+/**
+ * Fraction of the filtered swing kept at footprint `w` pitches, fade at
+ * strength `fade`; `seam` takes the thin-seam profile's range.
+ */
+export function ribNyquistKeep(w: number, fade = 1, seam = false): number {
+  const { from, to } = seam ? SEAM_NYQUIST_FADE : RIB_NYQUIST_FADE;
+  const t = Math.min(1, Math.max(0, (w - from) / (to - from)));
   return 1 - fade * t * t * (3 - 2 * t);
 }
 
@@ -252,7 +269,7 @@ function seamFilteredSwing(w: number, width: number): number {
  */
 export function ribRenderedSwing(w: number, seamWidth = 0, fade = 1): number {
   const swing = seamWidth > 0 ? seamFilteredSwing(w, seamWidth) : ribFilteredSwing(w);
-  return swing * ribNyquistKeep(w, fade);
+  return swing * ribNyquistKeep(w, fade, seamWidth > 0);
 }
 
 const RIB_INTEGRAL_GLSL = /* glsl */ `
@@ -1042,17 +1059,20 @@ const FRAGMENT_BODY = /* glsl */ `
     float surfRibW = max( fwidth( surfRibU ), 1e-4 );
     float surfRib;
     float surfRibMean;
+    float surfRibFrom = ${RIB_NYQUIST_FADE.from.toFixed(2)};
+    float surfRibTo = ${RIB_NYQUIST_FADE.to.toFixed(2)};
     if ( uSurfRib.z > 0.0 ) {
       surfRib = ( surfSeamIntegral( surfRibU + 0.5 * surfRibW, uSurfRib.z )
         - surfSeamIntegral( surfRibU - 0.5 * surfRibW, uSurfRib.z ) ) / surfRibW;
       surfRibMean = 1.0 - uSurfRib.z;
+      surfRibFrom = ${SEAM_NYQUIST_FADE.from.toFixed(2)};
+      surfRibTo = ${SEAM_NYQUIST_FADE.to.toFixed(2)};
     } else {
       surfRib = ( surfRibIntegral( surfRibU + 0.5 * surfRibW )
         - surfRibIntegral( surfRibU - 0.5 * surfRibW ) ) / surfRibW;
       surfRibMean = ${RIB_PROFILE_MEAN.toFixed(2)};
     }
-    float surfRibKeep = 1.0 - smoothstep(
-      ${RIB_NYQUIST_FADE.from.toFixed(2)}, ${RIB_NYQUIST_FADE.to.toFixed(2)}, surfRibW ) * uSurfRibNyquist;
+    float surfRibKeep = 1.0 - smoothstep( surfRibFrom, surfRibTo, surfRibW ) * uSurfRibNyquist;
     float surfRibDev = ( surfRib - surfRibMean ) * surfRibKeep;
     surfRibHeight = ( surfRibMean + surfRibDev ) * uSurfDeck.y * surfKill;
     diffuseColor.rgb *= 1.0 + surfRibDev * uSurfRib.x * surfKill;

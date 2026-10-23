@@ -542,13 +542,26 @@ describe('box-filtered ribs', () => {
    * at w 1.25-1.5, and every bit of that aliases. What reaches the frame must
    * be gone before Nyquist and stay gone.
    */
-  it('leave no swing from 4 px a pitch on, and keep it where a pitch spans 12 px', () => {
-    for (let w = 0.25; w <= 4; w += 0.05) {
-      expect(ribRenderedSwing(w), `w ${w.toFixed(2)}`).toBeLessThan(1e-6);
-      expect(ribRenderedSwing(w, RIB_SEAM_TEST_WIDTH), `seam w ${w.toFixed(2)}`).toBeLessThan(1e-6);
+  /*
+   * final5 med-12 interior (upper right) and milling, low-12: still a checker.
+   * Faded at 0.1-0.25 the ribs kept up to 74% of their swing at the 6-7 px a
+   * pitch the interior camera's upper right resolves them at on Medium, and
+   * every 10-12 px a purlin crossed them. A rib that resolves still draws a
+   * grid against the purlins, so it is dropped well before Nyquist: gone by
+   * 10 px a pitch, full only from 20.
+   */
+  it('leave no swing from 10 px a pitch on, and keep it where a pitch spans 25 px', () => {
+    for (let w = 0.1; w <= 4; w += 0.025) {
+      expect(ribRenderedSwing(w), `w ${w.toFixed(3)}`).toBeLessThan(1e-6);
     }
-    expect(ribRenderedSwing(0.08)).toBeGreaterThan(0.95);
-    expect(ribRenderedSwing(0.15)).toBeGreaterThan(0.4);
+    // A membrane lap is one thin line a pitch, not a grid: it keeps round 5's
+    // fade, gone by 4 px a pitch, so the overview still resolves the laps.
+    for (let w = 0.25; w <= 4; w += 0.025) {
+      expect(ribRenderedSwing(w, RIB_SEAM_TEST_WIDTH), `seam w ${w.toFixed(3)}`).toBeLessThan(1e-6);
+    }
+    expect(ribRenderedSwing(0.14, RIB_SEAM_TEST_WIDTH)).toBeGreaterThan(0.03);
+    expect(ribRenderedSwing(0.04)).toBeGreaterThan(0.95);
+    expect(ribRenderedSwing(0.06)).toBeGreaterThan(0.5);
     // The paired control: with the fade off, the old box filter (and its alias).
     expect(ribRenderedSwing(1.5, 0, 0)).toBeCloseTo(ribFilteredSwing(1.5), 9);
   });
