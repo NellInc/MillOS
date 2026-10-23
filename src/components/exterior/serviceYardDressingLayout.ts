@@ -66,8 +66,6 @@ export const YARD_INTAKE = {
   frame: { width: 0.12, height: 0.06 },
   /** Yellow hazard band painted round the frame. */
   border: 0.3,
-  /** Grain spilled off the tailgate, on the grate's approach side. */
-  spill: { x: 84, z: 33.75, radiusX: 1.7, radiusZ: 0.9 },
 } as const;
 
 /** One slot drain: a straight run from `from` to `to`, world x/z. */

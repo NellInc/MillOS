@@ -52,7 +52,6 @@ const overlay = (color: string, extra: THREE.MeshStandardMaterialParameters = {}
   });
 const PIT = overlay('#141617');
 const HAZARD_PAINT = overlay('#d9bb3f', { roughness: 0.8 });
-const GRAIN_SPILL = overlay('#c7b083', { transparent: true, opacity: 0.55, roughness: 0.95 });
 
 /** A pipe between two points, as a scaled unit cylinder. */
 const Pipe: React.FC<{
@@ -247,7 +246,12 @@ const BoxSet: React.FC<{
     mesh.computeBoundingBox();
     mesh.computeBoundingSphere();
   }, [parts]);
-  return <instancedMesh ref={ref} args={[BOX, material, parts.length]} receiveShadow />;
+  // After the overlays (renderOrder 1): their exteriorOverlay bias would
+  // otherwise win the depth test over steel standing 2-4 cm above them, and
+  // the grate read as a solid black pit (y5b med-12 yard).
+  return (
+    <instancedMesh ref={ref} args={[BOX, material, parts.length]} receiveShadow renderOrder={2} />
+  );
 };
 
 const GROUND = EXTERIOR_LAYERS.ground;
@@ -308,7 +312,7 @@ const DRAIN_PLATES = YARD_DRAINS.flatMap((drain) =>
 
 /** World metres; mounted with the continuous exterior. */
 export const YardIntake: React.FC = () => {
-  const { border, spill } = YARD_INTAKE;
+  const { border } = YARD_INTAKE;
   const outerL = grate.length + 2 * border;
   return (
     <group name="yard-intake">
@@ -350,16 +354,6 @@ export const YardIntake: React.FC = () => {
           </mesh>
         </React.Fragment>
       ))}
-      {/* Grain off a tailgate, on the approach side, past the band. */}
-      <mesh
-        material={GRAIN_SPILL}
-        position={[spill.x, EXTERIOR_LAYERS.groundOverlay, spill.z]}
-        rotation={[-Math.PI / 2, 0, 0]}
-        scale={[spill.radiusX, spill.radiusZ, 1]}
-        renderOrder={2}
-      >
-        <circleGeometry args={[1, 24]} />
-      </mesh>
       <BoxSet parts={GRATE_STEEL} material={GALVANISED} />
       {/* Slot drains: the dark channel, its slotted cover on top. */}
       {YARD_DRAINS.map((drain) => {
