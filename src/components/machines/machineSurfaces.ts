@@ -386,7 +386,7 @@ export function siloFloodIrradiance(
   axis: readonly [number, number],
   flood: THREE.Vector4 = SILO_FLOOD_LIGHT.value
 ): number {
-  return SILO_FLOOD_HEAD_ANGLES.reduce(
+  return SILO_FLOOD_HEAD_ANGLES.reduce<number>(
     (sum, degrees) => sum + siloFloodHeadIrradiance(point, normal, axis, degrees, flood),
     0
   );
