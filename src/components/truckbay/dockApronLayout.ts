@@ -68,6 +68,63 @@ export const DOCK_BUMPER_BLOCKS: readonly {
 }));
 
 /**
+ * The dock shelter's pads, in each pad's own frame (centred; +z toward the
+ * yard): two side pads 0.3 x 3.5 x 3 and a head pad 4.1 x 0.3 x 3. final4
+ * logistics-close read them as untreated dark boxes either side of the ribbed
+ * door. A shelter's pads are fabric over foam, folded: each now carries proud
+ * pleat folds across its long faces (2 cm proud of every face they cross,
+ * 0.25 m apart, about 10 px at logistics-close), and each side pad a yellow
+ * guide stripe down its yard face, as drivers back onto.
+ */
+export const DOCK_SHELTER_PAD = {
+  side: { width: 0.3, height: 3.5, depth: 3 },
+  head: { width: 4.1, height: 0.3, depth: 3 },
+} as const;
+export const DOCK_SHELTER_PLEAT = { pitch: 0.25, thickness: 0.06, proud: 0.02 } as const;
+
+/** One fold, as a box centre and size in its pad's frame. */
+export interface ShelterPart {
+  readonly position: readonly [number, number, number];
+  readonly scale: readonly [number, number, number];
+}
+
+const pleatOffsets = (span: number): number[] => {
+  const count = Math.floor((span - 0.2) / DOCK_SHELTER_PLEAT.pitch) + 1;
+  const first = -((count - 1) * DOCK_SHELTER_PLEAT.pitch) / 2;
+  return Array.from({ length: count }, (_, i) => first + i * DOCK_SHELTER_PLEAT.pitch);
+};
+
+/** Folds across a side pad: horizontal, wrapping both long faces and the yard face. */
+export const DOCK_SHELTER_SIDE_PLEATS: readonly ShelterPart[] = pleatOffsets(
+  DOCK_SHELTER_PAD.side.height
+).map((y) => ({
+  position: [0, y, 0],
+  scale: [
+    DOCK_SHELTER_PAD.side.width + 2 * DOCK_SHELTER_PLEAT.proud,
+    DOCK_SHELTER_PLEAT.thickness,
+    DOCK_SHELTER_PAD.side.depth + 2 * DOCK_SHELTER_PLEAT.proud,
+  ],
+}));
+
+/** Folds across the head pad: running front to back, wrapping its underside and yard face. */
+export const DOCK_SHELTER_HEAD_PLEATS: readonly ShelterPart[] = pleatOffsets(
+  DOCK_SHELTER_PAD.head.width
+).map((x) => ({
+  position: [x, 0, 0],
+  scale: [
+    DOCK_SHELTER_PLEAT.thickness,
+    DOCK_SHELTER_PAD.head.height + 2 * DOCK_SHELTER_PLEAT.proud,
+    DOCK_SHELTER_PAD.head.depth + 2 * DOCK_SHELTER_PLEAT.proud,
+  ],
+}));
+
+/** The yellow guide stripe down each side pad's yard face, standing off the folds. */
+export const DOCK_SHELTER_GUIDE_STRIPE: ShelterPart = {
+  position: [0, 0, DOCK_SHELTER_PAD.side.depth / 2 + DOCK_SHELTER_PLEAT.proud + 0.015],
+  scale: [0.18, DOCK_SHELTER_PAD.side.height - 0.2, 0.02],
+};
+
+/**
  * The deck's lip, hinged under its far edge (the bumper face). Stowed it hangs
  * in front of the deck end; deployed it swings 0.3 rad out, its far corner
  * stopping short of the docked trailer's underride guard 0.1 m beyond.
