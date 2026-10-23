@@ -1,9 +1,14 @@
 import { readFileSync } from 'node:fs';
+import { NodeIO } from '@gltf-transform/core';
+import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
+import { DOCK_CANOPY } from '../../constants/dockLoading';
+import { SITE_LAYOUT } from '../../constants/siteLayout';
 import {
   DOCK_DOOR_FRAME,
   DOCK_FACADE_BOARD,
   DOCK_FACADE_LINES,
+  DOCK_FACADE_POSTS,
   DOCK_FACADE_TRIM,
   DOCK_FLOOD_HEADS,
   DOCK_FLOOD_POOLS,
@@ -147,11 +152,19 @@ describe('KEEP CLEAR against the docked truck', () => {
 });
 
 describe('dock facade sign', () => {
-  it('paints both lines on a board standing on the door frame', () => {
+  it('paints both lines on a board carried on posts off the door frame', () => {
     const board = DOCK_FACADE_BOARD;
-    // Seated on the frame head (sunk no more than 3 cm), within its width and depth.
-    expect(board.bottom).toBeLessThanOrEqual(DOCK_DOOR_FRAME.top);
-    expect(board.bottom).toBeGreaterThan(DOCK_DOOR_FRAME.top - 0.03);
+    const posts = DOCK_FACADE_POSTS;
+    // The posts stand on the frame head (sunk no more than 3 cm) and run up
+    // into the board; the board is within the frame's width and depth.
+    expect(posts.bottom).toBeLessThanOrEqual(DOCK_DOOR_FRAME.top);
+    expect(posts.bottom).toBeGreaterThan(DOCK_DOOR_FRAME.top - 0.03);
+    expect(posts.top).toBeGreaterThan(board.bottom);
+    expect(posts.top).toBeLessThan(board.top);
+    for (const x of posts.xs) expect(Math.abs(x) + posts.width / 2).toBeLessThan(board.width / 2);
+    // Inside the board's and the trim's depth, so no post face is coplanar.
+    expect(posts.z).toBe(board.z);
+    expect(posts.depth).toBeLessThan(DOCK_FACADE_TRIM.depth - 0.01);
     expect(board.width / 2).toBeLessThan(DOCK_DOOR_FRAME.halfWidth);
     expect(Math.abs(board.z - DOCK_DOOR_FRAME.z)).toBeLessThan(DOCK_DOOR_FRAME.depth / 2);
     // Every line sits on the board, a centimetre or two proud of its face.
@@ -178,6 +191,106 @@ describe('dock facade sign', () => {
     expect(DOCK_FACADE_LINES.subtitle.y - DOCK_FACADE_LINES.subtitle.fontSize / 2).toBeGreaterThan(
       4.9
     );
+  });
+});
+
+/**
+ * The truck canopy's front edge beam crossed the board's lettering from the
+ * yard: at logistics-close (18:30 most plainly) "SHIPPING" lost its lower half
+ * behind the beam, and from the shipping camera the roof hid the subtitle.
+ * Every line on both boards must be in clear sight of the cameras that frame
+ * it, ray-cast against the canopy model itself.
+ */
+describe('dock facade sign against the canopy', () => {
+  const loadCanopy = async () => {
+    const document = await new NodeIO().read('public/models/world/dock-canopy-structure.glb');
+    const meshes: THREE.Mesh[] = [];
+    for (const node of document.getRoot().listNodes()) {
+      const mesh = node.getMesh();
+      if (!mesh) continue;
+      for (const primitive of mesh.listPrimitives()) {
+        const geometry = new THREE.BufferGeometry();
+        const position = primitive.getAttribute('POSITION')!;
+        geometry.setAttribute(
+          'position',
+          new THREE.Float32BufferAttribute(position.getArray()!, position.getElementSize())
+        );
+        const indices = primitive.getIndices();
+        if (indices) geometry.setIndex(Array.from(indices.getArray()!));
+        geometry.applyMatrix4(new THREE.Matrix4().fromArray(node.getWorldMatrix()));
+        meshes.push(
+          new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }))
+        );
+      }
+    }
+    return meshes;
+  };
+  /** The canopy as mounted at a dock: shipping, or receiving under a half turn. */
+  const mount = (meshes: THREE.Mesh[], dock: 'shipping' | 'receiving') => {
+    const group = new THREE.Group();
+    const inner = new THREE.Group();
+    inner.position.z = DOCK_CANOPY.modelOffsetU;
+    meshes.forEach((mesh) => inner.add(mesh.clone()));
+    group.add(inner);
+    group.position.z = dock === 'shipping' ? 50 + DOCK_CANOPY.u : -(50 + DOCK_CANOPY.u);
+    group.rotation.y = dock === 'shipping' ? 0 : Math.PI;
+    group.updateMatrixWorld(true);
+    return group;
+  };
+  /** Sample points over one painted line, world metres (0.7 em per glyph, cap height 0.7 em). */
+  const lineSamples = (dock: 'shipping' | 'receiving', text: string, y: number, size: number) => {
+    const half = (text.length * 0.7 * size) / 2;
+    const out: THREE.Vector3[] = [];
+    for (let i = 0; i <= 8; i += 1)
+      for (const dy of [-0.35, 0, 0.35]) {
+        const x = -half + (2 * half * i) / 8;
+        const local = new THREE.Vector3(x, y + dy * size, DOCK_FACADE_LINES.z);
+        out.push(
+          dock === 'shipping'
+            ? new THREE.Vector3(local.x, local.y, 50 + local.z)
+            : new THREE.Vector3(-local.x, local.y, -50 - local.z)
+        );
+      }
+    return out;
+  };
+  const signs = [
+    {
+      dock: 'shipping',
+      lines: ['SHIPPING', 'DOCK 1 - OUTBOUND'],
+      cameras: ['logisticsClose', 'shipping'],
+    },
+    { dock: 'receiving', lines: ['RECEIVING', 'DOCK 2 - INBOUND'], cameras: ['receiving'] },
+  ] as const;
+
+  it('keeps every line of lettering clear of the canopy from each camera that frames it', async () => {
+    const meshes = await loadCanopy();
+    const failures: string[] = [];
+    for (const { dock, lines, cameras } of signs) {
+      const canopy = mount(meshes, dock);
+      const [title, subtitle] = lines;
+      const samples = [
+        ...lineSamples(dock, title, DOCK_FACADE_LINES.title.y, DOCK_FACADE_LINES.title.fontSize),
+        ...lineSamples(
+          dock,
+          subtitle,
+          DOCK_FACADE_LINES.subtitle.y,
+          DOCK_FACADE_LINES.subtitle.fontSize
+        ),
+      ];
+      for (const name of cameras) {
+        const view = SITE_LAYOUT.cameras[name];
+        const eye = new THREE.Vector3(...view.position);
+        let hidden = 0;
+        for (const point of samples) {
+          const direction = point.clone().sub(eye);
+          const far = direction.length();
+          const ray = new THREE.Raycaster(eye, direction.normalize(), 0, far - 0.05);
+          if (ray.intersectObject(canopy, true).length) hidden += 1;
+        }
+        if (hidden) failures.push(`${dock} from ${name}: ${hidden}/${samples.length} hidden`);
+      }
+    }
+    expect(failures).toEqual([]);
   });
 });
 

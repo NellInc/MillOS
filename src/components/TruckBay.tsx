@@ -75,6 +75,7 @@ import {
 import {
   DOCK_FACADE_BOARD,
   DOCK_FACADE_LINES,
+  DOCK_FACADE_POSTS,
   DOCK_FACADE_TRIM,
   DOCK_FLOOD_HEADS,
   DOCK_FLOOD_POOLS,
@@ -171,7 +172,7 @@ const DOCK_FACADE_TRIM_MATERIAL = new THREE.MeshStandardMaterial({
 });
 
 /**
- * The dock's name board: painted steel standing on the door frame's head, with
+ * The dock's name board: painted steel carried on two posts off the door frame's head, with
  * a brushed edge trim behind it (`DOCK_FACADE_BOARD`). The lettering is lit
  * paint on its face, readable from outside only.
  */
@@ -193,6 +194,28 @@ const DockFacadeSign: React.FC<{
       >
         <boxGeometry args={[board.width, height, board.depth]} />
       </mesh>
+      {/* Two posts off the door frame's head carry the board above the truck
+          canopy's sight line (`DOCK_FACADE_POSTS`). */}
+      {DOCK_FACADE_POSTS.xs.map((x) => (
+        <mesh
+          key={x}
+          position={[
+            x,
+            (DOCK_FACADE_POSTS.bottom + DOCK_FACADE_POSTS.top) / 2,
+            DOCK_FACADE_POSTS.z,
+          ]}
+          material={DOCK_FACADE_TRIM_MATERIAL}
+          castShadow
+        >
+          <boxGeometry
+            args={[
+              DOCK_FACADE_POSTS.width,
+              DOCK_FACADE_POSTS.top - DOCK_FACADE_POSTS.bottom,
+              DOCK_FACADE_POSTS.depth,
+            ]}
+          />
+        </mesh>
+      ))}
       {/* Edge trim: 4 cm proud of the board all round, inset 1 cm behind both
           of its faces (`DOCK_FACADE_TRIM`), so no face is coplanar. */}
       <mesh

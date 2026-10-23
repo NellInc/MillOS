@@ -59,6 +59,7 @@ import {
   fitRiverCulvertBank,
 } from './exterior/riverGeometry';
 import { UTILITY_ASSET_DEFINITIONS } from '../constants/utilityAssets';
+import { DOCK_CANOPY } from '../constants/dockLoading';
 import {
   generateContainmentPad,
   generateContainmentPadRoughness,
@@ -157,6 +158,9 @@ import {
   createOrganicLakeBankGeometry,
   createOrganicLakeSurfaceGeometry,
 } from './exterior/organicLakeGeometry';
+
+/** The shipping dock line (TruckBay's dock group); receiving is its half turn. */
+const SHIPPING_DOCK_Z = 50;
 interface FactoryExteriorProps {
   floorWidth?: number;
   floorDepth?: number;
@@ -5291,7 +5295,7 @@ export const LoadingDockCanopy: React.FC<{
         </>
       }
     >
-      <group position={[0, 0, 0.1]}>
+      <group position={[0, 0, DOCK_CANOPY.modelOffsetU]}>
         <GeneratedModel asset="dockCanopyStructure" />
       </group>
       {[-width / 3, 0, width / 3].map((x, i) => (
@@ -8933,10 +8937,20 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
       {/* ========== INDUSTRIAL STRUCTURES ========== */}
 
       {/* Loading dock canopy - FRONT (shipping) */}
-      <LoadingDockCanopy position={[0, 0, 58]} width={20} depth={5} rotation={0} />
+      <LoadingDockCanopy
+        position={[0, 0, SHIPPING_DOCK_Z + DOCK_CANOPY.u]}
+        width={DOCK_CANOPY.width}
+        depth={DOCK_CANOPY.depth}
+        rotation={0}
+      />
 
       {/* Loading dock canopy - BACK (receiving) */}
-      <LoadingDockCanopy position={[0, 0, -58]} width={20} depth={5} rotation={Math.PI} />
+      <LoadingDockCanopy
+        position={[0, 0, -(SHIPPING_DOCK_Z + DOCK_CANOPY.u)]}
+        width={DOCK_CANOPY.width}
+        depth={DOCK_CANOPY.depth}
+        rotation={Math.PI}
+      />
 
       {/* The elevator feeds the same five bins used by the production model. */}
       <GrainElevator position={[...SITE_LAYOUT.bulkStorage.elevator.position]} />
