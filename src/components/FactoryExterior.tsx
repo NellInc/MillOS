@@ -5659,9 +5659,13 @@ export const VESSEL_SEAM_BAND = { width: 0.045, height: 0.014 } as const;
  * proud. It was bare steel (#7c868a, metalness 0.35): with no sun to reflect
  * at 18:30 that went black and drew a hard ink rim round every head
  * (final3-med-1830 tank-farm). 0.88 since final4, near the shell map's weld
- * shade: one line in the shell's own paint, not an ink rim.
+ * shade: one line in the shell's own paint, not an ink rim. 0.78 since
+ * final7-med-12, whose judge found no head-to-shell weld line at all: at 0.88
+ * the band sat 6% under the shell in sRGB, inside the head's own shading. It
+ * is still the shell's paint (the shell map paints no line beside it, so the
+ * round-4 doubled ring cannot return), about 10% under the shell in sRGB.
  */
-export const VESSEL_SEAM_SHADE = 0.88;
+export const VESSEL_SEAM_SHADE = 0.78;
 const VESSEL_SEAM_MATERIALS = new Map<string, THREE.MeshStandardMaterial>();
 export function vesselSeamMaterial(color: string): THREE.MeshStandardMaterial {
   let material = VESSEL_SEAM_MATERIALS.get(color);

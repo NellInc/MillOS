@@ -19,6 +19,8 @@ import {
 
 const layoutFor = (radius: number, length: number): VesselShellLayout =>
   storageTankShellLayout(radius, length);
+/** `VESSEL_HEAD_DEPTH` in FactoryExterior: a 2:1 head is half a radius deep. */
+const VESSEL_HEAD_DEPTH_FOR_TEST = 0.5;
 const luma = (tint: readonly number[]) => 0.2126 * tint[0] + 0.7152 * tint[1] + 0.0722 * tint[2];
 
 describe.each([
@@ -46,8 +48,12 @@ describe.each([
    * staggered either side of the crown.
    */
   it('draws each course weld as one crisp line in the shell paint, a shade darker, never black', () => {
-    // Clear of every run-off streak (they cross welds by design).
-    for (const u of [plainU, 0.98]) {
+    // Clear of every run-off streak (they cross welds by design). Was 0.98,
+    // which since round 8 lies in the grime band above the saddle horns (a
+    // course weld stands 0.5 m from the 10 m tank's saddles); 0.05 is a
+    // second point on the upper flank, above that band's reach and clear of
+    // the ladder's streaks.
+    for (const u of [plainU, 0.05]) {
       for (const y of seams) {
         const weld = sampleVesselShell(layout, seams, u, y, radius);
         const plate = sampleVesselShell(layout, seams, u, y + 0.08, radius);
@@ -141,6 +147,108 @@ describe.each([
         sampleVesselShell(layout, seams, VESSEL_CROWN_U - 0.06, clearY, radius).tint
       );
       expect(darkest).toBeLessThan(clean * 0.85);
+    }
+  });
+
+  /**
+   * final7-med-12 verdict item 1: no drip tracks at the nozzle and manway
+   * penetrations. The round-5 streaks were 10-22 cm wide and faded in over
+   * 12 cm, so from the tank-farm camera they read as no mark at all; the
+   * broad soft head streaks that replaced them read as fabric creases and
+   * were reverted (0e1f892f). A drip track is narrow and starts hard at the
+   * fitting's edge.
+   */
+  it('lays narrow, hard-topped drip tracks under each crown fitting', () => {
+    const circumference = 2 * Math.PI * radius;
+    // Clear of every fitting, weld and saddle, on the same flank.
+    const clearY = -layout.seamOffset + 0.6;
+    for (const nozzle of layout.nozzles) {
+      const start = (nozzle.radius * 0.7) / circumference;
+      for (const side of [-1, 1]) {
+        const uAt = (fall: number) => VESSEL_CROWN_U + side * (start + fall / circumference);
+        const darkness = (u: number, y: number) =>
+          1 -
+          luma(sampleVesselShell(layout, seams, u, y, radius).tint) /
+            luma(sampleVesselShell(layout, seams, u, clearY, radius).tint);
+        // The darkest track 0.3 m down the flank.
+        let best = { y: nozzle.y, d: 0 };
+        for (
+          let y = nozzle.y - nozzle.radius - 0.5;
+          y <= nozzle.y + nozzle.radius + 0.5;
+          y += 0.005
+        ) {
+          const d = darkness(uAt(0.3), y);
+          if (d > best.d) best = { y, d };
+        }
+        expect(best.d, `nozzle ${nozzle.y} side ${side}`).toBeGreaterThan(0.25);
+        // Narrow: under 12 cm across at half its depth.
+        let width = 0.0025;
+        for (const dir of [-1, 1])
+          for (let dy = 0.0025; dy <= 0.2; dy += 0.0025) {
+            if (darkness(uAt(0.3), best.y + dir * dy) <= best.d / 2) break;
+            width += 0.0025;
+          }
+        expect(width, `nozzle ${nozzle.y} side ${side}`).toBeLessThan(0.12);
+        // Hard-topped: 2 cm below the fitting's edge it is already near full.
+        expect(darkness(uAt(0.02), best.y)).toBeGreaterThan(best.d * 0.8);
+      }
+    }
+  });
+
+  /**
+   * final7-med-12: no grime band at the saddle contact. The cradle term ended
+   * 0.3 m above the horn, ~20 degrees below the equator, where the shell is in
+   * its own shade at noon and darkening it changed nothing a camera could see.
+   */
+  it('runs a grime band up the flank from each saddle horn, confined to the saddle', () => {
+    const saddles = layout.saddles!;
+    const circumference = 2 * Math.PI * radius;
+    const horn = saddles.halfAngle * radius;
+    for (const side of [-1, 1]) {
+      const uFrom = (fromBottom: number) =>
+        (VESSEL_CROWN_U + 0.5 + (side * fromBottom) / circumference + 1) % 1;
+      for (const ys of saddles.ys) {
+        const away = ys - Math.sign(ys) * 1.2;
+        for (const above of [0.4, 0.9]) {
+          const u = uFrom(horn + above);
+          const band = luma(sampleVesselShell(layout, seams, u, ys, radius).tint);
+          const clear = luma(sampleVesselShell(layout, seams, u, away, radius).tint);
+          expect(band, `${above} m above the horn`).toBeLessThan(clear * 0.9);
+        }
+        // Not up to the crown, and not along the barrel.
+        const high = uFrom(horn + 2.4);
+        expect(
+          luma(sampleVesselShell(layout, seams, high, ys, radius).tint) /
+            luma(sampleVesselShell(layout, seams, high, away, radius).tint)
+        ).toBeGreaterThan(0.97);
+        const beside = ys + Math.sign(ys) * (saddles.width / 2 + 0.45);
+        const u = uFrom(horn + 0.4);
+        expect(
+          luma(sampleVesselShell(layout, seams, u, beside, radius).tint) /
+            luma(sampleVesselShell(layout, seams, u, away, radius).tint)
+        ).toBeGreaterThan(0.97);
+      }
+    }
+  });
+
+  /**
+   * final7-med-12: "no roughness drift" on the heads, which fill half the
+   * tank-farm frame. Measured round one ring of the dish, so the knuckle's
+   * own radial gradient does not count.
+   */
+  it('drifts the roughness round each head, not one even satin', () => {
+    const half = length / 2 + radius;
+    for (const sign of [-1, 1]) {
+      const values: number[] = [];
+      for (let i = 0; i < 360; i += 1) {
+        const t = 0.6;
+        const y = sign * (half - VESSEL_HEAD_DEPTH_FOR_TEST * radius * (1 - Math.sqrt(1 - t * t)));
+        values.push(sampleVesselShell(layout, seams, i / 360, y, t * radius).roughness);
+      }
+      const mean = values.reduce((a, b) => a + b, 0) / values.length;
+      const sd = Math.sqrt(values.reduce((a, b) => a + (b - mean) ** 2, 0) / values.length);
+      expect(sd, `head ${sign}`).toBeGreaterThan(0.04);
+      expect(sd, `head ${sign}`).toBeLessThan(0.12);
     }
   });
 
