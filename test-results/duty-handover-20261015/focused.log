@@ -1,0 +1,34 @@
+
+> grain-mill-simulator@0.40.0 test
+> vitest run src/components/workers/workerPose.test.ts src/components/workers/WorkerModel.test.tsx
+
+(node:60665) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+(node:62611) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ❯ src/components/workers/WorkerModel.test.tsx (43 tests | 1 failed) 1098ms
+     × Engineer mounts the correct work clip, owns its fade and gates truthful tool visibility 9ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/workers/WorkerModel.test.tsx > owned duty preparation and release > Engineer mounts the correct work clip, owns its fade and gates truthful tool visibility
+TypeError: Cannot set properties of null (setting 'position')
+ ❯ src/components/workers/WorkerModel.test.tsx:1515:20
+    1513|         '[name="worker-held-tool"]'
+    1514|       ) as unknown as THREE.Group;
+    1515|       tool.position = new THREE.Vector3();
+       |                    ^
+    1516|       const name = role === 'Baker' ? 'worker-break' : 'worker-inspect…
+    1517|       expect(play.mock.contexts.find((a) => a.getClip().name === name)…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 1 passed (2)
+      Tests  1 failed | 145 passed (146)
+   Start at  14:35:32
+   Duration  45.31s (transform 1.31s, setup 472ms, import 2.55s, tests 39.30s, environment 1.87s)
+

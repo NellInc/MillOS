@@ -1,12 +1,20 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WorkplaceCompanion } from './WorkplaceCompanion';
 import { createWorkplace } from '../../../simulation/bilateralWorkplace';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
+import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
 import { campaignRecord } from '../../../simulation/workplaceCampaign';
 import { CAMERA_PRESETS, useCameraStore } from '../../CameraController';
 
-beforeEach(() => useWorkplaceStore.setState({ workplace: createWorkplace() }));
+beforeEach(() => {
+  useOperationsCampaignStore.setState({ orders: [], activeOrderId: null });
+  useWorkplaceStore.setState({
+    workplace: createWorkplace(),
+    participationMode: 'solo',
+    turn: null,
+  });
+});
 afterEach(cleanup);
 const show = () => {
   const onOpen = vi.fn();
@@ -64,7 +72,7 @@ describe('live working agreement companion', () => {
     expect(
       screen.getByText('Current terms are ready for your explicit approval.')
     ).toBeInTheDocument();
-    store.selectPlan('cover');
+    act(() => store.selectPlan('cover'));
     rerender(<WorkplaceCompanion onOpen={vi.fn()} />);
     expect(
       screen.queryByText('Current terms are ready for your explicit approval.')
@@ -149,5 +157,63 @@ describe('live working agreement companion', () => {
     show();
     expect(screen.getByText('800 / 800 kg; evidence blocked.')).toBeInTheDocument();
     expect(screen.getByText('200 kg.')).toBeInTheDocument();
+    // The renegotiated installment is named as such beside the full commitment.
+    expect(screen.getByText('Agreed installment receipts:')).toBeInTheDocument();
+    expect(screen.queryByText('Customer dispatch receipts:')).toBeNull();
+    expect(screen.getByText('200 kg, still part of the full commitment.')).toBeInTheDocument();
   });
+});
+
+it('shows linked handoff customer credit against its real target with blocked evidence', () => {
+  const store = useWorkplaceStore.getState();
+  store.beginImprovement('cooperative', store.workplace.revision, undefined, 'game');
+  store.proposeImprovement('briefing', 'packing');
+  const state = useWorkplaceStore.getState().workplace;
+  useWorkplaceStore.setState({
+    workplace: {
+      ...state,
+      shippedKg: 20,
+      improvement: {
+        ...state.improvement!,
+        mission: {
+          orderId: 'linked',
+          customer: 'Local bakery',
+          materialSessionId: 'session',
+          startingShippedKg: 0,
+          originalTargetKg: 1000,
+          targetKg: 800,
+          observedShippedKg: 200,
+          creditedKg: 200,
+          manifestIds: ['manifest'],
+          evidence: 'stale',
+        },
+      },
+    },
+  });
+  show();
+  expect(screen.getByText('200 / 800 kg; evidence blocked.')).toBeInTheDocument();
+  expect(screen.getByText('800 kg.')).toBeInTheDocument();
+  expect(screen.getByText('20 kg.')).toBeInTheDocument();
+  expect(
+    screen.getByText(/Packing proposes a paid handoff briefing, revision/)
+  ).toBeInTheDocument();
+});
+
+it('retains handoff compensation and delivered recovery while current debt remains visible', () => {
+  const store = useWorkplaceStore.getState();
+  store.beginImprovement('cooperative', store.workplace.revision, undefined, 'game');
+  const state = structuredClone(useWorkplaceStore.getState().workplace);
+  state.improvement!.origin.members[0].compensationPaid = 8;
+  state.improvement!.origin.members[0].recoveryMinutes = 10;
+  state.finance.compensationPaid = 2;
+  state.members[0].compensationPaid = 2;
+  state.members[0].recoveryMinutes = 3;
+  state.members[0].recoveryOwedMinutes = 4;
+  useWorkplaceStore.setState({ workplace: state });
+  show();
+  expect(screen.getByText('10.00 illustrative credits.')).toBeInTheDocument();
+  expect(screen.getByText('13.0 min delivered; 4.0 min owed.')).toBeInTheDocument();
+  expect(screen.getByText('Retained compensation paid:')).toBeInTheDocument();
+  expect(screen.getByText('Teaching output:')).toBeInTheDocument();
+  expect(useWorkplaceStore.getState().workplace).toBe(state);
 });

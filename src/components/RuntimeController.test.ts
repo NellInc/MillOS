@@ -20,6 +20,17 @@ function dot(left: Vec3Tuple, right: Vec3Tuple): number {
   return left[0] * right[0] + left[1] * right[1] + left[2] * right[2];
 }
 
+describe('immutable renderer allocation', () => {
+  // Low has no composer, so the context's own samples are its only AA. Context
+  // MSAA cannot change after creation, so it must not depend on the tier that
+  // happened to create the context: every context gets the same samples.
+  it('gives every context the same MSAA so Low keeps its AA across quality changes', () => {
+    const source = readFileSync('src/App.tsx', 'utf8');
+    expect(source).toMatch(/gl=\{\{[\s\S]*?antialias: true,/);
+    expect(source).not.toContain("antialias: canvasQuality !== 'low'");
+  });
+});
+
 describe('rendererCounterPerFrame', () => {
   it('normalizes cumulative composer counters to a per-frame value', () => {
     expect(rendererCounterPerFrame(12_160, 10, true)).toBe(1_216);

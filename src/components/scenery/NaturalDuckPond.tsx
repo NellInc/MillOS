@@ -4,7 +4,12 @@ import * as THREE from 'three';
 import { WATER_MICRO_NORMAL_GLSL, WATER_PROFILES, WATER_WIND } from '../../utils/waterAppearance';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useDracoGLTF } from '../../utils/dracoLoader';
+import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { GENERATED_ASSET_PATHS } from '../../utils/modelLoader';
+
+/** At pond speed0.025,8000PI gives63,162,109cycles for the actual micro trains.
+ * Working if the existing pause/wrap test verifies each actual shader frequency. */
+export const POND_VISUAL_PERIOD = Math.PI * 8000;
 
 /** The authored atlas reserves strongly blue texels for the level water disc.
  * Shade those texels in place so brickwork, limestone and reeds share one draw
@@ -57,7 +62,7 @@ export function applyPondWater(material: THREE.MeshStandardMaterial, time: { val
         normal = normalize(mix(normal, pondNormal, pondWater));`
         );
   };
-  material.customProgramCacheKey = () => 'millos-retained-pond-water-v2';
+  material.customProgramCacheKey = () => 'millos-retained-pond-water-v3';
 }
 
 export function NaturalDuckPond() {
@@ -83,7 +88,12 @@ export function NaturalDuckPond() {
     return { model, materials, time };
   }, [scene]);
   useFrame((_, delta) => {
-    if (!reducedMotion) time.value += Math.min(delta, 0.1);
+    const { gameSpeed, isTabVisible } = useGameSimulationStore.getState();
+    // The pond belongs to the same paused/hidden world as its ducks. Holding
+    // this accumulated phase avoids catching up skipped wall time on resume.
+    // Working if pause/hidden/reduced holds all retain the exact water phase.
+    if (!reducedMotion && isTabVisible && gameSpeed > 0)
+      time.value = (time.value + Math.min(delta, 0.1)) % POND_VISUAL_PERIOD;
   });
   useEffect(() => () => materials.forEach((material) => material.dispose()), [materials]);
   return <primitive object={model} position={[0, -0.45, 0]} />;

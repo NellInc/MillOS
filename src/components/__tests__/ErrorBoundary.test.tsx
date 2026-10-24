@@ -201,6 +201,24 @@ describe('ErrorBoundary', () => {
     expect(screen.queryByRole('alert', { name: 'SCADA unavailable' })).not.toBeInTheDocument();
   });
 
+  it('resolves a lazy feature whose boundary first mounts inside a suspending tree', async () => {
+    // React discards a never-committed mount and constructs the boundary again
+    // on retry; a per-instance generation would mint a new lazy each time.
+    const importer = vi.fn(async () => ({ default: () => <div>Site layer ready</div> }));
+    const LazyLayer = recoverableLazy(importer, { retryDelayMs: 0 });
+
+    render(
+      <Suspense fallback={<div>World loading</div>}>
+        <ErrorBoundary fallback={null}>
+          <LazyLayer />
+        </ErrorBoundary>
+      </Suspense>
+    );
+
+    expect(await screen.findByText('Site layer ready', {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(importer).toHaveBeenCalledTimes(1);
+  });
+
   it('creates a fresh lazy payload after an exhausted chunk import is retried', async () => {
     let importAttempt = 0;
     const importer = vi.fn(async () => {

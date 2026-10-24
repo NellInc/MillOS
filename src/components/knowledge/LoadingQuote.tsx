@@ -50,8 +50,12 @@ export function LoadingQuote({
     return null;
   }
 
+  // initial={false}: the first quote mounts with the slow-load recovery
+  // controls, so a fade-in would be what that state is read and scanned at
+  // (0.46 opacity measured 3.57:1). It appears at its resting colours; only
+  // rotations crossfade.
   return (
-    <AnimatePresence mode="wait">
+    <AnimatePresence mode="wait" initial={false}>
       <motion.div
         key={quote.text}
         initial={{ opacity: 0, y: 10 }}
@@ -62,7 +66,8 @@ export function LoadingQuote({
       >
         {showIcon && <Quote className="w-6 h-6 text-amber-500/50 mx-auto mb-3" />}
         <p className="text-lg text-slate-300 italic mb-2 max-w-lg mx-auto">"{quote.text}"</p>
-        <p className="text-sm text-slate-500">— {quote.author}</p>
+        {/* slate-400: slate-500 measured 4.02:1 on the loading backdrop (WCAG AA needs 4.5). */}
+        <p className="text-sm text-slate-400">— {quote.author}</p>
       </motion.div>
     </AnimatePresence>
   );
@@ -88,7 +93,7 @@ export function StaticQuote({ quote, size = 'md', className = '' }: StaticQuoteP
     <div className={`${className}`}>
       <Quote className="w-5 h-5 text-amber-500/50 mb-2" />
       <p className={`text-slate-300 italic mb-1 ${sizeClasses[size]}`}>"{quote.text}"</p>
-      <p className="text-sm text-slate-500">— {quote.author}</p>
+      <p className="text-sm text-slate-400">— {quote.author}</p>
     </div>
   );
 }

@@ -1,0 +1,54 @@
+{
+  "scope": "Z finite36-item packing craft and continuous machine motion pass",
+  "status": "local pass accepted within recorded boundaries",
+  "authorReview": "Authored and reviewed by this chat",
+  "baseline": {
+    "tests": 73,
+    "files": 4,
+    "failingNames": []
+  },
+  "affected": {
+    "tests": 79,
+    "files": 4,
+    "failed": 0,
+    "delta": 6
+  },
+  "sourceGates": {
+    "typecheck": 0,
+    "lint": 0,
+    "format:check": 0,
+    "validate:shaders": 0,
+    "build": 0,
+    "validate:reachability": 0
+  },
+  "visual": {
+    "nativeReceipt": "native-acceptance.json",
+    "closeReceipt": "close-acceptance.json",
+    "savedFramesInspected": [
+      "milling day",
+      "sifting day",
+      "packing day",
+      "packing night"
+    ],
+    "closeConversationEvidence": [
+      "sack front/oblique with attached closure and foot",
+      "mill enclosure and instruments",
+      "sifter clamps/fascia/trays"
+    ],
+    "bagTriangles": 464,
+    "priorBagTriangles": 588,
+    "bagInstances": 3,
+    "bagDraws": 1,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    }
+  },
+  "motionBoundary": "Active hold/resume/reset/cadence proved by actual live sampler tests. Native preview packers held; no native active-to-stopped transition claim. General vehicle motion acceptance separate.",
+  "pacing": "OPEN separately, exact misses in native receipt",
+  "playerDeviceChecks": "DEFERRED",
+  "delivery": "local only",
+  "ongoingGoal": "ACTIVE; full rotating improvement programme remains open",
+  "cleanupReceipt": "cleanup.json",
+  "custodyReceipt": "final-custody-check.json"
+}

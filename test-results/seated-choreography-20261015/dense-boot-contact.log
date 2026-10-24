@@ -1,0 +1,15 @@
+
+> grain-mill-simulator@0.40.0 test
+> vitest run src/components/workers/workerPose.test.ts -t route-supported
+
+(node:34652) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+
+ Test Files  1 passed (1)
+      Tests  4 passed | 93 skipped (97)
+   Start at  13:54:07
+   Duration  1.27s (transform 212ms, setup 114ms, import 522ms, tests 446ms, environment 0ms)
+

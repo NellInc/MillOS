@@ -1,0 +1,8 @@
+{
+  "factoryOutsideLanternSha256": "48e2db86e349f4b13ba70d997d1f2e7ed278e2e4b03c811275d8ef36b7e5b8eb",
+  "priorAuthoredPropsSha256": "e2a1fc9fbc33c6325fd32b6dcd84ca2ec09cfe21b19f5c79a025fa45177ebbf1",
+  "sourceBase": "76b03a5fab96d21a606a8657868fd30031c5b5a2",
+  "railwayPortMountains": "all outside bounded lantern/import exact",
+  "stationPumpsAndBranding": "prior authored implementation exact",
+  "casterFinish": "colour-only, position/normal/UV/index preservation tested"
+}

@@ -1,0 +1,17 @@
+{
+  "sourceCommit": "8fd1c63981c2f91ba8c67addf4bf57610f32dbb6",
+  "verifiedCompiledFiles": 414,
+  "sourcePins": {
+    "src/components/GasStationInstanced.tsx": "c515857669a055b288ba50f184e3649d14108f2a759f653f4431444d3fd1f528",
+    "src/components/scenery/StationSouvenirs.tsx": "a1c78b25066a97a34bf38c70881cff30cc18431bdc3f799b4d7df9086ecb2c7c",
+    "src/components/scenery/StationSouvenirs.test.ts": "b46a4b1a51cd1efc67a4ea9253e57700ffd21ab2fc4ac7bc538d958186b150e4",
+    "public/textures/signage/PROVENANCE.json": "d92ef45a3f095bbf660e368261c246c5e9ba5bb6ecf11a6c8f749b3a491f0868",
+    "public/textures/signage/dead-dino-shop-kit-v1.webp": "0386be1c32801d6e8c5eca90d05e0541e878583616a6a258b83c0319f579ff2b",
+    "tmp/custom-icons/station-souvenir-kit-20261014/dead-dino-shop-kit-v1-master.png": "fca20794764958a285b850b8d7f4a996c93c0466f282d99a684cf4b28039ab29",
+    "tmp/custom-icons/station-souvenir-kit-20261014/prompt.txt": "e4b32f6dce68bb11e368e372f345b5ccaa12080aa8a0e931e239df595c5a597a"
+  },
+  "mainPins": {
+    "assets/main-DVkXsHYT.js": "34de815d902ffde54ccfe2f758595e55a2beedf32fb068ce7dc428029c1f0221",
+    "assets/main-RO_MqrO1.css": "4cabb3a7db3627f13e15e02b9c760e3610374f7465e887610110487e5423759f"
+  }
+}

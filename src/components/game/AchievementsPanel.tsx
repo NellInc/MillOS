@@ -22,8 +22,15 @@ import {
 import { useAchievementsStore } from '../../stores/achievementsStore';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import type { Achievement } from '../../stores/achievementsStore';
+import { formatFixed, useT } from '../../i18n';
+import { achievementsPanelMessages } from './AchievementsPanel.messages';
+
+// Progress counts are integers; any other value keeps its exact English rendering.
+const formatCount = (value: number): string =>
+  Number.isInteger(value) ? formatFixed(value, 0) : String(value);
 
 export const AchievementsPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+  const t = useT(achievementsPanelMessages);
   // Read the owning store: productionStore's achievements getter is flattened
   // into a frozen array by its first set(), so unlocks never reached the panel.
   const achievements = useAchievementsStore((state) => state.achievements);
@@ -104,12 +111,12 @@ export const AchievementsPanel: React.FC<{ onClose: () => void }> = ({ onClose }
         <div className="flex items-center gap-2">
           <Trophy className="w-5 h-5 text-yellow-400 flex-shrink-0" />
           <h2 id="achievements-panel-title" className="text-base font-bold text-white">
-            Achievements
+            {t('title')}
           </h2>
         </div>
         <button
           onClick={onClose}
-          aria-label="Close achievements"
+          aria-label={t('close')}
           className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors flex-shrink-0"
         >
           <X className="w-4 h-4" />
@@ -145,9 +152,9 @@ export const AchievementsPanel: React.FC<{ onClose: () => void }> = ({ onClose }
                   {/* Progress bar */}
                   <div className="mt-2">
                     <div className="flex justify-between text-[10px] mb-1">
-                      <span className="text-slate-400">Progress</span>
+                      <span className="text-slate-400">{t('progress')}</span>
                       <span className="text-slate-400">
-                        {achievement.progress} / {achievement.target}
+                        {formatCount(achievement.progress)} / {formatCount(achievement.target)}
                       </span>
                     </div>
                     <div
@@ -155,7 +162,7 @@ export const AchievementsPanel: React.FC<{ onClose: () => void }> = ({ onClose }
                       aria-valuemin={0}
                       aria-valuemax={achievement.target}
                       aria-valuenow={Math.min(achievement.progress, achievement.target)}
-                      aria-label={`${achievement.name} progress`}
+                      aria-label={t('progressLabel', { name: achievement.name })}
                       className="h-1.5 bg-slate-700 rounded-full overflow-hidden"
                     >
                       <div
@@ -175,34 +182,34 @@ export const AchievementsPanel: React.FC<{ onClose: () => void }> = ({ onClose }
       <div className="p-2 border-t border-slate-800 flex justify-end items-center gap-2">
         {confirmReset ? (
           <>
-            <span className="text-xs text-red-400">Reset all achievements?</span>
+            <span className="text-xs text-red-400">{t('resetPrompt')}</span>
             <button
               onClick={() => {
                 resetAchievements();
                 setConfirmReset(false);
               }}
               className="flex items-center gap-1.5 px-2 py-1 text-xs text-white bg-red-500/80 hover:bg-red-500 rounded transition-colors"
-              title="Confirm reset of all achievements"
+              title={t('confirmTitle')}
             >
               <RotateCcw className="w-3 h-3" />
-              Confirm
+              {t('confirm')}
             </button>
             <button
               onClick={() => setConfirmReset(false)}
               className="px-2 py-1 text-xs text-white/70 hover:text-white hover:bg-slate-700 rounded transition-colors"
-              title="Cancel reset"
+              title={t('cancelTitle')}
             >
-              Cancel
+              {t('cancel')}
             </button>
           </>
         ) : (
           <button
             onClick={() => setConfirmReset(true)}
             className="flex items-center gap-1.5 px-2 py-1 text-xs text-white/70 hover:text-red-300 hover:bg-red-500/10 rounded transition-colors"
-            title="Reset all achievements"
+            title={t('resetTitle')}
           >
             <RotateCcw className="w-3 h-3" />
-            Reset
+            {t('reset')}
           </button>
         )}
       </div>

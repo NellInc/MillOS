@@ -648,7 +648,9 @@ function creditShift(step: Step, evidence: ShiftCloseEvidence): Step {
   // lock every decision until the plant recovered on its own.
   const reinvested = Math.round(Math.max(0, netContribution(metrics)) * share * CURRENCY_TO_FUND);
   let ledger = recordFund(state.ledger, 'reinvestment', reinvested);
-  ledger = recordKnowHow(ledger, 'grades', KNOW_HOW_PER_GRADE[evidence.report.grade]);
+  // An idle window (no commitment, nothing shipped) carries no grade.
+  const grade = evidence.report.grade;
+  ledger = recordKnowHow(ledger, 'grades', grade ? KNOW_HOW_PER_GRADE[grade] : 0);
   const seen = new Set(state.seenQcTestIds);
   const fresh = evidence.qcTests.filter((test) => !seen.has(test.id));
   const passed = fresh.filter((test) => test.passed).length;
@@ -668,7 +670,7 @@ function creditShift(step: Step, evidence: ShiftCloseEvidence): Step {
     ...state,
     certifier,
     ledger,
-    gradeHistory: [...state.gradeHistory, GRADE_POINTS[evidence.report.grade]],
+    gradeHistory: grade ? [...state.gradeHistory, GRADE_POINTS[grade]] : state.gradeHistory,
     seenQcTestIds: bounded([...state.seenQcTestIds, ...fresh.map((test) => test.id)], MAX_SEEN_IDS),
   };
   let next: Step = { state, commands: step.commands };

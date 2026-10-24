@@ -1,0 +1,14 @@
+{
+  "index": {
+    "url": "http://127.0.0.1:4288/",
+    "sha256": "4df8792e4fb9d7121e9ba062b4d18fd34ecaadbd13861c206b36e8e01c81845c",
+    "bytes": 9887
+  },
+  "entries": [
+    {
+      "url": "http://127.0.0.1:4288/assets/main-C-avQ7sr.js",
+      "sha256": "620aa2eac94669626b7a9f81440a929446ae359ac011ca09595d43d0bcc1739e",
+      "bytes": 823697
+    }
+  ]
+}

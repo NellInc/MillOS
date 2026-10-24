@@ -1,0 +1,46 @@
+
+> grain-mill-simulator@0.40.0 test
+> vitest run src/components/workers/workerPose.test.ts src/components/workers/WorkerModel.test.tsx
+
+(node:27774) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+stdout | src/components/workers/workerPose.test.ts > keeps real garden feet planted and chains unstretched through rise, pause and return
+garden flow metrics {
+  body: 'masculine',
+  height: 0.95,
+  maxStep: 0.024173796770646405,
+  maxStretch: 1.4244261490459975,
+  maxFootError: 2.8609792490763984e-17,
+  minSole: 0.006078386875313323,
+  furthestLow: 0.17088249088800161,
+  maxGripError: 0.003372861178022562
+}
+
+ ❯ src/components/workers/workerPose.test.ts (89 tests | 1 failed) 7056ms
+   × keeps real garden feet planted and chains unstretched through rise, pause and return 48ms
+(node:28077) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/workers/workerPose.test.ts > keeps real garden feet planted and chains unstretched through rise, pause and return
+AssertionError: expected 1.4244261490459975 to be less than 1.05
+ ❯ src/components/workers/workerPose.test.ts:1438:26
+    1436|       });
+    1437|       expect(maxStep).toBeLessThan(0.045);
+    1438|       expect(maxStretch).toBeLessThan(1.05);
+       |                          ^
+    1439|       expect(maxFootError).toBeLessThan(0.00001);
+    1440|       expect(minSole).toBeGreaterThan(-0.015);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 1 passed (2)
+      Tests  1 failed | 127 passed (128)
+   Start at  12:16:11
+   Duration  9.45s (transform 438ms, setup 192ms, import 879ms, tests 7.34s, environment 406ms)
+

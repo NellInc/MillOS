@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactElement } from 'react';
 import * as THREE from 'three';
 import { WATER_PROFILES } from '../../utils/waterAppearance';
-import { applyPondWater, NaturalDuckPond } from './NaturalDuckPond';
+import { useGameSimulationStore } from '../../stores/gameSimulationStore';
+import { applyPondWater, NaturalDuckPond, POND_VISUAL_PERIOD } from './NaturalDuckPond';
 
 const driver = vi.hoisted(() => ({
   scene: null as THREE.Scene | null,
@@ -25,12 +26,17 @@ vi.mock('@react-three/fiber', () => ({
 }));
 vi.mock('../../hooks/useReducedMotion', () => ({ useReducedMotion: () => driver.reduced }));
 vi.mock('../../utils/dracoLoader', () => ({ useDracoGLTF: () => ({ scene: driver.scene }) }));
+const originalSimulation = useGameSimulationStore.getState();
 beforeEach(() => {
+  useGameSimulationStore.setState({ gameSpeed: 1, isTabVisible: true });
   driver.memo = undefined;
   driver.reduced = false;
   driver.cleanup = null;
 });
-afterEach(() => driver.cleanup?.());
+afterEach(() => {
+  driver.cleanup?.();
+  useGameSimulationStore.setState(originalSimulation);
+});
 
 describe('authored pond water finish', () => {
   it('changes only blue atlas texels, keeping reeds, mud and lily pads', () => {
@@ -71,6 +77,17 @@ describe('authored pond water finish', () => {
     } as Parameters<typeof material.onBeforeCompile>[0];
     material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
     expect(shader.uniforms.pondTime).toBe(time);
+    const frequencies = [...shader.fragmentShader.matchAll(/\bt \* (\d+\.\d+)/g)].map((match) =>
+      Number(match[1])
+    );
+    expect(frequencies).toEqual([0.63, 1.62, 1.09]);
+    for (const f of frequencies) {
+      const speed = WATER_PROFILES.pond.speed;
+      expect(Math.cos(f * speed * (POND_VISUAL_PERIOD + 2))).toBeCloseTo(
+        Math.cos(f * speed * 2),
+        10
+      );
+    }
     expect(material.map).toBe(map);
     expect(shader.uniforms.pondSlope.value).toBe(WATER_PROFILES.pond.rippleStrength);
     expect(shader.uniforms.pondSpeed.value).toBe(WATER_PROFILES.pond.speed);
@@ -121,6 +138,20 @@ it('freezes and resumes pond ripples, while owning only the cloned material', ()
   driver.frame!({}, 2);
   expect(shader.uniforms.pondTime.value).toBeCloseTo(0.116);
   const sharedDispose = vi.spyOn(material, 'dispose');
+  const uniforms = {
+    uniforms: {},
+    vertexShader: '#include <begin_vertex>',
+    fragmentShader: '#include <map_fragment>',
+  } as Parameters<typeof clone.material.onBeforeCompile>[0];
+  clone.material.onBeforeCompile(uniforms, {} as THREE.WebGLRenderer);
+  const clock = uniforms.uniforms.pondTime;
+  clock.value = POND_VISUAL_PERIOD - 0.04;
+  driver.frame?.({}, 0.1);
+  expect(clock.value).toBeCloseTo(0.06, 10);
+  driver.reduced = true;
+  NaturalDuckPond();
+  driver.frame?.({}, 0.1);
+  expect(clock.value).toBeCloseTo(0.06, 10);
   const ownDispose = vi.spyOn(clone.material, 'dispose');
   driver.cleanup!();
   driver.cleanup = null;
@@ -129,4 +160,36 @@ it('freezes and resumes pond ripples, while owning only the cloned material', ()
   material.dispose();
   map.dispose();
   geometry.dispose();
+});
+
+it('holds pond ripples on pause and hidden tabs, then resumes from the held phase', () => {
+  const geometry = new THREE.PlaneGeometry(),
+    material = new THREE.MeshStandardMaterial();
+  driver.scene = new THREE.Scene();
+  driver.scene.add(new THREE.Mesh(geometry, material));
+  const element = NaturalDuckPond() as ReactElement<{ object: THREE.Scene }>;
+  const clone = element.props.object.children[0] as THREE.Mesh<
+    THREE.BufferGeometry,
+    THREE.MeshStandardMaterial
+  >;
+  const shader = {
+    uniforms: {},
+    vertexShader: '#include <begin_vertex>',
+    fragmentShader: '',
+  } as Parameters<typeof material.onBeforeCompile>[0];
+  clone.material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
+  const phase = shader.uniforms.pondTime;
+  driver.frame!({}, 0.02);
+  expect(phase.value).toBe(0.02);
+  useGameSimulationStore.setState({ gameSpeed: 0 });
+  driver.frame!({}, 0.1);
+  expect(phase.value).toBe(0.02);
+  useGameSimulationStore.setState({ gameSpeed: 1, isTabVisible: false });
+  driver.frame!({}, 10);
+  expect(phase.value).toBe(0.02);
+  useGameSimulationStore.setState({ isTabVisible: true });
+  driver.frame!({}, 0.03);
+  expect(phase.value).toBeCloseTo(0.05);
+  geometry.dispose();
+  material.dispose();
 });

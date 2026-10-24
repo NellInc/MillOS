@@ -1,17 +1,42 @@
 /** Role cues and stable per-person variation for the shared authored bodies. */
 
+/** Analytic route-owned seat support, in current actor-root metres/radians.
+ * Working if a turning/moving root leaves fully supported boots at the seat.
+ */
+export interface WorkerSeatCue {
+  amount: number;
+  support: number;
+  x: number;
+  z: number;
+  yaw: number;
+}
+
 /** Root advances this object before the renderer's frame callback. */
 export interface WorkerMotionState {
   activity: 'working' | 'break' | 'idle' | 'walking';
   groundSpeed: number;
+  /** How many times faster than real time the root's clock runs (pace / standard
+   * pace). Picks the gait from real-time speed; absent in older saves, read as 1. */
+  gaitScale?: number;
   seated: boolean;
   phase: number;
   enabled: boolean;
   /** Skeletal sampling budget; root movement still updates every display frame. */
   animationInterval?: number;
   cycling?: boolean;
+  /** Brief empty-hand greeting at an authored social stop; never a plant action. */
+  greeting?: boolean;
+  /** Paid briefing attention only; omitted legacy motion retains ordinary idle. */
+  briefing?: boolean;
+  /** Actual anonymous recipient and bounded relative bearing, retained through holds. */
+  greetingTargetId?: string | null;
+  greetingYaw?: number;
+  /** Optional live attention cue; older motion/replay shapes remain neutral. */
+  attentionYaw?: number;
   cartGrip?: 'push' | 'pull';
   seatFloorOffset?: number;
+  /** Missing old motion/replay shapes retain the original seated pose. */
+  seat?: WorkerSeatCue;
   /** Parent-owned crank angle in radians; no independent pedalling clock. */
   cyclePhase?: number;
 }
@@ -68,13 +93,13 @@ export interface WorkerAppearance {
 
 export const SKIN_TONES = [
   '#f5d0c5',
-  '#d4a574',
-  '#8d5524',
-  '#c68642',
-  '#e0ac69',
-  '#ffdbac',
-  '#f1c27d',
-  '#cd8c52',
+  '#c99e85',
+  '#80523d',
+  '#b77d60',
+  '#d3a080',
+  '#f2cbb5',
+  '#e4b399',
+  '#bc876d',
 ] as const;
 
 export const HAIR_COLORS = [
@@ -93,7 +118,7 @@ const ROLE_DEFAULTS: Record<string, WorkerAppearance> = {
   Supervisor: {
     bodyType: 'masculine',
     uniformColor: '#1d4ed8',
-    skinTone: '#d4a574',
+    skinTone: '#c99e85',
     hatColor: '#2563eb',
     hasVest: true,
     pantsColor: '#172033',
@@ -117,7 +142,7 @@ const ROLE_DEFAULTS: Record<string, WorkerAppearance> = {
   Engineer: {
     bodyType: 'feminine',
     uniformColor: '#334155',
-    skinTone: '#f1c27d',
+    skinTone: '#e4b399',
     hatColor: '#f8fafc',
     hasVest: false,
     pantsColor: '#1e293b',
@@ -134,14 +159,14 @@ const ROLE_DEFAULTS: Record<string, WorkerAppearance> = {
     hasHearingProtection: false,
     hasGloves: false,
     hasLabCoat: false,
-    hasToolBelt: false,
+    hasToolBelt: true,
     hasRadio: false,
     workAction: 'inspect',
   },
   Operator: {
     bodyType: 'masculine',
     uniformColor: '#475569',
-    skinTone: '#c68642',
+    skinTone: '#b77d60',
     hatColor: '#eab308',
     hasVest: true,
     pantsColor: '#1e3a5f',
@@ -165,7 +190,7 @@ const ROLE_DEFAULTS: Record<string, WorkerAppearance> = {
   'Safety Officer': {
     bodyType: 'feminine',
     uniformColor: '#166534',
-    skinTone: '#d4a574',
+    skinTone: '#c99e85',
     hatColor: '#22c55e',
     hasVest: true,
     pantsColor: '#173b2b',
@@ -213,7 +238,7 @@ const ROLE_DEFAULTS: Record<string, WorkerAppearance> = {
   Maintenance: {
     bodyType: 'masculine',
     uniformColor: '#9a3412',
-    skinTone: '#e0ac69',
+    skinTone: '#d3a080',
     hatColor: '#f97316',
     hasVest: true,
     pantsColor: '#3f2a22',
@@ -239,7 +264,7 @@ const ROLE_DEFAULTS: Record<string, WorkerAppearance> = {
 const NAMED_PERSONNEL_PROFILES: Record<string, Partial<WorkerAppearance>> = {
   w1: {
     bodyType: 'masculine',
-    skinTone: '#d4a574',
+    skinTone: '#c99e85',
     hairColor: '#151312',
     hairStyle: 'short',
     eyeColor: '#33251f',
@@ -248,7 +273,7 @@ const NAMED_PERSONNEL_PROFILES: Record<string, Partial<WorkerAppearance>> = {
   },
   w2: {
     bodyType: 'feminine',
-    skinTone: '#f1c27d',
+    skinTone: '#e4b399',
     hairColor: '#6b4423',
     hairStyle: 'ponytail',
     eyeColor: '#44677d',
@@ -257,7 +282,7 @@ const NAMED_PERSONNEL_PROFILES: Record<string, Partial<WorkerAppearance>> = {
   },
   w3: {
     bodyType: 'masculine',
-    skinTone: '#c68642',
+    skinTone: '#b77d60',
     hairColor: '#151312',
     hairStyle: 'curly',
     eyeColor: '#35231b',
@@ -275,7 +300,7 @@ const NAMED_PERSONNEL_PROFILES: Record<string, Partial<WorkerAppearance>> = {
   },
   w5: {
     bodyType: 'masculine',
-    skinTone: '#e0ac69',
+    skinTone: '#d3a080',
     hairColor: '#151312',
     hairStyle: 'short',
     eyeColor: '#2e2923',
@@ -284,7 +309,7 @@ const NAMED_PERSONNEL_PROFILES: Record<string, Partial<WorkerAppearance>> = {
   },
   w6: {
     bodyType: 'feminine',
-    skinTone: '#d4a574',
+    skinTone: '#c99e85',
     hairColor: '#4a2b1a',
     hairStyle: 'ponytail',
     eyeColor: '#385445',
@@ -293,7 +318,7 @@ const NAMED_PERSONNEL_PROFILES: Record<string, Partial<WorkerAppearance>> = {
   },
   w7: {
     bodyType: 'masculine',
-    skinTone: '#8d5524',
+    skinTone: '#80523d',
     hairColor: '#151312',
     hairStyle: 'curly',
     eyeColor: '#2c211b',
@@ -311,7 +336,7 @@ const NAMED_PERSONNEL_PROFILES: Record<string, Partial<WorkerAppearance>> = {
   },
   w9: {
     bodyType: 'masculine',
-    skinTone: '#d4a574',
+    skinTone: '#c99e85',
     hairColor: '#2d1810',
     hairStyle: 'bald',
     eyeColor: '#3d3026',
@@ -320,13 +345,28 @@ const NAMED_PERSONNEL_PROFILES: Record<string, Partial<WorkerAppearance>> = {
   },
   w10: {
     bodyType: 'feminine',
-    skinTone: '#e0ac69',
+    skinTone: '#d3a080',
     hairColor: '#151312',
     hairStyle: 'medium',
     eyeColor: '#3c3029',
     heightScale: 0.95,
     bodyScale: 0.94,
   },
+};
+
+// Civilian workwear shares the authored body but has individual cloth colours.
+// Working if village/bus identities stay stable and industrial PPE is untouched.
+const CIVILIAN_TROUSERS = ['#353e35', '#384558', '#51483e', '#3e384b', '#4e574d'] as const;
+// Deliberate silhouettes for the actual roster, with stable fallback variation.
+// Working if all five cuts occur in-world and tied hair is worn by active residents.
+const CIVILIAN_HAIR: Readonly<Record<string, HairStyle>> = {
+  'village-baker': 'ponytail',
+  'village-shopkeeper': 'short',
+  'village-gardener': 'curly',
+  'village-neighbour': 'medium',
+  'village-cyclist': 'ponytail',
+  'bus-arriving': 'short',
+  'bus-departing': 'bald',
 };
 
 const COMMUNITY_ROLES = new Set([
@@ -358,6 +398,10 @@ export function getWorkerAppearance(role: string, color: string, id: string): Wo
   };
   if (COMMUNITY_ROLES.has(role)) {
     Object.assign(appearance, {
+      hairStyle:
+        NAMED_PERSONNEL_PROFILES[id]?.hairStyle ??
+        CIVILIAN_HAIR[id] ??
+        HAIR_STYLES[(hash >>> 13) % HAIR_STYLES.length],
       hasHardHat: false,
       hasVest: false,
       hasSafetyGlasses: false,
@@ -368,7 +412,8 @@ export function getWorkerAppearance(role: string, color: string, id: string): Wo
       hasRadio: false,
       tool: 'none',
       workAction: 'none',
-      pantsColor: role === 'Baker' ? '#3e4658' : '#353e35',
+      pantsColor:
+        role === 'Baker' ? '#3e4658' : CIVILIAN_TROUSERS[(hash >>> 7) % CIVILIAN_TROUSERS.length],
       hatColor: color || '#726a4b',
     });
     if (role === 'Gardener') Object.assign(appearance, { tool: 'trowel', workAction: 'garden' });

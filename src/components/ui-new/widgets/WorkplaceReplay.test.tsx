@@ -130,7 +130,7 @@ describe('Matched plant replay interface', () => {
         manifestIds: ['manifest', 'manifest-2'],
       },
     ];
-    render(<WorkplaceReplay seed={17} validSeed navigate={navigate} />);
+    const view = render(<WorkplaceReplay seed={17} validSeed navigate={navigate} />);
     expect(screen.getByText(/Unequal horizons/)).toBeInTheDocument();
     expect(screen.getAllByText(/123.0 kg dispatched/)).toHaveLength(2);
     expect(screen.getByText(/1 shift; 90.0 elapsed minutes/)).toBeInTheDocument();
@@ -143,6 +143,23 @@ describe('Matched plant replay interface', () => {
     expect(screen.getAllByText(/Cumulative objections resolved 1 of 2/)).toHaveLength(2);
     fireEvent.click(screen.getByRole('button', { name: 'Retain actual run review' }));
     expect(screen.getByRole('status')).toHaveTextContent('Complete recovery before review.');
+    // Equal elapsed time still hides a different bounded-agreement duration.
+    replay.runs = [run, { ...run, id: 'run2', profile: 'cooperative', agreementMinutes: 45 }];
+    view.rerender(<WorkplaceReplay seed={17} validSeed navigate={navigate} />);
+    expect(screen.getByText(/Unequal horizons/)).toHaveTextContent('agreement time');
+    const before = useWorkplaceStore.getState().workplace;
+    const runsBefore = structuredClone(replay.runs);
+    fireEvent.click(screen.getByText('Discuss the actual replay evidence', { exact: true }));
+    expect(screen.getByRole('group', { name: 'Replay learning review' })).toHaveTextContent(
+      'equally long trials'
+    );
+    expect(useWorkplaceStore.getState().workplace).toBe(before);
+    expect(replay.runs).toEqual(runsBefore);
+    replay.runs = [run];
+    view.rerender(<WorkplaceReplay seed={17} validSeed navigate={navigate} />);
+    expect(
+      screen.queryByText('Discuss the actual replay evidence', { exact: true })
+    ).not.toBeInTheDocument();
   });
   it('guide navigation and ending do not submit workplace actions', () => {
     replay.guided = true;
@@ -164,7 +181,7 @@ describe('Matched plant replay interface', () => {
     useWorkplaceStore.setState({ workplace: { ...createWorkplace(), phase: 'active' } });
     view.rerender(<WorkplaceReplayResume />);
     fireEvent.click(
-      screen.getByRole('button', { name: 'Resume agreed replay at teaching pace (30×)' })
+      screen.getByRole('button', { name: 'Resume agreed replay at standard pace (1x)' })
     );
     expect(useGameSimulationStore.getState().gameSpeed).toBe(30);
     expect(replay.begin).not.toHaveBeenCalled();

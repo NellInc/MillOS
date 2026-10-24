@@ -62,7 +62,39 @@ def png(path, data):
  raw=b''.join(b'\0'+row.tobytes() for row in data)
  path.write_bytes(b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('!2I5B',w,h,8,6,0,0,0))+chunk(b'IDAT',zlib.compress(raw,9))+chunk(b'IEND',b''))
 
-def material(folder):
+def hay_atlas(size):
+ # Only the hay export uses these three continuous charts. Other prop palettes
+ # are byte-identical. Working if the delivered side/end/twine UV tests pass.
+ rgb=np.zeros((size,size,4),dtype=np.uint8);rgb[:,:,3]=255
+ orm=np.zeros_like(rgb);orm[:,:,0]=255;orm[:,:,1]=237;orm[:,:,3]=255
+ half=size//2;rng=np.random.default_rng(8147)
+ yy,xx=np.mgrid[0:size,0:half]
+ macro=.012*np.sin(xx*.021+np.sin(yy*.009))+.009*np.sin(yy*.017+xx*.006)
+ body=np.array((192,163,104))[None,None,:]*(1+macro[:,:,None])
+ # Fine stems share a consistent direction, with irregular starts/lengths and
+ # quiet broken shadows. No full-width periodic stripe crosses the barrel.
+ for i in range(6200):
+  x=int(rng.integers(2,half-2));y=int(rng.integers(0,size));length=int(rng.integers(6,43))
+  along=np.arange(length);rows=(y+along)%size;cols=np.clip(x+np.rint(np.sin(along/length*math.pi)*rng.uniform(-1.4,1.4)).astype(int),1,half-2)
+  tint=rng.uniform(-13,12)*np.sin((along+.5)/length*math.pi)
+  body[rows,cols]+=tint[:,None]*np.array((1,.88,.60))[None,:]
+ rgb[:,:half,:3]=np.clip(body,0,255).astype(np.uint8)
+ yy,xx=np.mgrid[0:half,0:half];x=(xx-half/2)/(half*.48);y=(yy-half/2)/(half*.48)
+ radius=np.sqrt(x*x+y*y);angle=np.arctan2(y,x)
+ roll=radius*7.2+angle/math.tau+.11*np.sin(angle*3+radius*4)
+ end_signal=.018*np.sin(roll*math.tau)+.012*np.sin(angle*11+radius*37)+.012*np.cos(xx*.024+yy*.017)
+ end=np.array((183,151,93))[None,None,:]*(1+end_signal[:,:,None])
+ for i in range(4400):
+  a=rng.uniform(0,math.tau);r=math.sqrt(rng.uniform(0,.98))*half*.47;length=int(rng.integers(2,10));theta=a+np.linspace(-.5,.5,length)*length/max(r,10)
+  cols=np.clip(np.rint(half/2+r*np.cos(theta)).astype(int),0,half-1);rows=np.clip(np.rint(half/2+r*np.sin(theta)).astype(int),0,half-1)
+  end[rows,cols]+=rng.uniform(-11,12)*np.array((1,.88,.62))
+ rgb[half:,half:,:3]=np.clip(end,0,255).astype(np.uint8)
+ # Quiet flax twine uses the existing second half of the same atlas/material.
+ weave=.025*np.sin(xx*.11+yy*.07)+.018*np.sin(xx*.14-yy*.13)
+ rgb[:half,half:,:3]=np.clip(np.array((140,122,85))[None,None,:]*(1+weave[:,:,None]),0,255).astype(np.uint8)
+ return rgb,orm
+
+def material(folder,hay_only=False):
  global MAT
  size=768;tile=128;yy,xx=np.mgrid[0:tile,0:tile]/tile
  rgb=np.zeros((size,size,4),dtype=np.uint8);orm=rgb.copy()
@@ -79,6 +111,7 @@ def material(folder):
   rgb[y:y+tile,x:x+tile,:3]=np.clip(np.array(colour)[None,None,:]*(1+signal[:,:,None]),0,255).astype(np.uint8)
   rgb[y:y+tile,x:x+tile,3]=255
   orm[y:y+tile,x:x+tile]=np.stack([np.full_like(xx,255),np.clip((rough+signal*.3)*255,0,255),np.zeros_like(xx),np.full_like(xx,255)],axis=2).astype(np.uint8)
+ if hay_only:rgb,orm=hay_atlas(size)
  folder.mkdir(parents=True,exist_ok=True)
  for name,data in [('albedo',rgb),('orm',orm)]:png(folder/(name+'.png'),data[::-1])
  MAT=bpy.data.materials.new('Crafted prop atlas');MAT.use_nodes=True
@@ -374,7 +407,13 @@ def postbox():
  torus('Plinth casting bead',(0,0,.195),.311,.007,'black',40,minor=4)
  box('Dark letter throat',(0,-.222,1.230),(.325,.018,.054),'black',0)
  box('Throat sill',(0,-.274,1.202),(.325,.11,.008),'red',.002)
- for x in [-.169,.169]:box('Aperture side return',(x,-.300,1.236),(.017,.094,.082),'red',.004)
+ # The returns line the aperture's actual sides: the shell is cut from 240 to
+ # 300 degrees, so its cut ends stand at |x| .1475-.1535, y -.2555 to -.266.
+ # Inner faces at |x| .146, running back to the throat face (y -.231), bury
+ # those ends past the bevel; left exposed they show as a lit sliver beside
+ # the slot once back faces are culled. Outer faces at |x| .169 stay clear of
+ # the sill's ends (.1625), which they would otherwise graze 0.5 mm apart.
+ for x in [-.1575,.1575]:box('Aperture side return',(x,-.289,1.236),(.023,.116,.082),'red',.004)
  # Closed shallow curved hood; its outer lip remains inside the old crown.
  verts=[]
  for x in [-.185,.185]:
@@ -427,62 +466,103 @@ def lamp(modern):
   cylinder('Finial',(0,0,4.421),.025,.058,'iron',10,radius2=.012)
 
 def sign():
- box('Oak upright',(0,.029,.775),(.114,.114,1.55),'oak-dark',.008)
+ # The folded iron edges cap the enamel face: it stops 8 mm inside their top
+ # and bottom, the upright 1 cm under them, and the side edges sit 3 mm in, so
+ # no face or bevel of one part lies in the plane of another's (they were flush).
+ box('Oak upright',(0,.029,.77),(.114,.114,1.54),'oak-dark',.008)
  box('Back mounting batten',(0,.024,1.28),(.51,.115,.095),'oak-dark',.006)
- box('Enamel notice face',(0,-.055,1.295),(.7674,.048,.51),'slate',.01)
- for x in [-.367,.367]:box('Folded side edge',(x,-.048,1.295),(.022,.06,.51),'iron',.004)
+ box('Enamel notice face',(0,-.055,1.295),(.7674,.048,.494),'slate',.01)
+ for x in [-.364,.364]:box('Folded side edge',(x,-.048,1.295),(.022,.06,.51),'iron',.004)
  for z in [1.052,1.538]:box('Folded horizontal edge',(0,-.048,z),(.747,.06,.024),'iron',.004)
  for x in [-.327,.327]:
   for z in [1.09,1.50]:cylinder('Brass fastener',(x,-.083,z),.011,.008,'brass',8,rot=(math.pi/2,0,0))
  # Gltf front face is +Z. Runtime text at +0.12 clears this recessed face.
 
 def hay():
- # Compressed rounded shoulders and broken straw laminations retain the rolled
- # cylinder and two bindings. Working if both end faces read as straw at eye
- # level without growing the recorded envelope or single-material budget.
- verts=[];faces=[];segments=48
- profile=[(-.75,.616),(-.724,.642),(-.665,.6555),(.665,.6555),(.724,.642),(.75,.616)]
- for y,r in profile:
+ # A continuous rolled straw surface, shallow end dishes and fitted flax ties.
+ # Working if both fronts remain closed/outward, the original envelope/budgets
+ # pass, and each twine course stays seated on the same analytic barrel radius.
+ segments=64;profile=[(-.75,.616),(-.724,.642),(-.665,.6555),(-.5,.6555),(-.47,.6555),(-.44,.6555),(0,.6555),(.44,.6555),(.47,.6555),(.5,.6555),(.665,.6555),(.724,.642),(.75,.616)]
+ def radius(y,a):
+  base=float(np.interp(y,[p[0] for p in profile],[p[1] for p in profile]))
+  press=.003*sum(math.exp(-((y-course)/.019)**2) for course in [-.47,.47])
+  return base*(1+.0035*math.sin(a*7)+.002*math.sin(a*11+y*3))-press
+ def barrel_uv(o):
+  for face in o.data.polygons:
+   coords=[o.data.vertices[o.data.loops[i].vertex_index].co for i in face.loop_indices]
+   angles=[math.atan2(p.z-.6555,p.x)%math.tau for p in coords]
+   angles=[0 if min(a,math.tau-a)<1e-6 else a for a in angles]
+   if max(angles)-min(angles)>math.pi:angles=[a+math.tau if a<math.pi else a for a in angles]
+   for i,p,a in zip(face.loop_indices,coords,angles):o.data.uv_layers.active.data[i].uv=(.02+.46*(p.y+.75)/1.5,.02+.96*a/math.tau)
+ def end_uv(o):
+  for face in o.data.polygons:
+   for i in face.loop_indices:
+    p=o.data.vertices[o.data.loops[i].vertex_index].co
+    o.data.uv_layers.active.data[i].uv=(.75+.23*p.x/.616,.75+.23*(p.z-.6555)/.616)
+ verts=[];faces=[]
+ for y,_ in profile:
   for i in range(segments):
-   a=i*math.tau/segments;rr=r*(1+.006*math.sin(a*7)+.004*math.sin(a*11+y*3))
-   verts.append((rr*math.cos(a),y,.6555+rr*math.sin(a)))
+   a=i*math.tau/segments;r=radius(y,a);verts.append((r*math.cos(a),y,.6555+r*math.sin(a)))
  for j in range(len(profile)-1):
   for i in range(segments):faces.append(((j+1)*segments+i,(j+1)*segments+(i+1)%segments,j*segments+(i+1)%segments,j*segments+i))
- faces += [tuple(range(segments)),tuple((len(profile)-1)*segments+i for i in reversed(range(segments)))]
- core=meshpart('Compressed straw roll',verts,faces,'straw',True)
- # Continuous longitudinal grain rather than restarting the entire atlas on
- # every narrow cylinder quad. Eight repeats wrap the circumference.
- tile=TILES['straw'];u0=(tile%6)/6;v0=(tile//6)/6
- for face in core.data.polygons[:segments*(len(profile)-1)]:
-  column=face.index%segments
-  for index in face.loop_indices:
-   vi=core.data.loops[index].vertex_index;p=core.data.vertices[vi].co
-   edge=0 if vi%segments==column else 1
-   u=((column%6)+edge)/6;v=(p.y+.75)/1.5
-   core.data.uv_layers.active.data[index].uv=(u0+(.045+.91*u)/6,v0+(.045+.91*v)/6)
- for y in [-.47,.47]:torus('Baling twine',(0,y,.6555),.658,.006,'rope',48,rot=(math.pi/2,0,0))
- # Evenly distributed short fibres follow the rolled direction with local
- # angular variation. No single regular spiral or full-width dark ribbon.
+ core=meshpart('Continuous compressed straw barrel',verts,faces,'straw',True);barrel_uv(core)
+ def cap_y(r):return .743+.007*(r/.616)**2
  for side in [-1,1]:
-  layers={key:([],[]) for key in ['straw','rope']}
-  for i in range(900):
-   theta=i*2.399963229728653+side*.31;r=.603*math.sqrt((i+.5)/900)
-   length=.021+.025*(.5+.5*math.sin(i*2.31));w=.004+.003*(.5+.5*math.cos(i*1.37))
-   key='rope' if i%7==0 else 'straw'
-   v,f=layers[key];n=len(v);a=theta+.85*math.sin(i*1.51)
-   x=r*math.cos(theta);z=.6555+r*math.sin(theta);y=side*(.751+.002*math.sin(i*.47))
-   dx=-math.sin(a)*length;dz=math.cos(a)*length
-   v.extend([(x-dx,y,z-dz),(x-math.cos(a)*w,y+side*.003,z-math.sin(a)*w),(x+dx,y,z+dz),(x+math.cos(a)*w,y,z+math.sin(a)*w)])
-   f.append((n,n+1,n+2,n+3) if side>0 else (n+3,n+2,n+1,n))
-  for key,(v,f) in layers.items():meshpart('Broken coiled straw '+key,v,f,key)
- # Sparse raised fibres on the barrel, one joined atlas mesh rather than objects.
- v=[];f=[]
- for i in range(260):
-  a=i*2.399963229728653;y=-.66+1.32*((i*.61803398875)%1);r=.660
-  x=r*math.cos(a);z=.6555+r*math.sin(a);n=len(v);w=.004
-  v.extend([(x,y-.045,z),(x-w*math.sin(a),y,z+w*math.cos(a)),(x,y+.045,z),(x+w*math.sin(a),y,z-w*math.cos(a))])
-  f.append((n+3,n+2,n+1,n))
- meshpart('Barrel straw fibres',v,f,'straw')
+  verts=[(0,side*.743,.6555)];faces=[];rings=[.105,.22,.34,.46,.56,.616]
+  for r in rings:
+   for i in range(segments):
+    a=i*math.tau/segments;rr=r*radius(side*.75,a)/.616
+    verts.append((rr*math.cos(a),side*cap_y(r),.6555+rr*math.sin(a)))
+  for i in range(segments):
+   face=(0,1+(i+1)%segments,1+i);faces.append(face if side>0 else face[::-1])
+  for j in range(len(rings)-1):
+   for i in range(segments):
+    a=1+j*segments+i;b=1+j*segments+(i+1)%segments;c=b+segments;d=a+segments
+    face=(a,b,c,d);faces.append(face if side>0 else face[::-1])
+  cap=meshpart('Shallow rolled straw end',verts,faces,'straw',True);end_uv(cap)
+  # Short curved fibres lie on the rolled surface, with shared planar UVs.
+  verts=[];faces=[]
+  for i in range(120):
+   theta=i*2.3999632297+side*.31;r=.58*math.sqrt((i+.5)/120);length=.04+.03*(.5+.5*math.sin(i*1.73));n=len(verts)
+   for step in range(4):
+    a=theta+(step/3-.5)*length/max(r,.08)
+    for edge in [-1,1]:
+     rr=r+edge*.0018;verts.append((rr*math.cos(a),side*(cap_y(rr)+.0015),.6555+rr*math.sin(a)))
+   for step in range(3):
+    j=n+step*2;face=(j,j+2,j+3,j+1);faces.append(face if side>0 else face[::-1])
+  fibres=meshpart('Seated curved end fibres',verts,faces,'straw');end_uv(fibres)
+ # Sparse tangential fibres continue the barrel chart instead of restarting it.
+ verts=[];faces=[]
+ for i in range(160):
+  a=i*2.3999632297;y=-.64+1.28*((i*.61803398875)%1);n=len(verts)
+  for da,dy in [(-.035,-.0017),(.035,-.0017),(.035,.0017),(-.035,.0017)]:
+   rr=radius(y+dy,a+da)+.0012;verts.append((rr*math.cos(a+da),y+dy,.6555+rr*math.sin(a+da)))
+  faces.append((n+3,n+2,n+1,n))
+ fibres=meshpart('Seated barrel fibres',verts,faces,'straw');barrel_uv(fibres)
+ for course in [-.47,.47]:
+  verts=[];faces=[];major=72;minor=6
+  for i in range(major):
+   a=i*math.tau/major;r=radius(course,a)+.002
+   for j in range(minor):
+    b=j*math.tau/minor;rr=r+.0045*math.cos(b)
+    verts.append((rr*math.cos(a),course+.0045*math.sin(b),.6555+rr*math.sin(a)))
+  for i in range(major):
+   for j in range(minor):faces.append((i*minor+j,i*minor+(j+1)%minor,((i+1)%major)*minor+(j+1)%minor,((i+1)%major)*minor+j))
+  tie=meshpart('Fitted continuous flax binding',verts,faces,'rope',True)
+  for face in tie.data.polygons:
+   col=face.index//minor;row=face.index%minor
+   for k in face.loop_indices:
+    vi=tie.data.loops[k].vertex_index;u=(col+(0 if vi//minor==col else 1))/major;v=(row+(0 if vi%minor==row else 1))/minor
+    tie.data.uv_layers.active.data[k].uv=(.52+.46*u,.02+.46*v)
+  # Small laid knot with two restrained seated loops, seated on the same binding.
+  a=1.18;r=radius(course,a)+.006
+  for shift in [-1,1]:
+   points=[]
+   for k in range(7):
+    t=k/6;aa=a+(t-.5)*.045;yy=course+shift*.014*math.sin(t*math.pi)
+    points.append((r*math.cos(aa),yy,.6555+r*math.sin(aa)))
+   tube('Laid flax tie',points,.003,'rope',5)
+
 
 def leaf(name,loc,length,width,angle,key='leaf'):
  # Closed, cupped lanceolate leaf, intentional low-poly plant language.
@@ -613,7 +693,9 @@ def well():
   for side in [-1,1]:beam('Gable verge batten',(x,0,2.863),(x,side*1.12,2.355),.045,'oak-light')
  for side in [-1,1]:
   for row in range(5):
-   y=side*(.115+row*.23);z=2.87-abs(y)*.46
+   # Each course rides 6.5 mm above the one below it (eave row unchanged), so
+   # the overlap strip is a real lap rather than two tile faces 0.29 mm apart.
+   y=side*(.115+row*.23);z=2.87-abs(y)*.46+(4-row)*.0065
    for col in range(7):
     x=-.93+col*.31
     # Only the visible upper arris is rounded; lower tile edges overlap and
@@ -793,7 +875,7 @@ for asset,extent in ENVELOPES.items():
  bpy.ops.wm.read_factory_settings(use_empty=True);PARTS=[];details={}
  if slug=='duckpond':details=pond(source)
  else:
-  material(REPORT.parent/'civic-atlas');BUILDERS[slug]()
+  material(REPORT.parent/'civic-atlas',hay_only=slug=='haybale');BUILDERS[slug]()
  details['components']={}
  for o in PARTS:
   name=o.name.rsplit('.',1)[0] if o.name.rsplit('.',1)[-1].isdigit() else o.name

@@ -14,6 +14,8 @@ import {
   useAINarrationStore,
 } from '../../stores/aiNarrationStore';
 import { useKnowledgeStore } from '../../stores/knowledgeStore';
+import { useT } from '../../i18n';
+import { aiNarrationMessages } from './AINarration.messages';
 
 interface AINarrationProps {
   narration: NarrationEntry;
@@ -21,6 +23,7 @@ interface AINarrationProps {
 }
 
 export function AINarration({ narration, onDismiss }: AINarrationProps) {
+  const t = useT(aiNarrationMessages);
   const [isExpanded, setIsExpanded] = useState(false);
   const { markShown } = useAINarrationStore();
   const { unlockEntry } = useKnowledgeStore();
@@ -50,12 +53,12 @@ export function AINarration({ narration, onDismiss }: AINarrationProps) {
           <div className="w-8 h-8 rounded-lg bg-cyan-500/20 flex items-center justify-center">
             <Bot className="w-5 h-5 text-cyan-400" />
           </div>
-          <span className="text-sm font-medium text-cyan-400">AI Reflection</span>
+          <span className="text-sm font-medium text-cyan-400">{t('title')}</span>
         </div>
         <button
           onClick={onDismiss}
           className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
-          aria-label="Close"
+          aria-label={t('close')}
         >
           <X className="w-5 h-5" />
         </button>
@@ -82,7 +85,7 @@ export function AINarration({ narration, onDismiss }: AINarrationProps) {
             onClick={() => setIsExpanded(true)}
             className="mt-4 px-4 py-2 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 hover:text-cyan-300 text-sm font-medium rounded-lg border border-cyan-500/30 transition-colors"
           >
-            Continue reading...
+            {t('continueReading')}
           </button>
         )}
       </div>
@@ -99,6 +102,7 @@ interface AINarrationModalProps {
 }
 
 export function AINarrationModal({ narration, onDismiss }: AINarrationModalProps) {
+  const t = useT(aiNarrationMessages);
   const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -126,7 +130,7 @@ export function AINarrationModal({ narration, onDismiss }: AINarrationModalProps
           ref={dialogRef}
           role="dialog"
           aria-modal="true"
-          aria-label="AI Reflection"
+          aria-label={t('title')}
           initial={{ scale: 0.9, y: 20 }}
           animate={{ scale: 1, y: 0 }}
           exit={{ scale: 0.9, y: 20 }}
@@ -150,6 +154,7 @@ interface AINarrationInlineProps {
 }
 
 export function AINarrationInline({ narration, onDismiss, maxLines = 3 }: AINarrationInlineProps) {
+  const t = useT(aiNarrationMessages);
   const { markShown } = useAINarrationStore();
   const paragraphs = parseNarrationContent(narration.content);
 
@@ -182,7 +187,7 @@ export function AINarrationInline({ narration, onDismiss, maxLines = 3 }: AINarr
         {onDismiss && (
           <button
             onClick={onDismiss}
-            aria-label="Dismiss"
+            aria-label={t('dismiss')}
             className="p-0.5 text-slate-600 hover:text-slate-400 transition-colors"
           >
             <X className="w-3 h-3" />

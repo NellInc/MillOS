@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { createRoundedForkliftRoute, type ForkliftWaypointAction } from '../forkliftRoute';
+import { drivenLogisticsRoute } from '../logisticsRuntime';
+import { planningRouteActions } from '../layoutPlanning';
 import { sampleArcLengthPath } from './vehicleKinematics';
 import {
   FORKLIFT_MAXIMUM_STEERING_RADIANS,
@@ -80,6 +82,9 @@ describe('forklift controller', () => {
   it('uses a lower loaded speed envelope', () => {
     const plan = createForkliftRoutePlan(points, actions);
     let state = createInitialForkliftMotion(plan, [0, 0, 0]);
+    // This square's corners are unrounded, so the speed dips at each; the
+    // envelope is the top speed reached on its 10 m legs.
+    let fastest = 0;
     for (let index = 0; index < 600; index += 1) {
       state = stepForkliftMotion(state, plan, {
         targetSpeed: 3.5,
@@ -87,8 +92,9 @@ describe('forklift controller', () => {
         loaded: true,
         deltaSeconds: 1 / 60,
       });
+      fastest = Math.max(fastest, state.speed);
     }
-    expect(state.speed).toBeCloseTo(1.8);
+    expect(fastest).toBeCloseTo(1.8);
   });
 
   it('publishes explicit pickup phases and attaches cargo only after engagement', () => {
@@ -104,16 +110,10 @@ describe('forklift controller', () => {
   });
 
   it.each([
-    ['shipping', SITE_LAYOUT.routes.forklifts.shipping.points, 4],
-    ['receiving', SITE_LAYOUT.routes.forklifts.receiving.points, 3],
-  ] as const)('points the %s forklift along travel on every straight leg', (_, route, dropoff) => {
-    const routeActions: ForkliftWaypointAction[] = route.map((__, index) =>
-      index === 0
-        ? { type: 'pickup', duration: 7 }
-        : index === dropoff
-          ? { type: 'dropoff', duration: 6 }
-          : { type: 'none', duration: 0 }
-    );
+    ['shipping', SITE_LAYOUT.routes.forklifts.shipping.points],
+    ['receiving', SITE_LAYOUT.routes.forklifts.receiving.points],
+  ] as const)('points the %s forklift along travel on every straight leg', (dock, route) => {
+    const routeActions: ForkliftWaypointAction[] = planningRouteActions(dock);
     const rounded = createRoundedForkliftRoute(route, routeActions, 2, 8);
     const plan = createForkliftRoutePlan(rounded.path, rounded.actions);
     const headingOf = (x: number, z: number) => Math.atan2(x, z);
@@ -142,16 +142,56 @@ describe('forklift controller', () => {
     expect(measuredLength / plan.path.totalLength).toBeGreaterThan(0.7);
     expect((worstLegDeviation * 180) / Math.PI).toBeLessThan(3);
 
-    // The closed route's seam is the pickup: no one-frame heading snap across it.
+    // Both routes turn back on themselves at their pickup and their dropoff
+    // (shipping's pickup is the closed route's seam). Those turns are standing
+    // pivots: the path arrives on its incoming leg and leaves on its outgoing
+    // one, and the plan marks the span between them so the body turns in
+    // place (the driven-lap test bounds its rate).
     const beforeSeam = sampleArcLengthPath(plan.path, plan.path.totalLength - 0.01);
-    const afterSeam = sampleArcLengthPath(plan.path, 0.01);
-    const seamStep = Math.abs(
-      Math.atan2(
-        beforeSeam.tangentX * afterSeam.tangentZ - beforeSeam.tangentZ * afterSeam.tangentX,
-        beforeSeam.tangentX * afterSeam.tangentX + beforeSeam.tangentZ * afterSeam.tangentZ
-      )
+    const lastLeg = plan.path.samples.at(-2)!;
+    expect(headingOf(beforeSeam.tangentX, beforeSeam.tangentZ)).toBeCloseTo(
+      headingOf(route[0][0] - lastLeg.x, route[0][2] - lastLeg.z),
+      6
     );
-    expect((seamStep * 180) / Math.PI).toBeLessThan(5);
+    expect(plan.markers).toHaveLength(2);
+    for (const marker of plan.markers)
+      expect(
+        plan.pivots?.some(({ start }) => Math.abs(start - marker.distance) < 1e-6),
+        marker.action.type
+      ).toBe(true);
+    if (dock === 'shipping') expect(plan.pivots?.some(({ start }) => start === 0)).toBe(true);
+  });
+
+  it.each(['pickup', 'dropoff'] as const)(
+    'shows the %s pallet continuously, never popping in or out with the forks at the floor',
+    (action) => {
+      const duration = action === 'pickup' ? 7 : 6;
+      const steps = duration * 60;
+      let prior = sampleForkliftLoadPose(action, 0, 0.72);
+      let largestStep = 0;
+      for (let step = 1; step <= steps; step += 1) {
+        const pose = sampleForkliftLoadPose(action, step / steps, 0.72);
+        largestStep = Math.max(largestStep, Math.abs(pose.cargoPresence - prior.cargoPresence));
+        // While the cargo is attached it is fully there.
+        if (pose.cargoEngaged) expect(pose.cargoPresence).toBe(1);
+        prior = pose;
+      }
+      // Over at least half a second of plant time, never in one frame.
+      expect(largestStep).toBeLessThan(1 / 30);
+      expect(sampleForkliftLoadPose(action, 0, 0.72).cargoPresence).toBe(
+        action === 'pickup' ? 0 : 1
+      );
+      expect(sampleForkliftLoadPose(action, 1, 0.72).cargoPresence).toBe(
+        action === 'pickup' ? 1 : 0
+      );
+    }
+  );
+
+  it('leaves a set-down pallet on the floor while the forks withdraw', () => {
+    const withdrawing = sampleForkliftLoadPose('dropoff', 0.75, 0.72);
+    expect(withdrawing.phase).toBe('withdrawing');
+    expect(withdrawing.cargoEngaged).toBe(false);
+    expect(withdrawing.cargoPresence).toBe(1);
   });
 
   it('places and disengages a carried pallet in distinct phases', () => {
@@ -275,6 +315,117 @@ describe('forklift controller', () => {
   });
 });
 
+const wrapAngle = (angle: number): number => Math.atan2(Math.sin(angle), Math.cos(angle));
+
+/**
+ * Drives the default route for two full load cycles the way ForkliftSystem
+ * does: travel up to the next action marker under its braking target and
+ * movement authority, hold there for the action, then go on.
+ */
+const simulateDrivenLaps = (dock: 'shipping' | 'receiving') => {
+  const authored = SITE_LAYOUT.routes.forklifts[dock].points;
+  const { plan } = drivenLogisticsRoute(dock, authored);
+  const cruise = dock === 'shipping' ? 3.5 : 3;
+  let state = createInitialForkliftMotion(plan, authored[0]);
+  let markerIndex = 0;
+  let loaded = false;
+  let actions = 0;
+  let worstYawStep = 0;
+  let worstCrab = 0;
+  let peakLateral = 0;
+  for (let frame = 0; frame < 60 * 600 && actions < 4; frame += 1) {
+    const marker = plan.markers[markerIndex];
+    const ahead = distanceAheadOnClosedPath(plan.path, state.routeDistance, marker.distance);
+    const relevant = (marker.action.type === 'pickup') !== loaded;
+    if (relevant && ahead <= 0.06) {
+      // The load operation snaps the vehicle onto its marker and holds it
+      // there, heading unchanged, as ForkliftSystem does.
+      const at = sampleArcLengthPath(plan.path, marker.distance);
+      state = { ...state, routeDistance: marker.distance, x: at.x, z: at.z, speed: 0 };
+      loaded = marker.action.type === 'pickup';
+      markerIndex = (markerIndex + 1) % plan.markers.length;
+      actions += 1;
+      continue;
+    }
+    const targetSpeed =
+      relevant && ahead < 5 ? Math.min(cruise, Math.sqrt(Math.max(0, 3 * (ahead - 0.03)))) : cruise;
+    const next = stepForkliftMotion(state, plan, {
+      targetSpeed,
+      stopReason: 'none',
+      loaded,
+      deltaSeconds: 1 / 60,
+      maximumTravelDistance: relevant ? ahead : undefined,
+    });
+    const yawStep = Math.abs(wrapAngle(next.heading - state.heading));
+    worstYawStep = Math.max(worstYawStep, yawStep);
+    const travel = Math.hypot(next.x - state.x, next.z - state.z);
+    if (travel > 1e-3) {
+      peakLateral = Math.max(peakLateral, yawStep * 60 * next.speed);
+      const travelHeading = Math.atan2(next.x - state.x, next.z - state.z);
+      worstCrab = Math.max(worstCrab, Math.abs(wrapAngle(next.heading - travelHeading)));
+    }
+    state = next;
+  }
+  return { actions, worstYawStep, peakLateral, worstCrab };
+};
+
+describe('forklift driven laps on the default layout', () => {
+  it.each(['shipping', 'receiving'] as const)(
+    'turns the %s forklift at a bounded yaw rate and never drives sideways',
+    (dock) => {
+      const { actions, worstYawStep, peakLateral, worstCrab } = simulateDrivenLaps(dock);
+      expect(actions).toBe(4);
+      // Corners are taken at the 1.05 m/s^2 the speed limit is designed for
+      // (2.9 when the look-ahead ignored the jerk it takes to start braking).
+      expect(peakLateral).toBeLessThan(1.4);
+      // Shipping spun 140 degrees in about 0.1 s at x 24.5 (28 rad/s peak).
+      // The per-step check reads across +/-pi through wrapAngle.
+      expect(worstYawStep).toBeLessThan(1.5 / 60);
+      // And at the 180-degree pickup cusp the body turned 90 degrees sideways
+      // while it travelled straight: it now stops and pivots instead.
+      expect(worstCrab).toBeLessThan(0.3);
+    }
+  );
+});
+
+// Waiting at a dropoff for its truck, the forklift crept the last centimetres
+// onto the pivot vertex and turned to its departure heading, so it unloaded
+// facing away from the trailer (seen at the shipping dock door). Working if a
+// forklift held at its marker keeps its arrival heading until it has worked.
+describe('forklift waiting at an action marker', () => {
+  it('keeps facing the trailer while the logistics interlock holds it at the dropoff', () => {
+    const { plan } = drivenLogisticsRoute('shipping', SITE_LAYOUT.routes.forklifts.shipping.points);
+    const dropoff = plan.markers.find(({ action }) => action.type === 'dropoff')!;
+    let state = createInitialForkliftMotion(plan, SITE_LAYOUT.routes.forklifts.shipping.points[0]);
+    // Drive in as ForkliftSystem does, braking to the marker.
+    for (let i = 0; i < 6000; i++) {
+      const toMarker = distanceAheadOnClosedPath(plan.path, state.routeDistance, dropoff.distance);
+      if (toMarker <= 0.06) break;
+      state = stepForkliftMotion(state, plan, {
+        targetSpeed: Math.min(1.2, Math.sqrt(Math.max(0, 3 * (toMarker - 0.03)))),
+        stopReason: 'none',
+        loaded: true,
+        deltaSeconds: 1 / 60,
+        maximumTravelDistance: toMarker,
+      });
+    }
+    expect(Math.abs(state.heading)).toBeLessThan(0.01);
+    // The truck is not ready: ten seconds at the marker under the interlock.
+    for (let i = 0; i < 600; i++) {
+      const toMarker = distanceAheadOnClosedPath(plan.path, state.routeDistance, dropoff.distance);
+      state = stepForkliftMotion(state, plan, {
+        targetSpeed: 1.2,
+        stopReason: 'logistics-interlock',
+        loaded: true,
+        deltaSeconds: 1 / 60,
+        maximumTravelDistance: toMarker,
+        holdHeading: true,
+      });
+    }
+    expect(Math.abs(state.heading)).toBeLessThan(0.01);
+  });
+});
+
 describe('forklift fleet-priority safety arbitration', () => {
   const stoppedHigherPeer = { id: 'forklift-2', isStopped: true };
   const peerWait = {
@@ -315,11 +466,11 @@ describe('forklift fleet-priority safety arbitration', () => {
         ...peerWait,
         nearby: [{ ...stoppedHigherPeer, isStopped: false }],
       })
-    ).toBe('route-blocked');
-    expect(resolveForkliftStopReason({ ...peerWait, nearby: [] })).toBe('route-blocked');
+    ).toBe('vehicle-queue');
+    expect(resolveForkliftStopReason({ ...peerWait, nearby: [] })).toBe('vehicle-queue');
     expect(
       resolveForkliftStopReason({ ...peerWait, nearby: [{ ...stoppedHigherPeer, kind: 'truck' }] })
-    ).toBe('route-blocked');
+    ).toBe('vehicle-queue');
   });
 
   it('compares all peer IDs independently of registry insertion order', () => {
@@ -329,9 +480,16 @@ describe('forklift fleet-priority safety arbitration', () => {
     ];
     for (const nearby of [peers, [...peers].reverse()]) {
       expect(resolveForkliftStopReason({ ...peerWait, id: 'forklift-2', nearby })).toBe(
-        'route-blocked'
+        'vehicle-queue'
       );
     }
+  });
+
+  it('queues behind a vehicle without calling it an obstruction, but a barrier still blocks', () => {
+    expect(resolveForkliftStopReason({ ...peerWait, nearby: [] })).toBe('vehicle-queue');
+    expect(resolveForkliftStopReason({ ...peerWait, nearby: [], obstaclePathClear: false })).toBe(
+      'route-blocked'
+    );
   });
 
   it('retains yielding on a clear path and releases an unopposed clear route', () => {

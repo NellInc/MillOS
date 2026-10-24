@@ -11,10 +11,13 @@ import { useProductionStore } from '../stores/productionStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useUIStore } from '../stores/uiStore';
 import { useAIConfigStore } from '../stores/aiConfigStore';
-import { geminiClient } from './geminiClient';
-import { webgpuClient } from './webgpuClient';
+import { cloudAIClient, type CloudResult } from './cloudAIClient';
 import { chatgptClient } from './chatgptClient';
+import { SpendCapError } from './spendBudget';
+import { webgpuClient } from './webgpuClient';
 import { logger } from './logger';
+import { formatFixed, getLocale, translate } from '../i18n';
+import { aiEngineMessages as msg } from './aiEngine.messages';
 
 export const AI_ENGINE_TIMING = {
   tacticalDecisionInterval: 6000,
@@ -268,48 +271,61 @@ function decisionForType(type: DecisionType, machine: MachineData): AIDecision {
     case 'coordination':
       return {
         ...common,
-        action: `Allocate autonomous service route to ${machine.name}`,
-        reasoning: `The route planner detected equipment demand at ${machine.id} with ${load.toFixed(0)} percent load.`,
+        action: translate(msg, 'coordinationAction', { machine: machine.name }),
+        reasoning: translate(msg, 'coordinationReasoning', {
+          machineId: machine.id,
+          load: formatFixed(load, 0),
+        }),
         confidence: clamp(78 + adjustment, 45, 98),
-        impact: 'Keeps service traffic deterministic and clears shared aisles.',
+        impact: translate(msg, 'coordinationImpact'),
         priority: load > 90 ? 'high' : 'medium',
       };
     case 'maintenance':
       return {
         ...common,
-        action: `Queue condition-based maintenance for ${machine.name}`,
-        reasoning: `Telemetry reports ${temperature.toFixed(1)} C, ${vibration.toFixed(2)} mm/s vibration, and ${wear.toFixed(0)} percent wear.`,
+        action: translate(msg, 'maintenanceAction', { machine: machine.name }),
+        reasoning: translate(msg, 'maintenanceReasoning', {
+          temperature: formatFixed(temperature, 1),
+          vibration: formatFixed(vibration, 2),
+          wear: formatFixed(wear, 0),
+        }),
         confidence: clamp(82 + adjustment, 45, 98),
-        impact: 'Reduces breakdown risk while preserving the controlled production path.',
+        impact: translate(msg, 'maintenanceImpact'),
         priority: temperature >= 80 || vibration >= 4.5 || wear >= 85 ? 'critical' : 'high',
       };
     case 'safety':
       return {
         ...common,
-        action: `Engage interlocked safe state around ${machine.name}`,
-        reasoning:
-          'The autonomous safety layer detected a limit or test condition requiring isolation.',
+        action: translate(msg, 'safetyAction', { machine: machine.name }),
+        reasoning: translate(msg, 'safetyReasoning'),
         confidence: clamp(94 + adjustment, 50, 99),
-        impact:
-          'Stops hazardous motion, closes affected routes, and preserves diagnostic evidence.',
+        impact: translate(msg, 'safetyImpact'),
         priority: 'critical',
       };
     case 'prediction':
       return {
         ...common,
-        action: `Statistical anomaly detected on ${machine.name}`,
-        reasoning: `Trend analysis combines ${temperature.toFixed(1)} C, ${vibration.toFixed(2)} mm/s vibration, ${load.toFixed(0)} percent load, and ${wear.toFixed(0)} percent wear.`,
+        action: translate(msg, 'predictionAction', { machine: machine.name }),
+        reasoning: translate(msg, 'predictionReasoning', {
+          temperature: formatFixed(temperature, 1),
+          vibration: formatFixed(vibration, 2),
+          load: formatFixed(load, 0),
+          wear: formatFixed(wear, 0),
+        }),
         confidence: clamp(76 + adjustment, 40, 96),
-        impact: 'Provides lead time for an automatic derate or maintenance queue entry.',
+        impact: translate(msg, 'predictionImpact'),
         priority: temperature >= 80 || vibration >= 4.5 ? 'high' : 'medium',
       };
     case 'optimization':
       return {
         ...common,
-        action: `Balance process load through ${machine.name}`,
-        reasoning: `The line is carrying ${load.toFixed(0)} percent load at ${finite(machine.metrics?.efficiency, 100).toFixed(0)} percent local efficiency.`,
+        action: translate(msg, 'optimizationAction', { machine: machine.name }),
+        reasoning: translate(msg, 'optimizationReasoning', {
+          load: formatFixed(load, 0),
+          efficiency: formatFixed(finite(machine.metrics?.efficiency, 100), 0),
+        }),
         confidence: clamp(74 + adjustment, 40, 95),
-        impact: 'Smooths material flow, limits recirculation, and protects downstream capacity.',
+        impact: translate(msg, 'optimizationImpact'),
         priority: load > 90 ? 'high' : 'medium',
       };
   }
@@ -393,16 +409,20 @@ export function applyDecisionEffects(
   } else if (decision.machineId && decision.type === 'maintenance') {
     const machine = store.machines.find((item) => item.id === decision.machineId);
     if (machine?.status === 'critical') store.updateMachineStatus?.(decision.machineId, 'warning');
-  } else if (decision.type === 'optimization') {
-    store.setProductionSpeed?.(clamp(finite(store.productionSpeed, 1) * 0.98, 0.55, 1.35));
+  } else if (decision.type === 'optimization' && !decision.id.startsWith('strategic-')) {
+    // A load-balancing decision trims the line rate by 2%, as its impact text
+    // says. Strategic guidance only records priorities, and a stopped line
+    // stays stopped. Working if no accepted decision silently changes pace.
+    const current = finite(store.productionSpeed, 1);
+    if (current > 0) store.setProductionSpeed?.(clamp(current * 0.98, 0.55, 1.35));
   }
 
   store.updateDecisionStatus?.(
     decision.id,
     'completed',
     disposition === 'automatic'
-      ? 'Completed by autonomous control layer'
-      : 'Completed after control confirmation'
+      ? translate(msg, 'completedAutomatic')
+      : translate(msg, 'completedConfirmed')
   );
 }
 
@@ -427,7 +447,10 @@ function recordDecisionOutcome(decision: AIDecision, success: boolean): void {
   typeStats.successRate = Math.round(rate * 100);
   if (
     success &&
-    /shutdown|safe state|derate|maintenance/i.test(`${decision.action} ${decision.impact}`)
+    // pt-BR words match the same engine decisions as the English ones (aiEngine.messages.ts).
+    /shutdown|safe state|derate|maintenance|desligamento|estado seguro|manutenção/i.test(
+      `${decision.action} ${decision.impact}`
+    )
   ) {
     impactStats.preventedShutdowns += 1;
     impactStats.estimatedSavings += 2500;
@@ -518,7 +541,7 @@ export function shouldTriggerAudioCue(decision: AIDecision): boolean {
   return (
     decision.priority === 'critical' ||
     (decision.priority === 'high' && decision.type === 'safety') ||
-    (decision.type === 'prediction' && /anomaly/i.test(decision.action))
+    (decision.type === 'prediction' && /anomaly|anomalia/i.test(decision.action))
   );
 }
 
@@ -590,28 +613,47 @@ export function initializeDecisionOutcomeTracking(): () => void {
 }
 
 function getActiveLLM(): {
-  generateContent: (prompt: string) => Promise<string | null>;
+  generateContent: (prompt: string) => Promise<CloudResult | null>;
   isConnected: () => boolean;
 } {
   const backend = useAIConfigStore.getState().llmBackend;
-  return backend === 'webgpu' ? webgpuClient : backend === 'chatgpt' ? chatgptClient : geminiClient;
+  return backend === 'webgpu'
+    ? {
+        isConnected: () => webgpuClient.isConnected(),
+        generateContent: async (prompt) => {
+          const text = await webgpuClient.generateContent(prompt);
+          return text ? { text, inputTokens: 0, outputTokens: 0 } : null;
+        },
+      }
+    : backend === 'chatgpt'
+      ? {
+          isConnected: () => chatgptClient.isConnected(),
+          generateContent: async (prompt) => {
+            const text = await chatgptClient.generateContent(prompt);
+            return text ? { text, inputTokens: 0, outputTokens: 0 } : null;
+          },
+        }
+      : {
+          isConnected: () => cloudAIClient.hasKey(backend),
+          generateContent: (prompt) => cloudAIClient.generateContent(backend, prompt),
+        };
 }
 
-export function isGeminiModeActive(): boolean {
+export function isLLMModeActive(): boolean {
   const state = useAIConfigStore.getState();
   return (state.aiMode === 'gemini' || state.aiMode === 'hybrid') && state.isLLMReady();
 }
 
 export function isStrategicLayerActive(): boolean {
   const state = useAIConfigStore.getState();
-  // 'gemini' is the LLM-only mode: the strategic layer runs and the tactical
+  // 'gemini' is the persisted ID for LLM-only mode: the strategic layer runs and the tactical
   // rules layer is paused (see isTacticalLayerActive).
   return (state.aiMode === 'hybrid' || state.aiMode === 'gemini') && state.isLLMReady();
 }
 
 export function isTacticalLayerActive(): boolean {
-  const mode = useAIConfigStore.getState().aiMode;
-  return mode === 'heuristic' || mode === 'hybrid';
+  const state = useAIConfigStore.getState();
+  return state.aiMode === 'heuristic' || state.aiMode === 'hybrid' || !state.isLLMReady();
 }
 
 function strategicPrompt(machines: MachineData[]): string {
@@ -629,6 +671,12 @@ function strategicPrompt(machines: MachineData[]): string {
     'You are the strategic controller for a staffed grain mill digital twin with autonomous logistics.',
     'Return one JSON object only: {"priorities": 1-3 short imperative strings (under 80 characters each), "reasoning": 1-2 sentences, "insight"?: string, "tradeoff"?: string, "focusMachine"?: one equipment id from the telemetry, "actionPlan"?: [immediate, short-term, preparation] as 3 strings}.',
     'Prioritize safety interlocks, stable material flow, quality, energy, condition maintenance, and autonomous logistics.',
+    // Model text lands verbatim in the player's decision cards, so ask for their language.
+    ...(getLocale() === 'pt-BR'
+      ? [
+          'Write every string value in Brazilian Portuguese (pt-BR), using 24-hour times; keep the JSON keys and equipment ids unchanged.',
+        ]
+      : []),
     `Plant period: ${simulation.currentShift}. Weather: ${simulation.weather}.`,
     `Production: ${JSON.stringify(production.metrics)}.`,
     `Equipment telemetry: ${JSON.stringify(telemetry)}.`,
@@ -668,7 +716,7 @@ function parseStrategicResponse(response: string): {
     const actionPlan = clipList(parsed.actionPlan);
     return {
       priorities,
-      reasoning: clip(parsed.reasoning) ?? 'Strategic analysis complete.',
+      reasoning: clip(parsed.reasoning) ?? translate(msg, 'strategicReasoningFallback'),
       insight: clip(parsed.insight),
       tradeoff: clip(parsed.tradeoff),
       focusMachine: clip(parsed.focusMachine),
@@ -686,12 +734,14 @@ let strategicDecisionKey: string | null = null;
 async function runStrategicDecision(
   requestEpoch: number,
   requestMode: string,
-  requestBackend: string
+  requestBackend: string,
+  requestConnectionEpoch: number
 ): Promise<AIDecision | null> {
   const config = useAIConfigStore.getState();
   if (
     config.aiMode !== requestMode ||
     config.llmBackend !== requestBackend ||
+    config.connectionEpoch !== requestConnectionEpoch ||
     !isStrategicLayerActive()
   ) {
     return null;
@@ -701,31 +751,32 @@ async function runStrategicDecision(
 
   let configurationChanged = false;
   const unsubscribeConfig = useAIConfigStore.subscribe((state) => {
-    if (state.aiMode !== requestMode || state.llmBackend !== requestBackend) {
+    if (
+      state.aiMode !== requestMode ||
+      state.llmBackend !== requestBackend ||
+      state.connectionEpoch !== requestConnectionEpoch
+    ) {
       configurationChanged = true;
     }
   });
   config.setStrategicThinking(true);
   try {
     const prompt = strategicPrompt(getMachines());
-    const response = await llm.generateContent(prompt);
-    if (config.llmBackend === 'chatgpt') config.setChatGPTError(null);
+    const result = await llm.generateContent(prompt);
     if (
       requestEpoch !== strategicRequestEpoch ||
       configurationChanged ||
-      !response ||
+      !result ||
       !llm.isConnected() ||
       !isStrategicLayerActive() ||
       useAIConfigStore.getState().aiMode !== requestMode ||
-      useAIConfigStore.getState().llmBackend !== requestBackend
+      useAIConfigStore.getState().llmBackend !== requestBackend ||
+      useAIConfigStore.getState().connectionEpoch !== requestConnectionEpoch
     ) {
       return null;
     }
     const liveConfig = useAIConfigStore.getState();
-    if (config.llmBackend === 'gemini') {
-      liveConfig.recordApiUsage(prompt.length, response.length);
-    }
-    const strategic = parseStrategicResponse(response);
+    const strategic = parseStrategicResponse(result.text);
     if (!strategic) return null;
     // Only keep a focus machine the plant actually has, so neither the decision
     // nor the Strategic tab's "Focus" chip points at an asset that isn't there.
@@ -738,15 +789,17 @@ async function runStrategicDecision(
       id: makeId('strategic'),
       timestamp: new Date(),
       type: 'optimization',
-      action: `Strategic: ${strategic.priorities[0]}`,
+      action: translate(msg, 'strategicAction', { priority: strategic.priorities[0] }),
       reasoning: [strategic.reasoning, strategic.insight, strategic.tradeoff]
         .filter(Boolean)
         .join(' '),
       confidence: 85,
       impact:
         strategic.priorities.length > 1
-          ? `Additional priorities: ${strategic.priorities.slice(1).join('; ')}`
-          : 'Strategic guidance recorded for the tactical controller.',
+          ? translate(msg, 'strategicAdditionalPriorities', {
+              priorities: strategic.priorities.slice(1).join('; '),
+            })
+          : translate(msg, 'strategicRecorded'),
       machineId: focusMachine,
       status: 'completed',
       priority: 'medium',
@@ -762,13 +815,24 @@ async function runStrategicDecision(
     });
     return recorded;
   } catch (error) {
-    logger.ai.error('Strategic decision generation failed', error);
-    if (config.llmBackend === 'chatgpt') {
-      const message = error instanceof Error ? error.message : 'ChatGPT inference failed';
-      if (!chatgptClient.isConnected()) {
-        void config.refreshChatGPT().then(() => config.setChatGPTError(message));
-      } else config.setChatGPTError(message);
+    if (error instanceof SpendCapError) {
+      const current = useAIConfigStore.getState();
+      if (
+        current.llmBackend === requestBackend &&
+        current.connectionEpoch === requestConnectionEpoch
+      ) {
+        current.setAIMode('heuristic');
+        useAIConfigStore.setState({ connectionError: error.message });
+      }
     }
+    if (requestBackend === 'chatgpt') {
+      const current = useAIConfigStore.getState();
+      current.setChatGPTError(
+        error instanceof Error ? error.message : translate(msg, 'chatgptRequestFailed')
+      );
+      if (!chatgptClient.isConnected()) void current.refreshChatGPT();
+    }
+    logger.ai.error('Strategic decision generation failed', error);
     return null;
   } finally {
     unsubscribeConfig();
@@ -777,7 +841,7 @@ async function runStrategicDecision(
 
 export function generateStrategicDecision(): Promise<AIDecision | null> {
   const config = useAIConfigStore.getState();
-  const requestKey = `${config.aiMode}:${config.llmBackend}`;
+  const requestKey = `${config.aiMode}:${config.llmBackend}:${config.connectionEpoch}`;
   if (strategicDecisionPromise && strategicDecisionKey === requestKey) {
     return strategicDecisionPromise;
   }
@@ -787,7 +851,12 @@ export function generateStrategicDecision(): Promise<AIDecision | null> {
     strategicDecisionKey = null;
   }
   const requestEpoch = strategicRequestEpoch;
-  const promise = runStrategicDecision(requestEpoch, config.aiMode, config.llmBackend);
+  const promise = runStrategicDecision(
+    requestEpoch,
+    config.aiMode,
+    config.llmBackend,
+    config.connectionEpoch
+  );
   strategicDecisionPromise = promise;
   strategicDecisionKey = requestKey;
   void promise.finally(() => {
@@ -805,10 +874,13 @@ let loopInterval: ReturnType<typeof setInterval> | null = null;
 let lastTactical = 0;
 let lastStrategic = 0;
 let lastMetrics = 0;
+let lastLoopAt = 0;
 let engineUsers = 0;
 
 function aiLoop(): void {
   const now = Date.now();
+  const sinceLastLoop = lastLoopAt > 0 ? Math.max(0, now - lastLoopAt) : 0;
+  lastLoopAt = now;
   const config = useAIConfigStore.getState();
   const production = useProductionStore.getState();
   const alerts = useUIStore.getState().alerts;
@@ -829,6 +901,21 @@ function aiLoop(): void {
       memory: clamp(28 + production.aiDecisions.length * 0.45 + alerts.length, 20, 78),
       decisions: production.aiDecisions.length,
     });
+  }
+
+  // While the shift clock is held (P, Paused, tour, handoff, any holder) the
+  // plant is frozen: no card about it and no request on the player's LLM key.
+  // Held time does not count toward either cadence, so resuming continues the
+  // interval where it stopped rather than firing at once.
+  //
+  // The cadence itself stays on wall time that elapses with the clock
+  // running, not game time. It is a reading rate for a person: on game time
+  // 4x would file a pending card every 1.5 real seconds (and spend 4x the
+  // LLM budget), and 1/2x would leave the panel silent for 12 s.
+  if (useGameSimulationStore.getState().gameSpeed === 0) {
+    lastTactical += sinceLastLoop;
+    lastStrategic += sinceLastLoop;
+    return;
   }
 
   if (isTacticalLayerActive() && now - lastTactical >= AI_ENGINE_TIMING.tacticalDecisionInterval) {
@@ -857,6 +944,7 @@ export function initializeAIEngine(): () => void {
   if (!loopInterval) {
     lastTactical = Date.now();
     lastStrategic = Date.now();
+    lastLoopAt = Date.now();
     lastMetrics = 0;
     loopInterval = setInterval(aiLoop, AI_ENGINE_TIMING.loopInterval);
     logger.ai.info('Autonomous plant decision engine started');

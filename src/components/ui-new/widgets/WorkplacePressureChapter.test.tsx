@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { WorkplacePressureChapter } from './WorkplacePressureChapter';
+import { WorkplacePressureChapter, deriveWorkplaceGuidance } from './WorkplacePressureChapter';
 import { createWorkplace, workplaceReadiness } from '../../../simulation/bilateralWorkplace';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
 import {
@@ -79,6 +79,23 @@ describe('Authored pressure chapter', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Go to Shift controls' }));
     expect(navigate).toHaveBeenCalledWith('Shift');
     expect(useWorkplaceStore.getState().workplace.campaign?.inspectionUntilMinute).toBeNull();
+  });
+  it('rounds a running inspection deadline to a whole modeled minute', () => {
+    const state = thirdShift('team');
+    const held = {
+      ...state,
+      phase: 'active' as const,
+      minute: 25.375,
+      campaign: {
+        ...state.campaign!,
+        shift: 1,
+        inspectionComplete: false,
+        inspectionUntilMinute: 30.375,
+      },
+    };
+    const { next } = deriveWorkplaceGuidance(held);
+    expect(next).toContain('until modeled minute 31.');
+    expect(next).not.toContain('30.375');
   });
   it('shows retained burden for a direct third shift and navigates without answering or mutating', () => {
     const state = thirdShift();

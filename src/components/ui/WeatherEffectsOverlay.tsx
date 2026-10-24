@@ -12,6 +12,12 @@ import { CloudRain, CloudLightning, Wind, Snowflake } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 
 import { useUIStore } from '../../stores';
+import {
+  selectInAppReducedMotion,
+  useMotionPreferenceStore,
+} from '../../stores/motionPreferenceStore';
+import { useT } from '../../i18n';
+import { weatherEffectsOverlayMessages } from './WeatherEffectsOverlay.messages';
 
 type WeatherType = 'storm' | 'rain' | 'wind' | 'snow' | 'clear';
 
@@ -64,7 +70,10 @@ export const WeatherEffectsOverlay: React.FC = () => {
     })
   );
 
-  const reduceMotion = useReducedMotion();
+  // framer's hook reads only the OS media query; the in-app setting is OR'd in.
+  const inAppReducedMotion = useMotionPreferenceStore(selectInAppReducedMotion);
+  const reduceMotion = useReducedMotion() || inAppReducedMotion;
+  const t = useT(weatherEffectsOverlayMessages);
 
   if (!weatherAlert) return null;
 
@@ -129,7 +138,7 @@ export const WeatherEffectsOverlay: React.FC = () => {
           {getWeatherIcon()}
           <div className="flex flex-col">
             <span className="text-xs font-medium text-white uppercase">
-              {weatherAlert.type} Warning
+              {t('warning', { type: weatherAlert.type })}
             </span>
             <span
               className={`text-[10px] ${
@@ -140,7 +149,7 @@ export const WeatherEffectsOverlay: React.FC = () => {
                     : 'text-slate-400'
               }`}
             >
-              Severity: {weatherAlert.severity}
+              {t('severity', { severity: weatherAlert.severity })}
             </span>
           </div>
         </motion.div>

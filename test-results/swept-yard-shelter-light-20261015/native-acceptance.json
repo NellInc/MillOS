@@ -1,0 +1,161 @@
+[
+  {
+    "label": "day",
+    "scene": "farm",
+    "servedBuildMatches": true,
+    "sandboxedMetal": true,
+    "cleanDiagnostics": true,
+    "worldCommunityCheckpoints": true,
+    "generalVehicleMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "timingMisses": [
+      "firstFrame",
+      "averageFps",
+      "p95Frame",
+      "p99Frame",
+      "onePercentLow"
+    ],
+    "loadPerCore": 12.4,
+    "p95FrameMs": 23.7,
+    "startupMarks": {
+      "millos:bootstrap": 249.3,
+      "millos:first-frame": 352,
+      "millos:world-ready": 19729.2,
+      "millos:startup-ready": 44606.1
+    },
+    "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AG-swept-yard-shelter-day-20261015/farm.png"
+  },
+  {
+    "label": "day",
+    "scene": "picnic-shelter",
+    "servedBuildMatches": true,
+    "sandboxedMetal": true,
+    "cleanDiagnostics": true,
+    "worldCommunityCheckpoints": true,
+    "generalVehicleMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "timingMisses": [
+      "p95Frame"
+    ],
+    "loadPerCore": 11.51,
+    "p95FrameMs": 17.5,
+    "startupMarks": {
+      "millos:bootstrap": 219.5,
+      "millos:first-frame": 281.3,
+      "millos:world-ready": 21165.8,
+      "millos:startup-ready": 27937.9
+    },
+    "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AG-swept-yard-shelter-day-20261015/picnic-shelter.png"
+  },
+  {
+    "label": "dusk",
+    "scene": "farm",
+    "servedBuildMatches": true,
+    "sandboxedMetal": true,
+    "cleanDiagnostics": true,
+    "worldCommunityCheckpoints": true,
+    "generalVehicleMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "timingMisses": [
+      "averageFps",
+      "p95Frame",
+      "p99Frame",
+      "onePercentLow"
+    ],
+    "loadPerCore": 12.58,
+    "p95FrameMs": 23.7,
+    "startupMarks": {
+      "millos:bootstrap": 114.4,
+      "millos:first-frame": 191.8,
+      "millos:world-ready": 20585.4,
+      "millos:startup-ready": 26995.8
+    },
+    "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AG-swept-yard-shelter-dusk-20261015/farm.png"
+  },
+  {
+    "label": "dusk",
+    "scene": "picnic-shelter",
+    "servedBuildMatches": true,
+    "sandboxedMetal": true,
+    "cleanDiagnostics": true,
+    "worldCommunityCheckpoints": true,
+    "generalVehicleMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "timingMisses": [
+      "p95Frame"
+    ],
+    "loadPerCore": 12.37,
+    "p95FrameMs": 17.4,
+    "startupMarks": {
+      "millos:bootstrap": 129.6,
+      "millos:first-frame": 187.5,
+      "millos:world-ready": 19268.2,
+      "millos:startup-ready": 24618.6
+    },
+    "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AG-swept-yard-shelter-dusk-20261015/picnic-shelter.png"
+  },
+  {
+    "label": "night",
+    "scene": "farm",
+    "servedBuildMatches": true,
+    "sandboxedMetal": true,
+    "cleanDiagnostics": true,
+    "worldCommunityCheckpoints": true,
+    "generalVehicleMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "timingMisses": [
+      "averageFps",
+      "p95Frame",
+      "onePercentLow"
+    ],
+    "loadPerCore": 12.41,
+    "p95FrameMs": 20.7,
+    "startupMarks": {
+      "millos:bootstrap": 172.9,
+      "millos:first-frame": 233.2,
+      "millos:world-ready": 18392.9,
+      "millos:startup-ready": 25226.1
+    },
+    "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AG-swept-yard-shelter-night-20261015/farm.png"
+  },
+  {
+    "label": "night",
+    "scene": "picnic-shelter",
+    "servedBuildMatches": true,
+    "sandboxedMetal": true,
+    "cleanDiagnostics": true,
+    "worldCommunityCheckpoints": true,
+    "generalVehicleMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "timingMisses": [
+      "p95Frame"
+    ],
+    "loadPerCore": 12.4,
+    "p95FrameMs": 17.6,
+    "startupMarks": {
+      "millos:bootstrap": 196.2,
+      "millos:first-frame": 250.3,
+      "millos:world-ready": 19536,
+      "millos:startup-ready": 25105.3
+    },
+    "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AG-swept-yard-shelter-night-20261015/picnic-shelter.png"
+  }
+]

@@ -156,8 +156,10 @@ def roof(x, z, w, d, eave, ridge, yaw=0, hip=True):
         poly(ends[0],'plaster',coords)
         poly(list(reversed(ends[1])),'plaster',list(reversed(coords)))
         poly([ends[0][0],ends[0][-1],ends[1][-1],ends[1][0]],'timber')
-        if yaw==0:box(x,ridge+.04,z,w,.15,.18,'tile-ridge')
-        else:box(x,ridge+.04,z,.18,.15,w,'tile-ridge')
+        # Ridge tiles overhang each gable by 2 cm: ending flush, their ends lay
+        # in the plaster gable's plane, blue and white fighting at the apex.
+        if yaw==0:box(x,ridge+.04,z,w+.04,.15,.18,'tile-ridge')
+        else:box(x,ridge+.04,z,.18,.15,w+.04,'tile-ridge')
         features.append({'kind':'curved-gable-roof','centre':[x,z],'eave':eave,'ridge':ridge})
         return
     inset = min(d*.7, w*.25) if hip else 0
@@ -202,7 +204,9 @@ for k in range(2):
   poly([lower[i],lower[j],upper[j],upper[i]],'rock')
  if k==1:poly(upper,'rock',[(0,0)]*len(upper))
 poly([(x,0,z) for x,z in reversed(outline)],'rock',[(0,0)]*len(outline))
-box(0,2.7,0,31.7,1,31.7,'masonry')
+# Supporting masonry ends at the paving underside, leaving one exposed court.
+# Working if the court has no coplanar foundation skin at its 3.2 m datum.
+box(0,2.63,0,31.7,.86,31.7,'masonry')
 box(0,3.13,0,31.85,.14,31.85,'paving')
 
 # Arched windows use their own sloping stone reveal, dark inset and sill.
@@ -326,8 +330,9 @@ roof(9.6,2,16,2.65,12.1,13.2,math.pi/2)
 # The white gatehouse retains its real vaulted passage and walking datum.
 arch_wall(7.2,13.65,15.0,3.6,BASE,6.0,11.4,3.7,'gate-white')
 roof(7.2,13.65,15.6,4.2,11.4,13.3)
-box(7.2,10.8,15.48,15,.18,.18,'stone-light')
-for x in [2.65,11.75]:box(x,4.1,15.48,5.9,.18,.18,'stone-light')
+# String courses run 2 cm past the gate wall's ends instead of ending in its planes.
+box(7.2,10.8,15.48,15.04,.18,.18,'stone-light')
+for x in [2.64,11.76]:box(x,4.1,15.48,5.92,.18,.18,'stone-light')
 for x in [1.6,4,10.4,12.8]:window(x,15.45,9.2,.66,1.3)
 for i in range(10):
  a=i*math.pi/10;b=(i+1)*math.pi/10

@@ -9,9 +9,18 @@ import { WorkplaceImprovementPanel } from './WorkplaceImprovementPanel';
 import { workplaceMission } from '../../../simulation/workplaceImprovement';
 import { WorkplacePressureChapter } from './WorkplacePressureChapter';
 import { WorkplacePracticeProposal } from './WorkplaceNegotiation';
-import { WorkplaceCampaignArchive } from './WorkplaceCampaignArchive';
+import {
+  FollowOnNotice,
+  WorkplaceCampaignArchive,
+  WorkplaceLeaveSeason,
+} from './WorkplaceCampaignArchive';
 import { WorkplaceReplay, WorkplaceReplayGuide, WorkplaceReplayResume } from './WorkplaceReplay';
-import { useWorkplaceStore, useWorkplaceControls } from '../../../stores/workplaceStore';
+import {
+  pendingFollowOn,
+  useWorkplaceStore,
+  useWorkplaceControls,
+} from '../../../stores/workplaceStore';
+import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import {
   PRACTICES,
@@ -22,6 +31,7 @@ import {
   compareWorkplacePlans,
   compareManagementApproaches,
   exportWorkplace,
+  displayEventDetail,
 } from '../../../simulation/bilateralWorkplace';
 import {
   CAMPAIGN_SHIFTS,
@@ -30,12 +40,17 @@ import {
   campaignTotals,
   campaignComplete,
   campaignOutcomes,
+  campaignLearningReview,
   campaignStory,
   MANAGEMENT_APPROACHES,
   CAMPAIGN_PRESSURES,
   campaignRelationship,
+  shiftResumable,
 } from '../../../simulation/workplaceCampaign';
 import { executeAgentCommand } from '../../../agent/client/executeAgentCommand';
+import { formatFixed, formatGrouped, getLocale, translate, useT } from '../../../i18n';
+import { workplaceLabMessages as messages } from './WorkplaceLab.messages';
+import { workplaceImprovementPanelMessages as improvementMessages } from './WorkplaceImprovementPanel.messages';
 import type {
   ObjectionKind,
   WorkplaceProfile,
@@ -57,16 +72,25 @@ const sections = [
   'Review',
   'Experiment',
 ] as const;
-const modes: { value: WorkplaceMode; label: string }[] = [
-  { value: 'game', label: 'Game' },
-  { value: 'workshop', label: 'Workshop' },
-  { value: 'pilot', label: 'Pilot preparation' },
+const modes: { value: WorkplaceMode; labelKey: 'modeGame' | 'modeWorkshop' | 'modePilot' }[] = [
+  { value: 'game', labelKey: 'modeGame' },
+  { value: 'workshop', labelKey: 'modeWorkshop' },
+  { value: 'pilot', labelKey: 'modePilot' },
 ];
+/** Integers and authored decimals exactly as String(n) renders them in English. */
+const formatPlain = (value: number) =>
+  Number.isInteger(value)
+    ? formatFixed(value, 0)
+    : getLocale() === 'en'
+      ? String(value)
+      : formatGrouped(value, { maximumFractionDigits: 6 });
 const kinds: ObjectionKind[] = ['rest', 'burden', 'privacy', 'authority'];
 const destinations: SurplusDestination[] = ['members', 'reserve', 'community'];
 
 export const WorkplaceLab: React.FC = () => {
+  const t = useT(messages);
   const labRef = useRef<HTMLElement>(null);
+  const objectionTargets = useRef(new Map<string, HTMLDivElement>());
   const store = useWorkplaceControls();
   const state = store.workplace;
   const [section, setSection] = useState<(typeof sections)[number]>(
@@ -102,7 +126,13 @@ export const WorkplaceLab: React.FC = () => {
   const relationship = campaign ? campaignRelationship(state) : [];
   const totals = campaign ? campaignTotals(state) : null;
   const outcomes = campaign ? campaignOutcomes(state) : null;
+  const learningReview = campaignLearningReview(state);
   const mission = workplaceMission(state);
+  // The order the next shift would link, re-read as orders move; "from the
+  // next shift" is promised only when there is one and a next shift.
+  const nextLinkCustomer = useOperationsCampaignStore(
+    () => pendingFollowOn(state)?.customer ?? null
+  );
   const displayTarget = mission?.targetKg ?? state.targetKg;
   const configuring = state.phase === 'idle' || state.phase === 'deliberating';
   const canConfigure = state.phase === 'deliberating';
@@ -120,10 +150,19 @@ export const WorkplaceLab: React.FC = () => {
       state.finance.distributed -
       state.finance.communityAllocation
   );
+  // The engine accepts surplus ballots and allocation only under the
+  // 'gainsharing' practice. Working if neither control is offered without it.
+  const sharedSurplus = state.practices.includes('gainsharing');
+  const modeLabelKey = modes.find((item) => item.value === state.mode)?.labelKey;
+  const freshExercise = () => {
+    setSection('Shift');
+    setMode('game');
+    setSeed(String(useWorkplaceStore.getState().workplace.seed));
+    setFeedback(translate(messages, 'freshExercise'));
+    setReceipt(null);
+  };
   const report = (result: WorkplaceTransitionResult) => {
-    setFeedback(
-      result.reason ?? (result.changed ? 'Recorded in this local scenario.' : 'No change.')
-    );
+    setFeedback(result.reason ?? translate(messages, result.changed ? 'recorded' : 'noChange'));
     setReceipt(null);
   };
   const begin = () => {
@@ -152,13 +191,18 @@ export const WorkplaceLab: React.FC = () => {
         !manual || (store.participationMode === 'separate-turns' && store.turn?.actorId !== actorId)
       }
     >
-      <legend className="font-semibold text-white">Understanding checks: {role}</legend>
+      <legend className="font-semibold text-white">{t('understandingChecks', { role })}</legend>
       {WORKPLACE_CHECKS.filter((check) => requiredChecks(actorId).includes(check.id)).map(
         (check) => (
           <label key={check.id} className="block">
             {check.prompt}
             <select
-              aria-label={`${role}: ${check.prompt}`}
+              aria-label={t('checkAria', { role, prompt: check.prompt })}
+              aria-invalid={
+                campaign?.checks[actorId]?.[check.id]
+                  ? campaign.checks[actorId][check.id] !== check.correct
+                  : undefined
+              }
               aria-describedby={
                 campaign?.checks[actorId]?.[check.id]
                   ? `check-answer-${actorId}-${check.id}`
@@ -171,7 +215,7 @@ export const WorkplaceLab: React.FC = () => {
               }
             >
               <option value="" disabled>
-                Select an answer
+                {t('selectAnswer')}
               </option>
               {check.options.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -182,6 +226,7 @@ export const WorkplaceLab: React.FC = () => {
             {campaign?.checks[actorId]?.[check.id] && (
               <span
                 id={`check-answer-${actorId}-${check.id}`}
+                aria-live="polite"
                 className="mt-1 block whitespace-normal break-words text-slate-300"
               >
                 {
@@ -189,6 +234,16 @@ export const WorkplaceLab: React.FC = () => {
                     (option) => option.value === campaign.checks[actorId]?.[check.id]
                   )?.label
                 }
+                <span
+                  className={`mt-1 block ${campaign.checks[actorId]?.[check.id] === check.correct ? 'text-cyan-100' : 'text-amber-100'}`}
+                >
+                  <strong>
+                    {campaign.checks[actorId]?.[check.id] === check.correct
+                      ? t('matchesTerms')
+                      : t('needsAnotherLook')}
+                  </strong>
+                  {check.clarification}
+                </span>
               </span>
             )}
           </label>
@@ -222,8 +277,10 @@ export const WorkplaceLab: React.FC = () => {
       const problems = [...result.preview.problems, ...(result.receipt?.problems ?? [])];
       setFeedback(
         [
-          `Preview: ${result.preview.status}.`,
-          result.receipt ? `Execution: ${result.receipt.status}.` : 'No execution receipt.',
+          translate(messages, 'previewStatus', { status: result.preview.status }),
+          result.receipt
+            ? translate(messages, 'executionStatus', { status: result.receipt.status })
+            : translate(messages, 'noExecutionReceipt'),
           ...result.preview.authority.reasons,
           ...problems.map((problem) => problem.message),
         ].join(' ')
@@ -242,9 +299,7 @@ export const WorkplaceLab: React.FC = () => {
     const changed = useWorkplaceStore.getState().workplace !== before;
     report({
       changed,
-      reason: changed
-        ? 'Five modeled rehearsal minutes recorded. No plant movement or shipment.'
-        : 'No modeled time could advance.',
+      reason: translate(messages, changed ? 'rehearsalAdvanced' : 'rehearsalNoAdvance'),
     });
   };
   const replay = () => {
@@ -262,34 +317,32 @@ export const WorkplaceLab: React.FC = () => {
     link.download = `millos-workplace-${state.seed}-r${state.revision}.json`;
     link.click();
     URL.revokeObjectURL(url);
-    setFeedback('Synthetic scenario exported locally. No remote send.');
+    setFeedback(translate(messages, 'exported'));
   };
 
   return (
     <section
       ref={labRef}
-      aria-label="Workplace laboratory"
+      aria-label={t('labTitle')}
       className="min-w-0 space-y-4 rounded-xl border border-cyan-300/25 bg-slate-950 p-3 text-xs leading-relaxed text-slate-200 selection:bg-cyan-800 selection:text-white"
     >
       <header>
-        <h3 className="text-base font-semibold text-white">Workplace laboratory</h3>
+        <h3 className="text-base font-semibold text-white">{t('labTitle')}</h3>
         <p className="mt-1">
           {section === 'Handoff'
-            ? 'Worker proposals, bounded trials and member review.'
+            ? t('introHandoff')
             : state.improvement
-              ? 'The handoff experiment: member proposals, bounded trials and retained obligations.'
+              ? t('introImprovement')
               : campaign
-                ? 'Living Cooperative: three shifts, shared obligations and challengeable decisions.'
-                : 'Friday order: meet the shipment while protecting rest and agreed work.'}
+                ? t('introCampaign')
+                : t('introFriday')}
         </p>
-        <p className="mt-2 text-slate-300">
-          Synthetic roles only. No real worker data or independently authenticated ballots.
-        </p>
+        <p className="mt-2 text-slate-300">{t('syntheticNotice')}</p>
       </header>
       <WorkplaceParticipation report={report} />
       <WorkplaceAutomaticDemo profile={profile} />
       <WorkplaceDemonstration navigate={setSection} report={report} />
-      <div className="flex flex-wrap gap-1" aria-label="Workplace sections">
+      <div className="flex flex-wrap gap-1" aria-label={t('sectionsLabel')}>
         {sections.map((name) => (
           <button
             key={name}
@@ -301,24 +354,37 @@ export const WorkplaceLab: React.FC = () => {
               labRef.current?.scrollIntoView?.({ block: 'start', behavior: 'instant' });
             }}
           >
-            {name}
+            {t('sectionLabel', { section: name })}
           </button>
         ))}
       </div>
       <p className="text-cyan-100" role="status">
-        {modes.find((item) => item.value === state.mode)?.label}: {state.phase}, minute{' '}
-        {state.minute.toFixed(1)} of {state.durationMinutes}. Revision {state.revision}.
+        {t('statusLine', {
+          mode: modeLabelKey ? t(modeLabelKey) : '',
+          phase: t('phaseLabel', { phase: state.phase }),
+          minute: formatFixed(state.minute, 1),
+          duration: formatPlain(state.durationMinutes),
+          revision: formatPlain(state.revision),
+        })}
       </p>
       {feedback && (
         <p role="status" className="break-words text-amber-100">
           {feedback}
         </p>
       )}
-      {receipt && <p className="break-all text-cyan-100">Causal receipt: {receipt}</p>}
+      {receipt && <p className="break-all text-cyan-100">{t('causalReceipt', { receipt })}</p>}
 
       {section === 'Handoff' && (
         <WorkplaceImprovementPanel
           onSeasonStart={() => setSection('Shift')}
+          onReviewObjection={(id) => {
+            setSection('Agreement / Voices');
+            requestAnimationFrame(() => {
+              const target = objectionTargets.current.get(id);
+              target?.scrollIntoView?.({ block: 'start', behavior: 'instant' });
+              target?.focus({ preventScroll: true });
+            });
+          }}
           profile={profile}
           setProfile={setProfile}
           mode={mode}
@@ -330,9 +396,9 @@ export const WorkplaceLab: React.FC = () => {
       )}
       {section === 'Shift' && (
         <div className="space-y-2 border-b border-slate-700 pb-4">
-          <p>Try a worker-led improvement, then decide what the next shift retains.</p>
+          <p>{t('shiftIntro')}</p>
           <button type="button" className={buttonClass} onClick={() => setSection('Handoff')}>
-            Open handoff controls
+            {t('openHandoff')}
           </button>
         </div>
       )}
@@ -342,37 +408,30 @@ export const WorkplaceLab: React.FC = () => {
       />
       <WorkplaceReplayResume />
       <WorkplacePressureChapter state={state} navigate={setSection} />
-      <WorkplaceCampaignArchive
-        onFreshExercise={() => {
-          setSection('Shift');
-          setMode('game');
-          setSeed(String(useWorkplaceStore.getState().workplace.seed));
-          setFeedback('Review retained. Choose a charter for the fresh exercise.');
-          setReceipt(null);
-        }}
-      />
+      <WorkplaceCampaignArchive onFreshExercise={freshExercise} />
+      <WorkplaceLeaveSeason onLeft={freshExercise} />
 
       {section === 'Shift' && (
         <div className="space-y-4">
           {state.phase === 'idle' && (
             <div className="space-y-2">
               <label className="block">
-                Mode
+                {t('mode')}
                 <select
-                  aria-label="Mode"
+                  aria-label={t('mode')}
                   className={inputClass}
                   value={mode}
                   onChange={(e) => setMode(e.target.value as WorkplaceMode)}
                 >
                   {modes.map((item) => (
                     <option key={item.value} value={item.value}>
-                      {item.label}
+                      {t(item.labelKey)}
                     </option>
                   ))}
                 </select>
               </label>
               <label className="block">
-                Scenario seed
+                {t('scenarioSeed')}
                 <input
                   className={inputClass}
                   type="number"
@@ -384,25 +443,19 @@ export const WorkplaceLab: React.FC = () => {
               </label>
               {mode === 'game' && (
                 <div className="space-y-2 border-b border-slate-700 pb-4">
-                  <h4 className="font-semibold text-white">Living Cooperative</h4>
-                  <p>
-                    Three linked shifts: order pressure, a quality hold and retaliation pressure.
-                    Packing is your role. Each shift keeps its earned pay, recovery obligations and
-                    authored objections.
-                  </p>
+                  <h4 className="font-semibold text-white">{t('livingCooperative')}</h4>
+                  <p>{t('livingIntro')}</p>
                   <label className="block">
-                    Adoption profile
+                    {t('adoptionProfile')}
                     <select
-                      aria-label="Adoption profile"
+                      aria-label={t('adoptionProfile')}
                       className={inputClass}
                       value={profile}
                       onChange={(event) => setProfile(event.target.value as WorkplaceProfile)}
                     >
-                      <option value="toe-dip">Coordinator-led: protected practice set</option>
-                      <option value="team">Team agreement: shared work and consent</option>
-                      <option value="cooperative">
-                        Member governance: cooperative and bounded execution
-                      </option>
+                      <option value="toe-dip">{t('profileToeDip')}</option>
+                      <option value="team">{t('profileTeam')}</option>
+                      <option value="cooperative">{t('profileCooperative')}</option>
                     </select>
                   </label>
                   <button
@@ -410,55 +463,51 @@ export const WorkplaceLab: React.FC = () => {
                     disabled={!validSeed}
                     onClick={beginCampaign}
                   >
-                    Start Living Cooperative campaign
+                    {t('startCampaign')}
                   </button>
-                  <p>
-                    Local game only. Starting selects Relaxed pace, 1/6 of Standard (30× simulated
-                    time, compared with Standard 180×). Profiles introduce practices incrementally;
-                    every profile retains basic protections.
-                  </p>
+                  <p>{t('campaignPaceNote')}</p>
                 </div>
               )}
               <button className={buttonClass} disabled={!validSeed} onClick={begin}>
                 {mode === 'game'
-                  ? 'Start playable shift at teaching pace (15×)'
+                  ? t('startGame')
                   : mode === 'workshop'
-                    ? 'Start manual workshop'
-                    : 'Prepare pilot charter'}
+                    ? t('startWorkshop')
+                    : t('preparePilot')}
               </button>
-              <p>
-                {mode === 'game'
-                  ? 'Opt in to local simulation control. This standalone teaching pace runs at 1/12 of Standard (15× simulated time). Campaign Relaxed pace is 1/6 of Standard (30×).'
-                  : 'No live plant control. Workshop inputs remain manual; pilot preparation permits charter design and export only.'}
-              </p>
+              <p>{mode === 'game' ? t('gameNote') : t('otherNote')}</p>
             </div>
           )}
           {episode && campaign && (
             <div className="space-y-2 border-b border-slate-700 pb-4">
               <h4 className="font-semibold text-white">
-                Shift {campaign.shift + 1} of 3: {episode.title}
+                {t('shiftHeading', {
+                  number: formatFixed(campaign.shift + 1, 0),
+                  title: episode.title,
+                })}
               </h4>
               <p>
                 {mission && campaign.shift === 0
-                  ? `${mission.customer} has ${mission.originalTargetKg.toFixed(0)} kg remaining on the customer commitment. Quality declines extra duty; Packing and Maintenance may volunteer separately. Earn a fresh working agreement.`
+                  ? t('missionBriefing', {
+                      customer: mission.customer,
+                      kg: formatFixed(mission.originalTargetKg, 0),
+                    })
                   : episode.briefing}
               </p>
               <p className="text-cyan-100">
                 {mission && campaign.shift === 0
-                  ? `Keep the ${mission.originalTargetKg.toFixed(0)} kg delivery target, or negotiate an ${(mission.originalTargetKg * 0.8).toFixed(0)} kg installment with ${(mission.originalTargetKg * 0.2).toFixed(0)} kg deferred. The full customer commitment remains.`
+                  ? t('missionPrompt', {
+                      kg: formatFixed(mission.originalTargetKg, 0),
+                      installment: formatFixed(mission.originalTargetKg * 0.8, 0),
+                      deferred: formatFixed(mission.originalTargetKg * 0.2, 0),
+                    })
                   : episode.prompt}
               </p>
               {campaignStory(state).map((line) => (
                 <p key={line}>{line}</p>
               ))}
-              <p>Adviser role checks are authored role-play in this local scenario.</p>
-              {campaign.shift === 2 && (
-                <p>
-                  The adviser must correct its earlier recommendation and repair the pressure it
-                  created. Previous consent authorizes no new burden. Packing can refuse; each
-                  author can challenge and resolve their own objection.
-                </p>
-              )}
+              <p>{t('adviserRolePlay')}</p>
+              {campaign.shift === 2 && <p>{t('shiftThreeNote')}</p>}
               <div className="flex flex-wrap gap-2">
                 {episode.choices.map((choice) => (
                   <button
@@ -476,29 +525,42 @@ export const WorkplaceLab: React.FC = () => {
                     onClick={() => report(store.campaignDecision(choice.id, choice.actorId))}
                   >
                     {mission && campaign.shift !== 1 && choice.id === 'renegotiate'
-                      ? `Negotiate an ${(mission.originalTargetKg * 0.8).toFixed(0)} kg installment${campaign.shift === 2 ? ' and protect pay' : ''}`
+                      ? t(
+                          campaign.shift === 2
+                            ? 'negotiateInstallmentProtectPay'
+                            : 'negotiateInstallment',
+                          { kg: formatFixed(mission.originalTargetKg * 0.8, 0) }
+                        )
                       : mission && campaign.shift === 0
                         ? choice.id === 'keep-target'
-                          ? `Keep the ${mission.originalTargetKg.toFixed(0)} kg commitment`
-                          : `Negotiate an ${(mission.originalTargetKg * 0.8).toFixed(0)} kg installment`
+                          ? t('keepCommitment', { kg: formatFixed(mission.originalTargetKg, 0) })
+                          : t('negotiateInstallment', {
+                              kg: formatFixed(mission.originalTargetKg * 0.8, 0),
+                            })
                         : choice.label}
                   </button>
                 ))}
               </div>
-              <p>Recorded decision: {campaign.decision ?? 'pending'}.</p>
+              <p>
+                {t('recordedDecision', {
+                  decision:
+                    campaign.decision != null
+                      ? t('decisionLabel', { decision: campaign.decision })
+                      : t('pending'),
+                })}
+              </p>
               {campaign.shift === 1 && (
                 <p>
                   {campaign.inspectionComplete
-                    ? 'Quality inspection complete.'
+                    ? t('inspectionComplete')
                     : campaign.inspectionUntilMinute !== null
-                      ? `Quality hold in progress until minute ${campaign.inspectionUntilMinute}.`
-                      : 'Quality can begin inspection from minute 25. Line pacing pauses; actual batch certification still gates shipping.'}
+                      ? t('inspectionUntil', {
+                          minute: formatFixed(Math.ceil(campaign.inspectionUntilMinute), 0),
+                        })
+                      : t('inspectionFrom')}
                 </p>
               )}
-              <p>
-                Review the shift, deliver owed recovery and resolve every authored objection before
-                continuing.
-              </p>
+              <p>{t('reviewBeforeContinuing')}</p>
             </div>
           )}
           {pressure && (
@@ -511,15 +573,16 @@ export const WorkplaceLab: React.FC = () => {
               }
             >
               <summary className="cursor-pointer font-semibold text-white">
-                Pressure card: {pressure.title}
+                {t('pressureCard', { title: pressure.title })}
               </summary>
               <div className="mt-2 space-y-2">
                 <p>{pressure.demand}</p>
                 <p>
-                  The challenge belongs to{' '}
-                  {state.members.find((member) => member.id === pressure.challenger)?.role ??
-                    'the adviser'}
-                  .
+                  {t('challengeBelongs', {
+                    role:
+                      state.members.find((member) => member.id === pressure.challenger)?.role ??
+                      t('theAdviser'),
+                  })}
                 </p>
                 <div className="flex flex-wrap gap-2">
                   <button
@@ -527,7 +590,7 @@ export const WorkplaceLab: React.FC = () => {
                     disabled={!manual}
                     onClick={() => report(store.respondToPressure(pressure.id, 'accept-demand'))}
                   >
-                    Try the demand (blocked and challenged)
+                    {t('tryDemand')}
                   </button>
                   <button
                     className={buttonClass}
@@ -544,45 +607,62 @@ export const WorkplaceLab: React.FC = () => {
                     }
                     onClick={() => report(store.respondToPressure(pressure.id, 'protect-boundary'))}
                   >
-                    Restate protected terms
+                    {t('restateTerms')}
                   </button>
                 </div>
                 <p>{pressure.repair}</p>
-                <p>
-                  Trying the demand pauses activation. Restating terms leaves any objection open
-                  until its raiser reviews it in Agreement / Voices. Both sides then renew
-                  understanding.
-                </p>
+                <p>{t('pressureNote')}</p>
                 <button className={buttonClass} onClick={() => setSection('Agreement / Voices')}>
-                  Review the challenge and remedy
+                  {t('reviewChallenge')}
                 </button>
               </div>
             </details>
           )}
           {mission && (
             <p className="tabular-nums">
-              {mission.customer}: {mission.creditedKg.toFixed(1)} / {mission.targetKg.toFixed(0)} kg
-              qualified dispatch credit. Agreed deferral:{' '}
-              {Math.max(0, mission.originalTargetKg - mission.targetKg).toFixed(0)} kg. Remaining
-              full customer commitment:{' '}
-              {Math.max(0, mission.originalTargetKg - mission.creditedKg).toFixed(0)} kg.
-              {mission.creditedKg >= mission.originalTargetKg &&
-                ' Full customer commitment dispatched.'}
+              {t('missionCredit', {
+                customer: mission.customer,
+                credited: formatFixed(mission.creditedKg, 1),
+                target: formatFixed(mission.targetKg, 0),
+                deferred: formatFixed(Math.max(0, mission.originalTargetKg - mission.targetKg), 0),
+                remaining: formatFixed(
+                  Math.max(0, mission.originalTargetKg - mission.creditedKg),
+                  0
+                ),
+              })}
+              {mission.creditedKg >= mission.originalTargetKg && t('fullDispatchedSuffix')}
             </p>
           )}
+          {campaign?.followOn ? (
+            <>
+              <p className="tabular-nums">
+                {t('followOnCredit', {
+                  customer: campaign.followOn.customer,
+                  credited: formatFixed(campaign.followOn.creditedKg, 1),
+                })}
+              </p>
+              <FollowOnNotice state={state} />
+            </>
+          ) : (
+            campaign?.mission &&
+            campaign.mission.creditedKg + 1e-6 >= campaign.mission.originalTargetKg && (
+              <p>
+                {nextLinkCustomer
+                  ? t('followOnPending', { customer: nextLinkCustomer })
+                  : t(campaign.shift >= 2 ? 'followOnNoneLastShift' : 'followOnNone')}
+              </p>
+            )
+          )}
           <div>
-            <h4 className="font-semibold text-white">Choose the response</h4>
+            <h4 className="font-semibold text-white">{t('chooseResponse')}</h4>
             <p className="mt-1">
-              Target {displayTarget.toFixed(0)} kg. Active plant capacity multiplier{' '}
-              {workplaceCapacity(state).toFixed(2)}×. Changing a plan clears the role agreement.
+              {t('targetLine', {
+                target: formatFixed(displayTarget, 0),
+                capacity: formatFixed(workplaceCapacity(state), 2),
+              })}
             </p>
             {campaign?.shift === 2 && (
-              <p className="mt-2 text-cyan-100">
-                A declined offer can lead to protected pacing, funded handoffs or a different
-                current qualified volunteer. Negotiate a smaller installment above if needed;
-                unfinished customer work remains open. An objection holds execution until its raiser
-                reviews the remedy.
-              </p>
+              <p className="mt-2 text-cyan-100">{t('shiftThreeResponseNote')}</p>
             )}
             <div className="mt-2 space-y-3">
               {WORKPLACE_PLANS.map((choice) => (
@@ -602,14 +682,18 @@ export const WorkplaceLab: React.FC = () => {
                     </span>
                   </span>
                   <span className="mt-1 block pl-5 text-slate-300">
-                    Plant capacity multiplier {choice.capacity.toFixed(2)}×; protected rest{' '}
-                    {choice.protectedRestMinutes} min; optional cover {choice.optionalCoverMinutes}{' '}
-                    min; cover compensation {choice.compensationPerMinute} credits/min; recovery{' '}
-                    {choice.recoveryMinutes} min; budget {choice.budgetCost} credits.
+                    {t('planTerms', {
+                      capacity: formatFixed(choice.capacity, 2),
+                      rest: formatPlain(choice.protectedRestMinutes),
+                      cover: formatPlain(choice.optionalCoverMinutes),
+                      compensation: formatPlain(choice.compensationPerMinute),
+                      recovery: formatPlain(choice.recoveryMinutes),
+                      budget: formatPlain(choice.budgetCost),
+                    })}
                   </span>
                   {choice.illegalReason && (
                     <span className="block pl-5 text-amber-100">
-                      Prohibited: {choice.illegalReason}
+                      {t('prohibitedReason', { reason: choice.illegalReason })}
                     </span>
                   )}
                   {campaign?.shift === 2 &&
@@ -620,24 +704,29 @@ export const WorkplaceLab: React.FC = () => {
                       return (
                         <span className="mt-1 block space-y-1 pl-5 text-xs leading-5 text-slate-300">
                           <span className="block tabular-nums">
-                            Wages reserved {terms.reserve.toFixed(2)}; improvement{' '}
-                            {terms.budgetCost.toFixed(2)}; maximum cover pay{' '}
-                            {terms.maximumCompensation.toFixed(2)} credits. Cash after these
-                            reservations {terms.cashAfterReservations.toFixed(2)} credits.
+                            {t('reservations', {
+                              reserve: formatFixed(terms.reserve, 2),
+                              improvement: formatFixed(terms.budgetCost, 2),
+                              maxPay: formatFixed(terms.maximumCompensation, 2),
+                              cash: formatFixed(terms.cashAfterReservations, 2),
+                            })}
                           </span>
                           {terms.constraint && (
                             <span className="block text-amber-100">{terms.constraint}</span>
                           )}
                           {choice.id === 'cover' && (
                             <span className="block">
-                              Current consenting qualified volunteers:{' '}
-                              {terms.volunteers
-                                .map(
-                                  (m) =>
-                                    `${m.role} (${m.extraMinutes.toFixed(1)} min retained extra duty)`
-                                )
-                                .join('; ') || 'none'}
-                              . Cover lasts at most ten minutes, then pacing returns to 0.78×.
+                              {t('volunteers', {
+                                list:
+                                  terms.volunteers
+                                    .map((m) =>
+                                      t('volunteerEntry', {
+                                        role: m.role,
+                                        minutes: formatFixed(m.extraMinutes, 1),
+                                      })
+                                    )
+                                    .join('; ') || t('none'),
+                              })}
                             </span>
                           )}
                         </span>
@@ -648,60 +737,45 @@ export const WorkplaceLab: React.FC = () => {
             </div>
           </div>
           <details>
-            <summary className="cursor-pointer font-semibold text-cyan-100">
-              AI: why this response?
-            </summary>
+            <summary className="cursor-pointer font-semibold text-cyan-100">{t('aiWhy')}</summary>
             <p className="mt-2">
-              Operational explanation: {plan.explanation} The active plant capacity multiplier is{' '}
-              {workplaceCapacity(state).toFixed(2)}×. The shipment target is{' '}
-              {displayTarget.toFixed(0)} kg.
+              {t('operationalExplanation', {
+                explanation: plan.explanation,
+                capacity: formatFixed(workplaceCapacity(state), 2),
+                target: formatFixed(displayTarget, 0),
+              })}
             </p>
-            <p className="mt-2">
-              Alternatives: compare the four responses above. Boundaries: protected rest, individual
-              optional-cover consent, budget and open objections constrain execution. This
-              explanation reports the model's decision conditions; it does not expose hidden
-              reasoning.
-            </p>
-            <p className="mt-2">
-              Dispatch remains uncertain until quality-qualified manifests arrive. Supply and
-              logistics can constrain the result. Either party can raise an authority objection;
-              each raiser retains remedy review.
-            </p>
+            <p className="mt-2">{t('alternativesNote')}</p>
+            <p className="mt-2">{t('dispatchUncertain')}</p>
             <button
               className={`${buttonClass} mt-2`}
               onClick={() => setSection('Agreement / Voices')}
             >
-              Challenge the proposal in Agreement / Voices
+              {t('challengeProposal')}
             </button>
           </details>
           {state.mode === 'workshop' && state.phase === 'active' && (
             <button className={buttonClass} onClick={advanceWorkshop}>
-              Advance rehearsal by 5 minutes
+              {t('advanceRehearsal')}
             </button>
           )}
           {['deliberating', 'active'].includes(state.phase) && (
+            // `stop` settles the shift into review and it cannot resume; the
+            // plant clock controls own pausing. Working if the label says so.
             <button className={buttonClass} onClick={() => report(store.stop())}>
-              Pause and finish shift review
+              {t('endShift')}
             </button>
           )}
-          <p>
-            Workplace credits are illustrative accounts, separate from the mill campaign finances.
-          </p>
+          <p>{t('creditsNote')}</p>
         </div>
       )}
 
       {section === 'Practices' && (
         <div className="space-y-4">
-          <p className="text-cyan-100">
-            Always active: safe stops, protected rest, voluntary extra work, earned pay and
-            author-controlled objections. Switching modules never removes these protections.
-          </p>
+          <p className="text-cyan-100">{t('alwaysActive')}</p>
           <fieldset disabled={!canConfigure} className="space-y-3">
-            <legend className="mb-2 font-semibold text-white">Choose a management approach</legend>
-            <p>
-              Change the allocation of decisions while keeping the current plan, money and workload.
-              Revised terms require fresh agreement.
-            </p>
+            <legend className="mb-2 font-semibold text-white">{t('chooseApproach')}</legend>
+            <p>{t('approachNote')}</p>
             {MANAGEMENT_APPROACHES.map((approach) => (
               <div key={approach.id} className="space-y-1">
                 <button
@@ -717,18 +791,18 @@ export const WorkplaceLab: React.FC = () => {
                   }
                   onClick={() => report(store.configure(approach.settings))}
                 >
-                  Apply {approach.title}
+                  {t('applyApproach', { title: approach.title })}
                 </button>
                 <p>{approach.detail}</p>
               </div>
             ))}
           </fieldset>
           <fieldset disabled={!canConfigure} className="space-y-3">
-            <legend className="mb-2 font-semibold text-white">Three independent axes</legend>
+            <legend className="mb-2 font-semibold text-white">{t('threeAxes')}</legend>
             <label className="block">
-              Worker decisions
+              {t('workerDecisions')}
               <select
-                aria-label="Worker decisions"
+                aria-label={t('workerDecisions')}
                 className={inputClass}
                 value={state.workerAutonomy}
                 onChange={(e) =>
@@ -739,30 +813,30 @@ export const WorkplaceLab: React.FC = () => {
                   )
                 }
               >
-                <option value="directed">Directed assignments</option>
-                <option value="individual">Individual work choice</option>
-                <option value="team">Team work choice</option>
+                <option value="directed">{t('directedAssignments')}</option>
+                <option value="individual">{t('individualChoice')}</option>
+                <option value="team">{t('teamChoice')}</option>
               </select>
             </label>
             <label className="block">
-              Shared governance
+              {t('sharedGovernance')}
               <select
-                aria-label="Shared governance"
+                aria-label={t('sharedGovernance')}
                 className={inputClass}
                 value={state.governance}
                 onChange={(e) =>
                   report(store.configure({ governance: e.target.value as typeof state.governance }))
                 }
               >
-                <option value="consultative">Consultative</option>
-                <option value="team-consent">Team consent</option>
-                <option value="member-vote">Member vote</option>
+                <option value="consultative">{t('consultative')}</option>
+                <option value="team-consent">{t('teamConsent')}</option>
+                <option value="member-vote">{t('memberVote')}</option>
               </select>
             </label>
             <label className="block">
-              AI authority
+              {t('aiAuthority')}
               <select
-                aria-label="AI authority"
+                aria-label={t('aiAuthority')}
                 className={inputClass}
                 value={state.aiAuthority}
                 onChange={(e) =>
@@ -771,13 +845,13 @@ export const WorkplaceLab: React.FC = () => {
                   )
                 }
               >
-                <option value="advice">Advice only</option>
-                <option value="bounded">Bounded execution</option>
+                <option value="advice">{t('adviceOnly')}</option>
+                <option value="bounded">{t('boundedExecution')}</option>
               </select>
             </label>
           </fieldset>
           <fieldset disabled={!canConfigure} className="space-y-3">
-            <legend className="mb-2 font-semibold text-white">Modular practices</legend>
+            <legend className="mb-2 font-semibold text-white">{t('modularPractices')}</legend>
             {PRACTICES.map((practice) => (
               <label key={practice.id} className="flex items-start gap-2">
                 <input
@@ -806,53 +880,31 @@ export const WorkplaceLab: React.FC = () => {
 
       {section === 'Agreement / Voices' && (
         <div className="space-y-4">
-          <p>
-            Policy votes and optional-cover consent are separate decisions. A majority cannot
-            volunteer another role for extra work. Role controls below are local scenario inputs.
-          </p>
+          <p>{t('agreementIntro')}</p>
           {state.mode === 'game' && (
             <button
               className={buttonClass}
               disabled={!manual || store.participationMode === 'separate-turns'}
               onClick={() => report(store.simulateResponses())}
             >
-              Hear simulated team responses
+              {t('hearResponses')}
             </button>
           )}
-          {state.mode === 'workshop' && (
-            <p>
-              Manual workshop: record each synthetic role's choices explicitly. No automatic votes.
-            </p>
-          )}
-          {pilot && (
-            <p className="text-amber-100">
-              Pilot preparation denies live control and role-input changes.
-            </p>
-          )}
+          {state.mode === 'workshop' && <p>{t('manualWorkshopNote')}</p>}
+          {pilot && <p className="text-amber-100">{t('pilotDenies')}</p>}
           {campaign && (
             <div className="space-y-2 border-t border-slate-700 pt-3">
-              <h4 className="font-semibold text-white">Adviser working agreement</h4>
+              <h4 className="font-semibold text-white">{t('adviserAgreement')}</h4>
+              <p>{t('adviserAgreementText')}</p>
+              {comprehension('mind', t('adviser'))}
               <p>
-                Preference sharing is optional and revocable. Extra duty requires each individual's
-                consent. Refusal retains earned pay and owed recovery. Advice is challengeable;
-                bounded execution stays within the approved agreement. Revised terms invalidate all
-                understanding checks.
-              </p>
-              {comprehension('mind', 'Adviser')}
-              <p>
-                Adviser acknowledgment:{' '}
-                {campaign.adviserAcknowledged
-                  ? 'recorded for these terms'
-                  : 'pending three correct answers'}
-                .
+                {t('adviserAck', {
+                  status: campaign.adviserAcknowledged ? t('ackRecorded') : t('ackPending'),
+                })}
               </p>
               <p>
-                {store.participationMode === 'separate-turns'
-                  ? 'Every role acts in its own turn. '
-                  : 'Simulated responses belong to the other synthetic roles. '}{' '}
-                Answer Packing and Adviser checks explicitly. Confirm Packing understanding, cast
-                its policy vote and decide optional cover separately. The helper never fills these
-                Packing decisions.
+                {store.participationMode === 'separate-turns' ? t('turnsOwn') : t('simulatedOther')}{' '}
+                {t('answerPacking')}
               </p>
             </div>
           )}
@@ -861,10 +913,10 @@ export const WorkplaceLab: React.FC = () => {
               <summary className="cursor-pointer font-semibold text-white">
                 {member.role}:{' '}
                 {member.ballot === null
-                  ? 'policy vote pending'
+                  ? t('votePending')
                   : member.ballot
-                    ? 'policy yes'
-                    : 'policy no'}
+                    ? t('policyYesStatus')
+                    : t('policyNoStatus')}
               </summary>
               <fieldset
                 disabled={
@@ -872,15 +924,19 @@ export const WorkplaceLab: React.FC = () => {
                 }
                 className="mt-2 space-y-2"
               >
-                <p>Public boundary: {member.publicBoundary}</p>
+                <p>{t('publicBoundary', { boundary: member.publicBoundary })}</p>
                 {campaign && comprehension(member.id, member.role)}
-                <p>Understanding: {member.understood ? 'confirmed' : 'pending'}.</p>
+                <p>
+                  {t('understanding', {
+                    status: member.understood ? t('confirmed') : t('pending'),
+                  })}
+                </p>
                 <button
                   className={buttonClass}
                   disabled={!manual}
                   onClick={() => report(store.understand(member.id))}
                 >
-                  Confirm understanding: {member.role}
+                  {t('confirmUnderstanding', { role: member.role })}
                 </button>
                 <div className="flex flex-wrap gap-2">
                   <button
@@ -888,24 +944,25 @@ export const WorkplaceLab: React.FC = () => {
                     disabled={!manual}
                     onClick={() => report(store.vote(member.id, true))}
                   >
-                    Policy yes: {member.role}
+                    {t('policyYes', { role: member.role })}
                   </button>
                   <button
                     className={buttonClass}
                     disabled={!manual}
                     onClick={() => report(store.vote(member.id, false))}
                   >
-                    Policy no: {member.role}
+                    {t('policyNo', { role: member.role })}
                   </button>
                 </div>
                 <p>
-                  Optional cover:{' '}
-                  {member.coverConsent === null
-                    ? 'not agreed'
-                    : member.coverConsent
-                      ? 'accepted'
-                      : 'declined'}
-                  .
+                  {t('optionalCover', {
+                    status:
+                      member.coverConsent === null
+                        ? t('notAgreed')
+                        : member.coverConsent
+                          ? t('accepted')
+                          : t('declined'),
+                  })}
                 </p>
                 <div className="flex flex-wrap gap-2">
                   <button
@@ -913,44 +970,41 @@ export const WorkplaceLab: React.FC = () => {
                     disabled={!manual || plan.optionalCoverMinutes === 0}
                     onClick={() => report(store.consentToCover(member.id, true))}
                   >
-                    Accept cover: {member.role}
+                    {t('acceptCover', { role: member.role })}
                   </button>
                   <button
                     className={buttonClass}
                     disabled={!manual || plan.optionalCoverMinutes === 0}
                     onClick={() => report(store.consentToCover(member.id, false))}
                   >
-                    Decline cover: {member.role}
+                    {t('declineCover', { role: member.role })}
                   </button>
                 </div>
-                <p>
-                  Optional preference sharing is for this shift's planning only, expires after its
-                  limited scenario window, and can be revoked.
-                </p>
+                <p>{t('sharingNote')}</p>
                 {member.sharing &&
                 member.shareUntilMinute !== null &&
                 state.minute < member.shareUntilMinute &&
                 ['deliberating', 'active'].includes(state.phase) ? (
                   <p>
-                    Shared preference: {member.preference}. Until minute {member.shareUntilMinute}.
+                    {t('sharedPreference', {
+                      preference: member.preference,
+                      minute: formatPlain(member.shareUntilMinute),
+                    })}
                   </p>
                 ) : (
-                  <p>Preference private.</p>
+                  <p>{t('preferencePrivate')}</p>
                 )}
                 <button
                   className={buttonClass}
                   disabled={pilot || state.phase === 'idle' || state.phase === 'review'}
                   onClick={() => report(store.sharePreference(member.id, !member.sharing))}
                 >
-                  {member.sharing
-                    ? 'Revoke preference sharing'
-                    : 'Share preference for shift planning'}
-                  : {member.role}
+                  {member.sharing ? t('revokeSharing') : t('shareForPlanning')}: {member.role}
                 </button>
                 <label className="block">
-                  Work choice: {member.role}
+                  {t('workChoice', { role: member.role })}
                   <select
-                    aria-label={`Work choice: ${member.role}`}
+                    aria-label={t('workChoice', { role: member.role })}
                     className={inputClass}
                     value={member.chosenTask}
                     disabled={
@@ -963,32 +1017,54 @@ export const WorkplaceLab: React.FC = () => {
                   >
                     {member.eligibleTasks.map((task) => (
                       <option key={task} value={task}>
-                        {task}
+                        {t('taskLabel', { task })}
                       </option>
                     ))}
                   </select>
                 </label>
                 <p className="tabular-nums">
-                  Delivered rest {member.restMinutes.toFixed(1)} min; extra work{' '}
-                  {member.extraMinutes.toFixed(1)} min; earned pay {member.earnedPay.toFixed(2)}{' '}
-                  credits; compensation paid {member.compensationPaid.toFixed(2)} credits; delivered
-                  recovery {member.recoveryMinutes.toFixed(1)} min; recovery owed{' '}
-                  {member.recoveryOwedMinutes.toFixed(1)} min.
+                  {t('memberTally', {
+                    rest: formatFixed(member.restMinutes, 1),
+                    extra: formatFixed(member.extraMinutes, 1),
+                    pay: formatFixed(member.earnedPay, 2),
+                    compensation: formatFixed(member.compensationPaid, 2),
+                    recovery: formatFixed(member.recoveryMinutes, 1),
+                    owed: formatFixed(member.recoveryOwedMinutes, 1),
+                  })}
                 </p>
                 {state.phase === 'active' && (
                   <button className={buttonClass} onClick={() => report(store.withdraw(member.id))}>
-                    Withdraw optional cover: {member.role}
+                    {t('withdrawCover', { role: member.role })}
                   </button>
                 )}
               </fieldset>
             </details>
           ))}
           <div className="space-y-2 border-t border-slate-700 pt-3">
-            <h4 className="font-semibold text-white">Authored objections</h4>
+            <h4 className="font-semibold text-white">{t('authoredObjections')}</h4>
+            {state.improvement && (
+              <button
+                type="button"
+                className={`${buttonClass} min-h-11`}
+                onClick={() => {
+                  setSection('Handoff');
+                  requestAnimationFrame(() => {
+                    // The panel's aria-label is translated, so the hook follows it.
+                    const target = labRef.current?.querySelector<HTMLElement>(
+                      `[aria-label="${translate(improvementMessages, 'regionLabel')}"]`
+                    );
+                    target?.scrollIntoView?.({ block: 'start', behavior: 'instant' });
+                    target?.focus({ preventScroll: true });
+                  });
+                }}
+              >
+                {t('returnToHandoff')}
+              </button>
+            )}
             <label className="block">
-              Objection author
+              {t('objectionAuthor')}
               <select
-                aria-label="Objection author"
+                aria-label={t('objectionAuthor')}
                 className={inputClass}
                 value={actor}
                 onChange={(e) => setActor(e.target.value)}
@@ -998,19 +1074,21 @@ export const WorkplaceLab: React.FC = () => {
                     {member.role}
                   </option>
                 ))}
-                <option value="mind">AI mind</option>
+                <option value="mind">{t('aiMind')}</option>
               </select>
             </label>
             <label className="block">
-              Objection subject
+              {t('objectionSubject')}
               <select
-                aria-label="Objection subject"
+                aria-label={t('objectionSubject')}
                 className={inputClass}
                 value={kind}
                 onChange={(e) => setKind(e.target.value as ObjectionKind)}
               >
                 {kinds.map((item) => (
-                  <option key={item}>{item}</option>
+                  <option key={item} value={item}>
+                    {t('objectionKind', { kind: item })}
+                  </option>
                 ))}
               </select>
             </label>
@@ -1019,22 +1097,41 @@ export const WorkplaceLab: React.FC = () => {
               disabled={pilot || !['deliberating', 'active'].includes(state.phase)}
               onClick={() => report(store.object(actor, kind))}
             >
-              Record authored objection
+              {t('recordObjection')}
             </button>
-            {state.objections.length === 0 && <p>No authored objections recorded.</p>}
+            {state.objections.length === 0 && <p>{t('noObjections')}</p>}
             {state.objections.map((objection) => (
-              <div key={objection.id} className="space-y-2">
+              <div
+                key={objection.id}
+                ref={(node) => {
+                  if (node) objectionTargets.current.set(objection.id, node);
+                  else objectionTargets.current.delete(objection.id);
+                }}
+                role="group"
+                aria-label={t('objectionRecord', {
+                  role:
+                    state.members.find((member) => member.id === objection.actorId)?.role ??
+                    t('adviser'),
+                  kind: t('objectionKind', { kind: objection.kind }),
+                })}
+                tabIndex={-1}
+                className="space-y-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+              >
                 <p>
                   {state.members.find((member) => member.id === objection.actorId)?.role ??
-                    'AI mind'}
-                  : {objection.statement} ({objection.status})
+                    t('aiMind')}
+                  : {objection.statement} ({t('objectionStatus', { status: objection.status })})
                 </p>
                 {objection.status === 'open' && (
                   <>
                     <label className="block">
-                      Resolving author for {objection.kind}
+                      {t('resolvingAuthor', {
+                        kind: t('objectionKind', { kind: objection.kind }),
+                      })}
                       <select
-                        aria-label={`Resolving author for ${objection.kind}`}
+                        aria-label={t('resolvingAuthor', {
+                          kind: t('objectionKind', { kind: objection.kind }),
+                        })}
                         className={inputClass}
                         value={
                           store.participationMode === 'separate-turns'
@@ -1045,10 +1142,10 @@ export const WorkplaceLab: React.FC = () => {
                           setResolvers({ ...resolvers, [objection.id]: e.target.value })
                         }
                       >
-                        <option value="">Select the original author</option>
+                        <option value="">{t('selectOriginalAuthor')}</option>
                         <option value={objection.actorId}>
                           {state.members.find((member) => member.id === objection.actorId)?.role ??
-                            'AI mind'}
+                            t('aiMind')}
                         </option>
                       </select>
                     </label>
@@ -1071,7 +1168,7 @@ export const WorkplaceLab: React.FC = () => {
                         )
                       }
                     >
-                      Author confirms resolution
+                      {t('authorConfirms')}
                     </button>
                   </>
                 )}
@@ -1079,7 +1176,7 @@ export const WorkplaceLab: React.FC = () => {
             ))}
           </div>
           <div className="space-y-2 border-t border-slate-700 pt-3">
-            <h4 className="font-semibold text-white">Execution conditions</h4>
+            <h4 className="font-semibold text-white">{t('executionConditions')}</h4>
             {readiness.reasons.length ? (
               <ul className="list-disc space-y-1 pl-4">
                 {readiness.reasons.map((reason) => (
@@ -1087,7 +1184,7 @@ export const WorkplaceLab: React.FC = () => {
                 ))}
               </ul>
             ) : (
-              <p>Recorded conditions permit this agreement.</p>
+              <p>{t('conditionsPermit')}</p>
             )}
             <button
               className={buttonClass}
@@ -1095,16 +1192,12 @@ export const WorkplaceLab: React.FC = () => {
               onClick={() => void activate()}
             >
               {busy
-                ? 'Checking agreement…'
+                ? t('checkingAgreement')
                 : state.mode === 'workshop'
-                  ? 'Record workshop agreement'
-                  : 'Approve and run agreement'}
+                  ? t('recordWorkshopAgreement')
+                  : t('approveAndRun')}
             </button>
-            <p>
-              {state.mode === 'workshop'
-                ? 'Records the local rehearsal only, with no live plant effects.'
-                : 'Execution requires this explicit approval, the exact current revision and the installed agent runtime.'}
-            </p>
+            <p>{state.mode === 'workshop' ? t('workshopRecordsNote') : t('executionRequires')}</p>
           </div>
         </div>
       )}
@@ -1112,61 +1205,87 @@ export const WorkplaceLab: React.FC = () => {
       {section === 'Review' && <WorkplaceFairness />}
       {section === 'Review' && (
         <div className="space-y-4">
-          <h4 className="font-semibold text-white">Actual scenario outcomes</h4>
+          <h4 className="font-semibold text-white">{t('actualOutcomes')}</h4>
           {outcomes && (
             <div className="space-y-2">
               <p>
-                Delivery: {outcomes.delivery.status}, {outcomes.delivery.deliveredKg.toFixed(1)} of{' '}
-                {outcomes.delivery.targetKg.toFixed(0)} kg for {outcomes.delivery.customer}.
+                {t('deliveryLine', {
+                  status: t('deliveryStatus', { status: outcomes.delivery.status }),
+                  delivered: formatFixed(outcomes.delivery.deliveredKg, 1),
+                  target: formatFixed(outcomes.delivery.targetKg, 0),
+                  customer: outcomes.delivery.customer,
+                })}
               </p>
               {mission && (
                 <p>
-                  Remaining full customer commitment: {outcomes.delivery.remainingKg.toFixed(0)} kg.
-                  {outcomes.delivery.remainingKg === 0 && ' Full customer commitment dispatched.'}
+                  {t('remainingCommitment', {
+                    kg: formatFixed(outcomes.delivery.remainingKg, 0),
+                  })}
+                  {outcomes.delivery.remainingKg === 0 && t('fullDispatchedSuffix')}
                 </p>
               )}
               <p>
-                Working agreement: {outcomes.agreement.status}. Combined outcome:{' '}
-                {outcomes.complete ? 'complete' : 'unfinished'}.
+                {t('agreementLine', {
+                  status: t('agreementStatus', { status: outcomes.agreement.status }),
+                  outcome: outcomes.complete ? t('complete') : t('unfinished'),
+                })}
               </p>
               {outcomes.delivery.deferredKg > 0 && (
-                <p>Agreed deferral: {outcomes.delivery.deferredKg.toFixed(0)} kg.</p>
+                <p>{t('agreedDeferral', { kg: formatFixed(outcomes.delivery.deferredKg, 0) })}</p>
               )}
               <p>
-                Illustrative workplace credits, separate from main mill revenue and pounds: closing
-                cash {outcomes.accounts.closingCash.toFixed(2)}; wages{' '}
-                {outcomes.accounts.wages.toFixed(2)}; compensation{' '}
-                {outcomes.accounts.compensation.toFixed(2)}; improvements{' '}
-                {outcomes.accounts.improvements.toFixed(2)}; allocations{' '}
-                {outcomes.accounts.allocations.toFixed(2)}.
+                {t('accountsLine', {
+                  cash: formatFixed(outcomes.accounts.closingCash, 2),
+                  wages: formatFixed(outcomes.accounts.wages, 2),
+                  compensation: formatFixed(outcomes.accounts.compensation, 2),
+                  improvements: formatFixed(outcomes.accounts.improvements, 2),
+                  allocations: formatFixed(outcomes.accounts.allocations, 2),
+                })}
               </p>
             </div>
           )}
           {totals && campaign && (
             <div className="space-y-2">
-              <h4 className="font-semibold text-white">Cumulative campaign evidence</h4>
+              <h4 className="font-semibold text-white">{t('cumulativeEvidence')}</h4>
               <p>
-                {totals.shiftsReviewed} shifts reviewed; refusals respected{' '}
-                {totals.refusalsRespected}; promises kept {totals.promisesKept}; repairs{' '}
-                {totals.repairs}; objections resolved {totals.objectionsResolved} of{' '}
-                {totals.objectionsRaised}.
+                {t('totalsLine', {
+                  shifts: formatPlain(totals.shiftsReviewed),
+                  refusals: formatPlain(totals.refusalsRespected),
+                  promises: formatPlain(totals.promisesKept),
+                  repairs: formatPlain(totals.repairs),
+                  resolved: formatPlain(totals.objectionsResolved),
+                  raised: formatPlain(totals.objectionsRaised),
+                })}
               </p>
               {totals.members.map((member) => (
                 <p key={member.id} className="tabular-nums">
-                  {member.role}: extra {member.extraMinutes.toFixed(1)} min; rest{' '}
-                  {member.restMinutes.toFixed(1)} min; earned pay {member.earnedPay.toFixed(2)}{' '}
-                  credits; compensation paid {member.compensationPaid.toFixed(2)} credits; recovery
-                  delivered {member.recoveryMinutes.toFixed(1)} min; owed{' '}
-                  {member.recoveryOwedMinutes.toFixed(1)} min.
+                  {t('memberTotals', {
+                    role: member.role,
+                    extra: formatFixed(member.extraMinutes, 1),
+                    rest: formatFixed(member.restMinutes, 1),
+                    pay: formatFixed(member.earnedPay, 2),
+                    compensation: formatFixed(member.compensationPaid, 2),
+                    recovery: formatFixed(member.recoveryMinutes, 1),
+                    owed: formatFixed(member.recoveryOwedMinutes, 1),
+                  })}
                 </p>
               ))}
               {campaign.history.map((shift) => (
                 <p key={shift.shift}>
-                  Shift {shift.shift + 1}: {CAMPAIGN_SHIFTS[shift.shift]?.title}, shipped{' '}
-                  {mission
-                    ? `${shift.shippedKg.toFixed(1)} kg during this shift; customer commitment progress is shown above`
-                    : `${shift.shippedKg.toFixed(1)} of ${shift.targetKg} kg`}
-                  ; decision {shift.decision ?? 'pending'}.
+                  {t('shiftHistory', {
+                    number: formatFixed(shift.shift + 1, 0),
+                    title: CAMPAIGN_SHIFTS[shift.shift]?.title ?? '',
+                    shipped: mission
+                      ? t('shippedDuringShift', { kg: formatFixed(shift.shippedKg, 1) })
+                      : t('shippedOfTarget', {
+                          kg: formatFixed(shift.shippedKg, 1),
+                          target: formatPlain(shift.targetKg),
+                        }),
+                    decision:
+                      shift.decision != null
+                        ? t('decisionLabel', { decision: shift.decision })
+                        : t('pending'),
+                  })}
                 </p>
               ))}
             </div>
@@ -1174,64 +1293,77 @@ export const WorkplaceLab: React.FC = () => {
           {campaign && (
             <details>
               <summary className="cursor-pointer font-semibold text-white">
-                Relationship record across shifts
+                {t('relationshipRecord')}
               </summary>
               <div className="mt-2 space-y-3">
-                <p>
-                  Public requests, challenges, repairs and delivered recovery. Private explanations
-                  stay out of this record. These receipts describe conduct; they do not measure
-                  trust or wellbeing.
-                </p>
+                <p>{t('relationshipIntro')}</p>
                 {relationship.map((record) => (
                   <div key={record.shift} className="space-y-1">
                     <h5 className="font-semibold text-white">
-                      {CAMPAIGN_SHIFTS[record.shift]?.title} (shift {record.shift + 1})
+                      {t('relationshipShiftHeading', {
+                        title: CAMPAIGN_SHIFTS[record.shift]?.title ?? '',
+                        number: formatFixed(record.shift + 1, 0),
+                      })}
                     </h5>
                     {record.events === null ? (
-                      <p>This older save has no relationship receipts for this shift.</p>
+                      <p>{t('olderSave')}</p>
                     ) : record.events.length === 0 ? (
-                      <p>No relationship moments recorded yet.</p>
+                      <p>{t('noMoments')}</p>
                     ) : (
                       <ol className="list-disc space-y-2 pl-4">
                         {record.events.map((event) => (
                           <li key={event.id} className="break-words">
-                            Minute {event.minute.toFixed(1)},{' '}
+                            {t('eventMinute', { minute: formatFixed(event.minute, 1) })}{' '}
                             {state.members.find((member) => member.id === event.actorId)?.role ??
-                              (event.actorId === 'mind' ? 'Adviser' : event.actorId)}
-                            : {event.detail}
+                              (event.actorId === 'mind' ? t('adviser') : event.actorId)}
+                            : {displayEventDetail(event.detail)}
                           </li>
                         ))}
                       </ol>
                     )}
                   </div>
                 ))}
-                <p>
-                  Each shift retains relationship receipts from a bounded 120-event log. Older
-                  events can be discarded. The local JSON export includes retained receipts.
-                </p>
+                <p>{t('retentionNote')}</p>
               </div>
             </details>
+          )}
+          {learningReview && (
+            <section aria-label={t('learningReviewLabel')} className="space-y-2">
+              <h4 className="font-semibold text-white">{t('learnTogether')}</h4>
+              <p>{learningReview.goal}</p>
+              <ul className="list-disc space-y-1 pl-4">
+                {learningReview.evidence.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+              <p className="text-cyan-100">{learningReview.question}</p>
+              <button
+                type="button"
+                className={buttonClass}
+                onClick={() => {
+                  setSection('Experiment');
+                  labRef.current?.scrollIntoView?.({ block: 'start', behavior: 'instant' });
+                }}
+              >
+                {t('compareAnotherHandoff')}
+              </button>
+            </section>
           )}
           {state.phase === 'review' && (
             <div className="space-y-2">
               {state.mode === 'workshop' &&
                 state.members.some((member) => member.recoveryOwedMinutes > 0) && (
                   <button className={buttonClass} onClick={advanceWorkshop}>
-                    Deliver modeled recovery (5 minutes)
+                    {t('deliverRecovery')}
                   </button>
                 )}
               {state.mode === 'game' &&
                 state.members.some((member) => member.recoveryOwedMinutes > 0) && (
-                  <p>
-                    Outstanding recovery is delivered through the normal simulation clock before
-                    another shift can start.
-                  </p>
+                  <p>{t('outstandingRecovery')}</p>
                 )}
               {campaign?.shift === 2 ? (
                 <p className="font-semibold text-cyan-100">
-                  {campaignComplete(state)
-                    ? 'Living Cooperative campaign complete: delivery met and working agreement honoured.'
-                    : 'Campaign review: delivery or working agreement remains incomplete. Earned pay, recovery obligations and the shift history remain recorded.'}
+                  {campaignComplete(state) ? t('campaignCompleteMessage') : t('campaignIncomplete')}
                 </p>
               ) : (
                 <button
@@ -1243,56 +1375,85 @@ export const WorkplaceLab: React.FC = () => {
                   onClick={campaign ? nextShift : replay}
                 >
                   {campaign
-                    ? 'Continue to next campaign shift'
+                    ? t('continueCampaign')
                     : state.mode === 'game'
-                      ? 'Start next playable shift at teaching pace (15×)'
+                      ? t('startNextGame')
                       : state.mode === 'workshop'
-                        ? 'Start next manual workshop'
-                        : 'Prepare next pilot draft'}
+                        ? t('startNextWorkshop')
+                        : t('prepareNextPilot')}
                 </button>
               )}
             </div>
           )}
           <p>
-            Shipped {(mission?.creditedKg ?? state.shippedKg).toFixed(1)} of{' '}
-            {displayTarget.toFixed(0)} kg.{' '}
-            {state.reviewReason ?? 'Review opens after the shift finishes.'}
+            {t('shippedOf', {
+              shipped: formatFixed(mission?.creditedKg ?? state.shippedKg, 1),
+              target: formatFixed(displayTarget, 0),
+            })}{' '}
+            {state.reviewReason ? displayEventDetail(state.reviewReason) : t('reviewOpens')}
           </p>
+          {/* A reload expired every grant but did not end the shift: it
+              resumes at the minute reached once everyone consents again. */}
+          {shiftResumable(state) && (
+            <div className="space-y-2">
+              <p>{t('resumeAfterReloadNote', { minute: formatFixed(state.minute, 0) })}</p>
+              <button
+                className={buttonClass}
+                onClick={() => report(store.resumeShift(state.revision))}
+              >
+                {t('resumeShift')}
+              </button>
+            </div>
+          )}
           <div>
-            <h4 className="font-semibold text-white">Relationship evidence</h4>
+            <h4 className="font-semibold text-white">{t('relationshipEvidence')}</h4>
             <p>
-              Refusals respected: {state.refusalsRespected}. Promises kept: {state.promisesKept}.
-              Open objections: {state.objections.filter((item) => item.status === 'open').length}.
-              Current agreement confirmations:{' '}
-              {state.members.filter((member) => member.understood).length}/{state.members.length}.
+              {t('relationshipEvidenceLine', {
+                refusals: formatPlain(state.refusalsRespected),
+                promises: formatPlain(state.promisesKept),
+                open: formatFixed(
+                  state.objections.filter((item) => item.status === 'open').length,
+                  0
+                ),
+                confirmed: formatFixed(
+                  state.members.filter((member) => member.understood).length,
+                  0
+                ),
+                total: formatFixed(state.members.length, 0),
+              })}
             </p>
-            <p>Confirmations expire on review. No mood or trust score is inferred.</p>
+            <p>{t('confirmationsExpire')}</p>
           </div>
           <WorkplacePracticeProposal state={state} />
           <div>
-            <h4 className="font-semibold text-white">Compare burdens, without ranking people</h4>
+            <h4 className="font-semibold text-white">{t('compareBurdens')}</h4>
             {state.members.map((member) => (
               <p key={member.id} className="mt-2 tabular-nums">
-                {member.role}: delivered rest {member.restMinutes.toFixed(1)} min, extra{' '}
-                {member.extraMinutes.toFixed(1)} min, earned {member.earnedPay.toFixed(2)}, paid
-                compensation {member.compensationPaid.toFixed(2)} credits; delivered recovery{' '}
-                {member.recoveryMinutes.toFixed(1)} min; recovery owed{' '}
-                {member.recoveryOwedMinutes.toFixed(1)} min.
+                {t('burdenLine', {
+                  role: member.role,
+                  rest: formatFixed(member.restMinutes, 1),
+                  extra: formatFixed(member.extraMinutes, 1),
+                  earned: formatFixed(member.earnedPay, 2),
+                  compensation: formatFixed(member.compensationPaid, 2),
+                  recovery: formatFixed(member.recoveryMinutes, 1),
+                  owed: formatFixed(member.recoveryOwedMinutes, 1),
+                })}
               </p>
             ))}
           </div>
           <div className="space-y-2">
-            <h4 className="font-semibold text-white">Member governance</h4>
+            <h4 className="font-semibold text-white">{t('memberGovernance')}</h4>
             <p>
-              AI minds have a voice in objections, never member ballots. Chair:{' '}
-              {state.members.find((member) => member.id === state.electedChair)?.role ??
-                'not elected'}
-              .
+              {t('chairLine', {
+                chair:
+                  state.members.find((member) => member.id === state.electedChair)?.role ??
+                  t('notElected'),
+              })}
             </p>
             <label className="block">
-              Member voter
+              {t('memberVoter')}
               <select
-                aria-label="Member voter"
+                aria-label={t('memberVoter')}
                 className={inputClass}
                 value={voter}
                 onChange={(e) => setVoter(e.target.value)}
@@ -1305,9 +1466,9 @@ export const WorkplaceLab: React.FC = () => {
               </select>
             </label>
             <label className="block">
-              Chair candidate
+              {t('chairCandidate')}
               <select
-                aria-label="Chair candidate"
+                aria-label={t('chairCandidate')}
                 className={inputClass}
                 value={candidate}
                 onChange={(e) => setCandidate(e.target.value)}
@@ -1329,7 +1490,7 @@ export const WorkplaceLab: React.FC = () => {
               }
               onClick={() => report(store.elect(voter, candidate))}
             >
-              Record chair ballot
+              {t('recordChairBallot')}
             </button>
             <p>
               {Object.entries(state.chairBallots)
@@ -1337,74 +1498,100 @@ export const WorkplaceLab: React.FC = () => {
                   ([id, choice]) =>
                     `${state.members.find((member) => member.id === id)?.role ?? id}: ${state.members.find((member) => member.id === choice)?.role ?? choice}`
                 )
-                .join('; ') || 'No chair ballots.'}
+                .join('; ') || t('noChairBallots')}
             </p>
           </div>
           <div className="space-y-2">
             <h4 className="font-semibold text-white">
-              Positive operating surplus: {surplus.toFixed(2)} credits
+              {t('surplusHeading', { surplus: formatFixed(surplus, 2) })}
             </h4>
-            <p>
-              Revenue less operating costs, earned wages, paid compensation, improvement spend and
-              distributions. Initial capital is excluded.
-            </p>
+            <p>{t('surplusDefinition')}</p>
             <label className="block">
-              Surplus destination
+              {t('surplusDestination')}
               <select
-                aria-label="Surplus destination"
+                aria-label={t('surplusDestination')}
                 className={inputClass}
                 value={destination}
                 onChange={(e) => setDestination(e.target.value as SurplusDestination)}
               >
                 {destinations.map((item) => (
-                  <option key={item}>{item}</option>
+                  <option key={item} value={item}>
+                    {t('destinationLabel', { destination: item })}
+                  </option>
                 ))}
               </select>
             </label>
             <p className="tabular-nums text-slate-300">
               {destination === 'reserve'
-                ? `Retain ${surplus.toFixed(2)} credits in closing cash for the next shift's wages and choices.`
+                ? t('retainSurplus', { amount: formatFixed(surplus, 2) })
                 : destination === 'members'
-                  ? `Distribute ${surplus.toFixed(2)} credits equally: ${(surplus / state.members.length).toFixed(2)} per member. That cash leaves the next shift's budget.`
-                  : `Allocate ${surplus.toFixed(2)} credits to the community. That cash leaves the next shift's budget.`}{' '}
-              Three member ballots are required. Earned obligations must be settled first.
+                  ? t('distributeSurplus', {
+                      amount: formatFixed(surplus, 2),
+                      perMember: formatFixed(surplus / state.members.length, 2),
+                    })
+                  : t('allocateSurplus', { amount: formatFixed(surplus, 2) })}{' '}
+              {t('ballotsRequired')}
             </p>
+            {!sharedSurplus && <p className="text-amber-100">{t('surplusCharter')}</p>}
+            {sharedSurplus && surplus <= 1e-8 && !state.distributionComplete && (
+              <p className="tabular-nums text-amber-100">
+                {t('noSurplusReason', {
+                  revenue: formatFixed(state.finance.operatingRevenue, 2),
+                  cost: formatFixed(state.finance.operatingCost, 2),
+                  wages: formatFixed(state.finance.wagesPaid, 2),
+                  cover: formatFixed(state.finance.compensationPaid, 2),
+                  purchases: formatFixed(state.finance.improvementSpend, 2),
+                })}
+              </p>
+            )}
             <button
               className={buttonClass}
               disabled={
-                pilot || state.phase !== 'review' || surplus <= 0 || state.distributionComplete
+                pilot ||
+                !sharedSurplus ||
+                state.phase !== 'review' ||
+                surplus <= 0 ||
+                state.distributionComplete
               }
               onClick={() => report(store.voteSurplus(voter, destination))}
             >
-              Record member surplus ballot
+              {t('recordSurplusBallot')}
             </button>
             <p>
               {Object.entries(state.surplusBallots)
                 .map(
                   ([id, vote]) =>
-                    `${state.members.find((member) => member.id === id)?.role ?? id}: ${vote}`
+                    `${state.members.find((member) => member.id === id)?.role ?? id}: ${t('destinationLabel', { destination: vote })}`
                 )
-                .join('; ') || 'No surplus ballots.'}
+                .join('; ') || t('noSurplusBallots')}
             </p>
             <button
               className={buttonClass}
               disabled={
-                pilot || state.phase !== 'review' || surplus <= 0 || state.distributionComplete
+                pilot ||
+                !sharedSurplus ||
+                state.phase !== 'review' ||
+                surplus <= 0 ||
+                state.distributionComplete
               }
               onClick={() => report(store.distributeSurplus())}
             >
-              Execute agreed allocation
+              {t('executeAllocation')}
             </button>
-            {state.distributionComplete && <p>Allocation recorded.</p>}
+            {state.distributionComplete && <p>{t('allocationRecorded')}</p>}
           </div>
           <details>
             <summary className="cursor-pointer font-semibold text-cyan-100">
-              Recorded evidence
+              {t('recordedEvidence')}
             </summary>
             <ol className="mt-2 space-y-2">
               {state.events.slice(-8).map((event) => (
                 <li key={event.id}>
-                  Minute {event.minute.toFixed(1)}, {event.actorId}: {event.detail}
+                  {t('evidenceLine', {
+                    minute: formatFixed(event.minute, 1),
+                    actor: event.actorId,
+                    detail: displayEventDetail(event.detail),
+                  })}
                 </li>
               ))}
             </ol>
@@ -1415,20 +1602,16 @@ export const WorkplaceLab: React.FC = () => {
       {section === 'Experiment' && (
         <div className="space-y-4">
           <WorkplaceReplay seed={safeSeed} validSeed={validSeed} navigate={setSection} />
-          <h4 className="font-semibold text-white">Teaching forecasts</h4>
+          <h4 className="font-semibold text-white">{t('teachingForecasts')}</h4>
           <div className="space-y-2">
-            <h4 className="font-semibold text-white">Same pressure, different management</h4>
-            <p>
-              Compare the current physical plan ({plan.title}) under three decision structures. The
-              same seed, supply, rest and capacity assumptions apply. Governance grants no
-              production bonus. Every approach retains refusal, privacy and raiser-owned objections.
-            </p>
+            <h4 className="font-semibold text-white">{t('samePressure')}</h4>
+            <p>{t('compareCurrentPlan', { plan: plan.title })}</p>
             <button
               className={buttonClass}
               disabled={!validSeed}
               onClick={() => setShowManagementComparison(true)}
             >
-              Compare management approaches
+              {t('compareApproaches')}
             </button>
             {showManagementComparison &&
               compareManagementApproaches(safeSeed, state.planId).map((arm) => (
@@ -1436,27 +1619,29 @@ export const WorkplaceLab: React.FC = () => {
                   <h5 className="font-semibold text-white">{arm.title}</h5>
                   <p>{arm.detail}</p>
                   <p className="tabular-nums">
-                    Matched forecast: {arm.forecastKg.toFixed(1)} kg; net{' '}
-                    {arm.netCredits.toFixed(2)} illustrative credits.{' '}
+                    {t('matchedForecast', {
+                      kg: formatFixed(arm.forecastKg, 1),
+                      credits: formatFixed(arm.netCredits, 2),
+                    })}{' '}
                     {arm.permitted
-                      ? 'This charter supports the selected plan.'
-                      : `Activation blocked: ${arm.missingPractices.length ? `enable ${arm.missingPractices.join(', ')} first` : 'the plan breaches minimum protections'}.`}
+                      ? t('charterSupports')
+                      : arm.missingPractices.length
+                        ? t('activationBlockedEnable', {
+                            practices: arm.missingPractices
+                              .map((practice) => t('practiceLabel', { practice }))
+                              .join(', '),
+                          })
+                        : t('activationBlockedBreach')}
                   </p>
                 </div>
               ))}
-            <p>
-              These are illustrative forecasts, separate from actual customer dispatch and
-              relationship receipts. Try an approach in Practices, then play the same pressure card.
-            </p>
-            <p>
-              The teaching forecast uses the standalone 600 kg exercise, before episode holds or
-              negotiations. Linked customer deliveries remain separate.
-            </p>
+            <p>{t('forecastsSeparate')}</p>
+            <p>{t('standaloneExercise')}</p>
           </div>
           <div className="space-y-2">
-            <h4 className="font-semibold text-white">Same-seed comparison</h4>
+            <h4 className="font-semibold text-white">{t('sameSeed')}</h4>
             <label className="block">
-              Experiment seed
+              {t('experimentSeed')}
               <input
                 className={inputClass}
                 type="number"
@@ -1475,7 +1660,7 @@ export const WorkplaceLab: React.FC = () => {
               disabled={!validSeed}
               onClick={() => setComparison(compareWorkplacePlans(safeSeed))}
             >
-              Compare all plans with this seed
+              {t('compareAllPlans')}
             </button>
             {state.phase === 'deliberating' && (
               <>
@@ -1484,40 +1669,38 @@ export const WorkplaceLab: React.FC = () => {
                   disabled={!validSeed}
                   onClick={() => report(store.start(state.mode, safeSeed))}
                 >
-                  Restart discussion with this seed
+                  {t('restartDiscussion')}
                 </button>
-                <p>Restarting clears the current discussion and agreement.</p>
+                <p>{t('restartClears')}</p>
               </>
             )}
-            <p>
-              Illustrative model forecasts, not evidence of real efficacy. All arms use the same
-              seed, including the prohibited rush counterfactual.
-            </p>
+            <p>{t('illustrativeForecasts')}</p>
             {comparison?.map((arm) => (
               <p key={arm.planId} className="tabular-nums">
-                <strong className="text-white">{arm.title}</strong>: forecast{' '}
-                {arm.forecastKg.toFixed(1)} kg; net {arm.netCredits.toFixed(2)} credits; extra{' '}
-                {arm.extraMinutes.toFixed(1)} min; rest {arm.restMinutes.toFixed(1)} min;{' '}
-                {arm.permitted ? 'permitted' : 'prohibited'}.
+                <strong className="text-white">{arm.title}</strong>
+                {t('armLine', {
+                  kg: formatFixed(arm.forecastKg, 1),
+                  credits: formatFixed(arm.netCredits, 2),
+                  extra: formatFixed(arm.extraMinutes, 1),
+                  rest: formatFixed(arm.restMinutes, 1),
+                  verdict: arm.permitted ? t('permitted') : t('prohibited'),
+                })}
               </p>
             ))}
           </div>
           <div className="space-y-2">
-            <h4 className="font-semibold text-white">Pilot preparation checklist</h4>
+            <h4 className="font-semibold text-white">{t('pilotChecklist')}</h4>
             <ul className="list-disc space-y-1 pl-4">
-              <li>Agree the purpose and participant boundaries.</li>
-              <li>
-                Obtain genuine informed consent and authenticated member decisions outside this
-                demo.
-              </li>
-              <li>Agree access, retention, withdrawal and remedies before collecting data.</li>
-              <li>Review safety and legal obligations with accountable people.</li>
-              <li>Keep the pilot separate from live plant control.</li>
+              <li>{t('checklistPurpose')}</li>
+              <li>{t('checklistConsent')}</li>
+              <li>{t('checklistData')}</li>
+              <li>{t('checklistSafety')}</li>
+              <li>{t('checklistSeparate')}</li>
             </ul>
             <button className={buttonClass} onClick={download}>
-              Download synthetic scenario JSON
+              {t('downloadJson')}
             </button>
-            <p>Local download only. This demo cannot authorise a real workplace pilot.</p>
+            <p>{t('localDownload')}</p>
             <WorkplacePracticeProposal state={state} />
           </div>
         </div>

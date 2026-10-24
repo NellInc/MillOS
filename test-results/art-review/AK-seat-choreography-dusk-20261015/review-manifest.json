@@ -1,0 +1,55 @@
+{
+  "label": "AK-seat-choreography-dusk-20261015",
+  "capturedAt": "2026-10-15T13:19:39.432Z",
+  "git": {
+    "commit": "18d2a068298e93d54f469fb3514a36bbaff9eaa1",
+    "branch": "codex/place-led-beautification-20261010",
+    "dirty": true,
+    "dirtyFileCount": 11,
+    "dirtyFiles": [
+      "_contprompts/millos_place_led_beautification_20261010.md",
+      "src/components/CommunityLife.tsx",
+      "src/components/models/WorkerModel.tsx",
+      "src/components/vehicleReplay.test.ts",
+      "src/components/workers/WorkerModel.test.tsx",
+      "src/components/workers/workerPose.test.ts",
+      "src/components/workers/workerPose.ts",
+      "src/components/workers/workerTypes.ts",
+      "src/simulation/__tests__/communityLife.test.ts",
+      "src/simulation/communityLife.ts",
+      "output/playwright/place-led-20261010/"
+    ]
+  },
+  "options": {
+    "label": "AK-seat-choreography-dusk-20261015",
+    "scenes": [
+      "village"
+    ],
+    "sceneSet": "explicit",
+    "quality": "medium",
+    "port": "4288",
+    "time": "17.2",
+    "weather": "clear",
+    "duration": "1",
+    "warmup": "1",
+    "settleTimeout": "240",
+    "perfGate": false,
+    "skipBuild": true,
+    "headed": false
+  },
+  "diagnostics": [],
+  "scenes": [
+    {
+      "scene": "village",
+      "image": "village.png",
+      "indicativeFps": 60.01
+    }
+  ],
+  "contactSheet": "contact-sheet.png",
+  "perfGate": null,
+  "caveats": [
+    "Working tree was dirty (11 files). These frames show uncommitted work, not commit 18d2a06. Do not use as a baseline for a later comparison.",
+    "Captured with --skip-build; dist/ may predate the tree.",
+    "No performance gate was run. Art mode unpins reduced motion and restores full fidelity, so its frame samples are indicative only. A visual verdict from this capture is not shippable until a non-art budget run passes on the same commit."
+  ]
+}

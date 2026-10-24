@@ -1,19 +1,34 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
+import { OBB } from 'three/examples/jsm/math/OBB.js';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { MachineData, MachineType } from '../../types';
 import { buildSpoutRoutes, SPOUT_PIPE_RADIUS } from '../flow/spoutRoutes';
 import { PIPE_SUPPORT_SEGMENTS } from '../SpoutingSystem';
 import {
+  buildCeilingFixtures,
   buildFactoryRoofEnvelope,
   buildFactoryRoofBatten,
   buildFactoryRoofGlazing,
   buildFactoryRoofStructure,
+  buildFactoryRoofTrim,
+  buildWalkwayEdges,
+  buildWalkwayLanes,
+  WALKWAY_EDGE_WIDTH,
   buildFactoryGlazing,
+  buildFactoryGlazingBars,
+  buildFactoryGlazingLights,
+  buildFactoryFacadeFrames,
+  buildFactoryShellColumns,
+  buildSafetyStations,
   buildProcessGallery,
+  FACTORY_COLUMN_TOP_DROP,
   FACTORY_ENVELOPE_SPEC,
+  FACTORY_GLAZING_SURFACES,
   FLOOR_JOINT_PITCH,
   sampleFloorMacro,
+  type BoxInstance,
 } from './OptimizedFactoryInfrastructure';
 
 describe('optimized factory envelope', () => {
@@ -62,6 +77,79 @@ describe('optimized factory envelope', () => {
     }
   });
 
+  it('stands no gable column inside a dock opening', () => {
+    // The 20 m column grid put a full-height column at x = 0 in the middle of
+    // the 30 m shipping opening (and the 18 m receiving one), on the forklift
+    // channel's line and in front of both SHIPPING signs - the art review's
+    // "SH PPING". The dock header beam spans the opening instead.
+    const columns = buildFactoryShellColumns();
+    for (const portal of [SITE_LAYOUT.portals.shipping, SITE_LAYOUT.portals.receiving]) {
+      const wallZ = portal.centre[2];
+      const inWall = columns.filter((c) => Math.abs(c.position[2] - wallZ) < 1);
+      for (const column of inWall) {
+        const halfSpan = column.scale[0] / 2;
+        expect(Math.abs(column.position[0] - portal.centre[0]) - halfSpan).toBeGreaterThanOrEqual(
+          portal.halfWidth
+        );
+      }
+      // The rest of the gable grid is still there: x = -40, -20, 20, 40.
+      const shafts = inWall.filter(
+        (c) =>
+          c.scale[0] === 0.42 &&
+          c.scale[1] === SITE_LAYOUT.factory.bounds.maxY - FACTORY_COLUMN_TOP_DROP
+      );
+      expect(shafts.map((c) => c.position[0]).sort((a, b) => a - b)).toEqual([-40, -20, 20, 40]);
+    }
+  });
+
+  it('closes the glazing over a dock where the gable column used to stand', () => {
+    // Window frames are 0.14 m wide and sit outside each pane edge, so two
+    // panes whose edges are 0.28 m apart meet in one mullion with no open slot.
+    const panes = buildFactoryGlazing();
+    for (const portal of [SITE_LAYOUT.portals.shipping, SITE_LAYOUT.portals.receiving]) {
+      const overDoor = panes.filter(
+        (pane) =>
+          Math.abs(pane.position[2] - portal.centre[2]) < 1 &&
+          pane.position[1] - pane.scale[1] / 2 >= FACTORY_ENVELOPE_SPEC.dockWindowSill - 0.01
+      );
+      const edges = overDoor.flatMap((pane) => [
+        pane.position[0] - pane.scale[0] / 2,
+        pane.position[0] + pane.scale[0] / 2,
+      ]);
+      const leftOfCentre = Math.max(...edges.filter((x) => x <= 0));
+      const rightOfCentre = Math.min(...edges.filter((x) => x >= 0));
+      expect(rightOfCentre - leftOfCentre).toBeLessThanOrEqual(0.28 + 1e-9);
+    }
+  });
+
+  it('mounts every safety station on a wall column, clear of the pedestrian lane', () => {
+    // The stations stood free 3.2 m off the side walls - in the middle of the
+    // 3 m pedestrian lane at x = +/-37 - and read as a red slab hanging in
+    // front of the glazing (art review, forklift x 1650-1740, y 435-635).
+    const halfWidth = SITE_LAYOUT.factory.floor.width / 2;
+    const shafts = buildFactoryShellColumns().filter(
+      (c) => c.scale[0] === 0.42 && Math.abs(Math.abs(c.position[0]) - (halfWidth - 0.45)) < 1e-6
+    );
+    for (const station of buildSafetyStations()) {
+      const [x, , z] = station.position;
+      const [sx, sy, sz] = station.scale;
+      // Not in the lane centred 3 m in from the wall, 1.5 m either side.
+      const laneInner = halfWidth - 3 - 1.5;
+      const laneOuter = halfWidth - 3 + 1.5;
+      const nearFace = Math.abs(x) - sx / 2;
+      expect(nearFace >= laneOuter || Math.abs(x) + sx / 2 <= laneInner).toBe(true);
+      // Its wall-side face sits on a column's inner face, and it spans that column.
+      const column = shafts.find(
+        (c) => Math.sign(c.position[0]) === Math.sign(x) && Math.abs(c.position[2] - z) < sz / 2
+      );
+      expect(column).toBeDefined();
+      const columnInner = Math.abs(column!.position[0]) - column!.scale[0] / 2;
+      expect(Math.abs(Math.abs(x) + sx / 2 - columnInner)).toBeLessThanOrEqual(0.02);
+      // Standing on the floor.
+      expect(station.position[1] - sy / 2).toBeCloseTo(0, 6);
+    }
+  });
+
   it('uses broad, evenly spaced window bays on every facade', () => {
     expect(FACTORY_ENVELOPE_SPEC.frontBayCentres).toEqual([-30, -10, 10, 30]);
     expect(FACTORY_ENVELOPE_SPEC.sideBayCentres).toEqual([-40, -20, 0, 20, 40]);
@@ -73,6 +161,63 @@ describe('optimized factory envelope', () => {
  * a megapixel back: the point of the macro layer is that the surface differs
  * from place to place, and every claim below is a place-to-place comparison.
  */
+// final3 med-12 packing, upper left: "a translucent cyan band on the floor
+// parallel to the glass wall reads as tint, not paint, because it has no edge
+// line". The probe's transparent-off diff put it on the z = -39 walkway film.
+describe('pedestrian walkway lanes', () => {
+  it('paint an edge line down both long sides of every lane, broken only where lanes meet', () => {
+    const lanes = buildWalkwayLanes();
+    const edges = buildWalkwayEdges(lanes);
+    for (const lane of lanes) {
+      const along = lane.scale[0] > lane.scale[2] ? 0 : 2;
+      const across = along === 0 ? 2 : 0;
+      for (const side of [-1, 1]) {
+        const laneSide = lane.position[across] + (side * lane.scale[across]) / 2;
+        const lines = edges.filter(
+          (edge) =>
+            edge.scale[along] > edge.scale[across] &&
+            Math.abs(edge.position[across] - laneSide) < WALKWAY_EDGE_WIDTH &&
+            Math.abs(edge.position[along] - lane.position[along]) < lane.scale[along] / 2
+        );
+        const painted = lines.reduce((sum, edge) => sum + edge.scale[along], 0);
+        // Most of the side is lined; a joining lane may take at most 3.5 m from it.
+        expect(painted, `lane at ${lane.position} side ${side}`).toBeGreaterThan(
+          lane.scale[along] - 2 * 3.5 - 0.1
+        );
+        for (const edge of lines) {
+          // Inside the lane, never on its side face, and proud of the film.
+          const outer = edge.position[across] + (side * edge.scale[across]) / 2;
+          expect(side * (laneSide - outer)).toBeGreaterThanOrEqual(0.01);
+          expect(edge.position[1] + edge.scale[1] / 2).toBeGreaterThan(
+            lane.position[1] + lane.scale[1] / 2 + 0.002
+          );
+          expect(edge.position[1] - edge.scale[1] / 2).not.toBeCloseTo(
+            lane.position[1] - lane.scale[1] / 2,
+            3
+          );
+        }
+      }
+    }
+    // A line never runs across another lane's film.
+    for (const edge of edges) {
+      for (const lane of lanes) {
+        const along = lane.scale[0] > lane.scale[2] ? 0 : 2;
+        const edgeAlong = edge.scale[0] > edge.scale[2] ? 0 : 2;
+        if (along === edgeAlong) continue;
+        const overlapX =
+          Math.abs(edge.position[0] - lane.position[0]) < (edge.scale[0] + lane.scale[0]) / 2;
+        const overlapZ =
+          Math.abs(edge.position[2] - lane.position[2]) < (edge.scale[2] + lane.scale[2]) / 2;
+        const across = edgeAlong === 0 ? 2 : 0;
+        const inside =
+          Math.abs(edge.position[across] - lane.position[across]) < lane.scale[across] / 2;
+        if (overlapX && overlapZ) expect(inside, `edge at ${edge.position}`).toBe(true);
+      }
+    }
+    expect(WALKWAY_EDGE_WIDTH).toBeGreaterThanOrEqual(0.15);
+  });
+});
+
 describe('interior slab macro surface', () => {
   /**
    * Open floor: clear of every lane, dock apron, machine, joint and wall.
@@ -165,6 +310,39 @@ describe('factory roof light paths', () => {
     expect(top - deckTop).toBeGreaterThan(0.05);
     expect(top - deckTop).toBeLessThan(0.1);
     expect(bottom).toBeLessThan(deckTop);
+  });
+
+  it('stands every skylight kerb proud of the deck panel end it rises from', () => {
+    // Kerbs and panels share each half's pitch, so faces compare in the deck
+    // frame: z is world z, x is distance along the slope from the half centre.
+    // A kerb's aperture-facing face flush with the panel end below it (the
+    // aperture edge) is a coplanar pair the size of the panel's 0.36 m end:
+    // 38.9 m^2 over the twelve z edges alone.
+    const { panels, kerbs } = buildFactoryRoofEnvelope();
+    const centre = SITE_LAYOUT.factory.floor.width / 4;
+    const frame = (box: (typeof panels)[number]) => {
+      const side = box.position[0] > 0 ? 1 : -1;
+      return { side, x: (box.position[0] - centre * side) / Math.cos(0.05), z: box.position[2] };
+    };
+    const panelEnds = { x: [] as number[], z: [] as number[] };
+    for (const panel of panels) {
+      const { x, z } = frame(panel);
+      panelEnds.x.push(x - panel.scale[0] / 2, x + panel.scale[0] / 2);
+      panelEnds.z.push(z - panel.scale[2] / 2, z + panel.scale[2] / 2);
+    }
+    expect(kerbs).toHaveLength(24);
+    for (const kerb of kerbs) {
+      const { side, x, z } = frame(kerb);
+      const axis = kerb.scale[0] < kerb.scale[2] ? 'x' : 'z';
+      // Skylight centre in this frame: deck-local x = -5 * side, z nearest.
+      const skylightZ = [-26, 0, 26].reduce((a, b) => (Math.abs(b - z) < Math.abs(a - z) ? b : a));
+      const at = axis === 'x' ? x : z;
+      const toward = axis === 'x' ? -5 * side : skylightZ;
+      const half = (axis === 'x' ? kerb.scale[0] : kerb.scale[2]) / 2;
+      const inner = at + Math.sign(toward - at) * half;
+      const nearest = Math.min(...panelEnds[axis].map((end) => Math.abs(end - inner)));
+      expect(nearest, `${axis} kerb at ${at.toFixed(3)}`).toBeGreaterThan(0.005);
+    }
   });
 
   it('leaves all six skylight centres open through the actual deck and kerbs', () => {
@@ -396,8 +574,9 @@ describe('exposed factory roof steelwork', () => {
     );
 
   it('seats four connected frames on the existing wall columns within a bounded part budget', () => {
-    expect(parts.length).toBeLessThan(190);
-    expect(structure.purlins).toHaveLength(6);
+    // 144 frame members, 24 glazing bars and the purlin runs. Instanced: the
+    // count costs matrices, not draw calls.
+    expect(parts.length).toBeLessThan(600);
     expect(structure.glazingBars).toHaveLength(24);
     const seats = structure.frames.filter((part) => part.scale[1] === 0.1);
     expect(seats).toHaveLength(8);
@@ -423,6 +602,187 @@ describe('exposed factory roof steelwork', () => {
       // Shared datum keeps the real lamps below the structural lower chord.
       expect(bounds.min.y).toBeGreaterThan(SITE_LAYOUT.factory.bounds.maxY - 3.4);
       expect(bounds.max.y).toBeLessThan(SITE_LAYOUT.factory.bounds.maxY + 2.2);
+    }
+  });
+
+  // final3 med-12 interior and milling: between the trusses the deck read as
+  // one flat plane. Six purlins at 10 m centres gave it no rhythm at all.
+  it('carries the deck on purlins at no more than 1.5 m centres from eave to ridge', () => {
+    const lines = [...new Set(structure.purlins.map((part) => part.position[0]))].sort(
+      (a, b) => a - b
+    );
+    const halfWidth = SITE_LAYOUT.factory.floor.width / 2;
+    expect(lines[0]).toBeLessThan(-halfWidth + 2);
+    expect(lines[lines.length - 1]).toBeGreaterThan(halfWidth - 2);
+    for (let i = 1; i < lines.length; i++) {
+      const acrossRidge = lines[i - 1] < 0 && lines[i] > 0;
+      expect(
+        lines[i] - lines[i - 1],
+        `between ${lines[i - 1]} and ${lines[i]}`
+      ).toBeLessThanOrEqual(acrossRidge ? 2.6 : 1.5);
+    }
+    // Every line carries the deck over most of the hall's length.
+    for (const x of lines) {
+      const run = structure.purlins
+        .filter((part) => part.position[0] === x)
+        .reduce((sum, part) => sum + part.scale[2], 0);
+      expect(run, `line ${x}`).toBeGreaterThan(50);
+    }
+  });
+
+  it('frames every purlin between the trusses, kerbs and deck with air on all sides', () => {
+    // No purlin may overlap a chord, a web, a well kerb, the eave trim or the
+    // deck it carries, and none may share a plane with one: every purlin box,
+    // grown by 4 mm, still touches nothing.
+    const obb = (part: (typeof parts)[number], grow = 0) => {
+      const rotation = new THREE.Matrix3().setFromMatrix4(
+        new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(...(part.rotation ?? [0, 0, 0])))
+      );
+      return new OBB(
+        new THREE.Vector3(...part.position),
+        new THREE.Vector3(...part.scale).multiplyScalar(0.5).addScalar(grow),
+        rotation
+      );
+    };
+    const envelope = buildFactoryRoofEnvelope();
+    const neighbours = [
+      ...structure.frames,
+      ...structure.glazingBars,
+      ...envelope.panels,
+      ...envelope.kerbs,
+      ...buildFactoryRoofTrim(),
+    ].map((part) => obb(part));
+    for (const purlin of structure.purlins) {
+      const grown = obb(purlin, 0.004);
+      const clash = neighbours.findIndex((other) => grown.intersectsOBB(other));
+      expect(clash, `purlin at ${purlin.position.join(', ')}`).toBe(-1);
+    }
+    // Positive control: the same test does see a purlin laid on the deck.
+    const laid = structure.purlins[0];
+    const onDeck = {
+      ...laid,
+      position: [laid.position[0], laid.position[1] + 0.02, laid.position[2]] as const,
+    };
+    expect(neighbours.some((other) => obb(onDeck, 0.004).intersectsOBB(other))).toBe(true);
+  });
+
+  it('ends every purlin run on a truss, a well trimmer or the gable', () => {
+    const envelope = buildFactoryRoofEnvelope();
+    const faces = [...structure.frames, ...envelope.kerbs, ...buildFactoryRoofTrim()].flatMap(
+      (part) => [part.position[2] - part.scale[2] / 2, part.position[2] + part.scale[2] / 2]
+    );
+    for (const purlin of structure.purlins) {
+      for (const end of [-1, 1]) {
+        const z = purlin.position[2] + (end * purlin.scale[2]) / 2;
+        const bears =
+          Math.abs(Math.abs(z) - 49.55) < 1e-6 ||
+          faces.some((face) => Math.abs(Math.abs(face - z) - 0.01) < 0.002);
+        expect(bears, `purlin end at ${purlin.position[0]}, ${z}`).toBe(true);
+      }
+    }
+  });
+
+  /**
+   * final5 and r6hall6 med-12 interior and milling, top third: the top chords'
+   * silhouette stepped every purlin, MSAA on or off. Traced on r6hall6 interior
+   * (x 1380-1560), the silhouette follows the chord's near top edge to within
+   * +/-3 px, flat for ~23 px and then dropping: the purlins framing INTO the
+   * chord, flush with its top, put a light end over its near face (a bite) and
+   * a dark end face above its far edge (a tooth) at every purlin. Raising the
+   * chord 48 mm moved neither; lengthening every purlin 0.2 m into the chords
+   * at runtime reshaped them. So the purlins now sit ON the top chords, as
+   * purlins do: continuous over every truss with 15 mm of air, so the chord's
+   * top edge has nothing in front of it or above it but the purlins' own
+   * running stripes.
+   */
+  it('runs every purlin over the top chords, with air, never into them', () => {
+    const flanges = structure.frames.filter(
+      (part) =>
+        Math.abs(part.scale[2] - 0.46) < 1e-9 &&
+        Math.abs(part.scale[1] - 0.07) < 1e-9 &&
+        Math.abs(part.position[1] - (SITE_LAYOUT.factory.bounds.maxY - 2.9)) > 0.5
+    );
+    // The top flange of each top chord: no flange of the same member above it.
+    const upperChords = flanges.filter(
+      (part) =>
+        !flanges.some(
+          (other) =>
+            other !== part &&
+            other.position[2] === part.position[2] &&
+            Math.abs(other.position[0] - part.position[0]) < 0.1 &&
+            other.position[1] > part.position[1]
+        )
+    );
+    expect(upperChords.length).toBeGreaterThan(0);
+    // Height of a sloped box's top or bottom face at plan x.
+    const faceAt = (part: (typeof parts)[number], x: number, side: 1 | -1) => {
+      const angle = part.rotation?.[2] ?? 0;
+      const half = (side * part.scale[1]) / 2;
+      const x0 = part.position[0] - Math.sin(angle) * half;
+      const y0 = part.position[1] + Math.cos(angle) * half;
+      return y0 + (x - x0) * Math.tan(angle);
+    };
+    let crossings = 0;
+    for (const chord of upperChords) {
+      const z0 = chord.position[2] - chord.scale[2] / 2;
+      const z1 = chord.position[2] + chord.scale[2] / 2;
+      for (const purlin of structure.purlins) {
+        const x = purlin.position[0];
+        if (Math.abs(x - chord.position[0]) > (chord.scale[0] / 2) * Math.cos(0.05) - 0.1) continue;
+        const p0 = purlin.position[2] - purlin.scale[2] / 2;
+        const p1 = purlin.position[2] + purlin.scale[2] / 2;
+        // No purlin ends at, or within a metre of, a top chord...
+        expect(Math.abs(p0 - z1) > 1 && Math.abs(p1 - z0) > 1, `purlin ${x} ends at chord`).toBe(
+          true
+        );
+        if (p0 > z0 || p1 < z1) continue;
+        // ...and every one that crosses it clears its top by 10-20 mm.
+        const air = faceAt(purlin, x, -1) - faceAt(chord, x, 1);
+        expect(air, `purlin ${x} over chord z ${chord.position[2]}`).toBeGreaterThan(0.01);
+        expect(air, `purlin ${x} over chord z ${chord.position[2]}`).toBeLessThan(0.02);
+        crossings++;
+      }
+    }
+    expect(crossings).toBeGreaterThan(150);
+  });
+
+  /**
+   * final5 (74 against 96 luma at noon, 41 against 100 at 22:00): the purlins'
+   * side faces see less of the hall's light than the liner they hang under, so
+   * at one albedo they read as dark stripes. A shade lighter than the liner,
+   * still a neutral grey.
+   */
+  it('paints the purlins a shade over the liner, neutral', async () => {
+    const { ROOF_PANEL_MATERIALS, ROOF_PURLIN_MATERIAL } =
+      await import('./OptimizedFactoryInfrastructure');
+    const lum = (c: THREE.Color) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+    const liner = (ROOF_PANEL_MATERIALS[3] as THREE.MeshStandardMaterial).color;
+    const purlin = (ROOF_PURLIN_MATERIAL as THREE.MeshStandardMaterial).color;
+    expect(lum(purlin) / lum(liner)).toBeGreaterThan(1.15);
+    expect(lum(purlin) / lum(liner)).toBeLessThan(1.4);
+    expect(
+      Math.max(purlin.r, purlin.g, purlin.b) - Math.min(purlin.r, purlin.g, purlin.b)
+    ).toBeLessThan(0.03);
+  });
+
+  it('hangs no trim member below the deck or through it', () => {
+    // A 80 m member at z = 0, y 21.86-22.04, was 0.23 m below the deck at the
+    // ridge and stood through the deck's top past |x| 32: neither hung nor laid.
+    // Deck top 0.63 over the eave datum at each half's centre, pitched 0.05 rad
+    // up toward the ridge; the panels are 0.36 thick across the slope.
+    const halfCentre = SITE_LAYOUT.factory.floor.width / 4;
+    const underside = (x: number) =>
+      SITE_LAYOUT.factory.bounds.maxY +
+      0.63 +
+      (halfCentre - Math.abs(x)) * Math.tan(0.05) -
+      0.36 / Math.cos(0.05);
+    for (const trim of buildFactoryRoofTrim()) {
+      const [x, y, z] = trim.position;
+      const [sx, sy] = trim.scale;
+      if (Math.abs(z) > 49) continue; // gable wall plates sit on the walls
+      for (const at of [x - sx / 2, x, x + sx / 2]) {
+        expect(y + sy / 2, `trim at ${at}, ${z}`).toBeLessThan(underside(at));
+      }
     }
   });
 
@@ -516,5 +876,639 @@ describe('exposed factory roof steelwork', () => {
       geometry.dispose();
       material.dispose();
     }
+  });
+});
+
+it('keeps ceiling fixtures clear of every actual pneumatic and finished-product route', () => {
+  const groups = [
+    [SITE_LAYOUT.machines.silos, MachineType.SILO, SITE_LAYOUT.machineDimensions.silo],
+    [
+      SITE_LAYOUT.machines.rollerMills,
+      MachineType.ROLLER_MILL,
+      SITE_LAYOUT.machineDimensions.rollerMill,
+    ],
+    [SITE_LAYOUT.machines.sifters, MachineType.PLANSIFTER, SITE_LAYOUT.machineDimensions.sifter],
+    [SITE_LAYOUT.machines.packers, MachineType.PACKER, SITE_LAYOUT.machineDimensions.packer],
+  ] as const;
+  const machines = groups.flatMap(([anchors, type, size]) =>
+    anchors.map((anchor) => ({ ...anchor, type, size: [...size] }))
+  ) as unknown as MachineData[];
+  const fixtures = buildCeilingFixtures();
+  expect(fixtures.housings).toHaveLength(15);
+  expect(fixtures.emitters).toHaveLength(15);
+  const envelopes = [...fixtures.housings, ...fixtures.emitters].map((part) =>
+    new THREE.Box3()
+      .setFromCenterAndSize(new THREE.Vector3(...part.position), new THREE.Vector3(...part.scale))
+      .expandByScalar(SPOUT_PIPE_RADIUS)
+  );
+  const routes = buildSpoutRoutes(machines);
+  expect(routes).toHaveLength(11);
+  // CurvePath.getPoints samples only LineCurve3 endpoints, regardless of the
+  // division count. Spaced samples exercise the actual straight pipe spans.
+  const samples = routes.flatMap((route) => route.curve.getSpacedPoints(3200));
+  // The z 18 row was rejected while 7.56 m plansifters lifted the product
+  // rack into the fixture plane. Installed at real size the rack runs metres
+  // below it, so the positive control drops that row to the rack's own
+  // height at z 18 to prove these envelopes still see a pipe.
+  const rackY = Math.max(
+    ...samples.filter((point) => Math.abs(point.z - 18) < 0.25).map((point) => point.y)
+  );
+  expect(rackY).toBeLessThan(SITE_LAYOUT.factory.bounds.maxY - 3.8 - 2);
+  const rejectedRow = fixtures.housings
+    .filter((part) => part.position[2] === 22)
+    .map((part) =>
+      new THREE.Box3()
+        .setFromCenterAndSize(
+          new THREE.Vector3(part.position[0], rackY, 18),
+          new THREE.Vector3(...part.scale)
+        )
+        .expandByScalar(SPOUT_PIPE_RADIUS)
+    );
+  expect(samples.some((point) => rejectedRow.some((box) => box.containsPoint(point)))).toBe(true);
+  for (const route of routes) {
+    for (const point of route.curve.getSpacedPoints(3200))
+      expect(
+        envelopes.some((box) => box.containsPoint(point)),
+        `${route.family}: ${point.toArray()}`
+      ).toBe(false);
+  }
+});
+
+describe('roof standing seams', () => {
+  it('stop drawing where they can only alias, and stay for the close views', async () => {
+    const { ROOF_BATTEN_MIN_PIXELS, roofBattenPixels } =
+      await import('./OptimizedFactoryInfrastructure');
+    // Art captures render 1280 x 720 at DPR 2: a 1440 px drawing buffer.
+    const buffer = 1440;
+    const { overview } = SITE_LAYOUT.cameras;
+    // The overview camera to the nearest roof corner (~84 m): the seams covered
+    // under two pixels and read as a dot grid across the whole roof.
+    const nearestCorner = new THREE.Vector3(-60.5, SITE_LAYOUT.factory.bounds.maxY, 50.2);
+    const overviewDistance = new THREE.Vector3(...overview.position).distanceTo(nearestCorner);
+    expect(roofBattenPixels(overviewDistance, buffer, overview.fov)).toBeLessThan(
+      ROOF_BATTEN_MIN_PIXELS * 0.85
+    );
+    // A camera 20 m off the deck still sees ribs several pixels tall.
+    expect(roofBattenPixels(20, buffer, 50)).toBeGreaterThan(ROOF_BATTEN_MIN_PIXELS * 2);
+  });
+});
+
+describe('structural steel finish', () => {
+  it('draws no panel or seam grid on rolled sections', async () => {
+    // The forklift scene's door columns read as ceramic tile (final-med-12):
+    // a column is a unit box scaled to ~0.6 x 14 m, so the 4-panel normal at
+    // repeat 1 x 10 drew 0.15 x 0.35 m bevelled squares and the ORM's AO seams
+    // (5.3 per tile) a grid finer still. A rolled I-section has no panels.
+    const { FACTORY_STRUCTURE_MATERIAL } = await import('./OptimizedFactoryInfrastructure');
+    expect(FACTORY_STRUCTURE_MATERIAL.name).toBe('factory-structure');
+    expect(FACTORY_STRUCTURE_MATERIAL.normalMap).toBeNull();
+    expect(FACTORY_STRUCTURE_MATERIAL.aoMap).toBeNull();
+    // Roughness still varies along the member: the brushed G channel stays.
+    expect(FACTORY_STRUCTURE_MATERIAL.roughnessMap).not.toBeNull();
+  });
+});
+
+describe('process pads', () => {
+  /**
+   * The silo pad is a 16 x 66 m instance of the shared unit box. A UV map on it
+   * stretches 12:1, so the concrete tile's joint lines became 0.33 m planks and
+   * its noise became grain: the judge read it as timber decking. The pads now
+   * take no UV map and no unit-box normal atlas; their concrete is the slab
+   * term in OBJECT space, so the joints are laid from each pad's own centre.
+   */
+  it('finishes the pads in object-space slabs, with no UV-stretched map or atlas', async () => {
+    const module = await import('./OptimizedFactoryInfrastructure');
+    const pad = module.PROCESS_PAD_MATERIAL as THREE.MeshStandardMaterial;
+    expect(pad.map).toBeNull();
+    expect(pad.roughnessMap).toBeNull();
+    const uniforms = pad.userData.millosWorldSurface as {
+      uSurfSlab: { value: THREE.Vector4 };
+      uSurfSpan: { value: THREE.Vector4 };
+    };
+    expect(uniforms.uSurfSpan.value.w).toBe(1);
+    const pitch = uniforms.uSurfSlab.value.x;
+    expect(pitch).toBeGreaterThanOrEqual(3);
+    expect(pitch).toBeLessThanOrEqual(6);
+    // Joints from the centre land on the silo pad's long edges.
+    const [width] = SITE_LAYOUT.bulkStorage.siloPad.size;
+    expect(((width / 2) % pitch) / pitch).toBeCloseTo(0, 6);
+    const source = readFileSync(
+      'src/components/infrastructure/OptimizedFactoryInfrastructure.tsx',
+      'utf8'
+    );
+    expect(source).toMatch(
+      /<InstancedBoxes\s+instances=\{plinths\}\s+material=\{MATERIALS\.plinth\}[^>]*generatedSurface=\{false\}/
+    );
+  });
+});
+
+describe('aisle safety barriers', () => {
+  /**
+   * The 1.1 m upstands either side of the milling and packing aisles shared the
+   * bollards' hi-viz paint and its `signage` finish, the lightest in the set,
+   * so the one nearest the milling camera filled its foreground with flat,
+   * saturated, constant yellow. They are painted concrete: worn paint, chipped
+   * arrises showing the concrete, scuffed at the foot.
+   */
+  it('are worn painted concrete, not the bollards hi-viz', async () => {
+    const module = await import('./OptimizedFactoryInfrastructure');
+    const barrier = module.SAFETY_BARRIER_MATERIAL as THREE.MeshStandardMaterial;
+    expect(barrier.name).not.toBe('factory-safety-yellow');
+    const hsl = barrier.color.getHSL({ h: 0, s: 0, l: 0 }, THREE.SRGBColorSpace);
+    expect(hsl.s).toBeLessThan(0.6);
+    expect(barrier.userData.millosWorldSurfaceProfile).toBe('masonry');
+    const mask = (barrier.userData.millosWorldSurface as { uSurfMask: { value: THREE.Vector4 } })
+      .uSurfMask.value;
+    expect(mask.x).toBeGreaterThanOrEqual(0.3); // grime at the foot
+    expect(mask.z).toBeGreaterThanOrEqual(0.2); // chipped arrises
+    // Indoors its shaded face sees the slab, not the grass outside.
+    const deck = (barrier.userData.millosWorldSurface as { uSurfDeck: { value: THREE.Vector4 } })
+      .uSurfDeck.value;
+    expect(deck.w).toBeGreaterThanOrEqual(0.8);
+    const source = readFileSync(
+      'src/components/infrastructure/OptimizedFactoryInfrastructure.tsx',
+      'utf8'
+    );
+    expect(source).toMatch(/instances=\{rails\}\s+material=\{MATERIALS\.safetyBarrier\}/);
+  });
+
+  it('keep their scuffing at the narrow forklift camera and break into precast sections', async () => {
+    // final-med-12 still read them as flat constant planks: milling's 900 px
+    // foreground run, and forklift's 650 px board at 34 m, where the 28-degree
+    // camera resolves the 0.35 m scuffing at 30 px but the masonry meso had
+    // faded by distance (gone at 45 m, 70% gone at 34 m). Nor did one long box
+    // per run carry any section-to-section variation.
+    const module = await import('./OptimizedFactoryInfrastructure');
+    const uniforms = (module.SAFETY_BARRIER_MATERIAL as THREE.MeshStandardMaterial).userData
+      .millosWorldSurface as {
+      uSurfDetail: { value: THREE.Vector4 };
+      uSurfSlab: { value: THREE.Vector4 };
+      uSurfSpan: { value: THREE.Vector4 };
+    };
+    expect(uniforms.uSurfDetail.value.w).toBeGreaterThanOrEqual(80);
+    expect(uniforms.uSurfSlab.value.x).toBeGreaterThanOrEqual(1.5);
+    expect(uniforms.uSurfSlab.value.x).toBeLessThanOrEqual(3.5);
+    expect(uniforms.uSurfSlab.value.z).toBeGreaterThanOrEqual(0.1);
+    // Sections count from each run's own centre.
+    expect(uniforms.uSurfSpan.value.w).toBe(1);
+  });
+
+  it('are built as precast sections: open joints, a cast foot, chamfered arrises and lifting sockets', async () => {
+    // final3-med-12/-06/-19: the x -30 run (milling's foreground, forklift's
+    // board behind the belt) still read as one smeared brown slab; the
+    // shader-only sections above did not show. Structure in geometry instead,
+    // every part inside the run's envelope so nothing it clears moves.
+    const { buildSafetyRails, buildSafetyRailParts } =
+      await import('./OptimizedFactoryInfrastructure');
+    const envelopes = buildSafetyRails();
+    const parts = buildSafetyRailParts();
+    const aabb = ({ position, scale, rotation = [0, 0, 0] }: BoxInstance) => {
+      const box = new THREE.Box3(
+        new THREE.Vector3(-0.5, -0.5, -0.5),
+        new THREE.Vector3(0.5, 0.5, 0.5)
+      ).applyMatrix4(
+        new THREE.Matrix4().compose(
+          new THREE.Vector3(...position),
+          new THREE.Quaternion().setFromEuler(new THREE.Euler(...rotation)),
+          new THREE.Vector3(...scale)
+        )
+      );
+      return box;
+    };
+    const envelopeBox = (e: BoxInstance) => aabb(e).expandByScalar(1e-6);
+    const owner = (part: BoxInstance) =>
+      envelopes.findIndex((e) => envelopeBox(e).containsBox(aabb(part)));
+    for (const kind of ['sections', 'feet', 'chamfers', 'sockets', 'bands'] as const)
+      for (const part of parts[kind])
+        expect(owner(part), `${kind} outside every run`).toBeGreaterThanOrEqual(0);
+    envelopes.forEach((envelope, run) => {
+      const length = envelope.scale[2];
+      const thickness = envelope.scale[0];
+      const sections = parts.sections
+        .filter((part) => owner(part) === run)
+        .map(aabb)
+        .sort((a, b) => a.min.z - b.min.z);
+      expect(sections.length, `run ${run}`).toBeGreaterThanOrEqual(
+        Math.max(3, Math.floor(length / 2.6))
+      );
+      for (let i = 1; i < sections.length; i += 1)
+        expect(
+          sections[i].min.z - sections[i - 1].max.z,
+          `joint ${run}:${i}`
+        ).toBeGreaterThanOrEqual(0.03);
+      // The cast foot is the run's full thickness; the painted body above it is thinner.
+      const feet = parts.feet.filter((part) => owner(part) === run);
+      expect(feet.length).toBe(sections.length);
+      for (const foot of feet) expect(foot.scale[0]).toBeCloseTo(thickness, 6);
+      for (const section of sections)
+        expect(section.max.x - section.min.x).toBeLessThan(thickness - 0.02);
+      // Both top arrises of every section are chamfered; two sockets on each top.
+      expect(parts.chamfers.filter((part) => owner(part) === run).length).toBe(2 * sections.length);
+      expect(parts.sockets.filter((part) => owner(part) === run).length).toBe(2 * sections.length);
+      // A painted hazard band along the top of both faces of every section,
+      // just proud of the body (r4floor-med-12: with sections and joints the
+      // face still read as one brown smear in shade).
+      const bands = parts.bands.filter((part) => owner(part) === run).map(aabb);
+      expect(bands.length).toBe(2 * sections.length);
+      for (const band of bands) {
+        const body = sections.find((s) => s.min.z <= band.min.z && s.max.z >= band.max.z)!;
+        expect(body, 'band on a section').toBeDefined();
+        const proud = Math.max(body.min.x - band.min.x, band.max.x - body.max.x);
+        expect(proud).toBeGreaterThanOrEqual(0.001);
+        expect(proud).toBeLessThanOrEqual(0.006);
+        expect(band.max.y).toBeLessThan(body.max.y);
+        expect(band.max.y - band.min.y).toBeGreaterThanOrEqual(0.12);
+      }
+    });
+  });
+});
+
+describe('roof deck liner', () => {
+  it('lines the deck underside in a light liner and keeps the exterior coat on top', async () => {
+    // At 22:00 the dock end of the hall read black (luma 2.8): the underside
+    // carried the exterior coat (#505452, ~0.08 albedo), so the uplight and
+    // the slab's bounce had almost nothing to reflect. A steel deck's interior
+    // face is a light liner sheet; the exterior keeps its dark coat.
+    const { ROOF_PANEL_MATERIALS } = await import('./OptimizedFactoryInfrastructure');
+    const box = new THREE.BoxGeometry(1, 1, 1);
+    const normals = box.getAttribute('normal');
+    const index = box.getIndex()!;
+    box.groups.forEach((group) => {
+      const normalY = normals.getY(index.getX(group.start));
+      const material = ROOF_PANEL_MATERIALS[group.materialIndex ?? 0] as THREE.MeshStandardMaterial;
+      if (normalY < -0.5) expect(material.name).toBe('factory-roof-liner');
+      else expect(material.name).toBe('factory-roof-deck');
+    });
+    const luminance = (material: THREE.Material) => {
+      const { r, g, b } = (material as THREE.MeshStandardMaterial).color;
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    expect(luminance(ROOF_PANEL_MATERIALS[3])).toBeGreaterThan(
+      luminance(ROOF_PANEL_MATERIALS[2]) * 2.5
+    );
+  });
+
+  /**
+   * At noon the judge read the ceiling as flat olive: measured sRGB (30, 45, 38)
+   * on open deck in `interior`. The liner was a green-biased grey, and a
+   * downward face indoors is lit by the sky rig's LOWER band - the grass and
+   * masonry outside - which it cannot see from under a roof. It also had no
+   * deck profile: the panel normal on a unit box stretched with every panel.
+   */
+  it('is a neutral grey profiled deck lit by the hall, not the grass', async () => {
+    const { ROOF_PANEL_MATERIALS } = await import('./OptimizedFactoryInfrastructure');
+    const liner = ROOF_PANEL_MATERIALS[3] as THREE.MeshStandardMaterial;
+    const { r, g, b } = liner.color;
+    const mean = (r + g + b) / 3;
+    expect((Math.max(r, g, b) - Math.min(r, g, b)) / mean).toBeLessThan(0.03);
+    expect(g).toBeLessThanOrEqual(r);
+    const uniforms = liner.userData.millosWorldSurface as { uSurfDeck: { value: THREE.Vector4 } };
+    const deck = uniforms.uSurfDeck.value;
+    // Trapezoidal deck ribs at a real pitch, running down the slope: the roof
+    // halves pitch about Z, so the profile varies along world Z.
+    expect(deck.x).toBeGreaterThanOrEqual(0.15);
+    expect(deck.x).toBeLessThanOrEqual(0.35);
+    expect(deck.y).toBeGreaterThan(0.02);
+    expect(deck.z).toBe(1);
+    expect(deck.w).toBeGreaterThanOrEqual(0.8);
+    // Only the liner: the exterior coat keeps the outside light.
+    const roof = ROOF_PANEL_MATERIALS[2] as THREE.MeshStandardMaterial;
+    expect(
+      (roof.userData.millosWorldSurface as { uSurfDeck: { value: THREE.Vector4 } }).uSurfDeck.value
+        .w
+    ).toBe(0);
+  });
+
+  /**
+   * Still "flat olive-brown with fine dot noise" in final-med-12 after the
+   * grey liner and ribs landed: the probe measured the open deck at sRGB
+   * (27, 35, 33), and with the daylight fill neutralised it was still only
+   * (29, 34, 31). A down-facing face indoors gets fill alone, so at 0.29 albedo
+   * it sat near black whatever its hue, and the painted profile's meso relief
+   * (18 mm at a 0.55 m period, alive to 55 m) shimmered into dots at the
+   * ceiling's grazing angle. A liner sheet is a light, smooth coil coating.
+   */
+  it('is a light, smooth liner between its ribs', async () => {
+    const { ROOF_PANEL_MATERIALS } = await import('./OptimizedFactoryInfrastructure');
+    const liner = ROOF_PANEL_MATERIALS[3] as THREE.MeshStandardMaterial;
+    const { r, g, b } = liner.color;
+    expect(0.2126 * r + 0.7152 * g + 0.0722 * b).toBeGreaterThanOrEqual(0.42);
+    const detail = (liner.userData.millosWorldSurface as { uSurfDetail: { value: THREE.Vector4 } })
+      .uSurfDetail.value;
+    expect(detail.z).toBeLessThanOrEqual(0.005);
+  });
+
+  /**
+   * final3 med-12 interior and milling: "between the trusses the deck is a
+   * single flat plane", so round 4 box-filtered the liner's ribs to keep them
+   * at the interior cameras. final4 (med-12, med-06, med-1830, low-12): the
+   * deck read as a dot grid. The test that shipped measured the footprint on
+   * the 1440 px CAPTURE, but Medium renders 864 px (resolution 0.6 at DPR 2)
+   * and Low 576, where the top of `interior` is 0.42 and 0.63 pitches a pixel:
+   * past Nyquist, where the box filter still left 85% and 40% of the swing.
+   * The ribs now read only where a pitch spans pixels; the purlins carry the
+   * deck's rhythm beyond that.
+   */
+  it('keeps its ribs only where they resolve, and never past Nyquist', async () => {
+    const { ROOF_PANEL_MATERIALS } = await import('./OptimizedFactoryInfrastructure');
+    const { ribRenderedSwing } = await import('../../utils/worldSurface');
+    const liner = ROOF_PANEL_MATERIALS[3] as THREE.MeshStandardMaterial;
+    const uniforms = liner.userData.millosWorldSurface as {
+      uSurfDeck: { value: THREE.Vector4 };
+      uSurfRib: { value: THREE.Vector4 };
+    };
+    const pitch = uniforms.uSurfDeck.value.x;
+    const tone = uniforms.uSurfRib.value.x;
+    expect(uniforms.uSurfRib.value.y).toBe(1);
+    // A pixel's footprint along a ceiling seen at `elevation` degrees from
+    // `rise` metres under it: distance times the pixel angle, foreshortened.
+    const footprint = (rise: number, elevation: number, fov: number, rows: number) => {
+      const sin = Math.sin((elevation * Math.PI) / 180);
+      return ((rise / sin) * ((2 * Math.tan((fov * Math.PI) / 360)) / rows)) / sin;
+    };
+    const MEDIUM_ROWS = 720 * 2 * 0.6;
+    const LOW_ROWS = 720 * 2 * 0.4;
+    // `interior` and `milling`, top of frame, on Medium and Low: no swing left.
+    for (const rows of [MEDIUM_ROWS, LOW_ROWS]) {
+      expect(ribRenderedSwing(footprint(8.3, 18, 55, rows) / pitch)).toBeLessThan(1e-3);
+      expect(ribRenderedSwing(footprint(18, 22, 50, rows) / pitch)).toBeLessThan(1e-3);
+    }
+    // Looking up at the deck from under it (8.3 m, 60 degrees) the ribs read.
+    expect(tone * ribRenderedSwing(footprint(8.3, 60, 55, MEDIUM_ROWS) / pitch)).toBeGreaterThan(
+      0.15
+    );
+  });
+
+  /**
+   * final5 med-12 interior (upper right) and milling, low-12 (as a brick
+   * moire): the deck still read as a checker. The footprint test above is
+   * foreshortened along the view, but the ribs vary along world Z and the
+   * interior camera looks mostly along +X, so up there a rib pitch lies ACROSS
+   * the view and spans 6-7 px on Medium: resolved, faded only part way, and
+   * chopped every 10-12 px by the purlins. This measures the footprint the
+   * shader does (`fwidth` of the rib coordinate) through the real cameras.
+   */
+  it('draws no rib swing anywhere on the ceiling the interior and milling cameras see', async () => {
+    const { ROOF_PANEL_MATERIALS } = await import('./OptimizedFactoryInfrastructure');
+    const { ribRenderedSwing } = await import('../../utils/worldSurface');
+    const liner = ROOF_PANEL_MATERIALS[3] as THREE.MeshStandardMaterial;
+    const pitch = (liner.userData.millosWorldSurface as { uSurfDeck: { value: THREE.Vector4 } })
+      .uSurfDeck.value.x;
+    // The liner's lower face (the eave datum test above): 0.63 over the eaves
+    // at each half's centre, pitched 0.05 rad up to the ridge, 0.36 thick.
+    const halfCentre = SITE_LAYOUT.factory.floor.width / 4;
+    const deckY = (x: number) =>
+      SITE_LAYOUT.factory.bounds.maxY +
+      0.63 +
+      (halfCentre - Math.abs(x)) * Math.tan(0.05) -
+      0.36 / Math.cos(0.05);
+    let worst = 0;
+    let seen = 0;
+    for (const name of ['interior', 'milling'] as const) {
+      const pose = SITE_LAYOUT.cameras[name];
+      const camera = new THREE.PerspectiveCamera(pose.fov, 16 / 9, 0.5, 300);
+      camera.position.set(...pose.position);
+      camera.lookAt(...pose.target);
+      camera.updateMatrixWorld();
+      for (const rows of [720 * 2 * 0.6, 720 * 2 * 0.4]) {
+        const cols = (rows * 16) / 9;
+        // Rib coordinate (world z / pitch) where a pixel's ray meets the deck.
+        const ribU = (px: number, py: number) => {
+          const ray = new THREE.Vector3((px / cols) * 2 - 1, 1 - (py / rows) * 2, 0.5)
+            .unproject(camera)
+            .sub(camera.position)
+            .normalize();
+          if (ray.y <= 0) return null;
+          let t = (deckY(camera.position.x) - camera.position.y) / ray.y;
+          for (let i = 0; i < 4; i++) {
+            t = (deckY(camera.position.x + ray.x * t) - camera.position.y) / ray.y;
+          }
+          const hit = camera.position.clone().addScaledVector(ray, t);
+          if (Math.abs(hit.x) > 39.5 || Math.abs(hit.z) > 49.5) return null;
+          return hit.z / pitch;
+        };
+        for (let py = 1; py < rows / 3; py += 6) {
+          for (let px = 1; px < cols - 1; px += 6) {
+            const u = ribU(px, py);
+            const ux = ribU(px + 1, py);
+            const uy = ribU(px, py + 1);
+            if (u === null || ux === null || uy === null) continue;
+            const w = Math.abs(ux - u) + Math.abs(uy - u);
+            worst = Math.max(worst, ribRenderedSwing(w));
+            seen++;
+          }
+        }
+      }
+    }
+    expect(seen).toBeGreaterThan(1000);
+    expect(worst).toBeLessThan(1e-3);
+  });
+});
+
+// logistics-close (370,190)-(410,220) and milling (1490,500)-(1525,535),
+// final-med-12: single-pixel sun glints that read as stars. Hiding the one
+// `factory-glazing` instanced mesh removed the logistics-close dot (box max
+// 714 -> 560 summed sRGB, every other candidate under the pixel unchanged).
+// At roughness 0.08 the GGX lobe peaks near 7,800, so even at 13% opacity the
+// sun's image is ~30x white, compressed into a pixel. A soft sheen is the brief.
+it('keeps the hall glazing sun lobe below white at its peak', () => {
+  const sunIntensity = 3.1;
+  const f0 = 0.04;
+  for (const [name, surface] of Object.entries(FACTORY_GLAZING_SURFACES)) {
+    const alpha = surface.roughness * surface.roughness;
+    const ggxPeak = 1 / (Math.PI * alpha * alpha);
+    const peak = (ggxPeak * f0 * sunIntensity * surface.opacity) / 4;
+    expect(peak, name).toBeLessThan(1);
+    expect(surface.roughness, name).toBeLessThanOrEqual(0.35);
+  }
+});
+
+// overview hall sill (840,990)-(1240,1060), final-med-12: "a dashed-white
+// aliasing line on thin edges". The probe put those pixels on the bottom
+// window rail (y 0.71-0.85) and, behind it, the plinth top at y 0.60: the
+// rail stopped 0.11 m above the 0.6 m plinth, so an 11 cm slot showed the
+// sunlit plinth top as a 1-2 px line that broke into dashes at 90 m.
+// final3 med-12 overview, shipping, tank-farm: from outside the hall read as an
+// open frame. Part of it is scale: a 9.4 x 11.2 m light is no glass anyone
+// makes, so nothing on the facade said "glazing" at the size real lights are.
+describe('curtain wall lights', () => {
+  const panes = buildFactoryGlazing();
+  const lights = buildFactoryGlazingLights(panes);
+  const bars = buildFactoryGlazingBars(panes);
+  const along = (box: { scale: readonly number[] }) => (box.scale[0] > box.scale[2] ? 0 : 2);
+
+  it('splits every pane into lights no wider than 3.3 m that tile it exactly', () => {
+    expect(lights.length).toBeGreaterThan(panes.length * 2);
+    for (const pane of panes) {
+      const axis = along(pane);
+      const own = lights.filter(
+        (light) =>
+          Math.abs(light.position[1] - pane.position[1]) < 1e-9 &&
+          Math.abs(light.position[2 - axis] - pane.position[2 - axis]) < 1e-9 &&
+          Math.abs(light.position[axis] - pane.position[axis]) < pane.scale[axis] / 2
+      );
+      expect(own.length).toBeGreaterThanOrEqual(1);
+      const total = own.reduce((sum, light) => sum + light.scale[axis], 0);
+      expect(total).toBeCloseTo(pane.scale[axis], 6);
+      for (const light of own) {
+        expect(light.scale[axis]).toBeLessThanOrEqual(3.3);
+        expect(light.scale[1]).toBe(pane.scale[1]);
+        expect(light.scale[2 - axis]).toBe(pane.scale[2 - axis]);
+      }
+    }
+  });
+
+  it('puts a mullion over every seam and a transom across every light taller than 4.5 m', () => {
+    for (const pane of panes) {
+      const axis = along(pane);
+      const depth = pane.scale[2 - axis];
+      const own = lights
+        .filter(
+          (light) =>
+            Math.abs(light.position[1] - pane.position[1]) < 1e-9 &&
+            Math.abs(light.position[2 - axis] - pane.position[2 - axis]) < 1e-9 &&
+            Math.abs(light.position[axis] - pane.position[axis]) < pane.scale[axis] / 2
+        )
+        .sort((a, b) => a.position[axis] - b.position[axis]);
+      for (let i = 1; i < own.length; i++) {
+        const seam = own[i].position[axis] - own[i].scale[axis] / 2;
+        const mullion = bars.find(
+          (bar) =>
+            bar.scale[1] > bar.scale[axis] &&
+            Math.abs(bar.position[axis] - seam) < 1e-6 &&
+            Math.abs(bar.position[1] - pane.position[1]) < 1e-6 &&
+            Math.abs(bar.position[2 - axis] - pane.position[2 - axis]) < 1e-6
+        );
+        expect(mullion, `seam at ${seam}`).toBeDefined();
+        // Deeper than the glass, so the glass's own seam faces are inside it.
+        expect(mullion!.scale[2 - axis]).toBeGreaterThan(depth + 0.02);
+        expect(mullion!.position[1] - mullion!.scale[1] / 2).toBeLessThan(
+          pane.position[1] - pane.scale[1] / 2
+        );
+        expect(mullion!.position[1] + mullion!.scale[1] / 2).toBeGreaterThan(
+          pane.position[1] + pane.scale[1] / 2
+        );
+      }
+      const transoms = bars.filter(
+        (bar) =>
+          bar.scale[axis] > bar.scale[1] &&
+          Math.abs(bar.position[axis] - pane.position[axis]) < 1e-6 &&
+          Math.abs(bar.position[2 - axis] - pane.position[2 - axis]) < 1e-6 &&
+          Math.abs(bar.position[1] - pane.position[1]) < pane.scale[1] / 2
+      );
+      const rows = transoms.length + 1;
+      expect(pane.scale[1] / rows, `pane at ${pane.position}`).toBeLessThanOrEqual(4.5);
+      for (const transom of transoms) {
+        // Inside the glass, so it has no sunlit top: the sill rail's 4 cm of
+        // exposed top read as a dashed white line at 90 m (overview).
+        expect(transom.scale[2 - axis]).toBeLessThan(depth);
+        expect(transom.scale[axis]).toBeGreaterThan(pane.scale[axis]);
+      }
+    }
+  });
+});
+
+describe('facade window frames', () => {
+  it('closes the sill rail down onto the plinth, leaving no lit slot', () => {
+    const { baseHeight, sideWindowSill } = FACTORY_ENVELOPE_SPEC;
+    const panes = buildFactoryGlazing();
+    const frames = buildFactoryFacadeFrames(panes);
+    const sillPanes = panes.filter(
+      (pane) => Math.abs(pane.position[1] - pane.scale[1] / 2 - sideWindowSill) < 1e-6
+    );
+    expect(sillPanes.length).toBeGreaterThan(4);
+    for (const pane of sillPanes) {
+      const [x, , z] = pane.position;
+      const rail = frames.find(
+        (frame) =>
+          Math.abs(frame.position[0] - x) < 1e-6 &&
+          Math.abs(frame.position[2] - z) < 1e-6 &&
+          frame.position[1] < sideWindowSill
+      );
+      expect(rail).toBeDefined();
+      const bottom = rail!.position[1] - rail!.scale[1] / 2;
+      const top = rail!.position[1] + rail!.scale[1] / 2;
+      expect(bottom).toBeLessThanOrEqual(baseHeight);
+      expect(top).toBeGreaterThanOrEqual(sideWindowSill);
+      // With the slot closed the after-capture still showed fainter dashes
+      // along the rail's top edge (thin bright pixels 284 -> 49): the 4 cm of
+      // sunlit rail top left either side of the 8 cm pane. A sill rail as deep
+      // as its pane has no exposed top.
+      const front = pane.scale[0] > pane.scale[2];
+      const railDepth = front ? rail!.scale[2] : rail!.scale[0];
+      const paneDepth = front ? pane.scale[2] : pane.scale[0];
+      expect(railDepth).toBeLessThanOrEqual(paneDepth + 1e-9);
+    }
+  });
+});
+
+/**
+ * final4 med-12 overview and farm: the hall roof seen from above was "one flat
+ * olive plane", the largest surface in the overview frame. And the three roof
+ * units it did carry stood at a fixed height, not on the pitched deck: the one
+ * at the ridge was buried 1.7 m under it.
+ */
+describe('rooftop plant and membrane', () => {
+  it('seats every unit on its half of the deck, between battens and clear of the roof lights', async () => {
+    const { buildFactoryRooftopPlant, ROOFTOP_PLANT, ROOFTOP_PLANT_EMBED, ROOF_SKYLIGHT_LAYOUT } =
+      await import('./OptimizedFactoryInfrastructure');
+    const plant = buildFactoryRooftopPlant();
+    expect(plant.length).toBeGreaterThanOrEqual(10);
+    const L = ROOF_SKYLIGHT_LAYOUT;
+    plant.forEach((unit, i) => {
+      const [side, local] = ROOFTOP_PLANT[i];
+      const slope = L.roofSlope(side);
+      const normal = new THREE.Vector3(-Math.sin(slope), Math.cos(slope), 0);
+      const seat = L.deckPoint(side, local);
+      const centre = new THREE.Vector3(...unit.position);
+      // Base face sits ROOFTOP_PLANT_EMBED into the deck's top face.
+      const baseHeight =
+        centre
+          .clone()
+          .sub(new THREE.Vector3(seat.x, seat.y, centre.z))
+          .dot(normal) -
+        unit.scale[1] / 2;
+      expect(baseHeight, `unit ${i}`).toBeCloseTo(-ROOFTOP_PLANT_EMBED, 6);
+      expect(unit.rotation?.[2]).toBeCloseTo(slope, 9);
+      // Within its own half, inside the trim.
+      expect(Math.abs(local) + unit.scale[0] / 2, `unit ${i}`).toBeLessThan(L.battenReach);
+      // Between two battens.
+      const zMin = centre.z - unit.scale[2] / 2;
+      const zMax = centre.z + unit.scale[2] / 2;
+      for (let z = -47.2; z <= 47.2; z += L.battenPitch) {
+        const clear = zMax < z - L.battenWidth / 2 - 0.05 || zMin > z + L.battenWidth / 2 + 0.05;
+        expect(clear, `unit ${i} over batten ${z.toFixed(1)}`).toBe(true);
+      }
+      // Clear of every roof light and its kerb.
+      const lightX = L.localX(side);
+      for (const lightZ of L.z) {
+        const overlapX = Math.abs(local - lightX) < unit.scale[0] / 2 + L.size.x / 2 + 0.5;
+        const overlapZ = Math.abs(centre.z - lightZ) < unit.scale[2] / 2 + L.size.z / 2 + 0.5;
+        expect(overlapX && overlapZ, `unit ${i} in roof light ${lightZ}`).toBe(false);
+      }
+    });
+  });
+
+  it('draws lap seams on the membrane that stay resolvable from the overview', async () => {
+    const { ROOF_PANEL_MATERIALS, ROOF_MEMBRANE_SEAM } =
+      await import('./OptimizedFactoryInfrastructure');
+    const { ribRenderedSwing } = await import('../../utils/worldSurface');
+    const top = ROOF_PANEL_MATERIALS[2] as THREE.MeshStandardMaterial;
+    const u = top.userData.millosWorldSurface as {
+      uSurfDeck: { value: THREE.Vector4 };
+      uSurfRib: { value: THREE.Vector4 };
+    };
+    expect(u.uSurfDeck.value.x).toBe(ROOF_MEMBRANE_SEAM.pitch);
+    expect(u.uSurfDeck.value.z).toBe(0);
+    expect(u.uSurfRib.value.y).toBe(1);
+    expect(u.uSurfRib.value.z).toBeCloseTo(ROOF_MEMBRANE_SEAM.width / ROOF_MEMBRANE_SEAM.pitch, 9);
+    // Seams parallel to the ridge recede from the overview camera, so the
+    // footprint across them is the lateral one: ~0.12 m a pixel at 130 m on
+    // Medium (864 rows, fov 45), plus some foreshortening.
+    const across = (130 * 2 * Math.tan((45 * Math.PI) / 360)) / 864;
+    const seam = ROOF_MEMBRANE_SEAM.width / ROOF_MEMBRANE_SEAM.pitch;
+    expect(ribRenderedSwing((2 * across) / ROOF_MEMBRANE_SEAM.pitch, seam)).toBeGreaterThan(0.03);
+    expect(ROOF_MEMBRANE_SEAM.pitch).toBeGreaterThanOrEqual(1);
+    expect(ROOF_MEMBRANE_SEAM.pitch).toBeLessThanOrEqual(2);
   });
 });

@@ -1,0 +1,52 @@
+{
+  "label": "R-station-after-day-20261014",
+  "capturedAt": "2026-10-14T22:04:11.536Z",
+  "git": {
+    "commit": "8fd1c63981c2f91ba8c67addf4bf57610f32dbb6",
+    "branch": "codex/place-led-beautification-20261010",
+    "dirty": true,
+    "dirtyFileCount": 8,
+    "dirtyFiles": [
+      "public/textures/signage/PROVENANCE.json",
+      "src/components/GasStationInstanced.tsx",
+      "src/components/scenery/StationRetailDetails.test.ts",
+      "src/components/scenery/StationRetailDetails.tsx",
+      "output/playwright/place-led-20261010/",
+      "public/textures/signage/station-retail-raster-v1.webp",
+      "src/components/scenery/StationTravelStop.test.ts",
+      "src/components/scenery/StationTravelStop.tsx"
+    ]
+  },
+  "options": {
+    "label": "R-station-after-day-20261014",
+    "scenes": [
+      "forecourt"
+    ],
+    "sceneSet": "explicit",
+    "quality": "medium",
+    "port": "4288",
+    "time": "12",
+    "weather": "clear",
+    "duration": "1",
+    "warmup": "1",
+    "settleTimeout": "240",
+    "perfGate": false,
+    "skipBuild": true,
+    "headed": false
+  },
+  "diagnostics": [],
+  "scenes": [
+    {
+      "scene": "forecourt",
+      "image": "forecourt.png",
+      "indicativeFps": 60
+    }
+  ],
+  "contactSheet": "contact-sheet.png",
+  "perfGate": null,
+  "caveats": [
+    "Working tree was dirty (8 files). These frames show uncommitted work, not commit 8fd1c63. Do not use as a baseline for a later comparison.",
+    "Captured with --skip-build; dist/ may predate the tree.",
+    "No performance gate was run. Art mode unpins reduced motion and restores full fidelity, so its frame samples are indicative only. A visual verdict from this capture is not shippable until a non-art budget run passes on the same commit."
+  ]
+}

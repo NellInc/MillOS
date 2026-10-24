@@ -1,0 +1,13 @@
+src/components/scenery/AuthoredPropTrim.tsx 1150ms
+src/components/FactoryExterior.tsx 3247ms
+src/components/scenery/WorldPublicRealm.tsx 387ms
+src/simulation/ambientWorld.ts 53ms
+src/components/scenery/AuthoredPropTrim.tsx 1698ms (unchanged)
+src/components/FactoryExterior.tsx 2885ms (unchanged)
+src/components/scenery/WorldPublicRealm.tsx 126ms (unchanged)
+src/components/CommunityLife.tsx 54ms (unchanged)
+src/simulation/ambientWorld.ts 7ms (unchanged)
+src/simulation/communityLife.ts 297ms
+src/components/scenery/WorldPublicRealm.test.ts 172ms
+src/simulation/__tests__/ambientWorld.test.ts 7ms
+src/simulation/__tests__/communityLife.test.ts 150ms

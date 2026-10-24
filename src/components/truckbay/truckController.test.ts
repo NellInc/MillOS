@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
+import { stagingBounds } from '../../simulation/layoutPlanning';
+import { STAGING_LAYOUT } from './palletStagingLayout';
+import { dockDressingFootprints } from './dockYardDressingLayout';
 import {
   createTruckController,
   getTruckControllerPose,
   interpolateTruckControllerState,
   stepTruckController,
+  type TruckControllerState,
 } from './truckController';
+import type { TruckAnimState } from './useTruckPhysics';
 
 const step = (
   state: ReturnType<typeof createTruckController>,
@@ -45,6 +50,254 @@ const runCompleteCycle = (framesPerSecond: number, speedMultiplier: number = 1) 
 
   return { state, maximumArticulation, maximumSteering, departureSeconds };
 };
+
+const wrapAngle = (angle: number): number => Math.atan2(Math.sin(angle), Math.cos(angle));
+
+interface ArrivalStep {
+  readonly prior: TruckControllerState;
+  readonly state: TruckControllerState;
+  readonly pose: TruckAnimState;
+  readonly phaseChanged: boolean;
+}
+
+/** One whole visit, entering to departed, at the 60 Hz controller step. */
+const simulateVisit = (dock: 'shipping' | 'receiving', speedMultiplier: number = 1) => {
+  let state = createTruckController(dock);
+  const steps: ArrivalStep[] = [];
+  for (let frame = 0; frame < 60 * 240; frame += 1) {
+    const result = stepTruckController(state, {
+      deltaSeconds: 1 / 60,
+      arrivalReady: false,
+      safetyHold: false,
+      serviceComplete: true,
+      speedMultiplier,
+    });
+    steps.push({
+      prior: state,
+      state: result.state,
+      pose: result.pose,
+      phaseChanged: result.phaseChanged,
+    });
+    state = result.state;
+    if (result.departedThisStep) break;
+  }
+  return steps;
+};
+
+interface Rect {
+  readonly id: string;
+  readonly minX: number;
+  readonly maxX: number;
+  readonly minZ: number;
+  readonly maxZ: number;
+}
+
+/** Plan-view boxes in vehicle-local metres (x across, z forward), both renderers' outer extents. */
+const TRACTOR_BOX = { centreZ: 2, halfLength: 3, halfWidth: 1.35 } as const;
+const TRAILER_BOX = { centreZ: -5.98, halfLength: 5.78, halfWidth: 1.3 } as const;
+
+/** Separating-axis test between a yawed box and an axis-aligned one. */
+const orientedBoxMeetsRect = (
+  originX: number,
+  originZ: number,
+  yaw: number,
+  box: { readonly centreZ: number; readonly halfLength: number; readonly halfWidth: number },
+  rect: Rect
+): boolean => {
+  const forward = [Math.sin(yaw), Math.cos(yaw)] as const;
+  const across = [Math.cos(yaw), -Math.sin(yaw)] as const;
+  const centre = [originX + forward[0] * box.centreZ, originZ + forward[1] * box.centreZ] as const;
+  const rectCentre = [(rect.minX + rect.maxX) / 2, (rect.minZ + rect.maxZ) / 2] as const;
+  const rectHalf = [(rect.maxX - rect.minX) / 2, (rect.maxZ - rect.minZ) / 2] as const;
+  const delta = [rectCentre[0] - centre[0], rectCentre[1] - centre[1]] as const;
+  const axes = [[1, 0], [0, 1], forward, across] as const;
+  return axes.every((axis) => {
+    const boxRadius =
+      box.halfLength * Math.abs(forward[0] * axis[0] + forward[1] * axis[1]) +
+      box.halfWidth * Math.abs(across[0] * axis[0] + across[1] * axis[1]);
+    const rectRadius = rectHalf[0] * Math.abs(axis[0]) + rectHalf[1] * Math.abs(axis[1]);
+    return Math.abs(delta[0] * axis[0] + delta[1] * axis[1]) < boxRadius + rectRadius;
+  });
+};
+
+/**
+ * Solid things a truck must never enter, in world metres. The shipping dock
+ * sections and bollards come from the TruckBay dock group at z = 50; the
+ * receiving dock is the same group turned half a revolution, so the shipping
+ * check covers both. Each staging area is the planner's reserved envelope.
+ */
+const SHIPPING_DOCK_SOLIDS: readonly Rect[] = [
+  // The five dock bumpers at local z 0.2 (0.6 deep); the trailer stops on their face.
+  ...[-3.5, -1.75, 0, 1.75, 3.5].map((x) => ({
+    id: `bumper-${x}`,
+    minX: x - 0.4,
+    maxX: x + 0.4,
+    minZ: 49.9,
+    maxZ: 50.5,
+  })),
+  { id: 'left-platform', minX: -4.5, maxX: -2, minZ: 48.3, maxZ: 54.1 },
+  { id: 'right-platform', minX: 2, maxX: 4.5, minZ: 48.3, maxZ: 54.1 },
+  ...[-5.5, 5.5].flatMap((x) =>
+    [52, 55].map((z) => ({
+      id: `bollard-${x}-${z}`,
+      minX: x - 0.2,
+      maxX: x + 0.2,
+      minZ: z - 0.2,
+      maxZ: z + 0.2,
+    }))
+  ),
+];
+/**
+ * Yard props beside the truck lanes, from their TruckBay placements (the
+ * shipping group sits at z = 50, the receiving group at z = -50, unrotated).
+ */
+const SHIPPING_YARD_SOLIDS: readonly Rect[] = [
+  // WeightScale at (-16, 100), turned pi: a 0.2 m deck with end ramps, and its
+  // booth to the west. The truck has no ride height, so crossing the deck would
+  // sink its tyres into it; at (0, 102) on the dock lane it did.
+  { id: 'weigh-scale-deck', minX: -18.1, maxX: -13.9, minZ: 92.75, maxZ: 107.25 },
+  { id: 'weigh-scale-booth', minX: -20.7, maxX: -18.3, minZ: 98.55, maxZ: 101.45 },
+  // ScaleTicketKiosk at (-19, 100).
+  { id: 'scale-kiosk', minX: -19.5, maxX: -18.5, minZ: 99.4, maxZ: 100.6 },
+  // YardAccessNode at (18, 100), turned a quarter: a card-reader post beside the road.
+  { id: 'shipping-access-node', minX: 17.9, maxX: 18.2, minZ: 99.3, maxZ: 100.7 },
+  // The pallet island and the loads east of the inbound lane, with 0.5 m of
+  // clearance: a truck that brushes a pallet stack is as wrong as one through it.
+  ...dockDressingFootprints().map((rect) => ({
+    ...rect,
+    minX: rect.minX - 0.5,
+    maxX: rect.maxX + 0.5,
+    minZ: rect.minZ - 0.5,
+    maxZ: rect.maxZ + 0.5,
+  })),
+];
+const RECEIVING_YARD_SOLIDS: readonly Rect[] = [
+  // The shipping weigh scale and kiosk turned half a revolution: (16, -100).
+  { id: 'receiving-weigh-scale-deck', minX: 13.9, maxX: 18.1, minZ: -107.25, maxZ: -92.75 },
+  { id: 'receiving-weigh-scale-booth', minX: 18.3, maxX: 20.7, minZ: -101.45, maxZ: -98.55 },
+  { id: 'receiving-scale-kiosk', minX: 18.5, maxX: 19.5, minZ: -100.6, maxZ: -99.4 },
+  // YardJockey at receiving-group (35, 0, -42): shuttles +/-8 m in x, body 2.5 x 2 m.
+  // At (0, 0, -25) it crossed the back-in lane.
+  { id: 'receiving-yard-jockey', minX: 25.75, maxX: 44.25, minZ: -93, maxZ: -91 },
+  // FuelIsland at (25, -85), turned -pi/2: pad and the 6 x 10 m canopy.
+  { id: 'fuel-island', minX: 20, maxX: 30, minZ: -88, maxZ: -82 },
+  { id: 'receiving-access-node', minX: -18.2, maxX: -17.9, minZ: -102.7, maxZ: -101.3 },
+  // TireInspectionArea at (-25, -85), turned -pi/2: its road-side posts and rail at x -21.5.
+  { id: 'tire-inspection-posts', minX: -21.54, maxX: -21.46, minZ: -87.24, maxZ: -82.76 },
+];
+const stagingRect = (dock: 'shipping' | 'receiving'): Rect => ({
+  id: `${dock}-staging`,
+  ...stagingBounds(dock, [
+    ...(dock === 'shipping' ? STAGING_LAYOUT.shippingOrigin : STAGING_LAYOUT.receivingOrigin),
+  ]),
+});
+
+const footprintHits = (pose: TruckAnimState, rects: readonly Rect[]): string[] =>
+  rects
+    .filter(
+      (rect) =>
+        orientedBoxMeetsRect(pose.x, pose.z, pose.rotation, TRACTOR_BOX, rect) ||
+        orientedBoxMeetsRect(pose.x, pose.z, pose.rotation + pose.articulation, TRAILER_BOX, rect)
+    )
+    .map((rect) => rect.id);
+
+describe('articulated truck yard motion', () => {
+  it.each(['shipping', 'receiving'] as const)(
+    'keeps the %s trailer and tractor yaw continuous through every phase boundary',
+    (dock) => {
+      const steps = simulateVisit(dock);
+      expect(steps.at(-1)?.state.active).toBe(false);
+      let worstTrailer = 0;
+      let worstTractor = 0;
+      for (const { prior, state } of steps) {
+        worstTrailer = Math.max(
+          worstTrailer,
+          Math.abs(wrapAngle(state.trailerYaw - prior.trailerYaw))
+        );
+        worstTractor = Math.max(
+          worstTractor,
+          Math.abs(wrapAngle(state.tractorYaw - prior.tractorYaw))
+        );
+      }
+      expect(worstTrailer).toBeLessThan(0.05);
+      expect(worstTractor).toBeLessThan(0.05);
+    }
+  );
+
+  it('slows into the yard U-turn and holds a steerable radius and lateral acceleration', () => {
+    const steps = simulateVisit('shipping');
+    let peakLateral = 0;
+    let minimumRadius = Infinity;
+    let steeringStep = 0;
+    for (const { prior, state } of steps) {
+      if (state.phase === 'docked') continue;
+      const yawStep = Math.abs(wrapAngle(state.tractorYaw - prior.tractorYaw));
+      const travel = Math.hypot(state.x - prior.x, state.z - prior.z);
+      peakLateral = Math.max(peakLateral, yawStep * 60 * Math.abs(state.motion.speed));
+      if (travel > 1e-4 && yawStep > 1e-6)
+        minimumRadius = Math.min(minimumRadius, travel / yawStep);
+      steeringStep = Math.max(steeringStep, Math.abs(state.steeringAngle - prior.steeringAngle));
+    }
+    // A 3.8 m wheelbase at 0.55 rad of lock turns no tighter than 6.2 m.
+    expect(minimumRadius).toBeGreaterThanOrEqual(3.8 / Math.tan(0.55));
+    expect(peakLateral).toBeLessThan(3);
+    // Steering is rate-limited (0.52 rad/s) everywhere, including the stop to back.
+    expect(steeringStep).toBeLessThanOrEqual(0.52 / 60 + 1e-9);
+  });
+
+  it('backs in at its reverse speed and rolls to rest at each stop mark instead of halting', () => {
+    const steps = simulateVisit('shipping');
+    let peakReverse = 0;
+    let peakArrival = 0;
+    for (const { prior, state, phaseChanged } of steps) {
+      if (state.phase === 'backing' || state.phase === 'final_adjustment')
+        peakReverse = Math.max(peakReverse, Math.abs(state.motion.speed));
+      // The speed the truck carried into a stop mark.
+      if (phaseChanged && (state.phase === 'stopping_to_back' || state.phase === 'docked'))
+        peakArrival = Math.max(peakArrival, Math.abs(prior.motion.speed));
+    }
+    // Was 3.08 m/s in the back-in (a jerk overshoot past a moving limit),
+    // and 0.77 / 0.44 m/s at the two stop marks.
+    expect(peakReverse).toBeLessThanOrEqual(1.35 + 1e-9);
+    expect(peakArrival).toBeLessThan(0.15);
+  });
+
+  it.each(['shipping', 'receiving'] as const)(
+    'parks the %s trailer on the dock bumper face, not through it',
+    (dock) => {
+      const docked = simulateVisit(dock).find(({ state }) => state.phase === 'docked')?.pose;
+      expect(docked).toBeDefined();
+      // Receiving is the shipping yard turned half a revolution about the origin.
+      const sign = dock === 'shipping' ? 1 : -1;
+      const rearSill = sign * docked!.z - 11.76;
+      // Was 49.24: the rear bar 1.26 m inside the bumper face at z 50.5.
+      expect(rearSill).toBeGreaterThanOrEqual(50.5);
+      expect(rearSill).toBeLessThan(50.6);
+    }
+  );
+
+  it.each(['shipping', 'receiving'] as const)(
+    'never puts the %s tractor or trailer through the dock, its bollards or the staging area',
+    (dock) => {
+      const solids = [
+        ...(dock === 'shipping'
+          ? [...SHIPPING_DOCK_SOLIDS, ...SHIPPING_YARD_SOLIDS]
+          : RECEIVING_YARD_SOLIDS),
+        stagingRect(dock),
+      ];
+      const hits = new Set<string>();
+      for (const { pose } of simulateVisit(dock))
+        footprintHits(pose, solids).forEach((id) => hits.add(id));
+      expect([...hits]).toEqual([]);
+    }
+  );
+
+  it('keeps the receiving visit a pure rotation of shipping so the dock check covers both', () => {
+    const shipping = simulateVisit('shipping');
+    const receiving = simulateVisit('receiving');
+    expect(receiving).toHaveLength(shipping.length);
+  });
+});
 
 describe('schedule-owned articulated truck controller', () => {
   it('runs a complete service cycle without teleporting at phase boundaries', () => {
@@ -152,7 +405,9 @@ describe('schedule-owned articulated truck controller', () => {
     let state = createTruckController('shipping');
     for (let frame = 0; frame < 60 * 4; frame += 1) state = step(state).state;
     const heldPhase = state.phase;
-    for (let frame = 0; frame < 60 * 4; frame += 1) {
+    // A jerk-limited stop eases its braking off over the last 1.8 m/s instead
+    // of releasing 2.4 m/s^2 at the standstill, so allow 5 s rather than 4.
+    for (let frame = 0; frame < 60 * 5; frame += 1) {
       state = step(state, { safetyHold: true }).state;
     }
     const pose = getTruckControllerPose(state, true);
@@ -160,6 +415,35 @@ describe('schedule-owned articulated truck controller', () => {
     expect(pose.speed).toBe(0);
     expect(pose.brakeLights).toBe(true);
     expect(pose.reverseLights).toBe(false);
+  });
+
+  it('lights the brake lamps only while the truck is actually braking', () => {
+    // Un-burying the rear lamps exposed brake lamps glowing on a parked truck:
+    // a paused clock reached the pose as a safety hold, and a hold lit the
+    // brakes even with the truck docked on its parking brake.
+    const steps = simulateVisit('shipping');
+    const docked = steps.find(({ state }) => state.phase === 'docked')!.state;
+    const leaving = steps.find(({ state }) => state.phase === 'preparing_to_leave')!.state;
+    const cruising = steps.find(
+      ({ state }) => Math.abs(state.motion.speed) > 2 && Math.abs(state.motion.acceleration) < 0.05
+    )!.state;
+    const decelerating = steps.find(({ state }) => state.motion.acceleration < -0.5)!.state;
+
+    // Docked or starting up on the parking brake: engine off or idling, no brake lamps.
+    expect(getTruckControllerPose(docked).brakeLights).toBe(false);
+    expect(getTruckControllerPose(leaving).brakeLights).toBe(false);
+    expect(getTruckControllerPose(docked, true).brakeLights).toBe(false);
+    // A paused clock freezes the picture; it is not a brake application.
+    expect(getTruckControllerPose(cruising, false, true).brakeLights).toBe(false);
+    expect(getTruckControllerPose(cruising, false, true).throttle).toBe(0);
+    expect(getTruckControllerPose(decelerating, false, true).brakeLights).toBe(true);
+    // Real braking: decelerating, or the held stop before reversing.
+    expect(getTruckControllerPose(decelerating).brakeLights).toBe(true);
+    expect(
+      steps.some(
+        ({ state, pose }) => state.phase === 'stopping_to_back' && pose.brakeLights === true
+      )
+    ).toBe(true);
   });
 
   it('rotates receiving motion half a turn without mirroring vehicle-relative steering', () => {

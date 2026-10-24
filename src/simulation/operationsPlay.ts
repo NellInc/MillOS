@@ -4,6 +4,12 @@ import type {
   OperationalIncident,
   OrderExecutionState,
 } from '../stores/operationsCampaignStore';
+import { formatFixed, formatGrouped, getLocale, translate } from '../i18n';
+import { formatShiftDuration } from './shiftReview';
+import { PROGRAMME_BULK, PROGRAMME_RUSH, PROGRAMME_STANDARD } from './programmes';
+import { incidentTitle } from '../stores/incidentText';
+import { dispatchBlockText } from '../stores/dispatchBlockText';
+import { operationsPlayMessages } from './operationsPlay.messages';
 
 /** Shared fulfilment tolerance; cosmetic consequences must agree with credit. */
 export const CAMPAIGN_MASS_EPSILON_KG = 1e-6;
@@ -23,6 +29,15 @@ export const OPERATIONS_CHALLENGES = [
   },
 ] as const;
 export type OperationsChallengeId = (typeof OPERATIONS_CHALLENGES)[number]['id'];
+
+/** `label` above is the English reference; display text resolves at use time. */
+const CHALLENGE_LABEL_KEYS = {
+  power_recovery: 'challengePowerRecovery',
+  packaging_recovery: 'challengePackagingRecovery',
+  network_recovery: 'challengeNetworkRecovery',
+} as const satisfies Record<OperationsChallengeId, string>;
+export const challengeLabel = (id: OperationsChallengeId) =>
+  translate(operationsPlayMessages, CHALLENGE_LABEL_KEYS[id]);
 export interface OperationsChallengeRun {
   id: string;
   challengeId: OperationsChallengeId;
@@ -50,7 +65,9 @@ export interface OperationsNextAction {
   kind:
     | 'acknowledge'
     | 'mitigate'
+    | 'resume'
     | 'resolve'
+    | 'repair'
     | 'quality'
     | 'receiving'
     | 'dispatch'
@@ -63,17 +80,17 @@ export interface OperationsNextAction {
 
 export function challengeBlockReason(state: OperationsPlaySnapshot): string | null {
   const order = state.orders.find((candidate) => candidate.id === state.activeOrderId);
-  if (state.activeChallenge) return 'Finish or abandon the active challenge first.';
+  if (state.activeChallenge) return translate(operationsPlayMessages, 'blockActiveChallenge');
   if (!order || order.status === 'fulfilled' || order.status === 'cancelled')
-    return 'Accept a production programme with an open commitment first.';
+    return translate(operationsPlayMessages, 'blockNoCommitment');
   if (state.incidents.some((incident) => incident.phase !== 'resolved'))
-    return 'Recover existing incidents before adding another challenge.';
+    return translate(operationsPlayMessages, 'blockOpenIncidents');
   if (state.execution.stage === 'planning')
-    return 'Wait for the selected route to refresh its inventory and quality readings.';
+    return translate(operationsPlayMessages, 'blockPlanning');
   if (state.execution.orderId !== order.id || state.execution.sourceInventoryKg <= 0)
-    return 'Receive the active recipe feedstock before starting.';
+    return translate(operationsPlayMessages, 'blockNoFeedstock');
   if (!state.execution.qualityReleased || state.execution.stage === 'quality_hold')
-    return 'Resolve the existing quality hold before starting.';
+    return translate(operationsPlayMessages, 'blockQualityHold');
   return null;
 }
 
@@ -103,42 +120,78 @@ export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
   const incident = state.incidents.find((candidate) => candidate.phase !== 'resolved');
   const run = state.activeChallenge;
   const recovery = getChallengeRecoveryIncident(state);
+  // A stopped machine outranks the delivery steps: its line cannot run until
+  // the work order is repaired, verified and restarted in Mill Overview.
+  const machineDown = state.constraints.find(
+    (constraint) => constraint.id === 'maintenance-queue' && constraint.severity !== 'info'
+  );
   const canAcceptNextProgramme =
     !run &&
+    state.orders.length > 0 &&
     state.orders.every((order) => order.status === 'fulfilled' || order.status === 'cancelled');
   let nextAction: OperationsNextAction;
   if (incident?.phase === 'raised') {
     nextAction = {
       kind: 'acknowledge',
       targetId: incident.id,
-      label: 'Acknowledge incident',
-      consequence: `${incident.title}: acknowledgement records ownership; its production and safety effects remain active.`,
+      label: translate(operationsPlayMessages, 'acknowledgeLabel'),
+      consequence: translate(operationsPlayMessages, 'acknowledgeConsequence', {
+        title: incidentTitle(incident),
+      }),
     };
   } else if (incident?.phase === 'acknowledged') {
     nextAction = {
       kind: 'mitigate',
       targetId: incident.id,
-      label: 'Apply incident mitigation',
-      consequence:
-        'Halves the incident’s throughput and quality penalties. Existing equipment failures and quality holds still require their own recovery.',
+      label: translate(operationsPlayMessages, 'mitigateLabel'),
+      consequence: translate(operationsPlayMessages, 'mitigateConsequence'),
+    };
+  } else if (recovery?.phase === 'mitigated' && !recovery.effectApplied) {
+    nextAction = {
+      kind: 'resume',
+      targetId: recovery.id,
+      label: translate(operationsPlayMessages, 'resumeLabel'),
+      consequence: translate(operationsPlayMessages, 'resumeConsequence'),
     };
   } else if (recovery?.phase === 'mitigated' && recovery.effectApplied) {
     nextAction = {
       kind: 'resolve',
       targetId: recovery.id,
-      label: 'Restore challenge controller',
+      label: translate(operationsPlayMessages, 'resolveLabel'),
       consequence: run
-        ? 'Restores this effect-only controller scenario to normal. Complete the challenge by dispatching its target mass through the real quality and shipping gates.'
-        : 'Restores the abandoned or expired scenario controller to normal. Its recorded challenge result remains unchanged; a fresh challenge can then be started.',
+        ? translate(operationsPlayMessages, 'resolveConsequenceActive')
+        : translate(operationsPlayMessages, 'resolveConsequenceEnded'),
+    };
+  } else if (machineDown) {
+    nextAction = {
+      kind: 'repair',
+      targetId: machineDown.relatedId,
+      label: translate(operationsPlayMessages, 'repairLabel'),
+      consequence: machineDown.detail,
+    };
+  } else if (canAcceptNextProgramme && !incident) {
+    nextAction = {
+      kind: 'programme',
+      targetId: null,
+      label: translate(operationsPlayMessages, 'programmeLabel'),
+      // What acceptNextProgramme creates (src/simulation/programmes.ts),
+      // from the same constants, so the offer cannot drift from the programme.
+      consequence: translate(operationsPlayMessages, 'programmeConsequence', {
+        dayKg: formatGrouped(PROGRAMME_RUSH.kg + PROGRAMME_STANDARD.kg + PROGRAMME_BULK.kg),
+        nightKg: formatGrouped(PROGRAMME_RUSH.kg + PROGRAMME_STANDARD.kg + PROGRAMME_BULK.nightKg),
+        premium: formatFixed(PROGRAMME_RUSH.premiumPercent, 0),
+        window: formatShiftDuration(PROGRAMME_RUSH.windowMinutes, getLocale()),
+        standardKg: formatGrouped(PROGRAMME_STANDARD.kg),
+      }),
     };
   } else if (!state.execution.qualityReleased || state.execution.stage === 'quality_hold') {
     nextAction = {
       kind: 'quality',
       targetId: activeOrder?.id ?? null,
-      label: 'Review quality hold',
+      label: translate(operationsPlayMessages, 'qualityLabel'),
       consequence:
-        state.execution.dispatchLoad.blockReason ??
-        'Inspect source traceability and tests in the QC lab. Held batches cannot satisfy a customer commitment.',
+        dispatchBlockText(state.execution.dispatchLoad) ??
+        translate(operationsPlayMessages, 'qualityConsequence'),
     };
   } else if (
     activeOrder &&
@@ -149,16 +202,12 @@ export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
     nextAction = {
       kind: 'receiving',
       targetId: activeOrder.id,
-      label: 'Inspect incoming feedstock',
-      consequence: `The ${activeOrder.recipe.sourceMaterial.replaceAll('_', ' ')} route is empty. Receiving and releasing the matching source lot permits milling to resume.`,
-    };
-  } else if (canAcceptNextProgramme) {
-    nextAction = {
-      kind: 'programme',
-      targetId: null,
-      label: 'Accept next production programme',
-      consequence:
-        'Creates three new 3,000 kg customer commitments with real recipe, quality and dispatch requirements. Existing stock remains available; no goods or revenue are created.',
+      label: translate(operationsPlayMessages, 'receivingLabel'),
+      consequence: translate(operationsPlayMessages, 'receivingConsequence', {
+        material: translate(operationsPlayMessages, 'sourceMaterial', {
+          value: activeOrder.recipe.sourceMaterial,
+        }),
+      }),
     };
   } else if (
     ['ready_to_load', 'loading', 'ready_to_dispatch', 'dispatched'].includes(state.execution.stage)
@@ -166,46 +215,63 @@ export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
     nextAction = {
       kind: 'dispatch',
       targetId: activeOrder?.id ?? null,
-      label: 'Inspect shipping progress',
-      consequence:
-        'Only material recorded on a departed shipping manifest credits the commitment. Loading and released stock alone earn no revenue.',
+      label: translate(operationsPlayMessages, 'dispatchLabel'),
+      consequence: translate(operationsPlayMessages, 'dispatchConsequence'),
     };
   } else {
     nextAction = {
       kind: 'production',
       targetId: activeOrder?.id ?? null,
-      label: incident ? 'Inspect residual incident effects' : 'Inspect active production route',
+      label: incident
+        ? translate(operationsPlayMessages, 'residualLabel')
+        : translate(operationsPlayMessages, 'productionLabel'),
       consequence: incident
-        ? `${incident.title} retains residual effects. Recover the affected equipment or hold in its owning workspace; acknowledgement alone cannot restore it.`
-        : 'Follow feedstock through mills, sifters and packers. The scheduler sets recipe throughput; quality release precedes shipment.',
+        ? translate(operationsPlayMessages, 'residualConsequence', {
+            title: incidentTitle(incident),
+          })
+        : translate(operationsPlayMessages, 'productionConsequence'),
     };
   }
   const blockedReason = challengeBlockReason(state);
   const challengeOrder = run && state.orders.find((order) => order.id === run.orderId);
+  const challengeIncident =
+    run && state.incidents.find((incident) => incident.id === run.incidentId);
+  const instruction = !challengeIncident
+    ? translate(operationsPlayMessages, 'instructionInspect')
+    : challengeIncident.phase === 'raised'
+      ? translate(operationsPlayMessages, 'instructionAcknowledge')
+      : challengeIncident.phase === 'acknowledged'
+        ? translate(operationsPlayMessages, 'instructionMitigate')
+        : challengeIncident.phase === 'resolved'
+          ? translate(operationsPlayMessages, 'instructionRestored')
+          : challengeIncident.effectApplied
+            ? translate(operationsPlayMessages, 'instructionRestore')
+            : translate(operationsPlayMessages, 'instructionQueued');
   return {
     activeOrder,
     blockers,
     nextAction,
     canAcceptNextProgramme,
-    challenges: OPERATIONS_CHALLENGES.map(({ id, label }) => ({
+    challenges: OPERATIONS_CHALLENGES.map(({ id }) => ({
       id,
-      label,
+      label: challengeLabel(id),
       available: blockedReason === null,
       blockedReason,
     })),
     challengeProgress: run
       ? {
-          label:
-            OPERATIONS_CHALLENGES.find((challenge) => challenge.id === run.challengeId)?.label ??
-            'Recovery challenge',
+          label: OPERATIONS_CHALLENGES.some((challenge) => challenge.id === run.challengeId)
+            ? challengeLabel(run.challengeId)
+            : translate(operationsPlayMessages, 'challengeFallback'),
           dispatchedKg: Math.max(
             0,
             (challengeOrder?.shippedKg ?? run.startingShippedKg) - run.startingShippedKg
           ),
           targetKg: run.targetKg,
           remainingMinutes: Math.max(0, run.deadlineMinute - state.elapsedMinutes),
+          instruction,
           phase:
-            state.incidents.find((incident) => incident.id === run.incidentId)?.phase === 'resolved'
+            challengeIncident?.phase === 'resolved'
               ? ('recovering' as const)
               : ('responding' as const),
         }

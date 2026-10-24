@@ -1,0 +1,60 @@
+[
+  {
+    "label": "Y-village-wildlife-day-20261015",
+    "scene": "square",
+    "p95": 17.5,
+    "loadPerCore": 11.64,
+    "failedBudgetChecks": [
+      "p95Frame"
+    ],
+    "servedSealMatches": true,
+    "nativeSandboxedMetal": true,
+    "pageClean": true,
+    "worldCommunity": true,
+    "generalMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "image": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/Y-village-wildlife-day-20261015/square.png"
+  },
+  {
+    "label": "Y-village-wildlife-day-20261015",
+    "scene": "village",
+    "p95": 17.4,
+    "loadPerCore": 8.95,
+    "failedBudgetChecks": [
+      "p95Frame"
+    ],
+    "servedSealMatches": true,
+    "nativeSandboxedMetal": true,
+    "pageClean": true,
+    "worldCommunity": true,
+    "generalMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "image": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/Y-village-wildlife-day-20261015/village.png"
+  },
+  {
+    "label": "Y-village-wildlife-dusk-20261015",
+    "scene": "square",
+    "p95": 17.2,
+    "loadPerCore": 5.83,
+    "failedBudgetChecks": [
+      "averageFps",
+      "p95Frame"
+    ],
+    "servedSealMatches": true,
+    "nativeSandboxedMetal": true,
+    "pageClean": true,
+    "worldCommunity": true,
+    "generalMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "image": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/Y-village-wildlife-dusk-20261015/square.png"
+  }
+]

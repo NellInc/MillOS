@@ -37,363 +37,28 @@
  */
 
 import * as THREE from 'three';
-import { MachineData, MachineType } from '../../types';
-import { getSiloAssemblyScale, SILO_ACCESS_LAYOUT } from '../../constants/siteLayout';
+import { MachineData } from '../../types';
+import { getMachineAssemblyScale, SILO_ACCESS_LAYOUT } from '../../constants/siteLayout';
 import { POLYGON_OFFSET, SURFACE_LAYERS } from '../../constants/renderLayers';
-import { createColorDataTexture } from '../../utils/textureGenerator';
 import { MILL_LOAD_DIAL } from './machineFinishGeometry';
+import {
+  ATLAS_COLS,
+  ATLAS_H,
+  ATLAS_ROWS,
+  ATLAS_W,
+  CELL_PAD_PX,
+  CELL_PX,
+  DECAL_ATLAS_CELL_COUNT,
+  DECAL_CELL,
+  MACHINE_ID_CELLS,
+  getMachineDecalAtlas,
+  type DecalCell,
+} from './machineDecalAtlas';
 
-// ===========================================================================
-// ATLAS
-// ===========================================================================
-
-/** Cell edge in pixels. */
-const CELL_PX = 128;
-const ATLAS_COLS = 4;
-const ATLAS_ROWS = 3;
-const ATLAS_W = CELL_PX * ATLAS_COLS;
-const ATLAS_H = CELL_PX * ATLAS_ROWS;
-
-/**
- * Transparent gutter inside each cell, in pixels.
- *
- * Without it the mip chain averages neighbouring cells together and a placard
- * picks up a halo of whatever is next to it in the atlas. Six pixels at 128 is
- * 4.7% of the cell - invisible on the quad, enough to keep the first three mip
- * levels clean.
- */
-const CELL_PAD_PX = 6;
-
-/** 2x2 supersampling. Analytic edges alias badly at 128 px otherwise. */
-const SUBSAMPLES = 2;
-
-/** Index into the atlas. Row 0 is the BOTTOM row (see ATLAS ORIENTATION). */
-export const DECAL_CELL = {
-  hazardChevron: 0,
-  cautionTriangle: 1,
-  lockoutRoundel: 2,
-  flowArrow: 3,
-  namePlate: 4,
-  motorLoadDial: 5,
-  greasePoint: 6,
-  electricalWarning: 7,
-  mill101: 8,
-  mill102: 9,
-  mill103: 10,
-  mill104: 11,
-} as const;
-
-export type DecalCell = (typeof DECAL_CELL)[keyof typeof DECAL_CELL];
-
-type Rgba = readonly [number, number, number, number];
-/** Paints one cell. `u`,`v` are 0-1 inside the padded area; v = 0 is the bottom. */
-type CellPainter = (u: number, v: number) => Rgba;
-
-const MILL_ID_CELLS: Readonly<Record<string, DecalCell>> = {
-  'rm-101': DECAL_CELL.mill101,
-  'rm-102': DECAL_CELL.mill102,
-  'rm-103': DECAL_CELL.mill103,
-  'rm-104': DECAL_CELL.mill104,
-};
-
-const CLEAR: Rgba = [0, 0, 0, 0];
-
-const hexRgb = (hex: string): readonly [number, number, number] => [
-  parseInt(hex.slice(1, 3), 16),
-  parseInt(hex.slice(3, 5), 16),
-  parseInt(hex.slice(5, 7), 16),
-];
-
-const opaque = (hex: string): Rgba => {
-  const [r, g, b] = hexRgb(hex);
-  return [r, g, b, 255];
-};
-
-const HAZARD_YELLOW = opaque('#f0c419');
-const HAZARD_BLACK = opaque('#181c1e');
-const SIGN_WHITE = opaque('#eef2f3');
-const SIGN_RED = opaque('#c0392b');
-const PLATE_DARK = opaque('#2b3235');
-const PLATE_EDGE = opaque('#8d979b');
-const PLATE_TEXT = opaque('#cfd6d8');
-const PLATE_SCREW = opaque('#6f797d');
-const ARROW_BACK = opaque('#1f2a2e');
-const ARROW_WHITE = opaque('#e8eef0');
-
-/** Signed distance to a rounded rectangle spanning 0-1, negative inside. */
-function roundedRect(u: number, v: number, radius: number): number {
-  const dx = Math.abs(u - 0.5) - (0.5 - radius);
-  const dy = Math.abs(v - 0.5) - (0.5 - radius);
-  const ox = Math.max(dx, 0);
-  const oy = Math.max(dy, 0);
-  return Math.sqrt(ox * ox + oy * oy) + Math.min(Math.max(dx, dy), 0) - radius;
-}
-
-/**
- * Distance from (u,v) to the nearest edge of the triangle A-B-C, positive
- * inside. The vertices below are wound counter-clockwise so every edge function
- * is positive on the interior.
- */
-function triangleDepth(
-  u: number,
-  v: number,
-  ax: number,
-  ay: number,
-  bx: number,
-  by: number,
-  cx: number,
-  cy: number
-): number {
-  const edge = (px: number, py: number, qx: number, qy: number): number => {
-    const ex = qx - px;
-    const ey = qy - py;
-    const length = Math.hypot(ex, ey) || 1;
-    return (ex * (v - py) - ey * (u - px)) / length;
-  };
-  return Math.min(edge(ax, ay, bx, by), edge(bx, by, cx, cy), edge(cx, cy, ax, ay));
-}
-
-/** Even-odd ray cast. Polygon is a flat [x0,y0,x1,y1,...] list. */
-function pointInPolygon(u: number, v: number, polygon: readonly number[]): boolean {
-  let inside = false;
-  const count = polygon.length / 2;
-  for (let i = 0, j = count - 1; i < count; j = i, i += 1) {
-    const xi = polygon[i * 2];
-    const yi = polygon[i * 2 + 1];
-    const xj = polygon[j * 2];
-    const yj = polygon[j * 2 + 1];
-    if (yi > v !== yj > v && u < ((xj - xi) * (v - yi)) / (yj - yi) + xi) inside = !inside;
-  }
-  return inside;
-}
-
-/** Warning-triangle geometry shared by the caution and electrical cells. */
-const TRI = { ax: 0.5, ay: 0.96, bx: 0.05, by: 0.06, cx: 0.95, cy: 0.06 } as const;
-
-function warningTriangle(u: number, v: number, glyph: (u: number, v: number) => boolean): Rgba {
-  const depth = triangleDepth(u, v, TRI.ax, TRI.ay, TRI.bx, TRI.by, TRI.cx, TRI.cy);
-  if (depth <= 0) return CLEAR;
-  if (depth < 0.035) return HAZARD_BLACK;
-  return glyph(u, v) ? HAZARD_BLACK : HAZARD_YELLOW;
-}
-
-/** Lightning bolt, drawn as one closed zigzag polygon. */
-const BOLT = [0.58, 0.7, 0.4, 0.42, 0.5, 0.42, 0.42, 0.16, 0.62, 0.48, 0.51, 0.48];
-
-/** Compact engraved lettering shared by serial plates and the instrument scale. */
-const MACHINE_GLYPHS: Readonly<Record<string, readonly string[]>> = {
-  R: ['11110', '10001', '10001', '11110', '10100', '10010', '10001'],
-  M: ['10001', '11011', '10101', '10101', '10001', '10001', '10001'],
-  '.': ['0', '0', '0', '0', '0', '1', '1'],
-  '0': ['01110', '10001', '10011', '10101', '11001', '10001', '01110'],
-  '1': ['010', '110', '010', '010', '010', '010', '111'],
-  '2': ['01110', '10001', '00001', '00010', '00100', '01000', '11111'],
-  '3': ['11110', '00001', '00001', '01110', '00001', '00001', '11110'],
-  '4': ['00010', '00110', '01010', '10010', '11111', '00010', '00010'],
-  '5': ['11111', '10000', '10000', '11110', '00001', '00001', '11110'],
-  L: ['10000', '10000', '10000', '10000', '10000', '10000', '11111'],
-  O: ['01110', '10001', '10001', '10001', '10001', '10001', '01110'],
-  A: ['01110', '10001', '10001', '11111', '10001', '10001', '10001'],
-  D: ['11110', '10001', '10001', '10001', '10001', '10001', '11110'],
-  '%': ['11001', '11010', '00010', '00100', '01000', '01011', '10011'],
-};
-const letteringRows = (text: string): string[] =>
-  Array.from({ length: 7 }, (_, row) =>
-    [...text].map((letter) => MACHINE_GLYPHS[letter][row]).join('0')
-  );
-
-function millIdentityPlate(serial: string): CellPainter {
-  const rows = letteringRows(serial);
-  const rim = opaque('#bda573');
-  const ink = opaque('#e2ce9e');
-  const background = opaque('#1d3031');
-  return (u, v) => {
-    const edge = roundedRect(u, v, 0.06);
-    if (edge > 0) return CLEAR;
-    if (edge > -0.035) return rim;
-    if ((u < 0.065 || u > 0.935) && (v < 0.16 || v > 0.84)) return PLATE_SCREW;
-    const col = Math.floor(((u - 0.1) / 0.8) * rows[0].length);
-    const row = Math.floor(((0.72 - v) / 0.44) * 7);
-    return rows[row]?.[col] === '1' ? ink : background;
-  };
-}
-
-/** Printed scale only. The needle comes from telemetry in the shared shader. */
-const DIAL_INK = opaque('#242923');
-const DIAL_PAPER = opaque('#ded8be');
-const DIAL_LABELS = [
-  { rows: letteringRows('0'), x: 0.255, y: 0.24, w: 0.065 },
-  { rows: letteringRows('50'), x: 0.5, y: 0.775, w: 0.12 },
-  { rows: letteringRows('100'), x: 0.735, y: 0.24, w: 0.155 },
-  { rows: letteringRows('LOAD%'), x: 0.5, y: 0.36, w: 0.39 },
-] as const;
-
-function motorLoadDial(u: number, v: number): Rgba {
-  const dx = u - 0.5;
-  const dy = v - 0.5;
-  const radius = Math.hypot(dx, dy);
-  if (radius > 0.47) return CLEAR;
-  if (radius > 0.445) return DIAL_INK;
-  // Zero is lower left, fifty is top, one hundred is lower right.
-  const fraction = (Math.PI * 1.25 - Math.atan2(dy, dx)) / (Math.PI * 1.5);
-  const wrapped = fraction > 1 ? fraction - 4 / 3 : fraction;
-  const tick = Math.round(wrapped * 20);
-  if (tick >= 0 && tick <= 20) {
-    const angle = Math.PI * 1.25 - (tick / 20) * Math.PI * 1.5;
-    const across = Math.abs(dx * Math.sin(angle) - dy * Math.cos(angle));
-    const along = dx * Math.cos(angle) + dy * Math.sin(angle);
-    if (across < 0.008 && along > (tick % 5 === 0 ? 0.315 : 0.355) && along < 0.405)
-      return DIAL_INK;
-  }
-  for (const label of DIAL_LABELS) {
-    const col = Math.floor(((u - label.x) / label.w + 0.5) * label.rows[0].length);
-    const row = Math.floor(((label.y - v) / 0.075 + 0.5) * label.rows.length);
-    if (label.rows[row]?.[col] === '1') return DIAL_INK;
-  }
-  return DIAL_PAPER;
-}
-
-const PAINTERS: readonly CellPainter[] = [
-  // 0 - hazardChevron.
-  // Tuned for a band roughly 10:1 wide: the 9x weighting on u cancels that
-  // stretch so the stripes land near 45 degrees in world space.
-  (u, v) => {
-    const t = (u * 9 + v) * 3;
-    return t - Math.floor(t) < 0.5 ? HAZARD_YELLOW : HAZARD_BLACK;
-  },
-
-  // 1 - cautionTriangle: exclamation mark.
-  (u, v) =>
-    warningTriangle(
-      u,
-      v,
-      (gu, gv) =>
-        (Math.abs(gu - 0.5) < 0.055 && gv > 0.32 && gv < 0.64) ||
-        (gu - 0.5) * (gu - 0.5) + (gv - 0.24) * (gv - 0.24) < 0.0036
-    ),
-
-  // 2 - lockoutRoundel: prohibition sign.
-  (u, v) => {
-    const r = Math.hypot(u - 0.5, v - 0.5);
-    if (r > 0.47) return CLEAR;
-    if (r > 0.37) return SIGN_RED;
-    // Distance to the 45-degree bar through the centre.
-    const bar = Math.abs((u - 0.5 + (v - 0.5)) * Math.SQRT1_2);
-    return bar < 0.055 ? SIGN_RED : SIGN_WHITE;
-  },
-
-  // 3 - flowArrow.
-  (u, v) => {
-    if (roundedRect(u, v, 0.12) > 0) return CLEAR;
-    const shaft = u > 0.16 && u < 0.6 && Math.abs(v - 0.5) < 0.09;
-    const head = triangleDepth(u, v, 0.88, 0.5, 0.55, 0.22, 0.55, 0.78) > 0;
-    return shaft || head ? ARROW_WHITE : ARROW_BACK;
-  },
-
-  // 4 - namePlate: engraved plate, three text bars, four screws.
-  (u, v) => {
-    const d = roundedRect(u, v, 0.08);
-    if (d > 0) return CLEAR;
-    if (d > -0.04) return PLATE_EDGE;
-    for (const [cx, cy] of [
-      [0.08, 0.08],
-      [0.92, 0.08],
-      [0.08, 0.92],
-      [0.92, 0.92],
-    ]) {
-      if (Math.hypot(u - cx, v - cy) < 0.035) return PLATE_SCREW;
-    }
-    const bars: readonly (readonly [number, number, number])[] = [
-      [0.72, 0.12, 0.72],
-      [0.5, 0.12, 0.86],
-      [0.28, 0.12, 0.58],
-    ];
-    for (const [cy, u0, u1] of bars) {
-      if (Math.abs(v - cy) < 0.04 && u > u0 && u < u1) return PLATE_TEXT;
-    }
-    return PLATE_DARK;
-  },
-
-  // 5 replaces the unused inspection-sticker cell. No atlas growth.
-  motorLoadDial,
-
-  // 6 - greasePoint.
-  (u, v) => {
-    const r = Math.hypot(u - 0.5, v - 0.5);
-    if (r > 0.42) return CLEAR;
-    if (r > 0.34) return SIGN_WHITE;
-    if (r < 0.28 && (Math.abs(u - 0.5) < 0.05 || Math.abs(v - 0.5) < 0.05)) return SIGN_WHITE;
-    return SIGN_RED;
-  },
-
-  // 7 - electricalWarning: lightning bolt.
-  (u, v) => warningTriangle(u, v, (gu, gv) => pointInPolygon(gu, gv, BOLT)),
-  millIdentityPlate('R.M.101'),
-  millIdentityPlate('R.M.102'),
-  millIdentityPlate('R.M.103'),
-  millIdentityPlate('R.M.104'),
-];
-
-function buildDecalAtlas(): THREE.DataTexture {
-  const data = new Uint8Array(ATLAS_W * ATLAS_H * 4);
-  const inner = CELL_PX - CELL_PAD_PX * 2;
-  const step = 1 / SUBSAMPLES;
-  const weight = 1 / (SUBSAMPLES * SUBSAMPLES);
-
-  for (let cell = 0; cell < PAINTERS.length; cell += 1) {
-    const paint = PAINTERS[cell];
-    const col = cell % ATLAS_COLS;
-    const row = Math.floor(cell / ATLAS_COLS);
-    const originX = col * CELL_PX;
-    const originY = row * CELL_PX;
-
-    for (let py = 0; py < CELL_PX; py += 1) {
-      for (let px = 0; px < CELL_PX; px += 1) {
-        let r = 0;
-        let g = 0;
-        let b = 0;
-        let a = 0;
-        for (let sy = 0; sy < SUBSAMPLES; sy += 1) {
-          for (let sx = 0; sx < SUBSAMPLES; sx += 1) {
-            const u = (px + (sx + 0.5) * step - CELL_PAD_PX) / inner;
-            const v = (py + (sy + 0.5) * step - CELL_PAD_PX) / inner;
-            const sample = u < 0 || u > 1 || v < 0 || v > 1 ? CLEAR : paint(u, v);
-            // Premultiply before averaging so a transparent texel cannot drag
-            // the colour of its neighbours towards black.
-            const alpha = sample[3] / 255;
-            r += sample[0] * alpha * weight;
-            g += sample[1] * alpha * weight;
-            b += sample[2] * alpha * weight;
-            a += sample[3] * weight;
-          }
-        }
-        const alpha = a / 255;
-        const i = ((originY + py) * ATLAS_W + originX + px) * 4;
-        // Un-premultiply: three expects straight alpha.
-        data[i] = alpha > 0.001 ? Math.min(255, Math.round(r / alpha)) : 0;
-        data[i + 1] = alpha > 0.001 ? Math.min(255, Math.round(g / alpha)) : 0;
-        data[i + 2] = alpha > 0.001 ? Math.min(255, Math.round(b / alpha)) : 0;
-        data[i + 3] = Math.round(a);
-      }
-    }
-  }
-
-  // Albedo with an alpha mask: sRGB. The transfer function does not touch the
-  // alpha channel, so an RGBA mask is safe through `createColorDataTexture`.
-  const texture = createColorDataTexture(data, ATLAS_W, ATLAS_H);
-  texture.wrapS = THREE.ClampToEdgeWrapping;
-  texture.wrapT = THREE.ClampToEdgeWrapping;
-  texture.anisotropy = 4;
-  return texture;
-}
-
-let atlasCache: THREE.DataTexture | null = null;
-
-/** The placard atlas, built once on first use. 512 x 384, ~0.75 MB. */
-export function getMachineDecalAtlas(): THREE.DataTexture {
-  atlasCache ??= buildDecalAtlas();
-  return atlasCache;
-}
+// The atlas (cells, painters, builder) lives in `machineDecalAtlas.ts` so the
+// startup bake worker can build it; re-exported for existing importers.
+export { DECAL_CELL, getMachineDecalAtlas };
+export type { DecalCell };
 
 // ===========================================================================
 // GEOMETRY, ATTRIBUTE AND MATERIAL
@@ -539,6 +204,20 @@ const SILO_SKIN_RADIUS = 2.25;
  *   silo   shared SILO_ACCESS_LAYOUT keeps the lower hatch and placards beside
  *          the ladder, tangent to the discharge enclosure.
  */
+/**
+ * A roller mill's identity plates, authored metres: [dx, dy, dz, width, height].
+ * Both carry `MILL_IDENTITY_TEXT` (an "R.M." caption over the number), drawn
+ * for a plate about 0.64 as wide as it is tall.
+ *
+ * The side plate is the one the milling camera reads, so it takes the whole
+ * forward access cover it is bolted to: z 0.175-1.52 and y 1.69-3.61 of cover,
+ * inside the bolts at z 1.35 and under the y 3.37 limit the cover test keeps.
+ * The front one sits between the base front (z 2.20, up to y 0.64) and the
+ * service door frame (from y 1.275), so it stays small.
+ */
+export const MILL_SIDE_IDENTITY_PLATE = [-2.481, 2.55, 0.745, 1.02, 1.6] as const;
+export const MILL_FRONT_IDENTITY_PLATE = [0, 0.965, 2.056, 0.38, 0.59] as const;
+
 export function planMachineDecals(subsets: MachineDecalSubsets): MachineDecalPlacement[] {
   const placements: MachineDecalPlacement[] = [];
 
@@ -553,8 +232,8 @@ export function planMachineDecals(subsets: MachineDecalSubsets): MachineDecalPla
     rotationY = 0
   ) => {
     const [x, y, z] = machine.position;
-    const scale =
-      machine.type === MachineType.SILO ? getSiloAssemblyScale(machine.size) : [1, 1, 1];
+    // Placards are installed with their machine, exactly as its trim is.
+    const scale = getMachineAssemblyScale(machine);
     placements.push({
       machineId: machine.id,
       position: [x + dx * scale[0], y + dy * scale[1], z + dz * scale[2]],
@@ -582,7 +261,7 @@ export function planMachineDecals(subsets: MachineDecalSubsets): MachineDecalPla
       SILO_ACCESS_LAYOUT.nameplateY,
       0.45,
       0.14,
-      DECAL_CELL.namePlate
+      MACHINE_ID_CELLS[machine.id] ?? DECAL_CELL.namePlate
     );
     // The caution plate follows the ground-level cover, clear of the ladder.
     place(
@@ -598,22 +277,14 @@ export function planMachineDecals(subsets: MachineDecalSubsets): MachineDecalPla
 
   subsets.mills.forEach((machine) => {
     // The flat lower service strip keeps both placards off the cast shoulder.
-    const identity = MILL_ID_CELLS[machine.id];
-    push(
-      machine,
-      0,
-      1.08,
-      2.056,
-      identity === undefined ? 0.9 : 1.25,
-      0.3,
-      identity ?? DECAL_CELL.namePlate
-    );
+    const identity = MACHINE_ID_CELLS[machine.id];
+    if (identity === undefined) push(machine, 0, 1.08, 2.056, 0.9, 0.3, DECAL_CELL.namePlate);
+    else push(machine, ...MILL_FRONT_IDENTITY_PLATE, identity);
     push(machine, 0, 0.3, 2.215, 2.8, 0.3, DECAL_CELL.hazardChevron);
     push(machine, 1.4, 1.08, 2.056, 0.25, 0.25, DECAL_CELL.electricalWarning);
     // Clear of the vents and cover bolts, on the real flat side inspection lid.
     // Working if the ray test finds a 16 mm plate-to-cover gap across its face.
-    if (identity !== undefined)
-      push(machine, -2.481, 3.0, 0.84, 1.12, 0.43, identity, -Math.PI / 2);
+    if (identity !== undefined) push(machine, ...MILL_SIDE_IDENTITY_PLATE, identity, -Math.PI / 2);
     push(
       machine,
       ...MILL_LOAD_DIAL.position,
@@ -625,7 +296,15 @@ export function planMachineDecals(subsets: MachineDecalSubsets): MachineDecalPla
   });
 
   subsets.sifters.forEach((machine) => {
-    push(machine, -0.78, 2.85, 3.12, 0.82, 0.26, DECAL_CELL.namePlate);
+    push(
+      machine,
+      -0.78,
+      2.85,
+      3.12,
+      0.82,
+      0.26,
+      MACHINE_ID_CELLS[machine.id] ?? DECAL_CELL.namePlate
+    );
     push(machine, 0.82, 1.45, 3.12, 0.36, 0.36, DECAL_CELL.cautionTriangle);
     // On the body below the service panel (which starts at y+0.935) and above
     // the platform deck (which tops out at y+0.05).
@@ -633,7 +312,15 @@ export function planMachineDecals(subsets: MachineDecalSubsets): MachineDecalPla
   });
 
   subsets.packers.forEach((machine) => {
-    push(machine, -0.62, 3.52, 1.825, 0.78, 0.26, DECAL_CELL.namePlate);
+    push(
+      machine,
+      -0.62,
+      3.52,
+      1.825,
+      0.78,
+      0.26,
+      MACHINE_ID_CELLS[machine.id] ?? DECAL_CELL.namePlate
+    );
     push(machine, 0.86, 2.62, 1.825, 0.34, 0.34, DECAL_CELL.lockoutRoundel);
     // The filled sack travels across the middle of this band, which is exactly
     // what happens on a real bagging line.
@@ -718,6 +405,6 @@ export function writeDecalDialReadings(
 export const DECAL_ATLAS_SIZE = {
   width: ATLAS_W,
   height: ATLAS_H,
-  cells: PAINTERS.length,
+  cells: DECAL_ATLAS_CELL_COUNT,
   padPx: CELL_PAD_PX,
 } as const;

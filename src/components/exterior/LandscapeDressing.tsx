@@ -20,6 +20,7 @@ import {
   getDistanceToRiver,
   MILLOS_RIVER_CONFIG,
   MILLOS_TERRAIN_REGIONS,
+  regionClearance,
   sampleTerrainGroundHeight,
   signedDistanceToShape,
 } from '../terrain/splatMapGenerator';
@@ -162,7 +163,7 @@ export function meadowSiteClear(x: number, z: number, radius: number) {
     MILLOS_TERRAIN_REGIONS.every(
       (region) =>
         region.channel === TerrainChannel.GRASS ||
-        signedDistanceToShape(x, z, region.shape) > (region.edgeSoftness ?? 0) + radius + 1
+        signedDistanceToShape(x, z, region.shape) > regionClearance(region) + radius + 1
     )
   );
 }
@@ -182,23 +183,23 @@ export function meadowTransforms(segments: number, rocks = false) {
       const ground = SITE_LAYOUT.datum.terrain + sampleTerrainGroundHeight(x, z, segments);
       // Sink the crown foot by the local slope drop, so the downhill leaves do
       // not hover. Sample the enclosing circle, independent of crown rotation.
-      const footRadius = Math.hypot(width, depth) / 2;
-      const seated = rocks
-        ? ground
-        : Math.min(
-            ground,
-            ...Array.from({ length: 8 }, (_, j) => {
-              const angle = (j * Math.PI) / 4;
-              return (
-                SITE_LAYOUT.datum.terrain +
-                sampleTerrainGroundHeight(
-                  x + Math.cos(angle) * footRadius,
-                  z + Math.sin(angle) * footRadius,
-                  segments
-                )
-              );
-            })
+      const footRadius = rocks
+        ? MEADOW_STONE_GEOMETRY.boundingSphere!.radius * Math.max(width, depth)
+        : Math.hypot(width, depth) / 2;
+      const seated = Math.min(
+        ground,
+        ...Array.from({ length: 8 }, (_, j) => {
+          const angle = (j * Math.PI) / 4;
+          return (
+            SITE_LAYOUT.datum.terrain +
+            sampleTerrainGroundHeight(
+              x + Math.cos(angle) * footRadius,
+              z + Math.sin(angle) * footRadius,
+              segments
+            )
           );
+        })
+      );
       return {
         position: [x, seated + (rocks ? -height * 0.16 : height / 2), z] as const,
         scale: [width, height, depth] as const,
@@ -282,8 +283,49 @@ export function landscapeGrassSpec(segments: number, density: number): ClutterSp
   };
 }
 
-export const MEADOW_STONE_GEOMETRY = new THREE.DodecahedronGeometry(0.6, 0);
-const MEADOW_STONE_MATERIAL = new THREE.MeshStandardMaterial({ color: '#92917c', roughness: 0.98 });
+/** One low-poly outcrop, softened by unequal erosion and mineral facets.
+ * No extra instances, maps or shader. Working if the same bounded stone draw
+ * carries irregular silhouettes and upward weathering under ordinary light.
+ */
+function meadowStoneGeometry() {
+  const geometry = new THREE.DodecahedronGeometry(0.6, 0);
+  const p = geometry.getAttribute('position');
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i),
+      y = p.getY(i),
+      z = p.getZ(i);
+    p.setXYZ(
+      i,
+      x * (0.94 + 0.07 * Math.sin(z * 4 + y * 2)),
+      y * (0.88 + 0.08 * Math.cos(x * 5 - z * 3)),
+      z * (0.91 + 0.08 * Math.sin(x * 3 - y * 4))
+    );
+  }
+  geometry.computeVertexNormals();
+  const normals = geometry.getAttribute('normal');
+  const colours = new Float32Array(p.count * 3);
+  const mineral = new THREE.Color('#92917c');
+  const lichen = new THREE.Color('#868d69');
+  const colour = new THREE.Color();
+  for (let i = 0; i < p.count; i += 3) {
+    const x = (p.getX(i) + p.getX(i + 1) + p.getX(i + 2)) / 3;
+    const y = (p.getY(i) + p.getY(i + 1) + p.getY(i + 2)) / 3;
+    const z = (p.getZ(i) + p.getZ(i + 1) + p.getZ(i + 2)) / 3;
+    const tone = 0.91 + 0.14 * (0.5 + 0.5 * Math.sin(x * 19 + z * 31 + y * 13));
+    const exposed = Math.max(0, normals.getY(i)) * Math.max(0, y + 0.1);
+    colour.copy(mineral).lerp(lichen, Math.min(0.45, exposed)).multiplyScalar(tone);
+    for (let j = 0; j < 3; j++) colour.toArray(colours, (i + j) * 3);
+  }
+  geometry.setAttribute('color', new THREE.BufferAttribute(colours, 3));
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+export const MEADOW_STONE_GEOMETRY = meadowStoneGeometry();
+const MEADOW_STONE_MATERIAL = new THREE.MeshStandardMaterial({
+  vertexColors: true,
+  roughness: 0.98,
+});
 
 /** All garden and field leaves share one instanced draw and the existing atlas.
  * Working if their roots follow both terrain tiers and every gate stays open.

@@ -104,10 +104,13 @@ async function main() {
     for (const scene of options.scenes) {
       const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
       try {
-        await page.goto(`${baseUrl}/?benchmark=${scene}&motion=on&quality=${options.quality}&duration=${options.seconds + 60}`, {
-          waitUntil: 'domcontentloaded',
-          timeout: 90000,
-        });
+        await page.goto(
+          `${baseUrl}/?benchmark=${scene}&motion=on&quality=${options.quality}&duration=${options.seconds + 60}`,
+          {
+            waitUntil: 'domcontentloaded',
+            timeout: 90000,
+          }
+        );
         await page.waitForFunction(() => window.__MILLOS_RUNTIME__?.ready === true, null, {
           timeout: 90000,
         });
@@ -124,14 +127,16 @@ async function main() {
         for (let i = 0; i < count; i += 1) {
           frames.push(
             await page.evaluate(() =>
-              window.__MILLOS_RUNTIME__.sampleObjects('', 40000).map((s) => [
-                s.uuid,
-                s.path,
-                s.worldPosition,
-                s.worldQuaternion,
-                s.instanceMatrixChecksum,
-                s.materialChecksum,
-              ])
+              window.__MILLOS_RUNTIME__
+                .sampleObjects('', 40000)
+                .map((s) => [
+                  s.uuid,
+                  s.path,
+                  s.worldPosition,
+                  s.worldQuaternion,
+                  s.instanceMatrixChecksum,
+                  s.materialChecksum,
+                ])
             )
           );
           if (i < count - 1) await page.waitForTimeout(step);
@@ -238,7 +243,9 @@ async function main() {
         }
 
         const rows = [...branches.values()].sort((a, b) => b.objects - a.objects);
-        console.log(`\n=== ${scene}: ${seen.size} named objects, ${frames.length} samples over ${((frames.length * step) / 1000).toFixed(1)} s`);
+        console.log(
+          `\n=== ${scene}: ${seen.size} named objects, ${frames.length} samples over ${((frames.length * step) / 1000).toFixed(1)} s`
+        );
         console.log(
           'branch'.padEnd(34) +
             'objects'.padStart(8) +
@@ -268,7 +275,10 @@ async function main() {
         await page.close();
       }
     }
-    await writeFile(options.json, JSON.stringify({ generatedAt: new Date().toISOString(), report }, null, 2));
+    await writeFile(
+      options.json,
+      JSON.stringify({ generatedAt: new Date().toISOString(), report }, null, 2)
+    );
     console.log(`\nReport: ${options.json}`);
   } finally {
     await browser.close();

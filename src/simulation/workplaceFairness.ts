@@ -1,6 +1,9 @@
+import type { WorkplaceReplayRun } from '../types/workplaceReplay';
 import type { WorkplaceState, WorkplaceShiftRecord } from '../types/workplace';
 import { saveWorkplace, restoreWorkplace, WORKPLACE_PLANS } from './bilateralWorkplace';
 import { workplaceMission } from './workplaceImprovement';
+import { translate } from '../i18n';
+import { workplaceFairnessMessages as msg } from './workplaceFairness.messages';
 
 /** Public ledger traversal. Historical absent qualitative facts remain unknown. */
 export function fairnessReceipt(state: WorkplaceState) {
@@ -52,8 +55,8 @@ export function fairnessReceipt(state: WorkplaceState) {
           : []
       ),
       historicalObjectionDetail: snapshots.some((s) => !('objections' in s))
-        ? 'Some earlier objection detail was not recorded; aggregate counts remain in campaign history.'
-        : 'Public raiser-owned records retained.',
+        ? translate(msg, 'objectionDetailPartial')
+        : translate(msg, 'objectionDetailRetained'),
     };
   });
 }
@@ -67,62 +70,55 @@ export function demonstrationBeats(state: WorkplaceState) {
   const records = fairnessReceipt(state);
   return [
     {
-      title: 'Hear the current mandate (1 minute)',
+      title: translate(msg, 'beatMandateTitle'),
       section: 'Agreement / Voices',
       observed: state.members.some((m) => m.understood),
-      detail:
-        'Read the bounded mandate and answer the role checks. Advice changes require fresh understanding.',
+      detail: translate(msg, 'beatMandateDetail'),
     },
     {
-      title: 'Exercise a protected no (1 minute)',
+      title: translate(msg, 'beatRefusalTitle'),
       section: 'Agreement / Voices',
       observed:
         events.some((e) => e.kind === 'ballot' && e.detail.includes('declined')) ||
         records.some((r) => r.currentCoverConsent === false),
-      detail:
-        'Decline a policy or optional duty. Observe ordinary pay unchanged. Choose a defensible shared plan before operating.',
+      detail: translate(msg, 'beatRefusalDetail'),
     },
     {
-      title: 'Keep disclosure optional (1 minute)',
+      title: translate(msg, 'beatDisclosureTitle'),
       section: 'Agreement / Voices',
       observed: events.some((e) => e.kind === 'privacy-consent'),
-      detail:
-        'Leave sharing off, or share and revoke the fictional explanation. No private reason is required. Skipping disclosure is a valid choice.',
+      detail: translate(msg, 'beatDisclosureDetail'),
     },
     {
-      title: 'Challenge and hear a correction (2 minutes)',
+      title: translate(msg, 'beatChallengeTitle'),
       section: state.improvement ? 'Handoff' : 'Shift',
       observed:
         events.some((e) => e.kind === 'adviser-correction') ||
         (state.improvement?.acknowledged === true &&
           events.some((e) => e.kind === 'improvement-challenged')),
-      detail:
-        'Challenge a forecast in Handoff, or protect Thursday refusal in the season. Scripted adviser dialogue is identified separately in the receipt.',
+      detail: translate(msg, 'beatChallengeDetail'),
     },
     {
-      title: 'Run bounded work (2 minutes)',
+      title: translate(msg, 'beatWorkTitle'),
       section: 'Review',
       observed: state.aiActions > 0 || state.campaign?.history.some((h) => h.minute > 0) === true,
-      detail:
-        'End turns, approve the current agreement, then run or pause the actual plant. Quality release and physical customer departures remain separate.',
+      detail: translate(msg, 'beatWorkDetail'),
     },
     {
-      title: 'Settle money and recovery (2 minutes)',
+      title: translate(msg, 'beatSettleTitle'),
       section: 'Review',
       observed:
         records.some((r) => r.earnedPayAndMemberDistributions > 0) &&
         records.every((r) => r.recoveryOwed === 0),
-      detail:
-        'Read every role receipt. Compensation is separate from earned pay and member distributions. Owed recovery remains visible until model time delivers it.',
+      detail: translate(msg, 'beatSettleDetail'),
     },
     {
-      title: 'Rehearse safe reload (1 minute)',
+      title: translate(msg, 'beatReloadTitle'),
       section: 'Review',
       observed: state.events.some(
         (e) => e.kind === 'settled' && e.detail.startsWith('Reload safety')
       ),
-      detail:
-        'Use Save and safely reload workplace. It expires future grants, settles earned money and retains recovery debt. It leaves the physical plant untouched.',
+      detail: translate(msg, 'beatReloadDetail'),
     },
   ] as const;
 }
@@ -146,8 +142,7 @@ export function participationReceipt(state: WorkplaceState, mode: 'solo' | 'sepa
       mode,
       authentication: false,
       coercionAssessment: false,
-      scope:
-        'Shared-device fictional role turns. The local runtime checks turn ownership; same-origin code and device possession are outside identity security.',
+      scope: translate(msg, 'receiptScope'),
     },
     actual: {
       minute: state.minute,
@@ -183,7 +178,57 @@ export function participationReceipt(state: WorkplaceState, mode: 'solo' | 'sepa
       futureCoverRemaining: reload.coverRemainingMinutes,
       roles: fairnessReceipt(reload),
     },
-    efficacy:
-      'No measured worker wellbeing, real-cooperative effectiveness or authenticated participant consent is claimed.',
+    efficacy: translate(msg, 'receiptEfficacy'),
   };
+}
+
+/** Read-only discussion of actual retained runs, never a causal or wellbeing score.
+ * Working if changed horizons and conditions stay visible without changing a record.
+ */
+export function replayLearningReview(runs: readonly WorkplaceReplayRun[]) {
+  if (runs.length < 2) return null;
+  const horizonsDiffer =
+    new Set(runs.map((run) => `${run.elapsedMinutes}:${run.agreementMinutes}:${run.shiftCount}`))
+      .size > 1;
+  const sameCheckpoint = runs.every(
+    (run) => !!run.checkpointId && run.checkpointId === runs[0].checkpointId
+  );
+  const balanceUncertain = runs.some((run) =>
+    [run.materialErrorKg, run.genealogyErrorKg].some(
+      (error) => !Number.isFinite(error) || Math.abs(error) > 0.01
+    )
+  );
+  const targetsDiffer = new Set(runs.map((run) => `${run.targetKg}:${run.deferredKg}`)).size > 1;
+  const chartersDiffer =
+    new Set(
+      runs.map((run) =>
+        JSON.stringify([
+          run.charter.workerAutonomy,
+          run.charter.governance,
+          run.charter.aiAuthority,
+          [...run.charter.practices].sort(),
+        ])
+      )
+    ).size > 1;
+  const plansDiffer = new Set(runs.map((run) => JSON.stringify(run.shiftPlans))).size > 1;
+  const caveats: string[] = [];
+  if (!sameCheckpoint) caveats.push(translate(msg, 'caveatCheckpoint'));
+  if (balanceUncertain) caveats.push(translate(msg, 'caveatBalance'));
+  if (targetsDiffer) caveats.push(translate(msg, 'caveatTargets'));
+  if (chartersDiffer && plansDiffer) caveats.push(translate(msg, 'caveatConfounded'));
+  const question =
+    !sameCheckpoint || balanceUncertain
+      ? translate(msg, 'questionCheckpoint')
+      : horizonsDiffer
+        ? translate(msg, 'questionHorizons')
+        : targetsDiffer
+          ? translate(msg, 'questionTargets')
+          : chartersDiffer && plansDiffer
+            ? translate(msg, 'questionConfounded')
+            : plansDiffer
+              ? translate(msg, 'questionPlans')
+              : chartersDiffer
+                ? translate(msg, 'questionCharters')
+                : translate(msg, 'questionMatched');
+  return { horizonsDiffer, caveats, question };
 }

@@ -72,8 +72,8 @@ test('OAuth registration, refresh, model selection, completed inference, and sig
     assert.equal(rejected.status, 200);
     assert.match(await rejected.text(), /Invalid or expired sign-in state/);
     assert.equal(calls.filter((call) => call.url.endsWith('/oauth/token')).length, 0);
-    assert.ok(rejectedAttempt.url);
-    const started = await (await post('start', {})).json();
+    assert.equal((await post('start', {})).status, 409);
+    const started = rejectedAttempt;
     const authorize = new URL(started.url);
     assert.equal(authorize.searchParams.get('client_id'), 'dynamic_agent_client');
     assert.equal(authorize.searchParams.get('agent_name_hint'), 'MillOS');
@@ -180,6 +180,72 @@ test('an account switch discards an in-flight answer from the prior account', as
     const inference = post('infer', { prompt: 'Assess the mill' });
     await started;
     assert.equal((await post('select', { id: 'b' })).status, 200);
+    releaseResponse();
+    assert.equal((await inference).status, 409);
+  } finally {
+    releaseResponse();
+    await app.close();
+  }
+});
+
+test('a model switch discards an in-flight answer from the prior model', async () => {
+  let releaseResponse;
+  const gate = new Promise((resolve) => {
+    releaseResponse = resolve;
+  });
+  let signalStarted;
+  const started = new Promise((resolve) => {
+    signalStarted = resolve;
+  });
+  const port = 41000 + Math.floor(Math.random() * 10000);
+  const db = {
+    hostId: 'urn:uuid:00000000-0000-4000-8000-000000000001',
+    activeId: 'a',
+    accounts: [
+      {
+        clientId: 'a',
+        subject: 'a',
+        email: 'a@example.test',
+        model: 'old-model',
+        accessToken: 'token-a',
+        refreshToken: 'refresh-a',
+        scopes: ['chatgpt.tokens.use.direct'],
+        expiresAt: Date.now() + 3_600_000,
+      },
+    ],
+  };
+  const app = createChatGPTLocalServer({
+    port,
+    credentialStore: { load: async () => db, save: async () => {} },
+    fetcher: async (url, init) => {
+      if (url.endsWith('/models')) {
+        return Response.json({
+          models: [
+            { slug: 'old-model', visibility: 'list' },
+            { slug: 'new-model', visibility: 'list' },
+          ],
+        });
+      }
+      if (!url.endsWith('/responses')) throw new Error(`Unexpected upstream ${url}`);
+      assert.equal(JSON.parse(init.body).model, 'old-model');
+      signalStarted();
+      await gate;
+      return new Response(
+        'data: {"type":"response.completed","response":{"output":[{"content":[{"type":"output_text","text":"old model answer"}]}]}}\n\n'
+      );
+    },
+  });
+  const origin = await app.start();
+  const post = (path, body) =>
+    fetch(`${origin}/api/chatgpt/${path}`, {
+      method: 'POST',
+      headers: { Origin: origin, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  try {
+    const inference = post('infer', { prompt: 'Assess the mill' });
+    await started;
+    assert.equal((await post('model', { slug: 'new-model' })).status, 200);
     releaseResponse();
     assert.equal((await inference).status, 409);
   } finally {

@@ -1,38 +1,54 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import {
   EffectComposer,
   Bloom,
-  BrightnessContrast,
   ChromaticAberration,
   DepthOfField,
-  HueSaturation,
   N8AO,
   Noise,
   SMAA,
-  ToneMapping,
   Vignette,
 } from '@react-three/postprocessing';
-import { BlendFunction } from 'postprocessing';
+import { BlendFunction, SMAAPreset } from 'postprocessing';
+import { DisplayHueSaturation } from './environment/DisplayHueSaturation';
+import { DisplayBrightnessContrast } from './environment/DisplayBrightnessContrast';
+import { DisplayToneMapping } from './environment/DisplayToneMapping';
 // `n8ao` ships no type declarations, so hold its ref through the base class.
 // The guarded transparency adapter handles the additional runtime contract.
-import type { Pass, VignetteEffect } from 'postprocessing';
+import type { EffectComposer as Composer, Pass, SMAAEffect, VignetteEffect } from 'postprocessing';
 import { useFrame } from '@react-three/fiber';
 import { useShallow } from 'zustand/react/shallow';
 import { useGraphicsStore, isPostProcessingActive } from '../stores/graphicsStore';
+import { useGameSimulationStore } from '../stores/gameSimulationStore';
+import { createAtmosphereState, sampleAtmosphere } from '../simulation/atmosphere';
 import { useAudioAnalyzerStore } from '../stores/audioAnalyzerStore';
 import { SSAO_PALETTE_COLOR } from '../utils/digitalTwinPalette';
 import { fulfilComposerCapture, setComposerCaptureAvailable } from '../utils/sceneCapture';
 import { reuseBeautyTransforms } from './performance/transparencyTransforms';
+import { encodeSmaaEdgeInput } from '../utils/smaaPerceptualEdges';
+import { drawStartupFrame, getStartupSnapshot, subscribeStartup } from '../utils/startupReadiness';
 import {
   AMBIENT_OCCLUSION,
   AO_QUALITY_LEVELS,
   BLOOM,
   COLOR_GRADE,
   COMPOSER_MULTISAMPLING,
+  DISPLAY_TOE_STRENGTH,
   VIGNETTE,
   aoQualityLevel,
+  nightToeStrength,
   vignetteDarknessFor,
 } from '../constants/colorGrade';
+
+/** Scratch atmosphere for the per-frame toe strength; never allocated in `useFrame`. */
+const _toeAtmosphere = createAtmosphereState();
 
 /**
  * Reads screenshot requests back from the composer's finished frame (see
@@ -80,6 +96,31 @@ function ComposerCaptureReader(): null {
  * of the deps is a Settings switch that silently stops working.
  */
 export const PostProcessing: React.FC = () => {
+  const composerRef = useRef<Composer>(null);
+  const startupReady = useSyncExternalStore(subscribeStartup, () => getStartupSnapshot().ready);
+  // The real caller owns admission, before AO temporarily filters the scene.
+  // Working if rejected draws preserve every flag/target and never count as frames.
+  useFrame(
+    ({ gl }, delta) => {
+      if (startupReady || !isPostProcessingActive(useGraphicsStore.getState().graphics)) return;
+      const composer = composerRef.current;
+      if (!composer) return;
+      const first = composer.passes[0];
+      if (!first?.enabled || first.renderToScreen) return;
+      drawStartupFrame(composer.inputBuffer, () => {
+        const autoClear = gl.autoClear;
+        try {
+          gl.autoClear = true;
+          composer.render(delta);
+          if (gl.getContext().isContextLost()) throw new Error('Context lost during startup draw');
+        } finally {
+          gl.autoClear = autoClear;
+        }
+      });
+    },
+    startupReady ? 0 : 1
+  );
+
   // Selective subscription - only re-render when these specific values change.
   // Deliberately does NOT subscribe to the audio analyzer: that store is
   // written 30 times a second and would defeat the memo above.
@@ -93,7 +134,9 @@ export const PostProcessing: React.FC = () => {
       enableFilmGrain: state.graphics.enableFilmGrain,
       enableDepthOfField: state.graphics.enableDepthOfField,
       enableColorGrade: state.graphics.enableColorGrade,
-      enableSMAA: state.graphics.enableSMAA,
+      enableSMAA: state.graphics.enableSMAA && !state.graphics.perfDebug.disableSMAA,
+      composerMsaa: !state.graphics.perfDebug.disableComposerMsaa,
+      displayToe: !state.graphics.perfDebug.disableDisplayToe,
       toneMappingMode: state.graphics.toneMappingMode,
       aoQuality: state.graphics.aoQuality,
       enableAudioReactive: state.graphics.enableAudioReactive,
@@ -155,6 +198,48 @@ export const PostProcessing: React.FC = () => {
     if (n8aoRef.current) n8aoRef.current.enabled = graphics.enableAmbientOcclusion;
   }, [graphics.enableAmbientOcclusion, aoMounted]);
 
+  // --- Display toe -------------------------------------------------------
+  // A shared uniform, written rather than passed as a prop, so neither the
+  // hour nor the paired control rebuilds a pass. Priority 0 runs before the
+  // composer's priority-1 render in the same frame. `nightToeStrength` is
+  // exactly 0 from dawn to dusk, so the day image is the stock image.
+  // Restored on unmount: the uniform outlives this component.
+  const { displayToe } = graphics;
+  useFrame(() => {
+    if (!displayToe) {
+      DISPLAY_TOE_STRENGTH.value = 0;
+      return;
+    }
+    const { gameDay, gameTime, weather } = useGameSimulationStore.getState();
+    DISPLAY_TOE_STRENGTH.value = nightToeStrength(
+      sampleAtmosphere(gameDay, gameTime, weather, _toeAtmosphere).daylight
+    );
+  });
+  useEffect(
+    () => () => {
+      DISPLAY_TOE_STRENGTH.value = 1;
+    },
+    []
+  );
+
+  // --- Anti-aliasing ------------------------------------------------------
+  // MSAA resolves geometric edges whatever their brightness, including thin
+  // members narrower than a pixel; SMAA then cleans the shading edges MSAA
+  // cannot see. The perf-debug switch writes the composer's own setter rather
+  // than the prop: the R3F wrapper lists `multisampling` in the memo that
+  // CONSTRUCTS the composer, so a prop change would build a second composer
+  // and leak the first one's targets.
+  const msaaSamples = graphics.composerMsaa ? COMPOSER_MULTISAMPLING : 0;
+  useEffect(() => {
+    const composer = composerRef.current;
+    if (composer && composer.multisampling !== msaaSamples) composer.multisampling = msaaSamples;
+  }, [msaaSamples]);
+  const setSmaaRef = useCallback((effect: SMAAEffect | null) => {
+    if (effect && !encodeSmaaEdgeInput(effect.edgeDetectionMaterial)) {
+      console.warn('[PostProcessing] SMAA edge shader changed shape; edges compared in linear');
+    }
+  }, []);
+
   const aoQuality = aoQualityLevel(graphics.aoQuality);
   // Half resolution below the top AO step. Derived from the numeric knob rather
   // than from `quality` so the tier string is not an extra subscription.
@@ -215,15 +300,18 @@ export const PostProcessing: React.FC = () => {
             composer tier so an adaptive quality change never moves the curve.
             While the composer is mounted it forces `gl.toneMapping` to
             NoToneMapping, so this pass is the only tone curve in the frame. */}
-        <ToneMapping mode={graphics.toneMappingMode} />
+        <DisplayToneMapping mode={graphics.toneMappingMode} />
 
         {/* Both non-convolution, so the composer merges them into the same
             EffectPass as the tone mapping - effectively free. */}
         {graphics.enableColorGrade && (
-          <BrightnessContrast brightness={COLOR_GRADE.brightness} contrast={COLOR_GRADE.contrast} />
+          <DisplayBrightnessContrast
+            brightness={COLOR_GRADE.brightness}
+            contrast={COLOR_GRADE.contrast}
+          />
         )}
         {graphics.enableColorGrade && (
-          <HueSaturation hue={COLOR_GRADE.hue} saturation={COLOR_GRADE.saturation} />
+          <DisplayHueSaturation hue={COLOR_GRADE.hue} saturation={COLOR_GRADE.saturation} />
         )}
 
         {/* `darkness` is the mount-time value only; the audio response writes
@@ -249,9 +337,13 @@ export const PostProcessing: React.FC = () => {
 
         {/* Last, so it operates on the tone-mapped image. The composer renders
             to its own HalfFloat target, which makes the canvas `antialias`
-            context attribute inert - without this the composer tiers would ship
-            with no anti-aliasing at all. */}
-        {graphics.enableSMAA && <SMAA />}
+            context attribute inert for the scene.
+            That target holds LINEAR values, and SMAA's 0.1 threshold assumes
+            encoded ones: as shipped it found no edge darker than mid-grey, so
+            the truss and every night silhouette stair-stepped untouched.
+            `setSmaaRef` moves edge detection to encoded values. HIGH adds the
+            diagonal and corner search that truss bracing needs. */}
+        {graphics.enableSMAA && <SMAA ref={setSmaaRef} preset={SMAAPreset.HIGH} />}
       </>
     ),
     [
@@ -266,6 +358,7 @@ export const PostProcessing: React.FC = () => {
       graphics.enableChromaticAberration,
       graphics.enableFilmGrain,
       graphics.enableSMAA,
+      setSmaaRef,
       setVignetteRef,
       setN8aoRef,
     ]
@@ -283,9 +376,16 @@ export const PostProcessing: React.FC = () => {
     // the whole scene with a normal material - a second full draw-call
     // submission. N8AO needs only depth.
     // `multisampling` is set explicitly: the R3F default of 8 costs roughly
-    // 132 MB of MSAA storage at 1920x1080 plus a per-frame resolve.
+    // 132 MB of MSAA storage at 1920x1080 plus a per-frame resolve. It is the
+    // construction value only; the perf-debug switch above goes through the
+    // composer's setter.
     <>
-      <EffectComposer enableNormalPass={false} multisampling={COMPOSER_MULTISAMPLING}>
+      <EffectComposer
+        ref={composerRef}
+        enabled={startupReady}
+        enableNormalPass={false}
+        multisampling={COMPOSER_MULTISAMPLING}
+      >
         {children}
       </EffectComposer>
       <ComposerCaptureReader />

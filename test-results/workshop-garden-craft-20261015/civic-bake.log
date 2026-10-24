@@ -1,0 +1,31 @@
+1/27 hall-west: 78847 blocked rays
+2/27 hall-east: 78796 blocked rays
+3/27 hall-sign: 64978 blocked rays
+4/27 post-left: 62295 blocked rays
+5/27 post-fountain: 75559 blocked rays
+6/27 post-garden: 55124 blocked rays
+7/27 post-right: 56975 blocked rays
+8/27 shed-wall: 62704 blocked rays
+9/27 hall-verge: 64162 blocked rays
+10/27 hall-front-west: 53905 blocked rays
+11/27 hall-front-east: 54281 blocked rays
+12/27 hall-side-near: 68540 blocked rays
+13/27 hall-side-far: 65992 blocked rays
+14/27 fountain-border: 45043 blocked rays
+15/27 tree-inner: 31963 blocked rays
+16/27 gate-inner: 39297 blocked rays
+17/27 gate-outer: 39638 blocked rays
+18/27 shed-bed-west: 41598 blocked rays
+19/27 shed-bed-east: 34718 blocked rays
+20/27 tree-middle: 34258 blocked rays
+21/27 tree-near: 32208 blocked rays
+22/27 verge-near: 24236 blocked rays
+23/27 hall-front-window--4.3: 49581 blocked rays
+24/27 hall-front-window-4.3: 49175 blocked rays
+25/27 hall-side-window-16.8: 46004 blocked rays
+26/27 hall-side-window-20: 48107 blocked rays
+27/27 hall-side-window-23.2: 46065 blocked rays
+Baked 27 sources, 180416 rigid triangles, 2329699 bytes
+Blender 5.2.0 LTS (hash fbe6228777e7 built 2026-07-14 01:31:22)
+
+Blender quit

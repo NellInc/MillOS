@@ -20,10 +20,19 @@ import {
   ClipboardCheck,
   RotateCcw,
 } from 'lucide-react';
-import { useBreakdownStore, type PredictiveAlert } from '../../stores/breakdownStore';
+import {
+  breakdownDescription,
+  missingParts,
+  useBreakdownStore,
+  type PredictiveAlert,
+} from '../../stores/breakdownStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
-import { useProductionStore } from '../../stores/productionStore';
+import { minimumServiceWear, useProductionStore } from '../../stores/productionStore';
 import { useUIStore } from '../../stores/uiStore';
+import { capitalizeIn, formatFixed, translate, useLocale, useT } from '../../i18n';
+import { predictiveMaintenancePanelMessages } from './PredictiveMaintenancePanel.messages';
+
+const messages = predictiveMaintenancePanelMessages;
 
 const formatDowntime = (downtimeSeconds: number): string => {
   const s = Math.round(downtimeSeconds);
@@ -35,39 +44,44 @@ const formatDowntime = (downtimeSeconds: number): string => {
 const PartsInventorySection: React.FC = () => {
   const partsInventory = useBreakdownStore((state) => state.partsInventory);
   const hasLowInventory = useBreakdownStore((state) => state.hasLowInventory());
+  const t = useT(messages);
 
   const parts = [
-    { key: 'bearings', label: 'Bearings' },
-    { key: 'belts', label: 'Belts' },
-    { key: 'filters', label: 'Filters' },
-    { key: 'motors', label: 'Motors' },
-    { key: 'sensors', label: 'Sensors' },
+    { key: 'bearings', label: t('partBearings') },
+    { key: 'belts', label: t('partBelts') },
+    { key: 'filters', label: t('partFilters') },
+    { key: 'motors', label: t('partMotors') },
+    { key: 'sensors', label: t('partSensors') },
   ] as const;
 
   return (
     <div className="bg-slate-800/50 rounded-lg p-3">
       <div className="flex items-center gap-2 mb-3">
         <Package className="w-4 h-4 text-blue-400" />
-        <h4 className="text-sm font-semibold text-slate-200">Parts Inventory</h4>
+        <h4 className="text-sm font-semibold text-slate-200">{t('partsInventory')}</h4>
         {hasLowInventory && (
-          <span className="text-xs bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded">LOW</span>
+          <span className="text-xs bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded">
+            {t('low')}
+          </span>
         )}
       </div>
-      <div className="grid grid-cols-5 gap-2">
+      {/* Tiles wrap rather than truncate, so every part name stays readable
+          in the narrow sidebar and in pt-BR. Working if no label is clipped. */}
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(5.5rem,1fr))] gap-2">
         {parts.map(({ key, label }) => {
           const count = partsInventory[key];
           const isLow = count < 3;
           return (
             <div
               key={key}
-              className={`text-center p-2 rounded ${
+              className={`text-center px-1 py-2 rounded ${
                 isLow ? 'bg-red-500/20 border border-red-500/30' : 'bg-slate-700/50'
               }`}
             >
               <div className={`text-lg font-bold ${isLow ? 'text-red-400' : 'text-slate-200'}`}>
                 {count}
               </div>
-              <div className="text-xs text-slate-400 truncate">{label}</div>
+              <div className="text-xs leading-tight text-slate-400 break-words">{label}</div>
             </div>
           );
         })}
@@ -83,6 +97,7 @@ const PredictionsSection: React.FC = () => {
   const maintenanceSchedule = useBreakdownStore((state) => state.maintenanceSchedule);
   const scheduleMaintenanceTask = useBreakdownStore((state) => state.scheduleMaintenanceTask);
   const getPartsForBreakdown = useBreakdownStore((state) => state.getPartsForBreakdown);
+  const t = useT(messages);
 
   const unacknowledgedAlerts = predictiveAlerts.filter((a) => !a.acknowledged);
   const scheduledMachineIds = new Set(
@@ -108,11 +123,11 @@ const PredictionsSection: React.FC = () => {
       <div className="bg-slate-800/50 rounded-lg p-3">
         <div className="flex items-center gap-2 mb-2">
           <TrendingUp className="w-4 h-4 text-emerald-400" />
-          <h4 className="text-sm font-semibold text-slate-200">Predictive Alerts</h4>
+          <h4 className="text-sm font-semibold text-slate-200">{t('predictiveAlerts')}</h4>
         </div>
         <div className="flex items-center gap-2 text-emerald-400 text-sm py-2">
           <CheckCircle className="w-4 h-4" />
-          <span>No predicted failures</span>
+          <span>{t('noPredictedFailures')}</span>
         </div>
       </div>
     );
@@ -122,7 +137,7 @@ const PredictionsSection: React.FC = () => {
     <div className="bg-slate-800/50 rounded-lg p-3">
       <div className="flex items-center gap-2 mb-3">
         <AlertTriangle className="w-4 h-4 text-amber-400" />
-        <h4 className="text-sm font-semibold text-slate-200">Predictive Alerts</h4>
+        <h4 className="text-sm font-semibold text-slate-200">{t('predictiveAlerts')}</h4>
         <span className="text-xs bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded">
           {unacknowledgedAlerts.length}
         </span>
@@ -136,23 +151,28 @@ const PredictionsSection: React.FC = () => {
                 <div className="flex-1">
                   <div className="text-sm font-medium text-slate-200">{alert.machineName}</div>
                   <div className="text-xs text-slate-400">
-                    {alert.predictedFailureType.replaceAll('_', ' ')}
+                    {t('failureType', { type: alert.predictedFailureType })}
                   </div>
                 </div>
                 <div className="text-right">
                   <div className="text-sm font-bold text-amber-400">{alert.confidence}%</div>
-                  <div className="text-xs text-slate-500">model confidence</div>
+                  <div className="text-xs text-slate-500">{t('modelConfidence')}</div>
                 </div>
               </div>
               <div className="flex flex-wrap items-center justify-between gap-2 mt-2 pt-2 border-t border-slate-600">
                 <div className="flex items-center gap-1 text-xs text-slate-400">
                   <Clock className="w-3 h-3" />
                   <span>
-                    Estimated window:{' '}
-                    {alert.predictedTimeToFailure >= 120
-                      ? `${(alert.predictedTimeToFailure / 60).toFixed(1)} h`
-                      : `${alert.predictedTimeToFailure} min`}{' '}
-                    game time
+                    {t('estimatedWindow', {
+                      window:
+                        alert.predictedTimeToFailure >= 120
+                          ? t('windowHours', {
+                              hours: formatFixed(alert.predictedTimeToFailure / 60, 1),
+                            })
+                          : t('windowMinutes', {
+                              minutes: formatFixed(alert.predictedTimeToFailure, 0),
+                            }),
+                    })}
                   </span>
                 </div>
                 <div className="flex gap-2">
@@ -161,19 +181,19 @@ const PredictionsSection: React.FC = () => {
                     disabled={alreadyScheduled}
                     aria-label={
                       alreadyScheduled
-                        ? `Maintenance already scheduled for ${alert.machineName}`
-                        : `Schedule maintenance for ${alert.machineName}`
+                        ? t('alreadyScheduledFor', { machine: alert.machineName })
+                        : t('scheduleFor', { machine: alert.machineName })
                     }
                     className="min-h-11 px-3 text-xs bg-emerald-800 hover:bg-emerald-700 disabled:bg-slate-600 disabled:text-white/90 text-white rounded transition-colors"
                   >
-                    {alreadyScheduled ? 'Scheduled' : 'Schedule'}
+                    {alreadyScheduled ? t('scheduled') : t('schedule')}
                   </button>
                   <button
                     onClick={() => acknowledgePredictiveAlert(alert.id)}
-                    aria-label={`Acknowledge prediction for ${alert.machineName}`}
+                    aria-label={t('acknowledgeFor', { machine: alert.machineName })}
                     className="min-h-11 px-3 text-xs bg-blue-800 hover:bg-blue-700 text-white rounded transition-colors"
                   >
-                    Acknowledge
+                    {t('acknowledge')}
                   </button>
                 </div>
               </div>
@@ -191,9 +211,12 @@ const ActiveBreakdownsSection: React.FC = () => {
   const workOrders = useBreakdownStore((state) => state.workOrders);
   const partsInventory = useBreakdownStore((state) => state.partsInventory);
   const startRepair = useBreakdownStore((state) => state.startRepair);
-  const updateRepairProgress = useBreakdownStore((state) => state.updateRepairProgress);
   const verifyRepair = useBreakdownStore((state) => state.verifyRepair);
   const requestMachineRestart = useBreakdownStore((state) => state.requestMachineRestart);
+  const t = useT(messages);
+  const locale = useLocale();
+  const listParts = (parts: readonly string[]) =>
+    parts.map((part) => t('part', { part })).join(', ');
 
   if (activeBreakdowns.length === 0) {
     return null;
@@ -203,7 +226,7 @@ const ActiveBreakdownsSection: React.FC = () => {
     <div className="bg-red-900/30 rounded-lg p-3 border border-red-500/30">
       <div className="flex items-center gap-2 mb-3">
         <Wrench className="w-4 h-4 text-red-400" />
-        <h4 className="text-sm font-semibold text-red-300">Active Faults</h4>
+        <h4 className="text-sm font-semibold text-red-300">{t('activeFaults')}</h4>
         <span className="text-xs bg-red-500/30 text-red-300 px-1.5 py-0.5 rounded">
           {activeBreakdowns.length}
         </span>
@@ -215,7 +238,7 @@ const ActiveBreakdownsSection: React.FC = () => {
           const unavailableParts = workOrder.requiredParts.filter(
             (part) => partsInventory[part] <= 0
           );
-          const phaseLabel = workOrder.phase.replaceAll('_', ' ');
+          const phaseLabel = t('phase', { phase: workOrder.phase });
           return (
             <div key={breakdown.id} className="bg-slate-800/50 rounded p-3">
               <div className="flex items-start justify-between gap-2">
@@ -223,33 +246,35 @@ const ActiveBreakdownsSection: React.FC = () => {
                   <div className="text-sm font-medium text-slate-200">{breakdown.machineName}</div>
                   <div className="text-[11px] text-slate-500">{workOrder.id}</div>
                 </div>
-                <span className="rounded bg-red-500/20 px-2 py-1 text-xs text-red-300 capitalize">
+                <span
+                  className={`rounded bg-red-500/20 px-2 py-1 text-xs text-red-300 ${capitalizeIn(locale)}`}
+                >
                   {phaseLabel}
                 </span>
               </div>
-              <div className="text-xs text-slate-400 mt-2">{breakdown.description}</div>
+              <div className="text-xs text-slate-400 mt-2">{breakdownDescription(breakdown)}</div>
               <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
                 <div className="text-slate-400">
-                  Service: <span className="text-amber-300">Autonomous service unit</span>
+                  {t('service')} <span className="text-amber-300">{t('serviceUnit')}</span>
                 </div>
                 <div className="text-right text-slate-400">
-                  Downtime:{' '}
+                  {t('downtime')}{' '}
                   <span className="text-slate-200">
                     {formatDowntime(workOrder.downtimeSeconds)}
                   </span>
                 </div>
               </div>
               <div className="mt-1 text-[11px] text-slate-500">
-                Parts: {workOrder.requiredParts.join(', ')}
+                {t('parts', { parts: listParts(workOrder.requiredParts) })}
               </div>
               {unavailableParts.length > 0 && (
                 <div role="status" className="mt-1 text-xs text-red-300">
-                  Awaiting stock: {unavailableParts.join(', ')}
+                  {t('awaitingStock', { parts: listParts(unavailableParts) })}
                 </div>
               )}
               {breakdown.repairProgress > 0 && (
                 <div className="mt-2 flex items-center justify-between text-xs">
-                  <span className="text-slate-400">Repair progress</span>
+                  <span className="text-slate-400">{t('repairProgress')}</span>
                   <span className="text-emerald-300">{Math.round(breakdown.repairProgress)}%</span>
                 </div>
               )}
@@ -270,18 +295,31 @@ const ActiveBreakdownsSection: React.FC = () => {
                     className="inline-flex min-h-11 items-center gap-2 rounded bg-amber-800 px-3 text-xs font-semibold text-white hover:bg-amber-700 disabled:bg-slate-600 disabled:text-white/90"
                   >
                     <Play className="h-4 w-4" aria-hidden="true" />
-                    Dispatch service unit
+                    {t('dispatchServiceUnit')}
                   </button>
                 )}
+                {/* The repair runs on the shift clock (breakdownStore.tickDowntime);
+                    there is nothing to click until it reaches verification. */}
                 {workOrder.phase === 'repairing' && (
-                  <button
-                    type="button"
-                    onClick={() => updateRepairProgress(breakdown.id, 100)}
-                    className="inline-flex min-h-11 items-center gap-2 rounded bg-emerald-800 px-3 text-xs font-semibold text-white hover:bg-emerald-700"
+                  <div
+                    role="status"
+                    className="flex min-h-11 items-center gap-2 text-xs text-emerald-300"
                   >
-                    <Wrench className="h-4 w-4" aria-hidden="true" />
-                    Complete repair
-                  </button>
+                    <Clock className="h-4 w-4" aria-hidden="true" />
+                    {t('repairRemaining', {
+                      minutes: formatFixed(
+                        Math.max(
+                          0,
+                          Math.ceil(
+                            ((100 - breakdown.repairProgress) / 100) *
+                              breakdown.estimatedRepairTime -
+                              1e-6
+                          )
+                        ),
+                        0
+                      ),
+                    })}
+                  </div>
                 )}
                 {workOrder.phase === 'verification' && (
                   <button
@@ -290,7 +328,7 @@ const ActiveBreakdownsSection: React.FC = () => {
                     className="inline-flex min-h-11 items-center gap-2 rounded bg-cyan-800 px-3 text-xs font-semibold text-white hover:bg-cyan-700"
                   >
                     <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
-                    Verify repair
+                    {t('verifyRepair')}
                   </button>
                 )}
                 {workOrder.phase === 'ready_to_restart' && (
@@ -300,12 +338,12 @@ const ActiveBreakdownsSection: React.FC = () => {
                     className="inline-flex min-h-11 items-center gap-2 rounded bg-purple-800 px-3 text-xs font-semibold text-white hover:bg-purple-700"
                   >
                     <RotateCcw className="h-4 w-4" aria-hidden="true" />
-                    Restart machine
+                    {t('restartMachine')}
                   </button>
                 )}
                 {workOrder.phase === 'restart_requested' && (
                   <div role="status" className="flex min-h-11 items-center text-xs text-purple-300">
-                    Controlled restart queued
+                    {t('restartQueued')}
                   </div>
                 )}
               </div>
@@ -323,7 +361,22 @@ const ScheduleSection: React.FC = () => {
   const partsInventory = useBreakdownStore((state) => state.partsInventory);
   const completeMaintenanceTask = useBreakdownStore((state) => state.completeMaintenanceTask);
   const activeBreakdowns = useBreakdownStore((state) => state.activeBreakdowns);
-  const pendingTasks = maintenanceSchedule.filter((t) => !t.completed);
+  // `id=minimum` for each unit performMaintenance would refuse as still new.
+  // A string keeps the selector stable while wear creeps up every tick.
+  const belowMinimum = useProductionStore((state) =>
+    state.machines
+      .filter((m) => m.status !== 'critical' && (m.metrics.wear ?? 0) < minimumServiceWear(m.type))
+      .map((m) => `${m.id}=${minimumServiceWear(m.type)}`)
+      .join('|')
+  );
+  const minimumWearFor = new Map(
+    belowMinimum
+      .split('|')
+      .filter(Boolean)
+      .map((entry) => [entry.split('=')[0], Number(entry.split('=')[1])] as const)
+  );
+  const t = useT(messages);
+  const pendingTasks = maintenanceSchedule.filter((task) => !task.completed);
   const formatScheduledTime = (time: number): string => {
     const normalized = ((time % 24) + 24) % 24;
     const hours = Math.floor(normalized);
@@ -331,28 +384,31 @@ const ScheduleSection: React.FC = () => {
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
   };
 
-  // Completing a task services the machine: parts are consumed and wear is
-  // reduced. A machine with an active fault must go through its work order
-  // (repair, verify, controlled restart) instead.
+  // Completing a task services the machine: wear is reduced, then the parts
+  // are consumed. The service runs first because performMaintenance can refuse
+  // it, and a refused service must leave the stock untouched. A machine with an
+  // active fault must go through its work order (repair, verify, controlled
+  // restart) instead.
   const completeTask = (taskId: string, machineId: string, machineName: string) => {
-    if (useBreakdownStore.getState().getBreakdownForMachine(machineId)) return;
-    completeMaintenanceTask(taskId);
-    const completed = useBreakdownStore
-      .getState()
-      .maintenanceSchedule.find((t) => t.id === taskId)?.completed;
-    if (!completed) return;
+    const maintenance = useBreakdownStore.getState();
+    if (maintenance.getBreakdownForMachine(machineId)) return;
+    const task = maintenance.maintenanceSchedule.find((candidate) => candidate.id === taskId);
+    if (!task || task.completed) return;
+    if (missingParts(maintenance.partsInventory, task.partsNeeded).length > 0) return;
     const result = useProductionStore.getState().performMaintenance(machineId);
     if (!result.success) {
       useUIStore.getState().addAlert({
         id: `maintenance-skip-${machineId}-${Date.now()}`,
         type: 'info',
-        title: 'Maintenance Not Needed',
+        title: translate(messages, 'maintenanceNotPerformed'),
         message: `${machineName}: ${result.message}`,
         timestamp: new Date(),
         machineId,
         acknowledged: false,
       });
+      return;
     }
+    completeMaintenanceTask(taskId);
   };
 
   if (pendingTasks.length === 0) {
@@ -360,9 +416,9 @@ const ScheduleSection: React.FC = () => {
       <div className="bg-slate-800/50 rounded-lg p-3">
         <div className="flex items-center gap-2 mb-2">
           <Calendar className="w-4 h-4 text-purple-400" />
-          <h4 className="text-sm font-semibold text-slate-200">Scheduled Maintenance</h4>
+          <h4 className="text-sm font-semibold text-slate-200">{t('scheduledMaintenance')}</h4>
         </div>
-        <div className="text-sm text-slate-400 py-2">No scheduled maintenance</div>
+        <div className="text-sm text-slate-400 py-2">{t('noScheduledMaintenance')}</div>
       </div>
     );
   }
@@ -371,14 +427,19 @@ const ScheduleSection: React.FC = () => {
     <div className="bg-slate-800/50 rounded-lg p-3">
       <div className="flex items-center gap-2 mb-3">
         <Calendar className="w-4 h-4 text-purple-400" />
-        <h4 className="text-sm font-semibold text-slate-200">Scheduled Maintenance</h4>
+        <h4 className="text-sm font-semibold text-slate-200">{t('scheduledMaintenance')}</h4>
       </div>
       <div className="space-y-2 max-h-[150px] overflow-y-auto">
         {pendingTasks.map((task) => {
-          const partsAvailable = task.partsNeeded.every((part) => partsInventory[part] > 0);
+          const partsAvailable = missingParts(partsInventory, task.partsNeeded).length === 0;
           const underRepair = activeBreakdowns.some(
             (breakdown) => breakdown.machineId === task.machineId
           );
+          const minimumWear = minimumWearFor.get(task.machineId);
+          const notNeededYet =
+            minimumWear !== undefined
+              ? t('belowMinimumHint', { minimum: formatFixed(minimumWear, 1) })
+              : null;
           return (
             <div
               key={task.id}
@@ -387,13 +448,19 @@ const ScheduleSection: React.FC = () => {
               <div className="min-w-0">
                 <div className="text-sm text-slate-200">{task.machineName}</div>
                 <div className="text-xs text-slate-400">
-                  {task.type.charAt(0).toUpperCase() + task.type.slice(1)} ·{' '}
-                  {formatScheduledTime(task.scheduledTime)}
+                  {t('taskType', { type: task.type })} · {formatScheduledTime(task.scheduledTime)}
                 </div>
                 <div className="text-[10px] text-slate-500 truncate">
-                  Parts:{' '}
-                  {task.partsNeeded.length > 0 ? task.partsNeeded.join(', ') : 'inspection only'}
+                  {t('parts', {
+                    parts:
+                      task.partsNeeded.length > 0
+                        ? task.partsNeeded.map((part) => t('part', { part })).join(', ')
+                        : t('inspectionOnly'),
+                  })}
                 </div>
+                {notNeededYet && !underRepair && (
+                  <div className="text-[11px] leading-4 text-slate-300">{notNeededYet}</div>
+                )}
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1">
                 <span
@@ -405,22 +472,24 @@ const ScheduleSection: React.FC = () => {
                         : 'bg-slate-600 text-slate-400'
                   }`}
                 >
-                  {task.priority}
+                  {t('priority', { priority: task.priority })}
                 </span>
                 <button
                   onClick={() => completeTask(task.id, task.machineId, task.machineName)}
-                  disabled={underRepair || !partsAvailable}
-                  aria-label={`Complete maintenance on ${task.machineName}`}
+                  disabled={underRepair || !partsAvailable || notNeededYet !== null}
+                  aria-label={t('completeMaintenanceOn', { machine: task.machineName })}
                   title={
                     underRepair
-                      ? 'Machine is under repair: complete the work order first'
-                      : partsAvailable
-                        ? 'Complete maintenance and consume listed parts'
-                        : 'Required parts are unavailable'
+                      ? t('underRepairHint')
+                      : notNeededYet
+                        ? notNeededYet
+                        : partsAvailable
+                          ? t('completeHint')
+                          : t('partsUnavailableHint')
                   }
                   className="min-h-11 px-3 rounded bg-purple-800 text-xs font-semibold text-white hover:bg-purple-700 disabled:bg-slate-600 disabled:text-white/90"
                 >
-                  Complete
+                  {t('complete')}
                 </button>
               </div>
             </div>
@@ -433,12 +502,13 @@ const ScheduleSection: React.FC = () => {
 
 // Main panel component
 export const PredictiveMaintenancePanel: React.FC = () => {
+  const t = useT(messages);
   return (
     <div className="bg-slate-900/95 backdrop-blur-sm rounded-lg border border-slate-700 p-4 w-full">
       {/* Header */}
       <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-700">
         <Wrench className="w-5 h-5 text-blue-400" />
-        <h3 className="text-base font-semibold text-slate-100">Predictive Maintenance</h3>
+        <h3 className="text-base font-semibold text-slate-100">{t('title')}</h3>
       </div>
 
       {/* Sections */}

@@ -1,11 +1,16 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { useCameraStore, CAMERA_PRESETS } from '../../CameraController';
 import { WorkplaceImprovementPanel } from './WorkplaceImprovementPanel';
+import { WorkplaceParticipation } from './WorkplaceParticipation';
+import { turnChecks, type RoleCommand } from '../../../simulation/workplaceParticipation';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
 import { createWorkplace } from '../../../simulation/bilateralWorkplace';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { cloneMaterialFlowData, useMaterialFlowStore } from '../../../stores/materialFlowStore';
+import { useQCLabStore } from '../../../stores/qcLabStore';
+import { useTruckScheduleStore } from '../../../stores/truckScheduleStore';
 import { useProductionStore } from '../../../stores/productionStore';
 import {
   FrozenPackingAdvice,
@@ -16,23 +21,30 @@ import { captureCurrentPackingPlant } from '../../../stores/workplaceStore';
 import { derivePackingAdvice } from '../../../simulation/workplaceAdvice';
 const report = vi.fn();
 beforeEach(() => {
-  useWorkplaceStore.setState({ workplace: createWorkplace() });
+  useWorkplaceStore.setState({
+    workplace: createWorkplace(),
+    participationMode: 'solo',
+    turn: null,
+  });
   useOperationsCampaignStore.setState({ orders: [], activeOrderId: null });
   report.mockReset();
   useGameSimulationStore.getState().setGameSpeed(0);
 });
 afterEach(cleanup);
 const click = (name: string) => fireEvent.click(screen.getByRole('button', { name, exact: true }));
-const mount = () =>
+const mount = (participation = false) =>
   render(
-    <WorkplaceImprovementPanel
-      profile="cooperative"
-      activate={async () => {
-        useWorkplaceStore.getState().activate(useWorkplaceStore.getState().workplace.revision);
-      }}
-      busy={false}
-      report={report}
-    />
+    <>
+      {participation && <WorkplaceParticipation report={report} />}
+      <WorkplaceImprovementPanel
+        profile="cooperative"
+        activate={async () => {
+          useWorkplaceStore.getState().activate(useWorkplaceStore.getState().workplace.revision);
+        }}
+        busy={false}
+        report={report}
+      />
+    </>
   );
 
 describe('choice-first handoff interface', () => {
@@ -131,10 +143,16 @@ describe('choice-first handoff interface', () => {
       screen.getByLabelText('Matched packing results').textContent?.match(/abstained/g)
     ).toHaveLength(3);
     expect(cloneMaterialFlowData(useMaterialFlowStore.getState())).toEqual(before);
-    act(() => useGameSimulationStore.getState().setGameSpeed(180));
+    // A pace chosen while the handoff holds the plant changes no plant input.
+    act(() => useGameSimulationStore.getState().setGameSpeed(120));
+    expect(
+      screen.queryByText('Inputs changed. This comparison is stale; capture again before using it.')
+    ).not.toBeInTheDocument();
+    act(() => useProductionStore.getState().setProductionSpeed(0.5));
     expect(
       screen.getByText('Inputs changed. This comparison is stale; capture again before using it.')
     ).toBeInTheDocument();
+    act(() => useProductionStore.getState().setProductionSpeed(1));
   });
   it('offers canonical worker ideas, public challenge and individual decisions before execution', () => {
     mount();
@@ -178,6 +196,13 @@ describe('choice-first handoff interface', () => {
       });
     click('Finalise handoff review');
     expect(screen.getByText(/Review recorded: amend/)).toBeInTheDocument();
+    // A finalised review releases the plant: the panel says so and offers the pace control.
+    expect(screen.getByText(/This handoff experiment is complete/)).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('combobox', { name: 'Shift pace' }), {
+      target: { value: '30' },
+    });
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(30);
+    expect(useWorkplaceStore.getState().workplace.phase).toBe('review');
     click('Open next handoff shift');
     expect(screen.getByText('The handoff experiment, shift 2')).toBeInTheDocument();
     expect(screen.getByText(/Retained earned pay/)).toBeInTheDocument();
@@ -186,4 +211,494 @@ describe('choice-first handoff interface', () => {
     ).toBe(108);
     act(() => store.stop());
   });
+
+  it('closes a decided later shift without opening another, as any decided shift can', () => {
+    const store = useWorkplaceStore.getState();
+    store.beginImprovement('team', store.workplace.revision);
+    store.proposeImprovement('briefing', 'packing');
+    store.acknowledgeImprovement();
+    for (const m of useWorkplaceStore.getState().workplace.members) {
+      store.understand(m.id);
+      store.vote(m.id, true);
+    }
+    store.activate(useWorkplaceStore.getState().workplace.revision);
+    store.tick(90, 500, false);
+    mount();
+    const decide = () => {
+      click('Hear the adviser review its forecast');
+      for (const role of ['Packing', 'Quality', 'Maintenance', 'Coordinator'])
+        fireEvent.change(screen.getByLabelText(`${role} review decision`), {
+          target: { value: 'stop' },
+        });
+      click('Finalise handoff review');
+    };
+    decide();
+    click('Open next handoff shift');
+    expect(screen.getByText('The handoff experiment, shift 2')).toBeInTheDocument();
+    // The second shift is ended unworked and decided: it carries the first's pay.
+    act(() => {
+      useWorkplaceStore.getState().stop();
+    });
+    decide();
+    expect(screen.getByText(/Review recorded: stop/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Closing ends the experiment without opening another shift/)
+    ).toBeInTheDocument();
+    click('Close the handoff experiment');
+    const after = useWorkplaceStore.getState().workplace;
+    expect(after.phase).toBe('idle');
+    expect(after.improvement).toBeUndefined();
+    expect(screen.getByRole('button', { name: 'Open the handoff experiment' })).toBeEnabled();
+  });
+});
+
+describe('the handoff clock hold', () => {
+  it('names the hold while a handoff is decided, keeps a chosen pace and cancels before funding', () => {
+    useGameSimulationStore.getState().setGameSpeed(30);
+    mount();
+    expect(screen.getByText(/Opening it holds the plant clock/)).toBeInTheDocument();
+    click('Open the handoff experiment');
+    const hold = screen.getByRole('region', { name: 'Plant clock held for this decision' });
+    expect(
+      within(hold).getByText(/Held while the team decides the handoff experiment/)
+    ).toBeInTheDocument();
+    const pace = within(hold).getByRole('combobox', { name: 'Shift pace' });
+    fireEvent.change(pace, { target: { value: '60' } });
+    // The choice stays shown as the resume pace instead of snapping back to Paused.
+    expect(pace).toHaveValue('60');
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+    fireEvent.click(within(hold).getByRole('button', { name: 'Cancel the handoff experiment' }));
+    expect(useWorkplaceStore.getState().workplace.phase).toBe('idle');
+    expect(useWorkplaceStore.getState().workplace.improvement).toBeUndefined();
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(60);
+    expect(
+      screen.queryByRole('region', { name: 'Plant clock held for this decision' })
+    ).not.toBeInTheDocument();
+  });
+
+  it('starts a season from the panel at standard pace, as the play card does', () => {
+    useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
+    useOperationsCampaignStore.getState().initializeCampaign();
+    render(
+      <WorkplaceImprovementPanel
+        profile="toe-dip"
+        setProfile={() => undefined}
+        activate={async () => undefined}
+        busy={false}
+        report={report}
+      />
+    );
+    click('Start season with current customer commitment');
+    expect(useWorkplaceStore.getState().workplace.campaign?.mission).toBeDefined();
+    expect(useGameSimulationStore.getState()).toMatchObject({ gameSpeed: 30, clockHolds: [] });
+  });
+});
+
+describe('predict then rehearse together', () => {
+  it('freezes the optional prediction, refuses a false verdict on abstention and resets only the comparison', async () => {
+    const state = useWorkplaceStore.getState().workplace;
+    const stock = cloneMaterialFlowData(useMaterialFlowStore.getState());
+    const speed = useGameSimulationStore.getState().gameSpeed;
+    render(<MatchedPackingRehearsal state={state} report={report} />);
+    const prediction = screen.getByRole('combobox', {
+      name: 'Our packing prediction (optional)',
+      exact: true,
+    });
+    expect(prediction).toHaveValue('');
+    fireEvent.change(prediction, { target: { value: 'higher' } });
+    click('Run matched packing rehearsal');
+    await waitFor(() => expect(prediction).toBeDisabled());
+    const review = await screen.findByRole('region', { name: 'Packing prediction review' });
+    expect(
+      within(review).getByText(/Our prediction: Buffer range entirely above/)
+    ).toBeInTheDocument();
+    expect(within(review).getByText(/insufficient matching evidence/)).toBeInTheDocument();
+    expect(within(review).queryByText(/support our prediction/)).not.toBeInTheDocument();
+    expect(
+      within(review).getByText(/More packed stock does not establish a truck departure/)
+    ).toBeInTheDocument();
+    click('Prepare another prediction');
+    expect(
+      screen.queryByRole('region', { name: 'Packing prediction review' })
+    ).not.toBeInTheDocument();
+    expect(prediction).toBeEnabled();
+    expect(prediction).toHaveValue('');
+    await waitFor(() => expect(prediction).toHaveFocus());
+    expect(useWorkplaceStore.getState().workplace).toBe(state);
+    expect(cloneMaterialFlowData(useMaterialFlowStore.getState())).toEqual(stock);
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(speed);
+    expect(report).not.toHaveBeenCalled();
+  });
+
+  it('allows a skipped prediction and suppresses all learning conclusions when inputs change', async () => {
+    render(<MatchedPackingRehearsal state={createWorkplace()} report={report} />);
+    click('Run matched packing rehearsal');
+    const review = await screen.findByRole('region', { name: 'Packing prediction review' });
+    expect(within(review).getByText(/none recorded for this run/)).toBeInTheDocument();
+    act(() => useGameSimulationStore.getState().setGameSpeed(30));
+    expect(
+      screen.queryByRole('region', { name: 'Packing prediction review' })
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('comparison is stale');
+  });
+});
+
+it('shows proposal and episode controls only to their current owner in separate turns', () => {
+  const store = useWorkplaceStore.getState();
+  store.setParticipationMode('separate-turns');
+  store.beginImprovement('cooperative', store.workplace.revision, undefined, 'workshop');
+  mount();
+  const packing = screen.getByRole('button', { name: 'Packing proposes a paid handoff briefing' });
+  const maintenance = screen.getByRole('button', {
+    name: 'Maintenance proposes a small packing buffer',
+  });
+  expect(packing).toBeDisabled();
+  expect(maintenance).toBeDisabled();
+  expect(screen.getByLabelText('Pressure episode')).toBeEnabled();
+  act(() => useWorkplaceStore.getState().startTurn('packing'));
+  expect(packing).toBeEnabled();
+  expect(maintenance).toBeDisabled();
+  expect(screen.getByLabelText('Pressure episode')).toBeDisabled();
+  click('Packing proposes a paid handoff briefing');
+  expect(useWorkplaceStore.getState().turn).toBeNull();
+  expect(screen.getByRole('button', { name: 'Hear the adviser response' })).toBeDisabled();
+  expect(screen.getByLabelText('Challenge author')).toBeDisabled();
+  expect(screen.getByLabelText('Challenge author')).toHaveValue('');
+});
+
+it('requires the adviser checks, then keeps understanding, policy choice and handover deliberate', async () => {
+  const get = () => useWorkplaceStore.getState();
+  get().setParticipationMode('separate-turns');
+  get().beginImprovement('cooperative', get().workplace.revision, undefined, 'workshop');
+  get().startTurn('maintenance');
+  get().runTurnCommand(get().turn!.token, {
+    type: 'proposeImprovement',
+    args: ['buffer', 'maintenance'],
+  });
+  get().startTurn('mind');
+  mount(true);
+  expect(screen.getByRole('button', { name: 'Hear the adviser response' })).toBeDisabled();
+  for (const q of turnChecks(get().workplace))
+    fireEvent.change(screen.getByLabelText(`Turn check: ${q.id}`), {
+      target: { value: q.correct },
+    });
+  expect(screen.getByRole('button', { name: 'Hear the adviser response' })).toBeEnabled();
+  click('Hear the adviser response');
+  expect(get().turn).toBeNull();
+  fireEvent.change(screen.getByLabelText('Hand over to fictional role'), {
+    target: { value: 'packing' },
+  });
+  click('Begin participant turn');
+  await waitFor(() => expect(screen.getByText(/Only Packing may/)).toHaveFocus());
+  const understand = screen.getByRole('button', { name: 'Confirm handoff understanding: Packing' });
+  const approve = screen.getByRole('button', { name: 'Approve handoff: Packing' });
+  expect(understand).toBeDisabled();
+  const finance = structuredClone(get().workplace.finance);
+  for (const q of turnChecks(get().workplace))
+    fireEvent.change(screen.getByLabelText(`Turn check: ${q.id}`), {
+      target: { value: q.correct },
+    });
+  expect(
+    get().workplace.members.every((member) => !member.understood && member.ballot === null)
+  ).toBe(true);
+  expect(understand).toBeEnabled();
+  expect(approve).toBeDisabled();
+  click('Confirm handoff understanding: Packing');
+  expect(approve).toBeEnabled();
+  click('Decline handoff: Packing');
+  expect(get().workplace.members.find((member) => member.id === 'packing')?.ballot).toBe(false);
+  expect(
+    get()
+      .workplace.members.filter((member) => member.id !== 'packing')
+      .every((member) => member.ballot === null)
+  ).toBe(true);
+  expect(get().workplace.finance).toEqual(finance);
+  click('End participant turn');
+  await waitFor(() => expect(screen.getByLabelText('Hand over to fictional role')).toHaveFocus());
+});
+
+it('keeps review ballots with each owner and final settlement with the facilitator', () => {
+  const get = () => useWorkplaceStore.getState();
+  get().setParticipationMode('separate-turns');
+  get().beginImprovement('cooperative', get().workplace.revision, undefined, 'workshop');
+  const command = (actor: string, action: RoleCommand) => {
+    get().startTurn(actor);
+    if (get().workplace.phase === 'deliberating')
+      for (const q of turnChecks(get().workplace))
+        get().answerTurnCheck(get().turn!.token, q.id, q.correct);
+    expect(get().runTurnCommand(get().turn!.token, action).changed).toBe(true);
+    get().endTurn();
+  };
+  command('maintenance', { type: 'proposeImprovement', args: ['buffer', 'maintenance'] });
+  command('mind', { type: 'acknowledgeImprovement', args: [] });
+  get().stop();
+  command('mind', { type: 'acknowledgeImprovementReview', args: [] });
+  get().startTurn('packing');
+  mount();
+  for (const member of get().workplace.members) {
+    const select = screen.getByLabelText(`${member.role} review decision`);
+    if (member.id !== 'packing') {
+      expect(select).toBeDisabled();
+      act(() => get().startTurn(member.id));
+    }
+    expect(select).toBeEnabled();
+    fireEvent.change(select, { target: { value: 'amend' } });
+    expect(get().turn).toBeNull();
+    expect(get().workplace.improvement?.ballots[member.id]).toBe('amend');
+  }
+  const settle = screen.getByRole('button', { name: 'Finalise handoff review' });
+  expect(settle).toBeEnabled();
+  act(() => get().startTurn('quality'));
+  expect(settle).toBeDisabled();
+  act(() => get().endTurn());
+  click('Finalise handoff review');
+  expect(get().workplace.improvement?.verdict).toBe('amend');
+  const next = screen.getByRole('button', { name: 'Open next handoff shift' });
+  expect(next).toBeEnabled();
+  act(() => get().startTurn('packing'));
+  expect(get().turn?.actorId).toBe('packing');
+  expect(next).toBeDisabled();
+});
+
+it('offers a review discussion and isolated next-test prediction without recording a decision', async () => {
+  const store = useWorkplaceStore.getState();
+  store.beginImprovement('cooperative', store.workplace.revision);
+  store.proposeImprovement('briefing', 'packing');
+  store.acknowledgeImprovement();
+  for (const member of useWorkplaceStore.getState().workplace.members) {
+    store.understand(member.id);
+    store.vote(member.id, true);
+  }
+  store.activate(useWorkplaceStore.getState().workplace.revision);
+  store.tick(12, 0, false);
+  store.stop();
+  const before = useWorkplaceStore.getState().workplace;
+  const stock = cloneMaterialFlowData(useMaterialFlowStore.getState());
+  mount();
+  const review = screen.getByRole('region', { name: 'Handoff learning review' });
+  expect(within(review).getByText('What did this handoff teach us?')).toBeInTheDocument();
+  expect(within(review).getByText(/Ended after 12.0 of 90 minutes/)).toBeInTheDocument();
+  expect(within(review).getByText(/current paused plant inputs/)).toBeInTheDocument();
+  click('Run matched packing rehearsal');
+  const reflection = await screen.findByRole('region', { name: 'Packing prediction review' });
+  expect(within(reflection).getByText(/insufficient matching evidence/)).toBeInTheDocument();
+  expect(useWorkplaceStore.getState().workplace).toBe(before);
+  expect(cloneMaterialFlowData(useMaterialFlowStore.getState())).toEqual(stock);
+  expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+  expect(before.improvement?.ballots).toEqual({});
+  expect(report).not.toHaveBeenCalled();
+});
+
+it('offers workshop reflection without a physical packing comparison or automatic review ballot', () => {
+  const store = useWorkplaceStore.getState();
+  store.beginImprovement('team', store.workplace.revision, undefined, 'workshop');
+  store.proposeImprovement('briefing', 'packing');
+  store.acknowledgeImprovement();
+  for (const member of useWorkplaceStore.getState().workplace.members) {
+    store.understand(member.id);
+    store.vote(member.id, true);
+  }
+  store.activate(useWorkplaceStore.getState().workplace.revision);
+  store.stop();
+  const before = useWorkplaceStore.getState().workplace;
+  mount();
+  const review = screen.getByRole('region', { name: 'Handoff learning review' });
+  expect(within(review).getByText(/Workshop records no plant shipment/)).toBeInTheDocument();
+  expect(
+    within(review).queryByText('Compare matched packing alternatives')
+  ).not.toBeInTheDocument();
+  expect(screen.getByLabelText('Packing review decision')).toBeDisabled();
+  expect(useWorkplaceStore.getState().workplace).toBe(before);
+  expect(before.improvement?.reviewAcknowledged).toBe(false);
+});
+
+it('lets roles inspect current plant views while abstaining facts remain unknown and agreement stays untouched', () => {
+  const state = useWorkplaceStore.getState().workplace;
+  const advice = derivePackingAdvice(captureCurrentPackingPlant(state), 'briefing');
+  expect(advice.reasonToAbstain).toBeTruthy();
+  const before = JSON.stringify(state);
+  const stock = cloneMaterialFlowData(useMaterialFlowStore.getState());
+  render(<FrozenPackingAdvice advice={advice} />);
+  const inspections = screen.getByRole('group', { name: 'Inspect evidence together' });
+  expect(within(inspections).getByText('Packing')).toBeInTheDocument();
+  expect(within(inspections).getByText('Quality')).toBeInTheDocument();
+  expect(within(inspections).getByText('Maintenance')).toBeInTheDocument();
+  expect(within(inspections).getByText('Coordinator')).toBeInTheDocument();
+  expect(within(inspections).queryByText(/0 kg released/)).not.toBeInTheDocument();
+  for (const [action, destination] of [
+    ['View packing floor', 'Packing'],
+    ['View quality observation point', 'Packing'],
+    ['View milling line', 'Milling'],
+    ['View shipping dock', 'Shipping'],
+  ]) {
+    fireEvent.click(within(inspections).getByRole('button', { name: action, exact: true }));
+    const camera = useCameraStore.getState();
+    expect(camera.activePreset).toBe(CAMERA_PRESETS.findIndex((p) => p.name === destination));
+    expect(camera.targetPosition?.toArray()).toEqual(CAMERA_PRESETS[camera.activePreset!].position);
+  }
+  expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+  expect(JSON.stringify(useWorkplaceStore.getState().workplace)).toBe(before);
+  expect(cloneMaterialFlowData(useMaterialFlowStore.getState())).toEqual(stock);
+});
+
+it('keeps the quality-boundary experiment unavailable when the captured comparison abstains', async () => {
+  render(<MatchedPackingRehearsal state={createWorkplace()} report={report} />);
+  click('Run matched packing rehearsal');
+  await screen.findByLabelText('Matched packing results');
+  expect(
+    screen.getByRole('button', { name: 'Rehearse withheld dispatch release', exact: true })
+  ).toBeDisabled();
+  expect(
+    screen.getByText(/Resolve missing captured facts before this exercise/)
+  ).toBeInTheDocument();
+});
+
+it('freezes and resets the quality hypothesis, preserves original results and suppresses both on changed inputs', async () => {
+  useMaterialFlowStore.getState().resetMaterialFlow();
+  useQCLabStore.getState().resetQCLab();
+  useTruckScheduleStore.getState().resetTruckSchedule();
+  useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
+  const operations = useOperationsCampaignStore.getState();
+  operations.initializeCampaign();
+  const material = useMaterialFlowStore.getState();
+  const source = operations.orders.find((o) => o.id === operations.activeOrderId)!.recipe
+    .sourceMaterial;
+  const sourceInventoryKg = [...material.machineBuffers.values()].reduce(
+    (sum, buffer) =>
+      sum +
+      [...buffer.inputBuffer, ...buffer.outputBuffer].reduce(
+        (n, m) => n + (m.type === source ? m.amount : 0),
+        0
+      ),
+    0
+  );
+  operations.tickCampaign(0.5, {
+    materialSessionId: material.sessionId,
+    shiftKey: 'quality-exercise',
+    shiftLabel: 'Morning',
+    manifests: material.manifests,
+    productionBatches: material.productionBatches,
+    totalEnergyKw: 0,
+    averageQuality: 99,
+    wasteKg: 0,
+    storageUtilization: 0,
+    shippingDocked: false,
+    receivingDocked: false,
+    dispatchReleased: true,
+    sourceInventoryKg,
+    finishedAvailableKg: 0,
+    releasedFinishedKg: 0,
+    dispatchLoad: {
+      cycleId: 'quality-exercise',
+      status: 'away',
+      loadedKg: 0,
+      capacityKg: 5000,
+      materialType: 'flour',
+      blockReason: null,
+      lastDispatchKg: 0,
+    },
+    openWorkOrders: 0,
+  });
+  const state = useWorkplaceStore.getState().workplace;
+  expect(captureCurrentPackingPlant(state).reasonToAbstain).toBeNull();
+  const before = cloneMaterialFlowData(useMaterialFlowStore.getState());
+  const accounts = useOperationsCampaignStore.getState();
+  render(<MatchedPackingRehearsal state={state} report={report} />);
+  click('Run matched packing rehearsal');
+  await screen.findByLabelText('Matched packing results');
+  fireEvent.click(screen.getByText('When did packing first appear?', { exact: true }));
+  const timing = screen.getByRole('group', { name: 'Packing time observations' });
+  expect(within(timing).getAllByText(/0.5-second steps:/)).toHaveLength(3);
+  expect(within(timing).getAllByText(/0.25-second steps:/)).toHaveLength(3);
+  expect(timing).toHaveTextContent('five paid minutes of pacing hold');
+  expect(timing).toHaveTextContent('which timing difference would you investigate');
+  const prediction = screen.getByRole('combobox', { name: 'Our quality prediction (optional)' });
+  fireEvent.change(prediction, { target: { value: 'override' } });
+  click('Rehearse withheld dispatch release');
+  const result = await screen.findByRole('region', { name: 'Quality boundary results' });
+  expect(prediction).toBeDisabled();
+  expect(within(result).getByText(/Recorded idea: Higher pacing can replace/)).toBeInTheDocument();
+  expect(
+    within(result).getByText(/original departure bounds were already zero/)
+  ).toBeInTheDocument();
+  expect(within(result).getAllByText(/with withheld release:/)).toHaveLength(3);
+  expect(cloneMaterialFlowData(useMaterialFlowStore.getState())).toEqual(before);
+  expect(useOperationsCampaignStore.getState()).toBe(accounts);
+  expect(useWorkplaceStore.getState().workplace).toBe(state);
+  expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+  click('Reset quality prediction');
+  expect(
+    screen.queryByRole('region', { name: 'Quality boundary results' })
+  ).not.toBeInTheDocument();
+  expect(prediction).toHaveValue('');
+  expect(prediction).toBeEnabled();
+  await waitFor(() => expect(prediction).toHaveFocus());
+  expect(screen.getByLabelText('Matched packing results')).toBeInTheDocument();
+  click('Rehearse withheld dispatch release');
+  await screen.findByRole('region', { name: 'Quality boundary results' });
+  act(() => useProductionStore.getState().setProductionSpeed(0.66));
+  expect(
+    screen.queryByRole('region', { name: 'Quality boundary results' })
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole('group', { name: 'Packing time observations' })
+  ).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('Matched packing results')).not.toBeInTheDocument();
+  expect(screen.getByRole('status')).toHaveTextContent('comparison is stale');
+  act(() => useProductionStore.getState().setProductionSpeed(0));
+  click('Run matched packing rehearsal');
+  await screen.findByLabelText('Matched packing results');
+  fireEvent.click(screen.getByText('When did packing first appear?', { exact: true }));
+  const absent = screen.getByRole('group', { name: 'Packing time observations' });
+  expect(
+    within(absent).getAllByText('0.5-second steps: no additional packing observed.')
+  ).toHaveLength(3);
+  expect(
+    within(absent).getAllByText('0.25-second steps: no additional packing observed.')
+  ).toHaveLength(3);
+  expect(absent).not.toHaveTextContent('0.00 min');
+});
+
+it('holds final review while a real raiser-owned objection remains, retaining each review ballot', () => {
+  const get = () => useWorkplaceStore.getState();
+  get().beginImprovement('cooperative', get().workplace.revision, undefined, 'workshop');
+  get().proposeImprovement('briefing', 'packing');
+  get().acknowledgeImprovement();
+  for (const member of get().workplace.members) {
+    get().understand(member.id);
+    get().vote(member.id, true);
+  }
+  expect(get().activate(get().workplace.revision).changed).toBe(true);
+  expect(get().object('quality', 'privacy').changed).toBe(true);
+  expect(get().workplace.phase).toBe('review');
+  get().acknowledgeImprovementReview();
+  for (const member of get().workplace.members) get().voteImprovementReview(member.id, 'stop');
+  mount();
+  const finish = screen.getByRole('button', { name: 'Finalise handoff review' });
+  expect(finish).toBeDisabled();
+  expect(screen.getByRole('region', { name: 'Handoff remedies' })).toHaveTextContent('Quality');
+  const votes = { ...get().workplace.improvement!.ballots };
+  const objection = get().workplace.objections[0];
+  act(() => get().resolveObjection(objection.id, 'quality'));
+  expect(screen.queryByRole('region', { name: 'Handoff remedies' })).not.toBeInTheDocument();
+  expect(get().workplace.improvement!.ballots).toEqual(votes);
+  expect(finish).toBeEnabled();
+  click('Finalise handoff review');
+  expect(get().workplace.improvement!.verdict).toBe('stop');
+  expect(get().workplace.objections[0].status).toBe('resolved');
+});
+
+it('keeps timing unavailable for abstaining facts and clears the discussion on another prediction', async () => {
+  render(<MatchedPackingRehearsal state={createWorkplace()} report={report} />);
+  click('Run matched packing rehearsal');
+  await screen.findByLabelText('Matched packing results');
+  fireEvent.click(screen.getByText('When did packing first appear?', { exact: true }));
+  expect(screen.getByText(/Timing is unavailable for this comparison/)).toBeInTheDocument();
+  expect(
+    screen.queryByRole('group', { name: 'Packing time observations' })
+  ).not.toBeInTheDocument();
+  click('Prepare another prediction');
+  expect(
+    screen.queryByText('When did packing first appear?', { exact: true })
+  ).not.toBeInTheDocument();
 });

@@ -1,7 +1,28 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { COMPACT_FORK_LOAD } from './ForkliftModel';
+import { readFileSync } from 'node:fs';
+import { COMPACT_FORK_LOAD, createAuthoredForkliftMaterials } from './ForkliftModel';
 import { getFlourPalletGeometry } from '../../utils/flourSacks';
+
+describe('shipped forklift material contract', () => {
+  // The runtime swaps each GLB material for its own by NAME and silently keeps
+  // the loader's material on a miss. a2662a8a renamed `operator-seat` to
+  // `control-seat` in the normalizer and here without regenerating the GLB, so
+  // the seat kept the baked material. Working if every material the shipped
+  // file carries has a runtime replacement.
+  it('gives every material in public/models/forklift/forklift.glb a runtime replacement', () => {
+    const bytes = readFileSync('public/models/forklift/forklift.glb');
+    const jsonLength = bytes.readUInt32LE(12);
+    const gltf = JSON.parse(bytes.subarray(20, 20 + jsonLength).toString()) as {
+      materials: { name?: string }[];
+    };
+    const shipped = gltf.materials.map((material) => material.name ?? '');
+    const materials = createAuthoredForkliftMaterials(0);
+    expect(shipped.filter((name) => !(name in materials.byName))).toEqual([]);
+    expect(shipped).toContain('control-seat');
+    for (const material of materials.all) material.dispose();
+  });
+});
 
 describe('compact forklift pallet contact', () => {
   it('reproduces the prior compact contact defect against the actual timber', () => {

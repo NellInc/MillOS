@@ -4,6 +4,10 @@ import { safeJSONStorage } from './storage';
 import { AlertData } from '../types';
 import { sanitizeUIState } from './persistenceMigrations';
 
+/** A critical alert whose condition still stands and is not yet acknowledged. */
+export const isStandingCriticalAlert = (alert: AlertData): boolean =>
+  alert.type === 'critical' && !alert.acknowledged && !alert.returnedToNormal;
+
 interface AlertIndices {
   alertsByPriority: Map<'info' | 'warning' | 'critical', AlertData[]>;
 }
@@ -40,6 +44,8 @@ interface UIStore {
   addAlert: (alert: AlertData) => void;
   dismissAlert: (alertId: string) => void;
   acknowledgeAlert: (alertId: string) => void;
+  /** Mark (or clear) an alert's condition as returned to normal, keeping it listed. */
+  setAlertReturnedToNormal: (alertId: string, returned: boolean, message?: string) => void;
   removeAlert: (alertId: string) => void;
   getAlertsByPriority: (priority: 'info' | 'warning' | 'critical') => AlertData[];
 
@@ -76,6 +82,21 @@ interface UIStore {
   startDeliveryJourney: (orderId: string | null) => void;
   setJourneyVisible: (visible: boolean) => void;
   recordMachineInspection: (machineId: string) => void;
+
+  // One-shot scene-to-workspace navigation, never persisted.
+  operationalFocusId: string | null;
+  setOperationalFocusId: (id: string | null) => void;
+  // One-shot request for Mill Overview to bring its maintenance section into
+  // view and focus (the repair next action). Never persisted.
+  maintenanceFocusRequested: boolean;
+  requestMaintenanceFocus: () => void;
+  clearMaintenanceFocus: () => void;
+  // One-shot request for the desktop context sidebar to focus its heading once
+  // it is open: the control that opened it (Take over, a companion's Open)
+  // has unmounted. Never persisted.
+  panelFocusRequested: boolean;
+  requestPanelFocus: () => void;
+  clearPanelFocus: () => void;
 
   // Legend position (for draggable legend)
   legendPosition: { x: number; y: number };
@@ -163,6 +184,27 @@ export const useUIStore = create<UIStore>()(
             },
           };
         }),
+      setAlertReturnedToNormal: (alertId, returned, message) =>
+        set((state) => {
+          if (!state.alerts.some((a) => a.id === alertId && !!a.returnedToNormal !== returned))
+            return {};
+          const updatedAlerts = state.alerts.map((a) =>
+            a.id === alertId
+              ? {
+                  ...a,
+                  returnedToNormal: returned,
+                  ...(message !== undefined ? { message } : {}),
+                  ...(returned ? {} : { acknowledged: false, timestamp: new Date() }),
+                }
+              : a
+          );
+          return {
+            alerts: updatedAlerts,
+            _alertIndices: {
+              alertsByPriority: rebuildAlertIndex(updatedAlerts),
+            },
+          };
+        }),
       removeAlert: (alertId) =>
         set((state) => {
           const updatedAlerts = state.alerts.filter((a) => a.id !== alertId);
@@ -215,6 +257,15 @@ export const useUIStore = create<UIStore>()(
         }));
       },
 
+      operationalFocusId: null,
+      setOperationalFocusId: (id) => set({ operationalFocusId: id }),
+      maintenanceFocusRequested: false,
+      requestMaintenanceFocus: () => set({ maintenanceFocusRequested: true }),
+      clearMaintenanceFocus: () => set({ maintenanceFocusRequested: false }),
+      panelFocusRequested: false,
+      requestPanelFocus: () => set({ panelFocusRequested: true }),
+      clearPanelFocus: () => set({ panelFocusRequested: false }),
+
       // Legend position
       legendPosition: { x: -1, y: -1 }, // -1 means use default position
       setLegendPosition: (pos: { x: number; y: number }) => set({ legendPosition: pos }),
@@ -252,6 +303,8 @@ export const useUIStore = create<UIStore>()(
       storage: safeJSONStorage,
       version: 2,
       migrate: (persisted, version) => {
+        // First-person and blueprint are view modes, not preferences: the
+        // sanitiser drops them, so a reload always opens on the overview.
         const state = sanitizeUIState(persisted);
         // v1 persisted showZones while it defaulted to true; drop it so existing
         // users pick up the off-by-default overlays.
@@ -274,9 +327,7 @@ export const useUIStore = create<UIStore>()(
         uiScale: state.uiScale,
         legendPosition: state.legendPosition,
         showMiniMap: state.showMiniMap,
-        fpsMode: state.fpsMode,
         showFPSCounter: state.showFPSCounter,
-        blueprintMode: state.blueprintMode,
       }),
       onRehydrateStorage: () => (state, error) => {
         if (error) {

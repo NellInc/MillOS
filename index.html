@@ -4,7 +4,8 @@
     <meta charset="UTF-8" />
     <!--
       CSP connect-src third-party domains and their runtime consumers:
-      - https://generativelanguage.googleapis.com Gemini cloud AI (GeminiSettingsModal)
+      - https://api.anthropic.com               Claude Haiku BYOK (cloudAIClient)
+      - https://api.openai.com                  GPT-6 Luna BYOK (cloudAIClient)
       - https://openrouter.ai                     opt-in Jev advisory (jevClient.ts)
       - https://cdn.jsdelivr.net                  troika-three-text unicode-font-resolver fallback
                                                   for glyphs outside the self-hosted Inter
@@ -28,7 +29,7 @@
       style-src 'self' 'unsafe-inline';
       font-src 'self';
       img-src 'self' data: blob: https://www.millos.net;
-      connect-src 'self' blob: ws: wss: https://openrouter.ai https://generativelanguage.googleapis.com https://cdn.jsdelivr.net https://huggingface.co https://*.huggingface.co https://*.hf.co https://raw.githubusercontent.com;
+      connect-src 'self' blob: ws: wss: https://openrouter.ai https://api.anthropic.com https://api.openai.com https://cdn.jsdelivr.net https://huggingface.co https://*.huggingface.co https://*.hf.co https://raw.githubusercontent.com;
       worker-src 'self' blob:;
       object-src 'none';
       base-uri 'self';
@@ -39,10 +40,7 @@
     <meta name="referrer" content="strict-origin-when-cross-origin" />
     <meta name="theme-color" content="#0a0f1a" />
     <meta name="color-scheme" content="dark" />
-    <link
-      rel="icon"
-      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏭</text></svg>"
-    />
+    <link rel="icon" type="image/png" href="%BASE_URL%textures/signage/millos-mark-v1.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta
       name="description"
@@ -173,23 +171,10 @@
         z-index: 9999;
       }
       .loading-logo {
-        display: flex;
-        align-items: center;
-        height: 84px;
-        color: #dbe6e2;
-        font-family:
-          'Inter',
-          system-ui,
-          -apple-system,
-          sans-serif;
-        font-size: 56px;
-        font-weight: 600;
-        letter-spacing: -0.04em;
-        line-height: 1;
+        display: block;
+        width: 56px;
+        height: 56px;
         margin-bottom: 14px;
-      }
-      .loading-logo span {
-        color: #67e8f9;
       }
       .loading-text,
       .loading-sub {
@@ -235,6 +220,11 @@
           width: 35%;
         }
       }
+      html[data-motion='reduce'] .loading-bar::after {
+        animation: none;
+        transform: none;
+        width: 35%;
+      }
       @keyframes loading {
         0% {
           transform: translateX(-100%);
@@ -255,12 +245,72 @@
     </noscript>
     <div id="root">
       <div class="loading-screen" role="status" aria-label="Loading MillOS">
-        <div class="loading-logo" aria-hidden="true">Mill<span>OS</span></div>
+        <img
+          class="loading-logo"
+          src="%BASE_URL%textures/signage/millos-mark-v1.webp"
+          alt=""
+          aria-hidden="true"
+          width="56"
+          height="56"
+        />
         <div class="loading-text">WARMING UP THE ROLLERS</div>
         <div class="loading-sub">Firing up the mill</div>
         <div class="loading-bar"></div>
       </div>
     </div>
+    <!-- Mirrors detectLocale() in src/i18n/index.ts so a Portuguese visitor's
+      first frame is already Portuguese. Working if ?lang=, the saved choice and
+      the browser language agree with the React shell that replaces this one. -->
+    <script>
+      (function () {
+        try {
+          var pick = function (v) {
+            v = String(v || '')
+              .toLowerCase()
+              .replace('_', '-');
+            return v === 'pt' || v.indexOf('pt-') === 0
+              ? 'pt-BR'
+              : v === 'en' || v.indexOf('en-') === 0
+                ? 'en'
+                : null;
+          };
+          var saved = null;
+          try {
+            saved = localStorage.getItem('millos-locale');
+          } catch (e) {}
+          var langs =
+            navigator.languages && navigator.languages.length
+              ? navigator.languages
+              : [navigator.language];
+          var locale =
+            pick(new URLSearchParams(location.search).get('lang')) ||
+            (saved === 'en' || saved === 'pt-BR' ? saved : null);
+          for (var i = 0; !locale && i < langs.length; i++) locale = pick(langs[i]);
+          if (locale !== 'pt-BR') return;
+          document.documentElement.lang = 'pt-BR';
+          var screen = document.querySelector('#root .loading-screen');
+          if (screen) screen.setAttribute('aria-label', 'Carregando o MillOS');
+          var text = document.querySelector('#root .loading-text');
+          if (text) text.textContent = 'AQUECENDO OS ROLOS';
+          var sub = document.querySelector('#root .loading-sub');
+          if (sub) sub.textContent = 'Ligando o moinho';
+        } catch (e) {}
+      })();
+    </script>
+    <!-- Mirrors src/stores/motionPreferenceStore.ts so the pre-React loading bar
+      holds still for someone who chose Reduce motion: On. The store re-applies
+      (or clears, while FEATURE_FLAGS.IN_APP_REDUCED_MOTION_ENABLED is off) the
+      attribute as soon as it loads. Working if a saved On never animates the bar. -->
+    <script>
+      (function () {
+        try {
+          var saved = JSON.parse(localStorage.getItem('millos-motion-preference') || 'null');
+          if (saved && saved.state && saved.state.mode === 'reduce') {
+            document.documentElement.setAttribute('data-motion', 'reduce');
+          }
+        } catch (e) {}
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

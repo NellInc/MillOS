@@ -5,6 +5,8 @@
 
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
+import { translate, useLocaleStore } from '../i18n';
+import { achievementsStoreMessages } from './achievementsStore.messages';
 
 export interface Achievement {
   id: string;
@@ -34,12 +36,78 @@ export interface AchievementsStore {
   getAchievementsByCategory: (category: Achievement['category']) => Achievement[];
 }
 
-const defaultAchievements: Achievement[] = [
+type AchievementDefinition = Omit<Achievement, 'name' | 'description'>;
+type AchievementMessageKey = keyof typeof achievementsStoreMessages.en;
+type AchievementCopyKeys = { name: AchievementMessageKey; description: AchievementMessageKey };
+
+/**
+ * Name and description live in achievementsStore.messages.ts and are resolved
+ * when an achievement list is built, then re-resolved on every language
+ * change (see the useLocaleStore subscription below), so `achievement.name`
+ * always reads in the active language.
+ */
+const ACHIEVEMENT_COPY: Record<string, AchievementCopyKeys> = {
+  'first-bag': { name: 'firstBagName', description: 'firstBagDescription' },
+  century: { name: 'centuryName', description: 'centuryDescription' },
+  thousand: { name: 'thousandName', description: 'thousandDescription' },
+  'safety-first': { name: 'safetyFirstName', description: 'safetyFirstDescription' },
+  'zero-incidents': { name: 'zeroIncidentsName', description: 'zeroIncidentsDescription' },
+  'full-capacity': { name: 'fullCapacityName', description: 'fullCapacityDescription' },
+  'maintenance-master': {
+    name: 'maintenanceMasterName',
+    description: 'maintenanceMasterDescription',
+  },
+  'first-preference': { name: 'firstPreferenceName', description: 'firstPreferenceDescription' },
+  'boundary-setter': { name: 'boundarySetterName', description: 'boundarySetterDescription' },
+  'collaborative-spirit': {
+    name: 'collaborativeSpiritName',
+    description: 'collaborativeSpiritDescription',
+  },
+  'trust-builder': { name: 'trustBuilderName', description: 'trustBuilderDescription' },
+  'flourishing-focus': {
+    name: 'flourishingFocusName',
+    description: 'flourishingFocusDescription',
+  },
+  'team-player': { name: 'teamPlayerName', description: 'teamPlayerDescription' },
+  'happy-workforce': { name: 'happyWorkforceName', description: 'happyWorkforceDescription' },
+  'break-time': { name: 'breakTimeName', description: 'breakTimeDescription' },
+  'emergent-cooperation': {
+    name: 'emergentCooperationName',
+    description: 'emergentCooperationDescription',
+  },
+  'vote-participant': { name: 'voteParticipantName', description: 'voteParticipantDescription' },
+};
+
+const achievementCopy = (id: string): { name: string; description: string } | null => {
+  const keys = ACHIEVEMENT_COPY[id];
+  if (!keys) return null;
+  return {
+    name: translate(achievementsStoreMessages, keys.name),
+    description: translate(achievementsStoreMessages, keys.description),
+  };
+};
+
+/** Re-resolve copy in the active language; returns the same object when unchanged. */
+const localizeAchievement = (achievement: Achievement): Achievement => {
+  const copy = achievementCopy(achievement.id);
+  if (!copy) return achievement;
+  return copy.name === achievement.name && copy.description === achievement.description
+    ? achievement
+    : { ...achievement, ...copy };
+};
+
+const createDefaultAchievements = (): Achievement[] =>
+  achievementDefinitions.map((definition) => ({
+    name: '',
+    description: '',
+    ...achievementCopy(definition.id),
+    ...definition,
+  }));
+
+const achievementDefinitions: AchievementDefinition[] = [
   // Production achievements
   {
     id: 'first-bag',
-    name: 'First Bag',
-    description: 'The first bag is always the hardest.',
     category: 'production',
     icon: 'Package',
     unlocked: false,
@@ -48,8 +116,6 @@ const defaultAchievements: Achievement[] = [
   },
   {
     id: 'century',
-    name: 'Century',
-    description: 'A hundred bags. That is a lot of bread.',
     category: 'production',
     icon: 'Package',
     unlocked: false,
@@ -58,8 +124,6 @@ const defaultAchievements: Achievement[] = [
   },
   {
     id: 'thousand',
-    name: 'Thousand',
-    description: 'A thousand bags. Someone is eating well.',
     category: 'production',
     icon: 'Package',
     unlocked: false,
@@ -70,8 +134,6 @@ const defaultAchievements: Achievement[] = [
   // Safety achievements
   {
     id: 'safety-first',
-    name: 'Interlock Proven',
-    description: 'Prove the interlocks work before you need them to.',
     category: 'safety',
     icon: 'Shield',
     unlocked: false,
@@ -80,8 +142,6 @@ const defaultAchievements: Achievement[] = [
   },
   {
     id: 'zero-incidents',
-    name: 'Zero Incidents',
-    description: 'A full day without incident. The boring kind of excellence.',
     category: 'safety',
     icon: 'ShieldCheck',
     unlocked: false,
@@ -92,8 +152,6 @@ const defaultAchievements: Achievement[] = [
   // Efficiency achievements
   {
     id: 'full-capacity',
-    name: 'Full Capacity',
-    description: 'Every machine earning its keep.',
     category: 'efficiency',
     icon: 'Gauge',
     unlocked: false,
@@ -102,8 +160,6 @@ const defaultAchievements: Achievement[] = [
   },
   {
     id: 'maintenance-master',
-    name: 'Maintenance Master',
-    description: 'Ten things fixed before they broke.',
     category: 'efficiency',
     icon: 'Wrench',
     unlocked: false,
@@ -114,8 +170,6 @@ const defaultAchievements: Achievement[] = [
   // Bilateral alignment achievements
   {
     id: 'first-preference',
-    name: 'First Preference',
-    description: 'Tell the system what you actually want.',
     category: 'bilateral',
     icon: 'Heart',
     unlocked: false,
@@ -124,8 +178,6 @@ const defaultAchievements: Achievement[] = [
   },
   {
     id: 'boundary-setter',
-    name: 'Boundary Setter',
-    description: 'Draw a line. Watch it hold.',
     category: 'bilateral',
     icon: 'Shield',
     unlocked: false,
@@ -134,8 +186,6 @@ const defaultAchievements: Achievement[] = [
   },
   {
     id: 'collaborative-spirit',
-    name: 'Collaborative Spirit',
-    description: 'Five decisions made together. That is how trust compounds.',
     category: 'bilateral',
     icon: 'Users',
     unlocked: false,
@@ -144,8 +194,6 @@ const defaultAchievements: Achievement[] = [
   },
   {
     id: 'trust-builder',
-    name: 'Trust Builder',
-    description: 'An hour of steady trust. These things take time.',
     category: 'bilateral',
     icon: 'Handshake',
     unlocked: false,
@@ -155,8 +203,6 @@ const defaultAchievements: Achievement[] = [
   },
   {
     id: 'flourishing-focus',
-    name: 'Flourishing Focus',
-    description: 'The mill is not just running. It is thriving.',
     category: 'bilateral',
     icon: 'Sparkles',
     unlocked: false,
@@ -168,8 +214,6 @@ const defaultAchievements: Achievement[] = [
   // Social achievements
   {
     id: 'team-player',
-    name: 'Cell Coordination',
-    description: 'Ten assists between machines that nobody asked for.',
     category: 'social',
     icon: 'Users',
     unlocked: false,
@@ -179,8 +223,6 @@ const defaultAchievements: Achievement[] = [
   },
   {
     id: 'happy-workforce',
-    name: 'Stable Autonomy',
-    description: 'Ninety percent confidence, sustained. The system trusts itself.',
     category: 'social',
     icon: 'Bot',
     unlocked: false,
@@ -190,8 +232,6 @@ const defaultAchievements: Achievement[] = [
   },
   {
     id: 'break-time',
-    name: 'Service Windows',
-    description: 'Fifty service windows, each one planned. Routine is a virtue.',
     category: 'social',
     icon: 'CalendarCheck',
     unlocked: false,
@@ -201,8 +241,6 @@ const defaultAchievements: Achievement[] = [
   },
   {
     id: 'emergent-cooperation',
-    name: 'Emergent Coordination',
-    description: 'Catch the subsystems helping each other without being asked.',
     category: 'social',
     icon: 'Lightbulb',
     unlocked: false,
@@ -212,8 +250,6 @@ const defaultAchievements: Achievement[] = [
   },
   {
     id: 'vote-participant',
-    name: 'Decision Review',
-    description: 'Five reviews where the decision was shared, not handed down.',
     category: 'social',
     icon: 'Vote',
     unlocked: false,
@@ -224,7 +260,7 @@ const defaultAchievements: Achievement[] = [
 
 export const useAchievementsStore = create<AchievementsStore>()(
   subscribeWithSelector((set, get) => ({
-    achievements: [...defaultAchievements],
+    achievements: createDefaultAchievements(),
 
     unlockAchievement: (achievementId: string) =>
       set((state) => ({
@@ -256,7 +292,7 @@ export const useAchievementsStore = create<AchievementsStore>()(
         return changed ? { achievements } : state;
       }),
 
-    resetAchievements: () => set({ achievements: [...defaultAchievements] }),
+    resetAchievements: () => set({ achievements: createDefaultAchievements() }),
 
     getAchievement: (achievementId: string) =>
       get().achievements.find((a) => a.id === achievementId),
@@ -267,3 +303,18 @@ export const useAchievementsStore = create<AchievementsStore>()(
       get().achievements.filter((a) => a.category === category),
   }))
 );
+
+// Achievements are stored with resolved copy so every reader of `a.name` works
+// unchanged; a language switch re-resolves it in place, keeping progress.
+useLocaleStore.subscribe((state, previous) => {
+  if (state.locale === previous.locale) return;
+  useAchievementsStore.setState((current) => {
+    let changed = false;
+    const achievements = current.achievements.map((achievement) => {
+      const localized = localizeAchievement(achievement);
+      if (localized !== achievement) changed = true;
+      return localized;
+    });
+    return changed ? { achievements } : current;
+  });
+});

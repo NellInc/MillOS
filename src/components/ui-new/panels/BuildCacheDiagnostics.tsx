@@ -17,18 +17,25 @@ import {
   type BuildCacheDiagnostics as Diagnostics,
   updateServiceWorker,
 } from '../../../utils/serviceWorkerRegistration';
+import { formatFixed, useT } from '../../../i18n';
+import {
+  buildCacheDiagnosticsMessages,
+  type BuildCacheStatusKey,
+} from './BuildCacheDiagnostics.messages';
 
 type ActionState = 'idle' | 'refreshing' | 'checking' | 'clearing' | 'activating';
 
 export function BuildCacheDiagnostics(): ReactElement {
   const [diagnostics, setDiagnostics] = useState<Diagnostics | null>(null);
   const [action, setAction] = useState<ActionState>('refreshing');
-  const [message, setMessage] = useState('Reading build and cache status.');
+  const t = useT(buildCacheDiagnosticsMessages);
+  // A message key, resolved at render so a language switch also re-words it.
+  const [message, setMessage] = useState<BuildCacheStatusKey>('statusReading');
 
   const refresh = useCallback(async (): Promise<void> => {
     const next = await getBuildCacheDiagnostics();
     setDiagnostics(next);
-    setMessage('Build and cache status is current.');
+    setMessage('statusCurrent');
     setAction('idle');
   }, []);
 
@@ -47,30 +54,30 @@ export function BuildCacheDiagnostics(): ReactElement {
 
   const checkForUpdate = async (): Promise<void> => {
     setAction('checking');
-    setMessage('Looking for a newer build.');
+    setMessage('statusChecking');
     const checked = await updateServiceWorker();
     await refresh();
-    setMessage(checked ? 'Up to date.' : 'No service worker registered.');
+    setMessage(checked ? 'statusUpToDate' : 'statusNoWorker');
   };
 
   const clearCache = async (): Promise<void> => {
     setAction('clearing');
-    setMessage('Clearing cached assets.');
+    setMessage('statusClearing');
     const cleared = await clearServiceWorkerCache();
     await refresh();
-    setMessage(cleared ? 'Cache cleared.' : 'Could not clear the cache.');
+    setMessage(cleared ? 'statusCleared' : 'statusClearFailed');
   };
 
   const activateUpdate = async (): Promise<void> => {
     setAction('activating');
-    setMessage('Activating the waiting build.');
+    setMessage('statusActivating');
     const activated = await activateWaitingServiceWorker();
     if (activated) {
       window.location.reload();
       return;
     }
     await refresh();
-    setMessage('The waiting build could not be activated.');
+    setMessage('statusActivateFailed');
   };
 
   const workerMismatch =
@@ -85,22 +92,25 @@ export function BuildCacheDiagnostics(): ReactElement {
         className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-300"
       >
         <Database size={14} className="text-violet-400" aria-hidden="true" />
-        Build and cache
+        {t('heading')}
       </h3>
       <div className="space-y-3 rounded-xl border border-white/5 bg-slate-800/50 p-3">
         <div className="grid grid-cols-2 gap-2 text-[10px]">
-          <DiagnosticValue label="Application build" value={diagnostics?.appBuildId ?? 'Reading'} />
           <DiagnosticValue
-            label="Worker build"
-            value={diagnostics?.worker?.buildId ?? 'Not controlling'}
+            label={t('applicationBuild')}
+            value={diagnostics?.appBuildId ?? t('reading')}
           />
           <DiagnosticValue
-            label="Cache entries"
-            value={diagnostics ? String(diagnostics.cacheEntries) : 'Reading'}
+            label={t('workerBuild')}
+            value={diagnostics?.worker?.buildId ?? t('notControlling')}
           />
           <DiagnosticValue
-            label="Connection"
-            value={diagnostics?.online === false ? 'Offline' : 'Online'}
+            label={t('cacheEntries')}
+            value={diagnostics ? formatFixed(diagnostics.cacheEntries, 0) : t('reading')}
+          />
+          <DiagnosticValue
+            label={t('connection')}
+            value={diagnostics?.online === false ? t('offline') : t('online')}
             icon={
               diagnostics?.online === false ? (
                 <WifiOff size={11} aria-hidden="true" />
@@ -112,36 +122,24 @@ export function BuildCacheDiagnostics(): ReactElement {
         </div>
 
         {diagnostics && !diagnostics.supported && (
-          <StatusNote tone="warning">
-            Service workers are unavailable in this browser. Network loading remains active.
-          </StatusNote>
+          <StatusNote tone="warning">{t('noteUnsupported')}</StatusNote>
         )}
         {diagnostics?.supported && !diagnostics.controlled && (
-          <StatusNote tone="neutral">
-            The service worker is inactive in this session. This is expected during normal local
-            development.
-          </StatusNote>
+          <StatusNote tone="neutral">{t('noteInactive')}</StatusNote>
         )}
-        {workerMismatch && (
-          <StatusNote tone="warning">
-            The page and worker builds differ. Activate the waiting build, or reload after the
-            update completes.
-          </StatusNote>
-        )}
-        {diagnostics?.updateWaiting && (
-          <StatusNote tone="success">A newer build is ready to activate.</StatusNote>
-        )}
+        {workerMismatch && <StatusNote tone="warning">{t('noteMismatch')}</StatusNote>}
+        {diagnostics?.updateWaiting && <StatusNote tone="success">{t('noteReady')}</StatusNote>}
 
         {cacheGroups.length > 0 && (
           <details className="rounded-lg border border-slate-700/70 bg-slate-950/40 p-2">
             <summary className="cursor-pointer text-[10px] font-medium text-slate-300">
-              Cache groups ({cacheGroups.length})
+              {t('cacheGroups', { count: formatFixed(cacheGroups.length, 0) })}
             </summary>
             <dl className="mt-2 space-y-1">
               {cacheGroups.map(([name, cache]) => (
                 <div key={name} className="flex items-start justify-between gap-3 text-[9px]">
                   <dt className="min-w-0 break-all font-mono text-slate-500">{name}</dt>
-                  <dd className="shrink-0 text-slate-300">{cache.entries}</dd>
+                  <dd className="shrink-0 text-slate-300">{formatFixed(cache.entries, 0)}</dd>
                 </div>
               ))}
             </dl>
@@ -150,29 +148,29 @@ export function BuildCacheDiagnostics(): ReactElement {
 
         <div className="grid grid-cols-2 gap-2">
           <ActionButton
-            label="Refresh status"
+            label={t('refreshStatus')}
             icon={<RefreshCw size={12} aria-hidden="true" />}
             disabled={busy}
             onClick={() => {
               setAction('refreshing');
-              setMessage('Refreshing build and cache status.');
+              setMessage('statusRefreshing');
               void refresh();
             }}
           />
           <ActionButton
-            label="Check for update"
+            label={t('checkForUpdate')}
             icon={<RotateCcw size={12} aria-hidden="true" />}
             disabled={busy || !diagnostics?.supported}
             onClick={() => void checkForUpdate()}
           />
           <ActionButton
-            label="Clear this cache"
+            label={t('clearThisCache')}
             icon={<Trash2 size={12} aria-hidden="true" />}
             disabled={busy}
             onClick={() => void clearCache()}
           />
           <ActionButton
-            label="Activate update"
+            label={t('activateUpdate')}
             icon={<CheckCircle2 size={12} aria-hidden="true" />}
             disabled={busy || !diagnostics?.updateWaiting}
             onClick={() => void activateUpdate()}
@@ -180,7 +178,7 @@ export function BuildCacheDiagnostics(): ReactElement {
         </div>
 
         <p className="min-h-4 text-[9px] leading-4 text-slate-400" role="status" aria-live="polite">
-          {busy ? message : diagnostics?.updateWaiting ? 'A newer build is waiting.' : message}
+          {busy ? t(message) : diagnostics?.updateWaiting ? t('statusWaiting') : t(message)}
         </p>
       </div>
     </section>

@@ -34,6 +34,8 @@ import {
   LucideIcon,
 } from 'lucide-react';
 import { KnowledgeIcon, useKnowledgeStore } from '../../stores/knowledgeStore';
+import { useT } from '../../i18n';
+import { knowledgeTooltipMessages } from './KnowledgeTooltip.messages';
 
 // Icon mapping from KnowledgeIcon to Lucide component
 const ICON_MAP: Record<KnowledgeIcon, LucideIcon> = {
@@ -80,6 +82,7 @@ export function KnowledgeTooltip({
   position = 'top',
   onOpenLibrary,
 }: KnowledgeTooltipProps) {
+  const t = useT(knowledgeTooltipMessages);
   const [isVisible, setIsVisible] = useState(false);
   const { getEntry, isUnlocked, showTooltips } = useKnowledgeStore();
 
@@ -134,7 +137,7 @@ export function KnowledgeTooltip({
                   }}
                   className="flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300 transition-colors"
                 >
-                  Learn more
+                  {t('learnMore')}
                   <ChevronRight className="w-3 h-3" />
                 </button>
               )}
@@ -155,6 +158,7 @@ interface KnowledgeHintProps {
 }
 
 export function KnowledgeHint({ entryId, onOpenLibrary }: KnowledgeHintProps) {
+  const t = useT(knowledgeTooltipMessages);
   const [isVisible, setIsVisible] = useState(false);
   const { getEntry, isUnlocked, showTooltips } = useKnowledgeStore();
 
@@ -180,7 +184,7 @@ export function KnowledgeHint({ entryId, onOpenLibrary }: KnowledgeHintProps) {
     >
       <button
         type="button"
-        aria-label={`Learn more about ${entry.title}`}
+        aria-label={t('learnMoreAbout', { title: entry.title })}
         className="w-4 h-4 rounded-full bg-slate-700 text-slate-400 text-xs hover:bg-slate-600 hover:text-slate-300 transition-colors"
       >
         ?
@@ -208,7 +212,7 @@ export function KnowledgeHint({ entryId, onOpenLibrary }: KnowledgeHintProps) {
                   }}
                   className="flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300 transition-colors"
                 >
-                  Read more
+                  {t('readMore')}
                   <ChevronRight className="w-3 h-3" />
                 </button>
               )}
@@ -236,6 +240,7 @@ export function ContextualInsight({
   onOpenLibrary,
   onDismiss,
 }: ContextualInsightProps) {
+  const t = useT(knowledgeTooltipMessages);
   const { getEntry, isUnlocked, showTooltips } = useKnowledgeStore();
 
   if (!showTooltips) {
@@ -270,7 +275,7 @@ export function ContextualInsight({
                 onClick={() => onOpenLibrary(entryId)}
                 className="flex items-center gap-1 text-sm text-amber-400 hover:text-amber-300 transition-colors"
               >
-                Learn more about {entry.title}
+                {t('learnMoreAbout', { title: entry.title })}
                 <ChevronRight className="w-4 h-4" />
               </button>
             )}

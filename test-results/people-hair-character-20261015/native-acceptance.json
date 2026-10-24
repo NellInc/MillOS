@@ -1,0 +1,434 @@
+[
+  {
+    "candidate": "pre-roster",
+    "label": "day",
+    "scene": "milling",
+    "servedBuildMatches": true,
+    "sandboxedMetal": true,
+    "cleanDiagnostics": true,
+    "worldCommunityCheckpoints": true,
+    "generalVehicleMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "timingMisses": [
+      "p95Frame"
+    ],
+    "loadPerCore": 1.51,
+    "p95FrameMs": 17.4,
+    "startupMarks": {
+      "millos:bootstrap": 157.9,
+      "millos:first-frame": 262,
+      "millos:world-ready": 16974.8,
+      "millos:startup-ready": 24408.4
+    },
+    "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AH-people-hair-day-20261015/milling.png",
+    "sealFile": "pre-roster-build-seal.json",
+    "acceptedForFinalAppearance": false
+  },
+  {
+    "candidate": "pre-roster",
+    "label": "day",
+    "scene": "village",
+    "servedBuildMatches": true,
+    "sandboxedMetal": true,
+    "cleanDiagnostics": true,
+    "worldCommunityCheckpoints": true,
+    "generalVehicleMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "timingMisses": [
+      "averageFps",
+      "p95Frame"
+    ],
+    "loadPerCore": 2.68,
+    "p95FrameMs": 17.6,
+    "startupMarks": {
+      "millos:bootstrap": 110.2,
+      "millos:first-frame": 163.8,
+      "millos:world-ready": 16730.7,
+      "millos:startup-ready": 22474.2
+    },
+    "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AH-people-hair-day-20261015/village.png",
+    "sealFile": "pre-roster-build-seal.json",
+    "acceptedForFinalAppearance": false
+  },
+  {
+    "candidate": "pre-roster",
+    "label": "dusk",
+    "scene": "milling",
+    "servedBuildMatches": true,
+    "sandboxedMetal": true,
+    "cleanDiagnostics": true,
+    "worldCommunityCheckpoints": true,
+    "generalVehicleMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "timingMisses": [
+      "p95Frame"
+    ],
+    "loadPerCore": 3.12,
+    "p95FrameMs": 17.5,
+    "startupMarks": {
+      "millos:bootstrap": 167.8,
+      "millos:first-frame": 232.2,
+      "millos:world-ready": 17553.4,
+      "millos:startup-ready": 22532.6
+    },
+    "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AH-people-hair-dusk-20261015/milling.png",
+    "sealFile": "pre-roster-build-seal.json",
+    "acceptedForFinalAppearance": false
+  },
+  {
+    "candidate": "pre-roster",
+    "label": "dusk",
+    "scene": "village",
+    "servedBuildMatches": true,
+    "sandboxedMetal": true,
+    "cleanDiagnostics": true,
+    "worldCommunityCheckpoints": true,
+    "generalVehicleMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "timingMisses": [
+      "averageFps",
+      "p95Frame"
+    ],
+    "loadPerCore": 3.11,
+    "p95FrameMs": 17.6,
+    "startupMarks": {
+      "millos:bootstrap": 158.4,
+      "millos:first-frame": 216.3,
+      "millos:world-ready": 17131.8,
+      "millos:startup-ready": 21866.4
+    },
+    "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AH-people-hair-dusk-20261015/village.png",
+    "sealFile": "pre-roster-build-seal.json",
+    "acceptedForFinalAppearance": false
+  },
+  {
+    "candidate": "pre-roster",
+    "label": "night",
+    "scene": "milling",
+    "servedBuildMatches": true,
+    "sandboxedMetal": true,
+    "cleanDiagnostics": true,
+    "worldCommunityCheckpoints": true,
+    "generalVehicleMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "timingMisses": [
+      "p95Frame"
+    ],
+    "loadPerCore": 3.4,
+    "p95FrameMs": 17.5,
+    "startupMarks": {
+      "millos:bootstrap": 93.4,
+      "millos:first-frame": 162.4,
+      "millos:world-ready": 17078.3,
+      "millos:startup-ready": 22108.1
+    },
+    "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AH-people-hair-night-20261015/milling.png",
+    "sealFile": "pre-roster-build-seal.json",
+    "acceptedForFinalAppearance": false
+  },
+  {
+    "candidate": "pre-roster",
+    "label": "night",
+    "scene": "village",
+    "servedBuildMatches": true,
+    "sandboxedMetal": true,
+    "cleanDiagnostics": true,
+    "worldCommunityCheckpoints": true,
+    "generalVehicleMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "timingMisses": [
+      "averageFps",
+      "p95Frame"
+    ],
+    "loadPerCore": 3.59,
+    "p95FrameMs": 17.6,
+    "startupMarks": {
+      "millos:bootstrap": 93.1,
+      "millos:first-frame": 139.5,
+      "millos:world-ready": 17718.7,
+      "millos:startup-ready": 22446.1
+    },
+    "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AH-people-hair-night-20261015/village.png",
+    "sealFile": "pre-roster-build-seal.json",
+    "acceptedForFinalAppearance": false
+  },
+  {
+    "candidate": "pre-lock-finish",
+    "label": "day",
+    "scene": "milling",
+    "servedBuildMatches": true,
+    "sandboxedMetal": true,
+    "cleanDiagnostics": true,
+    "worldCommunityCheckpoints": true,
+    "generalVehicleMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "timingMisses": [
+      "p95Frame"
+    ],
+    "loadPerCore": 4.79,
+    "p95FrameMs": 17.6,
+    "startupMarks": {
+      "millos:bootstrap": 228.6,
+      "millos:first-frame": 315.8,
+      "millos:world-ready": 17061.2,
+      "millos:startup-ready": 22361.1
+    },
+    "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AH-people-hair-final-day-20261015/milling.png",
+    "sealFile": "pre-lock-finish-build-seal.json",
+    "acceptedForFinalAppearance": false
+  },
+  {
+    "candidate": "pre-lock-finish",
+    "label": "day",
+    "scene": "village",
+    "servedBuildMatches": true,
+    "sandboxedMetal": true,
+    "cleanDiagnostics": true,
+    "worldCommunityCheckpoints": true,
+    "generalVehicleMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "timingMisses": [
+      "p95Frame"
+    ],
+    "loadPerCore": 4.33,
+    "p95FrameMs": 17.5,
+    "startupMarks": {
+      "millos:bootstrap": 181.7,
+      "millos:first-frame": 246,
+      "millos:world-ready": 18062.6,
+      "millos:startup-ready": 23259.9
+    },
+    "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AH-people-hair-final-day-20261015/village.png",
+    "sealFile": "pre-lock-finish-build-seal.json",
+    "acceptedForFinalAppearance": false
+  },
+  {
+    "candidate": "pre-lock-finish",
+    "label": "dusk",
+    "scene": "milling",
+    "servedBuildMatches": true,
+    "sandboxedMetal": true,
+    "cleanDiagnostics": true,
+    "worldCommunityCheckpoints": true,
+    "generalVehicleMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "timingMisses": [
+      "p95Frame"
+    ],
+    "loadPerCore": 3.75,
+    "p95FrameMs": 17.8,
+    "startupMarks": {
+      "millos:bootstrap": 122.9,
+      "millos:first-frame": 176.4,
+      "millos:world-ready": 17140.7,
+      "millos:startup-ready": 22767.4
+    },
+    "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AH-people-hair-final-dusk-20261015/milling.png",
+    "sealFile": "pre-lock-finish-build-seal.json",
+    "acceptedForFinalAppearance": false
+  },
+  {
+    "candidate": "pre-lock-finish",
+    "label": "dusk",
+    "scene": "village",
+    "servedBuildMatches": true,
+    "sandboxedMetal": true,
+    "cleanDiagnostics": true,
+    "worldCommunityCheckpoints": true,
+    "generalVehicleMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "timingMisses": [
+      "p95Frame",
+      "onePercentLow"
+    ],
+    "loadPerCore": 5.63,
+    "p95FrameMs": 17.6,
+    "startupMarks": {
+      "millos:bootstrap": 159.8,
+      "millos:first-frame": 214,
+      "millos:world-ready": 20986.3,
+      "millos:startup-ready": 26241
+    },
+    "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AH-people-hair-final-dusk-20261015/village.png",
+    "sealFile": "pre-lock-finish-build-seal.json",
+    "acceptedForFinalAppearance": false
+  },
+  {
+    "candidate": "pre-lock-finish",
+    "label": "night",
+    "scene": "milling",
+    "servedBuildMatches": true,
+    "sandboxedMetal": true,
+    "cleanDiagnostics": true,
+    "worldCommunityCheckpoints": true,
+    "generalVehicleMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "timingMisses": [
+      "p95Frame"
+    ],
+    "loadPerCore": 4.85,
+    "p95FrameMs": 17.6,
+    "startupMarks": {
+      "millos:bootstrap": 138.2,
+      "millos:first-frame": 219.1,
+      "millos:world-ready": 18956.3,
+      "millos:startup-ready": 24136
+    },
+    "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AH-people-hair-final-night-20261015/milling.png",
+    "sealFile": "pre-lock-finish-build-seal.json",
+    "acceptedForFinalAppearance": false
+  },
+  {
+    "candidate": "pre-lock-finish",
+    "label": "night",
+    "scene": "village",
+    "servedBuildMatches": true,
+    "sandboxedMetal": true,
+    "cleanDiagnostics": true,
+    "worldCommunityCheckpoints": true,
+    "generalVehicleMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "timingMisses": [
+      "p95Frame"
+    ],
+    "loadPerCore": 4.38,
+    "p95FrameMs": 17.3,
+    "startupMarks": {
+      "millos:bootstrap": 112.8,
+      "millos:first-frame": 164.1,
+      "millos:world-ready": 19573.8,
+      "millos:startup-ready": 24824.4
+    },
+    "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AH-people-hair-final-night-20261015/village.png",
+    "sealFile": "pre-lock-finish-build-seal.json",
+    "acceptedForFinalAppearance": false
+  },
+  {
+    "candidate": "final-whole-brows",
+    "sealFile": "final-build-seal.json",
+    "label": "day",
+    "scene": "village",
+    "servedBuildMatches": true,
+    "sandboxedMetal": true,
+    "cleanDiagnostics": true,
+    "worldCommunityCheckpoints": true,
+    "generalVehicleMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "timingMisses": [
+      "p95Frame"
+    ],
+    "loadPerCore": 3.34,
+    "p95FrameMs": 17.6,
+    "startupMarks": {
+      "millos:bootstrap": 141,
+      "millos:first-frame": 218.1,
+      "millos:world-ready": 18455.8,
+      "millos:startup-ready": 24211.6
+    },
+    "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AH-people-cuts-day-20261015/village.png",
+    "imageInspected": true,
+    "acceptedForFinalAppearance": true
+  },
+  {
+    "candidate": "final-whole-brows",
+    "sealFile": "final-build-seal.json",
+    "label": "dusk",
+    "scene": "village",
+    "servedBuildMatches": true,
+    "sandboxedMetal": true,
+    "cleanDiagnostics": true,
+    "worldCommunityCheckpoints": true,
+    "generalVehicleMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "timingMisses": [
+      "averageFps",
+      "p95Frame",
+      "p99Frame",
+      "onePercentLow"
+    ],
+    "loadPerCore": 8.73,
+    "p95FrameMs": 28.6,
+    "startupMarks": {
+      "millos:bootstrap": 235.5,
+      "millos:first-frame": 321.5,
+      "millos:world-ready": 26443.5,
+      "millos:startup-ready": 37695.8
+    },
+    "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AH-people-cuts-dusk-20261015/village.png",
+    "imageInspected": true,
+    "acceptedForFinalAppearance": true
+  },
+  {
+    "candidate": "final-whole-brows",
+    "sealFile": "final-build-seal.json",
+    "label": "night",
+    "scene": "village",
+    "servedBuildMatches": true,
+    "sandboxedMetal": true,
+    "cleanDiagnostics": true,
+    "worldCommunityCheckpoints": true,
+    "generalVehicleMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "timingMisses": [
+      "firstFrame",
+      "p95Frame",
+      "onePercentLow"
+    ],
+    "loadPerCore": 5.39,
+    "p95FrameMs": 19.2,
+    "startupMarks": {
+      "millos:bootstrap": 996,
+      "millos:first-frame": 1098.2,
+      "millos:world-ready": 43243.3,
+      "millos:startup-ready": 53231.9
+    },
+    "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AH-people-cuts-night-20261015/village.png",
+    "imageInspected": true,
+    "acceptedForFinalAppearance": true
+  }
+]

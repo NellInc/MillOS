@@ -231,7 +231,7 @@ npm run build        # Production build
 npm run preview      # Preview production build
 ```
 
-**Environment Setup:** `cp .env.local.example .env.local`. There is no build-time Gemini key: enter it at runtime in the in-app AI/Gemini settings modal, where it is stored only in browser localStorage under `millos-ai-config`.
+**Environment Setup:** `cp .env.local.example .env.local`. There is no build-time cloud key. In AI settings, choose Haiku 5.5 High or Luna 6 High and enter your own provider key. Keys stay in page memory only and clear on reload. The WebGPU model remains available without a key; the persisted `millos-ai-config` entry contains preferences only.
 
 ## Architecture
 
@@ -332,8 +332,8 @@ When triggered via "START DRILL":
 
 1. **Production stops** - `startEmergencyDrill()` calls `stopProduction()` and records a simulated `fire_drill` safety event
 2. **Mobile equipment stops** - `setForkliftEmergencyStop(true)` halts every forklift
-3. **Egress markers appear** - `FireDrillExitMarkers` in `MillScene.tsx` draws one marker per service egress point
-4. **Zones are verified in sequence** - the egress sequencer marks each zone through `markZoneVerified(zoneId)`; the Safety panel shows "X/Y zones verified"
+3. **Egress markers appear** - `ServiceEgressMarkers` in `MillScene.tsx` draws one marker per service egress point
+4. **Zones are verified in sequence** - `src/systems/egressDrillSequencer.ts`, on game time (one zone per 120 game seconds, so P holds it and pace scales it), marks each zone through `markZoneVerified(zoneId)`; the Safety panel shows "X/Y zones verified"
 5. **Drill ends** - automatically when every zone is verified, or on "END DRILL"
 
 No alarm is started by the drill; `endEmergencyDrill()` calls `stopEmergencyStopAlarm()` defensively.
@@ -352,7 +352,8 @@ No alarm is started by the drill; `endEmergencyDrill()` calls `stopEmergencyStop
 | File | Responsibility |
 |------|----------------|
 | `src/stores/gameSimulationStore.ts` | Drill state, metrics, `SERVICE_EGRESS_POINTS`, `markZoneVerified()` |
-| `src/components/MillScene.tsx` | `FireDrillExitMarkers` (markers plus the verification sequencer) |
+| `src/components/MillScene.tsx` | `ServiceEgressMarkers` (markers) |
+| `src/systems/egressDrillSequencer.ts` | Game-time verification sequencer |
 | `src/components/ForkliftSystem.tsx` | Emergency stop enforcement (drill mode forces stop) |
 | `src/components/ui-new/panels/SafetyPanel.tsx` | START/END DRILL controls with zone progress |
 | `src/agent/adapters/runtime/runtimeCommandHandlers.ts` | `simulation.start-fire-drill` agent capability |
@@ -414,6 +415,29 @@ Rules that keep it honest:
    event or choice condition, a variant, an echo, an epilogue slide or the long
    night). `steward.test.ts` fails on a mark that is set and never read, and on
    a default choice that costs anything, including a desk point.
+7. **Its own copy is English only so far.** It was written before `src/i18n`
+   landed; its workspace, events, history notes and quiz still need pt-BR
+   catalogues. Its integration points in already-translated surfaces (dock,
+   phone sheet, sidebar, safety panel, emergency overlay) go through `src/i18n`.
+
+## Interface Language (English and Brazilian Portuguese)
+
+Every user-facing string goes through `src/i18n`. New copy is never hard-coded.
+
+- Put a component's copy in a co-located `<File>.messages.ts` built with
+  `defineMessages({ en: {...}, 'pt-BR': {...} })`. pt-BR must define every
+  English key, or `tsc` fails.
+- React: `const t = useT(catalog)`. Stores, simulation text, alerts, PA and
+  achievements: `translate(catalog, key, params)` (resolved when created).
+- No module-level copy: a constant array of labels freezes the first language.
+- Numbers in copy go through `formatFixed(value, digits)` (the `toFixed`
+  replacement) or `formatGrouped` (the `toLocaleString` replacement). pt-BR
+  reads "6,000" as six; English output stays identical to `toFixed`.
+- Vocabulary and the never-translate list (SCADA tag ids, machine
+  designations, proper names, lyrics, painted signage, agent protocol, logs)
+  live in `src/i18n/GLOSSARY.md`.
+- Language comes from `?lang=pt-BR`, then the saved `millos-locale` choice,
+  then the browser. Tests run in English.
 
 ## Code Style Rules
 
@@ -537,10 +561,17 @@ When adding new 3D effects:
 
 | Preset | Factor | Use For |
 |--------|--------|---------|
-| `exteriorBase` | 6 | Grass fields (renders behind) |
-| `exteriorMid` | 3 | Asphalt, parking lots |
-| `exteriorTop` | -1 | Roads (renders on top of grass) |
-| `exteriorOverlay` | -4 | Road markings, lines (always visible) |
+| `exteriorBase` | 6 | Terrain and grass (renders behind) |
+| `exteriorMid` | 3 | Asphalt areas, the shuttle turnaround |
+| `exteriorTop` | -1 | Roads, dock apron, towpath |
+| `carriagewayMarking` | -3 | Paint on a -2 carriageway or footpath |
+| `exteriorOverlay` | -4 | Road and yard markings (always visible) |
+
+The truck yard tarmac is deliberately unbiased (0) so it cannot tie with the
+turnaround at +3 (`truckbay/yardSurfaces.ts`, pinned by `yardGroundStack.test.ts`).
+Ground lettering on the apron or a road uses `SceneText surface="painted-ground"`.
+`npm run validate:depth` rejects a raw offset number anywhere in `src/components`
+and any `EXTERIOR_LAYERS.ground` mesh that declares no bias.
 
 #### Adding New Exterior Ground Surfaces
 
@@ -880,10 +911,15 @@ pixel changed.** A green audit is evidence of nothing here.
 The paired control is `npm run measure:surfaces` — one page load, one variable.
 Every treated material shares a single `uSurfStrength` uniform object, so
 `SurfaceTreatmentIsolation` switches the whole treatment off between two frames
-of the same render. It takes THREE shots (on, off, on) and strikes out every
-pixel that also moves between the two same-arm shots, because benchmark mode
-pauses the game clock but not the render clock: an early reading of 3.12% changed
-in `interior` was four flour sacks travelling along a conveyor.
+of the same render. Benchmark mode pauses the game clock but not the render
+clock: an early reading of 3.12% changed in `interior` was four flour sacks
+travelling along a conveyor. So after the settle the script calls
+`__MILLOS_RUNTIME__.holdFrame(true)`, which stops R3F's loop and redraws one
+instant of the frame clock before each shot (60 frames on entering the hold, so
+the 1-in-3 shadow refit and other frame-count throttles catch up). It takes FOUR
+shots (on, off, off, on) and still strikes out any pixel that moves within an arm,
+for whatever runs off the frame clock. Anything that steps per drawn frame rather
+than by `delta` defeats the hold: dust did, until it moved to `dustTicks`.
 
 ```bash
 npm run measure:surfaces -- --label=<name>              # medium, the surface scene set
@@ -891,6 +927,10 @@ npm run measure:surfaces -- --label=<name> --quality=low # the tier that can bla
 ```
 
 `changedFraction === 0` is the tell, and it is exact: the term is inert.
+`--control` keeps the treatment off in all four shots and must read 0. On
+2026-10-24 it read exactly 0 in 15 of 16 scene-tier runs; the exception was
+`village` at medium, 2 pixels at a luma delta of 2 on one cottage roof, cause not
+found. The treatment moves 228,000-549,000 pixels per scene.
 
 ### Two traps this module has already paid for
 

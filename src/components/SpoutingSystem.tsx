@@ -6,17 +6,21 @@ import * as THREE from 'three';
 import { applyWorldSurface } from '../utils/worldSurface';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { MachineData, MachineType } from '../types';
-import { SITE_LAYOUT, MILL_PROCESS_PORTS, PROCESS_GALLERY_POST_X } from '../constants/siteLayout';
+import { SITE_LAYOUT, PROCESS_GALLERY_POST_X } from '../constants/siteLayout';
 import { audioManager } from '../utils/audioManager';
 import { useAudioInitialized } from '../hooks/useAudioState';
 import { ORM_MEAN_ROUGHNESS, PIPE_MATERIALS } from '../utils/sharedMaterials';
 import { shouldRunThisFrame } from '../utils/frameThrottle';
 import { selectSafetyHoldActive, useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useGraphicsStore } from '../stores/graphicsStore';
+import { useProductionStore } from '../stores/productionStore';
+import { useMaterialFlowStore } from '../stores/materialFlowStore';
+import { isFlowAudible, machineFlowState } from '../simulation/lineFlow';
 import { useShallow } from 'zustand/react/shallow';
 import { generateProceduralNormal } from '../textures/normalGenerator';
 import {
   buildSpoutRoutes,
+  createSpoutTubeGeometry,
   getSpoutRiserX,
   spoutMachineKey,
   SPOUT_PIPE_RADIUS,
@@ -24,64 +28,7 @@ import {
   type PipeRouteFamily,
 } from './flow/spoutRoutes';
 
-/** Spend sweep rings on elbows, leaving every straight run as one segment. */
-class SpoutSweepCurve extends THREE.Curve<THREE.Vector3> {
-  readonly stations: readonly number[];
-
-  constructor(
-    private readonly route: THREE.CurvePath<THREE.Vector3>,
-    bendSegments: number
-  ) {
-    super();
-    const lengths = route.getCurveLengths();
-    const total = lengths[lengths.length - 1];
-    const stations = [0];
-    route.curves.forEach((curve, index) => {
-      const start = index === 0 ? 0 : lengths[index - 1];
-      const steps = curve instanceof THREE.LineCurve3 ? 1 : bendSegments;
-      for (let step = 1; step <= steps; step++) {
-        stations.push((start + ((lengths[index] - start) * step) / steps) / total);
-      }
-    });
-    this.stations = stations;
-  }
-
-  private routeProgress(progress: number): number {
-    const index = THREE.MathUtils.clamp(progress, 0, 1) * (this.stations.length - 1);
-    const lower = Math.min(Math.floor(index), this.stations.length - 2);
-    return THREE.MathUtils.lerp(this.stations[lower], this.stations[lower + 1], index - lower);
-  }
-
-  override getPoint(progress: number, target = new THREE.Vector3()): THREE.Vector3 {
-    return this.route.getPointAt(this.routeProgress(progress), target);
-  }
-
-  override getPointAt(progress: number, target = new THREE.Vector3()): THREE.Vector3 {
-    return this.getPoint(progress, target);
-  }
-
-  override getTangentAt(progress: number, target = new THREE.Vector3()): THREE.Vector3 {
-    return this.route.getTangentAt(this.routeProgress(progress), target);
-  }
-}
-
-/** Same bore as the grain-flow curve, with bounded close-up elbow resolution.
- * Working if the tube follows every route endpoint and curved branch while
- * long straight spans do not add hundreds of redundant sweep rings.
- */
-export function createSpoutTubeGeometry(
-  curve: THREE.CurvePath<THREE.Vector3>,
-  radialSegments: number
-): THREE.TubeGeometry {
-  const sampling = new SpoutSweepCurve(curve, radialSegments >= 12 ? 6 : 4);
-  return new THREE.TubeGeometry(
-    sampling,
-    sampling.stations.length - 1,
-    SPOUT_PIPE_RADIUS,
-    radialSegments,
-    false
-  );
-}
+export { createSpoutTubeGeometry };
 
 /**
  * Bolted spout joint, instanced every 3-4 m along every route.
@@ -257,6 +204,56 @@ interface PipeRouteMesh {
   readonly geometry: THREE.BufferGeometry;
 }
 
+/** Whether two straight runs lie on one centreline and overlap along it. */
+function sharesRun(a: THREE.LineCurve3, b: THREE.LineCurve3) {
+  const along = a.v2.clone().sub(a.v1);
+  const length = along.length();
+  if (length < 1e-6) return false;
+  along.divideScalar(length);
+  const other = b.v2.clone().sub(b.v1);
+  if (other.lengthSq() < 1e-12 || other.normalize().cross(along).length() > 1e-6) return false;
+  const offset = b.v1.clone().sub(a.v1);
+  if (offset.clone().addScaledVector(along, -offset.dot(along)).length() > 1e-4) return false;
+  const t1 = offset.dot(along),
+    t2 = b.v2.clone().sub(a.v1).dot(along);
+  return Math.min(length, Math.max(t1, t2)) - Math.max(0, Math.min(t1, t2)) > 1e-3;
+}
+
+/**
+ * Tube radius per route. Routes of one family can run down one centreline:
+ * the silo intakes share the silo-side gallery run, and two lift lines land
+ * on the same sifter inlet (four mills, three sifters). Equal tubes there lie
+ * face on face in one merged draw, with the roughness and AO texels of two UV
+ * runs fighting for depth. Each route that shares a run with earlier ones
+ * takes the first radius none of them uses, in 4 mm steps, so a shared run
+ * shows one sleeve over the others.
+ * Working if no two routes of one family share a tube face.
+ */
+export function spoutRouteRadii(
+  routes: readonly {
+    readonly family: PipeRouteFamily;
+    readonly curve: THREE.CurvePath<THREE.Vector3>;
+  }[]
+): number[] {
+  const runs = routes.map(({ curve }) =>
+    curve.curves.filter((c): c is THREE.LineCurve3 => c instanceof THREE.LineCurve3)
+  );
+  const steps: number[] = [];
+  routes.forEach((route, i) => {
+    const taken = new Set(
+      steps.filter(
+        (_, j) =>
+          routes[j].family === route.family &&
+          runs[i].some((a) => runs[j].some((b) => sharesRun(a, b)))
+      )
+    );
+    let step = 0;
+    while (taken.has(step)) step++;
+    steps.push(step);
+  });
+  return steps.map((step) => SPOUT_PIPE_RADIUS + step * 0.004);
+}
+
 /**
  * Family-specific route materials.
  *
@@ -360,7 +357,9 @@ export const SpoutingSystem = React.memo<{
 
   // Calculate spouting sound positions (midpoints of key pipe connections)
   const spoutPositions = useMemo(() => {
-    const positions: { id: string; x: number; y: number; z: number }[] = [];
+    // `machineId` is the machine the product is pouring into or through; the
+    // pour is audible only while that machine is working.
+    const positions: { id: string; machineId: string; x: number; y: number; z: number }[] = [];
     const silos = machines.filter((m) => m.type === MachineType.SILO);
     const mills = machines.filter((m) => m.type === MachineType.ROLLER_MILL);
     const sifters = machines.filter((m) => m.type === MachineType.PLANSIFTER);
@@ -371,6 +370,7 @@ export const SpoutingSystem = React.memo<{
       if (silo) {
         positions.push({
           id: `spout-silo-mill-${i}`,
+          machineId: mill.id,
           x: (silo.position[0] + mill.position[0]) / 2,
           y: 8,
           z: (silo.position[2] + mill.position[2]) / 2,
@@ -381,6 +381,7 @@ export const SpoutingSystem = React.memo<{
     sifters.forEach((sifter, i) => {
       positions.push({
         id: `spout-sifter-${i}`,
+        machineId: sifter.id,
         x: sifter.position[0],
         y: sifter.position[1],
         z: sifter.position[2],
@@ -390,31 +391,49 @@ export const SpoutingSystem = React.memo<{
     return positions;
   }, [machineKey]); // Use stable key instead of full machines array
 
-  // Start spouting sounds once the audio context exists
+  // Each pour sound follows the product it stands for: silent while the shift
+  // clock or a safety hold stops the plant, and while its machine is critical,
+  // idle or starved (the state the machine itself animates from). Reconciled
+  // from the frame loop on a throttle, so per-tick status churn never
+  // re-renders this component.
   const audioReady = useAudioInitialized();
+  const playingRef = useRef(new Set<string>());
   useEffect(() => {
-    if (!enableAudio || !audioReady || safetyHold) return;
-    spoutPositions.forEach((pos) => {
-      audioManager.startSpoutingSound(pos.id, pos.x, pos.y, pos.z);
-    });
-
+    const playing = playingRef.current;
     return () => {
-      spoutPositions.forEach((pos) => {
-        audioManager.stopSpoutingSound(pos.id);
-      });
+      playing.forEach((id) => audioManager.stopSpoutingSound(id));
+      playing.clear();
     };
-  }, [enableAudio, audioReady, safetyHold, spoutPositions]);
+  }, [enableAudio, audioReady, spoutPositions]);
 
-  // Update spatial audio volumes each frame
   useFrame(() => {
-    if (!enableAudio || safetyHold) return;
     if (!isTabVisible) return;
+    const playing = playingRef.current;
+    if (shouldRunThisFrame(15)) {
+      const { gameSpeed } = useGameSimulationStore.getState();
+      const machinesNow = useProductionStore.getState().machines;
+      const buffers = useMaterialFlowStore.getState().machineBuffers;
+      spoutPositions.forEach((pos) => {
+        const audible =
+          enableAudio &&
+          audioReady &&
+          isFlowAudible(
+            machineFlowState(pos.machineId, machinesNow, buffers),
+            gameSpeed,
+            safetyHold
+          );
+        if (audible && !playing.has(pos.id)) {
+          audioManager.startSpoutingSound(pos.id, pos.x, pos.y, pos.z);
+          playing.add(pos.id);
+        } else if (!audible && playing.has(pos.id)) {
+          audioManager.stopSpoutingSound(pos.id);
+          playing.delete(pos.id);
+        }
+      });
+    }
     // Spatial volume is fine at ~30fps; throttle to reduce per-frame audio work
-    if (!shouldRunThisFrame(2)) return;
-
-    spoutPositions.forEach((pos) => {
-      audioManager.updateSpoutingSpatialVolume(pos.id);
-    });
+    if (playing.size === 0 || !shouldRunThisFrame(2)) return;
+    playing.forEach((id) => audioManager.updateSpoutingSpatialVolume(id));
   });
 
   // Silhouette quality by tier. 8 radial segments on a 0.17 m pipe is a visible
@@ -434,8 +453,10 @@ export const SpoutingSystem = React.memo<{
 
     // Curves come from the shared route builder so GrainFlow puts product
     // inside these exact pipes.
-    buildSpoutRoutes(machines).forEach(({ family, curve, length }) => {
-      routeGeometries[family].push(createSpoutTubeGeometry(curve, radialSegments));
+    const spoutRoutes = buildSpoutRoutes(machines);
+    const radii = spoutRouteRadii(spoutRoutes);
+    spoutRoutes.forEach(({ family, curve, length }, index) => {
+      routeGeometries[family].push(createSpoutTubeGeometry(curve, radialSegments, radii[index]));
 
       // Real spouting is bolted up roughly every 3-4 m. Flanges are instanced
       // into one draw call, so density here is nearly free and it is what makes
@@ -512,7 +533,7 @@ export const PIPE_SUPPORT_SEGMENTS: { beams: SupportSegment[]; braces: SupportSe
   const beams: SupportSegment[] = [];
   const braces: SupportSegment[] = [];
   const galleryZ = SITE_LAYOUT.factory.zones.sifting;
-  const intakeY = MILL_PROCESS_PORTS.intake[1] + SPOUT_SERVICE_LAYOUT.intakeRise;
+  const intakeY = SPOUT_SERVICE_LAYOUT.intakeRackY;
   const beamY = intakeY - SPOUT_PIPE_RADIUS - 0.08;
   const endZ =
     SITE_LAYOUT.machines.rollerMills[0].position[2] -

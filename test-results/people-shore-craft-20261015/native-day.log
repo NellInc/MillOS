@@ -1,0 +1,20 @@
+
+> grain-mill-simulator@0.40.0 capture:art
+> node scripts/capture-art-review.mjs --label=W-people-shore-day-20261015 --scenes=milling,lake,farm --quality=medium --time=12 --duration=1 --warmup=1 --settle-timeout=240 --port=4288 --skip-build
+
+WARNING: --skip-build. Frames may show a bundle older than the working tree.
+Capturing 3 scenes at medium...
+milling: 60.0 FPS, 1% low 56.8 FPS, p95 17.5 ms, p99 17.6 ms, 606 calls, DPR 1.20, world continuous, motion valid, FAIL
+  milling: machine load 299.5 across 10 cores (29.95 per core). Frame timings from this run measure contention as much as the scene; re-run on a quiet machine before treating them as a verdict.
+lake: 60.0 FPS, 1% low 56.2 FPS, p95 17.5 ms, p99 17.7 ms, 130 calls, DPR 1.20, world continuous, motion valid, FAIL
+  lake: machine load 291.45 across 10 cores (29.14 per core). Frame timings from this run measure contention as much as the scene; re-run on a quiet machine before treating them as a verdict.
+farm: 50.0 FPS, 1% low 40.9 FPS, p95 22.7 ms, p99 23.9 ms, 985 calls, DPR 1.20, world continuous, motion valid, FAIL
+  farm: machine load 354.7 across 10 cores (35.47 per core). Frame timings from this run measure contention as much as the scene; re-run on a quiet machine before treating them as a verdict.
+Report: /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/W-people-shore-day-20261015/benchmark.json
+
+Frames:        test-results/art-review/W-people-shore-day-20261015
+Contact sheet: test-results/art-review/W-people-shore-day-20261015/contact-sheet.png
+Manifest:      test-results/art-review/W-people-shore-day-20261015/review-manifest.json
+CAVEAT: Working tree was dirty (9 files). These frames show uncommitted work, not commit b59f220. Do not use as a baseline for a later comparison.
+CAVEAT: Captured with --skip-build; dist/ may predate the tree.
+CAVEAT: No performance gate was run. Art mode unpins reduced motion and restores full fidelity, so its frame samples are indicative only. A visual verdict from this capture is not shippable until a non-art budget run passes on the same commit.

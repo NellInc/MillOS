@@ -5,6 +5,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { SimulationAdapter } from '../adapters/SimulationAdapter';
 import { TagDefinition } from '../types';
+import { MILL_TAGS } from '../tagDatabase';
 
 // Sample tag definitions for testing
 const sampleTags: TagDefinition[] = [
@@ -292,6 +293,68 @@ describe('SimulationAdapter', () => {
       await vi.advanceTimersByTimeAsync(1100);
 
       expect(adapter.getActiveFaults()).toHaveLength(0);
+    });
+
+    it('never reports BAD quality over an hour of nominal samples without an injected fault', async () => {
+      // The real catalogue, not the 3-tag fixture: a rare spontaneous roll
+      // needs enough tag-samples to show up. BAD lasts one sample, so collect
+      // every notification rather than reading the final state.
+      const plant = new SimulationAdapter(MILL_TAGS);
+      const badSamples: string[] = [];
+      await plant.connect();
+      plant.subscribe(
+        MILL_TAGS.map((tag) => tag.id),
+        (values) =>
+          values.forEach((value) => {
+            if (value.quality === 'BAD') badSamples.push(value.tagId);
+          })
+      );
+
+      vi.advanceTimersByTime(3_600_000);
+
+      expect(badSamples).toEqual([]);
+      await plant.disconnect();
+    });
+  });
+
+  describe('Speed follows its setpoint', () => {
+    const SP = 'RM101.ST001.SP';
+    const PV = 'RM101.ST001.PV';
+    const millTags = () => MILL_TAGS.filter((tag) => tag.machineId === 'rm-101');
+    const speed = async (plant: SimulationAdapter) => (await plant.readTag(PV)).value as number;
+
+    it('approaches a written setpoint over a few seconds rather than jumping or ignoring it', async () => {
+      const plant = new SimulationAdapter(millTags());
+      await plant.connect();
+      const before = await speed(plant);
+      expect(Math.abs(before - 1200)).toBeLessThanOrEqual(5);
+
+      await plant.writeTag(SP, 1500);
+      vi.advanceTimersByTime(1_000);
+      const afterOneSecond = await speed(plant);
+      // First-order: it has moved toward 1500 but not arrived.
+      expect(afterOneSecond).toBeGreaterThan(before + 20);
+      expect(afterOneSecond).toBeLessThan(1450);
+
+      vi.advanceTimersByTime(30_000);
+      // Settled within the transmitter noise (amplitude 5 RPM).
+      expect(Math.abs((await speed(plant)) - 1500)).toBeLessThanOrEqual(6);
+
+      await plant.writeTag(SP, 900);
+      vi.advanceTimersByTime(30_000);
+      expect(Math.abs((await speed(plant)) - 900)).toBeLessThanOrEqual(6);
+      await plant.disconnect();
+    });
+
+    it('still reads zero speed while the mill is stopped, whatever the setpoint', async () => {
+      const plant = new SimulationAdapter(millTags());
+      await plant.connect();
+      plant.updateMachineStates([{ id: 'rm-101', status: 'idle', metrics: { load: 0, rpm: 0 } }]);
+      await plant.writeTag(SP, 1500);
+      vi.advanceTimersByTime(5_000);
+
+      expect(await plant.readTag(PV)).toMatchObject({ value: 0, quality: 'UNCERTAIN' });
+      await plant.disconnect();
     });
   });
 

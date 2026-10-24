@@ -11,12 +11,15 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   cleanupThrottledBags,
+  minimumServiceWear,
   resetThrottledBagState,
   throttledIncrementBags,
   useProductionStore,
 } from '../productionStore';
 import { useAnnouncementsStore, type Announcement } from '../announcementsStore';
-import { AIDecision } from '../../types';
+import { AIDecision, MachineType, type MachineData } from '../../types';
+import { useBreakdownStore } from '../breakdownStore';
+import { useUIStore } from '../uiStore';
 
 const DEFAULT_ANNOUNCEMENT_CONTEXT: Pick<
   Announcement,
@@ -629,5 +632,95 @@ describe('ProductionStore - Bag Production Accounting', () => {
     vi.advanceTimersByTime(500);
 
     expect(useProductionStore.getState().totalBagsProduced).toBe(3);
+  });
+});
+
+describe('production maintenance work-order lockout', () => {
+  it.each([0, 92])(
+    'requires the exact verified restart before servicing a fault at wear %i',
+    (wear) => {
+      const production = useProductionStore.getState();
+      const previousBreakdowns = useBreakdownStore.getState();
+      const alerts = useUIStore.getState().alerts;
+      const machines = production.machines;
+      try {
+        useBreakdownStore.getState().resetBreakdownStore();
+        const machine: MachineData = {
+          id: 'maintenance-review',
+          name: 'Maintenance review',
+          type: MachineType.ROLLER_MILL,
+          position: [0, 0, 0],
+          size: [1, 1, 1],
+          rotation: 0,
+          status: 'critical',
+          metrics: { rpm: 0, temperature: 45, vibration: 1, load: 60, wear, efficiency: 0 },
+          lastMaintenance: '',
+          nextMaintenance: '',
+        };
+        production.setMachines([machine]);
+        const fault = useBreakdownStore
+          .getState()
+          .triggerBreakdown(machine.id, machine.name, 'mechanical')!;
+        for (const id of [undefined, fault.workOrderId, 'wrong-work-order']) {
+          expect(production.performMaintenance(machine.id, id).success).toBe(false);
+          expect(useProductionStore.getState().machines[0]).toBe(machine);
+          expect(useUIStore.getState().alerts).toBe(alerts);
+        }
+        const repairs = useBreakdownStore.getState();
+        expect(repairs.startRepair(fault.id).started).toBe(true);
+        repairs.updateRepairProgress(fault.id, 100);
+        expect(production.performMaintenance(machine.id, fault.workOrderId).success).toBe(false);
+        repairs.verifyRepair(fault.id);
+        expect(production.performMaintenance(machine.id, fault.workOrderId).success).toBe(false);
+        repairs.requestMachineRestart(fault.id);
+        expect(production.performMaintenance(machine.id).success).toBe(false);
+        expect(production.performMaintenance(machine.id, 'wrong-work-order').success).toBe(false);
+        expect(production.performMaintenance(machine.id, fault.workOrderId).success).toBe(true);
+        expect(useProductionStore.getState().machines[0].status).toBe('running');
+        repairs.confirmMachineRestart(fault.id);
+        expect(production.performMaintenance(machine.id, fault.workOrderId).success).toBe(false);
+      } finally {
+        useProductionStore.setState({ machines });
+        useBreakdownStore.setState(previousBreakdowns);
+        useUIStore.setState({ alerts });
+      }
+    }
+  );
+});
+
+describe('production maintenance minimum wear', () => {
+  it('refuses routine service below the wear at which efficiency starts to fall', () => {
+    const production = useProductionStore.getState();
+    const machines = production.machines;
+    const alerts = useUIStore.getState().alerts;
+    const mill = (wear: number): MachineData => ({
+      id: 'maintenance-minimum',
+      name: 'Minimum wear mill',
+      type: MachineType.ROLLER_MILL,
+      position: [0, 0, 0],
+      size: [1, 1, 1],
+      rotation: 0,
+      status: 'running',
+      metrics: { rpm: 0, temperature: 45, vibration: 1, load: 60, wear, efficiency: 100 },
+      lastMaintenance: '',
+      nextMaintenance: '',
+    });
+    try {
+      // A roller mill warns at 60, so it runs at full efficiency below 30.
+      expect(minimumServiceWear(MachineType.ROLLER_MILL)).toBe(30);
+      const nearlyNew = mill(29.5);
+      production.setMachines([nearlyNew]);
+      const refused = production.performMaintenance(nearlyNew.id);
+      expect(refused.success).toBe(false);
+      expect(refused.message).toContain('30');
+      expect(useProductionStore.getState().machines[0]).toBe(nearlyNew);
+      expect(useUIStore.getState().alerts).toBe(alerts);
+
+      production.setMachines([mill(30)]);
+      expect(production.performMaintenance('maintenance-minimum').success).toBe(true);
+    } finally {
+      useProductionStore.setState({ machines });
+      useUIStore.setState({ alerts });
+    }
   });
 });

@@ -3,15 +3,22 @@ import { persist } from 'zustand/middleware';
 import { safeJSONStorage } from '../stores/storage';
 import {
   registerAutomaticWorkplaceInterrupt,
-  isAutomaticWorkplaceStep,
   withAutomaticWorkplaceStep,
 } from './workplaceParticipation';
 import { peekSCADAService } from '../scada/SCADAService';
 import { useWorkplaceStore } from '../stores/workplaceStore';
-import { useGameSimulationStore } from '../stores/gameSimulationStore';
+import { selectClockHolder, useGameSimulationStore } from '../stores/gameSimulationStore';
+import { useUIStore } from '../stores/uiStore';
 import { isWorkplaceReplayActive } from './workplaceReplayRuntime';
-import { CAMPAIGN_PRESSURES, WORKPLACE_CHECKS, requiredChecks } from './workplaceCampaign';
+import {
+  CAMPAIGN_PRESSURES,
+  WORKPLACE_CHECKS,
+  requiredChecks,
+  shiftResumable,
+} from './workplaceCampaign';
 import type { WorkplaceProfile, WorkplaceTransitionResult } from '../types/workplace';
+import { translate } from '../i18n';
+import { workplaceAutoplayMessages as msg } from './workplaceAutoplay.messages';
 
 /** Explicit synthetic solo demonstration, using the supported game actions.
  * Working if facilitated turns, replay and pilot preparation never receive
@@ -22,9 +29,7 @@ export function autoplayWorkplaceStep(profile: WorkplaceProfile): WorkplaceTrans
   const s = store.workplace;
   const blocked = (reason: string) => ({ changed: false, reason });
   if (store.participationMode !== 'solo' || isWorkplaceReplayActive() || s.mode !== 'game')
-    return blocked(
-      'Automatic role decisions are available only in synthetic solo Game mode, outside replay.'
-    );
+    return blocked(translate(msg, 'soloOnly'));
   const safety = useGameSimulationStore.getState();
   const controlMode = peekSCADAService()?.getState().mode;
   if (
@@ -32,16 +37,15 @@ export function autoplayWorkplaceStep(profile: WorkplaceProfile): WorkplaceTrans
     safety.emergencyDrillMode ||
     (controlMode !== undefined && controlMode !== 'simulation')
   )
-    return blocked('The safety or control-mode boundary holds the automatic demonstration.');
+    return blocked(translate(msg, 'safetyBoundary'));
   if (s.phase === 'idle') return store.startMission(profile, s.seed);
-  if (!s.campaign || s.improvement)
-    return blocked(
-      'Automatic season demonstration needs its own cooperative campaign. Existing handoff decisions remain manual.'
-    );
+  if (!s.campaign || s.improvement) return blocked(translate(msg, 'needsCampaign'));
+  // A shift a reload paused resumes first, before any sobras or a next shift:
+  // its fictional members then consent afresh through the steps below.
+  // Working if a reload mid-season still lets the default season be honoured.
+  if (shiftResumable(s)) return store.resumeShift(s.revision);
   if (s.objections.some((o) => o.status === 'open'))
-    return blocked(
-      'An open objection remains with its original raiser. Automatic demonstration paused.'
-    );
+    return blocked(translate(msg, 'openObjection'));
   const c = s.campaign;
   if (s.phase === 'deliberating') {
     const pressure = CAMPAIGN_PRESSURES[c.shift];
@@ -75,7 +79,8 @@ export function autoplayWorkplaceStep(profile: WorkplaceProfile): WorkplaceTrans
         );
     }
     const result = store.activate(s.revision);
-    if (result.changed) useGameSimulationStore.getState().setGameSpeed(30);
+    // Release only a workplace hold. A pause the player made stays theirs.
+    if (result.changed) useGameSimulationStore.getState().releaseClock('workplace');
     return result;
   }
   if (s.phase === 'active') {
@@ -84,16 +89,33 @@ export function autoplayWorkplaceStep(profile: WorkplaceProfile): WorkplaceTrans
     return { changed: false, reason: null }; // Actual plant tick owns time and dispatch.
   }
   if (s.members.some((m) => m.recoveryOwedMinutes > 0)) return { changed: false, reason: null };
+  // Sobras: once a reviewed shift owes nothing, the fictional members vote to
+  // share a positive surplus among themselves, then the allocation runs.
+  // Working if the default season shows a real rateio whenever it earned one.
+  const f = s.finance;
+  const surplus =
+    f.operatingRevenue - f.operatingCost - f.wagesPaid - f.compensationPaid - f.improvementSpend;
+  if (
+    s.practices.includes('gainsharing') &&
+    !s.distributionComplete &&
+    surplus > 1e-8 &&
+    f.cash > 1e-8 &&
+    f.wageReserve === 0 &&
+    f.compensationReserve === 0
+  ) {
+    const voter = s.members.find((m) => s.surplusBallots[m.id] !== 'members');
+    return voter ? store.voteSurplus(voter.id, 'members') : store.distributeSurplus();
+  }
   if (c.shift < 2) return store.nextCampaignShift();
-  return blocked(
-    'Automatic three-shift season complete. Read the individual receipts and rehearse safe reload.'
-  );
+  return blocked(translate(msg, 'seasonComplete'));
 }
 
 let demonstrationInterval: ReturnType<typeof setInterval> | null = null;
 export const useWorkplaceAutoplay = create<{
   manual: boolean;
   running: boolean;
+  /** The profile a running season resumes with after a reload; null once paused or taken over. */
+  resumeProfile: WorkplaceProfile | null;
   message: string | null;
   start: (profile: WorkplaceProfile) => void;
   pause: (preserveClock?: boolean) => void;
@@ -102,23 +124,53 @@ export const useWorkplaceAutoplay = create<{
     (set, get) => ({
       manual: false,
       running: false,
+      resumeProfile: null,
       message: null,
       start: (profile) => {
         if (get().running) return;
         if (useWorkplaceStore.getState().participationMode !== 'solo') {
-          set({ message: 'Separate participant turns stay manual.' });
+          set({ message: translate(msg, 'separateTurnsManual') });
           return;
         }
         set({
           manual: true,
           running: true,
-          message: 'Fictional solo role decisions are running. Pause whenever you want.',
+          resumeProfile: profile,
+          message: translate(msg, 'running'),
         });
         demonstrationInterval = setInterval(() => {
+          // A pace is only a speed (src/simulation/pace.ts), so choosing one
+          // never ends the season. Any hold that is not the season's own
+          // (workplace, handoff) defers its steps: the fictional roles wait with
+          // the plant and continue on resume. Live SCADA control is not deferred
+          // here; the step itself stops at that safety boundary and says so.
+          // Working if Take over stays offered at every pace and a P, tour,
+          // restore or layout hold changes no workplace state until it ends.
+          const holder = selectClockHolder(useGameSimulationStore.getState());
+          if (
+            holder !== null &&
+            holder !== 'workplace' &&
+            holder !== 'handoff' &&
+            holder !== 'scada'
+          )
+            return;
           const result = withAutomaticWorkplaceStep(() => autoplayWorkplaceStep(profile));
           if (result.reason && !result.changed) {
-            get().pause();
+            // Stopping by itself (season complete, a boundary, an objection)
+            // never freezes the plant: the shift keeps its pace, and the reason
+            // is announced where the player is looking, not only in the panel.
+            // Working if the clock keeps running after a completed season and
+            // the alert names what stopped and where to read it.
+            get().pause(true);
             set({ message: result.reason });
+            useUIStore.getState().addAlert({
+              id: `workplace-autoplay-stopped-${useWorkplaceStore.getState().workplace.revision}`,
+              type: 'info',
+              title: translate(msg, 'stoppedTitle'),
+              message: result.reason,
+              timestamp: new Date(),
+              acknowledged: false,
+            });
           }
         }, 400);
       },
@@ -129,37 +181,39 @@ export const useWorkplaceAutoplay = create<{
         set({
           running: false,
           manual: true,
-          message: 'Automatic decisions paused. Your choices take priority.',
+          resumeProfile: null,
+          message: translate(msg, 'paused'),
         });
-        if (wasRunning && !preserveClock) useGameSimulationStore.getState().setGameSpeed(0);
+        if (wasRunning && !preserveClock) useGameSimulationStore.getState().holdClock('workplace');
       },
     }),
     {
       name: 'millos-workplace-demo-preference',
       version: 1,
       storage: safeJSONStorage,
-      partialize: (state) => ({ manual: state.manual }),
-      merge: (saved, current) => ({
-        ...current,
-        manual: !!(saved && typeof saved === 'object' && 'manual' in saved && saved.manual),
-        running: false,
-        message: null,
-      }),
+      // The runner itself never survives a reload; the season it was running
+      // does. Working if a reload mid-season resumes autonomous decisions with
+      // the same profile once startup is ready, and a taken-over season stays
+      // the player's.
+      partialize: (state) => ({ manual: state.manual, resumeProfile: state.resumeProfile }),
+      merge: (saved, current) => {
+        const record = saved && typeof saved === 'object' ? (saved as Record<string, unknown>) : {};
+        const profile = record.resumeProfile;
+        return {
+          ...current,
+          manual: !!record.manual,
+          running: false,
+          resumeProfile:
+            profile === 'toe-dip' || profile === 'team' || profile === 'cooperative'
+              ? profile
+              : null,
+          message: null,
+        };
+      },
     }
   )
 );
 
 registerAutomaticWorkplaceInterrupt(() => {
   if (useWorkplaceAutoplay.getState().running) useWorkplaceAutoplay.getState().pause();
-});
-useGameSimulationStore.subscribe((current, previous) => {
-  if (
-    current.gameSpeed !== previous.gameSpeed &&
-    useWorkplaceAutoplay.getState().running &&
-    !isAutomaticWorkplaceStep()
-  )
-    // The human has already chosen the new pace. Stop automatic decisions
-    // without replacing that choice, including the onboarding clock release.
-    // Working if manual pace changes stop the runner and retain their speed.
-    useWorkplaceAutoplay.getState().pause(true);
 });

@@ -68,6 +68,34 @@ describe('vehicle kinematics', () => {
     expect(state.acceleration).toBeCloseTo(0);
   });
 
+  it('eases into a moving target instead of overshooting it, and never brakes into reverse', () => {
+    const limits = {
+      maximumForwardSpeed: 1.8,
+      maximumReverseSpeed: 0.8,
+      maximumAcceleration: 0.8,
+      maximumDeceleration: 1.5,
+      maximumJerk: 1.8,
+    };
+    // Braking from cruise into a corner limit that then starts to rise again:
+    // the old follower arrived with its full deceleration still applied, kept
+    // it across the sign change and drove the speed through zero into reverse
+    // (-0.26 m/s), stalling the forklift in the corner.
+    let state = { speed: 1.8, acceleration: 0 };
+    let slowest = Infinity;
+    for (let index = 0; index < 240; index += 1) {
+      const target = index < 90 ? 0.31 : 0.31 + (index - 90) * 0.002;
+      state = advanceLongitudinalMotion(state, target, 1 / 60, limits);
+      if (index >= 90) slowest = Math.min(slowest, state.speed);
+    }
+    expect(slowest).toBeGreaterThan(0.25);
+    // A forward target is never met by reversing, however hard the braking.
+    state = { speed: 0.05, acceleration: -1.5 };
+    for (let index = 0; index < 60; index += 1) {
+      state = advanceLongitudinalMotion(state, 0, 1 / 60, limits);
+      expect(state.speed).toBeGreaterThanOrEqual(0);
+    }
+  });
+
   it('supports controlled reverse without exceeding the reverse limit', () => {
     const limits = {
       maximumForwardSpeed: 5,

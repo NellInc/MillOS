@@ -1,0 +1,27 @@
+{
+  "taskOwnedOnly": true,
+  "borrowedLinksVerifiedAndUnlinked": 375,
+  "originalDependencyLinkRestored": "/Users/nellwatson/Documents/GitHub/MillOS/node_modules",
+  "removedLogicalBytesByPath": {
+    "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/node_modules/.vite-temp": 0,
+    "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/node_modules/.vite": 207,
+    "/private/tmp/millos-AJ-npm-cache": 15867,
+    "/private/tmp/millos-AJ-apron-snippet.txt": 6593
+  },
+  "removedLogicalBytes": 22667,
+  "lsofPreflight": "All selected owned cache directories returned exit1 and empty stdout/stderr. No process termination.",
+  "filesystemFreeBytesBefore": 36879986688,
+  "filesystemFreeBytesAfter": 36880072704,
+  "filesystemFreeByteDelta": 86016,
+  "physicalRecoveryAttribution": "Concurrent machine activity and APFS sharing prevent attributing this delta solely to cleanup.",
+  "sourcePinsVerified": 4,
+  "compiledPinsVerified": 415,
+  "protectedPinsVerified": 1459,
+  "primaryHeadStatusAndDiffExact": true,
+  "captureLockAbsent": true,
+  "ownReviewTab28Closed": true,
+  "ownPreviewExitedNormally": true,
+  "nativeCaptureCommandExit": 0,
+  "unrelatedOutputRetained": "output/playwright/place-led-20261010/",
+  "localOnly": true
+}

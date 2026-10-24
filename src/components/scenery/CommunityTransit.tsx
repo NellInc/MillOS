@@ -1,9 +1,11 @@
 import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { PlotGeometry } from '../../utils/authoredPlotGeometry';
 import { applyVehicleSurface } from '../../utils/vehicleSurface';
 import { SceneText } from '../shared/SceneText';
+import { EXTERIOR_LAMP_LEVEL } from '../exterior/ExteriorLighting';
 
 export interface CommunityBusPose {
   x: number;
@@ -11,6 +13,8 @@ export interface CommunityBusPose {
   rotation: number;
   doorsOpen: boolean | number;
   visible: boolean;
+  /** Separate service hours from the short hidden turnaround gap. */
+  serviceOpen?: boolean;
 }
 export interface DeliveryHandcartPose {
   visible: boolean;
@@ -36,9 +40,12 @@ const PAINT = applyVehicleSurface(
 );
 const RUBBER = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92 });
 const GLASS = new THREE.MeshStandardMaterial({
-  color: '#536d70',
-  roughness: 0.22,
-  metalness: 0.15,
+  color: '#8ca2a0',
+  roughness: 0.24,
+  metalness: 0,
+  transparent: true,
+  opacity: 0.36,
+  depthWrite: false,
 });
 const SIGN = new THREE.MeshStandardMaterial({
   color: '#ffe3a4',
@@ -46,40 +53,128 @@ const SIGN = new THREE.MeshStandardMaterial({
   emissiveIntensity: 0.5,
 });
 
+const HEADLAMP = new THREE.MeshStandardMaterial({
+  name: 'community-bus-headlamp-optics',
+  color: '#fff2bd',
+  emissive: '#ffd37a',
+  emissiveIntensity: 0.04,
+  roughness: 0.28,
+});
+const REAR_LAMP = new THREE.MeshStandardMaterial({
+  name: 'community-bus-rear-lamp-optics',
+  color: '#a93228',
+  emissive: '#ff4934',
+  emissiveIntensity: 0.025,
+  roughness: 0.3,
+});
+
+/** Share the existing smooth weather/dusk dimmer; these are optics, not extra sources.
+ * Working if daytime lenses remain coloured and evening front/rear faces are visible.
+ */
+export function setCommunityBusLampLevel(level: number) {
+  const night = Number.isFinite(level) ? THREE.MathUtils.clamp(level, 0, 1) : 0;
+  HEADLAMP.emissiveIntensity = 0.04 + night * 2.1;
+  REAR_LAMP.emissiveIntensity = 0.025 + night * 1.2;
+}
+
+function busOptics(front: boolean) {
+  const b = new PlotGeometry();
+  for (const side of [-1, 1])
+    b.box(
+      front ? [0.23, 0.09, 0.008] : [0.115, 0.185, 0.008],
+      front ? [side * 0.7, 0.97, 4.0135] : [side * 0.85, 1.07, -4.0135],
+      '#ffffff'
+    );
+  // Flush downward ceiling lenses, part of the same existing optics draw.
+  if (front) for (const z of [-2.4, -0.7, 1]) b.box([0.16, 0.025, 0.5], [0, 2.69, z], '#ffffff');
+  return b.finish();
+}
+
 function busBody() {
   const b = new PlotGeometry();
   b.box([2.12, 0.14, 7.86], [0, 0.51, 0], IRON);
-  b.box([2.2, 0.2, 7.98], [0, 2.9, 0], CREAM);
+  // Small rolled roof corners, retaining the existing three-metre crown.
+  const roof = new THREE.Shape();
+  roof.moveTo(-1.1, 2.8);
+  roof.lineTo(1.1, 2.8);
+  roof.lineTo(1.1, 2.89);
+  roof.quadraticCurveTo(1.1, 3, 0.99, 3);
+  roof.lineTo(-0.99, 3);
+  roof.quadraticCurveTo(-1.1, 3, -1.1, 2.89);
+  roof.closePath();
+  b.add(
+    new THREE.ExtrudeGeometry(roof, {
+      depth: 7.98,
+      bevelEnabled: false,
+      curveSegments: 4,
+    }).translate(0, 0, -3.99),
+    CREAM
+  );
   b.box([1.95, 0.1, 7.6], [0, 2.75, 0], GREEN);
   // The nearside wall has a real 1.2m entrance gap. No solid box behind the doors.
+  // The green panel meets the cream rail edge-on and sits 3 mm inside its face:
+  // overlapping, the two shared 25 mm of both side planes in this one draw.
   for (const [side, centre, length] of [
     [1, 0, 7.98],
-    [-1, -1.1, 5.8],
+    [-1, -1.095, 5.79],
     [-1, 3.5, 0.98],
   ]) {
-    b.box([0.08, 0.8, length], [side * 1.06, 1.02, centre], GREEN);
+    b.box([0.077, 0.775, length], [side * 1.0585, 1.0075, centre], GREEN);
     b.box([0.08, 0.13, length], [side * 1.06, 1.46, centre], CREAM);
   }
   for (const side of [-1, 1]) {
     for (const z of [-3.9, -2.7, -1.5, -0.3, 0.9, 1.78, 3.02, 3.9])
       b.box([0.09, 1.18, 0.065], [side * 1.055, 2.13, z], CREAM);
     b.box([0.09, 0.09, 7.98], [side * 1.055, 2.69, 0], CREAM);
-    for (const z of [-3.99, 3.99]) b.box([0.16, 2.16, 0.02], [side * 1.02, 1.61, z], GREEN);
+    for (const z of [-3.99, 3.99]) b.box([0.157, 2.16, 0.02], [side * 1.0185, 1.61, z], GREEN);
   }
   for (const z of [-3.96, 3.96]) {
     b.box([2.08, 0.83, 0.08], [0, 1.035, z], GREEN);
-    b.box([2.12, 0.14, 0.08], [0, 1.48, z], CREAM);
+    b.box([2.12, 0.14, 0.09], [0, 1.48, z], CREAM);
     b.box([2.1, 0.13, 0.07], [0, 0.59, z], IRON);
   }
-  b.box([1.84, 0.37, 0.07], [0, 2.63, 3.955], '#203831');
+  b.box([1.84, 0.355, 0.07], [0, 2.6225, 3.955], '#203831');
   b.box([0.07, 0.8, 0.07], [0, 2, 3.965], CREAM);
   // Shallow boarding step under the opening and contrasting threshold.
   b.box([0.34, 0.12, 1.16], [-0.93, 0.26, 2.4], IRON);
   b.box([0.13, 0.04, 1.16], [-1.025, 0.34, 2.4], CREAM);
   for (const side of [-1, 1]) {
-    b.box([0.25, 0.11, 0.025], [side * 0.7, 0.97, 4], '#e8d9a7');
-    b.box([0.14, 0.2, 0.025], [side * 0.85, 1.07, -4], '#913d32');
+    b.box([0.29, 0.15, 0.06], [side * 0.7, 0.97, 3.98], IRON);
+    b.box([0.16, 0.23, 0.04], [side * 0.85, 1.07, -3.99], IRON);
   }
+  // Empty paired seats, visible through the glazing. The aisle and boarding portal stay clear.
+  for (const z of [-2.6, -1.3, 0, 1.2])
+    for (const side of [-1, 1]) {
+      b.add(
+        new RoundedBoxGeometry(0.62, 0.14, 0.8, 1, 0.06).translate(side * 0.65, 1.03, z),
+        GREEN
+      );
+      b.add(
+        new RoundedBoxGeometry(0.64, 0.65, 0.12, 1, 0.05).translate(side * 0.65, 1.43, z - 0.32),
+        CREAM
+      );
+      b.add(
+        new RoundedBoxGeometry(0.52, 0.45, 0.06, 1, 0.025).translate(side * 0.65, 1.43, z - 0.25),
+        '#486a59'
+      );
+      b.box([0.055, 0.46, 0.055], [side * 0.65, 0.77, z], IRON);
+      // Three sides of a grab rail, behind each backrest and clear of the aisle.
+      for (const edge of [-1, 1])
+        b.box([0.025, 0.19, 0.025], [side * 0.65 + edge * 0.22, 1.7, z - 0.4], '#b5a06a');
+      b.box([0.465, 0.025, 0.025], [side * 0.65, 1.795, z - 0.4], '#b5a06a');
+    }
+  // Wipers lie just outside the front glass, without touching the destination.
+  for (const side of [-1, 1]) {
+    b.beam([side * 0.62, 1.65, 3.976], [side * 0.4, 2.05, 3.976], 0.018, IRON);
+    b.box([0.022, 0.4, 0.018], [side * 0.4, 2.13, 3.978], IRON);
+  }
+  // Rear grille and panel joints sit within the unchanged end/side envelope;
+  // the joints stand 3 mm proud of the recessed green panel.
+  b.box([0.88, 0.31, 0.008], [0, 1.04, -4.004], IRON);
+  for (let i = 0; i < 5; i++) b.box([0.82, 0.016, 0.006], [0, 0.93 + i * 0.055, -4.011], '#788176');
+  for (const side of [-1, 1])
+    for (const z of [-3.2, -1.9, -0.6, 0.7])
+      b.box([0.006, 0.61, 0.009], [side * 1.097, 1.02, z], '#2b493f');
   return b.finish();
 }
 function busWindows() {
@@ -97,10 +192,16 @@ function busWindows() {
 }
 function door() {
   const b = new PlotGeometry();
-  b.box([0.065, 2.13, 0.6], [0, 1.625, 0], GREEN);
-  b.box([0.075, 1.13, 0.46], [-0.006, 2.035, 0], '#536d70');
-  b.box([0.082, 0.12, 0.6], [0, 1.42, 0], CREAM);
+  b.box([0.065, 0.92, 0.6], [0, 1.02, 0], GREEN);
+  for (const z of [-0.265, 0.265]) b.box([0.065, 1.21, 0.07], [0, 2.085, z], GREEN);
+  b.box([0.065, 0.09, 0.6], [0, 2.645, 0], GREEN);
+  b.box([0.082, 0.125, 0.59], [0, 1.4225, 0], CREAM);
   b.box([0.085, 0.24, 0.022], [-0.015, 1.25, 0.2], CREAM);
+  return b.finish();
+}
+function doorGlass() {
+  const b = new PlotGeometry();
+  b.box([0.018, 1.13, 0.46], [-0.006, 2.035, 0], '#ffffff');
   return b.finish();
 }
 function wheel(radius: number, width: number) {
@@ -129,12 +230,18 @@ function wheel(radius: number, width: number) {
 }
 function cart() {
   const b = new PlotGeometry();
-  for (const x of [-0.32, -0.16, 0, 0.16, 0.32]) b.box([0.145, 0.06, 0.91], [x, 0.44, 0], OAK);
+  for (const [index, x] of [-0.32, -0.16, 0, 0.16, 0.32].entries())
+    b.box([0.145, 0.06, 0.91], [x, 0.44, 0], [OAK, '#8e6c49', '#a07d57'][index % 3]);
   for (const side of [-1, 1]) {
     for (const y of [0.57, 0.76]) b.box([0.055, 0.12, 0.94], [side * 0.4, y, 0], OAK);
     for (const z of [-0.46, 0.46]) b.box([0.065, 0.55, 0.065], [side * 0.4, 0.56, z], IRON);
     b.beam([side * 0.32, 0.38, -0.35], [side * 0.32, 1.04, -1.22], 0.05, IRON);
-    b.box([0.12, 0.07, 0.26], [side * 0.32, 1.05, -1.2], OAK);
+    b.add(
+      new THREE.CylinderGeometry(0.035, 0.035, 0.26, 8)
+        .rotateX(Math.PI / 2)
+        .translate(side * 0.32, 1.05, -1.2),
+      OAK
+    );
   }
   for (const y of [0.58, 0.77]) b.box([0.8, 0.12, 0.055], [0, y, 0.46], OAK);
   b.box([1.08, 0.055, 0.055], [0, 0.27, 0], IRON);
@@ -142,18 +249,42 @@ function cart() {
 }
 function flourSacks() {
   const b = new PlotGeometry();
+  // Seat thread on the actual faceted cloth, rather than hovering on an ellipse.
+  const cloth = new THREE.Mesh(
+    new THREE.IcosahedronGeometry(1, 0).scale(0.18, 0.25, 0.19),
+    new THREE.MeshBasicMaterial({ side: THREE.DoubleSide })
+  );
+  const stitchDepths = [0.59, 0.64, 0.69, 0.74].map((y) => ({
+    y,
+    z: new THREE.Raycaster(
+      new THREE.Vector3(0.105, y - 0.68, 0.3),
+      new THREE.Vector3(0, 0, -1)
+    ).intersectObject(cloth)[0].point.z,
+  }));
+  cloth.geometry.dispose();
+  cloth.material.dispose();
   for (const x of [-0.19, 0.19])
     for (const z of [-0.22, 0.2]) {
       b.round([x, 0.68, z], [0.18, 0.25, 0.19], CREAM);
       b.round([x, 0.91, z], [0.08, 0.07, 0.085], '#c7b68d');
       b.box([0.06, 0.055, 0.018], [x, 0.69, z + 0.174], GREEN);
+      // Neck binding and short stitched seam stay within the existing sack bounds.
+      b.add(
+        new THREE.TorusGeometry(0.068, 0.009, 3, 8).rotateX(Math.PI / 2).translate(x, 0.895, z),
+        '#8c7957'
+      );
+      for (const stitch of stitchDepths)
+        b.box([0.018, 0.009, 0.009], [x + 0.105, stitch.y, z + stitch.z + 0.002], '#af9d76');
     }
   return b.finish();
 }
 export const COMMUNITY_TRANSIT_GEOMETRY = Object.freeze({
   bus: busBody(),
+  headlamps: busOptics(true),
+  rearLamps: busOptics(false),
   windows: busWindows(),
   door: door(),
+  doorGlass: doorGlass(),
   busWheel: wheel(0.42, 0.19),
   cart: cart(),
   cartWheel: wheel(0.27, 0.11),
@@ -223,13 +354,15 @@ function RollingWheels({
 
 export function CommunityBus({ pose }: { pose: CommunityBusPose }) {
   const root = useRef<THREE.Group>(null);
-  const frontDoor = useRef<THREE.Mesh>(null);
-  const rearDoor = useRef<THREE.Mesh>(null);
+  const frontDoor = useRef<THREE.Group>(null);
+  const rearDoor = useRef<THREE.Group>(null);
   const state = useRef({ open: 0, x: pose.x, z: pose.z, visible: false });
   const movement = useRef(0);
   useFrame((_, delta) => {
     if (!root.current) return;
     const valid = [pose.x, pose.z, pose.rotation].every(Number.isFinite);
+    root.current.userData.communityServiceOpen = pose.serviceOpen ?? pose.visible;
+    root.current.userData.communityDoorsOpen = pose.doorsOpen;
     root.current.visible = pose.visible && valid;
     if (!root.current.visible) {
       state.current.visible = false;
@@ -242,6 +375,7 @@ export function CommunityBus({ pose }: { pose: CommunityBusPose }) {
     state.current.visible = true;
     root.current.position.set(pose.x, 0, pose.z);
     root.current.rotation.y = pose.rotation;
+    setCommunityBusLampLevel(EXTERIOR_LAMP_LEVEL.value);
     const target =
       typeof pose.doorsOpen === 'boolean'
         ? Number(pose.doorsOpen)
@@ -258,31 +392,47 @@ export function CommunityBus({ pose }: { pose: CommunityBusPose }) {
       ref={root}
       name="community-autonomous-village-bus"
       visible={false}
-      userData={{ noStaticBatch: true }}
+      userData={{ noStaticBatch: true, dynamic: true }}
       dispose={null}
     >
       <mesh geometry={COMMUNITY_TRANSIT_GEOMETRY.bus} material={PAINT} castShadow receiveShadow />
       <mesh geometry={COMMUNITY_TRANSIT_GEOMETRY.windows} material={GLASS} />
+      <mesh
+        name="community-bus-headlamps"
+        geometry={COMMUNITY_TRANSIT_GEOMETRY.headlamps}
+        material={HEADLAMP}
+        receiveShadow
+      />
+      <mesh
+        name="community-bus-rear-lamps"
+        geometry={COMMUNITY_TRANSIT_GEOMETRY.rearLamps}
+        material={REAR_LAMP}
+        receiveShadow
+      />
       <RollingWheels
         radius={0.42}
         geometry={COMMUNITY_TRANSIT_GEOMETRY.busWheel}
         positions={BUS_WHEELS}
         movement={movement}
       />
-      <mesh
-        ref={rearDoor}
-        position={[-1.11, 0, 2.1]}
-        geometry={COMMUNITY_TRANSIT_GEOMETRY.door}
-        material={PAINT}
-        castShadow
-      />
-      <mesh
-        ref={frontDoor}
-        position={[-1.11, 0, 2.7]}
-        geometry={COMMUNITY_TRANSIT_GEOMETRY.door}
-        material={PAINT}
-        castShadow
-      />
+      <group ref={rearDoor} position={[-1.11, 0, 2.1]}>
+        <mesh
+          geometry={COMMUNITY_TRANSIT_GEOMETRY.door}
+          material={PAINT}
+          castShadow
+          receiveShadow
+        />
+        <mesh geometry={COMMUNITY_TRANSIT_GEOMETRY.doorGlass} material={GLASS} />
+      </group>
+      <group ref={frontDoor} position={[-1.11, 0, 2.7]}>
+        <mesh
+          geometry={COMMUNITY_TRANSIT_GEOMETRY.door}
+          material={PAINT}
+          castShadow
+          receiveShadow
+        />
+        <mesh geometry={COMMUNITY_TRANSIT_GEOMETRY.doorGlass} material={GLASS} />
+      </group>
       <SceneText
         position={[0, 2.64, 3.997]}
         fontSize={0.145}
@@ -324,7 +474,7 @@ export function DeliveryHandcart({ pose }: { pose: DeliveryHandcartPose }) {
       ref={root}
       name="community-flour-handcart"
       visible={false}
-      userData={{ noStaticBatch: true }}
+      userData={{ noStaticBatch: true, dynamic: true }}
       dispose={null}
     >
       <mesh geometry={COMMUNITY_TRANSIT_GEOMETRY.cart} material={PAINT} castShadow receiveShadow />
@@ -506,7 +656,7 @@ export function CommunityBicycle({ pose }: { pose: CommunityBicyclePose }) {
       ref={root}
       name="community-upright-bicycle"
       visible={false}
-      userData={{ noStaticBatch: true }}
+      userData={{ noStaticBatch: true, dynamic: true }}
       dispose={null}
     >
       <mesh geometry={COMMUNITY_BICYCLE_GEOMETRY.frame} material={PAINT} castShadow receiveShadow />

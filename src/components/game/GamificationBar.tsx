@@ -7,8 +7,11 @@ import { useHistoricalPlaybackStore } from '../../stores/historicalPlaybackStore
 import { useShallow } from 'zustand/react/shallow';
 import { AchievementsPanel } from './AchievementsPanel';
 import { ScreenshotButton } from './ScreenshotButton';
+import { formatFixed, useT } from '../../i18n';
+import { gamificationBarMessages } from './GamificationBar.messages';
 
 export const GamificationBar: React.FC = () => {
+  const t = useT(gamificationBarMessages);
   // Shared with OverviewPanel through uiStore so the two toggles drive one panel.
   const showAchievements = useUIStore((state) => state.showAchievements);
   const setShowAchievements = useUIStore((state) => state.setShowAchievements);
@@ -57,7 +60,7 @@ export const GamificationBar: React.FC = () => {
           <button
             onClick={handleHideBar}
             className="w-10 h-10 rounded-lg flex items-center justify-center transition-colors bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white"
-            title="Close Quick Actions"
+            title={t('closeQuickActions')}
           >
             <X className="w-4 h-4" />
           </button>
@@ -72,9 +75,11 @@ export const GamificationBar: React.FC = () => {
                 ? 'bg-yellow-600 text-white'
                 : 'bg-slate-800 text-yellow-400 hover:bg-slate-700'
             }`}
-            title="Achievements"
+            title={t('achievements')}
             aria-label={
-              unlockedCount > 0 ? `Achievements, ${unlockedCount} unlocked` : 'Achievements'
+              unlockedCount > 0
+                ? t('achievementsUnlocked', { count: unlockedCount })
+                : t('achievements')
             }
           >
             <Trophy className="w-5 h-5" />
@@ -83,7 +88,7 @@ export const GamificationBar: React.FC = () => {
                 aria-hidden="true"
                 className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-500 text-black text-[10px] font-bold rounded-full flex items-center justify-center"
               >
-                {unlockedCount}
+                {formatFixed(unlockedCount, 0)}
               </span>
             )}
           </button>
@@ -102,7 +107,7 @@ export const GamificationBar: React.FC = () => {
             className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${
               isReplaying ? 'bg-red-600 text-white' : 'bg-slate-800 text-red-400 hover:bg-slate-700'
             }`}
-            title={isReplaying ? 'Exit replay' : 'Replay history'}
+            title={isReplaying ? t('exitReplay') : t('replayHistory')}
           >
             <History className="w-5 h-5" />
           </button>
@@ -116,7 +121,7 @@ export const GamificationBar: React.FC = () => {
                 ? 'bg-green-600 text-white'
                 : 'bg-slate-800 text-green-400 hover:bg-slate-700'
             }`}
-            title="Mini-map"
+            title={t('miniMap')}
           >
             <Map className="w-5 h-5" />
           </button>

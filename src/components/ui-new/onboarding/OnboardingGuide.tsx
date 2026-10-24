@@ -1,5 +1,8 @@
 import { useEffect } from 'react';
 import { ArrowRight, Check, ChevronLeft, Factory, Gauge, MousePointer2, X } from 'lucide-react';
+import { useT } from '../../../i18n';
+import { LanguageSwitcher } from '../../../i18n/LanguageSwitcher';
+import { onboardingGuideMessages } from './OnboardingGuide.messages';
 
 export interface OnboardingStep {
   readonly title: string;
@@ -33,15 +36,17 @@ export function OnboardingGuide({
   onClose,
 }: OnboardingGuideProps) {
   const StepIcon = ICONS[step.icon];
+  const t = useT(onboardingGuideMessages);
   const isLastStep = stepIndex === stepCount - 1;
 
   // Escape closes the tour for this session, unless a dialog (modal or the HUD
-  // notifications popover) or an open menu above it owns the key. Capture
-  // phase so panels underneath do not also close.
+  // notifications popover), an open menu or the context sidebar owns the key.
+  // Capture phase so nothing else also closes on the same press. Working if
+  // Escape with #context-sidebar open closes the sidebar and keeps the tour.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
-      if (document.querySelector('[role="dialog"], [role="menu"]')) return;
+      if (document.querySelector('[role="dialog"], [role="menu"], #context-sidebar')) return;
       event.preventDefault();
       event.stopPropagation();
       onClose();
@@ -52,9 +57,13 @@ export function OnboardingGuide({
 
   return (
     <section
-      aria-label={`Getting started, step ${stepIndex + 1} of ${stepCount}`}
-      className="pointer-events-auto fixed bottom-[11.5rem] left-3 right-3 z-40 max-h-[calc(100dvh-15.5rem)] overflow-y-auto overscroll-contain rounded-xl border border-cyan-400/40 bg-slate-950/95 p-4 shadow-2xl shadow-black/40 backdrop-blur-md sm:left-5 sm:right-auto sm:w-[360px]"
+      aria-label={t('regionLabel', { step: stepIndex + 1, count: stepCount })}
+      className="pointer-events-auto fixed bottom-[11.5rem] left-3 right-3 z-40 max-h-[calc(100dvh-20rem)] overflow-y-auto overscroll-contain rounded-xl border border-cyan-400/40 bg-slate-950/95 p-4 shadow-2xl shadow-black/40 backdrop-blur-md sm:left-5 sm:right-auto sm:w-[360px] [@media(min-width:640px)_and_(max-height:500px)]:left-auto [@media(min-width:640px)_and_(max-height:500px)]:right-5 [@media(min-width:640px)_and_(max-height:500px)]:bottom-28 [@media(min-width:640px)_and_(max-height:500px)]:max-h-[calc(100dvh-11rem)]"
     >
+      {/* First thing a visitor reads, so the language choice sits above the fold. */}
+      <div className="mb-2 flex justify-end">
+        <LanguageSwitcher compact />
+      </div>
       <div className="mb-3 flex items-start gap-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-cyan-400/30 bg-cyan-400/10">
           <StepIcon className="h-5 w-5 text-cyan-300" aria-hidden="true" />
@@ -62,12 +71,12 @@ export function OnboardingGuide({
         <div className="min-w-0 flex-1">
           <div className="mb-1 flex items-center justify-between gap-3">
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-300">
-              Getting started {stepIndex + 1}/{stepCount}
+              {t('eyebrow', { step: stepIndex + 1, count: stepCount })}
             </p>
             <button
               type="button"
               onClick={onClose}
-              aria-label="Close getting started for this session"
+              aria-label={t('close')}
               className="-m-2.5 rounded p-3.5 text-slate-400 transition-colors hover:bg-slate-800 hover:text-white"
             >
               <X className="h-4 w-4" aria-hidden="true" />
@@ -86,14 +95,14 @@ export function OnboardingGuide({
 
       <details className="mt-2 text-xs text-slate-300">
         <summary className="min-h-10 cursor-pointer rounded-lg py-3 font-medium text-cyan-300">
-          Camera controls
+          {t('cameraControls')}
         </summary>
-        <p className="pb-2 leading-5">
-          Drag to orbit; scroll or pinch to zoom. Use W A S D to move and Q or E to change height.
-        </p>
+        <p className="pb-2 leading-5">{t('cameraHelp')}</p>
       </details>
 
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+      {/* Pinned to the card's own scroll box so a 720p projector never hides
+          Start operating. Working if the row stays visible on step 3 at 1280x657. */}
+      <div className="sticky bottom-0 -mx-4 -mb-4 mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 bg-slate-950 px-4 py-3">
         <div className="flex gap-1.5" aria-hidden="true">
           {Array.from({ length: stepCount }, (_, index) => (
             <span
@@ -112,21 +121,21 @@ export function OnboardingGuide({
             className="inline-flex min-h-10 items-center gap-1 rounded-lg px-3 py-2 text-xs font-medium text-slate-300 transition-colors hover:bg-slate-800 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
           >
             <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-            Back
+            {t('back')}
           </button>
           <button
             type="button"
             onClick={onSkip}
             className="min-h-10 rounded-lg px-3 py-2 text-xs font-medium text-slate-300 transition-colors hover:bg-slate-800 hover:text-white"
           >
-            Skip tour
+            {t('skip')}
           </button>
           <button
             type="button"
             onClick={onNext}
             className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-teal-700 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-teal-600"
           >
-            {isLastStep ? 'Start operating' : 'Next'}
+            {isLastStep ? t('start') : t('next')}
             {isLastStep ? (
               <Check className="h-4 w-4" aria-hidden="true" />
             ) : (

@@ -34,7 +34,7 @@ async function runPerformanceTest() {
   console.log('✅ Page loaded\n');
 
   console.log('⏳ Waiting 10s for app to stabilize...');
-  await new Promise(r => setTimeout(r, 10000));
+  await new Promise((r) => setTimeout(r, 10000));
 
   // Get render report from the app
   console.log('\n============================================================');
@@ -51,9 +51,11 @@ async function runPerformanceTest() {
 
     if (renderReport) {
       console.log('Components with most renders:');
-      Object.entries(renderReport).slice(0, 10).forEach(([name, count], i) => {
-        console.log(`  ${i + 1}. ${name}: ${count} renders`);
-      });
+      Object.entries(renderReport)
+        .slice(0, 10)
+        .forEach(([name, count], i) => {
+          console.log(`  ${i + 1}. ${name}: ${count} renders`);
+        });
     } else {
       console.log('renderReport() not available');
     }
@@ -169,7 +171,7 @@ async function runPerformanceTest() {
       }
     }, quality);
 
-    await new Promise(r => setTimeout(r, 3000)); // Wait for quality change
+    await new Promise((r) => setTimeout(r, 3000)); // Wait for quality change
 
     const qualityFps = await page.evaluate(() => {
       return new Promise((resolve) => {
@@ -206,9 +208,14 @@ async function runPerformanceTest() {
   console.log('🎯 PERFORMANCE SUMMARY');
   console.log('============================================================\n');
 
-  const grade = fpsData.avgFps >= 55 ? '🟢 GOOD' :
-                fpsData.avgFps >= 45 ? '🟡 ACCEPTABLE' :
-                fpsData.avgFps >= 30 ? '🟠 POOR' : '🔴 CRITICAL';
+  const grade =
+    fpsData.avgFps >= 55
+      ? '🟢 GOOD'
+      : fpsData.avgFps >= 45
+        ? '🟡 ACCEPTABLE'
+        : fpsData.avgFps >= 30
+          ? '🟠 POOR'
+          : '🔴 CRITICAL';
 
   console.log(`   Grade: ${grade}`);
   console.log(`   Average FPS: ${fpsData.avgFps}`);

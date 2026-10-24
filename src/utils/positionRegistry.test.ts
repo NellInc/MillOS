@@ -3,6 +3,7 @@ import { positionRegistry } from './positionRegistry';
 import { SITE_LAYOUT } from '../constants/siteLayout';
 import { createConveyorObstacles } from '../constants/factoryObstacles';
 import { createRoundedForkliftRoute } from '../simulation/forkliftRoute';
+import { planningRouteActions } from '../simulation/layoutPlanning';
 import {
   createForkliftRoutePlan,
   resolveForkliftStopReason,
@@ -36,14 +37,7 @@ describe('positionRegistry', () => {
   it('checks the receiving turn along its real route rather than into the conveyor beyond it', () => {
     const route = createRoundedForkliftRoute(
       SITE_LAYOUT.routes.forklifts.receiving.points,
-      [
-        { type: 'pickup', duration: 7 },
-        { type: 'none', duration: 0 },
-        { type: 'none', duration: 0 },
-        { type: 'dropoff', duration: 6 },
-        { type: 'none', duration: 0 },
-        { type: 'none', duration: 0 },
-      ],
+      planningRouteActions('receiving'),
       2,
       8
     );

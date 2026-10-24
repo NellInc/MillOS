@@ -1,0 +1,5 @@
+src/components/models/WorkerModel.tsx 150ms
+src/components/workers/workerPose.ts 110ms
+src/components/workers/workerTypes.ts 16ms (unchanged)
+src/components/CommunityLife.tsx 26ms
+src/simulation/communityLife.ts 102ms

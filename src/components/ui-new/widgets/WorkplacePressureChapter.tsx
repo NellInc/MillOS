@@ -6,6 +6,8 @@ import {
   campaignOutcomes,
   campaignTotals,
 } from '../../../simulation/workplaceCampaign';
+import { formatFixed, translate, useT } from '../../../i18n';
+import { workplacePressureChapterMessages } from './WorkplacePressureChapter.messages';
 
 type Destination = 'Shift' | 'Agreement / Voices' | 'Review';
 
@@ -40,19 +42,20 @@ export function deriveWorkplaceGuidance(state: WorkplaceState) {
     campaign?.shift === 2 &&
     ((packing?.ballot === false && state.governance === 'team-consent') ||
       (state.planId === 'cover' && packing?.coverConsent === false));
+  const msg = workplacePressureChapterMessages;
   const beat = termsNeeded
-    ? 'Restate the terms'
+    ? translate(msg, 'beatRestate')
     : needsRemedy
-      ? 'The raiser reviews the remedy'
+      ? translate(msg, 'beatRemedy')
       : inspectionHeld
         ? inspectionPending
-          ? 'Quality reviews the line'
-          : 'Complete protected inspection'
+          ? translate(msg, 'beatQualityReviews')
+          : translate(msg, 'beatCompleteInspection')
         : reviewing
-          ? 'Account for what was kept'
+          ? translate(msg, 'beatAccount')
           : running
-            ? 'Deliver the agreement'
-            : 'Earn a fresh agreement';
+            ? translate(msg, 'beatDeliver')
+            : translate(msg, 'beatEarn');
   const destination: Destination =
     termsNeeded ||
     inspectionHeld ||
@@ -64,24 +67,26 @@ export function deriveWorkplaceGuidance(state: WorkplaceState) {
           ? 'Review'
           : 'Agreement / Voices';
   const next = termsNeeded
-    ? 'Use Restate protected terms in Shift. The challenge remains open afterwards.'
+    ? translate(msg, 'nextRestate')
     : needsRemedy
-      ? 'In Agreement / Voices, select the resolving author. Only the raiser can confirm resolution.'
+      ? translate(msg, 'nextRemedy')
       : inspectionHeld
         ? inspectionPending
-          ? 'Use Quality initiates five-minute inspection in Shift. The line is held; deadline pressure grants no authority to skip the check.'
-          : `Inspection is running until modeled minute ${campaign?.inspectionUntilMinute}. Resume the plant clock when ready to deliver the remaining inspection time. Actual batch certification remains separate.`
+          ? translate(msg, 'nextInspect')
+          : translate(msg, 'nextInspecting', {
+              minute: formatFixed(Math.ceil(campaign?.inspectionUntilMinute ?? 0), 0),
+            })
         : reviewing
-          ? 'Review paid compensation, delivered recovery and customer delivery separately. This shift cannot resume.'
+          ? translate(msg, 'nextReviewing')
           : running
-            ? 'Use the plant clock controls to run or pause real production. An objection during work stops this shift into review.'
+            ? translate(msg, 'nextRunning')
             : needsRevisedOffer
-              ? 'Your no is recorded. Compare revised offers in Shift. Changing shared terms clears every role decision; each role then chooses afresh.'
+              ? translate(msg, 'nextRevised')
               : readiness.allowed
-                ? 'Current terms are ready. Use Approve and run agreement in Agreement / Voices only when you choose to proceed.'
+                ? translate(msg, 'nextReady')
                 : campaign
-                  ? 'Choose the episode response and plan in Shift, then answer the current role checks and record understanding, ballots and any separate cover consent in Agreement / Voices.'
-                  : 'Choose the plan in Shift, then record understanding, ballots and any separate cover consent in Agreement / Voices.';
+                  ? translate(msg, 'nextCampaign')
+                  : translate(msg, 'nextPlan');
   return {
     readiness,
     totals,
@@ -107,6 +112,7 @@ export function WorkplacePressureChapter({
   state: WorkplaceState;
   navigate: (section: Destination) => void;
 }) {
+  const t = useT(workplacePressureChapterMessages);
   const campaign = state.campaign;
   if (!campaign) return null;
   const pressure = CAMPAIGN_PRESSURES[campaign.shift];
@@ -129,82 +135,76 @@ export function WorkplacePressureChapter({
   } = deriveWorkplaceGuidance(state);
   const rule =
     state.governance === 'team-consent'
-      ? 'Every member must approve the shared plan.'
+      ? t('ruleConsent')
       : state.governance === 'member-vote'
-        ? 'A member majority approves the plan; it cannot volunteer an individual.'
-        : 'The coordinator hears each role before assigning qualified work.';
+        ? t('ruleVote')
+        : t('ruleConsult');
 
   return (
     <section
-      aria-label="Pressure chapter"
+      aria-label={t('regionLabel')}
       className="space-y-2 border-b border-slate-700 pb-4 text-sm leading-relaxed text-slate-200"
     >
       <h4 className="font-semibold text-white">
-        {campaign.shift === 2 ? 'Thursday: a fresh offer' : 'A working agreement under pressure'}
+        {campaign.shift === 2 ? t('headingThursday') : t('headingPressure')}
       </h4>
-      {campaign.shift === 2 && (
-        <p>
-          Yesterday’s willingness has expired. Retained workload informs a new offer; it grants no
-          new consent.
-        </p>
-      )}
+      {campaign.shift === 2 && <p>{t('willingnessExpired')}</p>}
       <p className="font-medium text-cyan-100">{beat}</p>
       <p>{next}</p>
       <p className={needsRemedy ? 'text-amber-100' : 'text-slate-300'}>
         {challenge
-          ? `${state.members.find((member) => member.id === challenge.actorId)?.role ?? 'Adviser'} challenge: ${challenge.status}. ${protectedTerms ? 'Protected terms recorded.' : 'No retained protected-terms receipt.'}`
+          ? t('challengeLine', {
+              role:
+                state.members.find((member) => member.id === challenge.actorId)?.role ??
+                t('adviser'),
+              status: t('objectionStatus', { status: challenge.status }),
+              receipt: protectedTerms ? t('protectedRecorded') : t('noProtectedReceipt'),
+            })
           : protectedTerms
-            ? 'Protected terms recorded without a challenge. Prevention does not claim an objection was resolved.'
-            : 'No retained pressure response. The pressure card is optional; a protected plan can proceed without trying the demand.'}
+            ? t('protectedWithoutChallenge')
+            : t('noPressureResponse')}
       </p>
-      {reviewing && needsRemedy && (
-        <p>Repair belongs to review. Resolving the objection cannot restart this same shift.</p>
-      )}
+      {reviewing && needsRemedy && <p>{t('repairBelongs')}</p>}
       <button
         type="button"
         className="min-h-9 rounded-md border border-cyan-300/25 px-3 py-1.5 text-sm font-medium text-cyan-100 hover:bg-cyan-900/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
         onClick={() => navigate(destination)}
       >
-        Go to {destination} controls
+        {t('goToControls', { destination: t('sectionLabel', { section: destination }) })}
       </button>
       <WorkplaceNegotiation state={state} />
       <details>
-        <summary className="cursor-pointer text-slate-100">
-          Terms, retained burden and delivery
-        </summary>
+        <summary className="cursor-pointer text-slate-100">{t('detailsSummary')}</summary>
         <div className="mt-2 space-y-2">
           <ol className="list-decimal space-y-1 pl-5">
-            {termsNeeded && (
-              <li>Restate protected terms in Shift; restatement leaves the objection open.</li>
-            )}
-            {needsRemedy && <li>Let each raiser review the remedy in Agreement / Voices.</li>}
-            {!running && !reviewing && (
-              <li>
-                Answer current role checks, record understanding and ballots, then explicitly
-                approve the plan in Agreement / Voices. Cover consent is separate.
-              </li>
-            )}
-            <li>
-              Use Review to compare paid obligations, actual recovery and delivery. Promises and
-              agreed deferrals remain distinct from delivery.
-            </li>
+            {termsNeeded && <li>{t('stepRestate')}</li>}
+            {needsRemedy && <li>{t('stepRemedy')}</li>}
+            {!running && !reviewing && <li>{t('stepApprove')}</li>}
+            <li>{t('stepReview')}</li>
           </ol>
           <p>
-            {rule} Extra duty always requires fresh individual consent; a no-extra-duty plan remains
-            valid.
+            {rule} {t('extraDutyNote')}
           </p>
           <p>
-            Current offer: {plan?.title ?? state.planId}, revision {state.revision}. Adviser
-            boundaries: {campaign.adviserAcknowledged ? 'acknowledged' : 'awaiting current answers'}
-            . Role understanding {state.members.filter((member) => member.understood).length}/
-            {state.members.length}; ballots recorded{' '}
-            {state.members.filter((member) => member.ballot !== null).length}/{state.members.length}
-            . Separate cover consent:{' '}
-            {state.members
-              .filter((member) => member.coverConsent === true)
-              .map((member) => member.role)
-              .join(', ') || 'none'}
-            .
+            {t('offerLine', {
+              plan: plan?.title ?? state.planId,
+              revision: formatFixed(state.revision, 0),
+              ack: campaign.adviserAcknowledged ? t('acknowledged') : t('awaitingAnswers'),
+              understood: formatFixed(
+                state.members.filter((member) => member.understood).length,
+                0
+              ),
+              members: formatFixed(state.members.length, 0),
+              ballots: formatFixed(
+                state.members.filter((member) => member.ballot !== null).length,
+                0
+              ),
+              cover:
+                state.members
+                  .filter((member) => member.coverConsent === true)
+                  .map((member) => member.role)
+                  .join(', ') || t('none'),
+            })}
           </p>
           {!running && !reviewing && readiness.reasons.length > 0 && (
             <ul className="list-disc space-y-1 pl-5">
@@ -215,28 +215,35 @@ export function WorkplacePressureChapter({
           )}
           {openObjections.map((item) => (
             <p key={item.id} className="text-amber-100">
-              Open: {item.statement}
+              {t('openItem', { statement: item.statement })}
             </p>
           ))}
           {totals.members.map((member) => (
             <p key={member.id} className="tabular-nums">
-              {member.role}: retained extra duty {member.extraMinutes.toFixed(1)} min; compensation
-              paid {member.compensationPaid.toFixed(2)} credits; recovery delivered{' '}
-              {member.recoveryMinutes.toFixed(1)} min; recovery owed{' '}
-              {member.recoveryOwedMinutes.toFixed(1)} min.
+              {t('memberLine', {
+                role: member.role,
+                extra: formatFixed(member.extraMinutes, 1),
+                paid: formatFixed(member.compensationPaid, 2),
+                recovery: formatFixed(member.recoveryMinutes, 1),
+                owed: formatFixed(member.recoveryOwedMinutes, 1),
+              })}
             </p>
           ))}
           <p className="tabular-nums">
-            Delivery {outcomes.delivery.status}: {outcomes.delivery.deliveredKg.toFixed(1)} /{' '}
-            {outcomes.delivery.targetKg.toFixed(0)} kg. Agreement outcome:{' '}
-            {outcomes.agreement.status}. Wages paid: {outcomes.accounts.wages.toFixed(2)} credits.
-            Full customer commitment remaining: {outcomes.delivery.remainingKg.toFixed(0)} kg.
-            {campaign.mission && ` Dispatch evidence: ${campaign.mission.evidence}.`}
+            {t('deliveryLine', {
+              status: t('deliveryStatus', { status: outcomes.delivery.status }),
+              delivered: formatFixed(outcomes.delivery.deliveredKg, 1),
+              target: formatFixed(outcomes.delivery.targetKg, 0),
+              agreement: t('agreementStatus', { status: outcomes.agreement.status }),
+              wages: formatFixed(outcomes.accounts.wages, 2),
+              remaining: formatFixed(outcomes.delivery.remainingKg, 0),
+            })}
+            {campaign.mission &&
+              t('dispatchEvidence', {
+                evidence: t('evidenceStatus', { status: campaign.mission.evidence }),
+              })}
           </p>
-          <p>
-            Owed recovery needs modeled clock time. Review preserves shortfalls, earned pay and
-            prior shifts. Changing terms clears the current role agreement.
-          </p>
+          <p>{t('recoveryNote')}</p>
         </div>
       </details>
     </section>

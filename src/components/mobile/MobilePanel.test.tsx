@@ -19,7 +19,11 @@ vi.mock('../../stores/uiStore', () => ({
     selector({ alerts: [{ title: 'Bearing fault', message: 'Needs inspection.' }] }),
 }));
 vi.mock('../../stores/gameSimulationStore', () => ({
-  useGameSimulationStore: Object.assign(vi.fn(), { subscribe: vi.fn(() => () => {}) }),
+  // workplaceStore syncs its handoff clock hold at import, so the clock is read.
+  useGameSimulationStore: Object.assign(vi.fn(), {
+    subscribe: vi.fn(() => () => {}),
+    getState: () => ({ gameSpeed: 30, clockHolds: [], holdClock: vi.fn(), releaseClock: vi.fn() }),
+  }),
 }));
 vi.mock('../../stores/safetyStore', () => ({ useSafetyStore: vi.fn() }));
 vi.mock('../../stores/operationsCampaignStore', () => ({ useOperationsCampaignStore: vi.fn() }));

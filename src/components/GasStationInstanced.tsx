@@ -1,6 +1,11 @@
 import * as THREE from 'three';
+import {
+  STATION_POSTER_PALETTE,
+  STATION_POSTER_PLANTERS,
+  createPosterPumpCabinet,
+} from './scenery/AuthoredPropTrim';
 import { useGraphicsStore } from '../stores/graphicsStore';
-import { DeadDinoPylonFace, IlluminatedSignText } from './scenery/HeritageSignage';
+import { DeadDinoPylonFace, BusinessBrandMark } from './scenery/HeritageSignage';
 import { ExteriorDownlight } from './exterior/ExteriorLighting';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { EXTERIOR_LAYERS, POLYGON_OFFSET } from '../constants/renderLayers';
@@ -9,7 +14,13 @@ import React, { useRef, useMemo, useLayoutEffect } from 'react';
 import { PROCEDURAL_TEXTURES } from '../utils/sharedMaterials';
 import { GeneratedBoundary, GeneratedModel } from './models/GeneratedModel';
 import { GeneratedBoxSurface, GeneratedSurfaceMesh } from './models/GeneratedGeometrySurface';
-import { StationRetailDetails, SHOP_FLOOR_MATERIAL } from './scenery/StationRetailDetails';
+import {
+  StationRetailDetails,
+  SHOP_FLOOR_MATERIAL,
+  STATION_APPLIANCE_SHIFT,
+} from './scenery/StationRetailDetails';
+import { StationSouvenirs } from './scenery/StationSouvenirs';
+import { StationTravelStop } from './scenery/StationTravelStop';
 
 // ============================================================================
 // Shared surface textures
@@ -41,10 +52,13 @@ const SHOP_WALL_SURFACE = {
 // ============================================================================
 // Source palette and procedural maps remain authoritative.
 const STATION_WALL_MATERIAL = new THREE.MeshStandardMaterial({
-  color: '#e0e0e0',
+  color: STATION_POSTER_PALETTE.stone,
   ...SHOP_WALL_SURFACE,
 });
-const STATION_ROOF_MATERIAL = new THREE.MeshStandardMaterial({ color: '#b71c1c', roughness: 0.5 });
+const STATION_ROOF_MATERIAL = new THREE.MeshStandardMaterial({
+  color: STATION_POSTER_PALETTE.terracotta,
+  roughness: 0.5,
+});
 const STATION_POLE_MATERIAL = new THREE.MeshStandardMaterial({
   color: '#757575',
   roughness: 0.5,
@@ -271,8 +285,7 @@ const SWIVEL_Z_OFFSET = 0.42;
 
 // Small edge radii catch the light without changing pump clearance or layout.
 // These shared meshes replace boxes, adding no objects or material instances.
-export const createFuelPumpBodyGeometry = (): RoundedBoxGeometry =>
-  new RoundedBoxGeometry(0.6, 1.6, 0.5, 1, 0.035);
+export const createFuelPumpBodyGeometry = (): THREE.BufferGeometry => createPosterPumpCabinet();
 export const createPumpIslandGeometry = (): RoundedBoxGeometry =>
   new RoundedBoxGeometry(10, 0.2, 3, 1, 0.08);
 
@@ -282,7 +295,6 @@ export const createPumpIslandGeometry = (): RoundedBoxGeometry =>
 const GEOMETRIES = {
   pumpBody: createFuelPumpBodyGeometry(),
   pumpIsland: createPumpIslandGeometry(),
-  pumpCap: new RoundedBoxGeometry(0.7, 0.2, 0.6, 1, 0.035),
   canopyColumn: createCanopyColumnGeometry(),
   signPole: createSignPoleGeometry(),
   // Pump hose/handle geometries
@@ -297,7 +309,7 @@ const GEOMETRIES = {
 // ============================================================================
 const MATERIALS = {
   canopyColumn: new THREE.MeshStandardMaterial({
-    color: '#9e9e9e',
+    color: STATION_POSTER_PALETTE.column,
     roughness: 0.4,
     metalness: 0.3,
   }),
@@ -360,9 +372,9 @@ export function createStationDetailLayout() {
     size: StationDetailBox['size'],
     color: string
   ) => opaque.push({ part, position, size, color });
-  const charcoal = '#303b3d';
-  const cream = '#fff0d2';
-  const orange = '#ef7624';
+  const charcoal = STATION_POSTER_PALETTE.column;
+  const cream = STATION_POSTER_PALETTE.cream;
+  const orange = STATION_POSTER_PALETTE.terracotta;
 
   // Folded edge caps keep the existing top heights. Panel gaps expose a
   // recessed backing strip, so seams are real joints rather than coplanar decals.
@@ -391,36 +403,14 @@ export function createStationDetailLayout() {
       add(part, position, size, color);
     }
     const position: [number, number, number] = [...centre];
-    position[across] -= outward * 0.008;
-    const size: [number, number, number] = [depth - 0.016, height - 0.008, depth - 0.016];
+    // Inner face 2 mm behind the panels' inner faces: at 0.008 it lay exactly
+    // on them, terracotta against the backing colour along every cap.
+    position[across] -= outward * 0.007;
+    const size: [number, number, number] = [depth - 0.018, height - 0.008, depth - 0.018];
     size[along] = length - 0.02;
     add(`${part}-joint-backing`, position, size, backing);
   };
   for (const side of [-1, 1]) {
-    cappedEdge(
-      'canopy-cap',
-      'x',
-      [0, 5.12, side * 6.06],
-      16.24,
-      0.16,
-      0.12,
-      4,
-      '#e6dfcc',
-      '#968d78',
-      side
-    );
-    cappedEdge(
-      'canopy-cap',
-      'z',
-      [side * 8.06, 5.12, 0],
-      12,
-      0.16,
-      0.12,
-      3,
-      '#e6dfcc',
-      '#968d78',
-      side
-    );
     cappedEdge(
       'shop-cap',
       'x',
@@ -429,7 +419,7 @@ export function createStationDetailLayout() {
       0.24,
       0.06,
       3,
-      '#a6382b',
+      STATION_POSTER_PALETTE.terracotta,
       '#602b25',
       side
     );
@@ -441,11 +431,78 @@ export function createStationDetailLayout() {
       0.24,
       0.06,
       4,
-      '#a6382b',
+      STATION_POSTER_PALETTE.terracotta,
       '#602b25',
       side
     );
   }
+
+  // Folded open rain channels follow the actual red cap's z=+/-5.50 drip
+  // edge. Square section pipes sit at the rear corners, away from the side
+  // door, glass frontage and fuel lanes. All pieces use the existing cube batch.
+  // Working if the trough stays open and each outlet meets a grounded grate.
+  // The channel ends 1 cm inside the cap ends, and its end plates sit between
+  // the lips: at 9 m and 0.24 m their faces lay on the cap's.
+  for (const side of [-1, 1]) {
+    add('roof-gutter-bottom', [-12, 5.23, side * 5.56], [8.96, 0.02, 0.24], charcoal);
+    for (const z of [5.445, 5.675]) {
+      add('roof-gutter-lip', [-12, 5.285, side * z], [8.96, 0.13, 0.02], charcoal);
+    }
+    for (const x of [-16.47, -7.53]) {
+      add('roof-gutter-end', [x, 5.285, side * 5.56], [0.02, 0.13, 0.22], charcoal);
+    }
+    add('roof-downpipe', [-15.86, 2.7, side * 5.61], [0.11, 5.08, 0.11], charcoal);
+    for (const y of [0.5, 1.95, 3.4, 4.85]) {
+      add('roof-pipe-collar', [-15.86, y, side * 5.61], [0.135, 0.045, 0.135], '#63716f');
+    }
+    add('roof-pipe-shoe', [-15.86, 0.18, side * 5.67], [0.11, 0.18, 0.22], charcoal);
+    add('roof-pipe-outlet', [-15.86, 0.075, side * 5.76], [0.11, 0.13, 0.11], charcoal);
+    for (const dx of [-0.18, 0.18]) {
+      add('ground-drain-frame', [-15.86 + dx, 0.004, side * 5.8], [0.025, 0.008, 0.4], charcoal);
+    }
+    for (const dz of [-0.1875, 0.1875]) {
+      add(
+        'ground-drain-frame',
+        [-15.86, 0.004, side * (5.8 + dz)],
+        [0.335, 0.008, 0.025],
+        charcoal
+      );
+    }
+    for (let slat = 0; slat < 5; slat++) {
+      add(
+        'ground-drain-bar',
+        [-15.86, 0.004, side * (5.65 + slat * 0.075)],
+        [0.335, 0.008, 0.025],
+        '#63716f'
+      );
+    }
+  }
+
+  // The closed side door retains its original size and collision contract.
+  // Its small folded hood clears the existing head; supports sit outside the
+  // 1.20 m leaf, and a seated pull gives the dark panel a recognisable scale.
+  add('door-rain-hood', [-12, 2.68, 5.285], [1.78, 0.08, 0.65], '#a6382b');
+  add('door-hood-edge', [-12, 2.625, 5.6], [1.8, 0.09, 0.035], charcoal);
+  for (const side of [-1, 1]) {
+    add('door-hood-edge', [-12 + side * 0.8825, 2.625, 5.285], [0.035, 0.09, 0.63], charcoal);
+    add('door-hood-bracket', [-12 + side * 0.76, 2.5, 5.075], [0.045, 0.3, 0.08], charcoal);
+    add('door-hood-bracket', [-12 + side * 0.76, 2.625, 5.25], [0.045, 0.05, 0.4], charcoal);
+    add('door-leaf-stile', [-12 + side * 0.505, 1.22, 5.018], [0.055, 2.28, 0.03], '#63716f');
+  }
+  for (const y of [0.11, 2.335]) {
+    add('door-leaf-rail', [-12, y, 5.018], [1.01, 0.055, 0.03], '#63716f');
+  }
+  for (const y of [1.0, 1.26]) {
+    add('door-pull-mount', [-11.58, y, 5.05], [0.07, 0.045, 0.11], '#bca36f');
+  }
+  add('door-pull', [-11.58, 1.13, 5.11], [0.035, 0.31, 0.035], '#bca36f');
+  add('door-lamp-housing', [-12, 2.605, 5.31], [0.46, 0.07, 0.18], charcoal);
+  emitters.push({
+    part: 'door-lamp-lens',
+    position: [-12, 2.568, 5.31],
+    size: [0.38, 0.015, 0.12],
+    color: '#fff0cc',
+  });
 
   // The generated fascia underside is y=4.40. Rails enter it by 20 mm;
   // lens trays sit below the rails, with their tops inside their housings.
@@ -476,10 +533,10 @@ export function createStationDetailLayout() {
     for (const x of [-3, 3]) {
       const faceZ = side * 1.215;
       for (const dx of [-0.17, 0.17]) {
-        add('pump-bezel', [x + dx, 1.1, faceZ], [0.035, 0.46, 0.06], charcoal);
+        add('pump-bezel', [x + dx, 1.1, faceZ], [0.035, 0.46, 0.06], cream);
       }
       for (const y of [0.885, 1.315]) {
-        add('pump-bezel', [x, y, faceZ], [0.305, 0.035, 0.06], charcoal);
+        add('pump-bezel', [x, y, faceZ], [0.305, 0.035, 0.06], cream);
       }
       add('pump-grade', [x, 1.57, side * 1.205], [0.31, 0.075, 0.03], x < 0 ? '#35935e' : orange);
       add('pump-card-reader', [x, 1.415, side * 1.213], [0.2, 0.085, 0.05], charcoal);
@@ -519,7 +576,7 @@ export function createStationDetailLayout() {
   for (const y of [0.18, 2.45]) {
     add('shop-transom', [-7.968, y, 0], [0.11, 0.1, 9.58], charcoal);
   }
-  add('shop-header', [-7.98, 3.97, 0], [0.12, 0.5, 9.62], orange);
+  add('shop-header', [-7.98, 3.97, 0], [0.12, 0.5, 9.62], STATION_POSTER_PALETTE.green);
   // A grounded vertical kickplate, not a new forecourt slab. It covers the
   // exposed lower glazing edge while staying clear of the separate side door.
   add('shop-kickplate', [-7.972, 0.16, 0], [0.136, 0.32, 9.62], charcoal);
@@ -531,13 +588,23 @@ export function createStationDetailLayout() {
   for (const x of [-12.66, -11.34]) {
     add('door-jamb', [x, 1.23, 5.015], [0.1, 2.46, 0.13], charcoal);
   }
-  add('door-head', [-12, 2.505, 5.015], [1.42, 0.09, 0.13], charcoal);
-  add('door-threshold', [-12, 0.075, 5.025], [1.42, 0.1, 0.35], cream);
+  add('door-head', [-12, 2.45, 5.015], [1.4, 0.14, 0.13], charcoal);
+  add('door-threshold', [-12, 0.075, 5.025], [1.4, 0.1, 0.35], cream);
   // Shop-local parts, expressed in the same station-local coordinate system
   // as the forecourt. Working if all contents clear their opaque enclosures.
+  // The cabinet frame stands 2 cm proud of the delivered liner at the sides
+  // and 1 cm at the top (outer faces x -14.02/-9.98, y 3.01): flush at
+  // -14/-10/3.0, liner and frame shared those faces. The door head and
+  // threshold end 1 cm inside the jambs' outer faces for the same reason.
   for (const side of [-1, 1]) {
-    add('retail-fridge-side', [-12 + side * 1.95, 1.5, -4], [0.1, 3, 0.8], '#37474f');
-    add('retail-fridge-cap', [-12, 1.5 + side * 1.45, -4], [3.8, 0.1, 0.8], '#37474f');
+    add('retail-fridge-side', [-12 + side * 1.96, 1.505, -4], [0.12, 3.01, 0.8], '#37474f');
+    // Only the top cap rises; the floor cap keeps its seat on the slab.
+    add(
+      'retail-fridge-cap',
+      [-12, side > 0 ? 2.955 : 0.05, -4],
+      [3.8, side > 0 ? 0.11 : 0.1, 0.8],
+      '#37474f'
+    );
     add('retail-fridge-handle', [-12 + side * 0.08, 1.5, -3.55], [0.025, 0.35, 0.06], cream);
     add(
       'retail-register-bezel',
@@ -551,7 +618,12 @@ export function createStationDetailLayout() {
     add('retail-fridge-shelf', [-12, y, -3.98], [3.8, 0.05, 0.66], '#9aa7a8');
   }
   add('retail-fridge-stile', [-12, 1.5, -3.6], [0.055, 2.8, 0.04], '#37474f');
-  add('retail-slush-ledge', [-10, 0.95, -2], [0.7, 0.1, 0.5], '#e65100');
+  add(
+    'retail-slush-ledge',
+    [-10 + STATION_APPLIANCE_SHIFT.slush, 0.95, -2],
+    [0.7, 0.1, 0.5],
+    '#e65100'
+  );
   return { opaque, emitters };
 }
 
@@ -567,6 +639,15 @@ export const STATION_CANOPY_LIGHTS = [-2.8, 2.8].map((z) => ({
   distance: 11.5,
   color: '#ffe4c4',
 }));
+// One shielded porch fitting makes the side entrance readable without lighting
+// the surrounding meadow. The existing driver owns clear-noon zero and dusk.
+// Working if its seated lens washes the door/threshold and casts no shadow map.
+export const STATION_DOOR_LIGHT = {
+  position: [-12, 2.55, 5.31] as [number, number, number],
+  intensity: 28,
+  distance: 3.5,
+  color: '#ffe1a8',
+};
 export const STATION_DETAIL_GEOMETRY = new THREE.BoxGeometry(1, 1, 1);
 const STATION_DETAIL_MATERIAL = new THREE.MeshStandardMaterial({
   color: '#ffffff',
@@ -603,18 +684,17 @@ interface GasStationProps {
   rotation?: number;
 }
 
-// The GLB retains the exact shell. Screens, holders, hoses and nozzles stay live.
+// Live and fallback shells share the poster cabinet. Controls and hoses stay live.
 const FuelPumpShell = () => (
   <GeneratedBoundary
     fallback={
-      <>
-        <mesh position={[0, 0.9, 0]} geometry={GEOMETRIES.pumpBody} castShadow>
-          <meshStandardMaterial color="#ffffff" roughness={0.5} />
-        </mesh>
-        <mesh position={[0, 1.8, 0]} geometry={GEOMETRIES.pumpCap} castShadow>
-          <meshStandardMaterial color="#e65100" roughness={0.5} />
-        </mesh>
-      </>
+      <mesh position={[0, 1, 0]} geometry={GEOMETRIES.pumpBody} castShadow>
+        <meshStandardMaterial
+          color={STATION_POSTER_PALETTE.terracotta}
+          roughness={0.36}
+          metalness={0.12}
+        />
+      </mesh>
     }
   >
     <group position={[0, 0.1, 0]}>
@@ -794,30 +874,31 @@ export const GasStation = React.memo<GasStationProps>(
             castShadow
             receiveShadow
           />
-          {/* Right side wall (with door opening) - top section */}
+          {/* Right side wall (with door opening) - header and piers meet the
+              existing 1.2m leaf and 1.42m frame, rather than leaving a 2.8m hole. */}
           <GeneratedBoxSurface
             asset="stationWallUnit"
-            size={[8, 2, 0.2]}
+            size={[8, 2.5, 0.2]}
             material={STATION_WALL_MATERIAL}
-            position={[0, 4, 4.9]}
+            position={[0, 3.75, 4.9]}
             castShadow
             receiveShadow
           />
           {/* Right side wall - left of door */}
           <GeneratedBoxSurface
             asset="stationWallUnit"
-            size={[2.5, 3, 0.2]}
+            size={[3.36, 2.5, 0.2]}
             material={STATION_WALL_MATERIAL}
-            position={[-2.65, 1.5, 4.9]}
+            position={[-2.32, 1.25, 4.9]}
             castShadow
             receiveShadow
           />
           {/* Right side wall - right of door */}
           <GeneratedBoxSurface
             asset="stationWallUnit"
-            size={[2.5, 3, 0.2]}
+            size={[3.36, 2.5, 0.2]}
             material={STATION_WALL_MATERIAL}
-            position={[2.65, 1.5, 4.9]}
+            position={[2.32, 1.25, 4.9]}
             castShadow
             receiveShadow
           />
@@ -973,7 +1054,7 @@ export const GasStation = React.memo<GasStationProps>(
           </group>
 
           {/* Coffee machine */}
-          <group position={[2, 0, -3.5]}>
+          <group position={[2 + STATION_APPLIANCE_SHIFT.coffee, 0, -3.5]}>
             <GeneratedBoundary
               fallback={
                 <>
@@ -991,7 +1072,7 @@ export const GasStation = React.memo<GasStationProps>(
           </group>
 
           {/* Slushie machine - Dead Dino branded! */}
-          <group position={[2, 0, -2]}>
+          <group position={[2 + STATION_APPLIANCE_SHIFT.slush, 0, -2]}>
             <group name="station-slush-base" scale={STATION_RETAIL.slushBaseScale}>
               <GeneratedBoundary
                 fallback={
@@ -1044,7 +1125,13 @@ export const GasStation = React.memo<GasStationProps>(
         </group>
 
         <StationRetailDetails />
+        <StationSouvenirs />
+        <StationTravelStop />
+        <mesh name="station-poster-flower-pots" geometry={STATION_POSTER_PLANTERS} receiveShadow>
+          <meshStandardMaterial vertexColors roughness={0.86} />
+        </mesh>
         <group name="station-canopy-light-banks" visible={!referenceLighting}>
+          <ExteriorDownlight name="station-door-light" {...STATION_DOOR_LIGHT} />
           {STATION_CANOPY_LIGHTS.map((light, index) => (
             <ExteriorDownlight key={index} name={`station-canopy-light-${index}`} {...light} />
           ))}
@@ -1057,12 +1144,12 @@ export const GasStation = React.memo<GasStationProps>(
               {/* Canopy roof */}
               <mesh position={[0, 5, 0]} castShadow>
                 <boxGeometry args={[16, 0.4, 12]} />
-                <meshStandardMaterial color="#f5f5f5" roughness={0.4} />
+                <meshStandardMaterial color={STATION_POSTER_PALETTE.cream} roughness={0.4} />
               </mesh>
-              {/* Canopy fascia with Dead Dino orange brand color */}
+              {/* Canopy fascia in the poster’s forest green */}
               <mesh position={[0, 4.6, 0]}>
                 <boxGeometry args={[16.5, 0.4, 12.5]} />
-                <meshStandardMaterial color="#e65100" roughness={0.5} />
+                <meshStandardMaterial color={STATION_POSTER_PALETTE.green} roughness={0.5} />
               </mesh>
               <instancedMesh
                 args={[GEOMETRIES.canopyColumn, MATERIALS.canopyColumn, 4]}
@@ -1101,34 +1188,22 @@ export const GasStation = React.memo<GasStationProps>(
           ]}
         />
         {[-1, 1].map((side) => (
-          <IlluminatedSignText
+          <group
             key={`canopy-wordmark-${side}`}
             name={`station-canopy-wordmark-${side}`}
             position={[0, 4.64, side * 6.28]}
             rotation={[0, side < 0 ? Math.PI : 0, 0]}
-            fontSize={0.28}
-            letterSpacing={0.1}
-            color="#fff0d2"
-            anchorX="center"
-            anchorY="middle"
-            surface="painted"
           >
-            DEAD DINO
-          </IlluminatedSignText>
+            <BusinessBrandMark brand="dino" variant="fascia" width={4.4} height={0.28} />
+          </group>
         ))}
-        <IlluminatedSignText
+        <group
           name="station-shop-wordmark"
           position={[-7.91, 3.97, 0]}
           rotation={[0, Math.PI / 2, 0]}
-          fontSize={0.38}
-          letterSpacing={0.08}
-          color="#fff0d2"
-          anchorX="center"
-          anchorY="middle"
-          surface="painted"
         >
-          SHOP / COFFEE
-        </IlluminatedSignText>
+          <BusinessBrandMark brand="dino" variant="fascia" width={7.8} height={0.42} />
+        </group>
 
         {/* ========== FUEL PUMPS (back-to-back, line toward shop) ========== */}
         {/* Single island running along X axis toward shop */}

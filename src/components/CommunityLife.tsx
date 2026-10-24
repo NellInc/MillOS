@@ -11,13 +11,16 @@ import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useProductionStore } from '../stores/productionStore';
 import { useOperationsCampaignStore } from '../stores/operationsCampaignStore';
 import { useBreakdownStore } from '../stores/breakdownStore';
-import { useMaterialFlowStore } from '../stores/materialFlowStore';
+import { getRecalledStock, useMaterialFlowStore } from '../stores/materialFlowStore';
 import { useGraphicsStore } from '../stores/graphicsStore';
 import { useWorkplaceStore } from '../stores/workplaceStore';
 import { SceneText } from './shared/SceneText';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import {
   COMMUNITY_ROSTER,
+  createCommunityGreeting,
+  communityPassengerAttention,
+  sampleCommunityGreeting,
   createCommunityPose,
   sampleCommunityPerson,
   sampleCommunityCyclist,
@@ -25,19 +28,53 @@ import {
   sampleCommunityDelivery,
   advanceCommunityBusClock,
   advanceCommunityPeopleClock,
+  advanceCommunityPresentationClock,
   hasCommunityBakerySupply,
   communityWorkResponse,
   communityAgreementCue,
   communityAgreementResponse,
   advanceCommunityAgreementClock,
+  COMMUNITY_WALK_SPEED_MPS,
+  communityRootYaw,
+  communityStillHour,
   type CommunityOperationsSnapshot,
 } from '../simulation/communityLife';
 import { EXTERIOR_LAYERS, POLYGON_OFFSET } from '../constants/renderLayers';
+import { useT } from '../i18n';
+import { STANDARD_GAME_SPEED } from '../simulation/pace';
+import { communityLifeMessages } from './CommunityLife.messages';
 
 const COLOURS = ['#596e72', '#53637c', '#9a7654', '#6b8568', '#bdad82', '#6b5871'];
+/** Real seconds a safety stop lets bodies blend into the held stance. */
+const SAFETY_SETTLE_SECONDS = 0.4;
+const CYCLIST = COMMUNITY_ROSTER.find((person) => person.role === 'Cyclist')!;
+const COURIER = COMMUNITY_ROSTER.find((person) => person.id === 'village-courier')!;
 const _truckPosition = new THREE.Vector3();
 
+/** Convert after the actor's real eased heading, not the route's target yaw.
+ * Working if fully supported feet survive the existing incoming half-turn.
+ */
+function updateSeatCue(
+  motion: WorkerMotionState,
+  pose: ReturnType<typeof createCommunityPose>,
+  yaw: number
+) {
+  if (!pose.seat) {
+    motion.seat = undefined;
+    return;
+  }
+  const cue = motion.seat ?? (motion.seat = { amount: 0, support: 0, x: 0, z: 0, yaw: 0 });
+  const dx = pose.seat.position[0] - pose.position[0],
+    dz = pose.seat.position[2] - pose.position[2];
+  cue.amount = pose.seat.amount;
+  cue.support = pose.seat.support;
+  cue.x = dx * Math.cos(yaw) - dz * Math.sin(yaw);
+  cue.z = dx * Math.sin(yaw) + dz * Math.cos(yaw);
+  cue.yaw = Math.atan2(Math.sin(pose.seat.rotation - yaw), Math.cos(pose.seat.rotation - yaw));
+}
+
 function AgreementLabel({ personId }: { personId: string }) {
+  const t = useT(communityLifeMessages);
   const label = useWorkplaceStore((s) => communityAgreementCue(personId, s.workplace)?.label);
   const emergency = useGameSimulationStore((s) => s.emergencyActive || s.emergencyDrillMode);
   if (!label) return null;
@@ -53,10 +90,25 @@ function AgreementLabel({ personId }: { personId: string }) {
         outlineWidth={0.025}
         outlineColor="#172c32"
       >
-        {emergency ? 'Site safety stop' : label}
+        {emergency ? t('siteSafetyStop') : label}
       </SceneText>
     </Billboard>
   );
+}
+
+/** Initial presentation and admitted frames read the same domain truth.
+ * Working if an unstocked shop or rain hold cannot briefly render as work.
+ */
+function readCommunityOperations(out: CommunityOperationsSnapshot) {
+  const campaign = useOperationsCampaignStore.getState();
+  out.machines = useProductionStore.getState().machines;
+  out.workOrders = useBreakdownStore.getState().workOrders;
+  const flow = useMaterialFlowStore.getState();
+  out.batches = flow.productionBatches;
+  // Memoised on the flow state, so this per-frame read walks it once per tick.
+  out.recalledStockKg = getRecalledStock(flow).kg;
+  out.bakeryStocked = hasCommunityBakerySupply(campaign.orders, campaign.elapsedMinutes);
+  out.weather = useGameSimulationStore.getState().weather;
 }
 
 /** One schedule update feeds bodies, vehicles and the props they use. It never
@@ -75,40 +127,65 @@ export function CommunityLife() {
   const initialHour = useRef(
     useGameSimulationStore.getState().gameDay * 24 + useGameSimulationStore.getState().gameTime
   ).current;
-  const clocks = useRef({ world: initialHour, people: initialHour, bus: initialHour });
+  const safetySettle = useRef({ emergency: false, left: 0 });
+  const clocks = useRef({
+    world: initialHour,
+    presentation: initialHour,
+    people: initialHour,
+    bus: initialHour,
+  });
   const operations = useRef<CommunityOperationsSnapshot>({
     machines: [],
     workOrders: [],
     batches: [],
     bakeryStocked: false,
   }).current;
-  const residents = useMemo(
-    () =>
-      COMMUNITY_ROSTER.map((person, i) => {
-        const pose = sampleCommunityPerson(person, initialHour, createCommunityPose());
-        const motion: WorkerMotionState = {
-          activity: pose.activity,
-          groundSpeed: pose.activity === 'walking' ? 1.1 : 0,
-          seated: pose.seated,
-          enabled: false,
-          phase: i * 1.731,
-        };
-        return {
-          person,
-          hour: initialHour,
-          pose,
-          motion,
-          response: { activity: pose.activity, task: pose.task },
-          appearance: getWorkerAppearance(person.role, COLOURS[i % COLOURS.length], person.id),
-        };
-      }),
-    [initialHour]
-  );
+  const residents = useMemo(() => {
+    readCommunityOperations(operations);
+    const game = useGameSimulationStore.getState();
+    const emergency = game.emergencyActive || game.emergencyDrillMode;
+    const workplace = useWorkplaceStore.getState().workplace;
+    return COMMUNITY_ROSTER.map((person, i) => {
+      const pose = sampleCommunityPerson(person, initialHour, createCommunityPose());
+      const response = communityWorkResponse(person, pose, operations);
+      const agreement = communityAgreementCue(person.id, workplace);
+      communityAgreementResponse(agreement, pose, response);
+      const activity = emergency && !pose.seated ? 'idle' : response.activity;
+      const gaitScale = game.gameSpeed > 0 ? game.gameSpeed / STANDARD_GAME_SPEED : 1;
+      const motion: WorkerMotionState = {
+        activity,
+        briefing: !emergency && agreement?.state === 'briefing',
+        gaitScale,
+        groundSpeed:
+          !emergency && pose.activity === 'walking' ? COMMUNITY_WALK_SPEED_MPS * gaitScale : 0,
+        seated: pose.seated,
+        enabled: false,
+        phase: i * 1.731,
+      };
+      updateSeatCue(motion, pose, pose.rotation);
+      return {
+        person,
+        hour: initialHour,
+        pose,
+        motion,
+        response,
+        // R3F retains this object. React must not replace frame-resolved duties
+        // with a new object containing the unguarded scheduled task.
+        userData: {
+          communityId: person.id,
+          activity,
+          task: emergency ? 'Holding safely for the site safety stop' : response.task,
+        },
+        greeting: createCommunityGreeting(),
+        appearance: getWorkerAppearance(person.role, COLOURS[i % COLOURS.length], person.id),
+      };
+    });
+  }, [initialHour, operations]);
   const bus = useRef(sampleCommunityBus(initialHour)).current;
   const bicycle = useRef(sampleCommunityCyclist(initialHour)).current;
   const delivery = sampleCommunityDelivery(initialHour);
   const cart = useRef({
-    visible: delivery.visible,
+    visible: delivery.cartVisible,
     position: [delivery.cartX, 0, delivery.cartZ] as [number, number, number],
     rotation: delivery.rotation,
     loaded: delivery.loaded,
@@ -130,12 +207,29 @@ export function CommunityLife() {
           cart,
         }),
         restore: (saved) => {
-          clocks.current = saved.clocks;
+          // Saves from before a clock existed lack it; a missing clock would turn
+          // NaN on the next frame and make every later save fail. Working if an
+          // older record restores with each absent clock on the saved world hour.
+          const savedClocks: Partial<Record<keyof typeof clocks.current, unknown>> =
+            saved.clocks ?? {};
+          const finite = (value: unknown, fallback: number) =>
+            typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+          const world = finite(savedClocks.world, clocks.current.world);
+          clocks.current = {
+            world,
+            presentation: finite(savedClocks.presentation, world),
+            people: finite(savedClocks.people, world),
+            bus: finite(savedClocks.bus, world),
+          };
           saved.residents.forEach((actor, index) => {
             const resident = residents[index];
             if (!resident) return;
             resident.hour = actor.hour;
+            resident.pose.seat = undefined;
+            resident.motion.seat = undefined;
             Object.assign(resident.pose, actor.pose);
+            resident.motion.attentionYaw = actor.motion.attentionYaw ?? 0;
+            resident.motion.briefing = actor.motion.briefing ?? false;
             Object.assign(resident.motion, actor.motion);
             Object.assign(resident.response, actor.response);
           });
@@ -157,43 +251,63 @@ export function CommunityLife() {
     const game = useGameSimulationStore.getState();
     const worldHour = game.gameDay * 24 + game.gameTime;
     const elapsed = worldHour - clocks.current.world;
-    const jump = Math.abs(elapsed) > 0.5;
+    const jump = elapsed < 0 || Math.abs(elapsed) > 0.5;
     const emergency = game.emergencyActive || game.emergencyDrillMode;
-    const moving = game.isTabVisible && game.gameSpeed > 0 && !emergency;
+    const held = emergency || !game.isTabVisible;
+    const moving = !held && game.gameSpeed > 0;
+    const gaitScale = moving ? game.gameSpeed / STANDARD_GAME_SPEED : 1;
+    // A safety stop holds everyone where they stand, but the bodies keep animating
+    // for a moment so a walking stride damps into the stance instead of snapping.
+    // Working if a drill start blends walkers to idle and then freezes them.
+    const blend = safetySettle.current;
+    if (emergency && !blend.emergency) blend.left = SAFETY_SETTLE_SECONDS;
+    blend.emergency = emergency;
+    blend.left = emergency ? Math.max(0, blend.left - (Number.isFinite(delta) ? delta : 0)) : 0;
+    const settling = emergency && game.isTabVisible && blend.left > 0;
+    const previousPresentation = clocks.current.presentation;
+    clocks.current.presentation = advanceCommunityPresentationClock(
+      previousPresentation,
+      worldHour,
+      elapsed,
+      delta,
+      game.gameSpeed,
+      game.isTabVisible,
+      emergency
+    );
+    const presentedElapsed = held ? 0 : clocks.current.presentation - previousPresentation;
+    const reframe = !held && (jump || (!moving && elapsed !== 0));
     const previousPeopleHour = clocks.current.people;
     clocks.current.people = advanceCommunityPeopleClock(
       clocks.current.people,
-      worldHour,
-      elapsed,
+      clocks.current.presentation,
+      presentedElapsed,
       moving,
-      emergency
+      held
     );
-    if (jump && !emergency) clocks.current.bus = worldHour;
+    if (reframe) clocks.current.bus = worldHour;
     let trafficBlocked = false;
     const truck = scene.getObjectByName('shipping-truck');
     if (truck?.visible) {
       truck.getWorldPosition(_truckPosition);
       trafficBlocked = _truckPosition.z > 75 && _truckPosition.z < 260;
     }
-    if (!emergency)
+    if (!held)
       clocks.current.bus = advanceCommunityBusClock(
         clocks.current.bus,
-        jump ? 0 : moving ? elapsed : 0,
+        reframe ? 0 : moving ? presentedElapsed : 0,
         trafficBlocked
       );
-    if (!moving && !emergency && elapsed !== 0)
-      clocks.current.bus = advanceCommunityBusClock(worldHour, 0, trafficBlocked);
+    if (reframe) clocks.current.bus = advanceCommunityBusClock(worldHour, 0, trafficBlocked);
     clocks.current.world = worldHour;
     Object.assign(bus, sampleCommunityBus(clocks.current.bus));
-    Object.assign(bicycle, sampleCommunityCyclist(clocks.current.people));
-    const drop = sampleCommunityDelivery(clocks.current.people);
-    const campaign = useOperationsCampaignStore.getState();
+    // Under reduced motion people cut from stop to stop (communityStillHour);
+    // the shuttle is a vehicle and keeps driving, like the plant's trucks.
+    const shownHour = (person: (typeof COMMUNITY_ROSTER)[number], hour: number) =>
+      reducedMotion ? communityStillHour(person, hour) : hour;
+    Object.assign(bicycle, sampleCommunityCyclist(shownHour(CYCLIST, clocks.current.people)));
+    const drop = sampleCommunityDelivery(shownHour(COURIER, clocks.current.people));
     const workplace = useWorkplaceStore.getState().workplace;
-    operations.machines = useProductionStore.getState().machines;
-    operations.workOrders = useBreakdownStore.getState().workOrders;
-    operations.batches = useMaterialFlowStore.getState().productionBatches;
-    operations.bakeryStocked = hasCommunityBakerySupply(campaign.orders, campaign.elapsedMinutes);
-    operations.weather = game.weather;
+    readCommunityOperations(operations);
     for (let i = 0; i < residents.length; i++) {
       const actor = residents[i],
         root = roots.current[i];
@@ -208,27 +322,39 @@ export function CommunityLife() {
       );
       sampleCommunityPerson(
         actor.person,
-        actor.person.district === 'bus' ? clocks.current.bus : actor.hour,
+        shownHour(actor.person, actor.person.district === 'bus' ? clocks.current.bus : actor.hour),
         actor.pose
       );
       const { pose, motion } = actor;
       root.position.set(...pose.position);
-      const turn = Math.atan2(
-        Math.sin(pose.rotation - root.rotation.y),
-        Math.cos(pose.rotation - root.rotation.y)
-      );
-      root.rotation.y =
-        moving && !jump ? root.rotation.y + turn * (1 - Math.exp(-delta * 8)) : pose.rotation;
+      // Riders and held cart grips share their prop's exact heading. Easing only
+      // the body breaks the hand/foot contacts during turns.
+      // Working if rider and bicycle transforms agree on every moving frame.
+      const coupled =
+        actor.person.role === 'Cyclist' ||
+        (actor.person.id === 'village-courier' && !!drop.cartGrip);
+      root.rotation.y = communityRootYaw(root.rotation.y, pose.rotation, delta, {
+        moving,
+        cut: reframe || reducedMotion,
+        coupled,
+      });
       root.visible = pose.visible;
       motion.activity = emergency && !pose.seated ? 'idle' : pose.activity;
       motion.seated = pose.seated;
+      updateSeatCue(motion, pose, root.rotation.y);
       motion.seatFloorOffset = actor.person.district === 'bus' ? 0.048 : 0;
       motion.cycling = actor.person.role === 'Cyclist';
       motion.cyclePhase = bicycle.pedalPhase;
       motion.cartGrip = actor.person.id === 'village-courier' ? drop.cartGrip : undefined;
+      // A faster pace is a time-lapse of the same walk: the gait stays a walk
+      // while its cadence follows the ground covered (WorkerModel.workerGaitRates).
+      motion.gaitScale = gaitScale;
       motion.groundSpeed =
-        moving && !jump && delta > 0
-          ? Math.min(4, Math.hypot(pose.position[0] - oldX, pose.position[2] - oldZ) / delta)
+        moving && !jump && !reducedMotion && delta > 0
+          ? Math.min(
+              4 * gaitScale,
+              Math.hypot(pose.position[0] - oldX, pose.position[2] - oldZ) / delta
+            )
           : 0;
       // Cosmetic motion is omitted far away. Semantic poses still
       // update in WorkerModel when enabled is false.
@@ -237,22 +363,70 @@ export function CommunityLife() {
       if (label) label.visible = distanceSquared < 50 * 50;
       motion.animationInterval =
         distanceSquared < 18 * 18 ? 1 / 60 : distanceSquared < 50 * 50 ? 1 / 30 : 1 / 15;
-      motion.enabled = moving && !reducedMotion && pose.visible && distanceSquared < 150 * 150;
+      motion.enabled =
+        ((moving && presentedElapsed > 0) || settling) &&
+        !reducedMotion &&
+        pose.visible &&
+        distanceSquared < 150 * 150;
       const response = communityWorkResponse(actor.person, pose, operations, actor.response);
       communityAgreementResponse(agreement, pose, response);
       const task = emergency ? 'Holding safely for the site safety stop' : response.task;
       if (!emergency) motion.activity = response.activity;
+      // A trip shown from its doorway is a person standing there, not mid-stride.
+      if (reducedMotion && motion.activity === 'walking') motion.activity = 'idle';
+      motion.briefing = !emergency && agreement?.state === 'briefing';
       Object.assign(root.userData, {
         activity: motion.activity,
         task,
         seated: pose.seated,
+        greeting: false,
         groundSpeed: motion.groundSpeed,
         agreementMemberId: agreement?.memberId ?? null,
         agreementState: agreement?.state ?? null,
         agreementPresentation: agreement ? 'representative' : null,
       });
     }
-    cart.visible = drop.visible;
+    // Second pass: all recipients now have this frame's pose, not a mixture of frames.
+    for (let i = 0; i < residents.length; i++) {
+      const actor = residents[i],
+        root = roots.current[i];
+      if (!root) continue;
+      // The replay already captures motion.greetingTargetId. Seed hysteresis
+      // from that authoritative state, never an uncaptured future recipient.
+      // Working if restoring old/null motion discards the stale scratch target.
+      actor.greeting.targetId = actor.motion.greetingTargetId ?? null;
+      const greeting = sampleCommunityGreeting(actor.person, actor.pose, residents, actor.greeting);
+      actor.motion.greetingTargetId = greeting.targetId;
+      actor.motion.greetingYaw = greeting.yaw;
+      const motion = actor.motion;
+      // The route already owns the desired direction. Look into its real turn,
+      // relative to the eased root, without sampling a future simulation state.
+      // Working if the head acknowledges turns while routes/prop contacts stay exact.
+      const routeTurn = actor.pose.rotation - root.rotation.y;
+      motion.attentionYaw =
+        motion.activity === 'walking' &&
+        motion.enabled &&
+        !jump &&
+        !motion.seated &&
+        !motion.seat &&
+        !motion.cycling &&
+        !motion.cartGrip
+          ? THREE.MathUtils.clamp(Math.atan2(Math.sin(routeTurn), Math.cos(routeTurn)), -0.6, 0.6)
+          : communityPassengerAttention(actor.person, actor.pose, bus);
+      root.userData.attentionYaw = actor.motion.attentionYaw;
+      actor.motion.greeting =
+        !emergency &&
+        !actor.motion.briefing &&
+        actor.motion.activity === 'idle' &&
+        !!greeting.targetId;
+      root.userData.greeting = actor.motion.greeting;
+      root.userData.greetingTargetId = greeting.targetId;
+      if (!emergency && actor.pose.task === 'Greeting a neighbour')
+        root.userData.task = greeting.targetId
+          ? 'Greeting a passing neighbour'
+          : 'A moment outside the shop';
+    }
+    cart.visible = drop.cartVisible;
     cart.rotation = Math.PI;
     // Handles terminate at the courier's hands, with the cart trailing behind.
     cart.position[0] = drop.cartX;
@@ -263,7 +437,7 @@ export function CommunityLife() {
   return (
     <>
       <group name="world-personnel" visible={enabled} userData={{ noStaticBatch: true }}>
-        {residents.map(({ person, appearance, motion, pose }, index) => (
+        {residents.map(({ person, appearance, motion, pose, userData }, index) => (
           <group
             key={person.id}
             name={person.id}
@@ -273,7 +447,7 @@ export function CommunityLife() {
             position={pose.position}
             rotation={[0, pose.rotation, 0]}
             visible={pose.visible}
-            userData={{ communityId: person.id, activity: pose.activity, task: pose.task }}
+            userData={userData}
           >
             <WorkerModel appearance={appearance} motion={motion} />
             <group

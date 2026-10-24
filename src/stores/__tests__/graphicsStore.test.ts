@@ -5,8 +5,9 @@
  * SCADA toggle, and performance debug settings.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { ToneMappingMode } from 'postprocessing';
+import { adaptiveQualityManager } from '../../utils/adaptiveQuality';
 import * as THREE from 'three';
 import {
   useGraphicsStore,
@@ -47,6 +48,7 @@ describe('GraphicsStore', () => {
     expect(recovered.anisotropyLevel).toBe(GRAPHICS_PRESETS.high.anisotropyLevel);
     expect(recovered.perfDebug.disableMachines).toBe(true);
     expect(recovered.perfDebug.disableMachineFinish).toBe(false);
+    expect(recovered.perfDebug.disableInteriorLightBanks).toBe(false);
     expect(recovered.perfDebug.disableAmbientOcclusion).toBe(false);
     expect(recovered.perfDebug.disableBloom).toBe(false);
     expect(recovered.perfDebug.disableEnvironment).toBe(false);
@@ -430,7 +432,9 @@ describe('GraphicsStore', () => {
     });
 
     it('uses Khronos PBR Neutral on both the renderer and the composer path', () => {
-      expect(RENDERER_TONE_MAPPING).toBe(THREE.NeutralToneMapping);
+      // `low` runs Neutral through three's Custom slot, which carries the
+      // display toe's dark-pixel lift (shaders/displayToeToneMapping.ts).
+      expect(RENDERER_TONE_MAPPING).toBe(THREE.CustomToneMapping);
       expect(DEFAULT_TONE_MAPPING_MODE).toBe(ToneMappingMode.NEUTRAL);
     });
 
@@ -660,5 +664,105 @@ describe('GraphicsStore', () => {
       expect(settings.enableGrainFlow).toBe(true);
       expect(settings.dustParticleCount).toBe(GRAPHICS_PRESETS.medium.dustParticleCount);
     });
+  });
+});
+
+describe('explicit quality choices and adaptive decisions', () => {
+  let idle: Array<() => void>;
+
+  beforeEach(() => {
+    useGraphicsStore.setState(useGraphicsStore.getInitialState(), true);
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(120000);
+    idle = [];
+    vi.stubGlobal('requestIdleCallback', (callback: () => void) => {
+      idle.push(callback);
+      return idle.length;
+    });
+    adaptiveQualityManager.reset();
+    adaptiveQualityManager.initialize();
+    adaptiveQualityManager.setEnabled(true);
+  });
+
+  afterEach(() => {
+    adaptiveQualityManager.setEnabled(false);
+    adaptiveQualityManager.reset();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it('does not let a queued adaptive decision overwrite a same-tier manual choice', () => {
+    for (let frame = 0; frame < 96; frame++) adaptiveQualityManager.update(1 / 20);
+    expect(idle).toHaveLength(1);
+    expect(useGraphicsStore.getState().graphics.quality).toBe('medium');
+    useGraphicsStore.getState().setGraphicsQuality('medium');
+    // The idle callback wins before another render frame can observe the choice.
+    idle[0]();
+    expect(useGraphicsStore.getState().graphics.quality).toBe('medium');
+  });
+
+  it('records explicit preset intent without persisting it or counting adaptive writes', () => {
+    const initial = useGraphicsStore.getState().qualityChoiceRevision;
+    useGraphicsStore.getState().setGraphicsQuality('medium');
+    expect(useGraphicsStore.getState().qualityChoiceRevision).toBe(initial + 1);
+    useGraphicsStore.getState().setGraphicsQuality('low', 'adaptive');
+    expect(useGraphicsStore.getState().qualityChoiceRevision).toBe(initial + 1);
+    useGraphicsStore.getState().resetGraphicsToPreset('medium');
+    expect(useGraphicsStore.getState().qualityChoiceRevision).toBe(initial + 2);
+    const persisted = useGraphicsStore.persist.getOptions().partialize!(
+      useGraphicsStore.getState()
+    );
+    expect(persisted).not.toHaveProperty('qualityChoiceRevision');
+    expect(persisted.graphics).toEqual(GRAPHICS_PRESETS.medium);
+  });
+
+  it('requires fresh evidence after a choice and still adapts under unchanged timing', () => {
+    for (let frame = 0; frame < 90; frame++) adaptiveQualityManager.update(1 / 20);
+    expect(idle).toHaveLength(0);
+    useGraphicsStore.getState().setGraphicsQuality('medium');
+    for (let frame = 0; frame < 96; frame++) adaptiveQualityManager.update(1 / 20);
+    expect(idle).toHaveLength(0);
+    expect(useGraphicsStore.getState().graphics.quality).toBe('medium');
+    // Original 12-second cooldown and fresh 2.5-second sustained low FPS remain.
+    vi.setSystemTime(132001);
+    for (let frame = 0; frame < 96; frame++) adaptiveQualityManager.update(1 / 20);
+    expect(idle).toHaveLength(1);
+    idle[0]();
+    expect(useGraphicsStore.getState().graphics.quality).toBe('low');
+    const revision = useGraphicsStore.getState().qualityChoiceRevision;
+    vi.setSystemTime(144002);
+    for (let frame = 0; frame < 1600; frame++) adaptiveQualityManager.update(1 / 60);
+    expect(idle).toHaveLength(2);
+    idle[1]();
+    expect(useGraphicsStore.getState().graphics.quality).toBe('medium');
+    expect(useGraphicsStore.getState().qualityChoiceRevision).toBe(revision);
+    vi.setSystemTime(156003);
+    for (let frame = 0; frame < 1600; frame++) adaptiveQualityManager.update(1 / 60);
+    expect(idle).toHaveLength(2); // Recovery never exceeds the chosen ceiling.
+  });
+
+  it('keeps a newer decision owned when an obsolete idle callback returns', () => {
+    for (let frame = 0; frame < 96; frame++) adaptiveQualityManager.update(1 / 20);
+    expect(idle).toHaveLength(1);
+    useGraphicsStore.getState().setGraphicsQuality('medium');
+    adaptiveQualityManager.update(1 / 20);
+    vi.setSystemTime(132001);
+    for (let frame = 0; frame < 96; frame++) adaptiveQualityManager.update(1 / 20);
+    expect(idle).toHaveLength(2);
+    idle[0]();
+    for (let frame = 0; frame < 96; frame++) adaptiveQualityManager.update(1 / 20);
+    expect(idle).toHaveLength(2);
+    expect(useGraphicsStore.getState().graphics.quality).toBe('medium');
+    idle[1]();
+    expect(useGraphicsStore.getState().graphics.quality).toBe('low');
+  });
+
+  it.each(['disable', 'reset'] as const)('invalidates deferred work on %s', (action) => {
+    for (let frame = 0; frame < 96; frame++) adaptiveQualityManager.update(1 / 20);
+    expect(idle).toHaveLength(1);
+    if (action === 'disable') adaptiveQualityManager.setEnabled(false);
+    else adaptiveQualityManager.reset();
+    idle[0]();
+    expect(useGraphicsStore.getState().graphics.quality).toBe('medium');
   });
 });

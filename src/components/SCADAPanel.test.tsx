@@ -2,7 +2,12 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TagDefinition, TagHistoryPoint, TagValue } from '../scada/types';
+import { setLocale } from '../i18n';
+import { useBreakdownStore } from '../stores/breakdownStore';
 import { useGraphicsStore } from '../stores/graphicsStore';
+import { useMaterialFlowStore } from '../stores/materialFlowStore';
+import { useOperationsCampaignStore } from '../stores/operationsCampaignStore';
+import { useQCLabStore } from '../stores/qcLabStore';
 import { SCADAPanel } from './SCADAPanel';
 
 const testState = vi.hoisted(() => {
@@ -42,6 +47,7 @@ const testState = vi.hoisted(() => {
     getHistory: vi.fn(async (): Promise<TagHistoryPoint[]> => []),
     getAlarmHistory: vi.fn(async () => []),
     setConnectionConfig: vi.fn(async () => undefined),
+    writeSetpoint: vi.fn(async () => true),
   };
 });
 
@@ -59,6 +65,7 @@ vi.mock('../scada', () => ({
     exportToCSV: testState.exportToCSV,
     exportToJSON: testState.exportToJSON,
     getHistory: testState.getHistory,
+    writeSetpoint: testState.writeSetpoint,
   }),
   useSCADAAlarms: () => ({
     alarms: [],
@@ -122,6 +129,28 @@ describe('SCADAPanel', () => {
     expect(openWorkspace).toHaveFocus();
   });
 
+  it('keeps focus where the operator put it when the docked panel re-renders', async () => {
+    // The docked panel hands the workspace a fresh inline onClose on every
+    // render (each live tag update). That must not re-run the open-dialog
+    // focus effect: it moved focus to Close, so an Enter meant for the
+    // setpoint form closed the workspace instead.
+    const { rerender } = render(<SCADAPanel isOpen onClose={vi.fn()} embedded />);
+    fireEvent.click(screen.getByRole('button', { name: 'Open full SCADA workspace' }));
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Full simulated SCADA workspace',
+    });
+    const closeButton = within(dialog).getByRole('button', { name: 'Close SCADA panel' });
+    await waitFor(() => expect(closeButton).toHaveFocus());
+
+    fireEvent.click(within(dialog).getByRole('tab', { name: 'Tags' }));
+    const search = within(dialog).getByPlaceholderText('Search tags...');
+    search.focus();
+    expect(search).toHaveFocus();
+
+    rerender(<SCADAPanel isOpen onClose={vi.fn()} embedded />);
+    expect(search).toHaveFocus();
+  });
+
   it('exposes process, event, simulation, and connection workspaces with scene linking', () => {
     const onFocusMachine = vi.fn();
     render(
@@ -161,6 +190,45 @@ describe('SCADAPanel', () => {
     expect(connectionsTab).toHaveAttribute('aria-selected', 'true');
   });
 
+  it('offers an operator setpoint control on a writable tag in the Tags tab', async () => {
+    const setpoint: TagDefinition = {
+      id: 'RM101.ST001.SP',
+      name: 'RM-101 Speed Setpoint',
+      description: 'Test speed setpoint',
+      dataType: 'FLOAT32',
+      accessMode: 'READ_WRITE',
+      engUnit: 'RPM',
+      engLow: 0,
+      engHigh: 2000,
+      machineId: 'rm-101',
+      group: 'SETPOINT',
+    };
+    testState.tags.push(setpoint);
+    testState.values.set(setpoint.id, {
+      tagId: setpoint.id,
+      value: 1200,
+      quality: 'GOOD',
+      timestamp: Date.now(),
+    });
+    try {
+      render(<SCADAPanel isOpen onClose={vi.fn()} />);
+      fireEvent.click(screen.getByRole('tab', { name: 'Tags' }));
+      fireEvent.click(screen.getByRole('button', { name: /^rm-101/ }));
+
+      // Read-only tags get no control; the writable one does.
+      expect(screen.getAllByRole('button', { name: 'Apply' })).toHaveLength(1);
+      const input = screen.getByLabelText('New setpoint for RM-101 Speed Setpoint (RPM)');
+      fireEvent.change(input, { target: { value: '1500' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+      await waitFor(() =>
+        expect(testState.writeSetpoint).toHaveBeenCalledWith('RM101.ST001.SP', 1500)
+      );
+    } finally {
+      testState.tags.pop();
+      testState.values.delete(setpoint.id);
+    }
+  });
+
   it('caps trend selection at six tags', () => {
     render(<SCADAPanel isOpen onClose={vi.fn()} />);
     fireEvent.click(screen.getByRole('tab', { name: 'Trends' }));
@@ -195,5 +263,71 @@ describe('SCADAPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'CSV' }));
     expect(testState.exportToCSV).toHaveBeenCalledWith(['RM101.TT001.PV'], 5 * 60 * 1000);
+  });
+
+  it('renders plant-state values and an English-raised incident in Portuguese', () => {
+    const campaign = useOperationsCampaignStore.getState();
+    const flow = useMaterialFlowStore.getState();
+    const breakdowns = useBreakdownStore.getState();
+    const qc = useQCLabStore.getState();
+    try {
+      setLocale('en');
+      campaign.resetCampaign();
+      useOperationsCampaignStore.getState().triggerIncident('power_sag');
+      setLocale('pt-BR');
+      useOperationsCampaignStore.setState((state) => ({
+        execution: {
+          ...state.execution,
+          stage: 'quality_hold',
+          sourceMaterial: 'wheat_grain',
+          finishedMaterial: 'flour',
+          dispatchLoad: { ...state.execution.dispatchLoad, status: 'departed', blockReason: null },
+        },
+      }));
+      useMaterialFlowStore.setState({
+        productionBatches: [
+          {
+            ...(flow.productionBatches[0] ?? {}),
+            id: 'batch-0042',
+            disposition: 'released',
+            availableKg: 1234.5,
+          } as never,
+        ],
+      });
+      useBreakdownStore.setState({
+        workOrders: [{ id: 'wo-0007', phase: 'awaiting_parts' } as never],
+      });
+      useQCLabStore.setState((state) => ({
+        qcLab: {
+          ...state.qcLab,
+          dispositionHistory: [
+            { id: 'qd-0003', action: 'hold', referenceId: 'batch-0042' } as never,
+          ],
+        },
+      }));
+
+      const { container } = render(<SCADAPanel isOpen onClose={vi.fn()} />);
+      const text = container.textContent ?? '';
+
+      expect(screen.getByText('Retenção de qualidade')).toBeInTheDocument();
+      expect(screen.getByText('Grão de trigo')).toBeInTheDocument();
+      expect(screen.getByText('para farinha')).toBeInTheDocument();
+      expect(screen.getByText('Saiu')).toBeInTheDocument();
+      expect(screen.getByText('Aguardando peças, serviço autônomo')).toBeInTheDocument();
+      expect(screen.getByText(/^Liberado, 1\.234,5 kg$/)).toBeInTheDocument();
+      expect(screen.getByText('Retenção, batch-0042')).toBeInTheDocument();
+      expect(screen.getByText('Queda de tensão na unidade')).toBeInTheDocument();
+      expect(text).not.toMatch(
+        /quality hold|wheat grain|\bflour\b|departed|released|awaiting parts|Site power sag/i
+      );
+      // Portuguese never title-cases: the Overview carries no CSS capitalize.
+      expect(container.querySelector('.capitalize')).toBeNull();
+    } finally {
+      setLocale('en');
+      campaign.resetCampaign();
+      useMaterialFlowStore.setState({ productionBatches: flow.productionBatches });
+      useBreakdownStore.setState({ workOrders: breakdowns.workOrders });
+      useQCLabStore.setState({ qcLab: qc.qcLab });
+    }
   });
 });

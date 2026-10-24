@@ -1,9 +1,12 @@
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
+import { beginStartupTask } from '../../utils/startupReadiness';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { applyLampLens, lampLensStyle, type LampStyle } from '../models/GeneratedLampModel';
 import {
   applyDeclinedWorldSurface,
   ownsOnlyWorldSurface,
+  pinnedSurfaceProfile,
   resolveSurfaceProfile,
 } from '../../utils/worldSurface';
 import {
@@ -28,6 +31,7 @@ type BatchCandidate = {
   batchMaterialSignature: string;
   mergeMaterialSignature: string;
   instanceColor: THREE.Color | null;
+  lampStyle: LampStyle | null;
 };
 
 type StaticBatch = {
@@ -101,22 +105,28 @@ const MERGE_CELL_SIZE_METRES = 80;
 // runtime regression observed when the collection task was widened further.
 const MAX_BATCH_CANDIDATES_PER_TASK = 512;
 const MAX_CANDIDATE_SCAN_PER_TASK = 96;
-const pendingStaticBatches = new Set<symbol>();
+const pendingStaticBatches = new Map<symbol, ReturnType<typeof beginStartupTask>>();
 
 const publishPendingStaticBatchCount = (): void => {
   if (typeof document === 'undefined') return;
   document.documentElement.dataset.millosStaticBatchesPending = String(pendingStaticBatches.size);
 };
 
-const beginStaticBatch = (): symbol => {
+export const beginStaticBatch = (): symbol => {
   const token = Symbol('static-batch');
-  pendingStaticBatches.add(token);
+  // Share the existing progress barrier with imports and shader preparation.
+  // Working if batching keeps the loader in its building phase and cleanup
+  // releases only this root's task, including interrupted quality changes.
+  pendingStaticBatches.set(token, beginStartupTask());
   publishPendingStaticBatchCount();
   return token;
 };
 
-const finishStaticBatch = (token: symbol): void => {
+export const finishStaticBatch = (token: symbol): void => {
+  const finishStartupTask = pendingStaticBatches.get(token);
+  if (!finishStartupTask) return;
   pendingStaticBatches.delete(token);
+  finishStartupTask();
   publishPendingStaticBatchCount();
 };
 
@@ -292,6 +302,10 @@ const materialSignature = (
 ): string =>
   [
     material.type,
+    `lamp-lens:${lampLensStyle(material) ?? 'none'}`,
+    // `userData` is skipped below, but a pinned surface profile decides the
+    // finish of the whole merged group, so it has to split groups.
+    `surface-pin:${pinnedSurfaceProfile(material) ?? 'none'}`,
     ...Object.entries(material)
       .filter(([key, value]) => !MATERIAL_IDENTITY_KEYS.has(key) && typeof value !== 'function')
       .sort(([left], [right]) => left.localeCompare(right))
@@ -390,6 +404,11 @@ const geometryRenderDataFingerprint = (
   const cached = cache.get(geometry);
   if (cached !== undefined) return cached;
 
+  // Only a bucket key: `geometriesHaveEqualRenderData` decides every group, and
+  // `partitionByGeometryData` orders groups by first appearance, so the key can
+  // be any function of the header fields and the exact bytes. It folds the
+  // data in 32-bit words, inline: the former per-byte closure calls were
+  // ~1.2 s of startup main thread for the scene's instancing candidates.
   let first = 0x811c9dc5;
   let second = 0x9e3779b9;
   const updateByte = (value: number): void => {
@@ -404,6 +423,32 @@ const geometryRenderDataFingerprint = (
       updateByte(code >>> 8);
     }
     updateByte(0xff);
+  };
+  const updateBytes = (array: THREE.TypedArray): void => {
+    const { buffer, byteOffset, byteLength } = array;
+    const words = byteLength >>> 2;
+    let a = first;
+    let b = second;
+    if ((byteOffset & 3) === 0) {
+      const view = new Uint32Array(buffer, byteOffset, words);
+      for (let index = 0; index < words; index += 1) {
+        const word = view[index];
+        a = Math.imul(a ^ word, 0x01000193);
+        b = Math.imul(b ^ word, 0x85ebca6b);
+      }
+    } else {
+      const view = new DataView(buffer, byteOffset, byteLength);
+      for (let index = 0; index < words; index += 1) {
+        const word = view.getUint32(index * 4, true);
+        a = Math.imul(a ^ word, 0x01000193);
+        b = Math.imul(b ^ word, 0x85ebca6b);
+      }
+    }
+    first = a;
+    second = b;
+    const tail = new Uint8Array(buffer, byteOffset + words * 4, byteLength - words * 4);
+    for (const byte of tail) updateByte(byte);
+    updateText(byteLength);
   };
   const updateAttribute = (
     name: string,
@@ -422,8 +467,7 @@ const geometryRenderDataFingerprint = (
       updateText(attribute.offset);
       updateText(attribute.data.stride);
     }
-    const bytes = new Uint8Array(array.buffer, array.byteOffset, array.byteLength);
-    for (const byte of bytes) updateByte(byte);
+    updateBytes(array);
   };
 
   for (const [name, attribute] of Object.entries(geometry.attributes).sort(([left], [right]) =>
@@ -446,9 +490,17 @@ const geometryRenderDataFingerprint = (
   return fingerprint;
 };
 
-const partitionByGeometryData = (candidates: BatchCandidate[]): BatchCandidate[][] => {
+/**
+ * Candidates with equal render data, as groups in order of each group's first
+ * candidate. (The fingerprint only narrows the exact comparison; ordering by
+ * bucket instead would let a hash collision reorder groups.)
+ */
+export function partitionByGeometryData<T extends Pick<BatchCandidate, 'geometry'>>(
+  candidates: readonly T[]
+): T[][] {
   const fingerprintCache = new WeakMap<THREE.BufferGeometry, string>();
-  const buckets = new Map<string, BatchCandidate[][]>();
+  const buckets = new Map<string, T[][]>();
+  const ordered: T[][] = [];
   for (const candidate of candidates) {
     const fingerprint = geometryRenderDataFingerprint(candidate.geometry, fingerprintCache);
     const groups = buckets.get(fingerprint) ?? [];
@@ -456,11 +508,15 @@ const partitionByGeometryData = (candidates: BatchCandidate[]): BatchCandidate[]
       geometriesHaveEqualRenderData(group[0].geometry, candidate.geometry)
     );
     if (existing) existing.push(candidate);
-    else groups.push([candidate]);
+    else {
+      const group = [candidate];
+      groups.push(group);
+      ordered.push(group);
+    }
     if (!buckets.has(fingerprint)) buckets.set(fingerprint, groups);
   }
-  return [...buckets.values()].flat();
-};
+  return ordered;
+}
 
 const createMergedGeometry = (
   group: BatchCandidate[],
@@ -592,6 +648,8 @@ const isSupportedMaterial = (material: THREE.Material): boolean => {
     material instanceof THREE.MeshPhysicalMaterial;
   if (!supported) return false;
   if (material.clippingPlanes?.length) return false;
+  // Rest-space lens masks are safe only on opaque instances, never baked merges.
+  if (lampLensStyle(material)) return getInstanceColor(material) !== null;
   const civic = civicUnderlyingHooks(material);
   if (civic) {
     // Identity-proven wrapper. Arbitrary host/window/wind hooks still cannot
@@ -706,6 +764,7 @@ const inspectStaticBatchObject = (
       mergeCompatible: true,
     }),
     instanceColor,
+    lampStyle: lampLensStyle(object.material),
   });
 };
 
@@ -848,7 +907,12 @@ export const createStaticMeshBatches = (
    * into unbatched meshes. Guarded below at the call site.
    */
   const finishMaterial = (target: THREE.Material, source: THREE.Material): void => {
-    if (surface) {
+    const lampStyle = lampLensStyle(source);
+    if (lampStyle) {
+      // Material.clone drops hooks. Rebuild only the verified lens contract,
+      // without adding an automatic surface finish the source never carried.
+      applyLampLens(target as THREE.MeshStandardMaterial, lampStyle);
+    } else if (surface) {
       const applied = surface(target, source) ?? 'untreated';
       surfaceProfileCounts[applied] = (surfaceProfileCounts[applied] ?? 0) + 1;
     }
@@ -863,7 +927,9 @@ export const createStaticMeshBatches = (
       !hasExcludedAncestor(mesh, root) &&
       matrixIsStable(candidate.matrixWorld, mesh.matrixWorld) &&
       mesh.geometry === candidate.geometry &&
-      mesh.material === candidate.material
+      mesh.material === candidate.material &&
+      lampLensStyle(mesh.material) === candidate.lampStyle &&
+      (!candidate.lampStyle || isSupportedMaterial(mesh.material))
     );
   });
 
@@ -872,7 +938,7 @@ export const createStaticMeshBatches = (
   const mergeGroups = new Map<string, BatchCandidate[]>();
   stableCandidates.forEach((candidate) => {
     const { mesh } = candidate;
-    if (!candidate.instanceColor || !mesh.parent) return;
+    if (!candidate.instanceColor || !mesh.parent || candidate.lampStyle) return;
 
     relativeMatrix.multiplyMatrices(inverseRoot, mesh.matrixWorld);
     relativePosition.setFromMatrixPosition(relativeMatrix);
@@ -931,6 +997,9 @@ export const createStaticMeshBatches = (
     finishMaterial(material, representative.material);
 
     const mergedMesh = new THREE.Mesh(geometry, material);
+    // Vertices are already baked relative to root. Only this owned output's
+    // identity local transform is fixed; world updates must still follow root.
+    mergedMesh.matrixAutoUpdate = false;
     mergedMesh.name = `static-merge:${name}:${batchIndex}`;
     mergedMesh.castShadow = representative.castShadow;
     mergedMesh.receiveShadow = representative.receiveShadow;
@@ -1053,12 +1122,17 @@ export const createStaticMeshBatches = (
         batchMaterial,
         activeGroup.length
       );
+      // Instance matrices contain the source transforms relative to root.
+      // Keep parent/world updates live without recomposing an identity matrix.
+      instance.matrixAutoUpdate = false;
       instance.name = `static-batch:${name}:${batchIndex}`;
       instance.castShadow = representative.castShadow;
       instance.receiveShadow = representative.receiveShadow;
       instance.renderOrder = representative.renderOrder;
       instance.layers.mask = representative.layers.mask;
       instance.userData.staticBatch = true;
+      if (activeGroup[0].lampStyle)
+        instance.userData.staticBatchLampStyle = activeGroup[0].lampStyle;
 
       const originals: StaticBatch['originals'] = [];
       activeGroup.forEach((candidate, index) => {
@@ -1177,6 +1251,13 @@ export const StaticMeshBatch: React.FC<StaticMeshBatchProps> = ({
 
     const pendingToken = beginStaticBatch();
     root.userData.staticBatchReady = false;
+    // Named phases distinguish a starved callback from an unstable scene tree.
+    // Working if timeout evidence names unfinished roots without changing work.
+    const phase = (value: string): void => {
+      root.userData.staticBatchPhase = value;
+      root.userData.staticBatchPhaseAt = performance.now();
+    };
+    phase('waiting-for-stable-tree');
     let batchFinished = false;
     let cancelled = false;
     let pollTimer = 0;
@@ -1189,6 +1270,7 @@ export const StaticMeshBatch: React.FC<StaticMeshBatchProps> = ({
       if (batchFinished) return;
       batchFinished = true;
       root.userData.staticBatchReady = true;
+      phase(cancelled ? 'cancelled' : 'ready');
       finishStaticBatch(pendingToken);
     };
 
@@ -1200,6 +1282,7 @@ export const StaticMeshBatch: React.FC<StaticMeshBatchProps> = ({
       previousCount = candidateCount;
 
       if (stablePolls >= 2) {
+        phase('scanning');
         const schedule = (callback: () => void): void => {
           batchTimers.push(window.setTimeout(callback, 0));
         };
@@ -1208,6 +1291,7 @@ export const StaticMeshBatch: React.FC<StaticMeshBatchProps> = ({
           schedule,
           () => cancelled,
           (candidates) => {
+            phase('sampling-transforms');
             sampleTimer = window.setTimeout(() => {
               if (cancelled) return;
               const orderedCandidates = orderStaticBatchCandidatesForChunking(root, candidates);
@@ -1228,6 +1312,7 @@ export const StaticMeshBatch: React.FC<StaticMeshBatchProps> = ({
                   markFinished();
                   return;
                 }
+                phase(`batching:${index + 1}/${candidateChunks.length}`);
                 const chunk = candidateChunks[index];
                 if (chunk) {
                   batches.push(

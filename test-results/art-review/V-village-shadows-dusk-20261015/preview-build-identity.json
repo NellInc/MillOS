@@ -1,0 +1,14 @@
+{
+  "index": {
+    "url": "http://127.0.0.1:4288/",
+    "sha256": "17295ee5ba888e895fda78e1150a404c700a159a7a21186e4f69d5801f885b42",
+    "bytes": 9887
+  },
+  "entries": [
+    {
+      "url": "http://127.0.0.1:4288/assets/main-gfuLwVmJ.js",
+      "sha256": "8595b76ce2416ab8ce6104ca0f796f91f28c78b7795c5328d02db332e40693ce",
+      "bytes": 823697
+    }
+  ]
+}

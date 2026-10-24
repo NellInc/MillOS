@@ -1,0 +1,108 @@
+{
+  "scope": "Local settled dev assembly export for existing civic baker, not final production visual acceptance",
+  "sourcePins": {
+    "src/components/scenery/CommunityDetails.tsx": "c9a1000635bca04187691c3203996ca6e43a352ea56b8e06f20a147ae8f25117",
+    "src/components/scenery/CommunityDetails.test.ts": "7a6bdba853b3d561d5358eb3f9747e2f363d9a567567d1a8d162daaacd706968",
+    "src/components/workers/WorkerTools.tsx": "1573d432b0ea965b0c1e4614988f2cc66cb4a3737704f7975c97bed928863fd9",
+    "src/components/workers/SharedWorkerMaterials.ts": "ee37da02cab509120ab5f44c84659648a353ff0487feffee3ddeb3943e2806fd",
+    "src/components/workers/workerPose.ts": "77d9e3357ca0e8cc593c60e7136c7b5740bed374838016d83c77cffc862b049c",
+    "src/components/workers/workerPose.test.ts": "dfdc517d33883964efe0774db723e0aaa4b4f81ade43a1f19f5907ca9bb34b21",
+    "src/components/workers/WorkerModel.test.tsx": "43fbf81de6941e8d68e42ec7eb4c2f0565f6ef90aa7626e7d9a489c84af7b5d9",
+    "src/constants/civicSquareLighting.ts": "0db2d734ac43973ba2b049d263bdebbeae3bb47cf25bf5979698d97941194424"
+  },
+  "errors": [],
+  "pageErrors": [],
+  "failedRequests": [],
+  "gpu": {
+    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1 Max, Version 27.0.1 (Build 26A434))",
+    "sandboxed": true,
+    "inProcessGpu": false
+  },
+  "runtime": {
+    "world": {
+      "required": [
+        "world-root",
+        "world-environment",
+        "world-factory-process",
+        "world-factory-infrastructure",
+        "world-conveyors",
+        "world-forklifts",
+        "world-logistics",
+        "world-personnel",
+        "world-community-details",
+        "world-terrain",
+        "authored-factory-exterior",
+        "authored-castle",
+        "authored-farm",
+        "authored-village",
+        "optimized-sky-system",
+        "optimized-horizon-backdrop",
+        "near-horizon-city",
+        "sun-visual",
+        "moon-visual"
+      ],
+      "present": [
+        "world-root",
+        "world-environment",
+        "world-factory-process",
+        "world-factory-infrastructure",
+        "world-conveyors",
+        "world-forklifts",
+        "world-logistics",
+        "world-personnel",
+        "world-community-details",
+        "world-terrain",
+        "authored-factory-exterior",
+        "authored-castle",
+        "authored-farm",
+        "authored-village",
+        "optimized-sky-system",
+        "optimized-horizon-backdrop",
+        "near-horizon-city",
+        "sun-visual",
+        "moon-visual"
+      ],
+      "visible": [
+        "world-root",
+        "world-environment",
+        "world-factory-process",
+        "world-factory-infrastructure",
+        "world-conveyors",
+        "world-forklifts",
+        "world-logistics",
+        "world-personnel",
+        "world-community-details",
+        "world-terrain",
+        "authored-factory-exterior",
+        "authored-castle",
+        "authored-farm",
+        "authored-village"
+      ],
+      "missing": [],
+      "hidden": [],
+      "passed": true
+    },
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "quality": "medium",
+    "civic": {
+      "atlas": true,
+      "sources": 27,
+      "materials": 1914,
+      "maxTextureSize": 16384,
+      "maxFragmentSamplers": 16,
+      "largestProgramSamplers": 12,
+      "unlinkedPrograms": 0
+    }
+  },
+  "export": {
+    "inputSha256": "cb3e1cd12ce8d441c3582995ae26a45dbdf8220b952231728c18d9753a6ce392",
+    "vertices": 420710,
+    "triangles": 180416,
+    "sources": 27,
+    "bytes": 27362309
+  },
+  "passed": true
+}

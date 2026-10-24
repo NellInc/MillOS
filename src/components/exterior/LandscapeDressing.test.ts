@@ -84,6 +84,41 @@ describe('authored landscape cohesion', () => {
       expect(meadowTransforms(segments)).toEqual(shrubs);
     }
   );
+  it('authors one bounded, asymmetric mineral-coloured outcrop', () => {
+    const g = MEADOW_STONE_GEOMETRY;
+    const old = new THREE.DodecahedronGeometry(0.6, 0);
+    expect(g.getAttribute('position').count).toBe(old.getAttribute('position').count);
+    expect(Array.from(g.getAttribute('position').array)).not.toEqual(
+      Array.from(old.getAttribute('position').array)
+    );
+    const colours = g.getAttribute('color');
+    expect(colours.count).toBe(g.getAttribute('position').count);
+    expect([...colours.array, ...g.getAttribute('normal').array].every(Number.isFinite)).toBe(true);
+    expect(Math.max(...colours.array) - Math.min(...colours.array)).toBeGreaterThan(0.05);
+    expect(g.boundingSphere!.radius).toBeLessThan(0.61);
+    old.dispose();
+  });
+  it.each([64, 128])(
+    'buries stone centres beneath the surrounding slope on the %i grid',
+    (segments) => {
+      for (const item of meadowTransforms(segments, true)) {
+        const radius =
+          MEADOW_STONE_GEOMETRY.boundingSphere!.radius * Math.max(item.scale[0], item.scale[2]);
+        for (let j = 0; j < 8; j++) {
+          const a = (j * Math.PI) / 4;
+          expect(item.position[1] + item.scale[1] * 0.16).toBeLessThanOrEqual(
+            SITE_LAYOUT.datum.terrain +
+              sampleTerrainGroundHeight(
+                item.position[0] + Math.cos(a) * radius,
+                item.position[2] + Math.sin(a) * radius,
+                segments
+              ) +
+              1e-6
+          );
+        }
+      }
+    }
+  );
   it.each([64, 128])(
     'grounds every crown on the real %i grid with a bounded instance budget',
     (segments) => {
@@ -136,8 +171,16 @@ describe('continuous canal-to-river overflow', () => {
     const canal = SITE_LAYOUT.exteriorFeatures.canal;
     expect(CANAL_OUTLET.west).toBe(canal.position[0] + (canal.width - 1) / 2);
     const sections = canalEastBankSections(canal.length, canal.position[2]);
-    expect(sections[0][1] + canal.position[2]).toBe(CANAL_OUTLET.south - CANAL_OUTLET.width);
-    expect(sections[1][0] + canal.position[2]).toBe(CANAL_OUTLET.south);
+    // Each bank stub ends INSIDE the 0.8 m outlet wall it meets, not flush with
+    // its face: flush, the stub's end and the wall's face were coplanar
+    // (10 m^2 at z -114 down the deep footing, 1.5 m^2 at z -106).
+    const stubEnd = sections[0][1] + canal.position[2];
+    const opening = CANAL_OUTLET.south - CANAL_OUTLET.width;
+    expect(stubEnd).toBeLessThan(opening - 0.005);
+    expect(stubEnd).toBeGreaterThan(opening - 0.8);
+    const stubStart = sections[1][0] + canal.position[2];
+    expect(stubStart).toBeGreaterThan(CANAL_OUTLET.south + 0.005);
+    expect(stubStart).toBeLessThan(CANAL_OUTLET.south + 0.8);
     expect(sections.every(([a, b]) => b > a)).toBe(true);
     const g = createCanalOutletSurface();
     const mesh = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));

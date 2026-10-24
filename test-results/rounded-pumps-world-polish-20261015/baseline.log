@@ -1,0 +1,14 @@
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+
+ Test Files  5 passed (5)
+      Tests  150 passed (150)
+   Start at  00:20:37
+   Duration  103.54s (transform 9.56s, setup 2.06s, import 52.67s, tests 39.78s, environment 5.58s)
+
+npm notice
+npm notice New major version of npm available! 11.19.0 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice

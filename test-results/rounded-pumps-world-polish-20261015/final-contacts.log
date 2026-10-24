@@ -1,0 +1,9 @@
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+
+ Test Files  3 passed (3)
+      Tests  48 passed (48)
+   Start at  00:45:01
+   Duration  143.41s (transform 11.80s, setup 1.23s, import 124.96s, tests 6.04s, environment 6.60s)
+

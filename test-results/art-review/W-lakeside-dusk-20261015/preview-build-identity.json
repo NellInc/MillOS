@@ -1,0 +1,14 @@
+{
+  "index": {
+    "url": "http://127.0.0.1:4288/",
+    "sha256": "a2bc95b639f0cf7aaf90ff8c39fb3fa2b90aec43762c746b2e98e83477548d9a",
+    "bytes": 9887
+  },
+  "entries": [
+    {
+      "url": "http://127.0.0.1:4288/assets/main-DKDoJWrC.js",
+      "sha256": "83c5ffa8a95369a841564e4f21caf3f46afada12cda3379c503538893a1a0f59",
+      "bytes": 823697
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+
+> grain-mill-simulator@0.40.0 test
+> vitest run src/components/workers/workerPose.test.ts src/components/workers/WorkerModel.test.tsx
+
+(node:33758) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+ ❯ src/components/workers/workerPose.test.ts (89 tests | 2 failed) 8125ms
+   × eases the stationary garden-to-idle pelvis without an upward snap 14ms
+   × keeps real garden feet planted and chains unstretched through rise, pause and return 4ms
+(node:34140) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/workers/workerPose.test.ts > eases the stationary garden-to-idle pelvis without an upward snap
+ReferenceError: restingPalm is not defined
+ ❯ applyTask src/components/workers/workerPose.ts:624:64
+    622|           target.z += gesture.toolZ / widthScale;
+    623|         }
+    624|         if (task === 'garden' && gardenWeight < 1) target.lerp(resting…
+       |                                                                ^
+    625|         // Grip denotes the centre of the palm, not the wrist joint ab…
+    626|         target.y += palmLengths[index];
+ ❯ Object.applyGarden src/components/workers/workerPose.ts:667:7
+ ❯ src/components/workers/workerPose.test.ts:1329:10
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/components/workers/workerPose.test.ts > keeps real garden feet planted and chains unstretched through rise, pause and return
+ReferenceError: restingPalm is not defined
+ ❯ applyTask src/components/workers/workerPose.ts:624:64
+    622|           target.z += gesture.toolZ / widthScale;
+    623|         }
+    624|         if (task === 'garden' && gardenWeight < 1) target.lerp(resting…
+       |                                                                ^
+    625|         // Grip denotes the centre of the palm, not the wrist joint ab…
+    626|         target.y += palmLengths[index];
+ ❯ Object.applyGarden src/components/workers/workerPose.ts:667:7
+ ❯ src/components/workers/workerPose.test.ts:1374:14
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed | 1 passed (2)
+      Tests  2 failed | 126 passed (128)
+   Start at  12:18:09
+   Duration  12.01s (transform 570ms, setup 402ms, import 1.28s, tests 8.51s, environment 1.16s)
+

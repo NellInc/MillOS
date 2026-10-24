@@ -1,0 +1,3 @@
+src/components/workers/workerPose.ts 112ms
+src/simulation/communityLife.ts 59ms
+src/components/workers/WorkerModel.test.tsx 82ms

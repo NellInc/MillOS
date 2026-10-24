@@ -1,6 +1,8 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { useUIStore } from '../../../stores/uiStore';
+import { FEATURE_FLAGS } from '../../../config/featureFlags';
+import { useMotionPreferenceStore } from '../../../stores/motionPreferenceStore';
 import type { AlertData } from '../../../types';
 import { WeatherEffectsOverlay } from '../WeatherEffectsOverlay';
 
@@ -17,6 +19,8 @@ describe('WeatherEffectsOverlay', () => {
   afterEach(() => {
     cleanup();
     useUIStore.setState({ alerts: [] });
+    FEATURE_FLAGS.IN_APP_REDUCED_MOTION_ENABLED = false;
+    useMotionPreferenceStore.setState({ mode: 'system' });
   });
 
   it('ignores alerts that only contain weather words inside other words', () => {
@@ -35,5 +39,18 @@ describe('WeatherEffectsOverlay', () => {
     useUIStore.setState({ alerts: [alert('Severe rain', 'Heavy rain over the receiving yard')] });
     render(<WeatherEffectsOverlay />);
     expect(screen.getByText('rain Warning')).toBeInTheDocument();
+  });
+
+  it('stops the falling rain when the in-app Reduce motion is On', () => {
+    useUIStore.setState({ alerts: [alert('Severe rain', 'Heavy rain over the receiving yard')] });
+    const view = render(<WeatherEffectsOverlay />);
+    expect(view.container.ownerDocument.querySelectorAll('.bg-gradient-to-b').length).toBe(25);
+    cleanup();
+
+    FEATURE_FLAGS.IN_APP_REDUCED_MOTION_ENABLED = true;
+    useMotionPreferenceStore.setState({ mode: 'reduce' });
+    const reduced = render(<WeatherEffectsOverlay />);
+    expect(screen.getByText('rain Warning')).toBeInTheDocument();
+    expect(reduced.container.ownerDocument.querySelectorAll('.bg-gradient-to-b').length).toBe(0);
   });
 });

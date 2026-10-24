@@ -8,6 +8,7 @@ import {
   createGeneratedSurfaceMaterial,
 } from './GeneratedGeometrySurface';
 import { hasWorldSurface, ownsOnlyWorldSurface } from '../../utils/worldSurface';
+import { MACHINE_MATERIALS } from '../machines/machineSurfaces';
 
 const holder = vi.hoisted(() => ({ scene: null as THREE.Group | null }));
 vi.mock('../../utils/dracoLoader', () => ({ useDracoGLTF: () => ({ scene: holder.scene }) }));
@@ -35,6 +36,12 @@ it('keeps the static fallback finish and its live uniforms underneath an early a
   );
   expect(shader.uniforms.uSurfStrength).toBe(original.userData.millosWorldSurface.uSurfStrength);
   expect(shader.uniforms.millosAuthoredNormal.value).toBe(original.normalMap);
+  expect(shader.uniforms.millosAuthoredNormalScale.value).toBe(original.normalScale);
+  original.normalScale.setScalar(0.28);
+  expect((shader.uniforms.millosAuthoredNormalScale.value as THREE.Vector2).toArray()).toEqual([
+    0.28, 0.28,
+  ]);
+  expect(live.normalScale.toArray()).toEqual([0.2, 0.2]);
   live.normalMap?.dispose();
   live.dispose();
 });
@@ -54,6 +61,19 @@ function fixture() {
   scene.add(mesh);
   return { original, generated, material, scene };
 }
+
+it('keeps the host material defines and live uniform objects on the layered clone', () => {
+  // MeshStandardMaterial.copy resets `defines` to { STANDARD } and JSON-copies
+  // userData, so the silo skin's MACHINE_GALVANISED block compiled out of the
+  // live clone (the battery stayed flat) and its uniform mirror became a ghost.
+  const original = MACHINE_MATERIALS.silo;
+  const live = createGeneratedSurfaceMaterial(original, new THREE.Texture());
+  expect(live.defines?.MACHINE_GALVANISED).toBe('');
+  expect(live.defines?.STANDARD).toBe('');
+  expect(live.userData.machineGalvanised).toBe(original.userData.machineGalvanised);
+  live.normalMap?.dispose();
+  live.dispose();
+});
 
 it('uses the reviewed asset normal strength without changing the authored tread strength', () => {
   const f = fixture();
@@ -246,4 +266,32 @@ it('repairs tiny exported box-envelope drift only when fitting is explicit', () 
   f.generated.scale(1.00001, 1.00001, 1.00001);
   expect(() => restoreGeometryOrigin(f.scene, f.original)).toThrow('authored UV topology');
   expect(() => restoreGeometryOrigin(f.scene, f.original, true)).not.toThrow();
+});
+
+it('retains the static-box finish when identical rigid fittings become an instanced set', () => {
+  const f = fixture();
+  holder.scene = f.scene;
+  const original = new THREE.MeshStandardMaterial({
+    color: '#869795',
+    roughness: 0.52,
+    metalness: 1,
+  });
+  const mesh = new THREE.InstancedMesh(f.original, original, 4);
+  const view = render(
+    <GeneratedGeometrySurface
+      asset="factorySteelUnit"
+      original={f.original}
+      meshRef={{ current: mesh }}
+      finishStaticSource
+    />
+  );
+  expect(hasWorldSurface(original)).toBe(true);
+  expect(hasWorldSurface(mesh.material)).toBe(true);
+  expect(mesh.material.userData.millosWorldSurface).toBe(original.userData.millosWorldSurface);
+  expect(mesh.material.normalMap?.channel).toBe(1);
+  expect(mesh.geometry.getAttribute('uv1')).toBeDefined();
+  expect(mesh.material.color.getHexString()).toBe('869795');
+  view.unmount();
+  expect(mesh.material).toBe(original);
+  expect(mesh.geometry).toBe(f.original);
 });

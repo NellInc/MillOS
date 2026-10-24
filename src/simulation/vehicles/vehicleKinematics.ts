@@ -204,14 +204,31 @@ export function advanceLongitudinalMotion(
         : state.acceleration - Math.sign(state.acceleration) * maximumAccelerationChange;
     return { speed: targetSpeed, acceleration };
   }
+  // Ask for no more acceleration than can be wound back to zero, at the jerk
+  // limit, by the time the error closes: sqrt(2 j |error|). A follower that
+  // always asked for the full rate arrived with it still applied, and when the
+  // target then moved back the other way it carried on for a/j seconds: it
+  // overshot a moving limit by metres per second, or braked through zero.
+  const jerk = Math.abs(limits.maximumJerk);
+  const easedRate = jerk > 0 ? Math.sqrt(2 * jerk * Math.abs(speedError)) : Infinity;
   const desiredAcceleration =
-    speedError > 0 ? Math.abs(limits.maximumAcceleration) : -Math.abs(limits.maximumDeceleration);
+    speedError > 0
+      ? Math.min(Math.abs(limits.maximumAcceleration), easedRate)
+      : -Math.min(Math.abs(limits.maximumDeceleration), easedRate);
   const accelerationChange = Math.max(
     -maximumAccelerationChange,
     Math.min(maximumAccelerationChange, desiredAcceleration - state.acceleration)
   );
   const acceleration = state.acceleration + accelerationChange;
   const candidateSpeed = state.speed + acceleration * deltaSeconds;
+  // Braking ends at a standstill: it never carries a vehicle through zero
+  // into the opposite direction from the one it was asked for.
+  if (
+    (state.speed >= 0 && targetSpeed >= 0 && candidateSpeed < 0) ||
+    (state.speed <= 0 && targetSpeed <= 0 && candidateSpeed > 0)
+  ) {
+    return { speed: 0, acceleration: 0 };
+  }
   const crossesTarget =
     (speedError > 0 && candidateSpeed > targetSpeed) ||
     (speedError < 0 && candidateSpeed < targetSpeed);

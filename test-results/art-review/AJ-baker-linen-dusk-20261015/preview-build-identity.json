@@ -1,0 +1,14 @@
+{
+  "index": {
+    "url": "http://127.0.0.1:4288/",
+    "sha256": "9d512baecb0ad75e32c5855d43a22d7bf8f2956a9146b150b7586d7b7dd04aa7",
+    "bytes": 9887
+  },
+  "entries": [
+    {
+      "url": "http://127.0.0.1:4288/assets/main-Bonurl7t.js",
+      "sha256": "f3aa0a7cfd01acdfdd45b8a879e19999dcdba537f106d55564e3798a94f70295",
+      "bytes": 823785
+    }
+  ]
+}

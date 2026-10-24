@@ -2,10 +2,12 @@ import React, { useRef, useEffect, useCallback } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
 import { PointerLockControls } from '@react-three/drei';
 import * as THREE from 'three';
+import { clampShelterVerticalMovement } from '../constants/publicRealmLayout';
 import {
   sampleWalkingGroundHeight,
   moveWalkingPosition,
-  castleBlocks,
+  walkingBlocks,
+  isDryWalkingGround,
 } from '../utils/castleNavigation';
 import { getTerrainGridSegments } from './terrain/terrainTypes';
 import { useGraphicsStore } from '../stores/graphicsStore';
@@ -16,6 +18,8 @@ import {
 } from '../constants/factoryObstacles';
 import { WORLD_RADIUS, SITE_LAYOUT, getSiloAssemblyScale } from '../constants/siteLayout';
 import { useUIStore } from '../stores/uiStore';
+import { useT } from '../i18n';
+import { fpsInstructionsMessages } from './FirstPersonController.messages';
 import {
   FIRST_PERSON_EYE_HEIGHT,
   clampNavigationDelta,
@@ -64,7 +68,12 @@ const collides = (x: number, z: number): boolean => {
 const findFreeSpawn = (x: number, z: number): [number, number] => {
   const free = (a: number, b: number) =>
     !collides(a, b) &&
-    !castleBlocks(
+    isDryWalkingGround(
+      a,
+      b,
+      getTerrainGridSegments(useGraphicsStore.getState().graphics.quality)
+    ) &&
+    !walkingBlocks(
       a,
       b,
       sampleWalkingGroundHeight(
@@ -74,7 +83,7 @@ const findFreeSpawn = (x: number, z: number): [number, number] => {
       )
     );
   if (free(x, z)) return [x, z];
-  for (let r = 1; r <= 24; r++) {
+  for (let r = 1; r <= 64; r++) {
     for (let i = 0; i < 16; i++) {
       const a = (i / 16) * Math.PI * 2;
       const cx = x + r * Math.cos(a);
@@ -114,6 +123,9 @@ export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ on
   const forwardRef = useRef(new THREE.Vector3());
   const rightRef = useRef(new THREE.Vector3());
   const isLocked = useRef(false);
+  const previousSegments = useRef(
+    getTerrainGridSegments(useGraphicsStore.getState().graphics.quality)
+  );
 
   // Set initial position and FOV for FPS mode
   useEffect(() => {
@@ -303,8 +315,15 @@ export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ on
       const terrainSegments = getTerrainGridSegments(useGraphicsStore.getState().graphics.quality);
       const previousFloor =
         PLAYER_HEIGHT +
-        sampleWalkingGroundHeight(camera.position.x, camera.position.z, terrainSegments);
+        sampleWalkingGroundHeight(camera.position.x, camera.position.z, previousSegments.current);
       const walkingOnGround = currentHeight.current <= previousFloor + 0.05;
+      if (walkingOnGround && terrainSegments !== previousSegments.current) {
+        currentHeight.current =
+          PLAYER_HEIGHT +
+          sampleWalkingGroundHeight(camera.position.x, camera.position.z, terrainSegments);
+        camera.position.y = currentHeight.current;
+      }
+      previousSegments.current = terrainSegments;
       velocity.current.addScaledVector(forward, -direction.current.z * speed * movementDelta);
       velocity.current.addScaledVector(right, direction.current.x * speed * movementDelta);
 
@@ -326,11 +345,19 @@ export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ on
       // this the next line would snap the camera straight back down, which is
       // why an unconditional ground-snap and a fly control cannot coexist.
       if (verticalInput !== 0) {
-        currentHeight.current = THREE.MathUtils.clamp(
+        const nextHeight = THREE.MathUtils.clamp(
           currentHeight.current + verticalInput * VERTICAL_SPEED * speedScale * movementDelta,
           floorHeight,
           MAX_FREE_HEIGHT
         );
+        currentHeight.current =
+          PLAYER_HEIGHT +
+          clampShelterVerticalMovement(
+            camera.position.x,
+            camera.position.z,
+            currentHeight.current - PLAYER_HEIGHT,
+            nextHeight - PLAYER_HEIGHT
+          );
       }
 
       // Walking follows the actual mesh; free flight keeps its chosen altitude.
@@ -359,6 +386,9 @@ export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ on
     <PointerLockControls
       ref={controlsRef}
       domElement={gl.domElement}
+      // The instructions own handled native admission. Keep Drei's mouse
+      // and lock listeners, with no automatic document/canvas requests.
+      selector=":not(*)"
       pointerSpeed={MOUSE_SENSITIVITY}
       onLock={handleLock}
       onUnlock={handleUnlock}
@@ -382,13 +412,87 @@ export const FPSCrosshair: React.FC = () => {
 
 // FPS mode instructions overlay
 export const FPSInstructions: React.FC<{ visible: boolean }> = ({ visible }) => {
+  const t = useT(fpsInstructionsMessages);
+  const [captureFailed, setCaptureFailed] = React.useState(false);
+  const surfaceRef = useRef<HTMLDivElement>(null);
+  const pending = useRef(false);
+  const attempt = useRef(0);
+
+  useEffect(() => {
+    attempt.current += 1;
+    pending.current = false;
+    setCaptureFailed(false);
+    if (!visible) return;
+    const onError = () => {
+      if (!pending.current || !surfaceRef.current?.isConnected) return;
+      pending.current = false;
+      setCaptureFailed(true);
+    };
+    const onChange = () => {
+      pending.current = false;
+    };
+    document.addEventListener('pointerlockerror', onError);
+    document.addEventListener('pointerlockchange', onChange);
+    return () => {
+      attempt.current += 1;
+      pending.current = false;
+      document.removeEventListener('pointerlockerror', onError);
+      document.removeEventListener('pointerlockchange', onChange);
+    };
+  }, [visible]);
+
+  const requestCapture = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (event.target instanceof Element && event.target.closest('button')) return;
+    if (pending.current) return;
+    const canvas = document.querySelector<HTMLCanvasElement>(
+      'canvas[data-millos-fps-entry="true"]'
+    );
+    const surface = surfaceRef.current;
+    const id = ++attempt.current;
+    setCaptureFailed(false);
+    if (!canvas?.requestPointerLock || !surface) {
+      setCaptureFailed(true);
+      return;
+    }
+    const reportFailure = () => {
+      if (id === attempt.current && surfaceRef.current === surface && surface.isConnected)
+        setCaptureFailed(true);
+    };
+    pending.current = true;
+    try {
+      const request: Promise<void> | void = canvas.requestPointerLock();
+      // Native change/error ends the pending request. Keeping that ownership
+      // until the event prevents a late native error racing a second click.
+      if (request)
+        void request
+          .then(() => {
+            if (!useUIStore.getState().fpsMode && document.pointerLockElement === canvas)
+              document.exitPointerLock();
+          })
+          .catch(reportFailure);
+    } catch {
+      pending.current = false;
+      reportFailure();
+    }
+  };
+
   if (!visible) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center pointer-events-auto">
+    <div
+      ref={surfaceRef}
+      onClick={requestCapture}
+      className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center pointer-events-auto"
+    >
       <div className="bg-slate-900/95 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-8 max-w-md text-center shadow-2xl">
-        <h2 className="text-2xl font-bold text-white mb-4">First-Person Mode</h2>
-        <p className="text-slate-300 mb-6">Click anywhere to enter first-person exploration mode</p>
+        <h2 className="text-2xl font-bold text-white mb-4">{t('heading')}</h2>
+        {captureFailed ? (
+          <p role="alert" className="text-amber-200 mb-6">
+            {t('captureFailed')}
+          </p>
+        ) : (
+          <p className="text-slate-300 mb-6">{t('clickToEnter')}</p>
+        )}
 
         <div className="grid grid-cols-2 gap-4 mb-6 text-left">
           <div className="bg-slate-800/50 rounded-lg p-3">
@@ -398,7 +502,7 @@ export const FPSInstructions: React.FC<{ visible: boolean }> = ({ visible }) => 
               <kbd className="px-2 py-1 bg-slate-700 rounded text-white text-sm font-mono">S</kbd>
               <kbd className="px-2 py-1 bg-slate-700 rounded text-white text-sm font-mono">D</kbd>
             </div>
-            <span className="text-slate-400 text-sm">Move around</span>
+            <span className="text-slate-400 text-sm">{t('moveAround')}</span>
           </div>
 
           <div className="bg-slate-800/50 rounded-lg p-3">
@@ -406,14 +510,14 @@ export const FPSInstructions: React.FC<{ visible: boolean }> = ({ visible }) => 
               <kbd className="px-2 py-1 bg-slate-700 rounded text-white text-sm font-mono">Q</kbd>
               <kbd className="px-2 py-1 bg-slate-700 rounded text-white text-sm font-mono">E</kbd>
             </div>
-            <span className="text-slate-400 text-sm">Move down / up</span>
+            <span className="text-slate-400 text-sm">{t('moveDownUp')}</span>
           </div>
 
           <div className="bg-slate-800/50 rounded-lg p-3">
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-slate-300 text-sm">Mouse</span>
+              <span className="text-slate-300 text-sm">{t('mouse')}</span>
             </div>
-            <span className="text-slate-400 text-sm">Look around</span>
+            <span className="text-slate-400 text-sm">{t('lookAround')}</span>
           </div>
 
           <div className="bg-slate-800/50 rounded-lg p-3">
@@ -422,18 +526,28 @@ export const FPSInstructions: React.FC<{ visible: boolean }> = ({ visible }) => 
                 Shift
               </kbd>
             </div>
-            <span className="text-slate-400 text-sm">Sprint</span>
+            <span className="text-slate-400 text-sm">{t('sprint')}</span>
           </div>
 
           <div className="bg-slate-800/50 rounded-lg p-3 col-span-2">
             <div className="flex items-center gap-2 mb-2">
               <kbd className="px-2 py-1 bg-slate-700 rounded text-white text-sm font-mono">ESC</kbd>
             </div>
-            <span className="text-slate-400 text-sm">Exit first-person</span>
+            <span className="text-slate-400 text-sm">{t('exitFirstPerson')}</span>
           </div>
         </div>
 
-        <p className="text-slate-500 text-sm">Press ESC anytime to return to orbit camera</p>
+        {captureFailed ? (
+          <button
+            type="button"
+            onClick={() => useUIStore.getState().setFpsMode(false)}
+            className="rounded-lg border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-300"
+          >
+            {t('returnToOverview')}
+          </button>
+        ) : (
+          <p className="text-slate-500 text-sm">{t('pressEsc')}</p>
+        )}
       </div>
     </div>
   );

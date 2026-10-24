@@ -13,6 +13,8 @@ import {
   type MaterialDisposition,
   type ProductionBatch,
 } from './materialFlowStore';
+import { translate } from '../i18n';
+import { qcLabStoreMessages } from './qcLabStore.messages';
 
 export type QCGrade = 'A' | 'B' | 'C' | 'FAIL';
 export type QCTestType = 'initial' | 'retest';
@@ -130,9 +132,7 @@ export interface QCLabStore {
 export type DispatchQualityHoldReason =
   | 'certification_expired'
   | 'unresolved_contamination'
-  | 'failed_quality_test'
-  | 'batch_quality_hold'
-  | 'batch_recalled';
+  | 'failed_quality_test';
 
 export interface DispatchQualityStatus {
   released: boolean;
@@ -142,7 +142,8 @@ export interface DispatchQualityStatus {
 /** Translate laboratory and optional batch state into the shipping interlock. */
 export function getDispatchQualityStatus(
   qcLab: QCLabState,
-  productionBatches: readonly ProductionBatch[] = []
+  // Kept for callers; see the note below on why batches no longer stop the plant.
+  _productionBatches: readonly ProductionBatch[] = []
 ): DispatchQualityStatus {
   if (qcLab.certificationStatus === 'expired') {
     return { released: false, reason: 'certification_expired' };
@@ -152,15 +153,9 @@ export function getDispatchQualityStatus(
     return { released: false, reason: 'unresolved_contamination' };
   }
 
-  if (
-    productionBatches.some((batch) => batch.availableKg > 0 && batch.disposition === 'recalled')
-  ) {
-    return { released: false, reason: 'batch_recalled' };
-  }
-
-  if (productionBatches.some((batch) => batch.availableKg > 0 && batch.disposition === 'hold')) {
-    return { released: false, reason: 'batch_quality_hold' };
-  }
+  // A held or recalled batch is isolated by mass, not by stopping the plant:
+  // shipFinishedGoods loads only released batches, and loading waits for
+  // released stock. A plant-wide stop here wedged every truck for the session.
 
   const latestTest = qcLab.testHistory[qcLab.testHistory.length - 1];
   if (latestTest && (!latestTest.passed || latestTest.grade === 'FAIL')) {
@@ -250,7 +245,11 @@ export const useQCLabStore = create<QCLabStore>()(
               controlSource,
               note:
                 controlNote ||
-                `Grade ${result.grade}: material ${disposition === 'released' ? 'released for dispatch' : 'held for investigation'}.`,
+                translate(
+                  qcLabStoreMessages,
+                  disposition === 'released' ? 'auditNoteReleased' : 'auditNoteHeld',
+                  { grade: result.grade }
+                ),
             },
           ],
           auditSequence: sequence,
@@ -258,20 +257,16 @@ export const useQCLabStore = create<QCLabStore>()(
       }));
 
       const flow = useMaterialFlowStore.getState();
+      const testReason = () =>
+        translate(qcLabStoreMessages, testType === 'retest' ? 'retestReason' : 'testReason', {
+          id: fullResult.id,
+          grade: result.grade,
+        });
       if (batchId) {
-        flow.setBatchDisposition(
-          [batchId],
-          disposition,
-          `${testType === 'retest' ? 'Retest' : 'Test'} ${fullResult.id}: ${result.grade}`,
-          fullResult.id
-        );
+        flow.setBatchDisposition([batchId], disposition, testReason(), fullResult.id);
       }
       if (sourceLotIds.length > 0) {
-        flow.setLotDisposition(
-          sourceLotIds,
-          disposition,
-          `${testType === 'retest' ? 'Retest' : 'Test'} ${fullResult.id}: ${result.grade}`
-        );
+        flow.setLotDisposition(sourceLotIds, disposition, testReason());
       }
       return fullResult;
     },
@@ -289,7 +284,8 @@ export const useQCLabStore = create<QCLabStore>()(
               .map((batch) => batch.id);
       const alertId = `contamination-${String(sequence).padStart(5, '0')}`;
       const controlSource = scope?.controlSource?.trim() || 'Autonomous QC controller';
-      const note = scope?.controlNote?.trim() || 'Foreign material investigation opened';
+      const note =
+        scope?.controlNote?.trim() || translate(qcLabStoreMessages, 'contaminationNoteDefault');
 
       const lotAffectedBatches = sourceLotIds.length
         ? flow.setLotDisposition(sourceLotIds, 'hold', `${alertId}: ${note}`)
@@ -346,9 +342,11 @@ export const useQCLabStore = create<QCLabStore>()(
       const disposition = resolution === 'recalled' ? 'recalled' : 'released';
       const reason =
         note.trim() ||
-        (resolution === 'recalled'
-          ? `Material recalled under ${alertId}`
-          : `Investigation ${alertId} cleared material`);
+        translate(
+          qcLabStoreMessages,
+          resolution === 'recalled' ? 'recallReason' : 'clearedReason',
+          { alertId }
+        );
       const flow = useMaterialFlowStore.getState();
       const lotAffected = alert.sourceLotIds.length
         ? flow.setLotDisposition(alert.sourceLotIds, disposition, reason)

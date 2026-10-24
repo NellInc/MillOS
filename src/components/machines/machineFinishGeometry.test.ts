@@ -1,4 +1,8 @@
-import { SIFTER_LAYOUT, PACKER_HOPPER_LAYOUT } from '../../constants/siteLayout';
+import {
+  SIFTER_LAYOUT,
+  PACKER_HOPPER_LAYOUT,
+  getMachineAssemblyScale,
+} from '../../constants/siteLayout';
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import {
@@ -6,10 +10,34 @@ import {
   MILL_CONTROL_FACE,
   MILL_INSPECTION_COVERS,
   MILL_LOAD_DIAL,
+  MILL_DRIVE_Z,
+  MILL_MOTOR_CONDUIT,
+  createMillMotorFins,
 } from './machineFinishGeometry';
 import { MACHINE_PART_GEOMETRY } from './CompactMachines';
 import { DECAL_CELL, planMachineDecals } from './machineDecals';
 import { MachineData, MachineType } from '../../types';
+
+/**
+ * Placards are planned INSTALLED, at the machine's real size. These checks
+ * raycast the authored part geometry, so read each placard back into its
+ * machine's authored metres first.
+ */
+function planAuthoredDecals(subsets: Parameters<typeof planMachineDecals>[0]) {
+  const hosts = [...subsets.silos, ...subsets.mills, ...subsets.sifters, ...subsets.packers];
+  return planMachineDecals(subsets).map((plate) => {
+    const host = hosts.find((machine) => machine.id === plate.machineId)!;
+    const scale = getMachineAssemblyScale(host);
+    const origin = host.position;
+    return {
+      ...plate,
+      position: plate.position.map(
+        (value, axis) => origin[axis] + (value - origin[axis]) / scale[axis]
+      ) as unknown as readonly [number, number, number],
+      size: [plate.size[0] / scale[0], plate.size[1] / scale[1]] as const,
+    };
+  });
+}
 
 describe('instanced machine finish geometry', () => {
   it('keeps the fittings finite with usable normals and a bounded triangle budget', () => {
@@ -465,7 +493,7 @@ describe('instanced machine finish geometry', () => {
       type: MachineType.PLANSIFTER,
       position: [0, 0, 0],
     } as MachineData;
-    const plates = planMachineDecals({ silos: [], mills: [], sifters: [machine], packers: [] });
+    const plates = planAuthoredDecals({ silos: [], mills: [], sifters: [machine], packers: [] });
     for (const plate of plates) {
       expect(plate.machineId).toBe(machine.id);
       if (plate.cell === DECAL_CELL.hazardChevron) continue;
@@ -515,9 +543,12 @@ describe('instanced machine finish geometry', () => {
       type: MachineType.ROLLER_MILL,
       position: [0, 0, 0],
     } as MachineData;
-    const plate = planMachineDecals({ silos: [], mills: [machine], sifters: [], packers: [] }).find(
-      (decal) => decal.cell === DECAL_CELL.namePlate
-    )!;
+    const plate = planAuthoredDecals({
+      silos: [],
+      mills: [machine],
+      sifters: [],
+      packers: [],
+    }).find((decal) => decal.cell === DECAL_CELL.namePlate)!;
     const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
     for (const geometry of [
       MACHINE_FINISH_GEOMETRY.millGuard,
@@ -550,9 +581,12 @@ describe('instanced machine finish geometry', () => {
       type: MachineType.ROLLER_MILL,
       position: [0, 0, 0],
     } as MachineData;
-    const plate = planMachineDecals({ silos: [], mills: [machine], sifters: [], packers: [] }).find(
-      (decal) => decal.rotationY === -Math.PI / 2
-    )!;
+    const plate = planAuthoredDecals({
+      silos: [],
+      mills: [machine],
+      sifters: [],
+      packers: [],
+    }).find((decal) => decal.rotationY === -Math.PI / 2)!;
     expect(plate.cell).toBe(DECAL_CELL.mill101);
     expect(plate.position[2] - plate.size[0] / 2).toBeGreaterThan(0.2);
     expect(plate.position[1] + plate.size[1] / 2).toBeLessThan(3.45 - 0.08);
@@ -579,4 +613,189 @@ describe('instanced machine finish geometry', () => {
       }
     material.dispose();
   });
+});
+
+describe('seated mill drive craft', () => {
+  const ray = (mesh: THREE.Mesh, from: number[], direction: number[], far = 10) =>
+    new THREE.Raycaster(
+      new THREE.Vector3(...from),
+      new THREE.Vector3(...direction),
+      0,
+      far
+    ).intersectObject(mesh);
+  it('keeps eleven small axial ribs inside the old envelope with open cooling and mounting relief', () => {
+    const g = createMillMotorFins(),
+      m = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }),
+      fins = new THREE.Mesh(g, m);
+    try {
+      expect(g.index!.count / 3).toBe(220);
+      expect(g.boundingBox!.min.x).toBeCloseTo(2.51, 5);
+      expect(g.boundingBox!.max.x).toBeCloseTo(3.51, 5);
+      const p = g.attributes.position;
+      for (let i = 0; i < p.count; i++)
+        expect(Math.hypot(p.getY(i) - 1.65, p.getZ(i) - MILL_DRIVE_Z)).toBeLessThanOrEqual(
+          0.730001
+        );
+      for (let i = 0; i < 12; i++) {
+        const a = (i * Math.PI) / 6,
+          from = [3.02, 1.65 + Math.cos(a), MILL_DRIVE_Z + Math.sin(a)],
+          direction = [0, -Math.cos(a), -Math.sin(a)];
+        expect(ray(fins, from, direction, 0.38).length > 0).toBe(i !== 6);
+        const gap = a + Math.PI / 12;
+        expect(
+          ray(
+            fins,
+            [3.02, 1.65 + Math.cos(gap), MILL_DRIVE_Z + Math.sin(gap)],
+            [0, -Math.cos(gap), -Math.sin(gap)],
+            0.38
+          )
+        ).toHaveLength(0);
+      }
+      const guard = new THREE.Mesh(MACHINE_FINISH_GEOMETRY.millGuard, m);
+      const foot = ray(guard, [2.65, 1.015, MILL_DRIVE_Z], [0, -1, 0], 0.05)[0];
+      expect(foot.point.y).toBeCloseTo(1, 6);
+      expect(g.boundingBox!.min.y - foot.point.y).toBeGreaterThan(0.01);
+    } finally {
+      g.dispose();
+      m.dispose();
+    }
+  });
+  it('embeds every rib root and the terminal base through the real retained motor vibration sweep', () => {
+    const m = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }),
+      core = new THREE.Mesh(MACHINE_PART_GEOMETRY.roller, m),
+      guard = new THREE.Mesh(MACHINE_FINISH_GEOMETRY.millGuard, m);
+    // Exact frozen renderer transform: CompactMachines sets this20-sided core.
+    core.position.set(3.02, 1.65, MILL_DRIVE_Z);
+    core.scale.set(0.68, 1.35, 0.68);
+    core.rotation.z = Math.PI / 2;
+    core.updateMatrixWorld(true);
+    try {
+      const base = ray(guard, [2.95, 2.2, MILL_DRIVE_Z], [0, 1, 0], 0.2)[0].point.y;
+      const crown = ray(core, [2.95, 2.8, MILL_DRIVE_Z], [0, -1, 0], 1)[0].point.y;
+      for (let step = 0; step <= 20; step++) {
+        const vibration = -0.012 + step * 0.0012;
+        expect(crown - base - vibration).toBeGreaterThan(0.007);
+        expect(crown - base - vibration).toBeLessThan(0.033);
+        for (let i = 0; i < 12; i++)
+          if (i !== 6)
+            for (const side of [-1, 1]) {
+              const point = new THREE.Vector3(3.02, 0.65, side * 0.014).applyAxisAngle(
+                new THREE.Vector3(1, 0, 0),
+                (i * Math.PI) / 6
+              );
+              point.y += 1.65 + vibration;
+              point.z += MILL_DRIVE_Z;
+              const hits = ray(core, [4, point.y, point.z], [-1, 0, 0], 2);
+              expect(hits[0].point.x).toBeGreaterThan(3.51);
+              expect(hits.at(-1)!.point.x).toBeLessThan(2.51);
+            }
+      }
+    } finally {
+      m.dispose();
+    }
+  });
+  it('overlaps terminal body, gasket, lid and all four captive fasteners with ordinary solid geometry', () => {
+    const m = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }),
+      paint = new THREE.Mesh(MACHINE_FINISH_GEOMETRY.millGuard, m),
+      rubber = new THREE.Mesh(MACHINE_FINISH_GEOMETRY.millRecess, m),
+      hardware = new THREE.Mesh(MACHINE_FINISH_GEOMETRY.millHardware, m);
+    try {
+      const hits = ray(paint, [2.95, 2.8, MILL_DRIVE_Z], [0, -1, 0], 0.6);
+      const heights = [...new Set(hits.map((h) => Math.round(h.point.y * 1e5) / 1e5))].sort(
+        (a, b) => b - a
+      );
+      expect(heights.slice(0, 4)).toEqual([2.57, 2.535, 2.53, 2.31]);
+      const gasket = ray(rubber, [2.95, 2.7, MILL_DRIVE_Z], [0, -1, 0], 0.3);
+      expect(gasket[0].point.y).toBeGreaterThan(heights[1]);
+      expect(gasket.at(-1)!.point.y).toBeLessThan(heights[2]);
+      for (const x of [2.79, 3.11])
+        for (const z of [MILL_DRIVE_Z - 0.18, MILL_DRIVE_Z + 0.18]) {
+          const bolt = ray(hardware, [x, 2.65, z], [0, -1, 0], 0.1);
+          expect(bolt[0].point.y).toBeCloseTo(2.591, 5);
+          expect(bolt.at(-1)!.point.y).toBeLessThan(2.57);
+          expect(ray(paint, [x, 2.65, z], [0, -1, 0], 0.1)[0].point.y).toBeCloseTo(2.57, 5);
+        }
+    } finally {
+      m.dispose();
+    }
+  });
+  it('buries both glands in their actual cast faces and houses each conduit endpoint', () => {
+    const m = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }),
+      paint = new THREE.Mesh(MACHINE_FINISH_GEOMETRY.millGuard, m),
+      hardware = new THREE.Mesh(MACHINE_FINISH_GEOMETRY.millHardware, m);
+    try {
+      for (const end of [0, 1]) {
+        const p = MILL_MOTOR_CONDUIT.getPoint(end),
+          from = [2.6, p.y, p.z],
+          direction = end === 0 ? [-1, 0, 0] : [1, 0, 0];
+        const metal = ray(hardware, from, direction, 0.2),
+          face = ray(paint, from, direction, 0.2)[0];
+        const xs = metal.map((h) => h.point.x).sort((a, b) => a - b);
+        expect(xs[0]).toBeLessThan(p.x);
+        expect(xs.at(-1)!).toBeGreaterThan(p.x);
+        expect(xs[0]).toBeLessThan(face.point.x);
+        expect(xs.at(-1)!).toBeGreaterThan(face.point.x);
+      }
+      let x = 0;
+      for (let i = 0; i <= 24; i++) {
+        const p = MILL_MOTOR_CONDUIT.getPoint(i / 24);
+        expect(p.toArray().every(Number.isFinite)).toBe(true);
+        expect(p.x).toBeGreaterThanOrEqual(x);
+        x = p.x;
+        expect(p.y).toBeGreaterThanOrEqual(2.39);
+        expect(p.y).toBeLessThanOrEqual(2.430001);
+        expect(p.z).toBeCloseTo(MILL_DRIVE_Z, 6);
+      }
+    } finally {
+      m.dispose();
+    }
+  });
+});
+
+it('keeps the full terminal gasket footprint housed beneath the clipped lid', () => {
+  const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+  const gasket = new THREE.Mesh(MACHINE_FINISH_GEOMETRY.millRecess, material),
+    lid = new THREE.Mesh(MACHINE_FINISH_GEOMETRY.millGuard, material);
+  let supported = 0;
+  try {
+    for (let u = 0; u <= 30; u++)
+      for (let v = 0; v <= 30; v++) {
+        const x = 2.95 - 0.2265 + (u * 0.453) / 30,
+          z = MILL_DRIVE_Z - 0.2515 + (v * 0.503) / 30;
+        const ray = new THREE.Raycaster(
+          new THREE.Vector3(x, 2.7, z),
+          new THREE.Vector3(0, -1, 0),
+          0,
+          0.18
+        );
+        const rubber = ray.intersectObject(gasket)[0];
+        if (!rubber) continue;
+        const cap = ray.intersectObject(lid)[0];
+        expect(cap).toBeDefined();
+        expect(cap.point.y).toBeGreaterThan(rubber.point.y);
+        supported++;
+      }
+    expect(supported).toBeGreaterThan(800);
+  } finally {
+    material.dispose();
+  }
+});
+
+it('keeps no up-facing mill guard face flush with the 0.16 m factory plinth', () => {
+  // The drive-motor base plate was 0.16 m tall, so its top lay exactly on the
+  // milling plinth's top: 2.3 m^2 of coplanar up-facing faces under each mill.
+  const geometry = MACHINE_FINISH_GEOMETRY.millGuard.toNonIndexed();
+  const position = geometry.getAttribute('position');
+  let flush = 0;
+  for (let i = 0; i < position.count; i += 3) {
+    const ys = [position.getY(i), position.getY(i + 1), position.getY(i + 2)];
+    if (!ys.every((y) => Math.abs(y - 0.16) < 0.005)) continue;
+    const a = new THREE.Vector3().fromBufferAttribute(position, i);
+    const b = new THREE.Vector3().fromBufferAttribute(position, i + 1);
+    const c = new THREE.Vector3().fromBufferAttribute(position, i + 2);
+    // Down-facing faces at this height are leg soles, hidden inside the plate.
+    if (b.sub(a).cross(c.sub(a)).y > 0) flush++;
+  }
+  geometry.dispose();
+  expect(flush).toBe(0);
 });

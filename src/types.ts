@@ -87,6 +87,19 @@ export interface AlertData {
   machineId?: string;
   timestamp: Date;
   acknowledged: boolean;
+  /**
+   * ISA-18.2 RTN_UNACK: the condition behind this alert has cleared but nobody
+   * has acknowledged it. It stays listed for acknowledgement; it no longer
+   * holds the safety-critical UI.
+   */
+  returnedToNormal?: boolean;
+  /**
+   * Read once to screen readers when it is filed (AlertSystem), whatever the
+   * PA mode or audio mute: 'assertive' interrupts (a breakdown, a critical
+   * incident), 'polite' waits (a wear warning, a quality hold, a closed
+   * shift). Routine alerts and SCADA alarm traffic leave it unset.
+   */
+  announce?: 'polite' | 'assertive';
 }
 
 export type AIDecisionDisposition = 'accepted' | 'modified' | 'rejected' | 'deferred' | 'automatic';

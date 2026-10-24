@@ -1,7 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MachineData } from '../../../types';
 import { RotateCcw, FileText, CheckCircle, Loader2, Wrench, Focus } from 'lucide-react';
-import { useProductionStore } from '../../../stores/productionStore';
+import {
+  getWearConfig,
+  minimumServiceWear,
+  useProductionStore,
+  wearHoldsWarning,
+} from '../../../stores/productionStore';
 import { useBreakdownStore, PartsInventory } from '../../../stores/breakdownStore';
 import { useUIStore } from '../../../stores/uiStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
@@ -11,9 +16,15 @@ import { useSCADATag } from '../../../scada/useSCADA';
 import { getTagsByMachine } from '../../../scada/tagDatabase';
 import type { TagHistoryPoint } from '../../../scada/types';
 import { getMachineOperationalState } from '../../../simulation/machineMotion';
-
-const CRITICAL_RESTART_GUIDANCE =
-  'Critical fault. Restart is locked until maintenance or a repair clears it.';
+import {
+  capitalizeIn,
+  formatFixed,
+  formatGrouped,
+  translate,
+  useLocale,
+  useT,
+} from '../../../i18n';
+import { machineInspectorMessages } from './MachineInspector.messages';
 
 // Order in which spare parts are consumed by routine maintenance
 const MAINTENANCE_PART_PRIORITY: Array<keyof PartsInventory> = [
@@ -28,6 +39,8 @@ export const MachineInspector: React.FC<{
   machine: MachineData;
   onFocusMachine?: (machineId: string) => void;
 }> = ({ machine: selected, onFocusMachine }) => {
+  const t = useT(machineInspectorMessages);
+  const locale = useLocale();
   // The selection is a click-time snapshot; status and metrics come from the
   // store so the panel follows the machine (including its own Restart and
   // Maintenance). The snapshot stands in when the id is not in the store.
@@ -58,16 +71,16 @@ export const MachineInspector: React.FC<{
   const buffer = useMaterialFlowStore((state) => state.machineBuffers.get(machine.id));
   const flowState = buffer ? getMachineOperationalState(machine.status, buffer) : null;
   const flowLabel = !buffer
-    ? 'Flow unavailable'
+    ? t('flowUnavailable')
     : buffer.machineType === 'silo'
-      ? 'Storage inventory'
+      ? t('storageInventory')
       : flowState === 'starved'
-        ? 'Waiting for material'
+        ? t('waitingForMaterial')
         : flowState === 'blocked'
-          ? 'Waiting for output space'
+          ? t('waitingForOutputSpace')
           : flowState === 'stopped' || flowState === 'faulted'
-            ? 'Processing stopped'
-            : 'Material ready';
+            ? t('processingStopped')
+            : t('materialReady');
   const [isRestarting, setIsRestarting] = useState(false);
   const [isMaintaining, setIsMaintaining] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
@@ -75,11 +88,24 @@ export const MachineInspector: React.FC<{
   const updateMachineStatus = useProductionStore((state) => state.updateMachineStatus);
   const updateMachineMetrics = useProductionStore((state) => state.updateMachineMetrics);
   const performMaintenance = useProductionStore((state) => state.performMaintenance);
+  const activeFault = useBreakdownStore((state) =>
+    state.activeBreakdowns.find((fault) => fault.machineId === machine.id)
+  );
+  const repairGuidance = t('repairGuidance');
+  const criticalRestartGuidance = t('criticalRestartGuidance');
   const partsInventory = useBreakdownStore((state) => state.partsInventory);
   const consumePart = useBreakdownStore((state) => state.consumePart);
   const addAlert = useUIStore((state) => state.addAlert);
 
   const availablePart = MAINTENANCE_PART_PRIORITY.find((part) => (partsInventory[part] ?? 0) > 0);
+  const wearConfig = getWearConfig(machine.type);
+  // performMaintenance refuses below this; a broken-down unit is exempt.
+  const minimumWear = minimumServiceWear(machine.type);
+  const belowMinimumWear = machine.status !== 'critical' && (metrics?.wear ?? 0) < minimumWear;
+  const belowMinimumReason = t('maintenanceBelowMinimum', {
+    wear: formatFixed(metrics?.wear ?? 0, 1),
+    minimum: formatFixed(minimumWear, 1),
+  });
 
   const mountedRef = useRef(true);
   useEffect(() => {
@@ -89,18 +115,23 @@ export const MachineInspector: React.FC<{
     };
   }, []);
 
+  const reportMissingParts = () => {
+    addAlert({
+      id: `maintenance-noparts-${machine.id}-${Date.now()}`,
+      type: 'warning',
+      title: translate(machineInspectorMessages, 'noPartsTitle'),
+      message: translate(machineInspectorMessages, 'noPartsMessage', { name: machine.name }),
+      timestamp: new Date(),
+      machineId: machine.id,
+      acknowledged: false,
+    });
+  };
+
   const handleMaintenance = async () => {
+    if (useBreakdownStore.getState().getBreakdownForMachine(machine.id)) return;
     // Maintenance consumes one spare part - block when the store is empty
     if (!availablePart) {
-      addAlert({
-        id: `maintenance-noparts-${machine.id}-${Date.now()}`,
-        type: 'warning',
-        title: 'No Spare Parts',
-        message: `Cannot perform maintenance on ${machine.name}: parts inventory is empty. Wait for a parts delivery.`,
-        timestamp: new Date(),
-        machineId: machine.id,
-        acknowledged: false,
-      });
+      reportMissingParts();
       return;
     }
 
@@ -108,16 +139,29 @@ export const MachineInspector: React.FC<{
     // Brief delay to simulate the maintenance task
     await new Promise((resolve) => setTimeout(resolve, 1200));
 
+    // Another service action may have used the last part during the delay.
+    const currentPart = MAINTENANCE_PART_PRIORITY.find(
+      (part) => (useBreakdownStore.getState().partsInventory[part] ?? 0) > 0
+    );
+    if (!currentPart) {
+      reportMissingParts();
+      if (mountedRef.current) setIsMaintaining(false);
+      return;
+    }
+
     const result = performMaintenance(machine.id);
     if (result.success) {
       // performMaintenance fires its own success alert; consume the part used
-      consumePart(availablePart);
+      consumePart(currentPart);
     } else {
       addAlert({
         id: `maintenance-skip-${machine.id}-${Date.now()}`,
         type: 'info',
-        title: 'Maintenance Not Needed',
-        message: `${machine.name}: ${result.message}`,
+        title: translate(machineInspectorMessages, 'maintenanceNotNeededTitle'),
+        message: translate(machineInspectorMessages, 'maintenanceNotNeededMessage', {
+          name: machine.name,
+          message: result.message,
+        }),
         timestamp: new Date(),
         machineId: machine.id,
         acknowledged: false,
@@ -126,7 +170,14 @@ export const MachineInspector: React.FC<{
     if (mountedRef.current) setIsMaintaining(false);
   };
 
+  const restartBlocked = () =>
+    useGameSimulationStore.getState().emergencyActive ||
+    useProductionStore.getState().machines.find((candidate) => candidate.id === machine.id)
+      ?.status === 'critical' ||
+    Boolean(useBreakdownStore.getState().getBreakdownForMachine(machine.id));
+
   const handleRestart = async () => {
+    if (restartBlocked()) return;
     setIsRestarting(true);
     const previousStatus = machine.status;
 
@@ -135,6 +186,10 @@ export const MachineInspector: React.FC<{
 
     // Simulate restart sequence with staged recovery
     await new Promise((resolve) => setTimeout(resolve, 1000));
+    if (restartBlocked()) {
+      if (mountedRef.current) setIsRestarting(false);
+      return;
+    }
 
     // Reset metrics to healthy baseline values during restart
     // This simulates the machine cooling down and stabilizing
@@ -150,8 +205,32 @@ export const MachineInspector: React.FC<{
     // force a machine back to running after the facility has been stopped,
     // but always finish the restart when only the panel went away: the
     // machine must not be stranded idle because the sidebar closed.
-    if (useGameSimulationStore.getState().emergencyActive) {
+    if (restartBlocked()) {
       if (mountedRef.current) setIsRestarting(false);
+      return;
+    }
+
+    // A restart resets temperature, vibration and load, never wear. A machine
+    // still worn past its warning threshold goes straight back to 'warning'
+    // (no fresh running-to-warning transition, so no second predictive alert)
+    // and the player is told that only maintenance clears it.
+    const live = useProductionStore.getState().machines.find((m) => m.id === machine.id);
+    if (live && wearHoldsWarning(live)) {
+      updateMachineStatus(machine.id, 'warning');
+      if (mountedRef.current) setIsRestarting(false);
+      addAlert({
+        id: `restart-${machine.id}-${Date.now()}`,
+        type: 'warning',
+        title: translate(machineInspectorMessages, 'machineRestartedWornTitle'),
+        message: translate(machineInspectorMessages, 'machineRestartedWornMessage', {
+          name: machine.name,
+          wear: formatFixed(live.metrics.wear, 1),
+          threshold: formatFixed(getWearConfig(live.type).warningThreshold, 0),
+        }),
+        timestamp: new Date(),
+        machineId: machine.id,
+        acknowledged: false,
+      });
       return;
     }
 
@@ -159,14 +238,16 @@ export const MachineInspector: React.FC<{
     updateMachineStatus(machine.id, 'running');
     if (mountedRef.current) setIsRestarting(false);
 
-    const wasWarning = previousStatus === 'warning' || previousStatus === 'critical';
+    const wasWarning = previousStatus === 'warning';
     addAlert({
       id: `restart-${machine.id}-${Date.now()}`,
       type: 'success',
-      title: wasWarning ? 'Machine Recovered' : 'Machine Restarted',
+      title: wasWarning
+        ? translate(machineInspectorMessages, 'machineRecoveredTitle')
+        : translate(machineInspectorMessages, 'machineRestartedTitle'),
       message: wasWarning
-        ? `${machine.name} has been restarted and metrics reset to healthy values.`
-        : `${machine.name} has been successfully restarted.`,
+        ? translate(machineInspectorMessages, 'machineRecoveredMessage', { name: machine.name })
+        : translate(machineInspectorMessages, 'machineRestartedMessage', { name: machine.name }),
       timestamp: new Date(),
       machineId: machine.id,
       acknowledged: false,
@@ -180,9 +261,9 @@ export const MachineInspector: React.FC<{
     <div className="p-6 space-y-4 overflow-y-auto h-full custom-scrollbar">
       <div className="border-b border-white/10 pb-6">
         <p
-          className="flex items-center gap-3 text-lg capitalize text-slate-200"
+          className={`flex items-center gap-3 text-lg ${capitalizeIn(locale)} text-slate-200`}
           role="status"
-          aria-label={`Machine status: ${machine.status}`}
+          aria-label={t('statusLabel', { status: machine.status })}
         >
           <span
             aria-hidden="true"
@@ -196,13 +277,15 @@ export const MachineInspector: React.FC<{
                     : 'bg-red-400'
             }`}
           />
-          {machine.status}
+          {t('status', { status: machine.status })}
         </p>
-        {(machine.status === 'critical' || machine.status === 'warning') && (
+        {(activeFault || machine.status === 'critical' || machine.status === 'warning') && (
           <p className="mt-3 text-sm text-slate-300">
-            {machine.status === 'critical'
-              ? CRITICAL_RESTART_GUIDANCE
-              : "Something's off. Check the metrics and maintenance log."}
+            {activeFault
+              ? repairGuidance
+              : machine.status === 'critical'
+                ? criticalRestartGuidance
+                : t('warningGuidance')}
           </p>
         )}
       </div>
@@ -210,7 +293,7 @@ export const MachineInspector: React.FC<{
       <dl className="space-y-1">
         {flowTag ? (
           <MetricCard
-            label="Feed rate"
+            label={t('feedRate')}
             value={formatReading(
               scadaEnabled && feedReading?.quality === 'GOOD'
                 ? Number(feedReading.value)
@@ -220,17 +303,76 @@ export const MachineInspector: React.FC<{
             unit={flowTag.engUnit ?? ''}
           />
         ) : (
-          <MetricCard label="RPM" value={formatReading(metrics?.rpm, 0)} unit="r/min" />
+          <MetricCard label={t('rpm')} value={formatReading(metrics?.rpm, 0)} unit="r/min" />
         )}
-        <MetricCard label="Motor load" value={formatReading(metrics?.load, 1)} unit="%" />
-        <MetricCard label="Temperature" value={formatReading(metrics?.temperature, 1)} unit="°C" />
+        <MetricCard label={t('motorLoad')} value={formatReading(metrics?.load, 1)} unit="%" />
+        <MetricCard
+          label={t('temperature')}
+          value={formatReading(metrics?.temperature, 1)}
+          unit="°C"
+        />
       </dl>
       {flowTag && (
         <RecordedFeedTrend history={scadaEnabled ? history : []} unit={flowTag.engUnit ?? ''} />
       )}
+      {/* Wear is what Maintain changes, so it sits beside the readings with
+          its thresholds, and the service and its cost are visible without
+          opening Inspect. Working if a player can tell whether a unit needs
+          service and what it costs before acting, on touch as well. */}
+      <section aria-label={t('wearAndService')} className="space-y-2">
+        <dl>
+          <MetricCard label={t('wear')} value={formatReading(metrics?.wear, 1)} unit="%" />
+        </dl>
+        <p className="text-xs leading-5 text-slate-300">
+          {t('wearThresholds', {
+            warning: formatFixed(wearConfig.warningThreshold, 0),
+            breakdown: formatFixed(wearConfig.breakdownThreshold, 0),
+            efficiency: formatReading(metrics?.efficiency, 0),
+          })}
+        </p>
+        <button
+          onClick={handleMaintenance}
+          disabled={isMaintaining || isRestarting || Boolean(activeFault) || belowMinimumWear}
+          title={
+            activeFault
+              ? repairGuidance
+              : belowMinimumWear
+                ? belowMinimumReason
+                : !availablePart
+                  ? t('outOfParts')
+                  : t('maintenanceTitle', { part: availablePart })
+          }
+          className="w-full min-h-11 border border-white/15 bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed text-white py-2 rounded-lg font-medium text-xs transition-colors flex items-center justify-center gap-2"
+        >
+          {isMaintaining ? (
+            <>
+              <Loader2 size={14} className="animate-spin" />
+              {t('performingMaintenance')}
+            </>
+          ) : (
+            <>
+              <Wrench size={14} />
+              {t('performMaintenance')}
+            </>
+          )}
+        </button>
+        {/* An active fault is explained once, in the status guidance above. */}
+        {!activeFault && (
+          <p className="text-xs leading-5 text-slate-300">
+            {belowMinimumWear
+              ? belowMinimumReason
+              : availablePart
+                ? t('maintenanceCost', {
+                    part: availablePart,
+                    count: formatFixed(partsInventory[availablePart] ?? 0, 0),
+                  })
+                : t('outOfParts')}
+          </p>
+        )}
+      </section>
       <details className="group">
         <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between border border-cyan-300 px-4 text-base text-cyan-200 hover:bg-cyan-300/10">
-          Inspect{' '}
+          {t('inspect')}{' '}
           <span aria-hidden="true" className="text-xl group-open:rotate-90">
             ›
           </span>
@@ -238,30 +380,32 @@ export const MachineInspector: React.FC<{
         <div className="space-y-4 pt-5">
           <dl>
             <MetricCard
-              label="Vibration"
+              label={t('vibration')}
               value={formatReading(metrics?.vibration, 2)}
               unit="mm/s"
             />
           </dl>
-          <section aria-label="Material-flow evidence" className="border-b border-white/10 pb-4">
+          <section aria-label={t('materialFlowEvidence')} className="border-b border-white/10 pb-4">
             <p className="mb-1 text-[12px] font-medium text-slate-300">{flowLabel}</p>
             {buffer && (
               <dl className="mt-3 grid grid-cols-2 gap-3 text-xs text-slate-300">
                 <div>
-                  <dt>Input buffer</dt>
+                  <dt>{t('inputBuffer')}</dt>
                   <dd className="mt-1 font-mono text-white">
-                    {buffer.inputBuffer
-                      .reduce((sum, material) => sum + material.amount, 0)
-                      .toLocaleString(undefined, { maximumFractionDigits: 1 })}{' '}
+                    {formatGrouped(
+                      buffer.inputBuffer.reduce((sum, material) => sum + material.amount, 0),
+                      { maximumFractionDigits: 1 }
+                    )}{' '}
                     kg
                   </dd>
                 </div>
                 <div>
-                  <dt>Output buffer</dt>
+                  <dt>{t('outputBuffer')}</dt>
                   <dd className="mt-1 font-mono text-white">
-                    {buffer.outputBuffer
-                      .reduce((sum, material) => sum + material.amount, 0)
-                      .toLocaleString(undefined, { maximumFractionDigits: 1 })}{' '}
+                    {formatGrouped(
+                      buffer.outputBuffer.reduce((sum, material) => sum + material.amount, 0),
+                      { maximumFractionDigits: 1 }
+                    )}{' '}
                     kg
                   </dd>
                 </div>
@@ -278,45 +422,34 @@ export const MachineInspector: React.FC<{
               className="w-full min-h-11 border border-white/15 bg-white/5 hover:bg-white/10 text-slate-200 py-2 rounded-md font-medium text-xs transition-colors flex items-center justify-center gap-2"
             >
               <FileText size={14} />
-              {showLogs ? 'Hide Maintenance Logs' : 'View Maintenance Logs'}
-            </button>
-            <button
-              onClick={handleMaintenance}
-              disabled={isMaintaining || isRestarting}
-              title={
-                !availablePart
-                  ? 'Out of spare parts — maintenance needs one to proceed.'
-                  : `Reduces machine wear (consumes 1 spare part: ${availablePart})`
-              }
-              className="w-full min-h-11 border border-white/15 bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed text-white py-2 rounded-lg font-medium text-xs transition-colors flex items-center justify-center gap-2"
-            >
-              {isMaintaining ? (
-                <>
-                  <Loader2 size={14} className="animate-spin" />
-                  Performing Maintenance...
-                </>
-              ) : (
-                <>
-                  <Wrench size={14} />
-                  Perform Maintenance
-                </>
-              )}
+              {showLogs ? t('hideLogs') : t('viewLogs')}
             </button>
             <button
               onClick={handleRestart}
-              disabled={isRestarting || isMaintaining || machine.status === 'critical'}
-              title={machine.status === 'critical' ? CRITICAL_RESTART_GUIDANCE : undefined}
+              disabled={
+                isRestarting ||
+                isMaintaining ||
+                machine.status === 'critical' ||
+                Boolean(activeFault)
+              }
+              title={
+                activeFault
+                  ? repairGuidance
+                  : machine.status === 'critical'
+                    ? criticalRestartGuidance
+                    : undefined
+              }
               className="w-full min-h-11 border border-white/15 bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed text-white py-2 rounded-lg font-medium text-xs transition-colors flex items-center justify-center gap-2"
             >
               {isRestarting ? (
                 <>
                   <Loader2 size={14} className="animate-spin" />
-                  Restarting...
+                  {t('restarting')}
                 </>
               ) : (
                 <>
                   <RotateCcw size={14} />
-                  Restart Unit
+                  {t('restartUnit')}
                 </>
               )}
             </button>
@@ -329,12 +462,10 @@ export const MachineInspector: React.FC<{
               className="bg-slate-800/30 border border-white/5 rounded-xl p-3 space-y-2"
             >
               <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
-                Recent Maintenance
+                {t('recentMaintenance')}
               </h4>
               {maintenanceLogs.length === 0 && (
-                <p className="text-sm leading-6 text-slate-300">
-                  No maintenance on record. Either it is new, or it has been very lucky.
-                </p>
+                <p className="text-sm leading-6 text-slate-300">{t('noMaintenance')}</p>
               )}
               {maintenanceLogs.map((log) => (
                 <div
@@ -344,11 +475,15 @@ export const MachineInspector: React.FC<{
                   <CheckCircle size={12} className="text-green-400 mt-0.5 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-center">
-                      <span className="text-xs text-white font-medium capitalize">{log.type}</span>
+                      <span className={`text-xs text-white font-medium ${capitalizeIn(locale)}`}>
+                        {t('maintenanceType', { type: log.type })}
+                      </span>
                       <span className="text-xs text-slate-400">{log.date}</span>
                     </div>
                     <p className="text-xs leading-5 text-slate-300 break-words">{log.notes}</p>
-                    <p className="text-xs text-slate-400">Service unit: {log.serviceUnit}</p>
+                    <p className="text-xs text-slate-400">
+                      {t('serviceUnit', { unit: log.serviceUnit })}
+                    </p>
                   </div>
                 </div>
               ))}
@@ -361,7 +496,7 @@ export const MachineInspector: React.FC<{
           onClick={() => onFocusMachine(machine.id)}
           className="flex min-h-12 w-full items-center justify-between gap-2 rounded-sm border border-white/20 px-4 text-sm text-slate-200 hover:bg-white/5"
         >
-          Focus machine <Focus size={18} aria-hidden="true" />
+          {t('focusMachine')} <Focus size={18} aria-hidden="true" />
         </button>
       )}
     </div>
@@ -407,6 +542,7 @@ function RecordedFeedTrend({
   history: readonly TagHistoryPoint[];
   unit: string;
 }) {
+  const t = useT(machineInspectorMessages);
   const paths = inspectorTrendPaths(history);
   return (
     <figure className="border-y border-dashed border-white/15 py-2">
@@ -415,26 +551,22 @@ function RecordedFeedTrend({
           viewBox="0 0 280 72"
           className="h-20 w-full"
           role="img"
-          aria-label={`Recorded feed rate trend in ${unit}`}
+          aria-label={t('trendLabel', { unit })}
         >
           {paths.map((path, index) => (
             <path key={index} d={path} fill="none" stroke="#67e8f9" strokeWidth="1.5" />
           ))}
         </svg>
       ) : (
-        <p className="py-6 text-xs text-slate-400">
-          Waiting for the historian to collect enough to draw a line.
-        </p>
+        <p className="py-6 text-xs text-slate-400">{t('trendWaiting')}</p>
       )}
-      <figcaption className="text-[11px] text-slate-400">
-        Feed rate ({unit}), recorded samples
-      </figcaption>
+      <figcaption className="text-[11px] text-slate-400">{t('trendCaption', { unit })}</figcaption>
     </figure>
   );
 }
 
 function formatReading(value: number | undefined, digits: number): string {
-  return typeof value === 'number' && Number.isFinite(value) ? value.toFixed(digits) : '--';
+  return typeof value === 'number' && Number.isFinite(value) ? formatFixed(value, digits) : '--';
 }
 
 const MetricCard: React.FC<{ label: string; value: string; unit: string }> = ({

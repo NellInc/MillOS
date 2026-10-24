@@ -1,16 +1,26 @@
 import { useState } from 'react';
+import { STANDARD_GAME_SPEED } from '../../../simulation/pace';
 import {
   exportWorkplaceReplayReport,
   useWorkplaceReplayStore,
 } from '../../../stores/workplaceReplayStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
-import { PRACTICES, WORKPLACE_PLANS } from '../../../simulation/bilateralWorkplace';
+import {
+  PRACTICES,
+  WORKPLACE_PLANS,
+  displayEventDetail,
+} from '../../../simulation/bilateralWorkplace';
+import { replayLearningReview } from '../../../simulation/workplaceFairness';
 import type { WorkplaceProfile } from '../../../types/workplace';
+import { formatFixed, translate, useT } from '../../../i18n';
+import { workplaceReplayMessages } from './WorkplaceReplay.messages';
 
 const buttonClass =
   'min-h-9 rounded-md border border-cyan-300/25 px-2 py-1.5 text-xs font-medium text-cyan-100 hover:bg-cyan-900/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 disabled:cursor-not-allowed disabled:opacity-50';
 const profiles: WorkplaceProfile[] = ['toe-dip', 'team', 'cooperative'];
+/** Locale-aware String(n): English prints exactly what String(n) printed. */
+const formatPlain = (n: number) => formatFixed(n, (String(n).split('.')[1] ?? '').length);
 export type WorkplaceSection =
   | 'Shift'
   | 'Practices'
@@ -27,12 +37,16 @@ export function WorkplaceReplay({
   validSeed: boolean;
   navigate: (section: WorkplaceSection) => void;
 }) {
+  const t = useT(workplaceReplayMessages);
   const replay = useWorkplaceReplayStore();
   const gameSpeed = useGameSimulationStore((state) => state.gameSpeed);
   const [feedback, setFeedback] = useState<string | null>(null);
   const report = (result: { changed: boolean; reason: string | null }) => {
     setFeedback(
-      result.reason ?? (result.changed ? 'Replay state recorded locally.' : 'No change.')
+      result.reason ??
+        (result.changed
+          ? translate(workplaceReplayMessages, 'recordedLocally')
+          : translate(workplaceReplayMessages, 'noChange'))
     );
     return result.changed;
   };
@@ -41,7 +55,7 @@ export function WorkplaceReplay({
   };
   const guide = () => {
     if (!validSeed) return;
-    useGameSimulationStore.getState().setGameSpeed(0);
+    useGameSimulationStore.getState().holdClock('workplace');
     if (!report(replay.capture(seed))) return;
     if (!report(useWorkplaceReplayStore.getState().begin('toe-dip'))) return;
     useWorkplaceReplayStore.getState().setGuided(true);
@@ -56,44 +70,36 @@ export function WorkplaceReplay({
     link.download = 'millos-workplace-replay-report.json';
     link.click();
     URL.revokeObjectURL(url);
-    setFeedback('Redacted run report downloaded locally. Plant checkpoint stays in memory.');
+    setFeedback(translate(workplaceReplayMessages, 'reportDownloaded'));
   };
-  const horizons = new Set(replay.runs.map((run) => `${run.elapsedMinutes}:${run.shiftCount}`));
+  const learning = replayLearningReview(replay.runs);
   return (
     <section
-      aria-label="Matched plant replay"
+      aria-label={t('title')}
       className="min-w-0 space-y-3 break-words border-b border-slate-700 pb-4"
     >
-      <h4 className="font-semibold text-white">Matched plant replay</h4>
-      <p>
-        Pause the plant, capture the customer order and stock, choose a charter, agree fresh terms,
-        play the actual plant, then retain the review and compare. Each charter starts from the same
-        in-memory checkpoint. Rewinding replaces current local plant progress.
-      </p>
+      <h4 className="font-semibold text-white">{t('title')}</h4>
+      <p>{t('intro')}</p>
       <div className="flex flex-wrap gap-2">
         <button
           className={buttonClass}
           disabled={gameSpeed === 0}
           onClick={() => useGameSimulationStore.getState().setGameSpeed(0)}
         >
-          Pause plant for capture
+          {t('pauseForCapture')}
         </button>
         <button
           className={buttonClass}
           disabled={!validSeed}
           onClick={() => report(replay.capture(seed))}
         >
-          Capture paused plant
+          {t('capturePaused')}
         </button>
         <button className={buttonClass} disabled={!validSeed} onClick={guide}>
-          Start guided plant replay
+          {t('startGuided')}
         </button>
       </div>
-      <p>
-        Capture requires a paused, safe local plant and an idle or untouched minute-zero discussion.
-        External SCADA control, safety holds and owed recovery block rewind. Checkpoints disappear
-        on reload and cannot be exported.
-      </p>
+      <p>{t('captureRequires')}</p>
       {feedback && (
         <p role="status" className="break-words text-amber-100">
           {feedback}
@@ -102,133 +108,177 @@ export function WorkplaceReplay({
       {replay.checkpoint ? (
         <div className="space-y-2">
           <p className="tabular-nums">
-            Checkpoint: {replay.checkpoint.customer}, {replay.checkpoint.remainingKg.toFixed(1)} kg
-            remaining; source stock {replay.checkpoint.sourceKg.toFixed(1)} kg. Day{' '}
-            {replay.checkpoint.gameDay}, hour {replay.checkpoint.gameTime.toFixed(2)}; seed{' '}
-            {replay.checkpoint.seed}. Faults: {replay.checkpoint.faults.join(', ') || 'none'}.
+            {t('checkpointLine', {
+              customer: replay.checkpoint.customer,
+              remaining: formatFixed(replay.checkpoint.remainingKg, 1),
+              source: formatFixed(replay.checkpoint.sourceKg, 1),
+              day: formatPlain(replay.checkpoint.gameDay),
+              hour: formatFixed(replay.checkpoint.gameTime, 2),
+              seed: String(replay.checkpoint.seed),
+              faults: replay.checkpoint.faults.join(', ') || t('none'),
+            })}
           </p>
           <div className="flex flex-wrap gap-2">
             {profiles.map((profile) => (
               <button key={profile} className={buttonClass} onClick={() => begin(profile)}>
-                Replay {profile} charter
+                {t('replayCharter', { profile: t('profileLabel', { profile }) })}
               </button>
             ))}
             <button className={buttonClass} onClick={() => report(replay.record())}>
-              Retain actual run review
+              {t('retainReview')}
             </button>
             <button className={buttonClass} onClick={() => report(replay.forget())}>
-              Forget replay checkpoint and reports
+              {t('forget')}
             </button>
           </div>
-          <p>
-            Replays remain paused for agreement and pause automatically at review. After an early
-            stop, explicitly resume the plant clock to deliver owed recovery before retaining the
-            review. An eligible review is retained before a new charter rewinds. Consent, votes and
-            understanding never carry over.
-          </p>
+          <p>{t('replayNote')}</p>
         </div>
       ) : (
-        <p>No checkpoint yet. Capture a paused plant to compare actual runs.</p>
+        <p>{t('noCheckpoint')}</p>
       )}
-      {horizons.size > 1 && (
-        <p className="text-amber-100">
-          Unequal horizons: elapsed time or shifts differ. Dispatch totals alone cannot establish a
-          better charter.
-        </p>
+      {learning?.horizonsDiffer && <p className="text-amber-100">{t('unequalHorizons')}</p>}
+      {learning && (
+        <details className="space-y-2">
+          <summary className="min-h-11 cursor-pointer py-2 font-medium text-cyan-100">
+            {t('discussEvidence')}
+          </summary>
+          <div role="group" aria-label={t('learningReview')} className="space-y-3">
+            {learning.caveats.length > 0 && (
+              <ul className="list-disc space-y-2 pl-4 text-amber-100">
+                {learning.caveats.map((caveat) => (
+                  <li key={caveat}>{caveat}</li>
+                ))}
+              </ul>
+            )}
+            <p className="text-cyan-100">{learning.question}</p>
+            <p>{t('hearRoles')}</p>
+          </div>
+        </details>
       )}
       {replay.runs.map((run) => (
         <article
           key={run.id}
-          aria-label={`${run.profile} actual run`}
+          aria-label={t('runLabel', { profile: t('profileLabel', { profile: run.profile }) })}
           className="min-w-0 space-y-2 border-t border-slate-700 pt-3"
         >
           <h5 className="font-semibold text-white">
-            {run.profile}:{' '}
+            {t('profileLabel', { profile: run.profile })}:{' '}
             {WORKPLACE_PLANS.find((plan) => plan.id === run.planId)?.title ?? run.planId}
           </h5>
           <p>
-            Actual charter: {run.charter.workerAutonomy} work choice; {run.charter.governance}{' '}
-            governance; {run.charter.aiAuthority} AI authority. Practices:{' '}
-            {run.charter.practices
-              .map((id) => PRACTICES.find((practice) => practice.id === id)?.title ?? id)
-              .join(', ') || 'none'}
-            .
+            {t('charterLine', {
+              autonomy: t('autonomyLabel', { value: run.charter.workerAutonomy }),
+              governance: t('governanceLabel', { value: run.charter.governance }),
+              ai: t('aiAuthorityLabel', { value: run.charter.aiAuthority }),
+              practices:
+                run.charter.practices
+                  .map((id) => PRACTICES.find((practice) => practice.id === id)?.title ?? id)
+                  .join(', ') || t('none'),
+            })}
           </p>
           <p>
-            Shift plans:{' '}
-            {run.shiftPlans
-              .map(
-                (shift) =>
-                  `shift ${shift.shift + 1}, ${WORKPLACE_PLANS.find((plan) => plan.id === shift.planId)?.title ?? shift.planId}`
-              )
-              .join('; ')}
-            .
+            {t('shiftPlans', {
+              plans: run.shiftPlans
+                .map((shift) =>
+                  t('shiftPlanItem', {
+                    number: formatFixed(shift.shift + 1, 0),
+                    title:
+                      WORKPLACE_PLANS.find((plan) => plan.id === shift.planId)?.title ??
+                      shift.planId,
+                  })
+                )
+                .join('; '),
+            })}
           </p>
           <dl className="space-y-2 tabular-nums">
             <div>
-              <dt className="font-medium text-slate-100">Actual dispatch and horizon</dt>
+              <dt className="font-medium text-slate-100">{t('dispatchHeading')}</dt>
               <dd>
-                {run.dispatchedKg.toFixed(1)} kg dispatched; {run.remainingKg.toFixed(1)} kg full
-                commitment remaining. Agreed target {run.targetKg.toFixed(1)} kg; deferred{' '}
-                {run.deferredKg.toFixed(1)} kg. {run.shiftCount}{' '}
-                {run.shiftCount === 1 ? 'shift' : 'shifts'}; {run.elapsedMinutes.toFixed(1)} elapsed
-                minutes; {run.agreementMinutes.toFixed(1)} agreement minutes.
+                {t('dispatchLine', {
+                  dispatched: formatFixed(run.dispatchedKg, 1),
+                  remaining: formatFixed(run.remainingKg, 1),
+                  target: formatFixed(run.targetKg, 1),
+                  deferred: formatFixed(run.deferredKg, 1),
+                  shiftCount: run.shiftCount,
+                  shifts: formatPlain(run.shiftCount),
+                  elapsed: formatFixed(run.elapsedMinutes, 1),
+                  agreement: formatFixed(run.agreementMinutes, 1),
+                })}
               </dd>
             </div>
             <div>
-              <dt className="font-medium text-slate-100">Plant accounts, pounds sterling</dt>
+              <dt className="font-medium text-slate-100">{t('plantAccounts')}</dt>
               <dd>
-                Revenue £{run.financial.plantRevenue.toFixed(2)}; costs £
-                {run.financial.plantCosts.toFixed(2)}.
+                {t('revenueLine', {
+                  revenue: formatFixed(run.financial.plantRevenue, 2),
+                  costs: formatFixed(run.financial.plantCosts, 2),
+                })}
               </dd>
             </div>
             <div>
-              <dt className="font-medium text-slate-100">Illustrative workplace credits</dt>
+              <dt className="font-medium text-slate-100">{t('workplaceCredits')}</dt>
               <dd>
-                Wages {run.financial.workplaceWages.toFixed(2)}; compensation{' '}
-                {run.financial.compensation.toFixed(2)}; improvements{' '}
-                {run.financial.improvements.toFixed(2)}.
+                {t('creditsLine', {
+                  wages: formatFixed(run.financial.workplaceWages, 2),
+                  compensation: formatFixed(run.financial.compensation, 2),
+                  improvements: formatFixed(run.financial.improvements, 2),
+                })}
               </dd>
             </div>
             <div>
-              <dt className="font-medium text-slate-100">Conservation and genealogy</dt>
+              <dt className="font-medium text-slate-100">{t('conservationHeading')}</dt>
               <dd>
-                Material error {run.materialErrorKg.toFixed(3)} kg; genealogy error{' '}
-                {run.genealogyErrorKg.toFixed(3)} kg; {run.manifestIds.length} dispatch{' '}
-                {run.manifestIds.length === 1 ? 'manifest' : 'manifests'}.
+                {t('conservationLine', {
+                  material: formatFixed(run.materialErrorKg, 3),
+                  genealogy: formatFixed(run.genealogyErrorKg, 3),
+                  manifestCount: run.manifestIds.length,
+                  manifests: formatFixed(run.manifestIds.length, 0),
+                })}
               </dd>
             </div>
           </dl>
           <p>
-            Refusals respected {run.refusalsRespected}; promises kept {run.promisesKept}. Cumulative
-            objections resolved {run.objectionsResolved} of {run.objectionsRaised}. Current-shift
-            open objections {run.objections.filter((item) => item.status === 'open').length}.
+            {t('conductLine', {
+              refusals: formatPlain(run.refusalsRespected),
+              promises: formatPlain(run.promisesKept),
+              resolved: formatPlain(run.objectionsResolved),
+              raised: formatPlain(run.objectionsRaised),
+              open: formatFixed(run.objections.filter((item) => item.status === 'open').length, 0),
+            })}
           </p>
           <details>
-            <summary className="cursor-pointer text-cyan-100">
-              Member burdens and public receipts
-            </summary>
+            <summary className="cursor-pointer text-cyan-100">{t('burdensSummary')}</summary>
             <div className="mt-2 space-y-2">
               {run.members.map((member) => (
                 <p key={member.id} className="tabular-nums">
-                  {member.role}: extra {member.extraMinutes.toFixed(1)} min; rest{' '}
-                  {member.restMinutes.toFixed(1)} min; recovery delivered{' '}
-                  {member.recoveryMinutes.toFixed(1)} min, owed{' '}
-                  {member.recoveryOwedMinutes.toFixed(1)} min; earned {member.earnedPay.toFixed(2)},
-                  compensation {member.compensationPaid.toFixed(2)} credits; refusal{' '}
-                  {member.refusalRespected ? 'respected' : 'not recorded as respected'}.
+                  {t('memberLine', {
+                    role: member.role,
+                    extra: formatFixed(member.extraMinutes, 1),
+                    rest: formatFixed(member.restMinutes, 1),
+                    recovery: formatFixed(member.recoveryMinutes, 1),
+                    owed: formatFixed(member.recoveryOwedMinutes, 1),
+                    earned: formatFixed(member.earnedPay, 2),
+                    compensation: formatFixed(member.compensationPaid, 2),
+                    refusal: member.refusalRespected
+                      ? t('refusalRespected')
+                      : t('refusalNotRecorded'),
+                  })}
                 </p>
               ))}
               {run.receipts.map((receipt) => (
                 <div key={receipt.shift}>
-                  <p>Shift {receipt.shift + 1}</p>
+                  <p>{t('shiftNumber', { number: formatFixed(receipt.shift + 1, 0) })}</p>
                   {receipt.events === null ? (
-                    <p>No public receipts retained for this shift.</p>
+                    <p>{t('noReceipts')}</p>
                   ) : (
                     <ol className="list-disc space-y-1 pl-4">
                       {receipt.events.map((event) => (
                         <li key={event.id} className="break-words">
-                          Minute {event.minute.toFixed(1)}, {event.actorId}: {event.detail}
+                          {t('eventLine', {
+                            minute: formatFixed(event.minute, 1),
+                            actor: event.actorId,
+                            detail: displayEventDetail(event.detail),
+                          })}
                         </li>
                       ))}
                     </ol>
@@ -241,14 +291,10 @@ export function WorkplaceReplay({
       ))}
       {replay.runs.length > 0 && (
         <button className={buttonClass} onClick={download}>
-          Download redacted replay report
+          {t('downloadReport')}
         </button>
       )}
-      <p>
-        Starting conditions match; frame-driven vehicle trajectories can differ between runs.
-        Compare elapsed and agreement time alongside dispatch. These records describe local
-        simulation conduct. No winner, trust or wellbeing score is inferred.
-      </p>
+      <p>{t('closingNote')}</p>
     </section>
   );
 }
@@ -260,41 +306,43 @@ export function WorkplaceReplayGuide({
   section: WorkplaceSection;
   navigate: (section: WorkplaceSection) => void;
 }) {
+  const t = useT(workplaceReplayMessages);
   const guided = useWorkplaceReplayStore((state) => state.guided);
   const workplace = useWorkplaceStore((state) => state.workplace);
   if (!guided || section === 'Experiment') return null;
   const copy: Record<Exclude<WorkplaceSection, 'Experiment'>, string> = {
-    Shift:
-      'Start with protected rest, shared operating information and remedy. Keep the customer commitment or negotiate an installment: deferral leaves the full contract outstanding. Select a real plan below.',
-    Practices:
-      'Toe-dip starts with rest, information and remedy. Team adds shared decisions; cooperative adds member governance. Optional budget practice enables the shared handoff improvement. Use the actual practice controls below.',
-    'Agreement / Voices':
-      'Each role answers its own understanding checks and casts its own vote. Optional cover needs separate revocable consent. Quality may refuse without explaining. Resolve objections through their original author, then explicitly approve the agreement below.',
-    Review:
-      'Check actual dispatch, protected rest, earned compensation and delivered recovery. Finish owed recovery before retaining this run. Return to Experiment to replay team or cooperative from the same checkpoint with fresh agreement.',
+    Shift: t('guideShift'),
+    Practices: t('guidePractices'),
+    'Agreement / Voices': t('guideAgreement'),
+    Review: t('guideReview'),
   };
   return (
-    <aside aria-label="Guided replay" className="space-y-2 border-y border-slate-700 py-3">
-      <h4 className="font-semibold text-white">Guided replay: {section}</h4>
+    <aside aria-label={t('guideLabel')} className="space-y-2 border-y border-slate-700 py-3">
+      <h4 className="font-semibold text-white">
+        {t('guideHeading', { section: t('sectionLabel', { section }) })}
+      </h4>
       <p>{copy[section]}</p>
       {section === 'Shift' && (
         <ul className="list-disc space-y-1 pl-4">
           {WORKPLACE_PLANS.filter((plan) => !plan.illegalReason).map((plan) => (
             <li key={plan.id}>
-              {plan.title}: {(plan.capacity * 100).toFixed(0)}% pacing; {plan.budgetCost}{' '}
-              illustrative credits; {plan.protectedRestMinutes} min protected rest.
+              {t('planLine', {
+                title: plan.title,
+                pacing: formatFixed(plan.capacity * 100, 0),
+                budget: formatPlain(plan.budgetCost),
+                rest: formatPlain(plan.protectedRestMinutes),
+              })}
               {plan.optionalCoverMinutes > 0 &&
-                ` Up to ${plan.optionalCoverMinutes} min voluntary cover at ${plan.compensationPerMinute} credits/min and ${plan.recoveryMinutes} min recovery, then protected pacing resumes.`}
+                t('planCover', {
+                  cover: formatPlain(plan.optionalCoverMinutes),
+                  rate: formatPlain(plan.compensationPerMinute),
+                  recovery: formatPlain(plan.recoveryMinutes),
+                })}
             </li>
           ))}
         </ul>
       )}
-      {workplace.phase === 'active' && (
-        <p>
-          The agreement is active. Use the plant clock controls to resume actual play; this guide
-          never advances time or submits decisions.
-        </p>
-      )}
+      {workplace.phase === 'active' && <p>{t('activeNote')}</p>}
       <div className="flex flex-wrap gap-2">
         <button
           className={buttonClass}
@@ -310,23 +358,22 @@ export function WorkplaceReplayGuide({
             )
           }
         >
-          Next guide section
+          {t('nextSection')}
         </button>
         <button
           className={buttonClass}
           onClick={() => useWorkplaceReplayStore.getState().setGuided(false)}
         >
-          End guide
+          {t('endGuide')}
         </button>
       </div>
-      <p>
-        Optional navigation only. No votes, checks, consent or approval are supplied by the guide.
-      </p>
+      <p>{t('optionalNavigation')}</p>
     </aside>
   );
 }
 
 export function WorkplaceReplayResume() {
+  const t = useT(workplaceReplayMessages);
   const activeRunId = useWorkplaceReplayStore((state) => state.activeRunId);
   const phase = useWorkplaceStore((state) => state.workplace.phase);
   const gameSpeed = useGameSimulationStore((state) => state.gameSpeed);
@@ -340,11 +387,12 @@ export function WorkplaceReplayResume() {
           useWorkplaceStore.getState().workplace.phase === 'active' &&
           useGameSimulationStore.getState().gameSpeed === 0
         ) {
-          useGameSimulationStore.getState().setGameSpeed(30);
+          // The button names its pace, so it sets it: an explicit choice.
+          useGameSimulationStore.getState().setGameSpeed(STANDARD_GAME_SPEED);
         }
       }}
     >
-      Resume agreed replay at teaching pace (30×)
+      {t('resume')}
     </button>
   );
 }

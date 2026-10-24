@@ -33,6 +33,10 @@ export interface PerfDebugSettings {
   disablePunctualLights: boolean;
   /** Same-load reference control for night fill, neutral hall lamps and forecourt light. */
   disableLightingPolish: boolean;
+  /** Same-page hall illumination reference, keeping source identities/counts.
+   * Working if old bank uniforms restore without changing quality or gameplay.
+   */
+  disableInteriorLightBanks: boolean;
   /**
    * Switch off the analytic surface treatment in `utils/worldSurface`.
    *
@@ -47,6 +51,11 @@ export interface PerfDebugSettings {
   /** Same-page optical cost controls, never lower a preset to obtain a pass. */
   disableAmbientOcclusion: boolean;
   disableBloom: boolean;
+  /** Same-page AA controls: the composer's SMAA pass and its MSAA samples. */
+  disableSMAA: boolean;
+  disableComposerMsaa: boolean;
+  /** Same-page control for the grade's black toe (`DISPLAY_TOE`): stock contrast when true. */
+  disableDisplayToe: boolean;
   disableAllAnimations: boolean; // Master toggle - disable all useFrame hooks
   showPerfOverlay: boolean; // Show performance metrics overlay
 }
@@ -194,9 +203,13 @@ const DEFAULT_PERF_DEBUG: PerfDebugSettings = {
   disableTerrain: false,
   disablePunctualLights: false,
   disableLightingPolish: false,
+  disableInteriorLightBanks: false,
   disableSurfaceTreatment: false,
   disableAmbientOcclusion: false,
   disableBloom: false,
+  disableSMAA: false,
+  disableComposerMsaa: false,
+  disableDisplayToe: false,
   disableAllAnimations: false,
   showPerfOverlay: false,
 };
@@ -613,9 +626,34 @@ export function isPostProcessingActive(graphics: PostProcessingFlags): boolean {
   );
 }
 
+/**
+ * A tier applied automatically (adaptive) for one session, and the explicit
+ * choice it displaced. Persisted beside `graphics` so the next session can put
+ * that choice back; owned here so one store holds all graphics state.
+ */
+export interface SessionTierRecord {
+  applied: GraphicsQuality;
+  restoreTo: GraphicsQuality;
+}
+
+const isGraphicsQuality = (value: unknown): value is GraphicsQuality =>
+  value === 'low' || value === 'medium' || value === 'high' || value === 'ultra';
+
+export function sanitizeSessionTier(value: unknown): SessionTierRecord | null {
+  if (!value || typeof value !== 'object') return null;
+  const record = value as Partial<SessionTierRecord>;
+  return isGraphicsQuality(record.applied) && isGraphicsQuality(record.restoreTo)
+    ? { applied: record.applied, restoreTo: record.restoreTo }
+    : null;
+}
+
 interface GraphicsStore {
   graphics: GraphicsSettings;
-  setGraphicsQuality: (quality: GraphicsQuality) => void;
+  // Ephemeral explicit intent, including reselecting the current tier.
+  qualityChoiceRevision: number;
+  sessionTier: SessionTierRecord | null;
+  setSessionTier: (record: SessionTierRecord | null) => void;
+  setGraphicsQuality: (quality: GraphicsQuality, origin?: 'manual' | 'adaptive') => void;
   setGraphicsSetting: <K extends keyof GraphicsSettings>(
     key: K,
     value: GraphicsSettings[K]
@@ -632,11 +670,15 @@ export const useGraphicsStore = create<GraphicsStore>()(
     (set) => ({
       // Graphics settings - default to medium for better visuals
       graphics: GRAPHICS_PRESETS.medium,
+      qualityChoiceRevision: 0,
+      sessionTier: null,
+      setSessionTier: (record) => set({ sessionTier: sanitizeSessionTier(record) }),
 
       // SCADA sync and adaptive quality are preferences, not part of a visual
       // preset, so a quality swap (manual or adaptive) carries them across.
-      setGraphicsQuality: (quality) =>
+      setGraphicsQuality: (quality, origin = 'manual') =>
         set((state) => ({
+          qualityChoiceRevision: state.qualityChoiceRevision + (origin === 'manual' ? 1 : 0),
           graphics: {
             ...GRAPHICS_PRESETS[quality],
             enableSCADA: state.graphics.enableSCADA,
@@ -659,7 +701,11 @@ export const useGraphicsStore = create<GraphicsStore>()(
           },
         })),
 
-      resetGraphicsToPreset: (quality) => set({ graphics: { ...GRAPHICS_PRESETS[quality] } }),
+      resetGraphicsToPreset: (quality) =>
+        set((state) => ({
+          graphics: { ...GRAPHICS_PRESETS[quality] },
+          qualityChoiceRevision: state.qualityChoiceRevision + 1,
+        })),
 
       // Performance debug actions
       setPerfDebug: (key, value) =>
@@ -797,10 +843,16 @@ export const useGraphicsStore = create<GraphicsStore>()(
         return {
           ...current,
           graphics: sanitizeGraphicsSettings(source),
+          sessionTier: sanitizeSessionTier(
+            persisted && typeof persisted === 'object'
+              ? (persisted as { sessionTier?: unknown }).sessionTier
+              : undefined
+          ),
         };
       },
       partialize: (state) => ({
         graphics: state.graphics,
+        sessionTier: state.sessionTier,
       }),
       onRehydrateStorage: () => (state, error) => {
         if (error) {

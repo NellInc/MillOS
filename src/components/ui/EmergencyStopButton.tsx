@@ -6,8 +6,11 @@ import { useUIStore } from '../../stores/uiStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { audioManager } from '../../utils/audioManager';
 import { FORKLIFT_STOP_ANNOUNCEMENTS } from '../GameFeatures';
+import { translate, useT } from '../../i18n';
+import { emergencyStopButtonMessages } from './EmergencyStopButton.messages';
 
 export const EmergencyStopButton: React.FC = () => {
+  const t = useT(emergencyStopButtonMessages);
   const forkliftEmergencyStop = useSafetyStore((state) => state.forkliftEmergencyStop);
   const setForkliftEmergencyStop = useSafetyStore((state) => state.setForkliftEmergencyStop);
   const addSafetyIncident = useSafetyStore((state) => state.addSafetyIncident);
@@ -40,7 +43,7 @@ export const EmergencyStopButton: React.FC = () => {
       });
       addSafetyIncident({
         type: 'emergency',
-        description: 'Emergency stop activated - all forklifts halted',
+        description: translate(emergencyStopButtonMessages, 'incidentDescription'),
       });
     } else {
       // Release is refused above while a facility emergency owns the alarm.
@@ -53,18 +56,14 @@ export const EmergencyStopButton: React.FC = () => {
       onClick={handleEmergencyStop}
       disabled={locked}
       title={
-        emergencyDrillMode
-          ? 'End the active egress verification drill before using the emergency stop'
-          : emergencyInterlock
-            ? 'Clear the facility emergency interlock from the Safety panel to release the forklifts'
-            : undefined
+        emergencyDrillMode ? t('drillTitle') : emergencyInterlock ? t('interlockTitle') : undefined
       }
       aria-label={
         emergencyDrillMode
-          ? 'Fire drill interlock active - emergency stop cannot be changed'
+          ? t('drillLabel')
           : emergencyInterlock
-            ? 'Emergency interlock active - clear it from the Safety panel to release the forklifts'
-            : 'Emergency stop - halt all forklifts'
+            ? t('interlockLabel')
+            : t('stopLabel')
       }
       aria-checked={forkliftEmergencyStop}
       role="switch"
@@ -80,12 +79,12 @@ export const EmergencyStopButton: React.FC = () => {
     >
       <OctagonX className="w-5 h-5" aria-hidden="true" />
       {emergencyDrillMode
-        ? 'DRILL INTERLOCK ACTIVE'
+        ? t('drillButton')
         : emergencyInterlock
-          ? 'INTERLOCK ACTIVE'
+          ? t('interlockButton')
           : forkliftEmergencyStop
-            ? 'RELEASE E-STOP'
-            : 'EMERGENCY STOP'}
+            ? t('releaseButton')
+            : t('stopButton')}
     </button>
   );
 };

@@ -1,0 +1,8 @@
+
+> grain-mill-simulator@0.40.0 typecheck
+> tsc --noEmit -p tsconfig.typecheck.json
+
+src/components/workers/SharedWorkerGeometries.ts(133,14): error TS2339: Property 'setUsage' does not exist on type 'BufferAttribute | InterleavedBufferAttribute'.
+  Property 'setUsage' does not exist on type 'InterleavedBufferAttribute'.
+src/components/workers/SharedWorkerGeometries.ts(134,13): error TS2339: Property 'setUsage' does not exist on type 'BufferAttribute | InterleavedBufferAttribute'.
+  Property 'setUsage' does not exist on type 'InterleavedBufferAttribute'.

@@ -15,8 +15,39 @@ import {
   type LayoutSnapshot,
 } from './layoutPlanning';
 import { layoutPlanDxf, layoutPlanSvg, layoutProposalJson } from './layoutPlanningExport';
+import { drivenLogisticsRoute } from './logisticsRuntime';
+import { sampleArcLengthPath } from './vehicles/vehicleKinematics';
+import { DOCK_BUMPER_FACE_Z } from '../components/truckbay/truckController';
+import {
+  FORKLIFT_PALLET_REACH_METRES,
+  FORKLIFT_TIER_FOOTPRINTS,
+} from '../components/models/ForkliftModel';
+import { DOCK_DECK } from '../constants/dockLoading';
+import { HALL_DUST, hallDressingSolids } from '../components/infrastructure/hallDressingLayout';
 
 describe('isolated logistics planning', () => {
+  // Loading reads as loading only if the pallet goes down at the trailer it
+  // loads. The docked trailer's tail is on the dock bumpers at the bay's
+  // centreline; the forklift's mast stays short of the dock deck's hall edge
+  // (constants/dockLoading; dockLoading.test.ts checks the rest).
+  // Working if every render tier sets the pallet within about 2 m of the
+  // tail, square to it, with every tier's mast short of the deck.
+  it('sets the shipping pallet down at the docked trailer, not across the hall', () => {
+    const { plan } = drivenLogisticsRoute('shipping', SITE_LAYOUT.routes.forklifts.shipping.points);
+    const dropoff = plan.markers.find(({ action }) => action.type === 'dropoff')!;
+    const stand = sampleArcLengthPath(plan.path, dropoff.distance);
+    const tail = { x: SITE_LAYOUT.docks.shipping.bayCentre[0], z: DOCK_BUMPER_FACE_Z };
+    // The body arrives facing the trailer (a dropoff vertex keeps its arrival tangent).
+    expect(stand.tangentZ).toBeGreaterThan(0.999);
+    for (const reach of Object.values(FORKLIFT_PALLET_REACH_METRES)) {
+      const pallet = { x: stand.x + stand.tangentX * reach, z: stand.z + stand.tangentZ * reach };
+      expect(Math.hypot(pallet.x - tail.x, pallet.z - tail.z)).toBeLessThanOrEqual(2.25);
+    }
+    for (const { mastFaceZ } of Object.values(FORKLIFT_TIER_FOOTPRINTS))
+      expect(stand.z + mastFaceZ).toBeLessThanOrEqual(50 + DOCK_DECK.nearU);
+    expect(scoreLogisticsLayout(currentLogisticsLayout(), assumptions).violations).toEqual([]);
+  });
+
   it('accepts the authored layout and improves its cost without changing fixed anchors', () => {
     const current = currentLogisticsLayout();
     const before = structuredClone(current);
@@ -93,6 +124,23 @@ describe('isolated logistics planning', () => {
     expect(scoreLogisticsLayout(plan, assumptions, [seam]).violations).toContain(
       'receiving: swept route meets seam-block.'
     );
+  });
+
+  it('refuses a route corner dragged through the hall dressing', () => {
+    const plan = currentLogisticsLayout();
+    const editable = plan.routes.receiving.findIndex((_, index) =>
+      isEditableRoutePoint('receiving', index)
+    );
+    expect(editable).toBeGreaterThanOrEqual(0);
+    // Drag the corner onto the west sack bay between the packing line and the gallery.
+    plan.routes.receiving[editable] = [-17.5, 0, 10.1];
+    const violations = scoreLogisticsLayout(plan, assumptions).violations;
+    expect(violations).toContain('receiving: swept route meets sacks-west-2.');
+    // Every floor-standing piece is an obstacle; overhead steel and flat dust are not.
+    const ids = new Set(planningObstacles().map((obstacle) => obstacle.id));
+    for (const solid of hallDressingSolids())
+      expect(ids.has(solid.id), solid.id).toBe(solid.onFloor);
+    for (const patch of HALL_DUST) expect(ids.has(patch.id), patch.id).toBe(false);
   });
 
   it('rejects changed service poses, tight turns, nonfinite input and invalid assumptions', () => {

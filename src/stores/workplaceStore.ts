@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type {
+  WorkplaceMission,
   WorkplaceActions,
   WorkplaceState,
   WorkplaceProfile,
@@ -15,14 +16,17 @@ import { getDispatchQualityStatus, useQCLabStore } from './qcLabStore';
 import { capturePackingPlant, derivePackingAdvice } from '../simulation/workplaceAdvice';
 import {
   createWorkplace,
+  localizeWorkplaceMembers,
   restoreWorkplace,
   saveWorkplace,
   transitionWorkplace,
   type WorkplaceCommand,
 } from '../simulation/bilateralWorkplace';
-import { workplaceMission } from '../simulation/workplaceImprovement';
+import { handoffHoldsClock, workplaceMission } from '../simulation/workplaceImprovement';
 import { safeJSONStorage } from './storage';
 import { isWorkplaceReplayActive } from '../simulation/workplaceReplayRuntime';
+import { translate, useLocaleStore } from '../i18n';
+import { workplaceStoreMessages as msg } from './workplaceStore.messages';
 
 import {
   ROLE_COMMANDS,
@@ -35,6 +39,57 @@ import {
 } from '../simulation/workplaceParticipation';
 
 const MAX_COMPLETED_CAMPAIGNS = 6;
+
+/** A fresh link to the mill's active order, when it is open and quality-qualified. */
+function openActiveOrderMission(exceptOrderId?: string): WorkplaceMission | undefined {
+  const operations = useOperationsCampaignStore.getState();
+  const order = operations.orders.find((o) => o.id === operations.activeOrderId);
+  if (
+    !order ||
+    order.id === exceptOrderId ||
+    order.status === 'fulfilled' ||
+    order.status === 'cancelled' ||
+    operations.activeChallenge ||
+    order.qualityFailureKg !== 0 ||
+    order.requiredKg <= order.shippedKg
+  )
+    return undefined;
+  return {
+    orderId: order.id,
+    customer: order.customer,
+    materialSessionId: useMaterialFlowStore.getState().sessionId,
+    startingShippedKg: order.shippedKg,
+    originalTargetKg: order.requiredKg - order.shippedKg,
+    targetKg: order.requiredKg - order.shippedKg,
+    observedShippedKg: order.shippedKg,
+    creditedKg: 0,
+    manifestIds: [...order.manifestIds],
+    evidence: 'current',
+  };
+}
+
+/**
+ * The order the next campaign shift links, if any: the mill's open active
+ * order, once the order being worked is fulfilled or the follow-on's evidence
+ * has gone bad (cancelled, quality-failed or stale), the two cases the engine
+ * accepts a new link for. Read-only, so the season card can say what happens.
+ * Working if a bad follow-on is replaced, a fulfilled commitment is never
+ * relinked to itself, and the last shift offers nothing.
+ */
+export function pendingFollowOn(state: WorkplaceState): WorkplaceMission | undefined {
+  const campaign = state.campaign;
+  if (!campaign?.mission || campaign.shift >= 2) return undefined;
+  const link = campaign.followOn ?? campaign.mission;
+  const fulfilled =
+    useOperationsCampaignStore.getState().orders.find((o) => o.id === link.orderId)?.status ===
+    'fulfilled';
+  if (!fulfilled && (!campaign.followOn || campaign.followOn.evidence === 'current'))
+    return undefined;
+  // A stale link to an order still open may be relinked fresh; it starts at
+  // that order's current shipped weight, so no earlier dispatch is re-credited.
+  const next = openActiveOrderMission(fulfilled ? link.orderId : undefined);
+  return next && next.orderId !== campaign.mission.orderId ? next : undefined;
+}
 /** Observation only. Freshness is checked against the current physical facts,
  * rather than assuming that a matching order id makes its execution cache fresh. */
 export function captureCurrentPackingPlant(state: WorkplaceState) {
@@ -134,6 +189,29 @@ function completedReview(input: unknown): WorkplaceState | null {
   return saveWorkplace(restored) as WorkplaceState;
 }
 
+/** A season left early: a validated, redacted stopped review that owes nothing. */
+function leftReview(input: unknown): WorkplaceState | null {
+  const restored = restoreWorkplace(input);
+  if (
+    restored.mode !== 'game' ||
+    restored.phase !== 'review' ||
+    !restored.campaign ||
+    restored.improvement ||
+    recoveryOutstanding(restored) ||
+    restored.objections.some((objection) => objection.status === 'open')
+  )
+    return null;
+  return saveWorkplace(restored) as WorkplaceState;
+}
+
+function retainedLeftSeasons(input: unknown): WorkplaceState[] {
+  if (!Array.isArray(input)) return [];
+  return input
+    .slice(-MAX_COMPLETED_CAMPAIGNS)
+    .map(leftReview)
+    .filter((review): review is WorkplaceState => review !== null);
+}
+
 function retainedReviews(input: unknown): WorkplaceState[] {
   if (!Array.isArray(input)) return [];
   return input
@@ -162,6 +240,8 @@ export interface WorkplaceStore extends WorkplaceActions {
   rehearseReload: (revision: number) => WorkplaceTransitionResult;
   workplace: WorkplaceState;
   completedCampaigns: WorkplaceState[];
+  /** Seasons left before their final review, kept with what they earned. */
+  leftCampaigns: WorkplaceState[];
   startMission: (profile: WorkplaceProfile, seed?: number) => WorkplaceTransitionResult;
   archiveCampaign: (expectedRevision: number) => WorkplaceTransitionResult;
 }
@@ -184,14 +264,12 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
             )
               return {
                 changed: false,
-                reason:
-                  'Hand over to this role and use its current turn. Facilitators cannot record participant decisions.',
+                reason: translate(msg, 'useCurrentTurn'),
               };
             if (command.type === 'respondToPressure' && command.args[1] === 'accept-demand')
               return {
                 changed: false,
-                reason:
-                  'This authored challenge cannot speak for a participant. Hand over to the affected role to raise its own objection.',
+                reason: translate(msg, 'challengeCannotSpeak'),
               };
             if (
               ['understand', 'acknowledgeImprovement'].includes(command.type) &&
@@ -199,28 +277,32 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
             )
               return {
                 changed: false,
-                reason:
-                  'Answer the current mandate, refusal and optional-duty checks correctly before confirming understanding.',
+                reason: translate(msg, 'answerChecksFirst'),
               };
           } else if (command.type === 'simulateResponses')
             return {
               changed: false,
-              reason:
-                'Separate turns require each role decision. Simulated responses are disabled.',
+              reason: translate(msg, 'simulatedResponsesDisabled'),
             };
           else if (command.type !== 'tick' && command.type !== 'stop' && access.turn)
             return {
               changed: false,
-              reason: 'End the participant turn before facilitator setup or settlement.',
+              reason: translate(msg, 'endTurnBeforeSetup'),
             };
         }
         if (
-          ['beginImprovement', 'continueImprovement'].includes(command.type) &&
+          [
+            'beginImprovement',
+            'continueImprovement',
+            'cancelImprovement',
+            'closeImprovement',
+            'resumeShift',
+          ].includes(command.type) &&
           isWorkplaceReplayActive()
         )
           return {
             changed: false,
-            reason: 'Finish or forget the matched replay before continuing workplace obligations.',
+            reason: translate(msg, 'finishReplayBeforeObligations'),
           };
         const { state, changed, reason } = transitionWorkplace(get().workplace, command);
         if (changed) {
@@ -302,7 +384,7 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
           )
             return {
               changed: false,
-              reason: 'Choose the interaction mode only before opening an untouched scenario.',
+              reason: translate(msg, 'chooseModeBeforeScenario'),
             };
           set({ participationMode: mode, turn: null });
           return { changed: true, reason: null };
@@ -318,8 +400,7 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
           )
             return {
               changed: false,
-              reason:
-                'End the previous turn and choose a fictional role in an open scenario, outside replay.',
+              reason: translate(msg, 'chooseFictionalRole'),
             };
           set({ turn: { token: crypto.randomUUID(), actorId, anchor: s, answers: {} } });
           return { changed: true, reason: null };
@@ -343,10 +424,10 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
           )
             return {
               changed: false,
-              reason: 'Use a known answer in the current participant turn.',
+              reason: translate(msg, 'knownAnswerRequired'),
             };
           if (turn.answers[question] === answer)
-            return { changed: false, reason: 'Answer unchanged.' };
+            return { changed: false, reason: translate(msg, 'answerUnchanged') };
           const state = structuredClone(workplace);
           const actor = state.members.find((m) => m.id === turn.actorId);
           if (actor) {
@@ -368,7 +449,7 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
         },
         runTurnCommand: (token, command) => {
           if (!isRoleCommand(command))
-            return { changed: false, reason: 'Participant dispatch accepts role decisions only.' };
+            return { changed: false, reason: translate(msg, 'roleDecisionsOnly') };
           return command.type === 'acknowledgeImprovement'
             ? presentAdvice(token)
             : apply(command, token);
@@ -378,17 +459,17 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
           if (revision !== get().workplace.revision || isWorkplaceReplayActive())
             return {
               changed: false,
-              reason: 'Read the current workplace outside replay before rehearsing reload.',
+              reason: translate(msg, 'readBeforeReload'),
             };
           set({ workplace: restoreWorkplace(saveWorkplace(get().workplace)), turn: null });
           return {
             changed: true,
-            reason:
-              'Local reload rehearsal completed. Future authority expired; earned pay and recovery remain in review.',
+            reason: translate(msg, 'reloadRehearsed'),
           };
         },
         beginImprovement: (profile, revision, _mission, mode = get().workplace.mode) =>
           apply({ type: 'beginImprovement', args: [profile, revision, linkedMission(mode), mode] }),
+        cancelImprovement: (...args) => apply({ type: 'cancelImprovement', args }),
         proposeImprovement: (...args) => apply({ type: 'proposeImprovement', args }),
         challengeImprovement: (...args) => apply({ type: 'challengeImprovement', args }),
         acknowledgeImprovement: () => presentAdvice(),
@@ -401,20 +482,41 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
         finishImprovementReview: (...args) => apply({ type: 'finishImprovementReview', args }),
         continueImprovement: (revision) =>
           apply({ type: 'continueImprovement', args: [revision, linkedMission()] }),
+        resumeShift: (revision) => apply({ type: 'resumeShift', args: [revision] }),
+        closeImprovement: (revision) => {
+          const origin = get().workplace.improvement?.origin;
+          const result = apply({ type: 'closeImprovement', args: [revision] });
+          // A season the experiment opened from is kept as archiving or leaving
+          // keeps it: completed after its final review, otherwise left early.
+          // Working if closing never silently drops the season it began from.
+          const completed = result.changed && origin ? completedReview(origin) : null;
+          const left = result.changed && origin?.campaign && !completed ? leftReview(origin) : null;
+          if (completed)
+            set({
+              completedCampaigns: [...get().completedCampaigns, completed].slice(
+                -MAX_COMPLETED_CAMPAIGNS
+              ),
+            });
+          if (left)
+            set({
+              leftCampaigns: [...get().leftCampaigns, left].slice(-MAX_COMPLETED_CAMPAIGNS),
+            });
+          return result;
+        },
         workplace: createWorkplace(),
         completedCampaigns: [],
         archiveCampaign: (expectedRevision) => {
           interruptAutomaticWorkplace();
           if (get().participationMode === 'separate-turns' && get().turn)
-            return { changed: false, reason: 'End the participant turn before archiving.' };
+            return { changed: false, reason: translate(msg, 'endTurnBeforeArchive') };
           const current = get().workplace;
           if (!Number.isSafeInteger(expectedRevision) || expectedRevision !== current.revision)
             return {
               changed: false,
-              reason: 'The review changed. Read its current outcome first.',
+              reason: translate(msg, 'reviewChanged'),
             };
           if (isWorkplaceReplayActive())
-            return { changed: false, reason: 'Finish or forget the matched replay first.' };
+            return { changed: false, reason: translate(msg, 'finishReplayFirst') };
           if (
             current.mode !== 'game' ||
             current.phase !== 'review' ||
@@ -423,7 +525,7 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
           )
             return {
               changed: false,
-              reason: 'Complete all three shifts before archiving a review.',
+              reason: translate(msg, 'completeThreeShifts'),
             };
           if (
             recoveryOutstanding(current) ||
@@ -435,14 +537,13 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
           )
             return {
               changed: false,
-              reason:
-                'Deliver owed recovery and settle objections and reserved pay before archiving.',
+              reason: translate(msg, 'settleBeforeArchive'),
             };
           const review = completedReview(saveWorkplace(current));
           if (!review)
             return {
               changed: false,
-              reason: 'This review could not be validated for the archive.',
+              reason: translate(msg, 'reviewNotValidated'),
             };
           const fresh = createWorkplace('game', current.seed === 0xffffffff ? 1 : current.seed + 1);
           fresh.revision = current.revision + 1;
@@ -455,44 +556,52 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
           });
           return { changed: true, reason: null };
         },
+        leftCampaigns: [],
+        leaveCampaign: (expectedRevision) => {
+          interruptAutomaticWorkplace();
+          if (get().participationMode === 'separate-turns' && get().turn)
+            return { changed: false, reason: translate(msg, 'endTurnBeforeLeave') };
+          const current = get().workplace;
+          if (!Number.isSafeInteger(expectedRevision) || expectedRevision !== current.revision)
+            return { changed: false, reason: translate(msg, 'reviewChanged') };
+          if (isWorkplaceReplayActive())
+            return { changed: false, reason: translate(msg, 'finishReplayFirst') };
+          const result = transitionWorkplace(current, {
+            type: 'leaveCampaign',
+            args: [expectedRevision],
+          });
+          if (!result.changed) return { changed: false, reason: result.reason };
+          // An unworked deliberation is kept as stopped, never as a worked shift.
+          const stopped =
+            current.phase === 'deliberating'
+              ? transitionWorkplace(current, { type: 'stop', args: [] }).state
+              : current;
+          const record = leftReview(saveWorkplace(stopped));
+          if (!record) return { changed: false, reason: translate(msg, 'reviewNotValidated') };
+          set({
+            workplace: result.state,
+            turn: null,
+            leftCampaigns: [...get().leftCampaigns, record].slice(-MAX_COMPLETED_CAMPAIGNS),
+          });
+          return { changed: true, reason: null };
+        },
         startMission: (profile, seed = 1) => {
-          const operations = useOperationsCampaignStore.getState();
-          const order = operations.orders.find((o) => o.id === operations.activeOrderId);
-          if (
-            !order ||
-            order.status === 'fulfilled' ||
-            order.status === 'cancelled' ||
-            operations.activeChallenge ||
-            order.qualityFailureKg !== 0 ||
-            order.requiredKg <= order.shippedKg
-          )
+          const mission = openActiveOrderMission();
+          if (!mission)
             return {
               changed: false,
-              reason:
-                'Choose an open, quality-qualified customer commitment with no active recovery challenge.',
+              reason: translate(msg, 'openCommitmentRequired'),
             };
-          return apply({
-            type: 'startCampaign',
-            args: [
-              profile,
-              seed,
-              {
-                orderId: order.id,
-                customer: order.customer,
-                materialSessionId: useMaterialFlowStore.getState().sessionId,
-                startingShippedKg: order.shippedKg,
-                originalTargetKg: order.requiredKg - order.shippedKg,
-                targetKg: order.requiredKg - order.shippedKg,
-                observedShippedKg: order.shippedKg,
-                creditedKg: 0,
-                manifestIds: [...order.manifestIds],
-                evidence: 'current',
-              },
-            ],
-          });
+          return apply({ type: 'startCampaign', args: [profile, seed, mission] });
         },
         startCampaign: (...args) => apply({ type: 'startCampaign', args }),
-        nextCampaignShift: (...args) => apply({ type: 'nextCampaignShift', args }),
+        // Once the order being worked is fulfilled, or a follow-on can no
+        // longer earn, the next shift works the mill's active order, so later
+        // dispatch still earns the cooperative (see pendingFollowOn).
+        nextCampaignShift: () => {
+          const next = pendingFollowOn(get().workplace);
+          return apply({ type: 'nextCampaignShift', args: next ? [next] : [] });
+        },
         answerCheck: (...args) => apply({ type: 'answerCheck', args }),
         campaignDecision: (...args) => apply({ type: 'campaignDecision', args }),
         respondToPressure: (...args) => apply({ type: 'respondToPressure', args }),
@@ -516,20 +625,18 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
           )
             return {
               changed: false,
-              reason:
-                'The safety stop holds this agreement. No new work during an emergency or drill.',
+              reason: translate(msg, 'safetyStopHolds'),
             };
           if (get().participationMode === 'separate-turns' && get().turn)
             return {
               changed: false,
-              reason: 'End the participant turn before facilitator activation.',
+              reason: translate(msg, 'endTurnBeforeActivation'),
             };
           const mission = workplaceMission(get().workplace);
           if (mission && mission.materialSessionId !== useMaterialFlowStore.getState().sessionId)
             return {
               changed: false,
-              reason:
-                'The physical material session changed. Historical receipts cannot authorise a new agreement.',
+              reason: translate(msg, 'materialSessionChanged'),
             };
           const current = get().workplace;
           if (current.mode === 'game' && current.improvement) {
@@ -537,16 +644,14 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
             if (!advice || advice.fingerprint !== captureCurrentPackingPlant(current).fingerprint)
               return {
                 changed: false,
-                reason:
-                  'Plant evidence or the intended pace changed. Hear a fresh adviser response, then confirm understanding and ballots again.',
+                reason: translate(msg, 'freshAdviceRequired'),
               };
           }
           const refreshed = current.improvement && linkedMission();
           if (refreshed && refreshed.evidence !== 'current')
             return {
               changed: false,
-              reason:
-                'Current quality-qualified dispatch evidence is required before funding a trial.',
+              reason: translate(msg, 'dispatchEvidenceRequired'),
             };
           const activationInput = refreshed
             ? { ...current, improvement: { ...current.improvement!, mission: refreshed } }
@@ -559,27 +664,32 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
         stop: (...args) => apply({ type: 'stop', args }),
         tick: (...args) => {
           const mission = workplaceMission(get().workplace);
-          if (mission) {
+          const followOn = get().workplace.campaign?.followOn;
+          const observe = (orderId: string) => {
             const order = useOperationsCampaignStore
               .getState()
-              .orders.find((o) => o.id === mission.orderId);
+              .orders.find((o) => o.id === orderId);
+            return {
+              orderId: order?.id ?? null,
+              materialSessionId: useMaterialFlowStore.getState().sessionId,
+              shippedKg: order?.shippedKg ?? 0,
+              qualityFailureKg: order?.qualityFailureKg ?? 0,
+              manifestIds: [...(order?.manifestIds ?? [])],
+              cancelled: order?.status === 'cancelled',
+            };
+          };
+          if (mission)
             apply({
               type: 'tick',
               args: [
                 args[0],
                 args[1],
                 args[2],
-                {
-                  orderId: order?.id ?? null,
-                  materialSessionId: useMaterialFlowStore.getState().sessionId,
-                  shippedKg: order?.shippedKg ?? 0,
-                  qualityFailureKg: order?.qualityFailureKg ?? 0,
-                  manifestIds: [...(order?.manifestIds ?? [])],
-                  cancelled: order?.status === 'cancelled',
-                },
+                observe(mission.orderId),
+                followOn ? observe(followOn.orderId) : undefined,
               ],
             });
-          } else apply({ type: 'tick', args });
+          else apply({ type: 'tick', args });
         },
         elect: (...args) => apply({ type: 'elect', args }),
         voteSurplus: (...args) => apply({ type: 'voteSurplus', args }),
@@ -594,6 +704,7 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
         participationMode: state.participationMode,
         workplace: saveWorkplace(state.workplace),
         completedCampaigns: state.completedCampaigns.map(saveWorkplace),
+        leftCampaigns: state.leftCampaigns.map(saveWorkplace),
       }),
       migrate: (persisted, version) => {
         if (version !== 1 || !persisted || typeof persisted !== 'object') return {};
@@ -602,6 +713,7 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
             'participationMode' in persisted ? persisted.participationMode : 'solo',
           workplace: 'workplace' in persisted ? persisted.workplace : null,
           completedCampaigns: [],
+          leftCampaigns: [],
         };
       },
       merge: (persisted, current) => {
@@ -617,6 +729,7 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
           completedCampaigns: retainedReviews(
             'completedCampaigns' in saved ? saved.completedCampaigns : null
           ),
+          leftCampaigns: retainedLeftSeasons('leftCampaigns' in saved ? saved.leftCampaigns : null),
         };
       },
     }
@@ -627,6 +740,36 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
 // Working if any out-of-band workplace replacement invalidates its anchored turn.
 useWorkplaceStore.subscribe(({ workplace, turn }) => {
   if (turn && turn.anchor !== workplace) useWorkplaceStore.setState({ turn: null });
+});
+
+// The handoff hold is derived from workplace state, never pushed by a button,
+// so a restore, replay rollback or persist merge re-establishes or ends it.
+// Working if the clock is held exactly while handoffHoldsClock is true and a
+// pace chosen meanwhile is the pace the plant resumes at.
+function syncHandoffHold(workplace: WorkplaceState) {
+  const clock = useGameSimulationStore.getState();
+  const held = clock.clockHolds.some((hold) => hold.holder === 'handoff');
+  if (handoffHoldsClock(workplace)) {
+    if (!held || clock.gameSpeed > 0) clock.holdClock('handoff');
+  } else if (held) clock.releaseClock('handoff');
+}
+useWorkplaceStore.subscribe(({ workplace }, previous) => {
+  if (workplace !== previous.workplace) syncHandoffHold(workplace);
+});
+syncHandoffHold(useWorkplaceStore.getState().workplace);
+
+// Member roles, boundaries and preferences are stored as text; a language
+// switch rewrites them in place (a reload already regenerates them on restore).
+// It is not an out-of-band replacement, so an open participant turn moves with it.
+useLocaleStore.subscribe((state, previous) => {
+  if (state.locale === previous.locale) return;
+  const { workplace, turn } = useWorkplaceStore.getState();
+  const localized = localizeWorkplaceMembers(workplace);
+  if (localized === workplace) return;
+  useWorkplaceStore.setState({
+    workplace: localized,
+    turn: turn && turn.anchor === workplace ? { ...turn, anchor: localized } : turn,
+  });
 });
 
 /** Captures a render's token so retained callbacks cannot borrow the next turn. */

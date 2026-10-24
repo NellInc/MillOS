@@ -1,0 +1,25 @@
+{
+  "savedImages": false,
+  "conversationEvidence": true,
+  "operator": "Actual rounded cup/cushion/headband visible alongside retained hard hat and fitted badge during normal walking",
+  "supervisor": "Rounded chest radio and seated badge details shown while walking normally",
+  "quality": "Glasses and fitted temples shown on the actual feminine rig; foreground flour sack occluded lower torso, so no full quality-badge microview claim",
+  "shore": "Folded blades, rounded leaning attached seed heads, asymmetric shaded stones seated against bank shown at eye-height camera",
+  "culvert": "Section/liner/rain-height contact proved by focused geometry tests; native farm image is context, no close water microview claim",
+  "ready": {
+    "worldReady": true,
+    "startupReady": true,
+    "loadingCover": false
+  },
+  "audio": {
+    "activeNodes": 0,
+    "contextState": "not-created"
+  },
+  "consoleErrors": [],
+  "playerInput": false,
+  "viewportOverride": false,
+  "qualityOverride": false,
+  "temporaryTabClosed": true,
+  "previewClosed": true,
+  "previewCorrection": "Initial stdin heredoc server PID91970 verified through exact start identity and own port/lock, then closed through owning tool SIGINT130; lock handler released it. Corrected -e server closed normally via stdin."
+}

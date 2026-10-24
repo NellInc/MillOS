@@ -249,8 +249,8 @@ export function useSmoothedGameTime(): number {
   const smoothedRef = useRef(_smoothedGameTime);
 
   useFrame((_, delta) => {
-    const { gameTime, gameSpeed } = useGameSimulationStore.getState();
-    smoothedRef.current = getSmoothedGameTime(gameTime, delta, gameSpeed);
+    const { gameTime, gameSpeed, timeOfDayHeld } = useGameSimulationStore.getState();
+    smoothedRef.current = getSmoothedGameTime(gameTime, delta, timeOfDayHeld ? 0 : gameSpeed);
   });
 
   return smoothedRef.current;

@@ -1,0 +1,163 @@
+{
+  "scope": "AD root-coherent cereal crop craft,34 finite items",
+  "status": "bounded pass complete",
+  "authorReview": "This chat authored and reviewed the crop using actual geometry, shader hosts, native images and live named meshes.",
+  "baseline": {
+    "tests": 56,
+    "files": 2,
+    "failingNames": []
+  },
+  "affected": {
+    "tests": 60,
+    "files": 2,
+    "delta": 4,
+    "exitCode": 0
+  },
+  "reproducedDefect": "Cached original stem geometry minY=-0.899999976 while shader stiffness assumes ground-root y=0; root-reproduction.log",
+  "initialImplementationFailure": "Manual ribbon UV mismatch repaired; initial-merge-failure.log retained",
+  "sourceGates": {
+    "typecheck": 0,
+    "lint": 0,
+    "format:check": 0,
+    "validate:shaders": 0,
+    "build": 0,
+    "validate:reachability": 0
+  },
+  "visual": [
+    {
+      "label": "day",
+      "scene": "farm",
+      "servedBuildMatches": true,
+      "sandboxedMetal": true,
+      "cleanDiagnostics": true,
+      "worldCommunityCheckpoints": true,
+      "generalVehicleMotion": true,
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "timingMisses": [
+        "firstFrame",
+        "averageFps",
+        "p95Frame",
+        "p99Frame",
+        "onePercentLow"
+      ],
+      "loadPerCore": 4.85,
+      "p95FrameMs": 38.1,
+      "startupMarks": {
+        "millos:bootstrap": 317.2,
+        "millos:first-frame": 467.7,
+        "millos:world-ready": 31605.5,
+        "millos:startup-ready": 41205.6
+      },
+      "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AD-grain-field-day-20261015/farm.png"
+    },
+    {
+      "label": "dusk",
+      "scene": "farm",
+      "servedBuildMatches": true,
+      "sandboxedMetal": true,
+      "cleanDiagnostics": true,
+      "worldCommunityCheckpoints": true,
+      "generalVehicleMotion": true,
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "timingMisses": [
+        "averageFps",
+        "p95Frame",
+        "p99Frame",
+        "onePercentLow"
+      ],
+      "loadPerCore": 3.21,
+      "p95FrameMs": 35.6,
+      "startupMarks": {
+        "millos:bootstrap": 213.8,
+        "millos:first-frame": 296.3,
+        "millos:world-ready": 26999.1,
+        "millos:startup-ready": 33442.6
+      },
+      "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AD-grain-field-dusk-20261015/farm.png"
+    },
+    {
+      "label": "night",
+      "scene": "farm",
+      "servedBuildMatches": true,
+      "sandboxedMetal": true,
+      "cleanDiagnostics": true,
+      "worldCommunityCheckpoints": true,
+      "generalVehicleMotion": true,
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "timingMisses": [
+        "averageFps",
+        "p95Frame",
+        "p99Frame",
+        "onePercentLow"
+      ],
+      "loadPerCore": 3.03,
+      "p95FrameMs": 34.6,
+      "startupMarks": {
+        "millos:bootstrap": 198.6,
+        "millos:first-frame": 270.1,
+        "millos:world-ready": 27717.5,
+        "millos:startup-ready": 35172.9
+      },
+      "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AD-grain-field-night-20261015/farm.png"
+    }
+  ],
+  "closeReview": {
+    "worldStartupReady": true,
+    "loadingCoverAbsent": true,
+    "quality": "medium",
+    "liveMeshes": [
+      {
+        "name": "grain-field-stems",
+        "instances": 300,
+        "vertices": 450
+      },
+      {
+        "name": "grain-field-leaves",
+        "instances": 300,
+        "vertices": 108
+      },
+      {
+        "name": "grain-field-ears",
+        "instances": 300,
+        "vertices": 846
+      }
+    ],
+    "allVisibleFiniteVertexColoured": true,
+    "sharedMaterial": true,
+    "textures": 0,
+    "sharedInstanceMatrixChecksum": 87114.58188405773,
+    "worldRoot": [
+      75,
+      0,
+      162
+    ],
+    "trianglesPerPlantingSite": 468,
+    "fieldTriangles": 140400,
+    "shapesAndAttachmentsInspected": true,
+    "windReview": "Two unchanged-camera normal-wind poses inspected qualitatively; light/time also advanced, so no numerical A/B or performance effect is claimed. Exact attachment/depth/clock proof comes from actual geometry and shader-host checks.",
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "consoleErrors": [],
+    "temporaryTabAndPreviewClosedNormally": true,
+    "browserChanges": "localhost mute preference and public art-camera poses only",
+    "screenshots": "Close images are conversation evidence, saved native full frames establish context"
+  },
+  "remainingProgrammeFindings": "Existing exposed farm culvert and grassy crop bed merit a later farm-grounding pass; not changed or claimed complete here.",
+  "pacing": "OPEN, all timing misses recorded; no non-art performance pass or isolated crop cost claim",
+  "playerDeviceChecks": "DEFERRED",
+  "delivery": "local only",
+  "ongoingGoal": "ACTIVE",
+  "cleanupReceipt": "cleanup-receipt.json",
+  "custodyReceipt": "custody-receipt.json"
+}

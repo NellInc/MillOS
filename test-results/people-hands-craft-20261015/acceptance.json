@@ -1,0 +1,140 @@
+{
+  "scope": "AC people hand articulation and utility-belt craft,30 finite items with documented live-wiring correction",
+  "status": "bounded pass complete",
+  "authorReview": "This chat authored and reviewed the pass, using actual rigs, live named geometry and actual screenshots.",
+  "baseline": {
+    "tests": 110,
+    "files": 2,
+    "failingNames": []
+  },
+  "affected": {
+    "tests": 118,
+    "files": 2,
+    "delta": 8,
+    "exitCode": 0
+  },
+  "sourceGates": {
+    "typecheck": 0,
+    "lint": 0,
+    "format:check": 0,
+    "validate:shaders": 0,
+    "build": 0,
+    "validate:reachability": 0
+  },
+  "visual": [
+    {
+      "label": "day",
+      "scene": "milling",
+      "servedBuildMatches": true,
+      "sandboxedMetal": true,
+      "cleanDiagnostics": true,
+      "worldCommunityCheckpoints": true,
+      "generalVehicleMotion": true,
+      "engineerBodyMeshes": 14,
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "timingMisses": [
+        "averageFps",
+        "p95Frame",
+        "p99Frame",
+        "onePercentLow"
+      ],
+      "loadPerCore": 4.52,
+      "p95FrameMs": 27.1,
+      "startupMarks": {
+        "millos:bootstrap": 235.4,
+        "millos:first-frame": 341.4,
+        "millos:world-ready": 29772,
+        "millos:startup-ready": 36624.6
+      },
+      "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AC-people-hands-final-day-20261015/milling.png"
+    },
+    {
+      "label": "dusk",
+      "scene": "square",
+      "servedBuildMatches": true,
+      "sandboxedMetal": true,
+      "cleanDiagnostics": true,
+      "worldCommunityCheckpoints": true,
+      "generalVehicleMotion": true,
+      "engineerBodyMeshes": 14,
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "timingMisses": [
+        "p95Frame"
+      ],
+      "loadPerCore": 4.02,
+      "p95FrameMs": 17.2,
+      "startupMarks": {
+        "millos:bootstrap": 258.7,
+        "millos:first-frame": 341.6,
+        "millos:world-ready": 29926.9,
+        "millos:startup-ready": 36668.6
+      },
+      "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AC-people-hands-final-dusk-20261015/square.png"
+    },
+    {
+      "label": "night",
+      "scene": "milling",
+      "servedBuildMatches": true,
+      "sandboxedMetal": true,
+      "cleanDiagnostics": true,
+      "worldCommunityCheckpoints": true,
+      "generalVehicleMotion": true,
+      "engineerBodyMeshes": 14,
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "timingMisses": [
+        "averageFps",
+        "p95Frame",
+        "p99Frame",
+        "onePercentLow"
+      ],
+      "loadPerCore": 3.44,
+      "p95FrameMs": 28.2,
+      "startupMarks": {
+        "millos:bootstrap": 224.3,
+        "millos:first-frame": 305.5,
+        "millos:world-ready": 27148.8,
+        "millos:startup-ready": 33749.3
+      },
+      "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AC-people-hands-final-night-20261015/milling.png"
+    }
+  ],
+  "closeReview": {
+    "worldStartupReady": true,
+    "loadingCoverAbsent": true,
+    "quality": "medium",
+    "liveEngineerBeltVisible": true,
+    "liveBeltVertices": 6444,
+    "liveBeltTriangles": 2148,
+    "beltTextureCount": 0,
+    "beltMaterial": "existing MeshStandardMaterial",
+    "liveDrawDelta": 1,
+    "normalWalkingAndInspectionObserved": true,
+    "pouchLayersAttached": true,
+    "restIdleShapeProof": "actual two-rig tests; quality close view was occluded by a flour sack and the late village fallback was hidden by its normal night schedule, neither is claimed as hand proof",
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "consoleErrors": [],
+    "temporaryTabsAndPreviewsClosedNormally": true,
+    "browserChanges": "localhost mute preference and public art-camera poses only",
+    "screenshots": "close images are conversation evidence; saved native full frames establish context"
+  },
+  "initialCandidate": "Superseded after live query found unused Maintenance-only belt flag; all initial source/native/build evidence retained",
+  "initialPreviewReadiness": "Interior-camera IAB did not reach strict startup-ready by176s, no override; corrected square-camera preview released normally",
+  "pacing": "OPEN, every final timing miss recorded separately; no non-art performance pass claimed",
+  "playerDeviceChecks": "DEFERRED",
+  "delivery": "local only",
+  "ongoingGoal": "ACTIVE",
+  "cleanupReceipt": "cleanup-receipt.json",
+  "custodyReceipt": "custody-receipt.json"
+}

@@ -295,6 +295,25 @@ describe('trials', () => {
     expect(slow.phase).toBe('failed');
     expect(slow.failureReason).toContain('400 of 6,000 kg');
   });
+  it('reads an idle window (no grade) as no evidence about the grade', () => {
+    const graded = {
+      ...wet,
+      goal: { ...wet.goal, minAverageGrade: 'B' as const },
+    } as typeof wet;
+    let progress: TrialProgress = { ...emptyTrialProgress('wet_harvest'), phase: 'active' };
+    progress = advanceTrial(graded, progress, { ...evidence, dispatchedKg: 3000 });
+    progress = advanceTrial(graded, progress, { ...evidence, grade: null });
+    expect(progress).toMatchObject({ gradePoints: 4, gradedShifts: 1, shiftsUsed: 2 });
+    const passed = advanceTrial(graded, progress, { ...evidence, dispatchedKg: 3000 });
+    expect(passed.phase).toBe('passed');
+    // A save from before gradedShifts reads every shift used as graded.
+    const legacy = advanceTrial(
+      graded,
+      { ...progress, gradedShifts: undefined, shiftsUsed: 1 },
+      { ...evidence, grade: null }
+    );
+    expect(legacy.gradedShifts).toBe(1);
+  });
   it('requires consecutive clean closes for the inspection', () => {
     const inspection = trialById('inspection');
     let progress: TrialProgress = { ...emptyTrialProgress('inspection'), phase: 'active' };

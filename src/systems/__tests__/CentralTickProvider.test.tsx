@@ -11,6 +11,7 @@ const probe = vi.hoisted(() => ({
     errors: 0,
     revision: 0,
     ready: false,
+    opened: false,
   },
 }));
 vi.mock('@react-three/fiber', () => ({
@@ -47,6 +48,7 @@ beforeEach(() => {
   resetUnifiedTickState();
   probe.callback = null;
   probe.startup.ready = false;
+  probe.startup.opened = false;
   onTick.mockClear();
   lazyTick.mockClear();
   useGameSimulationStore.getState().resetGameState();
@@ -71,12 +73,13 @@ afterEach(() => {
 });
 
 describe('CentralTickProvider player-ready simulation barrier', () => {
-  it('offers reload recovery while keeping the real shift frozen until readiness', async () => {
+  it('keeps the real shift frozen behind the streamlined loader until readiness', async () => {
     render(<LoadingScreen recoveryDelayMs={0} minimumLoadTimeMs={0} />);
     frame(90);
     expect(onTick).not.toHaveBeenCalled();
 
-    expect(await screen.findByRole('button', { name: 'Reload' })).toBeVisible();
+    expect(await screen.findByText('Preparing the complete scene')).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Reload' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Continue while preparing' })).toBeNull();
     frame(90.5);
 
@@ -123,14 +126,28 @@ describe('CentralTickProvider player-ready simulation barrier', () => {
     expect(onTick).toHaveBeenCalledOnce();
     expect(onTick.mock.calls[0][0]).toMatchObject({ deltaSeconds: 0.5, tickCount: 1 });
     expect(lazyTick).toHaveBeenCalledOnce();
-    expect(useGameSimulationStore.getState().gameTime).toBeCloseTo(10 + 90 / 3600);
-    expect(useOperationsCampaignStore.getState().elapsedMinutes).toBe(1.5);
+    // One 0.5 s tick at standard pace (30) is 15 game seconds.
+    expect(useGameSimulationStore.getState().gameTime).toBeCloseTo(10 + 15 / 3600);
+    expect(useOperationsCampaignStore.getState().elapsedMinutes).toBe(0.25);
 
     frame(90.6);
     expect(onTick).toHaveBeenCalledOnce();
     frame(91);
     expect(onTick).toHaveBeenCalledTimes(2);
-    expect(useOperationsCampaignStore.getState().elapsedMinutes).toBe(3);
+    expect(useOperationsCampaignStore.getState().elapsedMinutes).toBe(0.5);
+  });
+
+  it('starts explicit slow-device access with one interval and no loading-time catch-up', () => {
+    frame(90);
+    probe.startup.opened = true;
+    frame(90.5);
+    expect(probe.startup.ready).toBe(false);
+    expect(onTick).toHaveBeenCalledOnce();
+    expect(onTick.mock.calls[0][0]).toMatchObject({ deltaSeconds: 0.5, tickCount: 1 });
+    expect(useOperationsCampaignStore.getState().elapsedMinutes).toBe(0.25);
+    probe.startup.ready = true;
+    frame(90.6);
+    expect(onTick).toHaveBeenCalledOnce();
   });
 
   it('keeps a ready hidden tab frozen and resumes without a catch-up burst', () => {
@@ -143,7 +160,7 @@ describe('CentralTickProvider player-ready simulation barrier', () => {
     useGameSimulationStore.getState().setTabVisible(true);
     frame(90.5);
     expect(onTick).toHaveBeenCalledOnce();
-    expect(useOperationsCampaignStore.getState().elapsedMinutes).toBe(1.5);
+    expect(useOperationsCampaignStore.getState().elapsedMinutes).toBe(0.25);
   });
 
   it('retains the existing pause and chosen pace when startup becomes ready', () => {

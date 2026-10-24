@@ -1,15 +1,20 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { ThreeEvent, useFrame } from '@react-three/fiber';
+import { useTexture } from '@react-three/drei';
+import { BUSINESS_BRANDS } from '../scenery/HeritageSignage';
 import { GeneratedBoundary } from '../models/GeneratedModel';
 import { GeneratedGeometrySurface } from '../models/GeneratedGeometrySurface';
 import type { GeneratedAssetId } from '../../utils/modelLoader';
 import * as THREE from 'three';
 import { MachineData, MachineType } from '../../types';
 import {
+  getMachineAssemblyScale,
   getSiloAssemblyScale,
   SILO_ACCESS_LAYOUT,
   SIFTER_LAYOUT,
   MILL_FEEDER_LAYOUT,
+  MILL_BASE_PLATE_SCALE,
+  PACKER_BASE_PLATE_SCALE,
   PACKER_HOPPER_LAYOUT,
   type Vec3Tuple,
 } from '../../constants/siteLayout';
@@ -18,7 +23,11 @@ import { useProductionStore } from '../../stores/productionStore';
 import { useMaterialFlowStore } from '../../stores/materialFlowStore';
 import { getMachineStatusColor } from '../../utils/statusColors';
 import { useShallow } from 'zustand/react/shallow';
-import { getMachineOperationalState } from '../../simulation/machineMotion';
+import {
+  getMachineOperationalState,
+  sampleMachineVisualPhase,
+  type MachineVisualClock,
+} from '../../simulation/machineMotion';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { isPostProcessingActive, useGraphicsStore } from '../../stores/graphicsStore';
 import {
@@ -27,11 +36,21 @@ import {
   MACHINE_FINISH_GEOMETRY,
   MILL_CONTROL_FACE,
   MILL_DRIVE_Z,
+  PACKER_SACK_GEOMETRY,
+  PACKER_SACK_LAYOUT,
+  PACKER_SACK_PRINT_GEOMETRY,
+  PACKER_FILL_HEAD_GEOMETRY,
+  PACKER_STATION_SHIFT_Z,
+  getPackerSackPosition,
+  getPackerHeadPosition,
 } from './machineFinishGeometry';
 import {
   MACHINE_MATERIALS as MATERIALS,
   machineInstanceTint,
   setMachineScreenGlow,
+  createPackerPrintMaterial,
+  SILO_RING_HEIGHTS,
+  SILO_SHELL_SPAN,
 } from './machineSurfaces';
 import {
   MACHINE_DECAL_GEOMETRY,
@@ -41,22 +60,21 @@ import {
   writeDecalDialReadings,
   DECAL_CELL,
 } from './machineDecals';
+import { MILL_LOUVRE_FACE_X, MILL_LOUVRE_THICKNESS } from '../flow/ventPlume';
+import { SIFTER_SUSPENSION } from './sifterSuspension';
 
 const UNIT_BOX = new THREE.BoxGeometry(1, 1, 1);
-const ROUNDED_BOX = new RoundedBoxGeometry(1, 1, 1, 3, 0.08);
 /**
  * Thin plates, panels and plinths.
  *
- * `ROUNDED_BOX`'s 0.08 fillet is a UNIT radius, so the non-uniform instance
+ * The former rounded box's 0.08 fillet was a UNIT radius, so the non-uniform instance
  * scale stretches it with the part: on the mill panel ([3.5, 0.46, 0.12]) it
  * becomes 0.28 m across X and 0.0096 m across Z, a 29x anisotropy that reads as
  * a soft lozenge on one axis and a hard card on the other. That mismatch is
  * most of the "toy blocks" silhouette. Every plate-shaped part uses this 0.02
  * radius instead, which lands between 0.002 and 0.16 m - a plausible pressed
- * edge at every scale it is used at. `ROUNDED_BOX` is now down to the packer's
- * fill head and its sacks, which are small and near-cubic enough that the soft
- * fillet is right for both; the three machine bodies that used to share it are
- * designed housings, further down.
+ * edge at every scale it is used at. The machine bodies, formed packer outlet
+ * and sacks now have their own authored geometry.
  */
 const THIN_PLATE = new RoundedBoxGeometry(1, 1, 1, 1, 0.02);
 const SILO_BODY = new THREE.CylinderGeometry(1, 1, 1, 16);
@@ -81,6 +99,9 @@ const SILO_BODY = new THREE.CylinderGeometry(1, 1, 1, 16);
  * shell, so its silhouette is never seen.
  */
 function createSiloShellGeometry(): THREE.LatheGeometry {
+  // Mirrored by SILO_SHELL_PROFILE (machineSurfaces), which shades these waves
+  // analytically; kept literal because refine-silo-geometry.mjs evaluates this
+  // function on its own.
   const RIDGES = 40;
   const STEPS_PER_RIDGE = 4;
   const RIDGE_DEPTH = 0.004;
@@ -182,7 +203,10 @@ const SILO_ROOF = createSiloRoofGeometry();
  */
 // Grounded discharge enclosure. The real outlet route terminates inside it.
 const SILO_OUTLET = new THREE.CylinderGeometry(1, 1, 1, 32);
-const SILO_RING = new THREE.CylinderGeometry(1.03, 1.03, 0.08, 32); // matches shell
+// Stiffener band, segments matching the shell. Open-ended: its caps were the 8 cm
+// ledge between ring and wall, under a pixel at Low and facing the bright
+// zenith, so they rasterised as white dashes along every ring.
+const SILO_RING = new THREE.CylinderGeometry(1.03, 1.03, 0.08, 32, 1, true);
 const HOPPER = new THREE.CylinderGeometry(0.45, 1, 1, 24); // 3.7 m across
 const ROLLER = new THREE.CylinderGeometry(1, 1, 1, 20);
 const INLET = new THREE.CylinderGeometry(1, 1, 1, 20);
@@ -201,6 +225,7 @@ const BEACON = new THREE.LatheGeometry(
 );
 export const MACHINE_BEACON_SCALE = [0.095, 0.14, 0.095] as const;
 export const MACHINE_BEACON_BASE_SCALE = [0.135, 0.1, 0.135] as const;
+export { MILL_BASE_PLATE_SCALE, PACKER_BASE_PLATE_SCALE } from '../../constants/siteLayout';
 /** Housing seats in local metres, clear of feed mouths and lifting eyes. */
 export const MACHINE_BEACON_MOUNTS: Partial<
   Record<MachineType, readonly [number, number, number]>
@@ -650,6 +675,7 @@ export const MACHINE_PART_GEOMETRY = {
   inlet: INLET,
   beacon: BEACON,
   fanGrille: FAN_GRILLE,
+  packerSack: PACKER_SACK_GEOMETRY,
 } as const;
 const STATUS_COLOUR = new THREE.Color();
 /** Pointer travel (px) beyond which a click on a machine is the end of a drag. */
@@ -702,6 +728,58 @@ const setInstanceMatrix = (
   object.rotation.set(...rotation);
   object.updateMatrix();
   mesh.setMatrixAt(index, object.matrix);
+};
+
+const CANE_UP = new THREE.Vector3(0, 1, 0);
+const CANE_AXIS = new THREE.Vector3();
+
+/**
+ * A hung sifter's corner brackets and canes, for a gyration offset (world m).
+ * The brackets ride the casing; each cane's head stays on its cross beam and
+ * its foot follows the bracket, so the canes lean with the orbit the way a
+ * hanging cane does. No allocation: this runs from the frame loop.
+ */
+const writeSifterHangers = (
+  brackets: THREE.InstancedMesh | null,
+  canes: THREE.InstancedMesh | null,
+  index: number,
+  object: THREE.Object3D,
+  machine: MachineData,
+  offsetX: number,
+  offsetZ: number
+) => {
+  const [x, y, z] = machine.position;
+  const scale = getMachineAssemblyScale(machine);
+  const bracketCount = SIFTER_SUSPENSION.brackets.length;
+  for (let part = 0; part < bracketCount; part += 1) {
+    const { centre, size } = SIFTER_SUSPENSION.brackets[part];
+    object.position.set(
+      x + offsetX + centre[0] * scale[0],
+      y + centre[1] * scale[1],
+      z + offsetZ + centre[2] * scale[2]
+    );
+    object.scale.set(size[0] * scale[0], size[1] * scale[1], size[2] * scale[2]);
+    object.rotation.set(0, 0, 0);
+    object.updateMatrix();
+    brackets?.setMatrixAt(index * bracketCount + part, object.matrix);
+  }
+  if (!canes) return;
+  const caneCount = SIFTER_SUSPENSION.canes.length;
+  const radius = SIFTER_SUSPENSION.caneRadius * scale[0];
+  for (let part = 0; part < caneCount; part += 1) {
+    const cane = SIFTER_SUSPENSION.canes[part];
+    const headX = x + cane.x * scale[0];
+    const headZ = z + cane.z * scale[2];
+    const headY = y + cane.top * scale[1];
+    const footY = y + cane.bottom * scale[1];
+    CANE_AXIS.set(-offsetX, headY - footY, -offsetZ);
+    const length = CANE_AXIS.length();
+    object.position.set(headX + offsetX / 2, (headY + footY) / 2, headZ + offsetZ / 2);
+    object.quaternion.setFromUnitVectors(CANE_UP, CANE_AXIS.divideScalar(length));
+    object.scale.set(radius, length, radius);
+    object.updateMatrix();
+    canes.setMatrixAt(index * caneCount + part, object.matrix);
+  }
 };
 
 /** Layout and flow updates use the same installed silo frame.
@@ -851,7 +929,9 @@ function CompactMachineSet({
   const millHardwareRef = useRef<THREE.InstancedMesh>(null);
   const sifterBodyRef = useRef<THREE.InstancedMesh>(null);
   const sifterTrayRef = useRef<THREE.InstancedMesh>(null);
-  const sifterPlatformRef = useRef<THREE.InstancedMesh>(null);
+  const sifterGantryRef = useRef<THREE.InstancedMesh>(null);
+  const sifterBracketRef = useRef<THREE.InstancedMesh>(null);
+  const sifterSockRef = useRef<THREE.InstancedMesh>(null);
   const sifterCapRef = useRef<THREE.InstancedMesh>(null);
   const sifterInletRef = useRef<THREE.InstancedMesh>(null);
   const sifterDriveRef = useRef<THREE.InstancedMesh>(null);
@@ -872,6 +952,16 @@ function CompactMachineSet({
   const packerCoversRef = useRef<THREE.InstancedMesh>(null);
   const packerHardwareRef = useRef<THREE.InstancedMesh>(null);
   const bagRef = useRef<THREE.InstancedMesh>(null);
+  const bagPrintRef = useRef<THREE.InstancedMesh>(null);
+  const bagPrint = useTexture(BUSINESS_BRANDS.mill.primary);
+  const bagPrintMaterial = useMemo(() => createPackerPrintMaterial(bagPrint), [bagPrint]);
+  useLayoutEffect(() => {
+    bagPrint.colorSpace = THREE.SRGBColorSpace;
+    bagPrint.anisotropy = 4;
+    bagPrint.needsUpdate = true;
+  }, [bagPrint]);
+  // Texture belongs to useTexture's shared cache, material belongs to this set.
+  useEffect(() => () => bagPrintMaterial.dispose(), [bagPrintMaterial]);
   const beaconRef = useRef<THREE.InstancedMesh>(null);
   const beaconBaseRef = useRef<THREE.InstancedMesh>(null);
   const decalRef = useRef<THREE.InstancedMesh>(null);
@@ -879,6 +969,7 @@ function CompactMachineSet({
   const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
   const objectRef = useRef(new THREE.Object3D());
   const flowVisualFrameRef = useRef(0);
+  const visualClocks = useRef(new Map<string, MachineVisualClock>());
 
   /**
    * `enableMachineColorVariation` is true on medium and above but had no effect
@@ -910,6 +1001,9 @@ function CompactMachineSet({
   useLayoutEffect(() => {
     const object = objectRef.current;
     const tint = tintAmount;
+    const liveIds = new Set(allMachines.map((machine) => machine.id));
+    for (const id of visualClocks.current.keys())
+      if (!liveIds.has(id)) visualClocks.current.delete(id);
 
     subsets.silos.forEach((machine, index) => {
       const [x, y, z] = machine.position;
@@ -929,8 +1023,8 @@ function CompactMachineSet({
         siloBodyRef.current,
         index,
         object,
-        [x, y + 8.75, z],
-        [2.25, 12.5, 2.25],
+        [x, y + SILO_SHELL_SPAN.centreY, z],
+        [2.25, SILO_SHELL_SPAN.height, 2.25],
         undefined,
         siloFrame
       );
@@ -956,13 +1050,16 @@ function CompactMachineSet({
         undefined,
         siloFrame
       );
-      [5.25, 9.1, 12.95].forEach((ringY, ringIndex) => {
+      // The galvanised skin's run-off streaks start under these (machineSurfaces).
+      SILO_RING_HEIGHTS.forEach((ringY, ringIndex) => {
         setInstanceMatrix(
           siloRingRef.current,
           index * 3 + ringIndex,
           object,
           [x, y + ringY, z],
-          [2.28 / 1.03, 0.4, 2.28 / 1.03],
+          // y 1.25: 0.2 m bands. At 0.4 (6.4 cm) a ring was under a pixel tall
+          // at Low's review distance and broke into dots.
+          [2.28 / 1.03, 1.25, 2.28 / 1.03],
           undefined,
           siloFrame
         );
@@ -1039,25 +1136,71 @@ function CompactMachineSet({
 
     subsets.mills.forEach((machine, index) => {
       const [x, y, z] = machine.position;
+      // Authored at about 2.5x; installed at real size about the floor anchor.
+      const frame = { origin: machine.position, scale: getMachineAssemblyScale(machine) };
       millBodyRef.current?.setColorAt(index, machineInstanceTint(INSTANCE_TINT, machine.id, tint));
-      setInstanceMatrix(millBaseRef.current, index, object, [x, y + 0.32, z], [5.2, 0.64, 4.4]);
-      setInstanceMatrix(millBodyRef.current, index, object, [x, y + 2.7, z], [4.8, 4.7, 3.8]);
-      setInstanceMatrix(millGuardRef.current, index, object, [x, y, z], [1, 1, 1]);
-      setInstanceMatrix(millHardwareRef.current, index, object, [x, y, z], [1, 1, 1]);
+      setInstanceMatrix(
+        millBaseRef.current,
+        index,
+        object,
+        [x, y + MILL_BASE_PLATE_SCALE[1] / 2, z],
+        [...MILL_BASE_PLATE_SCALE],
+        undefined,
+        frame
+      );
+      setInstanceMatrix(
+        millBodyRef.current,
+        index,
+        object,
+        [x, y + 2.7, z],
+        [4.8, 4.7, 3.8],
+        undefined,
+        frame
+      );
+      setInstanceMatrix(
+        millGuardRef.current,
+        index,
+        object,
+        [x, y, z],
+        [1, 1, 1],
+        undefined,
+        frame
+      );
+      setInstanceMatrix(
+        millHardwareRef.current,
+        index,
+        object,
+        [x, y, z],
+        [1, 1, 1],
+        undefined,
+        frame
+      );
       setInstanceMatrix(
         millHopperRef.current,
         index,
         object,
         [x, y + MILL_FEEDER_LAYOUT.height, z],
-        [...MILL_FEEDER_LAYOUT.scale]
+        [...MILL_FEEDER_LAYOUT.scale],
+        undefined,
+        frame
       );
-      setInstanceMatrix(millRecessRef.current, index, object, [x, y, z], [1, 1, 1]);
+      setInstanceMatrix(
+        millRecessRef.current,
+        index,
+        object,
+        [x, y, z],
+        [1, 1, 1],
+        undefined,
+        frame
+      );
       setInstanceMatrix(
         millPanelRef.current,
         index,
         object,
         [x, y + 1.08, z + 1.99],
-        [3.5, 0.46, 0.12]
+        [3.5, 0.46, 0.12],
+        undefined,
+        frame
       );
       for (let rollerIndex = 0; rollerIndex < 2; rollerIndex += 1) {
         setInstanceMatrix(
@@ -1066,7 +1209,8 @@ function CompactMachineSet({
           object,
           [x, y + 2.25 + rollerIndex * 1.1, z + 2.05],
           [0.48, 3.25, 0.48],
-          [0, 0, Math.PI / 2]
+          [0, 0, Math.PI / 2],
+          frame
         );
       }
       setInstanceMatrix(
@@ -1075,7 +1219,8 @@ function CompactMachineSet({
         object,
         [x + 3.02, y + 1.65, z + MILL_DRIVE_Z],
         [0.68, 1.35, 0.68],
-        [0, 0, Math.PI / 2]
+        [0, 0, Math.PI / 2],
+        frame
       );
       setInstanceMatrix(
         millFanRef.current,
@@ -1083,7 +1228,8 @@ function CompactMachineSet({
         object,
         [x + 3.72, y + 1.65, z + MILL_DRIVE_Z],
         [0.58, 0.58, 0.58],
-        [0, Math.PI / 2, 0]
+        [0, Math.PI / 2, 0],
+        frame
       );
       setInstanceMatrix(
         millScreenRef.current,
@@ -1091,15 +1237,18 @@ function CompactMachineSet({
         object,
         [x, y + MILL_CONTROL_FACE.position[1], z + MILL_CONTROL_FACE.position[2]],
         [0.78, 0.52, 0.09],
-        [MILL_CONTROL_FACE.rotationX, 0, 0]
+        [MILL_CONTROL_FACE.rotationX, 0, 0],
+        frame
       );
       for (let ventIndex = 0; ventIndex < 4; ventIndex += 1) {
         setInstanceMatrix(
           millVentRef.current,
           index * 4 + ventIndex,
           object,
-          [x - 2.412, y + 2.25 + ventIndex * 0.38, z - 0.5],
-          [0.018, 0.18, 1.35]
+          [x + MILL_LOUVRE_FACE_X, y + 2.25 + ventIndex * 0.38, z - 0.5],
+          [MILL_LOUVRE_THICKNESS, 0.18, 1.35],
+          undefined,
+          frame
         );
       }
       setInstanceMatrix(
@@ -1108,43 +1257,85 @@ function CompactMachineSet({
         object,
         [x, y + 4.87, z + 1.57],
         [3.15, 0.075, 0.045],
-        [-0.78, 0, 0]
+        [-0.78, 0, 0],
+        frame
       );
     });
 
     subsets.sifters.forEach((machine, index) => {
       const [x, y, z] = machine.position;
+      const frame = { origin: machine.position, scale: getMachineAssemblyScale(machine) };
       const colour = machineInstanceTint(INSTANCE_TINT, machine.id, tint);
       sifterBodyRef.current?.setColorAt(index, colour);
       sifterAccentRef.current?.setColorAt(index, colour);
-      setInstanceMatrix(
-        sifterPlatformRef.current,
+      // The sifter hangs from its own gantry (`sifterSuspension.ts`); the
+      // platform slab it used to stand on is gone, so the deck shows under it.
+      const gantryCount = SIFTER_SUSPENSION.gantry.length;
+      SIFTER_SUSPENSION.gantry.forEach(({ centre, size }, part) => {
+        setInstanceMatrix(
+          sifterGantryRef.current,
+          index * gantryCount + part,
+          object,
+          [x + centre[0], y + centre[1], z + centre[2]],
+          size,
+          undefined,
+          frame
+        );
+      });
+      writeSifterHangers(
+        sifterBracketRef.current,
+        sifterSuspensionRef.current,
         index,
         object,
-        [x, y - 0.04, z],
-        [7.8, 0.18, 6.8]
+        machine,
+        0,
+        0
+      );
+      const { sock } = SIFTER_SUSPENSION;
+      setInstanceMatrix(
+        sifterSockRef.current,
+        index,
+        object,
+        [x, y + (sock.top + sock.bottom) / 2, z],
+        [sock.radius, sock.top - sock.bottom, sock.radius],
+        undefined,
+        frame
       );
       setInstanceMatrix(
         sifterBodyRef.current,
         index,
         object,
         [x, y + SIFTER_LAYOUT.bodyCentreY, z],
-        [6.5, SIFTER_LAYOUT.bodyHeight, 5.65]
+        [6.5, SIFTER_LAYOUT.bodyHeight, 5.65],
+        undefined,
+        frame
       );
-      setInstanceMatrix(sifterHardwareRef.current, index, object, [x, y, z], [1, 1, 1]);
+      setInstanceMatrix(
+        sifterHardwareRef.current,
+        index,
+        object,
+        [x, y, z],
+        [1, 1, 1],
+        undefined,
+        frame
+      );
       setInstanceMatrix(
         sifterCapRef.current,
         index,
         object,
         [x, y + SIFTER_LAYOUT.capCentreY, z],
-        [5.6, SIFTER_LAYOUT.capHeight, 4.8]
+        [5.6, SIFTER_LAYOUT.capHeight, 4.8],
+        undefined,
+        frame
       );
       setInstanceMatrix(
         sifterInletRef.current,
         index,
         object,
         [x, y + SIFTER_LAYOUT.inletCentreY, z],
-        [0.72, SIFTER_LAYOUT.inletHeight, 0.72]
+        [0.72, SIFTER_LAYOUT.inletHeight, 0.72],
+        undefined,
+        frame
       );
       for (let tray = 0; tray < SIFTER_LAYOUT.trayCount; tray += 1) {
         setInstanceMatrix(
@@ -1152,7 +1343,9 @@ function CompactMachineSet({
           index * SIFTER_LAYOUT.trayCount + tray,
           object,
           [x, y + 0.62 + tray * SIFTER_LAYOUT.trayPitch, z],
-          [6.8, 0.13, 5.95]
+          [6.8, 0.13, 5.95],
+          undefined,
+          frame
         );
       }
       // 3.85 -> 3.68: the only trim in this file the housing reshape moved. The
@@ -1165,74 +1358,137 @@ function CompactMachineSet({
         object,
         [x + 3.68, y + 2.2, z],
         [0.62, 1.15, 0.62],
-        [0, 0, Math.PI / 2]
+        [0, 0, Math.PI / 2],
+        frame
       );
-      const suspensionOffsets = [
-        [-2.9, -2.45],
-        [-2.9, 2.45],
-        [2.9, -2.45],
-        [2.9, 2.45],
-      ] as const;
-      suspensionOffsets.forEach(([dx, dz], suspensionIndex) => {
-        setInstanceMatrix(
-          sifterSuspensionRef.current,
-          index * 4 + suspensionIndex,
-          object,
-          [x + dx, y + 3.28, z + dz],
-          [0.075, 5.86, 0.075]
-        );
-      });
       setInstanceMatrix(
         sifterScreenRef.current,
         index,
         object,
         [x, y + 2.2, z + 3.145],
-        [0.82, 0.5, 0.08]
+        [0.82, 0.5, 0.08],
+        undefined,
+        frame
       );
-      setInstanceMatrix(sifterServicePanelRef.current, index, object, [x, y, z], [1, 1, 1]);
-      setInstanceMatrix(sifterAccentRef.current, index, object, [x, y, z], [1, 1, 1]);
+      setInstanceMatrix(
+        sifterServicePanelRef.current,
+        index,
+        object,
+        [x, y, z],
+        [1, 1, 1],
+        undefined,
+        frame
+      );
+      setInstanceMatrix(
+        sifterAccentRef.current,
+        index,
+        object,
+        [x, y, z],
+        [1, 1, 1],
+        undefined,
+        frame
+      );
     });
 
     subsets.packers.forEach((machine, index) => {
       const [x, y, z] = machine.position;
+      // The cabinet is installed at real size; the fill station below it was
+      // already drawn at real size and only moves back onto the cabinet face.
+      const frame = { origin: machine.position, scale: getMachineAssemblyScale(machine) };
+      const station = PACKER_STATION_SHIFT_Z;
       packerBodyRef.current?.setColorAt(
         index,
         machineInstanceTint(INSTANCE_TINT, machine.id, tint)
       );
-      setInstanceMatrix(packerCoversRef.current, index, object, [x, y, z], [1, 1, 1]);
-      setInstanceMatrix(packerHardwareRef.current, index, object, [x, y, z], [1, 1, 1]);
-      setInstanceMatrix(packerBaseRef.current, index, object, [x, y + 0.28, z], [4.5, 0.56, 4.25]);
-      setInstanceMatrix(packerBodyRef.current, index, object, [x, y + 2.65, z], [3.7, 4.75, 3.45]);
+      setInstanceMatrix(
+        packerCoversRef.current,
+        index,
+        object,
+        [x, y, z],
+        [1, 1, 1],
+        undefined,
+        frame
+      );
+      setInstanceMatrix(
+        packerHardwareRef.current,
+        index,
+        object,
+        [x, y, z],
+        [1, 1, 1],
+        undefined,
+        frame
+      );
+      setInstanceMatrix(
+        packerBaseRef.current,
+        index,
+        object,
+        [x, y + PACKER_BASE_PLATE_SCALE[1] / 2, z],
+        [...PACKER_BASE_PLATE_SCALE],
+        undefined,
+        frame
+      );
+      setInstanceMatrix(
+        packerBodyRef.current,
+        index,
+        object,
+        [x, y + 2.65, z],
+        [3.7, 4.75, 3.45],
+        undefined,
+        frame
+      );
       setInstanceMatrix(
         packerHopperRef.current,
         index,
         object,
         [x, y + PACKER_HOPPER_LAYOUT.centreY, z],
-        [...PACKER_HOPPER_LAYOUT.scale]
+        [...PACKER_HOPPER_LAYOUT.scale],
+        undefined,
+        frame
       );
-      setInstanceMatrix(packerPanelRef.current, index, object, [x, y, z], [1, 1, 1]);
+      setInstanceMatrix(
+        packerPanelRef.current,
+        index,
+        object,
+        [x, y, z],
+        [1, 1, 1],
+        undefined,
+        frame
+      );
       setInstanceMatrix(
         packerHeadRef.current,
         index,
         object,
-        [x, y + 1.75, z + 1.72],
-        [0.68, 1.4, 0.68]
+        getPackerHeadPosition(machine.position, 0, station),
+        [1, 1, 1]
       );
-      setInstanceMatrix(bagRef.current, index, object, [x, y + 0.72, z + 2.75], [1.25, 1.45, 0.72]);
+      setInstanceMatrix(
+        bagRef.current,
+        index,
+        object,
+        getPackerSackPosition(machine.position, 0, station),
+        PACKER_SACK_LAYOUT.scale
+      );
+      bagPrintRef.current?.setMatrixAt(index, object.matrix);
       setInstanceMatrix(
         packerScreenRef.current,
         index,
         object,
         [x, y + 4.05, z + 1.78],
-        [0.72, 0.5, 0.08]
+        [0.72, 0.5, 0.08],
+        undefined,
+        frame
       );
-      [-0.92, 0.92].forEach((offsetX, guideIndex) => {
+      [-PACKER_SACK_LAYOUT.guideX, PACKER_SACK_LAYOUT.guideX].forEach((offsetX, guideIndex) => {
         setInstanceMatrix(
           packerGuideRef.current,
           index * 2 + guideIndex,
           object,
-          [x + offsetX, y + 1.42, z + 2.55],
-          [0.09, 2.5, 0.09]
+          [
+            x + offsetX,
+            y + PACKER_SACK_LAYOUT.guidePosition[1],
+            z + station + PACKER_SACK_LAYOUT.guidePosition[2],
+          ],
+          PACKER_SACK_LAYOUT.guideSize
         );
       });
       [-1.34, 1.34].forEach((offsetX, guardIndex) => {
@@ -1240,7 +1496,7 @@ function CompactMachineSet({
           packerGuardRef.current,
           index * 2 + guardIndex,
           object,
-          [x + offsetX, y + 1.05, z + 2.62],
+          [x + offsetX, y + 1.05, z + station + 2.62],
           [0.08, 1.9, 0.08]
         );
       });
@@ -1249,7 +1505,9 @@ function CompactMachineSet({
         index,
         object,
         [x, y + 4.82, z + 1.77],
-        [3.05, 0.2, 0.12]
+        [3.05, 0.2, 0.12],
+        undefined,
+        frame
       );
     });
 
@@ -1257,10 +1515,12 @@ function CompactMachineSet({
       const [x, y, z] = machine.position;
       const mount = MACHINE_BEACON_MOUNTS[machine.type];
       if (!mount) return;
-      const [dx, localHeight, dz] = mount;
-      const height =
-        localHeight *
-        (machine.type === MachineType.SILO ? getSiloAssemblyScale(machine.size)[1] : 1);
+      // The mount point is installed with its machine; the beacon keeps its
+      // real lamp size.
+      const [sx, sy, sz] = getMachineAssemblyScale(machine);
+      const dx = mount[0] * sx;
+      const height = mount[1] * sy;
+      const dz = mount[2] * sz;
       setInstanceMatrix(
         beaconBaseRef.current,
         index,
@@ -1331,7 +1591,9 @@ function CompactMachineSet({
       millHardwareRef,
       sifterBodyRef,
       sifterTrayRef,
-      sifterPlatformRef,
+      sifterGantryRef,
+      sifterBracketRef,
+      sifterSockRef,
       sifterCapRef,
       sifterInletRef,
       sifterDriveRef,
@@ -1352,6 +1614,7 @@ function CompactMachineSet({
       packerCoversRef,
       packerHardwareRef,
       bagRef,
+      bagPrintRef,
       beaconRef,
       beaconBaseRef,
     ].forEach((ref) => finishMatrixUpdate(ref.current, true));
@@ -1387,41 +1650,89 @@ function CompactMachineSet({
       sifterServicePanelRef,
       sifterScreenRef,
       sifterTrayRef,
+      sifterBracketRef,
+      sifterSuspensionRef,
       decalRef,
       packerHeadRef,
       bagRef,
+      bagPrintRef,
     ],
     []
   );
 
   useFrame(() => {
-    if (!isTabVisible) return;
     const flowState = useMaterialFlowStore.getState();
     const time = flowState.simulationTime;
+    if (!isTabVisible) {
+      for (const clock of visualClocks.current.values())
+        sampleMachineVisualPhase(clock, time, false, false);
+      return;
+    }
     const object = objectRef.current;
     const roster = useProductionStore.getState().machines;
     if (enableMachineDetail && roster !== dialRosterRef.current) {
       writeDecalDialReadings(MACHINE_DECAL_GEOMETRY, decals, roster);
       dialRosterRef.current = roster;
     }
-    const canOperate = (machine: MachineData): boolean =>
-      getMachineOperationalState(machine.status, flowState.machineBuffers.get(machine.id)) ===
-      'operating';
+    const machinePhase = (machine: MachineData): number | null => {
+      let clock = visualClocks.current.get(machine.id);
+      if (!clock) {
+        clock = { sampleTime: time, phaseTime: null };
+        visualClocks.current.set(machine.id, clock);
+      }
+      return sampleMachineVisualPhase(
+        clock,
+        time,
+        getMachineOperationalState(machine.status, flowState.machineBuffers.get(machine.id)) ===
+          'operating'
+      );
+    };
 
     subsets.mills.forEach((machine, index) => {
       const [x, y, z] = machine.position;
-      const active = canOperate(machine);
-      const vibration = active ? Math.sin(time * 28 + index) * 0.012 : 0;
+      const phase = machinePhase(machine);
+      const vibration = phase === null ? 0 : Math.sin(phase * 28 + index) * 0.012;
+      // Installed about the vibrating anchor, so the shake keeps its real amplitude.
+      const frame = {
+        origin: [x, y + vibration, z] as Vec3Tuple,
+        scale: getMachineAssemblyScale(machine),
+      };
       setInstanceMatrix(
         millBodyRef.current,
         index,
         object,
         [x, y + 2.7 + vibration, z],
-        [4.8, 4.7, 3.8]
+        [4.8, 4.7, 3.8],
+        undefined,
+        frame
       );
-      setInstanceMatrix(millGuardRef.current, index, object, [x, y + vibration, z], [1, 1, 1]);
-      setInstanceMatrix(millRecessRef.current, index, object, [x, y + vibration, z], [1, 1, 1]);
-      setInstanceMatrix(millHardwareRef.current, index, object, [x, y + vibration, z], [1, 1, 1]);
+      setInstanceMatrix(
+        millGuardRef.current,
+        index,
+        object,
+        [x, y + vibration, z],
+        [1, 1, 1],
+        undefined,
+        frame
+      );
+      setInstanceMatrix(
+        millRecessRef.current,
+        index,
+        object,
+        [x, y + vibration, z],
+        [1, 1, 1],
+        undefined,
+        frame
+      );
+      setInstanceMatrix(
+        millHardwareRef.current,
+        index,
+        object,
+        [x, y + vibration, z],
+        [1, 1, 1],
+        undefined,
+        frame
+      );
       if (enableMachineDetail) {
         decals.forEach((decal, decalIndex) => {
           if (decal.machineId !== machine.id || decal.cell !== DECAL_CELL.motorLoadDial) return;
@@ -1441,15 +1752,18 @@ function CompactMachineSet({
         object,
         [x, y + vibration + MILL_CONTROL_FACE.position[1], z + MILL_CONTROL_FACE.position[2]],
         [0.78, 0.52, 0.09],
-        [MILL_CONTROL_FACE.rotationX, 0, 0]
+        [MILL_CONTROL_FACE.rotationX, 0, 0],
+        frame
       );
       for (let ventIndex = 0; ventIndex < 4; ventIndex++) {
         setInstanceMatrix(
           millVentRef.current,
           index * 4 + ventIndex,
           object,
-          [x - 2.412, y + vibration + 2.25 + ventIndex * 0.38, z - 0.5],
-          [0.018, 0.18, 1.35]
+          [x + MILL_LOUVRE_FACE_X, y + vibration + 2.25 + ventIndex * 0.38, z - 0.5],
+          [MILL_LOUVRE_THICKNESS, 0.18, 1.35],
+          undefined,
+          frame
         );
       }
       for (let rollerIndex = 0; rollerIndex < 2; rollerIndex += 1) {
@@ -1459,51 +1773,75 @@ function CompactMachineSet({
           object,
           [x, y + 2.25 + rollerIndex * 1.1, z + 2.05],
           [0.48, 3.25, 0.48],
-          getMillRollerRotation(active ? time * (rollerIndex === 0 ? 4.5 : -4.5) : 0)
+          getMillRollerRotation((phase ?? 0) * (rollerIndex === 0 ? 4.5 : -4.5)),
+          frame
         );
       }
     });
 
     subsets.sifters.forEach((machine, index) => {
       const [x, y, z] = machine.position;
-      const active = canOperate(machine);
-      const phase = time * 10 + index * 1.7;
-      const offsetX = active ? Math.sin(phase) * 0.055 : 0;
-      const offsetZ = active ? Math.cos(phase) * 0.055 : 0;
+      const phase = machinePhase(machine);
+      const offsetX = phase === null ? 0 : Math.sin(phase * 10 + index * 1.7) * 0.055;
+      const offsetZ = phase === null ? 0 : Math.cos(phase * 10 + index * 1.7) * 0.055;
+      // Installed about the orbiting anchor, so the gyration keeps its real radius.
+      const frame = {
+        origin: [x + offsetX, y, z + offsetZ] as Vec3Tuple,
+        scale: getMachineAssemblyScale(machine),
+      };
+      writeSifterHangers(
+        sifterBracketRef.current,
+        sifterSuspensionRef.current,
+        index,
+        object,
+        machine,
+        offsetX,
+        offsetZ
+      );
       setInstanceMatrix(
         sifterBodyRef.current,
         index,
         object,
         [x + offsetX, y + SIFTER_LAYOUT.bodyCentreY, z + offsetZ],
-        [6.5, SIFTER_LAYOUT.bodyHeight, 5.65]
+        [6.5, SIFTER_LAYOUT.bodyHeight, 5.65],
+        undefined,
+        frame
       );
       setInstanceMatrix(
         sifterHardwareRef.current,
         index,
         object,
         [x + offsetX, y, z + offsetZ],
-        [1, 1, 1]
+        [1, 1, 1],
+        undefined,
+        frame
       );
       setInstanceMatrix(
         sifterAccentRef.current,
         index,
         object,
         [x + offsetX, y, z + offsetZ],
-        [1, 1, 1]
+        [1, 1, 1],
+        undefined,
+        frame
       );
       setInstanceMatrix(
         sifterServicePanelRef.current,
         index,
         object,
         [x + offsetX, y, z + offsetZ],
-        [1, 1, 1]
+        [1, 1, 1],
+        undefined,
+        frame
       );
       setInstanceMatrix(
         sifterScreenRef.current,
         index,
         object,
         [x + offsetX, y + 2.2, z + offsetZ + 3.145],
-        [0.82, 0.5, 0.08]
+        [0.82, 0.5, 0.08],
+        undefined,
+        frame
       );
       if (enableMachineDetail) {
         // The placards travel with their own casing, using the existing atlas batch.
@@ -1526,29 +1864,31 @@ function CompactMachineSet({
           index * SIFTER_LAYOUT.trayCount + tray,
           object,
           [x + offsetX, y + 0.62 + tray * SIFTER_LAYOUT.trayPitch, z + offsetZ],
-          [6.8, 0.13, 5.95]
+          [6.8, 0.13, 5.95],
+          undefined,
+          frame
         );
       }
     });
 
     subsets.packers.forEach((machine, index) => {
-      const [x, y, z] = machine.position;
-      const active = canOperate(machine);
-      const cycle = active ? (Math.sin(time * 3.2 + index) + 1) * 0.5 : 0;
+      const phase = machinePhase(machine);
+      const cycle = phase === null ? 0 : (Math.sin(phase * 3.2 + index) + 1) * 0.5;
       setInstanceMatrix(
         packerHeadRef.current,
         index,
         object,
-        [x, y + 1.75 - cycle * 0.38, z + 1.72],
-        [0.68, 1.4, 0.68]
+        getPackerHeadPosition(machine.position, cycle, PACKER_STATION_SHIFT_Z),
+        [1, 1, 1]
       );
       setInstanceMatrix(
         bagRef.current,
         index,
         object,
-        [x, y + 0.72, z + 2.75 + cycle * 0.52],
-        [1.25, 1.45, 0.72]
+        getPackerSackPosition(machine.position, cycle, PACKER_STATION_SHIFT_Z),
+        PACKER_SACK_LAYOUT.scale
       );
+      bagPrintRef.current?.setMatrixAt(index, object.matrix);
     });
 
     flowVisualFrameRef.current += 1;
@@ -1616,7 +1956,7 @@ function CompactMachineSet({
       <InteractiveInstances
         meshRef={siloOutletRef}
         geometry={SILO_OUTLET}
-        material={MATERIALS.siloRoof}
+        material={MATERIALS.siloSkirt}
         count={subsets.silos.length}
         machines={subsets.silos}
         onSelect={onSelect}
@@ -1628,7 +1968,7 @@ function CompactMachineSet({
       */}
       <instancedMesh
         ref={siloRingRef}
-        args={[SILO_RING, MATERIALS.siloRoof, subsets.silos.length * 3]}
+        args={[SILO_RING, MATERIALS.siloRing, subsets.silos.length * 3]}
         castShadow
         receiveShadow
       />
@@ -1763,9 +2103,31 @@ function CompactMachineSet({
         />
       )}
       <instancedMesh
-        ref={sifterPlatformRef}
-        args={[THIN_PLATE, MATERIALS.platform, subsets.sifters.length]}
+        name="plansifter-suspension-gantries"
+        ref={sifterGantryRef}
+        args={[
+          UNIT_BOX,
+          MATERIALS.siloLeg,
+          subsets.sifters.length * SIFTER_SUSPENSION.gantry.length,
+        ]}
         castShadow
+        receiveShadow
+      />
+      <instancedMesh
+        name="plansifter-cane-brackets"
+        ref={sifterBracketRef}
+        args={[
+          UNIT_BOX,
+          MATERIALS.siloLeg,
+          subsets.sifters.length * SIFTER_SUSPENSION.brackets.length,
+        ]}
+        castShadow
+        receiveShadow
+      />
+      <instancedMesh
+        name="plansifter-outlet-socks"
+        ref={sifterSockRef}
+        args={[INLET, MATERIALS.bag, subsets.sifters.length]}
         receiveShadow
       />
       {/*
@@ -1793,7 +2155,8 @@ function CompactMachineSet({
       />
       <instancedMesh
         ref={sifterSuspensionRef}
-        args={[INLET, MATERIALS.hardware, subsets.sifters.length * 4]}
+        args={[INLET, MATERIALS.hardware, subsets.sifters.length * SIFTER_SUSPENSION.canes.length]}
+        castShadow
         receiveShadow
       />
       <instancedMesh
@@ -1854,13 +2217,21 @@ function CompactMachineSet({
         receiveShadow
       />
       <instancedMesh
+        name="packer-filling-heads"
         ref={packerHeadRef}
-        args={[ROUNDED_BOX, MATERIALS.packerTrim, subsets.packers.length]}
+        args={[PACKER_FILL_HEAD_GEOMETRY, MATERIALS.packerTrim, subsets.packers.length]}
         receiveShadow
       />
       <instancedMesh
+        name="packer-millos-prints"
+        ref={bagPrintRef}
+        args={[PACKER_SACK_PRINT_GEOMETRY, bagPrintMaterial, subsets.packers.length]}
+        receiveShadow
+      />
+      <instancedMesh
+        name="packer-output-sacks"
         ref={bagRef}
-        args={[ROUNDED_BOX, MATERIALS.bag, subsets.packers.length]}
+        args={[PACKER_SACK_GEOMETRY, MATERIALS.bag, subsets.packers.length]}
         castShadow
         receiveShadow
       />

@@ -1,0 +1,3 @@
+src/simulation/__tests__/communityLife.test.ts 108ms
+src/components/workers/WorkerModel.test.tsx 106ms
+src/components/vehicleReplay.test.ts 34ms

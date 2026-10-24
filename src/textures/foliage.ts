@@ -12,11 +12,10 @@
  *    nearest opaque texel. If they are left at 0 the GPU's mip reduction
  *    averages black into every leaf edge and the canopy grows a dark fringe
  *    as the camera pulls back.
- * 2. ALPHA DILATION. Mip reduction also averages alpha, so a thin leaflet
- *    falls below `alphaTest` a couple of mips down and the canopy dissolves.
- *    A sub-threshold halo is written around every cut edge: it stays below the
- *    test at mip 0 (so the silhouette is unchanged up close) but lifts the
- *    averages that the mip chain sees.
+ * 2. ALPHA COVERAGE. A sub-threshold halo supports thin edges at range, but
+ *    raw reduction can also fill the gaps between leaves. Explicit mip levels
+ *    preserve each cell's tested coverage while retaining the exact base
+ *    silhouette. The tiny tail remains raw and needs a later visual check.
  * 3. COLOUR SPACE. Albedo goes through `createColorDataTexture` (sRGB);
  *    normal / roughness through `createLinearDataTexture`.
  */
@@ -31,6 +30,132 @@ import {
 } from '../utils/textureGenerator';
 
 export type FoliageKind = 'broadleaf' | 'needle';
+
+/**
+ * Leaf atlas size per kind, shared by `InstancedFoliage` and the startup bake
+ * recipe that builds the same atlases off the main thread. A 384 px broadleaf
+ * atlas keeps 192 px per authored cell, well above the feature and mip floor,
+ * while avoiding 44% of the synchronous texel work and memory of the former
+ * 512 px map during first-world hydration.
+ */
+export const FOLIAGE_ATLAS_SIZE: Readonly<Record<FoliageKind, number>> = {
+  broadleaf: 384,
+  needle: 256,
+};
+
+/** One cutoff for visible leaves and their wind-synchronised shadows. */
+export const FOLIAGE_ALPHA_TEST = 0.4;
+const LEAF_ALPHA_BYTE = Math.ceil(FOLIAGE_ALPHA_TEST * 255);
+const LEAF_LINEAR = Float64Array.from({ length: 256 }, (_, byte) => {
+  const value = byte / 255;
+  return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+});
+const leafSrgbByte = (value: number) =>
+  Math.round(255 * (value <= 0.0031308 ? value * 12.92 : 1.055 * value ** (1 / 2.4) - 0.055));
+
+/** Filter colour in linear light and normalize coarse cutout coverage per cell.
+ * Base texels, normal maps and zero alpha stay exact. Each reduction reads the
+ * RAW pyramid, never a previously corrected alpha level. Working if stored
+ * coarse coverage is closer to each original cell, without changing near leaves.
+ * Tiny tails retain raw averages; their rendered transitions need visual review.
+ */
+export function createLeafMipmaps(data: Uint8Array, size: number) {
+  if (!Number.isInteger(size) || size < 1 || data.length !== size * size * 4)
+    throw new Error('Leaf mipmaps require a complete square RGBA buffer');
+  const mips = [{ data, width: size, height: size }];
+  const coverage = Array.from({ length: 4 }, (_, cell) => {
+    let visible = 0,
+      count = 0;
+    const half = Math.floor(size / 2);
+    for (let y = (cell >> 1) * half; y < ((cell >> 1) + 1) * half; y++)
+      for (let x = (cell % 2) * half; x < ((cell % 2) + 1) * half; x++) {
+        if (data[(y * size + x) * 4 + 3] >= LEAF_ALPHA_BYTE) visible++;
+        count++;
+      }
+    return count ? visible / count : 0;
+  });
+  let raw = data,
+    width = size;
+  while (width > 1) {
+    const nextWidth = Math.floor(width / 2);
+    const next = new Uint8Array(nextWidth * nextWidth * 4);
+    for (let y = 0; y < nextWidth; y++)
+      for (let x = 0; x < nextWidth; x++) {
+        const x0 = Math.floor((x * width) / nextWidth),
+          x1 = Math.floor(((x + 1) * width) / nextWidth);
+        const y0 = Math.floor((y * width) / nextWidth),
+          y1 = Math.floor(((y + 1) * width) / nextWidth);
+        let r = 0,
+          g = 0,
+          b = 0,
+          alpha = 0;
+        for (let yy = y0; yy < y1; yy++)
+          for (let xx = x0; xx < x1; xx++) {
+            const i = (yy * width + xx) * 4;
+            r += LEAF_LINEAR[raw[i]];
+            g += LEAF_LINEAR[raw[i + 1]];
+            b += LEAF_LINEAR[raw[i + 2]];
+            alpha += raw[i + 3];
+          }
+        const count = (x1 - x0) * (y1 - y0),
+          i = (y * nextWidth + x) * 4;
+        next[i] = leafSrgbByte(r / count);
+        next[i + 1] = leafSrgbByte(g / count);
+        next[i + 2] = leafSrgbByte(b / count);
+        next[i + 3] = Math.round(alpha / count);
+      }
+    const correct = nextWidth >= 8 && nextWidth % 2 === 0;
+    const output = correct ? next.slice() : next;
+    if (correct) {
+      const half = nextWidth / 2;
+      for (let cell = 0; cell < 4; cell++) {
+        const histogram = new Uint32Array(256),
+          tail = new Uint32Array(257);
+        const x0 = (cell % 2) * half,
+          y0 = (cell >> 1) * half;
+        for (let y = y0; y < y0 + half; y++)
+          for (let x = x0; x < x0 + half; x++) histogram[next[(y * nextWidth + x) * 4 + 3]]++;
+        for (let a = 255; a >= 0; a--) tail[a] = tail[a + 1] + histogram[a];
+        const target = coverage[cell] * half * half;
+        let factor = 1,
+          error = Math.abs(tail[LEAF_ALPHA_BYTE] - target);
+        const consider = (candidate: number) => {
+          if (candidate < 0.6 || candidate > 1.6) return;
+          const cutoff = Math.ceil((LEAF_ALPHA_BYTE - 0.5) / candidate);
+          const candidateError = Math.abs(tail[cutoff] - target);
+          if (
+            candidateError < error ||
+            (candidateError === error && Math.abs(candidate - 1) < Math.abs(factor - 1))
+          ) {
+            factor = candidate;
+            error = candidateError;
+          }
+        };
+        consider(0.6);
+        consider(1.6);
+        for (let a = 1; a < 256; a++)
+          if (histogram[a]) {
+            const crossing = (LEAF_ALPHA_BYTE - 0.5) / a;
+            consider(crossing + 1e-8);
+            consider(crossing - 1e-8);
+          }
+        for (let y = y0; y < y0 + half; y++)
+          for (let x = x0; x < x0 + half; x++) {
+            const i = (y * nextWidth + x) * 4 + 3;
+            output[i] = Math.min(255, Math.round(next[i] * factor));
+          }
+      }
+    }
+    mips.push({ data: output, width: nextWidth, height: nextWidth });
+    raw = next;
+    width = nextWidth;
+  }
+  return mips;
+}
+
+// A modest density lift keeps crowns coherent while retaining leaf-scale holes.
+// Working if albedo/normal alignment and mip coverage hold at the existing size.
+const LEAF_POPULATION: Record<FoliageKind, number> = { broadleaf: 520, needle: 120 };
 
 /** One rasterised leaf blob, shared by the albedo and the height pass so the
  *  normal map lines up with the cut-out exactly. */
@@ -319,10 +444,10 @@ export const generateLeafAtlas = (
   size: number = 512,
   kind: FoliageKind = 'broadleaf'
 ): THREE.DataTexture => {
-  return getTexture(`foliage-leaf-v2-${size}-${kind}`, () => {
+  return getTexture(`foliage-leaf-v4-${size}-${kind}`, () => {
     const data = new Uint8Array(size * size * 4);
     const cell = size >> 1;
-    const count = kind === 'needle' ? 120 : 420;
+    const count = LEAF_POPULATION[kind];
     // Margin keeps bilinear taps from pulling a neighbouring cell across the
     // seam; the bleed pass fills it with the adjacent leaf colour.
     const margin = Math.max(3, Math.round(size * 0.012));
@@ -365,6 +490,8 @@ export const generateLeafAtlas = (
     dilateAlpha(data, size, 0.6);
 
     const texture = createColorDataTexture(data, size, size);
+    texture.mipmaps = createLeafMipmaps(data, size);
+    texture.generateMipmaps = false;
     texture.wrapS = texture.wrapT = THREE.ClampToEdgeWrapping;
     texture.anisotropy = 8;
     return texture;
@@ -382,10 +509,10 @@ export const generateLeafNormal = (
   size: number = 512,
   kind: FoliageKind = 'broadleaf'
 ): THREE.DataTexture => {
-  return getTexture(`foliage-leaf-normal-v2-${size}-${kind}`, () => {
+  return getTexture(`foliage-leaf-normal-v3-${size}-${kind}`, () => {
     const height = new Float32Array(size * size);
     const cell = size >> 1;
-    const count = kind === 'needle' ? 120 : 420;
+    const count = LEAF_POPULATION[kind];
     const margin = Math.max(3, Math.round(size * 0.012));
 
     for (let c = 0; c < 4; c++) {

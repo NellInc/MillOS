@@ -6,6 +6,10 @@ import process from 'node:process';
 import { chromium } from '@playwright/test';
 import { acquireCaptureLock } from './lib/capture-lock.mjs';
 import { classifyDiagnostics } from './lib/diagnostics.mjs';
+import {
+  assertPreviewBuildIdentity,
+  assertPreviewPortAvailable,
+} from './lib/preview-build-identity.mjs';
 
 const ROOT = process.cwd();
 const DEFAULT_OUTPUT = path.join(ROOT, 'test-results', 'runtime-benchmarks');
@@ -23,6 +27,9 @@ const PERF_SYSTEMS = {
   surfaces: 'disableSurfaceTreatment',
   ao: 'disableAmbientOcclusion',
   bloom: 'disableBloom',
+  smaa: 'disableSMAA',
+  msaa: 'disableComposerMsaa',
+  'display-toe': 'disableDisplayToe',
 };
 const NETWORK_PROFILES = {
   native: null,
@@ -46,6 +53,48 @@ function hasFlag(name) {
   return process.argv.includes(`--${name}`);
 }
 
+// Silently ignored switches can change the browser or stop all simulation
+// motion. Working if unsupported switches fail before preview/browser launch.
+const valueArguments = new Set([
+  'base-url',
+  'port',
+  'channel',
+  'executable-path',
+  'quality',
+  'device-scale-factor',
+  'scenes',
+  'duration',
+  'warmup',
+  'settle-timeout',
+  'time',
+  'weather',
+  'scada',
+  'pa',
+  'disable-systems',
+  'network-profile',
+  'output',
+]);
+const flagArguments = new Set([
+  'motion',
+  'art',
+  'compare-scada',
+  'startup-only',
+  'headed',
+  'report-only',
+  'help',
+  'h',
+]);
+for (const argument of process.argv.slice(2)) {
+  const value = /^--([^=]+)=/.exec(argument);
+  if (
+    value
+      ? valueArguments.has(value[1])
+      : flagArguments.has(argument.slice(2)) && argument.startsWith('--')
+  )
+    continue;
+  throw new Error(`Unsupported benchmark argument: ${argument}. Use --help for valid switches.`);
+}
+
 if (hasFlag('help') || hasFlag('h')) {
   console.log(`MillOS native runtime benchmark
 
@@ -56,6 +105,7 @@ Options:
   --base-url=<url>          Reuse an existing preview instead of starting one
   --port=<number>           Local preview port when --base-url is absent; default 4173
   --channel=<name>          Browser channel, defaults to chrome; use an empty value for bundled Chromium
+  --executable-path=<path>  Use an already-installed browser for an explicit identity contrast
   --quality=<tier>          low, medium, high, or ultra; default medium
   --device-scale-factor=<n> Browser device scale factor, from 1 to 3; default 2
   --scenes=<list>           Comma-separated fixed scene names
@@ -113,6 +163,7 @@ const options = {
   output: path.resolve(readArgument('output', DEFAULT_OUTPUT)),
   headed: hasFlag('headed'),
   browserChannel: readArgument('channel', 'chrome'),
+  browserExecutable: readArgument('executable-path', ''),
   reportOnly: hasFlag('report-only'),
   networkProfile: readArgument('network-profile', 'native'),
   disabledSystems: readArgument('disable-systems', '')
@@ -233,6 +284,7 @@ async function waitForServer(url, timeoutMs = 30000) {
 }
 
 async function startPreview() {
+  await assertPreviewPortAvailable(options.previewPort);
   const indexPath = path.join(ROOT, 'dist', 'index.html');
   await access(indexPath).catch(() => {
     throw new Error('dist/index.html is missing. Run npm run build before the benchmark.');
@@ -275,7 +327,7 @@ async function startPreview() {
   });
   try {
     await Promise.race([
-      waitForServer(url),
+      waitForServer(`${url}/`),
       new Promise((_, reject) => {
         previewProcess.once('exit', (code) => {
           reject(
@@ -292,7 +344,8 @@ async function startPreview() {
     const cause = error instanceof Error ? error.message : String(error);
     throw new Error(
       `${cause}\nPreview stdout: ${previewStdout.trim() || 'none'}\n` +
-        `Preview stderr: ${previewStderr.trim() || 'none'}`
+        `Preview stderr: ${previewStderr.trim() || 'none'}`,
+      { cause: error }
     );
   }
   return url;
@@ -434,7 +487,8 @@ async function waitForRuntimeStage(page, label, predicate, timeoutMs, diagnostic
         { ...diagnostics, pageState },
         null,
         2
-      )}`
+      )}`,
+      { cause: error }
     );
   }
 }
@@ -831,7 +885,11 @@ async function runScene(context, baseUrl, scene, scadaEnabled = options.scadaEna
     () =>
       document.documentElement.dataset.millosStartupReady === 'true' &&
       document.querySelector('[aria-label="Loading MillOS"]') === null,
-    120000,
+    // The first reveal includes the same static batching as the later settle
+    // check. Honour a longer existing --settle-timeout here as well. Working
+    // if a busy capture can wait for all batches while the default observation
+    // window and every frame/startup acceptance budget remain unchanged.
+    Math.max(120000, options.settleTimeoutSeconds * 1000),
     { consoleErrors, pageErrors, failedRequests }
   );
   if (options.startupOnly) {
@@ -1033,14 +1091,64 @@ async function main() {
   // measures the other process rather than the scene.
   captureLock = await acquireCaptureLock(`benchmark:${options.scenes.join('+')}`, { root: ROOT });
   const baseUrl = options.baseUrl || (await startPreview());
+  const buildIdentity = await assertPreviewBuildIdentity(baseUrl, path.join(ROOT, 'dist'));
+  await writeFile(
+    path.join(options.output, 'preview-build-identity.json'),
+    `${JSON.stringify(buildIdentity, null, 2)}\n`
+  );
   const browser = await chromium.launch({
     headless: !options.headed,
-    args: ['--mute-audio'],
-    channel: options.browserChannel || undefined,
+    chromiumSandbox: true,
+    ignoreDefaultArgs: ['--enable-unsafe-swiftshader'],
+    args: [
+      '--mute-audio',
+      // Playwright 1.62 stopped passing this by default, and without it CDP
+      // Browser.getBrowserCommandLine refuses, so the sandbox admission below
+      // could never read the arguments it checks.
+      '--enable-automation',
+      ...(process.platform === 'darwin' && !options.headed
+        ? ['--use-gl=angle', '--use-angle=metal']
+        : []),
+    ],
+    ...(options.browserExecutable
+      ? { executablePath: options.browserExecutable }
+      : { channel: options.browserChannel || undefined }),
   });
 
   const results = [];
+  let gpu;
+  let browserArguments;
+  const browserVersion = browser.version();
   try {
+    const browserSession = await browser.newBrowserCDPSession();
+    gpu = (await browserSession.send('SystemInfo.getInfo')).gpu;
+    browserArguments = (await browserSession.send('Browser.getBrowserCommandLine')).arguments;
+    await browserSession.detach();
+    const admission = { browserVersion, browserArguments, gpu, requestedChromiumSandbox: true };
+    await writeFile(
+      path.join(options.output, 'gpu-admission.json'),
+      `${JSON.stringify(admission, null, 2)}\n`
+    );
+    // Working if a software fallback or missing sandbox stops the benchmark
+    // before any frame sample can be accepted as native-GPU evidence.
+    if (
+      gpu.auxAttributes?.sandboxed !== true ||
+      gpu.auxAttributes?.inProcessGpu !== false ||
+      !gpu.auxAttributes?.glRenderer ||
+      /swiftshader|llvmpipe|softpipe|software rasterizer/i.test(gpu.auxAttributes.glRenderer) ||
+      !String(gpu.featureStatus?.webgl ?? '').startsWith('enabled') ||
+      browserArguments.some((argument) =>
+        [
+          '--no-sandbox',
+          '--disable-gpu-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-seccomp-filter-sandbox',
+          '--enable-unsafe-swiftshader',
+        ].includes(argument)
+      )
+    ) {
+      throw new Error('Native benchmark requires actual hardware WebGL and an intact GPU sandbox');
+    }
     for (const scene of options.scenes) {
       // A fresh context per fixed scene prevents closed WebGL pages from
       // contaminating later measurements with accumulated renderer and GC
@@ -1056,6 +1164,19 @@ async function main() {
         serviceWorkers: options.networkProfile === 'native' ? 'allow' : 'block',
       });
       try {
+        await context.addInitScript(() => {
+          localStorage.setItem(
+            'millos-audio',
+            JSON.stringify({
+              version: 2,
+              muted: true,
+              volume: 0,
+              musicEnabled: false,
+              musicVolume: 0,
+              machineVolume: 0,
+            })
+          );
+        });
         if (options.compareScada) {
           results.push(await runScene(context, baseUrl, scene, false));
           results.push(await runScene(context, baseUrl, scene, true));
@@ -1110,9 +1231,16 @@ async function main() {
       encoding: 'utf8',
     }).trim(),
     baseUrl,
-    browser: options.browserChannel
-      ? `Playwright ${options.browserChannel} channel`
-      : 'Playwright Chromium',
+    browser: options.browserExecutable
+      ? `Explicit installed browser: ${options.browserExecutable}`
+      : options.browserChannel
+        ? `Playwright ${options.browserChannel} channel`
+        : 'Playwright Chromium',
+    browserVersion,
+    browserArguments,
+    gpu,
+    requestedChromiumSandbox: true,
+    buildIdentity,
     options,
     throttle:
       NETWORK_PROFILES[options.networkProfile] === null

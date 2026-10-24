@@ -2,6 +2,7 @@ import React, { useMemo, useLayoutEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { POLYGON_OFFSET } from '../constants/renderLayers';
+import { YARD_LANE_STRIPE_SIZE } from './truckbay/yardSurfaces';
 
 /**
  * ONE DRAW CALL PER YARD PROP, NOT ONE PER PART.
@@ -273,7 +274,7 @@ export const OptimizedSpeedBumpInstances: React.FC<{
 // Module-level and never disposed: one stripe plane shared by every instance.
 // Built per render (fresh array literals defeated the memo) it rebuilt the
 // InstancedMesh on each TruckBay render and leaked the old geometry.
-const STRIPE_GEOMETRY = new THREE.PlaneGeometry(0.15, 4);
+const STRIPE_GEOMETRY = new THREE.PlaneGeometry(...YARD_LANE_STRIPE_SIZE);
 const STRIPE_ROTATION: [number, number, number] = [-Math.PI / 2, 0, 0];
 
 export const OptimizedStripeInstances: React.FC<{

@@ -53,9 +53,15 @@ export function createOutletStoneGeometry(width: number, height: number, depth: 
   return geometry;
 }
 
+/**
+ * How far each east-bank stub runs into the 0.8 m outlet wall it meets. Ending
+ * flush with the wall's face left the stub's end face coplanar with it.
+ */
+const BANK_STUB_EMBED = 0.02;
+
 export function canalEastBankSections(length: number, centerZ: number) {
-  const gapStart = CANAL_OUTLET.south - CANAL_OUTLET.width - centerZ;
-  const gapEnd = CANAL_OUTLET.south - centerZ;
+  const gapStart = CANAL_OUTLET.south - CANAL_OUTLET.width - centerZ - BANK_STUB_EMBED;
+  const gapEnd = CANAL_OUTLET.south - centerZ + BANK_STUB_EMBED;
   return [
     [-length / 2, gapStart],
     [gapEnd, length / 2],

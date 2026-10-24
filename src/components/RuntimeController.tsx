@@ -1,11 +1,16 @@
 import { useEffect, useRef } from 'react';
-import { useFrame, useThree } from '@react-three/fiber';
+import { useFrame, useThree, type RootState } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { PersistStorage } from 'zustand/middleware';
 import { useAdaptiveQuality } from '../hooks/useAdaptiveQuality';
 import { useFPSStore } from './FPSMonitor';
-import { useGraphicsStore, type PerfDebugSettings } from '../stores/graphicsStore';
+import {
+  useGraphicsStore,
+  type GraphicsSettings,
+  type PerfDebugSettings,
+} from '../stores/graphicsStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
+import { RENDERER_TONE_MAPPING } from '../constants/colorGrade';
 import { useMaterialFlowStore } from '../stores/materialFlowStore';
 import { useProductionStore } from '../stores/productionStore';
 import { useUIStore } from '../stores/uiStore';
@@ -17,6 +22,7 @@ import { SITE_LAYOUT, type Vec3Tuple } from '../constants/siteLayout';
 import { inspectWorldIntegrity, type WorldIntegrityReport } from '../constants/worldContract';
 import { inspectCommunityPresence } from '../simulation/communityLife';
 import { sampleAtmosphere, sampleCelestial } from '../simulation/atmosphere';
+import { STANDARD_GAME_SPEED } from '../simulation/pace';
 import { audioManager } from '../utils/audioManager';
 import { installMillOSAgentRuntime } from '../agent/adapters/runtime/installAgentRuntime';
 import { registerSceneCapture } from '../utils/sceneCapture';
@@ -251,6 +257,24 @@ export interface MillOSRuntimeTelemetry {
   namedObjectsSnapshot: (names: string[]) => RuntimeNamedObjectPose[];
   setCameraPose: (position: [number, number, number], target: [number, number, number]) => void;
   setPerfDebug: (patch: Partial<PerfDebugSettings>) => void;
+  /**
+   * Diagnostic: hold the frame clock. `true` stops the render loop where it is
+   * and draws one frame at that same instant on every call (delta 0), so two
+   * shots differ only by what the caller changed between them; `false` resumes.
+   * Benchmark mode pauses the game clock but not this one, and wind, water and
+   * conveyors run on it. Returns the held clock time.
+   */
+  holdFrame: (hold: boolean) => number;
+  /**
+   * Diagnostic: patch display settings (tone mapping mode, grade, vignette) on
+   * the live page, so a probe can read the same frame scene-referred. Never a
+   * quality setting; `perfDebug` stays owned by `setPerfDebug`.
+   */
+  setDisplayDiagnostics: (
+    patch: Partial<
+      Pick<GraphicsSettings, 'toneMappingMode' | 'enableColorGrade' | 'enableVignette'>
+    >
+  ) => void;
   /**
    * Group every material instance in the graph by how it would actually draw.
    *
@@ -542,6 +566,8 @@ export interface RuntimeMaterialAudit {
 }
 
 const CHECKPOINT_PHASES = new Set<RuntimeCheckpointPhase>(['closed', 'opening', 'open', 'closing']);
+/** Frames drawn on entering `holdFrame`: twice the longest frame-count cadence. */
+const HOLD_SETTLE_FRAMES = 60;
 
 export function readRuntimeCheckpointTelemetry(
   id: RuntimeCheckpointState['id'],
@@ -613,6 +639,9 @@ const BENCHMARK_CAMERAS: Record<BenchmarkScene, BenchmarkCameraPose> = {
   markings: SITE_LAYOUT.cameras.markings,
   forecourt: SITE_LAYOUT.cameras.forecourt,
   carpark: SITE_LAYOUT.cameras.carpark,
+  // Review-only close view: the parking-bay camera cannot see this roof light.
+  // Working if both retained tables and the attached pendant fill the frame.
+  'picnic-shelter': { position: [150.7, 2.3, 39.6], target: [145, 1.45, 33], fov: 50 },
   river: SITE_LAYOUT.cameras.river,
   tunnel: SITE_LAYOUT.cameras.tunnel,
   huts: SITE_LAYOUT.cameras.huts,
@@ -1444,6 +1473,9 @@ export const RuntimeController: React.FC<RuntimeControllerProps> = ({
 }) => {
   const mode = getRuntimeMode();
   const { camera, gl, scene, controls } = useThree();
+  const getRootState = useThree((state) => state.get);
+  // The frameloop a `holdFrame(true)` replaced; null while the clock runs.
+  const heldFrameloopRef = useRef<RootState['frameloop'] | null>(null);
   const firstFrameAtRef = useRef<number | null>(null);
   const frameTimesRef = useRef<number[]>([]);
   // Every rendered frame since reset(), including those the finite/range filter
@@ -1618,13 +1650,18 @@ export const RuntimeController: React.FC<RuntimeControllerProps> = ({
       gameTime: previousGame.gameTime,
       gameSpeed: previousGame.gameSpeed,
       weather: previousGame.weather,
+      timeOfDayHeld: previousGame.timeOfDayHeld,
     };
     useGraphicsStore.getState().setGraphicsQuality(mode.quality);
     useGraphicsStore.getState().setSCADAEnabled(mode.scadaEnabled);
     useAnnouncementsStore.getState().setMode(mode.paMode);
     const game = useGameSimulationStore.getState();
     game.setGameTime(mode.gameTime);
-    game.setGameSpeed(mode.motionCapture ? 180 : 0);
+    game.setGameSpeed(mode.motionCapture ? STANDARD_GAME_SPEED : 0);
+    // A capture labelled with an hour shows that hour: under --motion the
+    // simulation runs at pace, but the sun, sky and lights hold still (two
+    // packing shots 14 s apart had moved their skylight patches about 40 px).
+    game.setTimeOfDayHeld(true);
     game.setWeather(mode.weather);
 
     const benchmarkCamera = resolveBenchmarkCamera(
@@ -1659,6 +1696,7 @@ export const RuntimeController: React.FC<RuntimeControllerProps> = ({
       const currentGame = useGameSimulationStore.getState();
       currentGame.setGameTime(previousGameInputs.gameTime);
       currentGame.setGameSpeed(previousGameInputs.gameSpeed);
+      currentGame.setTimeOfDayHeld(previousGameInputs.timeOfDayHeld);
       currentGame.setWeather(previousGameInputs.weather);
       useGraphicsStore.persist.setOptions({ storage: previousGraphicsStorage });
       useAnnouncementsStore.persist.setOptions({ storage: previousPAStorage });
@@ -2059,6 +2097,11 @@ export const RuntimeController: React.FC<RuntimeControllerProps> = ({
         orbitControls?.target?.set(...target);
         orbitControls?.update?.();
       },
+      setDisplayDiagnostics: (patch) => {
+        useGraphicsStore.setState((state) => ({
+          graphics: { ...state.graphics, ...patch },
+        }));
+      },
       setPerfDebug: (patch) => {
         useGraphicsStore.setState((state) => ({
           graphics: {
@@ -2070,15 +2113,63 @@ export const RuntimeController: React.FC<RuntimeControllerProps> = ({
           },
         }));
       },
+      holdFrame: (hold) => {
+        const root = getRootState();
+        const { clock } = root;
+        if (!hold) {
+          if (heldFrameloopRef.current !== null) {
+            // Clock.start() zeroes elapsedTime; keep the phase the hold froze.
+            const elapsed = clock.elapsedTime;
+            clock.start();
+            clock.elapsedTime = elapsed;
+            root.set({ frameloop: heldFrameloopRef.current });
+            heldFrameloopRef.current = null;
+            root.invalidate();
+          }
+          return clock.elapsedTime;
+        }
+        if (heldFrameloopRef.current === null) {
+          heldFrameloopRef.current = root.frameloop;
+          // Not setFrameloop('never'): it zeroes elapsedTime, which would jump
+          // every phase-driven animation. A stopped clock also keeps
+          // getElapsedTime() calls inside useFrame from advancing it.
+          clock.stop();
+          root.set({ frameloop: 'never' });
+          // Passes throttled by frame count catch up to the held instant first:
+          // the sun's shadow map is redrawn one frame in three, so the first
+          // held frame shaded swaying grass with a map two frames old. The
+          // longest live cadence is 30 frames.
+          for (let frame = 1; frame < HOLD_SETTLE_FRAMES; frame++) {
+            root.advance(clock.elapsedTime);
+          }
+        }
+        // Under 'never', advance() pins elapsedTime to the timestamp it is given.
+        root.advance(clock.elapsedTime);
+        return clock.elapsedTime;
+      },
     };
     const removeAgentRuntime = installMillOSAgentRuntime(window);
 
     return () => {
       observer?.disconnect();
       removeAgentRuntime();
+      // A hold must not outlive the hook that can release it.
+      window.__MILLOS_RUNTIME__?.holdFrame(false);
       delete window.__MILLOS_RUNTIME__;
     };
-  }, [camera, controls, gl, mode, orbitControlsRef, scene]);
+  }, [camera, controls, getRootState, gl, mode, orbitControlsRef, scene]);
+
+  // Low-tier half of the display-toe paired control: `low` lifts through the
+  // renderer's own curve (`RENDERER_TONE_MAPPING`), so the switch swaps in
+  // stock Neutral. Skipped while the composer (or a capture) holds the
+  // renderer at NoToneMapping; the composer lifts in its own pass.
+  useFrame(({ gl: renderer }) => {
+    if (renderer.toneMapping === THREE.NoToneMapping) return;
+    const wanted = useGraphicsStore.getState().graphics.perfDebug.disableDisplayToe
+      ? THREE.NeutralToneMapping
+      : RENDERER_TONE_MAPPING;
+    if (renderer.toneMapping !== wanted) renderer.toneMapping = wanted;
+  });
 
   useFrame((_state, delta) => {
     renderedFramesRef.current += 1;

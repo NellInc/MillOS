@@ -41,11 +41,64 @@ ${DIRECT_CALL}
   return parts[0] + guarded + parts[1] + guarded + parts[2] + DIRECT_CALL + parts[3];
 }
 
+/** Diagnostic opt-out selects the retained source with a distinct defines key. */
+export const PUNCTUAL_UNROLL_REFERENCE_DEFINE = 'MILLOS_PUNCTUAL_UNROLL_REFERENCE';
+
+/**
+ * Startup journals found repeated program-finalization waits with large forward
+ * PBR sources. Keep eligible Standard/Physical light-struct loops compact.
+ * Sampler-indexed shadows/maps and other shading models retain Three's complete
+ * unrolled assembly. Physical direct terms share the same derivative-free BRDF
+ * path; its DFG lookup has no mipmaps.
+ * Working if the full world prepares with every lamp present and paired
+ * reference/compact frames retain the same incident light and civic visibility.
+ */
+export function compactUnshadowedPunctualLoops(source: string): string {
+  let result = source;
+  const guardedCall = `#ifdef STANDARD
+if ( ${PUNCTUAL_REFERENCE_UNIFORM} || directLight.visible ) {
+#endif
+${DIRECT_CALL}
+#ifdef STANDARD
+}
+#endif`;
+  for (const type of ['point', 'spot'] as const) {
+    const upper = type.toUpperCase();
+    const incident = `get${type === 'point' ? 'Point' : 'Spot'}LightInfo( ${type}Light, geometryPosition, directLight );`;
+    const macro = `MILLOS_${upper}_INCIDENT`;
+    const pattern = new RegExp(
+      `#pragma unroll_loop_start\\s+for \\( int i = 0; i < NUM_${upper}_LIGHTS; i \\+\\+ \\) \\{[\\s\\S]*?\\}\\s+#pragma unroll_loop_end`
+    );
+    const original = result.match(pattern)?.[0];
+    if (!original || original.split(incident).length !== 2 || !original.includes(guardedCall))
+      throw new Error('Three punctual loop contract changed; review compact lighting.');
+    const fallback = original.replace(incident, `${macro}();`);
+    const eligibility = `defined( STANDARD ) && !defined( ${PUNCTUAL_UNROLL_REFERENCE_DEFINE} ) && NUM_${upper}_LIGHT_SHADOWS == 0${type === 'spot' ? ' && NUM_SPOT_LIGHT_MAPS == 0' : ''}`;
+    // The canonical incident statement occurs once, in a single-line macro.
+    // Civic injection extends that same macro before either branch is expanded.
+    const compact = `#define ${macro}() ${incident}
+#if ${eligibility}
+for ( int millosLightIndex = 0; millosLightIndex < NUM_${upper}_LIGHTS; millosLightIndex ++ ) {
+  ${type}Light = ${type}Lights[ millosLightIndex ];
+  ${macro}();
+  ${guardedCall}
+}
+#else
+${fallback}
+#endif
+#undef ${macro}`;
+    result = result.replace(original, compact);
+  }
+  return result;
+}
+
 /** Install before any renderer compiles, just like the atmospheric fog chunks. */
 export function installPunctualLightCulling(): void {
   if (THREE.ShaderChunk.lights_pars_begin.includes(PUNCTUAL_REFERENCE_UNIFORM)) return;
   // Validate first so a failed upgrade cannot leave half of the patch installed.
-  const begin = cullZeroPunctualContributions(THREE.ShaderChunk.lights_fragment_begin);
+  const begin = compactUnshadowedPunctualLoops(
+    cullZeroPunctualContributions(THREE.ShaderChunk.lights_fragment_begin)
+  );
   THREE.ShaderChunk.lights_pars_begin = `#ifdef STANDARD
 uniform bool ${PUNCTUAL_REFERENCE_UNIFORM};
 #endif

@@ -24,6 +24,8 @@ import {
   canonicalProcessMachines,
   resolveMaterialTransport,
 } from '../simulation/materialTransport';
+import { translate } from '../i18n';
+import { materialFlowStoreMessages } from './materialFlowStore.messages';
 
 // =============================================================================
 // MATERIAL TYPES
@@ -102,6 +104,13 @@ export interface ProductionBatch {
   qcTestIds: string[];
   dispatchManifestIds: string[];
   sealed: boolean;
+  /** Mass scrapped when the batch was recalled. Absent on batches never recalled. */
+  writtenOffKg?: number;
+  /**
+   * Product quality score (0-100) of the flour in this batch, averaged over the
+   * mass as it was packed. Absent on batches saved before it was recorded.
+   */
+  qualityScore?: number;
 }
 
 export interface ProcessGenealogyRecord {
@@ -274,7 +283,9 @@ export interface MaterialFlowState {
   tickMaterialFlow: (
     deltaSeconds: number,
     productionSpeed: number,
-    productionPlan?: MaterialFlowProductionPlan
+    productionPlan?: MaterialFlowProductionPlan,
+    /** Quality score (0-100) of product packed this tick; stamped on its batch. */
+    productQuality?: number
   ) => void;
   /**
    * Couple machine status to flow: stopped/idle/critical machines stop
@@ -337,12 +348,38 @@ const PRODUCT_BATCH_TARGET_KG = 1000;
 // millfeed system whenever its co-product bin reaches this level. Without the
 // outlet they filled the mill's output buffer and stopped the line for good.
 const MILLFEED_DISCHARGE_KG = 500;
+// The process log is an in-memory diagnostic window (about four plant minutes
+// at this rate); the physical save does not carry it. Batch traces read each
+// batch's own contributions instead.
 const MAX_PROCESS_GENEALOGY_RECORDS = 500;
-export const MAX_MATERIAL_MANIFESTS = 200;
-const MAX_PRODUCTION_BATCHES = 500;
+// Retained history windows. Each record carries lot contributions (~1.4 K chars),
+// and the physical save must fit its 1.5 M-char gate with the rest of the shift.
+// The panels show the newest 3 manifests and 4 settled batches; the campaign's
+// processed-receipt window follows the manifest window.
+export const MAX_MATERIAL_MANIFESTS = 32;
+/**
+ * Shipped batches retained as dispatch history. Only shipped batches are ever
+ * dropped, oldest first: stock, holds and recalls stay until they settle, and
+ * are bounded by packer capacity and the controller's own dispositions.
+ */
+export const MAX_PRODUCTION_BATCHES = 32;
+export function retainShippedBatchWindow<T extends { disposition: MaterialDisposition }>(
+  batches: T[]
+): T[] {
+  let toDrop = batches.filter((batch) => batch.disposition === 'shipped').length;
+  toDrop -= MAX_PRODUCTION_BATCHES;
+  if (toDrop <= 0) return batches;
+  return batches.filter((batch) => {
+    if (toDrop > 0 && batch.disposition === 'shipped') {
+      toDrop -= 1;
+      return false;
+    }
+    return true;
+  });
+}
 const newMaterialSessionId = (): string =>
   globalThis.crypto?.randomUUID?.() ?? `flow-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-const MAX_SOURCE_LOTS = 1000;
+export const MAX_SOURCE_LOTS = 1000;
 
 function contributionKey(contribution: SourceContribution): string {
   return `${contribution.lotId}|${contribution.path.join('>')}`;
@@ -452,6 +489,137 @@ function mergeProductBatchContributions(
   current?.forEach(merge);
   additions?.forEach(merge);
   return [...merged.entries()].map(([batchId, amount]) => ({ batchId, amount }));
+}
+
+/**
+ * A recall is terminal, so the recalled mass is scrapped where it sits: drained
+ * from packer output the way shipFinishedGoods drains it, and booked as waste
+ * with its source genealogy. Kept in the buffer, it held a fifth of a packer's
+ * capacity for the rest of the session. Working if both balances stay closed
+ * and the batch reads 'recalled' with no available mass.
+ */
+function writeOffRecalledMass(
+  state: Pick<MaterialFlowState, 'machineBuffers' | 'wasteKg' | 'wasteSourceContributions'>,
+  productionBatches: ProductionBatch[],
+  batchIds: ReadonlySet<string>
+): Pick<MaterialFlowState, 'machineBuffers' | 'wasteKg' | 'wasteSourceContributions'> | null {
+  if (batchIds.size === 0) return null;
+  const machineBuffers = new Map(state.machineBuffers);
+  let wasteKg = state.wasteKg;
+  let wasteSourceContributions = state.wasteSourceContributions;
+  machineBuffers.forEach((buffer, machineId) => {
+    if (!buffer.outputBuffer.some((m) => m.productBatches?.some((p) => batchIds.has(p.batchId))))
+      return;
+    const outputBuffer = buffer.outputBuffer.map((material) => {
+      if (!material.productBatches?.some((p) => batchIds.has(p.batchId))) return material;
+      let amount = material.amount;
+      let sourceContributions = cloneSourceContributions(material.sourceContributions);
+      const productBatches = material.productBatches.map((p) => ({ ...p }));
+      for (const contribution of productBatches) {
+        const batch = batchIds.has(contribution.batchId)
+          ? productionBatches.find((candidate) => candidate.id === contribution.batchId)
+          : undefined;
+        if (!batch) continue;
+        const writtenOff = Math.min(contribution.amount, batch.availableKg);
+        if (writtenOff <= 0) continue;
+        const sources = scaleSourceContributions(
+          batch.sourceContributions,
+          batch.producedKg > 0 ? writtenOff / batch.producedKg : 0
+        );
+        amount -= writtenOff;
+        contribution.amount -= writtenOff;
+        sourceContributions = subtractSourceContributions(sourceContributions, sources);
+        wasteSourceContributions = mergeSourceContributions(wasteSourceContributions, sources);
+        wasteKg += writtenOff;
+        batch.availableKg -= writtenOff;
+        batch.writtenOffKg = (batch.writtenOffKg ?? 0) + writtenOff;
+        if (batch.availableKg <= GENEALOGY_EPSILON_KG) batch.availableKg = 0;
+      }
+      return {
+        ...material,
+        amount,
+        sourceContributions,
+        productBatches: productBatches.filter((p) => p.amount > GENEALOGY_EPSILON_KG),
+      };
+    });
+    machineBuffers.set(machineId, {
+      ...buffer,
+      outputBuffer: outputBuffer.filter((material) => material.amount > GENEALOGY_EPSILON_KG),
+    });
+  });
+  return { machineBuffers, wasteKg, wasteSourceContributions };
+}
+
+/** Below this, a recalled lot's remaining genealogy is rounding, not stock. */
+const RECALLED_STOCK_TOLERANCE_KG = 1;
+
+export interface RecalledStock {
+  /** Mass from recalled source lots still in machine buffers or in transit. */
+  kg: number;
+  /** Recalled lots that still have more than the tolerance in the plant. */
+  lotIds: ReadonlySet<string>;
+}
+
+const NO_RECALLED_STOCK: RecalledStock = { kg: 0, lotIds: new Set() };
+let recalledStockCache: {
+  machineBuffers: MaterialFlowState['machineBuffers'];
+  segments: MaterialFlowState['network']['segments'];
+  sourceLots: MaterialFlowState['sourceLots'];
+  value: RecalledStock;
+} | null = null;
+
+/**
+ * Recalled stock the plant is still dealing with. Product is written off when
+ * it is recalled or packed (writeOffRecalledMass, appendPackedBatch), so what
+ * remains of a recall is its lots' material upstream, on its way to the packer
+ * and the scrap bin. Working if this is non-zero exactly while that material
+ * is in the plant. Memoised on the state it reads, because readers poll it per
+ * frame while the flow changes per tick.
+ */
+export function getRecalledStock(
+  state: Pick<MaterialFlowState, 'machineBuffers' | 'network' | 'sourceLots'>
+): RecalledStock {
+  const cache = recalledStockCache;
+  if (
+    cache &&
+    cache.machineBuffers === state.machineBuffers &&
+    cache.segments === state.network.segments &&
+    cache.sourceLots === state.sourceLots
+  )
+    return cache.value;
+  const recalledKgByLot = new Map<string, number>();
+  for (const lot of state.sourceLots.values())
+    if (lot.disposition === 'recalled') recalledKgByLot.set(lot.id, 0);
+  if (recalledKgByLot.size > 0) {
+    const count = (contributions: readonly SourceContribution[] | undefined) => {
+      for (const contribution of contributions ?? []) {
+        const kg = recalledKgByLot.get(contribution.lotId);
+        if (kg !== undefined) recalledKgByLot.set(contribution.lotId, kg + contribution.amount);
+      }
+    };
+    state.machineBuffers.forEach((buffer) => {
+      buffer.inputBuffer.forEach((material) => count(material.sourceContributions));
+      buffer.outputBuffer.forEach((material) => count(material.sourceContributions));
+    });
+    state.network.segments.forEach((segment) =>
+      segment.inTransit.forEach((transit) => count(transit.sourceContributions))
+    );
+  }
+  let kg = 0;
+  const lotIds = new Set<string>();
+  recalledKgByLot.forEach((lotKg, lotId) => {
+    if (lotKg <= RECALLED_STOCK_TOLERANCE_KG) return;
+    kg += lotKg;
+    lotIds.add(lotId);
+  });
+  const value = lotIds.size > 0 ? { kg, lotIds } : NO_RECALLED_STOCK;
+  recalledStockCache = {
+    machineBuffers: state.machineBuffers,
+    segments: state.network.segments,
+    sourceLots: state.sourceLots,
+    value,
+  };
+  return value;
 }
 
 function openingMaterial(machineId: string, type: MaterialType, amount: number): MaterialAmount {
@@ -586,7 +754,7 @@ function createInitialSourceLots(
             materialType: material.type,
             origin: 'opening_stock',
             sourceManifestId: null,
-            supplier: 'Opening inventory',
+            supplier: translate(materialFlowStoreMessages, 'openingInventory'),
             receivedKg: contribution.amount,
             simulationTime: 0,
             disposition: 'released',
@@ -737,7 +905,7 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
       processSequence: 0,
       simulationTime: 0,
 
-      tickMaterialFlow: (deltaSeconds, productionSpeed, productionPlan) => {
+      tickMaterialFlow: (deltaSeconds, productionSpeed, productionPlan, productQuality) => {
         if (
           !Number.isFinite(deltaSeconds) ||
           !Number.isFinite(productionSpeed) ||
@@ -762,22 +930,48 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
         // loss. Silos are uncommitted stock; every other buffer and belt is WIP.
         // Working if waiting for a physical truck cannot fill the packers with
         // surplus old product and block the following recipe.
-        const yieldCache = new Map<string, number>();
-        const visiting = new Set<string>();
+        // Keyed by the existing id strings: committedFor asks once per held
+        // material per packer, and building a composite string key for every
+        // call was most of this tick's cost in the long replay tests. Yields
+        // are never negative, so -1 marks a key whose resolution is under way.
+        type YieldCache = Map<string, Map<MaterialType, number>>;
+        const VISITING = -1;
+        const yieldCache = new Map<string, { input: YieldCache; output: YieldCache }>();
+        // Outgoing segments per machine, in network order, built on first use.
+        let segmentsFrom: Map<string, ConveyorSegment[]> | null = null;
         const finishedYield = (
           machineId: string,
           type: MaterialType,
           input: boolean,
           packerId?: string
         ): number => {
-          const key = `${machineId}:${type}:${input}:${packerId ?? ''}`;
-          const cached = yieldCache.get(key);
+          let packerCache = yieldCache.get(packerId ?? '');
+          if (!packerCache) {
+            packerCache = { input: new Map(), output: new Map() };
+            yieldCache.set(packerId ?? '', packerCache);
+          }
+          const scopeCache = input ? packerCache.input : packerCache.output;
+          let machineCache = scopeCache.get(machineId);
+          if (!machineCache) {
+            machineCache = new Map();
+            scopeCache.set(machineId, machineCache);
+          }
+          const cached = machineCache.get(type);
+          // A cycle back to a key still being resolved contributes nothing.
+          if (cached === VISITING) return 0;
           if (cached !== undefined) return cached;
-          if (visiting.has(key)) return 0;
-          visiting.add(key);
+          machineCache.set(type, VISITING);
           const buffer = state.machineBuffers.get(machineId);
           let yieldKg = 0;
-          if (input) {
+          // A machine that is not processing (broken, stopped) converts
+          // nothing, so its hopper and the belts into it commit nothing to the
+          // order. Counting them starved every lane: a broken mill's full
+          // hopper covered the remainder and closed the silos to the healthy
+          // mills. Once it runs again the hopper counts on the next tick.
+          // Its output buffer still leaves on the belts, so it still counts.
+          if (input && buffer?.isProcessing === false) {
+            yieldKg = 0;
+          } else if (input) {
             const conversion = buffer?.conversionRatios.find((c) => c.inputType === type);
             const total =
               conversion?.outputs.reduce((sum, o) => sum + Math.max(0, o.ratio), 0) ?? 0;
@@ -794,8 +988,16 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
           } else {
             // A split routes each kg once. The highest yield conservatively
             // reserves it; actual losses reopen demand on the following tick.
-            for (const segment of state.network.segments) {
-              if (segment.fromMachineId === machineId && segment.fromOutputType === type) {
+            if (!segmentsFrom) {
+              segmentsFrom = new Map();
+              for (const segment of state.network.segments) {
+                const from = segmentsFrom.get(segment.fromMachineId);
+                if (from) from.push(segment);
+                else segmentsFrom.set(segment.fromMachineId, [segment]);
+              }
+            }
+            for (const segment of segmentsFrom.get(machineId) ?? []) {
+              if (segment.fromOutputType === type) {
                 yieldKg = Math.max(
                   yieldKg,
                   finishedYield(segment.toMachineId, type, true, packerId)
@@ -803,8 +1005,7 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
               }
             }
           }
-          visiting.delete(key);
-          yieldCache.set(key, yieldKg);
+          machineCache.set(type, yieldKg);
           return yieldKg;
         };
         let feedBudgetKg = Infinity;
@@ -835,8 +1036,22 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
           // an aggregate-only cap leaves it overfilled while other lines idle.
           // Departed stock still reduces the overall cap, so rebalancing cannot
           // admit surplus merely because dispatch withdrew from one line first.
+          // Only lines a silo lane can still reach take a share: rm-102 alone
+          // feeds sifter-b, and while it is down packer-1's share could never
+          // be admitted, capping the live lines at a third each per truck.
+          const sourceLanes = state.network.segments.filter(
+            (segment) =>
+              state.machineBuffers.get(segment.fromMachineId)?.machineType === 'silo' &&
+              (!productionPlan?.sourceMaterial ||
+                segment.fromOutputType === productionPlan.sourceMaterial)
+          );
           const packers = [...state.machineBuffers.values()].filter(
-            (b) => b.machineType === 'packer'
+            (b) =>
+              b.machineType === 'packer' &&
+              sourceLanes.some(
+                (segment) =>
+                  finishedYield(segment.toMachineId, segment.fromOutputType, true, b.machineId) > 0
+              )
           );
           const rate = packers.reduce((sum, b) => sum + Math.max(0, b.processingRate), 0);
           for (const packer of packers)
@@ -900,8 +1115,14 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
           materialType: Extract<MaterialType, 'flour' | 'semolina'>,
           amountKg: number,
           sourceContributions: readonly SourceContribution[]
-        ): ProductBatchContribution[] => {
+        ): {
+          assignments: ProductBatchContribution[];
+          writtenOffKg: number;
+          writtenOffSources: SourceContribution[];
+        } => {
           const assignments: ProductBatchContribution[] = [];
+          let writtenOffKg = 0;
+          let writtenOffSources: SourceContribution[] = [];
           // Material only joins an open batch of the same disposition, so a
           // held lot never dilutes into a released batch, and held output
           // fills one batch toward the target instead of a fragment per tick.
@@ -923,7 +1144,9 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
                 candidate.materialType === materialType &&
                 !candidate.sealed &&
                 candidate.disposition === disposition &&
-                candidate.availableKg === candidate.producedKg
+                // A recalled batch is written off as it forms, so it never
+                // holds its produced mass; it still fills toward the target.
+                (disposition === 'recalled' || candidate.availableKg === candidate.producedKg)
               ) {
                 batch = candidate;
                 break;
@@ -941,7 +1164,9 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
                 sourceContributions: [],
                 disposition,
                 dispositionReason:
-                  disposition === 'released' ? null : 'Inherited source-lot disposition',
+                  disposition === 'released'
+                    ? null
+                    : translate(materialFlowStoreMessages, 'inheritedDisposition'),
                 qcTestIds: [],
                 dispatchManifestIds: [],
                 sealed: false,
@@ -955,17 +1180,35 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
               sourceContributions,
               amountKg > 0 ? portion / amountKg : 0
             );
+            // Mass-weighted, so a batch carries the quality its flour was
+            // made at rather than whatever the plant reads when it ships.
+            if (productQuality !== undefined && Number.isFinite(productQuality)) {
+              const previousKg = batch.producedKg;
+              batch.qualityScore =
+                ((batch.qualityScore ?? productQuality) * previousKg + productQuality * portion) /
+                Math.max(GENEALOGY_EPSILON_KG, previousKg + portion);
+            }
             batch.producedKg += portion;
-            batch.availableKg += portion;
             batch.sourceContributions = mergeSourceContributions(
               batch.sourceContributions,
               portionSources
             );
             batch.sealed = batch.producedKg >= PRODUCT_BATCH_TARGET_KG - GENEALOGY_EPSILON_KG;
-            assignments.push({ batchId: batch.id, amount: portion });
+            if (disposition === 'recalled') {
+              // A recall is terminal, so product packed from a recalled lot is
+              // scrapped at formation with the accounting writeOffRecalledMass
+              // applies: no available mass, written-off kg on the batch, and
+              // the exact portion sources booked to waste by the caller.
+              batch.writtenOffKg = (batch.writtenOffKg ?? 0) + portion;
+              writtenOffKg += portion;
+              writtenOffSources = mergeSourceContributions(writtenOffSources, portionSources);
+            } else {
+              batch.availableKg += portion;
+              assignments.push({ batchId: batch.id, amount: portion });
+            }
             remaining -= portion;
           }
-          return assignments;
+          return { assignments, writtenOffKg, writtenOffSources };
         };
 
         // 1. Process each machine: convert input -> output
@@ -1045,7 +1288,7 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
               }
 
               if (buffer.machineType === 'packer' && (type === 'flour' || type === 'semolina')) {
-                const assignments = appendPackedBatch(
+                const packed = appendPackedBatch(
                   buffer.machineId,
                   type,
                   outputAmount,
@@ -1055,8 +1298,22 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
                 if (packedOutput) {
                   packedOutput.productBatches = mergeProductBatchContributions(
                     packedOutput.productBatches,
-                    assignments
+                    packed.assignments
                   );
+                  // Recalled product leaves the packer as waste the moment it
+                  // forms; left in the buffer it would hold packer capacity.
+                  if (packed.writtenOffKg > 0) {
+                    packedOutput.amount -= packed.writtenOffKg;
+                    packedOutput.sourceContributions = subtractSourceContributions(
+                      packedOutput.sourceContributions,
+                      packed.writtenOffSources
+                    );
+                    wasteThisTick += packed.writtenOffKg;
+                    wasteSourceContributions = mergeSourceContributions(
+                      wasteSourceContributions,
+                      packed.writtenOffSources
+                    );
+                  }
                 }
               }
 
@@ -1148,6 +1405,11 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
           // spaceOnConveyor hit 0 and the belt stalled PERMANENTLY (and the
           // rejected material was silently destroyed). With the re-queue, a
           // jammed belt backs up and then recovers once downstream drains.
+          // A full destination rejects every arriving parcel; their remainders
+          // wait at the belt end together, so this tick's retries of one type
+          // share one parcel. Without that a jammed belt re-queued one parcel
+          // per tick and an idle plant's save grew by ~3 K chars per game hour.
+          const retries = new Map<MaterialType, ConveyorSegment['inTransit'][number]>();
           arrivedMaterial.forEach((arrived) => {
             const totalInput = toBuffer.inputBuffer.reduce((sum, m) => sum + m.amount, 0);
             const spaceAvailable = toBuffer.inputCapacity - totalInput;
@@ -1179,15 +1441,27 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
             if (remainder > GENEALOGY_EPSILON_KG) {
               // Destination full: keep the remainder on the belt (currentLoad
               // still includes it) and retry in 1s of sim time.
-              segment.inTransit.push({
-                amount: remainder,
-                arrivalTime: newTime + 1,
-                type: arrived.type,
-                sourceContributions: scaleSourceContributions(
-                  arrived.sourceContributions,
-                  arrived.amount > 0 ? remainder / arrived.amount : 0
-                ),
-              });
+              const remainderContributions = scaleSourceContributions(
+                arrived.sourceContributions,
+                arrived.amount > 0 ? remainder / arrived.amount : 0
+              );
+              const retry = retries.get(arrived.type);
+              if (retry) {
+                retry.amount += remainder;
+                retry.sourceContributions = mergeSourceContributions(
+                  retry.sourceContributions,
+                  remainderContributions
+                );
+              } else {
+                const parcel = {
+                  amount: remainder,
+                  arrivalTime: newTime + 1,
+                  type: arrived.type,
+                  sourceContributions: remainderContributions,
+                };
+                retries.set(arrived.type, parcel);
+                segment.inTransit.push(parcel);
+              }
             }
           });
 
@@ -1196,6 +1470,9 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
           const routedMaterial =
             fromBuffer.machineType === 'silo' ? productionPlan?.sourceMaterial : undefined;
           if (routedMaterial && segment.fromOutputType !== routedMaterial) return;
+          // A silo valve stays shut to a machine that is not processing, with
+          // or without an order: grain admitted there would sit in its hopper.
+          if (fromBuffer.machineType === 'silo' && !toBuffer.isProcessing) return;
           if (
             segment.routeProvenance === 'unresolved' ||
             !Number.isFinite(segment.transitTime) ||
@@ -1274,17 +1551,7 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
           );
         });
 
-        let batchesToDrop = Math.max(0, productionBatches.length - MAX_PRODUCTION_BATCHES);
-        const boundedProductionBatches =
-          batchesToDrop > 0
-            ? productionBatches.filter((batch) => {
-                if (batchesToDrop > 0 && batch.disposition === 'shipped') {
-                  batchesToDrop -= 1;
-                  return false;
-                }
-                return true;
-              })
-            : productionBatches;
+        const boundedProductionBatches = retainShippedBatchWindow(productionBatches);
 
         set({
           machineBuffers: newBuffers,
@@ -1435,17 +1702,27 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
           materialType: grainType,
           origin: 'receiving',
           sourceManifestId: manifestId,
-          supplier: details?.supplier?.trim() || 'Scheduled farm intake',
+          supplier:
+            details?.supplier?.trim() ||
+            translate(materialFlowStoreMessages, 'scheduledFarmIntake'),
           receivedKg: toAdd,
           simulationTime: state.simulationTime,
           disposition: 'released',
           dispositionReason: null,
           ...(details?.crop ? { crop: { ...details.crop } } : {}),
         });
-        while (sourceLots.size > MAX_SOURCE_LOTS) {
-          const oldestLotId = sourceLots.keys().next().value as string | undefined;
-          if (!oldestLotId) break;
-          sourceLots.delete(oldestLotId);
+        // Evict the oldest released lots only. A held or recalled lot is bound
+        // by its quality alert, and the save rejects an open alert whose lot is
+        // missing ('Unbound source hold'), so it stays until it is released,
+        // as held and recalled batches do; those are bounded by QC actions.
+        if (sourceLots.size > MAX_SOURCE_LOTS) {
+          let excess = sourceLots.size - MAX_SOURCE_LOTS;
+          for (const [id, lot] of sourceLots) {
+            if (excess <= 0) break;
+            if (lot.disposition !== 'released') continue;
+            sourceLots.delete(id);
+            excess -= 1;
+          }
         }
         set({
           machineBuffers: newBuffers,
@@ -1509,7 +1786,7 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
               if (batch.availableKg <= GENEALOGY_EPSILON_KG) {
                 batch.availableKg = 0;
                 batch.disposition = 'shipped';
-                batch.dispositionReason = 'Fully dispatched';
+                batch.dispositionReason = translate(materialFlowStoreMessages, 'fullyDispatched');
               }
               materials.set(materialType, (materials.get(materialType) ?? 0) + toShip);
               shippedBatchContributions.push({ batchId: batch.id, amount: toShip });
@@ -1580,14 +1857,17 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
       setBatchDisposition: (batchIds, disposition, reason, qcTestId) => {
         const requested = new Set(batchIds);
         const changed: string[] = [];
-        set((state) => ({
-          productionBatches: state.productionBatches.map((batch) => {
+        set((state) => {
+          const newlyRecalled = new Set<string>();
+          const productionBatches = state.productionBatches.map((batch) => {
             if (!requested.has(batch.id) || batch.disposition === 'shipped') return batch;
             // A recall is a terminal product disposition. A later passing retest
             // may release a hold, but must never reverse a recall - not even in
             // two steps (recalled -> hold -> released).
             if (batch.disposition === 'recalled' && disposition !== 'recalled') return batch;
             changed.push(batch.id);
+            if (disposition === 'recalled' && batch.disposition !== 'recalled')
+              newlyRecalled.add(batch.id);
             return {
               ...batch,
               disposition,
@@ -1598,8 +1878,12 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
                   ? [...batch.qcTestIds, qcTestId]
                   : batch.qcTestIds,
             };
-          }),
-        }));
+          });
+          return {
+            productionBatches,
+            ...writeOffRecalledMass(state, productionBatches, newlyRecalled),
+          };
+        });
         return changed;
       },
 
@@ -1615,6 +1899,7 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
             sourceLots.set(lotId, { ...lot, disposition, dispositionReason: reason });
           }
 
+          const newlyRecalled = new Set<string>();
           const productionBatches = state.productionBatches.map((batch) => {
             if (batch.disposition === 'shipped' || batch.disposition === 'recalled') return batch;
             if (!batch.sourceContributions.some((source) => requested.has(source.lotId)))
@@ -1628,6 +1913,7 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
                 ? 'hold'
                 : disposition;
             affectedBatchIds.push(batch.id);
+            if (nextDisposition === 'recalled') newlyRecalled.add(batch.id);
             return {
               ...batch,
               disposition: nextDisposition,
@@ -1635,7 +1921,11 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
               sealed: batch.sealed || nextDisposition !== 'released',
             };
           });
-          return { sourceLots, productionBatches };
+          return {
+            sourceLots,
+            productionBatches,
+            ...writeOffRecalledMass(state, productionBatches, newlyRecalled),
+          };
         });
         return affectedBatchIds;
       },

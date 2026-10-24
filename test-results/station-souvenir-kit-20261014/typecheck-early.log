@@ -1,0 +1,8 @@
+
+> grain-mill-simulator@0.40.0 typecheck
+> tsc --noEmit -p tsconfig.typecheck.json
+
+src/components/scenery/StationSouvenirs.tsx(361,15): error TS2345: Argument of type '(v: V3) => V3' is not assignable to parameter of type '(value: number[], index: number, array: number[][]) => V3'.
+  Types of parameters 'v' and 'value' are incompatible.
+    Type 'number[]' is not assignable to type 'V3'.
+      Target requires 3 element(s) but source may have fewer.

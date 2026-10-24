@@ -3,7 +3,8 @@
  *
  * Beautiful showcase of the VCP (Value Context Protocol) encoding system.
  * Shows side-by-side comparison of expanded telemetry vs compact glyph encoding.
- * Demonstrates the 95%+ token savings when communicating factory state to Gemini.
+ * Demonstrates a compact context format. The live strategic prompt currently
+ * uses structured telemetry, so this comparison is illustrative.
  */
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
@@ -19,23 +20,17 @@ import {
   Brain,
   AlertTriangle,
 } from 'lucide-react';
-import { getActiveGeminiPricing, useAIConfigStore } from '../../stores/aiConfigStore';
+import { useAIConfigStore } from '../../stores/aiConfigStore';
 import { useProductionStore } from '../../stores/productionStore';
 import { useGameSimulationStore, useUIStore } from '../../stores';
 import { encodeFactoryContextVCL } from '../../utils/vclEncoder';
-
-// Example verbose text that VCL replaces
-const VERBOSE_EXAMPLE = `Current time: 14:30, autonomous run window B
-Weather: clear
-Production line status:
-- Silos: 5 of 5 running at 65% average load
-- Roller mills: 4 of 4 running at 78% average load
-- Plansifters: 3 of 3 running at 71% average load
-- Packers: 3 of 3 running at 82% average load
-- Control network: online
-Active critical alarms: none`;
+import { formatFixed, useT } from '../../i18n';
+import { vclDebugPanelMessages } from './VCLDebugPanel.messages';
 
 export const VCLDebugPanel: React.FC = () => {
+  const t = useT(vclDebugPanelMessages);
+  // Example verbose text that VCL replaces, resolved in the active language.
+  const verboseExample = t('verboseExample');
   const showVCLDebug = useAIConfigStore((state) => state.showVCLDebug);
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -56,8 +51,8 @@ export const VCLDebugPanel: React.FC = () => {
   const weather = useGameSimulationStore((state) => state.weather);
   const currentShift = useGameSimulationStore((state) => state.currentShift);
 
-  // Generate VCL encoding
-  const vclEncoding = useMemo(() => {
+  // Generate VCL encoding (null when encoding fails, so the error text follows the language)
+  const encodedVCL = useMemo(() => {
     try {
       return encodeFactoryContextVCL(
         machines,
@@ -67,17 +62,16 @@ export const VCLDebugPanel: React.FC = () => {
         alerts.map((a) => ({ type: a.type }))
       );
     } catch {
-      return 'Error encoding VCL';
+      return null;
     }
   }, [machines, currentShift, weather, gameTime, alerts]);
+  const vclEncoding = encodedVCL ?? t('encodingError');
 
   // Calculate savings
-  const verboseLength = VERBOSE_EXAMPLE.length;
+  const verboseLength = verboseExample.length;
   const vclLength = vclEncoding.length;
   const savingsPercent = Math.round((1 - vclLength / verboseLength) * 100);
   const tokensSaved = Math.round((verboseLength - vclLength) / 4); // ~4 chars per token
-  // Input tokens saved across 1,000 requests, at the active model's input rate.
-  const savingsPer1kRequests = ((tokensSaved * 1000) / 1_000_000) * getActiveGeminiPricing().input;
 
   const handleCopy = async () => {
     if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
@@ -119,12 +113,10 @@ export const VCLDebugPanel: React.FC = () => {
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold text-white">Value Context Protocol</span>
               <span className="text-[9px] px-2 py-0.5 bg-gradient-to-r from-emerald-500/30 to-cyan-500/30 text-emerald-300 rounded-full font-semibold text-center">
-                {savingsPercent}% SAVED
+                {t('savedBadge', { percent: formatFixed(savingsPercent, 0) })}
               </span>
             </div>
-            <p className="text-[10px] text-slate-400 mt-0.5">
-              Compact emoji encoding for AI context
-            </p>
+            <p className="text-[10px] text-slate-400 mt-0.5">{t('subtitle')}</p>
           </div>
         </div>
         <motion.div animate={{ rotate: expanded ? 180 : 0 }} transition={{ duration: 0.2 }}>
@@ -138,9 +130,11 @@ export const VCLDebugPanel: React.FC = () => {
           <div className="bg-slate-950/80 rounded-xl p-4 border border-cyan-500/20">
             <div className="flex items-center gap-2 mb-3">
               <Sparkles className="w-4 h-4 text-cyan-400" />
-              <span className="text-xs text-cyan-300 font-medium">Live Factory State</span>
+              <span className="text-xs text-cyan-300 font-medium">{t('liveFactoryState')}</span>
               <ArrowRight className="w-3 h-3 text-slate-500" />
-              <span className="text-xs text-slate-400">{vclLength} chars</span>
+              <span className="text-xs text-slate-400">
+                {t('chars', { count: formatFixed(vclLength, 0) })}
+              </span>
             </div>
             <div className="font-mono text-lg text-white tracking-widest text-center py-2 select-all">
               {vclEncoding}
@@ -163,12 +157,14 @@ export const VCLDebugPanel: React.FC = () => {
                 <div className="flex-1">
                   <h3 className="text-sm font-bold text-white flex items-center gap-2">
                     <Brain className="w-4 h-4 text-purple-400" />
-                    How It Works
+                    {t('howItWorks')}
                   </h3>
                   <p className="text-[11px] text-slate-400 mt-1">
-                    VCP compresses factory context into semantic emoji strings, reducing API token
-                    usage by <span className="text-emerald-400 font-bold">{savingsPercent}%</span>{' '}
-                    while preserving full meaning for Gemini AI.
+                    {t('howItWorksBefore')}{' '}
+                    <span className="text-emerald-400 font-bold">
+                      {formatFixed(savingsPercent, 0)}%
+                    </span>{' '}
+                    {t('howItWorksAfter')}
                   </p>
                 </div>
                 <button
@@ -179,7 +175,7 @@ export const VCLDebugPanel: React.FC = () => {
                       : 'bg-slate-700/50 text-slate-400 border border-slate-600'
                   }`}
                 >
-                  {showComparison ? 'Hide' : 'Show'} Comparison
+                  {showComparison ? t('hideComparison') : t('showComparison')}
                 </button>
               </div>
             </div>
@@ -191,13 +187,13 @@ export const VCLDebugPanel: React.FC = () => {
                 <div className="bg-red-950/30 rounded-xl border border-red-500/30 overflow-hidden">
                   <div className="flex items-center gap-2 px-3 py-2 bg-red-950/50 border-b border-red-500/20">
                     <FileText className="w-4 h-4 text-red-400" />
-                    <span className="text-xs font-medium text-red-300">Traditional Text</span>
+                    <span className="text-xs font-medium text-red-300">{t('traditionalText')}</span>
                     <span className="text-[9px] px-1.5 py-0.5 bg-red-500/20 text-red-400 rounded ml-auto font-mono">
-                      {verboseLength} chars
+                      {t('chars', { count: formatFixed(verboseLength, 0) })}
                     </span>
                   </div>
                   <pre className="p-3 text-[8px] font-mono text-red-200/70 leading-tight whitespace-pre-wrap break-words">
-                    {VERBOSE_EXAMPLE}
+                    {verboseExample}
                   </pre>
                 </div>
 
@@ -205,9 +201,9 @@ export const VCLDebugPanel: React.FC = () => {
                 <div className="bg-emerald-950/30 rounded-xl border border-emerald-500/30 overflow-hidden">
                   <div className="flex items-center gap-2 px-3 py-2 bg-emerald-950/50 border-b border-emerald-500/20">
                     <Zap className="w-4 h-4 text-emerald-400" />
-                    <span className="text-xs font-medium text-emerald-300">VCP Encoded</span>
+                    <span className="text-xs font-medium text-emerald-300">{t('vcpEncoded')}</span>
                     <span className="text-[9px] px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 rounded ml-auto font-mono">
-                      {vclLength} chars
+                      {t('chars', { count: formatFixed(vclLength, 0) })}
                     </span>
                   </div>
                   <div className="p-3 flex flex-col items-center justify-center min-h-28">
@@ -215,7 +211,7 @@ export const VCLDebugPanel: React.FC = () => {
                       {vclEncoding}
                     </div>
                     <p className="text-[9px] text-emerald-400/70 mt-2 text-center">
-                      Same information, {savingsPercent}% fewer tokens
+                      {t('sameInformation', { percent: formatFixed(savingsPercent, 0) })}
                     </p>
                   </div>
                 </div>
@@ -227,19 +223,25 @@ export const VCLDebugPanel: React.FC = () => {
               <div className="grid grid-cols-3 gap-2">
                 <div className="bg-slate-800/50 rounded-lg p-2 text-center border border-slate-700/50 overflow-hidden">
                   <div className="text-xl font-bold text-emerald-400 truncate">
-                    {savingsPercent}%
+                    {formatFixed(savingsPercent, 0)}%
                   </div>
-                  <div className="text-[8px] text-slate-400 mt-0.5 truncate">Size Reduction</div>
+                  <div className="text-[8px] text-slate-400 mt-0.5 truncate">
+                    {t('sizeReduction')}
+                  </div>
                 </div>
                 <div className="bg-slate-800/50 rounded-lg p-2 text-center border border-slate-700/50 overflow-hidden">
-                  <div className="text-xl font-bold text-cyan-400 truncate">~{tokensSaved}</div>
-                  <div className="text-[8px] text-slate-400 mt-0.5 truncate">Tokens Saved</div>
+                  <div className="text-xl font-bold text-cyan-400 truncate">
+                    ~{formatFixed(tokensSaved, 0)}
+                  </div>
+                  <div className="text-[8px] text-slate-400 mt-0.5 truncate">
+                    {t('tokensSaved')}
+                  </div>
                 </div>
                 <div className="bg-slate-800/50 rounded-lg p-2 text-center border border-slate-700/50 overflow-hidden">
-                  <div className="text-lg font-bold text-purple-400 truncate">
-                    ${savingsPer1kRequests.toFixed(2)}
+                  <div className="text-lg font-bold text-purple-400 truncate">{t('example')}</div>
+                  <div className="text-[8px] text-slate-400 mt-0.5 truncate">
+                    {t('notLiveSavings')}
                   </div>
-                  <div className="text-[8px] text-slate-400 mt-0.5 truncate">Per 1K Requests</div>
                 </div>
               </div>
             </div>
@@ -250,7 +252,9 @@ export const VCLDebugPanel: React.FC = () => {
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                    <span className="text-xs text-cyan-300 font-medium">Live Factory State</span>
+                    <span className="text-xs text-cyan-300 font-medium">
+                      {t('liveFactoryState')}
+                    </span>
                   </div>
                   <button
                     onClick={handleCopy}
@@ -263,7 +267,7 @@ export const VCLDebugPanel: React.FC = () => {
                     ) : (
                       <Copy className="w-3 h-3" />
                     )}
-                    {copied ? 'Copied!' : copyFailed ? 'Copy failed' : 'Copy'}
+                    {copied ? t('copied') : copyFailed ? t('copyFailed') : t('copy')}
                   </button>
                 </div>
                 <div className="font-mono text-xl text-white tracking-widest text-center py-3 bg-slate-900/50 rounded-lg border border-slate-800">
@@ -277,31 +281,59 @@ export const VCLDebugPanel: React.FC = () => {
               <div className="bg-slate-800/30 rounded-xl p-4 border border-slate-700/50">
                 <div className="flex items-center gap-2 mb-3">
                   <Sparkles className="w-4 h-4 text-yellow-400" />
-                  <span className="text-xs font-bold text-white">Emoji Dictionary</span>
+                  <span className="text-xs font-bold text-white">{t('emojiDictionary')}</span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-[10px]">
                   {/* Time & Environment */}
                   <div>
-                    <div className="text-cyan-400 font-semibold mb-1">Time & Environment</div>
+                    <div className="text-cyan-400 font-semibold mb-1">{t('timeEnvironment')}</div>
                     <div className="space-y-0.5 text-slate-300">
-                      <div>🌅 Morning | ☀️ Afternoon | 🌆 Evening | 🌙 Night</div>
-                      <div>☀️ Clear | ☁️ Cloudy | 🌧️ Rain | ⛈️ Storm</div>
+                      <div>
+                        {[
+                          `🌅 ${t('morning')}`,
+                          `☀️ ${t('afternoon')}`,
+                          `🌆 ${t('evening')}`,
+                          `🌙 ${t('night')}`,
+                        ].join(' | ')}
+                      </div>
+                      <div>
+                        {[
+                          `☀️ ${t('clear')}`,
+                          `☁️ ${t('cloudy')}`,
+                          `🌧️ ${t('rain')}`,
+                          `⛈️ ${t('storm')}`,
+                        ].join(' | ')}
+                      </div>
                     </div>
                   </div>
 
                   {/* Machines */}
                   <div>
-                    <div className="text-purple-400 font-semibold mb-1">Machines & Status</div>
+                    <div className="text-purple-400 font-semibold mb-1">{t('machinesStatus')}</div>
                     <div className="space-y-0.5 text-slate-300">
-                      <div>🏛️ Silo | ⚙️ Mill | 🔀 Sifter | 📦 Packer</div>
-                      <div>✅ Running | ⏸️ Idle | ⚠️ Warning | 🔴 Critical</div>
+                      <div>
+                        {[
+                          `🏛️ ${t('silo')}`,
+                          `⚙️ ${t('mill')}`,
+                          `🔀 ${t('sifter')}`,
+                          `📦 ${t('packer')}`,
+                        ].join(' | ')}
+                      </div>
+                      <div>
+                        {[
+                          `✅ ${t('running')}`,
+                          `⏸️ ${t('idle')}`,
+                          `⚠️ ${t('warning')}`,
+                          `🔴 ${t('critical')}`,
+                        ].join(' | ')}
+                      </div>
                     </div>
                   </div>
 
                   {/* Load Levels */}
                   <div>
-                    <div className="text-emerald-400 font-semibold mb-1">Load Levels</div>
+                    <div className="text-emerald-400 font-semibold mb-1">{t('loadLevels')}</div>
                     <div className="space-y-0.5 text-slate-300">
                       <div>🟢 &lt;50% | 🟡 50-80% | 🟠 80-90% | 🔴 &gt;90%</div>
                     </div>
@@ -309,10 +341,20 @@ export const VCLDebugPanel: React.FC = () => {
 
                   {/* Control and alarms */}
                   <div>
-                    <div className="text-amber-400 font-semibold mb-1">Control & Alarms</div>
+                    <div className="text-amber-400 font-semibold mb-1">{t('controlAlarms')}</div>
                     <div className="space-y-0.5 text-slate-300">
-                      <div>🧠 Control | ✅ Clear | 🚨 Critical alarm count</div>
-                      <div>WA Morning | WB Afternoon | WC Night</div>
+                      <div>
+                        {[
+                          `🧠 ${t('control')}`,
+                          `✅ ${t('alarmsClear')}`,
+                          `🚨 ${t('criticalAlarmCount')}`,
+                        ].join(' | ')}
+                      </div>
+                      <div>
+                        {[`WA ${t('morning')}`, `WB ${t('afternoon')}`, `WC ${t('night')}`].join(
+                          ' | '
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -320,9 +362,9 @@ export const VCLDebugPanel: React.FC = () => {
                 {/* Format Explanation */}
                 <div className="mt-3 pt-3 border-t border-slate-700/50">
                   <div className="text-[10px] text-slate-400">
-                    <span className="text-cyan-400 font-semibold">Format: </span>
+                    <span className="text-cyan-400 font-semibold">{t('format')}</span>
                     <span className="font-mono bg-slate-900/50 px-1.5 py-0.5 rounded">
-                      TIME|WINDOW|WEATHER | SILO→MILL→SIFTER→PACKER→CONTROL | ALARMS
+                      {t('formatSpec')}
                     </span>
                   </div>
                 </div>

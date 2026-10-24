@@ -355,8 +355,14 @@ sequence has actual evidence:
    source/geometry hash, source positions/ranges, shared cube bases, bake hash
    and PNG hash. The separate known-box fixture proves CPU depth encoding only.
 4. Retain `public/textures/civic-square-lamp-depth.png` and matching JSON, then
-   enable `CIVIC_SHADOW_BAKE_READY`. Normal builds load the real assets through
-   the scene readiness boundary. Keep packed depth linear, nearest sampled and
+   enable `CIVIC_SHADOW_BAKE_READY`. The JSON also carries `casterPins`: the
+   sha256 of every `<Name>Body` caster GLB in `objects` and the village home and
+   allotment position digests, as exported. `civicLampShadows.test.ts` and
+   `VillageGardens.test.ts` fail when a pinned caster changes, so any geometry
+   edit to them must rebake (and re-pin) in the same change. These pins cover
+   GLB bodies and garden geometry only; other procedural casters still need a
+   judgement call. Normal builds load the real assets through the scene
+   readiness boundary. Keep packed depth linear, nearest sampled and
    unmipped; reproject PCF edge taps into the neighboring cube face. Verify
    shader compilation, sampler headroom, thin casters, contacts and stale-input
    rejection on the actual renderer. A missing bake remains explicitly pending.

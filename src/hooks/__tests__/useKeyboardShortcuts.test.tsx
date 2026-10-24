@@ -2,7 +2,7 @@ import { fireEvent, render, renderHook, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useKeyboardShortcuts } from '../useKeyboardShortcuts';
 import { useSafetyStore } from '../../stores/safetyStore';
-import { useGameSimulationStore } from '../../stores/gameSimulationStore';
+import { selectClockHolder, useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useUIStore } from '../../stores/uiStore';
 import { audioManager } from '../../utils/audioManager';
 
@@ -103,7 +103,8 @@ describe('keyboard control ownership', () => {
   it('retains scene shortcuts and all seven camera presets', () => {
     renderHook(() => useKeyboardShortcuts(config));
     fireEvent.keyDown(window, { key: 'p' });
-    expect(config.setProductionSpeed).toHaveBeenCalledWith(0);
+    // P pauses the shift clock; the line rate is not a pause.
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
     fireEvent.keyDown(window, { key: '7' });
     expect(camera.setPreset).toHaveBeenCalledWith(6);
   });
@@ -150,6 +151,35 @@ describe('keyboard control ownership', () => {
       rerender({ speed });
     }
     expect(speed).toBe(0);
+  });
+
+  it('P holds the shift clock, leaves the line rate alone, and releases only its own hold', () => {
+    useGameSimulationStore.setState({ gameSpeed: 60, clockHolds: [] });
+    renderHook(() => useKeyboardShortcuts({ ...config, productionSpeed: 1 }));
+    fireEvent.keyDown(window, { key: 'p' });
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+    expect(selectClockHolder(useGameSimulationStore.getState())).toBe('shortcut');
+    fireEvent.keyDown(window, { key: 'p' });
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(60);
+    expect(config.setProductionSpeed).not.toHaveBeenCalled();
+  });
+
+  it('P leaves a clock hold or pace choice made by another control alone', () => {
+    // The tour owns the clock: P names it instead of resuming.
+    useGameSimulationStore.setState({ gameSpeed: 30, clockHolds: [] });
+    useGameSimulationStore.getState().holdClock('tour');
+    renderHook(() => useKeyboardShortcuts({ ...config, productionSpeed: 1 }));
+    fireEvent.keyDown(window, { key: 'p' });
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+    expect(selectClockHolder(useGameSimulationStore.getState())).toBe('tour');
+    // A pace picked while P holds the clock wins over P's remembered pace.
+    useGameSimulationStore.getState().setGameSpeed(30);
+    fireEvent.keyDown(window, { key: 'p' });
+    useGameSimulationStore.getState().setGameSpeed(120);
+    fireEvent.keyDown(window, { key: 'p' });
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+    expect(selectClockHolder(useGameSimulationStore.getState())).toBe('shortcut');
+    expect(config.setProductionSpeed).not.toHaveBeenCalled();
   });
 
   it('leaves first-person before flying to a camera preset', () => {

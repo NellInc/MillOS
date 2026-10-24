@@ -51,6 +51,13 @@ export interface TerrainRegion {
   intensity?: number;
   /** Edge softness in world units for smooth transitions */
   edgeSoftness?: number;
+  /**
+   * Metres of flat, undressed ground kept beyond the shape: meadow relief,
+   * trees and rocks stay this far out. Defaults to `edgeSoftness`, which is
+   * what every consumer used before a kerbed edge was made hard without
+   * pulling the meadow in with it. Read it through `regionClearance`.
+   */
+  clearance?: number;
   /** Priority - higher renders on top of lower */
   priority?: number;
 }
@@ -175,12 +182,17 @@ export const TERRAIN_COLORS = {
  * neutral: the texture alone carries the colour.
  *
  * The yard and road sample the same tarmac albedo. The yard multiplier lifts
- * that dark binder into weathered, warm aggregate without changing the road.
- * Its values are linear gains over a texture, not an untextured base colour.
+ * that dark binder into weathered concrete without changing the road. Its
+ * values are linear gains over a texture, not an untextured base colour, and
+ * they are NEUTRAL: the tile's mean is a cool (0.134, 0.141, 0.155), so the
+ * gains are unequal exactly to cancel that and land on a ~0.24 grey. The old
+ * (2.1, 1.7, 1.5) added warmth on top of the warm noon key and read as sand or
+ * clay over half of every exterior frame. The slab joints and per-slab tone
+ * that make it read as poured concrete are `concreteSlab.ts`.
  * The authored truck yards share this gain so their boundaries do not become
  * unrelated rectangles. Working if both surfaces retain grain and darken at night.
  */
-export const YARD_PAVING_TINT = new THREE.Color(2.1, 1.7, 1.5);
+export const YARD_PAVING_TINT = new THREE.Color(1.79, 1.7, 1.55);
 
 export const TERRAIN_TINTS = {
   grass: '#ffffff',

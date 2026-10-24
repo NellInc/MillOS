@@ -4,12 +4,13 @@
  * WHY THIS MODULE EXISTS: the pipe curves used to be built inside
  * `SpoutingSystem`'s `useMemo` and thrown away as soon as `TubeGeometry` had
  * consumed them. `GrainFlow` therefore had no idea where the pipes were and
- * dropped its particles down a hardcoded slab of empty air beside them. Both
+ * dropped its particles down a hardcoded slab of empty air beside them. All
  * consumers now read the same curves from here:
  *
  *   - `SpoutingSystem` extrudes them into tube geometry (and owns disposal of
  *     that geometry - this module never creates or holds GPU resources).
  *   - `GrainFlow` samples `curve.getPointAt(t)` to keep product inside the bore.
+ *   - `ProductionFlowVisualization` seats its signals on the same pipe sweep.
  *
  * The result is cached on the same machine key `SpoutingSystem` already used,
  * so a machine STATUS change (which ticks constantly) does not rebuild curves
@@ -22,16 +23,87 @@ import {
   MILL_PROCESS_PORTS,
   PACKER_HOPPER_LAYOUT,
   PROCESS_GALLERY_POST_X,
+  installMachinePoint,
 } from '../../constants/siteLayout';
 import { MachineData, MachineType } from '../../types';
 
 /** Outer radius of a spouting run, in world units. */
 export const SPOUT_PIPE_RADIUS = 0.17;
 
+/** Spend sweep rings on elbows, leaving every straight run as one segment. */
+class SpoutSweepCurve extends THREE.Curve<THREE.Vector3> {
+  readonly stations: readonly number[];
+
+  constructor(
+    private readonly route: THREE.CurvePath<THREE.Vector3>,
+    bendSegments: number
+  ) {
+    super();
+    const lengths = route.getCurveLengths();
+    const total = lengths[lengths.length - 1];
+    const stations = [0];
+    route.curves.forEach((curve, index) => {
+      const start = index === 0 ? 0 : lengths[index - 1];
+      const steps = curve instanceof THREE.LineCurve3 ? 1 : bendSegments;
+      for (let step = 1; step <= steps; step++) {
+        stations.push((start + ((lengths[index] - start) * step) / steps) / total);
+      }
+    });
+    this.stations = stations;
+  }
+
+  private routeProgress(progress: number): number {
+    const index = THREE.MathUtils.clamp(progress, 0, 1) * (this.stations.length - 1);
+    const lower = Math.min(Math.floor(index), this.stations.length - 2);
+    return THREE.MathUtils.lerp(this.stations[lower], this.stations[lower + 1], index - lower);
+  }
+
+  override getPoint(progress: number, target = new THREE.Vector3()): THREE.Vector3 {
+    return this.route.getPointAt(this.routeProgress(progress), target);
+  }
+
+  override getPointAt(progress: number, target = new THREE.Vector3()): THREE.Vector3 {
+    return this.getPoint(progress, target);
+  }
+
+  override getTangentAt(progress: number, target = new THREE.Vector3()): THREE.Vector3 {
+    return this.route.getTangentAt(this.routeProgress(progress), target);
+  }
+}
+
+/** Same bore as the grain-flow curve, with bounded close-up elbow resolution.
+ * Working if the tube follows every route endpoint and curved branch while
+ * long straight spans do not add hundreds of redundant sweep rings.
+ */
+export function createSpoutTubeGeometry(
+  curve: THREE.CurvePath<THREE.Vector3>,
+  radialSegments: number,
+  radius = SPOUT_PIPE_RADIUS
+): THREE.TubeGeometry {
+  const sampling = new SpoutSweepCurve(curve, radialSegments >= 12 ? 6 : 4);
+  return new THREE.TubeGeometry(
+    sampling,
+    sampling.stations.length - 1,
+    radius,
+    radialSegments,
+    false
+  );
+}
+
 export type PipeRouteFamily = 'intake' | 'pneumatic' | 'finished';
 
 /** Service lanes fit below the gallery and behind its sifter housings. */
 export const SPOUT_SERVICE_LAYOUT = {
+  /**
+   * Overhead racks, in world metres. The intake rack is where the gallery
+   * braces carry the silo runs (`PIPE_SUPPORT_SEGMENTS`); the lift rack is
+   * the height the product lifts cross the milling aisle at. Both were set by
+   * the mills when those stood 6.59 m tall. Real-size mills sit well below
+   * them, so a spout drops vertically onto each mill instead of the racks
+   * coming down to head height across the aisle.
+   */
+  intakeRackY: MILL_PROCESS_PORTS.intake[1] + 0.9,
+  liftRackY: 5,
   intakeRise: 0.9,
   intakeSetback: 3.8,
   intakeLanePitch: 0.5,
@@ -122,7 +194,10 @@ const createRoute = (
 ): Omit<SpoutRoute, 'fromMachineId' | 'toMachineId'> => {
   let points: THREE.Vector3[];
   if (family === 'intake') {
-    const y = Math.max(start.y, end.y) + SPOUT_SERVICE_LAYOUT.intakeRise;
+    const y = Math.max(
+      Math.max(start.y, end.y) + SPOUT_SERVICE_LAYOUT.intakeRise,
+      SPOUT_SERVICE_LAYOUT.intakeRackY
+    );
     const z =
       end.z - SPOUT_SERVICE_LAYOUT.intakeSetback + lane * SPOUT_SERVICE_LAYOUT.intakeLanePitch;
     points = [
@@ -137,10 +212,13 @@ const createRoute = (
     const x = getSpoutRiserX(start.x);
     const z = end.z - SPOUT_SERVICE_LAYOUT.rearSetback + lane * SPOUT_SERVICE_LAYOUT.rearLanePitch;
     const y = end.y + SPOUT_SERVICE_LAYOUT.topRise + lane * SPOUT_SERVICE_LAYOUT.topLanePitch;
+    // Lift straight off the mill to the aisle rack before turning for the riser.
+    const rack = Math.max(start.y, SPOUT_SERVICE_LAYOUT.liftRackY);
     points = [
       start,
-      new THREE.Vector3(x, start.y, start.z),
-      new THREE.Vector3(x, start.y, z),
+      new THREE.Vector3(start.x, rack, start.z),
+      new THREE.Vector3(x, rack, start.z),
+      new THREE.Vector3(x, rack, z),
       new THREE.Vector3(x, y, z),
       new THREE.Vector3(end.x, y, z),
       new THREE.Vector3(end.x, y, end.z),
@@ -178,25 +256,19 @@ export function createMachineSpoutRoute(
   if (from.type === MachineType.SILO && to.type === MachineType.ROLLER_MILL) {
     route = createRoute(
       new THREE.Vector3(from.position[0], from.position[1] + 3, from.position[2]),
-      new THREE.Vector3(
-        to.position[0],
-        to.position[1] + MILL_PROCESS_PORTS.intake[1],
-        to.position[2]
-      ),
+      new THREE.Vector3(...installMachinePoint(to, MILL_PROCESS_PORTS.intake)),
       'intake',
       lane
     );
   } else if (from.type === MachineType.ROLLER_MILL && to.type === MachineType.PLANSIFTER) {
     route = createRoute(
+      new THREE.Vector3(...installMachinePoint(from, MILL_PROCESS_PORTS.pneumatic)),
       new THREE.Vector3(
-        from.position[0],
-        from.position[1] + MILL_PROCESS_PORTS.pneumatic[1],
-        from.position[2]
-      ),
-      new THREE.Vector3(
-        to.position[0],
-        to.position[1] + SIFTER_LAYOUT.inletCentreY + SIFTER_LAYOUT.inletHeight / 2,
-        to.position[2]
+        ...installMachinePoint(to, [
+          0,
+          SIFTER_LAYOUT.inletCentreY + SIFTER_LAYOUT.inletHeight / 2,
+          0,
+        ])
       ),
       'pneumatic',
       lane
@@ -205,9 +277,11 @@ export function createMachineSpoutRoute(
     route = createRoute(
       new THREE.Vector3(from.position[0], from.position[1] - 2, from.position[2]),
       new THREE.Vector3(
-        to.position[0],
-        to.position[1] + PACKER_HOPPER_LAYOUT.centreY + PACKER_HOPPER_LAYOUT.scale[1] / 2,
-        to.position[2]
+        ...installMachinePoint(to, [
+          0,
+          PACKER_HOPPER_LAYOUT.centreY + PACKER_HOPPER_LAYOUT.scale[1] / 2,
+          0,
+        ])
       ),
       'finished',
       lane
@@ -222,7 +296,7 @@ let cachedRoutes: readonly SpoutRoute[] = [];
 /**
  * Build (or return the cached) spouting routes for a machine layout.
  *
- * Pairing mirrors `ProductionFlowVisualization`: mill[i] is fed by
+ * Canonical pairing for steel, grain and process signals: mill[i] is fed by
  * silo[i % silos], lifts to sifter[i % sifters]; packer[i] is fed by
  * sifter[i % sifters].
  */

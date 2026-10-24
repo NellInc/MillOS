@@ -7,6 +7,8 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
+import { formatFixed, useT } from '../../i18n';
+import { confidenceBarMessages } from './ConfidenceBar.messages';
 
 interface ConfidenceBarProps {
   confidence: number; // 0-100
@@ -23,6 +25,7 @@ export const ConfidenceBar: React.FC<ConfidenceBarProps> = ({
   size = 'md',
   className = '',
 }) => {
+  const t = useT(confidenceBarMessages);
   const clampedConfidence = Math.max(0, Math.min(100, confidence));
 
   // Color coding based on confidence level
@@ -49,7 +52,7 @@ export const ConfidenceBar: React.FC<ConfidenceBarProps> = ({
           )}
           {showPercentage && (
             <span className={`text-[10px] font-mono ${colors.text}`}>
-              {clampedConfidence.toFixed(0)}%
+              {formatFixed(clampedConfidence, 0)}%
             </span>
           )}
         </div>
@@ -59,7 +62,7 @@ export const ConfidenceBar: React.FC<ConfidenceBarProps> = ({
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={clampedConfidence}
-        aria-label={`${label || 'AI confidence'}: ${clampedConfidence.toFixed(0)}%`}
+        aria-label={`${label || t('aiConfidence')}: ${formatFixed(clampedConfidence, 0)}%`}
         className={`w-full ${heights[size]} bg-slate-700/50 rounded-full overflow-hidden`}
       >
         <motion.div

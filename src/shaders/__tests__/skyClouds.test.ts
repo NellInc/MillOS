@@ -97,8 +97,19 @@ describe('cumulus atlas contract', () => {
     }
     expect(shader).toContain('uCloudAtlasReady < 0.5 || dir.y < -0.02 || dir.y > 0.90');
     expect(shader.indexOf('return vec4( 0.0 )')).toBeLessThan(shader.indexOf('atan('));
-    expect(shader.match(/texture2D\(/g)).toHaveLength(1);
+    expect(shader.match(/textureGrad\(/g)).toHaveLength(1);
     expect(shader).not.toMatch(/\bfloat active\b/);
+  });
+
+  it('takes continuous gradients before divergent branches and applies each cell reflection', () => {
+    const shader = CUMULUS_ATLAS_GLSL;
+    expect(shader.indexOf('dFdx( dir )')).toBeLessThan(shader.indexOf('return vec4( 0.0 )'));
+    expect(shader.indexOf('dFdy( dir )')).toBeLessThan(shader.indexOf('return vec4( 0.0 )'));
+    expect(shader).toContain('dir.x * directionDx.z - dir.z * directionDx.x');
+    expect(shader).toContain('dir.x * directionDy.z - dir.z * directionDy.x');
+    expect(shader).toContain('vec2( 1.0 - 2.0 * mirror, 1.0 ) * size * 0.5');
+    expect(shader).toContain('gridDx * atlasScale, gridDy * atlasScale');
+    expect(shader).not.toContain('texture2D( uCloudAtlas');
   });
 
   it('loads one shared colour-correct atlas and enables it only on success', async () => {

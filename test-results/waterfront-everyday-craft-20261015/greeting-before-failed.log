@@ -1,0 +1,30 @@
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+ ❯ src/simulation/__tests__/communityLife.test.ts (34 tests | 1 failed | 33 skipped) 53ms
+   × holds a greeting through centimetre-scale nearest-neighbour jitter and releases absent recipients 52ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/simulation/__tests__/communityLife.test.ts > holds a greeting through centimetre-scale nearest-neighbour jitter and releases absent recipients
+AssertionError: expected 'second-neighbour' to be 'village-neighbour' // Object.is equality
+
+Expected: "village-neighbour"
+Received: "second-neighbour"
+
+ ❯ src/simulation/__tests__/communityLife.test.ts:722:68
+    720|   for (const z of [1.99,2.01,1.98,2.02]) {
+    721|     second.position[2]=z;
+    722|     expect(sampleCommunityGreeting(shop,pose,actors,out).targetId).toB…
+       |                                                                    ^
+    723|   }
+    724|   second.position[2]=1.2;
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 33 skipped (34)
+   Start at  01:05:39
+   Duration  8.31s (transform 2.43s, setup 1.43s, import 2.61s, tests 53ms, environment 3.52s)
+

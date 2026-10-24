@@ -1,0 +1,3 @@
+(node:3460) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+V_CIVIC_EXPORT_PASS {"inputSha256":"cb3e1cd12ce8d441c3582995ae26a45dbdf8220b952231728c18d9753a6ce392","vertices":420710,"triangles":180416,"sources":27,"bytes":27362309}

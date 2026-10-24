@@ -6,6 +6,8 @@ import {
   MILL_PROCESS_PORTS,
   SIFTER_LAYOUT,
   PACKER_HOPPER_LAYOUT,
+  PROCESS_MACHINE_INSTALL_SCALE,
+  installMachinePoint,
 } from '../constants/siteLayout';
 import { MachineType, type MachineData } from '../types';
 import { MACHINE_PART_GEOMETRY } from './machines/CompactMachines';
@@ -79,19 +81,22 @@ describe('shared service-rack routes', () => {
     SITE_LAYOUT.machines.rollerMills.forEach((mill, index) => {
       const silo = SITE_LAYOUT.machines.silos[index % SITE_LAYOUT.machines.silos.length];
       const sifter = SITE_LAYOUT.machines.sifters[index % SITE_LAYOUT.machines.sifters.length];
+      // Ports are authored on the machine and installed with it.
+      const millMachine = siteMachines.find((m) => m.id === mill.id)!;
+      const sifterMachine = siteMachines.find((m) => m.id === sifter.id)!;
       assertPort(
         index,
         [silo.position[0], 3, silo.position[2]],
-        [mill.position[0], mill.position[1] + MILL_PROCESS_PORTS.intake[1], mill.position[2]]
+        installMachinePoint(millMachine, MILL_PROCESS_PORTS.intake)
       );
       assertPort(
         4 + index,
-        [mill.position[0], mill.position[1] + MILL_PROCESS_PORTS.pneumatic[1], mill.position[2]],
-        [
-          sifter.position[0],
-          sifter.position[1] + SIFTER_LAYOUT.inletCentreY + SIFTER_LAYOUT.inletHeight / 2,
-          sifter.position[2],
-        ]
+        installMachinePoint(millMachine, MILL_PROCESS_PORTS.pneumatic),
+        installMachinePoint(sifterMachine, [
+          0,
+          SIFTER_LAYOUT.inletCentreY + SIFTER_LAYOUT.inletHeight / 2,
+          0,
+        ])
       );
     });
     SITE_LAYOUT.machines.packers.forEach((packer, index) => {
@@ -99,11 +104,11 @@ describe('shared service-rack routes', () => {
       assertPort(
         8 + index,
         [sifter.position[0], sifter.position[1] - 2, sifter.position[2]],
-        [
-          packer.position[0],
-          packer.position[1] + PACKER_HOPPER_LAYOUT.centreY + PACKER_HOPPER_LAYOUT.scale[1] / 2,
-          packer.position[2],
-        ]
+        installMachinePoint(siteMachines.find((m) => m.id === packer.id)!, [
+          0,
+          PACKER_HOPPER_LAYOUT.centreY + PACKER_HOPPER_LAYOUT.scale[1] / 2,
+          0,
+        ])
       );
     });
     expect(
@@ -119,18 +124,20 @@ describe('shared service-rack routes', () => {
   it('seats every finished-product pipe on the real hopper cap rather than floating above it', () => {
     const material = new THREE.MeshBasicMaterial();
     const hopper = new THREE.Mesh(MACHINE_PART_GEOMETRY.hopper, material);
-    hopper.scale.set(...PACKER_HOPPER_LAYOUT.scale);
+    // The hopper as installed: authored layout times the packer's install scale.
+    const k = PROCESS_MACHINE_INSTALL_SCALE.packer;
+    hopper.scale.set(...(PACKER_HOPPER_LAYOUT.scale.map((s) => s * k) as [number, number, number]));
     const finished = buildSpoutRoutes(siteMachines).filter((route) => route.family === 'finished');
     try {
       SITE_LAYOUT.machines.packers.forEach((packer, index) => {
         hopper.position.set(
           packer.position[0],
-          packer.position[1] + PACKER_HOPPER_LAYOUT.centreY,
+          packer.position[1] + PACKER_HOPPER_LAYOUT.centreY * k,
           packer.position[2]
         );
         hopper.updateMatrixWorld(true);
         const end = finished[index].curve.getPointAt(1);
-        expect(end.y - packer.position[1]).toBeCloseTo(6.47, 6);
+        expect(end.y - packer.position[1]).toBeCloseTo(6.47 * k, 6);
         // Raycast the emitted tube's terminal ring, not a copied bore radius.
         const tube = createSpoutTubeGeometry(finished[index].curve, 12);
         const positions = tube.getAttribute('position');

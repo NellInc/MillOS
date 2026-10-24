@@ -1,0 +1,82 @@
+{
+  "candidate": "first sealed candidate, superseded for arrival contact drift",
+  "readOnlyNaturalRoute": true,
+  "samples": 1338,
+  "durationMs": 70005,
+  "audio": {
+    "activeNodes": 0,
+    "contextState": "not-created"
+  },
+  "consoleErrors": [],
+  "worldReadyMs": 24811.6,
+  "startupReadyMs": 30835.4,
+  "reviewer": "authoring chat, own work",
+  "camera": "pub bench front three-quarter, fixed camera only",
+  "transitions": [
+    {
+      "type": "rise",
+      "samples": 18,
+      "durationMs": 874.1,
+      "hipHeightRange": [
+        0.5500909862418992,
+        0.8762913945028932
+      ],
+      "maxPelvisMps": 0.5901500145898536,
+      "rootDrift": 0,
+      "leftFootDrift": 7.889748774445702e-05,
+      "rightFootDrift": 7.885316804024811e-05
+    },
+    {
+      "type": "lower",
+      "samples": 15,
+      "durationMs": 708.3,
+      "hipHeightRange": [
+        0.55,
+        0.8766696809047947
+      ],
+      "maxPelvisMps": 0.7313078099931973,
+      "rootDrift": 0.0018699999859439487,
+      "leftFootDrift": 0.0213078991905322,
+      "rightFootDrift": 0.021321899559931336,
+      "firstFeet": [
+        [
+          -207.71005,
+          0.03,
+          -13.16862
+        ],
+        [
+          -207.7107,
+          0.03,
+          -12.99315
+        ]
+      ],
+      "lastFeet": [
+        [
+          -207.71055,
+          0.03,
+          -13.18993
+        ],
+        [
+          -207.70955,
+          0.03,
+          -13.01444
+        ]
+      ]
+    },
+    {
+      "type": "rise",
+      "samples": 17,
+      "durationMs": 891.7,
+      "hipHeightRange": [
+        0.55,
+        0.8760726805678225
+      ],
+      "maxPelvisMps": 0.5354987469455754,
+      "rootDrift": 0,
+      "leftFootDrift": 0.0001820600328476917,
+      "rightFootDrift": 0.0001819577095517335
+    }
+  ],
+  "finding": "Source fixed-phase parent tests do not detect contact drift from changing mixer pose. Canonical boot reference required before final acceptance.",
+  "rawEvidence": "Detailed transition sample rows remain in tool conversation; no filesystem close image or full1338-row file claimed."
+}

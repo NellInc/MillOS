@@ -12,13 +12,20 @@
 
 import { logger } from './utils/logger';
 import { scadaToStoreMetrics } from './scada/SCADABridge';
-import { OPERATION_TAG_IDS, UTILITY_ASSET_TAG_IDS, VEHICLE_TAG_IDS } from './scada/tagDatabase';
+import {
+  getTagById,
+  OPERATION_TAG_IDS,
+  UTILITY_ASSET_TAG_IDS,
+  VEHICLE_TAG_IDS,
+} from './scada/tagDatabase';
 import {
   vehicleTelemetryRegistry,
   type VehicleTelemetrySnapshot,
 } from './simulation/vehicles/vehicleTelemetryRegistry';
-import type { MachineData } from './types';
+import type { AlertData, MachineData } from './types';
 import type { Alarm } from './scada/types';
+import { formatFixed, translate } from './i18n';
+import { storeMessages as msg } from './store.messages';
 
 // Re-export everything from the new stores
 export {
@@ -40,7 +47,11 @@ export type { GraphicsQuality, GraphicsSettings } from './stores/graphicsStore';
 
 import { initializeSCADA, shutdownSCADA } from './scada/SCADAService';
 import { useProductionStore, useUIStore } from './stores';
-import { useMaterialFlowStore, type MaterialFlowState } from './stores/materialFlowStore';
+import {
+  getRecalledStock,
+  useMaterialFlowStore,
+  type MaterialFlowState,
+} from './stores/materialFlowStore';
 import {
   useOperationsCampaignStore,
   type UtilityAssetTelemetry,
@@ -53,18 +64,125 @@ import {
 import { getDispatchQualityStatus, useQCLabStore, type QCLabState } from './stores/qcLabStore';
 import { shallow } from 'zustand/shallow';
 import { isWorkplaceReplayActive } from './simulation/workplaceReplayRuntime';
+import { storeOwnedLoad } from './simulation/machineLoad';
 
 // Debounced machine state sync to prevent flooding SCADA with updates
 let lastMachineSyncTime = 0;
 const MACHINE_SYNC_DEBOUNCE_MS = 200;
 
-/** Alert copy for a SCADA alarm, e.g. '<tag>: 8.0 t, below the 10.0 t limit'. */
-function formatAlarmMessage(alarm: Alarm): string {
-  if (alarm.type === 'BAD_QUALITY') return `${alarm.tagName}: source signal quality is BAD`;
+/**
+ * Alert copy for a SCADA alarm, e.g. '<tag>: 8.0 t, at or below the 10.0 t limit'.
+ * Working if: count tags read '1 orders' (not '1.0'), a boolean interlock reads
+ * 'off, expected on' (not '0.0 ..., below the 0.5 limit'), and the direction
+ * says 'at or' because AlarmManager trips on >= and <=.
+ */
+export function formatAlarmMessage(alarm: Alarm): string {
+  if (alarm.type === 'BAD_QUALITY')
+    return translate(msg, 'alarmBadQuality', { tag: alarm.tagName });
+  const isLow = alarm.type === 'LO' || alarm.type === 'LOLO';
+  const dataType = getTagById(alarm.tagId)?.dataType;
+  if (dataType === 'BOOL') {
+    const on = alarm.value >= 0.5;
+    return translate(msg, 'alarmBool', {
+      tag: alarm.tagName,
+      state: translate(msg, on ? 'alarmOn' : 'alarmOff'),
+      expected: translate(msg, isLow ? 'alarmOn' : 'alarmOff'),
+    });
+  }
+  const isInteger = dataType === 'INT16' || dataType === 'INT32';
+  const format = (n: number): string =>
+    isInteger && Number.isInteger(n) ? formatFixed(n, 0) : formatFixed(n, 1);
+  const value = isInteger ? formatFixed(Math.round(alarm.value), 0) : formatFixed(alarm.value, 1);
   const unit = alarm.unit ? ` ${alarm.unit}` : '';
-  const direction = alarm.type === 'LO' || alarm.type === 'LOLO' ? 'below' : 'above';
-  return `${alarm.tagName}: ${alarm.value.toFixed(1)}${unit}, ${direction} the ${alarm.threshold.toFixed(1)}${unit} limit`;
+  const direction = translate(msg, isLow ? 'alarmAtOrBelow' : 'alarmAtOrAbove');
+  return translate(msg, 'alarmThreshold', {
+    tag: alarm.tagName,
+    value,
+    unit,
+    direction,
+    threshold: format(alarm.threshold),
+  });
 }
+
+/** HI/HIHI/LO/LOLO stay SCADA codes; the two worded types translate. */
+function scadaAlarmTypeLabel(type: Alarm['type']): string {
+  if (type === 'BAD_QUALITY') return translate(msg, 'alarmTypeBadQuality');
+  if (type === 'RATE_OF_CHANGE') return translate(msg, 'alarmTypeRateOfChange');
+  return type.replaceAll('_', ' ');
+}
+
+/** One alert per alarm occurrence: occurrenceCount rises only when the condition re-enters. */
+const alarmOccurrenceKey = (alarm: Alarm): string => `${alarm.id}:${alarm.occurrenceCount ?? 1}`;
+
+/**
+ * ISA-18.2: an alert whose alarm returned to normal (RTN_UNACK) or cleared
+ * stays listed for acknowledgement but stops holding the safety-critical UI;
+ * if the condition re-enters, the same alert stands again.
+ * Working if the quiet UI lifts when the condition does, while the alert can
+ * still be acknowledged.
+ */
+export function reconcileReturnedAlarmAlerts(
+  alerts: readonly AlertData[],
+  alarms: readonly Alarm[]
+): Array<{ id: string; returned: boolean; message: string }> {
+  const alarmById = new Map(alarms.map((alarm) => [alarm.id, alarm]));
+  const changes: Array<{ id: string; returned: boolean; message: string }> = [];
+  for (const alert of alerts) {
+    if (!alert.id.startsWith('scada-') || alert.acknowledged) continue;
+    const alarm = alarmById.get(alert.id.slice('scada-'.length));
+    const standing = !!alarm && alarm.state !== 'RTN_UNACK';
+    if (standing === !alert.returnedToNormal) continue;
+    changes.push({
+      id: alert.id,
+      returned: !standing,
+      message:
+        alarm && standing
+          ? formatAlarmMessage(alarm)
+          : `${alert.message} ${translate(msg, 'alarmReturnedToNormal')}`,
+    });
+  }
+  return changes;
+}
+
+/**
+ * Choose the SCADA alarms to raise as UI alerts. `announced` remembers the
+ * occurrences already alerted, so an alert the operator dismissed (or that the
+ * 10-slot alert list evicted) stays gone while that occurrence stands. Keys of
+ * occurrences no longer active are pruned, so a new occurrence alerts again.
+ * Working if: X on a SCADA alert sticks, and the next truck visit re-alerts.
+ */
+export function selectSCADAAlarmsToAlert(
+  alarms: readonly Alarm[],
+  existingAlertIds: ReadonlySet<string>,
+  announced: Set<string>,
+  limit = 3
+): Alarm[] {
+  const current = new Set(alarms.map(alarmOccurrenceKey));
+  announced.forEach((key) => {
+    if (!current.has(key)) announced.delete(key);
+  });
+
+  const toAlert: Alarm[] = [];
+  alarms.forEach((alarm) => {
+    if (alarm.priority !== 'CRITICAL' && alarm.priority !== 'HIGH') return;
+    if (alarm.state !== 'UNACK') return;
+    const key = alarmOccurrenceKey(alarm);
+    if (announced.has(key)) return;
+    if (existingAlertIds.has(`scada-${alarm.id}`)) {
+      // Already on screen: this occurrence counts as announced.
+      announced.add(key);
+      return;
+    }
+    // Over the per-notify limit: left unannounced so a later notify sends it.
+    if (toAlert.length >= limit) return;
+    announced.add(key);
+    toAlert.push(alarm);
+  });
+  return toAlert;
+}
+
+// The one machine-load formula, shared with the offline machine model.
+export { storeOwnedLoad };
 
 export function buildOperationalTelemetry(
   flow: MaterialFlowState,
@@ -114,8 +232,16 @@ export function buildOperationalTelemetry(
   const activeQualityHolds = flow.productionBatches.filter(
     (batch) => batch.disposition === 'hold' && batch.availableKg > 0
   ).length;
+  // Recalled product is scrapped when it is recalled or packed, so a recalled
+  // batch is unresolved only while it still holds mass or its recalled lots
+  // are still in the plant. Counting every recall ever made held the HI alarm
+  // for the rest of the session.
+  const recalledStock = getRecalledStock(flow);
   const recalledBatches = flow.productionBatches.filter(
-    (batch) => batch.disposition === 'recalled'
+    (batch) =>
+      batch.disposition === 'recalled' &&
+      (batch.availableKg > 0 ||
+        batch.sourceContributions.some((source) => recalledStock.lotIds.has(source.lotId)))
   ).length;
   const openWorkOrders = workOrders.filter(
     (workOrder) => workOrder.phase !== 'returned_to_service'
@@ -198,6 +324,7 @@ export function buildOperationalTelemetry(
     'load-operation': 7,
     'safety-hold': 8,
     scheduled: 9,
+    'vehicle-queue': 10,
   };
   vehicleTelemetry.forEach((vehicle) => {
     const tagIds = VEHICLE_TAG_IDS[vehicle.id as keyof typeof VEHICLE_TAG_IDS];
@@ -327,32 +454,31 @@ export function initializeSCADASync(): () => void {
 
       // 3. SCADA → STORE: Sync critical alarms to alerts
       // This displays SCADA alarms in the main UI alert system
+      const announcedAlarmOccurrences = new Set<string>();
       const unsubAlarms = service.subscribeToAlarms((alarms) => {
         if (isWorkplaceReplayActive()) return;
         const uiStore = useUIStore.getState();
 
-        // Find new critical/high alarms that aren't already in alerts
+        // New critical/high occurrences only (3 per notify); dismissed ones stay dismissed.
         const existingAlertIds = new Set(uiStore.alerts.map((a) => a.id));
 
-        alarms
-          .filter(
-            (alarm) =>
-              (alarm.priority === 'CRITICAL' || alarm.priority === 'HIGH') &&
-              alarm.state === 'UNACK' &&
-              !existingAlertIds.has(`scada-${alarm.id}`)
-          )
-          .slice(0, 3) // Limit to 3 new alarms at a time
-          .forEach((alarm) => {
+        reconcileReturnedAlarmAlerts(uiStore.alerts, alarms).forEach((change) =>
+          uiStore.setAlertReturnedToNormal(change.id, change.returned, change.message)
+        );
+
+        selectSCADAAlarmsToAlert(alarms, existingAlertIds, announcedAlarmOccurrences).forEach(
+          (alarm) => {
             uiStore.addAlert({
               id: `scada-${alarm.id}`,
               type: alarm.priority === 'CRITICAL' ? 'critical' : 'warning',
-              title: `SCADA: ${alarm.type.replaceAll('_', ' ')}`,
+              title: translate(msg, 'scadaAlertTitle', { type: scadaAlarmTypeLabel(alarm.type) }),
               message: formatAlarmMessage(alarm),
-              timestamp: new Date(alarm.timestamp),
+              timestamp: new Date(alarm.lastOccurrenceAt ?? alarm.timestamp),
               machineId: alarm.machineId,
               acknowledged: false,
             });
-          });
+          }
+        );
       });
       cleanupFunctions.push(unsubAlarms);
 
@@ -387,12 +513,19 @@ export function initializeSCADASync(): () => void {
         machines.forEach((machine) => {
           const sync = scadaToStoreMetrics(machine.id, valueMap, alarms, machine.name);
           if (!sync) return;
+          // The simulation adapter derives mill feed from the load the store
+          // pushed it (writing that back pins mills at 100%), and its silo
+          // level is a fixed synthetic baseline. The store keeps owning load,
+          // as it does offline.
+          if (storeOwnsStatus) {
+            sync.metrics.load = storeOwnedLoad(machine, store.productionSpeed);
+          }
 
           if (sync.metrics && Object.keys(sync.metrics).length > 0) {
             const nextMetrics: Partial<MachineData['metrics']> = {};
             (Object.keys(sync.metrics) as Array<keyof typeof sync.metrics>).forEach((k) => {
               const nextValue = sync.metrics[k];
-              if (typeof nextValue !== 'number') return;
+              if (typeof nextValue !== 'number' || !Number.isFinite(nextValue)) return;
               if (machine.metrics[k] !== nextValue) {
                 (nextMetrics as Record<string, number>)[k] = nextValue;
               }

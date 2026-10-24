@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { PlotGeometry } from '../../utils/authoredPlotGeometry';
 import { WORLD_CRAFT_PALETTE } from '../../constants/publicRealmLayout';
 import { applyVillageWindows } from '../models/GeneratedOfficeModel';
+import { VillageHomeEntryLighting } from './VillageSignage';
 
 import { VILLAGE_HOME_PLOTS, VILLAGE_ALLOTMENT } from '../../constants/siteLayout';
 export {
@@ -71,13 +72,101 @@ const DESIGNS = [
 const { cream: CREAM, soil: SOIL, leaf: LEAF, oak: WOOD, iron: IRON } = WORLD_CRAFT_PALETTE;
 type Point = readonly [number, number, number];
 
-function flower(b: PlotGeometry, x: number, y: number, z: number, colour: string, size = 0.14) {
-  b.round([x, y + size * 0.3, z], [size * 1.2, size * 0.65, size], LEAF);
-  b.round([x, y + size * 1.1, z], [size * 0.86, size * 0.55, size * 0.86], colour);
-  b.round(
-    [x + size * 0.55, y + size * 0.9, z + size * 0.25],
-    [size * 0.55, size * 0.4, size * 0.55],
-    '#f0ce71'
+/** Soft clipped foliage and leaf-age tones on the existing closed cluster.
+ * Working if normals follow the ellipsoid, tips differ from lower leaves and
+ * positions, UVs and indices remain exact for the original civic shadow bake.
+ */
+export function addVillageFoliage(
+  b: PlotGeometry,
+  at: Point,
+  scale: Point,
+  colour: string,
+  detail: 0 | 1 = 0
+) {
+  const g = new THREE.IcosahedronGeometry(1, detail);
+  // Smooth the low-detail cluster before its nonuniform scale, so normals use
+  // the same inverse-transpose as the ellipsoid rather than a spherical guess.
+  g.setAttribute('normal', g.getAttribute('position').clone());
+  g.scale(...scale).translate(...at);
+  b.add(g, colour);
+  const p = g.getAttribute('position'),
+    colours = g.getAttribute('color');
+  const base = new THREE.Color(colour),
+    fresh = new THREE.Color('#96a67a'),
+    shade = base.clone();
+  for (let i = 0; i < p.count; i++) {
+    const height = THREE.MathUtils.clamp((p.getY(i) - at[1]) / scale[1], -1, 1);
+    const patch =
+      Math.sin(p.getX(i) * 2.7 + p.getZ(i) * 3.1) * Math.sin(p.getZ(i) * 1.7 - p.getX(i) * 0.9);
+    shade.copy(base).multiplyScalar(0.95 + height * 0.07 + patch * 0.04);
+    shade.lerp(fresh, Math.max(0, height) * 0.08);
+    colours.setXYZ(i, shade.r, shade.g, shade.b);
+  }
+}
+
+/** Closed, stemmed five-petal flowers, premerged into the existing plot draw.
+ * Working if boxes and pots have varied blooms above their soil, finite normals
+ * and no new draw, texture, animation or material allocation at frame time.
+ */
+export function addVillageFlower(
+  b: PlotGeometry,
+  x: number,
+  y: number,
+  z: number,
+  colour: string,
+  size = 0.14
+) {
+  const phase = x * 7.13 + z * 11.31 + y * 3.7;
+  const lean = Math.sin(phase) * size * 0.32;
+  const top = y + size * (2.35 + Math.cos(phase) * 0.35);
+  // Eight closed tapered faces replace a twelve-face box stem. Together with
+  // the leaves, petals and centre this retains the old 60 triangles per plant.
+  b.add(
+    new THREE.OctahedronGeometry(1)
+      .scale(size * 0.05, Math.hypot(lean, top - y) / 2, size * 0.05)
+      .rotateZ(-Math.atan2(lean, top - y))
+      .translate(x + lean / 2, (y + top) / 2, z),
+    LEAF
+  );
+  for (const side of [-1, 1])
+    b.add(
+      new THREE.TetrahedronGeometry(1)
+        .scale(size * 0.55, size * 0.14, size * 0.24)
+        .rotateZ(side * 0.45)
+        .translate(x + side * size * 0.35, y + size * 0.9, z),
+      LEAF
+    );
+  const tilt = 0.68;
+  for (let i = 0; i < 5; i++) {
+    const angle = (i * Math.PI * 2) / 5 + phase;
+    const petal = new THREE.OctahedronGeometry(1);
+    // Radial normals soften the closed petal without changing a single caster
+    // vertex. Working if the original civic bake and 60-triangle bloom hold.
+    petal.setAttribute('normal', petal.getAttribute('position').clone());
+    b.add(petal, colour);
+    const colours = petal.getAttribute('color'),
+      positions = petal.getAttribute('position'),
+      base = new THREE.Color(colour),
+      shade = base.clone();
+    for (let vertex = 0; vertex < positions.count; vertex++) {
+      const tip = (positions.getZ(vertex) + 1) * 0.5;
+      shade.copy(base).multiplyScalar(0.94 + tip * 0.09 + Math.sin(phase + i * 1.7) * 0.025);
+      colours.setXYZ(vertex, shade.r, shade.g, shade.b);
+    }
+    petal
+      .scale(size * 0.3, size * 0.13, size * 0.48)
+      .translate(0, 0, size * 0.43)
+      .rotateY(angle)
+      .rotateX(tilt)
+      .translate(x + lean, top, z);
+  }
+  b.add(
+    new THREE.TetrahedronGeometry(1)
+      .scale(size * 0.23, size * 0.14, size * 0.23)
+      .translate(0, size * 0.05, 0)
+      .rotateX(tilt)
+      .translate(x + lean, top, z),
+    '#e6b85e'
   );
 }
 
@@ -86,7 +175,7 @@ function windowBox(b: PlotGeometry, x: number, y: number, z: number, colour: str
   b.box([1.3, 0.27, 0.065], [x, y + 0.08, z + 0.21], CREAM);
   for (const side of [-1, 1]) b.box([0.07, 0.27, 0.43], [x + side * 0.63, y + 0.08, z], CREAM);
   b.box([1.14, 0.035, 0.31], [x, y + 0.13, z], SOIL);
-  for (let i = 0; i < 6; i++) flower(b, x - 0.49 + i * 0.19, y + 0.16, z, colour, 0.12);
+  for (let i = 0; i < 6; i++) addVillageFlower(b, x - 0.49 + i * 0.19, y + 0.16, z, colour, 0.12);
   for (const side of [-1, 1])
     b.beam(
       [x + side * 0.42, y - 0.3, z - 0.14],
@@ -96,17 +185,55 @@ function windowBox(b: PlotGeometry, x: number, y: number, z: number, colour: str
     );
 }
 
+/** Kiln tones on the existing clay buffers, darker near the base and worn at
+ * the lip. Working if only vertex colours change and a repeated seed is exact.
+ */
+export function addVillageClay(
+  b: PlotGeometry,
+  geometry: THREE.BufferGeometry,
+  colour: string,
+  seed: number
+) {
+  b.add(geometry, colour);
+  geometry.computeBoundingBox();
+  const bounds = geometry.boundingBox!;
+  const position = geometry.getAttribute('position'),
+    uv = geometry.getAttribute('uv');
+  const colours = geometry.getAttribute('color');
+  const base = new THREE.Color(colour),
+    shade = new THREE.Color();
+  const height = Math.max(0.001, bounds.max.y - bounds.min.y);
+  for (let i = 0; i < position.count; i++) {
+    const level = (position.getY(i) - bounds.min.y) / height;
+    const tone =
+      0.9 +
+      0.13 * level +
+      0.025 * Math.cos(uv.getX(i) * Math.PI * 6 + seed) +
+      0.01 * Math.sin(seed * 1.37);
+    shade.copy(base).multiplyScalar(tone);
+    colours.setXYZ(i, shade.r, shade.g, shade.b);
+  }
+}
+
 function pot(b: PlotGeometry, x: number, z: number, colour: string, scale = 1) {
   const radius = 0.36 * scale,
     h = 0.51 * scale;
-  b.add(new THREE.CylinderGeometry(radius, radius * 0.68, h, 10).translate(x, h / 2, z), '#b97859');
-  b.add(
+  const seed = x * 2.71 + z * 1.97;
+  addVillageClay(
+    b,
+    new THREE.CylinderGeometry(radius, radius * 0.68, h, 10).translate(x, h / 2, z),
+    '#b97859',
+    seed
+  );
+  addVillageClay(
+    b,
     new THREE.CylinderGeometry(radius * 1.12, radius * 1.12, h * 0.13, 10).translate(
       x,
       h * 0.92,
       z
     ),
-    '#ce9470'
+    '#ce9470',
+    seed
   );
   b.add(
     new THREE.CylinderGeometry(radius * 0.87, radius * 0.87, 0.025, 10).translate(x, h, z),
@@ -114,7 +241,7 @@ function pot(b: PlotGeometry, x: number, z: number, colour: string, scale = 1) {
   );
   for (let i = 0; i < 5; i++) {
     const angle = (i * Math.PI * 2) / 5;
-    flower(
+    addVillageFlower(
       b,
       x + Math.cos(angle) * radius * 0.55,
       h,
@@ -175,6 +302,56 @@ function roof(
   b.box([0.19, 0.12, depth + 0.1], [0, y + rise + 0.015, 0], thatch ? '#b49864' : colour);
 }
 
+/** A closed pot keeps the eight-sided outer silhouette with a real cavity.
+ * Dutch stacks have square throats; the other homes use six-sided throats.
+ * Working if every mouth is recessed and the original 40k plot budget holds.
+ */
+function homeChimneyPot(squareThroat: boolean) {
+  const ring = (count: number, radius: number) =>
+    Array.from({ length: count }, (_, i) => {
+      const angle = (i * Math.PI * 2) / count;
+      return new THREE.Vector2(Math.sin(angle) * radius, Math.cos(angle) * radius);
+    });
+  const outer = ring(8, 0.12),
+    inner = ring(squareThroat ? 4 : 6, 0.085);
+  const positions = [
+    ...ring(8, 0.15).flatMap((p) => [p.x, 0.04, p.y]),
+    ...outer.flatMap((p) => [p.x, 0.36, p.y]),
+    ...inner.flatMap((p) => [p.x, 0.36, p.y]),
+    0,
+    0.04,
+    0,
+    0,
+    0.07,
+    0,
+  ];
+  const bottom = 16 + inner.length,
+    floor = bottom + 1,
+    indices: number[] = [];
+  for (let i = 0; i < 8; i++) {
+    const j = (i + 1) % 8;
+    indices.push(i, j, i + 8, j, j + 8, i + 8, bottom, j, i);
+  }
+  // The unequal rings form a softened lip without hidden duplicate faces.
+  for (const face of THREE.ShapeUtils.triangulateShape(outer, [inner])) {
+    const [a, b, c] = face.map((i) => i + 8);
+    const normalY =
+      (positions[b * 3 + 2] - positions[a * 3 + 2]) * (positions[c * 3] - positions[a * 3]) -
+      (positions[b * 3] - positions[a * 3]) * (positions[c * 3 + 2] - positions[a * 3 + 2]);
+    indices.push(a, normalY > 0 ? b : c, normalY > 0 ? c : b);
+  }
+  for (let i = 0; i < inner.length; i++) indices.push(16 + i, 16 + ((i + 1) % inner.length), floor);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  g.setAttribute(
+    'uv',
+    new THREE.Float32BufferAttribute(new Float32Array((positions.length * 2) / 3), 2)
+  );
+  g.setIndex(indices);
+  g.computeVertexNormals();
+  return g;
+}
+
 function house(index: number) {
   const d = DESIGNS[index],
     b = new PlotGeometry(),
@@ -204,7 +381,7 @@ function house(index: number) {
   );
   for (const side of [-1, 1]) {
     b.box([d.width + 0.09, 0.22, 0.12], [0, d.height, side * front], CREAM);
-    b.box([0.12, 0.22, d.depth], [side * hw, d.height, 0], CREAM);
+    b.box([0.12, 0.22, d.depth - 0.02], [side * hw, d.height, 0], CREAM);
   }
   const step = d.kind === 'step';
   roof(
@@ -251,7 +428,12 @@ function house(index: number) {
   b.box([1.16, 2.23, 0.15], [0, 1.135, front + 0.07], CREAM);
   b.box([0.94, 2.02, 0.1], [0, 1.055, front + 0.16], d.door);
   for (const y of [0.53, 1.45]) b.box([0.72, 0.68, 0.034], [0, y, front + 0.223], d.door);
-  b.round([0.33, 1.01, front + 0.28], [0.046, 0.046, 0.046], '#c0a260');
+  b.add(new THREE.SphereGeometry(0.046, 4, 2).translate(0.33, 1.01, front + 0.28), '#c0a260');
+  // Smooth-normal eight-face brass knobs fund the closed letterplates inside
+  // the original body budget. The dark slot is paint, held 4 mm proud of the
+  // plate: at 1 mm the two shared a depth inside this one draw and flickered.
+  b.box([0.22, 0.043, 0.027], [0, 0.97, front + 0.222], '#b59a60');
+  b.add(new THREE.PlaneGeometry(0.164, 0.008).translate(0, 0.97, front + 0.2395), IRON);
   b.box([1.28, 0.09, 0.5], [0, 0.045, front + 0.22], '#b2aaa0');
   const window = (
     x: number,
@@ -277,12 +459,48 @@ function house(index: number) {
     const x = side * d.width * 0.29,
       y = step ? 1.65 : 1.98;
     const bay = index === 4 && side === 1 ? 0.33 : 0;
-    if (bay) b.box([1.48, 1.65, 0.43], [x, y - 0.1, front + 0.2], d.wall);
+    if (bay) b.box([1.48, 1.66, 0.43], [x, y - 0.095, front + 0.2], d.wall);
     window(x, y, front + 0.07 + bay, 0.92, 1.25, index !== 3);
     windowBox(b, x, y - 0.9, front + 0.27 + bay, d.flowers);
     if (step) window(x, 3.35, front + 0.075, 0.82, 1.04, false);
   }
   window(0, d.height + 0.55, front + (step ? 0.21 : 0.08), 0.55, 0.63, false);
+  // The slate cottage has a real side-facing dormer. Its closed cheeks
+  // penetrate the roof, while the pane keeps the existing room UV contract.
+  if (index === 4) {
+    const x = 1.65,
+      y = d.height + 0.95,
+      z = 0.7;
+    b.box([1.0, 0.96, 1.38], [x - 0.18, y, z], d.wall);
+    const begin = b.parts.length,
+      paneBegin = glass.parts.length;
+    window(0, y, 0, 0.73, 0.69, false);
+    for (const g of [...b.parts.slice(begin), ...glass.parts.slice(paneBegin)])
+      g.rotateY(Math.PI / 2).translate(x + 0.33, 0, z);
+    const roofBegin = b.parts.length;
+    roof(b, 1.68, 1.24, y + 0.48, 0.5, d.roof);
+    for (const g of b.parts.slice(roofBegin)) g.rotateY(Math.PI / 2).translate(x, 0, z);
+  }
+  // A low thatched hood and the red-tile cottage's timber porch are distinct
+  // entrance silhouettes, kept above the existing clear door approach.
+  if (index === 0 || index === 2) {
+    const begin = b.parts.length;
+    roof(b, index === 0 ? 1.55 : 1.85, 1.0, 2.48, index === 0 ? 0.38 : 0.58, d.roof, index === 0);
+    for (const g of b.parts.slice(begin)) g.translate(0, 0, front + 0.39);
+    for (const side of [-1, 1]) {
+      b.beam([side * 0.68, 2.02, front + 0.13], [side * 0.68, 2.43, front + 0.8], 0.075, WOOD);
+    }
+  }
+  // Rainwater belongs at the eaves and returns into each planted footing,
+  // rather than becoming a decorative pipe across the door or windows.
+  if (d.kind !== 'thatch') {
+    for (const side of [-1, 1]) {
+      const x = side * (hw + (step ? 0.04 : 0.27));
+      b.box([0.095, 0.095, d.depth + (step ? 0.04 : 0.55)], [x, d.height - 0.035, 0], IRON);
+      b.box([0.075, d.height - 0.27, 0.075], [x, (d.height - 0.27) / 2 + 0.13, -front + 0.3], IRON);
+      b.beam([x, 0.15, -front + 0.3], [x + side * 0.22, 0.07, -front + 0.3], 0.075, IRON);
+    }
+  }
   // Rear and side sashes are rotated with their frames as a unit.
   for (const side of [-1, 1]) {
     const begin = b.parts.length,
@@ -303,19 +521,21 @@ function house(index: number) {
     for (let i = 0; i < 15; i++) {
       const y = 0.35 + i * 0.28;
       for (const side of [-1, 1])
-        b.box([0.055, 0.018, d.depth - 0.2], [side * (hw + 0.018), y, 0], '#c29b7f');
+        b.box([0.05, 0.018, d.depth - 0.2], [side * (hw + 0.018), y, 0], '#c29b7f');
       // Recessed joints sit behind all door/window frames, never across them.
       b.box([d.width - 0.06, 0.016, 0.012], [0, y, front + 0.021], '#c29b7f');
       for (let col = 0; col < 8; col++) {
         const x = -hw + 0.2 + col * 0.55 + (i % 2) * 0.22;
-        if (x < hw - 0.05) b.box([0.017, 0.25, 0.012], [x, y + 0.135, front + 0.021], '#c29b7f');
+        if (x < hw - 0.05) b.box([0.017, 0.245, 0.012], [x, y + 0.1325, front + 0.021], '#c29b7f');
       }
     }
   }
   if (index === 0) {
+    // Corner boards stand 1 cm proud of the side walls and stop 1 cm under the
+    // wall head: flush, they shared both planes with the plaster in one draw.
     b.box([d.width + 0.07, 0.15, 0.12], [0, d.height - 0.08, front + 0.04], WOOD);
-    for (const x of [-hw + 0.08, hw - 0.08])
-      b.box([0.16, d.height, 0.12], [x, d.height / 2, front + 0.04], WOOD);
+    for (const x of [-hw + 0.07, hw - 0.07])
+      b.box([0.16, d.height - 0.01, 0.12], [x, (d.height - 0.01) / 2, front + 0.04], WOOD);
   }
   const chimney = [hw - 0.7, d.height + d.rise - 0.2, -0.65] as const;
   b.box(
@@ -323,20 +543,25 @@ function house(index: number) {
     [chimney[0], chimney[1] - 0.58, chimney[2]],
     index === 3 ? d.wall : '#946c57'
   );
+  // Stepped Dutch stacks and the limewashed thatch stack have their own
+  // masonry silhouettes, retaining the measured pot and smoke datums.
+  if (step) {
+    for (const dy of [-0.23, -0.1])
+      b.box([0.68, 0.09, 0.76], [chimney[0], chimney[1] + dy, chimney[2]], d.wall);
+  } else if (index === 0) {
+    b.box([0.61, 0.88, 0.69], [chimney[0], chimney[1] - 0.56, chimney[2]], CREAM);
+  }
   b.box([0.73, 0.13, 0.8], [chimney[0], chimney[1] + 0.015, chimney[2]], CREAM);
   for (const z of [-0.2, 0.2])
-    b.add(
-      new THREE.CylinderGeometry(0.12, 0.15, 0.32, 8).translate(
-        chimney[0],
-        chimney[1] + 0.2,
-        chimney[2] + z
-      ),
-      '#aa704f'
-    );
+    b.add(homeChimneyPot(step).translate(chimney[0], chimney[1], chimney[2] + z), '#aa704f');
   return {
     body: b.finish(),
     glass: glass.finish(),
     chimney: [chimney[0], chimney[1] + 0.38, chimney[2]] as Point,
+    // A compact lantern sits over the lintel, below the actual porch ridges.
+    // Its longer wall bracket clears door panels without moving the optic.
+    // The plate enters the planar wall by 1 mm; the approach remains free.
+    entry: [0, 2.6, front + 0.01125] as Point,
   };
 }
 
@@ -358,12 +583,14 @@ function garden(index: number) {
       const z = -depth * 0.32 + (i * depth * 0.65) / (count - 1) + 0.05,
         radius = 0.22 + ((index + i) % 3) * 0.055,
         height = 0.24 + ((index + i + (side > 0 ? 1 : 0)) % 3) * 0.065;
-      b.round(
+      addVillageFoliage(
+        b,
         [x + side * (i % 2 ? 0.06 : -0.035), 0.025 + height, z],
         [radius, height, radius * 0.82],
         (index + i) % 2 ? '#71836a' : '#566e54'
       );
-      b.round(
+      addVillageFoliage(
+        b,
         [x - side * 0.09, 0.05 + height * 0.63, z + 0.13],
         [radius * 0.7, height * 0.62, radius * 0.64],
         '#879374'
@@ -373,7 +600,7 @@ function garden(index: number) {
   // A worn gravel seat pad grounds the existing rear bench, with open ends
   // instead of another enclosure. No route or collision contract changes.
   b.box([2.3, 0.05, 1.2], [-3.7, 0, -2.25], '#b5a78d');
-  for (const z of [-2.86, -1.64]) b.box([2.3, 0.075, 0.065], [-3.7, 0.005, z], '#9d8e76');
+  for (const z of [-2.86, -1.64]) b.box([2.28, 0.075, 0.065], [-3.7, 0.005, z], '#9d8e76');
   // Walking lane remains 1.7 m wide, including between the gate pillars.
   for (let i = 0; i < 9; i++)
     b.box(
@@ -413,9 +640,16 @@ function garden(index: number) {
       for (const z of [3.4, 5.9]) pot(b, side * 4.3, z, d.flowers, 0.9);
     } else if (index === 2 && side === 1) {
       // A small mown lawn, with a single flowering shrub at its far corner.
-      b.round([3.95, 0.54, 5.55], [0.58, 0.6, 0.52], LEAF);
+      addVillageFoliage(b, [3.95, 0.54, 5.55], [0.58, 0.6, 0.52], LEAF);
       for (let i = 0; i < 4; i++)
-        flower(b, 3.65 + (i % 2) * 0.48, 0.9, 5.35 + Math.floor(i / 2) * 0.4, d.flowers, 0.12);
+        addVillageFlower(
+          b,
+          3.65 + (i % 2) * 0.48,
+          0.9,
+          5.35 + Math.floor(i / 2) * 0.4,
+          d.flowers,
+          0.12
+        );
     } else {
       const narrow = index === 2 || (index === 0 && side === 1);
       const width = narrow ? 1.0 : index === 4 ? 1.65 : 2.55;
@@ -434,15 +668,22 @@ function garden(index: number) {
           const px = bx - width * 0.36 + (col * width * 0.72) / (cols - 1),
             pz = z - depth * 0.35 + (row * depth * 0.7) / (rows - 1);
           if (index === 3) {
-            b.round([px, 0.32, pz], [0.22, 0.2, 0.22], side < 0 ? '#829565' : '#657e49');
+            addVillageFoliage(
+              b,
+              [px, 0.32, pz],
+              [0.22, 0.2, 0.22],
+              side < 0 ? '#829565' : '#657e49'
+            );
             if (side > 0) b.beam([px, 0.2, pz], [px + 0.08, 0.65, pz + 0.07], 0.05, LEAF);
-          } else flower(b, px, 0.1, pz, (row + col + index) % 3 ? d.flowers : '#e2c36b', 0.2);
+          } else
+            addVillageFlower(b, px, 0.1, pz, (row + col + index) % 3 ? d.flowers : '#e2c36b', 0.2);
         }
       if (index === 3 && side === 1) {
         for (const dz of [-0.7, 0.7])
           b.beam([bx + 0.9, 0, z + dz], [bx + 0.9, 1.65, z + dz], 0.055, WOOD);
         b.box([0.06, 0.06, 1.5], [bx + 0.9, 1.6, z], WOOD);
-        for (let i = 0; i < 5; i++) b.round([bx + 0.9, 0.4 + i * 0.24, z], [0.2, 0.18, 0.2], LEAF);
+        for (let i = 0; i < 5; i++)
+          addVillageFoliage(b, [bx + 0.9, 0.4 + i * 0.24, z], [0.2, 0.18, 0.2], LEAF);
       }
     }
     pot(b, side * 1.2, d.depth / 2 + 0.95, d.flowers, 0.82);
@@ -453,12 +694,12 @@ function garden(index: number) {
   }
   for (const y of [0.3, 0.7]) b.box([0.07, 0.07, 1.04], [0.99, y, 6.52], CREAM);
   if (index === 0 || index === 4) {
-    for (const side of [-1, 1]) b.box([0.08, 2.25, 0.08], [side * 1.14, 1.125, 6.95], '#739075');
+    for (const side of [-1, 1]) b.box([0.08, 2.25, 0.08], [side * 1.14, 1.125, 6.965], '#739075');
     const arch = new THREE.TorusGeometry(1.14, 0.055, 4, 16, Math.PI).translate(0, 2.25, 6.95);
     b.add(arch, '#739075');
     for (let i = 0; i < 7; i++) {
       const a = (Math.PI * i) / 6;
-      flower(b, Math.cos(a) * 1.14, 2.23 + Math.sin(a) * 1.14, 6.95, d.flowers, 0.18);
+      addVillageFlower(b, Math.cos(a) * 1.14, 2.23 + Math.sin(a) * 1.14, 6.95, d.flowers, 0.18);
     }
   }
   // Small rear bench and a terracotta pot, visible over the low side walls.
@@ -467,6 +708,212 @@ function garden(index: number) {
   for (const x of [-4.4, -3]) b.box([0.1, 0.45, 0.42], [x, 0.225, -2.3], IRON);
   pot(b, 3.9, -2.5, d.flowers, 1.15);
   return b.finish();
+}
+
+/** A thin, closed leaf lens: three/four boundary corners and two separated
+ * midribs, six/eight triangles. Working if both faces shade naturally without
+ * alpha sorting, while the original 40k plot budget remains unchanged.
+ */
+function allotmentLeaf(
+  b: PlotGeometry,
+  at: Point,
+  angle: number,
+  length: number,
+  width: number,
+  rise: number,
+  cup: number,
+  colour: string,
+  paleStem = false,
+  triangular = false
+) {
+  const d = new THREE.Vector3(Math.sin(angle), 0, Math.cos(angle));
+  const across = new THREE.Vector3(d.z, 0, -d.x);
+  const root = new THREE.Vector3(...at);
+  const middle = root.clone().addScaledVector(d, length * 0.43);
+  middle.y += rise * 0.68;
+  const left = middle.clone().addScaledVector(across, -width);
+  const right = middle.clone().addScaledVector(across, width);
+  left.y += cup;
+  right.y += cup;
+  const tip = root.clone().addScaledVector(d, length);
+  tip.y += rise;
+  if (triangular) {
+    left.addScaledVector(d, length * 0.45);
+    right.addScaledVector(d, length * 0.45);
+  }
+  const boundary = triangular ? [root, left, right] : [root, left, tip, right];
+  const corners = boundary.length;
+  const normal = new THREE.Triangle(boundary[0], boundary[1], boundary[2]).getNormal(
+    new THREE.Vector3()
+  );
+  const positions: number[] = [],
+    uv: number[] = [],
+    indices: number[] = [];
+  for (const face of [1, -1]) {
+    const start = positions.length / 3;
+    for (const point of boundary) positions.push(...point.toArray());
+    positions.push(
+      ...middle
+        .clone()
+        .addScaledVector(normal, face * 0.0012)
+        .toArray()
+    );
+    uv.push(
+      ...(triangular
+        ? [0.5, 0, 0, 0.88, 1, 0.88, 0.5, 0.43]
+        : [0.5, 0, 0, 0.43, 0.5, 1, 1, 0.43, 0.5, 0.43])
+    );
+    for (let i = 0; i < corners; i++) {
+      const a = start + i,
+        c = start + ((i + 1) % corners),
+        centre = start + corners;
+      indices.push(centre, face === 1 ? a : c, face === 1 ? c : a);
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  b.add(geometry, colour);
+  const colours = geometry.getAttribute('color');
+  const base = new THREE.Color(colour),
+    pale = new THREE.Color('#bbc6a5'),
+    shade = base.clone();
+  for (let i = 0; i < colours.count; i++) {
+    const node = i % (corners + 1);
+    const age = node === 0 ? 0 : node === 2 ? 1 : 0.43;
+    shade.copy(paleStem ? pale : base).lerp(base, paleStem ? Math.min(1, age * 2.7) : 0);
+    if (node === corners) shade.lerp(pale, 0.22);
+    shade.multiplyScalar(i <= corners ? 1 : 0.87);
+    colours.setXYZ(i, shade.r, shade.g, shade.b);
+  }
+}
+
+/** Two cupped leaves nest a rounded heart at a lower 32-triangle cost/head.
+ * Working if the soil contact stays fixed and neighbouring leaf shapes differ.
+ */
+export function addAllotmentCabbage(b: PlotGeometry, at: Point, seed: number) {
+  for (let leaf = 0; leaf < 2; leaf++) {
+    const phase = seed + leaf * Math.PI;
+    allotmentLeaf(
+      b,
+      at,
+      phase,
+      0.25 + Math.sin(phase) * 0.018,
+      0.145 + Math.cos(phase * 1.7) * 0.012,
+      0.14 + Math.sin(phase * 2.1) * 0.02,
+      0.035,
+      leaf === 1 ? '#688b61' : '#79946b',
+      false,
+      true
+    );
+  }
+  const heart = new THREE.IcosahedronGeometry(1, 0);
+  heart.setAttribute('normal', heart.getAttribute('position').clone());
+  heart
+    .scale(0.16, 0.135, 0.16)
+    .rotateY(seed)
+    .translate(at[0], at[1] + 0.16, at[2]);
+  b.add(heart, '#a7b88b');
+  const colours = heart.getAttribute('color'),
+    p = heart.getAttribute('position');
+  const base = new THREE.Color('#a7b88b'),
+    shade = base.clone();
+  for (let i = 0; i < p.count; i++) {
+    shade.copy(base).multiplyScalar(0.88 + (p.getY(i) - at[1]) * 0.32);
+    colours.setXYZ(i, shade.r, shade.g, shade.b);
+  }
+}
+
+/** Three folded strap leaves replace the old two box rods at the same 24 triangles.
+ * Working if pale roots meet the retained crown and blue-green tips arch out.
+ */
+export function addAllotmentLeafCrop(b: PlotGeometry, at: Point, seed: number) {
+  for (let leaf = 0; leaf < 3; leaf++) {
+    const phase = seed + leaf * 2.39996;
+    allotmentLeaf(
+      b,
+      at,
+      phase,
+      0.16 + Math.sin(phase) * 0.025,
+      0.035 + Math.cos(phase * 2) * 0.004,
+      0.43 + Math.sin(phase * 1.3) * 0.025,
+      0.008,
+      leaf === 1 ? '#526f62' : '#668878',
+      true
+    );
+  }
+}
+
+/** An airy three-leaflet cluster, 24 triangles, on the existing runner-bean node.
+ * The shared vine stays within its original bamboo trellis, no new draw/clock.
+ */
+export function addAllotmentBeanLeaves(b: PlotGeometry, at: Point, seed: number) {
+  for (let leaf = 0; leaf < 3; leaf++)
+    allotmentLeaf(
+      b,
+      at,
+      seed + leaf * 2.0944,
+      leaf === 0 ? 0.2 : 0.17,
+      0.075,
+      0.075 + leaf * 0.012,
+      0.012,
+      leaf === 1 ? '#729361' : '#5d8056'
+    );
+}
+export function addAllotmentClimber(b: PlotGeometry, x: number) {
+  const points = Array.from({ length: 6 }, (_, i) => {
+    const phase = i * 2.3 + x;
+    return new THREE.Vector3(x + Math.sin(phase) * 0.009, i * 0.33, -4.3 + Math.cos(phase) * 0.009);
+  });
+  const curve = new THREE.CatmullRomCurve3(points);
+  const vine = new THREE.TubeGeometry(curve, 5, 0.012, 3, false);
+  b.add(vine, '#7f9161');
+  for (const end of [0, 1]) {
+    const direction = curve.getTangent(end).multiplyScalar(end ? 1 : -1);
+    const centre = curve.getPoint(end),
+      positions = centre.toArray();
+    const normals = direction.toArray(),
+      uv = [0.5, 0.5];
+    for (let corner = 0; corner < 3; corner++) {
+      const point = new THREE.Vector3().fromBufferAttribute(
+        vine.attributes.position,
+        end * 5 * 4 + corner
+      );
+      positions.push(...point.toArray());
+      normals.push(...direction.toArray());
+      uv.push(
+        0.5 + Math.cos((corner * Math.PI * 2) / 3) * 0.5,
+        0.5 + Math.sin((corner * Math.PI * 2) / 3) * 0.5
+      );
+    }
+    const a = new THREE.Vector3().fromArray(positions, 3),
+      c = new THREE.Vector3().fromArray(positions, 6);
+    const outward =
+      new THREE.Triangle(centre, a, c).getNormal(new THREE.Vector3()).dot(direction) > 0;
+    const cap = new THREE.BufferGeometry();
+    cap.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    cap.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+    cap.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    cap.setIndex(outward ? [0, 1, 2, 0, 2, 3, 0, 3, 1] : [0, 2, 1, 0, 3, 2, 0, 1, 3]);
+    b.add(cap, '#7f9161');
+  }
+  // Attach to the rendered straight tube spans, not the smoother mathematical
+  // curve between them. Working if every node remains inside its actual stem.
+  const centres = Array.from({ length: 6 }, (_, row) => {
+    const centre = new THREE.Vector3();
+    for (let corner = 0; corner < 3; corner++)
+      centre.add(
+        new THREE.Vector3().fromBufferAttribute(vine.attributes.position, row * 4 + corner)
+      );
+    return centre.multiplyScalar(1 / 3);
+  });
+  for (let i = 0; i < 5; i++) {
+    const node = centres[i].clone().lerp(centres[i + 1], 0.69);
+    addAllotmentBeanLeaves(b, node.toArray(), x * 2.1 + i * 2.4);
+  }
+  b.beam([x, 0, -4.3], [x, 1.85, -4.3], 0.008, '#c6b68d');
 }
 
 function allotment() {
@@ -497,12 +944,10 @@ function allotment() {
         for (let col = 0; col < 4; col++) {
           const px = x - 1.05 + col * 0.69,
             pz = z - 1.02 + row * 0.68;
-          if (x < 0) {
-            b.round([px, 0.42, pz], [0.28, 0.22, 0.28], (row + col) % 2 ? '#6a8b54' : '#849b63');
-            b.round([px, 0.49, pz], [0.16, 0.15, 0.17], '#a2ad75');
-          } else {
-            for (const side of [-1, 1])
-              b.beam([px, 0.22, pz], [px + side * 0.17, 0.69, pz + 0.12], 0.058, '#5c8247');
+          const seed = px * 7.13 + pz * 3.71;
+          if (x < 0) addAllotmentCabbage(b, [px, 0.2, pz], seed);
+          else {
+            addAllotmentLeafCrop(b, [px, 0.22, pz], seed);
             b.round([px, 0.23, pz], [0.12, 0.055, 0.12], z > 0 ? '#ab633f' : '#9f7653');
           }
         }
@@ -525,7 +970,7 @@ function allotment() {
   for (const x of [1.8, 3.1, 4.4]) {
     for (const side of [-1, 1])
       b.beam([x, 0, -4.3 + side * 0.6], [x, 1.85, -4.3], 0.055, '#a08a61');
-    for (let i = 0; i < 5; i++) b.round([x + 0.08, 0.4 + i * 0.29, -4.3], [0.23, 0.2, 0.17], LEAF);
+    addAllotmentClimber(b, x);
   }
   b.box([2.95, 0.06, 0.06], [3.1, 1.85, -4.3], WOOD);
   b.box([1.8, 0.38, 0.9], [2.9, 0.19, -2.45], WOOD);
@@ -546,8 +991,7 @@ export const VILLAGE_ALLOTMENT_GEOMETRY = allotment();
 export const TOWN_HALL_HEDGE_GEOMETRY = (() => {
   const b = new PlotGeometry();
   const leafCluster = (position: Point, scale: Point, colour: string) => {
-    const g = new THREE.IcosahedronGeometry(1, 1).scale(...scale).translate(...position);
-    b.add(g, colour);
+    addVillageFoliage(b, position, scale, colour, 1);
   };
   const run = (x: number, z: number, length: number, side: boolean) => {
     b.box(side ? [0.92, 0.065, length + 0.3] : [length + 0.3, 0.065, 0.92], [x, 0.005, z], SOIL);
@@ -609,6 +1053,7 @@ export const VillageHome = React.memo(
           castShadow
           receiveShadow
         />
+        <VillageHomeEntryLighting index={index} mount={model.entry} />
         <mesh
           name={`village-home-glazing-${index}`}
           geometry={model.glass}

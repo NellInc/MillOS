@@ -1,0 +1,87 @@
+[
+  {
+    "label": "day",
+    "scene": "farm",
+    "servedBuildMatches": true,
+    "sandboxedMetal": true,
+    "cleanDiagnostics": true,
+    "worldCommunityCheckpoints": true,
+    "generalVehicleMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "timingMisses": [
+      "firstFrame",
+      "averageFps",
+      "p95Frame",
+      "p99Frame",
+      "onePercentLow"
+    ],
+    "loadPerCore": 4.85,
+    "p95FrameMs": 38.1,
+    "startupMarks": {
+      "millos:bootstrap": 317.2,
+      "millos:first-frame": 467.7,
+      "millos:world-ready": 31605.5,
+      "millos:startup-ready": 41205.6
+    },
+    "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AD-grain-field-day-20261015/farm.png"
+  },
+  {
+    "label": "dusk",
+    "scene": "farm",
+    "servedBuildMatches": true,
+    "sandboxedMetal": true,
+    "cleanDiagnostics": true,
+    "worldCommunityCheckpoints": true,
+    "generalVehicleMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "timingMisses": [
+      "averageFps",
+      "p95Frame",
+      "p99Frame",
+      "onePercentLow"
+    ],
+    "loadPerCore": 3.21,
+    "p95FrameMs": 35.6,
+    "startupMarks": {
+      "millos:bootstrap": 213.8,
+      "millos:first-frame": 296.3,
+      "millos:world-ready": 26999.1,
+      "millos:startup-ready": 33442.6
+    },
+    "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AD-grain-field-dusk-20261015/farm.png"
+  },
+  {
+    "label": "night",
+    "scene": "farm",
+    "servedBuildMatches": true,
+    "sandboxedMetal": true,
+    "cleanDiagnostics": true,
+    "worldCommunityCheckpoints": true,
+    "generalVehicleMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "timingMisses": [
+      "averageFps",
+      "p95Frame",
+      "p99Frame",
+      "onePercentLow"
+    ],
+    "loadPerCore": 3.03,
+    "p95FrameMs": 34.6,
+    "startupMarks": {
+      "millos:bootstrap": 198.6,
+      "millos:first-frame": 270.1,
+      "millos:world-ready": 27717.5,
+      "millos:startup-ready": 35172.9
+    },
+    "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AD-grain-field-night-20261015/farm.png"
+  }
+]

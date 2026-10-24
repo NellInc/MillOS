@@ -3,6 +3,8 @@ import { motion } from 'framer-motion';
 import { Keyboard, X } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { useT } from '../../i18n';
+import { keyboardShortcutsModalMessages } from './KeyboardShortcutsModal.messages';
 
 interface KeyboardShortcutsModalProps {
   isOpen: boolean;
@@ -17,63 +19,64 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
 
   const modalRef = useRef<HTMLDivElement | null>(null);
   useFocusTrap(modalRef as React.RefObject<HTMLElement>, isOpen, onClose);
+  const t = useT(keyboardShortcutsModalMessages);
 
   if (!isOpen) return null;
 
   const shortcuts = [
     {
-      category: 'Camera Movement',
+      category: t('categoryCamera'),
       items: [
-        { key: 'W / ↑', description: 'Move forward' },
-        { key: 'S / ↓', description: 'Move backward' },
-        { key: 'A / ←', description: 'Strafe left' },
-        { key: 'D / →', description: 'Strafe right' },
-        { key: 'Q', description: 'Move down' },
-        { key: 'E', description: 'Move up' },
-        { key: 'Drag', description: 'Rotate camera' },
-        { key: 'Scroll / pinch', description: 'Zoom in/out' },
-        { key: '1-7', description: 'Camera presets' },
-        { key: '0', description: 'Reset camera view' },
-        { key: 'V', description: 'First-person mode' },
-        { key: 'Shift', description: 'Move faster / sprint' },
+        { key: 'W / ↑', description: t('moveForward') },
+        { key: 'S / ↓', description: t('moveBackward') },
+        { key: 'A / ←', description: t('strafeLeft') },
+        { key: 'D / →', description: t('strafeRight') },
+        { key: 'Q', description: t('moveDown') },
+        { key: 'E', description: t('moveUp') },
+        { key: t('keyDrag'), description: t('rotateCamera') },
+        { key: t('keyScroll'), description: t('zoom') },
+        { key: '1-7', description: t('cameraPresets') },
+        { key: '0', description: t('resetCamera') },
+        { key: 'V', description: t('firstPerson') },
+        { key: 'Shift', description: t('sprint') },
       ],
     },
     {
-      category: 'Controls',
+      category: t('categoryControls'),
       items: [
-        { key: 'P', description: 'Pause/resume production' },
-        { key: 'I', description: 'Toggle AI Partner' },
-        { key: 'O', description: 'Toggle SCADA panel' },
-        { key: 'Z', description: 'Toggle safety zones' },
-        { key: 'H', description: 'Toggle heat map' },
-        { key: 'K', description: 'Toggle cascade visualization' },
-        { key: 'J', description: 'Toggle strategic overlay' },
-        { key: 'T', description: 'Toggle production target' },
-        { key: 'U', description: 'Toggle energy dashboard' },
-        { key: 'Y', description: 'Toggle multi-objective dashboard' },
-        { key: '$', description: 'Toggle cost estimation overlay' },
-        { key: 'M', description: 'Minimize/Expand panel' },
-        { key: 'F', description: 'Toggle fullscreen' },
-        { key: 'G', description: 'Toggle GPS mini-map' },
-        { key: 'C', description: 'Toggle camera auto-rotation' },
-        { key: 'Ctrl+B', description: 'Blueprint mode (see-through walls)' },
-        { key: '+/-', description: 'Adjust production speed' },
-        { key: 'ESC', description: 'Close panels' },
-        { key: 'Click', description: 'Select machine or vehicle' },
+        { key: 'P', description: t('pause') },
+        { key: 'I', description: t('toggleAI') },
+        { key: 'O', description: t('toggleSCADA') },
+        { key: 'Z', description: t('toggleSafetyZones') },
+        { key: 'H', description: t('toggleHeatMap') },
+        { key: 'K', description: t('toggleCascade') },
+        { key: 'J', description: t('toggleStrategic') },
+        { key: 'T', description: t('toggleTarget') },
+        { key: 'U', description: t('toggleEnergy') },
+        { key: 'Y', description: t('toggleMultiObjective') },
+        { key: '$', description: t('toggleCost') },
+        { key: 'M', description: t('minimizePanel') },
+        { key: 'F', description: t('toggleFullscreen') },
+        { key: 'G', description: t('toggleMiniMap') },
+        { key: 'C', description: t('toggleAutoRotate') },
+        { key: 'Ctrl+B', description: t('blueprint') },
+        { key: '+/-', description: t('speed') },
+        { key: 'ESC', description: t('closePanels') },
+        { key: t('keyClick'), description: t('select') },
       ],
     },
     {
-      category: 'Graphics Quality',
+      category: t('categoryGraphics'),
       items: [
-        { key: 'F1', description: 'Low quality' },
-        { key: 'F2', description: 'Medium quality' },
-        { key: 'F3', description: 'High quality' },
-        { key: 'F4', description: 'Ultra quality' },
+        { key: 'F1', description: t('lowQuality') },
+        { key: 'F2', description: t('mediumQuality') },
+        { key: 'F3', description: t('highQuality') },
+        { key: 'F4', description: t('ultraQuality') },
       ],
     },
     {
-      category: 'Safety',
-      items: [{ key: 'SPACE', description: 'Forklift emergency stop / release (scene focused)' }],
+      category: t('categorySafety'),
+      items: [{ key: t('keySpace'), description: t('forkliftStop') }],
     },
   ];
 
@@ -121,12 +124,12 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
               id="kbd-shortcuts-title"
               className={`text-lg font-bold ${theme === 'light' ? 'text-slate-800' : 'text-white'}`}
             >
-              Keyboard Shortcuts
+              {t('title')}
             </h2>
           </div>
           <button
             onClick={onClose}
-            aria-label="Close keyboard shortcuts"
+            aria-label={t('close')}
             className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
               theme === 'light'
                 ? 'bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-700'
@@ -184,7 +187,7 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
           }`}
         >
           <p className={`text-[10px] ${theme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>
-            Press{' '}
+            {t('pressBefore')}{' '}
             <kbd
               className={`px-1.5 py-0.5 rounded text-[9px] font-mono ${
                 theme === 'light' ? 'bg-slate-200 text-slate-600' : 'bg-slate-700 text-slate-300'
@@ -192,7 +195,7 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
             >
               ?
             </kbd>{' '}
-            to toggle this panel
+            {t('pressAfter')}
           </p>
         </div>
       </motion.div>

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import {
   CHECKPOINT_CLEARANCE_DWELL_SECONDS,
   CHECKPOINT_HOLD_DISTANCE,
@@ -10,6 +11,31 @@ import {
 const checkpoint = { x: 20, z: 110 };
 
 describe('shouldCheckpointOpen', () => {
+  it('keeps mutable signals and pivots outside the fixed-booth static batch', () => {
+    const source = readFileSync('src/components/FactoryExterior.tsx', 'utf8');
+    const checkpoint = source.slice(
+      source.indexOf('const CheckpointBarrier:'),
+      source.indexOf('export const FactoryExterior:')
+    );
+    const root = checkpoint.slice(
+      checkpoint.indexOf('ref={checkpointRootRef}'),
+      checkpoint.indexOf('{/* ===== CHECKPOINT BOOTH')
+    );
+    expect(root).not.toContain('noStaticBatch');
+    expect(root).not.toContain('dynamic: true');
+    for (const side of ['inbound', 'outbound']) {
+      const pivot = checkpoint.slice(
+        checkpoint.indexOf(`name={\`\${dock}-checkpoint-${side}-arm\`}`)
+      );
+      expect(pivot.slice(0, pivot.indexOf('>'))).toContain(
+        'userData={{ noStaticBatch: true, dynamic: true }}'
+      );
+    }
+    for (const signalX of ['0.26', '-0.26'])
+      expect(checkpoint).toContain(
+        `<mesh position={[${signalX}, 3.2, 0]} userData={{ noStaticBatch: true, dynamic: true }}>`
+      );
+  });
   it('opens for the live cab before it reaches the barrier', () => {
     expect(shouldCheckpointOpen(false, checkpoint, { id: 'cab', x: 20, z: 150 }, undefined)).toBe(
       true

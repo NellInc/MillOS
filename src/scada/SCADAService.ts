@@ -32,6 +32,7 @@ import { MQTTAdapter } from './adapters/MQTTAdapter';
 import { WebSocketAdapter } from './adapters/WebSocketAdapter';
 import { AlarmManager } from './AlarmManager';
 import { HistoryStore } from './HistoryStore';
+import { recordSetpointDecision, type SetpointWriteActor } from './setpointDecisionLog';
 
 /** Callback for real-time value updates */
 type ValueUpdateCallback = (values: TagValue[]) => void;
@@ -477,15 +478,23 @@ export class SCADAService {
   }
 
   /**
-   * Write a setpoint value
+   * Write a setpoint value. `actor` names who decided it (the operator's UI or
+   * an agent command) and logs it as a campaign decision; the plant's own
+   * writes pass none.
    */
-  async writeSetpoint(tagId: string, value: number): Promise<boolean> {
+  async writeSetpoint(tagId: string, value: number, actor?: SetpointWriteActor): Promise<boolean> {
     const tag = this.tagRegistry.get(tagId);
     if (!tag) {
       return false;
     }
 
     if (tag.accessMode === 'READ') {
+      return false;
+    }
+
+    // A value the transmitter range cannot hold would be clamped on the next
+    // sample, so the immediate readback would report a setpoint never held.
+    if (!Number.isFinite(value) || value < tag.engLow || value > tag.engHigh) {
       return false;
     }
 
@@ -507,6 +516,7 @@ export class SCADAService {
       this.handleTagUpdates([{ tagId, value, quality: 'GOOD', timestamp: Date.now() }]);
     }
 
+    if (actor) recordSetpointDecision(tag, value, actor);
     return true;
   }
 

@@ -1,4 +1,4 @@
-import React, { useState, Suspense, useEffect, useCallback, useRef } from 'react';
+import React, { useState, Suspense, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { registerReplayParticipant } from './simulation/workplaceReplayRuntime';
 import { Canvas } from '@react-three/fiber';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
@@ -7,12 +7,16 @@ import { trackRender } from './utils/renderProfiler';
 import './utils/perfMonitor';
 import { SpatialAudioTracker } from './components/SpatialAudioTracker';
 import { FPSTracker, useFPSStore } from './components/FPSMonitor';
-import { CameraController, useCameraStore } from './components/CameraController';
+import {
+  CameraController,
+  IDLE_ORBIT_DEFAULT,
+  useCameraStore,
+} from './components/CameraController';
 import { FirstPersonController } from './components/FirstPersonController';
 import ErrorBoundary, { RecoverableFeatureBoundary } from './components/ErrorBoundary';
 import { LoadingScreen } from './components/LoadingScreen';
 import { StartupReadiness } from './components/StartupReadiness';
-import { beginStartupTask } from './utils/startupReadiness';
+import { beginStartupTask, getStartupSnapshot } from './utils/startupReadiness';
 import { MachineData } from './types';
 import type { ForkliftData } from './components/ForkliftSystem';
 import { audioManager } from './utils/audioManager';
@@ -48,10 +52,19 @@ import { getRuntimeMode } from './runtime/runtimeMode';
 import { CAMERA_DEPTH } from './constants/renderLayers';
 import { ORBIT_POLAR_LIMITS } from './utils/cameraNavigation';
 import { SITE_LAYOUT } from './constants/siteLayout';
-import { recoverableLazy } from './utils/recoverableLazy';
+import { importWithBoundedRetry, recoverableLazy } from './utils/recoverableLazy';
+import { restoreSessionScopedQuality } from './utils/adaptiveQuality';
 import { installAtmosphericFogChunks } from './shaders/atmosphericFog';
 import { installPunctualLightCulling } from './shaders/punctualLightCulling';
+import { installInteriorLighting } from './shaders/interiorLighting';
+import { installDisplayToeToneMapping } from './shaders/displayToeToneMapping';
 import { CURRENT_RELEASE_VERSION } from './config/releaseVersions';
+import { applyFirstVisitQuality } from './utils/firstVisitQuality';
+import { preloadStartupWorldAssets } from './utils/startupAssetPreload';
+import { afterSharedTextureBake, startSharedTextureBake } from './utils/sharedTextureBake';
+import { preloadAuthoredSite } from './components/millSceneDeferredLayers';
+import { useT } from './i18n';
+import { appMessages } from './App.messages';
 
 // MUST run before any fog-enabled material compiles a program. Three.js
 // snapshots shader chunk source at compile time, so a program already built
@@ -61,11 +74,52 @@ import { CURRENT_RELEASE_VERSION } from './config/releaseVersions';
 // is entitled to drop.
 installAtmosphericFogChunks();
 installPunctualLightCulling();
+// After punctual compaction: extends its single-line point incident macro.
+installInteriorLighting();
+// Defines the `low` tier's tone curve (`RENDERER_TONE_MAPPING`) and the lifted
+// operator the composer's tone mapping calls; see `DISPLAY_TOE`.
+installDisplayToeToneMapping();
+// A previous session's automatic or recovery downgrade must not become this
+// session's tier. The graphics store has rehydrated by now and nothing has
+// rendered, so the restored choice is the first quality the scene sees.
+restoreSessionScopedQuality();
+// A first visit on a weak GPU opens on Low rather than waiting out the cover.
+applyFirstVisitQuality();
+// Start every startup-world download now, at the tier just chosen. The scene
+// chunk's evaluation blocks the main thread for seconds once it lands; these
+// requests ride out that block instead of being discovered one world re-render
+// at a time afterwards. Readiness is unchanged: each still counts as an asset.
+preloadStartupWorldAssets(useGraphicsStore.getState().graphics.quality);
+// Bake the shared procedural textures in workers alongside those downloads.
+// `sharedMaterials.ts` generated them at module evaluation of the scene chunk,
+// ~5.8 s of main-thread work; the chunks that evaluate it now wait for this
+// bake and find every texture already cached. Never rejects; anything not
+// baked in time is generated on the main thread as before.
+void startSharedTextureBake();
 
-const PhysicsScene = recoverableLazy(() => import('./components/PhysicsScene'));
+// The Canvas fallback renders inside the z-0 <main>, under the loading cover,
+// so a crash before readiness must also reach the cover as a startup error.
+// Working if a Canvas crash behind the cover turns on the cover's Reload.
+function ReportStartupCrash(): null {
+  useEffect(() => {
+    if (!getStartupSnapshot().ready) beginStartupTask()(true);
+  }, []);
+  return null;
+}
+
+// Both scene chunks evaluate `sharedMaterials.ts`; see `startSharedTextureBake` above.
+const PhysicsScene = recoverableLazy(
+  afterSharedTextureBake(() => import('./components/PhysicsScene'))
+);
 const DeferredOrbitControls = recoverableLazy(() => import('./components/SceneOrbitControls'));
-const AuthoredMillScene = recoverableLazy(() =>
-  import('./components/MillScene').then((module) => ({ default: module.MillScene }))
+// The scene's own lazy chunks start here too, in parallel with its chunk, so
+// its first render finds them landed or in flight rather than fetching them
+// one by one (see millSceneDeferredLayers.ts). Idempotent across retries.
+const AuthoredMillScene = recoverableLazy(
+  afterSharedTextureBake(() => {
+    void preloadAuthoredSite();
+    return import('./components/MillScene').then((module) => ({ default: module.MillScene }));
+  })
 );
 const DeferredOperationalUI = recoverableLazy(() =>
   import('./components/DeferredOperationalUI').then((module) => ({
@@ -127,21 +181,26 @@ const CoreScenePreview: React.FC = () => (
   </>
 );
 
-const StartupInterface: React.FC = () => (
-  <div
-    role="status"
-    aria-live="polite"
-    className="pointer-events-none fixed left-4 top-4 z-20 rounded-lg border border-white/15 bg-slate-950/80 px-4 py-3 text-slate-100 shadow-lg backdrop-blur-md"
-  >
-    <div className="text-sm font-semibold tracking-[0.12em]">
-      MILLOS {CURRENT_RELEASE_VERSION.replace(/^v/, '')}
+const StartupInterface: React.FC = () => {
+  const t = useT(appMessages);
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="pointer-events-none fixed left-4 top-4 z-20 rounded-lg border border-white/15 bg-slate-950/80 px-4 py-3 text-slate-100 shadow-lg backdrop-blur-md"
+    >
+      <div className="text-sm font-semibold tracking-[0.12em]">
+        MILLOS {CURRENT_RELEASE_VERSION.replace(/^v/, '')}
+      </div>
+      <div className="mt-1 text-xs text-slate-300">{t('startupStatus')}</div>
     </div>
-    <div className="mt-1 text-xs text-slate-300">Bringing operations online</div>
-  </div>
-);
+  );
+};
 
 const CompleteWorldMarker: React.FC = () => {
-  useEffect(() => {
+  // Publish the committed Suspense subtree before its first draw. This marker
+  // submits warmup work only; assets, batching and settled frames still gate access.
+  useLayoutEffect(() => {
     document.documentElement.dataset.millosWorldReady = 'true';
     performance.mark('millos:world-ready');
     window.dispatchEvent(new Event('millos:world-ready'));
@@ -158,6 +217,7 @@ const App: React.FC = () => {
 
   // DEV: Detect PlaneGeometry NaN errors and log them
   useGeometryNaNDetector();
+  const t = useT(appMessages);
 
   // Mobile detection for touch controls
   const { isMobile, isCompactLayout, isLandscape } = useMobileDetection();
@@ -181,17 +241,17 @@ const App: React.FC = () => {
     return () => window.removeEventListener('millos:first-frame', reveal);
   }, [deferredUIReady, showOperationalUI]);
 
-  const [productionSpeed, setProductionSpeedLocal] = useState(0.8);
-  const replayProductionSpeed = useRef(productionSpeed);
-  replayProductionSpeed.current = productionSpeed;
+  // The production store is the one owner of the line rate. A local mirror went
+  // stale whenever another writer (layout planner, restore, an AI decision)
+  // changed the store, so the scene and the controls disagreed.
+  // Working if every writer is reflected in the conveyors and the HUD at once.
+  const productionSpeed = useProductionStore((state) => state.productionSpeed);
+  const setProductionSpeed = useProductionStore((state) => state.setProductionSpeed);
   useEffect(
     () =>
       registerReplayParticipant('app-controls', {
-        capture: () => replayProductionSpeed.current,
-        restore: (speed) => {
-          replayProductionSpeed.current = speed;
-          setProductionSpeedLocal(speed);
-        },
+        capture: () => useProductionStore.getState().productionSpeed,
+        restore: (speed) => useProductionStore.getState().setProductionSpeed(speed),
       }),
     []
   );
@@ -200,19 +260,9 @@ const App: React.FC = () => {
   const showZones = useUIStore((state) => state.showZones);
   const setShowZones = useUIStore((state) => state.setShowZones);
 
-  // Sync local production speed to store (HolographicDisplays reads from store)
-  const setStoreProductionSpeed = useProductionStore((state) => state.setProductionSpeed);
-  const setProductionSpeed = useCallback(
-    (speed: number) => {
-      setProductionSpeedLocal(speed);
-      setStoreProductionSpeed(speed);
-    },
-    [setStoreProductionSpeed]
-  );
-
-  // Initialize store with local state on mount
+  // The line boots at 80% of its rated pace.
   useEffect(() => {
-    setStoreProductionSpeed(productionSpeed);
+    useProductionStore.getState().setProductionSpeed(0.8);
   }, []);
 
   // New UI handles panels via Dock/Sidebar, but we still need some state for selection
@@ -225,11 +275,10 @@ const App: React.FC = () => {
 
   const [audioInitialized, setAudioInitialized] = useState(false);
   const [qualityNotification, setQualityNotification] = useState<string | null>(null);
-  // A continuous orbit of the whole scene is a vestibular trigger, so it starts
-  // off for anyone who has asked the OS for reduced motion.
-  const [autoRotate, setAutoRotate] = useState(
-    () => !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-  );
+  // The camera moves only on input: the idle showcase orbit is opt-in (C), so
+  // an unattended camera never drifts, and nobody who asked for reduced motion
+  // gets a turning scene. See IDLE_ORBIT_DEFAULT in CameraController.
+  const [autoRotate, setAutoRotate] = useState(IDLE_ORBIT_DEFAULT);
 
   // PERFORMANCE: Consolidated store subscriptions with useShallow to prevent unnecessary re-renders
   const {
@@ -404,14 +453,9 @@ const App: React.FC = () => {
   }, [audioInitialized, runtimeMode.benchmark]);
 
   useEffect(() => {
-    const handleInteraction = () => initializeAudio();
-    window.addEventListener('click', handleInteraction, { once: true });
-    window.addEventListener('keydown', handleInteraction, { once: true });
-    return () => {
-      window.removeEventListener('click', handleInteraction);
-      window.removeEventListener('keydown', handleInteraction);
-    };
-  }, [initializeAudio]);
+    if (audioInitialized || runtimeMode.benchmark) return undefined;
+    return audioManager.onFirstUnmutedGesture(initializeAudio);
+  }, [audioInitialized, initializeAudio, runtimeMode.benchmark]);
 
   // Cleanup audio on unmount
   useEffect(() => {
@@ -457,7 +501,8 @@ const App: React.FC = () => {
 
     let active = true;
     let cleanup: (() => void) | undefined;
-    import('./utils/gpuTrackedResources')
+    // Evaluates `sharedMaterials.ts`, so it waits for the startup texture bake.
+    afterSharedTextureBake(() => import('./utils/gpuTrackedResources'))()
       .then(({ initializeGPUTracking, cleanupGPUTracking }) => {
         if (!active) return;
         initializeGPUTracking();
@@ -483,7 +528,13 @@ const App: React.FC = () => {
     const startPreload = (): void => {
       if (started || cancelled) return;
       started = true;
-      import('./utils/texturePreloader')
+      // Same bounded retry as the scene's lazy chunks, so one dropped request
+      // is retried and a stalled one ends as an error the cover can recover.
+      // After the texture bake, which also builds everything this preloads:
+      // started at first frame, it generated them on the main thread instead.
+      afterSharedTextureBake(() =>
+        importWithBoundedRetry(() => import('./utils/texturePreloader'))
+      )()
         .then(({ preloadGenerativeTexturesOnce }) => {
           if (!cancelled) return preloadGenerativeTexturesOnce();
         })
@@ -550,6 +601,7 @@ const App: React.FC = () => {
   // WebGL context loss fallback component
   const WebGLErrorFallback = (
     <div className="fixed inset-0 flex items-center justify-center bg-slate-950">
+      <ReportStartupCrash />
       <div
         role="alert"
         className="bg-slate-900 border border-amber-500/50 rounded-xl p-8 max-w-md text-center"
@@ -565,10 +617,8 @@ const App: React.FC = () => {
           <path d="M10.3 3.4 2.2 17.5A2 2 0 0 0 4 20.5h16a2 2 0 0 0 1.7-3L13.7 3.4a2 2 0 0 0-3.4 0Z" />
           <path d="M12 8v5M12 17h.01" />
         </svg>
-        <h2 className="text-xl font-bold text-white mb-2">3D view stopped</h2>
-        <p className="text-slate-400 mb-4">
-          The 3D view hit an unexpected problem. Reloading usually restores it.
-        </p>
+        <h2 className="text-xl font-bold text-white mb-2">{t('viewStoppedTitle')}</h2>
+        <p className="text-slate-400 mb-4">{t('viewStoppedBody')}</p>
         <button
           type="button"
           onClick={() => window.location.reload()}
@@ -585,7 +635,7 @@ const App: React.FC = () => {
             <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
             <path d="M3 3v5h5" />
           </svg>
-          Reload Application
+          {t('reloadApplication')}
         </button>
       </div>
     </div>
@@ -601,29 +651,25 @@ const App: React.FC = () => {
           href="#main-content"
           className="px-4 py-2 bg-cyan-600 text-white rounded-lg shadow-lg outline-none ring-2 ring-cyan-400 hover:bg-cyan-500 focus:bg-cyan-500"
         >
-          Skip to main content
+          {t('skipToMain')}
         </a>
         <a
           href="#navigation-dock"
           className="px-4 py-2 bg-cyan-600 text-white rounded-lg shadow-lg outline-none ring-2 ring-cyan-400 hover:bg-cyan-500 focus:bg-cyan-500"
         >
-          Skip to navigation
+          {t('skipToNavigation')}
         </a>
       </div>
 
       {/* 3D Canvas keyboard accessibility notice - visible to screen readers */}
-      <div role="note" aria-label="3D visualization keyboard controls" className="sr-only">
-        The 3D factory visualization is interactive. Use W, A, S, D or the arrow keys to move, Q and
-        E to move down and up, and Shift to move faster. Press V to toggle first-person view mode.
-        Press 1-7 to switch camera presets. Keyboard movement pauses while an interface control has
-        focus. Press Space to toggle the forklift emergency stop, and the question mark key for the
-        full list of shortcuts.
+      <div role="note" aria-label={t('keyboardNoteLabel')} className="sr-only">
+        {t('keyboardNote')}
       </div>
 
       {showOperationalUI && !deferredUIReady && <StartupInterface />}
       {showOperationalUI && deferredUIReady && (
         <RecoverableFeatureBoundary
-          featureName="Operations controls"
+          featureName={t('operationsControls')}
           fallbackClassName="fixed left-4 top-4 z-30 max-w-md"
         >
           <Suspense fallback={<StartupInterface />}>
@@ -655,12 +701,8 @@ const App: React.FC = () => {
       )}
 
       {/* 3D Canvas with Error Boundary */}
-      <main
-        id="main-content"
-        className="absolute inset-0 z-0"
-        aria-label="3D factory visualization"
-      >
-        <h1 className="sr-only">MillOS Industrial Factory Simulation</h1>
+      <main id="main-content" className="absolute inset-0 z-0" aria-label={t('mainLabel')}>
+        <h1 className="sr-only">{t('pageHeading')}</h1>
         <ErrorBoundary fallback={WebGLErrorFallback}>
           <Canvas
             key={`canvas-depth-${enableLogarithmicDepth ? 'log' : 'linear'}`}
@@ -691,7 +733,16 @@ const App: React.FC = () => {
               far: CAMERA_DEPTH.far,
             }}
             gl={{
-              antialias: canvasQuality !== 'low',
+              // Context MSAA is immutable, so it must not depend on the tier
+              // that created the context: every context gets the same samples.
+              // Low has no composer, so these are its only AA - without them
+              // rails, kerbs, roof battens and lane paint broke into dashes.
+              // Composer tiers draw one full-screen pass into this buffer and
+              // carry their own MSAA + SMAA; for them the cost is the canvas
+              // resolve. Low measured +0.2 ms (9.4 -> 9.6 ms interior, 9.8 ->
+              // 10.1 ms overview, vsync off, inside the spread). Working if a Low frame
+              // shows blended silhouettes after a Medium-to-Low downgrade too.
+              antialias: true,
               alpha: false,
               // Tone mapping and exposure are NOT set here. R3F re-runs
               // `applyProps(gl, glConfig)` whenever a Canvas prop changes,
@@ -711,6 +762,7 @@ const App: React.FC = () => {
             )}
             onCreated={({ gl }) => {
               glRef.current = gl;
+              gl.domElement.dataset.millosFpsEntry = 'true';
 
               // ONE TONE CURVE ON BOTH PATHS.
               //
@@ -847,8 +899,6 @@ const App: React.FC = () => {
                         minPolarAngle={runtimeMode.benchmark ? 0 : ORBIT_POLAR_LIMITS.min}
                         minDistance={runtimeMode.benchmark ? 0.25 : 15}
                         maxDistance={runtimeMode.benchmark ? 1000 : 220}
-                        autoRotate
-                        autoRotateSpeed={0}
                         target={[...SITE_LAYOUT.cameras.overview.target]}
                         enableDamping
                         dampingFactor={0.05}
@@ -878,7 +928,6 @@ const App: React.FC = () => {
               <CameraController
                 orbitControlsRef={orbitControlsRef}
                 autoRotateEnabled={autoRotate && !selectedMachine}
-                targetSpeed={0.15}
               />
             )}
 

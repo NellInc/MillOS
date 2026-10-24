@@ -1,0 +1,22 @@
+{
+  "protectedPrimaryExact": true,
+  "sourcePins": 4,
+  "compiledPins": 415,
+  "frozenPins": 1459,
+  "borrowedLinksVerified": 375,
+  "dependencyLinkRestored": "/Users/nellwatson/Documents/GitHub/MillOS/node_modules",
+  "unusedOwnCachesRemoved": [
+    "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/node_modules/.vite",
+    "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/node_modules/.vite-temp",
+    "/private/tmp/millos-AL-npm-cache"
+  ],
+  "filesRemoved": 13,
+  "logicalBytesRemoved": 11854,
+  "filesystemFreeBefore": 35345260544,
+  "filesystemFreeAfter": 35295674368,
+  "physicalDeltaAttribution": "Concurrent machine; no attribution of all free-space change to cleanup.",
+  "captureLockAbsent": true,
+  "ownTabClosed": 31,
+  "ownPreviewClosed": "normal PTY close, terminal0",
+  "foreignFilesOrProcessesTouched": false
+}

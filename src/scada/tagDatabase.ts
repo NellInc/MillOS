@@ -17,7 +17,13 @@
  */
 
 import { UTILITY_ASSET_DEFINITIONS } from '../constants/utilityAssets';
+import { formatFixed, translate } from '../i18n';
+import { tagDatabaseMessages as msg } from './tagDatabase.messages';
 import { TagDefinition } from './types';
+
+// Tag display names are getters, so a tag read after a language switch (the
+// SCADA panel, a newly raised alarm) resolves in the current language. Tag ids,
+// units and machine tokens stay fixed.
 
 // ============================================================================
 // Zone 1: Silos (5 silos x 4 tags = 20 tags)
@@ -31,7 +37,9 @@ const siloTags: TagDefinition[] = SILO_NAMES.flatMap((name, idx) => [
   // Level Transmitter
   {
     id: `SILO_${name}.LT001.PV`,
-    name: `Silo ${name} Level`,
+    get name() {
+      return translate(msg, 'siloLevel', { silo: name });
+    },
     description: `Grain level in Silo ${name} (${GRAIN_TYPES[idx]})`,
     dataType: 'FLOAT32' as const,
     accessMode: 'READ' as const,
@@ -56,7 +64,9 @@ const siloTags: TagDefinition[] = SILO_NAMES.flatMap((name, idx) => [
   // Temperature Transmitter
   {
     id: `SILO_${name}.TT001.PV`,
-    name: `Silo ${name} Temperature`,
+    get name() {
+      return translate(msg, 'siloTemperature', { silo: name });
+    },
     description: `Grain temperature in Silo ${name}`,
     dataType: 'FLOAT32' as const,
     accessMode: 'READ' as const,
@@ -80,7 +90,9 @@ const siloTags: TagDefinition[] = SILO_NAMES.flatMap((name, idx) => [
   // Moisture Transmitter
   {
     id: `SILO_${name}.MT001.PV`,
-    name: `Silo ${name} Moisture`,
+    get name() {
+      return translate(msg, 'siloMoisture', { silo: name });
+    },
     description: `Grain moisture content in Silo ${name}`,
     dataType: 'FLOAT32' as const,
     accessMode: 'READ' as const,
@@ -106,7 +118,9 @@ const siloTags: TagDefinition[] = SILO_NAMES.flatMap((name, idx) => [
   // Feeder Vibration
   {
     id: `SILO_${name}.VT001.PV`,
-    name: `Silo ${name} Feeder Vibration`,
+    get name() {
+      return translate(msg, 'siloFeederVibration', { silo: name });
+    },
     description: `Discharge feeder vibration for Silo ${name}`,
     dataType: 'FLOAT32' as const,
     accessMode: 'READ' as const,
@@ -139,7 +153,9 @@ const rollerMillTags: TagDefinition[] = MILL_NUMBERS.flatMap((num, idx) => [
   // Roll Speed
   {
     id: `RM${num}.ST001.PV`,
-    name: `RM-${num} Roll Speed`,
+    get name() {
+      return translate(msg, 'millRollSpeed', { mill: num });
+    },
     description: `Roller Mill ${num} roller speed`,
     dataType: 'FLOAT32' as const,
     accessMode: 'READ' as const,
@@ -159,12 +175,15 @@ const rollerMillTags: TagDefinition[] = MILL_NUMBERS.flatMap((num, idx) => [
       driftRate: 0,
       loadFactor: false,
       statusDependent: true,
+      setpointTagId: `RM${num}.ST001.SP`,
     },
   },
   // Bearing Temperature
   {
     id: `RM${num}.TT001.PV`,
-    name: `RM-${num} Bearing Temp`,
+    get name() {
+      return translate(msg, 'millBearingTemp', { mill: num });
+    },
     description: `Roller Mill ${num} front bearing temperature`,
     dataType: 'FLOAT32' as const,
     accessMode: 'READ' as const,
@@ -187,7 +206,9 @@ const rollerMillTags: TagDefinition[] = MILL_NUMBERS.flatMap((num, idx) => [
   // Vibration
   {
     id: `RM${num}.VT001.PV`,
-    name: `RM-${num} Vibration`,
+    get name() {
+      return translate(msg, 'millVibration', { mill: num });
+    },
     description: `Roller Mill ${num} vibration velocity`,
     dataType: 'FLOAT32' as const,
     accessMode: 'READ' as const,
@@ -211,7 +232,9 @@ const rollerMillTags: TagDefinition[] = MILL_NUMBERS.flatMap((num, idx) => [
   // Motor Current
   {
     id: `RM${num}.IT001.PV`,
-    name: `RM-${num} Motor Current`,
+    get name() {
+      return translate(msg, 'millMotorCurrent', { mill: num });
+    },
     description: `Roller Mill ${num} motor current draw`,
     dataType: 'FLOAT32' as const,
     accessMode: 'READ' as const,
@@ -234,7 +257,9 @@ const rollerMillTags: TagDefinition[] = MILL_NUMBERS.flatMap((num, idx) => [
   // Feed Rate
   {
     id: `RM${num}.FT001.PV`,
-    name: `RM-${num} Feed Rate`,
+    get name() {
+      return translate(msg, 'millFeedRate', { mill: num });
+    },
     description: `Roller Mill ${num} grain feed rate`,
     dataType: 'FLOAT32' as const,
     accessMode: 'READ' as const,
@@ -256,7 +281,9 @@ const rollerMillTags: TagDefinition[] = MILL_NUMBERS.flatMap((num, idx) => [
   // Speed Setpoint (writable)
   {
     id: `RM${num}.ST001.SP`,
-    name: `RM-${num} Speed Setpoint`,
+    get name() {
+      return translate(msg, 'millSpeedSetpoint', { mill: num });
+    },
     description: `Roller Mill ${num} speed setpoint`,
     dataType: 'FLOAT32' as const,
     accessMode: 'READ_WRITE' as const,
@@ -284,7 +311,9 @@ const plansifterTags: TagDefinition[] = SIFTER_NAMES.flatMap((name, idx) => [
   // Oscillation Amplitude
   {
     id: `SIFTER_${name}.VT001.PV`,
-    name: `Sifter ${name} Vibration`,
+    get name() {
+      return translate(msg, 'sifterVibration', { sifter: name });
+    },
     description: `Plansifter ${name} oscillation amplitude`,
     dataType: 'FLOAT32' as const,
     accessMode: 'READ' as const,
@@ -308,7 +337,9 @@ const plansifterTags: TagDefinition[] = SIFTER_NAMES.flatMap((name, idx) => [
   // Temperature
   {
     id: `SIFTER_${name}.TT001.PV`,
-    name: `Sifter ${name} Temperature`,
+    get name() {
+      return translate(msg, 'sifterTemperature', { sifter: name });
+    },
     description: `Plansifter ${name} housing temperature`,
     dataType: 'FLOAT32' as const,
     accessMode: 'READ' as const,
@@ -331,7 +362,9 @@ const plansifterTags: TagDefinition[] = SIFTER_NAMES.flatMap((name, idx) => [
   // Motor Current
   {
     id: `SIFTER_${name}.IT001.PV`,
-    name: `Sifter ${name} Motor Current`,
+    get name() {
+      return translate(msg, 'sifterMotorCurrent', { sifter: name });
+    },
     description: `Plansifter ${name} motor current`,
     dataType: 'FLOAT32' as const,
     accessMode: 'READ' as const,
@@ -354,7 +387,9 @@ const plansifterTags: TagDefinition[] = SIFTER_NAMES.flatMap((name, idx) => [
   // Sieve Condition (0-100% efficiency)
   {
     id: `SIFTER_${name}.QT001.PV`,
-    name: `Sifter ${name} Sieve Condition`,
+    get name() {
+      return translate(msg, 'sifterSieveCondition', { sifter: name });
+    },
     description: `Plansifter ${name} sieve efficiency indicator`,
     dataType: 'FLOAT32' as const,
     accessMode: 'READ' as const,
@@ -386,7 +421,9 @@ const packerTags: TagDefinition[] = PACKER_NUMBERS.flatMap((num, idx) => [
   // Bag Counter
   {
     id: `PACKER_${num}.CT001.PV`,
-    name: `Packer ${num} Bag Count`,
+    get name() {
+      return translate(msg, 'packerBagCount', { packer: num });
+    },
     description: `Packing Line ${num} bags produced in the active run window`,
     dataType: 'INT32' as const,
     accessMode: 'READ' as const,
@@ -405,7 +442,9 @@ const packerTags: TagDefinition[] = PACKER_NUMBERS.flatMap((num, idx) => [
   // Bag Weight
   {
     id: `PACKER_${num}.WT001.PV`,
-    name: `Packer ${num} Bag Weight`,
+    get name() {
+      return translate(msg, 'packerBagWeight', { packer: num });
+    },
     description: `Packing Line ${num} current bag weight`,
     dataType: 'FLOAT32' as const,
     accessMode: 'READ' as const,
@@ -429,7 +468,9 @@ const packerTags: TagDefinition[] = PACKER_NUMBERS.flatMap((num, idx) => [
   // Packing Speed
   {
     id: `PACKER_${num}.ST001.PV`,
-    name: `Packer ${num} Speed`,
+    get name() {
+      return translate(msg, 'packerSpeed', { packer: num });
+    },
     description: `Packing Line ${num} bags per minute`,
     dataType: 'FLOAT32' as const,
     accessMode: 'READ' as const,
@@ -451,7 +492,9 @@ const packerTags: TagDefinition[] = PACKER_NUMBERS.flatMap((num, idx) => [
   // Pneumatic Pressure
   {
     id: `PACKER_${num}.PT001.PV`,
-    name: `Packer ${num} Air Pressure`,
+    get name() {
+      return translate(msg, 'packerAirPressure', { packer: num });
+    },
     description: `Packing Line ${num} pneumatic pressure`,
     dataType: 'FLOAT32' as const,
     accessMode: 'READ' as const,
@@ -480,7 +523,9 @@ const utilityTags: TagDefinition[] = [
   // Ambient Temperature
   {
     id: 'AMBIENT.TT001.PV',
-    name: 'Ambient Temperature',
+    get name() {
+      return translate(msg, 'ambientTemperature');
+    },
     description: 'Factory floor ambient temperature',
     dataType: 'FLOAT32' as const,
     accessMode: 'READ' as const,
@@ -503,7 +548,9 @@ const utilityTags: TagDefinition[] = [
   // Ambient Humidity
   {
     id: 'AMBIENT.HT001.PV',
-    name: 'Ambient Humidity',
+    get name() {
+      return translate(msg, 'ambientHumidity');
+    },
     description: 'Factory floor relative humidity',
     dataType: 'FLOAT32' as const,
     accessMode: 'READ' as const,
@@ -526,7 +573,9 @@ const utilityTags: TagDefinition[] = [
   // Outside Temperature
   {
     id: 'AMBIENT.TT002.PV',
-    name: 'Outside Temperature',
+    get name() {
+      return translate(msg, 'outsideTemperature');
+    },
     description: 'External ambient temperature',
     dataType: 'FLOAT32' as const,
     accessMode: 'READ' as const,
@@ -544,7 +593,9 @@ const utilityTags: TagDefinition[] = [
   // Compressed Air Header
   {
     id: 'UTILITY.PT001.PV',
-    name: 'Compressed Air Pressure',
+    get name() {
+      return translate(msg, 'compressedAirPressure');
+    },
     description: 'Main compressed air header pressure',
     dataType: 'FLOAT32' as const,
     accessMode: 'READ' as const,
@@ -567,7 +618,9 @@ const utilityTags: TagDefinition[] = [
   // Total Power
   {
     id: 'UTILITY.PT002.PV',
-    name: 'Total Power',
+    get name() {
+      return translate(msg, 'totalPower');
+    },
     description: 'Total plant power consumption',
     dataType: 'FLOAT32' as const,
     accessMode: 'READ' as const,
@@ -588,7 +641,9 @@ const utilityTags: TagDefinition[] = [
   // Dust Collector Differential Pressure
   {
     id: 'UTILITY.DP001.PV',
-    name: 'Dust Collector DP',
+    get name() {
+      return translate(msg, 'dustCollectorDp');
+    },
     description: 'Dust collector differential pressure',
     dataType: 'FLOAT32' as const,
     accessMode: 'READ' as const,
@@ -609,7 +664,9 @@ const utilityTags: TagDefinition[] = [
   // Cooling Water Temperature
   {
     id: 'UTILITY.TT001.PV',
-    name: 'Cooling Water Temp',
+    get name() {
+      return translate(msg, 'coolingWaterTemp');
+    },
     description: 'Cooling water supply temperature',
     dataType: 'FLOAT32' as const,
     accessMode: 'READ' as const,
@@ -630,7 +687,9 @@ const utilityTags: TagDefinition[] = [
   // Cooling Water Flow
   {
     id: 'UTILITY.FT001.PV',
-    name: 'Cooling Water Flow',
+    get name() {
+      return translate(msg, 'coolingWaterFlow');
+    },
     description: 'Cooling water flow rate',
     dataType: 'FLOAT32' as const,
     accessMode: 'READ' as const,
@@ -650,7 +709,9 @@ const utilityTags: TagDefinition[] = [
   // Nitrogen Pressure (for product quality preservation)
   {
     id: 'UTILITY.PT003.PV',
-    name: 'Nitrogen Pressure',
+    get name() {
+      return translate(msg, 'nitrogenPressure');
+    },
     description: 'Nitrogen supply pressure for packaging',
     dataType: 'FLOAT32' as const,
     accessMode: 'READ' as const,
@@ -670,7 +731,9 @@ const utilityTags: TagDefinition[] = [
   // Total Throughput (calculated from all mills)
   {
     id: 'UTILITY.FT002.PV',
-    name: 'Total Throughput',
+    get name() {
+      return translate(msg, 'totalThroughput');
+    },
     description: 'Combined throughput from all roller mills',
     dataType: 'FLOAT32' as const,
     accessMode: 'READ' as const,
@@ -723,7 +786,9 @@ const utilityAssetTags: TagDefinition[] = UTILITY_ASSET_DEFINITIONS.flatMap((ass
   return [
     {
       id: ids.level,
-      name: `${asset.label} Level`,
+      get name() {
+        return translate(msg, 'assetLevel', { asset: asset.label });
+      },
       description: `${asset.contents} level in ${asset.label}`,
       dataType: 'FLOAT32' as const,
       accessMode: 'READ' as const,
@@ -743,7 +808,9 @@ const utilityAssetTags: TagDefinition[] = UTILITY_ASSET_DEFINITIONS.flatMap((ass
     },
     {
       id: ids.temperature,
-      name: `${asset.label} Temperature`,
+      get name() {
+        return translate(msg, 'assetTemperature', { asset: asset.label });
+      },
       description: `${asset.contents} bulk temperature in ${asset.label}`,
       dataType: 'FLOAT32' as const,
       accessMode: 'READ' as const,
@@ -763,7 +830,9 @@ const utilityAssetTags: TagDefinition[] = UTILITY_ASSET_DEFINITIONS.flatMap((ass
     },
     {
       id: ids.pressure,
-      name: `${asset.label} Pressure`,
+      get name() {
+        return translate(msg, 'assetPressure', { asset: asset.label });
+      },
       description: `${asset.contents} vessel pressure in ${asset.label}`,
       dataType: 'FLOAT32' as const,
       accessMode: 'READ' as const,
@@ -819,16 +888,29 @@ export const VEHICLE_TAG_IDS = {
   },
 } as const satisfies Readonly<Record<string, VehicleTagIds>>;
 
+function vehicleLabel(vehicleId: string, fallback: string): string {
+  if (vehicleId === 'shipping-truck') return translate(msg, 'ofShippingTruck');
+  if (vehicleId === 'receiving-truck') return translate(msg, 'ofReceivingTruck');
+  const forklift = /^forklift-(\d+)$/.exec(vehicleId);
+  if (forklift) {
+    return translate(msg, 'ofForklift', { number: formatFixed(Number(forklift[1]), 0) });
+  }
+  return fallback;
+}
+
 const vehicleTags: TagDefinition[] = Object.entries(VEHICLE_TAG_IDS).flatMap(([vehicleId, ids]) => {
   const isTruck = vehicleId.endsWith('-truck');
   const label = vehicleId
     .split('-')
     .map((part) => `${part[0].toUpperCase()}${part.slice(1)}`)
     .join(' ');
+  const vehicleName = (): string => vehicleLabel(vehicleId, label);
   return [
     {
       id: ids.speed,
-      name: `${label} Ground Speed`,
+      get name() {
+        return translate(msg, 'vehicleGroundSpeed', { vehicle: vehicleName() });
+      },
       description: `Distance-derived ground speed for autonomous ${label}`,
       dataType: 'FLOAT32' as const,
       accessMode: 'READ' as const,
@@ -842,7 +924,11 @@ const vehicleTags: TagDefinition[] = Object.entries(VEHICLE_TAG_IDS).flatMap(([v
     },
     {
       id: ids.steeringOrArticulation,
-      name: `${label} ${isTruck ? 'Articulation' : 'Steering'}`,
+      get name() {
+        return translate(msg, isTruck ? 'vehicleArticulation' : 'vehicleSteering', {
+          vehicle: vehicleName(),
+        });
+      },
       description: isTruck
         ? `Tractor to trailer articulation angle for autonomous ${label}`
         : `Rear axle steering angle for autonomous ${label}`,
@@ -851,10 +937,14 @@ const vehicleTags: TagDefinition[] = Object.entries(VEHICLE_TAG_IDS).flatMap(([v
       engUnit: 'deg',
       engLow: isTruck ? -40 : -35,
       engHigh: isTruck ? 40 : 35,
-      alarmLo: isTruck ? -32 : undefined,
-      alarmHi: isTruck ? 32 : undefined,
-      alarmLoLo: isTruck ? -38 : undefined,
-      alarmHiHi: isTruck ? 38 : undefined,
+      // Controller-bounded kinematic state, not a process variable: a normal
+      // docking peaks near 0.62 rad (36 deg) on the 14 m yard turns, inside
+      // the 0.7 rad (40.1 deg) truckController coupling limit.
+      // Working if no steering/articulation tag alarms inside that limit.
+      alarmLo: undefined,
+      alarmHi: undefined,
+      alarmLoLo: undefined,
+      alarmHiHi: undefined,
       deadband: 0.25,
       machineId: vehicleId,
       group: 'POSITION' as const,
@@ -862,13 +952,17 @@ const vehicleTags: TagDefinition[] = Object.entries(VEHICLE_TAG_IDS).flatMap(([v
     },
     {
       id: ids.phase,
-      name: `${label} Motion Phase`,
+      get name() {
+        return translate(msg, 'vehicleMotionPhase', { vehicle: vehicleName() });
+      },
       description: `Encoded deterministic route or service phase for autonomous ${label}`,
       dataType: 'INT16' as const,
       accessMode: 'READ' as const,
       engUnit: 'state',
       engLow: 0,
-      engHigh: 32,
+      // Highest phase code in store.ts buildOperationalTelemetry ('departure-ready').
+      // Working if unchocking (33) and departure-ready (34) are not clamped to 32.
+      engHigh: 34,
       deadband: 0,
       machineId: vehicleId,
       group: 'STATUS' as const,
@@ -876,7 +970,11 @@ const vehicleTags: TagDefinition[] = Object.entries(VEHICLE_TAG_IDS).flatMap(([v
     },
     {
       id: ids.interlock,
-      name: `${label} ${isTruck ? 'Transfer Interlock' : 'Stop Reason'}`,
+      get name() {
+        return translate(msg, isTruck ? 'vehicleTransferInterlock' : 'vehicleStopReason', {
+          vehicle: vehicleName(),
+        });
+      },
       description: isTruck
         ? `Dock transfer-ready permissive for autonomous ${label}`
         : `Encoded safety or logistics stop reason for autonomous ${label}`,
@@ -913,7 +1011,9 @@ export const OPERATION_TAG_IDS = {
 const operationalTags: TagDefinition[] = [
   {
     id: OPERATION_TAG_IDS.rawInventory,
-    name: 'Raw Grain Inventory',
+    get name() {
+      return translate(msg, 'rawGrainInventory');
+    },
     description: 'Conserved grain held in the five intake silos',
     dataType: 'FLOAT32',
     accessMode: 'READ',
@@ -929,7 +1029,9 @@ const operationalTags: TagDefinition[] = [
   },
   {
     id: OPERATION_TAG_IDS.inProcess,
-    name: 'Material In Process',
+    get name() {
+      return translate(msg, 'materialInProcess');
+    },
     description: 'Material in machine buffers and conveyor transit',
     dataType: 'FLOAT32',
     accessMode: 'READ',
@@ -942,7 +1044,9 @@ const operationalTags: TagDefinition[] = [
   },
   {
     id: OPERATION_TAG_IDS.finishedGoods,
-    name: 'Finished Goods Inventory',
+    get name() {
+      return translate(msg, 'finishedGoodsInventory');
+    },
     description: 'Packaged flour and semolina awaiting dispatch',
     dataType: 'FLOAT32',
     accessMode: 'READ',
@@ -955,7 +1059,9 @@ const operationalTags: TagDefinition[] = [
   },
   {
     id: OPERATION_TAG_IDS.packerFlow,
-    name: 'Final Packing Flow',
+    get name() {
+      return translate(msg, 'finalPackingFlow');
+    },
     description: 'Causal final-stage production throughput',
     dataType: 'FLOAT32',
     accessMode: 'READ',
@@ -968,7 +1074,9 @@ const operationalTags: TagDefinition[] = [
   },
   {
     id: OPERATION_TAG_IDS.materialBalanceError,
-    name: 'Material Balance Error',
+    get name() {
+      return translate(msg, 'materialBalanceError');
+    },
     description: 'Difference between expected and accounted conserved material',
     dataType: 'FLOAT64',
     accessMode: 'READ',
@@ -986,7 +1094,9 @@ const operationalTags: TagDefinition[] = [
   },
   {
     id: OPERATION_TAG_IDS.lastReceiving,
-    name: 'Last Receiving Manifest',
+    get name() {
+      return translate(msg, 'lastReceivingManifest');
+    },
     description: 'Actual grain mass unloaded by the latest receiving truck',
     dataType: 'FLOAT32',
     accessMode: 'READ',
@@ -999,7 +1109,9 @@ const operationalTags: TagDefinition[] = [
   },
   {
     id: OPERATION_TAG_IDS.lastShipping,
-    name: 'Last Shipping Manifest',
+    get name() {
+      return translate(msg, 'lastShippingManifest');
+    },
     description: 'Actual finished-goods mass loaded by the latest shipping truck',
     dataType: 'FLOAT32',
     accessMode: 'READ',
@@ -1012,7 +1124,9 @@ const operationalTags: TagDefinition[] = [
   },
   {
     id: OPERATION_TAG_IDS.partsStock,
-    name: 'Maintenance Parts Stock',
+    get name() {
+      return translate(msg, 'maintenancePartsStock');
+    },
     description: 'Total on-hand bearings, belts, filters, motors and sensors',
     dataType: 'INT16',
     accessMode: 'READ',
@@ -1028,7 +1142,9 @@ const operationalTags: TagDefinition[] = [
   },
   {
     id: OPERATION_TAG_IDS.shippingReleased,
-    name: 'Shipping Quality Release',
+    get name() {
+      return translate(msg, 'shippingQualityRelease');
+    },
     description: 'QC interlock: 1 permits dispatch, 0 holds the shipping truck',
     dataType: 'BOOL',
     accessMode: 'READ',
@@ -1043,7 +1159,9 @@ const operationalTags: TagDefinition[] = [
   },
   {
     id: OPERATION_TAG_IDS.activeQualityHolds,
-    name: 'Active Quality Holds',
+    get name() {
+      return translate(msg, 'activeQualityHolds');
+    },
     description: 'Available production batches isolated from dispatch pending disposition',
     dataType: 'INT16',
     accessMode: 'READ',
@@ -1058,8 +1176,11 @@ const operationalTags: TagDefinition[] = [
   },
   {
     id: OPERATION_TAG_IDS.recalledBatches,
-    name: 'Recalled Product Batches',
-    description: 'Production batches under terminal recall disposition',
+    get name() {
+      return translate(msg, 'recalledProductBatches');
+    },
+    description:
+      'Recalled production batches whose recall is unresolved: stock held, or recalled lot material still in the plant',
     dataType: 'INT16',
     accessMode: 'READ',
     engUnit: 'batches',
@@ -1073,7 +1194,9 @@ const operationalTags: TagDefinition[] = [
   },
   {
     id: OPERATION_TAG_IDS.openWorkOrders,
-    name: 'Open Maintenance Work Orders',
+    get name() {
+      return translate(msg, 'openMaintenanceWorkOrders');
+    },
     description: 'Causal repair work orders not yet returned to service',
     dataType: 'INT16',
     accessMode: 'READ',
@@ -1088,7 +1211,9 @@ const operationalTags: TagDefinition[] = [
   },
   {
     id: OPERATION_TAG_IDS.maintenanceDowntime,
-    name: 'Maintenance Downtime',
+    get name() {
+      return translate(msg, 'maintenanceDowntime');
+    },
     description: 'Accumulated downtime across currently open maintenance work orders',
     dataType: 'FLOAT32',
     accessMode: 'READ',

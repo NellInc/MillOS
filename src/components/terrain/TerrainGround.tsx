@@ -16,19 +16,13 @@ import { TerrainMaterial } from './TerrainMaterial';
 import {
   generateSplatMap,
   getRiverHeightfield,
-  sampleValleyRelief,
+  sampleValleyReliefAtGridVertex,
   MILLOS_TERRAIN_REGIONS,
   MILLOS_RIVER_CONFIG,
   type RiverChannelConfig,
 } from './splatMapGenerator';
 import { TERRAIN_BOUNDS, SPLAT_BOUNDS, TERRAIN_TINTS, type TerrainBounds } from './terrainTypes';
-import {
-  generateGrassSurface,
-  generateTarmacSurface,
-  generateDirtSurface,
-  generateDirtGravel,
-  generateTerrainMacro,
-} from './terrainTextures';
+import { getTerrainDirtTexture, getTerrainSurfaceMaps } from './terrainTextures';
 import { PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { useGraphicsStore } from '../../stores/graphicsStore';
@@ -109,9 +103,19 @@ export function createDisplacedGeometry(
     // - 0 = canyon floor (carve DOWN by displacementDepth)
     // - 1 = terrain (no displacement)
     // The plane will be rotated -PI/2 around X, so local Z becomes world Y
+    // PlaneGeometry writes vertex (ix, iy) at index iy * (segments + 1) + ix.
+    // The relief is shared with `sampleTerrainGroundHeight`'s grid wherever
+    // this vertex's coordinates are exactly that grid vertex; otherwise it is
+    // computed here as before (see `sampleValleyReliefAtGridVertex`).
     const displacement =
       (heightValue - 1) * displacementDepth +
-      sampleValleyRelief(positions.getX(i), -positions.getY(i));
+      sampleValleyReliefAtGridVertex(
+        positions.getX(i),
+        -positions.getY(i),
+        i % (segments + 1),
+        Math.floor(i / (segments + 1)),
+        segments
+      );
 
     // Modify the Z coordinate (which becomes world Y after rotation)
     const currentZ = positions.getZ(i);
@@ -140,7 +144,7 @@ export const TerrainGround = React.memo(function TerrainGround({
    * every authored plane it is supposed to sit under (`EXTERIOR_LAYERS.ground`
    * = `SITE_LAYOUT.datum.terrain` = -0.02) and 5 cm above the interior factory
    * slab at y = 0. Nothing looked wrong at review distance because this
-   * material carries `POLYGON_OFFSET.exteriorBase`, and a factor-4 depth bias
+   * material carries `POLYGON_OFFSET.exteriorBase`, and a factor-6 depth bias
    * is large enough to hide 7 cm of wrong-side geometry at 30 m.
    *
    * It is not large enough at 2 m, where the depth buffer resolves finely, so
@@ -152,8 +156,9 @@ export const TerrainGround = React.memo(function TerrainGround({
    *
    * On the datum, the whole documented stack in CLAUDE.md's "Exterior Ground
    * Z-Fighting Prevention" works as written: terrain and the authored planes
-   * share one Y and separate by `polygonOffset` alone (base 4 behind, mid 2,
-   * top 0, overlay -2), and the interior slab at y = 0 is now genuinely above
+   * share one Y and separate by `polygonOffset` alone (`exteriorBase` +6
+   * behind, `exteriorMid` +3, `exteriorTop` -1, `exteriorOverlay` -4 on top;
+   * see `renderLayers.ts`), and the interior slab at y = 0 is now genuinely above
    * the terrain rather than winning a bias fight it should never have been in.
    */
   yPosition = SITE_LAYOUT.datum.terrain,
@@ -205,20 +210,10 @@ export const TerrainGround = React.memo(function TerrainGround({
 
   // Terrain surface data. Generated lazily on first mount and memoised in the
   // shared texture cache, so a quality toggle never regenerates them.
-  const dirtTexture = useMemo(() => generateDirtGravel(256), []);
+  // Both are also baked off the main thread at startup (sceneTextureRecipes).
+  const dirtTexture = useMemo(() => getTerrainDirtTexture(), []);
   const surfaceMaps = useMemo(
-    () =>
-      surfaceDetail
-        ? {
-            grass: generateGrassSurface(256),
-            tarmac: generateTarmacSurface(256),
-            dirt: generateDirtSurface(256),
-            // 256, not 128: the alpha channel now carries the grass tile break
-            // that used to cost its own texture tap, and that channel needs the
-            // resolution. See generateTerrainMacro.
-            macro: generateTerrainMacro(256),
-          }
-        : null,
+    () => (surfaceDetail ? getTerrainSurfaceMaps() : null),
     [surfaceDetail]
   );
 

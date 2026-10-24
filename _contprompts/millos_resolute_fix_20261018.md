@@ -93,7 +93,7 @@ structural problems that the readiness pass only labelled or mitigated:
    `UnifiedGameTick`), but check that a first-time player can find Maintain,
    knows what it costs, and sees the result.
 5. **The cooperative layer.** This is what the WCM audience came for:
-   roles, ballots, *sobras* (surplus), pay and rest, handoff experiments and
+   roles, ballots, _sobras_ (surplus), pay and rest, handoff experiments and
    member review.
    - Make sure it connects to the plant, not just to panels.
    - The autonomous season starts by itself after the tour. Make its
@@ -112,6 +112,7 @@ structural problems that the readiness pass only labelled or mitigated:
    made itself.
 
 For each gameplay change, give the before and after evidence:
+
 - a failing-then-passing test on the real simulation path;
 - one short runtime confirmation of what the player sees.
 
@@ -190,3 +191,265 @@ Each item is either open or only partly fixed.
 Working if a stranger on a mid-range laptop, in either language, can finish a
 shift, understand why it went the way it did, and want to play the next one,
 with every claim above backed by a test or a screenshot.
+
+---
+
+## Ledger (session of 18–19 Oct, Claude Opus 5.5)
+
+### State on arrival (verified, not as the prompt assumed)
+
+- PR #40 is **open, not merged** (CI Lint/Test in progress at 00:13Z, mergeable,
+  contains current `origin/main`). Live build is `v0.40-f24007aae244` (= PR #39,
+  `origin/main`), so the live site has neither the i18n system nor the readiness
+  fixes. This branch (`claude/resolute-fix-20261018`) stacks on PR #40's head
+  `e68818ca`; it must merge both PR #40's branch and `origin/main` before its PR.
+- Another live Claude session is watching PR #40's CI from
+  `/private/tmp/millos-wcm26-20261018`; that worktree is left alone.
+
+### Pause holders (inventory before any change)
+
+| Holder                                                                               | Writes                                           | Restores                       | Released by              |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------ | ------------------------------ | ------------------------ |
+| Shift pace select (`PlayableShift` `TeachingPace`)                                   | 0 / 30 / 180                                     | —                              | player                   |
+| Overview pace buttons (`OverviewPanel`)                                              | 0 / 180 / 1800 / 10800                           | —                              | player                   |
+| Mobile pace buttons (`MobilePanel`)                                                  | 0 / 180 / 1800 / 10800                           | —                              | player                   |
+| P key (`useKeyboardShortcuts`)                                                       | productionSpeed 0 **and** gameSpeed 0            | own ref, only if clock still 0 | P                        |
+| `-` key / Settings line slider                                                       | productionSpeed → 0 (froze trucks and forklifts) | —                              | player                   |
+| Tour (`GameInterface`)                                                               | 0                                                | prior pace (180→30)            | Start/Skip/Close/unmount |
+| Restore warm-up (`physicalSession.applyRestore`)                                     | 0                                                | saved pace in `finishRestore`  | restore                  |
+| Restore failure (`physicalSession.halt`)                                             | 0                                                | never                          | player picks a pace      |
+| Handoff / improvement (`WorkplaceImprovementPanel`, `UnifiedGameTick` L437/454/1043) | 0                                                | 30 on activate                 | panel buttons            |
+| Replay (`WorkplaceReplay`)                                                           | 0                                                | 30                             | replay button            |
+| Workplace lab (`WorkplaceLab`)                                                       | 15 / 30                                          | —                              | lab                      |
+| Season autoplay (`workplaceAutoplay`)                                                | 30 on activate, 0 on pause                       | —                              | autoplay                 |
+| Layout planner (`LayoutPlanner`)                                                     | productionSpeed 0 + gameSpeed 0                  | both refs                      | Run                      |
+| Mission start (`PlayableShift`)                                                      | 30                                               | —                              | —                        |
+| Operations resume action (`PlayableShift`)                                           | 30 if 0                                          | —                              | —                        |
+| Reset simulation (`SettingsPanel`)                                                   | 0 before reload                                  | —                              | reload                   |
+| Benchmark route (`RuntimeController`)                                                | 180 / 0                                          | previous                       | route exit               |
+| Agent command `simulation.set-speed`                                                 | any                                              | —                              | agent                    |
+
+Problems: two pause authorities (productionSpeed and gameSpeed); no holder knows
+whether another holds the clock; a held 0 can be persisted and restored as if
+the player chose it; three pace lists disagree (0/30/180, 0/180/1800/10800).
+
+### Baseline (named, before any change, PR #40 head `e68818ca`)
+
+- typecheck 0, agent:typecheck 0, lint 0, format 0.
+- vitest: 3,595 pass, 28 skipped, **5 fail**: all `ENOENT` under `assets/source/`
+  (excluded by the sparse checkout on purpose): `scripts/crafted-assets.test.mjs`
+  ×3 (barn-crafted.glb, wishingwell-crafted.glb, castle-neuschwanstein-authored.glb),
+  `HeritageSignage.test.ts` ×2 (service-signs/workshop-v1.png, village-signs/innFascia-v1.png).
+- `VERSION=v0.40` build 0 (dist 171M); validate:bundle/reachability/community/depth/shaders all pass.
+  Initial JS gzip 618 KB of a 2.5 MiB budget; dist 178.6 MB of 179.3 MB.
+
+### Play-test ledger (stranger, Low, 1366×768, Metal headless, 19 Oct 21:40–22:00)
+
+English run (12 min) then pt-BR via the in-app switcher from an English load (6 min).
+Ranked by harm to a first-time visitor:
+
+1. **Silent freeze at 14:49.** The autonomous cooperative season starts itself after
+   the tour; when its three shifts complete, `workplaceAutoplay.pause()` sets
+   gameSpeed 0. The whole plant stops; nothing on screen says why (the chip vanishes).
+2. **Guided card stuck on "Inspect the line"** for the whole first delivery unless a
+   machine is clicked: it never narrates loading, departure, the 5,000-of-6,000 kg
+   second trip or fulfilment.
+3. **"8,640 bags/h" beside "Target 4 / 1,200"** (EN) / "8.640 sacos/h" (pt-BR): the
+   rate is per plant hour, the target per game day. False at a glance.
+4. **Dead time:** "0 bags/h · Line idle" for ~100 game minutes after each order is
+   packed (minutes ~60–160 and ~203–233), ~3 real minutes of nothing to do.
+5. **Autonomous season chip** ("Autonomous season: take over" / "Temporada autônoma:
+   assumir") appears at once with no explanation of what is running or what taking
+   over means.
+6. **Camera moves by itself** between observations in both runs (ended inside R.M. 103
+   in the EN run) with no input.
+7. **Shift pace select clipped** below the guided card's fold at 1366×768.
+8. Loading cover ~45 s on an M1 Max at load ~6/10 cores (strict 30 FPS window).
+9. Two unread notifications in the bell, never surfaced.
+10. pt-BR: copy reads naturally; numbers grouped correctly ("6.000 kg", "1.200");
+    no `translated-ltr`. Only English seen: song titles and the customer name (allowed).
+
+What worked: at standard pace (30) every order was met (order 1 at minute ~142 of
+240, order 2 at ~223 of 360), no console or page errors in either run.
+
+### Audit (19 Oct, 86 agents, read-only on a frozen snapshot of `e68818ca`)
+
+40 findings: 27 accepted by both refuters, 5 split, 8 refuted by both. Full JSON
+kept outside the repo (scratchpad `audit-resolute.json`); fixes were assigned as:
+
+- lead (waves 1, 2, D): 0/35 guided card, 1/15/38 autoplay freeze and chip, 3 labels,
+  4 idle line, 5 Skip tour, 6 pace position, 13 pace writers, 28/37 bags/h, 29 line-rate
+  owner and AI decision, 30 replay hold, 31 truck clock, 32 old paces, 33 advice, 34 PA,
+  36 pace copy;
+- wave A (failure and recovery): 7, 8, 9, 10, 11, 12 and first-shift wear timing;
+- wave B (cooperative): 16, 18, 19 and an honest season exit (2/14/17 lighter design);
+- wave C (shift ending): 21, 22, 23, 24, 26.
+  Not re-opened: 20, 25, 27, 39 (refuted by both, no new evidence).
+
+### Decisions taken (with reasons)
+
+- **Standard pace is 30.** Plant physics is authored for it (3 packers x 25 kg/s = 9 t
+  per game hour; trucks at road speed). Paces 0, 1/2x, 1x, 2x, 4x; 4x is the ceiling
+  the truck display bound can follow on an ordinary laptop.
+- **Auto-start of the autonomous season is kept** (Nell's 2026-10-04 direction, cited by
+  a refuter); it no longer freezes the plant, and Take over keeps the shift running.
+- **Lazy-loading pt-BR: not done.** pt-BR adds 297 KB raw / 92 KB gzip across 133
+  catalogs. Lazy-loading saves English visitors at most ~92 KB of a 618 KB initial
+  gzip and nothing of the dist budget (a lazy chunk still ships); it would make
+  `translate` asynchronous across 133 modules. Initial JS has 1.9 MiB of headroom.
+- **Hard-coded English re-sweep:** an AST scan (JSX text, title/aria-label/placeholder/
+  alt/label props, alert/announcement objects) over 461 live files plus the audit's
+  copy finder found no live player-facing English outside the deliberate set (signage,
+  proper names, model names, key names, agent protocol). FPSDisplay's English is in a
+  component nothing renders.
+- **Unexplained preview reload [Inference]:** the service-worker policy reloads once
+  "before the scene opens" (`startup.opened || startup.ready`). On the build with the
+  suspend loop, readiness never arrived, so a preview rebuild's new worker reloaded a
+  visible scene. The context-restore reload needs an empty GPU tracker, which App's
+  startup registration rules out. To confirm: log navigations in the runtime pass.
+  **Confirmed by the runtime pass:** every run logged exactly one navigation per
+  deliberate load or reload (9 runs, 0 unexplained).
+
+### Runtime confirmation (20 Oct 00:20–01:45, built `VERSION=v0.40`, Metal headless, 1366×768 unless noted)
+
+Load 2.8–8.3 per machine, so no frame-rate claims. Scripts and frames in the session
+scratchpad (`playtest/`, `sw/`).
+
+- **Standard pace (EN, 7.5 real min):** orders 1 and 2 on time; Truck 1 departs at
+  5,000 kg, then the 1,000 kg second trip; HUD "Changing over to the next order" then
+  "Line idle: order packed, awaiting dispatch"; bags/h 189–288 beside "Target n / 1,200".
+- **Guide card:** "Truck 1 of 2 for this order (up to 5000 kg each); 6000 kg still to
+  ship", "Inspection: waiting · Delivery: 0 kg dispatched", receipt "6,000 of 6,000 kg,
+  delivered on time".
+- **4x pace:** the clock, deadlines, loading and dispatch all move 4x together.
+  Overview "Standard, 1x" button sets 30 (pt-BR "Padrão, 1x" too).
+- **P:** 120 → 0 → 120, its own hold only.
+- **Take over:** opens Autonomy, clock stays at 120; "Automatic decisions paused. Your
+  choices take priority."
+- **Second tab:** the stage tab kept running (14:13 → 15:14 in 30 s at 4x).
+- **Autosave failure (setItem throwing QuotaExceededError for 20 s):** five failed
+  cycles, one bell notice, last good record kept byte-identical, writing resumed after.
+- **Shift review:** "Morning shift closed: grade A…" announced in EN and pt-BR; Overview
+  "Balanço do turno" shows Manhã nota A (three orders, on time), Tarde provisória A,
+  linked agreement and season exit; **the same after reload**.
+- **pt-BR via the in-app switcher from an English load:** every captured surface
+  Portuguese, `html.translated-ltr` never set, no console errors.
+- **Wear → maintenance:** Silo Alpha warning at ~13:44; Predictive Maintenance shows
+  Silo Alpha electrical 55%, Schedule → "Silo Alpha · Predictive · 17:54 · Parts:
+  sensors, motors" with Complete.
+- **Load:** cold load to `millosStartupReady` 35.3 s and 35.4 s, reload 36.7 s and 37.6 s,
+  with "Use low graphics" offered on the loading screen.
+- **Service worker (built app, fixture server, build B differing only in sw.js and
+  build-info):** cold boots; reload served from the versioned shell cache (21 entries);
+  offline reload boots; a 4 s stalled navigation still one navigation; deploy while open
+  does not reload the open scene, the new worker waits and the old build keeps serving;
+  next visit runs B with only B's caches.
+- **e2e (`e2e/`, headless Metal via a scratch config):** 2/2 pass after one fix below.
+
+Defects the runtime pass found, each fixed failing-test-first and re-confirmed in pixels:
+
+1. Choosing any pace stopped the autonomous season silently (Take over vanished; the
+   default path lost its sobras). A pace is now only a speed; P/Paused defer its steps.
+2. A reload mid-season dropped the season and its Take over (the runner is ephemeral and
+   `manual` persisted). The running profile now persists and resumes after startup,
+   also once every order is fulfilled; a taken-over season stays the player's. Late-season
+   reload then stops by itself with "Automatic three-shift season complete" in the bell.
+3. First-delivery card: text bled half-clipped under the pinned actions (sticky edge inset
+   by the card padding). Pinned into the padding; shorter pt-BR view labels ("Ver a
+   expedição") keep the row on one line at 1280×657 so Shift pace stays visible.
+4. Parts inventory labels truncated ("Be…", "Mo…"); tiles now wrap and keep "Rolamentos" whole.
+5. Loading-screen quote attribution 4.02:1 (axe, e2e); now 7.29:1, knowledge card too.
+
+### Whole gate after the runtime fixes (vs the named baseline)
+
+typecheck 0, agent:typecheck 0, lint 0, format 0, agent:manifest:check 0 (after
+regenerating the gitignored inventory). vitest 3,702 pass, 28 skipped, 5 fail: the same
+five `assets/source` ENOENT tests as the baseline, nothing new. `VERSION=v0.40` build 0,
+dist 171M; validate:bundle/reachability/community/depth/shaders 0. dist deleted.
+
+### Round 2 (20 Oct): the found-not-fixed list, closed
+
+The waves' own "found, not fixed" items went to four Opus 5.5 agents in sparse worktrees
+(D maintenance and recall, E cooperative and handoff, F shift and review, G plumbing),
+each failing-test-first. D, F and G stalled together on one API request at 02:26 and were
+resumed from their transcripts after 172 min; every committed item survived.
+
+- **D (8/8):** recalled-lot batches written off as they form; SCADA recalled tag HI only
+  while recalled stock is in the plant; recall review cue fires on it; scheduled service
+  consumes parts only when performed; minimum wear for Maintain = half the warning
+  threshold (where efficiency starts to fall); repairs take their estimated game time
+  (paused with the clock, scaled by pace); bell Open repair; uncalled
+  `triggerRandomBreakdown` deleted.
+- **E (5/5):** Overview/mobile pace buttons show the pace a handoff resumes at; leaving
+  from the debrief says so; any decided handoff shift can close without another;
+  P under handoff pinned by test (no change needed); agreement chip steady between shifts.
+- **F (6/6):** bad-evidence follow-on replaced; "from the next shift" only when true;
+  open serious incident named in an ungraded shift; shift-close notice read once,
+  politely; current order on the fulfilled card; achievements no longer unread.
+- **G (4/4):** operator/agent SCADA setpoint writes logged as decisions; idle orbit kept
+  outside the hall and stops at its first collision (the "camera moves by itself" cause:
+  a per-frame orbit about a point 51.6 m out, ratcheting inward on collision pushes);
+  `exact` removed from getByRole; e2e waits for startup ready before its first audit.
+
+Lead fixes after merging (each failing-test-first, pixels checked at 1280×657 EN and pt-BR):
+autonomous season defers under every non-own hold (tour, restore, layout), not only P;
+compacted card keeps the current order; identical shift-close notices re-read; Open repair
+tested for wear; **wear warnings now reach the bell** (they were only a spoken PA line, so
+Open repair never appeared); top bar stays one row (it wrapped at 1280 px with both amber
+chips and put the clock under the open panel), only the line-idle chip truncates; the
+fulfilled card's action pinned; an incomplete agreement says why (e.g. reload safety),
+translated, in the debrief, the BAS panel and the archive.
+
+Runtime confirmed on the final build: "Now: County School Meals, 0 of 8,000 kg…" on the
+card; bell "1 unread" = the wear warning, achievements listed but not unread; Open repair
+lands on Maintenance and repairs; bar 49 px, clock unobstructed with the panel open (EN,
+pt-BR); pt-BR reload keeps the review and says "Motivo: …"; 0 console errors.
+
+**Final gate (vs baseline):** typecheck/agent:typecheck/lint/format 0; agent:manifest:check
+0 after regenerating the gitignored inventory (it read stale at first, as in every gate
+here); vitest 3,754 pass, 28 skipped, the same 5 `assets/source` ENOENT fails, nothing
+new; build and the five validators 0; dist deleted. **e2e: both pass, in two runs on the
+final tree** (master refinement passed in the full-suite run where AI Partner timed out
+on its 60 s boot wait at load 25; AI Partner then passed alone at 49.5 s).
+
+**In pixels vs tests only.** Seen in a browser on the final build: the items listed above.
+Unit-tested only, never seen in a browser: D's repair countdown ("Service unit at work: N
+min left"; no breakdown occurs in a run), E's pace buttons under a handoff hold, E's close-
+experiment button, E's leave message in the debrief, F's follow-on replacement notice, F's
+incident in an ungraded review. The 7.5-minute standard-pace narrative run (orders 1–2,
+changeover, Truck 1 of 2) was on the pre-round-2 build; final-build runs used 1x briefly,
+then 4x.
+
+### Round 3 (20 Oct, on Nell's "fix these properly")
+
+- **Idle orbit, fixed properly:** off by default (the camera moves only on input; C turns
+  it on). The turn is ours, not OrbitControls' per-frame `autoRotate`: radians per second,
+  exact radius and height, and it starts only when its whole circle is checked clear of
+  the hall and every collider (`idleOrbitPathClear`); the collision stop is a backstop.
+  Browser: 0 m of movement over 120 s idle after the tour; after `0` then C, 65 m of turn
+  in 30 s at constant height. Tests: same angle at 30 and 120 fps; exact radius from all
+  seven presets over twelve simulated minutes.
+- **Reload during a cooperative shift, fixed properly:** reload safety still settles the
+  saved snapshot (every grant, ballot, check and cover consent expires; money settles), but
+  it no longer ends the work. `resumeShift` returns a reload-settled, unfinished campaign
+  shift to deliberation at the minute reached; it runs only after fresh consent; the
+  resumed activation buys nothing again, reserves wages and cover only for what is left,
+  keeps its one cover member and counts no second AI action. Restore keeps exactly the
+  reload sentinel (any other reason is still replaced), so the shift stays resumable.
+  Autoplay resumes before sharing sobras or moving on; the BAS panel offers "Resume the
+  shift with fresh consent"; the outcome reads pending, and the debrief says "Paused by a
+  reload at minute N". Tests: a season reloaded twice mid-shift is honoured; resumed cover;
+  reject cases (stopped, finished). Browser, pt-BR: reload at shift 2 minute 20 → review
+  "pending" → deliberating 21 → active 22 → season end "Acordo de trabalho: cumprido.
+  Resultado combinado: concluído." No `translated-ltr`.
+- **Gate:** all checks 0; vitest 3,761 pass, the same 5 `assets/source` ENOENT fails, plus 2
+  `workplaceAdvice.test.ts` timeouts at load average 56–64 that pass 21/21 alone.
+
+### What remains (1 needs Nell, 4 recorded)
+
+Needs Nell: a native Brazilian reader for the cooperative vocabulary and the newer strings
+("Ver a expedição", "Acordo entre turnos", wear warning, reload pause and resume).
+Recorded: no SCADA setpoint control exists in the UI, so only agent writes reach the log
+today; no axe scan of the loading overlay (not deterministic without request stalling);
+time to ready 35–57 s on this machine under load 5–25 (no frame-rate claims); pt-BR not
+lazy-loaded (decision above).

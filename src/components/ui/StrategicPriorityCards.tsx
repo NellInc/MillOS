@@ -2,7 +2,7 @@
  * StrategicPriorityCards Component
  *
  * Displays strategic priorities as dismissible cards in the UI.
- * Shows action plans and recommendations from the strategic layer (Gemini or
+ * Shows action plans and recommendations from the strategic layer (cloud BYOK or
  * the local WebGPU core).
  */
 
@@ -10,7 +10,10 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Target, X, Lightbulb, AlertTriangle, Gauge } from 'lucide-react';
 import { useAIConfigStore } from '../../stores/aiConfigStore';
+import { CLOUD_MODELS } from '../../utils/cloudAIClient';
 import { ConfidenceBar } from './ConfidenceBar';
+import { formatFixed, useT } from '../../i18n';
+import { strategicPriorityCardsMessages } from './StrategicPriorityCards.messages';
 
 interface StrategicPriorityCardsProps {
   className?: string;
@@ -19,6 +22,7 @@ interface StrategicPriorityCardsProps {
 export const StrategicPriorityCards: React.FC<StrategicPriorityCardsProps> = ({
   className = '',
 }) => {
+  const t = useT(strategicPriorityCardsMessages);
   const strategic = useAIConfigStore((state) => state.strategic);
   const llmBackend = useAIConfigStore((state) => state.llmBackend);
   const [dismissedPriorities, setDismissedPriorities] = useState<Set<number>>(new Set());
@@ -61,10 +65,10 @@ export const StrategicPriorityCards: React.FC<StrategicPriorityCardsProps> = ({
               />
               <span className="text-sm text-cyan-400">
                 {llmBackend === 'webgpu'
-                  ? 'Local core analyzing...'
+                  ? t('localCoreAnalyzing')
                   : llmBackend === 'chatgpt'
-                    ? 'ChatGPT analyzing...'
-                    : 'Gemini analyzing...'}
+                    ? t('modelAnalyzing', { model: 'ChatGPT' })
+                    : t('modelAnalyzing', { model: CLOUD_MODELS[llmBackend].label })}
               </span>
             </div>
           </motion.div>
@@ -112,12 +116,12 @@ export const StrategicPriorityCards: React.FC<StrategicPriorityCardsProps> = ({
                       isHighPriority ? 'text-cyan-300' : 'text-slate-300'
                     }`}
                   >
-                    Priority {priorityNumber}
+                    {t('priority', { number: formatFixed(priorityNumber, 0) })}
                   </span>
                 </div>
                 <button
                   onClick={() => dismissPriority(index)}
-                  aria-label="Dismiss priority"
+                  aria-label={t('dismissPriority')}
                   className="p-1 hover:bg-slate-700/50 rounded transition-colors"
                 >
                   <X
@@ -135,7 +139,7 @@ export const StrategicPriorityCards: React.FC<StrategicPriorityCardsProps> = ({
                 {isHighPriority && strategic.focusMachine && (
                   <div className="mt-2 flex items-center gap-1.5 text-[10px] text-amber-400">
                     <Gauge className="w-3 h-3" />
-                    <span>Focus: {strategic.focusMachine}</span>
+                    <span>{t('focus', { machine: strategic.focusMachine })}</span>
                   </div>
                 )}
               </div>
@@ -155,13 +159,13 @@ export const StrategicPriorityCards: React.FC<StrategicPriorityCardsProps> = ({
               <Lightbulb className="w-4 h-4 text-purple-400 flex-shrink-0 mt-0.5" />
               <div>
                 <span className="text-[10px] font-medium text-purple-400 uppercase tracking-wider">
-                  AI Insight
+                  {t('aiInsight')}
                 </span>
                 <p className="text-xs text-purple-200 mt-0.5">{strategic.insight}</p>
               </div>
               <button
                 onClick={() => setDismissedPriorities((prev) => new Set([...prev, -1]))}
-                aria-label="Dismiss insight"
+                aria-label={t('dismissInsight')}
                 className="p-1 hover:bg-purple-800/30 rounded transition-colors ml-auto"
               >
                 <X aria-hidden="true" className="w-3 h-3 text-purple-400" />
@@ -182,13 +186,13 @@ export const StrategicPriorityCards: React.FC<StrategicPriorityCardsProps> = ({
               <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
               <div>
                 <span className="text-[10px] font-medium text-amber-400 uppercase tracking-wider">
-                  Trade-off
+                  {t('tradeoff')}
                 </span>
                 <p className="text-xs text-amber-200 mt-0.5">{strategic.tradeoff}</p>
               </div>
               <button
                 onClick={() => setDismissedPriorities((prev) => new Set([...prev, -2]))}
-                aria-label="Dismiss trade-off"
+                aria-label={t('dismissTradeoff')}
                 className="p-1 hover:bg-amber-800/30 rounded transition-colors ml-auto"
               >
                 <X aria-hidden="true" className="w-3 h-3 text-amber-400" />
@@ -206,7 +210,7 @@ export const StrategicPriorityCards: React.FC<StrategicPriorityCardsProps> = ({
           >
             <ConfidenceBar
               confidence={strategic.confidenceScores.overall}
-              label="AI Confidence"
+              label={t('aiConfidence')}
               showPercentage={true}
               size="md"
             />

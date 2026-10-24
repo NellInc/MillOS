@@ -1,0 +1,14 @@
+{
+  "index": {
+    "url": "http://127.0.0.1:4288/",
+    "sha256": "3890e23b86395af2520acedd136526d9244c94109e7eff0d52bf436b5ec9ca27",
+    "bytes": 9887
+  },
+  "entries": [
+    {
+      "url": "http://127.0.0.1:4288/assets/main-B2laeQTV.js",
+      "sha256": "83d33b02dfc5a6f141b1fcfed73b90863c4dd102e2350b8feb5757110df20b0e",
+      "bytes": 823695
+    }
+  ]
+}

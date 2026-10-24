@@ -193,6 +193,46 @@ describe('PAAnnouncementSystem caption lifecycle', () => {
     expect(container).toHaveClass('top-20');
   });
 
+  it('keeps the desktop PA below the 48px status bar and caps its width on the container', async () => {
+    enqueueAnnouncement();
+    render(<PAAnnouncementSystem />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+
+    const container = document.querySelector('[data-safety-offset="false"]');
+    expect(container).toBeInTheDocument();
+    // top-4 put the toast over the status bar's centre readouts.
+    expect(container).toHaveClass('top-16');
+    expect(container).not.toHaveClass('top-4');
+    // The cap sits on the centred container so the card is centred, and it
+    // narrows symmetrically while a side panel is open.
+    expect(container?.className).toContain('w-[min(32rem,90vw)]');
+    expect(container?.className).toContain('[[data-sidebar-visible=true]_&]:');
+  });
+
+  it('shows a caption-only notice without reading it a second time', async () => {
+    useAnnouncementsStore.getState().addAnnouncement({
+      type: 'info',
+      message: 'Morning shift closed: grade B. Its review is in Overview.',
+      priority: 3,
+      source: 'Shift review',
+      channel: 'operational',
+      cooldownMs: 0,
+      captionOnly: true,
+    });
+    render(<PAAnnouncementSystem />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    // The bell notice it accompanies is what a screen reader hears.
+    expect(screen.getByRole('status')).toHaveTextContent('');
+    expect(
+      screen.getByText('Morning shift closed: grade B. Its review is in Overview.')
+    ).toBeVisible();
+  });
+
   it('lets compact safety guidance own the visual hierarchy while retaining the live region', async () => {
     layoutState.compact = true;
     useGameSimulationStore.setState({ emergencyActive: true });

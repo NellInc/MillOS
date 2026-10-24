@@ -19,6 +19,10 @@ import {
   type Dock,
   type LogisticsProposal,
 } from '../simulation/layoutPlanning';
+import { SITE_LAYOUT, type Vec3Tuple } from '../constants/siteLayout';
+import { translate } from '../i18n';
+import { logisticsLayoutStoreMessages } from './logisticsLayoutStore.messages';
+import { logisticsRuntimeMessages } from '../simulation/logisticsRuntime.messages';
 import {
   logisticsFleetReady,
   prepareLogisticsFleet,
@@ -54,6 +58,106 @@ export const defaultSavedLogisticsLayout = (): SavedLogisticsLayout => ({
   revision: 0,
 });
 
+/**
+ * Earlier default routes. Their fixed poses differ from today's, so a save
+ * holding one would fail the fixed-pose check and halt the restore. Each lists
+ * the corners a player could move on it.
+ * Working if such a save restores onto the current route.
+ */
+interface LegacyRoute {
+  readonly points: readonly Vec3Tuple[];
+  readonly editable: readonly number[];
+}
+const LEGACY_SHIPPING_ROUTES: readonly (readonly Vec3Tuple[])[] = [
+  // Until 2026-10-20: the east end doubled back from (25, 42) to (22.5, 43)
+  // and spun the forklift.
+  [
+    [-16, 0, 42],
+    [12, 0, 42],
+    [25, 0, 42],
+    [22.5, 0, 43],
+    [22.5, 0, 48],
+    [26, 0, 48],
+    [26, 0, 42],
+    [-16, 0, 42],
+  ],
+  // Until 2026-10-21: squared off, but the dropoff at (22.5, 48) was 22.5 m
+  // from the trailer it loads.
+  [
+    [-16, 0, 42],
+    [12, 0, 42],
+    [16, 0, 42],
+    [22.5, 0, 42],
+    [22.5, 0, 48],
+    [28.5, 0, 48],
+    [28.5, 0, 42],
+    [-16, 0, 42],
+  ],
+  // Until 2026-10-20: the dropoff at (0, 47.25) set the pallet on the channel
+  // floor below a dock deck 2 m up.
+  [
+    [-16, 0, 42],
+    [-10, 0, 42],
+    [-5, 0, 42],
+    [0, 0, 42],
+    [0, 0, 47.25],
+    [0, 0, 42],
+    [-8, 0, 42],
+    [-16, 0, 42],
+  ],
+];
+
+const LEGACY_ROUTES: Record<Dock, readonly LegacyRoute[]> = {
+  // Every legacy shipping route has the same single editable corner (index 2).
+  shipping: LEGACY_SHIPPING_ROUTES.map((points) => ({ points, editable: [2] })),
+  receiving: [
+    // Until 2026-10-20: the pickup at (-28, -43) was 28 m from the trailer it
+    // unloads. No corner of it was editable.
+    {
+      points: [
+        [-28, 0, -43],
+        [-28, 0, -38],
+        [-28, 0, -30],
+        [-28, 0, -22],
+        [-35, 0, -22],
+        [-35, 0, -38],
+      ],
+      editable: [],
+    },
+  ],
+};
+
+const samePoint = (a: unknown, b: Vec3Tuple): boolean =>
+  Array.isArray(a) && a.length === 3 && a.every((value, axis) => value === b[axis]);
+
+/**
+ * Moves a layout drawn on a legacy route onto the current one. The editable
+ * corners of the legacy routes lie on legs the current routes no longer drive,
+ * so a corner the player moved there is returned to the default rather than
+ * carried across the hall. Any other layout is left untouched.
+ */
+function migrateLegacyRoutes(layout: LogisticsProposal | null): LogisticsProposal | null {
+  if (!layout || !layout.routes) return layout;
+  let routes = layout.routes;
+  for (const dock of ['shipping', 'receiving'] as const) {
+    const route = layout.routes[dock];
+    if (!Array.isArray(route)) continue;
+    const legacy = LEGACY_ROUTES[dock].some(
+      (old) =>
+        route.length === old.points.length &&
+        old.points.every(
+          (point, index) => old.editable.includes(index) || samePoint(route[index], point)
+        )
+    );
+    if (legacy)
+      routes = {
+        ...routes,
+        [dock]: SITE_LAYOUT.routes.forklifts[dock].points.map((point) => [...point]),
+      };
+  }
+  return routes === layout.routes ? layout : { ...layout, routes };
+}
+
 export function validateSavedLogisticsLayout(
   raw: unknown,
   machines: readonly SpoutMachine[]
@@ -64,35 +168,37 @@ export function validateSavedLogisticsLayout(
   if (!Number.isSafeInteger(saved.revision) || saved.revision < 0)
     throw new Error('Invalid layout revision');
   if (!saved.layout) throw new Error('Missing saved logistics layout');
-  for (const layout of [saved.layout, saved.previous]) {
-    if (layout === null && layout === saved.previous) continue;
-    if (
-      !layout ||
-      !scoreLogisticsLayout(
-        layout,
-        DEFAULT_PLANNING_ASSUMPTIONS,
-        capturedPlanningObstacles(machines, [])
-      ).feasible
-    )
+  const feasible = (layout: LogisticsProposal) =>
+    scoreLogisticsLayout(
+      layout,
+      DEFAULT_PLANNING_ASSUMPTIONS,
+      capturedPlanningObstacles(machines, [])
+    ).feasible;
+  const layout = migrateLegacyRoutes(saved.layout);
+  const previous = migrateLegacyRoutes(saved.previous);
+  for (const candidate of [layout, previous]) {
+    if (candidate === null && candidate === previous) continue;
+    if (!candidate || !feasible(candidate))
       throw new Error('Saved logistics layout has invalid clearance');
   }
   return structuredClone({
-    layout: saved.layout,
-    previous: saved.previous,
+    layout: layout as LogisticsProposal,
+    previous,
     revision: saved.revision,
   });
 }
 
 export function logisticsControlHold(): string | null {
-  if (isPhysicalSessionRestoring()) return 'Wait for the saved shift to finish restoring.';
+  if (isPhysicalSessionRestoring())
+    return translate(logisticsLayoutStoreMessages, 'sessionRestoring');
   const game = useGameSimulationStore.getState();
   if (selectSafetyHoldActive(game) || useSafetyStore.getState().forkliftEmergencyStop)
-    return 'Resolve the site safety hold first.';
+    return translate(logisticsLayoutStoreMessages, 'safetyHold');
   if (isWorkplaceReplayActive() || isWorkplaceReplayRestoring())
-    return 'Finish the replay experiment before changing logistics.';
+    return translate(logisticsLayoutStoreMessages, 'replayActive');
   const service = peekSCADAService();
   if (service ? service.getState().mode !== 'simulation' : useProductionStore.getState().scadaLive)
-    return 'Logistics changes require local simulation control, never live or hybrid SCADA.';
+    return translate(logisticsLayoutStoreMessages, 'localControlOnly');
   return null;
 }
 
@@ -142,18 +248,14 @@ export const useLogisticsLayoutStore = create<LogisticsLayoutState>((set, get) =
   ) => {
     const state = get();
     let reason = logisticsControlHold();
-    if (
-      !reason &&
-      (useProductionStore.getState().productionSpeed !== 0 ||
-        useGameSimulationStore.getState().gameSpeed !== 0)
-    )
-      reason = 'Pause the mill before applying or undoing a layout.';
+    if (!reason && useGameSimulationStore.getState().gameSpeed !== 0)
+      reason = translate(logisticsLayoutStoreMessages, 'pauseFirst');
     const machines = useProductionStore.getState().machines;
     if (
       !reason &&
       (!machines.length || state.revision !== revision || spoutMachineKey(machines) !== machineKey)
     )
-      reason = 'The live layout changed. Capture current again.';
+      reason = translate(logisticsLayoutStoreMessages, 'layoutChanged');
     if (
       !reason &&
       !scoreLogisticsLayout(
@@ -162,10 +264,9 @@ export const useLogisticsLayoutStore = create<LogisticsLayoutState>((set, get) =
         capturedPlanningObstacles(machines, positionRegistry.getAllObstacles())
       ).feasible
     )
-      reason =
-        'The proposal fails the live clearance check. Capture current again and resolve its conflicts.';
+      reason = translate(logisticsLayoutStoreMessages, 'clearanceFailed');
     if (!reason && !logisticsFleetReady())
-      reason = 'Wait for both forklifts to finish loading into the scene.';
+      reason = translate(logisticsRuntimeMessages, 'fleetNotReady');
     if (reason) return { changed: false, reason };
     const install = prepareLogisticsFleet(proposal);
     if (typeof install === 'string') return { changed: false, reason: install };
@@ -196,7 +297,7 @@ export const useLogisticsLayoutStore = create<LogisticsLayoutState>((set, get) =
       const previous = get().previous;
       return previous
         ? commit(previous, revision, machineKey, true)
-        : { changed: false, reason: 'There is no applied layout to undo.' };
+        : { changed: false, reason: translate(logisticsLayoutStoreMessages, 'nothingToUndo') };
     },
     restoreSaved: (saved) => {
       pendingMetres = pendingUnloads = 0;

@@ -98,6 +98,140 @@ describe('AlertSystem', () => {
     });
   });
 
+  describe('Polite notices', () => {
+    const notice = (id: string, announce?: 'polite') => ({
+      id,
+      type: 'info' as const,
+      title: `${id} title`,
+      message: `${id} message.`,
+      timestamp: new Date(),
+      acknowledged: false,
+      ...(announce ? { announce } : {}),
+    });
+    const politeRegion = () => document.querySelector('[role="status"][aria-live="polite"]');
+
+    it('reads an alert marked polite once, and leaves routine info alerts silent', async () => {
+      // Present before mount: already filed, so not news.
+      useUIStore.getState().addAlert(notice('restored', 'polite'));
+      render(<AlertSystem />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(100);
+      });
+      expect(politeRegion()).toBeInTheDocument();
+      expect(politeRegion()).toHaveClass('sr-only');
+      expect(politeRegion()).toHaveTextContent('');
+
+      act(() => useUIStore.getState().addAlert(notice('routine')));
+      expect(politeRegion()).toHaveTextContent('');
+
+      act(() => useUIStore.getState().addAlert(notice('shift-review-1', 'polite')));
+      expect(politeRegion()).toHaveTextContent('shift-review-1 title. shift-review-1 message.');
+      // The assertive region stays for safety, critical and warning alerts.
+      expect(document.querySelector('[role="alert"]')).toHaveTextContent('');
+
+      // Acknowledging it in the bell changes the list but is not a new notice.
+      act(() => useUIStore.getState().acknowledgeAlert('shift-review-1'));
+      act(() => useUIStore.getState().addAlert(notice('routine-2')));
+      expect(politeRegion()).toHaveTextContent('shift-review-1 title. shift-review-1 message.');
+    });
+
+    it('reads a notice again when the next one has the same words', () => {
+      render(<AlertSystem />);
+      const same = (id: string) => ({
+        id,
+        type: 'info' as const,
+        title: 'Afternoon shift closed: grade A',
+        message: 'Its review is in Overview.',
+        timestamp: new Date(),
+        acknowledged: false,
+        announce: 'polite' as const,
+      });
+      act(() => useUIStore.getState().addAlert(same('shift-review-2')));
+      const first = politeRegion()!.textContent;
+      act(() => useUIStore.getState().addAlert(same('shift-review-3')));
+      const second = politeRegion()!.textContent;
+      // A live region whose text does not change is not read again.
+      expect(second).not.toBe(first);
+      expect(politeRegion()).toHaveTextContent(
+        'Afternoon shift closed: grade A. Its review is in Overview.'
+      );
+      act(() => useUIStore.getState().addAlert(same('shift-review-4')));
+      expect(politeRegion()!.textContent).not.toBe(second);
+    });
+  });
+
+  // Breakdowns, wear warnings and quality holds are read from the bell itself,
+  // so a player who muted game audio (which silences the PA) still hears them.
+  describe('Production faults reach a screen reader whatever the audio', () => {
+    const fault = (
+      id: string,
+      type: 'critical' | 'warning',
+      announce?: 'polite' | 'assertive'
+    ) => ({
+      id,
+      type,
+      title: `${id} title`,
+      message: `${id} message.`,
+      machineId: 'rm-103',
+      timestamp: new Date(),
+      acknowledged: false,
+      ...(announce ? { announce } : {}),
+    });
+    const assertiveRegion = () => document.querySelector('[role="alert"]');
+    const politeRegion = () => document.querySelector('[role="status"][aria-live="polite"]');
+
+    it('reads a breakdown assertively and a wear warning politely as they are filed', () => {
+      useUIStore.getState().addAlert(fault('breakdown-before-mount', 'critical', 'assertive'));
+      render(<AlertSystem />);
+      // Already in the bell at mount: not news.
+      expect(assertiveRegion()).toHaveTextContent('');
+
+      act(() => useUIStore.getState().addAlert(fault('breakdown-rm-103', 'critical', 'assertive')));
+      expect(assertiveRegion()).toHaveTextContent(
+        'breakdown-rm-103 title. breakdown-rm-103 message.'
+      );
+      expect(politeRegion()).toHaveTextContent('');
+
+      act(() => useUIStore.getState().addAlert(fault('wear-warning-rm-103', 'warning', 'polite')));
+      expect(politeRegion()).toHaveTextContent(
+        'wear-warning-rm-103 title. wear-warning-rm-103 message.'
+      );
+      // Unmarked alerts (SCADA alarms, sample traffic) stay in the bell only.
+      act(() => useUIStore.getState().addAlert(fault('scada-1', 'critical')));
+      expect(assertiveRegion()).toHaveTextContent(
+        'breakdown-rm-103 title. breakdown-rm-103 message.'
+      );
+    });
+
+    it('reads two faults filed in one tick, and re-reads an identical later one', () => {
+      render(<AlertSystem />);
+      act(() =>
+        useUIStore.setState((state) => ({
+          alerts: [
+            // Newest first, as addAlert files them: a, then b.
+            fault('breakdown-b', 'critical', 'assertive'),
+            fault('breakdown-a', 'critical', 'assertive'),
+            ...state.alerts,
+          ],
+        }))
+      );
+      expect(assertiveRegion()).toHaveTextContent(
+        'breakdown-a title. breakdown-a message. breakdown-b title. breakdown-b message.'
+      );
+      const first = assertiveRegion()!.textContent;
+      act(() =>
+        useUIStore.setState((state) => ({
+          alerts: [
+            { ...fault('breakdown-b', 'critical', 'assertive'), id: 'breakdown-b2' },
+            { ...fault('breakdown-a', 'critical', 'assertive'), id: 'breakdown-a2' },
+            ...state.alerts,
+          ],
+        }))
+      );
+      expect(assertiveRegion()!.textContent).not.toBe(first);
+    });
+  });
+
   describe('Safety Integration', () => {
     it('should create safety alert when safety stop occurs', async () => {
       vi.spyOn(Math, 'random').mockReturnValue(0);

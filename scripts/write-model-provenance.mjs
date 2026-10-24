@@ -19,14 +19,21 @@
  *
  *   npm run provenance:models
  *
- * It reads only, apart from the two JSON files it writes, so it never touches a
- * GLB and cannot introduce the 4-byte forklift drift that re-running
- * normalization does.
+ * It reads only, apart from the PROVENANCE.json files it writes, so it never
+ * touches a GLB. Its JSON.stringify layout is the format of record for those
+ * files, which is why `.prettierignore` excludes them.
  */
+import console from 'node:console';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { GENERATED_ASSETS } from './normalize-model-assets.mjs';
+import {
+  RECONCILED_FARM_MODELS,
+  AUTHORING_SCRIPT,
+  BASELINE_DIRECTORY,
+  assertFarmNormalization,
+} from './reconcile-farm-models.mjs';
 
 const ROOT = process.cwd();
 const SOURCE_ROOT = path.join(ROOT, 'assets', 'source', 'models');
@@ -55,6 +62,7 @@ function packFor(spec, result) {
     preservedAs: `${spec.slug}-tripo-original.glb`,
     sha256: result.sourceSha256,
     blenderPreparation: result.blenderPreparation,
+    ...(RECONCILED_FARM_MODELS[spec.id] ? { geometryRefinement: result.geometryRefinement } : {}),
     runtimeDerivative: {
       file: `public/models/${result.file}`,
       sha256: result.outputSha256,
@@ -125,6 +133,24 @@ const main = async () => {
   const areaFlag = process.argv.find((arg) => arg.startsWith('--area='))?.slice(7);
   const areas = [...new Set(specs.map((spec) => spec.area))];
   if (areaFlag && !areas.includes(areaFlag)) throw new Error('Unknown provenance area');
+  if (!areaFlag || areaFlag === 'farm') {
+    // Validate the complete bounded chain before writing any provenance area.
+    for (const { id } of specs.filter((entry) => RECONCILED_FARM_MODELS[entry.id])) {
+      const spec = RECONCILED_FARM_MODELS[id];
+      if (report.generated.filter((entry) => entry.id === id).length !== 1)
+        throw new Error(`${id}: exactly one normalization row required`);
+      await assertFarmNormalization(
+        id,
+        byId.get(id),
+        await readFile(path.join(ROOT, 'public/models/farm', `${spec.slug}.glb`)),
+        await readFile(path.join(ROOT, BASELINE_DIRECTORY, `${spec.slug}.baseline.glb`)),
+        await readFile(path.join(SOURCE_ROOT, 'farm', `${spec.slug}-tripo-original.glb`)),
+        await readFile(path.join(SOURCE_ROOT, 'farm', `${spec.slug}-crafted.glb`)),
+        await readFile(path.join(ROOT, AUTHORING_SCRIPT)),
+        JSON.parse(await readFile(path.join(ROOT, 'public/models/asset-manifest.json'), 'utf8'))
+      );
+    }
+  }
   for (const area of areaFlag ? [areaFlag] : areas) {
     const packs = specs
       .filter((spec) => spec.area === area)

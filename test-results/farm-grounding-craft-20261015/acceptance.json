@@ -1,0 +1,186 @@
+{
+  "scope": "AE cultivated farm ground and seated drainage craft,34 finite items",
+  "status": "bounded pass complete",
+  "authorReview": "This chat authored and reviewed the actual geometry, exact native images and live art-camera assembly.",
+  "baseline": {
+    "tests": 51,
+    "files": 3,
+    "failingNames": []
+  },
+  "affected": {
+    "tests": 57,
+    "files": 3,
+    "delta": 6,
+    "exitCode": 0
+  },
+  "reproductions": [
+    "Old real cached lintel blocks crown ray with2hits",
+    "Actual farm paving has no field surface"
+  ],
+  "initialImplementationFailure": "Soil1920triangles exceeded existing realm16,232 limit; reduced only longitudinal subdivisions, final soil320/realm16,196, original failure log retained",
+  "sourceGates": {
+    "typecheck": 0,
+    "lint": 0,
+    "format:check": 0,
+    "validate:shaders": 0,
+    "build": 0,
+    "validate:reachability": 0
+  },
+  "visual": [
+    {
+      "label": "day",
+      "scene": "farm",
+      "servedBuildMatches": true,
+      "sandboxedMetal": true,
+      "cleanDiagnostics": true,
+      "worldCommunityCheckpoints": true,
+      "generalVehicleMotion": true,
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "timingMisses": [
+        "firstFrame",
+        "averageFps",
+        "p95Frame",
+        "p99Frame",
+        "onePercentLow"
+      ],
+      "loadPerCore": 3.91,
+      "p95FrameMs": 36,
+      "startupMarks": {
+        "millos:bootstrap": 222.1,
+        "millos:first-frame": 361.7,
+        "millos:world-ready": 37272.7,
+        "millos:startup-ready": 45376.4
+      },
+      "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AE-farm-grounding-day-20261015/farm.png"
+    },
+    {
+      "label": "dusk",
+      "scene": "farm",
+      "servedBuildMatches": true,
+      "sandboxedMetal": true,
+      "cleanDiagnostics": true,
+      "worldCommunityCheckpoints": true,
+      "generalVehicleMotion": true,
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "timingMisses": [
+        "averageFps",
+        "p95Frame",
+        "p99Frame",
+        "onePercentLow"
+      ],
+      "loadPerCore": 5.22,
+      "p95FrameMs": 39.3,
+      "startupMarks": {
+        "millos:bootstrap": 243.3,
+        "millos:first-frame": 324.5,
+        "millos:world-ready": 31381,
+        "millos:startup-ready": 44580.8
+      },
+      "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AE-farm-grounding-dusk-20261015/farm.png"
+    },
+    {
+      "label": "night",
+      "scene": "farm",
+      "servedBuildMatches": true,
+      "sandboxedMetal": true,
+      "cleanDiagnostics": true,
+      "worldCommunityCheckpoints": true,
+      "generalVehicleMotion": true,
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "timingMisses": [
+        "averageFps",
+        "p95Frame",
+        "p99Frame",
+        "onePercentLow"
+      ],
+      "loadPerCore": 4.62,
+      "p95FrameMs": 31.8,
+      "startupMarks": {
+        "millos:bootstrap": 192.4,
+        "millos:first-frame": 274.4,
+        "millos:world-ready": 26753.5,
+        "millos:startup-ready": 33889.6
+      },
+      "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AE-farm-grounding-night-20261015/farm.png"
+    }
+  ],
+  "close": {
+    "runtimeReady": true,
+    "worldReady": true,
+    "startupReady": true,
+    "loadingCover": false,
+    "startupReadyMs": 29222.5,
+    "firstFrameMs": 230.8,
+    "fieldCulvertWorld": [
+      75,
+      -0.3,
+      148.5
+    ],
+    "yardCulvertWorld": [
+      67,
+      -0.3,
+      112
+    ],
+    "allThreeCropChecksums": 87114.58188405773,
+    "banks": "Consumed by static batch; actual roof/headwall visible at both sites; source meshes209 to211, instanced batches4 to5, total batches14 to15",
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "consoleErrors": [],
+    "publicArtCameraOnly": true,
+    "ownTabClosed": true
+  },
+  "cleanup": {
+    "restoredDependencyTarget": "/Users/nellwatson/Documents/GitHub/MillOS/node_modules",
+    "borrowedEntriesVerified": 375,
+    "generatedRemoved": [
+      ".vite",
+      ".vite/vitest",
+      ".vite/vitest/da39a3ee5e6b4b0d3255bfef95601890afd80709",
+      ".vite/vitest/da39a3ee5e6b4b0d3255bfef95601890afd80709/results.json",
+      ".vite-temp"
+    ],
+    "noOpenHandles": [
+      {
+        "dir": "node_modules",
+        "exitCode": 1,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "dir": "/private/tmp/millos-AE-npm-cache",
+        "exitCode": 1,
+        "stdout": "",
+        "stderr": ""
+      }
+    ],
+    "ownedNpmCacheRemoved": "/private/tmp/millos-AE-npm-cache",
+    "sourcePinsExact": 5,
+    "protectedPinsExact": 180,
+    "compiledPinsExact": 415,
+    "previewExit": 143,
+    "previewDeviation": "Exact owned Node stopped after heredoc shutdown wiring error; normal capture-lock utility reclaimed its proven dead lock and released it.",
+    "captureLockAbsent": true,
+    "physicalSpaceRecovery": "not claimed",
+    "retained": "source, final dist, raw images, failure logs, history and unrelated output"
+  },
+  "primaryCustodyExact": true,
+  "limitations": {
+    "pacing": "OPEN, every miss recorded; no non-art performance acceptance or isolated cost claim",
+    "playerDevice": "DEFERRED",
+    "hydrology": "Scenic model on retained ground, no excavated or navigable drainage simulation",
+    "impeccable": "Optional executable absent, no install or interface change",
+    "goal": "ACTIVE",
+    "delivery": "local only"
+  }
+}

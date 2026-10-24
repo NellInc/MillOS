@@ -1,0 +1,14 @@
+{
+  "index": {
+    "url": "http://127.0.0.1:4288/",
+    "sha256": "a1791ec2c3f6d927a55b5fe6b7613f21a5b61d3d38ab339f4c35893114c4fb06",
+    "bytes": 9887
+  },
+  "entries": [
+    {
+      "url": "http://127.0.0.1:4288/assets/main-CbgftnBr.js",
+      "sha256": "5220516266c579c6c67495da5aeb3fd2515332454f509478ea797f906e4388ec",
+      "bytes": 823695
+    }
+  ]
+}

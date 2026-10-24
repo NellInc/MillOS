@@ -1,4 +1,9 @@
+import { clampShelterVerticalMovement } from '../constants/publicRealmLayout';
 import { describe, expect, it } from 'vitest';
+import { createDisplacedGeometry } from '../components/terrain/TerrainGround';
+import { getRiverHeightfield, MILLOS_RIVER_CONFIG } from '../components/terrain/splatMapGenerator';
+import { TERRAIN_BOUNDS } from '../components/terrain/terrainTypes';
+import { SITE_LAYOUT } from '../constants/siteLayout';
 import { Vector3, Raycaster } from 'three';
 import {
   RIVER_FOOTBRIDGE_DECK,
@@ -9,11 +14,13 @@ import { createRiverFootbridgeAccessGeometry } from '../components/exterior/rive
 import {
   CASTLE_STEPS,
   CASTLE_ACCESS_LANTERNS,
+  CASTLE_ACCESS_LIGHT,
   CASTLE_STAIR_X,
   CASTLE_STAIR_WIDTH,
 } from '../constants/castleAccess';
 import {
   castleBlocks,
+  walkingBlocks,
   castleLocalPosition,
   castleWorldPosition,
   moveWalkingPosition,
@@ -160,7 +167,7 @@ describe('river bridge ground access', () => {
           }
           expect(highest).toBeCloseTo(4.1, 5);
           expect(direction * (p.z - RIVER_FOOTBRIDGE_DECK.centre[2])).toBeGreaterThan(44);
-          expect(p.y).toBeCloseTo(1.7, 5);
+          expect(p.y).toBeCloseTo(1.68, 5);
         }
     }
   );
@@ -174,4 +181,116 @@ describe('river bridge ground access', () => {
     expect(p.x).toBeGreaterThan(RIVER_FOOTBRIDGE_DECK.size[0] / 2);
     expect(p.y).toBe(8);
   });
+});
+
+describe('rendered river-bank contact', () => {
+  it.each([64, 128])('matches actual displaced terrain at tier %i', (segments) => {
+    const field = getRiverHeightfield(MILLOS_RIVER_CONFIG);
+    const geometry = createDisplacedGeometry(
+      1200,
+      1200,
+      segments,
+      field.data,
+      field.resolution,
+      MILLOS_RIVER_CONFIG.depth,
+      TERRAIN_BOUNDS
+    );
+    geometry.rotateX(-Math.PI / 2);
+    const mesh = new Mesh(geometry, new MeshBasicMaterial());
+    mesh.position.y = SITE_LAYOUT.datum.terrain;
+    mesh.updateMatrixWorld();
+    try {
+      for (const [x, z] of [
+        [100, -118],
+        [25, -190],
+        [-190, -104],
+      ]) {
+        const hit = new Raycaster(new Vector3(x, 40, z), new Vector3(0, -1, 0)).intersectObject(
+          mesh
+        )[0];
+        expect(hit).toBeDefined();
+        expect(sampleWalkingGroundHeight(x, z, segments)).toBeCloseTo(hit.point.y, 5);
+      }
+    } finally {
+      geometry.dispose();
+      mesh.material.dispose();
+    }
+  });
+});
+
+it.each([64, 128])(
+  'matches the real approach and keeps grounded movement out of water at tier %i',
+  (segments) => {
+    const mesh = new Mesh(createCastleStepsGeometry(segments), new MeshBasicMaterial());
+    mesh.updateMatrixWorld();
+    try {
+      for (const x of [5.7, 7.2, 8.7])
+        for (const z of [24.75, 25.35, 26.1, 27.95]) {
+          const hit = new Raycaster(new Vector3(x, 5, z), new Vector3(0, -1, 0)).intersectObject(
+            mesh
+          )[0];
+          expect(hit).toBeDefined();
+          const p = castleWorldPosition(x, hit.point.y, z);
+          expect(sampleWalkingGroundHeight(p[0], p[2], segments)).toBeCloseTo(p[1], 5);
+        }
+      const p = new Vector3(25, sampleWalkingGroundHeight(25, -108, segments) + 1.7, -108);
+      moveWalkingPosition(p, 0, -65, segments, true, 1.7, () => false);
+      expect(p.z).toBeGreaterThan(-140);
+      expect(sampleWalkingGroundHeight(p.x, p.z, segments)).toBeGreaterThanOrEqual(-1.92);
+      p.y = 10;
+      moveWalkingPosition(p, 0, -20, segments, false, 1.7, () => false);
+      expect(p.y).toBe(10);
+      expect(sampleWalkingGroundHeight(p.x, p.z, segments)).toBeLessThan(-2);
+    } finally {
+      mesh.geometry.dispose();
+      mesh.material.dispose();
+    }
+  }
+);
+
+// Observed native touch movement entered the delivered bench at x=29.2424.
+it('keeps a sprinting inspection camera in front of the shelter bench and lets it return', () => {
+  const p = new Vector3(27.65, 1.68, 140.4);
+  moveWalkingPosition(p, 4.32, 0, 64, true, 1.7, () => false);
+  expect(p.x).toBeGreaterThan(28.3);
+  expect(p.x + 0.4).toBeLessThanOrEqual(29.364 + 1e-6);
+  expect(p.y).toBeCloseTo(1.81, 6);
+  moveWalkingPosition(p, -4.32, 0, 64, true, 1.7, () => false);
+  expect(p.x).toBeLessThan(27.65);
+  expect(p.y).toBeCloseTo(1.68, 6);
+});
+
+it('keeps the shelter end panels and rear glass solid, with an open front and free space above', () => {
+  expect(walkingBlocks(28.5, 140, 0.11)).toBe(false);
+  expect(walkingBlocks(28.5, 142, 0.11)).toBe(true);
+  expect(walkingBlocks(30.05, 140, 1.0)).toBe(true);
+  expect(walkingBlocks(29.55, 140, 3.1)).toBe(false);
+  const p = new Vector3(28.5, 1.81, 140);
+  moveWalkingPosition(p, 0, 4.32, 64, true, 1.7, () => false);
+  expect(p.z).toBeGreaterThan(141.4);
+  expect(p.z + 0.4).toBeLessThanOrEqual(141.958 + 1e-6);
+});
+it('sweeps Q/E roof clearance in both directions without blocking inspection above it', () => {
+  expect(clampShelterVerticalMovement(28.3, 140, 0.11, 10)).toBeCloseTo(1.0, 6);
+  expect(clampShelterVerticalMovement(29, 140, 4, -1)).toBeCloseTo(2.99, 6);
+  expect(clampShelterVerticalMovement(29, 140, 4, 8)).toBe(8);
+  expect(clampShelterVerticalMovement(25, 140, 0, 10)).toBe(10);
+  // Real luminaire lens hangs below the housing, not through the inspection head.
+  expect(clampShelterVerticalMovement(28.88, 140, 0.11, 10)).toBeCloseTo(2.769 - 1.8, 6);
+});
+
+it('keeps the single access light inside the upper optic and within range of both flights and gateway paving', () => {
+  expect(CASTLE_ACCESS_LIGHT.position).toBe(CASTLE_ACCESS_LANTERNS[1]);
+  expect(CASTLE_ACCESS_LIGHT.intensity).toBe(96);
+  expect(CASTLE_ACCESS_LIGHT.distance).toBe(24);
+  const at = new Vector3(...castleWorldPosition(...CASTLE_ACCESS_LIGHT.position));
+  for (const [x, y, z] of [
+    [7.2, 0.2, 28],
+    [7.2, 1.7, 20.65],
+    [7.2, 3.2, 16.15],
+    [7.2, 3.2, 8],
+  ]) {
+    const target = new Vector3(...castleWorldPosition(x, y, z));
+    expect(at.distanceTo(target)).toBeLessThan(CASTLE_ACCESS_LIGHT.distance);
+  }
 });

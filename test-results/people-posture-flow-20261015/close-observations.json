@@ -1,0 +1,241 @@
+{
+  "origin": "http://127.0.0.1:4289",
+  "query": "benchmark=square&quality=medium&time=12&weather=clear&scada=on&pa=off&motion=on&art=on&operations=on",
+  "tab": 25,
+  "startupMarksMs": {
+    "worldReady": 17345.1,
+    "startupReady": 21907.2
+  },
+  "rise": {
+    "samples": 20,
+    "root": [
+      -215.35,
+      0,
+      10
+    ],
+    "footL": [
+      -215.2,
+      0.028,
+      9.9
+    ],
+    "footR": [
+      -215.5,
+      0.028,
+      9.9
+    ],
+    "hipsYTail": [
+      0.44,
+      0.5385589661888877,
+      0.6069531955709307,
+      0.6552864824695216,
+      0.6894926700806671
+    ],
+    "sampleIntervalMs": "approximately180-280, read-only scene traversal overhead, not a performance sample",
+    "tool": "visible while crouched, hidden at first rising sample",
+    "rendered": "actual rising gardener visible in screenshot with Rain selected",
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    }
+  },
+  "firstReturnAttempt": {
+    "accepted": false,
+    "reason": "Normal evening visibility ended before clear-weather return; hidden actor snaps to static semantic pose as required, empty view proves no animation. Repeat midday page initialization, no actor override."
+  },
+  "acceptedRise": {
+    "samples": 35,
+    "rootMovementMax": 0,
+    "footMovementMax": 0,
+    "firstHipsY": 0.4400000000000002,
+    "lastHipsY": 0.7737663460189335,
+    "visibleGripMaxMetres": 0.0035133249184511922,
+    "rows": [
+      [
+        7,
+        0.44,
+        true
+      ],
+      [
+        384,
+        0.44,
+        true
+      ],
+      [
+        725,
+        0.44,
+        true
+      ],
+      [
+        1028,
+        0.44,
+        true
+      ],
+      [
+        1315,
+        0.44,
+        true
+      ],
+      [
+        1583,
+        0.44,
+        true
+      ],
+      [
+        1846,
+        0.44,
+        true
+      ],
+      [
+        2076,
+        0.44,
+        true
+      ],
+      [
+        2303,
+        0.44,
+        true
+      ],
+      [
+        2547,
+        0.44,
+        true
+      ],
+      [
+        2782,
+        0.44,
+        true
+      ],
+      [
+        3012,
+        0.44,
+        true
+      ],
+      [
+        3251,
+        0.5381690649226664,
+        false
+      ],
+      [
+        3473,
+        0.6061914817786672,
+        false
+      ],
+      [
+        3718,
+        0.654798009075999,
+        false
+      ],
+      [
+        3965,
+        0.6897686668863994,
+        false
+      ],
+      [
+        4190,
+        0.7148641847053676,
+        false
+      ],
+      [
+        4408,
+        0.7327492375476234,
+        false
+      ],
+      [
+        4626,
+        0.7453610086453019,
+        false
+      ],
+      [
+        4851,
+        0.7540938450705997,
+        false
+      ],
+      [
+        5070,
+        0.759981647171922,
+        false
+      ],
+      [
+        5297,
+        0.7637917258397128,
+        false
+      ],
+      [
+        5531,
+        0.7661115107682945,
+        false
+      ],
+      [
+        5750,
+        0.7674066490273604,
+        false
+      ],
+      [
+        5970,
+        0.7680560962723845,
+        false
+      ],
+      [
+        6184,
+        0.7683483694721085,
+        false
+      ],
+      [
+        6396,
+        0.7684938593275558,
+        false
+      ],
+      [
+        6598,
+        0.7686459068794339,
+        false
+      ],
+      [
+        6797,
+        0.7688834791862208,
+        false
+      ],
+      [
+        6995,
+        0.7692544124411024,
+        false
+      ],
+      [
+        7179,
+        0.7697956803112572,
+        false
+      ],
+      [
+        7369,
+        0.770536997763868,
+        false
+      ],
+      [
+        7594,
+        0.7717348271956281,
+        false
+      ],
+      [
+        7796,
+        0.7727098673810976,
+        false
+      ],
+      [
+        8005,
+        0.7737663460189335,
+        false
+      ]
+    ],
+    "rendered": "actual crouched and upright people inspected in same exact compiled page; screenshots are conversation evidence",
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "consoleErrors": []
+  },
+  "secondLoadMarksMs": {
+    "worldReady": 28783.9,
+    "startupReady": 43679
+  },
+  "returnRuntimeLimit": "Clear-weather return motion not accepted from IAB: focus/input commands timed out twice during heavy read-only per-frame diagnostic traversal; inspected actual control state rather than retrying blindly. One replay uses fresh ordinary midday page initialization after normal evening visibility ended. A later failed return capture included normal route movement and is not stationary-return proof. Clear restored with successful ordinary control after sampler completed; tab closed. Actual-rig and mounted callbacks cover return/contact, pause, disabled semantics and locomotion. No in-app pacing/performance conclusion."
+}

@@ -23,6 +23,16 @@ const STORAGE_KEY = 'millos-gpu-resources';
 const SETTINGS_KEY = 'millos-gpu-settings';
 const MAX_ENTRIES = 500; // Prevent localStorage bloat
 
+// These keys are written directly, outside the persist() stores' shared storage,
+// so storage.ts suspendPersistence() cannot reach them. Working if: after
+// suspendResourcePersistence(), nothing here writes for the rest of the page.
+let writesSuspended = false;
+
+/** Reset Simulation calls this before clearing millos-* keys and reloading. */
+export function suspendResourcePersistence(): void {
+  writesSuspended = true;
+}
+
 export interface ResourceMetadata {
   type: 'geometry' | 'texture' | 'material' | 'renderTarget';
   id: string;
@@ -75,6 +85,7 @@ export function getPersistedResource(id: string): ResourceMetadata | null {
  * Persist a resource's metadata
  */
 export function persistResource(metadata: ResourceMetadata): void {
+  if (writesSuspended) return;
   try {
     const resources = getPersistedResources();
 
@@ -104,6 +115,7 @@ export function persistResource(metadata: ResourceMetadata): void {
  * Remove a persisted resource
  */
 export function removePersistedResource(id: string): void {
+  if (writesSuspended) return;
   try {
     const resources = getPersistedResources();
     resources.delete(id);
@@ -216,6 +228,7 @@ export function getGPUSettings(): GPUSettings {
  * Save GPU settings
  */
 export function saveGPUSettings(settings: Partial<GPUSettings>): void {
+  if (writesSuspended) return;
   try {
     const current = getGPUSettings();
     const updated = { ...current, ...settings };

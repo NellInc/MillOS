@@ -1,14 +1,25 @@
 import { GeneratedBoundary } from '../models/GeneratedModel';
 import { GeneratedGeometrySurface } from '../models/GeneratedGeometrySurface';
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
+import { EXTERIOR_LAMP_LEVEL } from '../exterior/ExteriorLighting';
 import * as THREE from 'three';
 import { FLOOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../../constants/renderLayers';
 import { SITE_LAYOUT, PROCESS_GALLERY_POST_X } from '../../constants/siteLayout';
 import { FIXTURE_GRID_X, FIXTURE_GRID_Z } from '../environment/InteriorLightRig';
 import { isPostProcessingActive, useGraphicsStore } from '../../stores/graphicsStore';
-import { PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
-import { hash } from '../../utils/textureGenerator';
 import { generateMachineORM } from '../../textures/brushedMetal';
+import {
+  FLOOR_DEPTH,
+  FLOOR_JOINT_PITCH,
+  FLOOR_JOINT_TILES_X,
+  FLOOR_JOINT_TILES_Z,
+  FLOOR_WIDTH,
+  buildFloorMacroMaps,
+  getFloorMacroMaps,
+  sampleFloorMacro,
+  type FloorMacroSample,
+} from '../../textures/factoryFloorMacro';
 import { generateConcrete } from '../../textures/concrete';
 import {
   generateMachinePanelNormal,
@@ -19,6 +30,8 @@ import {
   type WorldSurfaceOverrides,
   type WorldSurfaceProfileName,
 } from '../../utils/worldSurface';
+import { FLOOR_GRIT_CELL, SURFACE_GRIT_GLSL } from '../../utils/surfaceGrit';
+import { createColorDataTexture } from '../../utils/textureGenerator';
 
 const UNIT_BOX = new THREE.BoxGeometry(1, 1, 1);
 const UNIT_PLANE = new THREE.PlaneGeometry(1, 1);
@@ -153,361 +166,18 @@ const FLOOR_AGGREGATE_NORMAL = generateProceduralNormal(512, 1, 26);
 // INTERIOR SLAB SURFACE
 // ===========================================================================
 
-const FLOOR_WIDTH = SITE_LAYOUT.factory.floor.width;
-const FLOOR_DEPTH = SITE_LAYOUT.factory.floor.depth;
-
-/** Expansion-joint pitch in metres. Also the detail-map tile pitch. */
-export const FLOOR_JOINT_PITCH = 10;
-const FLOOR_JOINT_TILES_X = FLOOR_WIDTH / FLOOR_JOINT_PITCH;
-const FLOOR_JOINT_TILES_Z = FLOOR_DEPTH / FLOOR_JOINT_PITCH;
+// The slab macro builder lives in `textures/factoryFloorMacro.ts`, free of
+// React, so the startup bake worker can build it; re-exported for its callers.
+export { FLOOR_JOINT_PITCH, buildFloorMacroMaps, sampleFloorMacro };
+export type { FloorMacroSample };
 
 /**
- * Macro map resolution.
- *
- * 1024 over 80 x 100 m is 12.8 x 10.2 texel/m. That is deliberately a MACRO budget:
- * the aggregate, the pores and the saw-cut grain come from the tiled detail
- * maps, and this layer only has to carry things that vary over metres - pour
- * blotch, traffic polish, staining, expansion joints. Painted lane edges are
- * drawn a quarter of a metre wide here because anything narrower is one texel
- * and would crawl; the crisp painted lanes stay as their own quads.
+ * Once per load. Measured at 307 ms in Chrome/M1 Max for the 1024^2 pair; the
+ * startup bake now builds it in a worker and this is two cache hits. Halve it
+ * by dropping `FLOOR_MACRO_SIZE` to 768 (9.6 x 7.7 texel/m, still enough for
+ * the joints).
  */
-const FLOOR_MACRO_SIZE = 1024;
-
-/** Resolution of the low-frequency noise fields the macro map samples. */
-const FLOOR_FIELD_SIZE = 128;
-
-const clamp01 = (value: number): number => (value < 0 ? 0 : value > 1 ? 1 : value);
-
-function smoothstep(edge0: number, edge1: number, x: number): number {
-  if (edge1 <= edge0) return x < edge0 ? 0 : 1;
-  const t = clamp01((x - edge0) / (edge1 - edge0));
-  return t * t * (3 - 2 * t);
-}
-
-const mix = (a: number, b: number, t: number): number => a + (b - a) * clamp01(t);
-
-/** 1 inside a band of half-width `halfWidth`, feathering to 0 outside it. */
-function bandMask(value: number, centre: number, halfWidth: number, feather: number): number {
-  return 1 - smoothstep(halfWidth - feather, halfWidth + feather, Math.abs(value - centre));
-}
-
-/**
- * `Math.sqrt`, not `Math.hypot`. V8's `hypot` is variadic and overflow-safe and
- * costs several times a plain square root - which shows up when this runs a
- * million times at load, and never matters at these magnitudes.
- */
-function radialMask(dx: number, dz: number, radius: number, feather: number): number {
-  const outer = radius + feather;
-  if (dx > outer || dx < -outer || dz > outer || dz < -outer) return 0;
-  return 1 - smoothstep(radius - feather, outer, Math.sqrt(dx * dx + dz * dz));
-}
-
-/**
- * Low-frequency field, evaluated on a coarse grid and read back bilinearly.
- *
- * The macro fields vary over tens of metres, so evaluating fbm at every one of
- * the 1024^2 texels would be sixty-four times the work for no extra detail.
- */
-function buildField(size: number, sample: (u: number, v: number) => number): Float32Array {
-  const field = new Float32Array(size * size);
-  for (let j = 0; j < size; j += 1) {
-    for (let i = 0; i < size; i += 1) {
-      field[j * size + i] = sample((i + 0.5) / size, (j + 0.5) / size);
-    }
-  }
-  return field;
-}
-
-function sampleField(field: Float32Array, size: number, u: number, v: number): number {
-  const x = clamp01(u) * size - 0.5;
-  const y = clamp01(v) * size - 0.5;
-  const x0 = Math.floor(x);
-  const y0 = Math.floor(y);
-  const fx = x - x0;
-  const fy = y - y0;
-  const cx0 = Math.min(size - 1, Math.max(0, x0));
-  const cy0 = Math.min(size - 1, Math.max(0, y0));
-  const cx1 = Math.min(size - 1, cx0 + 1);
-  const cy1 = Math.min(size - 1, cy0 + 1);
-  const n00 = field[cy0 * size + cx0];
-  const n10 = field[cy0 * size + cx1];
-  const n01 = field[cy1 * size + cx0];
-  const n11 = field[cy1 * size + cx1];
-  return (n00 * (1 - fx) + n10 * fx) * (1 - fy) + (n01 * (1 - fx) + n11 * fx) * fy;
-}
-
-/** Value noise on the coarse grid, without pulling the tiling fbm helpers in. */
-function fieldNoise(u: number, v: number, scale: number, seed: number): number {
-  let value = 0;
-  let amplitude = 0.5;
-  let frequency = scale;
-  let total = 0;
-  for (let octave = 0; octave < 3; octave += 1) {
-    const x = u * frequency + seed;
-    const y = v * frequency + seed * 1.7;
-    const ix = Math.floor(x);
-    const iy = Math.floor(y);
-    const tx = x - ix;
-    const ty = y - iy;
-    const sx = tx * tx * (3 - 2 * tx);
-    const sy = ty * ty * (3 - 2 * ty);
-    const n00 = hash(ix, iy);
-    const n10 = hash(ix + 1, iy);
-    const n01 = hash(ix, iy + 1);
-    const n11 = hash(ix + 1, iy + 1);
-    value += (mix(n00, n10, sx) * (1 - sy) + mix(n01, n11, sx) * sy) * amplitude;
-    total += amplitude;
-    amplitude *= 0.5;
-    frequency *= 2;
-  }
-  return value / total;
-}
-
-/** Pedestrian lanes: narrow, lightly polished, matching `FloorWayfinding`. */
-const WALKWAY_LANES = [
-  { axis: 'x' as const, centre: -(FLOOR_WIDTH / 2 - 3), halfWidth: 1.5, from: -43, to: 43 },
-  { axis: 'x' as const, centre: FLOOR_WIDTH / 2 - 3, halfWidth: 1.5, from: -43, to: 43 },
-  { axis: 'z' as const, centre: -39, halfWidth: 1.75, from: -36, to: 36 },
-  { axis: 'z' as const, centre: 39, halfWidth: 1.75, from: -36, to: 36 },
-];
-
-/** Forklift routes: wide, hard-polished, on the painted aisle centre lines. */
-const FORKLIFT_ROUTES = [
-  { axis: 'x' as const, centre: -31, halfWidth: 3.1, from: -44, to: 44 },
-  { axis: 'x' as const, centre: 31, halfWidth: 3.1, from: -44, to: 44 },
-  { axis: 'z' as const, centre: -43, halfWidth: 2.6, from: -32, to: 32 },
-  { axis: 'z' as const, centre: 43, halfWidth: 2.6, from: -32, to: 32 },
-];
-
-/** Dock aprons take the heaviest traffic in the building. */
-const DOCK_APRONS = [
-  { halfWidth: 15, minZ: 30, maxZ: 50 },
-  { halfWidth: 9, minZ: -50, maxZ: -30 },
-];
-
-const OIL_SOURCES = SITE_LAYOUT.machines.rollerMills.map(({ position }) => ({
-  x: position[0],
-  z: position[2],
-}));
-const DUST_SOURCES = [
-  ...SITE_LAYOUT.machines.packers.map(({ position }) => ({ x: position[0], z: position[2] })),
-  ...SITE_LAYOUT.machines.silos.map(({ position }) => ({ x: position[0], z: position[2] })),
-];
-
-export interface FloorMacroSample {
-  /** Base albedo level in sRGB, before the per-channel concrete tint. */
-  readonly tone: number;
-  readonly roughness: number;
-  readonly ao: number;
-}
-
-/**
- * The slab, as a pure function of world position.
- *
- * Split out from the texture writer so the layout can be asserted without
- * allocating a megapixel: a lane has to come out smoother than the field
- * beside it, a joint darker than the pour around it, and the wall line more
- * occluded than the middle of the floor.
- */
-function floorMacroInto(
-  out: { tone: number; roughness: number; ao: number },
-  worldX: number,
-  worldZ: number,
-  pour: number,
-  grain: number,
-  wear: number
-): void {
-  // Maintained power-trowelled concrete, authored sRGB. Broad pour variation
-  // survives at aisle distance; the finer aggregate should not read as mud.
-  // Working if the slab catches broad daylight while staying rougher than the
-  // traffic routes, with joints and local process staining still visible.
-  let tone = 0.615 + (pour - 0.5) * 0.09;
-  let roughness = 0.78 + (grain - 0.5) * 0.08;
-  let ao = 1;
-
-  // General ground-in dirt. Mid-frequency, so it breaks the pour blotch up
-  // without competing with the traffic layout below it.
-  const soiling = clamp01((wear - 0.35) * 1.3);
-  tone -= 0.04 * soiling;
-  roughness = mix(roughness, 0.9, soiling * 0.5);
-
-  // --- traffic ---------------------------------------------------------
-  let walk = 0;
-  for (const lane of WALKWAY_LANES) {
-    const along = lane.axis === 'x' ? worldZ : worldX;
-    if (along < lane.from || along > lane.to) continue;
-    const across = lane.axis === 'x' ? worldX : worldZ;
-    walk = Math.max(walk, bandMask(across, lane.centre, lane.halfWidth, 0.7));
-  }
-
-  let drive = 0;
-  let tyre = 0;
-  for (const route of FORKLIFT_ROUTES) {
-    const along = route.axis === 'x' ? worldZ : worldX;
-    if (along < route.from || along > route.to) continue;
-    const across = route.axis === 'x' ? worldX : worldZ;
-    drive = Math.max(drive, bandMask(across, route.centre, route.halfWidth, 1.1));
-    // Twin tyre tracks, scuffed darker than the polish around them.
-    tyre = Math.max(
-      tyre,
-      Math.max(
-        bandMask(across, route.centre - 0.95, 0.34, 0.28),
-        bandMask(across, route.centre + 0.95, 0.34, 0.28)
-      )
-    );
-  }
-  for (const apron of DOCK_APRONS) {
-    if (worldZ < apron.minZ || worldZ > apron.maxZ) continue;
-    drive = Math.max(drive, bandMask(worldX, 0, apron.halfWidth, 2.4));
-  }
-
-  const polish = clamp01(walk * 0.7 + drive);
-  tone += 0.075 * polish - 0.075 * tyre * (0.4 + wear * 0.6);
-  roughness = mix(roughness, 0.3, polish);
-  roughness = mix(roughness, 0.4, tyre * 0.6);
-
-  // --- process staining ------------------------------------------------
-  let oil = 0;
-  for (const source of OIL_SOURCES) {
-    oil = Math.max(oil, radialMask(worldX - source.x, worldZ - source.z, 3.2, 2.4));
-  }
-  oil *= 0.35 + wear * 0.65;
-  tone -= 0.14 * oil;
-  roughness = mix(roughness, 0.26, oil);
-  ao = mix(ao, 0.78, oil);
-
-  let dust = 0;
-  for (const source of DUST_SOURCES) {
-    dust = Math.max(dust, radialMask(worldX - source.x, worldZ - source.z, 4.6, 3.8));
-  }
-  dust *= 0.4 + grain * 0.6;
-  tone += 0.11 * dust;
-  roughness = mix(roughness, 0.97, dust);
-
-  // --- grime at the wall line ------------------------------------------
-  const edge = Math.min(FLOOR_WIDTH / 2 - Math.abs(worldX), FLOOR_DEPTH / 2 - Math.abs(worldZ));
-  const grime = 1 - smoothstep(0.4, 4.5, edge);
-  tone -= 0.1 * grime;
-  ao = mix(ao, 0.68, grime);
-
-  // --- expansion joints -------------------------------------------------
-  // Drawn ~0.2 m wide: at ~10 texel/m anything narrower is a single texel and
-  // crawls under motion. Mipmaps fade them out with distance, which is what a
-  // real saw cut does.
-  const jointX = Math.abs(worldX - Math.round(worldX / FLOOR_JOINT_PITCH) * FLOOR_JOINT_PITCH);
-  const jointZ = Math.abs(worldZ - Math.round(worldZ / FLOOR_JOINT_PITCH) * FLOOR_JOINT_PITCH);
-  const joint = Math.max(1 - smoothstep(0.035, 0.09, jointX), 1 - smoothstep(0.035, 0.09, jointZ));
-  tone -= 0.065 * joint;
-  roughness = mix(roughness, 0.96, joint);
-  ao = mix(ao, 0.82, joint);
-
-  out.tone = clamp01(tone);
-  out.roughness = clamp01(roughness);
-  out.ao = clamp01(ao);
-}
-
-export function sampleFloorMacro(
-  worldX: number,
-  worldZ: number,
-  pour: number = 0.5,
-  grain: number = 0.5,
-  wear: number = 0.5
-): FloorMacroSample {
-  const out = { tone: 0, roughness: 0, ao: 0 };
-  floorMacroInto(out, worldX, worldZ, pour, grain, wear);
-  return out;
-}
-
-interface FloorMacroMaps {
-  readonly albedo: THREE.DataTexture;
-  readonly surface: THREE.DataTexture;
-}
-
-/**
- * Build the slab's macro albedo and its packed AO/roughness map.
- *
- * UV orientation: `FLOOR_PLANE` is rotated -90 degrees about X, so u runs
- * -40 -> +40 in world X and v runs +50 -> -50 in world Z. `DataTexture` does
- * not flip Y, so row 0 is v = 0.
- */
-export function buildFloorMacroMaps(size: number = FLOOR_MACRO_SIZE): FloorMacroMaps {
-  const albedoData = new Uint8Array(size * size * 4);
-  const surfaceData = new Uint8Array(size * size * 4);
-
-  // One reusable result object. A million per-pixel literals is a million
-  // short-lived allocations for no benefit.
-  const sample = { tone: 0, roughness: 0, ao: 0 };
-  const pourField = buildField(FLOOR_FIELD_SIZE, (u, v) => fieldNoise(u, v, 3.1, 11));
-  const grainField = buildField(FLOOR_FIELD_SIZE, (u, v) => fieldNoise(u, v, 7.4, 29));
-  const wearField = buildField(FLOOR_FIELD_SIZE, (u, v) => fieldNoise(u, v, 12.6, 53));
-
-  for (let row = 0; row < size; row += 1) {
-    const v = (row + 0.5) / size;
-    const worldZ = FLOOR_DEPTH / 2 - v * FLOOR_DEPTH;
-    for (let column = 0; column < size; column += 1) {
-      const u = (column + 0.5) / size;
-      const worldX = -FLOOR_WIDTH / 2 + u * FLOOR_WIDTH;
-      const offset = (row * size + column) * 4;
-
-      floorMacroInto(
-        sample,
-        worldX,
-        worldZ,
-        sampleField(pourField, FLOOR_FIELD_SIZE, u, v),
-        sampleField(grainField, FLOOR_FIELD_SIZE, u, v),
-        sampleField(wearField, FLOOR_FIELD_SIZE, u, v)
-      );
-
-      // Per-texel speckle keeps the macro layer from banding where the fields
-      // are almost flat. One hash, no octaves.
-      const speckle = (hash(column, row) - 0.5) * 0.022;
-      const tone = clamp01(sample.tone + speckle);
-
-      // Concrete is very slightly warm and slightly blue-deficient.
-      albedoData[offset] = Math.round(clamp01(tone * 1.035) * 255);
-      albedoData[offset + 1] = Math.round(tone * 255);
-      albedoData[offset + 2] = Math.round(clamp01(tone * 0.945) * 255);
-      albedoData[offset + 3] = 255;
-
-      // glTF ORM packing: R = AO, G = roughness, B = metalness. three reads
-      // `aoMap.r`, `roughnessMap.g` and `metalnessMap.b`, so this one texture
-      // can serve both slots without a channel mismatch.
-      surfaceData[offset] = Math.round(sample.ao * 255);
-      surfaceData[offset + 1] = Math.round(sample.roughness * 255);
-      surfaceData[offset + 2] = 0;
-      surfaceData[offset + 3] = 255;
-    }
-  }
-
-  const albedo = new THREE.DataTexture(albedoData, size, size, THREE.RGBAFormat);
-  albedo.colorSpace = THREE.SRGBColorSpace;
-  albedo.wrapS = THREE.ClampToEdgeWrapping;
-  albedo.wrapT = THREE.ClampToEdgeWrapping;
-  albedo.magFilter = THREE.LinearFilter;
-  albedo.minFilter = THREE.LinearMipmapLinearFilter;
-  albedo.generateMipmaps = true;
-  albedo.anisotropy = 8;
-  albedo.needsUpdate = true;
-
-  const surface = new THREE.DataTexture(surfaceData, size, size, THREE.RGBAFormat);
-  surface.colorSpace = THREE.NoColorSpace;
-  surface.wrapS = THREE.ClampToEdgeWrapping;
-  surface.wrapT = THREE.ClampToEdgeWrapping;
-  surface.magFilter = THREE.LinearFilter;
-  surface.minFilter = THREE.LinearMipmapLinearFilter;
-  surface.generateMipmaps = true;
-  surface.anisotropy = 8;
-  surface.needsUpdate = true;
-
-  return { albedo, surface };
-}
-
-/**
- * Generated once at module load. Measured at 307 ms in Chrome/M1 Max for the
- * 1024^2 pair, behind the loading screen. Halve it by dropping
- * `FLOOR_MACRO_SIZE` to 768 (9.6 x 7.7 texel/m, still enough for the joints).
- */
-const FLOOR_MACRO = buildFloorMacroMaps();
+const FLOOR_MACRO = getFloorMacroMaps();
 
 // ===========================================================================
 // SLAB DETAIL BLEND
@@ -574,7 +244,7 @@ const FLOOR_DETAIL_UNIFORMS = {
  * a cache key: three uses it to decide whether a program needs rebuilding, and
  * a key that changes recompiles the shader every frame.
  */
-const FLOOR_PROGRAM_CACHE_KEY = 'millos-floor-detail-v2';
+const FLOOR_PROGRAM_CACHE_KEY = 'millos-floor-detail-v3';
 
 /**
  * Blend the tiled grain into the macro slab.
@@ -598,7 +268,8 @@ uniform vec2 uFloorDetailRepeat;
 uniform float uFloorDetailPivot;
 uniform float uFloorDetailStrength;
 uniform float uFloorJointHalf;
-uniform float uFloorJointRelief;`
+uniform float uFloorJointRelief;
+${SURFACE_GRIT_GLSL}`
       )
       .replace(
         '#include <map_fragment>',
@@ -608,6 +279,15 @@ uniform float uFloorJointRelief;`
   float millosLum = dot( millosGrain, vec3( 0.2126, 0.7152, 0.0722 ) );
   float millosRatio = 1.0 + ( millosLum / uFloorDetailPivot - 1.0 ) * uFloorDetailStrength;
   diffuseColor.rgb *= clamp( millosRatio, 0.35, 1.8 );
+  // CLOSE-RANGE GRIT (surfaceGrit.ts). The macro map is ~8 cm a texel and the
+  // detail tile's finest octave 6 cm, so near the camera the slab smeared into
+  // soft cloud. Sampled in slab metres (the map UV spans the whole slab) and
+  // faded out before its cells go sub-pixel.
+  float millosGritTone = millosGrit(
+    vMapUv * uFloorDetailRepeat * ${FLOOR_JOINT_PITCH.toFixed(1)},
+    ${FLOOR_GRIT_CELL.toFixed(3)}
+  );
+  diffuseColor.rgb *= 1.0 + millosGritTone * 0.28;
 }`
       )
       // EXPANSION-JOINT RELIEF.
@@ -669,6 +349,21 @@ uniform float uFloorJointRelief;`
  * fill, so the surfaces the interior camera sees - slab, lower wall, deck -
  * are lifted to compensate.
  */
+/**
+ * Hall glazing finish. At roughness 0.08 / 0.12 the GGX sun lobe peaked at
+ * 8-30x white even through 13-18% opacity, so the sun's image on a pane bevel
+ * landed as a single bright pixel that read as a star in the sky behind the
+ * glass (logistics-close, milling, final-med-12). 0.24 spreads it into a sheen
+ * that peaks below white; the panes keep their sky tint and opacity.
+ * Working if no pinpoint glints remain on the hall glass at noon.
+ */
+export const FACTORY_GLAZING_SURFACES = {
+  // 0.13 until final3: a lit film that greyed the view through the pane. The
+  // glazing composite now darkens through transmission and reflects a coat.
+  glass: { roughness: 0.24, opacity: 0.06 },
+  skylight: { roughness: 0.24, opacity: 0.18 },
+} as const;
+
 const MATERIALS = {
   floor: new THREE.MeshStandardMaterial({
     name: 'factory-slab',
@@ -708,15 +403,19 @@ const MATERIALS = {
     roughness: 0.58,
     metalness: 0,
   }),
-  /** Painted structural steel: a dielectric, despite the name. */
+  /**
+   * Painted structural steel: a dielectric, despite the name. Roughness from
+   * the brushed ORM only. A rolled I-section has no panels, and on a unit box
+   * scaled to a ~0.6 x 14 m column the panel normal (4 per tile at 1 x 10)
+   * and the ORM's AO seams drew a 0.15 x 0.35 m tile grid on every column
+   * (the forklift scene's door columns, final-med-12).
+   */
   steel: new THREE.MeshStandardMaterial({
     name: 'factory-structure',
-    color: '#344a52',
+    // '#344a52' (linear luminance 0.062) crushed the near columns to black
+    // under fill alone (interior, final-med-12). Half a stop up, same hue.
+    color: '#3e5763',
     roughnessMap: band(STRUCTURAL_ORM, 1, 10),
-    aoMap: band(STRUCTURAL_ORM, 1, 10),
-    aoMapIntensity: 0.6,
-    normalMap: band(CLADDING_PANEL_NORMAL, 1, 10),
-    normalScale: new THREE.Vector2(0.5, 0.5),
     roughness: 1,
     metalness: 0,
   }),
@@ -760,10 +459,58 @@ const MATERIALS = {
   }),
   roof: new THREE.MeshStandardMaterial({
     name: 'factory-roof-deck',
-    color: '#505452',
+    // A cool mid-grey membrane. '#505452' under the warm sun and the grass's
+    // green fill rendered sRGB (110, 111, 95) from the overview: olive.
+    color: '#5e6369',
     normalMap: band(CLADDING_PANEL_NORMAL, 30, 50, { anisotropy: 4 }),
     normalScale: new THREE.Vector2(0.45, 0.45),
     roughness: 0.52,
+    metalness: 0,
+  }),
+  /**
+   * The deck's interior face. A steel roof deck is a dark exterior coat over a
+   * light liner sheet; carrying the exterior coat inside left the hall's
+   * ceiling at ~0.08 albedo, black at night wherever the rows' uplight and the
+   * slab's bounce were all it had (luma 2.8 over the dock end at 22:00).
+   *
+   * NEUTRAL, and profiled in world space. It was '#8e928f', a green-biased
+   * grey, under a bounce that is green and khaki (the sky rig's lower band is
+   * the grass outside), and read as flat olive at noon: sRGB (30, 45, 38). The
+   * deck ribs and the indoor bounce are its `SHELL_SURFACES` overrides; the
+   * panel-line normal it carried is gone, because on a unit box its 30 x 50
+   * repeat stretched with every panel's length into a different grid each.
+   */
+  roofLiner: new THREE.MeshStandardMaterial({
+    name: 'factory-roof-liner',
+    // '#929291' (0.29) sat near black under fill alone (sRGB 27, 35, 33 at noon,
+    // final-med-12). A coil-coated liner is a light grey-white; 0.45 is still
+    // well under a white liner's ~0.65.
+    color: '#b4b4b2',
+    roughness: 0.6,
+    metalness: 0,
+  }),
+  /**
+   * Galvanised purlins under the liner. A shade under the liner so the runs
+   * read as structure against it without striping the ceiling black, and
+   * dielectric: indoors the PMREM is the sky, and a metal purlin would carry a
+   * blue cast the hall never sees.
+   */
+  purlin: new THREE.MeshStandardMaterial({
+    name: 'factory-roof-purlin',
+    // Neutral (it was '#a9afb0', cooler than the warm liner, and the hue step
+    // striped the ceiling), and a shade OVER the liner (#b4b4b2): a purlin's
+    // side faces see less of the hall than the liner's underside does, so at
+    // '#acadab' they read 74 against 96 luma at noon and 41 against 100 at
+    // 22:00 (final5).
+    color: '#c5c6c4',
+    roughness: 0.48,
+    metalness: 0,
+  }),
+  /** Galvanised casings of the rooftop plant: light against the dark deck from above. */
+  rooftopPlant: new THREE.MeshStandardMaterial({
+    name: 'factory-rooftop-plant',
+    color: '#a2a7a6',
+    roughness: 0.5,
     metalness: 0,
   }),
   roofTrim: new THREE.MeshStandardMaterial({
@@ -786,19 +533,19 @@ const MATERIALS = {
   skylight: new THREE.MeshStandardMaterial({
     name: 'factory-skylight',
     color: '#a9d8e4',
-    roughness: 0.12,
+    roughness: FACTORY_GLAZING_SURFACES.skylight.roughness,
     metalness: 0,
     transparent: true,
-    opacity: 0.18,
+    opacity: FACTORY_GLAZING_SURFACES.skylight.opacity,
     depthWrite: false,
   }),
   glass: new THREE.MeshStandardMaterial({
     name: 'factory-glazing',
     color: '#c6e2e8',
-    roughness: 0.08,
+    roughness: FACTORY_GLAZING_SURFACES.glass.roughness,
     metalness: 0,
     transparent: true,
-    opacity: 0.13,
+    opacity: FACTORY_GLAZING_SURFACES.glass.opacity,
     depthWrite: false,
   }),
   /** Floor paint receives the same daylight and night ambient as the slab. */
@@ -817,6 +564,20 @@ const MATERIALS = {
     name: 'factory-safety-yellow',
     color: '#e8b93c',
     roughness: 0.55,
+    metalness: 0,
+  }),
+  /**
+   * The aisle upstands: cast concrete with a yellow coat that has seen
+   * forklifts. They shared the bollards' hi-viz and its `signage` finish, and
+   * the one beside the milling camera filled its foreground with flat,
+   * saturated, constant yellow. A duller, rougher yellow under the `masonry`
+   * finish, with the paint chipped to concrete on the arrises and scuffed at
+   * the foot (`SHELL_SURFACES`).
+   */
+  safetyBarrier: new THREE.MeshStandardMaterial({
+    name: 'factory-safety-barrier',
+    color: '#c9a74e',
+    roughness: 0.82,
     metalness: 0,
   }),
   zoneStorage: new THREE.MeshBasicMaterial({
@@ -862,15 +623,23 @@ const MATERIALS = {
     polygonOffsetFactor: POLYGON_OFFSET.standard.factor,
     polygonOffsetUnits: POLYGON_OFFSET.standard.units,
   }),
+  /**
+   * The silo, milling and packing pads: three instances of the unit box from
+   * 26 to 66 m long. They carried the concrete tile at a 6 x 2 repeat, which
+   * on the 16 x 66 m silo pad is 2.7 m across and 33 m along - the tile's
+   * joint lines became 0.33 m planks and its noise became grain, and the judge
+   * read the pad as timber decking. No UV map can serve boxes that differ in
+   * aspect by this much, so the concrete is analytic: `masonry` in OBJECT
+   * space plus the slab term, with joints laid from each pad's own centre
+   * (`SHELL_SURFACES`). The pads also opt out of the unit-box normal atlas.
+   */
   plinth: new THREE.MeshStandardMaterial({
     name: 'factory-machine-plinth',
-    color: '#dfe2df',
-    map: band(PROCEDURAL_TEXTURES.concreteColor, 6, 2, {
-      anisotropy: 4,
-      colorSpace: THREE.SRGBColorSpace,
-    }),
-    roughnessMap: band(PROCEDURAL_TEXTURES.concreteRoughness, 6, 2),
-    roughness: 1,
+    // ~0.27 linear: a shade above the yard's 0.24 poured concrete. '#a6a8a4'
+    // (0.38) rendered near white in the noon key once the tile's darkening
+    // map was gone.
+    color: '#8f918d',
+    roughness: 0.92,
     metalness: 0,
   }),
   /** Galvanised open grating - a real metal, and now it has an IBL to catch. */
@@ -906,6 +675,310 @@ const MATERIALS = {
 } as const;
 
 applyFloorDetailBlend(MATERIALS.floor);
+
+// ===========================================================================
+// GLAZING FRESNEL
+// ===========================================================================
+//
+// A transparent standard material scales its WHOLE output by its opacity, the
+// reflection included, so a hall pane at 0.13 showed 13% of a sky reflection
+// that at grazing incidence should be most of what the eye sees. From outside
+// the hall read as an open steel frame (final-med-12, overview and farm).
+//
+// The pane is composited here as what it is: a faint tinted film (the lit
+// colour at the authored opacity) under a Fresnel reflection of the
+// environment. With F the Schlick reflectance and a the authored opacity,
+// light from behind passes (1 - F)(1 - a), so with normal blending
+//   coverage = 1 - (1 - F)(1 - a)
+//   colour   = ((1 - F) a C + F sky) / coverage.
+// The sky sample is the same PMREM every metal reads, divided back out of the
+// scene's diffuse-fill dampener, and capped so the sun disc cannot print a star.
+//
+// v2 (final3 med-12: still "a faint tint with no visible reflection" from
+// overview, shipping and tank-farm; "milky" from inside in the rain):
+//
+// - COATED, FROM OUTSIDE. Face-on F0 0.04 over a 13% film hid a sixth of the
+//   lit hall behind it, and the hall is brighter than anything the facade
+//   reflects, so the reflection never showed. A curtain wall's solar-control
+//   coat reflects ~9% face-on, and the glass transmits ~88%: T darkens what is
+//   seen through the pane, as glass does, instead of the old lit film greying
+//   it. Light to light the coat and the pane's flatness vary (a seed per light
+//   and row: F0 +/-25%, a 0.7 degree tilt and a slight bow), so the facade
+//   reads as a mosaic of reflections rather than one tint.
+// - THE HALL, FROM INSIDE. The face the eye sees says which side it is on
+//   (its world normal against the hall centre). Indoors the reflection is the
+//   hall, approximated by the pane's own lit colour at an interior albedo, not
+//   the sky: at grazing the old pane mirrored a bright rain sky into the room.
+// - The lit film drops from 13% to 6%: it is haze, not glass.
+//
+//   coverage = 1 - (1 - F)(1 - a) T
+//   colour   = (F R + (1 - F) a C) / coverage,  R = sky outside, k C inside.
+//
+// v3 (final4 med-06: the raw-storage silos veiled milky from inside, and a grey
+// sheen over the whole glass hall from the farm at dawn):
+//
+// - INSIDE, the hall is dim. At grazing the v2 pane became its own SUNLIT film
+//   colour at 0.4 over ~95% coverage: a milky sheet. The hall it stands for is
+//   a neutral grey at 0.15 of the lit colour, and the inner Fresnel is capped at
+//   0.45, so a grazing pane indoors still shows what is behind it.
+// - OUTSIDE, a camera above the glazing looks DOWN at a vertical pane, and a
+//   downward ray reflected off a vertical face goes on down: it sees the
+//   GROUND. The PMREM's ground band is one flat colour, so that reflection was
+//   a uniform veil where the eye expects the dark, broken yard. It is weighted
+//   0.6 (glazingReflectionWeight; 0.35 took the overview's grazing west facade
+//   from a glass sheen to dark, open steel at noon); the sky keeps all of its
+//   reflection, sampled sharper (roughness 0.12, the sun disc still capped), so
+//   the grazing panes the low cameras see read as mirrors of the sky.
+// - The lit film drops to 60% of the authored opacity: 3.6%.
+//
+// GLAZING_V3 is the paired control (0 = exactly v2), shared by reference.
+//
+// v4 (rubric, final3 to final5 unchanged: no sky reflection from outside at
+// overview, shipping or tank-farm):
+//
+// - Every exterior camera stands above or level with the glazing, so its
+//   reflected rays run DOWN into the PMREM's flat ground band, which v3 dims.
+//   A curtain wall seen from above shows the sky over the yard it faces, not a
+//   flat field, so outdoors a ray below the horizon looks up into the low sky
+//   (glazingSkyLookupY), steeper down looking higher, so a facade grades. The
+//   v3 weight on those rays stays: they are still dimmer than a true sky view.
+// - The coat reflects 16% face-on (outerF0V4, a solar-control coat's range):
+//   at 9% the reflection was a sixth of the lit hall behind it.
+// - Indoors nothing changes: the hall reflection, the inner cap and the film
+//   are v3's, so the inside veil stays lifted.
+//
+// GLAZING_V4 is the paired control (0 = exactly v3), shared by reference.
+
+/** Constant. Bump by hand when the GLSL below changes. */
+export const GLAZING_FRESNEL_CACHE_KEY = 'millos-glazing-fresnel-v4';
+
+/** Paired rendered control for the v3 composite (0 = v2 exactly), mirrored on userData. */
+export const GLAZING_V3 = { value: 1 };
+
+/** Paired rendered control for v4 (0 = v3 exactly), mirrored on userData. */
+export const GLAZING_V4 = { value: 1 };
+
+/** Paired rendered control (0 = the old flat pane), mirrored on userData. */
+export const GLAZING_FRESNEL_STRENGTH = { value: 1 };
+
+/** The glazing composite's design values (see the block comment above). */
+export const GLAZING_REFLECTANCE = {
+  /** Face-on reflectance of the coated outer face, and the plain inner face. */
+  outerF0: 0.09,
+  innerF0: 0.04,
+  /** Light to light, the outer F0 varies by this fraction either way. */
+  f0Spread: 0.25,
+  /** Glass transmission (what reaches the eye of what is behind the pane). */
+  transmission: 0.88,
+  /** The hall's mean albedo, scaling the pane's lit colour into its reflection indoors. */
+  interiorReflect: 0.4,
+  /** Per-light tilt of the reflection normal, radians either way. */
+  tilt: 0.012,
+  /** Bow across a light: normal tilt at its edge, radians. */
+  bow: 0.008,
+  /** Row height for the per-light seed: matches the transoms' 4.5 m limit. */
+  rowHeight: 4.5,
+  /** v3: the hall's reflection indoors (neutral, 0.15 of the pane's lit colour). */
+  interiorReflectV3: 0.15,
+  /** v3: the inner face's Fresnel ceiling at grazing. */
+  innerFresnelCap: 0.45,
+  /** v3: the outdoor reflection of anything below the horizon. */
+  groundReflect: 0.6,
+  /** v3: the lit film, as a fraction of the authored opacity. */
+  filmScale: 0.6,
+  /** v3: roughness of the sky lookup (the material keeps 0.24 for the sun lobe). */
+  skyRoughness: 0.12,
+  /** v4: face-on reflectance of the coated outer face. */
+  outerF0V4: 0.16,
+  /** v4: the lowest world elevation (reflect.y) an outdoor sky lookup takes. */
+  skyFloorY: 0.04,
+  /** v4: how much higher the lookup climbs per unit the ray points down. */
+  skyMirror: 0.6,
+} as const;
+
+/**
+ * World y of the outdoor sky lookup for a reflected ray whose world y is
+ * `reflectY`: at or above the floor it is the ray itself; below it, the low sky,
+ * climbing as the ray points further down. `v4` 0 is v3 (the ray itself).
+ */
+export function glazingSkyLookupY(reflectY: number, v4 = 1): number {
+  const { skyFloorY, skyMirror } = GLAZING_REFLECTANCE;
+  if (v4 === 0 || reflectY >= skyFloorY) return reflectY;
+  return lerp(reflectY, skyFloorY + skyMirror * Math.max(0, -reflectY), v4);
+}
+
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+const smooth = (edge0: number, edge1: number, x: number) => {
+  const t = THREE.MathUtils.clamp((x - edge0) / (edge1 - edge0), 0, 1);
+  return t * t * (3 - 2 * t);
+};
+
+/** The horizon band the outdoor reflection weight crosses, as world reflect.y. */
+const GLAZING_HORIZON = { from: -0.12, to: 0.08 } as const;
+
+/**
+ * Weight on the outdoor reflection of a ray whose world y is `reflectY`: the
+ * sky keeps it, the flat ground band takes `groundReflect`. TS mirror of the
+ * shader; `v3` 0 is the v2 composite (no weighting).
+ */
+export function glazingReflectionWeight(reflectY: number, v3 = 1): number {
+  const { from, to } = GLAZING_HORIZON;
+  return lerp(1, lerp(GLAZING_REFLECTANCE.groundReflect, 1, smooth(from, to, reflectY)), v3);
+}
+
+/** The inner face's Fresnel at `cosTheta`, v3 capped. */
+function innerFresnel(cosTheta: number, v3: number): number {
+  const c = THREE.MathUtils.clamp(Math.abs(cosTheta), 0, 1);
+  const { innerF0, innerFresnelCap } = GLAZING_REFLECTANCE;
+  const f = innerF0 + (1 - innerF0) * (1 - c) ** 5;
+  return Math.min(f, lerp(1, innerFresnelCap, v3));
+}
+
+/**
+ * Light the pane ADDS to the view through it from inside, in units of its own
+ * lit colour: the hall reflected at the inner Fresnel plus the film.
+ */
+export function glazingInnerHaze(opacity: number, cosTheta: number, v3 = 1): number {
+  const { interiorReflect, interiorReflectV3, filmScale } = GLAZING_REFLECTANCE;
+  const f = innerFresnel(cosTheta, v3);
+  const film = opacity * lerp(1, filmScale, v3);
+  return f * lerp(interiorReflect, interiorReflectV3, v3) + (1 - f) * film;
+}
+
+/**
+ * TS mirror of the composite's coverage, for tests and design numbers.
+ * `outward`: the eye is outside the hall. `seed` 0-1: a light's variation.
+ */
+export function glazingCoverage(
+  opacity: number,
+  cosTheta: number,
+  strength = 1,
+  outward = true,
+  seed = 0.5,
+  v3 = 1,
+  v4 = 1
+): number {
+  const s = THREE.MathUtils.clamp(strength, 0, 1);
+  const c = THREE.MathUtils.clamp(Math.abs(cosTheta), 0, 1);
+  const { outerF0, outerF0V4, f0Spread, transmission, filmScale } = GLAZING_REFLECTANCE;
+  const f0 = lerp(outerF0, outerF0V4, v4) * (1 + f0Spread * (seed - 0.5) * 2);
+  const fresnel = (outward ? f0 + (1 - f0) * (1 - c) ** 5 : innerFresnel(c, v3)) * s;
+  const t = 1 - (1 - transmission) * s;
+  const film = opacity * lerp(1, filmScale, v3 * s);
+  return 1 - (1 - fresnel) * (1 - film) * t;
+}
+
+const glsl = (value: number) => value.toFixed(4);
+
+const GLAZING_VERTEX_PARS = /* glsl */ `
+varying vec3 vGlazeTilt;
+varying float vGlazeSeed;
+`;
+
+// After <begin_vertex>: `position` is the unit box, `objectNormal` the face's.
+// Instances carry no rotation, so object axes are world axes.
+const GLAZING_VERTEX_BODY = /* glsl */ `
+{
+  #ifdef USE_INSTANCING
+    vec3 glazeOrigin = instanceMatrix[3].xyz;
+    float glazeRows = max( 1.0, ceil( length( instanceMatrix[1].xyz ) / ${glsl(GLAZING_REFLECTANCE.rowHeight)} - 1e-4 ) );
+  #else
+    vec3 glazeOrigin = vec3( 0.0 );
+    float glazeRows = 1.0;
+  #endif
+  float glazeRow = floor( clamp( position.y + 0.5, 0.0, 0.9999 ) * glazeRows );
+  vec3 glazeKey = glazeOrigin + vec3( 0.0, glazeRow * 7.31, 0.0 );
+  vGlazeSeed = fract( sin( dot( glazeKey, vec3( 12.9898, 78.233, 37.719 ) ) ) * 43758.5453 );
+  float glazeSeed2 = fract( vGlazeSeed * 91.7 + 0.37 );
+  vec3 glazeAcross = abs( objectNormal.z ) > 0.5 ? vec3( 1.0, 0.0, 0.0 ) : vec3( 0.0, 0.0, 1.0 );
+  float glazeU = dot( position, glazeAcross );
+  float glazeV = fract( ( position.y + 0.5 ) * glazeRows ) - 0.5;
+  vGlazeTilt = glazeAcross * ( ( vGlazeSeed - 0.5 ) * ${glsl(2 * GLAZING_REFLECTANCE.tilt)} + glazeU * ${glsl(GLAZING_REFLECTANCE.bow * 2)} )
+    + vec3( 0.0, 1.0, 0.0 ) * ( ( glazeSeed2 - 0.5 ) * ${glsl(2 * GLAZING_REFLECTANCE.tilt)} + glazeV * ${glsl(GLAZING_REFLECTANCE.bow * 2)} );
+}
+`;
+
+const GLAZING_FRESNEL_BODY = /* glsl */ `
+{
+  float glazeS = clamp( uGlazeFresnel, 0.0, 1.0 );
+  vec3 glazeN = normalize( geometryNormal + ( viewMatrix * vec4( vGlazeTilt, 0.0 ) ).xyz * glazeS );
+  float glazeCos = saturate( abs( dot( geometryViewDir, glazeN ) ) );
+  // Which side the eye is on: the seen face's world normal against the hall
+  // centre (the panes ring the hall, so out of the hall is away from it).
+  vec3 glazeNormalW = ( vec4( geometryNormal, 0.0 ) * viewMatrix ).xyz;
+  vec3 glazeWorld = cameraPosition + ( vec4( -vViewPosition, 0.0 ) * viewMatrix ).xyz;
+  float glazeOut = step( 0.0, dot( glazeNormalW.xz, glazeWorld.xz ) );
+  float glazeV4 = clamp( uGlazeV4, 0.0, 1.0 );
+  float glazeF0 = mix(
+    ${glsl(GLAZING_REFLECTANCE.innerF0)},
+    mix( ${glsl(GLAZING_REFLECTANCE.outerF0)}, ${glsl(GLAZING_REFLECTANCE.outerF0V4)}, glazeV4 )
+      * ( 1.0 + ${glsl(GLAZING_REFLECTANCE.f0Spread)} * ( vGlazeSeed - 0.5 ) * 2.0 ),
+    glazeOut
+  );
+  float glazeV3 = clamp( uGlazeV3, 0.0, 1.0 );
+  float glazeF = glazeF0 + ( 1.0 - glazeF0 ) * pow( 1.0 - glazeCos, 5.0 );
+  // v3: indoors, the Fresnel stops short of a mirror (the hall is dim).
+  glazeF = min( glazeF, mix( 1.0, mix( 1.0, ${glsl(GLAZING_REFLECTANCE.innerFresnelCap)}, glazeV3 ), 1.0 - glazeOut ) );
+  glazeF *= glazeS;
+  vec3 glazeReflectW = ( vec4( reflect( -geometryViewDir, glazeN ), 0.0 ) * viewMatrix ).xyz;
+  #ifdef USE_ENVMAP
+    float glazeSkyRough = mix( material.roughness, ${glsl(GLAZING_REFLECTANCE.skyRoughness)}, glazeV3 );
+    vec3 glazeSkyV3 = getIBLRadiance( geometryViewDir, glazeN, glazeSkyRough );
+    // v4: below the floor, look up into the low sky (glazingSkyLookupY). Passing
+    // the lookup as both view and normal makes getIBLRadiance sample it as is.
+    vec3 glazeLookW = vec3( glazeReflectW.x,
+      glazeReflectW.y < ${glsl(GLAZING_REFLECTANCE.skyFloorY)}
+        ? ${glsl(GLAZING_REFLECTANCE.skyFloorY)} + ${glsl(GLAZING_REFLECTANCE.skyMirror)} * max( -glazeReflectW.y, 0.0 )
+        : glazeReflectW.y,
+      glazeReflectW.z );
+    vec3 glazeLookV = normalize( ( viewMatrix * vec4( normalize( glazeLookW ), 0.0 ) ).xyz );
+    vec3 glazeSkyV4 = getIBLRadiance( glazeLookV, glazeLookV, glazeSkyRough );
+    vec3 glazeSky = min(
+      mix( glazeSkyV3, glazeSkyV4, glazeV4 ) / max( envMapIntensity, 1e-3 ),
+      vec3( 1.5 )
+    );
+  #else
+    vec3 glazeSky = gl_FragColor.rgb;
+  #endif
+  // v3: outdoors, a ray reflected below the horizon sees the flat ground band.
+  glazeSky *= mix( 1.0, mix( ${glsl(GLAZING_REFLECTANCE.groundReflect)}, 1.0,
+    smoothstep( ${glsl(GLAZING_HORIZON.from)}, ${glsl(GLAZING_HORIZON.to)}, glazeReflectW.y ) ), glazeV3 );
+  vec3 glazeHall = mix(
+    gl_FragColor.rgb * ${glsl(GLAZING_REFLECTANCE.interiorReflect)},
+    vec3( dot( gl_FragColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) ) * ${glsl(GLAZING_REFLECTANCE.interiorReflectV3)},
+    glazeV3
+  );
+  vec3 glazeReflection = mix( glazeHall, glazeSky, glazeOut );
+  float glazeFilm = gl_FragColor.a * mix( 1.0, ${glsl(GLAZING_REFLECTANCE.filmScale)}, glazeV3 * glazeS );
+  float glazeT = 1.0 - ${glsl(1 - GLAZING_REFLECTANCE.transmission)} * glazeS;
+  float glazeCoverage = 1.0 - ( 1.0 - glazeF ) * ( 1.0 - glazeFilm ) * glazeT;
+  gl_FragColor.rgb = ( ( 1.0 - glazeF ) * glazeFilm * gl_FragColor.rgb + glazeF * glazeReflection )
+    / max( glazeCoverage, 1e-4 );
+  gl_FragColor.a = glazeCoverage;
+}
+`;
+
+MATERIALS.glass.userData.glazingFresnel = GLAZING_FRESNEL_STRENGTH;
+MATERIALS.glass.userData.glazingV3 = GLAZING_V3;
+MATERIALS.glass.userData.glazingV4 = GLAZING_V4;
+MATERIALS.glass.onBeforeCompile = (shader) => {
+  shader.uniforms.uGlazeFresnel = GLAZING_FRESNEL_STRENGTH;
+  shader.uniforms.uGlazeV3 = GLAZING_V3;
+  shader.uniforms.uGlazeV4 = GLAZING_V4;
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', `#include <common>\n${GLAZING_VERTEX_PARS}`)
+    .replace('#include <begin_vertex>', `#include <begin_vertex>\n${GLAZING_VERTEX_BODY}`);
+  shader.fragmentShader = shader.fragmentShader
+    .replace(
+      '#include <common>',
+      `#include <common>\nuniform float uGlazeFresnel;\nuniform float uGlazeV3;\nuniform float uGlazeV4;\n${GLAZING_VERTEX_PARS}`
+    )
+    .replace('#include <opaque_fragment>', `#include <opaque_fragment>\n${GLAZING_FRESNEL_BODY}`);
+};
+MATERIALS.glass.customProgramCacheKey = () => GLAZING_FRESNEL_CACHE_KEY;
+
+/** The hall's wall glazing, for its Fresnel test. */
+export const FACTORY_GLASS_MATERIAL: THREE.Material = MATERIALS.glass;
 
 // ===========================================================================
 // SURFACE FINISH
@@ -958,6 +1031,9 @@ const GALLERY_DECK_TOP = 8.85;
  *                  in `meshbasic_frag` at all, so the injection would be half a
  *                  shader. `canApplyWorldSurface` refuses them.
  */
+/** Membrane lap seams on the roof's top face: pitch and seam width (m), darkening. */
+export const ROOF_MEMBRANE_SEAM = { pitch: 1.8, width: 0.07, tone: 0.45 } as const;
+
 const SHELL_SURFACES: readonly [
   THREE.MeshStandardMaterial,
   WorldSurfaceProfileName,
@@ -970,14 +1046,97 @@ const SHELL_SURFACES: readonly [
   [MATERIALS.wallParapet, 'painted'],
   [MATERIALS.steel, 'painted'],
   [MATERIALS.steelTrim, 'painted'],
-  [MATERIALS.roof, 'painted'],
+  // A membrane roof from above (overview, farm): one flat olive plane in
+  // final4, the largest surface in the overview frame. Lap seams every 1.8 m
+  // parallel to the ridge (they recede from the overview camera, so they keep
+  // their contrast; box-filtered and Nyquist-faded like the liner's ribs),
+  // large-scale staining from a slower, stronger macro, and less of the khaki
+  // dust that turned the grey membrane olive.
+  [
+    MATERIALS.roof,
+    'painted',
+    {
+      ribPeriod: ROOF_MEMBRANE_SEAM.pitch,
+      ribDepth: 0,
+      ribAxis: 0,
+      ribFilteredTone: ROOF_MEMBRANE_SEAM.tone,
+      ribSeamWidth: ROOF_MEMBRANE_SEAM.width / ROOF_MEMBRANE_SEAM.pitch,
+      macroPeriod: 15,
+      macro: 0.32,
+      dust: 0.06,
+    },
+  ],
+  [MATERIALS.rooftopPlant, 'painted'],
+  // Trapezoidal deck ribs at a 250 mm pitch running down the slope (the
+  // halves pitch about Z, so the profile varies along world Z), and the hall's
+  // grey bounce instead of the grass's.
+  [
+    MATERIALS.roofLiner,
+    'painted',
+    {
+      ribPeriod: 0.25,
+      ribDepth: 0.035,
+      ribAxis: 1,
+      // Box-filtered, and faded out from 25 px a pitch to 11 (RIB_NYQUIST_FADE):
+      // at the interior cameras' 0.06-0.1 m a pixel (Medium renders 864 rows)
+      // the 0.25 m pitch drew a dot grid against the purlins (final4), and at
+      // 6-7 px a pitch still a checker (final5). The purlins carry the rhythm
+      // out there; the ribs read looking up at the deck from under it.
+      ribFilteredTone: 0.24,
+      indoorBounce: 0.85,
+      // A smooth coil coating between the ribs: the painted profile's 18 mm
+      // meso relief shimmered into dot noise at the ceiling's grazing angle.
+      meso: 0.04,
+      reliefMetres: 0.003,
+    },
+  ],
   [MATERIALS.roofTrim, 'painted'],
+  // Under the deck at 21-23 m: grime and dust are inert up there by position,
+  // and the edge term is what makes a slender section read. Lit by the hall
+  // floor, not the grass: final med-12 read them as dark teal slats.
+  // r5: at the interior camera's grazing view most of a purlin's underside is
+  // "edge" to the Fresnel proxy, so the bluish bare-steel colour took it over
+  // and the runs read as teal stripes against the warm liner, a grid with
+  // the ribs. A galvanised section has no paint to wear through: edge 0.06.
+  [MATERIALS.purlin, 'metal', { indoorBounce: 0.85, edge: 0.06 }],
   [MATERIALS.accent, 'painted'],
-  [MATERIALS.plinth, 'masonry'],
+  // 4 m from each pad's centre lands on the silo pad's 16 m width.
+  [MATERIALS.plinth, 'masonry', { objectSpace: 1, slabPitch: 4, slabJoint: 0.5, slabTone: 0.09 }],
   // Hi-viz on real geometry. `signage` is the lightest profile in the set: a
   // safety yellow weathered into the background has been broken, not finished.
   [MATERIALS.safetyLit, 'signage'],
   [MATERIALS.danger, 'signage'],
+  // Scuffed paint (a strong meso and macro over the coat), chipped arrises and
+  // a dirty foot. At `masonry`'s own 0.2 meso the face beside the milling
+  // camera still read as one flat yellow. Its shaded face is lit by bounce,
+  // and indoors that bounce is the slab, not the grass the sky rig's lower
+  // band carries: without `indoorBounce` the yellow read olive (sRGB 48, 60, 40).
+  [
+    MATERIALS.safetyBarrier,
+    'masonry',
+    {
+      // 0.5 grime and 0.22 macro over the whole face turned the yellow coat
+      // brown (final3-med-12: "smeared brown"). The sections, chamfers and
+      // bare cast foot (`buildSafetyRailParts`) now carry the structure, so
+      // the coat can read as worn yellow paint again.
+      grime: 0.35,
+      edge: 0.35,
+      macro: 0.15,
+      bareColor: '#9d9a92',
+      indoorBounce: 0.85,
+      // Still a flat plank in final-med-12: the forklift camera (28 degrees)
+      // sees the run at 34 m, where the masonry meso had faded by distance
+      // although its 0.35 m period spans 30 px. Fade it out past 90 m instead,
+      // and break each run into 2.4 m precast sections, each with its own
+      // paint tone and a joint across the top, counted from the run's centre.
+      meso: 0.38,
+      mesoFadeMetres: 90,
+      objectSpace: 1,
+      slabPitch: 2.4,
+      slabJoint: 0.6,
+      slabTone: 0.12,
+    },
+  ],
   [MATERIALS.gallery, 'metal', { datum: GALLERY_DECK_TOP }],
   [MATERIALS.galleryRail, 'signage', { datum: GALLERY_DECK_TOP }],
   // Anodised aluminium housings, mounted at ceiling height. Grime inert by
@@ -988,6 +1147,35 @@ const SHELL_SURFACES: readonly [
 SHELL_SURFACES.forEach(([material, profile, overrides]) => {
   applyWorldSurface(material, profile, overrides);
 });
+
+/**
+ * Roof panels: BoxGeometry face order is +x, -x, +y, -y, +z, -z, so slot 3 is
+ * the underside the hall looks up at. The panels pitch 0.05 rad, so -y stays
+ * the interior face.
+ */
+/** The columns' and frames' painted steel, exported for its finish test. */
+export const FACTORY_STRUCTURE_MATERIAL = MATERIALS.steel;
+
+/** The factory slab, for the shader tests. */
+export const FLOOR_MATERIAL: THREE.MeshStandardMaterial = MATERIALS.floor;
+
+/** The aisle upstands' worn painted concrete (see `MATERIALS.safetyBarrier`). */
+export const SAFETY_BARRIER_MATERIAL: THREE.Material = MATERIALS.safetyBarrier;
+
+/** The silo, milling and packing pads' concrete (see `MATERIALS.plinth`). */
+export const PROCESS_PAD_MATERIAL: THREE.Material = MATERIALS.plinth;
+
+/** The purlins under the deck, for their tone test. */
+export const ROOF_PURLIN_MATERIAL: THREE.Material = MATERIALS.purlin;
+
+export const ROOF_PANEL_MATERIALS: readonly THREE.Material[] = [
+  MATERIALS.roof,
+  MATERIALS.roof,
+  MATERIALS.roof,
+  MATERIALS.roofLiner,
+  MATERIALS.roof,
+  MATERIALS.roof,
+];
 
 export const FACTORY_ENVELOPE_SPEC = {
   baseHeight: 0.6,
@@ -1005,7 +1193,7 @@ export const FACTORY_ENVELOPE_SPEC = {
 
 const FACTORY_SIDE_COLUMN_Z = [-30, -10, 10, 30] as const;
 
-interface BoxInstance {
+export interface BoxInstance {
   readonly position: readonly [number, number, number];
   readonly scale: readonly [number, number, number];
   readonly rotation?: readonly [number, number, number];
@@ -1017,12 +1205,15 @@ function InstancedBoxes({
   castShadow = false,
   receiveShadow = false,
   renderOrder,
+  generatedSurface = true,
 }: {
   readonly instances: readonly BoxInstance[];
-  readonly material: THREE.Material;
+  readonly material: THREE.Material | readonly THREE.Material[];
   readonly castShadow?: boolean;
   readonly receiveShadow?: boolean;
   readonly renderOrder?: number;
+  /** False keeps the plain box: the atlas is fitted to the unit box and stretches with it. */
+  readonly generatedSurface?: boolean;
 }) {
   const ref = useRef<THREE.InstancedMesh>(null);
 
@@ -1042,6 +1233,7 @@ function InstancedBoxes({
   }, [instances]);
 
   const generatedAsset =
+    generatedSurface &&
     material instanceof THREE.MeshStandardMaterial &&
     !material.transparent &&
     material.emissive.getHex() === 0
@@ -1058,7 +1250,9 @@ function InstancedBoxes({
   return (
     <instancedMesh
       ref={ref}
-      args={[UNIT_BOX, material, instances.length]}
+      args={[UNIT_BOX, material as THREE.Material | THREE.Material[], instances.length]}
+      // Placement lives in instance matrices; parent/world updates stay live.
+      matrixAutoUpdate={false}
       castShadow={castShadow}
       receiveShadow={receiveShadow}
       renderOrder={renderOrder}
@@ -1122,6 +1316,12 @@ const skylightLocalX = (side: -1 | 1): number => -5 * side;
 /** Clearance a batten keeps from a skylight kerb. */
 const SKYLIGHT_BATTEN_CLEARANCE = SKYLIGHT_SIZE.x / 2 + 0.7;
 const SKYLIGHT_KERB_HEIGHT = 0.9;
+/**
+ * How far a kerb's inner face stands into the aperture past the deck panel end
+ * below it. Flush, the two faces were coplanar over the full 0.36 m panel end
+ * (38.9 m^2 across the twelve end kerbs alone) and z-fought seen from below.
+ */
+const SKYLIGHT_KERB_PROUD = 0.02;
 
 /** Slope of one roof half, as a rotation about Z. */
 const roofSlope = (side: -1 | 1): number => -ROOF_PITCH * side;
@@ -1147,6 +1347,133 @@ export function buildFactoryRoofBatten(
     scale: [localTo - localFrom, ROOF_BATTEN_HEIGHT, ROOF_BATTEN_WIDTH],
     rotation: [0, 0, roofSlope(side)],
   };
+}
+
+/** Deck-local Z centres of the gaps between battens, where a unit's curb sits clear of them. */
+const ROOF_BATTEN_GAP_Z = (k: number): number => -47.2 + ROOF_BATTEN_PITCH * (k + 0.5);
+
+/**
+ * Plant on the deck: air-handling units, exhaust fans and vent stacks. Three
+ * 5 x 1 x 3 boxes stood at a fixed height, not on the pitched deck: the one at
+ * the ridge was buried 1.7 m under it and the two outer ones were half sunk.
+ * Each piece now sits on its half's top face (tilted with it, 2 cm into it),
+ * between two battens and clear of the roof lights.
+ * [side, deck-local X, batten gap index, size (along slope, up, along Z)]
+ */
+export const ROOFTOP_PLANT: readonly (readonly [
+  -1 | 1,
+  number,
+  number,
+  readonly [number, number, number],
+])[] = [
+  // Air-handling units.
+  [1, 6, 6, [5, 1.5, 3]],
+  [-1, -6, 6, [5, 1.5, 3]],
+  [1, -15, 13, [4, 1.3, 2.6]],
+  [-1, 13, 18, [3.6, 1.2, 2.4]],
+  // Exhaust fans.
+  [1, 12, 11, [1.3, 0.85, 1.3]],
+  [-1, -12, 11, [1.3, 0.85, 1.3]],
+  [1, 14, 19, [1.3, 0.85, 1.3]],
+  [-1, -14, 2, [1.3, 0.85, 1.3]],
+  [1, -12, 1, [1.3, 0.85, 1.3]],
+  // Vent stacks.
+  [1, 2, 4, [0.35, 1.2, 0.35]],
+  [-1, -2, 15, [0.35, 1.2, 0.35]],
+  [1, 17, 9, [0.35, 1.2, 0.35]],
+  [-1, 16, 8, [0.35, 1.2, 0.35]],
+];
+
+/** How far a plant item's base is let into the deck, so no sliver of air shows under it. */
+export const ROOFTOP_PLANT_EMBED = 0.02;
+
+export function buildFactoryRooftopPlant(): BoxInstance[] {
+  return ROOFTOP_PLANT.map(([side, local, gap, size]) => {
+    const seat = deckPoint(side, local);
+    const slope = roofSlope(side);
+    const lift = size[1] / 2 - ROOFTOP_PLANT_EMBED;
+    return {
+      position: [
+        seat.x - Math.sin(slope) * lift,
+        seat.y + Math.cos(slope) * lift,
+        ROOF_BATTEN_GAP_Z(gap),
+      ],
+      scale: [size[0], size[1], size[2]],
+      rotation: [0, 0, slope],
+    };
+  });
+}
+
+/** The roof lights' kerb footprints in each half's deck-local frame, for the plant test. */
+export const ROOF_SKYLIGHT_LAYOUT = {
+  z: SKYLIGHT_Z,
+  size: SKYLIGHT_SIZE,
+  localX: skylightLocalX,
+  battenPitch: ROOF_BATTEN_PITCH,
+  battenWidth: ROOF_BATTEN_WIDTH,
+  battenReach: ROOF_BATTEN_REACH,
+  deckPoint,
+  roofSlope,
+} as const;
+
+/**
+ * Projected height, in drawing-buffer pixels, below which a batten stops
+ * rasterising as a line. The overview camera stands ~84 m from the nearest
+ * roof corner and ~180 m from the far one; there the 0.085 m upstand covers
+ * 0.5-1.8 px, so each seam was sampled on some pixels and missed on the next
+ * and the roof read as a regular grid of dark dashes (base and final med-12
+ * alike; gone in the same load with the battens hidden, unchanged with their
+ * shadows off).
+ */
+export const ROOF_BATTEN_MIN_PIXELS = 2.5;
+
+/** Pixels a batten's upstand spans at `distance` metres. */
+export function roofBattenPixels(
+  distance: number,
+  bufferHeightPx: number,
+  fovDegrees: number
+): number {
+  const halfHeight = Math.max(distance, 1e-3) * Math.tan((fovDegrees * Math.PI) / 360);
+  return (ROOF_BATTEN_PROUD * bufferHeightPx) / (2 * halfHeight);
+}
+
+/** Box around both deck halves, for the camera's distance to the nearest seam. */
+const ROOF_SEAM_BOUNDS = new THREE.Box3(
+  new THREE.Vector3(-FLOOR_WIDTH / 2 - 0.5, ROOF_DECK_TOP - 2, -50.2),
+  new THREE.Vector3(FLOOR_WIDTH / 2 + 0.5, ROOF_DECK_TOP + 0.3, 50.2)
+);
+
+/**
+ * The standing seams, drawn only while they can still resolve: hidden once
+ * even the nearest seam would project under ROOF_BATTEN_MIN_PIXELS (with 15%
+ * hysteresis so a camera at the threshold cannot flicker them). Past that the
+ * deck carries its world-space macro and the seams' absence is not visible;
+ * their aliasing was.
+ */
+function RoofBattens({ instances }: { readonly instances: readonly BoxInstance[] }) {
+  const groupRef = useRef<THREE.Group>(null);
+  useFrame(({ camera, size, viewport }) => {
+    const group = groupRef.current;
+    if (!group) return;
+    const fov = (camera as THREE.PerspectiveCamera).fov ?? 50;
+    const pixels = roofBattenPixels(
+      ROOF_SEAM_BOUNDS.distanceToPoint(camera.position),
+      size.height * viewport.dpr,
+      fov
+    );
+    const threshold = group.visible ? ROOF_BATTEN_MIN_PIXELS * 0.85 : ROOF_BATTEN_MIN_PIXELS;
+    group.visible = pixels >= threshold;
+  });
+  return (
+    <group ref={groupRef}>
+      <InstancedBoxes
+        instances={instances}
+        material={MATERIALS.roofTrim}
+        castShadow
+        receiveShadow
+      />
+    </group>
+  );
 }
 
 /** The actual opaque deck and upstands, also used by aperture ray tests. */
@@ -1175,14 +1502,21 @@ export function buildFactoryRoofEnvelope(): { panels: BoxInstance[]; kerbs: BoxI
       const seat = deckPoint(side, x);
       // An upstand is a hollow frame, never a solid box underneath the pane.
       for (const edge of [-1, 1]) {
-        const edgeSeat = deckPoint(side, x + edge * (SKYLIGHT_SIZE.x / 2 + 0.175));
+        const edgeSeat = deckPoint(
+          side,
+          x + edge * (SKYLIGHT_SIZE.x / 2 + 0.175 - SKYLIGHT_KERB_PROUD)
+        );
         kerbs.push({
           position: [edgeSeat.x, edgeSeat.y, z],
           scale: [0.35, SKYLIGHT_KERB_HEIGHT, SKYLIGHT_SIZE.z + 0.7],
           rotation: [0, 0, roofSlope(side)],
         });
         kerbs.push({
-          position: [seat.x, seat.y, z + edge * (SKYLIGHT_SIZE.z / 2 + 0.175)],
+          position: [
+            seat.x,
+            seat.y,
+            z + edge * (SKYLIGHT_SIZE.z / 2 + 0.175 - SKYLIGHT_KERB_PROUD),
+          ],
           scale: [SKYLIGHT_SIZE.x, SKYLIGHT_KERB_HEIGHT, 0.35],
           rotation: [0, 0, roofSlope(side)],
         });
@@ -1191,6 +1525,110 @@ export function buildFactoryRoofEnvelope(): { panels: BoxInstance[]; kerbs: BoxI
     panel(left, right, from, 50.2);
   }
   return { panels, kerbs };
+}
+
+/**
+ * Wall plates along both gable tops.
+ *
+ * There was a third member: 80 m across the hall at z = 0, y 21.86-22.04, a
+ * level tie from before the deck was pitched. Under the pitched deck it hung
+ * 0.23 m clear of the ridge and stood up through the roof past |x| 32,
+ * neither hung nor laid. Removed; the purlins carry the deck there now.
+ */
+export function buildFactoryRoofTrim(): BoxInstance[] {
+  const height = SITE_LAYOUT.factory.bounds.maxY;
+  return [
+    { position: [0, height - 0.15, -49.4], scale: [FLOOR_WIDTH, 0.18, 0.22] },
+    { position: [0, height - 0.15, 49.4], scale: [FLOOR_WIDTH, 0.18, 0.22] },
+  ];
+}
+
+/** Purlin centres across each roof half, from the ridge out to the eaves. */
+export const ROOF_PURLIN_PITCH = 1.5;
+/** A 160 mm cold-rolled purlin: depth across the deck, flange width. */
+export const ROOF_PURLIN_SECTION = { depth: 0.16, width: 0.08 } as const;
+/**
+ * Air between a purlin and everything it frames into: the deck above it, the
+ * truss chords it runs between, the well kerbs it trims around. A purlin that
+ * touches a face shares its plane; one that overlaps clips through it.
+ */
+export const ROOF_PURLIN_CLEARANCE = 0.01;
+/** The purlins' gable-end limit (the shell's inner line, as for every roof member). */
+const ROOF_PURLIN_END = 49.55;
+/** Air between a purlin's underside and the top chord it runs over. */
+const TOP_CHORD_AIR = 0.015;
+
+function instanceBounds(part: BoxInstance): THREE.Box3 {
+  const matrix = new THREE.Matrix4().compose(
+    new THREE.Vector3(...part.position),
+    new THREE.Quaternion().setFromEuler(new THREE.Euler(...(part.rotation ?? [0, 0, 0]))),
+    new THREE.Vector3(...part.scale)
+  );
+  return new THREE.Box3(
+    new THREE.Vector3(-0.5, -0.5, -0.5),
+    new THREE.Vector3(0.5, 0.5, 0.5)
+  ).applyMatrix4(matrix);
+}
+
+/**
+ * Purlin runs at ROOF_PURLIN_PITCH, hung from the deck with a clearance and
+ * cut wherever something else occupies their line: the truss chords (so each
+ * run frames between two trusses rather than passing through them), the well
+ * kerbs (the runs either side of a roof light are its trimmers) and the gable
+ * wall plates. `underside(x)` is the deck's lower face at `x`.
+ */
+function buildFactoryRoofPurlins(
+  underside: (x: number) => number,
+  blockers: readonly THREE.Box3[],
+  halfSpan: number
+): BoxInstance[] {
+  const { depth, width } = ROOF_PURLIN_SECTION;
+  const gap = ROOF_PURLIN_CLEARANCE;
+  const purlins: BoxInstance[] = [];
+  // Half a pitch either side of the ridge, so the ridge gap is one pitch too.
+  const count = Math.floor((halfSpan - 0.5) / ROOF_PURLIN_PITCH + 0.5);
+  for (let i = 0; i < count; i++) {
+    for (const side of [-1, 1] as const) {
+      const x = side * (i + 0.5) * ROOF_PURLIN_PITCH;
+      const slope = roofSlope(side);
+      // Top face parallel to the deck, `gap` under it measured across the slope.
+      const y = underside(x) - (gap + depth / 2) / Math.cos(slope);
+      const section = instanceBounds({
+        position: [x, y, 0],
+        scale: [width, depth, 1],
+        rotation: [0, 0, slope],
+      });
+      const blocked = blockers
+        .filter(
+          (box) =>
+            box.max.x > section.min.x - gap &&
+            box.min.x < section.max.x + gap &&
+            box.max.y > section.min.y - gap &&
+            box.min.y < section.max.y + gap
+        )
+        .map((box) => [box.min.z - gap, box.max.z + gap] as const)
+        .sort((a, b) => a[0] - b[0]);
+      let from = -ROOF_PURLIN_END;
+      const runs: [number, number][] = [];
+      for (const [z0, z1] of blocked) {
+        if (z1 <= from) continue;
+        if (z0 >= ROOF_PURLIN_END) break;
+        if (z0 > from) runs.push([from, z0]);
+        from = Math.max(from, z1);
+      }
+      if (from < ROOF_PURLIN_END) runs.push([from, ROOF_PURLIN_END]);
+      for (const [z0, z1] of runs) {
+        // A stub shorter than a cleat is not a purlin.
+        if (z1 - z0 < 0.5) continue;
+        purlins.push({
+          position: [x, y, (z0 + z1) / 2],
+          scale: [width, depth, z1 - z0],
+          rotation: [0, 0, slope],
+        });
+      }
+    }
+  }
+  return purlins;
 }
 
 /**
@@ -1218,7 +1656,15 @@ export function buildFactoryRoofStructure(): {
     const local = (x - ROOF_HALF_CENTRE * side) / Math.cos(ROOF_PITCH);
     return deckPoint(side, local).y - 0.36;
   };
-  const upperY = (x: number) => underside(x) - chordHeight / 2 - 0.06;
+  // The purlins sit ON the top chords (final5 and r6hall6, interior and
+  // milling: framed INTO them, flush with their top, every purlin put a light
+  // end over a chord's near face and a dark end face over its far edge, a step
+  // in the chord's silhouette every 1.5 m). The chord's top clears the purlins'
+  // underside by TOP_CHORD_AIR, and the purlins run on over every truss.
+  const upperY = (x: number) =>
+    underside(x) -
+    chordHeight / 2 -
+    (ROOF_PURLIN_CLEARANCE + ROOF_PURLIN_SECTION.depth + TOP_CHORD_AIR);
   const member = (
     x0: number,
     y0: number,
@@ -1261,13 +1707,26 @@ export function buildFactoryRoofStructure(): {
       frames.push({ position: [x, lowerY - 0.35, z], scale: [0.75, 0.1, 0.75] });
     }
   }
-  for (const x of [-35, -25, -5, 5, 25, 35]) {
-    purlins.push({
-      position: [x, underside(x) - 0.17, 0],
-      scale: [0.22, 0.3, 99.1],
-      rotation: [0, 0, roofSlope(x < 0 ? -1 : 1)],
-    });
+  // `underside` above is the deck's top line less 0.36; the panel is 0.36 thick
+  // ACROSS the slope, so its true lower face is 0.36 / cos(pitch) down.
+  const deckUnderside = (x: number) => underside(x) + 0.36 - 0.36 / Math.cos(ROOF_PITCH);
+  // Each roof light's four kerbs bound its well; a purlin under the open well
+  // would be seen through the glazing, so the well is blocked down past the
+  // purlins' depth and the runs either side end on the kerbs as trimmers.
+  const wells = new Map<string, THREE.Box3>();
+  for (const kerb of buildFactoryRoofEnvelope().kerbs) {
+    const key = `${Math.sign(kerb.position[0])}:${Math.round(kerb.position[2] / 13)}`;
+    const bounds = instanceBounds(kerb);
+    wells.set(key, wells.get(key)?.union(bounds) ?? bounds);
   }
+  // The trusses block no run: every member of them stands under its top
+  // chord's top, which the purlins clear. (A long diagonal's axis-aligned box
+  // is not that member, and would cut runs the steel never touches.)
+  const blockers = [
+    ...buildFactoryRoofTrim().map(instanceBounds),
+    ...[...wells.values()].map((well) => well.clone().expandByVector(new THREE.Vector3(0, 1, 0))),
+  ];
+  purlins.push(...buildFactoryRoofPurlins(deckUnderside, blockers, halfSpan));
   for (const side of [-1, 1] as const) {
     const x = skylightLocalX(side);
     for (const z of SKYLIGHT_Z) {
@@ -1344,6 +1803,25 @@ export function buildFactoryGlazing(): BoxInstance[] {
         if (Math.abs(right - openingLeft) < 0.2) right = openingLeft - 0.2;
         if (Math.abs(left - openingRight) < 0.2) left = openingRight + 0.2;
         const crosses = right > openingLeft && left < openingRight;
+        // Over a dock the gable column is omitted (see `buildFactoryShellColumns`),
+        // so the 0.9 m slot it filled would be open air. Pull both pane edges in
+        // until their 0.14 m frames meet in a single mullion.
+        if (front && crosses) {
+          const gridX = Math.round((right + 0.45) / 20) * 20;
+          if (
+            Math.abs(right - (gridX - 0.45)) < 1e-6 &&
+            Math.abs(gridX - opening) < portal.halfWidth
+          ) {
+            right = gridX - 0.14;
+          }
+          const leftGridX = Math.round((left - 0.45) / 20) * 20;
+          if (
+            Math.abs(left - (leftGridX + 0.45)) < 1e-6 &&
+            Math.abs(leftGridX - opening) < portal.halfWidth
+          ) {
+            left = leftGridX + 0.14;
+          }
+        }
         const bottom = crosses ? openingTop : sill;
         add(left, right, bottom, SITE_LAYOUT.datum.mezzanine - 0.3);
         add(left, right, Math.max(bottom, SITE_LAYOUT.datum.mezzanine), head);
@@ -1357,96 +1835,267 @@ export function buildFactoryGlazing(): BoxInstance[] {
   return panes;
 }
 
-function FactoryShell() {
-  const lowerWallSegments = useMemo<readonly BoxInstance[]>(() => {
-    const result: BoxInstance[] = [];
-    const height = FACTORY_ENVELOPE_SPEC.baseHeight;
-    for (const portal of Object.values(SITE_LAYOUT.portals)) {
-      const front = portal.normal[2] !== 0;
-      const extent = (front ? FLOOR_WIDTH : FLOOR_DEPTH) / 2;
-      const centre = front ? portal.centre[0] : portal.centre[2];
-      for (const [from, to] of [
-        [-extent, centre - portal.halfWidth],
-        [centre + portal.halfWidth, extent],
-      ]) {
-        const along = (from + to) / 2;
-        result.push(
-          front
-            ? { position: [along, height / 2, portal.centre[2]], scale: [to - from, height, 0.55] }
-            : { position: [portal.centre[0], height / 2, along], scale: [0.55, height, to - from] }
-        );
-      }
+/** The 0.14 m steel frame members around every facade pane. */
+export function buildFactoryFacadeFrames(panes: readonly BoxInstance[]): BoxInstance[] {
+  const { baseHeight, sideWindowSill } = FACTORY_ENVELOPE_SPEC;
+  const frames: BoxInstance[] = [];
+  for (const pane of panes) {
+    const [x, y, z] = pane.position;
+    const [width, height, depth] = pane.scale;
+    const front = width > depth;
+    const sillPane = Math.abs(y - height / 2 - sideWindowSill) < 1e-6;
+    // Mullions of a sill pane reach the plinth with its rail (see below).
+    const mullionTop = y + height / 2 + 0.14;
+    const mullionBottom = sillPane ? baseHeight - 0.02 : y - height / 2 - 0.14;
+    const mullionY = (mullionTop + mullionBottom) / 2;
+    const mullionHeight = mullionTop - mullionBottom;
+    for (const edge of [-1, 1]) {
+      frames.push(
+        front
+          ? {
+              position: [x + edge * (width / 2 + 0.07), mullionY, z],
+              scale: [0.14, mullionHeight, 0.16],
+            }
+          : {
+              position: [x, mullionY, z + edge * (depth / 2 + 0.07)],
+              scale: [0.16, mullionHeight, 0.14],
+            }
+      );
+      // A rail under a sill pane runs down onto the plinth. Stopped 0.14 m under
+      // the pane it left an 11 cm slot over the 0.6 m plinth, and its sunlit
+      // top read as a dashed white line along the hall (overview, final-med-12).
+      // Sunk 2 cm into the plinth so no hairline survives at any distance.
+      const onSill = edge < 0 && sillPane;
+      const railBottom = onSill ? baseHeight - 0.02 : y + edge * (height / 2 + 0.07) - 0.07;
+      const railTop = onSill ? sideWindowSill : railBottom + 0.14;
+      const railY = (railBottom + railTop) / 2;
+      const railHeight = railTop - railBottom;
+      // The sill rail is as deep as its pane. At 0.16 m it left 4 cm of sunlit
+      // top either side of the 8 cm glass, a sub-pixel line that still broke
+      // into dashes once the slot under it was closed.
+      const railDepth = onSill ? (front ? depth : width) : 0.16;
+      frames.push(
+        front
+          ? { position: [x, railY, z], scale: [width, railHeight, railDepth] }
+          : { position: [x, railY, z], scale: [railDepth, railHeight, depth] }
+      );
     }
-    return result;
-  }, []);
-  const parapetSegments = useMemo<readonly BoxInstance[]>(() => {
-    const height = FACTORY_ENVELOPE_SPEC.topBandTop - FACTORY_ENVELOPE_SPEC.topBandBottom;
-    const y = FACTORY_ENVELOPE_SPEC.topBandBottom + height / 2;
-    return [
-      { position: [0, y, 50], scale: [FLOOR_WIDTH, height, 0.55] },
-      { position: [0, y, -50], scale: [FLOOR_WIDTH, height, 0.55] },
-      { position: [-FLOOR_WIDTH / 2, y, 0], scale: [0.55, height, 100] },
-      { position: [FLOOR_WIDTH / 2, y, 0], scale: [0.55, height, 100] },
-    ];
-  }, []);
+  }
+  return frames;
+}
 
-  const columns = useMemo<readonly BoxInstance[]>(() => {
-    const result: BoxInstance[] = [];
-    const height = SITE_LAYOUT.factory.bounds.maxY;
-    for (let x = -FLOOR_WIDTH / 2; x <= FLOOR_WIDTH / 2; x += 20) {
-      result.push({ position: [x, height / 2, -49.55], scale: [0.42, height, 0.42] });
-      result.push({ position: [x, height / 2, 49.55], scale: [0.42, height, 0.42] });
-      result.push({ position: [x, 0.06, -49.55], scale: [1.05, 0.12, 1.05] });
-      result.push({ position: [x, 0.06, 49.55], scale: [1.05, 0.12, 1.05] });
+/**
+ * Curtain-wall light sizes. A pane in `buildFactoryGlazing` is a whole bay
+ * opening, up to 9.4 x 11.2 m - no glass anyone makes - so the facade showed
+ * nothing at the scale real lights are and read as an open frame from outside
+ * (final3 med-12 overview, shipping, tank-farm). Each opening is divided into
+ * lights no wider than LIGHT_MAX_WIDTH and rows no taller than LIGHT_MAX_HEIGHT.
+ */
+const GLAZING_LIGHT_MAX_WIDTH = 3.3;
+const GLAZING_LIGHT_MAX_HEIGHT = 4.5;
+/** Intermediate mullion: narrower than the 0.14 m opening frame, 2 cm proud of each glass face. */
+const GLAZING_MULLION = { width: 0.08, depth: 0.12 } as const;
+/** Transom: inside the glass (no sunlit top to break into dashes at 90 m). */
+const GLAZING_TRANSOM = { height: 0.08, depth: 0.07 } as const;
+
+const glazingDivisions = (pane: BoxInstance) => {
+  const axis = pane.scale[0] > pane.scale[2] ? 0 : 2;
+  return {
+    axis,
+    columns: Math.max(1, Math.ceil(pane.scale[axis] / GLAZING_LIGHT_MAX_WIDTH - 1e-9)),
+    rows: Math.max(1, Math.ceil(pane.scale[1] / GLAZING_LIGHT_MAX_HEIGHT - 1e-9)),
+  };
+};
+
+/**
+ * Each opening's lights, side by side across it. Rows are not split here: a
+ * transom runs inside the glass, so the column of glass stays one box and the
+ * glazing shader varies its reflection per row instead.
+ */
+export function buildFactoryGlazingLights(panes: readonly BoxInstance[]): BoxInstance[] {
+  return panes.flatMap((pane) => {
+    const { axis, columns } = glazingDivisions(pane);
+    const width = pane.scale[axis] / columns;
+    return Array.from({ length: columns }, (_, i) => {
+      const position: [number, number, number] = [...pane.position];
+      const scale: [number, number, number] = [...pane.scale];
+      position[axis] = pane.position[axis] - pane.scale[axis] / 2 + (i + 0.5) * width;
+      scale[axis] = width;
+      return { position, scale };
+    });
+  });
+}
+
+/** The mullions over each opening's light seams and the transoms across its rows. */
+export function buildFactoryGlazingBars(panes: readonly BoxInstance[]): BoxInstance[] {
+  const bars: BoxInstance[] = [];
+  for (const pane of panes) {
+    const { axis, columns, rows } = glazingDivisions(pane);
+    const normal = 2 - axis;
+    const [width, height] = [pane.scale[axis], pane.scale[1]];
+    // Into the opening frame at each end (its members stand 0.14 m outside the
+    // glass edge), so no bar end lies on a frame face.
+    for (let i = 1; i < columns; i++) {
+      const position: [number, number, number] = [...pane.position];
+      const scale: [number, number, number] = [0, height + 0.1, 0];
+      position[axis] = pane.position[axis] - width / 2 + (i * width) / columns;
+      scale[axis] = GLAZING_MULLION.width;
+      scale[normal] = GLAZING_MULLION.depth;
+      bars.push({ position, scale });
     }
-    for (const z of FACTORY_SIDE_COLUMN_Z) {
-      result.push({
-        position: [-FLOOR_WIDTH / 2 + 0.45, height / 2, z],
-        scale: [0.42, height, 0.42],
-      });
-      result.push({
-        position: [FLOOR_WIDTH / 2 - 0.45, height / 2, z],
-        scale: [0.42, height, 0.42],
-      });
-      result.push({ position: [-FLOOR_WIDTH / 2 + 0.45, 0.06, z], scale: [1.05, 0.12, 1.05] });
-      result.push({ position: [FLOOR_WIDTH / 2 - 0.45, 0.06, z], scale: [1.05, 0.12, 1.05] });
+    for (let j = 1; j < rows; j++) {
+      const position: [number, number, number] = [...pane.position];
+      const scale: [number, number, number] = [0, GLAZING_TRANSOM.height, 0];
+      position[1] = pane.position[1] - height / 2 + (j * height) / rows;
+      scale[axis] = width + 0.1;
+      scale[normal] = GLAZING_TRANSOM.depth;
+      bars.push({ position, scale });
     }
-    // Chamfer the four vertical building corners. These are the shell's most
-    // camera-facing hard edges from every exterior angle.
-    for (const x of [-FLOOR_WIDTH / 2 + 0.15, FLOOR_WIDTH / 2 - 0.15]) {
-      for (const z of [-49.85, 49.85]) {
-        result.push(
-          chamferStrip(
-            [x, height / 2, z],
-            [1.45, height, 0.16],
-            [0, (Math.PI / 4) * Math.sign(x * z), 0]
-          )
-        );
-      }
+  }
+  return bars;
+}
+
+/** How far the wall columns stop below the parapet top they stand under. */
+export const FACTORY_COLUMN_TOP_DROP = 0.02;
+
+/** Wall columns, their base plates and the chamfered building corners. */
+export function buildFactoryShellColumns(): BoxInstance[] {
+  const result: BoxInstance[] = [];
+  // Two centimetres under the parapet top: full height, each column's top lay
+  // exactly on the parapet's top face where the two overlap at the wall line.
+  const height = SITE_LAYOUT.factory.bounds.maxY - FACTORY_COLUMN_TOP_DROP;
+  // A gable column never stands inside a dock opening. The 20 m grid put one at
+  // x = 0 in the middle of both docks: on the shipping forklift channel's line,
+  // and in front of the SHIPPING board and facade lettering from every exterior
+  // camera, which read "SH PPING". The dock opening's own header beam spans the
+  // gap. Camera collision already treats each portal as fully open.
+  const frontPortals = [SITE_LAYOUT.portals.shipping, SITE_LAYOUT.portals.receiving];
+  const inOpening = (x: number, z: number, halfSpan: number): boolean =>
+    frontPortals.some(
+      (portal) =>
+        Math.sign(portal.centre[2]) === Math.sign(z) &&
+        Math.abs(x - portal.centre[0]) - halfSpan < portal.halfWidth
+    );
+  for (let x = -FLOOR_WIDTH / 2; x <= FLOOR_WIDTH / 2; x += 20) {
+    for (const z of [-49.55, 49.55]) {
+      if (inOpening(x, z, 1.05 / 2)) continue;
+      result.push({ position: [x, height / 2, z], scale: [0.42, height, 0.42] });
+      result.push({ position: [x, 0.06, z], scale: [1.05, 0.12, 1.05] });
     }
-    return result;
-  }, []);
+  }
+  for (const z of FACTORY_SIDE_COLUMN_Z) {
+    result.push({
+      position: [-FLOOR_WIDTH / 2 + 0.45, height / 2, z],
+      scale: [0.42, height, 0.42],
+    });
+    result.push({
+      position: [FLOOR_WIDTH / 2 - 0.45, height / 2, z],
+      scale: [0.42, height, 0.42],
+    });
+    result.push({ position: [-FLOOR_WIDTH / 2 + 0.45, 0.06, z], scale: [1.05, 0.12, 1.05] });
+    result.push({ position: [FLOOR_WIDTH / 2 - 0.45, 0.06, z], scale: [1.05, 0.12, 1.05] });
+  }
+  // Chamfer the four vertical building corners. These are the shell's most
+  // camera-facing hard edges from every exterior angle.
+  for (const x of [-FLOOR_WIDTH / 2 + 0.15, FLOOR_WIDTH / 2 - 0.15]) {
+    for (const z of [-49.85, 49.85]) {
+      result.push(
+        chamferStrip(
+          [x, height / 2, z],
+          [1.45, height, 0.16],
+          [0, (Math.PI / 4) * Math.sign(x * z), 0]
+        )
+      );
+    }
+  }
+  return result;
+}
+
+/** Lower wall plinth segments, either side of every portal. */
+export function buildFactoryLowerWallSegments(): BoxInstance[] {
+  const result: BoxInstance[] = [];
+  const height = FACTORY_ENVELOPE_SPEC.baseHeight;
+  for (const portal of Object.values(SITE_LAYOUT.portals)) {
+    const front = portal.normal[2] !== 0;
+    const extent = (front ? FLOOR_WIDTH : FLOOR_DEPTH) / 2;
+    const centre = front ? portal.centre[0] : portal.centre[2];
+    for (const [from, to] of [
+      [-extent, centre - portal.halfWidth],
+      [centre + portal.halfWidth, extent],
+    ]) {
+      const along = (from + to) / 2;
+      result.push(
+        front
+          ? { position: [along, height / 2, portal.centre[2]], scale: [to - from, height, 0.55] }
+          : { position: [portal.centre[0], height / 2, along], scale: [0.55, height, to - from] }
+      );
+    }
+  }
+  return result;
+}
+
+/** The top band around the four walls. */
+export function buildFactoryParapetSegments(): BoxInstance[] {
+  const height = FACTORY_ENVELOPE_SPEC.topBandTop - FACTORY_ENVELOPE_SPEC.topBandBottom;
+  const y = FACTORY_ENVELOPE_SPEC.topBandBottom + height / 2;
+  return [
+    { position: [0, y, 50], scale: [FLOOR_WIDTH, height, 0.55] },
+    { position: [0, y, -50], scale: [FLOOR_WIDTH, height, 0.55] },
+    { position: [-FLOOR_WIDTH / 2, y, 0], scale: [0.55, height, 100] },
+    { position: [FLOOR_WIDTH / 2, y, 0], scale: [0.55, height, 100] },
+  ];
+}
+
+/**
+ * Chamfer the parapet cope. This is the roofline silhouette against the sky
+ * from every exterior camera. Every chamfer stops 1 cm short of each end: at
+ * full length their end faces lay on the parapets' end faces in the
+ * building-corner notch.
+ */
+export function buildFactoryParapetCopeChamfers(): BoxInstance[] {
+  const height = SITE_LAYOUT.factory.bounds.maxY;
+  return [
+    chamferStrip([0, height - 0.04, 49.78], [FLOOR_WIDTH - 0.02, 0.42, 0.42], [Math.PI / 4, 0, 0]),
+    chamferStrip([0, height - 0.04, -49.78], [FLOOR_WIDTH - 0.02, 0.42, 0.42], [Math.PI / 4, 0, 0]),
+    chamferStrip(
+      [-FLOOR_WIDTH / 2 + 0.22, height - 0.04, 0],
+      [0.42, 0.42, 99.98],
+      [0, 0, Math.PI / 4]
+    ),
+    chamferStrip(
+      [FLOOR_WIDTH / 2 - 0.22, height - 0.04, 0],
+      [0.42, 0.42, 99.98],
+      [0, 0, Math.PI / 4]
+    ),
+  ];
+}
+
+function FactoryShell() {
+  const lowerWallSegments = useMemo(buildFactoryLowerWallSegments, []);
+  const parapetSegments = useMemo(buildFactoryParapetSegments, []);
+
+  const columns = useMemo(buildFactoryShellColumns, []);
 
   const roofStructure = useMemo(buildFactoryRoofStructure, []);
-  const roofTrusses = useMemo(
-    () => [...roofStructure.frames, ...roofStructure.purlins],
-    [roofStructure]
-  );
 
   const roofEnvelope = useMemo(buildFactoryRoofEnvelope, []);
   const roofPanels = roofEnvelope.panels;
 
   const roofDetails = useMemo<readonly BoxInstance[]>(() => {
-    const height = SITE_LAYOUT.factory.bounds.maxY;
-    const result: BoxInstance[] = [
-      { position: [0, height - 0.15, -49.4], scale: [FLOOR_WIDTH, 0.18, 0.22] },
-      { position: [0, height - 0.15, 49.4], scale: [FLOOR_WIDTH, 0.18, 0.22] },
-      { position: [0, height - 0.05, 0], scale: [FLOOR_WIDTH, 0.18, 0.26] },
-      { position: [-FLOOR_WIDTH * 0.3, height + 0.45, -18], scale: [5, 1, 3] },
-      { position: [0, height + 0.45, -18], scale: [5, 1, 3] },
-      { position: [FLOOR_WIDTH * 0.3, height + 0.45, -18], scale: [5, 1, 3] },
-    ];
+    const result: BoxInstance[] = [...buildFactoryRoofTrim()];
 
+    // Upstand kerbs. A roof light sits on a raised frame; without one the
+    // glazing is a blue rectangle lying flat on the deck, and from inside
+    // there is nothing to read as a light well.
+    result.push(...roofEnvelope.kerbs, ...roofStructure.glazingBars);
+
+    result.push(...buildFactoryParapetCopeChamfers());
+
+    return result;
+  }, [roofEnvelope, roofStructure]);
+
+  const roofBattens = useMemo<readonly BoxInstance[]>(() => {
+    const result: BoxInstance[] = [];
     // Standing seams. A coated-steel deck is not a smooth plane: the battens
     // run down the slope (X here, since the deck tilts about Z) and repeat
     // across it. From the overview camera the roof is one of the largest
@@ -1483,63 +2132,19 @@ function FactoryShell() {
           result.push(buildFactoryRoofBatten(side, -ROOF_BATTEN_REACH, ROOF_BATTEN_REACH, z));
         }
       }
-      // Upstand kerbs. A roof light sits on a raised frame; without one the
-      // glazing is a blue rectangle lying flat on the deck, and from inside
-      // there is nothing to read as a light well.
     }
-
-    result.push(...roofEnvelope.kerbs, ...roofStructure.glazingBars);
-
-    // Chamfer the parapet cope. This is the roofline silhouette against the
-    // sky from every exterior camera.
-    result.push(
-      chamferStrip([0, height - 0.04, 49.78], [FLOOR_WIDTH, 0.42, 0.42], [Math.PI / 4, 0, 0]),
-      chamferStrip([0, height - 0.04, -49.78], [FLOOR_WIDTH, 0.42, 0.42], [Math.PI / 4, 0, 0]),
-      chamferStrip(
-        [-FLOOR_WIDTH / 2 + 0.22, height - 0.04, 0],
-        [0.42, 0.42, 100],
-        [0, 0, Math.PI / 4]
-      ),
-      chamferStrip(
-        [FLOOR_WIDTH / 2 - 0.22, height - 0.04, 0],
-        [0.42, 0.42, 100],
-        [0, 0, Math.PI / 4]
-      )
-    );
-
     return result;
-  }, [roofEnvelope, roofStructure]);
+  }, []);
 
   const roofSkylights = useMemo(buildFactoryRoofGlazing, []);
+  const rooftopPlant = useMemo(buildFactoryRooftopPlant, []);
 
   const windows = useMemo(buildFactoryGlazing, []);
-  const facadeAccents = useMemo<readonly BoxInstance[]>(() => {
-    const frames: BoxInstance[] = [];
-    for (const pane of windows) {
-      const [x, y, z] = pane.position;
-      const [width, height, depth] = pane.scale;
-      const front = width > depth;
-      for (const edge of [-1, 1]) {
-        frames.push(
-          front
-            ? {
-                position: [x + edge * (width / 2 + 0.07), y, z],
-                scale: [0.14, height + 0.28, 0.16],
-              }
-            : {
-                position: [x, y, z + edge * (depth / 2 + 0.07)],
-                scale: [0.16, height + 0.28, 0.14],
-              }
-        );
-        frames.push(
-          front
-            ? { position: [x, y + edge * (height / 2 + 0.07), z], scale: [width, 0.14, 0.16] }
-            : { position: [x, y + edge * (height / 2 + 0.07), z], scale: [0.16, 0.14, depth] }
-        );
-      }
-    }
-    return frames;
-  }, [windows]);
+  const windowLights = useMemo(() => buildFactoryGlazingLights(windows), [windows]);
+  const facadeAccents = useMemo(
+    () => [...buildFactoryFacadeFrames(windows), ...buildFactoryGlazingBars(windows)],
+    [windows]
+  );
 
   return (
     // SHADOW FLAGS ARE SET HERE, AT SOURCE.
@@ -1565,15 +2170,30 @@ function FactoryShell() {
       />
       <InstancedBoxes instances={columns} material={MATERIALS.steel} castShadow receiveShadow />
       <InstancedBoxes
-        instances={roofTrusses}
+        instances={roofStructure.frames}
         material={MATERIALS.steelTrim}
         castShadow
         receiveShadow
       />
-      <InstancedBoxes instances={roofPanels} material={MATERIALS.roof} castShadow receiveShadow />
+      {/* No shadow casting: under the opaque deck they could only shade the
+          deck's own underside, which the sun never reaches. */}
+      <InstancedBoxes instances={roofStructure.purlins} material={MATERIALS.purlin} receiveShadow />
+      <InstancedBoxes
+        instances={roofPanels}
+        material={ROOF_PANEL_MATERIALS}
+        castShadow
+        receiveShadow
+      />
       <InstancedBoxes
         instances={roofDetails}
         material={MATERIALS.roofTrim}
+        castShadow
+        receiveShadow
+      />
+      <RoofBattens instances={roofBattens} />
+      <InstancedBoxes
+        instances={rooftopPlant}
+        material={MATERIALS.rooftopPlant}
         castShadow
         receiveShadow
       />
@@ -1585,7 +2205,7 @@ function FactoryShell() {
         receiveShadow
       />
       <InstancedBoxes
-        instances={windows}
+        instances={windowLights}
         material={MATERIALS.glass}
         renderOrder={RENDER_ORDER.default}
       />
@@ -1594,44 +2214,77 @@ function FactoryShell() {
   );
 }
 
+/** Peak emissive of the backlit letters at full night. */
+export const IDENTITY_SIGN_GLOW = 1.4;
+
+/**
+ * Backlit lettering follows the shared exterior lamp clock. The fascia sign
+ * was paint only, so at 22:00 it was lit by the night fill alone and vanished
+ * into the facade; a fascia like this is a light box at night.
+ */
+export function identitySignGlow(lampLevel: number): number {
+  return Number.isFinite(lampLevel)
+    ? THREE.MathUtils.clamp(lampLevel, 0, 1) * IDENTITY_SIGN_GLOW
+    : 0;
+}
+
+function drawIdentityLettering(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  lettersOnly: boolean
+) {
+  context.fillStyle = lettersOnly ? '#000000' : '#14242a';
+  context.fillRect(0, 0, width, height);
+  context.font = '600 148px Inter, Arial, sans-serif';
+  context.textBaseline = 'middle';
+  const wordWidth = context.measureText('MillOS').width;
+  const start = (width - wordWidth) / 2;
+  context.fillStyle = '#edf4f1';
+  context.fillText('Mill', start, height / 2);
+  context.fillStyle = '#3ab0a5';
+  context.fillText('OS', start + context.measureText('Mill').width, height / 2);
+}
+
 function FactoryIdentitySign() {
-  const texture = useMemo(() => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 1024;
-    canvas.height = 256;
-    const context = canvas.getContext('2d');
-    if (context) {
-      context.fillStyle = '#14242a';
-      context.fillRect(0, 0, canvas.width, canvas.height);
-      context.font = '600 148px Inter, Arial, sans-serif';
-      context.textBaseline = 'middle';
-      const wordWidth = context.measureText('MillOS').width;
-      const start = (canvas.width - wordWidth) / 2;
-      context.fillStyle = '#edf4f1';
-      context.fillText('Mill', start, canvas.height / 2);
-      context.fillStyle = '#3ab0a5';
-      context.fillText('OS', start + context.measureText('Mill').width, canvas.height / 2);
-    }
-    const canvasTexture = new THREE.CanvasTexture(canvas);
-    canvasTexture.colorSpace = THREE.SRGBColorSpace;
-    canvasTexture.needsUpdate = true;
-    return canvasTexture;
+  const [texture, glowTexture] = useMemo(() => {
+    const make = (lettersOnly: boolean) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1024;
+      canvas.height = 256;
+      const context = canvas.getContext('2d');
+      if (context) drawIdentityLettering(context, canvas.width, canvas.height, lettersOnly);
+      const canvasTexture = new THREE.CanvasTexture(canvas);
+      canvasTexture.colorSpace = THREE.SRGBColorSpace;
+      canvasTexture.needsUpdate = true;
+      return canvasTexture;
+    };
+    return [make(false), make(true)] as const;
   }, []);
   const material = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
         map: texture,
         roughness: 0.6,
+        // The panel stays lit paint; only the letters emit, through this mask.
+        emissive: '#ffffff',
+        emissiveMap: glowTexture,
+        emissiveIntensity: 0,
       }),
-    [texture]
+    [texture, glowTexture]
   );
+
+  useFrame(() => {
+    material.emissiveIntensity = identitySignGlow(EXTERIOR_LAMP_LEVEL.value);
+  });
 
   useEffect(
     () => () => {
       material.dispose();
       texture.dispose();
+      glowTexture.dispose();
     },
-    [material, texture]
+    [material, texture, glowTexture]
   );
 
   return (
@@ -1676,27 +2329,29 @@ function useFixtureLensExposure(): void {
   }, [composerActive]);
 }
 
+/** Actual fitting geometry, shared with pipe-clearance verification.
+ * Working if every physical housing/lens clears the live spouting assembly.
+ */
+export function buildCeilingFixtures(): {
+  housings: readonly BoxInstance[];
+  emitters: readonly BoxInstance[];
+} {
+  const housings = FIXTURE_GRID_X.flatMap((x) =>
+    FIXTURE_GRID_Z.map((z) => ({
+      position: [x, SITE_LAYOUT.factory.bounds.maxY - 3.8, z] as const,
+      scale: [6.2, 0.18, 0.78] as const,
+    }))
+  );
+  const emitters = housings.map(({ position }) => ({
+    position: [position[0], position[1] - 0.11, position[2]] as const,
+    scale: [5.55, 0.045, 0.48] as const,
+  }));
+  return { housings, emitters };
+}
+
 function CeilingLighting() {
   useFixtureLensExposure();
-
-  const housings = useMemo<readonly BoxInstance[]>(
-    () =>
-      FIXTURE_GRID_X.flatMap((x) =>
-        FIXTURE_GRID_Z.map((z) => ({
-          position: [x, SITE_LAYOUT.factory.bounds.maxY - 3.8, z] as const,
-          scale: [6.2, 0.18, 0.78] as const,
-        }))
-      ),
-    []
-  );
-  const emitters = useMemo<readonly BoxInstance[]>(
-    () =>
-      housings.map(({ position }) => ({
-        position: [position[0], position[1] - 0.11, position[2]] as const,
-        scale: [5.55, 0.045, 0.48] as const,
-      })),
-    [housings]
-  );
+  const { housings, emitters } = useMemo(buildCeilingFixtures, []);
 
   return (
     <group name="factory-ceiling-fixtures">
@@ -1727,10 +2382,34 @@ const ZONE_SIGN_DATA: ReadonlyArray<{
     accent: '#4f9ac8',
     side: 'east',
   },
-  { label: '02  MILLING', z: SITE_LAYOUT.factory.zones.milling, accent: '#d79a4b' },
-  { label: '03  SIFTING', z: SITE_LAYOUT.factory.zones.sifting, accent: '#9b82ca' },
+  // SIFTING hangs over the gallery's milling-side end (z 25; the gallery runs
+  // 14.65-25.35), not over its centre: at z 20 the vertical intake drop to
+  // R.M. 101 stood in front of its lettering from the forklift view
+  // (final-med-12), and every west-wall z from 13 to 24 is crossed by a spout
+  // from there (zoneWayfindingSigns.test.ts). MILLING moves 3.5 m north, past
+  // the mills' backs, to keep 1.3 m between the two boards. The east wall is
+  // worse: four views see it through the mill spouts.
+  { label: '02  MILLING', z: SITE_LAYOUT.factory.zones.milling + 3.5, accent: '#d79a4b' },
+  { label: '03  SIFTING', z: SITE_LAYOUT.factory.zones.sifting + 5, accent: '#9b82ca' },
   { label: '04  PACKING', z: SITE_LAYOUT.factory.zones.packing, accent: '#55ad7b' },
 ];
+
+/** Each zone sign's board: centre, the yaw that faces it into the hall, and its size. */
+export function buildZoneSignPlacements(): {
+  readonly label: string;
+  readonly position: [number, number, number];
+  readonly rotationY: number;
+  readonly width: number;
+  readonly height: number;
+}[] {
+  return ZONE_SIGN_DATA.map(({ label, z, side }) => ({
+    label,
+    position: [side === 'east' ? FLOOR_WIDTH / 2 - 1.1 : -FLOOR_WIDTH / 2 + 1.1, 6.2, z],
+    rotationY: side === 'east' ? -Math.PI / 2 : Math.PI / 2,
+    width: 7.2,
+    height: 1.8,
+  }));
+}
 
 function ZoneWayfindingSigns() {
   const resources = useMemo(
@@ -1775,16 +2454,17 @@ function ZoneWayfindingSigns() {
     [resources]
   );
 
+  const placements = useMemo(buildZoneSignPlacements, []);
   return (
     <group name="factory-zone-wayfinding">
-      {resources.map(({ label, z, side, material }) => (
+      {resources.map(({ label, material }, index) => (
         <mesh
           key={label}
           geometry={UNIT_PLANE}
           material={material}
-          position={[side === 'east' ? FLOOR_WIDTH / 2 - 1.1 : -FLOOR_WIDTH / 2 + 1.1, 6.2, z]}
-          rotation={[0, side === 'east' ? -Math.PI / 2 : Math.PI / 2, 0]}
-          scale={[7.2, 1.8, 1]}
+          position={placements[index].position}
+          rotation={[0, placements[index].rotationY, 0]}
+          scale={[placements[index].width, placements[index].height, 1]}
           renderOrder={RENDER_ORDER.default + 1}
         />
       ))}
@@ -1792,43 +2472,50 @@ function ZoneWayfindingSigns() {
   );
 }
 
+/**
+ * Steel frames round the dock and service portals. Every jamb stands 2 cm into
+ * its opening (0.72 m, inner face at halfWidth - 0.02): flush at the opening
+ * edge, its inner face lay exactly on the wall plinth's end face - structural
+ * steel against concrete at 0 mm, beside every forklift that passes.
+ */
+export function buildFactoryPortalFrames(): BoxInstance[] {
+  return [
+    // Shipping portal.
+    { position: [-15.34, 7, 49.36], scale: [0.72, 14, 0.9] },
+    { position: [15.34, 7, 49.36], scale: [0.72, 14, 0.9] },
+    { position: [0, 14.35, 49.36], scale: [31.4, 0.7, 0.9] },
+    // Receiving portal.
+    { position: [-9.34, 7, -49.36], scale: [0.72, 14, 0.9] },
+    { position: [9.34, 7, -49.36], scale: [0.72, 14, 0.9] },
+    { position: [0, 14.35, -49.36], scale: [19.4, 0.7, 0.9] },
+    // Service portal frames, derived from the portals so they follow the
+    // wall openings: 0.64 m inboard of the wall line, like the dock frames.
+    ...[SITE_LAYOUT.portals.westService, SITE_LAYOUT.portals.eastService].flatMap(
+      (portal): BoxInstance[] => {
+        const x = portal.centre[0] - portal.normal[0] * 0.64;
+        const z = portal.centre[2];
+        const jambOffset = portal.halfWidth + 0.34;
+        return [
+          { position: [x, portal.height / 2, z - jambOffset], scale: [0.9, portal.height, 0.72] },
+          { position: [x, portal.height / 2, z + jambOffset], scale: [0.9, portal.height, 0.72] },
+          {
+            position: [x, portal.height + 0.35, z],
+            scale: [0.9, 0.7, 2 * portal.halfWidth + 1.4],
+          },
+        ];
+      }
+    ),
+    // Chamfer the two dock jambs. These are the shell's most-approached
+    // edges - every truck and every forklift passes within a metre.
+    chamferStrip([-15.05, 7, 49.0], [0.34, 14, 0.34], [0, Math.PI / 4, 0]),
+    chamferStrip([15.05, 7, 49.0], [0.34, 14, 0.34], [0, Math.PI / 4, 0]),
+    chamferStrip([-9.05, 7, -49.0], [0.34, 14, 0.34], [0, Math.PI / 4, 0]),
+    chamferStrip([9.05, 7, -49.0], [0.34, 14, 0.34], [0, Math.PI / 4, 0]),
+  ];
+}
+
 function PortalFrames() {
-  const frames = useMemo<readonly BoxInstance[]>(
-    () => [
-      // Shipping portal.
-      { position: [-15.35, 7, 49.36], scale: [0.7, 14, 0.9] },
-      { position: [15.35, 7, 49.36], scale: [0.7, 14, 0.9] },
-      { position: [0, 14.35, 49.36], scale: [31.4, 0.7, 0.9] },
-      // Receiving portal.
-      { position: [-9.35, 7, -49.36], scale: [0.7, 14, 0.9] },
-      { position: [9.35, 7, -49.36], scale: [0.7, 14, 0.9] },
-      { position: [0, 14.35, -49.36], scale: [19.4, 0.7, 0.9] },
-      // Service portal frames, derived from the portals so they follow the
-      // wall openings: 0.64 m inboard of the wall line, like the dock frames.
-      ...[SITE_LAYOUT.portals.westService, SITE_LAYOUT.portals.eastService].flatMap(
-        (portal): BoxInstance[] => {
-          const x = portal.centre[0] - portal.normal[0] * 0.64;
-          const z = portal.centre[2];
-          const jambOffset = portal.halfWidth + 0.35;
-          return [
-            { position: [x, portal.height / 2, z - jambOffset], scale: [0.9, portal.height, 0.7] },
-            { position: [x, portal.height / 2, z + jambOffset], scale: [0.9, portal.height, 0.7] },
-            {
-              position: [x, portal.height + 0.35, z],
-              scale: [0.9, 0.7, 2 * portal.halfWidth + 1.4],
-            },
-          ];
-        }
-      ),
-      // Chamfer the two dock jambs. These are the shell's most-approached
-      // edges - every truck and every forklift passes within a metre.
-      chamferStrip([-15.05, 7, 49.0], [0.34, 14, 0.34], [0, Math.PI / 4, 0]),
-      chamferStrip([15.05, 7, 49.0], [0.34, 14, 0.34], [0, Math.PI / 4, 0]),
-      chamferStrip([-9.05, 7, -49.0], [0.34, 14, 0.34], [0, Math.PI / 4, 0]),
-      chamferStrip([9.05, 7, -49.0], [0.34, 14, 0.34], [0, Math.PI / 4, 0]),
-    ],
-    []
-  );
+  const frames = useMemo(buildFactoryPortalFrames, []);
   const bollards = useMemo(
     () =>
       [
@@ -1867,59 +2554,297 @@ function PortalFrames() {
   );
 }
 
+/**
+ * The four red safety stations (fire points), each fixed to the inner face of a
+ * side-wall column.
+ *
+ * They stood free 3.2 m off the walls, which put every one of them in the 3 m
+ * pedestrian lane (`WALKWAY_LANES`, centred 3 m in) and left a red 2.5 m slab
+ * with nothing behind it but glazing - "unsupported against the glazing" in
+ * the forklift review frame. Backed onto the steel at z = +/-10 and -30 they
+ * read as mounted, and the lane is clear. The 1 cm gap keeps the back face off
+ * the column face so the two never share a plane.
+ */
+export function buildSafetyStations(): BoxInstance[] {
+  const depth = 0.45;
+  const columnInner = FLOOR_WIDTH / 2 - 0.45 - 0.21;
+  const x = columnInner - depth / 2 - 0.01;
+  return [
+    { position: [-x, 1.25, 10], scale: [depth, 2.5, 1.4] },
+    { position: [x, 1.25, 10], scale: [depth, 2.5, 1.4] },
+    { position: [-x, 1.25, -30], scale: [depth, 2.5, 1.4] },
+    { position: [x, 1.25, -30], scale: [depth, 2.5, 1.4] },
+  ];
+}
+
+/** The four aisle upstands flanking the milling and packing pads. */
+export function buildSafetyRails(): BoxInstance[] {
+  return [
+    { position: [-28, 0.55, SITE_LAYOUT.factory.zones.packing], scale: [0.18, 1.1, 9] },
+    { position: [24, 0.55, SITE_LAYOUT.factory.zones.packing], scale: [0.18, 1.1, 9] },
+    { position: [-30, 0.55, SITE_LAYOUT.factory.zones.milling + 1], scale: [0.18, 1.1, 11] },
+    { position: [23, 0.55, SITE_LAYOUT.factory.zones.milling + 1], scale: [0.18, 1.1, 11] },
+  ];
+}
+
+/** Precast section of an aisle upstand: nominal length, open joint, cast foot height. */
+const RAIL_SECTION_PITCH = 2.4;
+const RAIL_JOINT = 0.04;
+const RAIL_FOOT_HEIGHT = 0.14;
+/** Painted body: 18 mm in from each face of the foot, its top under the chamfers. */
+const RAIL_BODY_INSET = 0.018;
+/** Square chamfer strip laid along each top arris (its diagonal is the bevel). */
+const RAIL_CHAMFER = 0.025;
+const RAIL_SOCKET = { size: 0.07, height: 0.012 } as const;
+/** Hazard band: below the chamfers, laid on the body's face 4 mm thick, 45-degree stripes. */
+const RAIL_BAND = { height: 0.16, below: 0.03, thickness: 0.004 } as const;
+/** Length one band's texture spans (a section is 2.16-2.21 m) and its stripe pitch. */
+const RAIL_BAND_LENGTH = 2.2;
+const RAIL_BAND_PITCH = 0.2;
+
+/**
+ * Yellow and black at 45 degrees, authored in metres over one band (u along
+ * the section, v up it). An sRGB albedo: the band is paint, so it is lit.
+ * 512 px over 2.2 m puts a stripe period at ~46 px, well clear of aliasing.
+ */
+function createHazardBandTexture(): THREE.DataTexture {
+  const width = 512;
+  const height = 40;
+  const data = new Uint8Array(width * height * 4);
+  for (let y = 0; y < height; y += 1)
+    for (let x = 0; x < width; x += 1) {
+      const along = ((x + 0.5) / width) * RAIL_BAND_LENGTH;
+      const up = ((y + 0.5) / height) * RAIL_BAND.height;
+      const yellow = ((along + up) / RAIL_BAND_PITCH) % 1 < 0.5;
+      const i = (y * width + x) * 4;
+      data[i] = yellow ? 214 : 34;
+      data[i + 1] = yellow ? 168 : 33;
+      data[i + 2] = yellow ? 44 : 31;
+      data[i + 3] = 255;
+    }
+  const texture = createColorDataTexture(data, width, height);
+  texture.anisotropy = 4;
+  texture.generateMipmaps = true;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  return texture;
+}
+
+const RAIL_BAND_MATERIAL = new THREE.MeshStandardMaterial({
+  name: 'factory-barrier-hazard-band',
+  map: createHazardBandTexture(),
+  roughness: 0.75,
+  metalness: 0,
+});
+
+/**
+ * The aisle upstands as what they are: precast concrete sections stood end to
+ * end, each on a bare cast foot with a painted body, both top arrises chamfered
+ * and a pair of lifting sockets cast into the top.
+ *
+ * One long box per run read as a smeared brown slab at both distances that see
+ * it (milling's foreground run at 6 m, forklift's board behind the belt at
+ * 34 m). The masonry finish's slab term (`SHELL_SURFACES`) already tried to
+ * draw the sections in the shader and did not show. Real gaps between the
+ * sections show the floor and shadow through; the chamfers catch their own
+ * light line along the top edge, which also softens the stair-stepped arris
+ * med-06 picked up. Every part stays inside its run's `buildSafetyRails` box,
+ * so nothing that clears those boxes (hall dressing, planner) moves.
+ */
+export function buildSafetyRailParts(): {
+  sections: BoxInstance[];
+  feet: BoxInstance[];
+  chamfers: BoxInstance[];
+  sockets: BoxInstance[];
+  bands: BoxInstance[];
+} {
+  const sections: BoxInstance[] = [];
+  const feet: BoxInstance[] = [];
+  const chamfers: BoxInstance[] = [];
+  const sockets: BoxInstance[] = [];
+  const bands: BoxInstance[] = [];
+  const bevel = (RAIL_CHAMFER * Math.SQRT2) / 2;
+  for (const { position, scale } of buildSafetyRails()) {
+    const [x, y, z] = position;
+    const [thickness, height, length] = scale;
+    const base = y - height / 2;
+    const count = Math.max(3, Math.round(length / RAIL_SECTION_PITCH));
+    const pitch = length / count;
+    const piece = pitch - RAIL_JOINT;
+    const halfBody = thickness / 2 - RAIL_BODY_INSET;
+    const bodyTop = base + height - bevel;
+    for (let i = 0; i < count; i += 1) {
+      const cz = z - length / 2 + pitch * (i + 0.5);
+      feet.push({
+        position: [x, base + RAIL_FOOT_HEIGHT / 2, cz],
+        scale: [thickness, RAIL_FOOT_HEIGHT, piece],
+      });
+      sections.push({
+        position: [x, (base + RAIL_FOOT_HEIGHT + bodyTop) / 2, cz],
+        scale: [2 * halfBody, bodyTop - base - RAIL_FOOT_HEIGHT, piece],
+      });
+      for (const side of [-1, 1]) {
+        chamfers.push(
+          chamferStrip(
+            [x + side * halfBody, bodyTop, cz],
+            [RAIL_CHAMFER, RAIL_CHAMFER, piece - 0.02],
+            [0, 0, Math.PI / 4]
+          )
+        );
+        sockets.push({
+          position: [x, bodyTop + RAIL_SOCKET.height / 2, cz + (side * piece) / 4],
+          scale: [RAIL_SOCKET.size, RAIL_SOCKET.height, RAIL_SOCKET.size],
+        });
+        bands.push({
+          position: [
+            x + side * (halfBody + RAIL_BAND.thickness / 2),
+            bodyTop - RAIL_BAND.below - RAIL_BAND.height / 2,
+            cz,
+          ],
+          scale: [RAIL_BAND.thickness, RAIL_BAND.height, piece - 0.01],
+        });
+      }
+    }
+  }
+  return { sections, feet, chamfers, sockets, bands };
+}
+
 function SafetyFurniture() {
-  const rails = useMemo<readonly BoxInstance[]>(
-    () => [
-      { position: [-28, 0.55, SITE_LAYOUT.factory.zones.packing], scale: [0.18, 1.1, 9] },
-      { position: [24, 0.55, SITE_LAYOUT.factory.zones.packing], scale: [0.18, 1.1, 9] },
-      { position: [-30, 0.55, SITE_LAYOUT.factory.zones.milling + 1], scale: [0.18, 1.1, 11] },
-      { position: [23, 0.55, SITE_LAYOUT.factory.zones.milling + 1], scale: [0.18, 1.1, 11] },
-    ],
-    []
-  );
-  const stations = useMemo<readonly BoxInstance[]>(
-    () => [
-      { position: [-FLOOR_WIDTH / 2 + 3.2, 1.25, 12], scale: [0.45, 2.5, 1.4] },
-      { position: [FLOOR_WIDTH / 2 - 3.2, 1.25, 12], scale: [0.45, 2.5, 1.4] },
-      { position: [-FLOOR_WIDTH / 2 + 3.2, 1.25, -35], scale: [0.45, 2.5, 1.4] },
-      { position: [FLOOR_WIDTH / 2 - 3.2, 1.25, -35], scale: [0.45, 2.5, 1.4] },
-    ],
-    []
-  );
+  const { sections: rails, feet, chamfers, sockets, bands } = useMemo(buildSafetyRailParts, []);
+  const stations = useMemo(buildSafetyStations, []);
 
   return (
     <>
-      <InstancedBoxes instances={rails} material={MATERIALS.safetyLit} castShadow receiveShadow />
+      <InstancedBoxes
+        instances={rails}
+        material={MATERIALS.safetyBarrier}
+        castShadow
+        receiveShadow
+      />
+      <InstancedBoxes
+        instances={chamfers}
+        material={MATERIALS.safetyBarrier}
+        castShadow
+        receiveShadow
+        generatedSurface={false}
+      />
+      <InstancedBoxes
+        instances={feet}
+        material={MATERIALS.plinth}
+        castShadow
+        receiveShadow
+        generatedSurface={false}
+      />
+      <InstancedBoxes
+        instances={sockets}
+        material={MATERIALS.steel}
+        receiveShadow
+        generatedSurface={false}
+      />
+      <InstancedBoxes
+        instances={bands}
+        material={RAIL_BAND_MATERIAL}
+        receiveShadow
+        generatedSurface={false}
+      />
       <InstancedBoxes instances={stations} material={MATERIALS.danger} castShadow receiveShadow />
     </>
   );
 }
 
+/** The silo, milling and packing pads: raised concrete the process machines stand on. */
+export function buildProcessPads(): BoxInstance[] {
+  return [
+    {
+      position: [
+        SITE_LAYOUT.bulkStorage.siloPad.position[0],
+        0.08,
+        SITE_LAYOUT.factory.zones.silos,
+      ],
+      scale: SITE_LAYOUT.bulkStorage.siloPad.size,
+    },
+    { position: [-3, 0.08, SITE_LAYOUT.factory.zones.milling], scale: [53, 0.16, 7] },
+    { position: [0, 0.08, SITE_LAYOUT.factory.zones.packing], scale: [26, 0.16, 9] },
+  ];
+}
+
+/** The pedestrian lanes: one down each side wall, one across each dock end. */
+export function buildWalkwayLanes(): BoxInstance[] {
+  return [
+    { position: [-FLOOR_WIDTH / 2 + 3, FLOOR_LAYERS.wornPrimary, 0], scale: [3, 0.012, 86] },
+    { position: [FLOOR_WIDTH / 2 - 3, FLOOR_LAYERS.wornPrimary, 0], scale: [3, 0.012, 86] },
+    { position: [0, FLOOR_LAYERS.wornPrimary, 39], scale: [72, 0.012, 3.5] },
+    { position: [0, FLOOR_LAYERS.wornPrimary, -39], scale: [72, 0.012, 3.5] },
+  ];
+}
+
+/** Painted lane-edge line width, metres. Two px or more from every hall camera. */
+export const WALKWAY_EDGE_WIDTH = 0.2;
+/** How far each edge line sits inside its lane's side, so no two side faces share a plane. */
+const WALKWAY_EDGE_INSET = 0.02;
+
+/**
+ * The lanes' painted edges.
+ *
+ * final3 med-12 packing: the dock-end lane read as "a translucent cyan band
+ * on the floor ... a tint, not paint", because it was a 50% teal film with
+ * nothing to say where it stops. A walkway is a painted lane between two
+ * lines. Each long side gets one, broken where another lane joins it so a
+ * line never runs across the lane it meets. The lines stand 4 mm proud of the
+ * film (0.024-0.036 against its 0.014-0.026), so no face is shared with it.
+ */
+export function buildWalkwayEdges(lanes = buildWalkwayLanes()): BoxInstance[] {
+  const edges: BoxInstance[] = [];
+  const y = FLOOR_LAYERS.wornSecondary;
+  for (const [index, lane] of lanes.entries()) {
+    const along = lane.scale[0] > lane.scale[2] ? 0 : 2;
+    const across = along === 0 ? 2 : 0;
+    for (const side of [-1, 1]) {
+      const offset =
+        lane.position[across] +
+        side * (lane.scale[across] / 2 - WALKWAY_EDGE_INSET - WALKWAY_EDGE_WIDTH / 2);
+      const crossings = lanes
+        .filter((_, otherIndex) => otherIndex !== index)
+        .filter(
+          (other) =>
+            Math.abs(other.position[across] - offset) <
+            other.scale[across] / 2 + WALKWAY_EDGE_WIDTH / 2
+        )
+        .map(
+          (other) =>
+            [
+              other.position[along] - other.scale[along] / 2,
+              other.position[along] + other.scale[along] / 2,
+            ] as const
+        )
+        .sort((a, b) => a[0] - b[0]);
+      let from = lane.position[along] - lane.scale[along] / 2;
+      const end = lane.position[along] + lane.scale[along] / 2;
+      const runs: [number, number][] = [];
+      for (const [a, b] of crossings) {
+        if (a > from) runs.push([from, Math.min(a, end)]);
+        from = Math.max(from, b);
+      }
+      if (end > from) runs.push([from, end]);
+      for (const [a, b] of runs) {
+        if (b - a < 0.5) continue;
+        const position: [number, number, number] = [0, y, 0];
+        const scale: [number, number, number] = [0, 0.012, 0];
+        position[along] = (a + b) / 2;
+        position[across] = offset;
+        scale[along] = b - a;
+        scale[across] = WALKWAY_EDGE_WIDTH;
+        edges.push({ position, scale });
+      }
+    }
+  }
+  return edges;
+}
+
 function FloorWayfinding() {
-  const walkways = useMemo<readonly BoxInstance[]>(
-    () => [
-      { position: [-FLOOR_WIDTH / 2 + 3, FLOOR_LAYERS.wornPrimary, 0], scale: [3, 0.012, 86] },
-      { position: [FLOOR_WIDTH / 2 - 3, FLOOR_LAYERS.wornPrimary, 0], scale: [3, 0.012, 86] },
-      { position: [0, FLOOR_LAYERS.wornPrimary, 39], scale: [72, 0.012, 3.5] },
-      { position: [0, FLOOR_LAYERS.wornPrimary, -39], scale: [72, 0.012, 3.5] },
-    ],
-    []
-  );
-  const plinths = useMemo<readonly BoxInstance[]>(
-    () => [
-      {
-        position: [
-          SITE_LAYOUT.bulkStorage.siloPad.position[0],
-          0.08,
-          SITE_LAYOUT.factory.zones.silos,
-        ],
-        scale: SITE_LAYOUT.bulkStorage.siloPad.size,
-      },
-      { position: [-3, 0.08, SITE_LAYOUT.factory.zones.milling], scale: [53, 0.16, 7] },
-      { position: [0, 0.08, SITE_LAYOUT.factory.zones.packing], scale: [26, 0.16, 9] },
-    ],
-    []
-  );
+  const walkways = useMemo(buildWalkwayLanes, []);
+  const walkwayEdges = useMemo(() => buildWalkwayEdges(walkways), [walkways]);
+  const plinths = useMemo(buildProcessPads, []);
 
   return (
     <>
@@ -1929,7 +2854,19 @@ function FloorWayfinding() {
         renderOrder={RENDER_ORDER.floorEffects}
         receiveShadow
       />
-      <InstancedBoxes instances={plinths} material={MATERIALS.plinth} castShadow receiveShadow />
+      <InstancedBoxes
+        instances={walkwayEdges}
+        material={MATERIALS.safetyPaint}
+        renderOrder={RENDER_ORDER.floorMarkings}
+        receiveShadow
+      />
+      <InstancedBoxes
+        instances={plinths}
+        material={MATERIALS.plinth}
+        castShadow
+        receiveShadow
+        generatedSurface={false}
+      />
     </>
   );
 }

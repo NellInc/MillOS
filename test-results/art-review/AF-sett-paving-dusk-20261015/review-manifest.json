@@ -1,0 +1,58 @@
+{
+  "label": "AF-sett-paving-dusk-20261015",
+  "capturedAt": "2026-10-15T06:43:13.335Z",
+  "git": {
+    "commit": "9e3f08bebd757ecee5ab9757e2021bea5cb85366",
+    "branch": "codex/place-led-beautification-20261010",
+    "dirty": true,
+    "dirtyFileCount": 8,
+    "dirtyFiles": [
+      "_contprompts/millos_place_led_beautification_20261010.md",
+      "src/components/FarmArea.tsx",
+      "src/components/VillageArea.tsx",
+      "src/textures/cacheIdentity.test.ts",
+      "src/textures/cobblestone.ts",
+      "src/utils/sharedMaterials.test.ts",
+      "src/utils/sharedMaterials.ts",
+      "output/playwright/place-led-20261010/"
+    ]
+  },
+  "options": {
+    "label": "AF-sett-paving-dusk-20261015",
+    "scenes": [
+      "farm",
+      "village"
+    ],
+    "sceneSet": "explicit",
+    "quality": "medium",
+    "port": "4288",
+    "time": "17.2",
+    "weather": "clear",
+    "duration": "1",
+    "warmup": "1",
+    "settleTimeout": "240",
+    "perfGate": false,
+    "skipBuild": true,
+    "headed": false
+  },
+  "diagnostics": [],
+  "scenes": [
+    {
+      "scene": "farm",
+      "image": "farm.png",
+      "indicativeFps": 32.19
+    },
+    {
+      "scene": "village",
+      "image": "village.png",
+      "indicativeFps": 60.13
+    }
+  ],
+  "contactSheet": "contact-sheet.png",
+  "perfGate": null,
+  "caveats": [
+    "Working tree was dirty (8 files). These frames show uncommitted work, not commit 9e3f08b. Do not use as a baseline for a later comparison.",
+    "Captured with --skip-build; dist/ may predate the tree.",
+    "No performance gate was run. Art mode unpins reduced motion and restores full fidelity, so its frame samples are indicative only. A visual verdict from this capture is not shippable until a non-art budget run passes on the same commit."
+  ]
+}

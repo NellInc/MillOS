@@ -1,0 +1,14 @@
+{
+  "index": {
+    "url": "http://127.0.0.1:4288/",
+    "sha256": "5e0132d89c3e700afc0d4f402a034d2c1a070d6de1dd2b4c35f94ab41f1a2b80",
+    "bytes": 9887
+  },
+  "entries": [
+    {
+      "url": "http://127.0.0.1:4288/assets/main-CQcSuuNW.js",
+      "sha256": "bc58530e0f18ccf6f9f83704b9d89d220ddc2e36a9118e85dedff52e86472f3c",
+      "bytes": 823697
+    }
+  ]
+}

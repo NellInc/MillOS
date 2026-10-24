@@ -175,6 +175,7 @@ export function createChatGPTLocalServer({
       }));
   let db;
   let pending = null;
+  let configEpoch = 0;
   const refreshPromises = new Map();
   const signingOut = new Set();
 
@@ -231,6 +232,7 @@ export function createChatGPTLocalServer({
               delete stored.expiresAt;
             }
             if (db.activeId === account.clientId) db.activeId = null;
+            configEpoch++;
             await save();
           }
           throw error;
@@ -307,7 +309,6 @@ export function createChatGPTLocalServer({
     }
     if (url.pathname === '/auth/callback' && request.method === 'GET') {
       const attempt = pending;
-      pending = null;
       let message = 'ChatGPT sign-in did not complete.';
       let success = false;
       try {
@@ -318,6 +319,7 @@ export function createChatGPTLocalServer({
         ) {
           throw new HttpError(401, 'Invalid or expired sign-in state');
         }
+        pending = null;
         if (url.searchParams.has('error'))
           throw new HttpError(401, 'ChatGPT authorization was declined');
         const code = url.searchParams.get('code');
@@ -363,6 +365,7 @@ export function createChatGPTLocalServer({
         );
         db.accounts = [...db.accounts.filter((item) => item.clientId !== clientId), account];
         db.activeId = clientId;
+        configEpoch++;
         await save();
         message = 'Connected to ChatGPT. You can close this window.';
         success = true;
@@ -402,7 +405,10 @@ export function createChatGPTLocalServer({
       const catalog = await models(account);
       if (!catalog.some((model) => model.slug === slug))
         throw new HttpError(400, 'Model is unavailable for this account');
-      active().model = slug;
+      if (active()?.clientId !== account.clientId)
+        throw new HttpError(409, 'Active ChatGPT account changed');
+      account.model = slug;
+      configEpoch++;
       await save();
       return sendJSON(response, 200, publicStatus());
     }
@@ -411,6 +417,7 @@ export function createChatGPTLocalServer({
       const account = db.accounts.find((item) => item.clientId === id);
       if (!account) throw new HttpError(404, 'Account not found');
       db.activeId = id;
+      configEpoch++;
       await save();
       return sendJSON(response, 200, publicStatus());
     }
@@ -418,6 +425,7 @@ export function createChatGPTLocalServer({
       const selected = active();
       if (!selected) throw new HttpError(401, 'No active ChatGPT account');
       signingOut.add(selected.clientId);
+      configEpoch++;
       try {
         await refreshPromises.get(selected.clientId)?.catch(() => {});
         const account = db.accounts.find((item) => item.clientId === selected.clientId);
@@ -460,6 +468,9 @@ export function createChatGPTLocalServer({
       if (typeof prompt !== 'string' || !prompt.trim() || prompt.length > 20_000)
         throw new HttpError(400, 'Invalid prompt');
       if (!account?.model) throw new HttpError(400, 'Select a ChatGPT model first');
+      const model = account.model;
+      const clientId = account.clientId;
+      const inferenceEpoch = configEpoch;
       const requestInference = (access) =>
         fetcher(`${RESOURCE}/responses`, {
           method: 'POST',
@@ -468,7 +479,7 @@ export function createChatGPTLocalServer({
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: account.model,
+            model,
             input: [{ role: 'user', content: prompt }],
             store: false,
             stream: true,
@@ -485,9 +496,10 @@ export function createChatGPTLocalServer({
         );
       const text = await readCompletedResponse(upstream.body);
       if (
-        db.activeId !== account.clientId ||
-        signingOut.has(account.clientId) ||
-        db.accounts.find((item) => item.clientId === account.clientId)?.model !== account.model
+        configEpoch !== inferenceEpoch ||
+        db.activeId !== clientId ||
+        signingOut.has(clientId) ||
+        db.accounts.find((item) => item.clientId === clientId)?.model !== model
       ) {
         throw new HttpError(409, 'Active ChatGPT account changed');
       }

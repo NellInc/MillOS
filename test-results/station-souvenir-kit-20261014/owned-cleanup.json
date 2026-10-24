@@ -1,0 +1,30 @@
+{
+  "removedBorrowedLinks": 375,
+  "restoredSymlink": "/Users/nellwatson/Documents/GitHub/MillOS/node_modules",
+  "removedEmptyOwnedCache": [
+    "node_modules/.vite-temp"
+  ],
+  "removedDisposableNpmCache": "/private/tmp/millos-Q-npm-cache",
+  "immediateOwnershipChecks": [
+    {
+      "path": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/node_modules/.vite-temp",
+      "lsofExit": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "path": "/private/tmp/millos-Q-npm-cache",
+      "lsofExit": 1,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "retained": [
+    "raw/final generated art and prompt",
+    "current production build",
+    "all task receipts and failed logs",
+    "protected output/playwright/place-led-20261010",
+    "source GLBs",
+    "primary/shared node_modules and cache"
+  ]
+}

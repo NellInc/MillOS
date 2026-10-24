@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
+import { STANDARD_GAME_SPEED } from '../../../simulation/pace';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GameInterface } from '../GameInterface';
 import { MachineType, type MachineData } from '../../../types';
@@ -9,6 +10,7 @@ import { useAINarrationStore, type NarrationEntry } from '../../../stores/aiNarr
 import { createWorkplace } from '../../../simulation/bilateralWorkplace';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
+import { useProductionStore } from '../../../stores/productionStore';
 
 const runtime = vi.hoisted(() => ({
   compact: false,
@@ -34,7 +36,12 @@ vi.mock('../dock/Dock', async (importOriginal) => {
         <button onClick={(event) => onModeChange('production', event.currentTarget)}>
           Production
         </button>
-        <button onClick={(event) => onModeChange('overview', event.currentTarget)}>Overview</button>
+        <button
+          data-dock-mode="overview"
+          onClick={(event) => onModeChange('overview', event.currentTarget)}
+        >
+          Overview
+        </button>
       </>
     ),
   };
@@ -153,7 +160,8 @@ describe('first-use journey wiring', () => {
     useOperationsCampaignStore.getState().resetCampaign();
     useWorkplaceStore.setState({ workplace: createWorkplace() });
     useGameSimulationStore.setState({
-      gameSpeed: 180,
+      gameSpeed: STANDARD_GAME_SPEED,
+      clockHolds: [],
       emergencyActive: false,
       emergencyDrillMode: false,
       crisisState: { ...useGameSimulationStore.getState().crisisState, active: false },
@@ -240,7 +248,11 @@ describe('first-use journey wiring', () => {
     expect(screen.getByRole('heading', { name: 'Follow the grain' })).toBeVisible();
     expect(screen.getByTestId('soundtrack')).toHaveAttribute('data-quiet', 'true');
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    // The copy follows the camera: milling is where machines are selected...
+    expect(screen.getByRole('heading', { name: 'Look first, touch second' })).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    // ...and the packers close the tour on the day's flour.
+    expect(screen.getByRole('heading', { name: "Protect the day's flour" })).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: 'Start operating' }));
     expect(useUIStore.getState().hasSeenIntro).toBe(true);
     expect(screen.queryByRole('region', { name: /Getting started/ })).not.toBeInTheDocument();
@@ -250,10 +262,11 @@ describe('first-use journey wiring', () => {
       useOperationsCampaignStore.getState().activeOrderId
     );
     expect(screen.getByTestId('soundtrack')).toHaveAttribute('data-quiet', 'true');
-    expect(runtime.setPreset.mock.calls.map(([preset]) => preset)).toEqual([1, 4, 2]);
+    // Silos, Milling, Packing: the grain's order, and no flight through a silo.
+    expect(runtime.setPreset.mock.calls.map(([preset]) => preset)).toEqual([1, 2, 4]);
   });
 
-  it('holds the introductory clock and starts the default guided delivery at relaxed pace', () => {
+  it('holds the introductory clock and starts the default guided delivery at standard pace', () => {
     renderInterface();
     act(() => vi.advanceTimersByTime(700));
     expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
@@ -276,15 +289,29 @@ describe('first-use journey wiring', () => {
     expect(useGameSimulationStore.getState().gameSpeed).toBe(pace);
   });
 
+  // Every tour exit releases the tour's own clock hold, back to the default
+  // standard pace, exactly as Start operating does. Skip still starts the
+  // guided delivery; only closing getting started for the session dismisses it.
+  it.each([
+    ['Skip tour', true],
+    ['Close getting started for this session', false],
+  ] as const)('releases the tour hold to standard pace when using %s', (control, journey) => {
+    renderInterface();
+    act(() => vi.advanceTimersByTime(700));
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+    fireEvent.click(screen.getByRole('button', { name: control }));
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(30);
+    expect(useUIStore.getState().journeyVisible).toBe(journey);
+  });
+
   it.each(['Skip tour', 'Close getting started for this session'])(
-    'restores the existing clock when using %s',
+    'preserves an already chosen 60 pace when using %s',
     (control) => {
+      useGameSimulationStore.setState({ gameSpeed: 60 });
       renderInterface();
       act(() => vi.advanceTimersByTime(700));
-      expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
       fireEvent.click(screen.getByRole('button', { name: control }));
-      expect(useGameSimulationStore.getState().gameSpeed).toBe(180);
-      expect(useUIStore.getState().journeyVisible).toBe(false);
+      expect(useGameSimulationStore.getState().gameSpeed).toBe(60);
     }
   );
 
@@ -293,7 +320,7 @@ describe('first-use journey wiring', () => {
     act(() => vi.advanceTimersByTime(700));
     expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
     first.unmount();
-    expect(useGameSimulationStore.getState().gameSpeed).toBe(180);
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(30);
     const second = renderInterface();
     act(() => vi.advanceTimersByTime(700));
     act(() => useGameSimulationStore.getState().setGameSpeed(60));
@@ -322,7 +349,7 @@ describe('first-use journey wiring', () => {
     expect(screen.getByRole('region', { name: 'Guided delivery' })).toBeVisible();
     expect(useMobileControlStore.getState().mobilePanelVisible).toBe(false);
     act(() => useUIStore.getState().recordMachineInspection('mill-0'));
-    fireEvent.click(screen.getByRole('button', { name: 'Open operations' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open SCADA' }));
     expect(useMobileControlStore.getState().mobilePanelVisible).toBe(true);
     expect(useMobileControlStore.getState().mobilePanelContent).toBe('scada');
   });
@@ -349,6 +376,109 @@ describe('first-use journey wiring', () => {
     }
   });
 
+  // The tour's buttons vanish with it. Working if focus lands on the guided
+  // delivery's heading, or on the dock when there is no guide, never <body>.
+  it.each(['Start operating', 'Skip tour'])(
+    'moves focus to the guided delivery heading after %s',
+    (control) => {
+      renderInterface();
+      act(() => vi.advanceTimersByTime(700));
+      if (control === 'Start operating') {
+        fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+      }
+      const pressed = screen.getByRole('button', { name: control });
+      pressed.focus();
+      fireEvent.click(pressed);
+      const heading = screen.getByRole('heading', { name: 'Your first delivery' });
+      expect(heading).toHaveFocus();
+      expect(screen.getByRole('region', { name: 'Guided delivery' })).toContainElement(heading);
+    }
+  );
+
+  it('returns focus to the dock Overview button when getting started is closed', () => {
+    renderInterface();
+    act(() => vi.advanceTimersByTime(700));
+    const close = screen.getByRole('button', { name: 'Close getting started for this session' });
+    close.focus();
+    fireEvent.click(close);
+    expect(screen.getByRole('button', { name: 'Overview' })).toHaveFocus();
+  });
+
+  it('does not pull focus to the guide again when it remounts later', () => {
+    renderInterface();
+    act(() => vi.advanceTimersByTime(700));
+    fireEvent.click(screen.getByRole('button', { name: 'Skip tour' }));
+    const overview = screen.getByRole('button', { name: 'Overview' });
+    overview.focus();
+    act(() => useUIStore.setState({ showShortcuts: true }));
+    act(() => useUIStore.setState({ showShortcuts: false }));
+    expect(screen.getByRole('heading', { name: 'Your first delivery' })).not.toHaveFocus();
+  });
+
+  // Take over and the companion's Open unmount the button that was pressed.
+  it.each([false, true])('asks the desktop panel to take focus, compact=%s', (compact) => {
+    runtime.compact = compact;
+    useUIStore.setState({ hasSeenIntro: true, panelFocusRequested: false });
+    renderInterface();
+    act(() =>
+      window.dispatchEvent(
+        new CustomEvent('millos:open-operations-workspace', { detail: 'autonomy' })
+      )
+    );
+    // A phone sheet focuses its own close button.
+    expect(useUIStore.getState().panelFocusRequested).toBe(!compact);
+  });
+
+  it.each([false, true])(
+    'inspects through the real machine focus route from the guide, compact=%s',
+    (compact) => {
+      runtime.compact = compact;
+      useProductionStore.setState({
+        machines: [
+          { id: 'rm-101', name: 'R.M. 101', type: MachineType.ROLLER_MILL } as MachineData,
+        ],
+      });
+      useUIStore.setState({ hasSeenIntro: true, panelFocusRequested: false });
+      useUIStore
+        .getState()
+        .startDeliveryJourney(useOperationsCampaignStore.getState().activeOrderId);
+      const onFocusMachine = vi.fn();
+      try {
+        render(
+          <GameInterface
+            productionSpeed={1}
+            setProductionSpeed={vi.fn()}
+            showZones={false}
+            setShowZones={vi.fn()}
+            selectedMachine={null}
+            onCloseSelection={vi.fn()}
+            onFocusMachine={onFocusMachine}
+          />
+        );
+        fireEvent.click(screen.getByRole('button', { name: 'Inspect a roller mill' }));
+        expect(onFocusMachine).toHaveBeenCalledWith('rm-101');
+        // The desktop inspector's heading takes focus; a phone keeps it on the card.
+        expect(useUIStore.getState().panelFocusRequested).toBe(!compact);
+      } finally {
+        act(() => useProductionStore.setState({ machines: [] }));
+      }
+    }
+  );
+
+  it('leaves a repair route to the maintenance section it asked for', () => {
+    useUIStore.setState({ hasSeenIntro: true, panelFocusRequested: false });
+    useUIStore.getState().requestMaintenanceFocus();
+    renderInterface();
+    act(() =>
+      window.dispatchEvent(
+        new CustomEvent('millos:open-operations-workspace', { detail: 'overview' })
+      )
+    );
+    expect(useUIStore.getState().panelFocusRequested).toBe(false);
+    expect(useUIStore.getState().maintenanceFocusRequested).toBe(true);
+  });
+
   it('lets safety take music priority after the tour has already been seen', () => {
     useUIStore.setState({ hasSeenIntro: true });
     renderInterface();
@@ -364,11 +494,14 @@ describe('first-use journey wiring', () => {
       journeyOrderId: useOperationsCampaignStore.getState().activeOrderId,
       alerts: [
         {
-          id: 'scada-TRUCK_SHIPPING.PT001.PV-HIHI',
+          // A still-reachable CRITICAL tag (RM101.IT001.PV alarmHiHi 135 A), in
+          // the SCADA bridge's own id and message shape.
+          id: 'scada-RM101.IT001.PV-HIHI',
           type: 'critical',
           title: 'SCADA: HIHI',
-          message: 'Shipping Truck Articulation: 40.0 deg, above the 38.0 deg limit',
+          message: 'RM-101 Motor Current: 138.0 A, above the 135.0 A limit',
           timestamp: new Date(),
+          machineId: 'rm-101',
           acknowledged: false,
         },
       ],
@@ -381,6 +514,38 @@ describe('first-use journey wiring', () => {
     act(() => useGameSimulationStore.setState({ emergencyActive: false }));
     expect(screen.getByRole('region', { name: 'Guided delivery' })).toBeVisible();
     expect(useUIStore.getState().alerts).toHaveLength(1);
+  });
+
+  it('releases the critical UI state once every critical alert is acknowledged', () => {
+    useUIStore.setState({
+      hasSeenIntro: true,
+      alerts: [
+        {
+          id: 'scada-RM101.IT001.PV-HIHI',
+          type: 'critical',
+          title: 'SCADA: HIHI',
+          message: 'RM-101 Motor Current: 138.0 A, above the 135.0 A limit',
+          timestamp: new Date(),
+          machineId: 'rm-101',
+          acknowledged: false,
+        },
+      ],
+    });
+    renderInterface();
+    act(() =>
+      runtime.narrate?.({
+        id: 'after-alarm',
+        trigger: 'first-play',
+        content: 'Reflection after the alarm.',
+      } as NarrationEntry)
+    );
+    expect(screen.getByTestId('soundtrack')).toHaveAttribute('data-quiet', 'true');
+    expect(screen.queryByRole('complementary', { name: 'AI reflection' })).not.toBeInTheDocument();
+    act(() => useUIStore.getState().acknowledgeAlert('scada-RM101.IT001.PV-HIHI'));
+    // History is kept; only an unacknowledged critical alert holds the UI quiet.
+    expect(useUIStore.getState().alerts).toHaveLength(1);
+    expect(screen.getByTestId('soundtrack')).toHaveAttribute('data-quiet', 'false');
+    expect(screen.getByRole('complementary', { name: 'AI reflection' })).toBeInTheDocument();
   });
 
   it('hides music behind a compact sheet without unmounting playback controls', () => {

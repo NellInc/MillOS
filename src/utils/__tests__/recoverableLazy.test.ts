@@ -54,6 +54,67 @@ describe('importWithBoundedRetry', () => {
     await expectation;
     expect(importer).toHaveBeenCalledTimes(1);
   });
+
+  it('still accepts a stalled first request that lands during the retry', async () => {
+    vi.useFakeTimers();
+    // A browser shares one module request per URL, so the retry can stall on
+    // the same fetch while the first one is what eventually arrives.
+    const importer = vi
+      .fn()
+      .mockImplementationOnce(
+        () => new Promise((resolve) => setTimeout(() => resolve({ default: 'late' }), 40))
+      )
+      .mockImplementationOnce(() => new Promise<never>(() => undefined));
+    const result = importWithBoundedRetry(importer, {
+      attempts: 2,
+      attemptTimeoutMs: 25,
+      retryDelayMs: 0,
+    });
+
+    const expectation = expect(result).resolves.toEqual({ default: 'late' });
+    await vi.advanceTimersByTimeAsync(45);
+    await expectation;
+    expect(importer).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('recoverableLazy preload', () => {
+  afterEach(cleanup);
+
+  it('renders a preloaded module without suspending and without a second import', async () => {
+    const importer = vi.fn(async () => ({
+      default: () => createElement('span', null, 'ready'),
+    }));
+    const Deferred = recoverableLazy(importer);
+    await Deferred.preload();
+    expect(importer).toHaveBeenCalledTimes(1);
+
+    const { container } = render(
+      createElement(
+        Suspense,
+        { fallback: createElement('i', null, 'fallback') },
+        createElement(Deferred)
+      )
+    );
+    // Synchronous: a suspended render would show the fallback first.
+    expect(container.textContent).toBe('ready');
+    expect(importer).toHaveBeenCalledTimes(1);
+  });
+
+  it('a failed preload settles quietly and the render imports again', async () => {
+    const importer = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('dropped request'))
+      .mockResolvedValueOnce({ default: () => createElement('span', null, 'ready') });
+    const Deferred = recoverableLazy(importer, { attempts: 1, retryDelayMs: 0 });
+    await expect(Deferred.preload()).resolves.toBeUndefined();
+
+    const { findByText } = render(
+      createElement(Suspense, { fallback: null }, createElement(Deferred))
+    );
+    expect(await findByText('ready')).toBeTruthy();
+    expect(importer).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('recoverableLazy startup accounting', () => {

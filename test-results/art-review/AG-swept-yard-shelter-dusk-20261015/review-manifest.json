@@ -1,0 +1,60 @@
+{
+  "label": "AG-swept-yard-shelter-dusk-20261015",
+  "capturedAt": "2026-10-15T09:07:17.208Z",
+  "git": {
+    "commit": "6b8a7ba30fecbb170fd9c29306896881bbc11a95",
+    "branch": "codex/place-led-beautification-20261010",
+    "dirty": true,
+    "dirtyFileCount": 10,
+    "dirtyFiles": [
+      "_contprompts/millos_place_led_beautification_20261010.md",
+      "src/components/FactoryExterior.tsx",
+      "src/components/FarmArea.tsx",
+      "src/components/LivingWorldCreatures.test.tsx",
+      "src/components/RuntimeController.tsx",
+      "src/components/exterior/ExteriorLighting.test.ts",
+      "src/components/exterior/ExteriorLighting.tsx",
+      "src/runtime/__tests__/runtimeMode.test.ts",
+      "src/runtime/runtimeMode.ts",
+      "output/playwright/place-led-20261010/"
+    ]
+  },
+  "options": {
+    "label": "AG-swept-yard-shelter-dusk-20261015",
+    "scenes": [
+      "farm",
+      "picnic-shelter"
+    ],
+    "sceneSet": "explicit",
+    "quality": "medium",
+    "port": "4288",
+    "time": "17.2",
+    "weather": "clear",
+    "duration": "1",
+    "warmup": "1",
+    "settleTimeout": "240",
+    "perfGate": false,
+    "skipBuild": true,
+    "headed": false
+  },
+  "diagnostics": [],
+  "scenes": [
+    {
+      "scene": "farm",
+      "image": "farm.png",
+      "indicativeFps": 47.71
+    },
+    {
+      "scene": "picnic-shelter",
+      "image": "picnic-shelter.png",
+      "indicativeFps": 60.04
+    }
+  ],
+  "contactSheet": "contact-sheet.png",
+  "perfGate": null,
+  "caveats": [
+    "Working tree was dirty (10 files). These frames show uncommitted work, not commit 6b8a7ba. Do not use as a baseline for a later comparison.",
+    "Captured with --skip-build; dist/ may predate the tree.",
+    "No performance gate was run. Art mode unpins reduced motion and restores full fidelity, so its frame samples are indicative only. A visual verdict from this capture is not shippable until a non-art budget run passes on the same commit."
+  ]
+}

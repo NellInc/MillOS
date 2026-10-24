@@ -231,7 +231,7 @@ export const COMMAND_CAPABILITY_DESCRIPTORS = [
     required: ['simulationUri', 'speed'],
     properties: {
       simulationUri: { type: 'string', pattern: '^millos://simulation/' },
-      speed: { type: 'number', minimum: 0, maximum: 10800 },
+      speed: { type: 'number', minimum: 0, maximum: 120 },
     },
     reads: ['simulation.gameSpeed'],
     writes: ['simulation.gameSpeed'],

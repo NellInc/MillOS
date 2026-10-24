@@ -133,7 +133,10 @@ def roof(craft,spec):
  for side in [-1,1]:
   edge=centre+side*e
   craft.roof_slab([pt(centre,along[0],r-.004),pt(edge,along[0],z-.004),pt(edge,along[1],z-.004),pt(centre,along[1],r-.004)],uv)
-  craft.poly([pt(edge,along[0],z-.02),pt(edge,along[1],z-.02),pt(edge,along[1],z+.004),pt(edge,along[0],z+.004)],dark)
+  # The fascia stands 1 mm (source units; 3 mm on the coop, 6 mm on the
+  # farmhouse) proud of the slab's eave edge face it used to lie on, where the
+  # dark trim and the roof colour fought for depth in one plane.
+  fe=edge+side*.001;craft.poly([pt(fe,along[0],z-.02),pt(fe,along[1],z-.02),pt(fe,along[1],z+.004),pt(fe,along[0],z+.004)],dark)
   for row in range(spec['rows']):
    a=row/spec['rows'];b=(row+1)/spec['rows'];t0=centre+side*e*a;t1=centre+side*e*b-side*.0008
    n=spec['cols'];step=(along[1]-along[0])/n

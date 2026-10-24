@@ -1,6 +1,8 @@
 import React from 'react';
 import { RotateCcw, Factory } from 'lucide-react';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { useT } from '../../i18n';
+import { rotateDeviceOverlayMessages } from './RotateDeviceOverlay.messages';
 
 interface RotateDeviceOverlayProps {
   visible: boolean;
@@ -11,6 +13,7 @@ interface RotateDeviceOverlayProps {
  * Shown on mobile devices in portrait orientation.
  */
 export const RotateDeviceOverlay: React.FC<RotateDeviceOverlayProps> = ({ visible }) => {
+  const t = useT(rotateDeviceOverlayMessages);
   const overlayRef = React.useRef<HTMLDivElement>(null);
   // Rotation releases this notice; keyboard input stays inside its empty dialog.
   // Working if Tab cannot reach the obscured dock and focus returns after rotation.
@@ -46,11 +49,9 @@ export const RotateDeviceOverlay: React.FC<RotateDeviceOverlayProps> = ({ visibl
 
       {/* Text prompt */}
       <h2 id="rotate-device-title" className="text-2xl font-bold text-white mb-2 text-center">
-        Rotate to landscape
+        {t('title')}
       </h2>
-      <p className="text-slate-400 text-center max-w-xs">
-        The mill floor needs a wide view. Turn your device sideways to continue.
-      </p>
+      <p className="text-slate-400 text-center max-w-xs">{t('body')}</p>
 
       {/* Mill branding */}
       <div
@@ -58,7 +59,7 @@ export const RotateDeviceOverlay: React.FC<RotateDeviceOverlayProps> = ({ visibl
         style={{ bottom: 'max(32px, env(safe-area-inset-bottom))' }}
       >
         <Factory className="w-4 h-4" aria-hidden="true" />
-        <span>MillOS Digital Twin</span>
+        <span>{t('branding')}</span>
       </div>
     </div>
   );

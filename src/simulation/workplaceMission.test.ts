@@ -204,3 +204,149 @@ describe('ordinary customer commitment and working agreement', () => {
     expect(campaignOutcomes(c.state).accounts.wages).toBe(324);
   });
 });
+
+describe('work after the commitment is fulfilled', () => {
+  const nextOrder = (): WorkplaceMission => ({
+    ...binding(),
+    orderId: 'order-next',
+    customer: 'Second customer',
+    startingShippedKg: 0,
+    originalTargetKg: 2000,
+    targetKg: 2000,
+    observedShippedKg: 0,
+    manifestIds: [],
+  });
+  const nextObservation = (
+    change: Partial<WorkplaceMissionObservation> = {}
+  ): WorkplaceMissionObservation => ({
+    orderId: 'order-next',
+    materialSessionId: 'session-real',
+    shippedKg: 0,
+    qualityFailureKg: 0,
+    manifestIds: [],
+    cancelled: false,
+    ...change,
+  });
+  const meetCommitment = (credited: number) => {
+    const c = runMission();
+    c.run({ type: 'campaignDecision', args: ['keep-target', 'coordinator'] });
+    c.agree();
+    c.tick(5, { shippedKg: 100 + credited, manifestIds: ['old', 'd-1'] });
+    c.finish();
+    return c;
+  };
+
+  it('links the next order at the shift boundary only once the commitment is met', () => {
+    const short = meetCommitment(1000);
+    expect(short.run({ type: 'nextCampaignShift', args: [nextOrder()] }).changed).toBe(false);
+    expect(short.run({ type: 'nextCampaignShift', args: [] }).changed).toBe(true);
+    expect(short.state.campaign?.followOn).toBeUndefined();
+    const met = meetCommitment(3000);
+    expect(
+      met.run({ type: 'nextCampaignShift', args: [{ ...binding(), creditedKg: 0 }] }).changed
+    ).toBe(false);
+    expect(met.run({ type: 'nextCampaignShift', args: [nextOrder()] }).changed).toBe(true);
+    expect(met.state.campaign?.followOn?.orderId).toBe('order-next');
+    expect(met.state.campaign?.mission?.creditedKg).toBe(3000);
+  });
+
+  it('credits fresh receipts of the linked next order to the books, never the commitment, and stops on bad evidence without settling', () => {
+    const c = meetCommitment(3000);
+    c.run({ type: 'nextCampaignShift', args: [nextOrder()] });
+    const commitment = structuredClone(c.state.campaign!.mission!);
+    const missionObservation: WorkplaceMissionObservation = {
+      orderId: 'order-real',
+      materialSessionId: 'session-real',
+      shippedKg: 3100,
+      qualityFailureKg: 0,
+      manifestIds: ['old', 'd-1'],
+      cancelled: false,
+    };
+    c.agree();
+    const revenue = c.state.finance.operatingRevenue;
+    c.run({
+      type: 'tick',
+      args: [
+        5,
+        999999,
+        false,
+        missionObservation,
+        nextObservation({ shippedKg: 400, manifestIds: ['n-1'] }),
+      ],
+    });
+    expect(c.state.shippedKg).toBe(400);
+    expect(c.state.finance.operatingRevenue - revenue).toBe(200);
+    expect(c.state.campaign?.followOn?.creditedKg).toBe(400);
+    expect(c.state.campaign?.mission).toEqual(commitment);
+    expect(campaignOutcomes(c.state).delivery.deliveredKg).toBe(3000);
+    c.run({
+      type: 'tick',
+      args: [
+        5,
+        999999,
+        false,
+        missionObservation,
+        nextObservation({ shippedKg: 900, manifestIds: ['n-1', 'n-2'], qualityFailureKg: 5 }),
+      ],
+    });
+    expect(c.state.phase).toBe('active');
+    expect(c.state.shippedKg).toBe(400);
+    expect(c.state.campaign?.followOn?.evidence).toBe('quality-failed');
+    const saved = restoreWorkplace(saveWorkplace(c.state));
+    expect(saved.campaign?.followOn).toEqual(c.state.campaign?.followOn);
+    const forged = structuredClone(saveWorkplace(c.state)) as typeof c.state;
+    forged.campaign!.followOn = { ...forged.campaign!.followOn!, orderId: 'order-real' };
+    expect(restoreWorkplace(forged).campaign).toBeNull();
+  });
+
+  it('replaces a follow-on whose evidence went bad with the mill’s open active order at the next shift', () => {
+    const c = meetCommitment(3000);
+    c.run({ type: 'nextCampaignShift', args: [nextOrder()] });
+    c.agree();
+    c.run({
+      type: 'tick',
+      args: [
+        5,
+        999999,
+        false,
+        {
+          orderId: 'order-real',
+          materialSessionId: 'session-real',
+          shippedKg: 3100,
+          qualityFailureKg: 0,
+          manifestIds: ['old', 'd-1'],
+          cancelled: false,
+        },
+        nextObservation({ shippedKg: 300, manifestIds: ['n-1'], qualityFailureKg: 5 }),
+      ],
+    });
+    c.finish();
+    expect(c.state.phase).toBe('review');
+    expect(c.state.campaign?.followOn?.evidence).toBe('quality-failed');
+    useWorkplaceStore.setState({ workplace: c.state });
+    const ops = useOperationsCampaignStore.getState();
+    const active = ops.orders.find((o) => o.id === ops.activeOrderId)!;
+    expect(useWorkplaceStore.getState().nextCampaignShift().changed).toBe(true);
+    const campaign = useWorkplaceStore.getState().workplace.campaign!;
+    expect(campaign.shift).toBe(2);
+    expect(campaign.followOn).toMatchObject({
+      orderId: active.id,
+      customer: active.customer,
+      creditedKg: 0,
+      evidence: 'current',
+    });
+    expect(campaign.mission?.orderId).toBe('order-real');
+  });
+
+  it('keeps the follow-on link in a handoff opened from that review, across a reload', () => {
+    const c = meetCommitment(3000);
+    c.run({ type: 'nextCampaignShift', args: [nextOrder()] });
+    expect(c.run({ type: 'stop', args: [] }).changed).toBe(true);
+    const followOn = structuredClone(c.state.campaign!.followOn!);
+    expect(
+      c.run({ type: 'beginImprovement', args: ['cooperative', c.state.revision] }).changed
+    ).toBe(true);
+    const reloaded = restoreWorkplace(saveWorkplace(c.state));
+    expect(reloaded.improvement?.origin.campaign?.followOn).toEqual(followOn);
+  });
+});

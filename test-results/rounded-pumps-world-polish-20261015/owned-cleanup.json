@@ -1,0 +1,18 @@
+{
+  "restored": "/Users/nellwatson/Documents/GitHub/MillOS/node_modules",
+  "borrowedLinksRemoved": 375,
+  "removed": [
+    "empty task node_modules/.vite-temp",
+    "/private/tmp/millos-S-npm-cache"
+  ],
+  "lsof": "no open files on exact task-owned paths immediately before removal",
+  "preserved": [
+    "shared dependencies and caches",
+    "source models and artwork",
+    "current dist",
+    "all raw captures and logs",
+    "primary checkout",
+    "protected unrelated output"
+  ],
+  "spaceClaim": "none"
+}

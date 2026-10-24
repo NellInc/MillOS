@@ -490,6 +490,11 @@ export interface TrialProgress {
   qualityFailureKg: number;
   energyCost: number;
   gradePoints: number;
+  /**
+   * Shifts that carried a grade. An idle window (no commitment, nothing
+   * shipped) has none. Absent in saves from before it; read as shiftsUsed.
+   */
+  gradedShifts?: number;
   cleanCloses: number;
   medal: Medal | null;
   pressureShown: boolean;

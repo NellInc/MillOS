@@ -8,7 +8,11 @@ import {
   saveWorkplace,
   restoreWorkplace,
 } from './bilateralWorkplace';
-import { improvementSummary, improvementForecast } from './workplaceImprovement';
+import {
+  improvementSummary,
+  improvementForecast,
+  improvementLearningReview,
+} from './workplaceImprovement';
 import type { WorkplaceCommand } from './bilateralWorkplace';
 import type { WorkplaceProfile, WorkplaceState, ImprovementVerdict } from '../types/workplace';
 
@@ -217,6 +221,33 @@ it('retains the origin campaign, caps eight shifts without discarding receipts a
   privateSave.improvement!.history[0].snapshot.members[0].preference = 'private detail';
   expect(restoreWorkplace(privateSave).phase).toBe('idle');
   expect(e.run({ type: 'start', args: ['game', 17] }).changed).toBe(false);
+  // The capped eighth shift still has an exit: closing the experiment.
+  expect(e.run({ type: 'closeImprovement', args: [e.state.revision] }).changed).toBe(true);
+  expect(e.run({ type: 'start', args: ['game', 17] }).changed).toBe(true);
+});
+
+it('closes a later handoff shift after its verdict without opening another, and only then', () => {
+  const e = exercise();
+  e.run({ type: 'proposeImprovement', args: ['buffer', 'maintenance'] });
+  e.agree();
+  e.run({ type: 'activate', args: [e.state.revision] });
+  e.run({ type: 'tick', args: [90, 600, false] });
+  expect(e.review('adopt').changed).toBe(true);
+  expect(e.run({ type: 'continueImprovement', args: [e.state.revision] }).changed).toBe(true);
+  e.agree();
+  expect(e.run({ type: 'activate', args: [e.state.revision] }).changed).toBe(true);
+  e.run({ type: 'tick', args: [90, 450, false] });
+  expect(e.state.improvement?.history).toHaveLength(1);
+  // A trial carrying pay is decided before it can be closed.
+  expect(e.run({ type: 'closeImprovement', args: [e.state.revision] }).changed).toBe(false);
+  expect(e.review('stop').changed).toBe(true);
+  expect(e.run({ type: 'closeImprovement', args: [e.state.revision - 1] }).changed).toBe(false);
+  const revision = e.state.revision;
+  expect(e.run({ type: 'closeImprovement', args: [revision] }).changed).toBe(true);
+  expect(e.state).toMatchObject({ phase: 'idle', campaign: null, revision: revision + 1 });
+  expect(e.state.improvement).toBeUndefined();
+  // Nothing new opened: the next exercise or season starts from idle.
+  expect(e.run({ type: 'start', args: ['game', 17] }).changed).toBe(true);
 });
 
 it('freezes the disclosed forecast after stopping and rejects minority-imposed review', () => {
@@ -255,4 +286,93 @@ it('restores a proposal cancelled before funding after a fully paid steady fallb
   expect(e.run({ type: 'continueImprovement', args: [e.state.revision] }).changed).toBe(true);
   expect(e.state.improvement?.history[0].snapshot.finance.wagesPaid).toBe(108);
   expect(restoreWorkplace(saveWorkplace(e.state)).finance).toEqual(e.state.finance);
+});
+
+it('retains delivered recovery across origin and completed handoffs while showing only current debt', () => {
+  const e = exercise();
+  e.run({ type: 'proposeImprovement', args: ['briefing', 'packing'] });
+  e.agree();
+  e.run({ type: 'activate', args: [e.state.revision] });
+  e.run({ type: 'tick', args: [90, 0, false] });
+  e.review('amend');
+  e.run({ type: 'continueImprovement', args: [e.state.revision] });
+  e.state.improvement!.origin.members[0].recoveryMinutes = 10;
+  e.state.improvement!.history[0].snapshot.members[0].recoveryMinutes = 5;
+  e.state.members[0].recoveryMinutes = 2;
+  e.state.members[0].recoveryOwedMinutes = 3;
+  const before = JSON.stringify(e.state);
+  expect(improvementSummary(e.state)?.lifetimeRecoveryMinutes).toBe(17);
+  expect(improvementSummary(e.state)?.currentRecoveryOwedMinutes).toBe(3);
+  expect(JSON.stringify(e.state)).toBe(before);
+});
+
+describe('handoff learning from public receipts', () => {
+  it('distinguishes a shortened stopped trial and a full window without mutating receipts', () => {
+    const e = exercise();
+    expect(improvementLearningReview(e.state)).toBeNull();
+    e.run({ type: 'proposeImprovement', args: ['briefing', 'packing'] });
+    e.agree();
+    e.run({ type: 'activate', args: [e.state.revision] });
+    expect(improvementLearningReview(e.state)).toBeNull();
+    e.run({ type: 'tick', args: [12, 0, false] });
+    e.run({ type: 'stopImprovement', args: ['quality'] });
+    e.run({ type: 'stop', args: [] });
+    const before = JSON.stringify(e.state);
+    const review = improvementLearningReview(e.state)!;
+    expect(review.focus).toBe('trial');
+    expect(review.evidence.join(' ')).toContain('Ended after 12.0 of 90 minutes');
+    expect(review.evidence.join(' ')).toContain('arrangement was stopped');
+    expect(review.evidence.join(' ')).toContain('Any remaining work uses ordinary pacing');
+    expect(review.limitation).toContain('shortened trial');
+    expect(JSON.stringify(e.state)).toBe(before);
+    e.state = { ...e.state, minute: 90, improvement: { ...e.state.improvement!, stopped: false } };
+    expect(improvementLearningReview(e.state)?.focus).toBe('comparison');
+    expect(improvementLearningReview(e.state)?.evidence[0]).toContain('Completed 90.0');
+  });
+
+  it('prioritises raiser remedies and owed recovery over blocked credit and optional comparison', () => {
+    const e = exercise();
+    e.state = { ...e.state, phase: 'review', minute: 90 };
+    e.state.improvement!.mission = {
+      orderId: 'learning-order',
+      customer: 'Learning customer',
+      materialSessionId: 'session',
+      startingShippedKg: 0,
+      observedShippedKg: 20,
+      manifestIds: [],
+      targetKg: 200,
+      originalTargetKg: 800,
+      creditedKg: 20,
+      evidence: 'stale',
+    };
+    expect(improvementLearningReview(e.state)?.focus).toBe('evidence');
+    expect(improvementLearningReview(e.state)?.evidence.join(' ')).toContain('780.0 kg still owed');
+    expect(improvementLearningReview(e.state)?.evidence.join(' ')).toContain(
+      'Source evidence: stale'
+    );
+    e.state.members[0].recoveryOwedMinutes = 3;
+    expect(improvementLearningReview(e.state)?.focus).toBe('recovery');
+    expect(improvementLearningReview(e.state)?.question).toContain('3.0 minutes');
+    e.state.objections.push({
+      id: 'public-learning',
+      actorId: 'packing',
+      kind: 'rest',
+      statement: 'Protect rest',
+      status: 'open',
+      resolution: null,
+    });
+    const before = JSON.stringify(e.state);
+    expect(improvementLearningReview(e.state)?.focus).toBe('remedy');
+    expect(improvementLearningReview(e.state)?.question).toContain('theirs to confirm');
+    expect(JSON.stringify(e.state)).toBe(before);
+  });
+
+  it('keeps workshop output and absent historical forecasts separate from plant delivery', () => {
+    const e = exercise('team', 'workshop');
+    e.state = { ...e.state, phase: 'review', minute: 90 };
+    const review = improvementLearningReview(e.state)!;
+    expect(review.evidence.join(' ')).toContain('Workshop records no plant shipment');
+    expect(review.evidence.join(' ')).toContain('No plant-grounded departure forecast');
+    expect(review.evidence.join(' ')).not.toContain('Qualifying dispatch this shift');
+  });
 });

@@ -4,40 +4,51 @@ import { useSafetyStore } from '../stores/safetyStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useUIStore } from '../stores/uiStore';
 import type { AlertData } from '../types';
+import { translate } from '../i18n';
+import { alertSystemMessages } from './AlertSystem.messages';
+import { LiveRegionPortal } from './ui/LiveRegionPortal';
+
+type PlainMessageKey = Exclude<keyof typeof alertSystemMessages.en, 'typedLiveRegion'>;
+const m = (key: PlainMessageKey): string => translate(alertSystemMessages, key);
 
 // Sample alerts for random rotation (shift changes handled by PA system in GameFeatures)
 const getSampleAlerts = (): Omit<AlertData, 'id' | 'timestamp' | 'acknowledged'>[] => [
   {
     type: 'success',
-    title: 'Maintenance Complete',
-    message: 'Roller Mill RM-103 back online',
+    title: m('maintenanceCompleteTitle'),
+    message: m('maintenanceCompleteMessage'),
     machineId: 'rm-103',
   },
   {
     type: 'warning',
-    title: 'Temperature Rising',
-    message: 'Plansifter B bearing temperature elevated',
+    title: m('temperatureRisingTitle'),
+    message: m('temperatureRisingMessage'),
     machineId: 'sifter-b',
   },
-  { type: 'info', title: 'Quality Check', message: 'Hourly sample collection under way' },
-  { type: 'success', title: 'Target Met', message: 'Daily production target reached' },
-  { type: 'warning', title: 'Low Stock', message: 'Packaging supplies below reorder point' },
-  { type: 'info', title: 'Conveyor Check', message: 'Belt tension nominal' },
+  { type: 'info', title: m('qualityCheckTitle'), message: m('qualityCheckMessage') },
+  { type: 'success', title: m('targetMetTitle'), message: m('targetMetMessage') },
+  { type: 'warning', title: m('lowStockTitle'), message: m('lowStockMessage') },
+  { type: 'info', title: m('conveyorCheckTitle'), message: m('conveyorCheckMessage') },
 ];
 
-const NEAR_MISS_MESSAGES = [
-  'Forklift stopped for a blocked aisle - safety protocol activated',
-  'Unexpected load detected in forklift path - collision averted',
-  'Proximity alert - forklift yielded to crossing equipment',
-  'Safety system engaged - near-miss avoided',
-];
+// Keys, not text: resolved when the alert is raised, in the language active then.
+const NEAR_MISS_MESSAGE_KEYS = [
+  'nearMissBlockedAisle',
+  'nearMissUnexpectedLoad',
+  'nearMissProximity',
+  'nearMissSafetySystem',
+] as const;
 
 /**
  * AlertSystem - Generates alerts and pushes them to uiStore
  * Alerts are displayed via the StatusHUD notification dropdown
  */
+// Re-reading marker for the polite live region; a constant, not a literal.
+const NBSP = String.fromCharCode(0xa0);
+
 export const AlertSystem: React.FC = () => {
   const [liveRegionMessage, setLiveRegionMessage] = useState('');
+  const [politeMessage, setPoliteMessage] = useState('');
   const isInitialMount = useRef(true);
   const safetyMetrics = useSafetyStore((state) => state.safetyMetrics);
   const prevSafetyStopsRef = useRef(safetyMetrics.safetyStops);
@@ -53,11 +64,13 @@ export const AlertSystem: React.FC = () => {
       useSafetyStore.getState().forkliftEmergencyStop ||
       useGameSimulationStore.getState().emergencyActive;
     if (safetyMetrics.safetyStops > prevSafetyStopsRef.current && !deliberateHold) {
-      const message = NEAR_MISS_MESSAGES[Math.floor(Math.random() * NEAR_MISS_MESSAGES.length)];
+      const message = m(
+        NEAR_MISS_MESSAGE_KEYS[Math.floor(Math.random() * NEAR_MISS_MESSAGE_KEYS.length)]
+      );
       const newAlert: AlertData = {
         id: `safety-${Date.now()}`,
         type: 'safety',
-        title: 'Near-Miss Avoided',
+        title: m('nearMissTitle'),
         message,
         timestamp: new Date(),
         acknowledged: false,
@@ -67,13 +80,55 @@ export const AlertSystem: React.FC = () => {
       audioManager.playAlert();
 
       // Announce to screen readers
-      setLiveRegionMessage(`Safety alert: ${newAlert.title}. ${newAlert.message}`);
+      setLiveRegionMessage(
+        translate(alertSystemMessages, 'safetyLiveRegion', {
+          title: newAlert.title,
+          message: newAlert.message,
+        })
+      );
 
       // Push to uiStore for StatusHUD display
       addAlert(newAlert);
     }
     prevSafetyStopsRef.current = safetyMetrics.safetyStops;
   }, [safetyMetrics.safetyStops, addAlert]);
+
+  // An alert filed with an announce level is read once as it is filed:
+  // 'assertive' (a breakdown, a critical incident) in the alert region,
+  // 'polite' (a wear warning, a quality hold, a closed shift) in the status
+  // region. This path does not depend on the PA, its mode or the audio mute.
+  // Alerts already in the bell at mount are not news, and unmarked alerts stay
+  // silent. Working if a breakdown, a wear warning and a quality hold reach a
+  // screen reader with game audio muted, and a closed shift with the PA off.
+  useEffect(() => {
+    let seen = new Set(useUIStore.getState().alerts.map((alert) => alert.id));
+    return useUIStore.subscribe(({ alerts }) => {
+      const fresh = alerts.filter((alert) => !seen.has(alert.id) && alert.announce);
+      seen = new Set(alerts.map((alert) => alert.id));
+      if (fresh.length === 0) return;
+      // The bell lists newest first; read them in the order they were filed.
+      const read = (level: 'polite' | 'assertive') =>
+        fresh
+          .filter((alert) => alert.announce === level)
+          .reverse()
+          .map((alert) =>
+            translate(alertSystemMessages, 'politeLiveRegion', {
+              title: alert.title,
+              message: alert.message,
+            })
+          )
+          .join(' ');
+      // A live region whose text does not change is not read again, so a
+      // notice worded like the last alternates a trailing no-break space.
+      // Working if two identical shift-close notices are each read once.
+      const reread = (text: string) => (previous: string) =>
+        previous.trimEnd() !== text ? text : previous.endsWith(NBSP) ? text : `${text}${NBSP}`;
+      const assertive = read('assertive');
+      const polite = read('polite');
+      if (assertive) setLiveRegionMessage(reread(assertive));
+      if (polite) setPoliteMessage(reread(polite));
+    });
+  }, []);
 
   useEffect(() => {
     if (!import.meta.env.DEV) {
@@ -109,7 +164,13 @@ export const AlertSystem: React.FC = () => {
 
       // Announce critical and warning alerts to screen readers
       if (newAlert.type === 'critical' || newAlert.type === 'warning') {
-        setLiveRegionMessage(`${newAlert.type} alert: ${newAlert.title}. ${newAlert.message}`);
+        setLiveRegionMessage(
+          translate(alertSystemMessages, 'typedLiveRegion', {
+            type: newAlert.type,
+            title: newAlert.title,
+            message: newAlert.message,
+          })
+        );
       }
 
       // Push to uiStore for StatusHUD display
@@ -123,8 +184,13 @@ export const AlertSystem: React.FC = () => {
   // Only render screen reader live region - no visible UI
   // Alerts are displayed via StatusHUD notification dropdown
   return (
-    <div role="alert" aria-atomic="true" className="sr-only">
-      {liveRegionMessage}
-    </div>
+    <LiveRegionPortal>
+      <div role="alert" aria-atomic="true" className="sr-only">
+        {liveRegionMessage}
+      </div>
+      <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+        {politeMessage}
+      </div>
+    </LiveRegionPortal>
   );
 };

@@ -1,3 +1,5 @@
+import { MachineType } from '../types';
+
 export type Vec3Tuple = readonly [number, number, number];
 
 /** Existing station and its at-grade connection to the southern approach road. */
@@ -21,6 +23,19 @@ export const STATION_ROAD_EDGE_SEGMENTS = [
   [110, GAS_STATION_SITE.access.centreZ - GAS_STATION_SITE.access.mouthHalfWidth],
   [GAS_STATION_SITE.access.centreZ + GAS_STATION_SITE.access.mouthHalfWidth, 280],
 ] as const;
+
+/** The authored Flourish sits beside the west coping, leaving the navigation
+ * channel open. Cleats are measured local bollard tops; eyes are world-space.
+ * Working if the delivered hull clears the quay and both rendered lines end on those fittings.
+ */
+export const CANAL_BOAT_BERTH = {
+  position: [-149.3955, 0.1, 15] as Vec3Tuple,
+  keelSink: 0.6,
+  lines: [
+    { cleat: [-0.2981641, 1.44, -5.9], eye: [-151.1, 1.07, 9] },
+    { cleat: [-0.2981641, 1.44, 5.86], eye: [-151.1, 1.07, 21] },
+  ],
+} as const;
 
 /** The existing river footbridge deck, shared by rendering and collision. */
 export const RIVER_FOOTBRIDGE_DECK = {
@@ -196,16 +211,65 @@ export const MILL_FEEDER_LAYOUT = {
   height: 5.78,
   scale: [2.7, 1.62, 2.45] as const,
 } as const;
+/**
+ * Machine base plates, in the machine's AUTHORED metres (installed about the
+ * floor anchor with the rest of the assembly). The hall's settled flour is laid
+ * as a ring around them, never under them (`hallDressingLayout`).
+ */
+export const MILL_BASE_PLATE_SCALE = [5.2, 0.64, 4.4] as const;
+export const PACKER_BASE_PLATE_SCALE = [4.5, 0.56, 4.25] as const;
 /** The finished-product pipe seats on the physical hopper, not its selection bounds. */
 export const PACKER_HOPPER_LAYOUT = {
   centreY: 5.72,
   scale: [1.7, 1.5, 1.7] as const,
 } as const;
 
+/** Mill ports in the mill's AUTHORED metres; `getMachineAssemblyScale` installs them.
+ * The pneumatic take-off leaves the rear shoulder, not the crown under the feeder,
+ * so the intake drop and the product lift never share a vertical line.
+ */
 export const MILL_PROCESS_PORTS = {
   intake: [0, MILL_FEEDER_LAYOUT.height + MILL_FEEDER_LAYOUT.scale[1] / 2, 0],
-  pneumatic: [0, 5, 0],
+  pneumatic: [0, 4.7, -1.7],
 } as const;
+
+/**
+ * Authored size of each process machine, in the local metres its geometry,
+ * trim, placards and ports are drawn in.
+ *
+ * These assemblies were drawn at two to three times real size: the mill stood
+ * 6.59 m to its feed inlet with its HMI at 4.3 m, the bagger 6.47 m to its
+ * hopper, the plansifter 7.56 m above its deck - against a 1.72 m worker. They
+ * are now INSTALLED about their floor anchor by `PROCESS_MACHINE_INSTALL_SCALE`,
+ * the way the silos are installed from `SILO_ASSEMBLY_SIZE`, so every part,
+ * placard and port keeps its place on the machine while the whole machine
+ * comes down to real size. Anchors, conveyors, spout racks and platforms do not
+ * move.
+ */
+export const PROCESS_MACHINE_AUTHORED_SIZE = {
+  rollerMill: [7.8, 6.7, 5.7],
+  sifter: [7, SIFTER_LAYOUT.inletCentreY + SIFTER_LAYOUT.inletHeight / 2, 7],
+  packer: [4, 6, 4],
+} as const satisfies Record<string, Vec3Tuple>;
+
+/**
+ * Uniform installation scale, authored -> real metres. Chosen against the
+ * reference equipment, not to fit the frame:
+ *   mill 0.4    feed inlet 2.64 m, HMI centre 1.72 m, load dial 1.58 m
+ *   sifter 0.5  casing and lid 3.17 m, inlet 3.78 m above the deck
+ *   packer 0.6  cabinet 3.02 m, surge hopper 3.88 m
+ * The packer's fill spout, sack, bag guides and guards were already drawn at
+ * real size and are NOT scaled; they move back onto the installed cabinet face
+ * (`PACKER_STATION_SHIFT_Z` in machineFinishGeometry.ts).
+ */
+export const PROCESS_MACHINE_INSTALL_SCALE = {
+  rollerMill: 0.4,
+  sifter: 0.5,
+  packer: 0.6,
+} as const;
+
+const installedSize = (size: Vec3Tuple, scale: number): Vec3Tuple =>
+  size.map((dimension) => dimension * scale) as unknown as Vec3Tuple;
 
 /** Shared belt placement, including the return run along the milling aisle. */
 export const CONVEYOR_LAYOUT = {
@@ -406,14 +470,22 @@ export const SITE_LAYOUT = {
       shipping: {
         id: 'forklift-shipping',
         vehicle: 'forklift',
+        // Out to the dock door and back. The dropoff (index 4) stands on the
+        // bay centreline facing the docked trailer, its mast at the dock deck's
+        // hall edge (z 48.3), and lifts the pallet onto the deck at the
+        // trailer's tail (constants/dockLoading). It used to be (22.5, 48),
+        // 22.5 m east of the trailer. The forklift pivots in place there and
+        // returns down the same lane; waiting for the truck it holds short of
+        // the door's pedestrian approach (x +/-1.5).
+        // Saves holding older points are migrated in logisticsLayoutStore.
         points: [
           [-16, 0, 42],
-          [12, 0, 42],
-          [25, 0, 42],
-          [22.5, 0, 43],
-          [22.5, 0, 48],
-          [26, 0, 48],
-          [26, 0, 42],
+          [-10, 0, 42],
+          [-5, 0, 42],
+          [0, 0, 42],
+          [0, 0, 47.56],
+          [0, 0, 42],
+          [-8, 0, 42],
           [-16, 0, 42],
         ],
         halfWidth: 1.35,
@@ -422,13 +494,26 @@ export const SITE_LAYOUT = {
       receiving: {
         id: 'forklift-receiving',
         vehicle: 'forklift',
+        // Out to the receiving dock door to unload the docked trailer, and
+        // back to the dropoff at (-28, -22). The pickup (index 4) mirrors the
+        // shipping dropoff: on the bay centreline facing the trailer, taking
+        // the pallet off the dock deck at its tail. It used to be (-28, -43),
+        // 28 m west of the trailer it unloads. The lane is z -42, the mirror of
+        // shipping's 42 (at -43 it swept the dock platforms). The start (index
+        // 0) is on the x -35 return lane, which no other leg shares, so a
+        // layout change can always find which leg the vehicle is on. Saves
+        // holding the old points are migrated in logisticsLayoutStore.
         points: [
-          [-28, 0, -43],
-          [-28, 0, -38],
-          [-28, 0, -30],
+          [-35, 0, -30],
+          [-35, 0, -42],
+          [-14, 0, -42],
+          [0, 0, -42],
+          [0, 0, -47.56],
+          [0, 0, -42],
+          [-14, 0, -42],
+          [-28, 0, -42],
           [-28, 0, -22],
           [-35, 0, -22],
-          [-35, 0, -38],
         ],
         halfWidth: 1.35,
         closed: true,
@@ -552,21 +637,41 @@ export const SITE_LAYOUT = {
   } satisfies Record<string, readonly MachineAnchor[]>,
   machineDimensions: {
     silo: [12, 32, 12],
-    rollerMill: [7.8, 6.7, 5.7],
-    sifter: [7, SIFTER_LAYOUT.inletCentreY + SIFTER_LAYOUT.inletHeight / 2, 7],
-    packer: [4, 6, 4],
+    rollerMill: installedSize(
+      PROCESS_MACHINE_AUTHORED_SIZE.rollerMill,
+      PROCESS_MACHINE_INSTALL_SCALE.rollerMill
+    ),
+    sifter: installedSize(
+      PROCESS_MACHINE_AUTHORED_SIZE.sifter,
+      PROCESS_MACHINE_INSTALL_SCALE.sifter
+    ),
+    packer: installedSize(
+      PROCESS_MACHINE_AUTHORED_SIZE.packer,
+      PROCESS_MACHINE_INSTALL_SCALE.packer
+    ),
   } satisfies Record<string, Vec3Tuple>,
   cameras: {
     overview: { position: [-61, 32, 132], target: [14, 5, 0], fov: 45 },
     interior: { position: [-36, 14, 48], target: [0, 7, 25], fov: 55 },
     silos: { position: [95, 26, 74], target: [65, 13, 33], fov: 55 },
-    milling: { position: [-36, 4.5, 42], target: [12, 5.5, 23], fov: 50 },
+    // Aimed at the real-size mills (inlet 2.64 m), not the mezzanine soffit.
+    milling: { position: [-36, 4.5, 42], target: [12, 1.8, 23], fov: 50 },
     sifting: { position: [30, 17, 36], target: [0, 13, 20], fov: 55 },
     packing: { position: [-34, 14, 0], target: [0, 3, -12] },
-    processFloor: { position: [-36, 4.5, 42], target: [12, 5.5, 23], fov: 50 },
+    processFloor: { position: [-36, 4.5, 42], target: [12, 1.8, 23], fov: 50 },
     tankFarm: { position: [69, 8.5, -97], target: [69, 3.5, -70], fov: 55 },
     logisticsClose: { position: [18, 3.8, 96], target: [14, 1.8, 82], fov: 45 },
-    forklift: { position: [48, 3.8, 33], target: [40, 1.15, 24] },
+    // Inside the hall east of the dock channel, looking WEST along the z = 42
+    // forklift lane at the shipping forklift as it drives toward the camera.
+    // The capture's motion-start frame has it loading at its route start
+    // (-16, 42); the graded still is taken after the motion sample, by which
+    // time it has run east to somewhere between x -12 and x -5 depending on the
+    // settle time. From the west end (-27, 4.2, 46.5) that put it ~22 m away
+    // and ~100 px tall: the scene named for the forklift did not show its
+    // subject. This pose was searched for the largest forklift that stays whole
+    // in frame anywhere from x -16 to x -5 (a quarter to over half the frame
+    // height), 2.5 m clear of the lane's turn to the dock.
+    forklift: { position: [2.5, 2.6, 44.2], target: [-10, 1, 41.8], fov: 28 },
     shipping: { position: [34, 9, 104], target: [5, 2.5, 82] },
     receiving: { position: [-34, 9, -104], target: [-5, 2.5, -82] },
     yard: { position: [110, 36, 58], target: [72, 1.5, 12] },
@@ -619,7 +724,12 @@ export const SITE_LAYOUT = {
     // parked truck, and (2, 13, -44) put the dock's steel column and its
     // glazing straight down the middle of the frame. This one sits off the
     // dock centreline. At ~22 m a 0.4 m glyph is roughly 15 px tall.
-    markings: { position: [-9, 12, -42], target: [-7, 0.1, -60] },
+    // 2026-10-20: the dock paint was moved outboard of the platforms and
+    // channel slab (`truckbay/dockApronLayout.ts`). KEEP CLEAR now sits at
+    // (0, -0.01, -65.6) and reads from the yard, glyph tops toward the dock, so
+    // the camera moved to the yard side at a similar ~24 m. Re-aimed from the
+    // layout, not yet from a capture.
+    markings: { position: [-9, 12, -86], target: [-4, 0.1, -63] },
     // Gas station forecourt at (-85, 0, 140): the Dead Dino pylon sign, the
     // pumps, and the three CuteCars parked at x -75..-65, z 125.
     forecourt: { position: [-64, 9, 116], target: [-84, 4, 136] },
@@ -755,6 +865,44 @@ export function getSiloAssemblyScale(size: Vec3Tuple): [number, number, number] 
   return size.map((dimension, axis) =>
     Number.isFinite(dimension) && dimension > 0 ? dimension / SILO_ASSEMBLY_SIZE[axis] : 1
   ) as [number, number, number];
+}
+
+/**
+ * Authored -> installed scale of any machine assembly, about its floor anchor.
+ * Silos follow their configured size; the process machines use the fixed
+ * `PROCESS_MACHINE_INSTALL_SCALE`, so a session saved with the old authored
+ * `size` still renders, seats its spouts and places its placards at real size.
+ */
+export function getMachineAssemblyScale(machine: {
+  readonly type: MachineType;
+  readonly size: Vec3Tuple;
+}): [number, number, number] {
+  const uniform = (scale: number): [number, number, number] => [scale, scale, scale];
+  switch (machine.type) {
+    case MachineType.SILO:
+      return getSiloAssemblyScale(machine.size);
+    case MachineType.ROLLER_MILL:
+      return uniform(PROCESS_MACHINE_INSTALL_SCALE.rollerMill);
+    case MachineType.PLANSIFTER:
+      return uniform(PROCESS_MACHINE_INSTALL_SCALE.sifter);
+    case MachineType.PACKER:
+      return uniform(PROCESS_MACHINE_INSTALL_SCALE.packer);
+    default:
+      return [1, 1, 1];
+  }
+}
+
+/** A point in a machine's authored metres, installed in world metres. */
+export function installMachinePoint(
+  machine: { readonly type: MachineType; readonly size: Vec3Tuple; readonly position: Vec3Tuple },
+  local: Vec3Tuple
+): [number, number, number] {
+  const scale = getMachineAssemblyScale(machine);
+  return [
+    machine.position[0] + local[0] * scale[0],
+    machine.position[1] + local[1] * scale[1],
+    machine.position[2] + local[2] * scale[2],
+  ];
 }
 
 export const FACTORY_BOUNDS = SITE_LAYOUT.factory.bounds;

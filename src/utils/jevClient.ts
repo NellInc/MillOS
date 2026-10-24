@@ -1,4 +1,7 @@
 /** Read-only, explicitly requested incident classification. No stores or commands. */
+import { formatFixed, translate } from '../i18n';
+import { jevClientMessages as messages } from './jevClient.messages';
+
 export const JEV_ENDPOINT = 'https://openrouter.ai/api/alpha/decisions';
 export const JEV_MODEL = 'typesafe/jev-1.13';
 export const JEV_MAX_TEXT_LENGTH = 4000;
@@ -43,7 +46,7 @@ function parseAdvice(value: unknown): JevAdvice {
     Object.keys(probabilities).length !== JEV_QUEUES.length ||
     !values.every((p) => typeof p === 'number' && Number.isFinite(p) && p >= 0 && p <= 1)
   ) {
-    throw new Error('Jev returned an invalid advisory. No action was taken.');
+    throw new Error(translate(messages, 'invalidAdvisory'));
   }
   const scores = values as number[];
   const queue = answer.choice as JevAdvice['queue'];
@@ -52,7 +55,7 @@ function parseAdvice(value: unknown): JevAdvice {
     Math.abs(scores.reduce((sum, p) => sum + p, 0) - 1) > 0.025000001 ||
     (probabilities[queue] as number) < Math.max(...scores)
   ) {
-    throw new Error('Jev returned an invalid advisory. No action was taken.');
+    throw new Error(translate(messages, 'invalidAdvisory'));
   }
   return { queue, receivedAt: Date.now() };
 }
@@ -69,12 +72,14 @@ export async function requestJevAdvice({
   consent: boolean;
   signal: AbortSignal;
 }): Promise<JevAdvice> {
-  if (!consent) throw new Error('Consent is required before sending incident text.');
-  if (!isJevKeyValid(apiKey)) throw new Error('Enter a valid OpenRouter API key.');
+  if (!consent) throw new Error(translate(messages, 'consentRequired'));
+  if (!isJevKeyValid(apiKey)) throw new Error(translate(messages, 'invalidKey'));
   if (!text.trim() || text.length > JEV_MAX_TEXT_LENGTH) {
-    throw new Error(`Enter 1 to ${JEV_MAX_TEXT_LENGTH} characters of incident text.`);
+    throw new Error(
+      translate(messages, 'textLength', { max: formatFixed(JEV_MAX_TEXT_LENGTH, 0) })
+    );
   }
-  if (signal.aborted) throw new Error('Request cancelled.');
+  if (signal.aborted) throw new Error(translate(messages, 'cancelled'));
   const controller = new AbortController();
   const cancel = () => controller.abort();
   signal.addEventListener('abort', cancel, { once: true });
@@ -104,18 +109,18 @@ export async function requestJevAdvice({
         }),
       });
     } catch {
-      throw new Error('Jev could not be reached. Check your connection and try again manually.');
+      throw new Error(translate(messages, 'unreachable'));
     }
     if (!response.ok) {
       // Never display a provider error body: it may echo submitted text or credentials.
       const message =
         response.status === 401 || response.status === 403
-          ? 'OpenRouter rejected the key or its permissions.'
+          ? translate(messages, 'keyRejected')
           : response.status === 402
-            ? 'OpenRouter requires more credit for this request.'
+            ? translate(messages, 'moreCredit')
             : response.status === 429
-              ? 'OpenRouter is rate limiting requests. Try again later.'
-              : 'Jev is unavailable. Try again later.';
+              ? translate(messages, 'rateLimited')
+              : translate(messages, 'unavailable');
       throw new Error(message);
     }
     let body: unknown;
@@ -124,9 +129,9 @@ export async function requestJevAdvice({
       if (raw.length > 65_536) throw new Error();
       body = JSON.parse(raw);
     } catch {
-      throw new Error('Jev returned an invalid advisory. No action was taken.');
+      throw new Error(translate(messages, 'invalidAdvisory'));
     }
-    if (controller.signal.aborted) throw new Error('Request cancelled or timed out.');
+    if (controller.signal.aborted) throw new Error(translate(messages, 'cancelledOrTimedOut'));
     return parseAdvice(body);
   } finally {
     clearTimeout(timeout);

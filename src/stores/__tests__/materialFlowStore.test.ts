@@ -7,7 +7,11 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useMaterialFlowStore } from '../materialFlowStore';
+import {
+  cloneMaterialFlowData,
+  createMaterialFlowStore,
+  useMaterialFlowStore,
+} from '../materialFlowStore';
 
 describe('MaterialFlowStore', () => {
   beforeEach(() => {
@@ -464,6 +468,194 @@ describe('MaterialFlowStore', () => {
     });
   });
 
+  describe('a machine that is not processing', () => {
+    // Opening work in progress, as finished flour: each mill holds 500 kg of
+    // wheat (72% flour, then 95% through the sifter), each sifter 300 kg of
+    // flour (95%) and each packer 200 kg. Without rm-101 that is
+    // 3 x 342 + 3 x 285 + 3 x 200 = 2,481 kg.
+    const HEALTHY_OPENING_WIP_KG = 3 * 500 * 0.72 * 0.95 + 3 * 300 * 0.95 + 3 * 200;
+    // A full 2,000 kg rm-101 hopper would yield 2,000 x 0.72 x 0.95 = 1,368 kg.
+    const STRANDED_YIELD_KG = 2000 * 0.72 * 0.95;
+    const wheatOrder = { sourceMaterial: 'wheat_grain', finishedMaterial: 'flour' } as const;
+
+    /** Top a mill's hopper up to its 2,000 kg capacity from silo-0, genealogy intact. */
+    const fillMillHopper = (millId: string) => {
+      const state = useMaterialFlowStore.getState();
+      const machineBuffers = new Map(state.machineBuffers);
+      const silo = state.getMachineBuffer('silo-0')!;
+      const mill = state.getMachineBuffer(millId)!;
+      const transferredKg = mill.inputCapacity - state.getTotalInputBuffer(millId);
+      const source = silo.outputBuffer[0].sourceContributions![0];
+      machineBuffers.set('silo-0', {
+        ...silo,
+        outputBuffer: silo.outputBuffer.map((material, index) =>
+          index === 0
+            ? {
+                ...material,
+                amount: material.amount - transferredKg,
+                sourceContributions: material.sourceContributions!.map(
+                  (contribution, sourceIndex) =>
+                    sourceIndex === 0
+                      ? { ...contribution, amount: contribution.amount - transferredKg }
+                      : { ...contribution }
+                ),
+              }
+            : material
+        ),
+      });
+      machineBuffers.set(millId, {
+        ...mill,
+        inputBuffer: mill.inputBuffer.map((material) =>
+          material.type === 'wheat_grain'
+            ? {
+                ...material,
+                amount: material.amount + transferredKg,
+                sourceContributions: [
+                  ...material.sourceContributions!,
+                  { lotId: source.lotId, amount: transferredKg, path: ['silo-0', millId] },
+                ],
+              }
+            : material
+        ),
+      });
+      useMaterialFlowStore.setState({ machineBuffers });
+    };
+
+    const siloKg = () =>
+      [...useMaterialFlowStore.getState().machineBuffers.values()]
+        .filter((b) => b.machineType === 'silo')
+        .reduce((sum, b) => sum + b.outputBuffer.reduce((s, m) => s + m.amount, 0), 0);
+    // Everything ever packed: shipped batches leave the retained window.
+    const packedKg = () => {
+      const state = useMaterialFlowStore.getState();
+      return (
+        state.shippedKg + state.productionBatches.reduce((sum, batch) => sum + batch.availableKg, 0)
+      );
+    };
+
+    /** Ticks an order to its end, shipping product as it is packed. */
+    const runOrder = (orderKg: number, ticks: number) => {
+      const shippedBefore = useMaterialFlowStore.getState().shippedKg;
+      const shippedOverTime: number[] = [];
+      let healthyLaneFeedKg = 0;
+      for (let tick = 0; tick < ticks; tick++) {
+        const remainingFinishedKg = Math.max(
+          0,
+          orderKg - (useMaterialFlowStore.getState().shippedKg - shippedBefore)
+        );
+        useMaterialFlowStore
+          .getState()
+          .tickMaterialFlow(0.5, 1, { ...wheatOrder, remainingFinishedKg });
+        for (const segment of useMaterialFlowStore.getState().network.segments) {
+          if (segment.fromMachineId.startsWith('silo-') && segment.toMachineId !== 'rm-101')
+            healthyLaneFeedKg += segment.inTransit.reduce((sum, t) => sum + t.amount, 0);
+        }
+        const stillNeeded = orderKg - (useMaterialFlowStore.getState().shippedKg - shippedBefore);
+        if (stillNeeded > 0)
+          useMaterialFlowStore.getState().shipFinishedGoods(stillNeeded, 'flour');
+        shippedOverTime.push(useMaterialFlowStore.getState().shippedKg - shippedBefore);
+      }
+      return { shippedOverTime, healthyLaneFeedKg };
+    };
+
+    it('lets the healthy lanes finish an order while a broken mill holds a full hopper', () => {
+      fillMillHopper('rm-101');
+      useMaterialFlowStore.getState().syncMachineProcessing([{ id: 'rm-101', status: 'critical' }]);
+      // The order needs 331 kg more than the healthy line already holds. The
+      // broken mill's 1,368 kg is far more than that, but it is not moving.
+      const orderKg = HEALTHY_OPENING_WIP_KG + 331;
+
+      const { shippedOverTime, healthyLaneFeedKg } = runOrder(orderKg, 600);
+
+      const state = useMaterialFlowStore.getState();
+      expect(healthyLaneFeedKg).toBeGreaterThan(0);
+      expect(shippedOverTime.at(-1)).toBeCloseTo(orderKg, 3);
+      for (let index = 1; index < shippedOverTime.length; index++)
+        expect(shippedOverTime[index]).toBeGreaterThanOrEqual(shippedOverTime[index - 1]);
+      // Nothing more went into the broken mill and nothing came out of it.
+      expect(state.getTotalInputBuffer('rm-101')).toBeCloseTo(2000, 6);
+      expect(Math.abs(state.getMaterialBalance().errorKg)).toBeLessThan(0.001);
+      expect(Math.abs(state.getGenealogyBalance().errorKg)).toBeLessThan(0.001);
+    });
+
+    it('counts a repaired mill hopper toward the order again, without loss', () => {
+      fillMillHopper('rm-101');
+      useMaterialFlowStore.getState().syncMachineProcessing([{ id: 'rm-101', status: 'critical' }]);
+      const firstOrder = runOrder(HEALTHY_OPENING_WIP_KG + 331, 600);
+      expect(firstOrder.shippedOverTime.at(-1)).toBeCloseTo(HEALTHY_OPENING_WIP_KG + 331, 3);
+      const packedBefore = packedKg();
+      const siloBefore = siloKg();
+
+      useMaterialFlowStore.getState().syncMachineProcessing([{ id: 'rm-101', status: 'running' }]);
+      // The repaired hopper alone covers a 1,000 kg order, so the silos stay shut.
+      const { shippedOverTime } = runOrder(1000, 600);
+
+      const state = useMaterialFlowStore.getState();
+      expect(shippedOverTime.at(-1)).toBeCloseTo(1000, 3);
+      expect(siloKg()).toBeCloseTo(siloBefore, 6);
+      expect(state.getTotalInputBuffer('rm-101')).toBeLessThan(0.001);
+      // All of the stranded grain came out as product, none duplicated.
+      expect(packedKg() - packedBefore).toBeCloseTo(STRANDED_YIELD_KG, 3);
+      expect(Math.abs(state.getMaterialBalance().errorKg)).toBeLessThan(0.001);
+      expect(Math.abs(state.getGenealogyBalance().errorKg)).toBeLessThan(0.001);
+    });
+
+    it('shares the order among the packers a working mill can still reach', () => {
+      // rm-102 is sifter-b's only feed, so packer-1 has no lane from the silos.
+      useMaterialFlowStore.getState().syncMachineProcessing([{ id: 'rm-102', status: 'critical' }]);
+      const plan = { ...wheatOrder, remainingFinishedKg: 6000 };
+      for (let tick = 0; tick < 600; tick++)
+        useMaterialFlowStore.getState().tickMaterialFlow(0.5, 1, plan);
+
+      const state = useMaterialFlowStore.getState();
+      const available = state.productionBatches.reduce((sum, b) => sum + b.availableKg, 0);
+      expect(available).toBeCloseTo(6000, 3);
+      expect(state.getTotalInputBuffer('rm-102')).toBeCloseTo(500, 6);
+      expect(Math.abs(state.getMaterialBalance().errorKg)).toBeLessThan(0.001);
+    });
+
+    it('closes the silo valves to a stopped mill when no order caps the feed', () => {
+      useMaterialFlowStore.getState().syncMachineProcessing([{ id: 'rm-101', status: 'critical' }]);
+      for (let tick = 0; tick < 60; tick++)
+        useMaterialFlowStore.getState().tickMaterialFlow(0.5, 1);
+
+      const state = useMaterialFlowStore.getState();
+      const lanes = state.network.segments.filter((s) => s.fromMachineId.startsWith('silo-'));
+      for (const lane of lanes.filter((s) => s.toMachineId === 'rm-101')) {
+        expect(lane.currentLoad).toBe(0);
+        expect(lane.inTransit).toEqual([]);
+      }
+      expect(state.getTotalInputBuffer('rm-101')).toBeCloseTo(500, 6);
+      expect(state.getTotalInputBuffer('rm-102')).toBeGreaterThan(0);
+      expect(Math.abs(state.getMaterialBalance().errorKg)).toBeLessThan(0.001);
+    });
+
+    it('recovers a saved plant whose broken mill holds a full hopper', () => {
+      fillMillHopper('rm-101');
+      useMaterialFlowStore.getState().syncMachineProcessing([{ id: 'rm-101', status: 'critical' }]);
+      // A save carries the buffers and the processing flag exactly as they are.
+      const saved = cloneMaterialFlowData(useMaterialFlowStore.getState());
+      const restored = createMaterialFlowStore(saved);
+      restored.getState().syncMachineProcessing([{ id: 'rm-101', status: 'critical' }]);
+      const orderKg = HEALTHY_OPENING_WIP_KG + 331;
+      for (let tick = 0; tick < 600; tick++) {
+        const remainingFinishedKg = Math.max(0, orderKg - restored.getState().shippedKg);
+        restored.getState().tickMaterialFlow(0.5, 1, { ...wheatOrder, remainingFinishedKg });
+        if (remainingFinishedKg > 0)
+          restored.getState().shipFinishedGoods(remainingFinishedKg, 'flour');
+      }
+      expect(restored.getState().shippedKg).toBeCloseTo(orderKg, 3);
+
+      restored.getState().syncMachineProcessing([{ id: 'rm-101', status: 'running' }]);
+      // With the order covered no new grain is admitted, so the hopper drains.
+      for (let tick = 0; tick < 600; tick++)
+        restored.getState().tickMaterialFlow(0.5, 1, { ...wheatOrder, remainingFinishedKg: 0 });
+      expect(restored.getState().getTotalInputBuffer('rm-101')).toBeLessThan(0.001);
+      expect(Math.abs(restored.getState().getMaterialBalance().errorKg)).toBeLessThan(0.001);
+      expect(Math.abs(restored.getState().getGenealogyBalance().errorKg)).toBeLessThan(0.001);
+    });
+  });
+
   describe('receiveGrainDelivery', () => {
     it('should top up the emptiest silo with its matching grain type', () => {
       const { receiveGrainDelivery, getTotalOutputBuffer } = useMaterialFlowStore.getState();
@@ -638,9 +830,12 @@ describe('MaterialFlowStore', () => {
       expect(state.productionBatches.find((batch) => batch.id === held.id)?.availableKg).toBe(
         held.availableKg
       );
-      expect(state.productionBatches.find((batch) => batch.id === recalled.id)?.availableKg).toBe(
-        recalled.availableKg
-      );
+      // A recall writes its mass off as waste rather than leaving it in the packer.
+      const recalledAfter = state.productionBatches.find((batch) => batch.id === recalled.id);
+      expect(recalledAfter?.availableKg).toBe(0);
+      expect(recalledAfter?.writtenOffKg).toBeCloseTo(recalled.availableKg, 6);
+      expect(Math.abs(state.getGenealogyBalance().errorKg)).toBeLessThanOrEqual(0.01);
+      expect(Math.abs(state.getMaterialBalance().errorKg)).toBeLessThanOrEqual(0.01);
     });
 
     it('conserves source contributions through backpressure, waste, and dispatch', () => {
@@ -736,6 +931,42 @@ describe('MaterialFlowStore', () => {
       // fresh fragment every tick for every packer.
       const heldKg = heldBatches.reduce((sum, batch) => sum + batch.producedKg, 0);
       expect(heldBatches.length).toBeLessThanOrEqual(Math.ceil(heldKg / 1000) + 6);
+    });
+
+    it('writes off batches packed later from a recalled lot, as the recall itself does', () => {
+      const lots = useMaterialFlowStore.getState().sourceLots;
+      const recalledLotIds = [...lots.keys()].filter((id) => !id.startsWith('lot-opening-packer'));
+      useMaterialFlowStore
+        .getState()
+        .setLotDisposition(recalledLotIds, 'recalled', 'Supplier recall');
+      const wasteBefore = useMaterialFlowStore.getState().wasteKg;
+
+      for (let tick = 0; tick < 120; tick += 1) {
+        useMaterialFlowStore.getState().tickMaterialFlow(0.5, 1);
+      }
+
+      const state = useMaterialFlowStore.getState();
+      const recalled = state.productionBatches.filter((batch) => batch.disposition === 'recalled');
+      expect(recalled.length).toBeGreaterThan(0);
+      for (const batch of recalled) {
+        expect(batch.availableKg).toBe(0);
+        expect(batch.writtenOffKg).toBeCloseTo(batch.producedKg, 6);
+      }
+      // The scrapped mass is waste, not packer stock.
+      const recalledIds = new Set(recalled.map((batch) => batch.id));
+      for (const packerId of ['packer-0', 'packer-1', 'packer-2']) {
+        const held = state
+          .getMachineBuffer(packerId)
+          ?.outputBuffer.flatMap((material) => material.productBatches ?? [])
+          .filter((contribution) => recalledIds.has(contribution.batchId));
+        expect(held).toEqual([]);
+      }
+      const recalledKg = recalled.reduce((sum, batch) => sum + batch.producedKg, 0);
+      expect(state.wasteKg - wasteBefore).toBeGreaterThanOrEqual(recalledKg - 1e-6);
+      // One open recalled batch fills toward the target, not one per tick.
+      expect(recalled.length).toBeLessThanOrEqual(Math.ceil(recalledKg / 1000) + 6);
+      expect(Math.abs(state.getGenealogyBalance().errorKg)).toBeLessThan(0.001);
+      expect(Math.abs(state.getMaterialBalance().errorKg)).toBeLessThan(0.001);
     });
   });
 

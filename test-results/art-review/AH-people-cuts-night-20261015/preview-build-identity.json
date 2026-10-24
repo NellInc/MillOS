@@ -1,0 +1,14 @@
+{
+  "index": {
+    "url": "http://127.0.0.1:4288/",
+    "sha256": "c71bee4641e4970b0bb460f1c546857d416888f6235f46dc27d792d787f74ee9",
+    "bytes": 9887
+  },
+  "entries": [
+    {
+      "url": "http://127.0.0.1:4288/assets/main-2L9njW89.js",
+      "sha256": "c3e2f45e895d9bdeeaa418c15dfc2c22acccd1257098522283dfd8b018cd91d6",
+      "bytes": 823785
+    }
+  ]
+}

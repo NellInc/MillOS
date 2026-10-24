@@ -19,11 +19,14 @@ import {
 } from '../../audio/millosSoundtrackLyrics';
 import { useMusicPlayerState } from '../../hooks/useAudioState';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
+import { useT } from '../../i18n';
+import { millOSMusicPlayerMessages } from './MillOSMusicPlayer.messages';
 
 export const MillOSMusicPlayer: React.FC<{
   distractionFree?: boolean;
   sidebarVisible?: boolean;
 }> = ({ distractionFree = false, sidebarVisible = false }) => {
+  const t = useT(millOSMusicPlayerMessages);
   const player = useMusicPlayerState();
   const [expanded, setExpanded] = useState(false);
   const playlistId = useId();
@@ -84,7 +87,7 @@ export const MillOSMusicPlayer: React.FC<{
   return (
     <>
       <section
-        aria-label="Music player"
+        aria-label={t('musicPlayer')}
         style={
           {
             '--millos-view-width': sidebarVisible
@@ -107,7 +110,7 @@ export const MillOSMusicPlayer: React.FC<{
             type="button"
             onClick={() => setPlayerExpanded(!playlistVisible)}
             disabled={distractionFree}
-            aria-label={playlistVisible ? 'Collapse playlist' : 'Expand playlist'}
+            aria-label={playlistVisible ? t('collapsePlaylist') : t('expandPlaylist')}
             aria-expanded={playlistVisible}
             aria-controls={playlistId}
             title={player.currentTrack.name}
@@ -116,7 +119,7 @@ export const MillOSMusicPlayer: React.FC<{
             <Music2 className="h-4 w-4 shrink-0 text-cyan-300" aria-hidden="true" />
             <span className="min-w-0 flex-1">
               <span className="block text-[10px] leading-4 text-slate-400">
-                {player.playing ? 'Now playing' : 'Soundtrack'}
+                {player.playing ? t('nowPlaying') : t('soundtrack')}
               </span>
               <span className="block truncate text-xs font-medium text-white" aria-live="polite">
                 {player.currentTrack.name}
@@ -130,7 +133,7 @@ export const MillOSMusicPlayer: React.FC<{
               ))}
           </button>
           <PlayerButton
-            label={player.playing ? 'Pause music' : 'Play music'}
+            label={player.playing ? t('pauseMusic') : t('playMusic')}
             onClick={player.togglePlayback}
           >
             {player.playing ? (
@@ -139,7 +142,7 @@ export const MillOSMusicPlayer: React.FC<{
               <Play size={17} aria-hidden="true" />
             )}
           </PlayerButton>
-          <PlayerButton label="Next song" onClick={player.nextTrack}>
+          <PlayerButton label={t('nextSong')} onClick={player.nextTrack}>
             <SkipForward size={17} aria-hidden="true" />
           </PlayerButton>
         </div>
@@ -148,7 +151,7 @@ export const MillOSMusicPlayer: React.FC<{
           <div
             id={playlistId}
             role="region"
-            aria-label="Playlist"
+            aria-label={t('playlist')}
             className="flex max-h-[min(25rem,calc(100dvh-14rem))] flex-col overflow-y-auto overscroll-contain border-t border-white/10 p-2"
           >
             <div className="shrink-0 [@media(max-height:500px)]:order-2">
@@ -159,7 +162,7 @@ export const MillOSMusicPlayer: React.FC<{
                 {player.currentTrack.artist}
               </p>
               <div className="flex items-center gap-2">
-                <PlayerButton label="Previous song" onClick={player.prevTrack}>
+                <PlayerButton label={t('previousSong')} onClick={player.prevTrack}>
                   <SkipBack size={16} aria-hidden="true" />
                 </PlayerButton>
                 <input
@@ -169,8 +172,11 @@ export const MillOSMusicPlayer: React.FC<{
                   step={1}
                   value={Math.min(player.positionSeconds, Math.max(player.durationSeconds, 1))}
                   onChange={(event) => player.seek(Number(event.target.value))}
-                  aria-label="Song position"
-                  aria-valuetext={`${formatMusicTime(player.positionSeconds)} of ${formatMusicTime(player.durationSeconds)}`}
+                  aria-label={t('songPosition')}
+                  aria-valuetext={t('positionOfDuration', {
+                    position: formatMusicTime(player.positionSeconds),
+                    duration: formatMusicTime(player.durationSeconds),
+                  })}
                   className="h-11 min-w-0 flex-1 cursor-pointer appearance-none rounded-full bg-transparent accent-cyan-400"
                 />
                 <span className="shrink-0 text-[10px] tabular-nums text-slate-400">
@@ -184,18 +190,18 @@ export const MillOSMusicPlayer: React.FC<{
                   onChange={(event) =>
                     player.setStation(event.target.value as 'original' | 'legacy')
                   }
-                  aria-label="Music collection"
+                  aria-label={t('musicCollection')}
                   className="min-h-11 min-w-0 max-w-full flex-1 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-slate-300"
                 >
-                  <option value="original">Original soundtrack</option>
-                  <option value="legacy">Legacy music</option>
+                  <option value="original">{t('originalSoundtrack')}</option>
+                  <option value="legacy">{t('legacyMusic')}</option>
                 </select>
                 <button
                   type="button"
                   onClick={() => player.setShuffle(!player.shuffle)}
-                  aria-label="Shuffle songs"
+                  aria-label={t('shuffleSongs')}
                   aria-pressed={player.shuffle}
-                  title={player.shuffle ? 'Shuffle on' : 'Shuffle off'}
+                  title={player.shuffle ? t('shuffleOn') : t('shuffleOff')}
                   className={`flex min-w-11 shrink-0 items-center justify-center rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 ${
                     player.shuffle
                       ? 'bg-cyan-400/15 text-cyan-300'
@@ -210,19 +216,15 @@ export const MillOSMusicPlayer: React.FC<{
                   onClick={() => setLyricsOpen(true)}
                   disabled={!lyricsAvailable}
                   aria-haspopup="dialog"
-                  title={
-                    lyricsAvailable
-                      ? 'Open synchronized lyrics'
-                      : 'Lyrics are available for the original soundtrack'
-                  }
-                  aria-label="Open synchronized lyrics"
+                  title={lyricsAvailable ? t('openLyrics') : t('lyricsOriginalOnly')}
+                  aria-label={t('openLyrics')}
                   className="flex min-w-11 shrink-0 items-center justify-center rounded-md text-slate-300 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 disabled:cursor-not-allowed disabled:opacity-35"
                 >
                   <ListMusic size={17} aria-hidden="true" />
                 </button>
               </div>
             </div>
-            <ol aria-label="Songs" className="shrink-0 space-y-0.5">
+            <ol aria-label={t('songs')} className="shrink-0 space-y-0.5">
               {player.availableTracks.map((track, index) => (
                 <li key={track.id}>
                   <button
@@ -322,6 +324,7 @@ const LyricLine = React.memo<{
 LyricLine.displayName = 'LyricLine';
 
 const LyricsDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+  const t = useT(millOSMusicPlayerMessages);
   const player = useMusicPlayerState();
   const reducedMotion = useReducedMotion();
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -404,14 +407,12 @@ const LyricsDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             >
               {sheet.title}
             </h2>
-            <p className="text-[10px] text-slate-400">
-              Word timing is locally machine aligned and awaits human synchronization review.
-            </p>
+            <p className="text-[10px] text-slate-400">{t('wordTimingNote')}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close lyrics"
+            aria-label={t('closeLyrics')}
             className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-300 hover:bg-white/10 hover:text-white"
           >
             <X size={20} aria-hidden="true" />
@@ -424,7 +425,7 @@ const LyricsDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
               htmlFor="millos-station"
               className="mb-1 block text-[10px] uppercase tracking-wider text-slate-400"
             >
-              Collection
+              {t('collection')}
             </label>
             <select
               id="millos-station"
@@ -432,12 +433,12 @@ const LyricsDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
               onChange={(event) => player.setStation(event.target.value as 'original' | 'legacy')}
               className="min-h-11 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 text-xs text-white"
             >
-              <option value="original">Original soundtrack</option>
-              <option value="legacy">Legacy music</option>
+              <option value="original">{t('originalSoundtrack')}</option>
+              <option value="legacy">{t('legacyMusic')}</option>
             </select>
             <div className="mt-3 flex items-center justify-between gap-2">
               <span className="text-[10px] uppercase tracking-wider text-slate-400">
-                Play order
+                {t('playOrder')}
               </span>
               <button
                 type="button"
@@ -448,13 +449,13 @@ const LyricsDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                 }`}
               >
                 <Shuffle size={14} aria-hidden="true" />
-                Shuffle
+                {t('shuffle')}
               </button>
             </div>
             <div
               role="group"
               className="mt-3 hidden space-y-1 md:block"
-              aria-label="Original soundtrack songs"
+              aria-label={t('originalSoundtrackSongs')}
             >
               {player.availableTracks.map((track, index) => (
                 <button
@@ -506,11 +507,11 @@ const LyricsDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         </div>
 
         <footer className="flex shrink-0 flex-wrap items-center gap-2 border-t border-white/10 p-3 sm:flex-nowrap sm:px-5">
-          <PlayerButton label="Previous song" onClick={player.prevTrack}>
+          <PlayerButton label={t('previousSong')} onClick={player.prevTrack}>
             <SkipBack size={17} aria-hidden="true" />
           </PlayerButton>
           <PlayerButton
-            label={player.playing ? 'Pause music' : 'Play music'}
+            label={player.playing ? t('pauseMusic') : t('playMusic')}
             onClick={player.togglePlayback}
             prominent
           >
@@ -520,7 +521,7 @@ const LyricsDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
               <Play size={18} aria-hidden="true" />
             )}
           </PlayerButton>
-          <PlayerButton label="Next song" onClick={player.nextTrack}>
+          <PlayerButton label={t('nextSong')} onClick={player.nextTrack}>
             <SkipForward size={17} aria-hidden="true" />
           </PlayerButton>
           <span className="ml-2 font-mono text-[10px] text-slate-400">
@@ -533,8 +534,11 @@ const LyricsDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             step={1}
             value={Math.min(player.positionSeconds, Math.max(player.durationSeconds, 1))}
             onChange={(event) => player.seek(Number(event.target.value))}
-            aria-label="Song position"
-            aria-valuetext={`${formatMusicTime(player.positionSeconds)} of ${formatMusicTime(player.durationSeconds)}`}
+            aria-label={t('songPosition')}
+            aria-valuetext={t('positionOfDuration', {
+              position: formatMusicTime(player.positionSeconds),
+              duration: formatMusicTime(player.durationSeconds),
+            })}
             className="h-11 min-w-0 flex-1 basis-full cursor-pointer appearance-none rounded-full bg-transparent accent-cyan-400 sm:basis-auto"
           />
         </footer>

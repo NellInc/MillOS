@@ -13,6 +13,8 @@ import {
   DOCK_PLATFORM_OBSTACLES,
 } from '../constants/factoryObstacles';
 import { STAGING_LAYOUT } from '../components/truckbay/palletStagingLayout';
+import { hallDressingSolids } from '../components/infrastructure/hallDressingLayout';
+import { DOCK_DECK_FORK_HEIGHT } from '../constants/dockLoading';
 import {
   createRoundedForkliftRoute,
   FORKLIFT_CORNER_SETBACK,
@@ -23,6 +25,8 @@ import type { SpoutMachine } from '../components/flow/spoutRoutes';
 import type { ConveyorSegment, MachineBuffer } from '../stores/materialFlowStore';
 import type { Obstacle } from '../utils/positionRegistry';
 import { canonicalProcessMachines } from './materialTransport';
+import { translate } from '../i18n';
+import { layoutPlanningMessages } from './layoutPlanning.messages';
 
 export type Dock = 'shipping' | 'receiving';
 export type PlanningBounds = Pick<SiteBounds, 'minX' | 'maxX' | 'minZ' | 'maxZ'>;
@@ -87,6 +91,25 @@ export function planningObstacles(
       id: asset.id,
       ...getServiceAssetBounds(asset),
     })),
+    // The hall's floor dressing (sack bays, racks, carts, reels, hoses). A route
+    // corner dragged through a sack bay must be refused like one through a
+    // machine. Overhead steel and flat dust are not in a forklift's way.
+    // Saved layouts are re-scored on load (`validateSavedLogisticsLayout`), so a
+    // save that crossed the dressing would no longer restore; none can exist:
+    // every editable corner (receiving 2 and 6, shipping 2) was swept over the
+    // whole floor at 1 m and no layout feasible without the dressing meets it,
+    // because each corner's legs must cross a belt to reach it.
+    ...hallDressingSolids()
+      .filter((solid) => solid.onFloor)
+      .map(({ id, minX, maxX, minY, maxY, minZ, maxZ }) => ({
+        id,
+        minX,
+        maxX,
+        minY,
+        maxY,
+        minZ,
+        maxZ,
+      })),
   ];
 }
 
@@ -133,11 +156,31 @@ export function protectedEgressApproaches(): Array<PlanningBounds & { id: string
   });
 }
 
+/**
+ * Route vertices that are pickups and dropoffs, and which of them is worked
+ * at the dock deck (the trailer's tail) rather than on the floor. Shipping
+ * loads its trailer; receiving unloads its own.
+ */
+const ROUTE_ACTION_VERTICES: Record<
+  Dock,
+  { pickup: number; dropoff: number; atDock: 'pickup' | 'dropoff' }
+> = {
+  shipping: { pickup: 0, dropoff: 4, atDock: 'dropoff' },
+  receiving: { pickup: 4, dropoff: 8, atDock: 'pickup' },
+};
+
 export function planningRouteActions(dock: Dock): ForkliftWaypointAction[] {
-  return SITE_LAYOUT.routes.forklifts[dock].points.map((_, index) => ({
-    type: index === 0 ? 'pickup' : index === (dock === 'shipping' ? 4 : 3) ? 'dropoff' : 'none',
-    duration: index === 0 ? 7 : index === (dock === 'shipping' ? 4 : 3) ? 6 : 0,
-  }));
+  const vertices = ROUTE_ACTION_VERTICES[dock];
+  return SITE_LAYOUT.routes.forklifts[dock].points.map((_, index) => {
+    const type =
+      index === vertices.pickup ? 'pickup' : index === vertices.dropoff ? 'dropoff' : 'none';
+    if (type === 'none') return { type, duration: 0 };
+    return {
+      type,
+      duration: type === 'pickup' ? 7 : 6,
+      ...(type === vertices.atDock ? { surfaceForkHeight: DOCK_DECK_FORK_HEIGHT } : {}),
+    };
+  });
 }
 
 /** Freeze operational poses and both approach legs. Edits only affect travel corners. */
@@ -148,6 +191,9 @@ export function isEditableRoutePoint(dock: Dock, index: number): boolean {
   // remains the incoming pickup approach despite the repeat's empty action.
   if (index === points.length - 2 && distance(points[0], points[points.length - 1]) < 1e-6)
     return false;
+  // The first vertex is where the fleet starts its vehicle: it and the legs
+  // either side stay fixed, so an apply can always find the vehicle's leg.
+  if (index === 0 || index === 1) return false;
   return (
     [index, (index + 1) % actions.length, (index - 1 + actions.length) % actions.length].every(
       (i) => actions[i].type === 'none'
@@ -257,8 +303,9 @@ export function scoreLogisticsLayout(
     assumptions.crossingDelaySeconds,
   ];
   if (values.some((value) => !Number.isFinite(value) || value < 0 || value > 10000))
-    violations.push('Planning assumptions must be finite and between 0 and 10,000.');
+    violations.push(translate(layoutPlanningMessages, 'assumptionsRange'));
   for (const dock of PLANNING_DOCKS) {
+    const dockName = translate(layoutPlanningMessages, 'dock', { value: dock });
     const points = proposal.routes[dock];
     const baseline = SITE_LAYOUT.routes.forklifts[dock].points;
     const origin = proposal.staging[dock];
@@ -270,18 +317,18 @@ export function scoreLogisticsLayout(
       origin.every(Number.isFinite) &&
       origin[1] === 0;
     if (!valid) {
-      violations.push(`${dock}: invalid coordinates or route/action alignment.`);
+      violations.push(translate(layoutPlanningMessages, 'invalidCoordinates', { dock: dockName }));
       routes[dock] = { length: 0, cycleSeconds: 0, crossings: 0 };
       continue;
     }
     points.forEach((point, index) => {
       if (!isEditableRoutePoint(dock, index) && !samePoint(point, baseline[index]))
-        violations.push(`${dock}: pickup, dropoff and approach poses must stay fixed.`);
+        violations.push(translate(layoutPlanningMessages, 'fixedPoses', { dock: dockName }));
       if (index > 0 && distance(points[index - 1], point) < 0.05)
-        violations.push(`${dock}: a travel leg is too short.`);
+        violations.push(translate(layoutPlanningMessages, 'shortLeg', { dock: dockName }));
     });
     if (minimumRoundedTurnRadius(dock, points) + 1e-6 < minimumRoundedTurnRadius(dock, baseline))
-      violations.push(`${dock}: proposed corners tighten the existing turning envelope.`);
+      violations.push(translate(layoutPlanningMessages, 'tighterCorners', { dock: dockName }));
     const route = roundedPlanningRoute(dock, points);
     const width = route.halfWidth + 0.1; // Conservative envelope plus curve-sampling margin.
     if (
@@ -293,20 +340,33 @@ export function scoreLogisticsLayout(
           z + width > 50
       )
     )
-      violations.push(`${dock}: vehicle clearance leaves the operating floor.`);
+      violations.push(translate(layoutPlanningMessages, 'leavesFloor', { dock: dockName }));
     for (const obstacle of obstacles) {
       if ((obstacle.minY ?? 0) > 3) continue;
       if (routeIntersectsBoundsXZ(route, obstacle, 0.1))
-        violations.push(`${dock}: swept route meets ${obstacle.id}.`);
+        violations.push(
+          translate(layoutPlanningMessages, 'routeMeets', { dock: dockName, obstacle: obstacle.id })
+        );
     }
     const stage = stagingBounds(dock, origin);
     if (!inside(stage, SITE_LAYOUT.docks[dock].apron))
-      violations.push(`${dock}: staging capacity leaves its apron.`);
+      violations.push(translate(layoutPlanningMessages, 'stagingLeavesApron', { dock: dockName }));
     for (const obstacle of obstacles)
-      if (overlaps(stage, obstacle)) violations.push(`${dock}: staging meets ${obstacle.id}.`);
+      if (overlaps(stage, obstacle))
+        violations.push(
+          translate(layoutPlanningMessages, 'stagingMeets', {
+            dock: dockName,
+            obstacle: obstacle.id,
+          })
+        );
     for (const egress of protectedEgressApproaches())
       if (overlaps(stage, egress))
-        violations.push(`${dock}: staging blocks ${egress.id} pedestrian access.`);
+        violations.push(
+          translate(layoutPlanningMessages, 'stagingBlocksEgress', {
+            dock: dockName,
+            egress: egress.id,
+          })
+        );
     for (const other of PLANNING_DOCKS) {
       const otherPoints = proposal.routes[other];
       if (
@@ -314,7 +374,12 @@ export function scoreLogisticsLayout(
         otherPoints.every((point) => point.every(Number.isFinite))
       ) {
         if (routeIntersectsBoundsXZ(roundedPlanningRoute(other, otherPoints), stage, 0.1))
-          violations.push(`${dock}: staging blocks the ${other} vehicle corridor.`);
+          violations.push(
+            translate(layoutPlanningMessages, 'stagingBlocksCorridor', {
+              dock: dockName,
+              other: translate(layoutPlanningMessages, 'dock', { value: other }),
+            })
+          );
       }
     }
     let length = 0;
@@ -326,7 +391,7 @@ export function scoreLogisticsLayout(
     );
     const crossings = hazards.filter(({ bounds }) => routeIntersectsBoundsXZ(route, bounds)).length;
     const trips = assumptions.tripsPerHour[dock];
-    const actionIndex = dock === 'shipping' ? 4 : 0;
+    const actionIndex = ROUTE_ACTION_VERTICES[dock][ROUTE_ACTION_VERTICES[dock].atDock];
     const centre: Vec3Tuple = [(stage.minX + stage.maxX) / 2, 0, (stage.minZ + stage.maxZ) / 2];
     // Rectilinear handling distance, rather than a shortcut through a platform.
     const destination = points[actionIndex];

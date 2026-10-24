@@ -53,7 +53,7 @@ it('mounts the real workplace laboratory in a tall, bounded mobile workspace', (
   );
   expect(screen.getByRole('region', { name: 'Workplace laboratory' })).toBeInTheDocument();
   expect(
-    screen.getByRole('button', { name: 'Start playable shift at teaching pace (15×)' })
+    screen.getByRole('button', { name: 'Start playable shift at teaching pace (1/2x)' })
   ).toBeInTheDocument();
 });
 
@@ -102,4 +102,44 @@ it('wraps both Tab directions through the visible disclosure, ignoring its colla
   expect(challenge).toHaveFocus();
   fireEvent.keyDown(challenge, { key: 'Tab' });
   expect(close).toHaveFocus();
+});
+
+// Take over removes itself as it opens this sheet, so the control focused
+// before the sheet opened is gone (or never was) by the time it closes.
+// Working if focus lands on the dock, the stable place to continue from,
+// and a control that still exists keeps getting focus back as before.
+it('returns focus to the dock when the control that opened the sheet is gone', () => {
+  const dock = document.createElement('div');
+  const [overview, scada] = ['overview', 'scada'].map((mode) => {
+    const item = document.createElement('button');
+    item.dataset.dockMode = mode;
+    item.textContent = mode;
+    return dock.appendChild(item);
+  });
+  document.body.append(dock);
+  try {
+    // Take over is still focused when the sheet opens, then unmounts.
+    const takeOver = document.createElement('button');
+    document.body.append(takeOver);
+    takeOver.focus();
+    const view = render(<MobilePanel isVisible content="management" onClose={vi.fn()} />);
+    takeOver.remove();
+    view.rerender(<MobilePanel isVisible={false} content="management" onClose={vi.fn()} />);
+    expect(overview).toHaveFocus();
+
+    // Take over had already unmounted: nothing but the page was focused.
+    (document.activeElement as HTMLElement | null)?.blur();
+    view.rerender(<MobilePanel isVisible content="management" onClose={vi.fn()} />);
+    view.rerender(<MobilePanel isVisible={false} content="management" onClose={vi.fn()} />);
+    expect(overview).toHaveFocus();
+
+    // A dock item that opened the sheet gets focus back.
+    scada.focus();
+    view.rerender(<MobilePanel isVisible content="management" onClose={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Close panel' })).toHaveFocus();
+    view.rerender(<MobilePanel isVisible={false} content="management" onClose={vi.fn()} />);
+    expect(scada).toHaveFocus();
+  } finally {
+    dock.remove();
+  }
 });

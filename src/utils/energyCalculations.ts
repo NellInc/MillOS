@@ -6,6 +6,8 @@
  */
 
 import { MachineType, MachineData } from '../types';
+import { translate } from '../i18n';
+import { energyCalculationsMessages as messages } from './energyCalculations.messages';
 
 /**
  * Electrical demand by machine type (kW).
@@ -19,16 +21,25 @@ export const MACHINE_ENERGY_CONSUMPTION: Record<MachineType, { running: number; 
   [MachineType.CONTROL_ROOM]: { running: 5, idle: 5 },
 };
 
+const MACHINE_TYPE_LABEL_KEYS = {
+  [MachineType.SILO]: 'typeSilo',
+  [MachineType.ROLLER_MILL]: 'typeRollerMill',
+  [MachineType.PLANSIFTER]: 'typePlansifter',
+  [MachineType.PACKER]: 'typePacker',
+  [MachineType.CONTROL_ROOM]: 'typeControlRoom',
+} as const satisfies Record<MachineType, keyof typeof messages.en>;
+
 /**
- * Machine type display names for UI
+ * Machine type display names for UI. Each entry is a getter, so a read
+ * resolves in the language active at that moment rather than at import.
  */
-export const MACHINE_TYPE_LABELS: Record<MachineType, string> = {
-  [MachineType.SILO]: 'Silo',
-  [MachineType.ROLLER_MILL]: 'Roller Mill',
-  [MachineType.PLANSIFTER]: 'Plansifter',
-  [MachineType.PACKER]: 'Packer',
-  [MachineType.CONTROL_ROOM]: 'Control Room',
-};
+export const MACHINE_TYPE_LABELS = {} as Record<MachineType, string>;
+for (const type of Object.values(MachineType)) {
+  Object.defineProperty(MACHINE_TYPE_LABELS, type, {
+    enumerable: true,
+    get: () => translate(messages, MACHINE_TYPE_LABEL_KEYS[type]),
+  });
+}
 
 export interface MachineEnergyBreakdown {
   baseEnergy: number;
@@ -133,18 +144,18 @@ export function getFacilityBaseLoad(gameTime: number): FacilityBaseLoad {
 
   if (hour >= 8 && hour < 17) {
     lighting = 8;
-    lightingDesc = 'Day (natural light)';
+    lightingDesc = translate(messages, 'lightingDay');
   } else if (hour >= 6 && hour < 8) {
     const progress = (hour - 6) / 2;
     lighting = 35 - progress * 27;
-    lightingDesc = 'Dawn transition';
+    lightingDesc = translate(messages, 'lightingDawn');
   } else if (hour >= 17 && hour < 19) {
     const progress = (hour - 17) / 2;
     lighting = 8 + progress * 27;
-    lightingDesc = 'Dusk transition';
+    lightingDesc = translate(messages, 'lightingDusk');
   } else {
     lighting = 35;
-    lightingDesc = 'Night (full artificial)';
+    lightingDesc = translate(messages, 'lightingNight');
   }
 
   // HVAC: Temperature-based load curve
@@ -153,16 +164,16 @@ export function getFacilityBaseLoad(gameTime: number): FacilityBaseLoad {
 
   if (hour >= 10 && hour < 16) {
     hvac = 45;
-    hvacDesc = 'Afternoon peak cooling';
+    hvacDesc = translate(messages, 'hvacAfternoon');
   } else if (hour >= 6 && hour < 10) {
     hvac = 30;
-    hvacDesc = 'Morning ramp-up';
+    hvacDesc = translate(messages, 'hvacMorning');
   } else if (hour >= 16 && hour < 22) {
     hvac = 35;
-    hvacDesc = 'Evening cool-down';
+    hvacDesc = translate(messages, 'hvacEvening');
   } else {
     hvac = 20;
-    hvacDesc = 'Night maintenance';
+    hvacDesc = translate(messages, 'hvacNight');
   }
 
   // Other: Constant base systems
@@ -173,7 +184,10 @@ export function getFacilityBaseLoad(gameTime: number): FacilityBaseLoad {
     hvac,
     other,
     total: lighting + hvac + other,
-    timeDescription: `${lightingDesc} | ${hvacDesc}`,
+    timeDescription: translate(messages, 'timeDescription', {
+      lighting: lightingDesc,
+      hvac: hvacDesc,
+    }),
   };
 }
 

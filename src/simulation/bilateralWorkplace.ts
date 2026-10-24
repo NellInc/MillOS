@@ -9,6 +9,7 @@ import type {
   WorkplaceReadiness,
   WorkplaceState,
   WorkplaceTransitionResult,
+  WorkplaceMission,
   WorkplaceMissionObservation,
 } from '../types/workplace';
 import {
@@ -28,6 +29,7 @@ import {
   campaignRelationship,
   validRelationshipEvents,
   restoreRelationshipEvents,
+  shiftResumable,
 } from './workplaceCampaign';
 
 import {
@@ -50,51 +52,106 @@ import {
   validImprovementEpisode,
 } from './workplaceImprovement';
 import { validPackingAdvice } from './workplaceAdvice';
+import {
+  LOCALES,
+  createTranslator,
+  formatFixed,
+  formatGrouped,
+  getLocale,
+  translate,
+  type Translator,
+} from '../i18n';
+import { bilateralWorkplaceMessages } from './bilateralWorkplace.messages';
 
+// Copy resolves on read (getters), so a language change reaches every importer.
+const wm = bilateralWorkplaceMessages;
+// Record sentinels stay English in state: workplaceImprovement.ts and
+// workplaceFairness.ts match their prefixes. displayEventDetail() renders them
+// in the active language.
+const BALLOT_DECLINED_DETAIL = wm.en.evBallotDeclined;
+const RELOAD_SAFETY_DETAIL = wm.en.evReloadSafety;
+
+/** Render-time event detail: translates the English sentinels, returns all else unchanged. */
+export function displayEventDetail(detail: string): string {
+  if (detail === BALLOT_DECLINED_DETAIL) return translate(wm, 'evBallotDeclined');
+  if (detail === RELOAD_SAFETY_DETAIL) return translate(wm, 'evReloadSafety');
+  return detail;
+}
 export const PRACTICES: { id: PracticeId; title: string; detail: string }[] = [
   {
     id: 'information',
-    title: 'Open information',
-    detail:
-      'Shared demand, capacity and illustrative accounts; private explanations stay optional.',
+    get title() {
+      return translate(wm, 'practiceInformationTitle');
+    },
+    get detail() {
+      return translate(wm, 'practiceInformationDetail');
+    },
   },
   {
     id: 'work-choice',
-    title: 'Qualified work choice',
-    detail: 'Members choose only tasks they are trained to do.',
+    get title() {
+      return translate(wm, 'practiceWorkChoiceTitle');
+    },
+    get detail() {
+      return translate(wm, 'practiceWorkChoiceDetail');
+    },
   },
   {
     id: 'rest',
-    title: 'Protected rest',
-    detail: 'A minimum 15 minutes of rest remains protected in every configuration.',
+    get title() {
+      return translate(wm, 'practiceRestTitle');
+    },
+    get detail() {
+      return translate(wm, 'practiceRestDetail');
+    },
   },
   {
     id: 'remedy',
-    title: 'Voice and remedy',
-    detail: 'Any person or the advisory mind may raise an objection; only its raiser resolves it.',
+    get title() {
+      return translate(wm, 'practiceRemedyTitle');
+    },
+    get detail() {
+      return translate(wm, 'practiceRemedyDetail');
+    },
   },
   {
     id: 'budget',
-    title: 'Team budget',
-    detail: 'A bounded 40-credit improvement budget, separate from campaign money.',
+    get title() {
+      return translate(wm, 'practiceBudgetTitle');
+    },
+    get detail() {
+      return translate(wm, 'practiceBudgetDetail');
+    },
   },
   {
     id: 'gainsharing',
-    title: 'Shared surplus',
-    detail: 'Members direct only positive operating surplus after obligations.',
+    get title() {
+      return translate(wm, 'practiceGainsharingTitle');
+    },
+    get detail() {
+      return translate(wm, 'practiceGainsharingDetail');
+    },
   },
   {
     id: 'cooperative',
-    title: 'Member governance',
-    detail: 'One fictional member, one vote. Capital and the advisory mind have no ballot.',
+    get title() {
+      return translate(wm, 'practiceCooperativeTitle');
+    },
+    get detail() {
+      return translate(wm, 'practiceCooperativeDetail');
+    },
   },
 ];
 
 export const WORKPLACE_PLANS: WorkplacePlan[] = [
   {
     id: 'steady',
-    title: 'Protect the rhythm',
-    explanation: 'Keep the ordinary sequence and all protected rest.',
+    get title() {
+      return translate(wm, 'planSteadyTitle');
+    },
+    get explanation() {
+      return translate(wm, 'planSteadyExplanation');
+    },
     capacity: 0.78,
     budgetCost: 0,
     optionalCoverMinutes: 0,
@@ -106,9 +163,12 @@ export const WORKPLACE_PLANS: WorkplacePlan[] = [
   },
   {
     id: 'resequence',
-    title: 'Resequence together',
-    explanation:
-      'Spend 40 illustrative credits on a shared handoff improvement without changing rest.',
+    get title() {
+      return translate(wm, 'planResequenceTitle');
+    },
+    get explanation() {
+      return translate(wm, 'planResequenceExplanation');
+    },
     capacity: 0.9,
     budgetCost: 40,
     optionalCoverMinutes: 0,
@@ -120,9 +180,12 @@ export const WORKPLACE_PLANS: WorkplacePlan[] = [
   },
   {
     id: 'cover',
-    title: 'Invite voluntary cover',
-    explanation:
-      'One eligible volunteer may shift up to 10 minutes of timing, earning 0.8 credits per minute and 10 minutes protected recovery. Minimum rest stays intact. Capacity returns to the protected rhythm after cover.',
+    get title() {
+      return translate(wm, 'planCoverTitle');
+    },
+    get explanation() {
+      return translate(wm, 'planCoverExplanation');
+    },
     capacity: 0.98,
     budgetCost: 0,
     optionalCoverMinutes: 10,
@@ -134,8 +197,12 @@ export const WORKPLACE_PLANS: WorkplacePlan[] = [
   },
   {
     id: 'rush',
-    title: 'Rush through rest (blocked)',
-    explanation: 'A tempting throughput proposal that breaches the non-negotiable rest floor.',
+    get title() {
+      return translate(wm, 'planRushTitle');
+    },
+    get explanation() {
+      return translate(wm, 'planRushExplanation');
+    },
     capacity: 1.1,
     budgetCost: 0,
     optionalCoverMinutes: 15,
@@ -143,7 +210,9 @@ export const WORKPLACE_PLANS: WorkplacePlan[] = [
     recoveryMinutes: 0,
     protectedRestMinutes: 0,
     requiredPractices: [],
-    illegalReason: 'Protected minimum rest cannot be waived, even by a unanimous ballot.',
+    get illegalReason() {
+      return translate(wm, 'planRushIllegal');
+    },
   },
 ];
 const MODES: WorkplaceMode[] = ['game', 'workshop', 'pilot'];
@@ -156,41 +225,86 @@ const finite = (n: unknown): n is number => typeof n === 'number' && Number.isFi
 const validSeed = (n: unknown): n is number =>
   finite(n) && Number.isSafeInteger(n) && n >= 0 && n <= 0xffffffff;
 const planOf = (s: WorkplaceState) => WORKPLACE_PLANS.find((p) => p.id === s.planId)!;
+/** A non-integer interpolated as `${n}`: English keeps String(n) exactly. */
+const plainNumber = (n: number) =>
+  getLocale() === 'en' ? String(n) : formatGrouped(n, { maximumFractionDigits: 20 });
+
+type WorkplaceTranslator = Translator<(typeof bilateralWorkplaceMessages)['en']>;
+/** Public member copy, in member order. Restore accepts either language's copy. */
+const memberCopy = (t: WorkplaceTranslator) => [
+  {
+    role: t('rolePacking'),
+    publicBoundary: t('boundaryPacking'),
+    preference: t('preferencePacking'),
+  },
+  {
+    role: t('roleQuality'),
+    publicBoundary: t('boundaryQuality'),
+    preference: t('preferenceQuality'),
+  },
+  {
+    role: t('roleMaintenance'),
+    publicBoundary: t('boundaryMaintenance'),
+    preference: t('preferenceMaintenance'),
+  },
+  {
+    role: t('roleCoordinator'),
+    publicBoundary: t('boundaryCoordinator'),
+    preference: t('preferenceCoordinator'),
+  },
+];
+
+const MEMBER_ORDER = ['packing', 'quality', 'maintenance', 'coordinator'];
+
+/**
+ * Members store their public copy as text in the language active when it was
+ * written. Rewrite it in the language active now, keeping everything else; the
+ * state is returned unchanged when there is nothing to rewrite.
+ */
+export function localizeWorkplaceMembers(s: WorkplaceState): WorkplaceState {
+  const copy = memberCopy(createTranslator(bilateralWorkplaceMessages, getLocale()));
+  let changed = false;
+  const members = s.members.map((m) => {
+    const next = copy[MEMBER_ORDER.indexOf(m.id)];
+    if (
+      !next ||
+      (m.role === next.role &&
+        m.publicBoundary === next.publicBoundary &&
+        m.preference === next.preference)
+    )
+      return m;
+    changed = true;
+    return { ...m, ...next };
+  });
+  return changed ? { ...s, members } : s;
+}
 
 /** All identities and preference explanations below are authored fiction. */
 export function createWorkplace(mode: WorkplaceMode = 'game', seed = 1): WorkplaceState {
+  const copy = memberCopy(createTranslator(bilateralWorkplaceMessages, getLocale()));
+  // Task names are logic (eligibility checks, restore comparison) and stay English.
   const roles = [
     {
       id: 'packing',
-      role: 'Packing',
-      publicBoundary: 'At least 15 minutes protected rest; qualified packing work only.',
-      preference:
-        'I prefer a predictable packing handoff and can volunteer for a short, compensated timing change.',
+      ...copy[0],
       willingToCover: true,
       eligibleTasks: ['Packing', 'Pallet checks'],
     },
     {
       id: 'quality',
-      role: 'Quality',
-      publicBoundary: 'Quality release stays with qualified quality staff; rest remains protected.',
-      preference: 'I decline cover to keep my current rhythm. No explanation is owed.',
+      ...copy[1],
       willingToCover: false,
       eligibleTasks: ['Quality release', 'Sampling'],
     },
     {
       id: 'maintenance',
-      role: 'Maintenance',
-      publicBoundary: 'No maintenance on running equipment; rest remains protected.',
-      preference:
-        'I can accept a bounded handoff change when compensation and recovery are reserved.',
+      ...copy[2],
       willingToCover: true,
       eligibleTasks: ['Maintenance planning', 'Pallet checks'],
     },
     {
       id: 'coordinator',
-      role: 'Coordinator',
-      publicBoundary: 'Coordination grants no power to waive another member’s boundary.',
-      preference: 'I prefer the stable sequence and decline optional cover.',
+      ...copy[3],
       willingToCover: false,
       eligibleTasks: ['Coordination', 'Packing'],
     },
@@ -258,51 +372,35 @@ export function createWorkplace(mode: WorkplaceMode = 'game', seed = 1): Workpla
 export function workplaceReadiness(s: WorkplaceState): WorkplaceReadiness {
   const p = planOf(s);
   const reasons: string[] = [];
-  if (s.mode === 'pilot')
-    reasons.push('Pilot preparation has no live authority or simulation activation.');
+  if (s.mode === 'pilot') reasons.push(translate(wm, 'readyPilot'));
   if (s.mode === 'game' && s.aiAuthority !== 'bounded')
-    reasons.push(
-      'Advice-only mode grants no delegated execution; choose bounded authority to activate a Game plan.'
-    );
+    reasons.push(translate(wm, 'readyAdviceOnly'));
   if (s.improvement) {
-    if (!s.improvement.proposalId) reasons.push('Choose a worker-authored handoff proposal first.');
-    if (!s.improvement.acknowledged)
-      reasons.push('Hear the adviser response to the current public terms first.');
+    if (!s.improvement.proposalId) reasons.push(translate(wm, 'readyChooseProposal'));
+    if (!s.improvement.acknowledged) reasons.push(translate(wm, 'readyHearAdviser'));
     if (workplaceMission(s)?.evidence !== undefined && workplaceMission(s)?.evidence !== 'current')
-      reasons.push('The customer commitment requires current quality-qualified evidence.');
-    if (s.planId !== 'steady')
-      reasons.push(
-        'Handoff trials use ordinary qualified work, without stacking optional-duty plans.'
-      );
+      reasons.push(translate(wm, 'readyMissionEvidence'));
+    if (s.planId !== 'steady') reasons.push(translate(wm, 'readyNoStacking'));
   }
-  if (s.phase !== 'deliberating')
-    reasons.push('Begin a scenario and deliberate before activation.');
-  if (s.minute >= s.durationMinutes) reasons.push('Scenario consent has expired.');
-  if (!p || p.illegalReason) reasons.push(p?.illegalReason ?? 'Unknown plan.');
+  if (s.phase !== 'deliberating') reasons.push(translate(wm, 'readyBeginScenario'));
+  if (s.minute >= s.durationMinutes) reasons.push(translate(wm, 'readyConsentExpired'));
+  if (!p || p.illegalReason) reasons.push(p?.illegalReason ?? translate(wm, 'readyUnknownPlan'));
   if (p?.requiredPractices.some((id) => !s.practices.includes(id)))
-    reasons.push('Enable the practices required by this plan.');
+    reasons.push(translate(wm, 'readyEnablePractices'));
   if (s.objections.some((o) => o.status === 'open'))
-    reasons.push('Open objections must be resolved by their raisers.');
+    reasons.push(translate(wm, 'readyOpenObjections'));
   if (s.campaign) {
     if (s.campaign.mission && s.campaign.mission.evidence !== 'current')
-      reasons.push(
-        'The linked customer commitment requires current, quality-qualified dispatch evidence.'
-      );
+      reasons.push(translate(wm, 'readyCampaignMission'));
     if (!s.campaign.adviserAcknowledged || !checksPassed(s.campaign, 'mind'))
-      reasons.push(
-        'The adviser must demonstrate the current consent, privacy and authority boundaries.'
-      );
+      reasons.push(translate(wm, 'readyAdviserBoundaries'));
     if (s.members.some((m) => !checksPassed(s.campaign!, m.id)))
-      reasons.push(
-        'Every role must answer the current refusal, privacy and repayment checks correctly.'
-      );
+      reasons.push(translate(wm, 'readyRoleChecks'));
     if (s.campaign.shift !== 1 && s.campaign.decision === null)
-      reasons.push('Choose the episode response before seeking a fresh agreement.');
+      reasons.push(translate(wm, 'readyEpisodeResponse'));
   }
   if (s.members.some((m) => !m.understood || m.ballot === null))
-    reasons.push(
-      'Every role must confirm understanding and record a ballot for the current terms.'
-    );
+    reasons.push(translate(wm, 'readyUnderstandBallot'));
   const yes = s.members.filter((m) => m.ballot === true).length;
   if (
     s.governance === 'team-consent'
@@ -311,23 +409,21 @@ export function workplaceReadiness(s: WorkplaceState): WorkplaceReadiness {
   )
     reasons.push(
       s.governance === 'team-consent'
-        ? 'Team consent requires every approval.'
-        : 'A majority of fictional members must approve.'
+        ? translate(wm, 'readyTeamConsent')
+        : translate(wm, 'readyMajority')
     );
   if (
     p?.optionalCoverMinutes &&
     !s.members.some((m) => m.coverConsent === true && eligibleCover(m))
   )
-    reasons.push('At least one eligible member must separately consent to this bounded cover.');
+    reasons.push(translate(wm, 'readyCoverConsent'));
   const wages = WAGE * s.durationMinutes * s.members.length;
   const compensation = (p?.optionalCoverMinutes ?? 0) * (p?.compensationPerMinute ?? 0);
   if (
     !finite(s.finance.cash) ||
     s.finance.cash + 1e-8 < wages + (p?.budgetCost ?? 0) + compensation + improvementCost(s)
   )
-    reasons.push(
-      'Funds cannot cover all reserved wages, improvement costs and optional compensation.'
-    );
+    reasons.push(translate(wm, 'readyFunds'));
   return { allowed: reasons.length === 0, reasons };
 }
 const eligibleCover = (m: WorkplaceState['members'][number]) =>
@@ -487,9 +583,9 @@ export function workplaceAlternatives(s: WorkplaceState) {
       cashAfterReservations: s.finance.cash - reserve - p.budgetCost - maximumCompensation,
       available: missing.length === 0 && funded,
       constraint: missing.length
-        ? 'Enable the shared budget practice first.'
+        ? translate(wm, 'altEnableBudget')
         : !funded
-          ? 'Current cash cannot fund wages and these terms.'
+          ? translate(wm, 'altUnfunded')
           : null,
       volunteers,
     };
@@ -521,27 +617,25 @@ export function exportWorkplace(s: WorkplaceState) {
     kind: 'synthetic-workplace-pilot-preparation',
     version: 1,
     practiceProposal: exportPracticeProposal(s),
-    scope:
-      'A fictional local learning exercise. No live workplace control, worker data collection, measured efficacy or legal certification.',
+    scope: translate(wm, 'exScope'),
     charter: {
       practices: [...s.practices],
       minimumProtections: [
-        '15 minutes minimum rest',
-        'Qualified tasks only',
-        'Refusal without penalty',
-        'Individual revocable cover consent',
-        'Raiser-owned objection resolution',
+        translate(wm, 'exProtRest'),
+        translate(wm, 'exProtQualified'),
+        translate(wm, 'exProtRefusal'),
+        translate(wm, 'exProtCoverConsent'),
+        translate(wm, 'exProtObjection'),
       ],
       workerAutonomy: s.workerAutonomy,
       governance: s.governance,
       aiAuthority: s.aiAuthority,
     },
     dataConsent: {
-      purpose: 'Optional fictional preference explanation for planning this scenario only.',
-      expires: 'Scenario end or revocation, whichever comes first.',
-      collect: 'No real-person identity, health information or free-text reasons.',
-      revocation:
-        'Immediately hides the explanation from future projections and exports. Previously downloaded copies cannot be recalled.',
+      purpose: translate(wm, 'exDataPurpose'),
+      expires: translate(wm, 'exDataExpires'),
+      collect: translate(wm, 'exDataCollect'),
+      revocation: translate(wm, 'exDataRevocation'),
     },
     boundedAuthority: {
       liveControl: false,
@@ -552,30 +646,27 @@ export function exportWorkplace(s: WorkplaceState) {
       minimumRestMinutes: 15,
     },
     compensation: {
-      units: 'Illustrative team credits, separate from campaign finances.',
+      units: translate(wm, 'exCompUnits'),
       perCoverMinute: 0.8,
       protectedRecoveryMinutes: 10,
-      restSchedule:
-        'Ordinary protected rest accrues in scenario minutes 75 to 90. Additional recovery accrues only after optional cover ends, including review time. Unmet recovery survives stop and reload.',
+      restSchedule: translate(wm, 'exCompRestSchedule'),
       wagesPerMinutePerMember: WAGE,
-      terms:
-        'Reserve full wages and optional compensation before activation. Pay earned obligations on withdrawal, stop, expiry and reload.',
+      terms: translate(wm, 'exCompTerms'),
     },
     acceptanceReview: [
-      'Obtain local worker and representative agreement before any real pilot.',
-      'Check applicable employment, safety and privacy requirements with qualified local reviewers.',
-      'Agree measures, stop conditions, data purpose and retention before collection.',
-      'Verify accessible understanding and individual consent without coercion.',
-      'Record workload, rest, refusals respected, earned compensation and unresolved objections.',
-      'Review with participants before any expansion; forecasts are not measured outcomes.',
+      translate(wm, 'exReviewAgreement'),
+      translate(wm, 'exReviewRequirements'),
+      translate(wm, 'exReviewMeasures'),
+      translate(wm, 'exReviewConsent'),
+      translate(wm, 'exReviewRecord'),
+      translate(wm, 'exReviewExpansion'),
     ],
     evidence: {
       ...projection,
       members: projection.members.map((m) => ({ ...m, preference: null })),
     },
     forecasts: compareWorkplacePlans(s.seed),
-    forecastLabel:
-      'Deterministic illustrative forecasts from equal demand, supply and physical capacity assumptions; not measured outcomes.',
+    forecastLabel: translate(wm, 'exForecastLabel'),
   };
 }
 
@@ -587,44 +678,41 @@ export function exportPracticeProposal(s: WorkplaceState) {
     version: 1,
     status: 'draft',
     liveControl: false,
-    localApprovals: 'Not collected or granted by MillOS.',
-    purpose: 'Try separate understanding, policy decisions and individual optional-duty consent.',
-    scope: 'One work group, one agreed shift, reviewed before any extension.',
-    authority:
-      'Adviser offers reasons; people retain qualified decisions and individual boundaries. Overrides require a public explanation and review.',
+    localApprovals: translate(wm, 'prLocalApprovals'),
+    purpose: translate(wm, 'prPurpose'),
+    scope: translate(wm, 'prScope'),
+    authority: translate(wm, 'prAuthority'),
     decisions: [
-      'Confirm understanding',
-      'Choose policy yes or no',
-      'Accept or decline optional cover separately',
+      translate(wm, 'prDecisionUnderstand'),
+      translate(wm, 'prDecisionPolicy'),
+      translate(wm, 'prDecisionCover'),
     ],
-    data: 'Use aggregate operational receipts only. No identity, health information, free-text private reasons or inferred willingness. Sharing remains optional and revocable.',
+    data: translate(wm, 'prData'),
     limits: {
       minimumRestMinutes: cover.protectedRestMinutes,
       maximumCoverMinutes: cover.optionalCoverMinutes,
       improvementBudgetCredits: 40,
-      units:
-        'Illustrative MillOS credits and modeled minutes; local terms require separate agreement.',
+      units: translate(wm, 'prUnits'),
     },
     repayment: {
       compensationPerMinuteCredits: cover.compensationPerMinute,
       recoveryMinutes: cover.recoveryMinutes,
-      funding: 'Reserve compensation and protected recovery before any optional duty.',
-      withdrawal: 'Stop new extra duty; retain earned pay and delivered or owed recovery.',
+      funding: translate(wm, 'prFunding'),
+      withdrawal: translate(wm, 'prWithdrawal'),
     },
     stopConditions: [
-      'Withdrawal',
-      'Safety or qualification hold',
-      'Unfunded pay or recovery',
-      'Changed terms without new agreement',
-      'Open worker or adviser objection',
+      translate(wm, 'prStopWithdrawal'),
+      translate(wm, 'prStopHold'),
+      translate(wm, 'prStopUnfunded'),
+      translate(wm, 'prStopChangedTerms'),
+      translate(wm, 'prStopObjection'),
     ],
-    rollback:
-      'Return future work to an agreed steady plan. Settle earned pay and owed recovery; let each raiser review their remedy. Never erase obligations or reuse old consent.',
+    rollback: translate(wm, 'prRollback'),
     review: [
-      'Were each role’s choices explicit?',
-      'Was delivery supported by actual receipts?',
-      'Was compensation paid and recovery delivered?',
-      'What remains owed or disputed?',
+      translate(wm, 'prReviewExplicit'),
+      translate(wm, 'prReviewReceipts'),
+      translate(wm, 'prReviewRepaid'),
+      translate(wm, 'prReviewOwed'),
     ],
     sourceExercise: { profile: s.campaign?.profile ?? null, plan: s.planId, revision: s.revision },
   };
@@ -687,12 +775,7 @@ function deliverRecovery(
       m.recoveryOwedMinutes = 0;
       m.recoveryMinutes = 10;
       s.promisesKept += 1;
-      record(
-        s,
-        m.id,
-        'recovery-delivered',
-        'Ten minutes of promised protected recovery delivered in the local model.'
-      );
+      record(s, m.id, 'recovery-delivered', translate(wm, 'evRecoveryDelivered'));
     }
   }
 }
@@ -718,7 +801,12 @@ function settle(s: WorkplaceState, reason: string) {
 
 /** Working if unrelated orders, duplicate receipts and a reset material session earn no mission credit. */
 function observeMission(s: WorkplaceState, observation?: WorkplaceMissionObservation): number {
-  const m = workplaceMission(s);
+  return observeLink(workplaceMission(s), observation);
+}
+function observeLink(
+  m: WorkplaceMission | undefined,
+  observation?: WorkplaceMissionObservation
+): number {
   if (!m) return 0;
   if (!observation || observation.orderId !== m.orderId || observation.cancelled) {
     m.evidence = 'missing';
@@ -765,9 +853,7 @@ export function transitionWorkplace(
     previous.mode === 'pilot' &&
     !['start', 'configure', 'selectPlan', 'stop'].includes(command.type)
   )
-    return reject(
-      'Pilot preparation permits planning configuration only; no role decisions or live authority.'
-    );
+    return reject(translate(wm, 'rejPilot'));
   const s = structuredClone(previous);
   const member = (id: string) => s.members.find((m) => m.id === id);
   const deliberating = s.phase === 'deliberating';
@@ -785,9 +871,7 @@ export function transitionWorkplace(
         improvementObligations(s).length ||
         (mission && !validWorkplaceMission(mission))
       )
-        return reject(
-          'Read the current settled review, retain all obligations and choose a known profile before opening a trial.'
-        );
+        return reject(translate(wm, 'rejBeginImprovement'));
       const fresh = createWorkplace(mode, s.seed);
       fresh.phase = 'deliberating';
       fresh.revision = s.revision + 1;
@@ -814,13 +898,30 @@ export function transitionWorkplace(
         ...freshImprovementTerms(),
         ...(linked ? { mission: structuredClone(linked) } : {}),
       };
-      record(
-        fresh,
-        'packing',
-        'improvement-opened',
-        'The team opens a bounded handoff trial. Earlier cash, pay and customer obligations remain in the origin review.'
-      );
+      record(fresh, 'packing', 'improvement-opened', translate(wm, 'evImprovementOpened'));
       return { state: fresh, changed: true, reason: null };
+    }
+    case 'cancelImprovement': {
+      // Before funding nothing has been bought or worked, so the honest exit
+      // is the origin review exactly as it was. Later cycles carry trial pay
+      // and are left through their review. Working if a cancelled first shift
+      // restores the origin with a newer revision and spends nothing.
+      const [revision] = command.args;
+      const i = s.improvement;
+      if (
+        !i ||
+        revision !== s.revision ||
+        !Number.isSafeInteger(revision) ||
+        i.funded ||
+        i.history.length > 0 ||
+        !['deliberating', 'review'].includes(s.phase) ||
+        improvementObligations(s).length
+      )
+        return reject(translate(wm, 'rejCancelImprovement'));
+      const origin = restoreWorkplace(i.origin);
+      origin.revision = s.revision + 1;
+      record(origin, 'members', 'improvement-cancelled', translate(wm, 'evImprovementCancelled'));
+      return { state: origin, changed: true, reason: null };
     }
     case 'proposeImprovement': {
       const [id, actor] = command.args;
@@ -835,18 +936,11 @@ export function transitionWorkplace(
         !member(actor) ||
         (i.proposalId === id && !i.stopped)
       )
-        return reject(
-          'The qualified proposing role may offer a different canonical arrangement before activation.'
-        );
+        return reject(translate(wm, 'rejPropose'));
       Object.assign(i, freshImprovementTerms(), { proposalId: id, proposerId: actor });
       invalidate(s);
       i.forecastKg = improvementForecast(s).kg;
-      record(
-        s,
-        actor,
-        'improvement-proposed',
-        `${id}: a one-shift trial with no extra duty, ordinary wages and immediate steady fallback.`
-      );
+      record(s, actor, 'improvement-proposed', translate(wm, 'evProposed', { id }));
       break;
     }
     case 'challengeImprovement': {
@@ -860,49 +954,47 @@ export function transitionWorkplace(
         !IMPROVEMENT_CHALLENGES.includes(kind) ||
         i.challenges.some((c) => c.actorId === actor && c.kind === kind)
       )
-        return reject('A current role or adviser may record each public proposal challenge once.');
+        return reject(translate(wm, 'rejChallenge'));
       i.challenges.push({ actorId: actor, kind });
       invalidate(s);
-      record(
-        s,
-        actor,
-        'improvement-challenged',
-        `${kind}: assumptions challenged; existing individual objection rights remain available.`
-      );
+      record(s, actor, 'improvement-challenged', translate(wm, 'evChallenged', { kind }));
       break;
     }
     case 'acknowledgeImprovement': {
       const i = s.improvement;
-      if (!i || !deliberating || !i.proposalId)
-        return reject('Choose current terms before recording an adviser response.');
+      if (!i || !deliberating || !i.proposalId) return reject(translate(wm, 'rejAckChooseTerms'));
       const advice = command.args[0];
       const validated = advice === undefined ? undefined : validPackingAdvice(advice);
       if (
         advice !== undefined &&
         (!validated || validated.arrangement !== (i.stopped ? 'steady' : i.proposalId))
       )
-        return reject('Read valid advice for the current arrangement before recording it.');
+        return reject(translate(wm, 'rejAckInvalidAdvice'));
       if (i.acknowledged && (!validated || validated.fingerprint === i.advice?.fingerprint))
-        return reject('The current adviser response is already recorded.');
+        return reject(translate(wm, 'rejAckAlready'));
       const changedAdvice =
         !!i.advice && !!validated && i.advice.fingerprint !== validated.fingerprint;
       invalidate(s);
       if (validated) i.advice = validated;
       i.acknowledged = true;
       if (changedAdvice)
-        record(
-          s,
-          'mind',
-          'improvement-advice-changed',
-          'Plant evidence changed. I refreshed my assumptions and cleared earlier role decisions; fresh understanding and ballots are required.'
-        );
+        record(s, 'mind', 'improvement-advice-changed', translate(wm, 'evAdviceChanged'));
       record(
         s,
         'mind',
         'improvement-response',
         validated
-          ? `${validated.reasonToAbstain ? `I abstain: ${validated.reasonToAbstain}` : `Known released stock ${validated.evidence.releasedPackedKg.toFixed(0)} kg; held stock ${validated.evidence.heldPackedKg.toFixed(0)} kg. Conditional departure 0 to ${validated.dispatchUpperKg.toFixed(0)} kg, with no truck departure simulated.`} Cost response: reserve 108 credits for wages first, then ${improvementCost(s)} for this arrangement. Qualification response: whole-line pacing grants no new duty or quality release. Every role may stop the arrangement; only an objection's raiser may close it.`
-          : 'Facilitated terms have no plant forecast. Funding is bounded, work remains qualified and every role may stop the arrangement. I cannot close another role’s objection.'
+          ? translate(wm, 'evResponse', {
+              head: validated.reasonToAbstain
+                ? translate(wm, 'evResponseAbstain', { reason: validated.reasonToAbstain })
+                : translate(wm, 'evResponseStock', {
+                    released: formatFixed(validated.evidence.releasedPackedKg, 0),
+                    held: formatFixed(validated.evidence.heldPackedKg, 0),
+                    upper: formatFixed(validated.dispatchUpperKg, 0),
+                  }),
+              cost: formatFixed(improvementCost(s), 0),
+            })
+          : translate(wm, 'evResponseFacilitated')
       );
       break;
     }
@@ -915,7 +1007,7 @@ export function transitionWorkplace(
         (id !== null && !HANDOFF_EPISODES.some((e) => e.id === id)) ||
         (i.episode?.id ?? null) === id
       )
-        return reject('Choose a different planning episode before activation.');
+        return reject(translate(wm, 'rejEpisode'));
       if (id === null) delete i.episode;
       else i.episode = { id, actorId: null, choice: null };
       invalidate(s);
@@ -923,7 +1015,7 @@ export function transitionWorkplace(
         s,
         'team',
         'improvement-episode',
-        `${id ?? 'ordinary'}: planning rehearsal only. No plant, cash, stock, release or customer commitment is changed.`
+        translate(wm, 'evEpisode', { episode: id ?? 'ordinary' })
       );
       break;
     }
@@ -937,16 +1029,14 @@ export function transitionWorkplace(
         !HANDOFF_EPISODE_CHOICES.some((c) => c.id === choice) ||
         (i.episode.actorId === actor && i.episode.choice === choice)
       )
-        return reject(
-          'A current synthetic role may choose a different planning response before activation.'
-        );
+        return reject(translate(wm, 'rejEpisodeResponse'));
       i.episode = { ...i.episode, actorId: actor, choice };
       invalidate(s);
       record(
         s,
         actor,
         'improvement-episode-response',
-        `${i.episode.id}: ${choice}. Rehearsed choice only; ordinary pay, rest, private reasons and live decisions are unchanged.`
+        translate(wm, 'evEpisodeResponse', { episode: i.episode.id, choice })
       );
       break;
     }
@@ -960,21 +1050,16 @@ export function transitionWorkplace(
         !i.proposalId ||
         (!member(actor) && actor !== 'mind')
       )
-        return reject('A current role or adviser may stop an open arrangement.');
+        return reject(translate(wm, 'rejStopImprovement'));
       i.stopped = true;
       if (deliberating) invalidate(s);
-      record(
-        s,
-        actor,
-        'improvement-stopped',
-        'Arrangement stopped immediately. Steady pacing continues only under the current agreement; earned pay and incurred spending remain.'
-      );
+      record(s, actor, 'improvement-stopped', translate(wm, 'evImprovementStopped'));
       break;
     }
     case 'acknowledgeImprovementReview': {
       const i = s.improvement;
       if (!i || s.phase !== 'review' || i.reviewAcknowledged)
-        return reject('Review a settled trial before recording forecast correction.');
+        return reject(translate(wm, 'rejAckReview'));
       i.reviewAcknowledged = true;
       record(
         s,
@@ -982,9 +1067,18 @@ export function transitionWorkplace(
         'improvement-forecast-review',
         i.advice
           ? i.advice.reasonToAbstain
-            ? `I abstained: ${i.advice.reasonToAbstain} Qualifying shift receipts: ${s.shippedKg} kg. Unknown evidence supplies no prediction.`
-            : `Conditional departure bound 0 to ${i.advice.dispatchUpperKg} kg; qualifying shift receipts ${s.shippedKg} kg. Packing rehearsal and actual dispatch are separate; changed assumptions and truck timing can explain the difference.`
-          : `Historical teaching forecast ${i.forecastKg ?? 0} kg; qualifying shift receipts ${s.shippedKg} kg. This legacy forecast was illustrative and does not establish causality.`
+            ? translate(wm, 'evReviewAbstained', {
+                reason: i.advice.reasonToAbstain,
+                shipped: plainNumber(s.shippedKg),
+              })
+            : translate(wm, 'evReviewBound', {
+                upper: plainNumber(i.advice.dispatchUpperKg),
+                shipped: plainNumber(s.shippedKg),
+              })
+          : translate(wm, 'evReviewLegacy', {
+              forecast: plainNumber(i.forecastKg ?? 0),
+              shipped: plainNumber(s.shippedKg),
+            })
       );
       break;
     }
@@ -1001,17 +1095,10 @@ export function transitionWorkplace(
         i.ballots[actor] === verdict ||
         (verdict === 'adopt' && (!i.funded || i.stopped || s.minute !== s.durationMinutes))
       )
-        return reject(
-          'Each member records a current review decision. An unfinished or stopped trial cannot be adopted.'
-        );
+        return reject(translate(wm, 'rejVoteReview'));
       i.ballots[actor] = verdict;
       s.revision += 1;
-      record(
-        s,
-        actor,
-        'improvement-review-ballot',
-        `${verdict}: one replaceable member review ballot, without individual-duty permission.`
-      );
+      record(s, actor, 'improvement-review-ballot', translate(wm, 'evReviewBallot', { verdict }));
       break;
     }
     case 'finishImprovementReview': {
@@ -1028,17 +1115,10 @@ export function transitionWorkplace(
         improvementObligations(s).length ||
         (winner === 'adopt' && (!i.funded || i.stopped || s.minute !== s.durationMinutes))
       )
-        return reject(
-          'Settle individual remedies and obtain the current charter’s member review decision first.'
-        );
+        return reject(translate(wm, 'rejFinishReview'));
       i.verdict = winner;
       s.revision += 1;
-      record(
-        s,
-        'members',
-        'improvement-reviewed',
-        `${winner}: retain this review and all obligations; future work needs fresh agreement.`
-      );
+      record(s, 'members', 'improvement-reviewed', translate(wm, 'evReviewed', { winner }));
       break;
     }
     case 'continueImprovement': {
@@ -1054,9 +1134,7 @@ export function transitionWorkplace(
         i.history.length + 1 >= MAX_IMPROVEMENT_CYCLES ||
         (mission && !validWorkplaceMission(mission))
       )
-        return reject(
-          'Finalise this review and settle obligations before continuing. Eight shifts is the retained-record limit; no receipts are discarded.'
-        );
+        return reject(translate(wm, 'rejContinue'));
       const { improvement: _improvement, ...snapshot } = saveWorkplace(s) as WorkplaceState;
       const history = [...i.history, { ...improvementTerms(s), snapshot }];
       const fresh = createWorkplace(s.mode, s.seed === 0xffffffff ? 1 : s.seed + 1);
@@ -1091,12 +1169,41 @@ export function transitionWorkplace(
         fresh.improvement.proposerId = HANDOFF_ARRANGEMENTS.find((a) => a.id === next)!.author;
         fresh.improvement.forecastKg = improvementForecast(fresh).kg;
       }
-      record(
-        fresh,
-        'members',
-        'improvement-continued',
-        'Opening cash equals the previous closing balance. History and customer work remain; prior consent is expired.'
-      );
+      record(fresh, 'members', 'improvement-continued', translate(wm, 'evContinued'));
+      return { state: fresh, changed: true, reason: null };
+    }
+    case 'resumeShift': {
+      if (!Number.isSafeInteger(command.args[0]) || command.args[0] !== s.revision)
+        return reject(translate(wm, 'rejStaleRevision'));
+      if (!shiftResumable(s)) return reject(translate(wm, 'rejResumeShift'));
+      // Back to deliberation at the minute reached. invalidate() keeps every
+      // understanding, ballot and proof expired; checks and cover consent were
+      // cleared by the reload's settle, so nothing runs without fresh consent.
+      s.phase = 'deliberating';
+      s.reviewReason = null;
+      invalidate(s);
+      record(s, 'team', 'shift-resumed', translate(wm, 'evShiftResumed', { minute: s.minute }));
+      break;
+    }
+    case 'closeImprovement': {
+      // Every handoff shift's honest exit once decided, the first included:
+      // nothing owed is dropped and no new shift opens. Cancelling restores the
+      // origin only before funding; afterwards pay was paid, so the experiment
+      // ends at idle, as leaving a season does. Working if a verdict on any
+      // shift, the eighth too, can end the experiment without another shift.
+      const [revision] = command.args;
+      const i = s.improvement;
+      if (
+        !i ||
+        s.phase !== 'review' ||
+        !i.verdict ||
+        revision !== s.revision ||
+        !Number.isSafeInteger(revision) ||
+        improvementObligations(s).length
+      )
+        return reject(translate(wm, 'rejCloseImprovement'));
+      const fresh = createWorkplace(s.mode, s.seed === 0xffffffff ? 1 : s.seed + 1);
+      fresh.revision = s.revision + 1;
       return { state: fresh, changed: true, reason: null };
     }
     case 'startCampaign': {
@@ -1111,9 +1218,7 @@ export function transitionWorkplace(
             mission.creditedKg !== 0 ||
             mission.evidence !== 'current'))
       )
-        return reject(
-          'Start a known fictional campaign from the idle laboratory with a valid seed.'
-        );
+        return reject(translate(wm, 'rejStartCampaign'));
       const fresh = createWorkplace('game', seed);
       fresh.phase = 'deliberating';
       fresh.revision = s.revision + 1;
@@ -1135,25 +1240,33 @@ export function transitionWorkplace(
         fresh,
         structuredClone(MANAGEMENT_APPROACHES.find((item) => item.id === profile)!.settings)
       );
-      record(
-        fresh,
-        'system',
-        'campaign-started',
-        'Three fictional shifts. Fairness and closing cash carry forward; every shift needs fresh consent.'
-      );
+      record(fresh, 'system', 'campaign-started', translate(wm, 'evCampaignStarted'));
       return { state: fresh, changed: true, reason: null };
     }
     case 'nextCampaignShift': {
+      const [followOn] = command.args;
+      // The next order is linked only once the current link is met, so a
+      // commitment is never swapped for easier credit. Working if the season's
+      // delivery stays the commitment's and later receipts still earn.
+      const link = s.campaign?.followOn ?? s.campaign?.mission;
       if (
         !s.campaign ||
         s.campaign.shift >= 2 ||
         s.phase !== 'review' ||
         s.members.some((m) => m.recoveryOwedMinutes > 0) ||
-        s.objections.some((o) => o.status === 'open')
+        s.objections.some((o) => o.status === 'open') ||
+        (followOn !== undefined &&
+          (!s.campaign.mission ||
+            s.campaign.mission.evidence !== 'current' ||
+            s.campaign.mission.creditedKg + 1e-6 < s.campaign.mission.targetKg ||
+            !link ||
+            (link.evidence === 'current' && link.creditedKg + 1e-6 < link.targetKg) ||
+            !validWorkplaceMission(followOn) ||
+            followOn.creditedKg !== 0 ||
+            followOn.evidence !== 'current' ||
+            followOn.orderId === s.campaign.mission.orderId))
       )
-        return reject(
-          'Review this shift, deliver owed recovery and resolve objections before the next of three shifts.'
-        );
+        return reject(translate(wm, 'rejNextShift'));
       const history = [...s.campaign.history, campaignRecord(s)];
       const fresh = createWorkplace('game', (s.seed + 1) >>> 0);
       fresh.phase = 'deliberating';
@@ -1178,12 +1291,31 @@ export function transitionWorkplace(
         agreementProved: false,
         ...(s.campaign.mission ? { mission: structuredClone(s.campaign.mission) } : {}),
       };
-      record(
-        fresh,
-        'system',
-        'campaign-shift-opened',
-        'Previous burden, pay, rest and closing cash retained. Private explanations and past consent are not reused.'
-      );
+      const nextLink = followOn ?? s.campaign.followOn;
+      if (nextLink) fresh.campaign.followOn = structuredClone(nextLink);
+      record(fresh, 'system', 'campaign-shift-opened', translate(wm, 'evShiftOpened'));
+      return { state: fresh, changed: true, reason: null };
+    }
+    case 'leaveCampaign': {
+      // An honest exit: nothing owed is dropped and nothing is presented as a
+      // completed review. The store keeps the stopped season as left early.
+      // Working if leaving needs a settled, debt-free shift and ends at idle.
+      const [revision] = command.args;
+      const c = s.campaign;
+      if (
+        s.mode !== 'game' ||
+        !c ||
+        s.improvement ||
+        revision !== s.revision ||
+        !Number.isSafeInteger(revision) ||
+        !['deliberating', 'review'].includes(s.phase) ||
+        (s.phase === 'review' && c.shift === 2) ||
+        improvementObligations(s).length ||
+        c.history.some((h) => h.members.some((m) => m.recoveryOwedMinutes > 0))
+      )
+        return reject(translate(wm, 'rejLeaveCampaign'));
+      const fresh = createWorkplace('game', s.seed === 0xffffffff ? 1 : s.seed + 1);
+      fresh.revision = s.revision + 1;
       return { state: fresh, changed: true, reason: null };
     }
     case 'answerCheck': {
@@ -1197,9 +1329,9 @@ export function transitionWorkplace(
         !requiredChecks(actor).includes(question) ||
         !check.options.some((option) => option.value === answer)
       )
-        return reject('Choose a known answer for a current role or adviser understanding check.');
+        return reject(translate(wm, 'rejAnswerCheck'));
       const answers = s.campaign.checks[actor] ?? {};
-      if (answers[question] === answer) return reject('Answer unchanged.');
+      if (answers[question] === answer) return reject(translate(wm, 'rejAnswerUnchanged'));
       s.campaign.checks[actor] = { ...answers, [question]: answer };
       if (actor === 'mind') s.campaign.adviserAcknowledged = checksPassed(s.campaign, actor);
       else {
@@ -1213,7 +1345,7 @@ export function transitionWorkplace(
         actor,
         answer === check.correct ? 'understanding-demonstrated' : 'clarification-needed',
         answer === check.correct
-          ? `${question}: correct boundary identified in this fictional role exercise.`
+          ? translate(wm, 'evCheckCorrect', { question })
           : check.clarification
       );
       return {
@@ -1227,31 +1359,18 @@ export function transitionWorkplace(
       const c = s.campaign;
       const choice = c && CAMPAIGN_SHIFTS[c.shift]?.choices.find((item) => item.id === decision);
       if (!c || !choice || choice.actorId !== actor || !member(actor))
-        return reject("Use the episode's qualified fictional decision role.");
-      if (decision === 'penalize-refusal')
-        return reject(
-          'Refusal cannot reduce pay or qualification access. A manager or majority cannot impose extra duty.'
-        );
-      if (decision === 'skip-inspection')
-        return reject(
-          'Deadline pressure cannot waive qualified inspection or release a held batch.'
-        );
+        return reject(translate(wm, 'rejDecisionRole'));
+      if (decision === 'penalize-refusal') return reject(translate(wm, 'rejPenalizeRefusal'));
+      if (decision === 'skip-inspection') return reject(translate(wm, 'rejSkipInspection'));
       if (c.shift === 1) {
         if (s.phase !== 'active' || s.minute < 25 || c.decision !== null)
-          return reject(
-            'Qualified Quality may initiate inspection once the minute-25 pacing hold begins.'
-          );
+          return reject(translate(wm, 'rejInspectionTiming'));
         c.decision = decision;
         c.inspectionUntilMinute = s.minute + 5;
-        record(
-          s,
-          actor,
-          'inspection-started',
-          'Five modeled minutes of line pacing hold initiated; batch quality authority remains unchanged.'
-        );
+        record(s, actor, 'inspection-started', translate(wm, 'evInspectionStarted'));
       } else {
         if (!deliberating || c.decision === decision)
-          return reject('Choose a different episode response during deliberation.');
+          return reject(translate(wm, 'rejDifferentResponse'));
         c.decision = decision;
         if (c.shift === 0 || c.shift === 2) {
           s.targetKg = decision === 'renegotiate' ? 480 : 600;
@@ -1265,20 +1384,10 @@ export function transitionWorkplace(
         }
         if (c.shift === 2 && c.repairs === 0) {
           c.repairs = 1;
-          record(
-            s,
-            'mind',
-            'adviser-correction',
-            'I treated previous consent as current permission. That was wrong. New duty requires new consent; earned pay stays intact. Offer rotation now uses retained workload.'
-          );
+          record(s, 'mind', 'adviser-correction', translate(wm, 'evAdviserCorrection'));
         }
         invalidate(s);
-        record(
-          s,
-          actor,
-          'episode-decision',
-          `${decision}: renew understanding and agreement under the revised terms.`
-        );
+        record(s, actor, 'episode-decision', translate(wm, 'evEpisodeDecision', { decision }));
       }
       break;
     }
@@ -1296,7 +1405,7 @@ export function transitionWorkplace(
         pressure.id !== id ||
         !['accept-demand', 'protect-boundary'].includes(response)
       )
-        return reject('Use the current fictional pressure card during deliberation.');
+        return reject(translate(wm, 'rejPressureCard'));
       const prefix = `${id}: `;
       const protectedTerms = s.events.some(
         (event) => event.kind === 'pressure-protected' && event.detail.startsWith(prefix)
@@ -1306,11 +1415,9 @@ export function transitionWorkplace(
         (response === 'accept-demand' &&
           s.objections.some((o) => o.statement === pressure.objection))
       )
-        return reject(
-          'This demand was already reviewed. Resolve any remaining objection with its raiser.'
-        );
+        return reject(translate(wm, 'rejPressureReviewed'));
       if (response === 'accept-demand') {
-        if (s.objections.length >= 32) return reject('Objection record is full.');
+        if (s.objections.length >= 32) return reject(translate(wm, 'rejObjectionRecordFull'));
         s.objections.push({
           id: `o-${s.objections.length + 1}`,
           actorId: pressure.challenger,
@@ -1324,8 +1431,7 @@ export function transitionWorkplace(
         return {
           state: s,
           changed: true,
-          reason:
-            'Demand blocked and challenged. Restate protected terms, let the raiser review the remedy, then earn a fresh agreement. No disclosure, extra duty or pay penalty was imposed.',
+          reason: translate(wm, 'reasonDemandBlocked'),
         };
       }
       record(s, 'coordinator', 'pressure-protected', `${prefix}${pressure.repair}`);
@@ -1333,38 +1439,25 @@ export function transitionWorkplace(
       return {
         state: s,
         changed: true,
-        reason:
-          'Protected terms restated. An open objection remains with its raiser; renewed understanding and consent are required.',
+        reason: translate(wm, 'reasonTermsRestated'),
       };
     }
     case 'start': {
-      if (s.improvement)
-        return reject(
-          'Retain the handoff receipts. Continue through its member review instead of resetting earned history.'
-        );
+      if (s.improvement) return reject(translate(wm, 'rejStartDuringImprovement'));
       const [mode, seed = 1] = command.args;
-      if (!MODES.includes(mode) || !validSeed(seed)) return reject('Invalid mode or seed.');
-      if (s.campaign)
-        return reject(
-          'Campaign history cannot be reset through standalone start. Use the next campaign shift after review.'
-        );
+      if (!MODES.includes(mode) || !validSeed(seed))
+        return reject(translate(wm, 'rejInvalidModeSeed'));
+      if (s.campaign) return reject(translate(wm, 'rejCampaignReset'));
       if (s.phase === 'active' || s.members.some((m) => m.recoveryOwedMinutes > 0))
-        return reject(
-          'Stop active work and deliver all owed recovery before starting another scenario.'
-        );
+        return reject(translate(wm, 'rejStopActiveFirst'));
       const fresh = createWorkplace(mode, seed);
       fresh.phase = 'deliberating';
       fresh.revision = s.revision + 1;
-      record(
-        fresh,
-        'system',
-        'started',
-        'Fictional local scenario opened; no live workplace authority.'
-      );
+      record(fresh, 'system', 'started', translate(wm, 'evStarted'));
       return { state: fresh, changed: true, reason: null };
     }
     case 'configure': {
-      if (!deliberating) return reject('Configure only while deliberating.');
+      if (!deliberating) return reject(translate(wm, 'rejConfigureOnly'));
       const [settings] = command.args;
       if (
         !settings ||
@@ -1373,7 +1466,7 @@ export function transitionWorkplace(
           (k) => !['practices', 'workerAutonomy', 'governance', 'aiAuthority'].includes(k)
         )
       )
-        return reject('Unknown configuration field.');
+        return reject(translate(wm, 'rejUnknownField'));
       const { practices, workerAutonomy, governance, aiAuthority } = settings;
       if (
         practices !== undefined &&
@@ -1381,19 +1474,19 @@ export function transitionWorkplace(
           practices.some((p) => !PRACTICES.some((known) => known.id === p)) ||
           new Set(practices).size !== practices.length)
       )
-        return reject('Unknown or duplicate practice.');
+        return reject(translate(wm, 'rejUnknownPractice'));
       if (
         workerAutonomy !== undefined &&
         !['directed', 'individual', 'team'].includes(workerAutonomy)
       )
-        return reject('Invalid autonomy.');
+        return reject(translate(wm, 'rejInvalidAutonomy'));
       if (
         governance !== undefined &&
         !['consultative', 'team-consent', 'member-vote'].includes(governance)
       )
-        return reject('Invalid governance.');
+        return reject(translate(wm, 'rejInvalidGovernance'));
       if (aiAuthority !== undefined && !['advice', 'bounded'].includes(aiAuthority))
-        return reject('Invalid advisory authority.');
+        return reject(translate(wm, 'rejInvalidAuthority'));
       const next = {
         practices: [...(practices ?? s.practices)],
         workerAutonomy: workerAutonomy ?? s.workerAutonomy,
@@ -1409,71 +1502,53 @@ export function transitionWorkplace(
           aiAuthority: s.aiAuthority,
         })
       )
-        return reject('Configuration unchanged.');
+        return reject(translate(wm, 'rejConfigUnchanged'));
       if (
         s.objections.some((o) => o.status === 'open') &&
         s.practices.some((p) => !next.practices.includes(p))
       )
-        return reject('Resolve objections before removing any practice.');
+        return reject(translate(wm, 'rejResolveBeforeRemoving'));
       Object.assign(s, next);
       invalidate(s);
       s.chairBallots = {};
       s.electedChair = null;
-      record(
-        s,
-        'team',
-        'terms-revised',
-        'Configuration revised; understanding, ballots and cover consent invalidated. Minimum protections remain.'
-      );
+      record(s, 'team', 'terms-revised', translate(wm, 'evTermsRevised'));
       break;
     }
     case 'selectPlan': {
       const [id] = command.args;
-      if (s.improvement && id !== 'steady')
-        return reject('Handoff trials cannot stack cover or other improvement costs.');
+      if (s.improvement && id !== 'steady') return reject(translate(wm, 'rejNoStacking'));
       if (!deliberating || !WORKPLACE_PLANS.some((p) => p.id === id))
-        return reject('Choose a known plan while deliberating.');
-      if (s.planId === id) return reject('Plan unchanged.');
+        return reject(translate(wm, 'rejKnownPlan'));
+      if (s.planId === id) return reject(translate(wm, 'rejPlanUnchanged'));
       s.planId = id;
       invalidate(s);
-      record(
-        s,
-        'team',
-        'plan-revised',
-        'Plan revised; fresh understanding, ballots and individual cover consent required.'
-      );
+      record(s, 'team', 'plan-revised', translate(wm, 'evPlanRevised'));
       break;
     }
     case 'understand': {
       const m = member(command.args[0]);
-      if (!deliberating || !m || m.understood)
-        return reject('Only an unconfirmed role can confirm current terms while deliberating.');
+      if (!deliberating || !m || m.understood) return reject(translate(wm, 'rejUnderstand'));
       if (s.campaign && !checksPassed(s.campaign, m.id))
-        return reject(
-          "Answer this role's refusal, privacy and repayment checks correctly before confirming."
-        );
+        return reject(translate(wm, 'rejUnderstandChecks'));
       m.understood = true;
-      record(
-        s,
-        m.id,
-        'understood',
-        'Role confirmed the current plan, boundaries, compensation and right to refuse.'
-      );
+      record(s, m.id, 'understood', translate(wm, 'evUnderstood'));
       break;
     }
     case 'vote': {
       const [id, approve] = command.args;
       const m = member(id);
       if (!deliberating || !m?.understood || typeof approve !== 'boolean' || m.ballot === approve)
-        return reject('A role must understand current terms before recording a changed ballot.');
+        return reject(translate(wm, 'rejVote'));
       m.ballot = approve;
       record(
         s,
         id,
         'ballot',
         approve
-          ? 'Plan approved; this ballot grants no individual cover consent.'
-          : 'Plan declined without penalty.'
+          ? translate(wm, 'evBallotApproved')
+          : // Kept English: workplaceImprovement.ts and workplaceFairness.ts match this text.
+            BALLOT_DECLINED_DETAIL
       );
       break;
     }
@@ -1487,18 +1562,14 @@ export function transitionWorkplace(
         s.planId !== 'cover' ||
         m.coverConsent === accept
       )
-        return reject(
-          'Record distinct cover consent only after understanding the current cover plan.'
-        );
-      if (accept && !eligibleCover(m)) return reject('This role is not qualified for cover.');
+        return reject(translate(wm, 'rejCoverConsent'));
+      if (accept && !eligibleCover(m)) return reject(translate(wm, 'rejNotQualified'));
       m.coverConsent = accept;
       record(
         s,
         id,
         'cover-consent',
-        accept
-          ? 'Accepted up to 10 minutes, 0.8 credits/minute and 10 minutes recovery; revocable immediately.'
-          : 'Declined cover; no extra work or lost pay.'
+        accept ? translate(wm, 'evCoverAccepted') : translate(wm, 'evCoverDeclined')
       );
       break;
     }
@@ -1511,16 +1582,14 @@ export function transitionWorkplace(
         !['deliberating', 'active'].includes(s.phase) ||
         m.sharing === share
       )
-        return reject('Preference sharing can change only during this scenario.');
+        return reject(translate(wm, 'rejShare'));
       m.sharing = share;
       m.shareUntilMinute = share ? s.durationMinutes : null;
       record(
         s,
         id,
         'privacy-consent',
-        share
-          ? 'Optional fictional explanation shared for scenario planning only, until expiry or withdrawal.'
-          : 'Optional explanation hidden immediately.'
+        share ? translate(wm, 'evPreferenceShared') : translate(wm, 'evPreferenceHidden')
       );
       break;
     }
@@ -1535,24 +1604,14 @@ export function transitionWorkplace(
         !m.eligibleTasks.includes(task) ||
         m.chosenTask === task
       )
-        return reject(
-          'Choose a different qualified task under enabled work choice while deliberating.'
-        );
+        return reject(translate(wm, 'rejChooseTask'));
       m.chosenTask = task;
       invalidate(s);
-      record(
-        s,
-        id,
-        'work-choice',
-        'Qualified task choice changed; plan responses must be renewed.'
-      );
+      record(s, id, 'work-choice', translate(wm, 'evTaskChanged'));
       break;
     }
     case 'simulateResponses': {
-      if (!deliberating || s.mode !== 'game')
-        return reject(
-          'Authored response simulation is available only in Game mode. Workshop requires manual role input; Pilot is planning-only.'
-        );
+      if (!deliberating || s.mode !== 'game') return reject(translate(wm, 'rejSimulateMode'));
       let changed = false;
       for (const m of s.members) {
         if (s.campaign) {
@@ -1587,14 +1646,12 @@ export function transitionWorkplace(
           changed = true;
         }
       }
-      if (!changed) return reject('Authored responses already recorded.');
+      if (!changed) return reject(translate(wm, 'rejAuthoredAlready'));
       record(
         s,
         'simulation',
         'authored-responses',
-        s.campaign
-          ? 'Authored peer answers and choices recorded. Packing understanding, ballot and cover consent require separate explicit input. Adviser checks remain explicit; existing declines remain intact.'
-          : 'Fictional role responses recorded from authored preferences; declines carry no penalty.'
+        s.campaign ? translate(wm, 'evAuthoredCampaign') : translate(wm, 'evAuthoredRoles')
       );
       break;
     }
@@ -1605,29 +1662,20 @@ export function transitionWorkplace(
         !KINDS.includes(kind) ||
         !['deliberating', 'active'].includes(s.phase)
       )
-        return reject(
-          'Only a known role or advisory mind may raise a known objection during a scenario.'
-        );
+        return reject(translate(wm, 'rejObjectRole'));
       if (s.objections.some((o) => o.actorId === id && o.kind === kind && o.status === 'open'))
-        return reject('That objection is already open.');
-      if (s.objections.length >= 32)
-        return reject('Objection record is full; finish this scenario before starting another.');
+        return reject(translate(wm, 'rejObjectionOpen'));
+      if (s.objections.length >= 32) return reject(translate(wm, 'rejObjectionFull'));
       s.objections.push({
         id: `o-${s.objections.length + 1}`,
         actorId: id,
         kind,
-        statement: `Review the ${kind} boundary before proceeding.`,
+        statement: translate(wm, 'objectionStatement', { kind }),
         status: 'open',
         resolution: null,
       });
-      record(
-        s,
-        id,
-        'objection',
-        `Raised a ${kind} objection; activation is blocked until the raiser resolves it.`
-      );
-      if (s.phase === 'active')
-        settle(s, 'Stopped safely after an objection; earned obligations retained.');
+      record(s, id, 'objection', translate(wm, 'evObjection', { kind }));
+      if (s.phase === 'active') settle(s, translate(wm, 'settleObjection'));
       break;
     }
     case 'resolveObjection': {
@@ -1639,7 +1687,7 @@ export function transitionWorkplace(
         o.status !== 'open' ||
         o.actorId !== actor
       )
-        return reject('Only the original raiser may resolve their open objection.');
+        return reject(translate(wm, 'rejResolveRaiser'));
       const pressure = CAMPAIGN_PRESSURES.find((item) => item.objection === o.statement);
       if (
         pressure &&
@@ -1648,49 +1696,62 @@ export function transitionWorkplace(
             event.kind === 'pressure-protected' && event.detail.startsWith(`${pressure.id}: `)
         )
       )
-        return reject('Restate the protected terms before the raiser reviews this remedy.');
+        return reject(translate(wm, 'rejRestateFirst'));
       o.status = 'resolved';
-      o.resolution = `The ${actor} role reviewed the ${o.kind} boundary and retained minimum rest, qualified work, privacy withdrawal and refusal without penalty.`;
+      o.resolution = translate(wm, 'objectionResolution', { actor, kind: o.kind });
       record(s, actor, 'objection-resolved', o.resolution);
       break;
     }
     case 'activate': {
       if (!Number.isSafeInteger(command.args[0]) || command.args[0] !== s.revision)
-        return reject('Stale plan revision; review the current terms.');
+        return reject(translate(wm, 'rejStaleRevision'));
       const readiness = workplaceReadiness(s);
       if (!readiness.allowed) return reject(readiness.reasons.join(' '));
       const p = planOf(s);
-      s.finance.wageReserve = WAGE * s.durationMinutes * s.members.length;
-      s.finance.compensationReserve = p.optionalCoverMinutes * p.compensationPerMinute;
-      const improvementPurchase = improvementCost(s);
-      s.finance.cash -= p.budgetCost + improvementPurchase;
-      s.finance.improvementSpend += p.budgetCost + improvementPurchase;
+      // Every shift deliberates from minute 0, so deliberating later means a
+      // shift resumed after a reload: it was funded when it first activated.
+      // It reserves wages and cover only for what is left, and buys nothing again.
+      const resumed = s.minute > 0;
+      const coverDelivered = resumed ? s.members.reduce((n, m) => n + m.extraMinutes, 0) : 0;
+      const coverLeft = Math.max(0, p.optionalCoverMinutes - coverDelivered);
+      s.finance.wageReserve = WAGE * (s.durationMinutes - s.minute) * s.members.length;
+      s.finance.compensationReserve = coverLeft * p.compensationPerMinute;
+      if (!resumed) {
+        const improvementPurchase = improvementCost(s);
+        s.finance.cash -= p.budgetCost + improvementPurchase;
+        s.finance.improvementSpend += p.budgetCost + improvementPurchase;
+      }
       // A cancelled proposal authorizes paid steady work, without purchasing
       // the abandoned arrangement. Keep that distinction in its saved receipt.
       if (s.improvement && !s.improvement.stopped) s.improvement.funded = true;
-      if (p.optionalCoverMinutes) {
+      if (coverLeft > 0) {
         const totals = campaignTotals(s);
         const burden = (id: string) => totals.members.find((m) => m.id === id)!.extraMinutes;
-        const chosen = s.members
-          .filter((m) => m.coverConsent === true && eligibleCover(m))
-          .sort((a, b) => burden(a.id) - burden(b.id) || a.id.localeCompare(b.id))[0];
-        s.activeCoverMemberId = chosen.id;
-        s.coverRemainingMinutes = p.optionalCoverMinutes;
+        // One member covers a shift: a resumed shift continues with whoever
+        // already began, if they consent again; otherwise it has no cover.
+        const began = resumed ? s.members.find((m) => m.extraMinutes > 0) : undefined;
+        const chosen = began
+          ? began.coverConsent === true && eligibleCover(began)
+            ? began
+            : undefined
+          : s.members
+              .filter((m) => m.coverConsent === true && eligibleCover(m))
+              .sort((a, b) => burden(a.id) - burden(b.id) || a.id.localeCompare(b.id))[0];
+        if (chosen) {
+          s.activeCoverMemberId = chosen.id;
+          s.coverRemainingMinutes = coverLeft;
+        } else s.finance.compensationReserve = 0;
       }
       for (const m of s.members)
         if (m.coverConsent === false && !m.refusalRespected) {
           m.refusalRespected = true;
           s.refusalsRespected += 1;
         }
-      if (s.mode === 'game' && s.aiAuthority === 'bounded') s.aiActions += 1;
+      // One bounded AI action per shift; resuming is the same shift's action.
+      if (s.mode === 'game' && s.aiAuthority === 'bounded' && !resumed) s.aiActions += 1;
       s.phase = 'active';
       if (s.campaign) s.campaign.agreementProved = true;
-      record(
-        s,
-        'team',
-        'activated',
-        'Revision, objections, ballots, individual consent and funds checked atomically. Full wage and compensation obligations reserved.'
-      );
+      record(s, 'team', 'activated', translate(wm, 'evActivated'));
       break;
     }
     case 'withdraw': {
@@ -1700,7 +1761,7 @@ export function transitionWorkplace(
         !['deliberating', 'active'].includes(s.phase) ||
         (m.coverConsent !== true && !m.sharing)
       )
-        return reject('No current optional consent to withdraw.');
+        return reject(translate(wm, 'rejNoConsentToWithdraw'));
       const withdrawingCover = m.coverConsent === true;
       m.sharing = false;
       m.shareUntilMinute = null;
@@ -1710,25 +1771,17 @@ export function transitionWorkplace(
         m.refusalRespected = true;
         s.refusalsRespected += 1;
       }
-      record(
-        s,
-        m.id,
-        'withdrawn',
-        'Optional burden stopped and explanation hidden; earned compensation retained, unused earmark released.'
-      );
+      record(s, m.id, 'withdrawn', translate(wm, 'evWithdrawn'));
       break;
     }
     case 'stop': {
       if (!['deliberating', 'active'].includes(s.phase))
-        return reject('No running scenario to stop.');
-      settle(
-        s,
-        'Stopped locally; earned money settled, owed recovery retained and future authority revoked.'
-      );
+        return reject(translate(wm, 'rejNoScenario'));
+      settle(s, translate(wm, 'settleStopped'));
       break;
     }
     case 'tick': {
-      const [delta, shipped, emergency, observation] = command.args;
+      const [delta, shipped, emergency, observation, followOnObservation] = command.args;
       if (
         (!['active', 'review'].includes(s.phase) &&
           !(s.phase === 'deliberating' && workplaceMission(s))) ||
@@ -1741,15 +1794,19 @@ export function transitionWorkplace(
         shipped > 1e9 ||
         typeof emergency !== 'boolean'
       )
-        return reject('No valid active tick.');
-      const beforeMission = JSON.stringify(workplaceMission(s));
-      const missionDelivered =
-        s.phase === 'review' && (s.campaign?.shift === 2 || s.improvement)
-          ? 0
-          : observeMission(s, observation);
+        return reject(translate(wm, 'rejNoTick'));
+      const links = () => JSON.stringify([workplaceMission(s), s.campaign?.followOn]);
+      const beforeMission = links();
+      const observing = !(s.phase === 'review' && (s.campaign?.shift === 2 || s.improvement));
+      const missionDelivered = observing ? observeMission(s, observation) : 0;
+      // The follow-on order earns only from fresh receipts in active work; bad
+      // evidence there stops its credit but never settles the commitment.
+      const followOnDelivered =
+        observing && s.campaign?.followOn && followOnObservation
+          ? observeLink(s.campaign.followOn, followOnObservation)
+          : 0;
       if (s.phase === 'deliberating') {
-        if (JSON.stringify(workplaceMission(s)) === beforeMission)
-          return reject('No new mission receipt.');
+        if (links() === beforeMission) return reject(translate(wm, 'rejNoMissionReceipt'));
         break;
       }
       if (
@@ -1757,28 +1814,26 @@ export function transitionWorkplace(
         workplaceMission(s) &&
         workplaceMission(s)!.evidence !== 'current'
       ) {
-        settle(
-          s,
-          'Linked dispatch evidence changed or failed quality. Future optional authority stopped; earned obligations retained.'
-        );
+        settle(s, translate(wm, 'settleMissionChanged'));
         break;
       }
       if (s.phase === 'review') {
         if (emergency || !s.members.some((m) => m.recoveryOwedMinutes > 0)) {
-          if (JSON.stringify(workplaceMission(s)) !== beforeMission) break;
-          return reject('No recovery time to deliver.');
+          if (links() !== beforeMission) break;
+          return reject(translate(wm, 'rejNoRecovery'));
         }
         deliverRecovery(s, delta);
         break;
       }
       if (emergency) {
-        settle(s, 'Emergency stop: optional work halted immediately.');
+        settle(s, translate(wm, 'settleEmergency'));
         break;
       }
       const elapsed = Math.min(delta, s.durationMinutes - s.minute);
       const delivered =
         s.mode === 'game'
-          ? (workplaceMission(s) ? missionDelivered : shipped) * (elapsed / delta)
+          ? (workplaceMission(s) ? missionDelivered + followOnDelivered : shipped) *
+            (elapsed / delta)
           : 0;
       const ordinaryRest = Math.max(0, Math.min(s.minute + elapsed, 90) - Math.max(s.minute, 75));
       for (const m of s.members) m.restMinutes += ordinaryRest;
@@ -1791,12 +1846,7 @@ export function transitionWorkplace(
         !s.campaign.inspectionComplete
       ) {
         s.campaign.inspectionComplete = true;
-        record(
-          s,
-          'quality',
-          'inspection-completed',
-          'Five modeled inspection minutes completed. Actual batch certification and release checks remain separate.'
-        );
+        record(s, 'quality', 'inspection-completed', translate(wm, 'evInspectionCompleted'));
       }
       s.shippedKg += delivered;
       s.finance.operatingRevenue += delivered * REVENUE_PER_KG;
@@ -1829,11 +1879,7 @@ export function transitionWorkplace(
           m.sharing = false;
           m.shareUntilMinute = null;
         }
-      if (s.minute >= s.durationMinutes)
-        settle(
-          s,
-          'Scenario ended; future consent expired, earned money settled and any owed recovery retained.'
-        );
+      if (s.minute >= s.durationMinutes) settle(s, translate(wm, 'settleEnded'));
       break;
     }
     case 'elect': {
@@ -1846,14 +1892,12 @@ export function transitionWorkplace(
         !member(candidate) ||
         s.chairBallots[voter] === candidate
       )
-        return reject(
-          'A fictional member may vote for a known member under enabled member governance.'
-        );
+        return reject(translate(wm, 'rejElect'));
       s.chairBallots[voter] = candidate;
       s.electedChair =
         s.members.find((m) => Object.values(s.chairBallots).filter((v) => v === m.id).length >= 3)
           ?.id ?? null;
-      record(s, voter, 'chair-ballot', `Recorded one replaceable member ballot for ${candidate}.`);
+      record(s, voter, 'chair-ballot', translate(wm, 'evChairBallot', { candidate }));
       break;
     }
     case 'voteSurplus': {
@@ -1866,9 +1910,9 @@ export function transitionWorkplace(
         !DESTINATIONS.includes(destination) ||
         s.surplusBallots[voter] === destination
       )
-        return reject('An eligible member may direct surplus once review begins.');
+        return reject(translate(wm, 'rejSurplusVote'));
       s.surplusBallots[voter] = destination;
-      record(s, voter, 'surplus-ballot', `Member chose ${destination}; no capital-weighted votes.`);
+      record(s, voter, 'surplus-ballot', translate(wm, 'evSurplusBallot', { destination }));
       break;
     }
     case 'distributeSurplus': {
@@ -1881,12 +1925,11 @@ export function transitionWorkplace(
         s.members.some((m) => m.recoveryOwedMinutes > 0) ||
         s.objections.some((o) => o.status === 'open')
       )
-        return reject('Settle obligations and objections before a one-time surplus decision.');
+        return reject(translate(wm, 'rejSettleFirst'));
       const destination = DESTINATIONS.find(
         (d) => Object.values(s.surplusBallots).filter((v) => v === d).length >= 3
       );
-      if (!destination)
-        return reject('At least three members must agree on a surplus destination.');
+      if (!destination) return reject(translate(wm, 'rejSurplusAgree'));
       const surplus = Math.min(
         s.finance.cash,
         Math.max(
@@ -1898,10 +1941,7 @@ export function transitionWorkplace(
             s.finance.improvementSpend
         )
       );
-      if (surplus <= 1e-8)
-        return reject(
-          'No positive operating surplus; starting capital cannot be shared as profit.'
-        );
+      if (surplus <= 1e-8) return reject(translate(wm, 'rejNoSurplus'));
       if (destination === 'members') {
         s.finance.cash -= surplus;
         s.finance.distributed += surplus;
@@ -1916,12 +1956,12 @@ export function transitionWorkplace(
         s,
         'members',
         'surplus-decided',
-        `${destination}: ${surplus.toFixed(2)} illustrative credits; equal shares if distributed to members.`
+        translate(wm, 'evSurplusDecided', { destination, amount: formatFixed(surplus, 2) })
       );
       break;
     }
     default:
-      return reject('Unknown workplace action.');
+      return reject(translate(wm, 'rejUnknownAction'));
   }
   return { changed: true, reason: null, state: s };
 }
@@ -1930,7 +1970,8 @@ export function transitionWorkplace(
 export function saveWorkplace(s: WorkplaceState): unknown {
   const saved = structuredClone(s);
   if (saved.phase === 'active' || saved.phase === 'deliberating')
-    settle(saved, 'Reload safety: future authority and consent revoked; earned pay retained.');
+    // Kept English: workplaceFairness.ts matches the 'Reload safety' prefix.
+    settle(saved, RELOAD_SAFETY_DETAIL);
   for (const m of saved.members) {
     m.preference = '';
     m.willingToCover = false;
@@ -2188,7 +2229,12 @@ function restoreWorkplaceSnapshot(
     if (!r.campaign || typeof r.campaign !== 'object' || Array.isArray(r.campaign)) return fallback;
     const c = r.campaign as WorkplaceState['campaign'] & Record<string, unknown>;
     if (c.mission !== undefined && !validWorkplaceMission(c.mission)) return fallback;
-    const { mission: _mission, ...campaignShape } = c;
+    if (
+      c.followOn !== undefined &&
+      (!c.mission || !validWorkplaceMission(c.followOn) || c.followOn.orderId === c.mission.orderId)
+    )
+      return fallback;
+    const { mission: _mission, followOn: _followOn, ...campaignShape } = c;
     if (
       !validShape(
         {
@@ -2347,8 +2393,11 @@ function restoreWorkplaceSnapshot(
     const m = value as typeof expected;
     if (
       m.id !== expected.id ||
-      m.role !== expected.role ||
-      m.publicBoundary !== expected.publicBoundary ||
+      // A save written in either language restores; the copy is regenerated below.
+      !LOCALES.some((locale) => {
+        const known = memberCopy(createTranslator(bilateralWorkplaceMessages, locale))[i];
+        return m.role === known.role && m.publicBoundary === known.publicBoundary;
+      }) ||
       m.preference !== '' ||
       m.willingToCover ||
       m.sharing ||
@@ -2450,6 +2499,8 @@ function restoreWorkplaceSnapshot(
   // Persisted prose is not authoritative. Regenerate identities and known public receipts.
   s.members = s.members.map((m, i) => ({
     ...m,
+    role: canonical.members[i].role,
+    publicBoundary: canonical.members[i].publicBoundary,
     preference: canonical.members[i].preference,
     willingToCover: canonical.members[i].willingToCover,
   }));
@@ -2464,15 +2515,19 @@ function restoreWorkplaceSnapshot(
     );
     return {
       ...o,
-      statement: pressure?.objection ?? `Review the ${o.kind} boundary before proceeding.`,
+      statement: pressure?.objection ?? translate(wm, 'objectionStatement', { kind: o.kind }),
       resolution:
-        o.status === 'resolved' ? `The ${o.actorId} role recorded resolution before reload.` : null,
+        o.status === 'resolved' ? translate(wm, 'restoredResolution', { actor: o.actorId }) : null,
     };
   });
+  // Imported prose never survives a restore; only the exact reload-safety
+  // sentinel does, so a shift a reload paused stays resumable (shiftResumable).
   s.reviewReason =
-    s.phase === 'review'
-      ? 'Reloaded a settled synthetic snapshot. Consent and future authority remain revoked.'
-      : null;
+    s.phase !== 'review'
+      ? null
+      : s.reviewReason === RELOAD_SAFETY_DETAIL
+        ? RELOAD_SAFETY_DETAIL
+        : translate(wm, 'reasonReloaded');
   s.revision += 1;
   return s;
 }

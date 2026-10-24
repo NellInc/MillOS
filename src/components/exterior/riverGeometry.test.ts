@@ -5,6 +5,10 @@ import * as THREE from 'three';
 import {
   createRiverCulvertGeometries,
   createRiverSurfaceGeometry,
+  createRiverFootbridgeDeckGeometry,
+  createRiverFootbridgeFrameGeometry,
+  createRoadRiverBridgeFrameGeometry,
+  createRiverFootbridgeAccessGeometry,
   fitRiverCulvertBank,
 } from './riverGeometry';
 import { createDisplacedGeometry } from '../terrain/TerrainGround';
@@ -15,7 +19,7 @@ import {
   sampleTerrainGroundHeight,
 } from '../terrain/splatMapGenerator';
 import { TERRAIN_BOUNDS } from '../terrain/terrainTypes';
-import { SITE_LAYOUT } from '../../constants/siteLayout';
+import { SITE_LAYOUT, RIVER_FOOTBRIDGE_DECK } from '../../constants/siteLayout';
 
 const config = MILLOS_RIVER_CONFIG;
 const datum = SITE_LAYOUT.datum.terrain;
@@ -271,4 +275,140 @@ it.each([64, 128])('seats both culvert turf tails on the actual %i canyon mesh',
     bank.dispose();
   }
   Object.values(originals).forEach((g) => g.dispose());
+});
+
+describe('river crossing craft', () => {
+  it.each([
+    ['foot deck', createRiverFootbridgeDeckGeometry, 450],
+    ['foot frame', createRiverFootbridgeFrameGeometry, 4000],
+    ['road frame', createRoadRiverBridgeFrameGeometry, 2000],
+  ] as const)('%s is one bounded finite vertex-colour surface', (name, create, budget) => {
+    const g = create();
+    try {
+      for (const attribute of ['position', 'normal', 'color', 'uv']) {
+        const a = g.getAttribute(attribute);
+        expect(Array.from(a.array).every(Number.isFinite), `${name} ${attribute}`).toBe(true);
+        expect(a.count).toBe(g.getAttribute('position').count);
+      }
+      const triangles = (g.index?.count ?? g.getAttribute('position').count) / 3;
+      expect(triangles).toBeLessThan(budget);
+      expect(g.groups).toHaveLength(0);
+      expect(g.boundingSphere?.radius).toBeGreaterThan(0);
+      console.info(`${name}: ${triangles} triangles`);
+    } finally {
+      g.dispose();
+    }
+  });
+
+  it('keeps panel joints flush across the exact original foot deck envelope', () => {
+    const g = createRiverFootbridgeDeckGeometry();
+    const material = new THREE.MeshBasicMaterial();
+    const mesh = new THREE.Mesh(g, material);
+    mesh.position.fromArray([...RIVER_FOOTBRIDGE_DECK.centre]);
+    mesh.updateMatrixWorld();
+    try {
+      const b = g.boundingBox!;
+      const size = b.getSize(new THREE.Vector3());
+      size
+        .toArray()
+        .forEach((value, i) => expect(value).toBeCloseTo(RIVER_FOOTBRIDGE_DECK.size[i], 5));
+      for (const x of [-3, 0, 3])
+        for (let z = -34.9; z < 35; z += 0.37) {
+          const hit = new THREE.Raycaster(
+            new THREE.Vector3(x, 5, -145 + z),
+            new THREE.Vector3(0, -1, 0)
+          ).intersectObject(mesh)[0];
+          expect(hit?.point.y).toBeCloseTo(2.4, 5);
+        }
+    } finally {
+      g.dispose();
+      material.dispose();
+    }
+  });
+
+  it('opens water views between foot posts and joins the approach rail tops', () => {
+    const g = createRiverFootbridgeFrameGeometry(),
+      a = createRiverFootbridgeAccessGeometry();
+    const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+    const frame = new THREE.Mesh(g, material),
+      access = new THREE.Mesh(a, material);
+    frame.updateMatrixWorld();
+    access.updateMatrixWorld();
+    try {
+      const aperture = new THREE.Raycaster(
+        new THREE.Vector3(-5, 2.65, 1.25),
+        new THREE.Vector3(1, 0, 0)
+      );
+      expect(aperture.intersectObject(frame)).toHaveLength(0);
+      for (const side of [-1, 1]) {
+        const x = (side * RIVER_FOOTBRIDGE_DECK.size[0]) / 2;
+        const top = new THREE.Raycaster(
+          new THREE.Vector3(x, 5, 0.75),
+          new THREE.Vector3(0, -1, 0)
+        ).intersectObject(frame)[0];
+        expect(top?.point.y).toBeCloseTo(3.5, 5);
+        for (const z of [-35, 35]) {
+          const joint = new THREE.Raycaster(
+            new THREE.Vector3(x, 5, -145 + z),
+            new THREE.Vector3(0, -1, 0)
+          ).intersectObject(access)[0];
+          // The junction post stops 1 cm under the rail top it meets, rather
+          // than sharing its top face (steel against trim at 0 mm).
+          expect(top.point.y - joint!.point.y).toBeCloseTo(0.01, 5);
+        }
+      }
+      expect(g.boundingBox!.max.x).toBeLessThanOrEqual(3.3375);
+      const centre = new THREE.Raycaster(
+        new THREE.Vector3(0, 4, 1.25),
+        new THREE.Vector3(0, -1, 0)
+      ).intersectObject(frame)[0];
+      expect(centre?.point.y).toBeLessThanOrEqual(1.701);
+    } finally {
+      g.dispose();
+      a.dispose();
+      material.dispose();
+    }
+  });
+
+  it('retains both pier arrays and foundation depths with seated road bearings', () => {
+    const f = createRiverFootbridgeFrameGeometry(),
+      r = createRoadRiverBridgeFrameGeometry();
+    const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+    const foot = new THREE.Mesh(f, material),
+      road = new THREE.Mesh(r, material);
+    foot.updateMatrixWorld();
+    road.updateMatrixWorld();
+    try {
+      for (const z of [-28, -14, 0, 14, 28]) {
+        for (const [mesh, xs, depth] of [
+          [foot, [-2.2, 2.2], -10],
+          [road, [-6, 6], -11],
+        ] as const)
+          for (const x of xs) {
+            const base = new THREE.Raycaster(
+              new THREE.Vector3(x, -12, z),
+              new THREE.Vector3(0, 1, 0)
+            ).intersectObject(mesh)[0];
+            expect(base?.point.y).toBeCloseTo(depth, 5);
+          }
+        // Crosshead contacts pier heads (-0.9) and girder lower flanges (-0.57).
+        const bearing = new THREE.Raycaster(
+          new THREE.Vector3(2, 0, z),
+          new THREE.Vector3(0, -1, 0)
+        ).intersectObject(road)[0];
+        expect(bearing?.point.y).toBeCloseTo(-0.5, 5);
+        const pierHead = new THREE.Raycaster(
+          new THREE.Vector3(6, -0.85, z),
+          new THREE.Vector3(0, -1, 0)
+        ).intersectObject(road)[0];
+        expect(pierHead?.point.y).toBeCloseTo(-0.9, 5);
+      }
+      expect(r.boundingBox!.max.x).toBeLessThan(8.651);
+      expect(r.boundingBox!.max.y).toBeCloseTo(1.71, 5);
+    } finally {
+      f.dispose();
+      r.dispose();
+      material.dispose();
+    }
+  });
 });

@@ -6,8 +6,13 @@ import {
   type MusicStation,
   type MusicTrack,
 } from '../audio/millosSoundtrackCatalog';
+import { getLocale, translate } from '../i18n';
+import { audioManagerMessages } from './audioManager.messages';
 
 export type AmbientWeather = 'clear' | 'cloudy' | 'rain' | 'storm';
+
+/** localStorage key for the listener's mute, volume and music preferences. */
+export const AUDIO_SETTINGS_KEY = 'millos-audio';
 
 export interface OutdoorAmbientMix {
   birds: number;
@@ -258,7 +263,7 @@ class AudioManager {
   }
 
   // LocalStorage key for audio settings persistence
-  private readonly STORAGE_KEY = 'millos-audio';
+  private readonly STORAGE_KEY = AUDIO_SETTINGS_KEY;
 
   // Save audio settings to localStorage
   private saveSettings(): void {
@@ -539,6 +544,22 @@ class AudioManager {
   subscribe(listener: () => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
+  }
+
+  /** Muted navigation leaves audio dormant; a later unmuted gesture still starts it. */
+  onFirstUnmutedGesture(initialize: () => void): () => void {
+    const cleanup = () => {
+      window.removeEventListener('click', handleInteraction);
+      window.removeEventListener('keydown', handleInteraction);
+    };
+    const handleInteraction = () => {
+      if (this._muted) return;
+      cleanup();
+      initialize();
+    };
+    window.addEventListener('click', handleInteraction);
+    window.addEventListener('keydown', handleInteraction);
+    return cleanup;
   }
 
   private notifyListeners(): void {
@@ -849,14 +870,16 @@ class AudioManager {
   private updateMediaSession(): void {
     if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
     const artworkSize = this.currentTrack.trackNumber === 7 ? '360x360' : '1024x1024';
-    const mediaSessionKey = `${this._musicStation}:${this.currentTrack.id}`;
+    const mediaSessionKey = `${getLocale()}:${this._musicStation}:${this.currentTrack.id}`;
     if (typeof MediaMetadata !== 'undefined' && mediaSessionKey !== this.lastMediaSessionKey) {
       this.lastMediaSessionKey = mediaSessionKey;
       navigator.mediaSession.metadata = new MediaMetadata({
         title: this.currentTrack.name,
         artist: this.currentTrack.artist,
         album:
-          this._musicStation === 'original' ? 'Songs of the Living Mill' : 'MillOS Legacy Music',
+          this._musicStation === 'original'
+            ? 'Songs of the Living Mill'
+            : translate(audioManagerMessages, 'legacyAlbum'),
         artwork: this.currentTrack.artwork
           ? [{ src: this.currentTrack.artwork, sizes: artworkSize, type: 'image/jpeg' }]
           : [],
@@ -3557,8 +3580,45 @@ class AudioManager {
 
   // === HYDRAULIC SOUNDS ===
 
+  // Sources of each forklift's lift or place sound, so one can be cut when the
+  // operation ends early, the clock is held or an e-stop freezes the cycle.
+  private hydraulicNodes: Map<string, Array<{ source: AudioBufferSourceNode; gain: GainNode }>> =
+    new Map();
+
+  private trackHydraulic(forkliftId: string, source: AudioBufferSourceNode, gain: GainNode) {
+    const entry = { source, gain };
+    const nodes = this.hydraulicNodes.get(forkliftId) ?? [];
+    nodes.push(entry);
+    this.hydraulicNodes.set(forkliftId, nodes);
+    source.onended = () => {
+      const current = this.hydraulicNodes.get(forkliftId);
+      if (!current) return;
+      const remaining = current.filter((node) => node !== entry);
+      if (remaining.length > 0) this.hydraulicNodes.set(forkliftId, remaining);
+      else this.hydraulicNodes.delete(forkliftId);
+    };
+  }
+
+  /** Fade out and stop a forklift's hydraulic sound; a no-op if none plays. */
+  stopHydraulic(forkliftId: string) {
+    const nodes = this.hydraulicNodes.get(forkliftId);
+    if (!nodes) return;
+    this.hydraulicNodes.delete(forkliftId);
+    const now = this.audioContext?.currentTime ?? 0;
+    for (const { source, gain } of nodes) {
+      try {
+        gain.gain.cancelScheduledValues?.(now);
+        gain.gain.setTargetAtTime(0, now, 0.015);
+        source.stop(now + 0.08);
+      } catch (e) {
+        audioLog.warn('Failed to stop hydraulic sound', { forkliftId }, e);
+      }
+    }
+  }
+
   // Hydraulic lift sound for forklift operations
-  playHydraulicLift(_forkliftId: string, duration: number = 1.5) {
+  playHydraulicLift(forkliftId: string, duration: number = 1.5) {
+    this.stopHydraulic(forkliftId);
     if (this.getEffectiveVolume() === 0) return;
 
     try {
@@ -3599,9 +3659,10 @@ class AudioManager {
 
       source.start(currentTime);
       source.stop(currentTime + duration + 0.2);
+      this.trackHydraulic(forkliftId, source, gain);
 
       // Add hydraulic fluid whoosh
-      this.playHydraulicFluid(duration);
+      this.playHydraulicFluid(forkliftId, duration);
     } catch (e) {
       audioLog.warn('Hydraulic lift sound failed', e);
     }
@@ -3609,6 +3670,7 @@ class AudioManager {
 
   // Hydraulic lower sound (slower, different character)
   playHydraulicLower(forkliftId: string, duration: number = 2) {
+    this.stopHydraulic(forkliftId);
     if (this.getEffectiveVolume() === 0) return;
 
     try {
@@ -3643,13 +3705,14 @@ class AudioManager {
 
       source.start(currentTime);
       source.stop(currentTime + duration + 0.2);
+      this.trackHydraulic(forkliftId, source, gain);
     } catch (e) {
       audioLog.warn('Hydraulic lower sound failed', { forkliftId }, e);
     }
   }
 
   // Hydraulic fluid movement sound
-  private playHydraulicFluid(duration: number) {
+  private playHydraulicFluid(forkliftId: string, duration: number) {
     if (this.getEffectiveVolume() === 0) return;
 
     try {
@@ -3680,6 +3743,7 @@ class AudioManager {
 
       source.start(currentTime);
       source.stop(currentTime + duration + 0.1);
+      this.trackHydraulic(forkliftId, source, gain);
     } catch (e) {
       audioLog.warn('Hydraulic fluid sound failed', e);
     }
@@ -4055,7 +4119,8 @@ class AudioManager {
       this.truckEngines.size +
       this.backupBeepers.size +
       this.conveyorNodes.size +
-      this.spoutingNodes.size;
+      this.spoutingNodes.size +
+      this.hydraulicNodes.size;
     return {
       activeNodes: objectNodeCount + mappedNodeCount,
       contextState: this.audioContext?.state ?? 'not-created',
@@ -4080,6 +4145,7 @@ class AudioManager {
       this.stopForkliftEngine(id);
     });
     this.forkliftEngines.clear();
+    [...this.hydraulicNodes.keys()].forEach((id) => this.stopHydraulic(id));
     this.truckEngines.forEach((_engine, id) => {
       this.stopTruckEngine(id);
     });

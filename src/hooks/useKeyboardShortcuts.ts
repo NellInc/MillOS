@@ -5,11 +5,22 @@ import { useProductionStore } from '../stores/productionStore';
 import { useSafetyStore } from '../stores/safetyStore';
 import { useUIStore } from '../stores/uiStore';
 import { useAIConfigStore } from '../stores/aiConfigStore';
-import { useGameSimulationStore } from '../stores/gameSimulationStore';
+import { selectClockHolder, useGameSimulationStore } from '../stores/gameSimulationStore';
+import { paceMessages } from '../simulation/pace.messages';
 import { audioManager } from '../utils/audioManager';
 import { useCameraStore, CAMERA_PRESETS } from '../components/CameraController';
 import type { ForkliftData, MachineData } from '../types';
 import { FORKLIFT_STOP_ANNOUNCEMENTS } from '../components/GameFeatures';
+import { formatFixed, translate } from '../i18n';
+import { keyboardShortcutsMessages } from './useKeyboardShortcuts.messages';
+
+type KeyboardShortcutsMessages = typeof keyboardShortcutsMessages.en;
+type PlainMessageKey = {
+  [K in keyof KeyboardShortcutsMessages]: KeyboardShortcutsMessages[K] extends string ? K : never;
+}[keyof KeyboardShortcutsMessages];
+
+/** Resolved when the key is pressed, so the notification follows the current language. */
+const msg = (key: PlainMessageKey): string => translate(keyboardShortcutsMessages, key);
 
 interface KeyboardShortcutsConfig {
   showAIPanel: boolean;
@@ -56,8 +67,6 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
   const showSCAPanelRef = useRef(showSCADAPanel);
   const selectedMachineRef = useRef(selectedMachine);
   const selectedForkliftRef = useRef(selectedForklift);
-  // Speed P restores on resume, so pausing does not discard the chosen rate.
-  const resumeSpeedRef = useRef(0.8);
   // One pending clear at a time: overlapping timers cleared a fresh
   // notification early, and none was cancelled on unmount.
   const notificationTimerRef = useRef<number | null>(null);
@@ -141,7 +150,7 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
           audioManager.playClick();
           const current = useUIStore.getState().blueprintMode;
           useUIStore.getState().toggleBlueprintMode();
-          setQualityNotification(current ? 'NORMAL VIEW' : 'BLUEPRINT MODE');
+          setQualityNotification(current ? msg('normalView') : msg('blueprintMode'));
           scheduleNotificationClear(1500);
         }
         return;
@@ -169,7 +178,7 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
         const sim = useGameSimulationStore.getState();
         if (sim.emergencyDrillMode || (sim.emergencyActive && forkliftEmergencyStopRef.current)) {
           setQualityNotification(
-            sim.emergencyDrillMode ? 'DRILL INTERLOCK ACTIVE' : 'INTERLOCK ACTIVE'
+            sim.emergencyDrillMode ? msg('drillInterlockActive') : msg('interlockActive')
           );
           scheduleNotificationClear(2000);
           return;
@@ -191,12 +200,12 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
           });
           addSafetyIncident({
             type: 'emergency',
-            description: 'Emergency stop activated via keyboard (Spacebar)',
+            description: msg('keyboardEmergencyStopIncident'),
           });
-          setQualityNotification('EMERGENCY STOP');
+          setQualityNotification(msg('emergencyStop'));
         } else {
           audioManager.stopEmergencyStopAlarm();
-          setQualityNotification('E-STOP RELEASED');
+          setQualityNotification(msg('emergencyStopReleased'));
         }
         scheduleNotificationClear(2000);
         return;
@@ -230,7 +239,7 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
         const quality = qualityKeys[e.key];
         setGraphicsQuality(quality);
         audioManager.playClick();
-        setQualityNotification(`${quality.toUpperCase()} QUALITY`);
+        setQualityNotification(translate(keyboardShortcutsMessages, 'quality', { quality }));
         scheduleNotificationClear(2000);
         return;
       }
@@ -241,19 +250,26 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
       // step the speed and are meant to be held.
       if (e.repeat && key !== '+' && key !== '=' && key !== '-') return;
 
-      // P - Toggle pause (set production speed to 0 or restore)
+      // P - Toggle pause. The shift clock is the one pause: at 0 the plant,
+      // trucks and forklifts all stop, so the line setpoint is left alone.
+      // Working if P never releases a clock hold it did not make (tour, save
+      // failure, a workplace step, the Shift pace select): another holder's
+      // pause is named instead of overridden.
       if (key === 'p') {
         e.preventDefault();
         audioManager.playClick();
-        if (productionSpeedRef.current > 0) {
-          resumeSpeedRef.current = productionSpeedRef.current;
-          setProductionSpeed(0);
-          setQualityNotification('PAUSED');
+        const sim = useGameSimulationStore.getState();
+        const holder = selectClockHolder(sim);
+        if (holder === null) {
+          sim.holdClock('shortcut');
+          setQualityNotification(msg('paused'));
+        } else if (holder === 'shortcut') {
+          sim.releaseClock('shortcut');
+          setQualityNotification(msg('resumed'));
         } else {
-          setProductionSpeed(resumeSpeedRef.current > 0 ? resumeSpeedRef.current : 0.8);
-          setQualityNotification('RESUMED');
+          setQualityNotification(translate(paceMessages, `heldBy_${holder}`));
         }
-        scheduleNotificationClear(1500);
+        scheduleNotificationClear(holder !== null && holder !== 'shortcut' ? 4000 : 1500);
         return;
       }
 
@@ -262,7 +278,7 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
         e.preventDefault();
         audioManager.playClick();
         setShowZones(!showZonesRef.current);
-        setQualityNotification(showZonesRef.current ? 'ZONES OFF' : 'ZONES ON');
+        setQualityNotification(showZonesRef.current ? msg('zonesOff') : msg('zonesOn'));
         scheduleNotificationClear(1500);
         return;
       }
@@ -297,7 +313,7 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
         audioManager.playClick();
         const currentHeatMap = useProductionStore.getState().showHeatMap;
         useProductionStore.getState().setShowHeatMap(!currentHeatMap);
-        setQualityNotification(currentHeatMap ? 'HEATMAP OFF' : 'HEATMAP ON');
+        setQualityNotification(currentHeatMap ? msg('heatmapOff') : msg('heatmapOn'));
         scheduleNotificationClear(1500);
         return;
       }
@@ -308,7 +324,7 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
         audioManager.playClick();
         const current = useAIConfigStore.getState().showCascadeVisualization;
         useAIConfigStore.getState().setShowCascadeVisualization(!current);
-        setQualityNotification(current ? 'CASCADE OFF' : 'CASCADE ON');
+        setQualityNotification(current ? msg('cascadeOff') : msg('cascadeOn'));
         scheduleNotificationClear(1500);
         return;
       }
@@ -319,7 +335,7 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
         audioManager.playClick();
         const current = useAIConfigStore.getState().showStrategicOverlay;
         useAIConfigStore.getState().setShowStrategicOverlay(!current);
-        setQualityNotification(current ? 'STRATEGY OFF' : 'STRATEGY ON');
+        setQualityNotification(current ? msg('strategyOff') : msg('strategyOn'));
         scheduleNotificationClear(1500);
         return;
       }
@@ -330,7 +346,7 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
         audioManager.playClick();
         const current = useAIConfigStore.getState().showProductionTarget;
         useAIConfigStore.getState().setShowProductionTarget(!current);
-        setQualityNotification(current ? 'TARGET OFF' : 'TARGET ON');
+        setQualityNotification(current ? msg('targetOff') : msg('targetOn'));
         scheduleNotificationClear(1500);
         return;
       }
@@ -341,7 +357,7 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
         audioManager.playClick();
         const current = useAIConfigStore.getState().showEnergyDashboard;
         useAIConfigStore.getState().setShowEnergyDashboard(!current);
-        setQualityNotification(current ? 'ENERGY OFF' : 'ENERGY ON');
+        setQualityNotification(current ? msg('energyOff') : msg('energyOn'));
         scheduleNotificationClear(1500);
         return;
       }
@@ -352,7 +368,7 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
         audioManager.playClick();
         const current = useAIConfigStore.getState().showMultiObjective;
         useAIConfigStore.getState().setShowMultiObjective(!current);
-        setQualityNotification(current ? 'OBJECTIVES OFF' : 'OBJECTIVES ON');
+        setQualityNotification(current ? msg('objectivesOff') : msg('objectivesOn'));
         scheduleNotificationClear(1500);
         return;
       }
@@ -363,7 +379,7 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
         audioManager.playClick();
         const current = useAIConfigStore.getState().showCostOverlay;
         useAIConfigStore.getState().setShowCostOverlay(!current);
-        setQualityNotification(current ? 'COSTS OFF' : 'COSTS ON');
+        setQualityNotification(current ? msg('costsOff') : msg('costsOn'));
         scheduleNotificationClear(1500);
         return;
       }
@@ -375,7 +391,11 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
         // Round to the 0.1 grid so repeated steps land exactly on 0 and 2.
         const newSpeed = Math.round(Math.min(2, productionSpeedRef.current + 0.1) * 10) / 10;
         setProductionSpeed(newSpeed);
-        setQualityNotification(`SPEED ${Math.round(newSpeed * 100)}%`);
+        setQualityNotification(
+          translate(keyboardShortcutsMessages, 'speed', {
+            percent: formatFixed(Math.round(newSpeed * 100), 0),
+          })
+        );
         scheduleNotificationClear(1200);
         return;
       }
@@ -386,7 +406,11 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
         audioManager.playClick();
         const newSpeed = Math.round(Math.max(0, productionSpeedRef.current - 0.1) * 10) / 10;
         setProductionSpeed(newSpeed);
-        setQualityNotification(`SPEED ${Math.round(newSpeed * 100)}%`);
+        setQualityNotification(
+          translate(keyboardShortcutsMessages, 'speed', {
+            percent: formatFixed(Math.round(newSpeed * 100), 0),
+          })
+        );
         scheduleNotificationClear(1200);
         return;
       }
@@ -414,7 +438,7 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
         e.preventDefault();
         audioManager.playClick();
         setAutoRotate(!autoRotateRef.current);
-        setQualityNotification(autoRotateRef.current ? 'ROTATION OFF' : 'ROTATION ON');
+        setQualityNotification(autoRotateRef.current ? msg('rotationOff') : msg('rotationOn'));
         scheduleNotificationClear(1500);
         return;
       }
@@ -425,10 +449,10 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
         audioManager.playClick();
         if (!document.fullscreenElement) {
           document.documentElement.requestFullscreen().catch(() => {});
-          setQualityNotification('FULLSCREEN');
+          setQualityNotification(msg('fullscreen'));
         } else {
           document.exitFullscreen().catch(() => {});
-          setQualityNotification('WINDOWED');
+          setQualityNotification(msg('windowed'));
         }
         scheduleNotificationClear(1500);
         return;
@@ -440,7 +464,7 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
         audioManager.playClick();
         const current = useUIStore.getState().showMiniMap;
         useUIStore.getState().setShowMiniMap(!current);
-        setQualityNotification(current ? 'GPS OFF' : 'GPS ON');
+        setQualityNotification(current ? msg('gpsOff') : msg('gpsOn'));
         scheduleNotificationClear(1500);
         return;
       }
@@ -451,7 +475,7 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
         audioManager.playClick();
         const current = useUIStore.getState().fpsMode;
         useUIStore.getState().setFpsMode(!current);
-        setQualityNotification(current ? 'ORBIT VIEW' : 'FIRST-PERSON');
+        setQualityNotification(current ? msg('orbitView') : msg('firstPerson'));
         scheduleNotificationClear(1500);
         return;
       }
@@ -464,7 +488,7 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
         // from here instead of queueing a flight that plays on the next exit.
         if (useUIStore.getState().fpsMode) useUIStore.getState().setFpsMode(false);
         setCameraPreset(0); // Overview preset
-        setQualityNotification('RESET VIEW');
+        setQualityNotification(msg('resetView'));
         scheduleNotificationClear(1500);
         return;
       }

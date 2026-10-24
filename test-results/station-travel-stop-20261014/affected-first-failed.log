@@ -1,0 +1,49 @@
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+(node:47896) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:49168) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:55800) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:58389) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:60050) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ❯ src/components/scenery/StationTravelStop.test.ts (8 tests | 2 failed) 655ms
+     × stocks eighteen varied packets on three real decks without blocking the central aisle 29ms
+     × places the bench and mascot on grounded supports and the welcome print outside the actual wall 3ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/scenery/StationTravelStop.test.ts > Dead Dino destination travel stop > stocks eighteen varied packets on three real decks without blocking the central aisle
+AssertionError: expected 0.45500001311302185 to be close to 0.485, received difference is 0.029999986886978136, but expected 0.000005
+ ❯ src/components/scenery/StationTravelStop.test.ts:24:31
+     22|       expect([0.485, 0.885, 1.285]).toContain(y);
+     23|       const support = ray([x, y - 0.001, z], [0, -1, 0], 0.1).intersec…
+     24|       expect(support.point.y).toBeCloseTo(y, 5);
+       |                               ^
+     25|       expect(x + 0.07).toBeLessThan(-13.08);
+     26|       expect(z - 0.121).toBeGreaterThan(0.45);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/components/scenery/StationTravelStop.test.ts > Dead Dino destination travel stop > places the bench and mascot on grounded supports and the welcome print outside the actual wall
+AssertionError: expected 0.25999999046325684 to be close to 0.28, received difference is 0.02000000953674319, but expected 0.000005
+ ❯ src/components/scenery/StationTravelStop.test.ts:70:7
+     68|     expect(
+     69|       ray([-9.65, 0.279, 7.65], [0, -1, 0], 0.1).intersectObject(opaqu…
+     70|     ).toBeCloseTo(0.28, 5);
+       |       ^
+     71|     const welcome = ray([-10.79, 1.56, 6], [0, 0, -1], 1.1).intersectO…
+     72|     expect(welcome.point.z).toBeGreaterThan(5);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed | 3 passed (4)
+      Tests  2 failed | 50 passed (52)
+   Start at  22:53:23
+   Duration  54.17s (transform 4.34s, setup 1.21s, import 36.29s, tests 4.28s, environment 7.83s)
+

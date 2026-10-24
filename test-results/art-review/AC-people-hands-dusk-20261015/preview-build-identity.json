@@ -1,0 +1,14 @@
+{
+  "index": {
+    "url": "http://127.0.0.1:4288/",
+    "sha256": "3d43cba9268dacaf640676727c7a7c3d9c6b87c2dcff9ad3e2bd66daf5fde172",
+    "bytes": 9887
+  },
+  "entries": [
+    {
+      "url": "http://127.0.0.1:4288/assets/main-7uaxmcN7.js",
+      "sha256": "9f8095667d0d2e53e6eef792d95917b8b66d5f2f4279b3c563f87f9ca18da2cf",
+      "bytes": 823695
+    }
+  ]
+}

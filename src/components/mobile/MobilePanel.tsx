@@ -1,5 +1,4 @@
 import React from 'react';
-import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
@@ -29,20 +28,27 @@ import { ChroniclePanel } from '../chronicle/ChroniclePanel';
 import type { DockMode } from '../ui-new/dock/Dock';
 import { useProductionStore } from '../../stores/productionStore';
 import { useUIStore } from '../../stores/uiStore';
-import { useGameSimulationStore } from '../../stores/gameSimulationStore';
+import { selectChosenPace, useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useSafetyStore } from '../../stores/safetyStore';
 import { useOperationsCampaignStore } from '../../stores/operationsCampaignStore';
 import { SafetyPanel } from '../ui-new/panels/SafetyPanel';
 import { JevAdvisoryPanel } from '../ui/JevAdvisoryPanel';
 import { WorkplaceLab } from '../ui-new/widgets/WorkplaceLab';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
+import {
+  capitalizeIn,
+  formatFixed,
+  formatGrouped,
+  useLocale,
+  useT,
+  type Translator,
+} from '../../i18n';
+import { mobilePanelMessages } from './MobilePanel.messages';
+import { PACE_GAME_SPEEDS, STANDARD_GAME_SPEED } from '../../simulation/pace';
+import { paceMessages } from '../../simulation/pace.messages';
 
-const AISettingsModal = React.lazy(() =>
-  import('../GeminiSettingsModal').then((module) => ({ default: module.GeminiSettingsModal }))
-);
-
-import { OperationsPlayCard, ShiftDebrief } from '../ui-new/onboarding/PlayableShift';
-import { BatchGenealogySection } from '../ui-new/panels/OverviewPanel';
+import { OperationsPlayCard, PaceHoldNote, ShiftDebrief } from '../ui-new/onboarding/PlayableShift';
+import { BatchGenealogySection, MaintenanceSection } from '../ui-new/panels/OverviewPanel';
 
 interface MobilePanelProps {
   isVisible: boolean;
@@ -102,32 +108,80 @@ const getPanelIcon = (mode: DockMode) => {
   }
 };
 
+type PanelT = Translator<(typeof mobilePanelMessages)['en']>;
+
 // Get title for panel header
-const getPanelTitle = (mode: DockMode) => {
+const getPanelTitle = (mode: DockMode, t: PanelT) => {
   switch (mode) {
     case 'production':
-      return 'Production';
+      return t('titleProduction');
     case 'overview':
-      return 'Mill Overview';
+      return t('titleOverview');
     case 'ai':
-      return 'AI Partner';
+      return t('titleAi');
     case 'scada':
-      return 'Simulated SCADA';
+      return t('titleScada');
     case 'safety':
-      return 'Safety & Emergency';
+      return t('titleSafety');
     case 'settings':
-      return 'Settings';
+      return t('titleSettings');
     case 'management':
-      return 'Bilateral Autonomy';
+      return t('titleManagement');
     case 'chronicle':
-      return 'Mill Chronicle';
+      return t('titleChronicle');
     default:
-      return 'Panel';
+      return t('titlePanel');
   }
 };
 
+// Store enums rendered as copy; an unknown value falls back to its old raw form.
+const SHIFT_KEYS = {
+  morning: 'shiftMorning',
+  afternoon: 'shiftAfternoon',
+  night: 'shiftNight',
+} as const;
+
+const STAGE_KEYS = {
+  planning: 'stagePlanning',
+  milling: 'stageMilling',
+  quality_hold: 'stageQualityHold',
+  ready_to_load: 'stageReadyToLoad',
+  loading: 'stageLoading',
+  ready_to_dispatch: 'stageReadyToDispatch',
+  dispatched: 'stageDispatched',
+  fulfilled: 'stageFulfilled',
+} as const;
+
+const MATERIAL_KEYS = {
+  wheat_grain: 'materialWheatGrain',
+  corn_grain: 'materialCornGrain',
+  flour: 'materialFlour',
+  semolina: 'materialSemolina',
+} as const;
+
+const formatShift = (shift: string, t: PanelT) => {
+  const key = (SHIFT_KEYS as Record<string, (typeof SHIFT_KEYS)[keyof typeof SHIFT_KEYS]>)[shift];
+  return key ? t(key) : shift;
+};
+
+const formatStage = (stage: string, t: PanelT) => {
+  const key = (STAGE_KEYS as Record<string, (typeof STAGE_KEYS)[keyof typeof STAGE_KEYS]>)[stage];
+  return key ? t(key) : stage.replaceAll('_', ' ');
+};
+
+const formatMaterial = (material: string, t: PanelT) => {
+  const key = (MATERIAL_KEYS as Record<string, (typeof MATERIAL_KEYS)[keyof typeof MATERIAL_KEYS]>)[
+    material
+  ];
+  return key ? t(key) : material.replaceAll('_', ' ');
+};
+
 // Overview panel content - comprehensive version matching desktop
+const MOBILE_PACE_LABELS: Record<number, string> = { 15: '1/2x', 30: '1x', 60: '2x', 120: '4x' };
 const OverviewContent: React.FC = () => {
+  const t = useT(mobilePanelMessages);
+  const pace = useT(paceMessages);
+  const locale = useLocale();
   const metrics = useProductionStore((s) => s.metrics);
   const machines = useProductionStore((s) => s.machines);
   const totalBagsProduced = useProductionStore((s) => s.totalBagsProduced);
@@ -136,6 +190,8 @@ const OverviewContent: React.FC = () => {
   const gameTime = useGameSimulationStore((s) => s.gameTime);
   const currentShift = useGameSimulationStore((s) => s.currentShift);
   const gameSpeed = useGameSimulationStore((s) => s.gameSpeed);
+  // The same chosen pace and hold note as Shift pace (TeachingPace).
+  const chosenPace = useGameSimulationStore(selectChosenPace);
   const setGameSpeed = useGameSimulationStore((s) => s.setGameSpeed);
 
   const safetyMetrics = useSafetyStore((s) => s.safetyMetrics);
@@ -182,14 +238,16 @@ const OverviewContent: React.FC = () => {
         onClick={() => window.dispatchEvent(new Event('millos:open-layout-planner'))}
         className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-cyan-700 bg-cyan-950 px-3 py-2 text-sm text-cyan-100 hover:bg-cyan-900"
       >
-        <Route size={18} aria-hidden="true" /> Plan logistics
+        <Route size={18} aria-hidden="true" /> {t('planLogistics')}
       </button>
       <details className="rounded-xl border border-slate-700 p-3">
         <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold text-cyan-200">
-          Batch quality and traceability
+          {t('batchTraceability')}
         </summary>
         <BatchGenealogySection />
       </details>
+      {/* The repair next action lands here on a phone, as it does in Overview. */}
+      <MaintenanceSection />
       {/* Time & Speed Controls */}
       <div className="bg-slate-800/50 rounded-lg p-2">
         <div className="flex items-center justify-between mb-2">
@@ -198,81 +256,69 @@ const OverviewContent: React.FC = () => {
             <span className="text-lg font-mono font-bold text-white">
               {formatGameTime(gameTime)}
             </span>
-            <span className="text-[10px] text-slate-500 capitalize">{currentShift}</span>
+            <span className={`text-[10px] text-slate-400 ${capitalizeIn(locale)}`}>
+              {formatShift(currentShift, t)}
+            </span>
           </div>
           <span
             className={`text-[10px] font-bold ${gameSpeed === 0 ? 'text-red-400' : 'text-green-400'}`}
           >
-            {gameSpeed === 0 ? 'PAUSED' : `${Number((gameSpeed / 180).toFixed(1))}x`}
+            {gameSpeed === 0
+              ? t('paused')
+              : `${formatGrouped(Number((gameSpeed / STANDARD_GAME_SPEED).toFixed(1)), { useGrouping: false })}x`}
           </span>
         </div>
-        <div className="flex gap-1">
-          <button
-            onClick={() => setGameSpeed(0)}
-            aria-label="Pause simulation"
-            aria-pressed={gameSpeed === 0}
-            className={`flex-1 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 ${
-              gameSpeed === 0 ? 'bg-orange-700 text-white' : 'bg-slate-700 text-white/70'
-            }`}
-          >
-            <Pause className="w-3 h-3" aria-hidden="true" />
-          </button>
-          <button
-            onClick={() => setGameSpeed(180)}
-            aria-pressed={gameSpeed === 180}
-            className={`flex-1 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 ${
-              gameSpeed === 180 ? 'bg-orange-700 text-white' : 'bg-slate-700 text-white/70'
-            }`}
-          >
-            <Play className="w-3 h-3" aria-hidden="true" />
-            1x
-          </button>
-          <button
-            onClick={() => setGameSpeed(1800)}
-            aria-pressed={gameSpeed === 1800}
-            className={`flex-1 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 ${
-              gameSpeed === 1800 ? 'bg-orange-700 text-white' : 'bg-slate-700 text-white/70'
-            }`}
-          >
-            <FastForward className="w-3 h-3" aria-hidden="true" />
-            10x
-          </button>
-          <button
-            onClick={() => setGameSpeed(10800)}
-            aria-pressed={gameSpeed === 10800}
-            className={`flex-1 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 ${
-              gameSpeed === 10800 ? 'bg-orange-700 text-white' : 'bg-slate-700 text-white/70'
-            }`}
-          >
-            <FastForward className="w-3 h-3" aria-hidden="true" />
-            60x
-          </button>
+        {/* The same paces and words as Shift pace (src/simulation/pace.ts). */}
+        <div className="flex gap-1.5" role="group" aria-label={pace('paceTitle')}>
+          {PACE_GAME_SPEEDS.map((value) => (
+            <button
+              key={value}
+              onClick={() => setGameSpeed(value)}
+              aria-label={pace(`pace${value}`)}
+              aria-pressed={chosenPace === value}
+              className={`flex-1 min-w-0 min-h-11 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 ${
+                chosenPace === value ? 'bg-orange-700 text-white' : 'bg-slate-700 text-white/70'
+              }`}
+            >
+              {value === 0 ? (
+                <Pause className="w-3 h-3" aria-hidden="true" />
+              ) : value > STANDARD_GAME_SPEED ? (
+                <FastForward className="w-3 h-3" aria-hidden="true" />
+              ) : (
+                <Play className="w-3 h-3" aria-hidden="true" />
+              )}
+              {value > 0 && <span aria-hidden="true">{MOBILE_PACE_LABELS[value]}</span>}
+            </button>
+          ))}
         </div>
+        <PaceHoldNote />
       </div>
 
-      {/* Production Metrics - 2x2 grid */}
-      <div className="grid grid-cols-4 gap-1.5">
+      {/* Production Metrics - 2x2 grid. At the 10 px label floor, four to a
+          row leaves 64.5 px at 390 px and 'THROUGHPUT' needs 70.6 px; from
+          640 px four fit at 127 px each. */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
         <MiniMetric
-          label="Throughput"
-          value={metrics.throughput}
+          label={t('throughput')}
+          value={formatFixed(metrics.throughput, 0)}
           icon={<Package className="w-3 h-3" />}
           color="cyan"
         />
         <MiniMetric
-          label="Efficiency"
-          value={`${metrics.efficiency.toFixed(0)}%`}
+          label={t('efficiency')}
+          value={`${formatFixed(metrics.efficiency, 0)}%`}
           icon={<TrendingUp className="w-3 h-3" />}
           color="green"
         />
         <MiniMetric
-          label="Uptime"
-          value={`${metrics.uptime.toFixed(0)}%`}
+          label={t('uptime')}
+          value={`${formatFixed(metrics.uptime, 0)}%`}
           icon={<Gauge className="w-3 h-3" />}
           color="blue"
         />
         <MiniMetric
-          label="Quality"
-          value={`${metrics.quality.toFixed(0)}%`}
+          label={t('quality')}
+          value={`${formatFixed(metrics.quality, 0)}%`}
           icon={<CheckCircle className="w-3 h-3" />}
           color="purple"
         />
@@ -280,12 +326,14 @@ const OverviewContent: React.FC = () => {
 
       {/* Machine Status */}
       <div className="bg-slate-800/50 rounded-lg p-2">
-        <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1.5">Machines</div>
+        <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-1.5">
+          {t('machines')}
+        </div>
         <div className="grid grid-cols-4 gap-1">
-          <MachineStatusBadge label="Run" count={machineStats.running} color="green" />
-          <MachineStatusBadge label="Warn" count={machineStats.warning} color="yellow" />
-          <MachineStatusBadge label="Crit" count={machineStats.critical} color="red" />
-          <MachineStatusBadge label="Idle" count={machineStats.idle} color="slate" />
+          <MachineStatusBadge label={t('statusRun')} count={machineStats.running} color="green" />
+          <MachineStatusBadge label={t('statusWarn')} count={machineStats.warning} color="yellow" />
+          <MachineStatusBadge label={t('statusCrit')} count={machineStats.critical} color="red" />
+          <MachineStatusBadge label={t('statusIdle')} count={machineStats.idle} color="slate" />
         </div>
       </div>
 
@@ -295,8 +343,8 @@ const OverviewContent: React.FC = () => {
         {productionTarget && (
           <div className="bg-slate-800/50 rounded-lg p-2">
             <div className="flex justify-between text-[10px] mb-1">
-              <span className="text-slate-500">Daily Target</span>
-              <span className="text-cyan-400 font-mono">{targetProgress.toFixed(0)}%</span>
+              <span className="text-slate-400">{t('dailyTarget')}</span>
+              <span className="text-cyan-400 font-mono">{formatFixed(targetProgress, 0)}%</span>
             </div>
             <div className="w-full h-1.5 bg-slate-700 rounded-full">
               <div
@@ -304,8 +352,9 @@ const OverviewContent: React.FC = () => {
                 style={{ width: `${targetProgress}%` }}
               />
             </div>
-            <div className="text-[9px] text-slate-500 mt-1">
-              {productionTarget.producedBags}/{productionTarget.targetBags}
+            <div className="text-[10px] text-slate-400 mt-1">
+              {formatFixed(productionTarget.producedBags, 0)}/
+              {formatFixed(productionTarget.targetBags, 0)}
             </div>
           </div>
         )}
@@ -313,7 +362,7 @@ const OverviewContent: React.FC = () => {
         {/* Safety Score */}
         <div className="bg-slate-800/50 rounded-lg p-2">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] text-slate-500">Safety</span>
+            <span className="text-[10px] text-slate-400">{t('safety')}</span>
             <span
               className={`text-sm font-bold font-mono ${
                 safetyScore > 90
@@ -323,15 +372,21 @@ const OverviewContent: React.FC = () => {
                     : 'text-red-400'
               }`}
             >
-              {safetyScore}%
+              {formatFixed(safetyScore, 0)}%
             </span>
           </div>
-          <div className="grid grid-cols-2 gap-1 text-[9px]">
-            <div className="text-slate-500">
-              Misses: <span className="text-slate-300">{safetyMetrics?.nearMisses ?? 0}</span>
+          <div className="grid grid-cols-2 gap-1 text-[10px]">
+            <div className="text-slate-400">
+              {t('nearMisses')}{' '}
+              <span className="text-slate-300">
+                {formatFixed(safetyMetrics?.nearMisses ?? 0, 0)}
+              </span>
             </div>
-            <div className="text-slate-500">
-              Days: <span className="text-slate-300">{safetyMetrics?.daysSinceIncident ?? 0}</span>
+            <div className="text-slate-400">
+              {t('daysSinceIncident')}{' '}
+              <span className="text-slate-300">
+                {formatFixed(safetyMetrics?.daysSinceIncident ?? 0, 0)}
+              </span>
             </div>
           </div>
         </div>
@@ -341,57 +396,67 @@ const OverviewContent: React.FC = () => {
       <div className="rounded-lg border border-cyan-500/20 bg-cyan-950/20 p-2">
         <div className="flex items-center justify-between">
           <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-300">
-            Operations campaign
+            {t('operationsCampaign')}
           </span>
           <span className="font-mono text-[10px] text-slate-300">
-            {campaignOrders.filter((order) => order.status === 'fulfilled').length}/
-            {campaignOrders.length} orders
+            {t('ordersProgress', {
+              done: formatFixed(
+                campaignOrders.filter((order) => order.status === 'fulfilled').length,
+                0
+              ),
+              total: formatFixed(campaignOrders.length, 0),
+            })}
           </span>
         </div>
-        <div className="mt-1 grid grid-cols-2 gap-2 text-[9px]">
+        <div className="mt-1 grid grid-cols-2 gap-2 text-[10px]">
           <div className="text-slate-400">
-            Active incidents:{' '}
+            {t('activeIncidents')}{' '}
             <span className="font-semibold text-amber-300">
-              {campaignIncidents.filter((incident) => incident.phase !== 'resolved').length}
+              {formatFixed(
+                campaignIncidents.filter((incident) => incident.phase !== 'resolved').length,
+                0
+              )}
             </span>
           </div>
           <div className="text-slate-400">
-            Revenue:{' '}
+            {t('revenue')}{' '}
             <span className="font-semibold text-emerald-300">
-              £{campaignEconomics.revenue.toFixed(0)}
+              £{formatFixed(campaignEconomics.revenue, 0)}
             </span>
           </div>
         </div>
-        <div className="mt-1.5 rounded bg-slate-950/35 p-1.5 text-[9px]">
+        <div className="mt-1.5 rounded bg-slate-950/35 p-1.5 text-[10px]">
           <div className="flex items-center justify-between gap-2">
-            <span className="capitalize text-cyan-200">
-              {campaignExecution.stage.replaceAll('_', ' ')}
+            <span className={`${capitalizeIn(locale)} text-cyan-200`}>
+              {formatStage(campaignExecution.stage, t)}
             </span>
             <span className="font-mono text-slate-300">
-              {campaignExecution.lineSetpointPercent.toFixed(0)}% setpoint
+              {t('setpointPercent', {
+                value: formatFixed(campaignExecution.lineSetpointPercent, 0),
+              })}
             </span>
           </div>
           <div className="mt-1 flex items-center justify-between gap-2 text-slate-400">
             <span className="flex items-center gap-1">
-              <Truck className="h-3 w-3" aria-hidden="true" /> Outbound
+              <Truck className="h-3 w-3" aria-hidden="true" /> {t('outbound')}
             </span>
             <span className="font-mono">
-              {campaignExecution.dispatchLoad.loadedKg.toFixed(0)} /{' '}
-              {campaignExecution.dispatchLoad.capacityKg.toFixed(0)} kg
+              {formatFixed(campaignExecution.dispatchLoad.loadedKg, 0)} /{' '}
+              {formatFixed(campaignExecution.dispatchLoad.capacityKg, 0)} kg
             </span>
           </div>
         </div>
         {campaignConstraints[0] && (
-          <p className="mt-1.5 text-[9px] text-amber-100">
+          <p className="mt-1.5 text-[10px] text-amber-100">
             {campaignConstraints[0].label}: {campaignConstraints[0].detail}
           </p>
         )}
       </div>
 
       <div className="text-center py-2 bg-gradient-to-r from-cyan-900/20 to-blue-900/20 rounded-lg border border-cyan-500/20">
-        <div className="text-[10px] text-slate-500">Total Bags</div>
+        <div className="text-[10px] text-slate-400">{t('totalBags')}</div>
         <div className="text-xl font-bold font-mono text-cyan-400">
-          {totalBagsProduced.toLocaleString()}
+          {formatGrouped(totalBagsProduced)}
         </div>
       </div>
     </div>
@@ -416,7 +481,7 @@ const MiniMetric: React.FC<{
     <div className="bg-slate-800/50 rounded p-1.5 text-center">
       <div className={`${colorClasses[color]} flex justify-center mb-0.5`}>{icon}</div>
       <div className={`text-sm font-bold font-mono ${colorClasses[color]}`}>{value}</div>
-      <div className="text-[8px] text-slate-500 uppercase">{label}</div>
+      <div className="break-words text-[10px] leading-tight text-slate-400 uppercase">{label}</div>
     </div>
   );
 };
@@ -436,14 +501,15 @@ const MachineStatusBadge: React.FC<{ label: string; count: number; color: string
 
   return (
     <div className={`${colorClasses[color]} rounded py-1 text-center`}>
-      <div className="text-sm font-bold">{count}</div>
-      <div className="text-[8px] uppercase">{label}</div>
+      <div className="text-sm font-bold">{formatFixed(count, 0)}</div>
+      <div className="break-words text-[10px] leading-tight uppercase">{label}</div>
     </div>
   );
 };
 
 // Settings panel content
 const SettingsContent: React.FC = () => {
+  const t = useT(mobilePanelMessages);
   const showZones = useUIStore((s) => s.showZones);
   const setShowZones = useUIStore((s) => s.setShowZones);
 
@@ -453,13 +519,13 @@ const SettingsContent: React.FC = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Shield className="w-5 h-5 text-cyan-400" />
-            <span className="text-sm">Safety Zones</span>
+            <span className="text-sm">{t('safetyZones')}</span>
           </div>
           <button
             onClick={() => setShowZones(!showZones)}
             role="switch"
             aria-checked={showZones}
-            aria-label="Safety Zones"
+            aria-label={t('safetyZones')}
             className={`w-12 h-6 rounded-full transition-colors ${
               showZones ? 'bg-cyan-600' : 'bg-slate-600'
             }`}
@@ -478,19 +544,10 @@ const SettingsContent: React.FC = () => {
 
 // AI Partner panel content
 const AIContent: React.FC = () => {
+  const t = useT(mobilePanelMessages);
   const aiDecisions = useProductionStore((s) => s.aiDecisions);
   const latestAlert = useUIStore((s) => s.alerts[0]);
   const [activeTab, setActiveTab] = React.useState<'decisions' | 'advisory'>('decisions');
-  const [showAISettings, setShowAISettings] = React.useState(
-    () =>
-      typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('chatgpt')
-  );
-  React.useEffect(() => {
-    if (!showAISettings || !new URLSearchParams(window.location.search).has('chatgpt')) return;
-    const url = new URL(window.location.href);
-    url.searchParams.delete('chatgpt');
-    window.history.replaceState(window.history.state, '', url.href);
-  }, [showAISettings]);
   const recentDecisions = aiDecisions.slice(0, 5);
 
   const getStatusIcon = (status: string) => {
@@ -508,13 +565,7 @@ const AIContent: React.FC = () => {
 
   return (
     <div className="space-y-3">
-      <button
-        onClick={() => setShowAISettings(true)}
-        className="w-full min-h-10 flex items-center justify-center gap-2 rounded-lg border border-slate-600 bg-slate-800 text-sm text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
-      >
-        <Settings className="w-4 h-4" aria-hidden="true" /> AI settings
-      </button>
-      <div role="tablist" aria-label="AI Partner views" className="flex gap-2">
+      <div role="tablist" aria-label={t('aiViews')} className="flex gap-2">
         {(['decisions', 'advisory'] as const).map((tab) => (
           <button
             key={tab}
@@ -527,7 +578,7 @@ const AIContent: React.FC = () => {
               activeTab === tab ? 'bg-cyan-500/20 text-cyan-300' : 'bg-slate-800 text-slate-300'
             }`}
           >
-            {tab === 'decisions' ? 'Decisions' : 'Advisory'}
+            {tab === 'decisions' ? t('tabDecisions') : t('tabAdvisory')}
           </button>
         ))}
       </div>
@@ -545,10 +596,10 @@ const AIContent: React.FC = () => {
           <>
             <div className="flex items-center gap-2 text-xs text-slate-400">
               <Brain className="w-4 h-4" />
-              <span>Recent AI Decisions</span>
+              <span>{t('recentDecisions')}</span>
             </div>
             {recentDecisions.length === 0 ? (
-              <div className="text-center py-4 text-slate-500 text-sm">No AI decisions yet</div>
+              <div className="text-center py-4 text-slate-400 text-sm">{t('noDecisions')}</div>
             ) : (
               <div className="space-y-2">
                 {recentDecisions.map((decision) => (
@@ -570,13 +621,6 @@ const AIContent: React.FC = () => {
           </>
         )}
       </div>
-      {showAISettings &&
-        createPortal(
-          <React.Suspense fallback={null}>
-            <AISettingsModal isOpen={true} onClose={() => setShowAISettings(false)} />
-          </React.Suspense>,
-          document.body
-        )}
     </div>
   );
 };
@@ -603,6 +647,8 @@ const MetricCard: React.FC<{
 
 // Simulated SCADA panel content
 const SCADAContent: React.FC = () => {
+  const t = useT(mobilePanelMessages);
+  const locale = useLocale();
   const metrics = useProductionStore((s) => s.metrics);
   const scadaLive = useProductionStore((s) => s.scadaLive);
   const campaignExecution = useOperationsCampaignStore((s) => s.execution);
@@ -613,70 +659,78 @@ const SCADAContent: React.FC = () => {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-xs text-slate-400">
           <Activity className="w-4 h-4" />
-          <span>System Metrics</span>
+          <span>{t('systemMetrics')}</span>
         </div>
         <div
-          className={`flex items-center gap-1 text-xs ${scadaLive ? 'text-green-400' : 'text-slate-500'}`}
+          className={`flex items-center gap-1 text-xs ${scadaLive ? 'text-green-400' : 'text-slate-400'}`}
         >
           {scadaLive ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
-          <span>{scadaLive ? 'Telemetry on' : 'Telemetry off'}</span>
+          <span>{scadaLive ? t('telemetryOn') : t('telemetryOff')}</span>
         </div>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <MetricCard
-          label="Throughput"
-          value={metrics.throughput}
-          unit="bags/hr"
+          label={t('throughput')}
+          value={formatFixed(metrics.throughput, 0)}
+          unit={t('bagsPerHrUnit')}
           icon={<Zap className="w-3 h-3" />}
         />
         <MetricCard
-          label="Efficiency"
-          value={metrics.efficiency.toFixed(1)}
+          label={t('efficiency')}
+          value={formatFixed(metrics.efficiency, 1)}
           unit="%"
           icon={<TrendingUp className="w-3 h-3" />}
         />
         <MetricCard
-          label="Uptime"
-          value={metrics.uptime.toFixed(1)}
+          label={t('uptime')}
+          value={formatFixed(metrics.uptime, 1)}
           unit="%"
           icon={<Gauge className="w-3 h-3" />}
         />
         <MetricCard
-          label="Quality"
-          value={metrics.quality.toFixed(1)}
+          label={t('quality')}
+          value={formatFixed(metrics.quality, 1)}
           unit="%"
           icon={<CheckCircle className="w-3 h-3" />}
         />
       </div>
       <div className="rounded-lg border border-cyan-500/20 bg-cyan-950/15 p-2">
         <div className="flex items-center justify-between text-[10px]">
-          <span className="uppercase text-slate-400">Execution route</span>
-          <span className="capitalize text-cyan-200">
-            {campaignExecution.stage.replaceAll('_', ' ')}
+          <span className="uppercase text-slate-400">{t('executionRoute')}</span>
+          <span className={`${capitalizeIn(locale)} text-cyan-200`}>
+            {formatStage(campaignExecution.stage, t)}
           </span>
         </div>
         <div className="mt-1 text-xs font-semibold text-white">
-          {campaignExecution.sourceMaterial?.replaceAll('_', ' ') ?? 'No source'} to{' '}
-          {campaignExecution.finishedMaterial?.replaceAll('_', ' ') ?? 'no product'}
+          {t('route', {
+            source: campaignExecution.sourceMaterial
+              ? formatMaterial(campaignExecution.sourceMaterial, t)
+              : t('noSource'),
+            product: campaignExecution.finishedMaterial
+              ? formatMaterial(campaignExecution.finishedMaterial, t)
+              : t('noProduct'),
+          })}
         </div>
         <div className="mt-1 text-[10px] text-slate-400">
-          QC {campaignExecution.qualityReleased ? 'released' : 'held'},{' '}
-          {campaignExecution.releasedFinishedKg.toFixed(0)} kg available
+          {t('qcStatus', {
+            released: Boolean(campaignExecution.qualityReleased),
+            kg: formatFixed(campaignExecution.releasedFinishedKg, 0),
+          })}
         </div>
       </div>
       <div>
         <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">
-          Utility vessels
+          {t('utilityVessels')}
         </div>
         <div className="grid grid-cols-2 gap-1.5">
           {utilityAssets.map((asset) => (
             <div key={asset.id} className="rounded bg-slate-800/50 p-2">
-              <div className="truncate text-[9px] font-semibold text-slate-200">{asset.label}</div>
+              <div className="truncate text-[10px] font-semibold text-slate-200">{asset.label}</div>
               <div className="mt-0.5 font-mono text-xs text-cyan-300">
-                {asset.levelPercent.toFixed(1)}%
+                {formatFixed(asset.levelPercent, 1)}%
               </div>
-              <div className="font-mono text-[9px] text-slate-500">
-                {asset.temperatureC.toFixed(1)} °C · {asset.pressureBar.toFixed(2)} bar
+              <div className="font-mono text-[10px] text-slate-400">
+                {formatFixed(asset.temperatureC, 1)} °C · {formatFixed(asset.pressureBar, 2)} bar
               </div>
             </div>
           ))}
@@ -688,6 +742,7 @@ const SCADAContent: React.FC = () => {
 
 // Autonomous plant status for compact layouts
 const ManagementContent: React.FC = () => {
+  const t = useT(mobilePanelMessages);
   const machines = useProductionStore((state) => state.machines);
   const metrics = useProductionStore((state) => state.metrics);
   const incidents = useOperationsCampaignStore((state) => state.incidents);
@@ -701,18 +756,22 @@ const ManagementContent: React.FC = () => {
       <div className="flex items-center justify-between rounded-lg bg-slate-800/50 p-3">
         <div className="flex items-center gap-2">
           <Heart className="h-5 w-5 text-cyan-400" />
-          <span className="text-sm font-medium text-white">Autonomous readiness</span>
+          <span className="text-sm font-medium text-white">{t('autonomousReadiness')}</span>
         </div>
-        <span className="font-mono text-lg font-bold text-cyan-400">{readiness}%</span>
+        <span className="font-mono text-lg font-bold text-cyan-400">
+          {formatFixed(readiness, 0)}%
+        </span>
       </div>
       <div className="grid grid-cols-3 gap-2">
         <div className="rounded bg-slate-800/50 p-2 text-center">
-          <div className="text-sm font-bold text-emerald-400">{activeAssets}</div>
-          <div className="text-[9px] text-slate-500">Active assets</div>
+          <div className="text-sm font-bold text-emerald-400">{formatFixed(activeAssets, 0)}</div>
+          <div className="text-[10px] text-slate-400">{t('activeAssets')}</div>
         </div>
         <div className="rounded bg-slate-800/50 p-2 text-center">
-          <div className="text-sm font-bold text-cyan-400">{metrics.throughput}</div>
-          <div className="text-[9px] text-slate-500">Bags per hour</div>
+          <div className="text-sm font-bold text-cyan-400">
+            {formatFixed(metrics.throughput, 0)}
+          </div>
+          <div className="text-[10px] text-slate-400">{t('bagsPerHour')}</div>
         </div>
         <div className="rounded bg-slate-800/50 p-2 text-center">
           <div
@@ -722,14 +781,12 @@ const ManagementContent: React.FC = () => {
                 : 'text-sm font-bold text-emerald-400'
             }
           >
-            {openIncidents}
+            {formatFixed(openIncidents, 0)}
           </div>
-          <div className="text-[9px] text-slate-500">Open incidents</div>
+          <div className="text-[10px] text-slate-400">{t('openIncidents')}</div>
         </div>
       </div>
-      <div className="text-center text-[10px] text-slate-500">
-        Process, logistics, safety, and dispatch remain under closed-loop control.
-      </div>
+      <div className="text-center text-[10px] text-slate-400">{t('closedLoopNote')}</div>
     </div>
   );
 };
@@ -764,6 +821,7 @@ export const MobilePanel: React.FC<MobilePanelProps> = ({ isVisible, content, on
   const panelRef = React.useRef<HTMLElement>(null);
   const closeButtonRef = React.useRef<HTMLButtonElement>(null);
   const reducedMotion = useReducedMotion();
+  const t = useT(mobilePanelMessages);
 
   // Modal behavior: Escape to dismiss, move focus into the panel on open,
   // and restore focus to the previously-focused element on close.
@@ -821,7 +879,16 @@ export const MobilePanel: React.FC<MobilePanelProps> = ({ isVisible, content, on
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
-      previouslyFocused?.focus?.();
+      // Take over unmounts itself as it opens this sheet, so the control that
+      // opened it can be gone (or focus was already on <body>). Land on this
+      // sheet's dock item, else Overview, rather than at the top of the page.
+      // Working if Tab continues from the dock after Take over's sheet closes.
+      const opener =
+        previouslyFocused && previouslyFocused !== document.body && previouslyFocused.isConnected
+          ? previouslyFocused
+          : (document.querySelector<HTMLElement>(`[data-dock-mode="${content}"]`) ??
+            document.querySelector<HTMLElement>('[data-dock-mode="overview"]'));
+      opener?.focus?.();
     };
   }, [isVisible, content, onClose]);
 
@@ -855,7 +922,7 @@ export const MobilePanel: React.FC<MobilePanelProps> = ({ isVisible, content, on
                     ? '70vh'
                     : '33vh',
             }}
-            aria-label={`${getPanelTitle(content)} mobile panel`}
+            aria-label={t('panelAriaLabel', { title: getPanelTitle(content, t) })}
             role="dialog"
             aria-modal="true"
           >
@@ -866,13 +933,13 @@ export const MobilePanel: React.FC<MobilePanelProps> = ({ isVisible, content, on
               <div className="flex shrink-0 items-center justify-between px-4 py-3 border-b border-slate-700/50">
                 <div className="flex items-center gap-2 text-slate-200">
                   {getPanelIcon(content)}
-                  <span className="font-medium">{getPanelTitle(content)}</span>
+                  <span className="font-medium">{getPanelTitle(content, t)}</span>
                 </div>
                 <button
                   ref={closeButtonRef}
                   onClick={onClose}
-                  className="p-2 rounded-lg hover:bg-slate-700/50 transition-colors"
-                  aria-label="Close panel"
+                  className="flex min-h-11 min-w-11 items-center justify-center rounded-lg hover:bg-slate-700/50 transition-colors"
+                  aria-label={t('closePanel')}
                 >
                   <X className="w-5 h-5 text-slate-400" />
                 </button>

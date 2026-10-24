@@ -1,0 +1,87 @@
+[
+  {
+    "label": "day",
+    "scene": "farm",
+    "servedBuildMatches": true,
+    "sandboxedMetal": true,
+    "cleanDiagnostics": true,
+    "worldCommunityCheckpoints": true,
+    "generalVehicleMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "timingMisses": [
+      "firstFrame",
+      "averageFps",
+      "p95Frame",
+      "p99Frame",
+      "onePercentLow"
+    ],
+    "loadPerCore": 3.91,
+    "p95FrameMs": 36,
+    "startupMarks": {
+      "millos:bootstrap": 222.1,
+      "millos:first-frame": 361.7,
+      "millos:world-ready": 37272.7,
+      "millos:startup-ready": 45376.4
+    },
+    "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AE-farm-grounding-day-20261015/farm.png"
+  },
+  {
+    "label": "dusk",
+    "scene": "farm",
+    "servedBuildMatches": true,
+    "sandboxedMetal": true,
+    "cleanDiagnostics": true,
+    "worldCommunityCheckpoints": true,
+    "generalVehicleMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "timingMisses": [
+      "averageFps",
+      "p95Frame",
+      "p99Frame",
+      "onePercentLow"
+    ],
+    "loadPerCore": 5.22,
+    "p95FrameMs": 39.3,
+    "startupMarks": {
+      "millos:bootstrap": 243.3,
+      "millos:first-frame": 324.5,
+      "millos:world-ready": 31381,
+      "millos:startup-ready": 44580.8
+    },
+    "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AE-farm-grounding-dusk-20261015/farm.png"
+  },
+  {
+    "label": "night",
+    "scene": "farm",
+    "servedBuildMatches": true,
+    "sandboxedMetal": true,
+    "cleanDiagnostics": true,
+    "worldCommunityCheckpoints": true,
+    "generalVehicleMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "timingMisses": [
+      "averageFps",
+      "p95Frame",
+      "p99Frame",
+      "onePercentLow"
+    ],
+    "loadPerCore": 4.62,
+    "p95FrameMs": 31.8,
+    "startupMarks": {
+      "millos:bootstrap": 192.4,
+      "millos:first-frame": 274.4,
+      "millos:world-ready": 26753.5,
+      "millos:startup-ready": 33889.6
+    },
+    "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AE-farm-grounding-night-20261015/farm.png"
+  }
+]

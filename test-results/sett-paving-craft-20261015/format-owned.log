@@ -1,0 +1,7 @@
+src/textures/cobblestone.ts 252ms
+src/textures/cacheIdentity.test.ts 27ms
+src/utils/sharedMaterials.ts 83ms (unchanged)
+src/components/FarmArea.tsx 338ms (unchanged)
+src/components/VillageArea.tsx 296ms (unchanged)
+src/textures/cacheIdentity.test.ts 93ms
+src/utils/sharedMaterials.test.ts 36ms

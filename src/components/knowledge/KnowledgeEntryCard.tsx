@@ -38,6 +38,8 @@ import {
   getCategoryLabel,
   useKnowledgeStore,
 } from '../../stores/knowledgeStore';
+import { useT } from '../../i18n';
+import { knowledgeEntryCardMessages } from './KnowledgeEntryCard.messages';
 
 // Icon mapping from KnowledgeIcon to Lucide component
 const ICON_MAP: Record<KnowledgeIcon, LucideIcon> = {
@@ -78,6 +80,7 @@ interface KnowledgeEntryCardProps {
 }
 
 export function KnowledgeEntryCard({ entry, onClose, onNavigate }: KnowledgeEntryCardProps) {
+  const t = useT(knowledgeEntryCardMessages);
   const { getEntry, isUnlocked } = useKnowledgeStore();
 
   // Convert markdown-like formatting to JSX
@@ -280,7 +283,7 @@ export function KnowledgeEntryCard({ entry, onClose, onNavigate }: KnowledgeEntr
           className="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors mb-3"
         >
           <ArrowLeft className="w-4 h-4" />
-          Back to list
+          {t('backToList')}
         </button>
         <div className="flex items-start gap-4">
           <KnowledgeIconComponent icon={entry.icon} className="w-10 h-10 text-amber-400" />
@@ -299,13 +302,13 @@ export function KnowledgeEntryCard({ entry, onClose, onNavigate }: KnowledgeEntr
           <div className="mb-6 pl-4 border-l-2 border-amber-500/50">
             <Quote className="w-5 h-5 text-amber-500/50 mb-2" />
             <p className="text-lg text-slate-200 italic mb-1">"{entry.quote.text}"</p>
-            <p className="text-sm text-slate-500">— {entry.quote.author}</p>
+            <p className="text-sm text-slate-400">— {entry.quote.author}</p>
           </div>
         )}
 
         {/* Brief / Summary */}
         <div className="mb-6 p-4 bg-slate-800/50 rounded-lg border border-slate-700">
-          <h4 className="text-xs text-slate-500 uppercase tracking-wide mb-2">In Brief</h4>
+          <h4 className="text-xs text-slate-500 uppercase tracking-wide mb-2">{t('inBrief')}</h4>
           <p className="text-slate-300 leading-relaxed">{entry.brief}</p>
         </div>
 
@@ -319,7 +322,7 @@ export function KnowledgeEntryCard({ entry, onClose, onNavigate }: KnowledgeEntr
           <div className="mt-6 pt-6 border-t border-slate-700">
             <h4 className="flex items-center gap-2 text-sm font-medium text-slate-400 mb-3">
               <Eye className="w-4 h-4" aria-hidden="true" />
-              Where to see it
+              {t('whereToSeeIt')}
             </h4>
             <ul className="flex flex-wrap gap-2">
               {entry.seeInAction.map((place) => (
@@ -339,7 +342,7 @@ export function KnowledgeEntryCard({ entry, onClose, onNavigate }: KnowledgeEntr
           <div className="mt-6 pt-6 border-t border-slate-700">
             <h4 className="flex items-center gap-2 text-sm font-medium text-slate-400 mb-3">
               <Link2 className="w-4 h-4" />
-              Related Topics
+              {t('relatedTopics')}
             </h4>
             <div className="flex flex-wrap gap-2">
               {relatedEntries.map((related) => (

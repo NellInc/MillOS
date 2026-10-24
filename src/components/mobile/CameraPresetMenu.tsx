@@ -2,6 +2,9 @@ import React, { useState, useCallback, useEffect, useRef, useId } from 'react';
 import { Camera, X, Eye, Factory, Wheat, Filter, Package, Truck, Warehouse } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCameraStore, CAMERA_PRESETS } from '../CameraController';
+import { useT } from '../../i18n';
+import { cameraPresetMenuMessages } from './CameraPresetMenu.messages';
+import { cameraControllerMessages } from '../CameraController.messages';
 
 // Icons for each preset (matching their purpose)
 const PRESET_ICONS = [
@@ -19,6 +22,8 @@ const PRESET_ICONS = [
  * Shows a small camera button that expands to show preset options.
  */
 export const CameraPresetMenu: React.FC = () => {
+  const t = useT(cameraPresetMenuMessages);
+  const tPreset = useT(cameraControllerMessages);
   const [isOpen, setIsOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuId = useId();
@@ -100,7 +105,7 @@ export const CameraPresetMenu: React.FC = () => {
           }
           border-2
         `}
-        aria-label={isOpen ? 'Close camera menu' : 'Open camera menu'}
+        aria-label={isOpen ? t('closeMenu') : t('openMenu')}
         aria-expanded={isOpen}
         aria-controls={isOpen ? menuId : undefined}
       >
@@ -121,7 +126,7 @@ export const CameraPresetMenu: React.FC = () => {
             transition={{ duration: 0.15 }}
             id={menuId}
             role="group"
-            aria-label="Camera views"
+            aria-label={t('viewsGroup')}
             style={{
               // Preserve both the top trigger and bottom navigation in short
               // landscape viewports; the options scroll within this envelope.
@@ -133,7 +138,7 @@ export const CameraPresetMenu: React.FC = () => {
             {/* Header */}
             <div className="shrink-0 px-3 py-2 border-b border-slate-700/50">
               <span className="text-[10px] text-slate-400 uppercase tracking-wider">
-                Camera View
+                {t('header')}
               </span>
             </div>
 
@@ -161,7 +166,9 @@ export const CameraPresetMenu: React.FC = () => {
                   >
                     <Icon className="w-4 h-4 flex-shrink-0" />
                     <div className="flex-1 text-left">
-                      <div className="text-xs font-medium">{preset.name}</div>
+                      <div className="text-xs font-medium">
+                        {tPreset('presetName', { name: preset.name })}
+                      </div>
                     </div>
                   </button>
                 );

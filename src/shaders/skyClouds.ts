@@ -282,6 +282,15 @@ uniform sampler2D uCloudAtlas;
 uniform float uCloudAtlasReady;
 
 vec4 millosCumulusBanks( vec3 dir, float amount, vec3 sunDir, vec3 sunTint ) {
+  // Derivatives precede every direction-dependent return. Different atlas cells
+  // must not become a gigantic mip footprint at fract()/tile/azimuth seams.
+  // Working if minified cloud cutouts keep their alpha without rectangular cards.
+  vec3 directionDx = dFdx( dir );
+  vec3 directionDy = dFdy( dir );
+  float radialSquared = max( dot( dir.xz, dir.xz ), 0.00001 );
+  float longitudeScale = 28.0 / ( 6.28318530718 * radialSquared );
+  vec2 gridDx = vec2( ( dir.x * directionDx.z - dir.z * directionDx.x ) * longitudeScale, directionDx.y * 6.5 );
+  vec2 gridDy = vec2( ( dir.x * directionDy.z - dir.z * directionDy.x ) * longitudeScale, directionDy.y * 6.5 );
   if ( uCloudAtlasReady < 0.5 || dir.y < -0.02 || dir.y > 0.90 ) return vec4( 0.0 );
   // Integer repeat count and wrapped cell seeds close the azimuth branch cut.
   float longitude = atan( dir.z, dir.x ) / 6.28318530718;
@@ -296,9 +305,11 @@ vec4 millosCumulusBanks( vec3 dir, float amount, vec3 sunDir, vec3 sunTint ) {
   float size = 1.2 + fract( seed * 13.21 ) * 0.65;
   vec2 local = ( fract( grid ) - 0.5 ) * size + 0.5;
   local.y += ( fract( seed * 23.17 ) - 0.5 ) * 0.20;
-  local.x = mix( local.x, 1.0 - local.x, step( 0.5, fract( seed * 17.13 ) ) );
+  float mirror = step( 0.5, fract( seed * 17.13 ) );
+  local.x = mix( local.x, 1.0 - local.x, mirror );
   float bounds = step( 0.0, local.x ) * step( local.x, 1.0 ) * step( 0.0, local.y ) * step( local.y, 1.0 );
-  vec4 cloud = texture2D( uCloudAtlas, ( tile + clamp( local, 0.002, 0.998 ) ) * 0.5 );
+  vec2 atlasScale = vec2( 1.0 - 2.0 * mirror, 1.0 ) * size * 0.5;
+  vec4 cloud = textureGrad( uCloudAtlas, ( tile + clamp( local, 0.002, 0.998 ) ) * 0.5, gridDx * atlasScale, gridDy * atlasScale );
   float coverageWeight = smoothstep( seed - 0.10, seed + 0.10, 0.12 + amount * 0.9 );
   float alpha = cloud.a * bounds * coverageWeight * smoothstep( -0.02, 0.045, dir.y ) * ( 1.0 - smoothstep( 0.62, 0.90, dir.y ) ) * uCloudAtlasReady;
   alpha *= mix( 0.55, 1.0, smoothstep( 0.04, 0.25, dir.y ) );

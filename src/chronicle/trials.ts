@@ -95,6 +95,7 @@ export function emptyTrialProgress(id: TrialId): TrialProgress {
     qualityFailureKg: 0,
     energyCost: 0,
     gradePoints: 0,
+    gradedShifts: 0,
     cleanCloses: 0,
     medal: null,
     pressureShown: false,
@@ -114,7 +115,8 @@ export interface TrialShiftEvidence {
   dispatchedKg: number;
   qualityFailureKg: number;
   energyCost: number;
-  grade: 'A' | 'B' | 'C' | 'D' | 'F';
+  /** Null for an idle window, which says nothing about the grade. */
+  grade: 'A' | 'B' | 'C' | 'D' | 'F' | null;
   qcPassedThisShift: boolean;
   unresolvedHighIncident: boolean;
 }
@@ -138,6 +140,10 @@ export function nextMedalTarget(
   return null;
 }
 
+function gradedShiftsOf(progress: TrialProgress): number {
+  return progress.gradedShifts ?? progress.shiftsUsed;
+}
+
 /** Advance an active trial by one closed shift. Pure. */
 export function advanceTrial(
   definition: TrialDefinition,
@@ -151,7 +157,8 @@ export function advanceTrial(
     dispatchedKg: progress.dispatchedKg + Math.max(0, evidence.dispatchedKg),
     qualityFailureKg: progress.qualityFailureKg + Math.max(0, evidence.qualityFailureKg),
     energyCost: progress.energyCost + Math.max(0, evidence.energyCost),
-    gradePoints: progress.gradePoints + GRADE_POINTS[evidence.grade],
+    gradePoints: progress.gradePoints + (evidence.grade ? GRADE_POINTS[evidence.grade] : 0),
+    gradedShifts: gradedShiftsOf(progress) + (evidence.grade ? 1 : 0),
   };
   const goal = definition.goal;
   let complete = false;
@@ -173,9 +180,11 @@ export function advanceTrial(
     const energyOk =
       goal.maxEnergyPerKg === undefined ||
       (next.dispatchedKg > 0 && next.energyCost / next.dispatchedKg <= goal.maxEnergyPerKg);
+    const graded = gradedShiftsOf(next);
     const gradeOk =
       goal.minAverageGrade === undefined ||
-      next.gradePoints / next.shiftsUsed >= GRADE_POINTS[goal.minAverageGrade];
+      graded === 0 ||
+      next.gradePoints / graded >= GRADE_POINTS[goal.minAverageGrade];
     complete = next.dispatchedKg >= goal.kg && energyOk && gradeOk;
   }
   if (complete) return { ...next, phase: 'passed', medal: medalFor(definition, next.shiftsUsed) };
@@ -196,9 +205,10 @@ export function trialShortfall(definition: TrialDefinition, progress: TrialProgr
     parts.push(
       `Energy ${(progress.energyCost / progress.dispatchedKg).toFixed(3)} per kg against ${goal.maxEnergyPerKg}.`
     );
-  if (goal.minAverageGrade !== undefined && progress.shiftsUsed > 0)
+  const graded = gradedShiftsOf(progress);
+  if (goal.minAverageGrade !== undefined && graded > 0)
     parts.push(
-      `Average grade points ${(progress.gradePoints / progress.shiftsUsed).toFixed(1)} against ${GRADE_POINTS[goal.minAverageGrade]}.`
+      `Average grade points ${(progress.gradePoints / graded).toFixed(1)} against ${GRADE_POINTS[goal.minAverageGrade]}.`
     );
   return parts.join(' ');
 }

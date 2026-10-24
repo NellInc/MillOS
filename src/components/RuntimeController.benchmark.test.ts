@@ -341,3 +341,27 @@ describe('actual native benchmark motion measurements', () => {
     );
   });
 });
+
+it('honours longer settle observations at the actual animation-ready first reveal', () => {
+  const runScene = source.statements.find(
+    (node) => ts.isFunctionDeclaration(node) && node.name?.text === 'runScene'
+  );
+  expect(runScene).toBeDefined();
+  let firstReveal: ts.CallExpression | undefined;
+  const visit = (node: ts.Node) => {
+    if (
+      ts.isCallExpression(node) &&
+      node.expression.getText(source) === 'waitForRuntimeStage' &&
+      node.arguments[1]?.getText(source).includes('Complete, animation-ready first reveal')
+    )
+      firstReveal = node;
+    ts.forEachChild(node, visit);
+  };
+  visit(runScene!);
+  expect(firstReveal).toBeDefined();
+  const timeout = new Function('options', `return ${firstReveal!.arguments[3].getText(source)};`);
+  expect(timeout({ settleTimeoutSeconds: 30 })).toBe(120000);
+  expect(timeout({ settleTimeoutSeconds: 60 })).toBe(120000);
+  expect(timeout({ settleTimeoutSeconds: 240 })).toBe(240000);
+  expect(timeout({ settleTimeoutSeconds: 600 })).toBe(600000);
+});

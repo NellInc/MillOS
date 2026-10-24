@@ -1,0 +1,16 @@
+
+> grain-mill-simulator@0.40.0 capture:art
+> node scripts/capture-art-review.mjs --label=AC-people-hands-final-dusk-20261015 --scenes=square --quality=medium --time=17.2 --duration=1 --warmup=1 --settle-timeout=240 --port=4288 --skip-build
+
+WARNING: --skip-build. Frames may show a bundle older than the working tree.
+Capturing 1 scenes at medium...
+square: 60.0 FPS, 1% low 54.4 FPS, p95 17.2 ms, p99 18.3 ms, 175 calls, DPR 1.20, world continuous, motion valid, FAIL
+  square: machine load 40.19 across 10 cores (4.02 per core). Frame timings from this run measure contention as much as the scene; re-run on a quiet machine before treating them as a verdict.
+Report: /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AC-people-hands-final-dusk-20261015/benchmark.json
+
+Frames:        test-results/art-review/AC-people-hands-final-dusk-20261015
+Contact sheet: test-results/art-review/AC-people-hands-final-dusk-20261015/contact-sheet.png
+Manifest:      test-results/art-review/AC-people-hands-final-dusk-20261015/review-manifest.json
+CAVEAT: Working tree was dirty (8 files). These frames show uncommitted work, not commit 770df6d. Do not use as a baseline for a later comparison.
+CAVEAT: Captured with --skip-build; dist/ may predate the tree.
+CAVEAT: No performance gate was run. Art mode unpins reduced motion and restores full fidelity, so its frame samples are indicative only. A visual verdict from this capture is not shippable until a non-art budget run passes on the same commit.

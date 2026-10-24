@@ -12,7 +12,8 @@ describe('UnifiedGameTick bag cadence', () => {
   });
 
   it('keeps the headline throughput on the same mass-flow authority', () => {
-    expect(calculatePackerThroughputBagsPerHour(60)).toBe(8640);
+    // Bags per GAME hour: 60 kg per plant second x 120 plant s per game hour / 25 kg.
+    expect(calculatePackerThroughputBagsPerHour(60)).toBe(288);
     expect(calculateBagsProducedForTick(0.5, 0)).toBe(0);
   });
 

@@ -1,15 +1,16 @@
 /**
  * AI Configuration Store for MillOS
  *
- * Manages AI mode settings, Gemini API key, connection state,
- * and live cost tracking for Gemini API usage.
+ * Manages AI mode settings, in-memory BYOK connection state, and usage tracking.
  *
  */
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { safeJSONStorage } from './storage';
-import { geminiClient } from '../utils/geminiClient';
+import { cloudAIClient, isLocalCompanionHost, type CloudBackend } from '../utils/cloudAIClient';
+import { chatgptClient, type ChatGPTStatus } from '../utils/chatgptClient';
+import { spendBudget } from '../utils/spendBudget';
 import {
   webgpuClient,
   WebGPUClient,
@@ -17,13 +18,15 @@ import {
   DEFAULT_WEBGPU_MODEL_ID,
 } from '../utils/webgpuClient';
 import { logger } from '../utils/logger';
-import { chatgptClient, type ChatGPTStatus } from '../utils/chatgptClient';
+import { formatFixed, translate } from '../i18n';
+import { aiConfigStoreMessages } from './aiConfigStore.messages';
 import type { StrategicPriority } from '../types';
 
+// `gemini` is the persisted legacy ID for strategic-only mode, not a provider.
 export type AIMode = 'heuristic' | 'gemini' | 'hybrid';
 
 /** Which LLM backend powers the strategic layer (orthogonal to AIMode). */
-export type LLMBackend = 'gemini' | 'webgpu' | 'chatgpt';
+export type LLMBackend = CloudBackend | 'webgpu' | 'chatgpt';
 
 /** Lifecycle status of the local WebGPU neural core. */
 export type WebGPUStatus =
@@ -35,36 +38,41 @@ export type WebGPUStatus =
   | 'ready'
   | 'error';
 
-// Gemini pricing per 1M tokens (paid tier, text), per model in the fallback
-// chain. Verified against https://ai.google.dev/gemini-api/docs/pricing (August 2026).
-const GEMINI_COST_PER_1M: Record<string, { input: number; output: number }> = {
-  'gemini-3.6-flash': { input: 1.5, output: 7.5 },
-  'gemini-3.5-flash': { input: 1.5, output: 9.0 },
-  'gemini-3-flash-preview': { input: 0.5, output: 3.0 },
-  'gemini-2.5-flash': { input: 0.3, output: 2.5 },
-};
-// Fallback for unknown model IDs: price as the most expensive known model so
-// the tracker over-estimates rather than under-reports spend.
-const GEMINI_COST_DEFAULT = GEMINI_COST_PER_1M['gemini-3.5-flash'];
-const CHARS_PER_TOKEN = 4; // Conservative estimate
+// Standard direct-API rates for short text requests, checked 10 October 2026.
+// Both selected models currently share this rate. Usage comes from provider
+// responses, including reasoning tokens; provider invoices remain authoritative.
+const STANDARD_COST_PER_1M = { input: 0.1, output: 0.5 };
 
 /**
- * Per-1M-token pricing for the Gemini model currently serving requests (the
- * client may have fallen back along its model chain). Single source for the
- * cost tracker and every UI that quotes a rate, so the two cannot disagree.
+ * Per-1M-token standard pricing for the selected cloud model. This is an
+ * estimate, not a provider invoice.
  */
-export function getActiveGeminiPricing(): { model: string; input: number; output: number } {
-  const model = geminiClient.getActiveModelId();
-  return { model, ...(GEMINI_COST_PER_1M[model] ?? GEMINI_COST_DEFAULT) };
+export function getActiveCloudPricing(): { model: string; input: number; output: number } {
+  const backend = useAIConfigStore.getState().llmBackend;
+  const model =
+    backend === 'webgpu'
+      ? translate(aiConfigStoreMessages, 'pricingOnDevice')
+      : backend === 'chatgpt'
+        ? translate(aiConfigStoreMessages, 'pricingChatGPTPlan')
+        : backend === 'openrouter-haiku'
+          ? 'OpenRouter Haiku 5.5'
+          : backend === 'openrouter-luna'
+            ? 'OpenRouter Luna 6'
+            : backend === 'haiku'
+              ? 'claude-haiku-5-5'
+              : 'gpt-6-luna';
+  return { model, ...STANDARD_COST_PER_1M };
 }
 
 // Strategic layer configuration
 const DEFAULT_STRATEGIC_INTERVAL_MS = 45000; // 45 seconds
 
 interface CostTracking {
-  sessionCost: number; // Total cost this session in USD
-  totalInputTokens: number; // Estimated input tokens
-  totalOutputTokens: number; // Estimated output tokens
+  sessionCost: number; // App-scoped provider-reported/estimated usage, including key tests
+  reservedCost: number; // In-flight admission reservations
+  uncertainCost: number; // Dispatched calls whose billing could not be confirmed
+  totalInputTokens: number; // Provider-reported input tokens
+  totalOutputTokens: number; // Provider-reported output tokens, including reasoning
   requestCount: number; // Number of API calls
   lastRequestCost: number; // Cost of most recent request
   sessionStartTime: number; // When this session started
@@ -76,7 +84,7 @@ interface StrategicState {
   lastDecisionTime: number | null; // Timestamp of last strategic decision
   isThinking: boolean; // Strategic layer actively reasoning
   actionPlan?: string[]; // 3-step action plan (immediate, short-term, prep)
-  insight?: string; // Key observation from Gemini
+  insight?: string; // Key observation from the strategic model
   tradeoff?: string; // Trade-off explanation
   focusMachine?: string; // Machine ID to prioritize
   confidenceScores?: { overall: number; reasoning: string };
@@ -95,18 +103,18 @@ interface AIConfigState {
   aiMode: AIMode;
   setAIMode: (mode: AIMode) => void;
 
-  // Gemini connection
-  geminiApiKey: string | null;
-  isGeminiConnected: boolean;
+  // API keys live only in cloudAIClient module memory. These flags drive UI.
+  connectedProviders: Record<CloudBackend, boolean>;
+  connectionEpoch: number;
   connectionError: string | null;
-
-  // LLM backend selection (Gemini API vs local WebGPU neural core)
-  llmBackend: LLMBackend;
-  setLLMBackend: (backend: LLMBackend) => void;
   chatgptStatus: ChatGPTStatus | null;
   chatgptError: string | null;
-  setChatGPTError: (error: string | null) => void;
   refreshChatGPT: () => Promise<void>;
+  setChatGPTError: (error: string | null) => void;
+
+  // One strategic backend at a time, with on-device WebGPU preserved.
+  llmBackend: LLMBackend;
+  setLLMBackend: (backend: LLMBackend) => void;
 
   // Local WebGPU neural core state
   webgpuStatus: WebGPUStatus;
@@ -116,7 +124,7 @@ interface AIConfigState {
   webgpuModelReady: boolean; // engine loaded & serving inference
   webgpuModelId: string;
   webgpuAdapterWarning: string | null; // advisory OOM/perf warning from adapter probe
-  /** Load the local model. `promote` (default true) mirrors the Gemini
+  /** Load the local model. `promote` (default true) mirrors cloud
    *  connect-time switch to Hybrid; the silent startup prewarm passes false so
    *  it never overrides a persisted aiMode. */
   loadWebGPUModel: (promote?: boolean) => Promise<boolean>;
@@ -152,16 +160,13 @@ interface AIConfigState {
 
   // Cost tracking
   costTracking: CostTracking;
-  recordApiUsage: (inputChars: number, outputChars: number) => void;
-  resetSessionCosts: () => void;
+  spendCapUsd: number | null;
+  setSpendCap: (value: number | null) => void;
   getFormattedCost: () => string;
-  trackAPICost: (cost: number, tokens: number) => void;
 
   // Actions
-  setGeminiApiKey: (key: string | null) => Promise<boolean>;
-  testGeminiConnection: () => Promise<{ success: boolean; message: string }>;
-  clearGeminiConfig: () => void;
-  initializeFromStorage: () => void;
+  setCloudApiKey: (backend: CloudBackend, key: string) => Promise<boolean>;
+  clearCloudApiKey: (backend: CloudBackend) => void;
 
   // AI Visualization toggles (all default OFF)
   showCascadeVisualization: boolean;
@@ -184,6 +189,7 @@ interface AIConfigState {
 // load with a cancellation request. Module-scoped so it survives across the
 // loadWebGPUModel/cancelWebGPUModelLoad closures without polluting store state.
 let webgpuCancelRequested = false;
+let cloudKeyAttempt = 0;
 
 export const useAIConfigStore = create<AIConfigState>()(
   persist(
@@ -195,31 +201,58 @@ export const useAIConfigStore = create<AIConfigState>()(
         logger.info(`[AIConfigStore] AI mode set to: ${mode}`);
       },
 
-      // Gemini state
-      geminiApiKey: null,
-      isGeminiConnected: false,
+      // Connected means validated during this page session; no key is persisted.
+      connectedProviders: {
+        haiku: false,
+        luna: false,
+        'openrouter-haiku': false,
+        'openrouter-luna': false,
+      },
+      connectionEpoch: 0,
       connectionError: null,
-
-      // LLM backend selection — default to Gemini API (existing behavior).
-      llmBackend: 'gemini',
       chatgptStatus: null,
       chatgptError: null,
       setChatGPTError: (error) => set({ chatgptError: error }),
       refreshChatGPT: async () => {
         try {
           const status = await chatgptClient.status();
-          set({ chatgptStatus: status, chatgptError: null });
+          set((state) => {
+            const previous = state.chatgptStatus;
+            const priorAccount = previous?.accounts.find((a) => a.id === previous.activeId);
+            const nextAccount = status.accounts.find((a) => a.id === status.activeId);
+            const changed =
+              previous?.activeId !== status.activeId || priorAccount?.model !== nextAccount?.model;
+            return {
+              chatgptStatus: status,
+              chatgptError: null,
+              connectionEpoch: changed ? state.connectionEpoch + 1 : state.connectionEpoch,
+            };
+          });
         } catch (error) {
           set({
             chatgptStatus: null,
-            chatgptError: error instanceof Error ? error.message : 'Local companion unavailable',
+            chatgptError:
+              error instanceof Error
+                ? error.message
+                : translate(aiConfigStoreMessages, 'localCompanionUnavailable'),
           });
         }
       },
+
+      llmBackend: isLocalCompanionHost() ? 'haiku' : 'openrouter-haiku',
       setLLMBackend: (backend: LLMBackend) => {
-        set({ llmBackend: backend });
-        if (backend === 'chatgpt') void get().refreshChatGPT();
+        if (!isLocalCompanionHost() && (backend === 'haiku' || backend === 'luna')) {
+          backend = backend === 'haiku' ? 'openrouter-haiku' : 'openrouter-luna';
+        }
+        cloudKeyAttempt += 1;
+        cloudAIClient.cancelRequests();
+        set((state) => ({
+          llmBackend: backend,
+          connectionEpoch: state.connectionEpoch + 1,
+          connectionError: null,
+        }));
         logger.info(`[AIConfigStore] LLM backend set to: ${backend}`);
+        if (backend === 'chatgpt') void get().refreshChatGPT();
         // Auto-download/load the local model the moment the controller selects it
         // (idempotent — loadWebGPUModel() no-ops if already loading or ready).
         if (backend === 'webgpu') {
@@ -271,7 +304,7 @@ export const useAIConfigStore = create<AIConfigState>()(
           webgpuStatus: 'checking',
           webgpuError: null,
           webgpuProgress: 0,
-          webgpuMessage: 'Checking WebGPU compatibility...',
+          webgpuMessage: translate(aiConfigStoreMessages, 'checkingWebGPU'),
         });
 
         const report = await checkWebGPUAdapter();
@@ -279,9 +312,7 @@ export const useAIConfigStore = create<AIConfigState>()(
           set({
             webgpuStatus: 'unsupported',
             webgpuModelReady: false,
-            webgpuError:
-              report.warning ??
-              'WebGPU is unavailable in this browser. Use a WebGPU-capable browser or the Gemini API backend.',
+            webgpuError: report.warning ?? translate(aiConfigStoreMessages, 'webgpuUnavailable'),
           });
           logger.warn('[AIConfigStore] WebGPU unsupported:', report.warning);
           return false;
@@ -292,7 +323,7 @@ export const useAIConfigStore = create<AIConfigState>()(
           webgpuAdapterWarning: report.warning ?? null,
           webgpuStatus: 'loading',
           webgpuProgress: 0,
-          webgpuMessage: 'Initializing model download...',
+          webgpuMessage: translate(aiConfigStoreMessages, 'initializingDownload'),
         });
 
         const ok = await webgpuClient.load((p) => {
@@ -321,11 +352,11 @@ export const useAIConfigStore = create<AIConfigState>()(
             webgpuStatus: 'ready',
             webgpuModelReady: true,
             webgpuProgress: 1,
-            webgpuMessage: 'Local neural core online',
+            webgpuMessage: translate(aiConfigStoreMessages, 'localCoreOnline'),
             webgpuError: null,
-            // Mirror the Gemini auto-switch: a fresh local core lights up the
+            // Mirror the cloud auto-switch: a fresh local core lights up the
             // strategic layer via Hybrid mode (keeps fast heuristic tactical).
-            // Promote from BOTH heuristic and gemini: 'gemini' (LLM-only) runs the
+            // Promote from both heuristic and the legacy strategic-only mode, which runs the
             // strategic layer with the fast rules layer paused, which is an
             // explicit opt-in the player can re-select, not a sensible default
             // for a freshly loaded core. Only an already-'hybrid' mode is left
@@ -340,7 +371,7 @@ export const useAIConfigStore = create<AIConfigState>()(
         set({
           webgpuStatus: 'error',
           webgpuModelReady: false,
-          webgpuError: 'The model could not be loaded. Try again or use the Gemini API backend.',
+          webgpuError: translate(aiConfigStoreMessages, 'modelLoadFailed'),
         });
         return false;
       },
@@ -392,14 +423,17 @@ export const useAIConfigStore = create<AIConfigState>()(
       isLLMReady: (): boolean => {
         const state = get();
         return (
-          (state.llmBackend === 'gemini' && state.isGeminiConnected) ||
-          (state.llmBackend === 'webgpu' && state.webgpuModelReady) ||
+          (state.llmBackend !== 'webgpu' &&
+            state.llmBackend !== 'chatgpt' &&
+            state.connectedProviders[state.llmBackend]) ||
           (state.llmBackend === 'chatgpt' &&
-            state.chatgptStatus?.accounts.some(
-              (account) =>
-                account.id === state.chatgptStatus?.activeId && account.signedIn && account.model
+            Boolean(
+              state.chatgptStatus?.accounts.some(
+                (account) =>
+                  account.id === state.chatgptStatus?.activeId && account.signedIn && account.model
+              )
             )) ||
-          false
+          (state.llmBackend === 'webgpu' && state.webgpuModelReady)
         );
       },
 
@@ -537,168 +571,111 @@ export const useAIConfigStore = create<AIConfigState>()(
 
       // Cost tracking - session state
       costTracking: {
-        sessionCost: 0,
-        totalInputTokens: 0,
-        totalOutputTokens: 0,
-        requestCount: 0,
-        lastRequestCost: 0,
-        sessionStartTime: Date.now(),
+        sessionCost: spendBudget.getSnapshot().spentUsd,
+        reservedCost: spendBudget.getSnapshot().reservedUsd,
+        uncertainCost: spendBudget.getSnapshot().uncertainUsd,
+        totalInputTokens: spendBudget.getSnapshot().totalInputTokens,
+        totalOutputTokens: spendBudget.getSnapshot().totalOutputTokens,
+        requestCount: spendBudget.getSnapshot().requestCount,
+        lastRequestCost: spendBudget.getSnapshot().lastRequestCost,
+        sessionStartTime: spendBudget.getSnapshot().sessionStartTime,
       },
-
-      // Record API usage and calculate cost
-      recordApiUsage: (inputChars: number, outputChars: number) => {
-        const inputTokens = Math.ceil(inputChars / CHARS_PER_TOKEN);
-        const outputTokens = Math.ceil(outputChars / CHARS_PER_TOKEN);
-
-        // Calculate cost in USD using the model actually serving requests
-        // (the client may have fallen back along its model chain)
-        const pricing = getActiveGeminiPricing();
-        const inputCost = (inputTokens / 1_000_000) * pricing.input;
-        const outputCost = (outputTokens / 1_000_000) * pricing.output;
-        const requestCost = inputCost + outputCost;
-
-        set((state) => ({
-          costTracking: {
-            ...state.costTracking,
-            sessionCost: state.costTracking.sessionCost + requestCost,
-            totalInputTokens: state.costTracking.totalInputTokens + inputTokens,
-            totalOutputTokens: state.costTracking.totalOutputTokens + outputTokens,
-            requestCount: state.costTracking.requestCount + 1,
-            lastRequestCost: requestCost,
-          },
-        }));
-
-        logger.info(
-          `[AIConfigStore] API usage: ${inputTokens} in / ${outputTokens} out tokens, cost: $${requestCost.toFixed(6)}`
-        );
-      },
-
-      // Reset session costs
-      resetSessionCosts: () => {
-        set({
-          costTracking: {
-            sessionCost: 0,
-            totalInputTokens: 0,
-            totalOutputTokens: 0,
-            requestCount: 0,
-            lastRequestCost: 0,
-            sessionStartTime: Date.now(),
-          },
-        });
-        logger.info('[AIConfigStore] Session costs reset');
-      },
+      spendCapUsd: spendBudget.getSnapshot().capUsd,
+      setSpendCap: (value) => spendBudget.setCap(value),
 
       // Get formatted cost string
       getFormattedCost: () => {
         const { sessionCost, requestCount } = get().costTracking;
-        if (requestCount === 0) return '$0.00';
-        if (sessionCost < 0.01) return `$${sessionCost.toFixed(4)}`;
-        return `$${sessionCost.toFixed(2)}`;
-      },
-
-      // Track API cost directly (for geminiApi.ts)
-      trackAPICost: (cost: number, tokens: number) => {
-        set((state) => ({
-          costTracking: {
-            ...state.costTracking,
-            sessionCost: state.costTracking.sessionCost + cost,
-            totalInputTokens: state.costTracking.totalInputTokens + Math.floor(tokens * 0.7),
-            totalOutputTokens: state.costTracking.totalOutputTokens + Math.floor(tokens * 0.3),
-            requestCount: state.costTracking.requestCount + 1,
-            lastRequestCost: cost,
-          },
-        }));
-        logger.info(`[AIConfigStore] API cost tracked: $${cost.toFixed(4)}, ${tokens} tokens`);
-      },
-
-      // Set and validate API key
-      setGeminiApiKey: async (key) => {
-        if (!key) {
-          get().clearGeminiConfig();
-          return false;
+        if (requestCount === 0) {
+          return translate(aiConfigStoreMessages, 'sessionCost', { amount: formatFixed(0, 2) });
         }
+        if (sessionCost < 0.01) {
+          return translate(aiConfigStoreMessages, 'sessionCost', {
+            amount: formatFixed(sessionCost, 4),
+          });
+        }
+        return translate(aiConfigStoreMessages, 'sessionCost', {
+          amount: formatFixed(sessionCost, 2),
+        });
+      },
 
+      setCloudApiKey: async (backend, key) => {
+        const attempt = ++cloudKeyAttempt;
         set({ connectionError: null });
-
-        const success = geminiClient.initialize(key);
-        if (!success) {
-          set({
-            connectionError: 'Failed to initialize Gemini client',
-            isGeminiConnected: false,
-          });
-          return false;
-        }
-
-        // Test the connection
-        const testResult = await geminiClient.testConnection();
-        if (!testResult.success) {
-          set({
-            connectionError: testResult.message,
-            isGeminiConnected: false,
-          });
-          geminiClient.disconnect();
-          return false;
-        }
-
-        set({
-          geminiApiKey: key,
-          isGeminiConnected: true,
-          aiMode: 'hybrid', // Auto-switch to Hybrid mode (heuristic + strategic) on connect
-          connectionError: null,
-        });
-
-        logger.info('[AIConfigStore] Gemini API key set and validated');
-        return true;
-      },
-
-      // Test connection without saving key
-      testGeminiConnection: async () => {
-        const key = get().geminiApiKey;
-        if (!key) {
-          return { success: false, message: 'No API key configured' };
-        }
-
-        return geminiClient.testConnection();
-      },
-
-      // Clear all Gemini config
-      clearGeminiConfig: () => {
-        geminiClient.disconnect();
-        set({
-          geminiApiKey: null,
-          isGeminiConnected: false,
-          // Only fall back to heuristic when Gemini is what the strategic layer
-          // runs on; clearing a stale key must not switch off a ready local core.
-          aiMode: get().llmBackend === 'gemini' ? 'heuristic' : get().aiMode,
-          connectionError: null,
-        });
-        logger.info('[AIConfigStore] Gemini config cleared');
-      },
-
-      // Re-initialize client from stored key (call on app startup)
-      initializeFromStorage: () => {
-        const key = get().geminiApiKey;
-        if (key) {
-          const success = geminiClient.initialize(key);
-          if (success) {
-            set({ isGeminiConnected: true });
-            logger.info('[AIConfigStore] Gemini client re-initialized from storage');
-          } else {
+        try {
+          await cloudAIClient.testKey(backend, key);
+          if (attempt !== cloudKeyAttempt || get().llmBackend !== backend) return false;
+          cloudAIClient.setKey(backend, key);
+          set((state) => ({
+            connectedProviders: { ...state.connectedProviders, [backend]: true },
+            connectionEpoch: state.connectionEpoch + 1,
+            aiMode: 'hybrid',
+            connectionError: null,
+          }));
+          return true;
+        } catch (error) {
+          if (attempt === cloudKeyAttempt) {
             set({
-              isGeminiConnected: false,
-              ...(get().llmBackend === 'gemini' ? { aiMode: 'heuristic' as const } : {}),
+              connectionError:
+                error instanceof Error
+                  ? error.message
+                  : translate(aiConfigStoreMessages, 'connectionFailed'),
             });
           }
+          return false;
         }
+      },
+      clearCloudApiKey: (backend) => {
+        cloudKeyAttempt += 1;
+        cloudAIClient.clearKey(backend);
+        set((state) => ({
+          connectedProviders: { ...state.connectedProviders, [backend]: false },
+          connectionEpoch: state.connectionEpoch + 1,
+          aiMode: state.llmBackend === backend ? 'heuristic' : state.aiMode,
+          connectionError: null,
+        }));
       },
     }),
     {
       name: 'millos-ai-config',
       storage: safeJSONStorage,
+      version: 2,
+      migrate: (persistedState, version) => {
+        // Version 0 stored the Google key in plaintext. Return a strict
+        // whitelist so rehydration rewrites storage without that credential.
+        const previous =
+          persistedState && typeof persistedState === 'object'
+            ? (persistedState as Record<string, unknown>)
+            : {};
+        const local = previous.llmBackend === 'webgpu';
+        const backend: LLMBackend = local
+          ? 'webgpu'
+          : version === 0
+            ? isLocalCompanionHost()
+              ? 'haiku'
+              : 'openrouter-haiku'
+            : previous.llmBackend === 'chatgpt' && isLocalCompanionHost()
+              ? 'chatgpt'
+              : previous.llmBackend === 'openrouter-luna' || previous.llmBackend === 'luna'
+                ? previous.llmBackend === 'luna' && isLocalCompanionHost()
+                  ? 'luna'
+                  : 'openrouter-luna'
+                : previous.llmBackend === 'haiku' && isLocalCompanionHost()
+                  ? 'haiku'
+                  : 'openrouter-haiku';
+        return {
+          llmBackend: backend,
+          aiMode:
+            local && (previous.aiMode === 'gemini' || previous.aiMode === 'hybrid')
+              ? previous.aiMode
+              : 'heuristic',
+        };
+      },
       partialize: (state) => ({
-        // Only persist these fields
-        aiMode: state.aiMode,
-        geminiApiKey: state.geminiApiKey,
+        // Preferences only. No API credential, validation state, or session cost.
+        // A cloud strategic-only mode cannot resume after the memory-only key
+        // disappears on reload. Save a safe tactical fallback instead.
+        aiMode: state.llmBackend === 'webgpu' ? state.aiMode : 'heuristic',
         // Persist the chosen backend; webgpuModelReady is intentionally NOT
         // persisted (the engine is memory-only and must be reloaded each session).
         llmBackend: state.llmBackend,
@@ -707,14 +684,25 @@ export const useAIConfigStore = create<AIConfigState>()(
   )
 );
 
+spendBudget.subscribe(() => {
+  const snapshot = spendBudget.getSnapshot();
+  useAIConfigStore.setState({
+    spendCapUsd: snapshot.capUsd,
+    costTracking: {
+      sessionCost: snapshot.spentUsd,
+      reservedCost: snapshot.reservedUsd,
+      uncertainCost: snapshot.uncertainUsd,
+      totalInputTokens: snapshot.totalInputTokens,
+      totalOutputTokens: snapshot.totalOutputTokens,
+      requestCount: snapshot.requestCount,
+      lastRequestCost: snapshot.lastRequestCost,
+      sessionStartTime: snapshot.sessionStartTime,
+    },
+  });
+});
+
 // Initialize on module load (will run after rehydration)
 if (typeof window !== 'undefined') {
-  // Small delay to ensure rehydration completes
-  setTimeout(() => {
-    useAIConfigStore.getState().initializeFromStorage();
-    void useAIConfigStore.getState().refreshChatGPT();
-  }, 100);
-
   // Prewarm the local model if WebGPU was the persisted backend.
   // Deferred so the heavy 3D scene boots first; idempotent + fire-and-forget.
   // After the one-time download the weights are browser-cached, so this is a
@@ -723,6 +711,9 @@ if (typeof window !== 'undefined') {
     if (useAIConfigStore.getState().llmBackend === 'webgpu') {
       // promote=false: a silent reload must not override the persisted aiMode.
       void useAIConfigStore.getState().loadWebGPUModel(false);
+    }
+    if (useAIConfigStore.getState().llmBackend === 'chatgpt') {
+      void useAIConfigStore.getState().refreshChatGPT();
     }
   }, 2500);
 }

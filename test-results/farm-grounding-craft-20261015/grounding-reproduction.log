@@ -1,0 +1,66 @@
+
+> grain-mill-simulator@0.40.0 test
+> vitest run src/components/scenery/Tunnel.test.ts src/components/scenery/WorldPublicRealm.test.ts
+
+(node:35707) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+(node:35758) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+ ❯ src/components/scenery/WorldPublicRealm.test.ts (23 tests | 1 failed) 1872ms
+   × seats the cereal roots in cultivated soil at the unchanged ground datum 8ms
+(node:36322) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ❯ src/components/scenery/Tunnel.test.ts (17 tests | 1 failed) 278ms
+   × leaves the culvert headwall crown opening clear from either mouth 16ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/scenery/Tunnel.test.ts > leaves the culvert headwall crown opening clear from either mouth
+AssertionError: expected [ { …(8) }, { …(8) } ] to have a length of +0 but got 2
+
+- Expected
++ Received
+
+- 0
++ 2
+
+ ❯ src/components/scenery/Tunnel.test.ts:363:18
+    361|   for (const end of [-1, 1]) {
+    362|     const hits = new THREE.Raycaster(new THREE.Vector3(end * 3, 0.7, 0…
+    363|     expect(hits).toHaveLength(0);
+       |                  ^
+    364|   }
+    365| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/components/scenery/WorldPublicRealm.test.ts > seats the cereal roots in cultivated soil at the unchanged ground datum
+AssertionError: expected [] to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ src/components/scenery/WorldPublicRealm.test.ts:624:16
+    622| it('seats the cereal roots in cultivated soil at the unchanged ground …
+    623|   const hits = ray(FARM_REALM_GEOMETRY.paving, [0, 2, -42], [0, -1, 0]…
+    624|   expect(hits).toHaveLength(1);
+       |                ^
+    625|   expect(hits[0].point.y).toBeCloseTo(-0.02, 6);
+    626| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  2 failed | 38 passed (40)
+   Start at  07:06:46
+   Duration  37.60s (transform 2.56s, setup 248ms, import 33.07s, tests 2.15s, environment 1.35s)
+

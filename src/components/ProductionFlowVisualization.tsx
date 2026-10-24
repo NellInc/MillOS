@@ -4,18 +4,17 @@
  * Renders animated DataFlowLines between connected machines showing
  * material flow through the factory. Uses the digital twin aesthetic.
  *
- * Endpoints are DERIVED FROM THE LIVE MACHINE LIST (productionStore) rather than
- * hardcoded, so the flow lines always terminate on real machines and automatically
- * track any layout change. The connection topology mirrors SpoutingSystem's physical
- * pipe pairing (mill[i] <- silo[i % silos], mill[i] -> sifter[i % sifters],
- * packer[i] <- sifter[i % sifters]) so the data-flow lines match the rendered spouting.
+ * Signals share the live spouting curves with the steel pipes and moving grain.
+ * They sit just outside the pipe skin, staying depth-tested behind fittings and
+ * machinery. Status updates retain the cached route and its geometry.
  */
 import React, { useMemo } from 'react';
 import { useProductionStore } from '../stores/productionStore';
 import { useGraphicsStore } from '../stores/graphicsStore';
 import { useShallow } from 'zustand/react/shallow';
 import { DataFlowLine } from './DataFlowLine';
-import { MachineData, MachineType } from '../types';
+import { MachineData } from '../types';
+import { buildSpoutRoutes, type SpoutRoute } from './flow/spoutRoutes';
 
 // Process accents stay distinct without competing with actual status beacons.
 export const PROCESS_FLOW_COLORS = {
@@ -33,69 +32,27 @@ export interface FlowConnection {
   from: [number, number, number];
   to: [number, number, number];
   zone: ZoneKey;
+  path: SpoutRoute['curve'];
 }
 
-// Anchor a flow line at the vertical center of a machine (base + half-height),
-// so lines connect machine-to-machine instead of hugging the floor.
-const anchor = (m: MachineData): [number, number, number] => [
-  m.position[0],
-  m.position[1] + (m.size?.[1] ?? 0) / 2,
-  m.position[2],
-];
+// Read the actual service-rack curves, including their process-port heights.
+// Working if every signal follows the same route object as pipes and grain.
+const FLOW_ZONE_BY_FAMILY = {
+  intake: 'silos-to-mills',
+  pneumatic: 'mills-to-sifters',
+  finished: 'sifters-to-packers',
+} as const;
 
 export function buildProcessFlowConnections(machines: MachineData[]): FlowConnection[] {
-  if (machines.length === 0) return [];
-
-  const silos = machines.filter((m) => m.type === MachineType.SILO);
-  const mills = machines.filter((m) => m.type === MachineType.ROLLER_MILL);
-  const sifters = machines.filter((m) => m.type === MachineType.PLANSIFTER);
-  const packers = machines.filter((m) => m.type === MachineType.PACKER);
-  const connections: FlowConnection[] = [];
-
-  if (silos.length > 0) {
-    mills.forEach((mill, index) => {
-      const silo = silos[index % silos.length];
-      if (!silo) return;
-      connections.push({
-        id: `flow-${silo.id}-${mill.id}`,
-        fromMachineId: silo.id,
-        toMachineId: mill.id,
-        from: anchor(silo),
-        to: anchor(mill),
-        zone: 'silos-to-mills',
-      });
-    });
-  }
-
-  if (sifters.length > 0) {
-    mills.forEach((mill, index) => {
-      const sifter = sifters[index % sifters.length];
-      if (!sifter) return;
-      connections.push({
-        id: `flow-${mill.id}-${sifter.id}`,
-        fromMachineId: mill.id,
-        toMachineId: sifter.id,
-        from: anchor(mill),
-        to: anchor(sifter),
-        zone: 'mills-to-sifters',
-      });
-    });
-
-    packers.forEach((packer, index) => {
-      const sifter = sifters[index % sifters.length];
-      if (!sifter) return;
-      connections.push({
-        id: `flow-${sifter.id}-${packer.id}`,
-        fromMachineId: sifter.id,
-        toMachineId: packer.id,
-        from: anchor(sifter),
-        to: anchor(packer),
-        zone: 'sifters-to-packers',
-      });
-    });
-  }
-
-  return connections;
+  return buildSpoutRoutes(machines).map((route) => ({
+    id: `flow-${route.fromMachineId}-${route.toMachineId}`,
+    fromMachineId: route.fromMachineId,
+    toMachineId: route.toMachineId,
+    from: route.curve.getPointAt(0).toArray(),
+    to: route.curve.getPointAt(1).toArray(),
+    path: route.curve,
+    zone: FLOW_ZONE_BY_FAMILY[route.family],
+  }));
 }
 
 export function isProcessFlowActive(
@@ -141,6 +98,7 @@ export const ProductionFlowVisualization: React.FC = () => {
           key={conn.id}
           start={conn.from}
           end={conn.to}
+          path={conn.path}
           active={isProcessFlowActive(conn, statusByMachine, productionSpeed)}
           color={PROCESS_FLOW_COLORS[conn.zone]}
           segments={24}

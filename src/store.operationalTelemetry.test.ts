@@ -7,7 +7,7 @@ import {
 } from './scada/tagDatabase';
 import { buildOperationalTelemetry } from './store';
 import { useBreakdownStore } from './stores/breakdownStore';
-import { useMaterialFlowStore } from './stores/materialFlowStore';
+import { getRecalledStock, useMaterialFlowStore } from './stores/materialFlowStore';
 import { useOperationsCampaignStore } from './stores/operationsCampaignStore';
 import { useQCLabStore } from './stores/qcLabStore';
 
@@ -66,10 +66,43 @@ describe('buildOperationalTelemetry', () => {
       useBreakdownStore.getState().workOrders
     );
     expect(telemetry[OPERATION_TAG_IDS.activeQualityHolds]).toBe(1);
-    expect(telemetry[OPERATION_TAG_IDS.recalledBatches]).toBe(1);
+    // A batch recall scraps the batch on the spot, so nothing is left to deal
+    // with and the recall tag stays normal; the batch remains on record.
+    expect(
+      useMaterialFlowStore
+        .getState()
+        .productionBatches.filter((batch) => batch.disposition === 'recalled')
+    ).toHaveLength(1);
+    expect(telemetry[OPERATION_TAG_IDS.recalledBatches]).toBe(0);
     expect(telemetry[OPERATION_TAG_IDS.openWorkOrders]).toBe(1);
     expect(telemetry[OPERATION_TAG_IDS.maintenanceDowntime]).toBe(37);
     expect(telemetry[OPERATION_TAG_IDS.shippingReleased]).toBe(0);
+  });
+
+  it('reads recalled batches HI only while the recalled lot is still in the plant', () => {
+    const read = () =>
+      buildOperationalTelemetry(
+        useMaterialFlowStore.getState(),
+        useBreakdownStore.getState().partsInventory,
+        useQCLabStore.getState().qcLab
+      )[OPERATION_TAG_IDS.recalledBatches];
+    // Roller mill 101's opening grain: 500 kg upstream of the packers.
+    const lotId = 'lot-opening-rm-101';
+    const alertId = useQCLabStore.getState().triggerContaminationAlert({ sourceLotIds: [lotId] });
+    useQCLabStore.getState().resolveContaminationAlert(alertId, 'recalled');
+
+    let peak = 0;
+    let ticks = 0;
+    for (; ticks < 2000 && getRecalledStock(useMaterialFlowStore.getState()).kg > 0; ticks++) {
+      useMaterialFlowStore.getState().tickMaterialFlow(1, 1);
+      peak = Math.max(peak, read());
+    }
+    // Packing it formed recalled batches while the lot was being worked off...
+    expect(peak).toBeGreaterThan(0);
+    // ...and once none of the lot is left in the plant, the tag is normal again.
+    expect(getRecalledStock(useMaterialFlowStore.getState()).kg).toBe(0);
+    expect(read()).toBe(0);
+    expect(ticks).toBeLessThan(2000);
   });
 
   it('publishes every visible utility vessel through its SCADA instruments', () => {

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { beginStartupTask, getStartupSnapshot, StartupFrameWindow } from '../startupReadiness';
 
@@ -42,15 +42,16 @@ describe('StartupFrameWindow', () => {
     );
   });
 
-  it('allows a completed world to open after steady slow frames', () => {
+  it('distinguishes a prepared slow world from strict readiness', () => {
     const window = new StartupFrameWindow();
     for (let i = 0; i < 45; i++) {
       expect(window.sample({ now: i * 60, prerequisitesReady: true, revision: 'a' })).toBe(false);
     }
-    expect(window.sample({ now: 45 * 60, prerequisitesReady: true, revision: 'a' })).toBe(true);
+    expect(window.sample({ now: 45 * 60, prerequisitesReady: true, revision: 'a' })).toBe(false);
+    expect(window.prepared).toBe(true);
   });
 
-  it('accepts rendered frames regardless of frame pacing', () => {
+  it('retains the original pacing gate despite a prepared jittery world', () => {
     const steady = new StartupFrameWindow();
     const jittery = new StartupFrameWindow();
     let jitterTime = 0;
@@ -65,8 +66,155 @@ describe('StartupFrameWindow', () => {
       true
     );
     expect(jittery.sample({ now: jitterTime + 16, prerequisitesReady: true, revision: 'a' })).toBe(
+      false
+    );
+    expect(jittery.prepared).toBe(true);
+  });
+
+  it.each([999, 1000])('never calls a %sms frame smooth readiness', (interval) => {
+    const window = new StartupFrameWindow();
+    for (let i = 0; i <= 45; i++) {
+      expect(window.sample({ now: i * interval, prerequisitesReady: true, revision: 'a' })).toBe(
+        false
+      );
+    }
+    expect(window.prepared).toBe(true);
+  });
+
+  it('requires 45 new strict intervals after a hitch above the original 75ms limit', () => {
+    const window = new StartupFrameWindow();
+    for (let i = 0; i <= 45; i++)
+      window.sample({ now: i * 16, prerequisitesReady: true, revision: 'a' });
+    const hitch = 45 * 16 + 90;
+    expect(window.sample({ now: hitch, prerequisitesReady: true, revision: 'a' })).toBe(false);
+    for (let i = 1; i < 45; i++)
+      expect(window.sample({ now: hitch + i * 16, prerequisitesReady: true, revision: 'a' })).toBe(
+        false
+      );
+    expect(window.sample({ now: hitch + 45 * 16, prerequisitesReady: true, revision: 'a' })).toBe(
       true
     );
+  });
+});
+
+describe('explicit prepared-world admission', () => {
+  it('rejects stale preparation and pending work, then opens without certifying strict readiness', async () => {
+    const manager = THREE.DefaultLoadingManager;
+    const original = {
+      itemStart: manager.itemStart,
+      itemEnd: manager.itemEnd,
+      itemError: manager.itemError,
+    };
+    vi.resetModules();
+    const startup = await import('../startupReadiness');
+    delete document.documentElement.dataset.millosStartupReady;
+    try {
+      expect(startup.openPreparedStartup()).toBe(false);
+      startup.markStartupPrepared(true, () => false);
+      expect(startup.openPreparedStartup()).toBe(false);
+      startup.markStartupPrepared(true, () => true);
+      const finish = startup.beginStartupTask();
+      expect(startup.getStartupSnapshot().prepared).toBe(false);
+      expect(startup.openPreparedStartup()).toBe(false);
+      finish();
+      startup.markStartupPrepared(true, () => true);
+      const revision = startup.getStartupSnapshot().revision;
+      const notified = vi.fn();
+      const unsubscribe = startup.subscribeStartup(notified);
+      expect(startup.openPreparedStartup()).toBe(true);
+      await Promise.resolve();
+      expect(notified).toHaveBeenCalledTimes(1);
+      unsubscribe();
+      expect(startup.getStartupSnapshot()).toMatchObject({ opened: true, ready: false, revision });
+      expect(document.documentElement.dataset.millosStartupReady).toBeUndefined();
+      expect(document.documentElement.dataset.millosStartupDegraded).toBe('true');
+      startup.markStartupReady();
+      expect(startup.getStartupSnapshot()).toMatchObject({ opened: true, ready: true, revision });
+    } finally {
+      Object.assign(manager, original);
+      delete document.documentElement.dataset.millosStartupReady;
+      delete document.documentElement.dataset.millosStartupDegraded;
+    }
+  });
+
+  it('opens a world prepared earlier in this revision after a hitch reset the frame window', async () => {
+    const manager = THREE.DefaultLoadingManager;
+    const original = {
+      itemStart: manager.itemStart,
+      itemEnd: manager.itemEnd,
+      itemError: manager.itemError,
+    };
+    vi.resetModules();
+    const startup = await import('../startupReadiness');
+    try {
+      let worldComplete = true;
+      const guard = vi.fn(() => worldComplete);
+      // Prepared, then a >1 s hitch: StartupReadiness reports the restarted
+      // window as not prepared, with no resource change.
+      startup.markStartupPrepared(true, guard);
+      const revision = startup.getStartupSnapshot().revision;
+      startup.markStartupPrepared(false, () => true);
+      expect(startup.getStartupSnapshot()).toMatchObject({ prepared: false, revision });
+      // The prepared world's own guard decides, re-checked now.
+      worldComplete = false;
+      expect(startup.openPreparedStartup()).toBe(false);
+      expect(guard).toHaveBeenCalledTimes(1);
+      // A failed open releases the latch: the next open needs a new prepared window.
+      worldComplete = true;
+      expect(startup.openPreparedStartup()).toBe(false);
+      startup.markStartupPrepared(true, guard);
+      startup.markStartupPrepared(false, () => true);
+      expect(startup.openPreparedStartup()).toBe(true);
+      expect(startup.getStartupSnapshot()).toMatchObject({ opened: true, ready: false, revision });
+    } finally {
+      Object.assign(manager, original);
+      delete document.documentElement.dataset.millosStartupDegraded;
+    }
+  });
+
+  it('never opens across a resource change after a hitch', async () => {
+    const manager = THREE.DefaultLoadingManager;
+    const original = {
+      itemStart: manager.itemStart,
+      itemEnd: manager.itemEnd,
+      itemError: manager.itemError,
+    };
+    vi.resetModules();
+    const startup = await import('../startupReadiness');
+    try {
+      startup.markStartupPrepared(true, () => true);
+      startup.markStartupPrepared(false, () => true);
+      // New work started and finished: a different world, never judged.
+      startup.beginStartupTask()();
+      expect(startup.openPreparedStartup()).toBe(false);
+      expect(startup.getStartupSnapshot().opened).toBe(false);
+      startup.markStartupPrepared(true, () => true);
+      startup.markStartupPrepared(false, () => true);
+      const finish = startup.beginStartupTask();
+      expect(startup.openPreparedStartup()).toBe(false);
+      finish();
+    } finally {
+      Object.assign(manager, original);
+    }
+  });
+
+  it('does not admit a world with unresolved loading errors', async () => {
+    const manager = THREE.DefaultLoadingManager;
+    const original = {
+      itemStart: manager.itemStart,
+      itemEnd: manager.itemEnd,
+      itemError: manager.itemError,
+    };
+    vi.resetModules();
+    const startup = await import('../startupReadiness');
+    try {
+      startup.beginStartupTask()(true);
+      startup.markStartupPrepared(true, () => true);
+      expect(startup.openPreparedStartup()).toBe(false);
+      expect(startup.getStartupSnapshot().opened).toBe(false);
+    } finally {
+      Object.assign(manager, original);
+    }
   });
 });
 
@@ -94,5 +242,65 @@ describe('startup work tracking', () => {
     expect(getStartupSnapshot().pendingAssets).toBe(initial.pendingAssets);
     expect(getStartupSnapshot().loadedAssets).toBe(initial.loadedAssets + 1);
     expect(getStartupSnapshot().errors).toBe(initial.errors + 1);
+  });
+});
+
+describe('startup caller admission ownership', () => {
+  it('counts only successful admitted returns and preserves a later preparation owner', async () => {
+    vi.resetModules();
+    const startup = await import('../startupReadiness');
+    const prepare = vi.fn(() => false),
+      fail = vi.fn(),
+      draw = vi.fn();
+    const release = startup.registerStartupDrawOwner({ prepare, fail });
+    const serial = startup.getStartupDrawSerial();
+    expect(startup.drawStartupFrame(null, draw)).toBe(false);
+    expect(draw).not.toHaveBeenCalled();
+    expect(startup.getStartupDrawSerial()).toBe(serial);
+    prepare.mockReturnValue(true);
+    expect(startup.drawStartupFrame(null, draw)).toBe(true);
+    expect(startup.getStartupDrawSerial()).toBe(serial + 1);
+    expect(() =>
+      startup.drawStartupFrame(null, () => {
+        throw new Error('draw failed');
+      })
+    ).toThrow('draw failed');
+    expect(startup.getStartupDrawSerial()).toBe(serial + 1);
+    expect(fail).toHaveBeenCalledOnce();
+    const later = vi.fn(() => true);
+    const releaseLater = startup.registerStartupDrawOwner({ prepare: later, fail: vi.fn() });
+    release();
+    expect(startup.drawStartupFrame(null, draw)).toBe(true);
+    expect(later).toHaveBeenCalledOnce();
+    releaseLater();
+    expect(startup.drawStartupFrame(null, draw)).toBe(false);
+  });
+
+  it('keeps drawing an explicitly opened slow session but counts only admitted draws', async () => {
+    vi.resetModules();
+    const startup = await import('../startupReadiness');
+    const prepare = vi.fn(() => false),
+      draw = vi.fn();
+    const release = startup.registerStartupDrawOwner({ prepare, fail: vi.fn() });
+    const serial = startup.getStartupDrawSerial();
+    expect(startup.drawStartupFrame(null, draw)).toBe(false);
+    expect(draw).not.toHaveBeenCalled();
+    startup.markStartupPrepared(true, () => true);
+    expect(startup.openPreparedStartup()).toBe(true);
+    expect(startup.drawStartupFrame(null, draw)).toBe(false);
+    expect(prepare).toHaveBeenCalledTimes(2);
+    expect(draw).toHaveBeenCalledOnce();
+    expect(startup.getStartupDrawSerial()).toBe(serial);
+    expect(startup.getStartupSnapshot().ready).toBe(false);
+    prepare.mockReturnValue(true);
+    expect(startup.drawStartupFrame(null, draw)).toBe(true);
+    expect(startup.getStartupDrawSerial()).toBe(serial + 1);
+    startup.markStartupReady();
+    release();
+    expect(startup.drawStartupFrame(null, draw)).toBe(true);
+    expect(draw).toHaveBeenCalledTimes(3);
+    expect(startup.getStartupDrawSerial()).toBe(serial + 2);
+    delete document.documentElement.dataset.millosStartupDegraded;
+    delete document.documentElement.dataset.millosStartupReady;
   });
 });

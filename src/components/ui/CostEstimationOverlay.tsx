@@ -1,31 +1,46 @@
 /**
  * CostEstimationOverlay Component
  *
- * Shows estimated Gemini API costs for the current session: token counts are
- * approximated from request and response length and priced at the active
- * model's published per-token rate.
+ * Shows estimated BYOK API cost from provider-reported token usage.
+ * The provider invoice is authoritative.
  */
 
 import React, { useRef } from 'react';
 import { motion } from 'framer-motion';
-import { DollarSign, Zap, Brain, RotateCcw, TrendingUp, GripVertical } from 'lucide-react';
-import { getActiveGeminiPricing, useAIConfigStore } from '../../stores/aiConfigStore';
+import { DollarSign, Zap, Brain, TrendingUp, GripVertical } from 'lucide-react';
+import { getActiveCloudPricing, useAIConfigStore } from '../../stores/aiConfigStore';
+import { capitalizeIn, formatFixed, useLocale, useT } from '../../i18n';
+import { costEstimationOverlayMessages } from './CostEstimationOverlay.messages';
 
 export const CostEstimationOverlay: React.FC = () => {
+  const t = useT(costEstimationOverlayMessages);
+  const locale = useLocale();
   const showCostOverlay = useAIConfigStore((state) => state.showCostOverlay);
-  const isGeminiConnected = useAIConfigStore((state) => state.isGeminiConnected);
+  const llmBackend = useAIConfigStore((state) => state.llmBackend);
+  const connectedProviders = useAIConfigStore((state) => state.connectedProviders);
+  const chatgptStatus = useAIConfigStore((state) => state.chatgptStatus);
+  const isConnected =
+    llmBackend === 'chatgpt'
+      ? Boolean(
+          chatgptStatus?.accounts.some(
+            (account) => account.id === chatgptStatus.activeId && account.signedIn && account.model
+          )
+        )
+      : llmBackend !== 'webgpu' && connectedProviders[llmBackend];
   const aiMode = useAIConfigStore((state) => state.aiMode);
   const costTracking = useAIConfigStore((state) => state.costTracking);
-  const resetSessionCosts = useAIConfigStore((state) => state.resetSessionCosts);
+  const spendCapUsd = useAIConfigStore((state) => state.spendCapUsd);
 
   const dragConstraintsRef = useRef<HTMLDivElement>(null);
 
   if (!showCostOverlay) return null;
 
-  const pricing = getActiveGeminiPricing();
+  const pricing = getActiveCloudPricing();
 
   const {
     sessionCost,
+    reservedCost,
+    uncertainCost,
     totalInputTokens,
     totalOutputTokens,
     requestCount,
@@ -38,21 +53,26 @@ export const CostEstimationOverlay: React.FC = () => {
   const sessionMinutes = Math.floor(sessionDurationMs / 60000);
   const sessionHours = Math.floor(sessionMinutes / 60);
   const displayDuration =
-    sessionHours > 0 ? `${sessionHours}h ${sessionMinutes % 60}m` : `${sessionMinutes}m`;
+    sessionHours > 0
+      ? t('durationHours', {
+          hours: formatFixed(sessionHours, 0),
+          minutes: formatFixed(sessionMinutes % 60, 0),
+        })
+      : t('durationMinutes', { minutes: formatFixed(sessionMinutes, 0) });
 
   // Format cost display
   const formatCost = (cost: number) => {
-    if (cost === 0) return '$0.00';
-    if (cost < 0.0001) return `$${cost.toFixed(6)}`;
-    if (cost < 0.01) return `$${cost.toFixed(4)}`;
-    return `$${cost.toFixed(2)}`;
+    if (cost === 0) return t('usd', { amount: formatFixed(0, 2) });
+    if (cost < 0.0001) return t('usd', { amount: formatFixed(cost, 6) });
+    if (cost < 0.01) return t('usd', { amount: formatFixed(cost, 4) });
+    return t('usd', { amount: formatFixed(cost, 2) });
   };
 
   // Format token count
   const formatTokens = (tokens: number) => {
-    if (tokens >= 1000000) return `${(tokens / 1000000).toFixed(2)}M`;
-    if (tokens >= 1000) return `${(tokens / 1000).toFixed(1)}K`;
-    return tokens.toString();
+    if (tokens >= 1000000) return `${formatFixed(tokens / 1000000, 2)}M`;
+    if (tokens >= 1000) return `${formatFixed(tokens / 1000, 1)}K`;
+    return formatFixed(tokens, 0);
   };
 
   return (
@@ -72,7 +92,7 @@ export const CostEstimationOverlay: React.FC = () => {
             <div className="p-1 rounded bg-cyan-500/20">
               <DollarSign className="w-4 h-4 text-cyan-400" />
             </div>
-            <span className="text-xs font-bold text-white">Gemini API Costs</span>
+            <span className="text-xs font-bold text-white">{t('title')}</span>
           </div>
           <GripVertical className="w-3 h-3 text-slate-500" aria-hidden="true" />
         </div>
@@ -82,15 +102,17 @@ export const CostEstimationOverlay: React.FC = () => {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
               <div
-                className={`w-2 h-2 rounded-full ${isGeminiConnected ? 'bg-green-500 animate-pulse' : 'bg-slate-500'}`}
+                className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-slate-500'}`}
               />
               <span className="text-[10px] text-slate-400">
-                {isGeminiConnected ? 'Connected' : 'Disconnected'}
+                {isConnected ? t('connected') : t('disconnected')}
               </span>
             </div>
             <div className="flex items-center gap-1">
               <Brain className="w-3 h-3 text-purple-400" />
-              <span className="text-[10px] text-purple-300 capitalize">{aiMode}</span>
+              <span className={`text-[10px] text-purple-300 ${capitalizeIn(locale)}`}>
+                {t('aiMode', { mode: aiMode })}
+              </span>
             </div>
           </div>
         </div>
@@ -100,7 +122,7 @@ export const CostEstimationOverlay: React.FC = () => {
           <div className="text-center mb-3">
             <div className="text-3xl font-bold text-cyan-400">{formatCost(sessionCost)}</div>
             <div className="text-[10px] text-slate-400 mt-0.5">
-              Session Total ({displayDuration})
+              {t('sessionCostLabel', { duration: displayDuration })}
             </div>
           </div>
 
@@ -110,16 +132,16 @@ export const CostEstimationOverlay: React.FC = () => {
             <div className="bg-slate-800/50 rounded-lg p-2">
               <div className="flex items-center gap-1 text-slate-400 mb-1">
                 <Zap className="w-3 h-3" />
-                <span>Requests</span>
+                <span>{t('requests')}</span>
               </div>
-              <div className="text-sm font-bold text-white">{requestCount}</div>
+              <div className="text-sm font-bold text-white">{formatFixed(requestCount, 0)}</div>
             </div>
 
             {/* Last Request */}
             <div className="bg-slate-800/50 rounded-lg p-2">
               <div className="flex items-center gap-1 text-slate-400 mb-1">
                 <TrendingUp className="w-3 h-3" />
-                <span>Last Call</span>
+                <span>{t('lastCall')}</span>
               </div>
               <div className="text-sm font-bold text-emerald-400">
                 {formatCost(lastRequestCost)}
@@ -130,30 +152,35 @@ export const CostEstimationOverlay: React.FC = () => {
           {/* Token Breakdown */}
           <div className="mt-2 p-2 bg-slate-800/30 rounded-lg">
             <div className="flex justify-between text-[10px] mb-1">
-              <span className="text-slate-400">Input Tokens</span>
+              <span className="text-slate-400">{t('inputTokens')}</span>
               <span className="text-cyan-300 font-mono">{formatTokens(totalInputTokens)}</span>
             </div>
             <div className="flex justify-between text-[10px]">
-              <span className="text-slate-400">Output Tokens</span>
+              <span className="text-slate-400">{t('outputTokens')}</span>
               <span className="text-purple-300 font-mono">{formatTokens(totalOutputTokens)}</span>
             </div>
           </div>
 
-          {/* Reset Button */}
-          <button
-            onClick={resetSessionCosts}
-            className="w-full mt-2 flex items-center justify-center gap-1.5 py-1.5 text-[10px] text-slate-400 hover:text-white bg-slate-800/30 hover:bg-slate-700/50 rounded-lg transition-colors"
-          >
-            <RotateCcw className="w-3 h-3" />
-            Reset Session
-          </button>
+          <div className="mt-2 text-[10px] text-slate-400 text-center">
+            {spendCapUsd === null ? t('noCap') : t('cap', { amount: formatFixed(spendCapUsd, 2) })}
+            {reservedCost + uncertainCost > 0
+              ? t('inFlight', { amount: formatFixed(reservedCost + uncertainCost, 4) })
+              : ''}
+          </div>
         </div>
 
         {/* Pricing Note */}
         <div className="px-3 pb-2">
           <div className="text-[9px] text-slate-400 text-center">
-            {pricing.model}: ${pricing.input.toFixed(2)}/1M in • ${pricing.output.toFixed(2)}/1M out
-            (estimated)
+            {llmBackend === 'webgpu'
+              ? t('onDevice')
+              : llmBackend === 'chatgpt'
+                ? t('chatgptNote')
+                : t('pricingNote', {
+                    model: pricing.model,
+                    input: formatFixed(pricing.input, 2),
+                    output: formatFixed(pricing.output, 2),
+                  })}
           </div>
         </div>
       </motion.div>

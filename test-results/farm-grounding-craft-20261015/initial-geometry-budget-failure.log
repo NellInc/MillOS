@@ -1,0 +1,42 @@
+
+> grain-mill-simulator@0.40.0 test
+> vitest run src/components/scenery/Tunnel.test.ts src/components/scenery/WorldPublicRealm.test.ts src/components/LivingWorldCreatures.test.tsx
+
+(node:40430) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+(node:40486) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+ ❯ src/components/scenery/WorldPublicRealm.test.ts (25 tests | 1 failed) 3047ms
+     × uses six finite merged meshes, metre-scale detail and no extra light or texture 933ms
+(node:41102) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:41573) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/scenery/WorldPublicRealm.test.ts > world public realm > uses six finite merged meshes, metre-scale detail and no extra light or texture
+AssertionError: expected 17796 to be less than 16232
+ ❯ src/components/scenery/WorldPublicRealm.test.ts:120:23
+    118|     // The authored bridge adds 1,232 triangles to the same six merged…
+    119|     // Keep the preceding realm allowance, plus only this measured sta…
+    120|     expect(triangles).toBeLessThan(15000 + 1232);
+       |                       ^
+    121|     expect(REALM_PAVING_MATERIAL.depthWrite).toBe(true);
+    122|     expect(REALM_PAVING_MATERIAL.transparent).toBe(false);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 2 passed (3)
+      Tests  1 failed | 56 passed (57)
+   Start at  07:09:33
+   Duration  51.70s (transform 2.18s, setup 455ms, import 43.40s, tests 3.55s, environment 2.81s)
+

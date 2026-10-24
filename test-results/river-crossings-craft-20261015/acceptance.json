@@ -1,0 +1,133 @@
+{
+  "scope": "AB river crossing craft,23 finite items",
+  "status": "bounded pass complete",
+  "authorReview": "Produced and reviewed by this chat; source tests and actual images used.",
+  "baseline": {
+    "tests": 32,
+    "files": 3,
+    "failingNames": []
+  },
+  "affected": {
+    "tests": 39,
+    "files": 3,
+    "delta": 7,
+    "exitCode": 0
+  },
+  "observedDefect": {
+    "pierTopBefore": 1,
+    "wearingCourse": 0.61,
+    "beforeFailure": "pier-reproduction.log",
+    "afterPass": "pier-fixed.log"
+  },
+  "sourceGates": {
+    "typecheck": 0,
+    "lint": 0,
+    "format:check": 0,
+    "validate:shaders": 0,
+    "build": 0,
+    "validate:reachability": 0
+  },
+  "visual": [
+    {
+      "label": "day",
+      "servedBuildMatches": true,
+      "sandboxedMetal": true,
+      "cleanDiagnostics": true,
+      "worldCommunityCheckpoints": true,
+      "generalVehicleMotion": true,
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "timingMisses": [
+        "firstFrame",
+        "p95Frame"
+      ],
+      "loadPerCore": 3.66,
+      "p95FrameMs": 17,
+      "startupMarks": {
+        "millos:bootstrap": 400.8,
+        "millos:first-frame": 552,
+        "millos:world-ready": 52577.8,
+        "millos:startup-ready": 61499.1
+      },
+      "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AB-river-crossings-day-20261015/castle.png"
+    },
+    {
+      "label": "dusk",
+      "servedBuildMatches": true,
+      "sandboxedMetal": true,
+      "cleanDiagnostics": true,
+      "worldCommunityCheckpoints": true,
+      "generalVehicleMotion": true,
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "timingMisses": [
+        "firstFrame",
+        "averageFps",
+        "p95Frame"
+      ],
+      "loadPerCore": 3.79,
+      "p95FrameMs": 18.3,
+      "startupMarks": {
+        "millos:bootstrap": 334.4,
+        "millos:first-frame": 449.2,
+        "millos:world-ready": 43150.6,
+        "millos:startup-ready": 52414.2
+      },
+      "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AB-river-crossings-dusk-20261015/castle.png"
+    },
+    {
+      "label": "night",
+      "servedBuildMatches": true,
+      "sandboxedMetal": true,
+      "cleanDiagnostics": true,
+      "worldCommunityCheckpoints": true,
+      "generalVehicleMotion": true,
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "timingMisses": [
+        "firstFrame",
+        "p95Frame"
+      ],
+      "loadPerCore": 4.24,
+      "p95FrameMs": 18.1,
+      "startupMarks": {
+        "millos:bootstrap": 412.4,
+        "millos:first-frame": 525.7,
+        "millos:world-ready": 44396.8,
+        "millos:startup-ready": 53576
+      },
+      "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AB-river-crossings-night-20261015/castle.png"
+    }
+  ],
+  "closeReview": {
+    "worldStartupReady": true,
+    "loadingCoverAbsent": true,
+    "noReadinessOrQualityOverride": true,
+    "footFrameTriangles": 3384,
+    "roadFrameTriangles": 1556,
+    "deckTriangles": 420,
+    "accessTriangles": 648,
+    "clearCarriageway": true,
+    "railAndBearingContactsInspected": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "consoleErrors": [],
+    "screenshots": "conversation evidence only",
+    "browserChanges": "public art-camera poses and localhost mute preference only",
+    "temporaryTabAndPreviewClosedNormally": true
+  },
+  "pacing": "OPEN, unchanged limits, art samples are not a non-art performance gate",
+  "playerDeviceChecks": "DEFERRED",
+  "delivery": "local only",
+  "ongoingGoal": "ACTIVE",
+  "cleanupReceipt": "cleanup-receipt.json",
+  "custodyReceipt": "custody-receipt.json"
+}

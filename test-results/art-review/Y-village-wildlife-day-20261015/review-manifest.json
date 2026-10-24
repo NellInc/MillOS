@@ -1,0 +1,57 @@
+{
+  "label": "Y-village-wildlife-day-20261015",
+  "capturedAt": "2026-10-15T02:56:34.588Z",
+  "git": {
+    "commit": "064af5ca4faaba68a1773730eb919dcd8bd2f7a3",
+    "branch": "codex/place-led-beautification-20261010",
+    "dirty": true,
+    "dirtyFileCount": 7,
+    "dirtyFiles": [
+      "_contprompts/millos_place_led_beautification_20261010.md",
+      "src/components/LivingWorldCreatures.test.tsx",
+      "src/components/VillageArea.test.ts",
+      "src/components/VillageArea.tsx",
+      "src/components/scenery/NaturalDuckPond.test.ts",
+      "src/components/scenery/NaturalDuckPond.tsx",
+      "output/playwright/place-led-20261010/"
+    ]
+  },
+  "options": {
+    "label": "Y-village-wildlife-day-20261015",
+    "scenes": [
+      "square",
+      "village"
+    ],
+    "sceneSet": "explicit",
+    "quality": "medium",
+    "port": "4288",
+    "time": "12",
+    "weather": "clear",
+    "duration": "1",
+    "warmup": "1",
+    "settleTimeout": "240",
+    "perfGate": false,
+    "skipBuild": true,
+    "headed": false
+  },
+  "diagnostics": [],
+  "scenes": [
+    {
+      "scene": "square",
+      "image": "square.png",
+      "indicativeFps": 60
+    },
+    {
+      "scene": "village",
+      "image": "village.png",
+      "indicativeFps": 60
+    }
+  ],
+  "contactSheet": "contact-sheet.png",
+  "perfGate": null,
+  "caveats": [
+    "Working tree was dirty (7 files). These frames show uncommitted work, not commit 064af5c. Do not use as a baseline for a later comparison.",
+    "Captured with --skip-build; dist/ may predate the tree.",
+    "No performance gate was run. Art mode unpins reduced motion and restores full fidelity, so its frame samples are indicative only. A visual verdict from this capture is not shippable until a non-art budget run passes on the same commit."
+  ]
+}

@@ -9,6 +9,9 @@ import {
   getServiceWorkerBuildInfo,
   getServiceWorkerCacheStats,
   registerServiceWorker,
+  registerServiceWorkerWithUpdatePolicy,
+  SERVICE_WORKER_UPDATE_ACTIVE_MESSAGE,
+  SERVICE_WORKER_UPDATE_WAITING_MESSAGE,
   serviceWorkerCachePrefix,
   serviceWorkerScopeKey,
   unregisterServiceWorker,
@@ -189,6 +192,54 @@ afterEach(() => {
 });
 
 describe('service worker scope isolation', () => {
+  it('never intercepts OAuth callbacks or caches no-store navigation responses', async () => {
+    const scope = 'http://127.0.0.1:3001/';
+    const listeners = new Map<string, (event: unknown) => void>();
+    const put = vi.fn().mockResolvedValue(undefined);
+    const fetcher = vi
+      .fn()
+      .mockResolvedValue(new Response('private', { headers: { 'Cache-Control': 'no-store' } }));
+    const workerGlobal = {
+      registration: { scope },
+      location: { origin: new URL(scope).origin },
+      addEventListener: (type: string, listener: (event: unknown) => void): void => {
+        listeners.set(type, listener);
+      },
+    };
+    runInNewContext(readFileSync(resolve(process.cwd(), 'public/sw.js'), 'utf8'), {
+      URL,
+      caches: { open: async () => ({ match: async () => null, put }) },
+      fetch: fetcher,
+      self: workerGlobal,
+      // A real worker global has timers; navigation races the network against one.
+      setTimeout: (...args: Parameters<typeof setTimeout>) => globalThis.setTimeout(...args),
+      clearTimeout: (id: ReturnType<typeof setTimeout>) => globalThis.clearTimeout(id),
+    });
+    const listener = listeners.get('fetch');
+    expect(listener).toBeDefined();
+    const dispatch = async (url: string) => {
+      let intercepted: Promise<Response> | undefined;
+      const pending: Promise<unknown>[] = [];
+      listener!({
+        request: { url, method: 'GET', mode: 'navigate', headers: new Headers() },
+        respondWith: (value: Promise<Response>) => {
+          intercepted = value;
+        },
+        waitUntil: (value: Promise<unknown>) => {
+          pending.push(value);
+        },
+      });
+      if (intercepted) await intercepted;
+      await Promise.all(pending);
+      return Boolean(intercepted);
+    };
+    expect(await dispatch(`${scope}auth/callback?code=private&state=private`)).toBe(false);
+    expect(await dispatch(`${scope}api/chatgpt/status`)).toBe(false);
+    expect(await dispatch(`${scope}private`)).toBe(true);
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(put).not.toHaveBeenCalled();
+  });
+
   it('creates stable keys for root and version paths', () => {
     expect(serviceWorkerScopeKey('/')).toBe('root');
     expect(serviceWorkerScopeKey('/v0.30/')).toBe('v0.30');
@@ -246,6 +297,218 @@ describe('service worker scope isolation', () => {
     expect(harness.remainingCacheNames().sort()).toEqual(
       [foreignRootCache, foreignVersionCache].sort()
     );
+  });
+});
+
+const SW_SCOPE = 'https://mill.example/v0.40/';
+const SW_SHELL = 'millos-v0.40-shell-development';
+const SW_OPTIONAL = 'millos-v0.40-optional-development';
+const SW_ENTRY_ASSETS = {
+  [`${SW_SCOPE}assets/main-DwV4wW66.js`]: SW_SHELL,
+  [`${SW_SCOPE}assets/three-core-BUfJVMRh.js`]: SW_SHELL,
+  [`${SW_SCOPE}assets/main-H6np7miq.css`]: SW_SHELL,
+  [`${SW_SCOPE}assets/recharts-AbCdEf12.js`]: SW_OPTIONAL,
+};
+// Shaped like the built index.html: hashed entry graph plus foreign and
+// non-asset links that must never be precached.
+const SW_SHELL_HTML = `<!doctype html><html><head>
+<link rel="canonical" href="https://www.millos.net/" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter" />
+<script type="module" crossorigin src="/v0.40/assets/main-DwV4wW66.js"></script>
+<link rel="modulepreload" crossorigin href="/v0.40/assets/three-core-BUfJVMRh.js">
+<link rel="modulepreload" crossorigin href="/v0.40/assets/recharts-AbCdEf12.js">
+<link rel="stylesheet" crossorigin href="/v0.40/assets/main-H6np7miq.css">
+</head><body><div id="root"></div></body></html>`;
+
+interface NetworkWorkerHarness {
+  dispatch: (type: string, event: Record<string, unknown>) => Promise<void>;
+  navigate: (url: string) => {
+    response: Promise<Response>;
+    settled: () => boolean;
+    lifetime: () => Promise<unknown>;
+  };
+  cached: (cacheName: string, url: string) => Response | undefined;
+}
+
+function executeNetworkWorker(
+  fetcher: (input: string | { url: string }, init?: RequestInit) => Promise<Response>,
+  initial: Record<string, Record<string, string>> = {}
+): NetworkWorkerHarness {
+  const store = new Map<string, Map<string, Response>>();
+  for (const [name, entries] of Object.entries(initial)) {
+    store.set(
+      name,
+      new Map(Object.entries(entries).map(([url, body]) => [url, new Response(body)]))
+    );
+  }
+  const keyOf = (request: string | { url: string }): string =>
+    typeof request === 'string' ? request : request.url;
+  const listeners = new Map<string, (event: unknown) => void>();
+  runInNewContext(readFileSync(resolve(process.cwd(), 'public/sw.js'), 'utf8'), {
+    URL,
+    Response,
+    console: { warn: vi.fn() },
+    fetch: fetcher,
+    setTimeout: (...args: Parameters<typeof setTimeout>) => globalThis.setTimeout(...args),
+    clearTimeout: (id: ReturnType<typeof setTimeout>) => globalThis.clearTimeout(id),
+    caches: {
+      keys: async () => [...store.keys()],
+      delete: async (name: string) => store.delete(name),
+      open: async (name: string) => {
+        if (!store.has(name)) store.set(name, new Map());
+        const entries = store.get(name)!;
+        return {
+          match: async (request: string | { url: string }) => entries.get(keyOf(request))?.clone(),
+          put: async (request: string | { url: string }, response: Response) => {
+            entries.set(keyOf(request), response);
+          },
+          keys: async () => [...entries.keys()].map((url) => ({ url })),
+        };
+      },
+    },
+    self: {
+      registration: { scope: SW_SCOPE },
+      location: { origin: new URL(SW_SCOPE).origin },
+      clients: { claim: vi.fn().mockResolvedValue(undefined) },
+      skipWaiting: vi.fn().mockResolvedValue(undefined),
+      addEventListener: (type: string, listener: (event: unknown) => void): void => {
+        listeners.set(type, listener);
+      },
+    },
+  });
+
+  return {
+    cached: (cacheName, url) => store.get(cacheName)?.get(url),
+    dispatch: async (type, event) => {
+      const pending: Promise<unknown>[] = [];
+      listeners.get(type)!({
+        ...event,
+        waitUntil: (value: Promise<unknown>) => pending.push(value),
+      });
+      await Promise.all(pending);
+    },
+    navigate: (url) => {
+      const pending: Promise<unknown>[] = [];
+      let response!: Promise<Response>;
+      let done = false;
+      listeners.get('fetch')!({
+        request: { url, method: 'GET', mode: 'navigate', headers: new Headers() },
+        respondWith: (value: Promise<Response>) => {
+          response = value;
+        },
+        waitUntil: (value: Promise<unknown>) => pending.push(value),
+      });
+      void response.then(() => {
+        done = true;
+      });
+      return {
+        response,
+        settled: () => done,
+        lifetime: async () => {
+          await response;
+          // waitUntil may be registered after respondWith settles its race.
+          await Promise.all(pending);
+        },
+      };
+    },
+  };
+}
+
+function deferredResponse(): { promise: Promise<Response>; resolve: (value: Response) => void } {
+  let resolveResponse!: (value: Response) => void;
+  const promise = new Promise<Response>((resolve) => {
+    resolveResponse = resolve;
+  });
+  return { promise, resolve: resolveResponse };
+}
+
+function warmShellCache(withEntryAssets: boolean): Record<string, Record<string, string>> {
+  const caches: Record<string, Record<string, string>> = {
+    [SW_SHELL]: { [SW_SCOPE]: SW_SHELL_HTML, [`${SW_SCOPE}index.html`]: SW_SHELL_HTML },
+  };
+  if (!withEntryAssets) return caches;
+  for (const [url, cacheName] of Object.entries(SW_ENTRY_ASSETS)) {
+    caches[cacheName] = { ...(caches[cacheName] ?? {}), [url]: `asset ${url}` };
+  }
+  return caches;
+}
+
+describe('service worker offline shell', () => {
+  it('precaches the hashed entry graph named by index.html, each into the cache that serves it', async () => {
+    const fetcher = vi.fn(async (input: string | { url: string }) => {
+      const url = typeof input === 'string' ? input : input.url;
+      if (url === SW_SCOPE || url === `${SW_SCOPE}index.html`) return new Response(SW_SHELL_HTML);
+      if (url in SW_ENTRY_ASSETS) return new Response(`asset ${url}`);
+      throw new Error(`unexpected fetch ${url}`);
+    });
+    const worker = executeNetworkWorker(fetcher);
+
+    await worker.dispatch('install', {});
+
+    for (const [url, cacheName] of Object.entries(SW_ENTRY_ASSETS)) {
+      expect(worker.cached(cacheName, url), url).toBeDefined();
+    }
+    expect(await worker.cached(SW_SHELL, `${SW_SCOPE}index.html`)?.text()).toBe(SW_SHELL_HTML);
+    const fetched = fetcher.mock.calls.map(([input]) =>
+      typeof input === 'string' ? input : input.url
+    );
+    expect(fetched.some((url) => url.includes('fonts.googleapis.com'))).toBe(false);
+    expect(fetched.some((url) => url.includes('millos.net'))).toBe(false);
+  });
+
+  it('serves the complete cached shell when a navigation stalls, then refreshes it from the late response', async () => {
+    vi.useFakeTimers();
+    const network = deferredResponse();
+    const worker = executeNetworkWorker(() => network.promise, warmShellCache(true));
+
+    const navigation = worker.navigate(SW_SCOPE);
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(navigation.settled()).toBe(true);
+    expect(await (await navigation.response).text()).toBe(SW_SHELL_HTML);
+
+    network.resolve(new Response('fresh shell'));
+    await navigation.lifetime();
+    expect(await worker.cached(SW_SHELL, SW_SCOPE)?.text()).toBe('fresh shell');
+  });
+
+  it('keeps network-first freshness when the network answers inside the timeout', async () => {
+    vi.useFakeTimers();
+    const worker = executeNetworkWorker(
+      async () => new Response('network shell'),
+      warmShellCache(true)
+    );
+
+    const navigation = worker.navigate(SW_SCOPE);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(await (await navigation.response).text()).toBe('network shell');
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each([
+    { name: 'no cached shell', caches: {} },
+    { name: 'a cached shell whose entry bundle is not cached', caches: warmShellCache(false) },
+  ])('keeps waiting for a slow network when there is $name', async ({ caches }) => {
+    vi.useFakeTimers();
+    const network = deferredResponse();
+    const worker = executeNetworkWorker(() => network.promise, caches);
+
+    const navigation = worker.navigate(SW_SCOPE);
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(navigation.settled()).toBe(false);
+
+    network.resolve(new Response('network shell'));
+    expect(await (await navigation.response).text()).toBe('network shell');
+  });
+
+  it('still serves the cached shell at once when the network rejects', async () => {
+    const worker = executeNetworkWorker(async () => {
+      throw new TypeError('Failed to fetch');
+    }, warmShellCache(false));
+
+    const navigation = worker.navigate(`${SW_SCOPE}?scene=overview`);
+    expect(await (await navigation.response).text()).toBe(SW_SHELL_HTML);
   });
 });
 
@@ -436,6 +699,101 @@ describe('service worker lifecycle', () => {
     expect(secondUpdate).not.toHaveBeenCalled();
 
     expect(await unregisterServiceWorker()).toBe(true);
+  });
+});
+
+describe('service worker update policy', () => {
+  function policyHarness(controlled: boolean) {
+    const options: { controller: ServiceWorker | null; waiting: ServiceWorker | null } = {
+      controller: controlled ? ({} as ServiceWorker) : null,
+      waiting: null,
+    };
+    const harness = installServiceWorkerHarness(options);
+    // skipWaiting -> activate -> clients.claim() fires controllerchange here.
+    const postMessage = vi.fn(() => {
+      harness.container.dispatchEvent(new Event('controllerchange'));
+    });
+    const waitingWorker = { postMessage } as unknown as ServiceWorker;
+    let sessionActive = false;
+    const policy = {
+      isSessionActive: vi.fn(() => sessionActive),
+      reload: vi.fn(),
+      warn: vi.fn(),
+    };
+    const findUpdate = (): void => {
+      Object.assign(harness.installing, { state: 'installed' as ServiceWorkerState });
+      harness.registration.dispatchEvent(new Event('updatefound'));
+      harness.installing.dispatchEvent(new Event('statechange'));
+    };
+    const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+    return {
+      harness,
+      postMessage,
+      policy,
+      findUpdate,
+      settle,
+      leaveWaiting: () => {
+        options.waiting = waitingWorker;
+      },
+      openScene: () => {
+        sessionActive = true;
+      },
+    };
+  }
+
+  afterEach(async () => {
+    await unregisterServiceWorker();
+  });
+
+  it('parks a mid-session update without reloading, then activates it at the next startup before the scene opens', async () => {
+    // Session 1: the scene is open when the deploy is found.
+    const first = policyHarness(true);
+    await registerServiceWorkerWithUpdatePolicy(first.policy);
+    first.openScene();
+    first.leaveWaiting();
+    first.findUpdate();
+    first.harness.container.dispatchEvent(new Event('controllerchange')); // another tab
+    await first.settle();
+
+    expect(first.postMessage).not.toHaveBeenCalled();
+    expect(first.policy.reload).not.toHaveBeenCalled();
+    expect(first.policy.warn).toHaveBeenCalledWith(SERVICE_WORKER_UPDATE_WAITING_MESSAGE);
+    expect(first.policy.warn).toHaveBeenCalledWith(SERVICE_WORKER_UPDATE_ACTIVE_MESSAGE);
+
+    // Session 2: a reload of one tab does not activate a waiting worker, so
+    // startup must, or the build is stranded until every tab closes.
+    const next = policyHarness(true);
+    next.leaveWaiting();
+    await registerServiceWorkerWithUpdatePolicy(next.policy);
+    await vi.waitFor(() => expect(next.policy.reload).toHaveBeenCalledOnce());
+    expect(next.postMessage).toHaveBeenCalledWith({ type: 'SKIP_WAITING' });
+    await next.settle();
+    expect(next.policy.reload).toHaveBeenCalledOnce();
+  });
+
+  it('activates a pre-scene update and reloads exactly once when both triggers fire', async () => {
+    const run = policyHarness(true);
+    run.leaveWaiting();
+    await registerServiceWorkerWithUpdatePolicy(run.policy);
+    run.findUpdate();
+    await run.settle();
+    run.harness.container.dispatchEvent(new Event('controllerchange'));
+    await run.settle();
+
+    expect(run.postMessage).toHaveBeenCalledOnce();
+    expect(run.postMessage).toHaveBeenCalledWith({ type: 'SKIP_WAITING' });
+    expect(run.policy.reload).toHaveBeenCalledOnce();
+    expect(run.policy.warn).not.toHaveBeenCalled();
+  });
+
+  it('activates a waiting worker on an uncontrolled page without reloading it', async () => {
+    const run = policyHarness(false);
+    run.leaveWaiting();
+    await registerServiceWorkerWithUpdatePolicy(run.policy);
+    await vi.waitFor(() => expect(run.postMessage).toHaveBeenCalledOnce());
+    await run.settle();
+
+    expect(run.policy.reload).not.toHaveBeenCalled();
   });
 });
 

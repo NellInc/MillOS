@@ -5,7 +5,13 @@ import { useWorkplaceStore } from '../../../stores/workplaceStore';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
 import { useMaterialFlowStore } from '../../../stores/materialFlowStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
-import { createWorkplace, workplaceReadiness } from '../../../simulation/bilateralWorkplace';
+import {
+  createWorkplace,
+  restoreWorkplace,
+  saveWorkplace,
+  workplaceReadiness,
+} from '../../../simulation/bilateralWorkplace';
+import { autoplayWorkplaceStep } from '../../../simulation/workplaceAutoplay';
 import {
   CAMPAIGN_SHIFTS,
   WORKPLACE_CHECKS,
@@ -53,6 +59,26 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('Workplace laboratory interface', () => {
+  it('offers to resume a shift a reload paused, with fresh consent, from the minute reached', () => {
+    for (let i = 0; i < 200 && useWorkplaceStore.getState().workplace.phase !== 'active'; i++)
+      autoplayWorkplaceStep('toe-dip');
+    useWorkplaceStore.getState().tick(30, 0, false);
+    // The page reloads: the store restores the safety-settled snapshot.
+    useWorkplaceStore.setState({
+      workplace: restoreWorkplace(saveWorkplace(useWorkplaceStore.getState().workplace)),
+    });
+    render(<WorkplaceLab />);
+    open('Review');
+    expect(
+      screen.getByText(/A reload paused this shift at minute 30 and expired every grant/)
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Resume the shift with fresh consent' }));
+    const resumed = useWorkplaceStore.getState().workplace;
+    expect(resumed.phase).toBe('deliberating');
+    expect(resumed.minute).toBe(30);
+    expect(resumed.members.every((m) => !m.understood && m.ballot === null)).toBe(true);
+  });
+
   it('stages the direct third-shift chapter and exposes its pressure controls without consent', () => {
     useWorkplaceStore.getState().startCampaign('team', 17);
     const state = useWorkplaceStore.getState().workplace;
@@ -242,6 +268,21 @@ describe('Workplace laboratory interface', () => {
     expect(
       screen.getByText(/Working agreement: incomplete. Combined outcome: unfinished/)
     ).toBeInTheDocument();
+    // The review reason renders through displayEventDetail, so the English
+    // reload sentinel kept in state reads in the active language.
+    act(() => {
+      useWorkplaceStore.setState({
+        workplace: {
+          ...useWorkplaceStore.getState().workplace,
+          reviewReason: 'Reload safety: future authority and consent revoked; earned pay retained.',
+        },
+      });
+    });
+    expect(
+      screen.getAllByText(
+        /Reload safety: future authority and consent revoked; earned pay retained\./
+      ).length
+    ).toBeGreaterThan(0);
     expect(
       screen.getByText(
         /Remaining full customer commitment: 0 kg. Full customer commitment dispatched/
@@ -270,7 +311,7 @@ describe('Workplace laboratory interface', () => {
     expect(
       screen.getByText(/No real worker data or independently authenticated ballots/)
     ).toBeInTheDocument();
-    open('Start playable shift at teaching pace (15×)');
+    open('Start playable shift at teaching pace (1/2x)');
     expect(useGameSimulationStore.getState().gameSpeed).toBe(15);
     expect(useWorkplaceStore.getState().workplace.phase).toBe('deliberating');
     expect(execute).not.toHaveBeenCalled();
@@ -496,7 +537,7 @@ describe('Living Cooperative campaign interface', () => {
     fireEvent.change(screen.getByLabelText(`${role}: ${question.prompt}`), { target: { value } });
   };
 
-  it('starts only explicitly with the selected profile and a 30× local clock', () => {
+  it('starts only explicitly with the selected profile and a standard-pace local clock', () => {
     render(<WorkplaceLab />);
     expect(useGameSimulationStore.getState().gameSpeed).toBe(180);
     fireEvent.change(screen.getByLabelText('Adoption profile'), { target: { value: 'team' } });
@@ -585,4 +626,317 @@ describe('Living Cooperative campaign interface', () => {
     open('Review');
     expect(screen.getByText(/Shift 1: Friday: the urgent order/)).toBeInTheDocument();
   });
+  it('promises credit from the next shift only when a next order and a next shift exist', () => {
+    const ops = useOperationsCampaignStore.getState();
+    const first = ops.orders.find((o) => o.id === ops.activeOrderId)!;
+    expect(useWorkplaceStore.getState().startMission('team', 17).changed).toBe(true);
+    const met = (shift: number) => {
+      const state = useWorkplaceStore.getState().workplace;
+      const mission = state.campaign!.mission!;
+      useWorkplaceStore.setState({
+        workplace: {
+          ...state,
+          campaign: {
+            ...state.campaign!,
+            shift,
+            mission: { ...mission, creditedKg: mission.originalTargetKg },
+          },
+        },
+      });
+    };
+    // Every order shipped: nothing is open, so nothing is promised.
+    useOperationsCampaignStore.setState({
+      orders: ops.orders.map((o) => ({ ...o, status: 'fulfilled', shippedKg: o.requiredKg })),
+      activeOrderId: null,
+    });
+    met(0);
+    const none = render(<WorkplaceLab />);
+    expect(screen.queryByText(/from the next shift/)).not.toBeInTheDocument();
+    expect(screen.getByText(/No other customer order is open/)).toBeInTheDocument();
+    none.unmount();
+    // The mill has moved on to a next order: that one is named.
+    const second = ops.orders.find((o) => o.id !== first.id)!;
+    useOperationsCampaignStore.setState({
+      orders: ops.orders.map((o) =>
+        o.id === first.id ? { ...o, status: 'fulfilled', shippedKg: o.requiredKg } : o
+      ),
+      activeOrderId: second.id,
+    });
+    const { unmount } = render(<WorkplaceLab />);
+    expect(
+      screen.getByText(
+        `Commitment order fulfilled. Dispatch to ${second.customer} is credited to the cooperative from the next shift.`
+      )
+    ).toBeInTheDocument();
+    unmount();
+    // The last shift has no next shift, whatever is open.
+    useOperationsCampaignStore.setState({ activeOrderId: second.id });
+    met(2);
+    render(<WorkplaceLab />);
+    expect(screen.queryByText(/from the next shift/)).not.toBeInTheDocument();
+    expect(screen.getByText(/This is the season’s last shift/)).toBeInTheDocument();
+  });
+});
+
+it('turns the cooperative review into a discussion and comparison without changing the plant or agreement', () => {
+  const store = useWorkplaceStore.getState();
+  store.startCampaign('cooperative', 17);
+  store.stop();
+  const agreement = useWorkplaceStore.getState().workplace;
+  const speed = useGameSimulationStore.getState().gameSpeed;
+  const balance = useMaterialFlowStore.getState().getMaterialBalance();
+  render(<WorkplaceLab />);
+  open('Review');
+  const review = screen.getByRole('region', { name: 'Cooperative learning review' });
+  expect(within(review).getByText('Learn from this shift together')).toBeInTheDocument();
+  expect(within(review).getByText(/Teaching output:/)).toBeInTheDocument();
+  fireEvent.click(within(review).getByRole('button', { name: 'Compare another handoff' }));
+  expect(screen.getByRole('button', { name: 'Experiment', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true'
+  );
+  expect(useWorkplaceStore.getState().workplace).toBe(agreement);
+  expect(useGameSimulationStore.getState().gameSpeed).toBe(speed);
+  expect(useMaterialFlowStore.getState().getMaterialBalance()).toEqual(balance);
+});
+
+it('keeps cooperative reflection out of unfinished discussions', () => {
+  useWorkplaceStore.getState().startCampaign('cooperative', 17);
+  render(<WorkplaceLab />);
+  open('Review');
+  expect(
+    screen.queryByRole('region', { name: 'Cooperative learning review' })
+  ).not.toBeInTheDocument();
+});
+
+it('opens the exact handoff objection without choosing its resolver or changing any agreement', async () => {
+  useWorkplaceStore.setState({ participationMode: 'solo', turn: null });
+  const store = useWorkplaceStore.getState();
+  store.beginImprovement('cooperative', store.workplace.revision, undefined, 'workshop');
+  store.object('quality', 'privacy');
+  store.object('packing', 'rest');
+  const before = useWorkplaceStore.getState().workplace;
+  const material = useMaterialFlowStore.getState();
+  const speed = useGameSimulationStore.getState().gameSpeed;
+  render(<WorkplaceLab />);
+  open('Review remedy: Quality (privacy)');
+  const target = screen.getByRole('group', { name: 'Objection record: Quality (privacy)' });
+  await waitFor(() => expect(target).toHaveFocus());
+  expect(within(target).getByLabelText('Resolving author for privacy')).toHaveValue('');
+  expect(within(target).getByRole('button', { name: 'Author confirms resolution' })).toBeDisabled();
+  expect(useWorkplaceStore.getState().workplace).toBe(before);
+  expect(useMaterialFlowStore.getState()).toBe(material);
+  expect(useGameSimulationStore.getState().gameSpeed).toBe(speed);
+  expect(execute).not.toHaveBeenCalled();
+  open('Return to handoff controls');
+  await waitFor(() =>
+    expect(screen.getByRole('region', { name: 'Handoff experiment' })).toHaveFocus()
+  );
+  expect(screen.getByRole('button', { name: 'Review remedy: Packing (rest)' })).toBeEnabled();
+  expect(useWorkplaceStore.getState().workplace).toBe(before);
+});
+
+it('leaves the remedy with its current separate-turn raiser after opening the record', async () => {
+  const get = () => useWorkplaceStore.getState();
+  useWorkplaceStore.setState({ participationMode: 'solo', turn: null });
+  get().setParticipationMode('separate-turns');
+  get().beginImprovement('cooperative', get().workplace.revision, undefined, 'workshop');
+  get().startTurn('quality');
+  expect(
+    get().runTurnCommand(get().turn!.token, { type: 'object', args: ['quality', 'privacy'] })
+      .changed
+  ).toBe(true);
+  get().endTurn();
+  get().startTurn('packing');
+  const before = get().workplace;
+  const token = get().turn!.token;
+  render(<WorkplaceLab />);
+  open('Review remedy: Quality (privacy)');
+  const record = screen.getByRole('group', { name: 'Objection record: Quality (privacy)' });
+  await waitFor(() => expect(record).toHaveFocus());
+  expect(get().turn!.actorId).toBe('packing');
+  expect(get().turn!.token).toBe(token);
+  expect(within(record).getByRole('button', { name: 'Author confirms resolution' })).toBeDisabled();
+  expect(
+    get().runTurnCommand(token, {
+      type: 'resolveObjection',
+      args: [before.objections[0].id, 'quality'],
+    }).changed
+  ).toBe(false);
+  expect(get().workplace).toBe(before);
+  act(() => {
+    get().endTurn();
+    get().startTurn('quality');
+  });
+  expect(within(record).getByRole('button', { name: 'Author confirms resolution' })).toBeEnabled();
+  fireEvent.click(within(record).getByRole('button', { name: 'Author confirms resolution' }));
+  expect(get().workplace.objections[0].status).toBe('resolved');
+  expect(execute).not.toHaveBeenCalled();
+  get().endTurn();
+  useWorkplaceStore.setState({ participationMode: 'solo', turn: null });
+});
+
+it.each(['packing', 'mind'])(
+  'keeps %s learning feedback beside current answers without casting member decisions',
+  (actorId) => {
+    const get = () => useWorkplaceStore.getState();
+    get().startCampaign('cooperative', 17);
+    const stock = structuredClone(useMaterialFlowStore.getState().sources);
+    const finance = structuredClone(get().workplace.finance);
+    const minute = get().workplace.minute;
+    const role = actorId === 'mind' ? 'Adviser' : 'Packing';
+    const view = render(<WorkplaceLab />);
+    open('Agreement / Voices');
+    if (actorId === 'packing')
+      fireEvent.click(screen.getByText('Packing: policy vote pending', { exact: true }));
+    const questions = WORKPLACE_CHECKS.filter((q) => requiredChecks(actorId).includes(q.id));
+    for (const q of questions) {
+      const input = screen.getByLabelText(`${role}: ${q.prompt}`);
+      expect(input).not.toHaveAttribute('aria-invalid');
+      expect(document.getElementById(`check-answer-${actorId}-${q.id}`)).toBeNull();
+      const wrong = q.options.find((o) => o.value !== q.correct)!;
+      fireEvent.change(input, { target: { value: wrong.value } });
+      expect(input).toHaveValue(wrong.value);
+      expect(input).toHaveAttribute('aria-invalid', 'true');
+      const feedback = document.getElementById(`check-answer-${actorId}-${q.id}`)!;
+      expect(input).toHaveAttribute('aria-describedby', feedback.id);
+      expect(feedback).toHaveAttribute('aria-live', 'polite');
+      expect(feedback).toHaveTextContent(wrong.label);
+      expect(feedback).toHaveTextContent('Needs another look.');
+      expect(feedback).toHaveTextContent(q.clarification);
+      fireEvent.change(input, { target: { value: q.correct } });
+      expect(input).toHaveAttribute('aria-invalid', 'false');
+      expect(feedback).toHaveTextContent('Matches the current terms.');
+      expect(feedback).not.toHaveTextContent('Needs another look.');
+    }
+    expect(
+      get().workplace.members.every(
+        (m) => !m.understood && m.ballot === null && m.coverConsent === null
+      )
+    ).toBe(true);
+    expect(get().workplace.finance).toEqual(finance);
+    expect(get().workplace.minute).toBe(minute);
+    expect(useMaterialFlowStore.getState().sources).toEqual(stock);
+    expect(execute).not.toHaveBeenCalled();
+    // Feedback survives real remount from the saved current answers, with no render mutation.
+    const state = get().workplace;
+    view.unmount();
+    render(<WorkplaceLab />);
+    open('Agreement / Voices');
+    if (actorId === 'packing')
+      fireEvent.click(screen.getByText('Packing: policy vote pending', { exact: true }));
+    for (const q of questions)
+      expect(document.getElementById(`check-answer-${actorId}-${q.id}`)).toHaveTextContent(
+        q.clarification
+      );
+    expect(get().workplace).toBe(state);
+    act(() => {
+      get().selectPlan('resequence');
+    });
+    for (const q of questions) {
+      expect(document.getElementById(`check-answer-${actorId}-${q.id}`)).toBeNull();
+      expect(screen.getByLabelText(`${role}: ${q.prompt}`)).toHaveValue('');
+      expect(screen.getByLabelText(`${role}: ${q.prompt}`)).not.toHaveAttribute('aria-invalid');
+    }
+    expect(get().workplace.campaign?.adviserAcknowledged).toBe(false);
+  }
+);
+
+it('disables surplus decisions outside a shared-surplus charter and says where they live', () => {
+  useWorkplaceStore.getState().startCampaign('team', 17);
+  const state = useWorkplaceStore.getState().workplace;
+  expect(state.practices).not.toContain('gainsharing');
+  useWorkplaceStore.setState({
+    workplace: {
+      ...state,
+      phase: 'review',
+      finance: {
+        ...state.finance,
+        operatingRevenue: 100,
+        operatingCost: 0,
+        wagesPaid: 0,
+        compensationPaid: 0,
+        improvementSpend: 0,
+        distributed: 0,
+        communityAllocation: 0,
+      },
+    },
+  });
+  render(<WorkplaceLab />);
+  open('Review');
+  expect(screen.getByRole('button', { name: 'Record member surplus ballot' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Execute agreed allocation' })).toBeDisabled();
+  expect(
+    screen.getByText(/Shared surplus is part of the Coordinator-led and Member governance charters/)
+  ).toBeVisible();
+  cleanup();
+  act(() => {
+    const current = useWorkplaceStore.getState().workplace;
+    useWorkplaceStore.setState({
+      workplace: { ...current, practices: [...current.practices, 'gainsharing'] },
+    });
+  });
+  render(<WorkplaceLab />);
+  open('Review');
+  expect(screen.getByRole('button', { name: 'Record member surplus ballot' })).toBeEnabled();
+  expect(screen.queryByText(/Shared surplus is part of the/)).toBeNull();
+});
+
+it('names why there is no surplus to share in the default charter', () => {
+  useWorkplaceStore.getState().startCampaign('toe-dip', 17);
+  const state = useWorkplaceStore.getState().workplace;
+  expect(state.practices).toContain('gainsharing');
+  useWorkplaceStore.setState({
+    workplace: {
+      ...state,
+      phase: 'review',
+      finance: {
+        ...state.finance,
+        operatingRevenue: 100,
+        operatingCost: 40,
+        wagesPaid: 108,
+        compensationPaid: 6,
+        improvementSpend: 0,
+        distributed: 0,
+        communityAllocation: 0,
+      },
+    },
+  });
+  render(<WorkplaceLab />);
+  open('Review');
+  expect(
+    screen.getByText(
+      'No surplus this shift: revenue 100.00 did not cover material costs 40.00, wages 108.00, cover 6.00 and purchases 0.00.'
+    )
+  ).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Record member surplus ballot' })).toBeDisabled();
+});
+
+it('names the shift stop for what it does and rounds the inspection hold minute', () => {
+  prepare();
+  render(<WorkplaceLab />);
+  expect(screen.queryByRole('button', { name: /Pause and finish shift review/ })).toBeNull();
+  open('End shift now and review');
+  expect(useWorkplaceStore.getState().workplace.phase).toBe('review');
+  cleanup();
+  // A campaign starts only from the idle laboratory, not from the review above.
+  useWorkplaceStore.setState({ workplace: createWorkplace() });
+  expect(useWorkplaceStore.getState().startCampaign('team', 17).changed).toBe(true);
+  const state = useWorkplaceStore.getState().workplace;
+  useWorkplaceStore.setState({
+    workplace: {
+      ...state,
+      phase: 'active',
+      minute: 25.375,
+      campaign: {
+        ...state.campaign!,
+        shift: 1,
+        inspectionComplete: false,
+        inspectionUntilMinute: 30.375,
+      },
+    },
+  });
+  render(<WorkplaceLab />);
+  expect(screen.getByText('Quality hold in progress until minute 31.')).toBeInTheDocument();
+  expect(screen.queryByText(/30\.375/)).toBeNull();
 });

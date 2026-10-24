@@ -1,0 +1,45 @@
+
+> grain-mill-simulator@0.40.0 test
+> vitest run src/components/workers/workerPose.test.ts -t replaces only scalp
+
+(node:60427) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+ ❯ src/components/workers/workerPose.test.ts (87 tests | 1 failed | 85 skipped) 1129ms
+   × feminine replaces only scalp triangles while keeping real brow vertices and skin bindings 737ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/workers/workerPose.test.ts > feminine replaces only scalp triangles while keeping real brow vertices and skin bindings
+AssertionError: expected 184 to be 80 // Object.is equality
+
+- Expected
++ Received
+
+- 80
++ 184
+
+ ❯ src/components/workers/workerPose.test.ts:1279:24
+    1277|         p = new THREE.Vector3();
+    1278|       const ids = new Set(Array.from(brows.index!.array));
+    1279|       expect(ids.size).toBe(body === 'masculine' ? 48 : 80);
+       |                        ^
+    1280|       for (const id of ids) {
+    1281|         p.fromBufferAttribute(brows.attributes.position, id);
+ ❯ SkinnedMesh.traverse ../../../../Documents/GitHub/MillOS/node_modules/three/build/three.core.js:14340:3
+ ❯ Group.traverse ../../../../Documents/GitHub/MillOS/node_modules/three/build/three.core.js:14346:18
+ ❯ Object3D.traverse ../../../../Documents/GitHub/MillOS/node_modules/three/build/three.core.js:14346:18
+ ❯ Object3D.traverse ../../../../Documents/GitHub/MillOS/node_modules/three/build/three.core.js:14346:18
+ ❯ Group.traverse ../../../../Documents/GitHub/MillOS/node_modules/three/build/three.core.js:14346:18
+ ❯ src/components/workers/workerPose.test.ts:1256:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed | 85 skipped (87)
+   Start at  11:46:25
+   Duration  4.00s (transform 566ms, setup 444ms, import 1.93s, tests 1.13s, environment 0ms)
+

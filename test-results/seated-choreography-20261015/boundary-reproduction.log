@@ -1,0 +1,32 @@
+
+> grain-mill-simulator@0.40.0 test
+> vitest run src/components/workers/workerPose.test.ts -t reproduces the abrupt
+
+(node:5642) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+ ❯ src/components/workers/workerPose.test.ts (94 tests | 1 failed | 93 skipped) 128ms
+   × reproduces the abrupt legacy seat boundary on the real rig 9ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/workers/workerPose.test.ts > reproduces the abrupt legacy seat boundary on the real rig
+AssertionError: one semantic frame moves the pelvis: expected 0.3707972962700353 to be less than 0.025
+ ❯ src/components/workers/workerPose.test.ts:1655:78
+    1653|   pose.apply();
+    1654|   const seated = hips.getWorldPosition(new THREE.Vector3()).y;
+    1655|   expect(Math.abs(standing - seated), 'one semantic frame moves the pe…
+       |                                                                              ^
+    1656| });
+    1657|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 93 skipped (94)
+   Start at  13:41:47
+   Duration  1.02s (transform 233ms, setup 114ms, import 558ms, tests 128ms, environment 0ms)
+

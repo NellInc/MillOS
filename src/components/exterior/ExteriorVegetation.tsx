@@ -28,6 +28,7 @@ import {
   signedDistanceToShape,
   MILLOS_RIVER_CONFIG,
   MILLOS_TERRAIN_REGIONS,
+  regionClearance,
 } from '../terrain/splatMapGenerator';
 import { getLandmarkBounds, SITE_LAYOUT } from '../../constants/siteLayout';
 import { useGraphicsStore } from '../../stores/graphicsStore';
@@ -638,7 +639,7 @@ export const VALLEY_WOODLAND_TREES: TreeInstanceData[] = VALLEY_GROVES.flatMap(
     MILLOS_TERRAIN_REGIONS.every(
       (region) =>
         region.channel === TerrainChannel.GRASS ||
-        signedDistanceToShape(x, z, region.shape) > (region.edgeSoftness ?? 0) + 3
+        signedDistanceToShape(x, z, region.shape) > regionClearance(region) + 3
     )
   );
 });

@@ -4,6 +4,7 @@ import {
   ENVIRONMENT_INTENSITY,
   HEMISPHERE_INTENSITY,
   hemisphereFillIntensity,
+  daylightHemisphereGain,
   applyGroundBouncePalette,
   METALLIC_ENVMAP_THRESHOLD,
   SUN_DISC_GAIN,
@@ -14,6 +15,9 @@ import {
   releaseEnvironmentMap,
   shouldAdoptEnvironmentMap,
   writeEnvironmentBands,
+  neutraliseNightFill,
+  neutraliseDaylightFill,
+  DAYLIGHT_FILL_NEUTRALISE_STRENGTH,
 } from './SceneEnvironmentIBL';
 import { sampleAtmosphere, sampleCelestial } from '../../simulation/atmosphere';
 
@@ -334,5 +338,198 @@ describe('shared masonry and earth bounce', () => {
     }
     expect(source.equals(original)).toBe(true);
     expect(applyGroundBouncePalette(new THREE.Color(), source, 0).equals(source)).toBe(true);
+  });
+});
+
+describe('daylight hemisphere energy', () => {
+  it('keeps twilight, night and invalid samples exactly unchanged', () => {
+    for (const daylight of [-100, 0, 0.25, 0.5, 0.85, NaN, Infinity, -Infinity]) {
+      expect(daylightHemisphereGain(daylight)).toBe(1);
+    }
+    for (const hour of [0, 5.5, 6, 18, 18.25, 18.5, 22]) {
+      expect(daylightHemisphereGain(sampleAtmosphere(0, hour, 'clear').daylight)).toBe(1);
+    }
+    expect(daylightHemisphereGain(100)).toBe(daylightHemisphereGain(1));
+  });
+
+  it('bounds clear-noon directional luminance by the existing hemisphere budget', () => {
+    const sky = new THREE.Color('#a3cce2');
+    const ground = applyGroundBouncePalette(new THREE.Color(), new THREE.Color('#6f806c'), 1);
+    const gain = daylightHemisphereGain(sampleAtmosphere(0, 12, 'clear').daylight);
+    const oldVertical = HEMISPHERE_INTENSITY * (luminance(sky) + luminance(ground)) * 0.5;
+    sky.multiplyScalar(gain);
+    ground.multiplyScalar(gain);
+    expect(luminance(sky) * HEMISPHERE_INTENSITY).toBeCloseTo(HEMISPHERE_INTENSITY, 12);
+    expect(luminance(ground)).toBeLessThan(luminance(sky));
+    // Three's hemisphere equation is mix(ground, sky, normal.y * 0.5 + 0.5).
+    for (let normalY = -1; normalY <= 1; normalY += 0.05) {
+      const irradiance = ground.clone().lerp(sky, normalY * 0.5 + 0.5);
+      expect(luminance(irradiance) * HEMISPHERE_INTENSITY).toBeLessThanOrEqual(
+        HEMISPHERE_INTENSITY + 1e-12
+      );
+    }
+    const newVertical = HEMISPHERE_INTENSITY * (luminance(sky) + luminance(ground)) * 0.5;
+    expect(newVertical).toBeCloseTo(oldVertical * gain, 12);
+    expect(newVertical).toBeLessThan(HEMISPHERE_INTENSITY);
+    expect(gain).toBeGreaterThan(1.7);
+    expect(gain).toBeLessThan(1.8);
+  });
+
+  it('preserves sky/ground chromaticity and relative storm attenuation', () => {
+    const sky = new THREE.Color('#a3cce2');
+    const ground = applyGroundBouncePalette(new THREE.Color(), new THREE.Color('#6f806c'), 1);
+    const ratio = luminance(ground) / luminance(sky);
+    const gain = daylightHemisphereGain(1);
+    for (const weatherAttenuation of [1, 0.7, 0.4]) {
+      const litSky = sky.clone().multiplyScalar(weatherAttenuation * gain);
+      const litGround = ground.clone().multiplyScalar(weatherAttenuation * gain);
+      expect(luminance(litSky)).toBeCloseTo(weatherAttenuation, 12);
+      expect(luminance(litGround) / luminance(litSky)).toBeCloseTo(ratio, 12);
+      for (const [source, lit] of [
+        [sky, litSky],
+        [ground, litGround],
+      ]) {
+        expect(lit.r / lit.g).toBeCloseTo(source.r / source.g, 12);
+        expect(lit.b / lit.g).toBeCloseTo(source.b / source.g, 12);
+      }
+    }
+  });
+
+  it('enters full daylight monotonically with smooth, finite endpoints', () => {
+    let previous = 1;
+    for (let step = 0; step <= 100; step += 1) {
+      const gain = daylightHemisphereGain(0.85 + (0.15 * step) / 100);
+      expect(Number.isFinite(gain)).toBe(true);
+      expect(gain).toBeGreaterThanOrEqual(previous);
+      expect(gain).toBeLessThanOrEqual(daylightHemisphereGain(1));
+      previous = gain;
+    }
+    const epsilon = 1e-5;
+    expect((daylightHemisphereGain(0.85 + epsilon) - 1) / epsilon).toBeLessThan(0.002);
+    expect(
+      (daylightHemisphereGain(1) - daylightHemisphereGain(1 - epsilon)) / epsilon
+    ).toBeLessThan(0.002);
+  });
+});
+
+describe('night fill colour', () => {
+  const chroma = (c: THREE.Color) => Math.max(c.r, c.g, c.b) - Math.min(c.r, c.g, c.b);
+
+  it('leaves dawn, noon and dusk exactly unchanged', () => {
+    for (const hour of [6, 12, 18]) {
+      const colour = new THREE.Color('#e8a66d');
+      const before = colour.clone();
+      neutraliseNightFill(colour, sampleAtmosphere(0, hour, 'clear').daylight);
+      expect(colour.equals(before), String(hour)).toBe(true);
+    }
+  });
+
+  it('takes the saturated blue out of the 1.6 night lift while keeping its luminance', () => {
+    // The night hemisphere (#384a64 at 1.6) is unoccluded, so it lit the hall's
+    // steel deep blue under the work lights and drove the red channel of a blue
+    // box in the yard to zero.
+    const luminance = (c: THREE.Color) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+    const night = new THREE.Color('#384a64');
+    const before = night.clone();
+    neutraliseNightFill(night, sampleAtmosphere(0, 22, 'clear').daylight);
+    expect(chroma(night)).toBeLessThan(chroma(before) * 0.55);
+    expect(night.b).toBeGreaterThan(night.r);
+    expect(luminance(night)).toBeCloseTo(luminance(before), 6);
+  });
+});
+
+describe('daylight fill colour', () => {
+  const chroma = (c: THREE.Color) => Math.max(c.r, c.g, c.b) - Math.min(c.r, c.g, c.b);
+  const noon = sampleAtmosphere(0, 12, 'clear').daylight;
+
+  it('pulls the noon sky fill toward neutral, keeping it cool and its luminance exact', () => {
+    // final-med-12: the shaded hall aisle read sRGB (60, 87, 98) beside a
+    // neutral (93, 99, 96), tree shadows on grass went teal, and a fifth of the
+    // interior frames had a red channel at or below 5. The ambient, the
+    // hemisphere sky and the IBL horizon all carried the raw #a3cce2 horizon.
+    const fill = new THREE.Color('#a3cce2');
+    const before = fill.clone();
+    neutraliseDaylightFill(fill, noon);
+    expect(chroma(fill)).toBeLessThan(chroma(before) * 0.5);
+    expect(fill.b).toBeGreaterThan(fill.r * 1.2);
+    expect(luminance(fill)).toBeCloseTo(luminance(before), 6);
+  });
+
+  it('is exactly inert at night, where the night neutralisation owns the colour', () => {
+    const night = new THREE.Color('#384a64');
+    const before = night.clone();
+    neutraliseDaylightFill(night, sampleAtmosphere(0, 22, 'clear').daylight);
+    expect(night.equals(before)).toBe(true);
+  });
+
+  it('hands over from the night term without a step', () => {
+    let previous: THREE.Color | null = null;
+    for (let daylight = 0; daylight <= 1.0001; daylight += 0.01) {
+      const colour = new THREE.Color('#7186ad');
+      neutraliseDaylightFill(neutraliseNightFill(colour, daylight), daylight);
+      if (previous) {
+        expect(colorDistanceSquared(colour, previous), daylight.toFixed(2)).toBeLessThan(0.0004);
+      }
+      previous = colour;
+    }
+  });
+
+  it('switches off as one paired control', () => {
+    const fill = new THREE.Color('#a3cce2');
+    DAYLIGHT_FILL_NEUTRALISE_STRENGTH.value = 0;
+    try {
+      neutraliseDaylightFill(fill, noon);
+    } finally {
+      DAYLIGHT_FILL_NEUTRALISE_STRENGTH.value = 1;
+    }
+    expect(fill.equals(new THREE.Color('#a3cce2'))).toBe(true);
+  });
+});
+
+describe('sunrise shadow contrast', () => {
+  it('trims the twilight shoulder only while the sun is up', () => {
+    const daylight = sampleAtmosphere(0, 6, 'clear').daylight;
+    expect(hemisphereFillIntensity(daylight, 1)).toBeLessThan(
+      hemisphereFillIntensity(daylight) * 0.8
+    );
+    expect(hemisphereFillIntensity(daylight, 0)).toBe(hemisphereFillIntensity(daylight));
+    expect(hemisphereFillIntensity(1, 1)).toBe(HEMISPHERE_INTENSITY);
+    expect(hemisphereFillIntensity(0, 0)).toBeCloseTo(1.6);
+  });
+});
+
+describe('twilight fill colour', () => {
+  const chroma = (c: THREE.Color) => Math.max(c.r, c.g, c.b) - Math.min(c.r, c.g, c.b);
+  const luminance = (c: THREE.Color) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+
+  it('greys the mauve horizon fill at 18:30 toward a warm neutral, keeping its luminance', async () => {
+    // Measured live at 18:30: hemisphere sky #a5908f at 2.23 carried 56% of
+    // the yard tarmac's light and tinted it violet (78.7, 59.7, 52.7).
+    const { neutraliseTwilightFill } = await import('./SceneEnvironmentIBL');
+    const fill = new THREE.Color('#a5908f');
+    const before = fill.clone();
+    neutraliseTwilightFill(fill, sampleAtmosphere(0, 18.5, 'clear').solarElevation);
+    expect(chroma(fill)).toBeLessThan(chroma(before) * 0.5);
+    expect(luminance(fill)).toBeCloseTo(luminance(before), 6);
+    // Warm neutral: red at least green, green above blue.
+    expect(fill.r).toBeGreaterThanOrEqual(fill.g);
+    expect(fill.g).toBeGreaterThan(fill.b);
+  });
+
+  it('leaves noon and deep night exactly as they were', async () => {
+    const { neutraliseTwilightFill } = await import('./SceneEnvironmentIBL');
+    for (const hour of [12, 22]) {
+      const fill = new THREE.Color('#a5908f');
+      neutraliseTwilightFill(fill, sampleAtmosphere(0, hour, 'clear').solarElevation);
+      expect(fill.getHexString()).toBe('a5908f');
+    }
+  });
+
+  it('is applied to the hemisphere fill in the frame update', async () => {
+    const { readFileSync } = await import('node:fs');
+    const source = readFileSync('src/components/environment/SceneEnvironmentIBL.tsx', 'utf8');
+    expect(source).toMatch(
+      /neutraliseTwilightFill\(hemisphere\.color, atmosphere\.solarElevation\)/
+    );
   });
 });

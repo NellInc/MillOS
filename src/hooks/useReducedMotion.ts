@@ -1,12 +1,18 @@
 import { useState, useEffect } from 'react';
+import {
+  selectInAppReducedMotion,
+  useMotionPreferenceStore,
+} from '../stores/motionPreferenceStore';
 
 /**
  * Hook to detect user's reduced motion preference.
- * Respects the prefers-reduced-motion media query.
+ * Respects the prefers-reduced-motion media query and the in-app
+ * Reduce motion setting (Settings, Interface accessibility).
  *
  * @returns true if user prefers reduced motion
  */
 export function useReducedMotion(): boolean {
+  const inAppReducedMotion = useMotionPreferenceStore(selectInAppReducedMotion);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(() => {
     // SSR-safe initial value
     if (typeof window === 'undefined') return false;
@@ -28,5 +34,5 @@ export function useReducedMotion(): boolean {
     };
   }, []);
 
-  return prefersReducedMotion;
+  return prefersReducedMotion || inAppReducedMotion;
 }

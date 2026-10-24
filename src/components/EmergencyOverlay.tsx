@@ -2,11 +2,19 @@ import React from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { OctagonX, Siren } from 'lucide-react';
 import { useSafetyStore } from '../stores/safetyStore';
+import {
+  selectInAppReducedMotion,
+  useMotionPreferenceStore,
+} from '../stores/motionPreferenceStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useChronicleStore } from '../stores/chronicleStore';
+import { useT } from '../i18n';
+import { emergencyOverlayMessages } from './EmergencyOverlay.messages';
+import { LiveRegionPortal } from './ui/LiveRegionPortal';
 
 // Emergency Overlay Component - shows flashing red border
 export const EmergencyOverlay: React.FC = () => {
+  const t = useT(emergencyOverlayMessages);
   const forkliftEmergencyStop = useSafetyStore((state) => state.forkliftEmergencyStop);
   const emergencyActive = useGameSimulationStore((state) => state.emergencyActive);
   const emergencyDrillMode = useGameSimulationStore((state) => state.emergencyDrillMode);
@@ -18,7 +26,9 @@ export const EmergencyOverlay: React.FC = () => {
   // A Chronicle dialog on screen is either the fire's own guidance or one the
   // player opened; the strip would cover it, and returns when it closes.
   const dialogOpen = useChronicleStore((state) => state.dialogOpen);
-  const reduceMotion = useReducedMotion();
+  // framer's hook reads only the OS media query; the in-app setting is OR'd in.
+  const inAppReducedMotion = useMotionPreferenceStore(selectInAppReducedMotion);
+  const reduceMotion = useReducedMotion() || inAppReducedMotion;
 
   // Either emergency type triggers the overlay
   const isEmergency = forkliftEmergencyStop || emergencyActive;
@@ -29,81 +39,95 @@ export const EmergencyOverlay: React.FC = () => {
   const wash = isDrill ? 'rgba(245, 158, 11, 0.16)' : 'rgba(239, 68, 68, 0.24)';
   const Icon = isDrill ? Siren : OctagonX;
   const title = isDrill
-    ? 'Simulated fire drill'
+    ? t('drillTitle')
     : forkliftOnly
-      ? 'Forklift emergency stop'
-      : 'Facility emergency stop';
+      ? t('forkliftStopTitle')
+      : t('facilityStopTitle');
   const guidance = isDrill
-    ? 'Drill in progress. Production and forklifts hold while each service egress verifies itself; it ends once every egress checks in, or from the Safety panel.'
+    ? t('drillGuidance')
     : forkliftOnly
-      ? 'Every forklift is holding position; the mill keeps running. Press Space or release it from the Safety panel.'
+      ? t('forkliftStopGuidance')
       : chronicleFire
-        ? 'Everything is stopped by a duct fire. Answer its prompt in the Mill Chronicle to suppress or clean it.'
-        : 'Everything is stopped. Find the cause, fix it, then clear the interlock from the Safety panel.';
+        ? t('chronicleFireGuidance')
+        : t('facilityStopGuidance');
 
   return (
-    <AnimatePresence>
-      {isEmergency && (
-        <motion.div
-          key={isDrill ? 'simulated-drill' : forkliftOnly ? 'forklift-stop' : 'facility-stop'}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: reduceMotion ? 0 : 0.18, ease: 'easeOut' }}
-          className="pointer-events-none fixed inset-0 z-[60]"
+    <>
+      {/* The spoken path is one persistent alert region at document.body, so a
+          compact sheet's aria-hidden, inert HUD root cannot silence it. The
+          banner below is what the eye reads, and is hidden from screen readers
+          so the stop is announced once. It keeps the banner's accessible name
+          (the stop's title) while a stop is active. */}
+      <LiveRegionPortal>
+        <div
           role="alert"
-          aria-label={title}
+          aria-atomic="true"
+          aria-label={isEmergency ? title : undefined}
+          className="sr-only"
         >
-          {/* Flashing red border */}
+          {isEmergency ? t('liveRegion', { title, guidance }) : ''}
+        </div>
+      </LiveRegionPortal>
+      <AnimatePresence>
+        {isEmergency && (
           <motion.div
+            key={isDrill ? 'simulated-drill' : forkliftOnly ? 'forklift-stop' : 'facility-stop'}
             initial={{ opacity: 0 }}
-            animate={reduceMotion ? { opacity: 1 } : { opacity: [0.55, 1, 0.55] }}
-            transition={
-              reduceMotion
-                ? { duration: 0 }
-                : { duration: 1.2, repeat: Number.POSITIVE_INFINITY, ease: 'easeInOut' }
-            }
-            className="absolute inset-0"
-            style={{
-              boxShadow: `inset 0 0 0 4px ${accent}, inset 0 0 52px ${wash}`,
-            }}
-          />
-
-          {/* Explicit safety-state banner */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="absolute left-1/2 top-4 -translate-x-1/2"
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: reduceMotion ? 0 : 0.18, ease: 'easeOut' }}
+            className="pointer-events-none fixed inset-0 z-[60]"
+            aria-hidden="true"
           >
-            <div
-              className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-white shadow-lg backdrop-blur-sm ${
-                isDrill
-                  ? 'border-amber-300 bg-amber-700/95 shadow-amber-500/30'
-                  : 'border-red-300 bg-red-700/95 shadow-red-500/40'
-              }`}
-            >
-              <Icon className="w-5 h-5" aria-hidden="true" />
-              <span className="whitespace-nowrap font-bold text-sm uppercase tracking-wider">
-                {title}
-              </span>
-              <Icon className="w-5 h-5" aria-hidden="true" />
-            </div>
-          </motion.div>
-
-          {/* Unambiguous response guidance */}
-          {!dialogOpen && (
+            {/* Flashing red border */}
             <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="absolute left-4 right-4 top-24 sm:bottom-28 sm:left-1/2 sm:right-auto sm:top-auto sm:-translate-x-1/2"
+              initial={{ opacity: 0 }}
+              animate={reduceMotion ? { opacity: 1 } : { opacity: [0.55, 1, 0.55] }}
+              transition={
+                reduceMotion
+                  ? { duration: 0 }
+                  : { duration: 1.2, repeat: Number.POSITIVE_INFINITY, ease: 'easeInOut' }
+              }
+              className="absolute inset-0"
+              style={{
+                boxShadow: `inset 0 0 0 4px ${accent}, inset 0 0 52px ${wash}`,
+              }}
+            />
+
+            {/* Explicit safety-state banner */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="absolute left-1/2 top-4 w-max max-w-[calc(100vw-2rem)] -translate-x-1/2"
             >
-              <div className="mx-auto max-w-md rounded-lg border border-slate-600 bg-slate-950/95 px-4 py-2 text-center text-xs text-slate-100 backdrop-blur-sm">
-                {guidance}
+              <div
+                className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-white shadow-lg backdrop-blur-sm ${
+                  isDrill
+                    ? 'border-amber-300 bg-amber-700/95 shadow-amber-500/30'
+                    : 'border-red-300 bg-red-700/95 shadow-red-500/40'
+                }`}
+              >
+                <Icon className="w-5 h-5" aria-hidden="true" />
+                <span className="font-bold text-sm uppercase tracking-wider">{title}</span>
+                <Icon className="w-5 h-5" aria-hidden="true" />
               </div>
             </motion.div>
-          )}
-        </motion.div>
-      )}
-    </AnimatePresence>
+
+            {/* Unambiguous response guidance */}
+            {!dialogOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="absolute left-4 right-4 top-24 sm:bottom-28 sm:left-1/2 sm:right-auto sm:top-auto sm:-translate-x-1/2"
+              >
+                <div className="mx-auto max-w-md rounded-lg border border-slate-600 bg-slate-950/95 px-4 py-2 text-center text-xs text-slate-100 backdrop-blur-sm">
+                  {guidance}
+                </div>
+              </motion.div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 };

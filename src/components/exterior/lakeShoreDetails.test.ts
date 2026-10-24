@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { createOrganicLakeBankGeometry } from './organicLakeGeometry';
-import { createLakeShoreDetails, LAKE_REED_REACHES, sampleLakeBank } from './lakeShoreDetails';
+import {
+  createLakeShoreDetails,
+  createLakeReedLeaf,
+  createLakeShoreStone,
+  LAKE_REED_REACHES,
+  sampleLakeBank,
+} from './lakeShoreDetails';
 
 describe('concept lake shore details', () => {
   it('roots the reeds on the real rendered triangles rather than inside the lake', () => {
@@ -54,7 +60,7 @@ describe('concept lake shore details', () => {
       triangles += geometry.index!.count / 3;
       geometry.dispose();
     }
-    expect(triangles).toBeLessThan(3000);
+    expect(triangles).toBeLessThan(5200);
     bank.dispose();
   });
 
@@ -72,4 +78,57 @@ describe('concept lake shore details', () => {
     }
     bank.dispose();
   });
+});
+
+it('folds reed blades gently and keeps attached seed heads rounded without extra shore draws', () => {
+  const leaf = createLakeReedLeaf(new THREE.Vector3(), 0, 1, 0.3);
+  const p = leaf.getAttribute('position');
+  expect(p.count).toBe(15);
+  for (let row = 0; row < 5; row++) {
+    expect(p.getY(row * 3 + 1)).toBeGreaterThan(p.getY(row * 3));
+    expect(p.getY(row * 3)).toBe(p.getY(row * 3 + 2));
+  }
+  expect(leaf.index!.count / 3).toBe(16);
+  const bank = createOrganicLakeBankGeometry(19, 14, 21.2, 16.2);
+  const details = createLakeShoreDetails(bank);
+  const colours = details.vegetation.getAttribute('color');
+  expect(new Set(Array.from(colours.array)).size).toBeGreaterThan(30);
+  // Existing merged geometry includes capped seed heads and rooted stem ends.
+  expect(details.vegetation.index!.count / 3).toBeLessThan(4600);
+  leaf.dispose();
+  bank.dispose();
+  details.vegetation.dispose();
+  details.stones.dispose();
+});
+it('gives mineral stones asymmetry and actual bank contact rather than a floating spherical belt', () => {
+  const bank = createOrganicLakeBankGeometry(19, 14, 21.2, 16.2);
+  const details = createLakeShoreDetails(bank);
+  const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+  const ground = new THREE.Mesh(bank, material);
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.y = 0.08;
+  ground.updateMatrixWorld();
+  const stone = createLakeShoreStone(0.35, 0.28, 0);
+  const original = new THREE.SphereGeometry(1, 8, 5).scale(0.35, 0.22, 0.28);
+  expect(stone.getAttribute('position').array).not.toEqual(original.getAttribute('position').array);
+  const p = details.stones.getAttribute('position');
+  const count = stone.getAttribute('position').count;
+  expect(p.count).toBe(count * 8);
+  for (let rock = 0; rock < 8; rock++) {
+    let deepest = Infinity;
+    for (let i = rock * count; i < (rock + 1) * count; i++) {
+      const hit = new THREE.Raycaster(
+        new THREE.Vector3(p.getX(i), 3, p.getZ(i)),
+        new THREE.Vector3(0, -1, 0)
+      ).intersectObject(ground)[0];
+      if (hit) deepest = Math.min(deepest, p.getY(i) - hit.point.y);
+    }
+    expect(deepest).toBeCloseTo(-0.025, 5);
+  }
+  stone.dispose();
+  original.dispose();
+  bank.dispose();
+  material.dispose();
+  details.vegetation.dispose();
+  details.stones.dispose();
 });
