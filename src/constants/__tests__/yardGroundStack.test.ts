@@ -93,7 +93,7 @@ describe('truck-yard ground stack', () => {
     const keepClear = truckBay.slice(0, truckBay.indexOf('>\n      KEEP CLEAR\n'));
     expect(keepClear.slice(keepClear.lastIndexOf('<Text'))).toContain('surface="painted-ground"');
     const staging = readFileSync('src/components/truckbay/PalletStaging.tsx', 'utf8');
-    const label = staging.slice(0, staging.indexOf("'EMPTY PALLETS'"));
+    const label = staging.slice(0, staging.indexOf('{legend.text}'));
     expect(label.slice(label.lastIndexOf('<SceneText'))).toContain('surface="painted-ground"');
   });
 });

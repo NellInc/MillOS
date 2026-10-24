@@ -375,6 +375,20 @@ export const DOCK_KEEP_CLEAR = {
   color: DOCK_PAINT.red,
 } as const satisfies DockMarking;
 
+/**
+ * GROUND LETTERING IS ELONGATED along the approach, as road lettering is.
+ *
+ * Every review camera sees the yard paint at a grazing angle: from
+ * `logisticsClose` (3.8 m up, 25-35 m out) a metre of ground along the view
+ * shows as about a tenth of a metre. A 0.35-0.4 m label therefore landed on
+ * 2-4 drawing-buffer rows an em (final7 med-12: FLOUR DISPATCH at full-res
+ * y 770-790 was 3 px tall, KEEP CLEAR a row of dashes) while its 0.25 m outline,
+ * the same paint, read clearly. Painted legends stretch their glyphs this many
+ * times along the reading direction's normal (the troika mesh's local y, world
+ * z once laid flat), so the letter height survives the foreshortening.
+ */
+export const PAINTED_GROUND_LETTER_STRETCH = 2.5;
+
 /** KEEP CLEAR is a painted box with its words inside, not a tinted rectangle. */
 export const DOCK_KEEP_CLEAR_OUTLINE: readonly DockMarking[] = (() => {
   const { x, width, u0, u1, color } = DOCK_KEEP_CLEAR;
@@ -392,6 +406,16 @@ export const DOCK_KEEP_CLEAR_OUTLINE: readonly DockMarking[] = (() => {
     })),
   ];
 })();
+
+/**
+ * The KEEP CLEAR words, centred in their box and elongated like every painted
+ * ground legend. The stretched em has to fit the box's inner depth (2 m less
+ * both 0.25 m lines); capitals fill 0.73 of it, centred on the line's middle.
+ */
+export const DOCK_KEEP_CLEAR_LETTERING = {
+  fontSize: 0.55,
+  stretch: PAINTED_GROUND_LETTER_STRETCH,
+} as const;
 
 /**
  * The blue truck guide line down the bay centre, stopping short of KEEP CLEAR.

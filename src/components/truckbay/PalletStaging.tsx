@@ -20,6 +20,8 @@ import {
   STAGING_BAG_CAPACITY,
   STAGING_LAYOUT,
   STAGING_PALLET_CAPACITY,
+  stagingBox,
+  stagingLegend,
 } from './palletStagingLayout';
 
 const TIMBER_MATERIAL = new THREE.MeshStandardMaterial({
@@ -95,10 +97,8 @@ export const PalletStaging: React.FC<{ dock: 'shipping' | 'receiving' }> = ({ do
     }
   }, [count, palletCount, scale, scratch, shipping]);
 
-  const width = shipping ? (STAGING_LAYOUT.columns - 1) * STAGING_LAYOUT.pitchX + 2 : 4.2;
-  const depth = shipping ? (STAGING_LAYOUT.rows - 1) * STAGING_LAYOUT.pitchZ + 2 : 2;
-  const centreX = shipping ? ((STAGING_LAYOUT.columns - 1) * STAGING_LAYOUT.pitchX) / 2 : 1.1;
-  const centreZ = shipping ? -((STAGING_LAYOUT.rows - 1) * STAGING_LAYOUT.pitchZ) / 2 : 0;
+  const { width, depth, centreX, centreZ } = stagingBox(dock);
+  const legend = stagingLegend(dock);
   return (
     <group name={`${dock}-pallet-staging`} position={origin}>
       <instancedMesh
@@ -152,17 +152,20 @@ export const PalletStaging: React.FC<{ dock: 'shipping' | 'receiving' }> = ({ do
           />
         </mesh>
       ))}
-      {/* Biased paint: receiving's label lies partly on the dock apron. */}
+      {/* Biased paint: receiving's label lies partly on the dock apron.
+          Elongated along the approach and on the box's yard side, reading
+          upright from that dock's yard (stagingLegend). */}
       <SceneText
         surface="painted-ground"
-        position={[centreX, EXTERIOR_LAYERS.groundOverlay, centreZ + depth / 2 + 0.6]}
-        rotation={[-Math.PI / 2, 0, 0]}
-        fontSize={0.35}
+        position={[legend.x, EXTERIOR_LAYERS.groundOverlay, legend.z]}
+        rotation={[-Math.PI / 2, 0, legend.yaw]}
+        scale={[1, legend.stretch, 1]}
+        fontSize={legend.fontSize}
         color="#c2a24d"
         anchorX="center"
         anchorY="middle"
       >
-        {shipping ? 'FLOUR DISPATCH' : 'EMPTY PALLETS'}
+        {legend.text}
       </SceneText>
     </group>
   );

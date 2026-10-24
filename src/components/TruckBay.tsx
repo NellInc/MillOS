@@ -85,6 +85,7 @@ import {
   DOCK_GUIDE_LINES,
   DOCK_KEEP_CLEAR,
   DOCK_KEEP_CLEAR_OUTLINE,
+  DOCK_KEEP_CLEAR_LETTERING,
   DOCK_LASER_PROJECTOR_U,
   DOCK_PAINT,
   DOCK_STOP_BAR,
@@ -5867,14 +5868,17 @@ const DockFloorMarkings: React.FC = () => (
     {[...DOCK_FLOOR_MARKINGS, ...DOCK_KEEP_CLEAR_OUTLINE].map((mark) => (
       <DockMarkingPlane key={mark.id} mark={mark} />
     ))}
-    {/* Reads from the yard: the glyph tops face the dock. */}
+    {/* Reads from the yard: the glyph tops face the dock. Elongated along
+        the approach and centred in the box (DOCK_KEEP_CLEAR_LETTERING). */}
     <Text
       surface="painted-ground"
       position={[DOCK_KEEP_CLEAR.x, EXTERIOR_LAYERS.groundOverlay, spanOf(DOCK_KEEP_CLEAR).centre]}
       rotation={[-Math.PI / 2, 0, 0]}
-      fontSize={0.4}
+      scale={[1, DOCK_KEEP_CLEAR_LETTERING.stretch, 1]}
+      fontSize={DOCK_KEEP_CLEAR_LETTERING.fontSize}
       color={DOCK_PAINT.red}
       anchorX="center"
+      anchorY="middle"
       renderOrder={RENDER_ORDER.floorText}
     >
       KEEP CLEAR
