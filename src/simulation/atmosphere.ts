@@ -140,6 +140,11 @@ const WEATHER_PROFILES = {
   >
 >;
 
+/** A weather's cloud cover, without sampling (or allocating) a whole atmosphere. */
+export function getWeatherCloudCoverage(weather: AtmosphereWeather): number {
+  return (WEATHER_PROFILES[weather] ?? WEATHER_PROFILES.clear).cloudCoverage;
+}
+
 /**
  * Writable view of `AtmosphereState`, for reusable scratch buffers.
  * `AtmosphereState` itself stays fully `readonly` for consumers.

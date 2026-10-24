@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
 import * as THREE from 'three';
-import { ConveyorBridge, RoadRiverBridge } from '../FactoryExterior';
+import { ConveyorBridge, RoadRiverBridge, galleryCastsShadow } from '../FactoryExterior';
 import { BULK_STORAGE_GALLERY } from '../../constants/siteLayout';
 
 vi.mock('../../utils/critterAudio', () => ({ playCritterSound: vi.fn() }));
@@ -45,6 +45,40 @@ describe('elevator conveyor alignment', () => {
       const [width] = box!.props.args!;
       expect(Math.abs(walkway[0] / 2 - width / 2)).toBeGreaterThan(0.001);
     }
+  });
+
+  it('drops the gallery shadow under a closed rain or storm deck, and keeps it in fair weather', () => {
+    // final7-med-rain yard and silos: the gallery 34-43 m up threw a crisp,
+    // near-black band across the apron at noon in the rain (path luminance
+    // 7 beside 44, the same 0.16 ratio as clear noon's 18 beside 138).
+    expect(galleryCastsShadow('clear')).toBe(true);
+    expect(galleryCastsShadow('cloudy')).toBe(true);
+    expect(galleryCastsShadow('rain')).toBe(false);
+    expect(galleryCastsShadow('storm')).toBe(false);
+    const casters = (castShadow: boolean) => {
+      const tree = ConveyorBridge({
+        start: [...BULK_STORAGE_GALLERY.head],
+        end: [...BULK_STORAGE_GALLERY.nearBin],
+        castShadow,
+      });
+      if (tree instanceof Promise) throw new Error('ConveyorBridge must render synchronously');
+      const flags: unknown[] = [];
+      const visit = (node: ReactNode) =>
+        Children.forEach(node, (child) => {
+          if (!isValidElement<Record<string, unknown>>(child)) return;
+          if (typeof child.props.name === 'string' && child.props.name.startsWith('gallery-'))
+            flags.push(child.props.castShadow);
+          visit(child.props.children as ReactNode);
+        });
+      visit(tree);
+      return flags;
+    };
+    const fair = casters(true);
+    expect(fair.length).toBeGreaterThan(20);
+    expect(fair.every((flag) => flag === true)).toBe(true);
+    const deck = casters(false);
+    expect(deck).toHaveLength(fair.length);
+    expect(deck.every((flag) => flag === false)).toBe(true);
   });
 
   it('joins both actual endpoints for ascending, descending and level spans', () => {

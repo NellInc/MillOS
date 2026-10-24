@@ -95,8 +95,11 @@ import {
 import {
   createAtmosphereState,
   createCelestialState,
+  getOvercastDeck,
+  getWeatherCloudCoverage,
   sampleAtmosphere,
   sampleCelestial,
+  type AtmosphereWeather,
 } from '../simulation/atmosphere';
 import { positionRegistry } from '../utils/positionRegistry';
 import { PROCEDURAL_TEXTURES, TREE_MATERIALS } from '../utils/sharedMaterials';
@@ -5339,11 +5342,28 @@ export const GrainElevator: React.FC<{
   );
 };
 
+/**
+ * Whether the bulk gallery throws a shadow in this weather.
+ *
+ * The gallery is a 2.4 m walkway 34-43 m above the apron. Under a closed rain
+ * or storm deck the sky is the light source, and the gallery blocks about four
+ * degrees of it: no visible shadow. The quarter of the key that rain keeps
+ * (`overcastKeyScatter`) still drew it as a crisp near-black band, because the
+ * shadow map has no notion of occluder height (final7-med-rain yard and silos,
+ * 7 against 44 luminance, the clear-noon ratio). Contact shadows near the
+ * ground, under tanks and trucks, stay; this structure is the one that reads.
+ * Clear and cloudy skies (deck 0) are unchanged.
+ */
+export function galleryCastsShadow(weather: AtmosphereWeather): boolean {
+  return getOvercastDeck(getWeatherCloudCoverage(weather)) < 0.5;
+}
+
 // Connecting conveyor bridge between structures
 export const ConveyorBridge: React.FC<{
   start: [number, number, number];
   end: [number, number, number];
-}> = ({ start, end }) => {
+  castShadow?: boolean;
+}> = ({ start, end, castShadow = true }) => {
   const dx = end[0] - start[0];
   const dy = end[1] - start[1];
   const dz = end[2] - start[2];
@@ -5371,7 +5391,7 @@ export const ConveyorBridge: React.FC<{
         size={[1, 0.45, length]}
         position={[0, -0.15, 0]}
         material={BRIDGE_HOUSING_MATERIAL}
-        castShadow
+        castShadow={castShadow}
         receiveShadow
       />
       <GeneratedBoxSurface
@@ -5380,7 +5400,7 @@ export const ConveyorBridge: React.FC<{
         size={[2.4, 0.12, length]}
         position={[0, -0.5, 0]}
         material={BRIDGE_SUPPORT_MATERIAL}
-        castShadow
+        castShadow={castShadow}
         receiveShadow
       />
       {[-1, 1].map((side) => (
@@ -5390,7 +5410,7 @@ export const ConveyorBridge: React.FC<{
               key={y}
               name="gallery-longitudinal-rail"
               position={[side * 1.14, y, 0]}
-              castShadow
+              castShadow={castShadow}
             >
               <boxGeometry args={[0.08, 0.08, length]} />
               <primitive object={BRIDGE_SUPPORT_MATERIAL} attach="material" />
@@ -5401,7 +5421,7 @@ export const ConveyorBridge: React.FC<{
               key={`post-${i}`}
               name="gallery-guardrail-post"
               position={[side * 1.14, 0.16, -length / 2 + i * bayLength]}
-              castShadow
+              castShadow={castShadow}
             >
               <boxGeometry args={[0.08, 1.2, 0.08]} />
               <primitive object={BRIDGE_SUPPORT_MATERIAL} attach="material" />
@@ -5413,7 +5433,7 @@ export const ConveyorBridge: React.FC<{
               name="gallery-truss-brace"
               position={[side * 1.14, -0.94, -length / 2 + (i + 0.5) * bayLength]}
               rotation={[(i % 2 ? -1 : 1) * Math.atan2(0.8, bayLength), 0, 0]}
-              castShadow
+              castShadow={castShadow}
             >
               <boxGeometry args={[0.1, 0.1, braceLength]} />
               <primitive object={BRIDGE_SUPPORT_MATERIAL} attach="material" />
@@ -5426,7 +5446,7 @@ export const ConveyorBridge: React.FC<{
           key={`cross-${i}`}
           name="gallery-cross-member"
           position={[0, -0.64, -length / 2 + i * bayLength]}
-          castShadow
+          castShadow={castShadow}
         >
           {/* 2 cm short of each walkway side plane, which its ends touched. */}
           <boxGeometry args={[2.36, 0.16, 0.14]} />
@@ -5434,6 +5454,25 @@ export const ConveyorBridge: React.FC<{
         </mesh>
       ))}
     </group>
+  );
+};
+
+/** Both gallery spans. Only a weather change re-renders them (`galleryCastsShadow`). */
+const BulkConveyorGallery: React.FC = () => {
+  const castShadow = useGameSimulationStore((state) => galleryCastsShadow(state.weather));
+  return (
+    <>
+      <ConveyorBridge
+        start={[...BULK_STORAGE_GALLERY.head]}
+        end={[...BULK_STORAGE_GALLERY.nearBin]}
+        castShadow={castShadow}
+      />
+      <ConveyorBridge
+        start={[...BULK_STORAGE_GALLERY.nearBin]}
+        end={[...BULK_STORAGE_GALLERY.farBin]}
+        castShadow={castShadow}
+      />
+    </>
   );
 };
 
@@ -9274,14 +9313,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
 
       {/* The elevator feeds the same five bins used by the production model. */}
       <GrainElevator position={[...SITE_LAYOUT.bulkStorage.elevator.position]} />
-      <ConveyorBridge
-        start={[...BULK_STORAGE_GALLERY.head]}
-        end={[...BULK_STORAGE_GALLERY.nearBin]}
-      />
-      <ConveyorBridge
-        start={[...BULK_STORAGE_GALLERY.nearBin]}
-        end={[...BULK_STORAGE_GALLERY.farBin]}
-      />
+      <BulkConveyorGallery />
 
       {/* Utility compounds use the site-layout anchors as their sole placement
           authority, including containment, access control and safety clearance. */}
