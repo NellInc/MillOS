@@ -448,8 +448,9 @@ class WebGPUClient {
 
     try {
       // NOTE: response_format:{type:'json_object'} is intentionally NOT used.
-      // web-llm 0.2.84's WASM grammar binding throws "Cannot pass non-string to
-      // std::string" at inference for this model (verified via the real-GPU E2E;
+      // web-llm's WASM grammar binding throws "Cannot pass non-string to
+      // std::string" at inference for this model, still so on 0.2.86 (verified on
+      // a real GPU 2026-10-24, GrammarMatcherInitError; first seen on 0.2.84;
       // matches the long-standing limitation CABAL documented). JSON reliability
       // instead comes from: enable_thinking:false (no chain-of-thought to derail
       // the output) + stripReasoning() + a tolerant {...}-extracting parser, all

@@ -17,6 +17,14 @@ export const jevClientMessages = defineMessages({
     rateLimited: 'OpenRouter is rate limiting requests. Try again later.',
     unavailable: 'Jev is unavailable. Try again later.',
     cancelledOrTimedOut: 'Request cancelled or timed out.',
+    invalidAdvisoryOpenAI: 'OpenAI returned an invalid advisory. No action was taken.',
+    invalidKeyOpenAI: 'Enter a valid OpenAI API key.',
+    unreachableOpenAI: 'OpenAI could not be reached. Check your connection and try again manually.',
+    keyRejectedOpenAI: 'OpenAI rejected the key or its permissions.',
+    moreCreditOpenAI: 'OpenAI requires more credit for this request.',
+    rateLimitedOpenAI: 'OpenAI is rate limiting requests. Try again later.',
+    unavailableOpenAI: 'OpenAI Decisions is unavailable. Try again later.',
+    openAILocalOnly: 'OpenAI Decisions with your own key runs on the local companion only.',
   },
   'pt-BR': {
     invalidAdvisory: 'O Jev retornou uma recomendação inválida. Nenhuma ação foi tomada.',
@@ -31,5 +39,15 @@ export const jevClientMessages = defineMessages({
     rateLimited: 'O OpenRouter está limitando as requisições. Tente novamente mais tarde.',
     unavailable: 'O Jev está indisponível. Tente novamente mais tarde.',
     cancelledOrTimedOut: 'Requisição cancelada ou expirada.',
+    invalidAdvisoryOpenAI: 'A OpenAI retornou uma recomendação inválida. Nenhuma ação foi tomada.',
+    invalidKeyOpenAI: 'Informe uma chave de API válida da OpenAI.',
+    unreachableOpenAI:
+      'Não foi possível acessar a OpenAI. Verifique sua conexão e tente novamente manualmente.',
+    keyRejectedOpenAI: 'A OpenAI recusou a chave ou as permissões dela.',
+    moreCreditOpenAI: 'A OpenAI exige mais crédito para esta requisição.',
+    rateLimitedOpenAI: 'A OpenAI está limitando as requisições. Tente novamente mais tarde.',
+    unavailableOpenAI: 'O OpenAI Decisions está indisponível. Tente novamente mais tarde.',
+    openAILocalOnly:
+      'O OpenAI Decisions com a sua própria chave funciona apenas no companheiro local.',
   },
 });

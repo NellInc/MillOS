@@ -54,7 +54,7 @@
     "validate:releases": "node scripts/validate-release-matrix.mjs"
   },
   "dependencies": {
-    "@mlc-ai/web-llm": "^0.2.84",
+    "@mlc-ai/web-llm": "^0.2.86",
     "@napi-rs/keyring": "^2.1.0",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.4.2",
