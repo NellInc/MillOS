@@ -2,6 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 import { useAIConfigStore } from './aiConfigStore';
 
 describe('AI preferences migration', () => {
+  it('defaults new visitors to Haiku 5.5, the recommended model', () => {
+    // jsdom serves from localhost, the local companion host.
+    expect(useAIConfigStore.getInitialState().llmBackend).toBe('haiku');
+  });
+
   it('removes a legacy Gemini key and falls back to heuristic on a cloud backend', () => {
     const migrate = useAIConfigStore.persist.getOptions().migrate;
     expect(migrate).toBeDefined();
