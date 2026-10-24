@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { STEAM_SOURCES } from './DustParticles';
+import { dustTicks, STEAM_SOURCES } from './DustParticles';
 import { PROCESS_MACHINE_INSTALL_SCALE, SITE_LAYOUT } from '../constants/siteLayout';
 
 describe('machine vents', () => {
@@ -19,5 +19,17 @@ describe('machine vents', () => {
           : PROCESS_MACHINE_INSTALL_SCALE.packer;
       expect(source.scale, source.machineId).toBeCloseTo(expected, 6);
     }
+  });
+});
+
+describe('dust mote step', () => {
+  it('keeps the old per-frame step at 60 fps and follows elapsed time otherwise', () => {
+    expect(dustTicks(1, 1 / 60)).toBeCloseTo(1, 12);
+    expect(dustTicks(3, 1 / 60)).toBeCloseTo(3, 12);
+    // Two 120 Hz frames cover what one 60 Hz frame did.
+    expect(dustTicks(1, 1 / 120) * 2).toBeCloseTo(dustTicks(1, 1 / 60), 12);
+    // A held frame clock, and a tab-switch stall, do not teleport the field.
+    expect(dustTicks(2, 0)).toBe(0);
+    expect(dustTicks(1, 5)).toBeCloseTo(6, 12);
   });
 });

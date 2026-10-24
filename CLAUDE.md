@@ -861,10 +861,15 @@ pixel changed.** A green audit is evidence of nothing here.
 The paired control is `npm run measure:surfaces` — one page load, one variable.
 Every treated material shares a single `uSurfStrength` uniform object, so
 `SurfaceTreatmentIsolation` switches the whole treatment off between two frames
-of the same render. It takes THREE shots (on, off, on) and strikes out every
-pixel that also moves between the two same-arm shots, because benchmark mode
-pauses the game clock but not the render clock: an early reading of 3.12% changed
-in `interior` was four flour sacks travelling along a conveyor.
+of the same render. Benchmark mode pauses the game clock but not the render
+clock: an early reading of 3.12% changed in `interior` was four flour sacks
+travelling along a conveyor. So after the settle the script calls
+`__MILLOS_RUNTIME__.holdFrame(true)`, which stops R3F's loop and redraws one
+instant of the frame clock before each shot (60 frames on entering the hold, so
+the 1-in-3 shadow refit and other frame-count throttles catch up). It takes FOUR
+shots (on, off, off, on) and still strikes out any pixel that moves within an arm,
+for whatever runs off the frame clock. Anything that steps per drawn frame rather
+than by `delta` defeats the hold: dust did, until it moved to `dustTicks`.
 
 ```bash
 npm run measure:surfaces -- --label=<name>              # medium, the surface scene set
@@ -872,6 +877,10 @@ npm run measure:surfaces -- --label=<name> --quality=low # the tier that can bla
 ```
 
 `changedFraction === 0` is the tell, and it is exact: the term is inert.
+`--control` keeps the treatment off in all four shots and must read 0. On
+2026-10-24 it read exactly 0 in 15 of 16 scene-tier runs; the exception was
+`village` at medium, 2 pixels at a luma delta of 2 on one cottage roof, cause not
+found. The treatment moves 228,000-549,000 pixels per scene.
 
 ### Two traps this module has already paid for
 

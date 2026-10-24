@@ -189,7 +189,7 @@ export const DustAnimationManager: React.FC<{ children: React.ReactNode }> = ({ 
     if (prefersReducedMotion) return;
 
     // Grain and machine exhaust are plant motion: they hold with the shift
-    // clock and run at the pace. Dust motes are air and stay on wall time.
+    // clock and run at the pace. Dust motes are air and stay on the frame clock.
     const gameSpeed = useGameSimulationStore.getState().gameSpeed;
     const plantScale = plantTimeScale(gameSpeed);
 
@@ -197,7 +197,7 @@ export const DustAnimationManager: React.FC<{ children: React.ReactNode }> = ({ 
       switch (entry.type) {
         case 'dustParticles':
           if (!shouldRunThisFrame(entry.throttleLevel)) return;
-          animateDustParticles(entry, true);
+          animateDustParticles(entry, dustTicks(entry.throttleLevel, delta));
           break;
         case 'grainFlow':
           if (!shouldRunThisFrame(entry.throttleLevel)) return;
@@ -226,14 +226,24 @@ function useDustAnimation() {
 // Pure animation functions
 
 /**
+ * Dust steps in 60 Hz ticks of elapsed time, not one per drawn frame: it drifted
+ * twice as fast on a 120 Hz display and kept moving under a held frame clock,
+ * where delta is 0. A throttled pass runs one frame in `throttleLevel`, so it
+ * covers that many frames of this one's delta. Identical to the old step at 60 fps.
+ */
+export const dustTicks = (throttleLevel: number, delta: number): number =>
+  throttleLevel * Math.min(Math.max(delta, 0), 0.1) * 60;
+
+/**
  * Write every dust instance's matrix and colour.
  *
- * `advance` is false for the mount-time seed pass. three zero-fills
+ * `ticks` is 0 for the mount-time seed pass. three zero-fills
  * `instanceMatrix` and the colour buffer, so without a seed every mote carried
  * a degenerate zero matrix and a pure-black vertex colour until the first
  * animation tick - and never got one at all under reduced motion.
  */
-function animateDustParticles(entry: DustParticlesEntry, advance: boolean) {
+function animateDustParticles(entry: DustParticlesEntry, ticks: number) {
+  const advance = ticks > 0;
   if (!entry.meshRef.current) return;
   const mesh = entry.meshRef.current;
   const particles = entry.pool.particles;
@@ -246,10 +256,10 @@ function animateDustParticles(entry: DustParticlesEntry, advance: boolean) {
       continue;
     }
 
-    // Motes advance per tick, so a throttled tick steps by the throttle factor
-    // to keep the same drift and cycle rate on every quality tier.
+    // Motes advance in 60 Hz ticks of elapsed time (see `dustTicks`), so the
+    // drift and cycle rate hold on every quality tier and refresh rate.
     if (advance) {
-      particle.lifetime += entry.throttleLevel;
+      particle.lifetime += ticks;
 
       if (particle.lifetime > particle.maxLifetime) {
         particle.t = Math.random() * 100;
@@ -262,7 +272,7 @@ function animateDustParticles(entry: DustParticlesEntry, advance: boolean) {
     }
 
     const { factor, speed, xFactor, yFactor, zFactor } = particle;
-    if (advance) particle.t += speed * entry.throttleLevel;
+    if (advance) particle.t += speed * ticks;
     const t = particle.t;
 
     const s = Math.max(0.3, Math.cos(t) * 0.5 + 0.5);
@@ -720,7 +730,7 @@ export const DustParticles: React.FC<DustParticlesProps> = ({ count }) => {
         isDaytime,
         throttleLevel,
       },
-      false
+      0
     );
 
     // Particles fill the factory hall below MOTE_MAX_Y.
@@ -746,7 +756,7 @@ export const DustParticles: React.FC<DustParticlesProps> = ({ count }) => {
   }, [context, isEnabled, pool, colorArray, hiddenMatrix, count, isDaytime, throttleLevel]);
 
   // Fallback useFrame when not in manager context
-  useFrame(() => {
+  useFrame((_, delta) => {
     if (context) return; // Manager handles animation
     if (!mesh.current || !isEnabled || !isTabVisible || prefersReducedMotion) return;
     if (!shouldRunThisFrame(throttleLevel)) return;
@@ -762,7 +772,7 @@ export const DustParticles: React.FC<DustParticlesProps> = ({ count }) => {
         isDaytime,
         throttleLevel,
       },
-      true
+      dustTicks(throttleLevel, delta)
     );
   });
 
