@@ -393,18 +393,26 @@ describe('silo drums at distance (final4-med-12 overview and farm: five drums as
    * final7-med-12 verdict item 3 (silos, yard, overview, farm): the specular
    * banding is faint. Circumferential ribs spread a light's reflection along
    * the drum's axis, so the drum carries a broad vertical sheen where the
-   * half vector lies in the plane of the axis and the radial normal.
+   * half vector lies in the plane of the axis and the radial normal. Built, wired
+   * and pinned here; off by default after the r8 probe.
    */
   it('lays a broad anisotropic sheen band along the drum axis, independent of the ribs', () => {
     const { siloSheen, SILO_SHEEN } = surfaces;
-    expect(SILO_SHEEN.strength).toBeGreaterThan(0);
+    // Off by default after the r8 probe (see SILO_SHEEN); the shape is pinned at the probe strength.
+    expect(SILO_SHEEN.strength).toBe(0);
+    expect(SILO_SHEEN.probe).toBeGreaterThan(0);
     const up = new THREE.Vector3(0, 1, 0);
     // The silos camera: ~19 degrees above the drum's mid-height, looking along -x.
     const elevation = THREE.MathUtils.degToRad(19);
     const view = new THREE.Vector3(Math.cos(elevation), Math.sin(elevation), 0);
     const at = (degrees: number, light: THREE.Vector3) => {
       const a = THREE.MathUtils.degToRad(degrees);
-      return siloSheen(new THREE.Vector3(Math.cos(a), 0, Math.sin(a)), light, view);
+      return siloSheen(
+        new THREE.Vector3(Math.cos(a), 0, Math.sin(a)),
+        light,
+        view,
+        SILO_SHEEN.probe
+      );
     };
     // Noon: the band faces the camera, broad (half-width 20-45 degrees), and
     // nearly gone at the silhouette.

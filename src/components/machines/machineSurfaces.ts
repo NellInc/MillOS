@@ -393,7 +393,18 @@ export function siloRibContrast(w: number): number {
  *   groove    the up-facing rib flanks' share of a light the wall itself
  *             faces away from: a zenith sun still lights the ribs
  */
-export const SILO_SHEEN = { strength: 0.3, exponent: 12, groove: 0.5 } as const;
+/*
+ * OFF BY DEFAULT (strength 0, so the branch is skipped and the drums are
+ * exactly round 7's). The r8 probe (one page load, `uMachineRib.w` 0 / 0.15 /
+ * 0.3 / 0.5 on silos and yard, med-12) showed the term as built is not the
+ * band asked for: it lifts 64-71% of each drum's face (+6 levels at 0.15, +13
+ * at 0.3) rather than drawing a band; `specularColorBlended` follows the
+ * patina field, so the lift paints that field as vertical streaks; and the
+ * skin-only lift opens a step at the skirt seam (worst on low). Before it is
+ * switched on: a constant F0 for the lobe, continuity onto the skirt, a
+ * tighter lobe, and a render. `probe` is the strength the probe tuned against.
+ */
+export const SILO_SHEEN = { strength: 0, probe: 0.3, exponent: 12, groove: 0.5 } as const;
 
 /**
  * TS mirror of the shader's sheen for world-space unit vectors: `normal` the
