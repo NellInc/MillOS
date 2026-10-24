@@ -1,7 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
 import * as THREE from 'three';
-import { ConveyorBridge, RoadRiverBridge, galleryCastsShadow } from '../FactoryExterior';
+import {
+  BulkConveyorGalleryView,
+  ConveyorBridge,
+  RoadRiverBridge,
+  galleryCastsShadow,
+} from '../FactoryExterior';
+import { StaticMeshBatch } from '../performance/StaticMeshBatch';
 import { BULK_STORAGE_GALLERY } from '../../constants/siteLayout';
 
 vi.mock('../../utils/critterAudio', () => ({ playCritterSound: vi.fn() }));
@@ -79,6 +85,30 @@ describe('elevator conveyor alignment', () => {
     const deck = casters(false);
     expect(deck).toHaveLength(fair.length);
     expect(deck.every((flag) => flag === false)).toBe(true);
+  });
+
+  it('re-merges the gallery in its own batch when the flag flips, outside the exterior batch', () => {
+    // A static batch copies castShadow when it merges and detaches the sources,
+    // so the flag only reaches the screen if the batch is rebuilt on it.
+    const view = (castShadow: boolean) => {
+      const scope = BulkConveyorGalleryView({ castShadow }) as ReactElement<{
+        userData: Record<string, unknown>;
+        children: ReactElement<{
+          revision: unknown;
+          children: ReactElement<{ castShadow: boolean }>[];
+        }>;
+      }>;
+      expect(scope.props.userData.noStaticBatch).toBe(true);
+      const batch = scope.props.children;
+      expect(batch.type).toBe(StaticMeshBatch);
+      const spans = Children.toArray(batch.props.children) as ReactElement<{
+        castShadow: boolean;
+      }>[];
+      expect(spans).toHaveLength(2);
+      for (const span of spans) expect(span.props.castShadow).toBe(castShadow);
+      return batch.props.revision;
+    };
+    expect(view(true)).not.toEqual(view(false));
   });
 
   it('joins both actual endpoints for ascending, descending and level spans', () => {

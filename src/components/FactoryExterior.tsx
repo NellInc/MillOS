@@ -6,7 +6,12 @@ import { useShallow } from 'zustand/react/shallow';
 import { SceneText as Text } from './shared/SceneText';
 import { useFrame, useThree, ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
-import { applyWorldSurface, pinSurfaceProfile } from '../utils/worldSurface';
+import {
+  applyBatchWorldSurface,
+  applyWorldSurface,
+  pinSurfaceProfile,
+} from '../utils/worldSurface';
+import { StaticMeshBatch } from './performance/StaticMeshBatch';
 import { ApartmentFacade } from './exterior/ApartmentFacade';
 import {
   WATER_FRESNEL_EXPONENT,
@@ -5466,11 +5471,21 @@ export const ConveyorBridge: React.FC<{
   );
 };
 
-/** Both gallery spans. Only a weather change re-renders them (`galleryCastsShadow`). */
-const BulkConveyorGallery: React.FC = () => {
-  const castShadow = useGameSimulationStore((state) => galleryCastsShadow(state.weather));
-  return (
-    <>
+/**
+ * Both gallery spans, in their own static batch keyed on the shadow flag.
+ *
+ * A static batch copies `castShadow` onto its merged mesh when it merges and
+ * detaches the source meshes, so a later prop change on a source would never
+ * reach the screen. The scope group keeps the exterior's batch out
+ * (`noStaticBatch`); this batch re-merges when the weather flips the flag.
+ */
+export const BulkConveyorGalleryView: React.FC<{ castShadow: boolean }> = ({ castShadow }) => (
+  <group name="bulk-conveyor-gallery-scope" userData={{ noStaticBatch: true }}>
+    <StaticMeshBatch
+      name="bulk-conveyor-gallery-batch"
+      revision={castShadow ? 'casting' : 'overcast'}
+      surface={applyBatchWorldSurface}
+    >
       <ConveyorBridge
         start={[...BULK_STORAGE_GALLERY.head]}
         end={[...BULK_STORAGE_GALLERY.nearBin]}
@@ -5481,8 +5496,14 @@ const BulkConveyorGallery: React.FC = () => {
         end={[...BULK_STORAGE_GALLERY.farBin]}
         castShadow={castShadow}
       />
-    </>
-  );
+    </StaticMeshBatch>
+  </group>
+);
+
+/** Only a weather change that flips `galleryCastsShadow` re-renders the gallery. */
+const BulkConveyorGallery: React.FC = () => {
+  const castShadow = useGameSimulationStore((state) => galleryCastsShadow(state.weather));
+  return <BulkConveyorGalleryView castShadow={castShadow} />;
 };
 
 /**
