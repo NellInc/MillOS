@@ -15,6 +15,7 @@ import {
   DOCK_CHANNEL_SLAB,
   TRUCK_OIL_DRIP_POINTS,
   TRUCK_WHEEL_LINES,
+  YARD_OIL_OPACITY,
   YARD_WEAR_PAVING,
   buildYardWearLayout,
   wheelLineContact,
@@ -129,6 +130,66 @@ describe('truck-yard oil stains', () => {
     expect(
       shipping.stains.some((stain) => Math.hypot(stain.x - engineX, stain.z - engineZ) < 0.3)
     ).toBe(true);
+  });
+
+  /**
+   * In final7 med-12 the dock stand's oil did not read from logistics-close or
+   * shipping: 0.5 m off the bay centre the apron measured L 130, the same as
+   * clean apron 3.5 m further out, and on the centre it was lost in the blue
+   * guide line. Scattered round drips turned at random cover 1.6 m of the
+   * centreline at a combined opacity of 0.3 and nothing either side. A dock
+   * bay's oil is a streak down the bay centre, laid by tractors that stop a
+   * little short or long of each other, and the streak is what reads.
+   */
+  it('lays the dock stand oil as one streak down the bay centre', () => {
+    /** Combined opacity that reads over the apron at the review cameras' grazing angle. */
+    const MIN_STREAK_OIL = 0.3;
+    const along = (stain: (typeof shipping.stains)[number]) =>
+      (stain.x - docked.x) * Math.sin(docked.rotation) +
+      (stain.z - docked.z) * Math.cos(docked.rotation);
+    const across = (stain: (typeof shipping.stains)[number]) =>
+      (stain.x - docked.x) * Math.cos(docked.rotation) -
+      (stain.z - docked.z) * Math.sin(docked.rotation);
+    // Every stain wider than a fresh drip lies along the bay.
+    for (const stain of shipping.stains) {
+      if (stain.stretch < 1.6) continue;
+      const turn = Math.abs(Math.sin(stain.rotation - docked.rotation));
+      expect(turn, `streak stain at along ${along(stain).toFixed(2)}`).toBeLessThan(0.15);
+    }
+    // The opacity the stains lay down together at a point (dock-local metres
+    // along and across the bay), from the oil mask's profile: full inside 0.7
+    // of a stain's radius, fading to nothing at it.
+    const oilAt = (a: number, c: number) =>
+      1 -
+      shipping.stains.reduce((clear, stain) => {
+        const d = stain.rotation - docked.rotation;
+        const dAlong = a - along(stain);
+        const dAcross = c - across(stain);
+        // Into the stain's own frame: its long axis is its `rotation`.
+        const u = dAlong * Math.cos(d) + dAcross * Math.sin(d);
+        const v = -dAlong * Math.sin(d) + dAcross * Math.cos(d);
+        const rho = Math.hypot(u / (stain.radius * stain.stretch), v / stain.radius);
+        const profile = Math.min(1, Math.max(0, (1 - rho) / 0.3));
+        return clear * (1 - YARD_OIL_OPACITY * stain.opacity * profile);
+      }, 1);
+    // Dark enough to read over the apron along an unbroken 3 m of the bay
+    // centre, and as wide as a sump drips (0.8 m) at the streak's middle.
+    let run = 0;
+    let longest = 0;
+    let middle = 0;
+    for (let t = -1; t <= 6; t += 0.05) {
+      run = oilAt(t, 0) >= MIN_STREAK_OIL ? run + 0.05 : 0;
+      if (run > longest) {
+        longest = run;
+        middle = t - run / 2;
+      }
+    }
+    expect(longest, 'streak length, m').toBeGreaterThanOrEqual(3);
+    for (const c of [-0.4, 0.4])
+      expect(oilAt(middle, c), `oil at ${c} m across`).toBeGreaterThanOrEqual(MIN_STREAK_OIL);
+    // And no further forward than the tractor's nose (KEEP CLEAR starts past it).
+    for (const stain of shipping.stains)
+      expect(along(stain) + stain.radius * stain.stretch).toBeLessThanOrEqual(5.05);
   });
 
   it('only stains ground a truck stands on', () => {

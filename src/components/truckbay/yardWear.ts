@@ -82,6 +82,28 @@ export const TRUCK_OIL_DRIP_POINTS = [
 ] as const;
 
 /**
+ * The drips laid at each drip point of a standing tractor, in its frame: the
+ * fresh one (turned at random), then the older streak drips drawn out ALONG
+ * the bay (`stretch`, turned with the tractor). `yardWear.test.ts` pins the
+ * streak's length and width and keeps it behind the tractor's nose.
+ */
+const OIL_DRIP_AGES: ReadonlyArray<{
+  readonly along: number;
+  readonly across: number;
+  readonly spread: number;
+  readonly stretch?: number;
+  readonly fade: number;
+}> = [
+  { along: 0, across: 0, spread: 1, fade: 1 },
+  { along: -0.75, across: 0.08, spread: 1.15, stretch: 2.2, fade: 0.55 },
+  { along: 0.45, across: -0.1, spread: 1.05, stretch: 1.8, fade: 0.5 },
+  { along: -1.55, across: -0.06, spread: 1.2, stretch: 2.4, fade: 0.45 },
+];
+
+/** The oil material's opacity (`YardWearMarks.tsx`); each stain's own opacity multiplies it. */
+export const YARD_OIL_OPACITY = 0.55;
+
+/**
  * The shipping yard's paving: the 60 x 60 m yard plane in `TruckBay.tsx`
  * (group z 50, plane at local z 30), which the dock apron lies inside.
  */
@@ -254,14 +276,12 @@ const buildShippingLayout = (): YardWearLayout => {
   const stains: YardOilStain[] = [];
   standing.forEach((pose, poseIndex) => {
     TRUCK_OIL_DRIP_POINTS.forEach((drip, dripIndex) => {
-      // The fresh drip, then two older, wider, fainter ones where trucks with
-      // a slightly different cab length or stop stood before it.
-      const ages = [
-        { along: 0, across: 0, spread: 1, fade: 1 },
-        { along: 0.38, across: -0.16, spread: 1.35, fade: 0.55 },
-        { along: -0.31, across: 0.21, spread: 1.2, fade: 0.45 },
-      ];
-      ages.forEach((age, ageIndex) => {
+      // The fresh drip, then the bay's streak: older, wider, fainter drips
+      // from tractors that stopped a little short of or past this one, drawn
+      // out along the bay (a tractor creeps on the bumper). Scattered round
+      // drips turned at random read as nothing at the review cameras' grazing
+      // angle (final7 med-12): the streak down the bay centre is what does.
+      OIL_DRIP_AGES.forEach((age, ageIndex) => {
         const point = wheelLineContact(pose, {
           isTrailer: false,
           axleZ: drip.z + age.along,
@@ -269,12 +289,16 @@ const buildShippingLayout = (): YardWearLayout => {
         });
         if (pavingEdgeDistance(point.x, point.z) < 0.5) return;
         const seed = poseIndex * 7 + dripIndex * 3 + ageIndex;
+        const jitter = (seed * 0.618) % 1;
         stains.push({
           x: point.x,
           z: point.z,
           radius: drip.radius * age.spread,
-          stretch: 1.15 + ((seed * 0.618) % 1) * 0.45,
-          rotation: pose.rotation + seed * 1.37,
+          stretch: age.stretch ?? 1.15 + jitter * 0.45,
+          rotation:
+            age.stretch === undefined
+              ? pose.rotation + seed * 1.37
+              : pose.rotation + (jitter - 0.5) * 0.12,
           opacity: drip.opacity * age.fade,
         });
       });

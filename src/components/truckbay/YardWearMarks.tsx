@@ -2,7 +2,12 @@ import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { EXTERIOR_LAYERS } from '../../constants/renderLayers';
 import { createLinearDataTexture, getTexture, hash } from '../../utils/textureGenerator';
-import { buildYardWearLayout, type YardOilStain, type YardTyreTrack } from './yardWear';
+import {
+  buildYardWearLayout,
+  YARD_OIL_OPACITY,
+  type YardOilStain,
+  type YardTyreTrack,
+} from './yardWear';
 import { YARD_WEAR_DEPTH } from './yardSurfaces';
 
 /**
@@ -32,7 +37,7 @@ const TRACK_OPACITY = 0.14;
  */
 const LANE_OPACITY = 0.07;
 const LANE_EXTRA_WIDTH = 1.1;
-const OIL_OPACITY = 0.55;
+const OIL_OPACITY = YARD_OIL_OPACITY;
 /** The stain mask's edge sits at this fraction of the quad's half-extent. */
 const OIL_MASK_EDGE = 0.8;
 
@@ -259,7 +264,7 @@ export const YardWearMarks: React.FC = () => {
           {...YARD_WEAR_DEPTH}
         />
       </mesh>
-      <mesh geometry={trackGeometry} receiveShadow>
+      <mesh name="yard-tyre-tracks" geometry={trackGeometry} receiveShadow>
         <meshStandardMaterial
           color="#24211e"
           alphaMap={treadMask}
@@ -270,7 +275,7 @@ export const YardWearMarks: React.FC = () => {
           {...YARD_WEAR_DEPTH}
         />
       </mesh>
-      <mesh geometry={stainGeometry} receiveShadow>
+      <mesh name="yard-oil-stains" geometry={stainGeometry} receiveShadow>
         <meshStandardMaterial
           color="#16120e"
           alphaMap={oilMask}
