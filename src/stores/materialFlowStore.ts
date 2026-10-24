@@ -18,6 +18,7 @@
 
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
+import type { CropAttributes } from '../chronicle/types';
 import { spoutMachineKey, type SpoutMachine } from '../components/flow/spoutRoutes';
 import {
   canonicalProcessMachines,
@@ -86,6 +87,8 @@ export interface SourceLot {
   simulationTime: number;
   disposition: Exclude<MaterialDisposition, 'shipped'>;
   dispositionReason: string | null;
+  /** Crop-year attributes stamped by a signed Mill Chronicle; absent otherwise. */
+  crop?: CropAttributes;
 }
 
 export interface ProductionBatch {
@@ -299,6 +302,7 @@ export interface MaterialFlowState {
     details?: {
       supplier?: string;
       materialType?: Extract<MaterialType, 'wheat_grain' | 'corn_grain'>;
+      crop?: CropAttributes;
     }
   ) => number;
   /**
@@ -1705,6 +1709,7 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
           simulationTime: state.simulationTime,
           disposition: 'released',
           dispositionReason: null,
+          ...(details?.crop ? { crop: { ...details.crop } } : {}),
         });
         // Evict the oldest released lots only. A held or recalled lot is bound
         // by its quality alert, and the save rejects an open alert whose lot is

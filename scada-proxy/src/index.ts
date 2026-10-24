@@ -257,7 +257,7 @@ function handleWSMessage(ws: WebSocket, data: { type: string; tagId?: string; va
       // Client subscriptions are handled implicitly - all clients get all updates
       break;
 
-    case 'write':
+    case 'write': {
       // Input validation: Ensure tagId is a non-empty string
       if (!data.tagId || typeof data.tagId !== 'string' || data.tagId.trim() === '') {
         console.warn('[WS] Invalid tagId for write operation');
@@ -297,6 +297,7 @@ function handleWSMessage(ws: WebSocket, data: { type: string; tagId?: string; va
 
       void handleTagWrite(tag.id, validation.value);
       break;
+    }
 
     default:
       console.warn('[WS] Unknown message type:', data.type);

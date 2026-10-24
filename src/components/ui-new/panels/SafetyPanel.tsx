@@ -312,7 +312,10 @@ export const SafetyPanel: React.FC = () => {
                   aria-disabled={crisisActive || emergencyDrillMode}
                   title={
                     crisisActive
-                      ? t('resolveCrisisFirst')
+                      ? useGameSimulationStore.getState().crisisState.metadata?.source ===
+                        'chronicle'
+                        ? t('chronicleFireInterlock')
+                        : t('resolveCrisisFirst')
                       : emergencyDrillMode
                         ? t('endDrillFirst')
                         : undefined

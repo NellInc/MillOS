@@ -11,6 +11,7 @@ import {
   Factory,
   Info,
   ArrowRight,
+  ScrollText,
 } from 'lucide-react';
 import { DockMode } from '../dock/Dock';
 import { MachineData } from '../../../types';
@@ -35,6 +36,7 @@ import { SettingsPanel } from '../panels/SettingsPanel';
 import { SafetyPanel } from '../panels/SafetyPanel';
 import { OverviewPanel } from '../panels/OverviewPanel';
 import { AutonomyPanel } from '../widgets/AutonomyPanel';
+import { ChroniclePanel } from '../../chronicle/ChroniclePanel';
 
 interface ContextSidebarProps {
   mode: DockMode;
@@ -163,6 +165,10 @@ export const ContextSidebar: React.FC<ContextSidebarProps> = ({
     headerTitle = t('management');
     HeaderIcon = Cpu;
     content = <AutonomyPanel />;
+  } else if (mode === 'chronicle') {
+    headerTitle = 'Mill Chronicle';
+    HeaderIcon = ScrollText;
+    content = <ChroniclePanel />;
   } else {
     // Overview mode - show production overview
     headerTitle = mode === 'production' ? t('production') : t('overview');

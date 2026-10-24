@@ -1,0 +1,5424 @@
+{
+  "expected": "v0.40-859c391c324b",
+  "static": [
+    {
+      "path": "/v0.40/build-info.json",
+      "status": 200,
+      "bytes": 78,
+      "sha256": "a02ce8200e83a43e7b08bf05dc51959d8a9ad2cb66f12e39c70cc8eb4b7e6892"
+    },
+    {
+      "path": "/deployment-manifest.json",
+      "status": 200,
+      "bytes": 2239,
+      "sha256": "b121de30fce3d0e966440eb8fe8c84b8c3919ac99a5de1738d3d3fc6fd5997b6"
+    },
+    {
+      "path": "/",
+      "status": 200,
+      "bytes": 2074,
+      "sha256": "506f36f5d435ba885291bc9f6c140b3db67b2d72795e37224157abe38692fe50"
+    },
+    {
+      "path": "/v0.40/sw.js",
+      "status": 200,
+      "bytes": 8222,
+      "sha256": "754a97e44801e0468c514c29d7c05f31999c1cfdb3388a48382451506c15cc57"
+    },
+    {
+      "path": "/v0.40/",
+      "status": 200,
+      "bytes": 9691,
+      "sha256": "d9ddb7ac8f28f16fc0ae920a47964597e3e3c88ae59bd681d091e1fb5df6cb8b"
+    },
+    {
+      "path": "/v0.40/assets/main-99Vrhhet.js",
+      "status": 200,
+      "bytes": 651826,
+      "sha256": "fd7414a1817c90882d4d8d41696500e693de08890137ba888d9c6ad434152da5"
+    },
+    {
+      "path": "/v0.40/models/asset-manifest.json",
+      "status": 200,
+      "bytes": 117746,
+      "sha256": "45c6cb78c97904e405670d9b7de5443634b2ae19af37b17dd3545d5f80457146"
+    },
+    {
+      "path": "/v0.40/models/village/townhall.glb",
+      "status": 200,
+      "bytes": 470984,
+      "sha256": "dd5558c58e31a711fe6112824ad6ea9b3f2e208e7a3d86ae182c6c530c574bbe"
+    },
+    {
+      "path": "/v0.40/models/worker/LICENSE-QUATERNIUS.txt",
+      "status": 200,
+      "bytes": 611,
+      "sha256": "67aea84ae723f249d40b0141dffc97abb057bb4a01fbfee654479b930bafbd49"
+    },
+    {
+      "path": "/v0.40/models/worker/worker-feminine.glb",
+      "status": 200,
+      "bytes": 796120,
+      "sha256": "9b4d0b4475919fbd05b72dd9a22eab6c840b8f5094dff0c757e6c42267cd2448"
+    },
+    {
+      "path": "/v0.40/models/worker/worker-masculine.glb",
+      "status": 200,
+      "bytes": 797268,
+      "sha256": "69a13ca722de26dea1e6cc6cf2241ec95dd46d27989a1f103f823616a17196db"
+    }
+  ],
+  "errors": [],
+  "failedRequests": [],
+  "httpErrors": [],
+  "cases": [
+    {
+      "id": "day",
+      "time": 10.15,
+      "state": {
+        "humanPresence": {
+          "passed": true,
+          "personCount": 14,
+          "sceneObjects": [
+            "bus-arriving",
+            "bus-departing",
+            "mill-engineer",
+            "mill-operator-east",
+            "mill-operator-west",
+            "mill-packer",
+            "mill-quality",
+            "mill-supervisor",
+            "village-baker",
+            "village-courier",
+            "village-cyclist",
+            "village-gardener",
+            "village-neighbour",
+            "village-shopkeeper"
+          ],
+          "people": [
+            {
+              "bodyMeshes": 13,
+              "id": "mill-operator-west",
+              "activity": "working",
+              "task": "Checking the roller mill",
+              "visible": true,
+              "position": [
+                -24,
+                0,
+                33.5
+              ]
+            },
+            {
+              "bodyMeshes": 13,
+              "id": "mill-operator-east",
+              "activity": "walking",
+              "task": "Walking between duties",
+              "visible": true,
+              "position": [
+                -1.500000000000032,
+                0,
+                35.2
+              ]
+            },
+            {
+              "bodyMeshes": 12,
+              "id": "mill-engineer",
+              "activity": "break",
+              "task": "Tea break",
+              "visible": true,
+              "position": [
+                -34,
+                0,
+                -11.55
+              ]
+            },
+            {
+              "bodyMeshes": 12,
+              "id": "mill-quality",
+              "activity": "walking",
+              "task": "Walking between duties",
+              "visible": true,
+              "position": [
+                -8.99512484964524,
+                0,
+                -6.4
+              ]
+            },
+            {
+              "bodyMeshes": 13,
+              "id": "mill-packer",
+              "activity": "working",
+              "task": "Checking the packing line",
+              "visible": true,
+              "position": [
+                -8,
+                0,
+                -8.8
+              ]
+            },
+            {
+              "bodyMeshes": 13,
+              "id": "mill-supervisor",
+              "activity": "walking",
+              "task": "Reviewing the shift",
+              "visible": true,
+              "position": [
+                -32.76343191230066,
+                0,
+                -1.1078713764245554
+              ]
+            },
+            {
+              "bodyMeshes": 12,
+              "id": "village-baker",
+              "activity": "working",
+              "task": "Serving at the bakery",
+              "visible": true,
+              "position": [
+                -175.1,
+                0,
+                5
+              ]
+            },
+            {
+              "bodyMeshes": 13,
+              "id": "village-shopkeeper",
+              "activity": "working",
+              "task": "Tending the village shop",
+              "visible": true,
+              "position": [
+                -204.4,
+                0,
+                30
+              ]
+            },
+            {
+              "bodyMeshes": 13,
+              "id": "village-gardener",
+              "activity": "working",
+              "task": "Tending the vegetables",
+              "visible": true,
+              "position": [
+                -215.35,
+                0,
+                10
+              ]
+            },
+            {
+              "bodyMeshes": 12,
+              "id": "village-neighbour",
+              "activity": "break",
+              "task": "Tea break",
+              "visible": false,
+              "position": [
+                -208.1,
+                0,
+                -13.1
+              ]
+            },
+            {
+              "bodyMeshes": 12,
+              "id": "village-courier",
+              "activity": "walking",
+              "task": "Returning the empty flour cart",
+              "visible": true,
+              "position": [
+                -202.8,
+                0,
+                33.66666666666665
+              ]
+            },
+            {
+              "bodyMeshes": 12,
+              "id": "village-cyclist",
+              "activity": "walking",
+              "task": "Cycling along the village street",
+              "visible": false,
+              "position": [
+                -203.2,
+                0,
+                34.74159868246038
+              ]
+            },
+            {
+              "bodyMeshes": 13,
+              "id": "bus-arriving",
+              "activity": "idle",
+              "task": "Resting at the shelter",
+              "visible": false,
+              "position": [
+                24.1,
+                0.3599999999999987,
+                137.6
+              ]
+            },
+            {
+              "bodyMeshes": 13,
+              "id": "bus-departing",
+              "activity": "idle",
+              "task": "Waiting for Route 42",
+              "visible": true,
+              "position": [
+                28.4,
+                0.11,
+                139
+              ]
+            }
+          ],
+          "prohibited": []
+        },
+        "worldIntegrity": {
+          "required": [
+            "world-root",
+            "world-environment",
+            "world-factory-process",
+            "world-factory-infrastructure",
+            "world-conveyors",
+            "world-forklifts",
+            "world-logistics",
+            "world-personnel",
+            "world-community-details",
+            "world-terrain",
+            "authored-factory-exterior",
+            "authored-castle",
+            "authored-farm",
+            "authored-village",
+            "optimized-sky-system",
+            "optimized-horizon-backdrop",
+            "near-horizon-city",
+            "sun-visual",
+            "moon-visual"
+          ],
+          "present": [
+            "world-root",
+            "world-environment",
+            "world-factory-process",
+            "world-factory-infrastructure",
+            "world-conveyors",
+            "world-forklifts",
+            "world-logistics",
+            "world-personnel",
+            "world-community-details",
+            "world-terrain",
+            "authored-factory-exterior",
+            "authored-castle",
+            "authored-farm",
+            "authored-village",
+            "optimized-sky-system",
+            "optimized-horizon-backdrop",
+            "near-horizon-city",
+            "sun-visual",
+            "moon-visual"
+          ],
+          "visible": [
+            "world-root",
+            "world-environment",
+            "world-factory-process",
+            "world-factory-infrastructure",
+            "world-conveyors",
+            "world-forklifts",
+            "world-logistics",
+            "world-personnel",
+            "world-community-details",
+            "world-terrain",
+            "authored-factory-exterior",
+            "authored-castle",
+            "authored-farm",
+            "authored-village"
+          ],
+          "missing": [],
+          "hidden": [],
+          "passed": true
+        },
+        "audio": {
+          "activeNodes": 0,
+          "contextState": "not-created"
+        },
+        "attempts": 0,
+        "clock": [
+          {
+            "uuid": "f04fd933-af30-4718-8794-80dcc3fa181d",
+            "name": "town-hall-clock",
+            "type": "Group",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock",
+            "worldPosition": [
+              -190,
+              12.08,
+              17.83
+            ],
+            "worldQuaternion": [
+              0,
+              1,
+              0,
+              6.123233995736766e-17
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": null
+          },
+          {
+            "uuid": "024a2a65-c416-4ead-a32e-3a4bc8850fc4",
+            "name": "town-hall-clock-hour",
+            "type": "Group",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-hour",
+            "worldPosition": [
+              -190,
+              12.08,
+              17.779999999999998
+            ],
+            "worldQuaternion": [
+              0.9550199444571869,
+              0.2965415749755703,
+              5.847810590506884e-17,
+              1.8157934530397353e-17
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": null
+          },
+          {
+            "uuid": "a2be1591-a2c2-4c7d-a645-2b9cf476bf8c",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-hour/<Mesh>",
+            "worldPosition": [
+              -189.83517476227559,
+              12.193281247384967,
+              17.779999999999998
+            ],
+            "worldQuaternion": [
+              0.9550199444571869,
+              0.2965415749755703,
+              5.847810590506884e-17,
+              1.8157934530397353e-17
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 8530358
+          },
+          {
+            "uuid": "cb36b415-9126-4f23-804f-07df59d169f0",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-hour/<Mesh>",
+            "worldPosition": [
+              -189.587936905689,
+              12.363203118462415,
+              17.779999999999998
+            ],
+            "worldQuaternion": [
+              0.6257807597163787,
+              -0.3292391847408082,
+              -0.6257807597163785,
+              -0.3292391847408083
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 8530358
+          },
+          {
+            "uuid": "8e6d5670-462a-4ea9-925f-7720f16e949a",
+            "name": "town-hall-clock-minute",
+            "type": "Group",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-minute",
+            "worldPosition": [
+              -190,
+              12.08,
+              17.77
+            ],
+            "worldQuaternion": [
+              0.3090169943749516,
+              0.9510565162951522,
+              1.892183365217101e-17,
+              5.823541592445453e-17
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": null
+          },
+          {
+            "uuid": "7035b767-805c-42dc-88aa-9e29030fd98f",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-minute/<Mesh>",
+            "worldPosition": [
+              -190.24270509831248,
+              12.256335575687745,
+              17.77
+            ],
+            "worldQuaternion": [
+              0.3090169943749516,
+              0.9510565162951522,
+              1.892183365217101e-17,
+              5.823541592445453e-17
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 8530358
+          },
+          {
+            "uuid": "3ede76c0-c48b-426d-a409-e7cdf11ae301",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-minute/<Mesh>",
+            "worldPosition": [
+              -190.56631189606247,
+              12.491449676604736,
+              17.77
+            ],
+            "worldQuaternion": [
+              0.630036755335052,
+              0.3210197609601004,
+              -0.6300367553350519,
+              0.3210197609601002
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 8530358
+          },
+          {
+            "uuid": "26acb169-61af-409d-b5c0-3757e99ee88a",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/<Mesh>",
+            "worldPosition": [
+              -190,
+              12.08,
+              17.759999999999998
+            ],
+            "worldQuaternion": [
+              0,
+              1,
+              0,
+              6.123233995736766e-17
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 43227818
+          },
+          {
+            "uuid": "8d361880-3798-4ab3-83b2-717c03de83a4",
+            "name": "town-hall-clock",
+            "type": "Group",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock",
+            "worldPosition": [
+              -192.17,
+              12.08,
+              20
+            ],
+            "worldQuaternion": [
+              0,
+              -0.7071067811865476,
+              0,
+              0.7071067811865475
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": null
+          },
+          {
+            "uuid": "7983cd0a-9e89-4758-b8cb-0e8ba2a79f41",
+            "name": "town-hall-clock-hour",
+            "type": "Group",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-hour",
+            "worldPosition": [
+              -192.22,
+              12.08,
+              20
+            ],
+            "worldQuaternion": [
+              0.6753010788940769,
+              0.20968655856896481,
+              -0.6753010788940766,
+              -0.20968655856896473
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": null
+          },
+          {
+            "uuid": "419eddb4-86cd-4c02-9f87-932db04be1ee",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-hour/<Mesh>",
+            "worldPosition": [
+              -192.22,
+              12.193281247384967,
+              19.835174762275596
+            ],
+            "worldQuaternion": [
+              0.6753010788940769,
+              0.20968655856896481,
+              -0.6753010788940766,
+              -0.20968655856896473
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 8530358
+          },
+          {
+            "uuid": "7ec1e715-1432-4f9c-be45-eec6020cda34",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-hour/<Mesh>",
+            "worldPosition": [
+              -192.22,
+              12.363203118462415,
+              19.58793690568899
+            ],
+            "worldQuaternion": [
+              -3.0239019030569626e-16,
+              0.465614520325112,
+              0.8849876374630414,
+              1.267640317596429e-16
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 8530358
+          },
+          {
+            "uuid": "deb20889-3c01-42cb-bd89-37b24bf5eac7",
+            "name": "town-hall-clock-minute",
+            "type": "Group",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-minute",
+            "worldPosition": [
+              -192.23,
+              12.08,
+              20
+            ],
+            "worldQuaternion": [
+              -0.21850801222441352,
+              -0.6724985119639564,
+              0.21850801222441343,
+              0.6724985119639563
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": null
+          },
+          {
+            "uuid": "f81e88e1-a590-4835-bac8-afd0f54067be",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-minute/<Mesh>",
+            "worldPosition": [
+              -192.23,
+              12.256335575687745,
+              20.242705098312484
+            ],
+            "worldQuaternion": [
+              -0.21850801222441352,
+              -0.6724985119639564,
+              0.21850801222441343,
+              0.6724985119639563
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 8530358
+          },
+          {
+            "uuid": "c9ab84bd-5e57-4747-8f22-3bae2a0a8c98",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-minute/<Mesh>",
+            "worldPosition": [
+              -192.23,
+              12.491449676604736,
+              20.56631189606246
+            ],
+            "worldQuaternion": [
+              -2.0199853546517456e-16,
+              -0.45399049973954286,
+              0.8910065241883699,
+              7.112269520704904e-17
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 8530358
+          },
+          {
+            "uuid": "2ca06629-4f92-4878-8d6e-a235e0e7c9a4",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/<Mesh>",
+            "worldPosition": [
+              -192.23999999999998,
+              12.08,
+              20
+            ],
+            "worldQuaternion": [
+              0,
+              -0.7071067811865476,
+              0,
+              0.7071067811865475
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 43227818
+          },
+          {
+            "uuid": "4bc203c0-7694-464e-aac3-29d7ca8bc6d4",
+            "name": "town-hall-clock",
+            "type": "Group",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock",
+            "worldPosition": [
+              -190,
+              12.08,
+              22.17
+            ],
+            "worldQuaternion": [
+              0,
+              -1.2246467991473532e-16,
+              0,
+              1
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": null
+          },
+          {
+            "uuid": "17086ce8-05a9-481c-9715-d171675fc5d5",
+            "name": "town-hall-clock-hour",
+            "type": "Group",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-hour",
+            "worldPosition": [
+              -190,
+              12.08,
+              22.220000000000002
+            ],
+            "worldQuaternion": [
+              -1.1695621181013769e-16,
+              -3.6315869060794707e-17,
+              0.9550199444571869,
+              0.2965415749755703
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": null
+          },
+          {
+            "uuid": "ecf7b09d-b4c8-4c11-9f94-4f5a9c0c01f6",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-hour/<Mesh>",
+            "worldPosition": [
+              -190.16482523772441,
+              12.193281247384967,
+              22.220000000000002
+            ],
+            "worldQuaternion": [
+              -1.1695621181013769e-16,
+              -3.6315869060794707e-17,
+              0.9550199444571869,
+              0.2965415749755703
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 8530358
+          },
+          {
+            "uuid": "03705969-3b6b-4679-8617-2012ae905bb6",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-hour/<Mesh>",
+            "worldPosition": [
+              -190.412063094311,
+              12.363203118462415,
+              22.220000000000002
+            ],
+            "worldQuaternion": [
+              0.6257807597163785,
+              0.3292391847408083,
+              0.6257807597163787,
+              -0.3292391847408082
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 8530358
+          },
+          {
+            "uuid": "6e5e7918-8f72-45ee-ad4e-539fd2a507e9",
+            "name": "town-hall-clock-minute",
+            "type": "Group",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-minute",
+            "worldPosition": [
+              -190,
+              12.08,
+              22.23
+            ],
+            "worldQuaternion": [
+              -3.784366730434202e-17,
+              -1.1647083184890906e-16,
+              0.3090169943749516,
+              0.9510565162951522
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": null
+          },
+          {
+            "uuid": "8be9d97d-0a7f-4cae-9022-54e6858a10be",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-minute/<Mesh>",
+            "worldPosition": [
+              -189.75729490168752,
+              12.256335575687745,
+              22.23
+            ],
+            "worldQuaternion": [
+              -3.784366730434202e-17,
+              -1.1647083184890906e-16,
+              0.3090169943749516,
+              0.9510565162951522
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 8530358
+          },
+          {
+            "uuid": "f8a5c7ab-b7d3-41fa-8a69-074e81d6e637",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-minute/<Mesh>",
+            "worldPosition": [
+              -189.43368810393753,
+              12.491449676604736,
+              22.23
+            ],
+            "worldQuaternion": [
+              0.6300367553350519,
+              -0.32101976096010026,
+              0.630036755335052,
+              0.3210197609601004
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 8530358
+          },
+          {
+            "uuid": "371e5604-275c-40a1-99a0-02c16fe9340b",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/<Mesh>",
+            "worldPosition": [
+              -190,
+              12.08,
+              22.240000000000002
+            ],
+            "worldQuaternion": [
+              0,
+              -1.2246467991473532e-16,
+              0,
+              1
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 43227818
+          },
+          {
+            "uuid": "7820b7d7-3b7a-4b72-8065-7c5834caad07",
+            "name": "town-hall-clock",
+            "type": "Group",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock",
+            "worldPosition": [
+              -187.83,
+              12.08,
+              20
+            ],
+            "worldQuaternion": [
+              0,
+              0.7071067811865476,
+              0,
+              0.7071067811865475
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": null
+          },
+          {
+            "uuid": "14feb02f-06a3-482e-8a4f-aef873ebfe55",
+            "name": "town-hall-clock-hour",
+            "type": "Group",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-hour",
+            "worldPosition": [
+              -187.78,
+              12.08,
+              20
+            ],
+            "worldQuaternion": [
+              0.6753010788940768,
+              0.20968655856896481,
+              0.6753010788940768,
+              0.2096865585689648
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": null
+          },
+          {
+            "uuid": "8ece6a18-dd47-449b-a256-904b6c1a4ad7",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-hour/<Mesh>",
+            "worldPosition": [
+              -187.78,
+              12.193281247384967,
+              20.164825237724404
+            ],
+            "worldQuaternion": [
+              0.6753010788940768,
+              0.20968655856896481,
+              0.6753010788940768,
+              0.2096865585689648
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 8530358
+          },
+          {
+            "uuid": "851bb22a-c0a8-4f95-928c-e52b05c689f5",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-hour/<Mesh>",
+            "worldPosition": [
+              -187.78,
+              12.363203118462415,
+              20.41206309431101
+            ],
+            "worldQuaternion": [
+              0.8849876374630414,
+              2.3376839546695412e-17,
+              1.0588345998167834e-16,
+              -0.465614520325112
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 8530358
+          },
+          {
+            "uuid": "b04d905b-cde0-44c2-8c49-ae0fd67327e8",
+            "name": "town-hall-clock-minute",
+            "type": "Group",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-minute",
+            "worldPosition": [
+              -187.77,
+              12.08,
+              20
+            ],
+            "worldQuaternion": [
+              0.2185080122244135,
+              0.6724985119639563,
+              0.21850801222441343,
+              0.6724985119639564
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": null
+          },
+          {
+            "uuid": "152d4752-12ad-4be9-b106-25005383bd8c",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-minute/<Mesh>",
+            "worldPosition": [
+              -187.77,
+              12.256335575687745,
+              19.757294901687516
+            ],
+            "worldQuaternion": [
+              0.2185080122244135,
+              0.6724985119639563,
+              0.21850801222441343,
+              0.6724985119639564
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 8530358
+          },
+          {
+            "uuid": "fb801ceb-a567-44c1-800e-1254c5976ce7",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-minute/<Mesh>",
+            "worldPosition": [
+              -187.77,
+              12.491449676604736,
+              19.43368810393754
+            ],
+            "worldQuaternion": [
+              0.8910065241883699,
+              1.7192883636143336e-16,
+              4.155343816142632e-18,
+              0.45399049973954286
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 8530358
+          },
+          {
+            "uuid": "97fe3688-e72c-4e6f-9411-acbb2278d95f",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/<Mesh>",
+            "worldPosition": [
+              -187.76000000000002,
+              12.08,
+              20
+            ],
+            "worldQuaternion": [
+              0,
+              0.7071067811865476,
+              0,
+              0.7071067811865475
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 43227818
+          }
+        ],
+        "bird": [
+          {
+            "uuid": "4968a46b-b565-4a93-acbd-7b49c5a9a590",
+            "name": "fountain-bird",
+            "type": "Group",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird",
+            "worldPosition": [
+              -188.52,
+              1.385,
+              6
+            ],
+            "worldQuaternion": [
+              0,
+              -0.7071067811865475,
+              0,
+              0.7071067811865476
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": null
+          },
+          {
+            "uuid": "3d2ecafe-1c46-4489-b66a-f268a93b3aef",
+            "name": "fountain-bird-motion",
+            "type": "Group",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion",
+            "worldPosition": [
+              -188.52,
+              1.385,
+              6
+            ],
+            "worldQuaternion": [
+              0,
+              -0.7071067811865475,
+              0,
+              0.7071067811865476
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": null
+          },
+          {
+            "uuid": "6a73b693-21ae-4e45-801f-ce6ffe47c339",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/<Mesh>",
+            "worldPosition": [
+              -188.52,
+              1.525,
+              6
+            ],
+            "worldQuaternion": [
+              0,
+              -0.7071067811865475,
+              0,
+              0.7071067811865476
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 21938960
+          },
+          {
+            "uuid": "08c4683b-8393-4450-b8ed-ab1060fb29fe",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/<Mesh>",
+            "worldPosition": [
+              -188.58,
+              1.5150000000000001,
+              6
+            ],
+            "worldQuaternion": [
+              0,
+              -0.7071067811865475,
+              0,
+              0.7071067811865476
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 40681415
+          },
+          {
+            "uuid": "2e85c74b-9703-4da3-87ca-182fac05ac3f",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/<Mesh>",
+            "worldPosition": [
+              -188.36,
+              1.485,
+              6
+            ],
+            "worldQuaternion": [
+              -0.17494101728127348,
+              -0.6851245437674767,
+              -0.17494101728127343,
+              0.6851245437674769
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 15035342
+          },
+          {
+            "uuid": "5cc2f2c2-6bda-47a2-83ed-dbec5ae4db34",
+            "name": "fountain-bird-head",
+            "type": "Group",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/fountain-bird-head",
+            "worldPosition": [
+              -188.59,
+              1.615,
+              6
+            ],
+            "worldQuaternion": [
+              0,
+              -0.7071067811865475,
+              0,
+              0.7071067811865476
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": null
+          },
+          {
+            "uuid": "010db9ab-718e-4171-a6cd-c2440f97528c",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/fountain-bird-head/<Mesh>",
+            "worldPosition": [
+              -188.59,
+              1.615,
+              6
+            ],
+            "worldQuaternion": [
+              0,
+              -0.7071067811865475,
+              0,
+              0.7071067811865476
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 18193397
+          },
+          {
+            "uuid": "1e9d3ea2-70d5-45e3-a37b-19b79429c99b",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/fountain-bird-head/<Mesh>",
+            "worldPosition": [
+              -188.675,
+              1.605,
+              6
+            ],
+            "worldQuaternion": [
+              0.5,
+              -0.5,
+              0.4999999999999999,
+              0.5000000000000001
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 39865550
+          },
+          {
+            "uuid": "2b31af3f-f740-4732-b318-1375b3c027c6",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/fountain-bird-head/<Mesh>",
+            "worldPosition": [
+              -188.623,
+              1.63,
+              5.941
+            ],
+            "worldQuaternion": [
+              0,
+              -0.7071067811865475,
+              0,
+              0.7071067811865476
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 5955920
+          },
+          {
+            "uuid": "08a0ede8-2b0d-48e8-a3ef-53fa7db8ae87",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/fountain-bird-head/<Mesh>",
+            "worldPosition": [
+              -188.623,
+              1.63,
+              6.059
+            ],
+            "worldQuaternion": [
+              0,
+              -0.7071067811865475,
+              0,
+              0.7071067811865476
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 5955920
+          },
+          {
+            "uuid": "ca437766-bfc0-4a84-bff4-ca4100a8f3dc",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/<Mesh>",
+            "worldPosition": [
+              -188.52,
+              1.43,
+              5.965
+            ],
+            "worldQuaternion": [
+              0,
+              -0.7071067811865475,
+              0,
+              0.7071067811865476
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 29017535
+          },
+          {
+            "uuid": "cc677d2c-9fa6-493c-be07-52ae2ea787c1",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/<Mesh>",
+            "worldPosition": [
+              -188.52,
+              1.43,
+              6.035
+            ],
+            "worldQuaternion": [
+              0,
+              -0.7071067811865475,
+              0,
+              0.7071067811865476
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 29017535
+          }
+        ]
+      },
+      "motion": [
+        {
+          "query": "village-baker",
+          "travelMetres": 0.05302190761607474,
+          "quaternionDelta": 0.08651912312904343
+        },
+        {
+          "query": "village-gardener",
+          "travelMetres": 0.08720638673828225,
+          "quaternionDelta": 0.379528149719301
+        },
+        {
+          "query": "fountain-bird",
+          "travelMetres": 0,
+          "quaternionDelta": 0.30546488308899533
+        },
+        {
+          "query": "town-hall-clock-minute",
+          "travelMetres": 0,
+          "quaternionDelta": 0.011780904322244148
+        }
+      ],
+      "pauseStable": true,
+      "finalAudio": {
+        "state": {
+          "activeNodes": 0,
+          "contextState": "not-created"
+        },
+        "attempts": 0
+      }
+    },
+    {
+      "id": "night",
+      "time": 22,
+      "state": {
+        "humanPresence": {
+          "passed": true,
+          "personCount": 14,
+          "sceneObjects": [
+            "bus-arriving",
+            "bus-departing",
+            "mill-engineer",
+            "mill-operator-east",
+            "mill-operator-west",
+            "mill-packer",
+            "mill-quality",
+            "mill-supervisor",
+            "village-baker",
+            "village-courier",
+            "village-cyclist",
+            "village-gardener",
+            "village-neighbour",
+            "village-shopkeeper"
+          ],
+          "people": [
+            {
+              "bodyMeshes": 13,
+              "id": "mill-operator-west",
+              "activity": "break",
+              "task": "Tea break",
+              "visible": true,
+              "position": [
+                -34,
+                0,
+                -8.45
+              ]
+            },
+            {
+              "bodyMeshes": 13,
+              "id": "mill-operator-east",
+              "activity": "walking",
+              "task": "Walking between duties",
+              "visible": true,
+              "position": [
+                -31.5,
+                0,
+                30.800000000000015
+              ]
+            },
+            {
+              "bodyMeshes": 12,
+              "id": "mill-engineer",
+              "activity": "walking",
+              "task": "Walking between duties",
+              "visible": true,
+              "position": [
+                -32.25,
+                0,
+                29.250000000000068
+              ]
+            },
+            {
+              "bodyMeshes": 12,
+              "id": "mill-quality",
+              "activity": "working",
+              "task": "Taking a flour sample",
+              "visible": true,
+              "position": [
+                8,
+                0,
+                -8.8
+              ]
+            },
+            {
+              "bodyMeshes": 13,
+              "id": "mill-packer",
+              "activity": "working",
+              "task": "Checking the packing line",
+              "visible": true,
+              "position": [
+                -8,
+                0,
+                -8.8
+              ]
+            },
+            {
+              "bodyMeshes": 13,
+              "id": "mill-supervisor",
+              "activity": "working",
+              "task": "Reviewing the shift",
+              "visible": true,
+              "position": [
+                -33,
+                0,
+                8
+              ]
+            },
+            {
+              "bodyMeshes": 12,
+              "id": "village-baker",
+              "activity": "working",
+              "task": "Setting out fresh bread",
+              "visible": false,
+              "position": [
+                -175.1,
+                0,
+                6.8
+              ]
+            },
+            {
+              "bodyMeshes": 13,
+              "id": "village-shopkeeper",
+              "activity": "working",
+              "task": "Checking the delivery crates",
+              "visible": false,
+              "position": [
+                -204.4,
+                0,
+                31.6
+              ]
+            },
+            {
+              "bodyMeshes": 13,
+              "id": "village-gardener",
+              "activity": "idle",
+              "task": "Resting beside the allotment",
+              "visible": false,
+              "position": [
+                -206,
+                0,
+                9
+              ]
+            },
+            {
+              "bodyMeshes": 12,
+              "id": "village-neighbour",
+              "activity": "break",
+              "task": "Tea break",
+              "visible": true,
+              "position": [
+                -208.1,
+                0,
+                -13.1
+              ]
+            },
+            {
+              "bodyMeshes": 12,
+              "id": "village-courier",
+              "activity": "working",
+              "task": "Returning the empty flour cart",
+              "visible": false,
+              "position": [
+                -202.8,
+                0,
+                43
+              ]
+            },
+            {
+              "bodyMeshes": 12,
+              "id": "village-cyclist",
+              "activity": "walking",
+              "task": "Cycling along the village street",
+              "visible": false,
+              "position": [
+                -200.8,
+                0,
+                53.02653618800232
+              ]
+            },
+            {
+              "bodyMeshes": 13,
+              "id": "bus-arriving",
+              "activity": "idle",
+              "task": "Resting at the shelter",
+              "visible": false,
+              "position": [
+                24.1,
+                0.3599999999999987,
+                137.6
+              ]
+            },
+            {
+              "bodyMeshes": 13,
+              "id": "bus-departing",
+              "activity": "idle",
+              "task": "Waiting for Route 42",
+              "visible": false,
+              "position": [
+                28.4,
+                0.11,
+                139
+              ]
+            }
+          ],
+          "prohibited": []
+        },
+        "worldIntegrity": {
+          "required": [
+            "world-root",
+            "world-environment",
+            "world-factory-process",
+            "world-factory-infrastructure",
+            "world-conveyors",
+            "world-forklifts",
+            "world-logistics",
+            "world-personnel",
+            "world-community-details",
+            "world-terrain",
+            "authored-factory-exterior",
+            "authored-castle",
+            "authored-farm",
+            "authored-village",
+            "optimized-sky-system",
+            "optimized-horizon-backdrop",
+            "near-horizon-city",
+            "sun-visual",
+            "moon-visual"
+          ],
+          "present": [
+            "world-root",
+            "world-environment",
+            "world-factory-process",
+            "world-factory-infrastructure",
+            "world-conveyors",
+            "world-forklifts",
+            "world-logistics",
+            "world-personnel",
+            "world-community-details",
+            "world-terrain",
+            "authored-factory-exterior",
+            "authored-castle",
+            "authored-farm",
+            "authored-village",
+            "optimized-sky-system",
+            "optimized-horizon-backdrop",
+            "near-horizon-city",
+            "sun-visual",
+            "moon-visual"
+          ],
+          "visible": [
+            "world-root",
+            "world-environment",
+            "world-factory-process",
+            "world-factory-infrastructure",
+            "world-conveyors",
+            "world-forklifts",
+            "world-logistics",
+            "world-personnel",
+            "world-community-details",
+            "world-terrain",
+            "authored-factory-exterior",
+            "authored-castle",
+            "authored-farm",
+            "authored-village"
+          ],
+          "missing": [],
+          "hidden": [],
+          "passed": true
+        },
+        "audio": {
+          "activeNodes": 0,
+          "contextState": "not-created"
+        },
+        "attempts": 0,
+        "clock": [
+          {
+            "uuid": "abb0a641-c752-40ee-990f-4c37ade55665",
+            "name": "town-hall-clock",
+            "type": "Group",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock",
+            "worldPosition": [
+              -190,
+              12.08,
+              17.83
+            ],
+            "worldQuaternion": [
+              0,
+              1,
+              0,
+              6.123233995736766e-17
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": null
+          },
+          {
+            "uuid": "eb41e4bb-64ea-4afd-bbab-b14f8603d77f",
+            "name": "town-hall-clock-hour",
+            "type": "Group",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-hour",
+            "worldPosition": [
+              -190,
+              12.08,
+              17.779999999999998
+            ],
+            "worldQuaternion": [
+              0.9659258262890684,
+              0.2588190451025203,
+              5.914589856893349e-17,
+              1.5848095757158797e-17
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": null
+          },
+          {
+            "uuid": "4368ad8e-0877-4e87-a2c3-bfd764c5ebf8",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-hour/<Mesh>",
+            "worldPosition": [
+              -189.8267949192431,
+              12.18,
+              17.779999999999998
+            ],
+            "worldQuaternion": [
+              0.9659258262890684,
+              0.2588190451025203,
+              5.914589856893349e-17,
+              1.5848095757158797e-17
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 8530358
+          },
+          {
+            "uuid": "d04359cd-ea34-442b-9f72-58454faee836",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-hour/<Mesh>",
+            "worldPosition": [
+              -189.5669872981078,
+              12.33,
+              17.779999999999998
+            ],
+            "worldQuaternion": [
+              0.6123724356957945,
+              -0.35355339059327406,
+              -0.6123724356957942,
+              -0.3535533905932742
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 8530358
+          },
+          {
+            "uuid": "7ab60d27-0405-49c3-8969-73d53701a494",
+            "name": "town-hall-clock-minute",
+            "type": "Group",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-minute",
+            "worldPosition": [
+              -190,
+              12.08,
+              17.77
+            ],
+            "worldQuaternion": [
+              0.7071067811865475,
+              0.7071067811865476,
+              4.3297802811774664e-17,
+              4.329780281177467e-17
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": null
+          },
+          {
+            "uuid": "6c104fe4-6227-4b77-8218-f7b71ce89e1f",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-minute/<Mesh>",
+            "worldPosition": [
+              -190,
+              12.38,
+              17.77
+            ],
+            "worldQuaternion": [
+              0.7071067811865475,
+              0.7071067811865476,
+              4.3297802811774664e-17,
+              4.329780281177467e-17
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 8530358
+          },
+          {
+            "uuid": "73799acc-9ad1-4e8b-a40c-d404bd54d5a1",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-minute/<Mesh>",
+            "worldPosition": [
+              -190,
+              12.78,
+              17.77
+            ],
+            "worldQuaternion": [
+              0.7071067811865477,
+              1.5700924586837752e-16,
+              -0.7071067811865474,
+              8.715763992105245e-33
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 8530358
+          },
+          {
+            "uuid": "6da47c8c-cb04-4f16-ab97-eb51c7b2e4f9",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/<Mesh>",
+            "worldPosition": [
+              -190,
+              12.08,
+              17.759999999999998
+            ],
+            "worldQuaternion": [
+              0,
+              1,
+              0,
+              6.123233995736766e-17
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 43227818
+          },
+          {
+            "uuid": "5b9053fe-6b8b-44c1-8d36-f2102348bc95",
+            "name": "town-hall-clock",
+            "type": "Group",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock",
+            "worldPosition": [
+              -192.17,
+              12.08,
+              20
+            ],
+            "worldQuaternion": [
+              0,
+              -0.7071067811865476,
+              0,
+              0.7071067811865475
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": null
+          },
+          {
+            "uuid": "9117ad49-7967-43c5-a1ce-814451dd503a",
+            "name": "town-hall-clock-hour",
+            "type": "Group",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-hour",
+            "worldPosition": [
+              -192.22,
+              12.08,
+              20
+            ],
+            "worldQuaternion": [
+              0.6830127018922195,
+              0.18301270189221902,
+              -0.6830127018922193,
+              -0.18301270189221897
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": null
+          },
+          {
+            "uuid": "daaffb57-2c3b-46dd-911d-f05a6fd89b24",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-hour/<Mesh>",
+            "worldPosition": [
+              -192.22,
+              12.18,
+              19.826794919243113
+            ],
+            "worldQuaternion": [
+              0.6830127018922195,
+              0.18301270189221902,
+              -0.6830127018922193,
+              -0.18301270189221897
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 8530358
+          },
+          {
+            "uuid": "c9bde799-1ebf-46c3-aa78-17c08e02546d",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-hour/<Mesh>",
+            "worldPosition": [
+              -192.22,
+              12.33,
+              19.56698729810778
+            ],
+            "worldQuaternion": [
+              -3.0083618180585957e-16,
+              0.5000000000000006,
+              0.8660254037844384,
+              1.2676430429786205e-16
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 8530358
+          },
+          {
+            "uuid": "6d4617db-a281-4786-8cd5-8f63586e5b43",
+            "name": "town-hall-clock-minute",
+            "type": "Group",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-minute",
+            "worldPosition": [
+              -192.23,
+              12.08,
+              20
+            ],
+            "worldQuaternion": [
+              0.5000000000000001,
+              0.5000000000000001,
+              -0.4999999999999999,
+              -0.5
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": null
+          },
+          {
+            "uuid": "4f23de00-be40-4701-9e87-2158b8057337",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-minute/<Mesh>",
+            "worldPosition": [
+              -192.23,
+              12.38,
+              20
+            ],
+            "worldQuaternion": [
+              0.5000000000000001,
+              0.5000000000000001,
+              -0.4999999999999999,
+              -0.5
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 8530358
+          },
+          {
+            "uuid": "a955fb30-5c72-49bd-97c6-eebbd472f34e",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-minute/<Mesh>",
+            "worldPosition": [
+              -192.23,
+              12.78,
+              20
+            ],
+            "worldQuaternion": [
+              -2.83276944882399e-16,
+              -1.1102230246251568e-16,
+              1,
+              1.1102230246251565e-16
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 8530358
+          },
+          {
+            "uuid": "e7c37b62-cf87-41a7-8227-e94853263ea9",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/<Mesh>",
+            "worldPosition": [
+              -192.23999999999998,
+              12.08,
+              20
+            ],
+            "worldQuaternion": [
+              0,
+              -0.7071067811865476,
+              0,
+              0.7071067811865475
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 43227818
+          },
+          {
+            "uuid": "acd8218f-80bc-4bb7-9511-965d9bf2eae6",
+            "name": "town-hall-clock",
+            "type": "Group",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock",
+            "worldPosition": [
+              -190,
+              12.08,
+              22.17
+            ],
+            "worldQuaternion": [
+              0,
+              -1.2246467991473532e-16,
+              0,
+              1
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": null
+          },
+          {
+            "uuid": "723b3e30-ac7f-461b-a74b-e544f9051e5d",
+            "name": "town-hall-clock-hour",
+            "type": "Group",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-hour",
+            "worldPosition": [
+              -190,
+              12.08,
+              22.220000000000002
+            ],
+            "worldQuaternion": [
+              -1.1829179713786698e-16,
+              -3.1696191514317594e-17,
+              0.9659258262890684,
+              0.2588190451025203
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": null
+          },
+          {
+            "uuid": "09ec785a-8ef2-49c6-9d72-6776d9a35cf8",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-hour/<Mesh>",
+            "worldPosition": [
+              -190.1732050807569,
+              12.18,
+              22.220000000000002
+            ],
+            "worldQuaternion": [
+              -1.1829179713786698e-16,
+              -3.1696191514317594e-17,
+              0.9659258262890684,
+              0.2588190451025203
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 8530358
+          },
+          {
+            "uuid": "f42002c3-5f2b-4715-9fca-8ed4618f33ae",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-hour/<Mesh>",
+            "worldPosition": [
+              -190.4330127018922,
+              12.33,
+              22.220000000000002
+            ],
+            "worldQuaternion": [
+              0.6123724356957942,
+              0.35355339059327423,
+              0.6123724356957945,
+              -0.35355339059327406
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 8530358
+          },
+          {
+            "uuid": "fd43fccd-75e2-4297-9913-bcca9312066e",
+            "name": "town-hall-clock-minute",
+            "type": "Group",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-minute",
+            "worldPosition": [
+              -190,
+              12.08,
+              22.23
+            ],
+            "worldQuaternion": [
+              -8.659560562354932e-17,
+              -8.659560562354934e-17,
+              0.7071067811865475,
+              0.7071067811865476
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": null
+          },
+          {
+            "uuid": "4e2d6cce-fb93-4fea-aef9-49d4446ef9e2",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-minute/<Mesh>",
+            "worldPosition": [
+              -190,
+              12.38,
+              22.23
+            ],
+            "worldQuaternion": [
+              -8.659560562354932e-17,
+              -8.659560562354934e-17,
+              0.7071067811865475,
+              0.7071067811865476
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 8530358
+          },
+          {
+            "uuid": "6db20042-e223-475b-b6bb-6f4cf1ebd280",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-minute/<Mesh>",
+            "worldPosition": [
+              -190,
+              12.78,
+              22.23
+            ],
+            "worldQuaternion": [
+              0.7071067811865474,
+              -1.743152798421049e-32,
+              0.7071067811865477,
+              1.5700924586837752e-16
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 8530358
+          },
+          {
+            "uuid": "ba4d3f3e-3a57-4705-bd0d-0ae73aeadb7d",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/<Mesh>",
+            "worldPosition": [
+              -190,
+              12.08,
+              22.240000000000002
+            ],
+            "worldQuaternion": [
+              0,
+              -1.2246467991473532e-16,
+              0,
+              1
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 43227818
+          },
+          {
+            "uuid": "36ac9eb3-4ab0-4250-b9fc-58c0b28973ca",
+            "name": "town-hall-clock",
+            "type": "Group",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock",
+            "worldPosition": [
+              -187.83,
+              12.08,
+              20
+            ],
+            "worldQuaternion": [
+              0,
+              0.7071067811865476,
+              0,
+              0.7071067811865475
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": null
+          },
+          {
+            "uuid": "e1b51475-bede-40dd-903a-e770113c38f4",
+            "name": "town-hall-clock-hour",
+            "type": "Group",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-hour",
+            "worldPosition": [
+              -187.78,
+              12.08,
+              20
+            ],
+            "worldQuaternion": [
+              0.6830127018922194,
+              0.18301270189221902,
+              0.6830127018922194,
+              0.183012701892219
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": null
+          },
+          {
+            "uuid": "1cfdd883-bb04-4976-a971-be8295506cb2",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-hour/<Mesh>",
+            "worldPosition": [
+              -187.78,
+              12.18,
+              20.173205080756887
+            ],
+            "worldQuaternion": [
+              0.6830127018922194,
+              0.18301270189221902,
+              0.6830127018922194,
+              0.183012701892219
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 8530358
+          },
+          {
+            "uuid": "6259a85b-b5ed-4178-b9f5-616ca0b02d39",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-hour/<Mesh>",
+            "worldPosition": [
+              -187.78,
+              12.33,
+              20.43301270189222
+            ],
+            "worldQuaternion": [
+              -0.8660254037844385,
+              -1.5742001835346284e-17,
+              -1.0853991316750321e-16,
+              0.5000000000000004
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 8530358
+          },
+          {
+            "uuid": "f7fbb998-509f-4c3c-8250-17af177fbcea",
+            "name": "town-hall-clock-minute",
+            "type": "Group",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-minute",
+            "worldPosition": [
+              -187.77,
+              12.08,
+              20
+            ],
+            "worldQuaternion": [
+              0.5,
+              0.5000000000000001,
+              0.49999999999999994,
+              0.5
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": null
+          },
+          {
+            "uuid": "88ba6ae4-119b-4028-8d5f-fb7f509340ce",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-minute/<Mesh>",
+            "worldPosition": [
+              -187.77,
+              12.38,
+              20
+            ],
+            "worldQuaternion": [
+              0.5,
+              0.5000000000000001,
+              0.49999999999999994,
+              0.5
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 8530358
+          },
+          {
+            "uuid": "3c767d28-5bde-4733-9921-a5eb63d57961",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/town-hall-clock-minute/<Mesh>",
+            "worldPosition": [
+              -187.77,
+              12.78,
+              20
+            ],
+            "worldQuaternion": [
+              1,
+              1.1102230246251565e-16,
+              6.123233995736765e-17,
+              1.1102230246251565e-16
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 8530358
+          },
+          {
+            "uuid": "e497b479-6af8-427b-9c8c-3d16d7a78e54",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/town-hall-clock/<Mesh>",
+            "worldPosition": [
+              -187.76000000000002,
+              12.08,
+              20
+            ],
+            "worldQuaternion": [
+              0,
+              0.7071067811865476,
+              0,
+              0.7071067811865475
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 43227818
+          }
+        ],
+        "bird": [
+          {
+            "uuid": "b5d39021-948a-4315-bbb7-58541af41c71",
+            "name": "fountain-bird",
+            "type": "Group",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird",
+            "worldPosition": [
+              -188.52,
+              1.385,
+              6
+            ],
+            "worldQuaternion": [
+              0,
+              -0.7071067811865475,
+              0,
+              0.7071067811865476
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": null
+          },
+          {
+            "uuid": "71aaf018-1443-4cb4-ba9f-d1dcd82b079b",
+            "name": "fountain-bird-motion",
+            "type": "Group",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion",
+            "worldPosition": [
+              -188.52,
+              1.385,
+              6
+            ],
+            "worldQuaternion": [
+              0,
+              -0.7071067811865475,
+              0,
+              0.7071067811865476
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": null
+          },
+          {
+            "uuid": "d575f337-a9d5-4a30-9264-17ef72251f12",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/<Mesh>",
+            "worldPosition": [
+              -188.52,
+              1.525,
+              6
+            ],
+            "worldQuaternion": [
+              0,
+              -0.7071067811865475,
+              0,
+              0.7071067811865476
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 21938960
+          },
+          {
+            "uuid": "f050b03c-8741-4331-b0a6-d07c2e471b0f",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/<Mesh>",
+            "worldPosition": [
+              -188.58,
+              1.5150000000000001,
+              6
+            ],
+            "worldQuaternion": [
+              0,
+              -0.7071067811865475,
+              0,
+              0.7071067811865476
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 40681415
+          },
+          {
+            "uuid": "7e1e4145-f70a-4f77-9c6d-55f26d095dff",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/<Mesh>",
+            "worldPosition": [
+              -188.36,
+              1.485,
+              6
+            ],
+            "worldQuaternion": [
+              -0.17494101728127348,
+              -0.6851245437674767,
+              -0.17494101728127343,
+              0.6851245437674769
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 15035342
+          },
+          {
+            "uuid": "7167393b-859d-4e7d-ba2e-997c7fc51341",
+            "name": "fountain-bird-head",
+            "type": "Group",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/fountain-bird-head",
+            "worldPosition": [
+              -188.59,
+              1.615,
+              6
+            ],
+            "worldQuaternion": [
+              0,
+              -0.7071067811865475,
+              0,
+              0.7071067811865476
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": null
+          },
+          {
+            "uuid": "30c49fd8-cddd-4c9f-97b5-91ee9de09147",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/fountain-bird-head/<Mesh>",
+            "worldPosition": [
+              -188.59,
+              1.615,
+              6
+            ],
+            "worldQuaternion": [
+              0,
+              -0.7071067811865475,
+              0,
+              0.7071067811865476
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 18193397
+          },
+          {
+            "uuid": "0d5a63f8-2999-4685-ae51-9b9103fac856",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/fountain-bird-head/<Mesh>",
+            "worldPosition": [
+              -188.675,
+              1.605,
+              6
+            ],
+            "worldQuaternion": [
+              0.5,
+              -0.5,
+              0.4999999999999999,
+              0.5000000000000001
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 39865550
+          },
+          {
+            "uuid": "c7bcb25b-a175-45c8-9f74-43e17a491fe9",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/fountain-bird-head/<Mesh>",
+            "worldPosition": [
+              -188.623,
+              1.63,
+              5.941
+            ],
+            "worldQuaternion": [
+              0,
+              -0.7071067811865475,
+              0,
+              0.7071067811865476
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 5955920
+          },
+          {
+            "uuid": "f4d0d12d-64bd-4a03-94c3-b54ba967c0f5",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/fountain-bird-head/<Mesh>",
+            "worldPosition": [
+              -188.623,
+              1.63,
+              6.059
+            ],
+            "worldQuaternion": [
+              0,
+              -0.7071067811865475,
+              0,
+              0.7071067811865476
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 5955920
+          },
+          {
+            "uuid": "aa5cadd7-6bf6-4741-b844-bb930af1e587",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/<Mesh>",
+            "worldPosition": [
+              -188.52,
+              1.43,
+              5.965
+            ],
+            "worldQuaternion": [
+              0,
+              -0.7071067811865475,
+              0,
+              0.7071067811865476
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 29017535
+          },
+          {
+            "uuid": "2a580e8d-3768-45e7-b54f-da7523657472",
+            "name": "<Mesh>",
+            "type": "Mesh",
+            "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/<Mesh>",
+            "worldPosition": [
+              -188.52,
+              1.43,
+              6.035
+            ],
+            "worldQuaternion": [
+              0,
+              -0.7071067811865475,
+              0,
+              0.7071067811865476
+            ],
+            "instanceMatrixChecksum": null,
+            "materialChecksum": 29017535
+          }
+        ]
+      },
+      "signs": [
+        {
+          "name": "station-canopy-wordmark--1",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/station-canopy-wordmark--1",
+          "worldPosition": [
+            -85,
+            4.64,
+            133.72
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv",
+              "aTroikaGlyphBounds",
+              "aTroikaGlyphIndex"
+            ],
+            "boundingSphereRadius": 0.9084791615180001,
+            "worldRadius": 0.9084791615180001,
+            "worldRadiusSum": 0.9084791615180001,
+            "nonFinite": false,
+            "instancedDrawCount": 8
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "80FA7D33-6014-4F9F-8DFD-5EACC539A142",
+            "color": "#fff0d2",
+            "emissive": "#fff0d2",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": 0,
+            "flatShading": false,
+            "transparent": true,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "station-canopy-wordmark-1",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/station-canopy-wordmark-1",
+          "worldPosition": [
+            -85,
+            4.64,
+            146.28
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv",
+              "aTroikaGlyphBounds",
+              "aTroikaGlyphIndex"
+            ],
+            "boundingSphereRadius": 0.9084791615180001,
+            "worldRadius": 0.9084791615180001,
+            "worldRadiusSum": 0.9084791615180001,
+            "nonFinite": false,
+            "instancedDrawCount": 8
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "8FFD14AD-FC3C-446F-8CC6-0E9A2AD989B8",
+            "color": "#fff0d2",
+            "emissive": "#fff0d2",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": 0,
+            "flatShading": false,
+            "transparent": true,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "station-shop-wordmark",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/station-shop-wordmark",
+          "worldPosition": [
+            -92.91,
+            3.97,
+            140
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv",
+              "aTroikaGlyphBounds",
+              "aTroikaGlyphIndex"
+            ],
+            "boundingSphereRadius": 1.6536919154560907,
+            "worldRadius": 1.6536919154560907,
+            "worldRadiusSum": 1.6536919154560907,
+            "nonFinite": false,
+            "instancedDrawCount": 11
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "388B2F87-3F34-4A34-A335-10DAA8C94305",
+            "color": "#fff0d2",
+            "emissive": "#fff0d2",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": 0,
+            "flatShading": false,
+            "transparent": true,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/station-verge-sign/<Group>/dead-dino-enamel-pylon-face/<Mesh>",
+          "worldPosition": [
+            -75,
+            7.2,
+            131.68
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 2.990819225561444,
+            "worldRadius": 2.990819225561444,
+            "worldRadiusSum": 2.990819225561444,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "5f4bfaed-8333-47fa-b08b-805b498c2e9f",
+            "color": "#c46535",
+            "emissive": "#c46535",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": false,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/station-verge-sign/<Group>/dead-dino-enamel-pylon-face/<Mesh>",
+          "worldPosition": [
+            -75,
+            7.92,
+            131.68800000000002
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 2.1181359081375777,
+            "worldRadius": 2.1181359081375777,
+            "worldRadiusSum": 2.1181359081375777,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "04c03bea-3cb9-43f0-af8e-2e0343fd886c",
+            "color": "#efe3c7",
+            "emissive": "#efe3c7",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": false,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "heritage-dino-printed-emblem",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/station-verge-sign/<Group>/dead-dino-enamel-pylon-face/heritage-dino-printed-emblem",
+          "worldPosition": [
+            -75,
+            8.01,
+            131.698
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 1.9352699601914958,
+            "worldRadius": 1.9352699601914958,
+            "worldRadiusSum": 1.9352699601914958,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [
+            {
+              "slot": "map",
+              "uuid": "20838ce6-4348-49af-b8e1-8c588ae1dc55",
+              "colorSpace": "srgb",
+              "size": [
+                1024,
+                683
+              ]
+            },
+            {
+              "slot": "emissiveMap",
+              "uuid": "20838ce6-4348-49af-b8e1-8c588ae1dc55",
+              "colorSpace": "srgb",
+              "size": [
+                1024,
+                683
+              ]
+            }
+          ],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "05a0d5f1-fa76-49b7-a4bb-b5907e145f5b",
+            "color": "#ffffff",
+            "emissive": "#ffffff",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": "20838ce6-4348-49af-b8e1-8c588ae1dc55",
+            "mapColorSpace": "srgb",
+            "mapSize": [
+              1024,
+              683
+            ],
+            "normalMapBound": false,
+            "shaderInjected": false,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/station-verge-sign/<Group>/dead-dino-enamel-pylon-face/<Mesh>",
+          "worldPosition": [
+            -75,
+            6.33,
+            131.702
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv",
+              "aTroikaGlyphBounds",
+              "aTroikaGlyphIndex"
+            ],
+            "boundingSphereRadius": 1.1090373245441885,
+            "worldRadius": 1.1090373245441885,
+            "worldRadiusSum": 1.1090373245441885,
+            "nonFinite": false,
+            "instancedDrawCount": 4
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "732C3C65-D5B8-4C5C-9907-6A2D14D2093C",
+            "color": "#fff0cd",
+            "emissive": "#fff0cd",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": false,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": 0,
+            "flatShading": false,
+            "transparent": true,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": false,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/station-verge-sign/<Group>/dead-dino-enamel-pylon-face/<Mesh>",
+          "worldPosition": [
+            -75,
+            5.67,
+            131.702
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv",
+              "aTroikaGlyphBounds",
+              "aTroikaGlyphIndex"
+            ],
+            "boundingSphereRadius": 1.0424879259346793,
+            "worldRadius": 1.0424879259346793,
+            "worldRadiusSum": 1.0424879259346793,
+            "nonFinite": false,
+            "instancedDrawCount": 4
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "6B4CA0C1-4F29-4578-9826-6090D0E41D30",
+            "color": "#fff0cd",
+            "emissive": "#fff0cd",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": false,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": 0,
+            "flatShading": false,
+            "transparent": true,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": false,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/station-verge-sign/<Group>/dead-dino-enamel-pylon-face/<Mesh>",
+          "worldPosition": [
+            -75,
+            5.140000000000001,
+            131.703
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv",
+              "aTroikaGlyphBounds",
+              "aTroikaGlyphIndex"
+            ],
+            "boundingSphereRadius": 1.140953735671802,
+            "worldRadius": 1.140953735671802,
+            "worldRadiusSum": 1.140953735671802,
+            "nonFinite": false,
+            "instancedDrawCount": 17
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "5BCC58D3-CD16-4E1C-81D9-8D73D85BE8CD",
+            "color": "#fff0cd",
+            "emissive": "#fff0cd",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": 0,
+            "flatShading": false,
+            "transparent": true,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/station-verge-sign/<Group>/dead-dino-enamel-pylon-face/<Mesh>",
+          "worldPosition": [
+            -75,
+            7.2,
+            131.32
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 2.990819225561444,
+            "worldRadius": 2.990819225561444,
+            "worldRadiusSum": 2.990819225561444,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "b9057242-93d1-43cc-87fa-8ca4d0292b1e",
+            "color": "#c46535",
+            "emissive": "#c46535",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": false,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/station-verge-sign/<Group>/dead-dino-enamel-pylon-face/<Mesh>",
+          "worldPosition": [
+            -75,
+            7.92,
+            131.31199999999998
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 2.1181359081375777,
+            "worldRadius": 2.1181359081375777,
+            "worldRadiusSum": 2.1181359081375777,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "9a4e9b95-f1ab-49de-890d-297d6a42b9b5",
+            "color": "#efe3c7",
+            "emissive": "#efe3c7",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": false,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "heritage-dino-printed-emblem",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/station-verge-sign/<Group>/dead-dino-enamel-pylon-face/heritage-dino-printed-emblem",
+          "worldPosition": [
+            -75,
+            8.01,
+            131.302
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 1.9352699601914958,
+            "worldRadius": 1.9352699601914958,
+            "worldRadiusSum": 1.9352699601914958,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [
+            {
+              "slot": "map",
+              "uuid": "20838ce6-4348-49af-b8e1-8c588ae1dc55",
+              "colorSpace": "srgb",
+              "size": [
+                1024,
+                683
+              ]
+            },
+            {
+              "slot": "emissiveMap",
+              "uuid": "20838ce6-4348-49af-b8e1-8c588ae1dc55",
+              "colorSpace": "srgb",
+              "size": [
+                1024,
+                683
+              ]
+            }
+          ],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "e21a9d1b-f400-441e-af2f-1390aa2b86f3",
+            "color": "#ffffff",
+            "emissive": "#ffffff",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": "20838ce6-4348-49af-b8e1-8c588ae1dc55",
+            "mapColorSpace": "srgb",
+            "mapSize": [
+              1024,
+              683
+            ],
+            "normalMapBound": false,
+            "shaderInjected": false,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/station-verge-sign/<Group>/dead-dino-enamel-pylon-face/<Mesh>",
+          "worldPosition": [
+            -75,
+            6.33,
+            131.298
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv",
+              "aTroikaGlyphBounds",
+              "aTroikaGlyphIndex"
+            ],
+            "boundingSphereRadius": 1.1090373245441885,
+            "worldRadius": 1.1090373245441885,
+            "worldRadiusSum": 1.1090373245441885,
+            "nonFinite": false,
+            "instancedDrawCount": 4
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "385994F5-EE43-471B-ADB7-98C148C10AAF",
+            "color": "#fff0cd",
+            "emissive": "#fff0cd",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": false,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": 0,
+            "flatShading": false,
+            "transparent": true,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": false,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/station-verge-sign/<Group>/dead-dino-enamel-pylon-face/<Mesh>",
+          "worldPosition": [
+            -75,
+            5.67,
+            131.298
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv",
+              "aTroikaGlyphBounds",
+              "aTroikaGlyphIndex"
+            ],
+            "boundingSphereRadius": 1.0424879259346793,
+            "worldRadius": 1.0424879259346793,
+            "worldRadiusSum": 1.0424879259346793,
+            "nonFinite": false,
+            "instancedDrawCount": 4
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "E66230D4-C77E-4608-B06B-C0E71503823B",
+            "color": "#fff0cd",
+            "emissive": "#fff0cd",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": false,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": 0,
+            "flatShading": false,
+            "transparent": true,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": false,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/station-verge-sign/<Group>/dead-dino-enamel-pylon-face/<Mesh>",
+          "worldPosition": [
+            -75,
+            5.140000000000001,
+            131.297
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv",
+              "aTroikaGlyphBounds",
+              "aTroikaGlyphIndex"
+            ],
+            "boundingSphereRadius": 1.140953735671802,
+            "worldRadius": 1.140953735671802,
+            "worldRadiusSum": 1.140953735671802,
+            "nonFinite": false,
+            "instancedDrawCount": 17
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "0A763764-843F-46B5-A802-D8502EDAA556",
+            "color": "#fff0cd",
+            "emissive": "#fff0cd",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": 0,
+            "flatShading": false,
+            "transparent": true,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-flour-poster/<Mesh>",
+          "worldPosition": [
+            29,
+            1.3,
+            137.98000000000002
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 1.2206555547371665,
+            "worldRadius": 1.2206555547371665,
+            "worldRadiusSum": 1.2206555547371665,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "32643917-09ba-4da7-bf52-c4a564114f03",
+            "color": "#efe3c7",
+            "emissive": "#efe3c7",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": false,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-flour-poster/<Mesh>",
+          "worldPosition": [
+            29,
+            0.396,
+            137.97400000000002
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.6160657399018246,
+            "worldRadius": 0.6160657399018246,
+            "worldRadiusSum": 0.6160657399018246,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "733ad31d-cba4-44ec-b167-9d8427e5b63a",
+            "color": "#a27733",
+            "emissive": "#a27733",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": false,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-flour-poster/<Mesh>",
+          "worldPosition": [
+            29,
+            2.204,
+            137.97400000000002
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.6160657399018246,
+            "worldRadius": 0.6160657399018246,
+            "worldRadiusSum": 0.6160657399018246,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "733ad31d-cba4-44ec-b167-9d8427e5b63a",
+            "color": "#a27733",
+            "emissive": "#a27733",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": false,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "heritage-flour-heading",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-flour-poster/heritage-flour-heading",
+          "worldPosition": [
+            29,
+            1.96,
+            137.97000000000003
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv",
+              "aTroikaGlyphBounds",
+              "aTroikaGlyphIndex"
+            ],
+            "boundingSphereRadius": 0.5495469518381362,
+            "worldRadius": 0.5495469518381362,
+            "worldRadiusSum": 0.5495469518381362,
+            "nonFinite": false,
+            "instancedDrawCount": 11
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "20DA1F7C-B5C2-4C0E-A355-F0A252B79F6D",
+            "color": "#283f49",
+            "emissive": "#283f49",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": false,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": 0,
+            "flatShading": false,
+            "transparent": true,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": false,
+            "visible": true
+          }
+        },
+        {
+          "name": "heritage-wheat-printed-emblem",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-flour-poster/heritage-wheat-printed-emblem",
+          "worldPosition": [
+            29,
+            1.3900000000000001,
+            137.967
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.6038691715771739,
+            "worldRadius": 0.6038691715771739,
+            "worldRadiusSum": 0.6038691715771739,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [
+            {
+              "slot": "map",
+              "uuid": "97df5d0b-f6e9-47cc-b9e1-06957e8be7ba",
+              "colorSpace": "srgb",
+              "size": [
+                512,
+                512
+              ]
+            },
+            {
+              "slot": "emissiveMap",
+              "uuid": "97df5d0b-f6e9-47cc-b9e1-06957e8be7ba",
+              "colorSpace": "srgb",
+              "size": [
+                512,
+                512
+              ]
+            }
+          ],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "e6f16454-009c-48b0-b751-e9874631f5d6",
+            "color": "#a27733",
+            "emissive": "#a27733",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": "97df5d0b-f6e9-47cc-b9e1-06957e8be7ba",
+            "mapColorSpace": "srgb",
+            "mapSize": [
+              512,
+              512
+            ],
+            "normalMapBound": false,
+            "shaderInjected": false,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "heritage-flour-tagline",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-flour-poster/heritage-flour-tagline",
+          "worldPosition": [
+            29,
+            0.8300000000000001,
+            137.96400000000003
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv",
+              "aTroikaGlyphBounds",
+              "aTroikaGlyphIndex"
+            ],
+            "boundingSphereRadius": 0.46607780223477935,
+            "worldRadius": 0.46607780223477935,
+            "worldRadiusSum": 0.46607780223477935,
+            "nonFinite": false,
+            "instancedDrawCount": 25
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "60DEC8D4-D7CB-4F59-B123-98F438B6418F",
+            "color": "#283f49",
+            "emissive": "#283f49",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": 0,
+            "flatShading": false,
+            "transparent": true,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "heritage-flour-footer",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-flour-poster/heritage-flour-footer",
+          "worldPosition": [
+            29,
+            0.5800000000000001,
+            137.96400000000003
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv",
+              "aTroikaGlyphBounds",
+              "aTroikaGlyphIndex"
+            ],
+            "boundingSphereRadius": 0.4569745733299262,
+            "worldRadius": 0.4569745733299262,
+            "worldRadiusSum": 0.4569745733299262,
+            "nonFinite": false,
+            "instancedDrawCount": 18
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "B4E1A1E1-6E04-4C74-B05D-40AD21622480",
+            "color": "#a27733",
+            "emissive": "#a27733",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": 0,
+            "flatShading": false,
+            "transparent": true,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-flour-poster/<Mesh>",
+          "worldPosition": [
+            29,
+            1.3,
+            138.06
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 1.2206555547371665,
+            "worldRadius": 1.2206555547371665,
+            "worldRadiusSum": 1.2206555547371665,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "fb3ceb2e-eed9-4867-9211-aebaa2d4934a",
+            "color": "#efe3c7",
+            "emissive": "#efe3c7",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": false,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-flour-poster/<Mesh>",
+          "worldPosition": [
+            29,
+            0.396,
+            138.066
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.6160657399018246,
+            "worldRadius": 0.6160657399018246,
+            "worldRadiusSum": 0.6160657399018246,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "c9714eb9-e251-4ec1-8754-9ca70d458bb7",
+            "color": "#a27733",
+            "emissive": "#a27733",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": false,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-flour-poster/<Mesh>",
+          "worldPosition": [
+            29,
+            2.204,
+            138.066
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.6160657399018246,
+            "worldRadius": 0.6160657399018246,
+            "worldRadiusSum": 0.6160657399018246,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "c9714eb9-e251-4ec1-8754-9ca70d458bb7",
+            "color": "#a27733",
+            "emissive": "#a27733",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": false,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "heritage-flour-heading",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-flour-poster/heritage-flour-heading",
+          "worldPosition": [
+            29,
+            1.96,
+            138.07
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv",
+              "aTroikaGlyphBounds",
+              "aTroikaGlyphIndex"
+            ],
+            "boundingSphereRadius": 0.5495469518381362,
+            "worldRadius": 0.5495469518381362,
+            "worldRadiusSum": 0.5495469518381362,
+            "nonFinite": false,
+            "instancedDrawCount": 11
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "6C9C7FF7-897B-4685-9CA3-636669CFD825",
+            "color": "#283f49",
+            "emissive": "#283f49",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": false,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": 0,
+            "flatShading": false,
+            "transparent": true,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": false,
+            "visible": true
+          }
+        },
+        {
+          "name": "heritage-wheat-printed-emblem",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-flour-poster/heritage-wheat-printed-emblem",
+          "worldPosition": [
+            29,
+            1.3900000000000001,
+            138.073
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.6038691715771739,
+            "worldRadius": 0.6038691715771739,
+            "worldRadiusSum": 0.6038691715771739,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [
+            {
+              "slot": "map",
+              "uuid": "97df5d0b-f6e9-47cc-b9e1-06957e8be7ba",
+              "colorSpace": "srgb",
+              "size": [
+                512,
+                512
+              ]
+            },
+            {
+              "slot": "emissiveMap",
+              "uuid": "97df5d0b-f6e9-47cc-b9e1-06957e8be7ba",
+              "colorSpace": "srgb",
+              "size": [
+                512,
+                512
+              ]
+            }
+          ],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "e9d950f8-40d4-4577-a068-0f7b42e552a3",
+            "color": "#a27733",
+            "emissive": "#a27733",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": "97df5d0b-f6e9-47cc-b9e1-06957e8be7ba",
+            "mapColorSpace": "srgb",
+            "mapSize": [
+              512,
+              512
+            ],
+            "normalMapBound": false,
+            "shaderInjected": false,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "heritage-flour-tagline",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-flour-poster/heritage-flour-tagline",
+          "worldPosition": [
+            29,
+            0.8300000000000001,
+            138.076
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv",
+              "aTroikaGlyphBounds",
+              "aTroikaGlyphIndex"
+            ],
+            "boundingSphereRadius": 0.46607780223477935,
+            "worldRadius": 0.46607780223477935,
+            "worldRadiusSum": 0.46607780223477935,
+            "nonFinite": false,
+            "instancedDrawCount": 25
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "2627FB4C-F8A0-416C-BDC2-F682EE024692",
+            "color": "#283f49",
+            "emissive": "#283f49",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": 0,
+            "flatShading": false,
+            "transparent": true,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "heritage-flour-footer",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-flour-poster/heritage-flour-footer",
+          "worldPosition": [
+            29,
+            0.5800000000000001,
+            138.076
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv",
+              "aTroikaGlyphBounds",
+              "aTroikaGlyphIndex"
+            ],
+            "boundingSphereRadius": 0.4569745733299262,
+            "worldRadius": 0.4569745733299262,
+            "worldRadiusSum": 0.4569745733299262,
+            "nonFinite": false,
+            "instancedDrawCount": 18
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "527A8FAE-BF98-4DA3-8D7D-9DCA28DC83C6",
+            "color": "#a27733",
+            "emissive": "#a27733",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": 0,
+            "flatShading": false,
+            "transparent": true,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-dino-poster/<Mesh>",
+          "worldPosition": [
+            29,
+            1.3,
+            141.94
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 1.2206555547371665,
+            "worldRadius": 1.2206555547371665,
+            "worldRadiusSum": 1.2206555547371665,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "735031e5-32f1-4a07-a0aa-65f8c99c6885",
+            "color": "#efe3c7",
+            "emissive": "#efe3c7",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": false,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-dino-poster/<Mesh>",
+          "worldPosition": [
+            29,
+            0.396,
+            141.934
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.6160657399018246,
+            "worldRadius": 0.6160657399018246,
+            "worldRadiusSum": 0.6160657399018246,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "0b36403f-09f6-43d4-9ae3-39a73eb9cdbe",
+            "color": "#bb582b",
+            "emissive": "#bb582b",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": false,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-dino-poster/<Mesh>",
+          "worldPosition": [
+            29,
+            2.204,
+            141.934
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.6160657399018246,
+            "worldRadius": 0.6160657399018246,
+            "worldRadiusSum": 0.6160657399018246,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "0b36403f-09f6-43d4-9ae3-39a73eb9cdbe",
+            "color": "#bb582b",
+            "emissive": "#bb582b",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": false,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "heritage-dino-heading",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-dino-poster/heritage-dino-heading",
+          "worldPosition": [
+            29,
+            1.96,
+            141.93
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv",
+              "aTroikaGlyphBounds",
+              "aTroikaGlyphIndex"
+            ],
+            "boundingSphereRadius": 0.4626168456915095,
+            "worldRadius": 0.4626168456915095,
+            "worldRadiusSum": 0.4626168456915095,
+            "nonFinite": false,
+            "instancedDrawCount": 8
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "A887D7C2-E46F-48EF-B125-067895160393",
+            "color": "#254b3c",
+            "emissive": "#254b3c",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": false,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": 0,
+            "flatShading": false,
+            "transparent": true,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": false,
+            "visible": true
+          }
+        },
+        {
+          "name": "heritage-dino-printed-emblem",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-dino-poster/heritage-dino-printed-emblem",
+          "worldPosition": [
+            29,
+            1.3900000000000001,
+            141.927
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.7656937891397155,
+            "worldRadius": 0.7656937891397155,
+            "worldRadiusSum": 0.7656937891397155,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [
+            {
+              "slot": "map",
+              "uuid": "20838ce6-4348-49af-b8e1-8c588ae1dc55",
+              "colorSpace": "srgb",
+              "size": [
+                1024,
+                683
+              ]
+            },
+            {
+              "slot": "emissiveMap",
+              "uuid": "20838ce6-4348-49af-b8e1-8c588ae1dc55",
+              "colorSpace": "srgb",
+              "size": [
+                1024,
+                683
+              ]
+            }
+          ],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "ff90989f-bb24-440d-9dd5-a3ed51d053be",
+            "color": "#ffffff",
+            "emissive": "#ffffff",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": "20838ce6-4348-49af-b8e1-8c588ae1dc55",
+            "mapColorSpace": "srgb",
+            "mapSize": [
+              1024,
+              683
+            ],
+            "normalMapBound": false,
+            "shaderInjected": false,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "heritage-dino-tagline",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-dino-poster/heritage-dino-tagline",
+          "worldPosition": [
+            29,
+            0.8300000000000001,
+            141.924
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv",
+              "aTroikaGlyphBounds",
+              "aTroikaGlyphIndex"
+            ],
+            "boundingSphereRadius": 0.32749064986891224,
+            "worldRadius": 0.32749064986891224,
+            "worldRadiusSum": 0.32749064986891224,
+            "nonFinite": false,
+            "instancedDrawCount": 17
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "A4FFFC39-63DB-48C8-98C4-ADDB9E0DF129",
+            "color": "#254b3c",
+            "emissive": "#254b3c",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": 0,
+            "flatShading": false,
+            "transparent": true,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "heritage-dino-footer",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-dino-poster/heritage-dino-footer",
+          "worldPosition": [
+            29,
+            0.5800000000000001,
+            141.924
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv",
+              "aTroikaGlyphBounds",
+              "aTroikaGlyphIndex"
+            ],
+            "boundingSphereRadius": 0.4360603367110613,
+            "worldRadius": 0.4360603367110613,
+            "worldRadiusSum": 0.4360603367110613,
+            "nonFinite": false,
+            "instancedDrawCount": 17
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "EE229051-FC1B-4B78-8A7A-3DBE6EB0BDCC",
+            "color": "#bb582b",
+            "emissive": "#bb582b",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": 0,
+            "flatShading": false,
+            "transparent": true,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-dino-poster/<Mesh>",
+          "worldPosition": [
+            29,
+            1.3,
+            142.01999999999998
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 1.2206555547371665,
+            "worldRadius": 1.2206555547371665,
+            "worldRadiusSum": 1.2206555547371665,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "19824cf6-b9b3-4bcc-928a-3ee16b5e1c82",
+            "color": "#efe3c7",
+            "emissive": "#efe3c7",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": false,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-dino-poster/<Mesh>",
+          "worldPosition": [
+            29,
+            0.396,
+            142.02599999999998
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.6160657399018246,
+            "worldRadius": 0.6160657399018246,
+            "worldRadiusSum": 0.6160657399018246,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "9b6a993b-8949-488f-8c7f-b4a17afd21b9",
+            "color": "#bb582b",
+            "emissive": "#bb582b",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": false,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-dino-poster/<Mesh>",
+          "worldPosition": [
+            29,
+            2.204,
+            142.02599999999998
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.6160657399018246,
+            "worldRadius": 0.6160657399018246,
+            "worldRadiusSum": 0.6160657399018246,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "9b6a993b-8949-488f-8c7f-b4a17afd21b9",
+            "color": "#bb582b",
+            "emissive": "#bb582b",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": false,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "heritage-dino-heading",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-dino-poster/heritage-dino-heading",
+          "worldPosition": [
+            29,
+            1.96,
+            142.02999999999997
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv",
+              "aTroikaGlyphBounds",
+              "aTroikaGlyphIndex"
+            ],
+            "boundingSphereRadius": 0.4626168456915095,
+            "worldRadius": 0.4626168456915095,
+            "worldRadiusSum": 0.4626168456915095,
+            "nonFinite": false,
+            "instancedDrawCount": 8
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "C7440113-284A-428C-92E3-32012CA82460",
+            "color": "#254b3c",
+            "emissive": "#254b3c",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": false,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": 0,
+            "flatShading": false,
+            "transparent": true,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": false,
+            "visible": true
+          }
+        },
+        {
+          "name": "heritage-dino-printed-emblem",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-dino-poster/heritage-dino-printed-emblem",
+          "worldPosition": [
+            29,
+            1.3900000000000001,
+            142.033
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.7656937891397155,
+            "worldRadius": 0.7656937891397155,
+            "worldRadiusSum": 0.7656937891397155,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [
+            {
+              "slot": "map",
+              "uuid": "20838ce6-4348-49af-b8e1-8c588ae1dc55",
+              "colorSpace": "srgb",
+              "size": [
+                1024,
+                683
+              ]
+            },
+            {
+              "slot": "emissiveMap",
+              "uuid": "20838ce6-4348-49af-b8e1-8c588ae1dc55",
+              "colorSpace": "srgb",
+              "size": [
+                1024,
+                683
+              ]
+            }
+          ],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "312369ee-6fc0-4412-a7d1-5c992877058f",
+            "color": "#ffffff",
+            "emissive": "#ffffff",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": "20838ce6-4348-49af-b8e1-8c588ae1dc55",
+            "mapColorSpace": "srgb",
+            "mapSize": [
+              1024,
+              683
+            ],
+            "normalMapBound": false,
+            "shaderInjected": false,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "heritage-dino-tagline",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-dino-poster/heritage-dino-tagline",
+          "worldPosition": [
+            29,
+            0.8300000000000001,
+            142.03599999999997
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv",
+              "aTroikaGlyphBounds",
+              "aTroikaGlyphIndex"
+            ],
+            "boundingSphereRadius": 0.32749064986891224,
+            "worldRadius": 0.32749064986891224,
+            "worldRadiusSum": 0.32749064986891224,
+            "nonFinite": false,
+            "instancedDrawCount": 17
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "B4D880D5-0BF0-484E-B9AD-639CE199914F",
+            "color": "#254b3c",
+            "emissive": "#254b3c",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": 0,
+            "flatShading": false,
+            "transparent": true,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "heritage-dino-footer",
+          "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-dino-poster/heritage-dino-footer",
+          "worldPosition": [
+            29,
+            0.5800000000000001,
+            142.03599999999997
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv",
+              "aTroikaGlyphBounds",
+              "aTroikaGlyphIndex"
+            ],
+            "boundingSphereRadius": 0.4360603367110613,
+            "worldRadius": 0.4360603367110613,
+            "worldRadiusSum": 0.4360603367110613,
+            "nonFinite": false,
+            "instancedDrawCount": 17
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "2AA247B8-D712-4C59-951C-88AAE83444CD",
+            "color": "#bb582b",
+            "emissive": "#bb582b",
+            "emissiveIntensity": 0.85,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": 0,
+            "flatShading": false,
+            "transparent": true,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "heritage-wheat-printed-emblem",
+          "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/village-nameboard-bakery/<Group>/heritage-wheat-printed-emblem",
+          "worldPosition": [
+            -172.44697362318493,
+            3.1144243255970414,
+            2.7953662924320244
+          ],
+          "worldDeterminant": 0.8964494012993542,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.2596496009816984,
+            "worldRadius": 0.25035883387893715,
+            "worldRadiusSum": 0.25035883387893715,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [
+            {
+              "slot": "map",
+              "uuid": "97df5d0b-f6e9-47cc-b9e1-06957e8be7ba",
+              "colorSpace": "srgb",
+              "size": [
+                512,
+                512
+              ]
+            },
+            {
+              "slot": "emissiveMap",
+              "uuid": "97df5d0b-f6e9-47cc-b9e1-06957e8be7ba",
+              "colorSpace": "srgb",
+              "size": [
+                512,
+                512
+              ]
+            }
+          ],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "sign-backlight",
+            "uuid": "1709da0c-3ebe-493b-b069-ddba0d773860",
+            "color": "#e4c680",
+            "emissive": "#e4c680",
+            "emissiveIntensity": 0,
+            "metalness": 0,
+            "roughness": 0.74,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": "97df5d0b-f6e9-47cc-b9e1-06957e8be7ba",
+            "mapColorSpace": "srgb",
+            "mapSize": [
+              512,
+              512
+            ],
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        }
+      ],
+      "illuminatedSigns": 43,
+      "finalAudio": {
+        "state": {
+          "activeNodes": 0,
+          "contextState": "not-created"
+        },
+        "attempts": 0
+      }
+    }
+  ],
+  "manifest": {
+    "schemaVersion": 2,
+    "packageVersion": "0.40.0",
+    "currentVersion": "v0.40",
+    "buildInfo": {
+      "buildId": "v0.40-859c391c324b",
+      "cacheVersion": "v0.40-859c391c324b"
+    },
+    "archives": [
+      "v0.10",
+      "v0.20",
+      "v0.30"
+    ],
+    "archiveSources": {
+      "v0.10": {
+        "type": "static",
+        "path": "public/v0.10"
+      },
+      "v0.20": {
+        "type": "static",
+        "path": "public/v0.20"
+      },
+      "v0.30": {
+        "type": "source-build",
+        "commit": "20bcbe044fc6d7ca7275999fec63ddce83fd49d0",
+        "sourcePackageVersion": "0.20.0",
+        "identityNote": "Historically deployed as v0.30 with stale package metadata."
+      }
+    },
+    "releases": [
+      {
+        "version": "v0.40",
+        "label": "0.40",
+        "type": "current",
+        "source": {
+          "type": "current",
+          "buildInfo": {
+            "buildId": "v0.40-859c391c324b",
+            "cacheVersion": "v0.40-859c391c324b"
+          }
+        }
+      },
+      {
+        "version": "v0.30",
+        "label": "0.30",
+        "type": "source-build",
+        "sourceCommit": "20bcbe044fc6d7ca7275999fec63ddce83fd49d0",
+        "sourcePackageVersion": "0.20.0",
+        "identityNote": "Historically deployed as v0.30 with stale package metadata.",
+        "reproducibleBuild": {
+          "verifiedAt": "2026-08-10",
+          "productionUrl": "https://www.millos.net/v0.30/",
+          "indexSha256": "5b4b9ea0f69b1ad3b9168cc5cc24e3730cf5647389a06f03e6012f73622af482",
+          "mainAsset": "assets/main-xJkxcQe9.js",
+          "mainSha256": "099078d6ba669ada3d011883129444cffb8b5ef75bf536f31f01fad7ae0b69d7"
+        },
+        "source": {
+          "type": "source-build",
+          "commit": "20bcbe044fc6d7ca7275999fec63ddce83fd49d0",
+          "sourcePackageVersion": "0.20.0",
+          "identityNote": "Historically deployed as v0.30 with stale package metadata."
+        }
+      },
+      {
+        "version": "v0.20",
+        "label": "0.20",
+        "type": "static",
+        "sourcePath": "public/v0.20",
+        "source": {
+          "type": "static",
+          "path": "public/v0.20"
+        }
+      },
+      {
+        "version": "v0.10",
+        "label": "0.10",
+        "type": "static",
+        "sourcePath": "public/v0.10",
+        "source": {
+          "type": "static",
+          "path": "public/v0.10"
+        }
+      }
+    ]
+  },
+  "passed": true
+}

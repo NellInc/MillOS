@@ -1,0 +1,14 @@
+{
+  "cookies": [],
+  "origins": [
+    {
+      "origin": "http://127.0.0.1:5181",
+      "localStorage": [
+        {
+          "name": "millos-audio",
+          "value": "{\"version\": 2, \"muted\": true, \"volume\": 0, \"musicEnabled\": false, \"musicVolume\": 0, \"machineVolume\": 0}"
+        }
+      ]
+    }
+  ]
+}

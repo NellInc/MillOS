@@ -7,6 +7,7 @@ import {
   useMotionPreferenceStore,
 } from '../stores/motionPreferenceStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
+import { useChronicleStore } from '../stores/chronicleStore';
 import { useT } from '../i18n';
 import { emergencyOverlayMessages } from './EmergencyOverlay.messages';
 import { LiveRegionPortal } from './ui/LiveRegionPortal';
@@ -17,6 +18,14 @@ export const EmergencyOverlay: React.FC = () => {
   const forkliftEmergencyStop = useSafetyStore((state) => state.forkliftEmergencyStop);
   const emergencyActive = useGameSimulationStore((state) => state.emergencyActive);
   const emergencyDrillMode = useGameSimulationStore((state) => state.emergencyDrillMode);
+  // A Mill Chronicle duct fire is cleared from its own prompt, not the Safety panel.
+  const chronicleFire = useGameSimulationStore(
+    (state) =>
+      state.crisisState.type === 'fire' && state.crisisState.metadata?.source === 'chronicle'
+  );
+  // A Chronicle dialog on screen is either the fire's own guidance or one the
+  // player opened; the strip would cover it, and returns when it closes.
+  const dialogOpen = useChronicleStore((state) => state.dialogOpen);
   // framer's hook reads only the OS media query; the in-app setting is OR'd in.
   const inAppReducedMotion = useMotionPreferenceStore(selectInAppReducedMotion);
   const reduceMotion = useReducedMotion() || inAppReducedMotion;
@@ -38,7 +47,9 @@ export const EmergencyOverlay: React.FC = () => {
     ? t('drillGuidance')
     : forkliftOnly
       ? t('forkliftStopGuidance')
-      : t('facilityStopGuidance');
+      : chronicleFire
+        ? t('chronicleFireGuidance')
+        : t('facilityStopGuidance');
 
   return (
     <>
@@ -87,7 +98,7 @@ export const EmergencyOverlay: React.FC = () => {
             <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="absolute left-1/2 top-4 -translate-x-1/2"
+              className="absolute left-1/2 top-4 w-max max-w-[calc(100vw-2rem)] -translate-x-1/2"
             >
               <div
                 className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-white shadow-lg backdrop-blur-sm ${
@@ -103,15 +114,17 @@ export const EmergencyOverlay: React.FC = () => {
             </motion.div>
 
             {/* Unambiguous response guidance */}
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="absolute left-4 right-4 top-24 sm:bottom-20 sm:left-1/2 sm:right-auto sm:top-auto sm:-translate-x-1/2"
-            >
-              <div className="mx-auto max-w-md rounded-lg border border-slate-600 bg-slate-950/95 px-4 py-2 text-center text-xs text-slate-100 backdrop-blur-sm">
-                {guidance}
-              </div>
-            </motion.div>
+            {!dialogOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="absolute left-4 right-4 top-24 sm:bottom-28 sm:left-1/2 sm:right-auto sm:top-auto sm:-translate-x-1/2"
+              >
+                <div className="mx-auto max-w-md rounded-lg border border-slate-600 bg-slate-950/95 px-4 py-2 text-center text-xs text-slate-100 backdrop-blur-sm">
+                  {guidance}
+                </div>
+              </motion.div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

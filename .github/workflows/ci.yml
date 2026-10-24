@@ -24,7 +24,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '22.23.4'
           cache: 'npm'
 
       - name: Install dependencies
@@ -63,7 +63,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '22.23.4'
           cache: 'npm'
 
       - name: Install dependencies
@@ -93,7 +93,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '22.23.4'
           cache: 'npm'
 
       - name: Install dependencies
@@ -135,7 +135,7 @@ jobs:
   build:
     # Preserve the Build check identity: it is green only after UI acceptance.
     name: Build
-    runs-on: macos-15
+    runs-on: macos-26
     needs: build-assembly
     timeout-minutes: 15
     env:
@@ -147,7 +147,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '22.23.4'
           cache: 'npm'
 
       - name: Install dependencies
@@ -233,7 +233,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '22.23.4'
           cache: 'npm'
           cache-dependency-path: scada-proxy/package-lock.json
 

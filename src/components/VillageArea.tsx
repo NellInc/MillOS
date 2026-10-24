@@ -524,6 +524,7 @@ const ChimneySmoke: React.FC<{
   // building is yawed to face the street, so a fixed local axis would send the
   // plumes on the two sides of the street in opposite directions.
   const driftRef = useRef<THREE.Vector3 | null>(null);
+  const driftVector = useMemo(() => new THREE.Vector3(), []);
   const materials = useMemo(() => [SM.smoke.clone(), SM.smoke.clone(), SM.smoke.clone()], []);
 
   useEffect(() => () => materials.forEach((m) => m.dispose()), [materials]);
@@ -535,7 +536,7 @@ const ChimneySmoke: React.FC<{
       // correct on the first frame. The chimney never moves after mount.
       groupRef.current.getWorldQuaternion(_smokeQ).invert();
       const { value: windDir } = WIND_UNIFORMS.uWindDir;
-      driftRef.current = new THREE.Vector3(windDir.x, 0, windDir.y).applyQuaternion(_smokeQ);
+      driftRef.current = driftVector.set(windDir.x, 0, windDir.y).applyQuaternion(_smokeQ);
     }
     const drift = driftRef.current;
     const game = useGameSimulationStore.getState();

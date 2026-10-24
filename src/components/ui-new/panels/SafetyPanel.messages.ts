@@ -45,6 +45,8 @@ export const safetyPanelMessages = defineMessages({
     releaseForkliftStop: 'RELEASE FORKLIFT STOP',
 
     resolveCrisisFirst: 'Resolve the active crisis before clearing its interlock',
+    chronicleFireInterlock:
+      'A Mill Chronicle duct fire holds this interlock; answer it in the Chronicle',
     endDrillFirst: 'End the active egress verification drill before using the emergency stop',
     crisisInterlockActive: 'CRISIS INTERLOCK ACTIVE',
     drillInterlockActive: 'DRILL INTERLOCK ACTIVE',
@@ -98,6 +100,8 @@ export const safetyPanelMessages = defineMessages({
     releaseForkliftStop: 'LIBERAR PARADA DAS EMPILHADEIRAS',
 
     resolveCrisisFirst: 'Resolva a crise ativa antes de liberar o intertravamento',
+    chronicleFireInterlock:
+      'Um incêndio no duto da Crônica do moinho mantém este intertravamento; responda a ele na Crônica',
     endDrillFirst:
       'Encerre o simulado de verificação das rotas de saída em andamento antes de usar a parada de emergência',
     crisisInterlockActive: 'INTERTRAVAMENTO DE CRISE ATIVO',

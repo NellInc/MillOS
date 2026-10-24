@@ -441,7 +441,8 @@ it('uses the MillOS mark for both loading covers and the sidebar inset without c
   ]) {
     const source = readFileSync(file, 'utf8');
     expect(source).toContain('millos-mark-v1.webp');
-    expect(source).not.toContain('🏭');
+    // The factory emoji, by code point: the lint rule forbids it as a literal.
+    expect(source).not.toContain(String.fromCodePoint(0x1f3ed));
   }
   const html = readFileSync('index.html', 'utf8');
   expect(html).toContain('%BASE_URL%textures/signage/millos-mark-v1.png');

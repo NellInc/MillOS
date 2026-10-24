@@ -183,6 +183,8 @@ self.addEventListener('fetch', (event) => {
   const scopedPath = requestUrl.pathname.slice(SCOPE_PATH.length - 1);
   if (/^\/(?:auth|api)\//.test(scopedPath)) return;
   if (
+    requestUrl.pathname.startsWith('/api/chatgpt/') ||
+    requestUrl.pathname === '/auth/callback' ||
     requestUrl.pathname.endsWith('/sw.js') ||
     requestUrl.pathname.includes('/__vite') ||
     requestUrl.pathname.includes('/@')

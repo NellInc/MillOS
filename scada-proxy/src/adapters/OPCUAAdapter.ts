@@ -12,6 +12,7 @@ import {
   DataValue,
   AttributeIds,
   StatusCodes,
+  StatusCode,
   Variant,
   DataType
 } from 'node-opcua-client';
@@ -79,6 +80,9 @@ export class OPCUAAdapter {
       securityMode, // 1=None (dev only), 3=SignAndEncrypt (production)
       securityPolicy // 'None' (dev only), 'Basic256Sha256' (production)
     });
+
+    // Keep the native PKI store; only explicit development may auto-trust certificates.
+    this.client.clientCertificateManager.automaticallyAcceptUnknownCertificate = isDev;
 
     try {
       await this.client.connect(this.endpoint);
@@ -271,7 +275,7 @@ export class OPCUAAdapter {
   /**
    * Map OPC-UA StatusCode to quality string
    */
-  private mapStatusCode(statusCode: any): string {
+  private mapStatusCode(statusCode: StatusCode): string {
     if (!statusCode) return 'BAD';
 
     if (statusCode.equals(StatusCodes.Good)) {

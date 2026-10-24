@@ -12,6 +12,7 @@ import {
   Database,
   MoreHorizontal,
   ChartColumn,
+  ScrollText,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useUIStore } from '../../../stores/uiStore';
@@ -27,6 +28,7 @@ export type DockMode =
   | 'scada'
   | 'management'
   | 'safety'
+  | 'chronicle'
   | 'settings';
 
 interface DockProps {
@@ -140,7 +142,8 @@ export const Dock: React.FC<DockProps> = ({
   }, [isFullscreen]);
 
   // AI Partner lives only in the More menu, so its trigger carries the highlight.
-  const moreActive = fpsMode || activeMode === 'ai';
+  const moreActive =
+    fpsMode || activeMode === 'ai' || (isCompactLayout && activeMode === 'chronicle');
 
   // On mobile, clicking a dock item opens the mobile panel instead of sidebar
   const handleModeChange = (mode: DockMode, trigger?: HTMLElement) => {
@@ -213,6 +216,16 @@ export const Dock: React.FC<DockProps> = ({
           isMobile={isCompactLayout}
         />
       )}
+      {!isCompactLayout && (
+        <DockItem
+          mode="chronicle"
+          icon={<ScrollText size={24} />}
+          label={t('itemChronicle')}
+          isActive={activeMode === 'chronicle'}
+          onClick={(trigger) => handleModeChange('chronicle', trigger)}
+          isMobile={isCompactLayout}
+        />
+      )}
       <DockItem
         mode="safety"
         icon={<Shield size={24} />}
@@ -281,6 +294,17 @@ export const Dock: React.FC<DockProps> = ({
                   <Heart size={18} aria-hidden="true" />
                   {t('menuManagement')}
                 </button>
+                <button
+                  role="menuitem"
+                  type="button"
+                  data-dock-mode="chronicle"
+                  aria-current={activeMode === 'chronicle' ? 'page' : undefined}
+                  onClick={() => handleMoreModeChange('chronicle')}
+                  className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm text-slate-200 transition-colors hover:bg-white/10"
+                >
+                  <ScrollText size={18} aria-hidden="true" />
+                  {t('itemChronicle')}
+                </button>
               </>
             )}
             {onDatalinksOpen && (
@@ -343,6 +367,7 @@ const DOCK_LABEL_KEYS = {
   scada: 'labelScada',
   management: 'labelManagement',
   safety: 'labelSafety',
+  chronicle: 'labelChronicle',
   settings: 'labelSettings',
 } as const satisfies Record<DockMode, keyof (typeof dockMessages)['en']>;
 
@@ -366,6 +391,9 @@ export const DOCK_LABELS: Record<DockMode, string> = {
   },
   get safety() {
     return translate(dockMessages, DOCK_LABEL_KEYS.safety);
+  },
+  get chronicle() {
+    return translate(dockMessages, DOCK_LABEL_KEYS.chronicle);
   },
   get settings() {
     return translate(dockMessages, DOCK_LABEL_KEYS.settings);

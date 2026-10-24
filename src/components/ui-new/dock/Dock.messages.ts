@@ -9,6 +9,7 @@ export const dockMessages = defineMessages({
     itemSafety: 'Safety & Emergency',
     itemScada: 'Simulated SCADA',
     itemSettings: 'Settings',
+    itemChronicle: 'Mill Chronicle',
     moreLabel: 'More workspaces and view controls',
     menuAiPartner: 'AI Partner',
     menuManagement: 'Bilateral Autonomy System',
@@ -25,6 +26,7 @@ export const dockMessages = defineMessages({
     labelManagement: 'Autonomy',
     labelSafety: 'Safety',
     labelSettings: 'Settings',
+    labelChronicle: 'Chronicle',
   },
   'pt-BR': {
     navLabel: 'Navegação principal',
@@ -34,6 +36,7 @@ export const dockMessages = defineMessages({
     itemSafety: 'Segurança e emergência',
     itemScada: 'SCADA simulado',
     itemSettings: 'Configurações',
+    itemChronicle: 'Crônica do moinho',
     moreLabel: 'Mais espaços de trabalho e controles de visualização',
     menuAiPartner: 'Parceiro de IA',
     menuManagement: 'Sistema de Autonomia Bilateral',
@@ -49,5 +52,6 @@ export const dockMessages = defineMessages({
     labelManagement: 'Autonomia',
     labelSafety: 'Segurança',
     labelSettings: 'Configurações',
+    labelChronicle: 'Crônica',
   },
 });

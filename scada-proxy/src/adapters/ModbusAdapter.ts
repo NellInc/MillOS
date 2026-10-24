@@ -152,23 +152,25 @@ export class ModbusAdapter {
       let rawData: number[];
 
       switch (config.registerType) {
-        case 'holding':
+        case 'holding': {
           const holdingResult = await this.client.readHoldingRegisters(
             config.address,
             config.count
           );
           rawData = Array.from(holdingResult.data);
           break;
+        }
 
-        case 'input':
+        case 'input': {
           const inputResult = await this.client.readInputRegisters(
             config.address,
             config.count
           );
           rawData = Array.from(inputResult.data);
           break;
+        }
 
-        case 'coil':
+        case 'coil': {
           const coilResult = await this.client.readCoils(config.address, 1);
           return {
             tagId: config.tagId,
@@ -176,8 +178,9 @@ export class ModbusAdapter {
             quality: 'GOOD',
             timestamp: Date.now()
           };
+        }
 
-        case 'discrete':
+        case 'discrete': {
           const discreteResult = await this.client.readDiscreteInputs(
             config.address,
             1
@@ -188,6 +191,7 @@ export class ModbusAdapter {
             quality: 'GOOD',
             timestamp: Date.now()
           };
+        }
 
         default:
           throw new Error(`Unknown register type: ${config.registerType}`);
@@ -228,7 +232,7 @@ export class ModbusAdapter {
       this.client.setID(config.slaveId);
 
       switch (config.registerType) {
-        case 'holding':
+        case 'holding': {
           const registers = this.valueToRegisters(value, config);
           if (registers.length === 1) {
             await this.client.writeRegister(config.address, registers[0]);
@@ -236,6 +240,7 @@ export class ModbusAdapter {
             await this.client.writeRegisters(config.address, registers);
           }
           break;
+        }
 
         case 'coil':
           await this.client.writeCoil(config.address, Boolean(value));

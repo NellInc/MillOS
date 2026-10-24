@@ -22,7 +22,9 @@ import {
   Heart,
   Truck,
   Route,
+  ScrollText,
 } from 'lucide-react';
+import { ChroniclePanel } from '../chronicle/ChroniclePanel';
 import type { DockMode } from '../ui-new/dock/Dock';
 import { useProductionStore } from '../../stores/productionStore';
 import { useUIStore } from '../../stores/uiStore';
@@ -99,6 +101,8 @@ const getPanelIcon = (mode: DockMode) => {
       return <Settings className={iconClass} />;
     case 'management':
       return <Heart className={iconClass} />;
+    case 'chronicle':
+      return <ScrollText className={iconClass} />;
     default:
       return <Home className={iconClass} />;
   }
@@ -123,6 +127,8 @@ const getPanelTitle = (mode: DockMode, t: PanelT) => {
       return t('titleSettings');
     case 'management':
       return t('titleManagement');
+    case 'chronicle':
+      return t('titleChronicle');
     default:
       return t('titlePanel');
   }
@@ -802,6 +808,8 @@ const getPanelContent = (mode: DockMode | null) => {
       return <SettingsContent />;
     case 'management':
       return <ManagementContent />;
+    case 'chronicle':
+      return <ChroniclePanel />;
   }
 };
 

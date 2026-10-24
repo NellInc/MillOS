@@ -11,6 +11,8 @@ export const emergencyOverlayMessages = defineMessages({
       'Every forklift is holding position; the mill keeps running. Press Space or release it from the Safety panel.',
     facilityStopGuidance:
       'Everything is stopped. Find the cause, fix it, then clear the interlock from the Safety panel.',
+    chronicleFireGuidance:
+      'Everything is stopped by a duct fire. Answer its prompt in the Mill Chronicle to suppress or clean it.',
     liveRegion: '{title}. {guidance}',
   },
   'pt-BR': {
@@ -23,6 +25,8 @@ export const emergencyOverlayMessages = defineMessages({
       'Todas as empilhadeiras estão paradas na posição; o moinho continua funcionando. Pressione Espaço ou libere a parada pelo painel de Segurança.',
     facilityStopGuidance:
       'Tudo está parado. Encontre a causa, corrija-a e depois libere o intertravamento pelo painel de Segurança.',
+    chronicleFireGuidance:
+      'Tudo está parado por um incêndio no duto. Responda ao aviso na Crônica do moinho para suprimir ou limpar o duto.',
     liveRegion: '{title}. {guidance}',
   },
 });

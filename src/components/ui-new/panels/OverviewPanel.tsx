@@ -49,6 +49,7 @@ import {
 import { overviewPanelMessages } from './OverviewPanel.messages';
 
 import { OperationsPlayCard, PaceHoldNote, ShiftDebrief } from '../onboarding/PlayableShift';
+import { qcReadingsForLots } from '../../../chronicle/cropYears';
 
 // Re-homed from ui/ (orphaned after the UIOverlay removal): live breakdown
 // mechanics — active breakdowns, predictive alerts, parts inventory, schedule.
@@ -297,6 +298,16 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
     // The lab reports the quality the batch was made at; a batch saved before
     // that was recorded reads as conforming, as every test did before.
     const grade = labGradeForQuality(batch.qualityScore);
+    // The physical readings come from the stamped crop attributes of the lots
+    // under test; unstamped lots (no signed chronicle) give the long-standing
+    // readings.
+    const lots = useMaterialFlowStore.getState().sourceLots;
+    const readings = qcReadingsForLots(
+      batch.sourceContributions.map((source) => ({
+        crop: lots.get(source.lotId)?.crop,
+        amountKg: source.amount,
+      }))
+    );
     startQCTest(batch.packerId, {
       batchId,
       sourceLotIds,
@@ -314,10 +325,10 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
           ? translate(overviewPanelMessages, 'noteRetest')
           : translate(overviewPanelMessages, 'noteRoutineTest'),
       grade,
-      moistureContent: 13.2,
-      proteinLevel: 11.8,
-      ashContent: 0.52,
-      particleSize: 120,
+      moistureContent: readings.moistureContent,
+      proteinLevel: readings.proteinLevel,
+      ashContent: readings.ashContent,
+      particleSize: readings.particleSize,
       passed: grade !== 'FAIL',
     });
     if (testType === 'retest') {
