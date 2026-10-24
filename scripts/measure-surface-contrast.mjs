@@ -31,9 +31,17 @@
  * treatment arm; each arm's own pair measures how much of the frame moves ON
  * ITS OWN. (It was three, on, off, on, until a null control showed swaying
  * foliage that sat still across the two "on" shots and moved in the "off" one
- * being credited to the treatment; see lib/surface-change-mask.mjs.) Benchmark mode pauses the GAME clock (`setGameSpeed(0)`) but not
- * the render clock, so conveyors, water, workers and vehicles keep animating,
- * and a plain two-shot diff credits all of that to the treatment. Measured: the
+ * being credited to the treatment; see lib/surface-change-mask.mjs.)
+ *
+ * THE FRAME CLOCK IS HELD. Benchmark mode pauses the GAME clock
+ * (`setGameSpeed(0)`) but not the render clock, so wind, conveyors, water,
+ * workers and vehicles keep animating. After the settle the script calls
+ * `holdFrame(true)`, which stops R3F's loop and redraws one instant before
+ * every shot: anything driven by the frame clock is identical in all four.
+ * The four-shot bracket alone left a null control at 0.01-0.20% changed, on
+ * foliage. The ABBA exclusion stays as the check for what does not run on the
+ * frame clock, and `motionFraction` reports it. Before the hold, a plain
+ * two-shot diff credited all of that motion to the treatment. Measured: the
  * `interior` scene reported 3.12% of pixels changed at a mean delta of 23.8,
  * and the whole reading was four flour sacks travelling along a conveyor between
  * the two exposures. Every pixel that also differs between either arm's two
@@ -367,6 +375,12 @@ async function main() {
         }
         await page.waitForTimeout(options.settle * 1000);
 
+        const holdable = await page.evaluate(() => Boolean(window.__MILLOS_RUNTIME__?.holdFrame));
+        if (!holdable) throw new Error('runtime hook has no holdFrame: rebuild dist/');
+        // Every shot from here is drawn at this one instant of the frame clock.
+        const hold = () => page.evaluate(() => window.__MILLOS_RUNTIME__.holdFrame(true));
+        const heldAt = await hold();
+
         const onPath = path.join(outputDir, `${scene}-on.png`);
         await page.screenshot({ path: onPath, timeout: 30000 });
 
@@ -386,15 +400,17 @@ async function main() {
         await page.evaluate(() =>
           window.__MILLOS_RUNTIME__.setPerfDebug({ disableSurfaceTreatment: true })
         );
-        // The uniform is shared and needs no recompile, but the store write and
-        // the next render still have to happen. Three frames is generous.
+        // The uniform is shared and needs no recompile, but the store write has
+        // to commit and its effect run before the held frame is redrawn.
         await page.waitForTimeout(400);
+        await hold();
         const offPath = path.join(outputDir, `${scene}-off.png`);
         await page.screenshot({ path: offPath, timeout: 30000 });
         // The off arm's own second shot, at the same 400 ms spacing: whatever
-        // moves between these two was a mover in the off arm, wherever the "on"
-        // shots happened to catch it (see changeMask on swaying foliage).
+        // moves between these two moves without the frame clock (see changeMask
+        // on swaying foliage, which did before the hold).
         await page.waitForTimeout(400);
+        await hold();
         const offLatePath = path.join(outputDir, `${scene}-off-late.png`);
         await page.screenshot({ path: offLatePath, timeout: 30000 });
         // In --control the "on" arm stays off, so every shot is the same arm.
@@ -406,6 +422,10 @@ async function main() {
         // The last shot closes the ABBA bracket at the same spacing, so the
         // self-motion it measures is the motion the on-off pair also contains.
         await page.waitForTimeout(400);
+        const heldLate = await hold();
+        if (heldLate !== heldAt) {
+          throw new Error(`${scene}: frame clock moved during the hold (${heldAt} -> ${heldLate})`);
+        }
         const latePath = path.join(outputDir, `${scene}-on-late.png`);
         await page.screenshot({ path: latePath, timeout: 30000 });
 
