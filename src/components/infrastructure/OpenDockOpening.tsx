@@ -218,7 +218,28 @@ const MATERIALS = {
     DOCK_FRAME_MIN_LUMINANCE
   ),
   headerFlange: steel('#374151', 0.8, { roughnessMap: HEADER_ORM }, DOCK_FRAME_MIN_LUMINANCE),
-  canopy: steel('#374151', 0.6, { roughnessMap: CANOPY_ORM, normalMap: CANOPY_NORMAL }),
+  /**
+   * The interior hood's underside, the soffit over the dock seen from the
+   * milling and interior cameras. At the 0.07 coal floor, lit by fill alone and
+   * that fill the grass's green-khaki, it read as a hole in the ceiling: mean
+   * (12, 30, 38) beside a liner at L120 (final7 med-12 milling). The frame's
+   * slate floor, the hall's grey bounce as the roof liner takes it, and a
+   * box-filtered deck rib across the span at a pitch the milling camera
+   * resolves (18 px at 38 m) make it a soffit in shade.
+   */
+  canopy: steel(
+    '#374151',
+    0.6,
+    { roughnessMap: CANOPY_ORM, normalMap: CANOPY_NORMAL },
+    DOCK_FRAME_MIN_LUMINANCE,
+    {
+      ribPeriod: 0.75,
+      ribDepth: 0.05,
+      ribAxis: 0,
+      ribFilteredTone: 0.24,
+      indoorBounce: 0.85,
+    }
+  ),
   strut: steel('#475569', 0.8, { roughnessMap: POST_ORM }, DOCK_FRAME_MIN_LUMINANCE),
   /**
    * Web stiffeners: the flange's steel without ledge dust or edge wear. Their
@@ -690,6 +711,9 @@ export const OpenDockOpening: React.FC<OpenDockOpeningProps> = ({
             scale={[...dockHoodSlab(width, height).size]}
             castShadow
             receiveShadow
+            // The batcher's merged arm clones the material and re-applies the
+            // bare profile, which would drop the soffit's bounce and rib.
+            userData={{ noStaticBatch: true }}
           />
           {dockHoodBraces(width, height).map(({ start, end }, i) => {
             const hood = dockHoodSlab(width, height).centre;

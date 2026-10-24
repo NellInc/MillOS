@@ -1,8 +1,10 @@
+import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import {
   DOCK_FLANGE,
   DOCK_FRAME_MATERIALS,
+  DOCK_FRAME_MIN_LUMINANCE,
   DOCK_FRAME_SECTION,
   DOCK_PANEL_BANDS,
   DOCK_WEB_DEPTH,
@@ -194,5 +196,56 @@ describe('dock opening I-beam', () => {
     expect(DOCK_WEB_DEPTH / 2).toBeGreaterThan(flangeInnerFace);
     // Sunk into the plate, not through it.
     expect(DOCK_WEB_DEPTH / 2).toBeLessThan(flangeInnerFace + DOCK_FLANGE.thickness / 2);
+  });
+});
+
+describe('dock hood soffit', () => {
+  /**
+   * final7 med-12 milling, top right (full-res x 1800-2400, y 0-280): mean RGB
+   * (12, 30, 38), 72% of the box under L20, beside a liner at L120 under the
+   * same roof. It is not the roof deck: it is the shipping dock's interior
+   * hood (34 x 8 m at y 15.5, z 40-48), which low-12 does not draw at all, and
+   * whose `canopy` paint sat on the 0.07 coal floor the posts were lifted off
+   * for the same "flat slab" read. Lit only by fill, and that fill the grass's
+   * green-khaki, it read as a hole. SSAO is not involved: medium has none.
+   */
+  it('paints the hood underside as a soffit in shade, lit by the hall floor', () => {
+    const material = DOCK_FRAME_MATERIALS.canopy as THREE.MeshStandardMaterial & {
+      userData: {
+        millosWorldSurface?: {
+          uSurfDeck: { value: THREE.Vector4 };
+          uSurfRib: { value: THREE.Vector4 };
+        };
+      };
+    };
+    const c = material.color;
+    expect(0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b).toBeGreaterThanOrEqual(
+      DOCK_FRAME_MIN_LUMINANCE - 1e-6
+    );
+    const surface = material.userData.millosWorldSurface;
+    // The hall's grey bounce, as the roof liner takes it.
+    expect(surface?.uSurfDeck.value.w).toBeGreaterThanOrEqual(0.8);
+    // A box-filtered deck rib across the hood's 34 m span, at a pitch the
+    // milling camera resolves: >= 11 px a pitch (RIB_NYQUIST_FADE's far end).
+    const period = surface?.uSurfDeck.value.x ?? 0;
+    expect(surface?.uSurfDeck.value.z).toBe(0);
+    expect(surface?.uSurfRib.value.y).toBe(1);
+    const hood = dockHoodSlab(30, 14).centre;
+    const camera = SITE_LAYOUT.cameras.milling;
+    const distance = Math.hypot(
+      camera.position[0] - hood[0],
+      camera.position[1] - hood[1],
+      camera.position[2] - (48 + hood[2])
+    );
+    const metresPerPixel = (2 * Math.tan(((camera.fov ?? 50) * Math.PI) / 360) * distance) / 864;
+    expect(period / metresPerPixel).toBeGreaterThanOrEqual(11);
+  });
+
+  it('keeps the hood out of the static batch, which would drop its finish overrides', () => {
+    // The batcher's merged arm clones the material and re-applies the bare
+    // profile (`applyBatchWorldSurface`), so the bounce and the rib would go.
+    const source = readFileSync('src/components/infrastructure/OpenDockOpening.tsx', 'utf8');
+    const hood = source.slice(source.indexOf('material={MATERIALS.canopy}') - 200);
+    expect(hood.slice(0, 600)).toContain('noStaticBatch: true');
   });
 });
