@@ -32,6 +32,8 @@ import {
   getRidgeBehindRangeHaze,
   getRidgeBehindRangeAerial,
   getFarRidgeDepthPush,
+  RIDGE_SHADOW_AIR,
+  ridgeShadowAirScale,
 } from './OptimizedSkySystem';
 import { LANDSCAPE_GROVE_TREES } from '../exterior/ExteriorVegetation';
 import { sampleValleyGroundHeight } from '../terrain/splatMapGenerator';
@@ -461,7 +463,7 @@ describe('camera-locked range depth', () => {
     expect(material.uniforms.uDepthPush.value).toBe(1);
     expect(material.vertexShader).toContain('vRidgeDistance = length(mvPosition.xyz);');
     expect(material.vertexShader).toContain(
-      'gl_Position = projectionMatrix * vec4(mvPosition.xyz * uDepthPush, 1.0);'
+      'gl_Position = projectionMatrix * vec4(mvPosition.xyz * mix(1.0, uDepthPush, uDepthPushStrength), 1.0);'
     );
     material.dispose();
   });
@@ -601,7 +603,7 @@ describe('solid fixed foothills', () => {
       expect(material.fragmentShader).toContain('gl_FragColor = vec4(lit, 1.0)');
       expect(material.fragmentShader).not.toContain('groundBlend');
       expect(material.fragmentShader).not.toContain('sampler');
-      expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v28');
+      expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v29');
       material.dispose();
     }
   });
@@ -932,7 +934,7 @@ it('parcels the gentle foothill slopes into hedged fields brighter than the wood
   expect(branch).toContain(`vec2(${cell[0].toFixed(1)}, ${cell[1].toFixed(1)})`);
   expect(branch).toContain('hedge');
   expect(branch).toContain('fwidth(edge)');
-  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v28');
+  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v29');
   near.dispose();
 });
 
@@ -999,7 +1001,7 @@ it('breaks the farmed/wooded edge across terrace rows and draws no isolated fiel
   // parcel now draw back from its boundary into ragged stands.
   expect(branch).not.toContain('* step(0.4, parcelUse)');
   expect(branch).toContain('float woods =');
-  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v28');
+  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v29');
   near.dispose();
 });
 
@@ -1049,7 +1051,7 @@ it('gives the far lower slopes contrast that survives the aerial mix and real ou
     linearLuminance(lowland[0]) * 4
   );
   expect(branch).not.toContain('(1.0 - max(rock, substrate)))');
-  expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v28');
+  expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v29');
   material.dispose();
 });
 
@@ -1084,7 +1086,46 @@ it('thins the far ring haze below the snow line only, keeping snow, upper rock a
   // Only the far (alpine) branch sets it: the foothills keep their haze.
   const alpine = shader.split('} else if (uWorldAnchored < 0.5')[1].split('} else {')[0];
   expect(alpine).toContain('aerialScale = mix(1.0,');
-  expect(far.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v28');
+  expect(far.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v29');
+  far.dispose();
+});
+
+// water, final7-med-12 (top-left, full-res x 0-900, y 0-120, mean luminance
+// 68.4): the far range's shaded lower band read as a storm front on a clear
+// noon. Clear air thins that band's haze to 0.55 of the full term so its relief
+// shows; on the faces turned from the sun that left a dark slab. They take the
+// air back toward the full term, never past it.
+it('returns the air to shaded lower-band faces only, never past the full haze', () => {
+  const { ndl, restore } = RIDGE_SHADOW_AIR;
+  const { lowBandAerial } = RIDGE_ALPINE_PROFILE;
+  expect(restore).toBeGreaterThan(0.5);
+  expect(restore).toBeLessThanOrEqual(0.9);
+  expect(ndl[0]).toBeLessThan(ndl[1]);
+  // A face in full sun keeps the thinned band exactly.
+  expect(ridgeShadowAirScale(lowBandAerial, ndl[1])).toBe(lowBandAerial);
+  expect(ridgeShadowAirScale(lowBandAerial, 1)).toBe(lowBandAerial);
+  // A shaded face takes most of the air back.
+  const shaded = ridgeShadowAirScale(lowBandAerial, 0);
+  expect(shaded).toBeGreaterThan(lowBandAerial + (1 - lowBandAerial) * 0.5);
+  expect(shaded).toBeLessThan(1);
+  // Snow, upper rock, crest rows and every rain frame are at the full term
+  // already (aerialScale 1): nothing to add, so nothing changes.
+  for (const facing of [0, 0.3, 0.6, 1]) expect(ridgeShadowAirScale(1, facing)).toBe(1);
+  // Monotonic in shade, and the paired control removes it exactly.
+  let previous = Infinity;
+  for (let facing = 0; facing <= 1.0001; facing += 0.05) {
+    const scale = ridgeShadowAirScale(lowBandAerial, facing);
+    expect(scale).toBeLessThanOrEqual(previous + 1e-12);
+    previous = scale;
+    expect(ridgeShadowAirScale(lowBandAerial, facing, 0)).toBe(lowBandAerial);
+  }
+  const far = createRidgeMaterial(0.32, 'far-shadow-air');
+  expect(far.uniforms.uShadowAirStrength.value).toBe(1);
+  const alpine = far.fragmentShader
+    .split('} else if (uWorldAnchored < 0.5')[1]
+    .split('#include <tonemapping_fragment>')[0];
+  expect(alpine).toContain('aerialScale = mix(aerialScale, 1.0,');
+  expect(alpine).toContain('uShadowAirStrength');
   far.dispose();
 });
 
@@ -1214,7 +1255,7 @@ it('draws woods as soft, coherent stands with a lighter fringe', () => {
   expect(branch).toContain(`p.xz * ${standScale[0].toFixed(3)}`);
   expect(branch).toContain(`p.xz * ${standScale[1].toFixed(3)}`);
   expect(branch).toContain(glslVec3Literal(scrub));
-  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v28');
+  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v29');
   near.dispose();
 });
 

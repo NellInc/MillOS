@@ -382,6 +382,7 @@ attribute float ridgeSnow;
 // position along each view ray (getFarRidgeDepthPush): the same pixels, a
 // greater depth, so no fixed hill can be drawn behind the "infinite" range.
 uniform float uDepthPush;
+uniform float uDepthPushStrength;
 
 void main() {
   vRidgeColor = color;
@@ -393,7 +394,7 @@ void main() {
   vRidgeGroundDistance = length((modelMatrix * vec4(position, 1.0)).xz - cameraPosition.xz);
   vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
   vRidgeDistance = length(mvPosition.xyz);
-  gl_Position = projectionMatrix * vec4(mvPosition.xyz * uDepthPush, 1.0);
+  gl_Position = projectionMatrix * vec4(mvPosition.xyz * mix(1.0, uDepthPush, uDepthPushStrength), 1.0);
   #include <logdepthbuf_vertex>
 }
 `;
@@ -606,6 +607,31 @@ export const RIDGE_ALPINE_PROFILE = {
   crestGuard: [0.72, 0.92],
 } as const;
 
+/**
+ * Aerial perspective on the far range's shaded lower band.
+ *
+ * Clear air thins the band's haze to `lowBandAerial` of the full term so its
+ * relief reaches the screen. Air lies in front of a shaded face as much as a
+ * lit one, though, and a shaded face's own radiance is so low that the haze
+ * IS most of what it sends: thinned, the faces turned from the noon sun went
+ * to a dark slate that read as a storm front (water, final7-med-12 top-left,
+ * mean luminance 68.4). Faces below `ndl[1]` take the air back toward the full
+ * term, `restore` of the way at full shade. Never past it, so snow, upper
+ * rock, the crest rows and rain (all at the full term already) keep their
+ * pixels exactly; the lit ribs keep the thin haze and the relief.
+ */
+export const RIDGE_SHADOW_AIR = {
+  ndl: [0.2, 0.65],
+  restore: 0.75,
+} as const;
+
+/** CPU mirror of the shader's shaded-face air (`RIDGE_SHADOW_AIR`). */
+export function ridgeShadowAirScale(aerialScale: number, ndl: number, strength = 1): number {
+  const shade =
+    1 - THREE.MathUtils.smoothstep(ndl, RIDGE_SHADOW_AIR.ndl[0], RIDGE_SHADOW_AIR.ndl[1]);
+  return THREE.MathUtils.lerp(aerialScale, 1, shade * RIDGE_SHADOW_AIR.restore * strength);
+}
+
 const ridgeFragmentShader = `
 #include <common>
 #include <logdepthbuf_pars_fragment>
@@ -628,6 +654,7 @@ uniform float uFieldTone;
 uniform vec3 uAnchoredAerial;
 uniform float uDistanceAerialStrength;
 uniform float uClearAir;
+uniform float uShadowAirStrength;
 varying vec3 vRidgeColor;
 varying vec3 vRidgeNormal;
 varying vec3 vRidgePosition;
@@ -950,6 +977,12 @@ void main() {
   if (uWorldAnchored < 0.5 && uAlpineStrength > 0.5) {
     float alpineSun = smoothstep(0.0, 0.20, uSunDirection.y);
     ndl = mix(ndl, max(0.0, dot(normal, uSunDirection)), alpineSun);
+    // Shaded faces take the thinned lower band's air back (RIDGE_SHADOW_AIR).
+    // aerialScale is 1 at snow, upper rock, crest and in rain: no change there.
+    float shadowAir = 1.0 - smoothstep(${RIDGE_SHADOW_AIR.ndl[0].toFixed(2)},
+      ${RIDGE_SHADOW_AIR.ndl[1].toFixed(2)}, ndl);
+    aerialScale = mix(aerialScale, 1.0,
+      shadowAir * ${RIDGE_SHADOW_AIR.restore.toFixed(2)} * uShadowAirStrength);
   }
   vec3 lit = albedo * mix(uShadowTint, uSunColor, pow(ndl, 0.9));
 
@@ -1689,10 +1722,14 @@ export function createRidgeMaterial(
       uClearAir: { value: 1 },
       // Clip-space depth push; the far ring's is set per frame from the camera.
       uDepthPush: { value: 1 },
+      // Private paired controls: 0 restores the previous pixels exactly
+      // (RIDGE_SHADOW_AIR; the far ring's depth push).
+      uShadowAirStrength: { value: 1 },
+      uDepthPushStrength: { value: 1 },
     },
   });
   material.userData.clearAerial = aerial;
-  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v28';
+  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v29';
   return material;
 }
 
