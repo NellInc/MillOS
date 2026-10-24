@@ -70,7 +70,8 @@ describe('hall glazing Fresnel', () => {
 
   it('weights a ground reflection outdoors well under the sky, and v2 not at all', () => {
     const weight = infrastructure.glazingReflectionWeight;
-    for (const y of [-0.9, -0.3, -0.15]) expect(weight(y)).toBeLessThanOrEqual(0.65);
+    // v3's weight on the PMREM's ground band (v4 off: the ray itself is sampled).
+    for (const y of [-0.9, -0.3, -0.15]) expect(weight(y, 1, 0)).toBeLessThanOrEqual(0.65);
     for (const y of [0.1, 0.5, 1]) expect(weight(y)).toBe(1);
     for (const y of [-0.9, -0.1, 0.4]) expect(weight(y, 0)).toBe(1);
   });
@@ -150,8 +151,9 @@ describe('hall glazing Fresnel', () => {
     const { outerF0, outerF0V4 } = infrastructure.GLAZING_REFLECTANCE;
     expect(outerF0V4).toBeGreaterThanOrEqual(0.15);
     expect(outerF0V4).toBeLessThanOrEqual(0.2);
-    expect(coverage(opacity(), 1, 1, true)).toBeGreaterThan(
-      coverage(opacity(), 1, 1, true, 0.5, 1, 0) + 0.05
+    // v4 against v3, both under v5's paired control off (v5 replaces the F0).
+    expect(coverage(opacity(), 1, 1, true, 0.5, 1, 1, 0)).toBeGreaterThan(
+      coverage(opacity(), 1, 1, true, 0.5, 1, 0, 0) + 0.05
     );
     expect(outerF0).toBe(0.09);
     for (const cos of [1, 0.6, 0.3, 0.1, 0.02]) {
@@ -171,6 +173,45 @@ describe('hall glazing Fresnel', () => {
       null as unknown as THREE.WebGLRenderer
     );
     expect(shader.fragmentShader).toContain('uniform float uGlazeV4;');
-    expect(infrastructure.GLAZING_FRESNEL_CACHE_KEY).toBe('millos-glazing-fresnel-v4');
+  });
+
+  /**
+   * final7-med-12 verdict item 4, unchanged through v4: "the curtain wall
+   * shows no sky reflection" (shipping glazing, overview left facade,
+   * tank-farm right). v4 raised the face-on coat to 16%, which only lays an
+   * even veil, and kept v3's 0.6 weight on every downward ray although v4
+   * had already replaced that ray's flat ground band with sky. v5: the coat
+   * goes back down face-on, the Fresnel rises sooner toward grazing, and the
+   * sky a downward ray looks into is the sky, unweighted. Indoors nothing moves.
+   */
+  it('v5: less coat face-on, more mirror toward grazing, the looked-up sky unweighted', () => {
+    const { outerF0V4, outerF0V5 } = infrastructure.GLAZING_REFLECTANCE;
+    expect(outerF0V5).toBeLessThan(outerF0V4);
+    expect(outerF0V5).toBeGreaterThanOrEqual(0.08);
+    const v5 = (cos: number, outward = true, on = 1) =>
+      coverage(opacity(), cos, 1, outward, 0.5, 1, 1, on);
+    expect(v5(1)).toBeLessThan(v5(1, true, 0));
+    expect(v5(0.5)).toBeGreaterThan(v5(0.5, true, 0));
+    for (const cos of [0.3, 0.15]) expect(v5(cos)).toBeGreaterThan(v5(cos, true, 0) + 0.06);
+    for (const cos of [1, 0.6, 0.3, 0.1, 0.02]) expect(v5(cos, false)).toBe(v5(cos, false, 0));
+    const weight = infrastructure.glazingReflectionWeight;
+    for (const y of [-0.9, -0.3, -0.15]) {
+      expect(weight(y, 1, 1, 1)).toBe(1);
+      expect(weight(y, 1, 1, 0)).toBeLessThanOrEqual(0.65);
+    }
+    const material = glass();
+    expect(material.userData.glazingV5).toBe(infrastructure.GLAZING_V5);
+    const shader = {
+      uniforms: THREE.UniformsUtils.clone(THREE.ShaderLib.physical.uniforms),
+      vertexShader: THREE.ShaderLib.physical.vertexShader,
+      fragmentShader: THREE.ShaderLib.physical.fragmentShader,
+    };
+    material.onBeforeCompile(
+      shader as unknown as THREE.WebGLProgramParametersWithUniforms,
+      null as unknown as THREE.WebGLRenderer
+    );
+    expect(shader.fragmentShader).toContain('uniform float uGlazeV5;');
+    expect(shader.uniforms.uGlazeV5).toBe(infrastructure.GLAZING_V5);
+    expect(infrastructure.GLAZING_FRESNEL_CACHE_KEY).toBe('millos-glazing-fresnel-v5');
   });
 });
