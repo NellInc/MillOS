@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { Shield } from 'lucide-react';
 import {
-  isJevKeyValid,
+  advisoryProviders,
+  isAdvisoryKeyValid,
   JEV_MAX_TEXT_LENGTH,
   JEV_RESULT_TTL_MS,
   requestJevAdvice,
+  type AdvisoryProvider,
   type JevAdvice,
 } from '../../utils/jevClient';
 import { formatFixed, translate, useT } from '../../i18n';
@@ -12,6 +14,9 @@ import { jevAdvisoryPanelMessages } from './JevAdvisoryPanel.messages';
 
 export function JevAdvisoryPanel({ latestAlert }: { latestAlert?: string }) {
   const t = useT(jevAdvisoryPanelMessages);
+  const providers = advisoryProviders();
+  const [provider, setProvider] = useState<AdvisoryProvider>('jev');
+  const openai = provider === 'openai';
   const [apiKey, setApiKey] = useState('');
   const [text, setText] = useState('');
   const [consent, setConsent] = useState(false);
@@ -44,14 +49,21 @@ export function JevAdvisoryPanel({ latestAlert }: { latestAlert?: string }) {
   }, [result]);
 
   async function send() {
-    if (request.current || !consent || !isJevKeyValid(apiKey) || !text.trim()) return;
+    if (request.current || !consent || !isAdvisoryKeyValid(provider, apiKey) || !text.trim())
+      return;
     const controller = new AbortController();
     request.current = controller;
     setPending(true);
     setResult(null);
     setError('');
     try {
-      const advice = await requestJevAdvice({ text, apiKey, consent, signal: controller.signal });
+      const advice = await requestJevAdvice({
+        text,
+        apiKey,
+        consent,
+        signal: controller.signal,
+        provider,
+      });
       if (request.current === controller) setResult(advice);
     } catch (failure) {
       if (request.current === controller)
@@ -77,13 +89,40 @@ export function JevAdvisoryPanel({ latestAlert }: { latestAlert?: string }) {
       <div className="space-y-2">
         <h3 className="flex items-center gap-2 text-sm font-semibold text-cyan-300">
           <Shield className="h-4 w-4" aria-hidden="true" />
-          {t('title')}
+          {openai ? t('titleOpenAI') : t('title')}
         </h3>
         <p>{t('intro')}</p>
       </div>
+      {providers.length > 1 && (
+        <div role="radiogroup" aria-label={t('providerLabel')} className="grid grid-cols-2 gap-2">
+          {providers.map((option) => (
+            <button
+              key={option}
+              type="button"
+              role="radio"
+              aria-checked={provider === option}
+              className={`min-h-9 rounded-lg border px-3 py-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
+                provider === option
+                  ? 'border-cyan-500/50 bg-cyan-500/20 text-cyan-300'
+                  : 'border-slate-600 text-slate-300 hover:bg-slate-700'
+              }`}
+              onClick={() => {
+                if (option === provider) return;
+                // A key belongs to one provider: switching forgets it and the consent.
+                cancel();
+                setProvider(option);
+                setApiKey('');
+                setConsent(false);
+              }}
+            >
+              {option === 'openai' ? t('providerOpenAI') : t('providerJev')}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="space-y-2">
         <label htmlFor="jev-api-key" className="block font-medium">
-          {t('apiKeyLabel')}
+          {openai ? t('apiKeyLabelOpenAI') : t('apiKeyLabel')}
         </label>
         <input
           id="jev-api-key"
@@ -164,16 +203,16 @@ export function JevAdvisoryPanel({ latestAlert }: { latestAlert?: string }) {
             setConsent(event.target.checked);
           }}
         />
-        <span>{t('consent')}</span>
+        <span>{openai ? t('consentOpenAI') : t('consent')}</span>
       </label>
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
           className={`${buttonClass} border-cyan-500/50 bg-cyan-500/10 text-cyan-300`}
-          disabled={pending || !consent || !isJevKeyValid(apiKey) || !text.trim()}
+          disabled={pending || !consent || !isAdvisoryKeyValid(provider, apiKey) || !text.trim()}
           onClick={() => void send()}
         >
-          {pending ? t('requesting') : t('send')}
+          {pending ? t('requesting') : openai ? t('sendOpenAI') : t('send')}
         </button>
         {pending && (
           <button type="button" className={buttonClass} onClick={cancel}>

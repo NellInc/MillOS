@@ -5,6 +5,8 @@ import {
   JEV_MODEL,
   JEV_QUEUES,
   JEV_TIMEOUT_MS,
+  isAdvisoryKeyValid,
+  OPENAI_DECISIONS_ENDPOINT,
   requestJevAdvice,
 } from './jevClient';
 
@@ -152,5 +154,83 @@ describe('Jev read-only request boundary', () => {
     expect(fetchSignal?.aborted).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe('OpenAI Decisions on the same frozen rubric', () => {
+  const openaiKey = `sk-proj-${'test-only-'.repeat(4)}`;
+  const openaiPayload = (choice: string = JEV_QUEUES[2]) => ({
+    model: 'gpt-6-luna',
+    answers: [
+      {
+        type: 'choice',
+        name: 'decision',
+        choice,
+        probabilities: JEV_QUEUES.map((value) => ({
+          value,
+          probability: value === choice ? 0.96 : 0.01,
+        })),
+        confidence: 0.96,
+      },
+    ],
+    usage: { input_tokens: 179, output_tokens: 0 },
+  });
+  const openaiInput = () => ({ ...input(), apiKey: openaiKey, provider: 'openai' as const });
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('asks the same question with the same five queues and reads the listed probabilities', async () => {
+    fetchMock.mockResolvedValue(reply(openaiPayload()));
+    const advice = await requestJevAdvice(openaiInput());
+    expect(advice.queue).toBe(JEV_QUEUES[2]);
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(url).toBe(OPENAI_DECISIONS_ENDPOINT);
+    expect(options).toMatchObject({
+      credentials: 'omit',
+      redirect: 'error',
+      headers: { Authorization: `Bearer ${openaiKey}` },
+    });
+    const body = JSON.parse(options.body);
+    expect(Object.keys(body).sort()).toEqual(['input', 'model', 'questions']);
+    expect(body.model).toBe('gpt-6-luna');
+    expect(body.input).toBe(input().text);
+    expect(body.questions).toHaveLength(1);
+    expect(body.questions[0].type).toBe('choice');
+    expect(body.questions[0].choices.map((c: { value: string }) => c.value)).toEqual([
+      ...JEV_QUEUES,
+    ]);
+  });
+
+  it('rejects a refusal, a missing queue and a winner that is not the most probable', async () => {
+    const refusal = { ...openaiPayload(), answers: [{ type: 'refusal', name: 'decision' }] };
+    const short = openaiPayload();
+    short.answers[0].probabilities.pop();
+    const lopsided = openaiPayload();
+    lopsided.answers[0].probabilities[0].probability = 0.97;
+    for (const body of [refusal, short, lopsided]) {
+      fetchMock.mockResolvedValueOnce(reply(body));
+      await expect(requestJevAdvice(openaiInput())).rejects.toThrow('OpenAI returned an invalid');
+    }
+  });
+
+  it('never sends a key to the other provider', () => {
+    expect(isAdvisoryKeyValid('openai', key)).toBe(false);
+    expect(isAdvisoryKeyValid('jev', openaiKey)).toBe(false);
+    expect(isAdvisoryKeyValid('openai', openaiKey)).toBe(true);
+  });
+
+  it('keeps a direct OpenAI key off the public site', async () => {
+    const originalWindow = window;
+    vi.stubGlobal('window', { location: { hostname: 'www.millos.net' } });
+    try {
+      await expect(requestJevAdvice(openaiInput())).rejects.toThrow('local companion only');
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      vi.stubGlobal('window', originalWindow);
+    }
   });
 });

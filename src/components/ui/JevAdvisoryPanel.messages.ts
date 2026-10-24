@@ -5,9 +5,17 @@ export const jevAdvisoryPanelMessages = defineMessages({
     noAdvisory: 'No advisory was returned.',
     regionLabel: 'Jev advisory',
     title: 'Jev incident routing',
+    titleOpenAI: 'OpenAI Decisions incident routing',
     intro:
       'Get a suggested queue for incident text. Alerts, machine controls and your selected AI backend stay unchanged.',
     apiKeyLabel: 'Your OpenRouter API key',
+    apiKeyLabelOpenAI: 'Your OpenAI API key',
+    providerLabel: 'Decision model',
+    providerJev: 'Jev 1.13 · OpenRouter',
+    providerOpenAI: 'GPT-6 Luna · OpenAI Decisions',
+    consentOpenAI:
+      'Allow the text above to be sent to OpenAI when I select Send to OpenAI. Requests use my OpenAI balance.',
+    sendOpenAI: 'Send to OpenAI',
     apiKeyHelp:
       'Kept in memory only while this Advisory view is open. Never saved to browser storage.',
     forgetKey: 'Forget key',
@@ -30,9 +38,17 @@ export const jevAdvisoryPanelMessages = defineMessages({
     noAdvisory: 'Nenhuma recomendação foi retornada.',
     regionLabel: 'Recomendação do Jev',
     title: 'Encaminhamento de ocorrências do Jev',
+    titleOpenAI: 'Encaminhamento de ocorrências pelo OpenAI Decisions',
     intro:
       'Receba uma fila sugerida para o texto de uma ocorrência. Os alertas, os controles das máquinas e o backend de IA selecionado não são alterados.',
     apiKeyLabel: 'Sua chave de API do OpenRouter',
+    apiKeyLabelOpenAI: 'Sua chave de API da OpenAI',
+    providerLabel: 'Modelo de decisão',
+    providerJev: 'Jev 1.13 · OpenRouter',
+    providerOpenAI: 'GPT-6 Luna · OpenAI Decisions',
+    consentOpenAI:
+      'Permito que o texto acima seja enviado à OpenAI quando eu selecionar Enviar à OpenAI. As requisições usam o meu saldo na OpenAI.',
+    sendOpenAI: 'Enviar à OpenAI',
     apiKeyHelp:
       'Mantida apenas na memória enquanto a aba Recomendações estiver aberta. Nunca é salva no armazenamento do navegador.',
     forgetKey: 'Esquecer chave',
