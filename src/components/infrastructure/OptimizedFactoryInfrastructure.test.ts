@@ -765,6 +765,43 @@ describe('exposed factory roof steelwork', () => {
     ).toBeLessThan(0.03);
   });
 
+  /**
+   * r8 shell, truss stair-steps (interior and milling, final7 `int_truss_2x`).
+   * The chord outlines are clean: the threshold crossing along the long chord
+   * at full-res x 1160-1300 fits a line to 0.19 px. What stepped was shading
+   * ON the members: the `painted` edge term mixes toward bare steel, roughness
+   * 0.32 and half metal as a face turns away from the eye, and from the floor
+   * every flange underside of a truss at 20 m is near-grazing. That draws a
+   * one-pixel shiny sliver down each diagonal, which no MSAA or SMAA can see.
+   * The purlins (edge 0.06) and the dock stiffeners (edge 0) paid for the same
+   * term. The trusses take their own material so the facade trim and gallery
+   * supports that share `factory-trim` keep their finish.
+   */
+  it('gives the roof trusses a finish without the grazing edge sheen or a meso bump', async () => {
+    const { ROOF_TRUSS_MATERIAL, FACADE_TRIM_MATERIAL } =
+      await import('./OptimizedFactoryInfrastructure');
+    expect(ROOF_TRUSS_MATERIAL).not.toBe(FACADE_TRIM_MATERIAL);
+    const surface = (material: THREE.Material) =>
+      (
+        material.userData as {
+          millosWorldSurface: {
+            uSurfMask: { value: THREE.Vector4 };
+            uSurfDetail: { value: THREE.Vector4 };
+          };
+        }
+      ).millosWorldSurface;
+    const truss = surface(ROOF_TRUSS_MATERIAL);
+    // Edge sheen at most the purlins' 0.06; relief at most the liner's 3 mm.
+    expect(truss.uSurfMask.value.z).toBeLessThanOrEqual(0.06);
+    expect(truss.uSurfDetail.value.z).toBeLessThanOrEqual(0.003);
+    // Same paint as the trim it was split from.
+    expect((ROOF_TRUSS_MATERIAL as THREE.MeshStandardMaterial).color.getHex()).toBe(
+      (FACADE_TRIM_MATERIAL as THREE.MeshStandardMaterial).color.getHex()
+    );
+    // The trim itself is untouched.
+    expect(surface(FACADE_TRIM_MATERIAL).uSurfMask.value.z).toBe(0.2);
+  });
+
   it('hangs no trim member below the deck or through it', () => {
     // A 80 m member at z = 0, y 21.86-22.04, was 0.23 m below the deck at the
     // ridge and stood through the deck's top past |x| 32: neither hung nor laid.

@@ -457,6 +457,17 @@ const MATERIALS = {
     roughness: 0.5,
     metalness: 0,
   }),
+  /**
+   * The roof trusses: `steelTrim`'s paint on its own material, so the trusses
+   * can drop the edge sheen the rest of the trim keeps (see `SHELL_SURFACES`).
+   * The frames already draw as their own instanced set, so this adds no draw.
+   */
+  trussSteel: new THREE.MeshStandardMaterial({
+    name: 'factory-roof-truss',
+    color: '#3d555f',
+    roughness: 0.5,
+    metalness: 0,
+  }),
   roof: new THREE.MeshStandardMaterial({
     name: 'factory-roof-deck',
     // A cool mid-grey membrane. '#505452' under the warm sun and the grass's
@@ -1046,6 +1057,14 @@ const SHELL_SURFACES: readonly [
   [MATERIALS.wallParapet, 'painted'],
   [MATERIALS.steel, 'painted'],
   [MATERIALS.steelTrim, 'painted'],
+  // The trusses at 19-22 m, seen from the floor: every flange underside is
+  // near-grazing, and the edge term (bare steel, roughness 0.32, half metal as
+  // a face turns from the eye) drew a one-pixel shiny sliver down each chord
+  // and diagonal. That is shading, so MSAA and SMAA never saw it: it was the
+  // "stair-step" left after both (final7 int_truss_2x). Grime and dust are
+  // inert up there by position; the meso bump on a 0.07 m flange is sub-pixel
+  // normal noise. Same cut as the purlins (edge 0.06) and the liner's relief.
+  [MATERIALS.trussSteel, 'painted', { edge: 0, meso: 0.04, reliefMetres: 0.003 }],
   // A membrane roof from above (overview, farm): one flat olive plane in
   // final4, the largest surface in the overview frame. Lap seams every 1.8 m
   // parallel to the ridge (they recede from the overview camera, so they keep
@@ -1167,6 +1186,9 @@ export const PROCESS_PAD_MATERIAL: THREE.Material = MATERIALS.plinth;
 
 /** The purlins under the deck, for their tone test. */
 export const ROOF_PURLIN_MATERIAL: THREE.Material = MATERIALS.purlin;
+/** The roof trusses and the trim they were split from, for their finish test. */
+export const ROOF_TRUSS_MATERIAL: THREE.Material = MATERIALS.trussSteel;
+export const FACADE_TRIM_MATERIAL: THREE.Material = MATERIALS.steelTrim;
 
 export const ROOF_PANEL_MATERIALS: readonly THREE.Material[] = [
   MATERIALS.roof,
@@ -2171,7 +2193,7 @@ function FactoryShell() {
       <InstancedBoxes instances={columns} material={MATERIALS.steel} castShadow receiveShadow />
       <InstancedBoxes
         instances={roofStructure.frames}
-        material={MATERIALS.steelTrim}
+        material={MATERIALS.trussSteel}
         castShadow
         receiveShadow
       />
