@@ -236,7 +236,8 @@ describe('silo floods on the drum (final3-med-1830/22: hard line at the seam, bl
       expect(shader.uniforms.uMachineFlood, name).toBe(SILO_FLOOD_LIGHT);
       expect(shader.uniforms.uMachineFloodColor, name).toBe(SILO_FLOOD_COLOR);
       const fragment = shader.fragmentShader;
-      expect(fragment.indexOf('RE_Direct( galvFlood'), name).toBeGreaterThan(
+      // RE_Direct_Physical by name since round 8: RE_Direct is the skin's sheen wrapper.
+      expect(fragment.indexOf('RE_Direct_Physical( galvFlood'), name).toBeGreaterThan(
         fragment.indexOf('#include <lights_fragment_end>')
       );
     }
