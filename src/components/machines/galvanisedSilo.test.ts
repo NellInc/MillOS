@@ -389,6 +389,54 @@ describe('silo drums at distance (final4-med-12 overview and farm: five drums as
     expect(fragment).toContain('galvStainColumn + galvSiloSeed');
   });
 
+  /**
+   * final7-med-12 verdict item 3 (silos, yard, overview, farm): the specular
+   * banding is faint. Circumferential ribs spread a light's reflection along
+   * the drum's axis, so the drum carries a broad vertical sheen where the
+   * half vector lies in the plane of the axis and the radial normal.
+   */
+  it('lays a broad anisotropic sheen band along the drum axis, independent of the ribs', () => {
+    const { siloSheen, SILO_SHEEN } = surfaces;
+    expect(SILO_SHEEN.strength).toBeGreaterThan(0);
+    const up = new THREE.Vector3(0, 1, 0);
+    // The silos camera: ~19 degrees above the drum's mid-height, looking along -x.
+    const elevation = THREE.MathUtils.degToRad(19);
+    const view = new THREE.Vector3(Math.cos(elevation), Math.sin(elevation), 0);
+    const at = (degrees: number, light: THREE.Vector3) => {
+      const a = THREE.MathUtils.degToRad(degrees);
+      return siloSheen(new THREE.Vector3(Math.cos(a), 0, Math.sin(a)), light, view);
+    };
+    // Noon: the band faces the camera, broad (half-width 20-45 degrees), and
+    // nearly gone at the silhouette.
+    const peak = at(0, up);
+    expect(peak).toBeGreaterThan(0);
+    let halfWidth = 0;
+    for (let d = 0; d <= 90; d += 1) if (at(d, up) >= peak / 2) halfWidth = d;
+    expect(halfWidth).toBeGreaterThanOrEqual(20);
+    expect(halfWidth).toBeLessThanOrEqual(45);
+    expect(at(85, up)).toBeLessThan(peak * 0.15);
+    // A low sun from +z: the band moves toward the sun and is gone on the far side.
+    const morning = new THREE.Vector3(0, 0.3, 1).normalize();
+    expect(at(40, morning)).toBeGreaterThan(at(-40, morning) * 4);
+    // Skin only, as its own uniform (a paired control), and distance-free.
+    expect(vec4Of(MACHINE_MATERIALS.silo, 'machineRib')?.w).toBe(SILO_SHEEN.strength);
+    for (const name of ['siloSkirt', 'siloRoof', 'siloRing'] as const)
+      expect(vec4Of(MACHINE_MATERIALS[name], 'machineRib')?.w, name).toBe(0);
+    const fragment = compile(MACHINE_MATERIALS.silo).fragmentShader;
+    const start = fragment.indexOf('void RE_Direct_Galv(');
+    // After three's own `#define RE_Direct RE_Direct_Physical`, before any light runs.
+    expect(start).toBeGreaterThan(fragment.indexOf('#include <lights_physical_pars_fragment>'));
+    expect(start).toBeLessThan(fragment.indexOf('#include <lights_fragment_begin>'));
+    expect(fragment).toContain('#define RE_Direct RE_Direct_Galv');
+    const body = fragment.slice(start, fragment.indexOf('#define RE_Direct RE_Direct_Galv'));
+    expect(body).toContain('uMachineRib.w');
+    expect(body).not.toContain('fwidth');
+    expect(body).not.toContain('galvRibBand');
+    // The floods keep their own response (no sheen of their own).
+    expect(fragment).toContain('RE_Direct_Physical( galvFlood,');
+    expect(surfaces.MACHINE_WEAR_CACHE_KEY).toBe('machineWear_v8');
+  });
+
   it('lights the thinner patina film as brightly under the floods as round 4 did', () => {
     // Patina 0.8 -> 0.5 cut the drum's diffuse share, which is what the floods
     // land on: final5-med-22 silos read ~0.895 of final4 in sRGB on every bin

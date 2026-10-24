@@ -231,7 +231,7 @@ const PLATE_ORM = band(HOUSING_ORM, 4, 2);
  * the program key alongside this string (`WebGLPrograms.getProgramCacheKey`),
  * so permutations still split properly.
  */
-export const MACHINE_WEAR_CACHE_KEY = 'machineWear_v7';
+export const MACHINE_WEAR_CACHE_KEY = 'machineWear_v8';
 
 /** Share of the silo drum's 180 streak columns that carry run-off, per ring. */
 export const SILO_STREAK_LIVE_FRACTION = 0.16;
@@ -376,6 +376,49 @@ export function siloRibContrast(w: number): number {
   return (
     SILO_FINE_RIB_TONE_EQUIV * fine + SILO_RIB_TONE.albedo * Math.abs(siloRibBand(0.25, w, fine))
   );
+}
+
+/**
+ * The drum's broad specular band (final7-med-12 verdict item 3: "the specular
+ * banding is faint" on all five drums). The skin's ribs run ROUND the drum, so
+ * a light's reflection is spread along its AXIS, as on any grooved cylinder:
+ * the drum carries a vertical sheen where the half vector lies in the plane of
+ * the axis and the radial normal (a Kajiya-Kay lobe on the circumferential
+ * tangent). It is a light term, not a tone: it moves with the sun and the eye,
+ * it never touches the rib band's mean, and it has no footprint fade, so it
+ * reads at the overview and farm distances where the ribs are gone.
+ *
+ *   strength  on the light colour x the blended F0 (`uMachineRib.w`, skin only)
+ *   exponent  on sin(T, H): 12 is a band ~35 degrees either side of its axis
+ *   groove    the up-facing rib flanks' share of a light the wall itself
+ *             faces away from: a zenith sun still lights the ribs
+ */
+export const SILO_SHEEN = { strength: 0.3, exponent: 12, groove: 0.5 } as const;
+
+/**
+ * TS mirror of the shader's sheen for world-space unit vectors: `normal` the
+ * drum's surface normal, `light` toward the light, `view` toward the eye. The
+ * drum axis is world up. Before the light colour and F0.
+ */
+export function siloSheen(
+  normal: THREE.Vector3,
+  light: THREE.Vector3,
+  view: THREE.Vector3,
+  strength: number = SILO_SHEEN.strength
+): number {
+  const axis = new THREE.Vector3(0, 1, 0);
+  const radial = normal.clone().addScaledVector(axis, -normal.dot(axis));
+  const wall = radial.length();
+  radial.divideScalar(Math.max(wall, 1e-4));
+  const tangent = new THREE.Vector3().crossVectors(axis, radial);
+  const half = light.clone().add(view).normalize();
+  const th = tangent.dot(half);
+  const lobe = Math.max(1 - th * th, 0) ** (SILO_SHEEN.exponent / 2);
+  const visible =
+    THREE.MathUtils.clamp(radial.dot(light) + SILO_SHEEN.groove, 0, 1) *
+    (radial.dot(half) >= 0 ? 1 : 0) *
+    smoothstepValue(0.7, 0.9, wall);
+  return strength * lobe * visible;
 }
 
 /**
@@ -924,9 +967,43 @@ if ( uMachineFlood.x > 0.0 && galvFloodLedge > 0.0 ) {
       ${(SILO_FLOOD_PROFILE.cap * SILO_FLOOD_PROFILE.peak).toFixed(3)}
     );
     galvFlood.color = uMachineFloodColor * ( uMachineFlood.x * galvFloodLedge * galvFloodE / galvFloodNdl ) * ${SILO_FLOOD_PATINA_GAIN.toFixed(3)};
-    RE_Direct( galvFlood, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight );
+    RE_Direct_Physical( galvFlood, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight );
   }
 }
+#endif
+`;
+
+/**
+ * SILO_SHEEN, as a wrapper on three's `RE_Direct`, so every direct light the
+ * drum sees (the sun, the moon, any lamp) gets the anisotropic band through
+ * its own colour, ALREADY SHADOWED: three folds the shadow into
+ * `directLight.color` before the call. The floods keep `RE_Direct_Physical`
+ * (`GALVANISED_LIGHT_BODY`), so their tuned response is unchanged. The
+ * radial normal is the shading normal with its axial part removed, so the
+ * fine ribs' tilt cannot stripe the band; `uMachineRib.w` is 0 on every part
+ * but the skin.
+ */
+const GALVANISED_DIRECT_PARS = /* glsl */ `
+#ifdef MACHINE_GALVANISED
+void RE_Direct_Galv( const in IncidentLight directLight, const in vec3 geometryPosition, const in vec3 geometryNormal, const in vec3 geometryViewDir, const in vec3 geometryClearcoatNormal, const in PhysicalMaterial material, inout ReflectedLight reflectedLight ) {
+  RE_Direct_Physical( directLight, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight );
+  if ( uMachineRib.w > 0.0 ) {
+    vec3 sheenAxis = normalize( ( viewMatrix * vec4( 0.0, 1.0, 0.0, 0.0 ) ).xyz );
+    vec3 sheenRadial = geometryNormal - sheenAxis * dot( geometryNormal, sheenAxis );
+    float sheenWall = length( sheenRadial );
+    sheenRadial /= max( sheenWall, 1e-4 );
+    vec3 sheenTangent = cross( sheenAxis, sheenRadial );
+    vec3 sheenHalf = normalize( directLight.direction + geometryViewDir );
+    float sheenTH = dot( sheenTangent, sheenHalf );
+    float sheenLobe = pow( max( 1.0 - sheenTH * sheenTH, 0.0 ), ${(SILO_SHEEN.exponent / 2).toFixed(1)} );
+    float sheenVisible = clamp( dot( sheenRadial, directLight.direction ) + ${SILO_SHEEN.groove.toFixed(3)}, 0.0, 1.0 ) *
+      step( 0.0, dot( sheenRadial, sheenHalf ) ) * smoothstep( 0.7, 0.9, sheenWall );
+    reflectedLight.directSpecular += directLight.color * material.specularColorBlended *
+      ( uMachineRib.w * sheenLobe * sheenVisible );
+  }
+}
+#undef RE_Direct
+#define RE_Direct RE_Direct_Galv
 #endif
 `;
 
@@ -1005,6 +1082,8 @@ export interface MachineWearOptions {
     readonly stains?: number;
     /** 0-1. Indirect occlusion on faces toward a neighbouring bin (`SILO_VALLEY`). */
     readonly valley?: number;
+    /** The drum only: strength of the axial sheen band (`SILO_SHEEN`). */
+    readonly sheen?: number;
   };
 }
 
@@ -1077,13 +1156,13 @@ function withWear<T extends THREE.MeshStandardMaterial>(
         ? new THREE.Vector2(SILO_FINE_RIDGES, 1)
         : new THREE.Vector2(0, 0),
     };
-    // Rib tone (albedo, roughness; the corrugated drum only), stains, unused.
+    // Rib tone (albedo, roughness; the corrugated drum only), stains, axial sheen.
     const rib = {
       value: new THREE.Vector4(
         galvanised.corrugated ? SILO_RIB_TONE.albedo : 0,
         galvanised.corrugated ? SILO_RIB_TONE.roughness : 0,
         galvanised.stains ?? 0,
-        0
+        galvanised.sheen ?? 0
       ),
     };
     // First and last bin axis along world Z, spacing, valley occlusion.
@@ -1123,6 +1202,10 @@ function withWear<T extends THREE.MeshStandardMaterial>(
       .replace(
         '#include <normal_fragment_maps>',
         `#include <normal_fragment_maps>\n${GALVANISED_FRAGMENT_BODY}\n${WEAR_FRAGMENT_BODY}`
+      )
+      .replace(
+        '#include <lights_physical_pars_fragment>',
+        `#include <lights_physical_pars_fragment>\n${GALVANISED_DIRECT_PARS}`
       )
       .replace(
         '#include <lights_fragment_end>',
@@ -1207,6 +1290,7 @@ const SILO_SKIN_GALVANISED = {
   corrugated: true,
   stains: SILO_STAIN.strength,
   valley: SILO_VALLEY.occlusion,
+  sheen: SILO_SHEEN.strength,
 } as const;
 
 export const MACHINE_MATERIALS = {
@@ -1269,7 +1353,7 @@ export const MACHINE_MATERIALS = {
       dust: 0.05,
       edge: 0.1,
       grimeHeight: 0.75,
-      galvanised: { ...SILO_SKIN_GALVANISED, drips: 0, corrugated: false, stains: 0 },
+      galvanised: { ...SILO_SKIN_GALVANISED, drips: 0, corrugated: false, stains: 0, sheen: 0 },
     }
   ),
 
@@ -1323,7 +1407,7 @@ export const MACHINE_MATERIALS = {
       dust: 0.24,
       edge: 0.16,
       grimeHeight: 2.2,
-      galvanised: { ...SILO_SKIN_GALVANISED, drips: 0, corrugated: false, stains: 0 },
+      galvanised: { ...SILO_SKIN_GALVANISED, drips: 0, corrugated: false, stains: 0, sheen: 0 },
     }
   ),
 
