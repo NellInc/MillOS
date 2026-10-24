@@ -1366,6 +1366,9 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
         uShoreFoam: { value: profile.shoreFoam },
         uOpacity: { value: opacity },
         uRadial: { value: radial ? 1 : 0 },
+        // Private paired control for the round-body depth bowl: 0 restores
+        // the previous pixels exactly (WATER_NATURAL_PROFILE.depthBowl).
+        uDepthBowlStrength: { value: 1 },
         uCrossOnly: { value: crossOnly ? 1 : 0 },
         uWetness: { value: 0 },
         uPrecipitation: { value: 0 },
@@ -1440,6 +1443,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
         uniform float uFlowSpeed;
         uniform float uOpacity;
         uniform float uRadial;
+        uniform float uDepthBowlStrength;
         uniform float uCrossOnly;
         uniform float uWetness;
         uniform float uPrecipitation;
@@ -1584,6 +1588,11 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
           vec3 deepBody = uDeep;
           if (uRippleDetail > 0.0 && uNaturalBody > 0.0) {
             deepBody = mix(uDeep, uShallow, ${WATER_NATURAL_PROFILE.deepLift.toFixed(2)});
+            // Round bodies deepen again in a smooth radial bowl toward the
+            // centre (WATER_NATURAL_PROFILE.depthBowl, stillWaterBowl).
+            float bowl = smoothstep(${WATER_NATURAL_PROFILE.depthBowl.edge[0].toFixed(2)}, ${WATER_NATURAL_PROFILE.depthBowl.edge[1].toFixed(2)}, edge);
+            deepBody = mix(deepBody, uDeep,
+              uRadial * bowl * ${WATER_NATURAL_PROFILE.depthBowl.depth.toFixed(2)} * uDepthBowlStrength);
           }
           colour = mix(uShallow, deepBody, depth) * bodyLight * uBodyTint;
           // Natural body on still water, Medium and up (millosNaturalWater).
@@ -1820,7 +1829,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
     // MANUALLY VERSIONED, never derived from time or randomness - see the
     // documented `Date.now()` cache-key bug. Bump this whenever the shader
     // source above changes or a stale cached program will be reused.
-    value.customProgramCacheKey = () => 'millos-unified-water-v28';
+    value.customProgramCacheKey = () => 'millos-unified-water-v29';
     return value;
   }, [
     bankX,

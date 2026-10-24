@@ -94,11 +94,32 @@ export const WATER_NATURAL_PROFILE = {
    * depth ramp (land7-med-12: sRGB luma 74 against 88; round 5 82 against 83).
    */
   deepLift: 0.25,
+  /**
+   * A radial bowl on round water (lake, ponds): over `edge` (0 at the bank, 1
+   * at the centre) the lifted deep end moves `depth` of the way back to the
+   * authored deep, smoothly, deepest at the centre. With the lift alone the
+   * whole body past the shelf was one tone (final7-med-12 water: luminance std
+   * 12.1 to 9.4). It starts where the shelf ramp ends (0.34), so there is no
+   * plateau edge, and it carries no noise: the old smudge was a hard,
+   * uniformly deep core, not a gradient.
+   */
+  depthBowl: { edge: [0.3, 0.95], depth: 0.45 },
 } as const;
 
-/** CPU mirror of the still-water deep end on Medium, before the natural shift. */
-export function stillWaterDeepBody(deep: THREE.Color, shallow: THREE.Color): THREE.Color {
-  return deep.lerp(shallow, WATER_NATURAL_PROFILE.deepLift);
+/** Bowl weight at a normalised bank distance (`WATER_NATURAL_PROFILE.depthBowl`). */
+export function stillWaterBowl(edge: number): number {
+  const [start, end] = WATER_NATURAL_PROFILE.depthBowl.edge;
+  return THREE.MathUtils.smoothstep(edge, start, end) * WATER_NATURAL_PROFILE.depthBowl.depth;
+}
+
+/**
+ * CPU mirror of the still-water deep end on Medium, before the natural shift.
+ * `edge` is the round body's normalised distance from the bank; the default
+ * (the shelf) is the lift alone.
+ */
+export function stillWaterDeepBody(deep: THREE.Color, shallow: THREE.Color, edge = 0): THREE.Color {
+  const authored = deep.clone();
+  return deep.lerp(shallow, WATER_NATURAL_PROFILE.deepLift).lerp(authored, stillWaterBowl(edge));
 }
 
 /** CPU mirror of the shader's natural-body shift, on a linear colour. */

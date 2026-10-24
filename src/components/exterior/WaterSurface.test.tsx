@@ -103,7 +103,7 @@ describe('authored exterior water material and atmosphere driver', () => {
     );
     expect(water.fragmentShader).toContain('gl_FragColor = vec4(colour, 1.0)');
     expect(water.fragmentShader).toContain('#include <fog_fragment>');
-    expect(water.customProgramCacheKey()).toBe('millos-unified-water-v28');
+    expect(water.customProgramCacheKey()).toBe('millos-unified-water-v29');
     const dispose = vi.spyOn(water, 'dispose');
     for (const cleanup of driver.cleanups.splice(0)) cleanup();
     expect(dispose).toHaveBeenCalledOnce();
@@ -401,7 +401,7 @@ it('keeps a deep-water read on Low, where no metre-scale ripple breaks the refle
   expect(water.fragmentShader).toContain(
     `mix(${WATER_FRESNEL_EXPONENT_FLAT.toFixed(1)}, ${WATER_FRESNEL_EXPONENT.toFixed(1)}, uRippleDetail)`
   );
-  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v28');
+  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v29');
 });
 
 // final4-med-12 rubric: the pond is a saturated cyan and reflects nothing of
@@ -475,7 +475,7 @@ it('gives still water a natural body and a soft far-bank darkening on Medium onl
   const rise = (camera.y - target.y) / Math.hypot(camera.x - target.x, camera.z - target.z);
   expect(WATER_BANK_PROFILE.bankMetres / rise).toBeGreaterThan(1.5);
   expect(WATER_BANK_DETAIL.value).toBe(1);
-  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v28');
+  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v29');
 });
 
 // final5-med-22 water: a near-black centre. Steep views reflect the zenith,
@@ -626,7 +626,7 @@ it('mirrors a cloud deck and gust patches across the lake on Medium, exact on Lo
   sky.dispose();
   dome.geometry.dispose();
   expect(WATER_SKY_DETAIL.value).toBe(1);
-  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v28');
+  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v29');
 });
 
 // final6-med-12 water: a white glare band along the lake's far bank and a dark
@@ -671,7 +671,64 @@ it('keeps mirrored cloud off the far bank and soft across a lake, the canal unch
     make({ kind: 'canal', crossOnly: true, bankRadii: [5.5, 110] }).uniforms.uRadial.value
   ).toBe(0);
   expect(lake.uniforms.uRadial.value).toBe(1);
-  expect(lake.customProgramCacheKey()).toBe('millos-unified-water-v28');
+  expect(lake.customProgramCacheKey()).toBe('millos-unified-water-v29');
+});
+
+// final7-med-12 water (pond, full-res x 700-1900, y 600-1060): the lift made
+// the deep body one tone, luminance std 12.1 down to 9.4. Depth comes back as
+// a smooth radial bowl from the bank, deepest at the centre, so the body reads
+// as a basin again, with no noise term and the round-7 lift kept on the shelf.
+it('deepens still water in a smooth radial bowl toward the centre, keeping the lift', () => {
+  const lake = (
+    UnifiedWaterSurfaceMaterial({
+      kind: 'lake',
+      radial: true,
+      bankRadii: [19, 14],
+    }) as ReactElement<{
+      object: THREE.ShaderMaterial;
+    }>
+  ).props.object;
+  const { depthBowl, deepLift } = WATER_NATURAL_PROFILE;
+  expect(lake.uniforms.uDepthBowlStrength.value).toBe(1);
+  const shader = lake.fragmentShader;
+  expect(shader).toContain(
+    `smoothstep(${depthBowl.edge[0].toFixed(2)}, ${depthBowl.edge[1].toFixed(2)}, edge)`
+  );
+  expect(shader).toContain('uRadial * ');
+  // The bowl starts where the shelf ramp ends: no plateau edge inside it.
+  expect(depthBowl.edge[0]).toBeLessThanOrEqual(0.34);
+  expect(depthBowl.edge[1] - depthBowl.edge[0]).toBeGreaterThanOrEqual(0.5);
+  const deep = new THREE.Color('#143b48');
+  const shallow = new THREE.Color('#4a8790');
+  const luma = (c: THREE.Color) => c.r * 0.2126 + c.g * 0.7152 + c.b * 0.0722;
+  const body = (edge: number) =>
+    luma(
+      naturalWaterBody(
+        stillWaterDeepBody(deep.clone(), shallow, edge),
+        WATER_NATURAL_PROFILE.weight
+      )
+    );
+  const unlifted = luma(naturalWaterBody(deep.clone(), WATER_NATURAL_PROFILE.weight));
+  const shelf = body(depthBowl.edge[0]);
+  const centre = body(1);
+  // The shelf keeps the round-7 lift exactly; the default call is the shelf.
+  expect(shelf).toBeCloseTo(body(0), 12);
+  expect(
+    stillWaterDeepBody(deep.clone(), shallow).equals(deep.clone().lerp(shallow, deepLift))
+  ).toBe(true);
+  // A visible basin: the centre at least 10% darker than the shelf...
+  expect(centre).toBeLessThan(shelf * 0.9);
+  // ...and still well above the old unlifted smudge.
+  expect(centre).toBeGreaterThan(unlifted * 1.35);
+  // Smooth and monotonic from the shelf to the centre.
+  let previous = shelf;
+  for (let edge = depthBowl.edge[0]; edge <= 1.0001; edge += 0.02) {
+    const value = body(edge);
+    expect(value).toBeLessThanOrEqual(previous + 1e-12);
+    expect(previous - value).toBeLessThan((shelf - centre) * 0.1);
+    previous = value;
+  }
+  expect(lake.customProgramCacheKey()).toBe('millos-unified-water-v29');
 });
 
 // land7-med-12 water: with the glare softened, the lake centre still reads as a
@@ -722,5 +779,5 @@ it('lifts the still-water deep body toward the shallows on Medium, keeping its h
   expect(hue(after)).toBeGreaterThan(hue(rim));
   expect(deepLift).toBeGreaterThan(0);
   expect(deepLift).toBeLessThanOrEqual(0.3);
-  expect(lake.customProgramCacheKey()).toBe('millos-unified-water-v28');
+  expect(lake.customProgramCacheKey()).toBe('millos-unified-water-v29');
 });
