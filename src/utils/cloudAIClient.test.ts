@@ -399,4 +399,108 @@ describe('CloudAIClient browser BYOK contract', () => {
     await expect(client.generateContent('luna', 'Plant telemetry')).rejects.toThrow(/usage/);
     expect(budget.getSnapshot().uncertainUsd).toBeGreaterThan(0);
   });
+
+  it('sends Sol 6.1 through the Responses API and charges it at its own price', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(ok(lunaResponse()));
+    vi.stubGlobal('fetch', fetchMock);
+    const budget = new SpendBudget();
+    const client = new CloudAIClient(budget);
+    client.setKey('sol', 'private-key');
+    await client.generateContent('sol', 'Plant telemetry');
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://api.openai.com/v1/responses');
+    expect(JSON.parse(init.body as string)).toMatchObject({
+      model: 'gpt-6.1-sol',
+      reasoning: { effort: 'high' },
+      store: false,
+    });
+    // 110 in at $2/M plus 75 out at $10/M, twenty times Luna's rate.
+    expect(budget.getSnapshot().spentUsd).toBeCloseTo((110 * 2 + 75 * 10) / 1_000_000, 12);
+  });
+
+  it('sends Gemini 3.8 with the key in a header and reads text, not thoughts', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      ok({
+        candidates: [
+          {
+            finishReason: 'STOP',
+            content: {
+              parts: [
+                { text: 'private reasoning', thought: true },
+                { text: '{"priorities":["Protect RM-101"]}' },
+              ],
+            },
+          },
+        ],
+        usageMetadata: { promptTokenCount: 90, candidatesTokenCount: 40, thoughtsTokenCount: 20 },
+      })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const client = new CloudAIClient();
+    client.setKey('gemini', 'private-key');
+    const result = await client.generateContent('gemini', 'Plant telemetry');
+    expect(result.text).toBe('{"priorities":["Protect RM-101"]}');
+    expect(result).toMatchObject({ inputTokens: 90, outputTokens: 60 });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent'
+    );
+    expect(url).not.toContain('private-key');
+    expect(init.headers).toMatchObject({ 'x-goog-api-key': 'private-key' });
+    expect(JSON.parse(init.body as string).generationConfig.thinkingConfig).toEqual({
+      thinkingLevel: 'high',
+    });
+  });
+
+  it('rejects an unfinished Gemini answer and names a bad Google key', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        ok({
+          candidates: [{ finishReason: 'MAX_TOKENS', content: { parts: [{ text: 'half' }] } }],
+          usageMetadata: { promptTokenCount: 9, candidatesTokenCount: 4 },
+        })
+      )
+    );
+    const client = new CloudAIClient();
+    client.setKey('gemini', 'private-key');
+    await expect(client.generateContent('gemini', 'Plant telemetry')).rejects.toThrow(/Gemini/);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          '{"error":{"status":"INVALID_ARGUMENT","details":[{"reason":"API_KEY_INVALID"}]}}',
+          {
+            status: 400,
+          }
+        )
+      )
+    );
+    await expect(client.generateContent('gemini', 'Plant telemetry')).rejects.toThrow(/key/i);
+  });
+
+  it('caps each OpenRouter model at its own list price', async () => {
+    const fetchMock = openRouterFetch();
+    vi.stubGlobal('fetch', fetchMock);
+    const budget = new SpendBudget();
+    budget.setCap(5);
+    const client = new CloudAIClient(budget);
+    client.setKey('openrouter-sol', 'sk-or-v1-limited');
+    await client.generateContent('openrouter-sol', 'Plant telemetry');
+    client.setKey('openrouter-gemini', 'sk-or-v1-limited');
+    await client.generateContent('openrouter-gemini', 'Plant telemetry');
+    const bodies = fetchMock.mock.calls
+      .filter(([url]) => (url as string).endsWith('/chat/completions'))
+      .map(([, init]) => JSON.parse((init as RequestInit).body as string));
+    expect(bodies[0]).toMatchObject({
+      model: 'openai/gpt-6.1-sol',
+      prompt_cache_options: { mode: 'explicit' },
+      provider: { max_price: { prompt: 2, completion: 10 } },
+    });
+    expect(bodies[1]).toMatchObject({
+      model: 'google/gemini-3.8-flash',
+      provider: { max_price: { prompt: 0.825, completion: 4.125 } },
+    });
+    expect(bodies[1].prompt_cache_options).toBeUndefined();
+  });
 });

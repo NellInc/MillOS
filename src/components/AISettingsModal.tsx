@@ -29,8 +29,11 @@ import { useAIConfigStore } from '../stores/aiConfigStore';
 import {
   cloudAIClient,
   CLOUD_MODELS,
+  DIRECT_BACKENDS,
   isLocalCompanionHost,
+  openRouterTwin,
   type CloudBackend,
+  type CloudModel,
 } from '../utils/cloudAIClient';
 import { chatgptClient, type ChatGPTModel } from '../utils/chatgptClient';
 import {
@@ -41,6 +44,16 @@ import {
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { formatFixed, translate, useT } from '../i18n';
 import { aiSettingsModalMessages } from './AISettingsModal.messages';
+
+/** The public site offers each direct model through OpenRouter. */
+const OPEN_ROUTER_BACKENDS = DIRECT_BACKENDS.map((backend) => openRouterTwin(backend));
+
+const KEY_CONSOLES: Record<CloudModel['wire'], string> = {
+  anthropic: 'https://platform.claude.com/settings/keys',
+  openai: 'https://platform.openai.com/api-keys',
+  google: 'https://aistudio.google.com/apikey',
+  openrouter: 'https://openrouter.ai/settings/keys',
+};
 
 // Visualization Toggles Component
 const VisualizationToggles: React.FC = () => {
@@ -712,66 +725,27 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                 role="radiogroup"
                 aria-label={t('backendLabel')}
               >
-                {isLocalCompanionHost() && (
-                  <button
-                    role="radio"
-                    aria-checked={llmBackend === 'haiku'}
-                    onClick={() => selectBackend('haiku')}
-                    className={`p-2 rounded-lg border text-center transition-all ${
-                      llmBackend === 'haiku'
-                        ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400'
-                        : 'bg-slate-700/50 border-slate-600 text-slate-400 hover:border-slate-500'
-                    }`}
-                  >
-                    <Cloud className="w-4 h-4 mx-auto mb-1" aria-hidden="true" />
-                    <div className="text-xs font-medium">Haiku 5.5 High</div>
-                    <div className="text-[9px] opacity-70">Anthropic • BYOK</div>
-                  </button>
+                {(isLocalCompanionHost() ? DIRECT_BACKENDS : OPEN_ROUTER_BACKENDS).map(
+                  (backend) => (
+                    <button
+                      key={backend}
+                      role="radio"
+                      aria-checked={llmBackend === backend}
+                      onClick={() => selectBackend(backend)}
+                      className={`p-2 rounded-lg border text-center transition-all ${
+                        llmBackend === backend
+                          ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400'
+                          : 'bg-slate-700/50 border-slate-600 text-slate-400 hover:border-slate-500'
+                      }`}
+                    >
+                      <Cloud className="w-4 h-4 mx-auto mb-1" aria-hidden="true" />
+                      <div className="text-xs font-medium">{CLOUD_MODELS[backend].label}</div>
+                      <div className="text-[9px] opacity-70">
+                        {CLOUD_MODELS[backend].provider} • BYOK
+                      </div>
+                    </button>
+                  )
                 )}
-                {isLocalCompanionHost() && (
-                  <button
-                    role="radio"
-                    aria-checked={llmBackend === 'luna'}
-                    onClick={() => selectBackend('luna')}
-                    className={`p-2 rounded-lg border text-center transition-all ${
-                      llmBackend === 'luna'
-                        ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400'
-                        : 'bg-slate-700/50 border-slate-600 text-slate-400 hover:border-slate-500'
-                    }`}
-                  >
-                    <Cloud className="w-4 h-4 mx-auto mb-1" aria-hidden="true" />
-                    <div className="text-xs font-medium">Luna 6 High</div>
-                    <div className="text-[9px] opacity-70">OpenAI • BYOK</div>
-                  </button>
-                )}
-                <button
-                  role="radio"
-                  aria-checked={llmBackend === 'openrouter-haiku'}
-                  onClick={() => selectBackend('openrouter-haiku')}
-                  className={`p-2 rounded-lg border text-center transition-all ${
-                    llmBackend === 'openrouter-haiku'
-                      ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400'
-                      : 'bg-slate-700/50 border-slate-600 text-slate-400 hover:border-slate-500'
-                  }`}
-                >
-                  <Cloud className="w-4 h-4 mx-auto mb-1" aria-hidden="true" />
-                  <div className="text-xs font-medium">Haiku 5.5 High</div>
-                  <div className="text-[9px] opacity-70">OpenRouter • BYOK</div>
-                </button>
-                <button
-                  role="radio"
-                  aria-checked={llmBackend === 'openrouter-luna'}
-                  onClick={() => selectBackend('openrouter-luna')}
-                  className={`p-2 rounded-lg border text-center transition-all ${
-                    llmBackend === 'openrouter-luna'
-                      ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400'
-                      : 'bg-slate-700/50 border-slate-600 text-slate-400 hover:border-slate-500'
-                  }`}
-                >
-                  <Cloud className="w-4 h-4 mx-auto mb-1" aria-hidden="true" />
-                  <div className="text-xs font-medium">Luna 6 High</div>
-                  <div className="text-[9px] opacity-70">OpenRouter • BYOK</div>
-                </button>
                 <button
                   role="radio"
                   aria-checked={llmBackend === 'chatgpt'}
@@ -956,13 +930,7 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                 <p className="text-xs text-slate-500">
                   {t('getKeyFrom')}{' '}
                   <a
-                    href={
-                      cloudBackend === 'haiku'
-                        ? 'https://platform.claude.com/settings/keys'
-                        : cloudBackend === 'luna'
-                          ? 'https://platform.openai.com/api-keys'
-                          : 'https://openrouter.ai/settings/keys'
-                    }
+                    href={KEY_CONSOLES[CLOUD_MODELS[cloudBackend].wire]}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-cyan-400 hover:underline"

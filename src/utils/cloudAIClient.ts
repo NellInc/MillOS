@@ -1,24 +1,76 @@
 /** Browser BYOK transport. Keys remain in this module's memory, never in Zustand persistence. */
-import { spendBudget, type SpendBudget } from './spendBudget';
+import { spendBudget, type SpendBudget, type TokenRates } from './spendBudget';
 import { formatFixed, translate } from '../i18n';
 import { cloudAIClientMessages as messages } from './cloudAIClient.messages';
 
-export type CloudBackend = 'haiku' | 'luna' | 'openrouter-haiku' | 'openrouter-luna';
+export type CloudBackend =
+  | 'haiku'
+  | 'luna'
+  | 'sol'
+  | 'gemini'
+  | 'openrouter-haiku'
+  | 'openrouter-luna'
+  | 'openrouter-sol'
+  | 'openrouter-gemini';
 
-export const CLOUD_MODELS: Record<CloudBackend, { id: string; label: string; provider: string }> = {
-  haiku: { id: 'claude-haiku-5-5', label: 'Haiku 5.5 High', provider: 'Anthropic' },
-  luna: { id: 'gpt-6-luna', label: 'Luna 6 High', provider: 'OpenAI' },
+/** Direct backends need the local companion host; each has an OpenRouter twin. */
+export const DIRECT_BACKENDS = ['haiku', 'luna', 'sol', 'gemini'] as const;
+export type DirectBackend = (typeof DIRECT_BACKENDS)[number];
+
+/** The request and response shape a backend speaks. */
+type Wire = 'anthropic' | 'openai' | 'google' | 'openrouter';
+
+export interface CloudModel extends TokenRates {
+  id: string;
+  label: string;
+  provider: string;
+  wire: Wire;
+}
+
+// Prices are list prices per million tokens (OpenRouter's catalogue, which
+// passes the provider's price through), checked 2026-10-24. They feed the
+// spend cap and OpenRouter's max_price, so a dearer model cannot be admitted
+// at a cheaper model's estimate.
+const HAIKU = { label: 'Haiku 5.5 High', inputPer1M: 0.1, outputPer1M: 0.5 };
+const LUNA = { label: 'Luna 6 High', inputPer1M: 0.1, outputPer1M: 0.5 };
+const SOL = { label: 'Sol 6.1 High', inputPer1M: 2, outputPer1M: 10 };
+const GEMINI = { label: 'Gemini 3.8 Flash', inputPer1M: 0.825, outputPer1M: 4.125 };
+
+export const CLOUD_MODELS: Record<CloudBackend, CloudModel> = {
+  haiku: { ...HAIKU, id: 'claude-haiku-5-5', provider: 'Anthropic', wire: 'anthropic' },
+  luna: { ...LUNA, id: 'gpt-6-luna', provider: 'OpenAI', wire: 'openai' },
+  sol: { ...SOL, id: 'gpt-6.1-sol', provider: 'OpenAI', wire: 'openai' },
+  gemini: { ...GEMINI, id: 'gemini-3.8-flash', provider: 'Google', wire: 'google' },
   'openrouter-haiku': {
+    ...HAIKU,
     id: 'anthropic/claude-haiku-5.5',
-    label: 'Haiku 5.5 High',
     provider: 'OpenRouter',
+    wire: 'openrouter',
   },
   'openrouter-luna': {
+    ...LUNA,
     id: 'openai/gpt-6-luna',
-    label: 'Luna 6 High',
     provider: 'OpenRouter',
+    wire: 'openrouter',
+  },
+  'openrouter-sol': {
+    ...SOL,
+    id: 'openai/gpt-6.1-sol',
+    provider: 'OpenRouter',
+    wire: 'openrouter',
+  },
+  'openrouter-gemini': {
+    ...GEMINI,
+    id: 'google/gemini-3.8-flash',
+    provider: 'OpenRouter',
+    wire: 'openrouter',
   },
 };
+
+/** The OpenRouter twin a direct backend falls back to off the local companion host. */
+export function openRouterTwin(backend: DirectBackend): CloudBackend {
+  return `openrouter-${backend}`;
+}
 
 export interface CloudResult {
   text: string;
@@ -38,7 +90,7 @@ export function isLocalCompanionHost(): boolean {
 }
 
 function isOpenRouterBackend(backend: CloudBackend): boolean {
-  return backend === 'openrouter-haiku' || backend === 'openrouter-luna';
+  return CLOUD_MODELS[backend].wire === 'openrouter';
 }
 
 function assertPublicProviderBoundary(backend: CloudBackend): void {
@@ -62,7 +114,8 @@ function errorForStatus(status: number): Error {
 }
 
 function textFromResponse(backend: CloudBackend, record: Record<string, unknown>): string {
-  if (backend === 'haiku') {
+  const wire = CLOUD_MODELS[backend].wire;
+  if (wire === 'anthropic') {
     if (record.stop_reason !== 'end_turn' || !Array.isArray(record.content))
       throw new Error(translate(messages, 'haikuIncomplete'));
     return record.content
@@ -76,9 +129,9 @@ function textFromResponse(backend: CloudBackend, record: Record<string, unknown>
       .map((block) => block.text)
       .join('');
   }
-  if (backend === 'luna') {
+  if (wire === 'openai') {
     if (record.status !== 'completed' || !Array.isArray(record.output))
-      throw new Error(translate(messages, 'lunaIncomplete'));
+      throw new Error(translate(messages, backend === 'sol' ? 'solIncomplete' : 'lunaIncomplete'));
     return record.output
       .filter(
         (item): item is { type: string; content: unknown[] } =>
@@ -96,6 +149,23 @@ function textFromResponse(backend: CloudBackend, record: Record<string, unknown>
           typeof (block as Record<string, unknown>).text === 'string'
       )
       .map((block) => block.text)
+      .join('');
+  }
+  if (wire === 'google') {
+    const candidates = Array.isArray(record.candidates) ? record.candidates : [];
+    const first = candidates[0] as Record<string, unknown> | undefined;
+    const content = first?.content as Record<string, unknown> | undefined;
+    if (first?.finishReason !== 'STOP' || !Array.isArray(content?.parts))
+      throw new Error(translate(messages, 'geminiIncomplete'));
+    return content.parts
+      .filter(
+        (part): part is { text: string } =>
+          !!part &&
+          typeof part === 'object' &&
+          typeof (part as Record<string, unknown>).text === 'string' &&
+          (part as Record<string, unknown>).thought !== true
+      )
+      .map((part) => part.text)
       .join('');
   }
   const choices = Array.isArray(record.choices) ? record.choices : [];
@@ -234,21 +304,25 @@ export class CloudAIClient {
     if (!prompt.trim()) throw new Error(translate(messages, 'emptyRequest'));
     if (prompt.length > MAX_PROMPT_CHARS) throw new Error(translate(messages, 'contextTooLarge'));
 
-    const reservation = this.budget.reserve(prompt, maxTokens);
+    const model = CLOUD_MODELS[backend];
+    const reservation = this.budget.reserve(prompt, maxTokens, model);
     const epoch = this.epoch;
     const controller = new AbortController();
     this.controllers.add(controller);
     const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-    const isHaiku = backend === 'haiku';
-    const isOpenRouter = isOpenRouterBackend(backend);
+    const isHaiku = model.wire === 'anthropic';
+    const isGoogle = model.wire === 'google';
+    const isOpenRouter = model.wire === 'openrouter';
     let billingUnverified = true;
     try {
       const response = await fetch(
         isHaiku
           ? 'https://api.anthropic.com/v1/messages'
-          : isOpenRouter
-            ? 'https://openrouter.ai/api/v1/chat/completions'
-            : 'https://api.openai.com/v1/responses',
+          : isGoogle
+            ? `https://generativelanguage.googleapis.com/v1beta/models/${model.id}:generateContent`
+            : isOpenRouter
+              ? 'https://openrouter.ai/api/v1/chat/completions'
+              : 'https://api.openai.com/v1/responses',
         {
           method: 'POST',
           credentials: 'omit',
@@ -263,38 +337,49 @@ export class CloudAIClient {
                 'anthropic-version': '2023-06-01',
                 'anthropic-dangerous-direct-browser-access': 'true',
               }
-            : { 'content-type': 'application/json', Authorization: `Bearer ${key}` },
+            : isGoogle
+              ? // A header, never the ?key= query string, keeps the key out of URLs.
+                { 'content-type': 'application/json', 'x-goog-api-key': key }
+              : { 'content-type': 'application/json', Authorization: `Bearer ${key}` },
           body: JSON.stringify(
             isHaiku
               ? {
-                  model: CLOUD_MODELS.haiku.id,
+                  model: model.id,
                   max_tokens: maxTokens,
                   thinking: { type: 'adaptive' },
                   output_config: { effort: 'high' },
                   messages: [{ role: 'user', content: prompt }],
                 }
-              : isOpenRouter
+              : isGoogle
                 ? {
-                    model: CLOUD_MODELS[backend].id,
-                    messages: [{ role: 'user', content: prompt }],
-                    max_completion_tokens: maxTokens,
-                    reasoning: { effort: 'high' },
-                    ...(backend === 'openrouter-luna'
-                      ? { prompt_cache_options: { mode: 'explicit' } }
-                      : {}),
-                    provider: {
-                      require_parameters: true,
-                      max_price: { prompt: 0.1, completion: 0.5 },
+                    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                    generationConfig: {
+                      maxOutputTokens: maxTokens,
+                      thinkingConfig: { thinkingLevel: 'high' },
                     },
                   }
-                : {
-                    model: CLOUD_MODELS.luna.id,
-                    reasoning: { effort: 'high' },
-                    store: false,
-                    max_output_tokens: maxTokens,
-                    prompt_cache_options: { mode: 'explicit' },
-                    input: prompt,
-                  }
+                : isOpenRouter
+                  ? {
+                      model: model.id,
+                      messages: [{ role: 'user', content: prompt }],
+                      max_completion_tokens: maxTokens,
+                      reasoning: { effort: 'high' },
+                      ...(model.id.startsWith('openai/')
+                        ? { prompt_cache_options: { mode: 'explicit' } }
+                        : {}),
+                      provider: {
+                        require_parameters: true,
+                        max_price: { prompt: model.inputPer1M, completion: model.outputPer1M },
+                      },
+                    }
+                  : {
+                      model: model.id,
+                      reasoning: { effort: 'high' },
+                      store: false,
+                      max_output_tokens: maxTokens,
+                      prompt_cache_options: { mode: 'explicit' },
+                      input: prompt,
+                    }
           ),
         }
       );
@@ -304,6 +389,11 @@ export class CloudAIClient {
         if ([400, 401, 402, 403, 404, 422, 429].includes(response.status)) {
           this.budget.reject(reservation);
           billingUnverified = false;
+        }
+        // Google reports a bad key as 400 API_KEY_INVALID, not 401.
+        if (isGoogle && response.status === 400) {
+          const detail = await response.text().catch(() => '');
+          if (detail.includes('API_KEY_INVALID')) throw errorForStatus(401);
         }
         throw errorForStatus(response.status);
       }
@@ -315,8 +405,22 @@ export class CloudAIClient {
         record.usage && typeof record.usage === 'object'
           ? (record.usage as Record<string, unknown>)
           : {};
-      const inputTokens = tokenCount(isOpenRouter ? usage.prompt_tokens : usage.input_tokens);
-      const outputTokens = tokenCount(isOpenRouter ? usage.completion_tokens : usage.output_tokens);
+      // Gemini bills its thinking tokens as output, reported separately.
+      const googleUsage =
+        isGoogle && record.usageMetadata && typeof record.usageMetadata === 'object'
+          ? (record.usageMetadata as Record<string, unknown>)
+          : {};
+      const inputTokens = tokenCount(
+        isGoogle
+          ? googleUsage.promptTokenCount
+          : isOpenRouter
+            ? usage.prompt_tokens
+            : usage.input_tokens
+      );
+      const outputTokens = isGoogle
+        ? tokenCount(googleUsage.candidatesTokenCount ?? 0) +
+          tokenCount(googleUsage.thoughtsTokenCount ?? 0)
+        : tokenCount(isOpenRouter ? usage.completion_tokens : usage.output_tokens);
       // OpenRouter's account charge and upstream BYOK inference charge are
       // separate fields. Count both when the provider reports both.
       const costDetails =

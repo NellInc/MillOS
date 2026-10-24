@@ -43,6 +43,16 @@ describe('AI preferences migration', () => {
         llmBackend: 'openrouter-luna',
         aiMode: 'heuristic',
       });
+      expect(migrate({ llmBackend: 'sol' }, 2)).toMatchObject({ llmBackend: 'openrouter-sol' });
+      expect(migrate({ llmBackend: 'gemini' }, 2)).toMatchObject({
+        llmBackend: 'openrouter-gemini',
+      });
+      expect(migrate({ llmBackend: 'openrouter-gemini' }, 2)).toMatchObject({
+        llmBackend: 'openrouter-gemini',
+      });
+      expect(migrate({ llmBackend: 'not-a-backend' }, 2)).toMatchObject({
+        llmBackend: 'openrouter-haiku',
+      });
     } finally {
       vi.stubGlobal('window', originalWindow);
     }
