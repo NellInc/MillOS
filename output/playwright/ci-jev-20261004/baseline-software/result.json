@@ -1,0 +1,21 @@
+{
+  "passed": false,
+  "requests": 0,
+  "layouts": [],
+  "pageErrors": [],
+  "consoleErrors": [],
+  "failedRequests": [],
+  "csp": [],
+  "softwareRenderer": true,
+  "browserChannel": "playwright-chromium",
+  "requestedChromiumSandbox": true,
+  "camera": "sun",
+  "normalStartupRequired": true,
+  "browserVersion": "151.0.7922.34",
+  "startupViewport": {
+    "width": 640,
+    "height": 480
+  },
+  "phase": "scene-loading",
+  "error": "page.waitForFunction: Timeout 90000ms exceeded."
+}

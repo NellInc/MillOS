@@ -308,7 +308,10 @@ export const SafetyPanel: React.FC = () => {
                   aria-disabled={crisisActive || emergencyDrillMode}
                   title={
                     crisisActive
-                      ? 'Resolve the active crisis before clearing its interlock'
+                      ? useGameSimulationStore.getState().crisisState.metadata?.source ===
+                        'chronicle'
+                        ? 'A Mill Chronicle duct fire holds this interlock; answer it in the Chronicle'
+                        : 'Resolve the active crisis before clearing its interlock'
                       : emergencyDrillMode
                         ? 'End the active egress verification drill before using the emergency stop'
                         : undefined

@@ -3,12 +3,21 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { OctagonX, Siren } from 'lucide-react';
 import { useSafetyStore } from '../stores/safetyStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
+import { useChronicleStore } from '../stores/chronicleStore';
 
 // Emergency Overlay Component - shows flashing red border
 export const EmergencyOverlay: React.FC = () => {
   const forkliftEmergencyStop = useSafetyStore((state) => state.forkliftEmergencyStop);
   const emergencyActive = useGameSimulationStore((state) => state.emergencyActive);
   const emergencyDrillMode = useGameSimulationStore((state) => state.emergencyDrillMode);
+  // A Mill Chronicle duct fire is cleared from its own prompt, not the Safety panel.
+  const chronicleFire = useGameSimulationStore(
+    (state) =>
+      state.crisisState.type === 'fire' && state.crisisState.metadata?.source === 'chronicle'
+  );
+  // A Chronicle dialog on screen is either the fire's own guidance or one the
+  // player opened; the strip would cover it, and returns when it closes.
+  const dialogOpen = useChronicleStore((state) => state.dialogOpen);
   const reduceMotion = useReducedMotion();
 
   // Either emergency type triggers the overlay
@@ -28,7 +37,9 @@ export const EmergencyOverlay: React.FC = () => {
     ? 'Drill in progress. Production and forklifts hold while each service egress verifies itself; it ends once every egress checks in, or from the Safety panel.'
     : forkliftOnly
       ? 'Every forklift is holding position; the mill keeps running. Press Space or release it from the Safety panel.'
-      : 'Everything is stopped. Find the cause, fix it, then clear the interlock from the Safety panel.';
+      : chronicleFire
+        ? 'Everything is stopped by a duct fire. Answer its prompt in the Mill Chronicle to suppress or clean it.'
+        : 'Everything is stopped. Find the cause, fix it, then clear the interlock from the Safety panel.';
 
   return (
     <AnimatePresence>
@@ -72,21 +83,25 @@ export const EmergencyOverlay: React.FC = () => {
               }`}
             >
               <Icon className="w-5 h-5" aria-hidden="true" />
-              <span className="font-bold text-sm uppercase tracking-wider">{title}</span>
+              <span className="whitespace-nowrap font-bold text-sm uppercase tracking-wider">
+                {title}
+              </span>
               <Icon className="w-5 h-5" aria-hidden="true" />
             </div>
           </motion.div>
 
           {/* Unambiguous response guidance */}
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="absolute left-4 right-4 top-24 sm:bottom-20 sm:left-1/2 sm:right-auto sm:top-auto sm:-translate-x-1/2"
-          >
-            <div className="mx-auto max-w-md rounded-lg border border-slate-600 bg-slate-950/95 px-4 py-2 text-center text-xs text-slate-100 backdrop-blur-sm">
-              {guidance}
-            </div>
-          </motion.div>
+          {!dialogOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="absolute left-4 right-4 top-24 sm:bottom-28 sm:left-1/2 sm:right-auto sm:top-auto sm:-translate-x-1/2"
+            >
+              <div className="mx-auto max-w-md rounded-lg border border-slate-600 bg-slate-950/95 px-4 py-2 text-center text-xs text-slate-100 backdrop-blur-sm">
+                {guidance}
+              </div>
+            </motion.div>
+          )}
         </motion.div>
       )}
     </AnimatePresence>

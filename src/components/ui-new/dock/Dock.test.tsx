@@ -28,6 +28,7 @@ vi.mock('lucide-react', () => ({
   Minimize: () => <span data-testid="icon-minimize" />,
   Database: () => <span data-testid="icon-database" />,
   MoreHorizontal: () => <span data-testid="icon-more" />,
+  ScrollText: () => <span data-testid="icon-chronicle" />,
 }));
 
 describe('Dock Component', () => {
@@ -44,6 +45,7 @@ describe('Dock Component', () => {
       ['Production', 'Production', 'production'],
       ['SCADA', 'Simulated SCADA', 'scada'],
       ['Autonomy', 'Bilateral Autonomy System (BAS)', 'management'],
+      ['Chronicle', 'Mill Chronicle', 'chronicle'],
       ['Safety', 'Safety & Emergency', 'safety'],
       ['Settings', 'Settings', 'settings'],
     ]) {

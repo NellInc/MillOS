@@ -31,25 +31,26 @@ describe('StartupFrameWindow', () => {
     for (let i = 0; i <= 45; i++) {
       window.sample({ now: i * 16, prerequisitesReady: true, revision: 'a' });
     }
-    expect(window.sample({ now: 900, prerequisitesReady: true, revision: 'a' })).toBe(false);
+    expect(window.sample({ now: 1900, prerequisitesReady: true, revision: 'a' })).toBe(false);
     for (let i = 1; i < 45; i++) {
-      expect(window.sample({ now: 900 + i * 16, prerequisitesReady: true, revision: 'a' })).toBe(
+      expect(window.sample({ now: 1900 + i * 16, prerequisitesReady: true, revision: 'a' })).toBe(
         false
       );
     }
-    expect(window.sample({ now: 900 + 45 * 16, prerequisitesReady: true, revision: 'a' })).toBe(
+    expect(window.sample({ now: 1900 + 45 * 16, prerequisitesReady: true, revision: 'a' })).toBe(
       true
     );
   });
 
-  it('never treats a long run of slow frames as ready', () => {
+  it('allows a completed world to open after steady slow frames', () => {
     const window = new StartupFrameWindow();
-    for (let i = 0; i < 1000; i++) {
+    for (let i = 0; i < 45; i++) {
       expect(window.sample({ now: i * 60, prerequisitesReady: true, revision: 'a' })).toBe(false);
     }
+    expect(window.sample({ now: 45 * 60, prerequisitesReady: true, revision: 'a' })).toBe(true);
   });
 
-  it('accepts steady 30 FPS and rejects intermittent stuttering', () => {
+  it('accepts rendered frames regardless of frame pacing', () => {
     const steady = new StartupFrameWindow();
     const jittery = new StartupFrameWindow();
     let jitterTime = 0;
@@ -61,6 +62,9 @@ describe('StartupFrameWindow', () => {
       );
     }
     expect(steady.sample({ now: 45 * (1000 / 30), prerequisitesReady: true, revision: 'a' })).toBe(
+      true
+    );
+    expect(jittery.sample({ now: jitterTime + 16, prerequisitesReady: true, revision: 'a' })).toBe(
       true
     );
   });

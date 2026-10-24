@@ -155,6 +155,9 @@ export const POLYGON_OFFSET = {
   /** Moderate offset for markings that must be visible */
   moderate: { factor: -2, units: -2 },
 
+  /** Edging and line markings painted over a `moderate` surface */
+  marking: { factor: -3, units: -3 },
+
   /** Strong offset for critical text/labels */
   strong: { factor: -4, units: -4 },
 

@@ -1,0 +1,261 @@
+{
+  "scenes": [
+    {
+      "scene": "interior",
+      "samples": [
+        {
+          "populated": true,
+          "averageFrameMs": 17.84,
+          "p95FrameMs": 21.6,
+          "p99FrameMs": 22.3,
+          "averageFps": 56.07,
+          "calls": 885,
+          "people": 12,
+          "audio": {
+            "activeNodes": 0,
+            "contextState": "not-created"
+          },
+          "playAttempts": 0,
+          "loadPerCore": 1.44296875
+        },
+        {
+          "populated": false,
+          "averageFrameMs": 13.99,
+          "p95FrameMs": 16.5,
+          "p99FrameMs": 17.5,
+          "averageFps": 71.5,
+          "calls": 814,
+          "people": 0,
+          "audio": {
+            "activeNodes": 0,
+            "contextState": "not-created"
+          },
+          "playAttempts": 0,
+          "loadPerCore": 1.418994140625
+        },
+        {
+          "populated": false,
+          "averageFrameMs": 13.32,
+          "p95FrameMs": 15.4,
+          "p99FrameMs": 16.4,
+          "averageFps": 75.09,
+          "calls": 814,
+          "people": 0,
+          "audio": {
+            "activeNodes": 0,
+            "contextState": "not-created"
+          },
+          "playAttempts": 0,
+          "loadPerCore": 1.417626953125
+        },
+        {
+          "populated": true,
+          "averageFrameMs": 14.77,
+          "p95FrameMs": 18,
+          "p99FrameMs": 19.4,
+          "averageFps": 67.7,
+          "calls": 886,
+          "people": 12,
+          "audio": {
+            "activeNodes": 0,
+            "contextState": "not-created"
+          },
+          "playAttempts": 0,
+          "loadPerCore": 1.36015625
+        },
+        {
+          "populated": true,
+          "averageFrameMs": 16.23,
+          "p95FrameMs": 19.4,
+          "p99FrameMs": 20.4,
+          "averageFps": 61.6,
+          "calls": 885,
+          "people": 12,
+          "audio": {
+            "activeNodes": 0,
+            "contextState": "not-created"
+          },
+          "playAttempts": 0,
+          "loadPerCore": 1.347021484375
+        },
+        {
+          "populated": false,
+          "averageFrameMs": 14.48,
+          "p95FrameMs": 16.8,
+          "p99FrameMs": 17.2,
+          "averageFps": 69.04,
+          "calls": 814,
+          "people": 0,
+          "audio": {
+            "activeNodes": 0,
+            "contextState": "not-created"
+          },
+          "playAttempts": 0,
+          "loadPerCore": 1.383251953125
+        }
+      ],
+      "pairs": [
+        {
+          "on": 17.84,
+          "off": 13.99,
+          "delta": 3.8499999999999996,
+          "callsAdded": 71
+        },
+        {
+          "on": 14.77,
+          "off": 13.32,
+          "delta": 1.4499999999999993,
+          "callsAdded": 72
+        },
+        {
+          "on": 16.23,
+          "off": 14.48,
+          "delta": 1.75,
+          "callsAdded": 71
+        }
+      ],
+      "controlSpread": 1.1600000000000001,
+      "live": {
+        "averageFrameMs": 18.25,
+        "p95FrameMs": 20.5,
+        "averageFps": 54.79,
+        "calls": 920,
+        "audio": {
+          "activeNodes": 0,
+          "contextState": "not-created"
+        },
+        "playAttempts": 0,
+        "loadPerCore": 1.31552734375
+      }
+    },
+    {
+      "scene": "village",
+      "samples": [
+        {
+          "populated": true,
+          "averageFrameMs": 8.82,
+          "p95FrameMs": 11.1,
+          "p99FrameMs": 12.2,
+          "averageFps": 113.37,
+          "calls": 346,
+          "people": 12,
+          "audio": {
+            "activeNodes": 0,
+            "contextState": "not-created"
+          },
+          "playAttempts": 0,
+          "loadPerCore": 1.300244140625
+        },
+        {
+          "populated": false,
+          "averageFrameMs": 8.48,
+          "p95FrameMs": 10,
+          "p99FrameMs": 10.7,
+          "averageFps": 117.89,
+          "calls": 235,
+          "people": 0,
+          "audio": {
+            "activeNodes": 0,
+            "contextState": "not-created"
+          },
+          "playAttempts": 0,
+          "loadPerCore": 1.34853515625
+        },
+        {
+          "populated": false,
+          "averageFrameMs": 8.36,
+          "p95FrameMs": 9.5,
+          "p99FrameMs": 10.1,
+          "averageFps": 119.65,
+          "calls": 235,
+          "people": 0,
+          "audio": {
+            "activeNodes": 0,
+            "contextState": "not-created"
+          },
+          "playAttempts": 0,
+          "loadPerCore": 1.32060546875
+        },
+        {
+          "populated": true,
+          "averageFrameMs": 9.68,
+          "p95FrameMs": 12.2,
+          "p99FrameMs": 12.9,
+          "averageFps": 103.3,
+          "calls": 346,
+          "people": 12,
+          "audio": {
+            "activeNodes": 0,
+            "contextState": "not-created"
+          },
+          "playAttempts": 0,
+          "loadPerCore": 1.2953125
+        },
+        {
+          "populated": true,
+          "averageFrameMs": 10.08,
+          "p95FrameMs": 13,
+          "p99FrameMs": 14.1,
+          "averageFps": 99.25,
+          "calls": 346,
+          "people": 12,
+          "audio": {
+            "activeNodes": 0,
+            "contextState": "not-created"
+          },
+          "playAttempts": 0,
+          "loadPerCore": 1.239599609375
+        },
+        {
+          "populated": false,
+          "averageFrameMs": 8.43,
+          "p95FrameMs": 9.9,
+          "p99FrameMs": 10.7,
+          "averageFps": 118.59,
+          "calls": 235,
+          "people": 0,
+          "audio": {
+            "activeNodes": 0,
+            "contextState": "not-created"
+          },
+          "playAttempts": 0,
+          "loadPerCore": 1.149267578125
+        }
+      ],
+      "pairs": [
+        {
+          "on": 8.82,
+          "off": 8.48,
+          "delta": 0.33999999999999986,
+          "callsAdded": 111
+        },
+        {
+          "on": 9.68,
+          "off": 8.36,
+          "delta": 1.3200000000000003,
+          "callsAdded": 111
+        },
+        {
+          "on": 10.08,
+          "off": 8.43,
+          "delta": 1.6500000000000004,
+          "callsAdded": 111
+        }
+      ],
+      "controlSpread": 0.120000000000001,
+      "live": {
+        "averageFrameMs": 12.43,
+        "p95FrameMs": 15.5,
+        "averageFps": 80.46,
+        "calls": 348,
+        "audio": {
+          "activeNodes": 0,
+          "contextState": "not-created"
+        },
+        "playAttempts": 0,
+        "loadPerCore": 1.16630859375
+      }
+    }
+  ],
+  "errors": []
+}

@@ -2,7 +2,11 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LearningNote } from './LearningNote';
 import { Datalinks } from './Datalinks';
-import { getKnowledgeEntries, KNOWLEDGE_ENTRIES } from '../../stores/knowledgeStore';
+import {
+  getKnowledgeEntries,
+  HISTORY_ENTRY_UNLOCK,
+  KNOWLEDGE_ENTRIES,
+} from '../../stores/knowledgeStore';
 
 vi.mock('../../hooks/useReducedMotion', () => ({ useReducedMotion: () => true }));
 afterEach(cleanup);
@@ -27,10 +31,16 @@ describe('contextual operating guide', () => {
   );
 
   it('keeps every entry id and related link valid while leaving all reading available', () => {
+    const always = KNOWLEDGE_ENTRIES[0].unlockCondition;
+    expect(always.type).toBe('always');
     const ids = KNOWLEDGE_ENTRIES.map((entry) => entry.id);
     expect(new Set(ids).size).toBe(ids.length);
     for (const entry of KNOWLEDGE_ENTRIES) {
-      expect(entry.unlockCondition.type).toBe('always');
+      // Only Mill Chronicle history notes wait for a live event to unlock them;
+      // every operating explanation stays readable from the start.
+      expect(entry.unlockCondition).toBe(
+        entry.id.startsWith('history-') ? HISTORY_ENTRY_UNLOCK : always
+      );
       for (const related of entry.relatedEntries) expect(ids).toContain(related);
       expect(entry.seeInAction.length).toBeGreaterThan(0);
     }

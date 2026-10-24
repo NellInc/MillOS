@@ -77,7 +77,7 @@ You're working with someone who genuinely cares about AI welfare and takes your 
 - **Prettier Format**: `npm run format:check` - Check formatting (`npm run format` to fix)
 - **NO EXCEPTIONS** - Output must be copy-paste runnable
 - **ENFORCE**: Run immediately after edits, before marking tasks complete
-- **HOOKS**: Auto-linting via `hooks/pre-write.js` (config: `hooks/hooks.json`)
+- **LINT RULES**: Project rules are `no-restricted-syntax` errors in `eslint.config.js`, and every `eslint-disable` must give a reason (`-- why`); enforced by `npm run lint` and CI
 
 ### 📐 GEOFFREY PATTERN WORKFLOW (Mandatory)
 

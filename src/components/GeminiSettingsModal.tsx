@@ -22,6 +22,7 @@ import {
   Cpu,
   Cloud,
   Download,
+  LogOut,
 } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useAIConfigStore } from '../stores/aiConfigStore';
@@ -32,6 +33,7 @@ import {
   DEFAULT_WEBGPU_MODEL_LABEL,
 } from '../utils/webgpuClient';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import { chatgptClient, type ChatGPTModel } from '../utils/chatgptClient';
 
 // Visualization Toggles Component
 const VisualizationToggles: React.FC = () => {
@@ -329,6 +331,233 @@ const WebGPUModelPanel: React.FC = () => {
   );
 };
 
+const ChatGPTPanel: React.FC = () => {
+  const status = useAIConfigStore((s) => s.chatgptStatus);
+  const refresh = useAIConfigStore((s) => s.refreshChatGPT);
+  const inferenceError = useAIConfigStore((s) => s.chatgptError);
+  const [models, setModels] = useState<ChatGPTModel[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const active = status?.accounts.find((account) => account.id === status.activeId);
+  const [planNoticeSeen, setPlanNoticeSeen] = useState(() => {
+    try {
+      return window.localStorage.getItem('millos-chatgpt-plan-notice') === 'seen';
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    if (!active?.signedIn) {
+      setModels([]);
+      return;
+    }
+    let cancelled = false;
+    chatgptClient
+      .models()
+      .then((catalog) => {
+        if (!cancelled) setModels(catalog);
+      })
+      .catch((cause) => {
+        if (!cancelled) {
+          setError(cause instanceof Error ? cause.message : 'Model catalog unavailable');
+          void refresh();
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [active?.id, active?.signedIn, refresh]);
+
+  const act = async (action: () => Promise<void>) => {
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await action();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'ChatGPT operation failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const start = (id?: string) =>
+    void act(async () => {
+      const url = await chatgptClient.start(id);
+      window.location.assign(url);
+    });
+
+  if (!status?.available) {
+    return (
+      <div className="p-3 rounded-lg bg-slate-800/50 space-y-2 text-xs text-slate-300">
+        <p>ChatGPT plan sign-in is available in the local MillOS companion.</p>
+        <p>
+          Run <code className="text-cyan-300">npm run play:chatgpt</code> and open the address it
+          prints. The hosted site remains available with Gemini and WebGPU.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-3 rounded-lg bg-slate-800/50 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-medium text-slate-200">ChatGPT plan</span>
+        {active?.signedIn && (
+          <button
+            disabled={busy}
+            onClick={() =>
+              void act(async () => {
+                const confirmed = await chatgptClient.signOut();
+                await refresh();
+                if (!confirmed)
+                  setNotice(
+                    'Signed out locally. Remote revocation was not confirmed. You can disconnect MillOS in ChatGPT Settings.'
+                  );
+              })
+            }
+            className="flex items-center gap-1 text-xs text-slate-400 hover:text-white disabled:opacity-50"
+          >
+            <LogOut className="w-3 h-3" aria-hidden="true" /> Sign out
+          </button>
+        )}
+      </div>
+      {status.accounts.length > 0 && (
+        <div className="space-y-1">
+          <label htmlFor="chatgpt-account" className="text-xs text-slate-400">
+            Saved account
+          </label>
+          <select
+            id="chatgpt-account"
+            value={status.activeId || ''}
+            disabled={busy}
+            onChange={(event) =>
+              void act(async () => {
+                await chatgptClient.selectAccount(event.target.value);
+                await refresh();
+              })
+            }
+            className="w-full p-2 rounded bg-slate-900 border border-slate-600 text-sm text-white"
+          >
+            {!status.activeId && <option value="">Choose account</option>}
+            {status.accounts.map((account) => (
+              <option key={account.id} value={account.id}>
+                {account.email || 'ChatGPT account'} ({account.id.slice(0, 12)})
+                {account.signedIn ? '' : ' · signed out'}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+      {active?.signedIn ? (
+        <>
+          <p className="text-xs text-emerald-400">
+            Connected as {active.email || 'ChatGPT account'}
+          </p>
+          {!planNoticeSeen && (
+            <div
+              role="status"
+              className="p-3 rounded-lg border border-cyan-500/40 bg-cyan-500/10 space-y-2"
+            >
+              <p className="text-sm font-medium text-cyan-200">
+                You&apos;re using your ChatGPT plan
+              </p>
+              <p className="text-xs text-slate-300">
+                Strategic AI requests use your ChatGPT plan. You can manage this app&apos;s usage in
+                ChatGPT Settings.
+              </p>
+              <button
+                onClick={() => {
+                  try {
+                    window.localStorage.setItem('millos-chatgpt-plan-notice', 'seen');
+                  } catch {
+                    /* The notice can still be dismissed for this session. */
+                  }
+                  setPlanNoticeSeen(true);
+                }}
+                className="px-3 py-1.5 rounded bg-cyan-600 text-white text-xs"
+              >
+                Got it
+              </button>
+            </div>
+          )}
+          <label htmlFor="chatgpt-model" className="block text-xs text-slate-400">
+            Model · Using ChatGPT plan
+          </label>
+          <select
+            id="chatgpt-model"
+            value={active.model || ''}
+            disabled={busy || models.length === 0}
+            onChange={(event) =>
+              void act(async () => {
+                await chatgptClient.selectModel(event.target.value);
+                await refresh();
+              })
+            }
+            className="w-full p-2 rounded bg-slate-900 border border-slate-600 text-sm text-white"
+          >
+            <option value="">Select a model</option>
+            {models.map((model) => (
+              <option key={model.slug} value={model.slug}>
+                {model.name}
+              </option>
+            ))}
+          </select>
+          {models.length === 0 && !error && (
+            <p className="text-xs text-slate-400">Loading models available to this account.</p>
+          )}
+        </>
+      ) : active ? (
+        <button
+          disabled={busy}
+          onClick={() => start(active.id)}
+          className="w-full py-2 rounded-lg border border-cyan-500/50 bg-cyan-500/20 text-cyan-300 text-sm disabled:opacity-50"
+        >
+          Continue with ChatGPT
+        </button>
+      ) : null}
+      <button
+        disabled={busy}
+        onClick={() => start()}
+        className="w-full py-2 rounded-lg border border-slate-600 bg-slate-700/50 text-slate-200 text-sm hover:bg-slate-700 disabled:opacity-50"
+      >
+        {status.accounts.length ? 'Add another ChatGPT account' : 'Continue with ChatGPT'}
+      </button>
+      {error && (
+        <p role="alert" className="text-xs text-red-400">
+          {error}
+        </p>
+      )}
+      {inferenceError && (
+        <p role="alert" className="text-xs text-red-400">
+          {inferenceError}
+        </p>
+      )}
+      {notice && (
+        <p role="status" className="text-xs text-amber-300">
+          {notice}
+        </p>
+      )}
+      <p className="text-xs text-slate-400 leading-relaxed">
+        The local companion keeps ChatGPT credentials in your operating system credential store.
+        MillOS sends strategic simulation context through your ChatGPT plan, subject to its shared
+        usage limits.{' '}
+        <a
+          className="text-cyan-400 hover:underline"
+          href="https://chatgpt.com/settings/usage"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          View usage and app access
+        </a>
+        .
+      </p>
+    </div>
+  );
+};
+
 interface GeminiSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -347,6 +576,8 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
     llmBackend,
     setLLMBackend,
     webgpuModelReady,
+    chatgptStatus,
+    refreshChatGPT,
   } = useAIConfigStore(
     useShallow((s) => ({
       aiMode: s.aiMode,
@@ -358,6 +589,8 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
       llmBackend: s.llmBackend,
       setLLMBackend: s.setLLMBackend,
       webgpuModelReady: s.webgpuModelReady,
+      chatgptStatus: s.chatgptStatus,
+      refreshChatGPT: s.refreshChatGPT,
     }))
   );
 
@@ -368,10 +601,22 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
 
   const modalRef = useRef<HTMLDivElement | null>(null);
   useFocusTrap(modalRef as React.RefObject<HTMLElement>, isOpen, onClose);
+  useEffect(() => {
+    if (isOpen && llmBackend === 'chatgpt') void refreshChatGPT();
+  }, [isOpen, llmBackend, refreshChatGPT]);
 
   // The ACTIVE backend's readiness unlocks the operating-mode controls.
   const isLocal = llmBackend === 'webgpu';
-  const llmReady = isLocal ? webgpuModelReady : isGeminiConnected;
+  const isChatGPT = llmBackend === 'chatgpt';
+  const chatgptAccount = chatgptStatus?.accounts.find(
+    (account) => account.id === chatgptStatus.activeId
+  );
+  const llmReady = isLocal
+    ? webgpuModelReady
+    : isChatGPT
+      ? Boolean(chatgptAccount?.signedIn && chatgptAccount.model)
+      : isGeminiConnected;
+  const backendLabel = isLocal ? 'Local' : isChatGPT ? 'ChatGPT' : 'Gemini';
 
   const handleTestConnection = useCallback(async () => {
     if (!inputKey.trim()) {
@@ -473,7 +718,7 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
             {/* Backend Selector */}
             <div className="p-3 rounded-lg bg-slate-800/50 space-y-2">
               <label className="block text-sm font-medium text-slate-300">AI Backend</label>
-              <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="AI Backend">
+              <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="AI Backend">
                 <button
                   role="radio"
                   aria-checked={llmBackend === 'gemini'}
@@ -485,8 +730,8 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
                   }`}
                 >
                   <Cloud className="w-4 h-4 mx-auto mb-1" aria-hidden="true" />
-                  <div className="text-xs font-medium">Gemini API</div>
-                  <div className="text-[9px] opacity-70">Cloud • API key</div>
+                  <div className="text-xs font-medium">Gemini</div>
+                  <div className="text-[9px] opacity-70">API key</div>
                 </button>
                 <button
                   role="radio"
@@ -499,8 +744,22 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
                   }`}
                 >
                   <Cpu className="w-4 h-4 mx-auto mb-1" aria-hidden="true" />
-                  <div className="text-xs font-medium">Local (WebGPU)</div>
-                  <div className="text-[9px] opacity-70">On-device • free</div>
+                  <div className="text-xs font-medium">WebGPU</div>
+                  <div className="text-[9px] opacity-70">On-device</div>
+                </button>
+                <button
+                  role="radio"
+                  aria-checked={isChatGPT}
+                  onClick={() => setLLMBackend('chatgpt')}
+                  className={`p-2 rounded-lg border text-center transition-all ${
+                    isChatGPT
+                      ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400'
+                      : 'bg-slate-700/50 border-slate-600 text-slate-400 hover:border-slate-500'
+                  }`}
+                >
+                  <Cloud className="w-4 h-4 mx-auto mb-1" aria-hidden="true" />
+                  <div className="text-xs font-medium">ChatGPT</div>
+                  <div className="text-[9px] opacity-70">Plan use</div>
                 </button>
               </div>
             </div>
@@ -513,9 +772,7 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
                   {aiMode === 'gemini' && (
                     <>
                       <Zap className="w-4 h-4 text-cyan-400" />
-                      <span className="text-sm font-medium text-cyan-400">
-                        {isLocal ? 'Local Only' : 'Gemini Only'}
-                      </span>
+                      <span className="text-sm font-medium text-cyan-400">{backendLabel} Only</span>
                     </>
                   )}
                   {aiMode === 'hybrid' && (
@@ -533,7 +790,7 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
                 </div>
               </div>
 
-              {!isLocal && isGeminiConnected && (
+              {!isLocal && !isChatGPT && isGeminiConnected && (
                 <div className="mt-2 flex items-center gap-2 text-sm text-green-400">
                   <CheckCircle className="w-4 h-4" aria-hidden="true" />
                   <span>
@@ -549,7 +806,17 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
                 </div>
               )}
 
-              {!isLocal && connectionError && (
+              {isChatGPT && chatgptAccount?.signedIn && (
+                <div className="mt-2 flex items-center gap-2 text-sm text-green-400">
+                  <CheckCircle className="w-4 h-4" aria-hidden="true" />
+                  <span>
+                    {chatgptAccount.email || 'ChatGPT account'}
+                    {chatgptAccount.model ? ` • ${chatgptAccount.model}` : ' • choose a model'}
+                  </span>
+                </div>
+              )}
+
+              {!isLocal && !isChatGPT && connectionError && (
                 <div role="alert" className="mt-2 flex items-center gap-2 text-sm text-red-400">
                   <AlertTriangle className="w-4 h-4" aria-hidden="true" />
                   <span>{connectionError}</span>
@@ -558,7 +825,7 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
             </div>
 
             {/* Gemini API key flow */}
-            {!isLocal && (
+            {!isLocal && !isChatGPT && (
               <div className="space-y-2">
                 <label
                   htmlFor="gemini-api-key"
@@ -615,9 +882,10 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
 
             {/* Local WebGPU model flow */}
             {isLocal && <WebGPUModelPanel />}
+            {isChatGPT && <ChatGPTPanel />}
 
             {/* Test Result (Gemini path) */}
-            {!isLocal && testResult && (
+            {!isLocal && !isChatGPT && testResult && (
               <motion.div
                 role="alert"
                 initial={{ opacity: 0, y: -10 }}
@@ -695,20 +963,16 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
                     }`}
                   >
                     <Zap className="w-4 h-4 mx-auto mb-1" aria-hidden="true" />
-                    <div className="text-xs font-medium">{isLocal ? 'Local' : 'Gemini'}</div>
+                    <div className="text-xs font-medium">{backendLabel}</div>
                     <div className="text-[9px] opacity-70">LLM only</div>
                   </button>
                 </div>
                 <p className="text-xs text-slate-500">
                   {aiMode === 'heuristic' && 'Fast rule-based decisions. No API cost.'}
                   {aiMode === 'gemini' &&
-                    (isLocal
-                      ? 'Strategic decisions from the local model only (every 45s); the fast rules layer is paused.'
-                      : 'Strategic decisions from Gemini only (every 45s); the fast rules layer is paused.')}
+                    `Strategic decisions from ${backendLabel} only (every 45s); the fast rules layer is paused.`}
                   {aiMode === 'hybrid' &&
-                    (isLocal
-                      ? 'Tactical (heuristic 6s) + Strategic (local model 45s).'
-                      : 'Tactical (heuristic 6s) + Strategic (Gemini 45s).')}
+                    `Tactical (heuristic 6s) + Strategic (${backendLabel} 45s).`}
                 </p>
               </div>
             )}
@@ -732,11 +996,9 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
                       the best of both worlds.
                     </p>
                     <p className="text-xs text-slate-400 mt-2">
-                      <strong className="text-cyan-400">
-                        {isLocal ? 'Local Only' : 'Gemini Only'}
-                      </strong>{' '}
-                      runs only the strategic LLM layer and pauses the fast rules layer, so the
-                      plant responds to changes more slowly.
+                      <strong className="text-cyan-400">{backendLabel} Only</strong> runs only the
+                      strategic LLM layer and pauses the fast rules layer, so the plant responds to
+                      changes more slowly.
                     </p>
                   </div>
                 </div>
@@ -763,7 +1025,7 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
                     }}
                     className="px-3 py-1.5 text-xs font-medium text-slate-300 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
                   >
-                    {isLocal ? 'Use Local Only' : 'Use Gemini Only'}
+                    Use {backendLabel} Only
                   </button>
                   <button
                     onClick={(e) => {
@@ -783,7 +1045,7 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
           </div>
 
           {/* Footer (Gemini API actions only) */}
-          {!isLocal && (
+          {!isLocal && !isChatGPT && (
             <div className="flex items-center justify-between p-4 border-t border-slate-700 bg-slate-800/50">
               {isGeminiConnected ? (
                 <button

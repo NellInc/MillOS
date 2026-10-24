@@ -173,8 +173,23 @@
         z-index: 9999;
       }
       .loading-logo {
+        display: flex;
+        align-items: center;
+        height: 84px;
+        color: #dbe6e2;
+        font-family:
+          'Inter',
+          system-ui,
+          -apple-system,
+          sans-serif;
         font-size: 56px;
+        font-weight: 600;
+        letter-spacing: -0.04em;
+        line-height: 1;
         margin-bottom: 14px;
+      }
+      .loading-logo span {
+        color: #67e8f9;
       }
       .loading-text,
       .loading-sub {
@@ -240,7 +255,7 @@
     </noscript>
     <div id="root">
       <div class="loading-screen" role="status" aria-label="Loading MillOS">
-        <div class="loading-logo" aria-hidden="true">🏭</div>
+        <div class="loading-logo" aria-hidden="true">Mill<span>OS</span></div>
         <div class="loading-text">WARMING UP THE ROLLERS</div>
         <div class="loading-sub">Firing up the mill</div>
         <div class="loading-bar"></div>

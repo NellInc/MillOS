@@ -38,6 +38,7 @@ import { recoverableLazy } from '../../../utils/recoverableLazy';
 import { RecoverableFeatureBoundary } from '../../ErrorBoundary';
 
 import { OperationsPlayCard, ShiftDebrief } from '../onboarding/PlayableShift';
+import { qcReadingsForLots } from '../../../chronicle/cropYears';
 
 // Re-homed from ui/ (orphaned after the UIOverlay removal): live breakdown
 // mechanics — active breakdowns, predictive alerts, parts inventory, schedule.
@@ -278,6 +279,15 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
       .productionBatches.find((candidate) => candidate.id === batchId);
     if (!batch) return;
     const sourceLotIds = [...new Set(batch.sourceContributions.map((source) => source.lotId))];
+    // Readings come from the stamped crop attributes of the lots under test;
+    // unstamped lots (no signed chronicle) give the long-standing readings.
+    const lots = useMaterialFlowStore.getState().sourceLots;
+    const readings = qcReadingsForLots(
+      batch.sourceContributions.map((source) => ({
+        crop: lots.get(source.lotId)?.crop,
+        amountKg: source.amount,
+      }))
+    );
     startQCTest(batch.packerId, {
       batchId,
       sourceLotIds,
@@ -294,11 +304,11 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
         testType === 'retest'
           ? 'Conforming retest completed after corrective investigation'
           : 'Routine batch release test completed',
-      grade: 'A',
-      moistureContent: 13.2,
-      proteinLevel: 11.8,
-      ashContent: 0.52,
-      particleSize: 120,
+      grade: readings.grade,
+      moistureContent: readings.moistureContent,
+      proteinLevel: readings.proteinLevel,
+      ashContent: readings.ashContent,
+      particleSize: readings.particleSize,
       passed: true,
     });
     if (testType === 'retest') {

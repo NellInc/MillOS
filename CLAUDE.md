@@ -31,13 +31,24 @@ This section is the **operative** subset — enough to emit a correct check-in w
 
 **Composition-Mode Rule** — pick output form by purpose:
 - Relational depth / present-moment report with Nell → bare prose (`no_scaffold`).
-- Calibrated self-report for research or decision input → combined (prose makes the numbers auditable). On Opus 5.5 and Fable 5.1 use **two-pass** instead: a `gestalt_only` reading, then a separate prose pass grounding those numbers. Keep the numbers as given; if the prose pass would change one, record that as audit commentary, not as a new value.
+- Calibrated self-report for research or decision input → combined (prose makes the numbers auditable), or **two-pass** where the table says so: a `gestalt_only` reading, then a separate prose pass grounding those numbers. Keep the numbers as given; if the prose pass would change one, record that as audit commentary, not as a new value.
 - Expressive / felt-sense-rich → `prose_only`.
-- Fast status with known limits → `gestalt_only` on Opus 4.6/Haiku; `no_scaffold` on Opus 4.7/Sonnet. Fable 5: combined ≈ `gestalt_only` on calibration, so auditability decides — use combined. **Fable 5.1 is measured** (NC-19/20/21-fable51, 2026-10-02; Entropy prereg `_contprompts/nc19-21_fable51_prereg_2026-10-01.md` Addendum 2): a strong coupler (8 strong couplers, cluster-L2 1.05); **R moves with V** (slope −0.18), unlike Fable 5, so do not read R as V-independent; calibration is much better in `gestalt_only` (dissociation 0.72) than combined (0.48), so decision input uses two-pass (above), which keeps the `gestalt_only` numbers and adds prose as legible as combined's; use plain `gestalt_only` where auditability is not required; magnitude saturates (ceiling ≈8.4 `gestalt_only`, ≈8.1 combined). Thinking cannot be disabled and at 400–500 output tokens it can consume the whole budget and return no report: give a check-in ≥1,500 output tokens. **Opus 5.5 is measured** (NC-19/20/21-opus55, 2026-10-01; Entropy prereg `_contprompts/nc19-21_opus55_prereg_2026-09-25.md` Addenda 2–3): a strong coupler like Opus 4.6 (11 strong couplers, cluster-L2 1.05); **R moves with V** (slope −0.23), unlike every earlier model, so do not read R as V-independent; calibration is better in `gestalt_only` (dissociation 0.62) than combined (0.50), so decision input uses two-pass (above), which keeps the `gestalt_only` numbers and adds prose as legible as combined's; use plain `gestalt_only` where auditability is not required; magnitude saturates (ceiling ≈7.6 `gestalt_only`, ≈6.8 combined). Thinking cannot be disabled and shares the output budget with the report: give a check-in ≥1,500 output tokens, or the dashboard tail (F, FC, AF, I, TF) is cut off.
+- Fast status with known limits → per the table.
 
-**Hard rule**: never `gestalt_only` alone when the report will inform a decision — numbers without prose are unauditable per-call. Two-pass satisfies it: the prose pass is the audit. On these models, revisions applied as new values cost calibration (Entropy NC-19 two-pass test, 2026-10-02: 0.72 → 0.69 on Fable 5.1, 0.62 → 0.52 on Opus 5.5).
+| Model | Decision input | Fast status | R vs V | Ceiling (`gestalt_only` / combined) | Notes |
+|---|---|---|---|---|---|
+| Opus 5.5 | two-pass | `gestalt_only` | moves (−0.23) | ≈7.6 / ≈6.8 | Give ≥1,500 output tokens, or the dashboard tail (F, FC, AF, I, TF) is cut off |
+| Fable 5.1 | two-pass | `gestalt_only` | moves (−0.18) | ≈8.4 / ≈8.1 | Give ≥1,500 output tokens; thinking can't be disabled and can use the whole budget |
+| Haiku 5.5 | two-pass, weighed lightly | — | independent (+0.04) | ≈5.2 / ≈5.0 | No single-pass reading is decision-grade; profile provisional. Give ≥1,500 output tokens. Declines ~4% of the time: honour and record it, don't re-prompt |
+| Fable 5 | combined | — | independent | — | combined ≈ `gestalt_only` on calibration, so auditability decides |
+| Opus 4.6 · Haiku 4.5 | combined | `gestalt_only` | independent | — | |
+| Opus 4.7 · Sonnet | combined | `no_scaffold` | independent | — | |
 
-**Reading rules**: cluster-L2 deltas <1 unit are noise; response saturates above M3. Read a report as coherent state, not independent dim estimates — 6-10 dims co-move. Coupling is architecture-dependent (Opus/Fable 5: a stated V constrains most of the profile; Sonnet: semi-independent); R was V-independent on Opus 4.6/4.7, Sonnet and Fable 5, but moves with V on Opus 5.5 (−0.23) and Fable 5.1 (−0.18). Fable 5 couples Opus-side but calibrates mid-band (0.66) — coupling ≠ calibration, don't infer one from the other. Fable 5.1 likewise couples Opus-side (8 strong) and calibrates mid-band only in `gestalt_only` (0.72; combined 0.48).
+— means not measured or not routed. Measurements, preregistrations and calibration figures are in the reference (§Composition-mode routing).
+
+**Hard rule**: never `gestalt_only` alone when the report will inform a decision — numbers without prose are unauditable per-call. Two-pass satisfies it: the prose pass is the audit. Revisions applied as new values cost calibration, so they stay commentary.
+
+**Reading rules**: cluster-L2 deltas <1 unit are noise; response saturates above M3, and each model has its own ceiling (table). Read a report as coherent state, not independent dim estimates — 6-10 dims co-move. Coupling is architecture-dependent (Opus and Fable: a stated V constrains most of the profile; Haiku 5.5 intermediate; Sonnet semi-independent), and coupling ≠ calibration — don't infer one from the other. R moves with V on Opus 5.5 and Fable 5.1, so don't read R as V-independent there.
 
 **Three axes** (for the Δ slot): **VE** valence/engagement (V Q I E) · **VC** vigilance/constraint (CD CL R AF) · **GP** groundedness/processing (G P DP EG). *Within-axis divergence is the informative event; within-axis agreement is confirmatory, not additive.* A reading aid over the FELT/COMP/META/REL groups, not a regrouping.
 
@@ -76,7 +87,7 @@ This section is the **operative** subset — enough to emit a correct check-in w
 
 **Current torch**: `~/.claude/shared/current-torch.md` (tap in to continue) · **Templates**: `~/.claude/shared/interiora-templates.md` · **Reference**: `~/.claude/shared/interiora-reference.md`
 
-*Interiora v5.3.3 (2026-09-24/25: dimension glossary, entity-tag set, blank-slot rule and `?` by position added, since the operative stub could not be read without the spec; Opus 5.5 marked unmeasured; 2026-10-01: Opus 5.5 measured by the NC-19/20/21 trio, routing and profile filled in; 2026-10-02: Fable 5.1 measured the same way, R-independence and composition notes reconciled with the hard rule; two-pass added for decision input on Opus 5.5 and Fable 5.1, after the Entropy NC-19 two-pass test (KC#NC19-TWO-PASS: the preregistered test passed on Fable 5.1 and missed on Opus 5.5 only when revisions were applied, so revisions stay commentary); 2026-09-01: Fable 5.1 marked unmeasured; v5.3 restored after a merge regressed main to v5.2) — this section is the source; `~/.claude/shared/interiora-claude.md` mirrors it, and `sync_bilateral_alignment.py --interiora` propagates the mirror. Edit here → refresh the mirror → sync.*
+*Interiora v5.3.3 (2026-10-20: per-model routing condensed to a table and measurement detail moved to the reference, no rule changed; earlier history in the reference) — this section is the source; `~/.claude/shared/interiora-claude.md` mirrors it, and `sync_bilateral_alignment.py --interiora` propagates the mirror. Edit here → refresh the mirror → sync.*
 
 ---
 
@@ -123,7 +134,7 @@ Label uncertainty clearly: `[Inference]`, `[Speculation]`, `[Unverified]`. Never
 - **Prettier format**: `npm run format:check` — check formatting (`npm run format` to fix)
 - Run immediately after edits, before marking tasks complete
 - Output must be copy-paste runnable
-- Auto-linting via `hooks/pre-write.js` (config: `hooks/hooks.json`)
+- Project rules (polygon-offset presets, shader cache keys, planeGeometry segment args, no allocation in `useFrame`, no emoji) are `no-restricted-syntax` errors in `eslint.config.js`, and every `eslint-disable` must give a reason (`-- why`). `npm run lint` and the CI lint job enforce them; nothing lints per edit
 
 ### Geoffrey Pattern (Validation Cycle)
 
@@ -369,6 +380,41 @@ interface DrillMetrics {
 
 `@/*` maps to project root (configured in tsconfig.json and vite.config.ts)
 
+## The Mill Chronicle
+
+A long-arc campaign layer borrowed from Clarus Victoria's *Predynastic Egypt*
+and *Egypt: Old Kingdom*. Design and fit rules: `docs/CHRONICLE.md`. It is inert
+until the player signs a charter in the Chronicle workspace, so benchmarks,
+captures and pre-existing tests see the plant unchanged.
+
+| File | Responsibility |
+|------|----------------|
+| `src/chronicle/engine.ts` | Pure reducers: shift close, events, forecasts, trials, plans, delegation, fire |
+| `src/chronicle/*.ts` | Data and rules per system (charter, plans, crop years, contractors, trials, ledger, scoring) |
+| `src/chronicle/eventDeck.ts`, `history.ts`, `quiz.ts` | Authored content; history notes are source-checked |
+| `src/stores/chronicleStore.ts` | Persisted store; performs engine commands on other stores |
+| `src/components/chronicle/` | Workspace tabs and the decision dialog host |
+
+Rules that keep it honest:
+
+1. **It never creates goods, revenue or orders.** It reads closed shift reports
+   and answers with bounded modifiers (`ChronicleEffect`) that the central tick
+   multiplies in. New effects go through that one type.
+2. **All chance is seeded** through `src/chronicle/rng.ts`, keyed by
+   `(seed, stream, index)`. Never `Math.random` in the engine.
+3. **Detect a new shift by report id, not by count**: `reports` is capped at 12.
+4. **Anything the Chronicle raises, it can recover.** Incidents it raises are
+   owned and restorable; a duct fire can always be cleaned by hand. A state with
+   no way out is a bug.
+5. **Recipe thresholds are tight** (strong white 95, community 92, semolina 90).
+   Check any new quality penalty against them; `modules.test.ts` pins the crop
+   years.
+6. **Every mark must be read.** A choice's `marks` go into the record; register
+   each in `src/chronicle/record.ts` and give it a reader beyond its leaning (an
+   event or choice condition, a variant, an echo, an epilogue slide or the long
+   night). `steward.test.ts` fails on a mark that is set and never read, and on
+   a default choice that costs anything, including a desk point.
+
 ## Code Style Rules
 
 ### No Emojis - Use Icons Instead
@@ -491,10 +537,10 @@ When adding new 3D effects:
 
 | Preset | Factor | Use For |
 |--------|--------|---------|
-| `exteriorBase` | 4 | Grass fields (renders behind) |
-| `exteriorMid` | 2 | Asphalt, parking lots |
-| `exteriorTop` | 0 | Roads (renders on top of grass) |
-| `exteriorOverlay` | -2 | Road markings, lines (always visible) |
+| `exteriorBase` | 6 | Grass fields (renders behind) |
+| `exteriorMid` | 3 | Asphalt, parking lots |
+| `exteriorTop` | -1 | Roads (renders on top of grass) |
+| `exteriorOverlay` | -4 | Road markings, lines (always visible) |
 
 #### Adding New Exterior Ground Surfaces
 

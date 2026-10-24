@@ -4,6 +4,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { safeJSONStorage } from './storage';
 import { sanitizeKnowledgeState } from './persistenceMigrations';
+import { HISTORY_NOTES } from '../chronicle/history';
 
 export type KnowledgeCategory = 'principles' | 'pioneers' | 'systems' | 'case-studies';
 export type KnowledgeIcon =
@@ -281,6 +282,39 @@ export const KNOWLEDGE_ENTRIES: KnowledgeEntry[] = [
   },
 ];
 
+/**
+ * Milling-history notes from the Mill Chronicle (docs/CHRONICLE.md). They stay
+ * locked until a live event in a signed chronicle unlocks them, in the manner
+ * of Predynastic Egypt's history notices.
+ */
+export const HISTORY_ENTRY_UNLOCK: UnlockCondition = {
+  type: 'feature-use',
+  requirement: 'chronicle',
+  description: 'Unlocked by an event in the Mill Chronicle',
+};
+
+KNOWLEDGE_ENTRIES.push(
+  ...HISTORY_NOTES.map(
+    (note): KnowledgeEntry => ({
+      id: note.id,
+      title: note.title,
+      category: 'pioneers',
+      icon: 'book-open',
+      tooltip: note.brief,
+      brief: note.brief,
+      article: note.article,
+      relatedEntries: note.relatedEntries,
+      seeInAction: ['Mill Chronicle'],
+      unlockCondition: HISTORY_ENTRY_UNLOCK,
+    })
+  )
+);
+
+const ALWAYS_UNLOCKED = KNOWLEDGE_ENTRIES.filter(
+  (entry) => entry.unlockCondition.type === 'always'
+).map((entry) => entry.id);
+const KNOWN_ENTRY_IDS = new Set(KNOWLEDGE_ENTRIES.map((entry) => entry.id));
+
 /** Player explanations remain separate from optional renderer reference notes. */
 export function getKnowledgeEntries(audience: 'player' | 'developer' = 'player'): KnowledgeEntry[] {
   return KNOWLEDGE_ENTRIES.filter((entry) => (entry.audience ?? 'player') === audience);
@@ -289,7 +323,7 @@ export function getKnowledgeEntries(audience: 'player' | 'developer' = 'player')
 export const useKnowledgeStore = create<KnowledgeState>()(
   persist(
     (set, get) => ({
-      unlockedEntries: new Set(KNOWLEDGE_ENTRIES.map((entry) => entry.id)),
+      unlockedEntries: new Set(ALWAYS_UNLOCKED),
       readEntries: new Set(),
       newEntries: new Set(),
       showTooltips: true,
@@ -297,12 +331,14 @@ export const useKnowledgeStore = create<KnowledgeState>()(
       showAINarration: true,
       showUnlockNotifications: true,
       unlockEntry: (entryId) =>
-        set((state) => ({
-          unlockedEntries: new Set([...state.unlockedEntries, entryId]),
-          newEntries: state.unlockedEntries.has(entryId)
-            ? state.newEntries
-            : new Set([...state.newEntries, entryId]),
-        })),
+        set((state) =>
+          state.unlockedEntries.has(entryId) || !KNOWN_ENTRY_IDS.has(entryId)
+            ? state
+            : {
+                unlockedEntries: new Set([...state.unlockedEntries, entryId]),
+                newEntries: new Set([...state.newEntries, entryId]),
+              }
+        ),
       markAsRead: (entryId) =>
         set((state) => ({ readEntries: new Set([...state.readEntries, entryId]) })),
       clearNewBadge: (entryId) =>
@@ -321,7 +357,7 @@ export const useKnowledgeStore = create<KnowledgeState>()(
         KNOWLEDGE_ENTRIES.filter((entry) => entry.category === category),
       isUnlocked: (id) => get().unlockedEntries.has(id),
       isNew: (id) => get().newEntries.has(id),
-      getUnlockedCount: () => KNOWLEDGE_ENTRIES.length,
+      getUnlockedCount: () => get().unlockedEntries.size,
       getTotalCount: () => KNOWLEDGE_ENTRIES.length,
     }),
     {
@@ -341,7 +377,11 @@ export const useKnowledgeStore = create<KnowledgeState>()(
         const state = sanitizeKnowledgeState(persisted);
         return {
           ...current,
-          unlockedEntries: new Set(KNOWLEDGE_ENTRIES.map((entry) => entry.id)),
+          // Always-available entries plus any history note a chronicle unlocked.
+          unlockedEntries: new Set([
+            ...ALWAYS_UNLOCKED,
+            ...(state.unlockedEntries ?? []).filter((id) => KNOWN_ENTRY_IDS.has(id)),
+          ]),
           readEntries: new Set(state.readEntries ?? []),
           newEntries: new Set<string>(),
           showTooltips: state.showTooltips ?? true,

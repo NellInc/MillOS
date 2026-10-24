@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
@@ -22,7 +23,9 @@ import {
   Heart,
   Truck,
   Route,
+  ScrollText,
 } from 'lucide-react';
+import { ChroniclePanel } from '../chronicle/ChroniclePanel';
 import type { DockMode } from '../ui-new/dock/Dock';
 import { useProductionStore } from '../../stores/productionStore';
 import { useUIStore } from '../../stores/uiStore';
@@ -33,6 +36,10 @@ import { SafetyPanel } from '../ui-new/panels/SafetyPanel';
 import { JevAdvisoryPanel } from '../ui/JevAdvisoryPanel';
 import { WorkplaceLab } from '../ui-new/widgets/WorkplaceLab';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
+
+const AISettingsModal = React.lazy(() =>
+  import('../GeminiSettingsModal').then((module) => ({ default: module.GeminiSettingsModal }))
+);
 
 import { OperationsPlayCard, ShiftDebrief } from '../ui-new/onboarding/PlayableShift';
 import { BatchGenealogySection } from '../ui-new/panels/OverviewPanel';
@@ -88,6 +95,8 @@ const getPanelIcon = (mode: DockMode) => {
       return <Settings className={iconClass} />;
     case 'management':
       return <Heart className={iconClass} />;
+    case 'chronicle':
+      return <ScrollText className={iconClass} />;
     default:
       return <Home className={iconClass} />;
   }
@@ -110,6 +119,8 @@ const getPanelTitle = (mode: DockMode) => {
       return 'Settings';
     case 'management':
       return 'Bilateral Autonomy';
+    case 'chronicle':
+      return 'Mill Chronicle';
     default:
       return 'Panel';
   }
@@ -470,6 +481,16 @@ const AIContent: React.FC = () => {
   const aiDecisions = useProductionStore((s) => s.aiDecisions);
   const latestAlert = useUIStore((s) => s.alerts[0]);
   const [activeTab, setActiveTab] = React.useState<'decisions' | 'advisory'>('decisions');
+  const [showAISettings, setShowAISettings] = React.useState(
+    () =>
+      typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('chatgpt')
+  );
+  React.useEffect(() => {
+    if (!showAISettings || !new URLSearchParams(window.location.search).has('chatgpt')) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete('chatgpt');
+    window.history.replaceState(window.history.state, '', url.href);
+  }, [showAISettings]);
   const recentDecisions = aiDecisions.slice(0, 5);
 
   const getStatusIcon = (status: string) => {
@@ -487,6 +508,12 @@ const AIContent: React.FC = () => {
 
   return (
     <div className="space-y-3">
+      <button
+        onClick={() => setShowAISettings(true)}
+        className="w-full min-h-10 flex items-center justify-center gap-2 rounded-lg border border-slate-600 bg-slate-800 text-sm text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+      >
+        <Settings className="w-4 h-4" aria-hidden="true" /> AI settings
+      </button>
       <div role="tablist" aria-label="AI Partner views" className="flex gap-2">
         {(['decisions', 'advisory'] as const).map((tab) => (
           <button
@@ -543,6 +570,13 @@ const AIContent: React.FC = () => {
           </>
         )}
       </div>
+      {showAISettings &&
+        createPortal(
+          <React.Suspense fallback={null}>
+            <AISettingsModal isOpen={true} onClose={() => setShowAISettings(false)} />
+          </React.Suspense>,
+          document.body
+        )}
     </div>
   );
 };
@@ -717,6 +751,8 @@ const getPanelContent = (mode: DockMode | null) => {
       return <SettingsContent />;
     case 'management':
       return <ManagementContent />;
+    case 'chronicle':
+      return <ChroniclePanel />;
   }
 };
 

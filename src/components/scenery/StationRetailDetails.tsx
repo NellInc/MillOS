@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { createColorDataTexture } from '../../utils/textureGenerator';
+import { POLYGON_OFFSET } from '../../constants/renderLayers';
 
 /** Authored, stationary shop dressing in station-local metres. Five merged draws,
  * including all printed goods; the retained GLBs still own the fixtures' bodies.
@@ -132,8 +133,8 @@ const DISPLAY_MATERIAL = new THREE.MeshBasicMaterial({
   map: atlas,
   vertexColors: true,
   polygonOffset: true,
-  polygonOffsetFactor: -1,
-  polygonOffsetUnits: -1,
+  polygonOffsetFactor: POLYGON_OFFSET.standard.factor,
+  polygonOffsetUnits: POLYGON_OFFSET.standard.units,
 });
 
 type V3 = [number, number, number];

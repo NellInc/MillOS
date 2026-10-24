@@ -134,9 +134,19 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
     };
   }, [isOpen, onClose]);
 
+  // Chronicle history notes stay hidden until a live event unlocks them.
+  const unlockedEntries = useKnowledgeStore((state) => state.unlockedEntries);
+  const visibleEntries = useMemo(
+    () =>
+      getKnowledgeEntries(audience).filter(
+        (entry) => entry.unlockCondition.type === 'always' || unlockedEntries.has(entry.id)
+      ),
+    [audience, unlockedEntries]
+  );
+
   // Filter entries based on search and category
   const filteredEntries = useMemo(() => {
-    return getKnowledgeEntries(audience).filter((entry) => {
+    return visibleEntries.filter((entry) => {
       // Category filter
       if (selectedCategory !== 'all' && entry.category !== selectedCategory) {
         return false;
@@ -154,7 +164,7 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
 
       return true;
     });
-  }, [audience, searchQuery, selectedCategory]);
+  }, [visibleEntries, searchQuery, selectedCategory]);
 
   // Group entries by category
   const entriesByCategory = useMemo(() => {
@@ -235,7 +245,7 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
                   </p>
                 </div>
                 <span className="hidden shrink-0 px-2 py-0.5 text-xs bg-slate-700 rounded-full text-slate-300 sm:inline">
-                  {getKnowledgeEntries(audience).length} entries
+                  {visibleEntries.length} entries
                 </span>
               </div>
               <button

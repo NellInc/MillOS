@@ -47,6 +47,7 @@ import {
 import { peekSCADAService } from '../scada/SCADAService';
 import { useLogisticsLayoutStore } from '../stores/logisticsLayoutStore';
 import { logisticsLoadingRate } from '../simulation/layoutPlanning';
+import { useChronicleStore } from '../stores/chronicleStore';
 
 // Tracks the receiving dock's docked state across ticks so a false->true
 // transition (a grain truck arriving) triggers exactly one silo delivery.
@@ -276,11 +277,22 @@ const _changedData: Array<{
 // that, so without the carry the rounding erased every tick's wear.
 const _wearCarry = new Map<string, number>();
 
-/** Game minutes until wear reaches the breakdown threshold at the current load. */
-function gameMinutesToWearBreakdown(machineType: string, wear: number, load: number): number {
+/**
+ * Game minutes until wear reaches the breakdown threshold at the current load.
+ * `wearMultiplier` is the Chronicle's, so the forecast matches the wear the
+ * tick actually applies.
+ */
+function gameMinutesToWearBreakdown(
+  machineType: string,
+  wear: number,
+  load: number,
+  wearMultiplier = 1
+): number {
   const wearConfig = getWearConfig(machineType);
   const ratePerGameSecond =
-    wearConfig.wearRatePerSecond * (0.5 + (Number.isFinite(load) ? load : 0) / 100);
+    wearConfig.wearRatePerSecond *
+    (0.5 + (Number.isFinite(load) ? load : 0) / 100) *
+    (wearMultiplier > 0 ? wearMultiplier : 1);
   if (!(ratePerGameSecond > 0)) return Number.POSITIVE_INFINITY;
   return Math.max(0, wearConfig.breakdownThreshold - wear) / ratePerGameSecond / 60;
 }
@@ -490,6 +502,12 @@ function unifiedGameTick(ctx: TickContext): void {
     prodStore = useProductionStore.getState();
   }
   const machines = prodStore.machines;
+  // The Mill Chronicle's bounded answer to recorded history: neutral (all 1s
+  // and no penalty) until a charter is signed. The crop-year quality penalty
+  // applies only while the active recipe mills wheat.
+  const chronicleEffect = useChronicleStore
+    .getState()
+    .getEffect(campaign.getActiveProductionPlan()?.sourceMaterial === 'wheat_grain');
 
   let anyMachineChanged = false;
   let runningCount = 0;
@@ -511,7 +529,10 @@ function unifiedGameTick(ctx: TickContext): void {
     }
     efficiencySum += machine.metrics.efficiency ?? 100;
 
-    const result = updateMachineTruth(machine, deltaSeconds * safeGameSpeed);
+    const result = updateMachineTruth(
+      machine,
+      deltaSeconds * safeGameSpeed * chronicleEffect.wearMultiplier
+    );
 
     if (result.breakdown) {
       _breakdowns.push({
@@ -553,6 +574,7 @@ function unifiedGameTick(ctx: TickContext): void {
   const effectiveProductionSpeed =
     productionSpeed *
     campaignMultiplier *
+    chronicleEffect.productionMultiplier *
     workplaceTickCapacity(
       useWorkplaceStore.getState().workplace,
       (deltaSeconds * safeGameSpeed) / 60
@@ -577,7 +599,8 @@ function unifiedGameTick(ctx: TickContext): void {
   _metricsUpdate.quality = Math.max(
     0,
     _metricsUpdate.quality -
-      useOperationsCampaignStore.getState().getIncidentEffect().qualityPenalty
+      useOperationsCampaignStore.getState().getIncidentEffect().qualityPenalty -
+      chronicleEffect.qualityPenalty
   );
 
   // Update tracking
@@ -631,7 +654,12 @@ function unifiedGameTick(ctx: TickContext): void {
             temperature: oldMachine.metrics.temperature,
             load: oldMachine.metrics.load,
           },
-          gameMinutesToWearBreakdown(oldMachine.type, data.newWear, oldMachine.metrics.load)
+          gameMinutesToWearBreakdown(
+            oldMachine.type,
+            data.newWear,
+            oldMachine.metrics.load,
+            chronicleEffect.wearMultiplier
+          )
         );
       }
     }
@@ -762,7 +790,11 @@ function unifiedGameTick(ctx: TickContext): void {
   const receivingTransferReady =
     useTruckScheduleStore.getState().truckSchedule.receiving.transferReady;
   if (receivingTransferReady && !_lastReceivingTransferReady) {
-    flowStore.receiveGrainDelivery(GRAIN_DELIVERY_KG);
+    // A signed chronicle stamps the lot with this crop year's attributes.
+    // Replays and improvement trials are not history; their lots stay unstamped.
+    const crop =
+      replayActive || improvementActive ? null : useChronicleStore.getState().stampDelivery();
+    flowStore.receiveGrainDelivery(GRAIN_DELIVERY_KG, crop ? { crop } : undefined);
     // The same truck also carries a spare-parts resupply, closing the
     // maintenance loop: consume parts to repair, trucks bring them back.
     useBreakdownStore.getState().restockDelivery();
@@ -961,7 +993,7 @@ function unifiedGameTick(ctx: TickContext): void {
     manifests: latestFlow.manifests,
     materialSessionId: latestFlow.sessionId,
     productionBatches: latestFlow.productionBatches,
-    totalEnergyKw,
+    totalEnergyKw: totalEnergyKw * chronicleEffect.energyMultiplier,
     averageQuality: latestProduction.metrics.quality,
     wasteKg: latestFlow.wasteKg,
     storageUtilization: getStorageUtilization(),
@@ -979,6 +1011,9 @@ function unifiedGameTick(ctx: TickContext): void {
       .workOrders.filter((workOrder) => workOrder.phase !== 'returned_to_service').length,
     clockMinuteOfDay: latestGame.gameTime * 60,
   });
+  // The chronicle reads the campaign's recorded evidence after it has closed
+  // any shift. Replays and improvement trials own the clock and are not history.
+  useChronicleStore.getState().observe(replayActive || improvementActive);
   // Workshops advance only through facilitator inputs. They must not acquire a
   // clock, pay or apparent shipment evidence from unrelated plant activity.
   if (useWorkplaceStore.getState().workplace.mode === 'game') {

@@ -326,6 +326,7 @@ describe('GeminiClient adversarial boundaries', () => {
     sdk.getGenerativeModel.mockReturnValue({ generateContent });
     const client = new GeminiClient();
     client.initialize('key');
+    // eslint-disable-next-line no-restricted-syntax -- a surrogate pair is the input under test
     const prompt = `${'a'.repeat(14_399)}😀${'b'.repeat(12_000)}END`;
 
     await expect(client.generateContent(prompt)).resolves.toBe('ok');

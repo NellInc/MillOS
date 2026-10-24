@@ -31,6 +31,7 @@ import { OnboardingGuide, type OnboardingStep } from './onboarding/OnboardingGui
 import { useCameraStore } from '../CameraController';
 import { getTourCameraPreset } from './onboarding/tourCamera';
 import { FirstDeliveryJourney } from './onboarding/PlayableShift';
+import { ChronicleEventHost } from '../chronicle/ChronicleEventHost';
 import { useOperationsCampaignStore } from '../../stores/operationsCampaignStore';
 import { MillOSMusicPlayer } from './MillOSMusicPlayer';
 import { WorkplaceAutoplayStatus } from './widgets/WorkplaceParticipation';
@@ -98,6 +99,25 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   const mobilePanelVisible = useMobileControlStore((state) => state.mobilePanelVisible);
   const [sidebarVisible, setSidebarVisible] = React.useState(false);
   const sidebarTriggerRef = React.useRef<HTMLElement | null>(null);
+  const chatgptReturnHandledRef = React.useRef(false);
+
+  // OAuth returns to the local app before an account-specific model is chosen.
+  // Open the appropriate settings entry point rather than leaving the user on
+  // an unrelated overview after authorization.
+  useEffect(() => {
+    if (
+      chatgptReturnHandledRef.current ||
+      !new URLSearchParams(window.location.search).has('chatgpt')
+    )
+      return;
+    chatgptReturnHandledRef.current = true;
+    if (isCompactLayout) useMobileControlStore.getState().openMobilePanel('ai');
+    else {
+      setActiveMode('ai');
+      setSidebarVisible(true);
+      onAIPanelChange?.(true);
+    }
+  }, [isCompactLayout, onAIPanelChange]);
 
   // Datalinks modal state
   const [datalinksOpen, setDatalinksOpen] = useState(false);
@@ -493,7 +513,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
         <Datalinks isOpen={datalinksOpen} onClose={() => setDatalinksOpen(false)} />
       )}
 
-      <WorkplaceAutoplayStatus />
+      {(!isCompactLayout || !mobilePanelVisible) && <WorkplaceAutoplayStatus />}
       {hasWorkingAgreement && quietSlotAvailable && (
         <WorkplaceCompanion
           onOpen={() =>
@@ -559,6 +579,9 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
             }}
           />
         )}
+
+      {/* Mill Chronicle decisions: events, upkeep shortfall, duct fire. */}
+      {introStep === null && !fpsMode && !showShortcuts && <ChronicleEventHost />}
 
       {/* 10. Keyboard Shortcuts Help (? key) */}
       <KeyboardShortcutsModal isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />

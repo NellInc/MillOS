@@ -12,6 +12,7 @@ import {
   Database,
   MoreHorizontal,
   ChartColumn,
+  ScrollText,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useUIStore } from '../../../stores/uiStore';
@@ -25,6 +26,7 @@ export type DockMode =
   | 'scada'
   | 'management'
   | 'safety'
+  | 'chronicle'
   | 'settings';
 
 interface DockProps {
@@ -137,7 +139,8 @@ export const Dock: React.FC<DockProps> = ({
   }, [isFullscreen]);
 
   // AI Partner lives only in the More menu, so its trigger carries the highlight.
-  const moreActive = fpsMode || activeMode === 'ai';
+  const moreActive =
+    fpsMode || activeMode === 'ai' || (isCompactLayout && activeMode === 'chronicle');
 
   // On mobile, clicking a dock item opens the mobile panel instead of sidebar
   const handleModeChange = (mode: DockMode, trigger?: HTMLElement) => {
@@ -210,6 +213,16 @@ export const Dock: React.FC<DockProps> = ({
           isMobile={isCompactLayout}
         />
       )}
+      {!isCompactLayout && (
+        <DockItem
+          mode="chronicle"
+          icon={<ScrollText size={24} />}
+          label="Mill Chronicle"
+          isActive={activeMode === 'chronicle'}
+          onClick={(trigger) => handleModeChange('chronicle', trigger)}
+          isMobile={isCompactLayout}
+        />
+      )}
       <DockItem
         mode="safety"
         icon={<Shield size={24} />}
@@ -278,6 +291,17 @@ export const Dock: React.FC<DockProps> = ({
                   <Heart size={18} aria-hidden="true" />
                   Bilateral Autonomy System
                 </button>
+                <button
+                  role="menuitem"
+                  type="button"
+                  data-dock-mode="chronicle"
+                  aria-current={activeMode === 'chronicle' ? 'page' : undefined}
+                  onClick={() => handleMoreModeChange('chronicle')}
+                  className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm text-slate-200 transition-colors hover:bg-white/10"
+                >
+                  <ScrollText size={18} aria-hidden="true" />
+                  Mill Chronicle
+                </button>
               </>
             )}
             {onDatalinksOpen && (
@@ -340,6 +364,7 @@ export const DOCK_LABELS: Record<DockMode, string> = {
   scada: 'SCADA',
   management: 'Autonomy',
   safety: 'Safety',
+  chronicle: 'Chronicle',
   settings: 'Settings',
 };
 

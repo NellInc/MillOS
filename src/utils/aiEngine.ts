@@ -13,6 +13,7 @@ import { useUIStore } from '../stores/uiStore';
 import { useAIConfigStore } from '../stores/aiConfigStore';
 import { geminiClient } from './geminiClient';
 import { webgpuClient } from './webgpuClient';
+import { chatgptClient } from './chatgptClient';
 import { logger } from './logger';
 
 export const AI_ENGINE_TIMING = {
@@ -592,7 +593,8 @@ function getActiveLLM(): {
   generateContent: (prompt: string) => Promise<string | null>;
   isConnected: () => boolean;
 } {
-  return useAIConfigStore.getState().llmBackend === 'webgpu' ? webgpuClient : geminiClient;
+  const backend = useAIConfigStore.getState().llmBackend;
+  return backend === 'webgpu' ? webgpuClient : backend === 'chatgpt' ? chatgptClient : geminiClient;
 }
 
 export function isGeminiModeActive(): boolean {
@@ -707,6 +709,7 @@ async function runStrategicDecision(
   try {
     const prompt = strategicPrompt(getMachines());
     const response = await llm.generateContent(prompt);
+    if (config.llmBackend === 'chatgpt') config.setChatGPTError(null);
     if (
       requestEpoch !== strategicRequestEpoch ||
       configurationChanged ||
@@ -760,6 +763,12 @@ async function runStrategicDecision(
     return recorded;
   } catch (error) {
     logger.ai.error('Strategic decision generation failed', error);
+    if (config.llmBackend === 'chatgpt') {
+      const message = error instanceof Error ? error.message : 'ChatGPT inference failed';
+      if (!chatgptClient.isConnected()) {
+        void config.refreshChatGPT().then(() => config.setChatGPTError(message));
+      } else config.setChatGPTError(message);
+    }
     return null;
   } finally {
     unsubscribeConfig();

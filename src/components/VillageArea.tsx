@@ -521,6 +521,7 @@ const ChimneySmoke: React.FC<{
       // correct on the first frame. The chimney never moves after mount.
       groupRef.current.getWorldQuaternion(_smokeQ).invert();
       const { value: windDir } = WIND_UNIFORMS.uWindDir;
+      // eslint-disable-next-line no-restricted-syntax -- runs once, behind the driftRef guard
       driftRef.current = new THREE.Vector3(windDir.x, 0, windDir.y).applyQuaternion(_smokeQ);
     }
     const drift = driftRef.current;
@@ -1766,8 +1767,8 @@ const DuckPond = React.memo<{ position: [number, number, number] }>(({ position 
             color={['#547447', '#627d49', '#436e52'][i]}
             roughness={0.48}
             polygonOffset
-            polygonOffsetFactor={-1}
-            polygonOffsetUnits={-1}
+            polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
+            polygonOffsetUnits={POLYGON_OFFSET.standard.units}
           />
         </mesh>
       ))}

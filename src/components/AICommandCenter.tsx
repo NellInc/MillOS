@@ -101,28 +101,46 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
   );
 
   // AI backend configuration (Gemini API or local WebGPU neural core)
-  const { aiMode, isGeminiConnected, llmBackend, webgpuModelReady } = useAIConfigStore(
-    useShallow((state) => ({
-      aiMode: state.aiMode,
-      isGeminiConnected: state.isGeminiConnected,
-      llmBackend: state.llmBackend,
-      webgpuModelReady: state.webgpuModelReady,
-    }))
-  );
+  const { aiMode, isGeminiConnected, llmBackend, webgpuModelReady, chatgptStatus } =
+    useAIConfigStore(
+      useShallow((state) => ({
+        aiMode: state.aiMode,
+        isGeminiConnected: state.isGeminiConnected,
+        llmBackend: state.llmBackend,
+        webgpuModelReady: state.webgpuModelReady,
+        chatgptStatus: state.chatgptStatus,
+      }))
+    );
   // The ACTIVE backend's readiness drives the badges — not "either backend".
   // (Gemini connected while backend=webgpu-not-loaded must NOT read as ready.)
   const isLocalBackend = llmBackend === 'webgpu';
-  const llmReady = isLocalBackend ? webgpuModelReady : isGeminiConnected;
+  const isChatGPTBackend = llmBackend === 'chatgpt';
+  const activeChatGPT = chatgptStatus?.accounts.find(
+    (account) => account.id === chatgptStatus.activeId
+  );
+  const llmReady = isLocalBackend
+    ? webgpuModelReady
+    : isChatGPTBackend
+      ? Boolean(activeChatGPT?.signedIn && activeChatGPT.model)
+      : isGeminiConnected;
+  const backendLabel = isLocalBackend ? 'Local' : isChatGPTBackend ? 'ChatGPT' : 'Gemini';
   // Mirrors the badge text below so the settings button's name contains it.
   const modeLabel =
     aiMode === 'gemini' && llmReady
-      ? isLocalBackend
-        ? 'Local'
-        : 'Gemini'
+      ? backendLabel
       : aiMode === 'hybrid' && llmReady
         ? 'Hybrid'
         : 'Heuristic';
-  const [showGeminiSettings, setShowGeminiSettings] = useState(false);
+  const [showGeminiSettings, setShowGeminiSettings] = useState(
+    () =>
+      typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('chatgpt')
+  );
+  useEffect(() => {
+    if (!new URLSearchParams(window.location.search).has('chatgpt')) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete('chatgpt');
+    window.history.replaceState(window.history.state, '', url.href);
+  }, []);
 
   // React to new alerts
   useEffect(() => {
@@ -209,7 +227,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
                 className="ml-auto flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 transition-colors"
                 title={
                   aiMode === 'gemini'
-                    ? `${isLocalBackend ? 'Local AI' : 'Gemini AI'} Active - Click to configure`
+                    ? `${backendLabel} AI Active - Click to configure`
                     : aiMode === 'hybrid'
                       ? 'Hybrid Mode Active - Click to configure'
                       : 'Heuristic Mode - Click to configure AI backend'
@@ -218,9 +236,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
                 {aiMode === 'gemini' && llmReady ? (
                   <>
                     <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                    <span className="text-[10px] text-green-400 font-medium">
-                      {isLocalBackend ? 'Local' : 'Gemini'}
-                    </span>
+                    <span className="text-[10px] text-green-400 font-medium">{backendLabel}</span>
                   </>
                 ) : aiMode === 'hybrid' && llmReady ? (
                   <>
@@ -258,7 +274,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
               </div>
               <div className="bg-slate-800/50 rounded px-2 py-1">
                 {(aiMode === 'gemini' || aiMode === 'hybrid') &&
-                !isLocalBackend &&
+                llmBackend === 'gemini' &&
                 isGeminiConnected ? (
                   <>
                     <span className="text-slate-400">$</span>
@@ -267,8 +283,9 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
                 ) : (
                   <>
                     <span className="text-slate-400">$</span>
-                    {/* Local WebGPU inference and heuristic mode are both free. */}
-                    <span className="text-emerald-400 ml-1">FREE</span>
+                    <span className="text-emerald-400 ml-1">
+                      {isChatGPTBackend && llmReady ? 'PLAN' : 'FREE'}
+                    </span>
                   </>
                 )}
               </div>

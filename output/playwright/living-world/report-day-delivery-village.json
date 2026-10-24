@@ -1,0 +1,3616 @@
+{
+  "errors": [],
+  "failedRequests": [],
+  "cases": [
+    {
+      "id": "day",
+      "hour": 10.15,
+      "quality": "medium",
+      "shots": [
+        "day-work.png",
+        "day-rest.png",
+        "day-bakery.png",
+        "day-gardener.png",
+        "day-courier.png",
+        "day-bird.png",
+        "day-scarecrow.png"
+      ],
+      "people": [
+        {
+          "bodyMeshes": 13,
+          "id": "mill-operator-west",
+          "activity": "working",
+          "task": "Checking the roller mill",
+          "visible": true,
+          "position": [
+            -24,
+            0,
+            33.5
+          ]
+        },
+        {
+          "bodyMeshes": 13,
+          "id": "mill-operator-east",
+          "activity": "walking",
+          "task": "Walking between duties",
+          "visible": true,
+          "position": [
+            -1.500000000000032,
+            0,
+            35.2
+          ]
+        },
+        {
+          "bodyMeshes": 12,
+          "id": "mill-engineer",
+          "activity": "break",
+          "task": "Tea break",
+          "visible": true,
+          "position": [
+            -34,
+            0,
+            -11.55
+          ]
+        },
+        {
+          "bodyMeshes": 12,
+          "id": "mill-quality",
+          "activity": "walking",
+          "task": "Walking between duties",
+          "visible": true,
+          "position": [
+            -8.99512484964524,
+            0,
+            -6.4
+          ]
+        },
+        {
+          "bodyMeshes": 13,
+          "id": "mill-packer",
+          "activity": "working",
+          "task": "Checking the packing line",
+          "visible": true,
+          "position": [
+            -8,
+            0,
+            -8.8
+          ]
+        },
+        {
+          "bodyMeshes": 13,
+          "id": "mill-supervisor",
+          "activity": "walking",
+          "task": "Reviewing the shift",
+          "visible": true,
+          "position": [
+            -32.76343191230066,
+            0,
+            -1.1078713764245554
+          ]
+        },
+        {
+          "bodyMeshes": 12,
+          "id": "village-baker",
+          "activity": "working",
+          "task": "Serving at the bakery",
+          "visible": true,
+          "position": [
+            -175.1,
+            0,
+            5
+          ]
+        },
+        {
+          "bodyMeshes": 13,
+          "id": "village-shopkeeper",
+          "activity": "working",
+          "task": "Tending the village shop",
+          "visible": true,
+          "position": [
+            -204.4,
+            0,
+            30
+          ]
+        },
+        {
+          "bodyMeshes": 13,
+          "id": "village-gardener",
+          "activity": "working",
+          "task": "Tending the vegetables",
+          "visible": true,
+          "position": [
+            -215.35,
+            0,
+            10.5
+          ]
+        },
+        {
+          "bodyMeshes": 12,
+          "id": "village-neighbour",
+          "activity": "break",
+          "task": "Tea break",
+          "visible": false,
+          "position": [
+            -208.1,
+            0,
+            -13.1
+          ]
+        },
+        {
+          "bodyMeshes": 12,
+          "id": "village-courier",
+          "activity": "walking",
+          "task": "Returning the empty flour cart",
+          "visible": true,
+          "position": [
+            -202.8,
+            0,
+            33.66666666666665
+          ]
+        },
+        {
+          "bodyMeshes": 12,
+          "id": "village-cyclist",
+          "activity": "walking",
+          "task": "Cycling along the village street",
+          "visible": false,
+          "position": [
+            -203.2,
+            0,
+            34.74159868246038
+          ]
+        },
+        {
+          "bodyMeshes": 13,
+          "id": "bus-arriving",
+          "activity": "idle",
+          "task": "Resting at the shelter",
+          "visible": false,
+          "position": [
+            24.1,
+            0.3599999999999987,
+            137.6
+          ]
+        },
+        {
+          "bodyMeshes": 13,
+          "id": "bus-departing",
+          "activity": "idle",
+          "task": "Waiting for Route 42",
+          "visible": true,
+          "position": [
+            28.4,
+            0.11,
+            139
+          ]
+        }
+      ],
+      "bird": [
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/<Mesh>",
+          "worldPosition": [
+            -188.52,
+            1.525,
+            6
+          ],
+          "worldDeterminant": 0.9359999999999999,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 143,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.12000000093438137,
+            "worldRadius": 0.14400000112125763,
+            "worldRadiusSum": 0.14400000112125763,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "",
+            "uuid": "60439a85-6a5f-466e-8228-3d0c5c5341c8",
+            "color": "#686759",
+            "emissive": "#000000",
+            "emissiveIntensity": 1,
+            "metalness": 0,
+            "roughness": 0.9,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/<Mesh>",
+          "worldPosition": [
+            -188.58,
+            1.5150000000000001,
+            6
+          ],
+          "worldDeterminant": 0.44000000000000006,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 99,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.09000000357627869,
+            "worldRadius": 0.09000000357627869,
+            "worldRadiusSum": 0.09000000357627869,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "",
+            "uuid": "5e7658ea-9806-4b11-aadd-d816dfae0fca",
+            "color": "#c7bb96",
+            "emissive": "#000000",
+            "emissiveIntensity": 1,
+            "metalness": 0,
+            "roughness": 1,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/<Mesh>",
+          "worldPosition": [
+            -188.36,
+            1.485,
+            6
+          ],
+          "worldDeterminant": 0.0003500000000000001,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 24,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.8660254037844386,
+            "worldRadius": 0.17320508075688773,
+            "worldRadiusSum": 0.17320508075688773,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "",
+            "uuid": "480bbc9e-f884-4320-a520-eb1b4a3a387f",
+            "color": "#454a43",
+            "emissive": "#000000",
+            "emissiveIntensity": 1,
+            "metalness": 0,
+            "roughness": 0.9,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/fountain-bird-head/<Mesh>",
+          "worldPosition": [
+            -188.59,
+            1.615,
+            6
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 143,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.07500000298023224,
+            "worldRadius": 0.07500000298023224,
+            "worldRadiusSum": 0.07500000298023224,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "",
+            "uuid": "4789ea02-0127-479e-9c2d-e5bf34871ea2",
+            "color": "#555a50",
+            "emissive": "#000000",
+            "emissiveIntensity": 1,
+            "metalness": 0,
+            "roughness": 0.9,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/fountain-bird-head/<Mesh>",
+          "worldPosition": [
+            -188.675,
+            1.605,
+            6
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 27,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.04399147813484546,
+            "worldRadius": 0.04399147813484546,
+            "worldRadiusSum": 0.04399147813484546,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "",
+            "uuid": "aca9324a-3d8a-445a-a889-31e661600ba9",
+            "color": "#c39543",
+            "emissive": "#000000",
+            "emissiveIntensity": 1,
+            "metalness": 0,
+            "roughness": 0.8,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/fountain-bird-head/<Mesh>",
+          "worldPosition": [
+            -188.623,
+            1.63,
+            5.941
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 49,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.00900000020745819,
+            "worldRadius": 0.00900000020745819,
+            "worldRadiusSum": 0.00900000020745819,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "",
+            "uuid": "26e15867-622c-4d67-8319-ea6c0c5e08fa",
+            "color": "#171c19",
+            "emissive": "#000000",
+            "emissiveIntensity": 1,
+            "metalness": 0,
+            "roughness": 0.35,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/fountain-bird-head/<Mesh>",
+          "worldPosition": [
+            -188.623,
+            1.63,
+            6.059
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 49,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.00900000020745819,
+            "worldRadius": 0.00900000020745819,
+            "worldRadiusSum": 0.00900000020745819,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "",
+            "uuid": "1aacecf1-7c57-4ec8-83cb-74c9e7c371c3",
+            "color": "#171c19",
+            "emissive": "#000000",
+            "emissiveIntensity": 1,
+            "metalness": 0,
+            "roughness": 0.35,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/<Mesh>",
+          "worldPosition": [
+            -188.52,
+            1.43,
+            5.965
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 34,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.04603535549368906,
+            "worldRadius": 0.04603535549368906,
+            "worldRadiusSum": 0.04603535549368906,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "",
+            "uuid": "01f12208-33ee-4547-b9e7-6dbe92f19ddc",
+            "color": "#8c683e",
+            "emissive": "#000000",
+            "emissiveIntensity": 1,
+            "metalness": 0,
+            "roughness": 0.85,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/<Mesh>",
+          "worldPosition": [
+            -188.52,
+            1.43,
+            6.035
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 34,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.04603535549368906,
+            "worldRadius": 0.04603535549368906,
+            "worldRadiusSum": 0.04603535549368906,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "",
+            "uuid": "1e50e6ed-1f01-4016-a48b-9f1895b4b671",
+            "color": "#8c683e",
+            "emissive": "#000000",
+            "emissiveIntensity": 1,
+            "metalness": 0,
+            "roughness": 0.85,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        }
+      ],
+      "crow": [
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-farm/authored-farm-site/<Group>/field-scarecrow/<Mesh>",
+          "worldPosition": [
+            75,
+            2.5,
+            162
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": true,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 221,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.3500000148912188,
+            "worldRadius": 0.3500000148912188,
+            "worldRadiusSum": 0.3500000148912188,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "",
+            "uuid": "d68f0d78-4dce-4936-84fb-d8ca6c2bbdbd",
+            "color": "#d87b30",
+            "emissive": "#000000",
+            "emissiveIntensity": 1,
+            "metalness": 0,
+            "roughness": 0.8,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "CrowBody",
+          "path": "<Scene>/world-root/authored-farm/authored-farm-site/<Group>/field-scarecrow/scarecrow-crow/<Group>/creature-crow/Pivot/Armature/CrowBody",
+          "worldPosition": [
+            74.80398672611948,
+            3.0180000148155326,
+            162.03973389628794
+          ],
+          "worldDeterminant": 0.07334442475630479,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": true,
+          "receiveShadow": true,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4760,
+            "attributes": [
+              "position",
+              "normal",
+              "uv",
+              "skinIndex",
+              "skinWeight"
+            ],
+            "boundingSphereRadius": 0.6251874146710605,
+            "worldRadius": 0.2616973123647604,
+            "worldRadiusSum": 0.2616973123647604,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [
+            {
+              "slot": "map",
+              "uuid": "25caaece-4828-454e-9880-4a0d50e258e3",
+              "colorSpace": "srgb",
+              "size": [
+                512,
+                512
+              ]
+            },
+            {
+              "slot": "normalMap",
+              "uuid": "0c256bdf-4a0a-438e-adbd-4228350884b4",
+              "colorSpace": "",
+              "size": [
+                512,
+                512
+              ]
+            },
+            {
+              "slot": "roughnessMap",
+              "uuid": "c3f61fb2-84a4-4b6d-8f28-373524019bd4",
+              "colorSpace": "",
+              "size": [
+                512,
+                512
+              ]
+            },
+            {
+              "slot": "metalnessMap",
+              "uuid": "c3f61fb2-84a4-4b6d-8f28-373524019bd4",
+              "colorSpace": "",
+              "size": [
+                512,
+                512
+              ]
+            }
+          ],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "crow-surface",
+            "uuid": "73633f84-20dd-430e-82c4-b7b36cd41c96",
+            "color": "#ffffff",
+            "emissive": "#000000",
+            "emissiveIntensity": 1,
+            "metalness": 0,
+            "roughness": 1,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": "25caaece-4828-454e-9880-4a0d50e258e3",
+            "mapColorSpace": "srgb",
+            "mapSize": [
+              512,
+              512
+            ],
+            "normalMapBound": true,
+            "shaderInjected": false,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        }
+      ],
+      "renderer": {
+        "vendor": "Google Inc. (Apple)",
+        "adapter": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1 Max, Unspecified Version)",
+        "calls": 263,
+        "triangles": 412223,
+        "lines": 0,
+        "points": 396,
+        "geometries": 1539,
+        "textures": 362,
+        "programs": 227,
+        "raw": {
+          "frame": 1225,
+          "calls": 97234,
+          "triangles": 152522568,
+          "lines": 0,
+          "points": 146674,
+          "autoReset": false
+        }
+      },
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "playAttempts": 0
+    },
+    {
+      "id": "delivery",
+      "hour": 9.4,
+      "quality": "medium",
+      "shots": [
+        "delivery-courier.png"
+      ],
+      "people": [
+        {
+          "bodyMeshes": 13,
+          "id": "mill-operator-west",
+          "activity": "working",
+          "task": "Checking the roller mill",
+          "visible": true,
+          "position": [
+            -24,
+            0,
+            33.5
+          ]
+        },
+        {
+          "bodyMeshes": 13,
+          "id": "mill-operator-east",
+          "activity": "walking",
+          "task": "Walking between duties",
+          "visible": true,
+          "position": [
+            -18.000000000000053,
+            0,
+            35.2
+          ]
+        },
+        {
+          "bodyMeshes": 12,
+          "id": "mill-engineer",
+          "activity": "walking",
+          "task": "Walking between duties",
+          "visible": true,
+          "position": [
+            -32.25,
+            0,
+            1.650000000000027
+          ]
+        },
+        {
+          "bodyMeshes": 12,
+          "id": "mill-quality",
+          "activity": "walking",
+          "task": "Walking between duties",
+          "visible": true,
+          "position": [
+            7.504875150354759,
+            0,
+            -6.4
+          ]
+        },
+        {
+          "bodyMeshes": 13,
+          "id": "mill-packer",
+          "activity": "walking",
+          "task": "Walking between duties",
+          "visible": true,
+          "position": [
+            -8.944003745317545,
+            0,
+            -5.2
+          ]
+        },
+        {
+          "bodyMeshes": 13,
+          "id": "mill-supervisor",
+          "activity": "break",
+          "task": "Tea break",
+          "visible": true,
+          "position": [
+            -34,
+            0,
+            -3.55
+          ]
+        },
+        {
+          "bodyMeshes": 12,
+          "id": "village-baker",
+          "activity": "working",
+          "task": "Setting out fresh bread",
+          "visible": true,
+          "position": [
+            -175.1,
+            0,
+            6.8
+          ]
+        },
+        {
+          "bodyMeshes": 13,
+          "id": "village-shopkeeper",
+          "activity": "idle",
+          "task": "Greeting a neighbour",
+          "visible": true,
+          "position": [
+            -202.7,
+            0,
+            31.6
+          ]
+        },
+        {
+          "bodyMeshes": 13,
+          "id": "village-gardener",
+          "activity": "idle",
+          "task": "Resting beside the allotment",
+          "visible": true,
+          "position": [
+            -206,
+            0,
+            9
+          ]
+        },
+        {
+          "bodyMeshes": 12,
+          "id": "village-neighbour",
+          "activity": "idle",
+          "task": "A stroll through the square",
+          "visible": false,
+          "position": [
+            -203,
+            0,
+            -12.15
+          ]
+        },
+        {
+          "bodyMeshes": 12,
+          "id": "village-courier",
+          "activity": "walking",
+          "task": "Delivering mill flour to the grocer",
+          "visible": true,
+          "position": [
+            -202.8,
+            0,
+            36.84615384615387
+          ]
+        },
+        {
+          "bodyMeshes": 12,
+          "id": "village-cyclist",
+          "activity": "walking",
+          "task": "Cycling along the village street",
+          "visible": false,
+          "position": [
+            -203.2,
+            0,
+            51.28142105107588
+          ]
+        },
+        {
+          "bodyMeshes": 13,
+          "id": "bus-arriving",
+          "activity": "break",
+          "task": "Resting at the shelter",
+          "visible": true,
+          "position": [
+            29.55,
+            0.062,
+            140.5
+          ]
+        },
+        {
+          "bodyMeshes": 13,
+          "id": "bus-departing",
+          "activity": "idle",
+          "task": "Waiting for Route 42",
+          "visible": false,
+          "position": [
+            24.1,
+            0.3599999999999987,
+            137.6
+          ]
+        }
+      ],
+      "bird": [
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/<Mesh>",
+          "worldPosition": [
+            -188.52,
+            1.525,
+            6
+          ],
+          "worldDeterminant": 0.9359999999999999,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 143,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.12000000093438137,
+            "worldRadius": 0.14400000112125763,
+            "worldRadiusSum": 0.14400000112125763,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "",
+            "uuid": "34eb77e4-ca01-41d0-97f7-ad85c1e2740f",
+            "color": "#686759",
+            "emissive": "#000000",
+            "emissiveIntensity": 1,
+            "metalness": 0,
+            "roughness": 0.9,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/<Mesh>",
+          "worldPosition": [
+            -188.58,
+            1.5150000000000001,
+            6
+          ],
+          "worldDeterminant": 0.44000000000000006,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 99,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.09000000357627869,
+            "worldRadius": 0.09000000357627869,
+            "worldRadiusSum": 0.09000000357627869,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "",
+            "uuid": "9d86940d-8030-44b2-911f-8c3575f038c4",
+            "color": "#c7bb96",
+            "emissive": "#000000",
+            "emissiveIntensity": 1,
+            "metalness": 0,
+            "roughness": 1,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/<Mesh>",
+          "worldPosition": [
+            -188.36,
+            1.485,
+            6
+          ],
+          "worldDeterminant": 0.0003500000000000001,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 24,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.8660254037844386,
+            "worldRadius": 0.17320508075688773,
+            "worldRadiusSum": 0.17320508075688773,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "",
+            "uuid": "94214afb-d475-4fd9-8e57-4029d9ec983a",
+            "color": "#454a43",
+            "emissive": "#000000",
+            "emissiveIntensity": 1,
+            "metalness": 0,
+            "roughness": 0.9,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/fountain-bird-head/<Mesh>",
+          "worldPosition": [
+            -188.59,
+            1.615,
+            6
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 143,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.07500000298023224,
+            "worldRadius": 0.07500000298023224,
+            "worldRadiusSum": 0.07500000298023224,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "",
+            "uuid": "5ddcea9f-24e9-442b-813c-46daf3e8e500",
+            "color": "#555a50",
+            "emissive": "#000000",
+            "emissiveIntensity": 1,
+            "metalness": 0,
+            "roughness": 0.9,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/fountain-bird-head/<Mesh>",
+          "worldPosition": [
+            -188.675,
+            1.605,
+            6
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 27,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.04399147813484546,
+            "worldRadius": 0.04399147813484546,
+            "worldRadiusSum": 0.04399147813484546,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "",
+            "uuid": "9db2b404-9eaa-4c1c-9ada-69415a86a8f5",
+            "color": "#c39543",
+            "emissive": "#000000",
+            "emissiveIntensity": 1,
+            "metalness": 0,
+            "roughness": 0.8,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/fountain-bird-head/<Mesh>",
+          "worldPosition": [
+            -188.623,
+            1.63,
+            5.941
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 49,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.00900000020745819,
+            "worldRadius": 0.00900000020745819,
+            "worldRadiusSum": 0.00900000020745819,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "",
+            "uuid": "8782ec02-9b0b-4700-9843-b8bcd8a7f888",
+            "color": "#171c19",
+            "emissive": "#000000",
+            "emissiveIntensity": 1,
+            "metalness": 0,
+            "roughness": 0.35,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/fountain-bird-head/<Mesh>",
+          "worldPosition": [
+            -188.623,
+            1.63,
+            6.059
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 49,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.00900000020745819,
+            "worldRadius": 0.00900000020745819,
+            "worldRadiusSum": 0.00900000020745819,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "",
+            "uuid": "9322ae1e-d302-41fd-90f0-35a7d962ea13",
+            "color": "#171c19",
+            "emissive": "#000000",
+            "emissiveIntensity": 1,
+            "metalness": 0,
+            "roughness": 0.35,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/<Mesh>",
+          "worldPosition": [
+            -188.52,
+            1.43,
+            5.965
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 34,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.04603535549368906,
+            "worldRadius": 0.04603535549368906,
+            "worldRadiusSum": 0.04603535549368906,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "",
+            "uuid": "ddbc7282-217b-444a-8a15-d138f5ba2ccd",
+            "color": "#8c683e",
+            "emissive": "#000000",
+            "emissiveIntensity": 1,
+            "metalness": 0,
+            "roughness": 0.85,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/<Mesh>",
+          "worldPosition": [
+            -188.52,
+            1.43,
+            6.035
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 34,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.04603535549368906,
+            "worldRadius": 0.04603535549368906,
+            "worldRadiusSum": 0.04603535549368906,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "",
+            "uuid": "9aeea4c8-5df1-442d-8a2e-f29a8da1e07c",
+            "color": "#8c683e",
+            "emissive": "#000000",
+            "emissiveIntensity": 1,
+            "metalness": 0,
+            "roughness": 0.85,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        }
+      ],
+      "crow": [
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-farm/authored-farm-site/<Group>/field-scarecrow/<Mesh>",
+          "worldPosition": [
+            75,
+            2.5,
+            162
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": true,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 221,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.3500000148912188,
+            "worldRadius": 0.3500000148912188,
+            "worldRadiusSum": 0.3500000148912188,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "",
+            "uuid": "5a567d0b-14d6-4429-8578-d64c72a6d518",
+            "color": "#d87b30",
+            "emissive": "#000000",
+            "emissiveIntensity": 1,
+            "metalness": 0,
+            "roughness": 0.8,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "CrowBody",
+          "path": "<Scene>/world-root/authored-farm/authored-farm-site/<Group>/field-scarecrow/scarecrow-crow/<Group>/creature-crow/Pivot/Armature/CrowBody",
+          "worldPosition": [
+            74.80398672611948,
+            3.0180000148155326,
+            162.03973389628794
+          ],
+          "worldDeterminant": 0.07334442475630479,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": true,
+          "receiveShadow": true,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4760,
+            "attributes": [
+              "position",
+              "normal",
+              "uv",
+              "skinIndex",
+              "skinWeight"
+            ],
+            "boundingSphereRadius": 0.6251874146710605,
+            "worldRadius": 0.2616973123647604,
+            "worldRadiusSum": 0.2616973123647604,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [
+            {
+              "slot": "map",
+              "uuid": "0aeeda43-d23e-4e4a-8784-80d8495c4e27",
+              "colorSpace": "srgb",
+              "size": [
+                512,
+                512
+              ]
+            },
+            {
+              "slot": "normalMap",
+              "uuid": "c6aa791b-464e-4bdd-a61a-c0564dcae59c",
+              "colorSpace": "",
+              "size": [
+                512,
+                512
+              ]
+            },
+            {
+              "slot": "roughnessMap",
+              "uuid": "a99112ca-bf8f-4a54-a994-439de46bcb28",
+              "colorSpace": "",
+              "size": [
+                512,
+                512
+              ]
+            },
+            {
+              "slot": "metalnessMap",
+              "uuid": "a99112ca-bf8f-4a54-a994-439de46bcb28",
+              "colorSpace": "",
+              "size": [
+                512,
+                512
+              ]
+            }
+          ],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "crow-surface",
+            "uuid": "e5c72162-676f-40f6-9f16-6f9338efc6e0",
+            "color": "#ffffff",
+            "emissive": "#000000",
+            "emissiveIntensity": 1,
+            "metalness": 0,
+            "roughness": 1,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": "0aeeda43-d23e-4e4a-8784-80d8495c4e27",
+            "mapColorSpace": "srgb",
+            "mapSize": [
+              512,
+              512
+            ],
+            "normalMapBound": true,
+            "shaderInjected": false,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        }
+      ],
+      "renderer": {
+        "vendor": "Google Inc. (Apple)",
+        "adapter": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1 Max, Unspecified Version)",
+        "calls": 262,
+        "triangles": 407090,
+        "lines": 0,
+        "points": 387,
+        "geometries": 1538,
+        "textures": 361,
+        "programs": 226,
+        "raw": {
+          "frame": 1268,
+          "calls": 101960,
+          "triangles": 158357832,
+          "lines": 0,
+          "points": 150672,
+          "autoReset": false
+        }
+      },
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "playAttempts": 0
+    },
+    {
+      "id": "village",
+      "hour": 12,
+      "quality": "medium",
+      "shots": [
+        "village-bike.png",
+        "village-pub.png",
+        "village-village.png"
+      ],
+      "motion": {
+        "before": {
+          "people": [
+            {
+              "bodyMeshes": 13,
+              "id": "mill-operator-west",
+              "activity": "walking",
+              "task": "Walking between duties",
+              "visible": true,
+              "position": [
+                -33,
+                0,
+                15.800000000000054
+              ]
+            },
+            {
+              "bodyMeshes": 13,
+              "id": "mill-operator-east",
+              "activity": "working",
+              "task": "Adjusting the milling controls",
+              "visible": true,
+              "position": [
+                18,
+                0,
+                33.5
+              ]
+            },
+            {
+              "bodyMeshes": 12,
+              "id": "mill-engineer",
+              "activity": "walking",
+              "task": "Walking between duties",
+              "visible": true,
+              "position": [
+                -32.25,
+                0,
+                11.350000000000012
+              ]
+            },
+            {
+              "bodyMeshes": 12,
+              "id": "mill-quality",
+              "activity": "break",
+              "task": "Tea break",
+              "visible": true,
+              "position": [
+                -34,
+                0,
+                -7.55
+              ]
+            },
+            {
+              "bodyMeshes": 13,
+              "id": "mill-packer",
+              "activity": "walking",
+              "task": "Walking between duties",
+              "visible": true,
+              "position": [
+                -8.655996254682488,
+                0,
+                -5.2
+              ]
+            },
+            {
+              "bodyMeshes": 13,
+              "id": "mill-supervisor",
+              "activity": "walking",
+              "task": "Walking between duties",
+              "visible": true,
+              "position": [
+                -33,
+                0,
+                24.1890568287575
+              ]
+            },
+            {
+              "bodyMeshes": 12,
+              "id": "village-baker",
+              "activity": "working",
+              "task": "Setting out fresh bread",
+              "visible": true,
+              "position": [
+                -175.1,
+                0,
+                6.8
+              ]
+            },
+            {
+              "bodyMeshes": 13,
+              "id": "village-shopkeeper",
+              "activity": "idle",
+              "task": "Greeting a neighbour",
+              "visible": true,
+              "position": [
+                -202.7,
+                0,
+                31.6
+              ]
+            },
+            {
+              "bodyMeshes": 13,
+              "id": "village-gardener",
+              "activity": "idle",
+              "task": "Resting beside the allotment",
+              "visible": true,
+              "position": [
+                -206,
+                0,
+                9
+              ]
+            },
+            {
+              "bodyMeshes": 12,
+              "id": "village-neighbour",
+              "activity": "idle",
+              "task": "A stroll through the square",
+              "visible": true,
+              "position": [
+                -203,
+                0,
+                -12.15
+              ]
+            },
+            {
+              "bodyMeshes": 12,
+              "id": "village-courier",
+              "activity": "working",
+              "task": "Returning the empty flour cart",
+              "visible": false,
+              "position": [
+                -202.8,
+                0,
+                43
+              ]
+            },
+            {
+              "bodyMeshes": 12,
+              "id": "village-cyclist",
+              "activity": "walking",
+              "task": "Cycling along the village street",
+              "visible": true,
+              "position": [
+                -200.8,
+                0,
+                47.16813487046279
+              ]
+            },
+            {
+              "bodyMeshes": 13,
+              "id": "bus-arriving",
+              "activity": "break",
+              "task": "Resting at the shelter",
+              "visible": true,
+              "position": [
+                29.55,
+                0.062,
+                140.5
+              ]
+            },
+            {
+              "bodyMeshes": 13,
+              "id": "bus-departing",
+              "activity": "idle",
+              "task": "Waiting for Route 42",
+              "visible": false,
+              "position": [
+                24.1,
+                0.3599999999999987,
+                137.6
+              ]
+            }
+          ],
+          "bird": [
+            {
+              "uuid": "aea435f0-5bd2-4be6-a32b-c94e4e008896",
+              "name": "fountain-bird-head",
+              "type": "Group",
+              "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/fountain-bird-head",
+              "worldPosition": [
+                -188.59,
+                1.615,
+                6
+              ],
+              "worldQuaternion": [
+                0,
+                -0.7071067811865475,
+                0,
+                0.7071067811865476
+              ],
+              "instanceMatrixChecksum": null,
+              "materialChecksum": null
+            },
+            {
+              "uuid": "0a87684c-a5b6-4d30-9a59-ea5fa4d4199e",
+              "name": "<Mesh>",
+              "type": "Mesh",
+              "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/fountain-bird-head/<Mesh>",
+              "worldPosition": [
+                -188.59,
+                1.615,
+                6
+              ],
+              "worldQuaternion": [
+                0,
+                -0.7071067811865475,
+                0,
+                0.7071067811865476
+              ],
+              "instanceMatrixChecksum": null,
+              "materialChecksum": 18193397
+            },
+            {
+              "uuid": "ebd9ee07-cd60-48a8-9f05-588a717a273b",
+              "name": "<Mesh>",
+              "type": "Mesh",
+              "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/fountain-bird-head/<Mesh>",
+              "worldPosition": [
+                -188.675,
+                1.605,
+                6
+              ],
+              "worldQuaternion": [
+                0.5,
+                -0.5,
+                0.4999999999999999,
+                0.5000000000000001
+              ],
+              "instanceMatrixChecksum": null,
+              "materialChecksum": 39865550
+            },
+            {
+              "uuid": "66d68163-85c8-4708-8c2f-2f607374fa53",
+              "name": "<Mesh>",
+              "type": "Mesh",
+              "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/fountain-bird-head/<Mesh>",
+              "worldPosition": [
+                -188.623,
+                1.63,
+                5.941
+              ],
+              "worldQuaternion": [
+                0,
+                -0.7071067811865475,
+                0,
+                0.7071067811865476
+              ],
+              "instanceMatrixChecksum": null,
+              "materialChecksum": 5955920
+            },
+            {
+              "uuid": "b57868b1-7a04-4c25-b131-101194f4fa90",
+              "name": "<Mesh>",
+              "type": "Mesh",
+              "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/fountain-bird-head/<Mesh>",
+              "worldPosition": [
+                -188.623,
+                1.63,
+                6.059
+              ],
+              "worldQuaternion": [
+                0,
+                -0.7071067811865475,
+                0,
+                0.7071067811865476
+              ],
+              "instanceMatrixChecksum": null,
+              "materialChecksum": 5955920
+            }
+          ],
+          "bike": [
+            {
+              "uuid": "afe2875c-b7b9-402d-871f-0b795ac2de6d",
+              "name": "village-cyclist",
+              "type": "Group",
+              "path": "<Scene>/world-root/world-personnel/village-cyclist",
+              "worldPosition": [
+                -200.8,
+                0,
+                47.16813487046279
+              ],
+              "worldQuaternion": [
+                0,
+                1,
+                0,
+                6.123233995736766e-17
+              ],
+              "instanceMatrixChecksum": null,
+              "materialChecksum": null
+            },
+            {
+              "uuid": "657f1f99-3aab-49e1-b71c-05945d70a454",
+              "name": "authored-worker",
+              "type": "Group",
+              "path": "<Scene>/world-root/world-personnel/village-cyclist/authored-worker",
+              "worldPosition": [
+                -200.8,
+                0,
+                47.16813487046279
+              ],
+              "worldQuaternion": [
+                0,
+                1,
+                0,
+                6.123233995736766e-17
+              ],
+              "instanceMatrixChecksum": null,
+              "materialChecksum": null
+            },
+            {
+              "uuid": "7b3c3898-9347-4c42-b9b4-2be8343f5f0b",
+              "name": "MillOS_Worker_feminine",
+              "type": "Group",
+              "path": "<Scene>/world-root/world-personnel/village-cyclist/authored-worker/MillOS_Worker_feminine",
+              "worldPosition": [
+                -200.8,
+                0,
+                47.16813487046279
+              ],
+              "worldQuaternion": [
+                0,
+                1,
+                0,
+                6.123233995736766e-17
+              ],
+              "instanceMatrixChecksum": null,
+              "materialChecksum": null
+            },
+            {
+              "uuid": "35c8510e-d710-4c69-94bd-0d6c216a1dbf",
+              "name": "Pivot",
+              "type": "Object3D",
+              "path": "<Scene>/world-root/world-personnel/village-cyclist/authored-worker/MillOS_Worker_feminine/Pivot",
+              "worldPosition": [
+                -200.8,
+                0.0017624493278748706,
+                47.24947188894025
+              ],
+              "worldQuaternion": [
+                0,
+                1,
+                0,
+                6.123233995736766e-17
+              ],
+              "instanceMatrixChecksum": null,
+              "materialChecksum": null
+            },
+            {
+              "uuid": "559e73c9-c8da-47f5-a0f6-b6163ce7f57f",
+              "name": "CharacterArmature",
+              "type": "Object3D",
+              "path": "<Scene>/world-root/world-personnel/village-cyclist/authored-worker/MillOS_Worker_feminine/Pivot/CharacterArmature",
+              "worldPosition": [
+                -200.8,
+                0.0017624493278748706,
+                47.24947188894025
+              ],
+              "worldQuaternion": [
+                0,
+                1,
+                0,
+                6.123233995736767e-17
+              ],
+              "instanceMatrixChecksum": null,
+              "materialChecksum": null
+            }
+          ]
+        },
+        "after": {
+          "people": [
+            {
+              "bodyMeshes": 13,
+              "id": "mill-operator-west",
+              "activity": "walking",
+              "task": "Walking between duties",
+              "visible": true,
+              "position": [
+                -33,
+                0,
+                11.400000000000297
+              ]
+            },
+            {
+              "bodyMeshes": 13,
+              "id": "mill-operator-east",
+              "activity": "working",
+              "task": "Adjusting the milling controls",
+              "visible": true,
+              "position": [
+                18,
+                0,
+                33.5
+              ]
+            },
+            {
+              "bodyMeshes": 12,
+              "id": "mill-engineer",
+              "activity": "walking",
+              "task": "Walking between duties",
+              "visible": true,
+              "position": [
+                -32.25,
+                0,
+                15.749999999999762
+              ]
+            },
+            {
+              "bodyMeshes": 12,
+              "id": "mill-quality",
+              "activity": "walking",
+              "task": "Walking between duties",
+              "visible": true,
+              "position": [
+                -32.20975030070973,
+                0,
+                -6.4
+              ]
+            },
+            {
+              "bodyMeshes": 13,
+              "id": "mill-packer",
+              "activity": "walking",
+              "task": "Walking between duties",
+              "visible": true,
+              "position": [
+                -13.055996254682238,
+                0,
+                -5.2
+              ]
+            },
+            {
+              "bodyMeshes": 13,
+              "id": "mill-supervisor",
+              "activity": "working",
+              "task": "Inspecting the milling floor",
+              "visible": true,
+              "position": [
+                -29.5,
+                0,
+                25
+              ]
+            },
+            {
+              "bodyMeshes": 12,
+              "id": "village-baker",
+              "activity": "working",
+              "task": "Setting out fresh bread",
+              "visible": true,
+              "position": [
+                -175.1,
+                0,
+                6.8
+              ]
+            },
+            {
+              "bodyMeshes": 13,
+              "id": "village-shopkeeper",
+              "activity": "walking",
+              "task": "Walking between duties",
+              "visible": true,
+              "position": [
+                -202.7,
+                0,
+                30.500000000000426
+              ]
+            },
+            {
+              "bodyMeshes": 13,
+              "id": "village-gardener",
+              "activity": "walking",
+              "task": "Walking between duties",
+              "visible": true,
+              "position": [
+                -207.34999999999985,
+                0,
+                9
+              ]
+            },
+            {
+              "bodyMeshes": 12,
+              "id": "village-neighbour",
+              "activity": "walking",
+              "task": "Walking between duties",
+              "visible": true,
+              "position": [
+                -203.54999999999984,
+                0,
+                -12.15
+              ]
+            },
+            {
+              "bodyMeshes": 12,
+              "id": "village-courier",
+              "activity": "working",
+              "task": "Returning the empty flour cart",
+              "visible": false,
+              "position": [
+                -202.8,
+                0,
+                43
+              ]
+            },
+            {
+              "bodyMeshes": 12,
+              "id": "village-cyclist",
+              "activity": "walking",
+              "task": "Cycling along the village street",
+              "visible": true,
+              "position": [
+                -200.8,
+                0,
+                38.36813487046329
+              ]
+            },
+            {
+              "bodyMeshes": 13,
+              "id": "bus-arriving",
+              "activity": "break",
+              "task": "Resting at the shelter",
+              "visible": true,
+              "position": [
+                29.55,
+                0.062,
+                140.5
+              ]
+            },
+            {
+              "bodyMeshes": 13,
+              "id": "bus-departing",
+              "activity": "idle",
+              "task": "Waiting for Route 42",
+              "visible": false,
+              "position": [
+                24.1,
+                0.3599999999999987,
+                137.6
+              ]
+            }
+          ],
+          "bird": [
+            {
+              "uuid": "aea435f0-5bd2-4be6-a32b-c94e4e008896",
+              "name": "fountain-bird-head",
+              "type": "Group",
+              "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/fountain-bird-head",
+              "worldPosition": [
+                -188.59,
+                1.615,
+                6
+              ],
+              "worldQuaternion": [
+                0,
+                -0.811879075816658,
+                0,
+                0.5838256300053034
+              ],
+              "instanceMatrixChecksum": null,
+              "materialChecksum": null
+            },
+            {
+              "uuid": "0a87684c-a5b6-4d30-9a59-ea5fa4d4199e",
+              "name": "<Mesh>",
+              "type": "Mesh",
+              "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/fountain-bird-head/<Mesh>",
+              "worldPosition": [
+                -188.59,
+                1.615,
+                6
+              ],
+              "worldQuaternion": [
+                0,
+                -0.811879075816658,
+                0,
+                0.5838256300053034
+              ],
+              "instanceMatrixChecksum": null,
+              "materialChecksum": 18193397
+            },
+            {
+              "uuid": "ebd9ee07-cd60-48a8-9f05-588a717a273b",
+              "name": "<Mesh>",
+              "type": "Mesh",
+              "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/fountain-bird-head/<Mesh>",
+              "worldPosition": [
+                -188.67057928819756,
+                1.605,
+                5.972944902262685
+              ],
+              "worldQuaternion": [
+                -0.4128270620072583,
+                0.574085200013426,
+                -0.574085200013426,
+                -0.41282706200725844
+              ],
+              "instanceMatrixChecksum": null,
+              "materialChecksum": 39865550
+            },
+            {
+              "uuid": "66d68163-85c8-4708-8c2f-2f607374fa53",
+              "name": "<Mesh>",
+              "type": "Mesh",
+              "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/fountain-bird-head/<Mesh>",
+              "worldPosition": [
+                -188.6025043028708,
+                1.63,
+                5.9335647502472115
+              ],
+              "worldQuaternion": [
+                0,
+                -0.811879075816658,
+                0,
+                0.5838256300053034
+              ],
+              "instanceMatrixChecksum": null,
+              "materialChecksum": 5955920
+            },
+            {
+              "uuid": "b57868b1-7a04-4c25-b131-101194f4fa90",
+              "name": "<Mesh>",
+              "type": "Mesh",
+              "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/fountain-bird-head/<Mesh>",
+              "worldPosition": [
+                -188.64006314443554,
+                1.63,
+                6.045427762097932
+              ],
+              "worldQuaternion": [
+                0,
+                -0.811879075816658,
+                0,
+                0.5838256300053034
+              ],
+              "instanceMatrixChecksum": null,
+              "materialChecksum": 5955920
+            }
+          ],
+          "bike": [
+            {
+              "uuid": "afe2875c-b7b9-402d-871f-0b795ac2de6d",
+              "name": "village-cyclist",
+              "type": "Group",
+              "path": "<Scene>/world-root/world-personnel/village-cyclist",
+              "worldPosition": [
+                -200.8,
+                0,
+                38.36813487046329
+              ],
+              "worldQuaternion": [
+                0,
+                1,
+                0,
+                6.123233995736766e-17
+              ],
+              "instanceMatrixChecksum": null,
+              "materialChecksum": null
+            },
+            {
+              "uuid": "657f1f99-3aab-49e1-b71c-05945d70a454",
+              "name": "authored-worker",
+              "type": "Group",
+              "path": "<Scene>/world-root/world-personnel/village-cyclist/authored-worker",
+              "worldPosition": [
+                -200.8,
+                0,
+                38.36813487046329
+              ],
+              "worldQuaternion": [
+                0,
+                1,
+                0,
+                6.123233995736766e-17
+              ],
+              "instanceMatrixChecksum": null,
+              "materialChecksum": null
+            },
+            {
+              "uuid": "7b3c3898-9347-4c42-b9b4-2be8343f5f0b",
+              "name": "MillOS_Worker_feminine",
+              "type": "Group",
+              "path": "<Scene>/world-root/world-personnel/village-cyclist/authored-worker/MillOS_Worker_feminine",
+              "worldPosition": [
+                -200.8,
+                0,
+                38.36813487046329
+              ],
+              "worldQuaternion": [
+                0,
+                1,
+                0,
+                6.123233995736766e-17
+              ],
+              "instanceMatrixChecksum": null,
+              "materialChecksum": null
+            },
+            {
+              "uuid": "35c8510e-d710-4c69-94bd-0d6c216a1dbf",
+              "name": "Pivot",
+              "type": "Object3D",
+              "path": "<Scene>/world-root/world-personnel/village-cyclist/authored-worker/MillOS_Worker_feminine/Pivot",
+              "worldPosition": [
+                -200.8,
+                0.0017624493278748706,
+                38.44947188894075
+              ],
+              "worldQuaternion": [
+                0,
+                1,
+                0,
+                6.123233995736766e-17
+              ],
+              "instanceMatrixChecksum": null,
+              "materialChecksum": null
+            },
+            {
+              "uuid": "559e73c9-c8da-47f5-a0f6-b6163ce7f57f",
+              "name": "CharacterArmature",
+              "type": "Object3D",
+              "path": "<Scene>/world-root/world-personnel/village-cyclist/authored-worker/MillOS_Worker_feminine/Pivot/CharacterArmature",
+              "worldPosition": [
+                -200.8,
+                0.0017624493278748706,
+                38.44947188894075
+              ],
+              "worldQuaternion": [
+                0,
+                1,
+                0,
+                6.123233995736767e-17
+              ],
+              "instanceMatrixChecksum": null,
+              "materialChecksum": null
+            }
+          ]
+        },
+        "changed": [
+          "mill-operator-west",
+          "mill-engineer",
+          "mill-quality",
+          "mill-packer",
+          "mill-supervisor",
+          "village-shopkeeper",
+          "village-gardener",
+          "village-neighbour",
+          "village-cyclist"
+        ],
+        "pauseStable": true
+      },
+      "people": [
+        {
+          "bodyMeshes": 13,
+          "id": "mill-operator-west",
+          "activity": "walking",
+          "task": "Walking between duties",
+          "visible": true,
+          "position": [
+            -33,
+            0,
+            15.800000000000054
+          ]
+        },
+        {
+          "bodyMeshes": 13,
+          "id": "mill-operator-east",
+          "activity": "working",
+          "task": "Adjusting the milling controls",
+          "visible": true,
+          "position": [
+            18,
+            0,
+            33.5
+          ]
+        },
+        {
+          "bodyMeshes": 12,
+          "id": "mill-engineer",
+          "activity": "walking",
+          "task": "Walking between duties",
+          "visible": true,
+          "position": [
+            -32.25,
+            0,
+            11.350000000000012
+          ]
+        },
+        {
+          "bodyMeshes": 12,
+          "id": "mill-quality",
+          "activity": "break",
+          "task": "Tea break",
+          "visible": true,
+          "position": [
+            -34,
+            0,
+            -7.55
+          ]
+        },
+        {
+          "bodyMeshes": 13,
+          "id": "mill-packer",
+          "activity": "walking",
+          "task": "Walking between duties",
+          "visible": true,
+          "position": [
+            -8.655996254682488,
+            0,
+            -5.2
+          ]
+        },
+        {
+          "bodyMeshes": 13,
+          "id": "mill-supervisor",
+          "activity": "walking",
+          "task": "Walking between duties",
+          "visible": true,
+          "position": [
+            -33,
+            0,
+            24.1890568287575
+          ]
+        },
+        {
+          "bodyMeshes": 12,
+          "id": "village-baker",
+          "activity": "working",
+          "task": "Setting out fresh bread",
+          "visible": true,
+          "position": [
+            -175.1,
+            0,
+            6.8
+          ]
+        },
+        {
+          "bodyMeshes": 13,
+          "id": "village-shopkeeper",
+          "activity": "idle",
+          "task": "Greeting a neighbour",
+          "visible": true,
+          "position": [
+            -202.7,
+            0,
+            31.6
+          ]
+        },
+        {
+          "bodyMeshes": 13,
+          "id": "village-gardener",
+          "activity": "idle",
+          "task": "Resting beside the allotment",
+          "visible": true,
+          "position": [
+            -206,
+            0,
+            9
+          ]
+        },
+        {
+          "bodyMeshes": 12,
+          "id": "village-neighbour",
+          "activity": "idle",
+          "task": "A stroll through the square",
+          "visible": true,
+          "position": [
+            -203,
+            0,
+            -12.15
+          ]
+        },
+        {
+          "bodyMeshes": 12,
+          "id": "village-courier",
+          "activity": "working",
+          "task": "Returning the empty flour cart",
+          "visible": false,
+          "position": [
+            -202.8,
+            0,
+            43
+          ]
+        },
+        {
+          "bodyMeshes": 12,
+          "id": "village-cyclist",
+          "activity": "walking",
+          "task": "Cycling along the village street",
+          "visible": true,
+          "position": [
+            -200.8,
+            0,
+            47.16813487046279
+          ]
+        },
+        {
+          "bodyMeshes": 13,
+          "id": "bus-arriving",
+          "activity": "break",
+          "task": "Resting at the shelter",
+          "visible": true,
+          "position": [
+            29.55,
+            0.062,
+            140.5
+          ]
+        },
+        {
+          "bodyMeshes": 13,
+          "id": "bus-departing",
+          "activity": "idle",
+          "task": "Waiting for Route 42",
+          "visible": false,
+          "position": [
+            24.1,
+            0.3599999999999987,
+            137.6
+          ]
+        }
+      ],
+      "bird": [
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/<Mesh>",
+          "worldPosition": [
+            -188.52,
+            1.525,
+            6
+          ],
+          "worldDeterminant": 0.9359999999999999,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 143,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.12000000093438137,
+            "worldRadius": 0.14400000112125763,
+            "worldRadiusSum": 0.14400000112125763,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "",
+            "uuid": "197542ef-c83b-4954-8948-bd9a55be2b4a",
+            "color": "#686759",
+            "emissive": "#000000",
+            "emissiveIntensity": 1,
+            "metalness": 0,
+            "roughness": 0.9,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/<Mesh>",
+          "worldPosition": [
+            -188.58,
+            1.5150000000000001,
+            6
+          ],
+          "worldDeterminant": 0.44000000000000006,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 99,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.09000000357627869,
+            "worldRadius": 0.09000000357627869,
+            "worldRadiusSum": 0.09000000357627869,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "",
+            "uuid": "03c8f115-1805-4f0b-b611-8d0b11f0db8b",
+            "color": "#c7bb96",
+            "emissive": "#000000",
+            "emissiveIntensity": 1,
+            "metalness": 0,
+            "roughness": 1,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/<Mesh>",
+          "worldPosition": [
+            -188.36,
+            1.485,
+            6
+          ],
+          "worldDeterminant": 0.0003500000000000001,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 24,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.8660254037844386,
+            "worldRadius": 0.17320508075688773,
+            "worldRadiusSum": 0.17320508075688773,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "",
+            "uuid": "a819007c-473f-443b-8f45-b353594ba7bc",
+            "color": "#454a43",
+            "emissive": "#000000",
+            "emissiveIntensity": 1,
+            "metalness": 0,
+            "roughness": 0.9,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/fountain-bird-head/<Mesh>",
+          "worldPosition": [
+            -188.59,
+            1.615,
+            6
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 143,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.07500000298023224,
+            "worldRadius": 0.07500000298023224,
+            "worldRadiusSum": 0.07500000298023224,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "",
+            "uuid": "99acae2a-3c72-4ec5-8f36-6edeb1e4113b",
+            "color": "#555a50",
+            "emissive": "#000000",
+            "emissiveIntensity": 1,
+            "metalness": 0,
+            "roughness": 0.9,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/fountain-bird-head/<Mesh>",
+          "worldPosition": [
+            -188.675,
+            1.605,
+            6
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 27,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.04399147813484546,
+            "worldRadius": 0.04399147813484546,
+            "worldRadiusSum": 0.04399147813484546,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "",
+            "uuid": "92a9df67-f10b-4c0d-8800-fed04c237ac8",
+            "color": "#c39543",
+            "emissive": "#000000",
+            "emissiveIntensity": 1,
+            "metalness": 0,
+            "roughness": 0.8,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/fountain-bird-head/<Mesh>",
+          "worldPosition": [
+            -188.623,
+            1.63,
+            5.941
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 49,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.00900000020745819,
+            "worldRadius": 0.00900000020745819,
+            "worldRadiusSum": 0.00900000020745819,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "",
+            "uuid": "4ce99b2a-71c5-463a-b680-37d686977454",
+            "color": "#171c19",
+            "emissive": "#000000",
+            "emissiveIntensity": 1,
+            "metalness": 0,
+            "roughness": 0.35,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/fountain-bird-head/<Mesh>",
+          "worldPosition": [
+            -188.623,
+            1.63,
+            6.059
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 49,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.00900000020745819,
+            "worldRadius": 0.00900000020745819,
+            "worldRadiusSum": 0.00900000020745819,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "",
+            "uuid": "fd5b0e9b-3951-4bf1-8981-68596285f1cc",
+            "color": "#171c19",
+            "emissive": "#000000",
+            "emissiveIntensity": 1,
+            "metalness": 0,
+            "roughness": 0.35,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/<Mesh>",
+          "worldPosition": [
+            -188.52,
+            1.43,
+            5.965
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 34,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.04603535549368906,
+            "worldRadius": 0.04603535549368906,
+            "worldRadiusSum": 0.04603535549368906,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "",
+            "uuid": "7440fc91-79b8-40f9-8173-f341e90afe8a",
+            "color": "#8c683e",
+            "emissive": "#000000",
+            "emissiveIntensity": 1,
+            "metalness": 0,
+            "roughness": 0.85,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/fountain-bird/fountain-bird-motion/<Mesh>",
+          "worldPosition": [
+            -188.52,
+            1.43,
+            6.035
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": false,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 34,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.04603535549368906,
+            "worldRadius": 0.04603535549368906,
+            "worldRadiusSum": 0.04603535549368906,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "",
+            "uuid": "05199fab-92c5-48a4-8581-bc7d14aef222",
+            "color": "#8c683e",
+            "emissive": "#000000",
+            "emissiveIntensity": 1,
+            "metalness": 0,
+            "roughness": 0.85,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        }
+      ],
+      "crow": [
+        {
+          "name": "(unnamed)",
+          "path": "<Scene>/world-root/authored-farm/authored-farm-site/<Group>/field-scarecrow/<Mesh>",
+          "worldPosition": [
+            75,
+            2.5,
+            162
+          ],
+          "worldDeterminant": 1,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": true,
+          "receiveShadow": false,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 221,
+            "attributes": [
+              "position",
+              "normal",
+              "uv"
+            ],
+            "boundingSphereRadius": 0.3500000148912188,
+            "worldRadius": 0.3500000148912188,
+            "worldRadiusSum": 0.3500000148912188,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "",
+            "uuid": "9849017c-9727-43c5-bb7b-0986e82693fc",
+            "color": "#d87b30",
+            "emissive": "#000000",
+            "emissiveIntensity": 1,
+            "metalness": 0,
+            "roughness": 0.8,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": null,
+            "mapColorSpace": null,
+            "mapSize": null,
+            "normalMapBound": false,
+            "shaderInjected": true,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        },
+        {
+          "name": "CrowBody",
+          "path": "<Scene>/world-root/authored-farm/authored-farm-site/<Group>/field-scarecrow/scarecrow-crow/<Group>/creature-crow/Pivot/Armature/CrowBody",
+          "worldPosition": [
+            74.80398672611948,
+            3.0180000148155326,
+            162.03973389628794
+          ],
+          "worldDeterminant": 0.07334442475630479,
+          "visible": true,
+          "visibleInTree": true,
+          "frustumCulled": true,
+          "castShadow": true,
+          "receiveShadow": true,
+          "renderOrder": 0,
+          "layersMask": 1,
+          "instanceCount": 1,
+          "geometry": {
+            "vertices": 4760,
+            "attributes": [
+              "position",
+              "normal",
+              "uv",
+              "skinIndex",
+              "skinWeight"
+            ],
+            "boundingSphereRadius": 0.6251874146710605,
+            "worldRadius": 0.2616973123647604,
+            "worldRadiusSum": 0.2616973123647604,
+            "nonFinite": false,
+            "instancedDrawCount": null
+          },
+          "textures": [
+            {
+              "slot": "map",
+              "uuid": "a180b4dc-f400-4095-b4c7-3c09c51569ee",
+              "colorSpace": "srgb",
+              "size": [
+                512,
+                512
+              ]
+            },
+            {
+              "slot": "normalMap",
+              "uuid": "67915fa6-7e28-4587-9a43-082df485eee5",
+              "colorSpace": "",
+              "size": [
+                512,
+                512
+              ]
+            },
+            {
+              "slot": "roughnessMap",
+              "uuid": "06093302-3965-4b99-974d-5022c2542c27",
+              "colorSpace": "",
+              "size": [
+                512,
+                512
+              ]
+            },
+            {
+              "slot": "metalnessMap",
+              "uuid": "06093302-3965-4b99-974d-5022c2542c27",
+              "colorSpace": "",
+              "size": [
+                512,
+                512
+              ]
+            }
+          ],
+          "material": {
+            "type": "MeshStandardMaterial",
+            "name": "crow-surface",
+            "uuid": "39c0f31a-3336-45ba-96c4-7c445bd8eee7",
+            "color": "#ffffff",
+            "emissive": "#000000",
+            "emissiveIntensity": 1,
+            "metalness": 0,
+            "roughness": 1,
+            "envMapIntensity": 1,
+            "envMapBound": false,
+            "lightMapBound": false,
+            "lightMapIntensity": 1,
+            "aoMapBound": false,
+            "aoMapIntensity": 1,
+            "mapUuid": "a180b4dc-f400-4095-b4c7-3c09c51569ee",
+            "mapColorSpace": "srgb",
+            "mapSize": [
+              512,
+              512
+            ],
+            "normalMapBound": true,
+            "shaderInjected": false,
+            "vertexColors": false,
+            "side": 0,
+            "shadowSide": null,
+            "flatShading": false,
+            "transparent": false,
+            "opacity": 1,
+            "toneMapped": true,
+            "fog": true,
+            "blending": 1,
+            "depthWrite": true,
+            "visible": true
+          }
+        }
+      ],
+      "renderer": {
+        "vendor": "Google Inc. (Apple)",
+        "adapter": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1 Max, Unspecified Version)",
+        "calls": 237,
+        "triangles": 375034,
+        "lines": 0,
+        "points": 399,
+        "geometries": 1476,
+        "textures": 355,
+        "programs": 224,
+        "raw": {
+          "frame": 1297,
+          "calls": 92306,
+          "triangles": 146263134,
+          "lines": 0,
+          "points": 155618,
+          "autoReset": false
+        }
+      },
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "playAttempts": 0
+    }
+  ]
+}

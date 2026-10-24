@@ -1,0 +1,257 @@
+// Built-assembly UI gate. Only synthetic keys/text and intercepted provider responses.
+// Working if desktop/mobile can submit manually, forget credentials, and make no unsolicited calls.
+import assert from 'node:assert/strict';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+import { chromium } from 'playwright';
+import { preview } from 'vite';
+import { acquireCaptureLock } from '/Users/nellwatson/Documents/GitHub/MillOS/scripts/lib/capture-lock.mjs';
+
+const root = '/Users/nellwatson/Documents/GitHub/MillOS';
+const output = path.join(root, 'output/playwright/ci-jev-20261004/baseline-software');
+const softwareRenderer = process.argv.includes('--software-renderer');
+const installedChrome = process.argv.includes('--installed-chrome');
+if (installedChrome && (process.platform !== 'linux' || process.env.GITHUB_ACTIONS !== 'true')) {
+  throw new Error('Installed Chrome acceptance is limited to the disposable GitHub Linux runner');
+}
+const endpoint = 'https://openrouter.ai/api/alpha/decisions';
+const key = `sk-or-v1-${'test-only-'.repeat(5)}`;
+const note = 'Synthetic incident: a drive belt has snapped and awaits replacement.';
+const report = {
+  passed: false,
+  requests: 0,
+  layouts: [],
+  pageErrors: [],
+  consoleErrors: [],
+  failedRequests: [],
+  csp: [],
+  softwareRenderer,
+  browserChannel: installedChrome ? 'chrome' : 'playwright-chromium',
+  requestedChromiumSandbox: true,
+  camera: softwareRenderer ? 'sun' : 'overview',
+  normalStartupRequired: true,
+};
+const lock = await acquireCaptureLock('jev-browser-acceptance', { root });
+let browser, server, page;
+try {
+  await mkdir(output, { recursive: true });
+  const html = await readFile(path.join(root, 'dist/index.html'), 'utf8');
+  const base = html.match(/src="([^"]*\/)assets\/main-[^"]+\.js"/)?.[1];
+  assert.ok(base, 'Built application entry must identify its deployment base');
+  server = await preview({
+    root,
+    base,
+    preview: { host: '127.0.0.1', port: 4398, strictPort: true },
+  });
+  browser = await chromium.launch({
+    executablePath: '/Users/nellwatson/Library/Caches/ms-playwright/chromium_headless_shell-1234/chrome-headless-shell-mac-arm64/chrome-headless-shell',
+    headless: true,
+    chromiumSandbox: true,
+    args: [
+      '--mute-audio',
+      ...(softwareRenderer ? ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] : []),
+    ],
+  });
+  report.browserVersion = browser.version();
+  if (installedChrome) {
+    const session = await browser.newBrowserCDPSession();
+    try {
+      report.browserArguments = (await session.send('Browser.getBrowserCommandLine')).arguments;
+      assert.ok(
+        !report.browserArguments.some((argument) =>
+          ['--no-sandbox', '--disable-setuid-sandbox', '--disable-seccomp-filter-sandbox'].includes(
+            argument
+          )
+        ),
+        'CI browser must retain its sandbox layers'
+      );
+    } finally {
+      await session.detach();
+    }
+  }
+  const context = await browser.newContext({ serviceWorkers: 'block', reducedMotion: 'reduce' });
+  await context.addInitScript(() => {
+    localStorage.setItem(
+      'millos-ui',
+      JSON.stringify({ state: { hasSeenIntro: true }, version: 1 })
+    );
+    window.jevCspViolations = [];
+    const intervals = [];
+    let last = 0;
+    function recordFrame(now) {
+      if (last) intervals.push(now - last);
+      if (intervals.length > 60) intervals.shift();
+      last = now;
+      requestAnimationFrame(recordFrame);
+    }
+    requestAnimationFrame(recordFrame);
+    setInterval(() => console.log('JEV_STARTUP_DIAGNOSTIC ' + JSON.stringify({
+      at: Math.round(performance.now()),
+      dataset: {...document.documentElement.dataset},
+      pacing: window.__MILLOS_RUNTIME__?.framePacingSnapshot(),
+      progress: document.querySelector('[role="progressbar"]')?.getAttribute('aria-valuetext'),
+      frameCount: intervals.length,
+      meanFrameMs: intervals.reduce((sum, value) => sum + value, 0) / intervals.length,
+      maxFrameMs: Math.max(...intervals),
+    })), 15000);
+
+    document.addEventListener('securitypolicyviolation', (event) => {
+      window.jevCspViolations.push(event.violatedDirective);
+    });
+  });
+  await context.route(endpoint, async (route) => {
+    const request = route.request();
+    const body = request.postDataJSON();
+    report.requests++;
+    assert.equal(request.headers().authorization, `Bearer ${key}`);
+    assert.equal(body.state, note);
+    assert.equal(body.model, 'typesafe/jev-1.13');
+    assert.deepEqual(Object.keys(body).sort(), ['model', 'provider', 'questions', 'state']);
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        model: 'typesafe/jev-1.13',
+        answers: {
+          decision: {
+            type: 'choice',
+            choice: 'Equipment maintenance',
+            probabilities: {
+              'Equipment maintenance': 1,
+              'Product quality': 0,
+              'Logistics coordination': 0,
+              'No current incident': 0,
+              'Insufficient evidence': 0,
+            },
+          },
+        },
+      }),
+    });
+  });
+  page = await context.newPage();
+  // Software rendering can block the browser thread beyond 30 seconds even
+  // after a click lands. Keep the assertions, with a CI-specific action budget.
+  page.setDefaultTimeout(softwareRenderer ? 90_000 : 30_000);
+  page.on('pageerror', (error) => report.pageErrors.push(error.message));
+  page.on('console', (message) => {
+    if (message.type() === 'error') report.consoleErrors.push(message.text());
+    if (message.text().startsWith('JEV_STARTUP_DIAGNOSTIC')) console.log(message.text());
+  });
+  page.on('requestfailed', (request) => report.failedRequests.push(request.url()));
+  report.startupViewport = softwareRenderer
+    ? { width: 640, height: 480 }
+    : { width: 1440, height: 1000 };
+  await page.setViewportSize(report.startupViewport);
+  await page.goto(
+    `http://127.0.0.1:4398${base}?benchmark=${report.camera}&time=12&quality=low&operations=on&pa=off`,
+    {
+      waitUntil: 'domcontentloaded',
+    }
+  );
+  report.phase = 'scene-loading';
+  // This gate checks advisory UI. The low-fill sun camera retains the full
+  // world, assets and static batches while making software rendering practical.
+  // Normal startup is mandatory; no loader bypass or production change exists.
+  // Working if software CI exercises both layouts only after actual startup.
+  await page.waitForFunction(
+    () =>
+      window.__MILLOS_RUNTIME__?.ready &&
+      document.documentElement.dataset.millosWorldReady === 'true' &&
+      document.documentElement.dataset.millosStartupReady === 'true' &&
+      !document.querySelector('[aria-label="Loading MillOS"]'),
+    null,
+    { polling: 400, timeout: 90_000 }
+  );
+  // CompleteWorldMarker fires on mount, before incremental static batching.
+  // Read the batcher's readiness counter directly. Runtime snapshot() performs
+  // geometry raycasts as well as counting objects, so it is unsuitable for polling.
+  report.phase = 'scene-batching';
+  await writeFile(path.join(output, 'result.json'), `${JSON.stringify(report, null, 2)}\n`);
+  const settlingStarted = Date.now();
+  await page.waitForFunction(
+    () => {
+      const now = performance.now();
+      if (document.documentElement.dataset.millosStaticBatchesPending !== '0') {
+        window.jevSceneStableSince = now;
+        return false;
+      }
+      window.jevSceneStableSince ??= now;
+      return now - window.jevSceneStableSince >= 2000;
+    },
+    null,
+    { polling: 400, timeout: 90_000 }
+  );
+  report.settlingMs = Date.now() - settlingStarted;
+
+  report.phase = 'loader-dismissal';
+  await page.getByRole('progressbar', { name: 'Loading MillOS' }).waitFor({ state: 'hidden' });
+
+  for (const width of [1440, 390]) {
+    report.phase = `layout-${width}`;
+    await writeFile(path.join(output, 'result.json'), `${JSON.stringify(report, null, 2)}\n`);
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
+    // AI Partner lives in the dock's More menu (Dock.tsx), as in master-refinement.spec.
+    await page.getByRole('button', { name: 'More workspaces and view controls' }).click();
+    await page.getByRole('menuitem', { name: 'AI Partner I', exact: true }).click();
+    await page.getByRole('tab', { name: 'Advisory', exact: true }).click();
+    const panel = page.getByRole('region', { name: 'Jev advisory' });
+    const credential = panel.getByLabel('Your OpenRouter API key');
+    const notes = panel.getByLabel('Incident text');
+    const consent = panel.getByRole('checkbox');
+    const send = panel.getByRole('button', { name: 'Send to Jev', exact: true });
+    const before = report.requests;
+    assert.equal(await credential.inputValue(), '');
+    assert.equal(await consent.isChecked(), false);
+    await credential.fill(key);
+    await notes.fill(note);
+    assert.equal(await send.isEnabled(), false);
+    await consent.check();
+    assert.equal(report.requests, before);
+    await send.click();
+    await panel.getByText('Equipment maintenance', { exact: true }).waitFor();
+    assert.equal(report.requests, before + 1);
+    assert.equal(
+      await panel.getByRole('button', { name: /accept|apply|clear incident/i }).count(),
+      0
+    );
+    assert.equal(
+      await page.evaluate(
+        (secret) =>
+          [...Object.values(localStorage), ...Object.values(sessionStorage)].some((v) =>
+            v.includes(secret)
+          ),
+        key
+      ),
+      false
+    );
+    await panel.getByText('Equipment maintenance', { exact: true }).scrollIntoViewIfNeeded();
+    await page.screenshot({ path: path.join(output, `advisory-${width}.png`) });
+    const bounds = await panel.evaluate((element) => ({
+      client: element.clientWidth,
+      scroll: element.scrollWidth,
+      right: element.getBoundingClientRect().right,
+    }));
+    assert.ok(bounds.scroll <= bounds.client + 1 && bounds.right <= width + 1);
+    await panel.getByRole('button', { name: 'Forget key', exact: true }).click();
+    assert.equal(await credential.inputValue(), '');
+    assert.equal(await consent.isChecked(), false);
+    report.layouts.push({ width, passed: true });
+  }
+  report.csp = await page.evaluate(() => window.jevCspViolations);
+  assert.equal(report.csp.length, 0);
+  assert.equal(report.pageErrors.length, 0);
+  assert.equal(report.consoleErrors.length, 0);
+  assert.equal(report.failedRequests.length, 0);
+  report.passed = true;
+} catch (error) {
+  report.error = error.message;
+  await page?.screenshot({ path: path.join(output, 'failure.png'), timeout: 5000 }).catch(() => {});
+  process.exitCode = 1;
+} finally {
+  await writeFile(path.join(output, 'result.json'), `${JSON.stringify(report, null, 2)}\n`);
+  console.log(JSON.stringify(report, null, 2));
+  await browser?.close();
+  if (server) await new Promise((resolve) => server.httpServer.close(resolve));
+  await lock.release();
+}

@@ -42,20 +42,27 @@ Check that OPC-UA encryption is enabled:
 
 ### Step 3: OPC-UA Server Certificate Setup
 
-Production OPC-UA requires certificate-based authentication:
+Production uses signing, encryption and the native NodeOPCUA PKI trust store. Before
+connecting, the adapter disables automatic certificate acceptance unless
+`NODE_ENV` is exactly `development`. Unknown self-signed certificates and CA-issued
+certificates with unavailable revocation status are rejected.
 
-```typescript
-// For mutual authentication, configure certificates:
-const client = OPCUAClient.create({
-  applicationName: 'MillOS-SCADA-Proxy',
-  securityMode: 3,
-  securityPolicy: 'Basic256Sha256',
-  certificateFile: '/path/to/client-cert.pem',
-  privateKeyFile: '/path/to/client-key.pem',
-  // Add server certificate for validation
-  serverCertificate: '/path/to/server-cert.pem'
-});
-```
+The existing platform-specific `node-opcua-default` configuration directory and its
+`PKI` subdirectory are unchanged. Authenticate server and issuer certificates through
+a trusted out-of-band channel, then use your PKI administration process or the
+certificate manager's `trustCertificate` API to grant trust. CA-issued certificates
+also need a valid issuer chain and current CRLs. Valid chains anchored in trusted
+CAs remain supported; this policy does not require pinning every leaf certificate.
+
+Review previously trusted entries before production activation. The change preserves
+existing store contents, including certificates accepted under earlier permissive
+settings, and does not establish their provenance. The adapter does not implement
+an `OPCUA_SERVER_CERT` environment option. Supplying a server certificate directly
+is not a substitute for certificate-manager validation.
+
+Working if production rejects unknown certificates and missing-CRL chains without
+promoting them to trusted, while explicit valid trust and development behavior pass
+`npm run test:trust`.
 
 ---
 
@@ -132,16 +139,13 @@ npx eslint src/**/*.ts --ext .ts
 
 ### Issue 2: "Certificate validation failed"
 
-**Cause:** Server certificate not trusted.
+**Cause:** The server certificate is untrusted, its chain is incomplete, its CRL is
+unavailable, or another certificate validation check failed.
 
-**Solution:**
-```bash
-# Option A: Add server certificate to trusted store
-cp server-cert.pem /path/to/trusted-certs/
-
-# Option B: Configure client to trust specific certificate
-OPCUA_SERVER_CERT=/path/to/server-cert.pem npm start
-```
+**Solution:** Verify certificate identity and issuer provenance out of band, then
+review the existing PKI store and provision authenticated trust anchors and current
+CRLs. Investigate the reported validation status. Keep production auto-accept
+disabled; changing `NODE_ENV` to development is not a production workaround.
 
 ### Issue 3: "Connection refused" in production
 

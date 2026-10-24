@@ -120,6 +120,8 @@ self.addEventListener('fetch', (event) => {
   const requestUrl = new URL(request.url);
   if (requestUrl.origin !== self.location.origin || !isRequestWithinScope(requestUrl)) return;
   if (
+    requestUrl.pathname.startsWith('/api/chatgpt/') ||
+    requestUrl.pathname === '/auth/callback' ||
     requestUrl.pathname.endsWith('/sw.js') ||
     requestUrl.pathname.includes('/__vite') ||
     requestUrl.pathname.includes('/@')

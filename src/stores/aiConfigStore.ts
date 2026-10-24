@@ -17,12 +17,13 @@ import {
   DEFAULT_WEBGPU_MODEL_ID,
 } from '../utils/webgpuClient';
 import { logger } from '../utils/logger';
+import { chatgptClient, type ChatGPTStatus } from '../utils/chatgptClient';
 import type { StrategicPriority } from '../types';
 
 export type AIMode = 'heuristic' | 'gemini' | 'hybrid';
 
 /** Which LLM backend powers the strategic layer (orthogonal to AIMode). */
-export type LLMBackend = 'gemini' | 'webgpu';
+export type LLMBackend = 'gemini' | 'webgpu' | 'chatgpt';
 
 /** Lifecycle status of the local WebGPU neural core. */
 export type WebGPUStatus =
@@ -102,6 +103,10 @@ interface AIConfigState {
   // LLM backend selection (Gemini API vs local WebGPU neural core)
   llmBackend: LLMBackend;
   setLLMBackend: (backend: LLMBackend) => void;
+  chatgptStatus: ChatGPTStatus | null;
+  chatgptError: string | null;
+  setChatGPTError: (error: string | null) => void;
+  refreshChatGPT: () => Promise<void>;
 
   // Local WebGPU neural core state
   webgpuStatus: WebGPUStatus;
@@ -197,8 +202,23 @@ export const useAIConfigStore = create<AIConfigState>()(
 
       // LLM backend selection — default to Gemini API (existing behavior).
       llmBackend: 'gemini',
+      chatgptStatus: null,
+      chatgptError: null,
+      setChatGPTError: (error) => set({ chatgptError: error }),
+      refreshChatGPT: async () => {
+        try {
+          const status = await chatgptClient.status();
+          set({ chatgptStatus: status, chatgptError: null });
+        } catch (error) {
+          set({
+            chatgptStatus: null,
+            chatgptError: error instanceof Error ? error.message : 'Local companion unavailable',
+          });
+        }
+      },
       setLLMBackend: (backend: LLMBackend) => {
         set({ llmBackend: backend });
+        if (backend === 'chatgpt') void get().refreshChatGPT();
         logger.info(`[AIConfigStore] LLM backend set to: ${backend}`);
         // Auto-download/load the local model the moment the controller selects it
         // (idempotent — loadWebGPUModel() no-ops if already loading or ready).
@@ -373,7 +393,13 @@ export const useAIConfigStore = create<AIConfigState>()(
         const state = get();
         return (
           (state.llmBackend === 'gemini' && state.isGeminiConnected) ||
-          (state.llmBackend === 'webgpu' && state.webgpuModelReady)
+          (state.llmBackend === 'webgpu' && state.webgpuModelReady) ||
+          (state.llmBackend === 'chatgpt' &&
+            state.chatgptStatus?.accounts.some(
+              (account) =>
+                account.id === state.chatgptStatus?.activeId && account.signedIn && account.model
+            )) ||
+          false
         );
       },
 
@@ -686,6 +712,7 @@ if (typeof window !== 'undefined') {
   // Small delay to ensure rehydration completes
   setTimeout(() => {
     useAIConfigStore.getState().initializeFromStorage();
+    void useAIConfigStore.getState().refreshChatGPT();
   }, 100);
 
   // Prewarm the local model if WebGPU was the persisted backend.

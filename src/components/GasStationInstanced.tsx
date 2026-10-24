@@ -3,7 +3,7 @@ import { useGraphicsStore } from '../stores/graphicsStore';
 import { DeadDinoPylonFace, IlluminatedSignText } from './scenery/HeritageSignage';
 import { ExteriorDownlight } from './exterior/ExteriorLighting';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
-import { EXTERIOR_LAYERS } from '../constants/renderLayers';
+import { EXTERIOR_LAYERS, POLYGON_OFFSET } from '../constants/renderLayers';
 import { GAS_STATION_SITE } from '../constants/siteLayout';
 import React, { useRef, useMemo, useLayoutEffect } from 'react';
 import { PROCEDURAL_TEXTURES } from '../utils/sharedMaterials';
@@ -1238,8 +1238,8 @@ export const GasStation = React.memo<GasStationProps>(
             map={FORECOURT_MAP}
             roughnessMap={FORECOURT_ROUGHNESS}
             polygonOffset
-            polygonOffsetFactor={-2}
-            polygonOffsetUnits={-2}
+            polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
+            polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
           />
         </mesh>
 

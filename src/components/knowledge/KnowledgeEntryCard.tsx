@@ -78,7 +78,7 @@ interface KnowledgeEntryCardProps {
 }
 
 export function KnowledgeEntryCard({ entry, onClose, onNavigate }: KnowledgeEntryCardProps) {
-  const { getEntry } = useKnowledgeStore();
+  const { getEntry, isUnlocked } = useKnowledgeStore();
 
   // Convert markdown-like formatting to JSX
   const formatArticle = (text: string) => {
@@ -263,9 +263,13 @@ export function KnowledgeEntryCard({ entry, onClose, onNavigate }: KnowledgeEntr
     });
   };
 
+  // A related link never opens a history note the chronicle has not unlocked.
   const relatedEntries = entry.relatedEntries
     .map((id) => getEntry(id))
-    .filter((e): e is KnowledgeEntry => e !== undefined);
+    .filter(
+      (e): e is KnowledgeEntry =>
+        e !== undefined && (e.unlockCondition.type === 'always' || isUnlocked(e.id))
+    );
 
   return (
     <div className="h-full">

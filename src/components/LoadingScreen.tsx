@@ -3,6 +3,7 @@ import { getStartupSnapshot, subscribeStartup } from '../utils/startupReadiness'
 import { FEATURE_FLAGS } from '../config/featureFlags';
 import { recoverableLazy } from '../utils/recoverableLazy';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import ErrorBoundary from './ErrorBoundary';
 
 const DeferredLoadingQuote = recoverableLazy(() =>
   import('./knowledge/LoadingQuote').then((module) => ({ default: module.LoadingQuote }))
@@ -83,8 +84,22 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
             transition: reducedMotion ? 'none' : 'opacity 220ms ease-out',
           }}
         >
-          <div aria-hidden="true" style={{ fontSize: '56px', marginBottom: '14px' }}>
-            🏭
+          <div
+            aria-hidden="true"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              height: '84px',
+              color: '#dbe6e2',
+              fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+              fontSize: '56px',
+              fontWeight: 600,
+              letterSpacing: '-0.04em',
+              lineHeight: 1,
+              marginBottom: '14px',
+            }}
+          >
+            Mill<span style={{ color: '#67e8f9' }}>OS</span>
           </div>
 
           <div
@@ -116,9 +131,11 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
 
           {FEATURE_FLAGS.KNOWLEDGE_LOADING_QUOTES_ENABLED && showRecovery && (
             <div style={{ marginTop: '22px', maxWidth: '420px', textAlign: 'center' }}>
-              <Suspense fallback={null}>
-                <DeferredLoadingQuote rotationInterval={8000} />
-              </Suspense>
+              <ErrorBoundary fallback={null}>
+                <Suspense fallback={null}>
+                  <DeferredLoadingQuote rotationInterval={8000} />
+                </Suspense>
+              </ErrorBoundary>
             </div>
           )}
 

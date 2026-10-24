@@ -60,7 +60,11 @@ export const StrategicPriorityCards: React.FC<StrategicPriorityCardsProps> = ({
                 className="w-4 h-4 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin"
               />
               <span className="text-sm text-cyan-400">
-                {llmBackend === 'webgpu' ? 'Local core analyzing...' : 'Gemini analyzing...'}
+                {llmBackend === 'webgpu'
+                  ? 'Local core analyzing...'
+                  : llmBackend === 'chatgpt'
+                    ? 'ChatGPT analyzing...'
+                    : 'Gemini analyzing...'}
               </span>
             </div>
           </motion.div>
