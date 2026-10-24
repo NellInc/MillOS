@@ -39,7 +39,63 @@ describe('maintenance bay dressing', () => {
         pipes.filter((p) => Math.sign(p.from[0]) === side && p.to[1] < 0.7).length
       ).toBeGreaterThanOrEqual(2);
     }
-    expect(boxes.filter((b) => b.kind === 'trim')).toHaveLength(2);
+    // One fascia per eave, beyond the eave wall.
+    expect(
+      boxes.filter((b) => b.kind === 'trim' && Math.abs(b.position[0]) > s.eaveX)
+    ).toHaveLength(2);
+  });
+
+  /**
+   * final7 yard (rubric backlog 8, `pump_pair`): still a sharp-edged box. No
+   * vertical corner and no gable roof edge carried a highlight, so the walls
+   * met the sky and each other as two flat tones.
+   */
+  it('caps every vertical wall corner with a 45-degree flashing that catches its own light', () => {
+    const { corner } = MAINTENANCE_BAY_DRESSING;
+    const flashings = boxes.filter(
+      (b) => b.kind === 'trim' && b.rotation && Math.abs(b.rotation[1] - Math.PI / 4) < 1e-9
+    );
+    expect(flashings).toHaveLength(4);
+    for (const side of [-1, 1])
+      for (const end of [-1, 1]) {
+        const f = flashings.find(
+          (b) => b.position[0] === side * s.wallX && b.position[2] === end * s.wallZ
+        );
+        expect(f).toBeDefined();
+        // Its diagonal face stands proud of both walls it covers.
+        expect((f!.scale[0] * Math.SQRT2) / 2).toBeGreaterThan(0.05);
+        expect(f!.scale[0]).toBe(corner.size);
+        // From the ground to under the eave, clear of the roof slab.
+        expect(lo(f!, 1)).toBeLessThanOrEqual(0.01);
+        expect(hi(f!, 1)).toBeLessThan(s.wallTop - 0.2);
+        // About 30 full-res px a metre at the yard camera's 52 m: >= 6 px across.
+        expect(f!.scale[0] * Math.SQRT2).toBeGreaterThanOrEqual(0.2);
+      }
+  });
+
+  it('finishes both gable roof edges with a verge board along each slope', () => {
+    const { verge } = MAINTENANCE_BAY_DRESSING;
+    const boards = boxes.filter(
+      (b) => b.kind === 'trim' && b.rotation && b.rotation[2] !== 0 && b.rotation[1] === 0
+    );
+    expect(boards).toHaveLength(4);
+    const slope = Math.tan(s.roofSlope);
+    const roofTop = (x: number) => s.eaveTop + slope * (s.eaveX - Math.abs(x));
+    for (const b of boards) {
+      // Hung on the gable end of the roof, just outside it.
+      expect(Math.abs(b.position[2]) - b.scale[2] / 2).toBeGreaterThanOrEqual(s.roofZ - 1e-9);
+      // Its top edge rides 1 cm over the roof plane, at the slope's pitch.
+      const theta = b.rotation![2];
+      const topX = b.position[0] - (b.scale[1] / 2) * Math.sin(theta);
+      const top = b.position[1] + (b.scale[1] / 2) * Math.cos(theta);
+      expect(top - roofTop(topX)).toBeCloseTo(0.01, 6);
+      expect(Math.abs(b.rotation![2])).toBeCloseTo(s.roofSlope, 9);
+      expect(b.scale[1]).toBe(verge.height);
+      // From the ridge to the eave extension's end, short of the eave fascia.
+      const reach = Math.abs(b.position[0]) + (b.scale[0] / 2) * Math.cos(s.roofSlope);
+      expect(reach).toBeLessThan(s.eaveX + MAINTENANCE_BAY_DRESSING.eave.extension);
+      expect(reach).toBeGreaterThan(s.eaveX + MAINTENANCE_BAY_DRESSING.eave.extension - 0.05);
+    }
   });
 
   it('puts a louvred vent on the +x wall, clear of its window and door, under the eave', () => {

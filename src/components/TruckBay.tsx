@@ -15,6 +15,7 @@ import React, { useRef, useEffect, useId, useLayoutEffect, useMemo, useState } f
 import { useFrame } from '@react-three/fiber';
 import { SceneText } from './shared/SceneText';
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { audioManager } from '../utils/audioManager';
 import { applyWorldSurface } from '../utils/worldSurface';
 import { shouldRunThisFrame } from '../utils/frameThrottle';
@@ -90,6 +91,9 @@ import {
   DOCK_STOP_BAR,
   DOCK_BUMPER_BLOCKS,
   DOCK_LEVELER_LIP,
+  DOCK_FACE_STEEL_FINISH,
+  DOCK_PLATFORM_BEVEL,
+  DOCK_PLATFORM_BODY_COLOR,
   DOCK_PLATFORM_SECTION,
   DOCK_SHELTER_GUIDE_STRIPE,
   DOCK_SHELTER_HEAD_PLEATS,
@@ -5640,16 +5644,19 @@ const DOCK_PAD_RUBBER = new THREE.MeshStandardMaterial({
   metalness: 0,
 });
 const DOCK_FACE_STEEL = applyWorldSurface(
-  new THREE.MeshStandardMaterial({
-    name: 'dock-face-steel',
-    color: '#8a8e91',
-    roughness: 0.5,
-    metalness: 0.55,
-  }),
-  'metal'
+  new THREE.MeshStandardMaterial({ name: 'dock-face-steel', ...DOCK_FACE_STEEL_FINISH }),
+  'painted'
 );
 const DOCK_DRESSING_BOX = new THREE.BoxGeometry(1, 1, 1);
 const DOCK_PLATFORM_DRESSING_PARTS = dockPlatformDressingParts();
+/** The platform body with rounded arrises (`DOCK_PLATFORM_BEVEL`). */
+const DOCK_PLATFORM_BODY_GEOMETRY = new RoundedBoxGeometry(
+  DOCK_PLATFORM_SECTION.width,
+  DOCK_PLATFORM_SECTION.height,
+  DOCK_PLATFORM_SECTION.depth,
+  DOCK_PLATFORM_BEVEL.segments,
+  DOCK_PLATFORM_BEVEL.radius
+);
 
 /**
  * One 2 m dock platform section beside the forklift channel (see
@@ -5661,15 +5668,13 @@ const DockPlatformSection: React.FC<{ side: -1 | 1; castShadow?: boolean }> = ({
   castShadow = false,
 }) => (
   <group position={[side * DOCK_PLATFORM_SECTION.x, 0, DOCK_PLATFORM_SECTION.u]}>
-    <mesh position={[0, DOCK_PLATFORM_SECTION.height / 2, 0]} receiveShadow castShadow={castShadow}>
-      <boxGeometry
-        args={[
-          DOCK_PLATFORM_SECTION.width,
-          DOCK_PLATFORM_SECTION.height,
-          DOCK_PLATFORM_SECTION.depth,
-        ]}
-      />
-      <meshStandardMaterial color="#475569" roughness={0.8} />
+    <mesh
+      geometry={DOCK_PLATFORM_BODY_GEOMETRY}
+      position={[0, DOCK_PLATFORM_SECTION.height / 2, 0]}
+      receiveShadow
+      castShadow={castShadow}
+    >
+      <meshStandardMaterial color={DOCK_PLATFORM_BODY_COLOR} roughness={0.8} />
     </mesh>
     {DOCK_PLATFORM_DRESSING_PARTS.map((part, index) => (
       <mesh

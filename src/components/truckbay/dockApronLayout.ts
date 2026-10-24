@@ -67,6 +67,23 @@ export const DOCK_PLATFORM_DRESSING = {
   corner: { size: 0.08, proud: 0.008 },
 } as const;
 
+/**
+ * The platform body's finish and arrises. final7 logistics-close (`dock_pair`)
+ * still read both sections as sharp-edged boxes: the nosing and corner angles
+ * were there, but at metal 0.55 in the dock's shade they sampled (0, 22, 40),
+ * the body's own navy. The angles are now a light painted steel, a dielectric
+ * so they do not take the dark hall's reflection, and the body's twelve
+ * arrises are a 45 mm round (about 3 px at logistics-close) that catches its own
+ * light line.
+ */
+export const DOCK_PLATFORM_BODY_COLOR = '#475569';
+export const DOCK_PLATFORM_BEVEL = { radius: 0.045, segments: 2 } as const;
+export const DOCK_FACE_STEEL_FINISH = {
+  color: '#b3b8b9',
+  roughness: 0.5,
+  metalness: 0,
+} as const;
+
 export type DockDressingPart = ShelterPart & { readonly kind: 'rubber' | 'steel' };
 
 /**

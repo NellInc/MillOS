@@ -26,6 +26,9 @@ import {
   dockPlatformDressingParts,
   DOCK_WEAR_BUMPER,
   YARD_MAST,
+  DOCK_PLATFORM_BEVEL,
+  DOCK_FACE_STEEL_FINISH,
+  DOCK_PLATFORM_BODY_COLOR,
 } from './dockApronLayout';
 
 /**
@@ -149,6 +152,32 @@ describe('dock platform yard faces', () => {
     const section = source.slice(source.indexOf('const DockPlatformSection'));
     expect(source).toMatch(/const DOCK_PLATFORM_DRESSING_PARTS = dockPlatformDressingParts\(\);/);
     expect(section.slice(0, 1600)).toMatch(/\{DOCK_PLATFORM_DRESSING_PARTS\.map\(/);
+  });
+
+  /**
+   * final7 logistics-close (rubric backlog 8, `dock_pair`): still sharp-edged
+   * boxes. The nosing and corner angles were there and did not read: at metal
+   * 0.55 in the dock's shade they sampled (0, 22, 40), the body's own colour,
+   * at full-res (900-985, 540-620). The angles become a light dielectric and
+   * the body's arrises a real bevel that catches its own light line.
+   */
+  it('bevels the platform body and lets its steel angles read against it', () => {
+    const { radius, segments } = DOCK_PLATFORM_BEVEL;
+    // About 70 px a metre at logistics-close: a bevel of >= 2.5 px.
+    expect(radius * 70).toBeGreaterThanOrEqual(2.5);
+    expect(segments).toBeGreaterThanOrEqual(2);
+    // Inside the corner angles, so the angles still cover the yard-face corners.
+    expect(radius).toBeLessThan(DOCK_PLATFORM_DRESSING.corner.size);
+    const lum = (hex: string) => {
+      const c = new THREE.Color(hex);
+      return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+    };
+    expect(DOCK_FACE_STEEL_FINISH.metalness).toBe(0);
+    expect(lum(DOCK_FACE_STEEL_FINISH.color) / lum(DOCK_PLATFORM_BODY_COLOR)).toBeGreaterThan(3);
+    const source = readFileSync('src/components/TruckBay.tsx', 'utf8');
+    const section = source.slice(source.indexOf('const DockPlatformSection'));
+    expect(section.slice(0, 1600)).toContain('DOCK_PLATFORM_BODY_GEOMETRY');
+    expect(source).toMatch(/new RoundedBoxGeometry\(\s*DOCK_PLATFORM_SECTION\.width/);
   });
 });
 
