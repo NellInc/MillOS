@@ -31,6 +31,7 @@ import {
   RIDGE_BEHIND_RANGE_HAZE,
   getRidgeBehindRangeHaze,
   getRidgeBehindRangeAerial,
+  getFarRidgeDepthPush,
 } from './OptimizedSkySystem';
 import { LANDSCAPE_GROVE_TREES } from '../exterior/ExteriorVegetation';
 import { sampleValleyGroundHeight } from '../terrain/splatMapGenerator';
@@ -363,6 +364,109 @@ describe('sky twilight colour', () => {
   });
 });
 
+describe('camera-locked range depth', () => {
+  // The far ring rides with the camera at a 516 m foot, but the fixed rings sit
+  // on the site origin, so from any camera off-centre a fixed crest can be
+  // farther away than the "infinitely far" range. The range then drew over the
+  // nearer hills: the pale peak over the green ridge in overview (full-res
+  // about x 2280, y 320-400) and the stepped notch in the hill behind the shed
+  // roof in silos (x 100-175, y 323-357).
+  const [far, mid, near] = MOUNTAIN_RIDGE_GEOMETRIES;
+  const push = (camera: readonly number[]) => getFarRidgeDepthPush(camera[0], camera[2]);
+  const farRows = far.getAttribute('position').count / (MOUNTAIN_RIDGE_SEGMENTS + 1);
+  const farDistances = (camera: readonly number[]) => {
+    const position = far.getAttribute('position');
+    let nearest = Infinity;
+    let farthest = 0;
+    for (let i = 0; i < position.count; i++) {
+      // Row 0 is the buried closure (y -100), never on screen.
+      if (i % farRows === 0) continue;
+      const d = Math.hypot(position.getX(i), position.getY(i) - camera[1], position.getZ(i));
+      nearest = Math.min(nearest, d);
+      farthest = Math.max(farthest, d);
+    }
+    return { nearest, farthest };
+  };
+  const cameras = (Object.values(SITE_LAYOUT.cameras) as Array<{ position?: number[] }>)
+    .map((pose) => pose.position)
+    .filter((position): position is number[] => Array.isArray(position));
+
+  it('keeps the range behind every fixed slope and crest from every site camera', () => {
+    const behind: string[] = [];
+    for (const camera of cameras) {
+      const limit = farDistances(camera).nearest * push(camera);
+      for (const ring of [mid, near]) {
+        const position = ring.getAttribute('position');
+        const rows = position.count / (MOUNTAIN_RIDGE_SEGMENTS + 1);
+        for (let i = 0; i < position.count; i++) {
+          // The rising rows face the site; the back rows fall behind the crest.
+          if (i % rows >= MOUNTAIN_RIDGE_ROWS) continue;
+          const d = Math.hypot(
+            position.getX(i) - camera[0],
+            position.getY(i) - camera[1],
+            position.getZ(i) - camera[2]
+          );
+          if (d >= limit) {
+            behind.push(`${camera}: ${d.toFixed(0)} >= ${limit.toFixed(0)}`);
+            break;
+          }
+        }
+      }
+    }
+    expect(behind).toEqual([]);
+  });
+
+  it('draws the reproduced overview peak and silos notch rays on the nearer hill', () => {
+    const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+    const meshes = MOUNTAIN_RIDGE_GEOMETRIES.map((geometry) => new THREE.Mesh(geometry, material));
+    const probes = [
+      ['overview', 45, [2280, 360]],
+      ['silos', 55, [200, 340]],
+    ] as const;
+    for (const [scene, fov, [x, y]] of probes) {
+      const pose = SITE_LAYOUT.cameras[scene];
+      const camera = new THREE.PerspectiveCamera(fov, 16 / 9, CAMERA_DEPTH.near, CAMERA_DEPTH.far);
+      camera.position.set(...pose.position);
+      camera.lookAt(...pose.target);
+      camera.updateMatrixWorld();
+      meshes.forEach((mesh, ring) => {
+        mesh.position.set(ring === 0 ? pose.position[0] : 0, 0, ring === 0 ? pose.position[2] : 0);
+        mesh.updateMatrixWorld();
+      });
+      const ray = new THREE.Raycaster();
+      ray.setFromCamera(new THREE.Vector2((x / 2560) * 2 - 1, 1 - (y / 1440) * 2), camera);
+      const [farHit, midHit] = meshes.map((mesh) => ray.intersectObject(mesh)[0]?.distance);
+      // Both rings lie on the ray, and before the fix the range was nearer.
+      expect(farHit).toBeLessThan(midHit!);
+      expect(farHit! * push(pose.position)).toBeGreaterThan(midHit!);
+    }
+    material.dispose();
+  });
+
+  it('keeps the pushed range in front of the sun, moon and stars and inside the far plane', () => {
+    // The sun disc's nearest point (CELESTIAL_SCALE * 7.4 halo radius).
+    const sunFront = CELESTIAL_RADIUS - 7.4 * (CELESTIAL_RADIUS / 345);
+    for (const camera of [...cameras, [0, 120, 0], [250, 60, 250]]) {
+      const { farthest } = farDistances(camera);
+      expect(push(camera)).toBeGreaterThanOrEqual(1);
+      expect(farthest * push(camera)).toBeLessThan(sunFront - 3);
+      expect(farthest * push(camera)).toBeLessThan(CAMERA_DEPTH.far);
+    }
+    // Only as far back as each camera needs: the centre needs none.
+    expect(push([0, 10, 0])).toBe(1);
+  });
+
+  it('applies the push to the far ring clip position only, never to its haze distance', () => {
+    const material = createRidgeMaterial(0.32, 'test far');
+    expect(material.uniforms.uDepthPush.value).toBe(1);
+    expect(material.vertexShader).toContain('vRidgeDistance = length(mvPosition.xyz);');
+    expect(material.vertexShader).toContain(
+      'gl_Position = projectionMatrix * vec4(mvPosition.xyz * uDepthPush, 1.0);'
+    );
+    material.dispose();
+  });
+});
+
 describe('ridge weather extinction', () => {
   it('keeps ordered depth layers in clear and storm conditions', () => {
     for (const cloudCoverage of [0.2, 0.52, 0.74, 0.9]) {
@@ -497,7 +601,7 @@ describe('solid fixed foothills', () => {
       expect(material.fragmentShader).toContain('gl_FragColor = vec4(lit, 1.0)');
       expect(material.fragmentShader).not.toContain('groundBlend');
       expect(material.fragmentShader).not.toContain('sampler');
-      expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v27');
+      expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v28');
       material.dispose();
     }
   });
@@ -828,7 +932,7 @@ it('parcels the gentle foothill slopes into hedged fields brighter than the wood
   expect(branch).toContain(`vec2(${cell[0].toFixed(1)}, ${cell[1].toFixed(1)})`);
   expect(branch).toContain('hedge');
   expect(branch).toContain('fwidth(edge)');
-  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v27');
+  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v28');
   near.dispose();
 });
 
@@ -895,7 +999,7 @@ it('breaks the farmed/wooded edge across terrace rows and draws no isolated fiel
   // parcel now draw back from its boundary into ragged stands.
   expect(branch).not.toContain('* step(0.4, parcelUse)');
   expect(branch).toContain('float woods =');
-  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v27');
+  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v28');
   near.dispose();
 });
 
@@ -945,7 +1049,7 @@ it('gives the far lower slopes contrast that survives the aerial mix and real ou
     linearLuminance(lowland[0]) * 4
   );
   expect(branch).not.toContain('(1.0 - max(rock, substrate)))');
-  expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v27');
+  expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v28');
   material.dispose();
 });
 
@@ -980,7 +1084,7 @@ it('thins the far ring haze below the snow line only, keeping snow, upper rock a
   // Only the far (alpine) branch sets it: the foothills keep their haze.
   const alpine = shader.split('} else if (uWorldAnchored < 0.5')[1].split('} else {')[0];
   expect(alpine).toContain('aerialScale = mix(1.0,');
-  expect(far.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v27');
+  expect(far.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v28');
   far.dispose();
 });
 
@@ -1110,7 +1214,7 @@ it('draws woods as soft, coherent stands with a lighter fringe', () => {
   expect(branch).toContain(`p.xz * ${standScale[0].toFixed(3)}`);
   expect(branch).toContain(`p.xz * ${standScale[1].toFixed(3)}`);
   expect(branch).toContain(glslVec3Literal(scrub));
-  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v27');
+  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v28');
   near.dispose();
 });
 

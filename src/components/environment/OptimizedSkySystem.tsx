@@ -378,6 +378,10 @@ varying float vRidgeDistance;
 varying float vRidgeGroundDistance;
 attribute float ridgeHeight;
 attribute float ridgeSnow;
+// 1 on the fixed foothills. The camera-locked range scales its view-space
+// position along each view ray (getFarRidgeDepthPush): the same pixels, a
+// greater depth, so no fixed hill can be drawn behind the "infinite" range.
+uniform float uDepthPush;
 
 void main() {
   vRidgeColor = color;
@@ -389,7 +393,7 @@ void main() {
   vRidgeGroundDistance = length((modelMatrix * vec4(position, 1.0)).xz - cameraPosition.xz);
   vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
   vRidgeDistance = length(mvPosition.xyz);
-  gl_Position = projectionMatrix * mvPosition;
+  gl_Position = projectionMatrix * vec4(mvPosition.xyz * uDepthPush, 1.0);
   #include <logdepthbuf_vertex>
 }
 `;
@@ -1505,6 +1509,66 @@ export const MOUNTAIN_RIDGE_GEOMETRIES = [
   nearHillGeometry,
 ] as const;
 
+/**
+ * The camera-locked range's nearest on-screen radius (its foot, about 516 m)
+ * and the fixed foothills' farthest radius from the site origin over the rows
+ * that face the site (their crests, about 485 m). The closure row is buried.
+ */
+const FAR_RIDGE_FOOT_RADIUS = (() => {
+  const position = farMountainGeometry.getAttribute('position');
+  const rows = position.count / (MOUNTAIN_RIDGE_SEGMENTS + 1);
+  let radius = Infinity;
+  for (let i = 0; i < position.count; i++)
+    if (i % rows !== 0) radius = Math.min(radius, Math.hypot(position.getX(i), position.getZ(i)));
+  return radius;
+})();
+const FIXED_RIDGE_CREST_RADIUS = (() => {
+  let radius = 0;
+  for (const geometry of [midMountainGeometry, nearHillGeometry]) {
+    const position = geometry.getAttribute('position');
+    const rows = position.count / (MOUNTAIN_RIDGE_SEGMENTS + 1);
+    for (let i = 0; i < position.count; i++)
+      if (i % rows < MOUNTAIN_RIDGE_ROWS)
+        radius = Math.max(radius, Math.hypot(position.getX(i), position.getZ(i)));
+  }
+  return radius;
+})();
+/** Slack for crest height against camera height, in metres. */
+const FAR_RIDGE_DEPTH_MARGIN = 12;
+/**
+ * Ceiling on the push: the range's farthest point (about 593 m) times this
+ * stays in front of the sun disc (CELESTIAL_RADIUS less its halo) and inside
+ * the camera far plane.
+ */
+const FAR_RIDGE_MAX_DEPTH_PUSH = 1.5;
+
+/**
+ * How far to push the camera-locked range back in depth, for a camera at
+ * (x, z).
+ *
+ * The far ring follows the camera, so it is always 516-593 m away; the fixed
+ * foothills sit on the site origin, so a camera 145 m off-centre (overview)
+ * sees their far crests up to 630 m away, and the water and farm cameras up
+ * to 706 m. Those crests lost to the "infinitely far" range in the depth
+ * test: a pale far peak over the green ridge in overview, a stepped notch in
+ * the hill behind the shed roof in silos, and the range's dark lower band
+ * standing in front of the foothills at the top of water (final7-med-12).
+ *
+ * The vertex stage scales the range's view-space position along each view
+ * ray by this factor. The silhouette is unchanged to the pixel, only its
+ * depth moves, and only as far as this camera needs: terrain and anything
+ * else beyond the old 516 m stays hidden wherever it was. 1 at the centre.
+ */
+export function getFarRidgeDepthPush(cameraX: number, cameraZ: number): number {
+  const offset =
+    Number.isFinite(cameraX) && Number.isFinite(cameraZ) ? Math.hypot(cameraX, cameraZ) : 0;
+  return THREE.MathUtils.clamp(
+    (FIXED_RIDGE_CREST_RADIUS + offset + FAR_RIDGE_DEPTH_MARGIN) / FAR_RIDGE_FOOT_RADIUS,
+    1,
+    FAR_RIDGE_MAX_DEPTH_PUSH
+  );
+}
+
 const dayTop = new THREE.Color('#70aed8');
 const nightTop = new THREE.Color('#071426');
 const blueHourTop = new THREE.Color('#294b7b');
@@ -1623,10 +1687,12 @@ export function createRidgeMaterial(
       uDistanceAerialStrength: { value: 1 },
       // 1 in fair weather, toward 0 under rain cloud (getRidgeClearAir).
       uClearAir: { value: 1 },
+      // Clip-space depth push; the far ring's is set per frame from the camera.
+      uDepthPush: { value: 1 },
     },
   });
   material.userData.clearAerial = aerial;
-  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v27';
+  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v28';
   return material;
 }
 
@@ -1794,6 +1860,10 @@ export function OptimizedSkySystem() {
       horizonGroupRef.current.position.x = state.camera.position.x;
       horizonGroupRef.current.position.z = state.camera.position.z;
     }
+    ridgeMaterials.far.uniforms.uDepthPush.value = getFarRidgeDepthPush(
+      state.camera.position.x,
+      state.camera.position.z
+    );
     if (!useGameSimulationStore.getState().isTabVisible) return;
     const { gameDay, gameTime, gameSpeed, weather, timeOfDayHeld } =
       useGameSimulationStore.getState();
