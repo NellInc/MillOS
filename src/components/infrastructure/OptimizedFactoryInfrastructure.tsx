@@ -21,6 +21,7 @@ import {
   type FloorMacroSample,
 } from '../../textures/factoryFloorMacro';
 import { generateConcrete } from '../../textures/concrete';
+import { SILO_CONTACT_DECAL_Y, generateSiloContactDecal } from '../../textures/siloContactDecal';
 import {
   generateMachinePanelNormal,
   generateProceduralNormal,
@@ -2904,7 +2905,38 @@ function FloorWayfinding() {
         receiveShadow
         generatedSurface={false}
       />
+      <SiloContactDecal />
     </>
+  );
+}
+
+/**
+ * Contact darkening round the five drums' feet (`textures/siloContactDecal`):
+ * one baked quad over the silo pad, 1 cm above its top. A shadow, so unlit,
+ * like the yard's ground blobs; standard bias and no depth write, per the
+ * floor-decal rules. The drums write depth first and reject its middle.
+ */
+function SiloContactDecal() {
+  const pad = SITE_LAYOUT.bulkStorage.siloPad;
+  const map = useMemo(generateSiloContactDecal, []);
+  return (
+    <mesh
+      name="silo-contact-decal"
+      position={[pad.position[0], SILO_CONTACT_DECAL_Y, SITE_LAYOUT.factory.zones.silos]}
+      rotation={[-Math.PI / 2, 0, 0]}
+      renderOrder={RENDER_ORDER.floorEffects}
+    >
+      <planeGeometry args={[pad.size[0], pad.size[2]]} />
+      <meshBasicMaterial
+        color="#000000"
+        map={map}
+        transparent
+        depthWrite={false}
+        polygonOffset
+        polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
+        polygonOffsetUnits={POLYGON_OFFSET.standard.units}
+      />
+    </mesh>
   );
 }
 

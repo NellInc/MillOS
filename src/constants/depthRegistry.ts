@@ -80,6 +80,19 @@ export const DEPTH_REGISTRY: readonly DepthRegistryEntry[] = [
     status: 'resolved',
   },
   {
+    id: 'silo-contact-decal',
+    owner: 'OptimizedFactoryInfrastructure (textures/siloContactDecal)',
+    classification: 'decal',
+    surfaces: ['silo pad top', 'silo drum feet'],
+    repair:
+      'One baked unlit quad 1 cm above the pad top, standard bias, no depth write; the opaque drums reject its middle.',
+    validationCameras: ['yard', 'overview', 'high-angle'],
+    polygonOffset: 'standard',
+    renderOrder: 'floorEffects',
+    depthWrite: false,
+    status: 'resolved',
+  },
+  {
     id: 'dock-guides-and-apron',
     owner: 'TruckBay (truckbay/dockApronLayout)',
     classification: 'decal',
