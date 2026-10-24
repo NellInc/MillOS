@@ -2,8 +2,10 @@
  * AI Settings Modal for MillOS
  *
  * Configure the strategic AI backend:
- * - Public: OpenRouter BYOK for Haiku 5.5 High or Luna 6 High.
- * - Localhost: direct Anthropic/OpenAI BYOK, plus ChatGPT companion sign-in.
+ * - Public: OpenRouter BYOK for Haiku 5.5 High (default) and Luna 6 High
+ *   (both recommended), or Sol 6.1 High and Gemini 3.8 Flash.
+ * - Localhost: the same four models direct (Anthropic, OpenAI, Google BYOK),
+ *   plus ChatGPT companion sign-in.
  * - Local (WebGPU): on-device Qwen3-4B neural core via @mlc-ai/web-llm — no
  *   API key, no cost, no data leaving the device after the one-time weight
  *   download. Mirrors the CABAL workspace WebGPU brain.
@@ -741,7 +743,8 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                       <Cloud className="w-4 h-4 mx-auto mb-1" aria-hidden="true" />
                       <div className="text-xs font-medium">{CLOUD_MODELS[backend].label}</div>
                       <div className="text-[9px] opacity-70">
-                        {CLOUD_MODELS[backend].provider} • BYOK
+                        {CLOUD_MODELS[backend].provider} •{' '}
+                        {CLOUD_MODELS[backend].recommended ? t('recommended') : 'BYOK'}
                       </div>
                     </button>
                   )

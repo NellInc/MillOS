@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CloudAIClient } from './cloudAIClient';
+import { CloudAIClient, CLOUD_MODELS } from './cloudAIClient';
 import { SpendBudget, SpendCapError } from './spendBudget';
 
 const haikuResponse = (text = '{"priorities":["Protect RM-101"]}') => ({
@@ -502,5 +502,12 @@ describe('CloudAIClient browser BYOK contract', () => {
       provider: { max_price: { prompt: 0.825, completion: 4.125 } },
     });
     expect(bodies[1].prompt_cache_options).toBeUndefined();
+  });
+
+  it('recommends Haiku 5.5 and Luna 6, direct and through OpenRouter', () => {
+    const recommended = (Object.keys(CLOUD_MODELS) as (keyof typeof CLOUD_MODELS)[]).filter(
+      (backend) => CLOUD_MODELS[backend].recommended
+    );
+    expect(recommended.sort()).toEqual(['haiku', 'luna', 'openrouter-haiku', 'openrouter-luna']);
   });
 });

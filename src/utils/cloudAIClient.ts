@@ -25,16 +25,23 @@ export interface CloudModel extends TokenRates {
   label: string;
   provider: string;
   wire: Wire;
+  /** Haiku 5.5 and Luna 6 are the recommended models; Haiku is the default. */
+  recommended: boolean;
 }
 
 // Prices are list prices per million tokens (OpenRouter's catalogue, which
 // passes the provider's price through), checked 2026-10-24. They feed the
 // spend cap and OpenRouter's max_price, so a dearer model cannot be admitted
 // at a cheaper model's estimate.
-const HAIKU = { label: 'Haiku 5.5 High', inputPer1M: 0.1, outputPer1M: 0.5 };
-const LUNA = { label: 'Luna 6 High', inputPer1M: 0.1, outputPer1M: 0.5 };
-const SOL = { label: 'Sol 6.1 High', inputPer1M: 2, outputPer1M: 10 };
-const GEMINI = { label: 'Gemini 3.8 Flash', inputPer1M: 0.825, outputPer1M: 4.125 };
+const HAIKU = { label: 'Haiku 5.5 High', inputPer1M: 0.1, outputPer1M: 0.5, recommended: true };
+const LUNA = { label: 'Luna 6 High', inputPer1M: 0.1, outputPer1M: 0.5, recommended: true };
+const SOL = { label: 'Sol 6.1 High', inputPer1M: 2, outputPer1M: 10, recommended: false };
+const GEMINI = {
+  label: 'Gemini 3.8 Flash',
+  inputPer1M: 0.825,
+  outputPer1M: 4.125,
+  recommended: false,
+};
 
 export const CLOUD_MODELS: Record<CloudBackend, CloudModel> = {
   haiku: { ...HAIKU, id: 'claude-haiku-5-5', provider: 'Anthropic', wire: 'anthropic' },
