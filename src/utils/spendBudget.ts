@@ -21,8 +21,17 @@ export interface SpendSnapshot {
 }
 
 const STORAGE_KEY = 'millos-byok-spend-v1';
-const INPUT_RATE = 0.1 / 1_000_000;
-const OUTPUT_RATE = 0.5 / 1_000_000;
+
+/** List price per million tokens. Models differ by up to twentyfold. */
+export interface TokenRates {
+  inputPer1M: number;
+  outputPer1M: number;
+}
+const DEFAULT_RATES: TokenRates = { inputPer1M: 0.1, outputPer1M: 0.5 };
+
+function costOf(inputTokens: number, outputTokens: number, rates: TokenRates): number {
+  return (inputTokens * rates.inputPer1M + outputTokens * rates.outputPer1M) / 1_000_000;
+}
 
 function finiteNonnegative(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0;
@@ -70,7 +79,7 @@ function readSession(): SpendSnapshot {
 export class SpendBudget {
   private snapshot = readSession();
   private listeners = new Set<() => void>();
-  private reservations = new Map<number, number>();
+  private reservations = new Map<number, { amount: number; rates: TokenRates }>();
   private nextId = 0;
 
   getSnapshot = (): SpendSnapshot => this.snapshot;
@@ -97,33 +106,33 @@ export class SpendBudget {
   }
 
   /** Synchronous reservation prevents overlapping calls admitting against the same balance. */
-  reserve(prompt: string, maxOutputTokens: number): number {
+  reserve(prompt: string, maxOutputTokens: number, rates: TokenRates = DEFAULT_RATES): number {
     // UTF-8 bytes plus a conservative wrapper allowance estimate input tokens.
     // The provider's actual bill can still differ; this is an app-side guard.
     const estimatedInputTokens = new TextEncoder().encode(prompt).length + 512;
-    const amount = estimatedInputTokens * INPUT_RATE + maxOutputTokens * OUTPUT_RATE;
+    const amount = costOf(estimatedInputTokens, maxOutputTokens, rates);
     const s = this.snapshot;
     if (s.capUsd !== null && s.spentUsd + s.reservedUsd + s.uncertainUsd + amount > s.capUsd) {
       throw new SpendCapError(translate(spendBudgetMessages, 'capReached'));
     }
     const id = ++this.nextId;
-    this.reservations.set(id, amount);
+    this.reservations.set(id, { amount, rates });
     this.update({ reservedUsd: s.reservedUsd + amount });
     return id;
   }
 
   /** A response with trustworthy usage is charged even if its text is unusable or stale. */
   settle(id: number, usage: BilledUsage): void {
-    const reserved = this.reservations.get(id);
-    if (reserved === undefined) return;
+    const reservation = this.reservations.get(id);
+    if (reservation === undefined) return;
     if (!finiteNonnegative(usage.inputTokens) || !finiteNonnegative(usage.outputTokens)) return;
     const cost = finiteNonnegative(usage.costUsd)
       ? usage.costUsd
-      : usage.inputTokens * INPUT_RATE + usage.outputTokens * OUTPUT_RATE;
+      : costOf(usage.inputTokens, usage.outputTokens, reservation.rates);
     this.reservations.delete(id);
     const s = this.snapshot;
     this.update({
-      reservedUsd: Math.max(0, s.reservedUsd - reserved),
+      reservedUsd: Math.max(0, s.reservedUsd - reservation.amount),
       spentUsd: s.spentUsd + cost,
       totalInputTokens: s.totalInputTokens + usage.inputTokens,
       totalOutputTokens: s.totalOutputTokens + usage.outputTokens,
@@ -134,7 +143,7 @@ export class SpendBudget {
 
   /** A provider rejection is not a generated response and releases its reservation. */
   reject(id: number): void {
-    const reserved = this.reservations.get(id);
+    const reserved = this.reservations.get(id)?.amount;
     if (reserved === undefined) return;
     this.reservations.delete(id);
     this.update({ reservedUsd: Math.max(0, this.snapshot.reservedUsd - reserved) });
@@ -142,7 +151,7 @@ export class SpendBudget {
 
   /** Network/abort/unknown usage may have incurred a charge: do not replenish it. */
   uncertain(id: number): void {
-    const reserved = this.reservations.get(id);
+    const reserved = this.reservations.get(id)?.amount;
     if (reserved === undefined) return;
     this.reservations.delete(id);
     const s = this.snapshot;

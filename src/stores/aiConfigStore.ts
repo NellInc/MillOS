@@ -8,7 +8,15 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { safeJSONStorage } from './storage';
-import { cloudAIClient, isLocalCompanionHost, type CloudBackend } from '../utils/cloudAIClient';
+import {
+  CLOUD_MODELS,
+  cloudAIClient,
+  DIRECT_BACKENDS,
+  isLocalCompanionHost,
+  openRouterTwin,
+  type CloudBackend,
+  type DirectBackend,
+} from '../utils/cloudAIClient';
 import { chatgptClient, type ChatGPTStatus } from '../utils/chatgptClient';
 import { spendBudget } from '../utils/spendBudget';
 import {
@@ -43,25 +51,30 @@ export type WebGPUStatus =
 // responses, including reasoning tokens; provider invoices remain authoritative.
 const STANDARD_COST_PER_1M = { input: 0.1, output: 0.5 };
 
+const isDirectBackend = (value: unknown): value is DirectBackend =>
+  (DIRECT_BACKENDS as readonly unknown[]).includes(value);
+const isCloudBackend = (value: unknown): value is CloudBackend =>
+  typeof value === 'string' && Object.prototype.hasOwnProperty.call(CLOUD_MODELS, value);
+
 /**
  * Per-1M-token standard pricing for the selected cloud model. This is an
  * estimate, not a provider invoice.
  */
 export function getActiveCloudPricing(): { model: string; input: number; output: number } {
   const backend = useAIConfigStore.getState().llmBackend;
-  const model =
-    backend === 'webgpu'
-      ? translate(aiConfigStoreMessages, 'pricingOnDevice')
-      : backend === 'chatgpt'
-        ? translate(aiConfigStoreMessages, 'pricingChatGPTPlan')
-        : backend === 'openrouter-haiku'
-          ? 'OpenRouter Haiku 5.5'
-          : backend === 'openrouter-luna'
-            ? 'OpenRouter Luna 6'
-            : backend === 'haiku'
-              ? 'claude-haiku-5-5'
-              : 'gpt-6-luna';
-  return { model, ...STANDARD_COST_PER_1M };
+  if (backend === 'webgpu')
+    return { model: translate(aiConfigStoreMessages, 'pricingOnDevice'), ...STANDARD_COST_PER_1M };
+  if (backend === 'chatgpt')
+    return {
+      model: translate(aiConfigStoreMessages, 'pricingChatGPTPlan'),
+      ...STANDARD_COST_PER_1M,
+    };
+  const cloud = CLOUD_MODELS[backend];
+  return {
+    model: cloud.wire === 'openrouter' ? `OpenRouter ${cloud.label}` : cloud.id,
+    input: cloud.inputPer1M,
+    output: cloud.outputPer1M,
+  };
 }
 
 // Strategic layer configuration
@@ -205,8 +218,12 @@ export const useAIConfigStore = create<AIConfigState>()(
       connectedProviders: {
         haiku: false,
         luna: false,
+        sol: false,
+        gemini: false,
         'openrouter-haiku': false,
         'openrouter-luna': false,
+        'openrouter-sol': false,
+        'openrouter-gemini': false,
       },
       connectionEpoch: 0,
       connectionError: null,
@@ -241,9 +258,9 @@ export const useAIConfigStore = create<AIConfigState>()(
 
       llmBackend: isLocalCompanionHost() ? 'haiku' : 'openrouter-haiku',
       setLLMBackend: (backend: LLMBackend) => {
-        if (!isLocalCompanionHost() && (backend === 'haiku' || backend === 'luna')) {
-          backend = backend === 'haiku' ? 'openrouter-haiku' : 'openrouter-luna';
-        }
+        // Direct provider keys stay on the local companion host; the public
+        // site uses each model's OpenRouter twin.
+        if (!isLocalCompanionHost() && isDirectBackend(backend)) backend = openRouterTwin(backend);
         cloudKeyAttempt += 1;
         cloudAIClient.cancelRequests();
         set((state) => ({
@@ -648,21 +665,24 @@ export const useAIConfigStore = create<AIConfigState>()(
             ? (persistedState as Record<string, unknown>)
             : {};
         const local = previous.llmBackend === 'webgpu';
+        const saved = previous.llmBackend;
         const backend: LLMBackend = local
           ? 'webgpu'
           : version === 0
             ? isLocalCompanionHost()
               ? 'haiku'
               : 'openrouter-haiku'
-            : previous.llmBackend === 'chatgpt' && isLocalCompanionHost()
+            : saved === 'chatgpt' && isLocalCompanionHost()
               ? 'chatgpt'
-              : previous.llmBackend === 'openrouter-luna' || previous.llmBackend === 'luna'
-                ? previous.llmBackend === 'luna' && isLocalCompanionHost()
-                  ? 'luna'
-                  : 'openrouter-luna'
-                : previous.llmBackend === 'haiku' && isLocalCompanionHost()
-                  ? 'haiku'
-                  : 'openrouter-haiku';
+              : isDirectBackend(saved)
+                ? isLocalCompanionHost()
+                  ? saved
+                  : openRouterTwin(saved)
+                : isCloudBackend(saved)
+                  ? saved
+                  : isLocalCompanionHost()
+                    ? 'haiku'
+                    : 'openrouter-haiku';
         return {
           llmBackend: backend,
           aiMode:
