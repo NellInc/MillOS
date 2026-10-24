@@ -7,7 +7,10 @@ import {
   updateDataFlowUniforms,
   FLOW_TUBE_RADIUS,
   FLOW_DASH_PERIOD_METRES,
+  advanceDataFlowClock,
 } from './DataFlowLine';
+import { lineMotionRate } from '../simulation/lineFlow';
+import { STANDARD_GAME_SPEED } from '../simulation/pace';
 import { PROCESS_FLOW_COLORS } from './ProductionFlowVisualization';
 import {
   createSpoutTubeGeometry,
@@ -34,7 +37,7 @@ describe('restrained process flow signals', () => {
     expect(material.depthTest).toBe(true);
     expect(material.depthWrite).toBe(false);
     expect(material.blending).toBe(THREE.AdditiveBlending);
-    expect(material.customProgramCacheKey()).toBe('millos-data-flow-line-v4');
+    expect(material.customProgramCacheKey()).toBe('millos-data-flow-line-v5');
     material.dispose();
   });
 
@@ -123,14 +126,54 @@ describe('restrained process flow signals', () => {
     updateDataFlowUniforms(material, true, 12);
     expect(material.uniforms.time.value).toBe(12);
     expect(material.uniforms.flowActive.value).toBe(1);
-    updateDataFlowUniforms(material, false, 13);
-    expect(material.uniforms.time.value).toBe(0);
+    // Paused, the dashes stay where they stopped: no snap back to phase 0.
+    updateDataFlowUniforms(material, false, 12);
+    expect(material.uniforms.time.value).toBe(12);
     expect(material.uniforms.flowActive.value).toBe(0.3);
-    updateDataFlowUniforms(material, false, 24);
-    expect(material.uniforms.time.value).toBe(0);
-    updateDataFlowUniforms(material, true, 25);
-    expect(material.uniforms.time.value).toBe(25);
+    updateDataFlowUniforms(material, true, 12.25);
+    expect(material.uniforms.time.value).toBe(12.25);
     expect(material.uniforms.flowActive.value).toBe(1);
+    material.dispose();
+  });
+
+  /**
+   * r8 shell: the dashes were driven by `materialFlowStore.simulationTime`,
+   * which advances only on the 0.5 s central tick, by 0.4 plant seconds at
+   * standard pace. That is a 1.4 m jump twice a second and nothing between: two
+   * frames 100 ms apart showed the same bands, so the flow read as stripes in
+   * motion as well as in a still. The dash clock now advances every frame.
+   */
+  it('moves the dashes between simulation ticks, at the line pace, and holds them when stopped', () => {
+    const frame = 1 / 60;
+    const pace = lineMotionRate(0.8, STANDARD_GAME_SPEED, false);
+    let clock = 0;
+    const seen: number[] = [];
+    // 100 ms of frames: well inside one 0.5 s simulation tick.
+    for (let i = 0; i < 6; i++) {
+      clock = advanceDataFlowClock(clock, frame, true, pace);
+      seen.push(clock);
+    }
+    expect(new Set(seen).size).toBe(6);
+    // 0.8 plant seconds per real second at standard pace: 2.8 m/s along the run.
+    expect(clock).toBeCloseTo(0.1 * 0.8, 6);
+    expect(clock * FLOW_DASH_PERIOD_METRES).toBeCloseTo(0.28, 6);
+    // A step never crosses more than a few hundredths of a dash period.
+    expect(advanceDataFlowClock(0, frame, true, pace)).toBeLessThan(0.02);
+    // Blocked, paused, safety-held or a frame hitch: the phase holds or is clamped.
+    expect(advanceDataFlowClock(5, frame, false, pace)).toBe(5);
+    expect(advanceDataFlowClock(5, frame, true, lineMotionRate(0.8, 0, false))).toBe(5);
+    expect(
+      advanceDataFlowClock(5, frame, true, lineMotionRate(0.8, STANDARD_GAME_SPEED, true))
+    ).toBe(5);
+    expect(advanceDataFlowClock(5, 4, true, pace)).toBeLessThan(5 + 0.2 * pace);
+  });
+
+  it('draws each dash as a directional pulse, a hard head and a fading tail', () => {
+    const material = createDataFlowMaterial(PROCESS_FLOW_COLORS['sifters-to-packers'], true);
+    // A symmetric band with a flat top and two equal edges reads as a painted
+    // stripe when the frame is frozen; a head-and-tail reads as travel.
+    expect(material.fragmentShader).toContain('DATA_FLOW_PULSE');
+    expect(material.customProgramCacheKey()).toBe('millos-data-flow-line-v5');
     material.dispose();
   });
 });

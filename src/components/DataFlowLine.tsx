@@ -8,7 +8,9 @@ import React, { useEffect, useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { PALETTE } from '../utils/digitalTwinPalette';
-import { useMaterialFlowStore } from '../stores/materialFlowStore';
+import { useProductionStore } from '../stores/productionStore';
+import { selectSafetyHoldActive, useGameSimulationStore } from '../stores/gameSimulationStore';
+import { clampFrameDelta, lineMotionRate } from '../simulation/lineFlow';
 import { createSpoutTubeGeometry, SPOUT_PIPE_RADIUS } from './flow/spoutRoutes';
 
 interface DataFlowLineProps {
@@ -71,9 +73,12 @@ export const createDataFlowMaterial = (color: string, active: boolean): THREE.Sh
 
       void main() {
         float phase = fract(vFlowUv.x * flowCycles - time);
-        // Smoothed dash edges. The old hard step(0.5, ...) had no filtering and
-        // shimmered at every resolution scale below 1.
-        float dash = smoothstep(0.58, 0.64, phase) * (1.0 - smoothstep(0.78, 0.84, phase));
+        // DATA_FLOW_PULSE. Phase rises downstream, so 0.84 is the dash's head.
+        // A flat-topped band with two equal 0.06 edges read as a painted
+        // stripe in any frozen frame; a hard head over a long fading tail reads
+        // as product travelling, and keeps the old band's mean weight. Both
+        // edges stay smoothed: a hard step shimmered below resolution scale 1.
+        float dash = smoothstep(0.5, 0.82, phase) * (1.0 - smoothstep(0.82, 0.86, phase));
 
         // View-facing rim so the tube reads as a glowing filament rather than
         // a grey noodle.
@@ -91,18 +96,42 @@ export const createDataFlowMaterial = (color: string, active: boolean): THREE.Sh
     depthWrite: false,
   });
   // FIXED literal, never a timestamp (CLAUDE.md, shader cache key bug).
-  material.customProgramCacheKey = () => 'millos-data-flow-line-v4';
+  material.customProgramCacheKey = () => 'millos-data-flow-line-v5';
   return material;
 };
 
-/** Keep a paused or blocked connection legible without implying product movement. */
+/**
+ * Keep a paused or blocked connection legible without implying product
+ * movement. `clock` is the line's own dash clock (`advanceDataFlowClock`), which
+ * does not advance while the connection is stopped, so the dashes dim in place.
+ */
 export function updateDataFlowUniforms(
   material: THREE.ShaderMaterial,
   active: boolean,
-  simulationTime: number
+  clock: number
 ): void {
-  material.uniforms.time.value = active ? simulationTime : 0;
+  material.uniforms.time.value = clock;
   material.uniforms.flowActive.value = active ? 1 : 0.3;
+}
+
+/**
+ * The dash clock, in plant seconds, advanced EVERY FRAME.
+ *
+ * It used to be `materialFlowStore.simulationTime`, which only moves on the
+ * 0.5 s central tick: at standard pace 0.4 plant seconds, a 1.4 m jump of a
+ * 0.7 m dash twice a second and nothing in between. Frames 100 ms apart showed
+ * identical bands, so the flow read as stripes in motion, not only in stills.
+ * `rate` is `lineMotionRate`, the same pace the grain in these pipes moves at:
+ * zero while the clock or a safety hold stops the plant.
+ */
+export function advanceDataFlowClock(
+  clock: number,
+  frameDelta: number,
+  active: boolean,
+  rate: number
+): number {
+  if (!active || !(rate > 0)) return clock;
+  return clock + clampFrameDelta(frameDelta) * rate;
 }
 
 /** Working if signals fit the real bore and retain metre-spaced dashes at elbows. */
@@ -193,15 +222,18 @@ export const DataFlowLine: React.FC<DataFlowLineProps> = ({
     );
   }, [geometry, material]);
 
-  // Animate time uniform
-  useFrame(() => {
-    if (materialRef.current?.uniforms) {
-      updateDataFlowUniforms(
-        materialRef.current,
-        active,
-        useMaterialFlowStore.getState().simulationTime
-      );
-    }
+  // Animate the dash clock per frame, at the plant's pace (see advanceDataFlowClock).
+  const clockRef = useRef(0);
+  useFrame((_state, delta) => {
+    if (!materialRef.current?.uniforms) return;
+    const { gameSpeed } = useGameSimulationStore.getState();
+    const rate = lineMotionRate(
+      useProductionStore.getState().productionSpeed,
+      gameSpeed,
+      selectSafetyHoldActive(useGameSimulationStore.getState())
+    );
+    clockRef.current = advanceDataFlowClock(clockRef.current, delta, active, rate);
+    updateDataFlowUniforms(materialRef.current, active, clockRef.current);
   });
 
   // Use primitive element for the pre-built Three.js Mesh

@@ -759,6 +759,7 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     sources: ['src/components/DataFlowLine.tsx'],
     // v4: tube UV progress is scaled by physical route length for short,
     // consistent dashes. Inactive links keep a stationary, dimmed phase.
+    // v5: each dash is a head-and-tail pulse, on a per-frame dash clock.
     coordinateSpaces: ['tube UV', 'view-space normal and view direction'],
     colorSpace: 'linear accent to Three.js output color space',
     toneMapping: 'disabled-emissive',
@@ -768,7 +769,7 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     qualityVariants: ['medium', 'high', 'ultra'],
     uniformOwner: 'DataFlowLine memoized material',
     timeSource: 'simulation',
-    cacheKey: 'millos-data-flow-line-v4',
+    cacheKey: 'millos-data-flow-line-v5',
     disposalOwner: 'DataFlowLine cleanup effects',
     fallbackMaterial: 'static LineBasicMaterial',
   },
