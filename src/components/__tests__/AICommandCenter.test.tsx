@@ -218,6 +218,25 @@ describe('AICommandCenter', () => {
       expect(aiEngineMock.applyDecisionEffects).not.toHaveBeenCalled();
     });
 
+    it('shows the session estimate once a paid advisory has billed, whatever strategy runs on', () => {
+      // Rules-only strategy: nothing billed reads as no API cost.
+      render(<AICommandCenter isOpen={true} onClose={vi.fn()} embedded />);
+      expect(screen.getByText('NO API COST')).toBeInTheDocument();
+      cleanup();
+      const original = { ...staticAIConfigState };
+      Object.assign(staticAIConfigState, {
+        costTracking: { requestCount: 1, sessionCost: 0.000014 },
+        getFormattedCost: () => '$0.000014',
+      });
+      try {
+        render(<AICommandCenter isOpen={true} onClose={vi.fn()} embedded />);
+        expect(screen.queryByText('NO API COST')).not.toBeInTheDocument();
+        expect(screen.getByText('$0.000014 est.')).toBeInTheDocument();
+      } finally {
+        Object.assign(staticAIConfigState, original);
+      }
+    });
+
     it('should not render when isOpen is false', () => {
       const { container } = render(<AICommandCenter isOpen={false} onClose={vi.fn()} embedded />);
 

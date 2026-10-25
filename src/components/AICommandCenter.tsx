@@ -67,6 +67,14 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
   });
   // Subscribed, not read imperatively, so the readout follows BYOK usage settlement.
   const formattedSessionCost = useAIConfigStore((state) => state.getFormattedCost());
+  // Paid advisories bill the player's key whatever strategy runs on, so any
+  // billed request this session shows the estimate instead of "no API cost".
+  const billedThisSession = useAIConfigStore(
+    (state) =>
+      state.costTracking.requestCount > 0 ||
+      state.costTracking.reservedCost > 0 ||
+      state.costTracking.uncertainCost > 0
+  );
 
   // Alert ids already accounted for. Tracking ids rather than the list length
   // keeps reactions firing once uiStore's alert list reaches its 10-item cap,
@@ -287,7 +295,8 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
                 </span>
               </div>
               <div className="bg-slate-800/50 rounded px-2 py-1">
-                {(aiMode === 'gemini' || aiMode === 'hybrid') && !isLocalBackend && llmReady ? (
+                {billedThisSession ||
+                ((aiMode === 'gemini' || aiMode === 'hybrid') && !isLocalBackend && llmReady) ? (
                   <>
                     <span className="text-emerald-400">
                       {t('sessionCost', { cost: formattedSessionCost })}
@@ -295,7 +304,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
                   </>
                 ) : (
                   <>
-                    {/* Local WebGPU inference and heuristic mode have no API cost. */}
+                    {/* Nothing billed this session: local or rules-only strategy, no paid advisory. */}
                     <span className="text-emerald-400">{t('noApiCost')}</span>
                   </>
                 )}

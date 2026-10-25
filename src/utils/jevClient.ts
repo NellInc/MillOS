@@ -1,6 +1,7 @@
 /** Read-only, explicitly requested incident classification. No stores or commands. */
 import { formatFixed, translate } from '../i18n';
-import { isLocalCompanionHost } from './cloudAIClient';
+import { CLOUD_MODELS, isLocalCompanionHost } from './cloudAIClient';
+import { spendBudget, type BilledUsage, type TokenRates } from './spendBudget';
 import { jevClientMessages as messages } from './jevClient.messages';
 import { logger } from './logger';
 import { webgpuClient } from './webgpuClient';
@@ -224,6 +225,46 @@ function adviceFrom(
   return { queue, receivedAt: Date.now() };
 }
 
+/**
+ * The player's key pays for every billed advisory, so each one goes through the
+ * session's spend budget like a strategic call: reserved against the cap before
+ * it is sent, then charged from the response. Rates price the reservation, and
+ * the charge too when the provider reports only tokens. Jev reports its own
+ * cost (about $0.000014 a question, 2026-10-25), which is charged as reported;
+ * its reservation uses Haiku's rates, which price the same question higher.
+ */
+const ADVISORY_BILLING: Record<
+  Exclude<AdvisoryProvider, 'local'>,
+  { rates: TokenRates; maxOutputTokens: number }
+> = {
+  jev: { rates: CLOUD_MODELS.haiku, maxOutputTokens: 256 },
+  openai: { rates: CLOUD_MODELS.luna, maxOutputTokens: 256 },
+  haiku: { rates: CLOUD_MODELS.haiku, maxOutputTokens: 1024 },
+};
+
+/** The response's own usage, or null when it is missing or not countable. */
+function billedUsage(provider: AdvisoryProvider, body: unknown): BilledUsage | null {
+  const usage = (body as { usage?: unknown } | null)?.usage;
+  if (!usage || typeof usage !== 'object') return null;
+  const u = usage as Record<string, unknown>;
+  const count = (value: unknown) =>
+    typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+  const input = count(u.input_tokens);
+  const output = count(u.output_tokens);
+  if (input === null || output === null) return null;
+  // Haiku counts cache reads and writes apart from input_tokens; charge them as input.
+  const cached =
+    provider === 'haiku'
+      ? (count(u.cache_creation_input_tokens) ?? 0) + (count(u.cache_read_input_tokens) ?? 0)
+      : 0;
+  const cost = provider === 'jev' ? count(u.cost) : null;
+  return {
+    inputTokens: input + cached,
+    outputTokens: output,
+    ...(cost === null ? {} : { costUsd: cost }),
+  };
+}
+
 function requestBody(provider: AdvisoryProvider, text: string): Record<string, unknown> {
   if (provider === 'openai')
     return {
@@ -351,6 +392,13 @@ export async function requestJevAdvice({
     );
   }
   if (signal.aborted) throw new Error(translate(messages, 'cancelled'));
+  const requestJson = JSON.stringify(requestBody(provider, text.trim()));
+  const billing = ADVISORY_BILLING[provider];
+  // Throws SpendCapError, whose message says no paid request was sent, at the cap.
+  const reservation = spendBudget.reserve(requestJson, billing.maxOutputTokens, billing.rates);
+  // Settled from the response, released on a provider refusal, and otherwise
+  // (network failure, abort, unreadable reply) kept as possibly charged.
+  let billed = false;
   const controller = new AbortController();
   const cancel = () => controller.abort();
   signal.addEventListener('abort', cancel, { once: true });
@@ -380,13 +428,16 @@ export async function requestJevAdvice({
           redirect: 'error',
           cache: 'no-store',
           signal: controller.signal,
-          body: JSON.stringify(requestBody(provider, text.trim())),
+          body: requestJson,
         }
       );
     } catch {
       throw new Error(key('unreachable'));
     }
     if (!response.ok) {
+      // A refused request generated nothing to bill.
+      spendBudget.reject(reservation);
+      billed = true;
       // Never display a provider error body: it may echo submitted text or credentials.
       const message =
         response.status === 401 || response.status === 403
@@ -406,6 +457,12 @@ export async function requestJevAdvice({
     } catch {
       throw new Error(key('invalidAdvisory'));
     }
+    // An answer is charged as reported even if it turns out unusable.
+    const usage = billedUsage(provider, body);
+    if (usage) {
+      spendBudget.settle(reservation, usage);
+      billed = true;
+    }
     if (controller.signal.aborted) throw new Error(translate(messages, 'cancelledOrTimedOut'));
     return provider === 'haiku'
       ? parseHaikuAdvice(body)
@@ -413,6 +470,7 @@ export async function requestJevAdvice({
         ? parseOpenAIAdvice(body)
         : parseAdvice(body);
   } finally {
+    if (!billed) spendBudget.uncertain(reservation);
     clearTimeout(timeout);
     signal.removeEventListener('abort', cancel);
   }

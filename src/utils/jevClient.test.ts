@@ -21,6 +21,7 @@ import {
   OPENAI_DECISIONS_ENDPOINT,
   requestJevAdvice,
 } from './jevClient';
+import { spendBudget, SpendCapError } from './spendBudget';
 
 const key = `sk-or-v1-${'test-only-'.repeat(5)}`;
 const payload = () => ({
@@ -46,10 +47,16 @@ describe('Jev read-only request boundary', () => {
   beforeEach(() => {
     fetchMock.mockReset();
     vi.stubGlobal('fetch', fetchMock);
+    // Billing has its own tests below. Its session-storage writes each leave a
+    // jsdom storage-event timer, which would blur the timer checks here.
+    vi.spyOn(spendBudget, 'reserve').mockReturnValue(0);
+    for (const method of ['settle', 'reject', 'uncertain'] as const)
+      vi.spyOn(spendBudget, method).mockImplementation(() => undefined);
   });
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it('sends only reviewed text and the frozen rubric, with a fixed destination and no provider fallback', async () => {
@@ -418,5 +425,109 @@ describe('the on-device model on the same rubric as a five-way choice', () => {
       requestJevAdvice({ ...localInput(), text: 'x'.repeat(JEV_MAX_TEXT_LENGTH + 1) })
     ).rejects.toThrow();
     expect(local.scoreNextToken).not.toHaveBeenCalled();
+  });
+});
+
+describe('Paid advisories are charged to the session budget', () => {
+  const haikuKey = `sk-ant-api03-${'test-only-'.repeat(4)}`;
+  const before = () => ({ ...spendBudget.getSnapshot() });
+  const delta = (start: ReturnType<typeof before>) => {
+    const now = spendBudget.getSnapshot();
+    return {
+      spent: now.spentUsd - start.spentUsd,
+      reserved: now.reservedUsd - start.reservedUsd,
+      uncertain: now.uncertainUsd - start.uncertainUsd,
+      requests: now.requestCount - start.requestCount,
+      input: now.totalInputTokens - start.totalInputTokens,
+      output: now.totalOutputTokens - start.totalOutputTokens,
+    };
+  };
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("charges Jev's reported cost and counts its tokens", async () => {
+    const start = before();
+    fetchMock.mockResolvedValue(
+      reply({ ...payload(), usage: { input_tokens: 329, output_tokens: 64, cost: 0.000014 } })
+    );
+    await requestJevAdvice(input());
+    const d = delta(start);
+    expect(d.spent).toBeCloseTo(0.000014, 9);
+    expect(d).toMatchObject({ reserved: 0, uncertain: 0, requests: 1, input: 329, output: 64 });
+  });
+
+  it("prices Haiku's tokens at Haiku's rates, cache tokens as input", async () => {
+    const start = before();
+    fetchMock.mockResolvedValue(
+      reply({
+        model: 'claude-haiku-5-5',
+        stop_reason: 'end_turn',
+        content: [{ type: 'text', text: JSON.stringify({ queue: JEV_QUEUES[1] }) }],
+        usage: { input_tokens: 200, cache_read_input_tokens: 10, output_tokens: 12 },
+      })
+    );
+    await requestJevAdvice({ ...input(), apiKey: haikuKey, provider: 'haiku' });
+    const d = delta(start);
+    expect(d.spent).toBeCloseTo((210 * 0.1 + 12 * 0.5) / 1_000_000, 12);
+    expect(d).toMatchObject({ reserved: 0, uncertain: 0, requests: 1, input: 210, output: 12 });
+  });
+
+  it('charges an answer that has usage even when the advice itself is unusable', async () => {
+    const start = before();
+    fetchMock.mockResolvedValue(
+      reply({ model: 'nope', usage: { input_tokens: 100, output_tokens: 5, cost: 0.00001 } })
+    );
+    await expect(requestJevAdvice(input())).rejects.toThrow();
+    expect(delta(start)).toMatchObject({ reserved: 0, uncertain: 0, requests: 1 });
+  });
+
+  it('releases the reservation when the provider refuses the request', async () => {
+    const start = before();
+    fetchMock.mockResolvedValue(reply({ error: 'no' }, 401));
+    await expect(requestJevAdvice(input())).rejects.toThrow();
+    expect(delta(start)).toMatchObject({ spent: 0, reserved: 0, uncertain: 0, requests: 0 });
+  });
+
+  it('keeps a request that may have been billed as possibly charged', async () => {
+    for (const failure of [
+      () => fetchMock.mockRejectedValue(new Error('network')),
+      () => fetchMock.mockResolvedValue(reply(payload())),
+    ]) {
+      const start = before();
+      failure();
+      await requestJevAdvice(input()).catch(() => undefined);
+      const d = delta(start);
+      expect(d.spent).toBe(0);
+      expect(d.reserved).toBeCloseTo(0, 12);
+      expect(d.uncertain).toBeGreaterThan(0);
+    }
+  });
+
+  it('sends nothing once the session cap is reached, and says so', async () => {
+    vi.spyOn(spendBudget, 'reserve').mockImplementation(() => {
+      throw new SpendCapError('Session cost cap reached. No paid request was sent.');
+    });
+    await expect(requestJevAdvice(input())).rejects.toThrow(/No paid request was sent/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('never charges the on-device model', async () => {
+    const reserve = vi.spyOn(spendBudget, 'reserve');
+    local.scoreNextToken.mockResolvedValue(
+      JEV_QUEUES.map((queue, i) => ({
+        token: LOCAL_QUEUE_TOKENS['Qwen3.5-4B-q4f16_1-MLC']![queue].token,
+        probability: i === 0 ? 1 : 0,
+      }))
+    );
+    await requestJevAdvice({ ...input(), apiKey: '', consent: false, provider: 'local' });
+    expect(reserve).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
