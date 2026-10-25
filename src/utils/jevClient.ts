@@ -2,6 +2,7 @@
 import { formatFixed, translate } from '../i18n';
 import { isLocalCompanionHost } from './cloudAIClient';
 import { jevClientMessages as messages } from './jevClient.messages';
+import { logger } from './logger';
 import { webgpuClient } from './webgpuClient';
 
 export const JEV_ENDPOINT = 'https://openrouter.ai/api/alpha/decisions';
@@ -304,17 +305,23 @@ async function requestLocalAdvice(text: string, signal: AbortSignal): Promise<Je
   const queueTokens = new Set(JEV_QUEUES.map((queue) => tokens[queue].token));
   const valid = (p: unknown): p is number =>
     typeof p === 'number' && Number.isFinite(p) && p >= 0 && p <= 1;
+  // The scores (token pieces and numbers, never the note) are logged when
+  // unusable, so a rare bad set can be read afterwards.
+  const invalid = () => {
+    logger.warn('[Advisory] Unusable on-device scores:', JSON.stringify(scores));
+    return new Error(translate(messages, 'invalidAdvisoryLocal'));
+  };
   if (
     !scores ||
     !scores.every((score) => valid(score.probability)) ||
     scores.some((score) => !queueTokens.has(score.token) && score.probability > 0)
   ) {
-    throw new Error(translate(messages, 'invalidAdvisoryLocal'));
+    throw invalid();
   }
   const probability = new Map(scores.map((score) => [score.token, score.probability]));
   const values = JEV_QUEUES.map((queue) => probability.get(tokens[queue].token) ?? 0);
   if (values.reduce((sum, p) => sum + p, 0) < 0.99) {
-    throw new Error(translate(messages, 'invalidAdvisoryLocal'));
+    throw invalid();
   }
   return { queue: JEV_QUEUES[values.indexOf(Math.max(...values))], receivedAt: Date.now() };
 }

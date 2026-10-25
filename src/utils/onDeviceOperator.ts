@@ -175,18 +175,22 @@ async function handle(incident: OperationalIncident): Promise<void> {
   }
   const signal = (controller ??= new AbortController()).signal;
   let queue: Queue | null = null;
-  try {
-    queue = (
-      await requestJevAdvice({
-        text: `${incident.title}\n${incident.description}`,
-        apiKey: '',
-        consent: false,
-        signal,
-        provider: 'local',
-      })
-    ).queue;
-  } catch (error) {
-    logger.warn('[OnDeviceOperator] Routing failed:', error);
+  // One retry: a local call costs nothing, and about 1 in 100 score sets came
+  // back unusable once and valid when asked again (Chrome, 2026-10-25).
+  for (let attempt = 0; attempt < 2 && !queue && !signal.aborted; attempt++) {
+    try {
+      queue = (
+        await requestJevAdvice({
+          text: `${incident.title}\n${incident.description}`,
+          apiKey: '',
+          consent: false,
+          signal,
+          provider: 'local',
+        })
+      ).queue;
+    } catch (error) {
+      logger.warn('[OnDeviceOperator] Routing failed:', error);
+    }
   }
   const record = (outcome: OperatorOutcome, problem?: string) => {
     records.push({ incidentId: incident.id, kind: incident.kind, queue, outcome });

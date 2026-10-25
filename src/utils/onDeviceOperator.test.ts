@@ -162,6 +162,20 @@ describe('the on-device operator in lights-out play', () => {
     }
   );
 
+  it('asks the local model once more after an unusable answer, and stops there', async () => {
+    mocks.requestJevAdvice
+      .mockRejectedValueOnce(new Error('invalid'))
+      .mockResolvedValueOnce({ queue: 'Logistics coordination', receivedAt: 0 });
+    await raise('severe_rain');
+    expect(mocks.requestJevAdvice).toHaveBeenCalledTimes(2);
+    expect(calls()).toEqual(['incident.acknowledge', 'incident.mitigate']);
+
+    mocks.requestJevAdvice.mockReset().mockRejectedValue(new Error('invalid'));
+    await raise('delayed_truck');
+    expect(mocks.requestJevAdvice).toHaveBeenCalledTimes(2);
+    expect(lastAlert().message).toContain('no route');
+  });
+
   it('reports a refused command instead of claiming success', async () => {
     mocks.requestJevAdvice.mockResolvedValue({ queue: 'Equipment maintenance', receivedAt: 0 });
     mocks.executeAgentCommand.mockResolvedValueOnce({
