@@ -24,7 +24,16 @@ export const jevClientMessages = defineMessages({
     moreCreditOpenAI: 'OpenAI requires more credit for this request.',
     rateLimitedOpenAI: 'OpenAI is rate limiting requests. Try again later.',
     unavailableOpenAI: 'OpenAI Decisions is unavailable. Try again later.',
-    openAILocalOnly: 'OpenAI Decisions with your own key runs on the local companion only.',
+    localOnlyOpenAI: 'OpenAI Decisions with your own key runs on the local companion only.',
+    invalidAdvisoryAnthropic: 'Haiku returned an invalid advisory. No action was taken.',
+    invalidKeyAnthropic: 'Enter a valid Anthropic API key.',
+    unreachableAnthropic:
+      'Anthropic could not be reached. Check your connection and try again manually.',
+    keyRejectedAnthropic: 'Anthropic rejected the key or its permissions.',
+    moreCreditAnthropic: 'Anthropic requires more credit for this request.',
+    rateLimitedAnthropic: 'Anthropic is rate limiting requests. Try again later.',
+    unavailableAnthropic: 'Haiku is unavailable. Try again later.',
+    localOnlyAnthropic: 'Haiku with your own key runs on the local companion only.',
   },
   'pt-BR': {
     invalidAdvisory: 'O Jev retornou uma recomendação inválida. Nenhuma ação foi tomada.',
@@ -47,7 +56,17 @@ export const jevClientMessages = defineMessages({
     moreCreditOpenAI: 'A OpenAI exige mais crédito para esta requisição.',
     rateLimitedOpenAI: 'A OpenAI está limitando as requisições. Tente novamente mais tarde.',
     unavailableOpenAI: 'O OpenAI Decisions está indisponível. Tente novamente mais tarde.',
-    openAILocalOnly:
+    localOnlyOpenAI:
       'O OpenAI Decisions com a sua própria chave funciona apenas no companheiro local.',
+    invalidAdvisoryAnthropic:
+      'O Haiku retornou uma recomendação inválida. Nenhuma ação foi tomada.',
+    invalidKeyAnthropic: 'Informe uma chave de API válida da Anthropic.',
+    unreachableAnthropic:
+      'Não foi possível acessar a Anthropic. Verifique sua conexão e tente novamente manualmente.',
+    keyRejectedAnthropic: 'A Anthropic recusou a chave ou as permissões dela.',
+    moreCreditAnthropic: 'A Anthropic exige mais crédito para esta requisição.',
+    rateLimitedAnthropic: 'A Anthropic está limitando as requisições. Tente novamente mais tarde.',
+    unavailableAnthropic: 'O Haiku está indisponível. Tente novamente mais tarde.',
+    localOnlyAnthropic: 'O Haiku com a sua própria chave funciona apenas no companheiro local.',
   },
 });
