@@ -127,6 +127,23 @@ export const WEBGPU_MODEL_PROFILES = {
 } as const satisfies Record<string, WebGPUModelProfile>;
 
 /**
+ * Where a download is kept: the browser Cache API (web-llm's default), or
+ * IndexedDB when the Cache API refuses the write (see initEngine).
+ */
+export type ModelCacheBackend = 'cache' | 'indexeddb';
+const CACHE_BACKENDS: readonly ModelCacheBackend[] = ['cache', 'indexeddb'];
+
+/**
+ * Chrome's refusal of a streamed Cache API write, seen with about 12 GB or
+ * less free on this machine's disk (2026-10-25): "Cache.add() encountered a
+ * network error". Quota errors are the same problem said plainly.
+ */
+export function isCacheWriteError(error: unknown): boolean {
+  const text = error instanceof Error ? `${error.name} ${error.message}` : String(error);
+  return /Cache\.(add|put)|QuotaExceeded|quota/i.test(text);
+}
+
+/**
  * A prebuilt record pinned as its profile says: the weights at the profile's
  * commit, the model library at MODEL_LIB_COMMIT, and the profile's hashes. A
  * record without a pin is returned unchanged.
@@ -153,13 +170,15 @@ export function pinnedModelRecord(record: ModelRecord): ModelRecord {
 export function pinnedAppConfig(
   prebuilt: AppConfig,
   modelId: string,
-  laneId: string | null = null
+  laneId: string | null = null,
+  cacheBackend: ModelCacheBackend = 'cache'
 ): AppConfig {
   const record = prebuilt.model_list.find((entry) => entry.model_id === modelId);
   if (!record) return prebuilt;
   const pinned = pinnedModelRecord(record);
   return {
     ...prebuilt,
+    ...(cacheBackend === 'cache' ? {} : { cacheBackend }),
     model_list: [
       ...prebuilt.model_list.map((entry) => (entry === record ? pinned : entry)),
       ...(laneId ? [{ ...pinned, model_id: laneId }] : []),
@@ -508,7 +527,8 @@ class WebGPUClient {
   private async initEngine(
     modelId: string,
     onProgress?: (progress: WebGPULoadProgress) => void,
-    fastLane = false
+    fastLane = false,
+    cacheBackend: ModelCacheBackend = 'cache'
   ): Promise<boolean> {
     if (!checkWebGPUSupport()) {
       logger.warn('[WebGPU] navigator.gpu unavailable — cannot load local model');
@@ -538,7 +558,7 @@ class WebGPUClient {
       // The pinned record, and the fast lane as the same record under a second
       // id: same weights URL, so the browser cache serves it without a second
       // download.
-      const appConfig = pinnedAppConfig(prebuiltAppConfig, modelId, laneId);
+      const appConfig = pinnedAppConfig(prebuiltAppConfig, modelId, laneId, cacheBackend);
       const engineConfig = {
         appConfig,
         initProgressCallback: (report: InitProgressReport) => {
@@ -576,6 +596,14 @@ class WebGPUClient {
       return true;
     } catch (error) {
       this.teardownWorker();
+      if (cacheBackend === 'cache' && !this.cancelled && isCacheWriteError(error)) {
+        // Chrome refuses streamed Cache API writes on a nearly full disk while
+        // whole-file stores still succeed: try once more through IndexedDB.
+        logger.warn(`[WebGPU] The browser cache refused ${modelId}; retrying with IndexedDB`);
+        this.cancelResolve = null;
+        // Awaited, so this call's finally cannot clear the retry's cancel hook.
+        return await this.initEngine(modelId, onProgress, fastLane, 'indexeddb');
+      }
       // Count load failures toward the breaker so OOM / device-lost loops back off.
       this.recordFailure();
       logger.error(`[WebGPU] Failed to load model ${modelId}:`, error);
@@ -968,19 +996,29 @@ class WebGPUClient {
   static async isModelCached(modelId: string = DEFAULT_WEBGPU_MODEL_ID): Promise<boolean> {
     try {
       const { hasModelInCache, prebuiltAppConfig } = await import('@mlc-ai/web-llm');
-      return await hasModelInCache(modelId, pinnedAppConfig(prebuiltAppConfig, modelId));
+      for (const backend of CACHE_BACKENDS) {
+        const config = pinnedAppConfig(prebuiltAppConfig, modelId, null, backend);
+        if (await hasModelInCache(modelId, config).catch(() => false)) return true;
+      }
+      return false;
     } catch {
       return false;
     }
   }
 
   /**
-   * Delete the pinned copy, and the unpinned one an earlier version of this app
-   * downloaded from `resolve/main` (different URLs, so a different cache entry).
+   * Delete the pinned copy from either store, and the unpinned one an earlier
+   * version of this app downloaded from `resolve/main` (different URLs, so a
+   * different cache entry).
    */
   static async deleteModelCache(modelId: string = DEFAULT_WEBGPU_MODEL_ID): Promise<void> {
     const { deleteModelAllInfoInCache, prebuiltAppConfig } = await import('@mlc-ai/web-llm');
-    await deleteModelAllInfoInCache(modelId, pinnedAppConfig(prebuiltAppConfig, modelId));
+    for (const backend of CACHE_BACKENDS) {
+      await deleteModelAllInfoInCache(
+        modelId,
+        pinnedAppConfig(prebuiltAppConfig, modelId, null, backend)
+      );
+    }
     await deleteModelAllInfoInCache(modelId, prebuiltAppConfig);
   }
 
