@@ -22,6 +22,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { applyDecisionEffects, reactToAlert } from '../utils/aiEngine';
 import { AISettingsModal } from './AISettingsModal';
 import { JevAdvisoryPanel } from './ui/JevAdvisoryPanel';
+import { OnDeviceOperatorRecord } from './ui/OnDeviceOperatorRecord';
 import { ActionPlanTimeline } from './ui/ActionPlanTimeline';
 import { DecisionHistoryPanel } from './ui/DecisionHistoryPanel';
 import { StrategicPriorityCards } from './ui/StrategicPriorityCards';
@@ -385,9 +386,12 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
             className="flex-1 overflow-y-auto p-3 space-y-2"
           >
             {activeTab === 'advisory' ? (
-              <JevAdvisoryPanel
-                latestAlert={alerts[0] ? `${alerts[0].title}\n${alerts[0].message}` : undefined}
-              />
+              <>
+                <JevAdvisoryPanel
+                  latestAlert={alerts[0] ? `${alerts[0].title}\n${alerts[0].message}` : undefined}
+                />
+                <OnDeviceOperatorRecord />
+              </>
             ) : activeTab === 'decisions' ? (
               <>
                 {aiDecisions.slice(0, 15).map((decision: AIDecision) => (

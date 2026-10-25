@@ -33,6 +33,7 @@ import { useSafetyStore } from '../../stores/safetyStore';
 import { useOperationsCampaignStore } from '../../stores/operationsCampaignStore';
 import { SafetyPanel } from '../ui-new/panels/SafetyPanel';
 import { JevAdvisoryPanel } from '../ui/JevAdvisoryPanel';
+import { OnDeviceOperatorRecord } from '../ui/OnDeviceOperatorRecord';
 import { WorkplaceLab } from '../ui-new/widgets/WorkplaceLab';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import {
@@ -589,9 +590,12 @@ const AIContent: React.FC = () => {
         className="space-y-3"
       >
         {activeTab === 'advisory' ? (
-          <JevAdvisoryPanel
-            latestAlert={latestAlert ? `${latestAlert.title}\n${latestAlert.message}` : undefined}
-          />
+          <>
+            <JevAdvisoryPanel
+              latestAlert={latestAlert ? `${latestAlert.title}\n${latestAlert.message}` : undefined}
+            />
+            <OnDeviceOperatorRecord />
+          </>
         ) : (
           <>
             <div className="flex items-center gap-2 text-xs text-slate-400">
