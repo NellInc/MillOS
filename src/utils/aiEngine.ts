@@ -15,6 +15,7 @@ import { cloudAIClient, type CloudResult } from './cloudAIClient';
 import { chatgptClient } from './chatgptClient';
 import { SpendCapError } from './spendBudget';
 import { webgpuClient } from './webgpuClient';
+import { initializeOnDeviceOperator } from './onDeviceOperator';
 import { logger } from './logger';
 import { formatFixed, getLocale, translate } from '../i18n';
 import { aiEngineMessages as msg } from './aiEngine.messages';
@@ -941,6 +942,7 @@ export function initializeAIEngine(): () => void {
   engineUsers += 1;
   const shiftCleanup = initializeShiftObserver();
   const outcomeCleanup = initializeDecisionOutcomeTracking();
+  const operatorCleanup = initializeOnDeviceOperator();
   if (!loopInterval) {
     lastTactical = Date.now();
     lastStrategic = Date.now();
@@ -959,6 +961,7 @@ export function initializeAIEngine(): () => void {
     // even while another engine user keeps the shared loop alive.
     shiftCleanup();
     outcomeCleanup();
+    operatorCleanup();
     if (engineUsers > 0) return;
     if (loopInterval) clearInterval(loopInterval);
     loopInterval = null;

@@ -173,6 +173,10 @@ const WebGPUModelPanel: React.FC = () => {
   const cancelWebGPUModelLoad = useAIConfigStore((s) => s.cancelWebGPUModelLoad);
   const unloadWebGPUModel = useAIConfigStore((s) => s.unloadWebGPUModel);
   const deleteWebGPUCache = useAIConfigStore((s) => s.deleteWebGPUCache);
+  const lightsOut = useAIConfigStore((s) => s.lightsOut);
+  const setLightsOut = useAIConfigStore((s) => s.setLightsOut);
+  const fastLane = useAIConfigStore((s) => s.webgpuFastLane);
+  const setFastLane = useAIConfigStore((s) => s.setWebGPUFastLane);
 
   const supported = checkWebGPUSupport();
   const [cacheInfo, setCacheInfo] = useState<{ cached: boolean; size: string | null }>({
@@ -318,6 +322,26 @@ const WebGPUModelPanel: React.FC = () => {
               {t('unloadModel')}
             </button>
           )}
+
+          <label className="flex items-center gap-2 text-xs text-slate-300">
+            <input
+              type="checkbox"
+              checked={lightsOut}
+              onChange={(event) => setLightsOut(event.target.checked)}
+            />
+            <span>{t('lightsOutLabel')}</span>
+          </label>
+          <label className="flex items-center gap-2 text-xs text-slate-300">
+            <input
+              type="checkbox"
+              checked={fastLane}
+              disabled={busy || isLoadingState}
+              onChange={(event) => void setFastLane(event.target.checked)}
+            />
+            <span>
+              {t('fastLaneLabel', { size: formatFixed(DEFAULT_WEBGPU_MODEL_SIZE.vramGb, 1) })}
+            </span>
+          </label>
 
           {/* Easy delete — prominent and available whenever a model is cached,
               loaded or not (unloads first, then clears the browser cache). */}

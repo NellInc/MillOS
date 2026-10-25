@@ -4,6 +4,8 @@ import {
   createDefaultActors,
   createDefaultGrants,
   createDefaultPolicy,
+  ON_DEVICE_OPERATOR_GRANT_ID,
+  ON_DEVICE_OPERATOR_URI,
 } from '../command/authority';
 import { AgentCausalLedger } from '../command/causalLedger';
 import { createAgentCommandKernel, type AgentCommandHandler } from '../command/commandKernel';
@@ -351,6 +353,35 @@ describe('agent command kernel regressions', () => {
     const rejected = first.status === 'rejected' ? first : second;
     expect(rejected.problems.map((problem) => problem.code)).toContain('COMMAND_IN_FLIGHT');
     expect(fixture.state.activationCount).toBe(1);
+  });
+
+  it('lets the on-device operator mitigate an incident without approval, and nothing else', async () => {
+    const fixture = createFixture();
+    const operator = { actorUri: ON_DEVICE_OPERATOR_URI, grantId: ON_DEVICE_OPERATOR_GRANT_ID };
+    const preview = await fixture.kernel.preview(
+      fixture.kernel.draft({
+        capabilityId: 'incident.mitigate',
+        targetUri: 'millos://incident/incident-001',
+        parameters: { incidentUri: 'millos://incident/incident-001' },
+        reason: 'On-device AI routed this incident to Equipment maintenance.',
+        ...operator,
+      })
+    );
+    expect(preview.status).toBe('ready');
+    const receipt = await fixture.kernel.commit(preview);
+    expect(receipt.status).toBe('verified');
+    expect(fixture.state.mitigationCount).toBe(1);
+
+    const outside = await fixture.kernel.preview(
+      fixture.kernel.draft({
+        capabilityId: 'operations.activate-order',
+        targetUri: 'millos://order/order-001',
+        parameters: { orderUri: 'millos://order/order-001' },
+        reason: 'Outside the operator grant.',
+        ...operator,
+      })
+    );
+    expect(outside.status).toBe('denied');
   });
 
   it('does not let the requesting actor approve its own preview', async () => {
