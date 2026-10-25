@@ -11,6 +11,8 @@ import { useProductionStore } from '../stores/productionStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useUIStore } from '../stores/uiStore';
 import { useAIConfigStore } from '../stores/aiConfigStore';
+import { useWorkplaceStore } from '../stores/workplaceStore';
+import type { WorkplaceState } from '../types/workplace';
 import { cloudAIClient, type CloudResult } from './cloudAIClient';
 import { chatgptClient } from './chatgptClient';
 import { SpendCapError } from './spendBudget';
@@ -657,9 +659,31 @@ export function isTacticalLayerActive(): boolean {
   return state.aiMode === 'heuristic' || state.aiMode === 'hybrid' || !state.isLLMReady();
 }
 
-function strategicPrompt(machines: MachineData[]): string {
+/**
+ * The people on a live workplace shift, as team totals: no member, role or
+ * private choice (projectWorkplace keeps willingness to cover private, and so
+ * does this). Null outside an active shift, so the strategic answer is never
+ * asked about people it has no record of.
+ */
+export function strategicPeopleSummary(workplace: WorkplaceState) {
+  if (workplace.phase !== 'active' || workplace.members.length === 0) return null;
+  const total = (key: 'extraMinutes' | 'restMinutes' | 'recoveryOwedMinutes') =>
+    workplace.members.reduce((sum, member) => sum + member[key], 0);
+  return {
+    peopleOnShift: workplace.members.length,
+    extraMinutesWorked: total('extraMinutes'),
+    restMinutesTaken: total('restMinutes'),
+    recoveryMinutesOwed: total('recoveryOwedMinutes'),
+    coverInProgress: workplace.activeCoverMemberId !== null,
+    openObjections: workplace.objections.filter((o) => o.status === 'open').length,
+    refusalsRespected: workplace.refusalsRespected,
+  };
+}
+
+export function strategicPrompt(machines: MachineData[]): string {
   const production = useProductionStore.getState();
   const simulation = useGameSimulationStore.getState();
+  const people = strategicPeopleSummary(useWorkplaceStore.getState().workplace);
   const telemetry = machines.map((machine) => ({
     id: machine.id,
     status: machine.status,
@@ -672,6 +696,14 @@ function strategicPrompt(machines: MachineData[]): string {
     'You are the strategic controller for a staffed grain mill digital twin with autonomous logistics.',
     'Return one JSON object only: {"priorities": 1-3 short imperative strings (under 80 characters each), "reasoning": 1-2 sentences, "insight"?: string, "tradeoff"?: string, "focusMachine"?: one equipment id from the telemetry, "actionPlan"?: [immediate, short-term, preparation] as 3 strings}.',
     'Prioritize safety interlocks, stable material flow, quality, energy, condition maintenance, and autonomous logistics.',
+    // Only with a live shift's team totals: then the people come first, and
+    // the answer has a record to speak from.
+    ...(people
+      ? [
+          'People come first: never plan on extra minutes or cover nobody has agreed to, and protect recovery time that is owed before chasing throughput.',
+          `People on shift (team totals only): ${JSON.stringify(people)}.`,
+        ]
+      : []),
     // Model text lands verbatim in the player's decision cards, so ask for their language.
     ...(getLocale() === 'pt-BR'
       ? [
