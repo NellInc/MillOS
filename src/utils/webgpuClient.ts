@@ -26,6 +26,8 @@
 import type {
   AppConfig,
   ChatOptions,
+  ModelIntegrity,
+  ModelRecord,
   WebWorkerMLCEngine,
   InitProgressReport,
 } from '@mlc-ai/web-llm';
@@ -53,7 +55,23 @@ interface WebGPUModelProfile {
    * pause for a scoring call and continue from its own text (see generateContent).
    */
   rawTemplate?: string;
+  /**
+   * The build pinned to one Hugging Face commit, with web-llm verifying the
+   * files it can check (config, model library, tokenizer) at every load. A
+   * pinned commit cannot change, so the weight shards it lists cannot either.
+   */
+  pin?: { modelCommit: string; integrity: ModelIntegrity };
 }
+
+/**
+ * binary-mlc-llm-libs commit 00fe7a40 (2026-10-11), which published the
+ * v0_2_86/base model libraries web-llm 0.2.86's records point at through
+ * `main`. Pinned with the builds so a later push to `main` cannot change the
+ * WebAssembly this app runs; the record test fails if web-llm moves its
+ * libraries, so an upgrade re-pins here on purpose.
+ */
+const MODEL_LIB_COMMIT = '00fe7a40e57e5e8eb9fef87526a4bf28ad5846c0';
+const MODEL_LIB_MAIN = '/binary-mlc-llm-libs/main/';
 
 // Both builds' mlc-chat-config conv_template, plus the empty think block that
 // enable_thinking:false inserts. Checked against the chat API in Chrome, 2026-10-25:
@@ -81,6 +99,14 @@ export const WEBGPU_MODEL_PROFILES = {
       conv_config: { stop_token_ids: [248046, 248044] },
     },
     rawTemplate: QWEN_RAW_TEMPLATE,
+    pin: {
+      modelCommit: '44b42469f9e192814bfd90440e3b377d89ba7a13',
+      integrity: {
+        config: 'sha256-uU1Tv95bSW2NliOb9GhOJLU5QgnlrvkSeGbvpFQ5VlE=',
+        model_lib: 'sha256-VSFSvXb9VDLGuIdQqUisRNA4o8Vwvmqg8OdEBnqeKiU=',
+        tokenizer: { 'tokenizer.json': 'sha256-X55NSQGpK5l+RjwfRgVQiLbMpcphplItG59kxLuBy0I=' },
+      },
+    },
   },
   'Qwen3-4B-q4f16_1-MLC': {
     label: 'Qwen3-4B Instruct',
@@ -89,8 +115,57 @@ export const WEBGPU_MODEL_PROFILES = {
     contextWindow: 4096,
     chatOptions: { context_window_size: 4096 },
     rawTemplate: QWEN_RAW_TEMPLATE,
+    pin: {
+      modelCommit: 'a5c9fab855e3ccbdfed2e7e69683d75f30332161',
+      integrity: {
+        config: 'sha256-lyasfbzZBHX4BFYEvghi7xtIN+QyxQBNoguKbjSDMNo=',
+        model_lib: 'sha256-Z4+VN8c4gRPigUHveo5BbMYA5yp88up6rA4EVlnT7L0=',
+        tokenizer: { 'tokenizer.json': 'sha256-rrEzB6cazY/oGGHZStVKtonfdzMYgJ7tPL55S0SS2uQ=' },
+      },
+    },
   },
 } as const satisfies Record<string, WebGPUModelProfile>;
+
+/**
+ * A prebuilt record pinned as its profile says: the weights at the profile's
+ * commit, the model library at MODEL_LIB_COMMIT, and the profile's hashes. A
+ * record without a pin is returned unchanged.
+ */
+export function pinnedModelRecord(record: ModelRecord): ModelRecord {
+  const profile: WebGPUModelProfile | undefined =
+    WEBGPU_MODEL_PROFILES[record.model_id as WebGPUModelId];
+  if (!profile?.pin) return record;
+  return {
+    ...record,
+    model: `${record.model.replace(/\/+$/, '')}/resolve/${profile.pin.modelCommit}/`,
+    model_lib: record.model_lib.replace(
+      MODEL_LIB_MAIN,
+      `/binary-mlc-llm-libs/${MODEL_LIB_COMMIT}/`
+    ),
+    integrity: profile.pin.integrity,
+  };
+}
+
+/**
+ * web-llm's prebuilt list with `modelId` pinned, plus the fast lane's copy of
+ * it when `laneId` is given (the same files, so the cache serves both).
+ */
+export function pinnedAppConfig(
+  prebuilt: AppConfig,
+  modelId: string,
+  laneId: string | null = null
+): AppConfig {
+  const record = prebuilt.model_list.find((entry) => entry.model_id === modelId);
+  if (!record) return prebuilt;
+  const pinned = pinnedModelRecord(record);
+  return {
+    ...prebuilt,
+    model_list: [
+      ...prebuilt.model_list.map((entry) => (entry === record ? pinned : entry)),
+      ...(laneId ? [{ ...pinned, model_id: laneId }] : []),
+    ],
+  };
+}
 
 export type WebGPUModelId = keyof typeof WEBGPU_MODEL_PROFILES;
 
@@ -433,17 +508,12 @@ class WebGPUClient {
       const chatOptions = WEBGPU_MODEL_PROFILES[modelId as WebGPUModelId]?.chatOptions;
       const record = prebuiltAppConfig.model_list.find((entry) => entry.model_id === modelId);
       const laneId = fastLane && record ? fastLaneModelId(modelId) : null;
-      // The fast lane is the same record under a second id: same weights URL,
-      // so the browser cache serves it without a second download.
-      const appConfig: AppConfig | undefined =
-        laneId && record
-          ? {
-              ...prebuiltAppConfig,
-              model_list: [...prebuiltAppConfig.model_list, { ...record, model_id: laneId }],
-            }
-          : undefined;
+      // The pinned record, and the fast lane as the same record under a second
+      // id: same weights URL, so the browser cache serves it without a second
+      // download.
+      const appConfig = pinnedAppConfig(prebuiltAppConfig, modelId, laneId);
       const engineConfig = {
-        ...(appConfig ? { appConfig } : {}),
+        appConfig,
         initProgressCallback: (report: InitProgressReport) => {
           if (!this.cancelled) {
             onProgress?.({ text: report.text, progress: report.progress });
@@ -475,6 +545,7 @@ class WebGPUClient {
       logger.info(
         `[WebGPU] Model ${modelId} loaded successfully (worker${laneId ? ', with fast lane' : ''})`
       );
+      void WebGPUClient.dropUnpinnedCopy(modelId);
       return true;
     } catch (error) {
       this.teardownWorker();
@@ -864,18 +935,43 @@ class WebGPUClient {
   // STATIC CACHE MANAGEMENT
   // --------------------------------------------------------------------------
 
+  /** Whether the pinned copy, the one load() uses, is downloaded. */
   static async isModelCached(modelId: string = DEFAULT_WEBGPU_MODEL_ID): Promise<boolean> {
     try {
-      const { hasModelInCache } = await import('@mlc-ai/web-llm');
-      return await hasModelInCache(modelId);
+      const { hasModelInCache, prebuiltAppConfig } = await import('@mlc-ai/web-llm');
+      return await hasModelInCache(modelId, pinnedAppConfig(prebuiltAppConfig, modelId));
     } catch {
       return false;
     }
   }
 
+  /**
+   * Delete the pinned copy, and the unpinned one an earlier version of this app
+   * downloaded from `resolve/main` (different URLs, so a different cache entry).
+   */
   static async deleteModelCache(modelId: string = DEFAULT_WEBGPU_MODEL_ID): Promise<void> {
-    const { deleteModelAllInfoInCache } = await import('@mlc-ai/web-llm');
-    await deleteModelAllInfoInCache(modelId);
+    const { deleteModelAllInfoInCache, prebuiltAppConfig } = await import('@mlc-ai/web-llm');
+    await deleteModelAllInfoInCache(modelId, pinnedAppConfig(prebuiltAppConfig, modelId));
+    await deleteModelAllInfoInCache(modelId, prebuiltAppConfig);
+  }
+
+  /**
+   * After a pinned load, drop the unpinned copy left by an earlier version of
+   * this app, so a player does not keep two downloads of the same model. Never
+   * fails a load: a cache that cannot be read is left as it is.
+   */
+  private static async dropUnpinnedCopy(modelId: string): Promise<void> {
+    try {
+      const { hasModelInCache, deleteModelAllInfoInCache, prebuiltAppConfig } =
+        await import('@mlc-ai/web-llm');
+      const record = prebuiltAppConfig.model_list.find((entry) => entry.model_id === modelId);
+      if (!record || pinnedModelRecord(record) === record) return;
+      if (!(await hasModelInCache(modelId, prebuiltAppConfig))) return;
+      await deleteModelAllInfoInCache(modelId, prebuiltAppConfig);
+      logger.info(`[WebGPU] Removed the unpinned download of ${modelId}`);
+    } catch (error) {
+      logger.warn('[WebGPU] Could not check for an unpinned download:', error);
+    }
   }
 
   static async getCacheStorageSize(): Promise<{ bytes: number; formatted: string } | null> {
