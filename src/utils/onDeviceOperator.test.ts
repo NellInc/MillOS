@@ -23,6 +23,8 @@ import { useAIConfigStore } from '../stores/aiConfigStore';
 import { useOperationsCampaignStore } from '../stores/operationsCampaignStore';
 import { useUIStore } from '../stores/uiStore';
 import { useAnnouncementsStore } from '../stores/announcementsStore';
+import { useGameSimulationStore } from '../stores/gameSimulationStore';
+import { useIncidentReplayStore } from '../stores/incidentReplayStore';
 import {
   INCIDENT_QUEUE,
   initializeOnDeviceOperator,
@@ -60,6 +62,49 @@ describe('the on-device operator in lights-out play', () => {
   afterEach(() => {
     release();
     useAIConfigStore.setState({ webgpuModelReady: false });
+    useGameSimulationStore.setState({ emergencyActive: false, emergencyDrillMode: false });
+    useIncidentReplayStore.setState({ replayMode: false });
+    useOperationsCampaignStore.setState({ activeChallenge: null });
+  });
+
+  it.each([
+    ['emergency stop', { emergencyActive: true }, 'while the emergency stop is active'],
+    ['egress drill', { emergencyDrillMode: true }, 'during the egress verification drill'],
+  ] as const)(
+    'stands down during the %s, says so once, and resumes when it clears',
+    async (_name, boundary, words) => {
+      mocks.requestJevAdvice.mockResolvedValue({ queue: 'Equipment maintenance', receivedAt: 0 });
+      useGameSimulationStore.setState(boundary);
+      const incident = await raise('bearing_overheat');
+      expect(mocks.requestJevAdvice).not.toHaveBeenCalled();
+      expect(lastAlert().message).toBe(`${incident.title}: left raised ${words}.`);
+      useOperationsCampaignStore.setState({}); // another campaign tick: no second notice
+      expect(useUIStore.getState().alerts).toHaveLength(1);
+      useGameSimulationStore.setState({ emergencyActive: false, emergencyDrillMode: false });
+      for (let i = 0; i < 5; i++) await settle();
+      expect(calls()).toEqual(['incident.acknowledge', 'incident.mitigate']);
+    }
+  );
+
+  it('stands down during a replay', async () => {
+    useIncidentReplayStore.setState({ replayMode: true });
+    await raise('delayed_truck');
+    expect(mocks.requestJevAdvice).not.toHaveBeenCalled();
+    expect(lastAlert().message).toContain('during a replay');
+  });
+
+  it("leaves a recovery challenge's incident to the player", async () => {
+    mocks.requestJevAdvice.mockResolvedValue({ queue: 'Equipment maintenance', receivedAt: 0 });
+    const { triggerIncident } = useOperationsCampaignStore.getState();
+    // startChallenge raises the incident, then marks it the player's.
+    const incident = triggerIncident('dust_filter_pressure')!;
+    useOperationsCampaignStore.setState({
+      activeChallenge: { incidentId: incident.id } as never,
+    });
+    for (let i = 0; i < 5; i++) await settle();
+    expect(mocks.requestJevAdvice).not.toHaveBeenCalled();
+    expect(calls()).toEqual([]);
+    expect(useUIStore.getState().alerts).toHaveLength(0);
   });
 
   it('routes on the text alone with the on-device model, then acknowledges and mitigates a correct route', async () => {

@@ -23,6 +23,10 @@ import {
   type OperationalIncident,
 } from '../stores/operationsCampaignStore';
 import { useUIStore } from '../stores/uiStore';
+import { useGameSimulationStore } from '../stores/gameSimulationStore';
+import { useIncidentReplayStore } from '../stores/incidentReplayStore';
+import { peekSCADAService } from '../scada/SCADAService';
+import { isWorkplaceReplayActive } from '../simulation/workplaceReplayRuntime';
 import { requestJevAdvice, type JevAdvice } from './jevClient';
 import { logger } from './logger';
 import { onDeviceOperatorMessages as msg } from './onDeviceOperator.messages';
@@ -46,7 +50,13 @@ export const INCIDENT_QUEUE: Record<IncidentKind, Queue> = {
   control_network_degraded: 'Equipment maintenance',
 };
 
-export type OperatorOutcome = 'handled' | 'misrouted' | 'heldBack' | 'unrouted' | 'refused';
+export type OperatorOutcome =
+  | 'handled'
+  | 'misrouted'
+  | 'heldBack'
+  | 'unrouted'
+  | 'refused'
+  | 'stoodDown';
 
 export interface OperatorRecord {
   incidentId: string;
@@ -71,6 +81,34 @@ export function onDeviceOperatorRecords(): readonly OperatorRecord[] {
 function active(): boolean {
   const config = useAIConfigStore.getState();
   return config.lightsOut && config.webgpuModelReady && webgpuClient.isConnected();
+}
+
+/**
+ * When the operator stands down, as workplaceAutoplay does: an emergency stop,
+ * the egress drill, a control mode other than simulation, or a replay. It acts
+ * again once the boundary clears, and each held incident is reported once.
+ */
+export type StandDown = 'emergency' | 'drill' | 'control' | 'replay';
+export function operatorStandDown(): StandDown | null {
+  const safety = useGameSimulationStore.getState();
+  if (safety.emergencyActive) return 'emergency';
+  if (safety.emergencyDrillMode) return 'drill';
+  const controlMode = peekSCADAService()?.getState().mode;
+  if (controlMode !== undefined && controlMode !== 'simulation') return 'control';
+  if (useIncidentReplayStore.getState().replayMode || isWorkplaceReplayActive()) return 'replay';
+  return null;
+}
+
+/** A recovery challenge's incident is the player's to handle. */
+function playersChallenge(incidentId: string): boolean {
+  return useOperationsCampaignStore.getState().activeChallenge?.incidentId === incidentId;
+}
+
+const heldNoticed = new Set<string>();
+function noticeHeld(incident: OperationalIncident, reason: StandDown) {
+  if (heldNoticed.has(incident.id)) return;
+  heldNoticed.add(incident.id);
+  notify(incident, null, 'stoodDown', translate(msg, `standDown_${reason}`));
 }
 
 function notify(
@@ -127,8 +165,12 @@ async function command(
 }
 
 async function handle(incident: OperationalIncident): Promise<void> {
-  if (!active()) {
-    seen.delete(incident.id); // try again once the operator can act
+  // Rechecked at the moment of acting: a challenge or a boundary can start
+  // between the sweep and this call. Either way, try again later.
+  const boundary = operatorStandDown();
+  if (!active() || boundary || playersChallenge(incident.id)) {
+    seen.delete(incident.id);
+    if (boundary) noticeHeld(incident, boundary);
     return;
   }
   const signal = (controller ??= new AbortController()).signal;
@@ -157,6 +199,13 @@ async function handle(incident: OperationalIncident): Promise<void> {
 
   const live = useOperationsCampaignStore.getState().incidents.find((i) => i.id === incident.id);
   if (!live || live.phase !== 'raised') return; // the player got there first
+  // Routing takes seconds: a boundary or a challenge may have begun meanwhile.
+  const late = operatorStandDown();
+  if (late || playersChallenge(incident.id)) {
+    seen.delete(incident.id);
+    if (late) noticeHeld(incident, late);
+    return;
+  }
   const acknowledged = await command('incident.acknowledge', incident, queue);
   if (acknowledged) return record('refused', acknowledged);
   if (queue !== INCIDENT_QUEUE[incident.kind]) return record('misrouted');
@@ -166,8 +215,14 @@ async function handle(incident: OperationalIncident): Promise<void> {
 
 function sweep(): void {
   if (!active()) return;
+  const boundary = operatorStandDown();
   for (const incident of useOperationsCampaignStore.getState().incidents) {
     if (incident.phase !== 'raised' || seen.has(incident.id)) continue;
+    if (playersChallenge(incident.id)) continue;
+    if (boundary) {
+      noticeHeld(incident, boundary);
+      continue;
+    }
     seen.add(incident.id);
     // One at a time, in the order raised: the fast lane serves one call at a time too.
     chain = chain
@@ -192,6 +247,17 @@ export function initializeOnDeviceOperator(): () => void {
         )
           sweep();
       }),
+      // A cleared boundary resumes the operator at once, not at the next campaign tick.
+      useGameSimulationStore.subscribe((state, previous) => {
+        if (
+          state.emergencyActive !== previous.emergencyActive ||
+          state.emergencyDrillMode !== previous.emergencyDrillMode
+        )
+          sweep();
+      }),
+      useIncidentReplayStore.subscribe((state, previous) => {
+        if (state.replayMode !== previous.replayMode) sweep();
+      }),
     ];
     sweep();
   }
@@ -206,5 +272,6 @@ export function initializeOnDeviceOperator(): () => void {
     controller?.abort();
     controller = null;
     seen.clear();
+    heldNoticed.clear();
   };
 }
