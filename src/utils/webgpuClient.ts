@@ -1013,13 +1013,24 @@ class WebGPUClient {
    */
   static async deleteModelCache(modelId: string = DEFAULT_WEBGPU_MODEL_ID): Promise<void> {
     const { deleteModelAllInfoInCache, prebuiltAppConfig } = await import('@mlc-ai/web-llm');
-    for (const backend of CACHE_BACKENDS) {
-      await deleteModelAllInfoInCache(
-        modelId,
+    const configs = [
+      ...CACHE_BACKENDS.map((backend) =>
         pinnedAppConfig(prebuiltAppConfig, modelId, null, backend)
-      );
+      ),
+      prebuiltAppConfig,
+    ];
+    // Most players never used IndexedDB: one store's failure must not stop the others.
+    let failure: unknown = null;
+    for (const config of configs) {
+      try {
+        await deleteModelAllInfoInCache(modelId, config);
+      } catch (error) {
+        logger.warn(`[WebGPU] Could not clear one store for ${modelId}:`, error);
+        failure ??= error;
+      }
     }
-    await deleteModelAllInfoInCache(modelId, prebuiltAppConfig);
+    // A failure that left a copy behind is still a failure to delete; say so.
+    if (failure !== null && (await WebGPUClient.isModelCached(modelId))) throw failure;
   }
 
   /**

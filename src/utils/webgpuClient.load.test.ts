@@ -1,9 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const create = vi.hoisted(() => vi.fn());
+const cache = vi.hoisted(() => ({ remove: vi.fn(), has: vi.fn() }));
 vi.mock('@mlc-ai/web-llm', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@mlc-ai/web-llm')>()),
   CreateWebWorkerMLCEngine: create,
+  deleteModelAllInfoInCache: cache.remove,
+  hasModelInCache: cache.has,
 }));
 
 import { isCacheWriteError, WebGPUClient } from './webgpuClient';
@@ -55,5 +58,34 @@ describe('loading when the browser cache refuses the download', () => {
     expect(isCacheWriteError(new Error('Cache.add() encountered a network error'))).toBe(true);
     expect(isCacheWriteError('QuotaExceededError')).toBe(true);
     expect(isCacheWriteError(new Error('Failed to fetch'))).toBe(false);
+  });
+});
+
+describe('deleting a downloaded model', () => {
+  beforeEach(() => {
+    cache.remove.mockReset();
+    cache.has.mockReset();
+  });
+
+  it('clears every store even when one of them fails, and is done if nothing is left', async () => {
+    cache.remove
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('IndexedDB: no such store'))
+      .mockResolvedValueOnce(undefined);
+    cache.has.mockResolvedValue(false);
+    await expect(WebGPUClient.deleteModelCache(MODEL)).resolves.toBeUndefined();
+    // Cache API and IndexedDB for the pinned copy, then the old unpinned copy.
+    expect(cache.remove).toHaveBeenCalledTimes(3);
+    expect(cache.remove.mock.calls.map(([, config]) => config.cacheBackend)).toEqual([
+      'cache',
+      'indexeddb',
+      'cache',
+    ]);
+  });
+
+  it('reports a failure that left a copy behind', async () => {
+    cache.remove.mockRejectedValue(new Error('Cache API locked'));
+    cache.has.mockResolvedValue(true);
+    await expect(WebGPUClient.deleteModelCache(MODEL)).rejects.toThrow('Cache API locked');
   });
 });
