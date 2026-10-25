@@ -61,12 +61,31 @@ export type OperatorOutcome =
 export interface OperatorRecord {
   incidentId: string;
   kind: IncidentKind;
+  title: string;
+  /** Campaign minute when the operator settled it. */
+  minute: number;
   queue: Queue | null;
   outcome: OperatorOutcome;
 }
 
 const MAX_RECORDS = 200;
-const records: OperatorRecord[] = [];
+// Replaced, never mutated, so a subscriber's snapshot changes with it.
+let records: readonly OperatorRecord[] = [];
+const listeners = new Set<() => void>();
+function addRecord(incident: OperationalIncident, queue: Queue | null, outcome: OperatorOutcome) {
+  const minute = useOperationsCampaignStore.getState().elapsedMinutes;
+  records = [
+    ...records,
+    { incidentId: incident.id, kind: incident.kind, title: incident.title, minute, queue, outcome },
+  ].slice(-MAX_RECORDS);
+  listeners.forEach((listener) => listener());
+}
+
+/** For useSyncExternalStore: the record changes whenever the operator settles an incident. */
+export function subscribeOnDeviceOperator(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
 const seen = new Set<string>();
 let chain: Promise<void> = Promise.resolve();
 let users = 0;
@@ -108,6 +127,7 @@ const heldNoticed = new Set<string>();
 function noticeHeld(incident: OperationalIncident, reason: StandDown) {
   if (heldNoticed.has(incident.id)) return;
   heldNoticed.add(incident.id);
+  addRecord(incident, null, 'stoodDown');
   notify(incident, null, 'stoodDown', translate(msg, `standDown_${reason}`));
 }
 
@@ -193,8 +213,7 @@ async function handle(incident: OperationalIncident): Promise<void> {
     }
   }
   const record = (outcome: OperatorOutcome, problem?: string) => {
-    records.push({ incidentId: incident.id, kind: incident.kind, queue, outcome });
-    if (records.length > MAX_RECORDS) records.shift();
+    addRecord(incident, queue, outcome);
     notify(incident, queue, outcome, problem);
   };
   if (!queue) return record('unrouted');
