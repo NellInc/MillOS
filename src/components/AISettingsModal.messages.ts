@@ -33,7 +33,7 @@ export const aiSettingsModalMessages = defineMessages({
     cachedWithSize: 'Cached in this browser (~{size} used)',
     notDownloaded: 'Not downloaded yet',
     modelDownloadNote:
-      'The model ({model}, ~2.7GB) downloads automatically when you select this backend, once, from the Hugging Face CDN, and is cached in your browser. After that all inference runs on your GPU and your simulation data never leaves your device — no API key, no cost. Use “Delete downloaded model” any time to remove it and free the space.',
+      'The model ({model}, ~{size} GB) downloads automatically when you select this backend, once, from the Hugging Face CDN, and is cached in your browser. After that all inference runs on your GPU and your simulation data never leaves your device — no API key, no cost. Use “Delete downloaded model” any time to remove it and free the space.',
 
     // ChatGPT panel
     modelCatalogUnavailable: 'Model catalog unavailable.',
@@ -170,7 +170,7 @@ export const aiSettingsModalMessages = defineMessages({
     cachedWithSize: 'Em cache neste navegador (~{size} em uso)',
     notDownloaded: 'Ainda não baixado',
     modelDownloadNote:
-      'O modelo ({model}, ~2,7 GB) é baixado automaticamente uma única vez, da CDN do Hugging Face, quando você seleciona este backend, e fica armazenado no seu navegador. Depois disso, toda a inferência roda na sua GPU e os dados da sua simulação nunca saem do seu dispositivo — sem chave de API, sem custo. Use “Excluir modelo baixado” a qualquer momento para removê-lo e liberar o espaço.',
+      'O modelo ({model}, ~{size} GB) é baixado automaticamente uma única vez, da CDN do Hugging Face, quando você seleciona este backend, e fica armazenado no seu navegador. Depois disso, toda a inferência roda na sua GPU e os dados da sua simulação nunca saem do seu dispositivo — sem chave de API, sem custo. Use “Excluir modelo baixado” a qualquer momento para removê-lo e liberar o espaço.',
 
     modelCatalogUnavailable: 'Catálogo de modelos indisponível.',
     chatgptOperationFailed: 'A operação do ChatGPT falhou.',

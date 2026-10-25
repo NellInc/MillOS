@@ -108,28 +108,36 @@ describe('mountain ridge geometry', () => {
     expect(CELESTIAL_RADIUS + 7.4 * (CELESTIAL_RADIUS / 345)).toBeLessThan(CAMERA_DEPTH.far);
   });
 
-  it('keeps the backdrop behind grounded woodland from both overview sides', () => {
-    const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
-    const meshes = MOUNTAIN_RIDGE_GEOMETRIES.map((geometry) => new THREE.Mesh(geometry, material));
-    const occluded: string[] = [];
-    for (const camera of [SITE_LAYOUT.cameras.overview.position, [-80, 32, 118]] as const) {
-      const eye = new THREE.Vector3(...camera);
-      for (const [ring, mesh] of meshes.entries()) {
-        mesh.position.set(ring === 0 ? camera[0] : 0, 0, ring === 0 ? camera[2] : 0);
-        mesh.updateMatrixWorld();
+  // Brute-force raycasts from every grove tree to both cameras: about 1 s alone,
+  // but 15-21 s on CI's runners under the full parallel suite, past the 10 s default.
+  it(
+    'keeps the backdrop behind grounded woodland from both overview sides',
+    { timeout: 60_000 },
+    () => {
+      const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+      const meshes = MOUNTAIN_RIDGE_GEOMETRIES.map(
+        (geometry) => new THREE.Mesh(geometry, material)
+      );
+      const occluded: string[] = [];
+      for (const camera of [SITE_LAYOUT.cameras.overview.position, [-80, 32, 118]] as const) {
+        const eye = new THREE.Vector3(...camera);
+        for (const [ring, mesh] of meshes.entries()) {
+          mesh.position.set(ring === 0 ? camera[0] : 0, 0, ring === 0 ? camera[2] : 0);
+          mesh.updateMatrixWorld();
+        }
+        for (const {
+          position: [x, , z],
+        } of LANDSCAPE_GROVE_TREES) {
+          const foot = new THREE.Vector3(x, sampleValleyGroundHeight(x, z, 128) + 0.1, z);
+          const distance = foot.distanceTo(eye);
+          const ray = new THREE.Raycaster(eye, foot.sub(eye).normalize(), 0, distance - 0.01);
+          if (ray.intersectObjects(meshes).length) occluded.push(`${camera[0]}: ${x}, ${z}`);
+        }
       }
-      for (const {
-        position: [x, , z],
-      } of LANDSCAPE_GROVE_TREES) {
-        const foot = new THREE.Vector3(x, sampleValleyGroundHeight(x, z, 128) + 0.1, z);
-        const distance = foot.distanceTo(eye);
-        const ray = new THREE.Raycaster(eye, foot.sub(eye).normalize(), 0, distance - 0.01);
-        if (ray.intersectObjects(meshes).length) occluded.push(`${camera[0]}: ${x}, ${z}`);
-      }
+      material.dispose();
+      expect(occluded).toEqual([]);
     }
-    material.dispose();
-    expect(occluded).toEqual([]);
-  });
+  );
 
   it('closes the sky gap below the remote ridge for a downward view', () => {
     // First reproduced from a raised village camera: a view angled below the

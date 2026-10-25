@@ -14,6 +14,9 @@ export const jevAdvisoryPanelMessages = defineMessages({
     providerJev: 'Jev 1.14 · OpenRouter',
     providerOpenAI: 'GPT-6 Luna · OpenAI',
     providerAnthropic: 'Haiku 5.5 · Anthropic',
+    providerLocal: '{model} · on this device',
+    titleLocal: 'On-device incident routing',
+    sendLocal: 'Ask the on-device model',
     titleAnthropic: 'Haiku incident routing',
     apiKeyLabelAnthropic: 'Your Anthropic API key',
     consentAnthropic:
@@ -53,6 +56,9 @@ export const jevAdvisoryPanelMessages = defineMessages({
     providerJev: 'Jev 1.14 · OpenRouter',
     providerOpenAI: 'GPT-6 Luna · OpenAI',
     providerAnthropic: 'Haiku 5.5 · Anthropic',
+    providerLocal: '{model} · neste dispositivo',
+    titleLocal: 'Encaminhamento de ocorrências no dispositivo',
+    sendLocal: 'Perguntar ao modelo no dispositivo',
     titleAnthropic: 'Encaminhamento de ocorrências pelo Haiku',
     apiKeyLabelAnthropic: 'Sua chave de API da Anthropic',
     consentAnthropic:

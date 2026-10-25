@@ -2,6 +2,7 @@
 import { formatFixed, translate } from '../i18n';
 import { isLocalCompanionHost } from './cloudAIClient';
 import { jevClientMessages as messages } from './jevClient.messages';
+import { webgpuClient } from './webgpuClient';
 
 export const JEV_ENDPOINT = 'https://openrouter.ai/api/alpha/decisions';
 /** Jev 1.14 replaced 1.13 on 2026-10-25 after a 65-case comparison on this rubric. */
@@ -18,7 +19,11 @@ export const OPENAI_DECISIONS_MODEL = 'gpt-6-luna';
  */
 export const HAIKU_ADVISORY_ENDPOINT = 'https://api.anthropic.com/v1/messages';
 export const HAIKU_ADVISORY_MODEL = 'claude-haiku-5-5';
-export type AdvisoryProvider = 'jev' | 'openai' | 'haiku';
+/**
+ * 'local' is the browser's own model (webgpuClient), answering the same rubric
+ * as a five-way choice. Nothing leaves the device, so it needs no key or consent.
+ */
+export type AdvisoryProvider = 'jev' | 'openai' | 'haiku' | 'local';
 export const JEV_MAX_TEXT_LENGTH = 4000;
 export const JEV_TIMEOUT_MS = 30_000;
 export const JEV_RESULT_TTL_MS = 60_000;
@@ -58,6 +63,33 @@ export const JEV_QUEUE_DESCRIPTIONS: Record<(typeof JEV_QUEUES)[number], string>
 const DESCRIBED_QUEUES =
   '\n\nQueues:\n' +
   JEV_QUEUES.map((queue) => `- ${queue}: ${JEV_QUEUE_DESCRIPTIONS[queue]}`).join('\n');
+// The on-device prompt, as screened: the guarded rubric, the described queues
+// and a one-line answer instruction.
+const LOCAL_SYSTEM = `${QUESTION}${DESCRIBED_QUEUES}\n\nAnswer with the queue name only.`;
+type Queue = (typeof JEV_QUEUES)[number];
+/**
+ * Each queue's first token at the start of the answer in each local model's
+ * vocabulary, from the mlc-ai build's tokenizer.json (Qwen3.5-4B 44b42469,
+ * Qwen3-4B a5c9fab8). The five are distinct, so one token decides the queue.
+ */
+export const LOCAL_QUEUE_TOKENS: Partial<
+  Record<string, Record<Queue, { id: number; token: string }>>
+> = {
+  'Qwen3.5-4B-q4f16_1-MLC': {
+    'Equipment maintenance': { id: 56315, token: 'Equipment' },
+    'Product quality': { id: 4662, token: 'Product' },
+    'Logistics coordination': { id: 2132, token: 'Log' },
+    'No current incident': { id: 2665, token: 'No' },
+    'Insufficient evidence': { id: 15020, token: 'Ins' },
+  },
+  'Qwen3-4B-q4f16_1-MLC': {
+    'Equipment maintenance': { id: 58276, token: 'Equipment' },
+    'Product quality': { id: 4816, token: 'Product' },
+    'Logistics coordination': { id: 2201, token: 'Log' },
+    'No current incident': { id: 2753, token: 'No' },
+    'Insufficient evidence': { id: 15474, token: 'Ins' },
+  },
+};
 
 export interface JevAdvice {
   queue: (typeof JEV_QUEUES)[number];
@@ -70,6 +102,8 @@ export function isJevKeyValid(key: string): boolean {
 
 /** A key is only ever sent to the provider that issued it. */
 export function isAdvisoryKeyValid(provider: AdvisoryProvider, key: string): boolean {
+  // The on-device model takes no key, so there is none to get wrong.
+  if (provider === 'local') return true;
   const trimmed = key.trim();
   if (provider === 'haiku') return /^sk-ant-[A-Za-z0-9_-]{20,256}$/.test(trimmed);
   if (provider === 'openai')
@@ -81,13 +115,17 @@ export function isAdvisoryKeyValid(provider: AdvisoryProvider, key: string): boo
   return isJevKeyValid(trimmed);
 }
 
-/** Direct provider keys (OpenAI, Anthropic) are offered on the local companion host only. */
-export function advisoryProviders(): AdvisoryProvider[] {
-  return isLocalCompanionHost() ? ['jev', 'openai', 'haiku'] : ['jev'];
+/**
+ * Direct provider keys (OpenAI, Anthropic) are offered on the local companion
+ * host only. The on-device model is offered anywhere, while it is loaded.
+ */
+export function advisoryProviders(localReady = false): AdvisoryProvider[] {
+  const cloud: AdvisoryProvider[] = isLocalCompanionHost() ? ['jev', 'openai', 'haiku'] : ['jev'];
+  return localReady ? [...cloud, 'local'] : cloud;
 }
 
 // Each provider's errors name that provider; Jev's keep their original keys.
-const SUFFIX = { jev: '', openai: 'OpenAI', haiku: 'Anthropic' } as const;
+const SUFFIX = { jev: '', openai: 'OpenAI', haiku: 'Anthropic', local: 'Local' } as const;
 type MessageKey = keyof (typeof messages)['en'];
 function providerKey(provider: AdvisoryProvider, base: string): MessageKey {
   return `${base}${SUFFIX[provider]}` as MessageKey;
@@ -236,6 +274,51 @@ function requestBody(provider: AdvisoryProvider, text: string): Record<string, u
   };
 }
 
+/**
+ * The on-device model scores the five queues' first tokens. A confident answer
+ * rounds the others to exactly 0, and web-llm then fills the remaining top-5
+ * slots with arbitrary zero-probability tokens (ids 0-3), so an absent queue
+ * token counts as 0. Anything else is not advice and fails here instead of
+ * misrouting: probability on a token outside the five (the bias did not hold:
+ * a wrong id table, a changed tokenizer), or the five not carrying the whole
+ * distribution.
+ */
+async function requestLocalAdvice(text: string, signal: AbortSignal): Promise<JevAdvice> {
+  if (!text.trim() || text.length > JEV_MAX_TEXT_LENGTH) {
+    throw new Error(
+      translate(messages, 'textLength', { max: formatFixed(JEV_MAX_TEXT_LENGTH, 0) })
+    );
+  }
+  if (signal.aborted) throw new Error(translate(messages, 'cancelled'));
+  const tokens = LOCAL_QUEUE_TOKENS[webgpuClient.getModelId()];
+  if (!tokens || !webgpuClient.isConnected()) {
+    throw new Error(translate(messages, 'unavailableLocal'));
+  }
+  const scores = await webgpuClient.scoreNextToken({
+    system: LOCAL_SYSTEM,
+    user: text.trim(),
+    tokenIds: JEV_QUEUES.map((queue) => tokens[queue].id),
+    signal,
+  });
+  if (signal.aborted) throw new Error(translate(messages, 'cancelledOrTimedOut'));
+  const queueTokens = new Set(JEV_QUEUES.map((queue) => tokens[queue].token));
+  const valid = (p: unknown): p is number =>
+    typeof p === 'number' && Number.isFinite(p) && p >= 0 && p <= 1;
+  if (
+    !scores ||
+    !scores.every((score) => valid(score.probability)) ||
+    scores.some((score) => !queueTokens.has(score.token) && score.probability > 0)
+  ) {
+    throw new Error(translate(messages, 'invalidAdvisoryLocal'));
+  }
+  const probability = new Map(scores.map((score) => [score.token, score.probability]));
+  const values = JEV_QUEUES.map((queue) => probability.get(tokens[queue].token) ?? 0);
+  if (values.reduce((sum, p) => sum + p, 0) < 0.99) {
+    throw new Error(translate(messages, 'invalidAdvisoryLocal'));
+  }
+  return { queue: JEV_QUEUES[values.indexOf(Math.max(...values))], receivedAt: Date.now() };
+}
+
 /** Credentials and notes are transient arguments, never persisted or logged. No retries/fallbacks. */
 export async function requestJevAdvice({
   text,
@@ -250,6 +333,7 @@ export async function requestJevAdvice({
   signal: AbortSignal;
   provider?: AdvisoryProvider;
 }): Promise<JevAdvice> {
+  if (provider === 'local') return requestLocalAdvice(text, signal);
   const key = (base: string) => translate(messages, providerKey(provider, base));
   if (!consent) throw new Error(translate(messages, 'consentRequired'));
   if (provider !== 'jev' && !isLocalCompanionHost()) throw new Error(key('localOnly'));

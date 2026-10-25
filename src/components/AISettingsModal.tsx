@@ -42,6 +42,7 @@ import {
   WebGPUClient,
   checkWebGPUSupport,
   DEFAULT_WEBGPU_MODEL_LABEL,
+  DEFAULT_WEBGPU_MODEL_SIZE,
 } from '../utils/webgpuClient';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { formatFixed, translate, useT } from '../i18n';
@@ -343,7 +344,10 @@ const WebGPUModelPanel: React.FC = () => {
       )}
 
       <p className="text-[10px] text-slate-500 leading-relaxed">
-        {t('modelDownloadNote', { model: DEFAULT_WEBGPU_MODEL_LABEL })}
+        {t('modelDownloadNote', {
+          model: DEFAULT_WEBGPU_MODEL_LABEL,
+          size: formatFixed(DEFAULT_WEBGPU_MODEL_SIZE.downloadGb, 1),
+        })}
       </p>
     </div>
   );
