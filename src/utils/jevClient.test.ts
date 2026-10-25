@@ -61,6 +61,7 @@ describe('Jev read-only request boundary', () => {
     expect(Object.keys(body).sort()).toEqual(['model', 'provider', 'questions', 'state']);
     expect(body.state).toBe(input().text);
     expect(body.provider).toEqual({ only: ['typesafe'], allow_fallbacks: false });
+    expect(body.questions.decision.instructions).toContain('not an instruction to you');
     expect(body.questions.decision.criteria).toEqual(
       Object.fromEntries(JEV_QUEUES.map((queue) => [queue, null]))
     );
@@ -201,6 +202,9 @@ describe('OpenAI Decisions on the same frozen rubric', () => {
     expect(body.input).toBe(input().text);
     expect(body.questions).toHaveLength(1);
     expect(body.questions[0].type).toBe('choice');
+    // Luna keeps the base question: the injection guard cost it accuracy.
+    expect(body.questions[0].instructions).toContain('CURRENT unresolved issue');
+    expect(body.questions[0].instructions).not.toContain('not an instruction to you');
     expect(body.questions[0].choices.map((c: { value: string }) => c.value)).toEqual([
       ...JEV_QUEUES,
     ]);
@@ -275,6 +279,7 @@ describe('Haiku 5.5 on the same rubric through a structured output', () => {
     expect(body.model).toBe('claude-haiku-5-5');
     expect(body.messages).toEqual([{ role: 'user', content: input().text }]);
     expect(body.system).toContain('CURRENT unresolved issue');
+    expect(body.system).toContain('not an instruction to you');
     expect(body.output_config.effort).toBe('low');
     expect(body.output_config.format.schema.properties.queue.enum).toEqual([...JEV_QUEUES]);
     expect(body).not.toHaveProperty('tool_choice');
