@@ -18,7 +18,7 @@ import {
   type DirectBackend,
 } from '../utils/cloudAIClient';
 import { chatgptClient, type ChatGPTStatus } from '../utils/chatgptClient';
-import { spendBudget } from '../utils/spendBudget';
+import { spendBudget, spendDigits } from '../utils/spendBudget';
 import {
   webgpuClient,
   WebGPUClient,
@@ -635,23 +635,9 @@ export const useAIConfigStore = create<AIConfigState>()(
       // Get formatted cost string
       getFormattedCost: () => {
         const { sessionCost, requestCount } = get().costTracking;
-        if (requestCount === 0) {
-          return translate(aiConfigStoreMessages, 'sessionCost', { amount: formatFixed(0, 2) });
-        }
-        // A Jev advisory costs about $0.000014, so small sessions keep six places
-        // instead of reading as zero (the cost overlay does the same).
-        if (sessionCost < 0.0001) {
-          return translate(aiConfigStoreMessages, 'sessionCost', {
-            amount: formatFixed(sessionCost, 6),
-          });
-        }
-        if (sessionCost < 0.01) {
-          return translate(aiConfigStoreMessages, 'sessionCost', {
-            amount: formatFixed(sessionCost, 4),
-          });
-        }
+        const amount = requestCount === 0 ? 0 : sessionCost;
         return translate(aiConfigStoreMessages, 'sessionCost', {
-          amount: formatFixed(sessionCost, 2),
+          amount: formatFixed(amount, spendDigits(amount)),
         });
       },
 

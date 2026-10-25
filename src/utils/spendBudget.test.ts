@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { SpendBudget, SpendCapError } from './spendBudget';
+import { SpendBudget, SpendCapError, spendDigits } from './spendBudget';
 
 describe('BYOK session budget', () => {
   beforeEach(() => sessionStorage.clear());
@@ -28,5 +28,15 @@ describe('BYOK session budget', () => {
     expect(reloaded.getSnapshot().uncertainUsd).toBeCloseTo(
       budget.getSnapshot().uncertainUsd + budget.getSnapshot().reservedUsd
     );
+  });
+});
+
+describe('spend amounts on screen', () => {
+  it('keeps enough places that a small session never reads as zero', () => {
+    expect(spendDigits(0)).toBe(2);
+    expect(spendDigits(0.000022)).toBe(6);
+    expect(spendDigits(0.0042)).toBe(4);
+    expect(spendDigits(0.01)).toBe(2);
+    expect(spendDigits(12.5)).toBe(2);
   });
 });

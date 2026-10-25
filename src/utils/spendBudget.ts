@@ -29,6 +29,15 @@ export interface TokenRates {
 }
 const DEFAULT_RATES: TokenRates = { inputPer1M: 0.1, outputPer1M: 0.5 };
 
+/**
+ * Decimal places for a dollar amount, so a small session never reads as zero:
+ * a Jev advisory costs about $0.00002.
+ */
+export function spendDigits(amountUsd: number): number {
+  if (amountUsd === 0 || amountUsd >= 0.01) return 2;
+  return amountUsd < 0.0001 ? 6 : 4;
+}
+
 function costOf(inputTokens: number, outputTokens: number, rates: TokenRates): number {
   return (inputTokens * rates.inputPer1M + outputTokens * rates.outputPer1M) / 1_000_000;
 }

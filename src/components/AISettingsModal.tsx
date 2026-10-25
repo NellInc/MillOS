@@ -38,6 +38,7 @@ import {
   type CloudModel,
 } from '../utils/cloudAIClient';
 import { chatgptClient, type ChatGPTModel } from '../utils/chatgptClient';
+import { spendDigits } from '../utils/spendBudget';
 import {
   WebGPUClient,
   checkWebGPUSupport,
@@ -851,8 +852,14 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
               </div>
               <p className="text-xs text-slate-400">
                 {t('costUsage', {
-                  used: formatFixed(costTracking.sessionCost, 4),
-                  pending: formatFixed(costTracking.reservedCost + costTracking.uncertainCost, 4),
+                  used: formatFixed(
+                    costTracking.sessionCost,
+                    spendDigits(costTracking.sessionCost)
+                  ),
+                  pending: formatFixed(
+                    costTracking.reservedCost + costTracking.uncertainCost,
+                    spendDigits(costTracking.reservedCost + costTracking.uncertainCost)
+                  ),
                 })}
                 {spendCapUsd === null
                   ? t('noCap')

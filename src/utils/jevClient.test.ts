@@ -21,7 +21,7 @@ import {
   OPENAI_DECISIONS_ENDPOINT,
   requestJevAdvice,
 } from './jevClient';
-import { spendBudget, SpendCapError } from './spendBudget';
+import { spendBudget } from './spendBudget';
 
 const key = `sk-or-v1-${'test-only-'.repeat(5)}`;
 const payload = () => ({
@@ -510,12 +510,39 @@ describe('Paid advisories are charged to the session budget', () => {
     }
   });
 
-  it('sends nothing once the session cap is reached, and says so', async () => {
-    vi.spyOn(spendBudget, 'reserve').mockImplementation(() => {
-      throw new SpendCapError('Session cost cap reached. No paid request was sent.');
-    });
-    await expect(requestJevAdvice(input())).rejects.toThrow(/No paid request was sent/);
-    expect(fetchMock).not.toHaveBeenCalled();
+  it('sends nothing once the session cap would be passed, and says so', async () => {
+    // Earlier tests leave possibly-charged amounts on this shared budget, so the
+    // cap sits $0.01 above what is already in use.
+    const s = spendBudget.getSnapshot();
+    const inUse = s.spentUsd + s.reservedUsd + s.uncertainUsd;
+    const cap = Math.ceil((inUse + 0.01) * 100) / 100;
+    spendBudget.setCap(cap);
+    // Hold all but about $0.00005 of it (default rates: $0.10 per million input
+    // tokens, counted as UTF-8 bytes plus 512); a Jev question reserves more.
+    const held = spendBudget.reserve(
+      'x'.repeat(Math.floor((cap - inUse - 0.00005) / 1e-7) - 512),
+      0
+    );
+    try {
+      await expect(requestJevAdvice(input())).rejects.toThrow(/No paid request was sent/);
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      spendBudget.reject(held);
+      spendBudget.setCap(null);
+    }
+  });
+
+  it('still admits a question that fits under the cap', async () => {
+    spendBudget.setCap(0.01);
+    try {
+      fetchMock.mockResolvedValue(
+        reply({ ...payload(), usage: { input_tokens: 329, output_tokens: 64, cost: 0.000014 } })
+      );
+      await expect(requestJevAdvice(input())).resolves.toMatchObject({ queue: JEV_QUEUES[0] });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      spendBudget.setCap(null);
+    }
   });
 
   it('never charges the on-device model', async () => {
