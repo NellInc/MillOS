@@ -24,6 +24,7 @@ import {
   WebGPUClient,
   checkWebGPUAdapter,
   DEFAULT_WEBGPU_MODEL_ID,
+  fastLaneByDefault,
   WEBGPU_MODEL_PROFILES,
 } from '../utils/webgpuClient';
 import { logger } from '../utils/logger';
@@ -138,6 +139,12 @@ interface AIConfigState {
   webgpuModelReady: boolean; // engine loaded & serving inference
   webgpuModelId: string;
   webgpuAdapterWarning: string | null; // advisory OOM/perf warning from adapter probe
+  /** A second copy of the local model for routing (webgpuClient fast lane). Session only. */
+  webgpuFastLane: boolean;
+  setWebGPUFastLane: (enabled: boolean) => Promise<void>;
+  /** The on-device model routes and handles raised incidents itself. Session only. */
+  lightsOut: boolean;
+  setLightsOut: (enabled: boolean) => void;
   /** Load the local model. `promote` (default true) mirrors cloud
    *  connect-time switch to Hybrid; the silent startup prewarm passes false so
    *  it never overrides a persisted aiMode. */
@@ -301,6 +308,18 @@ export const useAIConfigStore = create<AIConfigState>()(
       webgpuModelReady: false,
       webgpuModelId: DEFAULT_WEBGPU_MODEL_ID,
       webgpuAdapterWarning: null,
+      webgpuFastLane: fastLaneByDefault(),
+      setWebGPUFastLane: async (enabled) => {
+        if (get().webgpuFastLane === enabled) return;
+        set({ webgpuFastLane: enabled });
+        // A loaded core picks it up straight away: the same weights, reloaded.
+        if (get().webgpuModelReady) {
+          set({ webgpuModelReady: false, webgpuStatus: 'idle' });
+          await get().loadWebGPUModel(false);
+        }
+      },
+      lightsOut: true,
+      setLightsOut: (enabled) => set({ lightsOut: enabled }),
 
       loadWebGPUModel: async (promote: boolean = true): Promise<boolean> => {
         // Idempotent: skip if already online or a load is already in flight, so
@@ -344,13 +363,17 @@ export const useAIConfigStore = create<AIConfigState>()(
           webgpuMessage: translate(aiConfigStoreMessages, 'initializingDownload'),
         });
 
-        const ok = await webgpuClient.load((p) => {
-          if (webgpuCancelRequested) return; // stop reflecting progress once cancelled
-          const lower = p.text.toLowerCase();
-          const status: WebGPUStatus =
-            lower.includes('compil') || lower.includes('shader') ? 'compiling' : 'loading';
-          set({ webgpuStatus: status, webgpuProgress: p.progress, webgpuMessage: p.text });
-        });
+        const ok = await webgpuClient.load(
+          (p) => {
+            if (webgpuCancelRequested) return; // stop reflecting progress once cancelled
+            const lower = p.text.toLowerCase();
+            const status: WebGPUStatus =
+              lower.includes('compil') || lower.includes('shader') ? 'compiling' : 'loading';
+            set({ webgpuStatus: status, webgpuProgress: p.progress, webgpuMessage: p.text });
+          },
+          get().webgpuModelId,
+          get().webgpuFastLane
+        );
 
         // Cancellation wins over the load result (which resolves false on cancel).
         if (webgpuCancelRequested) {

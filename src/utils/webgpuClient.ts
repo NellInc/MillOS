@@ -23,7 +23,12 @@
  * the adapter's limits suggest the device may struggle.
  */
 
-import type { ChatOptions, WebWorkerMLCEngine, InitProgressReport } from '@mlc-ai/web-llm';
+import type {
+  AppConfig,
+  ChatOptions,
+  WebWorkerMLCEngine,
+  InitProgressReport,
+} from '@mlc-ai/web-llm';
 import { logger } from './logger';
 import { formatFixed, translate } from '../i18n';
 import { webgpuClientMessages as messages } from './webgpuClient.messages';
@@ -86,6 +91,25 @@ export const DEFAULT_WEBGPU_MODEL_SIZE = {
   downloadGb: WEBGPU_MODEL_PROFILES[DEFAULT_WEBGPU_MODEL_ID].downloadGb,
   vramGb: WEBGPU_MODEL_PROFILES[DEFAULT_WEBGPU_MODEL_ID].vramGb,
 };
+
+/**
+ * The fast lane: a second copy of the same build under its own model_id, so
+ * routing runs beside a strategic generation instead of queueing behind it.
+ * web-llm keeps one lock per loaded model, and both copies share the one
+ * download. Measured in Chrome on Qwen3.5-4B, 2026-10-25: a routing call
+ * arriving 3 s into a strategic answer took 2.8-3.4 s with the fast lane and
+ * 27.9 s without; the strategic answer was not measurably slower (36.5 s,
+ * against 37.4 s alone). Cost: one more copy of the weights in GPU memory.
+ */
+export function fastLaneModelId(modelId: string): string {
+  return `${modelId}-fast-lane`;
+}
+
+/** Default for the fast lane: on where the browser reports at least 8 GB of memory (Chrome's ceiling). */
+export function fastLaneByDefault(): boolean {
+  const memory = (globalThis.navigator as { deviceMemory?: number } | undefined)?.deviceMemory;
+  return typeof memory === 'number' && memory >= 8;
+}
 
 // Generation config — mirrors cloudAIClient's cloud settings for parity.
 const GENERATION_CONFIG = {
@@ -238,6 +262,8 @@ class WebGPUClient {
   private worker: Worker | null = null;
   private loadingPromise: Promise<boolean> | null = null;
   private modelId: string = DEFAULT_WEBGPU_MODEL_ID;
+  // The fast lane's model_id while one is loaded; every request then names its lane.
+  private fastLaneId: string | null = null;
   private cancelled = false;
   // Resolver for the in-flight load's cancellation race (see initEngine).
   private cancelResolve: (() => void) | null = null;
@@ -264,6 +290,11 @@ class WebGPUClient {
     return this.modelId;
   }
 
+  /** Whether short scoring calls have their own copy of the model. */
+  hasFastLane(): boolean {
+    return this.engine !== null && this.fastLaneId !== null;
+  }
+
   // --------------------------------------------------------------------------
   // ENGINE LIFECYCLE
   // --------------------------------------------------------------------------
@@ -275,13 +306,16 @@ class WebGPUClient {
    */
   async load(
     onProgress?: (progress: WebGPULoadProgress) => void,
-    modelId: string = DEFAULT_WEBGPU_MODEL_ID
+    modelId: string = DEFAULT_WEBGPU_MODEL_ID,
+    fastLane: boolean = false
   ): Promise<boolean> {
-    if (this.engine !== null && this.modelId === modelId) {
-      return true;
-    }
     if (this.loadingPromise && this.modelId === modelId) {
       return this.loadingPromise;
+    }
+    if (this.engine !== null && this.modelId === modelId) {
+      if ((this.fastLaneId !== null) === fastLane) return true;
+      // Adding or dropping the fast lane is a reload of the same weights.
+      await this.disconnect();
     }
 
     // Honor the circuit breaker so repeated load failures (OOM / device-lost)
@@ -296,7 +330,7 @@ class WebGPUClient {
     this.cancelled = false;
     // Pass modelId explicitly so a concurrent load() of a different model can't
     // mutate this.modelId out from under an in-flight CreateMLCEngine.
-    this.loadingPromise = this.initEngine(modelId, onProgress).finally(() => {
+    this.loadingPromise = this.initEngine(modelId, onProgress, fastLane).finally(() => {
       this.loadingPromise = null;
     });
     return this.loadingPromise;
@@ -335,11 +369,13 @@ class WebGPUClient {
       this.worker = null;
     }
     this.engine = null;
+    this.fastLaneId = null;
   }
 
   private async initEngine(
     modelId: string,
-    onProgress?: (progress: WebGPULoadProgress) => void
+    onProgress?: (progress: WebGPULoadProgress) => void,
+    fastLane = false
   ): Promise<boolean> {
     if (!checkWebGPUSupport()) {
       logger.warn('[WebGPU] navigator.gpu unavailable — cannot load local model');
@@ -361,20 +397,34 @@ class WebGPUClient {
 
     try {
       // Dynamic import keeps the main-thread web-llm proxy off the eager bundle.
-      const { CreateWebWorkerMLCEngine } = await import('@mlc-ai/web-llm');
-      const enginePromise = CreateWebWorkerMLCEngine(
-        worker,
-        modelId,
-        {
-          initProgressCallback: (report: InitProgressReport) => {
-            if (!this.cancelled) {
-              onProgress?.({ text: report.text, progress: report.progress });
+      const { CreateWebWorkerMLCEngine, prebuiltAppConfig } = await import('@mlc-ai/web-llm');
+      // web-llm merges these over the build's config and the record's overrides.
+      const chatOptions = WEBGPU_MODEL_PROFILES[modelId as WebGPUModelId]?.chatOptions;
+      const record = prebuiltAppConfig.model_list.find((entry) => entry.model_id === modelId);
+      const laneId = fastLane && record ? fastLaneModelId(modelId) : null;
+      // The fast lane is the same record under a second id: same weights URL,
+      // so the browser cache serves it without a second download.
+      const appConfig: AppConfig | undefined =
+        laneId && record
+          ? {
+              ...prebuiltAppConfig,
+              model_list: [...prebuiltAppConfig.model_list, { ...record, model_id: laneId }],
             }
-          },
+          : undefined;
+      const engineConfig = {
+        ...(appConfig ? { appConfig } : {}),
+        initProgressCallback: (report: InitProgressReport) => {
+          if (!this.cancelled) {
+            onProgress?.({ text: report.text, progress: report.progress });
+          }
         },
-        // web-llm merges these over the build's config and the record's overrides.
-        WEBGPU_MODEL_PROFILES[modelId as WebGPUModelId]?.chatOptions
-      );
+      };
+      const enginePromise = laneId
+        ? CreateWebWorkerMLCEngine(worker, [modelId, laneId], engineConfig, [
+            chatOptions ?? {},
+            chatOptions ?? {},
+          ])
+        : CreateWebWorkerMLCEngine(worker, modelId, engineConfig, chatOptions);
       // Swallow a late rejection if we cancel mid-handshake (the worker dies, so
       // this promise may reject after the race has already resolved).
       enginePromise.catch(() => undefined);
@@ -389,8 +439,11 @@ class WebGPUClient {
 
       this.engine = result;
       this.modelId = modelId;
+      this.fastLaneId = laneId;
       this.resetCircuitBreaker();
-      logger.info(`[WebGPU] Model ${modelId} loaded successfully (worker)`);
+      logger.info(
+        `[WebGPU] Model ${modelId} loaded successfully (worker${laneId ? ', with fast lane' : ''})`
+      );
       return true;
     } catch (error) {
       this.teardownWorker();
@@ -407,6 +460,7 @@ class WebGPUClient {
   async disconnect(): Promise<void> {
     const engine = this.engine;
     this.engine = null;
+    this.fastLaneId = null;
     this.resetCircuitBreaker();
     if (engine) {
       try {
@@ -523,6 +577,8 @@ class WebGPUClient {
       // the output) + stripReasoning() + a tolerant {...}-extracting parser, all
       // verified to yield clean parseable JSON. Truncation is surfaced below.
       const completion = engine.chat.completions.create({
+        // With the fast lane loaded, web-llm needs every request to name its model.
+        ...(this.fastLaneId ? { model: this.modelId } : {}),
         messages: [{ role: 'user', content: safePrompt }],
         temperature: GENERATION_CONFIG.temperature,
         top_p: GENERATION_CONFIG.top_p,
@@ -583,7 +639,8 @@ class WebGPUClient {
    * tokens summed to 1). No grammar is involved, so the GrammarMatcherInitError
    * above does not apply. Returns null when the model is not ready, the breaker
    * is open, the call fails or times out, or `signal` aborts. Never interrupts
-   * the engine: a strategic generation may hold it, and this call waits behind it.
+   * the engine: with the fast lane it runs beside a strategic generation, and
+   * without one it waits behind it.
    */
   async scoreNextToken({
     system,
@@ -607,6 +664,8 @@ class WebGPUClient {
     let onAbort: (() => void) | undefined;
     try {
       const completion = engine.chat.completions.create({
+        // The fast lane when there is one, so a strategic generation never holds this up.
+        ...(this.fastLaneId ? { model: this.fastLaneId } : {}),
         messages: [
           { role: 'system', content: system },
           { role: 'user', content: user },

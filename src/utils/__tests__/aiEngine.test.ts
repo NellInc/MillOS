@@ -51,6 +51,13 @@ vi.mock('../../stores/gameSimulationStore', () => ({
   },
 }));
 
+// The engine leases the on-device operator too; it has its own tests, and its
+// store subscriptions would otherwise count against the lease assertions here.
+const operatorRelease = vi.hoisted(() => vi.fn());
+vi.mock('../onDeviceOperator', () => ({
+  initializeOnDeviceOperator: vi.fn(() => operatorRelease),
+}));
+
 // Mock logger to avoid console spam
 vi.mock('../logger', () => ({
   logger: {
@@ -977,6 +984,8 @@ describe('aiEngine - Core Functions', () => {
       expect(vi.getTimerCount()).toBe(0);
       expect(shiftUnsubscribe).toHaveBeenCalledOnce();
       expect(outcomeUnsubscribe).toHaveBeenCalledOnce();
+      // Each engine lease releases its own operator lease.
+      expect(operatorRelease).toHaveBeenCalledTimes(2);
 
       const cleanup3 = initializeAIEngine();
       cleanups.push(cleanup3);

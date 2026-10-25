@@ -24,6 +24,9 @@ const RISK_RANK: Record<AgentRisk, number> = {
 export const DEFAULT_AGENT_ACTOR_URI = 'millos://actor/agent-driver';
 export const DEFAULT_AGENT_GRANT_ID = 'grant.agent-driver.simulation.v1';
 export const HUMAN_OPERATOR_URI = 'millos://actor/human-operator';
+/** The browser's own model running the plant lights-out (src/utils/onDeviceOperator.ts). */
+export const ON_DEVICE_OPERATOR_URI = 'millos://actor/on-device-operator';
+export const ON_DEVICE_OPERATOR_GRANT_ID = 'grant.on-device-operator.incidents.v1';
 
 export function createDefaultActors(): AgentActorDescriptor[] {
   return [
@@ -58,6 +61,14 @@ export function createDefaultActors(): AgentActorDescriptor[] {
       kind: 'system',
       status: 'active',
       purposes: ['Advance deterministic simulation consequences'],
+    },
+    {
+      id: 'on-device-operator',
+      uri: ON_DEVICE_OPERATOR_URI,
+      label: 'On-device operator',
+      kind: 'becoming-mind',
+      status: 'active',
+      purposes: ['Route raised incidents', 'Acknowledge and mitigate the incidents it routed'],
     },
   ];
 }
@@ -95,6 +106,26 @@ export function createDefaultGrants(now: Date): AgentAuthorityGrant[] {
       revocationReason: null,
       escalation:
         'Ask the human operator to approve the exact current preview or narrow the intent.',
+    },
+    {
+      // Lights-out play (2026-10-25): the on-device model acts on the incidents
+      // it routes, and the player is told. Incidents only: no people, no
+      // setpoints, no product disposition. Mitigation is high risk and runs
+      // without a per-command approval here; critical still asks a human.
+      id: ON_DEVICE_OPERATOR_GRANT_ID,
+      actorUri: ON_DEVICE_OPERATOR_URI,
+      purpose: 'Acknowledge and mitigate simulated incidents the on-device model has routed.',
+      capabilityIds: ['incident.acknowledge', 'incident.mitigate'],
+      targetUriPrefixes: ['millos://incident/'],
+      modes: ['simulation'],
+      riskCeiling: 'high',
+      approvalRisks: ['critical'],
+      resourceBudget: { maximumCommands: 500, maximumExternalCalls: 0 },
+      issuedAt: now.toISOString(),
+      expiresAt: null,
+      revokedAt: null,
+      revocationReason: null,
+      escalation: 'Leave the incident raised for the player.',
     },
   ];
 }
