@@ -47,7 +47,19 @@ interface WebGPUModelProfile {
   contextWindow: number;
   /** Overrides passed to the engine over the build's mlc-chat-config.json. */
   chatOptions?: ChatOptions;
+  /**
+   * The build's chat template for one user turn, `{prompt}` marking it, as the
+   * chat API renders it with enable_thinking:false. With it a long answer can
+   * pause for a scoring call and continue from its own text (see generateContent).
+   */
+  rawTemplate?: string;
 }
+
+// Both builds' mlc-chat-config conv_template, plus the empty think block that
+// enable_thinking:false inserts. Checked against the chat API in Chrome, 2026-10-25:
+// the same answer speed and the same parsed strategic JSON.
+const QWEN_RAW_TEMPLATE =
+  '<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n';
 
 /**
  * The web-llm builds MillOS runs. Qwen3.5-4B became the default on 2026-10-25:
@@ -68,6 +80,7 @@ export const WEBGPU_MODEL_PROFILES = {
       // pieces. These are Qwen3.5's own <|im_end|> and <|endoftext|>.
       conv_config: { stop_token_ids: [248046, 248044] },
     },
+    rawTemplate: QWEN_RAW_TEMPLATE,
   },
   'Qwen3-4B-q4f16_1-MLC': {
     label: 'Qwen3-4B Instruct',
@@ -75,6 +88,7 @@ export const WEBGPU_MODEL_PROFILES = {
     vramGb: 3.4,
     contextWindow: 4096,
     chatOptions: { context_window_size: 4096 },
+    rawTemplate: QWEN_RAW_TEMPLATE,
   },
 } as const satisfies Record<string, WebGPUModelProfile>;
 
@@ -104,6 +118,13 @@ export const DEFAULT_WEBGPU_MODEL_SIZE = {
 export function fastLaneModelId(modelId: string): string {
   return `${modelId}-fast-lane`;
 }
+
+/**
+ * Without the fast lane, a strategic answer pauses for a scoring call instead
+ * of making it wait (see generateContent). Past this many pauses in one answer
+ * further calls wait behind it, so a burst of routing cannot starve strategy.
+ */
+const MAX_PAUSES = 8;
 
 /** Default for the fast lane: on where the browser reports at least 8 GB of memory (Chrome's ceiling). */
 export function fastLaneByDefault(): boolean {
@@ -168,6 +189,14 @@ export interface WebGPUAdapterReport {
   warning?: string;
   /** Best-effort adapter description for display. */
   adapterLabel?: string;
+}
+
+/** One pausable answer's state, shared with its deadline (see generateContent). */
+interface PausableRun {
+  stopped: boolean;
+  /** Time spent paused for scoring calls, which the deadline does not count. */
+  pausedMs: number;
+  pausedSince: number | null;
 }
 
 interface CircuitBreakerState {
@@ -264,6 +293,8 @@ class WebGPUClient {
   private modelId: string = DEFAULT_WEBGPU_MODEL_ID;
   // The fast lane's model_id while one is loaded; every request then names its lane.
   private fastLaneId: string | null = null;
+  // Scoring calls in flight without a fast lane; a pausable answer gives way to them.
+  private waitingScores = new Set<Promise<unknown>>();
   private cancelled = false;
   // Resolver for the in-flight load's cancellation race (see initEngine).
   private cancelResolve: (() => void) | null = null;
@@ -565,6 +596,12 @@ class WebGPUClient {
 
     const safePrompt = this.truncatePrompt(prompt);
     const engine = this.engine;
+    // Without a fast lane, a build whose template is known answers through the
+    // pausable path, so scoring calls do not wait out the whole answer.
+    const profile: WebGPUModelProfile | undefined =
+      WEBGPU_MODEL_PROFILES[this.modelId as WebGPUModelId];
+    const template = this.fastLaneId ? undefined : profile?.rawTemplate;
+    const run: PausableRun = { stopped: false, pausedMs: 0, pausedSince: null };
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
     try {
@@ -576,29 +613,59 @@ class WebGPUClient {
       // instead comes from: enable_thinking:false (no chain-of-thought to derail
       // the output) + stripReasoning() + a tolerant {...}-extracting parser, all
       // verified to yield clean parseable JSON. Truncation is surfaced below.
-      const completion = engine.chat.completions.create({
-        // With the fast lane loaded, web-llm needs every request to name its model.
-        ...(this.fastLaneId ? { model: this.modelId } : {}),
-        messages: [{ role: 'user', content: safePrompt }],
-        temperature: GENERATION_CONFIG.temperature,
-        top_p: GENERATION_CONFIG.top_p,
-        max_tokens: GENERATION_CONFIG.max_tokens,
-        // enable_thinking:false is the typed, engine-enforced way to skip Qwen3's
-        // chain-of-thought pass — survives model swaps and prompt truncation,
-        // unlike a `/no_think` text suffix. stripReasoning() remains a backstop.
-        extra_body: { enable_thinking: false },
-      });
+      const completion: Promise<{ text: string; finish: string | null }> = template
+        ? // A function replacement, so a `$&` in the prompt stays literal.
+          this.generatePausable(
+            engine,
+            template.replace('{prompt}', () => safePrompt),
+            run
+          )
+        : engine.chat.completions
+            .create({
+              // With the fast lane loaded, web-llm needs every request to name its model.
+              ...(this.fastLaneId ? { model: this.modelId } : {}),
+              messages: [{ role: 'user', content: safePrompt }],
+              temperature: GENERATION_CONFIG.temperature,
+              top_p: GENERATION_CONFIG.top_p,
+              max_tokens: GENERATION_CONFIG.max_tokens,
+              // enable_thinking:false is the typed, engine-enforced way to skip Qwen3's
+              // chain-of-thought pass — survives model swaps and prompt truncation,
+              // unlike a `/no_think` text suffix. stripReasoning() remains a backstop.
+              extra_body: { enable_thinking: false },
+            })
+            .then((response) => ({
+              text: response.choices?.[0]?.message?.content ?? '',
+              finish: response.choices?.[0]?.finish_reason ?? null,
+            }));
+      // A late rejection after the deadline has nowhere to go.
+      completion.catch(() => undefined);
       // The deadline resolves to a null sentinel rather than rejecting, so the
-      // catch below never double-counts a timeout as a second failure.
+      // catch below never double-counts a timeout as a second failure. Time spent
+      // paused for scoring calls does not count: each has its own deadline.
+      const started = Date.now();
       const deadline = new Promise<null>((resolve) => {
-        timeoutId = setTimeout(() => resolve(null), WEBGPU_GENERATION_TIMEOUT_MS);
+        const arm = (ms: number) => {
+          timeoutId = setTimeout(() => {
+            const paused =
+              run.pausedMs + (run.pausedSince === null ? 0 : Date.now() - run.pausedSince);
+            const left = WEBGPU_GENERATION_TIMEOUT_MS - (Date.now() - started - paused);
+            if (left > 0) arm(left);
+            else resolve(null);
+          }, ms);
+        };
+        arm(WEBGPU_GENERATION_TIMEOUT_MS);
       });
       const response = await Promise.race([completion, deadline]);
       if (response === null) {
-        try {
-          engine.interruptGenerate();
-        } catch {
-          // The worker may already be gone; the breaker below still records it.
+        // The pausable path interrupts itself at its next token, and never
+        // interrupts a scoring call it is waiting on.
+        run.stopped = true;
+        if (!template) {
+          try {
+            engine.interruptGenerate();
+          } catch {
+            // The worker may already be gone; the breaker below still records it.
+          }
         }
         this.recordFailure();
         logger.warn(
@@ -607,16 +674,14 @@ class WebGPUClient {
         return null;
       }
 
-      const choice = response.choices?.[0];
-      if (choice?.finish_reason === 'length') {
+      if (response.finish === 'length') {
         // The cap was hit — surface it instead of silently returning partial JSON.
         logger.warn(
           '[WebGPU] Generation reached the max_tokens cap (finish_reason=length); ' +
             'strategic JSON may be truncated this cycle.'
         );
       }
-      const raw = choice?.message?.content ?? '';
-      const text = this.stripReasoning(raw);
+      const text = this.stripReasoning(response.text);
 
       // Reset the breaker fully on success.
       this.resetCircuitBreaker();
@@ -632,6 +697,73 @@ class WebGPUClient {
   }
 
   /**
+   * One answer that gives way to scoring calls, for a single loaded copy. It
+   * streams through the raw completion API with the build's template. When a
+   * scoring call is waiting, it interrupts at the next token and drains the
+   * stream, which frees the model. It then lets every waiting call run and
+   * continues from the prompt plus its own text, with the tokens left. Measured
+   * in Chrome on Qwen3.5-4B through this client, 2026-10-25: a routing call 3 s
+   * into a strategic answer took 5.8 and 7.3 s (2.0 s alone, 27.9 s queued
+   * behind the answer), and both continued answers parsed and named the faulty
+   * machine. Each pause costs a prefill of the prompt and the text so far: the
+   * paused answers took 1.5 and 9.5 s longer than the unpaused ones run beside
+   * them, which themselves differed by 7.4 s. web-llm 0.2.86 resets its
+   * interrupt flag when a request starts, so the interrupt is raised from a
+   * received token, never before the answer's request has begun.
+   */
+  private async generatePausable(
+    engine: WebWorkerMLCEngine,
+    prompt: string,
+    run: PausableRun
+  ): Promise<{ text: string; finish: string | null }> {
+    let text = '';
+    let tokens = 0;
+    let pauses = 0;
+    for (;;) {
+      // A deadline passed during a pause must not cost another prefill.
+      if (run.stopped) return { text, finish: 'abort' };
+      const stream = await engine.completions.create({
+        prompt: prompt + text,
+        stream: true,
+        stream_options: { include_usage: true },
+        temperature: GENERATION_CONFIG.temperature,
+        top_p: GENERATION_CONFIG.top_p,
+        max_tokens: GENERATION_CONFIG.max_tokens - tokens,
+      });
+      let finish: string | null = null;
+      let interrupted = false;
+      let chunks = 0;
+      let counted: number | undefined;
+      for await (const chunk of stream) {
+        const choice = chunk.choices?.[0];
+        if (choice?.text) {
+          text += choice.text;
+          chunks += 1;
+        }
+        if (choice?.finish_reason) finish = choice.finish_reason;
+        if (chunk.usage) counted = chunk.usage.completion_tokens;
+        // The stream runs on to its final chunk after this; only then is the model free.
+        if (!interrupted && (run.stopped || (this.waitingScores.size > 0 && pauses < MAX_PAUSES))) {
+          interrupted = true;
+          engine.interruptGenerate();
+        }
+      }
+      tokens += counted ?? chunks;
+      if (run.stopped) return { text, finish: 'abort' };
+      if (!interrupted || finish !== 'abort' || tokens >= GENERATION_CONFIG.max_tokens) {
+        return { text, finish: finish === 'abort' ? 'length' : finish };
+      }
+      pauses += 1;
+      run.pausedSince = Date.now();
+      while (this.waitingScores.size > 0) {
+        await Promise.allSettled([...this.waitingScores]);
+      }
+      run.pausedMs += Date.now() - run.pausedSince;
+      run.pausedSince = null;
+    }
+  }
+
+  /**
    * Score a small choice by the model's next token. logit_bias lifts only
    * `tokenIds`, and web-llm applies it before computing logprobs, so at
    * temperature 1 the returned top_logprobs are the model's distribution over
@@ -639,8 +771,9 @@ class WebGPUClient {
    * tokens summed to 1). No grammar is involved, so the GrammarMatcherInitError
    * above does not apply. Returns null when the model is not ready, the breaker
    * is open, the call fails or times out, or `signal` aborts. Never interrupts
-   * the engine: with the fast lane it runs beside a strategic generation, and
-   * without one it waits behind it.
+   * the engine itself: with the fast lane it runs beside a strategic
+   * generation, and without one a pausable generation gives way to it
+   * (generatePausable); any other waits it out.
    */
   async scoreNextToken({
     system,
@@ -685,7 +818,10 @@ class WebGPUClient {
         onAbort = () => resolve(null);
         signal?.addEventListener('abort', onAbort, { once: true });
       });
-      const response = await Promise.race([completion, stop]);
+      const settled = Promise.race([completion, stop]);
+      // A pausing answer continues only once every call registered here has settled.
+      if (!this.fastLaneId) this.waitingScores.add(settled);
+      const response = await settled.finally(() => this.waitingScores.delete(settled));
       if (response === null) return null;
       const top = response.choices?.[0]?.logprobs?.content?.[0]?.top_logprobs ?? [];
       return top.map((entry) => ({ token: entry.token, probability: Math.exp(entry.logprob) }));
