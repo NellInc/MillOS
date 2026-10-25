@@ -3,6 +3,7 @@ import { cleanup, render } from '@testing-library/react';
 import * as THREE from 'three';
 import { castleWorldPosition, castleLocalPosition } from '../utils/castleNavigation';
 import { FirstPersonController } from './FirstPersonController';
+import { WORLD_RADIUS } from '../constants/siteLayout';
 const harness = vi.hoisted(() => ({
   camera: null as unknown as THREE.PerspectiveCamera,
   frame: (_: unknown, _dt: number) => {},
@@ -28,25 +29,19 @@ beforeEach(() => {
   harness.camera.position.set(...castleWorldPosition(7.2, 5, 26));
 });
 afterEach(cleanup);
-it('climbs, stops in the courtyard, then descends using only W and S', () => {
+it('treats the foothill castle as a landmark: the walker stays in the valley', () => {
+  // The castle stands beyond WORLD_RADIUS, so the controller's boundary clamp
+  // takes a walker placed at its steps back inside the playable disc.
   render(<FirstPersonController />);
   harness.lock();
   const camera = harness.camera;
   const target = castleWorldPosition(7.2, 0.52, 0);
   camera.lookAt(target[0], camera.position.y, target[2]);
-  const key = (type: string, code: string) =>
-    window.dispatchEvent(new KeyboardEvent(type, { code }));
-  key('keydown', 'KeyW');
-  for (let i = 0; i < 150; i++) harness.frame({}, 1 / 60);
-  key('keyup', 'KeyW');
-  harness.frame({}, 1 / 60);
-  expect(castleLocalPosition(camera.position.x, camera.position.z)[1]).toBeLessThan(8);
-  expect(camera.position.y).toBeCloseTo(6.18, 4);
-  key('keydown', 'KeyS');
-  for (let i = 0; i < 170; i++) harness.frame({}, 1 / 60);
-  key('keyup', 'KeyS');
+  window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW' }));
+  for (let i = 0; i < 30; i++) harness.frame({}, 1 / 60);
+  window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW' }));
+  expect(Math.hypot(camera.position.x, camera.position.z)).toBeLessThanOrEqual(WORLD_RADIUS);
   expect(castleLocalPosition(camera.position.x, camera.position.z)[1]).toBeGreaterThan(25);
-  expect(camera.position.y).toBeCloseTo(1.7, 3);
 });
 
 it('steps onto the actual river deck from ground level with the default walking controller', () => {

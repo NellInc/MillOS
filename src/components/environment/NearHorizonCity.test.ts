@@ -1,11 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import * as THREE from 'three';
-import { createDisplacedGeometry } from '../terrain/TerrainGround';
-import { getRiverHeightfield, MILLOS_RIVER_CONFIG } from '../terrain/splatMapGenerator';
-import { TERRAIN_BOUNDS } from '../terrain/terrainTypes';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { readFileSync } from 'node:fs';
-import { buildNearCitySpecs } from './NearHorizonCity';
+import { buildNearCitySpecs, nearCityFootprint } from './NearHorizonCity';
+import { sampleFoothillGroundHeight } from './foothillGround';
 
 describe('near horizon city layout', () => {
   it('keeps instance colours independent of absent vertex colours', () => {
@@ -24,10 +21,10 @@ describe('near horizon city layout', () => {
     expect(first).toHaveLength(42);
     first.forEach((building) => {
       expect(Object.values(building).every(Number.isFinite)).toBe(true);
-      expect(Math.hypot(building.x, building.z)).toBeGreaterThanOrEqual(226);
-      expect(Math.hypot(building.x, building.z)).toBeLessThanOrEqual(256);
+      expect(Math.hypot(building.x, building.z)).toBeGreaterThanOrEqual(350);
+      expect(Math.hypot(building.x, building.z)).toBeLessThanOrEqual(390);
       expect(building.height).toBeGreaterThanOrEqual(6.5);
-      expect(building.height).toBeLessThan(30);
+      expect(building.height).toBeLessThan(45);
       expect(building.width).toBeGreaterThanOrEqual(5.5);
       expect(building.districtBand).toBeGreaterThanOrEqual(0);
       expect(building.districtBand).toBeLessThanOrEqual(2);
@@ -49,51 +46,37 @@ describe('near horizon city layout', () => {
     expect(Math.max(...radiiByBand.get(1)!)).toBeLessThan(Math.min(...radiiByBand.get(2)!));
   });
 
-  it.each([64, 128])(
-    'keeps every building foot on dry level terrain at %i segments',
-    (segments) => {
-      const heightfield = getRiverHeightfield();
-      const geometry = createDisplacedGeometry(
-        1200,
-        1200,
-        segments,
-        heightfield.data,
-        heightfield.resolution,
-        MILLOS_RIVER_CONFIG.depth,
-        TERRAIN_BOUNDS
-      );
-      const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
-      const terrain = new THREE.Mesh(geometry, material);
-      terrain.rotation.x = -Math.PI / 2;
-      terrain.position.y = SITE_LAYOUT.datum.terrain;
-      terrain.updateMatrixWorld(true);
-      const ray = new THREE.Raycaster();
-      const origin = new THREE.Vector3();
-      const down = new THREE.Vector3(0, -1, 0);
-      const violations: string[] = [];
-      for (const [index, building] of buildNearCitySpecs().entries()) {
-        const cos = Math.cos(building.yaw),
-          sin = Math.sin(building.yaw);
-        for (const [u, v] of [
-          [-0.5, -0.5],
-          [-0.5, 0.5],
-          [0.5, -0.5],
-          [0.5, 0.5],
-          [0, 0],
-        ]) {
-          const x = building.x + u * building.width * cos + v * building.depth * sin;
-          const z = building.z - u * building.width * sin + v * building.depth * cos;
-          ray.set(origin.set(x, 40, z), down);
-          const height = ray.intersectObject(terrain)[0]?.point.y;
-          if (height === undefined || Math.abs(height - SITE_LAYOUT.datum.terrain) > 0.001)
-            violations.push(`${index}: ${x.toFixed(2)}, ${z.toFixed(2)}, height ${height}`);
-        }
-      }
-      geometry.dispose();
-      material.dispose();
-      expect(violations).toEqual([]);
+  it('stands the town out on the foothills, beyond the valley floor', () => {
+    // The foothill ring's foot is world.radius + 16; every footprint is past it.
+    for (const building of buildNearCitySpecs())
+      for (const [x, z] of nearCityFootprint(building))
+        expect(Math.hypot(x, z)).toBeGreaterThan(SITE_LAYOUT.world.radius + 16);
+  });
+
+  it('seats every building on the real hill surface without hanging a corner', () => {
+    // Rays through the shipped ridge meshes, the same ones the renderer draws.
+    const violations: string[] = [];
+    let deepest = 0;
+    for (const [index, building] of buildNearCitySpecs().entries()) {
+      const ground = nearCityFootprint(building).map(([x, z]) => sampleFoothillGroundHeight(x, z));
+      // No corner over air: the base is the lowest ground under the footprint.
+      if (Math.abs(Math.min(...ground) - building.baseY) > 1e-6)
+        violations.push(`${index}: base ${building.baseY} vs ground ${Math.min(...ground)}`);
+      // And the uphill side still stands its authored 6.5 m or more above the slope.
+      const uphillHeight = building.baseY + building.height - Math.max(...ground);
+      deepest = Math.max(deepest, Math.max(...ground) - building.baseY);
+      if (uphillHeight < 6.5 - 1e-6)
+        violations.push(`${index}: ${uphillHeight.toFixed(1)} m above the uphill corner`);
     }
-  );
+    expect(violations).toEqual([]);
+    // The town genuinely stands on a slope, not on a flat shelf.
+    expect(deepest).toBeGreaterThan(1);
+  });
+
+  it('takes its footing from the ground sampler it is given', () => {
+    const flat = buildNearCitySpecs(42, () => 3);
+    expect(flat.every((building) => building.baseY === 3)).toBe(true);
+  });
 
   it('stays clear of the authored castle footprint', () => {
     const castle = SITE_LAYOUT.landmarks.castle;

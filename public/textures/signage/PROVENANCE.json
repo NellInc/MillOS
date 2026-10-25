@@ -16,6 +16,20 @@
       "source": "tmp/custom-icons/village-branding/wheat-source.png",
       "brief": "Three heritage wheat ears with alternating almond kernels, bowed side stalks and tied ribbon; black on white, then traced to white alpha mask for gold printing.",
       "sha256": "aa8cf0938173d794a1156c50fefc69bd2c184c533d7166590b31b314ce31db22"
+    },
+    {
+      "id": "mill-icon",
+      "file": "millos-mark-v1.png",
+      "source": "Commit ce01f724 (polish branches), stationPosterAndAppBrand 'mill-icon': the 64 px PNG export of millos-mark-v1.webp, whose 1254 px master was tmp/custom-icons/station-poster-and-app-brand-20261014/millos-mark-v1-master.png.",
+      "brief": "The MillOS application mark: turquoise waterwheel forming an M, gold grain kernel, two turquoise water waves, on #081015. Used as the favicon.",
+      "sha256": "9920d8be0a0a05d3e9136a7c769d5431747fa5aac64d967a3440fc33d03e11ed"
+    },
+    {
+      "id": "mill-icon",
+      "file": "millos-mark-v1.webp",
+      "source": "Commit ce01f724 (polish branches), stationPosterAndAppBrand 'mill-icon': 256 px WebP of tmp/custom-icons/station-poster-and-app-brand-20261014/millos-mark-v1-master.png (1254 px).",
+      "brief": "The same mark at 256 px, for the loading covers and the sidebar logo.",
+      "sha256": "61349b91823369b614504f4b250933208ca126f1b6ef38b04e08446e6a70fda3"
     }
   ]
 }

@@ -503,10 +503,13 @@ export const SITE_LAYOUT = {
   landmarks: {
     castle: {
       id: 'castle',
-      // v0.30's bearing across the river, set 19 m further back than v0.30's
-      // z = -200 so the whole keep stands on level ground beyond the river's
-      // outer bank (z ~ -190 here) rather than overhanging it.
-      position: [45, -0.02, -219],
+      // Out on the north-east foothills, 360 m from the mill, so it reads as a
+      // landmark in the hills rather than a house across the river. The ground
+      // rises outward here, so the base is seated at the lowest point under the
+      // rock (the foot of the steps, facing the mill) and the hill takes the
+      // rear of the terrace. `foothillGround.ts` samples that surface;
+      // `castleSeat.test.ts` re-derives this height from the shipped ridges.
+      position: [231, 6.7, -276],
       rotation: [0, -Math.PI / 4, 0],
       scale: 1.5,
       // Authored Neuschwanstein-inspired palas, slate roofs and limestone terrace.
@@ -649,8 +652,8 @@ export const SITE_LAYOUT = {
     // South truck road tunnel: portal at (20, 0, 220), bore running out to +Z
     // into the foothills, framed from the approach road's verge.
     roadTunnel: { position: [44, 11, 178], target: [20, 4, 224], fov: 55 },
-    // The castle across the river, from the near bank by the footbridge.
-    castle: { position: [-30, 12, -112], target: [45, 14, -219], fov: 55 },
+    // The castle on the north-east foothills, from the valley floor below it.
+    castle: { position: [120, 18, -150], target: [231, 30, -276], fov: 55 },
     // Kiosk cafe at (-108, 0, 105) with the pond at (-125, 0, 105).
     kiosk: { position: [-84, 8, 84], target: [-114, 2, 106] },
     celestial: { position: [90, 12, 72], target: [0, 12, 0] },

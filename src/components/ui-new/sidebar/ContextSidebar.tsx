@@ -219,12 +219,14 @@ export const ContextSidebar: React.FC<ContextSidebarProps> = ({
             <div className="p-3 border-t border-white/10 bg-black/10">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <div
-                    className="w-6 h-6 rounded bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center text-sm border border-slate-600"
+                  <img
+                    src={`${import.meta.env.BASE_URL}textures/signage/millos-mark-v1.webp`}
+                    alt=""
                     aria-hidden="true"
-                  >
-                    🏭
-                  </div>
+                    width={24}
+                    height={24}
+                    className="block h-6 w-6 rounded border border-slate-600"
+                  />
                   <div>
                     <span className="text-xs font-bold text-white">
                       Mill<span className="text-cyan-300">OS</span>

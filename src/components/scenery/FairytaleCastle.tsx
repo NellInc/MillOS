@@ -2,7 +2,7 @@ import React from 'react';
 import * as THREE from 'three';
 import { GeneratedBody } from '../models/GeneratedModel';
 import { CastleSteps } from './CastleSteps';
-import { CASTLE_ROCK_SINK } from '../../constants/castleAccess';
+import { CASTLE_ROCK_OUTLINE, CASTLE_ROCK_SINK } from '../../constants/castleAccess';
 export { CASTLE_ROCK_SINK } from '../../constants/castleAccess';
 
 interface FairytaleCastleProps {
@@ -195,9 +195,34 @@ const PalaceFallback: React.FC = React.memo(() => (
 ));
 PalaceFallback.displayName = 'PalaceFallback';
 
+/**
+ * Limestone footing under the rock outline, running down into the hillside.
+ * The castle sits on rolling foothills, so the ground under its rock is never
+ * one height; wherever it dips below the base this shows stone rather than air.
+ * Inset slightly so it never shows through the authored rock above grade.
+ */
+export const CASTLE_PLINTH_DEPTH = 8;
+const PLINTH_GEOMETRY = (() => {
+  const shape = new THREE.Shape(
+    CASTLE_ROCK_OUTLINE.map(([x, z]) => new THREE.Vector2(x * 0.97, z * 0.97))
+  );
+  const geometry = new THREE.ExtrudeGeometry(shape, {
+    depth: CASTLE_PLINTH_DEPTH,
+    bevelEnabled: false,
+  });
+  // A quarter turn about X lays the outline on the ground plane, keeping its x
+  // and z, and points the extrusion straight down.
+  geometry.rotateX(Math.PI / 2);
+  geometry.translate(0, -CASTLE_ROCK_SINK, 0);
+  return geometry;
+})();
+
 export const FairytaleCastle: React.FC<FairytaleCastleProps> = React.memo(
   ({ position = [0, 0, 0], scale = 1, rotation = [0, 0, 0] }: FairytaleCastleProps) => (
     <group name="heritage-castle" position={position} scale={scale} rotation={rotation}>
+      <mesh name="castle-plinth" geometry={PLINTH_GEOMETRY} receiveShadow>
+        <meshStandardMaterial color={STONE} roughness={0.95} />
+      </mesh>
       <GeneratedBody asset="castle" sink={CASTLE_ROCK_SINK} fallback={<PalaceFallback />} />
       <CastleSteps />
     </group>

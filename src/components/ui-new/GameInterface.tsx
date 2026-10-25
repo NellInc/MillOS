@@ -145,6 +145,13 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   const journeyVisible = useUIStore((s) => s.journeyVisible);
   const startDeliveryJourney = useUIStore((s) => s.startDeliveryJourney);
   const [introStep, setIntroStep] = useState<number | null>(null);
+  // Alerts stay listed until removed by hand, so the player yields only to an
+  // unacknowledged one; otherwise one old breakdown locks it for the session.
+  const hasUnreadCriticalAlert = useUIStore((s) =>
+    s.alerts.some((alert) => alert.type === 'critical' && !alert.acknowledged)
+  );
+  const musicTourActive = introStep !== null || journeyVisible;
+  const musicDistractionFree = musicTourActive || safetyStateActive || hasUnreadCriticalAlert;
   const introPaceRef = React.useRef<number | null>(null);
   const releaseTourClock = React.useCallback((guided: boolean) => {
     const previousPace = introPaceRef.current;
@@ -456,14 +463,8 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       <div hidden={isCompactLayout && mobilePanelVisible}>
         <MillOSMusicPlayer
           sidebarVisible={!isCompactLayout && isSidebarVisible}
-          distractionFree={
-            introStep !== null ||
-            journeyVisible ||
-            safetyStateActive ||
-            hasCriticalAlert ||
-            isSidebarVisible ||
-            mobilePanelVisible
-          }
+          distractionFree={musicDistractionFree || isSidebarVisible || mobilePanelVisible}
+          attentionHeld={musicTourActive}
         />
       </div>
 

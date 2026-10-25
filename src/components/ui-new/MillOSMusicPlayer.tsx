@@ -2,7 +2,10 @@ import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 
 import {
   ChevronDown,
   ChevronUp,
+  Eye,
+  EyeOff,
   ListMusic,
+  MicVocal,
   Music2,
   Pause,
   Play,
@@ -15,22 +18,42 @@ import { formatMusicTime } from '../../audio/millosSoundtrackCatalog';
 import {
   findActiveMillosLyricWord,
   getMillosSoundtrackLyrics,
+  type MillosSoundtrackLyrics,
   type MillosTimedLyricLine,
 } from '../../audio/millosSoundtrackLyrics';
 import { useMusicPlayerState } from '../../hooks/useAudioState';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 
+const LIVE_LYRICS_STORAGE_KEY = 'millos-music-live-lyrics';
+
+function readLiveLyricsPreference(): boolean {
+  try {
+    return localStorage.getItem(LIVE_LYRICS_STORAGE_KEY) === 'on';
+  } catch {
+    return false;
+  }
+}
+
 export const MillOSMusicPlayer: React.FC<{
   distractionFree?: boolean;
+  /**
+   * A tour or the delivery journey holds attention, so the live lyric line hides
+   * as well. Narrower than `distractionFree`, which also covers safety, alerts
+   * and an open sidebar; defaults to it.
+   */
+  attentionHeld?: boolean;
   sidebarVisible?: boolean;
-}> = ({ distractionFree = false, sidebarVisible = false }) => {
+}> = ({ distractionFree = false, attentionHeld = distractionFree, sidebarVisible = false }) => {
   const player = useMusicPlayerState();
   const [expanded, setExpanded] = useState(false);
   const playlistId = useId();
   const [lyricsOpen, setLyricsOpen] = useState(false);
+  const [liveLyrics, setLiveLyricsState] = useState(readLiveLyricsPreference);
   const expandButtonRef = useRef<HTMLButtonElement>(null);
   const collapseButtonRef = useRef<HTMLButtonElement>(null);
-  const lyricsButtonRef = useRef<HTMLButtonElement>(null);
+  // Whichever control opened the dialog: the playlist's lyrics button or the
+  // mini player's live line.
+  const lyricsReturnRef = useRef<HTMLButtonElement | null>(null);
   const pendingFocus = useRef<number | null>(null);
   const cancelPendingFocus = useCallback(() => {
     if (pendingFocus.current !== null) cancelAnimationFrame(pendingFocus.current);
@@ -47,25 +70,27 @@ export const MillOSMusicPlayer: React.FC<{
     [cancelPendingFocus]
   );
   useEffect(() => cancelPendingFocus, [cancelPendingFocus]);
-  const lyricsAvailable = player.currentTrack.station === 'original';
+  const openLyrics = (event: React.MouseEvent<HTMLButtonElement>) => {
+    lyricsReturnRef.current = event.currentTarget;
+    setLyricsOpen(true);
+  };
   const closeLyrics = useCallback(() => {
     setLyricsOpen(false);
-    queueFocus(lyricsButtonRef);
+    queueFocus(lyricsReturnRef);
   }, [queueFocus]);
+  const setLiveLyrics = (next: boolean) => {
+    setLiveLyricsState(next);
+    try {
+      localStorage.setItem(LIVE_LYRICS_STORAGE_KEY, next ? 'on' : 'off');
+    } catch {
+      // Storage can be blocked; the toggle still works for this session.
+    }
+  };
   const setPlayerExpanded = (next: boolean) => {
     setExpanded(next);
     if (!next) setLyricsOpen(false);
     queueFocus(next ? collapseButtonRef : expandButtonRef);
   };
-
-  useEffect(() => {
-    // Switching to Legacy from inside the dialog disables the lyrics button, so
-    // focus goes to the player's own control instead of falling to <body>.
-    if (!lyricsAvailable && lyricsOpen) {
-      setLyricsOpen(false);
-      queueFocus(collapseButtonRef);
-    }
-  }, [lyricsAvailable, lyricsOpen, queueFocus]);
 
   useEffect(() => {
     if (lyricsOpen) cancelPendingFocus();
@@ -80,6 +105,8 @@ export const MillOSMusicPlayer: React.FC<{
   }, [distractionFree, cancelPendingFocus]);
 
   const playlistVisible = expanded && !distractionFree;
+  const liveLyricsVisible = liveLyrics && !attentionHeld;
+  const lastVisibleTrack = player.availableTracks.length <= 1;
 
   return (
     <>
@@ -129,6 +156,20 @@ export const MillOSMusicPlayer: React.FC<{
                 <ChevronDown size={14} className="shrink-0 text-slate-400" aria-hidden="true" />
               ))}
           </button>
+          <button
+            type="button"
+            onClick={() => setLiveLyrics(!liveLyrics)}
+            aria-label="Show lyrics"
+            aria-pressed={liveLyrics}
+            title={liveLyrics ? 'Hide lyrics' : 'Show lyrics'}
+            className={`flex min-w-11 shrink-0 items-center justify-center rounded-md transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 ${
+              liveLyrics
+                ? 'bg-cyan-400/15 text-cyan-300'
+                : 'text-slate-300 hover:bg-white/10 hover:text-white'
+            }`}
+          >
+            <MicVocal size={17} aria-hidden="true" />
+          </button>
           <PlayerButton
             label={player.playing ? 'Pause music' : 'Play music'}
             onClick={player.togglePlayback}
@@ -143,6 +184,14 @@ export const MillOSMusicPlayer: React.FC<{
             <SkipForward size={17} aria-hidden="true" />
           </PlayerButton>
         </div>
+
+        {liveLyricsVisible && (
+          <MiniLyricLine
+            sheet={getMillosSoundtrackLyrics(player.currentTrack.trackNumber ?? 1)}
+            positionSeconds={player.positionSeconds}
+            onOpen={distractionFree ? undefined : openLyrics}
+          />
+        )}
 
         {playlistVisible && (
           <div
@@ -178,18 +227,7 @@ export const MillOSMusicPlayer: React.FC<{
                   {formatMusicTime(player.durationSeconds)}
                 </span>
               </div>
-              <div className="mb-2 flex items-center gap-1">
-                <select
-                  value={player.station}
-                  onChange={(event) =>
-                    player.setStation(event.target.value as 'original' | 'legacy')
-                  }
-                  aria-label="Music collection"
-                  className="min-h-11 min-w-0 max-w-full flex-1 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-slate-300"
-                >
-                  <option value="original">Original soundtrack</option>
-                  <option value="legacy">Legacy music</option>
-                </select>
+              <div className="mb-2 flex items-center justify-end gap-1">
                 <button
                   type="button"
                   onClick={() => player.setShuffle(!player.shuffle)}
@@ -205,18 +243,12 @@ export const MillOSMusicPlayer: React.FC<{
                   <Shuffle size={16} aria-hidden="true" />
                 </button>
                 <button
-                  ref={lyricsButtonRef}
                   type="button"
-                  onClick={() => setLyricsOpen(true)}
-                  disabled={!lyricsAvailable}
+                  onClick={openLyrics}
                   aria-haspopup="dialog"
-                  title={
-                    lyricsAvailable
-                      ? 'Open synchronized lyrics'
-                      : 'Lyrics are available for the original soundtrack'
-                  }
+                  title="Open synchronized lyrics"
                   aria-label="Open synchronized lyrics"
-                  className="flex min-w-11 shrink-0 items-center justify-center rounded-md text-slate-300 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 disabled:cursor-not-allowed disabled:opacity-35"
+                  className="flex min-w-11 shrink-0 items-center justify-center rounded-md text-slate-300 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
                 >
                   <ListMusic size={17} aria-hidden="true" />
                 </button>
@@ -224,13 +256,13 @@ export const MillOSMusicPlayer: React.FC<{
             </div>
             <ol aria-label="Songs" className="shrink-0 space-y-0.5">
               {player.availableTracks.map((track, index) => (
-                <li key={track.id}>
+                <li key={track.id} className="flex items-center gap-0.5">
                   <button
                     type="button"
                     onClick={() => player.selectTrack(index)}
                     aria-current={index === player.trackIndex ? 'true' : undefined}
                     title={track.name}
-                    className={`flex w-full items-center gap-2 rounded-md px-2 text-left text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 ${
+                    className={`flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 ${
                       index === player.trackIndex
                         ? 'bg-cyan-400/10 text-cyan-100'
                         : 'text-slate-300 hover:bg-white/5'
@@ -246,9 +278,41 @@ export const MillOSMusicPlayer: React.FC<{
                       </span>
                     )}
                   </button>
+                  <TrackVisibilityButton
+                    label={`Hide ${track.name}`}
+                    disabled={lastVisibleTrack}
+                    onClick={() => player.setTrackHidden(track.id, true)}
+                  >
+                    <EyeOff size={14} aria-hidden="true" />
+                  </TrackVisibilityButton>
                 </li>
               ))}
             </ol>
+            {player.hiddenTracks.length > 0 && (
+              <ul
+                aria-label="Hidden songs"
+                className="mt-1 shrink-0 space-y-0.5 border-t border-white/10 pt-1"
+              >
+                {player.hiddenTracks.map((track) => (
+                  <li key={track.id} className="flex items-center gap-0.5">
+                    <span className="flex min-w-0 flex-1 items-center gap-2 px-2 text-xs text-slate-500 line-through">
+                      <span className="w-5 shrink-0 text-[10px] tabular-nums">
+                        {String(track.trackNumber ?? 0).padStart(2, '0')}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate" title={track.name}>
+                        {track.name}
+                      </span>
+                    </span>
+                    <TrackVisibilityButton
+                      label={`Show ${track.name}`}
+                      onClick={() => player.setTrackHidden(track.id, false)}
+                    >
+                      <Eye size={14} aria-hidden="true" />
+                    </TrackVisibilityButton>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
       </section>
@@ -277,6 +341,24 @@ const PlayerButton: React.FC<{
         ? 'bg-cyan-400 text-cyan-950 hover:bg-cyan-300'
         : 'text-slate-300 hover:bg-white/10 hover:text-white'
     }`}
+  >
+    {children}
+  </button>
+);
+
+const TrackVisibilityButton: React.FC<{
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  children: React.ReactNode;
+}> = ({ label, onClick, disabled = false, children }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    disabled={disabled}
+    aria-label={label}
+    title={label}
+    className="flex min-w-11 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-white/10 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 disabled:cursor-not-allowed disabled:opacity-35"
   >
     {children}
   </button>
@@ -320,6 +402,66 @@ const LyricLine = React.memo<{
   );
 });
 LyricLine.displayName = 'LyricLine';
+
+/**
+ * The sung line, word-highlighted in time. Between lines it shows the next one
+ * dimmed, so the strip never sits empty through an intro or a break.
+ */
+const MiniLyricLine: React.FC<{
+  sheet: MillosSoundtrackLyrics;
+  positionSeconds: number;
+  /** Absent while the full dialog cannot open; the line is then plain text. */
+  onOpen?: (event: React.MouseEvent<HTMLButtonElement>) => void;
+}> = ({ sheet, positionSeconds, onOpen }) => {
+  const shown = useMemo(() => {
+    const active = findActiveMillosLyricWord(sheet, positionSeconds);
+    if (active) return { lineIndex: active.lineIndex, wordIndex: active.wordIndex };
+    const upcoming = sheet.lines.findIndex(
+      (line) =>
+        line.kind === 'lyric' &&
+        line.words.some((word) => word.startSeconds !== null && word.startSeconds > positionSeconds)
+    );
+    return upcoming >= 0 ? { lineIndex: upcoming, wordIndex: -1 } : null;
+  }, [positionSeconds, sheet]);
+  const line = shown ? sheet.lines[shown.lineIndex] : null;
+  const sung = shown !== null && shown.wordIndex >= 0;
+  const text = (
+    <span
+      aria-hidden="true"
+      className={`line-clamp-2 ${sung ? 'text-slate-200' : 'text-slate-500'}`}
+    >
+      {line?.words.map((word, wordIndex) => (
+        <React.Fragment key={`${shown?.lineIndex}-${wordIndex}`}>
+          <span className={wordIndex === shown?.wordIndex ? 'text-cyan-300' : undefined}>
+            {word.text}
+          </span>{' '}
+        </React.Fragment>
+      )) ?? ' '}
+    </span>
+  );
+  const frame =
+    'block min-h-11 w-full border-t border-white/10 px-3 py-1.5 text-left text-sm font-medium leading-snug';
+
+  if (!onOpen) {
+    return (
+      <div data-testid="live-lyric" className={frame}>
+        {text}
+      </div>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label="Open full lyrics"
+      title="Open full lyrics"
+      data-testid="live-lyric"
+      className={`${frame} hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300`}
+    >
+      {text}
+    </button>
+  );
+};
 
 const LyricsDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const player = useMusicPlayerState();
@@ -404,9 +546,6 @@ const LyricsDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             >
               {sheet.title}
             </h2>
-            <p className="text-[10px] text-slate-400">
-              Word timing is locally machine aligned and awaits human synchronization review.
-            </p>
           </div>
           <button
             type="button"
@@ -420,22 +559,7 @@ const LyricsDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
         <div className="grid min-h-0 flex-1 md:grid-cols-[16rem_minmax(0,1fr)]">
           <aside className="border-b border-white/10 p-3 md:overflow-y-auto md:border-b-0 md:border-r">
-            <label
-              htmlFor="millos-station"
-              className="mb-1 block text-[10px] uppercase tracking-wider text-slate-400"
-            >
-              Collection
-            </label>
-            <select
-              id="millos-station"
-              value={player.station}
-              onChange={(event) => player.setStation(event.target.value as 'original' | 'legacy')}
-              className="min-h-11 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 text-xs text-white"
-            >
-              <option value="original">Original soundtrack</option>
-              <option value="legacy">Legacy music</option>
-            </select>
-            <div className="mt-3 flex items-center justify-between gap-2">
+            <div className="flex items-center justify-between gap-2">
               <span className="text-[10px] uppercase tracking-wider text-slate-400">
                 Play order
               </span>
@@ -451,11 +575,7 @@ const LyricsDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                 Shuffle
               </button>
             </div>
-            <div
-              role="group"
-              className="mt-3 hidden space-y-1 md:block"
-              aria-label="Original soundtrack songs"
-            >
+            <div role="group" className="mt-3 hidden space-y-1 md:block" aria-label="Songs">
               {player.availableTracks.map((track, index) => (
                 <button
                   key={track.id}

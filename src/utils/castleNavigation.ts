@@ -49,12 +49,17 @@ export function sampleWalkingGroundHeight(x: number, z: number, segments: number
   const bridge = canalBridgeWalkingHeight(x, z);
   if (bridge !== null) return Math.max(terrain, bridge);
   if (!nearCastle(x, z)) return terrain;
+  // The castle stands out on the foothills, beyond WORLD_RADIUS, where every
+  // controller clamps the player. The access model therefore walks on the
+  // castle's own base plane, which keeps its stairs and court self-consistent,
+  // rather than on a hill no one can reach.
+  const hill = Math.max(terrain, site.position[1]);
   const [lx, lz] = castleLocalPosition(x, z);
   const stair = stairHeight(lx, lz);
-  if (stair !== null) return Math.max(terrain, floorY(stair));
+  if (stair !== null) return Math.max(hill, floorY(stair));
   if (Math.abs(lx) <= 15.925 && Math.abs(lz) <= 15.925)
-    return Math.max(terrain, floorY(CASTLE_COURT_HEIGHT));
-  return terrain;
+    return Math.max(hill, floorY(CASTLE_COURT_HEIGHT));
+  return hill;
 }
 function insideRock(x: number, z: number): boolean {
   let inside = false;

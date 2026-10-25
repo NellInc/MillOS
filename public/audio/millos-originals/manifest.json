@@ -55,12 +55,12 @@
         "vtt": {
           "file": "lyrics/01-the-mill-wakes.vtt",
           "bytes": 4248,
-          "sha256": "4afbd88a73d245066b7312c8096a043f76bdf841b95b93e8ac29dcebd7e4b049"
+          "sha256": "a28431c44a353bc6495b2d6336f5f43710b8b0cd6b123f78b9b7cfecfe1ed7b3"
         },
         "lrc": {
           "file": "lyrics/01-the-mill-wakes.lrc",
           "bytes": 2791,
-          "sha256": "a29fe809b020e32ab1e30bbd429da88ef6320e2fe68b9d65afecb9cc9e777c9e"
+          "sha256": "6ea87f954c27a18b4bc207a100f8306ce3f3d41ece38aad559babc5ff1c7f666"
         }
       },
       "timingEvidence": {
@@ -69,6 +69,12 @@
         "matchedCanonicalWords": 361,
         "interpolatedCanonicalWords": 26,
         "matchCoverage": 0.932817
+      },
+      "displayTiming": {
+        "source": "repairDisplayTiming in scripts/generate-millos-soundtrack-assets.mjs",
+        "anchoredWords": 352,
+        "interpolatedWords": 35,
+        "anchorCoverage": 0.909561
       }
     },
     {
@@ -95,12 +101,12 @@
         "vtt": {
           "file": "lyrics/02-grain-at-the-gate.vtt",
           "bytes": 3510,
-          "sha256": "33546191e8fdeca240ce828a0584c4998ebf030625d31c7f86b9ceb4e48a8456"
+          "sha256": "b874f3ff9a5a87911227c3ac668b2ddf0075a90fd4acc41a91cefeb3e9bcaa28"
         },
         "lrc": {
           "file": "lyrics/02-grain-at-the-gate.lrc",
           "bytes": 2320,
-          "sha256": "fdf4a6544395fed860f814be220bbbbdf1b09d8a8627dc454d7ada20e98e7e8e"
+          "sha256": "3ea404b79627b786c16d8eb9205010eb6526e616dcf321561dcdaab02f348b43"
         }
       },
       "timingEvidence": {
@@ -109,6 +115,12 @@
         "matchedCanonicalWords": 118,
         "interpolatedCanonicalWords": 192,
         "matchCoverage": 0.380645
+      },
+      "displayTiming": {
+        "source": "repairDisplayTiming in scripts/generate-millos-soundtrack-assets.mjs",
+        "anchoredWords": 100,
+        "interpolatedWords": 210,
+        "anchorCoverage": 0.322581
       }
     },
     {
@@ -135,12 +147,12 @@
         "vtt": {
           "file": "lyrics/03-between-the-rolls.vtt",
           "bytes": 3516,
-          "sha256": "cae810ff8645a66c40395bc7236330400b4cef7d0bcb2ddf33197c9efe0d9b9d"
+          "sha256": "c5b783880d603cc4cb160759ac9f221b60d71b08b033945542801555354380c8"
         },
         "lrc": {
           "file": "lyrics/03-between-the-rolls.lrc",
           "bytes": 2350,
-          "sha256": "c9765f5d321079a2133bb369dee2d30f9829673168159152940113b597f9e669"
+          "sha256": "84e63e232f89bfb7963e83d505840045e0a0418dfda23e6d9825fbbf4ab14659"
         }
       },
       "timingEvidence": {
@@ -149,6 +161,12 @@
         "matchedCanonicalWords": 136,
         "interpolatedCanonicalWords": 164,
         "matchCoverage": 0.453333
+      },
+      "displayTiming": {
+        "source": "repairDisplayTiming in scripts/generate-millos-soundtrack-assets.mjs",
+        "anchoredWords": 109,
+        "interpolatedWords": 191,
+        "anchorCoverage": 0.363333
       }
     },
     {
@@ -175,12 +193,12 @@
         "vtt": {
           "file": "lyrics/04-the-sifters-sing.vtt",
           "bytes": 3181,
-          "sha256": "80d309a1653197132539a3c2245f37c43f2e330a2901627120ef3c3c24738754"
+          "sha256": "a3f62e2143f19964ea1d35f26b4bd13acae57b86b4e8f64abd4fdf9b76fa6db4"
         },
         "lrc": {
           "file": "lyrics/04-the-sifters-sing.lrc",
           "bytes": 2062,
-          "sha256": "cfc3d00a2b93c5a0006a705fc23c7eda94d9b9cbf49578ab99cb479ec175c853"
+          "sha256": "9cd84af9bd9398d56057ac3b3a59532b6950f23d116604e93ddd71c991e0109f"
         }
       },
       "timingEvidence": {
@@ -189,6 +207,12 @@
         "matchedCanonicalWords": 181,
         "interpolatedCanonicalWords": 77,
         "matchCoverage": 0.70155
+      },
+      "displayTiming": {
+        "source": "repairDisplayTiming in scripts/generate-millos-soundtrack-assets.mjs",
+        "anchoredWords": 170,
+        "interpolatedWords": 88,
+        "anchorCoverage": 0.658915
       }
     },
     {
@@ -215,12 +239,12 @@
         "vtt": {
           "file": "lyrics/05-forty-two-bags-a-minute.vtt",
           "bytes": 3615,
-          "sha256": "60344f0e48e926e405c82e845ea49699cad1fc527e47879c9f5bd88d4838fe0f"
+          "sha256": "05bc0bf25cd1bb3edc37b8e13a0e233c563f682f748bc5676966584d8bd4cad9"
         },
         "lrc": {
           "file": "lyrics/05-forty-two-bags-a-minute.lrc",
           "bytes": 2359,
-          "sha256": "094dbe6b8f4e187c1afc895e5b2c38a243a3c47f02cb8813bedaa01ee7645aed"
+          "sha256": "ce2a58d04ef7fdb856cf52b35309c3c5425b328f3fb6c7f5de60ef3fbbd48e7e"
         }
       },
       "timingEvidence": {
@@ -229,6 +253,12 @@
         "matchedCanonicalWords": 165,
         "interpolatedCanonicalWords": 152,
         "matchCoverage": 0.520505
+      },
+      "displayTiming": {
+        "source": "repairDisplayTiming in scripts/generate-millos-soundtrack-assets.mjs",
+        "anchoredWords": 152,
+        "interpolatedWords": 165,
+        "anchorCoverage": 0.479495
       }
     },
     {
@@ -255,12 +285,12 @@
         "vtt": {
           "file": "lyrics/06-safe-hands-clear-ways.vtt",
           "bytes": 3520,
-          "sha256": "23a4e35fc140f19579ee247fb9e84cdc8ba04272531d5e1cabdeb092acae874e"
+          "sha256": "b68b759cefc97e39936c4ea9ae0ed92da7cbac4b6338b7e461148fa816501d8e"
         },
         "lrc": {
           "file": "lyrics/06-safe-hands-clear-ways.lrc",
           "bytes": 2263,
-          "sha256": "9b780b9dd0b5ac58475ec0e83d11f7d09b76fe23c4fea8843ddff33fe6812260"
+          "sha256": "8a0fde0ef161c6ee231581c723255742595e548f2cbbe7c6e80cd909a55f06a2"
         }
       },
       "timingEvidence": {
@@ -269,6 +299,12 @@
         "matchedCanonicalWords": 154,
         "interpolatedCanonicalWords": 163,
         "matchCoverage": 0.485804
+      },
+      "displayTiming": {
+        "source": "repairDisplayTiming in scripts/generate-millos-soundtrack-assets.mjs",
+        "anchoredWords": 147,
+        "interpolatedWords": 170,
+        "anchorCoverage": 0.463722
       }
     },
     {
@@ -296,12 +332,12 @@
         "vtt": {
           "file": "lyrics/07-every-grain-every-watt.vtt",
           "bytes": 3372,
-          "sha256": "5b231f1def81f5ba9cf367fbe497a91c8657cca599c7f82e4f618d70870a717f"
+          "sha256": "210662fa62d4f19f8fe0c5f861ea30b4c98f702f28a87af9fc9b425dda589895"
         },
         "lrc": {
           "file": "lyrics/07-every-grain-every-watt.lrc",
           "bytes": 2188,
-          "sha256": "1f5d26f1fca7e565d19745f32be3f8bfb74fb47fd2768b1aeebf8cb28009458b"
+          "sha256": "d567fb1cdd0451321f9bb5ec254995fce4c550d71236b4e0a48316c20fb3094b"
         }
       },
       "timingEvidence": {
@@ -310,6 +346,12 @@
         "matchedCanonicalWords": 145,
         "interpolatedCanonicalWords": 138,
         "matchCoverage": 0.512367
+      },
+      "displayTiming": {
+        "source": "repairDisplayTiming in scripts/generate-millos-soundtrack-assets.mjs",
+        "anchoredWords": 129,
+        "interpolatedWords": 154,
+        "anchorCoverage": 0.45583
       }
     },
     {
@@ -336,12 +378,12 @@
         "vtt": {
           "file": "lyrics/08-partner-in-the-control-room.vtt",
           "bytes": 4555,
-          "sha256": "c28e3c0625991a8d4b2536bca67b46c614bc0fd38c4999ef950fffa47c28dfd0"
+          "sha256": "12e21ea2ea2ce305238de831d5eb6ccff97e181423baae1fa2b8736943093927"
         },
         "lrc": {
           "file": "lyrics/08-partner-in-the-control-room.lrc",
           "bytes": 2919,
-          "sha256": "74bb2a739fed52f19f2cc5fc85bb4efcc91462029b7416d88fc05af7bae95546"
+          "sha256": "0ffc11df9d76ac5ceede4a7ecea18e42e9c90fc5fce64d4b0e00fef55eef8d87"
         }
       },
       "timingEvidence": {
@@ -350,6 +392,12 @@
         "matchedCanonicalWords": 304,
         "interpolatedCanonicalWords": 98,
         "matchCoverage": 0.756219
+      },
+      "displayTiming": {
+        "source": "repairDisplayTiming in scripts/generate-millos-soundtrack-assets.mjs",
+        "anchoredWords": 289,
+        "interpolatedWords": 113,
+        "anchorCoverage": 0.718905
       }
     }
   ]

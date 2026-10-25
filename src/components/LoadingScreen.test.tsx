@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -48,6 +49,27 @@ describe('LoadingScreen final readiness', () => {
     expect(logo).toHaveAttribute('aria-hidden', 'true');
     expect(logo.querySelector('span')).toHaveTextContent('OS');
     expect(logo.querySelector('span')).toHaveStyle({ color: '#67e8f9' });
+  });
+
+  it('shows the MillOS mark on both loading covers, the sidebar and the favicon', () => {
+    const view = render(<LoadingScreen />);
+    const mark = view.container.querySelector('img');
+    expect(mark?.getAttribute('src')).toContain('textures/signage/millos-mark-v1.webp');
+    expect(mark).toHaveAttribute('alt', '');
+    expect(mark).toHaveAttribute('aria-hidden', 'true');
+    for (const file of [
+      'index.html',
+      'src/components/LoadingScreen.tsx',
+      'src/components/ui-new/sidebar/ContextSidebar.tsx',
+    ]) {
+      const source = readFileSync(file, 'utf8');
+      expect(source).toContain('millos-mark-v1.webp');
+      // The factory emoji, built from its code point so this file holds none.
+      expect(source).not.toContain(String.fromCodePoint(0x1f3ed));
+    }
+    expect(readFileSync('index.html', 'utf8')).toContain(
+      '<link rel="icon" type="image/png" href="%BASE_URL%textures/signage/millos-mark-v1.png" />'
+    );
   });
 
   it('keeps the application mounted when the optional quote import fails', async () => {
