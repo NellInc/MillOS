@@ -24,6 +24,7 @@ import {
   WebGPUClient,
   checkWebGPUAdapter,
   DEFAULT_WEBGPU_MODEL_ID,
+  WEBGPU_MODEL_PROFILES,
 } from '../utils/webgpuClient';
 import { logger } from '../utils/logger';
 import { formatFixed, translate } from '../i18n';
@@ -422,10 +423,18 @@ export const useAIConfigStore = create<AIConfigState>()(
 
       deleteWebGPUCache: async (): Promise<void> => {
         await webgpuClient.disconnect();
-        try {
-          await WebGPUClient.deleteModelCache(get().webgpuModelId);
-        } catch (error) {
-          logger.warn('[AIConfigStore] Failed to delete WebGPU model cache:', error);
+        // Every model MillOS has shipped, not only the current one: a browser
+        // that downloaded Qwen3-4B before the switch to Qwen3.5-4B would
+        // otherwise keep 2.3 GB this button could no longer reach.
+        for (const modelId of new Set([
+          get().webgpuModelId,
+          ...Object.keys(WEBGPU_MODEL_PROFILES),
+        ])) {
+          try {
+            await WebGPUClient.deleteModelCache(modelId);
+          } catch (error) {
+            logger.warn(`[AIConfigStore] Failed to delete WebGPU model cache ${modelId}:`, error);
+          }
         }
         set({
           webgpuModelReady: false,

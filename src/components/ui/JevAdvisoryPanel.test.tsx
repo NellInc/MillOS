@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { JevAdvisoryPanel } from './JevAdvisoryPanel';
 import { JEV_RESULT_TTL_MS, requestJevAdvice, type JevAdvice } from '../../utils/jevClient';
+import { useAIConfigStore } from '../../stores/aiConfigStore';
 
 vi.mock('../../utils/jevClient', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../utils/jevClient')>()),
@@ -126,5 +127,47 @@ describe('Jev advisory consent and lifecycle', () => {
     });
     expect(screen.getByRole('alert')).toHaveTextContent('requires more credit');
     expect(requestMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('on-device advisory', () => {
+  beforeEach(() => {
+    requestMock.mockReset();
+    useAIConfigStore.setState({ webgpuModelReady: false });
+  });
+  afterEach(() => {
+    cleanup();
+    useAIConfigStore.setState({ webgpuModelReady: false });
+  });
+
+  it('appears only while the local model is loaded and asks for no key or consent', async () => {
+    render(<JevAdvisoryPanel />);
+    expect(screen.queryByRole('radio', { name: /on this device/ })).not.toBeInTheDocument();
+    act(() => useAIConfigStore.setState({ webgpuModelReady: true }));
+    fireEvent.click(screen.getByRole('radio', { name: /on this device/ }));
+    expect(screen.queryByLabelText('Your OpenRouter API key')).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    const send = screen.getByRole('button', { name: 'Ask the on-device model' });
+    expect(send).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Incident text'), {
+      target: { value: 'The pump is broken.' },
+    });
+    requestMock.mockResolvedValue(advice());
+    await act(async () => {
+      fireEvent.click(send);
+    });
+    expect(requestMock).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: 'local', apiKey: '', text: 'The pump is broken.' })
+    );
+    expect(screen.getByRole('status')).toHaveTextContent('Equipment maintenance');
+  });
+
+  it('falls back to Jev when the local model unloads', () => {
+    useAIConfigStore.setState({ webgpuModelReady: true });
+    render(<JevAdvisoryPanel />);
+    fireEvent.click(screen.getByRole('radio', { name: /on this device/ }));
+    act(() => useAIConfigStore.setState({ webgpuModelReady: false }));
+    expect(screen.getByRole('button', { name: 'Send to Jev' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Your OpenRouter API key')).toBeInTheDocument();
   });
 });

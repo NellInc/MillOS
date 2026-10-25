@@ -34,6 +34,8 @@ export const jevClientMessages = defineMessages({
     rateLimitedAnthropic: 'Anthropic is rate limiting requests. Try again later.',
     unavailableAnthropic: 'Haiku is unavailable. Try again later.',
     localOnlyAnthropic: 'Haiku with your own key runs on the local companion only.',
+    unavailableLocal: 'The on-device model is not loaded.',
+    invalidAdvisoryLocal: 'The on-device model returned an invalid advisory. No action was taken.',
   },
   'pt-BR': {
     invalidAdvisory: 'O Jev retornou uma recomendação inválida. Nenhuma ação foi tomada.',
@@ -68,5 +70,8 @@ export const jevClientMessages = defineMessages({
     rateLimitedAnthropic: 'A Anthropic está limitando as requisições. Tente novamente mais tarde.',
     unavailableAnthropic: 'O Haiku está indisponível. Tente novamente mais tarde.',
     localOnlyAnthropic: 'O Haiku com a sua própria chave funciona apenas no companheiro local.',
+    unavailableLocal: 'O modelo no dispositivo não está carregado.',
+    invalidAdvisoryLocal:
+      'O modelo no dispositivo retornou uma recomendação inválida. Nenhuma ação foi tomada.',
   },
 });

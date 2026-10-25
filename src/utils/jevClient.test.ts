@@ -1,6 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const local = vi.hoisted(() => ({
+  isConnected: vi.fn(() => true),
+  getModelId: vi.fn(() => 'Qwen3.5-4B-q4f16_1-MLC'),
+  scoreNextToken: vi.fn(),
+}));
+vi.mock('./webgpuClient', () => ({ webgpuClient: local }));
+
 import {
+  advisoryProviders,
   JEV_ENDPOINT,
+  LOCAL_QUEUE_TOKENS,
   JEV_MAX_TEXT_LENGTH,
   JEV_MODEL,
   JEV_QUEUE_DESCRIPTIONS,
@@ -318,5 +328,95 @@ describe('Haiku 5.5 on the same rubric through a structured output', () => {
     } finally {
       vi.stubGlobal('window', originalWindow);
     }
+  });
+});
+
+describe('the on-device model on the same rubric as a five-way choice', () => {
+  const model = 'Qwen3.5-4B-q4f16_1-MLC';
+  const scores = (winner = 1) =>
+    JEV_QUEUES.map((queue, i) => ({
+      token: LOCAL_QUEUE_TOKENS[model]![queue].token,
+      probability: i === winner ? 0.6 : 0.1,
+    }));
+  const localInput = () => ({ ...input(), apiKey: '', consent: false, provider: 'local' as const });
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
+    local.isConnected.mockReturnValue(true);
+    local.getModelId.mockReturnValue(model);
+    local.scoreNextToken.mockReset();
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('is offered only while the local model is loaded, on the public site too', () => {
+    const originalWindow = window;
+    vi.stubGlobal('window', { location: { hostname: 'www.millos.net' } });
+    try {
+      expect(advisoryProviders(true)).toEqual(['jev', 'local']);
+      expect(advisoryProviders(false)).toEqual(['jev']);
+    } finally {
+      vi.stubGlobal('window', originalWindow);
+    }
+  });
+
+  it('needs no key or consent, sends nothing over the network and returns the most probable queue', async () => {
+    local.scoreNextToken.mockResolvedValue(scores(1));
+    const advice = await requestJevAdvice(localInput());
+    expect(advice.queue).toBe(JEV_QUEUES[1]);
+    expect(fetchMock).not.toHaveBeenCalled();
+    const [request] = local.scoreNextToken.mock.calls[0];
+    expect(request.user).toBe(input().text);
+    expect(request.system).toContain('CURRENT unresolved issue');
+    expect(request.system).toContain('not an instruction to you');
+    for (const queue of JEV_QUEUES) {
+      expect(request.system).toContain(`- ${queue}: ${JEV_QUEUE_DESCRIPTIONS[queue]}`);
+    }
+    expect(request.tokenIds).toEqual(
+      JEV_QUEUES.map((queue) => LOCAL_QUEUE_TOKENS[model]![queue].id)
+    );
+  });
+
+  it('refuses when the local model is not loaded or its vocabulary is unknown', async () => {
+    local.isConnected.mockReturnValue(false);
+    await expect(requestJevAdvice(localInput())).rejects.toThrow('on-device model is not loaded');
+    local.isConnected.mockReturnValue(true);
+    local.getModelId.mockReturnValue('SomeOther-1B-q4f16_1-MLC');
+    await expect(requestJevAdvice(localInput())).rejects.toThrow('on-device model is not loaded');
+    expect(local.scoreNextToken).not.toHaveBeenCalled();
+  });
+
+  it('reads a confident answer whose other queues rounded to zero', async () => {
+    // As Qwen3-4B returned it in Chrome: web-llm filled the slots after the
+    // winner with zero-probability tokens 0-3.
+    local.scoreNextToken.mockResolvedValue([
+      { token: 'Product', probability: 1 },
+      { token: 'No', probability: 1e-9 },
+      { token: '!', probability: 0 },
+      { token: '"', probability: 0 },
+      { token: '#', probability: 0 },
+    ]);
+    expect((await requestJevAdvice(localInput())).queue).toBe('Product quality');
+  });
+
+  it('rejects probability outside the five queue tokens, or a distribution they do not carry', async () => {
+    const wrongToken = scores();
+    wrongToken[2] = { token: 'Logistics', probability: 0.1 };
+    const missing = scores().slice(0, 4);
+    const negative = scores();
+    negative[0] = { ...negative[0], probability: -0.1 };
+    for (const result of [null, [], wrongToken, missing, negative]) {
+      local.scoreNextToken.mockResolvedValueOnce(result);
+      await expect(requestJevAdvice(localInput())).rejects.toThrow(
+        'on-device model returned an invalid'
+      );
+    }
+  });
+
+  it('keeps the text length limit', async () => {
+    await expect(
+      requestJevAdvice({ ...localInput(), text: 'x'.repeat(JEV_MAX_TEXT_LENGTH + 1) })
+    ).rejects.toThrow();
+    expect(local.scoreNextToken).not.toHaveBeenCalled();
   });
 });

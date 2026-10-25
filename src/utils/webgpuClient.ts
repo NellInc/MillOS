@@ -1,7 +1,7 @@
 /**
  * WebGPU Local LLM Client for MillOS Plant Management
  *
- * Browser-only neural core powered by @mlc-ai/web-llm running Qwen3-4B.
+ * Browser-only neural core powered by @mlc-ai/web-llm running Qwen3.5-4B.
  * Implements the same public surface as {@link cloudAIClient} (generateContent
  * + isConnected) so it is a drop-in backend for the strategic AI layer when
  * the operator wants on-device inference with no API key and zero cost.
@@ -18,12 +18,12 @@
  *   cadence is not blown by a multi-second reasoning pass.
  *
  * GPU NOTE: MillOS renders a heavy React Three Fiber scene every frame, so the
- * LLM shares the physical GPU with rendering. Qwen3-4B (~2.7GB VRAM) is the
- * operator-chosen default for CABAL parity; checkWebGPUAdapter() surfaces an
- * up-front warning when the adapter's limits suggest the device may struggle.
+ * LLM shares the physical GPU with rendering (see WEBGPU_MODEL_PROFILES for
+ * each model's VRAM); checkWebGPUAdapter() surfaces an up-front warning when
+ * the adapter's limits suggest the device may struggle.
  */
 
-import type { WebWorkerMLCEngine, InitProgressReport } from '@mlc-ai/web-llm';
+import type { ChatOptions, WebWorkerMLCEngine, InitProgressReport } from '@mlc-ai/web-llm';
 import { logger } from './logger';
 import { formatFixed, translate } from '../i18n';
 import { webgpuClientMessages as messages } from './webgpuClient.messages';
@@ -32,15 +32,60 @@ import { webgpuClientMessages as messages } from './webgpuClient.messages';
 // CONFIGURATION
 // ============================================================================
 
-/** Default model — matches CABAL's DEFAULT_MODEL_ID (Qwen3-4B q4f16). */
-export const DEFAULT_WEBGPU_MODEL_ID = 'Qwen3-4B-q4f16_1-MLC';
+interface WebGPUModelProfile {
+  label: string;
+  /** Weight download, from the build's tensor-cache.json. */
+  downloadGb: number;
+  /** web-llm's vram_required_MB for the build, rounded. */
+  vramGb: number;
+  /** Tokens of context the engine allocates; the prompt budget is derived from it. */
+  contextWindow: number;
+  /** Overrides passed to the engine over the build's mlc-chat-config.json. */
+  chatOptions?: ChatOptions;
+}
+
+/**
+ * The web-llm builds MillOS runs. Qwen3.5-4B became the default on 2026-10-25:
+ * on this app's strategic prompt in a real browser it named the faulty machine
+ * in 10 of 10 answers to Qwen3-4B's 4, and it routes incidents as a five-way
+ * choice (see scoreNextToken). Both are the official mlc-ai builds.
+ */
+export const WEBGPU_MODEL_PROFILES = {
+  'Qwen3.5-4B-q4f16_1-MLC': {
+    label: 'Qwen3.5-4B',
+    downloadGb: 2.4,
+    vramGb: 3.9,
+    contextWindow: 4096,
+    chatOptions: {
+      context_window_size: 4096,
+      // The build (mlc-ai 44b42469) lists Qwen3's stop ids, 151643 and 151645,
+      // which in Qwen3.5's 248k vocabulary are ordinary Korean and Thai word
+      // pieces. These are Qwen3.5's own <|im_end|> and <|endoftext|>.
+      conv_config: { stop_token_ids: [248046, 248044] },
+    },
+  },
+  'Qwen3-4B-q4f16_1-MLC': {
+    label: 'Qwen3-4B Instruct',
+    downloadGb: 2.3,
+    vramGb: 3.4,
+    contextWindow: 4096,
+    chatOptions: { context_window_size: 4096 },
+  },
+} as const satisfies Record<string, WebGPUModelProfile>;
+
+export type WebGPUModelId = keyof typeof WEBGPU_MODEL_PROFILES;
+
+/** Default model for the local core. */
+export const DEFAULT_WEBGPU_MODEL_ID: WebGPUModelId = 'Qwen3.5-4B-q4f16_1-MLC';
 
 /** Display label for the settings UI. */
-export const DEFAULT_WEBGPU_MODEL_LABEL = 'Qwen3-4B Instruct';
+export const DEFAULT_WEBGPU_MODEL_LABEL = WEBGPU_MODEL_PROFILES[DEFAULT_WEBGPU_MODEL_ID].label;
 
-// Context limit protection — mirror cloudAIClient's budget so prompts that fit
-// The local model can also fit them (Qwen3-4B supports a 32k context window).
-const MAX_PROMPT_CHARS = 28000;
+/** Download and VRAM of the default model, for the settings copy. */
+export const DEFAULT_WEBGPU_MODEL_SIZE = {
+  downloadGb: WEBGPU_MODEL_PROFILES[DEFAULT_WEBGPU_MODEL_ID].downloadGb,
+  vramGb: WEBGPU_MODEL_PROFILES[DEFAULT_WEBGPU_MODEL_ID].vramGb,
+};
 
 // Generation config — mirrors cloudAIClient's cloud settings for parity.
 const GENERATION_CONFIG = {
@@ -48,6 +93,19 @@ const GENERATION_CONFIG = {
   top_p: 0.9,
   max_tokens: 2048,
 } as const;
+
+// The prompt shares the context window with the answer, so the character budget
+// follows the window: what is left after max_tokens and the chat template, at a
+// conservative 3 characters per token (the strategic prompt's JSON runs at about
+// 3.2). A 4,096-token window leaves 5,376 characters; the strategic prompt is
+// about 720 tokens. web-llm rejects a prompt that does not fit outright.
+const TEMPLATE_TOKENS = 256;
+const CHARS_PER_TOKEN = 3;
+function promptCharBudget(modelId: string): number {
+  const profile = WEBGPU_MODEL_PROFILES[modelId as WebGPUModelId];
+  const window = profile?.contextWindow ?? 4096;
+  return (window - GENERATION_CONFIG.max_tokens - TEMPLATE_TOKENS) * CHARS_PER_TOKEN;
+}
 
 // Circuit breaker — no rate limiting needed for local inference, but WebGPU /
 // OOM failures can cascade, so we still trip after repeated failures.
@@ -156,6 +214,8 @@ export async function checkWebGPUAdapter(): Promise<WebGPUAdapterReport> {
       warning = translate(messages, 'smallMemory', {
         buffer: formatFixed(maxBufferSize / 1_048_576, 0),
         storage: formatFixed(maxStorage / 1_048_576, 0),
+        model: DEFAULT_WEBGPU_MODEL_LABEL,
+        vram: formatFixed(DEFAULT_WEBGPU_MODEL_SIZE.vramGb, 1),
       });
     }
 
@@ -302,13 +362,19 @@ class WebGPUClient {
     try {
       // Dynamic import keeps the main-thread web-llm proxy off the eager bundle.
       const { CreateWebWorkerMLCEngine } = await import('@mlc-ai/web-llm');
-      const enginePromise = CreateWebWorkerMLCEngine(worker, modelId, {
-        initProgressCallback: (report: InitProgressReport) => {
-          if (!this.cancelled) {
-            onProgress?.({ text: report.text, progress: report.progress });
-          }
+      const enginePromise = CreateWebWorkerMLCEngine(
+        worker,
+        modelId,
+        {
+          initProgressCallback: (report: InitProgressReport) => {
+            if (!this.cancelled) {
+              onProgress?.({ text: report.text, progress: report.progress });
+            }
+          },
         },
-      });
+        // web-llm merges these over the build's config and the record's overrides.
+        WEBGPU_MODEL_PROFILES[modelId as WebGPUModelId]?.chatOptions
+      );
       // Swallow a late rejection if we cancel mid-handshake (the worker dies, so
       // this promise may reject after the race has already resolved).
       enginePromise.catch(() => undefined);
@@ -393,12 +459,13 @@ class WebGPUClient {
 
   /** Truncate to the safe budget, preserving head (context) and tail (instructions). */
   private truncatePrompt(prompt: string): string {
-    if (prompt.length <= MAX_PROMPT_CHARS) {
+    const budget = promptCharBudget(this.modelId);
+    if (prompt.length <= budget) {
       return prompt;
     }
-    logger.warn(`[WebGPU] Truncating prompt from ${prompt.length} to ${MAX_PROMPT_CHARS} chars`);
-    const keepStart = Math.floor(MAX_PROMPT_CHARS * 0.6);
-    const keepEnd = Math.floor(MAX_PROMPT_CHARS * 0.35);
+    logger.warn(`[WebGPU] Truncating prompt from ${prompt.length} to ${budget} chars`);
+    const keepStart = Math.floor(budget * 0.6);
+    const keepEnd = Math.floor(budget * 0.35);
     return (
       prompt.slice(0, keepStart) +
       '\n\n[... context truncated for token limits ...]\n\n' +
@@ -505,6 +572,71 @@ class WebGPUClient {
       return null;
     } finally {
       clearTimeout(timeoutId);
+    }
+  }
+
+  /**
+   * Score a small choice by the model's next token. logit_bias lifts only
+   * `tokenIds`, and web-llm applies it before computing logprobs, so at
+   * temperature 1 the returned top_logprobs are the model's distribution over
+   * exactly those tokens (verified in Chrome on both models: the five returned
+   * tokens summed to 1). No grammar is involved, so the GrammarMatcherInitError
+   * above does not apply. Returns null when the model is not ready, the breaker
+   * is open, the call fails or times out, or `signal` aborts. Never interrupts
+   * the engine: a strategic generation may hold it, and this call waits behind it.
+   */
+  async scoreNextToken({
+    system,
+    user,
+    tokenIds,
+    signal,
+  }: {
+    system: string;
+    user: string;
+    tokenIds: readonly number[];
+    signal?: AbortSignal;
+  }): Promise<Array<{ token: string; probability: number }> | null> {
+    this.checkCircuitBreaker();
+    const engine = this.engine;
+    // web-llm accepts top_logprobs of 0 to 5, so at most five options.
+    if (!engine || this.circuitBreaker.isOpen || signal?.aborted || !tokenIds.length) {
+      return null;
+    }
+    if (tokenIds.length > 5) return null;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    let onAbort: (() => void) | undefined;
+    try {
+      const completion = engine.chat.completions.create({
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: user },
+        ],
+        temperature: 1,
+        top_p: 1,
+        max_tokens: 1,
+        logit_bias: Object.fromEntries(tokenIds.map((id) => [String(id), 100])),
+        logprobs: true,
+        top_logprobs: tokenIds.length,
+        extra_body: { enable_thinking: false },
+      });
+      // A late rejection after a timeout or abort has nowhere to go.
+      completion.catch(() => undefined);
+      const stop = new Promise<null>((resolve) => {
+        timeoutId = setTimeout(() => resolve(null), WEBGPU_GENERATION_TIMEOUT_MS);
+        onAbort = () => resolve(null);
+        signal?.addEventListener('abort', onAbort, { once: true });
+      });
+      const response = await Promise.race([completion, stop]);
+      if (response === null) return null;
+      const top = response.choices?.[0]?.logprobs?.content?.[0]?.top_logprobs ?? [];
+      return top.map((entry) => ({ token: entry.token, probability: Math.exp(entry.logprob) }));
+    } catch (error) {
+      this.recordFailure();
+      logger.error('[WebGPU] Next-token scoring failed:', error);
+      return null;
+    } finally {
+      clearTimeout(timeoutId);
+      if (onAbort) signal?.removeEventListener('abort', onAbort);
     }
   }
 

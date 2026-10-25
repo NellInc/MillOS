@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { useAIConfigStore } from './aiConfigStore';
+import { webgpuClient, WebGPUClient } from '../utils/webgpuClient';
 
 describe('AI preferences migration', () => {
   it('defaults new visitors to Haiku 5.5, the recommended model', () => {
@@ -85,6 +86,22 @@ describe('AI preferences migration', () => {
       expect(JSON.stringify(stored)).not.toContain('legacy-secret');
     } finally {
       useAIConfigStore.persist.setOptions({ storage: originalStorage });
+    }
+  });
+});
+
+describe('local model cache', () => {
+  it('deletes every shipped model, including Qwen3-4B left from before the switch', async () => {
+    vi.spyOn(webgpuClient, 'disconnect').mockResolvedValue();
+    const deleted = vi.spyOn(WebGPUClient, 'deleteModelCache').mockResolvedValue();
+    try {
+      await useAIConfigStore.getState().deleteWebGPUCache();
+      expect(deleted.mock.calls.map(([id]) => id).sort()).toEqual(
+        ['Qwen3-4B-q4f16_1-MLC', 'Qwen3.5-4B-q4f16_1-MLC'].sort()
+      );
+      expect(useAIConfigStore.getState().webgpuModelReady).toBe(false);
+    } finally {
+      vi.restoreAllMocks();
     }
   });
 });
