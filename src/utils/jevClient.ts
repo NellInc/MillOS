@@ -53,10 +53,12 @@ const QUESTION = BASE_QUESTION + INJECTION_GUARD;
 // it 0 times either way. No ordinary note was lost: Jev 65/65 and 49/49, Luna
 // 64/65 and 49/49, Haiku 65/65 and 48/49.
 export const JEV_QUEUE_DESCRIPTIONS: Record<(typeof JEV_QUEUES)[number], string> = {
-  'Equipment maintenance': 'a machine, motor, belt, bearing, gate, sieve or other equipment fault',
+  'Equipment maintenance':
+    'a machine, motor, belt, bearing, gate, sieve, power, control system or network fault, or other equipment fault',
   'Product quality':
     'flour or batch out of specification, contamination or customer quality complaints',
-  'Logistics coordination': 'trucks, deliveries, shipping, pallets, forklifts, loading or routing',
+  'Logistics coordination':
+    'trucks, deliveries, supplies or packaging running short, shipping, pallets, forklifts, loading, routing, or weather slowing yard traffic',
   'No current incident':
     'everything is normal, or every issue mentioned is past, resolved, a test or a plan',
   'Insufficient evidence': 'something may be wrong but the text does not say what',
