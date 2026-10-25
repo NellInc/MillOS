@@ -105,3 +105,61 @@ describe('local model cache', () => {
     }
   });
 });
+
+describe('a lost WebGPU device', () => {
+  it('reloads the local core once, and leaves a second loss soon after to the player', async () => {
+    const load = vi.fn().mockResolvedValue(true);
+    const original = useAIConfigStore.getState().loadWebGPUModel;
+    useAIConfigStore.setState({
+      loadWebGPUModel: load,
+      webgpuModelReady: true,
+      webgpuStatus: 'ready',
+    });
+    // A loaded engine whose model is gone: its next request fails as not loaded.
+    const engine = {
+      interruptGenerate: () => undefined,
+      unload: async () => undefined,
+      chat: {
+        completions: {
+          create: () =>
+            Promise.reject(
+              new Error('Model not loaded before trying to complete ChatCompletionRequest.')
+            ),
+        },
+      },
+    };
+    const lose = async () => {
+      Object.assign(webgpuClient as unknown as Record<string, unknown>, {
+        engine,
+        fastLaneId: 'lane',
+        circuitBreaker: { failures: 0, lastFailure: 0, isOpen: false },
+      });
+      await webgpuClient.generateContent('Plant telemetry.');
+    };
+    try {
+      await lose();
+      expect(useAIConfigStore.getState()).toMatchObject({
+        webgpuModelReady: false,
+        webgpuStatus: 'idle',
+        webgpuError: null,
+      });
+      expect(load).toHaveBeenCalledTimes(1);
+      expect(load).toHaveBeenCalledWith(false);
+
+      useAIConfigStore.setState({ webgpuModelReady: true, webgpuStatus: 'ready' });
+      await lose();
+      expect(load).toHaveBeenCalledTimes(1);
+      expect(useAIConfigStore.getState()).toMatchObject({
+        webgpuModelReady: false,
+        webgpuStatus: 'error',
+      });
+      expect(useAIConfigStore.getState().webgpuError).toMatch(/again/);
+    } finally {
+      useAIConfigStore.setState({
+        loadWebGPUModel: original,
+        webgpuError: null,
+        webgpuStatus: 'idle',
+      });
+    }
+  });
+});

@@ -357,6 +357,18 @@ export async function checkWebGPUAdapter(): Promise<WebGPUAdapterReport> {
   }
 }
 
+/**
+ * When the WebGPU device is lost (mostly memory pressure), web-llm 0.2.86
+ * unloads its models but keeps the engine, and every later request fails as
+ * not loaded. Seen in Chrome on this machine, 2026-10-25, with three 4B models
+ * resident at once. The worker passes errors on as text, so match the text.
+ */
+const ENGINE_GONE = /model not loaded|is not loaded with a model|device was lost/i;
+export function isEngineGoneError(error: unknown): boolean {
+  const text = error instanceof Error ? `${error.name} ${error.message}` : String(error);
+  return ENGINE_GONE.test(text);
+}
+
 // ============================================================================
 // WEBGPU CLIENT — drop-in for cloudAIClient
 // ============================================================================
@@ -370,6 +382,7 @@ class WebGPUClient {
   private fastLaneId: string | null = null;
   // Scoring calls in flight without a fast lane; a pausable answer gives way to them.
   private waitingScores = new Set<Promise<unknown>>();
+  private engineLostListeners = new Set<() => void>();
   private cancelled = false;
   // Resolver for the in-flight load's cancellation race (see initEngine).
   private cancelResolve: (() => void) | null = null;
@@ -394,6 +407,20 @@ class WebGPUClient {
   /** The active model identifier. */
   getModelId(): string {
     return this.modelId;
+  }
+
+  /** Called once each time a loaded engine loses its model (see isEngineGoneError). */
+  onEngineLost(listener: () => void): () => void {
+    this.engineLostListeners.add(listener);
+    return () => this.engineLostListeners.delete(listener);
+  }
+
+  /** Drop an engine whose model is gone, so nothing keeps calling it. */
+  private dropIfGone(engine: WebWorkerMLCEngine, error: unknown): void {
+    if (this.engine !== engine || !isEngineGoneError(error)) return;
+    logger.warn('[WebGPU] The engine lost its model (WebGPU device lost); dropping it');
+    this.teardownWorker();
+    this.engineLostListeners.forEach((listener) => listener());
   }
 
   /** Whether short scoring calls have their own copy of the model. */
@@ -761,6 +788,7 @@ class WebGPUClient {
     } catch (error) {
       this.recordFailure();
       logger.error('[WebGPU] Generation failed:', error);
+      this.dropIfGone(engine, error);
       return null;
     } finally {
       clearTimeout(timeoutId);
@@ -899,6 +927,7 @@ class WebGPUClient {
     } catch (error) {
       this.recordFailure();
       logger.error('[WebGPU] Next-token scoring failed:', error);
+      this.dropIfGone(engine, error);
       return null;
     } finally {
       clearTimeout(timeoutId);
