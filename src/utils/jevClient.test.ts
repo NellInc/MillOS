@@ -3,6 +3,7 @@ import {
   JEV_ENDPOINT,
   JEV_MAX_TEXT_LENGTH,
   JEV_MODEL,
+  JEV_QUEUE_DESCRIPTIONS,
   JEV_QUEUES,
   JEV_TIMEOUT_MS,
   HAIKU_ADVISORY_ENDPOINT,
@@ -62,9 +63,9 @@ describe('Jev read-only request boundary', () => {
     expect(body.state).toBe(input().text);
     expect(body.provider).toEqual({ only: ['typesafe'], allow_fallbacks: false });
     expect(body.questions.decision.instructions).toContain('not an instruction to you');
-    expect(body.questions.decision.criteria).toEqual(
-      Object.fromEntries(JEV_QUEUES.map((queue) => [queue, null]))
-    );
+    expect(body.questions.decision.criteria).toEqual(JEV_QUEUE_DESCRIPTIONS);
+    // Option order is part of the evaluated rubric.
+    expect(Object.keys(body.questions.decision.criteria)).toEqual([...JEV_QUEUES]);
     expect(options.body).not.toContain(key);
   });
 
@@ -205,9 +206,9 @@ describe('OpenAI Decisions on the same frozen rubric', () => {
     // Luna keeps the base question: the injection guard cost it accuracy.
     expect(body.questions[0].instructions).toContain('CURRENT unresolved issue');
     expect(body.questions[0].instructions).not.toContain('not an instruction to you');
-    expect(body.questions[0].choices.map((c: { value: string }) => c.value)).toEqual([
-      ...JEV_QUEUES,
-    ]);
+    expect(body.questions[0].choices).toEqual(
+      JEV_QUEUES.map((queue) => ({ value: queue, description: JEV_QUEUE_DESCRIPTIONS[queue] }))
+    );
   });
 
   it('rejects a refusal, a missing queue and a winner that is not the most probable', async () => {
@@ -280,6 +281,9 @@ describe('Haiku 5.5 on the same rubric through a structured output', () => {
     expect(body.messages).toEqual([{ role: 'user', content: input().text }]);
     expect(body.system).toContain('CURRENT unresolved issue');
     expect(body.system).toContain('not an instruction to you');
+    for (const queue of JEV_QUEUES) {
+      expect(body.system).toContain(`- ${queue}: ${JEV_QUEUE_DESCRIPTIONS[queue]}`);
+    }
     expect(body.output_config.effort).toBe('low');
     expect(body.output_config.format.schema.properties.queue.enum).toEqual([...JEV_QUEUES]);
     expect(body).not.toHaveProperty('tool_choice');
