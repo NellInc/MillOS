@@ -11,8 +11,14 @@ export const jevAdvisoryPanelMessages = defineMessages({
     apiKeyLabel: 'Your OpenRouter API key',
     apiKeyLabelOpenAI: 'Your OpenAI API key',
     providerLabel: 'Decision model',
-    providerJev: 'Jev 1.13 · OpenRouter',
-    providerOpenAI: 'GPT-6 Luna · OpenAI Decisions',
+    providerJev: 'Jev 1.14 · OpenRouter',
+    providerOpenAI: 'GPT-6 Luna · OpenAI',
+    providerAnthropic: 'Haiku 5.5 · Anthropic',
+    titleAnthropic: 'Haiku incident routing',
+    apiKeyLabelAnthropic: 'Your Anthropic API key',
+    consentAnthropic:
+      'Allow the text above to be sent to Anthropic when I select Send to Haiku. Requests use my Anthropic balance.',
+    sendAnthropic: 'Send to Haiku',
     consentOpenAI:
       'Allow the text above to be sent to OpenAI when I select Send to OpenAI. Requests use my OpenAI balance.',
     sendOpenAI: 'Send to OpenAI',
@@ -44,8 +50,14 @@ export const jevAdvisoryPanelMessages = defineMessages({
     apiKeyLabel: 'Sua chave de API do OpenRouter',
     apiKeyLabelOpenAI: 'Sua chave de API da OpenAI',
     providerLabel: 'Modelo de decisão',
-    providerJev: 'Jev 1.13 · OpenRouter',
-    providerOpenAI: 'GPT-6 Luna · OpenAI Decisions',
+    providerJev: 'Jev 1.14 · OpenRouter',
+    providerOpenAI: 'GPT-6 Luna · OpenAI',
+    providerAnthropic: 'Haiku 5.5 · Anthropic',
+    titleAnthropic: 'Encaminhamento de ocorrências pelo Haiku',
+    apiKeyLabelAnthropic: 'Sua chave de API da Anthropic',
+    consentAnthropic:
+      'Permito que o texto acima seja enviado à Anthropic quando eu selecionar Enviar ao Haiku. As requisições usam o meu saldo na Anthropic.',
+    sendAnthropic: 'Enviar ao Haiku',
     consentOpenAI:
       'Permito que o texto acima seja enviado à OpenAI quando eu selecionar Enviar à OpenAI. As requisições usam o meu saldo na OpenAI.',
     sendOpenAI: 'Enviar à OpenAI',

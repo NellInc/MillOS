@@ -5,6 +5,7 @@ import {
   JEV_MODEL,
   JEV_QUEUES,
   JEV_TIMEOUT_MS,
+  HAIKU_ADVISORY_ENDPOINT,
   isAdvisoryKeyValid,
   OPENAI_DECISIONS_ENDPOINT,
   requestJevAdvice,
@@ -228,6 +229,82 @@ describe('OpenAI Decisions on the same frozen rubric', () => {
     vi.stubGlobal('window', { location: { hostname: 'www.millos.net' } });
     try {
       await expect(requestJevAdvice(openaiInput())).rejects.toThrow('local companion only');
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      vi.stubGlobal('window', originalWindow);
+    }
+  });
+});
+
+describe('Haiku 5.5 on the same rubric through a structured output', () => {
+  const anthropicKey = `sk-ant-api03-${'test-only-'.repeat(4)}`;
+  const haikuReply = (queue: string = JEV_QUEUES[1], stopReason = 'end_turn') => ({
+    model: 'claude-haiku-5-5',
+    stop_reason: stopReason,
+    content: [
+      { type: 'thinking', thinking: '' },
+      { type: 'text', text: JSON.stringify({ queue }) },
+    ],
+    usage: { input_tokens: 210, output_tokens: 12 },
+  });
+  const haikuInput = () => ({ ...input(), apiKey: anthropicKey, provider: 'haiku' as const });
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('asks for one of the five queues and reads the text answer', async () => {
+    fetchMock.mockResolvedValue(reply(haikuReply()));
+    const advice = await requestJevAdvice(haikuInput());
+    expect(advice.queue).toBe(JEV_QUEUES[1]);
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(url).toBe(HAIKU_ADVISORY_ENDPOINT);
+    expect(options).toMatchObject({
+      credentials: 'omit',
+      redirect: 'error',
+      headers: {
+        'x-api-key': anthropicKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+    });
+    expect(options.headers).not.toHaveProperty('Authorization');
+    const body = JSON.parse(options.body);
+    expect(body.model).toBe('claude-haiku-5-5');
+    expect(body.messages).toEqual([{ role: 'user', content: input().text }]);
+    expect(body.system).toContain('CURRENT unresolved issue');
+    expect(body.output_config.effort).toBe('low');
+    expect(body.output_config.format.schema.properties.queue.enum).toEqual([...JEV_QUEUES]);
+    expect(body).not.toHaveProperty('tool_choice');
+    expect(body).not.toHaveProperty('temperature');
+  });
+
+  it('rejects a refusal, a truncated answer and a queue outside the five', async () => {
+    for (const body of [
+      haikuReply(JEV_QUEUES[0], 'refusal'),
+      haikuReply(JEV_QUEUES[0], 'max_tokens'),
+      haikuReply('Something else'),
+      { ...haikuReply(), content: [{ type: 'text', text: 'not json' }] },
+    ]) {
+      fetchMock.mockResolvedValueOnce(reply(body));
+      await expect(requestJevAdvice(haikuInput())).rejects.toThrow('Haiku returned an invalid');
+    }
+  });
+
+  it('keeps each key with its own provider', () => {
+    expect(isAdvisoryKeyValid('haiku', anthropicKey)).toBe(true);
+    expect(isAdvisoryKeyValid('openai', anthropicKey)).toBe(false);
+    expect(isAdvisoryKeyValid('jev', anthropicKey)).toBe(false);
+    expect(isAdvisoryKeyValid('haiku', key)).toBe(false);
+  });
+
+  it('keeps a direct Anthropic key off the public site', async () => {
+    const originalWindow = window;
+    vi.stubGlobal('window', { location: { hostname: 'www.millos.net' } });
+    try {
+      await expect(requestJevAdvice(haikuInput())).rejects.toThrow('local companion only');
       expect(fetchMock).not.toHaveBeenCalled();
     } finally {
       vi.stubGlobal('window', originalWindow);

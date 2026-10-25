@@ -16,7 +16,10 @@ export function JevAdvisoryPanel({ latestAlert }: { latestAlert?: string }) {
   const t = useT(jevAdvisoryPanelMessages);
   const providers = advisoryProviders();
   const [provider, setProvider] = useState<AdvisoryProvider>('jev');
-  const openai = provider === 'openai';
+  // Per-provider copy: Jev keeps the original keys; others add a suffix.
+  const suffix = provider === 'openai' ? 'OpenAI' : provider === 'haiku' ? 'Anthropic' : '';
+  const copy = (base: 'title' | 'apiKeyLabel' | 'consent' | 'send') =>
+    t(`${base}${suffix}` as Parameters<typeof t>[0]);
   const [apiKey, setApiKey] = useState('');
   const [text, setText] = useState('');
   const [consent, setConsent] = useState(false);
@@ -89,12 +92,12 @@ export function JevAdvisoryPanel({ latestAlert }: { latestAlert?: string }) {
       <div className="space-y-2">
         <h3 className="flex items-center gap-2 text-sm font-semibold text-cyan-300">
           <Shield className="h-4 w-4" aria-hidden="true" />
-          {openai ? t('titleOpenAI') : t('title')}
+          {copy('title')}
         </h3>
         <p>{t('intro')}</p>
       </div>
       {providers.length > 1 && (
-        <div role="radiogroup" aria-label={t('providerLabel')} className="grid grid-cols-2 gap-2">
+        <div role="radiogroup" aria-label={t('providerLabel')} className="grid grid-cols-3 gap-2">
           {providers.map((option) => (
             <button
               key={option}
@@ -115,21 +118,25 @@ export function JevAdvisoryPanel({ latestAlert }: { latestAlert?: string }) {
                 setConsent(false);
               }}
             >
-              {option === 'openai' ? t('providerOpenAI') : t('providerJev')}
+              {option === 'openai'
+                ? t('providerOpenAI')
+                : option === 'haiku'
+                  ? t('providerAnthropic')
+                  : t('providerJev')}
             </button>
           ))}
         </div>
       )}
       <div className="space-y-2">
         <label htmlFor="jev-api-key" className="block font-medium">
-          {openai ? t('apiKeyLabelOpenAI') : t('apiKeyLabel')}
+          {copy('apiKeyLabel')}
         </label>
         <input
           id="jev-api-key"
           type="password"
           autoComplete="off"
           spellCheck={false}
-          maxLength={180}
+          maxLength={260}
           value={apiKey}
           className={fieldClass}
           aria-describedby="jev-key-help"
@@ -203,7 +210,7 @@ export function JevAdvisoryPanel({ latestAlert }: { latestAlert?: string }) {
             setConsent(event.target.checked);
           }}
         />
-        <span>{openai ? t('consentOpenAI') : t('consent')}</span>
+        <span>{copy('consent')}</span>
       </label>
       <div className="flex flex-wrap gap-2">
         <button
@@ -212,7 +219,7 @@ export function JevAdvisoryPanel({ latestAlert }: { latestAlert?: string }) {
           disabled={pending || !consent || !isAdvisoryKeyValid(provider, apiKey) || !text.trim()}
           onClick={() => void send()}
         >
-          {pending ? t('requesting') : openai ? t('sendOpenAI') : t('send')}
+          {pending ? t('requesting') : copy('send')}
         </button>
         {pending && (
           <button type="button" className={buttonClass} onClick={cancel}>
