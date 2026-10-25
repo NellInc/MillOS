@@ -355,13 +355,13 @@ try {
     report.requests++;
     assert.equal(request.headers().authorization, `Bearer ${key}`);
     assert.equal(body.state, note);
-    assert.equal(body.model, 'typesafe/jev-1.13');
+    assert.equal(body.model, 'typesafe/jev-1.14');
     assert.deepEqual(Object.keys(body).sort(), ['model', 'provider', 'questions', 'state']);
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        model: 'typesafe/jev-1.13',
+        model: 'typesafe/jev-1.14',
         answers: {
           decision: {
             type: 'choice',
