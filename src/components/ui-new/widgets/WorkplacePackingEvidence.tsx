@@ -56,10 +56,21 @@ export function HandoffEpisodes({
     store.participationMode === 'separate-turns' ? (store.turn?.actorId ?? '') : selectedActor;
   const separateTurns = store.participationMode === 'separate-turns';
   const selected = HANDOFF_EPISODES.find((e) => e.id === state.improvement?.episode?.id);
+  // Paused owner changes can invalidate a retained stock claim without changing
+  // workplace state. Observe the same direct facts as the matched rehearsal.
+  useMaterialFlowStore();
+  useOperationsCampaignStore();
+  useProductionStore();
+  useQCLabStore();
+  useTruckScheduleStore();
+  useGameSimulationStore((s) => s.gameSpeed);
+  const advice = state.improvement?.advice;
   const outcome = improvementEpisodeOutcome(
     state,
-    state.improvement?.advice && !state.improvement.advice.reasonToAbstain
-      ? state.improvement.advice.evidence.releasedPackedKg
+    advice &&
+      !advice.reasonToAbstain &&
+      advice.fingerprint === captureCurrentPackingPlant(state).fingerprint
+      ? advice.evidence.releasedPackedKg
       : null
   );
   return (

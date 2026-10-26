@@ -571,7 +571,7 @@ it('softens foliage normals and leaf-age tones while retaining exact civic-baked
   }
 });
 
-it('pins rebuilt shutter bodies and unchanged glass/garden UVs to the exact civic rebake', () => {
+it('pins current shutters, recessed pots and unchanged glazing to the exact civic rebake', () => {
   const expected = [
     [
       'a533110e0170120455bd18776e8049c42a0bc63d1ea1f19385af6db6d2c4a977',
@@ -582,8 +582,8 @@ it('pins rebuilt shutter bodies and unchanged glass/garden UVs to the exact civi
       'd46b61cfe0e50a2d4039e9c7f9b2bd75def0a0955e52a758f8a95d137545d9cf',
     ],
     [
-      '089f393c4fdbf35b1698af95a4dde2e493932d8a31933109d127a619d1248886',
-      '972555e5069ac18ea49efe1c030111a161058b8bf5d754b7f1bb24b73a9062d2',
+      'f400d2c0684f399f781493365b568861172f3f172ec86e30aea73a4184426399',
+      'da3e5520b045fef4e84ab2c8778ec32929adf4a71e5e9297f2db94089e9e9854',
     ],
     [
       'd621111d5d3be9a8f038f68ea851c99b32631e1e09238d04672e882d45fc7168',
@@ -594,8 +594,8 @@ it('pins rebuilt shutter bodies and unchanged glass/garden UVs to the exact civi
       '6455719f5952f307a0a0d7a1692d99413267045e76e00bfe6aa5dd8375379d67',
     ],
     [
-      '18d4e1ab1a5af506dee461f176fc6fcb7d92c7693847c97e9c8d496f743e207b',
-      '472e41218a61a6accdecfbf3e85d7b0e9d5e9c73126592557d1697cf54f667ed',
+      'e2193ae270a1a236cbee537812889ff4d24b04b3d2d78636cfa87a96fb193d2b',
+      '01b8a72dd28d270ca2e293c672b254b00cd8a2c1e4839443c98d8fcf6ab3aa38',
     ],
     [
       'ece4d58c66ad6fdd8c92060eb256b018bd812d11f959889495f647a4504526af',
@@ -606,8 +606,8 @@ it('pins rebuilt shutter bodies and unchanged glass/garden UVs to the exact civi
       'd46b61cfe0e50a2d4039e9c7f9b2bd75def0a0955e52a758f8a95d137545d9cf',
     ],
     [
-      'ff9e17b2861e0d6d0aa59578f1085508c979ae1dfd7a65992fdf8f6fa85892af',
-      '4e5d08838f809aab4a508e427d54526c6470743040cfb501317711794f35b433',
+      '03179ff6800a2e7193737208441301e0e031fbeddda46d8886eb248826b38eab',
+      '0fdaeb147223bf56d588c737566bd69bb27cbb65df22b3d8e514cafc66382628',
     ],
     [
       '210b446a4bcb30ba6aea0147d9bfaeaed79ba8bdb4235f32aeaf852bf9601792',
@@ -618,8 +618,8 @@ it('pins rebuilt shutter bodies and unchanged glass/garden UVs to the exact civi
       '6455719f5952f307a0a0d7a1692d99413267045e76e00bfe6aa5dd8375379d67',
     ],
     [
-      'ad2c03709c629ee3f98f0ef364f6a373d90782bb63de7016fbc8b0f8c857c6ae',
-      '81ba8a9a1451c7dbf9a154feecad9c377c5b0065f0fe983eeb39191eda28b194',
+      '3d88a15819d6baf6341e308013f5e3eac290ecbab41ce0301f5148b6c379e898',
+      'f0d1f4d1974df09e5070d29786e41a0642dd5b1e013c24d9211b20a4da9900bf',
     ],
     [
       'eea7e6ffc263141d4ce5c3bc76745e45b21a58ca69931c636eb8f669f95ae36d',
@@ -630,12 +630,12 @@ it('pins rebuilt shutter bodies and unchanged glass/garden UVs to the exact civi
       'fd07c976a3b0b02d8768c6fba203cf1c2f4d1eb3e350eac0a5043b7e3116ebb6',
     ],
     [
-      'f27f534d08effb9da12bff0a1ce847eca88f980310e03d80afe6b81266183102',
-      'c686f6d3c5e336699244c247c9fdeeeafd1e3e912567a275424229246df61d93',
+      '822d0395204a3c5282d61ab5abec8fb96f9a057c1d4a3317ee123aaa1456009e',
+      'b9cad670050dfd3dfdb6e83f576b6d356ee72c5a2bcabe50098e877f48509e92',
     ],
     [
-      '0029ad5595c87ed4fe829f51d130ac6152acd35d2db55a412b16839ccfb4dd54',
-      '1bcb18e5d097ae63b7d5d1dd0f949a07c812165436f9a0c18e1aed182aa60745',
+      '17f7352a5c44a1f5084cb7dc8aadd8c10dcec6bdff0924dc464d35fa66429936',
+      '988e588d54cca22b766a9eb3f825cf6883f7d1c916c54c7f41fdb0381a002fed',
     ],
   ];
   const actual = [
@@ -671,6 +671,78 @@ it('softens petal normals and varies tone while retaining the closed sixty-trian
   const geometry = plot.finish();
   expect(geometry.getAttribute('position').count / 3).toBe(60);
   geometry.dispose();
+});
+
+it('recesses all 21 flowerpots behind annular lips, with inner walls, closed bases and soil-seated roots', () => {
+  const pots: [THREE.BufferGeometry, number, number, number][] = VILLAGE_HOMES.flatMap(
+    ({ garden }, index) =>
+      [
+        [garden, -1.2, [4.4, 4.5, 4.2, 4.6, 4.4][index] / 2 + 0.95, 0.82],
+        [garden, 1.2, [4.4, 4.5, 4.2, 4.6, 4.4][index] / 2 + 0.95, 0.82],
+        [garden, 3.9, -2.5, 1.15],
+      ] as [THREE.BufferGeometry, number, number, number][]
+  );
+  for (const x of [-4.3, 4.3])
+    for (const z of [3.4, 5.9]) pots.push([VILLAGE_HOMES[1].garden, x, z, 0.9]);
+  for (const x of [-4.8, 4.8]) pots.push([VILLAGE_ALLOTMENT_GEOMETRY, x, 5.75, 1.05]);
+  expect(pots).toHaveLength(21);
+  for (const [geometry, x, z, scale] of pots) {
+    const radius = 0.36 * scale,
+      h = 0.51 * scale,
+      soilY = h * 0.86;
+    const soil = hit(geometry, [x, h + 0.001, z], [0, -1, 0], h)[0];
+    expect(soil?.point.y, `recessed soil at ${x},${z}`).toBeCloseTo(soilY, 5);
+    const lip = hit(geometry, [x, h + 0.1, z + radius * 0.96], [0, -1, 0], 0.2)[0];
+    expect(lip?.point.y).toBeGreaterThan(h * 0.98);
+    expect(lip?.point.y).toBeLessThanOrEqual(h + 0.00001);
+    // Use front-facing rays here: DoubleSide would let an outside wall fake an inner throat.
+    const front = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial());
+    const inner = new THREE.Raycaster(
+      new THREE.Vector3(x, h * 0.94, z),
+      new THREE.Vector3(0, 0, 1),
+      0,
+      radius
+    ).intersectObject(front)[0];
+    expect(inner?.point.z).toBeCloseTo(z + radius * 0.87, 5);
+    expect(inner?.face?.normal.z).toBeLessThan(-0.9);
+    front.material.dispose();
+    expect(hit(geometry, [x, 0.08 * scale, z], [0, -1, 0], 0.1 * scale)[0]?.point.y).toBeCloseTo(
+      0,
+      5
+    );
+    const position = geometry.getAttribute('position');
+    const colours = geometry.getAttribute('color');
+    const clay = ['#b97859', '#ce9470'].map((c) => new THREE.Color(c));
+    const bounds = new THREE.Box3();
+    for (let i = 0; i < position.count; i++) {
+      const point = new THREE.Vector3().fromBufferAttribute(position, i);
+      if (Math.hypot(point.x - x, point.z - z) > radius * 1.121) continue;
+      if (clay.some((c) => Math.abs(colours.getX(i) / colours.getY(i) - c.r / c.g) < 0.00001))
+        bounds.expandByPoint(point);
+    }
+    // The original ten-sided projecting ring and the old body-top datum bound the clay.
+    expect(bounds.min.y).toBeCloseTo(0, 5);
+    expect(bounds.max.y).toBeCloseTo(h, 5);
+    expect(bounds.min.x).toBeCloseTo(x - radius * 1.12 * Math.sin(Math.PI * 0.4), 5);
+    expect(bounds.max.x).toBeCloseTo(x + radius * 1.12 * Math.sin(Math.PI * 0.4), 5);
+    expect(bounds.min.z).toBeCloseTo(z - radius * 1.12, 5);
+    expect(bounds.max.z).toBeCloseTo(z + radius * 1.12, 5);
+    for (let flower = 0; flower < 5; flower++) {
+      const angle = (flower * Math.PI * 2) / 5;
+      const root = new THREE.Vector3(
+        x + Math.cos(angle) * radius * 0.55,
+        soilY,
+        z + Math.sin(angle) * radius * 0.55
+      );
+      let closest = Infinity;
+      for (let i = 0; i < position.count; i++)
+        closest = Math.min(
+          closest,
+          root.distanceTo(new THREE.Vector3().fromBufferAttribute(position, i))
+        );
+      expect(closest, 'stem starts on the actual soil surface').toBeLessThan(0.00001);
+    }
+  }
 });
 
 it('gives clay only deterministic kiln tones, retaining exact cylinder geometry and palette', () => {

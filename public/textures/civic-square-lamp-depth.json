@@ -714,12 +714,12 @@
     "alphaOrMoving": 41
   },
   "dynamicLocalShadows": false,
-  "inputSha256": "cdd6000e3c64eae0c7c07b84ad321ae8eae398ebab55e6d40483131ea0f1e937",
-  "atlasSha256": "2b19532ce3e23eed7343c957f5b48c8070127f92b0d1b49603570f85dd160b9a",
+  "inputSha256": "fd1645d3951444978262e6c287102cd855aec595feedc936f4ddd9d3c630b2f6",
+  "atlasSha256": "39a22c552dfe260a8429528263c10a2f17966434e764c14e154197dacaba1245",
   "bakerSha256": "e4a1187f642e15650def16479000b54b52c562a1e7af3e1894d40db3aabe7973",
   "vertices": 419446,
   "triangles": 179992,
-  "elapsedSeconds": 8.28,
+  "elapsedSeconds": 14.44,
   "sourceReceipts": [
     {
       "id": "hall-west",
@@ -743,17 +743,17 @@
     },
     {
       "id": "post-fountain",
-      "blockedRays": 75506,
+      "blockedRays": 75505,
       "rays": 98304
     },
     {
       "id": "post-garden",
-      "blockedRays": 55074,
+      "blockedRays": 55071,
       "rays": 98304
     },
     {
       "id": "post-right",
-      "blockedRays": 56827,
+      "blockedRays": 56824,
       "rays": 98304
     },
     {
@@ -798,17 +798,17 @@
     },
     {
       "id": "gate-inner",
-      "blockedRays": 38659,
+      "blockedRays": 38650,
       "rays": 98304
     },
     {
       "id": "gate-outer",
-      "blockedRays": 38989,
+      "blockedRays": 38988,
       "rays": 98304
     },
     {
       "id": "shed-bed-west",
-      "blockedRays": 40497,
+      "blockedRays": 40489,
       "rays": 98304
     },
     {
@@ -870,20 +870,20 @@
     "villageGardenPositions": [
       "a533110e0170120455bd18776e8049c42a0bc63d1ea1f19385af6db6d2c4a977",
       "58878f3dbe581bc21eefe9f8176f21b6352b7abcb3d35fde50c083fc48c318f6",
-      "089f393c4fdbf35b1698af95a4dde2e493932d8a31933109d127a619d1248886",
+      "f400d2c0684f399f781493365b568861172f3f172ec86e30aea73a4184426399",
       "d621111d5d3be9a8f038f68ea851c99b32631e1e09238d04672e882d45fc7168",
       "32c990fd18097bb1d80eb7c4306ae2e14aaf7f387c8178fe686298adcf132870",
-      "18d4e1ab1a5af506dee461f176fc6fcb7d92c7693847c97e9c8d496f743e207b",
+      "e2193ae270a1a236cbee537812889ff4d24b04b3d2d78636cfa87a96fb193d2b",
       "ece4d58c66ad6fdd8c92060eb256b018bd812d11f959889495f647a4504526af",
       "0e3b36611bb21694e2937379c8e732e2e66e39e141ab598c3c38a966b7f95464",
-      "ff9e17b2861e0d6d0aa59578f1085508c979ae1dfd7a65992fdf8f6fa85892af",
+      "03179ff6800a2e7193737208441301e0e031fbeddda46d8886eb248826b38eab",
       "210b446a4bcb30ba6aea0147d9bfaeaed79ba8bdb4235f32aeaf852bf9601792",
       "3a3cda642438e77b89ba59ef0987d54b2a38addcd790cedeaea68540459954c7",
-      "ad2c03709c629ee3f98f0ef364f6a373d90782bb63de7016fbc8b0f8c857c6ae",
+      "3d88a15819d6baf6341e308013f5e3eac290ecbab41ce0301f5148b6c379e898",
       "eea7e6ffc263141d4ce5c3bc76745e45b21a58ca69931c636eb8f669f95ae36d",
       "5ade559333214fe102d81f90fe82dfef11824c3545aea0765960062ff1911664",
-      "f27f534d08effb9da12bff0a1ce847eca88f980310e03d80afe6b81266183102",
-      "0029ad5595c87ed4fe829f51d130ac6152acd35d2db55a412b16839ccfb4dd54"
+      "822d0395204a3c5282d61ab5abec8fb96f9a057c1d4a3317ee123aaa1456009e",
+      "17f7352a5c44a1f5084cb7dc8aadd8c10dcec6bdff0924dc464d35fa66429936"
     ],
     "townHallHedgePositions": "2ffd894b9cca542118f871dd706a846c96820db18db5c541dcba1412873ccb6c"
   }

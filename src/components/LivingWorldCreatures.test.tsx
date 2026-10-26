@@ -34,6 +34,7 @@ import {
 } from './VillageArea';
 import {
   Scarecrow,
+  FARM_TROUGH_GEOMETRIES,
   FARM_CLUTTER,
   FARM_YARD_SIZE,
   GRAIN_PLANT_GEOMETRY,
@@ -1874,3 +1875,55 @@ it.each([false, true])(
     );
   }
 );
+
+it('exposes fallback trough water through four walls while retaining its closed base and envelope', () => {
+  const material = new THREE.MeshStandardMaterial();
+  const body = new THREE.Mesh(FARM_TROUGH_GEOMETRIES.body, material);
+  const water = new THREE.Mesh(FARM_TROUGH_GEOMETRIES.water, material);
+  body.position.y = 0.3;
+  water.position.y = 0.5;
+  body.updateMatrixWorld();
+  water.updateMatrixWorld();
+  const down = (x: number, z: number) =>
+    new THREE.Raycaster(new THREE.Vector3(x, 1, z), new THREE.Vector3(0, -1, 0)).intersectObjects([
+      body,
+      water,
+    ])[0];
+  try {
+    for (const [x, z] of [
+      [0, 0],
+      [-0.5, -0.15],
+      [0.5, 0.15],
+    ]) {
+      const hit = down(x, z);
+      expect(hit.object).toBe(water);
+      expect(hit.point.y).toBeCloseTo(0.525, 6);
+    }
+    for (const [x, z] of [
+      [-0.7, 0],
+      [0.7, 0],
+      [0, -0.26],
+      [0, 0.26],
+    ]) {
+      const hit = down(x, z);
+      expect(hit.object).toBe(body);
+      expect(hit.point.y).toBeCloseTo(0.55, 6);
+      expect(hit.face!.normal.y).toBeGreaterThan(0.99);
+    }
+    const bottom = new THREE.Raycaster(
+      new THREE.Vector3(0, -1, 0),
+      new THREE.Vector3(0, 1, 0)
+    ).intersectObject(body)[0];
+    expect(bottom.point.y).toBeCloseTo(0.05, 6);
+    const g = FARM_TROUGH_GEOMETRIES.body;
+    g.computeBoundingBox();
+    expect(g.boundingBox!.min.toArray()).toEqual([-0.75, -0.25, expect.closeTo(-0.3, 6)]);
+    expect(g.boundingBox!.max.toArray()).toEqual([0.75, 0.25, expect.closeTo(0.3, 6)]);
+    expect((g.index?.count ?? g.attributes.position.count) / 3).toBeLessThanOrEqual(60);
+    expect(
+      Object.values(g.attributes).every((a) => Array.from(a.array).every(Number.isFinite))
+    ).toBe(true);
+  } finally {
+    material.dispose();
+  }
+});

@@ -83,6 +83,118 @@ describe('choice-first handoff interface', () => {
       screen.getByText(/once released stock and the remaining commitment are known/)
     ).toBeInTheDocument();
   });
+  it.each(['batch hold', 'order change', 'setpoint change'] as const)(
+    'withholds the smaller-delivery stock claim after a paused %s',
+    (change) => {
+      useMaterialFlowStore.getState().resetMaterialFlow();
+      useQCLabStore.getState().resetQCLab();
+      useTruckScheduleStore.getState().resetTruckSchedule();
+      useProductionStore.getState().setProductionSpeed(1);
+      useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
+      const operations = useOperationsCampaignStore.getState();
+      operations.initializeCampaign();
+      const order = operations.orders.find((o) => o.id === operations.activeOrderId)!;
+      const material = useMaterialFlowStore.getState();
+      material.tickMaterialFlow(180, 1, { ...order.recipe, remainingFinishedKg: order.requiredKg });
+      const currentMaterial = useMaterialFlowStore.getState();
+      const stock = currentMaterial.productionBatches.filter(
+        (b) => b.materialType === order.recipe.finishedMaterial
+      );
+      const released = stock.reduce((sum, batch) => sum + batch.availableKg, 0);
+      expect(released).toBeGreaterThan(0);
+      const sourceInventoryKg =
+        [...currentMaterial.machineBuffers.values()].reduce(
+          (sum, buffer) =>
+            sum +
+            [...buffer.inputBuffer, ...buffer.outputBuffer].reduce(
+              (n, m) => n + (m.type === order.recipe.sourceMaterial ? m.amount : 0),
+              0
+            ),
+          0
+        ) +
+        currentMaterial.network.segments.reduce(
+          (sum, segment) =>
+            sum +
+            segment.inTransit.reduce(
+              (n, m) => n + (m.type === order.recipe.sourceMaterial ? m.amount : 0),
+              0
+            ),
+          0
+        );
+      operations.tickCampaign(0.5, {
+        materialSessionId: currentMaterial.sessionId,
+        shiftKey: 'handoff-freshness',
+        shiftLabel: 'Morning',
+        manifests: currentMaterial.manifests,
+        productionBatches: currentMaterial.productionBatches,
+        totalEnergyKw: 0,
+        averageQuality: 99,
+        wasteKg: 0,
+        storageUtilization: 0,
+        shippingDocked: false,
+        receivingDocked: false,
+        dispatchReleased: true,
+        sourceInventoryKg,
+        finishedAvailableKg: released,
+        releasedFinishedKg: released,
+        dispatchLoad: {
+          cycleId: 'handoff-freshness',
+          status: 'away',
+          loadedKg: 0,
+          capacityKg: 5000,
+          materialType: order.recipe.finishedMaterial,
+          blockReason: null,
+          lastDispatchKg: 0,
+        },
+        openWorkOrders: 0,
+      });
+      const store = useWorkplaceStore.getState();
+      expect(store.beginImprovement('cooperative', store.workplace.revision).changed).toBe(true);
+      store.setImprovementEpisode('late-truck');
+      store.respondImprovementEpisode('packing', 'smaller-delivery');
+      store.proposeImprovement('buffer', 'maintenance');
+      store.acknowledgeImprovement();
+      const state = useWorkplaceStore.getState().workplace;
+      const advice = structuredClone(state.improvement!.advice!);
+      expect(advice.reasonToAbstain).toBeNull();
+      expect(advice.evidence.releasedPackedKg).toBe(released);
+      const { rerender } = render(<HandoffEpisodes state={state} report={report} />);
+      expect(screen.getByRole('status')).toHaveTextContent(
+        /Discuss at most .* known released stock/
+      );
+      act(() => {
+        if (change === 'batch hold')
+          useMaterialFlowStore.getState().setBatchDisposition(
+            stock.map((batch) => batch.id),
+            'hold',
+            'Paused handoff quality hold'
+          );
+        else if (change === 'order change') useOperationsCampaignStore.setState({ orders: [] });
+        else useProductionStore.getState().setProductionSpeed(0.57);
+      });
+      expect(captureCurrentPackingPlant(state).fingerprint).not.toBe(advice.fingerprint);
+      expect(screen.getByRole('status')).toHaveTextContent(
+        'once released stock and the remaining commitment are known'
+      );
+      rerender(<HandoffEpisodes state={state} report={report} />);
+      expect(screen.getByRole('status')).not.toHaveTextContent('known released stock');
+      expect(useWorkplaceStore.getState().workplace).toBe(state);
+      expect(state.improvement!.advice).toEqual(advice);
+      expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+      if (change === 'setpoint change') {
+        act(() => expect(store.acknowledgeImprovement().changed).toBe(true));
+        const refreshed = useWorkplaceStore.getState().workplace;
+        expect(refreshed.improvement!.advice!.fingerprint).toBe(
+          captureCurrentPackingPlant(refreshed).fingerprint
+        );
+        rerender(<HandoffEpisodes state={refreshed} report={report} />);
+        expect(screen.getByRole('status')).toHaveTextContent(
+          /Discuss at most .* known released stock/
+        );
+        expect(state.improvement!.advice).toEqual(advice);
+      }
+    }
+  );
   it('automatically marks a paused comparison stale after a production setpoint change', async () => {
     useProductionStore.getState().setProductionSpeed(1);
     const state = createWorkplace();

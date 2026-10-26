@@ -277,26 +277,40 @@ export function addVillageClay(
 
 function pot(b: PlotGeometry, x: number, z: number, colour: string, scale = 1) {
   const radius = 0.36 * scale,
-    h = 0.51 * scale;
+    h = 0.51 * scale,
+    soilY = h * 0.86;
   const seed = x * 2.71 + z * 1.97;
+  // The mouth is open, with the original tapered outside and a closed base.
+  // Working if rays find recessed soil and an inward-facing clay throat,
+  // while the existing exterior bounds, merged draws and palette remain intact.
   addVillageClay(
     b,
-    new THREE.CylinderGeometry(radius, radius * 0.68, h, 10).translate(x, h / 2, z),
+    new THREE.CylinderGeometry(radius * 0.9536, radius * 0.68, h * 0.855, 10, 1, true).translate(
+      x,
+      (h * 0.855) / 2,
+      z
+    ),
     '#b97859',
     seed
   );
   addVillageClay(
     b,
-    new THREE.CylinderGeometry(radius * 1.12, radius * 1.12, h * 0.13, 10).translate(
-      x,
-      h * 0.92,
-      z
-    ),
-    '#ce9470',
+    new THREE.CircleGeometry(radius * 0.68, 10).rotateX(Math.PI / 2).translate(x, 0, z),
+    '#b97859',
     seed
   );
+  // A closed annular section keeps the old projecting lip, then turns down
+  // inside the pot below the soil. No clay lid spans the planting aperture.
+  const rim = [
+    [radius * 0.87, h * 0.855],
+    [radius * 1.12, h * 0.855],
+    [radius * 1.12, h * 0.985],
+    [radius * 0.87, h],
+    [radius * 0.87, h * 0.855],
+  ].map(([r, y]) => new THREE.Vector2(r, y));
+  addVillageClay(b, new THREE.LatheGeometry(rim, 10).translate(x, 0, z), '#ce9470', seed);
   b.add(
-    new THREE.CylinderGeometry(radius * 0.87, radius * 0.87, 0.025, 10).translate(x, h, z),
+    new THREE.CircleGeometry(radius * 0.87, 10).rotateX(-Math.PI / 2).translate(x, soilY, z),
     SOIL
   );
   for (let i = 0; i < 5; i++) {
@@ -304,7 +318,7 @@ function pot(b: PlotGeometry, x: number, z: number, colour: string, scale = 1) {
     addVillageFlower(
       b,
       x + Math.cos(angle) * radius * 0.55,
-      h,
+      soilY,
       z + Math.sin(angle) * radius * 0.55,
       colour,
       0.15 * scale

@@ -5,6 +5,7 @@ import { ServiceEntranceLighting } from './exterior/ServiceEntranceLighting';
 import React, { useRef, useState, useMemo, useEffect, useLayoutEffect } from 'react';
 import { useFrame, ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 import Fireflies from './effects/Fireflies';
 import { HeartParticle } from './effects/HeartParticle';
@@ -508,15 +509,38 @@ export function createGrainPlantGeometries() {
 }
 export const GRAIN_PLANT_GEOMETRY = createGrainPlantGeometries();
 
+/** Open fallback basin in the original box envelope, merged into one draw.
+ * Working if a centre ray reaches water and rim/base rays still hit timber.
+ */
+function createFallbackTroughBody() {
+  const boards = [
+    new THREE.BoxGeometry(1.5, 0.075, 0.6).translate(0, -0.2125, 0),
+    ...[-1, 1].flatMap((side) => [
+      new THREE.BoxGeometry(1.5, 0.425, 0.075).translate(0, 0.0375, side * 0.2625),
+      new THREE.BoxGeometry(0.1, 0.425, 0.45).translate(side * 0.7, 0.0375, 0),
+    ]),
+  ];
+  const body = mergeGeometries(boards);
+  boards.forEach((board) => board.dispose());
+  if (!body) throw new Error('Fallback trough boards must share geometry attributes');
+  return body;
+}
+
+export const FARM_TROUGH_GEOMETRIES = {
+  body: createFallbackTroughBody(),
+  water: new THREE.BoxGeometry(1.3, 0.05, 0.45),
+  leg: new THREE.BoxGeometry(0.15, 0.2, 0.5),
+};
+
 const SG = {
   fencePost: new THREE.CylinderGeometry(0.08, 0.1, 1, 6),
   hayBale: createHayBaleGeometry(),
   // 0.43 outer, not 0.48: the bale's end face is now flat only out to r 0.44
   // before the shoulder rolls away, and the old rim floated 44 mm off the hay.
   hayRing: new THREE.RingGeometry(0.2, 0.43, 16),
-  troughBody: new THREE.BoxGeometry(1.5, 0.5, 0.6),
-  troughWater: new THREE.BoxGeometry(1.3, 0.05, 0.45),
-  troughLeg: new THREE.BoxGeometry(0.15, 0.2, 0.5),
+  troughBody: FARM_TROUGH_GEOMETRIES.body,
+  troughWater: FARM_TROUGH_GEOMETRIES.water,
+  troughLeg: FARM_TROUGH_GEOMETRIES.leg,
   gardenFrame: new THREE.BoxGeometry(3, 0.3, 2),
   gardenSoil: new THREE.BoxGeometry(2.8, 0.15, 1.8),
   carrotTop: new THREE.ConeGeometry(0.08, 0.15, 6),
