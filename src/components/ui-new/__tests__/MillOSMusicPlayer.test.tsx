@@ -23,7 +23,7 @@ const { controls, currentTrack, playlist } = vi.hoisted(() => ({
     id: 'millos_the_mill_wakes',
     name: 'The Mill Wakes',
     file: '/audio/millos-originals/01-the-mill-wakes.mp3',
-    artist: 'Nell Watson with Suno',
+    artist: 'Nell Watson',
     trackNumber: 1,
     artwork: '/audio/millos-originals/artwork/01-the-mill-wakes.jpeg',
     durationSeconds: 289.560979,

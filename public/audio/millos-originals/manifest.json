@@ -59,8 +59,8 @@
         },
         "lrc": {
           "file": "lyrics/01-the-mill-wakes.lrc",
-          "bytes": 2791,
-          "sha256": "6ea87f954c27a18b4bc207a100f8306ce3f3d41ece38aad559babc5ff1c7f666"
+          "bytes": 2781,
+          "sha256": "3a67a37f1e6aef6cb4006f4e4a46d076d05cf8ab4552b1e3aec10832287461a6"
         }
       },
       "timingEvidence": {
@@ -105,8 +105,8 @@
         },
         "lrc": {
           "file": "lyrics/02-grain-at-the-gate.lrc",
-          "bytes": 2320,
-          "sha256": "3ea404b79627b786c16d8eb9205010eb6526e616dcf321561dcdaab02f348b43"
+          "bytes": 2310,
+          "sha256": "ee8b94cc3b4c36f20153b48aaf52b63123df85a0f0bd253ce74925e42d3d0616"
         }
       },
       "timingEvidence": {
@@ -151,8 +151,8 @@
         },
         "lrc": {
           "file": "lyrics/03-between-the-rolls.lrc",
-          "bytes": 2350,
-          "sha256": "84e63e232f89bfb7963e83d505840045e0a0418dfda23e6d9825fbbf4ab14659"
+          "bytes": 2340,
+          "sha256": "515ae66e507baaab72a4caa35d3fd3d8694aaa97078c63bc2bc520282e663720"
         }
       },
       "timingEvidence": {
@@ -197,8 +197,8 @@
         },
         "lrc": {
           "file": "lyrics/04-the-sifters-sing.lrc",
-          "bytes": 2062,
-          "sha256": "9cd84af9bd9398d56057ac3b3a59532b6950f23d116604e93ddd71c991e0109f"
+          "bytes": 2052,
+          "sha256": "bc8f5debf37fff14dd58084466ea38d07dc082fa5c43451b9d2476d905f5830a"
         }
       },
       "timingEvidence": {
@@ -243,8 +243,8 @@
         },
         "lrc": {
           "file": "lyrics/05-forty-two-bags-a-minute.lrc",
-          "bytes": 2359,
-          "sha256": "ce2a58d04ef7fdb856cf52b35309c3c5425b328f3fb6c7f5de60ef3fbbd48e7e"
+          "bytes": 2349,
+          "sha256": "0e882c7eb69b5e60c230253969620ae4134fcb0b3664c7f0cce0eb3afaeb1d08"
         }
       },
       "timingEvidence": {
@@ -289,8 +289,8 @@
         },
         "lrc": {
           "file": "lyrics/06-safe-hands-clear-ways.lrc",
-          "bytes": 2263,
-          "sha256": "8a0fde0ef161c6ee231581c723255742595e548f2cbbe7c6e80cd909a55f06a2"
+          "bytes": 2253,
+          "sha256": "283cfc666c5ad71cf79d0d9f60b86bf8c3e38f88402b05de1289e85480499a16"
         }
       },
       "timingEvidence": {
@@ -336,8 +336,8 @@
         },
         "lrc": {
           "file": "lyrics/07-every-grain-every-watt.lrc",
-          "bytes": 2188,
-          "sha256": "d567fb1cdd0451321f9bb5ec254995fce4c550d71236b4e0a48316c20fb3094b"
+          "bytes": 2178,
+          "sha256": "a7df3b0b8287a27f5bc4ddb3a090bfd1c704610e5b9bc70da464d18c602498f1"
         }
       },
       "timingEvidence": {
@@ -382,8 +382,8 @@
         },
         "lrc": {
           "file": "lyrics/08-partner-in-the-control-room.lrc",
-          "bytes": 2919,
-          "sha256": "0ffc11df9d76ac5ceede4a7ecea18e42e9c90fc5fce64d4b0e00fef55eef8d87"
+          "bytes": 2909,
+          "sha256": "fc298a3eaa40ede6e44b056fce2c04fcec13b449f0b246baf743e61eeb38b04b"
         }
       },
       "timingEvidence": {

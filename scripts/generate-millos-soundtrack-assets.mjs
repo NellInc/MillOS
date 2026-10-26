@@ -249,7 +249,7 @@ function renderVtt(sheet) {
 function renderLrc(sheet) {
   const lines = [
     `[ti:${sheet.title}]`,
-    '[ar:Nell Watson with Suno]',
+    '[ar:Nell Watson]',
     '[al:Songs of the Living Mill]',
   ];
   for (const line of sheet.lines) {
