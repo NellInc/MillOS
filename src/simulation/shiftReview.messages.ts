@@ -37,6 +37,24 @@ interface OpenIncidentParams {
   phase: string;
 }
 
+interface LateGapParams {
+  next: string;
+  count: number;
+  countText: string;
+  allowed: number;
+  allowedText: string;
+}
+interface MixedIssueGapParams {
+  next: string;
+  allowed: number;
+  allowedText: string;
+  risks: number;
+  riskText: string;
+  late: number;
+  lateText: string;
+  labels: string;
+}
+
 export const shiftReviewMessages = defineMessages({
   en: {
     noCommitment: 'No customer commitments this shift.',
@@ -62,8 +80,12 @@ export const shiftReviewMessages = defineMessages({
     gradeLabel: 'Grade {grade}',
     gapQuality: '{next} needs every load to meet the recipe quality target.',
     gapUnsafe: '{next} needs {titles} resolved before the shift closes.',
-    gapLate: (p: { next: string; count: number; countText: string }) =>
-      `${p.next} needs every delivery on time; ${p.countText} arrived late.`,
+    gapLate: (p: LateGapParams) =>
+      p.allowed === 0
+        ? `${p.next} needs every delivery on time; ${p.countText} arrived late.`
+        : `${p.next} allows at most ${p.allowedText} late ${p.allowed === 1 ? 'delivery' : 'deliveries'}; ${p.countText} arrived late.`,
+    gapMixedIssues: (p: MixedIssueGapParams) =>
+      `${p.next} allows ${p.allowedText} ${p.allowed === 1 ? 'issue' : 'issues'} across open risks and late deliveries; this shift had ${p.riskText} open ${p.risks === 1 ? 'risk' : 'risks'} (${p.labels}) and ${p.lateText} late ${p.late === 1 ? 'delivery' : 'deliveries'}.`,
     gapRisks: (p: {
       next: string;
       allowed: number;
@@ -123,10 +145,14 @@ export const shiftReviewMessages = defineMessages({
     gradeLabel: 'Nota {grade}',
     gapQuality: '{next} exige que toda carga atinja a meta de qualidade da receita.',
     gapUnsafe: '{next} exige resolver {titles} antes de o turno fechar.',
-    gapLate: (p: { next: string; count: number; countText: string }) =>
-      p.count === 1
-        ? `${p.next} exige todas as entregas no prazo; ${p.countText} chegou atrasada.`
-        : `${p.next} exige todas as entregas no prazo; ${p.countText} chegaram atrasadas.`,
+    gapLate: (p: LateGapParams) =>
+      p.allowed === 0
+        ? p.count === 1
+          ? `${p.next} exige todas as entregas no prazo; ${p.countText} chegou atrasada.`
+          : `${p.next} exige todas as entregas no prazo; ${p.countText} chegaram atrasadas.`
+        : `${p.next} permite no máximo ${p.allowedText} ${p.allowed === 1 ? 'entrega atrasada' : 'entregas atrasadas'}; ${p.countText} ${p.count === 1 ? 'chegou atrasada' : 'chegaram atrasadas'}.`,
+    gapMixedIssues: (p: MixedIssueGapParams) =>
+      `${p.next} permite ${p.allowedText} ${p.allowed === 1 ? 'ocorrência' : 'ocorrências'} no total entre riscos abertos e entregas atrasadas; este turno teve ${p.riskText} ${p.risks === 1 ? 'risco aberto' : 'riscos abertos'} (${p.labels}) e ${p.lateText} ${p.late === 1 ? 'entrega atrasada' : 'entregas atrasadas'}.`,
     gapRisks: (p: {
       next: string;
       allowed: number;

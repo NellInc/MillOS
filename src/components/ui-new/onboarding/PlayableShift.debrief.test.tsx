@@ -317,3 +317,68 @@ describe('the review persists across reload', () => {
     ).toBeVisible();
   });
 });
+
+it.each(['mixed', 'incident'] as const)(
+  'renders a real closed %s review truthfully when the reader changes language',
+  async (mode) => {
+    tick(249);
+    if (mode === 'incident')
+      useOperationsCampaignStore.getState().triggerIncident('bearing_overheat');
+    const [manifest, batch] = shipment('shipping-0001', 6000);
+    const constraints = {
+      sourceInventoryKg: 0,
+      ...(mode === 'incident'
+        ? { averageQuality: 80, storageUtilization: 0.96, openWorkOrders: 1 }
+        : {}),
+    };
+    tick(1, { ...constraints, manifests: [manifest], productionBatches: [batch] });
+    tick(1, constraints);
+    tick(1, { ...constraints, shiftKey: 'day-0-afternoon' });
+    const report = useOperationsCampaignStore.getState().reports.at(-1)!;
+    expect(report.gradeBasis!.lateDeliveries).toBe(1);
+    expect(report.grade).toBe(mode === 'mixed' ? 'C' : 'F');
+    if (mode === 'mixed') expect(report.gradeBasis!.risks).toHaveLength(1);
+    else expect(report.gradeBasis!.unsafeTitles.length).toBeGreaterThan(0);
+    const view = render(<ShiftDebrief />),
+      samples: Record<string, string> = {};
+    for (const locale of ['en', 'pt-BR'] as const) {
+      act(() => setLocale(locale));
+      const heading = screen.getByRole('heading', {
+          name: locale === 'en' ? `Morning: grade ${report.grade}` : `Manhã: nota ${report.grade}`,
+        }),
+        article = heading.closest('article')!,
+        section = article.closest('section')!;
+      samples[locale] = article.textContent!;
+      // Optional artifact from this existing real-reducer fixture. It is an
+      // isolated DOM render, never an injected state in the native game.
+      if (process.env.MILLOS_REVIEW_RENDER_DIR) {
+        const { writeFileSync, mkdirSync } = await import('node:fs');
+        const root = process.env.MILLOS_REVIEW_RENDER_DIR;
+        mkdirSync(root, { recursive: true });
+        writeFileSync(
+          `${root}/${mode}-${locale}.json`,
+          JSON.stringify(
+            {
+              mode,
+              locale,
+              report,
+              html: `<section class="${section.className}">${article.outerHTML}</section>`,
+            },
+            null,
+            2
+          )
+        );
+      }
+    }
+    if (mode === 'mixed') {
+      expect(samples.en).toContain('Grade B allows 1 issue across open risks and late deliveries');
+      expect(samples['pt-BR']).toContain(
+        'Nota B permite 1 ocorrência no total entre riscos abertos e entregas atrasadas'
+      );
+    } else {
+      expect(samples.en).toMatch(/Try next: acknowledge and mitigate Roller mill bearing overheat/);
+      expect(samples['pt-BR']).toMatch(/Tente a seguir: reconheça e mitigue/);
+    }
+    view.unmount();
+  }
+);

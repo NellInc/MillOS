@@ -3,6 +3,8 @@ import type { MaterialManifest, ProductionBatch } from './materialFlowStore';
 import { useOperationsCampaignStore, type CampaignTickContext } from './operationsCampaignStore';
 import {
   describeOrderOutcome,
+  gradeShift,
+  type ShiftGradeBasis,
   describeShiftGap,
   describeShiftTryNext,
   shiftGradeReasons,
@@ -367,4 +369,86 @@ describe('decisions are the choices people made (row 26)', () => {
       expect.objectContaining({ actor: 'agent', message: expect.stringContaining('Pasta') }),
     ]);
   });
+});
+
+const feedbackBasis = (risks: string[], lateDeliveries: number): ShiftGradeBasis => ({
+  commitmentMinutes: 480,
+  dispatchedKg: 6000,
+  margin: 100,
+  risks,
+  unsafeTitles: [],
+  qualityFailureKg: 0,
+  lateDeliveries,
+  kgForA: 4000,
+  kgForB: 2500,
+});
+
+describe('review explanations use the same combined issue allowance as grading', () => {
+  it.each([
+    [
+      2,
+      'C',
+      'Grade B allows at most 1 late delivery; 2 arrived late.',
+      'Nota B permite no máximo 1 entrega atrasada; 2 chegaram atrasadas.',
+    ],
+    [
+      3,
+      'D',
+      'Grade C allows at most 2 late deliveries; 3 arrived late.',
+      'Nota C permite no máximo 2 entregas atrasadas; 3 chegaram atrasadas.',
+    ],
+  ] as const)(
+    'explains %i late deliveries without inventing an all-on-time rule',
+    (late, grade, en, pt) => {
+      const basis = feedbackBasis([], late),
+        before = JSON.stringify(basis);
+      expect(gradeShift(basis)).toBe(grade);
+      expect(describeShiftGap(basis, grade, 'en')).toBe(en);
+      expect(describeShiftGap(basis, grade, 'pt-BR')).toBe(pt);
+      expect(JSON.stringify(basis)).toBe(before);
+    }
+  );
+  it.each([
+    [
+      ['Wheat low'],
+      1,
+      'C',
+      'Grade B allows 1 issue across open risks and late deliveries; this shift had 1 open risk (Wheat low) and 1 late delivery.',
+      'Nota B permite 1 ocorrência no total entre riscos abertos e entregas atrasadas; este turno teve 1 risco aberto (Wheat low) e 1 entrega atrasada.',
+    ],
+    [
+      ['Wheat low', 'Order due', 'Packer jam'],
+      1,
+      'D',
+      'Grade C allows 2 issues across open risks and late deliveries; this shift had 3 open risks (Wheat low; Order due; Packer jam) and 1 late delivery.',
+      'Nota C permite 2 ocorrências no total entre riscos abertos e entregas atrasadas; este turno teve 3 riscos abertos (Wheat low; Order due; Packer jam) e 1 entrega atrasada.',
+    ],
+  ] as const)('accounts for both risk and delivery counts', (risks, late, grade, en, pt) => {
+    const basis = feedbackBasis([...risks], late),
+      before = JSON.stringify(basis);
+    expect(gradeShift(basis)).toBe(grade);
+    expect(describeShiftGap(basis, grade, 'en')).toBe(en);
+    expect(describeShiftGap(basis, grade, 'pt-BR')).toBe(pt);
+    expect(JSON.stringify(basis)).toBe(before);
+  });
+  it.each([0, 12])(
+    'keeps serious incidents ahead of routine or quality advice (%i kg quality failure)',
+    (qualityFailureKg) => {
+      const basis = {
+        ...feedbackBasis(['Wheat low', 'Order due', 'Packer jam'], 0),
+        qualityFailureKg,
+        unsafeTitles: ['Roller mill bearing overheat'],
+      };
+      const grade = gradeShift(basis),
+        before = JSON.stringify(basis);
+      expect(grade).toBe(qualityFailureKg ? 'F' : 'D');
+      expect(describeShiftTryNext(basis, grade, 'en')).toBe(
+        'Try next: acknowledge and mitigate Roller mill bearing overheat in Overview as soon as it is raised, then resolve it before the shift closes.'
+      );
+      expect(describeShiftTryNext(basis, grade, 'pt-BR')).toMatch(
+        /^Tente a seguir: reconheça e mitigue Roller mill bearing overheat/
+      );
+      expect(JSON.stringify(basis)).toBe(before);
+    }
+  );
 });

@@ -7329,3 +7329,56 @@ Exact-served silent native proof:49 final frames cover Medium day/dusk/night and
 Root art review disclosure: this chat authored the candidate and reviewed its own complete footwear/context sheets plus full-resolution final female/male day close-ups, seated dusk context and actual walking detail. Central-vamp construction reads more naturally than rejected toe clustering. Source/failure evidence and both rejected geometry approaches remain. The extreme walking view also exposes an untriaged narrow calf stripe, retained as an art follow-up rather than attributing an unproved cause or expanding this pass. Pacing remains separatelyOPEN; physical player/device/manual checksDEFERRED. Optional impeccable is unavailable and no DOM interface surface changed.
 
 Custody:2003non-target source/assets exact, source/compiled seal exact before this programme closure, primary clean08b5e7ec, four unrelated galleries untouched. Remove only this pass's completed transpilation scratch helper.mjs,11562logical bytes; APFS free bytes unchanged, no physical recovery claimed. Active unpushed worktree, private dependencies, current build and all useful source/assets/pins/failures/receipts/screenshots retained. Gallery:test-results/people-footwear-craft-20261026/gallery.html. Receipt:acceptance-summary.json. Selectively commit only this four-file LOCAL pass; no push/deployment/upload/publication. Wider repeating goalACTIVE.
+
+
+## CZ. Fair shift explanations and incident-first learning, 2026-10-26
+
+Previous turn PROGRESS:CY committed real pose-fitted footwear as18926baf,242affected passes,49clean native frames. Rotate to the core cooperative learning loop. Actual review source uses one combined count for open risks plus late deliveries (A allows0,B1,C2), but gapLate claims every delivery must be on time even for B/C, and gapRisks ignores late deliveries already consuming that allowance. Existing describeShiftTryNext can advise clearing a routine material risk or QC while serious unresolved incidents remain. Repair these concrete teaching errors, retaining the actual scoring and operational authority.
+
+Scope:src/simulation/shiftReview.ts and its messages catalogue; existing operationsCampaignStore.review.test.ts and PlayableShift.debrief.test.tsx; programme and ignored test-results/shift-feedback-fairness-20261026 evidence. No store/schema/economy/production/deadline/grade-threshold/incident state transition changes, new panels/controls/layout, actor/inventory overrides, model/lighting/preset/budget/loading/route/railway changes. LOCAL/MUTED. Primary and four untracked galleries protected. Pacing/startup separatelyOPEN; physical player/device/manual checksDEFERRED.
+
+LONG finite task list:
+1. Reconcile actualHEAD, dirty boundaries, Node22, original4GiB guard and ownership.
+2. Pin all non-target source/assets and preserve affected files before edits.
+3. Read live grade policy, report construction, current/provisional rendering and both catalogues.
+4. Validate actual module reachability against the current build before unfamiliar edits.
+5. Record affected baseline:four files34PASS/0FAIL,34.97s, covering store review, debrief, later deliveries and real tick notices.
+6. Add narrow reproductions for B/C late-delivery allowances that current wording contradicts.
+7. Reproduce combined open-risk/late-delivery counts in both English and Brazilian Portuguese.
+8. Reproduce ordinary-risk and quality hints outranking a still-open serious incident.
+9. Capture before-render evidence without mutating live actors, inventory, readiness or clocks.
+10. Derive all displayed allowances from the existing single issue policy; do not duplicate or change grade rules.
+11. Preserve the existing A, risk-only and no-dispatch wording where it remains correct.
+12. Describe nonzero late-only allowances accurately for B/C, with grammatical singular/plural counts.
+13. Explain mixed issues as one combined allowance, naming the actual open risks and late count.
+14. Keep English and pt-BR catalogues complete, localized and number-formatted at render time.
+15. Make unresolved serious incidents the first operational suggestion, independently of the grade's cap or routine binding cause.
+16. Keep grade caps, grade-gap math, order outcomes, money, persistence and historical reports unchanged.
+17. Exercise the real closed-report/debrief integration and live locale switch in the existing DOM fixture.
+18. Require all new regression cases to fail before the implementation and pass afterwards.
+19. Rerun affected tests, retaining intermediate failures and repairing only in-scope regressions.
+20. Render exact existing review component/copy with shipped CSS at narrow/wide widths in both languages; classify isolated scenario fixtures separately from a live shift.
+21. Run typecheck, agent typecheck, lint, format, depth, shader, assets and manifest checks.
+22. Make one capture-locked final Node22 production build and inspect its actual exit/log.
+23. Run fresh bundle, reachability and community gates against that sealed build.
+24. Verify the exact build natively, muted, with day/dusk/night world views and an ordinary review UI, retaining readiness/world/personnel/texture/quality/audio guards.
+25. Inspect rendered evidence for clipped copy or new overflow; preserve the original interface geometry and controls.
+26. Audit every criterion against actual results, unchanged non-target pins and primary state; retain truthful limitations and screenshots/receipts.
+27. Remove only this pass's proven disposable scratch/cache, release owned browser/preview/lock and keep current dependencies/evidence.
+28. Selectively commit this completed LOCAL pass and keep the wider repeating goalACTIVE.
+
+Pre-mortem:copy could introduce another allowance different from the actual policy; safety-first advice could accidentally change grading or incident authority; controlled render fixtures could be mistaken for a real played shift. Reuse the existing allowance table, keep the change purely explanatory, and label source/DOM/scenario-render/live-runtime evidence separately. Working if actual grades remain identical, every mixed/pure allowance is described accurately in both languages, open serious incidents outrank routine advice, original UI remains usable, required gates terminate successfully and no protected/publication scope expands.
+
+
+CZ reproduced before implementation:6 new pure-review cases and2 real-reducer/debrief cases fail on the exact old wording/priority, with correct unchanged grades. Source repair passes42cases in4files,12.10s, from34baseline. Compare whole closed reports from matched before/after real reducer fixtures:all4mode/locale snapshots are byte-value identical. The entire grade-policy/caps/headline/reasons prefix and order-outcome/window-format suffix of shiftReview.ts remain byte-exact; only description/advice branches and catalogues change. All required type/agent/lint/format/depth/shader/assets/manifest gates terminate0. Before native component renders are retained at390/1280in both languages, zero overflow. An initial4GiBguard abort is retained; a fresh5.9GiBmeasurement justifies continuing with the unchanged guard. The first fixture render also logged a generic404; adding the actual branded favicon link and HTTP-status diagnostics yields eight clean baseline renders. No diagnostic suppression. Component captures serialize the existing DOM test's real closed-report reducer output and use shippedCSS; they are explicitly isolated render fixtures, never claimed as live shifts or injected into the native game. The actual native game proof remains separate.
+
+
+CZ complete,28 finite items reconciled: review copy now uses the exact A0/B1/C2 combined allowance already used by grading. B/C late-only limits and mixed open-risk/late counts read accurately in English and pt-BR; correct A/risk-only/no-dispatch wording stays. Serious unresolved incidents take priority in the learning hint over routine risks or a quality cap. The grading/gap policy, money, caps, order outcomes, persistence, domains and every control remain unchanged. No UI production component, model, texture, shader, light, route or preset changed.
+
+Proof:34baselinePASS/0FAIL ->42PASS/0FAIL in4files,12.10s; all8 new cases fail against old source first (6pure,2real-reducer/debrief). Whole closed reducer reports match before/after in all4mode/locale snapshots, and the grade-policy/caps/reasons/headline prefix plus order-outcome/window-format suffix remain byte-exact. All type/agent/lint/format/depth/shader/assets/manifest gates terminate0. Locked Node22 build terminates0,28.08s,455files182840224bytes,1307sourcepins455compiledpins; fresh bundle/reachability/community gates pass under unchanged limits.
+
+Rendered copy:16accepted before/after component frames cover2real-reducer scenarios,2languages and390/1280widths. Correct the exploratory fixture's system-font override to the shipped Inter and retain that earlier evidence; final CSS identity is unchanged, every DOM tag/class/role signature matches and horizontal overflow is zero. These are explicitly isolated DOM render fixtures from the existing test (LearningNote mocked), never injected reports in the native game and never claimed as played shifts. Separate exact-build native Medium village day/dusk/night and interior night frames plus the real ordinary Overview/review pass are clean, with all original readiness/world/personnel/texture/quality/audio guards. Fresh ordinary context uses the default initial clock and only established intro preferences, with no inherited art saves or actor/inventory injection. The first ordinary frame had shared art-view saves; retain it as superseded and confirm in a fresh context, where that unrelated closed Night report is absent. Native page/console/request/HTTP errors all empty, sandboxed out-of-process Apple Metal, muted, zero audio nodes/no AudioContext. Own browsers/previews/capture locks released.
+
+Self-review disclosure: this chat authored and reviewed its own final copy renders, fresh ordinary UI, village dusk and factory-night images. The interface stays intact and the explanatory text fits. No performance benefit or played mixed-outcome proof claimed. Final source/compiled/non-target seals pass before this documentation-only closure.2002non-target source/assets exact; primary clean08b5e7ec; four unrelated untracked galleries untouched. Safe cleanup audit removes0bytes:two current Node cwd consumers make the private derived cache uncertain, so retain it, all installed dependencies, active unpushed worktree, current build and all source/assets/pins/failures/receipts/screenshots. No foreign process action or shared-cache prune.
+
+Gallery:test-results/shift-feedback-fairness-20261026/gallery.html. Receipt:acceptance-summary.json. Selectively commit only the five owned source/test/programme files LOCAL. No push/deploy/upload/publication. Optional impeccable unavailable, targeted native copy/overflow proof retained. Player/device/manual checksDEFERRED; pacing/startup separatelyOPEN. Wider repeating polish goalACTIVE.

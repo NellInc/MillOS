@@ -272,14 +272,31 @@ export function describeShiftGap(
     case 'unsafe':
       return t('gapUnsafe', { next, titles: basis.unsafeTitles.join(', ') });
     case 'late':
-      return t('gapLate', {
-        next,
-        count: basis.lateDeliveries,
-        countText: formatFixed(basis.lateDeliveries, 0, locale),
-      });
     case 'risks': {
-      // failsFor returns 'risks' only for an A, B or C target.
+      // Both causes consume the SAME allowance used by failsFor. A late load
+      // is still counted after it left, even when an open material risk is
+      // the binding cause. Working if mixed reviews name that combined total.
       const allowed = ISSUES_ALLOWED[gap.next as 'A' | 'B' | 'C'];
+      const late = basis.lateDeliveries ?? 0;
+      if (basis.risks.length && late)
+        return t('gapMixedIssues', {
+          next,
+          allowed,
+          allowedText: formatFixed(allowed, 0, locale),
+          risks: basis.risks.length,
+          riskText: formatFixed(basis.risks.length, 0, locale),
+          late,
+          lateText: formatFixed(late, 0, locale),
+          labels: basis.risks.join('; '),
+        });
+      if (gap.binding === 'late')
+        return t('gapLate', {
+          next,
+          count: late,
+          countText: formatFixed(late, 0, locale),
+          allowed,
+          allowedText: formatFixed(allowed, 0, locale),
+        });
       return t('gapRisks', {
         next,
         allowed,
@@ -303,17 +320,18 @@ export function describeShiftGap(
   }
 }
 
-/** One thing to try next, keyed to what held the grade back. */
+/** One next operational step, prioritising an unresolved serious incident. */
 export function describeShiftTryNext(
   basis: ShiftGradeBasis,
   grade: ShiftGrade | null,
   locale: Locale
 ): string | null {
   const t = createTranslator(shiftReviewMessages, locale);
-  if (grade === null)
-    return basis.unsafeTitles.length
-      ? t('tryUnsafe', { titles: basis.unsafeTitles.join(', ') })
-      : t('tryNoCommitment');
+  // A grade's immediate cap can be quality or routine risks while a serious
+  // incident is also open. Advice follows the operational priority, without
+  // changing that grade. Working if incident handling precedes throughput/QC.
+  if (basis.unsafeTitles.length) return t('tryUnsafe', { titles: basis.unsafeTitles.join(', ') });
+  if (grade === null) return t('tryNoCommitment');
   const gap = shiftGradeGap(basis, grade);
   if (!gap) return null;
   switch (gap.binding) {
