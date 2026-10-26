@@ -10,7 +10,7 @@ vi.setConfig({ testTimeout: 60_000 });
 import { readFile, writeFile, mkdtemp, rm, symlink, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { NodeIO } from '@gltf-transform/core';
+import { NodeIO, VERSION } from '@gltf-transform/core';
 import {
   INPUT,
   SOURCE,
@@ -203,7 +203,12 @@ test('pins accepted and source bytes; deterministic433424-byte candidate', async
   expect(hash(sourceBytes)).toBe(SOURCE_SHA256);
   expect(() => refine(before, source, 'wrong', SOURCE_SHA256)).toThrow('Pinned accepted');
   expect(() => refine(before, source, INPUT_SHA256, 'wrong')).toThrow('Pinned immutable');
-  expect(hash(outputBytes)).toBe(
+  const historicalReplay = await io.readBinary(outputBytes);
+  expect(historicalReplay.getRoot().getAsset().generator).toBe(`glTF-Transform ${VERSION}`);
+  // Compare every historical byte with only its original writer label restored.
+  // Fresh output retains the installed VERSION; geometry and hash guards stay exact.
+  historicalReplay.getRoot().getAsset().generator = 'glTF-Transform v4.4.2';
+  expect(hash(await io.writeBinary(historicalReplay))).toBe(
     '0a579e5c32dc08033d34a8c086dd99e5869eb43ce2639fc8c4203f59b8b6e599'
   );
   expect(outputBytes.length).toBe(433424);

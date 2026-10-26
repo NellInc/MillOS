@@ -7172,3 +7172,82 @@ All25accepted raw frames share exact served index/main and native sandboxed out-
 Acceptance boundary: subtle motion/cloth polish, not a redesign of every person or physical cloth simulation. The intentional apron split and existing stylised body forms remain. Some standing/sitting views retain the real stand/bench foreground occlusion, so they do not certify every boot contact visually; source actual-rig contact checks and clearer moving profiles are separate evidence. Six sampled moving poses and real buffer/clock observations are not an unpaused-video or frame-pacing certificate. Pacing/startup remains separatelyOPEN, physical player/device checksDEFERRED, wider repeating goalACTIVE.
 
 Final receipt/gallery:test-results/people-garment-settle-20261026/acceptance-summary.json and gallery.html. Before this explicit post-build programme closure2704non-target pins,1304sealed inputs and454compiled files match; protected primary clean08b5e7ec, four unrelated galleries and private dependencies retained. All owned browsers/previews/locks released; port4312confirmed free. Remove only the verified unused task-owned197844-byte compiled route query after empty lsof; source and measured windows retained, no physical disk-recovery claim. Keep source, current build, raw accepted/failed art, adapters and all logs. SelectiveLOCALcommit only, no upload/push/deploy/publication.
+
+
+## CW. Continuous clipped civic privet and matching lamp shadows,2026-10-26
+
+Previous turnPROGRESS:CV atb9507fa3,240affected tests/25accepted native frames, local-only completion. Current close views show the town-hall hedge as a chain of smooth overlapping balls. Live source confirms six fixed planting runs built from168icosahedral crowns, premerged into one opaque vertex-colour mesh. Shared garden foliage has strict unchanged caster contracts; do not edit that shared helper or the already-refined home/allotment planting. Named baseline:VillageGardens+civicLampShadows42PASS/0FAIL,15.10s, no failing names. Blender5.2.0LTS local background environment confirmed. Pacing/startup stays separate; no quiet-GPU wait.
+
+Allowed:Town-hall-specific hedge generation in VillageGardens.tsx and its existing test; civicSquareLighting.ts asset-version only; existing civic-square-lamp-depth PNG/JSON pair; this programme and scoped ignored evidence. Preserve all other module/source/model/texture files, home/allotment positions and UVs, shared foliage, every planting run centre/soil/route/entrance, lamp source/intensity/range and shader, UI/gameplay/people/animals/loading/quality/budgets. LOCAL/MUTED; device/player/manual FPS checksDEFERRED; no remote upload/push/deploy/publication.
+
+LONG finite list:
+1. Reconcile live owned HEAD and primary/four-gallery custody.
+2. Inspect current art and locate the actual ball-shaped civic planting, avoiding the separate already-leafy path hedges.
+3. Verify reachability and current opaque static-bake eligibility.
+4. Record the42-test baseline before production edits.
+5. Pin every non-target source/asset and retain original hedge/depth sources.
+6. Capture exact-current day views at hedge, entry and garden scale.
+7. Review the geometry-to-baked-shadow contract with a bounded read-only second opinion.
+8. Preserve six run centres, the existing soil boxes and the original planting envelope.
+9. Replace individual balls with one continuous clipped volume per run.
+10. Round the shoulders and ends, retain a gently varied clipped top, and keep bases seated in soil.
+11. Close every side, bottom and end; keep outward winding and finite unit normals.
+12. Add sparse small closed leaf relief rooted into that volume, never a separate mesh per leaf at runtime.
+13. Use location-seeded/rest-space variation, with no frame-time random or animation.
+14. Keep palette harmony while distinguishing mature sides, new tips and quieter lower foliage through vertex colours.
+15. Preserve compatible position/normal/UV/colour attributes for the existing premerge.
+16. Keep the original one opaque static draw/material and stay below the previous triangle allocation.
+17. Test each closed component's directed geometric edges, nondegenerate area and outward volume before overlapping parts are merged.
+18. Test all new parts inside the old envelope and the full central approach corridors, not a handful of rays alone.
+19. Retain home/allotment source pins exactly and add a separate actual hedge-position caster pin.
+20. Reuse the existing native dev-only civic exporter in this pass's own output directory.
+21. Prove transformed new hedge triangles occur in exported actual batch geometry despite merged object names.
+22. Reuse the established local Blender BVH baker at the same atlas size/source count/ranges, with no realtime shadow-map cost.
+23. Restore only verified non-target caster pins, append the hedge pin, then hash final PNG+JSON bytes together for the paired cache version.
+24. Re-run focused geometry/shadow cases and all required whole type/lint/format/depth/shader/assets checks.
+25. Freeze source/programme and build once through the existing locked Node22 route; run fresh bundle/reachability/community gates.
+26. Capture exact-served native Medium day/dusk/night and Low context/close views, retaining all original readiness/personnel/texture/quality/audio guards.
+27. Verify the production atlas is loaded and linked, with a held-frame shadow on/off/off/on comparison and restored controls.
+28. Inspect all raw art for clipped continuity, grounded leaves, quiet edges, no holes, clear steps and warm contact shadows.
+29. Keep source geometry, artistic judgement, actual bake inclusion, runtime cleanliness and performance evidence distinct.
+30. Retain failed/intermediate evidence honestly; an export-mode preview is never final production acceptance.
+31. Reconcile custody/diff and remove only this pass's unused reproducible intermediates, retaining source/build/images/receipts.
+32. Release owned resources, commit only the accepted passLOCAL and leave the wider repeating goalACTIVE.
+
+Pre-mortem: a smooth replacement can become a featureless green wall; leaf relief can float or alias; old lamp depths can cast the vanished ball shapes. Use rounded clipped cores with sparse attached5-9cm relief and deterministic leaf-age tones, closed-component tests, actual triangle-inclusion proof and a complete matched rebake. Working if the same civic beds read as continuous maintained privet rather than beads, both stair corridors remain clear, every new opaque part is closed and grounded, and the final atlas/guards are proven without increasing draws/lights/texture dimensions.
+
+
+## CX. Current stable animation and state companions, 2026-10-26
+
+Nell requests latest Three.js, Fiber and related libraries. Recheck against live registry plus package/lock/private installed tree proves the existing renderer/React/asset set already current. Do not fabricate a new renderer migration. Current direct companions Zustand5.0.9 and Framer Motion12.23.26 are stale against stable5.0.16 and14.6.0. CW remains planned and unimplemented while this explicit dependency request takes priority. Base b9507fa3; protected primary08b5e7ec and four unrelated untracked galleries stay untouched. Allowed production changes: package.json/package-lock.json only, unless an observed compatibility defect requires a surgical consumer repair. Keep imports, interface, data schemas, presets, quality budgets, source models/textures and loading guards unchanged. Local/muted only, pacing separatelyOPEN, physical player/device checksDEFERRED.
+
+Finite checklist:
+1. Verify upstream stable releases, declared/locked/installed versions and peer ranges for the complete renderer/React/asset ecosystem.
+2. Preserve all existing non-target source and asset bytes and private dependency ownership.
+3. Establish current whole-suite baseline before changing installed packages; name any failures rather than relying on historical counts.
+4. Read Motion13/14 migration notes and inspect actual consumers for the removed optional CSS-in-JS prop filter. No live styled-components/Emotion consumer exists, so no adapter or import migration is justified.
+5. Capture current ordinary-interface settings/overview geometry and motion behaviour using the existing strict native route.
+6. Upgrade only the two stale direct companions and their necessary transitive dependencies, retaining existing override policy and all unrelated versions. Never use force or legacy-peer bypass.
+7. Validate clean deduplicated React/Three peers and registry equality after installation; retain parent-constrained transitive versions instead of forcing incompatible newest descendants.
+8. Run focused existing store, persistence, motion-policy, dock and onboarding checks, followed by the complete suite because state subscriptions are cross-cutting.
+9. Run required typecheck, lint, format, agent, depth, shader and asset policies; repair only reproduced in-scope regressions.
+10. Build once on Node22 under the existing capture lock and4GiB disk guard, seal exact source/compiled bytes and validate bundle/reachability/community.
+11. Inspect exact-served silent native Low/Medium/High/Ultra world views and ordinary interface panel open/close, active dock state and reduced-motion behaviour. Preserve every readiness/personnel/texture/quality/audio check.
+12. Reconcile layout with baseline, verify source/assets/primary unchanged, close owned resources, retain evidence and commit only this local dependency completion. Leave the broader recurring polish goal active.
+
+Pre-mortem: stricter Motion internal versions could produce a split graph; Zustand changes could alter persisted-state/subscription behaviour; panel transitions or reduced-motion could regress despite compiling. Verify exact internal peers, existing whole-suite persistence/store tests and actual native UI transitions. Working if all scoped direct runtime packages equal current stable, the original interface and saved-state contracts remain intact, source/build/native checks pass with no audio or new quality/readiness exceptions, and no unrelated package/source or publication scope expands. Evidence: test-results/renderer-companions-current-20261026/.
+
+
+CX baseline:386files,4977PASS/1FAIL,985.03s. Named pre-existing failure:scripts/restore-farmhouse-walls.test.mjs, pins accepted and source bytes; deterministic433424-byte candidate. No dependency changes had occurred. Actual current writer4.5.1 emits generator glTF-Transform v4.5.1; restoring only the historical v4.4.2 label reconstructs the entire expected0a579e5c...433424-byte artifact. Exact in-memory discrimination retained. Repair only the existing test: require fresh output's installed VERSION and canonicalize that one historical label before its unchanged full-SHA comparison. Keep repeat-output equality and every geometry/source/roof/normal/UV guard. No production writer, mesh or provenance alteration. Add scripts/restore-farmhouse-walls.test.mjs to allowed surfaces; all other custody pins remain immutable. Install changed exactlyfour package entries:Zustand5.0.16, Framer Motion14.6.0 and its version-matched motion-dom/motion-utils14.6.0. No force/legacy-peer option used.
+
+
+CX pre-build:7focusedfiles160PASS/0FAIL,14.57s. Whole typecheck/agent-typecheck/lint/format/depth/shader/assets pass. First manifest check truthfully reports stale ignored build/generated/agent artifacts after dependency changes; regenerate using the established npm run agent:manifest then recheck. No source/API change. Full final suite is running on the upgraded private tree. Eighteen scoped direct renderer/React/state/animation/asset packages equal registry latest; npm ls valid with one React/Three stack. Lock diff contains only root declarations and four expected installed packages. All2705 non-target pinned source/asset files remain byte-identical; the sole repaired existing test is separately allowed. Freeze this candidate for the locked Node22 build/native proof. Ordinary-interface baseline is accepted:three settings/overview captures, real dock-active/open/close states, no-translation reduced motion, strict native readiness/audio and empty diagnostics. No synthetic actors/stock/readiness or quality overrides used.
+
+
+CX complete,12finite items reconciled:all18scoped direct renderer/React/animation/state/asset packages match current stable. Three0.186.1/Fiber9.8.2/Drei10.7.9 and their already-upgraded companions retained; this pass changes only Zustand5.0.9->5.0.16 and Framer Motion12.23.26->14.6.0 with its matching motion-dom/motion-utils. Valid peer graph, no unrelated lock entry drift or forced descendant upgrade. Existing farmhouse test now validates fresh VERSION and exact historical bytes after restoring only the historical header label, with all source/geometry/repeat guards intact. No production renderer, UI, writer, model or texture source changed.
+
+Final full Node22 suite:386files4978PASS/0FAIL,780.37s, resolving baseline4977PASS/1FAIL with no new tests. Focused7files160PASS/0FAIL. Typecheck/agent-typecheck/lint/format/depth/shader/assets/manifest and fresh bundle/reachability/community gates all terminate0. Required ignored agent manifests regenerated through the established command after the initial stale-artifact check. Locked production build exits0, Vite19.36s,454files182539366bytes under unchanged200MiBcap;1304sourcepins and454compiled pins exact before this post-build programme closure.
+
+Exact-served native Apple Metal proof:four world frames cover Low village daylight, Medium interior midnight, High village dusk and Ultra water midnight. Three ordinary-interface frames plus real panel open/close/active-dock samples, zero reduced-motion translation, and a real Reduce motion preference save/reload/restore pass. Baseline/final measured dock and sidebar layouts have zero differences above0.5px. Root inspected its own seven final captures and baseline Settings directly. Readiness/world/personnel/texture/quality/audio guards pass; page/console/request diagnostics empty, audio zero nodes/no AudioContext. Own browser/preview/lock released. Existing non-failing Three CommonJS deprecation warnings remain in suite logs, no new warning suppression. No performance benefit claimed.
+
+Custody:2705non-target source/assets exact, primary clean08b5e7ec and retained galleries untouched. Remove only this pass's private npm download cache33187629logical bytes after installation, physical recovery not measured; retain private node_modules/build/source/screenshots/failure logs/receipts. Final receipt:test-results/renderer-companions-current-20261026/acceptance-summary.json. Commit only owned dependency/test/programme changesLOCAL. No push/deploy/upload/publication, physical device checksDEFERRED, pacing separatelyOPEN. CW remains pending, wider repeating polish goalACTIVE.
