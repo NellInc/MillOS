@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { createHash } from 'node:crypto';
+import sharp from 'sharp';
 import {
   addVillageFlower,
   addVillageShutter,
@@ -10,6 +11,8 @@ import {
   addAllotmentClimber,
   addVillageClay,
   addVillageFoliage,
+  addCivicPrivet,
+  CIVIC_PRIVET_TEXTURE_URL,
   VILLAGE_HOME_PLOTS,
   VILLAGE_HOMES,
   VILLAGE_GARDEN_FOOTPRINTS,
@@ -25,6 +28,7 @@ import {
 } from '../VillageArea';
 import { SITE_LAYOUT, landmarkLocalToWorld } from '../../constants/siteLayout';
 import { PlotGeometry } from '../../utils/authoredPlotGeometry';
+import { WORLD_CRAFT_PALETTE } from '../../constants/publicRealmLayout';
 import {
   HOME_ENTRY_SCALE,
   HOME_ENTRY_SOURCE,
@@ -298,6 +302,19 @@ it('grounds the civic privet while leaving both real stair approaches clear', ()
   const box = TOWN_HALL_HEDGE_GEOMETRY.boundingBox!;
   expect(box.min.y).toBeLessThan(0.04);
   expect(box.max.y).toBeLessThan(1.25);
+  expect(TOWN_HALL_HEDGE_GEOMETRY.getAttribute('position').count / 3).toBeLessThan(14152);
+  const positions = TOWN_HALL_HEDGE_GEOMETRY.getAttribute('position');
+  for (let triangle = 0; triangle < positions.count; triangle += 3) {
+    const xs = [0, 1, 2].map((k) => positions.getX(triangle + k));
+    const zs = [0, 1, 2].map((k) => positions.getZ(triangle + k));
+    for (const end of [-1, 1]) {
+      const near = Math.min(...zs.map((z) => z * end)),
+        far = Math.max(...zs.map((z) => z * end));
+      expect(Math.min(...xs) < 3.6 && Math.max(...xs) > -3.6 && near < 9.5 && far > 6.8).toBe(
+        false
+      );
+    }
+  }
   for (const z of [-8.2, 8.2]) {
     for (const x of [-3.1, 0, 3.1]) {
       expect(
@@ -315,6 +332,143 @@ it('grounds the civic privet while leaving both real stair approaches clear', ()
         ).intersectObject(hedge).length
       ).toBeGreaterThan(0);
   }
+});
+
+it('builds closed outward privet components with rooted relief and continuous clipped cores', () => {
+  for (const [x, z, length, side] of [
+    [-8, 0, 12, true],
+    [8, 0, 12, true],
+    [-5.9, -8.2, 3.4, false],
+    [-5.9, 8.2, 3.4, false],
+    [5.9, -8.2, 3.4, false],
+    [5.9, 8.2, 3.4, false],
+  ] as const) {
+    const plot = new PlotGeometry();
+    addCivicPrivet(plot, x, z, length, side);
+    const core = plot.parts[0];
+    for (const g of plot.parts) {
+      const p = g.getAttribute('position'),
+        n = g.getAttribute('normal'),
+        index = g.getIndex() ?? { count: p.count, getX: (i: number) => i };
+      g.computeBoundingBox();
+      const centre = g.boundingBox!.getCenter(new THREE.Vector3());
+      const edgeUses = new Map<string, number[]>();
+      const keys = Array.from({ length: p.count }, (_, i) =>
+        [p.getX(i), p.getY(i), p.getZ(i)].join(':')
+      );
+      let volume = 0;
+      for (let i = 0; i < p.count; i++) {
+        expect([p.getX(i), p.getY(i), p.getZ(i)].every(Number.isFinite)).toBe(true);
+        expect(Math.hypot(n.getX(i), n.getY(i), n.getZ(i))).toBeCloseTo(1, 5);
+      }
+      for (let i = 0; i < index.count; i += 3) {
+        const ids = [0, 1, 2].map((k) => index.getX(i + k));
+        const v = ids.map((id) => new THREE.Vector3().fromBufferAttribute(p, id).sub(centre));
+        expect(v[1].clone().sub(v[0]).cross(v[2].clone().sub(v[0])).length()).toBeGreaterThan(1e-8);
+        volume += v[0].dot(v[1].clone().cross(v[2])) / 6;
+        for (let k = 0; k < 3; k++) {
+          const a = keys[ids[k]],
+            b = keys[ids[(k + 1) % 3]],
+            key = a < b ? `${a}|${b}` : `${b}|${a}`;
+          const uses = edgeUses.get(key) ?? [];
+          uses.push(a < b ? 1 : -1);
+          edgeUses.set(key, uses);
+        }
+      }
+      expect(volume).toBeGreaterThan(1e-10);
+      for (const uses of edgeUses.values()) expect(uses).toEqual(expect.arrayContaining([-1, 1]));
+      expect([...edgeUses.values()].every((uses) => uses.length === 2)).toBe(true);
+      expect(g.getAttribute('uv').count).toBe(p.count);
+      expect(g.getAttribute('color').count).toBe(p.count);
+      if (g !== core) {
+        const root = new THREE.Vector3().fromBufferAttribute(p, 0);
+        const direction = new THREE.Vector3(
+          side ? root.x - x : 0,
+          root.y - 0.48,
+          side ? 0 : root.z - z
+        ).normalize();
+        const exit = new THREE.Raycaster(root, direction, 0, 0.08).intersectObject(mesh(core))[0];
+        expect(exit, 'Every leaf base must penetrate its actual core').toBeDefined();
+        expect(exit.distance).toBeGreaterThan(0);
+      }
+    }
+    for (let along = -length / 2; along <= length / 2; along += 0.17) {
+      expect(
+        hit(
+          core,
+          side ? [x + 2, 0.5, z + along] : [x + along, 0.5, z - 2],
+          side ? [-1, 0, 0] : [0, 0, 1]
+        ).length
+      ).toBeGreaterThan(0);
+      expect(
+        hit(core, side ? [x, 2, z + along] : [x + along, 2, z], [0, -1, 0]).length
+      ).toBeGreaterThan(0);
+    }
+    plot.parts.forEach((g) => g.dispose());
+  }
+});
+
+it('contains every clipped run within its original crown envelope with deterministic detail', () => {
+  for (const [x, z, length, side] of [
+    [-8, 0, 12, true],
+    [8, 0, 12, true],
+    [-5.9, -8.2, 3.4, false],
+    [-5.9, 8.2, 3.4, false],
+    [5.9, -8.2, 3.4, false],
+    [5.9, 8.2, 3.4, false],
+  ] as const) {
+    const a = new PlotGeometry(),
+      b = new PlotGeometry();
+    addCivicPrivet(a, x, z, length, side);
+    addCivicPrivet(b, x, z, length, side);
+    const first = a.finish(),
+      repeat = b.finish(),
+      box = first.boundingBox!;
+    expect(first.getAttribute('position').array).toEqual(repeat.getAttribute('position').array);
+    expect(first.getAttribute('color').array).toEqual(repeat.getAttribute('color').array);
+    expect(box.min.x).toBeGreaterThanOrEqual(x - (side ? 0.52 : length / 2 + 0.52));
+    expect(box.max.x).toBeLessThanOrEqual(x + (side ? 0.52 : length / 2 + 0.52));
+    expect(box.min.z).toBeGreaterThanOrEqual(z - (side ? length / 2 + 0.52 : 0.52));
+    expect(box.max.z).toBeLessThanOrEqual(z + (side ? length / 2 + 0.52 : 0.52));
+    expect(box.min.y).toBeCloseTo(0.025, 6);
+    expect(box.max.y).toBeLessThan(1.1);
+    first.dispose();
+    repeat.dispose();
+  }
+});
+
+it('pins actual civic hedge positions in the matched lamp bake', () => {
+  const a = TOWN_HALL_HEDGE_GEOMETRY.getAttribute('position').array;
+  const bake = JSON.parse(readFileSync('public/textures/civic-square-lamp-depth.json', 'utf8'));
+  expect(bake.casterPins?.townHallHedgePositions).toBe(
+    createHash('sha256')
+      .update(Buffer.from(a.buffer, a.byteOffset, a.byteLength))
+      .digest('hex')
+  );
+});
+
+it('versions the leaf raster and preserves neutral soil albedo through its known texel', async () => {
+  const png = readFileSync('public/textures/civic-privet-leaves.png');
+  expect(CIVIC_PRIVET_TEXTURE_URL).toContain(createHash('sha256').update(png).digest('hex'));
+  const { data, info } = await sharp(png).raw().toBuffer({ resolveWithObject: true });
+  expect([info.width, info.height, info.channels]).toEqual([512, 512, 4]);
+  expect(data.every((value, i) => i % 4 !== 3 || value === 255)).toBe(true);
+  expect([...data.subarray((128 * 512 + 128) * 4, (128 * 512 + 128) * 4 + 3)]).toEqual([
+    128, 154, 89,
+  ]);
+  const uv = TOWN_HALL_HEDGE_GEOMETRY.getAttribute('uv'),
+    colours = TOWN_HALL_HEDGE_GEOMETRY.getAttribute('color');
+  const texel = new THREE.Color('#809a59'),
+    soil = new THREE.Color(WORLD_CRAFT_PALETTE.soil);
+  let soilVertices = 0;
+  for (let i = 0; i < uv.count; i++) {
+    if (uv.getX(i) !== 0.25 || uv.getY(i) !== 0.75) continue;
+    soilVertices++;
+    expect(colours.getX(i) * texel.r).toBeCloseTo(soil.r, 6);
+    expect(colours.getY(i) * texel.g).toBeCloseTo(soil.g, 6);
+    expect(colours.getZ(i) * texel.b).toBeCloseTo(soil.b, 6);
+  }
+  expect(soilVertices).toBe(6 * 36);
 });
 
 it('builds closed stemmed five-petal blooms with repeatable, location-specific height and lean', () => {

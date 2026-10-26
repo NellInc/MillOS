@@ -69,8 +69,7 @@ import {
   VILLAGE_HOMES,
   VILLAGE_GARDEN_FOOTPRINTS,
   VILLAGE_ALLOTMENT,
-  TOWN_HALL_HEDGE_GEOMETRY,
-  VILLAGE_PLOT_MATERIAL,
+  TownHallPrivet,
 } from './scenery/VillageGardens';
 import { CreatureBody, type CreatureRigHandle } from './models/RiggedCreatureModel';
 import { SITE_LAYOUT, landmarkLocalToWorld } from '../constants/siteLayout';
@@ -1087,13 +1086,7 @@ export const TownHall = React.memo<{ position: [number, number, number]; rotatio
         />
       </group>
       <TownHallLanterns />
-      <mesh
-        name="town-hall-privet-gardens"
-        geometry={TOWN_HALL_HEDGE_GEOMETRY}
-        material={VILLAGE_PLOT_MATERIAL}
-        castShadow
-        receiveShadow
-      />
+      <TownHallPrivet />
       {/* The chime remains independent of the authored clock-face geometry. */}
       <TownHallChime />
     </group>

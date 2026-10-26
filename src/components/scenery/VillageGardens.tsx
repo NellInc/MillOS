@@ -1,4 +1,5 @@
 import React from 'react';
+import { useLoader } from '@react-three/fiber';
 import * as THREE from 'three';
 import { PlotGeometry } from '../../utils/authoredPlotGeometry';
 import { WORLD_CRAFT_PALETTE } from '../../constants/publicRealmLayout';
@@ -1041,25 +1042,267 @@ export const VILLAGE_HOMES = DESIGNS.map((_, index) => ({
   garden: garden(index),
 }));
 export const VILLAGE_ALLOTMENT_GEOMETRY = allotment();
-// Low clipped privet follows the hall's side gardens, with generous gaps at
-// both actual staircases. Opaque, rigid clusters can share the civic lamp bake.
-// Working if the two 7.2 m entrance gaps stay clear and the planting is grounded.
+export const CIVIC_PRIVET_TEXTURE_URL = `${import.meta.env.BASE_URL}textures/civic-privet-leaves.png?v=7adbd6b2327e3664d1578e885e18c398859918b939f0a7f7b28d68a8459fd94d`;
+const PRIVET_TILE_METRES = 0.72;
+const PRIVET_SOIL_TEXEL = new THREE.Color('#809a59');
+
+/** A closed clipped hedge, with small rooted leaf blades rather than separate crowns.
+ * Everything retains one opaque privet source and the existing civic lamp bake.
+ * Working if shoulders and ends stay rounded, leaves intersect their core, both
+ * 7.2 m stair approaches stay clear and the old triangle allocation is not exceeded.
+ */
+export function addCivicPrivet(
+  b: PlotGeometry,
+  x: number,
+  z: number,
+  length: number,
+  side: boolean
+) {
+  const baseProfile = [
+    [-0.36, 0.025],
+    [0.36, 0.025],
+    [0.44, 0.09],
+    [0.46, 0.28],
+    [0.45, 0.62],
+    [0.42, 0.83],
+    [0.32, 0.94],
+    [0.12, 0.98],
+    [-0.12, 0.98],
+    [-0.32, 0.94],
+    [-0.42, 0.83],
+    [-0.45, 0.62],
+    [-0.46, 0.28],
+    [-0.44, 0.09],
+  ] as const;
+  const profile: [number, number][] = [],
+    starts: number[] = [],
+    divisions: number[] = [];
+  for (let i = 0; i < baseProfile.length; i++) {
+    const a = baseProfile[i],
+      c = baseProfile[(i + 1) % baseProfile.length];
+    starts.push(profile.length);
+    const count = i === 0 ? 1 : Math.ceil(Math.hypot(c[0] - a[0], c[1] - a[1]) / 0.17);
+    divisions.push(count);
+    for (let j = 0; j < count; j++)
+      profile.push([a[0] + ((c[0] - a[0]) * j) / count, a[1] + ((c[1] - a[1]) * j) / count]);
+  }
+  const perimeter = [0];
+  for (let i = 0; i < profile.length; i++) {
+    const a = profile[i],
+      c = profile[(i + 1) % profile.length];
+    perimeter.push(perimeter[i] + Math.hypot(c[0] - a[0], c[1] - a[1]));
+  }
+  const half = length / 2 + 0.36,
+    seed = x * 1.37 + z * 0.83;
+  const section = (along: number) => {
+    const shoulder = THREE.MathUtils.smoothstep(half - Math.abs(along), 0, 0.38);
+    return {
+      width: (0.78 + shoulder * 0.22) * (1 + Math.sin(along * 1.1 + seed) * 0.012),
+      height:
+        0.92 +
+        shoulder * 0.08 +
+        Math.sin(along * 1.7 + seed) * 0.012 +
+        Math.sin(along * 0.73 - seed) * 0.009,
+      drift: Math.sin(along * 0.91 + seed) * 0.008,
+    };
+  };
+  const at = (u: number, y: number, along: number): Point => {
+    const s = section(along);
+    const grain =
+      Math.sin(u * 189.7 + y * 97.7 + along * 117.3 + seed) *
+      Math.sin(along * 53.1 - u * 72 + seed) *
+      0.014 *
+      THREE.MathUtils.smoothstep(y, 0.06, 0.2);
+    const radial = Math.hypot(u, y - 0.49) || 1;
+    return [
+      u * s.width + s.drift + (u / radial) * grain,
+      0.025 + (y - 0.025) * s.height + ((y - 0.49) / radial) * grain,
+      along,
+    ];
+  };
+  const add = (positions: number[], indices: number[], colour: string, core = false) => {
+    let g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    g.setIndex(indices);
+    const uv: number[] = [];
+    for (let i = 0; i < positions.length; i += 3)
+      uv.push(positions[i + 2] / (half * 2) + 0.5, positions[i + 1]);
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.computeVertexNormals();
+    if (core) {
+      const indexed = g;
+      g = indexed.toNonIndexed();
+      indexed.dispose();
+      const p = g.getAttribute('position'),
+        uv = g.getAttribute('uv');
+      for (let i = 0; i < p.count; i += 3) {
+        const cap =
+          Math.abs(p.getZ(i) - p.getZ(i + 1)) < 1e-6 && Math.abs(p.getZ(i) - p.getZ(i + 2)) < 1e-6;
+        const across = [0, 1, 2].map((k) => perimeter[indices[i + k] % profile.length]);
+        const seam = Math.max(...across) - Math.min(...across) > perimeter.at(-1)! / 2;
+        for (let k = 0; k < 3; k++)
+          uv.setXY(
+            i + k,
+            cap ? p.getX(i + k) / PRIVET_TILE_METRES : p.getZ(i + k) / PRIVET_TILE_METRES + seed,
+            cap
+              ? p.getY(i + k) / PRIVET_TILE_METRES
+              : (across[k] + (seam && across[k] < perimeter.at(-1)! / 2 ? perimeter.at(-1)! : 0)) /
+                  PRIVET_TILE_METRES
+          );
+      }
+    }
+    g.rotateY(side ? 0 : Math.PI / 2).translate(x, 0, z);
+    b.add(g, colour);
+    if (core) {
+      const colours = g.getAttribute('color'),
+        p = g.getAttribute('position');
+      const oldLeaf = new THREE.Color('#ddddcf'),
+        newLeaf = new THREE.Color('#ffffff'),
+        tone = new THREE.Color();
+      for (let i = 0; i < colours.count; i++) {
+        const age =
+          0.18 +
+          0.42 * p.getY(i) +
+          0.17 * Math.sin(p.getX(i) * 37.1 + p.getZ(i) * 19.7 + p.getY(i) * 43 + seed);
+        tone
+          .copy(oldLeaf)
+          .lerp(newLeaf, age)
+          .toArray(colours.array, i * 3);
+      }
+    }
+  };
+  const positions: number[] = [],
+    indices: number[] = [],
+    rings = Math.ceil((half * 2) / 0.2);
+  for (let ring = 0; ring <= rings; ring++) {
+    const along = -half + (ring / rings) * half * 2;
+    for (const [u, y] of profile) positions.push(...at(u, y, along));
+    if (!ring) continue;
+    const a = (ring - 1) * profile.length,
+      c = ring * profile.length;
+    for (let i = 0; i < profile.length; i++) {
+      const j = (i + 1) % profile.length;
+      indices.push(a + i, a + j, c + i, a + j, c + j, c + i);
+    }
+  }
+  for (const end of [-1, 1]) {
+    const centre = positions.length / 3,
+      ring = end < 0 ? 0 : rings * profile.length;
+    positions.push(...at(0, 0.49, end * half));
+    for (let i = 0; i < profile.length; i++) {
+      const j = (i + 1) % profile.length;
+      indices.push(centre, ring + (end < 0 ? j : i), ring + (end < 0 ? i : j));
+    }
+  }
+  add(positions, indices, '#405a32', true);
+
+  const stations = Math.ceil(length / 0.36);
+  for (let station = 0; station < stations; station++) {
+    for (const leaf of [0, 1, 2]) {
+      const phase = seed + station * 2.39996 + leaf * 1.618;
+      const along = -length / 2 + ((station + 0.5) / stations) * length + Math.sin(phase) * 0.045;
+      const edge =
+        leaf === 0 ? 3 + (station % 2) : leaf === 1 ? 10 + (station % 2) : 6 + (station % 3);
+      const t = (0.15 + (Math.sin(phase * 1.37) * 0.5 + 0.5) * 0.7) * divisions[edge];
+      const j = starts[edge] + Math.floor(t),
+        next = (j + 1) % profile.length;
+      const ringPosition = ((along + half) / (2 * half)) * rings,
+        ring = Math.floor(ringPosition);
+      const u = t % 1,
+        v = ringPosition - ring;
+      const point = (r: number, i: number) =>
+        new THREE.Vector3().fromArray(positions, (r * profile.length + i) * 3);
+      const a = point(ring, j),
+        c = point(ring, next),
+        d = point(ring + 1, j),
+        e = point(ring + 1, next);
+      // Barycentric attachment to the actual displaced triangle, not an idealised surface.
+      const root =
+        u + v <= 1
+          ? a
+              .clone()
+              .multiplyScalar(1 - u - v)
+              .addScaledVector(c, u)
+              .addScaledVector(d, v)
+          : c
+              .clone()
+              .multiplyScalar(1 - v)
+              .addScaledVector(d, 1 - u)
+              .addScaledVector(e, u + v - 1);
+      const normal =
+        u + v <= 1
+          ? c.clone().sub(a).cross(d.clone().sub(a)).normalize()
+          : e.clone().sub(c).cross(d.clone().sub(c)).normalize();
+      const tangent = new THREE.Vector3(
+        0,
+        leaf === 2 ? 0 : 1,
+        leaf === 2 ? 1 : Math.sin(phase) * 0.3
+      );
+      tangent.addScaledVector(normal, -tangent.dot(normal)).normalize();
+      const base = root.clone().addScaledVector(normal, -0.012);
+      const tip = base
+        .clone()
+        .addScaledVector(tangent, 0.075 + Math.cos(phase) * 0.012)
+        .addScaledVector(normal, 0.045);
+      const axis = tip.clone().sub(base).normalize(),
+        across = axis.clone().cross(normal).normalize();
+      const raised = across.clone().cross(axis).normalize(),
+        mid = base.clone().add(tip).multiplyScalar(0.5);
+      const width = 0.021 + Math.sin(phase * 0.7) * 0.003;
+      const points = [
+        base,
+        tip,
+        mid.clone().addScaledVector(across, width),
+        mid.clone().addScaledVector(raised, 0.004),
+        mid.clone().addScaledVector(across, -width),
+        mid.clone().addScaledVector(raised, -0.004),
+      ];
+      const faces: number[] = [];
+      for (let i = 0; i < 4; i++) {
+        for (const apex of [0, 1]) {
+          const face = [apex, i + 2, ((i + 1) % 4) + 2];
+          const [v0, v1, v2] = face.map((i) => points[i]);
+          const n = v1.clone().sub(v0).cross(v2.clone().sub(v0));
+          if (
+            n.dot(
+              v0
+                .clone()
+                .add(v1)
+                .add(v2)
+                .multiplyScalar(1 / 3)
+                .sub(mid)
+            ) < 0
+          )
+            [face[1], face[2]] = [face[2], face[1]];
+          faces.push(...face);
+        }
+      }
+      add(
+        points.flatMap((p) => p.toArray()),
+        faces,
+        leaf === 2 && station % 3 ? '#ffffff' : '#dedfce'
+      );
+    }
+  }
+}
+
 export const TOWN_HALL_HEDGE_GEOMETRY = (() => {
   const b = new PlotGeometry();
-  const leafCluster = (position: Point, scale: Point, colour: string) => {
-    addVillageFoliage(b, position, scale, colour, 1);
-  };
   const run = (x: number, z: number, length: number, side: boolean) => {
     b.box(side ? [0.92, 0.065, length + 0.3] : [length + 0.3, 0.065, 0.92], [x, 0.005, z], SOIL);
-    const count = Math.ceil(length / 0.48);
-    for (let i = 0; i <= count; i++) {
-      const along = -length / 2 + (i / count) * length;
-      const xx = x + (side ? 0 : along),
-        zz = z + (side ? along : 0);
-      const h = 0.93 + Math.sin(i * 1.71 + x) * 0.075;
-      leafCluster([xx, h * 0.52, zz], [0.52, h * 0.55, 0.52], i % 3 ? '#405a32' : '#536d3b');
-      leafCluster([xx + 0.11, h * 0.86, zz - 0.09], [0.34, 0.25, 0.34], '#607b43');
+    const soil = b.parts.at(-1)!,
+      uv = soil.getAttribute('uv'),
+      colours = soil.getAttribute('color');
+    for (let i = 0; i < uv.count; i++) {
+      uv.setXY(i, 0.25, 0.75);
+      colours.setXYZ(
+        i,
+        colours.getX(i) / PRIVET_SOIL_TEXEL.r,
+        colours.getY(i) / PRIVET_SOIL_TEXEL.g,
+        colours.getZ(i) / PRIVET_SOIL_TEXEL.b
+      );
     }
+    addCivicPrivet(b, x, z, length, side);
   };
   for (const side of [-1, 1]) {
     run(side * 8, 0, 12, true);
@@ -1067,6 +1310,44 @@ export const TOWN_HALL_HEDGE_GEOMETRY = (() => {
   }
   return b.finish();
 })();
+
+/** One opaque mapped source; its default loader remains inside startup readiness.
+ * Working if the garden alone gets dense leaf detail and its owned clone is disposed.
+ */
+export function TownHallPrivet() {
+  const source = useLoader(THREE.TextureLoader, CIVIC_PRIVET_TEXTURE_URL);
+  const material = React.useMemo(() => {
+    const map = source.clone();
+    map.colorSpace = THREE.SRGBColorSpace;
+    map.wrapS = map.wrapT = THREE.RepeatWrapping;
+    map.anisotropy = 4;
+    map.needsUpdate = true;
+    return new THREE.MeshStandardMaterial({
+      map,
+      vertexColors: true,
+      roughness: 0.91,
+      metalness: 0,
+    });
+  }, [source]);
+  React.useEffect(
+    () => () => {
+      material.map?.dispose();
+      material.dispose();
+    },
+    [material]
+  );
+  return (
+    <mesh
+      name="town-hall-privet-gardens"
+      geometry={TOWN_HALL_HEDGE_GEOMETRY}
+      material={material}
+      castShadow
+      receiveShadow
+      dispose={null}
+    />
+  );
+}
+
 export const VILLAGE_PLOT_MATERIAL = new THREE.MeshStandardMaterial({
   vertexColors: true,
   roughness: 0.84,
