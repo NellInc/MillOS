@@ -143,10 +143,11 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   const journeyVisible = useUIStore((s) => s.journeyVisible);
   const startDeliveryJourney = useUIStore((s) => s.startDeliveryJourney);
   const [introStep, setIntroStep] = useState<number | null>(null);
-  // The player yields to a standing critical alert (isStandingCriticalAlert:
-  // unacknowledged and not back to normal), so one old breakdown cannot lock it.
-  const musicTourActive = introStep !== null || journeyVisible;
-  const musicDistractionFree = musicTourActive || safetyStateActive || hasCriticalAlert;
+  // The music player steps aside only for safety: an emergency or drill, or a
+  // standing critical alert (unacknowledged and not back to normal). The tour
+  // and the guided delivery leave it alone, so a player who opens the playlist
+  // or turns lyrics on gets them.
+  const musicHeldForSafety = safetyStateActive || hasCriticalAlert;
   // The tour's buttons unmount with it, so its exits hand focus on: to the
   // guided delivery's heading when that card opens, else to the dock.
   // Working if focus never falls to <body> after Start operating, Skip or Close.
@@ -483,8 +484,8 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       <div hidden={isCompactLayout && mobilePanelVisible}>
         <MillOSMusicPlayer
           sidebarVisible={!isCompactLayout && isSidebarVisible}
-          distractionFree={musicDistractionFree || isSidebarVisible || mobilePanelVisible}
-          attentionHeld={musicTourActive}
+          distractionFree={musicHeldForSafety || isSidebarVisible || mobilePanelVisible}
+          attentionHeld={musicHeldForSafety}
         />
       </div>
 

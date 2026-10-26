@@ -79,9 +79,13 @@ vi.mock('../../../hooks/useKnowledgeIntegration', () => ({
   },
 }));
 vi.mock('../MillOSMusicPlayer', () => ({
-  MillOSMusicPlayer: ({ distractionFree }: { distractionFree: boolean }) => (
-    <div data-testid="soundtrack" data-quiet={distractionFree} />
-  ),
+  MillOSMusicPlayer: ({
+    distractionFree,
+    attentionHeld,
+  }: {
+    distractionFree: boolean;
+    attentionHeld?: boolean;
+  }) => <div data-testid="soundtrack" data-quiet={distractionFree} data-held={attentionHeld} />,
 }));
 
 const renderInterface = () =>
@@ -242,11 +246,13 @@ describe('first-use journey wiring', () => {
     expect(screen.queryByRole('complementary', { name: 'AI reflection' })).not.toBeInTheDocument();
   });
 
-  it('keeps music compact through the tour and starts a real delivery guide when it finishes', () => {
+  it('leaves the music player fully usable through the tour and starts a real delivery guide when it finishes', () => {
     renderInterface();
     act(() => vi.advanceTimersByTime(700));
     expect(screen.getByRole('heading', { name: 'Follow the grain' })).toBeVisible();
-    expect(screen.getByTestId('soundtrack')).toHaveAttribute('data-quiet', 'true');
+    // The tour does not take the playlist or lyrics away; only safety does.
+    expect(screen.getByTestId('soundtrack')).toHaveAttribute('data-quiet', 'false');
+    expect(screen.getByTestId('soundtrack')).toHaveAttribute('data-held', 'false');
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     // The copy follows the camera: milling is where machines are selected...
     expect(screen.getByRole('heading', { name: 'Look first, touch second' })).toBeVisible();
@@ -261,7 +267,8 @@ describe('first-use journey wiring', () => {
     expect(useUIStore.getState().journeyOrderId).toBe(
       useOperationsCampaignStore.getState().activeOrderId
     );
-    expect(screen.getByTestId('soundtrack')).toHaveAttribute('data-quiet', 'true');
+    // Nor does the guided delivery.
+    expect(screen.getByTestId('soundtrack')).toHaveAttribute('data-quiet', 'false');
     // Silos, Milling, Packing: the grain's order, and no flight through a silo.
     expect(runtime.setPreset.mock.calls.map(([preset]) => preset)).toEqual([1, 2, 4]);
   });

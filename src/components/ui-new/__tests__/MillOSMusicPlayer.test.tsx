@@ -230,7 +230,7 @@ describe('MillOSMusicPlayer', () => {
     expect(screen.getByTestId('live-lyric')).toHaveTextContent('Before the road begins to shine');
     expect(screen.queryByRole('button', { name: 'Open full lyrics' })).not.toBeInTheDocument();
 
-    // Safety, a tour or a critical alert: the line goes too.
+    // Safety or a standing critical alert: the line goes too.
     rerender(<MillOSMusicPlayer distractionFree />);
     expect(screen.queryByTestId('live-lyric')).not.toBeInTheDocument();
 
