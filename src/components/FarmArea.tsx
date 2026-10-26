@@ -16,6 +16,8 @@ import { AuthoredPropTrim } from './scenery/AuthoredPropTrim';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import {
   advanceCreatureStride,
+  stepPigSpace,
+  createPigSpaceWorkspace,
   creatureCadence,
   creatureForageWeight,
   creaturePerchLook,
@@ -1529,7 +1531,6 @@ const COW_STRIDE_RATE = (Math.PI * 2 * QUADRUPED_WALK.cow.speed) / QUADRUPED_WAL
  * 1.5m/s and 12rad/s asked a 42cm hen to skate through a 79cm cycle.
  */
 const CHICKEN_STRIDE_RATE = (Math.PI * 2 * CHICKEN_WALK.speed) / CHICKEN_WALK.cycle;
-const PIG_STRIDE_RATE = (Math.PI * 2 * QUADRUPED_WALK.pig.speed) / QUADRUPED_WALK.pig.cycle;
 
 const CowPrimitiveBody: React.FC<{
   headRef: React.RefObject<THREE.Group | null>;
@@ -2382,6 +2383,9 @@ export const FarmArea: React.FC = () => {
   // cow's are: the driver owns the amount and each body owns the pose.
   const pigRoot = useRef<number[]>(new Array(3).fill(0));
   const pigStride = useRef<number[]>(new Array(3).fill(0));
+  const pigSpaceElapsed = useRef(0);
+  const pigSpace = useMemo(createPigSpaceWorkspace, []);
+  const pigSpaceRoots = useMemo<(THREE.Group | null)[]>(() => [null, null, null], []);
   const pigStates = useRef<AnimalState[]>(
     Array.from({ length: 3 }, (_, index) => createAnimalState(200 + index, PIG_WANDER_BOUNDS))
   );
@@ -2675,18 +2679,22 @@ export const FarmArea: React.FC = () => {
         );
       });
 
-      // Pigs
-      pigRefs.forEach((ref, i) => {
-        updateAnimalMovement(
-          ref.current,
-          pigStates.current[i],
-          adjustDelta,
-          QUADRUPED_WALK.pig.speed,
-          PIG_STRIDE_RATE,
+      // Fixed admitted steps preserve peer sweeps across display partitions.
+      // Working if identical admitted time gives the same herd and stride.
+      pigSpaceElapsed.current += adjustDelta;
+      for (let i = 0; i < 3; i++) pigSpaceRoots[i] = pigRefs[i].current;
+      while (pigSpaceElapsed.current + 1e-12 >= 1 / 60) {
+        stepPigSpace(
+          pigSpaceRoots,
+          pigStates.current,
+          1 / 60,
           PIG_WANDER_BOUNDS,
-          0,
-          ref.current?.scale.x ?? 1
+          createAnimalWanderPlan,
+          pigSpace
         );
+        pigSpaceElapsed.current -= 1 / 60;
+      }
+      pigRefs.forEach((_ref, i) => {
         // Feet consume the same 30 Hz travel as the root, while forage retains
         // its existing slower clock. There is no second animation timer.
         pigRigRefs[i].current?.setStride(

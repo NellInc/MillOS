@@ -2016,3 +2016,108 @@ it.each(['chicken', 'pig', 'cow'] as const)(
     expect(playCritterSound).toHaveBeenCalledWith(species);
   }
 );
+
+it('measures the actual combined pig walk, forage, head and pet-roll footprint before peer clearance', async () => {
+  const { RiggedCreatureModel } = await vi.importActual<
+    typeof import('./models/RiggedCreatureModel')
+  >('./models/RiggedCreatureModel');
+  const source = await actualCreature('pig');
+  boundary.asset = { scene: source };
+  const cloned = vi.spyOn(source, 'clone');
+  const ref = React.createRef<import('./models/RiggedCreatureModel').CreatureRigHandle>();
+  const view = render(<RiggedCreatureModel creature="pig" ref={ref} />);
+  const model = cloned.mock.results[0].value as THREE.Group;
+  const mesh = model.getObjectByName('PigBody') as THREE.SkinnedMesh;
+  const point = new THREE.Vector3(),
+    toModel = new THREE.Matrix4();
+  let radius = 0;
+  for (const graze of [0, 0.5, 1])
+    for (const phase of Array.from({ length: 64 }, (_, i) => (i * Math.PI * 2) / 64))
+      for (const shake of [-0.2, 0, 0.2]) {
+        ref.current!.setGraze(graze);
+        ref.current!.setStride(phase, 1);
+        ref.current!.setHeadShake(shake);
+        model.updateMatrixWorld(true);
+        mesh.skeleton.update();
+        toModel.copy(model.matrixWorld).invert().multiply(mesh.matrixWorld);
+        for (let i = 0; i < mesh.geometry.attributes.position.count; i++) {
+          mesh.getVertexPosition(i, point).applyMatrix4(toModel);
+          for (const roll of [-0.1, 0, 0.1])
+            radius = Math.max(
+              radius,
+              Math.hypot(point.x * Math.cos(roll) - point.y * Math.sin(roll), point.z)
+            );
+        }
+      }
+  expect(radius).toBeGreaterThan(0.733);
+  expect(radius).toBeLessThan(0.76);
+  view.unmount();
+  cloned.mockRestore();
+});
+
+it('runs peer clearance through the mounted farm pig owner and freezes all roots under existing holds', () => {
+  const saved = useGameSimulationStore.getState();
+  useGameSimulationStore.setState({
+    gameSpeed: 1,
+    isTabVisible: true,
+    weather: 'clear',
+    gameTime: 12,
+  });
+  function Fixture() {
+    const farm = FarmArea({});
+    if (!React.isValidElement<{ children?: React.ReactNode }>(farm))
+      throw new Error('Farm missing');
+    return (
+      <>
+        {React.Children.toArray(farm.props.children).filter(
+          (child) => React.isValidElement<{ tailRef?: unknown }>(child) && 'tailRef' in child.props
+        )}
+      </>
+    );
+  }
+  const view = render(<Fixture />);
+  const roots = Array.from(view.container.querySelectorAll('[name="rigged-pig"]')).map((el) => {
+    const root = el.parentElement!;
+    const p = root.getAttribute('position')!.split(',').map(Number);
+    return Object.assign(root, {
+      position: new THREE.Vector3(...p),
+      rotation: new THREE.Euler(0, Number(root.getAttribute('rotation')!.split(',')[1]), 0),
+      scale: new THREE.Vector3().setScalar(Number(root.getAttribute('scale'))),
+    });
+  });
+  const tick = () => {
+    const callback = vi.mocked(useFrame).mock.calls.at(-1)![0];
+    callback({} as Parameters<typeof callback>[0], 1 / 60);
+  };
+  const positions = () => roots.map((r) => r.position.toArray());
+  try {
+    for (let i = 0; i < 1200; i++) tick();
+    for (let i = 0; i < 3; i++)
+      for (let j = 0; j < i; j++)
+        expect(roots[i].position.distanceTo(roots[j].position)).toBeGreaterThanOrEqual(
+          0.76 * (roots[i].scale.x + roots[j].scale.x) - 1e-8
+        );
+    const held = positions();
+    useGameSimulationStore.setState({ gameSpeed: 0 });
+    for (let i = 0; i < 60; i++) tick();
+    expect(positions()).toEqual(held);
+    useGameSimulationStore.setState({ gameSpeed: 1, isTabVisible: false });
+    for (let i = 0; i < 60; i++) tick();
+    expect(positions()).toEqual(held);
+    boundary.reducedMotion = true;
+    view.rerender(<Fixture />);
+    useGameSimulationStore.setState({ isTabVisible: true });
+    const reduced = positions();
+    for (let i = 0; i < 60; i++) tick();
+    expect(positions()).toEqual(reduced);
+    expect(playCritterSound).not.toHaveBeenCalled();
+  } finally {
+    view.unmount();
+    useGameSimulationStore.setState({
+      gameSpeed: saved.gameSpeed,
+      isTabVisible: saved.isTabVisible,
+      weather: saved.weather,
+      gameTime: saved.gameTime,
+    });
+  }
+});

@@ -1,6 +1,11 @@
+import { createAnimalWanderPlan } from '../ambientWorld';
 import { describe, expect, it } from 'vitest';
 import {
   advanceCreatureStride,
+  stepPigSpace,
+  createPigSpaceWorkspace,
+  pigPairClear,
+  PIG_CLEARANCE_RADIUS,
   creatureCadence,
   createHorseRestPose,
   sampleHorseRest,
@@ -309,5 +314,187 @@ describe('independent quiet sheep attention', () => {
     expect(Math.abs(sampleSheepRest(0.00001, 400, createSheepRestPose()).breath)).toBeLessThan(
       1e-8
     );
+  });
+});
+
+describe('joint pig peer clearance', () => {
+  const bounds = { minX: -14, maxX: -10, minZ: -7, maxZ: -3 };
+  const starts = [
+    [-12, -5, 0.8, 1.0182937021499674],
+    [-11, -6, -0.5, 0.9655051559647836],
+    [-13, -4, 1.5, 0.974759000011254],
+  ];
+  const herd = () => {
+    const roots = starts.map(([x, z, yaw, scale]) => ({
+      position: { x, y: 0, z },
+      rotation: { y: yaw },
+      scale: { x: scale },
+    }));
+    const states = starts.map((_, i) => {
+      const plan = createAnimalWanderPlan(200 + i, 0, bounds);
+      return {
+        target: { x: plan.x, y: 0, z: plan.z },
+        seed: 200 + i,
+        sequenceStep: 1,
+        isIdle: false,
+        idleTime: 0,
+        stridePhase: 0,
+        moving: false,
+        cadence: creatureCadence(200 + i),
+      };
+    });
+    return { roots, states, workspace: createPigSpaceWorkspace() };
+  };
+  it('rejects continuous crossing and accepts only non-deepening initial contact', () => {
+    expect(pigPairClear(-2, 0, 2, 0, 4, 0, -4, 0, 1)).toBe(false);
+    expect(pigPairClear(0, 0, 0.5, 0, -0.01, 0, 0.01, 0, 1)).toBe(true);
+    expect(pigPairClear(0, 0, 0.5, 0, 0.01, 0, -0.01, 0, 1)).toBe(false);
+  });
+  it('recovers conservative authored initial contact, then clears 120 seeded seconds with successive real targets', () => {
+    const { roots, states, workspace } = herd();
+    let recoveredAt = -1;
+    for (let frame = 0; frame < 7200; frame++) {
+      const before = roots.map((r) => ({ ...r.position }));
+      stepPigSpace(roots, states, 1 / 60, bounds, createAnimalWanderPlan, workspace);
+      let clear = true;
+      roots.forEach((r, i) => {
+        expect(
+          Math.hypot(r.position.x - before[i].x, r.position.z - before[i].z)
+        ).toBeLessThanOrEqual(0.34 / 60 + 1e-12);
+        expect(r.position.x).toBeGreaterThanOrEqual(bounds.minX);
+        expect(r.position.x).toBeLessThanOrEqual(bounds.maxX);
+        expect(r.position.z).toBeGreaterThanOrEqual(bounds.minZ);
+        expect(r.position.z).toBeLessThanOrEqual(bounds.maxZ);
+        for (let j = 0; j < i; j++) {
+          const radius = PIG_CLEARANCE_RADIUS * (r.scale.x + roots[j].scale.x);
+          const old = Math.hypot(before[i].x - before[j].x, before[i].z - before[j].z);
+          const now = Math.hypot(
+            r.position.x - roots[j].position.x,
+            r.position.z - roots[j].position.z
+          );
+          expect(now).toBeGreaterThanOrEqual(Math.min(old, radius) - 1e-9);
+          clear &&= now >= radius - 1e-9;
+        }
+      });
+      if (clear && recoveredAt < 0) recoveredAt = frame / 60;
+    }
+    expect(recoveredAt).toBeGreaterThan(0);
+    expect(recoveredAt).toBeLessThan(10);
+    expect(states.every((s) => s.sequenceStep >= 4)).toBe(true);
+  });
+  it('holds idle peers and zero admitted time, while a head-on pair makes progress around each other', () => {
+    const { roots, states, workspace } = herd();
+    roots.splice(2);
+    states.splice(2);
+    roots[0].position = { x: -13, y: 0, z: -5 };
+    roots[1].position = { x: -11, y: 0, z: -5 };
+    roots[0].rotation.y = Math.PI / 2;
+    roots[1].rotation.y = -Math.PI / 2;
+    states[0].target = { x: -11, y: 0, z: -5 };
+    states[1].target = { x: -13, y: 0, z: -5 };
+    const frozen = JSON.stringify({ roots, states });
+    stepPigSpace(roots, states, 0, bounds, createAnimalWanderPlan, workspace);
+    expect(JSON.stringify({ roots, states })).toBe(frozen);
+    states[1].isIdle = true;
+    states[1].idleTime = 1;
+    const idle = { ...roots[1].position };
+    for (let i = 0; i < 30; i++)
+      stepPigSpace(roots, states, 1 / 60, bounds, createAnimalWanderPlan, workspace);
+    expect(roots[1].position).toEqual(idle);
+    expect(states[1].stridePhase).toBe(0);
+    for (let i = 0; i < 3600; i++)
+      stepPigSpace(roots, states, 1 / 60, bounds, createAnimalWanderPlan, workspace);
+    expect(states.every((s) => s.sequenceStep > 1)).toBe(true);
+  });
+  it('admits three-way convergence and exact coincident recovery without pushing held roots', () => {
+    for (const coincident of [false, true]) {
+      const { roots, states, workspace } = herd();
+      const positions = coincident
+        ? [
+            [-12, -5],
+            [-12, -5],
+            [-12, -5],
+          ]
+        : [
+            [-13, -6],
+            [-11, -6],
+            [-12, -4],
+          ];
+      roots.forEach((r, i) => {
+        r.position.x = positions[i][0];
+        r.position.z = positions[i][1];
+      });
+      states.forEach((state, i) => {
+        state.target = {
+          x: i === 0 ? -10.2 : i === 1 ? -13.8 : -12,
+          y: 0,
+          z: i === 2 ? -6.8 : -3.2,
+        };
+      });
+      for (let frame = 0; frame < 1800; frame++) {
+        const before = roots.map((r) => ({ ...r.position }));
+        stepPigSpace(roots, states, 1 / 60, bounds, createAnimalWanderPlan, workspace);
+        roots.forEach((r, i) => {
+          expect(Number.isFinite(r.position.x + r.position.z)).toBe(true);
+          for (let j = 0; j < i; j++) {
+            const limit = PIG_CLEARANCE_RADIUS * (r.scale.x + roots[j].scale.x);
+            const old = Math.hypot(before[i].x - before[j].x, before[i].z - before[j].z);
+            const now = Math.hypot(
+              r.position.x - roots[j].position.x,
+              r.position.z - roots[j].position.z
+            );
+            expect(now).toBeGreaterThanOrEqual(Math.min(old, limit) - 1e-9);
+          }
+        });
+      }
+      expect(roots[0].position).not.toEqual(roots[1].position);
+      expect(roots[0].position).not.toEqual(roots[2].position);
+    }
+  });
+
+  it.each([false, true])(
+    'reaches a genuinely shared goal with retained yielding priority (corner=%s)',
+    (corner) => {
+      const { roots, states, workspace } = herd();
+      const positions = corner
+        ? [
+            [-14, -7],
+            [-14, -7],
+            [-14, -7],
+          ]
+        : [
+            [-13, -6],
+            [-11, -6],
+            [-12, -4],
+          ];
+      roots.forEach((r, i) => {
+        r.position.x = positions[i][0];
+        r.position.z = positions[i][1];
+        r.scale.x = 1;
+      });
+      states.forEach((state) => {
+        state.target = { x: -12, y: 0, z: -5 };
+      });
+      for (let frame = 0; frame < 7200; frame++)
+        stepPigSpace(roots, states, 1 / 60, bounds, createAnimalWanderPlan, workspace);
+      expect(states.some((state) => state.sequenceStep > 1)).toBe(true);
+    }
+  );
+
+  it('uses identical fixed-step states for equal admitted time partitions', () => {
+    const run = (parts: number[]) => {
+      const h = herd();
+      let pending = 0;
+      for (const delta of parts) {
+        pending += delta;
+        while (pending + 1e-12 >= 1 / 60) {
+          stepPigSpace(h.roots, h.states, 1 / 60, bounds, createAnimalWanderPlan, h.workspace);
+          pending -= 1 / 60;
+        }
+      }
+      return h;
+    };
+    expect(run(Array(3600).fill(1 / 120))).toEqual(run(Array(900).fill(1 / 30)));
+    expect(run(Array(600).fill(0.05))).toEqual(run(Array(1800).fill(1 / 60)));
   });
 });

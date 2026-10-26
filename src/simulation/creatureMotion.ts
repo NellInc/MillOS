@@ -1,4 +1,4 @@
-import { sampleAmbientSequence } from './ambientWorld';
+import { sampleAmbientSequence, type WanderBounds } from './ambientWorld';
 
 /** Stable timing identity; bounded rates preserve the species' authored character. */
 export function creatureCadence(seed: number): number {
@@ -217,4 +217,258 @@ export function sampleDuckWaterLife(
   // A swim leaves stern contact; a stopped feeding bird disturbs water at its bill.
   out.aft = 0.08 + travel * 0.18 - billContact * (1 - travel) * 0.3;
   return out;
+}
+
+/** Conservative posed pig envelope, including room for authored root rocking.
+ * Working if real posed vertices remain inside this radius at every heading.
+ */
+export const PIG_CLEARANCE_RADIUS = 0.76;
+export interface PigSpaceState {
+  target: { x: number; y: number; z: number };
+  isIdle: boolean;
+  idleTime: number;
+  seed: number;
+  sequenceStep: number;
+  stridePhase: number;
+  moving: boolean;
+  cadence: number;
+}
+interface PigSpaceRoot {
+  position: { x: number; y: number; z: number };
+  rotation: { y: number };
+  scale: { x: number };
+}
+interface PigProposal {
+  x: number;
+  z: number;
+  yaw: number;
+  distance: number;
+  score: number;
+}
+export function createPigSpaceWorkspace() {
+  return {
+    options: Array.from({ length: 3 }, () =>
+      Array.from({ length: 13 }, (): PigProposal => ({ x: 0, z: 0, yaw: 0, distance: 0, score: 0 }))
+    ),
+    headings: new Float64Array(12),
+    counts: new Uint8Array(3),
+    chosen: new Uint8Array(3),
+    best: new Uint8Array(3),
+  };
+}
+type PigSpaceWorkspace = ReturnType<typeof createPigSpaceWorkspace>;
+
+/** Joint swept admission: overlapping starts may separate, never deepen contact.
+ * Working if crossing peers cannot tunnel and held peers are never displaced.
+ */
+export function pigPairClear(
+  ax: number,
+  az: number,
+  bx: number,
+  bz: number,
+  adx: number,
+  adz: number,
+  bdx: number,
+  bdz: number,
+  radius: number
+): boolean {
+  const x = ax - bx,
+    z = az - bz,
+    vx = adx - bdx,
+    vz = adz - bdz;
+  const before = x * x + z * z,
+    velocity = vx * vx + vz * vz;
+  const dot = x * vx + z * vz;
+  if (before < radius * radius - 1e-10) return dot >= -1e-12;
+  const t = velocity > 0 ? Math.max(0, Math.min(1, -dot / velocity)) : 0;
+  return (x + vx * t) ** 2 + (z + vz * t) ** 2 >= radius * radius - 1e-10;
+}
+
+/** One fixed admitted pig step, all proposals read the same old herd positions.
+ * Working if targets stay authored, accepted travel drives feet and waiting has no stride.
+ */
+export function stepPigSpace(
+  roots: readonly (PigSpaceRoot | null)[],
+  states: readonly PigSpaceState[],
+  delta: number,
+  bounds: WanderBounds,
+  nextPlan: (
+    seed: number,
+    step: number,
+    bounds: WanderBounds
+  ) => { x: number; z: number; idleSeconds: number },
+  workspace: PigSpaceWorkspace
+): void {
+  if (!(delta > 0)) return;
+  const speed = QUADRUPED_WALK.pig.speed,
+    count = roots.length;
+  for (let i = 0; i < count; i++) {
+    const root = roots[i],
+      state = states[i],
+      options = workspace.options[i];
+    state.moving = false;
+    let candidates = 0;
+    if (root && !state.isIdle) {
+      const dx = state.target.x - root.position.x,
+        dz = state.target.z - root.position.z,
+        distance = Math.hypot(dx, dz);
+      if (distance < 0.1) {
+        state.isIdle = true;
+        const plan = nextPlan(state.seed, state.sequenceStep++, bounds);
+        state.target.x = plan.x;
+        state.target.y = 0;
+        state.target.z = plan.z;
+        state.idleTime = plan.idleSeconds / state.cadence;
+      } else {
+        const heading = Math.atan2(dx, dz),
+          side = state.seed % 2 ? -1 : 1,
+          headings = workspace.headings;
+        headings[0] = heading;
+        for (let k = 0; k < 4; k++) {
+          const angle = k === 0 ? 0.55 : k === 1 ? 1.1 : k === 2 ? 1.57 : 2.2;
+          headings[1 + k * 2] = heading + side * angle;
+          headings[2 + k * 2] = heading - side * angle;
+        }
+        let headingCount = 9;
+        let goalPriority = state.seed;
+        let contestedGoal = false;
+        for (let j = 0; j < count; j++) {
+          if (
+            j !== i &&
+            roots[j] &&
+            !states[j].isIdle &&
+            Math.hypot(states[j].target.x - state.target.x, states[j].target.z - state.target.z) <
+              0.1
+          ) {
+            goalPriority = Math.min(goalPriority, states[j].seed);
+            contestedGoal = true;
+          }
+        }
+        const yieldingGoal = goalPriority < state.seed;
+        // Stable seed priority clears a contested goal for one genuine arrival.
+        // Working if shared destinations do not leave three peers orbiting forever.
+        if (yieldingGoal) headings[headingCount++] = heading + Math.PI;
+        for (let j = 0; j < count; j++) {
+          const other = roots[j];
+          if (!other || j === i) continue;
+          const px = root.position.x - other.position.x,
+            pz = root.position.z - other.position.z;
+          const gap = Math.hypot(px, pz);
+          if (gap < PIG_CLEARANCE_RADIUS * (root.scale.x + other.scale.x) + 0.1)
+            headings[headingCount++] =
+              gap > 1e-9 ? Math.atan2(px, pz) : ((state.seed % 3) * Math.PI * 2) / 3;
+        }
+        for (let k = 0; k < headingCount; k++) {
+          const desired = headings[k];
+          const turn = Math.atan2(
+            Math.sin(desired - root.rotation.y),
+            Math.cos(desired - root.rotation.y)
+          );
+          const yaw = root.rotation.y + turn * (1 - Math.exp(-delta * 5));
+          const travel = Math.min(distance, speed * delta) * Math.max(0, Math.cos(desired - yaw));
+          const x = Math.sin(desired) * travel,
+            z = Math.cos(desired) * travel;
+          if (
+            root.position.x + x < bounds.minX ||
+            root.position.x + x > bounds.maxX ||
+            root.position.z + z < bounds.minZ ||
+            root.position.z + z > bounds.maxZ
+          )
+            continue;
+          const progress = (x * dx + z * dz) / distance;
+          let score = progress * (yieldingGoal ? -4 : contestedGoal ? 8 : 1) - k * 0.000001;
+          for (let j = 0; j < count; j++) {
+            const other = roots[j];
+            if (!other || i === j) continue;
+            const px = root.position.x - other.position.x,
+              pz = root.position.z - other.position.z;
+            const gap = Math.hypot(px, pz),
+              limit = PIG_CLEARANCE_RADIUS * (root.scale.x + other.scale.x);
+            if (gap < 1e-9) {
+              const away = ((state.seed % 3) * Math.PI * 2) / 3;
+              score += (x * Math.sin(away) + z * Math.cos(away)) * 8;
+            } else if (gap < limit + 0.08)
+              score += ((x * px + z * pz) / gap) * (gap < limit ? 8 : 1.5);
+          }
+          const proposal = options[candidates++];
+          proposal.x = x;
+          proposal.z = z;
+          proposal.yaw = yaw;
+          proposal.distance = travel;
+          proposal.score = score;
+        }
+      }
+    } else if (root && state.isIdle) {
+      state.idleTime -= delta;
+      if (state.idleTime <= 0) state.isIdle = false;
+    }
+    const stop = options[candidates++];
+    stop.x = stop.z = stop.distance = 0;
+    stop.yaw = root?.rotation.y ?? 0;
+    stop.score = -0.001;
+    workspace.counts[i] = candidates;
+    workspace.best[i] = candidates - 1;
+    workspace.chosen[i] = 0;
+  }
+  let bestScore = -Infinity,
+    done = false;
+  // Fixed three-pig mixed-radix enumeration reuses indices and proposal storage.
+  // Working if the owner can step without allocating arrays, closures or vectors.
+  while (!done) {
+    let clear = true,
+      score = 0;
+    for (let i = 0; i < count && clear; i++) {
+      const root = roots[i],
+        proposal = workspace.options[i][workspace.chosen[i]];
+      score += proposal.score;
+      if (!root) continue;
+      for (let j = 0; j < i; j++) {
+        const other = roots[j];
+        if (!other) continue;
+        const q = workspace.options[j][workspace.chosen[j]];
+        if (
+          !pigPairClear(
+            root.position.x,
+            root.position.z,
+            other.position.x,
+            other.position.z,
+            proposal.x,
+            proposal.z,
+            q.x,
+            q.z,
+            PIG_CLEARANCE_RADIUS * (root.scale.x + other.scale.x)
+          )
+        ) {
+          clear = false;
+          break;
+        }
+      }
+    }
+    if (clear && score > bestScore) {
+      bestScore = score;
+      for (let i = 0; i < count; i++) workspace.best[i] = workspace.chosen[i];
+    }
+    let digit = count - 1;
+    while (digit >= 0) {
+      workspace.chosen[digit]++;
+      if (workspace.chosen[digit] < workspace.counts[digit]) break;
+      workspace.chosen[digit] = 0;
+      digit--;
+    }
+    done = digit < 0;
+  }
+  for (let i = 0; i < count; i++) {
+    const root = roots[i];
+    if (!root) continue;
+    const p = workspace.options[i][workspace.best[i]];
+    root.position.x += p.x;
+    root.position.z += p.z;
+    root.rotation.y = p.yaw;
+    states[i].moving = p.distance > 0.00001;
+    states[i].stridePhase = advanceCreatureStride(
+      states[i].stridePhase,
+      p.distance / root.scale.x,
+      (Math.PI * 2) / QUADRUPED_WALK.pig.cycle
+    );
+  }
 }

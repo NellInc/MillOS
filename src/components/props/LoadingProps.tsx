@@ -1,4 +1,5 @@
 import React from 'react';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import * as THREE from 'three';
 import {
   FLOUR_STRIPE_MATERIAL,
@@ -229,9 +230,74 @@ const CHOCK = (() => {
   geometry.translate(0, 0, -0.1);
   return geometry;
 })();
-const BIN = new THREE.CylinderGeometry(0.36, 0.32, 0.9, 18);
-/** The bin's lid: a shallow disc with a 2 cm overhang, not a square plate. */
-const BIN_LID_DISC = new THREE.CylinderGeometry(0.38, 0.38, 0.06, 18);
+/** Two shared formed buffers retain the body's and lid's existing draw owners.
+ * Working if the closed lid seats on its rim and both grips have real clearance
+ * within the original envelope, while all private construction parts are freed.
+ */
+const [BIN, BIN_LID_DISC] = (() => {
+  const merge = (parts: THREE.BufferGeometry[]) => {
+    const plain = parts.map((part) => (part.index ? part.toNonIndexed() : part));
+    const geometry = mergeGeometries(plain)!;
+    new Set([...parts, ...plain]).forEach((part) => part.dispose());
+    geometry.computeBoundingBox();
+    geometry.computeBoundingSphere();
+    return geometry;
+  };
+  const loop = (
+    width: number,
+    bottom: number,
+    top: number,
+    bar: number,
+    depth: number,
+    z: number
+  ) => {
+    const shape = new THREE.Shape();
+    shape.moveTo(-width / 2, bottom);
+    shape.lineTo(width / 2, bottom);
+    shape.lineTo(width / 2, top);
+    shape.lineTo(-width / 2, top);
+    shape.closePath();
+    const hole = new THREE.Path();
+    hole.moveTo(-width / 2 + bar, bottom + bar);
+    hole.lineTo(-width / 2 + bar, top - bar);
+    hole.lineTo(width / 2 - bar, top - bar);
+    hole.lineTo(width / 2 - bar, bottom + bar);
+    hole.closePath();
+    shape.holes.push(hole);
+    return new THREE.ExtrudeGeometry(shape, {
+      depth,
+      bevelEnabled: false,
+      curveSegments: 1,
+    }).translate(0, 0, z - depth / 2);
+  };
+  const shell = new THREE.CylinderGeometry(0.36, 0.32, 0.9, 18, 7);
+  const p = shell.getAttribute('position');
+  const heights = [0.45, 0.425, 0.39, 0.2, 0.15, -0.4, -0.43, -0.45];
+  const radii = [0.36, 0.36, 0.35, 0.342, 0.34, 0.322, 0.321, 0.32];
+  for (let i = 0; i < p.count; i++) {
+    const y = p.getY(i),
+      row = Math.round(((0.45 - y) / 0.9) * 7);
+    const radius = Math.hypot(p.getX(i), p.getZ(i));
+    const r = radius > 0.001 ? radii[row] / radius : 1;
+    let z = p.getZ(i) * r;
+    // The shoulder is recessed behind the pull loop, never beyond its footprint.
+    if (row === 2 || row === 3) z = Math.max(z, -0.24);
+    else if (row === 1) z = Math.max(z, -0.3);
+    p.setXYZ(i, p.getX(i) * r, heights[row], z);
+  }
+  shell.computeVertexNormals();
+  const feet = [-0.125, 0.125].map((x) =>
+    new THREE.BoxGeometry(0.03, 0.028, 0.13).translate(x, 0.245, -0.285)
+  );
+  const body = merge([shell, loop(0.28, 0.23, 0.38, 0.025, 0.03, -0.355), ...feet]);
+  // A closed shallow dished cover leaves room for a raised integral lift loop.
+  const lid = merge([
+    new THREE.CylinderGeometry(0.365, 0.38, 0.015, 18).translate(0, -0.0225, 0),
+    new THREE.CylinderGeometry(0.35, 0.365, 0.003, 18).translate(0, -0.0135, 0),
+    loop(0.24, -0.02, 0.03, 0.012, 0.035, 0),
+  ]);
+  return [body, lid];
+})();
 
 interface PropProps {
   position: [number, number, number];
