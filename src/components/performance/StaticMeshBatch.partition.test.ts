@@ -8,7 +8,8 @@
  *     (equal data in separate objects, -0, interleaved, unaligned views,
  *     index/no index, groups, draw ranges)
  *   - createStaticMeshBatches output (batch kinds, counts, instance matrices,
- *     merged buffers) equals a golden hash taken on 33abb3e1, before the change
+ *     merged buffers) equals the current-r186 golden; the r182 golden taken on
+ *     33abb3e1 was migrated after a segment-by-segment numeric comparison
  *   - the fingerprint does a word of work per 4 bytes, not a closure call per byte
  */
 import { createHash } from 'node:crypto';
@@ -334,6 +335,8 @@ describe('static batch partition', () => {
       }
     }
     expect(batches.length).toBeGreaterThan(5);
-    expect(digest.digest('hex').slice(0, 16)).toBe('e3b0abf0ea479e84');
+    // r186 sphere pole cleanup changes three buffer segments by <=1.23e-16.
+    // All 17 batch kinds, memberships, indices and instance matrices remain exact.
+    expect(digest.digest('hex').slice(0, 16)).toBe('4d2d1a404beb15d7');
   }, 120_000);
 });

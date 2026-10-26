@@ -635,6 +635,22 @@ export function createWorkerFaceExpression(
  * Working if shapes differ by task, locomotion stays exact, and restore removes
  * every overlay before the next mixer sample. No per-frame allocation or clock.
  */
+/** Preserve authored float32 quaternions at exact pose endpoints. Three r186
+ * normalizes slerp results even for zero/full weight; those endpoints are copies
+ * in our pose ownership contract. Working if walking fingers and full seats
+ * retain exact authored components while intermediate poses still use slerp.
+ */
+function blendWorkerRotation(
+  out: THREE.Quaternion,
+  from: THREE.Quaternion,
+  to: THREE.Quaternion,
+  weight: number
+) {
+  if (weight <= 0) return out.copy(from);
+  if (weight >= 1) return out.copy(to);
+  return out.slerpQuaternions(from, to, weight);
+}
+
 export function createWorkerHandPose(model: THREE.Object3D, clips: THREE.AnimationClip[]) {
   const reference = clips.find((clip) => clip.name === 'worker-run');
   const entries: Array<{
@@ -709,7 +725,12 @@ export function createWorkerHandPose(model: THREE.Object3D, clips: THREE.Animati
           walking || !initialised || !motion.enabled
             ? target
             : THREE.MathUtils.damp(entry.weight, target, 8, dt);
-        entry.bone.quaternion.slerp(entry.closed, entry.weight);
+        blendWorkerRotation(
+          entry.bone.quaternion,
+          entry.bone.quaternion,
+          entry.closed,
+          entry.weight
+        );
       }
       applied = true;
       initialised = true;
@@ -776,7 +797,7 @@ export function sampleWorkerGesture(
   const t = Number.isFinite(seconds) ? seconds : 0;
   const tempo = t + Math.sin(t * 0.41) * 0.18;
   const cycle = 0.5 - 0.5 * Math.cos((tempo * Math.PI * 2) / (kind === 'garden' ? 3.6 : 6.4));
-  out.breath = Math.sin(t * 1.45) * 0.5 + 0.5;
+  out.breath = Math.sin(t * (kind === 'rest' ? (Math.PI * 2) / 6.8 : 1.45)) * 0.5 + 0.5;
   out.greetingLift = 0;
   out.greetingWave = 0;
   if (kind === 'greet') sampleWorkerGreeting(t, out);
@@ -836,7 +857,16 @@ export function sampleWorkerGesture(
     out.lookYaw *= 0.3;
     out.lookPitch *= 0.4;
   }
-  out.restReach = kind === 'rest' ? Math.sin(t * 0.87) * glance * 0.12 : 0;
+  // A hand settles once, holds, then returns. The other hand answers much later.
+  // Working if seated people have long quiet dwells rather than repeated fidgeting.
+  const restTime = ((t % 31.7) + 31.7) % 31.7;
+  const restLeft =
+    THREE.MathUtils.smoothstep(restTime, 4, 5.8) *
+    (1 - THREE.MathUtils.smoothstep(restTime, 8.1, 10.2));
+  const restRight =
+    THREE.MathUtils.smoothstep(restTime, 20.5, 22.1) *
+    (1 - THREE.MathUtils.smoothstep(restTime, 24, 25.9));
+  out.restReach = kind === 'rest' ? restLeft * 0.075 - restRight * 0.055 : 0;
   // A small repeated stroke within a slower attention cycle leaves natural pauses.
   const workTime = ((t % 9.8) + 9.8) % 9.8;
   const attention =
@@ -1308,7 +1338,12 @@ export function createSeatedWorkerPose(
         );
         aim(wrist, undefined, direction.set(0, -1, 0));
         if (task === 'garden' && gardenWeight < 1)
-          wrist.quaternion.slerp(restingWristRotation, 1 - gardenWeight);
+          blendWorkerRotation(
+            wrist.quaternion,
+            wrist.quaternion,
+            restingWristRotation,
+            1 - gardenWeight
+          );
       }
     }
     applied = true;
@@ -1341,8 +1376,8 @@ export function createSeatedWorkerPose(
         transitionCalf.copy(calf.quaternion);
         closed =
           solveChain(thigh, calf, foot, target, standingLegLengths[i], pole, true, true) && closed;
-        thigh.quaternion.slerp(transitionThigh, 1 - influence);
-        calf.quaternion.slerp(transitionCalf, 1 - influence);
+        blendWorkerRotation(thigh.quaternion, thigh.quaternion, transitionThigh, 1 - influence);
+        blendWorkerRotation(calf.quaternion, calf.quaternion, transitionCalf, 1 - influence);
       }
       applied = true;
       model.updateWorldMatrix(false, true);
@@ -1407,7 +1442,7 @@ export function createSeatedWorkerPose(
       for (const entry of dutyRest) {
         poseQuaternion.copy(entry.bone.quaternion);
         entry.bone.position.lerpVectors(entry.position, entry.bone.position, weight);
-        entry.bone.quaternion.slerpQuaternions(entry.quaternion, poseQuaternion, weight);
+        blendWorkerRotation(entry.bone.quaternion, entry.quaternion, poseQuaternion, weight);
         entry.bone.scale.lerpVectors(entry.scale, entry.bone.scale, weight);
       }
       model.updateWorldMatrix(false, true);
@@ -1660,12 +1695,12 @@ export function createSeatedWorkerPose(
       // Arms leave the lap before departure; only supported leg contacts are IK.
       for (const entry of seatArms) {
         poseQuaternion.copy(entry.bone.quaternion);
-        entry.bone.quaternion.slerpQuaternions(entry.quaternion, poseQuaternion, amount);
+        blendWorkerRotation(entry.bone.quaternion, entry.quaternion, poseQuaternion, amount);
       }
       for (const entry of saved) {
         poseQuaternion.copy(entry.bone.quaternion);
         entry.bone.position.lerpVectors(entry.position, entry.bone.position, support);
-        entry.bone.quaternion.slerpQuaternions(entry.quaternion, poseQuaternion, support);
+        blendWorkerRotation(entry.bone.quaternion, entry.quaternion, poseQuaternion, support);
         entry.bone.scale.lerpVectors(entry.scale, entry.bone.scale, support);
       }
       model.updateWorldMatrix(false, true);
@@ -1678,7 +1713,7 @@ export function createSeatedWorkerPose(
         const step = THREE.MathUtils.smoothstep(support, i === 0 ? 0 : 0.3, i === 0 ? 0.7 : 1);
         target.lerpVectors(incomingFeet[i], seatedFeet[i], step);
         target.y += (Math.sin(step * Math.PI) * 0.055) / scale;
-        footQuaternion.slerpQuaternions(incomingFootRotation[i], seatedFootRotation[i], step);
+        blendWorkerRotation(footQuaternion, incomingFootRotation[i], seatedFootRotation[i], step);
         footScale.lerpVectors(incomingFootScale[i], seatedFootScale[i], step);
         let soleOffset = Infinity;
         for (const corner of soleCorners[i])
@@ -1743,6 +1778,10 @@ export function createSeatedWorkerPose(
         p.y = footHeight;
         setPosition(foot, p);
       }
+      // Breath expands the torso above the fixed pelvis, never the seat or boots.
+      // Working if both delivered bodies retain exact hip/foot contact and restore.
+      const abdomen = bones.get('Abdomen');
+      if (abdomen) abdomen.scale.z *= 1 + ((gesture?.breath ?? 0.5) - 0.5) * 0.012;
       // Forearms rest forward on the lap, rather than a neutral standing arm pose.
       for (const side of sides) {
         const upper = bones.get(`UpperArm${side}`);
@@ -1752,7 +1791,11 @@ export function createSeatedWorkerPose(
           aim(
             lower,
             undefined,
-            direction.set(0, -0.3 + (side === 'L' ? (gesture?.restReach ?? 0) : 0), 1)
+            direction.set(
+              0,
+              -0.3 + Math.max(0, (gesture?.restReach ?? 0) * (side === 'L' ? 1 : -1)),
+              1
+            )
           );
         }
       }

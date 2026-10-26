@@ -247,3 +247,47 @@ describe('Authored pressure chapter', () => {
     expect(screen.getByText(/a no-extra-duty plan remains valid/)).toBeInTheDocument();
   });
 });
+
+it('review guidance follows actual recovery and fresh-shift gates without granting consent', () => {
+  useWorkplaceStore.getState().startCampaign('cooperative', 81);
+  const current = useWorkplaceStore.getState().workplace;
+  useWorkplaceStore.setState({
+    workplace: {
+      ...current,
+      phase: 'review',
+      members: current.members.map((m) => ({
+        ...m,
+        recoveryOwedMinutes: m.id === 'packing' ? 4 : 0,
+      })),
+    },
+  });
+  let state = useWorkplaceStore.getState().workplace;
+  expect(deriveWorkplaceGuidance(state).beat).toBe('Complete owed recovery');
+  expect(deriveWorkplaceGuidance(state).next).toContain('Resume the plant clock');
+  expect(useWorkplaceStore.getState().nextCampaignShift().changed).toBe(false);
+  for (let i = 0; i < 48; i++) useWorkplaceStore.getState().tick(5, 0, false);
+  state = useWorkplaceStore.getState().workplace;
+  expect(deriveWorkplaceGuidance(state).beat).toBe('Prepare the next shift');
+  expect(useWorkplaceStore.getState().nextCampaignShift().changed).toBe(true);
+  expect(
+    useWorkplaceStore
+      .getState()
+      .workplace.members.every((m) => !m.understood && m.ballot === null && m.coverConsent === null)
+  ).toBe(true);
+});
+
+it('final review points to archiving only after retained obligations clear', () => {
+  const current = thirdShift();
+  const state = { ...current, phase: 'review' as const };
+  expect(deriveWorkplaceGuidance(state).beat).toBe('Close the campaign');
+  expect(deriveWorkplaceGuidance(state).next).toContain('Archive the review');
+  expect(
+    deriveWorkplaceGuidance({ ...state, finance: { ...state.finance, wageReserve: 1 } }).beat
+  ).toBe('Settle remaining obligations');
+  // Reuse the real objection command rather than injecting an objection shape.
+  useWorkplaceStore.setState({ workplace: { ...state, phase: 'active' } });
+  useWorkplaceStore.getState().object('packing', 'burden');
+  expect(deriveWorkplaceGuidance(useWorkplaceStore.getState().workplace).beat).toBe(
+    'The raiser reviews the remedy'
+  );
+});

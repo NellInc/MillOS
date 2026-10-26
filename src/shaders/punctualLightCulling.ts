@@ -22,15 +22,6 @@ const DIRECT_CALL =
  * Working if paired stock/guarded renders agree and active light pools remain.
  */
 export function cullZeroPunctualContributions(source: string): string {
-  const parts = source.split(DIRECT_CALL);
-  if (
-    parts.length !== 4 ||
-    !parts[0].includes('getPointLightInfo(') ||
-    !parts[1].includes('getSpotLightInfo(') ||
-    !parts[2].includes('getDirectionalLightInfo(')
-  ) {
-    throw new Error('Three punctual lighting chunk changed; review exact-zero BRDF culling.');
-  }
   const guarded = `#ifdef STANDARD
 if ( ${PUNCTUAL_REFERENCE_UNIFORM} || directLight.visible ) {
 #endif
@@ -38,7 +29,27 @@ ${DIRECT_CALL}
 #ifdef STANDARD
 }
 #endif`;
-  return parts[0] + guarded + parts[1] + guarded + parts[2] + DIRECT_CALL + parts[3];
+  let result = source;
+  // Upstream r186 adds SunLight. Own only the two punctual loop call sites;
+  // directional, sun and future non-punctual branches retain their exact bytes.
+  // Working if guarded point/spot calls round-trip to the complete stock chunk.
+  for (const type of ['Point', 'Spot']) {
+    const upper = type.toUpperCase();
+    const pattern = new RegExp(
+      `#pragma unroll_loop_start\\s+for \\( int i = 0; i < NUM_${upper}_LIGHTS; i \\+\\+ \\) \\{[\\s\\S]*?#pragma unroll_loop_end`,
+      'g'
+    );
+    const loops = result.match(pattern);
+    const loop = loops?.[0];
+    if (
+      loops?.length !== 1 ||
+      !loop?.includes(`get${type}LightInfo(`) ||
+      loop.split(DIRECT_CALL).length !== 2
+    )
+      throw new Error('Three punctual lighting chunk changed; review exact-zero BRDF culling.');
+    result = result.replace(loop, loop.replace(DIRECT_CALL, guarded));
+  }
+  return result;
 }
 
 /** Diagnostic opt-out selects the retained source with a distinct defines key. */

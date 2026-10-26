@@ -3839,3 +3839,61 @@ it.each(['masculine', 'feminine'])(
     mixer.uncacheRoot(scene);
   }
 );
+
+it('seated rest has a slower breath and held asymmetric resettles with long quiet dwells', () => {
+  const g = createWorkerGesture();
+  expect(sampleWorkerGesture('rest', 1.7, g).breath).toBeCloseTo(1, 6);
+  expect(sampleWorkerGesture('rest', 5.1, g).breath).toBeCloseTo(0, 6);
+  expect(sampleWorkerGesture('rest', 6.3, g).restReach).toBeCloseTo(0.075, 6);
+  expect(sampleWorkerGesture('rest', 23, g).restReach).toBeCloseTo(-0.055, 6);
+  for (const t of [0, 2, 11, 15, 19, 27, 30, 31.7])
+    expect(sampleWorkerGesture('rest', t, g).restReach).toBe(0);
+  for (const kind of ['idle', 'briefing', 'bake', 'repair'] as const)
+    expect(sampleWorkerGesture(kind, 6.3, g).restReach).toBe(0);
+});
+
+it.each(['masculine', 'feminine'])(
+  '%s breathes above the seat with fixed hips and feet and exact pose restore',
+  (body) => {
+    const gltf = bodies.get(body)!,
+      scene = clone(gltf.scene),
+      mixer = new THREE.AnimationMixer(scene);
+    mixer.clipAction(gltf.animations.find((clip) => clip.name === 'worker-break')!).play();
+    mixer.update(0);
+    scene.updateMatrixWorld(true);
+    const bones: THREE.Object3D[] = [];
+    scene.traverse((o) => {
+      if ((o as THREE.Bone).isBone) bones.push(o);
+    });
+    const original = bones.map((o) => [
+      ...o.position.toArray(),
+      ...o.quaternion.toArray(),
+      ...o.scale.toArray(),
+    ]);
+    const pose = createSeatedWorkerPose(scene),
+      g = createWorkerGesture();
+    const position = (name: string) =>
+      scene.getObjectByName(name)!.getWorldPosition(new THREE.Vector3());
+    pose.apply();
+    const anchors = ['Hips', 'FootL', 'FootR'].map(position);
+    pose.restore();
+    let min = Infinity,
+      max = -Infinity;
+    for (const t of [0, 1.7, 5.1, 6.3, 15, 23, 30]) {
+      sampleWorkerGesture('rest', t, g);
+      pose.apply(0, g);
+      ['Hips', 'FootL', 'FootR'].forEach((name, i) =>
+        expect(position(name).distanceTo(anchors[i])).toBeLessThan(1e-7)
+      );
+      const depth = scene.getObjectByName('Abdomen')!.scale.z;
+      min = Math.min(min, depth);
+      max = Math.max(max, depth);
+      pose.restore();
+      expect(
+        bones.map((o) => [...o.position.toArray(), ...o.quaternion.toArray(), ...o.scale.toArray()])
+      ).toEqual(original);
+    }
+    expect(max / min).toBeGreaterThan(1.01);
+    expect(max / min).toBeLessThan(1.013);
+  }
+);

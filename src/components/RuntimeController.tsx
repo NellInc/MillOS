@@ -925,6 +925,7 @@ function reportLights(scene: THREE.Scene, gl: THREE.WebGLRenderer): RuntimeLight
   scene.traverse((object) => {
     const light = object as THREE.Light & {
       groundColor?: THREE.Color;
+      shadow?: THREE.LightShadow;
       target?: THREE.Object3D;
       distance?: number;
       decay?: number;

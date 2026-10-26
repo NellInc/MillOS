@@ -86,9 +86,11 @@ export function WorkplaceCompanion({ onOpen }: { onOpen: () => void }) {
       <p className="mt-2 text-xs leading-5 text-cyan-100">
         {improvement
           ? improvement.next
-          : negotiation
-            ? negotiation.next
-            : t('nextControls', { destination: guide.destination })}
+          : guide.reviewing
+            ? guide.next
+            : negotiation
+              ? negotiation.next
+              : t('nextControls', { destination: guide.destination })}
       </p>
       {guide.needsRemedy && (
         <p className="mt-2 text-amber-100">

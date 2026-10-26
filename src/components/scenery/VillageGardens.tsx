@@ -72,6 +72,65 @@ const DESIGNS = [
 const { cream: CREAM, soil: SOIL, leaf: LEAF, oak: WOOD, iron: IRON } = WORLD_CRAFT_PALETTE;
 type Point = readonly [number, number, number];
 
+/** Closed fielded joinery and two inset iron pintles replace the three old boxes.
+ * Working if each shutter retains its 36-triangle allocation, with real recessed
+ * depth, outward normals and no extra material or static draw.
+ */
+export function addVillageShutter(
+  b: PlotGeometry,
+  at: Point,
+  height: number,
+  colour: string,
+  side: number
+) {
+  const vertices: number[] = [];
+  const quad = (a: Point, c: Point, d: Point, e: Point) =>
+    vertices.push(...a, ...c, ...d, ...a, ...d, ...e);
+  const ring = (width: number, h: number, z: number): Point[] => [
+    [-width, -h, z],
+    [width, -h, z],
+    [width, h, z],
+    [-width, h, z],
+  ];
+  const back = ring(0.15, height / 2, -0.0375);
+  const frame = ring(0.15, height / 2, 0.0375);
+  const field = ring(0.102, height / 2 - 0.095, 0.0095);
+  quad(back[3], back[2], back[1], back[0]);
+  for (let i = 0; i < 4; i++) {
+    const j = (i + 1) % 4;
+    quad(back[i], back[j], frame[j], frame[i]);
+    quad(frame[i], frame[j], field[j], field[i]);
+  }
+  quad(field[0], field[1], field[2], field[3]);
+  const add = (points: number[], paint: string) => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
+    const uv: number[] = [];
+    for (let i = 0; i < points.length; i += 3)
+      uv.push(points[i] / 0.3 + 0.5, points[i + 1] / height + 0.5);
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.computeVertexNormals();
+    b.add(g.translate(...at), paint);
+  };
+  add(vertices, colour);
+  for (const y of [-height * 0.3, height * 0.3]) {
+    const x = -side * 0.109;
+    const left: Point[] = [
+      [x - 0.0325, y - 0.014, 0.002],
+      [x - 0.0325, y + 0.014, 0.002],
+      [x - 0.0325, y, 0.061],
+    ];
+    const right: Point[] = left.map(([px, py, pz]) => [px + 0.065, py, pz]);
+    vertices.length = 0;
+    vertices.push(...left[2], ...left[1], ...left[0], ...right[0], ...right[1], ...right[2]);
+    for (let i = 0; i < 3; i++) {
+      const j = (i + 1) % 3;
+      quad(left[i], left[j], right[j], right[i]);
+    }
+    add(vertices, IRON);
+  }
+}
+
 /** Soft clipped foliage and leaf-age tones on the existing closed cluster.
  * Working if normals follow the ellipsoid, tips differ from lower leaves and
  * positions, UVs and indices remain exact for the original civic shadow bake.
@@ -449,11 +508,8 @@ function house(index: number) {
     b.box([width, 0.05, 0.045], [x, y + 0.12, z + 0.112], CREAM);
     b.box([width + 0.32, 0.12, 0.31], [x, y - height / 2 - 0.1, z + 0.075], CREAM);
     if (shutters)
-      for (const side of [-1, 1]) {
-        b.box([0.3, height + 0.06, 0.075], [x + side * (width / 2 + 0.29), y, z], d.door);
-        for (const dy of [-0.32, 0.32])
-          b.box([0.31, 0.044, 0.06], [x + side * (width / 2 + 0.29), y + dy, z + 0.055], CREAM);
-      }
+      for (const side of [-1, 1])
+        addVillageShutter(b, [x + side * (width / 2 + 0.29), y, z], height + 0.06, d.door, side);
   };
   for (const side of [-1, 1]) {
     const x = side * d.width * 0.29,

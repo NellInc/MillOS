@@ -247,11 +247,7 @@ function renderVtt(sheet) {
 }
 
 function renderLrc(sheet) {
-  const lines = [
-    `[ti:${sheet.title}]`,
-    '[ar:Nell Watson]',
-    '[al:Songs of the Living Mill]',
-  ];
+  const lines = [`[ti:${sheet.title}]`, '[ar:Nell Watson]', '[al:Songs of the Living Mill]'];
   for (const line of sheet.lines) {
     if (line.kind === 'lyric' && line.words.length > 0) {
       lines.push(`[${lrcTimestamp(line.words[0].startSeconds)}]${line.text}`);

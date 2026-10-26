@@ -706,15 +706,15 @@
     }
   ],
   "exclusions": {
-    "alphaOrMoving": 42
+    "alphaOrMoving": 41
   },
   "dynamicLocalShadows": false,
-  "inputSha256": "920b4aa9af1f383d88aad78e2b447fb59ba6e28124378f71384507b7b9689327",
-  "atlasSha256": "0c6c4dd5bafce1dbdf82ec67cedc9da661ce5f0fe18ee1e51d90b250cb045457",
+  "inputSha256": "5d13d8d6c667558461c7e0355c472afc10657a4914da64e928d7142c74987fd4",
+  "atlasSha256": "ae89500b7dfa591649287226e7fda8890e8990af3a789f9cb9dca09d6b024dbe",
   "bakerSha256": "e4a1187f642e15650def16479000b54b52c562a1e7af3e1894d40db3aabe7973",
   "vertices": 421210,
   "triangles": 180580,
-  "elapsedSeconds": 158.44,
+  "elapsedSeconds": 18.71,
   "sourceReceipts": [
     {
       "id": "hall-west",
@@ -852,12 +852,6 @@
       "rays": 98304
     }
   ],
-  "deliveryCompression": {
-    "method": "Lossless PNG zlib9 adaptive filtering, identical decoded RGBA bytes and color-management chunks",
-    "originalEncodedSha256": "ae89500b7dfa591649287226e7fda8890e8990af3a789f9cb9dca09d6b024dbe",
-    "rawRgbaSha256": "45d7f50371cc31c290742a467210ac9a60f52aa9970a5c5e04b32161e921ab85",
-    "bytesSaved": 938180
-  },
   "casterPins": {
     "glb": {
       "public/models/village/townhall.glb": "985538194282d623c972e10c5b271d34b771a75f95206089c6ef41419f8d1e8a",
@@ -869,19 +863,19 @@
       "public/models/village/postbox.glb": "a9d444ddb857dab168a66fc14d8e09b35b0eeac0d5526846e1d1e503a7e38f95"
     },
     "villageGardenPositions": [
-      "1e7ed40129f7edf5970fb2b0cca67361b0f20d7cd6b1429975cb83ec75a40f17",
+      "a533110e0170120455bd18776e8049c42a0bc63d1ea1f19385af6db6d2c4a977",
       "58878f3dbe581bc21eefe9f8176f21b6352b7abcb3d35fde50c083fc48c318f6",
       "089f393c4fdbf35b1698af95a4dde2e493932d8a31933109d127a619d1248886",
-      "38239e88b513e4c1c01fe9d89a3267361055c226d26b39eb7c0a5b7fb0fa2f72",
+      "d621111d5d3be9a8f038f68ea851c99b32631e1e09238d04672e882d45fc7168",
       "32c990fd18097bb1d80eb7c4306ae2e14aaf7f387c8178fe686298adcf132870",
       "18d4e1ab1a5af506dee461f176fc6fcb7d92c7693847c97e9c8d496f743e207b",
-      "de94b24a9a7c43368bd8affc017f34a18f5bae81c9564dcf2cbd4d623af7bb2d",
+      "ece4d58c66ad6fdd8c92060eb256b018bd812d11f959889495f647a4504526af",
       "0e3b36611bb21694e2937379c8e732e2e66e39e141ab598c3c38a966b7f95464",
       "ff9e17b2861e0d6d0aa59578f1085508c979ae1dfd7a65992fdf8f6fa85892af",
       "210b446a4bcb30ba6aea0147d9bfaeaed79ba8bdb4235f32aeaf852bf9601792",
       "3a3cda642438e77b89ba59ef0987d54b2a38addcd790cedeaea68540459954c7",
       "ad2c03709c629ee3f98f0ef364f6a373d90782bb63de7016fbc8b0f8c857c6ae",
-      "b94a7599a6c4e8a7c2408fae8b0255dedc53f150c41e619ce188d9ce2d189ea4",
+      "eea7e6ffc263141d4ce5c3bc76745e45b21a58ca69931c636eb8f669f95ae36d",
       "5ade559333214fe102d81f90fe82dfef11824c3545aea0765960062ff1911664",
       "f27f534d08effb9da12bff0a1ce847eca88f980310e03d80afe6b81266183102",
       "0029ad5595c87ed4fe829f51d130ac6152acd35d2db55a412b16839ccfb4dd54"

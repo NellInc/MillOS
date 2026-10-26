@@ -31,6 +31,17 @@ export function deriveWorkplaceGuidance(state: WorkplaceState) {
   const needsRemedy = openObjections.length > 0;
   const reviewing = state.phase === 'review';
   const running = state.phase === 'active';
+  const recoveryOwed = state.members.some((member) => member.recoveryOwedMinutes > 0);
+  const finalReview = reviewing && campaign?.shift === 2;
+  const archiveBlocked =
+    finalReview &&
+    (campaign.history.some((shift) =>
+      shift.members.some((member) => member.recoveryOwedMinutes > 0)
+    ) ||
+      state.finance.wageReserve > 0 ||
+      state.finance.compensationReserve > 0 ||
+      state.activeCoverMemberId !== null ||
+      state.coverRemainingMinutes > 0);
   const inspectionHeld =
     running && campaign?.shift === 1 && state.minute >= 25 && !campaign.inspectionComplete;
   const inspectionPending = inspectionHeld && campaign.inspectionUntilMinute === null;
@@ -52,7 +63,13 @@ export function deriveWorkplaceGuidance(state: WorkplaceState) {
           ? translate(msg, 'beatQualityReviews')
           : translate(msg, 'beatCompleteInspection')
         : reviewing
-          ? translate(msg, 'beatAccount')
+          ? recoveryOwed
+            ? translate(msg, 'beatRecovery')
+            : archiveBlocked
+              ? translate(msg, 'beatSettle')
+              : campaign
+                ? translate(msg, finalReview ? 'beatArchive' : 'beatNextShift')
+                : translate(msg, 'beatAccount')
           : running
             ? translate(msg, 'beatDeliver')
             : translate(msg, 'beatEarn');
@@ -77,7 +94,13 @@ export function deriveWorkplaceGuidance(state: WorkplaceState) {
               minute: formatFixed(Math.ceil(campaign?.inspectionUntilMinute ?? 0), 0),
             })
         : reviewing
-          ? translate(msg, 'nextReviewing')
+          ? recoveryOwed
+            ? translate(msg, state.mode === 'workshop' ? 'nextWorkshopRecovery' : 'nextRecovery')
+            : archiveBlocked
+              ? translate(msg, 'nextSettle')
+              : campaign
+                ? translate(msg, finalReview ? 'nextArchive' : 'nextShift')
+                : translate(msg, 'nextReviewing')
           : running
             ? translate(msg, 'nextRunning')
             : needsRevisedOffer

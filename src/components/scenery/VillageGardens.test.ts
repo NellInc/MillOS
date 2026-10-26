@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { createHash } from 'node:crypto';
 import {
   addVillageFlower,
+  addVillageShutter,
   addAllotmentCabbage,
   addAllotmentLeafCrop,
   addAllotmentBeanLeaves,
@@ -416,11 +417,11 @@ it('softens foliage normals and leaf-age tones while retaining exact civic-baked
   }
 });
 
-it('retains verified home and updated allotment positions and UVs for the civic bake', () => {
+it('pins rebuilt shutter bodies and unchanged glass/garden UVs to the exact civic rebake', () => {
   const expected = [
     [
-      '1e7ed40129f7edf5970fb2b0cca67361b0f20d7cd6b1429975cb83ec75a40f17',
-      '63c5c2da6ac3bcd00794cb9652f1a8791dd4a5edb9bc27b840e299cc9b618c1c',
+      'a533110e0170120455bd18776e8049c42a0bc63d1ea1f19385af6db6d2c4a977',
+      'f5e511a7f3f67a0b10fa40375021f35a3652e4b15d50de6145d8a0a3f29508c8',
     ],
     [
       '58878f3dbe581bc21eefe9f8176f21b6352b7abcb3d35fde50c083fc48c318f6',
@@ -431,8 +432,8 @@ it('retains verified home and updated allotment positions and UVs for the civic 
       '972555e5069ac18ea49efe1c030111a161058b8bf5d754b7f1bb24b73a9062d2',
     ],
     [
-      '38239e88b513e4c1c01fe9d89a3267361055c226d26b39eb7c0a5b7fb0fa2f72',
-      '6c11d8c67c40a491f1a5cd31200399ef9f5ee061f8bd6a6045acfbaf3858c5b2',
+      'd621111d5d3be9a8f038f68ea851c99b32631e1e09238d04672e882d45fc7168',
+      'f7ab2155046dae87c3500f8ae83e22e61e06039663c24efdcef19a2f27682586',
     ],
     [
       '32c990fd18097bb1d80eb7c4306ae2e14aaf7f387c8178fe686298adcf132870',
@@ -443,8 +444,8 @@ it('retains verified home and updated allotment positions and UVs for the civic 
       '472e41218a61a6accdecfbf3e85d7b0e9d5e9c73126592557d1697cf54f667ed',
     ],
     [
-      'de94b24a9a7c43368bd8affc017f34a18f5bae81c9564dcf2cbd4d623af7bb2d',
-      '1b9f06929a62a34610c3a8ab4ce14c732fcadca86b49054feb887db6352b5784',
+      'ece4d58c66ad6fdd8c92060eb256b018bd812d11f959889495f647a4504526af',
+      '7c3a6c31101c7ea867b63fe12fad7cb4edb8459218cb9a0136314fc7e0923b5b',
     ],
     [
       '0e3b36611bb21694e2937379c8e732e2e66e39e141ab598c3c38a966b7f95464',
@@ -467,8 +468,8 @@ it('retains verified home and updated allotment positions and UVs for the civic 
       '81ba8a9a1451c7dbf9a154feecad9c377c5b0065f0fe983eeb39191eda28b194',
     ],
     [
-      'b94a7599a6c4e8a7c2408fae8b0255dedc53f150c41e619ce188d9ce2d189ea4',
-      '64320250e380394f1b6af18d08609e9c33b8adc97cb0b225eb226d7a76bec07b',
+      'eea7e6ffc263141d4ce5c3bc76745e45b21a58ca69931c636eb8f669f95ae36d',
+      'dbd2fa46969da1d6bb21c9fadcc11f9d8e43c2939b3de900833d3551753c91e9',
     ],
     [
       '5ade559333214fe102d81f90fe82dfef11824c3545aea0765960062ff1911664',
@@ -674,4 +675,42 @@ it('attaches every runner-bean node and both end caps to its actual climbing ste
   const g = plot.finish();
   expect(g.attributes.position.count / 3).toBe(168);
   g.dispose();
+});
+
+it('fielded shutters have closed recessed joinery inside the old 36-triangle allocation', () => {
+  for (const side of [-1, 1]) {
+    const b = new PlotGeometry();
+    addVillageShutter(b, [0, 0, 0], 1.31, '#567363', side);
+    const geometry = b.finish();
+    expect(geometry.getAttribute('position').count / 3).toBe(36);
+    const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial());
+    const hit = (x: number, y: number) =>
+      new THREE.Raycaster(new THREE.Vector3(x, y, 1), new THREE.Vector3(0, 0, -1)).intersectObject(
+        mesh
+      )[0];
+    expect(hit(0, 0).point.z).toBeCloseTo(0.0095, 6);
+    expect(hit(0.14, 0).point.z).toBeGreaterThan(0.03);
+    expect(hit(-side * 0.109, 1.31 * 0.3).point.z).toBeCloseTo(0.061, 6);
+    // Every closed shell has consistently outward winding, including each iron pintle.
+    const positions = geometry.getAttribute('position');
+    for (const [start, end] of [
+      [0, 60],
+      [60, 84],
+      [84, 108],
+    ]) {
+      let volume = 0;
+      const a = new THREE.Vector3(),
+        c = new THREE.Vector3(),
+        d = new THREE.Vector3();
+      for (let i = start; i < end; i += 3) {
+        a.fromBufferAttribute(positions, i);
+        c.fromBufferAttribute(positions, i + 1);
+        d.fromBufferAttribute(positions, i + 2);
+        volume += a.dot(c.cross(d)) / 6;
+      }
+      expect(volume).toBeGreaterThan(0);
+    }
+    geometry.dispose();
+    (mesh.material as THREE.Material).dispose();
+  }
 });

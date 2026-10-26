@@ -20,6 +20,17 @@ export const workplacePressureChapterMessages = defineMessages({
     beatQualityReviews: 'Quality reviews the line',
     beatCompleteInspection: 'Complete protected inspection',
     beatAccount: 'Account for what was kept',
+    beatRecovery: 'Complete owed recovery',
+    beatNextShift: 'Prepare the next shift',
+    beatArchive: 'Close the campaign',
+    beatSettle: 'Settle remaining obligations',
+    nextRecovery: 'Resume the plant clock to deliver owed recovery. This shift stays closed.',
+    nextWorkshopRecovery: 'Deliver modeled recovery in Review. This shift stays closed.',
+    nextShift: 'Continue to the next campaign shift in Review. Each role chooses again.',
+    nextArchive:
+      'Archive the review in Review to open a fresh exercise. Campaign receipts are kept.',
+    nextSettle:
+      'Settle retained recovery, reserved pay and active cover in Review before archiving.',
     beatDeliver: 'Deliver the agreement',
     beatEarn: 'Earn a fresh agreement',
     nextRestate: 'Use Restate protected terms in Shift. The challenge remains open afterwards.',
@@ -129,6 +140,19 @@ export const workplacePressureChapterMessages = defineMessages({
     beatQualityReviews: 'A Qualidade revisa a linha',
     beatCompleteInspection: 'Conclua a inspeção protegida',
     beatAccount: 'Preste contas do que foi cumprido',
+    beatRecovery: 'Cumpra o descanso compensatório devido',
+    beatNextShift: 'Prepare o próximo turno',
+    beatArchive: 'Encerre a campanha',
+    beatSettle: 'Cumpra as obrigações pendentes',
+    nextRecovery:
+      'Retome o relógio da fábrica para cumprir o descanso compensatório devido. Este turno continua encerrado.',
+    nextWorkshopRecovery:
+      'Cumpra o descanso compensatório modelado em Revisão. Este turno continua encerrado.',
+    nextShift: 'Avance para o próximo turno da campanha em Revisão. Cada papel decide novamente.',
+    nextArchive:
+      'Arquive a revisão em Revisão para abrir um novo exercício. Os registros da campanha são mantidos.',
+    nextSettle:
+      'Cumpra o descanso compensatório retido, o pagamento reservado e a cobertura ativa em Revisão antes de arquivar.',
     beatDeliver: 'Cumpra o acordo',
     beatEarn: 'Conquiste um novo acordo',
     nextRestate:

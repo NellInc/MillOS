@@ -860,11 +860,14 @@ it('varies only the real market red-cloth tile and its matching scallops, retain
 });
 
 it('flours only bread crowns while retaining exact market geometry and other trades', () => {
+  // r186 closes SphereGeometry poles exactly. Compared with r182: identical
+  // topology, indices, UVs and colours; maximum position delta is 2.39e-7 m.
+  // Keep exact hashes for the current constructors rather than loosening the check.
   const baseline = [
     {
       attributes: {
-        position: '14add3f02a718481282ce09c15b175887df5f5d1e0f0a293a0a912f72405ab83',
-        normal: 'd5d65e399bc2ebb244d5a624d913a3094e1d20d3646c0384a2c87060f832bf64',
+        position: 'bf12affa73ac939a9e4c48364c318da790a06531f2fde3732a5819f6541abd22',
+        normal: '723995d7cb8074625d22e45e683fbc414b7579d19c914898f8ff2d7948c3c2d2',
         uv: '60b0aa3a28657c984145afddf6865af4fb8ad573ad69e0ab89c48c41066c0dc5',
         color: '490b52dcb33393533fbbb8e2b7e32dd99ecc93a2ce8d5539a0c3abf358c5f52a',
       },
@@ -872,9 +875,9 @@ it('flours only bread crowns while retaining exact market geometry and other tra
     },
     {
       attributes: {
-        position: '4b428a0dc87e59bc48f351e21229ae21f2ff20e4aaf7d4e13597cf54cd9058a8',
+        position: 'afec1037811164620788853fa67e3cbb0f0aa9bd88a741fcb9bbb8e9c0412691',
         uv: '776f6beb2d95be9fad77b11c420a982c67bae39553edd97a324fc5ad965943d3',
-        normal: '3d0089ae72d4cc0604b752b9ff53b24a6687d08361bc2be5eeb723395dfe9f69',
+        normal: '4a77890a71a90a1c989242f882f3e9e1fed157953738d14860e31da6626e474c',
         color: '531fbb49908abeb9064420a59908a1b42f4090d2cf685a5eb67a94890002ef54',
       },
       index: null,
@@ -882,7 +885,7 @@ it('flours only bread crowns while retaining exact market geometry and other tra
     {
       attributes: {
         position: '9024b0f67c1dbb52ed4bd4154d33a274ce0d8735f122b192112e786194718a96',
-        normal: '55efd269a4e3cea334876ee1805bea616b46b785b37f9b679d0836b0979c3ceb',
+        normal: '59a5b46ad4bed1c02a6840eb1caf08e1789c26829fde66365146ac3f8496ae01',
         uv: '1d6f3b484fa0d890ddb577610d044fc002fa829b35afbd7c11a24a5e7b8cf22a',
         color: '0c3818254d9d6b636fcb3d054499f6d653163ae64c42dc66ed201a33854f1f52',
       },
@@ -890,8 +893,8 @@ it('flours only bread crowns while retaining exact market geometry and other tra
     },
     {
       attributes: {
-        position: 'fa3863a8dad70ac619609ff8e2cdf0c6ba022a09c734d844621f9baa881be859',
-        normal: '462381ea8775fde9b73731b1a16689567b31a582707033439069de9217372916',
+        position: '83426fd3eb22227b4c21a0fecf3ce71efcd117269e8304c94010d5822567208b',
+        normal: '9330021c19806464027fa33516cc6cfb527137d821b0312724772794f2b141e4',
         uv: '916f1a2b130e9a62f47885dbd6b46b6d50196e56822bb04685893b7092e67d30',
         color: '1c3fb983563a02b95a287641e3737a7ae5ff457f45ecfcd749abc38b2e3fc647',
       },

@@ -1000,6 +1000,9 @@ export const createStaticMeshBatches = (
     // Vertices are already baked relative to root. Only this owned output's
     // identity local transform is fixed; world updates must still follow root.
     mergedMesh.matrixAutoUpdate = false;
+    // Three r186 starts world matrices clean; bounds may be queried before render.
+    // Working if the first bounds query includes root's transform without local recomposition.
+    mergedMesh.matrixWorldNeedsUpdate = true;
     mergedMesh.name = `static-merge:${name}:${batchIndex}`;
     mergedMesh.castShadow = representative.castShadow;
     mergedMesh.receiveShadow = representative.receiveShadow;
@@ -1125,6 +1128,7 @@ export const createStaticMeshBatches = (
       // Instance matrices contain the source transforms relative to root.
       // Keep parent/world updates live without recomposing an identity matrix.
       instance.matrixAutoUpdate = false;
+      instance.matrixWorldNeedsUpdate = true;
       instance.name = `static-batch:${name}:${batchIndex}`;
       instance.castShadow = representative.castShadow;
       instance.receiveShadow = representative.receiveShadow;

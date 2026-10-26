@@ -24,7 +24,7 @@ describe('exact-zero punctual lighting culling', () => {
     expect(
       guarded.match(/if \( millosReferencePunctualBRDF \|\| directLight.visible \)/g)
     ).toHaveLength(2);
-    expect(guarded.split(directCall)).toHaveLength(4);
+    expect(guarded.split(directCall)).toHaveLength(originalBegin.split(directCall).length);
     const directional = originalBegin.indexOf('#if ( NUM_DIR_LIGHTS > 0 )');
     expect(guarded.slice(guarded.indexOf('#if ( NUM_DIR_LIGHTS > 0 )'))).toBe(
       originalBegin.slice(directional)
@@ -41,7 +41,7 @@ describe('exact-zero punctual lighting culling', () => {
     );
   });
 
-  it('fails explicitly when an upstream change breaks the three-call contract', () => {
+  it('fails explicitly when an upstream change breaks a punctual loop contract', () => {
     expect(() =>
       cullZeroPunctualContributions(originalBegin.replace(directCall, 'changed();'))
     ).toThrow('punctual lighting');

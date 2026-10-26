@@ -181,11 +181,13 @@ function civicGpuCapacity(renderer: THREE.WebGLRenderer) {
   let largestProgramSamplers = 0,
     unlinkedPrograms = 0;
   for (const program of renderer.info.programs ?? []) {
-    if (!context.getProgramParameter(program.program, context.LINK_STATUS)) unlinkedPrograms++;
+    // Three creates this native handle; @types/three r186 declares it unknown.
+    const nativeProgram = program.program as WebGLProgram;
+    if (!context.getProgramParameter(nativeProgram, context.LINK_STATUS)) unlinkedPrograms++;
     let samplers = 0;
-    const count = context.getProgramParameter(program.program, context.ACTIVE_UNIFORMS) as number;
+    const count = context.getProgramParameter(nativeProgram, context.ACTIVE_UNIFORMS) as number;
     for (let index = 0; index < count; index++) {
-      const uniform = context.getActiveUniform(program.program, index);
+      const uniform = context.getActiveUniform(nativeProgram, index);
       if (uniform && samplerTypes.includes(uniform.type)) samplers += uniform.size;
     }
     largestProgramSamplers = Math.max(largestProgramSamplers, samplers);
