@@ -30,6 +30,7 @@ import {
   SHARED_WORKER_MATERIALS,
 } from '../workers/SharedWorkerMaterials';
 import { createWorkerBodyLod } from '../workers/workerBodyLod';
+import { createWorkerFootwear } from '../workers/workerFootwear';
 import { createWorkerGarmentMotion } from '../workers/workerGarmentMotion';
 import { createWorkerHeadClosure, WORKER_HAIR_FIT } from '../workers/workerHeadClosure';
 import type { WorkerMotionState } from '../workers/workerTypes';
@@ -1388,6 +1389,7 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     const materials: THREE.MeshStandardMaterial[] = [];
     const skinned: THREE.Mesh[] = [];
     const gloveSources: THREE.SkinnedMesh[] = [];
+    const footwearSources: { mesh: THREE.SkinnedMesh; kind: 'boot' | 'shoe' }[] = [];
     const clothSources: { mesh: THREE.SkinnedMesh; region: WorkerSurface }[] = [];
     const ownedGeometry: THREE.BufferGeometry[] = [];
     const headSkins: THREE.SkinnedMesh[] = [];
@@ -1428,6 +1430,15 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
         sources.length === 1
           ? resolveSurface(appearance.bodyType, sources[0].name, nodeName)
           : null;
+      if (
+        isFeet &&
+        (mesh as THREE.SkinnedMesh).isSkinnedMesh &&
+        (region === 'bootUpper' || region === 'boot')
+      )
+        footwearSources.push({
+          mesh: mesh as THREE.SkinnedMesh,
+          kind: region === 'boot' ? 'shoe' : 'boot',
+        });
       if (
         region === 'hair' &&
         nodeName.includes('Worker_Head') &&
@@ -1603,6 +1614,15 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       appearance.skinTone
     );
     const bodyLod = createWorkerBodyLod(model);
+    // Copy the original far skin first. Fitted near shoes stay in their existing
+    // draw, preserving the exact distant geometry and contact-box inputs.
+    for (const { mesh, kind } of footwearSources) {
+      const geometry = createWorkerFootwear(mesh, kind);
+      if (!geometry) continue;
+      mesh.geometry = geometry;
+      (mesh.material as THREE.MeshStandardMaterial).vertexColors = true;
+      ownedGeometry.push(geometry);
+    }
     // Far copies keep the neutral fitted cloth. Only the existing private near
     // garments receive follow-through; no extra mesh, clock or palette upload.
     const garments = [apron, coat].flatMap((mesh) => {

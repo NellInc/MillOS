@@ -3055,11 +3055,13 @@ it.each(['masculine', 'feminine'] as const)(
     expect(first.container.querySelector('[name="worker-authored-hair"]')).toBeNull();
     let near = 0,
       far = 0,
+      footwear = 0,
       draws = 0;
     copies[0].traverse((o) => {
       const m = o as THREE.SkinnedMesh;
       if (!m.isSkinnedMesh) return;
       draws++;
+      footwear += (m.geometry.userData.workerFootwear?.addedTriangles ?? 0) * 3;
       if (m.name.startsWith('worker-distant-')) far += m.geometry.index!.count;
       else if (!Array.isArray(m.material) && m.material.visible) near += m.geometry.index!.count;
     });
@@ -3068,7 +3070,8 @@ it.each(['masculine', 'feminine'] as const)(
       if ((o as THREE.SkinnedMesh).isSkinnedMesh) sourceDraws++;
     });
     expect(draws).toBe(sourceDraws + 2);
-    expect(far).toBe(near);
+    expect(footwear).toBeGreaterThan(0);
+    expect(far).toBe(near - footwear);
     const disposeA = vi.spyOn(a.geometry, 'dispose'),
       disposeB = vi.spyOn(b.geometry, 'dispose');
     first.unmount();
@@ -3267,5 +3270,348 @@ it.each(['masculine', 'feminine'] as const)(
       view.unmount();
       expect(disposed).toHaveBeenCalledOnce();
     }
+  }
+);
+
+it.each(['masculine', 'feminine'] as const)(
+  '%s fits closed near footwear while preserving source, distant skin and contact boxes',
+  async (bodyType) => {
+    const { readFileSync } = await import('node:fs'),
+      { NodeIO } = await import('@gltf-transform/core'),
+      { ALL_EXTENSIONS } = await import('@gltf-transform/extensions'),
+      { default: draco } = await import('draco3dgltf'),
+      { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js'),
+      { createWorkerFootwear } = await import('./workerFootwear'),
+      { createWorkerBodyLod } = await import('./workerBodyLod');
+    const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({
+      'draco3d.decoder': await draco.createDecoderModule(),
+    });
+    const document = await io.readBinary(
+      new Uint8Array(readFileSync(`public/models/worker/worker-${bodyType}.glb`))
+    );
+    for (const extension of document.getRoot().listExtensionsUsed()) extension.dispose();
+    const bytes = await io.writeBinary(document),
+      asset = await new GLTFLoader().parseAsync(bytes.buffer as ArrayBuffer, ''),
+      model = asset.scene;
+    shareWorkerSkin(model);
+    model.updateMatrixWorld(true);
+    let foot!: THREE.SkinnedMesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
+    model.traverse((object) => {
+      const mesh = object as typeof foot;
+      if (!mesh.isSkinnedMesh) return;
+      mesh.castShadow = !mesh.parent?.name.includes('Worker_Feet');
+      if (
+        mesh.parent?.name.includes('Worker_Feet') &&
+        mesh.material.name === (bodyType === 'masculine' ? 'Grey' : 'Black')
+      )
+        foot = mesh;
+    });
+    expect(foot).toBeDefined();
+    const original = foot.geometry,
+      material = foot.material.clone();
+    foot.material = material;
+    material.color.set(bodyType === 'masculine' ? '#313b43' : '#232b33');
+    const lod = createWorkerBodyLod(model);
+    expect(lod).not.toBeNull();
+    const distant: THREE.SkinnedMesh[] = [];
+    model.traverse((o) => {
+      if (o.name.startsWith('worker-distant-')) distant.push(o as THREE.SkinnedMesh);
+    });
+    const attributes = (g: THREE.BufferGeometry) =>
+      JSON.stringify({
+        index: Array.from(g.index!.array),
+        attributes: Object.fromEntries(
+          Object.entries(g.attributes).map(([key, a]) => [
+            key,
+            Array.from({ length: a.count * a.itemSize }, (_, i) =>
+              a.getComponent(Math.floor(i / a.itemSize), i % a.itemSize)
+            ),
+          ])
+        ),
+      });
+    const farBefore = distant.map((mesh) => attributes(mesh.geometry)),
+      sourceBefore = attributes(original);
+    const footBoxes = (g: THREE.BufferGeometry) =>
+      ['FootL', 'FootR'].map((name) => {
+        const joint = foot.skeleton.bones.findIndex((b) => b.name === name),
+          box = new THREE.Box3(),
+          p = new THREE.Vector3();
+        for (let i = 0; i < g.attributes.position.count; i++)
+          if (
+            [0, 1, 2, 3].some(
+              (c) =>
+                g.attributes.skinIndex.getComponent(i, c) === joint &&
+                g.attributes.skinWeight.getComponent(i, c) > 0.001
+            )
+          )
+            box.expandByPoint(
+              p
+                .fromBufferAttribute(g.attributes.position, i)
+                .applyMatrix4(foot.bindMatrix)
+                .applyMatrix4(foot.skeleton.boneInverses[joint])
+            );
+        return box;
+      });
+    const boxes = footBoxes(original),
+      kind = bodyType === 'masculine' ? 'boot' : 'shoe';
+    const fitted = createWorkerFootwear(foot, kind)!;
+    expect(fitted).not.toBeNull();
+    expect(fitted).not.toBe(original);
+    const craft = fitted.userData.workerFootwear;
+    expect(craft.addedTriangles).toBeGreaterThan(200);
+    expect(craft.addedTriangles).toBeLessThanOrEqual(640);
+    expect(fitted.index!.count).toBe(original.index!.count + craft.addedTriangles * 3);
+    for (const [key, attribute] of Object.entries(original.attributes)) {
+      const copy = fitted.attributes[key];
+      expect(copy).not.toBe(attribute);
+      expect(copy.normalized).toBe(attribute.normalized);
+      expect(copy.array.constructor).toBe(attribute.array.constructor);
+      expect((copy as THREE.BufferAttribute).gpuType).toBe(
+        (attribute as THREE.BufferAttribute).gpuType ?? THREE.FloatType
+      );
+      for (let i = 0; i < attribute.count; i++)
+        for (let c = 0; c < attribute.itemSize; c++)
+          expect(copy.getComponent(i, c)).toBe(attribute.getComponent(i, c));
+    }
+    for (let i = 0; i < original.index!.count; i++)
+      expect(fitted.index!.getX(i)).toBe(original.index!.getX(i));
+    expect(footBoxes(fitted).map((b) => [b.min.toArray(), b.max.toArray()])).toEqual(
+      boxes.map((b) => [b.min.toArray(), b.max.toArray()])
+    );
+    for (const side of [0, 1])
+      for (const feature of ['toe', 'laces'])
+        expect(
+          craft.patches.filter(
+            (p: { side: number; feature: string }) => p.side === side && p.feature === feature
+          ).length
+        ).toBeGreaterThan(1);
+    for (const side of [0, 1])
+      for (const cut of [0, 1, 2, 3])
+        expect(
+          craft.patches.some((p: { side: number; cut: number }) => p.side === side && p.cut === cut)
+        ).toBe(true);
+    const triangle = new THREE.Triangle(),
+      p = new THREE.Vector3(),
+      edges = new Map<string, number>();
+    let volume = 0;
+    for (let index = original.index!.count; index < fitted.index!.count; index += 3) {
+      const points = [0, 1, 2].map((c) =>
+        new THREE.Vector3().fromBufferAttribute(
+          fitted.attributes.position,
+          fitted.index!.getX(index + c)
+        )
+      );
+      expect(triangle.set(points[0], points[1], points[2]).getArea()).toBeGreaterThan(1e-12);
+      volume += points[0].dot(new THREE.Vector3().crossVectors(points[1], points[2])) / 6;
+      for (let c = 0; c < 3; c++) {
+        const key = [points[c], points[(c + 1) % 3]]
+          .map((p) =>
+            p
+              .toArray()
+              .map((v) => Math.round(v * 1e6))
+              .join(',')
+          )
+          .sort()
+          .join('/');
+        edges.set(key, (edges.get(key) ?? 0) + 1);
+      }
+    }
+    expect(
+      [...edges.values()].every((n) => n === 2),
+      'continuous fittings are closed across donor triangles'
+    ).toBe(true);
+    expect(volume).toBeGreaterThan(0);
+    for (const patch of craft.patches) {
+      const joint = foot.skeleton.bones.findIndex((b) => b.name === ['FootL', 'FootR'][patch.side]);
+      for (
+        let i = original.attributes.position.count + patch.start;
+        i < original.attributes.position.count + patch.start + patch.vertices;
+        i++
+      ) {
+        const weights = [0, 1, 2, 3].map((c) => fitted.attributes.skinWeight.getComponent(i, c));
+        expect(weights.reduce((a, b) => a + b, 0)).toBeCloseTo(1, 6);
+        const calf = foot.skeleton.bones.findIndex(
+          (b) => b.name === ['LowerLegL', 'LowerLegR'][patch.side]
+        );
+        for (let c = 0; c < 4; c++)
+          if (weights[c] > 0)
+            expect([joint, calf]).toContain(fitted.attributes.skinIndex.getComponent(i, c));
+        expect(
+          p.fromBufferAttribute(fitted.attributes.position, i).toArray().every(Number.isFinite)
+        ).toBe(true);
+        expect(
+          new THREE.Vector3().fromBufferAttribute(fitted.attributes.normal, i).length()
+        ).toBeCloseTo(1, 5);
+      }
+    }
+    foot.geometry = fitted;
+    // The box is also a seated-controller input. In addition to its exact
+    // equality above, sweep the real exported clips to ensure the new upper
+    // fittings never become a lower ground-contact point than the old soles.
+    const mixer = new THREE.AnimationMixer(model),
+      bootMeshes: THREE.SkinnedMesh[] = [];
+    model.traverse((o) => {
+      const m = o as THREE.SkinnedMesh;
+      if (m.isSkinnedMesh && m.parent?.name.includes('Worker_Feet')) bootMeshes.push(m);
+    });
+    let samples = 0,
+      lowerContact = 0,
+      attachmentGap = 0,
+      outerSigned = Infinity;
+    let currentPose = '',
+      gapAt: unknown,
+      buriedAt: unknown;
+    const measure = () => {
+      model.updateMatrixWorld(true);
+      bootMeshes.forEach((mesh) => mesh.skeleton.update());
+      for (const side of ['L', 'R']) {
+        let oldMin = Infinity,
+          newMin = Infinity;
+        for (const mesh of bootMeshes) {
+          const g = mesh.geometry,
+            count = g === fitted ? craft.originalVertices : g.attributes.position.count,
+            joint = mesh.skeleton.bones.findIndex((b) => b.name === 'Foot' + side);
+          for (let i = 0; i < g.attributes.position.count; i++) {
+            if (
+              ![0, 1, 2, 3].some(
+                (c) =>
+                  g.attributes.skinIndex.getComponent(i, c) === joint &&
+                  g.attributes.skinWeight.getComponent(i, c) > 0.001
+              )
+            )
+              continue;
+            const y = mesh.getVertexPosition(i, p).applyMatrix4(mesh.matrixWorld).y;
+            newMin = Math.min(newMin, y);
+            if (i < count) oldMin = Math.min(oldMin, y);
+          }
+        }
+        lowerContact = Math.max(lowerContact, oldMin - newMin);
+      }
+      for (const patch of craft.patches) {
+        const posed = patch.donor.map((id: number) =>
+            foot.getVertexPosition(id, new THREE.Vector3()).applyMatrix4(foot.matrixWorld)
+          ),
+          donor = new THREE.Triangle(posed[0], posed[1], posed[2]),
+          normal = donor.getNormal(new THREE.Vector3());
+        for (let j = 0; j < patch.vertices; j++) {
+          const actual = foot
+            .getVertexPosition(craft.originalVertices + patch.start + j, new THREE.Vector3())
+            .applyMatrix4(foot.matrixWorld);
+          const gap = actual.distanceTo(donor.closestPointToPoint(actual, new THREE.Vector3()));
+          if (gap > attachmentGap) {
+            attachmentGap = gap;
+            gapAt = {
+              pose: currentPose,
+              cut: patch.cut,
+              donor: patch.donor,
+              vertex: j,
+              rest: new THREE.Vector3()
+                .fromBufferAttribute(
+                  fitted.attributes.position,
+                  craft.originalVertices + patch.start + j
+                )
+                .toArray(),
+            };
+          }
+          if (j >= patch.vertices / 2) {
+            const signed = actual.clone().sub(donor.a).dot(normal);
+            if (signed < outerSigned) {
+              outerSigned = signed;
+              buriedAt = { pose: currentPose, cut: patch.cut, donor: patch.donor, vertex: j };
+            }
+          }
+        }
+      }
+      samples++;
+    };
+    for (const clip of asset.animations) {
+      mixer.stopAllAction();
+      const action = mixer.clipAction(clip).play();
+      for (let step = 0; step < 12; step++) {
+        currentPose = clip.name + ':' + step;
+        action.time = (clip.duration * step) / 12;
+        mixer.update(0);
+        measure();
+      }
+    }
+    mixer.stopAllAction();
+    const breakClip = asset.animations.find((c) => c.name === 'worker-break')!,
+      action = mixer.clipAction(breakClip).play(),
+      pose = workerPoses.createSeatedWorkerPose(model, 1, 1, breakClip),
+      gesture = workerPoses.createWorkerGesture();
+    const duties = [
+      'bake',
+      'sample',
+      'operate',
+      'inspect',
+      'repair',
+      'radio',
+      'supervise',
+    ] as const;
+    for (const mode of ['seat', 'cycling', 'garden', ...duties] as const)
+      for (let step = 0; step < 12; step++) {
+        currentPose = mode + ':' + step;
+        pose.restore();
+        action.time = (breakClip.duration * step) / 12;
+        mixer.update(0);
+        model.updateMatrixWorld(true);
+        if (mode === 'seat')
+          pose.applySeat({ amount: step / 11, support: (step % 3) / 2, x: 0, z: 0, yaw: 0 });
+        else if (mode === 'cycling') pose.applyCycling((step / 12) * Math.PI * 2);
+        else if (mode === 'garden')
+          pose.applyGarden(
+            true,
+            workerPoses.sampleWorkerGesture('garden', step * 0.5, gesture),
+            1 / 30,
+            true
+          );
+        else
+          pose.applyDuty(
+            mode,
+            workerPoses.sampleWorkerGesture(mode, step * 0.5, gesture),
+            step / 11
+          );
+        measure();
+      }
+    pose.restore();
+    process.stdout.write(
+      JSON.stringify({
+        bodyType,
+        footwearTriangles: craft.addedTriangles,
+        poseSamples: samples,
+        lowerContact,
+        attachmentGap,
+        outerSigned,
+        gapAt,
+        buriedAt,
+      }) + '\n'
+    );
+    expect(samples).toBeGreaterThanOrEqual(204);
+    expect(lowerContact, 'neither foot acquires a lower posed sole').toBe(0);
+    expect(
+      attachmentGap,
+      'fitted trim stays within 5mm of its actual posed donor ' +
+        JSON.stringify({ gapAt, buriedAt, outerSigned })
+    ).toBeLessThanOrEqual(0.005);
+    expect(outerSigned, 'outer fittings remain above the posed donor surface').toBeGreaterThan(0);
+    mixer.stopAllAction();
+    mixer.uncacheRoot(model);
+    expect(distant.map((mesh) => attributes(mesh.geometry))).toEqual(farBefore);
+    expect(distant.length).toBe(2);
+    expect(attributes(original)).toBe(sourceBefore);
+    const second = createWorkerFootwear({ ...foot, geometry: original } as typeof foot, kind)!;
+    expect(second).not.toBeNull();
+    expect(second).not.toBe(fitted);
+    expect(attributes(second)).toBe(attributes(fitted));
+    const malformed = original.clone();
+    malformed.deleteAttribute('skinWeight');
+    foot.geometry = malformed;
+    expect(createWorkerFootwear(foot, kind)).toBeNull();
+    expect(attributes(original)).toBe(sourceBefore);
+    fitted.dispose();
+    second.dispose();
+    malformed.dispose();
+    material.dispose();
+    lod!.dispose();
   }
 );
