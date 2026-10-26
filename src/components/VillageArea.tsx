@@ -19,6 +19,8 @@ import { BusinessBrandMark } from './scenery/HeritageSignage';
 import * as THREE from 'three';
 import { applyWaterRipples, applyFountainFoam } from '../utils/waterAppearance';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { useDracoGLTF } from '../utils/dracoLoader';
+import { GENERATED_ASSET_PATHS } from '../utils/modelLoader';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import Fireflies from './effects/Fireflies';
 import { Cat } from './scenery/Cat';
@@ -82,8 +84,10 @@ import {
   creatureForageWeight,
   creaturePoseBlend,
   creaturePerchLook,
+  createDuckWaterLife,
   duckSwimPose,
   fountainRippleScale,
+  sampleDuckWaterLife,
 } from '../simulation/creatureMotion';
 
 // ============================================================
@@ -1533,6 +1537,48 @@ const DuckPrimitiveBody = React.memo(() => (
 ));
 DuckPrimitiveBody.displayName = 'DuckPrimitiveBody';
 
+export const DUCK_WAKE_SIZE = 0.72;
+export const DUCK_WAKE_WATER_OFFSET = 0.0006;
+
+/** Only the authored pond has the ducks' 0.35m datum; its fallback is at 0.19m.
+ * Share the existing cache read and suppress contact on that different fallback.
+ * Working if a failed pond never leaves a ripple floating above its water.
+ */
+const DuckWaterContact = React.forwardRef<
+  THREE.Mesh,
+  { delay: number; materialRef: React.Ref<THREE.MeshStandardMaterial> }
+>(({ delay, materialRef }, ref) => {
+  useDracoGLTF(GENERATED_ASSET_PATHS.duckpond);
+  return (
+    <mesh
+      ref={ref}
+      name={`duck-waterline-${delay}`}
+      visible={false}
+      position={[0, DUCK_WAKE_WATER_OFFSET, -0.08]}
+      rotation={[-Math.PI / 2, 0, 0]}
+      raycast={() => undefined}
+      receiveShadow
+    >
+      <planeGeometry args={[DUCK_WAKE_SIZE, DUCK_WAKE_SIZE]} />
+      {/* Shared soft water raster, lit matter rather than an emissive halo. */}
+      <meshStandardMaterial
+        ref={materialRef}
+        color="#adcac5"
+        map={FOUNTAIN_WATER_TEXTURES.ripple}
+        roughness={0.3}
+        metalness={0}
+        transparent
+        opacity={0}
+        depthWrite={false}
+        polygonOffset
+        polygonOffsetFactor={POLYGON_OFFSET.subtle.factor}
+        polygonOffsetUnits={POLYGON_OFFSET.subtle.units}
+      />
+    </mesh>
+  );
+});
+DuckWaterContact.displayName = 'DuckWaterContact';
+
 export const Duck = React.memo<{
   position: [number, number, number];
   delay: number;
@@ -1542,9 +1588,12 @@ export const Duck = React.memo<{
   const animationTime = useRef(0);
   const groupRef = useRef<THREE.Group>(null);
   const rigRef = useRef<CreatureRigHandle>(null);
+  const wakeRef = useRef<THREE.Mesh>(null);
+  const wakeMaterialRef = useRef<THREE.MeshStandardMaterial>(null);
+  const waterLife = useRef(createDuckWaterLife());
   const dabbleRef = useRef(0);
   const poseElapsed = useRef(0);
-  const shakenRef = useRef(false);
+  const headYawRef = useRef(0);
   const [isExcited, setIsExcited] = React.useState(false);
 
   // Elapsed active time keeps the existing .12-at-15Hz blend across display
@@ -1565,9 +1614,14 @@ export const Duck = React.memo<{
         groupRef.current.position.set(...position);
         groupRef.current.rotation.y = 0;
       }
-      if (shakenRef.current) {
+      if (wakeRef.current) {
+        wakeRef.current.position.y = DUCK_WAKE_WATER_OFFSET;
+        wakeRef.current.visible = false;
+      }
+      if (wakeMaterialRef.current) wakeMaterialRef.current.opacity = 0;
+      if (headYawRef.current !== 0) {
         rigRef.current?.setHeadShake(0);
-        shakenRef.current = false;
+        headYawRef.current = 0;
       }
       return;
     }
@@ -1586,7 +1640,7 @@ export const Duck = React.memo<{
 
     const swim = duckSwimPose(time, 800 + delay);
     let yOffset = Math.sin(time * 2 + delay) * 0.02;
-    let rotOffset = swim.heading + Math.sin(time * 0.5 + delay) * 0.06;
+    let rotOffset = swim.heading + (swim.swimming ? Math.sin(time * 0.5 + delay) * 0.06 : 0);
     groupRef.current.position.x = position[0] + swim.x;
     groupRef.current.position.z = position[2] + swim.z;
 
@@ -1597,6 +1651,22 @@ export const Duck = React.memo<{
 
     groupRef.current.position.y = position[1] + yOffset;
     groupRef.current.rotation.y = rotOffset;
+
+    const contact = sampleDuckWaterLife(
+      time,
+      800 + delay,
+      swim,
+      dabbleRef.current,
+      waterLife.current
+    );
+    if (wakeRef.current && wakeMaterialRef.current) {
+      // The bird bobs and hops; its wake remains on the original water plane.
+      // Working if world Y is unchanged by either ordinary bob or pet response.
+      wakeRef.current.position.set(0, DUCK_WAKE_WATER_OFFSET - yOffset, -contact.aft);
+      wakeRef.current.scale.set(contact.scale, contact.scale * contact.stretch, 1);
+      wakeRef.current.visible = contact.opacity > 0;
+      wakeMaterialRef.current.opacity = contact.opacity;
+    }
 
     // Dabbling. `stride` stays unused for this species - a bird floating on a
     // pond has nothing to swing its legs against - so the neck is the whole of
@@ -1614,10 +1684,10 @@ export const Duck = React.memo<{
     // Shake first, graze second: every setter on the handle rebuilds the whole
     // pose from the rest quaternions and calls `updateMatrixWorld`, so writing
     // both unconditionally would double this bird's rig cost to no effect.
-    // The shake is written only while it is live, plus once more to clear it.
-    if (isExcited) rig.setHeadShake(Math.sin(time * 20) * 0.3);
-    else if (shakenRef.current) rig.setHeadShake(0);
-    shakenRef.current = isExcited;
+    // Brief attention shares this yaw channel; the pet response keeps precedence.
+    const headYaw = isExcited ? Math.sin(time * 20) * 0.3 : contact.look;
+    if (headYaw !== headYawRef.current) rig.setHeadShake(headYaw);
+    headYawRef.current = headYaw;
     rig.setGraze(dabbleRef.current);
   });
 
@@ -1627,8 +1697,9 @@ export const Duck = React.memo<{
       groupRef.current.position.y = position[1];
       groupRef.current.rotation.y = duckSwimPose(animationTime.current, 800 + delay).heading;
     }
-    if (shakenRef.current) rigRef.current?.setHeadShake(0);
-    shakenRef.current = false;
+    if (wakeRef.current) wakeRef.current.position.y = DUCK_WAKE_WATER_OFFSET;
+    if (headYawRef.current !== 0) rigRef.current?.setHeadShake(0);
+    headYawRef.current = 0;
   }, [isExcited, position, delay]);
 
   // Reset excitement
@@ -1660,6 +1731,9 @@ export const Duck = React.memo<{
       onPointerOver={setPointerCursor}
       onPointerOut={resetCursor}
     >
+      <GeneratedBoundary fallback={null}>
+        <DuckWaterContact ref={wakeRef} materialRef={wakeMaterialRef} delay={delay} />
+      </GeneratedBoundary>
       {/* The delivery is grounded at the feet. Sink its lower 15 cm so the
           breast meets water; keep the original half-submerged fallback sphere.
           Working if feet stay below the pond while the bill and back remain dry. */}

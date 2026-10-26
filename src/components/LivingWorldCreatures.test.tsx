@@ -1,5 +1,5 @@
 import React from 'react';
-import { cleanup, fireEvent, render } from '@testing-library/react';
+import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { useFrame } from '@react-three/fiber';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
@@ -14,6 +14,9 @@ import {
   sampleHorseRest,
   createSheepRestPose,
   sampleSheepRest,
+  createDuckWaterLife,
+  sampleDuckWaterLife,
+  duckSwimPose,
 } from '../simulation/creatureMotion';
 import {
   BlacksmithHorse,
@@ -21,6 +24,8 @@ import {
   FountainBird,
   FOUNTAIN_WATER_TEXTURES,
   Duck,
+  DUCK_WAKE_WATER_OFFSET,
+  DUCK_WAKE_SIZE,
   FOUNTAIN_BIRD_GEOMETRIES,
   FOUNTAIN_BIRD_MATERIAL,
   FOUNTAIN_BIRD_TOE_CONTACTS,
@@ -424,6 +429,7 @@ it('uses elapsed active time for actual duck dabbling across display rates and c
     boundary.throttle = fps / 15;
     boundary.frame = 0;
     boundary.graze.length = 0;
+    boundary.rigAngles.length = 0;
     // React DOM supplies elements rather than R3F Object3Ds. Attach the existing
     // Three transform surface during layout, before the duck's passive effect.
     function DuckFixture() {
@@ -432,6 +438,10 @@ it('uses elapsed active time for actual duck dabbling across display rates and c
         Object.assign(host.current!.querySelector('[name="village-duck-0"]')!, {
           position: new THREE.Vector3(2, 1.08, 1),
           rotation: new THREE.Euler(),
+        });
+        Object.assign(host.current!.querySelector('[name="duck-waterline-0"]')!, {
+          position: new THREE.Vector3(0, DUCK_WAKE_WATER_OFFSET, 0),
+          scale: new THREE.Vector3(1, 1, 1),
         });
       }, []);
       return (
@@ -442,11 +452,24 @@ it('uses elapsed active time for actual duck dabbling across display rates and c
     }
     const view = render(<DuckFixture />);
     const root = view.container.querySelector('[name="village-duck-0"]')! as unknown as THREE.Group;
+    const wake = view.container.querySelector(
+      '[name="duck-waterline-0"]'
+    )! as unknown as THREE.Mesh;
+    const material = view.container.querySelector(
+      '[name="duck-waterline-0"] meshstandardmaterial'
+    )! as unknown as THREE.MeshStandardMaterial;
     const tick = (delta: number) => {
       const callback = vi.mocked(useFrame).mock.calls.at(-1)![0];
       callback({} as Parameters<typeof callback>[0], delta);
     };
-    for (let i = 0; i < fps * 60; i++) tick(1 / fps);
+    let maxWake = 0;
+    for (let i = 0; i < fps * 60; i++) {
+      tick(1 / fps);
+      expect(root.position.y + wake.position.y).toBeCloseTo(1.08 + DUCK_WAKE_WATER_OFFSET, 10);
+      maxWake = Math.max(maxWake, material.opacity || 0);
+    }
+    expect(maxWake).toBeGreaterThan(0.05);
+    expect(boundary.rigAngles.some((angle) => Math.abs(angle) > 0.03)).toBe(true);
     const result = { graze: boundary.graze.at(-1)!, position: root.position.clone() };
     expect(boundary.graze.length).toBe(900);
     expect(Math.hypot(root.position.x - 2, root.position.z - 1)).toBeLessThanOrEqual(0.400001);
@@ -456,9 +479,13 @@ it('uses elapsed active time for actual duck dabbling across display rates and c
     tick(0.1);
     const held = root.position.clone(),
       count = boundary.graze.length;
+    const heldWake = [...wake.position.toArray(), ...wake.scale.toArray(), material.opacity];
     for (let i = 0; i < 20; i++) tick(0.1);
     expect(root.position.equals(held)).toBe(true);
     expect(boundary.graze).toHaveLength(count);
+    expect([...wake.position.toArray(), ...wake.scale.toArray(), material.opacity]).toEqual(
+      heldWake
+    );
     useGameSimulationStore.setState({ gameSpeed: 1, isTabVisible: false });
     tick(10);
     expect(boundary.graze).toHaveLength(count);
@@ -471,6 +498,8 @@ it('uses elapsed active time for actual duck dabbling across display rates and c
     view.rerender(<DuckFixture />);
     tick(0.1);
     expect(root.position.toArray()).toEqual([2, 1.08, 1]);
+    expect(material.opacity).toBe(0);
+    expect(wake.position.y).toBe(DUCK_WAKE_WATER_OFFSET);
     boundary.reducedMotion = false;
     useGameSimulationStore.setState({ gameSpeed: 1 });
     view.unmount();
@@ -1743,3 +1772,100 @@ it('composes hen walking with actual graze/head/pet channels under a turned and 
   view.unmount();
   cloned.mockRestore();
 });
+
+it('keeps duck contact water fixed through the existing paused pet hop and release', () => {
+  const original = useGameSimulationStore.getState();
+  vi.useFakeTimers();
+  useGameSimulationStore.setState({ gameSpeed: 0, isTabVisible: true });
+  function Fixture() {
+    const host = React.useRef<HTMLDivElement>(null);
+    React.useLayoutEffect(() => {
+      Object.assign(host.current!.querySelector('[name="village-duck-0"]')!, {
+        position: new THREE.Vector3(2, 0.35, 1),
+        rotation: new THREE.Euler(),
+      });
+      Object.assign(host.current!.querySelector('[name="duck-waterline-0"]')!, {
+        position: new THREE.Vector3(0, DUCK_WAKE_WATER_OFFSET, 0),
+        scale: new THREE.Vector3(1, 1, 1),
+      });
+    }, []);
+    return (
+      <div ref={host}>
+        <Duck position={[2, 0.35, 1]} delay={0} onClick={() => {}} />
+      </div>
+    );
+  }
+  try {
+    const view = render(<Fixture />);
+    const root = view.container.querySelector('[name="village-duck-0"]')! as unknown as THREE.Group;
+    const wake = view.container.querySelector(
+      '[name="duck-waterline-0"]'
+    )! as unknown as THREE.Mesh;
+    fireEvent.click(root as unknown as Element);
+    for (let i = 0; i < 15; i++) {
+      const callback = vi.mocked(useFrame).mock.calls.at(-1)![0];
+      callback({} as Parameters<typeof callback>[0], 1 / 30);
+      expect(root.position.y + wake.position.y).toBeCloseTo(0.35 + DUCK_WAKE_WATER_OFFSET, 10);
+    }
+    expect(root.position.y).toBeGreaterThan(0.35);
+    expect(playCritterSound).toHaveBeenCalledWith('duck');
+    act(() => vi.advanceTimersByTime(1100));
+    expect(root.position.y).toBe(0.35);
+    expect(wake.position.y).toBe(DUCK_WAKE_WATER_OFFSET);
+  } finally {
+    vi.useRealTimers();
+    useGameSimulationStore.setState({
+      gameSpeed: original.gameSpeed,
+      isTabVisible: original.isTabVisible,
+    });
+  }
+});
+
+it('keeps the complete contact planes inside the existing pond bank over all retained swim lanes', () => {
+  const water = createDuckWaterLife();
+  const anchors = [
+    [2, 1],
+    [-1, -2],
+    [0, 2],
+    [1.5, -1.5],
+  ];
+  for (let t = 0; t < 120; t += 0.1)
+    for (const [i, [x, z]] of anchors.entries()) {
+      const swim = duckSwimPose(t, 800 + i);
+      sampleDuckWaterLife(t, 800 + i, swim, 1, water);
+      const halfDiagonal =
+        (DUCK_WAKE_SIZE / 2) * Math.hypot(water.scale, water.scale * water.stretch);
+      expect(Math.hypot(x + swim.x, z + swim.z) + halfDiagonal + Math.abs(water.aft)).toBeLessThan(
+        4.635
+      );
+    }
+});
+
+it.each([false, true])(
+  'only draws authored-water contact when the pond is available (fallback=%s)',
+  (fallback) => {
+    boundary.fallback = fallback;
+    function Fixture() {
+      const host = React.useRef<HTMLDivElement>(null);
+      React.useLayoutEffect(() => {
+        Object.assign(host.current!.querySelector('[name="village-duck-0"]')!, {
+          position: new THREE.Vector3(2, 0.35, 1),
+          rotation: new THREE.Euler(),
+        });
+        const wake = host.current!.querySelector('[name="duck-waterline-0"]');
+        if (wake)
+          Object.assign(wake, { position: new THREE.Vector3(), scale: new THREE.Vector3(1, 1, 1) });
+      }, []);
+      return (
+        <div ref={host}>
+          <Duck position={[2, 0.35, 1]} delay={0} onClick={() => {}} />
+        </div>
+      );
+    }
+    const view = render(<Fixture />);
+    expect(view.container.querySelectorAll('[name="village-duck-0"]')).toHaveLength(1);
+    expect(view.container.querySelectorAll('[name="duck-waterline-0"]')).toHaveLength(
+      fallback ? 0 : 1
+    );
+  }
+);

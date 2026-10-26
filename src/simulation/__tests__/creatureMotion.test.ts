@@ -12,6 +12,8 @@ import {
   creaturePoseBlend,
   creatureTravelDistance,
   fountainRippleScale,
+  createDuckWaterLife,
+  sampleDuckWaterLife,
 } from '../creatureMotion';
 
 describe('creature ground motion and individuality', () => {
@@ -75,6 +77,68 @@ describe('generated fountain ripple contact', () => {
 });
 
 describe('quiet animal life between purposeful bouts', () => {
+  it('derives duck wake speed from the unchanged actual swim trajectory', () => {
+    for (let seed = 800; seed < 804; seed++)
+      for (let t = 0.1; t < 120; t += 0.2) {
+        const a = duckSwimPose(t - 0.0001, seed),
+          b = duckSwimPose(t + 0.0001, seed),
+          p = duckSwimPose(t, seed);
+        expect(p.speed).toBeCloseTo(Math.hypot(b.x - a.x, b.z - a.z) / 0.0002, 6);
+        expect(p.speed).toBeGreaterThanOrEqual(0);
+        expect(p.speed).toBeLessThan(0.08);
+      }
+  });
+
+  it('gives quiet head-up attention without perpetual foam or bill-down swivelling', () => {
+    const out = createDuckWaterLife();
+    const resting = { swimming: false, speed: 0 };
+    let quiet = 0,
+      looks = 0;
+    for (let i = 1; i < 1200; i++) {
+      const t = i / 10;
+      expect(sampleDuckWaterLife(t, 800, resting, 0, out)).toBe(out);
+      expect(out.opacity).toBe(0);
+      expect(Math.abs(out.look)).toBeLessThanOrEqual(0.18);
+      if (out.look === 0) quiet++;
+      else looks++;
+      sampleDuckWaterLife(t, 800, resting, 1, out);
+      expect(out.look).toBe(0);
+      expect(out.aft).toBeLessThan(0);
+      expect(out.opacity).toBeGreaterThanOrEqual(0);
+      expect(out.opacity).toBeLessThanOrEqual(0.136);
+    }
+    expect(quiet).toBeGreaterThan(850);
+    expect(looks).toBeGreaterThan(100);
+    for (const time of [0, -1, NaN, Infinity]) {
+      sampleDuckWaterLife(time, 800, resting, 1, out);
+      expect(out).toEqual(createDuckWaterLife());
+    }
+  });
+
+  it('fades every expansion wrap and keeps seeded copies independent', () => {
+    const out = createDuckWaterLife(),
+      other = createDuckWaterLife();
+    sampleDuckWaterLife(4, 801, { swimming: true, speed: 0.06 }, 0, other);
+    const saved = { ...other };
+    let wraps = 0,
+      previousScale = 0;
+    for (let i = 1; i < 4000; i++) {
+      sampleDuckWaterLife(i / 100, 800, { swimming: true, speed: 0.06 }, 0, out);
+      expect(out.look).toBe(0);
+      expect(out.opacity).toBeGreaterThanOrEqual(0);
+      expect(out.opacity).toBeLessThanOrEqual(0.17);
+      expect(out.scale).toBeGreaterThanOrEqual(0.5);
+      expect(out.scale).toBeLessThan(1.65);
+      if (out.scale < previousScale) {
+        expect(out.opacity).toBeLessThan(0.00005);
+        wraps++;
+      }
+      previousScale = out.scale;
+    }
+    expect(wraps).toBeGreaterThan(15);
+    expect(other).toEqual(saved);
+  });
+
   it('gives every animal both full feeding and head-up rest, on distinct schedules', () => {
     const schedules = [100, 101, 200, 300, 400, 401, 500].map((seed) => {
       const values = Array.from({ length: 600 }, (_, i) => creatureForageWeight(i / 5, seed));

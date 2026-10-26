@@ -166,10 +166,55 @@ export function duckSwimPose(time: number, seed: number) {
   };
   const start = sample(0);
   const current = sample(time);
+  const progress = Math.min(1, ((Math.max(0, time) + offset) % period) / (period * 0.62));
   return {
     x: current.x - start.x,
     z: current.z - start.z,
     heading: Math.PI / 2 + current.angle,
     swimming: current.swimming,
+    // Derivative of the retained circle, in metres per admitted duck-clock second.
+    speed: current.swimming
+      ? (0.2 * 6 * progress * (1 - progress) * Math.PI * 2) / (period * 0.62)
+      : 0,
   };
+}
+
+export const createDuckWaterLife = () => ({
+  look: 0,
+  opacity: 0,
+  scale: 0.5,
+  stretch: 1,
+  aft: 0.08,
+});
+
+/** Water contact follows admitted travel/bill motion, never an independent clock.
+ * Working if stationary head-up birds leave no foam and each wrap is invisible.
+ */
+export function sampleDuckWaterLife(
+  time: number,
+  seed: number,
+  swim: Pick<ReturnType<typeof duckSwimPose>, 'swimming' | 'speed'>,
+  dabble: number,
+  out: ReturnType<typeof createDuckWaterLife>
+) {
+  out.look = out.opacity = 0;
+  out.scale = 0.5;
+  out.stretch = 1;
+  out.aft = 0.08;
+  if (!Number.isFinite(time) || time <= 0) return out;
+  const identity = Number.isFinite(seed) ? seed : 0;
+  const phase = (time * 0.48 + sampleAmbientSequence(identity, 84)) % 1;
+  const travel = Number.isFinite(swim.speed) ? Math.max(0, Math.min(1, swim.speed / 0.06)) : 0;
+  const bill = Number.isFinite(dabble) ? Math.max(0, Math.min(1, (dabble - 0.55) / 0.35)) : 0;
+  const billContact = bill * bill * (3 - 2 * bill);
+  const look = swim.swimming
+    ? 0
+    : creaturePerchLook(time, identity + 900) * 0.45 * (1 - billContact);
+  out.look = look === 0 ? 0 : look;
+  out.opacity = 0.17 * Math.max(travel, billContact * 0.8) * Math.sin(phase * Math.PI) ** 2;
+  out.scale = 0.5 + phase * 1.15;
+  out.stretch = 1 + travel * 0.25;
+  // A swim leaves stern contact; a stopped feeding bird disturbs water at its bill.
+  out.aft = 0.08 + travel * 0.18 - billContact * (1 - travel) * 0.3;
+  return out;
 }
