@@ -36,6 +36,41 @@ describe('MillOS soundtrack lyrics', () => {
     }
   });
 
+  it('never stacks words on one onset or holds an unheard word lit', () => {
+    for (const sheet of MILLOS_SOUNDTRACK_LYRICS) {
+      const words = sheet.lines.flatMap((line) => line.words);
+      words.forEach((word, index) => {
+        const start = word.startSeconds ?? 0;
+        const end = word.endSeconds ?? 0;
+        expect(end, `${sheet.title} "${word.text}"`).toBeGreaterThan(start);
+        if (word.timing === 'interpolated') expect(end - start).toBeLessThanOrEqual(1.2 + 1e-9);
+        if (index > 0) expect(start).toBeGreaterThan(words[index - 1].startSeconds ?? 0);
+      });
+    }
+  });
+
+  it('keeps the karaoke highlight moving through every song', () => {
+    // Whisper's collapsed timestamps once held "Grain at the Gate" on one line
+    // for 175 s. Sweep each song at the player's 10 Hz tick.
+    for (const sheet of MILLOS_SOUNDTRACK_LYRICS) {
+      const words = sheet.lines.flatMap((line) => line.words);
+      const songEnd = (words.at(-1)?.endSeconds ?? 0) + 5;
+      let heldLine = -1;
+      let heldSince = 0;
+      let longestHold = 0;
+      for (let tick = 0; tick * 0.1 < songEnd; tick += 1) {
+        const position = tick * 0.1;
+        const lineIndex = findActiveMillosLyricWord(sheet, position)?.lineIndex ?? -1;
+        if (lineIndex !== heldLine || lineIndex < 0) {
+          heldLine = lineIndex;
+          heldSince = position;
+        }
+        if (lineIndex >= 0) longestHold = Math.max(longestHold, position - heldSince);
+      }
+      expect(longestHold, sheet.title).toBeLessThan(15);
+    }
+  });
+
   it('selects the active karaoke word from playback position', () => {
     const sheet = getMillosSoundtrackLyrics(2);
     const firstWord = sheet.lines.flatMap((line) => line.words)[0];
