@@ -93,7 +93,7 @@
     "@vitejs/plugin-react-swc": "^4.2.2",
     "@vitest/coverage-v8": "^4.1.12",
     "autoprefixer": "^10.4.23",
-    "draco3dgltf": "^1.5.7",
+    "draco3dgltf": "^1.5.9",
     "eslint": "^10.8.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^16.5.0",
