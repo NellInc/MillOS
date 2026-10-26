@@ -785,3 +785,96 @@ it('takes the vessel shells off their near-mirror roughness map and gives them a
   flat.dispose();
   orm.dispose();
 });
+
+it('owns a private formed grill from the actual delivered box and disposes each clone without touching cached resources', async () => {
+  const doc = await new NodeIO().read('public/models/world/station-grill.glb');
+  const node = doc
+    .getRoot()
+    .listNodes()
+    .find((n) => n.getMesh())!;
+  const primitive = node.getMesh()!.listPrimitives()[0];
+  const geometry = new THREE.BufferGeometry();
+  for (const [name, semantic] of [
+    ['position', 'POSITION'],
+    ['normal', 'NORMAL'],
+    ['uv', 'TEXCOORD_0'],
+    ['color', 'COLOR_0'],
+  ] as const) {
+    const attr = primitive.getAttribute(semantic)!;
+    geometry.setAttribute(name, new THREE.BufferAttribute(attr.getArray()!, attr.getElementSize()));
+  }
+  geometry.setIndex(Array.from(primitive.getIndices()!.getArray()!));
+  const saved = Object.fromEntries(
+    Object.entries(geometry.attributes).map(([name, a]) => [name, Array.from(a.array)])
+  );
+  const map = new THREE.Texture(),
+    normalMap = new THREE.Texture(),
+    orm = new THREE.Texture();
+  const material = new THREE.MeshStandardMaterial({
+    map,
+    normalMap,
+    roughnessMap: orm,
+    metalnessMap: orm,
+    side: primitive.getMaterial()!.getDoubleSided() ? THREE.DoubleSide : THREE.FrontSide,
+    vertexColors: true,
+    roughness: 0.6,
+    metalness: 0.5,
+  });
+  const source = new THREE.Group(),
+    body = new THREE.Mesh(geometry, material);
+  body.name = node.getName();
+  body.applyMatrix4(new THREE.Matrix4().fromArray(node.getWorldMatrix()));
+  source.add(body);
+  holder.scene = source;
+  const clones: THREE.Mesh[] = [],
+    original = source.clone.bind(source);
+  vi.spyOn(source, 'clone').mockImplementation((recursive) => {
+    const clone = original(recursive);
+    clones.push(clone.getObjectByName(body.name) as THREE.Mesh);
+    return clone;
+  });
+  const cachedGeometry = vi.spyOn(geometry, 'dispose'),
+    cachedMaterial = vi.spyOn(material, 'dispose');
+  const textureDisposals = [map, normalMap, orm].map((t) => vi.spyOn(t, 'dispose'));
+  const first = render(<GeneratedModel asset="stationGrill" />),
+    second = render(<GeneratedModel asset="stationGrill" />);
+  expect(clones).toHaveLength(2);
+  expect(clones[0].geometry).not.toBe(geometry);
+  expect(clones[1].geometry).not.toBe(clones[0].geometry);
+  for (const clone of clones) {
+    expect(clone.geometry.getAttribute('position').count / 3).toBe(412);
+    expect(clone.position).toEqual(body.position);
+    expect(clone.scale).toEqual(body.scale);
+    expect(clone.quaternion.toArray()).toEqual(body.quaternion.toArray());
+    const paint = clone.material as THREE.MeshStandardMaterial;
+    expect(paint).not.toBe(material);
+    expect(paint.side).toBe(THREE.FrontSide);
+    expect(material.side).toBe(THREE.DoubleSide);
+    expect(paint.map).toBe(map);
+    expect(paint.normalMap).toBe(normalMap);
+    expect(paint.roughnessMap).toBe(orm);
+    expect(paint.metalnessMap).toBe(orm);
+    expect(paint.roughness).toBe(material.roughness);
+    expect(paint.metalness).toBe(material.metalness);
+  }
+  const privateGeometry = clones.map((m) => vi.spyOn(m.geometry, 'dispose'));
+  const privateMaterial = clones.map((m) => vi.spyOn(m.material as THREE.Material, 'dispose'));
+  first.unmount();
+  expect(privateGeometry[0]).toHaveBeenCalledTimes(1);
+  expect(privateMaterial[0]).toHaveBeenCalledTimes(1);
+  expect(privateGeometry[1]).not.toHaveBeenCalled();
+  expect(privateMaterial[1]).not.toHaveBeenCalled();
+  second.unmount();
+  expect(privateGeometry[1]).toHaveBeenCalledTimes(1);
+  expect(privateMaterial[1]).toHaveBeenCalledTimes(1);
+  expect(cachedGeometry).not.toHaveBeenCalled();
+  expect(cachedMaterial).not.toHaveBeenCalled();
+  for (const disposal of textureDisposals) expect(disposal).not.toHaveBeenCalled();
+  for (const [name, values] of Object.entries(saved))
+    expectSameArray(geometry.getAttribute(name).array, new Float32Array(values));
+  geometry.dispose();
+  material.dispose();
+  map.dispose();
+  normalMap.dispose();
+  orm.dispose();
+});

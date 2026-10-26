@@ -2950,7 +2950,10 @@ export const FarmArea: React.FC = () => {
           groupRef={chickenRefs[i]}
           animRef={chickenAnimRefs[i]}
           rigRef={chickenRigRefs[i]}
-          onClick={() => handlePet(c.pos, 'chicken', i)}
+          onClick={() => {
+            const current = chickenRefs[i].current?.position;
+            handlePet(current ? [current.x, current.y, current.z] : c.pos, 'chicken', i);
+          }}
         />
       ))}
       <group position={[-12, 0, -5]}>
@@ -2995,7 +2998,10 @@ export const FarmArea: React.FC = () => {
           groupRef={pigRefs[i]}
           tailRef={pigTailRefs[i]}
           rigRef={pigRigRefs[i]}
-          onClick={() => handlePet(p.pos, 'pig', i)}
+          onClick={() => {
+            const current = pigRefs[i].current?.position;
+            handlePet(current ? [current.x, current.y, current.z] : p.pos, 'pig', i);
+          }}
         />
       ))}
 
@@ -3026,7 +3032,10 @@ export const FarmArea: React.FC = () => {
           groupRef={cowRefs[i]}
           headRef={cowHeadRefs[i]}
           rigRef={cowRigRefs[i]}
-          onClick={() => handlePet(c.pos, 'cow', i)}
+          onClick={() => {
+            const current = cowRefs[i].current?.position;
+            handlePet(current ? [current.x, current.y, current.z] : c.pos, 'cow', i);
+          }}
         />
       ))}
 

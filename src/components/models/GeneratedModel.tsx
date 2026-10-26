@@ -12,7 +12,7 @@
  * walk, and none of them has a skin. Geometry and textures are shared by the
  * clone. Village glazing clones materials for the shared night-lighting shader;
  * explicit market cloth clones only colour attributes and its material; all atlas
- * textures remain shared. Station bodies clone owned palette/rounded-canopy geometry. Barn joinery uses
+ * textures remain shared. Station bodies clone owned canopy/pump/formed-grill geometry. Barn joinery uses
  * one owned merged geometry, retaining its source roof, cupola and floor.
  */
 
@@ -206,13 +206,16 @@ export const GeneratedModel: React.FC<GeneratedModelProps> = ({
         }
       }
       if (
-        (asset === 'stationCanopy' || asset === 'fuelPumpShell') &&
+        (asset === 'stationCanopy' || asset === 'fuelPumpShell' || asset === 'stationGrill') &&
         mesh.material instanceof THREE.MeshStandardMaterial
       ) {
         const geometry = createPosterStationGeometry(mesh.geometry, asset);
         if (geometry !== mesh.geometry) {
           const material = mesh.material.clone();
           material.vertexColors = true;
+          // The closed grill base contacts the cupboard top; its backface must
+          // not compete with that outward surface. Cached source stays shared.
+          if (asset === 'stationGrill') material.side = THREE.FrontSide;
           // Enamel catches existing sky/forecourt lamps on this owned clone.
           // Working if cached maps stay shared and no light/shader is added.
           if (asset === 'fuelPumpShell') {

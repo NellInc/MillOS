@@ -133,17 +133,240 @@ function projectStationUV(source: THREE.BufferGeometry, target: THREE.BufferGeom
   }
 }
 
-/** One opaque canopy body: rounded plan corners, cream soffit and red top lip.
+/** The grill's twelve source triangles occupy separate atlas islands. Split
+ * only this derivative at those actual chart edges before assigning UVs, so a
+ * new triangle can never interpolate through another island. */
+function splitGrillAtlas(source: THREE.BufferGeometry, target: THREE.BufferGeometry) {
+  type Vertex = { position: THREE.Vector3; normal: THREE.Vector3 };
+  type Chart = { triangle: THREE.Triangle; uv: THREE.Vector2[] };
+  const sp = source.getAttribute('position'),
+    sn = source.getAttribute('normal'),
+    su = source.getAttribute('uv');
+  const tp = target.getAttribute('position'),
+    tn = target.getAttribute('normal');
+  const charts = new Map<string, Chart[]>();
+  for (let i = 0; i < sp.count; i += 3) {
+    const normal = new THREE.Vector3().fromBufferAttribute(sn, i);
+    const axis = normal.toArray().findIndex((v) => Math.abs(v) > 0.99999);
+    const key = `${axis}:${Math.sign(normal.getComponent(axis))}`;
+    const points = [0, 1, 2].map((k) => new THREE.Vector3().fromBufferAttribute(sp, i + k));
+    const chart = {
+      triangle: new THREE.Triangle(points[0], points[1], points[2]),
+      uv: [0, 1, 2].map((k) => new THREE.Vector2(su.getX(i + k), su.getY(i + k))),
+    };
+    charts.set(key, [...(charts.get(key) ?? []), chart]);
+  }
+  const positions: number[] = [],
+    normals: number[] = [],
+    uvs: number[] = [];
+  for (let i = 0; i < tp.count; i += 3) {
+    const vertices = [0, 1, 2].map((k) => ({
+      position: new THREE.Vector3().fromBufferAttribute(tp, i + k),
+      normal: new THREE.Vector3().fromBufferAttribute(tn, i + k),
+    }));
+    const faceNormal = new THREE.Triangle(
+      vertices[0].position,
+      vertices[1].position,
+      vertices[2].position
+    ).getNormal(new THREE.Vector3());
+    const magnitudes = faceNormal.toArray().map(Math.abs),
+      axis = magnitudes.indexOf(Math.max(...magnitudes));
+    const a = (axis + 1) % 3,
+      b = (axis + 2) % 3;
+    const cross = (u: THREE.Vector3, v: THREE.Vector3, p: THREE.Vector3) =>
+      (v.getComponent(a) - u.getComponent(a)) * (p.getComponent(b) - u.getComponent(b)) -
+      (v.getComponent(b) - u.getComponent(b)) * (p.getComponent(a) - u.getComponent(a));
+    for (const chart of charts.get(`${axis}:${Math.sign(faceNormal.getComponent(axis))}`) ?? []) {
+      const corners = [chart.triangle.a, chart.triangle.b, chart.triangle.c];
+      const sign = Math.sign(cross(...(corners as [THREE.Vector3, THREE.Vector3, THREE.Vector3])));
+      let polygon: Vertex[] = vertices;
+      for (let edge = 0; edge < 3; edge++) {
+        const u = corners[edge],
+          v = corners[(edge + 1) % 3],
+          next: Vertex[] = [];
+        for (let j = 0; j < polygon.length; j++) {
+          const from = polygon[j],
+            to = polygon[(j + 1) % polygon.length];
+          const d = cross(u, v, from.position) * sign,
+            e = cross(u, v, to.position) * sign;
+          if (d >= 0) next.push(from);
+          if (d >= 0 !== e >= 0) {
+            const t = d / (d - e);
+            next.push({
+              position: from.position.clone().lerp(to.position, t),
+              normal: from.normal.clone().lerp(to.normal, t).normalize(),
+            });
+          }
+        }
+        polygon = next;
+      }
+      for (let j = 1; j < polygon.length - 1; j++) {
+        const triangle = [polygon[0], polygon[j], polygon[j + 1]];
+        if (
+          new THREE.Triangle(
+            triangle[0].position,
+            triangle[1].position,
+            triangle[2].position
+          ).getArea() < Number.EPSILON
+        )
+          continue;
+        for (const vertex of triangle) {
+          positions.push(...vertex.position.toArray());
+          normals.push(...vertex.normal.toArray());
+          const projected = vertex.position
+              .clone()
+              .setComponent(axis, chart.triangle.a.getComponent(axis)),
+            bary = new THREE.Vector3();
+          chart.triangle.getBarycoord(projected, bary);
+          uvs.push(
+            chart.uv[0].x * bary.x + chart.uv[1].x * bary.y + chart.uv[2].x * bary.z,
+            chart.uv[0].y * bary.x + chart.uv[1].y * bary.y + chart.uv[2].y * bary.z
+          );
+        }
+      }
+    }
+  }
+  return new THREE.BufferGeometry()
+    .setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+    .setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3))
+    .setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+}
+
+/** Owned station bodies: rounded canopy/pump and formed roller-grill casing.
  * Working if roof/pump paint matches the poster, all fixture/body bounds stay
  * fixed, original UV charts/maps remain sampled and no extra body draw is added.
  */
 export function createPosterStationGeometry(
   source: THREE.BufferGeometry,
-  asset: 'stationCanopy' | 'fuelPumpShell'
+  asset: 'stationCanopy' | 'fuelPumpShell' | 'stationGrill'
 ) {
   if (!source.getAttribute('color')) return source;
   const original = source.index ? source.toNonIndexed() : source.clone();
   const colours = original.getAttribute('color');
+  if (asset === 'stationGrill') {
+    const position = original.getAttribute('position'),
+      normal = original.getAttribute('normal'),
+      uv = original.getAttribute('uv');
+    // This derivative owns the delivered plain cuboid only, never an unknown
+    // mesh, chartless source or differently painted appliance.
+    let compatible =
+      position?.count === 36 &&
+      normal?.count === 36 &&
+      uv?.count === 36 &&
+      colours.count === 36 &&
+      colours.itemSize === 3;
+    const faces = new Map<string, number>();
+    const paint = new THREE.Color(colours.getX(0), colours.getY(0), colours.getZ(0));
+    if (compatible) {
+      original.computeBoundingBox();
+      const bounds = original.boundingBox!,
+        size = bounds.getSize(new THREE.Vector3()),
+        centre = bounds.getCenter(new THREE.Vector3());
+      compatible =
+        size.toArray().every((v) => Number.isFinite(v) && v > 0) &&
+        Math.abs(size.x / size.y - 1.5) < 0.00001 &&
+        Math.abs(size.z / size.y - 1.25) < 0.00001;
+      for (let i = 0; compatible && i < position.count; i++) {
+        const p = new THREE.Vector3().fromBufferAttribute(position, i),
+          n = new THREE.Vector3().fromBufferAttribute(normal, i);
+        const axis = n.toArray().findIndex((v) => Math.abs(v) > 0.99999);
+        compatible =
+          axis >= 0 &&
+          Math.abs(Math.abs(n.x) + Math.abs(n.y) + Math.abs(n.z) - 1) < 0.00001 &&
+          p
+            .toArray()
+            .every(
+              (v, a) =>
+                Number.isFinite(v) &&
+                Math.abs(Math.abs(v - centre.getComponent(a)) - size.getComponent(a) / 2) <
+                  size.length() * 0.000001
+            ) &&
+          [uv.getX(i), uv.getY(i)].every((v) => Number.isFinite(v) && v >= 0 && v <= 1) &&
+          [colours.getX(i) - paint.r, colours.getY(i) - paint.g, colours.getZ(i) - paint.b].every(
+            (v) => Number.isFinite(v) && Math.abs(v) < 0.0000001
+          );
+        if (axis >= 0) {
+          const key = `${axis}:${Math.sign(n.getComponent(axis))}`;
+          faces.set(key, (faces.get(key) ?? 0) + 1);
+        }
+      }
+      compatible &&= faces.size === 6 && [...faces.values()].every((count) => count === 6);
+      if (compatible) {
+        const part = (
+          w: number,
+          h: number,
+          d: number,
+          x: number,
+          y: number,
+          z: number,
+          radius: number
+        ) =>
+          colored(
+            new RoundedBoxGeometry(
+              w * size.x,
+              h * size.y,
+              d * size.z,
+              1,
+              radius * size.y
+            ).translate(centre.x + x * size.x, bounds.min.y + y * size.y, centre.z + z * size.z),
+            '#ffffff'
+          );
+        // Formed casing, two seated roller-bearing cheeks and a pressed service
+        // field. Working if the original envelope/atlas remains exact while the
+        // cheek overlaps retain the actual roller ends and guard-post contacts.
+        const cheek = (x: number) => {
+          const d = size.z,
+            h = size.y * 0.15,
+            r = size.y * 0.01,
+            outline = new THREE.Shape();
+          const points = [
+            [-d / 2 + r, -h / 2],
+            [d / 2 - r, -h / 2],
+            [d / 2, -h / 2 + r],
+            [d / 2, h / 2 - r],
+            [d / 2 - r, h / 2],
+            [-d / 2 + r, h / 2],
+            [-d / 2, h / 2 - r],
+            [-d / 2, -h / 2 + r],
+          ];
+          points.forEach(([u, v], i) => (i ? outline.lineTo(u, v) : outline.moveTo(u, v)));
+          outline.closePath();
+          return colored(
+            new THREE.ExtrudeGeometry(outline, {
+              depth: size.x * 0.1,
+              bevelEnabled: false,
+              curveSegments: 1,
+            })
+              .rotateY(Math.PI / 2)
+              .translate(
+                centre.x + x * size.x - size.x * 0.05,
+                bounds.min.y + size.y * 0.925,
+                centre.z
+              ),
+            '#ffffff'
+          );
+        };
+        const casing = joined([
+          // One millimetre inside each cheek, avoiding overlapping outer planes.
+          part(0.598 / 0.6, 0.925, 0.972, 0, 0.4625, 0, 0.02),
+          cheek(-0.45),
+          cheek(0.45),
+          part(0.9, 0.7, 0.028, 0, 0.475, 0.486, 0.01),
+        ]);
+        const projected = colored(splitGrillAtlas(original, casing), '#ffffff');
+        casing.dispose();
+        const colour = projected.getAttribute('color');
+        for (let i = 0; i < colour.count; i++) colour.setXYZ(i, paint.r, paint.g, paint.b);
+        original.dispose();
+        projected.computeBoundingBox();
+        projected.computeBoundingSphere();
+        projected.userData.stationPoster = true;
+        return projected;
+      }
+    }
+    original.dispose();
+    return source;
+  }
   if (asset === 'fuelPumpShell') {
     original.computeBoundingBox();
     const bounds = original.boundingBox!;

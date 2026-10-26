@@ -34,6 +34,7 @@ import {
 } from './VillageArea';
 import {
   Scarecrow,
+  FarmArea,
   FARM_TROUGH_GEOMETRIES,
   FARM_CLUTTER,
   FARM_YARD_SIZE,
@@ -1975,3 +1976,43 @@ it('exposes fallback trough water through four walls while retaining its closed 
     material.dispose();
   }
 });
+
+it.each(['chicken', 'pig', 'cow'] as const)(
+  'spawns the roaming %s pet heart at its current farm-local root, with the original spawn as missing-ref fallback',
+  (species) => {
+    type PetChild = {
+      children?: React.ReactNode;
+      groupRef?: React.RefObject<THREE.Group | null>;
+      animRef?: unknown;
+      tailRef?: unknown;
+      headRef?: unknown;
+      onComplete?: unknown;
+    };
+    let animalRef: React.RefObject<THREE.Group | null> | undefined;
+    function Fixture() {
+      const farm = FarmArea({});
+      if (!React.isValidElement<PetChild>(farm)) throw new Error('Farm root missing');
+      const children = React.Children.toArray(farm.props.children).filter((child) =>
+        React.isValidElement<PetChild>(child)
+      );
+      const channel = species === 'chicken' ? 'animRef' : species === 'pig' ? 'tailRef' : 'headRef';
+      const animal = children.find((child) => child.props.groupRef && channel in child.props);
+      if (!animal) throw new Error('Roaming animal missing');
+      animalRef = animal.props.groupRef;
+      return <>{[animal, ...children.filter((child) => child.props.onComplete)]}</>;
+    }
+    const view = render(<Fixture />);
+    const root = view.container.querySelector(`[name="rigged-${species}"]`)!.parentElement!;
+    const spawn = root.getAttribute('position')!.split(',').map(Number);
+    const current = new THREE.Vector3(spawn[0] + 3, 0.25, spawn[2] + 1);
+    Object.assign(root, { position: current });
+    fireEvent.click(root);
+    const heart = () => view.container.querySelectorAll('[name="horse-pet-heart"]');
+    expect(heart()[0].getAttribute('position')).toBe(`${current.x},${current.y + 2},${current.z}`);
+    animalRef!.current = null;
+    fireEvent.click(root);
+    expect(heart()[1].getAttribute('position')).toBe(`${spawn[0]},${spawn[1] + 2},${spawn[2]}`);
+    expect(playCritterSound).toHaveBeenCalledTimes(2);
+    expect(playCritterSound).toHaveBeenCalledWith(species);
+  }
+);

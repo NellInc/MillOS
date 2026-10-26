@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import sharp from 'sharp';
+import { NodeIO } from '@gltf-transform/core';
+import { createPosterStationGeometry } from './AuthoredPropTrim';
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
@@ -85,7 +87,7 @@ describe('authored convenience-store dressing', () => {
     }
     expect(triangles).toBeLessThan(70000);
   });
-  it('keeps the side entrance open, seats the grill, and uses a bounded non-shadowing light', () => {
+  it('keeps the side entrance open, seats the grill, and uses a bounded non-shadowing light', async () => {
     const mesh = new THREE.Mesh(RETAIL_GEOMETRY.hardware, new THREE.MeshBasicMaterial());
     mesh.updateMatrixWorld(true);
     const ray = new THREE.Raycaster(
@@ -95,9 +97,51 @@ describe('authored convenience-store dressing', () => {
       0.8
     );
     expect(ray.intersectObject(mesh)).toHaveLength(0);
-    ray.set(new THREE.Vector3(-10, 0.7, -0.5), new THREE.Vector3(0, -1, 0));
+    const doc = await new NodeIO().read('public/models/world/station-grill.glb');
+    const node = doc
+      .getRoot()
+      .listNodes()
+      .find((n) => n.getMesh())!;
+    const primitive = node.getMesh()!.listPrimitives()[0];
+    const geometry = new THREE.BufferGeometry();
+    for (const [name, semantic] of [
+      ['position', 'POSITION'],
+      ['normal', 'NORMAL'],
+      ['uv', 'TEXCOORD_0'],
+      ['color', 'COLOR_0'],
+    ] as const) {
+      const attr = primitive.getAttribute(semantic)!;
+      geometry.setAttribute(
+        name,
+        new THREE.BufferAttribute(attr.getArray()!, attr.getElementSize())
+      );
+    }
+    geometry.setIndex(new THREE.BufferAttribute(primitive.getIndices()!.getArray()!, 1));
+    const formed = createPosterStationGeometry(geometry, 'stationGrill');
+    expect(formed).not.toBe(geometry);
+    const body = new THREE.Mesh(formed, mesh.material);
+    body.applyMatrix4(new THREE.Matrix4().fromArray(node.getWorldMatrix()));
+    body.position.add(new THREE.Vector3(-10, 0.7, -0.5));
+    body.updateMatrixWorld();
     ray.far = 0.65;
-    expect(ray.intersectObject(mesh)[0].point.y).toBeCloseTo(0.68, 3);
+    for (const [x, z] of [
+      [-10, -0.5],
+      [-10.2, -0.65],
+      [-9.8, -0.35],
+    ]) {
+      ray.set(new THREE.Vector3(x, 0.72, z), new THREE.Vector3(0, -1, 0));
+      const cupboard = ray.intersectObject(mesh)[0];
+      ray.set(new THREE.Vector3(x, 0.69, z), new THREE.Vector3(0, 1, 0));
+      expect(ray.intersectObject(body)[0].point.y).toBeCloseTo(cupboard.point.y, 6);
+    }
+    for (const x of [-10.28, -9.72]) {
+      ray.set(new THREE.Vector3(x, 1.09, -0.7), new THREE.Vector3(0, 1, 0));
+      const post = ray.intersectObject(mesh)[0];
+      ray.set(new THREE.Vector3(x, 1.13, -0.7), new THREE.Vector3(0, -1, 0));
+      expect(ray.intersectObject(body)[0].point.y).toBeCloseTo(post.point.y, 6);
+    }
+    formed.dispose();
+    geometry.dispose();
     expect(RETAIL_LIGHT.distance).toBeLessThan(9);
     expect(RETAIL_LIGHT.intensity).toBeLessThan(50);
     const source = readFileSync('src/components/scenery/StationRetailDetails.tsx', 'utf8');

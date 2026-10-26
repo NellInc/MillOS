@@ -953,3 +953,178 @@ describe('poster-matched live station bodies', () => {
     expect(source).toContain('geometry={STATION_POSTER_PLANTERS}');
   });
 });
+
+it('forms the delivered grill inside its exact envelope with seated cheeks, retained atlas and safe unknown-source rejection', async () => {
+  const doc = await new NodeIO().read('public/models/world/station-grill.glb');
+  const node = doc
+      .getRoot()
+      .listNodes()
+      .find((n) => n.getMesh())!,
+    primitive = node.getMesh()!.listPrimitives()[0];
+  const source = new THREE.BufferGeometry();
+  for (const [name, semantic] of [
+    ['position', 'POSITION'],
+    ['normal', 'NORMAL'],
+    ['uv', 'TEXCOORD_0'],
+    ['color', 'COLOR_0'],
+  ] as const) {
+    const attr = primitive.getAttribute(semantic)!;
+    source.setAttribute(name, new THREE.BufferAttribute(attr.getArray()!, attr.getElementSize()));
+  }
+  source.setIndex(Array.from(primitive.getIndices()!.getArray()!));
+  const saved = Object.fromEntries(
+    Object.entries(source.attributes).map(([name, a]) => [name, Array.from(a.array)])
+  );
+  const indices = Array.from(source.index!.array);
+  const result = createPosterStationGeometry(source, 'stationGrill');
+  expect(result).not.toBe(source);
+  expect(result.getAttribute('position').count / 3).toBe(412);
+  expect(result.getAttribute('position').count / 3 - source.index!.count / 3).toBeLessThanOrEqual(
+    500
+  );
+  expect(result.groups).toHaveLength(0);
+  for (const a of Object.values(result.attributes))
+    expect([...a.array].every(Number.isFinite)).toBe(true);
+  const n = result.getAttribute('normal'),
+    c = result.getAttribute('color');
+  for (let i = 0; i < n.count; i++) {
+    expect(Math.hypot(n.getX(i), n.getY(i), n.getZ(i))).toBeCloseTo(1, 4);
+    for (let axis = 0; axis < 3; axis++)
+      expect(c.getComponent(i, axis)).toBe(source.getAttribute('color').getComponent(0, axis));
+  }
+  // Every output triangle stays within one actual source UV island.
+  const sourceFlat = source.toNonIndexed(),
+    sourceUv = sourceFlat.getAttribute('uv'),
+    resultUv = result.getAttribute('uv');
+  const charts = Array.from(
+    { length: sourceUv.count / 3 },
+    (_, i) =>
+      new THREE.Triangle(
+        ...([0, 1, 2].map(
+          (k) => new THREE.Vector3(sourceUv.getX(i * 3 + k), sourceUv.getY(i * 3 + k), 0)
+        ) as [THREE.Vector3, THREE.Vector3, THREE.Vector3])
+      )
+  );
+  for (let i = 0; i < resultUv.count; i += 3)
+    expect(
+      charts.some((chart) =>
+        [0, 1, 2].every((k) => {
+          const bary = chart.getBarycoord(
+            new THREE.Vector3(resultUv.getX(i + k), resultUv.getY(i + k), 0),
+            new THREE.Vector3()
+          );
+          return bary && Math.min(bary.x, bary.y, bary.z) > -0.00001;
+        })
+      )
+    ).toBe(true);
+  sourceFlat.dispose();
+  const matrix = new THREE.Matrix4().fromArray(node.getWorldMatrix()),
+    material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+  const oldMesh = new THREE.Mesh(source, material),
+    newMesh = new THREE.Mesh(result, material);
+  for (const mesh of [oldMesh, newMesh]) {
+    mesh.applyMatrix4(matrix);
+    mesh.position.add(new THREE.Vector3(-10, 0.7, -0.5));
+    mesh.updateMatrixWorld();
+  }
+  const oldBox = new THREE.Box3().setFromObject(oldMesh),
+    newBox = new THREE.Box3().setFromObject(newMesh);
+  expect(oldBox.min.distanceTo(newBox.min)).toBeLessThan(0.00001);
+  expect(oldBox.max.distanceTo(newBox.max)).toBeLessThan(0.00001);
+  const cast = (
+    mesh: THREE.Mesh,
+    point: [number, number, number],
+    direction: [number, number, number]
+  ) =>
+    new THREE.Raycaster(
+      new THREE.Vector3(...point),
+      new THREE.Vector3(...direction),
+      0,
+      2
+    ).intersectObject(mesh)[0];
+  expect(cast(oldMesh, [-9.701, 1.2, -0.251], [0, -1, 0])).toBeDefined();
+  expect(cast(newMesh, [-9.701, 1.2, -0.251], [0, -1, 0]).point.y).toBeCloseTo(1.097, 5);
+  expect(cast(newMesh, [-10, 1.09, -0.5], [0, -1, 0]).point.y).toBeCloseTo(1.07, 5);
+  // A closed casing has real outward surfaces, including its contact base.
+  // FrontSide removes only the base backface viewed through the seated top.
+  material.side = THREE.FrontSide;
+  const base = cast(newMesh, [-10, 0.69, -0.5], [0, 1, 0]);
+  expect(base.point.y).toBeCloseTo(0.7, 6);
+  expect(base.face!.normal.y).toBeLessThan(-0.99);
+  expect(cast(newMesh, [-10, 0.71, -0.5], [0, -1, 0])).toBeUndefined();
+  for (const [point, direction] of [
+    [
+      [-10, 1.2, -0.5],
+      [0, -1, 0],
+    ],
+    [
+      [-11, 0.9, -0.5],
+      [1, 0, 0],
+    ],
+    [
+      [-9, 0.9, -0.5],
+      [-1, 0, 0],
+    ],
+    [
+      [-10, 0.9, 0],
+      [0, 0, -1],
+    ],
+    [
+      [-10, 0.9, -1],
+      [0, 0, 1],
+    ],
+  ] as const) {
+    const hit = cast(newMesh, [...point], [...direction]);
+    expect(hit).toBeDefined();
+    expect(hit.face!.normal.dot(new THREE.Vector3(...direction))).toBeLessThan(0);
+  }
+  material.side = THREE.DoubleSide;
+  // Side casing planes sit 1mm inside the end cheeks instead of fighting
+  // on the same outward plane, measured from the actual split triangles.
+  for (const side of [-1, 1]) {
+    const hits = new THREE.Raycaster(
+      new THREE.Vector3(-10 + side, 1.05, -0.5),
+      new THREE.Vector3(-side, 0, 0),
+      0,
+      2
+    ).intersectObject(newMesh);
+    const planes = [...new Set(hits.map((hit) => Number(hit.point.x.toFixed(6))))];
+    expect(Math.abs(planes[0] - planes[1])).toBeCloseTo(0.001, 5);
+  }
+  for (const side of [-1, 1])
+    for (let roller = 0; roller < 6; roller++) {
+      const hit = cast(newMesh, [-10, 1.085, -0.71 + roller * 0.084], [side, 0, 0]);
+      expect(hit).toBeDefined();
+      expect(Math.abs(hit.point.x + 10)).toBeLessThan(0.245);
+    }
+  for (const [point, direction] of [
+    [
+      [-10, 0.89, 0.5],
+      [0, 0, -1],
+    ],
+    [
+      [-9.73, 1.2, -0.5],
+      [0, -1, 0],
+    ],
+  ] as const) {
+    const oldHit = cast(oldMesh, [...point], [...direction]),
+      hit = cast(newMesh, [...point], [...direction]);
+    expect(hit.uv!.distanceTo(oldHit.uv!)).toBeLessThan(0.00001);
+  }
+  const missingUv = source.clone().deleteAttribute('uv'),
+    wrongSize = source.clone().scale(1, 2, 1),
+    painted = source.clone(),
+    malformed = source.clone();
+  painted.getAttribute('color').setX(0, 1);
+  malformed.getAttribute('position').setZ(0, 0.1);
+  for (const unknown of [missingUv, wrongSize, painted, malformed]) {
+    expect(createPosterStationGeometry(unknown, 'stationGrill')).toBe(unknown);
+    unknown.dispose();
+  }
+  for (const [name, values] of Object.entries(saved))
+    expect(Array.from(source.getAttribute(name).array)).toEqual(values);
+  expect(Array.from(source.index!.array)).toEqual(indices);
+  source.dispose();
+  result.dispose();
+  material.dispose();
+});

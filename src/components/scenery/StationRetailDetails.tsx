@@ -493,7 +493,7 @@ function createHardwareGeometry() {
     b([0.027, 0.009, 0.21], [-10.28 + i * 0.062, 0.726, -1.76], metal, 0.002);
   shiftParts(p, slushStart, STATION_APPLIANCE_SHIFT.slush);
   // The grill used to float at y=.7. This toe-recessed cupboard seats it on the floor.
-  b([0.58, 0.57, 0.47], [-10, 0.395, -0.5], orange, 0.013);
+  b([0.58, 0.59, 0.47], [-10, 0.405, -0.5], orange, 0.013);
   b([0.51, 0.1, 0.4], [-10, 0.13, -0.5], black);
   b([0.016, 0.39, 0.012], [-9.703, 0.413, -0.5], black, 0.002);
   b([0.03, 0.07, 0.017], [-9.697, 0.56, -0.51], metal);
@@ -512,7 +512,7 @@ function createHardwareGeometry() {
     roller.rotateZ(Math.PI / 2).translate(-10, 1.1, -0.71 + i * 0.084);
     p.push(roller);
   }
-  for (const x of [-10.28, -9.72]) b([0.018, 0.3, 0.02], [x, 1.265, -0.7], metal, 0.003);
+  for (const x of [-10.28, -9.72]) b([0.018, 0.315, 0.02], [x, 1.2575, -0.7], metal, 0.003);
   for (const z of [-0.71, -0.29]) b([0.57, 0.012, 0.015], [-10, 1.411, z], metal, 0.002);
   // Interior skirting and the existing orange/charcoal identity continue inside.
   for (const z of [-4.79, 4.79]) {
