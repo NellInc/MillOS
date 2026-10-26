@@ -247,6 +247,7 @@ export function replayLearningReview(runs: readonly WorkplaceReplayRun[]) {
   if (!sameCheckpoint) caveats.push(translate(msg, 'caveatCheckpoint'));
   if (balanceUncertain) caveats.push(translate(msg, 'caveatBalance'));
   if (targetsDiffer) caveats.push(translate(msg, 'caveatTargets'));
+  if (runs.some((run) => run.shiftCount > 1)) caveats.push(translate(msg, 'caveatClosingCharter'));
   if (chartersDiffer && plansDiffer) caveats.push(translate(msg, 'caveatConfounded'));
   const question =
     !sameCheckpoint || balanceUncertain

@@ -1,6 +1,8 @@
+import React from 'react';
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import {
+  MaintenanceCart,
   HALL_DUST_MATERIAL,
   HALL_DUST_RENDER_ORDER,
   HALL_TRUNKING_LID_MATERIAL,
@@ -233,5 +235,138 @@ describe('hall dressing render', () => {
     expect(mean[0]).toBeGreaterThan(mean[1]);
     expect(mean[1]).toBeGreaterThan(mean[2]);
     expect(mean[0]).toBeGreaterThan(90);
+  });
+});
+
+describe('live maintenance cart craft', () => {
+  const assembly = () => {
+    type Props = {
+      children?: React.ReactNode;
+      geometry?: THREE.BufferGeometry;
+      material?: THREE.Material;
+      position?: [number, number, number];
+      scale?: [number, number, number];
+      rotation?: [number, number, number];
+    };
+    const root = new THREE.Group();
+    const visit = (node: React.ReactNode, parent: THREE.Object3D) =>
+      React.Children.forEach(node, (child) => {
+        if (!React.isValidElement<Props>(child)) return;
+        if (typeof child.type === 'function') {
+          visit((child.type as (props: Props) => React.ReactNode)(child.props), parent);
+          return;
+        }
+        if (child.type === React.Fragment) {
+          visit(child.props.children, parent);
+          return;
+        }
+        if (child.type !== 'mesh' && child.type !== 'group')
+          throw new Error('Unexpected cart assembly node');
+        const object =
+          child.type === 'mesh'
+            ? new THREE.Mesh(child.props.geometry, child.props.material)
+            : new THREE.Group();
+        if (child.props.position) object.position.set(...child.props.position);
+        if (child.props.scale) object.scale.set(...child.props.scale);
+        if (child.props.rotation) object.rotation.set(...child.props.rotation);
+        parent.add(object);
+        visit(child.props.children, object);
+      });
+    visit(MaintenanceCart({}) as React.ReactNode, root);
+    root.updateMatrixWorld(true);
+    const meshes: THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>[] = [];
+    root.traverse((node) => {
+      if (node instanceof THREE.Mesh) meshes.push(node);
+    });
+    return { root, meshes };
+  };
+  const cast = (
+    mesh: THREE.Mesh,
+    point: [number, number, number],
+    direction: [number, number, number]
+  ) =>
+    new THREE.Raycaster(
+      new THREE.Vector3(...point),
+      new THREE.Vector3(...direction),
+      0,
+      2
+    ).intersectObject(mesh)[0];
+
+  it('connects all four actual caster mounts to the chassis while retaining wheel and floor contact', () => {
+    const { meshes } = assembly();
+    const chassis = meshes.find(
+      (m) => m.material.name === 'hall-cart-paint' && m.position.y === 0.2
+    )!;
+    const mounts = meshes.filter(
+      (m) => m.material.name === 'hall-dark-steel' && m.position.y < 0.3
+    );
+    const wheels = meshes.filter(
+      (m) => m.material.name === 'hall-rubber' && m.geometry.type === 'CylinderGeometry'
+    );
+    expect(mounts).toHaveLength(4);
+    expect(wheels).toHaveLength(4);
+    for (const mount of mounts) {
+      const { x, z } = mount.position;
+      const top = cast(mount, [x, 0.3, z], [0, -1, 0]);
+      const shelf = cast(chassis, [x, 0.13, z], [0, 1, 0]);
+      expect(top.point.y).toBeCloseTo(shelf.point.y, 6);
+      const bottom = cast(mount, [x, 0, z], [0, 1, 0]);
+      expect(bottom.point.y).toBeCloseTo(0.11, 6);
+      const wheel = wheels.find((m) => m.position.x === x && m.position.z === z)!;
+      expect(new THREE.Box3().setFromObject(wheel).min.y).toBeCloseTo(0, 6);
+      expect(cast(wheel, [x, 0.2, z], [0, -1, 0]).point.y).toBeGreaterThan(bottom.point.y);
+    }
+  });
+
+  it('forms a seated two-slot toolbox with a real carry opening, lid and catches within the existing cart envelope', () => {
+    const { root, meshes } = assembly();
+    const body = meshes.find((m) => m.material.name === 'hall-toolbox')!;
+    const fittings = meshes.find(
+      (m) => m.material.name === 'hall-dark-steel' && m.position.y > 0.7
+    )!;
+    expect(cast(fittings, [-0.15, 1.065, 0.3], [0, 0, -1])).toBeUndefined();
+    expect(cast(fittings, [-0.15, 1.092, 0.3], [0, 0, -1])).toBeDefined();
+    for (const x of [-0.222, -0.078])
+      expect(cast(fittings, [x, 1.065, 0.3], [0, 0, -1])).toBeDefined();
+    const handleBase = cast(fittings, [-0.15, 1.015, 0], [0, 1, 0]).point.y;
+    const lidTop = cast(fittings, [-0.35, 1.04, 0], [0, -1, 0]).point.y;
+    expect(handleBase).toBeLessThan(lidTop);
+    const bodyTop = cast(body, [-0.15, 1.03, 0], [0, -1, 0]).point.y;
+    expect(cast(fittings, [-0.15, 0.99, 0], [0, 1, 0]).point.y).toBeCloseTo(bodyTop, 6);
+    for (const x of [-0.32, 0.02])
+      for (const z of [-0.08, 0.08])
+        expect(cast(body, [x, 0.83, z], [0, 1, 0]).point.y).toBeCloseTo(0.8375, 6);
+    for (const x of [-0.31, 0.01]) {
+      expect(cast(fittings, [x, 1.0035, 0.2], [0, 0, -1]).point.z).toBeCloseTo(0.13, 6);
+      const catchBack = cast(fittings, [x, 1.0035, 0], [0, 0, 1]).point.z;
+      const caseFront = cast(body, [x, 1.0035, 0.2], [0, 0, -1]).point.z;
+      expect(catchBack).toBeLessThan(caseFront);
+    }
+    const bounds = new THREE.Box3().setFromObject(root);
+    bounds.min
+      .toArray()
+      .forEach((value, axis) => expect(value).toBeCloseTo([-0.5, 0, -0.275][axis], 6));
+    expect(bounds.max.x).toBeCloseTo(0.565, 6);
+    expect(bounds.max.y).toBeCloseTo(1.1, 6);
+    expect(bounds.max.z).toBeCloseTo(0.275, 6);
+    expect(meshes).toHaveLength(25);
+    expect([...new Set(meshes.map((m) => m.material.name))].sort()).toEqual([
+      'hall-cardboard',
+      'hall-cart-paint',
+      'hall-dark-steel',
+      'hall-parts-bin-yellow',
+      'hall-rubber',
+      'hall-toolbox',
+    ]);
+    let triangles = 0;
+    for (const { geometry } of meshes) {
+      triangles += (geometry.index?.count ?? geometry.getAttribute('position').count) / 3;
+      const p = geometry.getAttribute('position'),
+        n = geometry.getAttribute('normal');
+      expect([...p.array].every(Number.isFinite)).toBe(true);
+      for (let i = 0; i < n.count; i++)
+        expect(Math.hypot(n.getX(i), n.getY(i), n.getZ(i))).toBeCloseTo(1, 4);
+    }
+    expect(triangles).toBeLessThanOrEqual(444 + 500);
   });
 });

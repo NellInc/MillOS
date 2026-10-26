@@ -44,8 +44,10 @@ export const workplaceFairnessMessages = defineMessages({
       'A retained material or genealogy error is unavailable or exceeds 0.01 kg. Check that evidence before interpreting dispatch differences.',
     caveatTargets:
       'Agreed targets or deferrals differ. Compare the full customer commitment remaining, including work deferred to later.',
+    caveatClosingCharter:
+      'This closing field omits earlier shift charter settings. Review retained shift receipts before treating charter choices as fixed across a multi-shift run.',
     caveatConfounded:
-      'Both the recorded charter and shift-plan sequence changed. Their effects cannot be separated by this comparison.',
+      'Both the closing charter and shift-plan sequence changed. Their effects cannot be separated by this comparison.',
     questionCheckpoint:
       'Which checkpoint or balance fact must the group resolve before drawing a lesson?',
     questionHorizons:
@@ -53,13 +55,13 @@ export const workplaceFairnessMessages = defineMessages({
     questionTargets:
       'Which customer work was deferred, and what remains owed? Decide together which commitment the next trial will hold fixed.',
     questionConfounded:
-      'Keep one charter and compare one plan change, or keep one plan and compare charters. Which observation would change each role’s view?',
+      'For the next trial, hold charter choices fixed across shifts and compare one plan change, or keep the plan sequence fixed and compare charter choices. Which observation would change each role’s view?',
     questionPlans:
-      'With the recorded charter held fixed, which packing or collection observation would help explain the different plan results? Check each role’s burden receipts too.',
+      'With matching closing charters, which packing or collection observation would help explain the different plan results? Check each role’s burden receipts too.',
     questionCharters:
-      'The recorded plan sequence matches. Compare each role’s public pay and recovery receipts alongside actual delivery. Which other run conditions still need checking?',
+      'The recorded plan sequence matches. Compare the closing charters and each role’s public pay and recovery receipts alongside actual delivery. Which other run conditions still need checking?',
     questionMatched:
-      'The recorded charter and plan sequence match. What varied in collection timing or public role receipts, and which observation would you check together next?',
+      'The closing charter and recorded plan sequence match. What varied in collection timing or public role receipts, and which observation would you check together next?',
   },
   'pt-BR': {
     objectionDetailPartial:
@@ -107,8 +109,10 @@ export const workplaceFairnessMessages = defineMessages({
       'Um erro mantido de balanço de material ou de genealogia está indisponível ou passa de 0,01 kg. Verifique essa evidência antes de interpretar diferenças de expedição.',
     caveatTargets:
       'As metas acordadas ou os adiamentos diferem. Compare todo o compromisso restante com o cliente, incluindo o trabalho adiado para depois.',
+    caveatClosingCharter:
+      'Este campo de encerramento omite as configurações de estatuto dos turnos anteriores. Revisem os comprovantes de turno mantidos antes de tratar as escolhas de estatuto como fixas ao longo de uma execução com vários turnos.',
     caveatConfounded:
-      'Tanto o estatuto registrado quanto a sequência de planos de turno mudaram. Esta comparação não consegue separar os efeitos de cada um.',
+      'Tanto o estatuto de encerramento quanto a sequência de planos de turno mudaram. Esta comparação não consegue separar os efeitos de cada um.',
     questionCheckpoint:
       'Qual ponto de controle ou fato de balanço o grupo precisa resolver antes de tirar uma lição?',
     questionHorizons:
@@ -116,12 +120,12 @@ export const workplaceFairnessMessages = defineMessages({
     questionTargets:
       'Qual trabalho do cliente foi adiado, e o que ainda é devido? Decidam juntos qual compromisso o próximo teste vai manter fixo.',
     questionConfounded:
-      'Mantenham um estatuto e comparem uma mudança de plano, ou mantenham um plano e comparem estatutos. Qual observação mudaria a visão de cada função?',
+      'No próximo teste, mantenham as escolhas de estatuto fixas entre os turnos e comparem uma mudança de plano, ou mantenham a sequência de planos fixa e comparem as escolhas de estatuto. Qual observação mudaria a visão de cada função?',
     questionPlans:
-      'Com o estatuto registrado mantido fixo, qual observação de ensaque ou de coleta ajudaria a explicar os resultados diferentes dos planos? Verifiquem também os comprovantes de carga de cada função.',
+      'Com os estatutos de encerramento iguais, qual observação de ensaque ou de coleta ajudaria a explicar os resultados diferentes dos planos? Verifiquem também os comprovantes de carga de cada função.',
     questionCharters:
-      'A sequência de planos registrada é a mesma. Comparem os comprovantes públicos de remuneração e recuperação de cada função junto com a entrega real. Quais outras condições da rodada ainda precisam ser verificadas?',
+      'A sequência de planos registrada é a mesma. Comparem os estatutos de encerramento e os comprovantes públicos de remuneração e recuperação de cada função junto com a entrega real. Quais outras condições da rodada ainda precisam ser verificadas?',
     questionMatched:
-      'O estatuto e a sequência de planos registrados são os mesmos. O que variou no horário de coleta ou nos comprovantes públicos das funções, e qual observação vocês verificariam juntos a seguir?',
+      'O estatuto de encerramento e a sequência de planos registrada são os mesmos. O que variou no horário de coleta ou nos comprovantes públicos das funções, e qual observação vocês verificariam juntos a seguir?',
   },
 });

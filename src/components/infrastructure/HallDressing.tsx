@@ -1,5 +1,7 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { FLOOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../../constants/renderLayers';
 import {
   FLOUR_SACK_PRINT_GEOMETRY,
@@ -259,14 +261,66 @@ const Part: React.FC<{
 // Props (local frame: y = 0 on the surface, long axis along x)
 // ---------------------------------------------------------------------------
 
+/** Formed tool case in the existing red-body and dark-fittings slots.
+ * Working if feet/lid meet their supports and the carry loop is genuinely open,
+ * inside the retained cart envelope with no extra mesh or material slot.
+ */
+function createCartToolbox() {
+  const body: THREE.BufferGeometry[] = [
+    new RoundedBoxGeometry(0.488, 0.16, 0.244, 1, 0.008).translate(0, 0.09, 0),
+  ];
+  for (const x of [-0.17, 0.17])
+    for (const z of [-0.08, 0.08])
+      body.push(new THREE.BoxGeometry(0.055, 0.012, 0.046).translate(x, 0.006, z));
+  const loop = new THREE.Shape();
+  loop.moveTo(-0.078, 0.186);
+  loop.lineTo(0.078, 0.186);
+  loop.lineTo(0.078, 0.2605);
+  loop.lineTo(-0.078, 0.2605);
+  loop.closePath();
+  const opening = new THREE.Path();
+  opening.moveTo(-0.064, 0.202);
+  opening.lineTo(-0.064, 0.2485);
+  opening.lineTo(0.064, 0.2485);
+  opening.lineTo(0.064, 0.202);
+  opening.closePath();
+  loop.holes.push(opening);
+  const fittings = [
+    new RoundedBoxGeometry(0.5, 0.018, 0.256, 1, 0.004).translate(0, 0.179, 0),
+    new THREE.ExtrudeGeometry(loop, {
+      depth: 0.016,
+      steps: 1,
+      bevelEnabled: true,
+      bevelSegments: 1,
+      bevelSize: 0.002,
+      bevelThickness: 0.002,
+      curveSegments: 1,
+    }).translate(0, 0, -0.008),
+    ...[-0.16, 0.16].map((x) =>
+      new THREE.BoxGeometry(0.036, 0.042, 0.011).translate(x, 0.169, 0.1245)
+    ),
+  ];
+  const finish = (parts: THREE.BufferGeometry[]) => {
+    const plain = parts.map((part) => (part.index ? part.toNonIndexed() : part));
+    const geometry = mergeGeometries(plain);
+    new Set([...parts, ...plain]).forEach((part) => part.dispose());
+    if (!geometry) throw new Error('Cart toolbox geometry attributes must match');
+    geometry.computeBoundingBox();
+    geometry.computeBoundingSphere();
+    return geometry;
+  };
+  return { body: finish(body), fittings: finish(fittings) };
+}
+const CART_TOOLBOX = createCartToolbox();
+
 /** Two-shelf maintenance trolley with a toolbox on top; push handle at +x. */
-const MaintenanceCart: React.FC = () => (
+export const MaintenanceCart: React.FC = () => (
   <>
     {[-0.4, 0.4].flatMap((x) =>
       [-0.2, 0.2].map((z) => (
         <group key={`${x}:${z}`}>
           <mesh geometry={CASTER} material={RUBBER} position={[x, 0.06, z]} castShadow />
-          <Part material={DARK_STEEL} position={[x, 0.135, z]} scale={[0.05, 0.05, 0.06]} />
+          <Part material={DARK_STEEL} position={[x, 0.14625, z]} scale={[0.05, 0.0725, 0.06]} />
         </group>
       ))
     )}
@@ -292,8 +346,18 @@ const MaintenanceCart: React.FC = () => (
       <Part key={z} material={CART_PAINT} position={[0.53, 0.96, z]} scale={[0.03, 0.26, 0.03]} />
     ))}
     <Part material={RUBBER} position={[0.545, 1.08, 0]} scale={[0.04, 0.04, 0.46]} />
-    <Part material={TOOLBOX} position={[-0.15, 0.95, 0]} scale={[0.5, 0.22, 0.26]} />
-    <Part material={DARK_STEEL} position={[-0.15, 1.08, 0]} scale={[0.5, 0.04, 0.26]} />
+    <Part
+      geometry={CART_TOOLBOX.body}
+      material={TOOLBOX}
+      position={[-0.15, 0.8375, 0]}
+      scale={[1, 1, 1]}
+    />
+    <Part
+      geometry={CART_TOOLBOX.fittings}
+      material={DARK_STEEL}
+      position={[-0.15, 0.8375, 0]}
+      scale={[1, 1, 1]}
+    />
     <Part material={CARDBOARD} position={[-0.25, 0.33, 0.02]} scale={[0.32, 0.22, 0.34]} />
     <Part material={BIN_YELLOW} position={[0.2, 0.3, -0.02]} scale={[0.26, 0.16, 0.36]} />
   </>

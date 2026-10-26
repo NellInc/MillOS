@@ -65,7 +65,7 @@ export const workplaceReplayMessages = defineMessages({
     // Runs
     runLabel: '{profile} actual run',
     charterLine:
-      'Actual charter: {autonomy} work choice; {governance} governance; {ai} AI authority. Practices: {practices}.',
+      'Closing charter: {autonomy} work choice; {governance} governance; {ai} AI authority. Practices: {practices}.',
     shiftPlans: 'Shift plans: {plans}.',
     shiftPlanItem: 'shift {number}, {title}',
     dispatchHeading: 'Actual dispatch and horizon',
@@ -185,7 +185,7 @@ export const workplaceReplayMessages = defineMessages({
 
     runLabel: 'Execução real: {profile}',
     charterLine:
-      'Estatuto real: escolha do trabalho, {autonomy}; governança, {governance}; autoridade da IA, {ai}. Práticas: {practices}.',
+      'Estatuto de encerramento: escolha do trabalho, {autonomy}; governança, {governance}; autoridade da IA, {ai}. Práticas: {practices}.',
     shiftPlans: 'Planos dos turnos: {plans}.',
     shiftPlanItem: 'turno {number}, {title}',
     dispatchHeading: 'Expedição real e horizonte',

@@ -769,6 +769,57 @@ describe('whole operational checkpoint replay', () => {
     expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
     expect(useWorkplaceReplayStore.getState().runs).toHaveLength(1);
   });
+  it('qualifies matching closing charters when actual recorded earlier shifts differed', () => {
+    const lab = checkpoint();
+    const run = (firstGovernance: 'consultative' | 'member-vote') => {
+      expect(lab.begin('cooperative').changed).toBe(true);
+      replayTick = 0;
+      receivingDwell = 0;
+      const store = useWorkplaceStore.getState();
+      if (store.workplace.governance !== firstGovernance)
+        expect(store.configure({ governance: firstGovernance }).changed).toBe(true);
+      approve('steady');
+      finishShift();
+      expect(store.nextCampaignShift().changed).toBe(true);
+      const second = useWorkplaceStore.getState().workplace;
+      expect(second.campaign!.history[0].governance).toBe(firstGovernance);
+      if (second.governance !== 'member-vote')
+        expect(store.configure({ governance: 'member-vote' }).changed).toBe(true);
+      for (const actor of ['packing', 'mind'])
+        for (const id of requiredChecks(actor))
+          store.answerCheck(actor, id, WORKPLACE_CHECKS.find((q) => q.id === id)!.correct);
+      store.understand('packing');
+      store.vote('packing', true);
+      store.simulateResponses();
+      expect(store.activate(useWorkplaceStore.getState().workplace.revision).changed).toBe(true);
+      useGameSimulationStore.getState().setGameSpeed(15);
+      while (useWorkplaceStore.getState().workplace.minute < 25) replayStep();
+      expect(store.campaignDecision('inspect', 'quality').changed).toBe(true);
+      finishShift();
+      useGameSimulationStore.getState().setGameSpeed(0);
+      expect(lab.record().changed).toBe(true);
+      return {
+        record: useWorkplaceReplayStore.getState().runs.at(-1)!,
+        earlierGovernance: useWorkplaceStore.getState().workplace.campaign!.history[0].governance,
+      };
+    };
+    const a = run('consultative'),
+      b = run('member-vote');
+    expect([a.earlierGovernance, b.earlierGovernance]).toEqual(['consultative', 'member-vote']);
+    expect(a.record.checkpointId).toBe(b.record.checkpointId);
+    expect(a.record.charter).toEqual(b.record.charter);
+    expect(a.record.shiftPlans).toEqual(b.record.shiftPlans);
+    expect(a.record.shiftCount).toBe(2);
+    expect(b.record.shiftCount).toBe(2);
+    const before = structuredClone([a.record, b.record]);
+    const review = replayLearningReview([a.record, b.record])!;
+    expect(review.caveats.join(' ')).toContain(
+      'closing field omits earlier shift charter settings'
+    );
+    expect(review.question).toContain('closing charter and recorded plan sequence match');
+    expect([a.record, b.record]).toEqual(before);
+    emitEvidence('closing-charter-scope', { a, b, review });
+  });
   it('uses the same checkpoint for real dispatch runs, retains costs and has no charter production multiplier', () => {
     const lab = checkpoint();
     const run = (profile: 'toe-dip' | 'team' | 'cooperative', plan: 'steady' | 'resequence') => {
@@ -805,7 +856,7 @@ describe('whole operational checkpoint replay', () => {
       'recorded plan sequence matches'
     );
     expect(replayLearningReview([a.record, c.record])?.caveats.join(' ')).toContain(
-      'Both the recorded charter and shift-plan sequence changed'
+      'Both the closing charter and shift-plan sequence changed'
     );
     expect([a.record, b.record, c.record]).toEqual(recordsBefore);
 

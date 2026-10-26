@@ -4,6 +4,7 @@ import { WorkplaceReplay, WorkplaceReplayGuide, WorkplaceReplayResume } from './
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
 import { createWorkplace } from '../../../simulation/bilateralWorkplace';
+import { setLocale } from '../../../i18n';
 import type { WorkplaceReplayRun } from '../../../types/workplaceReplay';
 
 const replay = vi.hoisted(() => ({
@@ -139,7 +140,20 @@ describe('Matched plant replay interface', () => {
     expect(screen.getByText(/kg; 2 dispatch manifests\./)).toBeInTheDocument();
     expect(screen.getAllByText('Plant accounts, pounds sterling')).toHaveLength(2);
     expect(screen.getAllByText('Illustrative workplace credits')).toHaveLength(2);
-    expect(screen.getAllByText(/Actual charter: team work choice/)).toHaveLength(2);
+    expect(screen.getAllByText(/Closing charter: team work choice/)).toHaveLength(2);
+    expect(
+      screen.getByText(/This closing field omits earlier shift charter settings/)
+    ).toBeInTheDocument();
+    try {
+      setLocale('pt-BR');
+      view.rerender(<WorkplaceReplay seed={17} validSeed navigate={navigate} />);
+      expect(screen.getAllByText(/Estatuto de encerramento:/)).toHaveLength(2);
+      expect(screen.getByText(/Este campo de encerramento omite/)).toBeInTheDocument();
+    } finally {
+      setLocale('en');
+      view.rerender(<WorkplaceReplay seed={17} validSeed navigate={navigate} />);
+    }
+
     expect(screen.getAllByText(/Cumulative objections resolved 1 of 2/)).toHaveLength(2);
     fireEvent.click(screen.getByRole('button', { name: 'Retain actual run review' }));
     expect(screen.getByRole('status')).toHaveTextContent('Complete recovery before review.');

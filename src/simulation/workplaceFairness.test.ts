@@ -1,5 +1,6 @@
 import type { WorkplaceReplayRun } from '../types/workplaceReplay';
 import { describe, expect, it } from 'vitest';
+import { setLocale } from '../i18n';
 import {
   createWorkplace,
   restoreWorkplace,
@@ -334,7 +335,7 @@ describe('actual replay learning review', () => {
     const before = structuredClone([a, b]);
     const review = replayLearningReview([a, b])!;
     expect(review.caveats).toEqual([]);
-    expect(review.question).toContain('recorded charter and plan sequence match');
+    expect(review.question).toContain('closing charter and recorded plan sequence match');
     expect([a, b]).toEqual(before);
     b.charter = { ...b.charter, aiAuthority: 'advice' };
     expect(replayLearningReview([a, b])?.question).toContain('recorded plan sequence matches');
@@ -346,15 +347,38 @@ describe('actual replay learning review', () => {
         id: 'run2',
         shiftPlans: [{ shift: 0, planId: 'resequence' }],
       };
-    expect(replayLearningReview([a, b])?.question).toContain('recorded charter held fixed');
+    expect(replayLearningReview([a, b])?.question).toContain('matching closing charters');
     b.charter = { ...b.charter, governance: 'consultative' };
     const review = replayLearningReview([a, b])!;
     expect(review.caveats).toContain(
-      'Both the recorded charter and shift-plan sequence changed. Their effects cannot be separated by this comparison.'
+      'Both the closing charter and shift-plan sequence changed. Their effects cannot be separated by this comparison.'
     );
-    expect(review.question).toContain('Keep one charter and compare one plan change');
+    expect(review.question).toContain(
+      'hold charter choices fixed across shifts and compare one plan change'
+    );
     expect(Object.keys(review).sort()).toEqual(['caveats', 'horizonsDiffer', 'question']);
   });
+  it.each(['en', 'pt-BR'] as const)(
+    'qualifies multi-shift closing scope in %s without changing records',
+    (locale) => {
+      try {
+        setLocale(locale);
+        const a = replayRun(),
+          b = { ...replayRun(), id: 'run2', shiftCount: 2 };
+        const before = structuredClone([a, b]);
+        const review = replayLearningReview([a, b])!;
+        expect(review.caveats).toContain(
+          locale === 'en'
+            ? 'This closing field omits earlier shift charter settings. Review retained shift receipts before treating charter choices as fixed across a multi-shift run.'
+            : 'Este campo de encerramento omite as configurações de estatuto dos turnos anteriores. Revisem os comprovantes de turno mantidos antes de tratar as escolhas de estatuto como fixas ao longo de uma execução com vários turnos.'
+        );
+        expect(replayLearningReview([a, { ...b, shiftCount: 1 }])!.caveats).toEqual([]);
+        expect([a, b]).toEqual(before);
+      } finally {
+        setLocale('en');
+      }
+    }
+  );
   it('keeps a smaller agreed installment separate from the full customer obligation', () => {
     const a = replayRun(),
       b = { ...replayRun(), id: 'run2', targetKg: 480, deferredKg: 120 };
