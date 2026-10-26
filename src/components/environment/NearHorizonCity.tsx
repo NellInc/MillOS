@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { RENDER_ORDER } from '../../constants/renderLayers';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { getExteriorLampLevel } from '../exterior/ExteriorLighting';
+import { sampleFoothillGroundHeight } from './foothillGround';
 
 export interface NearCityBuildingSpec {
   readonly x: number;
@@ -21,6 +22,8 @@ export interface NearCityBuildingSpec {
   readonly massing: number;
   /** Pitched roofs: 0 gable end to the site, 1 ridge along the facade. */
   readonly ridgeAxis: number;
+  /** Ground under the building's lowest corner; the uphill side sinks into the slope. */
+  readonly baseY: number;
 }
 
 const deterministicNoise = (index: number, channel: number): number => {
@@ -28,8 +31,11 @@ const deterministicNoise = (index: number, channel: number): number => {
   return value - Math.floor(value);
 };
 
-/** A compact, world-anchored skyline that restores nearby parallax. */
-export const buildNearCitySpecs = (count = 42): NearCityBuildingSpec[] =>
+/** A compact, world-anchored hill town on the eastern foothills. */
+export const buildNearCitySpecs = (
+  count = 42,
+  groundAt: (x: number, z: number) => number = sampleFoothillGroundHeight
+): NearCityBuildingSpec[] =>
   Array.from({ length: count }, (_, index) => {
     const districtBand = index % 3;
     const buildingsInBand = Math.ceil(count / 3);
@@ -37,12 +43,12 @@ export const buildNearCitySpecs = (count = 42): NearCityBuildingSpec[] =>
     const progress = buildingsInBand <= 1 ? 0.5 : positionInBand / (buildingsInBand - 1);
     const angle =
       THREE.MathUtils.lerp(-0.56, 0.16, progress) + (deterministicNoise(index, 6) - 0.5) * 0.045;
-    // Keep the complete footprints beyond the river's east bank. The former
-    // 184 m arc left building feet suspended over the channel and its culvert;
-    // the town now sits at the foot of the foothills, which begin at
-    // world.radius + 16, rather than inside their slope.
-    // Working if rays through both terrain grids find level ground under every foot.
-    const radius = 226 + districtBand * 12 + deterministicNoise(index, 0) * 6;
+    // Out on the eastern foothills, 350-384 m from the mill, well clear of the
+    // river's east bank: the town reads as a hill town across the valley. Each
+    // building stands on the hill surface under its lowest corner, so no
+    // corner hangs in the air and the slope takes the uphill side.
+    // Working if every footprint sample is at or above the base.
+    const radius = 350 + districtBand * 14 + deterministicNoise(index, 0) * 6;
     const landmark = deterministicNoise(index, 1) > 0.93;
     // A town is towers, mid-rise slabs and terraces. One tall gable-ended
     // tower repeated 27 of 42 times read as a single asset stamped along the
@@ -65,13 +71,20 @@ export const buildNearCitySpecs = (count = 42): NearCityBuildingSpec[] =>
         : Math.floor(deterministicNoise(index, 7) * 3);
     const x = Math.cos(angle) * radius;
     const z = Math.sin(angle) * radius;
+    const yaw = Math.atan2(-x, -z);
+    const ground = nearCityFootprint({ x, z, width, depth, yaw }).map(([px, pz]) =>
+      groundAt(px, pz)
+    );
+    const baseY = Math.min(...ground);
     return {
       x,
       z,
       width,
       depth,
-      height: height + districtBand * 1.25 + (landmark ? 6 : 0),
-      yaw: Math.atan2(-x, -z),
+      // A hillside building keeps its full height on the uphill side and shows
+      // the difference as a lower storey downhill, rather than sinking into the slope.
+      height: height + districtBand * 1.25 + (landmark ? 6 : 0) + (Math.max(...ground) - baseY),
+      yaw,
       tone: deterministicNoise(index, 5),
       roofStyle,
       districtBand,
@@ -79,8 +92,31 @@ export const buildNearCitySpecs = (count = 42): NearCityBuildingSpec[] =>
       // Terraces and slabs carry their ridge along the street; towers mostly
       // turn a gable or hip to the site.
       ridgeAxis: deterministicNoise(index, 19) < (massing === 0 ? 0.3 : 0.85) ? 1 : 0,
+      baseY,
     };
   });
+
+/** The four corners and centre of a building's footprint, in world x/z. */
+export function nearCityFootprint(building: {
+  readonly x: number;
+  readonly z: number;
+  readonly width: number;
+  readonly depth: number;
+  readonly yaw: number;
+}): Array<[number, number]> {
+  const cos = Math.cos(building.yaw),
+    sin = Math.sin(building.yaw);
+  return [
+    [-0.5, -0.5],
+    [-0.5, 0.5],
+    [0.5, -0.5],
+    [0.5, 0.5],
+    [0, 0],
+  ].map(([u, v]) => [
+    building.x + u * building.width * cos + v * building.depth * sin,
+    building.z - u * building.width * sin + v * building.depth * cos,
+  ]);
+}
 
 /** Closed shared gable volume. The eaves sit just inside the actual wall top.
  * Working if the roof rays seal both slopes and ends without an extra light or texture.
@@ -226,7 +262,7 @@ export function buildNearCityWindows(buildings: readonly NearCityBuildingSpec[])
           const across = (column + 0.5) / columns - 0.5;
           result.push({
             x: building.x + normalX * (reach / 2 + 0.05) - normalZ * across * span * 0.76,
-            y: 2.3 + floor * 3.5,
+            y: building.baseY + 2.3 + floor * 3.5,
             z: building.z + normalZ * (reach / 2 + 0.05) + normalX * across * span * 0.76,
             width: Math.min(1.3, (span / columns) * 0.38),
             height: 0.9,
@@ -255,7 +291,7 @@ export const NearHorizonCity: React.FC = () => {
         .filter((building) => building.roofStyle === 2)
         .map((building, index) => ({
           x: building.x,
-          y: building.height + 0.34,
+          y: building.baseY + building.height + 0.34,
           z: building.z,
           width: building.width * (0.22 + deterministicNoise(index, 11) * 0.16),
           height: 0.65 + deterministicNoise(index, 12) * 0.55,
@@ -278,7 +314,7 @@ export const NearHorizonCity: React.FC = () => {
           const height = 1.8 + deterministicNoise(index, 15) * 2.1;
           return {
             x: building.x + tangentX * offset,
-            y: building.height + height / 2,
+            y: building.baseY + building.height + height / 2,
             z: building.z + tangentZ * offset,
             width: 0.22 + deterministicNoise(index, 16) * 0.18,
             height,
@@ -316,20 +352,20 @@ export const NearHorizonCity: React.FC = () => {
     const euler = new THREE.Euler();
 
     buildings.forEach((building, index) => {
-      position.set(building.x, building.height / 2 - 0.8, building.z);
+      position.set(building.x, building.baseY + building.height / 2 - 0.8, building.z);
       rotation.setFromEuler(euler.set(0, building.yaw, 0));
       scale.set(building.width, building.height, building.depth);
       bodies.setMatrixAt(index, matrix.compose(position, rotation, scale));
       bodies.setColorAt(index, nearCityBodyColour(building));
     });
     flatBuildings.forEach((building, index) => {
-      position.set(building.x, building.height - 0.35, building.z);
+      position.set(building.x, building.baseY + building.height - 0.35, building.z);
       rotation.setFromEuler(euler.set(0, building.yaw, 0));
       scale.set(building.width * 0.66, 0.7, building.depth * 0.66);
       roofs.setMatrixAt(index, matrix.compose(position, rotation, scale));
     });
     pitchedBuildings.forEach((building, index) => {
-      position.set(building.x, building.height - 0.85, building.z);
+      position.set(building.x, building.baseY + building.height - 0.85, building.z);
       // The unit roof's ridge runs along local Z. A quarter turn lays it along
       // the facade, with the overhangs swapped to match.
       const along = building.ridgeAxis === 1;

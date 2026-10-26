@@ -12,6 +12,8 @@ import {
 } from '../constants/siteLayout';
 import { createRiverFootbridgeAccessGeometry } from '../components/exterior/riverGeometry';
 import {
+  CASTLE_COURT_HEIGHT,
+  CASTLE_ROCK_SINK,
   CASTLE_STEPS,
   CASTLE_ACCESS_LANTERNS,
   CASTLE_ACCESS_LIGHT,
@@ -56,7 +58,8 @@ describe('castle ground access', () => {
           expect(p.y).toBeCloseTo(sampleWalkingGroundHeight(p.x, p.z, segments) + 0.48, 6);
         }
         expect(castleLocalPosition(p.x, p.z)[1]).toBeLessThan(8);
-        expect(p.y).toBeCloseTo(4.96, 5);
+        // Eye 0.48 above the court, measured in the castle's frame.
+        expect(p.y).toBeCloseTo(castleWorldPosition(7.2, CASTLE_COURT_HEIGHT, 0)[1] + 0.48, 5);
         for (let i = 0; i < Math.ceil(34 / stride); i++)
           moveWalkingPosition(
             p,
@@ -68,7 +71,8 @@ describe('castle ground access', () => {
             () => false
           );
         expect(castleLocalPosition(p.x, p.z)[1]).toBeGreaterThan(25);
-        expect(p.y).toBeLessThan(0.6);
+        // Back down on the castle's base plane (local y = the rock sink).
+        expect(p.y).toBeLessThan(castleWorldPosition(7.2, CASTLE_ROCK_SINK, 26)[1] + 0.6);
       });
     }
   }
@@ -122,10 +126,13 @@ describe('castle ground access', () => {
   });
   it('preserves free inspection flight above the castle and rejects its lintel', () => {
     const p = start(7.2, 14);
-    expect(castleBlocks(p.x, p.z, 4.48)).toBe(false);
-    expect(castleBlocks(p.x, p.z, 10)).toBe(true);
-    expect(castleBlocks(p.x, p.z, 65)).toBe(false);
-    const y = (p.y = 65);
+    // Feet on the court, inside the lintel, and well above the roofs, in the
+    // castle's own frame so the checks follow it wherever it stands.
+    const feetAt = (localY: number) => castleWorldPosition(7.2, localY, 14)[1];
+    expect(castleBlocks(p.x, p.z, feetAt(3.2))).toBe(false);
+    expect(castleBlocks(p.x, p.z, feetAt(6.88))).toBe(true);
+    expect(castleBlocks(p.x, p.z, feetAt(43.55))).toBe(false);
+    const y = (p.y = feetAt(43.55));
     moveWalkingPosition(p, 3, 0, 128, false, 0.48, () => false);
     expect(p.y).toBe(y);
   });

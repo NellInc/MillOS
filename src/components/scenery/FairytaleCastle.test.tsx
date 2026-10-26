@@ -12,8 +12,7 @@ import {
   CASTLE_DRAINAGE_MATERIAL,
 } from './FairytaleCastle';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
-import { sampleTerrainGroundHeight } from '../terrain/splatMapGenerator';
-import { EXTERIOR_LAYERS } from '../../constants/renderLayers';
+import { sampleSceneryGroundHeight } from '../environment/foothillGround';
 import { CASTLE_COURT_HEIGHT, CASTLE_STAIR_X } from '../../constants/castleAccess';
 import { PlotGeometry } from '../../utils/authoredPlotGeometry';
 import { NodeIO } from '@gltf-transform/core';
@@ -118,8 +117,8 @@ for (const segments of [64, 128]) {
           points.getY(i) - 0.2,
           points.getZ(i)
         ).applyMatrix4(transform);
-        const floor =
-          EXTERIOR_LAYERS.ground + sampleTerrainGroundHeight(world.x, world.z, segments);
+        // The castle stands on the foothills; its beds meet the ridge surface.
+        const floor = sampleSceneryGroundHeight(world.x, world.z, segments);
         expect(world.y - floor).toBeCloseTo(0.025 * scale, 4);
         grounded++;
       }
