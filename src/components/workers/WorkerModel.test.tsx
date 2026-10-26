@@ -2910,3 +2910,76 @@ describe('startup softening of the borrowed worker bodies', () => {
     }
   }, 120_000);
 });
+
+it('keeps an unexcited ponytail neutral and restores exact rest after locomotion', () => {
+  const source = WORKER_HAIR_GEOMETRIES.ponytail;
+  const hair = createWorkerHairMotion(source);
+  try {
+    const rest = source.attributes.position.array.slice();
+    const restNormals = source.attributes.normal.array.slice();
+    hair.apply(1.1, 1 / 60, 0, true);
+    expect(
+      hair.geometry.attributes.position.array,
+      'resting hair has no independent oscillator'
+    ).toEqual(rest);
+    for (let i = 0; i < 120; i++) hair.apply(i / 60, 1 / 60, 1.5, false);
+    expect(hair.geometry.attributes.position.array).not.toEqual(rest);
+    for (let i = 120; i < 720; i++) hair.apply(i / 60, 1 / 60, 0, true);
+    expect(hair.geometry.attributes.position.array, 'stopped hair genuinely settles').toEqual(rest);
+    expect(hair.geometry.attributes.normal.array).toEqual(restNormals);
+    const version = hair.geometry.attributes.position.version;
+    hair.apply(20, 1 / 60, 0, true);
+    expect(hair.geometry.attributes.position.version).toBe(version);
+  } finally {
+    hair.dispose();
+  }
+});
+
+it.each(['short', 'medium', 'curly', 'ponytail'] as const)(
+  '%s civilian hair has a real crown, finite sculpt normals and a continuous seam within its original budget',
+  (style) => {
+    const g = WORKER_HAIR_GEOMETRIES[style],
+      p = g.attributes.position,
+      n = g.attributes.normal,
+      uv = g.attributes.uv;
+    const a = new THREE.Vector3(),
+      b = new THREE.Vector3(),
+      c = new THREE.Vector3(),
+      face = new THREE.Vector3(),
+      mean = new THREE.Vector3();
+    expect(p.count / 3).toBeLessThan(1800);
+    for (let i = 0; i < p.count; i += 3) {
+      a.fromBufferAttribute(p, i);
+      b.fromBufferAttribute(p, i + 1);
+      c.fromBufferAttribute(p, i + 2);
+      face.subVectors(b, a).cross(c.clone().sub(a));
+      expect(face.lengthSq(), `${style} collapsed crown`).toBeGreaterThan(1e-14);
+      mean
+        .fromBufferAttribute(n, i)
+        .add(new THREE.Vector3().fromBufferAttribute(n, i + 1))
+        .add(new THREE.Vector3().fromBufferAttribute(n, i + 2));
+      expect(face.dot(mean), `${style} outward finish`).toBeGreaterThan(0);
+    }
+    let checked = 0;
+    for (let i = 0; i < p.count; i++) {
+      if (Math.abs(uv.getX(i)) > 1e-7 || uv.getY(i) <= 0 || uv.getY(i) >= 1) continue;
+      const opposite = Array.from({ length: p.count }, (_, j) => j).find(
+        (j) =>
+          Math.abs(uv.getX(j) - 1) < 1e-7 &&
+          Math.abs(uv.getY(j) - uv.getY(i)) < 1e-7 &&
+          new THREE.Vector3().fromBufferAttribute(p, j).distanceTo(a.fromBufferAttribute(p, i)) <
+            1e-6
+      );
+      if (opposite === undefined) continue;
+      expect(
+        new THREE.Vector3().fromBufferAttribute(n, opposite).distanceTo(b.fromBufferAttribute(n, i))
+      ).toBeLessThan(1e-4);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(5);
+    expect(g.boundingBox!.max.y).toBeLessThan(0.24);
+    expect(g.boundingBox!.min.x).toBeGreaterThan(-0.13);
+    expect(g.boundingBox!.max.x).toBeLessThan(0.13);
+    expect(g.boundingBox!.max.z).toBeLessThan(0.13);
+  }
+);

@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import {
   WORKER_EYE_CENTRES,
+  WORKER_HAIR_GEOMETRIES,
   createWorkerShirtTrim,
   createWorkerLabCoatGeometry,
 } from './SharedWorkerGeometries';
@@ -3895,5 +3896,128 @@ it.each(['masculine', 'feminine'])(
     }
     expect(max / min).toBeGreaterThan(1.01);
     expect(max / min).toBeLessThan(1.013);
+  }
+);
+
+it.each(['masculine', 'feminine'] as const)(
+  '%s real eye surfaces stay clear of every sculpted civilian front cut',
+  (body) => {
+    const scene = clone(bodies.get(body)!.scene);
+    const blink = createWorkerEyeBlink(scene, body);
+    try {
+      expect(blink.surfaces).toHaveLength(2);
+      const eyeTop = Math.max(
+        ...blink.surfaces.map(
+          (s) => s.centre[1] + s.halfHeight * Math.abs(s.up[1]) + s.halfWidth * Math.abs(s.right[1])
+        )
+      );
+      for (const [style, g] of Object.entries(WORKER_HAIR_GEOMETRIES)) {
+        if (!g) continue;
+        const p = g.getAttribute('position');
+        let nearest = Infinity;
+        for (let i = 0; i < p.count; i++)
+          if (Math.abs(p.getX(i)) < 0.073 && p.getZ(i) > 0.07)
+            nearest = Math.min(nearest, p.getY(i));
+        expect(nearest - eyeTop, `${body}/${style} front-cut clearance`).toBeGreaterThan(0.008);
+      }
+    } finally {
+      blink.dispose();
+    }
+  }
+);
+
+it.each(['masculine', 'feminine'] as const)(
+  '%s actual open skull is covered from both temple and oblique views by every civilian cut',
+  (body) => {
+    const asset = bodies.get(body)!,
+      scene = clone(asset.scene);
+    const head = scene.getObjectByName('Head')!;
+    const material = new THREE.MeshBasicMaterial({ side: THREE.FrontSide });
+    const donors: THREE.SkinnedMesh[] = [],
+      skin: THREE.Mesh[] = [];
+    scene.traverse((o) => {
+      const m = o as THREE.SkinnedMesh;
+      if (
+        !m.isSkinnedMesh ||
+        !m.parent?.name.includes('Worker_Head') ||
+        Array.isArray(m.material) ||
+        m.material.name !== 'Skin'
+      )
+        return;
+      donors.push(m);
+      skin.push(new THREE.Mesh(m.geometry.clone(), material));
+    });
+    const mixer = new THREE.AnimationMixer(scene),
+      point = new THREE.Vector3(),
+      inverse = new THREE.Matrix4();
+    const double = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+    const samples: Array<[string, number]> = [
+      ['loaded', 0],
+      ...['worker-idle', 'worker-walk', 'worker-break', 'worker-inspect'].flatMap((name) =>
+        [0.2, 0.7].map((t) => [name, t] as [string, number])
+      ),
+    ];
+    try {
+      expect(skin).toHaveLength(1);
+      for (const [clip, phase] of samples) {
+        if (clip !== 'loaded') {
+          mixer.stopAllAction();
+          const animation = asset.animations.find((a) => a.name === clip)!;
+          mixer.clipAction(animation).reset().play();
+          mixer.setTime(animation.duration * phase);
+        }
+        scene.updateMatrixWorld(true);
+        inverse.copy(head.matrixWorld).invert();
+        donors.forEach((donor, index) => {
+          const geometry = skin[index].geometry,
+            p = geometry.getAttribute('position');
+          for (let i = 0; i < p.count; i++) {
+            // Raw exported positions omit up to8cm of actual skin deformation.
+            // Working if coverage compares the rendered skin with the Head-mounted hair.
+            donor.getVertexPosition(i, point).applyMatrix4(donor.matrixWorld).applyMatrix4(inverse);
+            p.setXYZ(i, point.x, point.y, point.z);
+          }
+          geometry.computeBoundingBox();
+          geometry.computeBoundingSphere();
+        });
+        const control = new THREE.Mesh(skin[0].geometry, double);
+        expect(
+          new THREE.Raycaster(
+            new THREE.Vector3(0.3, 0.135, 0.01),
+            new THREE.Vector3(-1, 0, 0)
+          ).intersectObject(control),
+          `${body}/${clip} actual skull opening`
+        ).toHaveLength(0);
+        for (const [style, g] of Object.entries(WORKER_HAIR_GEOMETRIES)) {
+          if (!g) continue; // A bald complete-skull claim needs a separate skin repair.
+          const hair = new THREE.Mesh(g, material);
+          hair.scale.x = body === 'feminine' ? 0.92 : 1;
+          hair.updateMatrixWorld(true);
+          const assembled = [...skin, hair];
+          for (const y of [0.125, 0.135, 0.145, 0.155, 0.165])
+            for (const z of [-0.02, 0, 0.02, 0.04])
+              for (const side of [-1, 1])
+                for (const angle of [-0.35, 0, 0.35]) {
+                  const slope = Math.tan(angle);
+                  const ray = new THREE.Raycaster(
+                    new THREE.Vector3(side * 0.3, y, z + side * 0.3 * slope),
+                    new THREE.Vector3(-side, 0, -side * slope).normalize(),
+                    0,
+                    0.3 * Math.sqrt(1 + slope * slope)
+                  );
+                  expect(
+                    ray.intersectObjects(assembled).length,
+                    `${body}/${style}/${clip} near skull y${y},z${z},side${side},angle${angle}`
+                  ).toBeGreaterThan(0);
+                }
+        }
+      }
+    } finally {
+      mixer.stopAllAction();
+      mixer.uncacheRoot(scene);
+      for (const mesh of skin) mesh.geometry.dispose();
+      material.dispose();
+      double.dispose();
+    }
   }
 );

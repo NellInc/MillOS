@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import {
   deinterleaveGeometry,
   mergeGeometries,
+  toCreasedNormals,
 } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 
@@ -1235,7 +1236,46 @@ export function createWorkerHair(style: 'short' | 'medium' | 'curly' | 'ponytail
   const rx = style === 'curly' ? 0.116 : 0.111;
   const ry = style === 'medium' ? 0.126 : 0.116;
   const rz = style === 'medium' ? 0.114 : 0.107;
-  const normal = new THREE.Vector3();
+  const normal = new THREE.Vector3(),
+    point = new THREE.Vector3();
+  const along = new THREE.Vector3(),
+    across = new THREE.Vector3();
+  const thetaLow = new THREE.Vector3(),
+    thetaHigh = new THREE.Vector3();
+  const phiLow = new THREE.Vector3(),
+    phiHigh = new THREE.Vector3();
+  const partAngle = style === 'medium' ? -0.48 : 0.42;
+  const sample = (theta: number, phi: number, out: THREE.Vector3) => {
+    const sin = Math.sin(phi),
+      front = Math.max(0, Math.cos(theta));
+    const sweep = theta + phi * (style === 'medium' ? 0.72 : 0.48);
+    const partDistance = Math.atan2(Math.sin(sweep - partAngle), Math.cos(sweep - partAngle));
+    const part = style === 'curly' ? 0 : Math.exp(-((partDistance / 0.14) ** 2));
+    const lock = 0.5 + 0.5 * Math.cos(sweep * (style === 'curly' ? 7 : 5) + phi * 0.8);
+    // Broad locks and a narrow part are real sculpt, seated outside the same scalp.
+    // Working if their normal field follows the curved surface, within the old envelope.
+    const frontSweep = Math.atan2(
+      Math.sin(theta + 0.45 + phi * 0.6),
+      Math.cos(theta + 0.45 + phi * 0.6)
+    );
+    const forelock =
+      style === 'curly' ? 0 : Math.exp(-((frontSweep / 0.65) ** 2) - ((phi - 0.85) / 0.65) ** 2);
+    const relief = sin * (0.0018 + lock * 0.003 + forelock * 0.008 - part * 0.0013);
+    const originalWave =
+      style === 'curly'
+        ? 0.005 * Math.sin(theta * 7 + phi * 8)
+        : 0.006 * Math.sin(theta * 6 + phi * 2.5);
+    // The borrowed Skin is open behind the ears. Keep its proven temple coverage,
+    // tapering toward the original seated field rather than cutting a window in it.
+    // Working if real skin-plus-hair rays close both heads without enlarging the ear cover.
+    const temple = Math.sin(theta) ** 8 * THREE.MathUtils.smoothstep(phi, 0.95, 1.35);
+    const radial = THREE.MathUtils.lerp(1 + relief / rx, 1 + (sin * originalWave) / rx, temple);
+    return out.set(
+      rx * sin * Math.sin(theta) * radial,
+      0.09 + ry * Math.cos(phi) + sin * sin * (0.003 * Math.sin(theta - 0.6) + front * 0.002),
+      0.01 + rz * sin * Math.cos(theta) * radial
+    );
+  };
   for (let row = 0; row <= rings; row++) {
     for (let column = 0; column <= segments; column++) {
       const theta = (column / segments) * Math.PI * 2;
@@ -1243,33 +1283,61 @@ export function createWorkerHair(style: 'short' | 'medium' | 'curly' | 'ponytail
       const back = Math.max(0, -Math.cos(theta));
       const hairline =
         1.64 -
-        front ** 3 * 0.63 +
+        front ** 3 * (0.63 + (style === 'medium' ? 0.1 : 0.06) * Math.sin(theta + 0.35)) +
         back * (style === 'medium' ? 0.6 : 0.25) +
         0.04 * Math.sin(theta * 4 + 0.5);
       const phi = (row / rings) * hairline;
-      const wave =
-        style === 'curly'
-          ? 0.005 * Math.sin(theta * 7 + phi * 8)
-          : 0.006 * Math.sin(theta * 6 + phi * 2.5);
-      const radial = 1 + (Math.sin(phi) * wave) / rx;
-      const x = rx * Math.sin(phi) * Math.sin(theta) * radial;
-      const y = 0.09 + ry * Math.cos(phi) + Math.sin(phi) * 0.004 * Math.sin(theta - 0.6);
-      const z = 0.01 + rz * Math.sin(phi) * Math.cos(theta) * radial;
-      positions.push(x, y, z);
-      normal.set(x / (rx * rx), (y - 0.09) / (ry * ry), (z - 0.01) / (rz * rz)).normalize();
+      sample(theta, phi, point);
+      positions.push(...point.toArray());
+      if (row === 0) normal.set(0, 1, 0);
+      else {
+        sample(theta - 0.0002, phi, thetaLow);
+        sample(theta + 0.0002, phi, thetaHigh);
+        sample(theta, phi - 0.0002, phiLow);
+        sample(theta, phi + 0.0002, phiHigh);
+        normal.subVectors(phiHigh, phiLow).cross(along.subVectors(thetaHigh, thetaLow)).normalize();
+      }
       normals.push(...normal.toArray());
       uvs.push(column / segments, row / rings);
-      // Broad swept locks survive a normal portrait distance, unlike a smooth
-      // uniformly coloured cap. The crown converges to one seamless tone.
-      const locks = 0.5 + 0.5 * Math.sin(theta * 6 + phi * 2.5);
-      const tone = THREE.MathUtils.lerp(0.88, 0.58 + 0.46 * locks, Math.sin(phi));
+      const sweep = theta + phi * (style === 'medium' ? 0.72 : 0.48);
+      const distance = Math.atan2(Math.sin(sweep - partAngle), Math.cos(sweep - partAngle));
+      const part = style === 'curly' ? 0 : Math.exp(-((distance / 0.14) ** 2));
+      const lock = 0.5 + 0.5 * Math.cos(sweep * (style === 'curly' ? 7 : 5) + phi * 0.8);
+      const tone = THREE.MathUtils.lerp(0.9, 0.74 + 0.24 * lock - part * 0.12, Math.sin(phi));
       colours.push(tone, tone, tone);
       flex.push(0);
       if (row < rings && column < segments) {
         const a = row * (segments + 1) + column,
           b = a + segments + 1;
-        indices.push(a, b, a + 1, b, b + 1, a + 1);
+        // A real crown fan: the former first triangle collapsed at every pole vertex.
+        if (row > 0) indices.push(a, b, a + 1);
+        indices.push(b, b + 1, a + 1);
       }
+    }
+  }
+  // A tucked front cut edge; the nape retains its soft open contour, without a visible loop.
+  // Separate edge normals retain the fine cut instead of rounding it into the face.
+  const edgeStart = positions.length / 3;
+  for (let column = 0; column <= segments; column++) {
+    const id = rings * (segments + 1) + column;
+    point.fromArray(positions, id * 3);
+    const inner = across.set(point.x * 0.985, point.y + 0.0015, 0.01 + (point.z - 0.01) * 0.985);
+    const next = new THREE.Vector3().fromArray(
+      positions,
+      (rings * (segments + 1) + ((column + 1) % segments)) * 3
+    );
+    normal.subVectors(inner, point).cross(along.subVectors(next, point)).normalize();
+    for (const vertex of [point, inner]) {
+      positions.push(...vertex.toArray());
+      normals.push(...normal.toArray());
+      uvs.push(column / segments, vertex === point ? 0 : 1);
+      const tone = colours[id * 3] * 0.9;
+      colours.push(tone, tone, tone);
+      flex.push(0);
+    }
+    if (column < segments && Math.cos(((column + 0.5) / segments) * Math.PI * 2) > 0.05) {
+      const a = edgeStart + column * 2;
+      indices.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
     }
   }
   const cap = new THREE.BufferGeometry();
@@ -1297,10 +1365,24 @@ export function createWorkerHair(style: 'short' | 'medium' | 'curly' | 'ponytail
       [0.026, 0.151, -0.084],
     ];
     for (let lock = 0; lock < locks.length; lock++) {
-      const curl = new THREE.SphereGeometry(1, 8, 6)
+      let curl: THREE.BufferGeometry = new THREE.SphereGeometry(1, 8, 6)
         .scale(0.039 + (lock % 3) * 0.001, 0.026 + (lock % 3) * 0.001, 0.037)
         .rotateY(lock * 0.71)
         .translate(...(locks[lock] as [number, number, number]));
+      const vertices = curl.getAttribute('position'),
+        centre = new THREE.Vector3(...(locks[lock] as [number, number, number]));
+      for (let i = 0; i < vertices.count; i++) {
+        point.fromBufferAttribute(vertices, i).sub(centre);
+        const angle = Math.atan2(point.x, point.z),
+          height = point.y / (0.026 + (lock % 3) * 0.001);
+        const lobe =
+          0.965 + 0.035 * Math.cos(angle * 3 + lock * 0.71) * Math.max(0, 1 - height * height);
+        point.multiplyScalar(lobe).add(centre);
+        vertices.setXYZ(i, point.x, point.y, point.z);
+      }
+      const smooth = toCreasedNormals(curl, Math.PI / 2);
+      curl.dispose();
+      curl = smooth;
       fittingTint(curl, 0.8 + (lock % 3) * 0.07);
       curl.setAttribute(
         'hairFlex',
@@ -1394,7 +1476,8 @@ export function createWorkerHairMotion(source: THREE.BufferGeometry) {
   const rotation = new THREE.Quaternion(),
     euler = new THREE.Euler();
   const pivot = new THREE.Vector3(0, 0.124, -0.088);
-  let energy = 0;
+  let energy = 0,
+    applied = false;
   return {
     geometry,
     apply(seconds: number, delta: number, speed: number, resting: boolean) {
@@ -1402,8 +1485,23 @@ export function createWorkerHairMotion(source: THREE.BufferGeometry) {
       const dt = THREE.MathUtils.clamp(delta, 0, 0.15);
       const pace = Number.isFinite(speed) ? THREE.MathUtils.clamp(speed, 0, 2) : 0;
       energy = THREE.MathUtils.damp(energy, resting ? 0 : pace, 6, dt);
+      // No independent idle oscillator. A stopped tail decays to its exact source,
+      // then stops uploading unchanged buffers. Zero-delta holds return above.
+      // Working if quiet wearers stay neutral and each moving wearer settles privately.
+      if (energy < 0.00001) {
+        energy = 0;
+        if (applied) {
+          position.array.set(rest.array);
+          normals.array.set(restNormal.array);
+          position.needsUpdate = true;
+          normals.needsUpdate = true;
+          applied = false;
+        }
+        return;
+      }
+      applied = true;
       const t = Number.isFinite(seconds) ? seconds : 0;
-      const sway = Math.sin(t * 4.8) * energy * 0.055 + Math.sin(t * 1.45) * 0.018;
+      const sway = Math.sin(t * 4.8) * energy * 0.055;
       const bounce = Math.sin(t * 9.6) * energy * 0.025;
       for (let index = 0; index < position.count; index++) {
         const weight = weights.getX(index);
