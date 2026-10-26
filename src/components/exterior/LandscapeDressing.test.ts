@@ -21,6 +21,7 @@ import {
 import { SITE_LAYOUT, landmarkLocalToWorld } from '../../constants/siteLayout';
 import {
   CANAL_OUTLET,
+  CANAL_WEIR_IMPACT,
   canalEastBankSections,
   createCanalOutletSurface,
   createOutletStoneGeometry,
@@ -264,3 +265,28 @@ describe('clustered rough-grass margins', () => {
     }
   );
 });
+
+it.each([64, 128])(
+  'keeps the receiving plume core below water on the actual %i terrain grid',
+  (segments) => {
+    expect(CANAL_WEIR_IMPACT.position).toEqual([
+      CANAL_OUTLET.east - CANAL_OUTLET.width / 2,
+      CANAL_OUTLET.north - 0.035,
+    ]);
+    expect(CANAL_WEIR_IMPACT.halfWidth).toBe(CANAL_OUTLET.width / 2);
+    expect(CANAL_WEIR_IMPACT.runMetres).toBe(5);
+    const [x, z] = CANAL_WEIR_IMPACT.position;
+    for (const across of [-0.7, 0, 0.7]) {
+      for (const run of [0.15, 1, 3, 4.8]) {
+        const ground =
+          SITE_LAYOUT.datum.terrain +
+          sampleTerrainGroundHeight(
+            x + across * CANAL_WEIR_IMPACT.halfWidth + run * 0.18,
+            z - run,
+            segments
+          );
+        expect(ground).toBeLessThan(CANAL_OUTLET.lowerLevel - 0.2);
+      }
+    }
+  }
+);

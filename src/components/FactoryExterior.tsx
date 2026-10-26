@@ -169,6 +169,7 @@ import {
 } from './scenery/AuthoredPropTrim';
 import {
   CANAL_OUTLET,
+  CANAL_WEIR_IMPACT,
   canalEastBankSections,
   createCanalOutletSurface,
   createOutletStoneGeometry,
@@ -1280,6 +1281,8 @@ interface UnifiedWaterSurfaceMaterialProps {
   crossOnly?: boolean;
   /** Vertical falling sheet, driven by the same water clock and daylight. */
   falling?: boolean;
+  /** Local hydraulic finish on the existing receiving river draw only. */
+  weirImpact?: boolean;
   /**
    * Shore radii in metres along the mesh's U and V (world x and z for a flat
    * radial surface). Bounded water with radii reflects its far bank on Medium
@@ -1299,6 +1302,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
   radial = false,
   crossOnly = false,
   falling = false,
+  weirImpact = false,
   bankRadii,
 }) => {
   const profile = WATER_PROFILES[kind];
@@ -1325,13 +1329,25 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
       // whose result is always zero or replaced by the falling-sheet finish.
       // Working if sheltered water has no foam path and the weir has no sky
       // reflection path, with identical pixels at the same phase and weather.
-      defines: falling
-        ? { MILLOS_FALLING_WATER: 1 }
-        : profile.shoreFoam > 0
-          ? { MILLOS_SHORE_FOAM: 1 }
-          : {},
+      defines: {
+        ...(falling
+          ? { MILLOS_FALLING_WATER: 1 }
+          : profile.shoreFoam > 0
+            ? { MILLOS_SHORE_FOAM: 1 }
+            : {}),
+        ...(weirImpact ? { MILLOS_WEIR_IMPACT: 1 } : {}),
+      },
       uniforms: {
         uTime: { value: 0 },
+        // Same-page zero control; no clocks, geometry or lights are replaced.
+        uWeirFinish: { value: falling || weirImpact ? 1 : 0 },
+        uWeirImpact: {
+          value: new THREE.Vector4(
+            ...CANAL_WEIR_IMPACT.position,
+            CANAL_WEIR_IMPACT.halfWidth,
+            CANAL_WEIR_IMPACT.runMetres
+          ),
+        },
         uDeep: { value: new THREE.Color(deep) },
         uShallow: { value: new THREE.Color(shallow) },
         uReflection: { value: new THREE.Color(reflection) },
@@ -1453,6 +1469,8 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
         uniform vec3 uCloudTone;
         uniform float uNaturalBody;
         uniform float uBankDetail;
+        uniform float uWeirFinish;
+        uniform vec4 uWeirImpact;
         uniform vec2 uBankRadii;
         uniform vec2 uFlowDirection;
         uniform float uWind;
@@ -1490,27 +1508,54 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
           float bodyLight = mix(1.0, illumination, uSkyRadiance);
           vec3 colour;
           #ifdef MILLOS_FALLING_WATER
-          // A vertical weir has no useful XZ phase gradient down its face.
-          // Thin falling ribbons in XY, with downward-travelling breakup,
-          // give it readable motion using the existing clock and one draw.
-          float fallY = vWorldPosition.y * 3.4 + uTime * 2.2;
-          float seam = vWorldPosition.x * 12.0
-            + sin(vWorldPosition.x * 2.7) * 3.4
-            + sin(vWorldPosition.x * 7.1) * 1.3;
-          float curl = sin(fallY + sin(vWorldPosition.x * 3.0)) * 1.5
-            + sin(fallY * 2.31 - vWorldPosition.x * 1.7) * 0.55;
-          float stream = 0.5 + 0.5 * sin(seam + curl);
-          float thread = 0.5 + 0.5 * sin(vWorldPosition.x * 41.3
-            + sin(fallY * 3.1 + vWorldPosition.x * 4.7) * 2.4);
-          float pulse = 0.5 + 0.5 * sin(vWorldPosition.y * 12.0
-            + uTime * 9.0 + vWorldPosition.x * 4.0);
-          float brokenFoam = smoothstep(0.70, 0.98,
-            stream * 0.5 + thread * 0.22 + pulse * 0.28);
-          float landing = 1.0 - smoothstep(0.0, 0.18, vUv.y);
-          colour = mix(uDeep, uShallow, 0.22 + 0.45 * stream);
-          colour = mix(colour, uReflection,
-            brokenFoam * 0.7 + landing * (0.12 + pulse * 0.12));
-          colour *= bodyLight;
+          // Fine vertical filaments stay quiet at the crest and aerate toward
+          // the foot. Pixel filtering prevents distant white pinpricks. The
+          // Low/zero arm retains the original sheet exactly.
+          if (uRippleDetail > 0.0 && uWeirFinish > 0.0) {
+            float across = vWorldPosition.x - uWeirImpact.x;
+            float drop = clamp(1.0 - vUv.y, 0.0, 1.0);
+            float travel = uTime * uFlowSpeed;
+            float filamentPhase = across * 23.0
+              + millosWaterNoise(vec2(across * 0.8, 2.7)) * 14.0
+              + sin(across * 2.1) * 1.4
+              + sin(vWorldPosition.y * 4.0 + travel * 5.1) * drop * 0.40;
+            float filamentFilter = 1.0 - smoothstep(0.70, 2.40, fwidth(filamentPhase));
+            float filament = smoothstep(0.64, 0.96, 0.5 + 0.5 * cos(filamentPhase))
+              * filamentFilter * (0.25 + 0.75 * millosWaterNoise(vec2(across * 2.7, 9.4)));
+            float airDetail = 1.0 - smoothstep(0.055, 0.16,
+              max(fwidth(across), fwidth(vWorldPosition.y)));
+            float air = mix(0.5, millosWaterNoise(vec2(across * 3.5,
+              vWorldPosition.y * 1.2 + travel * 3.0)), airDetail);
+            float aeration = smoothstep(0.18, 0.92, drop) * smoothstep(0.40, 0.78, air);
+            float foot = 1.0 - smoothstep(0.0, 0.16, vUv.y);
+            float film = 0.52 + 0.12 * sin(across * 7.0 + sin(across * 2.7));
+            colour = mix(uDeep, uShallow, film);
+            colour = mix(colour, uReflection, filament * (0.04 + drop * 0.15)
+              + aeration * 0.24 + foot * (0.20 + air * 0.16));
+            colour *= bodyLight;
+          } else {
+            // A vertical weir has no useful XZ phase gradient down its face.
+            // Thin falling ribbons in XY, with downward-travelling breakup,
+            // give it readable motion using the existing clock and one draw.
+            float fallY = vWorldPosition.y * 3.4 + uTime * 2.2;
+            float seam = vWorldPosition.x * 12.0
+              + sin(vWorldPosition.x * 2.7) * 3.4
+              + sin(vWorldPosition.x * 7.1) * 1.3;
+            float curl = sin(fallY + sin(vWorldPosition.x * 3.0)) * 1.5
+              + sin(fallY * 2.31 - vWorldPosition.x * 1.7) * 0.55;
+            float stream = 0.5 + 0.5 * sin(seam + curl);
+            float thread = 0.5 + 0.5 * sin(vWorldPosition.x * 41.3
+              + sin(fallY * 3.1 + vWorldPosition.x * 4.7) * 2.4);
+            float pulse = 0.5 + 0.5 * sin(vWorldPosition.y * 12.0
+              + uTime * 9.0 + vWorldPosition.x * 4.0);
+            float brokenFoam = smoothstep(0.70, 0.98,
+              stream * 0.5 + thread * 0.22 + pulse * 0.28);
+            float landing = 1.0 - smoothstep(0.0, 0.18, vUv.y);
+            colour = mix(uDeep, uShallow, 0.22 + 0.45 * stream);
+            colour = mix(colour, uReflection,
+              brokenFoam * 0.7 + landing * (0.12 + pulse * 0.12));
+            colour *= bodyLight;
+          }
           #else
           vec2 centred = vUv * 2.0 - 1.0;
 
@@ -1625,6 +1670,44 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
             slope += macroSlope * (0.25 + 0.75 * macroGust) * (0.5 + uRippleStrength)
               * uRippleDetail;
           }
+          #ifdef MILLOS_WEIR_IMPACT
+          float weirFoam = 0.0;
+          // Derivatives are outside the spatial branch; even boundary quads
+          // have a valid footprint. Bounds on the bent phase gradients filter
+          // the rolling normal before it can become sub-pixel glitter.
+          vec2 hydraulicFootprint = fwidth(waterCoord);
+          if (uRippleDetail > 0.0 && uWeirFinish > 0.0) {
+            vec2 impactCoord = waterCoord - uWeirImpact.xy;
+            float run = -impactCoord.y;
+            if (run > -0.12 && run < uWeirImpact.w
+                && abs(impactCoord.x) < uWeirImpact.z + uWeirImpact.w * 0.5) {
+              float across = impactCoord.x - run * 0.18;
+              float spread = uWeirImpact.z + max(run, 0.0) * 0.22;
+              float mask = smoothstep(-0.12, 0.12, run)
+                * (1.0 - smoothstep(uWeirImpact.w * 0.45, uWeirImpact.w, run))
+                * (1.0 - smoothstep(spread * 0.74, spread, abs(across)));
+              vec2 boilPhase = vec2(
+                across * 9.0 + sin(run * 4.0 - uTime * 1.8) * 1.2,
+                run * 11.0 - uTime * 4.0 + sin(across * 2.1) * 1.1);
+              vec2 boilFootprint = vec2(
+                dot(hydraulicFootprint, vec2(9.0, 6.5)),
+                dot(hydraulicFootprint, vec2(2.4, 11.5)));
+              vec2 boilFilter = 1.0 - smoothstep(vec2(0.70), vec2(2.40), boilFootprint);
+              slope += vec2(sin(boilPhase.x), cos(boilPhase.y)) * boilFilter
+                * mask * 0.075 * uWeirFinish;
+              float foamDetail = 1.0 - smoothstep(0.03, 0.12,
+                max(hydraulicFootprint.x, hydraulicFootprint.y));
+              float pockets = millosWaterNoise(vec2(across * 0.95, run * 1.4 - uTime * 0.6));
+              // Thin contours gather air into broken lace, rather than filling
+              // noise cells with broad painted white patches.
+              float lace = 1.0 - smoothstep(0.03, 0.14, abs(pockets - 0.52));
+              float froth = mix(0.32, lace, foamDetail);
+              float foot = 1.0 - smoothstep(0.12, 0.85, run);
+              float foamRun = 1.0 - smoothstep(0.80, 3.20, run);
+              weirFoam = mask * foamRun * (foot * 0.28 + froth * 0.42) * uWeirFinish;
+            }
+          }
+          #endif
           float rainSlope = rainRipple * (0.003 + uRippleStrength * 0.015);
           vec3 normal = normalize(vWorldNormal + vec3(slope.x + rainSlope, 0.0, slope.y - rainSlope));
 
@@ -1781,6 +1864,13 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
           colour = mix(colour, foamColour, uShoreFoam * foamPocket * (foamBand * 0.15 + lace * 0.12));
           #endif
 
+          #ifdef MILLOS_WEIR_IMPACT
+          // Gathered air is lit matter on this same opaque water surface. It
+          // inherits the shared night/day body light, tint and distance fog.
+          vec3 weirFoamColour = mix(uShallow, uReflection, 0.72);
+          colour = mix(colour, weirFoamColour * bodyLight * uBodyTint, weirFoam);
+          #endif
+
           // Damp margin so the bank mesh and the water meet on a wet
           // transition rather than a cut edge.
           float shore = smoothstep(0.0, 0.012, edge);
@@ -1817,7 +1907,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
     // MANUALLY VERSIONED, never derived from time or randomness - see the
     // documented `Date.now()` cache-key bug. Bump this whenever the shader
     // source above changes or a stale cached program will be reused.
-    value.customProgramCacheKey = () => 'millos-unified-water-v28';
+    value.customProgramCacheKey = () => 'millos-unified-water-v30';
     return value;
   }, [
     bankX,
@@ -1825,6 +1915,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
     crossOnly,
     deep,
     falling,
+    weirImpact,
     kind,
     speed,
     profile,
@@ -2071,7 +2162,7 @@ export const CANAL_OUTLET_STONES = (() => {
  * river. No reflection render, particles, light or additional animation clock.
  */
 function CanalRiverOutlet() {
-  const { east, north, width, upperLevel, lowerLevel } = CANAL_OUTLET;
+  const { width, upperLevel, lowerLevel } = CANAL_OUTLET;
   const surface = useMemo(createCanalOutletSurface, []);
   useEffect(() => () => surface.dispose(), [surface]);
   return (
@@ -2097,7 +2188,11 @@ function CanalRiverOutlet() {
       </mesh>
       <mesh
         name="canal-weir-falling-water"
-        position={[east - width / 2, (upperLevel + lowerLevel) / 2, north - 0.035]}
+        position={[
+          CANAL_WEIR_IMPACT.position[0],
+          (upperLevel + lowerLevel) / 2,
+          CANAL_WEIR_IMPACT.position[1],
+        ]}
         rotation={[0, Math.PI, 0]}
         renderOrder={RENDER_ORDER.waterSurface}
       >
@@ -2665,6 +2760,7 @@ const River: React.FC = React.memo(() => {
           flowDirection={[1, 0.16]}
           opacity={0.9}
           crossOnly
+          weirImpact
         />
       </mesh>
       {/* Girder footbridge spanning both sloped banks. */}

@@ -17,6 +17,15 @@ export const CANAL_OUTLET = {
   wallTop: 1.05,
 } as const;
 
+/** Same world landing as the existing vertical sheet, with a five-metre visual runout.
+ * Working if the sheet and receiving finish share this datum without moving either surface.
+ */
+export const CANAL_WEIR_IMPACT = {
+  position: [CANAL_OUTLET.east - CANAL_OUTLET.width / 2, CANAL_OUTLET.north - 0.035] as const,
+  halfWidth: CANAL_OUTLET.width / 2,
+  runMetres: 5,
+} as const;
+
 export function createCanalOutletSurface() {
   const { west, east, north, south, width } = CANAL_OUTLET;
   const shape = new THREE.Shape([

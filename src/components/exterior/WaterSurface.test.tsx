@@ -31,6 +31,7 @@ import {
   waterMirroredCloudWeight,
   waterNightSheen,
 } from '../../utils/waterAppearance';
+import { CANAL_OUTLET } from './canalOutletGeometry';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useGraphicsStore } from '../../stores/graphicsStore';
@@ -103,7 +104,7 @@ describe('authored exterior water material and atmosphere driver', () => {
     );
     expect(water.fragmentShader).toContain('gl_FragColor = vec4(colour, 1.0)');
     expect(water.fragmentShader).toContain('#include <fog_fragment>');
-    expect(water.customProgramCacheKey()).toBe('millos-unified-water-v28');
+    expect(water.customProgramCacheKey()).toBe('millos-unified-water-v30');
     const dispose = vi.spyOn(water, 'dispose');
     for (const cleanup of driver.cleanups.splice(0)) cleanup();
     expect(dispose).toHaveBeenCalledOnce();
@@ -401,7 +402,7 @@ it('keeps a deep-water read on Low, where no metre-scale ripple breaks the refle
   expect(water.fragmentShader).toContain(
     `mix(${WATER_FRESNEL_EXPONENT_FLAT.toFixed(1)}, ${WATER_FRESNEL_EXPONENT.toFixed(1)}, uRippleDetail)`
   );
-  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v28');
+  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v30');
 });
 
 // final4-med-12 rubric: the pond is a saturated cyan and reflects nothing of
@@ -475,7 +476,7 @@ it('gives still water a natural body and a soft far-bank darkening on Medium onl
   const rise = (camera.y - target.y) / Math.hypot(camera.x - target.x, camera.z - target.z);
   expect(WATER_BANK_PROFILE.bankMetres / rise).toBeGreaterThan(1.5);
   expect(WATER_BANK_DETAIL.value).toBe(1);
-  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v28');
+  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v30');
 });
 
 // final5-med-22 water: a near-black centre. Steep views reflect the zenith,
@@ -626,7 +627,7 @@ it('mirrors a cloud deck and gust patches across the lake on Medium, exact on Lo
   sky.dispose();
   dome.geometry.dispose();
   expect(WATER_SKY_DETAIL.value).toBe(1);
-  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v28');
+  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v30');
 });
 
 // final6-med-12 water: a white glare band along the lake's far bank and a dark
@@ -671,7 +672,7 @@ it('keeps mirrored cloud off the far bank and soft across a lake, the canal unch
     make({ kind: 'canal', crossOnly: true, bankRadii: [5.5, 110] }).uniforms.uRadial.value
   ).toBe(0);
   expect(lake.uniforms.uRadial.value).toBe(1);
-  expect(lake.customProgramCacheKey()).toBe('millos-unified-water-v28');
+  expect(lake.customProgramCacheKey()).toBe('millos-unified-water-v30');
 });
 
 // land7-med-12 water: with the glare softened, the lake centre still reads as a
@@ -722,5 +723,61 @@ it('lifts the still-water deep body toward the shallows on Medium, keeping its h
   expect(hue(after)).toBeGreaterThan(hue(rim));
   expect(deepLift).toBeGreaterThan(0);
   expect(deepLift).toBeLessThanOrEqual(0.3);
-  expect(lake.customProgramCacheKey()).toBe('millos-unified-water-v28');
+  expect(lake.customProgramCacheKey()).toBe('millos-unified-water-v30');
+});
+
+it('opts only the receiving river into the shared weir landing and local hydraulic finish', () => {
+  const make = (props: Parameters<typeof UnifiedWaterSurfaceMaterial>[0]) =>
+    (UnifiedWaterSurfaceMaterial(props) as ReactElement<{ object: THREE.ShaderMaterial }>).props
+      .object;
+  const ordinary = make({ kind: 'river' });
+  const sheet = make({ kind: 'river', falling: true });
+  const receiving = make({ kind: 'river', weirImpact: true });
+  expect(receiving.defines).toEqual({ MILLOS_SHORE_FOAM: 1, MILLOS_WEIR_IMPACT: 1 });
+  expect(ordinary.defines).toEqual({ MILLOS_SHORE_FOAM: 1 });
+  expect(sheet.defines).toEqual({ MILLOS_FALLING_WATER: 1 });
+  expect(receiving.uniforms.uWeirImpact.value.toArray()).toEqual([
+    CANAL_OUTLET.east - CANAL_OUTLET.width / 2,
+    CANAL_OUTLET.north - 0.035,
+    CANAL_OUTLET.width / 2,
+    5,
+  ]);
+  expect(receiving.uniforms.uWeirFinish.value).toBe(1);
+  expect(sheet.uniforms.uWeirFinish.value).toBe(1);
+  expect(ordinary.uniforms.uWeirFinish.value).toBe(0);
+  expect(Object.values(receiving.uniforms).some((u) => u.value?.isTexture)).toBe(false);
+});
+
+it('filters hydraulic detail and keeps it on the existing frozen clock and Low branch', () => {
+  const receiving = (
+    UnifiedWaterSurfaceMaterial({ kind: 'river', weirImpact: true }) as ReactElement<{
+      object: THREE.ShaderMaterial;
+    }>
+  ).props.object;
+  expect(receiving.fragmentShader).toContain('if (uRippleDetail > 0.0 && uWeirFinish > 0.0)');
+  expect(receiving.fragmentShader).toContain('vec2 hydraulicFootprint = fwidth(waterCoord)');
+  expect(receiving.fragmentShader).toContain('fwidth(filamentPhase)');
+  expect(receiving.fragmentShader).toContain('weirFoamColour * bodyLight * uBodyTint');
+  WaterAnimationManager({});
+  driver.frame!();
+  useGameSimulationStore.setState({ gameTime: 12.1 });
+  driver.frame!();
+  const moving = receiving.uniforms.uTime.value;
+  driver.reduced = true;
+  WaterAnimationManager({});
+  useGameSimulationStore.setState({ gameTime: 13 });
+  driver.frame!();
+  expect(receiving.uniforms.uTime.value).toBe(moving);
+  const graphics = useGraphicsStore.getState().graphics;
+  try {
+    useGraphicsStore.setState({ graphics: { ...graphics, quality: 'low' } });
+    driver.frame!();
+    expect(receiving.uniforms.uRippleDetail).toBe(WATER_RIPPLE_DETAIL);
+    expect(receiving.uniforms.uRippleDetail.value).toBe(0);
+    useGameSimulationStore.setState({ isTabVisible: false, gameTime: 15 });
+    driver.frame!();
+    expect(receiving.uniforms.uTime.value).toBe(moving);
+  } finally {
+    useGraphicsStore.setState({ graphics });
+  }
 });
