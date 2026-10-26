@@ -2650,8 +2650,12 @@ export const FountainBird = React.memo<{ position: [number, number, number] }>((
     if (gameSpeed <= 0 && excitement.current <= 0) return;
     const step = Math.min(delta, 0.1);
     clock.current += step;
+    const wasExcited = excitement.current > 0;
     excitement.current = Math.max(0, excitement.current - step);
-    if (!shouldRunThisFrame(4)) return;
+    // Admit the final pet pose even on a skipped frame.
+    // Working if a paused hop always lands before the pause gate holds it.
+    const petSettled = wasExcited && excitement.current === 0;
+    if (!shouldRunThisFrame(4) && !petSettled) return;
     if (head.current) {
       head.current.rotation.y = creaturePerchLook(clock.current, 711);
       head.current.rotation.x =

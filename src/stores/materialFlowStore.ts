@@ -342,7 +342,7 @@ export interface MaterialFlowState {
 // This threshold removes only numerical dust. It must stay far below the
 // operator-facing 0.01 kg reconciliation tolerance because it is applied to
 // many lot/path contributions over a long simulation run.
-const GENEALOGY_EPSILON_KG = 0.000000001;
+export const GENEALOGY_EPSILON_KG = 0.000000001;
 const PRODUCT_BATCH_TARGET_KG = 1000;
 // Bran and middlings have no conveyor lane: a mill discharges them to the
 // millfeed system whenever its co-product bin reaches this level. Without the

@@ -445,9 +445,14 @@ export const CANAL_MOORING_LINES = CANAL_BOAT_BERTH.lines.map((line) => ({
 export function canalMooringCurve(line: (typeof CANAL_MOORING_LINES)[number]) {
   const start = new THREE.Vector3(...line.cleat),
     end = new THREE.Vector3(...line.ring);
-  const middle = start.clone().lerp(end, 0.5);
-  middle.y = Math.min(start.y, end.y) - 0.45;
-  return new THREE.QuadraticBezierCurve3(start, middle, end);
+  // Leave the measured outboard facet along its vertical tangent before
+  // sagging toward shore. Working if the polygonal end touches metal while
+  // the exposed 23 mm rope clears the shoulder, without a free raised hook.
+  const lead = start.clone();
+  lead.y += 0.14;
+  const sag = start.clone().lerp(end, 0.58);
+  sag.y = Math.min(start.y, end.y) - 0.56;
+  return new THREE.CubicBezierCurve3(start, lead, sag, end);
 }
 
 /** A restrained cord lay in the retained tube's albedo, sampled along metres.

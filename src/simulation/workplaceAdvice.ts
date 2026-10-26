@@ -1,6 +1,7 @@
 import {
   cloneMaterialFlowData,
   createMaterialFlowStore,
+  GENEALOGY_EPSILON_KG,
   type MaterialFlowState,
   type SourceContribution,
 } from '../stores/materialFlowStore';
@@ -127,14 +128,37 @@ export function capturePackingPlant(
     )
       provenanceValid = false;
   }
-  const checkSources = (mass: number, sources: SourceContribution[] | undefined) => {
+  // One empty-provenance residue budget for the whole capture. The engine prunes
+  // numerical dust from genealogy, but retains its physical buffer/transit mass.
+  // Positive batches remain strict; an empty batch must never look released.
+  let residueKg = 0;
+  let residueCorrectionKg = 0;
+  const checkSources = (
+    mass: number,
+    sources: SourceContribution[] | undefined,
+    allowEmptyResidue = false
+  ) => {
     if (!nonnegative(mass)) {
       provenanceValid = false;
       return;
     }
     if (mass === 0) return;
     if (
-      !sources?.length ||
+      allowEmptyResidue &&
+      (sources === undefined || (Array.isArray(sources) && !sources.length))
+    ) {
+      // Compensated positive sum keeps a tiny excess visible at the exact budget
+      // boundary, regardless of row order (for example epsilon followed by 1e-28).
+      const next = residueKg + mass;
+      residueCorrectionKg += residueKg >= mass ? residueKg - next + mass : mass - next + residueKg;
+      residueKg = next;
+      if (!Number.isFinite(residueKg) || residueCorrectionKg > GENEALOGY_EPSILON_KG - residueKg)
+        provenanceValid = false;
+      return;
+    }
+    if (
+      !Array.isArray(sources) ||
+      !sources.length ||
       sources.some(
         (s) =>
           !nonnegative(s.amount) ||
@@ -173,7 +197,7 @@ export function capturePackingPlant(
     )
       missing.push(translate(msg, 'invalidMachines'));
     for (const m of [...buffer.inputBuffer, ...buffer.outputBuffer])
-      checkSources(m.amount, m.sourceContributions);
+      checkSources(m.amount, m.sourceContributions, true);
   }
   for (const segment of data.network.segments) {
     if (
@@ -185,7 +209,7 @@ export function capturePackingPlant(
     )
       missing.push(translate(msg, 'invalidConveyors'));
     for (const t of segment.inTransit) {
-      checkSources(t.amount, t.sourceContributions);
+      checkSources(t.amount, t.sourceContributions, true);
       if (!nonnegative(t.arrivalTime)) provenanceValid = false;
     }
   }

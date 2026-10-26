@@ -25,15 +25,16 @@ export const STATION_ROAD_EDGE_SEGMENTS = [
 ] as const;
 
 /** The authored Flourish sits beside the west coping, leaving the navigation
- * channel open. Cleats are measured local bollard tops; eyes are world-space.
- * Working if the delivered hull clears the quay and both rendered lines end on those fittings.
+ * channel open. Rope centres sit against measured outboard bollard facets,
+ * offset by the actual five-sided end section; eyes are world-space.
+ * Working if the delivered hull clears the quay and both rope ends touch metal.
  */
 export const CANAL_BOAT_BERTH = {
   position: [-149.3955, 0.1, 15] as Vec3Tuple,
   keelSink: 0.6,
   lines: [
-    { cleat: [-0.2981641, 1.44, -5.9], eye: [-151.1, 1.07, 9] },
-    { cleat: [-0.2981641, 1.44, 5.86], eye: [-151.1, 1.07, 21] },
+    { cleat: [-0.441381739169, 1.415, -5.862400268744], eye: [-151.1, 1.07, 9] },
+    { cleat: [-0.441381802224, 1.415, 5.897599731256], eye: [-151.1, 1.07, 21] },
   ],
 } as const;
 

@@ -3,6 +3,7 @@ import { setLocale } from '../i18n';
 import {
   cloneMaterialFlowData,
   createMaterialFlowStore,
+  GENEALOGY_EPSILON_KG,
   useMaterialFlowStore,
 } from '../stores/materialFlowStore';
 import {
@@ -222,6 +223,130 @@ describe('isolated packing advice', () => {
       expect(advice.reasonToAbstain).not.toBeNull();
       expect(advice.packedHighKg).toBe(0);
       expect(advice.dispatchUpperKg).toBe(0);
+    }
+  });
+  it('bounds empty optional provenance once across all buffer and transit rows', () => {
+    const epsilon = GENEALOGY_EPSILON_KG;
+    expect(epsilon).toBe(1e-9);
+    const nextAbove = epsilon + 2 ** -82;
+    for (const [masses, accepted] of [
+      [[epsilon], true],
+      [[epsilon / 2, epsilon / 2], true],
+      [Array.from({ length: 13 }, () => epsilon / 13), true],
+      [[nextAbove], false],
+      [[epsilon, 1e-28], false],
+      [[1e-28, epsilon], false],
+      [[epsilon * 0.4, epsilon * 0.3, epsilon * 0.4], false],
+      [Array.from({ length: 10000 }, () => epsilon / 2), false],
+    ] as const) {
+      const f = fixture();
+      const state = f.store.getState();
+      masses.forEach((amount, i) => {
+        const row = {
+          type: 'wheat_grain' as const,
+          amount,
+          sourceContributions: i % 2 ? undefined : [],
+        };
+        if (i % 3 === 0) state.machineBuffers.get('silo-0')!.inputBuffer.push(row);
+        else if (i % 3 === 1) state.machineBuffers.get('silo-1')!.outputBuffer.push(row);
+        else {
+          const segment = state.network.segments[0];
+          segment.inTransit.push({ ...row, arrivalTime: 10 });
+          segment.currentLoad += amount;
+        }
+      });
+      const before = cloneMaterialFlowData(state);
+      const capture = f.capture();
+      expect(capture.reasonToAbstain === null, JSON.stringify(masses.slice(0, 3))).toBe(accepted);
+      expect(capture.data).toEqual(before);
+      expect(cloneMaterialFlowData(f.store.getState())).toEqual(before);
+      expect(f.capture().fingerprint).toBe(capture.fingerprint);
+    }
+  });
+  it('keeps positive batches and nonempty provenance strict, even below the residue budget', () => {
+    for (const mutation of [
+      'missing',
+      'lot',
+      'path',
+      'amount',
+      'container',
+      'disposition',
+      'negative',
+      'nan',
+      'infinite',
+      'batch',
+    ] as const) {
+      const f = fixture();
+      const state = f.store.getState();
+      const lot = state.sourceLots.values().next().value!;
+      const row = {
+        type: 'wheat_grain' as const,
+        amount: 1e-12,
+        sourceContributions: [{ lotId: lot.id, amount: 1e-12, path: ['silo-0'] }],
+      };
+      if (mutation === 'missing') row.amount = 0.02;
+      if (mutation === 'missing') row.sourceContributions = [];
+      if (mutation === 'lot') row.sourceContributions[0].lotId = 'unknown';
+      if (mutation === 'path') row.sourceContributions[0].path = null as unknown as string[];
+      if (mutation === 'amount') row.sourceContributions[0].amount = NaN;
+      if (mutation === 'container') row.sourceContributions = {} as typeof row.sourceContributions;
+      if (mutation === 'disposition') lot.disposition = 'invalid' as typeof lot.disposition;
+      if (mutation === 'negative') row.amount = -1e-12;
+      if (mutation === 'nan') row.amount = NaN;
+      if (mutation === 'infinite') row.amount = Infinity;
+      if (mutation === 'batch')
+        state.productionBatches.push({
+          id: 'unprovenanced',
+          packerId: 'packer-0',
+          materialType: 'flour',
+          producedKg: 1e-12,
+          availableKg: 1e-12,
+          simulationTime: 0,
+          sourceContributions: [],
+          disposition: 'released',
+          dispositionReason: null,
+          qcTestIds: [],
+          dispatchManifestIds: [],
+          sealed: true,
+        });
+      else state.machineBuffers.get('silo-0')!.inputBuffer.push(row);
+      expect(f.capture().reasonToAbstain, mutation).toContain('Source genealogy');
+    }
+    const f = fixture();
+    f.store
+      .getState()
+      .machineBuffers.get('silo-0')!
+      .inputBuffer.push({
+        type: 'wheat_grain',
+        amount: 0,
+        sourceContributions: [{ lotId: 'unknown', amount: NaN, path: [] }],
+      });
+    expect(f.capture().reasonToAbstain).toBeNull(); // Retain the existing zero-mass contract.
+  });
+  it('accepts the real engine numerical residue without changing physical or fingerprint inputs', () => {
+    for (const ticks of [120, 1200]) {
+      const f = fixture();
+      f.context.order!.requiredKg = 6000;
+      for (let i = 0; i < ticks; i++)
+        f.store.getState().tickMaterialFlow(0.5, 1, {
+          sourceMaterial: 'wheat_grain',
+          finishedMaterial: 'flour',
+          remainingFinishedKg: 6000,
+        });
+      const state = f.store.getState();
+      const rows = [...state.machineBuffers.values()]
+        .flatMap((b) => [...b.inputBuffer, ...b.outputBuffer])
+        .concat(state.network.segments.flatMap((s) => s.inTransit));
+      const missing = rows.filter((m) => m.amount > 0 && !m.sourceContributions?.length);
+      expect(missing.length).toBeGreaterThan(0);
+      expect(missing.reduce((sum, m) => sum + m.amount, 0)).toBeLessThan(1e-9);
+      const before = cloneMaterialFlowData(state);
+      const capture = f.capture();
+      expect(capture.reasonToAbstain).toBeNull();
+      expect(capture.data).toEqual(before);
+      expect(cloneMaterialFlowData(f.store.getState())).toEqual(before);
+      expect(f.capture().fingerprint).toBe(capture.fingerprint);
+      if (ticks === 120) expect(derivePackingAdvice(capture, 'steady').reasonToAbstain).toBeNull();
     }
   });
   it('detects changed paused inventory, provenance, order, quality and dispatch facts', () => {

@@ -302,6 +302,54 @@ it('animates the shared bird silently and stops its motion when paused or reduce
   }
 });
 
+it('lands paused fountain pet hops at every throttle phase and display rate, then holds the settled pose', () => {
+  const original = useGameSimulationStore.getState();
+  useGameSimulationStore.setState({ gameSpeed: 0, isTabVisible: true });
+  boundary.throttle = 4;
+  try {
+    for (const fps of [30, 60, 120]) {
+      for (let phase = 0; phase < 4; phase++) {
+        boundary.frame = phase;
+        const view = render(<FountainBird position={FOUNTAIN_BIRD_PERCH} />);
+        const head = Object.assign(view.container.querySelector('[name="fountain-bird-head"]')!, {
+          rotation: new THREE.Euler(),
+        });
+        const body = Object.assign(view.container.querySelector('[name="fountain-bird-motion"]')!, {
+          position: new THREE.Vector3(),
+        });
+        const callback = vi.mocked(useFrame).mock.calls.at(-1)![0];
+        const tick = () => callback({} as Parameters<typeof callback>[0], 1 / fps);
+        try {
+          fireEvent.click(view.container.querySelector('[name="fountain-bird"]')!);
+          let peak = 0;
+          for (let i = 0; i < fps * 2; i++) {
+            tick();
+            peak = Math.max(peak, body.position.y);
+            expect(body.position.y).toBeGreaterThanOrEqual(0);
+            expect(body.position.y).toBeLessThanOrEqual(0.045);
+          }
+          expect(peak).toBeGreaterThan(0.02);
+          expect(body.position.y, `fps=${fps}, phase=${phase}`).toBe(0);
+          expect(head.rotation.x).not.toBe(-0.15);
+          const settledHead = head.rotation.clone();
+          for (let i = 0; i < fps; i++) tick();
+          expect(body.position.y).toBe(0);
+          expect(head.rotation.equals(settledHead)).toBe(true);
+        } finally {
+          view.unmount();
+        }
+      }
+    }
+    expect(playCritterSound).toHaveBeenCalledTimes(12);
+    expect(playCritterSound).toHaveBeenCalledWith('bird');
+  } finally {
+    useGameSimulationStore.setState({
+      gameSpeed: original.gameSpeed,
+      isTabVisible: original.isTabVisible,
+    });
+  }
+});
+
 it('drives one forge horse through its rig handle, keeps the root grounded and observes pause/hidden/safety/reduced holds', () => {
   const original = useGameSimulationStore.getState();
   useGameSimulationStore.setState({

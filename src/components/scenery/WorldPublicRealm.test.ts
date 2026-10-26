@@ -284,6 +284,112 @@ describe('world public realm', () => {
           }
     }
   );
+  it('leads the full-radius mooring tubes over the delivered cleat shoulders after fastening contact', async () => {
+    const doc = await new NodeIO().read('public/models/world/canal-boat.glb');
+    const hull = new THREE.BufferGeometry();
+    const node = doc
+      .getRoot()
+      .listNodes()
+      .find((n) => n.getMesh())!;
+    const primitive = node.getMesh()!.listPrimitives()[0];
+    hull.setAttribute(
+      'position',
+      new THREE.BufferAttribute(primitive.getAttribute('POSITION')!.getArray()!, 3)
+    );
+    hull.setIndex(new THREE.BufferAttribute(primitive.getIndices()!.getArray()!, 1));
+    hull.applyMatrix4(new THREE.Matrix4().fromArray(node.getWorldMatrix()));
+    const boatOffset = new THREE.Vector3(
+      CANAL_BOAT_BERTH.position[0],
+      CANAL_BOAT_BERTH.position[1] - CANAL_BOAT_BERTH.keelSink,
+      CANAL_BOAT_BERTH.position[2]
+    );
+    // Match the live model's object transform, without a second Float32 bake of its vertices.
+    const boat = new THREE.Mesh(hull, material);
+    boat.position.copy(boatOffset);
+    boat.updateMatrixWorld();
+    const positions = hull.getAttribute('position'),
+      indices = hull.index!;
+    const triangle = new THREE.Triangle(),
+      closest = new THREE.Vector3();
+    try {
+      for (const line of CANAL_MOORING_LINES) {
+        const curve = canalMooringCurve(line),
+          tube = canalMooringGeometry(line);
+        const anchor = new THREE.Vector3(...line.cleat),
+          modelAnchor = anchor.clone().sub(boatOffset),
+          radius = tube.parameters.radius;
+        // The retained end is a fastening contact. Permit only two rope radii
+        // around that exact anchor; the exposed lead must clear solid metal.
+        const contactRadius = radius * 2;
+        let fasteningGap = Infinity;
+        const endPositions = tube.getAttribute('position');
+        for (let endVertex = 0; endVertex <= 5; endVertex++) {
+          const point = new THREE.Vector3()
+            .fromBufferAttribute(endPositions, endVertex)
+            .sub(boatOffset);
+          for (let i = 0; i < indices.count; i += 3) {
+            triangle.a.fromBufferAttribute(positions, indices.getX(i));
+            triangle.b.fromBufferAttribute(positions, indices.getX(i + 1));
+            triangle.c.fromBufferAttribute(positions, indices.getX(i + 2));
+            triangle.closestPointToPoint(point, closest);
+            fasteningGap = Math.min(fasteningGap, point.distanceTo(closest));
+          }
+        }
+        // Clearance alone previously accepted a free endpoint over the hollow centre.
+        expect(fasteningGap, 'the actual five-sided rope end touches delivered metal').toBeCloseTo(
+          0,
+          5
+        );
+        let clearance = Infinity;
+        for (const worldPoint of curve.getSpacedPoints(192)) {
+          const point = worldPoint.clone().sub(boatOffset);
+          for (let i = 0; i < indices.count; i += 3) {
+            triangle.a.fromBufferAttribute(positions, indices.getX(i));
+            triangle.b.fromBufferAttribute(positions, indices.getX(i + 1));
+            triangle.c.fromBufferAttribute(positions, indices.getX(i + 2));
+            triangle.closestPointToPoint(point, closest);
+            if (closest.distanceTo(modelAnchor) <= contactRadius) continue;
+            clearance = Math.min(clearance, point.distanceTo(closest));
+          }
+        }
+        expect(
+          clearance,
+          'the whole 23mm rope radius must clear the cleat shoulder'
+        ).toBeGreaterThanOrEqual(radius);
+        expect(tube.parameters.tubularSegments).toBe(14);
+        expect(tube.parameters.radialSegments).toBe(5);
+        expect(tube.getAttribute('position').count).toBe(90);
+        expect(tube.index!.count / 3).toBe(140);
+        // Check the actual rendered polygon edges as well as a swept radius.
+        const tp = tube.getAttribute('position'),
+          ti = tube.index!;
+        for (let i = 0; i < ti.count; i += 3)
+          for (const [a, b] of [
+            [0, 1],
+            [1, 2],
+            [2, 0],
+          ]) {
+            const from = new THREE.Vector3().fromBufferAttribute(tp, ti.getX(i + a));
+            const to = new THREE.Vector3().fromBufferAttribute(tp, ti.getX(i + b));
+            const direction = to.sub(from),
+              length = direction.length();
+            const crossings = new THREE.Raycaster(
+              from,
+              direction.normalize(),
+              0,
+              length
+            ).intersectObject(boat);
+            expect(
+              crossings.filter((h) => h.point.distanceTo(anchor) > contactRadius)
+            ).toHaveLength(0);
+          }
+        tube.dispose();
+      }
+    } finally {
+      hull.dispose();
+    }
+  });
+
   it('ties the alongside hull to its measured fittings with a clear navigation channel', async () => {
     for (const line of CANAL_MOORING_LINES) {
       const curve = canalMooringCurve(line);
@@ -318,19 +424,52 @@ describe('world public realm', () => {
     expect(hullWest - west).toBeCloseTo(0.25, 4);
     expect(canal.position[0] + canal.width / 2 - hullEast).toBeGreaterThan(9);
     CANAL_BOAT_BERTH.lines.forEach((line, index) => {
-      const tops = [];
-      for (let i = 0; i < positions.length; i += 3)
-        if (
-          positions[i] < 0 &&
-          Math.abs(positions[i + 1] - line.cleat[1]) < 1e-5 &&
-          Math.abs(positions[i + 2] - line.cleat[2]) < 0.131
+      const originalCentre = new THREE.Vector3(-0.2981641, 1.44, index === 0 ? -5.9 : 5.86);
+      const fittingGeometry = new THREE.BufferGeometry().setAttribute(
+        'position',
+        new THREE.BufferAttribute(positions, 3)
+      );
+      fittingGeometry.setIndex(
+        new THREE.BufferAttribute(
+          document.getRoot().listMeshes()[0].listPrimitives()[0].getIndices()!.getArray()!,
+          1
         )
-          tops.push([positions[i], positions[i + 1], positions[i + 2]]);
-      expect(tops).toHaveLength(24);
-      for (const axis of [0, 2]) {
-        const values = tops.map((p) => p[axis]);
-        expect((Math.min(...values) + Math.max(...values)) / 2).toBeCloseTo(line.cleat[axis], 5);
-      }
+      );
+      const surface = ray(fittingGeometry, [-1, 1.415, originalCentre.z + 0.0325], [1, 0, 0], 1)[0];
+      expect(surface).toBeDefined();
+      expect(surface.point.x).toBeCloseTo(-0.42287044, 6);
+      const normal = surface.face!.normal;
+      expect(normal.x).toBeCloseTo(-0.964083917, 6);
+      expect(normal.y).toBeCloseTo(0, 6);
+      expect(normal.z).toBeCloseTo(0.265597817, 6);
+      const anchor = new THREE.Vector3(...line.cleat),
+        offset = anchor.clone().sub(surface.point);
+      // A vertical lead's five-sided, 23mm end section projects this support
+      // onto the actual outboard facet, rather than floating one full radius away.
+      const support =
+        0.023 * (-normal.x * Math.sin((Math.PI * 2) / 5) - normal.z * Math.cos((Math.PI * 2) / 5));
+      expect(offset.dot(normal)).toBeCloseTo(support, 6);
+      expect(offset.dot(normal)).toBeGreaterThan(0);
+      const end = canalMooringGeometry(CANAL_MOORING_LINES[index]);
+      const worldSurface = surface.point
+        .clone()
+        .add(
+          new THREE.Vector3(
+            CANAL_BOAT_BERTH.position[0],
+            CANAL_BOAT_BERTH.position[1] - CANAL_BOAT_BERTH.keelSink,
+            CANAL_BOAT_BERTH.position[2]
+          )
+        );
+      const endPositions = end.getAttribute('position');
+      const signedDistances = Array.from({ length: 6 }, (_, vertex) =>
+        new THREE.Vector3().fromBufferAttribute(endPositions, vertex).sub(worldSurface).dot(normal)
+      );
+      // Existing five-decimal geometry precision admits only Float32 roundoff at contact.
+      expect(Math.min(...signedDistances)).toBeCloseTo(0, 5);
+      end.dispose();
+      expect(offset.clone().addScaledVector(normal, -support).length()).toBeCloseTo(0, 6);
+      expect(anchor.distanceTo(originalCentre)).toBeLessThan(0.2);
+      fittingGeometry.dispose();
       expect(CANAL_MOORING_LINES[index].cleat).toEqual([
         CANAL_BOAT_BERTH.position[0] + line.cleat[0],
         CANAL_BOAT_BERTH.position[1] - CANAL_BOAT_BERTH.keelSink + line.cleat[1],
