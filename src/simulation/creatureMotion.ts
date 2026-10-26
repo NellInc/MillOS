@@ -219,10 +219,14 @@ export function sampleDuckWaterLife(
   return out;
 }
 
-/** Conservative posed pig envelope, including room for authored root rocking.
+/** Conservative posed herd envelopes, including room for authored motion.
  * Working if real posed vertices remain inside this radius at every heading.
  */
 export const PIG_CLEARANCE_RADIUS = 0.76;
+export const COW_CLEARANCE_RADIUS = 1.12;
+const PIG_SPACE = { radius: PIG_CLEARANCE_RADIUS, ...QUADRUPED_WALK.pig };
+export const COW_SPACE = { radius: COW_CLEARANCE_RADIUS, ...QUADRUPED_WALK.cow };
+
 export interface PigSpaceState {
   target: { x: number; y: number; z: number };
   isIdle: boolean;
@@ -284,7 +288,7 @@ export function pigPairClear(
   return (x + vx * t) ** 2 + (z + vz * t) ** 2 >= radius * radius - 1e-10;
 }
 
-/** One fixed admitted pig step, all proposals read the same old herd positions.
+/** One fixed admitted herd step, with the existing pig configuration as default.
  * Working if targets stay authored, accepted travel drives feet and waiting has no stride.
  */
 export function stepPigSpace(
@@ -297,10 +301,11 @@ export function stepPigSpace(
     step: number,
     bounds: WanderBounds
   ) => { x: number; z: number; idleSeconds: number },
-  workspace: PigSpaceWorkspace
+  workspace: PigSpaceWorkspace,
+  config: { radius: number; speed: number; cycle: number } = PIG_SPACE
 ): void {
   if (!(delta > 0)) return;
-  const speed = QUADRUPED_WALK.pig.speed,
+  const speed = config.speed,
     count = roots.length;
   for (let i = 0; i < count; i++) {
     const root = roots[i],
@@ -354,7 +359,7 @@ export function stepPigSpace(
           const px = root.position.x - other.position.x,
             pz = root.position.z - other.position.z;
           const gap = Math.hypot(px, pz);
-          if (gap < PIG_CLEARANCE_RADIUS * (root.scale.x + other.scale.x) + 0.1)
+          if (gap < config.radius * (root.scale.x + other.scale.x) + 0.1)
             headings[headingCount++] =
               gap > 1e-9 ? Math.atan2(px, pz) : ((state.seed % 3) * Math.PI * 2) / 3;
         }
@@ -383,7 +388,7 @@ export function stepPigSpace(
             const px = root.position.x - other.position.x,
               pz = root.position.z - other.position.z;
             const gap = Math.hypot(px, pz),
-              limit = PIG_CLEARANCE_RADIUS * (root.scale.x + other.scale.x);
+              limit = config.radius * (root.scale.x + other.scale.x);
             if (gap < 1e-9) {
               const away = ((state.seed % 3) * Math.PI * 2) / 3;
               score += (x * Math.sin(away) + z * Math.cos(away)) * 8;
@@ -436,7 +441,7 @@ export function stepPigSpace(
             proposal.z,
             q.x,
             q.z,
-            PIG_CLEARANCE_RADIUS * (root.scale.x + other.scale.x)
+            config.radius * (root.scale.x + other.scale.x)
           )
         ) {
           clear = false;
@@ -468,7 +473,7 @@ export function stepPigSpace(
     states[i].stridePhase = advanceCreatureStride(
       states[i].stridePhase,
       p.distance / root.scale.x,
-      (Math.PI * 2) / QUADRUPED_WALK.pig.cycle
+      (Math.PI * 2) / config.cycle
     );
   }
 }

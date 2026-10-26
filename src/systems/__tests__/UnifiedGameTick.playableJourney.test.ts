@@ -1,5 +1,5 @@
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import * as ts from 'typescript';
 
 // These tick the real engine (and, for the truck tests, the real yard at 60
@@ -40,7 +40,10 @@ import {
 import { PACE_GAME_SPEEDS, STANDARD_GAME_SPEED } from '../../simulation/pace';
 import { createElement } from 'react';
 import { cleanup, render, screen } from '@testing-library/react';
-import { ShiftDebrief } from '../../components/ui-new/onboarding/PlayableShift';
+import {
+  FirstDeliveryJourney,
+  ShiftDebrief,
+} from '../../components/ui-new/onboarding/PlayableShift';
 import { useUIStore } from '../../stores/uiStore';
 import { setLocale } from '../../i18n';
 
@@ -216,6 +219,93 @@ it('recovers actual certification hold and dispatches within the default morning
     useMaterialFlowStore.getState().productionBatches.some((batch) => batch.availableKg > 0)
   ).toBe(true);
   expect(useOperationsCampaignStore.getState().execution.stage).toBe('quality_hold');
+  const campaign = useOperationsCampaignStore.getState();
+  const order = campaign.orders.find((item) => item.id === campaign.activeOrderId)!;
+  expect(campaign.execution.dispatchLoad.blockCode).toBe('certificationExpired');
+  expect(
+    useMaterialFlowStore
+      .getState()
+      .productionBatches.every((batch) => batch.disposition === 'released')
+  ).toBe(true);
+  const before = JSON.stringify({
+    execution: campaign.execution,
+    orders: campaign.orders,
+    qc: useQCLabStore.getState().qcLab,
+    material: useMaterialFlowStore.getState().getMaterialBalance(),
+  });
+  const evidence = [];
+  try {
+    useUIStore.getState().startDeliveryJourney(order.id);
+    useUIStore.getState().recordMachineInspection('rm-101');
+    for (const locale of ['en', 'pt-BR'] as const) {
+      setLocale(locale);
+      const guide = deriveDeliveryJourney(order, campaign.execution, true);
+      const cause =
+        locale === 'en'
+          ? 'Quality certification is expired.'
+          : 'A certificação de qualidade está vencida.';
+      expect(guide.detail).toContain(cause);
+      expect(guide.detail).not.toMatch(/QC batch hold|retenção de lote do CQ/);
+      const { container } = render(
+        createElement(FirstDeliveryJourney, {
+          selectedMachine: null,
+          onOpenWorkspace: () => {},
+        })
+      );
+      expect(container.textContent).toContain(cause);
+      expect(container.textContent).toContain(
+        locale === 'en' ? 'can also block all dispatch.' : 'também podem bloquear toda a expedição.'
+      );
+      const html = container.innerHTML;
+      evidence.push({
+        locale,
+        guide,
+        html,
+        exactText: container.textContent,
+        controls: container.querySelectorAll('button,select,input').length,
+      });
+      const output = process.env.MILLOS_DELIVERY_EVIDENCE_DIR;
+      if (output) {
+        mkdirSync(output, { recursive: true });
+        writeFileSync(
+          `${output}/quality-guide-${locale}.html`,
+          `<!doctype html><html lang="${locale}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head><body>${html}</body></html>`
+        );
+      }
+      cleanup();
+    }
+  } finally {
+    cleanup();
+    setLocale('en');
+  }
+  expect(
+    JSON.stringify({
+      execution: campaign.execution,
+      orders: campaign.orders,
+      qc: useQCLabStore.getState().qcLab,
+      material: useMaterialFlowStore.getState().getMaterialBalance(),
+    })
+  ).toBe(before);
+  const output = process.env.MILLOS_DELIVERY_EVIDENCE_DIR;
+  if (output)
+    writeFileSync(
+      `${output}/quality-guide-domain.json`,
+      JSON.stringify(
+        {
+          scope:
+            'Isolated actual unified-tick stores and FirstDeliveryJourney DOM; no browser/device or human acceptance',
+          certification: useQCLabStore.getState().qcLab.certificationStatus,
+          execution: campaign.execution,
+          batchDispositions: useMaterialFlowStore
+            .getState()
+            .productionBatches.map((batch) => batch.disposition),
+          balance: useMaterialFlowStore.getState().getMaterialBalance(),
+          evidence,
+        },
+        null,
+        2
+      )
+    );
 
   useQCLabStore.getState().updateCertificationStatus('valid');
   for (let i = 30; i < morningWindowTicks; i++) step();

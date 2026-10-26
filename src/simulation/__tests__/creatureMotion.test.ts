@@ -6,6 +6,7 @@ import {
   createPigSpaceWorkspace,
   pigPairClear,
   PIG_CLEARANCE_RADIUS,
+  COW_SPACE,
   creatureCadence,
   createHorseRestPose,
   sampleHorseRest,
@@ -497,4 +498,57 @@ describe('joint pig peer clearance', () => {
     expect(run(Array(3600).fill(1 / 120))).toEqual(run(Array(900).fill(1 / 30)));
     expect(run(Array(600).fill(0.05))).toEqual(run(Array(1800).fill(1 / 60)));
   });
+});
+
+it('keeps the original seeded cow herd clear with genuine target progress and exact accepted-travel feet', () => {
+  const bounds = { minX: -3.8, maxX: 13.8, minZ: 10.6, maxZ: 19.4 };
+  const starts = [
+    [0, 15, 0.3, 0.9835433671699138],
+    [5, 18, -0.8, 1.0202444439270766],
+    [8, 13, 1.5, 1.028377454643778],
+  ];
+  const roots = starts.map(([x, z, yaw, scale]) => ({
+    position: { x, y: 0, z },
+    rotation: { y: yaw },
+    scale: { x: scale },
+  }));
+  const states = starts.map((_, i) => {
+    const plan = createAnimalWanderPlan(300 + i, 0, bounds);
+    return {
+      target: { x: plan.x, y: 0, z: plan.z },
+      seed: 300 + i,
+      sequenceStep: 1,
+      isIdle: false,
+      idleTime: 0,
+      stridePhase: 0,
+      moving: false,
+      cadence: creatureCadence(300 + i),
+    };
+  });
+  const workspace = createPigSpaceWorkspace();
+  for (let frame = 0; frame < 7200; frame++) {
+    const previous = roots.map((root, i) => ({
+      x: root.position.x,
+      z: root.position.z,
+      phase: states[i].stridePhase,
+    }));
+    stepPigSpace(roots, states, 1 / 60, bounds, createAnimalWanderPlan, workspace, COW_SPACE);
+    roots.forEach((root, i) => {
+      const travel = Math.hypot(root.position.x - previous[i].x, root.position.z - previous[i].z);
+      expect(travel).toBeLessThanOrEqual(0.5 / 60 + 1e-12);
+      expect(states[i].stridePhase).toBeCloseTo(
+        advanceCreatureStride(previous[i].phase, travel / root.scale.x, (Math.PI * 2) / 0.55),
+        9
+      );
+      expect(root.position.x).toBeGreaterThanOrEqual(bounds.minX);
+      expect(root.position.x).toBeLessThanOrEqual(bounds.maxX);
+      expect(root.position.z).toBeGreaterThanOrEqual(bounds.minZ);
+      expect(root.position.z).toBeLessThanOrEqual(bounds.maxZ);
+      for (let j = 0; j < i; j++)
+        expect(
+          Math.hypot(root.position.x - roots[j].position.x, root.position.z - roots[j].position.z)
+        ).toBeGreaterThanOrEqual(COW_SPACE.radius * (root.scale.x + roots[j].scale.x) - 1e-9);
+    });
+  }
+  expect(states.every((state) => state.sequenceStep >= 3)).toBe(true);
 });

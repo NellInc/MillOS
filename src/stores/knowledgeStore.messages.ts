@@ -62,8 +62,8 @@ export const knowledgeStoreMessages = defineMessages({
     batchQualityTitle: 'Batch Quality and Recall',
     batchQualityTooltip: 'Quality disposition follows exact batches and source lots.',
     batchQualityBrief:
-      'A quality hold follows the flour, not the factory. Only the affected batches stop moving.',
-    batchQualityArticle: `## Bounded Quality Decisions\n\nA quality test names the batch, source lots, equipment, test type, measurements, and who ordered it. A hold stops dispatch of the suspect material while the rest of the line keeps running. A passing retest releases the investigated scope. A recall isolates only what needs isolating.\n\nThis is more informative than a single quality score that goes up or down. The score still works for trends, but the genealogy and disposition records carry the evidence you actually need to act.`,
+      'Batch holds isolate affected material. Expired certification, unresolved contamination or a failed laboratory result can also block all dispatch.',
+    batchQualityArticle: `## Bounded Quality Decisions\n\nA quality test names the batch, source lots, equipment, test type, measurements, and who ordered it. A batch hold stops dispatch of the suspect material while the rest of the line keeps running. A passing retest releases the investigated scope. A recall isolates only what needs isolating.\n\nCertification, unresolved contamination and the latest laboratory result are separate plant-wide dispatch checks. Releasing a batch does not clear those conditions. Resolve them through the QC controls before loading.\n\nThis is more informative than a single quality score that goes up or down. The score still works for trends, but the genealogy and disposition records carry the evidence you actually need to act.`,
     batchQualitySeeInAction: 'Overview batch genealogy\nSCADA quality provenance',
     // autonomous-logistics
     autonomousLogisticsTitle: 'Autonomous Logistics Choreography',
@@ -180,8 +180,8 @@ export const knowledgeStoreMessages = defineMessages({
     batchQualityTooltip:
       'A destinação de qualidade acompanha exatamente os lotes produzidos e os lotes de origem.',
     batchQualityBrief:
-      'Uma retenção de qualidade acompanha a farinha, não a fábrica. Só os lotes afetados param de circular.',
-    batchQualityArticle: `## Decisões de qualidade delimitadas\n\nUm teste de qualidade identifica o lote, os lotes de origem, o equipamento, o tipo de teste, as medições e quem o solicitou. Uma retenção interrompe a expedição do material suspeito enquanto o restante da linha continua funcionando. Um reteste aprovado libera o escopo investigado. Um recolhimento isola apenas o que precisa ser isolado.\n\nIsso informa mais do que uma única nota de qualidade que sobe ou desce. A nota continua útil para tendências, mas os registros de genealogia e de destinação trazem as evidências de que você realmente precisa para agir.`,
+      'Retenções de lote isolam o material afetado. Certificação vencida, contaminação não resolvida ou resultado de laboratório reprovado também podem bloquear toda a expedição.',
+    batchQualityArticle: `## Decisões de qualidade delimitadas\n\nUm teste de qualidade identifica o lote, os lotes de origem, o equipamento, o tipo de teste, as medições e quem o solicitou. Uma retenção de lote interrompe a expedição do material suspeito enquanto o restante da linha continua funcionando. Um reteste aprovado libera o escopo investigado. Um recolhimento isola apenas o que precisa ser isolado.\n\nA certificação, a contaminação não resolvida e o resultado de laboratório mais recente são verificações separadas de expedição para toda a planta. Liberar um lote não resolve essas condições. Resolva-as pelos controles do CQ antes do carregamento.\n\nIsso informa mais do que uma única nota de qualidade que sobe ou desce. A nota continua útil para tendências, mas os registros de genealogia e de destinação trazem as evidências de que você realmente precisa para agir.`,
     batchQualitySeeInAction:
       'Genealogia dos lotes na Visão geral\nProcedência da qualidade no SCADA',
     // autonomous-logistics

@@ -165,7 +165,10 @@ export function deriveDeliveryJourney(
     return {
       title: translate(m, 'checkTitle', { product }),
       view: 'Packing',
-      detail: translate(m, 'qualityHoldDetail', { qualityTarget }),
+      detail: translate(m, 'qualityHoldDetail', {
+        qualityTarget,
+        reason: dispatchBlockText(execution.dispatchLoad) ?? translate(m, 'qualityHoldUnknown'),
+      }),
       workspace: 'overview' as const,
       entryId: 'batch-quality',
     };

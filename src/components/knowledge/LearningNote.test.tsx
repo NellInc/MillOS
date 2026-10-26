@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LearningNote } from './LearningNote';
 import { Datalinks } from './Datalinks';
+import { setLocale } from '../../i18n';
 import {
   getKnowledgeEntries,
   HISTORY_ENTRY_UNLOCK,
@@ -9,9 +10,44 @@ import {
 } from '../../stores/knowledgeStore';
 
 vi.mock('../../hooks/useReducedMotion', () => ({ useReducedMotion: () => true }));
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  setLocale('en');
+});
 
 describe('contextual operating guide', () => {
+  it.each(['en', 'pt-BR'] as const)(
+    'distinguishes batch isolation from plant-wide quality release in %s',
+    (locale) => {
+      setLocale(locale);
+      render(<LearningNote entryId="batch-quality" />);
+      const entry = KNOWLEDGE_ENTRIES.find((item) => item.id === 'batch-quality')!;
+      const expected =
+        locale === 'en'
+          ? [
+              'Batch holds isolate affected material.',
+              'can also block all dispatch.',
+              'Releasing a batch does not clear those conditions.',
+            ]
+          : [
+              'Retenções de lote isolam o material afetado.',
+              'também podem bloquear toda a expedição.',
+              'Liberar um lote não resolve essas condições.',
+            ];
+      fireEvent.click(
+        screen.getByText(
+          locale === 'en'
+            ? 'Why it matters: Batch Quality and Recall'
+            : 'Por que isso importa: Qualidade de lotes e recolhimento'
+        )
+      );
+      expect(screen.getByText(entry.brief)).toBeVisible();
+      expect(entry.brief).toContain(expected[0]);
+      expect(entry.brief).toContain(expected[1]);
+      expect(entry.article).toContain(expected[2]);
+    }
+  );
+
   it('makes deeper teaching optional and names real places to observe it', () => {
     render(<LearningNote entryId="bottlenecks-and-buffers" />);
     const summary = screen.getByText('Why it matters: Bottlenecks and Buffers');

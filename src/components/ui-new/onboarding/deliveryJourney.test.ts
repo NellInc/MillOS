@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
+import { setLocale } from '../../../i18n';
 import { deriveDeliveryDeadline, deriveDeliveryJourney } from './deliveryJourney';
 
 describe('guided delivery evidence', () => {
@@ -100,6 +101,100 @@ describe('guided delivery evidence', () => {
       'Return to your commitment'
     );
   });
+  it.each(['en', 'pt-BR'] as const)(
+    'uses current-language quality causes and neutral unknown fallback in %s',
+    (locale) => {
+      const campaign = useOperationsCampaignStore.getState();
+      const order = campaign.orders[0];
+      const execution = {
+        ...campaign.execution,
+        orderId: order.id,
+        stage: 'quality_hold' as const,
+      };
+      const before = structuredClone(execution);
+      try {
+        setLocale(locale);
+        for (const [code, english, portuguese] of [
+          [
+            'certificationExpired',
+            'Quality certification is expired.',
+            'A certificação de qualidade está vencida.',
+          ],
+          [
+            'unresolvedContamination',
+            'A contamination alert remains unresolved.',
+            'Um alerta de contaminação continua sem resolução.',
+          ],
+          [
+            'failedQualityTest',
+            'The latest laboratory result failed.',
+            'O resultado de laboratório mais recente foi reprovado.',
+          ],
+          [
+            'incidentDispatchIsolation',
+            'An active operational incident requires dispatch isolation.',
+            'Uma ocorrência operacional ativa exige o isolamento da expedição.',
+          ],
+        ] as const) {
+          const guide = deriveDeliveryJourney(
+            order,
+            {
+              ...execution,
+              dispatchLoad: {
+                ...execution.dispatchLoad,
+                blockCode: code,
+                blockReason: 'Stale stored English',
+              },
+            },
+            true
+          );
+          expect(guide.detail).toContain(locale === 'en' ? english : portuguese);
+          expect(guide.detail).not.toMatch(
+            /Stale stored English|QC batch hold|retenção de lote do CQ/
+          );
+          expect(guide).toMatchObject({
+            view: 'Packing',
+            workspace: 'overview',
+            entryId: 'batch-quality',
+          });
+        }
+        const legacy = deriveDeliveryJourney(
+          order,
+          {
+            ...execution,
+            dispatchLoad: {
+              ...execution.dispatchLoad,
+              blockCode: undefined,
+              blockReason: 'Legacy stored reason.',
+            },
+          },
+          true
+        );
+        expect(legacy.detail).toContain('Legacy stored reason.');
+        const unknown = deriveDeliveryJourney(
+          order,
+          {
+            ...execution,
+            dispatchLoad: {
+              ...execution.dispatchLoad,
+              blockCode: null,
+              blockReason: null,
+            },
+          },
+          true
+        );
+        expect(unknown.detail).toContain(
+          locale === 'en'
+            ? 'Dispatch quality release is unavailable.'
+            : 'A liberação de qualidade para expedição não está disponível.'
+        );
+        expect(unknown.detail).not.toMatch(/batch hold|retenção de lote/);
+        expect(execution).toEqual(before);
+      } finally {
+        setLocale('en');
+      }
+    }
+  );
   it.each(['flour', 'semolina'] as const)(
     'describes the actual %s recipe on a replayed route',
     (material) => {
@@ -136,7 +231,9 @@ describe('guided delivery evidence', () => {
       }
       expect(
         deriveDeliveryJourney(order, { ...execution, stage: 'quality_hold' }, true).detail
-      ).toContain('Test the affected batch and release conforming output before loading.');
+      ).toContain(
+        'Review the QC controls in Overview and resolve the release condition before loading.'
+      );
 
       const milling = deriveDeliveryJourney(order, { ...execution, stage: 'milling' }, true);
       expect(milling.detail).toContain(

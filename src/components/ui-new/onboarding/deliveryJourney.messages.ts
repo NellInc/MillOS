@@ -29,7 +29,8 @@ export const deliveryJourneyMessages = defineMessages({
       'A different order is active. Choose this customer in Your shift commitment in Overview to continue its live route.',
     checkTitle: 'Check {product}',
     qualityHoldDetail:
-      '{qualityTarget} Review the QC batch hold in Overview. Test the affected batch and release conforming output before loading.',
+      '{qualityTarget} {reason} Review the QC controls in Overview and resolve the release condition before loading.',
+    qualityHoldUnknown: 'Dispatch quality release is unavailable.',
     departureRule:
       'Only a departed manifest credits this customer; packed {product} alone does not.',
     packedRest:
@@ -81,7 +82,8 @@ export const deliveryJourneyMessages = defineMessages({
       'Outro pedido está ativo. Escolha este cliente em Seu compromisso do turno, na Visão geral, para continuar a rota ao vivo dele.',
     checkTitle: 'Verifique {product}',
     qualityHoldDetail:
-      '{qualityTarget} Revise a retenção de lote do CQ na Visão geral. Teste o lote afetado e libere a produção conforme antes do carregamento.',
+      '{qualityTarget} {reason} Revise os controles do CQ na Visão geral e resolva a condição de liberação antes do carregamento.',
+    qualityHoldUnknown: 'A liberação de qualidade para expedição não está disponível.',
     departureRule:
       'Só um romaneio com saída registrada é creditado a este cliente; apenas ensacar {product} não basta.',
     packedRest:

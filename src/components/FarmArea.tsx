@@ -18,12 +18,12 @@ import {
   advanceCreatureStride,
   stepPigSpace,
   createPigSpaceWorkspace,
+  COW_SPACE,
   creatureCadence,
   creatureForageWeight,
   creaturePerchLook,
   creaturePoseBlend,
   creatureTravelDistance,
-  QUADRUPED_WALK,
 } from '../simulation/creatureMotion';
 import { CreatureBody, type CreatureRigHandle } from './models/RiggedCreatureModel';
 import { CHICKEN_WALK } from './models/chickenWalk';
@@ -1525,7 +1525,6 @@ const Pig: React.FC<{
  * so the fallback and the real asset are interchangeable.
  */
 /** Walking pace and cycle fitted to each species' actual visible limb length. */
-const COW_STRIDE_RATE = (Math.PI * 2 * QUADRUPED_WALK.cow.speed) / QUADRUPED_WALK.cow.cycle;
 /**
  * A small walking step fitted to the original hen's leg reach. The previous
  * 1.5m/s and 12rad/s asked a 42cm hen to skate through a 79cm cycle.
@@ -2422,6 +2421,9 @@ export const FarmArea: React.FC = () => {
   // Leg-swing blend, the complement of grazing. Only the rigged body has legs
   // that can swing; the primitive fallback has four fixed cylinders.
   const cowStride = useRef<number[]>(new Array(3).fill(0));
+  const cowSpaceElapsed = useRef(0);
+  const cowSpace = useMemo(createPigSpaceWorkspace, []);
+  const cowSpaceRoots = useMemo<(THREE.Group | null)[]>(() => [null, null, null], []);
   const cowStates = useRef<AnimalState[]>(
     Array.from({ length: 3 }, (_, index) => createAnimalState(300 + index, COW_WANDER_BOUNDS))
   );
@@ -2703,18 +2705,23 @@ export const FarmArea: React.FC = () => {
         );
       });
 
-      // Cows
-      cowRefs.forEach((ref, i) => {
-        updateAnimalMovement(
-          ref.current,
-          cowStates.current[i],
-          adjustDelta,
-          QUADRUPED_WALK.cow.speed,
-          COW_STRIDE_RATE,
+      // Cows share the reviewed joint step, with their measured footprint/gait.
+      // Working if ordinary herd travel remains clear and feet consume accepted steps.
+      cowSpaceElapsed.current += adjustDelta;
+      for (let i = 0; i < 3; i++) cowSpaceRoots[i] = cowRefs[i].current;
+      while (cowSpaceElapsed.current + 1e-12 >= 1 / 60) {
+        stepPigSpace(
+          cowSpaceRoots,
+          cowStates.current,
+          1 / 60,
           COW_WANDER_BOUNDS,
-          0,
-          ref.current?.scale.x ?? 1
+          createAnimalWanderPlan,
+          cowSpace,
+          COW_SPACE
         );
+        cowSpaceElapsed.current -= 1 / 60;
+      }
+      cowRefs.forEach((_ref, i) => {
         cowRigRefs[i].current?.setStride(
           cowStates.current[i].stridePhase + cowOffsets[i],
           cowStride.current[i]
