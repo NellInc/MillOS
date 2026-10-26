@@ -1206,7 +1206,7 @@ export function createWorkerApronGeometry(source: THREE.SkinnedMesh) {
   geometry.setAttribute('skinIndex', new THREE.Uint8BufferAttribute(skinIndices, 4));
   geometry.setAttribute('skinWeight', new THREE.Float32BufferAttribute(weights, 4));
   geometry.setIndex(indices);
-  geometry.userData.apronFit = { maxDiscardedWeight };
+  geometry.userData.apronFit = { maxDiscardedWeight, waist, hem };
   geometry.computeVertexNormals();
   // These generated and decoded worker attributes are non-interleaved buffers.
   // Preserve the source upload metadata as well as its array layout for merging.

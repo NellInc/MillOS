@@ -49,12 +49,14 @@ import {
   createWorkerAccessoryPair,
   createWorkerHairMaterial,
   createBakerApron,
+  createWorkerLabCoat,
   setWorkerPupilBlink,
   setWorkerPupilPose,
   softenSharedWorkerGeometry,
   softenWorkerFaceNormals,
   workerGaitRates,
 } from '../models/WorkerModel';
+import { createWorkerGarmentMotion } from './workerGarmentMotion';
 
 afterEach(() => {
   cleanup();
@@ -3127,5 +3129,143 @@ it.each(['masculine', 'feminine'] as const)(
       view.unmount();
     }
     sourceDispose.forEach((spy) => expect(spy).not.toHaveBeenCalled());
+  }
+);
+
+it.each(['masculine', 'feminine'] as const)(
+  '%s loose workwear hems follow admitted gait, preserve support and settle exactly',
+  async (bodyType) => {
+    const { readFileSync } = await import('node:fs');
+    const { NodeIO } = await import('@gltf-transform/core');
+    const { ALL_EXTENSIONS } = await import('@gltf-transform/extensions');
+    const { default: draco } = await import('draco3dgltf');
+    const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+    const { clone } = await vi.importActual<typeof import('three/addons/utils/SkeletonUtils.js')>(
+      'three/addons/utils/SkeletonUtils.js'
+    );
+    const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({
+      'draco3d.decoder': await draco.createDecoderModule(),
+    });
+    const doc = await io.readBinary(
+      new Uint8Array(readFileSync(`public/models/worker/worker-${bodyType}.glb`))
+    );
+    for (const extension of doc.getRoot().listExtensionsUsed()) extension.dispose();
+    const bytes = await io.writeBinary(doc);
+    const asset = await new GLTFLoader().parseAsync(bytes.buffer as ArrayBuffer, '');
+    for (const make of [createBakerApron, createWorkerLabCoat]) {
+      const a = make(clone(asset.scene))!;
+      const b = make(clone(asset.scene))!;
+      const untouched = b.geometry.attributes.position.array.slice();
+      const rest = a.geometry.attributes.position.array.slice();
+      const restNormal = a.geometry.attributes.normal.array.slice();
+      const attributes = Object.fromEntries(
+        Object.entries(a.geometry.attributes)
+          .filter(([key]) => !['position', 'normal'].includes(key))
+          .map(([key, value]) => [key, value.array.slice()])
+      );
+      const topology = a.geometry.index!.array.slice();
+      const controller = createWorkerGarmentMotion(a)!;
+      expect(controller).not.toBeNull();
+      const fit = a.geometry.userData.apronFit ?? a.geometry.userData.labCoatFit;
+      const hinge =
+        fit.hem +
+        (a.geometry.userData.apronFit ? Math.min(0.2, (fit.waist - fit.hem) * 0.65) : 0.16);
+      let movement = 0;
+      for (let frame = 1; frame <= 90; frame++)
+        controller.apply(1 / 60, 1.1, (frame / 60) * 4.8, false);
+      for (let i = 0; i < a.geometry.attributes.position.count; i++) {
+        const p = a.geometry.attributes.position;
+        const distance = Math.hypot(
+          p.getX(i) - rest[i * 3],
+          p.getY(i) - rest[i * 3 + 1],
+          p.getZ(i) - rest[i * 3 + 2]
+        );
+        movement = Math.max(movement, distance);
+        if (rest[i * 3 + 1] >= hinge || i < (fit.tailStart ?? 0)) expect(distance).toBe(0);
+        const n = a.geometry.attributes.normal;
+        expect(Number.isFinite(n.getX(i) + n.getY(i) + n.getZ(i))).toBe(true);
+        if (distance > 0) expect(Math.hypot(n.getX(i), n.getY(i), n.getZ(i))).toBeCloseTo(1, 5);
+        expect(p.getY(i)).toBe(rest[i * 3 + 1]);
+      }
+      expect(movement).toBeGreaterThan(0.003);
+      expect(movement).toBeLessThan(0.013);
+      const held = a.geometry.attributes.position.array.slice();
+      const version = a.geometry.attributes.position.version;
+      for (const delta of [0, -1, NaN, Infinity]) controller.apply(delta, 2, 20, false);
+      expect(a.geometry.attributes.position.array).toEqual(held);
+      expect(a.geometry.attributes.position.version).toBe(version);
+      for (let frame = 0; frame < 180; frame++) controller.apply(1 / 60, 0, frame, true);
+      expect(a.geometry.attributes.position.array).toEqual(rest);
+      expect(a.geometry.attributes.normal.array).toEqual(restNormal);
+      const settledVersion = a.geometry.attributes.position.version;
+      controller.apply(0.1, 0, 100, false);
+      expect(a.geometry.attributes.position.version).toBe(settledVersion);
+      expect(b.geometry.attributes.position.array).toEqual(untouched);
+      expect(a.geometry.index!.array).toEqual(topology);
+      for (const [key, value] of Object.entries(attributes))
+        expect(a.geometry.attributes[key].array).toEqual(value);
+      const byRate: Float32Array[] = [];
+      for (const hz of [30, 60, 120]) {
+        const garment = make(clone(asset.scene))!;
+        const motion = createWorkerGarmentMotion(garment)!;
+        for (let frame = 1; frame <= hz * 2; frame++)
+          motion.apply(1 / hz, 1.1, (frame / hz) * 4.8, false);
+        byRate.push(new Float32Array(garment.geometry.attributes.position.array));
+      }
+      for (const candidate of byRate.slice(1)) {
+        let max = 0;
+        for (let i = 0; i < candidate.length; i++)
+          max = Math.max(max, Math.abs(candidate[i] - byRate[0][i]));
+        expect(max).toBeLessThan(0.0003);
+      }
+      const instances: THREE.Group[] = [];
+      harness.asset = asset;
+      harness.clone = (scene) => {
+        const copy = clone(scene);
+        instances.push(copy);
+        return copy;
+      };
+      const motion: WorkerMotionState = {
+        activity: 'walking',
+        groundSpeed: 1.1,
+        seated: false,
+        phase: 0.7,
+        enabled: true,
+      };
+      const appearance = {
+        ...getWorkerAppearance(
+          make === createBakerApron ? 'Baker' : 'Quality',
+          '',
+          'garment-mount'
+        ),
+        bodyType,
+      };
+      const view = render(<WorkerModel appearance={appearance} motion={motion} />);
+      // This DOM harness needs the same Three-style ref used by the existing
+      // mounted tool tests; the native check retains the actual R3F group.
+      const tool = view.container.querySelector(
+        '[name="worker-held-tool"]'
+      ) as unknown as THREE.Group;
+      if (tool) tool.position = new THREE.Vector3();
+      const cloth = instances[0].getObjectByName(a.name) as THREE.SkinnedMesh;
+      const start = cloth.geometry.attributes.position.array.slice();
+      const disposed = vi.spyOn(cloth.geometry, 'dispose');
+      const far = instances[0].getObjectByName('worker-distant-body') as THREE.SkinnedMesh;
+      const farRest = far.geometry.attributes.position.array.slice();
+      for (let frame = 0; frame < 60; frame++) harness.frame?.({}, 1 / 60);
+      expect(cloth.geometry.attributes.position.array).not.toEqual(start);
+      expect(far.geometry.attributes.position.array).toEqual(farRest);
+      motion.enabled = false;
+      const hold = cloth.geometry.attributes.position.array.slice();
+      harness.frame?.({}, 10);
+      expect(cloth.geometry.attributes.position.array).toEqual(hold);
+      motion.enabled = true;
+      motion.activity = 'idle';
+      motion.groundSpeed = 0;
+      for (let frame = 0; frame < 180; frame++) harness.frame?.({}, 1 / 60);
+      expect(cloth.geometry.attributes.position.array).toEqual(start);
+      view.unmount();
+      expect(disposed).toHaveBeenCalledOnce();
+    }
   }
 );

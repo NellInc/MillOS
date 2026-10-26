@@ -30,6 +30,7 @@ import {
   SHARED_WORKER_MATERIALS,
 } from '../workers/SharedWorkerMaterials';
 import { createWorkerBodyLod } from '../workers/workerBodyLod';
+import { createWorkerGarmentMotion } from '../workers/workerGarmentMotion';
 import { createWorkerHeadClosure, WORKER_HAIR_FIT } from '../workers/workerHeadClosure';
 import type { WorkerMotionState } from '../workers/workerTypes';
 import {
@@ -1602,6 +1603,12 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       appearance.skinTone
     );
     const bodyLod = createWorkerBodyLod(model);
+    // Far copies keep the neutral fitted cloth. Only the existing private near
+    // garments receive follow-through; no extra mesh, clock or palette upload.
+    const garments = [apron, coat].flatMap((mesh) => {
+      const garment = mesh && createWorkerGarmentMotion(mesh);
+      return garment ? [garment] : [];
+    });
     const style =
       !appearance.hasHardHat && civilianHairAllowed
         ? WORKER_HAIR_GEOMETRIES[appearance.hairStyle]
@@ -1622,6 +1629,7 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       rigScale,
       skeletons,
       bodyLod,
+      garments,
       eyeBlink,
       faceExpression,
       hair,
@@ -1952,6 +1960,18 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     if (walk) walk.timeScale = gait.walk;
     if (run) run.timeScale = gait.run;
     mixer.update(safeDelta);
+    const strideAction = actionsRef.current[activeClip];
+    const stridePhase = strideAction
+      ? (strideAction.time * Math.PI * 2) / Math.max(strideAction.getClip().duration, 0.001)
+      : 0;
+    for (const garment of prepared.garments)
+      if (garment.mesh.visible)
+        garment.apply(
+          safeDelta,
+          speed,
+          stridePhase,
+          !moving || motion.seated || motion.cycling || !!motion.cartGrip
+        );
     const dutyTarget = ordinaryDuty && motion.activity === 'working' && !moving ? 1 : 0;
     dutyWeight.current = !ordinaryDuty
       ? 0
