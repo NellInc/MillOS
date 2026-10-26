@@ -445,10 +445,11 @@ Every user-facing string goes through `src/i18n`. New copy is never hard-coded.
 
 Never use emoji characters in the codebase. Always use Lucide React icons instead.
 
-**Exception:** The 🏭 mill emoji is permitted in these specific branding locations:
-- Favicon (`index.html`)
-- Loading screen icon (`index.html`, `LoadingScreen.tsx`)
-- Header/sidebar logo (`ui-new/sidebar/ContextSidebar.tsx`)
+**Branding uses the MillOS application mark, not the 🏭 emoji.** The favicon is
+`public/textures/signage/millos-mark-v1.png`; the loading covers (`index.html`,
+`LoadingScreen.tsx`) and the sidebar logo (`ui-new/sidebar/ContextSidebar.tsx`)
+use `millos-mark-v1.webp`. `LoadingScreen.test.tsx` fails if the emoji returns
+to any of them. The archived releases under `public/v0.*` keep theirs.
 
 **Exception:** Emoji that document the VCL wire-encoding glyphs (e.g. the legend in `VCLDebugPanel.tsx`) are protocol documentation, not UI decoration, and stay as-is.
 

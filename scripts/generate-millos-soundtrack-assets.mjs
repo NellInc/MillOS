@@ -69,6 +69,130 @@ function parseSongbook() {
   return sheets;
 }
 
+// Display-timing repair. Where Whisper loses the vocal under the arrangement it
+// emits runs of "matched" words with collapsed timestamps (song 2 has 95 words
+// on 126.62 s), and the receipt's interpolation then piles every following word
+// onto them: the karaoke highlight leaps ahead and sticks on one line for
+// minutes. The receipt stays untouched as machine evidence; this derives the
+// timing the player shows from it.
+const MIN_ANCHOR_SECONDS = 0.05;
+const MIN_INTERPOLATED_SLOT_SECONDS = 0.15;
+const MAX_INTERPOLATED_WORD_SECONDS = 1.2;
+const TYPICAL_SUNG_WORD_SECONDS = 0.6;
+// Above this per-word slot a run is not evenly sung: the gap holds a break.
+const MAX_EVEN_SLOT_SECONDS = 1.5;
+
+function round3(value) {
+  return Math.round(value * 1000) / 1000;
+}
+
+function lyricLineOfEachWord(lyrics) {
+  return lyrics
+    .split('\n')
+    .flatMap((text, lineIndex) =>
+      text === '' || /^\[[^\]]+\]$/.test(text)
+        ? []
+        : (text.match(/\S+/g) ?? []).map(() => lineIndex)
+    );
+}
+
+// Places a run of unanchored words inside [windowStart, windowEnd]. An even
+// spread is right when the run fits the gap at a singable pace. When it does
+// not, the gap holds a break: the rest of the left anchor's line follows it,
+// the lead-in to the right anchor precedes it, and whole lines between them
+// share what is left, each sung at pace from its own start.
+function placeRun(run, lineOf, leftLine, rightLine, windowStart, windowEnd) {
+  const span = Math.max(0, windowEnd - windowStart);
+  const placed = new Map();
+  const place = (index, start, slot) =>
+    placed.set(index, [start, start + Math.min(slot * 0.88, MAX_INTERPOLATED_WORD_SECONDS)]);
+  if (span / run.length <= MAX_EVEN_SLOT_SECONDS) {
+    const slot = span / run.length;
+    run.forEach((index, offset) => place(index, windowStart + slot * offset, slot));
+    return placed;
+  }
+  const pace = TYPICAL_SUNG_WORD_SECONDS;
+  const head = run.filter((index) => lineOf[index] === leftLine);
+  const tail = run.filter((index) => lineOf[index] === rightLine && !head.includes(index));
+  const middle = run.filter((index) => !head.includes(index) && !tail.includes(index));
+  head.forEach((index, offset) => place(index, windowStart + pace * offset, pace));
+  tail.forEach((index, offset) => place(index, windowEnd - pace * (tail.length - offset), pace));
+  const middleStart = windowStart + pace * head.length;
+  const middleEnd = windowEnd - pace * tail.length;
+  const middleLines = [...new Set(middle.map((index) => lineOf[index]))];
+  const share = Math.max(0, middleEnd - middleStart) / Math.max(1, middleLines.length);
+  middleLines.forEach((line, lineOffset) => {
+    const lineWords = middle.filter((index) => lineOf[index] === line);
+    const slot = Math.min(pace, share / lineWords.length);
+    const lineStart = middleStart + share * lineOffset;
+    lineWords.forEach((index, offset) => place(index, lineStart + slot * offset, slot));
+  });
+  return placed;
+}
+
+function repairDisplayTiming(words, lineOf, durationSeconds) {
+  // A real anchor has length and its own onset; two sung words never share one.
+  const trusted = words.map((word, index) => {
+    if (!word.success || word.endSeconds - word.startSeconds < MIN_ANCHOR_SECONDS) return false;
+    const sharesOnset = (other) =>
+      other !== undefined && Math.abs(other.startSeconds - word.startSeconds) < 0.01;
+    return !sharesOnset(words[index - 1]) && !sharesOnset(words[index + 1]);
+  });
+  let lastAnchorEnd = 0;
+  words.forEach((word, index) => {
+    if (!trusted[index]) return;
+    if (word.startSeconds < lastAnchorEnd - 0.01) trusted[index] = false;
+    else lastAnchorEnd = word.endSeconds;
+  });
+
+  const repaired = words.map((word, index) => ({
+    ...word,
+    confidence: trusted[index] ? word.confidence : 0,
+    success: trusted[index],
+  }));
+  let left = -1;
+  for (let right = 0; right <= words.length; right += 1) {
+    if (right < words.length && !trusted[right]) continue;
+    const missing = right - left - 1;
+    if (missing === 0) {
+      left = right;
+      continue;
+    }
+    const rightStart = right < words.length ? words[right].startSeconds : null;
+    const windowStart =
+      left >= 0
+        ? words[left].endSeconds
+        : Math.max(0, (rightStart ?? durationSeconds) - missing * TYPICAL_SUNG_WORD_SECONDS);
+    const windowEnd =
+      rightStart ?? Math.min(durationSeconds, windowStart + missing * TYPICAL_SUNG_WORD_SECONDS);
+    if (right < words.length && windowEnd - windowStart < missing * MIN_INTERPOLATED_SLOT_SECONDS) {
+      // The run cannot fit before this anchor, so the anchor is the one that is
+      // wrong: fold it into the run and try the next.
+      trusted[right] = false;
+      repaired[right] = { ...repaired[right], confidence: 0, success: false };
+      continue;
+    }
+    const run = Array.from({ length: missing }, (_, offset) => left + 1 + offset);
+    const placed = placeRun(
+      run,
+      lineOf,
+      left >= 0 ? lineOf[left] : null,
+      right < words.length ? lineOf[right] : null,
+      windowStart,
+      windowEnd
+    );
+    for (const [index, [start, end]] of placed) {
+      repaired[index] = {
+        ...repaired[index],
+        startSeconds: round3(Math.min(start, durationSeconds)),
+        endSeconds: round3(Math.min(end, durationSeconds)),
+      };
+    }
+    left = right;
+  }
+  return repaired;
+}
+
 function createLyricLines(lyrics, timingWords) {
   let timingIndex = 0;
   const lines = lyrics.split('\n').map((text) => {
@@ -123,11 +247,7 @@ function renderVtt(sheet) {
 }
 
 function renderLrc(sheet) {
-  const lines = [
-    `[ti:${sheet.title}]`,
-    '[ar:Nell Watson with Suno]',
-    '[al:Songs of the Living Mill]',
-  ];
+  const lines = [`[ti:${sheet.title}]`, '[ar:Nell Watson]', '[al:Songs of the Living Mill]'];
   for (const line of sheet.lines) {
     if (line.kind === 'lyric' && line.words.length > 0) {
       lines.push(`[${lrcTimestamp(line.words[0].startSeconds)}]${line.text}`);
@@ -276,12 +396,19 @@ const generatedSheets = songbook.map((sheet) => {
     }
     previousStart = word.startSeconds;
   }
+  const displayWords = repairDisplayTiming(
+    timing.words,
+    lyricLineOfEachWord(sheet.lyrics),
+    TRACKS[sheet.number - 1][3]
+  );
+  const anchoredWords = displayWords.filter((word) => word.success).length;
   return {
     ...sheet,
-    lines: createLyricLines(sheet.lyrics, timing.words),
-    matchedCanonicalWords: timing.matchedCanonicalWords,
-    interpolatedCanonicalWords: timing.interpolatedCanonicalWords,
-    matchCoverage: timing.matchCoverage,
+    lines: createLyricLines(sheet.lyrics, displayWords),
+    matchedCanonicalWords: anchoredWords,
+    interpolatedCanonicalWords: displayWords.length - anchoredWords,
+    matchCoverage: Math.round((anchoredWords / displayWords.length) * 1e6) / 1e6,
+    receipt: timing,
   };
 });
 
@@ -341,9 +468,15 @@ const tracks = TRACKS.map(([title, sunoId, slug, durationSeconds], index) => {
     timingEvidence: {
       source: 'local machine alignment',
       humanSynchronizationReviewed: false,
-      matchedCanonicalWords: generatedSheets[index].matchedCanonicalWords,
-      interpolatedCanonicalWords: generatedSheets[index].interpolatedCanonicalWords,
-      matchCoverage: generatedSheets[index].matchCoverage,
+      matchedCanonicalWords: generatedSheets[index].receipt.matchedCanonicalWords,
+      interpolatedCanonicalWords: generatedSheets[index].receipt.interpolatedCanonicalWords,
+      matchCoverage: generatedSheets[index].receipt.matchCoverage,
+    },
+    displayTiming: {
+      source: 'repairDisplayTiming in scripts/generate-millos-soundtrack-assets.mjs',
+      anchoredWords: generatedSheets[index].matchedCanonicalWords,
+      interpolatedWords: generatedSheets[index].interpolatedCanonicalWords,
+      anchorCoverage: generatedSheets[index].matchCoverage,
     },
   };
 });

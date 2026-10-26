@@ -16,7 +16,7 @@
 
 import { useSyncExternalStore, useCallback, useMemo } from 'react';
 import { audioManager } from '../utils/audioManager';
-import type { MusicStation, MusicTrack } from '../audio/millosSoundtrackCatalog';
+import type { MusicTrack } from '../audio/millosSoundtrackCatalog';
 
 export interface AudioState {
   muted: boolean;
@@ -43,9 +43,9 @@ export interface AudioStateWithControls extends AudioState {
 export interface MusicPlayerState extends AudioState {
   currentTrack: MusicTrack;
   availableTracks: readonly MusicTrack[];
+  hiddenTracks: readonly MusicTrack[];
   trackIndex: number;
   trackCount: number;
-  station: MusicStation;
   shuffle: boolean;
   playing: boolean;
   positionSeconds: number;
@@ -54,7 +54,7 @@ export interface MusicPlayerState extends AudioState {
 
 export interface MusicPlayerStateWithControls extends MusicPlayerState {
   setMusicEnabled: (v: boolean) => void;
-  setStation: (station: MusicStation) => void;
+  setTrackHidden: (trackId: string, hidden: boolean) => void;
   setShuffle: (shuffle: boolean) => void;
   togglePlayback: () => void;
   nextTrack: () => void;
@@ -141,9 +141,9 @@ function getMusicPlayerSnapshot(): MusicPlayerState {
     ...base,
     currentTrack: audioManager.currentTrack,
     availableTracks: audioManager.availableMusicTracks,
+    hiddenTracks: audioManager.hiddenMusicTracks,
     trackIndex: audioManager.trackIndex,
     trackCount: audioManager.trackCount,
-    station: audioManager.musicStation,
     shuffle: audioManager.musicShuffle,
     playing: audioManager.musicPlaying,
     // Quantised: currentTime advances between the two getSnapshot() calls of a
@@ -220,9 +220,8 @@ export function useMusicPlayerState(): MusicPlayerStateWithControls {
       setMusicEnabled: (value: boolean) => {
         audioManager.musicEnabled = value;
       },
-      setStation: (station: MusicStation) => {
-        audioManager.musicStation = station;
-      },
+      setTrackHidden: (trackId: string, hidden: boolean) =>
+        audioManager.setMusicTrackHidden(trackId, hidden),
       setShuffle: (shuffle: boolean) => {
         audioManager.musicShuffle = shuffle;
       },

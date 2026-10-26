@@ -1,13 +1,7 @@
 // Audio manager for realistic factory sounds using Web Audio API
 import { logger } from './logger';
 import { landmarkLocalToWorld, SITE_LAYOUT } from '../constants/siteLayout';
-import {
-  MUSIC_STATIONS,
-  type MusicStation,
-  type MusicTrack,
-} from '../audio/millosSoundtrackCatalog';
-import { getLocale, translate } from '../i18n';
-import { audioManagerMessages } from './audioManager.messages';
+import { MILLOS_ORIGINAL_SOUNDTRACK, type MusicTrack } from '../audio/millosSoundtrackCatalog';
 
 export type AmbientWeather = 'clear' | 'cloudy' | 'rain' | 'storm';
 
@@ -225,8 +219,12 @@ class AudioManager {
   private _musicVolume: number = 0.3;
   private _machineVolume: number = 0.5; // Separate volume for machine sounds
   private _currentTrackIndex: number = 0;
-  private _musicStation: MusicStation = 'original';
   private _musicShuffle: boolean = false;
+  // Songs the listener has taken out of rotation. Persisted; at least one song
+  // always stays in the playlist.
+  private hiddenMusicTrackIds = new Set<string>();
+  // Kept as a stable array so the player snapshot only changes when it does.
+  private hiddenMusicTrackList: MusicTrack[] = [];
   // Stable media event handlers for the singleton audio element.
   private musicEndedHandler: (() => void) | null = null;
   private musicErrorHandler: ((e: Event) => void) | null = null;
@@ -239,7 +237,7 @@ class AudioManager {
   private consecutiveMusicLoadFailures = 0;
   private mediaSessionConfigured = false;
 
-  // Active station playlist. Original soundtrack order is authoritative unless shuffle is enabled.
+  // Playlist of the songs not hidden. Album order is authoritative unless shuffle is enabled.
   private musicTracks: MusicTrack[];
 
   // PA tannoy reverb/echo effect chain
@@ -258,7 +256,8 @@ class AudioManager {
   constructor() {
     // Load persisted settings from localStorage
     this.loadSettings();
-    this.musicTracks = [...MUSIC_STATIONS[this._musicStation]];
+    this.musicTracks = this.visibleSoundtrack();
+    this.hiddenMusicTrackList = this.hiddenSoundtrack();
     if (this._musicShuffle) this.shufflePlaylist();
   }
 
@@ -275,8 +274,8 @@ class AudioManager {
         musicEnabled: this._musicEnabled,
         musicVolume: this._musicVolume,
         machineVolume: this._machineVolume,
-        musicStation: this._musicStation,
         musicShuffle: this._musicShuffle,
+        hiddenMusicTracks: [...this.hiddenMusicTrackIds],
       };
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(settings));
     } catch {
@@ -298,13 +297,27 @@ class AudioManager {
           this._musicVolume = Math.max(0, Math.min(1, settings.musicVolume));
         if (typeof settings.machineVolume === 'number')
           this._machineVolume = Math.max(0, Math.min(1, settings.machineVolume));
-        if (settings.musicStation === 'original' || settings.musicStation === 'legacy')
-          this._musicStation = settings.musicStation;
         if (typeof settings.musicShuffle === 'boolean') this._musicShuffle = settings.musicShuffle;
+        if (Array.isArray(settings.hiddenMusicTracks)) {
+          const known = new Set<string>(MILLOS_ORIGINAL_SOUNDTRACK.map((track) => track.id));
+          const hidden = settings.hiddenMusicTracks.filter(
+            (id: unknown): id is string => typeof id === 'string' && known.has(id)
+          );
+          // Never restore a playlist with nothing left to play.
+          if (hidden.length < known.size) this.hiddenMusicTrackIds = new Set(hidden);
+        }
       }
     } catch {
       // localStorage may not be available or data may be corrupted
     }
+  }
+
+  private visibleSoundtrack(): MusicTrack[] {
+    return MILLOS_ORIGINAL_SOUNDTRACK.filter((track) => !this.hiddenMusicTrackIds.has(track.id));
+  }
+
+  private hiddenSoundtrack(): MusicTrack[] {
+    return MILLOS_ORIGINAL_SOUNDTRACK.filter((track) => this.hiddenMusicTrackIds.has(track.id));
   }
 
   private shufflePlaylist(): void {
@@ -410,18 +423,43 @@ class AudioManager {
     return this._currentTrackIndex;
   }
 
-  get musicStation(): MusicStation {
-    return this._musicStation;
+  get hiddenMusicTracks(): readonly MusicTrack[] {
+    return this.hiddenMusicTrackList;
   }
 
-  set musicStation(value: MusicStation) {
-    if (value === this._musicStation) return;
-    const shouldResume = Boolean(this.musicAudio && !this.musicAudio.paused && this._musicEnabled);
-    this._musicStation = value;
-    this.musicTracks = [...MUSIC_STATIONS[value]];
-    if (this._musicShuffle) this.shufflePlaylist();
-    this._currentTrackIndex = 0;
-    this.loadCurrentMusicTrack(shouldResume);
+  /**
+   * Takes a song out of rotation or puts it back. Hiding the song that is
+   * playing moves on to the next one; the last song in the playlist cannot be
+   * hidden.
+   */
+  setMusicTrackHidden(trackId: string, hidden: boolean): void {
+    const track = MILLOS_ORIGINAL_SOUNDTRACK.find((candidate) => candidate.id === trackId);
+    if (!track || hidden === this.hiddenMusicTrackIds.has(trackId)) return;
+    if (hidden) {
+      if (this.musicTracks.length <= 1) return;
+      const removedIndex = this.musicTracks.findIndex((candidate) => candidate.id === trackId);
+      const resume = this.musicPlaying;
+      this.hiddenMusicTrackIds.add(trackId);
+      this.musicTracks = this.musicTracks.filter((candidate) => candidate.id !== trackId);
+      if (removedIndex < this._currentTrackIndex) {
+        this._currentTrackIndex -= 1;
+      } else if (removedIndex === this._currentTrackIndex) {
+        // The song that followed now sits at this index.
+        this._currentTrackIndex %= this.musicTracks.length;
+        this.loadCurrentMusicTrack(resume && this._musicEnabled);
+      }
+    } else {
+      const currentTrackId = this.currentTrack.id;
+      this.hiddenMusicTrackIds.delete(trackId);
+      this.musicTracks = this._musicShuffle
+        ? [...this.musicTracks, track]
+        : this.visibleSoundtrack();
+      this._currentTrackIndex = Math.max(
+        0,
+        this.musicTracks.findIndex((candidate) => candidate.id === currentTrackId)
+      );
+    }
+    this.hiddenMusicTrackList = this.hiddenSoundtrack();
     this.saveSettings();
     this.notifyListeners();
   }
@@ -434,7 +472,7 @@ class AudioManager {
     if (value === this._musicShuffle) return;
     const currentTrackId = this.currentTrack.id;
     this._musicShuffle = value;
-    this.musicTracks = [...MUSIC_STATIONS[this._musicStation]];
+    this.musicTracks = this.visibleSoundtrack();
     if (value) this.shufflePlaylist();
     const currentIndex = Math.max(
       0,
@@ -864,22 +902,19 @@ class AudioManager {
     }
   }
 
-  // Station and track the OS media controls were last given metadata for.
+  // Track the OS media controls were last given metadata for.
   private lastMediaSessionKey: string | null = null;
 
   private updateMediaSession(): void {
     if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
     const artworkSize = this.currentTrack.trackNumber === 7 ? '360x360' : '1024x1024';
-    const mediaSessionKey = `${getLocale()}:${this._musicStation}:${this.currentTrack.id}`;
+    const mediaSessionKey = this.currentTrack.id;
     if (typeof MediaMetadata !== 'undefined' && mediaSessionKey !== this.lastMediaSessionKey) {
       this.lastMediaSessionKey = mediaSessionKey;
       navigator.mediaSession.metadata = new MediaMetadata({
         title: this.currentTrack.name,
         artist: this.currentTrack.artist,
-        album:
-          this._musicStation === 'original'
-            ? 'Songs of the Living Mill'
-            : translate(audioManagerMessages, 'legacyAlbum'),
+        album: 'Songs of the Living Mill',
         artwork: this.currentTrack.artwork
           ? [{ src: this.currentTrack.artwork, sizes: artworkSize, type: 'image/jpeg' }]
           : [],

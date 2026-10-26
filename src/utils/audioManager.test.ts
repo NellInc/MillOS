@@ -34,7 +34,6 @@ describe('calculateOutdoorAmbientMix', () => {
 
 describe('music playlist', () => {
   it('defaults to the approved MillOS album in authored order', () => {
-    audioManager.musicStation = 'original';
     audioManager.musicShuffle = false;
     audioManager.selectMusicTrack(0);
     const trackIds: string[] = [];
@@ -57,11 +56,45 @@ describe('music playlist', () => {
     ]);
   });
 
-  it('keeps the legacy music as a separate collection', () => {
-    audioManager.musicStation = 'legacy';
-    expect(audioManager.trackCount).toBe(10);
-    expect(audioManager.currentTrack.station).toBe('legacy');
-    audioManager.musicStation = 'original';
+  it('skips hidden songs, keeps the current one, and restores them in album order', () => {
+    audioManager.musicShuffle = false;
+    // nextTrack does not autoplay here; jsdom's play() returns no promise.
+    while (audioManager.currentTrack.id !== 'millos_between_the_rolls') audioManager.nextTrack();
+    expect(audioManager.currentTrack.id).toBe('millos_between_the_rolls');
+
+    audioManager.setMusicTrackHidden('millos_grain_at_the_gate', true);
+    expect(audioManager.trackCount).toBe(7);
+    expect(audioManager.currentTrack.id).toBe('millos_between_the_rolls');
+    expect(audioManager.hiddenMusicTracks.map((track) => track.id)).toEqual([
+      'millos_grain_at_the_gate',
+    ]);
+    audioManager.prevTrack();
+    expect(audioManager.currentTrack.id).toBe('millos_the_mill_wakes');
+
+    // Hiding the song that is playing moves on to the one after it.
+    audioManager.setMusicTrackHidden('millos_the_mill_wakes', true);
+    expect(audioManager.currentTrack.id).toBe('millos_between_the_rolls');
+    expect(JSON.parse(localStorage.getItem('millos-audio') ?? '{}').hiddenMusicTracks).toEqual([
+      'millos_grain_at_the_gate',
+      'millos_the_mill_wakes',
+    ]);
+
+    audioManager.setMusicTrackHidden('millos_grain_at_the_gate', false);
+    audioManager.setMusicTrackHidden('millos_the_mill_wakes', false);
+    expect(audioManager.trackCount).toBe(8);
+    expect(audioManager.availableMusicTracks[1].id).toBe('millos_grain_at_the_gate');
+    expect(audioManager.currentTrack.id).toBe('millos_between_the_rolls');
+    expect(audioManager.hiddenMusicTracks).toEqual([]);
+  });
+
+  it('never hides the last song in the playlist', () => {
+    audioManager.musicShuffle = false;
+    const ids = audioManager.availableMusicTracks.map((track) => track.id);
+    ids.forEach((id) => audioManager.setMusicTrackHidden(id, true));
+    expect(audioManager.trackCount).toBe(1);
+    expect(audioManager.currentTrack.id).toBe(ids.at(-1));
+    ids.forEach((id) => audioManager.setMusicTrackHidden(id, false));
+    expect(audioManager.trackCount).toBe(8);
   });
 });
 
