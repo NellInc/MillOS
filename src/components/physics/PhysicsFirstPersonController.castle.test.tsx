@@ -9,6 +9,7 @@ import {
 } from '../../utils/castleNavigation';
 import { useGraphicsStore } from '../../stores/graphicsStore';
 import { PhysicsFirstPersonController } from './PhysicsFirstPersonController';
+import { WORLD_RADIUS } from '../../constants/siteLayout';
 const h = vi.hoisted(() => ({
   camera: null as unknown as THREE.PerspectiveCamera,
   frame: (_: unknown, _dt: number) => {},
@@ -61,21 +62,13 @@ beforeEach(() => {
   h.camera.position.set(...castleWorldPosition(7.2, 5, 26));
 });
 afterEach(cleanup);
-it('resolves Rapier displacement up and down both flights without vertical input', () => {
+it('spawns a walker placed at the foothill castle back inside the valley', () => {
+  // The castle stands beyond WORLD_RADIUS; the spawn clamp keeps the body in
+  // the playable disc, on ordinary ground, rather than on the castle's steps.
   render(<PhysicsFirstPersonController />);
   h.lock();
   h.frame({}, 1 / 60);
-  const from = new THREE.Vector3(...castleWorldPosition(7.2, 0.2, 26));
-  const toward = new THREE.Vector3(...castleWorldPosition(7.2, 0.2, 0)).sub(from).normalize();
-  const move = (sign: number) => {
-    h.position.x += toward.x * 0.2 * sign;
-    h.position.z += toward.z * 0.2 * sign;
-    h.frame({}, 1 / 60);
-  };
-  for (let i = 0; i < 150; i++) move(1);
-  expect(castleLocalPosition(h.position.x, h.position.z)[1]).toBeLessThan(8);
-  expect(h.camera.position.y).toBeCloseTo(6.18, 4);
-  for (let i = 0; i < 170; i++) move(-1);
+  expect(Math.hypot(h.position.x, h.position.z)).toBeLessThanOrEqual(WORLD_RADIUS);
   expect(castleLocalPosition(h.position.x, h.position.z)[1]).toBeGreaterThan(25);
   expect(h.camera.position.y).toBeCloseTo(
     sampleWalkingGroundHeight(h.position.x, h.position.z, 64) + 1.7,

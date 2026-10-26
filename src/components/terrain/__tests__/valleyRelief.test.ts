@@ -21,7 +21,6 @@ import {
   MAIN_EXTERIOR_TREES,
   groundedTreePosition,
 } from '../../exterior/ExteriorVegetation';
-import { CASTLE_ROCK_SINK } from '../../scenery/FairytaleCastle';
 
 describe('valley meadow relief', () => {
   it('raises unoccupied groves while preserving every occupied site pad', () => {
@@ -54,11 +53,10 @@ describe('valley meadow relief', () => {
     expect(VILLAGE_TERRACE.height).toBe(0);
   });
 
+  // The castle stands on the foothills, not the canyon mesh: castleSeat.test.ts.
   it.each([
     ['village', 64],
     ['village', 128],
-    ['castle', 64],
-    ['castle', 128],
   ] as const)(
     'keeps the %s attached to the actual canyon mesh at %i segments',
     (landmark, segments) => {
@@ -86,15 +84,6 @@ describe('valley meadow relief', () => {
           // triangles of a shared edge, or slips between them.
           const x = Math.min(pad.minX + 0.637 + xi * 8, pad.maxX - 0.637);
           const z = Math.min(pad.minZ + 0.711 + zi * 8, pad.maxZ - 0.711);
-          // The castle stands at 45 degrees, so the corners of its axis-aligned
-          // box are empty air: the keep's footprint is the inscribed circle.
-          const castle = SITE_LAYOUT.landmarks.castle;
-          if (
-            landmark === 'castle' &&
-            Math.hypot(x - castle.position[0], z - castle.position[2]) >
-              (Math.min(...castle.footprint) * castle.scale) / 2
-          )
-            continue;
           const hits = new THREE.Raycaster(
             new THREE.Vector3(x, 40, z),
             new THREE.Vector3(0, -1, 0)
@@ -102,19 +91,11 @@ describe('valley meadow relief', () => {
           expect(hits).toHaveLength(1);
           heights.push({ x, z, height: hits[0].point.y });
         }
-      const groundDatum =
-        SITE_LAYOUT.datum.terrain + (landmark === 'village' ? VILLAGE_TERRACE.height : 0);
-      // The castle's rock is seated CASTLE_ROCK_SINK into the ground, so the
-      // ground may fall that far below the datum without opening a gap.
-      const tolerance =
-        landmark === 'castle' ? CASTLE_ROCK_SINK * SITE_LAYOUT.landmarks.castle.scale : 0.03;
+      const groundDatum = SITE_LAYOUT.datum.terrain + VILLAGE_TERRACE.height;
       expect(
-        heights.filter(
-          ({ height }) => height > groundDatum + 0.03 || groundDatum - height >= tolerance
-        )
+        heights.filter(({ height }) => height > groundDatum + 0.03 || groundDatum - height >= 0.03)
       ).toEqual([]);
       expect(Math.abs(pad.minY - heights[0].height)).toBeLessThan(0.03);
-      if (landmark === 'castle') expect(pad.minY).toBeCloseTo(heights[0].height, 4);
       geometry.dispose();
       material.dispose();
     }

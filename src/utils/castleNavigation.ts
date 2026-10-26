@@ -24,6 +24,7 @@ import {
   sampleTerrainGroundHeight,
   MILLOS_RIVER_CONFIG,
 } from '../components/terrain/splatMapGenerator';
+import { sampleSceneryGroundHeight } from '../components/environment/foothillGround';
 
 const site = SITE_LAYOUT.landmarks.castle;
 const c = Math.cos(site.rotation[1]),
@@ -54,7 +55,8 @@ function stairHeight(x: number, z: number): number | null {
 /** Shared vertices of the rendered approach, in castle-local metres. */
 export function castleApproachVertexHeight(x: number, z: number, segments: number): number {
   const [wx, , wz] = castleWorldPosition(x, 0, z);
-  const ground = SITE_LAYOUT.datum.terrain + sampleTerrainGroundHeight(wx, wz, segments);
+  // The castle stands on the foothills, so its approach meets the ridge surface.
+  const ground = sampleSceneryGroundHeight(wx, wz, segments);
   const localGround = (ground - site.position[1]) / site.scale + CASTLE_ROCK_SINK;
   const t = (z - CASTLE_APPROACH.minZ) / (CASTLE_APPROACH.maxZ - CASTLE_APPROACH.minZ);
   return CASTLE_STEPS[0].height * (1 - t) + (localGround + 0.015 / site.scale) * t;
@@ -100,7 +102,10 @@ export function sampleWalkingGroundHeight(x: number, z: number, segments: number
   if (stair !== null) return Math.max(terrain, floorY(stair));
   if (Math.abs(lx) <= 15.925 && Math.abs(lz) <= 15.925)
     return Math.max(terrain, floorY(CASTLE_COURT_HEIGHT));
-  return terrain;
+  // The castle stands out on the foothills, beyond WORLD_RADIUS, where every
+  // controller clamps the player. Its stairs and court are its own floors; the
+  // approach and the ground around it are the ridge where that covers the valley.
+  return sampleSceneryGroundHeight(x, z, segments);
 }
 /** Grounded exploration stays on dry banks or explicit bridges. Q/E retains
  * inspection flight. Working if walking/spawn cannot enter the submerged bed.

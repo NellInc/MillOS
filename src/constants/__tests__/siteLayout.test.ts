@@ -168,14 +168,14 @@ describe('canonical site layout', () => {
   });
 
   it('retains every authored landmark footprint inside the playable landscape', () => {
-    // The castle is a backdrop set against the foothills, as in v0.30. It turns
-    // 45 degrees, so its reach is the half-diagonal; it must stand in front of
-    // the site-anchored foothill ring, whose foot is world.radius + 16.
+    // The castle is a landmark out on the foothills, not a walkable site. It
+    // turns 45 degrees, so its reach is the half-diagonal; all of it stands
+    // beyond the foot of the site-anchored foothill ring, world.radius + 16.
     const { castle, ...walkable } = SITE_LAYOUT.landmarks;
-    const castleReach =
-      Math.hypot(castle.position[0], castle.position[2]) +
+    const castleNearEdge =
+      Math.hypot(castle.position[0], castle.position[2]) -
       (Math.SQRT2 / 2) * Math.max(...castle.footprint) * castle.scale;
-    expect(castleReach).toBeLessThan(SITE_LAYOUT.world.radius + 16);
+    expect(castleNearEdge).toBeGreaterThan(SITE_LAYOUT.world.radius + 16);
     for (const anchor of Object.values(walkable)) {
       const bounds = getLandmarkBounds(anchor);
       for (const x of [bounds.minX, bounds.maxX])
