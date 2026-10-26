@@ -2983,3 +2983,149 @@ it.each(['short', 'medium', 'curly', 'ponytail'] as const)(
     expect(g.boundingBox!.max.z).toBeLessThan(0.13);
   }
 );
+
+it.each(['masculine', 'feminine'] as const)(
+  '%s closes private civilian heads before LOD and keeps helmet/fallback scalp ownership intact',
+  async (bodyType) => {
+    const { readFileSync } = await import('node:fs'),
+      { NodeIO } = await import('@gltf-transform/core'),
+      { ALL_EXTENSIONS } = await import('@gltf-transform/extensions'),
+      { default: draco } = await import('draco3dgltf'),
+      { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+    const { clone } = await vi.importActual<typeof import('three/addons/utils/SkeletonUtils.js')>(
+      'three/addons/utils/SkeletonUtils.js'
+    );
+    const io = new NodeIO()
+      .registerExtensions(ALL_EXTENSIONS)
+      .registerDependencies({ 'draco3d.decoder': await draco.createDecoderModule() });
+    const document = await io.readBinary(
+      new Uint8Array(readFileSync(`public/models/worker/worker-${bodyType}.glb`))
+    );
+    for (const extension of document.getRoot().listExtensionsUsed()) extension.dispose();
+    const bytes = await io.writeBinary(document),
+      asset = await new GLTFLoader().parseAsync(bytes.buffer as ArrayBuffer, '');
+    const borrowed = new Set<THREE.BufferGeometry>();
+    asset.scene.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (m.isMesh) borrowed.add(m.geometry);
+    });
+    const sourceDispose = [...borrowed].map((g) => vi.spyOn(g, 'dispose'));
+    harness.asset = asset;
+    const copies: THREE.Group[] = [];
+    harness.clone = (s) => {
+      const c = clone(s) as THREE.Group;
+      copies.push(c);
+      return c;
+    };
+    const motion: WorkerMotionState = {
+      activity: 'idle',
+      groundSpeed: 0,
+      seated: false,
+      phase: 0,
+      enabled: false,
+    };
+    const appearance = {
+      ...getWorkerAppearance('Resident', '#597665', 'bus-departing'),
+      bodyType,
+      hairStyle: 'bald' as const,
+    };
+    const first = render(<WorkerModel appearance={appearance} motion={motion} />);
+    const second = render(
+      <WorkerModel appearance={{ ...appearance, skinTone: '#d3a080' }} motion={{ ...motion }} />
+    );
+    const closed = (model: THREE.Group) => {
+      let found!: THREE.SkinnedMesh;
+      model.traverse((o) => {
+        const m = o as THREE.SkinnedMesh;
+        if (m.isSkinnedMesh && m.geometry.name === 'worker-closed-head-skin') found = m;
+      });
+      return found;
+    };
+    const a = closed(copies[0]),
+      b = closed(copies[1]);
+    expect(a).toBeDefined();
+    expect(b).toBeDefined();
+    expect(a.geometry).not.toBe(b.geometry);
+    expect(a.skeleton).not.toBe(b.skeleton);
+    expect(a.geometry.userData.workerScalpClosure.triangles).toBe(
+      bodyType === 'masculine' ? 140 : 178
+    );
+    expect(first.container.querySelector('[name="worker-authored-hair"]')).toBeNull();
+    let near = 0,
+      far = 0,
+      draws = 0;
+    copies[0].traverse((o) => {
+      const m = o as THREE.SkinnedMesh;
+      if (!m.isSkinnedMesh) return;
+      draws++;
+      if (m.name.startsWith('worker-distant-')) far += m.geometry.index!.count;
+      else if (!Array.isArray(m.material) && m.material.visible) near += m.geometry.index!.count;
+    });
+    let sourceDraws = 0;
+    asset.scene.traverse((o) => {
+      if ((o as THREE.SkinnedMesh).isSkinnedMesh) sourceDraws++;
+    });
+    expect(draws).toBe(sourceDraws + 2);
+    expect(far).toBe(near);
+    const disposeA = vi.spyOn(a.geometry, 'dispose'),
+      disposeB = vi.spyOn(b.geometry, 'dispose');
+    first.unmount();
+    expect(disposeA).toHaveBeenCalledOnce();
+    expect(disposeB).not.toHaveBeenCalled();
+    sourceDispose.forEach((spy) => expect(spy).not.toHaveBeenCalled());
+    second.unmount();
+    expect(disposeB).toHaveBeenCalledOnce();
+    for (const mode of ['helmet', 'rejected'] as const) {
+      harness.clone = (s) => {
+        const c = clone(s) as THREE.Group;
+        copies.push(c);
+        if (mode === 'rejected')
+          c.traverse((o) => {
+            const m = o as THREE.SkinnedMesh;
+            if (
+              m.isSkinnedMesh &&
+              m.parent?.name.includes('Worker_Head') &&
+              !Array.isArray(m.material) &&
+              ['Eyebrows', 'DarkBrown'].includes(m.material.name)
+            )
+              m.bindMatrix.elements[12] += 0.01;
+          });
+        return c;
+      };
+      const view = render(
+        <WorkerModel
+          appearance={{ ...appearance, hasHardHat: mode === 'helmet', hairStyle: 'short' }}
+          motion={{ ...motion }}
+        />
+      );
+      const model = copies.at(-1)!;
+      expect(closed(model)).toBeUndefined();
+      let brow!: THREE.SkinnedMesh;
+      model.traverse((o) => {
+        const m = o as THREE.SkinnedMesh;
+        if (
+          m.isSkinnedMesh &&
+          m.parent?.name.includes('Worker_Head') &&
+          !Array.isArray(m.material) &&
+          /^(Eyebrows|DarkBrown)-/.test(m.material.name)
+        )
+          brow = m;
+      });
+      let original!: THREE.SkinnedMesh;
+      asset.scene.traverse((o) => {
+        const m = o as THREE.SkinnedMesh;
+        if (
+          m.isSkinnedMesh &&
+          m.parent?.name.includes('Worker_Head') &&
+          !Array.isArray(m.material) &&
+          ['Eyebrows', 'DarkBrown'].includes(m.material.name)
+        )
+          original = m;
+      });
+      expect(brow.geometry.index!.count).toBe(original.geometry.index!.count);
+      expect(view.container.querySelector('[name="worker-authored-hair"]')).toBeNull();
+      view.unmount();
+    }
+    sourceDispose.forEach((spy) => expect(spy).not.toHaveBeenCalled());
+  }
+);

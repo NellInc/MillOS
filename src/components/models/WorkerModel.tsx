@@ -30,6 +30,7 @@ import {
   SHARED_WORKER_MATERIALS,
 } from '../workers/SharedWorkerMaterials';
 import { createWorkerBodyLod } from '../workers/workerBodyLod';
+import { createWorkerHeadClosure, WORKER_HAIR_FIT } from '../workers/workerHeadClosure';
 import type { WorkerMotionState } from '../workers/workerTypes';
 import {
   createSeatedWorkerPose,
@@ -1023,6 +1024,10 @@ const WorkerAccessories: React.FC<{
   );
   const eyeCentre = WORKER_EYE_CENTRES[appearance.bodyType];
   const hearingFit = WORKER_HEARING_FIT[appearance.bodyType];
+  const hairScale =
+    appearance.hairStyle === 'bald'
+      ? 1
+      : WORKER_HAIR_FIT[appearance.bodyType][appearance.hairStyle];
   return (
     <>
       {hair && (
@@ -1031,7 +1036,12 @@ const WorkerAccessories: React.FC<{
             name="worker-authored-hair"
             geometry={hair.motion.geometry}
             material={hair.material}
-            scale={[appearance.bodyType === 'feminine' ? 0.92 : 1, 1, 1]}
+            position={[0, WORKER_HAIR_FIT.offsetY, 0]}
+            scale={[
+              hairScale * (appearance.bodyType === 'feminine' ? 0.92 : 1),
+              hairScale,
+              hairScale,
+            ]}
             castShadow
             receiveShadow
             dispose={null}
@@ -1379,6 +1389,9 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     const gloveSources: THREE.SkinnedMesh[] = [];
     const clothSources: { mesh: THREE.SkinnedMesh; region: WorkerSurface }[] = [];
     const ownedGeometry: THREE.BufferGeometry[] = [];
+    const headSkins: THREE.SkinnedMesh[] = [];
+    const scalpDonors: { mesh: THREE.SkinnedMesh; brows: THREE.BufferGeometry }[] = [];
+    let civilianHairAllowed = true;
 
     _bindBox.makeEmpty();
 
@@ -1422,10 +1435,21 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
         const head = model.getObjectByName('Head');
         const brows = head ? retainWorkerBrows(mesh, head, appearance.hasHardHat) : null;
         if (brows) {
-          mesh.geometry = brows;
-          ownedGeometry.push(brows);
+          if (!appearance.hasHardHat && (mesh as THREE.SkinnedMesh).isSkinnedMesh)
+            scalpDonors.push({ mesh: mesh as THREE.SkinnedMesh, brows });
+          else {
+            mesh.geometry = brows;
+            ownedGeometry.push(brows);
+          }
         }
       }
+      if (
+        !appearance.hasHardHat &&
+        region === 'skin' &&
+        nodeName.includes('Worker_Head') &&
+        (mesh as THREE.SkinnedMesh).isSkinnedMesh
+      )
+        headSkins.push(mesh as THREE.SkinnedMesh);
       if (
         region &&
         ['shirt', 'hiVis', 'hiVisStrap'].includes(region) &&
@@ -1470,6 +1494,24 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       )
         gloveSources.push(mesh as THREE.SkinnedMesh);
     });
+
+    // Finish the original face first, then append only its complementary scalp.
+    // Working if the softened/coloured face prefix stays exact, and an unfamiliar
+    // donor retains its original scalp rather than becoming an open head.
+    if (scalpDonors.length) {
+      const head = model.getObjectByName('Head');
+      const closed =
+        head && scalpDonors.length === 1 && headSkins.length === 1
+          ? createWorkerHeadClosure(headSkins[0], scalpDonors[0].mesh, head)
+          : null;
+      civilianHairAllowed = !!closed;
+      if (closed) {
+        headSkins[0].geometry = closed;
+        ownedGeometry.push(closed);
+        scalpDonors[0].mesh.geometry = scalpDonors[0].brows;
+        ownedGeometry.push(scalpDonors[0].brows);
+      } else scalpDonors.forEach(({ brows }) => brows.dispose());
+    }
 
     // Colour the original skin rather than splitting triangles into jagged
     // material islands. This expresses the existing flag, with no extra draw,
@@ -1560,7 +1602,10 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       appearance.skinTone
     );
     const bodyLod = createWorkerBodyLod(model);
-    const style = !appearance.hasHardHat ? WORKER_HAIR_GEOMETRIES[appearance.hairStyle] : null;
+    const style =
+      !appearance.hasHardHat && civilianHairAllowed
+        ? WORKER_HAIR_GEOMETRIES[appearance.hairStyle]
+        : null;
     const hair = style
       ? {
           motion: createWorkerHairMotion(style),

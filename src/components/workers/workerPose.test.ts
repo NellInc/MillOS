@@ -30,8 +30,10 @@ import { COMMUNITY_ANCHORS } from '../../constants/communityLayout';
 import { getWorkerAppearance } from './workerTypes';
 import { createWorkerHandheldMount, WORKER_TOOL_GEOMETRIES } from './WorkerTools';
 import { createWorkerBodyLod } from './workerBodyLod';
+import { createWorkerHeadClosure, WORKER_HAIR_FIT } from './workerHeadClosure';
 import {
   createWorkerFaceColours,
+  softenWorkerFaceNormals,
   dressWorkerHands,
   softenWorkerFaceNormals,
   retainWorkerBrows,
@@ -4018,6 +4020,304 @@ it.each(['masculine', 'feminine'] as const)(
       for (const mesh of skin) mesh.geometry.dispose();
       material.dispose();
       double.dispose();
+    }
+  }
+);
+
+it.each(['masculine', 'feminine'] as const)(
+  '%s bare civilian skull has a near-side surface above and behind both ears',
+  (body) => {
+    const scene = clone(bodies.get(body)!.scene);
+    scene.updateMatrixWorld(true);
+    const head = scene.getObjectByName('Head')!;
+    let skin!: THREE.SkinnedMesh;
+    scene.traverse((o) => {
+      const m = o as THREE.SkinnedMesh;
+      if (
+        m.isSkinnedMesh &&
+        m.parent?.name.includes('Worker_Head') &&
+        !Array.isArray(m.material) &&
+        m.material.name === 'Skin'
+      )
+        skin = m;
+    });
+    let donor!: THREE.SkinnedMesh;
+    scene.traverse((o) => {
+      const m = o as THREE.SkinnedMesh;
+      if (
+        m.isSkinnedMesh &&
+        m.parent?.name.includes('Worker_Head') &&
+        !Array.isArray(m.material) &&
+        ['Eyebrows', 'DarkBrown'].includes(m.material.name)
+      )
+        donor = m;
+    });
+    const closed = createWorkerHeadClosure(skin, donor, head)!;
+    expect(closed).toBeTruthy();
+    skin.geometry = closed;
+    const material = new THREE.MeshBasicMaterial({ side: THREE.FrontSide });
+    skin.material = material;
+    try {
+      for (const side of [-1, 1]) {
+        const origin = new THREE.Vector3(side * 0.3, 0.135, 0.01).applyMatrix4(head.matrixWorld);
+        const centre = new THREE.Vector3(0, 0.135, 0.01).applyMatrix4(head.matrixWorld);
+        const ray = new THREE.Raycaster(
+          origin,
+          centre.clone().sub(origin).normalize(),
+          0,
+          origin.distanceTo(centre)
+        );
+        expect(ray.intersectObject(skin).length, `${body} bare near-side skull`).toBeGreaterThan(0);
+      }
+    } finally {
+      closed.dispose();
+      material.dispose();
+    }
+  }
+);
+
+it.each(['masculine', 'feminine'] as const)(
+  '%s complementary skin cap preserves the finished face prefix and exact animated rim',
+  (body) => {
+    const asset = bodies.get(body)!,
+      scene = clone(asset.scene);
+    scene.position.set(2, 0.3, -5);
+    scene.rotation.y = 0.8;
+    scene.scale.set(0.96, 1.05, 0.96);
+    scene.updateMatrixWorld(true);
+    const head = scene.getObjectByName('Head')!;
+    let skin!: THREE.SkinnedMesh, donor!: THREE.SkinnedMesh;
+    scene.traverse((o) => {
+      const m = o as THREE.SkinnedMesh;
+      if (!m.isSkinnedMesh || !m.parent?.name.includes('Worker_Head') || Array.isArray(m.material))
+        return;
+      if (m.material.name === 'Skin') skin = m;
+      if (['Eyebrows', 'DarkBrown'].includes(m.material.name)) donor = m;
+    });
+    const source = skin.geometry,
+      donorSource = donor.geometry;
+    const sourceArrays = Object.fromEntries(
+      Object.entries(source.attributes).map(([k, a]) => [k, a.array.slice()])
+    );
+    const donorArrays = Object.fromEntries(
+      Object.entries(donorSource.attributes).map(([k, a]) => [k, a.array.slice()])
+    );
+    const colours = createWorkerFaceColours(skin, head, body)!;
+    const finished = softenWorkerFaceNormals(source)!;
+    finished.setAttribute('color', colours);
+    skin.geometry = finished;
+    const closed = createWorkerHeadClosure(skin, donor, head)!;
+    expect(closed).toBeTruthy();
+    const meta = closed.userData.workerScalpClosure as {
+      triangles: number;
+      sourceVertices: number;
+      seam: [number, number][];
+    };
+    expect(meta.triangles).toBe(body === 'masculine' ? 140 : 178);
+    expect(closed.index!.count).toBe(finished.index!.count + meta.triangles * 3);
+    expectSameArray(closed.index!.array.slice(0, finished.index!.count), finished.index!.array);
+    for (const [name, a] of Object.entries(finished.attributes)) {
+      const b = closed.attributes[name];
+      expect(b.array.constructor).toBe(a.array.constructor);
+      expect(b.normalized).toBe(a.normalized);
+      expect(b.itemSize).toBe(a.itemSize);
+      expect((b as THREE.BufferAttribute).gpuType).toBe(
+        (a as THREE.BufferAttribute).gpuType ?? THREE.FloatType
+      );
+      for (let i = 0; i < a.count; i++)
+        for (let c = 0; c < a.itemSize; c++)
+          expect(b.getComponent(i, c)).toBe(a.getComponent(i, c));
+    }
+    const boundary = (geometry: THREE.BufferGeometry) => {
+      const previous = skin.geometry;
+      skin.geometry = geometry;
+      try {
+        const keys: string[] = [],
+          point = new THREE.Vector3(),
+          inverse = head.matrixWorld.clone().invert();
+        for (let i = 0; i < geometry.attributes.position.count; i++) {
+          skin.getVertexPosition(i, point).applyMatrix4(skin.matrixWorld).applyMatrix4(inverse);
+          keys.push(
+            point
+              .toArray()
+              .map((v) => Math.round(v * 1e6))
+              .join(',')
+          );
+        }
+        const edges = new Map<string, number>();
+        for (let i = 0; i < geometry.index!.count; i += 3)
+          for (let c = 0; c < 3; c++) {
+            const edge = [
+              keys[geometry.index!.getX(i + c)],
+              keys[geometry.index!.getX(i + ((c + 1) % 3))],
+            ]
+              .sort()
+              .join('|');
+            edges.set(edge, (edges.get(edge) ?? 0) + 1);
+          }
+        expect([...edges.values()].every((n) => n <= 2)).toBe(true);
+        return [...edges.values()].filter((n) => n === 1).length;
+      } finally {
+        skin.geometry = previous;
+      }
+    };
+    expect(boundary(closed)).toBe(boundary(finished) - (body === 'masculine' ? 28 : 34));
+    for (let i = meta.sourceVertices; i < closed.attributes.position.count; i++) {
+      const normal = new THREE.Vector3().fromBufferAttribute(closed.attributes.normal, i);
+      expect(normal.length()).toBeCloseTo(1, 4);
+    }
+    skin.geometry = closed;
+    const mixer = new THREE.AnimationMixer(scene),
+      a = new THREE.Vector3(),
+      b = new THREE.Vector3();
+    const material = new THREE.MeshBasicMaterial({ side: THREE.FrontSide });
+    skin.material = material;
+    try {
+      for (const clip of asset.animations)
+        for (const phase of [0, 0.23, 0.71]) {
+          mixer.stopAllAction();
+          mixer.clipAction(clip).reset().play();
+          mixer.setTime(clip.duration * phase);
+          scene.updateMatrixWorld(true);
+          skin.computeBoundingSphere();
+          for (const [added, original] of meta.seam) {
+            skin.getVertexPosition(added, a);
+            skin.getVertexPosition(original, b);
+            expect(a.distanceTo(b), `${body}/${clip.name} snapped rim`).toBe(0);
+          }
+          const inverse = head.matrixWorld.clone().invert();
+          let top = -Infinity;
+          for (let i = meta.sourceVertices; i < closed.attributes.position.count; i++)
+            top = Math.max(
+              top,
+              skin.getVertexPosition(i, a).applyMatrix4(skin.matrixWorld).applyMatrix4(inverse).y
+            );
+          expect(top).toBeCloseTo(0.203, 5);
+          for (const y of [0.115, 0.135, 0.155, 0.185])
+            for (const z of [-0.04, 0, 0.04])
+              for (const side of [-1, 1]) {
+                const origin = new THREE.Vector3(side * 0.3, y, z).applyMatrix4(head.matrixWorld);
+                const centre = new THREE.Vector3(0, y, z).applyMatrix4(head.matrixWorld);
+                expect(
+                  new THREE.Raycaster(
+                    origin,
+                    centre.clone().sub(origin).normalize(),
+                    0,
+                    origin.distanceTo(centre)
+                  ).intersectObject(skin).length,
+                  `${body}/${clip.name} bare near-side y${y},z${z}`
+                ).toBeGreaterThan(0);
+              }
+        }
+      for (const [name, a] of Object.entries(source.attributes))
+        expectSameArray(a.array, sourceArrays[name]);
+      for (const [name, a] of Object.entries(donorSource.attributes))
+        expectSameArray(a.array, donorArrays[name]);
+    } finally {
+      mixer.stopAllAction();
+      mixer.uncacheRoot(scene);
+      closed.dispose();
+      finished.dispose();
+      material.dispose();
+    }
+  }
+);
+
+it.each(['masculine', 'feminine'] as const)(
+  '%s rejects incompatible scalp donors without changing either borrowed geometry',
+  (body) => {
+    const scene = clone(bodies.get(body)!.scene);
+    scene.updateMatrixWorld(true);
+    const head = scene.getObjectByName('Head')!;
+    const meshes: THREE.SkinnedMesh[] = [];
+    scene.traverse((o) => {
+      const m = o as THREE.SkinnedMesh;
+      if (m.isSkinnedMesh && m.parent?.name.includes('Worker_Head')) meshes.push(m);
+    });
+    const skin = meshes.find((m) => (m.material as THREE.Material).name === 'Skin')!;
+    const donor = meshes.find((m) =>
+      ['Eyebrows', 'DarkBrown'].includes((m.material as THREE.Material).name)
+    )!;
+    const source = skin.geometry,
+      original = donor.geometry;
+    donor.bindMatrix.elements[12] += 0.01;
+    expect(createWorkerHeadClosure(skin, donor, head)).toBeNull();
+    donor.bindMatrix.elements[12] -= 0.01;
+    const bad = original.clone();
+    donor.geometry = bad;
+    bad.deleteAttribute('normal');
+    expect(createWorkerHeadClosure(skin, donor, head)).toBeNull();
+    expect(skin.geometry).toBe(source);
+    expect(original.hasAttribute('normal')).toBe(true);
+    bad.dispose();
+  }
+);
+
+it.each(['masculine', 'feminine'] as const)(
+  '%s keeps every existing cut outside the restored crown instead of masking a missing skull',
+  (body) => {
+    const scene = clone(bodies.get(body)!.scene);
+    scene.updateMatrixWorld(true);
+    const head = scene.getObjectByName('Head')!,
+      inverse = head.matrixWorld.clone().invert();
+    let skin!: THREE.SkinnedMesh, donor!: THREE.SkinnedMesh;
+    scene.traverse((o) => {
+      const m = o as THREE.SkinnedMesh;
+      if (!m.isSkinnedMesh || !m.parent?.name.includes('Worker_Head') || Array.isArray(m.material))
+        return;
+      if (m.material.name === 'Skin') skin = m;
+      if (['Eyebrows', 'DarkBrown'].includes(m.material.name)) donor = m;
+    });
+    const originalCount = skin.geometry.index!.count,
+      closed = createWorkerHeadClosure(skin, donor, head)!;
+    skin.geometry = closed;
+    const points: THREE.Vector3[] = [];
+    for (let i = originalCount; i < closed.index!.count; i += 3) {
+      const corners = [0, 1, 2].map((c) =>
+        skin
+          .getVertexPosition(closed.index!.getX(i + c), new THREE.Vector3())
+          .applyMatrix4(skin.matrixWorld)
+          .applyMatrix4(inverse)
+      );
+      for (const p of [
+        ...corners,
+        corners[0]
+          .clone()
+          .add(corners[1])
+          .add(corners[2])
+          .multiplyScalar(1 / 3),
+      ])
+        if (p.y > 0.178 && !points.some((q) => q.distanceTo(p) < 1e-6)) points.push(p);
+    }
+    const material = new THREE.MeshBasicMaterial({ side: THREE.FrontSide }),
+      centre = new THREE.Vector3(0, 0.09, 0.01);
+    try {
+      expect(points.length).toBeGreaterThan(20);
+      for (const style of ['short', 'medium', 'curly', 'ponytail'] as const) {
+        const mesh = new THREE.Mesh(WORKER_HAIR_GEOMETRIES[style], material),
+          mins: number[] = [];
+        for (const scale of [1, WORKER_HAIR_FIT[body][style]]) {
+          mesh.scale.set(scale * (body === 'feminine' ? 0.92 : 1), scale, scale);
+          mesh.position.y = scale === 1 ? 0 : WORKER_HAIR_FIT.offsetY;
+          mesh.updateMatrixWorld(true);
+          let min = Infinity;
+          for (const p of points) {
+            const direction = p.clone().sub(centre).normalize(),
+              origin = centre.clone().addScaledVector(direction, 0.45);
+            const hit = new THREE.Raycaster(origin, direction.negate(), 0, 0.45).intersectObject(
+              mesh
+            )[0];
+            expect(hit, `${body}/${style} crown coverage`).toBeDefined();
+            min = Math.min(min, origin.distanceTo(p) - hit.distance);
+          }
+          mins.push(min);
+        }
+        expect(mins[0], `${body}/${style} former undersized fit reproduces`).toBeLessThan(-0.015);
+        expect(mins[1], `${body}/${style} fitted crown clearance`).toBeGreaterThan(0.002);
+      }
+    } finally {
+      closed.dispose();
+      material.dispose();
     }
   }
 );
