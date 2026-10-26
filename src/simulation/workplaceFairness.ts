@@ -1,12 +1,13 @@
 import type { WorkplaceReplayRun } from '../types/workplaceReplay';
 import type { WorkplaceState, WorkplaceShiftRecord } from '../types/workplace';
 import { saveWorkplace, restoreWorkplace, WORKPLACE_PLANS } from './bilateralWorkplace';
+import { bilateralWorkplaceMessages } from './bilateralWorkplace.messages';
 import { workplaceMission } from './workplaceImprovement';
-import { translate } from '../i18n';
+import { formatGrouped, translate } from '../i18n';
 import { workplaceFairnessMessages as msg } from './workplaceFairness.messages';
 
-/** Public ledger traversal. Historical absent qualitative facts remain unknown. */
-export function fairnessReceipt(state: WorkplaceState) {
+/** Same retained visits for public receipts and teaching evidence; never infer missing facts. */
+function workplaceSnapshots(state: WorkplaceState) {
   const snapshots: (WorkplaceState | WorkplaceShiftRecord)[] = [];
   const collect = (s: WorkplaceState) => {
     if (s.improvement) {
@@ -16,6 +17,12 @@ export function fairnessReceipt(state: WorkplaceState) {
     snapshots.push(...(s.campaign?.history ?? []), s);
   };
   collect(state);
+  return snapshots;
+}
+
+/** Public ledger traversal. Historical absent qualitative facts remain unknown. */
+export function fairnessReceipt(state: WorkplaceState) {
+  const snapshots = workplaceSnapshots(state);
   return state.members.map((m) => {
     const records = snapshots
       .map((s) => s.members.find((p) => p.id === m.id))
@@ -63,31 +70,39 @@ export function fairnessReceipt(state: WorkplaceState) {
 
 /** Guidance observes evidence, and cannot click, grant authority or advance time. */
 export function demonstrationBeats(state: WorkplaceState) {
-  const events = [
-    ...(state.campaign?.history.flatMap((h) => h.relationshipEvents ?? []) ?? []),
-    ...state.events,
-  ];
+  const snapshots = workplaceSnapshots(state);
+  const events = snapshots.flatMap((s) =>
+    'events' in s ? s.events : (s.relationshipEvents ?? [])
+  );
   const records = fairnessReceipt(state);
+  const confirmed = state.members.filter((m) => m.understood).length;
   return [
     {
       title: translate(msg, 'beatMandateTitle'),
       section: 'Agreement / Voices',
-      observed: state.members.some((m) => m.understood),
+      observed: confirmed > 0,
       detail: translate(msg, 'beatMandateDetail'),
+      evidence: translate(msg, 'beatMandateEvidence', {
+        confirmed: formatGrouped(confirmed),
+        total: formatGrouped(state.members.length),
+      }),
     },
     {
       title: translate(msg, 'beatRefusalTitle'),
       section: 'Agreement / Voices',
       observed:
-        events.some((e) => e.kind === 'ballot' && e.detail.includes('declined')) ||
-        records.some((r) => r.currentCoverConsent === false),
+        events.some(
+          (e) => e.kind === 'ballot' && e.detail === bilateralWorkplaceMessages.en.evBallotDeclined
+        ) || snapshots.some((s) => s.members.some((m) => m.refusalRespected)),
       detail: translate(msg, 'beatRefusalDetail'),
+      evidence: translate(msg, 'beatRefusalEvidence'),
     },
     {
       title: translate(msg, 'beatDisclosureTitle'),
       section: 'Agreement / Voices',
       observed: events.some((e) => e.kind === 'privacy-consent'),
       detail: translate(msg, 'beatDisclosureDetail'),
+      evidence: translate(msg, 'beatDisclosureEvidence'),
     },
     {
       title: translate(msg, 'beatChallengeTitle'),
@@ -95,30 +110,47 @@ export function demonstrationBeats(state: WorkplaceState) {
       observed:
         events.some((e) => e.kind === 'adviser-correction') ||
         (state.improvement?.acknowledged === true &&
-          events.some((e) => e.kind === 'improvement-challenged')),
+          state.events.some((e) => e.kind === 'improvement-challenged')),
       detail: translate(msg, 'beatChallengeDetail'),
+      evidence: translate(msg, 'beatChallengeEvidence'),
     },
     {
       title: translate(msg, 'beatWorkTitle'),
       section: 'Review',
-      observed: state.aiActions > 0 || state.campaign?.history.some((h) => h.minute > 0) === true,
+      // Activation is authority, not elapsed work; shipments have their own receipts.
+      // Working if minute-zero activation is uncredited and actual workshop time counts.
+      observed: snapshots.some((s) => s.minute > 0),
       detail: translate(msg, 'beatWorkDetail'),
+      evidence: translate(msg, 'beatWorkEvidence'),
     },
     {
       title: translate(msg, 'beatSettleTitle'),
       section: 'Review',
       observed:
+        state.phase === 'review' &&
+        state.finance.wageReserve === 0 &&
+        state.finance.compensationReserve === 0 &&
+        state.coverRemainingMinutes === 0 &&
+        state.activeCoverMemberId === null &&
         records.some((r) => r.earnedPayAndMemberDistributions > 0) &&
         records.every((r) => r.recoveryOwed === 0),
       detail: translate(msg, 'beatSettleDetail'),
+      evidence: translate(msg, 'beatSettleEvidence'),
     },
     {
       title: translate(msg, 'beatReloadTitle'),
       section: 'Review',
-      observed: state.events.some(
-        (e) => e.kind === 'settled' && e.detail.startsWith('Reload safety')
+      // Restore deliberately discards generic events, but preserves this canonical
+      // review reason for safe resume. Reading a preview never changes the source.
+      // Working if actual reload counts after sanitization and export alone does not.
+      observed: snapshots.some(
+        (s) =>
+          'reviewReason' in s &&
+          s.phase === 'review' &&
+          s.reviewReason === bilateralWorkplaceMessages.en.evReloadSafety
       ),
       detail: translate(msg, 'beatReloadDetail'),
+      evidence: translate(msg, 'beatReloadEvidence'),
     },
   ] as const;
 }

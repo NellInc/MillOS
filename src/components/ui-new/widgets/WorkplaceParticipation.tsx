@@ -329,9 +329,7 @@ export function WorkplaceDemonstration({
             <div key={b.title} className="space-y-1 border-t border-slate-800 pt-3">
               <h5 className="font-semibold text-white">{b.title}</h5>
               <p>{b.detail}</p>
-              <p className="text-cyan-100">
-                {b.observed ? t('evidencePresent') : t('availableToExplore')}
-              </p>
+              <p className="text-cyan-100">{b.observed ? b.evidence : t('availableToExplore')}</p>
               <button className={button} onClick={() => navigate(b.section)}>
                 {t('goTo', { section: t('sectionLabel', { section: b.section }) })}
               </button>

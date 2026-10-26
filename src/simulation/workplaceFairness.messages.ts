@@ -8,24 +8,32 @@ export const workplaceFairnessMessages = defineMessages({
     beatMandateTitle: 'Hear the current mandate (1 minute)',
     beatMandateDetail:
       'Read the bounded mandate and answer the role checks. Advice changes require fresh understanding.',
+    beatMandateEvidence:
+      'Understanding confirmed by {confirmed}/{total} worker roles for this mandate.',
     beatRefusalTitle: 'Exercise a protected no (1 minute)',
     beatRefusalDetail:
       'Decline a policy or optional duty. Observe ordinary pay unchanged. Choose a defensible shared plan before operating.',
+    beatRefusalEvidence: 'A policy no or respected extra-duty refusal is recorded.',
     beatDisclosureTitle: 'Keep disclosure optional (1 minute)',
     beatDisclosureDetail:
       'Leave sharing off, or share and revoke the fictional explanation. No private reason is required. Skipping disclosure is a valid choice.',
+    beatDisclosureEvidence: 'An optional sharing choice is recorded.',
     beatChallengeTitle: 'Challenge and hear a correction (2 minutes)',
     beatChallengeDetail:
       'Challenge a forecast in Handoff, or protect Thursday refusal in the season. Scripted adviser dialogue is identified separately in the receipt.',
+    beatChallengeEvidence: 'A challenge and adviser response are recorded.',
     beatWorkTitle: 'Run bounded work (2 minutes)',
     beatWorkDetail:
-      'End turns, approve the current agreement, then run or pause the actual plant. Quality release and physical customer departures remain separate.',
+      'End turns, approve the current agreement, then advance agreed work time. Quality release and physical customer departures have separate receipts.',
+    beatWorkEvidence: 'Work time observed under an agreement.',
     beatSettleTitle: 'Settle money and recovery (2 minutes)',
     beatSettleDetail:
       'Read every role receipt. Compensation is separate from earned pay and member distributions. Owed recovery remains visible until model time delivers it.',
+    beatSettleEvidence: 'Current money reserves are released; no recovery is owed.',
     beatReloadTitle: 'Rehearse safe reload (1 minute)',
     beatReloadDetail:
       'Use Save and safely reload workplace. It expires future grants, settles earned money and retains recovery debt; an unfinished season shift then resumes only with fresh consent. It leaves the physical plant untouched.',
+    beatReloadEvidence: 'Safe reload expired future grants and retained earned obligations.',
     receiptScope:
       'Shared-device fictional role turns. The local runtime checks turn ownership; same-origin code and device possession are outside identity security.',
     receiptEfficacy:
@@ -60,24 +68,35 @@ export const workplaceFairnessMessages = defineMessages({
     beatMandateTitle: 'Ouça o mandato atual (1 minuto)',
     beatMandateDetail:
       'Leia o mandato limitado e responda às verificações da função. Mudanças na recomendação exigem um novo entendimento.',
+    beatMandateEvidence:
+      'Entendimento confirmado por {confirmed}/{total} funções da equipe para este mandato.',
     beatRefusalTitle: 'Exerça um não protegido (1 minuto)',
     beatRefusalDetail:
       'Recuse uma política ou uma tarefa opcional. Observe que a remuneração normal não muda. Escolha um plano comum defensável antes de operar.',
+    beatRefusalEvidence:
+      'Um não à política ou uma recusa respeitada de tarefa extra foi registrado.',
     beatDisclosureTitle: 'Mantenha opcional o compartilhamento (1 minuto)',
     beatDisclosureDetail:
       'Deixe o compartilhamento desligado, ou compartilhe e depois revogue a explicação fictícia. Nenhum motivo pessoal é exigido. Não compartilhar é uma escolha válida.',
+    beatDisclosureEvidence: 'Uma escolha de compartilhamento opcional foi registrada.',
     beatChallengeTitle: 'Conteste e ouça uma correção (2 minutos)',
     beatChallengeDetail:
       'Conteste uma previsão na Passagem de turno, ou proteja a recusa de quinta-feira na temporada. O diálogo roteirizado do conselheiro aparece identificado à parte no comprovante.',
+    beatChallengeEvidence: 'Uma contestação e a resposta do conselheiro foram registradas.',
     beatWorkTitle: 'Execute trabalho limitado (2 minutos)',
     beatWorkDetail:
-      'Encerre a vez de cada participante, aprove o acordo atual e depois opere ou pause a planta real. A liberação de qualidade e as saídas físicas para os clientes continuam separadas.',
+      'Encerre a vez de cada participante, aprove o acordo atual e depois avance o tempo de trabalho acordado. A liberação de qualidade e as saídas físicas para os clientes têm comprovantes separados.',
+    beatWorkEvidence: 'Tempo de trabalho observado sob um acordo.',
     beatSettleTitle: 'Acerte o dinheiro e o tempo de recuperação (2 minutos)',
     beatSettleDetail:
       'Leia o comprovante de cada função. A compensação é separada da remuneração conquistada e das distribuições aos cooperados. O tempo de recuperação devido continua visível até que o tempo do modelo o conceda.',
+    beatSettleEvidence:
+      'As reservas financeiras atuais foram liberadas; não há recuperação devida.',
     beatReloadTitle: 'Ensaie a recarga segura (1 minuto)',
     beatReloadDetail:
       'Use Salvar e recarregar o local de trabalho com segurança. Isso faz expirar as autorizações futuras, acerta o dinheiro ganho e mantém a dívida de recuperação; um turno da temporada ainda não concluído só é retomado com novo consentimento. A planta física não é alterada.',
+    beatReloadEvidence:
+      'A recarga segura fez expirar autorizações futuras e manteve as obrigações conquistadas.',
     receiptScope:
       'Revezamento fictício entre funções em um dispositivo compartilhado. O ambiente de execução local verifica de quem é cada vez; código da mesma origem e a posse do dispositivo ficam fora da segurança de identidade.',
     receiptEfficacy:

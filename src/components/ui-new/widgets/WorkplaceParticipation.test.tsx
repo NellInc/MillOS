@@ -1,7 +1,11 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { useWorkplaceControls, useWorkplaceStore } from '../../../stores/workplaceStore';
-import { createWorkplace } from '../../../simulation/bilateralWorkplace';
+import {
+  createWorkplace,
+  transitionWorkplace,
+  type WorkplaceCommand,
+} from '../../../simulation/bilateralWorkplace';
 import { turnChecks } from '../../../simulation/workplaceParticipation';
 import {
   WorkplaceParticipation,
@@ -75,6 +79,80 @@ it('guide navigation cannot manufacture consent, pay or shipping', () => {
   expect(navigate).toHaveBeenCalledWith('Agreement / Voices');
   expect(useWorkplaceStore.getState().workplace).toEqual(before);
 });
+it.each(['en', 'pt-BR'] as const)(
+  'shows factual guide progress through actual choices, work and reload in %s',
+  (locale) => {
+    setLocale(locale);
+    try {
+      let state = createWorkplace();
+      const run = (command: WorkplaceCommand) => {
+        const result = transitionWorkplace(state, command);
+        expect(result.changed, `${command.type}: ${result.reason}`).toBe(true);
+        state = result.state;
+        act(() => useWorkplaceStore.setState({ workplace: state }));
+      };
+      run({ type: 'start', args: ['game', 17] });
+      render(<WorkplaceDemonstration navigate={() => {}} report={() => {}} />);
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: locale === 'en' ? 'Open ten-minute guide' : 'Abrir o guia de dez minutos',
+        })
+      );
+      const cards = screen
+        .getAllByRole('heading', { level: 5 })
+        .map((h) => within(h.parentElement!));
+      expect(cards).toHaveLength(7);
+      const available = locale === 'en' ? 'Available to explore' : 'Disponível para explorar';
+      run({ type: 'sharePreference', args: ['packing', true] });
+      run({ type: 'withdraw', args: ['packing'] });
+      expect(cards[1].getByText(available)).toBeInTheDocument();
+      expect(
+        cards[2].getByText(
+          locale === 'en'
+            ? 'An optional sharing choice is recorded.'
+            : 'Uma escolha de compartilhamento opcional foi registrada.'
+        )
+      ).toBeInTheDocument();
+      for (const { id } of state.members) {
+        run({ type: 'understand', args: [id] });
+        run({ type: 'vote', args: [id, true] });
+      }
+      expect(cards[0].getByText(/4\/4/)).toBeInTheDocument();
+      run({ type: 'activate', args: [state.revision] });
+      expect(cards[4].getByText(available)).toBeInTheDocument();
+      expect(cards[5].getByText(available)).toBeInTheDocument();
+      run({ type: 'tick', args: [1, 0, false] });
+      expect(
+        cards[4].getByText(
+          locale === 'en'
+            ? 'Work time observed under an agreement.'
+            : 'Tempo de trabalho observado sob um acordo.'
+        )
+      ).toBeInTheDocument();
+      expect(cards[5].getByText(available)).toBeInTheDocument();
+      fireEvent.click(
+        screen.getByRole('button', {
+          name:
+            locale === 'en'
+              ? 'Save and safely reload workplace'
+              : 'Salvar e recarregar o local de trabalho com segurança',
+        })
+      );
+      expect(
+        cards[6].getByText(
+          locale === 'en'
+            ? 'Safe reload expired future grants and retained earned obligations.'
+            : 'A recarga segura fez expirar autorizações futuras e manteve as obrigações conquistadas.'
+        )
+      ).toBeInTheDocument();
+      expect(cards[0].getByText(available)).toBeInTheDocument();
+      expect(useWorkplaceStore.getState().workplace.phase).toBe('review');
+      expect(useWorkplaceStore.getState().workplace.shippedKg).toBe(0);
+    } finally {
+      setLocale('en');
+    }
+  }
+);
 it('opens the season from Handoff and navigates to the real campaign decisions', () => {
   useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
   useOperationsCampaignStore.getState().initializeCampaign();

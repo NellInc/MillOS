@@ -1,6 +1,12 @@
 import type { WorkplaceReplayRun } from '../types/workplaceReplay';
 import { describe, expect, it } from 'vitest';
-import { createWorkplace, transitionWorkplace, type WorkplaceCommand } from './bilateralWorkplace';
+import {
+  createWorkplace,
+  restoreWorkplace,
+  saveWorkplace,
+  transitionWorkplace,
+  type WorkplaceCommand,
+} from './bilateralWorkplace';
 import {
   fairnessReceipt,
   participationReceipt,
@@ -111,6 +117,155 @@ describe('individual public cooperative receipts', () => {
       detail: 'forecast',
     });
     expect(demonstrationBeats(s)[3].observed).toBe(false);
+  });
+});
+
+describe('guide evidence follows actual cooperative choices and work', () => {
+  function exercise(mode: 'game' | 'workshop' = 'game', plan: 'steady' | 'cover' = 'steady') {
+    let state = createWorkplace();
+    const run = (command: WorkplaceCommand) => {
+      const result = transitionWorkplace(state, command);
+      expect(result.changed, `${command.type}: ${result.reason}`).toBe(true);
+      state = result.state;
+    };
+    run({ type: 'start', args: [mode, 17] });
+    if (plan !== 'steady') run({ type: 'selectPlan', args: [plan] });
+    return {
+      run,
+      respond() {
+        for (const { id } of state.members) {
+          run({ type: 'understand', args: [id] });
+          run({ type: 'vote', args: [id, true] });
+        }
+      },
+      activate() {
+        run({ type: 'activate', args: [state.revision] });
+      },
+      get state() {
+        return state;
+      },
+    };
+  }
+
+  it('leaves every optional demonstration available in a fresh exercise', () => {
+    const c = exercise();
+    expect(c.state.members.every((m) => m.coverConsent === null)).toBe(true);
+    expect(demonstrationBeats(c.state).every((beat) => !beat.observed)).toBe(true);
+  });
+
+  it('does not call activation work before any agreement time has elapsed', () => {
+    const c = exercise();
+    c.respond();
+    c.activate();
+    expect(c.state.aiActions).toBe(1);
+    expect(c.state.minute).toBe(0);
+    expect(demonstrationBeats(c.state)[4].observed).toBe(false);
+    c.run({ type: 'tick', args: [1, 0, false] });
+    expect(demonstrationBeats(c.state)[4].observed).toBe(true);
+    expect(c.state.shippedKg).toBe(0);
+  });
+
+  it('recognizes actual workshop work time without inventing adviser actions or goods', () => {
+    const c = exercise('workshop');
+    c.respond();
+    c.activate();
+    c.run({ type: 'tick', args: [2, 0, false] });
+    expect(c.state.aiActions).toBe(0);
+    expect(c.state.shippedKg).toBe(0);
+    expect(demonstrationBeats(c.state)[4].observed).toBe(true);
+  });
+
+  it('does not credit active earnings as a finished money and recovery settlement', () => {
+    const c = exercise();
+    c.respond();
+    c.activate();
+    c.run({ type: 'tick', args: [1, 0, false] });
+    expect(c.state.members.every((m) => m.earnedPay > 0)).toBe(true);
+    expect(c.state.finance.wageReserve).toBeGreaterThan(0);
+    expect(demonstrationBeats(c.state)[5].observed).toBe(false);
+    c.run({ type: 'stop', args: [] });
+    expect(demonstrationBeats(c.state)[5].observed).toBe(true);
+  });
+
+  it('keeps privacy withdrawal distinct from refusing optional extra duty', () => {
+    const c = exercise();
+    c.run({ type: 'sharePreference', args: ['packing', true] });
+    c.run({ type: 'withdraw', args: ['packing'] });
+    expect(c.state.members[0].coverConsent).toBe(false);
+    expect(c.state.members[0].refusalRespected).toBe(false);
+    expect(demonstrationBeats(c.state)[1].observed).toBe(false);
+    expect(demonstrationBeats(c.state)[2].observed).toBe(true);
+  });
+
+  it('retains a genuinely respected cover refusal after current grants are cleared', () => {
+    const c = exercise('game', 'cover');
+    c.respond();
+    c.run({ type: 'consentToCover', args: ['packing', false] });
+    c.run({ type: 'consentToCover', args: ['maintenance', true] });
+    expect(demonstrationBeats(c.state)[1].observed).toBe(false);
+    c.activate();
+    expect(c.state.members[0].refusalRespected).toBe(true);
+    expect(demonstrationBeats(c.state)[1].observed).toBe(true);
+    c.run({ type: 'stop', args: [] });
+    expect(c.state.members[0].coverConsent).toBeNull();
+    expect(demonstrationBeats(c.state)[1].observed).toBe(true);
+  });
+
+  it('observes a policy no without requiring optional disclosure or extra duty', () => {
+    const c = exercise();
+    c.run({ type: 'understand', args: ['packing'] });
+    c.run({ type: 'vote', args: ['packing', false] });
+    expect(demonstrationBeats(c.state)[1].observed).toBe(true);
+    expect(demonstrationBeats(c.state)[2].observed).toBe(false);
+    expect(c.state.members[0].earnedPay).toBe(0);
+  });
+
+  it('waits for actual review recovery before crediting settlement', () => {
+    const c = exercise('game', 'cover');
+    c.respond();
+    c.run({ type: 'consentToCover', args: ['packing', true] });
+    c.activate();
+    c.run({ type: 'tick', args: [1, 0, false] });
+    c.run({ type: 'stop', args: [] });
+    expect(c.state.members[0].compensationPaid).toBeGreaterThan(0);
+    expect(c.state.members[0].recoveryOwedMinutes).toBe(10);
+    expect(demonstrationBeats(c.state)[5].observed).toBe(false);
+    c.run({ type: 'tick', args: [10, 0, false] });
+    expect(c.state.members[0].recoveryOwedMinutes).toBe(0);
+    expect(demonstrationBeats(c.state)[5].observed).toBe(true);
+  });
+
+  it('recognizes actual safe reload from retained review state, not a discarded event', () => {
+    const c = exercise();
+    c.respond();
+    c.activate();
+    const before = structuredClone(c.state);
+    participationReceipt(c.state, 'solo');
+    expect(c.state).toEqual(before);
+    expect(demonstrationBeats(c.state)[6].observed).toBe(false);
+    const reloaded = restoreWorkplace(saveWorkplace(c.state));
+    expect(reloaded.phase).toBe('review');
+    expect(reloaded.events.some((event) => event.kind === 'settled')).toBe(false);
+    expect(demonstrationBeats(reloaded)[6].observed).toBe(true);
+    expect(reloaded.members.every((m) => !m.understood && m.coverConsent === null)).toBe(true);
+  });
+
+  it('carries retained public choices and work into handoff without settling the new trial', () => {
+    const c = exercise();
+    c.run({ type: 'sharePreference', args: ['packing', true] });
+    c.respond();
+    c.activate();
+    c.run({ type: 'tick', args: [2, 0, false] });
+    c.run({ type: 'stop', args: [] });
+    c.run({ type: 'beginImprovement', args: ['cooperative', c.state.revision] });
+    expect(c.state.minute).toBe(0);
+    const before = structuredClone(c.state);
+    const beats = demonstrationBeats(c.state);
+    expect(beats[0].observed).toBe(false);
+    expect(beats[2].observed).toBe(true);
+    expect(beats[4].observed).toBe(true);
+    expect(beats[5].observed).toBe(false);
+    expect(c.state).toEqual(before);
   });
 });
 
