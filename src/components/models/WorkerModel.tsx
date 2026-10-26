@@ -31,6 +31,7 @@ import {
 } from '../workers/SharedWorkerMaterials';
 import { createWorkerBodyLod } from '../workers/workerBodyLod';
 import { createWorkerFootwear } from '../workers/workerFootwear';
+import { createWorkerCuffSockets } from '../workers/workerCuffSockets';
 import { createWorkerGarmentMotion } from '../workers/workerGarmentMotion';
 import { createWorkerHeadClosure, WORKER_HAIR_FIT } from '../workers/workerHeadClosure';
 import type { WorkerMotionState } from '../workers/workerTypes';
@@ -216,6 +217,115 @@ export function softenSharedWorkerGeometry(
     byJoints.set(key, entry);
   }
   return entry.template ? entry.template.clone() : null;
+}
+
+const cuffWorkerTemplates = new WeakMap<
+  THREE.BufferGeometry,
+  WeakMap<
+    THREE.BufferGeometry,
+    { inputs: unknown[]; frame: string; template: THREE.BufferGeometry | null }
+  >
+>();
+
+/** Reuse the existing validated-template/private-copy pattern for identical cuffs.
+ * Working if a compatible second wearer repeats no geometric fitting, still
+ * receives its own current softened normals, and warm-cache frame mismatches reject.
+ */
+export function createSharedWorkerCuffSockets(
+  trousers: THREE.SkinnedMesh,
+  ankle: THREE.SkinnedMesh,
+  originalTrousers: THREE.BufferGeometry,
+  originalAnkle: THREE.BufferGeometry
+): THREE.BufferGeometry | null {
+  if (
+    trousers.skeleton !== ankle.skeleton ||
+    trousers.bindMode !== ankle.bindMode ||
+    !trousers.bindMatrix.equals(ankle.bindMatrix) ||
+    !trousers.bindMatrixInverse.equals(ankle.bindMatrixInverse) ||
+    !trousers.matrixWorld.equals(ankle.matrixWorld)
+  )
+    return null;
+  const inputs: unknown[] = [];
+  for (const [current, original] of [
+    [trousers.geometry, originalTrousers],
+    [ankle.geometry, originalAnkle],
+  ]) {
+    const names = Object.keys(original.attributes).sort();
+    if (
+      Object.keys(current.attributes).sort().join(',') !== names.join(',') ||
+      JSON.stringify(current.groups) !== JSON.stringify(original.groups) ||
+      current.drawRange.start !== original.drawRange.start ||
+      current.drawRange.count !== original.drawRange.count ||
+      Object.keys(current.morphAttributes).length ||
+      Object.keys(original.morphAttributes).length ||
+      current.index?.count !== original.index?.count
+    )
+      return null;
+    for (let i = 0; i < (original.index?.count ?? 0); i++)
+      if (current.index!.getX(i) !== original.index!.getX(i)) return null;
+    for (const name of names) {
+      const a = current.getAttribute(name),
+        b = original.getAttribute(name);
+      if (
+        a.count !== b.count ||
+        a.itemSize !== b.itemSize ||
+        a.normalized !== b.normalized ||
+        a.array.constructor !== b.array.constructor
+      )
+        return null;
+      // Only normal softening may differ from the canonical borrowed skin.
+      for (let i = 0; i < a.count; i++)
+        for (let c = 0; c < a.itemSize; c++) {
+          const value = a.getComponent(i, c);
+          if (!Number.isFinite(value) || (name !== 'normal' && value !== b.getComponent(i, c)))
+            return null;
+        }
+    }
+    inputs.push(
+      JSON.stringify([original.groups, original.drawRange, Object.keys(original.morphAttributes)])
+    );
+    for (const attribute of [original.index, ...names.map((name) => original.getAttribute(name))])
+      inputs.push(
+        attribute,
+        attribute instanceof THREE.InterleavedBufferAttribute
+          ? attribute.data.version
+          : attribute?.version,
+        attribute?.itemSize,
+        attribute?.normalized,
+        (attribute as THREE.BufferAttribute | undefined)?.gpuType
+      );
+  }
+  const frame = [
+    ...trousers.bindMatrix.elements,
+    ...trousers.bindMatrixInverse.elements,
+    ...trousers.matrixWorld.elements,
+    ...trousers.skeleton.bones.map((bone) => bone.name),
+  ].join(',');
+  let byAnkle = cuffWorkerTemplates.get(originalTrousers);
+  if (!byAnkle) cuffWorkerTemplates.set(originalTrousers, (byAnkle = new WeakMap()));
+  let entry = byAnkle.get(originalAnkle);
+  if (
+    !entry ||
+    entry.frame !== frame ||
+    entry.inputs.length !== inputs.length ||
+    !entry.inputs.every((value, i) => Object.is(value, inputs[i]))
+  ) {
+    entry?.template?.dispose();
+    entry = { inputs, frame, template: createWorkerCuffSockets(trousers, ankle) };
+    byAnkle.set(originalAnkle, entry);
+  }
+  if (!entry.template) return null;
+  const copy = entry.template.clone();
+  const normal = copy.getAttribute('normal') as THREE.BufferAttribute;
+  const softened = trousers.geometry.getAttribute('normal');
+  for (let i = 0; i < softened.count; i++)
+    for (let c = 0; c < softened.itemSize; c++)
+      normal.setComponent(i, c, softened.getComponent(i, c));
+  copy.userData = {
+    ...copy.userData,
+    workerCuffSockets: structuredClone(copy.userData.workerCuffSockets),
+  };
+  return copy;
 }
 
 /** Subtle lit skin undertones in Head bind space, never a baked light/shadow.
@@ -1391,6 +1501,8 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     const gloveSources: THREE.SkinnedMesh[] = [];
     const footwearSources: { mesh: THREE.SkinnedMesh; kind: 'boot' | 'shoe' }[] = [];
     const clothSources: { mesh: THREE.SkinnedMesh; region: WorkerSurface }[] = [];
+    const cuffSources: { mesh: THREE.SkinnedMesh; original: THREE.BufferGeometry }[] = [];
+    const ankleSources: { mesh: THREE.SkinnedMesh; original: THREE.BufferGeometry }[] = [];
     const ownedGeometry: THREE.BufferGeometry[] = [];
     const headSkins: THREE.SkinnedMesh[] = [];
     const scalpDonors: { mesh: THREE.SkinnedMesh; brows: THREE.BufferGeometry }[] = [];
@@ -1497,6 +1609,12 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
           }
         }
       }
+      if (appearance.bodyType === 'feminine' && (mesh as THREE.SkinnedMesh).isSkinnedMesh) {
+        if (region === 'denim' && nodeName === 'Worker_Legs')
+          cuffSources.push({ mesh: mesh as THREE.SkinnedMesh, original: geometry });
+        if (region === 'skin' && nodeName === 'Worker_Feet')
+          ankleSources.push({ mesh: mesh as THREE.SkinnedMesh, original: geometry });
+      }
       if (
         appearance.hasGloves &&
         (mesh as THREE.SkinnedMesh).isSkinnedMesh &&
@@ -1506,6 +1624,24 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       )
         gloveSources.push(mesh as THREE.SkinnedMesh);
     });
+
+    // Recess the closed trouser undersides around the real ankles before the
+    // distant body is copied. Feet, rig and authored outer cloth stay unchanged.
+    if (cuffSources.length === 1 && ankleSources.length === 1) {
+      const cuff = cuffSources[0],
+        ankle = ankleSources[0];
+      const geometry = createSharedWorkerCuffSockets(
+        cuff.mesh,
+        ankle.mesh,
+        cuff.original,
+        ankle.original
+      );
+      if (geometry) {
+        cuff.mesh.geometry = geometry;
+        ownedGeometry.push(geometry);
+        if (geometry.boundingBox) _bindBox.union(geometry.boundingBox);
+      }
+    }
 
     // Finish the original face first, then append only its complementary scalp.
     // Working if the softened/coloured face prefix stays exact, and an unfamiliar

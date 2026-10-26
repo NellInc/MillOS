@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { setLocale } from '../i18n';
 import {
   cloneMaterialFlowData,
   createMaterialFlowStore,
@@ -119,6 +120,24 @@ describe('isolated packing advice', () => {
       expect(manual.getState().manifests).toEqual([]);
       expect(validPackingAdvice(advice)).toEqual(advice);
       expect(derivePackingAdvice(capture, 'steady')).toEqual(advice);
+    }
+  });
+  it('explains the fixed plant horizon at every pace in both interface languages', () => {
+    try {
+      for (const locale of ['en', 'pt-BR'] as const) {
+        setLocale(locale);
+        for (const speed of [15, 30, 120]) {
+          const advice = derivePackingAdvice(fixture(speed).capture(), 'steady');
+          expect(advice.physicalSeconds).toBe(180);
+          expect(advice.assumptions[0]).toBe(
+            locale === 'en'
+              ? '90 workplace minutes = 180 plant seconds at every resume pace.'
+              : '90 minutos de trabalho = 180 segundos da planta em qualquer ritmo de retomada.'
+          );
+        }
+      }
+    } finally {
+      setLocale('en');
     }
   });
   it('splits five paid workplace minutes at the physical briefing boundary', () => {

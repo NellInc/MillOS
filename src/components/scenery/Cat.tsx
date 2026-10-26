@@ -156,8 +156,9 @@ export const Cat = React.memo<CatProps>(
 
       if (isExcited) {
         const t = animationTime.current * 20;
-        // Purr wobble / Happy wiggle
-        rOffset = Math.sin(t) * 0.1;
+        // The curled cat keeps its paws and tail settled during petting.
+        // Working if its root stays level while hearts acknowledge the pet.
+        rOffset = isSleeping ? 0 : Math.sin(t) * 0.1;
         if (!isSleeping) {
           yOffset = Math.abs(Math.sin(t * 0.5)) * 0.2; // Little jumps if sitting
         }

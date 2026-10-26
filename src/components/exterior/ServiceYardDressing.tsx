@@ -168,6 +168,21 @@ export const TankFarmManifold: React.FC<{ tanks: readonly ManifoldTank[] }> = ({
           />
         </group>
       ))}
+      {/* The wheel's torus is its rim; its centre must meet the valve stem.
+          Crossed spokes reach the rim centreline, all inside its existing envelope. */}
+      <group name="valve-handwheel-connections">
+        <BoxSet
+          material={HANDWHEEL}
+          parts={tanks.flatMap((tank) => {
+            const position: [number, number, number] = [valve.x, header.y + valve.stem, tank.z];
+            return [
+              { position, scale: [0.09, 0.06, 0.09] as [number, number, number] },
+              { position, scale: [2 * valve.wheel, 0.025, 0.03] as [number, number, number] },
+              { position, scale: [0.03, 0.025, 2 * valve.wheel] as [number, number, number] },
+            ];
+          })}
+        />
+      </group>
       {tanks.map((tank) => {
         const x = manifoldDropX(tank);
         const top = tankUndersideY(tank, TANK_FARM_PAD_TOP);

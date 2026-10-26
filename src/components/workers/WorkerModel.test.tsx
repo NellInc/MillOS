@@ -53,6 +53,7 @@ import {
   setWorkerPupilBlink,
   setWorkerPupilPose,
   softenSharedWorkerGeometry,
+  createSharedWorkerCuffSockets,
   softenWorkerFaceNormals,
   workerGaitRates,
 } from '../models/WorkerModel';
@@ -3053,6 +3054,25 @@ it.each(['masculine', 'feminine'] as const)(
       bodyType === 'masculine' ? 140 : 178
     );
     expect(first.container.querySelector('[name="worker-authored-hair"]')).toBeNull();
+    const cuffs = (model: THREE.Group) => {
+      const found: THREE.SkinnedMesh[] = [];
+      model.traverse((object) => {
+        const mesh = object as THREE.SkinnedMesh;
+        if (mesh.isSkinnedMesh && mesh.geometry.userData.workerCuffSockets) found.push(mesh);
+      });
+      return found;
+    };
+    const cuffA = cuffs(copies[0]),
+      cuffB = cuffs(copies[1]);
+    expect(cuffA).toHaveLength(bodyType === 'feminine' ? 1 : 0);
+    expect(cuffB).toHaveLength(bodyType === 'feminine' ? 1 : 0);
+    const cuffDisposeA = cuffA[0] ? vi.spyOn(cuffA[0].geometry, 'dispose') : undefined;
+    const cuffDisposeB = cuffB[0] ? vi.spyOn(cuffB[0].geometry, 'dispose') : undefined;
+    if (bodyType === 'feminine') {
+      expect(cuffA[0].geometry).not.toBe(cuffB[0].geometry);
+      expect(cuffA[0].geometry.userData.workerCuffSockets.removedCapOffsets).toHaveLength(54);
+      expect(cuffA[0].geometry.userData.workerCuffSockets.addedTriangles).toBe(90);
+    }
     let near = 0,
       far = 0,
       footwear = 0,
@@ -3077,6 +3097,8 @@ it.each(['masculine', 'feminine'] as const)(
     first.unmount();
     expect(disposeA).toHaveBeenCalledOnce();
     expect(disposeB).not.toHaveBeenCalled();
+    if (cuffDisposeA) expect(cuffDisposeA).toHaveBeenCalledOnce();
+    if (cuffDisposeB) expect(cuffDisposeB).not.toHaveBeenCalled();
     sourceDispose.forEach((spy) => expect(spy).not.toHaveBeenCalled());
     second.unmount();
     expect(disposeB).toHaveBeenCalledOnce();
@@ -3615,3 +3637,217 @@ it.each(['masculine', 'feminine'] as const)(
     lod!.dispose();
   }
 );
+
+it('recesses both feminine cuff caps with private cached skins and continuous pose clearance', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { NodeIO } = await import('@gltf-transform/core');
+  const { ALL_EXTENSIONS } = await import('@gltf-transform/extensions');
+  const { default: draco } = await import('draco3dgltf');
+  const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+  const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({
+    'draco3d.decoder': await draco.createDecoderModule(),
+  });
+  const document = await io.readBinary(
+    new Uint8Array(readFileSync('public/models/worker/worker-feminine.glb'))
+  );
+  for (const extension of document.getRoot().listExtensionsUsed()) extension.dispose();
+  const bytes = await io.writeBinary(document);
+  const asset = await new GLTFLoader().parseAsync(bytes.buffer as ArrayBuffer, '');
+  shareWorkerSkin(asset.scene);
+  asset.scene.updateMatrixWorld(true);
+  let source!: THREE.SkinnedMesh, skin!: THREE.SkinnedMesh;
+  asset.scene.traverse((object) => {
+    const mesh = object as THREE.SkinnedMesh;
+    if (!mesh.isSkinnedMesh || Array.isArray(mesh.material)) return;
+    if (mesh.parent?.name === 'Worker_Legs' && mesh.material.name === 'Brown_02') source = mesh;
+    if (mesh.parent?.name === 'Worker_Feet' && mesh.material.name === 'Skin') skin = mesh;
+  });
+  expect(source).toBeDefined();
+  expect(skin).toBeDefined();
+  const first = source.clone(),
+    second = source.clone(),
+    ankle = skin.clone();
+  first.geometry = softenSharedWorkerGeometry(source.geometry)!;
+  second.geometry = first.geometry.clone();
+  ankle.geometry = softenSharedWorkerGeometry(skin.geometry)!;
+  const softened = first.geometry,
+    secondSoftened = second.geometry;
+  const secondNormal = second.geometry.getAttribute('normal') as THREE.BufferAttribute;
+  secondNormal.setXYZ(0, 0, 1, 0);
+  const closest = vi.spyOn(THREE.Triangle.prototype, 'closestPointToPoint');
+  const fitted = createSharedWorkerCuffSockets(first, ankle, source.geometry, skin.geometry)!;
+  expect(fitted).not.toBeNull();
+  const fittingCalls = closest.mock.calls.length;
+  expect(fittingCalls).toBeGreaterThan(0);
+  const other = createSharedWorkerCuffSockets(second, ankle, source.geometry, skin.geometry)!;
+  expect(closest.mock.calls.length).toBe(fittingCalls);
+  expect(other).not.toBe(fitted);
+  expect(other.userData.workerCuffSockets).not.toBe(fitted.userData.workerCuffSockets);
+  expect([
+    other.getAttribute('normal').getX(0),
+    other.getAttribute('normal').getY(0),
+    other.getAttribute('normal').getZ(0),
+  ]).toEqual([0, 1, 0]);
+  source.geometry.getAttribute('uv').needsUpdate = true;
+  const rebuilt = createSharedWorkerCuffSockets(first, ankle, source.geometry, skin.geometry)!;
+  expect(closest.mock.calls.length).toBeGreaterThan(fittingCalls);
+  closest.mockRestore();
+  ankle.matrixWorld.elements[12] += 0.01;
+  expect(createSharedWorkerCuffSockets(first, ankle, source.geometry, skin.geometry)).toBeNull();
+  ankle.matrixWorld.copy(skin.matrixWorld);
+  const malformed = first.clone();
+  malformed.geometry = first.geometry.clone();
+  malformed.geometry.setAttribute(
+    'unsupported',
+    new THREE.Float32BufferAttribute(new Float32Array(first.geometry.attributes.position.count), 1)
+  );
+  expect(
+    createSharedWorkerCuffSockets(malformed, ankle, source.geometry, skin.geometry)
+  ).toBeNull();
+  const info = fitted.userData.workerCuffSockets;
+  expect(info.removedCapOffsets).toHaveLength(54);
+  expect(info.sockets).toHaveLength(2);
+  expect(info.addedTriangles).toBe(90);
+  expect(info.addedVertexCount).toBe(270);
+  for (const [name, original] of Object.entries(softened.attributes)) {
+    const attribute = fitted.getAttribute(name),
+      Constructor = original.array.constructor as typeof Float32Array;
+    const values = new Constructor(
+      Array.from({ length: original.count * original.itemSize }, (_, i) =>
+        original.getComponent(Math.floor(i / original.itemSize), i % original.itemSize)
+      )
+    );
+    expect(
+      new Uint8Array(attribute.array.buffer, attribute.array.byteOffset, values.byteLength),
+      name
+    ).toEqual(new Uint8Array(values.buffer));
+  }
+  const removed = new Set(info.removedCapOffsets as number[]),
+    retained: number[] = [];
+  for (let i = 0; i < softened.index!.count; i += 3)
+    if (!removed.has(i)) for (let c = 0; c < 3; c++) retained.push(softened.index!.getX(i + c));
+  expect(Array.from(fitted.index!.array).slice(0, retained.length)).toEqual(retained);
+  const p = fitted.getAttribute('position'),
+    n = fitted.getAttribute('normal'),
+    joints = fitted.getAttribute('skinIndex'),
+    weights = fitted.getAttribute('skinWeight');
+  const key = (i: number) =>
+    [p.getX(i), p.getY(i), p.getZ(i)].map((v) => v.toFixed(7)).join(',') +
+    ';' +
+    [0, 1, 2, 3]
+      .filter((c) => weights.getComponent(i, c) > 0)
+      .map((c) => [joints.getComponent(i, c), weights.getComponent(i, c)])
+      .sort(([a], [b]) => a - b)
+      .join(',');
+  const edges = new Map<string, { count: number; direction: number }>(),
+    touched = new Set<string>();
+  for (let i = 0; i < fitted.index!.count; i += 3) {
+    const ids = [0, 1, 2].map((c) => fitted.index!.getX(i + c));
+    if (i >= retained.length) {
+      const t = new THREE.Triangle(
+        ...(ids.map((j) => new THREE.Vector3().fromBufferAttribute(p, j)) as [
+          THREE.Vector3,
+          THREE.Vector3,
+          THREE.Vector3,
+        ])
+      );
+      expect(t.getArea()).toBeGreaterThan(1e-10);
+    }
+    for (let c = 0; c < 3; c++) {
+      const a = key(ids[c]),
+        b = key(ids[(c + 1) % 3]),
+        edge = [a, b].sort().join('|'),
+        old = edges.get(edge) ?? { count: 0, direction: 0 };
+      old.count++;
+      old.direction += a < b ? 1 : -1;
+      edges.set(edge, old);
+      if (i >= retained.length) touched.add(edge);
+    }
+  }
+  for (const edge of touched) expect(edges.get(edge)).toEqual({ count: 2, direction: 0 });
+  for (let i = info.originalVertexCount; i < p.count; i++) {
+    expect(new THREE.Vector3().fromBufferAttribute(n, i).length()).toBeCloseTo(1, 5);
+    expect(weights.getX(i)).toBe(1);
+  }
+  first.geometry = fitted;
+  const mixer = new THREE.AnimationMixer(asset.scene),
+    point = new THREE.Vector3();
+  let maxMixedY = -Infinity,
+    poses = 0;
+  const sp = ankle.geometry.getAttribute('position'),
+    sj = ankle.geometry.getAttribute('skinIndex'),
+    sw = ankle.geometry.getAttribute('skinWeight'),
+    at = (i: number) => ankle.geometry.index?.getX(i) ?? i;
+  for (const clip of asset.animations) {
+    mixer.stopAllAction();
+    mixer.clipAction(clip).reset().play();
+    for (let step = 0; step < 8; step++) {
+      mixer.setTime((clip.duration * step) / 8);
+      asset.scene.updateMatrixWorld(true);
+      first.skeleton.update();
+      for (const socket of info.sockets) {
+        const joint = socket.joint as number,
+          bone = first.skeleton.bones[joint];
+        const inverse = first.bindMatrixInverse
+          .clone()
+          .multiply(bone.matrixWorld)
+          .multiply(first.skeleton.boneInverses[joint])
+          .multiply(first.bindMatrix)
+          .invert();
+        const minimumPatchY = Math.min(
+          ...(socket.outer as number[][]).map((v) => v[1]),
+          ...(socket.innerHeights as number[])
+        );
+        for (let i = 0; i < (ankle.geometry.index?.count ?? sp.count); i += 3) {
+          const ids = [0, 1, 2].map((c) => at(i + c));
+          if (!ids.every((j) => Math.sign(sp.getX(j)) === Math.sign(socket.centre[0]))) continue;
+          const rigid = ids.every((j) =>
+            [0, 1, 2, 3].every(
+              (c) =>
+                sw.getComponent(j, c) === 0 ||
+                (sw.getComponent(j, c) === 1 && sj.getComponent(j, c) === joint)
+            )
+          );
+          if (rigid) continue;
+          for (const j of ids) {
+            const y = ankle.getVertexPosition(j, point).applyMatrix4(inverse).y;
+            maxMixedY = Math.max(maxMixedY, y);
+            expect(y, clip.name + ' mixed ankle stays below cuff').toBeLessThan(
+              minimumPatchY - 1e-5
+            );
+          }
+        }
+        for (let i = info.originalVertexCount; i < p.count; i++)
+          if (joints.getX(i) === joint) {
+            const restored = first.getVertexPosition(i, point).applyMatrix4(inverse);
+            expect(restored.distanceTo(new THREE.Vector3().fromBufferAttribute(p, i))).toBeLessThan(
+              1e-5
+            );
+          }
+      }
+      poses++;
+    }
+  }
+  expect(poses).toBe(72);
+  console.log(
+    JSON.stringify({
+      cuffPoseSamples: poses,
+      maxMixedY,
+      minimumSkinClearance: info.minimumSkinClearance,
+      addedTriangles: info.addedTriangles,
+      removedCaps: info.removedCapOffsets.length,
+    })
+  );
+  mixer.stopAllAction();
+  mixer.uncacheRoot(asset.scene);
+  for (const geometry of [
+    fitted,
+    other,
+    rebuilt,
+    softened,
+    secondSoftened,
+    ankle.geometry,
+    malformed.geometry,
+  ])
+    geometry.dispose();
+}, 60000);

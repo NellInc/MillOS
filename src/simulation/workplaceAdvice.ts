@@ -35,7 +35,10 @@ const ARRANGEMENTS = {
 };
 // Resolved when advice is modeled, so frozen advice keeps the language it was captured in.
 const assumptions = () => [
-  translate(msg, 'assumptionHorizon'),
+  translate(msg, 'assumptionHorizon', {
+    minutes: formatFixed(90, 0),
+    seconds: formatFixed(plantSecondsForGameSeconds(5400), 0),
+  }),
   translate(msg, 'assumptionEngine'),
   translate(msg, 'assumptionFixed'),
   translate(msg, 'assumptionPacing'),

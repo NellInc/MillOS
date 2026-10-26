@@ -3,7 +3,7 @@ import { defineMessages } from '../i18n';
 export const workplaceAdviceMessages = defineMessages({
   en: {
     assumptionHorizon:
-      '90 workplace minutes; physical seconds = 90 * 60 / selected resume game speed.',
+      '{minutes} workplace minutes = {seconds} plant seconds at every resume pace.',
     assumptionEngine:
       'Real material engine at 0.5 and 0.25 physical-second steps; bounds reflect time resolution, not statistical confidence.',
     assumptionFixed:
@@ -81,7 +81,7 @@ export const workplaceAdviceMessages = defineMessages({
   },
   'pt-BR': {
     assumptionHorizon:
-      '90 minutos de trabalho; segundos físicos = 90 * 60 / velocidade de jogo escolhida para a retomada.',
+      '{minutes} minutos de trabalho = {seconds} segundos da planta em qualquer ritmo de retomada.',
     assumptionEngine:
       'Motor de material real em passos de 0,5 e 0,25 segundo físico; os limites refletem a resolução temporal, não uma confiança estatística.',
     assumptionFixed:

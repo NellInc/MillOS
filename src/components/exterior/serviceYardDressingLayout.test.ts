@@ -1,3 +1,4 @@
+import { Children, isValidElement, type ReactNode } from 'react';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
@@ -6,6 +7,7 @@ import { TANK_FARM_PAD_SIZE } from '../../textures/tankFarmPad';
 import { vesselSeamOffset } from '../FactoryExterior';
 import { VESSEL_SADDLE } from './utilityVesselDetails';
 import {
+  TankFarmManifold,
   YARD_DRAIN_COVER_STEEL,
   YARD_GRATING_STEEL,
   YARD_KERB_CONCRETE,
@@ -97,6 +99,40 @@ describe('tank-farm manifold', () => {
       for (const tank of tanks) expect(Math.abs(z - tank.z)).toBeGreaterThan(0.5);
     // The west service gap (local x -11) is untouched: everything is east of it.
     expect(Math.min(...tanks.map(manifoldDropX))).toBeGreaterThan(0);
+  });
+
+  it('connects every handwheel rim to its stem with a hub and crossed spokes', () => {
+    type Part = { position: [number, number, number]; scale: [number, number, number] };
+    type NodeProps = { name?: string; children?: ReactNode; parts?: readonly Part[] };
+    const tree = TankFarmManifold({ tanks });
+    if (!isValidElement<NodeProps>(tree)) throw new Error('Missing manifold assembly');
+    const wheels = Children.toArray(tree.props.children).find(
+      (node) => isValidElement<NodeProps>(node) && node.props.name === 'valve-handwheel-connections'
+    );
+    expect(wheels, 'the rings must have a physical connection to their stems').toBeDefined();
+    if (!isValidElement<NodeProps>(wheels)) throw new Error('Missing handwheel connections');
+    const batch = Children.only(wheels.props.children);
+    if (!isValidElement<NodeProps>(batch)) throw new Error('Missing connection batch');
+    const parts = batch.props.parts ?? [];
+    expect(parts).toHaveLength(3 * tanks.length);
+    tanks.forEach((tank, index) => {
+      const [hub, spokeX, spokeZ] = parts.slice(index * 3, index * 3 + 3);
+      const centreY = m.header.y + m.valve.stem;
+      for (const part of [hub, spokeX, spokeZ]) {
+        expect(part.position).toEqual([m.valve.x, centreY, tank.z]);
+        // Everything stays within the existing torus's 0.12 tube-radius envelope.
+        expect(Math.max(...part.scale) / 2).toBeLessThanOrEqual(m.valve.wheel * 1.12);
+      }
+      // The 0.03 m-radius stem reaches the hub's centre; the hub encloses its full width.
+      expect(hub.scale[0]).toBeGreaterThanOrEqual(0.06);
+      expect(hub.scale[2]).toBeGreaterThanOrEqual(0.06);
+      expect(hub.scale[1]).toBeGreaterThan(0);
+      // Both axes reach into the rim, whose inner radius is 0.88 * wheel.
+      expect(spokeX.scale[0] / 2).toBeGreaterThan(m.valve.wheel * 0.88);
+      expect(spokeZ.scale[2] / 2).toBeGreaterThan(m.valve.wheel * 0.88);
+      expect(spokeX.scale[1]).toBeGreaterThan(0);
+      expect(spokeZ.scale[1]).toBeGreaterThan(0);
+    });
   });
 
   it('sits in the tank-farm frame middle band', () => {

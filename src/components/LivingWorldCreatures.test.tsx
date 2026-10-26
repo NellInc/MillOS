@@ -1617,6 +1617,11 @@ it('drives only the sleeping channel from the existing owner, freezing pause/hid
     expect(motion.position.y).toBe(0);
     expect(boundary.rigAngles).toHaveLength(0);
     expect(playCritterSound).not.toHaveBeenCalled();
+    fireEvent.click(view.container.querySelector('[name="sleeping-farm-cat"]')!);
+    tick(1 / 60);
+    expect(motion.rotation.z).toBe(0);
+    expect(motion.position.y).toBe(0);
+    expect(view.container.querySelectorAll('[name="horse-pet-heart"]')).toHaveLength(1);
     boundary.reducedMotion = true;
     view.rerender(<Cat position={[6.25, 0, -1]} rotation={0.5} color="#f97316" pose="sleeping" />);
     tick(1 / 60);
@@ -1627,7 +1632,7 @@ it('drives only the sleeping channel from the existing owner, freezing pause/hid
     tick(1 / 60);
     expect(playCritterSound).toHaveBeenCalledWith('cat');
     expect(body.scale.y).toBe(1);
-    expect(view.container.querySelectorAll('[name="horse-pet-heart"]')).toHaveLength(1);
+    expect(view.container.querySelectorAll('[name="horse-pet-heart"]')).toHaveLength(2);
   } finally {
     view.unmount();
     for (const [key, descriptor] of saved) {
