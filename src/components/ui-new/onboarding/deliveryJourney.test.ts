@@ -62,7 +62,7 @@ describe('guided delivery evidence', () => {
       ).title
     ).toBe('Truck departed');
   });
-  it('names the second trip and the next truck for an order larger than one truck', () => {
+  it('names minimum remaining loads and the next truck for a large order', () => {
     const campaign = useOperationsCampaignStore.getState();
     const order = campaign.orders[0];
     const load = { ...campaign.execution.dispatchLoad, capacityKg: 5000 };
@@ -72,7 +72,7 @@ describe('guided delivery evidence', () => {
       true,
       { active: true, docked: true, nextArrivalMinutes: 0 }
     );
-    expect(loading.detail).toContain('Truck 1 of 2');
+    expect(loading.detail).toContain('At least 2 loads needed');
     expect(loading.detail).toContain('6000 kg still to ship');
     const departed = deriveDeliveryJourney(
       { ...order, shippedKg: 5000 },
@@ -85,10 +85,65 @@ describe('guided delivery evidence', () => {
       true,
       { active: false, docked: false, nextArrivalMinutes: 14 }
     );
-    expect(departed.detail).toContain('Truck 2 of 2');
+    expect(departed.detail).toContain('At least 1 load needed');
     expect(departed.detail).toContain('1000 kg still to ship');
     expect(departed.detail).toContain('due on site in 14 min');
   });
+  it.each(['en', 'pt-BR'] as const)(
+    'counts remaining loads with fulfillment tolerance in %s',
+    (locale) => {
+      const campaign = useOperationsCampaignStore.getState();
+      const base = campaign.orders[0];
+      const load = { ...campaign.execution.dispatchLoad, capacityKg: 5000 };
+      try {
+        setLocale(locale);
+        for (const [requiredKg, shippedKg, count] of [
+          [6000, 0, 2],
+          [6000, 37.5, 2],
+          [6000, 5000, 1],
+          [10000, 0, 2],
+          [5000, 0, 1],
+          [5000.5, 0, 2],
+          [5000 + 0.5e-6, 0, 1],
+          [5000 + 2e-6, 0, 2],
+          [1, 0, 1],
+          [0.5, 0, 1],
+          [1e-6, 0, 0],
+          [6000, 6000, 0],
+        ]) {
+          const order = { ...base, requiredKg, shippedKg };
+          const execution = {
+            ...campaign.execution,
+            orderId: order.id,
+            stage: 'loading' as const,
+            dispatchLoad: load,
+          };
+          const before = structuredClone({ order, execution });
+          const guide = deriveDeliveryJourney(order, execution, true, {
+            active: true,
+            docked: false,
+            nextArrivalMinutes: 14,
+          });
+          if (count > 0) {
+            const expected =
+              locale === 'en'
+                ? `At least ${count} ${count === 1 ? 'load' : 'loads'} needed`
+                : `${count === 1 ? 'É necessária pelo menos' : 'São necessárias pelo menos'} ${count} ${count === 1 ? 'carga' : 'cargas'}`;
+            expect(guide.detail).toContain(expected);
+            expect(guide.detail).toContain(
+              locale === 'en' ? 'on its way to the dock' : 'a caminho da doca'
+            );
+          } else expect(guide.detail).not.toMatch(/At least|pelo menos/);
+          expect({ order, execution }).toEqual(before);
+        }
+        expect(
+          deriveDeliveryJourney({ ...base, status: 'fulfilled' }, campaign.execution, true).title
+        ).toBe(locale === 'en' ? 'Delivery fulfilled' : 'Entrega concluída');
+      } finally {
+        setLocale('en');
+      }
+    }
+  );
   it('routes QC holds to real batch controls and loading to operations', () => {
     const campaign = useOperationsCampaignStore.getState();
     const order = campaign.orders[0];

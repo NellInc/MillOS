@@ -37,8 +37,8 @@ export const deliveryJourneyMessages = defineMessages({
       ' The rest of this order is already packed; the line rests until the next truck collects it.',
     packedRestNext:
       ' The rest of this order is already packed and waits for the next truck, so the line has moved on to the next commitment, for {customer}.',
-    tripStatus:
-      ' Truck {current} of {total} for this order (up to {capacity} kg each); {left} kg still to ship.',
+    tripStatus: (p: { loads: number; loadsText: string; capacity: string; left: string }) =>
+      ` At least ${p.loadsText} ${p.loads === 1 ? 'load' : 'loads'} needed (up to ${p.capacity} kg each); ${p.left} kg still to ship.`,
     nextTruckOnWay: ' The next truck is on its way to the dock.',
     nextTruckDue: ' The next truck is due on site in {minutes} min (simulated).',
     readyToLoadTitle: 'Ready for the shipping truck',
@@ -90,8 +90,8 @@ export const deliveryJourneyMessages = defineMessages({
       ' O restante deste pedido já está ensacado; a linha fica parada até o próximo caminhão buscá-lo.',
     packedRestNext:
       ' O restante deste pedido já está ensacado e aguarda o próximo caminhão, então a linha já passou ao próximo compromisso, para {customer}.',
-    tripStatus:
-      ' Caminhão {current} de {total} deste pedido (até {capacity} kg cada); faltam expedir {left} kg.',
+    tripStatus: (p: { loads: number; loadsText: string; capacity: string; left: string }) =>
+      ` ${p.loads === 1 ? 'É necessária pelo menos' : 'São necessárias pelo menos'} ${p.loadsText} ${p.loads === 1 ? 'carga' : 'cargas'} (até ${p.capacity} kg cada); faltam expedir ${p.left} kg.`,
     nextTruckOnWay: ' O próximo caminhão está a caminho da doca.',
     nextTruckDue: ' O próximo caminhão chega ao pátio em {minutes} min (tempo simulado).',
     readyToLoadTitle: 'Pronto para o caminhão de expedição',

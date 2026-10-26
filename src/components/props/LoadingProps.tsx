@@ -217,6 +217,71 @@ export const DOCK_BOARD = {
   cleat: { depth: 0.025, height: 0.012, embed: 0.002 },
   curb: { x: 0.715, width: 0.06, height: 0.07 },
 } as const;
+/** Formed sheet and cast carry profiles use the existing draw/material owners.
+ * Working if the original outline/lean stays fixed and real grip apertures clear
+ * fingers while their feet seat inside the deck, without extra mesh instances.
+ */
+const DOCK_BOARD_CRAFT = (() => {
+  const profile = (points: number[][], hole?: number[][]) => {
+    const shape = new THREE.Shape(points.map((p) => new THREE.Vector2(...p)));
+    if (hole) shape.holes.push(new THREE.Path(hole.map((p) => new THREE.Vector2(...p))));
+    const geometry = new THREE.ExtrudeGeometry(shape, { depth: 1, steps: 1, bevelEnabled: false });
+    geometry.clearGroups();
+    return geometry;
+  };
+  // Twelve millimetre clipped corners on the retained 1.5m x1m plate.
+  const x = 0.5 - 0.012 / DOCK_BOARD.width,
+    z = 0.5 - 0.012 / DOCK_BOARD.length;
+  const deck = profile([
+    [-x, -0.5],
+    [x, -0.5],
+    [0.5, -z],
+    [0.5, z],
+    [x, 0.5],
+    [-x, 0.5],
+    [-0.5, z],
+    [-0.5, -z],
+  ])
+    .rotateX(-Math.PI / 2)
+    .translate(0, -0.5, 0);
+  deck.name = 'dock-board-clipped-sheet';
+  // Flat crowns and relieved shoulders, rather than eight square metal bars.
+  const curb = profile([
+    [-0.5, -0.5],
+    [0.5, -0.5],
+    [0.5, 0.3],
+    [0.3, 0.5],
+    [-0.3, 0.5],
+    [-0.5, 0.3],
+  ]).translate(0, 0, -0.5);
+  curb.name = 'dock-board-formed-curb';
+  const cleat = curb.clone().rotateY(Math.PI / 2);
+  cleat.name = 'dock-board-formed-traction-rib';
+  const grip = profile(
+    [
+      [-0.42, -0.5],
+      [0.42, -0.5],
+      [0.5, -0.42],
+      [0.5, 0.42],
+      [0.42, 0.5],
+      [-0.42, 0.5],
+      [-0.5, 0.42],
+      [-0.5, -0.42],
+    ],
+    [
+      [-0.34, -0.32],
+      [-0.4, -0.26],
+      [-0.4, 0.26],
+      [-0.34, 0.32],
+      [0.34, 0.32],
+      [0.4, 0.26],
+      [0.4, -0.26],
+      [0.34, -0.32],
+    ]
+  ).translate(0, 0, -0.5);
+  grip.name = 'dock-board-seated-open-grip';
+  return { deck, curb, cleat, grip };
+})();
 /** Chock wedge: right-triangle prism, 0.26 m long, 0.16 m tall, 0.2 m wide. */
 const CHOCK = (() => {
   const shape = new THREE.Shape();
@@ -449,7 +514,7 @@ export const DockBoard: React.FC<PropProps & { lean?: number }> = ({
     <group position={position} rotation={[0, rotation, 0]}>
       <group rotation={[-(Math.PI / 2 - lean), 0, 0]}>
         <mesh
-          geometry={UNIT_BOX}
+          geometry={DOCK_BOARD_CRAFT.deck}
           material={ALUMINIUM}
           position={[0, 0, length / 2]}
           scale={[width, thickness, length]}
@@ -460,7 +525,7 @@ export const DockBoard: React.FC<PropProps & { lean?: number }> = ({
         {cleats.map((z) => (
           <mesh
             key={z}
-            geometry={UNIT_BOX}
+            geometry={DOCK_BOARD_CRAFT.cleat}
             material={ALUMINIUM}
             position={[0, deckTop + cleat.height / 2 - cleat.embed, z]}
             scale={[2 * (curb.x - curb.width / 2) - 0.04, cleat.height, cleat.depth]}
@@ -471,7 +536,7 @@ export const DockBoard: React.FC<PropProps & { lean?: number }> = ({
         {[-curb.x, curb.x].map((x) => (
           <mesh
             key={x}
-            geometry={UNIT_BOX}
+            geometry={DOCK_BOARD_CRAFT.curb}
             material={JACK_PAINT}
             position={[x, curb.height / 2, length / 2]}
             scale={[curb.width, curb.height, length - 0.04]}
@@ -482,10 +547,10 @@ export const DockBoard: React.FC<PropProps & { lean?: number }> = ({
         {[-0.45, 0.45].map((x) => (
           <mesh
             key={x}
-            geometry={UNIT_BOX}
+            geometry={DOCK_BOARD_CRAFT.grip}
             material={STEEL_DARK}
-            position={[x, -0.05, 0.85]}
-            scale={[0.18, 0.06, 0.04]}
+            position={[x, -0.045, 0.85]}
+            scale={[0.18, 0.07, 0.04]}
             castShadow
           />
         ))}

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import {
   DOCK_BOARD,
+  DockBoard,
   SpillKit,
   LOADED_PALLET_HEIGHT,
   PALLET_HEIGHT,
@@ -102,7 +103,7 @@ describe('spare dock board', () => {
   });
 });
 
-function actualSpillKit() {
+function actualLoadingProp(element: React.ReactNode) {
   const root = new THREE.Group();
   const visit = (value: React.ReactNode, parent: THREE.Object3D) => {
     React.Children.forEach(value, (child) => {
@@ -112,21 +113,25 @@ function actualSpillKit() {
         material?: THREE.Material;
         position?: [number, number, number];
         rotation?: [number, number, number];
-        scale?: number;
+        scale?: number | [number, number, number];
         children?: React.ReactNode;
       };
       const object = p.geometry ? new THREE.Mesh(p.geometry, p.material) : new THREE.Group();
       if (p.position) object.position.fromArray(p.position);
       if (p.rotation) object.rotation.fromArray(p.rotation);
       if (typeof p.scale === 'number') object.scale.setScalar(p.scale);
+      else if (p.scale) object.scale.fromArray(p.scale);
       parent.add(object);
       visit(p.children, object);
     });
   };
-  visit(SpillKit({ position: [0, 0, 0] }) as React.ReactNode, root);
+  visit(element, root);
   root.updateMatrixWorld(true);
   return root.children[0] as THREE.Group;
 }
+
+const actualSpillKit = () =>
+  actualLoadingProp(SpillKit({ position: [0, 0, 0] }) as React.ReactNode);
 
 it('forms a seated closed spill kit with real lift and rear pull openings, preserving shared owners and wheels', () => {
   const first = actualSpillKit(),
@@ -203,4 +208,85 @@ it('forms a seated closed spill kit with real lift and rear pull openings, prese
   // Closed lid seats into the retained top rim, without an open container throat.
   expect(cast(body, [0.2, 1, 0], [0, -1, 0]).point.y).toBeCloseTo(0.92, 5);
   expect(cast(lid, [0.2, 0.9, 0], [0, 1, 0]).point.y).toBeLessThan(0.921);
+});
+
+it('forms the portable board with open seated grips and shared closed sheet profiles inside its original envelope', () => {
+  const make = (lean: number) =>
+    actualLoadingProp(DockBoard({ position: [0, 0, 0], lean }) as React.ReactNode);
+  const first = make(Math.PI / 2),
+    second = make(Math.PI / 2);
+  const meshes = first.children[0].children as THREE.Mesh[];
+  const copies = second.children[0].children as THREE.Mesh[];
+  expect(meshes).toHaveLength(14);
+  expect(new Set(meshes.map((m) => m.material)).size).toBe(3);
+  for (const x of [-0.45, 0.45]) {
+    const grip = meshes.find((m) => m.position.x === x)!;
+    const ray = (y: number) =>
+      new THREE.Raycaster(
+        new THREE.Vector3(x, y, 0.7),
+        new THREE.Vector3(0, 0, 1),
+        0,
+        0.3
+      ).intersectObject(grip);
+    expect(ray(-0.045)).toHaveLength(0);
+    expect(ray(-0.074).length).toBeGreaterThan(0);
+    const bounds = new THREE.Box3().setFromObject(grip);
+    const deck = new THREE.Box3().setFromObject(meshes[0]);
+    expect(bounds.max.y - deck.min.y).toBeCloseTo(0.005, 5);
+    expect(bounds.min.y).toBeCloseTo(-0.08, 5);
+  }
+  let triangles = 0;
+  const unique = new Set<THREE.BufferGeometry>();
+  meshes.forEach((m, i) => {
+    expect(m.geometry).toBe(copies[i].geometry);
+    expect(m.material).toBe(copies[i].material);
+    triangles += (m.geometry.index?.count ?? m.geometry.getAttribute('position').count) / 3;
+    unique.add(m.geometry);
+  });
+  expect(triangles - 168).toBeGreaterThan(0);
+  expect(triangles - 168).toBeLessThanOrEqual(350);
+  for (const geometry of unique) {
+    const p = geometry.getAttribute('position'),
+      n = geometry.getAttribute('normal');
+    for (const attribute of Object.values(geometry.attributes))
+      expect([...attribute.array].every(Number.isFinite)).toBe(true);
+    for (let i = 0; i < n.count; i++)
+      expect(Math.hypot(n.getX(i), n.getY(i), n.getZ(i))).toBeCloseTo(1, 5);
+    const edges = new Map<string, { count: number; balance: number }>();
+    let volume = 0;
+    for (let i = 0; i < (geometry.index?.count ?? p.count); i += 3) {
+      const points = [0, 1, 2].map((k) =>
+        new THREE.Vector3().fromBufferAttribute(p, geometry.index?.getX(i + k) ?? i + k)
+      );
+      expect(
+        points[1].clone().sub(points[0]).cross(points[2].clone().sub(points[0])).lengthSq()
+      ).toBeGreaterThan(1e-14);
+      volume += points[0].dot(points[1].clone().cross(points[2])) / 6;
+      const keys = points.map((v) =>
+        v
+          .toArray()
+          .map((c) => Math.round(c * 1e6))
+          .join(',')
+      );
+      for (let k = 0; k < 3; k++) {
+        const a = keys[k],
+          b = keys[(k + 1) % 3],
+          key = a < b ? a + '/' + b : b + '/' + a;
+        const e = edges.get(key) ?? { count: 0, balance: 0 };
+        e.count++;
+        e.balance += a < b ? 1 : -1;
+        edges.set(key, e);
+      }
+    }
+    expect(volume).toBeGreaterThan(0);
+    for (const e of edges.values()) expect(e).toEqual({ count: 2, balance: 0 });
+  }
+  const flat = new THREE.Box3().setFromObject(first);
+  expect(flat.min.x).toBeCloseTo(-0.75, 5);
+  expect(flat.max.x).toBeCloseTo(0.75, 5);
+  expect(flat.max.y).toBeCloseTo(0.07, 5);
+  expect(flat.min.y).toBeCloseTo(-0.08, 5);
+  const leaned = new THREE.Box3().setFromObject(make(0.32));
+  expect(leaned.max.y).toBeLessThanOrEqual(1);
+  expect(Math.max(Math.abs(leaned.min.z), Math.abs(leaned.max.z))).toBeLessThanOrEqual(0.35);
 });

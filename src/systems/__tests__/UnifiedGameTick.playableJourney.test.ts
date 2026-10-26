@@ -211,6 +211,94 @@ it.each([
   }
 });
 
+it('teaches remaining loads after an actual underfilled departure', () => {
+  while (!useMaterialFlowStore.getState().productionBatches.some((batch) => batch.availableKg > 0))
+    step();
+  useProductionStore.getState().setProductionSpeed(0);
+  for (let i = 0; i < 200 && useMaterialFlowStore.getState().shippedKg === 0; i++) step();
+  const campaign = useOperationsCampaignStore.getState();
+  const order = campaign.orders[0];
+  expect(order.shippedKg).toBeGreaterThan(0);
+  expect(order.shippedKg).toBeLessThan(1000);
+  expect(campaign.execution.stage).toBe('dispatched');
+  expect(order.requiredKg - order.shippedKg).toBeGreaterThan(
+    campaign.execution.dispatchLoad.capacityKg
+  );
+  const before = JSON.stringify({
+    execution: campaign.execution,
+    orders: campaign.orders,
+    balance: useMaterialFlowStore.getState().getMaterialBalance(),
+  });
+  const evidence = [];
+  try {
+    useUIStore.getState().startDeliveryJourney(order.id);
+    useUIStore.getState().recordMachineInspection('rm-101');
+    for (const locale of ['en', 'pt-BR'] as const) {
+      setLocale(locale);
+      const guide = deriveDeliveryJourney(order, campaign.execution, true);
+      const expected =
+        locale === 'en' ? 'At least 2 loads needed' : 'São necessárias pelo menos 2 cargas';
+      expect(guide.detail).toContain(expected);
+      expect(guide.detail).not.toMatch(/Truck 2 of 2|Caminhão 2 de 2/);
+      const { container } = render(
+        createElement(FirstDeliveryJourney, {
+          selectedMachine: null,
+          onOpenWorkspace: () => {},
+        })
+      );
+      expect(container.textContent).toContain(expected);
+      evidence.push({
+        locale,
+        guide,
+        html: container.innerHTML,
+        exactText: container.textContent,
+        controls: container.querySelectorAll('button,select,input').length,
+      });
+      const output = process.env.MILLOS_DELIVERY_EVIDENCE_DIR;
+      if (output) {
+        mkdirSync(output, { recursive: true });
+        writeFileSync(
+          `${output}/partial-trip-${locale}.html`,
+          `<!doctype html><html lang="${locale}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head><body>${container.innerHTML}</body></html>`
+        );
+      }
+      cleanup();
+    }
+  } finally {
+    cleanup();
+    setLocale('en');
+  }
+  expect(
+    JSON.stringify({
+      execution: campaign.execution,
+      orders: campaign.orders,
+      balance: useMaterialFlowStore.getState().getMaterialBalance(),
+    })
+  ).toBe(before);
+  const output = process.env.MILLOS_DELIVERY_EVIDENCE_DIR;
+  if (output)
+    writeFileSync(
+      `${output}/partial-trip-domain.json`,
+      JSON.stringify(
+        {
+          scope:
+            'Existing real roster/unified tick stores and actual FirstDeliveryJourney DOM; dock lifecycle fixture, no human/device acceptance',
+          requiredKg: order.requiredKg,
+          shippedKg: order.shippedKg,
+          remainingKg: order.requiredKg - order.shippedKg,
+          capacityKg: campaign.execution.dispatchLoad.capacityKg,
+          manifests: useMaterialFlowStore
+            .getState()
+            .manifests.filter((manifest) => manifest.kind === 'shipping'),
+          balance: useMaterialFlowStore.getState().getMaterialBalance(),
+          evidence,
+        },
+        null,
+        2
+      )
+    );
+});
+
 it('recovers actual certification hold and dispatches within the default morning window', () => {
   useQCLabStore.getState().updateCertificationStatus('expired');
   for (let i = 0; i < 30; i++) step();

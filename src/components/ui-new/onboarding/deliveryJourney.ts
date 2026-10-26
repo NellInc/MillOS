@@ -3,6 +3,7 @@ import type {
   DispatchLoadSnapshot,
   OrderExecutionState,
 } from '../../../stores/operationsCampaignStore';
+import { CAMPAIGN_MASS_EPSILON_KG } from '../../../simulation/operationsPlay';
 import { formatFixed, translate } from '../../../i18n';
 import { dispatchBlockText } from '../../../stores/dispatchBlockText';
 import { deliveryJourneyMessages as m } from './deliveryJourney.messages';
@@ -62,11 +63,9 @@ export interface ShippingTruckView {
   nextArrivalMinutes: number;
 }
 
-/**
- * Which truck of how many this order needs, and where the next one is. A truck
- * carries less than a large order, so the second trip is named before it is
- * needed. Working if a 6,000 kg order reads "Truck 1 of 2" while loading and
- * names the next truck's arrival once the first has left.
+/** Minimum capacity-sized loads still needed, including any undeparted load.
+ * Partial departures cannot establish a trip ordinal from shipped mass alone.
+ * Working if remaining-load guidance follows the same tolerance as fulfillment.
  */
 function deriveTripStatus(
   order: CustomerOrder,
@@ -74,13 +73,12 @@ function deriveTripStatus(
   truck: ShippingTruckView | undefined
 ): string {
   const capacity = load.capacityKg > 0 ? load.capacityKg : 5000;
-  const total = Math.max(1, Math.ceil(order.requiredKg / capacity - 1e-6));
   const leftKg = Math.max(0, order.requiredKg - order.shippedKg);
-  if (total <= 1 || leftKg <= 1) return '';
-  const done = Math.min(total - 1, Math.ceil(order.shippedKg / capacity - 1e-6));
+  if (leftKg <= CAMPAIGN_MASS_EPSILON_KG) return '';
+  const loads = Math.ceil((leftKg - CAMPAIGN_MASS_EPSILON_KG) / capacity);
   const trip = translate(m, 'tripStatus', {
-    current: formatFixed(done + 1, 0),
-    total: formatFixed(total, 0),
+    loads,
+    loadsText: formatFixed(loads, 0),
     capacity: formatFixed(capacity, 0),
     left: formatFixed(leftKg, 0),
   });
