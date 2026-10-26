@@ -3665,6 +3665,10 @@ export async function normalizeGeneratedAsset(io, spec) {
 
   scene.setName(`MillOS_${titleCase(spec.area)}_${titleCase(spec.slug)}`);
   Object.assign(root.getAsset(), generatedAssetHeader(spec));
+  // Only these two pinned replays reconstruct an old normalized input. Fresh
+  // exports retain today's writer label; every historical byte remains guarded.
+  // Working if both full replay hashes stay exact and new headers use VERSION.
+  if (farmInputs) root.getAsset().generator = RECONCILED_FARM_MODELS[spec.id].inputGenerator;
 
   indexGeneratedGeometry(document);
   let geometryRefinement;

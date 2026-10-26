@@ -3,7 +3,8 @@ import { test, expect, vi } from 'vitest';
 import process from 'node:process';
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
-import { Document, NodeIO } from '@gltf-transform/core';
+import { createHash } from 'node:crypto';
+import { Document, NodeIO, VERSION } from '@gltf-transform/core';
 import { readFileSync } from 'node:fs';
 import {
   multiplyScale,
@@ -18,24 +19,48 @@ import { RECONCILED_FARM_MODELS } from './reconcile-farm-models.mjs';
 vi.setConfig({ testTimeout: 60_000 });
 
 test('every committed generated GLB carries the header and credit its spec declares', () => {
-  // A GLB committed before its spec changed, and never regenerated, is
-  // indistinguishable from a nondeterministic normalizer on a re-run. Reads the
-  // JSON chunk only. Working if a stale attribution fails here, not on re-run.
+  // Historical assets keep their actual writer version. Pin their whole bytes
+  // to accepted provenance while requiring current credit and pipeline identity.
+  // Working if changing a header or payload without provenance still fails.
+  const provenance = new Map(
+    [...new Set(GENERATED_ASSETS.map((spec) => spec.area))].flatMap((area) =>
+      JSON.parse(
+        readFileSync(`assets/source/models/${area}/PROVENANCE.json`, 'utf8')
+      ).sourcePacks.map((pack) => [pack.id, pack.runtimeDerivative])
+    )
+  );
   const stale = [];
   for (const spec of GENERATED_ASSETS) {
-    const bytes = readFileSync(`public/models/${spec.area}/${spec.slug}.glb`);
+    const file = `public/models/${spec.area}/${spec.slug}.glb`;
+    const bytes = readFileSync(file);
+    expect(provenance.get(spec.id)?.file, spec.id).toBe(file);
+    expect(createHash('sha256').update(bytes).digest('hex'), spec.id).toBe(
+      provenance.get(spec.id)?.sha256
+    );
     const asset = JSON.parse(bytes.subarray(20, 20 + bytes.readUInt32LE(12)).toString()).asset;
     const expected = generatedAssetHeader(spec);
-    // The reconciled farm models are rebuilt last by deriveFarmModel, which
-    // writes a fresh document (bare generator) and is pinned by its own hash.
+    // Historical farm replays have a bare generator and their own exact hash guards.
     const generatorOwned = !RECONCILED_FARM_MODELS[spec.id];
     if (
-      (generatorOwned && asset.generator !== expected.generator) ||
+      (generatorOwned &&
+        !/^MillOS generated-asset pipeline, glTF-Transform v\d+\.\d+\.\d+$/.test(
+          asset.generator
+        )) ||
       asset.copyright !== expected.copyright
     )
       stale.push(spec.id);
   }
   expect(stale).toEqual([]);
+});
+
+test('fresh generated exports record the installed toolkit rather than historical replay labels', async () => {
+  const document = new Document();
+  const expected = generatedAssetHeader(GENERATED_ASSETS[0]);
+  Object.assign(document.getRoot().getAsset(), expected);
+  const bytes = Buffer.from(await new NodeIO().writeBinary(document));
+  const asset = JSON.parse(bytes.subarray(20, 20 + bytes.readUInt32LE(12)).toString()).asset;
+  expect(asset.generator).toBe(`MillOS generated-asset pipeline, glTF-Transform ${VERSION}`);
+  expect(asset.copyright).toBe(expected.copyright);
 });
 
 test('uniform normalization scales translated root nodes as well as their geometry', () => {

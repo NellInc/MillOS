@@ -13,6 +13,8 @@ export const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
 export const RECONCILED_FARM_MODELS = Object.freeze({
   'farm-coop': Object.freeze({
     slug: 'coop',
+    inputGenerator: 'MillOS generated-asset pipeline, glTF-Transform v4.4.2',
+    outputGenerator: 'glTF-Transform v4.4.2',
     inputSHA256: '59d70ebe84a1daacd63c8b9be15a07febbceb14f3c34685ec19eeab50b3aff05',
     sourceSHA256: 'c1c59659ffda9b0078b2f823289b0757abaf035e3df09526611af3fea55ee0b1',
     preparedSHA256: 'b6c1f13bbb3e2b0b06d503bd452a130902c5ce5fc3f09d9eaa3d270730fad5f5',
@@ -22,6 +24,8 @@ export const RECONCILED_FARM_MODELS = Object.freeze({
   }),
   'farm-farmhouse': Object.freeze({
     slug: 'farmhouse',
+    inputGenerator: 'MillOS generated-asset pipeline, glTF-Transform v4.4.2',
+    outputGenerator: 'glTF-Transform v4.4.2',
     inputSHA256: '3915c901a1cbcfadb6b2997b89d622c38c4b2745dd265c4ff410d66bea615c6a',
     sourceSHA256: 'ebc862d40b2bc9df64c56e362be259f680a9241e4f1fa7893b8df56931306ba7',
     preparedSHA256: '38b423981f82f9591dc6fed298c828755300a5c0af5a6c00d62f8f96455074f3',
@@ -86,6 +90,10 @@ export async function deriveFarmModel(
       ? refineFarmhouse(doc, source, hash(baselineBytes), hash(sourceBytes))
       : refineCoop(doc, source, hash(baselineBytes), hash(sourceBytes)),
   ];
+  // Reproduce the accepted historical artifact, including its original label.
+  // Current toolkit versions belong in execution evidence, not this old receipt.
+  // Working if the entire replay still matches outputSHA256 after a tool upgrade.
+  doc.getRoot().getAsset().generator = spec.outputGenerator;
   const bytes = Buffer.from(await io.writeBinary(doc));
   assert.equal(hash(bytes), spec.outputSHA256, `${id}: final reviewed candidate required`);
   return {
