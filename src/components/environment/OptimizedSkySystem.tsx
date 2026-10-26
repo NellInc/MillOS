@@ -409,6 +409,15 @@ export const RIDGE_SNOW_STRENGTH = { value: 1 };
 export const RIDGE_FIELD_PROFILE = {
   cell: [58, 41],
   hedgeMetres: 0.9,
+  /** Irregular farm parcels; legacy dimensions above remain the paired control. */
+  parcelCraft: {
+    cell: [34, 27],
+    hedgeMetres: 0.45,
+    // Quarter-cell offsets keep both nearest sites inside the nine-cell stencil.
+    // Working if the profile's worst-case inside bound beats every outside site.
+    jitter: 0.5,
+    woodlandMarginMetres: 8,
+  },
   pasture: [0.08, 0.122, 0.048],
   hay: [0.122, 0.128, 0.058],
   woodland: [0.052, 0.078, 0.047],
@@ -614,6 +623,7 @@ uniform float uDetailStrength;
 uniform float uSnowStrength;
 uniform float uWorldAnchored;
 uniform float uWoodlandStrength;
+uniform float uParcelCraftStrength;
 uniform float uAlpineStrength;
 uniform float uSnowDatum;
 uniform float uRingRadius;
@@ -730,8 +740,8 @@ void main() {
     // crest undulation. Sub-pixel relief fades out with the same field.
     relief = (crown * ${RIDGE_FIELD_PROFILE.crownReliefMetres.toFixed(2)} * crownVisibility
       + (clump - 0.5) * ${RIDGE_FIELD_PROFILE.clumpReliefMetres.toFixed(2)} * clumpVisibility) * uDetailStrength;
-    // Hedged parcels on gentle ground (RIDGE_FIELD_PROFILE). A rotated grid
-    // wobbled by the existing drift field, so boundaries are not ruled lines.
+    // Hedged parcels on gentle ground (RIDGE_FIELD_PROFILE). Retain the old
+    // warped grid below as the private control for the irregular holdings.
     // Each parcel is pasture, hay or left wooded; steep banks stay woodland.
     // Working if the village hill reads as fields, hedges and trees.
     vec2 fieldQ = vec2(dot(p.xz, vec2(0.82, 0.57)), dot(p.xz, vec2(-0.57, 0.82))) + drift * 16.0;
@@ -739,12 +749,45 @@ void main() {
     vec2 fieldId = floor(fieldQ / fieldSize);
     vec2 fieldEdge = min(fract(fieldQ / fieldSize), 1.0 - fract(fieldQ / fieldSize)) * fieldSize;
     float edge = min(fieldEdge.x, fieldEdge.y);
+    float hedgeWidth = ${RIDGE_FIELD_PROFILE.hedgeMetres.toFixed(2)};
+    float woodlandMargin = 14.0;
+    if (uParcelCraftStrength > 0.5) {
+      // Nine nearby, seeded holdings replace the unbroken rectangular grid.
+      // Coordinates and bisector distances stay in metres on the rest mesh.
+      // Working if borders form irregular junctions without moving the hills.
+      fieldSize = vec2(${RIDGE_FIELD_PROFILE.parcelCraft.cell[0].toFixed(1)}, ${RIDGE_FIELD_PROFILE.parcelCraft.cell[1].toFixed(1)});
+      vec2 parcelBase = floor(fieldQ / fieldSize);
+      float nearest = 1e20, runnerUp = 1e20;
+      vec2 firstSite = vec2(0.0), secondSite = vec2(0.0);
+      for (int x = -1; x <= 1; x++) {
+        for (int z = -1; z <= 1; z++) {
+          vec2 id = parcelBase + vec2(float(x), float(z));
+          vec2 jitter = vec2(ridgeHash(id + vec2(3.1, 8.7)),
+            ridgeHash(id + vec2(17.4, 2.3))) - 0.5;
+          vec2 site = (id + 0.5 + jitter * ${RIDGE_FIELD_PROFILE.parcelCraft.jitter.toFixed(2)}) * fieldSize;
+          vec2 offset = site - fieldQ;
+          float distanceSq = dot(offset, offset);
+          if (distanceSq < nearest) {
+            runnerUp = nearest;
+            secondSite = firstSite;
+            nearest = distanceSq;
+            firstSite = site;
+            fieldId = id;
+          } else if (distanceSq < runnerUp) {
+            runnerUp = distanceSq;
+            secondSite = site;
+          }
+        }
+      }
+      edge = max(0.0, (runnerUp - nearest) / max(2.0 * length(secondSite - firstSite), 0.001));
+      hedgeWidth = ${RIDGE_FIELD_PROFILE.parcelCraft.hedgeMetres.toFixed(2)};
+      woodlandMargin = ${RIDGE_FIELD_PROFILE.parcelCraft.woodlandMarginMetres.toFixed(1)};
+    }
     float edgeAa = max(fwidth(edge), 0.05);
     // Coverage-weighted: once a hedge is under a pixel wide it thins in tone
     // rather than widening into a dark road across the hill.
-    float hedge = (1.0 - smoothstep(${RIDGE_FIELD_PROFILE.hedgeMetres.toFixed(2)} - edgeAa,
-      ${RIDGE_FIELD_PROFILE.hedgeMetres.toFixed(2)} + edgeAa, edge))
-      * min(1.0, ${RIDGE_FIELD_PROFILE.hedgeMetres.toFixed(2)} / edgeAa);
+    float hedge = (1.0 - smoothstep(hedgeWidth - edgeAa, hedgeWidth + edgeAa, edge))
+      * min(1.0, hedgeWidth / edgeAa);
     float parcelUse = ridgeHash(fieldId + vec2(3.7, 11.1));
     // Farmed/wooded edge across the terrace rows (RIDGE_FIELD_PROFILE.slopeGate).
     // The fbm's working range is about 0.3-0.7, so 2.5 normalises it to +/-1.
@@ -762,7 +805,7 @@ void main() {
     // leaving a hedged margin of pasture. Wooded whole, it was an unhedged block
     // whose grid edge lay near-horizontal on screen: a ruled band across the
     // village hill (art3land-after-med12, village (0,300)-(1060,425)).
-    float margin = 1.0 - smoothstep(0.0, 14.0, edge);
+    float margin = 1.0 - smoothstep(0.0, woodlandMargin, edge);
     float woodParcel = 1.0 - step(0.4, parcelUse);
     float woodsField = ridgeFbm(p.xz * ${RIDGE_FIELD_PROFILE.standScale[0].toFixed(3)} + vec2(2.2, 8.4))
       + 0.12 - margin * 0.3 + rag;
@@ -1601,6 +1644,9 @@ export function createRidgeMaterial(
       // Per-material, unlike global surface/snow isolation. Working if a
       // woodland comparison cannot retint the far range or another surface.
       uWoodlandStrength: { value: worldAnchored ? 1 : 0 },
+      // Private diagnostic reference, never a terrain/quality or global finish toggle.
+      // Working if comparing one hill leaves the other hill and far range intact.
+      uParcelCraftStrength: { value: worldAnchored ? 1 : 0 },
       // Far-only and private: comparison cannot retint the finished woodland.
       // Working if on/off/on leaves every other control and buffer unchanged.
       uAlpineStrength: { value: worldAnchored ? 0 : 1 },
@@ -1626,7 +1672,7 @@ export function createRidgeMaterial(
     },
   });
   material.userData.clearAerial = aerial;
-  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v27';
+  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v28';
   return material;
 }
 

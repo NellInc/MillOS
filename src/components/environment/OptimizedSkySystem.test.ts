@@ -505,7 +505,7 @@ describe('solid fixed foothills', () => {
       expect(material.fragmentShader).toContain('gl_FragColor = vec4(lit, 1.0)');
       expect(material.fragmentShader).not.toContain('groundBlend');
       expect(material.fragmentShader).not.toContain('sampler');
-      expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v27');
+      expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v28');
       material.dispose();
     }
   });
@@ -821,6 +821,49 @@ describe('procedural moon at display size', () => {
 // aerial haze flattens to nothing at 150-300 m. Gentle slopes are farmed in a
 // mill's hinterland: hedged parcels of pasture and hay with field trees.
 const linearLuminance = ([r, g, b]: readonly number[]) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
+it('owns a bounded irregular parcel finish privately on each anchored hill', () => {
+  const { parcelCraft, cell, hedgeMetres } = RIDGE_FIELD_PROFILE;
+  expect(parcelCraft.cell.every((value, i) => value > 25 && value < cell[i])).toBe(true);
+  expect(parcelCraft.hedgeMetres).toBeGreaterThan(0.3);
+  expect(parcelCraft.hedgeMetres).toBeLessThan(hedgeMetres);
+  expect(parcelCraft.jitter).toBeGreaterThanOrEqual(0.45);
+  expect(parcelCraft.jitter).toBeLessThan(0.8);
+  // Two in-stencil sites must beat every outside site even at maximal offsets.
+  // Working if moving across a lattice edge never loses a valid nearest owner.
+  expect((0.5 + parcelCraft.jitter / 2) * Math.hypot(...parcelCraft.cell)).toBeLessThan(
+    (1.5 - parcelCraft.jitter / 2) * Math.min(...parcelCraft.cell)
+  );
+  expect(parcelCraft.woodlandMarginMetres).toBeLessThan(Math.min(...parcelCraft.cell) / 3);
+  const [near, mid, far] = [
+    createRidgeMaterial(0.1, 'near-parcels', true),
+    createRidgeMaterial(0.2, 'mid-parcels', true),
+    createRidgeMaterial(0.32, 'far-parcels'),
+  ];
+  try {
+    expect(near.uniforms.uParcelCraftStrength.value).toBe(1);
+    expect(mid.uniforms.uParcelCraftStrength.value).toBe(1);
+    expect(far.uniforms.uParcelCraftStrength.value).toBe(0);
+    expect(near.uniforms.uParcelCraftStrength).not.toBe(mid.uniforms.uParcelCraftStrength);
+    near.uniforms.uParcelCraftStrength.value = 0;
+    expect(mid.uniforms.uParcelCraftStrength.value).toBe(1);
+    expect(near.uniforms.uWoodlandStrength.value).toBe(1);
+    expect(near.uniforms.uDetailStrength).toBe(mid.uniforms.uDetailStrength);
+    const partition = near.fragmentShader
+      .split('if (uParcelCraftStrength > 0.5)')[1]
+      .split('float edgeAa')[0];
+    expect(partition).toContain('for (int x = -1; x <= 1; x++)');
+    expect(partition).toContain('for (int z = -1; z <= 1; z++)');
+    expect(partition).toContain('runnerUp - nearest');
+    expect(partition).toContain('length(secondSite - firstSite)');
+    expect(partition).not.toContain('texture(');
+    expect(near.fragmentShader).toContain('fwidth(edge)');
+  } finally {
+    near.dispose();
+    mid.dispose();
+    far.dispose();
+  }
+});
+
 it('parcels the gentle foothill slopes into hedged fields brighter than the woodland', () => {
   const { cell, hedgeMetres, pasture, hay, woodland } = RIDGE_FIELD_PROFILE;
   expect(cell[0]).toBeGreaterThanOrEqual(30);
@@ -836,7 +879,7 @@ it('parcels the gentle foothill slopes into hedged fields brighter than the wood
   expect(branch).toContain(`vec2(${cell[0].toFixed(1)}, ${cell[1].toFixed(1)})`);
   expect(branch).toContain('hedge');
   expect(branch).toContain('fwidth(edge)');
-  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v27');
+  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v28');
   near.dispose();
 });
 
@@ -903,7 +946,7 @@ it('breaks the farmed/wooded edge across terrace rows and draws no isolated fiel
   // parcel now draw back from its boundary into ragged stands.
   expect(branch).not.toContain('* step(0.4, parcelUse)');
   expect(branch).toContain('float woods =');
-  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v27');
+  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v28');
   near.dispose();
 });
 
@@ -953,7 +996,7 @@ it('gives the far lower slopes contrast that survives the aerial mix and real ou
     linearLuminance(lowland[0]) * 4
   );
   expect(branch).not.toContain('(1.0 - max(rock, substrate)))');
-  expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v27');
+  expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v28');
   material.dispose();
 });
 
@@ -988,7 +1031,7 @@ it('thins the far ring haze below the snow line only, keeping snow, upper rock a
   // Only the far (alpine) branch sets it: the foothills keep their haze.
   const alpine = shader.split('} else if (uWorldAnchored < 0.5')[1].split('} else {')[0];
   expect(alpine).toContain('aerialScale = mix(1.0,');
-  expect(far.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v27');
+  expect(far.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v28');
   far.dispose();
 });
 
@@ -1118,7 +1161,7 @@ it('draws woods as soft, coherent stands with a lighter fringe', () => {
   expect(branch).toContain(`p.xz * ${standScale[0].toFixed(3)}`);
   expect(branch).toContain(`p.xz * ${standScale[1].toFixed(3)}`);
   expect(branch).toContain(glslVec3Literal(scrub));
-  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v27');
+  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v28');
   near.dispose();
 });
 
