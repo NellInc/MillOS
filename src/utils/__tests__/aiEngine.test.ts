@@ -26,6 +26,7 @@ import {
   initializeAIEngine,
   initializeDecisionOutcomeTracking,
   applyDecisionEffects,
+  strategicPeopleSummary,
 } from '../aiEngine';
 import { useProductionStore } from '../../stores/productionStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
@@ -49,6 +50,13 @@ vi.mock('../../stores/gameSimulationStore', () => ({
     getState: vi.fn(),
     subscribe: vi.fn(() => vi.fn()),
   },
+}));
+
+// The strategic prompt reads the workplace shift; the real store's import-time
+// clock sync needs a full game-simulation store, which this file mocks.
+const workplaceState = vi.hoisted(() => ({ current: { phase: 'idle', members: [] } as unknown }));
+vi.mock('../../stores/workplaceStore', () => ({
+  useWorkplaceStore: { getState: () => ({ workplace: workplaceState.current }) },
 }));
 
 // The engine leases the on-device operator too; it has its own tests, and its
@@ -781,6 +789,55 @@ describe('aiEngine - Core Functions', () => {
       expect(useAIConfigStore.getState().aiMode).toBe('heuristic');
       expect(isTacticalLayerActive()).toBe(true);
       expect(useAIConfigStore.getState().connectionError).toMatch(/cap reached/);
+    });
+
+    it('names people only from a live shift, and only as team totals', async () => {
+      configureStrategicLayer();
+      vi.spyOn(cloudAIClient, 'hasKey').mockReturnValue(true);
+      const generate = vi
+        .spyOn(cloudAIClient, 'generateContent')
+        .mockResolvedValue(cloud('{"priorities":["Protect the mill"],"reasoning":"Load"}'));
+      const member = (id: string, extra: number, owed: number) => ({
+        id,
+        role: `Role ${id}`,
+        preference: 'private preference',
+        willingToCover: false,
+        extraMinutes: extra,
+        restMinutes: 10,
+        recoveryOwedMinutes: owed,
+      });
+      const shift = {
+        phase: 'active',
+        members: [member('a', 20, 15), member('b', 0, 0)],
+        activeCoverMemberId: null,
+        objections: [{ status: 'open' }, { status: 'resolved' }],
+        refusalsRespected: 2,
+      };
+      try {
+        workplaceState.current = { ...shift, phase: 'idle' };
+        await generateStrategicDecision();
+        expect(generate.mock.calls[0][1]).not.toMatch(/People/);
+
+        workplaceState.current = shift;
+        await generateStrategicDecision();
+        const prompt = generate.mock.calls[1][1];
+        expect(prompt).toMatch(/People come first/);
+        expect(prompt).toContain(
+          'People on shift (team totals only): {"peopleOnShift":2,"extraMinutesWorked":20,"restMinutesTaken":20,"recoveryMinutesOwed":15,"coverInProgress":false,"openObjections":1,"refusalsRespected":2}.'
+        );
+        // No member, role or private choice reaches the model.
+        expect(prompt).not.toMatch(/Role a|private preference|willingToCover/);
+      } finally {
+        workplaceState.current = { phase: 'idle', members: [] };
+      }
+    });
+
+    it('has no people summary for an empty or finished shift', () => {
+      const base = { members: [], objections: [], activeCoverMemberId: null, refusalsRespected: 0 };
+      expect(strategicPeopleSummary({ ...base, phase: 'active' } as never)).toBeNull();
+      expect(
+        strategicPeopleSummary({ ...base, phase: 'review', members: [{}] } as never)
+      ).toBeNull();
     });
 
     it('asks for Brazilian Portuguese text when the player reads pt-BR, on every backend', async () => {

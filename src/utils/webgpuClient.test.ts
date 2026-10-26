@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { WebGPUClient } from './webgpuClient';
+import { isEngineGoneError, WebGPUClient } from './webgpuClient';
 
 const MODEL = 'Qwen3.5-4B-q4f16_1-MLC';
 const ANSWER = ['{"focus', 'Machine"', ': "rm-', '102"}'];
@@ -171,5 +171,48 @@ describe('webgpuClient with the fast lane', () => {
     expect(fake.prompts).toHaveLength(0);
     expect(fake.log).not.toContain('interrupt');
     expect(fake.chats.map((chat) => chat.model)).toEqual([`${MODEL}-fast-lane`, MODEL]);
+  });
+});
+
+describe('webgpuClient after a lost WebGPU device', () => {
+  const NOT_LOADED =
+    'Model not loaded before trying to complete ChatCompletionRequest. Please ensure you have called MLCEngine.reload(model).';
+  const failing = (message: string) => ({
+    interruptGenerate: () => undefined,
+    unload: async () => undefined,
+    chat: { completions: { create: () => Promise.reject(new Error(message)) } },
+  });
+
+  it.each([
+    ['answer', (client: WebGPUClient) => client.generateContent('Plant telemetry.')],
+    ['scoring call', (client: WebGPUClient) => score(client)],
+  ])('drops an engine whose model is gone and says so once (%s)', async (_name, call) => {
+    // The fast lane keeps both calls on the chat API, which is what fails here.
+    const client = clientWith(failing(NOT_LOADED), MODEL, `${MODEL}-fast-lane`);
+    const lost = vi.fn();
+    client.onEngineLost(lost);
+    expect(await call(client)).toBeNull();
+    expect(client.isConnected()).toBe(false);
+    expect(client.hasFastLane()).toBe(false);
+    expect(lost).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the engine for any other failure', async () => {
+    const client = clientWith(failing('Network hiccup'), MODEL, `${MODEL}-fast-lane`);
+    const lost = vi.fn();
+    client.onEngineLost(lost);
+    expect(await client.generateContent('Plant telemetry.')).toBeNull();
+    expect(client.isConnected()).toBe(true);
+    expect(lost).not.toHaveBeenCalled();
+  });
+
+  it('recognises the device-lost wording too', () => {
+    expect(
+      isEngineGoneError(new Error('Device was lost. This can happen due to insufficient memory'))
+    ).toBe(true);
+    expect(
+      isEngineGoneError('WorkerEngineModelNotLoadedError: engine is not loaded with a model.')
+    ).toBe(true);
+    expect(isEngineGoneError(new Error('Request timed out'))).toBe(false);
   });
 });

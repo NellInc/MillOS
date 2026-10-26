@@ -19,6 +19,12 @@ vi.mock('../../stores/gameSimulationStore', () => ({
   },
 }));
 
+// The strategic prompt reads the workplace shift; the real store's import-time
+// clock sync needs a full game-simulation store, which this file mocks.
+vi.mock('../../stores/workplaceStore', () => ({
+  useWorkplaceStore: { getState: () => ({ workplace: { phase: 'idle', members: [] } }) },
+}));
+
 vi.mock('../logger', () => ({
   logger: {
     info: vi.fn(),
