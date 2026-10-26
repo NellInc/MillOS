@@ -1642,7 +1642,8 @@ const WindmillPrimitiveBody: React.FC<{
             <primitive object={SG.windmillBladeArm} attach="geometry" />
             <primitive object={SM.woodLight} attach="material" />
           </mesh>
-          <mesh position={[0.2, 1.5, 0.02]} castShadow>
+          {/* Cloth on the trailing side of the arm for a clockwise turn. */}
+          <mesh position={[-0.2, 1.5, 0.02]} castShadow>
             <primitive object={SG.windmillBladeSail} attach="geometry" />
             <primitive object={SM.windmillSail} attach="material" />
           </mesh>
@@ -2613,9 +2614,10 @@ export const FarmArea: React.FC = () => {
     const atmosphere = sampleAtmosphere(gameDay, gameTime, weather, _farmAtmosphere);
     const animalActivity = getAnimalActivityMultiplier(weather, gameTime);
 
-    // Windmill: every 2nd frame (30 FPS)
+    // Windmill: every 2nd frame (30 FPS). The blades face +Z, so a decreasing
+    // angle turns them clockwise from the front, matching the generated mill.
     if (frameCountRef.current % 2 === 0 && windmillBladesRef.current) {
-      windmillAngleRef.current +=
+      windmillAngleRef.current -=
         movementElapsed.current * getWindmillAngularSpeed(atmosphere.wind);
       windmillBladesRef.current.rotation.z = windmillAngleRef.current;
     }

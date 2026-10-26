@@ -233,13 +233,15 @@ export const GeneratedWindmillModel: React.FC = () => {
 
   // Integrate active time, shared with the primitive's atmospheric speed.
   // Pausing or resuming never jumps to a later wall-clock sail angle.
+  // The sails face +X, so a positive turn about +X reads anticlockwise from the
+  // front; the angle decreases so they turn clockwise.
   useFrame((_state, delta) => {
     const { gameDay, gameTime, gameSpeed, weather, isTabVisible } =
       useGameSimulationStore.getState();
     if (reducedMotion || !isTabVisible || gameSpeed <= 0) return;
     const atmosphere = sampleAtmosphere(gameDay, gameTime, weather, atmosphereRef.current);
     angleRef.current.value =
-      (angleRef.current.value + Math.min(delta, 0.1) * getWindmillAngularSpeed(atmosphere.wind)) %
+      (angleRef.current.value - Math.min(delta, 0.1) * getWindmillAngularSpeed(atmosphere.wind)) %
       (Math.PI * 2);
   });
 
