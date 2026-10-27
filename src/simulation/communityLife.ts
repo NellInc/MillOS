@@ -540,6 +540,8 @@ const millLoop = (
  * packing routes come in from the east, packer (-6.4) south of quality (-5.2),
  * each to the seat on its own side. What is left are square crossings of an east
  * route with a west lane; one shared period and the phases keep those apart in time.
+ * Milling workposts stand 0.55 m beyond the raised pad edge; the aisle and
+ * bench waypoints stay fixed. Only the short terminal approaches change.
  * Working if the pairwise separation test finds every pair at least 0.6 m apart.
  */
 export const COMMUNITY_ROSTER: readonly CommunityPerson[] = [
@@ -549,7 +551,7 @@ export const COMMUNITY_ROSTER: readonly CommunityPerson[] = [
     district: 'mill',
     phase: 0,
     machineId: 'rm-101',
-    stops: millLoop([-24, 0, 33.5], 34.2, -30.9, [-34, 0, -12.45], 'Checking the roller mill'),
+    stops: millLoop([-24, 0, 34.05], 34.2, -30.9, [-34, 0, -12.45], 'Checking the roller mill'),
   },
   {
     id: 'mill-operator-east',
@@ -557,7 +559,7 @@ export const COMMUNITY_ROSTER: readonly CommunityPerson[] = [
     district: 'mill',
     phase: 2.3,
     machineId: 'rm-104',
-    stops: millLoop([18, 0, 33.5], 35.6, -32.3, [-34, 0, -8.45], 'Adjusting the milling controls'),
+    stops: millLoop([18, 0, 34.05], 35.6, -32.3, [-34, 0, -8.45], 'Adjusting the milling controls'),
   },
   {
     id: 'mill-engineer',
@@ -565,7 +567,7 @@ export const COMMUNITY_ROSTER: readonly CommunityPerson[] = [
     district: 'mill',
     phase: 4.2,
     machineId: 'rm-102',
-    stops: millLoop([-10, 0, 33.5], 34.9, -31.6, [-34, 0, -11.55], 'Equipment inspection'),
+    stops: millLoop([-10, 0, 34.05], 34.9, -31.6, [-34, 0, -11.55], 'Equipment inspection'),
   },
   {
     id: 'mill-quality',

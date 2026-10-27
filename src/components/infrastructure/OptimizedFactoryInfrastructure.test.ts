@@ -1,3 +1,4 @@
+import { COMMUNITY_ROSTER } from '../../simulation/communityLife';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
@@ -8,6 +9,7 @@ import { buildSpoutRoutes, SPOUT_PIPE_RADIUS } from '../flow/spoutRoutes';
 import { PIPE_SUPPORT_SEGMENTS } from '../SpoutingSystem';
 import {
   buildCeilingFixtures,
+  buildProcessPads,
   buildFactoryRoofEnvelope,
   buildFactoryRoofBatten,
   buildFactoryRoofGlazing,
@@ -1511,4 +1513,19 @@ describe('rooftop plant and membrane', () => {
     expect(ROOF_MEMBRANE_SEAM.pitch).toBeGreaterThanOrEqual(1);
     expect(ROOF_MEMBRANE_SEAM.pitch).toBeLessThanOrEqual(2);
   });
+});
+
+it('keeps milling observation posts on level floor clear of the actual raised process pads', () => {
+  const pads = buildProcessPads();
+  const people = COMMUNITY_ROSTER.filter((person) => person.machineId?.startsWith('rm-'));
+  expect(people).toHaveLength(3);
+  for (const person of people) {
+    const [x, y, z] = person.stops[0].position;
+    expect(y).toBe(0);
+    for (const pad of pads) {
+      const dx = Math.max(Math.abs(x - pad.position[0]) - pad.scale[0] / 2, 0);
+      const dz = Math.max(Math.abs(z - pad.position[2]) - pad.scale[2] / 2, 0);
+      expect(Math.hypot(dx, dz), person.id).toBeGreaterThanOrEqual(0.5);
+    }
+  }
 });

@@ -8414,3 +8414,65 @@ Native before13actualimages plus1absent-courier record (not14images) establishes
 All exactbuild views use out-of-process sandboxed AppleMetal with original readiness/world/personnel/texture/effectivequality/audio guards, contextnot-created/0nodes and clean console/page/request/HTTParrays. No actor/inventory/visibility/preset/readiness overrides, no remote/service/publication or device/player action. Source/runtime/static-artproof does not certify locomotion, manual access or FPS. All27civic spheres remain outside oldroofenvelope, nearest160.467155m; atlas/publicassets retained. One owned merged craft buffer under1000triangles and existing shared lit material, no new shader/texture/light/frame/dependency owner. Original maintenance/substationbuilders exact, FactoryExterior outside one newmount exact. Static factory observations retained raw in batch-observations.json; no cross-load DK diagnostic/performance closure inferred. All owned browser/preview/capture/build resources closed normally.
 
 Gallery/receipt/seals/rawart/failures retained at test-results/do-people-animation-20261027/. Final non-target/source/public/compiled and actual localcommit custody recorded in verification.json; protectedprimaryclean08b5e7ec andfourunrelatedgalleries retained. LOCAL ONLY, no upload/push/deploy. Wider repeatedgoal remainsunfinished, device/player/manualDEFERRED, pacing/startup/DK grouping separatelyOPEN.
+
+
+## DP. Milling workpost grounding and natural arrivals, 2026-10-27
+
+Previous DO now fully checked and committed4bb0cfa2 (five exactfiles,53tests, normalbuild+freshcompiledchecks,13before/14finalnativeimages). This is progress after external capacity recovery, not a waivedguard. Root selected a genuine people issue in current before-mill-operator-west-body.png: boots occluded by raisedprocesspad.5299trackedbaseline pinned, primary/fourunrelatedgalleries retained. ActualbuildProcessPads returns millingpadtop.16m,worldXZ[-29.5,23.5]/[26.5,33.5]; three workposts are exactlyonZ33.5/Y0. Leaf actualGLBpose reproduces buriedoriginalsoles throughsixphases, root reruns the realprobe and reads the livebuilder. The probe selects actualappearancebodyType masculine for operatorwest; leafnotes initially called itfeminine. Root correction is explicit, no bodytype assumption retained.
+
+Bounded Astra advice supports shifting ONLYthree stationary millingposts north0.55m toZ34.05. This is an explicit narrow correction to terminal approach segments, not a claim that every routepoint/timing remainsidentical: all existing aislewaypoints, westlanes, benches, circuitorder/period/phase, world roads/railway/port/mountains and all otherresidents remainexact. fitPeriod gives each loop0.88standard-real seconds morefirstdwell and shifts intermediatearrival0.44seconds while retaining4hperiod. Avoid a cosmeticYlift, visibility/footwear hack or invented step-support solver. Existing posts already observe screens from2.60m; shiftmakes3.15m, so acceptance neverclaims hands physicallyoperate the console. Root owns communityLife.ts, existing Infrastructure.test.ts and workerPose.test.ts, thisprogramme and ignored DP evidence only. No otherproduction surfaces; source GLBs/rigs/animation clips/footwear/padgeometry/interface/quality/readiness/budgets untouched. LOCAL/MUTED, device/player/manualDEFERRED, pacing/startup/DK groupingseparate.
+
+LONG finite task list:
+1. Reconcile actualDOcommit, clean source boundary and current capacity.
+2. Pin5299trackedsource/assetfiles, protect primary andfour unrelatedgalleries.
+3. Inspect actualcurrentnative boot/floor image; distinguish a rendererhide from an opaque floor.
+4. Read actual padbuilder, three posts, root placement and real foot skin/LOD contracts.
+5. Rerun actualrig probe, correct bodylabel error and preserve original diagnostics.
+6. Obtain bounded independent support/route contract challenge before choosing correction.
+7. Record named107test route/infrastructure baseline and existing actual-rig startup baseline.
+8. Add regression using real buildProcessPads plus current roster, no copied pad dimensions.
+9. Reproduce allthree badpost clearances on old production values.
+10. Add small actual-body check within existing real-rig test setup, original far-input and fittednear feet.
+11. Cover three liveappearances, actual work/walk clips, relevant stance/turn headings and clipphases.
+12. Require finite feet and zero below-top intersections with actual processpad boxes.
+13. Shift ONLYthree workpostZ33.5→34.05, retain Y0 and X.
+14. Keep all aisle/lane/seat waypoints and all otherresident routes exact.
+15. Retain existing4hroutine period, phases and walking speed, acknowledge shortleg/dwelltiming delta.
+16. Preserve production/task authority, workplaceagreements/recovery clocks and all coupledprops.
+17. Run whole existing obstacles/spatial/timed separation/continuity/speed/seat community checks.
+18. Root inspect actualsource diff and far-side consumers; repair only demonstrated regression.
+19. Preserve asset/rig/skin/fitting/distantLOD buffers and rendererresource counts.
+20. Run required typecheck/agenttype/lint/format/depth/shader/assets/manifest gates.
+21. Freeze source and run original4GiB-guarded capture-locked normalbuild.
+22. Fresh bundle/reachability/community checks on exact assembly.
+23. Final native three millingpeople byday/dusk/night/Low, unchangedguarded state.
+24. Inspect actual footbounds/pad contacts from a clear side camera, as well as original camera.
+25. Keep legitimate low-angle foregroundpad occlusion visible; never hide/move pad for evidence.
+26. Capture ordinary arrival/departure/turn movement by releasing existing helddayclock only, no actor override.
+27. Check pause/resume without pose/time advance duringhold, existing gaitcadence retained.
+28. Inspect fitted near and unchanged original skin inputs; staticart is distinct from motion evidence.
+29. Keep audio contextuncreated/0nodes and clean console/page/request/HTTParrays.
+30. Verify staticworld/pad/lighting/atlas/public assets exact; no rebake or new light/material/shader.
+31. Record named source, geometry, runtime, art, performance and deferred-human evidence separately.
+32. Incorporate bounded reviewer risks without recursive review or speculative infrastructure.
+33. Produce local current-build gallery/receipt, retaining rawbefore/final/failure evidence.
+34. Close onlyownedresources and recheck non-targets/primary.
+35. Selective localcheck-in and verify actual committedbytes.
+36. Reconcile this finite pass, keep broaderprogramme unfinished; no external delivery/device/pacingclosure.
+
+Pre-mortem: shorter approach legs can alter crossing schedules; source-only feet may miss fittednear offsets; old low camera may still legitimately lookthrough the foreground slabedge. Keep whole existing separation/timing suite, test actualfitted geometry and native movingturns, and retain both samecamera and clear side evidence. Working if the three live workers stand and arrive clear of the real pad while the authored world/aisle/seat circuits and animation system stay intact.
+
+DP fixture correction: first native before window captured west and east, then correctly failed because east was walking at12h, not at its workpost (rootX-32.3). This was a false eligibility assumption in the check, not a repaired-world failure or relaxed contactguard. Preserve partial JSON/log/fourimages. Current actual community sampler confirms allthree working at13.8h; corrected whole before window uses13.8 and explicitly requires working. Existing107baseline+2actualrig startup cases, initial4newregressions fail onoldposts; final274PASS/3files and allrequired sourcegates EXIT0.
+
+DP actual-native-before nowproves buriedfittedvertices for allthree at13.8: west Grey745/1072+sole178/304, eastGrey729/1072+sole178/304, engineerSkin64/230+Black892/1260. Padbounds are extracted from the live rendered instanced mesh, top.1599999964, not just copiedsource numbers. Root caught a near-test coverage gap: feminine fitted upper is Black/shoe, not masculineGrey/boot. Correct the test's constructor selection and require exactlyone owned fittedmesh perperson, preserving original version/firstbuildreceipt. Production3values unchanged. Selected3actualrig cases plus lint/format rechecked; finalbuild repeated only because testsource/programme pins changed, no equivalent-failure retry or productionquality change.
+
+
+DP completed finite pass, 2026-10-27. Only the three stationary millingpost Z values change33.5→34.05, plus explanatorycomment. Entireproductionmodule is byte-exact after reversing those three literals/comment, so phases, all otherstop positions, aisle/lane/seat points, actorappearance/rig/clip/footwear/pad/interface/quality/clock drivers remainexact. Terminal approaches/dwelltiming are explicitly changed, not hidden: each first dwell+.88standard-real seconds, with4hperiodretained and existingwhole spatial/timedseparation/obstacle/speed/seat checks passing. These are observationposts; physicalconsolecontact is not claimed. Root chose/authored the correction and reviewed its own work, using bounded independent read-only ground/geometry and Astra contract advice, no delegated edits.
+
+Named baseline107PASS/2route-infrastructurefiles plus2actualrigstartup cases; four new regressions fail onoriginalposts using actual buildProcessPads and actualposedfeet. Full affected run274PASS/3files; subsequentnearfixture correction rechecks allthree new actualrigcases3PASS/163skipped, so those finalcase results supersede their earlier version, not277unique tests. FeminineBlack/shoe and masculineGrey/boot constructors now both exercised, requireone privatefittedgeometry perperson, allsource/fitted clips/headings zero raisedpad intersections. Native actualmountedfittings independently cover the realrendererfar-side. Allwhole typecheck/agenttype/lint/format/depth/shader/assets/manifest gates EXIT0 onfinalsource. Normal finalbuild EXIT0,3960modules, Vite31.01s/helper33.194s,454files/182887475bytes; source2054/compiled454seal exact. Firstbuild and finalcompiled454hashes are IDENTICAL because correction only touched testsource/programme, original logs/seal/testsource retained under first-build. Fresh bundle/reachability/community EXIT0.
+
+Native before6guardedimages provesallthree physicalintersections from the ACTUALrendered instancedpad bbox[-29.5,0,26.5]..[23.5,.1599999964,33.5]. Buriedfittedvertices westGrey745+sole178, eastGrey729+sole178, engineerSkin64+Black892. Native final31images (24static+7clockdrivenoutbound/pause) plus4incoming/arrivalimages, total35final. Every actual nearfootmesh staysclear ofraisedpad, all recordedburiedcounts0. Ordinaryclock release advances the realworld, no actor/skeleton/gait override; walking samples travel.89575m with changinglegpose, shortcutP hold keeps both rootposition and worldfootbones EXACT betweenpausedsamples, resume advancesnormally. Separateordinaryincomingwindow arrivesexactly[-24,0,34.05] andsettles. Native mainfloor minima inthatwindow -11.316mm walking/-13.218mm earlyhandover/-1.027mm settled are retained: this verifies raisedpad clearance, not mathematicallyperfect all-floor footplanting. Whether transientbasefloorpenetration predates this endpointcorrection is UNVERIFIED; no newrig/IK/footwear edit is inferred or folded into this pass.
+
+Root visually inspects whole24-condition sheet, outbound/pause samples, incoming/arrival fullframes and actualbefore/afterbootcloses. Fullshoe/soleforms nowread onthe level floor, with realpadstillopaque andunaltered. Original low-angle camera and clear-sideviews retained, no pad-hide/polygonoffset trick. Stills and sampledrealmotion are distinct from continuousvideo/device/manualcertification. Originalguarded sandboxed out-of-processAppleMetal, readiness/world/personnel/texture/effectivequality/audio pass; contextnot-created/0nodes andcleanconsole/page/request/HTTParrays. Ordinaryclockholdrestored; allownedbrowsers/previews/capture/buildresourcesclosednormally. Noextra modelvertex/material/texture/shader/light/clock/per-frameallocation, staticworld and all714publicassets/atlas unchanged. Recordedrendererdiagnostics carry noFPS/improvement/budgetwaiver claim. Sourceoutsidefourallowedfiles/primary/fourunrelatedgalleries custody verified in verification.json.
+
+All36finiteitems reconciled; gallery/rawbefore/partialfailure/final35images, unitfailures/passinglogs, source/compiledseals/receipt remain test-results/dp-people-ground-contact-20261027/. Selectivefourfile LOCAL check-in and exactactualtree verified in receipt. No upload/push/deploy/publication, device/player/manualDEFERRED, pacing/startup/DK countdiagnostic separatelyOPEN. Wider repeatedprogramme unfinished. Capacityblockcondition is resolved, while the app's savedgoal status remainsblocked and only user-controlled resume can restore automatic goalcontinuations; no unsupported active-status tool call or substitute automation is attempted.

@@ -1,4 +1,7 @@
 // @vitest-environment node
+import { COMMUNITY_ROSTER } from '../../simulation/communityLife';
+import { buildProcessPads } from '../infrastructure/OptimizedFactoryInfrastructure';
+import { createWorkerFootwear } from './workerFootwear';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { NodeIO } from '@gltf-transform/core';
@@ -4318,6 +4321,102 @@ it.each(['masculine', 'feminine'] as const)(
     } finally {
       closed.dispose();
       material.dispose();
+    }
+  }
+);
+
+it.each(['mill-operator-west', 'mill-operator-east', 'mill-engineer'])(
+  '%s keeps original and fitted boots out of the real raised pads during work and gait turns',
+  (id) => {
+    const person = COMMUNITY_ROSTER.find((p) => p.id === id)!;
+    const appearance = getWorkerAppearance(person.role, '', person.id);
+    const asset = bodies.get(appearance.bodyType)!;
+    const model = clone(asset.scene),
+      root = new THREE.Group(),
+      wrapper = new THREE.Group();
+    root.position.fromArray(person.stops[0].position);
+    wrapper.scale.set(appearance.bodyScale, appearance.heightScale, appearance.bodyScale);
+    wrapper.add(model);
+    root.add(wrapper);
+    const feet: THREE.SkinnedMesh[] = [];
+    model.traverse((o) => {
+      const m = o as THREE.SkinnedMesh;
+      if (m.isSkinnedMesh && m.parent?.name === 'Worker_Feet') feet.push(m);
+    });
+    expect(feet.length).toBeGreaterThan(0);
+    const original = feet.map((m) => m.geometry);
+    const pads = buildProcessPads();
+    const mixer = new THREE.AnimationMixer(model);
+    const controller = createSeatedWorkerPose(model, appearance.heightScale, appearance.bodyScale);
+    const point = new THREE.Vector3();
+    const owned: THREE.BufferGeometry[] = [];
+    try {
+      for (const variant of ['original', 'fitted']) {
+        if (variant === 'fitted')
+          for (const mesh of feet) {
+            const upper = appearance.bodyType === 'masculine' ? 'Grey' : 'Black';
+            if ((mesh.material as THREE.Material).name !== upper) continue;
+            const geometry = createWorkerFootwear(
+              mesh,
+              appearance.bodyType === 'masculine' ? 'boot' : 'shoe'
+            );
+            expect(geometry).not.toBeNull();
+            mesh.geometry = geometry!;
+            owned.push(geometry!);
+          }
+        if (variant === 'fitted') expect(owned).toHaveLength(1);
+        let buried = 0,
+          nonfinite = 0,
+          measured = 0;
+        for (const name of ['worker-inspect', 'worker-walk']) {
+          mixer.stopAllAction();
+          const clip = asset.animations.find((c) => c.name === name)!;
+          mixer.clipAction(clip).play();
+          for (const yaw of [0, Math.PI / 2, Math.PI, -Math.PI / 2])
+            for (const fraction of [0, 0.25, 0.5, 0.75]) {
+              controller.restore();
+              mixer.setTime(clip.duration * fraction);
+              root.rotation.y = yaw;
+              if (name === 'worker-inspect')
+                controller.applyDuty(
+                  appearance.workAction,
+                  sampleWorkerGesture(
+                    appearance.workAction,
+                    clip.duration * fraction,
+                    createWorkerGesture()
+                  ),
+                  1
+                );
+              root.updateMatrixWorld(true);
+              for (const mesh of feet) {
+                mesh.skeleton.update();
+                for (let i = 0; i < mesh.geometry.attributes.position.count; i++) {
+                  mesh.getVertexPosition(i, point).applyMatrix4(mesh.matrixWorld);
+                  measured++;
+                  if (![point.x, point.y, point.z].every(Number.isFinite)) nonfinite++;
+                  for (const pad of pads)
+                    if (
+                      Math.abs(point.x - pad.position[0]) <= pad.scale[0] / 2 &&
+                      Math.abs(point.z - pad.position[2]) <= pad.scale[2] / 2 &&
+                      point.y < pad.position[1] + pad.scale[1] / 2
+                    )
+                      buried++;
+                }
+              }
+            }
+        }
+        expect(measured).toBeGreaterThan(1000);
+        expect(nonfinite).toBe(0);
+        expect(buried, variant + ' boot vertices below a real pad').toBe(0);
+      }
+    } finally {
+      controller.restore();
+      mixer.stopAllAction();
+      mixer.uncacheRoot(model);
+      feet.forEach((m, i) => {
+        m.geometry = original[i];
+      });
+      owned.forEach((g) => g.dispose());
     }
   }
 );
