@@ -1580,16 +1580,20 @@ it('adds owned baker cloth to the cloned rig and disposes only its private resou
     'three/addons/utils/SkeletonUtils.js'
   );
   const scene = new THREE.Group(),
-    bones = ['Hips', 'Abdomen', 'Chest', 'UpperLegL', 'UpperLegR'].map((name) => {
-      const b = new THREE.Bone();
-      b.name = name;
-      return b;
-    });
+    bones = ['Hips', 'Abdomen', 'Chest', 'UpperLegL', 'UpperLegR', 'LowerLegL', 'LowerLegR'].map(
+      (name) => {
+        const b = new THREE.Bone();
+        b.name = name;
+        return b;
+      }
+    );
   bones[0].position.y = 0.9;
   bones[1].position.y = 1;
   bones[2].position.y = 1.38;
   bones[3].position.set(0.1, 0.9, 0);
   bones[4].position.set(-0.1, 0.9, 0);
+  bones[5].position.set(0.1, 0.5, 0);
+  bones[6].position.set(-0.1, 0.5, 0);
   scene.add(...bones);
   scene.updateMatrixWorld(true);
   const geometry = new THREE.BoxGeometry(0.4, 0.5, 0.25);

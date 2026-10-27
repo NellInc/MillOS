@@ -763,9 +763,15 @@ export function createWorkerLabCoatGeometry(
  * without a separate animation loop or a seam between rigid panels.
  */
 export function createWorkerApronGeometry(source: THREE.SkinnedMesh) {
-  const joints = ['Hips', 'Abdomen', 'Chest', 'UpperLegL', 'UpperLegR'].map((name) =>
-    source.skeleton.bones.findIndex((bone) => bone.name === name)
-  );
+  const joints = [
+    'Hips',
+    'Abdomen',
+    'Chest',
+    'UpperLegL',
+    'UpperLegR',
+    'LowerLegL',
+    'LowerLegR',
+  ].map((name) => source.skeleton.bones.findIndex((bone) => bone.name === name));
   if (joints.some((index) => index < 0 || index > 255)) return null;
   const rest = joints.map((index) =>
     new THREE.Vector3().setFromMatrixPosition(
@@ -776,8 +782,13 @@ export function createWorkerApronGeometry(source: THREE.SkinnedMesh) {
     abdomen = rest[1],
     chest = rest[2];
   const waist = abdomen.y,
-    top = chest.y + 0.015,
-    hem = hip.y - 0.15;
+    top = chest.y + 0.015;
+  const thigh = (rest[3].y + rest[4].y) / 2,
+    knee = (rest[5].y + rest[6].y) / 2;
+  if (!(waist > thigh && thigh > knee)) return null;
+  // Hang below the upper-thigh bulge while retaining clearance above the knee.
+  // Working if both real bodies keep the cloth on supported front-thigh donors.
+  const hem = THREE.MathUtils.lerp(thigh, knee, 0.7);
   const cloud: THREE.Vector3[] = [];
   type Face = { triangle: THREE.Triangle; ids: number[]; mesh: THREE.SkinnedMesh };
   const trouserFaces: Face[] = [],
@@ -918,13 +929,15 @@ export function createWorkerApronGeometry(source: THREE.SkinnedMesh) {
   const waistWidth = THREE.MathUtils.clamp(waistRadius * 0.94, 0.15, 0.205);
   const torsoBlend = (y: number) => THREE.MathUtils.smoothstep(y, hip.y - 0.02, waist + 0.03);
   function widthAt(y: number) {
-    const bib = THREE.MathUtils.smoothstep(y, waist, top),
-      skirt = 1 - THREE.MathUtils.smoothstep(y, hem, waist);
-    return THREE.MathUtils.lerp(
-      0.215 - 0.035 * skirt * skirt,
-      THREE.MathUtils.lerp(waistWidth, 0.112, bib),
-      torsoBlend(y)
-    );
+    // The skirt opens toward its hem; a wider intermediate hip ring made the
+    // old short apron read as two inflated lobes instead of hanging linen.
+    return y <= waist
+      ? THREE.MathUtils.lerp(
+          Math.max(waistWidth, 0.19),
+          waistWidth,
+          THREE.MathUtils.smoothstep(y, hem, waist)
+        )
+      : THREE.MathUtils.lerp(waistWidth, 0.112, THREE.MathUtils.smoothstep(y, waist, top));
   }
   const positions: number[] = [],
     colours: number[] = [],
@@ -945,15 +958,40 @@ export function createWorkerApronGeometry(source: THREE.SkinnedMesh) {
     const torso = torsoAt(x, y, belt, z);
     const upperBlend = torso ? (belt ? 1 : z > hip.z ? torsoBlend(y) : 0) : 0;
     const blend = z > hip.z ? 1 - THREE.MathUtils.smoothstep(y, hip.y + 0.075, hip.y + 0.12) : 0;
-    let nearest = Infinity;
+    let nearest = Infinity,
+      projected = Infinity;
     let face: (typeof trouserFaces)[number] | undefined;
-    const point = new THREE.Vector3(x, y, z),
+    // One canonical XY field binds cloth and its raised sewing alike. A normal
+    // offset must not select a different triangle or different skin weights.
+    // Working if all 50 raised side-seam anchors keep identical joint weights.
+    const envelope = frontAt(y);
+    const point = new THREE.Vector3(x, y, envelope),
       closest = new THREE.Vector3();
     const barycentric = new THREE.Vector3();
     if (blend > 0) {
+      frontRay.origin.set(x, y, hip.z + 1);
+      frontRay.direction.set(0, 0, -1);
       for (const candidate of trouserFaces) {
         const centre = candidate.triangle.getMidpoint(closest);
-        if ((centre.x - hip.x) * (x - hip.x) < 0) continue;
+        if ((centre.x - hip.x) * (x >= hip.x ? 1 : -1) < -1e-7) continue;
+        const hit = frontRay.intersectTriangle(
+          candidate.triangle.a,
+          candidate.triangle.b,
+          candidate.triangle.c,
+          false,
+          closest
+        );
+        // A ray through the crotch can reach its back wall. Use a same-side,
+        // neutral-envelope fallback there, independent of decorative depth.
+        if (hit && envelope - hit.z < 0.06) {
+          const distance = hit.distanceToSquared(frontRay.origin);
+          if (distance < projected) {
+            projected = distance;
+            face = candidate;
+            candidate.triangle.getBarycoord(hit, barycentric);
+          }
+        }
+        if (projected < Infinity) continue;
         candidate.triangle.closestPointToPoint(point, closest);
         const distance = closest.distanceToSquared(point);
         if (distance < nearest) {
@@ -1058,21 +1096,37 @@ export function createWorkerApronGeometry(source: THREE.SkinnedMesh) {
       highY = lowY + span;
     const low = torsoAt(x, lowY),
       high = torsoAt(x, highY);
+    // The exported Hips joint lies below the front pelvis on the masculine
+    // rig. Its centre ray reaches the crotch back wall; the upper-leg landmark
+    // gives both bodies an actual supported front surface.
+    const hipY = thigh;
+    const lower = clothY < fitBase && torsoBlend(clothY) > 0 ? torsoAt(x, hipY) : null;
+    // Below the bib, bridge to the actual hip instead of clamping every waist
+    // row to the same upper-chest sample. The shared shape also fits its sewing.
+    // Working if the previously loose transition stays inside the 40 mm fit bound.
     const fittedZ =
-      low && high
+      lower && low
         ? THREE.MathUtils.lerp(
+            lower.point.z,
             low.point.z,
-            high.point.z,
-            THREE.MathUtils.smoothstep(clothY, lowY, highY)
+            THREE.MathUtils.clamp((clothY - hipY) / (fitBase - hipY), 0, 1)
           )
-        : undefined;
+        : low && high
+          ? THREE.MathUtils.lerp(
+              low.point.z,
+              high.point.z,
+              THREE.MathUtils.clamp((clothY - lowY) / span, 0, 1)
+            )
+          : undefined;
     const looseZ =
       frontAt(y) +
-      0.032 +
-      0.018 * (1 - aboveWaist) +
+      // A small amount of lap ease keeps the settled seated cloth outside
+      // the thighs; the fitted upper bib keeps its separate close allowance.
+      0.028 +
+      0.012 * (1 - aboveWaist) +
       // Wrap the sides toward the hips instead of projecting a wide flat
       // shield into the resting/swinging hands. The split hem stays free.
-      across * across * THREE.MathUtils.lerp(-0.03, -0.02, aboveWaist) +
+      across * across * THREE.MathUtils.lerp(-0.02, -0.015, aboveWaist) +
       fold;
     return [
       x,

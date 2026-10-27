@@ -1534,13 +1534,36 @@ describe('actual-rig baker linen skinning and distant preservation', () => {
         const skeletons = shareWorkerSkin(scene);
         const inverses = skeletons[0].boneInverses.map((x) => x.elements.slice());
         const original = new Map<THREE.BufferGeometry, number[]>();
+        const bodySources = new Set<THREE.SkinnedMesh>();
+        const tailored: Array<{ geometry: THREE.BufferGeometry; material: THREE.Material }> = [];
         scene.traverse((o) => {
           const m = o as THREE.SkinnedMesh;
           if (m.isSkinnedMesh) {
+            bodySources.add(m);
             original.set(m.geometry, Array.from(m.geometry.attributes.position.array));
             m.castShadow = !(m.parent?.name ?? '').includes('Worker_Feet');
           }
         });
+        // Production fits the two civilian shirt surfaces before the apron.
+        // Keep borrowed geometry/materials untouched while testing that assembly.
+        for (const mesh of bodySources) {
+          if (mesh.parent?.name !== 'Worker_Body') continue;
+          const material = mesh.material as THREE.MeshStandardMaterial;
+          const kind =
+            material.name === 'Worker_Vest'
+              ? 'collar'
+              : material.name === (body === 'masculine' ? 'LightBrown' : 'White')
+                ? 'shirt'
+                : null;
+          if (!kind) continue;
+          const geometry = createWorkerShirtTrim(mesh, kind)!;
+          expect(geometry).not.toBeNull();
+          mesh.geometry = geometry;
+          mesh.material = material.clone();
+          mesh.material.vertexColors = true;
+          tailored.push({ geometry, material: mesh.material });
+        }
+        expect(tailored).toHaveLength(2);
         scene.updateWorldMatrix(true, true);
         const apron = createBakerApron(scene)!;
         expect(apron).not.toBeNull();
@@ -1564,7 +1587,143 @@ describe('actual-rig baker linen skinning and distant preservation', () => {
           (_, row) => (surface.getX(row * 21 + 20) - surface.getX(row * 21)) / 2
         );
         expect(Math.max(...widths)).toBeLessThan(0.22);
-        expect(widths[24]).toBeLessThan(Math.max(...widths) * 0.9);
+        const restY = (name: string) =>
+          new THREE.Vector3().setFromMatrixPosition(
+            apron.skeleton.boneInverses[
+              apron.skeleton.bones.findIndex((bone) => bone.name === name)
+            ]
+              .clone()
+              .invert()
+          ).y;
+        const thigh = (restY('UpperLegL') + restY('UpperLegR')) / 2;
+        const knee = (restY('LowerLegL') + restY('LowerLegR')) / 2;
+        const drop = (thigh - geometry.userData.apronFit.hem) / (thigh - knee);
+        const top = surface.getY(0),
+          waist = geometry.userData.apronFit.waist,
+          hem = geometry.userData.apronFit.hem,
+          hip = restY('Hips');
+        const rowAt = (y: number) =>
+          widths.reduce(
+            (best, _, row) =>
+              Math.abs(surface.getY(row * 21 + 10) - y) < Math.abs(surface.getY(best * 21 + 10) - y)
+                ? row
+                : best,
+            0
+          );
+        const bibHeights = [
+          top - 0.03,
+          top - 0.06,
+          top - 0.13,
+          (top + waist) / 2,
+          waist + 0.01,
+          waist - 0.025,
+          hip + 0.07,
+        ];
+        const skirtRows = [
+          hip - 0.03,
+          THREE.MathUtils.lerp(hip, hem, 0.4),
+          THREE.MathUtils.lerp(hip, hem, 0.7),
+          hem,
+        ].map(rowAt);
+        expect(drop, 'linen ends on the lower thigh').toBeGreaterThanOrEqual(0.65);
+        expect(drop, 'linen clears the moving knee').toBeLessThanOrEqual(0.8);
+        // The hanging skirt opens gently toward its hem instead of ballooning
+        // past it at the hip. The old >10% hip flare was an authored style pin.
+        let previousWidth = 0;
+        for (let row = 0; row <= 24; row++) {
+          if (surface.getY(row * 21 + 10) > geometry.userData.apronFit.waist) continue;
+          expect(widths[row]).toBeLessThanOrEqual(widths[24] + 0.002);
+          expect(widths[row]).toBeGreaterThanOrEqual(previousWidth - 0.002);
+          previousWidth = widths[row];
+        }
+        // Bind samples to rendered triangles at exact anatomical heights.
+        // Nearest rows drift when the hem length changes; posing the sampled
+        // vertices before barycentric interpolation matches the drawn surface.
+        const clothTriangles: Array<{ ids: number[]; triangle: THREE.Triangle }> = [];
+        for (let i = 0; i < geometry.index!.count; i += 3) {
+          const ids = [0, 1, 2].map((k) => geometry.index!.getX(i + k));
+          if (ids.some((id) => id >= 525)) continue;
+          clothTriangles.push({
+            ids,
+            triangle: new THREE.Triangle(
+              ...(ids.map((id) => new THREE.Vector3().fromBufferAttribute(surface, id)) as [
+                THREE.Vector3,
+                THREE.Vector3,
+                THREE.Vector3,
+              ])
+            ),
+          });
+        }
+        const bindCloth = (y: number, column: number) => {
+          const edgeX = (c: number) => {
+            for (let row = 0; row < 24; row++) {
+              const a = row * 21 + c,
+                b = a + 21;
+              if (y > surface.getY(a) + 1e-7 || y < surface.getY(b) - 1e-7) continue;
+              return THREE.MathUtils.lerp(
+                surface.getX(a),
+                surface.getX(b),
+                (surface.getY(a) - y) / (surface.getY(a) - surface.getY(b))
+              );
+            }
+            throw new Error('No cloth edge at anatomical height');
+          };
+          const x = THREE.MathUtils.lerp(
+            edgeX(Math.floor(column)),
+            edgeX(Math.ceil(column)),
+            column % 1
+          );
+          const ray = new THREE.Ray(new THREE.Vector3(x, y, 1), new THREE.Vector3(0, 0, -1));
+          const hit = new THREE.Vector3();
+          for (const face of clothTriangles) {
+            if (
+              !ray.intersectTriangle(face.triangle.a, face.triangle.b, face.triangle.c, false, hit)
+            )
+              continue;
+            return {
+              ids: face.ids,
+              bary: face.triangle.getBarycoord(hit, new THREE.Vector3())!,
+              upper: y > top - 0.08,
+              label: `height${y}/column${column}`,
+            };
+          }
+          throw new Error('No rendered cloth triangle at anatomical sample');
+        };
+        const bibSamples = bibHeights.flatMap((y) =>
+          (y > top - 0.08 ? [1, 7, 10, 13, 19] : [7, 10, 13]).map((column) => bindCloth(y, column))
+        );
+        for (const y of [top - 0.13, waist + 0.02, waist - 0.02])
+          for (const column of [10 + 1 / 3, 10 + 2 / 3]) bibSamples.push(bindCloth(y, column));
+        // Raised sewing shares the cloth's XY field. A 1.5 mm normal offset
+        // cannot change joint ownership or drift independently during a bend.
+        let seamWeightDelta = 0;
+        for (let row = 0; row <= 24; row++)
+          for (const side of [0, 1]) {
+            const base = row * 21 + (side ? 20 : 0),
+              sewn = 525 + side * 50 + row * 2,
+              jointWeights = new Map<number, number>();
+            for (let k = 0; k < 4; k++) {
+              const joint = geometry.attributes.skinIndex.getComponent(base, k);
+              jointWeights.set(
+                joint,
+                (jointWeights.get(joint) ?? 0) +
+                  geometry.attributes.skinWeight.getComponent(base, k)
+              );
+            }
+            for (let k = 0; k < 4; k++) {
+              const joint = geometry.attributes.skinIndex.getComponent(sewn, k);
+              jointWeights.set(
+                joint,
+                (jointWeights.get(joint) ?? 0) -
+                  geometry.attributes.skinWeight.getComponent(sewn, k)
+              );
+            }
+            seamWeightDelta = Math.max(
+              seamWeightDelta,
+              ...[...jointWeights.values()].map(Math.abs)
+            );
+          }
+        expect(seamWeightDelta).toBe(0);
         const centreDepths = widths.map((_, row) => surface.getZ(row * 21 + 10));
         for (let row = 1; row < 24; row++)
           expect(
@@ -1609,7 +1768,7 @@ describe('actual-rig baker linen skinning and distant preservation', () => {
           const mesh = object as THREE.SkinnedMesh;
           if (
             mesh.isSkinnedMesh &&
-            original.has(mesh.geometry) &&
+            bodySources.has(mesh) &&
             /Worker_(Body|Legs)/.test(mesh.parent?.name ?? '')
           )
             torsoSurfaces.push(mesh);
@@ -1618,7 +1777,8 @@ describe('actual-rig baker linen skinning and distant preservation', () => {
           maxBibIntrusion = 0,
           maxUpperBibIntrusion = 0,
           worstBib = '',
-          worstIntrusion = '';
+          worstIntrusion = '',
+          worstIntrusionDonor = '';
         const bodyTriangles: number[][] = [];
         const trunkMeshes = torsoSurfaces;
         trunkMeshes.forEach((mesh, meshIndex) => {
@@ -1634,15 +1794,23 @@ describe('actual-rig baker linen skinning and distant preservation', () => {
         let movement = 0,
           maxError = 0,
           maxFarError = 0;
-        let sample = 0;
-        for (const name of ['worker-idle', 'worker-walk', 'worker-run', 'worker-break']) {
+        let sample = 0,
+          seatedFrames = 0;
+        const seatedOutwardRays = new Map<string, number>();
+        for (const name of ['worker-idle', 'worker-walk', 'worker-run', 'worker-break', 'seated']) {
           mixer.stopAllAction();
-          const clip = gltf.animations.find((c) => c.name === name)!;
+          const clip = gltf.animations.find(
+            (c) => c.name === (name === 'seated' ? 'worker-break' : name)
+          )!;
           mixer.clipAction(clip).reset().play();
           for (const phase of [0, 0.23, 0.58, 0.87]) {
             pose.restore();
             mixer.setTime(clip.duration * phase);
             if (name === 'worker-break') pose.applyTask('bake');
+            if (name === 'seated') {
+              pose.apply();
+              seatedFrames++;
+            }
             scene.updateWorldMatrix(true, true);
             apron.skeleton.update();
             function checkFit(point: THREE.Vector3, location: string) {
@@ -1665,9 +1833,15 @@ describe('actual-rig baker linen skinning and distant preservation', () => {
               );
               const triangle = new THREE.Triangle(),
                 closest = new THREE.Vector3();
-              function checkBib(point: THREE.Vector3, location: string, upper = false) {
+              function checkBib(
+                point: THREE.Vector3,
+                location: string,
+                upper = false,
+                fitted = true
+              ) {
                 let nearest = Infinity,
-                  signed = 0;
+                  signed = 0,
+                  donor = '';
                 for (const [m, a, b, c] of bodyTriangles) {
                   triangle.set(posedTrunk[m][a], posedTrunk[m][b], posedTrunk[m][c]);
                   triangle.closestPointToPoint(point, closest);
@@ -1675,54 +1849,91 @@ describe('actual-rig baker linen skinning and distant preservation', () => {
                   if (distance < nearest) {
                     nearest = distance;
                     signed = triangle.getNormal(part).dot(raw.copy(point).sub(closest));
+                    donor = `${trunkMeshes[m].parent?.name}/${(trunkMeshes[m].material as THREE.Material).name}/${a},${b},${c}`;
                   }
                 }
+                if (
+                  name === 'seated' &&
+                  phase === 0.58 &&
+                  ['seated-row14/column8', 'seated-row14/column12'].includes(location)
+                ) {
+                  const index = 14 * 21 + (location.endsWith('column8') ? 8 : 12);
+                  const face = clothTriangles.find((face) => face.ids.includes(index))!;
+                  const restSign = face.triangle.getNormal(new THREE.Vector3()).z < 0 ? -1 : 1;
+                  const posed = new THREE.Triangle(
+                    ...(face.ids.map((id) =>
+                      apron
+                        .getVertexPosition(id, new THREE.Vector3())
+                        .applyMatrix4(apron.matrixWorld)
+                    ) as [THREE.Vector3, THREE.Vector3, THREE.Vector3])
+                  );
+                  const normal = posed.getNormal(new THREE.Vector3()).multiplyScalar(restSign);
+                  const probe = new THREE.Ray(point.clone().add(normal), normal.clone().negate());
+                  let first = Infinity;
+                  const hit = new THREE.Vector3();
+                  for (const [m, a, b, c] of bodyTriangles) {
+                    if (trunkMeshes[m].parent?.name !== 'Worker_Legs') continue;
+                    if (
+                      !probe.intersectTriangle(
+                        posedTrunk[m][a],
+                        posedTrunk[m][b],
+                        posedTrunk[m][c],
+                        false,
+                        hit
+                      )
+                    )
+                      continue;
+                    const distance = probe.origin.distanceTo(hit);
+                    if (distance < first) {
+                      first = distance;
+                    }
+                  }
+                  seatedOutwardRays.set(location, 1 - first);
+                }
                 if (upper) maxUpperBibIntrusion = Math.max(maxUpperBibIntrusion, -signed);
-                if (nearest > maxBibDistance) {
+                if (fitted && nearest > maxBibDistance) {
                   maxBibDistance = nearest;
                   worstBib = `${name}/${phase}/${location}`;
                 }
                 if (-signed > maxBibIntrusion) {
                   maxBibIntrusion = -signed;
                   worstIntrusion = `${name}/${phase}/${location}`;
+                  worstIntrusionDonor = donor;
                 }
               }
-              // Include the trousers supporting the waist transition. The shorter
-              // feminine shirt ends above row14; the distant replica is excluded.
-              for (const row of [1, 2, 5, 8, 11, 14])
-                for (const column of row < 3 ? [1, 7, 10, 13, 19] : [7, 10, 13]) {
-                  apron
-                    .getVertexPosition(row * 21 + column, actual)
-                    .applyMatrix4(apron.matrixWorld);
-                  checkBib(actual, `row${row}/column${column}`, row < 3);
-                }
-              for (const row of [5, 11, 13]) {
-                const a = row * 21 + 10,
-                  b = a + 21;
-                for (const ids of [
-                  [a, b + 1, b],
-                  [a, a + 1, b + 1],
-                ]) {
-                  apron.getVertexPosition(ids[0], triangleA).applyMatrix4(apron.matrixWorld);
-                  apron.getVertexPosition(ids[1], triangleB).applyMatrix4(apron.matrixWorld);
-                  apron.getVertexPosition(ids[2], triangleC).applyMatrix4(apron.matrixWorld);
-                  actual
-                    .copy(triangleA)
-                    .add(triangleB)
-                    .add(triangleC)
-                    .multiplyScalar(1 / 3);
-                  checkBib(actual, `triangle${ids.join('/')}`);
-                }
+              for (const binding of bibSamples) {
+                actual.set(0, 0, 0);
+                binding.ids.forEach((id, i) =>
+                  actual.addScaledVector(
+                    apron.getVertexPosition(id, triangleA).applyMatrix4(apron.matrixWorld),
+                    binding.bary.getComponent(i)
+                  )
+                );
+                checkBib(actual, binding.label, binding.upper);
               }
-              for (const row of [16, 20, 22, 24])
+              // Keep the exact newly exposed 43 mm upper-skirt regression point
+              // as additional coverage, alongside the height-stable bib samples.
+              apron.getVertexPosition(14 * 21 + 10, actual).applyMatrix4(apron.matrixWorld);
+              // On the longer feminine cut this row is BELOW Hips, a free
+              // skirt point. Keep its penetration test; the original masculine
+              // failure remains in the fitted zone with the same 40 mm limit.
+              checkBib(actual, 'upper-skirt-regression', false, surface.getY(14 * 21 + 10) > hip);
+              if (name === 'seated' && phase === 0.58)
+                for (const column of [8, 12]) {
+                  apron.getVertexPosition(14 * 21 + column, actual).applyMatrix4(apron.matrixWorld);
+                  checkBib(actual, `seated-row14/column${column}`, false, false);
+                }
+              for (const row of skirtRows)
                 for (const column of [1, 3, 5, 8, 10, 12, 15, 17, 19]) {
                   apron
                     .getVertexPosition(row * 21 + column, actual)
                     .applyMatrix4(apron.matrixWorld);
-                  checkFit(actual, `row${row}/column${column}`);
+                  if (name === 'seated')
+                    checkBib(actual, `seated-row${row}/column${column}`, false, false);
+                  else checkFit(actual, `row${row}/column${column}`);
                 }
               // Rasterised triangle interiors can intersect even when corners clear.
-              for (const row of [16, 20, 22, 23])
+              for (const row of skirtRows.map((row) => Math.min(23, row)))
                 for (const column of [1, 3, 5, 8, 10, 12, 15, 17, 18]) {
                   const a = row * 21 + column,
                     b = a + 21;
@@ -1738,7 +1949,9 @@ describe('actual-rig baker linen skinning and distant preservation', () => {
                       .add(triangleB)
                       .add(triangleC)
                       .multiplyScalar(1 / 3);
-                    checkFit(actual, `triangle${ids.join('/')}`);
+                    if (name === 'seated')
+                      checkBib(actual, `seated-triangle${ids.join('/')}`, false, false);
+                    else checkFit(actual, `triangle${ids.join('/')}`);
                   }
                 }
             }
@@ -1771,10 +1984,19 @@ describe('actual-rig baker linen skinning and distant preservation', () => {
             sample++;
           }
         }
+        expect(seatedFrames).toBe(4);
+        expect(seatedOutwardRays.size).toBe(2);
+        expect([...seatedOutwardRays.values()].every(Number.isFinite)).toBe(true);
+        expect(Math.max(...seatedOutwardRays.values()), 'reported seated cloth rays').toBeLessThan(
+          0.008
+        );
         expect(rayHits).toBeGreaterThan(100);
         expect(maxBibDistance, `bib stands away at ${worstBib}`).toBeLessThan(0.04);
         expect(maxUpperBibIntrusion).toBeLessThan(0.0005);
-        expect(maxBibIntrusion, `bib penetrates at ${worstIntrusion}`).toBeLessThan(0.008);
+        expect(
+          maxBibIntrusion,
+          `cloth penetrates at ${worstIntrusion}: ${worstIntrusionDonor}`
+        ).toBeLessThan(0.008);
         expect(geometry.userData.apronFit.maxDiscardedWeight).toBeLessThan(0.1);
         const torsoJoint = apron.skeleton.bones.findIndex((bone) => bone.name === 'Torso');
         expect(
@@ -1800,6 +2022,10 @@ describe('actual-rig baker linen skinning and distant preservation', () => {
         lod.dispose();
         apron.geometry.dispose();
         apron.material.dispose();
+        tailored.forEach(({ geometry, material }) => {
+          geometry.dispose();
+          material.dispose();
+        });
       });
     }
 });
