@@ -181,7 +181,7 @@ it('installs each real shop trade on a private material, keeping shared body and
   }
   view.rerender(<GeneratedModel asset="church" shopTrade="bakery" />);
   expect((clones.at(-1)!.material as THREE.Material).customProgramCacheKey()).toBe(
-    'millos-authored-village-windows-v8'
+    'millos-authored-village-windows-v10-stained'
   );
   expect(material.customProgramCacheKey()).not.toContain('shop-joinery');
   view.unmount();

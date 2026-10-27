@@ -660,6 +660,30 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     fallbackMaterial: 'existing primitive village building through GeneratedBoundary',
   },
   {
+    id: 'generated-church-stained-glass',
+    owner: 'GeneratedModel church, composed onto village glazing',
+    sources: ['src/components/models/GeneratedOfficeModel.tsx'],
+    coordinateSpaces: [
+      'authored glass atlas masks',
+      'static world metres',
+      'fragment pixel footprint',
+    ],
+    colorSpace: 'linear retained atlas pigment and oxidised lead, bounded coloured glass emission',
+    toneMapping: 'material-pipeline',
+    fog: 'material-pipeline',
+    transparency: 'opaque',
+    depthBehavior: 'unchanged opaque depth test and write',
+    qualityVariants: ['low', 'medium', 'high', 'ultra'],
+    uniformOwner: 'shared EXTERIOR_LAMP_LEVEL and existing VILLAGE_INTERIOR_STRENGTH controls',
+    timeSource: 'simulation',
+    cacheKey: 'millos-authored-village-windows-v10-stained',
+    disposalOwner:
+      'GeneratedModel disposes its private material; geometry and atlas remain borrowed',
+    fallbackMaterial: 'existing primitive church through GeneratedBoundary',
+    notes:
+      'Only stained mode adds derivative-filtered quarry leads, glass variation and roughness. Strength zero restores the former flat glazing; other village programs retain v8. No geometry, texture, light or frame owner added.',
+  },
+  {
     id: 'generated-forge-hearth',
     owner: 'models/GeneratedModel forge, layered over existing village glazing',
     sources: ['src/components/models/GeneratedOfficeModel.tsx'],

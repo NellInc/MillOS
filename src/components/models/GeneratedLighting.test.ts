@@ -319,9 +319,30 @@ it('keeps church stained glass out of domestic room replacement', () => {
     'mix(diffuseColor.rgb * 0.85, villageGlow, villageRooms)'
   );
   expect(shader.fragmentShader).toContain('glazing = max(stainedRow, roseTile)');
-  expect(material.customProgramCacheKey()).toBe('millos-authored-village-windows-v8');
+  expect(shader.fragmentShader).toContain('stainedQuarry');
+  expect(shader.fragmentShader).toContain('stainedPixel');
+  expect(shader.fragmentShader).toContain('if (glazing > 0.5) {\n           vec3 stainedReference');
+  expect(shader.uniforms.villageInteriorStrength).toBe(VILLAGE_INTERIOR_STRENGTH);
+  expect(shader.fragmentShader).toContain(
+    'mix(stainedReference, stainedEmission, stainedStrength)'
+  );
+  expect(shader.fragmentShader.indexOf('dFdx(stainedQuarry)')).toBeLessThan(
+    shader.fragmentShader.indexOf('if (glazing > 0.5')
+  );
+  expect(material.customProgramCacheKey()).toBe('millos-authored-village-windows-v10-stained');
   material.dispose();
 });
+
+it.each(['glass', 'amber', 'pane', 'castle', 'civic'] as const)(
+  '%s retains its existing program without church glass detail',
+  (glazing) => {
+    const shader = compile((material, night) =>
+      applyVillageWindows(material, night, true, glazing)
+    );
+    expect(shader.fragmentShader).not.toContain('stainedQuarry');
+    expect(shader.uniforms).not.toHaveProperty('villageGlassLead');
+  }
+);
 
 it('uses the castle glass tile and its delivered padding with the same room shader', () => {
   const material = new THREE.MeshStandardMaterial();

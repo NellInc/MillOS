@@ -545,8 +545,61 @@ export function applyVillageWindows(
            * villageNight * glazing;
        }`
     );
+    if (glazing === 'stained') {
+      shader.uniforms.villageGlassLead = { value: new THREE.Color('#273b39') };
+      // Church quarries are measured in static-world metres, not atlas pixels.
+      // Filtering happens before the non-uniform glazing branch. Working if
+      // oblique lancets and rose petals retain the same lead scale without moire.
+      shader.fragmentShader = `uniform vec3 villageGlassLead;\n${shader.fragmentShader}`
+        .replace(
+          'vec3 px = dFdx(-vViewPosition), py = dFdy(-vViewPosition);',
+          `vec3 px = dFdx(-vViewPosition), py = dFdy(-vViewPosition);
+           vec3 stainedNormal = cross(wx, wy);
+           stainedNormal /= max(length(stainedNormal), 0.000001);
+           float stainedHorizontal = abs(stainedNormal.x) > abs(stainedNormal.z)
+             ? vVillageWorld.z : vVillageWorld.x;
+           vec2 stainedMetres = vec2(stainedHorizontal / 0.34, vVillageWorld.y / 0.48);
+           vec2 stainedQuarry = vec2(stainedMetres.x + stainedMetres.y,
+             stainedMetres.x - stainedMetres.y);
+           vec2 stainedPixel = max(max(abs(dFdx(stainedQuarry)), abs(dFdy(stainedQuarry))), vec2(0.0001));
+           float stainedFootprint = max(stainedPixel.x, stainedPixel.y);
+           float stainedDetail = 1.0 - smoothstep(0.18, 0.50, stainedFootprint);
+           vec2 stainedDistance = abs(fract(stainedQuarry + 0.5) - 0.5);
+           // Box-filtered coverage preserves a slender came rather than
+           // broadening it into an opaque grid when one quarry gets small.
+           vec2 stainedCoverage = max(vec2(0.0),
+             min(vec2(0.012), stainedDistance + stainedPixel * 0.5)
+             - max(vec2(-0.012), stainedDistance - stainedPixel * 0.5)) / stainedPixel;
+           float stainedLead = max(stainedCoverage.x, stainedCoverage.y) * stainedDetail;
+           float stainedSeed = fract(sin(dot(floor(stainedQuarry), vec2(127.1, 311.7))) * 43758.5453);
+           float stainedMottle = sin(stainedHorizontal * 27.0 + 0.8 * sin(vVillageWorld.y * 14.0))
+             * sin(vVillageWorld.y * 31.0 + 0.6 * sin(stainedHorizontal * 22.0));`
+        )
+        .replace(
+          `totalEmissiveRadiance += mix(diffuseColor.rgb * 0.85, villageGlow, villageRooms)
+           * villageNight * glazing;`,
+          `if (glazing > 0.5) {
+           vec3 stainedReference = mix(diffuseColor.rgb * 0.85, villageGlow, villageRooms);
+           float stainedStrength = clamp(villageInteriorStrength, 0.0, 1.0) * glazing;
+           float stainedLuma = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+           vec3 stainedBody = max(vec3(0.0), mix(vec3(stainedLuma), diffuseColor.rgb, 1.18));
+           stainedBody *= 1.0 + stainedDetail * (0.08 * (stainedSeed - 0.5) + 0.055 * stainedMottle);
+           vec3 stainedColour = mix(stainedBody, villageGlassLead, stainedLead);
+           // Glass transmits the existing room light; lead does not emit.
+           // Strength zero retains the exact former flat-glass response.
+           vec3 stainedEmission = stainedBody * 1.3 * (1.0 - stainedLead);
+           diffuseColor.rgb = mix(diffuseColor.rgb, stainedColour, stainedStrength);
+           roughnessFactor = mix(roughnessFactor, mix(0.26, 0.78, stainedLead), stainedStrength);
+           totalEmissiveRadiance += mix(stainedReference, stainedEmission, stainedStrength)
+             * villageNight * glazing;
+           }`
+        );
+    }
   };
-  material.customProgramCacheKey = () => 'millos-authored-village-windows-v8';
+  material.customProgramCacheKey = () =>
+    glazing === 'stained'
+      ? 'millos-authored-village-windows-v10-stained'
+      : 'millos-authored-village-windows-v8';
 }
 
 /** Farm walls retain irregular baked UVs, so only measured recessed apertures
