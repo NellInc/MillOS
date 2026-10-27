@@ -1869,6 +1869,14 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       seatedPose.applyDuty(appearance.workAction, gesture, 1);
     else if (moving) seatedPose.applyWalkingLook(gesture);
     else seatedPose.applyIdle(gesture);
+    if (
+      !motion.seated &&
+      !motion.cycling &&
+      !motion.cartGrip &&
+      !validWorkerSeatCue(motion.seat) &&
+      (moving || (appearance.workAction !== 'garden' && appearance.workAction !== 'bake'))
+    )
+      seatedPose.applyGroundContact();
     handPose.apply(motion, appearance.tool, gesture);
     if (toolRef.current)
       toolRef.current.visible =
@@ -2171,6 +2179,15 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       closureMix < 0.99999
     )
       seatedPose.closeDutyTransition(closureMix);
+    if (
+      !motion.seated &&
+      !motion.cycling &&
+      !motion.cartGrip &&
+      !seat &&
+      !stationaryGarden &&
+      (moving || appearance.workAction !== 'bake')
+    )
+      seatedPose.applyGroundContact();
     handPose.apply(motion, appearance.tool, gesture, safeDelta);
     // Mixed Head/Neck weights require the final admitted pose, even when the
     // expression envelope is unchanged. Never sample the previous mixer frame.

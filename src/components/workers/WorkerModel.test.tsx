@@ -244,7 +244,7 @@ describe('animation scheduling and freezing', () => {
 
 describe('real authored duty and gait transitions', () => {
   for (const bodyType of ['masculine', 'feminine'] as const)
-    it(`${bodyType} leaves a supported work stance smoothly and preserves the original moving rig`, async () => {
+    it(`${bodyType} leaves a supported work stance smoothly and preserves horizontal gait and anatomy`, async () => {
       const { readFileSync } = await import('node:fs');
       const { NodeIO } = await import('@gltf-transform/core');
       const { ALL_EXTENSIONS } = await import('@gltf-transform/extensions');
@@ -397,11 +397,21 @@ describe('real authored duty and gait transitions', () => {
             'UpperLegR',
             'LowerLegR',
           ]) {
-            const actual = model!.getObjectByName(name)!.matrixWorld.elements;
-            const expected = control.getObjectByName(name)!.matrixWorld.elements;
-            actual.forEach((v, i) =>
-              expect(Math.abs(v - expected[i]), `${name} original gait`).toBeLessThan(1e-6)
-            );
+            const actualBone = model!.getObjectByName(name)!,
+              expectedBone = control.getObjectByName(name)!;
+            if (name.startsWith('Foot'))
+              actualBone.matrixWorld.elements.forEach((v, i) => {
+                const delta = v - expectedBone.matrixWorld.elements[i];
+                if (i === 13) {
+                  expect(delta, `${name} bounded ground correction`).toBeGreaterThanOrEqual(-1e-6);
+                  expect(delta).toBeLessThan(0.035);
+                } else
+                  expect(Math.abs(delta), `${name} original horizontal gait`).toBeLessThan(1e-6);
+              });
+            else {
+              expect(actualBone.position.toArray()).toEqual(expectedBone.position.toArray());
+              expect(actualBone.scale.toArray()).toEqual(expectedBone.scale.toArray());
+            }
           }
           mixer.stopAllAction();
           mixer.uncacheRoot(control);
@@ -2659,14 +2669,22 @@ it.each(['masculine', 'feminine'] as const)(
         action.time = actions['worker-walk'].time;
         mixer.update(0);
         control.updateMatrixWorld(true);
-        for (const name of ['FootL', 'FootR', 'UpperLegL', 'UpperLegR', 'LowerLegL', 'LowerLegR'])
-          model!
-            .getObjectByName(name)!
-            .matrixWorld.elements.forEach((v, k) =>
-              expect(
-                Math.abs(v - control.getObjectByName(name)!.matrixWorld.elements[k])
-              ).toBeLessThan(1e-6)
-            );
+        for (const name of ['FootL', 'FootR', 'UpperLegL', 'UpperLegR', 'LowerLegL', 'LowerLegR']) {
+          const actualBone = model!.getObjectByName(name)!,
+            expectedBone = control.getObjectByName(name)!;
+          if (name.startsWith('Foot'))
+            actualBone.matrixWorld.elements.forEach((v, k) => {
+              const delta = v - expectedBone.matrixWorld.elements[k];
+              if (k === 13) {
+                expect(delta).toBeGreaterThanOrEqual(-1e-6);
+                expect(delta).toBeLessThan(0.035);
+              } else expect(Math.abs(delta)).toBeLessThan(1e-6);
+            });
+          else {
+            expect(actualBone.position.toArray()).toEqual(expectedBone.position.toArray());
+            expect(actualBone.scale.toArray()).toEqual(expectedBone.scale.toArray());
+          }
+        }
         mixer.stopAllAction();
         mixer.uncacheRoot(control);
       }

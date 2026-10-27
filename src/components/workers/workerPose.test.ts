@@ -4420,3 +4420,111 @@ it.each(['mill-operator-west', 'mill-operator-east', 'mill-engineer'])(
     }
   }
 );
+
+describe('ordinary level-ground sole contact', () => {
+  for (const body of ['masculine', 'feminine'])
+    for (const height of [0.95, 1.08])
+      it(`${body}/${height} clears real soles without moving the actor or upper body`, () => {
+        const asset = bodies.get(body)!,
+          scene = clone(asset.scene),
+          actor = new THREE.Group();
+        actor.position.set(8, 0.3, -6);
+        actor.rotation.y = 0.8;
+        actor.scale.set(height === 0.95 ? 0.96 : 1.06, height, 1.02);
+        actor.add(scene);
+        actor.updateMatrixWorld(true);
+        const feet: THREE.SkinnedMesh[] = [],
+          objects: THREE.Object3D[] = [];
+        scene.traverse((o) => {
+          objects.push(o);
+          const mesh = o as THREE.SkinnedMesh;
+          if (!mesh.isSkinnedMesh || !mesh.parent?.name.includes('Worker_Feet')) return;
+          feet.push(mesh);
+          if (
+            (body === 'masculine' && mesh.material.name === 'Grey') ||
+            (body === 'feminine' && mesh.material.name === 'Black')
+          )
+            mesh.geometry = createWorkerFootwear(mesh, body === 'masculine' ? 'boot' : 'shoe')!;
+        });
+        const pose = createSeatedWorkerPose(scene, height),
+          mixer = new THREE.AnimationMixer(scene);
+        const walk = mixer
+            .clipAction(asset.animations.find((c) => c.name === 'worker-walk')!)
+            .play(),
+          run = mixer.clipAction(asset.animations.find((c) => c.name === 'worker-run')!).play(),
+          duty = mixer
+            .clipAction(asset.animations.find((c) => c.name === 'worker-inspect')!)
+            .play();
+        const state = () =>
+          objects.flatMap((o) => [
+            ...o.position.toArray(),
+            ...o.quaternion.toArray(),
+            ...o.scale.toArray(),
+          ]);
+        const upper = () =>
+          objects
+            .filter((o) => !/^(UpperLeg|LowerLeg|Foot)[LR]$/.test(o.name))
+            .flatMap((o) => [
+              ...o.position.toArray(),
+              ...o.quaternion.toArray(),
+              ...o.scale.toArray(),
+            ]);
+        const ankle = (name: string) =>
+          actor.worldToLocal(scene.getObjectByName(name)!.getWorldPosition(new THREE.Vector3()));
+        for (const mix of [0, 0.2, 0.5, 0.8, 1, -1]) {
+          walk.setEffectiveWeight(mix < 0 ? 0 : 1 - mix);
+          duty.setEffectiveWeight(mix < 0 ? 0 : mix);
+          run.setEffectiveWeight(mix < 0 ? 1 : 0);
+          for (let step = 0; step < 24; step++) {
+            pose.restore();
+            mixer.setTime((walk.getClip().duration * step) / 24);
+            actor.updateMatrixWorld(true);
+            const source = state();
+            if (mix > 0 && mix < 1) pose.closeDutyTransition(mix);
+            const unchanged = upper(),
+              points = ['FootL', 'FootR'].map(ankle),
+              rotations = ['FootL', 'FootR'].map((n) =>
+                scene.getObjectByName(n)!.getWorldQuaternion(new THREE.Quaternion())
+              );
+            expect(pose.applyGroundContact()).toBe(true);
+            actor.updateMatrixWorld(true);
+            expect(upper()).toEqual(unchanged);
+            for (let side = 0; side < 2; side++) {
+              const name = ['FootL', 'FootR'][side],
+                next = ankle(name);
+              expect(next.x).toBeCloseTo(points[side].x, 6);
+              expect(next.z).toBeCloseTo(points[side].z, 6);
+              expect(next.y - points[side].y).toBeGreaterThan(-1e-6);
+              expect(next.y - points[side].y).toBeLessThan(0.035);
+              expect(
+                scene
+                  .getObjectByName(name)!
+                  .getWorldQuaternion(new THREE.Quaternion())
+                  .normalize()
+                  .angleTo(rotations[side].clone().normalize())
+              ).toBeLessThan(1e-6);
+            }
+            for (const mesh of feet) {
+              mesh.skeleton.update();
+              const point = new THREE.Vector3();
+              let min = Infinity;
+              for (let i = 0; i < mesh.geometry.attributes.position.count; i++) {
+                mesh.getVertexPosition(i, point).applyMatrix4(mesh.matrixWorld);
+                min = Math.min(min, point.y - actor.position.y);
+              }
+              expect(min, `${body}/${height}/${mix}/${step}/${mesh.material.name}`).toBeGreaterThan(
+                -0.0005
+              );
+            }
+            const corrected = state();
+            expect(pose.applyGroundContact()).toBe(true);
+            expect(state()).toEqual(corrected);
+            pose.restore();
+            expect(state()).toEqual(source);
+          }
+        }
+        mixer.stopAllAction();
+        mixer.uncacheRoot(scene);
+        for (const mesh of feet) if (mesh.geometry.userData.workerFootwear) mesh.geometry.dispose();
+      });
+});

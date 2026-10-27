@@ -1049,6 +1049,18 @@ export function createSeatedWorkerPose(
   // Bound each real boot in its Foot bind frame once. A tilted toe can be
   // below the floor even when its ankle clears the planned lift arc.
   const soleBoxes = [new THREE.Box3(), new THREE.Box3()];
+  // Eight weight ranges plus rigid Foot vertices keep the mixed-skin bound
+  // tight without evaluating/skinning every mesh vertex in the frame loop.
+  const groundBoxes = sides.map(
+    () =>
+      [] as {
+        box: THREE.Box3;
+        footInverse: THREE.Matrix4;
+        calfInverse: THREE.Matrix4;
+        lo: number;
+        hi: number;
+      }[]
+  );
   model.traverse((object) => {
     const mesh = object as THREE.SkinnedMesh;
     if (!mesh.isSkinnedMesh || !mesh.parent?.name.includes('Worker_Feet')) return;
@@ -1058,8 +1070,20 @@ export function createSeatedWorkerPose(
     if (!indices || !weights) return;
     for (let side = 0; side < 2; side++) {
       const foot = bones.get(`Foot${sides[side]}`),
-        joint = mesh.skeleton.bones.indexOf(foot as THREE.Bone);
+        joint = mesh.skeleton.bones.indexOf(foot as THREE.Bone),
+        calfJoint = mesh.skeleton.bones.indexOf(bones.get(`LowerLeg${sides[side]}`) as THREE.Bone);
       if (joint < 0) continue;
+      const groups =
+        calfJoint < 0
+          ? []
+          : Array.from({ length: 9 }, () => ({
+              box: new THREE.Box3(),
+              footInverse: mesh.skeleton.boneInverses[joint].clone(),
+              calfInverse: mesh.skeleton.boneInverses[calfJoint].clone(),
+              lo: Infinity,
+              hi: -Infinity,
+            }));
+      groundBoxes[side].push(...groups);
       for (let vertex = 0; vertex < position.count; vertex++) {
         let belongs = false;
         for (let influence = 0; influence < 4; influence++)
@@ -1075,17 +1099,46 @@ export function createSeatedWorkerPose(
               .applyMatrix4(mesh.bindMatrix)
               .applyMatrix4(mesh.skeleton.boneInverses[joint])
           );
+        if (belongs && calfJoint >= 0) {
+          let footWeight = 0,
+            calfWeight = 0;
+          for (let influence = 0; influence < 4; influence++) {
+            const jointIndex = indices.getComponent(vertex, influence),
+              weight = weights.getComponent(vertex, influence);
+            if (jointIndex === joint) footWeight += weight;
+            if (jointIndex === calfJoint) calfWeight += weight;
+          }
+          if (Math.abs(footWeight + calfWeight - 1) > 0.00001) continue;
+          const group = groups[Math.min(8, Math.floor(footWeight * 8))];
+          group.lo = Math.min(group.lo, footWeight);
+          group.hi = Math.max(group.hi, footWeight);
+          group.box.expandByPoint(
+            p.fromBufferAttribute(position, vertex).applyMatrix4(mesh.bindMatrix)
+          );
+        }
       }
     }
   });
-  const soleCorners = soleBoxes.map((box) => {
+  const boxCorners = (box: THREE.Box3) => {
     const points: THREE.Vector3[] = [];
     if (!box.isEmpty())
       for (const x of [box.min.x, box.max.x])
         for (const y of [box.min.y, box.max.y])
           for (const z of [box.min.z, box.max.z]) points.push(new THREE.Vector3(x, y, z));
     return points;
-  });
+  };
+  const soleCorners = soleBoxes.map(boxCorners);
+  const groundBounds = groundBoxes.map((groups) =>
+    groups
+      .filter((group) => !group.box.isEmpty())
+      .map((group) => ({
+        points: boxCorners(group.box),
+        footInverse: group.footInverse,
+        calfInverse: group.calfInverse,
+        lo: group.lo,
+        hi: group.hi,
+      }))
+  );
 
   function seatPoint(point: THREE.Vector3, cue: WorkerSeatCue, cosine: number, sine: number) {
     const x = point.x;
@@ -1378,6 +1431,57 @@ export function createSeatedWorkerPose(
           solveChain(thigh, calf, foot, target, standingLegLengths[i], pole, true, true) && closed;
         blendWorkerRotation(thigh.quaternion, thigh.quaternion, transitionThigh, 1 - influence);
         blendWorkerRotation(calf.quaternion, calf.quaternion, transitionCalf, 1 - influence);
+      }
+      applied = true;
+      model.updateWorldMatrix(false, true);
+      return closed;
+    },
+    /** The delivered walking clips roll a sole below the actor's support plane.
+     * Reuse the cached bind bounds and anatomical closure, never lift the body.
+     * Working if soles clear the floor with exact horizontal stride and restore.
+     */
+    applyGroundContact() {
+      if (!applied) capture();
+      let closed = true;
+      for (let i = 0; i < sides.length; i++) {
+        const foot = bones.get(`Foot${sides[i]}`),
+          thigh = bones.get(`UpperLeg${sides[i]}`),
+          calf = bones.get(`LowerLeg${sides[i]}`);
+        if (!foot || !thigh || !calf || !soleCorners[i].length) continue;
+        // Bound each weight range's convex skin blend. Keeping rigid vertices
+        // separate avoids over-lifting them for an unused calf contribution.
+        for (let pass = 0; pass < 6; pass++) {
+          let bottom = Infinity;
+          footMatrix.copy(inverse).multiply(foot.matrixWorld);
+          footLocal.copy(inverse).multiply(calf.matrixWorld);
+          for (const group of groundBounds[i])
+            for (const corner of group.points) {
+              // Blend the SAME bind point before taking a minimum. Independent
+              // minima for the two bones invent a low corner and cause hovering.
+              p.copy(corner).applyMatrix4(group.footInverse).applyMatrix4(footMatrix);
+              q.copy(corner).applyMatrix4(group.calfInverse).applyMatrix4(footLocal);
+              bottom = Math.min(
+                bottom,
+                group.lo * p.y + (1 - group.lo) * q.y,
+                group.hi * p.y + (1 - group.hi) * q.y
+              );
+            }
+          if (bottom >= -0.00005) break;
+          if (pass === 5) {
+            closed = false;
+            break;
+          }
+          modelPosition(foot, target);
+          target.y += 0.0005 / scale - bottom;
+          modelPosition(calf, pole).sub(modelPosition(thigh, p));
+          if (!solveChain(thigh, calf, foot, target, standingLegLengths[i], pole, true, true)) {
+            closed = false;
+            break;
+          }
+          // Foot targets are independently parented. Change only translation,
+          // retaining their exact sampled rotation/scale even under a scaled actor.
+          setPosition(foot, p.copy(target));
+        }
       }
       applied = true;
       model.updateWorldMatrix(false, true);
