@@ -1,3 +1,10 @@
+import {
+  Bicycle,
+  Trolley,
+  CANAL_BICYCLE_GEOMETRY,
+  CANAL_TROLLEY_GEOMETRY,
+  CANAL_FINDS_LAYOUT,
+} from '../scenery/CanalFinds';
 import { describe, expect, it, vi } from 'vitest';
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
 import {
@@ -413,4 +420,111 @@ it('keeps entrance spill on both flat ground grids, clear of the retained pond a
         Math.hypot(p.x - pond.position[0], p.z - pond.position[2]) - l.poolRadius
       ).toBeGreaterThan(pond.radius);
   }
+});
+
+const findGeometryGroup = (geometries: Record<string, import('three').BufferGeometry>) => {
+  const group = new Group();
+  for (const geometry of Object.values(geometries))
+    group.add(new Mesh(geometry, new MeshStandardMaterial({ side: 2 })));
+  group.updateMatrixWorld(true);
+  return group;
+};
+const findRay = (group: Group, point: Triple, direction: Triple, far = 3) =>
+  new Raycaster(new Vector3(...point), new Vector3(...direction), 0, far).intersectObject(
+    group,
+    true
+  );
+
+it('keeps the two intentional canal finds on their exact roots with shared opaque resources and bounded actual geometry', () => {
+  const first = [Bicycle(), Trolley()],
+    second = [Bicycle(), Trolley()];
+  const materials = new Set();
+  let triangles = 0;
+  for (const [i, element] of first.entries()) {
+    const layout = i ? CANAL_FINDS_LAYOUT.trolley : CANAL_FINDS_LAYOUT.bicycle;
+    expect(element.props.dispose).toBeNull();
+    expect(element.props.position).toEqual([...layout.position]);
+    expect(element.props.rotation).toEqual([...layout.rotation]);
+    expect(element.props.position).toEqual(i ? [-143, 0.1, 36.5] : [-147.5, 0.05, 54]);
+    expect(element.props.rotation).toEqual(i ? [Math.PI * 0.85, 0.35, 0.2] : [0.25, 0.7, 0.1]);
+    const meshes = Children.toArray(element.props.children) as ReactElement<{
+      geometry: import('three').BufferGeometry;
+      material: MeshStandardMaterial;
+    }>[];
+    const peers = Children.toArray(second[i].props.children) as typeof meshes;
+    expect(meshes).toHaveLength(i ? 2 : 3);
+    meshes.forEach((mesh, j) => {
+      const { geometry, material } = mesh.props;
+      materials.add(material);
+      expect(geometry).toBe(peers[j].props.geometry);
+      expect(material).toBe(peers[j].props.material);
+      expect(material.transparent).toBe(false);
+      expect(material.opacity).toBe(1);
+      expect(material.map).toBeNull();
+      triangles += (geometry.index?.count ?? geometry.getAttribute('position').count) / 3;
+      for (const a of Object.values(geometry.attributes))
+        expect([...a.array].every(Number.isFinite)).toBe(true);
+      const n = geometry.getAttribute('normal');
+      for (let k = 0; k < n.count; k++)
+        expect(Math.hypot(n.getX(k), n.getY(k), n.getZ(k))).toBeCloseTo(1, 4);
+    });
+  }
+  expect(materials.size).toBe(3);
+  expect(triangles).toBeLessThanOrEqual(4000);
+  const bike = new Box3().setFromObject(findGeometryGroup(CANAL_BICYCLE_GEOMETRY));
+  expect(bike.min.x).toBeGreaterThanOrEqual(-0.825001);
+  expect(bike.max.x).toBeLessThanOrEqual(0.825001);
+  expect(bike.min.y).toBeGreaterThanOrEqual(-0.025001);
+  expect(bike.max.y).toBeLessThanOrEqual(0.735);
+  expect(Math.max(Math.abs(bike.min.z), Math.abs(bike.max.z))).toBeLessThanOrEqual(0.375);
+  const trolley = new Box3().setFromObject(findGeometryGroup(CANAL_TROLLEY_GEOMETRY));
+  expect(trolley.min.x).toBeGreaterThanOrEqual(-0.27);
+  expect(trolley.max.x).toBeLessThanOrEqual(0.27);
+  expect(trolley.min.y).toBeGreaterThanOrEqual(-0.35);
+  expect(trolley.max.y).toBeLessThanOrEqual(0.375001);
+  expect(trolley.min.z).toBeGreaterThanOrEqual(-0.58);
+  expect(trolley.max.z).toBeLessThanOrEqual(0.56);
+});
+
+it('aligns actual bicycle tyres and spokes in the frame plane and seats its hubs, fork, stays and contact fittings', () => {
+  const bike = findGeometryGroup(CANAL_BICYCLE_GEOMETRY),
+    rubber = findGeometryGroup({ rubber: CANAL_BICYCLE_GEOMETRY.rubber });
+  for (const [x, y] of CANAL_FINDS_LAYOUT.wheels) {
+    // Both poles of each tyre retain the .35m major radius plus .025m section.
+    expect(findRay(rubber, [x, y + 0.5, 0], [0, -1, 0])[0].point.y).toBeCloseTo(y + 0.375, 5);
+    expect(findRay(rubber, [x, y - 0.5, 0], [0, 1, 0])[0].point.y).toBeCloseTo(y - 0.375, 5);
+    expect(findRay(rubber, [x, y, -0.5], [0, 0, 1])).toHaveLength(0);
+    expect(findRay(bike, [x, y, -0.2], [0, 0, 1])[0].point.z).toBeCloseTo(-0.06, 5);
+    for (const side of [-1, 1])
+      expect(findRay(bike, [x, y, side * 0.045 - 0.03], [0, 0, 1], 0.06).length).toBeGreaterThan(0);
+  }
+  for (const point of [
+    [-0.2, 0.59, 0],
+    [-0.05, 0.29, 0],
+    [0.31, 0.58, 0],
+    [-0.24, 0.69, 0],
+    [0.37, 0.695, 0],
+  ] as Triple[])
+    expect(findRay(bike, [point[0], point[1], -0.3], [0, 0, 1], 0.6).length).toBeGreaterThan(0);
+});
+
+it('keeps the trolley basket open and joins its rounded rims, child-seat, forks and axles to the retained caster anchors', () => {
+  const trolley = findGeometryGroup(CANAL_TROLLEY_GEOMETRY),
+    rubber = findGeometryGroup({ rubber: CANAL_TROLLEY_GEOMETRY.rubber });
+  expect(findRay(trolley, [0.06, 0.3, 0.2], [0, -1, 0], 0.5)).toHaveLength(0);
+  for (const x of [-0.24, 0.24])
+    expect(findRay(trolley, [x, 0.4, 0], [0, -1, 0], 0.2)[0].point.y).toBeCloseTo(0.252, 4);
+  for (const [x, y, z] of CANAL_FINDS_LAYOUT.casters) {
+    expect(findRay(rubber, [x, y - 0.2, z], [0, 1, 0], 0.4)[0].point.y).toBeCloseTo(y - 0.06, 5);
+    expect(
+      findRay(trolley, [x, y, z - 0.1], [0, 0, 1], 0.2).some(
+        (hit) => Math.abs(hit.point.z - (z - 0.035)) < 0.00001
+      )
+    ).toBe(true);
+    for (const side of [-1, 1])
+      expect(
+        findRay(trolley, [x, -0.2, z + side * 0.027 - 0.015], [0, 0, 1], 0.03).length
+      ).toBeGreaterThan(0);
+  }
+  expect(findRay(trolley, [0.16, -0.02, 0.4875], [0, 1, 0], 0.06).length).toBeGreaterThan(0);
 });
