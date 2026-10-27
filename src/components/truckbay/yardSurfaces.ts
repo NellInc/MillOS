@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { POLYGON_OFFSET } from '../../constants/renderLayers';
 import { PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
-import { markSurfaceSubstrate } from '../../utils/worldSurface';
+import { markSurfaceSubstrate, PINNED_PROFILE_KEY } from '../../utils/worldSurface';
 import { YARD_PAVING_TINT } from '../terrain/terrainTypes';
 
 /**
@@ -85,6 +85,7 @@ const APRON_CONCRETE_ROUGHNESS = cloneYardTexture(PROCEDURAL_TEXTURES.concreteRo
 // The shared linear gain keeps the authored yard and its terrain perimeter
 // on the same weathered aggregate finish. Lighting alone governs the night.
 export const YARD_TARMAC_SURFACE = {
+  userData: { [PINNED_PROFILE_KEY]: 'exteriorSlab' },
   color: YARD_PAVING_TINT,
   map: YARD_TARMAC_MAP,
   roughnessMap: YARD_TARMAC_ROUGHNESS,
@@ -101,6 +102,7 @@ export const ROAD_TARMAC_SURFACE = {
   ...YARD_GROUND_DEPTH.road,
 } as const;
 export const APRON_CONCRETE_SURFACE = {
+  userData: { [PINNED_PROFILE_KEY]: 'exteriorSlab' },
   color: '#ffffff',
   map: APRON_CONCRETE_MAP,
   roughnessMap: APRON_CONCRETE_ROUGHNESS,

@@ -140,10 +140,12 @@
  */
 
 import * as THREE from 'three';
+import { SURFACE_WETNESS, WET_GROUND_GLSL } from '../shaders/surfaceWetness';
+import { SHELTER_GLSL } from '../simulation/rainShelters';
 import { CONCRETE_SLAB_GLSL, SLAB_JOINT_PITCH, SLAB_JOINT_WIDTH } from './concreteSlab';
 
 /** Bump BY HAND whenever the injected GLSL below changes. Never derive this. */
-const WORLD_SURFACE_PROGRAM_VERSION = 'v10';
+const WORLD_SURFACE_PROGRAM_VERSION = 'v11';
 
 /** Where a rib's crown sits within its pitch, 0-1 (the trapezoid in FRAGMENT_BODY). */
 export const RIB_CROWN_PHASE = 0.4;
@@ -421,6 +423,27 @@ const BARE_CONCRETE = '#a49d92';
  * These are art direction, so they are tuned by eye against captured frames and
  * not derived. The numbers that are NOT free choices are called out.
  */
+const SLAB_SURFACE_PROFILE = {
+  macroPeriod: 11,
+  macro: 0.2,
+  mesoPeriod: 0.6,
+  meso: 0.04,
+  reliefMetres: 0.004,
+  mesoFadeMetres: 40,
+  grime: 0,
+  grimeHeight: 1,
+  datum: 0,
+  dust: 0,
+  edge: 0,
+  objectSpace: 0,
+  grimeColor: GRIME_BROWN,
+  dustColor: DUST_PALE,
+  bareColor: BARE_CONCRETE,
+  slabPitch: SLAB_JOINT_PITCH,
+  slabJoint: 0.5,
+  slabTone: 0.08,
+} as const;
+
 export const WORLD_SURFACE_PROFILES = {
   /**
    * Painted and powder-coated steel: cladding, trim, sills, rails, plant.
@@ -587,26 +610,9 @@ export const WORLD_SURFACE_PROFILES = {
    * shared tarmac and concrete sources: those also tile the roads and dozens of
    * plinths, and a road with 5 m square joints is a different road.
    */
-  slab: {
-    macroPeriod: 11,
-    macro: 0.2,
-    mesoPeriod: 0.6,
-    meso: 0.04,
-    reliefMetres: 0.004,
-    mesoFadeMetres: 40,
-    grime: 0,
-    grimeHeight: 1,
-    datum: 0,
-    dust: 0,
-    edge: 0,
-    objectSpace: 0,
-    grimeColor: GRIME_BROWN,
-    dustColor: DUST_PALE,
-    bareColor: BARE_CONCRETE,
-    slabPitch: SLAB_JOINT_PITCH,
-    slabJoint: 0.5,
-    slabTone: 0.08,
-  },
+  slab: SLAB_SURFACE_PROFILE,
+  // Only explicitly pinned yard/apron owners opt into exposed rain response.
+  exteriorSlab: SLAB_SURFACE_PROFILE,
   /**
    * Bare, galvanised and plated metal. Metalness 1 means diffuse is ZERO, so a
    * diffuse-side grime tint barely reads and the work has to be done by
@@ -802,7 +808,17 @@ export type WorldSurfaceProfileName = keyof typeof WORLD_SURFACE_PROFILES;
 /** Per-profile overrides, for the sites whose floor is not world zero. */
 export type WorldSurfaceOverrides = Partial<WorldSurfaceProfile>;
 
+/** Independent same-page isolation of the opted-in wet finish. */
+export const WORLD_SURFACE_WEATHER_STRENGTH = { value: 1 };
+const DRY_SURFACE_WEATHER = Object.freeze({ value: 0 });
+const SURFACE_WEATHER_GLSL = WET_GROUND_GLSL.replaceAll(
+  'uSurfaceWetness',
+  'uSurfWeatherWetness'
+).replaceAll('millosWetGround', 'surfWetGround');
+
 interface WorldSurfaceUniforms {
+  readonly uSurfWeatherWetness: { value: number };
+  readonly uSurfWeatherStrength: { value: number };
   readonly uSurfStrength: { value: number };
   /** x grime, y dust, z edge, w macro amplitude. */
   readonly uSurfMask: { value: THREE.Vector4 };
@@ -898,6 +914,12 @@ uniform float uSurfRibNyquist;
 varying vec3 vSurfWorld;
 varying vec3 vSurfObject;
 varying vec3 vSurfNormalW;
+uniform float uSurfWeatherStrength;
+${SURFACE_WEATHER_GLSL}
+bool surfRainSheltered( vec3 p ) {
+${SHELTER_GLSL}
+  return false;
+}
 ${CONCRETE_SLAB_GLSL}
 ${RIB_INTEGRAL_GLSL}
 
@@ -1106,6 +1128,10 @@ const FRAGMENT_BODY = /* glsl */ `
     * ( uSurfDetail.z * surfNear * surfKill )
     + vec2( dFdx( surfRibHeight ), dFdy( surfRibHeight ) );
   normal = surfPerturbNormal( -vViewPosition, normal, surfDh );
+  // Independent of the static finish kill switch and evaluated in world space.
+  if ( uSurfWeatherStrength > 0.0 && uSurfWeatherWetness > 0.0 && !surfRainSheltered( vSurfWorld ) ) {
+    surfWetGround( diffuseColor.rgb, roughnessFactor );
+  }
 `;
 
 const FRAGMENT_ANCHOR = '#include <normal_fragment_maps>';
@@ -1206,6 +1232,9 @@ function buildWorldSurfaceUniforms(
 ): WorldSurfaceUniforms {
   const settings: WorldSurfaceProfile = { ...WORLD_SURFACE_PROFILES[profile], ...overrides };
   return {
+    uSurfWeatherWetness: profile === 'exteriorSlab' ? SURFACE_WETNESS : DRY_SURFACE_WEATHER,
+    uSurfWeatherStrength:
+      profile === 'exteriorSlab' ? WORLD_SURFACE_WEATHER_STRENGTH : DRY_SURFACE_WEATHER,
     uSurfStrength: WORLD_SURFACE_STRENGTH,
     uSurfMask: {
       value: new THREE.Vector4(settings.grime, settings.dust, settings.edge, settings.macro),
@@ -1454,7 +1483,7 @@ export function markSurfaceSubstrate<T extends THREE.Texture>(
 }
 
 /** `Material.userData` key a material uses to pin its own profile. */
-const PINNED_PROFILE_KEY = 'millosWorldSurfacePinned';
+export const PINNED_PROFILE_KEY = 'millosWorldSurfacePinned';
 
 /**
  * Pin `profile` to this material through every automatic path.

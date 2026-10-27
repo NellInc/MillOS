@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
+import { SURFACE_WETNESS, WET_GROUND_GLSL, wetGroundResponse } from '../../shaders/surfaceWetness';
+import { SHELTER_GLSL, rainReachesPoint } from '../../simulation/rainShelters';
 import {
   WORLD_SURFACE_CACHE_KEY,
+  WORLD_SURFACE_WEATHER_STRENGTH,
   WORLD_SURFACE_PROFILES,
   WORLD_SURFACE_STRENGTH,
   applyBatchWorldSurface,
@@ -637,5 +640,92 @@ describe('indoor bounce', () => {
     expect(bounce).toContain('material.diffuseContribution');
     expect(bounce).toContain('reflectedLight.indirectDiffuse / surfAlbedo');
     expect(bounce).not.toContain('dot( reflectedLight.indirectDiffuse');
+  });
+});
+
+describe('explicit exterior slab weather', () => {
+  it('shares the existing damped wetness only with the opted profile, independently of static strength', () => {
+    expect(WORLD_SURFACE_PROFILES.exteriorSlab).toBe(WORLD_SURFACE_PROFILES.slab);
+    const wet = applyWorldSurface(new THREE.MeshStandardMaterial(), 'exteriorSlab');
+    const compiled = compileInjection(wet),
+      key = wet.customProgramCacheKey(),
+      version = wet.version;
+    expect(compiled.uniforms.uSurfWeatherWetness).toBe(SURFACE_WETNESS);
+    expect(compiled.uniforms.uSurfWeatherStrength).toBe(WORLD_SURFACE_WEATHER_STRENGTH);
+    for (const profile of profileNames.filter((p) => p !== 'exteriorSlab')) {
+      const dry = applyWorldSurface(new THREE.MeshStandardMaterial(), profile),
+        shader = compileInjection(dry);
+      expect(shader.uniforms.uSurfWeatherWetness.value).toBe(0);
+      expect(Object.isFrozen(shader.uniforms.uSurfWeatherWetness)).toBe(true);
+      expect(Object.isFrozen(shader.uniforms.uSurfWeatherStrength)).toBe(true);
+      expect(shader.fragmentShader).toBe(compiled.fragmentShader);
+      dry.dispose();
+    }
+    const saved = [
+      SURFACE_WETNESS.value,
+      WORLD_SURFACE_STRENGTH.value,
+      WORLD_SURFACE_WEATHER_STRENGTH.value,
+    ];
+    try {
+      WORLD_SURFACE_STRENGTH.value = 0;
+      SURFACE_WETNESS.value = 0.82;
+      expect(compiled.uniforms.uSurfStrength.value).toBe(0);
+      expect(compiled.uniforms.uSurfWeatherWetness.value).toBe(0.82);
+      WORLD_SURFACE_WEATHER_STRENGTH.value = 0;
+      expect(compiled.uniforms.uSurfWeatherStrength.value).toBe(0);
+      expect(SURFACE_WETNESS.value).toBe(0.82);
+      expect(wet.customProgramCacheKey()).toBe(key);
+      expect(wet.version).toBe(version);
+    } finally {
+      [SURFACE_WETNESS.value, WORLD_SURFACE_STRENGTH.value, WORLD_SURFACE_WEATHER_STRENGTH.value] =
+        saved;
+      wet.dispose();
+    }
+    const fragment = compiled.fragmentShader;
+    expect(fragment).toContain(
+      WET_GROUND_GLSL.replaceAll('uSurfaceWetness', 'uSurfWeatherWetness').replaceAll(
+        'millosWetGround',
+        'surfWetGround'
+      )
+    );
+    expect(fragment).toContain(SHELTER_GLSL);
+    expect(fragment).toContain(
+      'uSurfWeatherStrength > 0.0 && uSurfWeatherWetness > 0.0 && !surfRainSheltered( vSurfWorld )'
+    );
+    expect(fragment.indexOf('surfWetGround( diffuseColor.rgb')).toBeGreaterThan(
+      fragment.indexOf('metalnessFactor = clamp')
+    );
+    expect(fragment.indexOf('surfWetGround( diffuseColor.rgb')).toBeLessThan(
+      fragment.indexOf('#include <lights_physical_fragment>')
+    );
+    expect(wetGroundResponse(0)).toEqual({ albedo: 1, roughness: 1 });
+    expect(wetGroundResponse(0.82)).toEqual({ albedo: 0.754, roughness: 0.5244 });
+  });
+  it('does not collide with generic wet-ground uniforms/helpers in a composed host', () => {
+    const host = new THREE.MeshStandardMaterial();
+    host.onBeforeCompile = (shader) => {
+      shader.uniforms.uSurfaceWetness = SURFACE_WETNESS;
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <common>',
+        '#include <common>\n' + WET_GROUND_GLSL
+      );
+    };
+    composeWorldSurface(host, 'painted', { cacheKey: 'wet_host_test_v1' });
+    const shader = compileInjection(host);
+    expect(shader.uniforms.uSurfaceWetness).toBe(SURFACE_WETNESS);
+    expect(shader.uniforms.uSurfWeatherWetness.value).toBe(0);
+    expect(shader.fragmentShader.match(/void millosWetGround/g)).toHaveLength(1);
+    expect(shader.fragmentShader.match(/void surfWetGround/g)).toHaveLength(1);
+    expect(host.customProgramCacheKey()).toBe('wet_host_test_v1_' + WORLD_SURFACE_CACHE_KEY);
+    host.dispose();
+  });
+  it('uses the shared strict canopy boundary, including mirrored receiving and roof height', () => {
+    for (const z of [58, -58]) {
+      expect(rainReachesPoint(9, 0, z)).toBe(false);
+      expect(rainReachesPoint(10.25, 0, z)).toBe(true);
+      expect(rainReachesPoint(10.249, 0, z)).toBe(false);
+      expect(rainReachesPoint(9, 6.2, z)).toBe(true);
+      expect(rainReachesPoint(11, 0, z)).toBe(true);
+    }
   });
 });

@@ -10,6 +10,11 @@ import {
   rainDropHeights,
   rainReachesPoint,
 } from './Precipitation';
+import {
+  RAIN_SHELTERS as SHARED_SHELTERS,
+  rainReachesPoint as sharedRainReachesPoint,
+  SHELTER_GLSL,
+} from '../../simulation/rainShelters';
 import { sampleAtmosphere } from '../../simulation/atmosphere';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
@@ -178,4 +183,13 @@ describe('world-space precipitation', () => {
       material.dispose();
     }
   });
+});
+
+it('retains the original precipitation exports and exact shelter GLSL after shared extraction', () => {
+  expect(RAIN_SHELTERS).toBe(SHARED_SHELTERS);
+  expect(rainReachesPoint).toBe(sharedRainReachesPoint);
+  const material = createPrecipitationMaterial();
+  expect(material.fragmentShader).toContain(SHELTER_GLSL);
+  expect(SHELTER_GLSL.split('\n')).toHaveLength(RAIN_SHELTERS.length);
+  material.dispose();
 });

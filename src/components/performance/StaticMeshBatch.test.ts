@@ -10,10 +10,18 @@ import {
 } from './StaticMeshBatch';
 import {
   applyBatchWorldSurface,
+  applyDeclinedWorldSurface,
+  pinnedSurfaceProfile,
   applyWorldSurface,
   hasWorldSurface,
   pinSurfaceProfile,
 } from '../../utils/worldSurface';
+import { SURFACE_WETNESS } from '../../shaders/surfaceWetness';
+import {
+  YARD_TARMAC_SURFACE,
+  APRON_CONCRETE_SURFACE,
+  ROAD_TARMAC_SURFACE,
+} from '../truckbay/yardSurfaces';
 import { applyLampLens, lampLensStyle, LAMP_LENS_HEIGHTS } from '../models/GeneratedLampModel';
 import { EXTERIOR_LAMP_LENS_MATERIAL } from '../exterior/ExteriorLighting';
 import { applyCivicLampShadows, CIVIC_SHADOW_ATLAS } from '../../shaders/civicLampShadows';
@@ -913,4 +921,102 @@ describe('StaticMeshBatch surface callback', () => {
     const stats = root.userData.staticBatchStats as { surfaceProfiles: Record<string, number> };
     expect(stats.surfaceProfiles).toEqual({});
   });
+});
+
+it('carries the actual owned yard and apron wetness into their compiled batch shaders', () => {
+  const root = new THREE.Group();
+  const geometry = new THREE.BoxGeometry(1, 0.1, 1);
+  for (const [i, props] of [
+    YARD_TARMAC_SURFACE,
+    APRON_CONCRETE_SURFACE,
+    ROAD_TARMAC_SURFACE,
+  ].entries()) {
+    const material = new THREE.MeshStandardMaterial(props);
+    const first = new THREE.Mesh(geometry, material);
+    first.position.x = i * 3;
+    root.add(first);
+    const other = new THREE.Mesh(geometry, material.clone());
+    other.position.x = i * 3;
+    other.position.z = 3;
+    root.add(other);
+  }
+  const batches = createStaticMeshBatches(
+    root,
+    collectStaticBatchCandidates(root, true),
+    'yard-weather',
+    2,
+    applyBatchWorldSurface
+  );
+  expect(batches).toHaveLength(3);
+  for (const batch of batches) {
+    const material = batch.mesh.material as THREE.MeshStandardMaterial;
+    const shader = {
+      uniforms: {},
+      vertexShader: THREE.ShaderLib.standard.vertexShader,
+      fragmentShader: THREE.ShaderLib.standard.fragmentShader,
+    } as THREE.WebGLProgramParametersWithUniforms;
+    material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
+    if (material.map !== ROAD_TARMAC_SURFACE.map) {
+      expect(shader.uniforms.uSurfWeatherWetness).toBe(SURFACE_WETNESS);
+      expect(shader.fragmentShader).toContain('surfWetGround( diffuseColor.rgb, roughnessFactor )');
+    } else expect(shader.uniforms.uSurfWeatherWetness.value).toBe(0);
+  }
+});
+
+it('preserves explicit wet/dry partitions through clone repair, finishing and rebatching with identical texture source', () => {
+  const geometry = new THREE.BoxGeometry(1, 0.1, 1),
+    map = YARD_TARMAC_SURFACE.map;
+  const root = new THREE.Group();
+  for (const [index, profile] of ['exteriorSlab', 'slab'].entries()) {
+    const material = pinSurfaceProfile(
+      new THREE.MeshStandardMaterial({ map, roughness: 1 }),
+      profile as 'exteriorSlab' | 'slab'
+    );
+    applyDeclinedWorldSurface(material);
+    const ghost = material.clone();
+    expect(hasWorldSurface(ghost)).toBe(false);
+    expect(pinnedSurfaceProfile(ghost)).toBe(profile);
+    applyDeclinedWorldSurface(ghost);
+    expect(hasWorldSurface(ghost)).toBe(true);
+    for (let i = 0; i < 2; i++) {
+      const mesh = new THREE.Mesh(geometry, i ? ghost : material);
+      mesh.position.set(index * 3, 0, i * 3);
+      root.add(mesh);
+    }
+  }
+  for (let pass = 0; pass < 2; pass++) {
+    const batches = createStaticMeshBatches(
+      root,
+      collectStaticBatchCandidates(root, true),
+      'wet-partition-' + pass,
+      2,
+      applyBatchWorldSurface
+    );
+    expect(batches).toHaveLength(2);
+    const next = new THREE.Group();
+    for (const batch of batches) {
+      const material = batch.mesh.material as THREE.MeshStandardMaterial;
+      const shader = {
+        uniforms: {},
+        vertexShader: THREE.ShaderLib.standard.vertexShader,
+        fragmentShader: THREE.ShaderLib.standard.fragmentShader,
+      } as THREE.WebGLProgramParametersWithUniforms;
+      material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
+      expect(shader.uniforms.uSurfWeatherWetness === SURFACE_WETNESS).toBe(
+        pinnedSurfaceProfile(material) === 'exteriorSlab'
+      );
+      // Reconstitute ordinary source meshes from the actual batch output material.
+      for (let i = 0; i < 2; i++) {
+        const clone = material.clone();
+        applyDeclinedWorldSurface(clone);
+        const mesh = new THREE.Mesh(geometry, clone);
+        mesh.position.x = i * 2;
+        next.add(mesh);
+      }
+    }
+    if (pass === 0) {
+      root.clear();
+      root.add(...[...next.children]);
+    }
+  }
 });
