@@ -8,7 +8,10 @@ import {
   createRiverFootbridgeFrameGeometry,
   createRoadRiverBridgeFrameGeometry,
 } from './exterior/riverGeometry';
-import { createMaintenanceJoinery } from './exterior/serviceBuildingCraft';
+import {
+  createMaintenanceJoinery,
+  createSecurityOfficeCraft,
+} from './exterior/serviceBuildingCraft';
 import { WORKER_TOOL_GEOMETRIES } from './workers/WorkerTools';
 
 vi.mock('../utils/critterAudio', () => ({ playCritterSound: vi.fn() }));
@@ -121,6 +124,7 @@ describe('colour-aware coplanar sweep fixes', () => {
   });
 
   it.each([
+    ['visitor-office joinery', createSecurityOfficeCraft],
     ['road bridge frame', createRoadRiverBridgeFrameGeometry],
     ['footbridge open ironwork', createRiverFootbridgeFrameGeometry],
   ] as const)(

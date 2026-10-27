@@ -8851,6 +8851,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
           <boxGeometry args={[6.5, 0.5, 5.5]} />
           <meshStandardMaterial color="#455a64" {...OUTBUILDING_SURFACE} />
         </mesh>
+        <ServiceBuildingCraft kind="security" />
         {/* Window */}
         <mesh position={[0, 2.2, 2.55]}>
           <planeGeometry args={[4, 2]} />

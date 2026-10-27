@@ -50,6 +50,7 @@ import {
   createMaintenanceRoof,
   createMaintenanceJoinery,
   createSubstationCraft,
+  createSecurityOfficeCraft,
   SERVICE_BUILDING_ENVELOPES,
 } from './serviceBuildingCraft';
 
@@ -335,6 +336,7 @@ describe('authored service-building construction', () => {
     for (const [kind, g] of [
       ['maintenance', createMaintenanceJoinery()],
       ['substation', createSubstationCraft()],
+      ['security', createSecurityOfficeCraft()],
     ] as const) {
       const bounds = SERVICE_BUILDING_ENVELOPES[kind];
       expect(g.attributes.color.count).toEqual(g.attributes.position.count);
@@ -527,4 +529,50 @@ it('keeps the trolley basket open and joins its rounded rims, child-seat, forks 
       ).toBeGreaterThan(0);
   }
   expect(findRay(trolley, [0.16, -0.02, 0.4875], [0, 1, 0], 0.06).length).toBeGreaterThan(0);
+});
+
+it('mounts the visitor office entrance craft without replacing its retained front identity', () => {
+  const src = readFileSync('src/components/FactoryExterior.tsx', 'utf8');
+  const office = src.slice(
+    src.indexOf('{/* Security/visitor office'),
+    src.indexOf('{/* Maintenance shed')
+  );
+  expect(office).toContain('<ServiceBuildingCraft kind="security" />');
+  expect(office).toContain('position={[-25, 0, 115]}');
+  expect(office).toContain('args={[6, 4, 5]}');
+  expect(office).toContain('args={[6.5, 0.5, 5.5]}');
+  expect(office).toContain('brand="security"');
+});
+
+it('grounds the security entrance and fits real door, frame and window profiles to the retained shell', () => {
+  const g = createSecurityOfficeCraft(),
+    m = new Mesh(g, new MeshStandardMaterial());
+  m.updateMatrixWorld(true);
+  const fromEast = (y: number, z: number) =>
+    new Raycaster(new Vector3(4, y, z), new Vector3(-1, 0, 0)).intersectObject(m)[0];
+  for (const [y, z, minX, maxX] of [
+    [1, 0.6, 3.04, 3.06], // closed door, behind the rebate
+    [0.1, 0.6, 3.047, 3.048], // no damp course across the foot of the door
+    [1.3, -0.01, 3.1, 3.12], // jamb
+    [2.56, 0.6, 3.1, 3.12], // lintel
+    [0.025, 0.6, 3.21, 3.23], // grounded threshold
+    [1.17, 0.17, 3.15, 3.16], // supported rounded pull
+  ]) {
+    const hit = fromEast(y, z);
+    expect(hit).toBeDefined();
+    expect(hit.point.x).toBeGreaterThanOrEqual(minX);
+    expect(hit.point.x).toBeLessThanOrEqual(maxX);
+  }
+  // Clear front glazing bays: only the retained pane fills these, not craft.
+  for (const x of [-1.35, 0, 1.35]) {
+    const ray = new Raycaster(new Vector3(x, 2.2, 3), new Vector3(0, 0, -1), 0, 0.6);
+    expect(ray.intersectObject(m)).toHaveLength(0);
+  }
+  expect(g.boundingBox!.min.y).toBeCloseTo(0, 6);
+  expect(g.attributes.position.count / 3).toBeLessThan(1000);
+  for (let i = 0; i < g.attributes.normal.count; i++)
+    expect(new Vector3().fromBufferAttribute(g.attributes.normal, i).length()).toBeCloseTo(1, 5);
+  expect(SERVICE_BUILDING_ENVELOPES.security.position).toEqual([-25, 0, 115]);
+  g.dispose();
+  (m.material as MeshStandardMaterial).dispose();
 });
