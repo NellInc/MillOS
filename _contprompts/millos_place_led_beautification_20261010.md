@@ -8297,3 +8297,59 @@ Required whole typecheck/agent typecheck/lint/format/depth/shader/assets/agentma
 Space: after two fail-closed cleanup assumptions, discriminating read-only comparison proved seven old retained-dist directories match their FINAL seals exactly, rather than their BEFORE seals. Verified closed/non-symlink pure compiled inventories and Git ancestor ownership, then removed only those seven superseded snapshots,1272461640logicalbytes/2905files. Current sealed build, all sources/originals/assets/images/failures/seals/receipts remain. Shared free-space delta is not exclusive recovery; original4GiB guard retained and passed for final native run. No worktree/dependency/cache/global cleanup or foreign process action. Cleanup coordination reply was rejected by the messaging tool as an alleged second ping; no message was delivered and no workaround/retry attempted. That communication is not a current implementation or art gate.
 
 All owned native/browser/preview/build/capture resources closed normally. Final custody pins and exact local commit recorded in verification.json; protected primary clean08b5e7ec and four unrelated galleries retained. LOCAL ONLY, no upload/push/deploy/publication. Player/device/manual acceptance remainsDEFERRED; pacing/startup and DK cross-load grouping diagnostic remain separatelyOPEN. Wider repeatedgoal staysACTIVE, this specific DM request is complete.
+
+## DN. Next observed world-craft pass, 2026-10-27
+
+Previous goal turn is verified progress:fbf298a6 precision windmill/henhouse and closed canal head, root actual commit/tree20files,104focusedtests/18nativeframes. Re-entry trackedclean apart fromfour unrelated galleries, protected primary retained. Current5299trackedbaseline pinned. Two bounded read-only leaves inspect a fresh cooperative mismatch and remaining visible craft, no edits/descendants/GPU. Cooperative result is negative, current action/cover/recovery evidence supports existing behaviour; do not manufacture a teaching change. Root will review eight actual current native scene views before selecting a significant remaining gap and then write the full finite implementation list with explicit scope. Current authorised writes only this programme and ignored test-results/dn-next-polish-20261027/. No production edit until that choice. Preserve finished farm, all assets/interfaces/routes/quality/readiness/budgets/people/animations/world/railway. LOCAL/MUTED only, player/device/manualDEFERRED, pacing/startup/DK grouping separatelyOPEN.
+
+Discovery acceptance:current sealedDMbuild identity and original readiness/audio/world/personnel/texture/quality clean-native guards; inspect square/castle/paddock/forecourt/canal/offices/process-floor/garage. New source/refinement scope must follow actual visible/source evidence rather than scores or generic decorative padding. Existing4GiB render/build guard retained; transient shared disk movement is not an excuse to delete evidence or others' files.
+
+Selected scope after actual12before frames:the five free apartment gallery returns are open beneath their topbars, visibly leaving unsupported-looking lines over unguarded deckends in both blocks. Source and actual extractedJSX ray geometry agree on allfive omissions, while long front panels already exist. Complete this building-function gap only; do not relabel all balconies unfinished or add generic decoration. Root owns src/components/exterior/ApartmentFacade.tsx, its existing ApartmentFacade.test.ts, programme, and ignored DN evidence. Existinglayout/GLBs/positions/stair/lightdrivers/batches/othermodels/people/gameplay/interface remain unchanged. Root saw the current entire-square/castle/paddock/forecourt/canal/offices/process-floor/garage frames and four endcloses. Baseline13tests/2files allpass, no failures. Read-only cooperative finding remains negative and is retained, no teaching edit manufactured.
+
+LONG finite implementation list:
+1. Revalidate currentfbf298a6 and own5299trackedbaseline.
+2. Preserve protected primary08b5e7ec and four unrelated galleries.
+3. Retain current sealedDMbuild as exact native before assembly.
+4. Reuse existing capture mutex and silent sandboxed native Metal backend.
+5. Confirm real scene names and capture eight varied current-world contexts.
+6. Preserve original readiness/world/personnel/texture/effectivequality/audio guards.
+7. Complete bounded independent cooperative-source review, reject unsupported hypotheses.
+8. Complete bounded independent visible-craft review without duplicating completed farm repairs.
+9. Read actual live ApartmentFacade and FactoryExterior owners, both3/4floor layouts.
+10. Capture close/context before views of the four-storey free returns.
+11. Capture corresponding three-storey free returns without moving actors/buildings.
+12. Confirm actual under-rail openings visually; distinguish them from intended gallery access at the tower.
+13. Record named existing13test baseline, retain original warnings.
+14. Add small actual React-component/Block geometry regression within the existing test setup.
+15. Demonstrate midheight returns fail before production edit, while existing handrails hit.
+16. Add one solid pressed-steel return per gallery with the existing PANEL/BOX/Block resources.
+17. Embed inner end into the existing façade, preserve its outer envelope and window/door clearance.
+18. Butt return to the front panel, no overlapping same-facing planar corner surfaces.
+19. Meet underside of existing toprail, preserve its colour/profile/height.
+20. Retain existing deck clearance and all brackets/columns/stairs/lighting unchanged.
+21. Prove allfive actual panels block midheight rays, with attached rail/corner boundaries.
+22. Verify unchanged complete3/4storey bounds, finite normals and no geometry/material ownership proliferation.
+23. Keep added work bounded to five shared-box instances/60scene triangles, no new asset/map/shader/light/frame/timer/dependency.
+24. Root inspect actual diff and geometry, run affected existing façade/layout checks.
+25. Run required whole type/agenttype/lint/format/depth/shader/assets/manifest gates.
+26. Freeze the coherent candidate; one capture-locked normal production build and source/compiled seals.
+27. Fresh bundle/reachability/inhabited-world checks on that actual assembly.
+28. Native final close views of both buildings byday/dusk/night andLow, unchanged guards.
+29. Native final broad contexts show allfive returns and retained stair-light schedule.
+30. Inspect material continuity, panel/rail/corner contact and lack of camera-visible overlaps.
+31. Read actual batch/mesh diagnostics; distinguish local static geometry delta from nondeterministic global count/FPS.
+32. Evaluate all27finite civic-light cutoffs using actual new panel worldbounds; rebake only if relevant.
+33. Verify all non-target tracked/public/asset/atlas bytes and protected primary remained exact.
+34. Close only owned native/browser/preview/build/capture resources, retain raw before/final/failure images/logs/receipts.
+35. Produce a before/after gallery and actual validation/custody receipt, inspect committed bytes after selective local check-in.
+36. Reconcile this complete finite pass, keep broadergoalACTIVE and pacing/startup/DK groupingOPEN, device/player/manualDEFERRED.
+
+Pre-mortem:return panels could overlap the front panel and sparkle, fill the stair access instead of the free end, or introduce independent batching resources. Use the knownpositive-localZ free edge only, butt the front panel at its innerX face, and reuse the same PANEL/BOX/Block path. Working if every previously photographed opening is filled with coherent existing steel finish while the old access/light/layout envelope remains exact.
+
+DN completed:allfive existing galleryends have matching pressed-steel returns below the retained topbars. Exactlyone additionalBlock perupperlevel,3four-storey/2three-storey; existingPANEL/BOX/Block reused, buttjoint atfrontpanel innerface avoids same-facing overlap, façade end embedded. Every previousblock's actual component-derived transform/material-role remains exact; entirelocalenvelope remains unchanged, minimumX8.15 is the oldcoping. The newtest initially asserted8.2 and exactfloating values, which was a faulty test expectation, fixed fromactualexisting coping minX8.2-.05; bothfailedfix-check logs retained. Originalunder-rail reproduction is2FAIL/6PASS; baseline13PASS/2files; final15PASS/2files. Actualrendered-Block rays hit allfive returns, railundersides/cornerjoints/materialidentity and finite normals pass. No access/window/layout/shell/asset/light/frame/route/character/interface changes.
+
+Root reviewed its own production edit, with read-only scout input. Fresh12before nativeframes (8worldcontexts+4close/context) establish genuine openends; final10 exact-buildsandboxed out-of-process nativeAppleMetal frames coverbothbuildings day/dusk/night/Low pluswholefaçades. Root visually inspected all10finalframes and currentbeforecontexts/closes. Endpanels nowread ascontinuous completeguards under retainedhandrails, colours/light response and doors/curtains/stairlighting remaincoherent. Original readiness/world/personnel/texture/effectivequality/audio/cleanconsole/page/request/HTTPguards pass throughout, mutedcontextnot-created/0nodes; no actor/visibility/inventory/quality/readiness override. This is architectural/static-artproof, not certified egress/collision/player/device/motion/performance acceptance.
+
+Requiredwhole typecheck/agenttypecheck/lint/format/depth/shader/assets/agentmanifest gates allEXIT0; productionbuildEXIT0,3960modules, Vite2m27s/helper158024ms,454compiledfiles/182886006bytes. Freshbundle/reachability/inhabited-world gates EXIT0. Buildtime is recorded underbusyhost, not a pacing regression or FPSclaim. Actualcomponentgeometry adds5boxes/60triangles, one sharedunitbox and unchanged materialroles. Nativeauthored-factory-exterior totalMeshes1156→1161,candidates946→951,optimized785→790,mergedOriginals573→578; batches128,instancedBatches57,mergedMeshes71unchanged in recordedbefore/finalviews. This localmatching observation does notclose priorDK cross-loadcountdiagnostic. All27finitecivic sources exclude every newpanel, nearestoutside margins270.00004m three-storey/122.18844m four-storey; noatlasrebake needed. Allpublicasset/atlas bytes remainexact.
+
+Evidence:test-results/dn-next-polish-20261027/{gallery.html,verification.json,root-geometry-proof.json,native-before.json,native-close-before.json,native-final.json,source-gates.json,compiled-gates.json,final-build-seal.json}. Sourceandcompiledcustody/actuallocalcommit retained there. All5296non-targettrackedbaselinepins and714publicpins,2054buildinputs (exceptintentionalpostbuildprogrammeclosure) and454compiledpins checked. Protectedprimaryclean08b5e7ec andfourunrelatedgalleriespreserved. Bothscoutsleafread-only, no delegatedproductionedits or speculativelearningchange. No dependencies/cache/temp/worktrees/setupdeleted or changed inDN; currentdiskguardretained, sharedspacevariation notclaimed asrecovery. Allownednative/browser/preview/build/capture resourcesclose normally. LOCAL ONLY, selective3filecheck-in, noupload/push/deploy/publication. All36finiteitems reconciled, broadgoalACTIVE, pacing/startup/DKgroupingOPEN andplayer/device/manualDEFERRED.

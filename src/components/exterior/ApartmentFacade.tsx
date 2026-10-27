@@ -142,6 +142,14 @@ export const ApartmentFacade: React.FC<{ floors: ApartmentFloors }> = ({ floors 
             max={[outer - 0.03, top + g.railHeight, g.maxZ]}
             material={RAIL}
           />
+          {/* Complete the free return beneath that rail. Butt the long panel's
+              inner face, keeping its top/bottom faces free of coplanar overlap.
+              Working if every gallery has a continuous end below its handrail. */}
+          <Block
+            min={[face - 0.02, top + 0.08, g.maxZ - 0.07]}
+            max={[outer - 0.1, top + g.railHeight - 0.05, g.maxZ - 0.04]}
+            material={PANEL}
+          />
           {/* Two brackets under each gallery. */}
           {[g.minZ + 2.5, (g.minZ + g.maxZ) / 2 + 1, g.maxZ - 1.2].map((z) => (
             <Block
