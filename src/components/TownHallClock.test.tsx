@@ -10,6 +10,12 @@ vi.mock('./models/GeneratedModel', async (importOriginal) => ({
   GeneratedModel: () => null,
 }));
 vi.mock('./scenery/VillageSignage', () => ({ VillageNameboard: () => null }));
+// The independent privet texture suspends in jsdom. This check concerns the
+// live clock siblings, not the hedge's separately tested asset-loading path.
+vi.mock('./scenery/VillageGardens', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./scenery/VillageGardens')>()),
+  TownHallPrivet: () => null,
+}));
 const initialTime = useGameSimulationStore.getState().gameTime;
 afterEach(() => {
   cleanup();

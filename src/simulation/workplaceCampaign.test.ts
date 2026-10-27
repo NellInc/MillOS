@@ -9,6 +9,7 @@ import {
   workplaceCapacity,
   workplaceTickCapacity,
   workplaceReadiness,
+  workplaceAlternatives,
   compareManagementApproaches,
   type WorkplaceCommand,
 } from './bilateralWorkplace';
@@ -188,6 +189,57 @@ describe('Living Cooperative, synthetic multi-shift fairness', () => {
     expect(campaignOutcomes(c.state).agreement.status).toBe('honoured');
   });
 
+  it.each(['steady', 'resequence'] as const)(
+    'a solvent late reload of %s reserves only unpaid work and never repurchases its plan',
+    (plan) => {
+      const c = campaign();
+      for (let shift = 0; shift < 3; shift++) {
+        if (shift !== 1)
+          c.run({
+            type: 'campaignDecision',
+            args: [shift === 0 ? 'keep-target' : 'protect-refusal', 'coordinator'],
+          });
+        c.run({
+          type: 'respondToPressure',
+          args: [CAMPAIGN_PRESSURES[shift].id, 'protect-boundary'],
+        });
+        if (shift === 2 && plan !== 'steady') c.run({ type: 'selectPlan', args: [plan] });
+        c.agree();
+        expect(c.activate().changed).toBe(true);
+        if (shift < 2) {
+          c.finish();
+          expect(c.run({ type: 'nextCampaignShift', args: [] }).changed).toBe(true);
+        }
+      }
+      c.run({ type: 'tick', args: [80, 0, false] });
+      expect(c.state.finance.cash).toBe(plan === 'steady' ? 88 : 48);
+      c.restore();
+      expect(c.run({ type: 'resumeShift', args: [c.state.revision] }).changed).toBe(true);
+      expect(workplaceReadiness(c.state).allowed).toBe(false);
+      expect(c.activate().changed).toBe(false);
+      c.agree();
+      const before = structuredClone(c.state);
+      expect(workplaceReadiness(c.state)).toEqual({ allowed: true, reasons: [] });
+      const alternative = workplaceAlternatives(c.state).find((p) => p.id === plan)!;
+      expect(alternative.reserve).toBe(12);
+      expect(alternative.cashAfterReservations).toBe(before.finance.cash - 12);
+      expect(alternative.available).toBe(true);
+      const poor = { ...before, finance: { ...before.finance, cash: 11.99 } };
+      const refused = transitionWorkplace(poor, { type: 'activate', args: [poor.revision] });
+      expect(refused.changed).toBe(false);
+      expect(refused.state).toBe(poor);
+      expect(c.activate().changed).toBe(true);
+      expect(c.state.finance.cash).toBe(before.finance.cash);
+      expect(c.state.finance.improvementSpend).toBe(before.finance.improvementSpend);
+      expect(c.state.finance.wageReserve).toBe(12);
+      c.finish();
+      expect(c.state.minute).toBe(90);
+      expect(c.state.finance.cash).toBe(before.finance.cash - 12);
+      expect(c.state.members.every((m) => m.earnedPay === 27)).toBe(true);
+      expect(campaignAgreementHonoured(c.state)).toBe(true);
+    }
+  );
+
   it('a resumed cover shift keeps its one cover member and only the cover left', () => {
     const c = campaign();
     c.run({ type: 'campaignDecision', args: ['keep-target', 'coordinator'] });
@@ -202,6 +254,9 @@ describe('Living Cooperative, synthetic multi-shift fairness', () => {
     c.restore();
     expect(c.run({ type: 'resumeShift', args: [c.state.revision] }).changed).toBe(true);
     c.agree();
+    const remainingCover = workplaceAlternatives(c.state).find((p) => p.id === 'cover')!;
+    expect(remainingCover.reserve).toBeCloseTo(108 - 4 * 1.2, 9);
+    expect(remainingCover.maximumCompensation).toBeCloseTo((10 - delivered) * 0.8, 9);
     expect(c.activate().changed).toBe(true);
     expect(c.state.activeCoverMemberId).toBe(coverer);
     expect(c.state.coverRemainingMinutes).toBeCloseTo(10 - delivered, 9);

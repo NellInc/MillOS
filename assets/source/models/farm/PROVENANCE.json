@@ -5303,14 +5303,14 @@
         "parent": "assets/source/models/farm/windmill-pre-precision.glb",
         "parentSHA256": "c2c99cbc01377a0da385b0eec5db7b6efad0d39d77bbddc5c41a6afde1541790",
         "builder": "scripts/craft-precise-windmill.mjs",
-        "builderSHA256": "872c4ac3e9ebcd080a6b06b616bd74d9ac5c6393b3896024b9e76abb09cffdb6",
-        "outputSHA256": "441bb5c8a19b6aa713c0b484633aa9c21baf56b1f1f34dfff369be5eeb20d604",
+        "builderSHA256": "a4d665946ff7aba052646d1f286cedfc0e3a23033834ac6cee5e93155e987252",
+        "outputSHA256": "986a7ea9ff95e6396db801b5c43796a2288e7c6ef8bc1f20d0b643a2b7a48da5",
         "ancestor": {
           "method": "accepted-normalized-parent",
           "sha256": "c2c99cbc01377a0da385b0eec5db7b6efad0d39d77bbddc5c41a6afde1541790"
         },
         "authoring": {
-          "receiptSHA256": "fe15240bf894b1e85bf5e324a6fafe418f04acf219d0f0e669e241ecb64e3329",
+          "receiptSHA256": "6bec9a25f5a3ef6542d33e939c234fca635cda420239cb6bbcf5bab68a40a3b8",
           "vertices": 6306,
           "triangles": 4200,
           "parts": 177,
@@ -5320,7 +5320,7 @@
       },
       "runtimeDerivative": {
         "file": "public/models/farm/windmill.glb",
-        "sha256": "441bb5c8a19b6aa713c0b484633aa9c21baf56b1f1f34dfff369be5eeb20d604",
+        "sha256": "986a7ea9ff95e6396db801b5c43796a2288e7c6ef8bc1f20d0b643a2b7a48da5",
         "bytes": 261716
       },
       "normalization": {

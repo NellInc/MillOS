@@ -216,7 +216,7 @@ function construct() {
   // Door is seated in its jambs, not baked as warped geometry/shading.
   box('door-leaf', [0.2075, -0.363, cz], [0.009, 0.152, 0.093], 'door');
   for (const side of [-1, 1])
-    box('door-jamb-' + side, [0.2015, -0.363, cz + side * 0.052], [0.027, 0.17, 0.012], 'wood');
+    box('door-jamb-' + side, [0.2015, -0.3605, cz + side * 0.052], [0.027, 0.165, 0.012], 'wood');
   box('door-lintel', [0.2015, -0.275, cz], [0.027, 0.018, 0.12], 'wood');
   box('door-threshold', [0.202, -0.449, cz], [0.026, 0.012, 0.12], 'stone');
   for (let i = 0; i < 5; i++)

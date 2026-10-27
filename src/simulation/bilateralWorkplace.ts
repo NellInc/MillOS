@@ -369,6 +369,23 @@ export function createWorkplace(mode: WorkplaceMode = 'game', seed = 1): Workpla
   };
 }
 
+/** Reload expires consent, not already-paid wages and purchases.
+ * Working if readiness, public alternatives and activation reserve the same
+ * remaining obligations without charging the plan twice.
+ */
+function workplaceFunding(s: WorkplaceState, plan: WorkplacePlan | undefined) {
+  const resumed = s.minute > 0;
+  const coverDelivered = resumed ? s.members.reduce((n, m) => n + m.extraMinutes, 0) : 0;
+  const coverLeft = Math.max(0, (plan?.optionalCoverMinutes ?? 0) - coverDelivered);
+  return {
+    resumed,
+    wages: WAGE * Math.max(0, s.durationMinutes - s.minute) * s.members.length,
+    coverLeft,
+    compensation: coverLeft * (plan?.compensationPerMinute ?? 0),
+    purchase: resumed ? 0 : (plan?.budgetCost ?? 0) + improvementCost(s),
+  };
+}
+
 export function workplaceReadiness(s: WorkplaceState): WorkplaceReadiness {
   const p = planOf(s);
   const reasons: string[] = [];
@@ -417,11 +434,10 @@ export function workplaceReadiness(s: WorkplaceState): WorkplaceReadiness {
     !s.members.some((m) => m.coverConsent === true && eligibleCover(m))
   )
     reasons.push(translate(wm, 'readyCoverConsent'));
-  const wages = WAGE * s.durationMinutes * s.members.length;
-  const compensation = (p?.optionalCoverMinutes ?? 0) * (p?.compensationPerMinute ?? 0);
+  const funding = workplaceFunding(s, p);
   if (
     !finite(s.finance.cash) ||
-    s.finance.cash + 1e-8 < wages + (p?.budgetCost ?? 0) + compensation + improvementCost(s)
+    s.finance.cash + 1e-8 < funding.wages + funding.purchase + funding.compensation
   )
     reasons.push(translate(wm, 'readyFunds'));
   return { allowed: reasons.length === 0, reasons };
@@ -566,10 +582,11 @@ export function compareWorkplacePlans(seed: number): WorkplaceComparison[] {
 export function workplaceAlternatives(s: WorkplaceState) {
   const totals = campaignTotals(s);
   return WORKPLACE_PLANS.filter((p) => !p.illegalReason).map((p) => {
-    const reserve = WAGE * s.durationMinutes * s.members.length;
-    const maximumCompensation = p.optionalCoverMinutes * p.compensationPerMinute;
+    const funding = workplaceFunding(s, p);
+    const reserve = funding.wages;
+    const maximumCompensation = funding.compensation;
     const missing = p.requiredPractices.filter((id) => !s.practices.includes(id));
-    const funded = s.finance.cash + 1e-8 >= reserve + p.budgetCost + maximumCompensation;
+    const funded = s.finance.cash + 1e-8 >= reserve + funding.purchase + maximumCompensation;
     const volunteers = s.members
       .filter((m) => m.coverConsent === true && eligibleCover(m))
       .map((m) => ({
@@ -580,7 +597,7 @@ export function workplaceAlternatives(s: WorkplaceState) {
       ...p,
       reserve,
       maximumCompensation,
-      cashAfterReservations: s.finance.cash - reserve - p.budgetCost - maximumCompensation,
+      cashAfterReservations: s.finance.cash - reserve - funding.purchase - maximumCompensation,
       available: missing.length === 0 && funded,
       constraint: missing.length
         ? translate(wm, 'altEnableBudget')
@@ -1711,15 +1728,13 @@ export function transitionWorkplace(
       // Every shift deliberates from minute 0, so deliberating later means a
       // shift resumed after a reload: it was funded when it first activated.
       // It reserves wages and cover only for what is left, and buys nothing again.
-      const resumed = s.minute > 0;
-      const coverDelivered = resumed ? s.members.reduce((n, m) => n + m.extraMinutes, 0) : 0;
-      const coverLeft = Math.max(0, p.optionalCoverMinutes - coverDelivered);
-      s.finance.wageReserve = WAGE * (s.durationMinutes - s.minute) * s.members.length;
-      s.finance.compensationReserve = coverLeft * p.compensationPerMinute;
+      const funding = workplaceFunding(s, p);
+      const { resumed, coverLeft } = funding;
+      s.finance.wageReserve = funding.wages;
+      s.finance.compensationReserve = funding.compensation;
       if (!resumed) {
-        const improvementPurchase = improvementCost(s);
-        s.finance.cash -= p.budgetCost + improvementPurchase;
-        s.finance.improvementSpend += p.budgetCost + improvementPurchase;
+        s.finance.cash -= funding.purchase;
+        s.finance.improvementSpend += funding.purchase;
       }
       // A cancelled proposal authorizes paid steady work, without purchasing
       // the abandoned arrangement. Keep that distinction in its saved receipt.

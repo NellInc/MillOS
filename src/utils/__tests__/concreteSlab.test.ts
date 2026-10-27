@@ -57,15 +57,16 @@ describe('concrete hardstanding slabs', () => {
     expect(source).toContain('terrain_v14_');
   });
 
-  it('gives the authored yard planes the same slabs through the slab profile', () => {
+  it('gives exposed and sheltered hardstanding the same slab joints', () => {
     const slab = WORLD_SURFACE_PROFILES.slab;
     expect(slab.slabPitch).toBe(SLAB_JOINT_PITCH);
     expect(slab.slabJoint).toBeGreaterThan(0.2);
     expect(slab.slabTone).toBeGreaterThan(0);
     // The yard's tile opts the batch output in, and the injection carries the chunk.
     const material = new THREE.MeshStandardMaterial({ ...YARD_TARMAC_SURFACE });
-    expect(resolveBatchSurfaceProfile(material)).toBe('slab');
-    const treated = applyWorldSurface(material.clone(), 'slab');
+    expect(resolveBatchSurfaceProfile(material)).toBe('exteriorSlab');
+    expect(WORLD_SURFACE_PROFILES.exteriorSlab).toBe(slab);
+    const treated = applyWorldSurface(material.clone(), 'exteriorSlab');
     const lib = THREE.ShaderLib.physical;
     const shader = {
       uniforms: THREE.UniformsUtils.clone(lib.uniforms) as Record<string, THREE.IUniform>,
@@ -77,7 +78,7 @@ describe('concrete hardstanding slabs', () => {
     expect((shader.uniforms.uSurfSlab.value as THREE.Vector4).x).toBe(SLAB_JOINT_PITCH);
     // Every other profile leaves the slab term off.
     for (const [name, profile] of Object.entries(WORLD_SURFACE_PROFILES)) {
-      if (name !== 'slab') expect(profile.slabPitch ?? 0).toBe(0);
+      if (name !== 'slab' && name !== 'exteriorSlab') expect(profile.slabPitch ?? 0).toBe(0);
     }
   });
 });
