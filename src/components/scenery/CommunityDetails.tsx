@@ -14,6 +14,8 @@ import { PlotGeometry } from '../../utils/authoredPlotGeometry';
 import { applyBatchWorldSurface } from '../../utils/worldSurface';
 import { StaticMeshBatch } from '../performance/StaticMeshBatch';
 import { SceneText } from '../shared/SceneText';
+import { useGraphicsStore } from '../../stores/graphicsStore';
+import { ExteriorPointLight, EXTERIOR_LAMP_LENS_MATERIAL } from '../exterior/ExteriorLighting';
 
 const OAK = '#92704c';
 const IRON = '#344944';
@@ -257,6 +259,77 @@ export function addCommunityWateringCan(b: PlotGeometry) {
   }
 }
 
+/** Small table lanterns reveal faces from in front, where the pub's existing
+ * doorway lamps cannot reach. Working if both sources sit inside real diffusers
+ * above the existing tables, with no extra shadow maps or animation clock.
+ */
+export const PUB_TABLE_LANTERN = {
+  foot: [-0.13, 0.825, 1.1] as Vec3Tuple,
+  source: [-0.13, 1.015, 1.1] as Vec3Tuple,
+  intensity: 1.8,
+  distance: 2.6,
+  colour: '#ffd59b',
+} as const;
+const PUB_TABLE_ANCHORS = [A.pubSeatNorth, A.pubSeatSouth];
+export const PUB_TABLE_LIGHTS = PUB_TABLE_ANCHORS.map((anchor, index) => ({
+  id: index === 0 ? 'north' : 'south',
+  position: new THREE.Vector3(...PUB_TABLE_LANTERN.source)
+    .applyAxisAngle(new THREE.Vector3(0, 1, 0), anchor.rotation)
+    .add(new THREE.Vector3(...anchor.position))
+    .toArray() as Vec3Tuple,
+}));
+
+export function addPubTableLantern(b: PlotGeometry) {
+  const local = new PlotGeometry();
+  local.add(new THREE.CylinderGeometry(0.065, 0.065, 0.016, 8).translate(0, 0.008, 0), IRON);
+  for (const x of [-0.05, 0.05])
+    for (const z of [-0.05, 0.05]) local.box([0.008, 0.258, 0.008], [x, 0.145, z], '#a4864b');
+  local.add(new THREE.CylinderGeometry(0.045, 0.067, 0.026, 8).translate(0, 0.27, 0), IRON);
+  local.add(new THREE.CylinderGeometry(0.017, 0.017, 0.11, 8).translate(0, 0.071, 0), CREAM);
+  local.add(new THREE.TorusGeometry(0.035, 0.004, 4, 8, Math.PI).translate(0, 0.274, 0), IRON);
+  for (const part of local.parts) {
+    part.translate(...PUB_TABLE_LANTERN.foot);
+    b.parts.push(part);
+  }
+}
+
+const pubTableGlass = new PlotGeometry();
+for (const anchor of PUB_TABLE_ANCHORS)
+  at(pubTableGlass, anchor, (b) =>
+    b.add(
+      new THREE.SphereGeometry(1, 8, 6)
+        .scale(0.035, 0.085, 0.035)
+        .translate(...PUB_TABLE_LANTERN.source),
+      CREAM
+    )
+  );
+export const PUB_TABLE_GLASS_GEOMETRY = pubTableGlass.finish();
+
+function PubTableLanternLighting() {
+  const lit = useGraphicsStore(
+    (s) =>
+      s.graphics.quality !== 'low' &&
+      !s.graphics.perfDebug.disablePunctualLights &&
+      !s.graphics.perfDebug.disableLightingPolish
+  );
+  return (
+    <group name="pub-table-lanterns" userData={{ noStaticBatch: true }}>
+      <mesh geometry={PUB_TABLE_GLASS_GEOMETRY} material={EXTERIOR_LAMP_LENS_MATERIAL} />
+      {lit &&
+        PUB_TABLE_LIGHTS.map((lamp) => (
+          <ExteriorPointLight
+            key={lamp.id}
+            name={`pub-table-lamp:${lamp.id}`}
+            position={[...lamp.position]}
+            intensity={PUB_TABLE_LANTERN.intensity}
+            distance={PUB_TABLE_LANTERN.distance}
+            color={PUB_TABLE_LANTERN.colour}
+          />
+        ))}
+    </group>
+  );
+}
+
 function buildVillageDetails() {
   const b = new PlotGeometry();
   at(b, A.bakeryCounter, (g) => {
@@ -277,6 +350,7 @@ function buildVillageDetails() {
       table(g, 0.55, 0.55);
       g.parts.slice(start).forEach((part) => part.translate(0, 0, 1.1));
       addCommunityCup(g, 0.12, 1.17, CREAM);
+      addPubTableLantern(g);
     });
   }
   at(b, A.bakeryBoard, board);
@@ -452,6 +526,7 @@ export const CommunityDetails = React.memo(
             />
           ))}
         </StaticMeshBatch>
+        <PubTableLanternLighting />
         <group name="community-open-hours" userData={{ noStaticBatch: true }}>
           <mesh
             name="bakery-fresh-bread"

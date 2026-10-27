@@ -9,6 +9,10 @@ import { describe, expect, it } from 'vitest';
 import {
   COMMUNITY_GEOMETRY,
   addCommunityTimber,
+  addPubTableLantern,
+  PUB_TABLE_LANTERN,
+  PUB_TABLE_LIGHTS,
+  PUB_TABLE_GLASS_GEOMETRY,
   addCommunityCup,
   addCommunityWateringCan,
   communityDetailsFlags,
@@ -341,4 +345,53 @@ it('seats all delivery bottles directly on the crate floor at .42m', () => {
     expect(hit.point.y).toBeCloseTo(0.42, 6);
   }
   mesh.material.dispose();
+});
+
+it('seats two bounded lanterns on the retained pub tables with clear face rays and separate mugs', () => {
+  const b = new PlotGeometry();
+  addPubTableLantern(b);
+  const g = b.finish();
+  expect(g.boundingBox!.min.y).toBeCloseTo(0.825, 6);
+  expect(g.boundingBox!.max.y).toBeLessThan(1.15);
+  expect(g.getAttribute('position').count / 3).toBe(208);
+  const source = new THREE.Vector3(...PUB_TABLE_LANTERN.source);
+  const towardFace = new THREE.Vector3(0, 1.08, 0).sub(source);
+  const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+  const mesh = new THREE.Mesh(g, material);
+  expect(
+    new THREE.Raycaster(
+      source,
+      towardFace.clone().normalize(),
+      0,
+      towardFace.length()
+    ).intersectObject(mesh)
+  ).toHaveLength(0);
+  expect(g.boundingBox!.max.x).toBeLessThan(0.12 - 0.05);
+  expect(g.boundingBox!.min.z).toBeGreaterThan(1.1 - 0.275);
+  expect(g.boundingBox!.max.z).toBeLessThan(1.1 + 0.275);
+  expect(PUB_TABLE_LIGHTS).toHaveLength(2);
+  PUB_TABLE_LIGHTS.forEach((lamp, i) => {
+    const anchor = [A.pubSeatNorth, A.pubSeatSouth][i];
+    const local = new THREE.Vector3(...lamp.position)
+      .sub(new THREE.Vector3(...anchor.position))
+      .applyAxisAngle(new THREE.Vector3(0, 1, 0), -anchor.rotation);
+    local.toArray().forEach((v, axis) => expect(v).toBeCloseTo(PUB_TABLE_LANTERN.source[axis], 8));
+    expect(towardFace.length()).toBeLessThan(PUB_TABLE_LANTERN.distance / 2);
+  });
+  for (const attribute of Object.values(PUB_TABLE_GLASS_GEOMETRY.attributes))
+    expect([...attribute.array].every(Number.isFinite)).toBe(true);
+  expect(PUB_TABLE_GLASS_GEOMETRY.getAttribute('position').count / 3).toBe(160);
+  const code = readFileSync('src/components/scenery/CommunityDetails.tsx', 'utf8');
+  const lighting = code.slice(
+    code.indexOf('function PubTableLanternLighting'),
+    code.indexOf('function buildVillageDetails')
+  );
+  expect(lighting).toContain("s.graphics.quality !== 'low'");
+  expect(lighting).toContain('!s.graphics.perfDebug.disablePunctualLights');
+  expect(lighting).toContain('!s.graphics.perfDebug.disableLightingPolish');
+  expect(lighting).toContain('material={EXTERIOR_LAMP_LENS_MATERIAL}');
+  expect(lighting).not.toContain('useFrame');
+  expect(lighting).not.toContain('castShadow');
+  g.dispose();
+  material.dispose();
 });
