@@ -13,6 +13,7 @@ import {
   generatedAssetHeader,
 } from './normalize-model-assets.mjs';
 import { RECONCILED_FARM_MODELS } from './reconcile-farm-models.mjs';
+import { PRECISION_FARM_MODELS } from './precision-farm-models.mjs';
 
 // Two tests spawn node on the real module: 7.9-8.7 s passing and 12.4 s
 // failing against the 10 s default at ~50 runnable per core (2026-10-20).
@@ -40,7 +41,7 @@ test('every committed generated GLB carries the header and credit its spec decla
     const asset = JSON.parse(bytes.subarray(20, 20 + bytes.readUInt32LE(12)).toString()).asset;
     const expected = generatedAssetHeader(spec);
     // Historical farm replays have a bare generator and their own exact hash guards.
-    const generatorOwned = !RECONCILED_FARM_MODELS[spec.id];
+    const generatorOwned = !RECONCILED_FARM_MODELS[spec.id] || PRECISION_FARM_MODELS[spec.id];
     if (
       (generatorOwned &&
         !/^MillOS generated-asset pipeline, glTF-Transform v\d+\.\d+\.\d+$/.test(

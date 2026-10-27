@@ -1,40 +1,26 @@
 /**
- * The generated windmill, with its sails turning.
+ * The precision-authored windmill retains the accepted raw mesh frame and
+ * single-mesh/material contract. Its static tower/cap and closed rigid lattice
+ * parts share that one mesh; the surface and depth shaders turn the sail parts
+ * through the same per-vertex attribute and angle owner.
  *
- * WHY THIS IS NOT A GROUP WITH A `ref` ON IT. `farm/windmill.glb` is a single
- * mesh with a single material whose sails are modelled continuous with the cap:
- * welded by position it is **one** connected shell, so there is no sub-object
- * to lift out and spin. (The earlier "228 shells" reading counted components on
- * the index buffer without welding first, which splits at every UV and normal
- * seam; the welded answer is worse, not better.) A stationary windmill is the
- * most conspicuous dead animation the 30-asset swap cost, so the sails are
- * turned in the vertex shader instead, against a per-vertex weight baked from
- * the rest pose - the same thing a skin does, without a skeleton.
+ * `scripts/craft-precise-windmill.mjs` derives it from the immutable accepted
+ * parent. Straight joinery replaces the provider's softened beams and dented
+ * plaster. White plaster, jointed stone, copper-brown cap and open timber sails
+ * retain their identity through three authored 512px maps, including clean
+ * tangent normals. Individually fitted panels retain source asymmetry; this
+ * does not claim exact fourfold geometry or rotational balance.
  *
- * WHY A WEIGHT RATHER THAN A CUT. Splitting the index buffer on a plane leaves
- * the triangles that straddle it torn open. A weight makes the seam deform
- * instead of tear, and - because the seam here is twelve vertices wide and sits
- * inside the axle boss - it deforms where nothing can see it.
+ * The raw hub Y/Z and X/radius gates below remain unchanged. Every authored
+ * rotor vertex evaluates exactly one and every static vertex exactly zero;
+ * every triangle is rigid, with no blended bridge between moving and fixed
+ * parts. The narrow bearing separation is inside the hub assembly. Static foot
+ * vertices beyond the X gate remain outside the entire rotor sweep.
  *
- * THE NUMBERS BELOW ARE MEASURED, NOT PICKED, and
- * `__tests__/generatedWindmill.test.ts` re-derives them from the shipped GLB so
- * a regenerated asset cannot silently invalidate them:
- *
- *   - Hub axis (0.0948, 0.031) in mesh-local Y/Z, fitted by minimising the
- *     residual of the sail mass under a quarter turn - the blades' own
- *     four-fold symmetry. The area-weighted centroid puts it 0.17 m away,
- *     because the slab also catches a little of the tower base; the symmetry
- *     fit does not care about that.
- *   - The x band 0.216..0.228 sits in a valley: the whole mesh has only ~126
- *     triangles between x 0.21 and 0.23, against 4,180 in the 0.23-0.28 slab
- *     the blades occupy.
- *   - The radius band 0.55..0.57 is EMPTY. Blade mass reaches r 0.538 about the
- *     hub; the only geometry beyond it is fifteen vertices of tower plinth at
- *     r 0.585-0.600. So the two are separated by a gap rather than by a
- *     threshold through the middle of something.
- *
- * Together those give 3,915 vertices fully turning, 2,272 fully static and 12
- * blended, with every partially weighted triangle inside r 0.052 of the axle.
+ * Actual-asset tests re-derive weights, triangle rigidity, separation, atlas
+ * charts and swept bounds. Node normalisation, world roots, wind speed,
+ * pause/reduced-motion/hidden-tab holds and surface/depth angle sharing remain
+ * the existing runtime owners. Never silently renormalise this raw contract.
  */
 
 import React, { useMemo, useRef } from 'react';
@@ -52,10 +38,10 @@ import { getWindmillAngularSpeed } from '../../simulation/ambientWorld';
 export const SAIL_HUB_Y = 0.0948;
 /** Mesh-local Z of the sail axis. The sails turn about model-local +X. */
 export const SAIL_HUB_Z = 0.031;
-/** Weight ramps in across this x band, which is the sparse valley behind the sails. */
+/** Weight ramps in across this x band, which is the retained bearing separation behind the sails. */
 export const SAIL_X_IN = 0.216;
 export const SAIL_X_OUT = 0.228;
-/** Weight ramps back out across this radius band, which holds no vertices at all. */
+/** Weight ramps back out across this radius band, which separates the authored rotor and static foot. */
 export const SAIL_R_IN = 0.55;
 export const SAIL_R_OUT = 0.57;
 
@@ -89,8 +75,8 @@ export function computeSailWeights(position: THREE.BufferAttribute): Float32Arra
  * Bounds that hold for every sail angle.
  *
  * A bounding volume fitted to the rest pose culls the mill the moment a blade
- * tip swings past where the box used to end: the tips reach r 0.538 about a hub
- * that is itself off-centre, so the swept envelope is a full 0.1 wider in y and
+ * tip swings past where the box used to end: the tips rotate about a hub
+ * that is itself off-centre, so the swept envelope is wider in y and
  * z than the static one. Swept rather than inflated by a guessed margin,
  * because the sweep of a rotation about a known axis is exactly computable -
  * every weighted vertex traces a circle of its own radius.

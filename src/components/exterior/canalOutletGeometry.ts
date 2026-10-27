@@ -62,6 +62,35 @@ export function createOutletStoneGeometry(width: number, height: number, depth: 
   return geometry;
 }
 
+/** Close only the positive-Z head, opposite the negative-Z river branch.
+ * The cap fits between the bank faces: their top surfaces meet at an edge,
+ * rather than overlap. Working if water-level rays hit solid stone across
+ * the head and the retained river mouth remains open.
+ */
+export function canalClosedEndSpec(width: number, length: number) {
+  return {
+    position: [0, 0.3, length / 2] as [number, number, number],
+    size: [width - 1, 1.5, 1] as [number, number, number],
+  };
+}
+
+/** The existing bank maps repeat 110 times over 220 m, once over 1.5 m.
+ * Compensate in geometry UVs so the short cap uses that same stone scale
+ * without allocating another set of textures.
+ */
+export function createCanalClosedEndGeometry(width: number) {
+  const geometry = new THREE.BoxGeometry(...canalClosedEndSpec(width, 1).size);
+  const p = geometry.getAttribute('position');
+  const n = geometry.getAttribute('normal');
+  const uv = geometry.getAttribute('uv');
+  for (let i = 0; i < p.count; i++) {
+    const u = Math.abs(n.getX(i)) > 0.5 ? p.getZ(i) : p.getX(i);
+    const v = Math.abs(n.getY(i)) > 0.5 ? p.getZ(i) : p.getY(i);
+    uv.setXY(i, u / 220, v / 1.5);
+  }
+  return geometry;
+}
+
 /**
  * How far each east-bank stub runs into the 0.8 m outlet wall it meets. Ending
  * flush with the wall's face left the stub's end face coplanar with it.

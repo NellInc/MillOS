@@ -1,17 +1,6 @@
-/**
- * The windmill's sail split, re-derived from the shipped GLB.
- *
- * `GeneratedWindmill.tsx` carries five numbers measured off
- * `public/models/farm/windmill.glb` - a hub axis and two ramp bands. They are
- * not tunables: each one sits in a gap in that specific mesh's mass
- * distribution, and a regenerated windmill would move the gaps without moving
- * the constants. Nothing else in the repo would notice. `validate:assets`
- * checks the file is well formed and `validate:bundle` checks it ships;
- * neither can tell that the weight now cuts through the middle of a blade.
- *
- * So this reads the real asset - the rule CLAUDE.md states as "the check must
- * load the real assembly" - and asserts the PROPERTIES the split has to have,
- * not a copy of the numbers that produce them.
+/** Actual shipped precision-windmill contract. The raw frame, axis and bands
+ * remain the runtime authority; straight authored parts must be fully rigid,
+ * separated through every sail angle and bounded without renormalisation.
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -113,41 +102,25 @@ describe('generated windmill sail split', () => {
     expect(position.count).toBeGreaterThan(1000);
   });
 
-  it('turns a substantial, plausible share of the mesh', () => {
-    const turning = weights.filter((w) => w > 0.999).length;
-    const still = weights.filter((w) => w < 0.001).length;
-    // The sails are the bulk of this asset's triangles but must never be all of
-    // it - a weight that selected everything would spin the tower.
-    expect(turning / position.count).toBeGreaterThan(0.4);
-    expect(turning / position.count).toBeLessThan(0.8);
-    expect(still / position.count).toBeGreaterThan(0.2);
+  it('keeps both the static architecture and complete rigid rotor substantial without topology-share assumptions', () => {
+    expect(weights.filter((w) => w === 1).length).toBeGreaterThan(500);
+    expect(weights.filter((w) => w === 0).length).toBeGreaterThan(500);
+    expect([...weights].every((w) => w === 0 || w === 1)).toBe(true);
+    expect(position.count).toBeLessThanOrEqual(6989);
+    expect(indices.length / 3).toBeLessThanOrEqual(8384);
   });
 
-  it('keeps the blend seam narrow and buried in the axle boss', () => {
-    const blended = [...weights.keys()].filter((i) => weights[i] > 0.001 && weights[i] < 0.999);
-    // A wide seam is a smear across the blades; this one is a dozen vertices.
-    expect(blended.length).toBeLessThanOrEqual(40);
-    // And every one of them is close enough to the axis that the deformation
-    // happens inside the boss rather than out along an arm.
-    for (const i of blended) expect(radius(i)).toBeLessThan(0.12);
+  it('has no blended bridge in the precision bearing assembly', () => {
+    expect([...weights].filter((w) => w > 0 && w < 1)).toHaveLength(0);
   });
 
-  it('never partially weights a triangle out on a blade', () => {
-    let worst = 0;
+  it('gives every actual triangle a uniform static or turning weight', () => {
     for (let t = 0; t < indices.length; t += 3) {
-      const a = weights[indices[t]];
-      const b = weights[indices[t + 1]];
-      const c = weights[indices[t + 2]];
-      const spread = Math.max(a, b, c) - Math.min(a, b, c);
-      if (spread <= 0.02) continue;
-      worst = Math.max(
-        worst,
-        Math.max(radius(indices[t]), radius(indices[t + 1]), radius(indices[t + 2]))
-      );
+      const a = weights[indices[t]],
+        b = weights[indices[t + 1]],
+        c = weights[indices[t + 2]];
+      expect([b, c]).toEqual([a, a]);
     }
-    // A partially weighted triangle further out than this would visibly lag the
-    // blade it belongs to. 0.052 measured on the shipped asset.
-    expect(worst).toBeLessThan(0.12);
   });
 
   it('leaves the tower plinth behind', () => {

@@ -172,6 +172,8 @@ import {
   CANAL_OUTLET,
   CANAL_WEIR_IMPACT,
   canalEastBankSections,
+  canalClosedEndSpec,
+  createCanalClosedEndGeometry,
   createCanalOutletSurface,
   createOutletStoneGeometry,
 } from './exterior/canalOutletGeometry';
@@ -1991,6 +1993,9 @@ const Canal: React.FC<{
   // CRITICAL: Guard against NaN/zero dimensions to prevent PlaneGeometry errors
   const safeWidth = Number.isFinite(width) && width > 0 ? width : 12;
   const safeLength = Number.isFinite(length) && length > 0 ? length : 10;
+  const closedEnd = canalClosedEndSpec(safeWidth, safeLength);
+  const closedEndGeometry = useMemo(() => createCanalClosedEndGeometry(safeWidth), [safeWidth]);
+  useEffect(() => () => closedEndGeometry.dispose(), [closedEndGeometry]);
 
   return (
     <group position={[position[0], position[1], position[2]]} rotation={[0, rotation, 0]}>
@@ -2050,6 +2055,23 @@ const Canal: React.FC<{
           polygonOffset
           polygonOffsetFactor={POLYGON_OFFSET.exteriorTop.factor}
           polygonOffsetUnits={POLYGON_OFFSET.exteriorTop.units}
+        />
+      </mesh>
+      {/* Close the head opposite the retained river overflow. */}
+      <mesh
+        name="canal-closed-headwall"
+        position={closedEnd.position}
+        geometry={closedEndGeometry}
+        castShadow
+        receiveShadow
+      >
+        <meshStandardMaterial
+          color="#ffffff"
+          map={CANAL_WALL_MAP}
+          roughnessMap={CANAL_WALL_ROUGHNESS}
+          normalMap={CANAL_WALL_NORMAL}
+          normalScale={CANAL_WALL_NORMAL_SCALE}
+          roughness={0.9}
         />
       </mesh>
       {/* Mooring posts */}

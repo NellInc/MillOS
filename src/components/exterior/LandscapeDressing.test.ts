@@ -23,6 +23,8 @@ import {
   CANAL_OUTLET,
   CANAL_WEIR_IMPACT,
   canalEastBankSections,
+  canalClosedEndSpec,
+  createCanalClosedEndGeometry,
   createCanalOutletSurface,
   createOutletStoneGeometry,
 } from './canalOutletGeometry';
@@ -290,3 +292,46 @@ it.each([64, 128])(
     }
   }
 );
+
+it('closes the actual non-river canal head with solid stone, seated between the original banks', () => {
+  const canal = SITE_LAYOUT.exteriorFeatures.canal;
+  const end = canalClosedEndSpec(canal.width, canal.length);
+  const geometry = createCanalClosedEndGeometry(canal.width);
+  const cap = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial());
+  cap.position.fromArray(end.position);
+  cap.updateMatrixWorld(true);
+  const bounds = new THREE.Box3().setFromObject(cap);
+  expect(canal.position[2] + end.position[2]).toBe(105);
+  expect(bounds.min.y).toBeCloseTo(-0.45);
+  expect(bounds.max.y).toBeCloseTo(1.05);
+  for (const x of [-5.49, -3, 0, 3, 5.49]) {
+    const ray = new THREE.Raycaster(
+      new THREE.Vector3(x, 0.15, canal.length / 2 - 2),
+      new THREE.Vector3(0, 0, 1),
+      0,
+      4
+    );
+    expect(ray.intersectObject(cap)[0]?.point.z).toBeCloseTo(canal.length / 2 - 0.5);
+  }
+  for (const side of [-1, 1]) {
+    const bank = new THREE.Box3(
+      new THREE.Vector3((side * canal.width) / 2 - 0.5, -0.45, -canal.length / 2),
+      new THREE.Vector3((side * canal.width) / 2 + 0.5, 1.05, canal.length / 2)
+    );
+    const overlap = bounds.clone().intersect(bank).getSize(new THREE.Vector3());
+    expect(overlap.x).toBeCloseTo(0);
+    expect(overlap.y).toBeCloseTo(1.5);
+    expect(overlap.z).toBeCloseTo(0.5);
+  }
+  expect(bounds.min.z).toBeGreaterThan(0);
+  expect(CANAL_OUTLET.south).toBeLessThan(canal.position[2]);
+  const position = geometry.getAttribute('position');
+  const normal = geometry.getAttribute('normal');
+  const uv = geometry.getAttribute('uv');
+  const front = [...Array(position.count).keys()].filter((i) => normal.getZ(i) < -0.5);
+  const u = front.map((i) => uv.getX(i) * 110);
+  expect(Math.max(...u) - Math.min(...u)).toBeCloseTo((canal.width - 1) / 2);
+  expect((geometry.index?.count ?? position.count) / 3).toBe(12);
+  geometry.dispose();
+  (cap.material as THREE.Material).dispose();
+});

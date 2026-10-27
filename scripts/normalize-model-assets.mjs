@@ -24,6 +24,11 @@ import {
   deriveFarmModel,
   assertFarmCurrentOutput,
 } from './reconcile-farm-models.mjs';
+import {
+  PRECISION_FARM_MODELS,
+  derivePrecisionFarmModel,
+  assertPrecisionCurrentOutput,
+} from './precision-farm-models.mjs';
 
 const ROOT = process.cwd();
 const SOURCE_ROOT = path.join(ROOT, 'assets', 'source', 'models');
@@ -3526,13 +3531,34 @@ function titleCase(slug) {
  *    alongside an ORM map, so every surface reads as polished metal wherever
  *    that map's blue channel is not black. Roughness is left alone.
  */
-export async function normalizeGeneratedAsset(io, spec) {
+export async function normalizeGeneratedAsset(io, spec, precisionCandidate) {
   const { source, output } = generatedAssetPaths(spec);
   if (spec.preparedSource && path.basename(spec.preparedSource) !== spec.preparedSource)
     throw new Error('Blender derivative must be a sibling source file');
   const prepared = spec.preparedSource
     ? path.join(path.dirname(source), spec.preparedSource)
     : null;
+  if (PRECISION_FARM_MODELS[spec.id]) {
+    const candidate =
+      precisionCandidate ??
+      (await derivePrecisionFarmModel(
+        spec.id,
+        spec,
+        JSON.parse(await readFile(path.join(OUTPUT_ROOT, 'asset-manifest.json'), 'utf8'))
+      ));
+    assertPrecisionCurrentOutput(spec.id, await readFile(output));
+    const temporary = `${output}.precision-${process.pid}.tmp`;
+    try {
+      await writeFile(temporary, candidate.bytes);
+      // A concurrent edit must never be overwritten by a prepared candidate.
+      // Working if an unknown current payload fails immediately before rename.
+      assertPrecisionCurrentOutput(spec.id, await readFile(output));
+      await rename(temporary, output);
+    } finally {
+      await rm(temporary, { force: true });
+    }
+    return candidate.result;
+  }
   let farmInputs;
   if (RECONCILED_FARM_MODELS[spec.id]) {
     farmInputs = await Promise.all([
@@ -4075,10 +4101,21 @@ async function main() {
   // rebuilt and leaves every other row exactly as the last full run wrote it.
   const generatedById = new Map(results.generated.map((entry) => [entry.id, entry]));
 
+  // Resolve both bounded precision chains before either output is installed.
+  // Working if a bad parent, script or current asset leaves both assets intact.
+  const precisionCandidates = new Map();
+  for (const spec of selected.filter((entry) => PRECISION_FARM_MODELS[entry.id])) {
+    const manifest = JSON.parse(
+      await readFile(path.join(OUTPUT_ROOT, 'asset-manifest.json'), 'utf8')
+    );
+    assertPrecisionCurrentOutput(spec.id, await readFile(generatedAssetPaths(spec).output));
+    precisionCandidates.set(spec.id, await derivePrecisionFarmModel(spec.id, spec, manifest));
+  }
+
   for (const spec of selected) {
     const { source, output } = generatedAssetPaths(spec);
     await mkdir(path.dirname(output), { recursive: true });
-    const result = await normalizeGeneratedAsset(io, spec);
+    const result = await normalizeGeneratedAsset(io, spec, precisionCandidates.get(spec.id));
     result.sourceSha256 = await sha256(source);
     result.outputSha256 = await sha256(output);
     generatedById.set(result.id, result);

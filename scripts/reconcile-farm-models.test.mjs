@@ -20,6 +20,12 @@ import {
   assertFarmCurrentOutput,
   assertFarmNormalization,
 } from './reconcile-farm-models.mjs';
+import {
+  PRECISION_FARM_MODELS,
+  derivePrecisionFarmModel,
+  assertPrecisionCurrentOutput,
+  assertPrecisionFarmNormalization,
+} from './precision-farm-models.mjs';
 import { applyFarmWindows } from '../src/components/models/GeneratedOfficeModel.tsx';
 
 const repo = process.cwd();
@@ -33,6 +39,10 @@ const REAL_PIPELINE_CHILD_MS = 900_000;
 const REAL_PIPELINE_TEST_MS = 2_400_000;
 const io = new NodeIO();
 const rows = new Map();
+const precisionRows = new Map();
+const CURRENT_IDS = [
+  ...new Set([...Object.keys(RECONCILED_FARM_MODELS), ...Object.keys(PRECISION_FARM_MODELS)]),
+];
 const clone = (value) => JSON.parse(JSON.stringify(value));
 let temporary, manifest, author, farmProvenance, generated;
 const fixture = (slug) => `${BASELINE_DIRECTORY}/${slug}.baseline.glb`;
@@ -73,10 +83,17 @@ beforeAll(async () => {
       readFile(fixture(spec.slug)),
       readFile(provider(spec.slug)),
       readFile(preparedFile(spec.slug)),
-      readFile(runtimeFile(spec.slug)),
+      readFile(id === 'farm-coop' ? PRECISION_FARM_MODELS[id].parent : runtimeFile(spec.slug)),
     ]);
     const result = await deriveFarmModel(id, baseline, source, prepared, author, manifest);
     rows.set(id, { spec, baseline, source, prepared, runtime, result });
+  }
+  for (const [id, entry] of Object.entries(PRECISION_FARM_MODELS)) {
+    const spec = GENERATED_ASSETS.find((value) => value.id === id);
+    const derived = await derivePrecisionFarmModel(id, spec, manifest);
+    const parent = await readFile(entry.parent);
+    precisionRows.set(id, { entry, spec, parent, ...derived });
+    generated = generated.map((row) => (row.id === id ? clone(derived.result) : row));
   }
   temporary = await mkdtemp(path.join(tmpdir(), 'millos-current-wall-repair-'));
 });
@@ -85,7 +102,7 @@ afterAll(async () => {
 });
 
 for (const id of Object.keys(RECONCILED_FARM_MODELS)) {
-  test(`${id}: installed runtime is exactly the deterministic reviewed derivative`, async () => {
+  test(`${id}: historical accepted output remains exactly the deterministic reviewed derivative`, async () => {
     const { spec, baseline, source, prepared, runtime, result } = rows.get(id);
     expect(hash(baseline)).toBe(spec.inputSHA256);
     expect(hash(runtime)).toBe(spec.outputSHA256);
@@ -147,7 +164,7 @@ for (const id of Object.keys(RECONCILED_FARM_MODELS)) {
   });
 }
 
-test('composition retains only two current-main wall repairs with no roof or coop-normal cleanup stage', async () => {
+test('historical composition retains exactly two wall repairs, below the explicit current precision stage', async () => {
   expect(Object.keys(RECONCILED_FARM_MODELS)).toEqual(['farm-coop', 'farm-farmhouse']);
   for (const id of ['farm-barn', 'farm-windmill'])
     await expect(deriveFarmModel(id)).rejects.toThrow('Unknown reconciled farm model');
@@ -176,6 +193,62 @@ test('composition retains only two current-main wall repairs with no roof or coo
   expect(step.removedTriangles).toBeUndefined();
 });
 
+for (const id of Object.keys(PRECISION_FARM_MODELS)) {
+  test(`${id}: current precision output has its exact pinned parent, producer and complete ancestral receipt`, async () => {
+    const { entry, spec, parent, bytes, result } = precisionRows.get(id);
+    expect(hash(parent)).toBe(entry.parentSHA256);
+    expect(hash(bytes)).toBe(entry.outputSHA256);
+    expect(await readFile(runtimeFile(spec.slug))).toEqual(bytes);
+    expect(() => assertPrecisionCurrentOutput(id, parent)).not.toThrow();
+    expect(() => assertPrecisionCurrentOutput(id, bytes)).not.toThrow();
+    expect(() => assertPrecisionCurrentOutput(id, Buffer.from('unknown'))).toThrow();
+    await expect(
+      assertPrecisionFarmNormalization(id, result, bytes, spec, manifest)
+    ).resolves.toBeUndefined();
+    if (id === 'farm-coop')
+      expect(result.geometryRefinement.ancestor).toEqual(rows.get(id).result.receipt);
+    else
+      expect(result.geometryRefinement.ancestor).toEqual({
+        method: 'accepted-normalized-parent',
+        sha256: entry.parentSHA256,
+      });
+    for (const mutate of [
+      (value) => {
+        value.geometryRefinement.parentSHA256 = 'stale';
+      },
+      (value) => {
+        value.geometryRefinement.builderSHA256 = 'stale';
+      },
+      (value) => {
+        value.geometryRefinement.outputSHA256 = 'stale';
+      },
+      (value) => {
+        value.geometryRefinement.ancestor = { method: 'invented' };
+      },
+      (value) => {
+        value.geometryRefinement.authoring = { status: 'invented' };
+      },
+      (value) => {
+        value.blenderPreparation.script = 'wrong';
+      },
+    ]) {
+      const changed = clone(result);
+      mutate(changed);
+      await expect(
+        assertPrecisionFarmNormalization(id, changed, bytes, spec, manifest)
+      ).rejects.toThrow();
+    }
+    const changedManifest = clone(manifest);
+    changedManifest.assets.find((row) => row.id === id).maxFileBytes *= 2;
+    await expect(derivePrecisionFarmModel(id, spec, changedManifest)).rejects.toThrow(
+      'Precision manifest changed'
+    );
+    await expect(
+      derivePrecisionFarmModel(id, { ...spec, id: 'farm-other' }, manifest)
+    ).rejects.toThrow();
+  });
+}
+
 async function isolatedRoot(name) {
   const root = path.join(temporary, name);
   const files = [
@@ -184,6 +257,10 @@ async function isolatedRoot(name) {
     'assets/source/models/farm/PROVENANCE.json',
     'assets/source/models/forklift/forklift-original.glb',
     'assets/source/models/machines/silo-unity-original.glb',
+    'scripts/precision-farm-models.mjs',
+    'scripts/reconcile-farm-models.mjs',
+    'scripts/refine-coop-gable-candidate.mjs',
+    'scripts/restore-farmhouse-walls.mjs',
   ];
   for (const { spec } of rows.values())
     files.push(
@@ -192,6 +269,8 @@ async function isolatedRoot(name) {
       preparedFile(spec.slug),
       runtimeFile(spec.slug)
     );
+  for (const { entry, spec } of precisionRows.values())
+    files.push(entry.parent, entry.source, entry.prepared, entry.builder, runtimeFile(spec.slug));
   for (const file of files) {
     await mkdir(path.dirname(path.join(root, file)), { recursive: true });
     await copyFile(path.join(repo, file), path.join(root, file));
@@ -224,7 +303,7 @@ function normalizerScript(ids, change = '') {
     await writeFile('test-results/assets/normalization.json', JSON.stringify(report));
   `;
 }
-function runNormalizer(root, ids = Object.keys(RECONCILED_FARM_MODELS), change) {
+function runNormalizer(root, ids = CURRENT_IDS, change) {
   execFileSync(process.execPath, ['--input-type=module', '-e', normalizerScript(ids, change)], {
     cwd: root,
     stdio: 'pipe',
@@ -244,24 +323,19 @@ function runWriter(root) {
 }
 
 test(
-  'actual current normalizer and writer rebuild both outputs exactly in an isolated root',
+  'actual current normalizer and writer rebuild precision coop/windmill and historical farmhouse exactly in an isolated root',
   async () => {
     const root = await isolatedRoot('real-normalizer-writer');
-    // Start from exact current-main asset bytes, then rerun over the final candidate to prove idempotence.
-    for (const { spec, baseline } of rows.values())
-      await writeFile(path.join(root, runtimeFile(spec.slug)), baseline);
+    for (const [id, { spec, baseline }] of rows)
+      if (!PRECISION_FARM_MODELS[id])
+        await writeFile(path.join(root, runtimeFile(spec.slug)), baseline);
+    for (const { spec, parent } of precisionRows.values())
+      await writeFile(path.join(root, runtimeFile(spec.slug)), parent);
     for (let pass = 0; pass < 2; pass++) {
       execFileSync(
         process.execPath,
-        [
-          path.join(repo, 'scripts/normalize-model-assets.mjs'),
-          '--only=' + Object.keys(RECONCILED_FARM_MODELS).join(','),
-        ],
-        {
-          cwd: root,
-          stdio: 'pipe',
-          timeout: REAL_PIPELINE_CHILD_MS,
-        }
+        [path.join(repo, 'scripts/normalize-model-assets.mjs'), '--only=' + CURRENT_IDS.join(',')],
+        { cwd: root, stdio: 'pipe', timeout: REAL_PIPELINE_CHILD_MS }
       );
       runWriter(root);
       const report = JSON.parse(
@@ -270,32 +344,52 @@ test(
       const provenance = JSON.parse(
         await readFile(path.join(root, 'assets/source/models/farm/PROVENANCE.json'), 'utf8')
       );
-      for (const [id, { spec, baseline, runtime, source, prepared, result }] of rows) {
-        expect((await readFile(path.join(root, runtimeFile(spec.slug)))).equals(runtime)).toBe(
-          true
+      for (const id of CURRENT_IDS) {
+        const historical = rows.get(id),
+          precision = precisionRows.get(id),
+          spec = precision?.spec ?? GENERATED_ASSETS.find((row) => row.id === id);
+        const expected = precision?.bytes ?? historical.runtime;
+        expect(await readFile(path.join(root, runtimeFile(spec.slug)))).toEqual(expected);
+        expect(await readFile(runtimeFile(spec.slug))).toEqual(expected);
+        expect(await readFile(path.join(root, provider(spec.slug)))).toEqual(
+          await readFile(provider(spec.slug))
         );
-        expect((await readFile(runtimeFile(spec.slug))).equals(runtime)).toBe(true);
-        expect((await readFile(path.join(root, provider(spec.slug)))).equals(source)).toBe(true);
-        expect((await readFile(path.join(root, preparedFile(spec.slug)))).equals(prepared)).toBe(
-          true
+        expect(await readFile(path.join(root, preparedFile(spec.slug)))).toEqual(
+          await readFile(preparedFile(spec.slug))
         );
         const row = report.generated.find((value) => value.id === id);
-        await expect(
-          assertFarmNormalization(id, row, runtime, baseline, source, prepared, author, manifest)
-        ).resolves.toBeUndefined();
-        expect(row.geometryRefinement).toEqual(clone(result.receipt));
+        if (precision) {
+          expect(await readFile(path.join(root, precision.entry.parent))).toEqual(precision.parent);
+          await expect(
+            assertPrecisionFarmNormalization(id, row, expected, spec, manifest)
+          ).resolves.toBeUndefined();
+          expect(row).toEqual(clone(precision.result));
+        } else {
+          await expect(
+            assertFarmNormalization(
+              id,
+              row,
+              expected,
+              historical.baseline,
+              historical.source,
+              historical.prepared,
+              author,
+              manifest
+            )
+          ).resolves.toBeUndefined();
+          expect(row.geometryRefinement).toEqual(clone(historical.result.receipt));
+        }
         expect(provenance.sourcePacks.find((pack) => pack.id === id)).toEqual(
           farmProvenance.sourcePacks.find((pack) => pack.id === id)
         );
       }
-      // Every unrelated farm record, including animals and windmill, remains exactly the same.
       const unrelated = (p) => ({
         ...p,
-        sourcePacks: p.sourcePacks.filter((pack) => !RECONCILED_FARM_MODELS[pack.id]),
+        sourcePacks: p.sourcePacks.filter((pack) => !CURRENT_IDS.includes(pack.id)),
       });
       expect(unrelated(provenance)).toEqual(unrelated(farmProvenance));
-      expect(report.generated.filter((row) => !RECONCILED_FARM_MODELS[row.id])).toEqual(
-        generated.filter((row) => !RECONCILED_FARM_MODELS[row.id])
+      expect(report.generated.filter((row) => !CURRENT_IDS.includes(row.id))).toEqual(
+        generated.filter((row) => !CURRENT_IDS.includes(row.id))
       );
     }
   },
@@ -312,6 +406,12 @@ test(
       AUTHORING_SCRIPT,
       'public/models/asset-manifest.json',
       runtimeFile('coop'),
+      PRECISION_FARM_MODELS['farm-coop'].parent,
+      PRECISION_FARM_MODELS['farm-coop'].builder,
+      PRECISION_FARM_MODELS['farm-windmill'].parent,
+      PRECISION_FARM_MODELS['farm-windmill'].builder,
+      provider('windmill'),
+      preparedFile('windmill'),
     ]) {
       const target = path.join(root, file),
         original = await readFile(target);
@@ -321,7 +421,14 @@ test(
       await writeFile(target, changed);
       const before = await readFile(path.join(root, runtimeFile('coop')));
       const report = await readFile(path.join(root, 'test-results/assets/normalization.json'));
-      expect(() => runNormalizer(root, ['farm-coop'])).toThrow();
+      const id = file.includes('windmill') ? 'farm-windmill' : 'farm-coop';
+      const targetRuntime = path.join(
+        root,
+        runtimeFile(id === 'farm-windmill' ? 'windmill' : 'coop')
+      );
+      const currentBefore = await readFile(targetRuntime);
+      expect(() => runNormalizer(root, [id])).toThrow();
+      expect(await readFile(targetRuntime)).toEqual(currentBefore);
       expect(await readFile(path.join(root, runtimeFile('coop')))).toEqual(before);
       expect(await readFile(path.join(root, 'test-results/assets/normalization.json'))).toEqual(
         report
@@ -329,9 +436,7 @@ test(
       await writeFile(target, original);
     }
     const before = await readFile(path.join(root, runtimeFile('coop')));
-    expect(() => runNormalizer(root, ['farm-coop'], 'spec.target = 9;')).toThrow(
-      'exact accepted normalized input'
-    );
+    expect(() => runNormalizer(root, ['farm-coop'], 'spec.target = 9;')).toThrow();
     expect(await readFile(path.join(root, runtimeFile('coop')))).toEqual(before);
   },
   REAL_PIPELINE_TEST_MS
@@ -371,14 +476,53 @@ test(
         row.bounds.height += 1;
       },
       (row) => {
-        row.geometryRefinement.steps.push(clone(row.geometryRefinement.steps[0]));
+        row.geometryRefinement.ancestor.steps.push(clone(row.geometryRefinement.ancestor.steps[0]));
       },
       (row) => {
-        row.geometryRefinement.baselineCommit = 'wrong';
+        row.geometryRefinement.ancestor.baselineCommit = 'wrong';
+      },
+      (row) => {
+        row.geometryRefinement.parent = 'wrong';
+      },
+      (row) => {
+        row.geometryRefinement.parentSHA256 = 'stale';
+      },
+      (row) => {
+        row.geometryRefinement.builder = 'wrong';
+      },
+      (row) => {
+        row.geometryRefinement.builderSHA256 = 'stale';
+      },
+      (row) => {
+        row.geometryRefinement.authoring.receiptSHA256 = 'stale';
       },
     ]) {
       const changed = clone(generated);
       mutate(changed.find((row) => row.id === 'farm-coop'));
+      await writeFile(
+        path.join(root, 'test-results/assets/normalization.json'),
+        JSON.stringify({ generated: changed })
+      );
+      expect(() => runWriter(root)).toThrow();
+      expect(await readFile(path.join(root, 'assets/source/models/farm/PROVENANCE.json'))).toEqual(
+        before
+      );
+    }
+    // The second precision model has its own parent and authoring receipt.
+    // A valid coop receipt cannot let a stale windmill producer chain through.
+    for (const mutate of [
+      (row) => {
+        row.geometryRefinement.parentSHA256 = 'stale';
+      },
+      (row) => {
+        row.geometryRefinement.builderSHA256 = 'stale';
+      },
+      (row) => {
+        row.geometryRefinement.authoring.receiptSHA256 = 'stale';
+      },
+    ]) {
+      const changed = clone(generated);
+      mutate(changed.find((row) => row.id === 'farm-windmill'));
       await writeFile(
         path.join(root, 'test-results/assets/normalization.json'),
         JSON.stringify({ generated: changed })
