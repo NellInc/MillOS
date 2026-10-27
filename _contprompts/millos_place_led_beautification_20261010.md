@@ -8521,3 +8521,28 @@ Native final 29 images: 17 ordinary-work/foot/clock-driven outbound/pause sample
 Village fixture originally expected the gardener after 17:00 closing and failed after two day images. Raw failure is retained. Corrected fixture respects the authored At home state, keeps the pub neighbour naturally active and captures the lit evening grounds, no person visibility override. native-arrival.json retains an inherited old base label; actual served index SHA matches the current candidate seal, which is authoritative. Root visually inspected movement/conditions sheets and representative full frames, authored and reviewed this work with bounded independent geometry advice. Completed unused helper 01a17933-4e9c-7133-8d13-b9a15a0fb019 was verified idle/leaf, owner-released and reversibly archived through the supported app tool; subsequent agent inventory confirms exit. Notes/raw diagnostics preserved. No memory-recovery claim.
 
 All 26 finite items reconciled. Gallery, tests, original failures, build seal and verification receipt: test-results/dq-people-floor-contact-20261027/. Only owned resources closed. Local selective check-in follows, no upload/push/deploy/publication. Player/device/manual checks deferred; pacing/startup/DK grouping separately OPEN. Broader repeated programme remains unfinished and saved app goal remains blocked; no unsupported reactivation or replacement goal is claimed.
+
+## DR. Requested complete branch check-in, then cooperative recovery polish, 2026-10-27
+
+Nell explicitly requests "Commit and push all files please, and then proceed." This overrides the local-only publication hold solely for committing/pushing the present MillOS branch and pending repository files to established origin https://github.com/NellInc/MillOS.git. No main merge, tag, deployment or remote compute is implied. Subsequent polish remains local and muted, original interface/device/pacing holds persist. Current 8f99397d, 31 commits ahead of remote main08b5e7ec, existing branch has no remote ref/upstream. Four untracked review folders comprise179PNG/HTMLfiles/99,343,419bytes, all relative gallery references resolve. Ignore dependencies, caches, compiled dist and test-results as established. Inspect outgoing213uniquehistoryblobs/69,063,240bytes and179newfiles: no blob above100,000,000bytes, no credential-pattern findings; ordinaryGit, no LFS. Root reviewed actual game image and HTML scope, no unrelated document upload. Preserve protected primary and no unrelated branch mutation.
+
+Finite detailed task list:
+1. Reconcile owned HEAD, exact remote refs, branch, dirty scope and protected primary.
+2. Inventory all pending non-ignored repository files and outgoing implementation history.
+3. Inspect publication scope, gallery references, file formats and credential patterns.
+4. Check all outgoing blobs and new files against the100MBordinaryGitthreshold.
+5. Run the full existing test suite on the integrated31commit source, preserving final source/build/native proof.
+6. Commit all four pending review folders plus this precise authority record, no stage-all.
+7. Push current named branch normally, no force/main merge/deploy, verify exactremoteSHA.
+8. Preserve honest test/runtime/device/pacing boundaries and record actual push result.
+9. Inspect one next actual cooperative gameplay/recovery gap, prefer reproduced player-visible defect.
+10. Read both old and new contract consumers before selecting a small repair.
+11. Record affected-test baseline, add one regression that reproduces the existing defect.
+12. Correct domain readiness without changing UI, consent requirements, save authorities or charging rules.
+13. Exercise ordinary start, remaining-cost resume, insufficient funds and explicit consent paths.
+14. Run affected tests plus required type/lint/format/depth/shader/asset/build gates.
+15. Check fresh assembly and relevant muted browser runtime without player/device acceptance claims.
+16. Inspect actual diff, protect non-targets, close only owned temporary resources.
+17. Selectively check in the next coherent local pass, leaving broader programme unfinished.
+
+Working if all179pendingreviewfiles and31implementationcommits reach the verified namedremote branch, then a reproduced cooperative recovery issue is corrected and checked without publishing unvalidated follow-on work or altering the interface. Root owns integration, build, verification and final judgment. One bounded read-only cooperative scout runs independently while root performs check-in; no delegated edits or parallel renderers.
