@@ -240,6 +240,54 @@ describe('Living Cooperative, synthetic multi-shift fairness', () => {
     }
   );
 
+  it('pays a newly selected resumed plan once and retains its sunk setup across later revisions', () => {
+    const c = campaign();
+    c.run({ type: 'campaignDecision', args: ['keep-target', 'coordinator'] });
+    c.run({ type: 'respondToPressure', args: ['disclosure', 'protect-boundary'] });
+    c.agree();
+    expect(c.activate().changed).toBe(true);
+    c.run({ type: 'tick', args: [20, 0, false] });
+    c.restore();
+    expect(c.run({ type: 'resumeShift', args: [c.state.revision] }).changed).toBe(true);
+    const option = workplaceAlternatives(c.state).find((p) => p.id === 'resequence')!;
+    expect(option.cashAfterReservations).toBe(252);
+    expect(c.run({ type: 'selectPlan', args: ['resequence'] }).changed).toBe(true);
+    expect(c.activate().changed).toBe(false);
+    c.agree();
+    const poor = { ...c.state, finance: { ...c.state.finance, cash: 123.99 } };
+    expect(workplaceReadiness(poor).allowed).toBe(false);
+    const rejected = transitionWorkplace(poor, { type: 'activate', args: [poor.revision] });
+    expect(rejected.changed).toBe(false);
+    expect(rejected.state).toBe(poor);
+    expect(c.activate().changed).toBe(true);
+    expect(c.state.finance.cash).toBe(336);
+    expect(c.state.finance.improvementSpend).toBe(40);
+    expect(c.state.finance.wageReserve).toBe(84);
+    c.run({ type: 'tick', args: [5, 0, false] });
+    for (const plan of ['steady', 'resequence'] as const) {
+      c.restore();
+      expect(c.run({ type: 'resumeShift', args: [c.state.revision] }).changed).toBe(true);
+      expect(c.run({ type: 'selectPlan', args: [plan] }).changed).toBe(true);
+      expect(c.activate().changed).toBe(false);
+      c.agree();
+      expect(workplaceAlternatives(c.state).find((p) => p.id === plan)!.cashAfterReservations).toBe(
+        252
+      );
+      expect(c.activate().changed).toBe(true);
+      expect(c.state.finance.cash).toBe(330);
+      expect(c.state.finance.improvementSpend).toBe(40);
+      expect(c.state.finance.wageReserve).toBe(78);
+    }
+    c.finish();
+    expect(c.state.minute).toBe(90);
+    expect(c.state.finance.cash).toBe(252);
+    expect(c.state.finance.wagesPaid).toBe(108);
+    expect(c.state.members.every((m) => m.earnedPay === 27)).toBe(true);
+    c.restore();
+    expect(c.state.finance.improvementSpend).toBe(40);
+    expect(c.state.finance.cash).toBe(252);
+  });
+
   it('a resumed cover shift keeps its one cover member and only the cover left', () => {
     const c = campaign();
     c.run({ type: 'campaignDecision', args: ['keep-target', 'coordinator'] });

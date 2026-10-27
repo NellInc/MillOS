@@ -371,7 +371,7 @@ export function createWorkplace(mode: WorkplaceMode = 'game', seed = 1): Workpla
 
 /** Reload expires consent, not already-paid wages and purchases.
  * Working if readiness, public alternatives and activation reserve the same
- * remaining obligations without charging the plan twice.
+ * remaining obligations, charging newly selected setup once and retaining sunk costs.
  */
 function workplaceFunding(s: WorkplaceState, plan: WorkplacePlan | undefined) {
   const resumed = s.minute > 0;
@@ -382,7 +382,10 @@ function workplaceFunding(s: WorkplaceState, plan: WorkplacePlan | undefined) {
     wages: WAGE * Math.max(0, s.durationMinutes - s.minute) * s.members.length,
     coverLeft,
     compensation: coverLeft * (plan?.compensationPerMinute ?? 0),
-    purchase: resumed ? 0 : (plan?.budgetCost ?? 0) + improvementCost(s),
+    purchase: Math.max(
+      0,
+      (plan?.budgetCost ?? 0) + improvementCost(s) - s.finance.improvementSpend
+    ),
   };
 }
 
@@ -1725,17 +1728,14 @@ export function transitionWorkplace(
       const readiness = workplaceReadiness(s);
       if (!readiness.allowed) return reject(readiness.reasons.join(' '));
       const p = planOf(s);
-      // Every shift deliberates from minute 0, so deliberating later means a
-      // shift resumed after a reload: it was funded when it first activated.
-      // It reserves wages and cover only for what is left, and buys nothing again.
+      // Reloads expire consent. Reserve only unpaid work, retaining the setup
+      // already purchased while charging any newly selected setup before work.
       const funding = workplaceFunding(s, p);
       const { resumed, coverLeft } = funding;
       s.finance.wageReserve = funding.wages;
       s.finance.compensationReserve = funding.compensation;
-      if (!resumed) {
-        s.finance.cash -= funding.purchase;
-        s.finance.improvementSpend += funding.purchase;
-      }
+      s.finance.cash -= funding.purchase;
+      s.finance.improvementSpend += funding.purchase;
       // A cancelled proposal authorizes paid steady work, without purchasing
       // the abandoned arrangement. Keep that distinction in its saved receipt.
       if (s.improvement && !s.improvement.stopped) s.improvement.funded = true;
