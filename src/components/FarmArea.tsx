@@ -2396,6 +2396,7 @@ export const FarmArea: React.FC = () => {
   );
   // Head group of the primitive fallback. Null once the rigged GLB has
   // streamed in - `cowRigRefs` is the live channel from that point on.
+  const cowRestReset = useRef<(CreatureRigHandle | null)[]>(new Array(3).fill(null));
   const cowHeadRefs = useMemo(
     () => Array.from({ length: 3 }, () => React.createRef<THREE.Group>()),
     []
@@ -2528,6 +2529,10 @@ export const FarmArea: React.FC = () => {
     horseShakeState.current = 0;
     horseRigRef.current?.setResting?.(0, 500);
     horseRestReset.current = horseRigRef.current;
+    cowRigRefs.forEach((ref, i) => {
+      ref.current?.setResting?.(0, 300 + i);
+      cowRestReset.current[i] = ref.current;
+    });
     sheepRigRefs.forEach((ref, i) => {
       ref.current?.setResting?.(0, 400 + i);
       sheepRestReset.current[i] = ref.current;
@@ -2617,6 +2622,12 @@ export const FarmArea: React.FC = () => {
     const { gameDay, gameTime, gameSpeed, weather, isTabVisible } =
       useGameSimulationStore.getState();
     if (reducedMotion) {
+      cowRigRefs.forEach((ref, i) => {
+        if (ref.current && cowRestReset.current[i] !== ref.current) {
+          ref.current.setResting?.(0, 300 + i);
+          cowRestReset.current[i] = ref.current;
+        }
+      });
       sheepRigRefs.forEach((ref, i) => {
         if (ref.current && sheepRestReset.current[i] !== ref.current) {
           ref.current.setResting?.(0, 400 + i);
@@ -2631,6 +2642,7 @@ export const FarmArea: React.FC = () => {
       return;
     }
     horseRestReset.current = null;
+    cowRestReset.current.fill(null);
     sheepRestReset.current.fill(null);
     if (!isTabVisible || gameSpeed <= 0) return;
 
@@ -2877,6 +2889,7 @@ export const FarmArea: React.FC = () => {
       const rig = cowRigRefs[i].current;
       if (rig) {
         rig.setGraze(cowGraze.current[i]);
+        rig.setResting?.(time, 300 + i);
       } else if (ref.current) {
         // Nose down is a negative rotation about the primitive's local Z, its
         // pitch axis. The previous `rotation.x` write rolled the head sideways

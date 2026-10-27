@@ -132,6 +132,28 @@ export function sampleHorseRest(time: number, seed: number, out: HorseRestPose):
   return out;
 }
 
+/** Quiet dairy-herd life, sampled only from the existing owner's admitted time. */
+export const createCowRestPose = createHorseRestPose;
+export function sampleCowRest(time: number, seed: number, out: HorseRestPose): HorseRestPose {
+  out.breath = out.leftEar = out.rightEar = out.tail = 0;
+  if (!Number.isFinite(time) || time <= 0) return out;
+  const identity = Number.isFinite(seed) ? seed : 0;
+  const t = time * creatureCadence(identity);
+  const onset = Math.min(1, t / 0.8);
+  out.breath =
+    Math.sin((t * Math.PI * 2) / 5.1 + sampleAmbientSequence(identity, 81) * Math.PI * 2) *
+    onset *
+    onset *
+    (3 - 2 * onset);
+  const left = ((t % 17) - 3 - sampleAmbientSequence(identity, 82) * 3) / 1.1;
+  const right = ((t % 23) - 8 - sampleAmbientSequence(identity, 83) * 3) / 1.3;
+  if (left > 0 && left < 1) out.leftEar = Math.sin(left * Math.PI) ** 2;
+  if (right > 0 && right < 1) out.rightEar = Math.sin(right * Math.PI) ** 2;
+  const tail = ((t % 19) - 7 - sampleAmbientSequence(identity, 84) * 3) / 2.6;
+  if (tail > 0 && tail < 1) out.tail = Math.sin(tail * Math.PI) ** 2 * Math.sin(tail * Math.PI * 2);
+  return out;
+}
+
 export type SheepRestPose = Pick<HorseRestPose, 'breath' | 'leftEar' | 'rightEar'>;
 export const createSheepRestPose = (): SheepRestPose => ({ breath: 0, leftEar: 0, rightEar: 0 });
 

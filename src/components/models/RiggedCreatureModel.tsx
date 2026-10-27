@@ -70,6 +70,7 @@ import { useDracoGLTF } from '../../utils/dracoLoader';
 import { CREATURE_ASSET_PATHS, type CreatureId } from '../../utils/modelLoader';
 import ErrorBoundary from '../ErrorBoundary';
 import { createSheepRestMotion } from './sheepRestMotion';
+import { createCowRestMotion } from './cowRestMotion';
 import { createChickenWalk } from './chickenWalk';
 import {
   createHorseRestPose,
@@ -864,7 +865,9 @@ export const RiggedCreatureModel = React.forwardRef<CreatureRigHandle, RiggedCre
           ? createHorseRestMotion(model)
           : creature === 'sheep'
             ? createSheepRestMotion(model)
-            : null;
+            : creature === 'cow'
+              ? createCowRestMotion(model)
+              : null;
       return {
         model,
         bones,

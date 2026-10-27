@@ -2133,3 +2133,121 @@ it.each(['pig', 'cow'] as const)(
     }
   }
 );
+
+it('gives the actual cow quiet rest motion without disturbing feet, muzzle or borrowed coat', async () => {
+  const { RiggedCreatureModel } = await vi.importActual<
+    typeof import('./models/RiggedCreatureModel')
+  >('./models/RiggedCreatureModel');
+  const source = await actualCreature('cow');
+  boundary.asset = { scene: source };
+  const cloned = vi.spyOn(source, 'clone');
+  const ref = React.createRef<import('./models/RiggedCreatureModel').CreatureRigHandle>();
+  const view = render(<RiggedCreatureModel creature="cow" ref={ref} />);
+  const model = cloned.mock.results[0].value as THREE.Group;
+  const mesh = model.getObjectByName('CowBody') as THREE.SkinnedMesh;
+  const parent = new THREE.Group();
+  parent.position.set(15, 0.1, -8);
+  parent.rotation.y = 1.7;
+  parent.scale.setScalar(1.04);
+  parent.add(model);
+  ref.current!.setGraze(0.5);
+  ref.current!.setStride(1.2, 0.7);
+  ref.current!.setHeadShake(0.1);
+  ref.current!.setResting!(0, 300);
+  const before = creaturePoints(model, 'CowBody');
+  ref.current!.setResting!(4, 300);
+  ref.current!.setResting!(4.8, 300);
+  const after = creaturePoints(model, 'CowBody');
+  ref.current!.setHeadShake(0.1);
+  ref.current!.setStride(1.2, 0.7);
+  ref.current!.setGraze(0.5);
+  expect(creaturePoints(model, 'CowBody')).toEqual(after);
+  expect(
+    after.every((_, i) =>
+      mesh.boundingSphere!.containsPoint(mesh.getVertexPosition(i, new THREE.Vector3()))
+    )
+  ).toBe(true);
+  expect(Math.max(...after.map((p, i) => p.distanceTo(before[i])))).toBeGreaterThan(0.001);
+  ref.current!.setResting!(0, 300);
+  expect(creaturePoints(model, 'CowBody')).toEqual(before);
+  view.unmount();
+  expect(mesh.geometry).toBe((source.getObjectByName('CowBody') as THREE.SkinnedMesh).geometry);
+});
+
+it('fits quiet cow regions without horns/hooves, preserves corrected skin and releases private geometry in reverse order', async () => {
+  const { createCowRestMotion } = await import('./models/cowRestMotion');
+  const { createQuadrupedWalk } = await vi.importActual<
+    typeof import('./models/RiggedCreatureModel')
+  >('./models/RiggedCreatureModel');
+  const source = await actualCreature('cow');
+  const model = cloneSkeleton(source) as THREE.Group;
+  const mesh = model.getObjectByName('CowBody') as THREE.SkinnedMesh;
+  const borrowed = mesh.geometry;
+  const walking = createQuadrupedWalk(model, 'cow')!;
+  const corrected = mesh.geometry;
+  const rest = creaturePoints(model, 'CowBody');
+  const motion = createCowRestMotion(model)!;
+  expect(motion).not.toBeNull();
+  const own = mesh.geometry;
+  expect(own).not.toBe(corrected);
+  expect(own.index!.array).toEqual(corrected.index!.array);
+  for (const name of ['uv', 'skinIndex', 'skinWeight'])
+    expect(own.attributes[name].array).toEqual(corrected.attributes[name].array);
+  const before = attributeValues(corrected.attributes.position);
+  const protectedIndices = new Set(
+    rest.flatMap((p, i) => (p.y < 0.25 || p.z > 0.74 || p.y > 1.2 ? [i] : []))
+  );
+  const maximum = { ear: 0, tail: 0, breath: 0 };
+  let protectedDelta = 0,
+    normalError = 0;
+  const normal = new THREE.Vector3();
+  motion.apply(0.1, 300);
+  expect(attributeValues(own.attributes.position)).toEqual(before);
+  for (let t = 0.8; t < 40; t += 0.4) {
+    motion.apply(t, 300);
+    for (let i = 0; i < rest.length; i++) {
+      let d = 0;
+      for (let axis = 0; axis < 3; axis++)
+        d +=
+          (own.attributes.position.getComponent(i, axis) -
+            corrected.attributes.position.getComponent(i, axis)) **
+          2;
+      d = Math.sqrt(d);
+      if (protectedIndices.has(i)) protectedDelta = Math.max(protectedDelta, d);
+      if (rest[i].z < -0.8 && rest[i].y > 0.29 && rest[i].y < 0.95)
+        maximum.tail = Math.max(maximum.tail, d);
+      else if (rest[i].y > 0.98 && Math.abs(rest[i].x) > 0.19)
+        maximum.ear = Math.max(maximum.ear, d);
+      else maximum.breath = Math.max(maximum.breath, d);
+      normalError = Math.max(
+        normalError,
+        Math.abs(normal.fromBufferAttribute(own.attributes.normal, i).length() - 1)
+      );
+    }
+  }
+  expect(protectedDelta).toBe(0);
+  expect(normalError).toBeLessThan(0.00001);
+  expect(maximum.ear).toBeGreaterThan(0.003);
+  expect(maximum.ear).toBeLessThan(0.025);
+  expect(maximum.tail).toBeGreaterThan(0.025);
+  expect(maximum.tail).toBeLessThan(0.1);
+  expect(maximum.breath).toBeGreaterThan(0.002);
+  expect(maximum.breath).toBeLessThan(0.0041);
+  motion.apply(0, 300);
+  expect(attributeValues(own.attributes.position)).toEqual(before);
+  expect(attributeValues(own.attributes.normal)).toEqual(
+    attributeValues(corrected.attributes.normal)
+  );
+  const dispose = vi.spyOn(own, 'dispose'),
+    borrowedDispose = vi.spyOn(borrowed, 'dispose');
+  motion.dispose();
+  motion.dispose();
+  motion.apply(20, 300);
+  expect(dispose).toHaveBeenCalledOnce();
+  expect(mesh.geometry).toBe(corrected);
+  walking.dispose();
+  expect(mesh.geometry).toBe(borrowed);
+  expect(borrowedDispose).not.toHaveBeenCalled();
+  mesh.skeleton.dispose();
+  expect(createCowRestMotion(new THREE.Group())).toBeNull();
+});

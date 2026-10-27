@@ -9,6 +9,8 @@ import {
   COW_SPACE,
   creatureCadence,
   createHorseRestPose,
+  createCowRestPose,
+  sampleCowRest,
   sampleHorseRest,
   createSheepRestPose,
   sampleSheepRest,
@@ -551,4 +553,30 @@ it('keeps the original seeded cow herd clear with genuine target progress and ex
     });
   }
   expect(states.every((state) => state.sequenceStep >= 3)).toBe(true);
+});
+
+it('gives cows separate bounded ear/tail bouts and breathing, with exact neutral and deterministic seeds', () => {
+  const pose = createCowRestPose();
+  let ears = 0,
+    tail = 0,
+    independent = 0;
+  for (let t = 0.1; t < 60; t += 0.1) {
+    sampleCowRest(t, 300, pose);
+    expect(pose).toEqual(sampleCowRest(t, 300, createCowRestPose()));
+    expect(Math.abs(pose.breath)).toBeLessThanOrEqual(1);
+    expect(Math.abs(pose.tail)).toBeLessThanOrEqual(1);
+    expect(pose.leftEar).toBeGreaterThanOrEqual(0);
+    expect(pose.rightEar).toBeGreaterThanOrEqual(0);
+    if (pose.leftEar || pose.rightEar) ears++;
+    if (pose.tail) tail++;
+    if (Math.abs(pose.breath - sampleCowRest(t, 301, createCowRestPose()).breath) > 0.2)
+      independent++;
+  }
+  expect(ears).toBeGreaterThan(20);
+  expect(ears).toBeLessThan(150);
+  expect(tail).toBeGreaterThan(20);
+  expect(tail).toBeLessThan(130);
+  expect(independent).toBeGreaterThan(50);
+  for (const time of [0, -1, NaN, Infinity])
+    expect(sampleCowRest(time, 300, pose)).toEqual(createCowRestPose());
 });
