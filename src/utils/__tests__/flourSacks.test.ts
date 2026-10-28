@@ -95,16 +95,20 @@ describe('shared carried flour', () => {
       corners.set(key, n);
     }
   });
-  it('retains thin printed strokes at the third mip', () => {
-    const data = (FLOUR_STRIPE_MATERIAL.map as THREE.DataTexture).image.data as Uint8Array;
+  it('retains thin printed strokes at the same sixteen-texel pallet sampling scale', () => {
+    const image = (FLOUR_STRIPE_MATERIAL.map as THREE.DataTexture).image;
+    const data = image.data as Uint8Array,
+      size = image.width,
+      block = size / 16;
+    expect(Number.isInteger(block)).toBe(true);
     let total = 0;
     let retained = 0;
-    for (let y = 0; y < 128; y += 8) {
-      for (let x = 0; x < 128; x += 8) {
+    for (let y = 0; y < size; y += block) {
+      for (let x = 0; x < size; x += block) {
         let alpha = 0;
-        for (let dy = 0; dy < 8; dy++)
-          for (let dx = 0; dx < 8; dx++) alpha += data[((y + dy) * 128 + x + dx) * 4 + 3];
-        alpha /= 64 * 255;
+        for (let dy = 0; dy < block; dy++)
+          for (let dx = 0; dx < block; dx++) alpha += data[((y + dy) * size + x + dx) * 4 + 3];
+        alpha /= block * block * 255;
         total += alpha;
         if (alpha >= PALLET_PRINT_ALPHA_TEST) retained += alpha;
       }

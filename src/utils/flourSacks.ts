@@ -97,7 +97,7 @@ export const getFlourSackMaterial = (): THREE.MeshStandardMaterial => {
 
 export const FLOUR_STRIPE_GEOMETRY = new THREE.PlaneGeometry(0.34, 0.5);
 
-/** Top artwork and legible side product names share the existing ink batch. */
+/** Top artwork and side wordmarks share the existing product-neutral ink batch. */
 const createFlourSackPrintGeometry = (): THREE.BufferGeometry => {
   const projectionMaterial = new THREE.MeshBasicMaterial();
   const sack = new THREE.Mesh(getFlourSackGeometry(), projectionMaterial);
@@ -114,7 +114,7 @@ const createFlourSackPrintGeometry = (): THREE.BufferGeometry => {
       // The middle row follows the bag's shoulder fold rather than bridging it.
       const plate = new THREE.PlaneGeometry(axis === 'x' ? 0.6 : 0.34, 0.08, 1, 2);
       const uv = plate.getAttribute('uv');
-      // Crop the existing FLOUR line; do not invent a bag weight or batch ID.
+      // Crop the MillOS wordmark band; shared cargo has no product/lot identity.
       for (let i = 0; i < uv.count; i++)
         uv.setXY(i, 0.125 + uv.getX(i) * 0.75, 52 / 128 + (uv.getY(i) * 28) / 128);
       plate.rotateY(axis === 'x' ? (side * Math.PI) / 2 : side < 0 ? Math.PI : 0);

@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { getFlourSackMaps, generateGrainPattern } from './grain';
+import { getFlourSackMaps, getFlourSackPrint, generateGrainPattern } from './grain';
+import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import sharp from 'sharp';
+import { SACK_BRAND_ALPHA_SHA256, SACK_BRAND_LABEL, SACK_BRAND_SIZE } from './sackBrandRaster';
 
 describe('woven flour sack panels', () => {
   it('shares the preloader cache while keeping loose grain unchanged', () => {
@@ -60,5 +64,45 @@ describe('woven flour sack panels', () => {
     expect(xMax).toBeGreaterThan(139);
     expect(yMin).toBeLessThan(117);
     expect(yMax).toBeGreaterThan(139);
+  });
+
+  it('decodes exactly the authored product-neutral raster without an asynchronous loader', async () => {
+    const print = getFlourSackPrint(),
+      bytes = print.image.data as Uint8Array;
+    const alpha = Uint8Array.from({ length: SACK_BRAND_SIZE ** 2 }, (_, i) => bytes[i * 4 + 3]);
+    const png = readFileSync('assets/source/textures/millos-sack-stamp.png');
+    const expected = await sharp(png).flip().extractChannel(3).raw().toBuffer();
+    expect([...alpha]).toEqual([...expected]);
+    expect(createHash('sha256').update(alpha).digest('hex')).toBe(SACK_BRAND_ALPHA_SHA256);
+    expect(SACK_BRAND_LABEL).toBe('MillOS');
+    expect(getFlourSackPrint()).toBe(print);
+    expect(print.colorSpace).toBe(THREE.SRGBColorSpace);
+    expect(print.image.width).toBe(SACK_BRAND_SIZE);
+    expect(print.name).toBe('millos-product-neutral-sack-ink');
+    for (let i = 0; i < bytes.length; i += 4)
+      expect([bytes[i], bytes[i + 1], bytes[i + 2]]).toEqual([255, 255, 255]);
+  });
+
+  it('pins the actual existing application mark/font and confines the side wordmark to its retained UV band', () => {
+    const metadata = JSON.parse(
+      readFileSync('assets/source/textures/millos-sack-stamp.json', 'utf8')
+    );
+    expect(metadata.label).toBe('MillOS');
+    expect(metadata.kind).toBe('product-neutral single-ink brand stamp');
+    for (const [file, hash] of Object.entries(metadata.inputs))
+      expect(createHash('sha256').update(readFileSync(file)).digest('hex')).toBe(hash);
+    expect(createHash('sha256').update(readFileSync(metadata.artwork)).digest('hex')).toBe(
+      metadata.artworkSha256
+    );
+    expect(metadata.wordmarkUV).toEqual([0.125, 52 / 128, 0.875, 80 / 128]);
+    const { data, width } = getFlourSackPrint().image;
+    let marks = 0;
+    for (let y = Math.ceil(width * (52 / 128)); y < width * (80 / 128); y++)
+      for (let x = 0; x < width; x++) {
+        const alpha = data[(y * width + x) * 4 + 3];
+        if (x < width * 0.125 || x >= width * 0.875) expect(alpha).toBe(0);
+        else if (alpha > 128) marks++;
+      }
+    expect(marks).toBeGreaterThan(1000);
   });
 });

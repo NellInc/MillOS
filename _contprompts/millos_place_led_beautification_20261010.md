@@ -9015,3 +9015,54 @@ Final affected seven-file suite112PASS/zero failed. Source typecheck, agent:type
 Eighteen final native Metal captures pass original readiness/world/personnel/texture/quality/audio guards, all diagnostics empty. Root-authored assets reviewed directly by root: rounded lower crowns, veining, gardener context, strap leaves, whole plot day/dusk/night and Low. First candidate's pointed crowns were rejected and retained; final outer leaves remain intentionally economical stylized forms. Existing animation sources/clocks remain unchanged because the finite people audit established no new defect. A small actual eighth-shift advisory bug is reproduced and repaired in EN/pt-BR, with original Close Experiment, consent and obligation guards unchanged. Source tests do not certify a new human-played shift.
 
 Same-page held on/off/off/on civic isolation finds1,600,000stable pixels, zero self-motion exclusions and1,210,201changed stable pixels (mean maximum-channel delta30.6805). This proves the existing shadow term contributes, not a per-crop aesthetic or performance score. Exact muted native receipts, failed/superseded iterations and recap gallery retained. All task-owned browser/server/lock resources report closed, Blender quit; no foreign resources controlled. Current optional design-linter executable absent, no installation or interface styling change. Final status LOCAL ONLY. Recurring goal remains ACTIVE; pacing OPEN and physical player/device/native input/unmuted audio/native Brazilian editorial checks remain DEFERRED, without holding other work.
+
+## DZ: truthful branded mill packaging and product craft (2026-10-28)
+
+Previous goal turn is PROGRESS: three local commits, real garden/shadow implementation,112 affected assertions and18 native final frames. Current clean HEAD bf55a05d, retained exact build b5c8e5c6,75GiB free, active recurring goal. Keep local and muted; preserve interface, simulation authority, startup/readiness/quality/adaptation/budgets, rail/port/mountain placement and deferred device/player checks. No publication, external generation or remote compute.
+
+Live gap: `grain.ts` hand-encodes a tiny128px FLOUR stencil. Shared top/side print geometry and common pallet ink use it without product identity. The operating packer path can produce flour and semolina. A read-only leaf confirms this is product-blind artwork, not proof of a particular captured semolina shipment. Yard staging intentionally excludes semolina and is correct. The cargo models have no persisted lot owner, so switching a shared material from the current recipe would falsely relabel old cargo across changeover. Recommendation: proper product-neutral MillOS branding on the shared physical packaging, retaining actual typed inventory/order/dispatch feedback. No invented batch, weight, certification or product label.
+
+Pre-mortem: (1) new raster placement could miss the retained side-wordmark UV band, (2) antialiased strokes could disappear at compact pallet mips or glow at night, and (3) asynchronous artwork loading could regress readiness or diverge from the delivered GLB body. Use the established synchronous DataTexture/cache contract, existing print/cloth geometry, sRGB/opaque lit ink semantics, explicit raster provenance and exact-build before/after native views. Root owns production; the leaf supplies source findings, not a runtime verdict.
+
+### Finite detailed execution list
+
+1. Reconcile current branch, clean source, goal, last build seal, disk and task-owned capture resource state.
+2. Inspect current factory/yard/world pixels before choosing another object; leave accepted crop, people, boat, windmill and henhouse work alone.
+3. Trace common print from actual grain texture factory through conveyor, carried pallet and staging consumers.
+4. Confirm which meshes carry product identity and which are representational. Preserve all actual inventory, dispatch, consent and finance contracts.
+5. Separate correctly flour-only staging from the product-blind shared cargo artwork. Record the exact source evidence and its no-semoline-frame limit.
+6. Record affected baseline by name: flourSacks, grain, conveyor kinematics, ForkliftModel and pallet staging layout,5 files/46 PASS, zero failed.
+7. Inspect the actual existing MillOS mark and shipped Inter font; reuse them rather than inventing another brand.
+8. Author a clean single-ink raster stamp with the MillOS mark, refined wordmark and restrained rules, using local existing assets only.
+9. Keep the artwork product-neutral. Do not add product type, nominal bag weight, lot number, safety/quality certificate or decorative reward claim.
+10. Preserve the existing wordmark sampling band and top print proportions so the side prints remain legible on their actual folds.
+11. Use enough raster resolution for near inspection while keeping one tiny shared texture and no new material/mesh/light/draw/frame owner.
+12. Retain an ordinary lossless source PNG and a reproducible local producer, with actual mark/font input hashes.
+13. Encode the authored raster's alpha compactly for the existing synchronous DataTexture factory; do not add a new runtime loader, network request, dependency or decode framework.
+14. Keep texture caching, disposal and sRGB semantics; change its cache identity to match actual new content.
+15. Retain white texture pixels and material/instance ink tint ownership, allowing conveyor telemetry colours and existing dark pallet ink to work unchanged.
+16. Preserve alpha-test/depth-write/polygon-offset contracts and cloth visibility between strokes. No unlit/emissive print.
+17. Preserve every sack corner, normal, UV attachment, height and84-triangle body topology, including restored delivered GLB geometry.
+18. Preserve top/side ink geometry,1mm seating, pallet layers, fork-entry gaps, occupancy/counts, motion, routes and all existing LOD contracts.
+19. Inspect the actual GeneratedGeometrySurface far-side contract to confirm the new print is not hidden by a retained old baked product label.
+20. Add minimal existing-framework regressions for exact raster/embedded alpha equivalence, source provenance, wordmark-band occupancy, cache reuse and physical-scale mip retention.
+21. Update resolution-dependent test readers to use actual texture dimensions without weakening their retained-ink threshold.
+22. Run the affected suite, keeping failed outputs. Classify a real source/geometry/loader defect separately from an instrument's hard-coded old dimensions.
+23. Root inspect the coherent integrated diff and actual producer output. Use a bounded independent visual critique if the rendered graphics reveal a concrete craft concern.
+24. Run required typecheck, agent:typecheck, lint, format, depth/shader/assets/manifest checks on the final source.
+25. Commit only the owned source/artwork locally, then build v0.40 once under the existing capture lock and4GiB guard; seal all actual source/build inputs, including new artwork sources.
+26. Run fresh bundle, reachability and inhabited-world checks on that sealed build.
+27. Capture a current-build before stencil, then final actual belt-sack and pallet views at useful top/side angles, using no inventory/actor overrides.
+28. Review day/dusk/night and Low contexts through original ready/world/personnel/texture/effective-quality/audio guards. Preserve any empty-stock condition honestly rather than creating goods for a photograph.
+29. Check both procedural and delivered body/compact pallet appearances, printed side readability, cloth relief, seated ink and night response. Fixed-time art is not animation proof.
+30. Check the product-neutral artwork reaches every shared live consumer while all actual typed product feedback and flour-only staging tests remain correct.
+31. Retain source raster, generated data, exact build, raw captures, terminal logs and any failed attempt; close only task-owned temporary resources through their owning APIs.
+32. Record a task-by-task disposition and local commit custody. Keep the recurring goal ACTIVE, pacing OPEN separately and device/player/audio/editorial checks DEFERRED. No push, main merge or deployment.
+
+Allowed production surfaces: grain.ts, focused raster-data module, existing flourSacks comments if needed, a local source-artwork PNG/provenance/producer, and existing grain/flourSacks/conveyor tests. Consumers may change only for a demonstrated integration defect; no new product lineage, interface, machine placement, clock, geometry family, model replacement or global material override. Working if the common sacks visibly carry a refined real MillOS brand without falsely asserting flour for product-blind cargo, existing physical/stock/motion/LOD contracts hold, synchronous startup is preserved, and source/native gates identify the exact accepted candidate.
+
+DZ source implementation: existing256px application mark and shipped Inter become a256px single-ink source PNG, compact generated alpha data and the unchanged synchronous DataTexture API/cache. No new runtime request or material family. Its wordmark stays within the existing side-UV band. Five affected files now48PASS versus46baseline, zero failed; two focused provenance/pixel regressions added. All original source gates pass. After reversing two comments, flourSacks.ts is byte-exact against baseline: every corner, normal, ink plate, offset, pallet layer and material contract is unchanged. Inventory/dispatch/conveyor/forklift/staging source owners remain untouched.
+
+Authoring correction: the first local raster revealed a clipped symbol because Sharp reorders channel join versus resize; materializing the masked input before resizing fixes it. Original PNG/receipt retained under first-raster/. Bundled Fontconfig lacked a default config/cache and emitted warnings; the producer now supplies only the existing project font directory and a task-owned disposable cache, restoring the environment and removing that exact cache in finally. Clean final producer emits no warnings, and --check verifies the embedded pixels/provenance without re-rendering text.
+
+Before native artifact: four real belt/staging frames clearly show the old FLOUR stencil. The first cargo reader incorrectly required a JSX material name; corrected geometry identity finds the carried ink, but a close frame catches a legitimate pickup fade. That frame is retained and does not establish a fully carried opaque load. Final cargo inspection requires actual opacity>.98, waits up to15seconds of unheld natural simulation, then holds for the shot; no inventory, actor, opacity or quality override. Missing full stock remains an explicit evidence limit rather than a forced photograph.

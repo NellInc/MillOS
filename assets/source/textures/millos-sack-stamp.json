@@ -1,0 +1,18 @@
+{
+  "label": "MillOS",
+  "kind": "product-neutral single-ink brand stamp",
+  "artwork": "assets/source/textures/millos-sack-stamp.png",
+  "size": 256,
+  "artworkSha256": "7f47be73f77bc79e3734c7b94a820565c6a313bf3d2015f07ea72d8d816e009f",
+  "alphaSha256": "c4bfc7028da5be98e22efd4cfbadf6a66ff2347705fb8f829d65578bd5c3d0de",
+  "inputs": {
+    "public/textures/signage/millos-mark-v1.webp": "61349b91823369b614504f4b250933208ca126f1b6ef38b04e08446e6a70fda3",
+    "public/fonts/Inter-Regular.ttf": "6debf0c231cf9a9d4552db02d3ca9515d841b37f2a6fe9881a74fe906f61b645"
+  },
+  "wordmarkUV": [
+    0.125,
+    0.40625,
+    0.875,
+    0.625
+  ]
+}

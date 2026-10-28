@@ -7,6 +7,7 @@
  */
 
 import * as THREE from 'three';
+import { SACK_BRAND_ALPHA_RUNS, SACK_BRAND_SIZE } from './sackBrandRaster';
 import {
   getTexture,
   hash,
@@ -306,39 +307,24 @@ export const getFlourSackMaps = (): GrainMapSet => {
 /** Single ink plate, with transparent cloth between letters. No fixed weight:
  * each bag's actual 25-30 kg value remains in its existing batch tooltip. */
 export const getFlourSackPrint = (): THREE.DataTexture =>
-  getTexture('sack-flour-print-v1', () => {
-    const size = 128;
+  getTexture('sack-millos-brand-raster-v2', () => {
+    const size = SACK_BRAND_SIZE;
     const data = new Uint8Array(size * size * 4);
-    const paint = (x: number, y: number, width: number, height: number) => {
-      for (let j = y; j < y + height; j++) {
-        for (let i = x; i < x + width; i++) {
-          const offset = (j * size + i) * 4;
-          data[offset] = data[offset + 1] = data[offset + 2] = 255;
-          data[offset + 3] = 255;
-        }
+    // White RGB, even in transparent texels, avoids dark mip fringes. Existing
+    // instances/materials still own the ink tint; only the raster alpha changes.
+    // Shared cargo has no lot/product identity, so its stamp says MillOS alone.
+    // Working if the exact retained raster reaches top and side ink batches
+    // synchronously, without commodity/weight claims or a second loading phase.
+    data.fill(255);
+    let pixel = 0;
+    for (let run = 0; run < SACK_BRAND_ALPHA_RUNS.length; run += 2) {
+      const count = SACK_BRAND_ALPHA_RUNS[run],
+        alpha = SACK_BRAND_ALPHA_RUNS[run + 1];
+      for (let end = pixel + count; pixel < end; pixel++) {
+        data[pixel * 4 + 3] = alpha;
       }
-    };
-    const letters = [
-      ['11111', '10000', '10000', '11110', '10000', '10000', '10000'],
-      ['10000', '10000', '10000', '10000', '10000', '10000', '11111'],
-      ['01110', '10001', '10001', '10001', '10001', '10001', '01110'],
-      ['10001', '10001', '10001', '10001', '10001', '10001', '01110'],
-      ['11110', '10001', '10001', '11110', '10100', '10010', '10001'],
-    ];
-    letters.forEach((rows, letter) =>
-      rows.forEach((row, y) => {
-        [...row].forEach((pixel, x) => {
-          if (pixel === '1') paint(20 + letter * 18 + x * 3, 75 - y * 3, 3, 3);
-        });
-      })
-    );
-    // Small printed wheat ear and two rules, broad enough to survive mipmaps.
-    paint(62, 84, 3, 25);
-    for (let row = 0; row < 3; row++) {
-      paint(54, 87 + row * 7, 7, 4);
-      paint(66, 90 + row * 7, 7, 4);
     }
-    paint(22, 43, 84, 3);
-    paint(22, 31, 84, 3);
-    return createColorDataTexture(data, size, size);
+    const texture = createColorDataTexture(data, size, size);
+    texture.name = 'millos-product-neutral-sack-ink';
+    return texture;
   });
